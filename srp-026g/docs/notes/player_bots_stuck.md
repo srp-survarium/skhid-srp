@@ -271,6 +271,28 @@ Ranked by what they would do for the bots (each a suggestion, not built):
    `the_hop_cools_down`, `flat_walking_never_hops`,
    `no_hop_under_a_low_floor_or_by_a_planned_jump`. Not seen in a real
    game.
+   **No jump while the weapon fires** (PROVEN in the code, 2026-10-23):
+   the jump goes through `weapon_user_animations_selector::jump_predicate`
+   (0x2FBDC0), which asks the weapon in hand's `can_jump` (0x2E3A70, its
+   vtable+64h) before `is_trying_to_jump` (0x2FC230, the jump bit of the
+   actions). `can_jump` answers yes only for the weapon state ids 3 (idle),
+   4 (reload) and 6 (chamber a round); the ids are each state's
+   constructor's push to `weapon_core_base_state`'s (0x31EAB0, id at
+   +124h): 1 show, 2 hide, 3 idle, 4 reload, 5 fire, 6 chamber a round.
+   Aiming is no state (`m_aimed`, +5E8h) and is not asked: it does not
+   stop a jump. A bot fired on through its jumps (the route's, a hop, the
+   unstick's), so a jump pressed with the trigger down was dropped. Now
+   (`mod.rs`, `jumping`): a jump with the trigger down now or within
+   300 ms is held 300 ms with the trigger let go (`JUMP_HOLD_MS`; the
+   round counted that tick given back, `Reflex::hold_fire`); otherwise it
+   is the one tick it was. Whether 300 ms covers every weapon's fire state
+   is not measured.
+   **Traced:** with `SRP_BOT_TRACE_DIR` set, each jump is a line
+   (`"jump"`: `route`, `hop` or `unstick`; `pos`, `firing`, `aiming`), and
+   what followed it another (`"jumped"`, `after_ms`, `then`: `went on`
+   after 3 s, `stuck: <recovery>`, `jumped again` or `a new life`;
+   `moved_m`, `rose_m` from where it jumped). A hop that frees a body is a
+   `went on` with some metres moved; one that does not, a `stuck` soon after.
 3. **Short stops** (GUESS on impact). Players stand 2 s at the median, 6 s
    at the 90th percentile; bots look about 1-2 s at an arrival and stand to
    aim. Suggest: `tactics.rs`'s hold plays end in 2-6 s by that spread.

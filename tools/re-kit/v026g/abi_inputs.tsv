@@ -4417,3 +4417,9 @@ va	name	location	role	basis
 0x000e5b60	vostok::resources::query_resources	entry ESP+12	the user data	observed
 0x000e5b60	vostok::resources::query_resources	entry ESP+16	the parent query, or 0	observed
 0x000e5b60	vostok::resources::query_resources	entry ESP+20	a flag (1 at weapon_camo's bake)	observed
+0x002e3a70	survarium::weapon_core::can_jump	ECX	the weapon_core (its state machine's current state at +330h)	observed
+0x002fbdc0	survarium::weapon_user_animations_selector::jump_predicate	ECX	the selector (the player at +44h; the weapon in hand at player+128h)	observed
+0x002fc230	survarium::weapon_user_animations_selector::is_trying_to_jump	ESI	the selector (the player at +44h)	observed
+0x0031eab0	survarium::weapon_core_base_state::weapon_core_base_state	EDI	the state being built	observed
+0x0031eab0	survarium::weapon_core_base_state::weapon_core_base_state	entry ESP+4	stored at +120h	observed
+0x0031eab0	survarium::weapon_core_base_state::weapon_core_base_state	entry ESP+8	the state's id, stored at +124h: 1 show, 2 hide, 3 idle, 4 reload, 5 fire, 6 chamber a round; 7 and 8 are pushed near the grenade substates, not settled (the derived constructors' pushes)	observed

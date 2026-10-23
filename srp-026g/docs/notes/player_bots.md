@@ -349,7 +349,8 @@ the archive's index: a loader must follow them.
      `tuning` (every number; `SRP_BOT_TUNING` JSON read when a match is
      made, unknown fields refused, hashed) and `trace`
      (`SRP_BOT_TRACE_DIR`: a JSON line per decision with every candidate's
-     considerations).
+     considerations, and one per jump and what followed it,
+     `player_bots_stuck.md` §6).
    - Plays: roam toward the enemy base by the routes humans took (17;
      drawn by what a life on each gave, less where a teammate died or
      teammates already went, more for a fighter where enemies are known;

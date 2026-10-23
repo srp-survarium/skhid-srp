@@ -2945,3 +2945,45 @@ fn the_side_step_weaves_a_walk_along_the_view() {
     assert_eq!(weave(0, key::LEFT), None);
     assert_eq!(weave(key::FORWARD, 0), None);
 }
+
+/// A jump while the trigger is down: held [`JUMP_HOLD_MS`] with the trigger
+/// let go (the weapon takes no jump while it fires, 0x2E3A70), then the
+/// trigger again; a jump with the trigger not down lately is the one tick
+/// it was. Each jump is traced, and what followed it.
+#[test]
+fn a_jump_lets_the_trigger_go_and_is_traced() {
+    let tuning = Tuning::default();
+    let at = Vec3::new(1.0, 0.0, 2.0);
+    let walk = key::FORWARD | key::FIRE;
+    let mut bot = Bot::new(1, 0, 0, Some("support"), &tuning);
+    bot.tracing = true;
+    assert_eq!(jumping(&mut bot, walk, None, at, 1_000), walk);
+    let hold = (JUMP_HOLD_MS / TICK_MS) as usize;
+    let mut sent = vec![jumping(&mut bot, walk | key::JUMP, Some("hop"), at, 1_050)];
+    for k in 1..hold + 2 {
+        sent.push(jumping(&mut bot, walk, None, at, 1_050 + TICK_MS * k as u32));
+    }
+    let held = key::FORWARD | key::JUMP;
+    assert!(sent[..hold].iter().all(|&k| k == held), "{sent:?}");
+    assert!(sent[hold..].iter().all(|&k| k == walk), "{sent:?}");
+    assert_eq!(bot.traced.len(), 1);
+    assert_eq!(bot.traced[0]["jump"], "hop");
+    assert_eq!(bot.traced[0]["firing"], true);
+    bot.jump_followed(4_050, Some(at + Vec3::new(2.0, 0.5, 0.0)), "went on");
+    assert_eq!(bot.traced[1]["jumped"], "hop");
+    assert_eq!(bot.traced[1]["then"], "went on");
+    assert_eq!(bot.traced[1]["after_ms"], 3_000);
+    assert!((bot.traced[1]["moved_m"].as_f64().unwrap() - 2.0).abs() < 1e-6);
+    assert!(bot.jump_watch.is_none());
+
+    // Not firing: one tick, as before.
+    let mut bot = Bot::new(1, 0, 0, Some("support"), &tuning);
+    let walk = key::FORWARD;
+    assert_eq!(
+        jumping(&mut bot, walk | key::JUMP, Some("route"), at, 1_000),
+        walk | key::JUMP
+    );
+    assert_eq!(jumping(&mut bot, walk, None, at, 1_050), walk);
+    // Not tracing: watched, no line.
+    assert!(bot.traced.is_empty() && bot.jump_watch.is_some());
+}

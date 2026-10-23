@@ -923,6 +923,8 @@ pub struct Reflex {
     /// the next press not before `next_press`.
     press_until: u32,
     next_press: u32,
+    /// The rounds the trigger counted and when ([`Reflex::hold_fire`]).
+    fired: (u32, u32),
     /// The last tick and the time since the one before, ms (the fire's
     /// time).
     last_tick: Option<u32>,
@@ -2071,7 +2073,27 @@ impl Reflex {
         };
         let load = self.hands().held_mut();
         load.rounds = load.rounds.saturating_sub(shots);
+        self.fired = (now, shots);
         true
+    }
+
+    /// The trigger let go at `now` though this tick's [`Reflex::tick`]
+    /// fired (a jump: the weapon takes none while it fires,
+    /// `weapon_core::can_jump` 0x2E3A70): the rounds it counted this tick
+    /// are given back, a burst held starts again, and a weapon of a round a
+    /// press may press again.
+    pub fn hold_fire(&mut self, now: u32) {
+        self.held_ms = 0;
+        self.press_until = self.press_until.min(now);
+        let (at, shots) = std::mem::take(&mut self.fired);
+        if at == now && shots > 0 {
+            let gun = self.hands().held().gun;
+            let load = self.hands().held_mut();
+            load.rounds = (load.rounds + shots).min(gun.magazine);
+            if !gun.auto {
+                self.next_press = now;
+            }
+        }
     }
 
     /// A run of the side step the other way than the last.
@@ -3260,6 +3282,41 @@ mod tests {
         let (over, _) = kicked_fight("support", 20.0, &lifted, 200);
         let highest = over.iter().copied().fold(f32::NEG_INFINITY, f32::max);
         assert!(highest > 0.8, "{highest}");
+    }
+
+    /// The trigger let go for a jump in a tick that fired: that tick's
+    /// rounds are given back, an automatic's burst starts again, and a
+    /// weapon of a round a press may press again at once.
+    #[test]
+    fn a_shot_let_go_for_a_jump_is_given_back() {
+        let c = CombatTuning::default();
+        let mut rng = Rng::new(5);
+        let mut auto = Reflex::armed(Arms::of_test_role("support"));
+        auto.tick_ms = 50;
+        let mut given_back = false;
+        for k in 0..20 {
+            let now = 1_000 + 50 * k;
+            let before = auto.hands().held().rounds;
+            assert!(auto.trigger(true, true, now, &c, 20.0, &mut rng));
+            if auto.hands().held().rounds < before {
+                auto.hold_fire(now);
+                assert_eq!(auto.hands().held().rounds, before);
+                assert_eq!(auto.held_ms, 0);
+                given_back = true;
+                break;
+            }
+        }
+        assert!(given_back);
+        let mut bolt = Reflex::armed(Arms::of_test_role("camper"));
+        let full = bolt.hands().held().rounds;
+        assert!(bolt.trigger(true, true, 1_000, &c, 50.0, &mut rng));
+        assert_eq!(bolt.hands().held().rounds, full - 1);
+        bolt.hold_fire(1_000);
+        assert_eq!(bolt.hands().held().rounds, full);
+        assert!(bolt.next_press <= 1_050 && bolt.press_until <= 1_000);
+        // A tick later, nothing more to give back.
+        bolt.hold_fire(1_050);
+        assert_eq!(bolt.hands().held().rounds, full);
     }
 
     /// Walking into its weapon's band (the reflex's legs, a walk: an Uzi at

@@ -209,6 +209,17 @@ pub struct Motor {
     way: [f32; 2],
     /// … and the tick of the last hop.
     hopped: Option<u32>,
+    /// The jump this tick's decision pressed, if any.
+    jump: Option<JumpBy>,
+}
+
+/// Why the motor pressed jump.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JumpBy {
+    /// A jump link of the route ([`Motor::jump_key`]).
+    Route,
+    /// Caught on rising ground ([`Motor::hop_key`]).
+    Hop,
 }
 
 impl Motor {
@@ -228,7 +239,19 @@ impl Motor {
             trail: VecDeque::new(),
             way: [0.0, 0.0],
             hopped: None,
+            jump: None,
         }
+    }
+
+    /// The jump this tick's decision pressed, and why.
+    pub fn jumped(&self) -> Option<JumpBy> {
+        self.jump
+    }
+
+    /// A new tick's decision begins.
+    fn next_tick(&mut self) {
+        self.clock = self.clock.wrapping_add(1);
+        self.jump = None;
     }
 
     /// The tick's turn toward `yaw` and `pitch` from the pose: eased, within
@@ -277,7 +300,7 @@ impl Motor {
         off_m: f32,
         clear: impl Fn(Vec3) -> bool,
     ) -> (Decision, Walked) {
-        self.clock = self.clock.wrapping_add(1);
+        self.next_tick();
         self.look = None;
         let (s, off) = route.progress(pose.feet);
         let left = route.length() - s;
@@ -362,7 +385,7 @@ impl Motor {
         clear: impl Fn(Vec3) -> bool,
         aim: (f32, f32),
     ) -> (Decision, Walked) {
-        self.clock = self.clock.wrapping_add(1);
+        self.next_tick();
         self.look = None;
         self.sprinting = false;
         self.facing_ticks = 0;
@@ -413,6 +436,7 @@ impl Motor {
         };
         if self.walking && before < 0.8 && again {
             self.jumped_at = Some((k, 0));
+            self.jump = Some(JumpBy::Route);
             key::JUMP
         } else {
             0
@@ -484,6 +508,7 @@ impl Motor {
         }
         if hop {
             self.hopped = Some(self.clock);
+            self.jump = Some(JumpBy::Hop);
             key::JUMP
         } else {
             0
@@ -558,7 +583,7 @@ impl Motor {
 
     /// The decision of one tick standing and looking at `aim`.
     pub fn aim_still(&mut self, pose: &Pose, aim: (f32, f32)) -> Decision {
-        self.clock = self.clock.wrapping_add(1);
+        self.next_tick();
         self.walking = false;
         self.sprinting = false;
         self.facing_ticks = 0;
@@ -573,7 +598,7 @@ impl Motor {
     /// of the eight ways nearest the way to go while the view turns to
     /// `aim`, else keeps its yaw; no sprint.
     pub fn step_to(&mut self, pose: &Pose, to: Vec3, aim: Option<(f32, f32)>) -> Decision {
-        self.clock = self.clock.wrapping_add(1);
+        self.next_tick();
         // Moved by keys off any route: the hop's trail is not the way.
         self.trail.clear();
         self.sprinting = false;
@@ -595,7 +620,7 @@ impl Motor {
 
     /// The decision of one tick standing still and looking about.
     pub fn stand(&mut self, pose: &Pose, rng: &mut Rng) -> Decision {
-        self.clock = self.clock.wrapping_add(1);
+        self.next_tick();
         self.walking = false;
         self.sprinting = false;
         self.facing_ticks = 0;
@@ -614,7 +639,7 @@ impl Motor {
 
     /// Hands off: no keys, no turn (dead, or waiting for a world).
     pub fn rest(&mut self) -> Decision {
-        self.clock = self.clock.wrapping_add(1);
+        self.next_tick();
         self.trail.clear();
         self.rate = (0.0, 0.0);
         self.walking = false;
@@ -726,7 +751,12 @@ mod tests {
                 } else {
                     motor.walk(&mut route, &pose, 5.0, |_| true)
                 };
+                assert_eq!(
+                    motor.jumped().is_some(),
+                    decision.keys & key::JUMP != 0
+                );
                 if decision.keys & key::JUMP != 0 {
+                    assert_eq!(motor.jumped(), Some(JumpBy::Route));
                     jumps.push(tick);
                 }
             }
@@ -905,6 +935,7 @@ mod tests {
             };
             assert_eq!(walked, Walked::OnTheWay, "{tick}: {pose:?}");
             if decision.keys & key::JUMP != 0 {
+                assert!(motor.jumped().is_some());
                 jumps.push(tick);
             }
             x = (x + step).min(reach);

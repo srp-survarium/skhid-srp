@@ -65,7 +65,7 @@ use body::Fix;
 use cheats::CheatClock;
 use encode::{Decision, Encoder};
 use know::{DangerSpot, LookSpot, Loss, Memory, Percept, Source, TeamKnowledge, Theft};
-use motor::{Motor, Pose, Walked};
+use motor::{JumpBy, Motor, Pose, Walked};
 use path::Route;
 use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
 use reflex::Reflex;
@@ -90,6 +90,15 @@ const REPLAN_ERROR_M: f32 = 2.0;
 /// The reflex's side step is taken only with a clear walk this far that
 /// side, metres (no step off a ledge or into a wall).
 const STRAFE_CLEAR_M: f32 = 1.5;
+/// A jump pressed while the weapon fired lately is held this long, ms,
+/// with the trigger let go: the weapon takes a jump only idle, reloading or
+/// chambering a round (`weapon_core::can_jump` 0x2E3A70: states 3, 4 and
+/// 6; `jump_predicate` 0x2FBDC0 asks it before the jump key), never while
+/// it fires (5), shows or hides (1, 2). Aiming is no state: it does not
+/// stop a jump. PROVEN in the code; `docs/notes/player_bots_stuck.md` §6.
+const JUMP_HOLD_MS: u32 = 300;
+/// What followed a jump is traced this long after it at most, ms.
+const JUMP_WATCH_MS: u32 = 3_000;
 /// A goal no way was found to is not planned to again for this long, ms.
 const NO_WAY_RETRY_MS: u32 = 500;
 /// How long the plays leave a goal no way was found to (`Bot::no_way_to`):
@@ -183,6 +192,16 @@ pub struct Bot {
     press: u32,
     /// Keys held for a few ticks to get unstuck.
     unstick: Option<(u32, u32)>,
+    /// Ticks left of a jump held with the trigger let go ([`JUMP_HOLD_MS`]),
+    /// and the last tick the trigger was down.
+    jump_hold: u32,
+    fired_at: Option<u32>,
+    /// The last jump, until what followed it is traced.
+    jump_watch: Option<JumpWatch>,
+    /// Whether the match traces, and the trace lines made while driving
+    /// (written at the bot's ticks).
+    tracing: bool,
+    traced: Vec<serde_json::Value>,
     /// Standing still until, after giving a spot up.
     pause_until: u32,
     next_think: u32,
@@ -278,6 +297,11 @@ impl Bot {
             no_way_to: Vec::new(),
             press: 0,
             unstick: None,
+            jump_hold: 0,
+            fired_at: None,
+            jump_watch: None,
+            tracing: false,
+            traced: Vec::new(),
             pause_until: 0,
             next_think: 0,
             heard_until: 0,
@@ -406,6 +430,8 @@ impl Bot {
         self.intent = Intent::stay();
         self.stuck.reset();
         self.unstick = None;
+        self.jump_hold = 0;
+        self.fired_at = None;
         // The kit it spawned in keeps its storage less what it fired; the
         // kit it picked fills this life from its own (0x2FCB70: the slot's
         // rounds, at most what the storage has).
@@ -852,6 +878,7 @@ impl Bots {
         };
         let team = usize::from(bot.team & 1);
         if new_life && let Some(feet) = feet {
+            bot.jump_followed(time, None, "a new life");
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
             bot.note(
                 &mut notes,
@@ -866,6 +893,7 @@ impl Bots {
         let goal = *goal;
         let meant = self.tracker.body(place).and_then(|body| body.last_meant());
         if let Some(recovery) = bot.stuck.walking(time, feet, meant) {
+            bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             bot.note(
                 &mut notes,
                 time,
@@ -1859,6 +1887,7 @@ impl Bots {
         let Some(entered) = bot.entered else {
             return;
         };
+        bot.tracing = self.trace.enabled();
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         let searching = &mut self.searching;
         for time in bot.encoder.ticks(clock.clock, entered + START_AFTER_MS) {
@@ -1902,6 +1931,9 @@ impl Bots {
                     input,
                 });
             }
+        }
+        for line in bot.traced.drain(..) {
+            self.trace.line(line);
         }
     }
 }
@@ -1957,12 +1989,21 @@ fn drive_tick(
         pitch: me.pitch,
         speed: me.speed(),
     };
+    if bot
+        .jump_watch
+        .as_ref()
+        .is_some_and(|watch| time >= watch.at + JUMP_WATCH_MS)
+    {
+        bot.jump_followed(time, Some(me.feet), "went on");
+    }
     // Getting unstuck overrides the rest: the keys for a few ticks, the
     // jump on the first.
     if let Some((keys, ticks)) = bot.unstick {
         bot.unstick = (ticks > 1).then_some((keys & !key::JUMP, ticks - 1));
         bot.motor.turn_time = None;
         let decision = bot.motor.rest();
+        let by = (keys & key::JUMP != 0).then_some("unstick");
+        let keys = jumping(bot, keys, by, me.feet, time);
         return Decision { keys, ..decision };
     }
     // [aimpoint] What of its target shows, before the reflex aims.
@@ -1972,7 +2013,8 @@ fn drive_tick(
         view,
         &bot.memory,
         time,
-        intent.fire,
+        // No shot while a jump is held (`JUMP_HOLD_MS`).
+        intent.fire && bot.jump_hold == 0,
         &tuning.aim,
         bot.skill,
         &mut bot.rng,
@@ -2238,7 +2280,74 @@ fn drive_tick(
     if decision.keys & key::QUICK[0] != 0 {
         bot.medkits_used = bot.medkits_used.saturating_add(1);
     }
+    let by = bot.motor.jumped().map(|by| match by {
+        JumpBy::Route => "route",
+        JumpBy::Hop => "hop",
+    });
+    decision.keys = jumping(bot, decision.keys, by, me.feet, time);
     decision
+}
+
+/// A jump watched for its trace: why, when and from where.
+#[derive(Clone, Copy, Debug)]
+struct JumpWatch {
+    by: &'static str,
+    at: u32,
+    from: Vec3,
+}
+
+impl Bot {
+    /// The trace line of what followed the jump watched, if any (`then`, at
+    /// `time`, the feet then if known); the watch ends.
+    fn jump_followed(&mut self, time: u32, feet: Option<Vec3>, then: &str) {
+        let Some(watch) = self.jump_watch.take() else {
+            return;
+        };
+        if self.tracing {
+            self.traced.push(serde_json::json!({
+                "t": time, "bot": self.place, "jumped": watch.by,
+                "after_ms": time.saturating_sub(watch.at), "then": then,
+                "moved_m": feet.map(|f| f.distance_xz(watch.from)),
+                "rose_m": feet.map(|f| f.y - watch.from.y),
+            }));
+        }
+    }
+}
+
+/// A tick's keys with its jump. A jump pressed now (`by`: the route's, a
+/// hop, getting unstuck) is traced and watched; with the trigger down now or
+/// within [`JUMP_HOLD_MS`] it is held that long with the trigger let go, the
+/// shot of this tick given back ([`Reflex::hold_fire`]), as the weapon takes
+/// no jump while it fires.
+fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: Vec3, time: u32) -> u32 {
+    let firing = keys & key::FIRE != 0;
+    if let Some(by) = by.filter(|_| bot.jump_hold == 0) {
+        let lately = firing || bot.fired_at.is_some_and(|at| time < at + JUMP_HOLD_MS);
+        bot.jump_hold = if lately {
+            (JUMP_HOLD_MS as f32 / (kin::TICK_S * 1000.0)).round() as u32
+        } else {
+            1
+        };
+        bot.jump_followed(time, Some(feet), "jumped again");
+        if bot.tracing {
+            bot.traced.push(serde_json::json!({
+                "t": time, "bot": bot.place, "jump": by, "pos": feet.to_array(),
+                "firing": lately, "aiming": keys & key::AIM != 0,
+            }));
+        }
+        bot.jump_watch = Some(JumpWatch { by, at: time, from: feet });
+    }
+    if bot.jump_hold == 0 {
+        if firing {
+            bot.fired_at = Some(time);
+        }
+        return keys;
+    }
+    bot.jump_hold -= 1;
+    if firing {
+        bot.reflex.hold_fire(time);
+    }
+    (keys | key::JUMP) & !key::FIRE
 }
 
 /// A walk's keys with the side step `strafe` woven in: a walk straight to
