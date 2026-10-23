@@ -643,6 +643,13 @@ impl Bots {
         std::mem::take(&mut self.kit_choices)
     }
 
+    /// The speed level each place's profile gives, by place
+    /// (`survarium::v026g::bot_skills::profile_movement_level`): the bodies
+    /// move at it until a world shows a life's own.
+    pub fn set_speed_levels(&mut self, levels: &[Option<f32>]) {
+        self.tracker.set_prior_levels(levels);
+    }
+
     /// Every place's weapon 1 kind (the matchup, play 11).
     pub fn set_weapons(&mut self, weapons: Vec<Option<reflex::WeaponKind>>) {
         self.weapons = weapons;

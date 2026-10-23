@@ -877,7 +877,7 @@ pub fn bot_role_of(profile: &MatchProfile) -> Option<BotRole> {
 
 /// What the type 1 (added) modifiers of the default modifications of
 /// `dict_id` add to `parameter` (e.g. `pocket_slots_modifier`).
-fn default_modifier(dict_id: u16, parameter: &str) -> f32 {
+pub fn default_modifier(dict_id: u16, parameter: &str) -> f32 {
     let path = format!("parameters/{parameter}");
     let modifications = super::modifications::Modifications::shared();
     item_params::item_params(dict_id)

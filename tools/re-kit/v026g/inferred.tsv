@@ -2226,6 +2226,7 @@ va	status	ref_021d	name
 0x00328380	inferred-medium		survarium::create_folders_to_file
 0x003285d0	inferred-medium		survarium::game_world_core::dump_game_state
 0x00328860	inferred-medium		survarium::game_world_core::compare_game_state_dumps
+0x00329b20	inferred-medium		survarium::player_stamina::update_carried_weight
 0x0032a420	inferred-medium		survarium::body_part::increase_health
 0x0032b4c0	inferred-medium	0x00200c52	vostok::buffer_vector<stlp_std::pair<enum survarium::hit_affects_type_enum,unsigned int> >::push_back
 0x0032b890	inferred-medium	0x00200de2	vostok::intrusive_list<survarium::body_part_events_subscriber,survarium::body_part_events_subscriber *,64,vostok::threading::single_threading_policy,vostok::no_size_policy,vostok::no_debug_policy>::for_each<vostok::intrusive_list<survarium::body_part_events_subscriber,survarium::body_part_events_subscriber *,64,vostok::threading::single_threading_policy,vostok::no_size_policy,vostok::no_debug_policy>::void_predicate_ref<survarium::notify_damage_received_functor> >

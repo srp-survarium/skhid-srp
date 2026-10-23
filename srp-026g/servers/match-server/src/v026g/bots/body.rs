@@ -110,6 +110,9 @@ pub struct BodyTrack {
     last_error: Option<f32>,
     /// This life's speeds over the nominal ones (`Kinematics::level_of`).
     level: Option<f32>,
+    /// The level its profile gives (`bot_skills::profile_movement_level`:
+    /// skills, the weight carried), taken until a world shows this life's.
+    prior_level: Option<f32>,
     /// The lives the worlds showed, the present one counted.
     lives: u32,
     /// Where the body was last reckoned alive, and which life that was:
@@ -131,6 +134,18 @@ impl BodyTrack {
         self.last_error
     }
 
+    /// The speed level its profile gives, until a world shows the life's
+    /// own (see `prior_level`).
+    pub fn set_prior_level(&mut self, level: Option<f32>) {
+        self.prior_level = level.filter(|level| level.is_finite() && *level > 0.0);
+    }
+
+    /// The speed level the body is moved at: this life's from a world, else
+    /// its profile's, else the nominal 1.
+    pub fn level(&self) -> f32 {
+        self.level.or(self.prior_level).unwrap_or(1.0)
+    }
+
     /// The body reckoned on to `time` with the keys it holds (a human's,
     /// between two of its inputs); at most [`PROJECT_MS`] past the last
     /// tick known, as its inputs may have stopped coming.
@@ -147,13 +162,7 @@ impl BodyTrack {
             turn: (0.0, 0.0),
             kick: estimate.kick,
         };
-        Some(advance(
-            estimate,
-            tick,
-            kin,
-            self.level.unwrap_or(1.0),
-            grid,
-        ))
+        Some(advance(estimate, tick, kin, self.level(), grid))
     }
 
     /// Where the body is, or was last reckoned alive, and in which of its
@@ -198,8 +207,8 @@ impl BodyTrack {
         {
             self.ticks.pop_front();
         }
+        let level = self.level();
         if let Some(estimate) = self.estimate.as_mut() {
-            let level = self.level.unwrap_or(1.0);
             *estimate = advance(*estimate, tick, kin, level, grid);
             self.trail.push_back((time, estimate.feet));
             while self
@@ -253,7 +262,7 @@ impl BodyTrack {
         if let Some(level) = fix.speed.and_then(|speed| kin.level_of(fix.keys, speed)) {
             self.level = Some(level);
         }
-        let level = self.level.unwrap_or(1.0);
+        let level = self.level();
         self.last_error = (!new_life)
             .then(|| {
                 self.trail
@@ -551,6 +560,53 @@ pub(super) mod tests {
             &kin,
             None
         ));
+    }
+
+    /// A body moves at its profile's speed level (its skills, its weight)
+    /// until a world shows the life's own; a new life starts from the
+    /// profile's again.
+    #[test]
+    fn a_body_moves_at_its_profiles_level_until_a_world_shows_its_own() {
+        // Speeds reached at once, to count the metres.
+        let kin = Kinematics {
+            blend_ticks: 1,
+            ..Kinematics::default()
+        };
+        let walk = |track: &mut BodyTrack, from: u32, to: u32| {
+            for time in (from..=to).step_by(50) {
+                track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
+            }
+        };
+        let mut track = BodyTrack::default();
+        assert_eq!(track.level(), 1.0);
+        track.set_prior_level(Some(0.9));
+        assert_eq!(track.level(), 0.9);
+        track.fixed(fix(0, Vec3::ZERO, 0.0), &kin, None);
+        walk(&mut track, 50, 1_000);
+        // 19 ticks of walking at 0.9 of the walk.
+        let z = track.estimate().unwrap().feet.z;
+        assert!((z - kin.walk[0] * 0.9 * 0.95).abs() < 1e-3, "{z}");
+        // A world shows it walking at 1.1: that is the life's level.
+        let walking = Fix {
+            keys: key::FORWARD,
+            speed: Some(kin.walk[0] * 1.1),
+            ..fix(1_000, Vec3::ZERO, 0.0)
+        };
+        track.fixed(walking, &kin, None);
+        assert!((track.level() - 1.1).abs() < 1e-5);
+        // A new life: the profile's again.
+        track.fixed(
+            Fix {
+                inserted: 5_000,
+                ..fix(5_000, Vec3::ZERO, 0.0)
+            },
+            &kin,
+            None,
+        );
+        assert_eq!(track.level(), 0.9);
+        // Nonsense is not taken.
+        track.set_prior_level(Some(f32::NAN));
+        assert_eq!(track.level(), 1.0);
     }
 
     #[test]

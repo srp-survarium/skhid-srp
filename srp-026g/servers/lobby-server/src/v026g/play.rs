@@ -142,14 +142,17 @@ fn server_bot_name(n: usize) -> String {
 /// each another weapon in slot 7 with its own ammo, as much as the kit's
 /// ammo bags hold and six lives of it in storage (`BOT_AMMO_LIVES`); the
 /// role's armour, which opens three pockets of two, and in them two
-/// medkits, the radio and two RGD-5 grenades. The match server reads the
-/// tier and the role back from the profile (`loadouts::bot_of`).
+/// medkits, the radio and two RGD-5 grenades. Its kits carry the skills of
+/// its kits' gear level (`bot_skills::BOT_SKILL_TIERS`), as a player's
+/// carry the player's. The match server reads the tier and the role back
+/// from the profile (`loadouts::bot_of`).
 pub fn server_bot(n: usize, team: u8, role: BotRole, tier: BotTier) -> MatchPlayer {
+    let kits = survarium::v026g::loadouts::bot_kits(tier, role);
     let mut profile = MatchProfile::from_loadouts(
         &server_bot_name(n),
         team,
-        &survarium::v026g::loadouts::bot_kits(tier, role),
-        [0.0; survarium::v026g::skills::MODIFIERS],
+        &kits,
+        survarium::v026g::bot_skills::bot_modifiers(&kits),
         survarium::v026g::dictionary::Dictionary::shared(),
         1,
     );
@@ -1302,6 +1305,15 @@ mod tests {
                 // Its three kits, each another weapon and its ammo, no
                 // item in two kits.
                 assert_eq!(profile.kits.len(), 3);
+                // Every kit carries the skills of its kits' gear level:
+                // the carry path at its most, 40 kg.
+                let skills = survarium::v026g::bot_skills::BotSkillTier::for_kits(
+                    &loadouts::bot_kits(tier, role),
+                );
+                for kit in &profile.kits {
+                    assert_eq!(kit.modifiers, skills.modifiers(), "{tier} {role}");
+                    assert_eq!(kit.modifiers[5], 10.0, "{tier} {role}: max_carried_weight");
+                }
                 let used: Vec<u16> = profile
                     .kits
                     .iter()

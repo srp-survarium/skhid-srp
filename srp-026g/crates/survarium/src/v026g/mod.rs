@@ -2,6 +2,7 @@
 
 // The game data (`data.md`, `modes_maps.md`).
 pub mod awards;
+pub mod bot_skills;
 pub mod dictionary;
 pub mod drops;
 pub mod game_data;
