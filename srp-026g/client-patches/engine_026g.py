@@ -12,21 +12,27 @@ compiler (LTO) gave the real one.
         re-kit rows give here (the self-test runs the same)
 
 The library's functions are engine_026g.tsv's rows, in order (append only: a
-row's index is its entry's place):
+row's index is its entry's place, pinned in patch_026g.py's ENGINE_PINNED;
+a row out of that order is refused):
 
     symbol     the C name (engine_...)
     va         the real function's VA (0.26g never rebases)
-    arguments  per C parameter, in order, where the real function takes it:
-               EAX ECX EDX EBX ESI EDI EBP, or ESP+n (n = 4, 8, ...: the
-               stack slot above the return address); "-" for none
+    arguments  per C parameter, in order, LOCATION:word: where the real
+               function takes it (EAX ECX EDX EBX ESI EDI EBP, or ESP+n, n =
+               4, 8, ...: the stack slot above the return address) and a word
+               of the re-kit's role for that location; "-" for none
     prototype  the C declaration, `ret name(type param, ...)`
 
 Where the real function takes its arguments and what it pops comes from the
 re-kit (tools/re-kit/v026g/abi_inputs.tsv and abi.tsv, every row of the VA):
 a row's arguments must name exactly the locations those rows have, the stack
 slots 4, 8, ... without a gap, and abi.tsv must give the cleanup (one value,
-at most the slots' bytes). A result is read from abi.tsv's `result` (EAX, AL
-widened to EAX, EDX:EAX for a 64-bit return, XMM0 moved to ST0 for a float).
+at most the slots' bytes). Each argument's word must be in a re-kit role of
+its location, and no two arguments' words may each fit the other's location:
+two parameters given each other's locations are refused (a swap the thunk
+would follow faithfully, which no entry check can see). A result is read
+from abi.tsv's `result` (EAX, AL widened to EAX, EDX:EAX for a 64-bit
+return, XMM0 moved to ST0 for a float).
 Anything else (an XMM or byte-register argument, varargs, a range) is
 refused: add the row to the re-kit, or call that function by hand.
 
@@ -104,18 +110,22 @@ def rows_of(va, abi=None, inputs=None):
     every re-kit row of `va`."""
     abi = read_tsv(REKIT / "abi.tsv") if abi is None else abi
     inputs = read_tsv(REKIT / "abi_inputs.tsv") if inputs is None else inputs
-    out = {"locations": set(), "cleanups": set(), "results": set(), "names": set()}
+    out = {"locations": set(), "cleanups": set(), "results": set(), "names": set(), "roles": {}}
     for row in abi:
         if int(row["va"], 16) == va:
             out["names"].add(row["name"])
-            if row["ret_cleanup"].strip():
-                out["cleanups"].update(int(c) for c in re.split(r"[ ,;/]+", row["ret_cleanup"].strip()) if c)
+            for cleanup in re.split(r"[ ,;/]+", row["ret_cleanup"].strip()):
+                if cleanup and not cleanup.isdigit():
+                    raise Refused(f"{va:#x}: ret_cleanup {row['ret_cleanup']!r} is no number of bytes")
+                if cleanup:
+                    out["cleanups"].add(int(cleanup))
             if result_of(row["result"]):
                 out["results"].add(result_of(row["result"]))
     for row in inputs:
         if int(row["va"], 16) == va:
             out["names"].add(row["name"])
             out["locations"].add(location(row["location"]))
+            out["roles"].setdefault(location(row["location"]), []).append(row["role"])
     out["names"].discard("")
     return out
 
@@ -160,7 +170,10 @@ def function(row, abi=None, inputs=None):
     ret, name, params = parse_prototype(row["prototype"])
     if name != row["symbol"] or not re.fullmatch(r"engine_[a-z0-9_]+", name):
         raise Refused(f"{row['symbol']}: the prototype names {name}; a symbol is engine_<what>")
-    args = [] if row["arguments"].strip() == "-" else [location(a) for a in row["arguments"].split()]
+    tokens = [] if row["arguments"].strip() == "-" else [a.partition(":") for a in row["arguments"].split()]
+    if any(not word for _, _, word in tokens):
+        raise Refused(f"{name}: each argument is LOCATION:word (a word of the re-kit's role there)")
+    args, words = [location(a) for a, _, _ in tokens], [word for _, _, word in tokens]
     if len(args) != len(params) or len(set(args)) != len(args):
         raise Refused(f"{name}: {len(params)} parameters, {len(args)} locations (each once)")
     rows = rows_of(va, abi, inputs)
@@ -169,6 +182,16 @@ def function(row, abi=None, inputs=None):
     if set(args) != rows["locations"]:
         raise Refused(f"{name}: the arguments {sorted(args)} are not the re-kit's {sorted(rows['locations'])} "
                       f"for {va:#x}")
+    fits = lambda word, at: any(re.search(rf"(?<![\w]){re.escape(word)}(?![\w])", role, re.I)
+                                for role in rows["roles"].get(at, ()))
+    for i, (param, at, word) in enumerate(zip(params, args, words)):
+        if not fits(word, at):
+            raise Refused(f"{name}: {param[1]} is in {at}, but no re-kit role of {at} for {va:#x} says {word!r} "
+                          f"({' | '.join(rows['roles'].get(at, ()))})")
+        for j in range(i + 1, len(args)):
+            if fits(word, args[j]) and fits(words[j], at):
+                raise Refused(f"{name}: {word!r} and {words[j]!r} fit both {at} and {args[j]}: words that tell "
+                              "the two apart")
     slots = sorted(int(a[4:]) for a in args if a.startswith("ESP+"))
     if slots != list(range(4, 4 * len(slots) + 4, 4)):
         raise Refused(f"{name}: the stack slots {slots} have a gap")
@@ -199,6 +222,15 @@ def functions(spec=None, abi=None, inputs=None):
     names = [f["symbol"] for f in out]
     if len(set(names)) != len(names):
         raise Refused("a symbol twice")
+    # The entries' places are pinned: code built against the header calls
+    # them by address, so a row moved or dropped would call another function.
+    pinned = {name: entry_va(i) for i, name in enumerate(names)}
+    if pinned != base.ENGINE_PINNED or names != list(base.ENGINE_PINNED):
+        moved = [n for n in names if base.ENGINE_PINNED.get(n) != pinned[n]]
+        gone = [n for n in base.ENGINE_PINNED if n not in pinned]
+        raise Refused("the rows are not at the entries patch_026g.py's ENGINE_PINNED gives them (append only; a "
+                      "new row adds its entry there): " + ", ".join(
+                          [f"{n} at {pinned[n]:#x}" for n in moved] + [f"{n} gone" for n in gone]))
     return out
 
 

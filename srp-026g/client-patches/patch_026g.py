@@ -2291,6 +2291,45 @@ ARTEFACTS_VA = ARENA_LAYOUT["artefacts.code"]
 # one ABI check (check_engine_026g.py) covers every caller.
 ENGINE_VA = ARENA_LAYOUT["engine.code"]
 ENGINE_ENTRY = 5
+# Each library function's entry, written down when its row was added: code
+# built against engine_026g.h calls these addresses (Research's .bin), so
+# engine_026g.py refuses rows that are not in this order, one entry each. A
+# new row of engine_026g.tsv adds its line here, at the end; none moves.
+ENGINE_PINNED = {
+    "engine_cfg_child": 0xA433000,
+    "engine_cfg_has": 0xA433005,
+    "engine_malloc": 0xA43300A,
+    "engine_match_rule_base": 0xA43300F,
+    "engine_write_u8": 0xA433014,
+    "engine_write_u16": 0xA433019,
+    "engine_write_u32": 0xA43301E,
+    "engine_statistics_notify": 0xA433023,
+    "engine_register_cook": 0xA433028,
+    "engine_movie_invoke": 0xA43302D,
+    "engine_show_message": 0xA433032,
+    "engine_find_pool": 0xA433037,
+    "engine_increase_health": 0xA43303C,
+    "engine_artefact_effect": 0xA433041,
+    "engine_apply_modifier": 0xA433046,
+    "engine_setup_profile": 0xA43304B,
+    "engine_find_item_by_id": 0xA433050,
+    "engine_item_by_id": 0xA433055,
+    "engine_profile_assign": 0xA43305A,
+    "engine_profile_construct": 0xA43305F,
+    "engine_allocation_name": 0xA433064,
+    "engine_log_passes": 0xA433069,
+    "engine_string_assign": 0xA43306E,
+    "engine_free": 0xA433073,
+    "engine_camouflage_parameters": 0xA433078,
+    "engine_get_all_surfaces": 0xA43307D,
+    "engine_query_resources": 0xA433082,
+    "engine_model_instance_release": 0xA433087,
+    "engine_camouflage_parameters_type": 0xA43308C,
+    "engine_unpack_decal_value": 0xA433091,
+    "engine_decal_value": 0xA433096,
+    "engine_mouse_ray": 0xA43309B,
+    "engine_accept_decal_edit": 0xA4330A0,
+}
 
 
 def research_layout(code):

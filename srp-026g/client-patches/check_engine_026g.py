@@ -22,10 +22,18 @@ runs the same (test_engine). For every function of engine_026g.tsv:
   what it does is what the arguments in the rows' places make it do, so a
   row with two arguments swapped fails here though the thunk follows it.
 
-The negative cases build wrong libraries (the config's table and key
-swapped, w<unsigned char> popping 16, value_exists' key in EDI) and wrong
-expectations (the checked-in thunks against a swapped row) and require the
-check to fail on each.
+What it cannot see: a re-kit row whose location is itself wrong for a
+function it does not run for real (the thunk and the entry check both follow
+the row). Research's functions on its pay path (malloc, the rule base's
+constructor, the message, Invoke, register_cook) run for real in
+check_research_026g.py, which reads each argument where the game does.
+
+The negative cases (each must be rejected): spec rows with two parameters
+in each other's places (engine_026g.py refuses them: the words of the
+re-kit's roles do not fit), rows out of their pinned order, a cleanup that is
+no number; libraries made from wrong re-kit rows (0xF6B10's table and key
+exchanged, w<unsigned char> popping 16, value_exists' key in EDI); and the
+built library against rows that say otherwise.
 """
 import os
 import struct
@@ -290,7 +298,9 @@ def run_checks(original, code=None, spec=None, abi=None, inputs=None, behave=Tru
 
 
 def negative(original, nasm="nasm"):
-    """[(what, the check failed on it)] of the wrong libraries and rows."""
+    """[(what, it was rejected)] of wrong spec rows (the generator must refuse
+    them), wrong re-kit rows (the check must fail on the library made from
+    them) and a wrong expectation (the check must fail on the built one)."""
     spec, abi, inputs = (engine.read_tsv(path) for path in (engine.SPEC, engine.REKIT / "abi.tsv",
                                                             engine.REKIT / "abi_inputs.tsv"))
 
@@ -299,27 +309,70 @@ def negative(original, nasm="nasm"):
 
     def failed(results):
         return any(not ok for ok, _ in results)
+
+    def refused(spec=spec, abi=abi, inputs=inputs):
+        try:
+            engine.functions(spec, abi, inputs)
+        except engine.Refused:
+            return True
+        return False
+
+    def arguments(symbol, text):
+        return [dict(row, arguments=text) if row["symbol"] == symbol else row for row in spec]
+
+    def swapped(symbol, a, b):
+        """The spec with the locations of two of `symbol`'s parameters
+        exchanged, each keeping its word: two parameters given each other's
+        registers or slots."""
+        row = next(r for r in spec if r["symbol"] == symbol)
+        tokens = [t.partition(":") for t in row["arguments"].split()]
+        flip = {a: b, b: a}
+        return arguments(symbol, " ".join(flip.get(at, at) + ":" + word for at, _, word in tokens))
+
+    def located(va, moves):
+        """abi_inputs with `va`'s rows moved to other locations ({old: new})."""
+        return [dict(row, location=moves[row["location"]]) if int(row["va"], 16) == va and row["location"] in moves
+                else row for row in inputs]
     out = []
-    # The config's table and key swapped: the thunk follows the row, the
-    # entry check agrees with it, the real lookup does not.
-    swapped = [dict(row, arguments="EDI EAX") if row["symbol"] == "engine_cfg_child" else row for row in spec]
-    out.append(("engine_cfg_child with its table and key swapped (EDI, EAX)",
-                failed(run_checks(original, library(swapped), swapped, abi, inputs))))
+    # A spec row whose parameters take each other's places: the generator
+    # refuses it (the words of the re-kit's roles do not fit).
+    for symbol, a, b in (("engine_cfg_child", "EAX", "EDI"), ("engine_malloc", "ESI", "EAX"),
+                         ("engine_match_rule_base", "EAX", "ESP+4"), ("engine_show_message", "ESP+12", "ESP+16"),
+                         ("engine_movie_invoke", "ESP+4", "ESP+8"), ("engine_free", "ECX", "EAX"),
+                         ("engine_profile_assign", "ESI", "EDI")):
+        out.append((f"{symbol} with its {a} and {b} parameters swapped in engine_026g.tsv", refused(swapped(symbol, a, b))))
+    # Rows out of their pinned order: code built against the header would
+    # call another function.
+    for one, two in (("engine_write_u8", "engine_write_u16"), ("engine_cfg_child", "engine_cfg_has")):
+        i, j = (next(k for k, r in enumerate(spec) if r["symbol"] == n) for n in (one, two))
+        order = list(spec)
+        order[i], order[j] = order[j], order[i]
+        out.append((f"engine_026g.tsv with {one} and {two} in each other's rows", refused(order)))
+    out.append(("an abi.tsv cleanup that is no number of bytes (0x10)",
+                refused(abi=[dict(row, ret_cleanup="0x10") if int(row["va"], 16) == 0x1F3DE0 else row
+                             for row in abi])))
+    # A wrong re-kit row the generator cannot see: 0xF6B10's table and key
+    # rows in each other's registers, the spec following them. The thunk and
+    # the entry check agree with the rows; the real lookup does not.
+    wrong = located(0xF6B10, {"EAX": "EDI", "EDI": "EAX"})
+    follows = arguments("engine_cfg_child", "EDI:table EAX:key")
+    out.append(("a re-kit row with 0xF6B10's table and key registers exchanged (the spec following it)",
+                failed(run_checks(original, library(follows, abi, wrong), follows, abi, wrong))))
     # w<unsigned char> popping 16: abi.tsv against the exe's `ret 14h`.
     popping = [dict(row, ret_cleanup="16") if int(row["va"], 16) == 0x1F3DE0 else row for row in abi]
     out.append(("w<unsigned char> (0x1F3DE0) popping 16 in abi.tsv",
                 failed(run_checks(original, library(abi=popping), spec, popping, inputs, behave=False))))
     # value_exists' key in EDI: the row and the spec both say EDI.
-    edi_inputs = [dict(row, location="EDI") if int(row["va"], 16) == 0xF6C00 and row["location"] == "ESI" else row
-                  for row in inputs]
-    edi_spec = [dict(row, arguments="EAX EDI") if row["symbol"] == "engine_cfg_has" else row for row in spec]
+    edi_inputs = located(0xF6C00, {"ESI": "EDI"})
+    edi_spec = arguments("engine_cfg_has", "EAX:table EDI:key")
     out.append(("value_exists (0xF6C00) with its key in EDI in abi_inputs.tsv",
                 failed(run_checks(original, library(edi_spec, abi, edi_inputs), edi_spec, abi, edi_inputs))))
-    # The checked-in thunks against a swapped row: the entry check sees it.
-    out.append(("the built library against engine_malloc's size and allocator swapped (EAX, ESI)",
-                failed(run_checks(original, None, [dict(row, arguments="EAX ESI ESP+4")
-                                                   if row["symbol"] == "engine_malloc" else row for row in spec],
-                                  abi, inputs, behave=False))))
+    # The checked-in thunks against rows that say otherwise: the entry check
+    # sees it.
+    moved = located(0xE4F90, {"ESI": "EAX", "EAX": "ESI"})
+    out.append(("the built library against re-kit rows with malloc's allocator in EAX and size in ESI",
+                failed(run_checks(original, None, arguments("engine_malloc", "EAX:allocator ESI:size ESP+4:description"),
+                                  abi, moved, behave=False))))
     return out
 
 

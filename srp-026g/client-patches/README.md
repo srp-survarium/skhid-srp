@@ -190,24 +190,36 @@ game's function takes it (`docs/notes/client_patch.md` 0.5).
   are kept; EAX, ECX and EDX are not. The result is in EAX (a byte result
   widened), EDX:EAX for 64 bits, ST0 for a float.
 - **A function the library lacks:** add a row to `engine_026g.tsv` (at the
-  end: a row's place is its entry's address) with its C name, VA, where each
-  parameter goes (`EAX EDI`, `ESI ESP+4 ESP+8`; `-` for none) and its C
-  prototype. Its re-kit rows (`tools/re-kit/v026g/abi_inputs.tsv`, `abi.tsv`)
+  end: a row's place is its entry's address, and its line to
+  `patch_026g.py`'s `ENGINE_PINNED`) with its C name, VA, where each
+  parameter goes with a word of the re-kit's role there (`EAX:table
+  EDI:key`, `ESI:allocator EAX:size ESP+4:description`; `-` for none) and
+  its C prototype. Its re-kit rows (`tools/re-kit/v026g/abi_inputs.tsv`, `abi.tsv`)
   must have every argument and the cleanup (`ret_cleanup`) and, if it
   returns something, the result; append the rows that are missing (from the
   function's body and its callers; the re-kit's README). Then
   `python engine_026g.py --write` and the self-test. The generator refuses a
-  row whose locations are not the re-kit's, a stack slot missing, a cleanup
-  larger than the slots or a result the rows do not give, and what it cannot
-  pass (an XMM argument, varargs).
+  row whose locations are not the re-kit's, a parameter whose word is not in
+  its location's role (two parameters swapped: the words do not fit), a
+  stack slot missing, a cleanup that is no number or larger than the slots, a
+  result the rows do not give, rows out of `ENGINE_PINNED`'s order, and what
+  it cannot pass (an XMM argument, varargs).
 - **The check** (`check_engine_026g.py`, in the self-test): for every
   function, what the exe's `ret`s pop is abi.tsv's cleanup; the thunk, called
   with a marker per argument, reaches the real function once with each marker
   in its register or slot, and comes back with the stack balanced, EBX ESI
   EDI EBP kept and the result where C takes it; the config's look-ups, the
   field writers, the statistics' listener, the pool lookup and the
-  allocation's name run for real on made-up data. Wrong rows (two arguments
-  swapped, a wrong cleanup, a wrong register) must fail it, and do.
+  allocation's name run for real on made-up data. **Caught:** a spec row
+  with parameters swapped or out of order (the generator), a wrong cleanup
+  in abi.tsv (the exe's `ret`s), a thunk that does not follow its rows, and
+  a wrong re-kit location for the functions run for real; negative cases
+  show each. **Not caught by the self-test:** a re-kit row whose location is
+  itself wrong, role and all, for a function not run for real (the thunk and
+  the check both follow it). Research's other functions (malloc, the rule
+  base's constructor, the message, Invoke, register_cook) run for real in
+  `check_research_026g.py`; a patch's own Unicorn check covers the
+  functions it calls.
 
 ## How to apply
 

@@ -1904,11 +1904,16 @@ function an ordinary cdecl one; a patch calls that and never sees the ABI.
 **Where the ABI comes from.** `tools/re-kit/v026g/abi_inputs.tsv` (each
 argument's register or stack slot) and `abi.tsv` (the cleanup, the result),
 every row of the VA together. `engine_026g.tsv` (in `client-patches/`)
-lists the library's functions, one row each, append only: the C name, the
-VA, where each C parameter goes, the C prototype. `engine_026g.py` refuses a
-row whose locations are not exactly the re-kit's for the VA, whose stack
-slots have a gap, whose cleanup is not one value of at most the slots'
-bytes, or whose C return type does not fit the rows' result (EAX; AL,
+lists the library's functions, one row each, append only (each entry's
+address is pinned in `patch_026g.py`'s `ENGINE_PINNED`; rows out of that
+order are refused, as Research's `.bin` calls the entries by address): the C
+name, the VA, where each C parameter goes with a word of the re-kit's role
+there (`EAX:table EDI:key`), the C prototype. `engine_026g.py` refuses a row
+whose locations are not exactly the re-kit's for the VA, a parameter whose
+word is not in a role of its location (and no two parameters may have words
+that fit each other's locations, so a swap is always refused), stack slots
+with a gap, a cleanup that is no number or not one value of at most the
+slots' bytes, or a C return type that does not fit the rows' result (EAX; AL,
 widened; EDX:EAX for 64 bits; XMM0, moved to ST0 for a float). An XMM or
 x87 argument, varargs (log_message 0x111ED0, buffer_string::appendf
 0xE45B0) and tail jumps stay hand-written.
@@ -1960,12 +1965,32 @@ in Unicorn. Per function:
   place, event and amount), the pool lookup on two pools, the allocation's
   name. A row with two arguments swapped makes a thunk the entry check agrees
   with but the real function does not.
-Negative cases, each of which must fail: the config child's table and key
-swapped (the lookup finds nothing), w<unsigned char> popping 16 in abi.tsv
-(the exe pops 20; the stack is 4 bytes off), value_exists' key in EDI in
-abi_inputs.tsv (the real one reads ESI), and the built library checked
-against a row with malloc's size and allocator swapped. The self-test also
-fails when the four files are not what the rows give (`--write` not run).
+Negative cases, each of which must be rejected: spec rows with two
+parameters in each other's places (the config child's table and key,
+malloc's allocator and size, the rule base's rule and type, the message's
+second and third parameters, Invoke's name and result, free's allocator and
+memory, profile assign's destination and source: the generator refuses
+each), rows out of their pinned order (the u8 and u16 writers, the config's
+child and has), a cleanup "0x10"; libraries made from wrong re-kit rows
+(0xF6B10's table and key registers exchanged, the spec following them: the
+real lookup finds nothing; w<unsigned char> popping 16: the exe pops 20;
+value_exists' key in EDI: the real one reads ESI); and the built library
+checked against rows with malloc's allocator and size exchanged. The
+self-test also fails when the four files are not what the rows give
+(`--write` not run).
+
+What is caught and what is not. Caught by the self-test: a spec parameter in
+another's place or a row out of order (the generator), a wrong cleanup in
+abi.tsv (the exe's `ret`s), a thunk that does not follow its rows (the entry
+check), and a wrong re-kit location for the functions run for real (the
+config's child and has, the three writers, the statistics' listener, the
+pool lookup, the allocation's name). Not caught by it: a re-kit row whose
+location is itself wrong, role and all, for any other function: the thunk
+and the check both follow the row. For Research's other functions (malloc,
+the rule base's constructor, show_parametrized_message, Invoke,
+register_cook) check_research_026g.py runs the real ones or reads their
+arguments where the game does; for the asm patches' functions, their own
+Unicorn checks, once they call the library.
 
 **The first users.** The library has 33 functions: the 11 Research calls
 and the 22 the artefacts, weapon camouflage, weapon decals and upgrade

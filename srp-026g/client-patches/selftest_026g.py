@@ -411,12 +411,19 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
 The engine-function library (engine_026g.py, the arena's block engine.code
 at `.srpx`+6000h; client_patch.md section 0.5): its files are what
-engine_026g.tsv and the re-kit's ABI rows give; check_engine_026g.py (run
-here, test_engine) proves every thunk against the rows and the original exe
-(each argument in its register or slot at the real function's entry, the
-exe's `ret` against abi.tsv's cleanup, the stack balanced, EBX ESI EDI EBP
-kept, the result where C takes it, the functions it can run run for real)
-and rejects wrong rows: a wrong ABI row fails the self-test.
+engine_026g.tsv and the re-kit's ABI rows give, and engine_026g.py refuses a
+spec row whose parameters are not where the re-kit's roles say (each names
+a word of its location's role: two parameters swapped are refused), rows out
+of ENGINE_PINNED's order and a cleanup that is no number. check_engine_026g.py
+(run here, test_engine) proves every thunk against the rows and the original
+exe: each argument in its register or slot at the real function's entry, the
+exe's `ret` against abi.tsv's cleanup (a wrong cleanup fails), the stack
+balanced, EBX ESI EDI EBP kept, the result where C takes it; the config's
+look-ups, the field writers, the statistics' listener, the pool lookup and
+the allocation's name run for real. Not caught here: a re-kit row whose
+location is itself wrong (role and all) for a function not run for real;
+Research's other ones (malloc, the rule base's constructor, the message,
+Invoke, register_cook) run for real in check_research_026g.py (not run here).
 """
 
 import ast
