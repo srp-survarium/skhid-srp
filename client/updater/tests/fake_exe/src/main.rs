@@ -11,6 +11,8 @@
 //!   as it can) for reading, others may read and write it but not delete or
 //!   rename it, makes the file `<held>`, and lets go once the file
 //!   `<release>` is there.
+//! - `fake-exe.exe lock <file> <held> <release>`: the same, but nobody else
+//!   may even read the file (share mode 0), as some antivirus scans do.
 //! - `fake-exe.exe launcher <name> <updater> <out> <stop> [<ok>]`: the launcher's
 //!   end of its pipe: makes `\\.\pipe\vostok_updater_pipe-<name>`, starts
 //!   `<updater> update <pipe>`, writes every byte the updater sends into
@@ -90,8 +92,9 @@ fn create(path: &str, share: u32) -> HANDLE {
     }
 }
 
-/// The game's resources.db, or an antivirus's scan, until told to let go.
-fn hold(path: &str, held: &str, release: &str) -> u32 {
+/// The game's resources.db, or an antivirus's scan, until told to let go;
+/// `share`: what others may do with the file meanwhile.
+fn hold(path: &str, held: &str, release: &str, share: u32) -> u32 {
     let name = wide(path);
     let mut file = INVALID_HANDLE_VALUE;
     for _ in 0..60_000 {
@@ -99,7 +102,7 @@ fn hold(path: &str, held: &str, release: &str) -> u32 {
             CreateFileW(
                 name.as_ptr(),
                 GENERIC_READ,
-                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                share,
                 null(),
                 OPEN_EXISTING,
                 0,
@@ -255,7 +258,13 @@ fn main() {
         let arguments = updater_logic::args::split(&line);
         let argument = |at: usize| arguments.get(at).map_or("", String::as_str);
         match argument(1) {
-            "hold" => ExitProcess(hold(argument(2), argument(3), argument(4))),
+            "hold" => ExitProcess(hold(
+                argument(2),
+                argument(3),
+                argument(4),
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+            )),
+            "lock" => ExitProcess(hold(argument(2), argument(3), argument(4), 0)),
             "launcher" => ExitProcess(launcher(
                 argument(2),
                 argument(3),

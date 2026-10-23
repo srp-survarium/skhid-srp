@@ -40,6 +40,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use updater_logic::checked::{Identity, Record, parse_record, write_record};
+use updater_logic::file_error::Stop;
 use updater_logic::patches::{
     Address, FILE_PREFIX, List, ListError, Local, MAX_LIST, Patch, Problem, check, overlay_patch,
     parse_list, todo, write_list,
@@ -94,6 +95,10 @@ pub enum Outcome {
     Stopped,
     /// PLAY stays off, with these words.
     Blocked(String),
+    /// Windows Security does not let this patch file be written, renamed
+    /// or deleted (`updater_logic::file_error`): PLAY stays off, and the
+    /// player is told how to let it through.
+    Stop(Stop, String),
 }
 
 /// How the patch files are looked at.
@@ -360,6 +365,9 @@ enum Fail {
     /// PLAY stays off: what the player is told, what the log and the status
     /// file say.
     Blocked(String, String),
+    /// A file Windows Security blocks (its name), what the log and the
+    /// status file say.
+    Stop(Stop, String, String),
     /// The list could not be fetched (the network, a status but 404): as
     /// when the server could not be asked at all. The player's words, the
     /// log's.
@@ -419,9 +427,16 @@ fn retried<T>(
 /// tried a few times. The game does not hold these (that is told by
 /// resources.db, [`Run::guard`]): another program does.
 fn file_fail(path: &str, code: Code, what: &str) -> Fail {
-    let why = format!("{path} cannot be {what} ({})", win::error_text(code));
-    if code == ERROR_SHARING_VIOLATION || code == ERROR_LOCK_VIOLATION {
-        let name = path.rsplit('\\').next().unwrap_or(path);
+    let why = format!(
+        "{path} cannot be {what} ({}, error {code})",
+        win::error_text(code)
+    );
+    let name = path.rsplit('\\').next().unwrap_or(path);
+    if Stop::of(code) == Some(Stop::Virus) {
+        // The patch's name, not its download's.
+        let name = name.strip_suffix(PART).unwrap_or(name);
+        Fail::Stop(Stop::Virus, name.into(), why)
+    } else if code == ERROR_SHARING_VIOLATION || code == ERROR_LOCK_VIOLATION {
         Fail::Blocked(text::patches_held(name), why)
     } else {
         Fail::Blocked(text::patches_failed(), why)
@@ -988,6 +1003,13 @@ fn step(
                 status(b"blocked stopped\r\n");
             }
             Outcome::Stopped
+        }
+        Err(Fail::Stop(stop, name, why)) => {
+            log!("patches: BLOCKED: {why}");
+            if changing {
+                status(format!("blocked {why}\r\n").as_bytes());
+            }
+            Outcome::Stop(stop, name)
         }
         Err(Fail::Blocked(message, why)) => {
             log!("patches: BLOCKED: {why}. The player is told: {message}");

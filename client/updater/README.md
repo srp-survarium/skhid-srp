@@ -63,6 +63,10 @@ replay") and `ntdll.dll` (two functions of the standard library's).
   PLAY off while a server that answered stops answering, and starts the
   launcher anew (whose updater updates) when the server offers another ZIP
   or revision ("PLAY and the server's revision" below).
+- Never takes a Skhid file it cannot read for one it installed ("A file
+  that cannot be read" below): blocked by Windows Security, or held by
+  another program, the update stops with PLAY off and a box that says what
+  to do, with Retry; else the file is repaired, or the failure names it.
 - Writes `updater_skhid.state` (what is installed)
   and `updater_skhid.log` (what it did; no account name, no password; it
   does hold the game folder's path) beside itself. `updater_skhid.lock`
@@ -98,7 +102,7 @@ says so and does nothing.
 |---|---|
 | `logic/` | Everything that needs no Windows, as a library with no dependencies: SHA-256, DEFLATE and CRC-32, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the earlier updaters' record of resources.db, the list of resources.db's patches, the quick check's record) and what the restore and the patch step decide, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
 | `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-win7-windows-msvc` with `-Z build-std=std,panic_abort`, `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource |
-| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
+| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
 
 ## PLAY and the server's revision
 
@@ -156,6 +160,52 @@ the launcher is open, the server going away and coming back, an offline
 start, a launcher with a box open (never a second launcher beside it), the
 original exe, an exe the updater does not know, and `check` replacing the
 updater.
+
+## A file that cannot be read
+
+Each Skhid file the state says is installed is hashed at every start. One
+that Windows does not let the updater read is never "up to date"
+(`logic/src/file_error.rs`, `look` in `exe/src/main.rs`); the log names it
+and Windows' error code (`<name>: cannot be read: <words> (error <n>)`):
+
+| Windows says | The updater |
+|---|---|
+| 2, 3: not found | downloads the archive and puts the file in place (as before) |
+| 225 `ERROR_VIRUS_INFECTED`, 226 `ERROR_VIRUS_DELETED`: Windows Security blocked it | stops: nothing downloaded (the write would be blocked too), PLAY off, its own box (below) |
+| 32, 33: another program holds it from everyone | read again, six times 200 ms apart; still held: stops, PLAY off, its own box |
+| anything else (5, access denied; a disk error) | a repair: the archive downloaded and installed again; when that fails, the install's error names the file and Windows' words ("Cannot replace x86\survarium_skhid.exe: Access is denied (error 5). ..."), PLAY off |
+
+225 or 226 at the install's write, rename or a folder's making, and at a
+patch file's write, rename, delete or read back, is the same stop.
+
+The stop's box is the updater's own (`MessageBoxW`, Windows' Retry and
+Cancel buttons), in the launcher's language (as "Watch replay"'s, below),
+the launcher's line saying "Error" meanwhile. It names the file alone and,
+for Windows Security, the way out, one line each:
+
+```text
+Windows Security blocked survarium_skhid.exe: a false positive.
+1. Windows Security > Protection history > this item > Allow on device (or Restore).
+2. Add the game folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):
+E:\Survarium_SkhidSRP_0_26
+Then click Retry. PLAY stays off until then.
+```
+
+```text
+survarium_skhid.exe is in use by another program. Close the game, then click Retry. PLAY stays off until then.
+```
+
+Retry runs the update again from the start; Cancel leaves PLAY off (exit
+code 1). `check quiet` shows no box: the log has `STOPPED: <file> is
+blocked by Windows Security` (or `held by another program`), and the exit
+code is 1. A file the player may edit (`.bat`, `.sh`, `.txt`, `.url`) that
+cannot be read is left alone, as one the player changed is.
+
+**Why.** On 2026-10-21 Windows Security did not let a player's updater
+write revision 27's `survarium_skhid.exe` (error 225), then, once it was in
+place, read it (225 again). The updater took a file it could not read for
+one that was the same, said "up to date" and turned PLAY on, and the
+launcher crashed at PLAY a minute later.
 
 ## Watch replay
 
@@ -557,6 +607,7 @@ python tests/test_db_patches.py              # Windows or Wine (resources.db's p
 python tests/test_play_gate.py               # Windows or Wine (PLAY and the server's revision, the watch)
 python tests/test_replay.py                  # Windows; the replay, in its no-window mode only
 python tests/test_game_download.py           # Windows or Wine
+python tests/test_unreadable.py              # Windows or Wine (a Skhid file that cannot be read)
 SKHID_TEST_BUNDLE=<a players' zip> python tests/test_updater.py
 ```
 
@@ -722,6 +773,18 @@ has `check` run the new updater at once) and the 16 of
 run: it needs Windows. Not seen: "Server maintenance..." in the real
 launcher's window.
 
+Run on 2026-10-23 (Linux, Wine, headless), with "A file that cannot be
+read": the unit tests of `logic/` (82; the error codes sorted, what the
+overlay does with each, the stop's words in the five languages);
+`test_unreadable.py` (2: a game exe another program holds from everyone
+stops the update with PLAY off and nothing downloaded, and is up to date
+once let go; a game exe Wine will not read (access denied) is downloaded
+again for a repair, and as Wine will not rename it either, the failure
+names it and PLAY stays off); `test_db_patches.py` (48, one skipped as
+before), `test_play_gate.py` (9) and `test_game_download.py` (16, four
+skipped as before). Not run on Windows: Windows Security's errors 225 and
+226 cannot be made by a test, and the box was not seen.
+
 ## Not done
 
 - A signature on the ZIP made with a key that is not on the server. Today
@@ -730,4 +793,5 @@ launcher's window.
   again; a patch, from its next address, else at the next start, whole: by
   the owner's decision).
 - Texts in other languages than English (the launcher shows them in an
-  ANSI message box).
+  ANSI message box), but the stop's box of "A file that cannot be read",
+  which is the updater's own.
