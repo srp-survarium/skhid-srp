@@ -2956,6 +2956,7 @@ fn real_bot_cost() {
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
             let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
+            let mut routes = RouteTally::start(game.bodies.len());
             while clock < limit_ms {
                 clock += 5;
                 while game.tick + TICK_MS <= clock {
@@ -2995,6 +2996,7 @@ fn real_bot_cost() {
                     fight.sample(&game, game.tick);
                     let thieves = std::mem::take(&mut game.thieves);
                     raids.bodies(&game, &thieves, game.tick);
+                    routes.tick(&game, game.tick);
                     for place in thieves {
                         by_play.entry(play_of(place)).or_default()[4] += 1;
                         by_team[usize::from(teams[place])][5] += 1;
@@ -3053,11 +3055,13 @@ fn real_bot_cost() {
                     {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             for note in bots.fixed(place, fix, Some(health)) {
+                                routes.note(&note);
                                 decisions.note(&note);
                                 events.note(&note);
                                 carry.note(&note);
                             }
                         }
+                        routes.world(&game);
                         for note in bots.facts(facts) {
                             decisions.note(&note);
                             carry.note(&note);
@@ -3322,6 +3326,7 @@ fn real_bot_cost() {
             );
             eprintln!("  raids: {}", raid_line(&raids.finish()));
             eprintln!("  {}", fight.line(&game));
+            eprintln!("  routes: {}", routes.line());
             eprintln!(
                 "  carriers: killed carrying {:?} (by team carrying), by the shooter's play {:?}; delivered {:?}; picked up {} lying + {} stolen; plays taken {takes_all} = {:.2} a bot-minute",
                 carriers_killed,
@@ -3878,5 +3883,486 @@ fn friends_near_margin_off_and_on() {
                 );
             }
         }
+    }
+}
+
+/// The field with a walkway 3 m up along z 31-34 from x 4 to x 30, a ramp
+/// down from its east end to the ground at x 38, team 0's container on it
+/// at x 7, and a wall under it across x = 14 (z 28-34): the shape of
+/// 0x4da3b51d's stuck carrier (`player_bots_stuck.md` §8).
+fn walkway_world() -> Arc<World> {
+    use super::body::tests::{floor, wall_x};
+    let walker = mapdata::WalkerBehaviour::BySlope;
+    let tri = |a: Vec3, b: Vec3, c: Vec3| mapdata::Triangle {
+        v: [a, b, c],
+        walker,
+    };
+    let mut solids = floor(4.0, 31.0, 30.0, 34.0, 3.0).to_vec();
+    let (a, b) = (Vec3::new(30.0, 3.0, 31.0), Vec3::new(38.0, 0.0, 31.0));
+    let (c, d) = (Vec3::new(38.0, 0.0, 34.0), Vec3::new(30.0, 3.0, 34.0));
+    solids.push(tri(a, b, c));
+    solids.push(tri(a, c, d));
+    // The ramp solid under (no way beneath it).
+    solids.extend(wall_x(30.0, 31.0, 34.0));
+    for z in [31.0, 34.0] {
+        solids.push(tri(
+            Vec3::new(30.0, 0.0, z),
+            Vec3::new(38.0, 0.0, z),
+            Vec3::new(30.0, 3.0, z),
+        ));
+    }
+    solids.extend(wall_x(14.0, 28.0, 34.0));
+    super::tactics::tests::field_with_solids(&solids, |map| {
+        let container = |team: i32, id: i32, at: Vec3| Container {
+            position: at,
+            team,
+            id,
+            use_shapes: Vec::new(),
+        };
+        map.containers = vec![
+            container(0, 0, Vec3::new(7.0, 3.0, 32.5)),
+            container(1, 1, Vec3::new(68.0, 0.0, 30.0)),
+        ];
+        map.battery_spawners = vec![BatterySpawner {
+            position: Vec3::new(15.0, 0.0, 32.5),
+            item: Vec3::new(15.0, 0.3, 32.5),
+            layer: "default".into(),
+        }];
+    })
+}
+
+/// Issue 1 of the audit (0x4da3b51d bot 13, 273 s): a carrier fallen off a
+/// walkway stands under it against a wall, its route above it. Its route
+/// was found on the way (the ground under a route is on it across) and its
+/// reckoning was as blocked as it (no stuck sign): it pushed into the wall
+/// until the end. It must see it is off its route (the floors' heights),
+/// or stuck by its walk keys held with its body still, and go round by the
+/// ramp: home within 45 s of play, the take included (before: never).
+#[test]
+fn a_carrier_fallen_under_its_walkway_route_gets_home() {
+    let world = walkway_world();
+    let teams = [0u8, 1];
+    let mut tuning = Tuning::default();
+    tuning.cheats.batteries = true;
+    let mut bots = Bots::new(
+        0x57C4,
+        survarium::v026g::maps::mode::BATTERIES,
+        0,
+        &teams,
+        &[true, false],
+        &[None, None],
+        Arc::new(tuning),
+        Trace::none(0),
+    );
+    bots.map_ready(world.clone());
+    let mut game = Game::new(world.clone(), &teams, 11, None, None);
+    // Under the walkway, east of the wall, by the battery.
+    let under = Vec3::new(16.0, 0.0, 32.5);
+    game.bodies[0].node = world.grid.locate(under, 0.5);
+    game.bodies[0].feet = under;
+    let grid = &world.grid;
+    assert!(grid.position(game.bodies[0].node.unwrap()).y < 0.5);
+    bots.entered(0, true, 0);
+    let (mut clock, mut next_world, mut planted) = (0, 1_000, false);
+    while clock < 60_000 && game.delivered[0] == 0 {
+        clock += 25;
+        while game.tick + TICK_MS <= clock {
+            game.step();
+        }
+        if clock >= next_world {
+            next_world += 1_000;
+            if let Some((_, fixes, health, facts)) = game.world_at(clock / TICK_MS * TICK_MS - 300)
+            {
+                for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                    bots.fixed(place, fix, Some(health));
+                }
+                bots.facts(facts);
+            }
+        }
+        // Once it took it and heads home: the route it had on the walkway,
+        // from above where it stands on to its container (as it had before
+        // it fell).
+        if !planted
+            && let Some(bot) = bots.bots[0].as_mut()
+            && let Some((_, goal)) = bot.route
+            && goal.distance_xz(Vec3::new(7.0, 0.0, 32.5)) < 3.0
+        {
+            let from = grid.locate(Vec3::new(21.0, 3.0, 32.5), 0.5).unwrap();
+            let to = grid.locate(goal, 3.0).unwrap();
+            assert!(grid.position(to).y > 2.5, "home is on the walkway: {goal:?}");
+            bot.route = Some((path::plan(grid, from, to).unwrap(), goal));
+            planted = true;
+        }
+        let (made, _) = bots.poll(Clock {
+            clock,
+            time_left_s: 600.0,
+            total_s: 900.0,
+            playing: true,
+        });
+        for made in made {
+            let r = made.input.rotation;
+            let turn = (
+                half_value(u16::from_le_bytes([r[0], r[1]])),
+                half_value(u16::from_le_bytes([r[2], r[3]])),
+            );
+            let gun = Arms::fallback().primary.0;
+            game.inputs[made.place].push_back((made.time, made.input.actions, turn, None, gun));
+        }
+    }
+    assert!(planted, "never headed home");
+    assert!(
+        game.delivered[0] == 1 && clock <= 45_000,
+        "not home by {clock} ms: at {:?}",
+        game.bodies[0].feet
+    );
+}
+
+/// Bot 0 of [`soak_world`] (no play: its goal set each poll) walked about
+/// by the stand-in, with `floors` floors searched a poll; `goal` gives its
+/// goal at each clock. Calls `each` after every poll with the clock, the
+/// bot, its body and the notes; runs to `until` ms.
+fn walk_to_goals(
+    floors: u32,
+    until: u32,
+    goal: impl Fn(u32) -> Vec3,
+    mut each: impl FnMut(u32, &Bot, &Body, &[Note]),
+) {
+    let world = soak_world();
+    let mut tuning = Tuning::default();
+    tuning.think.search_floors_per_poll = floors;
+    let teams = [0u8, 1];
+    let mut bots = Bots::new(
+        0x6E07,
+        survarium::v026g::maps::mode::BATTERIES,
+        0,
+        &teams,
+        &[true, false],
+        &[None, None],
+        Arc::new(tuning),
+        Trace::none(0),
+    );
+    bots.map_ready(world.clone());
+    let mut game = Game::new(world.clone(), &teams, 3, None, None);
+    let start = Vec3::new(5.0, 0.0, 10.0);
+    game.bodies[0].node = world.grid.locate(start, 1.0);
+    game.bodies[0].feet = start;
+    bots.entered(0, true, 0);
+    let (mut clock, mut next_world) = (0, 1_000);
+    while clock < until {
+        clock += 25;
+        while game.tick + TICK_MS <= clock {
+            game.step();
+        }
+        let mut notes = Vec::new();
+        if clock >= next_world {
+            next_world += 1_000;
+            if let Some((_, fixes, health, facts)) = game.world_at(clock / TICK_MS * TICK_MS - 300)
+            {
+                for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                    notes.extend(bots.fixed(place, fix, Some(health)));
+                }
+                bots.facts(facts);
+            }
+        }
+        // `Bots::poll` with the play's step left out: the goal is given.
+        let clock_now = Clock {
+            clock,
+            time_left_s: 600.0,
+            total_s: 900.0,
+            playing: true,
+        };
+        let view = bots
+            .tracker
+            .view(&clock_now, &bots.tuning.kin, Some(&world));
+        bots.searching.left = SEARCHES_PER_POLL;
+        bots.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+        bots.go_on_searching();
+        if let Some(bot) = bots.bots[0].as_mut() {
+            bot.intent = Intent::to(goal(clock), Pace::Run).within(1.0);
+        }
+        let mut made = Vec::new();
+        bots.ticks(0, &clock_now, &view, &mut made);
+        if let Some(bot) = bots.bots[0].as_mut()
+            && let Some(text) = bot.dropped.take()
+        {
+            bot.note(&mut notes, clock, text);
+        }
+        for made in made {
+            let r = made.input.rotation;
+            let turn = (
+                half_value(u16::from_le_bytes([r[0], r[1]])),
+                half_value(u16::from_le_bytes([r[2], r[3]])),
+            );
+            let gun = Arms::fallback().primary.0;
+            game.inputs[made.place].push_back((made.time, made.input.actions, turn, None, gun));
+        }
+        each(clock, bots.bots[0].as_ref().unwrap(), &game.bodies[0], &notes);
+    }
+}
+
+/// Issue 5 of the audit: a bot whose goal moves on keeps walking its
+/// route while the new search goes on over several polls, never standing
+/// for it; and one whose goal moves on every poll (its searches dropped
+/// before they end) keeps walking too, and notes the dropped searches at
+/// most once in [`path::DROPPED_NOTE_MS`].
+#[test]
+fn a_bot_keeps_walking_its_route_while_its_next_search_goes_on() {
+    // Round the wall's end (x 40, z 0-25) to x 48 (out of the other
+    // side's spawn area), then 4.5 m on; 150 floors a poll: the search to
+    // the new goal takes several.
+    let (first, moved) = (Vec3::new(48.0, 0.0, 36.0), Vec3::new(48.0, 0.0, 31.5));
+    let changed = 6_000;
+    let sliced = path::searches().sliced;
+    let (mut had, mut routeless, mut to_moved) = (false, 0, None);
+    let mut walked = (None, 0.0f32);
+    walk_to_goals(
+        150,
+        12_000,
+        |clock| if clock < changed { first } else { moved },
+        |clock, bot, body, _| {
+            had |= bot.route.is_some();
+            if had && bot.route.is_none() {
+                routeless += 1;
+            }
+            if to_moved.is_none()
+                && clock > changed
+                && bot.route.as_ref().is_some_and(|(_, goal)| goal.distance_xz(moved) < 0.5)
+            {
+                to_moved = Some(clock);
+            }
+            if clock == changed {
+                walked.0 = Some(body.feet);
+            }
+            if clock == changed + 3_000 {
+                walked.1 = walked.0.map_or(0.0, |from| from.distance_xz(body.feet));
+            }
+        },
+    );
+    // Both searches went on over several polls (their first poll's way so
+    // far walked meanwhile).
+    assert!(path::searches().sliced >= sliced + 2);
+    assert!(to_moved.is_some_and(|at| at <= changed + 100), "{to_moved:?}");
+    assert_eq!(routeless, 0, "stood {routeless} polls with no route");
+    assert!(walked.1 > 8.0, "walked {} m in the 3 s after", walked.1);
+    // Every poll a new goal 3 m on (its search never ends): still a route
+    // at every poll once it had one, and a note of the dropped searches
+    // at most every 5 s.
+    let (mut had, mut routeless, mut notes) = (false, 0, Vec::new());
+    let mut moved_m = (None, 0.0f32);
+    walk_to_goals(
+        150,
+        16_000,
+        |clock| Vec3::new(48.0, 0.0, 10.0 + 3.0 * ((clock / 25) % 8) as f32),
+        |clock, bot, body, polled| {
+            had |= bot.route.is_some();
+            if had && bot.route.is_none() {
+                routeless += 1;
+            }
+            for note in polled {
+                if note.text.starts_with("dropped its route search") {
+                    notes.push(clock);
+                }
+            }
+            if clock == 4_000 {
+                moved_m.0 = Some(body.feet);
+            }
+            if clock == 16_000 {
+                moved_m.1 = moved_m.0.map_or(0.0, |from| from.distance_xz(body.feet));
+            }
+        },
+    );
+    assert!(had);
+    assert_eq!(routeless, 0, "stood {routeless} polls with no route");
+    assert!(!notes.is_empty() && notes.len() <= 4, "notes at {notes:?}");
+    assert!(notes.windows(2).all(|w| w[1] >= w[0] + path::DROPPED_NOTE_MS), "{notes:?}");
+    assert!(moved_m.1 > 10.0, "walked {} m in 12 s", moved_m.1);
+}
+
+/// Issue 5's stand (0x5d506a22 bot 14, 116-131 s): a goal computed at
+/// another body's height (Buddy's, short of a partner on a walkway) hangs
+/// 4 m over the floor under it, where `WalkGrid::locate` finds none. The
+/// bot walks to the floor under it ([`path::goal_floor`]) instead of
+/// standing with no way.
+#[test]
+fn a_goal_in_the_air_is_walked_to_the_floor_under_it() {
+    let goal = Vec3::new(20.0, 4.0, 20.0);
+    let (mut had, mut end) = (false, Vec3::ZERO);
+    walk_to_goals(
+        10_000,
+        12_000,
+        |_| goal,
+        |_, bot, body, _| {
+            had |= bot.route.is_some();
+            end = body.feet;
+        },
+    );
+    assert!(had, "never had a route");
+    assert!(end.distance_xz(goal) < 2.0, "at {end:?}");
+}
+
+/// The bench's count of how the bots got about (`player_bots_stuck.md` §8),
+/// as the audit's `wallpush.py` and `movement.py` count it from a match's
+/// worlds: sampled once a world (1 s), and the carriers each tick.
+#[derive(Default)]
+struct RouteTally {
+    /// Each body at the last world: feet, alive; and its runs so far
+    /// (worlds holding a walk key without moving, worlds still, worlds of
+    /// them in a fight); its last move of 1.5 m or more.
+    last: Vec<Option<(Vec3, bool)>>,
+    push_run: Vec<u32>,
+    idle_run: Vec<(u32, u32)>,
+    last_move: Vec<Option<(f32, f32)>>,
+    /// Runs of 5 worlds or more holding a walk key moving under 0.3 m a
+    /// world, and their worlds.
+    pushes: (u32, u32),
+    /// Stretches of 5 s or more moving under 0.5 m a world, and their
+    /// seconds: with no target, and in a fight.
+    idle: (u32, u32),
+    idle_fighting: u32,
+    /// Moves of 1.5 m or more turning back over 135° from the one before,
+    /// with no target.
+    reversals: u32,
+    /// Living bot-worlds.
+    worlds: u32,
+    /// Each body's pickup time, and the carries delivered (ms each) and
+    /// lost.
+    carry_from: Vec<Option<(u32, usize)>>,
+    carried: Vec<u32>,
+    lost: u32,
+    /// "is stuck" notes, and those of them by the walk keys alone.
+    stuck: (u32, u32),
+    no_route: [u64; 5],
+}
+
+impl RouteTally {
+    fn start(bodies: usize) -> Self {
+        RouteTally {
+            last: vec![None; bodies],
+            push_run: vec![0; bodies],
+            idle_run: vec![(0, 0); bodies],
+            last_move: vec![None; bodies],
+            carry_from: vec![None; bodies],
+            no_route: super::path::no_routes(),
+            ..Default::default()
+        }
+    }
+
+    /// A tick: the carries begun and ended.
+    fn tick(&mut self, game: &Game, time: u32) {
+        for (place, body) in game.bodies.iter().enumerate() {
+            match (self.carry_from[place], body.carrying) {
+                (None, Some(battery)) => self.carry_from[place] = Some((time, battery)),
+                (Some((from, battery)), None) => {
+                    self.carry_from[place] = None;
+                    if matches!(game.batteries.get(battery), Some(Lying::Home(_))) {
+                        self.carried.push(time - from);
+                    } else {
+                        self.lost += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// A world: the runs of pushing and standing, and the reversals.
+    fn world(&mut self, game: &Game) {
+        const WALK: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
+        for (place, body) in game.bodies.iter().enumerate() {
+            let now = (body.feet, body.alive);
+            let before = self.last[place].replace(now);
+            let Some((from, true)) = before.filter(|_| body.alive) else {
+                self.end_runs(place);
+                self.last_move[place] = None;
+                continue;
+            };
+            self.worlds += 1;
+            let moved = from.distance_xz(body.feet);
+            let fight = body.target.is_some();
+            if body.keys & WALK != 0 && moved < 0.3 {
+                self.push_run[place] += 1;
+            } else {
+                self.end_push(place);
+            }
+            if moved < 0.5 {
+                let run = &mut self.idle_run[place];
+                run.0 += 1;
+                run.1 += u32::from(fight);
+            } else {
+                self.end_idle(place);
+            }
+            let step = (body.feet.x - from.x, body.feet.z - from.z);
+            if moved >= 1.5 && !fight {
+                if let Some(back) = self.last_move[place] {
+                    let cos = (step.0 * back.0 + step.1 * back.1) / (moved * back.0.hypot(back.1));
+                    self.reversals += u32::from(cos < (135f32).to_radians().cos());
+                }
+                self.last_move[place] = Some(step);
+            } else if moved >= 1.5 {
+                self.last_move[place] = None;
+            }
+        }
+    }
+
+    fn end_push(&mut self, place: usize) {
+        let run = std::mem::take(&mut self.push_run[place]);
+        if run >= 5 {
+            self.pushes.0 += 1;
+            self.pushes.1 += run;
+        }
+    }
+
+    fn end_idle(&mut self, place: usize) {
+        let (run, fighting) = std::mem::take(&mut self.idle_run[place]);
+        if run >= 5 {
+            if fighting * 2 >= run {
+                self.idle_fighting += run;
+            } else {
+                self.idle.0 += 1;
+                self.idle.1 += run;
+            }
+        }
+    }
+
+    fn end_runs(&mut self, place: usize) {
+        self.end_push(place);
+        self.end_idle(place);
+    }
+
+    fn note(&mut self, note: &Note) {
+        if note.text.starts_with("is stuck at") {
+            self.stuck.0 += 1;
+            self.stuck.1 += u32::from(note.text.contains("(walk keys held"));
+        }
+    }
+
+    /// The line the bench prints (one `routes:` line, `key value` pairs).
+    fn line(mut self) -> String {
+        for place in 0..self.last.len() {
+            self.end_runs(place);
+        }
+        let now = super::path::no_routes();
+        let no_route: Vec<u64> = (0..5).map(|k| now[k] - self.no_route[k]).collect();
+        let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
+        format!(
+            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {}",
+            self.worlds,
+            self.pushes.0,
+            self.pushes.1,
+            self.idle.0,
+            self.idle.1,
+            self.idle_fighting,
+            self.reversals,
+            self.stuck.0,
+            self.stuck.1,
+            self.carried.len(),
+            mean(&self.carried),
+            self.lost,
+            no_route[0],
+            no_route[1],
+            no_route[2],
+            no_route[3],
+            no_route[4],
+        )
     }
 }

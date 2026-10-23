@@ -105,6 +105,10 @@ const JUMP_WATCH_MS: u32 = 3_000;
 /// (`base_player::detect_usable_object`, PROVEN), and the half metre more
 /// turns the view while the bot walks in.
 const USE_LOOK_M: f32 = 2.5;
+/// The plays' failure when they ran past their time (`collect`, `raid`,
+/// `retreat`, `sneak`): the play and its target are set aside as a quick
+/// failure is (`plays::SET_ASIDE_MS`).
+const TOOK_TOO_LONG: &str = "took too long";
 /// A goal no way was found to is not planned to again for this long, ms.
 const NO_WAY_RETRY_MS: u32 = 500;
 /// How long the plays leave a goal no way was found to (`Bot::no_way_to`):
@@ -225,6 +229,8 @@ pub struct Bot {
     /// ([`Pending`]): the goal and the route, or none. Taken at its next
     /// tick, and used if it still heads there.
     found: Option<(Vec3, Option<Route>)>,
+    /// Its route searches dropped since it last noted them.
+    dropped: path::Dropped,
     /// Its kits by index (the profile's, `survarium::v026g::loadouts::
     /// bot_kits` of its tier and role) and the rounds of weapon 1's ammo
     /// each has left for the match (its storage, `guns::Arms::reserve`):
@@ -317,6 +323,7 @@ impl Bot {
             paired: false,
             medkits_used: 0,
             found: None,
+            dropped: path::Dropped::default(),
             kits,
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
@@ -874,7 +881,7 @@ impl Bots {
     /// A trusted world's word on one place's body.
     pub fn fixed(&mut self, place: Place, fix: Fix, health: Option<f32>) -> Vec<Note> {
         let mut notes = Vec::new();
-        let (time, feet) = (fix.time, fix.feet);
+        let (time, feet, keys) = (fix.time, fix.feet, fix.keys);
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         let new_life = self
             .tracker
@@ -898,12 +905,20 @@ impl Bots {
         };
         let goal = *goal;
         let meant = self.tracker.body(place).and_then(|body| body.last_meant());
-        if let Some(recovery) = bot.stuck.walking(time, feet, meant) {
+        if let Some((recovery, by_keys)) = bot.stuck.walking(time, feet, meant, keys) {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             bot.note(
                 &mut notes,
                 time,
-                format!("is stuck at {:?}: {recovery:?}", feet.to_array()),
+                format!(
+                    "is stuck at {:?}: {recovery:?}{}",
+                    feet.to_array(),
+                    if by_keys {
+                        " (walk keys held, the body still)"
+                    } else {
+                        ""
+                    }
+                ),
             );
             let (side, other) = if bot.rng.unit() < 0.5 {
                 (key::LEFT, key::RIGHT)
@@ -1338,6 +1353,11 @@ impl Bots {
                 self.think(index, &view, &mut rays, &mut notes);
             }
             self.ticks(index, &clock, &view, &mut made);
+            if let Some(bot) = self.bots[index].as_mut()
+                && let Some(text) = bot.dropped.take()
+            {
+                bot.note(&mut notes, now, text);
+            }
             // A kit picked before play begins would respawn the bot where
             // it stands at once (the games' patch 31), not at its next
             // life: the bot picks once play has begun, for its next life.
@@ -1863,8 +1883,26 @@ impl Bots {
                 self.teams[team].next_commander = now;
             }
             Step::Failed(why) => {
+                // A play that took too long is set aside too, and the way
+                // it went is not walked or searched again: a carrier stuck
+                // under its route took the same play again at once and
+                // stood there two more spans (0x4da3b51d, 214.6 and
+                // 334.9 s; `player_bots_stuck.md` §8).
+                let too_long = why == TOOK_TOO_LONG;
+                if too_long {
+                    bot.found = None;
+                    bot.no_way = None;
+                    if self
+                        .searching
+                        .pending
+                        .as_ref()
+                        .is_some_and(|p| p.place == bot.place)
+                    {
+                        self.searching.pending = None;
+                    }
+                }
                 if let Some(a) = bot.assignment.as_ref()
-                    && now < a.since + plays::QUICK_FAIL_MS
+                    && (too_long || now < a.since + plays::QUICK_FAIL_MS)
                 {
                     bot.set_aside.retain(|&(_, _, until)| until > now);
                     bot.set_aside
@@ -2114,12 +2152,15 @@ fn drive_tick(
                 Some(pending) if pending.place == bot.place => {
                     let still = pending.goal.distance_xz(at) <= REPLAN_MOVED_M;
                     if !still {
+                        bot.dropped.dropped(time, pending.goal, at);
                         searching.pending = None;
                     }
                     still
                 }
                 _ => false,
             };
+            // Why it has no route, if it has none after this.
+            let mut no_route = path::NoRoute::Searched;
             if let Some((goal, route)) = found {
                 bot.no_way = route.is_none().then_some((goal, time + NO_WAY_RETRY_MS));
                 // Both ends were on floors, from one it may walk on: proven.
@@ -2132,6 +2173,7 @@ fn drive_tick(
                 bot.route = route.map(|route| (route, goal));
             } else if replan && no_way {
                 bot.route = None;
+                no_route = path::NoRoute::NoWay;
             } else if waiting
                 || (replan
                     && (searching.left == 0
@@ -2140,6 +2182,11 @@ fn drive_tick(
             {
                 // Its search goes on, or none left to this poll: the old
                 // route meanwhile.
+                no_route = if waiting {
+                    path::NoRoute::Searching
+                } else {
+                    path::NoRoute::Starved
+                };
             } else if replan {
                 searching.left -= 1;
                 let grid = &tactics.world.grid;
@@ -2149,7 +2196,10 @@ fn drive_tick(
                 // through them (a second search only when there are any).
                 let spots: Vec<Vec3> = bot.stuck.avoided(time).collect();
                 let avoiding = !spots.is_empty();
-                let ends = grid.locate(me.feet, 1.5).zip(grid.locate(at, 3.0));
+                let ends = grid.locate(me.feet, 1.5).zip(path::goal_floor(grid, at));
+                // Already on the goal's floor (the nearest to a goal on none):
+                // as near as it gets, nothing to search.
+                let there = ends.is_some_and(|(from, to)| from == to);
                 // On a floor it may not walk on (in a fire it stepped
                 // into): out to the nearest one it may first; the goal is
                 // planned from there.
@@ -2159,7 +2209,9 @@ fn drive_tick(
                 // Left under way past this poll's floors: whether round the
                 // spots, and the search.
                 let mut left = None;
-                let route = if escaping {
+                let route = if there {
+                    None
+                } else if escaping {
                     ends.and_then(|(from, _)| tactics.escape(from, time, side, objective))
                 } else if let Some((from, to)) = ends {
                     let open = |node: NodeId| !(avoiding && near_any(&spots, grid.position(node)));
@@ -2200,6 +2252,7 @@ fn drive_tick(
                     {
                         bot.route = Some((partial, at));
                     }
+                    no_route = path::NoRoute::Searching;
                     searching.pending = Some(Pending {
                         place: bot.place,
                         goal: at,
@@ -2215,7 +2268,7 @@ fn drive_tick(
                     bot.no_way = route.is_none().then_some((at, time + NO_WAY_RETRY_MS));
                     // Both ends on floors, from one it may walk on, and no way:
                     // proven, for the plays.
-                    if route.is_none() && ends.is_some() && !escaping {
+                    if route.is_none() && ends.is_some() && !escaping && !there {
                         bot.no_way_to.retain(|&(goal, until)| {
                             time < until && goal.distance_xz(at) > REPLAN_MOVED_M
                         });
@@ -2238,16 +2291,20 @@ fn drive_tick(
                     };
                     if walked != Walked::OnTheWay {
                         bot.route = None;
+                        path::no_route(path::NoRoute::Ended);
                     }
                     decision
                 }
-                None => match aim {
-                    Some(aim) => {
-                        aiming_still = true;
-                        bot.motor.aim_still(&pose, aim)
+                None => {
+                    path::no_route(no_route);
+                    match aim {
+                        Some(aim) => {
+                            aiming_still = true;
+                            bot.motor.aim_still(&pose, aim)
+                        }
+                        None => bot.motor.stand(&pose, &mut bot.rng),
                     }
-                    None => bot.motor.stand(&pose, &mut bot.rng),
-                },
+                }
             }
         }
         None => {

@@ -1027,9 +1027,15 @@ mod tests {
             // 3 s: 1.3 m behind at each, 15 % of the way meant.
             let mut motor = Motor::new(Feel::default(), &mut rng);
             let slower = |_, tick: usize| 2.0 + 0.85 * 3.3 * TICK_S * tick as f32;
+            // The route up the ramp (a route of flat floor under it is off it).
+            let mut ramp = straight().points().to_vec();
+            for point in ramp.iter_mut() {
+                point.at.y = point.at.x * 0.18;
+            }
+            let mut ramp = Route::new(ramp);
             let jumps = reckoned_to(
                 &mut motor,
-                &mut straight(),
+                &mut ramp,
                 |x| x * 0.18,
                 slower,
                 (60, f32::INFINITY),
