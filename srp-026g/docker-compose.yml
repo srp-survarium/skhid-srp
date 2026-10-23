@@ -139,6 +139,9 @@ services:
       # switch it off; the code's own default is off). Each match against
       # bots may hold a bots' map of its own in memory (35-150 MB, up to
       # SRP_PVB_MAX_MATCHES maps): raise SRP26_MEMORY with it.
+      # SRP_PVB_MAX_GEAR: the highest equipment level let in, 15 (every
+      # level) when unset; the bots wear the player's tier's equipment
+      # (docs/notes/pvb-tiers.md).
       - SRP_PVB=${SRP_PVB:-on}
       - SRP_PVB_MAX_GEAR
       - SRP_PVB_MAX_MATCHES

@@ -111,12 +111,23 @@ impl Walkers {
         let project = formed.map.project;
         maps.request(project);
         let teams: Vec<u8> = formed.places.iter().map(|place| place.team).collect();
-        let roles: Vec<Option<&str>> = formed
+        let bots: Vec<_> = formed
             .profiles
             .iter()
-            .map(|profile| survarium::v026g::loadouts::bot_role_of(profile).map(|role| role.name()))
+            .map(survarium::v026g::loadouts::bot_of)
             .collect();
-        log::info!("Match {id:#x}: the bots' roles by place {roles:?}");
+        let roles: Vec<Option<&str>> = bots
+            .iter()
+            .map(|bot| bot.map(|(_, role)| role.name()))
+            .collect();
+        let tiers: Vec<_> = bots.iter().map(|bot| bot.map(|(tier, _)| tier)).collect();
+        log::info!(
+            "Match {id:#x}: the bots' roles by place {roles:?}, equipment {:?}",
+            tiers
+                .iter()
+                .map(|tier| tier.map(|tier| tier.name()))
+                .collect::<Vec<_>>()
+        );
         let weapons = formed.profiles.iter().map(weapon_of).collect();
         Some(Self {
             bots: Bots::new(
@@ -129,7 +140,8 @@ impl Walkers {
                 Arc::new(tuning),
                 trace,
             )
-            .with_container_teams(formed.map.container_teams),
+            .with_container_teams(formed.map.container_teams)
+            .with_tiers(&tiers),
             maps,
             project,
             world: None,

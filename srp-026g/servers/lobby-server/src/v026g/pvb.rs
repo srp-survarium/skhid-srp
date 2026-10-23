@@ -19,8 +19,11 @@
 //!    the rule is checked again and the match made at once with this player
 //!    alone, on team 0 against the server's bots, the teams fixed
 //!    (`Matchmaking::seat_solo`): N − 1 bots on its side and N on the
-//!    other (`play::server_bot_teams`), on the map chosen. No rule of two
-//!    parties, of levels or of a gather window; the play counts towards no
+//!    other (`play::server_bot_teams`), on the map chosen. The bots wear
+//!    the equipment of the player's tier (`loadouts::BotTier::of_gear` of
+//!    its equipment level, `matchmaking::gear_level`: 0-5 → bots of level
+//!    4-5, 6-10 → 9-10, 11-15 → 13-15; `docs/notes/pvb-tiers.md`). No rule
+//!    of two parties, of levels or of a gather window; the play counts towards no
 //!    map rotation. A Play whose hold ran out within [`EXPIRED_REFUSED`]
 //!    is refused (`st_cant_change_ready_state`) and never goes into a
 //!    room: the player meant bots.
@@ -40,7 +43,8 @@
 //! it is in a match, sent to one, or has a place in one (4); it waits with
 //! its clan team (3); it is in a squad with others (2); it is in
 //! its clan's team (9); its equipment level (the client's, of the kits it
-//! can play: `matchmaking::gear_level`) is over [`Config::max_gear`] (1);
+//! can play: `matchmaking::gear_level`) is over [`Config::max_gear`] (1:
+//! never by default, the highest level there is);
 //! a planned maintenance is 30 minutes away or less (8); as many matches
 //! against bots run, or are held for players who chose one, as
 //! [`Config::max_matches`] (7).
@@ -50,7 +54,7 @@
 //! | Setting | Default | What | Read by |
 //! |---|---|---|---|
 //! | `SRP_PVB` | off | the mode is offered (`on`) | the lobby, the match server |
-//! | `SRP_PVB_MAX_GEAR` | 5 | the highest equipment level let in, 0 to 15 | the lobby |
+//! | `SRP_PVB_MAX_GEAR` | 15 | the highest equipment level let in, 0 to 15 (15: every player, the owner's of 2026-10-23) | the lobby |
 //! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once, 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
 //! | `SRP_PVB_PAY` | 0.5 | the share of a match's silver and experience it pays, 0 to 1 | the rewards (`session::v026g::pvb`) |
 //! | `SRP_PVB_STALL_S` | 60 | a match whose only player uploads no world it is asked for this long is over, 10 to 3600 | the match server |
@@ -91,17 +95,20 @@ pub const HOLD: Duration = Duration::from_secs(10);
 /// A Play this long after its hold ran out is still taken as one meant for
 /// bots: refused, never into a room.
 pub const EXPIRED_REFUSED: Duration = Duration::from_secs(30);
-/// `SRP_PVB_MAX_GEAR` when unset: "5 or lower" (the owner's).
-pub const DEFAULT_MAX_GEAR: u8 = 5;
 /// The highest equipment level there is (`items_levels_modifiers`).
 const MOST_GEAR: u8 = 15;
+/// `SRP_PVB_MAX_GEAR` when unset: every level (the owner's of 2026-10-23:
+/// matches against bots for every level, the bots of the player's tier;
+/// it was 5 from 2026-10-16).
+pub const DEFAULT_MAX_GEAR: u8 = MOST_GEAR;
 
 /// The mode's settings in the lobby.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     /// `SRP_PVB` (default off).
     pub enabled: bool,
-    /// `SRP_PVB_MAX_GEAR` (default 5): the highest equipment level let in.
+    /// `SRP_PVB_MAX_GEAR` (default 15, every level): the highest equipment
+    /// level let in.
     pub max_gear: u8,
     /// `SRP_PVB_MAX_MATCHES` (default 5).
     pub max_matches: usize,
@@ -481,7 +488,7 @@ mod tests {
     fn the_settings_read_as_documented() {
         let config = Config::default();
         assert!(!config.enabled);
-        assert_eq!((config.max_gear, config.max_matches), (5, 5));
+        assert_eq!((config.max_gear, config.max_matches), (15, 5));
         assert_eq!(parse_max_gear(" 4 "), Some(4));
         assert_eq!(parse_max_gear("16"), None);
         assert_eq!(parse_max_gear("x"), None);

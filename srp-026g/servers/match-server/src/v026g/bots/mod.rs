@@ -57,6 +57,7 @@ pub mod view;
 use std::sync::Arc;
 
 use mapdata::{NodeId, Vec3, World};
+use survarium::v026g::loadouts::{BotRole, BotTier};
 use survarium::v026g::match_msgs::PlayerInput;
 
 use crate::v026g::drive::{half_value, key};
@@ -199,11 +200,16 @@ pub struct Bot {
     /// ([`Pending`]): the goal and the route, or none. Taken at its next
     /// tick, and used if it still heads there.
     found: Option<(Vec3, Option<Route>)>,
-    /// Its kits by index (the profile's: its role's, then its backup's,
-    /// `survarium::v026g::loadouts::bot_kits`) and the rounds of weapon 1
-    /// each has left: a place's ammo lasts the match, a spawn does not
-    /// refill it. Empty for a bot of no role.
+    /// Its kits by index (the profile's, `survarium::v026g::loadouts::
+    /// bot_kits` of its tier and role) and the rounds of weapon 1's ammo
+    /// each has left for the match (its storage, `guns::Arms::reserve`):
+    /// a spawn fills a life's rounds from it, and only the rounds fired
+    /// are gone. Empty for a bot of no role.
     kits: Vec<(&'static guns::Arms, u32)>,
+    /// The rounds this life started with (what its kit's storage gave).
+    life_carried: u32,
+    /// Its role, read from its gear (`Bots::new`'s `roles`).
+    role: Option<BotRole>,
     /// Plays that failed at once at a target, and until when they are not
     /// taken there again (`plays::SET_ASIDE_MS`).
     set_aside: Vec<(PlayKind, plays::TargetRef, u32)>,
@@ -236,26 +242,21 @@ impl Bot {
                     })
                     .unwrap_or(0)
             });
-        // What it carries: its role's gear, else its personality's name as
+        // What it carries: its role's gear (the lowest tier's until
+        // `Bots::with_tiers` says another), else its personality's name as
         // a role (the tests' bots), else the fallback.
-        let kits: Vec<(&'static guns::Arms, u32)> = role
-            .and_then(|role| {
-                let role = survarium::v026g::loadouts::BotRole::ALL
-                    .into_iter()
-                    .find(|each| each.name() == role)?;
-                Some([role, role.backup()])
-            })
-            .into_iter()
-            .flatten()
-            .filter_map(|role| guns::Arms::of_role(role.name()))
-            .map(|arms| (arms, arms.primary.1))
-            .collect();
+        let kits = Self::kits_of(role, BotTier::Low);
         let arms = role.and_then(guns::Arms::of_role).or_else(|| {
             tuning
                 .personalities
                 .get(personality)
                 .and_then(|p| guns::Arms::of_role(&p.name))
         });
+        let life_carried = kits
+            .first()
+            .map_or(arms.map_or(0, |arms| arms.primary.1), |&(arms, _)| {
+                arms.primary.1
+            });
         Self {
             place,
             team,
@@ -287,6 +288,8 @@ impl Bot {
             medkits_used: 0,
             found: None,
             kits,
+            life_carried,
+            role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
             set_aside: Vec::new(),
             failed_stands: Vec::new(),
             kit: 0,
@@ -294,31 +297,76 @@ impl Bot {
         }
     }
 
-    /// The kit for its next life, when it changes: the present one runs
-    /// low (less than a magazine left) and another has more than a
-    /// magazine (the owner's word, 2026-10-16: a second kit with another
-    /// ammo, switched to when the first is spent). Its index, and the
-    /// rounds left in the two.
-    fn pick_kit(&mut self) -> Option<(usize, u32, u32)> {
-        let left = |bot: &Self, i: usize| {
-            if i == bot.kit {
-                bot.reflex.left()
-            } else {
-                bot.kits[i].1
-            }
+    /// The kits of a bot of `role` (a personality's name) in `tier`, each
+    /// with its whole storage; none for no role.
+    fn kits_of(role: Option<&str>, tier: BotTier) -> Vec<(&'static guns::Arms, u32)> {
+        role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role))
+            .map(|role| guns::Arms::kits_of(tier, role))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|arms| (arms, arms.reserve))
+            .collect()
+    }
+
+    /// Its kits are those of `tier` (its role's): each full, the first in
+    /// hand. For a bot made before its life begins.
+    fn arm(&mut self, tier: BotTier) {
+        let kits = Self::kits_of(self.role.map(BotRole::name), tier);
+        if kits.is_empty() {
+            return;
+        }
+        self.kits = kits;
+        self.kit = 0;
+        self.kit_chosen = 0;
+        let (arms, reserve) = self.kits[0];
+        self.life_carried = reserve.min(arms.primary.1);
+        self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
+    }
+
+    /// The rounds kit `i` has left for the match: the present kit's
+    /// storage less what this life fired.
+    fn kit_left(&self, i: usize) -> u32 {
+        let Some(&(_, left)) = self.kits.get(i) else {
+            return 0;
         };
-        let low = |bot: &Self, i: usize| left(bot, i) < bot.kits[i].0.primary.0.magazine;
+        if i == self.kit {
+            left.saturating_sub(self.life_carried.saturating_sub(self.reflex.left()))
+        } else {
+            left
+        }
+    }
+
+    /// The kit for its next life, when it changes (the owner's words,
+    /// 2026-10-16 and 2026-10-23: another kit, with its own ammo, when the
+    /// present one is spent). Only when the present kit has less than a
+    /// magazine left for the match: the kit of the others with the most
+    /// rounds; when every other has less than a magazine too, that one
+    /// only if it has more rounds than the present one; none with no
+    /// round. Ties go to the lower index. Chosen once: a choice is not
+    /// made again while it stands, so the choice does not go back and
+    /// forth. Its index, and the rounds left in the present kit and in
+    /// it.
+    fn pick_kit(&mut self) -> Option<(usize, u32, u32)> {
+        let low = |bot: &Self, i: usize| bot.kit_left(i) < bot.kits[i].0.primary.0.magazine;
         if self.kits.len() < 2 || !low(self, self.kit) {
             return None;
         }
-        let best = (0..self.kits.len())
-            .filter(|&i| i != self.kit && !low(self, i))
-            .max_by_key(|&i| left(self, i))?;
+        let present = self.kit_left(self.kit);
+        let mut best: Option<usize> = None;
+        for i in (0..self.kits.len()).filter(|&i| i != self.kit && self.kit_left(i) > 0) {
+            if best.is_none_or(|b| self.kit_left(i) > self.kit_left(b)) {
+                best = Some(i);
+            }
+        }
+        let best = best?;
+        if low(self, best) && self.kit_left(best) <= present {
+            return None;
+        }
         if best == self.kit_chosen {
             return None;
         }
         self.kit_chosen = best;
-        Some((best, left(self, self.kit), left(self, best)))
+        Some((best, present, self.kit_left(best)))
     }
 
     fn note(&self, notes: &mut Vec<Note>, time: u32, text: String) {
@@ -358,13 +406,19 @@ impl Bot {
         self.intent = Intent::stay();
         self.stuck.reset();
         self.unstick = None;
-        // The kit it picked is the one it spawned in, with what it left.
+        // The kit it spawned in keeps its storage less what it fired; the
+        // kit it picked fills this life from its own (0x2FCB70: the slot's
+        // rounds, at most what the storage has).
+        let left = self.kit_left(self.kit);
         if let Some(kit) = self.kits.get_mut(self.kit) {
-            kit.1 = self.reflex.left();
+            kit.1 = left;
         }
         self.kit = self.kit_chosen.min(self.kits.len().saturating_sub(1));
         self.reflex = match self.kits.get(self.kit) {
-            Some(&(arms, left)) => Reflex::armed_carrying(Some(arms), left),
+            Some(&(arms, left)) => {
+                self.life_carried = left.min(arms.primary.1);
+                Reflex::armed_carrying(Some(arms), self.life_carried)
+            }
             None => Reflex::armed(self.reflex.arms()),
         };
         self.memory = Memory::default();
@@ -554,6 +608,18 @@ impl Bots {
     /// The kit choices the bots made since the last call: each place and
     /// the index of the kit for its next life, to be relayed as a
     /// player's 0xDE is (0xF3).
+    /// The tier of each bot's gear (`tiers[place]`, read from its profile:
+    /// `survarium::v026g::loadouts::bot_of`): its kits are its role's of
+    /// that tier (`Bots::new` gives the lowest tier's). Before play.
+    pub fn with_tiers(mut self, tiers: &[Option<BotTier>]) -> Self {
+        for (bot, tier) in self.bots.iter_mut().zip(tiers) {
+            if let (Some(bot), Some(tier)) = (bot.as_mut(), tier) {
+                bot.arm(*tier);
+            }
+        }
+        self
+    }
+
     pub fn take_kit_choices(&mut self) -> Vec<(Place, u8)> {
         std::mem::take(&mut self.kit_choices)
     }
@@ -1715,7 +1781,11 @@ impl Bots {
                             "took no battery {} from a stand {:.1} m off it ({})",
                             failed.battery,
                             failed.feet.distance_xz(failed.at),
-                            if failed.crouch { "crouched" } else { "standing" }
+                            if failed.crouch {
+                                "crouched"
+                            } else {
+                                "standing"
+                            }
                         ),
                     );
                 }
@@ -1892,8 +1962,8 @@ fn drive_tick(
     let running = tuning.aim.combat.glance_run_yields
         && intent.pace == Pace::Run
         && matches!(intent.go, Go::To { at, within_m } if me.feet.distance_xz(at) > within_m);
-    let glance_yields = over.glance
-        && (matches!(intent.look, Look::Use(_)) || me.carrying.is_some() || running);
+    let glance_yields =
+        over.glance && (matches!(intent.look, Look::Use(_)) || me.carrying.is_some() || running);
     let aim = over
         .look_at
         .filter(|_| !glance_yields)

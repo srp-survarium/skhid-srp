@@ -3316,6 +3316,7 @@ mod tests {
             &*Box::leak(Box::new(Arms {
                 primary: (arms.primary.0, spare),
                 pistol: crate::v026g::bots::guns::gun("tt_33").map(|gun| (gun, 50)),
+                reserve: spare,
             }))
         });
         let mut reflex = Reflex::armed(arms);
@@ -4062,6 +4063,7 @@ mod tests {
             let arms: &'static Arms = Box::leak(Box::new(Arms {
                 primary: (fallback.primary.0, rounds),
                 pistol: None,
+                reserve: rounds,
             }));
             let mut me = body(0, 0, Vec3::new(20.0, 0.0, 32.0), 0.0);
             let enemy_at = Vec3::new(50.0, 0.0, 32.0);
