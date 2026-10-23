@@ -20,6 +20,9 @@ fn terms() -> Terms {
         experience_rate: 1,
         money_rate: pay::MoneyRate::Flat(100),
         reputation_rate: 100,
+        quest_reputation_rate: 100,
+        quest_money_rate: 100,
+        quest_kind_rates: pay::QuestKindRates::NONE,
         score_weights: SCORE_WEIGHTS,
         wear: true,
         playtime_bonus: true,
@@ -489,6 +492,16 @@ fn the_money_rate_scales_the_rows_silver_and_premiums_half_of_it() {
         (own.money_rate, own.experience_rate, own.reputation_rate),
         (pay::MoneyRate::ByLevel, 2, 120)
     );
+    // The quests: the rows' reputation rate, the original's silver, every
+    // kind alike: what they paid before they had rates of their own.
+    assert_eq!(
+        (
+            own.quest_reputation_rate,
+            own.quest_money_rate,
+            own.quest_kind_rates
+        ),
+        (120, 100, pay::QuestKindRates::NONE)
+    );
     assert_eq!((own.wear, own.playtime_bonus), (false, false));
     assert_eq!(own.score_weights, SCORE_WEIGHTS);
 }
@@ -527,6 +540,7 @@ fn the_owners_rates_raise_silver_by_match_level_experience_and_reputation() {
         money_rate: pay::MoneyRate::ByLevel,
         experience_rate: 2,
         reputation_rate: 120,
+        quest_reputation_rate: 120,
         ..terms()
     };
     // Level 0 (every multiplier 1): 150 % of 75, 10 and 82.73 silver;
@@ -581,6 +595,33 @@ fn the_owners_rates_raise_silver_by_match_level_experience_and_reputation() {
     assert_eq!(plain.reward.quest_reputation, [(1, 67)]);
     assert_eq!(alice.reward.quest_reputation, [(1, 81)]);
     assert_eq!(alice.full.quest_reputation, 81);
+
+    // The quests' own rates leave the rows as they are: three times the
+    // quest's reputation (50 × 1.35 × 3.6 = 243), twice its silver
+    // (50 × 5.59 × 2 = 559), and its kind (`defend_items`) half again.
+    let quests_more = Terms {
+        quest_reputation_rate: 360,
+        quest_money_rate: 200,
+        ..own
+    };
+    let more = settle(8, &quests_more);
+    for line in 0..3 {
+        assert_eq!(columns(&more.full, line), columns(&alice.full, line));
+    }
+    assert_eq!(
+        (more.reward.money, more.reward.reputation),
+        (alice.reward.money, alice.reward.reputation)
+    );
+    assert_eq!(more.reward.quest_money, 559);
+    assert_eq!(more.reward.quest_reputation, [(1, 243)]);
+    assert_eq!(more.full.quest_reputation, 243);
+    let kind = Terms {
+        quest_kind_rates: pay::QuestKindRates::parse("defend_items=150").unwrap(),
+        ..quests_more
+    };
+    let more = settle(8, &kind);
+    assert_eq!(more.reward.quest_money, 838);
+    assert_eq!(more.reward.quest_reputation, [(1, 364)]);
 }
 
 #[test]
@@ -3707,7 +3748,15 @@ fn a_withdrawn_scope_variant_in_the_kept_state_is_taken_off_at_start() {
     );
     // Both are written again: the next start has nothing to take off.
     store.flush();
-    assert!(repository.get(alice_id).unwrap().item(weapon).unwrap().upgrades.is_empty());
+    assert!(
+        repository
+            .get(alice_id)
+            .unwrap()
+            .item(weapon)
+            .unwrap()
+            .upgrades
+            .is_empty()
+    );
     let rows = repository.load_results().unwrap();
     let body = &rows.iter().find(|(row, _)| *row == key).unwrap().1;
     assert!(!body.contains(&format!("\"a\":{WITHDRAWN}")), "{body}");

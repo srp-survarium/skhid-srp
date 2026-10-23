@@ -417,3 +417,15 @@ What follows from them:
 - The account level was the longest road: at the original's pace level 20 took about 67 hours of play and the skill tree's 81 points about 750; twice the experience makes them about 38 and 390 (`progression_pace.md` §7).
 
 Tests: `pay.rs` `the_silver_rate_rises_with_the_match_level`; `rewards/tests.rs` `the_owners_rates_raise_silver_by_match_level_experience_and_reputation`, the own-terms part of `the_money_rate_scales_the_rows_silver_and_premiums_half_of_it`; `quests.rs`, the raised part of the scale test.
+
+## 14. The quests' own rates (2026-10-23)
+
+Players found a match's reputation small (the owner: "quests to give better rewards (we will tune that)"). What rev 30 paid is in `progression_pace.md` §8. The quests got rates of their own, so they can be raised without the rows:
+
+- `SRP_QUEST_REPUTATION_RATE`: the percent of a quest's reputation; unset, `SRP_REPUTATION_RATE`'s (120), as before.
+- `SRP_QUEST_MONEY_RATE`: the percent of a quest's silver; 100, as before (the rows' silver rate never touched a quest).
+- `SRP_QUEST_KIND_RATES`: a percent on top of both for some kinds (`win_x_games=200,...`; `pay::QuestKindRates`); unset, 100 for every kind.
+
+A quest pays `floor(award × k × rate × kind)` of each (`k` the match level's `money_k` or `reputation_k`), and its reputation twice in one of the day's first three victories, as in §10. The unset defaults pay what rev 30 paid, to the point. The client's quest window and "Mission accomplished" card still show the data's award.
+
+Tests: `pay.rs` `quest_kind_rates_are_read_by_the_goals_name`; `quests.rs` `a_kind_of_quest_can_pay_more` and the money share in `the_match_scales_a_quests_award`; `rewards/tests.rs` the quests' part of `the_owners_rates_raise_silver_by_match_level_experience_and_reputation` and the own terms in `the_money_rate_scales_the_rows_silver_and_premiums_half_of_it`.

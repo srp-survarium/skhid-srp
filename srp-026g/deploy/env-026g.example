@@ -131,9 +131,15 @@ RUST_LOG=info
 # match's level (the owner's choice): 150 at levels 0 to 5, ten more each
 # level, 220 from level 12. Set, it is that percent at every level.
 # SRP_MONEY_RATE=
-# The percent of the original's reputation a match and its quests pay (the
-# owner's choice: 120).
+# The percent of the original's reputation a match pays (the owner's
+# choice: 120), and its quests while the next is unset.
 # SRP_REPUTATION_RATE=120
+# The percent of the original's reputation and silver a quest pays (unset:
+# the reputation as above, the silver 100), and a percent on top for some
+# kinds of quest (unset: 100 for every kind).
+# SRP_QUEST_REPUTATION_RATE=
+# SRP_QUEST_MONEY_RATE=100
+# SRP_QUEST_KIND_RATES=win_x_games=200,kill_enemies=150
 # Whether a match wears the weapons and armour played with (the game's own
 # rule; a worn item may then get a defect). Off by the owner's choice: an
 # item stays as it is. The first start with it off makes every worn item of

@@ -48,8 +48,7 @@
 //!   percent of the match's level ([`pay::MONEY_RATES`]: 150 to level 5,
 //!   rising to 220 from level 12; or `SRP_MONEY_RATE` at every level);
 //!   their experience times `SRP_EXPERIENCE_RATE` (default 2); their
-//!   reputation and the quests' times `SRP_REPUTATION_RATE` percent
-//!   (default 120).
+//!   reputation times `SRP_REPUTATION_RATE` percent (default 120).
 //! - **Reputation** goes to the faction whose quests the account takes;
 //!   none until it chose one (PROVEN: patch note 0.25a).
 //! - **Premium**: half again of the three rows, of all three kinds (PROVEN
@@ -71,8 +70,11 @@
 //!   players or more in it (default 4), each by its share of the match.
 //! - **Quests**: [`quests::evaluate_scaled`] with the match's numbers:
 //!   a quest's silver and reputation times the match level's multipliers,
-//!   its reputation times `SRP_REPUTATION_RATE` percent too, and twice in
-//!   one of the day's doubled matches.
+//!   its silver times `SRP_QUEST_MONEY_RATE` percent (default 100), its
+//!   reputation times `SRP_QUEST_REPUTATION_RATE` percent (default:
+//!   `SRP_REPUTATION_RATE`'s), both times the percent
+//!   `SRP_QUEST_KIND_RATES` gives its kind (default 100), and the
+//!   reputation twice in one of the day's doubled matches.
 //! - **A match against the server's bots** ("Player vs Bots",
 //!   [`MatchResult::vs_bots`]; the owner's of 2026-10-16): its rows pay
 //!   [`Terms::pvb_pay`] (`SRP_PVB_PAY`, default half) of their silver and
@@ -337,9 +339,13 @@ pub struct Terms {
     /// The percent of the original's silver the match's rows pay, by the
     /// match's level.
     pub money_rate: pay::MoneyRate,
-    /// The percent of the original's reputation the match's rows and its
-    /// quests pay.
+    /// The percent of the original's reputation the match's rows pay.
     pub reputation_rate: u32,
+    /// The percents of the original's reputation and silver the quests
+    /// completed in the match pay, and each kind's own percent on top.
+    pub quest_reputation_rate: u32,
+    pub quest_money_rate: u32,
+    pub quest_kind_rates: pay::QuestKindRates,
     /// The score weights of the matches of modes 2 to 4; a Research
     /// match's are these with its own three ([`static_info::weights_of`]),
     /// as the match server sends them.
@@ -362,8 +368,10 @@ pub struct Terms {
 impl Terms {
     /// srp's terms at `now`: `SRP_EXPERIENCE_RATE` (default 2),
     /// `SRP_MONEY_RATE` (default: by the match's level),
-    /// `SRP_REPUTATION_RATE` (default 120), `SRP_ITEM_WEAR` and
-    /// `SRP_DROP_PLAYTIME_BONUS` (both off unless set),
+    /// `SRP_REPUTATION_RATE` (default 120), `SRP_QUEST_REPUTATION_RATE`
+    /// (default: `SRP_REPUTATION_RATE`'s), `SRP_QUEST_MONEY_RATE` (default
+    /// 100), `SRP_QUEST_KIND_RATES` (default: 100 for every kind),
+    /// `SRP_ITEM_WEAR` and `SRP_DROP_PLAYTIME_BONUS` (both off unless set),
     /// `SRP_BALANCE_RATED_PLAYERS` (default 4), `SRP_PVB_PAY` (default
     /// 0.5) and the weights srp's matches are made with.
     pub fn at(now: u64) -> Self {
@@ -372,6 +380,9 @@ impl Terms {
             experience_rate: pay::experience_rate(),
             money_rate: pay::money_rate(),
             reputation_rate: pay::reputation_rate(),
+            quest_reputation_rate: pay::quest_reputation_rate(),
+            quest_money_rate: pay::quest_money_rate(),
+            quest_kind_rates: pay::quest_kind_rates(),
             score_weights: SCORE_WEIGHTS,
             wear: pay::item_wear(),
             playtime_bonus: pay::drop_playtime_bonus(),
@@ -1971,7 +1982,9 @@ impl<'a> Shared<'a> {
             let scale = quests::Scale {
                 money_k,
                 reputation_k,
-                reputation_share,
+                money_share: f64::from(self.terms.quest_money_rate) / 100.0,
+                reputation_share: f64::from(self.terms.quest_reputation_rate) / 100.0,
+                kinds: self.terms.quest_kind_rates,
                 doubled: reward.daily_bonus,
             };
             let pay = quests::evaluate_scaled(account, &self.quest_stats(player), &scale, now, rng);
