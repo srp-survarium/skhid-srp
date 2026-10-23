@@ -16,7 +16,7 @@
 use std::collections::VecDeque;
 
 use super::curve::Input;
-use super::tuning::{ModTuning, SkillTuning};
+use super::tuning::{BotTier, ModTuning, SkillTuning};
 use super::view::{MatchView, Mode};
 
 /// What the commander of `team` reads of the match.
@@ -177,12 +177,17 @@ pub struct Skill {
     steps_up: u32,
     duels: VecDeque<Duel>,
     last_look: u32,
+    /// The floor of its tier ([`SkillTuning::of_tier`]).
+    floor: f32,
 }
 
 impl Skill {
-    pub fn new(tuning: &SkillTuning) -> Self {
+    /// A team of bots of `tier`: its tier's start and floor.
+    pub fn new(tuning: &SkillTuning, tier: BotTier) -> Self {
+        let row = tuning.of_tier(tier);
         Self {
-            skill: tuning.start,
+            skill: row.start,
+            floor: row.min,
             steps_down: 0,
             steps_up: 0,
             duels: VecDeque::new(),
@@ -226,7 +231,7 @@ impl Skill {
         } else {
             return None;
         }
-        self.skill = self.skill.clamp(tuning.min, tuning.max);
+        self.skill = self.skill.clamp(self.floor, tuning.max);
         Some((before, self.skill, kd))
     }
 }
@@ -274,7 +279,7 @@ mod tests {
     #[test]
     fn skill_steps_outside_the_dead_band_in_damped_steps() {
         let tuning = SkillTuning::default();
-        let mut skill = Skill::new(&tuning);
+        let mut skill = Skill::new(&tuning, BotTier::default());
         // Bots win 8 of 10: too strong, a step down.
         for k in 0..10 {
             skill.duel(Duel {
@@ -286,7 +291,7 @@ mod tests {
         assert!(after < before && kd > tuning.kd_high);
         // Not again before `every_s` (30 s); in the band nothing changes.
         assert!(skill.balance(75_000, &tuning).is_none());
-        let mut even = Skill::new(&tuning);
+        let mut even = Skill::new(&tuning, BotTier::default());
         for k in 0..10 {
             even.duel(Duel {
                 time: k * 1_000,
@@ -304,5 +309,64 @@ mod tests {
         }
         let (b2, a2, _) = skill.balance(120_000, &tuning).unwrap();
         assert!(((b2 - a2) - first / 2.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn each_tier_starts_at_its_skill_and_never_falls_below_its_floor() {
+        let tuning = SkillTuning::default();
+        for (tier, start, floor) in [
+            (BotTier::Tier4To5, 0.6, 0.3),
+            (BotTier::Tier9To10, 0.75, 0.5),
+            (BotTier::Tier13To15, 0.85, 0.65),
+        ] {
+            let mut skill = Skill::new(&tuning, tier);
+            assert_eq!(skill.skill, start, "{tier:?}");
+            // The bots win every duel for ten minutes: down to the floor,
+            // never under it.
+            for minute in 0..10u32 {
+                for k in 0..10 {
+                    skill.duel(Duel {
+                        time: minute * 60_000 + k * 1_000,
+                        bot_won: true,
+                    });
+                }
+                skill.balance(minute * 60_000 + 30_000, &tuning);
+            }
+            assert!(
+                skill.skill >= floor - 1e-6 && skill.skill < start,
+                "{tier:?} {}",
+                skill.skill
+            );
+            // They lose every duel for an hour: up, to 1 at most, every
+            // tier.
+            for minute in 10..70u32 {
+                for k in 0..10 {
+                    skill.duel(Duel {
+                        time: minute * 60_000 + k * 1_000,
+                        bot_won: false,
+                    });
+                }
+                skill.balance(minute * 60_000 + 30_000, &tuning);
+            }
+            assert!(
+                skill.skill <= 1.0 && skill.skill > start,
+                "{tier:?} {}",
+                skill.skill
+            );
+        }
+        // A tier with no row: the old `start` and `min`.
+        let old = SkillTuning {
+            tiers: Default::default(),
+            ..SkillTuning::default()
+        };
+        assert_eq!(Skill::new(&old, BotTier::Tier13To15).skill, old.start);
+        // The JSON names a tier by its band.
+        let json = r#"{"tiers":{"9-10":{"start":0.8,"min":0.4}}}"#;
+        let file: SkillTuning = serde_json::from_str(json).unwrap();
+        assert_eq!(file.of_tier(BotTier::Tier9To10).start, 0.8);
+        assert_eq!(file.of_tier(BotTier::Tier4To5).start, file.start);
+        assert_eq!(BotTier::of_level(10), BotTier::Tier9To10);
+        assert_eq!(BotTier::of_level(14), BotTier::Tier13To15);
+        assert_eq!(BotTier::of_level(5), BotTier::Tier4To5);
     }
 }

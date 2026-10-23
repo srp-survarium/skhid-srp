@@ -266,7 +266,7 @@ impl Bot {
             memory: Memory::default(),
             stuck: Stuck::default(),
             personality,
-            skill: tuning.skill.start,
+            skill: tuning.skill.of_tier(tuning::BotTier::default()).start,
             side: None,
             running: None,
             assignment: None,
@@ -504,7 +504,7 @@ impl Bots {
         let team_state = |tuning: &Tuning| TeamState {
             knowledge: TeamKnowledge::default(),
             mods: Mods::default(),
-            skill: Skill::new(&tuning.skill),
+            skill: Skill::new(&tuning.skill, tuning::BotTier::default()),
             cheats: CheatClock::default(),
             signals: MatchSignals::default(),
             next_commander: 0,
@@ -548,6 +548,20 @@ impl Bots {
     /// over the built map's, which may be of other data.
     pub fn with_container_teams(mut self, teams: Option<[u8; 2]>) -> Self {
         self.container_teams = teams;
+        self
+    }
+
+    /// The bots' tier (the equipment band of the kits the lobby gave
+    /// them): each team's skill starts at the tier's and keeps above its
+    /// floor ([`tuning::SkillTuning::of_tier`]). Without it, the 4-5 tier.
+    pub fn with_tier(mut self, tier: tuning::BotTier) -> Self {
+        for state in &mut self.teams {
+            state.skill = Skill::new(&self.tuning.skill, tier);
+        }
+        let start = self.tuning.skill.of_tier(tier).start;
+        for bot in self.bots.iter_mut().flatten() {
+            bot.skill = start;
+        }
         self
     }
 
