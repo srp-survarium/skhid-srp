@@ -59,6 +59,7 @@ pack	lobby-bulb@1	f562a27ecd6539113ceb3ba474d01bacbd7ea4ce2d247190b856b7ba4dcaea
 pack	research-mode@3	d37a292248944856c958d75b919507f5f6cb6ff8989c55068e3615a6ce91fd29	Research, mode 5, as 0.27d shipped it: 25 maps (levels 1-8 in three weathers, London's day), their configs for exe patch 53, the units' props, four 0.27d models, maps_dict rows, texts (research_mode.md; scripts/research-mode/make_pack.py)
 edit	weapon-balance-1.json	resources.db.patch_21	weapon balance 1 (#182)
 edit	backpacks-1.json	-	backpacks may roll health regeneration (#194)
+edit	third-mod-1.json	-	a third rollable modification where reliability left two: masks Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs (#322)
 edit	fall-damage-1.json	-	fall damage as in 0.27 (#200)
 edit	battery-pickup-1.json	-	battery pick-up 20 % faster (#221)
 edit	duty-name-uk-1.json	-	Ukrainian: the Duty faction is Долг (#222)

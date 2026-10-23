@@ -50,7 +50,8 @@
 //!   `st_craft_message_modifers_count`).
 //! - A roll picks among the modifications of the allowed types the item
 //!   does not hold, by `drop_weight` [LIKELY: the name, and 0.21d's drops
-//!   used the same key so].
+//!   used the same key so], and [srp, the owner's rule of 2026-10-23]
+//!   never one that only changes wear (reliability: items wear nothing).
 //! - `type_requirements_mask` equals `type_mask` in every row; it is not
 //!   used.
 //! - A defect needs its type in the item's `available_defects_mask` and,
@@ -160,6 +161,38 @@ pub struct Modification {
     pub modifiers: Vec<Modifier>,
     /// `lobby_info`: what the lobby shows it changes, by its own names.
     pub lobby_info: Vec<(String, f32)>,
+}
+
+/// The item parameters of its wear: what a "reliability" modification
+/// changes, and nothing else does.
+pub const WEAR_PARAMETERS: [&str; 3] = [
+    "parameters/degrade_per_match",
+    "parameters/degrade_per_use",
+    "parameters/degrade_per_death",
+];
+
+impl Modification {
+    /// It changes nothing but the item's wear ([`WEAR_PARAMETERS`]): the
+    /// "reliability" ones ("Надежность", the lobby's property 123,
+    /// `st_multiplicative_reliability_modifier`), 1200..=1204 on gear and
+    /// 2090..=2094 on weapons in the game's data.
+    pub fn only_changes_wear(&self) -> bool {
+        !self.modifiers.is_empty()
+            && self
+                .modifiers
+                .iter()
+                .all(|modifier| WEAR_PARAMETERS.contains(&modifier.path.as_str()))
+    }
+
+    /// A roll may give it: it has a drop weight, and it is not one that
+    /// only changes wear ([srp, the owner's rule of 2026-10-23]: items wear
+    /// nothing since #35, so a reliability modification would be a roll
+    /// wasted; `docs/notes/no-reliability-roll.md`). Every roll (a drop, an
+    /// upgrade, a reroll's offer) picks from [`Modifications::candidates`],
+    /// which asks this.
+    pub fn rolls(&self) -> bool {
+        self.drop_weight > 0.0 && !self.only_changes_wear()
+    }
 }
 
 /// A row of `defects`.
@@ -758,7 +791,9 @@ impl Modifications {
 
     /// The modifications a roll for `dict_id` picks among: of the types
     /// the item takes and holds none of (`held` and its defaults), with a
-    /// drop weight.
+    /// drop weight, and none that only changes wear ([`Modification::rolls`]).
+    /// The one pool of every roll: [`Self::roll`] (drops, upgrades) and
+    /// [`Self::reroll_choices`].
     pub fn candidates(&self, dict_id: u16, held: &[u32]) -> Vec<&Modification> {
         let Some(item) = item_mods(dict_id) else {
             return Vec::new();
@@ -768,7 +803,7 @@ impl Modifications {
         self.modifications
             .iter()
             .filter(|row| {
-                row.drop_weight > 0.0
+                row.rolls()
                     && item.modifications & (1 << row.kind) != 0
                     && taken & (1 << row.kind) == 0
             })
@@ -808,9 +843,13 @@ impl Modifications {
     /// other modifications and its defaults leave free, the replaced one's
     /// own type included but not `replaced` itself; three different types
     /// while there are, then other strengths of the types offered (an item
-    /// that takes few types, as a backpack or a balaclava with two
-    /// modifications, has only two types left). `None` when the item has not
-    /// three modifications to offer [srp: the lobby's window shows three].
+    /// that takes few types, as a backpack or a balaclava with one
+    /// modification, has only two types left). `None` when the item has not
+    /// three modifications to offer [srp: the lobby's window shows three]:
+    /// an item whose types besides reliability are all held has none for its
+    /// reliability (reliability never rolls, [`Modification::rolls`]). On
+    /// live data every item rolls three types or more (`third-mod-1.json`),
+    /// so a full item always has one.
     pub fn reroll_choices(
         &self,
         dict_id: u16,

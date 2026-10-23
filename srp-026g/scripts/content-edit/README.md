@@ -361,3 +361,18 @@ scene, which the game does not read) is left as it is.
 | `st_ban_reason_administrator` -> "Decision of the administration." (Entscheidung der Administration, Decyzja administracji, Решение администрации, Рішення адміністрації) | the login server sends this code (0x1C) for an admin's reason with none of its words (`BAN_REASONS`, login-server `v026g.rs`), meant as the neutral one; its stock text was "Pretending to be administrator of the game". A player banned 1 h for friendly fire read both stock texts (the owner, 2026-10-22) |
 
 Applied to revision 29's live tables (from the stock db and patches 12 to 29): 6 files edited, 0 unexpected differences. Text only: no server data, no simulation change.
+
+## third-mod-1.json (2026-10-23)
+
+| change | why |
+|---|---|
+| The 15 masks and respirators (the stock nine, `bandit_026` 1810, the 0.69d masks 1812-1816, `army_026` 1823) may roll type 13 Armor (1000-1004: +2, +3, +4, +5, +8; a mask has only its face values), character 12 of `parameters/available_modifications_mask` set (`0000000000000000010000000000010100000000` -> `0000000000001000010000000000010100000000`) | reliability (type 32) no longer rolls (wear is off since #35, `docs/notes/no-reliability-roll.md`), which left them weight and anomaly filters only; the owner's pick (2026-10-23) |
+| The four oxygen packs (`scavenger_oxygen_1`, `edge_back_3`, `ren_back_3`, `ren_back_5`) may roll type 24 Weight limit (1120-1124: +1..+5 kg) and type 28 Energy costs (1160-1164: −2..−10 %), characters 23 and 27 (`0000000000000000010000000000001100000000` -> `0000000000000000010000010001001100000000`) | the same: weight and oxygen were left; the owner's pick |
+| The Pilgrim container (`edge_back_6`) may roll type 28 Energy costs, character 27 (`backpacks-1.json`'s `0000000000000011110010010000100100000000` -> `0000000000000011110010010001100100000000`) | its default Regeneration (1094) takes the type `backpacks-1.json` added, so it was left with weight and weight limit; the owner's pick |
+
+Only srp reads the masks: the client shows whatever modification the server sends, from its own
+`modifications.options`. Applied to revision 29's live files (from the stock db and patches 12 to
+29, after `backpacks-1.json`): 20 files edited, 0 unexpected differences. With it every item that
+rolls has three types or more besides reliability
+(`modifications::tests::every_item_of_the_built_game_data_rolls_three_types` on the built server
+game data). No simulation change: a match applies only the modifications an item has.

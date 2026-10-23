@@ -1101,6 +1101,42 @@ mod tests {
         assert_eq!(loaded[0].1.inventory[1].upgrades, [second]);
     }
 
+    /// Reliability no longer rolls (the owner's rule of 2026-10-23,
+    /// docs/notes/no-reliability-roll.md), but items that have it keep it:
+    /// saved, loaded and checked as the server's start does, nothing of
+    /// them changes.
+    #[test]
+    fn items_with_reliability_come_back_with_it() {
+        use survarium::v026g::dictionary::Dictionary;
+        use survarium::v026g::lobby::FULL_CONDITION;
+
+        let temp = TempDb::new("reliability");
+        let dict = |name| Dictionary::shared().item_named(name).unwrap().dict_id;
+        let mut account = Account::new("Alice");
+        let mut give = |name, modifications: &[u32]| {
+            let item_id = account.add_item(dict(name), FULL_CONDITION);
+            account.item_mut(item_id).unwrap().modifications =
+                modifications.iter().map(|&id| (id, false)).collect();
+            item_id
+        };
+        let rifle = give("ak_74m", &[2093, 2000]);
+        let backpack = give("scav_back_1", &[1062, 1120, 1204]);
+        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
+        repository.save(7, &account).unwrap();
+        let mut loaded = repository.load_all().unwrap();
+        assert_eq!(loaded, [(7, account.clone())]);
+        let loaded = &mut loaded[0].1;
+        assert!(!loaded.repair(), "nothing to mend");
+        assert_eq!(
+            loaded.item(rifle).unwrap().modifications,
+            [(2093, false), (2000, false)]
+        );
+        assert_eq!(
+            loaded.item(backpack).unwrap().modifications,
+            [(1062, false), (1120, false), (1204, false)]
+        );
+    }
+
     #[test]
     fn the_tables_live_beside_021ds_in_one_file() {
         let temp = TempDb::new("shared");

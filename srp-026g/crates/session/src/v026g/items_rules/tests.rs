@@ -1536,6 +1536,182 @@ fn wear_drops_and_pay_follow_the_modifications() {
     assert_eq!(kit_bonuses(&account, 9), Bonuses::default());
 }
 
+// ---------------------------------------------------- no reliability rolls
+
+/// Reliability ("Надежность"): the modifications that only change wear.
+fn is_reliability(id: u32) -> bool {
+    Modifications::shared()
+        .modification(id)
+        .is_some_and(|row| row.only_changes_wear())
+}
+
+/// What the account holds, money and items, for the sums.
+fn holdings(account: &Account) -> (u32, u32, usize) {
+    (
+        account.generic_money,
+        account.premium_money,
+        account.inventory.len(),
+    )
+}
+
+/// The owner's rule of 2026-10-23 (docs/notes/no-reliability-roll.md): an
+/// upgrade never gains reliability, and costs its price and its donor, no
+/// more; an upgrade with nothing left to roll is refused and takes nothing.
+#[test]
+fn an_upgrade_never_gains_reliability() {
+    let table = Modifications::shared();
+    // In gold with as many as the donor, always one more: never reliability.
+    for seed in 0..300 {
+        let mut account = rich();
+        let rifle = give(&mut account, "ak_74m", &[2000]);
+        let donor = give(&mut account, "ak_74m", &[2011]);
+        let before = holdings(&account);
+        let mut rng = Rng::new(seed);
+        let crafted = craft(&mut account, rifle, donor, true, false, NOW, &mut rng).unwrap();
+        let Crafted::Added { modification, .. } = crafted else {
+            panic!("{crafted:?}");
+        };
+        assert!(!is_reliability(modification), "{modification}");
+        assert!(table.fits(dict("ak_74m"), &[2000], modification));
+        assert_eq!(holdings(&account), (before.0, before.1 - 50, before.2 - 1));
+    }
+    // A backpack of the stock data (the unit tests' archive, without the edit
+    // lists that give it a third type on live): of its three types,
+    // reliability's never does; with one of its own the other is gained.
+    for seed in 0..100 {
+        let mut account = rich();
+        let backpack = give(&mut account, "scav_back_1", &[1062]);
+        let donor = give(&mut account, "scav_back_1", &[1063]);
+        let mut rng = Rng::new(seed);
+        let crafted = craft(&mut account, backpack, donor, true, false, NOW, &mut rng).unwrap();
+        let Crafted::Added { modification, .. } = crafted else {
+            panic!("{crafted:?}");
+        };
+        assert_eq!(table.modification(modification).unwrap().kind, 24);
+    }
+    // With both held, nothing is left to roll: refused, nothing taken, and
+    // the client is told as for any refusal.
+    let mut account = rich();
+    let backpack = give(&mut account, "scav_back_1", &[1062, 1120]);
+    let donor = give(&mut account, "scav_back_1", &[1063]);
+    let before = account.clone();
+    for gold in [false, true] {
+        assert_eq!(
+            craft(
+                &mut account,
+                backpack,
+                donor,
+                gold,
+                false,
+                NOW,
+                &mut Rng::new(1)
+            ),
+            Err("nothing left to roll for the item")
+        );
+    }
+    assert_eq!(account, before);
+    let mut client = client_of(&account);
+    takes(
+        &mut client,
+        &lobby::permitted_crafted(backpack, Crafted::Failed).unwrap(),
+        &account,
+    );
+    // One with reliability from before still takes its other type.
+    let mut account = rich();
+    let backpack = give(&mut account, "scav_back_1", &[1062, 1204]);
+    let donor = give(&mut account, "scav_back_1", &[1063, 1121]);
+    let crafted = craft(
+        &mut account,
+        backpack,
+        donor,
+        true,
+        false,
+        NOW,
+        &mut Rng::new(2),
+    );
+    let Ok(Crafted::Added { modification, .. }) = crafted else {
+        panic!("{crafted:?}");
+    };
+    assert_eq!(table.modification(modification).unwrap().kind, 24);
+    assert_eq!(
+        own_modifications(account.item(backpack).unwrap()),
+        [1062, 1204, modification]
+    );
+}
+
+/// A reroll never offers reliability, and one an item has turns into
+/// another, valid one for its price; with nothing to offer it is refused
+/// and takes nothing.
+#[test]
+fn a_reroll_never_offers_reliability_and_changes_it() {
+    let table = Modifications::shared();
+    for seed in 0..200 {
+        let mut account = rich();
+        let rifle = give(&mut account, "ak_74m", &[2093, 2000]);
+        let mut client = client_of(&account);
+        let mut rng = Rng::new(seed);
+        let before = holdings(&account);
+        let rolled = reroll(&mut account, rifle, 2093, false, NOW, &mut rng).unwrap();
+        assert_eq!(rolled.paid, (2400, 0));
+        for &choice in &rolled.choices {
+            assert!(!is_reliability(choice), "{choice}");
+            assert!(table.fits(dict("ak_74m"), &[2000], choice));
+        }
+        takes(
+            &mut client,
+            &lobby::permitted_reroll_result(rifle, rolled.choices, rolled.reroll_seconds),
+            &account,
+        );
+        let chosen = choose_modifier(&mut account, rifle, 2093, (seed % 3) as u32).unwrap();
+        assert_eq!(chosen.new_modification, rolled.choices[(seed % 3) as usize]);
+        assert_eq!(
+            own_modifications(account.item(rifle).unwrap()),
+            [chosen.new_modification, 2000]
+        );
+        assert_eq!(holdings(&account), (before.0 - 2400, before.1, before.2));
+        // Another of its modifications: never reliability either.
+        let rolled = reroll(&mut account, rifle, 2000, true, NOW, &mut rng).unwrap();
+        assert!(rolled.choices.iter().all(|&choice| !is_reliability(choice)));
+    }
+    // A full backpack of the stock data: its reliability has nothing to turn
+    // into (its two other types are held): refused, nothing paid or changed.
+    let mut account = rich();
+    let backpack = give(&mut account, "scav_back_1", &[1062, 1120, 1201]);
+    let before = account.clone();
+    assert_eq!(
+        reroll(&mut account, backpack, 1201, false, NOW, &mut Rng::new(3)),
+        Err(ItemError::Reroll("nothing to offer for the item"))
+    );
+    assert_eq!(account, before);
+    // Its others are offered other strengths of their own type.
+    let rolled = reroll(&mut account, backpack, 1120, false, NOW, &mut Rng::new(3)).unwrap();
+    assert!(rolled.choices.iter().all(|&choice| {
+        !is_reliability(choice) && table.modification(choice).unwrap().kind == 24
+    }));
+}
+
+/// A drop's modifications are never reliability; an item of few types
+/// (a backpack) gets two at rarity 3, and its rank says so.
+#[test]
+fn a_drop_never_has_reliability() {
+    let mut rng = Rng::new(10);
+    for _ in 0..200 {
+        let mut account = rich();
+        for (name, most) in [("ak_74m", 3), ("scav_back_1", 2), ("edge_torso_2", 3)] {
+            let item_id = account.add_item(dict(name), FULL_CONDITION);
+            let shown = roll_modifications(&mut account, item_id, 3, &mut rng);
+            let held = own_modifications(account.item(item_id).unwrap());
+            assert!(
+                held.iter().all(|&id| !is_reliability(id)),
+                "{name}: {held:?}"
+            );
+            assert_eq!(held.len(), most, "{name}");
+            assert_eq!(usize::from(shown), most, "{name}");
+        }
+        client_of(&account);
+    }
+}
+
 #[test]
 fn a_loaded_item_is_made_safe() {
     let mut account = rich();
