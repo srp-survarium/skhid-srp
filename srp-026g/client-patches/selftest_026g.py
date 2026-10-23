@@ -1534,7 +1534,6 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
-        [(va, len(old)) for va, old, _, _ in P.DYNAMIC_ANOMALIES_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS]
 
 
@@ -2387,91 +2386,6 @@ def test_fov_lod(original, image, before):
                        and any(va + 4 > site and va < site + len(old) for site, old, _, _ in P.FOV_LOD_HOOKS))
     check(relocated == P.FOV_LOD_RELOCS, "the original has a base relocation under each site, at its constant's "
           f"address ({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), disabled in the build")
-
-
-def test_dynamic_anomalies(original, image, before):
-    """Check 42: dynamic anomalies (patch 42). check_dynamic_anomalies_026g.py
-    runs the hooks, the rule and the game's anomaly code on made-up worlds."""
-    source = Image(original)
-    plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
-    at = lambda start, size: {a: plain(t) for a, _, t in ndisasm(source.read(start, size), start)}
-    u32 = lambda va: struct.unpack("<I", source.read(va, 4))[0]
-    linked = P.arena()
-    block = linked.blocks["anomalies.code"]
-    code = P.linker.block_bytes(linked, "anomalies.code")
-    check(block.kind == "code" and block.va % 0x1000 == 0 and image.read(block.va, len(code)) == code,
-          f"the dynamic anomalies' code is the arena's block anomalies.code, a code page at {block.va:#x}, "
-          f"the link's {len(code)} bytes")
-    tick = at(0x2D1E20, 0x80)
-    check(tick.get(0x2D1E20) == "push ecx" and tick.get(0x2D1E21) == "mov eax,0x51eb851f"
-          and tick.get(0x2D1E26) == "mul edi" and tick.get(0x2D1E3A) == "mov ecx,[esp+0xc]"
-          and tick.get(0x2D1E3F) == "lea esi,[ecx+0x18840]" and tick.get(0x2D1E45) == "lea ebx,[ecx+0x188b0]"
-          and tick.get(0x2D1E5C) == "call 0x2d1d20" and source.read(0x2D1E92, 3) == bytes.fromhex("c20800"),
-          "the original's game_world_core::atomic_tick: the world at [esp+4], now in edi, its seven tick lists "
-          "(+18840h..+188B0h) run through 0x2D1D20, `ret 8`; it starts `push ecx; mov eax,51EB851Fh`")
-    pickup = at(0x33BCD0, 0x80)
-    check(pickup.get(0x33BCD0) == "push ecx" and pickup.get(0x33BCD1) == "push esi"
-          and pickup.get(0x33BCD2) == "mov esi,ecx" and pickup.get(0x33BCD4) == "mov eax,[esi+0x15c]"
-          and pickup.get(0x33BCDA) == "fild [esi+0x15c]" and pickup.get(0x33BCEA) == "cmp byte [esi+0x14c],0x0"
-          and pickup.get(0x33BD0C) == "addss xmm0,[esi+0x150]" and pickup.get(0x33BD2F) == "mov byte [esi+0x138],0x1"
-          and pickup.get(0x33BD47) == "ret 0x8" and u32(0xA169CC + 0x28) == 0x33BCD0
-          and source.read(0x31C832, 6) == bytes.fromhex("8b422857ffd0"),
-          "the original's on_artefact_container_use (generic_anomaly_core's slot 10): energy_af_container_use "
-          "(+15Ch) added to the energy (+150h) when energy_enabled (+14Ch), an artefact due (+138h), `ret 8`; "
-          "artefact_container_core::use_execute calls it through the owner's slot 10 (0x31C832)")
-    activate = at(0x318B26, 0x40)
-    check(source.read(0x31AECE, 10) == bytes.fromhex("c78798010000b0b53100")
-          and source.read(0x31AED8, 6) == bytes.fromhex("89bf94010000"),
-          "the core's tick delegate (+194h) has generic_anomaly_core::tick 0x31B5B0 as its function")
-    check(activate.get(0x318B26) == "lea eax,[edi+0x194]" and activate.get(0x318B2C) == "mov byte [eax+0x14],0x6"
-          and activate.get(0x318B30) == "inc [esi+0x188a0]" and activate.get(0x318B4A) == "mov [esi+0x188a4],eax",
-          "server_game_project::set_game_world_core puts each anomaly core's delegate into tick list 6 "
-          "(+188A0h count, +188A4h first), in the project's order")
-    check(source.read(0x2D00BB, 6) == bytes.fromhex("898bac8f0100") and source.read(0x2D01D7, 6) == bytes.fromhex("8b80b0770500")
-          and source.read(0x317DB4, 6) == bytes.fromhex("c7062c6ea000") and u32(0xA06E2C + 0x3C) == 0x317F30,
-          "the world keeps the static info at +18FACh (0x2D00BB), whose seed is at +577B0h (0x2D01D7); "
-          "timelimit_rule_core's vtable is 0xA06E2C (constructor 0x317DB4; serialize 0x317F30 at +3Ch)")
-    # A game's time rule is the client class: the game's constructor makes
-    # timelimit_rule_cook (0x1E9AEA, over the core cook 0x2F49F0 made at
-    # 0x1E9AE0), whose object's constructor 0x267A40 stores 0xA06E8C at
-    # 0x267A61 after the core's. The rule tells the time rule by the slot
-    # both share, serialize at +3Ch; no other vtable has it there.
-    serialize_at = []
-    for _, rva, vsize, raw, rsize, _ in source.sections:
-        blob = bytes(original[raw:raw + min(vsize, rsize)])
-        at = blob.find(struct.pack("<I", 0x317F30))
-        while at >= 0:
-            serialize_at.append(P.IMAGE_BASE + rva + at)
-            at = blob.find(struct.pack("<I", 0x317F30), at + 1)
-    check(source.read(0x1E9AE0, 5) == bytes.fromhex("e80baf1000")
-          and source.read(0x1E9AEA, 10) == bytes.fromhex("c705301b260244d99f00")
-          and source.read(0x267A4B, 5) == bytes.fromhex("e850030b00")
-          and source.read(0x267A61, 6) == bytes.fromhex("c7068c6ea000")
-          and u32(0xA06E8C + 0x3C) == 0x317F30 and u32(0xA06E8C - 4) != u32(0xA06E2C - 4)
-          and sorted(serialize_at) == [0xA06E2C + 0x3C, 0xA06E8C + 0x3C],
-          "a game's time rule is timelimit_rule (vtable 0xA06E8C, stored at 0x267A61 after the core's constructor "
-          "0x317DA0; its cook set at 0x1E9AEA): it and timelimit_rule_core (0xA06E2C) have serialize 0x317F30 at "
-          f"+3Ch, and no other place of the exe holds that address ({', '.join(f'{a:#x}' for a in serialize_at)})")
-    for (va, old, symbol, opcode), exit_ in zip(P.DYNAMIC_ANOMALIES_HOOKS, P.DYNAMIC_ANOMALIES_EXITS):
-        site = image.read(va, len(old))
-        entry = linked.symbols[symbol]
-        target = va + 5 + struct.unpack_from("<i", site, 1)[0]
-        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
-              and site == P.hook_bytes(entry, va, old, 0, opcode) and target == entry
-              and block.va <= entry < block.va + len(code),
-              f"{va:#x}: `{old.hex()}` becomes a jump to {entry:#x} ({symbol}, an entry of the block) and nops; "
-              "the build without the late join keeps it")
-        stub = ndisasm(image.read(entry, 0x40), entry)
-        texts = [plain(t) for _, _, t in stub]
-        jumps = [branch_target(t) for t in texts if t.startswith("jmp ")]
-        check(exit_ in jumps, f"{entry:#x}: the replaced instructions done, it goes on at {exit_:#x}")
-    hits = [hit for va, old, _, _ in P.DYNAMIC_ANOMALIES_HOOKS for hit in aimed_inside(original, va, len(old), 0x82)
-            if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
-    check(not hits, "no rel32 branch of .text, no rel8 branch near them and no 4-byte value aims inside the two sites"
-          + "".join(f"\n          {a:#x}" for a in hits))
-    relocated = [va for kind, va in source.relocations().values() if kind == 3
-                 and any(va + 4 > site and va < site + len(old) for site, old, _, _ in P.DYNAMIC_ANOMALIES_HOOKS)]
-    check(not relocated, "no base relocation under either site")
 
 
 # A battery's usable-object vtables: can_use at +30h, get_transform at +44h.
@@ -5757,7 +5671,6 @@ def test_late_join(original, without, server, source):
     test_pregame_progress(original, image, before)
     test_fov(original, image, before)
     test_fov_lod(original, image, before)
-    test_dynamic_anomalies(original, image, before)
     test_weapon_camo(original, image, before)
     test_pickup(original, image, before)
     test_weapon_random(original, image, before)

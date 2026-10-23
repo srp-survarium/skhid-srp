@@ -886,16 +886,9 @@ The match server does (wired): `Bots::tactics_ready` attaches
 `Bots::poll` advances it on the match clock, and each trusted world
 (`Game::observe` -> `observe_driven` -> `anomalies_from_world`) syncs it.
 
-Timed anomalies (exe patch 42, `dynamic_anomalies.md`): energy states
-charging 3000 (20 s) -> damage 2000 (4 s) -> artefact 1000 -> after the
-pick-up 50 (60 s) -> idle 0. The clients' rule charges an idle one (the
-server never predicts that: an idle core stays idle in the simulation, its
-zones off); a world that shows it charging gives its damage 20 s on, and a
-world after the pick-up turns it off. The simulation follows a state's end
-on the first tick past it, and chooses the next state on the tick after,
-as the client does (`Sim::idle` no longer skips that tick; a state's end
-used to be taken on its own tick). Test:
-`a_timed_anomaly_follows_the_worlds_and_is_never_predicted_to_charge`.
+Timed anomalies (exe patch 42, `dynamic_anomalies.md`) are not on `main`:
+taken out of revision 31 (the owner, 2026-10-23), their simulation with
+them (branch `feat/dynamic-anomalies`).
 `mapdata-dump --patch <resources.db.patch_n>` (repeatable, mount order)
 dumps maps that only patches have (London) or change.
 
