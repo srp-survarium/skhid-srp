@@ -4435,3 +4435,11 @@ va	name	location	role	basis
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+12	the body	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+16	the sender's name	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+20	the sender's clan tag	observed
+0x00207d50	survarium::key_binder::get_binded_action	EAX	the key binder (48h bindings of 12 bytes from +0)	observed
+0x00207d50	survarium::key_binder::get_binded_action	EDI	the group mask, tested against the action's kind (8 the chat keys)	observed
+0x00207d50	survarium::key_binder::get_binded_action	ESI	the key code	observed
+0x00207d50	survarium::key_binder::get_binded_action	entry ESP+4	where the binding's +0Ch is stored	observed
+0x00208870	survarium::chat_handler::on_keyboard_action	ECX	chat handler receiver	observed
+0x00208870	survarium::chat_handler::on_keyboard_action	entry ESP+4	the input world (vtable+24h: the keyboard)	observed
+0x00208870	survarium::chat_handler::on_keyboard_action	entry ESP+8	the key code, looked up in the chat keys (group 8: actions 45h, 46h; 47h ptt unused)	observed
+0x00208870	survarium::chat_handler::on_keyboard_action	entry ESP+12	the event kind; 1 key down	observed

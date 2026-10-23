@@ -1900,3 +1900,5 @@ va	name	source	ret_cleanup	result
 0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	manual	16	
 0x0025cd00	survarium::game_world::on_keyboard_action	manual	12	AL: 1 the key taken (no later handler gets it)
 0x00208ad0	survarium::chat_handler::add_message	manual	20	
+0x00207d50	survarium::key_binder::get_binded_action	manual	4	EAX: the action bound to the key in the asked groups, 49h for none; the binding's +0Ch stored at [entry ESP+4]
+0x00208870	survarium::chat_handler::on_keyboard_action	manual	12	AL: 1 after a tab switch (0x208922); the other exits not read
