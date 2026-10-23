@@ -310,6 +310,14 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // A look round our container after a theft whose thief dropped the
     // battery alive (`LookSpot::theft`): this times its score.
     ("theft_look_weight", 1.0),
+    // A carrier's way home (`way_home`): by its side's human route that
+    // passes within `home_route_m` of it, when the straight way has known
+    // danger (an enemy seen, a teammate killed lately) within
+    // `home_danger_m` of it and the route's way has less, at most
+    // `home_detour` times as long. GUESSES; measured on the real-map bench.
+    ("home_route_m", 20.0),
+    ("home_danger_m", 20.0),
+    ("home_detour", 1.4),
 ];
 
 /// Spawners' slots come after the batteries'.
@@ -562,7 +570,11 @@ pub enum State {
         /// Stepping back out of a nook since (no straight line to a stand).
         backing: Option<u32>,
     },
-    Bring,
+    /// Home with the battery; `via`: the points of a safer way home along
+    /// a human route (`way_home`), chosen at the first step.
+    Bring {
+        via: Option<Vec<Vec3>>,
+    },
     PutIn {
         tries: u8,
         last_use: u32,
@@ -571,7 +583,7 @@ pub enum State {
 
 pub fn start(target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> State {
     if cx.me.carrying.is_some() {
-        State::Bring
+        State::Bring { via: None }
     } else if matches!(target, TargetRef::Spawner(_) | TargetRef::Point(_)) {
         State::Search
     } else {
@@ -591,7 +603,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
     let home = cx.view.container_of(cx.me.team).map(|c| c.at);
     match state {
         State::Search | State::Fetch | State::Take { .. } if cx.me.carrying.is_some() => {
-            *state = State::Bring;
+            *state = State::Bring { via: None };
             step(state, target, cx, _rng)
         }
         State::Search => {
@@ -663,7 +675,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(num("reach_m") * 0.6))
         }
         State::Take { .. } => take(state, target, cx),
-        State::Bring => {
+        State::Bring { via } => {
             if cx.me.carrying.is_none() {
                 return Step::Done(carry_ended(cx, target, "brought home"));
             }
@@ -675,6 +687,26 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     tries: 0,
                     last_use: 0,
                 };
+            } else {
+                let points = via.get_or_insert_with(|| way_home(cx, home));
+                // A point reached, or one a teammate was killed by since:
+                // on to the next (the straight way home when none is left).
+                let reach = num("reach_m") * 3.0;
+                let near = num("home_danger_m") * 0.5;
+                while points.first().is_some_and(|&p| {
+                    cx.me.feet.distance_xz(p) < reach
+                        || cx
+                            .team
+                            .danger_within(cx.now, 10_000)
+                            .any(|d| d.at.distance_xz(p) < near)
+                }) {
+                    points.remove(0);
+                }
+                if let Some(&at) = points.first() {
+                    return Step::Continue(
+                        Intent::to(at, Pace::Walk).within(reach * 0.6).hold_fire(),
+                    );
+                }
             }
             // A carrier cannot shoot, and does not sprint (LIKELY).
             Step::Continue(
@@ -724,6 +756,93 @@ fn carry_ended(cx: &Ctx, target: TargetRef, home: &'static str) -> &'static str 
         },
         _ => home,
     }
+}
+
+/// A carrier's safer way home: the points, nearest the carrier first, of
+/// its side's human route (`routes.rs`, walked back toward its base) that
+/// passes within `home_route_m` of it, when the straight way home has known
+/// danger near it (enemies the bot knows of, teammates killed in the last
+/// 20 s, within `home_danger_m`) and that way less, at most `home_detour`
+/// times as long; of those the least dangerous, then the shortest. None
+/// (the straight way) otherwise. Points out of bounds for the side (a
+/// hazard, the enemy's spawn area) are left out.
+fn way_home(cx: &Ctx, home: Vec3) -> Vec<Vec3> {
+    let num = |name| cx.num(PlayKind::Collect, name);
+    let Some(side) = cx.bot.side else {
+        return Vec::new();
+    };
+    let me = cx.me.feet;
+    let near = num("home_danger_m");
+    let dangers: Vec<Vec3> = cx
+        .memory
+        .tracks()
+        .iter()
+        .map(|t| t.at)
+        .chain(cx.team.danger_within(cx.now, 20_000).map(|d| d.at))
+        .collect();
+    // Known dangers within `near` of a way through these points.
+    let danger_of = |way: &[Vec3]| {
+        dangers
+            .iter()
+            .filter(|&&d| {
+                way.windows(2).any(|leg| {
+                    let (a, b) = (leg[0], leg[1]);
+                    let (dx, dz) = (b.x - a.x, b.z - a.z);
+                    let l = dx * dx + dz * dz;
+                    let t = if l > 0.0 {
+                        (((d.x - a.x) * dx + (d.z - a.z) * dz) / l).clamp(0.0, 1.0)
+                    } else {
+                        0.0
+                    };
+                    d.distance_xz(Vec3::new(a.x + dx * t, d.y, a.z + dz * t)) < near
+                })
+            })
+            .count()
+    };
+    let length = |way: &[Vec3]| {
+        way.windows(2)
+            .map(|leg| leg[0].distance_xz(leg[1]))
+            .sum::<f32>()
+    };
+    let direct = danger_of(&[me, home]);
+    if direct == 0 {
+        return Vec::new();
+    }
+    let to_home = me.distance_xz(home);
+    let most = num("home_detour") * to_home;
+    cx.tactics
+        .routes_of(side)
+        .filter_map(|route| {
+            let points = &route.points;
+            let i = (0..points.len()).min_by(|&a, &b| {
+                points[a]
+                    .distance_xz(me)
+                    .total_cmp(&points[b].distance_xz(me))
+            })?;
+            if points[i].distance_xz(me) > num("home_route_m") {
+                return None;
+            }
+            // Back toward the base: the points nearer home than the bot.
+            let back: Vec<Vec3> = points[..=i]
+                .iter()
+                .rev()
+                .copied()
+                .filter(|&p| p.distance_xz(home) < to_home)
+                .filter(|&p| cx.tactics.fine_goal(p, cx.now, Some(side)))
+                .collect();
+            if back.is_empty() {
+                return None;
+            }
+            let way: Vec<Vec3> = std::iter::once(me)
+                .chain(back.iter().copied())
+                .chain(std::iter::once(home))
+                .collect();
+            let (danger, long) = (danger_of(&way), length(&way));
+            (danger < direct && long <= most).then_some((danger, long, back))
+        })
+        .min_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)))
+        .map(|(_, _, back)| back)
+        .unwrap_or_default()
 }
 
 /// A take: uses at the stand where it stopped; when they fail (or no use
@@ -1888,6 +2007,60 @@ mod tests {
         assert!(clear_from(&s, stand.feet));
     }
 
+    /// A carrier with a known enemy on its straight way home goes by its
+    /// side's human route that keeps clear of him; with none known, straight.
+    #[test]
+    fn a_carrier_goes_home_by_a_human_route_clear_of_known_danger() {
+        use crate::v026g::bots::know::Source;
+        use crate::v026g::bots::routes::HumanRoute;
+        let setup = |enemy: bool| {
+            let mut s = Scenario::field(Mode::Batteries);
+            s.tuning
+                .plays
+                .entry(PlayKind::Collect)
+                .or_insert_with(|| crate::v026g::bots::plays::default_tuning(PlayKind::Collect))
+                .numbers
+                .insert("home_danger_m".into(), 6.0);
+            s.tactics.set_routes(vec![HumanRoute {
+                team: 0,
+                lives: 20,
+                reward: 1.0,
+                fight: 1.0,
+                points: [(20.0, 8.0), (30.0, 5.0), (45.0, 5.0)]
+                    .iter()
+                    .map(|&(x, z)| Vec3::new(x, 0.0, z))
+                    .collect(),
+                ..Default::default()
+            }]);
+            s.battery(BatteryState::Carried(Some(0)));
+            s.bot(0, 0, Vec3::new(30.0, 0.0, 12.0)).carrying = Some(0);
+            if enemy {
+                // By the straight way to the container at (12, 30).
+                s.enemy(1, 1, Vec3::new(24.0, 0.0, 19.0), Some(Source::Seen));
+            }
+            s
+        };
+        let goal = |s: &Scenario| {
+            let target = TargetRef::Battery(0);
+            let mut rng = Rng::new(1);
+            let mut state = start(target, &s.cx(0), &mut rng);
+            match intent_of(step(&mut state, target, &s.cx(0), &mut rng)).go {
+                Go::To { at, .. } => at,
+                other => panic!("{other:?}"),
+            }
+        };
+        let by_route = goal(&setup(true));
+        assert!(
+            by_route.distance_xz(Vec3::new(20.0, 0.0, 8.0)) < 1.0,
+            "{by_route:?}"
+        );
+        let straight = goal(&setup(false));
+        assert!(
+            straight.distance_xz(Vec3::new(12.0, 0.0, 30.0)) < 1.0,
+            "{straight:?}"
+        );
+    }
+
     /// A put-in counts its use failed only once a world after it shows
     /// the battery still carried (the bench's put-ins "failed" while the
     /// first use had put it in); it ends as the battery did.
@@ -1899,7 +2072,7 @@ mod tests {
         let target = TargetRef::Battery(0);
         let mut rng = Rng::new(1);
         let mut state = start(target, &s.cx(0), &mut rng);
-        assert_eq!(state, State::Bring);
+        assert_eq!(state, State::Bring { via: None });
         step(&mut state, target, &s.cx(0), &mut rng);
         assert!(matches!(state, State::PutIn { .. }), "{state:?}");
         let used = |s: &Scenario, state: &mut State, rng: &mut Rng| {
