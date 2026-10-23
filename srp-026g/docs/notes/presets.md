@@ -52,8 +52,9 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   - With the kits empty (or the kit a match would take unable to play, `rules::kits_can_play`),
     the owner's of 2026-10-23 ("cannot play pop up is bad, the button should just be gray"):
     - **Play is greyed** (no press, no popup) and lights up as soon as the kits can play (a
-      switch, an equip): the movie reads `playable` in the presets list (`lobby.md` 2.16.4), the
+      switch, an equip): the movie reads the reasons in the presets list (the table below), the
       server's own rule, so the two can not disagree. Leave (in a room or its queue) never greys.
+      The greyed button's tip lists the reasons.
     - **Join** in the rooms list (and Queue), and a friend's "Join room", are greyed (the friend's
       item left out of the menu) unless the join popup can offer another loadout that can play
       (one at most the room's max level; any max level, a friend's room). The popup then says
@@ -65,6 +66,34 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     - The game's own Play (`2F`, not the rooms' path) keeps its stock refusal ("no weapon").
     - An empty preset has no level and is never offered.
   - A preset left with nothing in its kits is empty.
+- **Why Play or Join is greyed: the reasons** (the owner's, 2026-10-23: "multiple reasons might get
+  added in the future and it is better to have all of them documented"). The presets list carries
+  them as bits (`<blocks>`, `lobby.md` 2.16.4), worked out by the server's own functions, the same
+  that refuse at the door, so the movie's greying and the server can not disagree. A greyed Play,
+  Join, Queue or New room shows every reason that holds in its tip (the game's tooltip, as
+  Autorepair's), a line each. The kit's reasons are `rules::PlayBlock` (`rules::play_blocks` of the
+  kit a match would take, `rules::kits_play_blocks`; `check_play` says the first); the maintenance
+  rule is the lobby's (`Core::entry_blocks`, `BLOCK_MAINTENANCE`).
+
+  | bit | reason | when | greys | server's door | text (en / uk / ru / de / pl) |
+  | --- | --- | --- | --- | --- | --- |
+  | 1 | kit locked | the account may not use the kit a match would take (`kit_usable`; today only an account without kits) | Play; Join, Queue unless another loadout can play | code 15 | This profile is locked. / Цей профіль закритий. / Этот профиль закрыт. / Dieses Profil ist gesperrt. / Ten profil jest zablokowany. |
+  | 2 | covered slot | an item is worn in a slot another worn item covers (data from before the rule) | as 1 | code 15 | Two items share a slot. / Два предмети в одному слоті. / Два предмета в одном слоте. / Zwei Gegenstände in einem Platz. / Dwa przedmioty w jednym miejscu. |
+  | 4 | two pockets | one item type in two pockets (data from before the rule) | as 1 | code 15 | One item type in two pockets. / Один тип предмета у двох кишенях. / Один тип предмета в двух карманах. / Ein Gegenstandstyp in zwei Taschen. / Ten sam przedmiot w dwóch kieszeniach. |
+  | 8 | no ammo | a weapon has less ammo in the kit (or owned) than its category's minimum | as 1 | code 15 | the game's `st_profile_check_failed_weapon_ammo`; without it: Too little ammo for a weapon. / Замало набоїв до зброї. / Мало патронов к оружию. / Zu wenig Munition für eine Waffe. / Za mało amunicji do broni. |
+  | 16 | no weapon | no weapon in the kit (an empty loadout) | as 1 | code 15 | the game's `st_profile_check_failed_weapon`; without it: No weapon. / Немає зброї. / Нет оружия. / Keine Waffe. / Brak broni. |
+  | 32 | maintenance | a maintenance is planned within the rooms' window (`maintenance_is_near`, `MAINTENANCE_WINDOW`, 30 min: the minutes the clients are told, at which the game turns its own Play off) | Play, Join, Queue, New room | code 9 (no room made, no entry) | Server maintenance soon: in N min. / Скоро технічні роботи: за N хв. / Скоро технические работы: через N мин. / Bald Wartung: in N Min. / Wkrótce przerwa techniczna: za N min. |
+
+  - Checked: the server at every room entry (`room_enter_fit`: Play with or without an open room,
+    Join, a PIN's join, a queue; making a room: maintenance only), and for the list
+    (`send_presets`); the movie greys by the list (`LocalPlayerProfile.mayPlay`, `mayEnter`,
+    `mayCreate`; `StatusPanel.showRoomsPlay`, `RoomsList`, `RoomsCreate.onNew`,
+    `FriendListRender`). The movie never lights a Play the game keeps off.
+  - N, the minutes, come with the list (`<minutes>`); while a maintenance is planned the movie asks
+    for the list every minute, so N and the rule's start follow.
+  - **A new reason** gets a bit (`PlayBlock` or a lobby bit next to `BLOCK_MAINTENANCE`), a row
+    here, a test that it comes out for its case and that the list carries it, and its texts in the
+    movie's `REASONS` (`LocalPlayerProfile`).
 - **Existing accounts:** preset 1 active (their kits as they are), presets 2 to 5 empty.
 - **A preset's level:** the rooms' measure (`matchmaking::gear_level`, the refusal "gear over the
   max level"): the highest kit level of the three kits that can play (all three, not only the

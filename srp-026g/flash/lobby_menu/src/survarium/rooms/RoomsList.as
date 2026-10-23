@@ -158,7 +158,18 @@ package survarium.rooms
             var made:Array = look.footer(joinable != null ? [[win.say("new"), win.createView.onNew, null], [joinWord, onJoin, joinable]]
                 : [[win.say("new"), win.createView.onNew, null]]);
             if (joinable != null && (!joins(joinable) || !LocalPlayerProfile.mayEnter(joinable.max)))
+            {
                 made[1].enabled = false;
+                // Greyed by a reason (presets.md): the reasons in its tip.
+                if (joins(joinable))
+                    LocalPlayerProfile.reasonTip(look._content, made[1].x, made[1].y, made[1].width, made[1].height);
+            }
+            // Making a room: greyed under the maintenance rule.
+            if (!LocalPlayerProfile.mayCreate())
+            {
+                made[0].enabled = false;
+                LocalPlayerProfile.reasonTip(look._content, made[0].x, made[0].y, made[0].width, made[0].height);
+            }
             renderSide(sel, tableW + 28);
         }
 

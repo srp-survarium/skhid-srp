@@ -275,7 +275,9 @@ impl Core<'_> {
         Ok(())
     }
 
-    fn maintenance_is_near(&self) -> bool {
+    /// The maintenance rule ([`MAINTENANCE_WINDOW`]): no room made, no
+    /// match started, no entry; the presets list's reasons say it too.
+    pub(super) fn maintenance_is_near(&self) -> bool {
         self.store
             .minutes_to_maintenance()
             .is_some_and(|minutes| minutes <= MAINTENANCE_WINDOW)

@@ -22,6 +22,11 @@ pub const PRESETS_LAST: u32 = PRESETS_FIRST + 99;
 /// (the owner's of 2026-10-23: a slot whose item is gone is just empty),
 /// and the items the presets use.
 pub const PRESETS_VERSION: &str = "P2";
+/// The reason bit of the maintenance rule in the list's `<blocks>`: next
+/// to the kit's (`session::v026g::rules::PlayBlock`, bits 1 to 16), set by
+/// the lobby (`Core::entry_blocks`), not by the kit.
+pub const BLOCK_MAINTENANCE: u8 = 32;
+
 /// The first field of a row of the items the presets use.
 pub const USES: &str = "U";
 
@@ -69,10 +74,15 @@ pub struct PresetRow {
 }
 
 /// `91` at [`PRESETS_FIRST`]: the header
-/// `P2;L;<done>;<preset>;<active>;<playable>` (`done` a [`PresetDone`],
-/// `preset` the one it was about, 0 for the list; `active` the active
-/// preset; `playable` 1 when the kit a match would take can play, the
-/// rooms' entries' rule, by which the movie greys Play and Join), then a row a preset, 1 first:
+/// `P2;L;<done>;<preset>;<active>;<blocks>;<minutes>` (`done` a
+/// [`PresetDone`], `preset` the one it was about, 0 for the list; `active`
+/// the active preset; `blocks` why no room may be entered now, a set of
+/// bits: the kit a match would take can not play
+/// (`session::v026g::rules::PlayBlock`), [`BLOCK_MAINTENANCE`]; 0: none.
+/// The rooms' entries' rule, by which the movie greys Play and Join and
+/// lists the reasons in their tip. `minutes` to a planned maintenance, -1
+/// for none: the tip's number, and the movie asks again while one is
+/// planned), then a row a preset, 1 first:
 /// `<preset>;<saved>;<level>` (`level` -1: none of its kits can play, or it
 /// is empty), then the items the presets use, `U;<item id>:<presets>,...`
 /// (`presets` bit `n - 1` for preset n), as many to a row as a name
@@ -83,11 +93,12 @@ pub fn preset_list(
     done: PresetDone,
     preset: u8,
     active: u8,
-    playable: bool,
+    blocks: u8,
+    minutes: Option<u32>,
     rows: &[PresetRow],
     uses: &[(u32, u8)],
 ) -> Result<ServerMessage, WireError> {
-    let names = list_names(done, preset, active, playable, rows, uses);
+    let names = list_names(done, preset, active, blocks, minutes, rows, uses);
     let rows: Vec<(u32, Ranked)> = names
         .into_iter()
         .enumerate()
@@ -110,15 +121,16 @@ fn list_names(
     done: PresetDone,
     preset: u8,
     active: u8,
-    playable: bool,
+    blocks: u8,
+    minutes: Option<u32>,
     rows: &[PresetRow],
     uses: &[(u32, u8)],
 ) -> Vec<String> {
+    let minutes = minutes.map_or(-1, i64::from);
     let most = (PRESETS_LAST - PRESETS_FIRST + 1) as usize;
     let mut names = vec![format!(
-        "{PRESETS_VERSION};L;{};{preset};{active};{}",
-        done as u8,
-        u8::from(playable)
+        "{PRESETS_VERSION};L;{};{preset};{active};{blocks};{minutes}",
+        done as u8
     )];
     for (index, row) in rows.iter().take(usize::from(PRESET_COUNT)).enumerate() {
         let level = row.level.map_or(-1, i32::from);
@@ -185,9 +197,17 @@ mod tests {
             PresetRow::default(),
         ];
         assert_eq!(
-            list_names(PresetDone::Chosen, 1, 1, true, &rows, &[(12, 1), (40, 5)]),
+            list_names(
+                PresetDone::Chosen,
+                1,
+                1,
+                0,
+                None,
+                &rows,
+                &[(12, 1), (40, 5)]
+            ),
             [
-                "P2;L;1;1;1;1",
+                "P2;L;1;1;1;0;-1",
                 "1;1;7",
                 "2;0;-1",
                 "3;1;-1",
@@ -196,7 +216,7 @@ mod tests {
                 "U;12:1,40:5"
             ]
         );
-        assert!(preset_list(PresetDone::Listed, 0, 3, false, &rows, &[]).is_ok());
+        assert!(preset_list(PresetDone::Listed, 0, 3, 40, Some(12), &rows, &[]).is_ok());
     }
 
     /// The items of five full presets: rows of at most a name each, every
@@ -208,7 +228,8 @@ mod tests {
             PresetDone::Listed,
             0,
             1,
-            true,
+            0,
+            None,
             &[PresetRow::default(); 5],
             &uses,
         );

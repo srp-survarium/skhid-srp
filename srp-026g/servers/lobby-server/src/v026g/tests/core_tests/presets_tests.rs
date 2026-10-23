@@ -97,7 +97,7 @@ fn the_title_lists_the_presets_and_chooses_the_active_one() {
     assert_eq!(
         lists[0][..6],
         [
-            "P2;L;0;0;1;1",
+            "P2;L;0;0;1;0;-1",
             "1;1;0",
             "2;0;-1",
             "3;0;-1",
@@ -115,7 +115,7 @@ fn the_title_lists_the_presets_and_chooses_the_active_one() {
     assert_eq!(
         lists[0][..6],
         [
-            "P2;L;1;2;2;0",
+            "P2;L;1;2;2;16;-1",
             "1;1;0",
             "2;0;-1",
             "3;0;-1",
@@ -129,25 +129,25 @@ fn the_title_lists_the_presets_and_chooses_the_active_one() {
     assert_eq!(world.account(alice).inventory, inventory);
     // Chosen again: nothing changes.
     let before = world.account(alice).clone();
-    assert_eq!(choose(&mut world, alice, 2)[0], "P2;L;1;2;2;0");
+    assert_eq!(choose(&mut world, alice, 2)[0], "P2;L;1;2;2;16;-1");
     assert_eq!(*world.account(alice), before);
 
     // Back to 1: the starter exactly. Then a copy of it as preset 2, changed
     // there (as a match's results change an account): its level follows,
     // preset 1 stays as it was left.
-    assert_eq!(choose(&mut world, alice, 1)[0], "P2;L;1;1;1;1");
+    assert_eq!(choose(&mut world, alice, 1)[0], "P2;L;1;1;1;0;-1");
     assert_eq!(kits(&world, alice), starter);
     copied_into(&mut world, alice, 2);
     with_gear(&mut world, alice, 5);
     let geared = kits(&world, alice);
     let inventory = world.account(alice).inventory.clone();
     let (lists, _) = asked(&mut world, alice, PRESETS_FIRST);
-    assert_eq!(lists[0][..3], ["P2;L;0;0;2;1", "1;1;0", "2;1;5"]);
+    assert_eq!(lists[0][..3], ["P2;L;0;0;2;0;-1", "1;1;0", "2;1;5"]);
     let ammo = world.account(alice).kits[0].slots[9].unwrap().item_id;
     assert_eq!(uses(&lists[0]), [(pistol, 3), (rounds, 3), (ammo, 2)]);
 
     // Back to 1, then 2: each its own kits, nothing bought, sold or made.
-    assert_eq!(choose(&mut world, alice, 1)[0], "P2;L;1;1;1;1");
+    assert_eq!(choose(&mut world, alice, 1)[0], "P2;L;1;1;1;0;-1");
     assert_eq!(kits(&world, alice), starter);
     assert_eq!(gear(&world, alice), 0);
     choose(&mut world, alice, 2);
@@ -223,7 +223,7 @@ fn a_sold_item_leaves_its_slot_empty_and_nothing_is_said() {
     let silver = world.account(alice).generic_money;
     let (lists, decoded) = asked(&mut world, alice, PRESET_CHOOSE_BASE + 2);
     // Preset 2 now can not play (no weapon); the header is a plain choice.
-    assert_eq!(lists[0][..3], ["P2;L;1;2;2;0", "1;1;-1", "2;1;-1"]);
+    assert_eq!(lists[0][..3], ["P2;L;1;2;2;16;-1", "1;1;-1", "2;1;-1"]);
     assert!(!uses(&lists[0]).iter().any(|(item, _)| *item == pistol));
     assert!(
         !decoded
@@ -264,7 +264,7 @@ fn gear_over_the_max_level_offers_the_highest_preset_that_fits() {
     // "Switch and enter": preset 1 active, then the join.
     let (lists, decoded) = asked(&mut world, bob, ROOM_PRESET_BASE + key);
     assert!(sent_account(&decoded));
-    assert_eq!(lists[0][0], "P2;L;1;1;1;1");
+    assert_eq!(lists[0][0], "P2;L;1;1;1;0;-1");
     let state = &lists[1];
     assert!(state[0].starts_with(&format!("S1;R;{key};")), "{state:?}");
     assert_eq!(gear(&world, bob), 0);
@@ -368,7 +368,7 @@ fn play_offers_a_preset_for_the_room_it_would_take() {
     );
     // "Switch and enter": preset 2 active, then Play, which takes that room.
     let (lists, _) = asked(&mut world, erin, ROOM_PRESET_BASE + 100_000);
-    assert_eq!(lists[0][0], "P2;L;1;2;2;1");
+    assert_eq!(lists[0][0], "P2;L;1;2;2;0;-1");
     assert!(
         lists[1][0].starts_with(&format!("S1;R;{key};")),
         "{lists:?}"
@@ -415,7 +415,7 @@ fn switch_and_enter_plays_a_kit_of_the_preset_that_can_play() {
         [format!("S1;O;{key};2;2;0;5;3")]
     );
     let (lists, _) = asked(&mut world, bob, ROOM_PRESET_BASE + 100_000 + key);
-    assert_eq!(lists[0][0], "P2;L;1;2;2;1");
+    assert_eq!(lists[0][0], "P2;L;1;2;2;0;-1");
     assert!(
         lists[1][0].starts_with(&format!("S1;R;{key};")),
         "{lists:?}"
@@ -445,7 +445,7 @@ fn every_room_entry_refuses_kits_that_can_not_play() {
     let bob = world.connect("Bob");
     choose(&mut world, bob, 4);
     let (lists, _) = asked(&mut world, bob, PRESETS_FIRST);
-    assert_eq!(lists[0][0], "P2;L;0;0;4;0");
+    assert_eq!(lists[0][0], "P2;L;0;0;4;16;-1");
     let before = world.account(bob).clone();
     let refused = ["S1;N;15;0;0"];
 
@@ -494,7 +494,7 @@ fn kits_that_can_not_play_are_offered_a_loadout_that_can() {
         [format!("S1;O;{key};3;1;0;0;0")]
     );
     let (lists, _) = asked(&mut world, bob, ROOM_PRESET_BASE + key);
-    assert_eq!(lists[0][0], "P2;L;1;1;1;1");
+    assert_eq!(lists[0][0], "P2;L;1;1;1;0;-1");
     assert!(
         lists[1][0].starts_with(&format!("S1;R;{key};")),
         "{lists:?}"
@@ -514,4 +514,31 @@ fn kits_that_can_not_play_are_offered_a_loadout_that_can() {
         rows(&mut world, carol, ROOM_JOIN_BASE + key, 1),
         ["S1;N;15;0;0"]
     );
+}
+
+/// The maintenance rule is one of the list's reasons (bit 32, with the
+/// minutes): at 30 minutes, the rooms' own window (`maintenance_is_near`),
+/// not at 31; the minutes come with it whenever one is planned.
+#[test]
+fn the_maintenance_rule_is_a_reason_at_30_minutes_not_31() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let header = |world: &mut World| {
+        let (lists, _) = asked(world, alice, PRESETS_FIRST);
+        lists[0][0].clone()
+    };
+    assert_eq!(header(&mut world), "P2;L;0;0;1;0;-1");
+    world
+        .core
+        .store
+        .set_maintenance(Some(quests::now() + 31 * 60));
+    assert_eq!(header(&mut world), "P2;L;0;0;1;0;31");
+    world
+        .core
+        .store
+        .set_maintenance(Some(quests::now() + 30 * 60));
+    assert_eq!(header(&mut world), "P2;L;0;0;1;32;30");
+    // With kits that can not play: both reasons.
+    choose(&mut world, alice, 2);
+    assert_eq!(header(&mut world), "P2;L;0;0;2;48;30");
 }

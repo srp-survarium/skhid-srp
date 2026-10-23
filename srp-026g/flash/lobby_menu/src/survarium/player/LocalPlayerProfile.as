@@ -2,6 +2,7 @@ package survarium.player
 {
    import fl.transitions.easing.Strong;
    import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.display.Shape;
@@ -16,6 +17,7 @@ package survarium.player
    import flash.utils.getTimer;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ScrollingList;
+   import scaleform.clik.controls.ToolTip;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.DragEvent;
@@ -93,7 +95,7 @@ package survarium.player
       // choosing another puts it on, and every change of the kits is the
       // active one's (the server's). srp's wire: the ranking request at
       // PRESETS_FIRST and on (lobby.md 2.16.4), answered with the list,
-      // `P2;L;<done>;<preset>;<active>;<playable>`, a row `<preset>;<saved>;<level>`
+      // `P2;L;<done>;<preset>;<active>;<blocks>;<minutes>`, a row `<preset>;<saved>;<level>`
       // each (level -1: none of its kits can play), then the items the
       // presets use, `U;<item id>:<presets>,...` (bit n - 1: preset n), which
       // a sale asks about (MessageAskSell).
@@ -194,10 +196,16 @@ package survarium.player
       // The ask waiting for the end of the 2 s window (null: none).
       private var _presetsLater:Timer;
       
-      // Whether the kit a match would take can play (the list's
-      // `playable`, the server's rule for the rooms' entries): Play and
-      // Join greyed when not. True until a list says.
-      private var _kitsPlay:Boolean = true;
+      // Why no room may be entered now (the list's `<blocks>`, the server's
+      // rule for the rooms' entries; presets.md's table of the reasons):
+      // Play and Join greyed by it, its reasons in their tip. 0 (none) until
+      // a list says. The minutes to a planned maintenance (-1: none), and
+      // the list asked again every minute while one is planned.
+      private var _blocks:int = 0;
+      
+      private var _maintenanceMinutes:int = -1;
+      
+      private var _maintenanceWatch:Timer;
       
       // The kits locked (as the paper doll and the ammo button): no preset
       // chosen.
@@ -730,21 +738,91 @@ package survarium.player
          return true;
       }
       
-      // StatusPanel.showRoomsPlay: Play greyed while the kit a match would
-      // take can not play (the server's rule; presets.md).
-      public static function kitsPlay() : Boolean
+      // The reasons (presets.md's table): bits of the list's `<blocks>`,
+      // each with its text: the game's own key where it has one ("#key"
+      // when it is missing), else ours, in the lobby's five languages.
+      private static const BLOCK_MAINTENANCE:int = 32;
+      
+      private static const REASONS:Array = [
+         {"bit":1,"key":null,"words":["This profile is locked.","Цей профіль закритий.","Этот профиль закрыт.","Dieses Profil ist gesperrt.","Ten profil jest zablokowany."]},
+         {"bit":2,"key":null,"words":["Two items share a slot.","Два предмети в одному слоті.","Два предмета в одном слоте.","Zwei Gegenstände in einem Platz.","Dwa przedmioty w jednym miejscu."]},
+         {"bit":4,"key":null,"words":["One item type in two pockets.","Один тип предмета у двох кишенях.","Один тип предмета в двух карманах.","Ein Gegenstandstyp in zwei Taschen.","Ten sam przedmiot w dwóch kieszeniach."]},
+         {"bit":8,"key":"st_profile_check_failed_weapon_ammo","words":["Too little ammo for a weapon.","Замало набоїв до зброї.","Мало патронов к оружию.","Zu wenig Munition für eine Waffe.","Za mało amunicji do broni."]},
+         {"bit":16,"key":"st_profile_check_failed_weapon","words":["No weapon.","Немає зброї.","Нет оружия.","Keine Waffe.","Brak broni."]},
+         {"bit":BLOCK_MAINTENANCE,"key":null,"words":["Server maintenance soon: in {n} min.","Скоро технічні роботи: за {n} хв.","Скоро технические работы: через {n} мин.","Bald Wartung: in {n} Min.","Wkrótce przerwa techniczna: za {n} min."]}
+      ];
+      
+      // StatusPanel.showRoomsPlay: Play greyed while any reason holds.
+      public static function mayPlay() : Boolean
       {
-         return me == null || me._kitsPlay;
+         return me == null || me._blocks == 0;
       }
       
-      // The rooms' Join (a room of `maxLevel`; 0: any, -1: not known): the
-      // kits can play, or the join popup can offer another loadout that can
-      // (the server's `presets::offer`): greyed otherwise.
+      // Making a room: greyed under the maintenance rule only (a kit that
+      // can not play is warned in the room).
+      public static function mayCreate() : Boolean
+      {
+         return me == null || (me._blocks & BLOCK_MAINTENANCE) == 0;
+      }
+      
+      // Every reason that holds, a line each (the greyed buttons' tip).
+      public static function reasons() : String
+      {
+         if(me == null)
+         {
+            return "";
+         }
+         var lines:Array = [];
+         for each(var reason:Object in REASONS)
+         {
+            if((me._blocks & int(reason.bit)) == 0)
+            {
+               continue;
+            }
+            var text:String = reason.key != null ? LocalizationData.getName(String(reason.key)) : "";
+            if(text == "" || text.charAt(0) == "#")
+            {
+               text = String(reason.words[RoomsText.language()]);
+            }
+            lines.push(text.split("{n}").join(String(Math.max(0,me._maintenanceMinutes))));
+         }
+         return lines.join("\n");
+      }
+      
+      // A tip over a greyed button (a disabled one takes no hover): the
+      // game's tooltip (as Autorepair's), nested a Sprite deeper (a control
+      // straight in a content Sprite may lose its mouse events to it). The
+      // caller removes it with the holder.
+      public static function reasonTip(parent:DisplayObjectContainer, x:Number, y:Number, w:Number, h:Number) : Sprite
+      {
+         var holder:Sprite = new Sprite();
+         holder.x = x;
+         holder.y = y;
+         var tip:ToolTip = new ToolTip();
+         tip.graphics.beginFill(0,0.01);
+         tip.graphics.drawRect(0,0,w,h);
+         tip.graphics.endFill();
+         holder.addChild(tip);
+         parent.addChild(holder);
+         tip.validateNow();
+         tip.tooltipRendererName = "SrvProfileTipRendererStyled";
+         tip.tipData = {"name":reasons()};
+         return holder;
+      }
+      
+      // The rooms' Join (a room of `maxLevel`; 0: any, -1: not known): no
+      // reason holds, or only the kit's and the join popup can offer another
+      // loadout that can play (the server's `presets::offer`): greyed
+      // otherwise.
       public static function mayEnter(maxLevel:int) : Boolean
       {
-         if(kitsPlay())
+         if(mayPlay())
          {
             return true;
+         }
+         if((me._blocks & BLOCK_MAINTENANCE) != 0)
+         {
+            return false;
          }
          var i:int = 0;
          while(i < PRESET_COUNT)
@@ -1161,6 +1239,34 @@ package survarium.player
          this.sendPresets(PRESETS_FIRST);
       }
       
+      // A maintenance planned: the list again every minute (its minutes, and
+      // its reason from 30 on).
+      private function watchMaintenance() : void
+      {
+         if(this._maintenanceMinutes < 0)
+         {
+            if(this._maintenanceWatch != null)
+            {
+               this._maintenanceWatch.stop();
+            }
+            return;
+         }
+         if(this._maintenanceWatch == null)
+         {
+            this._maintenanceWatch = new Timer(60000,0);
+            this._maintenanceWatch.addEventListener(TimerEvent.TIMER,this.onMaintenanceWatch);
+         }
+         if(!this._maintenanceWatch.running)
+         {
+            this._maintenanceWatch.start();
+         }
+      }
+      
+      private function onMaintenanceWatch(e:TimerEvent) : void
+      {
+         this.askPresets();
+      }
+      
       private function onPresetsLater(e:TimerEvent) : void
       {
          this._presetsLater.removeEventListener(TimerEvent.TIMER_COMPLETE,this.onPresetsLater);
@@ -1179,7 +1285,7 @@ package survarium.player
          }
       }
       
-      // `P2;L;<done>;<preset>;<active>;<playable>`, then `<preset>;<saved>;<level>`
+      // `P2;L;<done>;<preset>;<active>;<blocks>;<minutes>`, then `<preset>;<saved>;<level>`
       // each, then `U;<item id>:<presets>,...` rows.
       private function takePresets(rows:Array) : void
       {
@@ -1189,7 +1295,9 @@ package survarium.player
             return;
          }
          var active:int = int(head[4]) - 1;
-         this._kitsPlay = head.length < 6 || head[5] != "0";
+         this._blocks = int(head[5]);
+         this._maintenanceMinutes = head.length > 6 ? int(head[6]) : -1;
+         this.watchMaintenance();
          if(active >= 0 && active < PRESET_COUNT)
          {
             this._presetAt = active;

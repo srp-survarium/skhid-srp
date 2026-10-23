@@ -58,11 +58,26 @@ impl Core<'_> {
         chosen
     }
 
+    /// Why the asker may enter no room now (`P2;L`'s `<blocks>`, the
+    /// reasons table of `presets.md`): the kit a match would take can not
+    /// play (`rules::kits_play_blocks`, which the entries refuse with code
+    /// 15), the maintenance rule (`maintenance_is_near`, code 9). The same
+    /// functions as the doors', so the movie's greying and the server agree.
+    pub(super) fn entry_blocks(&self, who: &Who) -> u8 {
+        let mut blocks = rules::kits_play_blocks(&who.account.locked(), quests::now());
+        if self.maintenance_is_near() {
+            blocks |= wire::BLOCK_MAINTENANCE;
+        }
+        blocks
+    }
+
     /// The asker's presets (`P2;L`), with what its request did, and the
     /// items they use. A slot left empty by a choice is said in the log
     /// only (the owner's of 2026-10-23: no notice).
     pub(super) fn send_presets(&mut self, who: &Who, done: PresetDone, preset: u8) {
-        let (rows, active, playable, uses) = {
+        let minutes = self.store.minutes_to_maintenance();
+        let blocks = self.entry_blocks(who);
+        let (rows, active, uses) = {
             let account = who.account.locked();
             let levels = presets::levels(&account, quests::now());
             let rows: Vec<PresetRow> = (1..=presets::PRESETS as u8)
@@ -72,16 +87,11 @@ impl Core<'_> {
                     level,
                 })
                 .collect();
-            (
-                rows,
-                account.active_preset,
-                rules::kits_can_play(&account, quests::now()),
-                presets::uses(&account),
-            )
+            (rows, account.active_preset, presets::uses(&account))
         };
         self.send_made(
             who.addr,
-            wire::preset_list(done, preset, active, playable, &rows, &uses),
+            wire::preset_list(done, preset, active, blocks, minutes, &rows, &uses),
         );
     }
 }
