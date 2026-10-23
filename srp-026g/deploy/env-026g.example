@@ -162,14 +162,19 @@ RUST_LOG=info
 # the compose default; `off` switches it off. The highest equipment level
 # let in, the most such matches at once (the server keeps a bots' map in
 # memory for each, 35-150 MB: with 5, give SRP26_MEMORY about 750 MB
-# more), the share of silver and experience they pay, and the seconds
-# after which a match whose player uploads no world it is asked for is
-# over.
+# more), the share of silver, experience and drop chance they give (only
+# a match played to its own end pays at all), and the seconds after which
+# a match whose player uploads no world it is asked for is over.
 # SRP_PVB=on
-# SRP_PVB_MAX_GEAR=5
+# SRP_PVB_MAX_GEAR=15
 # SRP_PVB_MAX_MATCHES=5
-# SRP_PVB_PAY=0.5
+# SRP_PVB_PAY=0.25
 # SRP_PVB_STALL_S=60
+
+# The bots' decision traces, one JSON file a match with the server's bots
+# (off unless set), and the most MB they keep together, the oldest first.
+# SRP_BOT_TRACE_DIR=/srv/srp/data/bot-traces
+# SRP_BOT_TRACE_MAX_MB=2000
 
 # Rooms, the players' "servers": made, listed and joined in the changed
 # lobby movie, a match after match in each, its map voted on

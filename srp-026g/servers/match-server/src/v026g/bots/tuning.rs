@@ -182,10 +182,14 @@ pub struct AimTuning {
     pub notice: (f32, f32),
     /// Fire only within this of the target's direction, degrees.
     pub fire_within_deg: f32,
-    /// Bursts: held, then paused, ms.
+    /// Bursts of an automatic weapon whose class has no rows in
+    /// `combat.fire` (`FireTuning::smg`, `rifle`): held, ms; and the pause
+    /// after any burst, ms (the best players, 6+ matches of 2026-10-16..22:
+    /// 150 / 300-350 / 600-800 ms, `player_bots_weapons.md` §3).
     pub burst_ms: (u32, u32),
     pub pause_ms: (u32, u32),
-    /// Farther than this a bot does not shoot, metres.
+    /// Farther than this a bot does not shoot, metres; with a bolt action
+    /// `combat.fire.bolt_range_m`.
     pub range_m: f32,
     /// From noticing an enemy to the first shot, ms (drawn ±15 % per
     /// target).
@@ -198,16 +202,21 @@ pub struct AimTuning {
 impl Default for AimTuning {
     fn default() -> Self {
         Self {
-            error_deg: (6.0, 1.5),
-            wander_deg: (3.0, 1.3),
+            // Skill 1 is the best quarter of the top players of
+            // `TOP-PLAYERS.md` (the owner, 2026-10-23; it was their
+            // median): a tighter floor and wander, a quicker settle,
+            // reaction and noticing. The chain from a sighting to the first
+            // shot at skill 1 is then ~400-450 ms (their q1 400 ms).
+            error_deg: (6.0, 0.9),
+            wander_deg: (3.0, 0.8),
             wander_s: 0.4,
-            settle_s: (0.35, 0.15),
-            notice: (1.5, 0.8),
+            settle_s: (0.35, 0.10),
+            notice: (1.5, 0.6),
             fire_within_deg: 4.0,
             burst_ms: (500, 1_000),
-            pause_ms: (200, 650),
+            pause_ms: (150, 700),
             range_m: 80.0,
-            reaction_ms: (450.0, 180.0),
+            reaction_ms: (450.0, 120.0),
             combat: super::reflex::CombatTuning::default(),
         }
     }
@@ -217,9 +226,17 @@ impl Default for AimTuning {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkillTuning {
+    /// The start and the floor of a tier with no row in `tiers`.
     pub start: f32,
     pub min: f32,
+    /// The most, every tier (the owner's word, 2026-10-23: no tier has its
+    /// own most).
     pub max: f32,
+    /// By the bots' tier ([`BotTier`]): where a team's skill starts and
+    /// the floor the self-balancing keeps it above (the owner, 2026-10-23:
+    /// 4-5 from 0.6, floor 0.3; 9-10 from 0.75, floor 0.5; 13-15 from
+    /// 0.85, floor 0.65).
+    pub tiers: BTreeMap<BotTier, TierSkill>,
     /// One step's size before damping (`step / min(steps, 10)`).
     pub step: f32,
     /// The dead band of K/D against humans.
@@ -238,6 +255,14 @@ impl Default for SkillTuning {
             start: 0.7,
             min: 0.0,
             max: 1.0,
+            tiers: [
+                (BotTier::Low, (0.6, 0.3)),
+                (BotTier::Mid, (0.75, 0.5)),
+                (BotTier::High, (0.85, 0.65)),
+            ]
+            .into_iter()
+            .map(|(tier, (start, min))| (tier, TierSkill { start, min }))
+            .collect(),
             step: 0.15,
             kd_low: 0.67,
             kd_high: 1.5,
@@ -247,6 +272,34 @@ impl Default for SkillTuning {
         }
     }
 }
+
+impl SkillTuning {
+    /// Where a team of bots of `tier` starts, and its floor: the tier's
+    /// row, else `start` and `min`; the start within the floor and `max`.
+    pub fn of_tier(&self, tier: BotTier) -> TierSkill {
+        let row = self.tiers.get(&tier).copied().unwrap_or(TierSkill {
+            start: self.start,
+            min: self.min,
+        });
+        let min = row.min.min(self.max);
+        TierSkill {
+            start: row.start.clamp(min, self.max),
+            min,
+        }
+    }
+}
+
+/// A tier's start and floor of the skill.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TierSkill {
+    pub start: f32,
+    pub min: f32,
+}
+
+/// The bots' tier (`survarium::v026g::loadouts::BotTier`, from the
+/// lobby's profiles: `loadouts::bot_of`).
+pub use survarium::v026g::loadouts::BotTier;
 
 /// The team modifiers (`signals::Mods`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -429,9 +482,19 @@ impl Tuning {
         )?;
         check(self.think.commander_ms >= 50, "think.commander_ms")?;
         check(
+            self.feel.hop_rise_m.0 <= self.feel.hop_rise_m.1 && self.feel.hop_every_s > 0.0,
+            "feel.hop_*",
+        )?;
+        check(
             self.skill.min <= self.skill.start && self.skill.start <= self.skill.max,
             "skill.start",
         )?;
+        for (tier, row) in &self.skill.tiers {
+            check(
+                (0.0..=row.start).contains(&row.min) && row.start <= self.skill.max,
+                &format!("skill.tiers.{tier:?}"),
+            )?;
+        }
         check(self.skill.kd_low < self.skill.kd_high, "skill.kd_*")?;
         check(self.aim.burst_ms.0 <= self.aim.burst_ms.1, "aim.burst_ms")?;
         check(self.aim.pause_ms.0 <= self.aim.pause_ms.1, "aim.pause_ms")?;
@@ -446,7 +509,8 @@ impl Tuning {
             "aim.combat.strafe_still_ms",
         )?;
         check(
-            (0.0..=1.0).contains(&c.recoil_pull),
+            (0.0..=1.0).contains(&c.recoil_pull)
+                && (0.0..=c.recoil_pull).contains(&c.recoil_pull_low),
             "aim.combat.recoil_pull",
         )?;
         check(self.hazard_margin >= 0.0, "hazard_margin")?;

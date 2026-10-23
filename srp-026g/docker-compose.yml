@@ -139,11 +139,21 @@ services:
       # switch it off; the code's own default is off). Each match against
       # bots may hold a bots' map of its own in memory (35-150 MB, up to
       # SRP_PVB_MAX_MATCHES maps): raise SRP26_MEMORY with it.
+      # SRP_PVB_MAX_GEAR: the highest equipment level let in, 15 (every
+      # level) when unset; the bots wear the player's tier's equipment
+      # (docs/notes/pvb-tiers.md). SRP_PVB_PAY (default 0.25): the share of
+      # silver, experience and drop chance such a match gives, and only one
+      # played to its own end (time or score) pays at all.
       - SRP_PVB=${SRP_PVB:-on}
       - SRP_PVB_MAX_GEAR
       - SRP_PVB_MAX_MATCHES
       - SRP_PVB_PAY
       - SRP_PVB_STALL_S
+      # The bots' decision traces (off unless set; e.g.
+      # /srv/srp/data/bot-traces), cut to SRP_BOT_TRACE_MAX_MB (default
+      # 2000) together, the oldest first.
+      - SRP_BOT_TRACE_DIR
+      - SRP_BOT_TRACE_MAX_MB
       # Rooms, the players' "servers" (servers/lobby-server/src/v026g/rooms.rs):
       # every PvP match is a room's; they need the lobby movie that has them.
       - SRP_ROOMS_MAX

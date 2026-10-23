@@ -189,6 +189,12 @@ the archive's index: a loader must follow them.
      name `Bot-<n>`, clan tag `BOT`, the kit of its role, session and
      account 0, no seat. **Removed 2026-10-17** with the queue (the
      owner's): the server's bots play only "Player vs Bots" (§8).
+   - **2026-10-23: three kits a bot, in three equipment tiers, each
+     kit's ammo maxed by the lobby's rule and refilled each life from its
+     storage; the tables and the switch are in `pvb-tiers.md`.** What
+     follows is the first kit as built on 2026-10-14, now the lowest
+     tier (`TIER_4_5`), the TT-33 since taken out, the support's
+     second medkit pocket since dropped (one pocket a type).
    - **The bots' kit** (`survarium::v026g::loadouts`; `BOT_KIT`:
      item, slot, count, input bit, what every role wears; `BotRole`,
      `BotRole::gear()`, `bot_kit(role)`, `bot_kit_items(role)`,
@@ -204,10 +210,10 @@ the archive's index: a loader must follow them.
      item level 5 at most:
      | Role | Weapon 1 (level) and ammo | Armour |
      |---|---|---|
-     | flanker | `uzi` SMG (2), `ammo_9x19p_para` | `bm_torso_1`, `bm_boots_1` (level 1, light) |
+     | flanker | `vityaz` SMG (4; the Uzi until 2026-10-23), `ammo_9x19p_para` | `bm_torso_1`, `bm_boots_1` (level 1, light) |
      | support | `ak_74u` (5, the lowest of the assault rifle category), `ammo_5.45x39_7n6m` | `bm_torso_4` (3, 6 kg, a fourth pocket: a third medkit in slot 16), `bm_helmet_1` (3) |
-     | rusher | `toz_34` double-barrel shotgun (1), `ammo_12mm_buck` | `scav_torso_1`, `scav_boots_1` (level 1, light) |
-     | camper | `mosin_nagant` (0, free, the sniper category), `ammo_7.62x54r_old` | `scav_torso_2` (3, 6 kg), `bm_helmet_1` (3) |
+     | rusher | `mp_153` semi-automatic shotgun (4; the TOZ-34 until 2026-10-23), `ammo_12mm_buck` | `scav_torso_1`, `scav_boots_1` (level 1, light) |
+     | camper | `rem_700` (5, the sniper category; the Mosin until 2026-10-23), `ammo_7.62x51_ap` | `scav_torso_2` (3, 6 kg), `bm_helmet_1` (3) |
 
      The lobby gives each team's `k`-th bot `BotRole::nth(k)` (smooth
      weighted round robin: flanker, rusher, support, camper, ...) and
@@ -295,10 +301,12 @@ the archive's index: a loader must follow them.
      0.3 s, and stops 3.5 m before a sharp corner; its heading sways by
      about a degree; standing, it looks about every 1-2 s.
    - **Stuck** (`bots::stuck`): two worlds 1.5 s apart that show the body
-     moved under 0.4 m while it walked. First a jump and a step back and
-     to a side, and the same route again; caught again at the same spot
-     within 20 s, a jump and a sidestep and another goal; a third time, it
-     stands a few seconds and goes elsewhere. A spot that caught it twice
+     moved under 0.4 m while its own keys, reckoned on the grid, meant at
+     least 1.2 m (since 2026-10-23: `player_bots_stuck.md`). First a jump
+     and a step back and to a side, and the same route again; caught again
+     at the same spot within 20 s, a jump and a step back the other way
+     and another goal; a third time, a step to a side, it stands a few
+     seconds and goes elsewhere (each time again there another way). A spot that caught it twice
      is kept clear of for 45 s (routes past it are not taken, unless every
      route passes it).
    - **What it does** (the one play of this stage): walks to one of the
@@ -364,7 +372,8 @@ the archive's index: a loader must follow them.
      the station whose battery is due (6-20 m off) and keep moving (a hold
      weighs 0.3 of a Team Deathmatch one).
    - Kit and role (`survarium::v026g::loadouts::BotRole`): flanker (Uzi),
-     support (AK-74U), rusher (TOZ-34), camper (Mosin), each with two
+     support (AK-74U), rusher (TOZ-34), camper (Mosin) at first; the tiers
+     since 2026-10-23 are in `pvb-tiers.md`. Each with two
      medkits, two RGD-5 and the radio (passive: −20 % respawn time, PROVEN
      in the client); the role is read back from the gear and sets the
      bot's personality.
@@ -521,10 +530,20 @@ chosen in srp's changed lobby movie ("Player vs Bots"; the wire is
   over as deserted (`game.rs` `check_pvb_stall`). A game that is gone
   ends it by `BOTS_ALONE` (45 s), one that waits for a world by the lost
   world rule, as before.
-- **Its pay.** Half the silver and experience (`SRP_PVB_PAY`), no quest,
-  no daily bonus; and as every match with a server's bot it moves no
-  rating and no balance rating. The one witness could fake its numbers
-  within what the server's checks allow: that is why it pays less.
+- **Its pay.** A quarter of the silver and experience and of the drop's
+  chance (`SRP_PVB_PAY`; half of the silver and experience and the whole
+  chance until 2026-10-23, when 21 of 37 matches played to their end
+  dropped something), no quest, no daily bonus; and as every match with a
+  server's bot it moves no rating and no balance rating. The one witness
+  could fake its numbers within what the server's checks allow, and the
+  bots lose nearly every match: that is why it pays less. **Only a match
+  played to its own end pays** (the mode's rule or the time limit, the
+  player in it): a match its player leaves ends at once (everyone gone),
+  and until 2026-10-23 that paid what was made so far, so leaving and
+  starting again was a way to farm. Now one that ends `Deserted` (left,
+  lost link, `SRP_PVB_STALL_S`, the lost world rule) pays nothing: no
+  silver, experience, reputation, drop or drop card; what it used is
+  taken as in any match (`rewards::Reward::forfeited`).
 - **Maps in memory.** Each match against bots may be on another map, and a
   bot match without its map plays on the script (stage 0) until it gets
   one. With `SRP_PVB=on` the store keeps up to `SRP_PVB_MAX_MATCHES` (5)

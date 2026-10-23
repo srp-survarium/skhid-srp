@@ -2,6 +2,7 @@
 
 // The game data (`data.md`, `modes_maps.md`).
 pub mod awards;
+pub mod bot_skills;
 pub mod dictionary;
 pub mod drops;
 pub mod game_data;
@@ -17,6 +18,7 @@ pub mod scopes;
 pub mod shop_offers;
 pub mod skills;
 pub mod tables;
+pub mod weapons;
 
 // Wire helpers.
 pub mod lzma2;

@@ -4,37 +4,36 @@
 //! and reloads when the magazine is out ([`super::reflex`]), instead of
 //! guessing "about a clip of fire" by time.
 //!
-//! Where the numbers come from (0.26g's `resources.db`; tags as in the
-//! notes: PROVEN read in the data or the code, LIKELY read in 0.100b's
-//! source and not traced in 0.26g's exe):
-//! - `gameplay/items/weapons/wpn_<name>.options`, `parameters`:
-//!   `magazine_capacity`, `rounds_per_minute`, `reload_time`,
-//!   `fire_queue_types`, `show_time`, `hide_time`; and its `states`: which
-//!   reload state the weapon has (303 a magazine, 306 round by round with
-//!   start, one-round and finish substates, 311 two barrels, 314 a
-//!   pistol's) and whether it has a `chamber_a_round` state (304). PROVEN.
-//!   `magazine_capacity` is also in `survarium::v026g::item_params`, which
-//!   is generated from the same files; a test holds the two together.
-//! - The item clips of those states
-//!   (`animations/single/weapons/<model>/item/stand/3rd_view/*.b-spline`,
-//!   30 frames a second, the length as `combat/pose.rs` of srp-0100b reads
-//!   it): every `shoot` clip has its one `shoot` mark at frame 0, so a
-//!   shot leaves as the fire state starts (PROVEN); AK-74U reload 95 f,
-//!   Uzi reload 80 f, TOZ-34 one barrel 80 f and two barrels 110 f, TT-33
-//!   reload 65 f and from empty 125 f, Mosin `reload_start` 50 f,
-//!   `reload_1` 20 f, `reload_end` 41 f and `chamber_a_round` 65 f. PROVEN.
-//! - How those make times (0.100b's source,
-//!   `srp-0100b/docs/notes/weapon_logic_timing.md` §3, §6; LIKELY the same
-//!   in 0.26g): a fire clip is scaled so one pass is
-//!   `60 / rounds_per_minute` s; a magazine, pistol or barrel reload is
-//!   scaled by its first clip to `reload_time`, so the other clip of a
-//!   pistol or a double barrel takes its length in proportion; round by
-//!   round, start and finish play at their own length and the one-round
-//!   loop takes `reload_time / magazine_capacity` a round; a chamber state
-//!   plays at its own length. The AK-74U's reload clip, 95 f = 3.167 s,
-//!   is its `reload_time` exactly. The lobby's rate of fire for the Mosin,
-//!   27 a minute, is 60 s over its 2.167 s of chambering (what the lobby
-//!   computes is not read).
+//! Where the numbers come from: **every weapon of the game data**, read from
+//! its own config when first used (`survarium::v026g::weapons`; tags as in
+//! the notes: PROVEN read in the data or the code, LIKELY read in 0.100b's
+//! source and not traced in 0.26g's exe), so any weapon a kit may carry (a
+//! tier's, a patch's) is fired by its own numbers:
+//! - `parameters`: `magazine_capacity`, `rounds_per_minute`,
+//!   `fire_queue_types`, `reload_time`, `reload_start_time`,
+//!   `reload_end_time`, `chamber_a_round_time`, `show_time`, `hide_time`;
+//!   and its `states`: which reload state it has (303 a magazine, 306 round
+//!   by round, 311 two barrels, 314 another clip from empty) and whether it
+//!   has a `chamber_a_round` state (304). PROVEN.
+//! - How those make times: a shot is `60 / rounds_per_minute` s (every
+//!   `shoot` clip has its one `shoot` mark at frame 0, so a shot leaves as
+//!   the fire state starts; PROVEN for the five weapons whose clips were
+//!   read); a magazine reload is `reload_time` (the AK-74U's clip, 95 f, is
+//!   that exactly); round by round, `reload_start_time`, `reload_time /
+//!   magazine_capacity` a round and `reload_end_time` (the Mosin's clips,
+//!   50, 20 a round and 41 f, give 1.67 + 0.5 + 1.37 s against the
+//!   config's 1.5 + 0.5 + 1.5: within 0.2 s); an empty reload of state 314
+//!   and both barrels of state 311 take the TT-33's and the TOZ-34's share
+//!   of their clips ([`EMPTY_RELOAD_SHARE`], [`BARRELS_RELOAD_SHARE`]).
+//! - The bolt: `chamber_a_round_time`. LIKELY: the card's rate of fire is
+//!   `60 / (60 / rpm + chamber_a_round_time)` floored for all eleven
+//!   weapons that have one (the Mosin 27, the SV-98 21, the Remington 700
+//!   32); 0.100b played the chamber clip at its own length (the Mosin's
+//!   65 f, 2.17 s, 0.37 s longer). The players never press a bolt again
+//!   sooner than 0.4 s after the config's cycle (`player_bots_weapons.md`
+//!   §4), and the bots wait at least `CombatTuning::fire`'s
+//!   `bolt_reaim_ms` after it, more than either, so a press never falls in
+//!   the bolt whichever time is right.
 //!
 //! The trigger, read in 0.26g's exe (PROVEN): the fire state
 //! (`weapon_core_fire_state_base`, vtable 0xA14DAC, fields named by its
@@ -59,7 +58,8 @@
 //! the weapon's [`Gun::cycle_ms`], so each press is one shot whatever that
 //! answer is.
 
-use survarium::v026g::loadouts::{BOT_AMMO_SLOTS, BotRole};
+use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::loadouts::{BOT_AMMO_SLOTS, BotRole, BotTier, Loadout, bot_kits};
 
 /// How a weapon reloads, ms (see the module's notes for where each comes
 /// from).
@@ -102,6 +102,40 @@ pub struct Gun {
     /// the states' times is LIKELY: 0.100b timed them by the clips).
     pub show_ms: u32,
     pub hide_ms: u32,
+    /// How the bots fire it ([`Handling`]).
+    pub handling: Handling,
+    /// The dictionary category (8 rifles, 13 sniper rifles, 14 shotguns,
+    /// 15 submachine guns, 16 machine guns, 17 pistols).
+    pub category: u8,
+}
+
+/// The rows of the bursts' table an automatic weapon takes
+/// (`player_bots_weapons.md` §3): the players hold a submachine gun longer
+/// than a rifle or a machine gun at every distance, and tap either past 35 m.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AutoClass {
+    /// Category 15.
+    Smg,
+    /// Any other automatic weapon: rifles, machine guns, the automatic
+    /// ones of the sniper category.
+    Rifle,
+}
+
+/// How a weapon is fired, from its config: its first fire mode and states.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Handling {
+    /// Automatic (`fire_queue_types[0] == -1`): bursts held, their length
+    /// by the distance.
+    Burst(AutoClass),
+    /// One round a press, nothing to work between: pressed again at its
+    /// cycle, a little later at range (marksman rifles, pistols, the
+    /// semi-automatic shotguns).
+    Semi,
+    /// A bolt or a pump (a `chamber_a_round` state): one press, then the
+    /// bolt, the sights brought back on him, the next press. Never held.
+    Bolt,
+    /// Two barrels: a press each, then the reload.
+    Barrels,
 }
 
 impl Gun {
@@ -153,96 +187,96 @@ impl Gun {
     }
 }
 
-/// `frames` at 30 a second scaled from `base` frames to `base_ms`, ms.
-const fn scaled(frames: u32, base: u32, base_ms: u32) -> u32 {
-    (frames * base_ms + base / 2) / base
+/// The empty reload's time over the other's, for a weapon whose reload
+/// has its own clip from empty (state 314): the TT-33's two clips, 125 f
+/// over 65 f (PROVEN for the TT-33; LIKELY of the same order for the
+/// others, whose clips the server's data does not hold; the longer time
+/// only makes a bot wait a little more).
+pub const EMPTY_RELOAD_SHARE: f32 = 125.0 / 65.0;
+
+/// Both barrels' reload over one barrel's (state 311): the TOZ-34's clips,
+/// 110 f over 80 f (PROVEN for the TOZ-34; LIKELY for the others).
+pub const BARRELS_RELOAD_SHARE: f32 = 110.0 / 80.0;
+
+/// Seconds to ms.
+fn ms(seconds: f32) -> u32 {
+    (seconds * 1000.0).round().max(0.0) as u32
 }
 
-/// `frames` at 30 a second, ms.
-const fn frames_ms(frames: u32) -> u32 {
-    (frames * 1000 + 15) / 30
+impl Gun {
+    /// A weapon of the game data (`survarium::v026g::weapons`).
+    pub fn of(w: &survarium::v026g::weapons::WeaponParams) -> Self {
+        use survarium::v026g::weapons::{
+            STATE_RELOAD_BARRELS, STATE_RELOAD_EMPTY, STATE_RELOAD_ROUNDS,
+        };
+        let reload_ms = ms(w.reload_time);
+        let reload = match w.reload_state {
+            STATE_RELOAD_ROUNDS => Reload::Rounds {
+                start_ms: ms(w.reload_start_time),
+                round_ms: reload_ms / w.magazine_capacity.max(1),
+                finish_ms: ms(w.reload_end_time),
+            },
+            STATE_RELOAD_BARRELS => Reload::Barrels {
+                one_ms: reload_ms,
+                two_ms: ms(w.reload_time * BARRELS_RELOAD_SHARE),
+            },
+            STATE_RELOAD_EMPTY => Reload::Pistol {
+                ms: reload_ms,
+                empty_ms: ms(w.reload_time * EMPTY_RELOAD_SHARE),
+            },
+            _ => Reload::Magazine { ms: reload_ms },
+        };
+        let auto = w.automatic();
+        let chamber_ms = if w.has_chamber {
+            ms(w.chamber_a_round_time)
+        } else {
+            0
+        };
+        let handling = if auto {
+            Handling::Burst(if w.category == SMG_CATEGORY {
+                AutoClass::Smg
+            } else {
+                AutoClass::Rifle
+            })
+        } else if chamber_ms > 0 {
+            Handling::Bolt
+        } else if matches!(reload, Reload::Barrels { .. }) {
+            Handling::Barrels
+        } else {
+            Handling::Semi
+        };
+        Self {
+            item: w.name,
+            magazine: w.magazine_capacity,
+            rpm: w.rounds_per_minute,
+            auto,
+            chamber_ms,
+            reload,
+            show_ms: ms(w.show_time),
+            hide_ms: ms(w.hide_time),
+            handling,
+            category: w.category,
+        }
+    }
 }
 
-/// The five weapons the server's bots carry
-/// (`survarium::v026g::loadouts`): each role's weapon 1 and the TT-33.
-pub const GUNS: [Gun; 5] = [
-    // `wpn_uzi`: 32 rounds, 600 a minute, fire modes [-1, 1], reload 2.3 s
-    // (its clip 80 f scaled to it).
-    Gun {
-        item: "uzi",
-        magazine: 32,
-        rpm: 600,
-        auto: true,
-        chamber_ms: 0,
-        reload: Reload::Magazine { ms: 2_300 },
-        show_ms: 800,
-        hide_ms: 800,
-    },
-    // `wpn_ak_74u`: 30 rounds, 650 a minute, fire modes [-1, 1], reload
-    // 3.167 s (its clip, 95 f, is that long).
-    Gun {
-        item: "ak_74u",
-        magazine: 30,
-        rpm: 650,
-        auto: true,
-        chamber_ms: 0,
-        reload: Reload::Magazine { ms: 3_167 },
-        show_ms: 800,
-        hide_ms: 800,
-    },
-    // `wpn_toz_34`: 2 shells, 240 a minute, fire modes [1, 2] (one barrel,
-    // both), reload 2.5 s for the first barrel's clip (80 f); both barrels'
-    // clip is 110 f.
-    Gun {
-        item: "toz_34",
-        magazine: 2,
-        rpm: 240,
-        auto: false,
-        chamber_ms: 0,
-        reload: Reload::Barrels {
-            one_ms: 2_500,
-            two_ms: scaled(110, 80, 2_500),
-        },
-        show_ms: 800,
-        hide_ms: 800,
-    },
-    // `wpn_mosin_nagant`: 5 rounds, 160 a minute, fire modes [1], a bolt
-    // (`chamber_a_round`, 65 f), reload round by round: `reload_start`
-    // 50 f, `reload_1` looped at 2.5 s / 5 a round, `reload_end` 41 f.
-    Gun {
-        item: "mosin_nagant",
-        magazine: 5,
-        rpm: 160,
-        auto: false,
-        chamber_ms: frames_ms(65),
-        reload: Reload::Rounds {
-            start_ms: frames_ms(50),
-            round_ms: 2_500 / 5,
-            finish_ms: frames_ms(41),
-        },
-        show_ms: 800,
-        hide_ms: 800,
-    },
-    // `wpn_tt_33`: 8 rounds, 300 a minute, fire modes [1], reload 1.6 s
-    // for its first clip (`reload`, 65 f); `reload_empty` is 125 f.
-    Gun {
-        item: "tt_33",
-        magazine: 8,
-        rpm: 300,
-        auto: false,
-        chamber_ms: 0,
-        reload: Reload::Pistol {
-            ms: 1_600,
-            empty_ms: scaled(125, 65, 1_600),
-        },
-        show_ms: 500,
-        hide_ms: 800,
-    },
-];
+/// The submachine guns' category (`categories_dict`).
+pub const SMG_CATEGORY: u8 = 15;
+
+/// Every weapon of the game data, as the bots fire it.
+pub fn guns() -> &'static [Gun] {
+    static ALL: std::sync::OnceLock<Vec<Gun>> = std::sync::OnceLock::new();
+    ALL.get_or_init(|| {
+        survarium::v026g::weapons::all()
+            .iter()
+            .map(Gun::of)
+            .collect()
+    })
+}
 
 /// The facts of the weapon item `item`.
 pub fn gun(item: &str) -> Option<&'static Gun> {
-    GUNS.iter().find(|gun| gun.item == item)
+    guns().iter().find(|gun| gun.item == item)
 }
 
 /// A weapon in a life: its rounds in it and the rest of its ammo.
@@ -293,49 +327,99 @@ impl Load {
     }
 }
 
-/// What a bot carries: weapon 1 with its ammo, and the pistol with its.
+/// What a bot carries: weapon 1 with a life's ammo, and the pistol with
+/// its; and the rounds of weapon 1's ammo the kit has for the match.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Arms {
+    /// Weapon 1 and the rounds a life starts with (its ammo slots').
     pub primary: (&'static Gun, u32),
     pub pistol: Option<(&'static Gun, u32)>,
+    /// The rounds of weapon 1's ammo the kit has for the match, the life's
+    /// among them: the profile's storage, which the client refills the
+    /// slots from at each spawn (`loadouts::BOT_AMMO_LIVES`).
+    pub reserve: u32,
 }
 
+/// A kit's [`Arms`]: its weapon 1, the rounds of its ammo slots
+/// (`BOT_AMMO_SLOTS`) and their storage.
+fn arms_of(kit: &Loadout) -> Option<Arms> {
+    let weapon = Dictionary::shared().item(kit.slot(7)?.dict_id)?;
+    let ammo = kit
+        .items
+        .iter()
+        .filter(|item| BOT_AMMO_SLOTS.contains(&item.slot));
+    let rounds = ammo.clone().map(|item| item.count).sum();
+    let reserve = ammo.map(|item| item.stored.max(item.count)).sum();
+    Some(Arms {
+        primary: (gun(&weapon.name)?, rounds),
+        pistol: None,
+        reserve,
+    })
+}
+
+type ArmsTable = Vec<((BotTier, BotRole, usize), Option<Arms>)>;
+
 impl Arms {
-    /// A role's (`BotRole::name`, the personality of that name): weapon 1
-    /// and every round of its ammo slots (`BOT_AMMO_SLOTS`): a life's
-    /// ammo, not a clip each. No pistol: the bots carry none.
-    pub fn of_role(role: &str) -> Option<&'static Arms> {
-        static ALL: std::sync::OnceLock<Vec<(&'static str, Arms)>> = std::sync::OnceLock::new();
+    /// The `k`-th kit (0 on) of a bot of `role` in `tier`
+    /// (`loadouts::bot_kits`). No pistol: the bots carry none. `None` for
+    /// a kit that is not there or a weapon not in the game data ([`guns`]).
+    pub fn of_kit(tier: BotTier, role: BotRole, k: usize) -> Option<&'static Arms> {
+        static ALL: std::sync::OnceLock<ArmsTable> = std::sync::OnceLock::new();
         ALL.get_or_init(|| {
-            BotRole::ALL
-                .into_iter()
-                .filter_map(|role| {
-                    let gear = role.gear();
-                    let rounds = gear
-                        .iter()
-                        .filter(|item| BOT_AMMO_SLOTS.contains(&item.slot))
-                        .map(|item| item.count)
-                        .sum();
-                    let primary = (gun(gear[0].name)?, rounds);
-                    Some((
-                        role.name(),
-                        Arms {
-                            primary,
-                            pistol: None,
-                        },
-                    ))
-                })
-                .collect()
+            let mut table = Vec::new();
+            for tier in BotTier::ALL {
+                for role in BotRole::ALL {
+                    for (k, kit) in bot_kits(tier, role).into_iter().enumerate() {
+                        table.push(((tier, role, k), arms_of(kit)));
+                    }
+                }
+            }
+            table
         })
         .iter()
-        .find(|(name, _)| *name == role)
-        .map(|(_, arms)| arms)
+        .find(|(key, _)| *key == (tier, role, k))
+        .and_then(|(_, arms)| arms.as_ref())
+    }
+
+    /// Every kit of a bot of `role` in `tier`, in its order.
+    pub fn kits_of(tier: BotTier, role: BotRole) -> Vec<&'static Arms> {
+        (0..role.kit_roles().len())
+            .filter_map(|k| Self::of_kit(tier, role, k))
+            .collect()
+    }
+
+    /// A role's (`BotRole::name`, the personality of that name) first kit
+    /// in the lowest tier.
+    pub fn of_role(role: &str) -> Option<&'static Arms> {
+        let role = BotRole::ALL.into_iter().find(|each| each.name() == role)?;
+        Self::of_kit(BotTier::Low, role, 0)
+    }
+
+    /// For the tests of how a kind of weapon is fired, reloaded and switched
+    /// from: the first bots' weapons by role (the Uzi's magazine, the
+    /// AK-74U's, the TOZ-34's two barrels, the Mosin's clip of 5 loaded
+    /// round by round), with a life's rounds as their kits had them (the
+    /// most their bags take) and `loadouts::BOT_AMMO_LIVES` lives of storage.
+    #[cfg(test)]
+    pub fn of_test_role(role: &str) -> Option<&'static Arms> {
+        let (item, rounds) = match role {
+            "flanker" => ("uzi", 200),
+            "support" => ("ak_74u", 90),
+            "rusher" => ("toz_34", 60),
+            "camper" => ("mosin_nagant", 30),
+            _ => return None,
+        };
+        Some(Box::leak(Box::new(Arms {
+            primary: (gun(item)?, rounds),
+            pistol: None,
+            reserve: rounds * survarium::v026g::loadouts::BOT_AMMO_LIVES,
+        })))
     }
 
     /// For a bot whose personality is no role (a tuning's own): the
     /// support's, the middle of the four.
     pub fn fallback() -> &'static Arms {
-        Self::of_role(BotRole::Support.name()).expect("the support's weapon is in GUNS")
+        Self::of_role(BotRole::Support.name()).expect("the support's weapon is in the game data")
     }
 }
 
@@ -390,59 +474,105 @@ mod tests {
     #[test]
     fn the_magazines_are_the_games_and_every_bot_weapon_is_known() {
         let dictionary = Dictionary::shared();
-        for gun in &GUNS {
+        for gun in guns() {
             let item = dictionary.item_named(gun.item).unwrap();
             let params = item_params(item.dict_id).unwrap();
             assert_eq!(gun.magazine, params.magazine_capacity, "{}", gun.item);
         }
+        // Every kit of every tier: its weapon is known, a life's rounds
+        // are the kit's slot, its storage the lives' worth.
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let kits = Arms::kits_of(tier, role);
+                assert_eq!(kits.len(), 3, "{tier} {role}");
+                for (arms, kit_role) in kits.iter().zip(role.kit_roles()) {
+                    assert_eq!(arms.primary.0.item, tier.gear().of(kit_role).weapon);
+                    assert!(arms.pistol.is_none(), "the bots carry no weapon 2");
+                    assert!(arms.primary.1 >= arms.primary.0.magazine, "{tier} {role}");
+                    assert_eq!(
+                        arms.reserve,
+                        arms.primary.1 * survarium::v026g::loadouts::BOT_AMMO_LIVES
+                    );
+                }
+            }
+        }
         for role in BotRole::ALL {
             let arms = Arms::of_role(role.name()).unwrap();
-            assert_eq!(arms.primary.0.item, role.gear()[0].name);
-            assert!(arms.pistol.is_none(), "the bots carry no weapon 2");
+            assert_eq!(arms.primary.0.item, BotTier::Low.gear().of(role).weapon);
         }
         assert!(Arms::of_role("steady").is_none());
         assert_eq!(Arms::fallback().primary.0.item, "ak_74u");
     }
 
     #[test]
-    fn times_from_the_clips() {
-        let [uzi, ak, toz, mosin, tt] = &GUNS;
+    fn times_from_the_configs() {
+        let [uzi, ak, toz, mosin, tt] =
+            ["uzi", "ak_74u", "toz_34", "mosin_nagant", "tt_33"].map(|item| gun(item).unwrap());
         assert_eq!((uzi.shot_ms(), uzi.cycle_ms()), (100.0, 100));
         assert_eq!(ak.cycle_ms(), 93);
         assert_eq!((toz.cycle_ms(), tt.cycle_ms()), (250, 200));
-        // The bolt: 375 ms of the shot and 2 167 of chambering.
-        assert_eq!(mosin.cycle_ms(), 375 + 2_167);
+        // The bolt: 375 ms of the shot and the config's 1.8 s of
+        // chambering.
+        assert_eq!(mosin.cycle_ms(), 375 + 1_800);
         assert_eq!(ak.reload_ms(5, 25), 3_167);
         assert_eq!((tt.reload_ms(3, 5), tt.reload_ms(0, 8)), (1_600, 3_077));
         assert_eq!((toz.reload_ms(1, 1), toz.reload_ms(0, 2)), (2_500, 3_438));
         assert_eq!(toz.reload_ms(0, 1), 3_438);
-        assert_eq!(mosin.reload_ms(0, 5), 1_667 + 2_500 + 1_367);
-        assert_eq!(mosin.reload_ms(3, 2), 1_667 + 1_000 + 1_367);
+        assert_eq!(mosin.reload_ms(0, 5), 1_500 + 2_500 + 1_500);
+        assert_eq!(mosin.reload_ms(3, 2), 1_500 + 1_000 + 1_500);
+        // How each is fired.
+        assert_eq!(uzi.handling, Handling::Burst(AutoClass::Smg));
+        assert_eq!(ak.handling, Handling::Burst(AutoClass::Rifle));
+        assert_eq!(toz.handling, Handling::Barrels);
+        assert_eq!(mosin.handling, Handling::Bolt);
+        assert_eq!(tt.handling, Handling::Semi);
+        let [svd, rpd, sv98, mp153] =
+            ["svd", "rpd", "sv_98", "mp_153"].map(|item| gun(item).unwrap());
+        assert_eq!(svd.handling, Handling::Semi);
+        assert_eq!(rpd.handling, Handling::Burst(AutoClass::Rifle));
+        assert_eq!(sv98.handling, Handling::Bolt);
+        assert_eq!(sv98.cycle_ms(), 273 + 2_500);
+        assert_eq!(mp153.handling, Handling::Semi);
+        // Every weapon of the data has its handling, and a bolt is never
+        // automatic.
+        for gun in guns() {
+            assert_eq!(
+                gun.auto,
+                matches!(gun.handling, Handling::Burst(_)),
+                "{}",
+                gun.item
+            );
+            assert!(gun.magazine > 0 && gun.rpm > 0, "{}", gun.item);
+        }
         // An automatic hold: a shot at its start, one per pass begun.
         assert_eq!(ak.shots_held(50), 1);
         assert_eq!(ak.shots_held(100), 2);
         assert_eq!(ak.shots_held(600), 7);
         assert_eq!(uzi.shots_held(300), 3);
+        // A tier weapon from the data: the PP-2000's 750 a minute, 80 ms a
+        // shot.
+        assert_eq!(gun("pp2000").unwrap().cycle_ms(), 80);
     }
 
     /// A role's arms with the TT-33 and a clip of its ammo as weapon 2:
     /// the switch is kept for kits that have one.
     fn with_pistol(role: &str) -> &'static Arms {
-        let arms = Arms::of_role(role).unwrap();
+        let arms = Arms::of_test_role(role).unwrap();
         Box::leak(Box::new(Arms {
             primary: (arms.primary.0, 30),
             pistol: gun("tt_33").map(|gun| (gun, 50)),
+            reserve: 30,
         }))
     }
 
     #[test]
     fn a_life_loads_from_its_ammo_and_reloads_what_is_left() {
-        // The support: 600 rounds (three slots of 200), 30 in the
-        // magazine, 570 to load.
-        let support = Hands::of(Arms::of_role("support").unwrap());
-        assert_eq!((support.primary.rounds, support.primary.spare), (30, 570));
+        // The support: a life's 90 rounds (three bags of 30), 30 in the
+        // magazine, 60 to load.
+        let support = Hands::of(Arms::of_test_role("support").unwrap());
+        assert_eq!((support.primary.rounds, support.primary.spare), (30, 60));
         // Dry with no weapon 2: no switch, ever.
-        let mut bare = Hands::of(Arms::of_role("camper").unwrap());
+        let mut bare = Hands::of(Arms::of_test_role("camper").unwrap());
         let mosin = bare.held_mut();
         (mosin.rounds, mosin.spare) = (0, 0);
         assert!(bare.held().dry());
@@ -454,11 +584,11 @@ mod tests {
         assert_eq!((mosin.rounds, mosin.spare), (5, 25));
         mosin.spare = 5;
         mosin.rounds = 2;
-        assert_eq!(mosin.reload(), 1_667 + 3 * 500 + 1_367);
+        assert_eq!(mosin.reload(), 1_500 + 3 * 500 + 1_500);
         assert_eq!((mosin.rounds, mosin.spare), (5, 2));
         mosin.rounds = 0;
         assert!(mosin.needs_reload());
-        assert_eq!(mosin.reload(), 1_667 + 2 * 500 + 1_367);
+        assert_eq!(mosin.reload(), 1_500 + 2 * 500 + 1_500);
         assert_eq!((mosin.rounds, mosin.spare), (2, 0));
         mosin.rounds = 0;
         assert!(mosin.dry());

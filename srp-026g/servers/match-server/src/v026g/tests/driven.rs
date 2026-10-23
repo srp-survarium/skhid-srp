@@ -148,7 +148,38 @@ fn a_match_against_bots_whose_player_stops_uploading_is_over() {
     let result = result.expect("the match is over");
     assert_eq!(result.end, MatchEnd::Deserted);
     assert!(result.vs_bots);
+    // Its player is still in it: only the end says it was not played to
+    // its end (the rewards pay such a match nothing).
+    assert!(result.players[0].entered && result.players[0].present_at_end);
     assert!(bench.until(10_000, |bench| bench.clients[0].told_to_leave));
+}
+
+/// A match against bots its player leaves is over at once, as one
+/// everyone left (`MatchEnd::Deserted`), with its player gone: what the
+/// rewards pay nothing for (`session::v026g::rewards::Reward::forfeited`).
+#[test]
+fn a_match_against_bots_its_player_leaves_is_over_at_once() {
+    let mut bench = Bench::vs_bots(4, MAP_TDM, Settings::default(), &[1, 2, 3]);
+    bench.join(0);
+    assert!(bench.until(3_000, |bench| bench.clients[0].entered().len() == 4));
+    bench.run_long(10_000);
+    assert!(bench.results.try_recv().is_err());
+
+    bench.clients[0].leave();
+    let mut result = None;
+    for _ in 0..20 {
+        bench.run(250);
+        if let Ok(over) = bench.results.try_recv() {
+            result = Some(over);
+            break;
+        }
+    }
+    let result = result.expect("the match is over within 5 s");
+    assert_eq!(result.end, MatchEnd::Deserted);
+    assert!(result.vs_bots);
+    let player = &result.players[0];
+    assert!(player.entered && player.left && !player.present_at_end);
+    assert!(result.players[1..].iter().all(|bot| bot.driven));
 }
 
 /// The stall rule is only for a match against bots: a match with the

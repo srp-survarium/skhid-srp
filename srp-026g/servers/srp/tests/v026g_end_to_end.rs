@@ -1729,7 +1729,7 @@ fn a_player_against_the_servers_bots_plays_a_match_to_the_results() {
         reserved_rows(games[0], PVB_STATUS_START).is_some()
     });
     let rows = reserved_rows(&solo, PVB_STATUS_START).unwrap();
-    assert_eq!(rows[0].0, "B1;0;0;5;6.8.10;8;61;0;5");
+    assert_eq!(rows[0].0, "B1;0;0;15;6.8.10;8;61;0;5");
     assert_eq!(rows.len(), 17);
     assert!(rows.iter().any(|row| row.0 == "117;1;4;5"), "{rows:?}");
 

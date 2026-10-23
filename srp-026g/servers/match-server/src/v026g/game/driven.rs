@@ -31,7 +31,7 @@
 //!   on a thread of its own) they stand; if the map has no file they run
 //!   the stage 0 script instead. `SRP_BOT_TUNING` (a JSON file, read when
 //!   the match is made) changes their numbers; `SRP_BOT_TRACE_DIR` keeps
-//!   their decisions; `SRP_BOT_ROUTES` (a JSON file, private: made from
+//!   their decisions (`SRP_BOT_TRACE_MAX_MB` of them); `SRP_BOT_ROUTES` (a JSON file, private: made from
 //!   the players' saved worlds) gives them the routes humans took
 //!   (`bots/routes.rs`);
 //! - without it, the stage 0 script (`super::super::drive`).
@@ -104,20 +104,45 @@ impl Walkers {
         };
         let hash = tuning.hash();
         let trace = match std::env::var_os("SRP_BOT_TRACE_DIR").filter(|dir| !dir.is_empty()) {
-            Some(dir) => Trace::open(dir.as_ref(), id, hash),
+            Some(dir) => {
+                let max_mb = crate::v026g::parse_number(
+                    "SRP_BOT_TRACE_MAX_MB",
+                    std::env::var("SRP_BOT_TRACE_MAX_MB").ok().as_deref(),
+                    crate::v026g::bots::trace::DEFAULT_MAX_MB,
+                );
+                Trace::open(dir.as_ref(), id, hash, u64::from(max_mb) << 20)
+            }
             None => Trace::none(hash),
         };
         log::info!("Match {id:#x}: the bots run on tuning {hash:08x}");
         let project = formed.map.project;
         maps.request(project);
         let teams: Vec<u8> = formed.places.iter().map(|place| place.team).collect();
-        let roles: Vec<Option<&str>> = formed
+        let bots: Vec<_> = formed
             .profiles
             .iter()
-            .map(|profile| survarium::v026g::loadouts::bot_role_of(profile).map(|role| role.name()))
+            .map(survarium::v026g::loadouts::bot_of)
             .collect();
-        log::info!("Match {id:#x}: the bots' roles by place {roles:?}");
+        let roles: Vec<Option<&str>> = bots
+            .iter()
+            .map(|bot| bot.map(|(_, role)| role.name()))
+            .collect();
+        let tiers: Vec<_> = bots.iter().map(|bot| bot.map(|(tier, _)| tier)).collect();
+        log::info!(
+            "Match {id:#x}: the bots' roles by place {roles:?}, equipment {:?}",
+            tiers
+                .iter()
+                .map(|tier| tier.map(|tier| tier.name()))
+                .collect::<Vec<_>>()
+        );
         let weapons = formed.profiles.iter().map(weapon_of).collect();
+        // The bodies' speed by their first kit's skills and weight, until a
+        // world shows a life's own.
+        let speed_levels: Vec<Option<f32>> = formed
+            .profiles
+            .iter()
+            .map(|profile| survarium::v026g::bot_skills::profile_movement_level(profile, 0))
+            .collect();
         Some(Self {
             bots: Bots::new(
                 id,
@@ -129,7 +154,8 @@ impl Walkers {
                 Arc::new(tuning),
                 trace,
             )
-            .with_container_teams(formed.map.container_teams),
+            .with_container_teams(formed.map.container_teams)
+            .with_tiers(&tiers),
             maps,
             project,
             world: None,
@@ -140,6 +166,7 @@ impl Walkers {
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
+            walkers.bots.set_speed_levels(&speed_levels);
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
             if let Some(path) = std::env::var_os("SRP_BOT_ROUTES").filter(|path| !path.is_empty()) {

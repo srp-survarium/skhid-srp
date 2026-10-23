@@ -63,6 +63,10 @@ pub struct SlotItem {
     /// Units for a stack (one clip of ammo, one of anything else); 1 for an
     /// item that is no stack.
     pub count: u32,
+    /// What the profile's item of a stack holds in all
+    /// (`amount_in_storage`, the client's refill of the slot at each spawn:
+    /// [`BOT_AMMO_LIVES`]); `count` unless set.
+    pub stored: u32,
 }
 
 /// One loadout: its items by slot.
@@ -96,6 +100,7 @@ impl Loadout {
                     slot,
                     dict_id: item.dict_id,
                     count,
+                    stored: count,
                 })
             })
             .collect::<Result<_, _>>()?;
@@ -238,14 +243,15 @@ pub const WEAPON_1_BIT: u8 = 12;
 /// (`player_bots.md` §2).
 pub const WEAPON_2_BIT: u8 = 13;
 
-/// One thing the server's bots wear ([`BOT_KIT`], [`BotRole::gear`]).
+/// One thing the server's bots wear ([`bot_kit_items`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BotKitItem {
     /// The dictionary name (`items_dict`).
     pub name: &'static str,
     /// The profile slot.
     pub slot: u8,
-    /// Units of a stack; 1 for an item that is no stack.
+    /// Units of a stack in the slot (what a life starts with); 1 for an
+    /// item that is no stack.
     pub count: u32,
     /// The bit of the input's `actions_mask` that uses it, if a key does.
     pub input_bit: Option<u8>,
@@ -260,28 +266,40 @@ const fn kit_item(name: &'static str, slot: u8, count: u32, input_bit: Option<u8
     }
 }
 
-/// The ammo slots a bot's weapon 1 fills with its ammo: one for each of a
-/// player's three ammo bags (`item_params::player().ammo_bags_count`). The eight
-/// ammo slots are one pool for both weapons (the client's table at
-/// 0x9266A8, `session::v026g::rules::check_play`), so slot 11, weapon 2's
-/// first, holds weapon 1's ammo as well: the bots carry no weapon 2 (the
+/// The ammo slot a bot's kit fills with its weapon 1's ammo: all of it in
+/// the first ammo slot. The lobby movie's ammo window gives one ammo type
+/// as many rounds as the kit's ammo bags hold, in one slot or spread over
+/// several (`AmmoShareElement.as`: a slot's most is `int(bags ×
+/// clipsInBag) × clipSize`, the bags the other slots use taken off;
+/// PROVEN), so one slot holds the kit's most ([`ammo_max`]). One slot is
+/// one item of the profile with one storage, which the client refills the
+/// slot from at every spawn ([`BOT_AMMO_LIVES`]). The eight ammo slots
+/// are one pool for both weapons (the client's table at 0x9266A8,
+/// `session::v026g::rules::check_play`); the bots carry no weapon 2 (the
 /// owner's word, 2026-10-16: only primary weapons, and the most ammo).
-pub const BOT_AMMO_SLOTS: [u8; 3] = [8, 9, 11];
+pub const BOT_AMMO_SLOTS: [u8; 1] = [8];
 
-/// The back: Black Market's backpack `bm_back_1` (item level 3, 6,650
-/// silver), the cheapest piece that adds a pocket: its default
-/// modifications 1030 (`pocket_slots_modifier` +1) and 1170
-/// (`pocket_slot_size_modifier` +1). See [`pockets`].
-pub const BOT_BACK: BotKitItem = kit_item("bm_back_1", 3, 1, None);
-
-/// The legs: Black Market's trousers `bm_legs_5` (item level 4, 6,830
-/// silver), the cheapest piece for another slot that adds a pocket
-/// (default modification 1030, `pocket_slots_modifier` +1).
-pub const BOT_LEGS: BotKitItem = kit_item("bm_legs_5", 4, 1, None);
+/// How many lives of ammo each kit of a bot has for the match: the
+/// profile's item holds this many times the slot's rounds in storage
+/// (`amount_in_storage`). [choice, 2026-10-23: a finite store, so a bot
+/// that fought through a kit's ammo switches kits; six full lives a kit,
+/// eighteen over the three kits.]
+///
+/// What the client does with it (PROVEN, `inventory::setup_from_profile`
+/// 0x2FCB70 at every spawn: a stack slot gets `min(slot count, the item's
+/// storage)` and the storage loses that, 0x2FCC5F..0x2FCCBD; the removal
+/// before a spawn, `unload_to_profile` 0x2FD2D0, puts the magazine and
+/// what is left back into the storage, `client_patch.md` §3.20): every
+/// life starts with the slot's rounds while the storage has them; only the
+/// rounds fired are gone. Each kit's items are its own
+/// (`MatchProfile::from_loadouts`: no item in two kits), so a kit chosen
+/// for the next life (0xDE → 0xF3) brings its own storage.
+pub const BOT_AMMO_LIVES: u32 = 6;
 
 /// Two medkits ("Medikit", `st_base_medkit_name`; `drugs`, heals 1, item
 /// level 3, 20 silver) in the first pocket: quick use 1, as the first
-/// filled slot of [`QUICK_USE_ORDER`].
+/// filled slot of [`QUICK_USE_ORDER`]. Two: a pocket's size in every
+/// bot's kit (one pocket an item type, `one-pocket-a-type.md`).
 pub const BOT_MEDKIT: BotKitItem = kit_item("medkit", 13, 2, Some(QUICK_USE_FIRST_BIT));
 
 /// The radio (`respawn_booster`, "Radio", `st_respawn_booster_name`; a
@@ -312,28 +330,322 @@ pub const BOT_RADIO: BotKitItem = kit_item("respawn_booster", 14, 1, None);
 /// for quick use.
 pub const BOT_GRENADE: BotKitItem = kit_item("rgd-5", 15, 2, Some(GRENADE_BIT));
 
-/// What every one of the match server's own bots wears
-/// (`lobby-server` `play::server_bot`), whatever its role: gear with three
-/// pockets of two for a medkit, the radio and a grenade, and no weapon 2.
-/// Its role adds weapon 1, its ammo and armour ([`BotRole::gear`]);
-/// [`bot_kit`] is the whole kit.
-pub const BOT_KIT: [BotKitItem; 5] = [BOT_BACK, BOT_LEGS, BOT_MEDKIT, BOT_RADIO, BOT_GRENADE];
+/// What every kit of the match server's own bots has in its pockets
+/// (`lobby-server` `play::server_bot`), whatever its tier and role:
+/// medkits, the radio and grenades, a pocket's worth of each. The role's
+/// armour opens three pockets of two in every tier ([`pockets`]).
+pub const BOT_POCKETS: [BotKitItem; 3] = [BOT_MEDKIT, BOT_RADIO, BOT_GRENADE];
 
-/// How much ammo a role's weapon 1 carries: the most players do. An ammo
-/// slot holds rounds, not clips (`count` is rounds; the weight is
-/// `count / clip_size × clip_weight`), and the players' kits on the 0.26g
-/// server (2026-10-14, kits the client's own lobby checked before sending)
-/// hold 90-200 rounds of rifle and SMG ammo a slot, 15-60 of buckshot and
-/// 20-40 of the Mosin's: the bots fill each of [`BOT_AMMO_SLOTS`] with the
-/// most of these, 200 (Uzi, AK-74U), 60 (TOZ-34) and 40 (Mosin), within the
-/// carry limit.
-pub const BOT_AMMO_NOTE: () = ();
+/// What a role wears in a tier besides [`BOT_POCKETS`]: weapon 1, the
+/// ammo it fires (as many rounds as the kit's ammo bags hold:
+/// [`ammo_max`]) and the armour, by profile slot (0 helmet, 1 mask,
+/// 2 torso, 3 back, 4 legs, 5 gloves, 6 boots). **The tier tables
+/// ([`TIER_4_5`], [`TIER_9_10`], [`TIER_13_15`]) are the one place to
+/// change a bot's weapon or armour**; the tests check every kit made of
+/// them (the slots, the tier's levels, the ammo fits the weapon, the
+/// pockets, the carry limit, four different ammo types a tier).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RoleGear {
+    pub weapon: &'static str,
+    pub ammo: &'static str,
+    pub armour: &'static [(u8, &'static str)],
+}
+
+/// A tier's [`RoleGear`] of each role.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TierGear {
+    pub flanker: RoleGear,
+    pub support: RoleGear,
+    pub rusher: RoleGear,
+    pub camper: RoleGear,
+}
+
+impl TierGear {
+    pub fn of(&self, role: BotRole) -> &RoleGear {
+        match role {
+            BotRole::Flanker => &self.flanker,
+            BotRole::Support => &self.support,
+            BotRole::Rusher => &self.rusher,
+            BotRole::Camper => &self.camper,
+        }
+    }
+}
+
+/// Bots against players of equipment level 0 to 5: items of level 0 to 5,
+/// none premium (the bots of 2026-10-16). The backpack `bm_back_1` (level
+/// 3, its default modifications 1030 `pocket_slots_modifier` +1 and 1170
+/// `pocket_slot_size_modifier` +1) and the trousers `bm_legs_5` (level 4,
+/// 1030) are the cheapest pair that opens the two more pockets.
+/// The weapons are the top players' picks at these levels (`pvb-tiers.md`).
+/// - Flanker: the Vityaz (`vityaz`, SMG, level 4) with its cheapest 9x19
+///   (`ammo_9x19p_para`, level 2), light Black Market armour
+///   of level 1: `bm_torso_1` (3 kg, an ammo bag more) and `bm_boots_1`.
+/// - Support: the AK-74U (`ak_74u`, the lowest of the assault rifle
+///   category 8: level 5) with `ammo_5.45x39_7n6m` (level 5); `bm_torso_4`
+///   (level 3, 6 kg, a pocket more) and the helmet `bm_helmet_1`.
+/// - Rusher: the MP-153 (`mp_153`, semi-automatic shotgun, level 4) with
+///   buckshot (`ammo_12mm_buck`, level 1); Scavengers' `scav_torso_1`
+///   (level 1, 3 kg, an ammo bag more) and `scav_boots_1`.
+/// - Camper: the Remington 700 (`rem_700`, bolt action, the sniper
+///   category 13, level 5) with `ammo_7.62x51_ap` (level 5);
+///   `scav_torso_2` (level 3, 6 kg) and `bm_helmet_1`.
+pub const TIER_4_5: TierGear = TierGear {
+    flanker: RoleGear {
+        weapon: "vityaz",
+        ammo: "ammo_9x19p_para",
+        armour: &[
+            (2, "bm_torso_1"),
+            (3, "bm_back_1"),
+            (4, "bm_legs_5"),
+            (6, "bm_boots_1"),
+        ],
+    },
+    support: RoleGear {
+        weapon: "ak_74u",
+        ammo: "ammo_5.45x39_7n6m",
+        armour: &[
+            (0, "bm_helmet_1"),
+            (2, "bm_torso_4"),
+            (3, "bm_back_1"),
+            (4, "bm_legs_5"),
+        ],
+    },
+    rusher: RoleGear {
+        weapon: "mp_153",
+        ammo: "ammo_12mm_buck",
+        armour: &[
+            (2, "scav_torso_1"),
+            (3, "bm_back_1"),
+            (4, "bm_legs_5"),
+            (6, "scav_boots_1"),
+        ],
+    },
+    camper: RoleGear {
+        weapon: "rem_700",
+        ammo: "ammo_7.62x51_ap",
+        armour: &[
+            (0, "bm_helmet_1"),
+            (2, "scav_torso_2"),
+            (3, "bm_back_1"),
+            (4, "bm_legs_5"),
+        ],
+    },
+};
+
+/// Bots against players of equipment level 6 to 10: items of level 10 at
+/// most, each kit of level 9 or 10 (`matchmaking::kit_level`: its highest
+/// item), none premium. The pockets as in [`TIER_4_5`]: `bm_back_1` and a
+/// piece with `pocket_slots_modifier` +1 (`ren_torso_3`, `ren_torso_2`
+/// or `bm_legs_5`).
+/// - Flanker: the PP-2000 (`pp2000`, SMG, level 9, the highest SMG; 20
+///   rounds, 750 a minute) with `ammo_9x19p_7n31` (level 9, the only
+///   ammo it fires); Renaissance's `ren_torso_3` (level 8, 6.5 kg, a
+///   pocket more) and light Edge pieces of level 8-9.
+/// - Support: the AKMN (`akmn`, assault rifle, level 6; the top players'
+///   pick at these levels) with `ammo_7.62x39_7n23` (level 9); Edge's `edge_torso_2` (level 9, 8 kg,
+///   an ammo bag more) and Renaissance's helmet and gloves of level 9.
+/// - Rusher: the SPAS-12 (`spas_12`, level 7: no shotgun is higher) with
+///   buckshot; the armour makes the kit level 9 (`edge_boots_2`).
+/// - Camper: the SV-98 (`sv_98`, bolt-action sniper rifle, level 9: the
+///   only sniper weapon of level 9-10; 10 rounds) with `ammo_7.62x54_7n1`
+///   (level 9); Renaissance's pieces of level 8-9.
+pub const TIER_9_10: TierGear = TierGear {
+    flanker: RoleGear {
+        weapon: "pp2000",
+        ammo: "ammo_9x19p_7n31",
+        armour: &[
+            (0, "edge_helmet_3"),
+            (2, "ren_torso_3"),
+            (3, "bm_back_1"),
+            (4, "edge_legs_2"),
+            (5, "edge_gloves_2"),
+            (6, "edge_boots_2"),
+        ],
+    },
+    support: RoleGear {
+        weapon: "akmn",
+        ammo: "ammo_7.62x39_7n23",
+        armour: &[
+            (0, "ren_helmet_2"),
+            (2, "edge_torso_2"),
+            (3, "bm_back_1"),
+            (4, "bm_legs_5"),
+            (5, "ren_gloves_1"),
+            (6, "edge_boots_2"),
+        ],
+    },
+    rusher: RoleGear {
+        weapon: "spas_12",
+        ammo: "ammo_12mm_buck",
+        armour: &[
+            (0, "edge_helmet_3"),
+            (2, "edge_torso_3"),
+            (3, "bm_back_1"),
+            (4, "bm_legs_5"),
+            (5, "edge_gloves_2"),
+            (6, "edge_boots_2"),
+        ],
+    },
+    camper: RoleGear {
+        weapon: "sv_98",
+        ammo: "ammo_7.62x54_7n1",
+        armour: &[
+            (0, "ren_helmet_2"),
+            (1, "ren_mask_2"),
+            (2, "ren_torso_3"),
+            (3, "bm_back_1"),
+            (4, "ren_legs_2"),
+            (5, "ren_gloves_1"),
+            (6, "edge_boots_2"),
+        ],
+    },
+};
+
+/// Bots against players of equipment level 11 to 15: each kit of level 13
+/// to 15, none premium. The pockets: Edge's backpack `edge_back_5` (level
+/// 14, 4 kg, `pocket_slot_size_modifier` +1), its torso `edge_torso_5`
+/// (level 14, 10 kg, a pocket and an ammo bag more) and Renaissance's
+/// trousers `ren_legs_5` (level 14, 1.8 kg, a pocket more).
+/// - Flanker: the SR-3M (`sr3m`, compact assault rifle, level 14; 20
+///   rounds, 900 a minute; no SMG is above level 9) with `ammo_sp6`
+///   (level 14, the only ammo it fires).
+/// - Support: the AK-12 (`ak_12`, assault rifle, level 15) with
+///   `ammo_6.5x39` (level 15, the only ammo it fires).
+/// - Rusher: the SPAS-12 (level 7: no shotgun is higher) with buckshot,
+///   the lightest armour of the tier.
+/// - Camper: the VSK-94 (`vsk_94`, the sniper category's marksman rifle,
+///   level 14; 20 rounds) with `ammo_sp5` (level 12, the only ammo it
+///   fires).
+pub const TIER_13_15: TierGear = TierGear {
+    flanker: RoleGear {
+        weapon: "sr3m",
+        ammo: "ammo_sp6",
+        armour: &[
+            (0, "edge_helmet_4"),
+            (2, "edge_torso_5"),
+            (3, "edge_back_5"),
+            (4, "ren_legs_5"),
+            (5, "edge_gloves_5"),
+            (6, "edge_boots_6"),
+        ],
+    },
+    support: RoleGear {
+        weapon: "ak_12",
+        ammo: "ammo_6.5x39",
+        armour: &[
+            (0, "edge_helmet_5"),
+            (1, "ren_mask_5"),
+            (2, "edge_torso_5"),
+            (3, "edge_back_5"),
+            (4, "ren_legs_5"),
+            (5, "edge_gloves_5"),
+            (6, "edge_boots_5"),
+        ],
+    },
+    rusher: RoleGear {
+        weapon: "spas_12",
+        ammo: "ammo_12mm_buck",
+        armour: &[
+            (2, "edge_torso_5"),
+            (3, "edge_back_5"),
+            (4, "ren_legs_5"),
+            (5, "edge_gloves_5"),
+            (6, "edge_boots_6"),
+        ],
+    },
+    camper: RoleGear {
+        weapon: "vsk_94",
+        ammo: "ammo_sp5",
+        armour: &[
+            (0, "edge_helmet_5"),
+            (1, "ren_mask_5"),
+            (2, "edge_torso_5"),
+            (3, "edge_back_5"),
+            (4, "ren_legs_5"),
+            (5, "edge_gloves_5"),
+            (6, "edge_boots_5"),
+        ],
+    },
+};
+
+/// The equipment of the server's bots, picked by the equipment level of
+/// the players they play against (`matchmaking::gear_level`, the highest
+/// of a match's players: the owner's of 2026-10-23). In the bots'
+/// tuning JSON by its band: `"4-5"`, `"9-10"`, `"13-15"`.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+pub enum BotTier {
+    /// Players of level 0 to 5: bots of level 4-5 ([`TIER_4_5`]).
+    #[default]
+    #[serde(rename = "4-5")]
+    Low,
+    /// Players of level 6 to 10: bots of level 9-10 ([`TIER_9_10`]).
+    #[serde(rename = "9-10")]
+    Mid,
+    /// Players of level 11 to 15: bots of level 13-15 ([`TIER_13_15`]).
+    #[serde(rename = "13-15")]
+    High,
+}
+
+impl BotTier {
+    pub const ALL: [BotTier; 3] = [BotTier::Low, BotTier::Mid, BotTier::High];
+
+    /// The tier for players whose highest equipment level is `gear`.
+    pub fn of_gear(gear: u8) -> Self {
+        match gear {
+            0..=5 => BotTier::Low,
+            6..=10 => BotTier::Mid,
+            _ => BotTier::High,
+        }
+    }
+
+    /// The equipment levels of its kits (`matchmaking::kit_level`).
+    pub fn levels(self) -> std::ops::RangeInclusive<u8> {
+        match self {
+            BotTier::Low => 4..=5,
+            BotTier::Mid => 9..=10,
+            BotTier::High => 13..=15,
+        }
+    }
+
+    /// Its table.
+    pub fn gear(self) -> &'static TierGear {
+        match self {
+            BotTier::Low => &TIER_4_5,
+            BotTier::Mid => &TIER_9_10,
+            BotTier::High => &TIER_13_15,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            BotTier::Low => "4-5",
+            BotTier::Mid => "9-10",
+            BotTier::High => "13-15",
+        }
+    }
+}
+
+impl std::fmt::Display for BotTier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
+}
 
 /// A server bot's role: the match server's play personality of the same
 /// name (`match-server` `bots::tuning::Personality::defaults`), and the
-/// weapon and armour it wears for it ([`BotRole::gear`]). Every role's
-/// pieces are of item level 1 to 5 or the starter's free ones, and none is
-/// premium.
+/// weapon and armour it wears for it in each tier ([`TierGear::of`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BotRole {
     Flanker,
@@ -341,64 +653,6 @@ pub enum BotRole {
     Rusher,
     Camper,
 }
-
-/// Flanker: the Uzi (`uzi`, an SMG of item level 2, 3,800 silver, 32
-/// rounds of 9x19) with 150 rounds of its cheapest ammo
-/// (`ammo_9x19p_para`, level 2; see [`BOT_AMMO_NOTE`]), and light Black Market armour of level 1: `bm_torso_1` (3 kg,
-/// an ammo bag more) and `bm_boots_1`.
-const FLANKER: [BotKitItem; 6] = [
-    kit_item("uzi", 7, 1, Some(WEAPON_1_BIT)),
-    kit_item("ammo_9x19p_para", 8, 200, None),
-    kit_item("ammo_9x19p_para", 9, 200, None),
-    kit_item("ammo_9x19p_para", 11, 200, None),
-    kit_item("bm_torso_1", 2, 1, None),
-    kit_item("bm_boots_1", 6, 1, None),
-];
-
-/// Support: the AK-74U (`ak_74u`, the lowest piece of the assault rifle
-/// category 8: item level 5, 12,920 silver, 30 rounds of 5.45x39) with
-/// 120 rounds of `ammo_5.45x39_7n6m` (level 5), heavier armour of level 3:
-/// `bm_torso_4` (6 kg, the cheapest torso with a pocket, modification
-/// 1030) and the helmet `bm_helmet_1`, and in the fourth pocket the torso
-/// opens one more medkit (no key of its own: quick use counts filled slots,
-/// and whether an emptied stack still fills its slot was not read).
-const SUPPORT: [BotKitItem; 7] = [
-    kit_item("ak_74u", 7, 1, Some(WEAPON_1_BIT)),
-    kit_item("ammo_5.45x39_7n6m", 8, 200, None),
-    kit_item("ammo_5.45x39_7n6m", 9, 200, None),
-    kit_item("ammo_5.45x39_7n6m", 11, 200, None),
-    kit_item("bm_torso_4", 2, 1, None),
-    kit_item("bm_helmet_1", 0, 1, None),
-    kit_item("medkit", 16, 1, None),
-];
-
-/// Rusher: the TOZ-34 (`toz_34`, a double-barrelled shotgun of item level
-/// 1, 2,100 silver: the lowest shotgun with `toz_66`, which is a sawn-off)
-/// with 30 rounds of buckshot (`ammo_12mm_buck`, level 1), and the
-/// lightest armour: Scavengers' `scav_torso_1` (level 1, 3 kg) and
-/// `scav_boots_1` (level 1).
-const RUSHER: [BotKitItem; 6] = [
-    kit_item("toz_34", 7, 1, Some(WEAPON_1_BIT)),
-    kit_item("ammo_12mm_buck", 8, 60, None),
-    kit_item("ammo_12mm_buck", 9, 60, None),
-    kit_item("ammo_12mm_buck", 11, 60, None),
-    kit_item("scav_torso_1", 2, 1, None),
-    kit_item("scav_boots_1", 6, 1, None),
-];
-
-/// Camper: the Mosin carbine (`mosin_nagant`, a bolt-action rifle of the
-/// sniper category 13, level 0 and free: a new account owns it,
-/// [`STARTER_STASH`]) with 30 rounds of its free ammo
-/// (`ammo_7.62x54r_old`), and heavier armour of level 3: Scavengers' `scav_torso_2` (6 kg)
-/// and the helmet `bm_helmet_1`.
-const CAMPER: [BotKitItem; 6] = [
-    kit_item("mosin_nagant", 7, 1, Some(WEAPON_1_BIT)),
-    kit_item("ammo_7.62x54r_old", 8, 40, None),
-    kit_item("ammo_7.62x54r_old", 9, 40, None),
-    kit_item("ammo_7.62x54r_old", 11, 40, None),
-    kit_item("scav_torso_2", 2, 1, None),
-    kit_item("bm_helmet_1", 0, 1, None),
-];
 
 impl BotRole {
     /// Every role, in the match server's order of its personalities.
@@ -429,40 +683,20 @@ impl BotRole {
         }
     }
 
-    /// What the role wears besides [`BOT_KIT`]: weapon 1 (slot 7) and its
-    /// ammo first, then armour.
-    pub fn gear(self) -> &'static [BotKitItem] {
+    /// The roles whose weapon 1 and ammo its kits carry, its own first
+    /// ([`bot_kits`]): each kit another weapon and another ammo, so a kit
+    /// whose ammo is spent has others full (the owner's words, 2026-10-16
+    /// and 2026-10-23: at least two kits, three allowed, each with its own
+    /// ammo). The SMG and the assault rifle back each other up; the
+    /// shotgun and the sniper weapon, slow to fire, get the two nearer
+    /// their range.
+    pub fn kit_roles(self) -> [BotRole; 3] {
         match self {
-            BotRole::Flanker => &FLANKER,
-            BotRole::Support => &SUPPORT,
-            BotRole::Rusher => &RUSHER,
-            BotRole::Camper => &CAMPER,
+            BotRole::Flanker => [BotRole::Flanker, BotRole::Support, BotRole::Rusher],
+            BotRole::Support => [BotRole::Support, BotRole::Flanker, BotRole::Camper],
+            BotRole::Rusher => [BotRole::Rusher, BotRole::Flanker, BotRole::Support],
+            BotRole::Camper => [BotRole::Camper, BotRole::Support, BotRole::Flanker],
         }
-    }
-
-    /// The role whose weapon 1 and ammo a bot of this role carries in its
-    /// second kit ([`bot_kits`]): another kind of ammo, so the second kit
-    /// is full when the first is spent (the owner's word, 2026-10-16: a
-    /// place's ammo lasts the match, a spawn does not refill it). The Uzi
-    /// and the AK-74U back each other up; the shotgun and the Mosin, slow
-    /// to fire, get the one nearer their range.
-    pub fn backup(self) -> BotRole {
-        match self {
-            BotRole::Flanker => BotRole::Support,
-            BotRole::Support => BotRole::Flanker,
-            BotRole::Rusher => BotRole::Flanker,
-            BotRole::Camper => BotRole::Support,
-        }
-    }
-
-    /// The role whose weapon 1 is `dict_id`.
-    pub fn of_weapon(dict_id: u16) -> Option<BotRole> {
-        let dictionary = Dictionary::shared();
-        BotRole::ALL.into_iter().find(|role| {
-            dictionary
-                .item_named(role.gear()[0].name)
-                .is_some_and(|item| item.dict_id == dict_id)
-        })
     }
 
     /// The role of a team's `k`-th bot (0 on): smooth weighted round
@@ -490,77 +724,161 @@ impl std::fmt::Display for BotRole {
     }
 }
 
-/// Every piece a bot of `role` wears: its [`BotRole::gear`], then
-/// [`BOT_KIT`].
-pub fn bot_kit_items(role: BotRole) -> impl Iterator<Item = BotKitItem> + Clone {
-    role.gear().iter().copied().chain(BOT_KIT)
+/// The ammo bags a kit of `armour` has with no skills: the player's
+/// `ammo_bags_count` (3, `default.player`) and what the armour's default
+/// modifications add (`ammo_bags_modifier`). LIKELY the client's count:
+/// the lobby takes the bags of a kit from the exe (`set_ammo_bags_count`,
+/// 0x222330), and ammo bags (16) are among the modifiers the match's
+/// getter adds (0x2D5AE0, table 0x927E08); how the exe sums them was not
+/// read, as for [`pockets`].
+pub fn ammo_bags<'a>(armour: impl IntoIterator<Item = &'a str>) -> u32 {
+    let dictionary = Dictionary::shared();
+    let added: f32 = armour
+        .into_iter()
+        .filter_map(|name| dictionary.item_named(name))
+        .map(|item| default_modifier(item.dict_id, "ammo_bags_modifier"))
+        .sum();
+    item_params::player().ammo_bags_count + added.max(0.0) as u32
 }
 
-/// Every piece of a bot of `role`'s second kit: its [`BotRole::backup`]'s
-/// weapon 1 and ammo (the first four of that gear), then the rest of the
-/// first kit (armour and [`BOT_KIT`]).
-pub fn bot_second_kit_items(role: BotRole) -> impl Iterator<Item = BotKitItem> + Clone {
-    role.backup().gear()[..1 + BOT_AMMO_SLOTS.len()]
-        .iter()
-        .copied()
-        .chain(role.gear()[1 + BOT_AMMO_SLOTS.len()..].iter().copied())
-        .chain(BOT_KIT)
+/// The most rounds of `ammo` a kit with `bags` ammo bags takes: the lobby
+/// movie's `int(int(bags × clipsInBag) × clipSize)`, `clipsInBag` being
+/// `1 / required_bags` and `clipSize` the ammo's `clip_size`
+/// (`AmmoShareElement.as`, `ItemFactory.as`; PROVEN in the movie).
+pub fn ammo_max(ammo: &str, bags: u32) -> u32 {
+    let Some(params) = Dictionary::shared()
+        .item_named(ammo)
+        .and_then(|item| item_params::item_params(item.dict_id))
+    else {
+        return 0;
+    };
+    (bags / params.required_bags.max(1)) * params.clip_size
 }
 
-fn bot_loadout(items: impl Iterator<Item = BotKitItem> + Clone) -> Loadout {
+/// Every piece of the `k`-th kit (0 on) of a bot of `role` in `tier`:
+/// weapon 1 of [`BotRole::kit_roles`]`[k]` and its ammo, the most the
+/// kit's bags take, in [`BOT_AMMO_SLOTS`]; the role's own armour; then
+/// [`BOT_POCKETS`].
+pub fn bot_kit_items(tier: BotTier, role: BotRole, k: usize) -> Vec<BotKitItem> {
+    let own = tier.gear().of(role);
+    let arms = tier.gear().of(role.kit_roles()[k]);
+    let rounds = ammo_max(
+        arms.ammo,
+        ammo_bags(own.armour.iter().map(|&(_, name)| name)),
+    );
+    let mut items = vec![kit_item(arms.weapon, 7, 1, Some(WEAPON_1_BIT))];
+    items.extend(
+        BOT_AMMO_SLOTS
+            .iter()
+            .map(|&slot| kit_item(arms.ammo, slot, rounds, None)),
+    );
+    items.extend(
+        own.armour
+            .iter()
+            .map(|&(slot, name)| kit_item(name, slot, 1, None)),
+    );
+    items.extend(BOT_POCKETS);
+    items
+}
+
+fn bot_loadout(items: &[BotKitItem]) -> Loadout {
     let mut loadout = Loadout::from_names(
         Dictionary::shared(),
-        items.clone().map(|item| (item.slot, item.name)),
+        items.iter().map(|item| (item.slot, item.name)),
     )
     .expect("the bot kit's items exist and fit their slots");
     for (slot, item) in loadout.items.iter_mut().zip(items) {
         slot.count = item.count;
+        // The ammo's storage: [`BOT_AMMO_LIVES`] lives of it.
+        slot.stored = if BOT_AMMO_SLOTS.contains(&item.slot) {
+            item.count * BOT_AMMO_LIVES
+        } else {
+            item.count
+        };
     }
     loadout
 }
 
-/// A bot of `role`'s two kits as loadouts: its own ([`bot_kit_items`])
-/// and the second ([`bot_second_kit_items`]).
-pub fn bot_kits(role: BotRole) -> [&'static Loadout; 2] {
-    static SHARED: std::sync::OnceLock<Vec<[Loadout; 2]>> = std::sync::OnceLock::new();
+/// A bot of `role` in `tier`'s kits as loadouts, one for each of its
+/// [`BotRole::kit_roles`] ([`bot_kit_items`]).
+pub fn bot_kits(tier: BotTier, role: BotRole) -> [&'static Loadout; 3] {
+    static SHARED: std::sync::OnceLock<Vec<[Loadout; 3]>> = std::sync::OnceLock::new();
     let kits = SHARED.get_or_init(|| {
-        BotRole::ALL
+        BotTier::ALL
             .into_iter()
-            .map(|role| {
-                [
-                    bot_loadout(bot_kit_items(role)),
-                    bot_loadout(bot_second_kit_items(role)),
-                ]
-            })
+            .flat_map(|tier| BotRole::ALL.into_iter().map(move |role| (tier, role)))
+            .map(|(tier, role)| std::array::from_fn(|k| bot_loadout(&bot_kit_items(tier, role, k))))
             .collect()
     });
-    let index = BotRole::ALL
+    let index = BotTier::ALL
         .iter()
-        .position(|&each| each == role)
-        .expect("a role");
-    let [first, second] = &kits[index];
-    [first, second]
+        .position(|&each| each == tier)
+        .expect("a tier")
+        * BotRole::ALL.len()
+        + BotRole::ALL
+            .iter()
+            .position(|&each| each == role)
+            .expect("a role");
+    let [first, second, third] = &kits[index];
+    [first, second, third]
 }
 
-/// A bot of `role`'s first kit as a loadout ([`bot_kit_items`]).
-pub fn bot_kit(role: BotRole) -> &'static Loadout {
-    bot_kits(role)[0]
+/// A bot of `role` in `tier`'s first kit as a loadout.
+pub fn bot_kit(tier: BotTier, role: BotRole) -> &'static Loadout {
+    bot_kits(tier, role)[0]
 }
 
-/// The role a profile's weapon 1 (slot 7 of its first kit) says: what the
-/// match server reads from the profile it has of each place
-/// (`Formed::profiles`). `None` for a player, or any profile whose weapon
-/// 1 is no role's.
-pub fn bot_role_of(profile: &MatchProfile) -> Option<BotRole> {
+/// The tier and role a profile says, what the match server reads from the
+/// profile it has of each place (`Formed::profiles`): the bot whose first
+/// kit holds exactly the items of the profile's first kit, slot by slot;
+/// else (a profile of an older kit) the role whose weapon 1 of the lowest
+/// tier is the profile's, in the lowest tier. `None` for a player, or any
+/// profile whose weapon 1 is no role's.
+pub fn bot_of(profile: &MatchProfile) -> Option<(BotTier, BotRole)> {
     let kit = profile.kits.first()?;
-    let (index, _) = kit.slots[7]?;
-    let item = profile.items.get(usize::from(index))?;
-    BotRole::of_weapon(item.dict_id)
+    let dict_id = |slot: usize| -> Option<u16> {
+        let (index, _) = kit.slots[slot]?;
+        Some(profile.items.get(usize::from(index))?.dict_id)
+    };
+    let held: Vec<(u8, u16)> = (0..kit.slots.len())
+        .filter_map(|slot| Some((slot as u8, dict_id(slot)?)))
+        .collect();
+    let exact = BotTier::ALL
+        .into_iter()
+        .flat_map(|tier| BotRole::ALL.into_iter().map(move |role| (tier, role)))
+        .find(|&(tier, role)| {
+            let wanted: Vec<(u8, u16)> = bot_kit(tier, role)
+                .items
+                .iter()
+                .map(|item| (item.slot, item.dict_id))
+                .collect();
+            let mut wanted = wanted;
+            wanted.sort_unstable();
+            wanted == held
+        });
+    if exact.is_some() {
+        return exact;
+    }
+    let weapon = dict_id(7)?;
+    let dictionary = Dictionary::shared();
+    BotRole::ALL
+        .into_iter()
+        .find(|role| {
+            dictionary
+                .item_named(BotTier::Low.gear().of(*role).weapon)
+                .is_some_and(|item| item.dict_id == weapon)
+        })
+        .map(|role| (BotTier::Low, role))
+}
+
+/// The role [`bot_of`] says.
+pub fn bot_role_of(profile: &MatchProfile) -> Option<BotRole> {
+    bot_of(profile).map(|(_, role)| role)
 }
 
 /// What the type 1 (added) modifiers of the default modifications of
 /// `dict_id` add to `parameter` (e.g. `pocket_slots_modifier`).
-fn default_modifier(dict_id: u16, parameter: &str) -> f32 {
+pub fn default_modifier(dict_id: u16, parameter: &str) -> f32 {
     let path = format!("parameters/{parameter}");
     let modifications = super::modifications::Modifications::shared();
     item_params::item_params(dict_id)
@@ -733,53 +1051,192 @@ mod tests {
             free.iter().map(|&id| name(id)).collect::<Vec<_>>()
         );
         assert!(starter.fits_carry_limit());
-        // No bot carries a weapon 2 (only its role's weapon 1).
-        for role in BotRole::ALL {
-            assert!(bot_kit(role).slot(10).is_none());
-        }
         // Something that does not fit its slot is refused.
         assert!(Loadout::from_names(dictionary, [(0, "tt_33")]).is_err());
         assert!(Loadout::from_names(dictionary, [(7, "no_such_item")]).is_err());
     }
 
+    /// Every bot of every tier, role and kit.
+    fn every_kit() -> impl Iterator<Item = (BotTier, BotRole, usize, &'static Loadout)> {
+        BotTier::ALL.into_iter().flat_map(|tier| {
+            BotRole::ALL.into_iter().flat_map(move |role| {
+                bot_kits(tier, role)
+                    .into_iter()
+                    .enumerate()
+                    .map(move |(k, kit)| (tier, role, k, kit))
+            })
+        })
+    }
+
+    /// `matchmaking::kit_level` of a loadout: the highest
+    /// `match_making_level` of what it holds, rounded.
+    fn kit_level(kit: &Loadout) -> u8 {
+        kit.items
+            .iter()
+            .map(|item| {
+                item_params::item_params(item.dict_id)
+                    .unwrap()
+                    .match_making_level
+            })
+            .max()
+            .unwrap_or(0)
+    }
+
     #[test]
-    fn a_bots_second_kit_has_another_weapon_and_another_ammo_at_the_most() {
+    fn the_tier_follows_the_players_equipment_level() {
+        // The owner's examples: 12 → 13-15, 8 → 9-10, 3 → 4-5.
+        assert_eq!(BotTier::of_gear(12), BotTier::High);
+        assert_eq!(BotTier::of_gear(8), BotTier::Mid);
+        assert_eq!(BotTier::of_gear(3), BotTier::Low);
+        for (gear, tier) in [
+            (0, BotTier::Low),
+            (5, BotTier::Low),
+            (6, BotTier::Mid),
+            (10, BotTier::Mid),
+            (11, BotTier::High),
+            (15, BotTier::High),
+        ] {
+            assert_eq!(BotTier::of_gear(gear), tier, "{gear}");
+        }
+        assert_eq!(BotTier::Low.levels(), 4..=5);
+        assert_eq!(BotTier::Mid.levels(), 9..=10);
+        assert_eq!(BotTier::High.levels(), 13..=15);
+    }
+
+    /// Each kit is of its tier's equipment level (the highest item; no
+    /// item above the tier), fits its slots, holds nothing premium, and a
+    /// player could carry it with no skills.
+    #[test]
+    fn every_bot_kit_is_of_its_tiers_level_and_within_the_carry_limit() {
         let dictionary = Dictionary::shared();
-        for role in BotRole::ALL {
-            let [first, second] = bot_kits(role);
-            assert!(std::ptr::eq(first, bot_kit(role)));
-            let weapon = |kit: &Loadout| kit.slot(7).unwrap().dict_id;
-            let ammo = |kit: &Loadout| kit.slot(BOT_AMMO_SLOTS[0]).unwrap().dict_id;
-            assert_ne!(weapon(first), weapon(second), "{role}");
-            assert_ne!(ammo(first), ammo(second), "{role}: the same ammo");
-            assert_eq!(
-                BotRole::of_weapon(weapon(second)),
-                Some(role.backup()),
-                "{role}"
+        let limit = item_params::player().max_carried_weight;
+        for (tier, role, k, kit) in every_kit() {
+            let at = format!("{tier} {role} kit {k}");
+            assert!(
+                tier.levels().contains(&kit_level(kit)),
+                "{at}: {}",
+                kit_level(kit)
             );
-            assert!(second.slot(10).is_none(), "{role}: no weapon 2");
-            for slot in BOT_AMMO_SLOTS {
-                let item = second.slot(slot).unwrap();
+            for item in &kit.items {
+                let entry = dictionary.item(item.dict_id).unwrap();
                 assert!(
-                    dictionary.compatible(weapon(second), item.dict_id),
-                    "{role}"
+                    dictionary.fits(item.dict_id, item.slot),
+                    "{at}: {}",
+                    entry.name
                 );
-                assert_eq!(item.dict_id, ammo(second));
-                // The backup role's own count: the most players carry.
-                let own = bot_kit(role.backup()).slot(slot).unwrap();
-                assert_eq!(item.count, own.count, "{role}");
+                assert!(!entry.is_premium, "{at}: {}", entry.name);
+                let level = item_params::item_params(item.dict_id)
+                    .unwrap()
+                    .match_making_level;
+                assert!(
+                    level <= *tier.levels().end(),
+                    "{at}: {} {level}",
+                    entry.name
+                );
+                if !entry.is_stack {
+                    assert_eq!(item.count, 1, "{at}: {}", entry.name);
+                }
             }
-            // The rest is the first kit's: its armour, pockets and keys.
-            let rest = |kit: &Loadout| -> Vec<(u8, u16, u32)> {
-                kit.items
-                    .iter()
-                    .filter(|item| item.slot != 7 && !BOT_AMMO_SLOTS.contains(&item.slot))
-                    .map(|item| (item.slot, item.dict_id, item.count))
-                    .collect()
-            };
-            assert_eq!(rest(first), rest(second), "{role}");
-            assert_eq!(pockets(first), pockets(second), "{role}");
-            assert!(second.fits_carry_limit(), "{role}: {}", second.weight());
+            let mut slots: Vec<u8> = kit.items.iter().map(|item| item.slot).collect();
+            slots.sort_unstable();
+            slots.dedup();
+            assert_eq!(slots.len(), kit.items.len(), "{at}: a slot twice");
+            assert!(kit.weight() <= limit, "{at}: {} kg", kit.weight());
+        }
+    }
+
+    /// The owner's of 2026-10-23: each kit its own ammo, maxed. The slot
+    /// holds the most the kit's ammo bags take (the lobby's rule,
+    /// [`ammo_max`]: one bag more would hold more), and the item's storage
+    /// [`BOT_AMMO_LIVES`] times that.
+    #[test]
+    fn every_kits_ammo_is_the_most_its_bags_take() {
+        let dictionary = Dictionary::shared();
+        let name = |dict_id: u16| dictionary.item(dict_id).unwrap().name.as_str();
+        for (tier, role, k, kit) in every_kit() {
+            let at = format!("{tier} {role} kit {k}");
+            let weapon = kit.slot(7).unwrap();
+            assert!(kit.slot(10).is_none(), "{at}: no weapon 2");
+            let armour: Vec<&str> = kit
+                .items
+                .iter()
+                .filter(|item| item.slot <= 6)
+                .map(|item| name(item.dict_id))
+                .collect();
+            let bags = ammo_bags(armour.iter().copied());
+            assert!(bags >= item_params::player().ammo_bags_count, "{at}");
+            for slot in BOT_AMMO_SLOTS {
+                let ammo = kit.slot(slot).unwrap();
+                assert!(dictionary.compatible(weapon.dict_id, ammo.dict_id), "{at}");
+                let most = ammo_max(name(ammo.dict_id), bags);
+                assert_eq!(ammo.count, most, "{at}");
+                assert!(ammo_max(name(ammo.dict_id), bags + 2) > most, "{at}");
+                assert!(ammo.count >= item_params::shop_unit(ammo.dict_id), "{at}");
+                assert_eq!(ammo.stored, ammo.count * BOT_AMMO_LIVES, "{at}");
+            }
+            // No other ammo slot is used.
+            for slot in [8, 9, 11, 12, 19, 20, 21, 22] {
+                if !BOT_AMMO_SLOTS.contains(&slot) {
+                    assert!(kit.slot(slot).is_none(), "{at}: slot {slot}");
+                }
+            }
+        }
+        // The lobby's numbers: four bags of 9x19 (clips of 50) with the
+        // light torso, three of 5.45x39 (30) with the support's.
+        let rounds = |tier, role| bot_kit(tier, role).slot(8).unwrap().count;
+        assert_eq!(rounds(BotTier::Low, BotRole::Flanker), 200);
+        assert_eq!(rounds(BotTier::Low, BotRole::Support), 90);
+        assert_eq!(rounds(BotTier::Low, BotRole::Rusher), 60);
+        assert_eq!(rounds(BotTier::Low, BotRole::Camper), 30);
+    }
+
+    /// Three kits a bot (at least two: the owner's of 2026-10-23), each
+    /// with another weapon and another ammo, so a kit chosen when one is
+    /// spent is full; the rest (armour, pockets, keys) the same.
+    #[test]
+    fn every_bot_has_three_kits_of_different_weapons_and_ammo() {
+        for tier in BotTier::ALL {
+            // The four roles' ammo differ in each tier.
+            let mut ammo: Vec<&str> = BotRole::ALL
+                .iter()
+                .map(|&role| tier.gear().of(role).ammo)
+                .collect();
+            ammo.sort_unstable();
+            ammo.dedup();
+            assert_eq!(ammo.len(), 4, "{tier}");
+            for role in BotRole::ALL {
+                let kits = bot_kits(tier, role);
+                assert!(kits.len() >= 2);
+                assert!(kits.len() <= super::super::match_msgs::static_info::MAX_KITS);
+                assert_eq!(role.kit_roles()[0], role);
+                for (a, first) in kits.iter().enumerate() {
+                    for second in &kits[a + 1..] {
+                        let at = format!("{tier} {role}");
+                        assert_ne!(first.slot(7), second.slot(7), "{at}: one weapon");
+                        assert_ne!(
+                            first.slot(8).unwrap().dict_id,
+                            second.slot(8).unwrap().dict_id,
+                            "{at}: one ammo"
+                        );
+                        let rest = |kit: &Loadout| -> Vec<SlotItem> {
+                            kit.items
+                                .iter()
+                                .filter(|item| {
+                                    item.slot != 7 && !BOT_AMMO_SLOTS.contains(&item.slot)
+                                })
+                                .copied()
+                                .collect()
+                        };
+                        assert_eq!(rest(first), rest(second), "{at}");
+                    }
+                }
+                // Each kit's weapon is its kit role's.
+                let dictionary = Dictionary::shared();
+                for (kit, kit_role) in kits.iter().zip(role.kit_roles()) {
+                    let weapon = dictionary.item(kit.slot(7).unwrap().dict_id).unwrap();
+                    assert_eq!(weapon.name, tier.gear().of(kit_role).weapon);
+                }
+            }
         }
     }
 
@@ -787,67 +1244,41 @@ mod tests {
     fn the_bots_kit_has_a_pocket_for_each_thing_it_uses() {
         let dictionary = Dictionary::shared();
         let params = |dict_id: u16| item_params::item_params(dict_id).unwrap();
-        for role in BotRole::ALL {
-            let kit = bot_kit(role);
-            let wanted: Vec<BotKitItem> = bot_kit_items(role).collect();
-            assert_eq!(kit.items.len(), wanted.len(), "{role}");
-            for (item, wanted) in kit.items.iter().zip(&wanted) {
-                let entry = dictionary.item(item.dict_id).unwrap();
-                assert_eq!((entry.name.as_str(), item.slot), (wanted.name, wanted.slot));
-                assert!(dictionary.fits(item.dict_id, item.slot), "{}", wanted.name);
-                assert!(!entry.is_premium, "{}", wanted.name);
-                assert!(params(item.dict_id).item_level <= 5, "{}", wanted.name);
-                assert_eq!(item.count, wanted.count);
-                if !entry.is_stack {
-                    assert_eq!(item.count, 1, "{}", wanted.name);
-                }
-            }
-            // One slot each.
-            let mut slots: Vec<u8> = wanted.iter().map(|item| item.slot).collect();
-            slots.sort_unstable();
-            slots.dedup();
-            assert_eq!(slots.len(), wanted.len(), "{role}");
-            // Each weapon has an ammo it fires, at least a clip of it (the
-            // pistol a clip, weapon 1 a life's worth: `BOT_AMMO_NOTE`).
-            // Weapon 1 only, its ammo in an ammo slot for each bag.
-            assert!(kit.slot(10).is_none(), "{role}: no weapon 2");
-            let weapon = kit.slot(7).unwrap();
-            for slot in BOT_AMMO_SLOTS {
-                let ammo = kit.slot(slot).unwrap();
-                assert!(
-                    dictionary.compatible(weapon.dict_id, ammo.dict_id),
-                    "{role}"
-                );
-                assert!(ammo.count >= item_params::shop_unit(ammo.dict_id), "{role}");
-                assert!(ammo.count <= 200, "{role}: more than players carry");
-            }
-            assert!(BOT_AMMO_SLOTS.len() as u32 <= item_params::player().ammo_bags_count);
-            assert!(kit.fits_carry_limit(), "{role}: {}", kit.weight());
-
-            // The pockets: every pocket item in an open pocket, at most a
-            // pocket's worth of it (one of an item that fills a whole
-            // pocket).
+        for (tier, role, k, kit) in every_kit() {
+            let at = format!("{tier} {role} kit {k}");
+            // Three pockets at least, of two: a pocket's worth of medkits
+            // and of grenades (one pocket a type), and the radio.
             let (count, size) = pockets(kit);
-            let expected = if role == BotRole::Support { 4 } else { 3 };
-            assert_eq!((count, size), (expected, 2), "{role}");
+            assert!(count >= 3, "{at}: {count} pockets");
+            assert_eq!(size, 2, "{at}");
             let open = &POCKET_SLOTS[..count as usize];
             for item in kit
                 .items
                 .iter()
                 .filter(|item| POCKET_SLOTS.contains(&item.slot))
             {
-                assert!(open.contains(&item.slot), "{role}: slot {}", item.slot);
-                let limit = if params(item.dict_id).fills_whole_pocket {
+                assert!(open.contains(&item.slot), "{at}: slot {}", item.slot);
+                let most = if params(item.dict_id).fills_whole_pocket {
                     1
                 } else {
                     size
                 };
-                assert!(item.count >= 1 && item.count <= limit, "slot {}", item.slot);
+                assert_eq!(item.count, most, "{at}: slot {}", item.slot);
             }
+            let mut types: Vec<u16> = kit
+                .items
+                .iter()
+                .filter(|item| POCKET_SLOTS.contains(&item.slot))
+                .map(|item| item.dict_id)
+                .collect();
+            let pocketed = types.len();
+            types.sort_unstable();
+            types.dedup();
+            assert_eq!(types.len(), pocketed, "{at}: a type in two pockets");
 
-            // The keys: weapon 1 is the role's, weapon 2 the pistol; the
-            // medkit is quick use 1, the first filled slot of the client's
-            // order; the grenade is the first one in the pockets.
+            // The keys: weapon 1 its bit; the medkit is quick use 1, the
+            // first filled slot of the client's order; the grenade is the
+            // first one in the pockets.
             let filled: Vec<u8> = QUICK_USE_ORDER
                 .iter()
                 .copied()
@@ -856,22 +1287,24 @@ mod tests {
             let bit = BOT_MEDKIT.input_bit.unwrap();
             assert_eq!(
                 filled[usize::from(bit - QUICK_USE_FIRST_BIT)],
-                BOT_MEDKIT.slot
+                BOT_MEDKIT.slot,
+                "{at}"
             );
             let first_grenade = POCKET_SLOTS.iter().copied().find(|&slot| {
                 kit.slot(slot)
                     .is_some_and(|item| params(item.dict_id).kind == "grenade")
             });
-            assert_eq!(first_grenade, Some(BOT_GRENADE.slot));
-            assert_eq!(role.gear()[0].slot, 7);
-            assert_eq!(role.gear()[0].input_bit, Some(WEAPON_1_BIT));
+            assert_eq!(first_grenade, Some(BOT_GRENADE.slot), "{at}");
+            let items = bot_kit_items(tier, role, k);
+            assert_eq!(items[0].slot, 7);
+            assert_eq!(items[0].input_bit, Some(WEAPON_1_BIT));
         }
         assert_eq!(pockets(starter()), (1, 1));
         assert_eq!(BOT_RADIO.input_bit, None);
         assert_eq!(BOT_GRENADE.input_bit, Some(GRENADE_BIT));
 
         // What each is.
-        let kit = bot_kit(BotRole::Flanker);
+        let kit = bot_kit(BotTier::Low, BotRole::Flanker);
         let kind = |item: BotKitItem| params(kit.slot(item.slot).unwrap().dict_id).kind;
         assert_eq!(kind(BOT_MEDKIT), "drugs");
         assert_eq!(kind(BOT_RADIO), "booster");
@@ -888,9 +1321,9 @@ mod tests {
             .collect();
         assert_eq!(grenades, [("rgd-5", 3), ("rdg-m", 6)]);
 
-        // The pocket gear is the cheapest that opens the two more pockets
-        // needed: of every pair of pieces for two slots (or one piece) that
-        // sell for silver.
+        // The lowest tier's pocket gear is the cheapest that opens the two
+        // more pockets needed: of every pair of pieces for two slots (or
+        // one piece) that sell for silver.
         let pocket_gear: Vec<(u8, u16, u32, f32)> = dictionary
             .items
             .iter()
@@ -912,14 +1345,14 @@ mod tests {
                 }
             }
         }
-        let cost = |item: BotKitItem| {
+        let cost = |slot: u8| {
             dictionary
-                .item(kit.slot(item.slot).unwrap().dict_id)
+                .item(kit.slot(slot).unwrap().dict_id)
                 .unwrap()
                 .base_cost
         };
-        assert_eq!(cost(BOT_BACK) + cost(BOT_LEGS), cheapest);
-        assert_eq!((cost(BOT_BACK), cost(BOT_LEGS)), (6650, 6830));
+        assert_eq!(cost(3) + cost(4), cheapest);
+        assert_eq!((cost(3), cost(4)), (6650, 6830));
     }
 
     #[test]
@@ -928,21 +1361,25 @@ mod tests {
         let params = |name: &str| {
             item_params::item_params(dictionary.item_named(name).unwrap().dict_id).unwrap()
         };
-        let weapon = |role: BotRole| role.gear()[0].name;
-        assert_eq!(weapon(BotRole::Flanker), "uzi");
-        assert_eq!(weapon(BotRole::Support), "ak_74u");
-        assert_eq!(weapon(BotRole::Rusher), "toz_34");
-        assert_eq!(weapon(BotRole::Camper), "mosin_nagant");
-        // The kinds: an SMG, the assault-rifle category, a shotgun, the
-        // sniper category.
+        let low = |role: BotRole| BotTier::Low.gear().of(role).weapon;
+        // The top players' picks at levels 4-5 (pvb-tiers.md), but the
+        // assault rifle, which is the lowest that sells for silver.
+        assert_eq!(low(BotRole::Flanker), "vityaz");
+        assert_eq!(low(BotRole::Support), "ak_74u");
+        assert_eq!(low(BotRole::Rusher), "mp_153");
+        assert_eq!(low(BotRole::Camper), "rem_700");
+        assert_eq!(TIER_9_10.support.weapon, "akmn");
+        // The kinds in every tier: an SMG or a compact rifle, an assault
+        // rifle, a shotgun, the sniper category.
         let category = |name: &str| dictionary.item_named(name).unwrap().category;
-        assert_eq!(params("uzi").kind, "wpn_smg");
-        assert_eq!(category("ak_74u"), 8);
-        assert_eq!(params("toz_34").kind, "wpn_dbrl");
-        assert_eq!(category("toz_34"), 14);
-        assert_eq!(category("mosin_nagant"), 13);
-        // Each is the lowest of its kind that sells for silver (the
-        // Mosin is free).
+        for tier in BotTier::ALL {
+            let gear = tier.gear();
+            assert!(matches!(category(gear.flanker.weapon), 8 | 15), "{tier}");
+            assert_eq!(category(gear.support.weapon), 8, "{tier}");
+            assert_eq!(category(gear.rusher.weapon), 14, "{tier}");
+            assert_eq!(category(gear.camper.weapon), 13, "{tier}");
+        }
+        assert_eq!(params("vityaz").kind, "wpn_smg");
         let lowest = |category: u8| {
             dictionary
                 .items
@@ -953,16 +1390,24 @@ mod tests {
                 .unwrap()
         };
         assert_eq!(params("ak_74u").item_level, lowest(8));
-        assert_eq!(params("toz_34").item_level, lowest(14));
-        assert_eq!(params("mosin_nagant").item_level, lowest(13));
-        assert_eq!(params("uzi").item_level, 2);
+        // The shotgun of the higher tiers is the highest there is.
+        let highest = dictionary
+            .items
+            .iter()
+            .filter(|item| item.category == 14 && !item.is_premium)
+            .map(|item| item_params::item_params(item.dict_id).unwrap().item_level)
+            .max()
+            .unwrap();
+        assert_eq!(params(TIER_9_10.rusher.weapon).item_level, highest);
         // Light armour for the rusher and the flanker, heavier for the
-        // support and the camper.
+        // support and the camper, in the lowest tier.
         let armour = |role: BotRole| -> f32 {
-            role.gear()
+            BotTier::Low
+                .gear()
+                .of(role)
+                .armour
                 .iter()
-                .filter(|item| item.slot <= 6)
-                .map(|item| params(item.name).weight)
+                .map(|&(_, name)| params(name).weight)
                 .sum()
         };
         for light in [BotRole::Rusher, BotRole::Flanker] {
@@ -970,36 +1415,43 @@ mod tests {
                 assert!(armour(light) < armour(heavy), "{light} {heavy}");
             }
         }
-        // The support has a third medkit.
-        let medkits = |role: BotRole| -> u32 {
-            bot_kit_items(role)
-                .filter(|item| item.name == "medkit")
-                .map(|item| item.count)
-                .sum()
-        };
-        assert_eq!(medkits(BotRole::Support), 3);
-        assert_eq!(medkits(BotRole::Rusher), 2);
     }
 
     #[test]
-    fn a_bots_role_reads_back_from_its_profile() {
+    fn a_bots_tier_and_role_read_back_from_its_profile() {
         use super::super::match_msgs::static_info::MatchProfile;
         use super::super::skills::MODIFIERS;
 
         let dictionary = Dictionary::shared();
-        for role in BotRole::ALL {
-            let profile = MatchProfile::from_loadout(
-                "Bot-1",
-                0,
-                bot_kit(role),
-                [0.0; MODIFIERS],
-                dictionary,
-                1,
-            );
-            assert_eq!(bot_role_of(&profile), Some(role));
-            let weapon = dictionary.item_named(role.gear()[0].name).unwrap();
-            assert_eq!(BotRole::of_weapon(weapon.dict_id), Some(role));
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let profile = MatchProfile::from_loadouts(
+                    "Bot-1",
+                    0,
+                    &bot_kits(tier, role),
+                    [0.0; MODIFIERS],
+                    dictionary,
+                    1,
+                );
+                assert_eq!(bot_of(&profile), Some((tier, role)));
+                assert_eq!(bot_role_of(&profile), Some(role));
+                // The ammo's storage is the lives' worth.
+                let (index, count) = profile.kits[0].slots[8].unwrap();
+                assert_eq!(
+                    profile.items[usize::from(index)].condition_or_stack,
+                    u32::from(count) * BOT_AMMO_LIVES
+                );
+            }
         }
+        // A bot of an older kit: the role by its weapon, the lowest tier.
+        let older = Loadout::from_names(
+            dictionary,
+            [(7, "ak_74u"), (8, "ammo_5.45x39_7n6m"), (16, "medkit")],
+        )
+        .unwrap();
+        let profile =
+            MatchProfile::from_loadout("Bot-2", 0, &older, [0.0; MODIFIERS], dictionary, 1);
+        assert_eq!(bot_of(&profile), Some((BotTier::Low, BotRole::Support)));
         // A player in the starter kit, or one with no kit, has no role.
         let player =
             MatchProfile::from_loadout("Alice", 0, starter(), [0.0; MODIFIERS], dictionary, 1);
@@ -1009,14 +1461,21 @@ mod tests {
             ..player
         };
         assert_eq!(bot_role_of(&empty), None);
-        // The weapons differ, so the reading is one to one.
-        let mut weapons: Vec<&str> = BotRole::ALL
-            .iter()
-            .map(|role| role.gear()[0].name)
+        // The first kits differ, so the reading is one to one.
+        let mut firsts: Vec<Vec<(u8, u16)>> = BotTier::ALL
+            .into_iter()
+            .flat_map(|tier| BotRole::ALL.into_iter().map(move |role| (tier, role)))
+            .map(|(tier, role)| {
+                bot_kit(tier, role)
+                    .items
+                    .iter()
+                    .map(|item| (item.slot, item.dict_id))
+                    .collect()
+            })
             .collect();
-        weapons.sort_unstable();
-        weapons.dedup();
-        assert_eq!(weapons.len(), 4);
+        firsts.sort_unstable();
+        firsts.dedup();
+        assert_eq!(firsts.len(), 12);
     }
 
     #[test]

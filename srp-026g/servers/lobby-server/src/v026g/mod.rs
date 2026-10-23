@@ -93,7 +93,7 @@
 //! - `SRP_PACKET_LOG=<dir>`: the transport's raw datagram log (the sign-in's
 //!   session id is left out of it);
 //! - `SRP_PVB` (default off), `SRP_PVB_MAX_GEAR` (5), `SRP_PVB_MAX_MATCHES`
-//!   (5), `SRP_PVB_PAY` (0.5), `SRP_PVB_STALL_S` (60): "Player vs Bots"
+//!   (5), `SRP_PVB_PAY` (0.25), `SRP_PVB_STALL_S` (60): "Player vs Bots"
 //!   (`pvb`, whose module says what each does and which server reads it).
 //! - `SRP_ROOMS_MAX` (50), `SRP_ROOMS_EXTRA_MAPS` (none): rooms, the
 //!   players' "servers" (`rooms`, whose module says what each does).

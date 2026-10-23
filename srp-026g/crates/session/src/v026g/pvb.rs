@@ -6,13 +6,17 @@
 //! - `SRP_PVB_MAX_MATCHES` (default 5, 1 to 20): the most matches against
 //!   the server's bots at once; the match server keeps that many bots'
 //!   maps in memory at most when the mode is on;
-//! - `SRP_PVB_PAY` (default 0.5, 0 to 1): what a match against bots pays of
-//!   a match's silver and experience.
+//! - `SRP_PVB_PAY` (default 0.25, 0 to 1): what a match against bots pays
+//!   of a match's silver and experience; and only a match that came to its
+//!   own end with its player in it pays at all
+//!   (`super::rewards::Reward::forfeited`).
 
 /// `SRP_PVB_MAX_MATCHES` when unset.
 pub const DEFAULT_MAX_MATCHES: usize = 5;
-/// `SRP_PVB_PAY` when unset: half.
-pub const DEFAULT_PAY: f64 = 0.5;
+/// `SRP_PVB_PAY` when unset: a quarter (the owner's of 2026-10-23: half
+/// paid a won match against bots about what a match of players of its
+/// level pays, for a match nearly always won).
+pub const DEFAULT_PAY: f64 = 0.25;
 /// The most `SRP_PVB_MAX_MATCHES` may be.
 pub const MOST_MATCHES: usize = 20;
 
@@ -108,11 +112,11 @@ mod tests {
         assert_eq!(max_matches_from(Some("3")), 3);
         assert_eq!(max_matches_from(Some("0")), 5);
         assert_eq!(max_matches_from(Some("21")), 5);
-        assert_eq!(pay_from(None), 0.5);
-        assert_eq!(pay_from(Some("0.25")), 0.25);
+        assert_eq!(pay_from(None), 0.25);
+        assert_eq!(pay_from(Some("0.5")), 0.5);
         assert_eq!(pay_from(Some("0")), 0.0);
-        assert_eq!(pay_from(Some("2")), 0.5);
-        assert_eq!(pay_from(Some("NaN")), 0.5);
+        assert_eq!(pay_from(Some("2")), 0.25);
+        assert_eq!(pay_from(Some("NaN")), 0.25);
         // The maps follow the cap only with the mode on.
         assert_eq!(maps_at_once(1, true, 5), 5);
         assert_eq!(maps_at_once(1, false, 5), 1);

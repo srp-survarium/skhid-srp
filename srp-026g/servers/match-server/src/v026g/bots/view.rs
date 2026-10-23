@@ -359,6 +359,14 @@ impl Tracker {
         self.places.get(place).map(|state| &state.body)
     }
 
+    /// The speed level each place's profile gives (by place), taken for a
+    /// body until a world shows its own (`BodyTrack::set_prior_level`).
+    pub fn set_prior_levels(&mut self, levels: &[Option<f32>]) {
+        for (state, &level) in self.places.iter_mut().zip(levels) {
+            state.body.set_prior_level(level);
+        }
+    }
+
     /// An input of `place` for the tick `time` (a human's as relayed, a
     /// bot's as made, its pitch turn with the part its kick took and the
     /// kick after it: `body::BodyTrack::decided`): its body moves on, and

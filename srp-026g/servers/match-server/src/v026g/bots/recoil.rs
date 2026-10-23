@@ -107,71 +107,38 @@ impl Kick {
     }
 }
 
-/// The weapons whose kick is known: the AK-74M first (the default, for a
-/// weapon not here), then the five the server's bots carry
-/// (`super::guns::GUNS`). From the 0.26g configs (PROVEN).
-pub const KICKS: [Kick; 6] = [
-    Kick {
-        item: "ak_74m",
-        rpm: 650,
-        top_deg: (1.8, 2.0),
-        left_deg: (1.4, 1.8),
-        right_deg: (1.4, 1.8),
-        power: 0.8,
-        gains: (5.0, 10.0, 0.0),
-    },
-    Kick {
-        item: "uzi",
-        rpm: 600,
-        top_deg: (1.0, 1.2),
-        left_deg: (1.5, 1.5),
-        right_deg: (1.5, 1.5),
-        power: 0.6,
-        gains: (5.0, 15.0, 0.0),
-    },
-    Kick {
-        item: "ak_74u",
-        rpm: 650,
-        top_deg: (2.0, 2.2),
-        left_deg: (1.4, 1.8),
-        right_deg: (1.4, 1.8),
-        power: 0.8,
-        gains: (5.0, 10.0, 0.0),
-    },
-    // Fires one barrel a press.
-    Kick {
-        item: "toz_34",
-        rpm: 240,
-        top_deg: (3.0, 3.0),
-        left_deg: (3.0, 3.0),
-        right_deg: (3.0, 3.0),
-        power: 1.0,
-        gains: (5.0, 15.0, 0.0),
-    },
-    // A bolt action: left and right the same, no side kick at all.
-    Kick {
-        item: "mosin_nagant",
-        rpm: 160,
-        top_deg: (3.0, 3.0),
-        left_deg: (3.0, 3.0),
-        right_deg: (3.0, 3.0),
-        power: 1.0,
-        gains: (5.0, 15.0, 0.0),
-    },
-    Kick {
-        item: "tt_33",
-        rpm: 300,
-        top_deg: (0.8, 0.8),
-        left_deg: (0.8, 0.8),
-        right_deg: (0.8, 0.8),
-        power: 0.5,
-        gains: (5.0, 10.0, 0.0),
-    },
-];
+/// Every weapon's kick, read from the game data (`survarium::v026g::weapons`,
+/// the configs' `recoil` blocks and rates of fire): a weapon a patch adds or
+/// rebalances kicks by its own numbers. PROVEN (the configs).
+pub fn kicks() -> &'static [Kick] {
+    static ALL: std::sync::OnceLock<Vec<Kick>> = std::sync::OnceLock::new();
+    ALL.get_or_init(|| {
+        survarium::v026g::weapons::all()
+            .iter()
+            .map(|w| Kick {
+                item: w.name,
+                rpm: w.rounds_per_minute,
+                top_deg: w.top_recoil,
+                left_deg: w.left_recoil,
+                right_deg: w.right_recoil,
+                power: w.recoil_power,
+                gains: w.recoil_gains,
+            })
+            .collect()
+    })
+}
+
+/// The weapon whose kick a weapon the data does not know takes: the
+/// AK-74M.
+pub const DEFAULT_KICK: &str = "ak_74m";
 
 /// The kick of the weapon item `item`; the AK-74M's for one not known.
 pub fn kick_of(item: &str) -> &'static Kick {
-    KICKS.iter().find(|k| k.item == item).unwrap_or(&KICKS[0])
+    let all = kicks();
+    all.iter()
+        .find(|k| k.item == item)
+        .or_else(|| all.iter().find(|k| k.item == DEFAULT_KICK))
+        .expect("the AK-74M is in the game data")
 }
 
 /// One weapon's kick as the client keeps it (0x331FF0's fields).
@@ -194,7 +161,7 @@ pub struct Recoil {
 
 impl Default for Recoil {
     fn default() -> Self {
-        Self::new(&KICKS[0])
+        Self::new(kick_of(DEFAULT_KICK))
     }
 }
 
@@ -360,11 +327,11 @@ impl Cadence {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::v026g::bots::guns::GUNS;
+    use crate::v026g::bots::guns::guns;
 
     #[test]
     fn every_bot_weapon_has_its_kick_at_its_rate_of_fire() {
-        for gun in &GUNS {
+        for gun in guns() {
             let kick = kick_of(gun.item);
             assert_eq!(kick.item, gun.item);
             assert_eq!(kick.rpm, gun.rpm, "{}", gun.item);
