@@ -43,6 +43,12 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the edit l
 - As it is (passive -5 % damage and piercing, active -90 % for 3 s, cooldown 60 s); its key fires
   every ready Onyx too.
 
+## Texts
+
+- The only texts: each artefact's pickup hint (the passive) and activation hint (the active), fixed
+  sentences in the six localization tables; no lobby card. `artefact-texts-1.json` makes them say
+  the numbers above (Onyx's stock 10 % and 95 % were wrong too).
+
 ## Release
 
 - Changes what a match computes: a `next` row in `crates/session/src/v026g/simulation_changes.tsv`,

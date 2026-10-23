@@ -1,0 +1,185 @@
+{
+ "_about": "The artefacts' in-match hints as the artefacts now are (artefacts-1.json, client patch 54; docs/notes/artefacts.md). A pickup hint (data/pickup_hint) says the passive, an activation hint (data/activation_hint) the active; fixed sentences, nothing computed from the config, and the artefacts have no lobby card (ui_desc's name and description keys have no text, props_list is empty). Spring's pickup hint: movement speed 2 % -> 5 % and aiming speed 5 % (passive/aim_time_mod -0.05; the gloves' texts call aim time 'aiming speed'); German already said 5 %. Its activation hint: aiming with the movement speed (+10 %, German's total +15 %), and bullets do not slow you (active/stopping_power_mod -1). Lifebone's activation hint: health restored (patch 54 fills pain, body and head); its pickup hint ('increases health regeneration') stays. Onyx's numbers were stock mistakes: passive 10 % (German 'auf 15 %') -> 5 % (damage_mul 0.95), active 95 % (German 'auf 90 %') -> 90 % (damage_mul 0.1; passive and active never both). The pickup hints' 'Onyx artifact.' / 'Артефакт Онікс.' openings, which the maps tab and the damage calculator read the names from, stay. Six localization tables each.",
+ "edit_text": [
+  {
+   "file": "localization/english/localization",
+   "path": "strings/st_spring_pickup_hint",
+   "from": "Spring artifact. Increases movement speed by 2%.",
+   "to": "Spring artifact. Increases movement speed and aiming speed by 5%."
+  },
+  {
+   "file": "localization/german/localization",
+   "path": "strings/st_spring_pickup_hint",
+   "from": "Artefakt Feder. Erhöht die Geschwindigkeit der Fortbewegung um 5%.",
+   "to": "Artefakt Feder. Erhöht die Geschwindigkeit der Fortbewegung und des Zielens um 5%."
+  },
+  {
+   "file": "localization/polish/localization",
+   "path": "strings/st_spring_pickup_hint",
+   "from": "Artefakt Sprężyna. Zwiększa szybkość poruszania się o 2%.",
+   "to": "Artefakt Sprężyna. Zwiększa szybkość poruszania się i celowania o 5%."
+  },
+  {
+   "file": "localization/russian/localization",
+   "path": "strings/st_spring_pickup_hint",
+   "from": "Артефакт Пружина. Повышает скорость передвижения на 2%.",
+   "to": "Артефакт Пружина. Повышает скорость передвижения и прицеливания на 5%."
+  },
+  {
+   "file": "localization/original/localization",
+   "path": "strings/st_spring_pickup_hint",
+   "from": "Артефакт Пружина. Повышает скорость передвижения на 2%.",
+   "to": "Артефакт Пружина. Повышает скорость передвижения и прицеливания на 5%."
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_spring_pickup_hint",
+   "from": "Артефакт Пружина. Підвищує швидкість пересування на 2%.",
+   "to": "Артефакт Пружина. Підвищує швидкість пересування і прицілювання на 5%."
+  },
+  {
+   "file": "localization/english/localization",
+   "path": "strings/st_spring_activation_hint",
+   "from": "Spring activated! Speed of movement +10%. Energy regeneration increased!",
+   "to": "Spring activated! Speed of movement and aiming +10%. Energy regeneration increased! Bullets do not slow you!"
+  },
+  {
+   "file": "localization/german/localization",
+   "path": "strings/st_spring_activation_hint",
+   "from": "Die Feder ist aktiviert! Die Geschwindigkeit der Fortbewegung +15 %. Es erhöht sich die Regeneration der Energie!",
+   "to": "Die Feder ist aktiviert! Die Geschwindigkeit der Fortbewegung und des Zielens +15 %. Es erhöht sich die Regeneration der Energie! Geschosse bremsen Sie nicht!"
+  },
+  {
+   "file": "localization/polish/localization",
+   "path": "strings/st_spring_activation_hint",
+   "from": "Sprężyna aktywowana! Szybkość poruszania się zwiększona o 10%. Przyspieszona regeneracja energii!",
+   "to": "Sprężyna aktywowana! Szybkość poruszania się i celowania zwiększona o 10%. Przyspieszona regeneracja energii! Pociski cię nie spowalniają!"
+  },
+  {
+   "file": "localization/russian/localization",
+   "path": "strings/st_spring_activation_hint",
+   "from": "Пружина активирована! Скорость передвижения +10%. Повышена регенерация энергии!",
+   "to": "Пружина активирована! Скорость передвижения и прицеливания +10%. Повышена регенерация энергии! Пули не замедляют!"
+  },
+  {
+   "file": "localization/original/localization",
+   "path": "strings/st_spring_activation_hint",
+   "from": "Пружина активирована! Скорость передвижения +10%. Повышена регенерация энергии!",
+   "to": "Пружина активирована! Скорость передвижения и прицеливания +10%. Повышена регенерация энергии! Пули не замедляют!"
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_spring_activation_hint",
+   "from": "Пружину активовано! Швидкість руху +10%! Прискорено регенерацію енергії!",
+   "to": "Пружину активовано! Швидкість руху і прицілювання +10%! Прискорено регенерацію енергії! Кулі не сповільнюють!"
+  },
+  {
+   "file": "localization/english/localization",
+   "path": "strings/st_lifebone_activation_hint",
+   "from": "Larkspur activated! All the critical wounds cured!",
+   "to": "Larkspur activated! All the critical wounds cured! Health restored!"
+  },
+  {
+   "file": "localization/german/localization",
+   "path": "strings/st_lifebone_activation_hint",
+   "from": "Lebensknochen ist aktiviert! Alle kritische Verlätzungen sind geheilt!",
+   "to": "Lebensknochen ist aktiviert! Alle kritische Verlätzungen sind geheilt! Gesundheit wiederhergestellt!"
+  },
+  {
+   "file": "localization/polish/localization",
+   "path": "strings/st_lifebone_activation_hint",
+   "from": "Żywokost aktywowany! Wszystkie rany krytyczne zostały wyleczone!",
+   "to": "Żywokost aktywowany! Wszystkie rany krytyczne zostały wyleczone! Zdrowie przywrócone!"
+  },
+  {
+   "file": "localization/russian/localization",
+   "path": "strings/st_lifebone_activation_hint",
+   "from": "Живокост активирован! Все критические повреждения вылечены!",
+   "to": "Живокост активирован! Все критические повреждения вылечены! Здоровье восстановлено!"
+  },
+  {
+   "file": "localization/original/localization",
+   "path": "strings/st_lifebone_activation_hint",
+   "from": "Живокост активирован! Все критические повреждения вылечены!",
+   "to": "Живокост активирован! Все критические повреждения вылечены! Здоровье восстановлено!"
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_lifebone_activation_hint",
+   "from": "Живокіст активовано! Всі критичні ушкодження вилікувано!",
+   "to": "Живокіст активовано! Всі критичні ушкодження вилікувано! Здоров'я відновлено!"
+  },
+  {
+   "file": "localization/english/localization",
+   "path": "strings/st_onyx_pickup_hint",
+   "from": "Onyx artifact. Decreases the damage and armor-piercing qualities of bullets that hit  the player by 10%.",
+   "to": "Onyx artifact. Decreases the damage and armor-piercing qualities of bullets that hit  the player by 5%."
+  },
+  {
+   "file": "localization/german/localization",
+   "path": "strings/st_onyx_pickup_hint",
+   "from": "Das Artefakt der Onyx. Verringert den Verlust und Penetration der in den Spieler fliegenden Geschosse auf 15 %.",
+   "to": "Das Artefakt der Onyx. Verringert den Verlust und Penetration der in den Spieler fliegenden Geschosse um 5 %."
+  },
+  {
+   "file": "localization/polish/localization",
+   "path": "strings/st_onyx_pickup_hint",
+   "from": "Artefakt Onyks. Zmniejsza obrażenia i penetrację pocisków trafiających gracza o 10%.",
+   "to": "Artefakt Onyks. Zmniejsza obrażenia i penetrację pocisków trafiających gracza o 5%."
+  },
+  {
+   "file": "localization/russian/localization",
+   "path": "strings/st_onyx_pickup_hint",
+   "from": "Артефакт Оникс. Уменьшает урон и бронебойность летящих в игрока пуль на 10%.",
+   "to": "Артефакт Оникс. Уменьшает урон и бронебойность летящих в игрока пуль на 5%."
+  },
+  {
+   "file": "localization/original/localization",
+   "path": "strings/st_onyx_pickup_hint",
+   "from": "Артефакт Оникс. Уменьшает урон и бронебойность летящих в игрока пуль на 10%.",
+   "to": "Артефакт Оникс. Уменьшает урон и бронебойность летящих в игрока пуль на 5%."
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_onyx_pickup_hint",
+   "from": "Артефакт Онікс. Зменшує пошкодження і бронебійність спрямованих у гравця куль на 10%.",
+   "to": "Артефакт Онікс. Зменшує пошкодження і бронебійність спрямованих у гравця куль на 5%."
+  },
+  {
+   "file": "localization/english/localization",
+   "path": "strings/st_onyx_activation_hint",
+   "from": "Onyx activated!Decreases the damage and armor-piercing of incoming bullets by  95%.",
+   "to": "Onyx activated!Decreases the damage and armor-piercing of incoming bullets by  90%."
+  },
+  {
+   "file": "localization/german/localization",
+   "path": "strings/st_onyx_activation_hint",
+   "from": "Der Onyx ist aktiviert! Verringert den Verlust und Penetration der in den Spieler fliegenden Geschosse auf 90 %.",
+   "to": "Der Onyx ist aktiviert! Verringert den Verlust und Penetration der in den Spieler fliegenden Geschosse um 90 %."
+  },
+  {
+   "file": "localization/polish/localization",
+   "path": "strings/st_onyx_activation_hint",
+   "from": "Onyks aktywowany! Zmniejsza obrażenia i penetrację pocisków trafiających gracza o 95%.",
+   "to": "Onyks aktywowany! Zmniejsza obrażenia i penetrację pocisków trafiających gracza o 90%."
+  },
+  {
+   "file": "localization/russian/localization",
+   "path": "strings/st_onyx_activation_hint",
+   "from": "Оникс активирован! Уменьшает урон и бронебойность летящих в игрока пуль на 95%.",
+   "to": "Оникс активирован! Уменьшает урон и бронебойность летящих в игрока пуль на 90%."
+  },
+  {
+   "file": "localization/original/localization",
+   "path": "strings/st_onyx_activation_hint",
+   "from": "Оникс активирован! Уменьшает урон и бронебойность летящих в игрока пуль на 95%.",
+   "to": "Оникс активирован! Уменьшает урон и бронебойность летящих в игрока пуль на 90%."
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_onyx_activation_hint",
+   "from": "Онікс активовано! Пошкодження і бронебійність спрямованих у гравця куль зменшено на 95%.",
+   "to": "Онікс активовано! Пошкодження і бронебійність спрямованих у гравця куль зменшено на 90%."
+  }
+ ]
+}
