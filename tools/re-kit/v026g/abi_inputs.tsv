@@ -4433,3 +4433,4 @@ va	name	location	role	basis
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+12	the body	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+16	the sender's name	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+20	the sender's clan tag	observed
+0x0026dc30	survarium::base_game_statistics_handler::recalculate_scores	EDI	the handler: m_scores[place] (+31F0h) for each place under +3240h worked out again from its 28 events x 3 kits x the weights ([+323Ch]+577BCh), x 0.01 (0xA2D774) for 6, 17, 18, +0.5 (0x927A44) and truncated once	observed

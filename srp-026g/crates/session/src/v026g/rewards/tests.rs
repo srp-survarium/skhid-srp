@@ -1047,7 +1047,7 @@ fn research_match(game_mode: u8, weights: &[f32; EVENTS]) -> (GameAccounts, Matc
 }
 
 #[test]
-fn a_research_match_pays_its_captures_by_research_weights_uncapped() {
+fn a_research_match_pays_its_own_events_divided_by_the_research_divisor() {
     let research_weights = static_info::score_weights(mode::RESEARCH);
     // The score the match server sent and counted: 15 × 30 + 30 + 2 × 10.
     let (store, result) = research_match(mode::RESEARCH, &research_weights);
@@ -1057,17 +1057,20 @@ fn a_research_match_pays_its_captures_by_research_weights_uncapped() {
         .unwrap();
     let alice = &report.players[0];
     assert!(alice.reward.won);
+    // The score is the scoreboard's, at Research's weights: not divided.
     assert_eq!(alice.reward.score, 500);
     assert_eq!(report.stats.game_mode, mode::RESEARCH);
     assert_eq!(
         (report.stats.winner_team, report.stats.team_scores),
         (0, [100, 64])
     );
-    // The activity row: the 18 events and the fixed part of a win.
+    // The activity row: the 18 events and the fixed part of a win, the
+    // events' 500 points at 7.04 / 0.615 a point divided by 1.8, the fixed
+    // part (82.73 / 122.69) whole: 1955 + 82 silver, 170 + 122 experience.
+    assert_eq!(pay::RESEARCH_PAY_DIVISOR, 1.8);
     let activity = columns(&alice.full, 2);
-    assert_eq!(activity.0, 20.0);
-    // As a match whose terms weigh so pays it: all fifteen captures, at
-    // Research's weights and not the batteries'.
+    assert_eq!((activity.0, activity.1, activity.2), (20.0, 2037, 293));
+    // The same counters in a match of another mode weighed so pay in full.
     let (store, plain) = research_match(mode::BATTERIES, &research_weights);
     let weighed = Terms {
         score_weights: research_weights,
@@ -1076,15 +1079,47 @@ fn a_research_match_pays_its_captures_by_research_weights_uncapped() {
     let as_weighed = Results::new()
         .settle(&plain, &store, &weighed, &mut Rng::new(1))
         .unwrap();
-    assert_eq!(columns(&as_weighed.players[0].full, 2), activity);
-    let (store, batteries) = research_match(mode::BATTERIES, &SCORE_WEIGHTS);
-    let at_battery_weights = Results::new()
-        .settle(&batteries, &store, &terms(), &mut Rng::new(1))
-        .unwrap();
-    assert!(columns(&at_battery_weights.players[0].full, 2).1 < activity.1);
+    assert_eq!(columns(&as_weighed.players[0].full, 2).1, 3601);
     // Research's points are no batteries: nothing to the drop chance.
     assert_eq!(alice.full.drop_chances[1], 0.0);
     assert!(as_weighed.players[0].full.drop_chances[1] > 0.0);
+}
+
+#[test]
+fn a_research_recapture_scores_60_and_its_kills_pay_in_full() {
+    // One unit taken from the other team: a neutralisation and a capture,
+    // each a whole one (100 hundredths) for the one player inside; and a
+    // kill.
+    let weights = static_info::score_weights(mode::RESEARCH);
+    let mut alice = player(
+        0,
+        0,
+        "Alice",
+        counters_of(
+            0,
+            &[
+                (event::RESEARCH_NEUTRALISE, 100),
+                (event::RESEARCH_CAPTURE, 100),
+                (event::KILL, 1),
+            ],
+        ),
+    );
+    alice.score = snapshot::score(alice.statistics.as_ref().unwrap(), &weights);
+    assert_eq!(alice.score, 70);
+    let players = vec![alice, player(1, 1, "Bob", PlayerStatistics::default())];
+    let store = accounts(&players);
+    let mut result = result(players);
+    result.game_mode = mode::RESEARCH;
+    let report = Results::new()
+        .settle(&result, &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    let full = &report.players[0].full;
+    // The kill as in every mode.
+    assert_eq!(columns(full, 0), (1.0, 25, 3, 0));
+    // 60 points at 7.04 / 0.615 a point divided by 1.8 (234 / 20; it was
+    // 422 / 36), and the fixed part whole.
+    let activity = columns(full, 2);
+    assert_eq!((activity.0, activity.1, activity.2), (4.0, 317, 143));
 }
 
 #[test]

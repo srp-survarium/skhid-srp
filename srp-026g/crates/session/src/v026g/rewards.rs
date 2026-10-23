@@ -43,7 +43,8 @@
 //!     help), counted with the weights the match was played with
 //!     ([`Terms::score_weights`], the ones the scoreboard used; a Research
 //!     match's weigh its captures and its "kill invader": `static_info::
-//!     RESEARCH_WEIGHTS`).
+//!     RESEARCH_WEIGHTS`). Those three pay [`pay::RESEARCH_PAY_DIVISOR`]
+//!     times less than their score would.
 //! - **The rates** (the owner's choices): the three rows' silver times the
 //!   percent of the match's level ([`pay::MONEY_RATES`]: 150 to level 5,
 //!   rising to 220 from level 12; or `SRP_MONEY_RATE` at every level);
@@ -191,6 +192,13 @@ pub const EVENT_LINES: [usize; EVENTS] = [
 /// The line of the match activity: the fixed part for finishing and
 /// winning, and the other score.
 const ACTIVITY_LINE: usize = 2;
+/// Research's own events (`static_info::RESEARCH_WEIGHTS`): in a Research
+/// match they pay [`pay::RESEARCH_PAY_DIVISOR`] times less.
+const RESEARCH_EVENTS: [usize; 3] = [
+    event::RESEARCH_CAPTURE,
+    event::RESEARCH_NEUTRALISE,
+    event::KILL_INVADER,
+];
 /// A bonus to [`drops::roll`]'s chance that makes any table give: the
 /// chance is rolled here, with its three parts.
 const CERTAIN_PERCENT: u32 = 100_000_000;
@@ -1626,13 +1634,21 @@ impl<'a> Shared<'a> {
             // weight the scoreboard counted it with. An event that scores
             // nothing is no part of a line's amount (a team kill is in the
             // kills' line and is no enemy killed); the two end-of-match
-            // events are the fixed part, added below.
+            // events are the fixed part, added below. Research's own three
+            // pay that divided by `pay::RESEARCH_PAY_DIVISOR`.
             let each = match event {
                 event::KILL => pay::KILL,
                 event::ASSIST | event::TEAMMATE_CURE | event::TEAMMATE_RESCUE => pay::HELP,
                 event::PARTICIPATING | event::WON => continue,
                 _ if line == ACTIVITY_LINE && weights[event] > 0.0 => {
-                    pay::ACTIVITY_PER_SCORE.times(f64::from(weights[event]))
+                    let research =
+                        self.result.game_mode == mode::RESEARCH && RESEARCH_EVENTS.contains(&event);
+                    let divisor = if research {
+                        pay::RESEARCH_PAY_DIVISOR
+                    } else {
+                        1.0
+                    };
+                    pay::ACTIVITY_PER_SCORE.times(f64::from(weights[event]) / divisor)
                 }
                 _ => continue,
             };

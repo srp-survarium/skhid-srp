@@ -69,6 +69,15 @@ pub const LESSER_KILL: Pay = Pay::new(20.0, 2.0, 1.0);
 /// same (LIKELY).
 pub const HELP: Pay = Pay::new(10.0, 1.0, 1.0);
 
+/// The owner's choice (2026-10-23): Research's own events (a capture, a
+/// neutralisation, a kill invader) pay their activity score's pay
+/// ([`ACTIVITY_PER_SCORE`]) divided by this, silver, experience and
+/// reputation alike. A capture's score of 30 paid 211 silver before the
+/// rates, 8.4 kills' worth, and on rev 30's first day a Research payout
+/// averaged 25.0k silver (at most 168k) against 17.6k in mode 3 and 3.4k
+/// in Team Deathmatch. The scoreboard's weights (30, 30, 10) stay.
+pub const RESEARCH_PAY_DIVISOR: f64 = 1.8;
+
 // ---------------------------------------------------------------------
 // GUESS: "Match Activity Rewards". Both screens are wins, so all that is
 // known is the row's sum for a won match played to the end, at two "other

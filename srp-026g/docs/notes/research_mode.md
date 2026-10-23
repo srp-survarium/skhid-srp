@@ -46,14 +46,27 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
     for (0.27d 0x31E920); a full capture is worth score 30 (0.27d's `capture_the_point`), counted
     in the statistics' events 6 (capture) and 18 (neutralisation), in hundredths;
   - killing an enemy inside a unit his team does not own ("kill invader") is score 10, event 10.
-  srp sends these weights (30, 30, 10) in a Research match's static info; the activity pay
-  follows the score as for every event.
+  srp sends these weights (30, 30, 10) in a Research match's static info. So a capture scores
+  30, a neutralisation 30, and a recapture (a unit taken from the other team: the
+  neutralisation, then the capture) 60.
 - **Rewards: no cap** (the owner, 2026-10-22: "let's not cap it at all", "it takes a lot of time
-  to capture a point either way"). Captures, neutralisations and kill invader pay as their
+  to capture a point either way"). Captures, neutralisations and kill invader pay by their
   score, with no per-match cap like the battery events' (`battery_credit.md`). The review of
   #297 showed a 1v1 room can earn about 1,320 score per 15-minute match by trading units back
   and forth; the owner knows and chose no cap. Exploiters are handled by the take-back policy
   (only gains over 0.5M silver and gold are taken back). Do not add a cap without the owner.
+- **Research pay divided by 1.8** (the owner, 2026-10-23; `pay::RESEARCH_PAY_DIVISOR`):
+  - what the three Research events pay (the activity row's 7.04 silver, 0.615 experience and
+    0.077 reputation a point of their score) is divided by 1.8 in a Research match.
+  - So a capture or a neutralisation pays 117 silver and 10.3 experience before the rates
+    (211 and 18.5 before), a kill invader 39 and 3.4 (70 and 6.2).
+  - Unchanged: the score (weights 30, 30, 10), kills and helps, the fixed part, other modes.
+  - Why: rev 30's first day (05:02 to 11:15 UTC), average silver a payout: Research 25.0k (at
+    most 168k), mode 3 17.6k, mode 2 10.8k, Team Deathmatch 3.4k. A capture's 30 points paid
+    8.4 kills' worth of silver.
+  - 0.27d paid a `capture_the_point` 50 silver against a `kill`'s 20, 2.5 kills
+    (`gameplay/awards/events.options`; `kill_invader` 15). At srp's kill (25), 62.5: 1.8 leaves
+    it at 4.7 kills.
 - **HUD:** the teams' points in Team Deathmatch's bars; the three units centred under them and
   under the respawn countdown's line (beside the bars' indicator, following its position every
   frame, so the indicator's centring never counts them; the line is kept free while empty too, no
