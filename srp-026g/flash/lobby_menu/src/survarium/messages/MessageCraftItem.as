@@ -113,6 +113,10 @@ package survarium.messages
          addChildAt(this.dragItemSlot1,numChildren - 3);
          addChildAt(this.dragItemSlot2,numChildren - 3);
          addChildAt(this.dragItemSlot3,numChildren - 3);
+         // The item being upgraded and the donor keep the inventory's loadout badge: the
+         // list leaves them out while they are in the slots (hideSlotted).
+         this.dragItemSlot1.itemRenderer.showLoadouts = true;
+         this.dragItemSlot2.itemRenderer.showLoadouts = true;
       }
       
       public static function setCraftChances(chances:Array) : void
