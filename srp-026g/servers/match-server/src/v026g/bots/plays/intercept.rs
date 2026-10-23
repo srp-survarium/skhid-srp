@@ -554,7 +554,7 @@ mod tests {
         let found = intercepts(&scene(false), 0);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].rank, Rank::Objective);
-        // Far behind him, near his home (the flanker's band 25 m): it
+        // Far behind him, near his home (the flanker's band 35 m): it
         // would be in its band only after he is home; no alarm, and its
         // score is cut to the reach.
         let mut s = scene(true);
@@ -750,14 +750,14 @@ mod tests {
         );
     }
 
-    /// The reach by weapon: behind him at 30 m a flanker's Uzi (band top
-    /// 25 m) must close in, a support's AK-74U (45 m) has him in its band;
+    /// The reach by weapon: behind him at 39 m a flanker's Uzi (band top
+    /// 35 m) must close in, a support's AK-74U (50 m) has him in its band;
     /// a bot ahead of him on his way cuts him off whatever it carries.
     #[test]
     fn the_reach_reads_the_weapons_band_and_the_cut_off() {
         let mut s = scene(false);
         s.enemy(1, 1, Vec3::new(40.0, 0.0, 31.0), Some(Source::Seen));
-        s.bot(0, 0, Vec3::new(10.0, 0.0, 31.0));
+        s.bot(0, 0, Vec3::new(1.0, 0.0, 31.0));
         let reach = |s: &Scenario| s.cx(0).intercept_reach(TargetRef::Place(1));
         s.personality = 0;
         assert_eq!(s.tuning.personalities[0].name, "flanker");

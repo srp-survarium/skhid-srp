@@ -162,7 +162,11 @@ pub struct CombatTuning {
     pub repeek_min_m: f32,
     /// Going to it at most this long, ms.
     pub peek_ms: u32,
-    /// Play 11: the distance band each weapon wants, metres.
+    /// Play 11: the distance band each weapon wants, metres. The SMG's, the
+    /// rifle's, the sniper's and the shotgun's from where the top players
+    /// fight with them (matches of 6+ players, 2026-10-16..22: SMG 17/26/38
+    /// m, rifle 21/33/45, bolt action 45/65/85, shotgun 12/19/27, the
+    /// quartiles; `docs/notes/player_bots_weapons.md`).
     pub band_pistol: (f32, f32),
     pub band_smg: (f32, f32),
     pub band_shotgun: (f32, f32),
@@ -220,7 +224,9 @@ pub struct CombatTuning {
     /// of an empty weapon needs no number: its rounds are counted
     /// ([`super::guns`]), and it comes at the first moment with no seen
     /// target or out of sight (breaking sight first when a target is
-    /// seen); its time is the weapon's.
+    /// seen); its time is the weapon's. The top players reload soon after
+    /// a burst (41 % of their SMG bursts within 3 s, a median 300 ms after;
+    /// 1.6 reloads a minute against 1.0 of the others).
     pub reload_idle_ms: u32,
     pub reload_some_share: f32,
     /// A weapon that fires one round a press: the trigger held this long,
@@ -253,6 +259,11 @@ pub struct CombatTuning {
     pub strafe_run_ms: (u32, u32),
     pub strafe_still_chance: f32,
     pub strafe_still_ms: (u32, u32),
+    /// The side step also while it walks (not runs) to or from its target:
+    /// a forward or back walk weaves to the side (the top players move
+    /// 84.5 % of the time while finishing a kill, the others 66.6 %;
+    /// players strafe 41 % of the time).
+    pub strafe_walking: bool,
     /// With a bolt-action weapon, it crouches to fire at a target with
     /// this chance (drawn per target); other weapons: `fire.crouch_*`.
     pub sniper_crouch_chance: f32,
@@ -565,10 +576,10 @@ impl Default for CombatTuning {
             repeek_min_m: 4.0,
             peek_ms: 4_000,
             band_pistol: (0.0, 20.0),
-            band_smg: (5.0, 25.0),
-            band_shotgun: (0.0, 12.0),
-            band_rifle: (10.0, 45.0),
-            band_sniper: (30.0, 80.0),
+            band_smg: (10.0, 35.0),
+            band_shotgun: (5.0, 25.0),
+            band_rifle: (15.0, 50.0),
+            band_sniper: (40.0, 95.0),
             keep_from_shotgun_m: 15.0,
             close_on_sniper_m: 30.0,
             band_slack_m: 3.0,
@@ -593,8 +604,8 @@ impl Default for CombatTuning {
             camp_m: 3.0,
             trade_ms: 3_000,
             trade_m: 40.0,
-            reload_idle_ms: 1_000,
-            reload_some_share: 0.3,
+            reload_idle_ms: 400,
+            reload_some_share: 0.4,
             press_ms: 100,
             press_gap_ms: 50,
             recoil_pull: 1.0,
@@ -604,6 +615,7 @@ impl Default for CombatTuning {
             strafe_run_ms: (250, 700),
             strafe_still_chance: 0.5,
             strafe_still_ms: (150, 450),
+            strafe_walking: true,
             sniper_crouch_chance: 0.25,
             fire: FireTuning::default(),
             switch_share: 0.5,
@@ -659,9 +671,9 @@ impl CombatTuning {
 
 /// Play 11: the distance band to an enemy, metres, by the bot's weapon
 /// (`own`) and his (`enemy`): its own weapon's band, then an enemy shotgun
-/// kept at `keep_from_shotgun_m` and an enemy sniper closed on to
-/// `close_on_sniper_m`, unless that leaves less than 5 m of band (its own
-/// weapon wins). No band without its own weapon's kind.
+/// kept at `keep_from_shotgun_m` (by any weapon but a shotgun) and an enemy
+/// sniper closed on to `close_on_sniper_m`, unless that leaves less than
+/// 5 m of band (its own weapon wins). No band without its own weapon's kind.
 pub fn preferred_band(
     own: Option<WeaponKind>,
     enemy: Option<WeaponKind>,
@@ -669,7 +681,9 @@ pub fn preferred_band(
 ) -> Option<(f32, f32)> {
     let band = tuning.band(own?);
     let adjusted = match enemy {
-        Some(WeaponKind::Shotgun) => (band.0.max(tuning.keep_from_shotgun_m), band.1),
+        Some(WeaponKind::Shotgun) if own != Some(WeaponKind::Shotgun) => {
+            (band.0.max(tuning.keep_from_shotgun_m), band.1)
+        }
         Some(WeaponKind::Sniper) => (band.0, band.1.min(tuning.close_on_sniper_m)),
         _ => band,
     };
@@ -2371,7 +2385,8 @@ impl Reflex {
         // always, else from `ads_near_m` or as drawn); crouched as drawn
         // for its kind; the side step while it stands to aim, for every
         // target with an automatic weapon, for some with a bolt or a
-        // marksman rifle; a bolt action stands still for its aimed shot.
+        // marksman rifle, also while it walks (`strafe_walking`, not while
+        // it runs); a bolt action stands still for its aimed shot.
         let running = legs.is_some_and(|l| l.run);
         if !running && (bolt || distance >= c.ads_near_m || self.ads_near) {
             keys |= key::AIM;
@@ -2383,7 +2398,7 @@ impl Reflex {
         let aiming_the_shot = bolt && (fire || now + c.fire.bolt_still_ms >= self.next_press);
         if !self.strafe_fire || aiming_the_shot {
             self.strafe = 0;
-        } else if legs.is_none() {
+        } else if legs.is_none() || (c.strafe_walking && !running) {
             strafe = self.side_step(now, c, rng);
         }
         Override {
@@ -3247,6 +3262,64 @@ mod tests {
         assert!(highest > 0.8, "{highest}");
     }
 
+    /// Walking into its weapon's band (the reflex's legs, a walk: an Uzi at
+    /// a rifle 46 m off), it still steps side to side (`strafe_walking`);
+    /// with that off, only standing.
+    #[test]
+    fn it_steps_side_to_side_while_it_walks_into_its_band() {
+        let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
+        let walk = |aim: &AimTuning| {
+            let me = body(0, 0, Vec3::new(24.0, 0.0, 30.0), 0.0);
+            let enemy_at = Vec3::new(70.0, 0.0, 30.0);
+            let view = view_of(vec![me.clone(), body(1, 1, enemy_at, 0.0)]);
+            let weapons = [Some(WeaponKind::Smg), Some(WeaponKind::Rifle)];
+            let sit = Situation {
+                tactics: Some(&tactics),
+                side: Some(0),
+                weapon: Some(WeaponKind::Smg),
+                weapons: &weapons,
+                ..Situation::of(&view)
+            };
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::armed(Arms::of_test_role("flanker"));
+            let mut rng = Rng::new(64);
+            let mut out = Vec::new();
+            for k in 0..120 {
+                let now = 1_000 + k * 50;
+                sense(&mut memory, &[percept(1, enemy_at, now, Source::Seen)], now);
+                if k % 5 == 0 {
+                    reflex.think_with(&me, &sit, &memory, now, aim, 1.0, &mut rng);
+                }
+                out.push(reflex.tick(&me, &view, &memory, now, true, aim, 1.0, &mut rng));
+            }
+            out
+        };
+        let aim = AimTuning::default();
+        let ticks = walk(&aim);
+        let walking: Vec<&Override> = ticks
+            .iter()
+            .filter(|o| o.legs.is_some_and(|l| !l.run && l.why == LegsWhy::Range))
+            .collect();
+        assert!(walking.len() > 50, "{}", walking.len());
+        let stepping = walking.iter().filter(|o| o.strafe != 0).count();
+        assert!(stepping * 2 > walking.len(), "{stepping} of {}", walking.len());
+        let still = AimTuning {
+            combat: CombatTuning {
+                strafe_walking: false,
+                ..CombatTuning::default()
+            },
+            ..AimTuning::default()
+        };
+        let ticks = walk(&still);
+        assert!(ticks.iter().any(|o| o.legs.is_some()));
+        assert!(
+            ticks
+                .iter()
+                .filter(|o| o.legs.is_some())
+                .all(|o| o.strafe == 0)
+        );
+    }
+
     #[test]
     fn it_aims_down_the_sights_and_steps_side_to_side_at_a_seen_target() {
         let aim = AimTuning::default();
@@ -4027,10 +4100,19 @@ mod tests {
             preferred_band(Some(WeaponKind::Rifle), Some(WeaponKind::Sniper), &c),
             Some((c.band_rifle.0, c.close_on_sniper_m))
         );
-        // Its own weapon wins when the enemy's leaves no band.
+        // A shotgun does not keep off another shotgun.
         assert_eq!(
             preferred_band(Some(WeaponKind::Shotgun), Some(WeaponKind::Shotgun), &c),
             Some(c.band_shotgun)
+        );
+        // Its own weapon wins when the enemy's leaves no band.
+        let wide = CombatTuning {
+            keep_from_shotgun_m: c.band_smg.1 - 2.0,
+            ..CombatTuning::default()
+        };
+        assert_eq!(
+            preferred_band(Some(WeaponKind::Smg), Some(WeaponKind::Shotgun), &wide),
+            Some(wide.band_smg)
         );
         assert_eq!(WeaponKind::of_role("rusher"), Some(WeaponKind::Shotgun));
         assert_eq!(WeaponKind::of_role("camper"), Some(WeaponKind::Sniper));
@@ -4992,7 +5074,8 @@ mod tests {
             ..AimTuning::default()
         };
         let c = &aim.combat;
-        let start = Vec3::new(34.0, 0.0, 30.0);
+        // 46 m: past the SMG's and the shotgun's bands, in the rifle's.
+        let start = Vec3::new(24.0, 0.0, 30.0);
         let enemy_at = Vec3::new(70.0, 0.0, 30.0);
         for (own, enemy, carrying, want) in [
             (

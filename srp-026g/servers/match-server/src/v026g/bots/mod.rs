@@ -2020,8 +2020,11 @@ fn drive_tick(
         Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
         _ => None,
     };
-    // Standing to aim (no way to walk): the reflex's side step may move it.
+    // Standing to aim (no way to walk): the reflex's side step may move it;
+    // walking a route while it aims, the step weaves the walk
+    // ([`weave`], `strafe_walking`).
     let mut aiming_still = false;
+    let mut walking_aimed = false;
     let mut decision = match goal {
         // A step or two in a line the play vouches for: by keys, no route.
         Some(at) if intent.straight => {
@@ -2165,7 +2168,10 @@ fn drive_tick(
                     let objective = intent.objective;
                     let clear = |p: Vec3| tactics.clear_line_for(me.feet, p, time, side, objective);
                     let (decision, walked) = match aim {
-                        Some(aim) => bot.motor.walk_aiming(route, &pose, OFF_ROUTE_M, clear, aim),
+                        Some(aim) => {
+                            walking_aimed = true;
+                            bot.motor.walk_aiming(route, &pose, OFF_ROUTE_M, clear, aim)
+                        }
                         None => bot.motor.walk(route, &pose, OFF_ROUTE_M, clear),
                     };
                     if walked != Walked::OnTheWay {
@@ -2193,14 +2199,22 @@ fn drive_tick(
             }
         }
     };
-    // The side step, where the ground that side is clear for a stride.
-    if aiming_still && over.strafe != 0 {
+    // The side step, where the ground that side is clear for a stride:
+    // standing, or weaving a walk to or from the target.
+    let stepped = if aiming_still {
+        Some(decision.keys | over.strafe)
+    } else if walking_aimed && tuning.aim.combat.strafe_walking {
+        weave(decision.keys, over.strafe)
+    } else {
+        None
+    };
+    if let Some(keys) = stepped.filter(|_| over.strafe != 0) {
         let left = over.strafe == key::LEFT;
         let [sx, sz] = kin::forward(me.yaw + std::f32::consts::FRAC_PI_2);
         let sign = if left { 1.0 } else { -1.0 };
         let to = me.feet + Vec3::new(sign * sx * STRAFE_CLEAR_M, 0.0, sign * sz * STRAFE_CLEAR_M);
         if tactics.clear_line_for(me.feet, to, time, bot.side, intent.objective) {
-            decision.keys |= over.strafe;
+            decision.keys = keys;
         }
     }
     // The stance and pace.
@@ -2225,6 +2239,16 @@ fn drive_tick(
         bot.medkits_used = bot.medkits_used.saturating_add(1);
     }
     decision
+}
+
+/// A walk's keys with the side step `strafe` woven in: a walk straight to
+/// or from where it looks (forward or back alone) goes the diagonal to that
+/// side, so the walk goes on while the body weaves; a walk already to a side
+/// is left as it is (it strafes already), and so is no walk.
+fn weave(keys: u32, strafe: u32) -> Option<u32> {
+    let along = keys & (key::FORWARD | key::BACK);
+    let side = keys & (key::LEFT | key::RIGHT);
+    (along != 0 && side == 0 && strafe != 0).then_some(keys | strafe)
 }
 
 #[cfg(test)]

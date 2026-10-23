@@ -235,6 +235,20 @@ side-stepped, and only a bolt action crouched.
   marksman 0.3, bolt 0.25 (`sniper_crouch_chance`), others 0.15.
   - A marksman rifle side-steps for half its targets; the other weapons always
     side-step.
+- **Fight distances** (`band_*` in `reflex::CombatTuning`), from the top
+  players' engagement distances (section 4):
+  - SMG 5-25 → 10-35 m, rifle 10-45 → 15-50, bolt action 30-80 → 40-95,
+    shotgun 0-12 → 5-25; pistol 0-20 unchanged.
+  - A bot keeps 15 m off an enemy shotgun unless it carries one itself, and
+    closes on an enemy sniper to 30 m.
+- **Reloads** (section 3): a partly spent magazine is reloaded once no enemy
+  has been seen for 400 ms (was 1 s) and at least 40 % of it is fired (was
+  30 %), nearer the top players' half a magazine.
+- **Moving while firing** (`strafe_walking`, on): the side step also runs
+  while the bot walks to or from its target, not only while it stands; a
+  walk along its view weaves to the side. A run stays straight. The top
+  players move on 84.5 % of the ticks while finishing a kill, the others on
+  66.6 %.
 
 ## 6. The aim at skill 1, the tiers' skill, the pull against the kick
 

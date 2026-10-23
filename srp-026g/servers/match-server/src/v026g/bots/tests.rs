@@ -2929,3 +2929,19 @@ fn a_partners_death_the_world_shows_without_feet_is_traded_by_both_teammates() {
         );
     }
 }
+
+/// The side step weaves a walk to or from the target into a diagonal; a
+/// walk to a side already, or none, is left as it is.
+#[test]
+fn the_side_step_weaves_a_walk_along_the_view() {
+    assert_eq!(weave(key::FORWARD, key::LEFT), Some(key::FORWARD | key::LEFT));
+    assert_eq!(weave(key::BACK, key::RIGHT), Some(key::BACK | key::RIGHT));
+    assert_eq!(
+        weave(key::FORWARD | key::CROUCH | key::JUMP, key::RIGHT),
+        Some(key::FORWARD | key::CROUCH | key::JUMP | key::RIGHT)
+    );
+    assert_eq!(weave(key::FORWARD | key::LEFT, key::RIGHT), None);
+    assert_eq!(weave(key::LEFT, key::RIGHT), None);
+    assert_eq!(weave(0, key::LEFT), None);
+    assert_eq!(weave(key::FORWARD, 0), None);
+}
