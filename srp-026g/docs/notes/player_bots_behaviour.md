@@ -40,7 +40,7 @@ The server knows everything; a bot that used it all would play like a wallhack. 
 
 | Sense | Rule |
 |---|---|
-| Seen | Line of sight on the bullet mesh, inside a ~90° view, after a noticing delay of 0.2–0.5 s (longer far away, shorter if the enemy moves or fires) |
+| Seen | Line of sight on the bullet mesh, inside a ~90° view (any way within 2 m, §2.7), after a noticing delay of 0.2–0.5 s (longer far away, shorter if the enemy moves or fires) |
 | Heard | Shot ~60 m, sprint ~15 m, reload or weapon switch ~10 m; the position error grows with distance |
 | Told | What one bot senses, its bot teammates know ~1 s later (a callout) |
 | Inferred | What the HUD and kill feed give a human: deaths and respawn timers, score, match clock, the battery markers (marked ones and the team's own) |
@@ -284,6 +284,42 @@ Without the bench's spread the figures are within a few percent of these (1.63 a
 The guards stayed within the noise for every part except as said. Guards checked: kills, deaths and K/D a team; team hits and team kills; deliveries; carriers killed; the time from the take to the put-in; plays ended within 1 s; flips; idle time; the blockers' hit rate and time to the first shot; and their headway. The blocker parts left alone the carrier and the plays the commander ranks an alarm: Hunt, Intercept, and Escort behind the carrier. The first three (b) rows also left every Collect bot alone; the two crouches did not. The parts were taken out again; only the measure is kept.
 
 **Not verified:** no real match was played with any of these. The bench's blocker is the bots' own body model: whether a crouched 0.26g body clears a line 0.63 m over it is the 0.100b model's heights (a GUESS, `friends.rs`).
+
+### 2.7 An enemy at arm's length (built 2026-10-23)
+
+In the owner's match 0x6da44bbb (on #343), bots 13 and 2 (opposite teams) stood 0.8-4 m apart from 662 to 681 s with a line both ways, both logged "is stuck", and neither had a target (`aim_at` None).
+
+**Why** (the saved worlds, the bots' trace, and the senses replayed on the real map):
+- They fought at 656-660 s. From 662 s they were wedged 0.8 m apart. With no target, their yaw followed their legs and the stuck recovery, so each was mostly outside the other's 90 degrees. The rays to the parts were sometimes blocked even at 0.76 m. Their memory had the other only as heard.
+- Nothing turns a bot toward a heard enemy who makes no new sound. The glance needs a fresh sound, and the play that answers sounds (6) is for shots.
+- Neither the stuck recovery nor the raid hold took over the fight. During the Raid at 656-660 s, bot 13 aimed, crouched and strafed. When bot 2 came into its view at 676.4 s, it took him and fired at 680.4 s. The gap was in the sense.
+
+**The rule** (`SenseTuning::touch_m` 2 m, `sense.rs`): an enemy within 2 m (ground distance) is seen whichever way the bot faces, if some part of him is in a clear line. It is as a player feels a body he bumps against and hears a man at arm's length. A wall between still hides him. The noticing delay and the rest of the sight rules are unchanged. Replayed on the match's worlds, bot 2 would have seen 13 in every sample from 662 to 680 s except 671 s.
+
+**Measured** (the bench of §2.5 at base `3d886b74`; the rule off by `SRP_BENCH_SENSE=touch_m=0` and on; seeds 1-16, and 1-32 at tiers 9-10; means a seed; * over 2 standard errors of the paired difference):
+
+| Measure | 4-5 off | on | 9-10 off | on | 13-15 off | on |
+|---|---|---|---|---|---|---|
+| enemies within reach engaged within 1 s | 76.7 % | 78.9 %* | 78.2 % | 79.0 %* | 76.9 % | 80.0 %* |
+| ... never engaged | 19.7 % | 18.4 %* | 19.3 % | 18.8 % | 19.7 % | 17.1 %* |
+| standoffs (within 5 m, a line both ways, 3 s, no hit) | 1.62 | 1.69 | 1.22 | 0.97 | 1.94 | 1.19* |
+| hit rate | 20.5 % | 20.6 % | 23.5 % | 23.6 % | 26.3 % | 26.5 % |
+| kills, team 0 / 1 | 61.6 / 63.3 | 60.6 / 64.8 | 69.0 / 72.3 | 68.9 / 72.3 | 69.5 / 71.2 | 69.6 / 72.5 |
+| deaths, team 0 / 1 | 69.3 / 61.9 | 70.7 / 61.3 | 78.7 / 69.4 | 78.7 / 69.2 | 77.2 / 69.8 | 78.5 / 69.9 |
+| K/D a seed, team 0 / 1 | 0.91 / 1.06 | 0.88 / 1.10 | 0.89 / 1.07 | 0.89 / 1.08 | 0.91 / 1.04 | 0.89 / 1.06 |
+| batteries delivered | 39.5 | 39.7 | 38.6 | 38.6 | 37.8 | 38.1 |
+| carriers killed carrying | 10.6 | 10.3 | 12.8 | 12.9 | 11.6 | 11.8 |
+| plays ended within 1 s | 239.9 | 236.2 | 254.6 | 257.3 | 231.4 | 231.1 |
+| target flips A→B→A | 70.1 | 69.0 | 66.8 | 69.3 | 68.0 | 68.6 |
+| standing with a goal and no route | 3.67 % | 3.70 % | 3.83 % | 3.82 % | 3.56 % | 3.55 % |
+
+- No guard moved by 2 standard errors. With 16 seeds, team 1's kills at tiers 9-10 were −1.50 ± 0.74. Seeds 17-32 brought it to 0.00 ± 0.70. At tiers 9-10 the flips (+2.5 ± 1.6) and plays ended within 1 s (+2.7 ± 2.2) lean up, inside the noise. The K/D shifts go opposite ways for the two teams, which are the same bots, so they come from the sides of the maps.
+- On the earlier base (`122ee630`, tiers 9-10, 16 seeds) the plays ended within 1 s rose +6.2 ± 2.4*. That rise is not in the runs on this base at any tier.
+- **Whole matches** (`--ignored`): all 8 pass with the rule on.
+
+**Tests:** `sense::tests::an_enemy_at_arms_length_behind_is_seen_unless_a_wall_is_between`; `tests::back_to_back_at_arms_length_each_takes_the_other_as_target` (two bots back to back 1 m apart on the soak map, each takes the other within 1.2 s; with the rule off neither does).
+
+**Not verified:** no real match has been played with this. The bench's stand-in bodies do not collide, so it cannot wedge two bots together as the match did. The bench measures only how often enemies come that near.
 
 ## 3. Plays
 
