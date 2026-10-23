@@ -19,6 +19,7 @@ package survarium.friends
    import scaleform.clik.events.ListEvent;
    import scaleform.clik.ui.InputDetails;
    import survarium.controls.PlayerInfo;
+   import survarium.controls.Modals;
    import survarium.controls.PlayerSearchComponent;
    import survarium.controls.SrvContextMenu;
    import survarium.data.LocalizationData;
@@ -114,17 +115,7 @@ package survarium.friends
          trace("details.code",details.code);
          switch(details.code)
          {
-            case Keyboard.ESCAPE:
-               trace("closeSearchComponent::",details.value,InputValue.KEY_UP);
-               if(details.value == InputValue.KEY_UP)
-               {
-                  if(this.searchComponent.visible == true && !(stage.focus is TextField))
-                  {
-                     this.closeComponent(null);
-                     event.preventDefault();
-                  }
-               }
-               break;
+            // Esc: the search is a modal (Modals, onItemClick)
             case Keyboard.BACK:
                if(details.value == InputValue.KEY_UP)
                {
@@ -150,6 +141,7 @@ package survarium.friends
          this.searchComponent.cleanUp();
          this.onLostEnter(null);
          MainScene.activeComponent = null;
+         Modals.leave(this.searchComponent);
       }
       
       protected function searchInput(event:Event) : void
@@ -310,6 +302,10 @@ package survarium.friends
          {
             this.searchComponent.setFriendsList(this._friendsList.getFriendsList());
             this.searchComponent.visible = true;
+            Modals.open(this.searchComponent,Modals.LOBBY,this.closeComponent,function():Boolean
+            {
+               return searchComponent.visible && searchComponent.stage != null;
+            });
             trace("AtPos::",event.itemRenderer.y + 4 + 30);
             this.searchComponent.y = event.itemRenderer.y + 4 + 30;
             stage.focus = this.searchComponent.textInput;

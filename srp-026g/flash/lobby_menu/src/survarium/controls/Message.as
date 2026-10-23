@@ -59,6 +59,7 @@ package survarium.controls
          }
          stackTrace("cleanUP::messsage " + String(messageId));
          delete _instances[messageId];
+         Modals.leave(message);
          if(message === _currentRenderer)
          {
             _currentRenderer = null;
@@ -168,6 +169,7 @@ package survarium.controls
       {
          var targetX:int = 0;
          var targetY:int = 0;
+         enterModals(_currentRenderer);
          _currentRenderer.scaleX = _currentRenderer.scaleY = _scaleFactor;
          var bounds:Rectangle = _currentRenderer.getRect(_stage);
          var offsetX:Number;
@@ -285,7 +287,27 @@ package survarium.controls
          }
          return -1;
       }
-      
+
+      // A message shown is a modal over every window (Modals.MESSAGE). Esc does what its own
+      // close does (MessageBase.cancelByEsc): its Cancel or X (the Upgrade window's donor with more
+      // modifiers leaves its slot), an OK box's OK; one that is not closable now (a reroll being
+      // paid, a choice whose X is off) stays.
+      private static function enterModals(message:MessageBase) : void
+      {
+         if(message == null)
+         {
+            return;
+         }
+         var messageId:int = message.getMessageId();
+         Modals.open(message,Modals.MESSAGE,function():void
+         {
+            message.cancelByEsc();
+         },function():Boolean
+         {
+            return _instances[messageId] === message && message.visible && message.stage != null && !_hideMessages;
+         });
+      }
+
       protected static function handleClose() : void
       {
          var nextId:int;
