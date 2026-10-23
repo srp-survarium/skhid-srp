@@ -202,6 +202,11 @@ package
       protected const GAME_MODE_RESEARCH:uint = 5;
       
       public var researchUnits:ResearchUnits;
+
+      // The units' place in the indicator's own space (placeResearchUnits).
+      protected var _researchX:Number = 0;
+
+      protected var _researchY:Number = ResearchUnits.TOP;
       
       protected var grid_sprite:Sprite = new Sprite();
       
@@ -411,9 +416,12 @@ package
          addChild(this.container_icon);
          progress_indicator = new SrvMatchProgress();
          addChild(this.progress_indicator);
+         // Beside the indicator, not in it (the layout centres the indicator by
+         // its whole width), following it every frame (followIndicator).
          researchUnits = new ResearchUnits();
          this.researchUnits.visible = false;
          addChild(this.researchUnits);
+         this.researchUnits.addEventListener(Event.ENTER_FRAME,this.onResearchFrame);
          pregameInfo = new SrvContextInfoPregame();
          addChild(this.pregameInfo);
          this.pregameInfo.premiumMembers.visible = false;
@@ -2170,28 +2178,57 @@ package
          this.tabMinimap.setResearchUnits(units,ownTeam);
       }
       
-      // The units centred under Team Deathmatch's bars and the timer: the
-      // bounds of those children in the HUD's units (the indicator's own
-      // width and height count its hidden parts, and its origin is its
-      // centre: the layout puts it at the stage's middle, offsetH = width / 2).
+      // The units centred under Team Deathmatch's bars and the timer, below
+      // the respawn countdown's line, measured in the indicator's own space
+      // (its origin is its centre). The countdown's line is kept free while it
+      // is empty too: the units do not jump when the player dies.
       private function placeResearchUnits() : void
       {
+         var space:DisplayObject = this.progress_indicator;
          var bars:Rectangle = null;
          var part:DisplayObject;
          var parts:Array = [this.progress_indicator.team_1_score,this.progress_indicator.team_2_score,this.progress_indicator.match_time_2_tdm];
+         var respawn:DisplayObject = this.progress_indicator.respawn_time;
+         var top:Number = 0;
          for each(part in parts)
          {
             if(part != null && part.visible)
             {
-               bars = bars == null ? part.getBounds(this) : bars.union(part.getBounds(this));
+               bars = bars == null ? part.getBounds(space) : bars.union(part.getBounds(space));
             }
          }
-         if(bars == null)
+         if(bars != null)
          {
-            bars = this.progress_indicator.getBounds(this);
+            top = bars.bottom;
          }
-         this.researchUnits.x = Math.round(bars.x + bars.width / 2);
-         this.researchUnits.y = Math.round(bars.bottom + ResearchUnits.TOP);
+         if(respawn != null)
+         {
+            top = Math.max(top,respawn.getBounds(space).bottom,respawn.y + ResearchUnits.RESPAWN_LINE);
+         }
+         _researchX = bars == null ? 0 : bars.x + bars.width / 2;
+         _researchY = top + ResearchUnits.TOP;
+         this.followIndicator();
+      }
+
+      // The units where the indicator is now: its x and y as the layout last
+      // put them, plus the units' place in its space. Rev 30 converted the
+      // bars' bounds with getBounds(this) at research_update only: early in a
+      // match that gave the indicator's own space, and the units sat in the
+      // screen's top-left corner until a later update.
+      private function followIndicator() : void
+      {
+         this.researchUnits.x = Math.round(this.progress_indicator.x + this._researchX * this.progress_indicator.scaleX);
+         this.researchUnits.y = Math.round(this.progress_indicator.y + this._researchY * this.progress_indicator.scaleY);
+      }
+
+      // Every frame of a Research match: the layout moves the indicator at
+      // many calls (scores, messages, resizes), the units follow it.
+      private function onResearchFrame(e:Event) : void
+      {
+         if(this.researchUnits.visible)
+         {
+            this.followIndicator();
+         }
       }
 
       public function set_artifacts_progress(team:uint, value:uint) : void
