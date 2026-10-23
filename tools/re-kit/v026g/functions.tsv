@@ -1023,6 +1023,7 @@ va	status	ref_021d	name
 0x00294a90	reviewed	0x001a9c2d	survarium::object_sound::remove
 0x002989d0	reviewed	0x001b22d2	survarium::damage_zone::damage_zone
 0x0029ab20	reviewed	0x00177271	survarium::lobby_menu::fill_match_statistic
+0x002a6470	reviewed	0x001b3d18	survarium::player_equipment_sound_effect::on_player_sound_event
 0x002a6520	reviewed	0x001b3d8a	survarium::player_equipment_sound_effect::on_foot_step
 0x002aec40	reviewed	0x000f0dff	vostok::render::stage_particles::is_effects_ready
 0x002c6f90	reviewed	0x001c4d2c	survarium::query_inventory_item

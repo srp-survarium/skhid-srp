@@ -530,10 +530,20 @@ chosen in srp's changed lobby movie ("Player vs Bots"; the wire is
   over as deserted (`game.rs` `check_pvb_stall`). A game that is gone
   ends it by `BOTS_ALONE` (45 s), one that waits for a world by the lost
   world rule, as before.
-- **Its pay.** Half the silver and experience (`SRP_PVB_PAY`), no quest,
-  no daily bonus; and as every match with a server's bot it moves no
-  rating and no balance rating. The one witness could fake its numbers
-  within what the server's checks allow: that is why it pays less.
+- **Its pay.** A quarter of the silver and experience and of the drop's
+  chance (`SRP_PVB_PAY`; half of the silver and experience and the whole
+  chance until 2026-10-23, when 21 of 37 matches played to their end
+  dropped something), no quest, no daily bonus; and as every match with a
+  server's bot it moves no rating and no balance rating. The one witness
+  could fake its numbers within what the server's checks allow, and the
+  bots lose nearly every match: that is why it pays less. **Only a match
+  played to its own end pays** (the mode's rule or the time limit, the
+  player in it): a match its player leaves ends at once (everyone gone),
+  and until 2026-10-23 that paid what was made so far, so leaving and
+  starting again was a way to farm. Now one that ends `Deserted` (left,
+  lost link, `SRP_PVB_STALL_S`, the lost world rule) pays nothing: no
+  silver, experience, reputation, drop or drop card; what it used is
+  taken as in any match (`rewards::Reward::forfeited`).
 - **Maps in memory.** Each match against bots may be on another map, and a
   bot match without its map plays on the script (stage 0) until it gets
   one. With `SRP_PVB=on` the store keeps up to `SRP_PVB_MAX_MATCHES` (5)

@@ -35,8 +35,14 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the edit l
 - Passive: each of its seven pools (body, head, both hands, both legs, pain) regenerates
   base + 0.1/s, up to 100 %, as before.
 - Regeneration starts after the pool's own 8 s without a hit (the artefact no longer adds 2 s).
-- Active (3 s, cooldown 15 s): hand and leg injuries removed as before, and pain, body and head full
+- Active (3 s, cooldown 45 s): hand and leg injuries removed as before, and pain, body and head full
   at once.
+- Cooldown 45 s, was 15 s (the owner, 2026-10-23): since its active is a full heal, 15 s was too
+  often (Spring 40 s, Onyx 60 s). `data/cooldown_sec` 15 -> 45 in `artefacts-1.json`.
+- Nothing hard-codes it: artefact_base's constructor (0x312FD0) reads `cooldown_sec` x 1000 into
+  +274h, the active's end (0x3135EC) starts the cooldown from it (times the holder's modifier 38),
+  and the HUD slot's fill (0x313880) is 100 - time left x 100 / it. Patch 54 only reads the time
+  left (+28Ch).
 
 ## Onyx
 

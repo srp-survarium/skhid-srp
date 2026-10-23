@@ -141,7 +141,9 @@ services:
       # SRP_PVB_MAX_MATCHES maps): raise SRP26_MEMORY with it.
       # SRP_PVB_MAX_GEAR: the highest equipment level let in, 15 (every
       # level) when unset; the bots wear the player's tier's equipment
-      # (docs/notes/pvb-tiers.md).
+      # (docs/notes/pvb-tiers.md). SRP_PVB_PAY (default 0.25): the share of
+      # silver, experience and drop chance such a match gives, and only one
+      # played to its own end (time or score) pays at all.
       - SRP_PVB=${SRP_PVB:-on}
       - SRP_PVB_MAX_GEAR
       - SRP_PVB_MAX_MATCHES

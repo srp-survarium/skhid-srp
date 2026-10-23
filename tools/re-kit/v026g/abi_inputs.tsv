@@ -2583,6 +2583,8 @@ va	name	location	role	basis
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+8	match summary	inferred
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+12	full player result	inferred
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+16	selected player index	inferred
+0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	ECX	player_equipment_sound_effect (+3Ch player, +44h toe positions set); subscribed to the clip event channel player_sound_events of the player's animation player (player+750h) at 0x29562D..0x295658	observed
+0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	entry ESP+4	animation_callback_params& (+0 the animated object, must be the player; +10h time; byte +20h the channel domain value: 0 and 1 on_foot_step for one toe or the other, 2 0x2A6580 rustle by movement id, 3 0x2A6630, 4 0x2A66C0)	observed
 0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	ESI	player_equipment_sound_effect (+38h logic selector, +3Ch player, +40h world); foot material = player u16 [0F2C4h + 4*state+24h + 2*third_person], state+24h: 1 crouch walk, 2 stand run, 3 sprint, 4 jump (boots walk_/run_/sprint_/jump_{1st,3rd}_view_material_id, copied to player+0F2C8h)	observed
 0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	entry ESP+4	foot position (float3*)	observed
 0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	entry ESP+8	step direction (float3*)	observed
@@ -3071,6 +3073,9 @@ va	name	location	role	basis
 0x0032a420	survarium::body_part::increase_health	ESI	the pool (Hmax +9Ch, H +0A0h)	observed
 0x0032a420	survarium::body_part::increase_health	stack+4	the time	observed
 0x0032a420	survarium::body_part::increase_health	stack+8	float amount added, H clamped to [0, Hmax]	observed
+0x0032a4b0	survarium::body_part::regenerate	EDI	the pool: +9Ch max health, +A0h health, +A4h regeneration_speed (per s), +A8h regeneration_threshold (x max), +ACh timeout ms, +B0h last hit ms, +2ECh regeneration_modifiers subscribers (0x329DF0); speed = getter 0x2D5AE0 index 2 (health_regeneration_speed) on +A4h, k 1	observed
+0x0032a4b0	survarium::body_part::regenerate	entry ESP+4	elapsed ms	observed
+0x0032a4b0	survarium::body_part::regenerate	entry ESP+8	now ms	observed
 0x0032ae00	survarium::body_part_parameters::serialize	ECX	body_part_parameters	inferred
 0x0032ae00	survarium::body_part_parameters::serialize	stack+4	writer	inferred
 0x0032afe0	survarium::body_part_parameters::deserialize	ECX	body_part_parameters	inferred
@@ -3231,6 +3236,7 @@ va	name	location	role	basis
 0x0033efc0	survarium::armor::`scalar deleting destructor'	ECX	armor receiver	inferred
 0x0033efc0	survarium::armor::`scalar deleting destructor'	stack+4	deletion flags	inferred
 0x0033f0c0	survarium::armor::on_holder_assigned	ECX	armor receiver	inferred
+0x0033f3a0	survarium::armor::add_modifiers	EDI	the armour: +250h its inventory (+174h the holder, vtable +0Ch the player), +838h its nodes {prev, next, index, value} (one per nonzero modifier float), +83Ch their count; linked at the tail of the kit list +6B8h + kit x 704h + 204h + index x 14h	observed
 0x0033fde0	survarium::player_history_item::serialize	ECX	player history record	inferred
 0x0033fde0	survarium::player_history_item::serialize	EAX	writer	inferred
 0x0033fee0	survarium::player_history_item::deserialize	stack+4	player history record	inferred
@@ -3301,6 +3307,12 @@ va	name	location	role	basis
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	ESI	portal structure owner	observed
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	entry ESP+4	query-volume pointer forwarded to virtual3C	observed
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	entry ESP+8	visibility-byte-array pointer	observed
+0x00357f80	vostok::configs::apply_add_modifiers	ESI	the config value record (data +0, type +14h; an int becomes a float first)	observed
+0x00357f80	vostok::configs::apply_add_modifiers	ECX	the modifiers set (end at [ECX])	observed
+0x00357f80	vostok::configs::apply_add_modifiers	entry ESP+4	its first modifier node (value -20h, type -0Ch)	observed
+0x00358010	vostok::configs::apply_multiply_modifiers	ESI	the config value record (data +0, type +14h; an int becomes a float first)	observed
+0x00358010	vostok::configs::apply_multiply_modifiers	ECX	the modifiers set (end at [ECX])	observed
+0x00358010	vostok::configs::apply_multiply_modifiers	entry ESP+4	its first modifier node (value -20h, type -0Ch)	observed
 0x00376280	vostok::network::login_client::create_client	ECX	login-client receiver	observed
 0x003762d0	vostok::network::login_client::login_client	EAX	world pointer	observed
 0x003762d0	vostok::network::login_client::login_client	EDI	login-client receiver	observed

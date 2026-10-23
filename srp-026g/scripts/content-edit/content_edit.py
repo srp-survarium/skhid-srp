@@ -64,6 +64,10 @@ Edits (edits.json):
                                                        collision); the later entries move down in place, the
                                                        count drops by 1. Applied last: the paths of the edits
                                                        above are the live file's
+  "add_event_channel": [{"file", "from", "add"}]       an animation clip (`.b-spline`, not a config): `from`
+                                                       is its live event channels, `add` one more after them,
+                                                       each {"name", "type", "knots", "domains"}; the bone
+                                                       tracks stay byte for byte (see clip_parse)
 In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
 within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
 A copy is read back against the file it was copied from: byte for byte when nothing edits it.
@@ -529,6 +533,90 @@ def unshifted(path, lst, at):
     return '%s%d]%s' % (head, int(k) - (int(k) > at), rest)
 
 
+CLIP_HEAD = struct.Struct('<HBB')  # bones, event channels, animation type
+CLIP_BONE, CLIP_EVENT = 0x48, 0x10
+CLIP_NAME_MAX = 31  # the engine copies a channel's name into 32 bytes (0x3A84CA)
+
+
+def clip_parse(b):
+    """A `.b-spline` clip, the memory image the engine fixes up on load (vostok's
+    create_baked_animation_in_place): u16 bones, u8 event channels, u8 type; per bone nine 8-byte
+    track pointers, per event channel a 16-byte header (8-byte knots pointer, u16 knots, u8 domains,
+    u8 type, 4 unused bytes); every bone's nine tracks (u32 n, n knot/value float pairs); then per
+    event channel its knots (f32), its domains (u8) and its NUL-ended name, padded to 4. Every pointer
+    is set on load from the counts, never read; the unused and padding bytes are whatever the cooker's
+    memory held (kept as they are). Returns (the part up to the event headers, the headers, the
+    tracks, the channels, their padding); clip_bytes makes the same bytes again."""
+    bones, events, _ = CLIP_HEAD.unpack_from(b, 0)
+    heads_at = CLIP_HEAD.size + bones * CLIP_BONE
+    heads = [bytes(b[heads_at + CLIP_EVENT * i:heads_at + CLIP_EVENT * (i + 1)]) for i in range(events)]
+    off = tracks_at = heads_at + CLIP_EVENT * events
+    for _ in range(bones * 9):
+        off += 4 + 8 * struct.unpack_from('<I', b, off)[0]
+    tracks = bytes(b[tracks_at:off])
+    channels, pads = [], []
+    for head in heads:
+        knots, domains, kind = struct.unpack_from('<HBB', head, 8)
+        values = list(struct.unpack_from('<%df' % knots, b, off))
+        off += 4 * knots
+        end = b.index(b'\0', off + domains)
+        name = bytes(b[off + domains:end]).decode()
+        size = (domains + len(name) + 1 + 3) // 4 * 4
+        channels.append({'name': name, 'type': kind, 'knots': values, 'domains': list(b[off:off + domains])})
+        pads.append(bytes(b[end + 1:off + size]))
+        off += size
+    if off != len(b):
+        raise ValueError('a clip ends at %d, its file at %d' % (off, len(b)))
+    return bytes(b[:heads_at]), heads, tracks, channels, pads
+
+
+def clip_bytes(start, heads, tracks, channels, pads):
+    """A clip's bytes; a channel past `pads` is padded with zeros."""
+    out = bytearray(start)
+    out[2] = len(channels)
+    for head in heads:
+        out += head
+    out += tracks
+    for i, c in enumerate(channels):
+        tail = struct.pack('<%df' % len(c['knots']), *c['knots']) + bytes(c['domains']) + c['name'].encode() + b'\0'
+        out += tail + (pads[i] if i < len(pads) else bytes(-len(tail) % 4))
+    return out
+
+
+def clip_end(tracks):
+    """The clip's length in frames: the last knot of its first track."""
+    n = struct.unpack_from('<I', tracks, 0)[0]
+    return struct.unpack_from('<f', tracks, 4 + 8 * (n - 1))[0]
+
+
+def f32(values):
+    return [struct.unpack('<f', struct.pack('<f', v))[0] for v in values]
+
+
+def add_event_channel(buf, frm, add):
+    """`buf` with the event channel `add` after the channels `frm` (its live ones, checked)."""
+    start, heads, tracks, channels, pads = clip_parse(buf)
+    if clip_bytes(start, heads, tracks, channels, pads) != buf:
+        sys.exit('add_event_channel: the clip does not read back byte for byte')
+    want = [dict(c, knots=f32(c['knots'])) for c in frm]
+    if channels != want:
+        sys.exit('add_event_channel: the live channels are %s, not %s' % (channels, frm))
+    new = dict(add, knots=f32(add['knots']))
+    end = clip_end(tracks)
+    if new['name'] in [c['name'] for c in channels] or len(new['name'].encode()) > CLIP_NAME_MAX \
+            or not new['knots'] or len(new['knots']) != len(new['domains']) \
+            or new['knots'] != sorted(new['knots']) or not 0 <= new['knots'][0] <= new['knots'][-1] < end \
+            or not all(0 <= d < 255 for d in new['domains']) or not 0 <= new['type'] < 256:
+        sys.exit('add_event_channel: %s does not fit a clip of %g frames with %s' % (add, end, channels))
+    head = bytes(8) + struct.pack('<HBB', len(new['knots']), len(new['domains']), new['type']) + bytes(4)
+    out = clip_bytes(start, heads + [head], tracks, channels + [new], pads)
+    s2, h2, t2, c2, p2 = clip_parse(out)  # read back
+    if s2[:2] + s2[3:] != start[:2] + start[3:] or s2[2] != len(heads) + 1 or h2 != heads + [head] \
+            or t2 != tracks or c2 != channels + [new] or p2[:-1] != pads:
+        sys.exit('add_event_channel: the edited clip reads back otherwise')
+    buf[:] = out
+
+
 def game_path(name):
     return name.replace('__', '/')
 
@@ -604,7 +692,7 @@ def main():
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
     for e in edits.get('rename_key', []):
         n = 0
-        for p in sorted(fnmatch.filter(files, e['files'])):
+        for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
             b = bytearray(open(files[p], 'rb').read()) if p not in bufs else bufs[p]
             if rename_key(b, e['table'], e['from'], e['to']):
                 bufs[p] = b
@@ -612,7 +700,7 @@ def main():
         print('rename %s -> %s: %d files' % (e['from'], e['to'], n))
     for e in edits.get('replace_string', []):
         n = 0
-        for p in sorted(fnmatch.filter(files, e['files'])):
+        for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
             b = bytearray(open(files[p], 'rb').read()) if p not in bufs else bufs[p]
             k = replace_string(b, e['from'], e['to'])
             if k:
@@ -622,7 +710,7 @@ def main():
     shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
     for e in edits.get('add_entry', []):
         n = 0
-        for p in sorted(fnmatch.filter(files, e['files'])):
+        for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
             b = bytearray(open(files[p], 'rb').read()) if p not in bufs else bufs[p]
             if e.get('only_if'):
                 try:
@@ -671,6 +759,17 @@ def main():
         if any(unshifted(a, lst, at) is None for a in added.get(e['file'], ())):
             sys.exit('remove_entry: %s[%d] is an entry this list adds' % (lst, at))
         added[e['file']] = [unshifted(a, lst, at) for a in added.get(e['file'], ())]
+    clips = {}  # animation clips: not configs, so add_event_channel reads them back itself
+    for e in edits.get('add_event_channel', []):
+        p = e['file']
+        if p in bufs:
+            sys.exit('add_event_channel: %s is edited as a config too' % p)
+        if p not in clips:
+            if p not in files:
+                sys.exit('%s: not in the live folder' % p)
+            clips[p] = bytearray(open(files[p], 'rb').read())
+        add_event_channel(clips[p], e['from'], e['add'])
+        print('event channel %s: %s knots %s domains %s' % (p, e['add']['name'], e['add']['knots'], e['add']['domains']))
 
     # read back: compare every value with the live file, by path
     renames = [('/%s/%s' % (e['table'], e['from']), '/%s/%s' % (e['table'], e['to']), e['from'], e['to'])
@@ -716,12 +815,12 @@ def main():
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))
     if copies:
         print('%d new files (copies), %d of them byte for byte' % (len(copies), same_copies))
-    print('%d files edited, %d unexpected differences' % (len(bufs), bad))
+    print('%d files edited, %d unexpected differences' % (len(bufs) + len(clips), bad))
     if bad:
         sys.exit(1)
     if check:
         return
-    for p, b in bufs.items():
+    for p, b in list(bufs.items()) + list(clips.items()):
         dst = os.path.join(out, *p.split('/'))
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         with open(dst, 'wb') as f:
