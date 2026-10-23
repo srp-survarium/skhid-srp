@@ -1746,7 +1746,9 @@ section table (0x210..0x400): 12 slots
   +0        research.code   (code,  0x3000, page)   -> 0xA42D000
   +0x3000   research.state  (state, 0x1000, page)   -> 0xA430000
   +0x4000   artefacts.code  (code,  0x1000, page)   -> 0xA431000  (patch 54)
-  +0x5000   (next: #225's anomalies.code)           -> 0xA432000
+  +0x5000   anomalies.code  (code,  0x1000, page)   -> 0xA432000  (#225's, int3 until it lands)
+  +0x6000   engine.code     (code,  0x1000, page)   -> 0xA433000  (the engine-function library, 0.5)
+  +0x7000   (next)                                  -> 0xA434000
   ...each new patch's blocks appended, nothing before them moves
 ```
 
@@ -1772,16 +1774,16 @@ but new code goes on the arena.
 **Adopting it: the dynamic anomalies (#225).** #225 assembles
 `dynamic_anomalies_026g.asm` for 0xA431000 (`.srpx` + 0x4000) and puts its
 bytes there itself; the artefacts took that page, so on the arena it is
-assembled for 0xA432000 (`.srpx` + 0x5000). On the arena:
+assembled for 0xA432000 (`.srpx` + 0x5000). Its block is already in `ARENA`
+and `ARENA_PINNED` (`anomalies.code`, one page, int3: the engine-function
+library took the page after it, 0.5). On the arena:
 
-1. append its block to `ARENA`, after the artefacts':
-   `ArenaBlock("anomalies.code", "code", <its size, a page multiple>, 0x1000)`
-   (state of its own, if any, as one more block after it), and its row to
-   `ARENA_PINNED`: `"anomalies.code": 0xA432000`;
+1. keep the block's row (one page fits its 871 bytes; state of its own, if
+   any, goes as a new block at `ARENA`'s end);
 2. take its VA from `ARENA_LAYOUT["anomalies.code"]` (0xA432000: its `.bin`
    assembled again with `-DCAVE=0xA432000`), check its `.bin` was assembled for it, aim its
    hooks there, and put its bytes into `arena_bytes["anomalies.code"]` in
-   `build()` (beside `arena_bytes["research.code"]` and `["artefacts.code"]`); drop its own
+   `build()` (in place of the `b""` there now); drop its own
    `add_code_section` / `.srpx` code;
 3. declare its hooks in `INSTALLS` (and any vtable or callback it hands the
    game in `INSTALLED_VTABLES` / `CALLBACKS`, section 0.4), or `build()`
@@ -1886,3 +1888,122 @@ no-branch-into-a-hook checks. Nor are the in-place rewrites of the game's code
 (STAGE_FOCUS, the scoreboard's loop), which install nothing. Not yet either:
 that every slot of ours is reached through the game's own call site with its
 arguments in their order (the Research follow-up).
+
+### 0.5 The engine-function library: calling the game's functions (generic tooling, 2026-10-23) — PROVEN bytes and thunks: check_engine_026g.py passes on every function and rejects the wrong rows; Research's checks pass on the migrated code; not run in a game
+
+The game's compiler (LTO) moved arguments of many functions into arbitrary
+registers (the config's child 0xF6B10: EAX, EDI; its has 0xF6C00: EAX, ESI;
+the pool lookup 0x2E58B0: EAX, ECX), mixed registers and stack
+(increase_health 0x32A420: ESI and two slots; the field writers 0x1F3DE0,
+0x2F5DA0, 0x1F48A0: EAX and five slots), and made either side clean up
+(0x1F3DE0 pops 20, the decal decoder 0x263D00 nothing). Each patch wrote its
+own inline-asm stub per call, and Research crashed twice from exactly that
+(a wrong argument count, a wrong order). The library makes each such
+function an ordinary cdecl one; a patch calls that and never sees the ABI.
+
+**Where the ABI comes from.** `tools/re-kit/v026g/abi_inputs.tsv` (each
+argument's register or stack slot) and `abi.tsv` (the cleanup, the result),
+every row of the VA together. `engine_026g.tsv` (in `client-patches/`)
+lists the library's functions, one row each, append only (each entry's
+address is pinned in `patch_026g.py`'s `ENGINE_PINNED`; rows out of that
+order are refused, as Research's `.bin` calls the entries by address): the C
+name, the VA, where each C parameter goes with a word of the re-kit's role
+there (`EAX:table EDI:key`), the C prototype. `engine_026g.py` refuses a row
+whose locations are not exactly the re-kit's for the VA, a parameter whose
+word is not in a role of its location (and no two parameters may have words
+that fit each other's locations, so a swap is always refused), stack slots
+with a gap, a cleanup that is no number or not one value of at most the
+slots' bytes, or a C return type that does not fit the rows' result (EAX; AL,
+widened; EDX:EAX for 64 bits; XMM0, moved to ST0 for a float). An XMM or
+x87 argument, varargs (log_message 0x111ED0, buffer_string::appendf
+0xE45B0) and tail jumps stay hand-written.
+
+**What it generates.** `engine_026g.asm`: at the block's start a `jmp near`
+per row (entry i at 0xA433000 + 5i: an entry never moves), then a thunk per
+function:
+
+```
+engine_x:   push ebp / ebx / esi / edi      ; cdecl's callee-saved: kept
+            push dword [esp+..]             ; the stack slots, highest first
+            mov  <reg>, [esp+..]            ; the register arguments
+            call <the real VA>
+            add  esp, <slots - cleanup>     ; what the real one leaves
+            [movzx eax,al | fld the XMM0 float]
+            pop  edi / esi / ebx / ebp
+            ret                             ; cdecl: the caller pops its own
+```
+
+`engine_026g.section.bin` is it assembled for 0xA433000; `engine_026g.h`
+declares each function in C with its address (`__asm__(".set name, VA")`,
+so gcc emits `call rel32` to the entry); `engine_026g.inc` gives NASM the
+same addresses. The comments name the real function and its shape.
+
+**Why one block, not a copy in each patch.** The thunks are code shared by
+every patch, so they are one pinned arena block, `engine.code` at 0xA433000
+(`.srpx` + 0x6000; 0xA432000 is kept for #225, 0.3), built once and checked
+once: the self-test runs the ABI check on exactly the bytes every patch
+calls, and a C patch only includes the header (no change to how
+`research_026g.py` compiles and links), an asm patch only `%include`s the
+addresses. A copy linked into each patch's own block would need the same
+thunks assembled and checked per patch, and asm patches have no linker to
+take them.
+
+**The check** (`check_engine_026g.py`; the self-test's `test_engine`, which
+fails without Unicorn): the original exe's sections and the library's bytes
+in Unicorn. Per function:
+- the exe's `ret`s (selftest's `function_pops`, the call-shape check's
+  reader, 0.4) pop what abi.tsv says;
+- the thunk, called as C calls it with a distinct marker per argument,
+  reaches the real VA once, with each marker in the register or slot the rows
+  give it and its return address in the library; there the return is played
+  with the exe's own cleanup, EBX ESI EDI EBP clobbered and result markers in
+  EAX, EDX and XMM0; back at the caller esp is the call's + 4, the four
+  registers are the caller's and the result is where C takes it;
+- the functions that run on made-up data run for real: the config's child
+  and has on a mode config, the three field writers on a writer (the value's
+  bytes appended), the statistics' listener (its invoker gets the functor,
+  place, event and amount), the pool lookup on two pools, the allocation's
+  name. A row with two arguments swapped makes a thunk the entry check agrees
+  with but the real function does not.
+Negative cases, each of which must be rejected: spec rows with two
+parameters in each other's places (the config child's table and key,
+malloc's allocator and size, the rule base's rule and type, the message's
+second and third parameters, Invoke's name and result, free's allocator and
+memory, profile assign's destination and source: the generator refuses
+each), rows out of their pinned order (the u8 and u16 writers, the config's
+child and has), a cleanup "0x10"; libraries made from wrong re-kit rows
+(0xF6B10's table and key registers exchanged, the spec following them: the
+real lookup finds nothing; w<unsigned char> popping 16: the exe pops 20;
+value_exists' key in EDI: the real one reads ESI); and the built library
+checked against rows with malloc's allocator and size exchanged. The
+self-test also fails when the four files are not what the rows give
+(`--write` not run).
+
+What is caught and what is not. Caught by the self-test: a spec parameter in
+another's place or a row out of order (the generator), a wrong cleanup in
+abi.tsv (the exe's `ret`s), a thunk that does not follow its rows (the entry
+check), and a wrong re-kit location for the functions run for real (the
+config's child and has, the three writers, the statistics' listener, the
+pool lookup, the allocation's name). Not caught by it: a re-kit row whose
+location is itself wrong, role and all, for any other function: the thunk
+and the check both follow the row. For Research's other functions (malloc,
+the rule base's constructor, show_parametrized_message, Invoke,
+register_cook) check_research_026g.py runs the real ones or reads their
+arguments where the game does; for the asm patches' functions, their own
+Unicorn checks, once they call the library.
+
+**The first users.** The library has 33 functions: the 11 Research calls
+and the 22 the artefacts, weapon camouflage, weapon decals and upgrade
+preview patches call directly (weapon_table calls none: its one game
+transfer is the tail jump to set_target 0x2845C0, XMM arguments). Research's
+C calls the library for all 11 (its inline-asm stubs and thiscall casts are
+gone); its built `.bin` changed, its behaviour did not: check_research_026g.py
+passes every case as before (the hooks, the cook and rule through the game's
+own register_cook, constructor, config look-ups and field writers, the
+slots driven through the game's own callers, the invoke and the messages
+with their arguments where the game reads them). The rows this needed were
+appended: show_parametrized_message 0x2375C0's three message parameters,
+malloc_impl 0xE4F90's result, and the pool lookup 0x2E58B0, the artefact
+effect 0x313350, the allocation's name 0x420789 and query_resources 0xE5B60
+in full. The asm patches still call by hand; moving them is a follow-up
+(README, the library's section).

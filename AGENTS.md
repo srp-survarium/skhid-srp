@@ -57,6 +57,11 @@ work identifies a function that is not there, or identifies one with more confid
 TSV (one line per name, no bulk JSON). The client patches' own addresses and reasoning are in
 `srp-026g/docs/notes/client_patch.md` and `srp-026g/client-patches/README.md`.
 
+- Add re-kit rows (names, `abi.tsv` / `abi_inputs.tsv`) as soon as a finding is made, in the same PR.
+- Client patches call engine functions through the engine-function library
+  (`srp-026g/client-patches/engine_026g.tsv`, `client_patch.md` §0.5): add a row there for a new
+  function instead of a hand-written call. Only varargs, XMM-argument calls and tail jumps stay hand-written.
+
 ## Rust changes
 
 - Before opening a PR, run `cargo clippy --workspace --all-targets` (in `srp-026g`, under `nix develop`)

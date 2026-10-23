@@ -398,8 +398,8 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     three sites (the game's constructor, update_ui's two) are the
     original's instructions before and the hooks after, no relocation
     under one and no branch into one, the entries are jumps, the stubs
-    leave only where they should, the C code names the game's functions
-    it calls (each slot of the rule's and the cook's vtables that is ours
+    leave only where they should, the C code calls the game's functions
+    through the engine-function library (each slot of the rule's and the cook's vtables that is ours
     pops what tdm_rule_core's (0xA15DA4) and tdm_rule_cook's (0x9FD8AC)
     pops: the call shapes' INSTALLED_VTABLES check, for every patch).
     check_research_026g.py runs the hooks, the cook and the rule.
@@ -409,6 +409,21 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     its remove_affects, artefact_base::action's entry, the player's
     stagger) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
+The engine-function library (engine_026g.py, the arena's block engine.code
+at `.srpx`+6000h; client_patch.md section 0.5): its files are what
+engine_026g.tsv and the re-kit's ABI rows give, and engine_026g.py refuses a
+spec row whose parameters are not where the re-kit's roles say (each names
+a word of its location's role: two parameters swapped are refused), rows out
+of ENGINE_PINNED's order and a cleanup that is no number. check_engine_026g.py
+(run here, test_engine) proves every thunk against the rows and the original
+exe: each argument in its register or slot at the real function's entry, the
+exe's `ret` against abi.tsv's cleanup (a wrong cleanup fails), the stack
+balanced, EBX ESI EDI EBP kept, the result where C takes it; the config's
+look-ups, the field writers, the statistics' listener, the pool lookup and
+the allocation's name run for real. Not caught here: a re-kit row whose
+location is itself wrong (role and all) for a function not run for real;
+Research's other ones (malloc, the rule base's constructor, the message,
+Invoke, register_cook) run for real in check_research_026g.py (not run here).
 """
 
 import ast
@@ -712,6 +727,13 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.artefacts_bin(), "rb").read(),
           f"{os.path.basename(P.artefacts_bin())} is current ({len(fresh)} bytes)")
+    import engine_026g
+    try:
+        stale = engine_026g.stale(tool("nasm"))
+    except engine_026g.Refused as error:
+        stale = [f"refused: {error}"]
+    check(not stale, "engine_026g.h, .inc, .asm and .section.bin are what engine_026g.tsv and the re-kit's ABI rows "
+          "give (engine_026g.py --write)" + (": not " + ", ".join(stale) if stale else ""))
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_DRAW_VA:#x}", f"-DSTATE={state:#x}",
@@ -2046,11 +2068,19 @@ def test_research(original, image, before):
           "the stubs leave to the constructor's replaced call, update_ui's message (TDM's key or mode 5's) and its "
           f"way on without one, and the hud's to update_ui past Team Deathmatch's part ({sorted(hex(c) for c in outside)}); "
           "the C code calls the game through registers only")
-    for va, what in ((0x102D10, "register_cook"), (0xE4F90, "the cooks' allocate"), (0x313900, "the rule base's ctor"),
-                     (0xF6B10, "the config's child"), (0xF6C00, "the config's has"), (0x1F3DE0, "the u8 field writer"),
-                     (0x2F5DA0, "the u16 field writer"), (0x1F48A0, "the u32 field writer"),
-                     (0x511600, "the movie's invoke"), (0x2375C0, "the hud's message")):
-        check(struct.pack("<I", va) in code[P.RESEARCH_ASM_SIZE:], f"the C code names {what} ({va:#x})")
+    # The C code reaches the game's functions through the engine-function
+    # library (check_engine_026g.py proves each thunk): a call or a pointer
+    # to each one's entry, and none of their VAs in the code.
+    import engine_026g
+    entries = {f["symbol"]: (engine_026g.entry_va(i), f["va"]) for i, f in enumerate(engine_026g.functions())}
+    c_listing = [plain(t) for _, _, t in ndisasm(code[P.RESEARCH_ASM_SIZE:], P.RESEARCH_VA + P.RESEARCH_ASM_SIZE)]
+    for symbol in ("engine_register_cook", "engine_malloc", "engine_match_rule_base", "engine_cfg_child",
+                   "engine_cfg_has", "engine_write_u8", "engine_write_u16", "engine_write_u32",
+                   "engine_statistics_notify", "engine_movie_invoke", "engine_show_message"):
+        entry, real = entries[symbol]
+        named = any(t == f"call {entry:#x}" or t.endswith(f",{entry:#x}") for t in c_listing)
+        check(named and struct.pack("<I", real) not in code[P.RESEARCH_ASM_SIZE:],
+              f"the C code calls {symbol} ({entry:#x}, the library's thunk of {real:#x}), not {real:#x} itself")
     # Each slot of the rule's, the cook's and the link resolver's vtables
     # that is ours pops what the game's counterpart pops: test_call_shapes,
     # from INSTALLED_VTABLES (the same check for every patch's vtables).
@@ -5089,11 +5119,12 @@ def test_arena(original):
     check(none == without and bare == b"MZ",
           "no block added: the exe is byte for byte the build's; with no block at all add_arena adds no section")
     check(P.ARENA_LAYOUT == {"research.code": 0xA42D000, "research.state": 0xA430000,
-                             "artefacts.code": 0xA431000}
-          and [b.name for b in P.ARENA[:3]] == ["research.code", "research.state", "artefacts.code"],
+                             "artefacts.code": 0xA431000, "anomalies.code": 0xA432000, "engine.code": 0xA433000}
+          and [b.name for b in P.ARENA[:5]] == ["research.code", "research.state", "artefacts.code",
+                                                "anomalies.code", "engine.code"],
           "ARENA's first blocks are Research's, at 0xA42D000 (code) and 0xA430000 (state), the VAs "
-          "research_026g.py links it for, then the artefacts' code (patch 54) at 0xA431000; the next "
-          "block (#225's) goes at 0xA432000")
+          "research_026g.py links it for, then the artefacts' code (patch 54) at 0xA431000, #225's page "
+          "kept at 0xA432000 and the engine-function library at 0xA433000")
     # Blocks of each kind, out of alignment order, built twice: the same bytes.
     blocks = (P.ArenaBlock("a.code", "code", 0x2800, 0x1000),
               P.ArenaBlock("a.state", "state", 0x1000, 0x1000),
@@ -5163,6 +5194,26 @@ def test_arena(original):
         except SystemExit:
             refused = True
         check(refused, f".srpx refuses {why}")
+
+
+def test_engine(original):
+    """The engine-function library (engine_026g.py; client_patch.md section
+    0.5): check_engine_026g.py's cases, each thunk against the re-kit's rows
+    and the original exe, and its negative cases, wrong rows the check must
+    reject. Needs Python `unicorn` (as the check_*.py scripts): without it the
+    check fails, as a wrong row must never pass unseen."""
+    print("  the engine-function library: every thunk against the ABI rows and the exe")
+    try:
+        import check_engine_026g as engine_check
+    except ImportError as error:
+        check(False, f"check_engine_026g.py needs Python unicorn ({error})")
+        return
+    results = engine_check.run_checks(original)
+    bad = [text for ok, text in results if not ok]
+    check(not bad, f"check_engine_026g.py: {len(results)} cases on the {len(engine_check.engine.functions())} "
+          "functions of engine_026g.tsv" + (": " + "; ".join(bad) if bad else ""))
+    for what, failed in engine_check.negative(original, tool("nasm")):
+        check(failed, f"the library's check rejects {what}")
 
 
 def test_late_join(original, without, server, source):
@@ -5304,19 +5355,26 @@ def test_late_join(original, without, server, source):
     research = research + b"\xCC" * (P.RESEARCH_STATE_OFFSET - len(research)) + bytes(P.RESEARCH_SIZE - P.RESEARCH_STATE_OFFSET)
     artefacts = open(P.artefacts_bin(), "rb").read()
     artefacts_size = P.ARENA_BLOCKS["artefacts.code"].size
-    arena = research + artefacts + b"\xCC" * (artefacts_size - len(artefacts))
+    engine = open(P.engine_bin(), "rb").read()
+    arena = (research + artefacts + b"\xCC" * (artefacts_size - len(artefacts))
+             + b"\xCC" * P.ARENA_BLOCKS["anomalies.code"].size
+             + engine + b"\xCC" * (P.ARENA_BLOCKS["engine.code"].size - len(engine)))
+    arena_size = sum(P.ARENA_BLOCKS[name].size for name in P.ARENA_LAYOUT)
     name_r, rva_r, vsize_r, raw_r, rsize_r, flags_r = sections[-1]
     check(name_r == P.ARENA_NAME and flags_r == P.ARENA_CHARACTERISTICS
           and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.ARENA_VA
           and P.RESEARCH_VA == P.ARENA_LAYOUT["research.code"] == P.ARENA_VA
           and P.RESEARCH_STATE_VA == P.ARENA_LAYOUT["research.state"] == P.ARENA_VA + 0x3000
           and P.ARTEFACTS_VA == P.ARENA_LAYOUT["artefacts.code"] == P.ARENA_VA + P.RESEARCH_SIZE
-          and vsize_r == P.RESEARCH_SIZE + artefacts_size and raw_r == raw_w + rsize_w
+          and P.ENGINE_VA == P.ARENA_LAYOUT["engine.code"] == P.ARENA_VA + 0x6000
+          and vsize_r == arena_size and raw_r == raw_w + rsize_w
           and rsize_r == align(vsize_r, headers.file_alignment)
           and bytes(data[raw_r:raw_r + vsize_r]) == arena,
           f".srpx, the arena, at VA {P.IMAGE_BASE + rva_r:#x}: its blocks research.code "
           f"(research_026g.section.bin, int3 padding), research.state (+{P.RESEARCH_STATE_OFFSET:#x}, the page "
-          f"zeroed) and artefacts.code (+{P.RESEARCH_SIZE:#x}, artefacts_026g.section.bin, int3 padding) at the "
+          f"zeroed), artefacts.code (+{P.RESEARCH_SIZE:#x}, artefacts_026g.section.bin, int3 padding), "
+          f"anomalies.code (+5000h, int3: #225's) and engine.code (+6000h, engine_026g.section.bin, int3 "
+          "padding) at the "
           "VAs ARENA_LAYOUT gives them; code | data | execute | read | write, on the page after "
           ".srpw, its file bytes right after .srpw's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
@@ -5557,6 +5615,7 @@ def main():
     test_server_options(original)
     print("variant section, the arena and the call shapes")
     test_arena(original)
+    test_engine(original)
     test_call_shapes_negative(original)
     variants = [(mode, None) for mode in ("cert-only", "section", "hash-mismatch")]
     variants += [(mode, "026g.skhid.link:1234") for mode in P.CAVES]
