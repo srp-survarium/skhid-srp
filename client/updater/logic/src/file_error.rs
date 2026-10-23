@@ -79,7 +79,8 @@ impl Stop {
 /// The words of the updater's box for a stop, in the launcher's language
 /// (`crate::replay::LANGUAGES` order; English for an unknown one). `file`:
 /// the file's name alone; `folder`: the game's folder, the one to exclude.
-/// The box's buttons are Windows' own Retry and Cancel.
+/// The box's buttons are Windows' own Retry and Cancel, in Windows' language,
+/// which may not be the launcher's: the words do not name them.
 pub fn message(language: Option<u32>, stop: Stop, file: &str, folder: &str) -> String {
     let language = language.filter(|&n| n < 5).unwrap_or(0);
     match (language, stop) {
@@ -88,50 +89,50 @@ pub fn message(language: Option<u32>, stop: Stop, file: &str, folder: &str) -> S
              1. Безопасность Windows > Журнал защиты > этот элемент > Разрешить на устройстве (или Восстановить).\n\
              2. Добавьте папку игры в исключения (Защита от вирусов и угроз > Управление настройками > Исключения):\n\
              {folder}\n\
-             Затем нажмите «Повторить». До этого игра не запустится."
+             Затем попробуйте снова. До этого игра не запустится."
         ),
         (2, Stop::Virus) => format!(
             "Безпека Windows заблокувала {file}: це хибне спрацювання.\n\
              1. Безпека Windows > Журнал захисту > цей елемент > Дозволити на пристрої (або Відновити).\n\
              2. Додайте теку гри до винятків (Захист від вірусів і загроз > Керування параметрами > Винятки):\n\
              {folder}\n\
-             Потім натисніть «Повторити». Доти гра не запуститься."
+             Потім спробуйте знову. Доти гра не запуститься."
         ),
         (3, Stop::Virus) => format!(
             "Windows-Sicherheit hat {file} blockiert: ein Fehlalarm.\n\
              1. Windows-Sicherheit > Schutzverlauf > dieser Eintrag > Auf Gerät zulassen (oder Wiederherstellen).\n\
              2. Füge den Spielordner als Ausschluss hinzu (Viren- & Bedrohungsschutz > Einstellungen verwalten > Ausschlüsse):\n\
              {folder}\n\
-             Klicke dann auf „Wiederholen“. Bis dahin startet das Spiel nicht."
+             Versuche es dann erneut. Bis dahin startet das Spiel nicht."
         ),
         (4, Stop::Virus) => format!(
             "Zabezpieczenia Windows zablokowały {file}: to fałszywy alarm.\n\
              1. Zabezpieczenia Windows > Historia ochrony > ten element > Zezwalaj na urządzeniu (lub Przywróć).\n\
              2. Dodaj folder gry do wykluczeń (Ochrona przed wirusami i zagrożeniami > Zarządzaj ustawieniami > Wykluczenia):\n\
              {folder}\n\
-             Następnie kliknij „Ponów próbę”. Do tego czasu gra się nie uruchomi."
+             Następnie spróbuj ponownie. Do tego czasu gra się nie uruchomi."
         ),
         (_, Stop::Virus) => format!(
             "Windows Security blocked {file}: a false positive.\n\
              1. Windows Security > Protection history > this item > Allow on device (or Restore).\n\
              2. Add the game folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):\n\
              {folder}\n\
-             Then click Retry. PLAY stays off until then."
+             Then try again. PLAY stays off until then."
         ),
         (1, Stop::InUse) => format!(
-            "{file} занят другой программой. Закройте игру, затем нажмите «Повторить». До этого игра не запустится."
+            "{file} занят другой программой. Закройте игру, затем попробуйте снова. До этого игра не запустится."
         ),
         (2, Stop::InUse) => format!(
-            "{file} зайнятий іншою програмою. Закрийте гру, потім натисніть «Повторити». Доти гра не запуститься."
+            "{file} зайнятий іншою програмою. Закрийте гру, потім спробуйте знову. Доти гра не запуститься."
         ),
         (3, Stop::InUse) => format!(
-            "{file} wird von einem anderen Programm verwendet. Schließe das Spiel und klicke dann auf „Wiederholen“. Bis dahin startet das Spiel nicht."
+            "{file} wird von einem anderen Programm verwendet. Schließe das Spiel und versuche es dann erneut. Bis dahin startet das Spiel nicht."
         ),
         (4, Stop::InUse) => format!(
-            "{file} jest używany przez inny program. Zamknij grę, następnie kliknij „Ponów próbę”. Do tego czasu gra się nie uruchomi."
+            "{file} jest używany przez inny program. Zamknij grę, następnie spróbuj ponownie. Do tego czasu gra się nie uruchomi."
         ),
         (_, Stop::InUse) => format!(
-            "{file} is in use by another program. Close the game, then click Retry. PLAY stays off until then."
+            "{file} is in use by another program. Close the game, then try again. PLAY stays off until then."
         ),
     }
 }
@@ -169,7 +170,7 @@ mod tests {
              1. Windows Security > Protection history > this item > Allow on device (or Restore).\n\
              2. Add the game folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):\n\
              E:\\Survarium_SkhidSRP_0_26\n\
-             Then click Retry. PLAY stays off until then."
+             Then try again. PLAY stays off until then."
         );
         assert_eq!(
             message(Some(9), Stop::Virus, "survarium_skhid.exe", folder),

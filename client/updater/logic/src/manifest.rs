@@ -322,8 +322,9 @@ pub fn why_install(
 
 /// What is wrong with the installed files themselves, whatever the server
 /// offers: `None` when every one is there and no program file has changed or
-/// cannot be read (a file the player may edit is the player's, read or not).
-/// A [`Reason::Stop`] wins over any other: a download would not help.
+/// cannot be read. A file the player may edit is the player's, read or not,
+/// blocked or held too: the game does not need it (the log names it). A
+/// [`Reason::Stop`] wins over any other: a download would not help.
 pub fn damage(
     installed: &Installed,
     mut look: impl FnMut(&InstalledFile) -> Found,
@@ -333,7 +334,11 @@ pub fn damage(
         let name = || file.name.clone();
         let reason = match look(file) {
             Found::Same => continue,
-            Found::Changed | Found::Unreadable(_) if player_may_edit(&file.name) => continue,
+            Found::Changed | Found::Unreadable(_) | Found::Stop(_)
+                if player_may_edit(&file.name) =>
+            {
+                continue;
+            }
             Found::Changed => Reason::Changed(name()),
             Found::Missing => Reason::Missing(name()),
             Found::Unreadable(code) => Reason::Unreadable(name(), code),
@@ -663,19 +668,32 @@ mod tests {
             verdict(Some(&state), &same, |_: &InstalledFile| Found::Same),
             Verdict::UpToDate
         );
-        // A start script the player may edit is the player's, read or not.
-        assert_eq!(
-            verdict(
-                Some(&state),
-                &same,
-                one("play_skhid.bat", Found::Unreadable(5))
-            ),
-            Verdict::UpToDate
-        );
+        // A start script or text the player may edit is the player's, read
+        // or not, blocked or held: the game does not need it.
+        for found in [
+            Found::Unreadable(5),
+            Found::Stop(Stop::Virus),
+            Found::Stop(Stop::InUse),
+        ] {
+            for name in ["play_skhid.bat", "README.txt"] {
+                assert_eq!(
+                    verdict(Some(&state), &same, one(name, found)),
+                    Verdict::UpToDate,
+                    "{name} {found:?}"
+                );
+            }
+        }
         // A stop wins over a file to repair before it: a download would not
         // get past it.
+        let mut state = state;
+        let dll = "game/binaries/x86/bugtrap.dll";
+        state.files.push(InstalledFile {
+            name: dll.into(),
+            sha256: digest(b"dll"),
+            size: 1,
+        });
         let both = |file: &InstalledFile| {
-            if file.name == "README.txt" {
+            if file.name == dll {
                 Found::Stop(Stop::Virus)
             } else if file.name.ends_with("survarium_skhid.exe") {
                 Found::Missing
@@ -686,7 +704,7 @@ mod tests {
         assert_eq!(state.files[0].name, exe);
         assert_eq!(
             damage(&state, both),
-            Some(Reason::Stop(Stop::Virus, "README.txt".into()))
+            Some(Reason::Stop(Stop::Virus, dll.into()))
         );
         // Without the server (the offline case), the same answers.
         assert_eq!(

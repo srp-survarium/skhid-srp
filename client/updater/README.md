@@ -188,18 +188,20 @@ Windows Security blocked survarium_skhid.exe: a false positive.
 1. Windows Security > Protection history > this item > Allow on device (or Restore).
 2. Add the game folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):
 E:\Survarium_SkhidSRP_0_26
-Then click Retry. PLAY stays off until then.
+Then try again. PLAY stays off until then.
 ```
 
 ```text
-survarium_skhid.exe is in use by another program. Close the game, then click Retry. PLAY stays off until then.
+survarium_skhid.exe is in use by another program. Close the game, then try again. PLAY stays off until then.
 ```
 
 Retry runs the update again from the start; Cancel leaves PLAY off (exit
 code 1). `check quiet` shows no box: the log has `STOPPED: <file> is
 blocked by Windows Security` (or `held by another program`), and the exit
 code is 1. A file the player may edit (`.bat`, `.sh`, `.txt`, `.url`) that
-cannot be read is left alone, as one the player changed is.
+cannot be read, is blocked or is held is left alone (logged), as one the
+player changed is: the game does not need it. The words do not name the
+buttons: they are in Windows' language, which may not be the launcher's.
 
 **Why.** On 2026-10-21 Windows Security did not let a player's updater
 write revision 27's `survarium_skhid.exe` (error 225), then, once it was in
