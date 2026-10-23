@@ -584,6 +584,7 @@ mod tests {
         let lifted = AimTuning {
             combat: CombatTuning {
                 recoil_pull: 0.0,
+                recoil_pull_low: 0.0,
                 ..CombatTuning::default()
             },
             ..AimTuning::default()

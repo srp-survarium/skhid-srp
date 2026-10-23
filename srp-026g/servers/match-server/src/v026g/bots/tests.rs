@@ -1454,6 +1454,11 @@ fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBattery {
     tuning.cheats.batteries = false;
     tuning.cheats.thief_every_ms = 0;
     tuning.sense.battery_sight_m = 0.0;
+    // The scenario needs the thief to take the battery before he dies: the
+    // fixed bursts of before the bursts by distance (2026-10-23), with
+    // which the fight goes that way; with the table's taps the bot's
+    // random sequence differs and it kills him at 2.65 s, by the container.
+    tuning.aim.combat.fire.rifle = vec![];
     if let Some(weight) = look_weight {
         tuning
             .plays

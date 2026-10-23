@@ -932,7 +932,7 @@ impl Core<'_> {
         let bot_tier = BotTier::of_gear(gear);
         if bots > 0 {
             log::info!(
-                "Match {match_id:#x}: {bots} bots with equipment of level {bot_tier} (the                  players' highest equipment level is {gear})"
+                "Match {match_id:#x}: {bots} bots with equipment of level {bot_tier} (the players' highest equipment level is {gear})"
             );
         }
         let players = players.map(|mut players| {

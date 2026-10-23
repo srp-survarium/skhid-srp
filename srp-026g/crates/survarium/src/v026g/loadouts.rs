@@ -569,14 +569,31 @@ pub const TIER_13_15: TierGear = TierGear {
 
 /// The equipment of the server's bots, picked by the equipment level of
 /// the players they play against (`matchmaking::gear_level`, the highest
-/// of a match's players: the owner's of 2026-10-23).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// of a match's players: the owner's of 2026-10-23). In the bots'
+/// tuning JSON by its band: `"4-5"`, `"9-10"`, `"13-15"`.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub enum BotTier {
     /// Players of level 0 to 5: bots of level 4-5 ([`TIER_4_5`]).
+    #[default]
+    #[serde(rename = "4-5")]
     Low,
     /// Players of level 6 to 10: bots of level 9-10 ([`TIER_9_10`]).
+    #[serde(rename = "9-10")]
     Mid,
     /// Players of level 11 to 15: bots of level 13-15 ([`TIER_13_15`]).
+    #[serde(rename = "13-15")]
     High,
 }
 

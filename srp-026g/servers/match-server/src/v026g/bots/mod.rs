@@ -267,7 +267,7 @@ impl Bot {
             memory: Memory::default(),
             stuck: Stuck::default(),
             personality,
-            skill: tuning.skill.start,
+            skill: tuning.skill.of_tier(BotTier::default()).start,
             side: None,
             running: None,
             assignment: None,
@@ -558,7 +558,7 @@ impl Bots {
         let team_state = |tuning: &Tuning| TeamState {
             knowledge: TeamKnowledge::default(),
             mods: Mods::default(),
-            skill: Skill::new(&tuning.skill),
+            skill: Skill::new(&tuning.skill, BotTier::default()),
             cheats: CheatClock::default(),
             signals: MatchSignals::default(),
             next_commander: 0,
@@ -605,21 +605,40 @@ impl Bots {
         self
     }
 
-    /// The kit choices the bots made since the last call: each place and
-    /// the index of the kit for its next life, to be relayed as a
-    /// player's 0xDE is (0xF3).
+    /// The bots' tier (the equipment band of the kits the lobby gave
+    /// them): each team's skill starts at the tier's and keeps above its
+    /// floor ([`tuning::SkillTuning::of_tier`]). Without it, the 4-5 tier.
+    pub fn with_tier(mut self, tier: BotTier) -> Self {
+        for state in &mut self.teams {
+            state.skill = Skill::new(&self.tuning.skill, tier);
+        }
+        let start = self.tuning.skill.of_tier(tier).start;
+        for bot in self.bots.iter_mut().flatten() {
+            bot.skill = start;
+        }
+        self
+    }
+
     /// The tier of each bot's gear (`tiers[place]`, read from its profile:
     /// `survarium::v026g::loadouts::bot_of`): its kits are its role's of
-    /// that tier (`Bots::new` gives the lowest tier's). Before play.
+    /// that tier (`Bots::new` gives the lowest tier's), and the skill
+    /// starts at the highest of them ([`Bots::with_tier`]; the lobby gives
+    /// a match's bots one tier). Before play.
     pub fn with_tiers(mut self, tiers: &[Option<BotTier>]) -> Self {
         for (bot, tier) in self.bots.iter_mut().zip(tiers) {
             if let (Some(bot), Some(tier)) = (bot.as_mut(), tier) {
                 bot.arm(*tier);
             }
         }
-        self
+        match tiers.iter().flatten().max() {
+            Some(&tier) => self.with_tier(tier),
+            None => self,
+        }
     }
 
+    /// The kit choices the bots made since the last call: each place and
+    /// the index of the kit for its next life, to be relayed as a
+    /// player's 0xDE is (0xF3).
     pub fn take_kit_choices(&mut self) -> Vec<(Place, u8)> {
         std::mem::take(&mut self.kit_choices)
     }
