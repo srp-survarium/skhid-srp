@@ -37,8 +37,8 @@ The owner's rule of 2026-10-22: give the premium armour the golden weapons' trea
   craft places. It changes the patch (1250 / 1260 removed, not granted), `PREMIUM_ARMOUR`'s bonuses
   and the lobby's `PREMIUM_ARMOUR_BONUSES`; the one-time grant would then give 1240 only.
 - **Upgradable as the plain piece:** same item level, so the same craft and reroll prices and
-  chances; the premium bonuses reroll and a failed craft may take one, as any modification; gone,
-  it does not come back (drop weight 0).
+  chances; the premium bonuses reroll as any modification (a failed craft takes none, owner
+  2026-10-23, `craft-menu.md`); gone, it does not come back (drop weight 0).
 - **Craft donors:** a premium piece and its plain piece are donors for each other, as a golden
   weapon and its plain weapon (`golden::may_donate`, `ItemFactory.isCraftDonor`); the donor is used
   up. Not another faction's piece.

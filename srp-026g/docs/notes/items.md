@@ -146,7 +146,9 @@ What the lobby checks or says itself (PROVEN, `lobby_menu.swf` and the
   three modifications; the item with no fewer than the donor
   (`st_craft_message_modifiers_difference`); not an equipped item while in
   the queue. Price = table[item level of the item]. Outcomes: "+1 mod.",
-  "-1 mod.", or "you failed to upgrade the item".
+  "-1 mod.", or "you failed to upgrade the item". [srp, the owner's rule of
+  2026-10-23] Never "-1 mod.": a failure leaves the item as it was
+  ([craft-menu.md](craft-menu.md), "A failed upgrade").
 - Repair: silver = `(1 - condition) * repair_cost_ratio * cost` + each
   defect's `fix_cost_general`, and takes the defects' `fix_time_general`
   together; gold ("quick repair") = the defects' `fix_cost_gold`; kits = one
@@ -163,7 +165,8 @@ srp's reading of what only the server knew:
 | each change of an item makes the next cost `reroll_modificator_multiplicator` (1.1) times more | GUESS: the number's use is not in the client; the per-item prices in `83 46 06`/`08` suggest the price was the item's own |
 | the donor must be another of the same item | LIKELY (the result window shows the donor's dictionary entry as the upgraded item); a golden weapon and its plain weapon count as the same item ([srp], the owner's rule of 2026-10-21, [golden_weapons.md](golden_weapons.md)), and so do a premium armour piece and its plain piece (2026-10-22, [premium_armour.md](premium_armour.md)) |
 | the craft's chance row is `rank(item) - rank(donor)`; success, then failure, then nothing | PROVEN for the row (the UI indexes it so); the roll is the server's |
-| a gained modification is rolled as a drop's; a lost one is any of the item's own | [srp] |
+| a gained modification is rolled as a drop's | [srp] |
+| a failure takes no modification: it does what "nothing" does (price and donor spent, the item as it was); 0x9B sends every failure chance as 0 and the window shows no failure row | the owner's rule of 2026-10-23 ([craft-menu.md](craft-menu.md)) |
 | no roll (a drop, an upgrade, a reroll's offer) gives a modification that only changes wear ("reliability"); owned ones stay; masks may roll Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs, so every item rolls three types or more | the owner's rule of 2026-10-23 ([no-reliability-roll.md](no-reliability-roll.md), `third-mod-1.json`) |
 | a repair takes the defects off at once; the wait only locks the item in the lobby | [srp] |
 | a defect slot opens under its first `condition`; its chance goes from the first `probability` there to the second at condition 0 | LIKELY |

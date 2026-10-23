@@ -236,8 +236,15 @@ pub fn player_elo(account: &Account, place: u32) -> ServerMessage {
 /// `9B`: the chances and prices of an item's upgrade ("craft"), from the
 /// game's `craft.options`. The lobby's upgrade window shows them and works
 /// its price out from them (`MessageCraftItem.updateCraftChance`).
+/// [srp, the owner's rule of 2026-10-23] An upgrade never takes a
+/// modification away ([`items_rules::craft`]): every failure ("-1 mod.")
+/// chance is sent as 0.
 pub fn craft_tables() -> ServerMessage {
-    let (chances, general, premium) = Modifications::shared().craft.tables();
+    let (mut chances, general, premium) = Modifications::shared().craft.tables();
+    // Each row: success and failure in silver, success and failure in gold.
+    for failure in chances.iter_mut().skip(1).step_by(2) {
+        *failure = 0.0;
+    }
     lobby::craft_tables(&chances, &general, &premium)
 }
 
@@ -455,14 +462,15 @@ mod tests {
         );
         // The craft tables, byte for byte: the twelve chances (for an
         // item with 0, 1 and 2 more modifications than its donor: success
-        // and failure in silver, then in gold), the sixteen prices in
-        // silver and the sixteen in gold.
+        // and failure in silver, then in gold; every failure 0, the owner's
+        // rule of 2026-10-23), the sixteen prices in silver and the sixteen
+        // in gold.
         #[rustfmt::skip]
         let mut tables: Vec<u8> = vec![
             0x9B,
-            0, 0, 0x48, 0x42,  0, 0, 0, 0,        0, 0, 0xC8, 0x42,  0, 0, 0, 0,
-            0, 0, 0xC8, 0x41,  0, 0, 0xC8, 0x41,  0, 0, 0x48, 0x42,  0, 0, 0, 0,
-            0, 0, 0x48, 0x41,  0, 0, 0x87, 0x42,  0, 0, 0xC8, 0x41,  0, 0, 0xC8, 0x41,
+            0, 0, 0x48, 0x42,  0, 0, 0, 0,  0, 0, 0xC8, 0x42,  0, 0, 0, 0,
+            0, 0, 0xC8, 0x41,  0, 0, 0, 0,  0, 0, 0x48, 0x42,  0, 0, 0, 0,
+            0, 0, 0x48, 0x41,  0, 0, 0, 0,  0, 0, 0xC8, 0x41,  0, 0, 0, 0,
         ];
         for price in [
             400_u16, 400, 800, 1600, 2400, 3400, 4400, 5400, 6600, 8000, 10000, 12000, 14000,

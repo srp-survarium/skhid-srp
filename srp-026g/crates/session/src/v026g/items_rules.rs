@@ -69,7 +69,10 @@
 //!   level; the chances by how many more modifications the item has than
 //!   the donor, in silver or in gold: one more modification
 //!   (`st_item_craft_success_label`), one fewer
-//!   (`st_item_craft_fail_label`), or nothing. The donor is used up
+//!   (`st_item_craft_fail_label`), or nothing. [srp, the owner's rule of
+//!   2026-10-23] Never one fewer: a failure is a "nothing", the item keeps
+//!   its modifications, 0x9B says 0 % (`wire::craft_tables`) and the
+//!   window shows no failure row. The donor is used up and the price paid
 //!   whatever happens (the answer names it, and the client drops it).
 //!   [LIKELY] The donor is another of the same item: the client's result
 //!   window shows the *donor's* dictionary entry as the upgraded item
@@ -79,8 +82,7 @@
 //!   lobby shows the item, not the donor); [the owner's rule of
 //!   2026-10-22] a plain weapon takes a golden one too, which is used up
 //!   ([`golden::may_donate`]).
-//!   [srp] The modification gained is rolled as a drop's are, the one
-//!   lost is any of the item's own (a golden weapon's silver bonus too).
+//!   [srp] The modification gained is rolled as a drop's are.
 //! - **Golden weapons** ([`golden`], the owner's rule of 2026-10-21): the
 //!   silver bonus is the item's own first modification, given when it is
 //!   made ([`Account::add_item`]) and once to those owned before
@@ -795,7 +797,7 @@ pub fn craft(
     let dict_id = item.dict_id;
     // [srp, 2026-10-23] Nothing left that may roll (every type besides
     // reliability held; none on live data, `third-mod-1.json`): an upgrade
-    // could only lose, so none is made and nothing is taken.
+    // could gain nothing, so none is made and nothing is taken.
     if table.candidates(dict_id, &held).is_empty() {
         return Err("nothing left to roll for the item");
     }
@@ -813,13 +815,13 @@ pub fn craft(
         .craft
         .outcome_at(held.len() - donor_rank, gold, at)
         .ok_or("no chances for that difference")?;
-    // The modification gained or lost, before anything changes.
-    let change = match outcome {
+    // The modification gained, before anything changes. [srp, the owner's
+    // rule of 2026-10-23] An upgrade never takes one away: the data's
+    // failure ("-1 mod.") does what "nothing happened" does, the price and
+    // the donor spent and the item as it was (`docs/notes/craft-menu.md`).
+    let gained = match outcome {
         CraftOutcome::Success => table.roll(dict_id, &held, rng),
-        CraftOutcome::Failure if !held.is_empty() => {
-            Some(held[rng.below(held.len() as u32) as usize])
-        }
-        _ => None,
+        CraftOutcome::Failure | CraftOutcome::Neutral => None,
     };
 
     if gold {
@@ -831,32 +833,15 @@ pub fn craft(
         .inventory
         .retain(|item| item.item_id != donor_item_id);
     let item = account.item_mut(item_id).expect("the item was found above");
-    let crafted = match (outcome, change) {
-        (CraftOutcome::Success, Some(modification)) => {
+    let crafted = match gained {
+        Some(modification) => {
             item.modifications.push((modification, false));
             Crafted::Added {
                 consumed_item_id: donor_item_id,
                 modification,
             }
         }
-        (CraftOutcome::Failure, Some(modification)) => {
-            if let Some(index) = item
-                .modifications
-                .iter()
-                .position(|&entry| entry == (modification, false))
-            {
-                item.modifications.remove(index);
-            }
-            if item.reroll.modification == modification {
-                item.reroll.modification = 0;
-            }
-            Crafted::Removed {
-                mode: 2,
-                consumed_item_id: donor_item_id,
-                modification,
-            }
-        }
-        _ => Crafted::Nothing {
+        None => Crafted::Nothing {
             consumed_item_id: donor_item_id,
         },
     };

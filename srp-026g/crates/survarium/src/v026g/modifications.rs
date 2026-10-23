@@ -255,7 +255,9 @@ pub enum CraftOutcome {
     Success,
     /// Nothing but the donor and the price are lost.
     Neutral,
-    /// One modification less.
+    /// One modification less, in the game's data; srp takes none away
+    /// (the owner's rule of 2026-10-23, `docs/notes/craft-menu.md`): the
+    /// session does what [`CraftOutcome::Neutral`] does.
     Failure,
 }
 

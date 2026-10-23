@@ -78,3 +78,19 @@ what isn't").
 - **Only the list:** the items stay owned; nothing is sent to the server.
 - **Closed:** the inventory lists every item again, as before.
 - Code: `MessageCraftItem.hideSlotted`, `InventoryList.hideCraftSlotted`, `LobbyMenu.openCraftWindow`.
+
+## A failed upgrade
+
+The owner's rule: 2026-10-23 ("remove chance for bonus removal during combination"; players called
+the silver upgrade's 67.5 % chance to lose a modification too harsh).
+
+- **An upgrade never takes a modification away**, whatever the item holds (reliability, a golden
+  weapon's silver bonus, premium armour's bonuses too).
+- **Success:** as before: one more modification, at the chances of `craft.options`.
+- **Otherwise** (the data's "-1 mod." chance as well as its "nothing"): the price and the donor are
+  spent, the item stays as it was; the window says "you failed to upgrade the item".
+- **Prices, donors, success chances, silver and gold:** unchanged.
+- **The window:** no failure ("-1 mod.") row; the server sends every failure chance as 0 (0x9B).
+  The chances' panel, the prices under it and the window close up by the row's height (23 px), the
+  window's top where it was; the result view is as before.
+- Code: `items_rules::craft`, `wire::craft_tables`, `MessageCraftItem.removeFailureRow`.
