@@ -202,11 +202,90 @@ pub fn experience_rate() -> u32 {
 }
 
 /// `SRP_REPUTATION_RATE`: the percent of the original's reputation the
-/// rows of a match and the quests completed in it pay, 1 to 1000 (default
-/// 120). Read once.
+/// rows of a match pay, 1 to 1000 (default 120); and the quests completed
+/// in it when `SRP_QUEST_REPUTATION_RATE` is unset ([`quest_reputation_rate`]).
+/// Read once.
 pub fn reputation_rate() -> u32 {
     static RATE: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
     *RATE.get_or_init(|| setting("SRP_REPUTATION_RATE", DEFAULT_REPUTATION_RATE, 1000))
+}
+
+/// `SRP_QUEST_REPUTATION_RATE`: the percent of the original's reputation a
+/// quest pays, 1 to 1000; unset, [`reputation_rate`]'s, as before the two
+/// were apart. Read once.
+pub fn quest_reputation_rate() -> u32 {
+    static RATE: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *RATE.get_or_init(|| setting("SRP_QUEST_REPUTATION_RATE", reputation_rate(), 1000))
+}
+
+/// The percent of the original's silver a quest pays when
+/// `SRP_QUEST_MONEY_RATE` is unset: the original's, as it always was (the
+/// rows' rate, [`MONEY_RATES`], never touched a quest).
+pub const DEFAULT_QUEST_MONEY_RATE: u32 = 100;
+
+/// `SRP_QUEST_MONEY_RATE`: the percent of the original's silver a quest
+/// pays, 1 to 1000 (default 100). Read once.
+pub fn quest_money_rate() -> u32 {
+    static RATE: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *RATE.get_or_init(|| setting("SRP_QUEST_MONEY_RATE", DEFAULT_QUEST_MONEY_RATE, 1000))
+}
+
+/// A percent for each kind of quest, on top of the two quest rates: 100
+/// unless `SRP_QUEST_KIND_RATES` names the kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QuestKindRates([u32; KINDS.len()]);
+
+/// The kinds of quest and their names (`win_x_games`, `kill_enemies`...).
+const KINDS: [(u32, &str); 14] = survarium::v026g::quests::kind::NAMES;
+
+impl QuestKindRates {
+    /// 100 % for every kind.
+    pub const NONE: Self = Self([100; KINDS.len()]);
+
+    /// `name=percent` pairs, comma separated (`win_x_games=300,kd_ratio=150`):
+    /// each name a goal of [`KINDS`], each percent 1 to 1000.
+    pub fn parse(text: &str) -> Result<Self, String> {
+        let mut rates = Self::NONE;
+        for pair in text
+            .split(',')
+            .map(str::trim)
+            .filter(|pair| !pair.is_empty())
+        {
+            let (name, percent) = pair
+                .split_once('=')
+                .ok_or_else(|| format!("`{pair}` is not name=percent"))?;
+            let index = KINDS
+                .iter()
+                .position(|&(_, known)| known == name.trim())
+                .ok_or_else(|| format!("no quest kind is called `{}`", name.trim()))?;
+            rates.0[index] = match percent.trim().parse::<u32>() {
+                Ok(percent) if (1..=1000).contains(&percent) => percent,
+                _ => return Err(format!("`{pair}`: the percent must be 1 to 1000")),
+            };
+        }
+        Ok(rates)
+    }
+
+    /// The percent a quest of `kind` is paid at.
+    pub fn of(&self, kind: u32) -> u32 {
+        KINDS
+            .iter()
+            .position(|&(known, _)| known == kind)
+            .map_or(100, |index| self.0[index])
+    }
+}
+
+/// `SRP_QUEST_KIND_RATES`: [`QuestKindRates::parse`]; unset, or not
+/// readable, 100 % for every kind. Read once.
+pub fn quest_kind_rates() -> QuestKindRates {
+    static RATES: std::sync::OnceLock<QuestKindRates> = std::sync::OnceLock::new();
+    *RATES.get_or_init(|| match std::env::var("SRP_QUEST_KIND_RATES") {
+        Ok(value) => QuestKindRates::parse(&value).unwrap_or_else(|error| {
+            log::error!("SRP_QUEST_KIND_RATES is `{value}`: {error}. Using 100 for every kind");
+            QuestKindRates::NONE
+        }),
+        Err(_) => QuestKindRates::NONE,
+    })
 }
 
 /// The rating a new 0.26g account has (LIKELY: SHOT1 shows 118 on an
@@ -407,6 +486,35 @@ mod tests {
         }
         assert_eq!(MoneyRate::Flat(80).at(0), 80);
         assert_eq!(MoneyRate::Flat(80).at(20), 80);
+    }
+
+    #[test]
+    fn quest_kind_rates_are_read_by_the_goals_name() {
+        use survarium::v026g::quests::kind;
+        assert_eq!(QuestKindRates::parse(""), Ok(QuestKindRates::NONE));
+        let rates = QuestKindRates::parse(" win_x_games=300, kd_ratio = 150 ,").unwrap();
+        assert_eq!(rates.of(kind::WIN_GAMES), 300);
+        assert_eq!(rates.of(kind::KD_RATIO), 150);
+        assert_eq!(rates.of(kind::KILL_ENEMIES), 100);
+        // A kind the data does not have is paid as it is.
+        assert_eq!(rates.of(99), 100);
+        for bad in [
+            "win_x_games",
+            "win_games=300",
+            "win_x_games=0",
+            "win_x_games=1001",
+            "win_x_games=3x",
+        ] {
+            assert!(QuestKindRates::parse(bad).is_err(), "{bad}");
+        }
+        // Every kind of the data has a name to set it by.
+        for quest in &survarium::v026g::quests::Quests::shared().quests {
+            assert!(
+                KINDS.iter().any(|&(known, _)| known == quest.kind),
+                "{}",
+                quest.kind
+            );
+        }
     }
 
     #[test]

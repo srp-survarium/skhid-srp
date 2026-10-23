@@ -33,6 +33,7 @@ use survarium::v026g::quests::{MatchStats, Quests, kind};
 use survarium::v026g::{dictionary::Dictionary, item_params, modifications::Modifications, prices};
 
 use super::account::{Account, QuestInstance};
+use super::pay::QuestKindRates;
 use super::rules::{ActionError, faction_unlocked};
 
 /// The quests the chosen faction keeps going (PROVEN: patch note 0.22a,
@@ -207,9 +208,14 @@ pub struct Scale {
     /// multipliers is LIKELY (they are the match's own, `pay`).
     pub money_k: f64,
     pub reputation_k: f64,
-    /// srp's own rate of reputation (`pay::reputation_rate`, as a share: 1
-    /// is the original's), on top of the match level's.
+    /// srp's own rates of a quest's silver and reputation
+    /// (`pay::quest_money_rate`, `pay::quest_reputation_rate`, as shares:
+    /// 1 is the original's), on top of the match level's.
+    pub money_share: f64,
     pub reputation_share: f64,
+    /// srp's percent for each kind of quest (`pay::quest_kind_rates`), on
+    /// top of both shares.
+    pub kinds: QuestKindRates,
     /// The match is one of the day's first three victories: the quest's
     /// reputation is paid twice (PROVEN that such a match changes a quest's
     /// award: patch note 0.25a, "Fixed bug in calculation of awards for
@@ -224,12 +230,27 @@ impl Scale {
     pub const PLAIN: Self = Self {
         money_k: 1.0,
         reputation_k: 1.0,
+        money_share: 1.0,
         reputation_share: 1.0,
+        kinds: QuestKindRates::NONE,
         doubled: false,
     };
 
+    /// The scale of a quest of `kind`: its percent of
+    /// [`Self::kinds`] taken into both shares.
+    pub fn of_kind(&self, kind: u32) -> Self {
+        let share = f64::from(self.kinds.of(kind)) / 100.0;
+        Self {
+            money_share: self.money_share * share,
+            reputation_share: self.reputation_share * share,
+            kinds: QuestKindRates::NONE,
+            ..*self
+        }
+    }
+
     /// A quest's `(money, reputation)` as this match pays them: each times
-    /// its multiplier and rounded down, as the match's own rows are.
+    /// its multiplier and its share and rounded down, as the match's own
+    /// rows are ([`Self::kinds`] is not applied: [`Self::of_kind`]).
     pub fn of(&self, money: u32, reputation: u32) -> (u32, u32) {
         let scaled = |value: u32, k: f64| {
             (f64::from(value) * k + 1e-6)
@@ -238,7 +259,7 @@ impl Scale {
         };
         let reputation = scaled(reputation, self.reputation_k * self.reputation_share);
         (
-            scaled(money, self.money_k),
+            scaled(money, self.money_k * self.money_share),
             if self.doubled {
                 reputation.saturating_mul(2)
             } else {
@@ -293,6 +314,7 @@ pub fn evaluate_scaled(
         account
             .quest_cooldowns
             .push((quest.id, now + u64::from(quest.cooldown_minutes) * 60));
+        let scale = scale.of_kind(quest.kind);
         let (money, _) = scale.of(quest.money, 0);
         account.generic_money = account.generic_money.saturating_add(money);
         pay.money = pay.money.saturating_add(money);
@@ -653,8 +675,7 @@ mod tests {
         let scale = Scale {
             money_k: crate::v026g::pay::multiplier(level.money_k),
             reputation_k: crate::v026g::pay::multiplier(level.reputation_k),
-            reputation_share: 1.0,
-            doubled: false,
+            ..Scale::PLAIN
         };
         assert_eq!(scale.of(100, 100), (200, 105));
         assert_eq!(scale.of(quest.money, points).0, 2 * quest.money);
@@ -691,6 +712,58 @@ mod tests {
             .of(50, 50),
             (50, 60)
         );
+        // srp's rate of a quest's silver, apart from its reputation's.
+        let paid_more = Scale {
+            money_share: 1.5,
+            ..raised
+        };
+        assert_eq!(paid_more.of(100, 100), (300, 126));
+        let (_, more) = paid(&paid_more);
+        // 50 × 2 × 1.5 silver, 50 × 1.05 × 1.2 reputation.
+        assert_eq!(more, (150, 63));
+    }
+
+    #[test]
+    fn a_kind_of_quest_can_pay_more() {
+        // Quest 10101 is a `defend_items`; 300 % for it, 200 % for another
+        // kind.
+        let quest = Quests::shared().quest(10101).unwrap();
+        assert_eq!(quest.kind, kind::DEFEND_ITEMS);
+        let kinds = QuestKindRates::parse("defend_items=300,kill_enemies=200").unwrap();
+        let scale = Scale {
+            money_share: 1.5,
+            reputation_share: 1.2,
+            kinds,
+            ..Scale::PLAIN
+        };
+        // Without the kind: the two shares alone.
+        assert_eq!(scale.of(100, 100), (150, 120));
+        assert_eq!(scale.of_kind(kind::DEFEND_ITEMS).of(100, 100), (450, 360));
+        assert_eq!(scale.of_kind(kind::KILL_ENEMIES).of(100, 100), (300, 240));
+        assert_eq!(scale.of_kind(kind::WIN_GAMES).of(100, 100), (150, 120));
+        // Taken once: a scale of a kind has no kinds left.
+        let of_kind = scale.of_kind(kind::DEFEND_ITEMS);
+        assert_eq!(of_kind.of_kind(kind::DEFEND_ITEMS), of_kind);
+
+        let mut account = account();
+        choose_faction(&mut account, 1).unwrap();
+        account.quests.push(QuestInstance {
+            instance_id: 50,
+            quest_id: quest.id,
+            games: 0,
+            expires_at: 10_000,
+        });
+        account.next_quest_instance = 51;
+        let won = MatchStats {
+            won: true,
+            battery_mode: true,
+            ..MatchStats::default()
+        };
+        let pay = evaluate_scaled(&mut account, &won, &scale, 1_000, &mut Rng::new(5));
+        // 50 silver and 50 reputation: 4.5 and 3.6 times.
+        assert_eq!((quest.money, quest.reputation[0]), (50, (1, 50)));
+        assert_eq!(pay.money, 225);
+        assert_eq!(pay.reputation, [(1, 180)]);
     }
 
     #[test]

@@ -180,3 +180,53 @@ levels' own rewards come twice as fast with it: about 700 gold by the top kit in
 
 The silver's percent follows the match's level, so nothing above 150 % is paid until matches are above
 level 5. To measure again: the per-match numbers of §2 from a fresh copy, then the tables of §4.
+
+## 8. Reputation at rev 30 (measured 2026-10-23)
+
+Players said a match's reputation is small ("never more than 150"). Read: the server's reward lines
+of six hours of rev 30 (62 matches: 14 batteries, 8 timed batteries, 27 Team Deathmatch, 13
+Research; 212 paid results, every one with a faction). The lines carry the rows' reputation (with
+the daily bonus, premium and the items' bonus) and the quests' silver; the quests' reputation is
+counted from that silver, since every 0.26g quest awards as much silver as reputation, at the
+match level the silver gives (levels 13 to 15 for most matches). A result is doubled when it is
+one of its account's first three victories in those hours (27 % of the results). Research is left
+out: its rows were inflated by the statistics bug fixed in #352.
+
+**A paid result (MEASURED)**, reputation:
+
+| Mode | Results | Rows: median / p90 | Quests completed a result | Quests: mean / p90 | Total: median / p90 / mean |
+|---|---|---|---|---|---|
+| Batteries | 61 | 32 / 76 | 0.57 | 146 / 459 | 77 / 504 / 183 |
+| Timed batteries | 46 | 34 / 70 | 0.96 | 265 / 643 | 230 / 700 / 301 |
+| Team Deathmatch | 44 | 24 / 115 | 0.11 | 39 / 0 | 25 / 171 / 76 |
+| All three | 151 | 28 / 78 | 0.56 | 151 / 495 | 62 / 565 / 188 |
+
+- The rows are a fifth of it; the quests are the rest, as the original meant ("Основной вклад в
+  прокачку репутации вносит выполнение заданий", official news of 2015-01-13).
+- Half the results complete no quest. Against §2 (levels 2 to 4: 118 a result before the rates)
+  the quests are done half as often: a higher band asks more (15 kills, a streak of 7, 8 batteries)
+  for the same award, 50 to 150 by kind, times `reputation_k` (1.6 to 1.7 at levels 13 to 15).
+- Team Deathmatch completes almost none: 130 of the 369 quests (bring, steal, win with batteries,
+  defend) are battery goals the client counts in no other mode, and they run 24 hours.
+- `win_x_games` pays 50 whether it asks 1, 2 or 3 victories, the least of any kind.
+
+**What a rank takes (MODEL)**: the mean of the three modes, 37 of rows and 151 of quests a result,
+each scaled by its rate; Renaissance and Edge ranks (1,500 for the first, 5,910 for the tenth,
+35,250 in all), 3.3 matches an hour. The original's rates (100 and 100) give 156 a result: 225
+matches (68 hours) to rank 10.
+
+| Rows' rate | Quests' rate | A result | Rank 1 | Rank 10 alone | Rank 10 from 0 | Team Deathmatch alone: a result, rank 10 alone |
+|---|---|---|---|---|---|---|
+| 120 (now) | 120 (now) | 188 | 8 | 31 | 188 (57 h) | 76, 77 |
+| 120 | 240 | 339 | 4 | 17 | 104 (32 h) | 115, 51 |
+| 120 | 360 | 490 | 3 | 12 | 72 (22 h) | 154, 38 |
+| 120 | 480 | 641 | 2 | 9 | 55 (17 h) | 193, 31 |
+| 150 | 240 | 348 | 4 | 17 | 101 (31 h) | 125, 47 |
+| 150 | 360 | 499 | 3 | 12 | 71 (21 h) | 164, 36 |
+| 200 | 240 | 363 | 4 | 16 | 97 (29 h) | 140, 42 |
+| 200 | 360 | 514 | 3 | 12 | 69 (21 h) | 179, 33 |
+
+(matches.) The Scavengers' and Black Market's five ranks (3,000) take 16 matches now, 9 at 240.
+A quest rate does little for a player of Team Deathmatch alone; the rows' rate does more there.
+Settings: `SRP_QUEST_REPUTATION_RATE`, `SRP_QUEST_MONEY_RATE`, `SRP_QUEST_KIND_RATES`
+(`results.md` §14).
