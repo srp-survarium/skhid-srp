@@ -2594,6 +2594,17 @@ scopes").
 - **Room.** 2 266 bytes, now at `.srpw`+6B0h. `check_weapon_table_026g.py` 48 checks. Section 3.42,
   round 5d.
 
+Round 5e (2026-10-23, the owner: "a bit too much to the left"; the wheel "is not focused on the center
+of the weapon").
+- **Place.** The weapon's middle sits FRAME_SHIFT (365 lobby-movie units) left of the screen's middle:
+  0.310 of the width at 16:9 and 16:10, 0.359 at 21:9, a little right of the middle of the part between
+  the Squad strip and the upgrade window. Its ends stay 2% clear of the screen's edge, the window's edge,
+  the top and the bottom at any spin.
+- **Wheel.** The camera looks at the weapon's middle and a side angle places it, so the wheel zooms into
+  the weapon: its middle stays put. The wheel's range is 0.3 m to 1.25 of the framed distance; the
+  close flies back from wherever it left the camera.
+- **Room.** 2 378 bytes. `check_weapon_table_026g.py` 50 checks. Section 3.42, round 5e.
+
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 
 The owner (2026-10-21): "when player dies they can still move camera

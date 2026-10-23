@@ -112,7 +112,7 @@ def table_middles():
     import os
     import re
     text = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_table_026g.asm")).read()
-    rows = re.findall(r"^(?:middles:)?\s+dw (\d+), (-?\d+), (-?\d+), (-?\d+)", text[text.index("middles:"):], re.M)
+    rows = re.findall(r"^(?:middles:)?\s+GUN (\d+), (-?\d+), (-?\d+), (-?\d+)", text[text.index("middles:"):], re.M)
     return {int(d): (int(x) / 1000, int(y) / 1000, int(z) / 1000) for d, x, y, z in rows}
 
 
@@ -128,16 +128,23 @@ ORIGINAL_FOV, MARGIN, NEAR_VIEW, TILT_ROOM = 65.0, 0.02, 0.3, 0.962
 URO_FOV = 0xA6FA28                              # uro_fov's value (patch 22)
 
 
+FRAME_SHIFT, PANEL_RIGHT, SQUAD_RIGHT = 365, 882, 88   # lobby movie units (weapon_table_026g.asm's)
+COS_PITCH, SIN_PITCH = math.cos(-0.25), math.sin(-0.25)
+
+
 def frame(length, aspect=16 / 9):
-    """(distance, the look-at point's shift along -z, the free part's middle (of the width))."""
-    layout = aspect if aspect >= 1.85 else 16 / 9   # the lobby movie: by the width below 1.85, else the height
-    fx = 0.5 - 441 / (1080 * layout)                # the upgrade window's left edge 882 of 1080 from the right
-    t = math.tan(math.radians(ORIGINAL_FOV / 2)) * aspect
-    # the width's (an end m in from the left at any spin) or the height's (m in from the top and the
-    # bottom at any spin and tilt: it binds beyond 21:9), at least NEAR_VIEW
-    d = max(length * math.sqrt(1 / t ** 2 + (1 - 2 * MARGIN) ** 2) / (4 * (fx - MARGIN)), TILT_ROOM * length,
-            NEAR_VIEW)
-    return d, (1 - 2 * fx) * d * t, fx
+    """(the camera's distance, its side angle, the weapon's middle (of the width), the upgrade window's left
+    edge, the Squad strip's right edge): weapon_table_026g.asm's frame_view."""
+    layout = 1080 * (aspect if aspect >= 1.85 else 16 / 9)   # the lobby movie's width in units
+    s, p = FRAME_SHIFT / layout, PANEL_RIGHT / layout
+    big = math.tan(math.radians(ORIGINAL_FOV / 2)) * aspect
+    t = 2 * s * big
+    left = math.sqrt(1 / big ** 2 + (1 - 2 * MARGIN) ** 2) / (4 * (0.5 - s - MARGIN))
+    right = math.sqrt(1 / big ** 2 + (1 - 2 * MARGIN - 2 * p) ** 2) / (4 * (0.5 - p - MARGIN + s))
+    d = max(left, right, TILT_ROOM) * length
+    distance = max(d * math.sqrt(1 + t * t), NEAR_VIEW)
+    side = math.atan(t * COS_PITCH) + math.asin(t * SIN_PITCH ** 2 / (COS_PITCH * math.sqrt(1 + (t * COS_PITCH) ** 2)))
+    return distance, side, 0.5 - s, 1 - p, SQUAD_RIGHT / layout
 
 
 def zoom_angle(zoom, uro):
@@ -145,8 +152,8 @@ def zoom_angle(zoom, uro):
     return 65 * zoom + (uro - 65) * max(0.0, (zoom - 0.25) / 0.75)
 
 
-VIEW_DISTANCE, VIEW_SHIFT, _ = frame(1.0)      # a 1 m weapon (until the weapon's own length), 16:9
-LOOK = (BENCH[0], BENCH[1], BENCH[2] - VIEW_SHIFT)
+VIEW_DISTANCE, VIEW_SIDE = frame(1.0)[:2]     # a 1 m weapon (until the weapon's own length), 16:9
+LOOK = BENCH                                    # the camera looks at the weapon's middle (round 5e)
 TABLE, FLY, TARGET_X, TARGET_Z, TARGET_YAW, TARGET_PITCH, SAVED_YAW, SAVED_PITCH, SPIN, TILT, READY = range(0, 44, 4)
 LEFT, LENGTH = 0x34, 0x30                      # (+2Ch EASE; +30h the weapon's length, round 5d)
 STAMP, BENCH_MATRIX = base.WEAPON_TABLE_STAMP_OFFSET, base.WEAPON_TABLE_MATRIX_OFFSET   # the interface
@@ -385,10 +392,11 @@ def main():
         table.lobby.handler(START_HANDLER, AK)
         assert (table.flag(TABLE), table.flag(FLY)) == (1, 1)
         assert (table.s(TARGET_X), table.s(TARGET_PITCH)) == tuple(from_f32(f32(v)) for v in (BENCH[0], VIEW_PITCH))
-        assert math.isclose(table.s(TARGET_Z), LOOK[2], abs_tol=1e-5), table.s(TARGET_Z)
+        assert table.s(TARGET_Z) == from_f32(f32(BENCH[2])), table.s(TARGET_Z)
         assert (table.s(SAVED_YAW), table.s(SAVED_PITCH)) == (from_f32(f32(0.4)), from_f32(f32(0.1)))
         assert math.isclose(table.s(TARGET_YAW), nearest_turn(VIEW_YAW, 0.4), abs_tol=1e-5)
-        assert round(table.f(CAMERA + HEIGHT_TARGET), 6) == BENCH[1] and table.f(CAMERA + 0x98) == 0.0
+        assert round(table.f(CAMERA + HEIGHT_TARGET), 6) == BENCH[1] \
+            and math.isclose(table.f(CAMERA + 0x98), VIEW_SIDE, abs_tol=1e-5), table.f(CAMERA + 0x98)
         assert math.isclose(table.f(CAMERA + DISTANCE_TARGET), VIEW_DISTANCE, abs_tol=1e-5)
         # The weapon not at the bench yet (READY 0): the camera flies anyway,
         # from the first tick.
@@ -415,13 +423,13 @@ def main():
         expected_eye = (BENCH[0] - VIEW_DISTANCE * math.cos(VIEW_PITCH), point[1] - VIEW_DISTANCE * math.sin(VIEW_PITCH),
                         LOOK[2])
         assert all(abs(a - b) < 1e-4 for a, b in zip(eye, expected_eye)), (eye, expected_eye)
-        assert table.f(CAMERA + SIDE) == 0.0 and table.f(CAMERA + 0x94) == 1.0     # uro_fov 65: the zoom 1
+        assert table.f(CAMERA + SIDE) == table.f(CAMERA + 0x98) and table.f(CAMERA + 0x94) == 1.0  # uro_fov 65: zoom 1
         say(f"a weapon's window{rebased}: the camera flies at the start, before the weapon is at the bench "
             f"(its point, yaw, pitch, height and distance move at the first tick, moved by it, the steps' speeds 0); "
-            f"the camera's point is at {tuple(round(v, 3) for v in LOOK)} (the bench's, {VIEW_SHIFT:.3f} along -z) "
-            f"within 1 cm after {seconds:.2f} s, then exactly; its eye at ({eye[0]:.3f}, {eye[1]:.3f}, {eye[2]:.3f}): "
-            f"{VIEW_DISTANCE:.3f} m (a 1 m weapon's) in front of it along -x, {-VIEW_DISTANCE * math.sin(VIEW_PITCH):.3f} m above; "
-            "the side angle 0; the yaw and pitch it had kept")
+            f"the camera's point is at the bench {BENCH} (the weapon's middle) within 1 cm after {seconds:.2f} s, "
+            f"then exactly; its eye at ({eye[0]:.3f}, {eye[1]:.3f}, {eye[2]:.3f}): {VIEW_DISTANCE:.3f} m (a 1 m "
+            f"weapon's) in front of it along -x, {-VIEW_DISTANCE * math.sin(VIEW_PITCH):.3f} m above; the side angle "
+            f"{VIEW_SIDE:.4f} (the weapon left of the view's middle); the yaw and pitch it had kept")
 
         # A drag turns the weapon, not the camera.
         yaw, pitch = table.f(CAMERA + YAW), table.f(CAMERA + PITCH)
@@ -522,7 +530,8 @@ def main():
         cut = moves(hit, 300)
         ok_hit, (_, _, last_hit) = smooth(clear + cut)
         resting = [hit.f(CAMERA + at) for at in (DISTANCE, POINT_Y, SIDE)]
-        assert ok_hit and hit.box["rays"] == 0 and resting[1:] == [from_f32(f32(BENCH[1])), 0.0] \
+        assert ok_hit and hit.box["rays"] == 0 and resting[1] == from_f32(f32(BENCH[1])) \
+            and math.isclose(resting[2], VIEW_SIDE, abs_tol=1e-5) \
             and resting[0] == hit.f(CAMERA + DISTANCE_TARGET) and math.isclose(resting[0], VIEW_DISTANCE, abs_tol=1e-5), \
             (ok_hit, hit.box["rays"], resting)
         eye = hit.matrix()[12:15]
@@ -539,7 +548,7 @@ def main():
         assert hit.box["rays"] >= 1 and hit.f(CAMERA + DISTANCE) == from_f32(f32(1.5)), hit.f(CAMERA + DISTANCE)
         say(f"the collision ray{rebased}: with a hit at 0.6 from READY on, no ray while the camera is the "
             "table's (there, at the bench, back): the flight as smooth (each tick no more than the one before), "
-            "at rest the distance exactly its target, the height 1.3 and the side angle 0, the eye that far from the "
+            "at rest the distance exactly its target, the height 1.3 and the side angle frame()'s, the eye that far from the "
             "point; once the stock camera is back its ray is cast and cuts the distance (to the least, 1.5) as the original's")
 
         # The bench's view on the screen (round 5d, the owner: the weapon "a bit too far", "off center to
@@ -586,12 +595,15 @@ def main():
                         t.frame()
                     lower, upper = box or WEAPONS[name][1:3]
                     length = upper[2] - lower[2]
-                    d, shift, fx = frame(length, aspect)
+                    d, side, fx, window, squad = frame(length, aspect)
                     assert t.flag(READY) == 1 and math.isclose(t.f(CAMERA + DISTANCE), d, rel_tol=1e-5) \
-                        and math.isclose(t.s(TARGET_Z), BENCH[2] - shift, abs_tol=1e-5), (name, uro, aspect)
+                        and t.s(TARGET_Z) == from_f32(f32(BENCH[2])) \
+                        and math.isclose(t.f(CAMERA + SIDE), side, abs_tol=2e-5), (name, uro, aspect)
                     assert abs(zoom_angle(t.f(CAMERA + 0x94), uro) - ORIGINAL_FOV) < 1e-3, (uro, t.f(CAMERA + 0x94))
                     sx, sy, _ = on_screen(t, uro, aspect, BENCH)
-                    assert abs(sx - fx) < 2e-4 and abs(sy - 0.5) < 2e-4, (name, uro, aspect, sx, sy, fx)
+                    # across exactly (the side angle's); in height about the middle (the side angle turns the
+                    # pitched view about the vertical: the middle about 2% of the height lower)
+                    assert abs(sx - fx) < 1e-4 and abs(sy - 0.5) < 0.03, (name, uro, aspect, sx, sy, fx)
                     # the ends over a full spin and the tilts, through bone 1 as the middle
                     inverse_bind, pose = WEAPONS["AK-12" if name == "SVD" else name][3:5]
                     cy = (lower[1] + upper[1]) / 2
@@ -614,14 +626,16 @@ def main():
                                 assert ez > 0.05 and MARGIN - 0.002 <= ey <= 1 - MARGIN + 0.002, \
                                     (name, uro, aspect, tilt, step, ey)
                                 lowest, highest = min(lowest, ex), max(highest, ex)
-                    assert lowest >= MARGIN - 0.002 and highest <= 1 - MARGIN + 0.002, (name, uro, aspect, lowest, highest)
+                    # clear of the screen's left edge and of the upgrade window's left edge by the margin
+                    assert lowest >= MARGIN - 0.002 and highest <= window - MARGIN + 0.002, \
+                        (name, uro, aspect, lowest, highest, window)
                     t.lobby.word(t.state + SPIN, 0)
                     t.lobby.word(t.state + TILT, 0)
                     t.site(MATRIX, (DECAL_PATH, HAND, DRAW_ITEM), regs)
                     m = struct.unpack("<16f", t.emu.mem_read(FRAME - 0xE8, 0x40))
                     across = [on_screen(t, uro, aspect, [sum(v[i] * m[4 * i + k] for i in range(3)) + m[12 + k]
                                                          for k in range(3)])[0] for v in ends]
-                    share = abs(across[0] - across[1]) / (2 * fx)         # of the free part's width
+                    share = abs(across[0] - across[1]) / (window - squad)    # of the part between the Squad strip and the window
                     views.append((width, height, uro, name, d, share))
                     # the close: the player's field of view again (the zoom 1), exactly
                     t.lobby.handler(EXIT_HANDLER, 0)
@@ -635,16 +649,14 @@ def main():
         assert same, views
         shares = {(w, h, n): (d, sh) for w, h, u, n, d, sh in views if u == 65.0}
         say(f"the bench's view{rebased} at uro_fov 50, 65 and 100 and 16:9, 16:10, 21:9 and 32:9 (3840x1080, "
-            "5120x1440): the zoom gives the original's 65 degrees, the weapon's middle at the middle of the part "
-            "left of the upgrade window (0.270, 0.270, 0.329, 0.385 of the width) and of the height within 0.0002, "
-            "the distance frame()'s for its length (the height's beyond 21:9); over a full spin at tilts 0 and "
-            "+-1.2 its ends within the screen's 2% margin across and up and down; the same whatever uro_fov, and "
-            "the zoom 1 again after the close. At rest, of the free part's width: " + "; ".join(
+            "5120x1440): the zoom gives the original's 65 degrees, the weapon's middle at FRAME_SHIFT left of the "
+            "screen's middle (0.310, 0.310, 0.359, 0.405 of the width) within 0.0001, about the middle of the height, "
+            "the distance and side angle frame()'s for its length; over a full spin at tilts 0 and +-1.2 its ends "
+            "2% clear of the screen's left edge, the upgrade window's left edge, the top and the bottom; the same "
+            "whatever uro_fov, and the zoom 1 again after the close. At rest, of the part between the Squad strip "
+            "and the upgrade window: " + "; ".join(
                 f"{w}x{h} {n} {sh * 100:.0f}% at {d:.2f} m" for (w, h, n), (d, sh) in shares.items()))
 
-        # A weapon's window over a weapon's (review of 5d): the bench keeps the first weapon (READY) and draws
-        # it while the character makes the new player; that old weapon is not measured for the new view:
-        # the SVD's window, then a pistol's over it, the SVD drawn through the rebuild, then the pistol.
         def draw(t, name, box=None):
             t.lobby.word(FRAME + 4, LOBBY_DRAW + delta)
             t.lobby.word(FRAME - 0xF0, CHARACTER)
@@ -654,6 +666,52 @@ def main():
                     UC_X86_REG_ESI: 0, UC_X86_REG_EDI: 0, UC_X86_REG_EBP: FRAME}
             return t.site(MATRIX, (DECAL_PATH, HAND, DRAW_ITEM), regs)[0]
 
+        # The wheel at the bench (round 5e, the owner: "when scrolling the wheel to move the camera closer, it
+        # is not focused on the center of the weapon"): the camera looks at the weapon's middle and its side
+        # angle places it, so the wheel moves the eye along the line through the middle: the middle stays at
+        # the same point of the screen, in and out; the distance between NEAR_MIN (0.3) and FAR_SHARE (1.25)
+        # of the framed one; the close glides back from wherever the wheel left it.
+        wheel = Table(patched, delta)
+        wheel.set_f(CAMERA + YAW, 0.4)
+        wheel.set_f(CAMERA + PITCH, 0.1)
+        wheel.lobby.handler(START_HANDLER, AK)
+        wheel.lobby.word(CHARACTER + 0xD2C4, -1)
+        draw(wheel, "AK-12")
+        for n in range(300):
+            wheel.frame()
+        framed = wheel.f(CAMERA + DISTANCE)
+        length = WEAPONS["AK-12"][2][2] - WEAPONS["AK-12"][1][2]
+        assert math.isclose(framed, frame(length)[0], rel_tol=1e-5), framed
+        at_rest = on_screen(wheel, 65.0, 16 / 9, BENCH)[:2]
+        spots, nearest, farthest = [], framed, framed
+        for move, ticks in ((-0.2, 6), (0.0, 60), (0.3, 12), (0.0, 80), (-0.15, 3), (0.0, 60)):
+            for n in range(ticks):
+                wheel.set_f(CAMERA + WHEEL, move)
+                wheel.frame()
+                spots.append(on_screen(wheel, 65.0, 16 / 9, BENCH)[:2])
+                nearest = min(nearest, wheel.f(CAMERA + DISTANCE))
+                farthest = max(farthest, wheel.f(CAMERA + DISTANCE))
+        wheel.set_f(CAMERA + WHEEL, 0.0)
+        drift = max(max(abs(a - b) for a, b in zip(spot, at_rest)) for spot in spots)
+        assert drift < 1e-4, drift
+        assert math.isclose(nearest, NEAR_VIEW, abs_tol=1e-6) and math.isclose(farthest, 1.25 * framed, rel_tol=1e-5), \
+            (nearest, farthest, framed)
+        wheel.lobby.handler(EXIT_HANDLER, 0)
+        for n in range(600):
+            wheel.frame()
+            if not wheel.flag(FLY):
+                break
+        assert not wheel.flag(FLY) and wheel.f(CAMERA + 0x94) == 1.0 \
+            and (wheel.f(CAMERA + POINT_X), wheel.f(CAMERA + POINT_Z)) == (0.0, 0.0) \
+            and (wheel.f(CAMERA + YAW), wheel.f(CAMERA + PITCH)) == (from_f32(f32(0.4)), from_f32(f32(0.1)))
+        say(f"the wheel at the bench{rebased}: in to the least {nearest:.2f} m, out to {farthest:.2f} m (1.25 of the "
+            f"framed {framed:.2f} m) and in again, the weapon's middle stays where it is on the screen (at most "
+            f"{drift:.1e} of the width or height); the close glides back from there to the stock camera, the "
+            "zoom 1 and the yaw and pitch it had")
+
+        # A weapon's window over a weapon's (review of 5d): the bench keeps the first weapon (READY) and draws
+        # it while the character makes the new player; that old weapon is not measured for the new view:
+        # the SVD's window, then a pistol's over it, the SVD drawn through the rebuild, then the pistol.
         over = Table(patched, delta)
         over.lobby.handler(START_HANDLER, SVD)
         over.lobby.word(CHARACTER + 0xD2C4, -1)

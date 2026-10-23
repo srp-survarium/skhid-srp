@@ -1200,6 +1200,42 @@ The owner's request (2026-10-21): "instead of focusing on players the camera wou
   - The self-test and the other weapon checks pass.
 - **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `4eb7c0dfc13a0fb27212863282755974fd1f99137f12b08355247110a0fb935b` (12 934 776 bytes; with the review's fixes). **Not run in a game.**
 
+**Round 5e** (2026-10-23, the owner on 4c45c7a7 at 2560 x 1440: "a bit too much to the left", and "when scrolling the wheel to move the camera closer, it is not focused on the center of the weapon"). PROVEN in the code and the movie's layout, emulated:
+
+- **Where it sat.** In the owner's screenshot the Mosin spans 0.115..0.445 of the width (its middle 0.28; the model's middle, drawn at BENCH, at 5d's 0.270). The Squad strip ends at 0.046 and the Attachments window begins at 0.54, so the part a player sees free is 0.046..0.54 and 0.27 read as left-heavy.
+- **The new place.** The weapon's middle goes FRAME_SHIFT = 365 lobby-movie units left of the screen's middle: fx = 1/2 − 365 / (1080 a'). That is 0.310 at 16:9 and 16:10, 0.359 at 21:9 and 0.405 at 32:9. The free part's own middle, between the Squad strip's right edge (88 units, left-aligned) and the window's edge, is 397 units left; the 32 units more to the right are the owner's "a little more to the right". FRAME_SHIFT is the one constant to retune (`weapon_table_026g.asm`, `frame_shift`).
+- **Clear of the window too.** frame_view takes the largest of three distances:
+  - **the screen's left edge:** d ≥ L sqrt(1/T² + (1 − 2m)²) / (4 (1/2 − s − m));
+  - **the upgrade window's left edge:** d ≥ L sqrt(1/T² + (1 − 2m − 2p)²) / (4 (1/2 − p − m + s)), with p = 882 / (1080 a');
+  - **the height's:** 0.962 L, as in 5d.
+
+  With the middle at 0.31 the left edge binds at 16:9 and 16:10, the height beyond.
+- **The wheel zooms into the weapon.** 5d looked at a point beside the bench, so the stock wheel (the distance along the view, the point kept) slid the weapon across the screen.
+  - **Looking at the weapon.** The camera now looks at BENCH, the weapon's middle, and its side angle turns the view so that the middle is at fx: σ = atan(t cos P) + asin(t sin²P / (cos P sqrt(1 + t² cos²P))), with t = 2 s T and P = −0.25, the view's pitch. The asin's argument is below 0.03 and is taken as the angle (5e-6 rad).
+  - **Why the middle stays put.** The view's direction no longer depends on the distance, so the middle stays where it is on the screen at any distance. The distance becomes d sqrt(1 + t²): the middle is on the eye's line, not beside it.
+  - **Limits.** The wheel goes from NEAR_MIN (0.3) to FAR_SHARE (1.25) of the framed distance. `ray` clamps the distance and its target while the table is on, after the tick's wheel and step. LENGTH holds the framed distance negated.
+  - **The close.** It flies back from wherever the wheel left the camera.
+- **The vertical.** The side angle turns the pitched view about the vertical, so the middle sits about 2% of the height below the middle (accepted; the owner found the height right).
+- **Room.** frame_view, the camera and the tick read their constants from a register (ebx or ebp, FC), and MIDDLES packs its x and y into bytes (6 bytes a weapon, all within 4 cm of the axis). The code is 2 378 bytes, ending at `.srpw`+FFAh of the page's 1000h.
+- **Checked:**
+  - **`check_weapon_table_026g.py` 50 checks (as is and rebased).** The bench's view at uro_fov 50/65/100 and 16:9, 16:10, 21:9, 32:9, for the AK-12, an SVD box and the PM:
+    - the middle within 0.0001 of fx;
+    - the distance and side angle frame()'s;
+    - over a full spin at tilts 0 and ±1.2 the ends 2% clear of the screen's left edge, the window's left edge, the top and the bottom.
+  - **The wheel at the bench:** in to 0.30 m, out to 1.25 of the framed distance and in again; the middle's projection moves at most 3e-7. The close then glides back to the stock camera, the zoom 1 and the yaw and pitch kept.
+  - The other cases as before (with the side angle frame()'s). `check_weapon_preview_026g.py` (the side angle at the start), the other weapon checks and the self-test pass.
+- **At rest**, of the part between the Squad strip and the window:
+
+  | screen | AK-12 | SVD | PM |
+  |---|---|---|---|
+  | 16:9 | 89% at 1.15 m | 89% at 1.50 m | 56% at 0.30 m |
+  | 16:10 | 92% at 1.19 m | 92% at 1.55 m | 60% at 0.30 m |
+  | 21:9 | 62% at 0.98 m | 62% at 1.28 m | 33% at 0.30 m |
+  | 32:9 | 35% at 0.98 m | 35% at 1.28 m | 19% at 0.30 m |
+
+  The spin margin (2% of the width) sets these; a larger FRAME_MARGIN gives a smaller resting weapon.
+- **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `9a959219cc4122d4e42196f74a5ba02df2103fed112ddec1059f77bc543f17a4`. **Not run in a game.**
+
 ### 3.43 On the death screen a drag turns the camera; the wheel does nothing (written 2026-10-21, README patch 46, the next release's revision; the rules: `death-camera.md`) — PROVEN in the code, the mouse moves and the view's update run with Unicorn; the first build run in a game
 
 The owner: "when player dies they can still move camera around, with holding a mouse button? Scroll shouldn't work though".
