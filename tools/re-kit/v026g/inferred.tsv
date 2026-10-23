@@ -3025,3 +3025,6 @@ va	status	ref_021d	name
 0x0026db80	inferred-medium		survarium::base_game_statistics_handler::on_event
 0x0001ddb0	inferred-high		vostok::console_commands::cc_value<bool>::cc_value
 0x0026b6f0	inferred-medium	0x0019b858	survarium::messaging_client::process_incoming_text_message
+0x0026db80	inferred-high		survarium::base_game_statistics_handler::on_event
+0x0026db60	inferred-high		survarium::base_game_statistics_handler::deserialize
+0x0026dc30	inferred-high		survarium::base_game_statistics_handler::recalculate_scores
