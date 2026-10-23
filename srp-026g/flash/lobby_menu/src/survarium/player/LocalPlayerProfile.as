@@ -8,9 +8,11 @@ package survarium.player
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.MouseEvent;
+   import flash.events.TimerEvent;
    import flash.external.*;
    import flash.text.TextField;
    import flash.utils.getDefinitionByName;
+   import flash.utils.Timer;
    import flash.utils.getTimer;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ScrollingList;
@@ -167,6 +169,12 @@ package survarium.player
       private var _presetPendingAt:int = 0;
       
       private var _presetsAskedAt:int = -100000;
+      
+      // Asks again every 2 s until the first list comes: the first asks go
+      // out while the movie loads, before the game takes them
+      // ("ExternalInterface.call - handler is not installed"), and are lost;
+      // the title is the panel's name until a list comes.
+      private var _presetsRetry:Timer;
       
       // The kits locked (as the paper doll and the ammo button): no preset
       // chosen.
@@ -743,6 +751,21 @@ package survarium.player
          addEventListener(MouseEvent.MOUSE_DOWN,this.onPanelPress);
          addEventListener(Event.REMOVED_FROM_STAGE,this.onPresetsGone);
          this.showPresetTitle();
+         this._presetsRetry = new Timer(2000,0);
+         this._presetsRetry.addEventListener(TimerEvent.TIMER,this.onPresetsRetry);
+         this._presetsRetry.start();
+         this.askPresets();
+      }
+      
+      private function onPresetsRetry(e:TimerEvent) : void
+      {
+         if(this._presetsSeen)
+         {
+            this._presetsRetry.stop();
+            return;
+         }
+         this._presetsAskedAt = getTimer();
+         this.sendPresets(PRESETS_FIRST);
       }
       
       private function presetLabel(i:int) : String
@@ -1082,6 +1105,10 @@ package survarium.player
             i++;
          }
          this._presetsSeen = true;
+         if(this._presetsRetry != null)
+         {
+            this._presetsRetry.stop();
+         }
          var done:int = int(head[2]);
          // A choice's answer (or one never coming) ends the choice shown.
          if(done == PRESET_CHOSEN || done == PRESET_REFUSED || getTimer() - this._presetPendingAt > PRESET_PENDING_MS)

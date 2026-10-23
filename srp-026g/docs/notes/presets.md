@@ -62,6 +62,12 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   press outside or Esc closes the list with no change. No step arrows: each step would choose a
   preset, so going from 2 to 4 would put 3 on the way. Until the server's first list the title
   is "Character"; while the kits are locked (a search, a match) it takes no press.
+  - The movie asks for the list at its setup, on every account push, and every 2 s until the
+    first list comes: an ask sent while the movie loads is lost (the game has not installed its
+    handler yet: "ExternalInterface.call - handler is not installed" in the game's log), and with
+    it the title stayed "Character" (the first in-game test, 2026-10-23). A test session is
+    checked with `scripts/presets-check/check_presets_session.py <runtime/packets> --since <start>`:
+    every lobby client must get the list within 10 s and ask for it before any choice.
   A choice that left slots empty, or was refused, says so in the game's message box ("N slots
   left empty: those items are gone.") [choice: no line of its own].
 - **Joining a room** (the owner's, 2026-10-23: "If the person joins a high level room with low
