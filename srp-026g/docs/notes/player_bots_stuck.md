@@ -456,7 +456,29 @@ any. And `path.rs` `pull_straight` pulls no line across a lip the search
 did not take (cutting a corner over an edge). The grid itself is
 unchanged (no `GRID_ALGO` bump): the cost is the grid's reading of it.
 
-LIPRESULT
+Test: `grid::tests::a_way_along_a_ledge_keeps_back_from_its_lip` (a
+block 2 m high: the way along its edge had 33 of 33 floors on the lip,
+now 4 or fewer; a 0.8 m drop makes no lip). The lip's cell overlaps the
+block's top, so its centre (x 5.125) is even past the edge (x 5.1).
+
+On the bench (8.6's runs, the same 128 pairs, with 8.1-8.4 in both),
+falls of a metre or more in a tick, off the route (no drop of it there)
+and taken by the route:
+
+| | without | with the lip cost | diff |
+|---|---|---|---|
+| falls off the route | 9.21 | 6.76 | -2.45 +- 0.40 |
+| falls the route took | 24.9 | 25.2 | +0.24 +- 0.57 |
+| batteries delivered | 5.07 | 5.24 | +0.17 +- 0.11 |
+| carry time, s | 25.3 | 24.7 | -0.51 +- 0.49 |
+| pushing, s | 18.8 | 17.1 | -1.7 +- 1.8 |
+| stuck notes | 27.8 | 26.1 | -1.7 +- 0.9 |
+| grid searches | 1392 | 1364 | -29 +- 17 |
+
+The rest (idle, reversals, standing with a goal, failed searches) moves
+within its error. The stand-in walks its keys on the grid, so a fall in
+it is a route or a slide over an edge, not a stray: the client's strays
+(a bump, a turn) should gain more than this shows.
 
 ### 8.6 Measured
 
