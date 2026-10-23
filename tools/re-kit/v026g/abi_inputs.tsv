@@ -4451,3 +4451,22 @@ va	name	location	role	basis
 0x0007a1f0	vostok::physics::create_bt_primitive	EDX	the primitive's type (cmp edx,3 / jmp [edx*4+7A374h]): 0 sphere, 1 box, 2 cylinder (scale x the radius, y the half height), 3 capsule	observed
 0x0007a1f0	vostok::physics::create_bt_primitive	ECX	the scale (float3, [ecx] read first)	observed
 0x0007a1f0	vostok::physics::create_bt_primitive	ESI	the allocator (vtable +10h)	observed
+0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	ECX	player_equipment_sound_effect (+3Ch the player, +44h the feet on)	observed
+0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	stack+4	the animation sound event: [+0] the player, +10h its time, +20h the event (0, 1 the feet; 2, 3, 4 the rustles 0x2A6580, 0x2A6630, 0x2A66C0)	observed
+0x0023fbe0	survarium::player::landing_step	CL	not first view (the third-person foot material)	observed
+0x0023fbe0	survarium::player::landing_step	EDX	the time	observed
+0x0023fbe0	survarium::player::landing_step	XMM0	the landing speed	observed
+0x0023fbe0	survarium::player::landing_step	stack+4	the state: [+0] the foot materials, +4 the speed for a step, +8 for a jump material, +0Ch the last step time	observed
+0x0023fbe0	survarium::player::landing_step	stack+8..+16	the step_manager (player+0F460h), the position, the direction (on_step's)	observed
+0x000657c0	survarium::play_sound	ECX	&the sound scene ([it] the scene)	observed
+0x000657c0	survarium::play_sound	stack+4	the sound (a sound emitter resource: vt+1Ch, its count +0D0h)	observed
+0x000657c0	survarium::play_sound	stack+8	&the position	observed
+0x000657c0	survarium::play_sound	stack+12	the hud flag (byte): 1 the viewer's own player in first person	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	EAX	&the sound scene	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	ECX	the sound emitter	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	stack+4	&the proxy pointer (out)	observed
+0x00297e20	survarium::weapon_sound_effect::play_sound_callback	ECX	the weapon_sound_effect: +0 first-view sounds, +18h third-view, +30h the weapon core (+8 its user), +34h the game world; a fire state's at handler+168h (0xA04EE4) or +170h (0xA05150, 0xA05248)	observed
+0x00297e20	survarium::weapon_sound_effect::play_sound_callback	stack+4	the sound's index	observed
+0x0005c7a0	vostok::sound::sound_scene::calculate_hdr_audio_frame	stack+8	the propagators (each: +8 the proxy, +0Ch the emitter, +38h the distance)	observed
+0x00313880	survarium::artefact_base::fill_ui_info	ECX	the artefact	observed
+0x00313880	survarium::artefact_base::fill_ui_info	stack+4	the hud's item info (8 bytes)	observed

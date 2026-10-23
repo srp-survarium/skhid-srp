@@ -3097,3 +3097,19 @@ va	status	ref_021d	name
 0x0032a4b0	inferred-high		survarium::body_part_parameters::tick
 0x002e5040	inferred-medium		survarium::damage_model::tick_parts
 0x002d2db0	inferred-medium		survarium::game_world_core::remove_from_tick_list
+0x002a6470	inferred-high	0x001b3d18	survarium::player_equipment_sound_effect::on_player_sound_event
+0x002a6580	inferred-medium	0x001b3dde	survarium::player_equipment_sound_effect::on_pants_rustle
+0x002a6630	inferred-medium	0x001b3e57	survarium::player_equipment_sound_effect::on_backpack_rustle
+0x002a66c0	inferred-medium	0x001b3ec0	survarium::player_equipment_sound_effect::on_torso_rustle
+0x0023fbe0	inferred-medium		survarium::player::landing_step
+0x000657c0	inferred-medium		survarium::play_sound
+0x00065670	inferred-medium	0x000484b4	vostok::sound::sound_emitter::emit_point_sound
+0x00297c50	inferred-high	0x001b17f9	survarium::weapon_sound_effect::on_sound_event
+0x002981a0	inferred-medium		survarium::weapon_sound_effect::play_sound
+0x0005a6b0	inferred-medium	0x0004102a	vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal
+0x0005c1c0	inferred-high	0x0004221f	vostok::sound::new_sound_propagator::amplitude
+0x0005c280	inferred-high	0x0004228a	vostok::sound::sound_scene::notify_listener2
+0x0005c7a0	inferred-high	0x000425cd	vostok::sound::sound_scene::calculate_hdr_audio_frame
+0x00313880	inferred-high		survarium::artefact_base::fill_ui_info
+0x00311a60	inferred-medium		survarium::artefact_spring_core::fill_ui_info
+0x00312450	inferred-medium	0x001f4506	survarium::artefact_lifebone_core::disable_active_effects

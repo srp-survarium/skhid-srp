@@ -1901,3 +1901,21 @@ va	name	source	ret_cleanup	result
 0x0031a410	survarium::damage_zone_core::intensity	manual		xmm0: clamp01(hit_curve(clamp01(relative distance))) x clamp01(speed_curve(the player's +334h))
 0x00062a80	vostok::curve::load	manual	32	
 0x00025f30	vostok::curve::evaluate	manual	20	xmm0: the curve's value at x
+0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	manual	4	EAX: 0
+0x0023fbe0	survarium::player::landing_step	manual	16	a step through step_manager::on_step (the run or jump foot material) when the speed is over [+4] and 50 ms went by since [+0Ch]
+0x000657c0	survarium::play_sound	manual	12	the sound played once: a hud proxy (0x65100) for flag 1, else a point proxy (new_point_sound_instance_proxy 0x64F80 at 0x65874) at the position
+0x00064f80	vostok::sound::sound_scene::new_point_sound_instance_proxy	manual	16	EAX: the first argument, &the new proxy (its intrusive pointer)
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	manual	8	EAX: the first argument, &the new point proxy
+0x00297c50	survarium::weapon_sound_effect::on_sound_event	manual	4	EAX: 0; queues play_sound_callback through 0x2981A0
+0x00297e20	survarium::weapon_sound_effect::play_sound_callback	manual		the hud proxy (0x65100) for the user in first person, else emit_point_sound at 0x297F79 (the effect at [esp+2Ch] there)
+0x0005a6b0	vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal	manual		+38h, +3Ah, +3Ch m_ext_params zeroed (half 0)
+0x0005c1c0	vostok::sound::new_sound_propagator::amplitude	manual	0	ST0: the master layer's (+14h) amplitude, else +4Ch
+0x0005c7a0	vostok::sound::sound_scene::calculate_hdr_audio_frame	manual		each propagator's attenuated loudness (dB) +40h at 0x5C8BA, perceived +3Ch, amplitude +4Ch at 0x5CA37; no voice below 0.01 (0x5CA87)
+0x00313880	survarium::artefact_base::fill_ui_info	manual	4	out +0 the dict id, +4 the count, +6 100 - the cooldown %
+0x00311a60	survarium::artefact_spring_core::fill_ui_info	manual	4	artefact_base's, then out +2 = ceil(+394h / 1000), the active's seconds
+0x00311890	survarium::artefact_spring_core::tick_impl	manual	8	+394h -= min(+394h, dt)
+0x003118d0	survarium::artefact_spring_core::enable_active_effects	manual	4	+394h = floor(M39(+390h)) of the holder; the active nodes linked (0x311BC0)
+0x00311990	survarium::artefact_spring_core::active_effect_ended	manual	0	AL: +394h == 0
+0x00313530	survarium::artefact_base::decrement_amount	manual	0	the count down unless amount (+27Ch) is FFFFh, out of the inventory at 0; else disable_active (+88h), +28Ch = floor(M38(+274h)), state 3
+0x0015a4b0	survarium::artefact_rattle_core::tick_impl	manual	8	nothing (a shared `ret 8`: the Rattle's stub)
+0x00372420	survarium::artefact_rattle_core::active_effect_ended	manual	0	AL: 1 (a shared `mov al,1 / ret`: the Rattle's stub)

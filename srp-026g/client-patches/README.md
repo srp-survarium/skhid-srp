@@ -105,6 +105,10 @@ release's. The "Result" row is the build of the revision named in it.
 | `sponge_a_026g.section.bin`, `sponge_a_026g.section.json` | That code built for +C000h of `.srpx` (0xA439000), which `patch_026g.py` reads, and beside it its symbols and what built it; kept, not rebuilt for a release, as Research's |
 | `sponge_a_026g.py` | Builds those two files (`--write-bin`) or says whether they are what the sources give here (`--check-bin`). Needs nasm, gcc for x86 (`-m32`, SSE2 scalar floats) and GNU ld |
 | `check_sponge_a_026g.py` | Checks of patch 55: runs the built exe's hooks and the sponge's slots with the game's own cook, Rattle constructor, config look-ups, splash and damage zone code on made-up items, players and worlds (needs Unicorn); with `--v028d0` the same inputs through 0.28d0's own code, with `--options` the config read from a decoded `artefact_sponge.options` |
+| `rattle_026g.asm`, `rattle_026g.c` | The source of patch 59 (the Rattle, artefact type 8): the seven hooks and their stubs in assembly (the cook, the steps' and the shots' point proxies, the sound thread's amplitude and loudness), and the Rattle's active, state and quiet in C |
+| `rattle_026g.section.bin`, `rattle_026g.section.json` | That code built for +8000h of `.srpx` (0xA435000), which `patch_026g.py` reads, and beside it its symbols and what built it; kept, not rebuilt for a release, as Research's |
+| `rattle_026g.py` | Builds those two files (`--write-bin`) or says whether they are what the sources give here (`--check-bin`). Needs nasm, gcc for x86 (`-m32`, SSE2 scalar floats) and GNU ld |
+| `check_rattle_026g.py` | Checks of patch 59: runs the built exe's hooks and the Rattle's slots with the game's own cook, Rattle constructor, artefact_base, patch 54's press, on_player_sound_event, 0x657C0, play_sound_callback and the sound thread's stores on made-up items, players, weapons and proxies (needs Unicorn); with `--pack` the pack's own config |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
@@ -3026,6 +3030,73 @@ splash on the same inputs give the same numbers, and its tap leaves the sponge u
 pack (`--pack`, `SRP_SPONGE_PACK`) the cook reads the pack's own `artefact_sponge.options` and the
 game's regeneration tick 0x32A4B0 fills infection again after a toxic hit while it is owned, not
 after a death or a removal). **Not run in a game.**
+
+### 59. The Rattle: its carrier's steps and shots quieter for others (the next release's revision)
+
+The Rattle (`artefact_rattle`, data type 8, the item of dictionary 759) was cut before release:
+0.20e had its item, config and model, and every effect method of `artefact_rattle_core` an empty
+stub; 0.26g's exe still cooks it, with the same stubs (its vtable 0xA06124: no active effect, an
+active that ends at its first tick). The owner's rules (`../docs/notes/rattle.md`): from its
+pickup to its holder's death others hear his steps and movement noise at 70 % a Rattle; its key
+(patch 54's press fires every ready one) makes them silent for 10 s (cooldown 40 s) and his shots
+50 % a Rattle fired; he hears himself as before. The content is pack `rattle@1`
+(`../scripts/rattle/make_pack.py`: item 759, 0.20e's config made 0.26g's with the owner's numbers,
+0.20e's model, texts in six languages) and the edit list `rattle-spawns-1` (a Rattle after the
+Sponge in each of its 200 map anomaly cores).
+
+- **The object** (`rattle_026g.c`, 0x378 bytes): Rattle's (artefact_base and the drawable at
+  +340h, constructor 0x25FA10), then the duration in ms (`data/active/duration` x 1000), the time
+  left, and the three factors `data/passive/steps_sound_volume_3rd_person` (0.7),
+  `data/active/steps_sound_volume_3rd_person` (0) and `data/active/shots_sound_volume_3rd_person`
+  (0.5). The cook's case for type 8 calls the constructor at 0x25E72C: the hook calls it and then
+  gives the object a vtable of its own (Rattle's, its RTTI locator too, with seven slots of ours)
+  and reads the numbers; the cook's size for type 8 (0x25E7C9 `mov eax,360h`) is 378h.
+- **The active**, as Spring's: enable_active (+80h) sets the time left to the duration through the
+  holder's artefact_duration modifier (0x2D5AE0 on 39), tick_impl (+78h) takes dt off it,
+  active_effect_ended (+8Ch) is its end at 0, disable_active (+88h) clears it (the end or a death),
+  serialize and deserialize (+68h, +6Ch) add it in state 4 after artefact_base's, the hud's info
+  (+48h) shows its seconds. artefact_base's tick then starts the cooldown as for every artefact.
+- **The steps and the movement noise.** on_player_sound_event 0x2A6470 (the feet, a jump's
+  included, and the rustles; its entry hooked) and on_landing's step (`call 0x23FBE0` at 0x1F3BB6)
+  run with the stepping player's quiet pending (the state page); 0x657C0, which plays them, makes a
+  point proxy for another player's sounds (`call 0x64F80` at 0x65874, hooked) and the hook marks it
+  with that quiet. A first-person (hud) sound, the carrier's own, is never marked.
+- **The shots.** play_sound_callback 0x297E20 makes another player's weapon sound's point proxy at
+  0x297F79 (`call 0x65670`, hooked): when the sound's weapon_sound_effect is a fire state's (the
+  handler's vtable 0xA04EE4 at effect-168h, 0xA05150 or 0xA05248 at effect-170h) the proxy gets
+  the weapon user's shot quiet; reloads, switches and the other states' sounds are left as they are.
+- **The quiet** of a player: his inventory (+10Ch), its artefact slots 13..18, each Rattle in state
+  3 x its passive's factor, in state 4 x its active's (steps) and x its shots' factor (shots); the
+  gain to the quiet q = round((1 - gain) x 65535), u16 at proxy+3Ah, the y of the proxy's ext
+  parameters (zeroed by its constructor 0x5A6B0; the sound code reads only x).
+- **The sound thread**: calculate_hdr_audio_frame's stores of a propagator's amplitude (0x5CA37)
+  and HDR loudness (0x5C8BA) take its proxy's (+8) gain: amplitude x gain (0 makes no voice),
+  loudness + 20 log10(gain) (-100 dB for 0), so a quieted sound neither plays loud nor ducks the
+  others.
+- **The section**: `rattle_026g.asm` (seven `jmp near`, 200h bytes, its stubs and three constants)
+  and the C code at +8000h of `.srpx` (0xA435000), its state page at +B000h zeroed.
+
+**Revisions.** A Rattle exists only in a match with item 759, which no resources.db of a release
+before this one has; it changes what a match computes (its active and cooldown, a new kind in the
+anomalies), so it is in the `next` row of `../crates/session/src/v026g/simulation_changes.tsv`; the
+quiet is presentation (each game computes it from the same artefact states). The exe needs the
+pack's config (patch 49: the release's exe requires its resources.db patch). Only in the builds with
+the late join. The server's bots hear no Rattle (the server knows no inventory: an owner decision,
+`../docs/notes/rattle.md`).
+
+Checked: `selftest_026g.py` check 59 (the seven sites and the size before and after, no relocation
+under one and no branch into one, the entries and the stubs' exits, the C code's calls, the vtable
+Rattle's but for seven slots popping what Rattle's pop, the `.srpx` layout); `check_rattle_026g.py`
+(Unicorn, the game's own code with made-up items, players, weapons and proxies: the size and
+construct against the original's, the Sponge's type 12 untouched, the pickup, patch 54's press
+firing two Rattles for the duration x the holder's modifier, the original's active ending at its
+first tick, 240 ticks of 50 ms then the cooldown, the hud's seconds, serialization in states 4 and
+3 against the original's bytes, the quiet for none to four Rattles passive and active, a pistol's
+fire state, a reload's sound and a weapon without a user; on_player_sound_event's pending quiet,
+0x657C0's proxy marked and unmarked, play_sound_callback's proxy with the effect where the hook
+reads it, on_landing's step getting every register and argument, the sound thread's amplitude and
+loudness for gains 1, 0.7, 0.25 or 0.5 and 0 with the stacks as they were; with `--pack` the pack's
+own config). **Not run in a game.**
 
 ## Not ported, not done
 

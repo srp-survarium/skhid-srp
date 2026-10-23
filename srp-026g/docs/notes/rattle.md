@@ -173,3 +173,33 @@ Patch number
 - Changes what a match computes (a new artefact in the anomalies): the `next` row of
   `crates/session/src/v026g/simulation_changes.tsv`; the exe requires the pack.
 - The site's /maps rebuild needs the lobby icon `artefact_rattle.webp`.
+- The pack `rattle@1` is made by `scripts/rattle/make_pack.py` (its folder goes into
+  SKHID_PACKS_DIR as `rattle-1`); the edit list `rattle-spawns-1` after `sponge-spawns-1`.
+
+## Built (2026-10-23)
+
+- Exe patch 59 (README section 59, client_patch.md section 3.53): `rattle_026g.asm`,
+  `rattle_026g.c` at `.srpx` +8000h; seven hooks and the cook's size. Pack `rattle@1`
+  (`scripts/rattle/make_pack.py`), edit list `rattle-spawns-1` (`scripts/rattle/spawns.py`).
+- The config (`data`): `active/duration` 10, `cooldown_sec` 40,
+  `passive/steps_sound_volume_3rd_person` 0.7, `active/steps_sound_volume_3rd_person` 0,
+  `active/shots_sound_volume_3rd_person` 0.5 (each Rattle's own: they multiply); 0.20e's
+  1st-person keys dropped.
+- How much quieter: each Rattle in its passive x 0.7 on the steps; each active one x 0 on the steps
+  and x 0.5 on the shots. Two presses that overlap (a Rattle picked up while another is active)
+  count every Rattle active at the time of the sound.
+- What a gain does: the sound's voice volume and its HDR loudness for every listener but the
+  carrier in first person; gain 0 makes no voice. The carrier, and a spectator watching him in
+  first person, hear him as before.
+- Ours, beyond 0.20e's file: `amount` -1 (0.20e's 1 would use the Rattle up at its first active's
+  end); spawn particle and effect Lifebone's (0.20e's `fx/explosions/grenate` and
+  `effect_artefact_rattle` are not in 0.26g; 0.20e's effect was Lifebone's particle too); the
+  model's LOD switching Spring's (0.20e's said default).
+- Texts: name and description new; the pickup hint 50 % -> 30 %; the activation hint names the
+  shots.
+- Not built: the server's bots (they hear no Rattle: the server knows no inventory; an owner
+  decision); #225's dynamic anomalies (759 into their kinds: a follow-up there, as the Sponge's).
+- Verified statically and in Unicorn only (`selftest_026g.py` check 59, `check_rattle_026g.py`);
+  not run in a game. To try in a game: a Rattle's pickup and its model in the hand and the
+  anomaly, the HUD's slot and timer, the steps, rustles, jump, landing and shots heard by another
+  player at each count, the carrier's own sounds unchanged.

@@ -433,6 +433,17 @@ Patches:
   press (artefact_base::action 0x313300, at its entry) activates every
   ready artefact of the pressed one's class in the artefact slots, so one
   key fires all of a kind that are ready, even when the pressed one is not;
+- the Rattle (patch 59, with the late join, client_patch.md section 3.53,
+  docs/notes/rattle.md; its numbers in pack rattle@1's config): artefact
+  type 8, whose effect 0.20e left as stubs (0.26g's vtable 0xA06124: an
+  active that ends at once), gets a vtable of its own at the cook's
+  constructor call (0x25E72C; the object 378h, 0x25E7C9) with an active of
+  its duration, serialized; the point proxies of another player's steps,
+  rustles and landing (0x657C0 at 0x65874, run by on_player_sound_event
+  0x2A6470 and on_landing at 0x1F3BB6) and of his fire states' sounds
+  (play_sound_callback at 0x297F79) carry the quiet his Rattles give, and
+  the sound thread scales a propagator's amplitude (0x5CA37) and HDR
+  loudness (0x5C8BA) by it (rattle_026g.asm, rattle_026g.c at `.srpx`+8000h);
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1882,7 +1893,8 @@ def weapon_camo_va(late_join):
 # end there). Its pages: Research's code (+0, RESEARCH_OFFSET) and state
 # (+3000h); the dynamic anomalies of patch 42 (#225, not merged) take
 # DYNAMIC_ANOMALIES_OFFSET (+4000h) on, assembled for EXTENSION_VA plus it;
-# +8000h..+BFFFh free; the Sponge's patch 55 +C000h, SPONGE_A_OFFSET (its
+# the Rattle's patch 59 +8000h, RATTLE_OFFSET (its code, state at +B000h);
+# the Sponge's patch 55 +C000h, SPONGE_A_OFFSET (its
 # code, state at +F000h). Pages no patch of this build fills are int3.
 EXTENSION_NAME = b".srpx\0\0\0"
 EXTENSION_CHARACTERISTICS = 0xE0000060         # code, initialized data, execute, read, write
@@ -1942,6 +1954,49 @@ SPONGE_A_HOOKS = (
     (0x319C8B, bytes.fromhex("535383ec08d95c2404d9442420d91c24528d54243c528b9424b40000005352ffd0"),
      0x23, 0xE9),                                                           # the zone's hit
 )
+
+# The Rattle, artefact type 8 (patch 59, README; client_patch.md section
+# 3.53; docs/notes/rattle.md): rattle_026g.section.bin (rattle_026g.py:
+# rattle_026g.asm's seven entries and stubs, then the C code of rattle_026g.c
+# and its constant data, linked for RATTLE_VA) at RATTLE_OFFSET of `.srpx`,
+# the C code's state (the steps' pending quiet) zeroed on the page at
+# RATTLE_STATE_OFFSET. 0.20e left artefact_rattle_core's effect as stubs
+# (0.26g's vtable 0xA06124 too): the Rattle gets a vtable of its own with an
+# active of a duration, and quiets the sounds its carrier makes for others.
+# Seven hooks, `call` or `jmp` to an entry:
+# - the artefact cook's case for type 8, `call 0x25FA10` at 0x25E72C:
+#   Rattle's constructor, then the Rattle's vtable and its config's numbers;
+# - on_player_sound_event 0x2A6470 (its entry, `mov eax,ecx / mov
+#   edx,[eax+3Ch]`; the feet, a jump's included, and the rustles) and
+#   on_landing's step (`call 0x23FBE0` at 0x1F3BB6): run with the player's
+#   steps' quiet pending;
+# - 0x657C0's point proxy (`call 0x64F80` at 0x65874): marked with that
+#   quiet (u16 at proxy+3Ah);
+# - play_sound_callback's point proxy (`call 0x65670` at 0x297F79): a fire
+#   state's marked with its weapon user's shot quiet;
+# - calculate_hdr_audio_frame (sound thread), its stores of a propagator's
+#   amplitude (`movss [esi+4Ch],xmm0` at 0x5CA37) and HDR loudness (`movss
+#   [esi+40h],xmm0` at 0x5C8BA): x the proxy's gain, + 20 log10 of it.
+# The object grows from Rattle's 360h to RATTLE_OBJECT_SIZE (the cook's size
+# 0x25E7C9). No base relocation is under a site and no branch aims inside one.
+RATTLE_OFFSET = 0x8000
+RATTLE_VA = EXTENSION_VA + RATTLE_OFFSET
+RATTLE_ASM_SIZE = 0x200
+RATTLE_STATE_OFFSET = 0x3000
+RATTLE_STATE_VA = RATTLE_VA + RATTLE_STATE_OFFSET
+RATTLE_SIZE = RATTLE_STATE_OFFSET + 0x1000
+RATTLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)
+RATTLE_HOOKS = (
+    (0x25E72C, bytes.fromhex("e8df120000"), 0x0, 0xE8),        # the cook's case for type 8
+    (0x2A6470, bytes.fromhex("8bc18b503c"), 0x5, 0xE9),        # on_player_sound_event's entry
+    (0x1F3BB6, bytes.fromhex("e825c00400"), 0xA, 0xE8),        # on_landing's step
+    (0x065874, bytes.fromhex("e807f7ffff"), 0xF, 0xE8),        # 0x657C0's point proxy
+    (0x297F79, bytes.fromhex("e8f2d6dcff"), 0x14, 0xE8),       # play_sound_callback's point proxy
+    (0x05CA37, bytes.fromhex("f30f11464c"), 0x19, 0xE9),       # a propagator's amplitude
+    (0x05C8BA, bytes.fromhex("f30f114640"), 0x1E, 0xE9),       # its HDR loudness
+)
+RATTLE_OBJECT_SIZE = 0x378                                      # struct rattle (rattle_026g.c)
+RATTLE_SIZE_SITE = (0x25E7C9, bytes.fromhex("b860030000"), b"\xB8" + struct.pack("<I", RATTLE_OBJECT_SIZE))
 
 
 def research_layout(code):
@@ -2380,6 +2435,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
         for site in ARTEFACTS_SIZES:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
+        patch(data, *RATTLE_SIZE_SITE)
+        sites.append((RATTLE_SIZE_SITE[0], RATTLE_SIZE_SITE[0] + len(RATTLE_SIZE_SITE[1])))
         patch(data, *REPLAY_REATTACH_THUNK)
         sites.append((REPLAY_REATTACH_THUNK[0], REPLAY_REATTACH_THUNK[0] + len(REPLAY_REATTACH_THUNK[1])))
         # An address: its relocation stays.
@@ -2809,6 +2866,20 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                     sys.exit(f"{va:#x}: a base relocation under a hook of Research")
             research += b"\xCC" * (RESEARCH_STATE_OFFSET - len(research)) + bytes(RESEARCH_SIZE - RESEARCH_STATE_OFFSET)
             extension = b"\xCC" * RESEARCH_OFFSET + research
+            rattle = open(rattle_bin(), "rb").read()
+            if not (DYNAMIC_ANOMALIES_OFFSET + 0x4000 <= RATTLE_OFFSET
+                    and RATTLE_OFFSET + RATTLE_SIZE <= SPONGE_A_OFFSET):
+                sys.exit("the pages of .srpx overlap: patch 42, patch 59, patch 55")
+            if len(rattle) > RATTLE_STATE_OFFSET or any(rattle[at] != 0xE9 for at in RATTLE_ENTRIES) \
+                    or rattle_layout(rattle) != (RATTLE_VA, RATTLE_STATE_VA):
+                sys.exit(f"rattle_026g.section.bin was built for another place or state "
+                         f"(rattle_026g.py --write-bin: VA {RATTLE_VA:#x}, state {RATTLE_STATE_VA:#x})")
+            for va, expected, offset, opcode in RATTLE_HOOKS:
+                patch(data, va, expected, hook_bytes(RATTLE_VA, va, expected, offset, opcode))
+                if neutralize_relocs(data, [(va, va + len(expected))]):
+                    sys.exit(f"{va:#x}: a base relocation under a hook of the Rattle")
+            rattle += b"\xCC" * (RATTLE_STATE_OFFSET - len(rattle)) + bytes(RATTLE_SIZE - RATTLE_STATE_OFFSET)
+            extension += b"\xCC" * (RATTLE_OFFSET - len(extension)) + rattle
             sponge = open(sponge_a_bin(), "rb").read()
             if not (RESEARCH_OFFSET + RESEARCH_SIZE <= DYNAMIC_ANOMALIES_OFFSET < SPONGE_A_OFFSET
                     and SPONGE_A_OFFSET + SPONGE_A_SIZE <= 0x10000):
@@ -2946,6 +3017,25 @@ def research_bin():
 
 def sponge_a_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "sponge_a_026g.section.bin")
+
+
+def rattle_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "rattle_026g.section.bin")
+
+
+def rattle_layout(code):
+    """(VA, state VA) rattle_026g.section.bin was built for, read from it: the
+    steps stub's way back (`mov eax,ecx / mov edx,[eax+3Ch] / jmp 0x2A6475`,
+    NASM's 89h C8h for the first) gives the VA, its `mov dword [state],0` the
+    state; (0, 0) where either is missing or not one."""
+    asm = code[:RATTLE_ASM_SIZE]
+    back = asm.find(b"\x89\xc8\x8b\x50\x3c\xe9")
+    clear = asm.find(b"\xc7\x05")
+    if back < 0 or asm.find(b"\x89\xc8\x8b\x50\x3c\xe9", back + 1) >= 0 or clear < 0 \
+            or asm[clear + 6:clear + 10] != bytes(4):
+        return (0, 0)
+    va = (0x2A6475 - (back + 10) - struct.unpack_from("<i", asm, back + 6)[0]) & 0xFFFFFFFF
+    return (va, struct.unpack_from("<I", asm, clear + 2)[0])
 
 
 def sponge_a_layout(code):

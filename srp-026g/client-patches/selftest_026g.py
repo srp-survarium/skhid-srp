@@ -419,6 +419,17 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     vtable is Rattle's but for ten slots of ours, each popping what Rattle's
     pops. check_sponge_a_026g.py runs the cook, the press, the throw, the
     fuse, the splash, the zone and the serialization, and 0.28d0's own code.
+59. the same build: the Rattle (patch 59, rattle_026g.section.bin at
+    +8000h of `.srpx`; its state at +B000h): the .bin is its .json's, the
+    seven sites (the artefact cook's case for type 8, on_player_sound_event's
+    entry, on_landing's step, the two point proxies' makers, the sound
+    thread's stores of a propagator's amplitude and HDR loudness) are the
+    original's instructions before and the hooks after, no relocation under
+    one and no branch into one, the cook's size for type 8, the entries are
+    jumps, the stubs leave only where they should, the C code names the
+    game's functions it calls, the Rattle's vtable is Rattle's but for seven
+    slots of ours, each popping what Rattle's pops. check_rattle_026g.py runs
+    the cook, the active, the serialization, the hooks and the quiet.
 """
 
 import ctypes
@@ -1521,7 +1532,8 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
-        [(va, len(old)) for va, old, _, _ in P.SPONGE_A_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.SPONGE_A_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.RATTLE_HOOKS] + [(P.RATTLE_SIZE_SITE[0], len(P.RATTLE_SIZE_SITE[1]))]
 
 
 def pickup_sites():
@@ -2196,6 +2208,91 @@ def test_sponge_a(original, image, before):
           and popped(image, draw, min([va for va in symbols if va > draw] + [P.SPONGE_A_VA + len(code)]))
           == popped(source, 0x25FB80, 0x25FF50),
           "the drawable's vtable: Rattle's locator, our draw popping what Rattle's 0x25FB80 pops")
+
+
+def test_rattle(original, image, before):
+    """Check 59: the Rattle (patch 59, RATTLE_*; rattle_026g.py,
+    check_rattle_026g.py runs the cook, the active, the serialization, the
+    sound hooks and the quiet with the game's own code). Here: the .bin is its
+    .json's; each site is the original's instructions before and the hook
+    after, with no relocation under it and no branch into it; the size; the
+    entries are jumps; the stubs leave only to the sites' ways on and the
+    calls they replace; the C code names the game's functions it calls; the
+    Rattle's vtable is Rattle's but for seven slots of ours, each popping what
+    Rattle's pops."""
+    source = Image(original)
+    code = open(P.rattle_bin(), "rb").read()
+    kept = json.load(open(os.path.join(HERE, "rattle_026g.section.json")))
+    check(kept["size"] == len(code) and kept["sha256"] == hashlib.sha256(code).hexdigest()
+          and int(kept["va"], 16) == P.RATTLE_VA and image.read(P.RATTLE_VA, len(code)) == code,
+          f"rattle_026g.section.bin is its .json's and in the build at {P.RATTLE_VA:#x} ({len(code)} bytes; "
+          "rattle_026g.py --check-bin builds it again where a C compiler is)")
+    originals = {
+        0x25E72C: ["call 0x25fa10"], 0x2A6470: ["mov eax,ecx", "mov edx,[eax+0x3c]"],
+        0x1F3BB6: ["call 0x23fbe0"], 0x065874: ["call 0x64f80"], 0x297F79: ["call 0x65670"],
+        0x05CA37: ["movss [esi+0x4c],xmm0"], 0x05C8BA: ["movss [esi+0x40],xmm0"]}
+    loose = lambda text: text.replace("byte +", "").replace("byte -", "-").replace("dword ", "")
+    for va, old, offset, opcode in P.RATTLE_HOOKS:
+        rows = ndisasm(source.read(va, len(old)), va)
+        hooked = ndisasm(image.read(va, len(old)), va)
+        kind = "call" if opcode == 0xE8 else "jmp"
+        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
+              and [loose(text) for _, _, text in rows] == originals[va]
+              and hooked[0][2].startswith(kind) and branch_target(hooked[0][2]) == P.RATTLE_VA + offset
+              and all(text == "nop" for _, _, text in hooked[1:]),
+              f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]}; the build without the late join "
+              "keeps it" + ("" if [loose(t) for _, _, t in rows] == originals[va]
+                            else f" (ndisasm: {[loose(t) for _, _, t in rows]})"))
+        hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
+                if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
+        relocated = [r for kind_, r in source.relocations().values() if kind_ == 3 and r + 4 > va and r < va + len(old)]
+        check(not hits and not relocated, f"{va:#x}: no branch aims inside the site, no base relocation under it"
+              + "".join(f", {h:#x}" for h in hits + relocated))
+    va, old, new = P.RATTLE_SIZE_SITE
+    relocated = [r for kind_, r in source.relocations().values() if kind_ == 3 and r + 4 > va and r < va + len(old)]
+    check(source.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+          and [t for _, _, t in ndisasm(source.read(0x25E7C7, 11), 0x25E7C7)] == [
+              "pop edi", "pop esi", "mov eax,0x360", "pop ebx", "ret 0x4"] and not relocated,
+          f"{va:#x}: the cook's size of a type 8 artefact, 360h (Rattle's) in the original and the build without "
+          f"the late join, {P.RATTLE_OBJECT_SIZE:#x} here (struct rattle)")
+    entries = ndisasm(image.read(P.RATTLE_VA, 0x23), P.RATTLE_VA)
+    check([text.split()[0] for _, _, text in entries] == ["jmp"] * 7,
+          "the section starts with its seven entries, `jmp near` each: construct, steps, landing, point, shot, "
+          "amplitude, loudness")
+    stubs = code[:P.RATTLE_ASM_SIZE]
+    data_at = stubs.rstrip(b"\xCC")
+    texts = [t for _, _, t in ndisasm(data_at[:len(data_at) - 12], P.RATTLE_VA)]
+    targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
+    outside = {c for c in targets if not P.RATTLE_VA <= c < P.RATTLE_VA + len(code)}
+    check(outside == {0x25FA10, 0x2A6475, 0x23FBE0, 0x64F80, 0x65670, 0x5CA3C, 0x5C8BF},
+          "the stubs leave to Rattle's constructor, on_player_sound_event's way on, on_landing's step, the two "
+          f"point proxies' makers, and the sound thread's two ways on ({sorted(hex(c) for c in outside)})")
+    check(P.rattle_layout(code) == (P.RATTLE_VA, P.RATTLE_STATE_VA)
+          and struct.pack("<I", P.RATTLE_STATE_VA) in stubs,
+          f"the stubs' state is the section's state page ({P.RATTLE_STATE_VA:#x})")
+    for va, what in ((0xF6B10, "the config's child"), (0xF6C00, "the config's has"),
+                     (0x313670, "artefact_base's serialize"), (0x313760, "artefact_base's deserialize"),
+                     (0x313880, "artefact_base's hud info"), (0x2D5AE0, "the modifiers' getter"),
+                     (0x1F48A0, "the u32 field writer"), (0xA04EE4, "weapon_core_fire_state's handler"),
+                     (0xA05150, "the double barrel's fire handler"), (0xA05248, "the pistol's fire handler")):
+        check(struct.pack("<I", va) in code[P.RATTLE_ASM_SIZE:], f"the C code names {what} ({va:#x})")
+    read32 = lambda img, va: struct.unpack("<I", img.read(va, 4))[0]
+    symbols = sorted(int(va, 16) for va in kept["symbols"].values())
+    ours_at = int(kept["symbols"]["rt_vtable"], 16) + 4
+    compared = []
+    for slot in range(36):
+        ours, theirs = read32(image, ours_at + 4 * slot), read32(source, 0xA06124 + 4 * slot)
+        if ours == theirs:
+            continue
+        stop = min([va for va in symbols if va > ours] + [P.RATTLE_VA + len(code)])
+        mine = popped(image, ours, stop)
+        game = popped(source, theirs, theirs + 0x400)
+        compared.append(slot)
+        check(mine is not None and mine == game,
+              f"rt_vtable slot {slot} (+{4 * slot:#x}): ours ({ours:#x}) pops {mine} bytes, Rattle's ({theirs:#x}) {game}")
+    check(compared == [18, 26, 27, 30, 32, 34, 35] and read32(image, ours_at - 4) == read32(source, 0xA06120),
+          f"rt_vtable: Rattle's 36 slots and RTTI locator but seven of ours ({compared}): the hud's info, "
+          "serialize, deserialize, tick_impl, enable_active, disable_active, active_effect_ended")
 
 
 def popped(image, start, end):
@@ -4931,18 +5028,23 @@ def test_late_join(original, without, server, source):
     research = research + b"\xCC" * (P.RESEARCH_STATE_OFFSET - len(research)) + bytes(P.RESEARCH_SIZE - P.RESEARCH_STATE_OFFSET)
     sponge = open(P.sponge_a_bin(), "rb").read()
     sponge = sponge + b"\xCC" * (P.SPONGE_A_STATE_OFFSET - len(sponge)) + bytes(P.SPONGE_A_SIZE - P.SPONGE_A_STATE_OFFSET)
-    extension = research + b"\xCC" * (P.SPONGE_A_OFFSET - len(research)) + sponge
+    rattle = open(P.rattle_bin(), "rb").read()
+    rattle = rattle + b"\xCC" * (P.RATTLE_STATE_OFFSET - len(rattle)) + bytes(P.RATTLE_SIZE - P.RATTLE_STATE_OFFSET)
+    extension = research + b"\xCC" * (P.RATTLE_OFFSET - len(research)) + rattle
+    extension = extension + b"\xCC" * (P.SPONGE_A_OFFSET - len(extension)) + sponge
     name_r, rva_r, vsize_r, raw_r, rsize_r, flags_r = sections[-1]
     check(name_r == P.EXTENSION_NAME and flags_r == P.EXTENSION_CHARACTERISTICS
           and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.EXTENSION_VA
           and P.RESEARCH_VA == P.EXTENSION_VA + P.RESEARCH_OFFSET and P.RESEARCH_OFFSET == 0
-          and P.RESEARCH_SIZE <= P.DYNAMIC_ANOMALIES_OFFSET < P.SPONGE_A_OFFSET
-          and P.SPONGE_A_VA == P.EXTENSION_VA + P.SPONGE_A_OFFSET
+          and P.RESEARCH_SIZE <= P.DYNAMIC_ANOMALIES_OFFSET < P.DYNAMIC_ANOMALIES_OFFSET + 0x4000 <= P.RATTLE_OFFSET
+          and P.RATTLE_OFFSET + P.RATTLE_SIZE <= P.SPONGE_A_OFFSET
+          and P.RATTLE_VA == P.EXTENSION_VA + P.RATTLE_OFFSET and P.SPONGE_A_VA == P.EXTENSION_VA + P.SPONGE_A_OFFSET
           and vsize_r == P.SPONGE_A_OFFSET + P.SPONGE_A_SIZE and raw_r == raw_w + rsize_w
           and rsize_r == align(vsize_r, headers.file_alignment) and bytes(data[raw_r:raw_r + vsize_r]) == extension,
           f".srpx at VA {P.IMAGE_BASE + rva_r:#x}: research_026g.section.bin, int3 padding to its state page at "
           f"+{P.RESEARCH_STATE_OFFSET:#x}, the page zeroed; int3 over patch 42's (+{P.DYNAMIC_ANOMALIES_OFFSET:#x}) "
-          f"pages and the free ones after them; sponge_a_026g.section.bin at "
+          f"pages; rattle_026g.section.bin at +{P.RATTLE_OFFSET:#x}, int3 padding to its state page at "
+          f"+{P.RATTLE_OFFSET + P.RATTLE_STATE_OFFSET:#x}, the page zeroed; sponge_a_026g.section.bin at "
           f"+{P.SPONGE_A_OFFSET:#x}, int3 padding to its state page at +{P.SPONGE_A_OFFSET + P.SPONGE_A_STATE_OFFSET:#x}, "
           "the page zeroed; code | data | execute | read | write, on the page after .srpw, its file bytes right "
           "after .srpw's")
@@ -5110,6 +5212,7 @@ def test_late_join(original, without, server, source):
     test_spot(original, image, before)
     test_artefacts(original, image, before)
     test_sponge_a(original, image, before)
+    test_rattle(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

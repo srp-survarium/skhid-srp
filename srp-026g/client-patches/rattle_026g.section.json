@@ -1,0 +1,23 @@
+{
+  "va": "0xa435000",
+  "size": 2556,
+  "sha256": "f342a007b3cdf36673bd1ee38e90c2e3bd97b536a547f42edd2a9abaa1af745b",
+  "symbols": {
+    "rt_active_effect_ended": "0xa43527d",
+    "rt_construct": "0xa435562",
+    "rt_deserialize": "0xa4352d1",
+    "rt_disable_active": "0xa435274",
+    "rt_enable_active": "0xa435382",
+    "rt_serialize": "0xa435323",
+    "rt_shot": "0xa435780",
+    "rt_steps": "0xa4356eb",
+    "rt_tick_impl": "0xa435256",
+    "rt_ui_info": "0xa43528a",
+    "rt_vtable": "0xa435900"
+  },
+  "built_with": {
+    "cc": "gcc (GCC) 15.3.0",
+    "ld": "GNU ld (GNU Binutils) 2.46",
+    "nasm": "NASM version 2.16.03 compiled on Apr 17 2024"
+  }
+}
