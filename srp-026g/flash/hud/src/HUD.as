@@ -202,6 +202,11 @@ package
       protected const GAME_MODE_RESEARCH:uint = 5;
       
       public var researchUnits:ResearchUnits;
+
+      // The units' place in the indicator's own space (placeResearchUnits).
+      protected var _researchX:Number = 0;
+
+      protected var _researchY:Number = ResearchUnits.TOP;
       
       protected var grid_sprite:Sprite = new Sprite();
       
@@ -411,11 +416,12 @@ package
          addChild(this.container_icon);
          progress_indicator = new SrvMatchProgress();
          addChild(this.progress_indicator);
-         // A child of the indicator, as the timer and the bars are: wherever
-         // and whenever the layout puts the indicator, the units are with it.
+         // Beside the indicator, not in it (the layout centres the indicator by
+         // its whole width), following it every frame (followIndicator).
          researchUnits = new ResearchUnits();
          this.researchUnits.visible = false;
-         this.progress_indicator.addChild(this.researchUnits);
+         addChild(this.researchUnits);
+         this.researchUnits.addEventListener(Event.ENTER_FRAME,this.onResearchFrame);
          pregameInfo = new SrvContextInfoPregame();
          addChild(this.pregameInfo);
          this.pregameInfo.premiumMembers.visible = false;
@@ -2173,13 +2179,9 @@ package
       }
       
       // The units centred under Team Deathmatch's bars and the timer, below
-      // the respawn countdown's line, in the indicator's own space (the units
-      // are its child; its origin is its centre). The countdown's line is kept
-      // free while it is empty too: the units do not jump when the player dies.
-      // Rev 30 placed the units in the HUD's space through getBounds(this) of
-      // the indicator's children: at the start of a match that gave the
-      // indicator's own space, and the units sat in the screen's top-left
-      // corner until a later update.
+      // the respawn countdown's line, measured in the indicator's own space
+      // (its origin is its centre). The countdown's line is kept free while it
+      // is empty too: the units do not jump when the player dies.
       private function placeResearchUnits() : void
       {
          var space:DisplayObject = this.progress_indicator;
@@ -2203,8 +2205,30 @@ package
          {
             top = Math.max(top,respawn.getBounds(space).bottom,respawn.y + ResearchUnits.RESPAWN_LINE);
          }
-         this.researchUnits.x = bars == null ? 0 : Math.round(bars.x + bars.width / 2);
-         this.researchUnits.y = Math.round(top + ResearchUnits.TOP);
+         _researchX = bars == null ? 0 : bars.x + bars.width / 2;
+         _researchY = top + ResearchUnits.TOP;
+         this.followIndicator();
+      }
+
+      // The units where the indicator is now: its x and y as the layout last
+      // put them, plus the units' place in its space. Rev 30 converted the
+      // bars' bounds with getBounds(this) at research_update only: early in a
+      // match that gave the indicator's own space, and the units sat in the
+      // screen's top-left corner until a later update.
+      private function followIndicator() : void
+      {
+         this.researchUnits.x = Math.round(this.progress_indicator.x + this._researchX * this.progress_indicator.scaleX);
+         this.researchUnits.y = Math.round(this.progress_indicator.y + this._researchY * this.progress_indicator.scaleY);
+      }
+
+      // Every frame of a Research match: the layout moves the indicator at
+      // many calls (scores, messages, resizes), the units follow it.
+      private function onResearchFrame(e:Event) : void
+      {
+         if(this.researchUnits.visible)
+         {
+            this.followIndicator();
+         }
       }
 
       public function set_artifacts_progress(team:uint, value:uint) : void

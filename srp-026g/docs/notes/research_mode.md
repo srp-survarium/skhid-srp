@@ -55,8 +55,9 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   and forth; the owner knows and chose no cap. Exploiters are handled by the take-back policy
   (only gains over 0.5M silver and gold are taken back). Do not add a cap without the owner.
 - **HUD:** the teams' points in Team Deathmatch's bars; the three units centred under them and
-  under the respawn countdown's line (a child of the bars' indicator, so placed with it at every
-  resolution; the line is kept free while empty too, no jump on death) (letter,
+  under the respawn countdown's line (beside the bars' indicator, following its position every
+  frame, so the indicator's centring never counts them; the line is kept free while empty too, no
+  jump on death) (letter,
   owner's colour: own team blue, other red, nobody grey; a ring for the capture of the team
   taking it); "Capturing unit..." while one's own player is inside a unit his team is taking;
   the units on the minimap and the Tab map; messages: the start's "Find and capture research
