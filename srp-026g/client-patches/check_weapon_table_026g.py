@@ -694,7 +694,8 @@ def main():
         wheel.set_f(CAMERA + WHEEL, 0.0)
         drift = max(max(abs(a - b) for a, b in zip(spot, at_rest)) for spot in spots)
         assert drift < 1e-4, drift
-        assert math.isclose(nearest, NEAR_VIEW, abs_tol=1e-6) and math.isclose(farthest, 1.25 * framed, rel_tol=1e-5), \
+        assert math.isclose(nearest, NEAR_VIEW, abs_tol=1e-6) \
+            and math.isclose(farthest, max(1.25 * framed, framed + 0.5), rel_tol=1e-5), \
             (nearest, farthest, framed)
         wheel.lobby.handler(EXIT_HANDLER, 0)
         for n in range(600):
@@ -704,10 +705,79 @@ def main():
         assert not wheel.flag(FLY) and wheel.f(CAMERA + 0x94) == 1.0 \
             and (wheel.f(CAMERA + POINT_X), wheel.f(CAMERA + POINT_Z)) == (0.0, 0.0) \
             and (wheel.f(CAMERA + YAW), wheel.f(CAMERA + PITCH)) == (from_f32(f32(0.4)), from_f32(f32(0.1)))
-        say(f"the wheel at the bench{rebased}: in to the least {nearest:.2f} m, out to {farthest:.2f} m (1.25 of the "
-            f"framed {framed:.2f} m) and in again, the weapon's middle stays where it is on the screen (at most "
+        say(f"the wheel at the bench{rebased}: in to the least {nearest:.2f} m, out to {farthest:.2f} m (the framed "
+            f"{framed:.2f} m and 0.5 m, or 1.25 of it if more) and in again, the weapon's middle stays where it is on the screen (at most "
             f"{drift:.1e} of the width or height); the close glides back from there to the stock camera, the "
             "zoom 1 and the yaw and pitch it had")
+
+        # The framing's distance changes glide (review of 5e): with the weapon drawn (not READY poked), every
+        # frame's distance step is the glide's (RATE dt of the way left, FLOOR dt more) or the wheel's, never a
+        # snap: a pistol and a rifle drawn early in the flight and after it settled, a pistol's window over a
+        # rifle's, and the wheel scrolled out before the weapon is framed; then the wheel's range.
+        def run(steps):
+            """[(distance, its target)] each frame; steps: ("start", item), ("draw", name, box, building),
+            ("frames", n, wheel)."""
+            t = Table(patched, delta)
+            t.set_f(CAMERA + YAW, 0.4)
+            out, drawn = [], None
+            for step in steps:
+                if step[0] == "start":
+                    t.lobby.handler(START_HANDLER, step[1])
+                    t.lobby.word(CHARACTER + 0xD2C4, 7 if step[2] else -1)
+                elif step[0] == "draw":
+                    drawn = step[1:3]
+                    t.lobby.word(CHARACTER + 0xD2C4, -1)
+                else:
+                    for n in range(step[1]):
+                        if drawn:
+                            draw(t, *drawn)
+                        t.set_f(CAMERA + WHEEL, step[2])
+                        t.frame()
+                        out.append((t.f(CAMERA + DISTANCE), t.f(CAMERA + DISTANCE_TARGET)))
+            t.set_f(CAMERA + WHEEL, 0.0)
+            return t, out
+
+        def glided(out, wheel=0.0):
+            """each step at most the glide's from the way left before or after it (or the wheel's)"""
+            worst = 0.0
+            for (d0, t0), (d1, t1) in zip(out, out[1:]):
+                way = max(abs(d0 - t0), abs(d0 - t1))
+                step = abs(d1 - d0)
+                if step > 0.08 * way + 0.0002 + 1e-6 + abs(wheel):
+                    return False, step
+                worst = max(worst, step)
+            return True, worst
+
+        long = ((-0.03, -0.15, -0.937), (0.03, 0.11, 0.284))
+        cases = (("a pistol drawn at the third frame", [("start", AK, False), ("frames", 3, 0.0),
+                                                        ("draw", "PM", None), ("frames", 300, 0.0)], 0.0),
+                 ("a rifle drawn at the third frame", [("start", AK, False), ("frames", 3, 0.0),
+                                                       ("draw", "AK-12", long), ("frames", 300, 0.0)], 0.0),
+                 ("a pistol drawn after the flight settled", [("start", AK, False), ("frames", 300, 0.0),
+                                                              ("draw", "PM", None), ("frames", 300, 0.0)], 0.0),
+                 ("a pistol's window over a rifle's", [("start", AK, False), ("draw", "AK-12", long),
+                                                       ("frames", 300, 0.0), ("start", lobby_check.PISTOL2, True),
+                                                       ("frames", 20, 0.0), ("draw", "PM", None),
+                                                       ("frames", 300, 0.0)], 0.0),
+                 ("the wheel out before the framing", [("start", AK, False), ("frames", 20, 0.4),
+                                                       ("frames", 2, 0.0), ("draw", "PM", None),
+                                                       ("frames", 300, 0.0)], 0.4))
+        steps = []
+        for name, script, wheel_move in cases:
+            t, out = run(script)
+            ok, worst = glided(out, wheel_move)
+            assert ok, (name, worst)
+            steps.append(f"{name} {worst * 100:.1f} cm")
+        pistol, out = run([("start", AK, False), ("draw", "PM", None), ("frames", 300, 0.0)])
+        framed = pistol.f(CAMERA + DISTANCE)
+        for move, ticks in ((0.4, 20), (0.0, 60)):
+            for n in range(ticks):
+                pistol.set_f(CAMERA + WHEEL, move)
+                pistol.frame()
+        assert math.isclose(framed, NEAR_VIEW, abs_tol=1e-6) \
+            and math.isclose(pistol.f(CAMERA + DISTANCE), framed + 0.5, rel_tol=1e-5), pistol.f(CAMERA + DISTANCE)
+        say(f"the framing glides{rebased} (each frame's step at most the glide's: the largest " + ", ".join(steps) +
+            f"); a pistol framed at {framed:.2f} m can be wheeled out to {pistol.f(CAMERA + DISTANCE):.2f} m")
 
         # A weapon's window over a weapon's (review of 5d): the bench keeps the first weapon (READY) and draws
         # it while the character makes the new player; that old weapon is not measured for the new view:

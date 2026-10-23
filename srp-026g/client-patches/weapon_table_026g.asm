@@ -179,7 +179,8 @@ ORG CAVE
 %define TILT            0x24        ; and about the bench's length, by its pitch (within TILT_MAX)
 %define READY           0x28        ; 1: the window's weapon is drawn at the bench
 %define EASE            0x2C        ; 1: a flight's camera steps ease with it (from `camera` until all are there)
-%define LENGTH          0x30        ; float: the window's weapon's length (its box's), 0 not yet; framed: - its distance
+%define LENGTH          0x30        ; float: 0 not measured; - the window's weapon's length (its box's) to frame;
+                                    ; framed: the wheel's farthest distance (> 0)
 %define LEFT            0x34        ; the left button since it went down: 0 up, 1 the weapon's drag, 2 not
 %define MIDDLE          0x38        ; float4: the weapon's middle, in its model's space (w 0)
 %define STAMP           0x48        ; +1 at every bench transform written (the interface's frame stamp)
@@ -218,9 +219,10 @@ camera:
     jne .again                      ; a weapon's window over a weapon's: the bench keeps its weapon
     mov [edi+READY], eax            ; until the new player's is there
 .again:
-    mov dword [edi+TABLE], 1
-    mov dword [edi+FLY], 1
-    mov dword [edi+EASE], 1
+    lea ecx, [eax+1]
+    mov [edi+TABLE], ecx
+    mov [edi+FLY], ecx
+    mov [edi+EASE], ecx
     mov [edi+SPIN], eax
     mov [edi+TILT], eax
     mov [edi+LENGTH], eax           ; the weapon's own length once it is drawn there
@@ -293,12 +295,15 @@ tick:
     cmp dword [edi+TABLE], 0
     je .fly
     cmp dword [edi+LENGTH], 0
-    jle .framed
-    movss xmm0, [edi+LENGTH]        ; the weapon drawn there: framed for its length, gliding there
+    jge .framed
+    movss xmm0, [edi+LENGTH]        ; the weapon drawn there (- its length): framed for it, gliding there
     call frame_view
     movss [esi+DISTANCE_TARGET], xmm1
-    movss [edi+LENGTH], xmm1        ; framed: - the distance (the wheel's farthest is FAR_SHARE of it)
-    or byte [edi+LENGTH+3], 0x80
+    movss xmm0, xmm1                ; the wheel's farthest: max(FAR_SHARE d, d + FAR_REACH)
+    mulss xmm0, [ebp+FC(far_share)]
+    addss xmm1, [ebp+FC(flip_half)+4]
+    maxss xmm1, xmm0
+    movss [edi+LENGTH], xmm1        ; framed: the wheel's farthest
     mov dword [edi+EASE], 1
 .framed:
     movss xmm0, [esi+TURN_YAW]      ; the drag turns the weapon, not the camera
@@ -451,7 +456,8 @@ frame_view:
     fcomi st0, st1
     fcmovb st0, st1
     fstp st1                        ; d / L, t
-    fmul dword [esp]                ; d, t
+    fmul dword [esp]
+    fabs                            ; d, t (the tick gives - L)
     fld st1
     fmul st0, st0
     fld1
@@ -727,13 +733,13 @@ middle:
     jne .measured                   ; the new player comes): the window's weapon is measured then
     cmp byte [eax+BUILD_AGAIN], 0
     jne .measured
-    movss xmm0, [esi+BOX_MAX+8]     ; the window's weapon's length: its box along it, a default box 1 m
-    subss xmm0, [esi+BOX_MIN+8]
+    movss xmm0, [esi+BOX_MIN+8]     ; - the window's weapon's length: its box along it, a default box 1 m
+    subss xmm0, [esi+BOX_MAX+8]
     cmp dword [esi+BOX_MIN], 0xBF800000
     jne .length
     cmp dword [esi+BOX_MAX], 0x3F800000
     jne .length
-    movss xmm0, [edi+CONST(one)]
+    movss xmm0, [edi+CONST(minus_one)]
 .length:
     movss [edi+LENGTH], xmm0
 .measured:
@@ -859,30 +865,28 @@ left:
 ; and flag the original's own way; `ret 4` as it.
 ray:
     push eax
-    push ecx
     call base_eax
-    mov ecx, eax                    ; ecx = the state
-    mov eax, [esp+4]                ; the camera
+    mov ecx, eax                    ; ecx = the state (ecx is the ray's to lose, as edx)
+    mov eax, [esp]                  ; the camera
     cmp dword [ecx+FLY], 0
     je .stock
-    cmp dword [ecx+TABLE], 0        ; at the bench, framed: the wheel no farther than FAR_SHARE of
-    je .none                        ; the framed distance (its least is patch 32's NEAR_MIN)
-    cmp dword [ecx+LENGTH], 0
-    jge .none
+    cmp dword [ecx+TABLE], 0        ; at the bench, framed: the wheel no farther than LENGTH, the
+    je .none                        ; farthest (its least is patch 32's NEAR_MIN): the target, and
+    cmp dword [ecx+LENGTH], 0       ; the distance itself once the flight's easing is over (while
+    jle .none                       ; it eases it glides there: no snap)
     movss xmm0, [ecx+LENGTH]
-    mulss xmm0, [ecx+CONST(far_share)]
     movss xmm1, [eax+DISTANCE_TARGET]
     minss xmm1, xmm0
     movss [eax+DISTANCE_TARGET], xmm1
+    cmp dword [ecx+EASE], 0
+    jne .none
     movss xmm1, [eax+DISTANCE]
     minss xmm1, xmm0
     movss [eax+DISTANCE], xmm1
 .none:
-    pop ecx
     pop eax
     ret 4
 .stock:
-    pop ecx
     pop eax
     jmp RAY
 
@@ -950,7 +954,9 @@ spin_width:       dd 0.96           ; 1 - 2m
 four_room:        dd 1.92           ; 4 (1/2 - m)
 cos_pitch:        dd 0.96891242     ; cos VIEW_PITCH
 sin2_pitch:       dd 0.06120872     ; sin^2 VIEW_PITCH
-far_share:        dd -1.25          ; FAR_SHARE: the wheel's farthest, of the framed distance (negated: LENGTH holds - it)
+far_share:        dd 1.25           ; FAR_SHARE: the wheel's farthest at least this of the framed distance,
+                                    ; and FAR_REACH (flip_half's 0.5) m beyond it
+minus_one:        dd -1.0
 tilt_room:        dd 0.962          ; TILT_ROOM: (1/2) sqrt(1 + 1 / ((1 - 2m) tan(65/2))^2), and the pitch's
 near_view:        dd 0.3            ; NEAR_VIEW: the nearest (patch 32's NEAR_MIN)
 middle_z:         dd 0.2            ; MIDDLE_Z: without a box, a rifle's middle (grip at the origin, along +z)
