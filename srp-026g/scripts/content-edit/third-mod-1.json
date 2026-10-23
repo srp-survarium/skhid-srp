@@ -1,0 +1,125 @@
+{
+ "_about": "Third modification type, release 1 (2026-10-23, srp-026g/docs/notes/no-reliability-roll.md). The owner: reliability (type 32) no longer rolls (wear is off since #35), so the 20 items it left with two rollable types get a third. The 15 masks and respirators (the stock nine, the Bandit balaclava 1810, the 0.69d masks 1812-1816 and the Army balaclava 1823) may roll type 13 Armor (ids 1000-1004, +2/+3/+4/+5/+8; on a mask only its face values exist), character 12 of parameters/available_modifications_mask. The four oxygen packs may roll type 24 Weight limit (1120-1124, +1 to +5 kg) and type 28 Energy costs (1160-1164, -2 to -10 %), characters 23 and 27. The Pilgrim container (edge_back_6, whose default 1094 takes type 21) may roll type 28 Energy costs, character 27; its from is backpacks-1.json's to. Only srp reads the masks: the client draws whatever modification the server sends, from its own modifications.options.",
+ "edit_text": [
+  {
+   "file": "gameplay/items/armour/back/edge_back_3.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000001100000000",
+   "to": "0000000000000000010000010001001100000000"
+  },
+  {
+   "file": "gameplay/items/armour/back/edge_back_6.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000011110010010000100100000000",
+   "to": "0000000000000011110010010001100100000000"
+  },
+  {
+   "file": "gameplay/items/armour/back/ren_back_3.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000001100000000",
+   "to": "0000000000000000010000010001001100000000"
+  },
+  {
+   "file": "gameplay/items/armour/back/ren_back_5.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000001100000000",
+   "to": "0000000000000000010000010001001100000000"
+  },
+  {
+   "file": "gameplay/items/armour/back/scavenger_oxygen_1.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000001100000000",
+   "to": "0000000000000000010000010001001100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/army_026.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/bandit_026.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/bm_mask_1.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/edge_mask_5.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/edge_resp_1.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/edge_resp_3.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/face_069d_balaclava_3_hole.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/face_069d_balaclava.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/face_069d_buff.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/face_069d_keffiyeh.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/face_069d_protective_mask.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/renesanse_mask_2.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/renesanse_mask_3.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/renesanse_mask_5.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  },
+  {
+   "file": "gameplay/items/armour/mask/scavenger_resp_1.options",
+   "path": "parameters/available_modifications_mask",
+   "from": "0000000000000000010000000000010100000000",
+   "to": "0000000000001000010000000000010100000000"
+  }
+ ]
+}

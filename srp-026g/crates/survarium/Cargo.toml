@@ -22,3 +22,8 @@ serde = { workspace = true }
 # Game data made up for tests (`v026g::maps::fixtures`), for the tests of
 # the crates that use this one.
 fixtures = []
+
+[dev-dependencies]
+# The content edit lists, read by the modification tests
+# (`v026g::modifications::tests`).
+serde_json = { workspace = true }

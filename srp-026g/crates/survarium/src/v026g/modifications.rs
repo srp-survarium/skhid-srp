@@ -846,9 +846,10 @@ impl Modifications {
     /// that takes few types, as a backpack or a balaclava with one
     /// modification, has only two types left). `None` when the item has not
     /// three modifications to offer [srp: the lobby's window shows three]:
-    /// a reliability one on a full backpack, mask or oxygen pack, whose two
-    /// other types are held, has none (reliability never rolls,
-    /// [`Modification::rolls`]).
+    /// an item whose types besides reliability are all held has none for its
+    /// reliability (reliability never rolls, [`Modification::rolls`]). On
+    /// live data every item rolls three types or more (`third-mod-1.json`),
+    /// so a full item always has one.
     pub fn reroll_choices(
         &self,
         dict_id: u16,

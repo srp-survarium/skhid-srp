@@ -918,11 +918,13 @@ fn no_roll_gives_reliability() {
     }
 }
 
-/// The items for which reliability was one of three types that roll
-/// (backpacks, masks and respirators, oxygen packs): two are left, so they
-/// reach two modifications of their own by rolls, and none is left to
-/// offer for the reliability of a full one. No item that took a roll
-/// before has none now.
+/// The stock data, before the edit lists of release/content.tsv: the items
+/// for which reliability was one of three types that roll (backpacks, masks
+/// and respirators, oxygen packs) have two left, so they reach two
+/// modifications of their own by rolls, and none is left to offer for the
+/// reliability of a full one. No item that took a roll before has none now.
+/// On live, `third-mod-1.json` gives them a third type
+/// ([`every_item_rolls_three_types_with_the_edit_lists`]).
 #[test]
 fn items_of_few_types_roll_two() {
     let data = Modifications::shared();
@@ -971,4 +973,177 @@ fn items_of_few_types_roll_two() {
         assert!(!reliability.contains(&choice));
         assert_eq!(data.modification(choice).unwrap().kind, 24);
     }
+}
+
+/// The types a roll may give an item with this `available_modifications_mask`
+/// (as bits) that holds nothing: those with a modification that rolls
+/// ([`Modification::rolls`]), less the types of its defaults.
+fn rollable_types(data: &Modifications, mask: u64, defaults: &[u32]) -> u32 {
+    let rolling = data
+        .modifications
+        .iter()
+        .filter(|row| row.rolls())
+        .fold(0_u64, |kinds, row| kinds | 1 << row.kind);
+    (mask & rolling & !data.kinds_of(defaults.iter().copied())).count_ones()
+}
+
+/// The masks the manifest's edit lists set, in its order: by config, the
+/// first `from` and the last `to` of each, and the configs of `third-mod-1.json`
+/// with their `from`.
+#[allow(clippy::type_complexity)]
+fn edited_masks() -> (
+    std::collections::BTreeMap<String, (String, String)>,
+    Vec<(String, String)>,
+) {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let manifest = std::fs::read_to_string(root.join("release/content.tsv")).unwrap();
+    let mut chain = std::collections::BTreeMap::<String, (String, String)>::new();
+    let mut third = Vec::new();
+    for line in manifest.lines().filter(|line| line.starts_with("edit\t")) {
+        let list = line.split('\t').nth(1).unwrap();
+        let path = root.join("srp-026g/scripts/content-edit").join(list);
+        let text = std::fs::read_to_string(&path).unwrap();
+        let edits: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let entries = edits.get("edit_text").and_then(|value| value.as_array());
+        for edit in entries.into_iter().flatten() {
+            if edit["path"] != "parameters/available_modifications_mask" {
+                continue;
+            }
+            let text = |key: &str| edit[key].as_str().unwrap().to_owned();
+            let (file, from, to) = (text("file"), text("from"), text("to"));
+            match chain.get_mut(&file) {
+                Some(link) => {
+                    assert_eq!(
+                        link.1, from,
+                        "{list}: {file} starts where the last edit left it"
+                    );
+                    link.1 = to;
+                }
+                None => {
+                    chain.insert(file.clone(), (from.clone(), to));
+                }
+            }
+            if list == "third-mod-1.json" {
+                third.push((file, from));
+            }
+        }
+    }
+    (chain, third)
+}
+
+/// The owner's rule of 2026-10-23 (docs/notes/no-reliability-roll.md): with
+/// reliability out, every item that rolls has at least three types once the
+/// manifest's edit lists are on (`third-mod-1.json`: masks Armor, oxygen
+/// packs Weight limit and Energy costs, the Pilgrim container Energy costs),
+/// so an upgrade is never refused for nothing to roll and a full item's
+/// reliability always has another type to turn into. The stock test archive
+/// with the edit lists' masks laid on in order (the live masks are that
+/// chain's end); the masks of items the packs add (1812-1816, 1823, not in
+/// the archive) are in it as their edit's `from`.
+#[test]
+fn every_item_rolls_three_types_with_the_edit_lists() {
+    let data = Modifications::shared();
+    let (chain, third) = edited_masks();
+    let bits = |mask: &str| mask_bits(mask, "available_modifications_mask").unwrap();
+    let dictionary = Dictionary::shared();
+    let defaults_of = |file: &str| {
+        dictionary
+            .items
+            .iter()
+            .find(|entry| entry.cfg_name == file)
+            .and_then(|entry| item_params(entry.dict_id))
+            .map_or(&[][..], |params| params.default_modifications)
+    };
+    let mut in_archive = std::collections::BTreeSet::new();
+    let mut rolling = 0;
+    for entry in &dictionary.items {
+        let Some(item) = item_mods(entry.dict_id) else {
+            continue;
+        };
+        let mask = match chain.get(&entry.cfg_name) {
+            Some((from, to)) => {
+                assert_eq!(
+                    item.modifications,
+                    bits(from),
+                    "{}: the chain's start",
+                    entry.name
+                );
+                in_archive.insert(entry.cfg_name.clone());
+                bits(to)
+            }
+            None => item.modifications,
+        };
+        let types = rollable_types(data, mask, defaults_of(&entry.cfg_name));
+        assert!(
+            types == 0 || types >= 3,
+            "{} rolls {types} types",
+            entry.name
+        );
+        rolling += usize::from(types > 0);
+    }
+    assert!(rolling > 150, "{rolling}");
+    for (file, (_, to)) in chain.iter().filter(|(file, _)| !in_archive.contains(*file)) {
+        assert!(file.starts_with("gameplay/items/armour/mask/"), "{file}");
+        assert!(rollable_types(data, bits(to), &[]) >= 3, "{file}");
+    }
+
+    // third-mod-1.json: the 20 that reliability left with two, each with
+    // three or more now.
+    let (mut masks, mut oxygen, mut pilgrim) = (0, 0, 0);
+    for (file, from) in &third {
+        let defaults = defaults_of(file);
+        assert_eq!(rollable_types(data, bits(from), defaults), 2, "{file}");
+        assert_ne!(bits(from) & (1 << 32), 0, "{file} took reliability");
+        let to = bits(&chain[file].1);
+        let added = to & !bits(from);
+        if file.starts_with("gameplay/items/armour/mask/") {
+            masks += 1;
+            assert_eq!(added, 1 << 13, "{file}: Armor");
+        } else if file.ends_with("/edge_back_6.options") {
+            pilgrim += 1;
+            assert_eq!(added, 1 << 28, "{file}: Energy costs");
+        } else {
+            oxygen += 1;
+            assert_eq!(
+                added,
+                1 << 24 | 1 << 28,
+                "{file}: Weight limit, Energy costs"
+            );
+        }
+    }
+    assert_eq!((masks, oxygen, pilgrim), (15, 4, 1));
+}
+
+/// [`every_item_rolls_three_types_with_the_edit_lists`] on a server game
+/// data file as `release/build-content` makes it (`SRP_TEST_GAME_DATA`):
+/// every item that rolls there has three types or more.
+#[test]
+#[ignore = "needs SRP_TEST_GAME_DATA: a server-game-data.db made by release/build-content"]
+fn every_item_of_the_built_game_data_rolls_three_types() {
+    use super::super::game_data::GameData;
+    let path = std::env::var_os("SRP_TEST_GAME_DATA").expect("SRP_TEST_GAME_DATA");
+    let data = GameData::open(std::path::Path::new(&path)).unwrap();
+    let file = |path: &str| data.file(path).unwrap_or_else(|| panic!("no {path}"));
+    let dictionary = Dictionary::parse(file(super::super::dictionary::PATH)).unwrap();
+    let table = Modifications::parse(
+        file(MODIFICATIONS_PATH),
+        file(CRAFT_PATH),
+        file(REROLL_PATH),
+    )
+    .unwrap();
+    let params = super::super::item_params::derive(&data, &dictionary).unwrap();
+    let mut short = Vec::new();
+    let mut rolling = 0;
+    for item in derive_item_mods(&data, &dictionary).unwrap() {
+        let params = params.iter().find(|row| row.dict_id == item.dict_id);
+        let defaults = params.map_or(&[][..], |params| params.default_modifications);
+        let types = rollable_types(&table, item.modifications, defaults);
+        rolling += usize::from(types > 0);
+        if types > 0 && types < 3 {
+            let name = &dictionary.item(item.dict_id).unwrap().name;
+            short.push(format!("{name}: {types}"));
+        }
+    }
+    assert!(rolling > 150, "{rolling}");
+    assert!(short.is_empty(), "fewer than three types: {short:?}");
 }

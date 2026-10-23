@@ -1575,8 +1575,9 @@ fn an_upgrade_never_gains_reliability() {
         assert!(table.fits(dict("ak_74m"), &[2000], modification));
         assert_eq!(holdings(&account), (before.0, before.1 - 50, before.2 - 1));
     }
-    // A backpack: of its three types that roll in the data, reliability's
-    // never does; with one of its own the other is gained.
+    // A backpack of the stock data (the unit tests' archive, without the edit
+    // lists that give it a third type on live): of its three types,
+    // reliability's never does; with one of its own the other is gained.
     for seed in 0..100 {
         let mut account = rich();
         let backpack = give(&mut account, "scav_back_1", &[1062]);
@@ -1672,8 +1673,8 @@ fn a_reroll_never_offers_reliability_and_changes_it() {
         let rolled = reroll(&mut account, rifle, 2000, true, NOW, &mut rng).unwrap();
         assert!(rolled.choices.iter().all(|&choice| !is_reliability(choice)));
     }
-    // A full backpack's reliability has nothing to turn into (its two other
-    // types are held): refused, nothing paid or changed.
+    // A full backpack of the stock data: its reliability has nothing to turn
+    // into (its two other types are held): refused, nothing paid or changed.
     let mut account = rich();
     let backpack = give(&mut account, "scav_back_1", &[1062, 1120, 1201]);
     let before = account.clone();
