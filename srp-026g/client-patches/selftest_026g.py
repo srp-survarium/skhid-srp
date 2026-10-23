@@ -1534,7 +1534,8 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
-        [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS]
 
 
 def pickup_sites():
@@ -4117,6 +4118,88 @@ def test_match_keys(original, image, before):
           "release/content.tsv labels it (match-chat-off-1.json)")
 
 
+def test_hide_ui(original, image, before):
+    """Check 62: the key that hides the interface (patch 62,
+    HIDE_UI_HOOKS). check_hide_ui_026g.py runs the three entries from the
+    game's sites on made-up objects, with the game's own show_ui and
+    get_binded_action."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 40).split(b"\0")[0]
+    entry = struct.unpack("<5I", stock.read(0xA74CA8, 20))
+    check(cstr(entry[0]) == b"toggle_replay_ui" and entry[1:4] == (0x19, 5, 0) and cstr(entry[4]) == b"kF11"
+          and rows(stock, 0x25CD5A, 0x11) == ["lea edx,[esp+0x14]", "push edx", "mov edi,0x1", "call 0x207d50",
+                                              "mov edi,eax"]
+          and rows(stock, 0x25CE10, 0x13) == ["lea ecx,[edi-0x11]", "cmp ecx,byte +0x8", "ja near 0x25cf0d",
+                                              "jmp [ecx*4+0x25cf30]"]
+          and struct.unpack("<I", stock.read(0x25CF30 + 8 * 4, 4))[0] == 0x25CED1
+          and rows(stock, 0x25CED1, 0x0A) == ["mov esi,[esp+0x10]", "cmp dword [esi+0x18],byte +0x0",
+                                              "jz 0x25cf0d"]
+          and rows(stock, 0x25CEE4, 0x29)[:5] == ["cmp byte [esi+0x2e0],0x0", "lea edi,[esi+0x4]", "setz cl",
+                                                 "movzx edx,cl", "push edx"]
+          and stock.read(0x25CD16, 4) == bytes.fromhex("897c2410"),
+          "toggle_replay_ui is action 19h (kinds 5, F11; the action table's entry 0xA74CA8); the game world's "
+          "on_keyboard_action asks the binder for kind 1 (0x25CD5F) and its case 19h (the table 0x25CF30 + 20h) "
+          "at 0x25CED1 takes the handler from [esp+10h] (0x25CD16) and does nothing without the replay's movie "
+          "(+18h); with it, the replay's controls and the cursor (0x25CEDB..)")
+    check(rows(stock, 0x1F95F0, 0x10)[6:9] == ["push esi", "push edi", "mov edi,ecx"]
+          and stock.read(0x1F95FF, 6) == bytes.fromhex("389fa0000000")
+          and stock.read(0x1F960B, 6) == bytes.fromhex("8db704020000") and stock.read(0x1F9618, 6) == bytes.fromhex("8db70c020000")
+          and stock.read(0x1F9634, 6) == bytes.fromhex("8d8704020000") and stock.read(0x1F9641, 6) == bytes.fromhex("8d870c020000")
+          and popped(stock, 0x1F95F0, 0x1F965B) == 4
+          and struct.unpack("<I", stock.read(0x9FC514, 4))[0] == 0x1F95F0
+          and rows(stock, 0x1F8966, 0x0F) == ["lea esi,[ebx+0x1fc]", "lea eax,[esp+0x30]", "call 0x233f40"]
+          and stock.read(0x23383C, 3) == bytes.fromhex("897d18"),
+          "game_world::show_ui (0x1F95F0, slot 8 of its vtable 0x9FC4F4, `ret 4`) shows or hides the hud movie "
+          "(+204h) and the player icons' (+20Ch), its state +0A0h; the hud is the game world's +1FCh (0x1F8966), "
+          "the game world its +18h (0x23383C)")
+    check(rows(stock, 0x23845A, 6) == ["push ebx", "call 0x23a930"] and stock.read(0x2383BF, 2) == bytes.fromhex("8bf8")
+          and popped(stock, 0x23A930, 0x23A9CA) == 4 and stock.read(0x23A93A, 6) == bytes.fromhex("389fdc020000"),
+          "0x23845B is show_profiles_selector's (edi the hud) call of show_cursor (0x23A930, the byte pushed, "
+          "`ret 4`)")
+    check(rows(stock, 0x26CCC2, 0x15) == ["mov eax,[eax+0x5344]", "lea edx,[esp+0x10]", "push edx",
+                                          "mov edi,0x2", "call 0x207d50"]
+          and rows(stock, 0x26CCAE, 0x14) == ["lea ecx,[esp+0x28]", "call 0x2afa70", "mov al,0x1", "pop edi",
+                                              "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0xc"]
+          and rows(stock, 0x26CCA9, 5) == ["call 0x1fdd70"] and popped(stock, 0x1FDD70, 0x1FDEC9) == 0x14
+          and popped(stock, 0x207D50, 0x207DB3) == 4 and stock.read(0x26CBDB, 6) == bytes.fromhex("8b9390060000"),
+          "0x26CCD2 is lobby_menu::on_keyboard_action's (ebx the lobby menu, its movie [[+690h]+108h]+4) call of "
+          "get_binded_action (0x207D50, `ret 4`) for kind 2; 0x26CCAE is where it goes after a key the movie "
+          "typed (0x1FDD70 pops its five arguments): al 1, the key taken")
+    linked = P.arena()
+    block = linked.blocks["hide_ui.code"]
+    for va, old, symbol, opcode in P.HIDE_UI_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}, an entry of hide_ui.code) here")
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.HIDE_UI_HOOKS)]
+    hits = [h for va, old, _, _ in P.HIDE_UI_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside a hook"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "hide_ui.code")
+    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's hide_ui.code ({len(code)} bytes)")
+    names = code.index(b"root.toggle_interface\0")
+    texts = [text for va, _, text in ndisasm(code[:names], block.va)]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    state = linked.blocks["hide_ui.state"]
+    library = {linked.symbols[name] for name in ("engine_show_ui", "engine_binded_action", "engine_movie_invoke")}
+    check(outside == sorted(set(P.HIDE_UI_BACKS[:3]) | library)
+          and f"push dword {block.va + names:#x}" in texts and f"mov dword [esp],{P.HIDE_UI_BACKS[3]:#x}" in texts
+          and state.va <= linked.symbols["hidden_world"] < state.va + state.size,
+          "it goes on in on_keyboard_action (0x25CEDB, 0x25CF0D), jumps to show_cursor (0x23A930), returns to "
+          "0x26CCAE, calls the library's show_ui, get_binded_action and Invoke and nothing else; it invokes "
+          "root.toggle_interface; the game world it hid is in hide_ui.state")
+    here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
+    check("public function toggle_interface() : void" in here("flash", "lobby_menu", "src", "LobbyMenu.as"),
+          "the lobby movie has root.toggle_interface")
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -5705,6 +5788,7 @@ def test_late_join(original, without, server, source):
     test_spot(original, image, before)
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)
+    test_hide_ui(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

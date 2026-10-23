@@ -452,6 +452,10 @@ package
       private var toggleIndex:int = 0;
       
       protected var _escapeHandled:Boolean = false;
+
+      // The stage's children toggle_interface hid (docs/notes/hide-ui-key.md); null while the
+      // interface is shown.
+      private var _hiddenUi:Array;
       
       public function LobbyMenu()
       {
@@ -1268,6 +1272,8 @@ package
          this.modifierWindow.setInventory(this.inventory_list);
          this.modifierWindow.visible = false;
          DragRegion.playerProfile = this.player_profile;
+         stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onHiddenKey,true,100);
+         stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onHiddenKey,false,100);
          stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onKeyDownStage);
          stage.addEventListener(KeyboardEvent.KEY_UP,this.onKeyUpStage);
          stage.addEventListener(InputEvent.INPUT,this.handleInput,false,0,true);
@@ -3721,6 +3727,10 @@ package
       
       public function get_mouse_over() : Boolean
       {
+         if(this._hiddenUi != null)
+         {
+            return false;
+         }
          var topMost:* = Extensions.getTopMostEntity(mouseX * scaleX,mouseY * scaleY,true);
          if((topMost) && (!(topMost is DragRegion)) && !(topMost is Stage))
          {
@@ -3993,6 +4003,11 @@ package
       // box has the keys.
       public function has_active_window() : Boolean
       {
+         // the hidden interface is the top: Esc shows it (close_active_window)
+         if(this._hiddenUi != null)
+         {
+            return true;
+         }
          // a dropdown's open list takes Esc itself; a closed dropdown still holding the focus does
          // not, so Esc never opens the game's menu over a modal
          if(stage.focus is DropdownMenu && DropdownMenu(stage.focus).selected)
@@ -4014,6 +4029,10 @@ package
       {
          _escapeHandled = true;
          trace("close_active_window");
+         if(this.showInterface())
+         {
+            return;
+         }
          if(!SrvContextMenu.visisble && this.leaveTextBox())
          {
             return;
@@ -4473,6 +4492,7 @@ package
       
       public function show_victory_screen() : void
       {
+         this.showInterface();
          this.showRoomUnderResults();
          dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
          trace("_top_container::this");
@@ -5176,6 +5196,7 @@ package
       
       public function set_mm_sync_state(value:String, showLeaveButton:uint = 0) : void
       {
+         this.showInterface();
          if((value) && !showLeaveButton)
          {
             ExternalInterface.call("sound_play",UiSound.MATCH_FOUND);
@@ -5219,6 +5240,7 @@ package
       
       public function set_loading_level(level:uint) : void
       {
+         this.showInterface();
          trace("set_loading_level",this._load_images[level]);
          addChild(this.chat);
          trace("_top_container::this");
@@ -5827,6 +5849,58 @@ package
          this.bottom_panel.btnShowLogList.label = LocalizationData.getName("btn_show_log_list").toUpperCase();
       }
       
+      // The key that hides the interface (docs/notes/hide-ui-key.md): the exe calls this for F11,
+      // the game's toggle_replay_ui key (exe patch 62), when no text box has the keys. Every shown
+      // child of the stage is hidden, the lobby's root with it: no click lands on the interface and
+      // the camera turns and zooms (get_mouse_over). Shown again by the same key, any key the movie
+      // gets (onHiddenKey: that key does nothing else), Esc, a match found, its loading or the
+      // results.
+      public function toggle_interface() : void
+      {
+         if(this.showInterface())
+         {
+            return;
+         }
+         SrvContextMenu.hide();
+         _hiddenUi = [];
+         var i:int = 0;
+         while(i < stage.numChildren)
+         {
+            var child:DisplayObject = stage.getChildAt(i);
+            if(child.visible)
+            {
+               child.visible = false;
+               this._hiddenUi.push(child);
+            }
+            i++;
+         }
+      }
+
+      // Shows what toggle_interface hid; true when it was hidden.
+      private function showInterface() : Boolean
+      {
+         if(this._hiddenUi == null)
+         {
+            return false;
+         }
+         for each(var child:DisplayObject in this._hiddenUi)
+         {
+            child.visible = true;
+         }
+         _hiddenUi = null;
+         return true;
+      }
+
+      // A key while the interface is hidden shows it, and is taken: no other handler of the movie
+      // gets it (Enter does not press Play, a letter does not start the item search).
+      private function onHiddenKey(e:KeyboardEvent) : void
+      {
+         if(this.showInterface())
+         {
+            e.stopImmediatePropagation();
+         }
+      }
+
       private function onKeyDownStage(e:KeyboardEvent) : void
       {
          if(e.keyCode == KeyCode.LEFT_SHIFT)

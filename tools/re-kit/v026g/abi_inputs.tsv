@@ -4435,3 +4435,13 @@ va	name	location	role	basis
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+12	the body	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+16	the sender's name	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+20	the sender's clan tag	observed
+0x00207d50	survarium::key_binder::get_binded_action	EAX	the key binder (the game's +5344h): 48h bindings of 0Ch bytes indexed by the action id, each its description (+4 the id, +8 a mask, +0Ch a flag) and two bound keys (+4 the DIK code)	observed
+0x00207d50	survarium::key_binder::get_binded_action	EDI	the kinds asked, a mask tested against each description's +8 (1 by the game world's on_keyboard_action at 0x25CD5F, 2 by the lobby's at 0x26CCCD; toggle_replay_ui, 19h, is 5)	observed
+0x00207d50	survarium::key_binder::get_binded_action	ESI	the key (DIK code)	observed
+0x00207d50	survarium::key_binder::get_binded_action	entry ESP+4	out: the found action's toggle flag (its description's +0Ch), written only when one is found	observed
+0x0023a930	survarium::game_world_ui::show_cursor	EDI	the hud (game_world_ui: +2DCh the cursor's flag, +0Ch the cursor movie, +18h the game world)	observed
+0x0023a930	survarium::game_world_ui::show_cursor	entry ESP+4	shown, a byte (1 from show_profiles_selector's call at 0x23845B and the replay's toggle at 0x25CF08)	observed
+0x002383b0	survarium::game_world_ui::show_profiles_selector	EAX	the hud (game_world_ui; +2DFh the kits' state)	observed
+0x002383b0	survarium::game_world_ui::show_profiles_selector	entry ESP+4	shown, a byte: the kits (the death screen, before the start); calls show_cursor with it at 0x23845B	observed
+0x001f95f0	survarium::game_world::show_ui	ECX	the game world (base_game_scene): shown (render) or hidden are the hud movie (+204h, the game_world_ui's +8) and the player icons' (+20Ch, its +10h); the state is +0A0h (0 at the construction, show_ui(1) by the activation at 0x1F8476, show_ui(0) at 0x1F96D1)	observed
+0x0021d570	survarium::lobby_menu::show_ui	ECX	the lobby menu: shown (render) or hidden are the lobby movie (+690h) and +68Ch, the state +0A0h	observed
