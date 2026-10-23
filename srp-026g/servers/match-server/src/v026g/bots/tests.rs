@@ -791,6 +791,116 @@ struct Outcome {
     notes: Vec<Note>,
     /// Every raid taken (play 24), as it went.
     raids: Vec<RaidRun>,
+    carry: CarryTally,
+}
+
+/// The batteries' carries as the bots saw them (the audit of the owner's
+/// matches of 2026-10-23, #2, #6, #7): the carrier the view believed
+/// against the stand-in's, world by world; the put-ins and takes that
+/// failed; the intercepts and the interceptors killed. With
+/// `SRP_BENCH_NOTES=<file>` every note and death is also appended there
+/// (`<run> <place> <ms> <text>`), for the churn counts.
+#[derive(Clone, Debug, Default)]
+struct CarryTally {
+    run: String,
+    /// World-seconds of a carried battery: its carrier believed right,
+    /// believed someone else, not known.
+    right: u32,
+    wrong: u32,
+    unknown: u32,
+    put_in_failed: u32,
+    take_failed: u32,
+    stands_failed: u32,
+    collect_takes: u32,
+    intercept_takes: u32,
+    intercept_deaths: u32,
+    /// Beliefs the view dropped or moved (its notes).
+    beliefs_moved: u32,
+}
+
+impl CarryTally {
+    fn new(run: String) -> Self {
+        Self {
+            run,
+            ..Self::default()
+        }
+    }
+
+    /// A world: each carried battery's believed carrier against the truth.
+    fn world(&mut self, game: &Game, bots: &Bots) {
+        for (battery, lying) in game.batteries.iter().enumerate() {
+            if let Lying::Carried(place) = *lying {
+                match bots.tracker().carrier(battery) {
+                    Some(p) if p == place => self.right += 1,
+                    Some(_) => self.wrong += 1,
+                    None => self.unknown += 1,
+                }
+            }
+        }
+    }
+
+    /// The deaths of a step (the statistics `before` it), by the play.
+    fn deaths(&mut self, before: &[(u32, u32, u32)], game: &Game, bots: &Bots) {
+        for (place, (now, was)) in game.stats.iter().zip(before).enumerate() {
+            if now.1 <= was.1 {
+                continue;
+            }
+            let play = bots.bots[place]
+                .as_ref()
+                .and_then(|b| b.assignment.as_ref())
+                .map(|a| a.kind);
+            if play == Some(super::plays::PlayKind::Intercept) {
+                self.intercept_deaths += 1;
+            }
+            self.dump(place, game.tick, &format!("died (on {play:?})"));
+        }
+    }
+
+    fn note(&mut self, note: &Note) {
+        let text = note.text.as_str();
+        if text.starts_with("ends Collect: could not put it in") {
+            self.put_in_failed += 1;
+        } else if text.starts_with("ends Collect: could not take it") {
+            self.take_failed += 1;
+        } else if text.starts_with("took no battery") {
+            self.stands_failed += 1;
+        } else if text.starts_with("takes Collect Battery") {
+            self.collect_takes += 1;
+        } else if text.starts_with("takes Intercept") {
+            self.intercept_takes += 1;
+        } else if text.contains("believed to carry battery") {
+            self.beliefs_moved += 1;
+        }
+        self.dump(note.place, note.time, text);
+    }
+
+    fn dump(&self, place: usize, time: u32, text: &str) {
+        if let Some(path) = std::env::var_os("SRP_BENCH_NOTES") {
+            use std::io::Write;
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .unwrap();
+            writeln!(file, "{} {} {time} {text}", self.run, place as i64).unwrap();
+        }
+    }
+
+    fn line(&self, taken: u32) -> String {
+        format!(
+            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}",
+            self.right,
+            self.wrong,
+            self.unknown,
+            self.put_in_failed,
+            self.take_failed,
+            self.stands_failed,
+            self.collect_takes,
+            self.intercept_takes,
+            self.intercept_deaths,
+            self.beliefs_moved,
+        )
+    }
 }
 
 /// One raid of a soak, from its take to the bot's next play.
@@ -989,7 +1099,10 @@ fn soak_tuned(
     for place in 0..teams.len() {
         bots.entered(place, true, 0);
     }
-    let mut out = Outcome::default();
+    let mut out = Outcome {
+        carry: CarryTally::new(format!("soak{per_team}-s{seed}")),
+        ..Outcome::default()
+    };
     let rays_before = super::aimpoint::rays_cast();
     let limit_ms = limit_s * 1000;
     let mut raids = RaidTally::default();
@@ -997,7 +1110,9 @@ fn soak_tuned(
     while clock < limit_ms {
         clock += 25;
         while game.tick + TICK_MS <= clock {
+            let before = game.stats.clone();
             game.step();
+            out.carry.deaths(&before, &game, &bots);
         }
         let thieves = std::mem::take(&mut game.thieves);
         raids.bodies(&game, &thieves, clock);
@@ -1008,11 +1123,14 @@ fn soak_tuned(
                 for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                     let notes = bots.fixed(place, fix, Some(health));
                     notes.iter().for_each(|note| out.decisions.note(note));
+                    notes.iter().for_each(|note| out.carry.note(note));
                     out.notes.extend(notes);
                 }
                 let notes = bots.facts(facts);
                 notes.iter().for_each(|note| out.decisions.note(note));
+                notes.iter().for_each(|note| out.carry.note(note));
                 out.notes.extend(notes);
+                out.carry.world(&game, &bots);
             }
         }
         let (made, notes) = bots.poll(Clock {
@@ -1022,6 +1140,7 @@ fn soak_tuned(
             playing: true,
         });
         notes.iter().for_each(|note| out.decisions.note(note));
+        notes.iter().for_each(|note| out.carry.note(note));
         raids.polled(&bots, &notes, &made);
         out.notes.extend(notes);
         for made in made {
@@ -1432,13 +1551,15 @@ fn raids_in_whole_battery_matches() {
                 decided += u32::from(out.end_s < 899.0);
             }
             eprintln!(
-                "  cheat {cheat} seed {seed}: winner {:?} at {:.0} s, delivered {:?}, stolen {}, raids {}, raid steals {}",
+                "  cheat {cheat} seed {seed}: winner {:?} at {:.0} s, delivered {:?}, stolen {}, raids {}, raid steals {}; kills {:?}; {}",
                 out.winner,
                 out.end_s,
                 out.delivered,
                 out.stolen,
                 out.raids.len(),
-                out.raids.iter().filter(|r| r.stole).count()
+                out.raids.iter().filter(|r| r.stole).count(),
+                out.kills,
+                out.carry.line(out.taken)
             );
             runs.extend(out.raids);
         }
@@ -2660,11 +2781,13 @@ fn real_bot_cost() {
             let mut carriers_killed = [0u32; 2];
             let mut takes_all = 0u32;
             let mut raids = RaidTally::default();
+            let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
             while clock < limit_ms {
                 clock += 5;
                 while game.tick + TICK_MS <= clock {
                     let stats_before = game.stats.clone();
                     game.step();
+                    carry.deaths(&stats_before, &game, &bots);
                     let play_of = |place: Place| {
                         bots.bots[place]
                             .as_ref()
@@ -2752,15 +2875,18 @@ fn real_bot_cost() {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             for note in bots.fixed(place, fix, Some(health)) {
                                 decisions.note(&note);
+                                carry.note(&note);
                             }
                         }
                         for note in bots.facts(facts) {
                             decisions.note(&note);
+                            carry.note(&note);
                             if note.text.contains("its thief no longer carrying it") {
                                 theft_looks += 1;
                                 game.stolen_log.push(format!("{} {}", note.time, note.text));
                             }
                         }
+                        carry.world(&game, &bots);
                         // When a stolen battery that fell is known to its
                         // owners again (seen, or carried by one of them).
                         for (battery, mark) in game.stolen_marks.iter().enumerate() {
@@ -2803,6 +2929,7 @@ fn real_bot_cost() {
                 raids.polled(&bots, &notes, &made);
                 for note in notes {
                     decisions.note(&note);
+                    carry.note(&note);
                     if let Some(rest) = note.text.strip_prefix("takes ") {
                         takes_all += 1;
                         let kind = rest.split(' ').next().unwrap_or("").to_owned();
@@ -3021,6 +3148,7 @@ fn real_bot_cost() {
                 game.stolen,
                 f64::from(takes_all) / teams.len() as f64 / (f64::from(limit_s) / 60.0)
             );
+            eprintln!("  carry: {}", carry.line(game.taken));
             eprintln!(
                 "  search: {:.0} bot-s at spawners' spots, {search_deaths} deaths in it",
                 search_ticks as f64 * f64::from(TICK_MS) / 1000.0

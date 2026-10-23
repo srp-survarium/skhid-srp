@@ -570,6 +570,12 @@ impl Tracker {
         new_deaths
     }
 
+    /// Who is believed to carry `battery` (a soak checks it against its
+    /// stand-in's truth).
+    pub fn carrier(&self, battery: usize) -> Option<Place> {
+        self.carriers.get(battery).copied().flatten()
+    }
+
     /// The player who pressed use near `at` lately, else the nearest one.
     fn carrier_near(&self, at: Vec3, time: u32) -> Option<Place> {
         let used = self
