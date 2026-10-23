@@ -747,7 +747,7 @@ mod tests {
         translator.poll(now);
         assert_eq!(echo.asked.locked()[0].text, "бля, промазал");
         // Blocked and mostly obscene lines: never sent.
-        for (player, line) in [(2, "сука блять"), (3, "kill yourself noob")] {
+        for (player, line) in [(2, "сука блять нахуй"), (3, "kill yourself noob")] {
             translator.request(line, None, &[Lang::En, Lang::De], player, now);
             translator.poll(now);
             assert_eq!(translator.lookup(line, Lang::En), Lookup::Original);
@@ -805,7 +805,7 @@ mod tests {
         let echo = Arc::new(Echo::default());
         let mut translator = inline(echo.clone());
         let now = Instant::now();
-        for line in ["сука блять", "fuck fuck ok", "бля бля"] {
+        for line in ["сука блять нахуй", "fuck fuck fuck", "бля бля бля сука"] {
             translator.request(line, None, &[Lang::De], PLAYER, now);
         }
         translator.request("hello all", Some(Lang::En), &[Lang::De], PLAYER, now);

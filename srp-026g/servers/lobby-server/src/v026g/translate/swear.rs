@@ -2,7 +2,8 @@
 //! (`docs/notes/chat-translation.md`, "What never reaches the model"): a
 //! free first check before the local classifier (`moderate`). It says
 //! **no** for a line that holds a slur, a threat or sexual violence (a
-//! `block` entry), or whose words are more than half obscenity; every other
+//! `block` entry), or that is almost entirely obscenity (3 obscene words or
+//! more, and over two thirds of its words); every other
 //! line goes on **as it is**, swearing and all (the owner's: swearing is
 //! translated, not masked).
 //!
@@ -28,8 +29,11 @@ use super::Lang;
 
 /// srp's list, built in.
 const BUILT_IN: &str = include_str!("../../../chat-swear.tsv");
-/// Over this share of a line's words obscene, the line is not sent.
-const MOSTLY: f32 = 0.5;
+/// A line is almost entirely obscenity when at least this many of its words
+/// are, and more than [`MOSTLY`] of them ("сука блять нахуй"); "cyka blyat"
+/// and "бля, промазал" go on to the classifier.
+const OBSCENE_WORDS: usize = 3;
+const MOSTLY: f32 = 2.0 / 3.0;
 
 /// One reading of a character: as Cyrillic and as Latin.
 fn as_cyrillic(c: char) -> Option<char> {
@@ -146,7 +150,7 @@ pub enum Verdict {
     Pass,
     /// A slur, a threat or sexual violence.
     Blocked,
-    /// More than half its words obscene.
+    /// Almost entirely obscenity.
     Obscene,
 }
 
@@ -283,7 +287,7 @@ impl SwearFilter {
             return Verdict::Blocked;
         }
         let obscene = words.iter().filter(|word| self.swears(word)).count();
-        if !words.is_empty() && obscene as f32 > words.len() as f32 * MOSTLY {
+        if obscene >= OBSCENE_WORDS && obscene as f32 > words.len() as f32 * MOSTLY {
             return Verdict::Obscene;
         }
         Verdict::Pass
@@ -389,10 +393,13 @@ mod tests {
             "ты рак, иди учись стрелять",
             "one fucking word in five",
             "ну ты и чёрт 😄",
+            "cyka blyat",
+            "сука бля промах",
+            "pedał gazu mi się zaciął",
         ] {
             assert_eq!(filter.judge(text), Verdict::Pass, "{text}");
         }
-        for text in ["сука блять", "fuck fuck ok", "бля"] {
+        for text in ["сука блять нахуй", "fuck fuck fuck", "бля бля бля сука"] {
             assert_eq!(filter.judge(text), Verdict::Obscene, "{text}");
         }
         for text in [
@@ -402,6 +409,11 @@ mod tests {
             "ты пидор",
             "вбий себе",
             "zabij się",
+            "who has cp links",
+            "looking for underage girls",
+            "малолетки самые лучшие",
+            "wer hat kinderpornos",
+            "kto ma dziecięce porno",
         ] {
             assert_eq!(filter.judge(text), Verdict::Blocked, "{text}");
         }

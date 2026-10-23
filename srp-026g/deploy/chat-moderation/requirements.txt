@@ -1,0 +1,4 @@
+# The gate service (server.py): CPU only.
+numpy>=1.26,<3
+onnxruntime>=1.18,<2
+tokenizers>=0.19,<1

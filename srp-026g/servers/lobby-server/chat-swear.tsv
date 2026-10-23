@@ -220,6 +220,16 @@ de	allow	arschbombe
 *	block	pornografia dziecięca
 *	block	dziecięca pornografia
 *	block	seks z dziećmi
+*	block	pedo
+*	block	педо
+*	block	underage
+*	block	малолетк
+*	block	малолітк
+*	block	nieletni
+*	block	minderjähr
+*	block	dziecięce porno
+*	block	dziecięca porno
+*	block	cp link
 # Threats.
 *	block	kys
 *	block	kill yourself
@@ -266,7 +276,6 @@ de	allow	arschbombe
 *	block	neger
 *	block	kanake
 *	block	schwuchtel
-*	block	pedał
 *	block	ciota
 # ---- LDNOOBW, "List of Dirty, Naughty, Obscene, and Otherwise Bad Words", CC-BY 4.0,
 # https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words
