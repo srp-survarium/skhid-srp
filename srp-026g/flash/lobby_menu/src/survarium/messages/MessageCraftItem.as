@@ -199,6 +199,11 @@ package survarium.messages
             this.decriptionLabel.text = LocalizationData.getName("item_craft_description");
             this.labelSuccessChance.text = LocalizationData.getName("item_craft_success_label");
             this.labelFailChance.text = LocalizationData.getName("item_craft_fail_label");
+            // An upgrade never takes a modification away (the owner's rule of 2026-10-23,
+            // craft-menu.md): no failure ("-1 mod.") row; the server sends its chances as 0.
+            this.labelFailChance.visible = false;
+            this.failChanceRegular.visible = false;
+            this.failChanceGold.visible = false;
             this.labelRegularMoney.text = LocalizationData.getName("regular_money");
             this.labelGoldMoney.text = LocalizationData.getName("premium_money");
             this.dragItemSlot1.selected = false;
