@@ -2430,6 +2430,27 @@ def test_dynamic_anomalies(original, image, before):
           and source.read(0x317DB4, 6) == bytes.fromhex("c7062c6ea000") and u32(0xA06E2C + 0x3C) == 0x317F30,
           "the world keeps the static info at +18FACh (0x2D00BB), whose seed is at +577B0h (0x2D01D7); "
           "timelimit_rule_core's vtable is 0xA06E2C (constructor 0x317DB4; serialize 0x317F30 at +3Ch)")
+    # A game's time rule is the client class: the game's constructor makes
+    # timelimit_rule_cook (0x1E9AEA, over the core cook 0x2F49F0 made at
+    # 0x1E9AE0), whose object's constructor 0x267A40 stores 0xA06E8C at
+    # 0x267A61 after the core's. The rule tells the time rule by the slot
+    # both share, serialize at +3Ch; no other vtable has it there.
+    serialize_at = []
+    for _, rva, vsize, raw, rsize, _ in source.sections:
+        blob = bytes(original[raw:raw + min(vsize, rsize)])
+        at = blob.find(struct.pack("<I", 0x317F30))
+        while at >= 0:
+            serialize_at.append(P.IMAGE_BASE + rva + at)
+            at = blob.find(struct.pack("<I", 0x317F30), at + 1)
+    check(source.read(0x1E9AE0, 5) == bytes.fromhex("e80baf1000")
+          and source.read(0x1E9AEA, 10) == bytes.fromhex("c705301b260244d99f00")
+          and source.read(0x267A4B, 5) == bytes.fromhex("e850030b00")
+          and source.read(0x267A61, 6) == bytes.fromhex("c7068c6ea000")
+          and u32(0xA06E8C + 0x3C) == 0x317F30 and u32(0xA06E8C - 4) != u32(0xA06E2C - 4)
+          and sorted(serialize_at) == [0xA06E2C + 0x3C, 0xA06E8C + 0x3C],
+          "a game's time rule is timelimit_rule (vtable 0xA06E8C, stored at 0x267A61 after the core's constructor "
+          "0x317DA0; its cook set at 0x1E9AEA): it and timelimit_rule_core (0xA06E2C) have serialize 0x317F30 at "
+          f"+3Ch, and no other place of the exe holds that address ({', '.join(f'{a:#x}' for a in serialize_at)})")
     for (va, old, symbol, opcode), exit_ in zip(P.DYNAMIC_ANOMALIES_HOOKS, P.DYNAMIC_ANOMALIES_EXITS):
         site = image.read(va, len(old))
         entry = linked.symbols[symbol]

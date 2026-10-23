@@ -48,7 +48,13 @@ section .text
 %define ATOMIC_TICK_ON     0x2D1E26   ; after `push ecx; mov eax,51EB851Fh`
 %define PICKUP_ON          0x33BCDA   ; after `push ecx; push esi; mov esi,ecx; mov eax,[esi+15Ch]`
 %define GENERIC_TICK       0x31B5B0   ; generic_anomaly_core::tick, its delegate's function
-%define TIMELIMIT_VTABLE   0xA06E2C   ; timelimit_rule_core (constructor 0x317DB6)
+; The time rule: a game's is the client class timelimit_rule (vtable 0xA06E8C,
+; set at 0x267A61 after the core's constructor 0x317DA0 stored 0xA06E2C; the
+; game's constructor makes timelimit_rule_cook at 0x1E9AEA), anything else's
+; timelimit_rule_core (0xA06E2C). Both have the core's serialize at +3Ch, and
+; no other rule has: that slot names the time rule.
+%define RULE_SERIALIZE     0x3C       ; the slot both time rules share
+%define TIMELIMIT_SERIALIZE 0x317F30  ; timelimit_rule_core::serialize
 
 ; game_world_core
 %define W_RULES            0x18824    ; rule*[] begin, end (+4): the mode config's order, the time rule first
@@ -156,8 +162,9 @@ anomalies_tick:
     mov eax, [eax]
     test eax, eax
     jz .out
-    cmp dword [eax], TIMELIMIT_VTABLE
-    jne .out
+    mov edx, [eax]                     ; its vtable
+    cmp dword [edx+RULE_SERIALIZE], TIMELIMIT_SERIALIZE
+    jne .out                           ; not the time rule
     cmp dword [eax+RULE_STATE], 3
     jne .out
     mov ebx, [eax+RULE_START]

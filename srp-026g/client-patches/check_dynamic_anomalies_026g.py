@@ -48,7 +48,10 @@ import patch_026g as P
 ATOMIC_TICK, ATOMIC_TICK_ON = 0x2D1E20, 0x2D1E26
 PICKUP = 0x33BCD0
 GENERIC_TICK = 0x31B5B0
-TIMELIMIT_VTABLE = 0xA06E2C
+# The time rule a game has is the client's timelimit_rule (0xA06E8C, set at
+# 0x267A61 over the core's 0xA06E2C); the core's own is what a world without
+# the client class would hold. Both must start the rule; tdm's must not.
+TIMELIMIT_RULE_VTABLE, TIMELIMIT_CORE_VTABLE, TDM_VTABLE = 0xA06E8C, 0xA06E2C, 0xA15DA4
 
 W_RULES, W_ANOMALIES_COUNT, W_STATIC_INFO, INFO_SEED = 0x18824, 0x188A0, 0x18FAC, 0x577B0
 RULE_START, RULE_STATE = 0x12C, 0x148
@@ -179,7 +182,7 @@ class Rules:
 class World:
     """A world in Unicorn: an exe, the cores, the time rule, the seed."""
 
-    def __init__(self, image, cores, seed, base=DATA):
+    def __init__(self, image, cores, seed, base=DATA, rule_vtable=TIMELIMIT_RULE_VTABLE):
         self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
         for _, rva, vsize, raw, rsize, _ in P.Headers(image).sections(image):
             start = P.IMAGE_BASE + rva
@@ -196,7 +199,7 @@ class World:
         self.vtable, self.artefact_vtable = base + 0x81000, base + 0x81400
         emu.mem_write(self.vtable, struct.pack("<64I", *([RET_STUB] * 15 + [SPAWN_STUB] + [RET_STUB] * 48)))
         emu.mem_write(self.artefact_vtable, struct.pack("<64I", *([ARTEFACT_TICK_STUB] * 64)))
-        emu.mem_write(self.rule, struct.pack("<I", TIMELIMIT_VTABLE))
+        emu.mem_write(self.rule, struct.pack("<I", rule_vtable))
         emu.mem_write(self.rules, struct.pack("<I", self.rule))
         emu.mem_write(self.world + W_RULES, struct.pack("<II", self.rules, self.rules + 4))
         emu.mem_write(self.world + W_STATIC_INFO, struct.pack("<I", self.info))
@@ -486,14 +489,24 @@ def main():
     # Two worlds at other addresses, the same order: the same choices.
     ra, _ = run_match(image, checks, 77, layout(random.Random(9)), 0, 200, what="world A")
     cores_b = layout(random.Random(9))
-    wb = World(image, cores_b, 77, base=DATA + DATA_SIZE)
+    wb = World(image, cores_b, 77, base=DATA + DATA_SIZE, rule_vtable=TIMELIMIT_CORE_VTABLE)
     wb.set_rule(0)
     got = []
     for now in range(0, 200_000, TICK):
         before = [wb.state(i)[0] for i in range(len(cores_b))]
         wb.tick(now, TICK)
         got += [i for i in range(len(cores_b)) if before[i] == 0 and wb.state(i)[0] == 3000]
-    check(got == [c for _, _, c in ra.choices if c is not None], f"the same choices at other addresses: {got[:5]}")
+    check(got == [c for _, _, c in ra.choices if c is not None], f"the same choices at other addresses (the time "
+          f"rule timelimit_rule_core's {TIMELIMIT_CORE_VTABLE:#x} there, the client's {TIMELIMIT_RULE_VTABLE:#x} in "
+          f"world A): {got[:5]}")
+
+    # The first rule not a time rule (tdm's vtable): nothing is ever chosen.
+    wt = World(image, layout(random.Random(9)), 77, rule_vtable=TDM_VTABLE)
+    wt.set_rule(0)
+    for now in range(0, 200_000, TICK):
+        wt.tick(now, TICK)
+    check(all(wt.state(i)[0] == 0 for i in range(len(wt.core_at))) and not wt.spawned,
+          "a first rule that is not the time rule (tdm's vtable): no anomaly charges")
 
     if checks.failed:
         sys.exit(f"{checks.failed} of {checks.count} checks failed")

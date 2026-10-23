@@ -2184,6 +2184,9 @@ va	name	location	role	basis
 0x001ff0f0	survarium::text_translator::translate_text	stack+8	output buffer	inferred
 0x001ff240	survarium::text_translator::on_texts_ready	ECX	text translator	inferred
 0x001ff240	survarium::text_translator::on_texts_ready	stack+4	resource query results	inferred
+0x00206670	survarium::timelimit_rule_cook::create_resource	ECX	the cook (vtable 0x9FD944, set by the game's constructor at 0x1E9AEA); [ECX+20h] goes to the rule's +150h	observed
+0x00206670	survarium::timelimit_rule_cook::create_resource	entry ESP+4	passed on in EAX to timelimit_rule::timelimit_rule	observed
+0x00206670	survarium::timelimit_rule_cook::create_resource	entry ESP+8	the size out (0x158 written)	observed
 0x002079d0	survarium::key_binder::id_to_action_name	EDX	action_id	inferred
 0x00207ad0	survarium::key_binder::action_name_to_ptr	stack+4	action_name	inferred
 0x00207c30	survarium::key_binder::keyname_to_ptr	EDI	keyboard_key_name	inferred
@@ -2427,6 +2430,9 @@ va	name	location	role	basis
 0x00265860	survarium::lobby_character::show_decal_preview	EAX	the preview box float4x4 (world)	observed
 0x00265860	survarium::lobby_character::show_decal_preview	entry ESP+4	lobby_character	observed
 0x00265980	survarium::lobby_character::update_decal_preview	EAX	lobby_character	observed
+0x00267a40	survarium::timelimit_rule::timelimit_rule	ECX	the rule (0x158 bytes): the core's constructor 0x317DA0, then vtable 0xA06E8C, +108h 0xA06EE0, its tick node +110h {this, 0x267AA0}	observed
+0x00267a40	survarium::timelimit_rule::timelimit_rule	EAX	pushed as timelimit_rule_core::timelimit_rule_core's argument	observed
+0x00267a40	survarium::timelimit_rule::timelimit_rule	entry ESP+4	kept at +150h	observed
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+4	messaging client receiver	inferred
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+8	message identifier	inferred
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+12	one-byte read/acknowledgment action	inferred

@@ -27,9 +27,12 @@ the anomaly particles the game lacks. The rules are in
   - Its `artefact_container_<kind>`: search 2 s, cooldown 0, both the release's.
   - Its `damage_zone_<kind>`.
     - The release's zone without its 0.28/0.31-only keys (`game_effect_on_inside` too, as patch_14).
-    - The kind's damage type, body parts, max_hit 0.5 and sounds come from patch_14's London zone of
-      that kind: lifebone toxic/face/gas, spring shock/body/electric, onyx radiation/body/crystals.
-      The 0.28 natives already have the same types and 0.5.
+    - The kind's damage type, body parts and sounds come from patch_14's London zone of that kind:
+      lifebone toxic/face/gas, spring shock/body/electric, onyx radiation/body/crystals. The 0.28
+      natives have the same types and parts.
+    - `max_hit` is `MAX_HIT`'s: lifebone 0.5, spring 0.0625, onyx 0.0556. Through 0.26g's body
+      these kill in 2 s unarmoured, as the release's 0.5 did through 0.28's
+      (`docs/notes/dynamic_anomalies.md` has the table).
     - `idle_particle` = the core's `damage_anomaly_particle` (`pre_X2` / `pre_X2_indoor`).
   - A new `charge_zone_<kind>`: a damage zone with max_hit 0, no sounds, `idle_particle` = the
     core's `charging_artefact_particle` (`pre_X1`), at the container, on its use box. It is the
@@ -51,7 +54,9 @@ the anomaly particles the game lacks. The rules are in
     - energy_maximum stays 0. 0.26g clamps the energy to a maximum above 0 at every player action
       near the core (0x33BB50), which would end an anomaly a player walks into.
   - Every core has zones of its own: the server bots' prediction takes a zone's first core only.
-- **Mochalka (758, 0.31a2's `artefact_sponge`) is left out.**
+- **Mochalka (758, 0.31a2's `artefact_sponge`) is left out.** The owner (2026-10-23): Sponge is
+  not in the game yet; anomalies hold only 0.26g's artefacts. The script refuses a kind that is
+  not an artefact of the live `items_dict` (54, 74 and 76).
   - It is a thrown artefact (data type 13) 0.26g has no item, dictionary row or exe support for.
   - Mapping it to the nearest artefact, onyx, would give onyx two anomalies of its four at every
     place. Under the 15 m rule only one of a place's anomalies lives at a time anyway.
@@ -75,13 +80,12 @@ the anomaly particles the game lacks. The rules are in
 ## Size
 
 The new projects hold up to 65,902 values (London day_3; London has 61,800 to 65,902, Cologne 44,673 to 47,500).
-The most a 0.26g project is known to have loaded is London's 43,799 in patch_14. The
-format has no total limit (u64 offsets; u16 counts per table only), but a load of the big
-ones in a game is still to be seen.
+That is below the live v011e_level_03 day_2's 112,899 (patch_28), which loads. The format
+has no total limit (u64 offsets; u16 counts per table only). `VALUES_SEEN` warns above that.
 
 ## Commands
 
-The content ships as the pack `dynamic-anomalies@2` of `release/content.tsv`:
+The content ships as the pack `dynamic-anomalies@3` of `release/content.tsv`:
 `release/build-content` composes it over the base and makes the release's patch. Never pack
 the folder by hand. The pack's folder is made once into `$SKHID_PACKS_DIR`, over exactly what
 the manifest composes packs over: the stock db and its `base` rows' patches (12, 14, 17, 19
@@ -93,13 +97,13 @@ python3 -I srp-026g/scripts/dynamic-anomalies/build.py \
   --live <stock>/resources.db $(for n in 12 14 17 19 20 21 22 23 24; do echo --live $P/resources.db.patch_$n; done) \
   --release-natives $R/v028d0/out/game/resources.db \
   $(for f in $R/v031a2/out/game/resources.*.db; do echo --release-london $f; done) \
-  --out $SKHID_PACKS_DIR/dynamic-anomalies-2 --pack dynamic-anomalies@2
+  --out $SKHID_PACKS_DIR/dynamic-anomalies-3 --pack dynamic-anomalies@3
 release/build-content <revision> --out <folder>
 python3 -I srp-026g/scripts/dynamic-anomalies/test_bcw.py $P/resources.db.patch_14 $R/v031a2/out/game/resources.03.db
 ```
 
-The pack.json's sha256 must be the manifest row's (2026-10-22:
-`393f6768d121d881ae2466f40ed3d2afb204c544b556bac613b852413cf08e91`); a different one means
+The pack.json's sha256 must be the manifest row's (2026-10-23:
+`abd9d1e3854d84613eba4565bb504e0779b4225d971e466e275a0bf276ec0b50`); a different one means
 the inputs changed: a new version and its row. Without `--pack`, `--out` gets the files at
 their game paths, for a look. The bots' map files: `mapdata-dump --patch` with the patch
 `release/build-content` made.

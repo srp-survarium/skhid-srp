@@ -905,6 +905,7 @@ va	name	source	ret_cleanup	result
 0x001feed0	survarium::text_translator::load_text_localization	manual	4	
 0x001ff0f0	survarium::text_translator::translate_text	manual	8	
 0x001ff240	survarium::text_translator::on_texts_ready	manual	4	
+0x00206670	survarium::timelimit_rule_cook::create_resource	manual	8	EAX: a new timelimit_rule (0x158 bytes, 0x267A40), 0 when the allocation failed
 0x002079d0	survarium::key_binder::id_to_action_name	manual	0	
 0x00207ad0	survarium::key_binder::action_name_to_ptr	manual	4	
 0x00207c30	survarium::key_binder::keyname_to_ptr	manual	0	
@@ -1017,6 +1018,7 @@ va	name	source	ret_cleanup	result
 0x00264cf0	survarium::lobby_character::query_decal_host	manual	0	
 0x00265860	survarium::lobby_character::show_decal_preview	manual	4	
 0x00265980	survarium::lobby_character::update_decal_preview	manual	0	
+0x00267a40	survarium::timelimit_rule::timelimit_rule	manual	4	EAX: this; the vtable 0xA06E8C (RTTI timelimit_rule) stored at 0x267A61 over the core's 0xA06E2C
 0x0026b1b0	survarium::messaging_client::read_important_message	manual	12	
 0x0026cb80	survarium::lobby_menu::on_keyboard_action	manual	12	first, for every key in the lobby, invokes root.has_active_window (0x26CBF9, its name 0xA07404, through 0x511600) on the lobby's movie; LobbyMenu.has_active_window reads stage.focus (the access violation at 0x77200B of 2026-10-22, patch 52); Esc then root.close_active_window (0xA0741C)
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	manual	12	AL: Observed constant1 on local return path

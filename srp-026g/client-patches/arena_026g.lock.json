@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 25399,
-  "sha256": "a3f70e5b67e5de23709a11b1a792a97ed9b6ed497360d3d5ca8d916e4fdc7e93",
+  "size": 25402,
+  "sha256": "75c7bda2e53519e2d5ba5415ecdde34e0b37d4917e7a4729386cf6014a6ae8b2",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -27,7 +27,7 @@
     "anomalies.code": {
       "kind": "code",
       "va": "0xa433000",
-      "size": 823
+      "size": 826
     }
   },
   "symbols": {

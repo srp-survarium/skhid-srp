@@ -24,6 +24,7 @@ import hashlib
 import json
 import os
 import re
+import struct
 import subprocess
 import sys
 import tempfile
@@ -36,10 +37,28 @@ REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 DBGRAB = os.environ.get("DBGRAB", os.path.join(REPO, "tools", "re-kit", "common", "dbgrab", "target", "release", "dbgrab"))
 
 # The artefact kinds of the release's places that 0.26g has. 758 (mochalka,
-# the sponge) is a thrown artefact (data type 13) 0.26g cannot use: its
-# anomalies are left out.
+# the Sponge) is a thrown artefact (data type 13) 0.26g cannot use: its
+# anomalies are left out. The owner (2026-10-23): "for now we don't have
+# Sponge"; main() refuses a kind that is not an artefact of the live
+# items_dict (0.26g has 54, 74 and 76 only).
 KINDS = {54: "lifebone", 74: "spring", 76: "onyx"}
 DROPPED_KINDS = {758: "mochalka"}
+
+# A kind's damage zone: max_hit per listed body part per second (continuous,
+# interval 1000 ms; the zone's hit loop 0x319C00 hits each part). The release
+# (0.28d0, the first with the mechanism; Cologne's source) has 0.5 for every
+# kind, but its human_hit_params route a part's hit at 0.1-0.15 into one
+# health pool of 1.0: 0.5 health a second, 2 s to death unarmoured, for each
+# kind. 0.26g routes each part at 1 into its pools, pain too (formula.txt
+# section 8), so 0.5 over nine parts kills in a quarter second. The values
+# give 0.26g's fatal pools the release's 0.5 a second (2 s, unarmoured, at
+# full intensity), from the live human_hit_params:
+#   lifebone, toxic on the face: infection 1 x m        -> m = 0.5
+#   spring, shock on the nine:   pain 8.0 x m (body 2m)  -> m = 0.0625
+#   onyx, radiation on the nine: infection 9 x m         -> m = 0.0556
+# docs/notes/dynamic_anomalies.md has the table and the stock zones beside it.
+MAX_HIT = {kind: struct.unpack("<f", struct.pack("<f", value))[0]          # as the f32 the project holds
+           for kind, value in {"lifebone": 0.5, "spring": 0.0625, "onyx": 0.0556}.items()}
 
 # The timed anomaly (dynamic_anomalies_026g.asm, docs/notes/dynamic_anomalies.md):
 # energy thresholds of its states, highest first.
@@ -64,7 +83,7 @@ GROUP = {"enabled": True, "keep_all_zones_active": True, "max_active_time_sec": 
 # The release's anomalies rule, as the exe has it (dynamic_anomalies_026g.asm).
 RULE = {"spawn_anomalies_delay_s": 30, "try_spawn_anomaly_interval_s": 30, "try_spawn_anomaly_variation_s": 10,
         "max_active_anomalies_count": 16, "block_new_anomalies_spawn_radius": 15}
-VALUES_SEEN = 65535                # the most values of a project the 0.26g game is known to load (London: 43,799)
+VALUES_SEEN = 112899               # the most values of a project the 0.26g game loads live (v011e_level_03 day_2, patch_28)
 
 
 class Archive:
@@ -230,6 +249,7 @@ def convert(project, release, templates, allowed, after_pickup):
                 damage[key] = templates[kind][key]
             else:
                 damage.pop(key, None)
+        damage["max_hit"] = MAX_HIT[kind]
         damage.setdefault("sound_zones", [{"position": (0.0, 0.0, 0.0)}])
         add(damage)
         use_box = by_name[container["collision_geometries"][0]["name"]]
@@ -315,6 +335,11 @@ def main():
         raise SystemExit(f"{args.out}: not empty")
     with tempfile.TemporaryDirectory() as tmp:
         london_now = bcw.loads(live.read("projects/level_09/day_2/client_project", tmp))
+        items = bcw.loads(live.read("gameplay/db_static_dictionaries", tmp))["items_dict"]
+        artefacts = {i["dict_id"] for i in (items if isinstance(items, list) else items.values())
+                     if i["cfg_name"].startswith("gameplay/items/artefacts/")}
+        if not set(KINDS) <= artefacts:
+            raise SystemExit(f"artefact kinds the game does not have: {sorted(set(KINDS) - artefacts)}")
         templates = templates_of(london_now)
         allowed = collections.defaultdict(set)
         projects = [n for n in live.names(r"projects/level_0\d/[a-z]+_\d/client_project") if n.split("/")[1] in maps]
@@ -334,6 +359,9 @@ def main():
             release = bcw.loads(source.read(release_name, tmp))
             after_pickup = rule_of(source, level, mode, tmp)
             result, added, removed, places, dropped = convert(loaded[name], release, templates, allowed, after_pickup)
+            held = {a["dict_id"] for o in added if o["game_object_type"] == "generic_anomaly_core" for a in o["artefacts"]}
+            if not held <= artefacts:
+                raise SystemExit(f"{name}: an anomaly holds an artefact the game does not have: {sorted(held - artefacts)}")
             data = bcw.dump(result)
             again = bcw.loads(data)
             if again != bcw.loads(bcw.dump(result)) or [o for o in again["client_objects"] if o not in added] != \
@@ -368,8 +396,8 @@ def main():
     if args.pack:
         ident, version = args.pack.split("@", 1)
         manifest = {"format_version": 1, "id": ident, "version": version, "target_build": "0.26g",
-                    "description": "dynamic anomalies: the release's timed anomalies on every map (the client "
-                                   "projects of level_08 and level_09 and the particles they need, "
+                    "description": "dynamic anomalies: the release's timed anomalies on London and Cologne (the "
+                                   "client projects of level_08 and level_09 and the particles they need, "
                                    "srp-026g/scripts/dynamic-anomalies; client patch 42)",
                     "operations": sorted(operations, key=lambda o: o["path"])}
         with open(os.path.join(args.out, "pack.json"), "w") as file:

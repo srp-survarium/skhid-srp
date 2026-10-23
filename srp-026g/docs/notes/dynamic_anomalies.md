@@ -12,7 +12,7 @@ differently, they should only work for london and keln, other maps keep static".
 below are what the code and the data follow. Code: `client-patches/dynamic_anomalies_026g.asm`
 (README patch 42, `client_patch.md` §3.38), checks `client-patches/check_dynamic_anomalies_026g.py`
 and the self-test's check 42; data: `scripts/dynamic-anomalies/build.py --pack`, the `pack
-dynamic-anomalies@2` row of `release/content.tsv`; server: `match-server` `bots::anomalies`,
+dynamic-anomalies@3` row of `release/content.tsv`; server: `match-server` `bots::anomalies`,
 `mapdata-dump --patch`. PROVEN = read in the code (addresses given); LIKELY = inferred, not
 read to the end.
 
@@ -27,6 +27,34 @@ read to the end.
 - **An anomaly's life:** idle (nothing) -> charging 20 s (the charging particle, harmless) ->
   damage 4 s (the damage zone) -> artefact (one artefact in its container, the zone on, until
   someone takes it) -> after the pick-up: gone at once, 60 s rest -> idle.
+- **Damage (the owner, 2026-10-23: "with proper damage values").** Each kind's damage zone
+  hurts as the release's did: 2 s to death, unarmoured, at full intensity. The release
+  measured is 0.28d0, the first with the mechanism and Cologne's source. Its zones are 0.5
+  per part for every kind, but its body routes a part's hit at 0.1 to 0.15 into one health
+  pool. 0.26g routes each part at 1 into its own pools, pain included (`formula.txt`
+  section 8), so the same 0.5 killed 8 to 9 times faster here (pack @2). The values
+  (`build.py` `MAX_HIT`, pack @3):
+
+  | kind (artefact) | type | parts hit | max_hit a part | its fatal pool, a second | death | 0.28d0 | 0.26g's static zones of the type |
+  |---|---|---|---|---|---|---|---|
+  | lifebone (54) | toxic | face | 0.5 | infection 0.5 | 2.0 s | 0.5 x face, 2.0 s | 0.05 to 0.25 x face, 4 to 20 s; v021d_level_06 1 x 3 parts, 0.33 s |
+  | spring (74) | shock | back, front, brain, both hips, feet, arms (9) | 0.0625 (was 0.5) | pain 0.5 (body 0.125) | 2.0 s (was 0.25 s) | 0.5 x the 9, 2.0 s | level_03's pairs 0.6 x 2 feet a hit, one a second; v021d_level_03 0.9 x 6 parts every 2 s: 0.7 to 1.0 s |
+  | onyx (76) | radiation | the same 9 | 0.0556 (was 0.5) | infection 0.5 | 2.0 s (was 0.22 s) | 0.5 x the 9, 2.0 s | 0.023 to 0.08 x 4 or 5 parts, 2.5 to 11 s |
+
+  The same for every kind and place:
+  - continuous, `interval_in_msec` 1000, `max_armor_piercing` 0;
+  - the release's hit curve: full intensity to 0.9 of the way out, 0.1 at the edge;
+  - the release's zone shape (geometry mesh type 2): scale 2.5 x 1.43 x 2.5 indoors, 4.0 x
+    1.96 x 4.0 outdoors;
+  - armour lowers each part's hit as for any hit of its type.
+
+  The timings are the release's: charging 20 s (the charge zone: max_hit 0, harmless),
+  damage 4 s, then the zone stays on while the artefact waits.
+- **Sponge (the owner, 2026-10-23): Sponge is not in the game yet; anomalies hold only
+  0.26g's artefacts.** A timed core's artefacts are one row of its own kind: 54 lifebone, 74
+  spring or 76 onyx, the only artefacts of 0.26g's `items_dict`. `build.py` refuses any other
+  kind. The release's fourth kind, mochalka (758, the Sponge; 0.28's Sponge port is parked as
+  #311), is left out with its anomalies (section 5).
 - **Which one charges:** first try at the match's start + 30 s (not in the warmup or the
   countdown), then a try every 20 to 40 s. A try picks one idle anomaly at random that has a
   free artefact and no busy anomaly within 15 m. None while 16 are active.
@@ -132,8 +160,14 @@ read to the end.
   0x2D1D20. The anomaly cores are list 6: `server_game_project::set_game_world_core` puts each
   core's delegate there in the project's order (0x318B26; first node world+0x188A4, next at
   +0xC), keyed by a counter. PROVEN.
-- **The match.** The time rule is the rules vector's first (world+0x18824; vtable 0xA06E2C;
-  state +0x148, 3 = in process from +0x12C). The static info is world+0x18FAC (0x2D00BB), its
+- **The match.** The time rule is the rules vector's first (world+0x18824; state +0x148, 3 =
+  in process from +0x12C). In a game it is the client class `timelimit_rule` (vtable
+  0xA06E8C): the game's constructor makes `timelimit_rule_cook` (0x1E9AEA, vtable 0x9FD944),
+  whose create (0x206670) builds it with 0x267A40, which stores 0xA06E8C at 0x267A61 after the
+  core's constructor 0x317DA0 stored `timelimit_rule_core`'s 0xA06E2C. The rule knows the time
+  rule by the slot both share, serialize 0x317F30 at +0x3C (no other place of the exe holds
+  that address). The first build compared the vtable with 0xA06E2C only, which a game never
+  has: no timed anomaly would ever have charged (found by #225's review, 2026-10-23; fixed). The static info is world+0x18FAC (0x2D00BB), its
   seed (the anomaly seed of every client, static_info.md) +0x577B0 (0x2D01D7). PROVEN.
 - **A place.** A container's use box: container+0x38/+0x3C (its geometries, usable_object::load
   0x2F81F0) → collision_geometry+0x18 (the ghost, collision_geometry::load 0x2F8C30) → +0x18
@@ -238,9 +272,13 @@ anomalies per place:
 - Particles the game lacked (`pre_onix1`, `pre_onix2`, `pre_spring1`, `pre_spring2`,
   `pre_zhivokost1`) come from 0.31a2 as patch 14 converted its own four; every material
   they name is in the game.
-- A project now holds up to 65,902 config values (London day_3; Cologne up to 47,500); the
-  largest loaded so far is patch 14's London (43,799). The format has no total limit (a
-  table's count is u16 only): to be seen in a game.
+- A project now holds up to 65,902 config values (London day_3; Cologne up to 47,500). That
+  is no limit: the live v011e_level_03 day_2 (patch 28) loads with 112,899. The format has no
+  total limit (a table's count is u16 only).
+- **What a match must hold** (#225's review, 2026-10-23): the saved world goes through three
+  fixed buffers: 0x2000 for the objects' state, 0x2000 for the second stream, 0x8000 for the
+  whole world. Cologne's 87 timed cores need about 3.2 to 3.5 KB of them, against about
+  5.4 KB free in the fullest live 20-player world. To see in a full 20-player Cologne match.
 
 ## 7. The server
 
@@ -267,9 +305,9 @@ anomalies per place:
 - **Release** (one `release.sh` run with the content):
   - exe patch 42 (every full build): the arena's block `anomalies.code` in `.srpx`
     (`link_026g.py`, client_patch.md 0.3), the two hooks by symbol;
-  - the content: the pack `dynamic-anomalies@2` (row in `release/content.tsv`). Its folder
-    is made once into `$SKHID_PACKS_DIR/dynamic-anomalies-2` by `build.py --pack
-    dynamic-anomalies@2` with `--live` = the stock db and the base rows' patches (12, 14, 17,
+  - the content: the pack `dynamic-anomalies@3` (row in `release/content.tsv`). Its folder
+    is made once into `$SKHID_PACKS_DIR/dynamic-anomalies-3` by `build.py --pack
+    dynamic-anomalies@3` with `--live` = the stock db and the base rows' patches (12, 14, 17,
     19 to 24), as `scripts/dynamic-anomalies/README.md` says; `release/build-content` then
     composes it into the release's `resources.db.patch_<n>`;
   - the release's exe requires that patch (patch 49) and `deploy` sets
