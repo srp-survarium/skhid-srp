@@ -11,16 +11,12 @@
  * Every address is a VA of the original exe (image base 0x10000; it is never
  * rebased). The proof of each is in docs/notes/client_patch.md section 3.50
  * and tools/re-kit/v026g. The logic is research_rule_026g.c. The code keeps
- * its mutable state in the section's own page (RN_STATE, -DRN_STATE_VA).
+ * its mutable state in rn_state, the arena's block research.state.
  * It calls the game's functions through the engine-function library
  * (engine_026g.h: plain cdecl functions, whatever registers the game's take).
  */
 #include "engine_026g.h"
 #include "research_rule_026g.h"
-
-#ifndef RN_STATE_VA
-#error "RN_STATE_VA: the section's state page (research_026g.py)"
-#endif
 
 typedef rr_u8 u8;
 typedef rr_u16 u16;
@@ -134,7 +130,8 @@ struct rn_globals {
     u32 registered;                /* 1: done, 2: the class was taken */
     struct rn_hud hud;
 };
-#define G ((struct rn_globals *)RN_STATE_VA)
+struct rn_globals rn_state;        /* zeroed: the block research.state (link_026g.py) */
+#define G (&rn_state)
 
 /* ---- the rule --------------------------------------------------------- */
 

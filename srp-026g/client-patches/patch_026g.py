@@ -98,11 +98,10 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA42B000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FA0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
     (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, PRESS
     its own, 0xFA0 of the late join's state page, checked).
-    The artefacts' code (Spring's aim time, Lifebone's heal, one press for
-    every artefact of a kind) comes from artefacts_026g.asm, the arena's
-    block artefacts.code (`.srpx`+4000h, after Research's two):
-        nasm -f bin -DCAVE=0xA431000 artefacts_026g.asm -o artefacts_026g.section.bin
-    (checked in).
+    The arena, `.srpx` (Research, the artefacts' code, the engine-function
+    library), is linked from its C and NASM sources at every build
+    (link_026g.py: gcc -m32, GNU ld and NASM 2.16 are needed) and must be
+    arena_026g.lock.json's (`python link_026g.py --write` after a change).
     The late-join code is late_join_026g.section.bin, checked in too; it is
     made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
     for x86 and GNU ld (--late-join-bin=<file> names another one).
@@ -420,7 +419,7 @@ Patches:
   client_patch.md section 3.51, docs/notes/artefacts.md; their numbers in
   the configs, release/content.tsv artefacts-1.json). A Spring's loader
   (0x33ACF0) reads a fixed set of keys into its character modifier nodes,
-  none of them the aim time; artefacts_026g.asm (`.srpx`+4000h) makes its
+  none of them the aim time; artefacts_026g.asm (the arena's block artefacts.code) makes its
   passive's unused max_carried_weight node aim_time with
   `passive/aim_time_mod` and adds two active nodes, aim_time with
   `active/aim_time_mod` at +3B8h and list 42 with
@@ -457,12 +456,13 @@ Each site is checked against the original bytes first, so a different build
 or an already patched file is refused rather than patched twice.
 """
 
-import collections
 import hashlib
 import os
 import re
 import struct
 import sys
+
+import link_026g as linker
 
 IMAGE_BASE = 0x10000
 TEXT_VA, TEXT_FILE = 0x11000, 0x400          # same in 0.26g as in 0.21d
@@ -1811,10 +1811,9 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 
 # The artefacts (patch 54, README; client_patch.md section 3.51; the rules:
 # ../docs/notes/artefacts.md): artefacts_026g.asm in the arena's block
-# artefacts.code (ARTEFACTS_VA, `.srpx`+4000h, after Research's two; ARENA
-# below). Its numbers are the artefacts'
+# artefacts.code (ARENA below). Its numbers are the artefacts'
 # configs' (release/content.tsv, artefacts-1.json). It begins with six
-# `jmp near`, one for each site:
+# `jmp near`, one for each site, each a global symbol the hook jumps to:
 # - Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` at 0x33AE13 (its
 #   active's third node): loader. The passive's second node (+350h,
 #   max_carried_weight 0 in retail) becomes aim_time (49) with the value of
@@ -1840,14 +1839,13 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 # 0x2EEA74), become ARTEFACTS_SPRING_SIZE. No base relocation is under a
 # site and no branch aims inside one; the code holds the absolute addresses
 # of its two names (the exe is never rebased).
-ARTEFACTS_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # loader, link, unlink, lifebone, fire, stagger
 ARTEFACTS_HOOKS = (
-    (0x33AE13, bytes.fromhex("c7464813000000"), 0x0, 0xE9),        # Spring's loader: its active's third node
-    (0x311BC0, bytes.fromhex("53568bf08b8650020000"), 0x5, 0xE9),  # Spring's active link
-    (0x311DA0, bytes.fromhex("538b5c2408"), 0xA, 0xE9),            # Spring's active unlink
-    (0x3122AA, bytes.fromhex("8b8f50020000"), 0xF, 0xE9),          # Lifebone's enable_active
-    (0x313300, bytes.fromhex("568bf183be8002000003"), 0x14, 0xE9), # artefact_base::action: its entry
-    (0x2DBD89, bytes.fromhex("f30f10961c030000"), 0x19, 0xE9),     # the player's stagger: its sum
+    (0x33AE13, bytes.fromhex("c7464813000000"), "artefacts_loader", 0xE9),        # Spring's loader: its active's third node
+    (0x311BC0, bytes.fromhex("53568bf08b8650020000"), "artefacts_link", 0xE9),    # Spring's active link
+    (0x311DA0, bytes.fromhex("538b5c2408"), "artefacts_unlink", 0xE9),            # Spring's active unlink
+    (0x3122AA, bytes.fromhex("8b8f50020000"), "artefacts_lifebone", 0xE9),        # Lifebone's enable_active
+    (0x313300, bytes.fromhex("568bf183be8002000003"), "artefacts_fire", 0xE9),    # artefact_base::action: its entry
+    (0x2DBD89, bytes.fromhex("f30f10961c030000"), "artefacts_stagger", 0xE9),     # the player's stagger: its sum
 )
 ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91)  # where each goes on
 ARTEFACTS_SPRING_SIZE = 0x3D8                  # the active's two nodes at +3B8h and +3C8h
@@ -2000,12 +1998,12 @@ BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # check 53, test_call_shapes: our slot's function read from the built bytes,
 # up to the next symbol, the model's from the original exe; a slot that holds
 # the game's own function is the model itself). (what, the .section.json of
-# the code that holds it, its symbol (the RTTI locator, the slots after it),
+# the arena's block whose code holds it, its symbol (the RTTI locator, the slots after it),
 # the model vtable's first slot or None (every slot must be a game function),
 # the slots, how many of them are ours). Research's rule slot 16
 # (rn_deserialize) popped 4 where tdm's pops 8 in #297's first build and
 # crashed the game at its first sync: this is the check that catches it, for
-# every patch. Every `*_vtable` symbol of an arena block's code must be here
+# every patch. Every `*_vtable` symbol of the arena's link must be here
 # (audit_vtables).
 #
 # The last field: {slot: (check script, case)} for each slot of ours, the
@@ -2018,7 +2016,7 @@ BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # its script does not have (test_call_shapes).
 RESEARCH_CHECK = "check_research_026g.py"
 INSTALLED_VTABLES = (
-    ("Research's rule", "research_026g.section.json", "rn_rule_vtable", 0xA15DA4, 20, 9, {
+    ("Research's rule", "research.code", "rn_rule_vtable", 0xA15DA4, 20, 9, {
         7: (RESEARCH_CHECK, "driven: slot 7, on_event(type, data, time), through the dispatcher 0x2D1EA0"),
         8: (RESEARCH_CHECK, "driven: slot 8, entered(place, time), through the world's loop 0x2D2010"),
         9: (RESEARCH_CHECK, "driven: slot 9, left(place, time), through the world's loop 0x2D2130"),
@@ -2029,18 +2027,17 @@ INSTALLED_VTABLES = (
         17: (RESEARCH_CHECK, "driven: slot 17, fill_match_hud_state(hud, ?), through the hud's loop 0x2D36D0"),
         18: (RESEARCH_CHECK, "driven: slot 18, rule_completed(time), through the world's loop 0x2D2730"),
     }),
-    ("Research's cook", "research_026g.section.json", "rn_cook_vtable", 0x9FD8AC, 11, 2, {
+    ("Research's cook", "research.code", "rn_cook_vtable", 0x9FD8AC, 11, 2, {
         9: (RESEARCH_CHECK, "driven: the cook's create and size through translate 0x2F4290's calls"),
         10: (RESEARCH_CHECK, "driven: the cook's create and size through translate 0x2F4290's calls"),
     }),
-    ("Research's rule's link resolver", "research_026g.section.json", "rn_resolver_vtable", None, 1, 0, {}),
+    ("Research's rule's link resolver", "research.code", "rn_resolver_vtable", None, 1, 0, {}),
 )
-# The symbol map of each arena code block built from C ({block: .json}).
-ARENA_SYMBOLS = {"research.code": "research_026g.section.json"}
 # What our code hands the game at run time to call later (a callback, a
 # boost::function, a tick delegate): no write of build() shows them, so each
 # is declared with the instruction that hands it over and the game's own
-# function it stands in for: (what, the code's name, the bytes before the
+# function it stands in for: (what, the code's name (its .section.bin, or an
+# arena block), the bytes before the
 # pointer in that instruction (the code holds them once), the model, why
 # that model, (check script, the case that calls it through the game's own
 # caller)) (the last as INSTALLED_VTABLES' slots).
@@ -2056,7 +2053,7 @@ CALLBACKS = (
      "(a bake query of query_resources 0xE5B60, as weapon_camo's); the marker is bind's "
      "`mov dword [eax+8], bake_done` (bake_done's VA follows `C7 40 08`)",
      ("check_weapon_camo_026g.py", "the callback deallocates P from the game's allocator")),
-    ("Research's tick: rn_tick", "research", bytes.fromhex("c78114010000"), 0x317F10,
+    ("Research's tick: rn_tick", "research.code", bytes.fromhex("c78114010000"), 0x317F10,
      "rn_set_core puts it in the world's second tick list as timelimit_rule_core's set_game_world_core "
      "(0x318050) puts its tick 0x317F10; the list's runner 0x2D1D20 calls it with ecx the object and "
      "(dt, time, step); the marker is `mov dword [ecx+114h], rn_tick` (the delegate's function)",
@@ -2134,126 +2131,91 @@ def audit_installs(data, writes, installs=None):
 # (it is at 210h and the headers end at 400h, where the first section's
 # bytes begin); the game's seven, `.srp`, `.srpd`, `.srpc` and `.srpw` take
 # eleven. The twelfth is `.srpx`, code, data and writable, on the page after
-# `.srpw` (whose three pages end at ARENA_VA), and it only grows: a patch
-# that needs room declares its blocks in ARENA, the builder places them in
-# that order (each at the next multiple of its alignment) and gives each its
-# VA (arena_layout), and only the section's sizes and SizeOfImage grow.
-# Nothing else of the file moves: a block never moves once placed, a new
-# block goes at ARENA's end, and a block's bytes are assembled for the VA the
-# builder gives it (build() checks each, as for the sections before). The
-# file holds the whole arena (a state block as zeros, as Research's first
-# `.srpx` did), so a build is byte for byte what it was before the arena.
-# With no block declared there would be no `.srpx` at all.
-#   ArenaBlock(name, kind, size, align): name "<patch>.<what>", unique;
-#   kind "code" (bytes, int3 after them), "data" (bytes, zeros after them)
-#   or "state" (zeros: no bytes given); size the room it keeps, which its
-#   bytes never outgrow (grow a block only while it is the last); align a
-#   power of two from 16, 0x1000 for a page of its own.
-# A new patch appends its blocks at ARENA's end and takes its VAs from
-# ARENA_LAYOUT. The dynamic anomalies (#225, patch 42) have their page kept
-# at 0xA432000 (anomalies.code, int3 until patch 42 assembles its code for
-# it: the row stays, its bytes come); the engine-function library
-# (engine_026g.py) is at 0xA433000; the next block goes at 0xA434000.
+# `.srpw` (whose three pages end at ARENA_VA). A patch that needs room
+# declares its blocks in ARENA, each with its C or NASM sources, and the
+# tooling links them (link_026g.py): every source an ELF32 object, all of
+# them linked by GNU ld at ARENA_VA, a block an output section, in ARENA's
+# order, each at the next multiple of its alignment, its size what its
+# sources hold. A patch calls another's functions (the engine library's) by
+# their names, and a hook site takes its target from the link by symbol
+# (arena_target), so no block keeps a VA of its own: the exe is made whole
+# for every release and never rebased, and nothing outside it holds an
+# address of the arena. The file holds the whole arena (a state block as
+# zeros), only the section's sizes and SizeOfImage grow, and the linked bytes
+# must be arena_026g.lock.json's (arena()). With no block declared there
+# would be no `.srpx` at all.
+#   ArenaBlock(name, kind, align, sources): name "<patch>.<what>", unique;
+#   kind "code" (the sources' .text and .rodata, int3 after them), "data"
+#   (their .data) or "state" (their .bss: zeros); align a power of two from
+#   16, 0x1000 for a page of its own; sources the .c and .asm files.
+# A new patch adds its blocks (anywhere: the order is only the layout's) and
+# its source files, then `python link_026g.py --write`.
 ARENA_NAME = b".srpx\0\0\0"
 ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execute, read, write
 ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
-ARENA_KINDS = ("code", "data", "state")
+# The most the arena may take: a block of a runaway size (a state array, a
+# table) stops the link instead of growing the image. Raise it on purpose.
+ARENA_LIMIT = 0x100000
+ArenaBlock = linker.ArenaBlock
 
-
-ArenaBlock = collections.namedtuple("ArenaBlock", "name kind size align")
-
-
-# In placement order; append only.
 ARENA = (
-    ArenaBlock("research.code", "code", 0x3000, 0x1000),     # patch 53: 0xA42D000
-    ArenaBlock("research.state", "state", 0x1000, 0x1000),   # its rule's cook and the hud's cache: 0xA430000
-    ArenaBlock("artefacts.code", "code", 0x1000, 0x1000),    # patch 54: 0xA431000
-    ArenaBlock("anomalies.code", "code", 0x1000, 0x1000),    # #225's (patch 42), kept for it: 0xA432000
-    ArenaBlock("engine.code", "code", 0x1000, 0x1000),       # the engine-function library: 0xA433000
+    # Research, patch 53: the asm's three entries and stubs, then the C code
+    ArenaBlock("research.code", "code", 0x1000,
+               ("research_026g.asm", "research_rule_026g.c", "research_native_026g.c")),
+    # its rule's cook and the hud's cache (research_native_026g.c rn_state)
+    ArenaBlock("research.state", "state", 0x1000, ("research_rule_026g.c", "research_native_026g.c")),
+    ArenaBlock("artefacts.code", "code", 0x1000, ("artefacts_026g.asm",)),       # patch 54
+    ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
 )
 
 
-def arena_layout(blocks):
-    """({name: VA}, the arena's size): each block at the next multiple of
-    its alignment after the one before, in the order given."""
-    vas, at = {}, 0
-    for block in blocks:
-        name, kind, size, align = block
-        if not re.fullmatch(r"[a-z0-9_-]+\.[a-z0-9_-]+", name) or name in vas:
-            sys.exit(f".srpx: {name!r} is no block name of its own (<patch>.<what>)")
-        if kind not in ARENA_KINDS or type(size) is not int or size <= 0 \
-                or type(align) is not int or align < 16 or align & (align - 1) or align > 0x1000:
-            sys.exit(f".srpx: block {name}: a kind of {', '.join(ARENA_KINDS)}, a size above 0 and an alignment "
-                     f"a power of two from 16 to 0x1000")
-        at = (at + align - 1) // align * align
-        vas[name] = ARENA_VA + at
-        at += size
-    return vas, at
+def arena(blocks=None, tools=None):
+    """The linked arena (link_026g.Linked) of `blocks` (ARENA when None, or
+    the self-test's made-up arenas); the build stops when it cannot be
+    linked, or when ARENA's is not arena_026g.lock.json's."""
+    default = blocks is None
+    blocks = ARENA if default else tuple(blocks)
+    try:
+        linked = linker.link(blocks, ARENA_VA, ARENA_LIMIT, tools)
+    except linker.LinkError as error:
+        sys.exit(f".srpx: {error}")
+    if default:
+        why = linker.lock_differs(linked, linker.read_lock())
+        if why is not None:
+            sys.exit(f".srpx: the arena linked from its sources is not {linker.LOCK.name}'s: {why}. After a "
+                     "change of an arena source: python link_026g.py --write (and commit the lock); with no "
+                     "change, the tools differ from the lock's")
+    return linked
 
 
-ARENA_LAYOUT = arena_layout(ARENA)[0]                      # {block: VA}
-ARENA_BLOCKS = {block.name: block for block in ARENA}
-# The VA every block of ARENA has, written down when the block was added: a
-# block's code is linked or assembled for it, so a change of a size or an
-# alignment that would move a later block stops the build (check_arena)
-# instead of moving it. A new block adds its row here.
-ARENA_PINNED = {
-    "research.code": 0xA42D000,
-    "research.state": 0xA430000,
-    "artefacts.code": 0xA431000,
-    "anomalies.code": 0xA432000,
-    "engine.code": 0xA433000,
-}
+def arena_target(linked, symbol):
+    """The VA of `symbol`, a global of a code block of the arena: what a hook
+    calls or jumps to; else the build stops."""
+    va = linked.symbols.get(symbol)
+    home = next((b for b in linked.blocks.values() if va is not None and b.va <= va < b.va + b.size), None)
+    if home is None or home.kind != "code":
+        sys.exit(f".srpx: {symbol!r} is no global symbol of a code block of the arena (a hook's target is a "
+                 f"`global` of its block's NASM, or a C function)")
+    return va
 
 
-def check_arena(blocks=ARENA, pinned=None):
-    """ARENA's layout is ARENA_PINNED's, block for block; else the build stops."""
-    pinned = ARENA_PINNED if pinned is None else pinned
-    layout = arena_layout(blocks)[0]
-    if layout != pinned:
-        moved = sorted(set(layout) ^ set(pinned)) + sorted(n for n in set(layout) & set(pinned) if layout[n] != pinned[n])
-        sys.exit(".srpx: the blocks are not where ARENA_PINNED has them (" + ", ".join(
-            f"{n}: {layout.get(n, 0):#x} for {pinned.get(n, 0):#x}" for n in moved)
-            + "): a placed block never moves; a new block adds its row to ARENA_PINNED")
-
-
-def add_arena(data, blocks, contents):
-    """Appends `.srpx` with the blocks at their VAs (arena_layout) and their
-    bytes (`contents`: {name: bytes} of the code and data blocks), after the
-    last section; returns the new file. No blocks: `data` as it is. The file
-    holds the whole arena: code blocks int3 after their bytes, data and state
-    blocks and the gaps zeros."""
-    if not blocks:
-        if contents:
-            sys.exit(f".srpx: bytes for {', '.join(sorted(contents))}, which ARENA does not declare")
+def add_arena(data, linked):
+    """Appends `.srpx`, the linked arena's bytes at ARENA_VA, after the last
+    section; returns the new file. No arena (None): `data` as it is."""
+    if linked is None:
         return data
-    vas, size = arena_layout(blocks)
-    if set(contents) != {b.name for b in blocks if b.kind != "state"}:
-        sys.exit(f".srpx: the code and data blocks are {sorted(b.name for b in blocks if b.kind != 'state')}; "
-                 f"bytes were given for {sorted(contents)}")
     headers = Headers(data)
-    if IMAGE_BASE + struct.unpack_from("<I", data, headers.size_of_image_at)[0] != ARENA_VA:
+    if IMAGE_BASE + struct.unpack_from("<I", data, headers.size_of_image_at)[0] != ARENA_VA or linked.va != ARENA_VA:
         sys.exit(f".srpx: the image does not end at {ARENA_VA:#x}, where the arena begins (has `.srpw` grown "
                  f"past its three pages?)")
-    arena = bytearray(size)
-    for block in blocks:
-        start = vas[block.name] - ARENA_VA
-        body = contents.get(block.name, b"")
-        if len(body) > block.size:
-            sys.exit(f".srpx: block {block.name} is {len(body):#x} bytes; it keeps {block.size:#x}")
-        if block.kind == "code":
-            arena[start:start + block.size] = body + b"\xCC" * (block.size - len(body))
-        elif block.kind == "data":
-            arena[start:start + len(body)] = body
-    return add_code_section(data, ARENA_NAME, ARENA_VA, bytes(arena), ARENA_CHARACTERISTICS)
+    return add_code_section(data, ARENA_NAME, ARENA_VA, linked.image, ARENA_CHARACTERISTICS)
 
 
 # Research, mode 5 (patch 53, README; client_patch.md section 3.50;
-# docs/notes/research_mode.md): research_026g.section.bin (research_026g.py:
-# research_026g.asm's three entries and stubs, then the C code of
-# research_rule_026g.c and research_native_026g.c and its constant data,
-# linked for RESEARCH_VA) at the start of `.srpx`, the C code's state (the
-# rule's cook, the hud's cache) zeroed on the page at RESEARCH_STATE_OFFSET.
+# docs/notes/research_mode.md): research_026g.asm's three entries and stubs,
+# then the C code of research_rule_026g.c and research_native_026g.c and its
+# constant data, in the arena's block research.code; the C code's state (the
+# rule's cook, the hud's cache: rn_state) in research.state, zeroed.
 # Three hooks, `call` or `jmp` to an entry:
 # - the game's constructor, `mov eax,ebx / call 0x1EC170` at 0x1E9B4C (after
 #   its own client rule cooks; ebx = the game): register, which registers the
@@ -2264,104 +2226,38 @@ def add_arena(data, blocks, contents):
 # - update_ui, `cmp eax,4 / jne 0x23B36A` at 0x23B351 (the match's first
 #   message by mode): welcome, mode 5's st_start_match_welcome_message_5.
 # No base relocation is under a site and no branch aims inside one.
-#
-# Its code and state are the first two blocks of `.srpx`, the arena
-# (ARENA above: research.code, a code block of three pages, and
-# research.state, a page of state), at the VAs arena_layout gives them:
-# 0xA42D000 and 0xA430000, where research_026g.py links the code.
-RESEARCH_VA = ARENA_LAYOUT["research.code"]
-RESEARCH_STATE_VA = ARENA_LAYOUT["research.state"]
-RESEARCH_OFFSET = RESEARCH_VA - ARENA_VA
-RESEARCH_STATE_OFFSET = RESEARCH_STATE_VA - RESEARCH_VA
-RESEARCH_SIZE = RESEARCH_STATE_OFFSET + ARENA_BLOCKS["research.state"].size
-RESEARCH_ASM_SIZE = 0x100
+RESEARCH_ASM_SIZE = 0x100                      # research_026g.asm, int3 to 0x100: the C code after it
 RESEARCH_CLASS = 0x1E0                         # research_native_026g.c RN_CLASS: the mode configs' rules[2]
-RESEARCH_ENTRIES = (0x0, 0x5, 0xA)             # register, hud, welcome: `jmp near` each
 RESEARCH_HOOKS = (
-    (0x1E9B4C, bytes.fromhex("8bc3e81d260000"), 0x0, 0xE8),     # the game's constructor: register
-    (0x23B3DE, bytes.fromhex("837f20047518"), 0x5, 0xE8),       # update_ui after the teams' points: hud
-    (0x23B351, bytes.fromhex("83f8047514"), 0xA, 0xE9),         # update_ui's first message: welcome
+    (0x1E9B4C, bytes.fromhex("8bc3e81d260000"), "research_register", 0xE8),  # the game's constructor
+    (0x23B3DE, bytes.fromhex("837f20047518"), "research_hud", 0xE8),         # update_ui after the teams' points
+    (0x23B351, bytes.fromhex("83f8047514"), "research_welcome", 0xE9),       # update_ui's first message
 )
-# The artefacts (patch 54, ARTEFACTS_* above): the arena's third block, a page
-# of code at 0xA431000, where artefacts_026g.asm is assembled.
-ARTEFACTS_VA = ARENA_LAYOUT["artefacts.code"]
 # The engine-function library (engine_026g.py, client_patch.md section 0.5):
-# a cdecl thunk per engine function our code calls, each behind a `jmp near`
-# at ENGINE_VA + 5 x its row of engine_026g.tsv. One copy for every patch, so
+# a cdecl thunk per engine function our code calls, each the global symbol
+# `engine_...` in the arena's block engine.code. One copy for every patch, so
 # one ABI check (check_engine_026g.py) covers every caller.
-ENGINE_VA = ARENA_LAYOUT["engine.code"]
-ENGINE_ENTRY = 5
-# Each library function's entry, written down when its row was added: code
-# built against engine_026g.h calls these addresses (Research's .bin), so
-# engine_026g.py refuses rows that are not in this order, one entry each. A
-# new row of engine_026g.tsv adds its line here, at the end; none moves.
-ENGINE_PINNED = {
-    "engine_cfg_child": 0xA433000,
-    "engine_cfg_has": 0xA433005,
-    "engine_malloc": 0xA43300A,
-    "engine_match_rule_base": 0xA43300F,
-    "engine_write_u8": 0xA433014,
-    "engine_write_u16": 0xA433019,
-    "engine_write_u32": 0xA43301E,
-    "engine_statistics_notify": 0xA433023,
-    "engine_register_cook": 0xA433028,
-    "engine_movie_invoke": 0xA43302D,
-    "engine_show_message": 0xA433032,
-    "engine_find_pool": 0xA433037,
-    "engine_increase_health": 0xA43303C,
-    "engine_artefact_effect": 0xA433041,
-    "engine_apply_modifier": 0xA433046,
-    "engine_setup_profile": 0xA43304B,
-    "engine_find_item_by_id": 0xA433050,
-    "engine_item_by_id": 0xA433055,
-    "engine_profile_assign": 0xA43305A,
-    "engine_profile_construct": 0xA43305F,
-    "engine_allocation_name": 0xA433064,
-    "engine_log_passes": 0xA433069,
-    "engine_string_assign": 0xA43306E,
-    "engine_free": 0xA433073,
-    "engine_camouflage_parameters": 0xA433078,
-    "engine_get_all_surfaces": 0xA43307D,
-    "engine_query_resources": 0xA433082,
-    "engine_model_instance_release": 0xA433087,
-    "engine_camouflage_parameters_type": 0xA43308C,
-    "engine_unpack_decal_value": 0xA433091,
-    "engine_decal_value": 0xA433096,
-    "engine_mouse_ray": 0xA43309B,
-    "engine_accept_decal_edit": 0xA4330A0,
-}
 
 
-def research_layout(code):
-    """(VA, state VA, class) research_026g.section.bin was built for, read
-    from it: the target of the register stub's `jmp 0x1EC170` gives the VA,
-    the state's address and the class are found in the C code (0 for one that
-    is not there); (0, 0, 0) without the stub's jump, once."""
-    jmp = code.find(b"\x83\x04\x24\x02\xE9")                      # add dword [esp],2 / jmp rel32
-    if jmp < 0 or code.find(b"\x83\x04\x24\x02\xE9", jmp + 1) >= 0:
-        return (0, 0, 0)
-    va = (0x1EC170 - (jmp + 9) - struct.unpack_from("<i", code, jmp + 5)[0]) & 0xFFFFFFFF
-    c_code = code[RESEARCH_ASM_SIZE:]
-    return (va, RESEARCH_STATE_VA if struct.pack("<I", RESEARCH_STATE_VA) in c_code else 0,
-            RESEARCH_CLASS if struct.pack("<I", RESEARCH_CLASS) in c_code else 0)
+def arena_symbols(linked):
+    """{block: {symbol: VA}} of every symbol the link defined (locals too)."""
+    out = {name: {} for name in linked.blocks}
+    for name, va, block, _ in linked.every:
+        out[block][name] = va
+    return out
 
 
 def audit_vtables(vtables=None, symbols=None):
-    """Every `*_vtable` symbol of the arena's C code is declared in
+    """Every `*_vtable` symbol of the arena's link is declared in
     INSTALLED_VTABLES; else the build stops (a vtable our code hands the game
     with no model would go unchecked)."""
-    import json
     vtables = INSTALLED_VTABLES if vtables is None else vtables
-    if symbols is None:
-        symbols = {}
-        for name in sorted(set(ARENA_SYMBOLS.values())):
-            path = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
-            symbols[name] = json.load(open(path))["symbols"]
+    symbols = arena_symbols(arena()) if symbols is None else symbols
     declared = {(row[1], row[2]) for row in vtables}
-    for json_name, table in sorted(symbols.items()):
+    for block, table in sorted(symbols.items()):
         for symbol in sorted(table):
-            if symbol.endswith("_vtable") and (json_name, symbol) not in declared:
-                sys.exit(f"{json_name}: {symbol} is a vtable our code installs with no model: declare it in "
+            if symbol.endswith("_vtable") and (block, symbol) not in declared:
+                sys.exit(f"{block}: {symbol} is a vtable our code installs with no model: declare it in "
                          f"patch_026g.py's INSTALLED_VTABLES (client_patch.md section 0.4)")
 
 
@@ -2618,7 +2514,7 @@ def add_code_section(data, name, va, code, characteristics):
 
 
 def build(original, mode, code=None, server=None, late_join=None, revision=None, required_patches=None,
-          arena=None):
+          arena_blocks=None):
     """Returns (patched file, description). mode: "cert-only", "section" or
     "hash-mismatch"; code = the assembled .bin for that cave. An optional
     server embeds a default host:port in full builds only. late_join = the
@@ -2640,8 +2536,10 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
     build with the late join requires at its start (patch 49; a release's
     offered patches); none when not given. It is the mount's bitmap and
     nothing else.
-    arena: (blocks, {name: bytes}) appended after ARENA's own blocks, for
-    the self-test's made-up arenas; the build with the late join only."""
+    arena_blocks: the blocks of `.srpx` instead of ARENA (the self-test's made-up
+    arenas: ARENA's own reordered, or more blocks after them; no lock is
+    compared, ARENA's own hooks are made); () for none; the build with the
+    late join only."""
     if hashlib.sha256(original).hexdigest() != EXE_SHA256:
         sys.exit("the source is not the original 0.26g survarium.exe (sha256 mismatch)")
     if server is not None:
@@ -2695,6 +2593,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                 or forward_scroll[SCENE_SLOMO_OFFSET] != 0x60:
             sys.exit("forward_scroll_026g.section.bin: its entries are not where patch_026g.py jumps to them")
     data = bytearray(original)
+    linked = None
     WRITES.clear()
     patch(data, *CERT)
     if mode == "cert-only":
@@ -3203,48 +3102,25 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                                     DEATH_CAMERA_CHARACTERISTICS)
             data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
                                     WEAPON_CAMO_CHARACTERISTICS)
-            # `.srpx`, the arena: each patch of it puts its blocks' bytes in
-            # arena_bytes, assembled for the VAs ARENA_LAYOUT gives them.
-            arena_bytes = {}
-            research = open(research_bin(), "rb").read()
-            if len(research) > RESEARCH_STATE_OFFSET or any(research[at] != 0xE9 for at in RESEARCH_ENTRIES) \
-                    or research_layout(research) != (RESEARCH_VA, RESEARCH_STATE_VA, RESEARCH_CLASS):
-                sys.exit(f"research_026g.section.bin was built for another place, state or class "
-                         f"(research_026g.py --write-bin: VA {RESEARCH_VA:#x}, state {RESEARCH_STATE_VA:#x})")
-            for va, expected, offset, opcode in RESEARCH_HOOKS:
-                patch(data, va, expected, hook_bytes(RESEARCH_VA, va, expected, offset, opcode))
-                if neutralize_relocs(data, [(va, va + len(expected))]):
-                    sys.exit(f"{va:#x}: a base relocation under a hook of Research")
-            arena_bytes["research.code"] = research
-            artefacts = open(artefacts_bin(), "rb").read()
-            if artefacts_backs(artefacts, ARTEFACTS_VA) != list(ARTEFACTS_BACKS):
-                sys.exit(f"artefacts_026g.section.bin: its entries are not where patch_026g.py jumps to them, or it "
-                         f"was assembled for another address (-DCAVE={ARTEFACTS_VA:#x})")
-            for va, expected, offset, opcode in ARTEFACTS_HOOKS:
-                patch(data, va, expected, hook_bytes(ARTEFACTS_VA, va, expected, offset, opcode))
-                if neutralize_relocs(data, [(va, va + len(expected))]):
-                    sys.exit(f"{va:#x}: a base relocation under a hook of the artefacts")
-            arena_bytes["artefacts.code"] = artefacts
-            arena_bytes["anomalies.code"] = b""          # #225's page: int3 until it lands
-            engine = open(engine_bin(), "rb").read()
-            if engine_entries(engine, ENGINE_VA) is None:
-                sys.exit(f"engine_026g.section.bin: not the library's entries, or assembled for another address "
-                         f"(engine_026g.py --write: VA {ENGINE_VA:#x})")
-            arena_bytes["engine.code"] = engine
-            # The self-test's made-up blocks go after the patches' own: none
-            # of those moves.
-            check_arena()
-            blocks = ARENA
-            if arena is not None:
-                blocks = ARENA + tuple(arena[0])
-                arena_bytes.update(arena[1])
-            data = add_arena(data, blocks, arena_bytes)
-    if arena is not None and late_join is None:
+            # `.srpx`, the arena: its blocks linked from their sources
+            # (link_026g.py), each hook's target taken from the link by
+            # its symbol.
+            linked = arena(arena_blocks) if arena_blocks != () else None
+            if linked is not None:
+                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS:
+                    patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
+                    if neutralize_relocs(data, [(va, va + len(expected))]):
+                        sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
+                    sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
+                             "says")
+            data = add_arena(data, linked)
+    if arena_blocks is not None and late_join is None:
         sys.exit("the arena (`.srpx`) is of the build with the late join")
     if mode != "cert-only":
         audit_installs(data, WRITES)
-    if late_join is not None:
-        audit_vtables()
+    if late_join is not None and linked is not None:
+        audit_vtables(symbols=arena_symbols(linked))
     headers = Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "
@@ -3361,10 +3237,6 @@ def weapon_camo_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_camo_026g.section.bin")
 
 
-def research_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "research_026g.section.bin")
-
-
 def spot_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "spot_026g.section.bin")
 
@@ -3467,36 +3339,17 @@ def upgrade_preview_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "upgrade_preview_026g.section.bin")
 
 
-def artefacts_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "artefacts_026g.section.bin")
-
-
-def engine_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "engine_026g.section.bin")
-
-
-def engine_entries(code, va):
-    """[the thunk's VA] of each entry of engine_026g.section.bin assembled at
-    `va`: its leading `jmp near`s up to the first thunk, each to a thunk in
-    the block past them, int3 between; None when the bytes are not that."""
-    out, at = [], 0
-    while at + ENGINE_ENTRY <= len(code) and code[at] == 0xE9 and (not out or va + at < min(out)):
-        out.append((va + at + ENGINE_ENTRY + struct.unpack_from("<i", code, at + 1)[0]) & 0xFFFFFFFF)
-        at += ENGINE_ENTRY
-    if not out or not all(va + at <= target < va + len(code) for target in out) \
-            or set(code[at:min(out) - va]) - {0xCC}:
-        return None
-    return out
-
-
-def artefacts_backs(code, va):
-    """artefacts_026g.section.bin assembled at `va`: where each of its six
-    entries goes on (the target of the first `jmp near` back into .text
-    after the entry's own code), when they are `jmp near`; else None."""
-    if any(code[at] != 0xE9 for at in ARTEFACTS_ENTRIES):
+def artefacts_backs(linked):
+    """Where each of the artefacts' six entries (ARTEFACTS_HOOKS' symbols)
+    goes on: the target of the first `jmp near` back into .text after the
+    entry's own code, when the entry is a `jmp near`; else None."""
+    block = linked.blocks["artefacts.code"]
+    code, va = linker.block_bytes(linked, "artefacts.code"), block.va
+    entries = [linked.symbols.get(symbol, 0) - va for _, _, symbol, _ in ARTEFACTS_HOOKS]
+    if any(not 0 <= at < len(code) - 4 or code[at] != 0xE9 for at in entries):
         return None
     backs = []
-    for at in ARTEFACTS_ENTRIES:
+    for at in entries:
         start = at + 5 + struct.unpack_from("<i", code, at + 1)[0]
         target = next((va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] for i in range(start, len(code) - 4)
                        if code[i] == 0xE9 and va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] < SECTION_VA),

@@ -3,17 +3,16 @@
 our patches call, whatever registers, stack slots and cleanup the game's
 compiler (LTO) gave the real one.
 
-    python engine_026g.py --write [--nasm /path/to/nasm]
+    python engine_026g.py --write
         writes engine_026g.h (the C declarations), engine_026g.inc (their
-        addresses for NASM patches), engine_026g.asm (the thunks) and
-        engine_026g.section.bin (engine_026g.asm assembled for ENGINE_VA)
-    python engine_026g.py --check [--nasm /path/to/nasm]
-        says whether those four files are what engine_026g.tsv and the
+        externs for NASM patches) and engine_026g.asm (the thunks, the
+        arena's block engine.code: link_026g.py links it)
+    python engine_026g.py --check
+        says whether those three files are what engine_026g.tsv and the
         re-kit rows give here (the self-test runs the same)
 
-The library's functions are engine_026g.tsv's rows, in order (append only: a
-row's index is its entry's place, pinned in patch_026g.py's ENGINE_PINNED;
-a row out of that order is refused):
+The library's functions are engine_026g.tsv's rows (in any order: each is a
+global symbol of its own, which the link resolves for every caller):
 
     symbol     the C name (engine_...)
     va         the real function's VA (0.26g never rebases)
@@ -36,33 +35,29 @@ return, XMM0 moved to ST0 for a float).
 Anything else (an XMM or byte-register argument, varargs, a range) is
 refused: add the row to the re-kit, or call that function by hand.
 
-Each function is a `jmp near` at ENGINE_VA + 5 x its index (the entries never
-move), to a thunk that keeps EBX, ESI, EDI and EBP, puts the cdecl arguments
-where the row says, calls the real VA, pops what the real function leaves on
-the stack and returns the result in EAX (EDX:EAX, ST0). C includes
-engine_026g.h and calls `engine_...(...)` (the header gives each its address);
+Each function is a thunk, the global symbol `engine_...`, that keeps EBX,
+ESI, EDI and EBP, puts the cdecl arguments where the row says, calls the real
+VA, pops what the real function leaves on the stack and returns the result in
+EAX (EDX:EAX, ST0). C includes engine_026g.h and calls `engine_...(...)`;
 NASM includes engine_026g.inc and does `push ... / call engine_... / add esp,
-4n`. check_engine_026g.py proves each thunk against the rows and the
-original exe (the self-test runs it).
+4n`; the link puts each call's address in. check_engine_026g.py proves each
+thunk against the rows and the original exe (the self-test runs it).
 """
 import argparse
 import csv
-import os
 from pathlib import Path
 import re
-import subprocess
 import sys
 import tempfile
 
-import patch_026g as base
+import link_026g as linker
 
 HERE = Path(__file__).resolve().parent
 REKIT = HERE / ".." / ".." / "tools" / "re-kit" / "v026g"
 SPEC = HERE / "engine_026g.tsv"
-HEADER, INCLUDE, ASM, BIN = (HERE / f"engine_026g{suffix}" for suffix in (".h", ".inc", ".asm", ".section.bin"))
+HEADER, INCLUDE, ASM = (HERE / f"engine_026g{suffix}" for suffix in (".h", ".inc", ".asm"))
 REGISTERS = ("EAX", "ECX", "EDX", "EBX", "ESI", "EDI", "EBP")
 SAVED = ("ebp", "ebx", "esi", "edi")             # pushed in this order; cdecl's callee-saved
-ENTRY_SIZE = base.ENGINE_ENTRY
 # "entry ESP+4", "stack+8", "ESP+0x10", "entry ESP+0Ch low byte", "low byte of entry ESP+8"
 SLOT = re.compile(r"(?:low byte of )?(?:entry ESP|ESP|stack)\+(0x[0-9A-Fa-f]+|[0-9][0-9A-Fa-f]*h|[0-9]+)(?:\s.*)?")
 
@@ -222,20 +217,7 @@ def functions(spec=None, abi=None, inputs=None):
     names = [f["symbol"] for f in out]
     if len(set(names)) != len(names):
         raise Refused("a symbol twice")
-    # The entries' places are pinned: code built against the header calls
-    # them by address, so a row moved or dropped would call another function.
-    pinned = {name: entry_va(i) for i, name in enumerate(names)}
-    if pinned != base.ENGINE_PINNED or names != list(base.ENGINE_PINNED):
-        moved = [n for n in names if base.ENGINE_PINNED.get(n) != pinned[n]]
-        gone = [n for n in base.ENGINE_PINNED if n not in pinned]
-        raise Refused("the rows are not at the entries patch_026g.py's ENGINE_PINNED gives them (append only; a "
-                      "new row adds its entry there): " + ", ".join(
-                          [f"{n} at {pinned[n]:#x}" for n in moved] + [f"{n} gone" for n in gone]))
     return out
-
-
-def entry_va(index, va=None):
-    return (base.ENGINE_VA if va is None else va) + ENTRY_SIZE * index
 
 
 def describe(f):
@@ -275,84 +257,80 @@ def thunk(f):
 
 def asm_text(fs):
     lines = [f"; The engine-function library ({GENERATED}).",
-             "; A `jmp near` per function at CAVE + 5 x its row, then the thunks: cdecl in,",
-             "; the engine's registers and stack out (engine_026g.py).",
-             "bits 32", "org CAVE", "", "entries:"]
-    lines += [f"    jmp near {f['symbol']:<40} ; +{ENTRY_SIZE * i:#x}" for i, f in enumerate(fs)]
-    for f in fs:
-        lines += ["", "    align 16, db 0xCC"] + thunk(f)
+             "; A thunk per function, each a global symbol: cdecl in, the engine's",
+             "; registers and stack out (engine_026g.py). The arena's block engine.code.",
+             "bits 32", "section .text"]
+    lines += [f"global {f['symbol']}" for f in fs]
+    for i, f in enumerate(fs):
+        lines += [""] + (["    align 16, db 0xCC"] if i else []) + thunk(f)
     return "\n".join(lines) + "\n"
 
 
-def header_text(fs, va=None):
+def header_text(fs):
     tags = sorted({t for f in fs for t in re.findall(r"\bstruct\s+(\w+)", f["prototype"])})
     lines = [f"/* The engine-function library ({GENERATED}).",
              " *",
-             " * Ordinary cdecl functions: each a thunk in `.srpx` (block engine.code) that",
+             " * Ordinary cdecl functions: each a thunk in `.srpx` (block engine.code, linked",
+             " * by link_026g.py: a call names the function, the link gives its address) that",
              " * calls the game's function with its arguments where the game's compiler put",
              " * them (re-kit abi_inputs.tsv) and pops what it pops (abi.tsv). Each",
              " * declaration's comment is the real function's VA, name and shape. */",
              "#ifndef ENGINE_026G_H", "#define ENGINE_026G_H", ""]
     lines += [f"struct {t};" for t in tags] + ([""] if tags else [])
-    for i, f in enumerate(fs):
-        lines += [f"/* {describe(f)} */", f"{f['prototype']};",
-                  f'__asm__(".set {f["symbol"]}, {entry_va(i, va):#x}");', ""]
+    for f in fs:
+        lines += [f"/* {describe(f)} */", f"{f['prototype']};", ""]
     lines.append("#endif")
     return "\n".join(lines) + "\n"
 
 
-def include_text(fs, va=None):
-    lines = [f"; The engine-function library's entries ({GENERATED}).",
+def include_text(fs):
+    lines = [f"; The engine-function library's functions ({GENERATED}).",
              "; cdecl: push the arguments right to left, call, add esp, 4 x their count;",
-             "; EBX, ESI, EDI and EBP are kept, EAX, ECX and EDX are not."]
-    for i, f in enumerate(fs):
-        lines += [f"; {f['prototype']}", f"; {describe(f)}", f"%define {f['symbol']} {entry_va(i, va):#x}"]
+             "; EBX, ESI, EDI and EBP are kept, EAX, ECX and EDX are not. The link gives",
+             "; each its address."]
+    for f in fs:
+        lines += [f"; {f['prototype']}", f"; {describe(f)}", f"extern {f['symbol']}"]
     return "\n".join(lines) + "\n"
 
 
-def assemble(text, va=None, nasm="nasm"):
+def assemble(text, va=0x10000000, tools=None):
+    """The library of `text` (an engine_026g.asm) linked alone at `va`:
+    (va, its bytes, {symbol: VA})."""
     with tempfile.TemporaryDirectory(prefix="srp-engine-") as temporary:
-        source, out = Path(temporary) / "engine.asm", Path(temporary) / "engine.bin"
+        source = Path(temporary) / "engine_026g.asm"
         source.write_text(text)
-        subprocess.run([nasm, "-f", "bin", f"-DCAVE={(base.ENGINE_VA if va is None else va):#x}", str(source),
-                        "-o", str(out)], check=True)
-        return out.read_bytes()
+        block = linker.ArenaBlock("engine.code", "code", 0x1000, (str(source),))
+        linked = linker.link([block], va, 0x100000, tools)
+    return linked.va, linker.block_bytes(linked, "engine.code"), linked.symbols
 
 
-def outputs(nasm="nasm", spec=None, abi=None, inputs=None, va=None):
-    """{path: bytes} of the four files."""
+def outputs(spec=None, abi=None, inputs=None):
+    """{path: bytes} of the three files."""
     fs = functions(spec, abi, inputs)
-    text = asm_text(fs)
-    code = assemble(text, va, nasm)
-    if len(code) > base.ARENA_BLOCKS["engine.code"].size:
-        raise Refused(f"the library is {len(code):#x} bytes; its block keeps {base.ARENA_BLOCKS['engine.code'].size:#x}")
-    return {HEADER: header_text(fs, va).encode(), INCLUDE: include_text(fs, va).encode(), ASM: text.encode(),
-            BIN: code}
+    return {HEADER: header_text(fs).encode(), INCLUDE: include_text(fs).encode(), ASM: asm_text(fs).encode()}
 
 
-def stale(nasm="nasm"):
+def stale():
     """The files that are not what the rows give ([] when all are current)."""
-    return [path.name for path, content in outputs(nasm).items()
+    return [path.name for path, content in outputs().items()
             if not path.exists() or path.read_bytes() != content]
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--nasm", default=os.path.join(os.environ.get("NASM_DIR", ""), "nasm")
-                        if os.environ.get("NASM_DIR") else "nasm")
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     if args.write == args.check:
         parser.error("--write or --check")
     try:
-        files = outputs(args.nasm)
+        files = outputs()
     except Refused as error:
         sys.exit(f"engine_026g.tsv: {error}")
     if args.write:
         for path, content in files.items():
             path.write_bytes(content)
-        print(f"{BIN.name}: {len(files[BIN])} bytes, {len(functions())} functions at {base.ENGINE_VA:#x}")
+        print(f"{ASM.name}: {len(functions())} functions (link_026g.py --write links them into the arena)")
         return
     bad = [path.name for path, content in files.items() if not path.exists() or path.read_bytes() != content]
     print("engine_026g: " + ("current" if not bad else "NOT what the rows give: " + ", ".join(bad)))

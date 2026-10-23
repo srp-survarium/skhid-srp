@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """The engine-function library's ABI check (engine_026g.py): every thunk of
-engine_026g.section.bin against the re-kit's rows and the original exe.
+the arena's block engine.code (link_026g.py) against the re-kit's rows and
+the original exe.
 
     python check_engine_026g.py <original survarium.exe>
 
-Requires Python `unicorn` and NASM's ndisasm (NASM_DIR or PATH). The self-test
+Requires Python `unicorn`, NASM's ndisasm (NASM_DIR or PATH) and the arena's
+tools (link_026g.py: gcc -m32, GNU ld, NASM 2.16). The self-test
 runs the same (test_engine). For every function of engine_026g.tsv:
 
 - the cleanup: what the real function's `ret`s pop, read from the original exe
@@ -30,8 +32,8 @@ check_research_026g.py, which reads each argument where the game does.
 
 The negative cases (each must be rejected): spec rows with two parameters
 in each other's places (engine_026g.py refuses them: the words of the
-re-kit's roles do not fit), rows out of their pinned order, a cleanup that is
-no number; libraries made from wrong re-kit rows (0xF6B10's table and key
+re-kit's roles do not fit), a cleanup that is no number; libraries made from
+wrong re-kit rows (0xF6B10's table and key
 exchanged, w<unsigned char> popping 16, value_exists' key in EDI); and the
 built library against rows that say otherwise.
 """
@@ -60,17 +62,29 @@ def marker(i):
     return 0x41000000 + 0x10101 * (i + 1)
 
 
+def built():
+    """The library as the build has it: (its VA, its bytes, {symbol: VA}),
+    the arena's block engine.code."""
+    linked = base.arena()
+    return (linked.blocks["engine.code"].va, base.linker.block_bytes(linked, "engine.code"),
+            {name: va for name, va in linked.symbols.items() if name.startswith("engine_")})
+
+
 class Run:
     """The original exe's sections and the library's code, in Unicorn."""
 
-    def __init__(self, original, code):
+    def __init__(self, original, library):
         self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
         for _, rva, vsize, raw, rsize, _ in base.Headers(original).sections(original):
             start = base.IMAGE_BASE + rva
             emu.mem_map(start, (max(vsize, rsize) + 0xFFF) & ~0xFFF, UC_PROT_ALL)
             emu.mem_write(start, bytes(original[raw:raw + min(rsize, vsize or rsize)]))
-        emu.mem_map(base.ENGINE_VA, 0x1000, UC_PROT_ALL)
-        emu.mem_write(base.ENGINE_VA, code + b"\xCC" * (0x1000 - len(code)))
+        va, code, _ = library
+        self.lo, self.hi = va, va + len(code)
+        size = (va + len(code) + 0xFFF) // 0x1000 * 0x1000 - va // 0x1000 * 0x1000
+        emu.mem_map(va // 0x1000 * 0x1000, size, UC_PROT_ALL)
+        emu.mem_write(va // 0x1000 * 0x1000, b"\xCC" * size)
+        emu.mem_write(va, code)
         for at, size in ((HEAP, 0x100000), (STACK, 0x10000), (STUBS, 0x1000), (CONFIG, 0x10000)):
             emu.mem_map(at, size, UC_PROT_ALL)
         self.heap = HEAP
@@ -172,7 +186,7 @@ def at_entry(run, f, entry, pops):
         got = regs[location] if location in REG else stack[int(location[4:]) // 4]
         if got != marker(i):
             where.append(f"{f['params'][i][1]} not in {location} ({got:#x})")
-    out.append((not where and base.ENGINE_VA <= stack[0] < base.ENGINE_VA + 0x1000,
+    out.append((not where and run.lo <= stack[0] < run.hi,
                 f"{f['symbol']}: at {f['va']:#x} each argument where the rows put it "
                 f"({', '.join(f['args']) or 'none'}), called from the library" + (": " + "; ".join(where) if where else "")))
     result = {None: True, "EAX": eax == RESULT, "AL": eax == RESULT & 0xFF,
@@ -275,29 +289,29 @@ def behaviour(run, entries):
     return out
 
 
-def run_checks(original, code=None, spec=None, abi=None, inputs=None, behave=True):
-    """[(ok, text)] of the library `code` (engine_026g.section.bin) against
-    the rows (engine_026g.tsv, the re-kit's) and the original exe."""
-    code = open(base.engine_bin(), "rb").read() if code is None else code
+def run_checks(original, library=None, spec=None, abi=None, inputs=None, behave=True):
+    """[(ok, text)] of the library (its VA, bytes and symbols; the build's
+    when None) against the rows (engine_026g.tsv, the re-kit's) and the
+    original exe."""
+    library = built() if library is None else library
+    va, code, symbols = library
     fs = engine.functions(spec, abi, inputs)
-    entries = base.engine_entries(code, base.ENGINE_VA)
-    out = [(entries is not None and len(entries) == len(fs),
-            f"the library's {len(fs)} entries are `jmp near`s at ENGINE_VA + 5 x their row")]
+    out = [(all(va <= symbols.get(f["symbol"], -1) < va + len(code) for f in fs),
+            f"each of the library's {len(fs)} functions is a symbol of its code")]
     if not out[0][0]:
         return out
-    run = Run(original, code)
-    for i, f in enumerate(fs):
+    run = Run(original, library)
+    for f in fs:
         pops = exe_pops(original, f["va"])
         out.append((pops == f["cleanup"], f"{f['symbol']}: {f['va']:#x}'s rets pop {pops} in the original exe; "
                     f"abi.tsv says {f['cleanup']}"))
-        out += at_entry(run, f, engine.entry_va(i), f["cleanup"] if pops is None else pops)
+        out += at_entry(run, f, symbols[f["symbol"]], f["cleanup"] if pops is None else pops)
     if behave:
-        named = {f["symbol"]: engine.entry_va(i) for i, f in enumerate(fs)}
-        out += [(ok, text) for _, ok, text in behaviour(run, named)]
+        out += [(ok, text) for _, ok, text in behaviour(run, symbols)]
     return out
 
 
-def negative(original, nasm="nasm"):
+def negative(original, tools=None):
     """[(what, it was rejected)] of wrong spec rows (the generator must refuse
     them), wrong re-kit rows (the check must fail on the library made from
     them) and a wrong expectation (the check must fail on the built one)."""
@@ -305,7 +319,7 @@ def negative(original, nasm="nasm"):
                                                             engine.REKIT / "abi_inputs.tsv"))
 
     def library(spec=spec, abi=abi, inputs=inputs):
-        return engine.assemble(engine.asm_text(engine.functions(spec, abi, inputs)), nasm=nasm)
+        return engine.assemble(engine.asm_text(engine.functions(spec, abi, inputs)), tools=tools)
 
     def failed(results):
         return any(not ok for ok, _ in results)
@@ -341,13 +355,6 @@ def negative(original, nasm="nasm"):
                          ("engine_movie_invoke", "ESP+4", "ESP+8"), ("engine_free", "ECX", "EAX"),
                          ("engine_profile_assign", "ESI", "EDI")):
         out.append((f"{symbol} with its {a} and {b} parameters swapped in engine_026g.tsv", refused(swapped(symbol, a, b))))
-    # Rows out of their pinned order: code built against the header would
-    # call another function.
-    for one, two in (("engine_write_u8", "engine_write_u16"), ("engine_cfg_child", "engine_cfg_has")):
-        i, j = (next(k for k, r in enumerate(spec) if r["symbol"] == n) for n in (one, two))
-        order = list(spec)
-        order[i], order[j] = order[j], order[i]
-        out.append((f"engine_026g.tsv with {one} and {two} in each other's rows", refused(order)))
     out.append(("an abi.tsv cleanup that is no number of bytes (0x10)",
                 refused(abi=[dict(row, ret_cleanup="0x10") if int(row["va"], 16) == 0x1F3DE0 else row
                              for row in abi])))
@@ -380,13 +387,12 @@ def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     original = open(sys.argv[1], "rb").read()
-    nasm = os.path.join(os.environ["NASM_DIR"], "nasm") if os.environ.get("NASM_DIR") else "nasm"
     bad = 0
     for ok, text in run_checks(original):
         print(("  ok    " if ok else "  FAIL  ") + text)
         bad += not ok
     print("negative: wrong rows and libraries the check must reject")
-    for what, failed in negative(original, nasm):
+    for what, failed in negative(original):
         print(("  ok    " if failed else "  FAIL  ") + f"rejected: {what}")
         bad += not failed
     print(f"{bad} FAILED" if bad else "all cases passed")

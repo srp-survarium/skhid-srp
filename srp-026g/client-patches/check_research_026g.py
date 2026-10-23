@@ -17,7 +17,6 @@ serialize and deserialize, 0x2D2661 and 0x2D2B42) run with the rule in a
 world's rules, so a slot that pops other than the game expects shows as esp
 moved. What each case checks is printed.
 """
-import json
 import os
 import struct
 import sys
@@ -32,9 +31,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "scripts", "research-mode"))
 import bcw  # noqa: E402
 
-SYMBOLS = {name: int(va, 16) for name, va in json.load(open(os.path.join(HERE, "research_026g.section.json")))
-           ["symbols"].items()}
-VA, STATE = base.RESEARCH_VA, base.RESEARCH_STATE_VA
+# Research's code and state as the build links them (link_026g.py).
+ARENA = base.arena()
+SYMBOLS = {name: va for name, va in ARENA.symbols.items() if name.startswith(("rn_", "rr_"))}
+VA, STATE = ARENA.blocks["research.code"].va, ARENA.blocks["research.state"].va
 HEAP, STACK, SENTINEL, CORE, CONFIG, FAKE = 0x30000000, 0x21000000, 0x22000000, 0x40000000, 0x50000000, 0x60000000
 STOP = SENTINEL + 0x10
 COOKS, REGISTERED, THREAD_ID = 0xA86E00, STATE + 0x24, 0x870118

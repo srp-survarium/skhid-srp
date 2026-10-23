@@ -61,6 +61,9 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
 - Client patches call engine functions through the engine-function library
   (`srp-026g/client-patches/engine_026g.tsv`, `client_patch.md` §0.5): add a row there for a new
   function instead of a hand-written call. Only varargs, XMM-argument calls and tail jumps stay hand-written.
+- New client-patch code goes in the `.srpx` arena as plain C or NASM, linked by
+  `srp-026g/client-patches/link_026g.py` (`client_patch.md` §0.3): one `ARENA` row and its sources, hooks
+  by symbol, no fixed addresses; run `python link_026g.py --write` and commit `arena_026g.lock.json`.
 
 ## Rust changes
 

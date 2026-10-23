@@ -1,6 +1,7 @@
 ; Research (exe patch 53): the three hooks of the mode, in front of the C code
-; of research_rule_026g.c and research_native_026g.c at the start of `.srpx`
-; (research_026g.py builds it; patch_026g.py puts it after `.srpw`).
+; of research_rule_026g.c and research_native_026g.c in the arena's block
+; research.code (link_026g.py links it; patch_026g.py's RESEARCH_HOOKS call or
+; jump to the three entries by their names).
 ;
 ;   +0  register  game's constructor 0x1E9B4C (`mov eax,ebx / call 0x1EC170`,
 ;                 after its own client cooks, ebx = the game): `call` here;
@@ -14,9 +15,10 @@
 ;                 first message by mode): `jmp` here; mode 5's is
 ;                 st_start_match_welcome_message_5 (0.27d's key)
 ;
-; -D: CAVE (this code's VA), RN_REGISTER and RN_HUD (the C functions).
 bits 32
-org CAVE
+global research_register, research_hud, research_welcome
+extern rn_register, rn_hud        ; the C functions
+section .text
 
 %define GAME_COOKS_DONE 0x1EC170   ; what the hooked call called
 %define HUD_NOT_TDM     0x23B3FC   ; update_ui: past set_last_players
@@ -25,14 +27,17 @@ org CAVE
 %define WELCOME_TDM     0xA03AAC   ; st_start_match_welcome_message_3
 
 entries:
+research_register:
     jmp near register
+research_hud:
     jmp near hud
+research_welcome:
     jmp near welcome
 
 register:
     pushad
     push ebx
-    call RN_REGISTER
+    call rn_register
     add esp, 4
     popad
     mov eax, ebx
@@ -42,7 +47,7 @@ register:
 hud:
     pushad
     push edi
-    call RN_HUD
+    call rn_hud
     add esp, 4
     popad
     cmp dword [edi + 0x20], 4

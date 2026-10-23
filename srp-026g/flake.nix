@@ -59,6 +59,19 @@
           done
         '');
       };
+
+      # NASM 2.16.03 for the exe patches' arena (client-patches/link_026g.py
+      # links it from source at every build, the release's too): NASM 3
+      # assembles `jmp near` to a label as a two-byte short jump, so the
+      # arena's bytes, locked in arena_026g.lock.json, come from 2.16.
+      nasm216 = pkgs.nasm.overrideAttrs (old: {
+        version = "2.16.03";
+        src = pkgs.fetchurl {
+          url = "https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/nasm-2.16.03.tar.xz";
+          hash = "sha256-FBKhx2C70F2wJrbA0WV6/9ZjHNCmPN229zzG1KphYUg=";
+        };
+        patches = [ ];
+      });
     in
     {
       devShells.${system}.default = pkgs.mkShell {
@@ -76,6 +89,9 @@
           # llvm-rc (the Windows programs' version and icon resources) and
           # llvm-readobj (client/bugtrap/tests/check_abi.py).
           pkgs.llvm
+          # The exe patches' arena: gcc (-m32) and GNU ld are the shell's
+          # own; NASM 2.16 (above).
+          nasm216
         ];
 
         # The `openssl` crate defaults to vendoring (compiling OpenSSL from
