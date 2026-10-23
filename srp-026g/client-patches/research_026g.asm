@@ -1,7 +1,7 @@
-; Research (exe patch 53): the three hooks of the mode, in front of the C code
+; Research (exe patch 53): the four hooks of the mode, in front of the C code
 ; of research_rule_026g.c and research_native_026g.c in the arena's block
 ; research.code (link_026g.py links it; patch_026g.py's RESEARCH_HOOKS call or
-; jump to the three entries by their names).
+; jump to the four entries by their names).
 ;
 ;   +0  register  game's constructor 0x1E9B4C (`mov eax,ebx / call 0x1EC170`,
 ;                 after its own client cooks, ebx = the game): `call` here;
@@ -14,10 +14,15 @@
 ;   +A  welcome   update_ui 0x23B351 (`cmp eax,4 / jne 0x23B36A`, the match's
 ;                 first message by mode): `jmp` here; mode 5's is
 ;                 st_start_match_welcome_message_5 (0.27d's key)
+;   +F  icons     update_ui 0x23B207 (`call 0x23AA10`, update_player_icons(ui),
+;                 `ret 4`, its argument pushed: every frame, before update_ui's
+;                 40 ms and hud-state gates): `call` here; the players' icons,
+;                 then rn_markers(ui), the units' markers, and back as the
+;                 call's `ret 4`
 ;
 bits 32
-global research_register, research_hud, research_welcome
-extern rn_register, rn_hud        ; the C functions
+global research_register, research_hud, research_welcome, research_icons
+extern rn_register, rn_hud, rn_markers ; the C functions
 section .text
 
 %define GAME_COOKS_DONE 0x1EC170   ; what the hooked call called
@@ -25,6 +30,7 @@ section .text
 %define WELCOME_SHOW    0x23B35B   ; update_ui: push 1770h ... call 0x2375C0
 %define WELCOME_NONE    0x23B36A   ; update_ui: no message for this mode
 %define WELCOME_TDM     0xA03AAC   ; st_start_match_welcome_message_3
+%define PLAYER_ICONS    0x23AA10   ; game_world_ui::update_player_icons(ui), ret 4
 
 entries:
 research_register:
@@ -33,6 +39,8 @@ research_hud:
     jmp near hud
 research_welcome:
     jmp near welcome
+research_icons:
+    jmp near icons
 
 register:
     pushad
@@ -66,6 +74,16 @@ welcome:
     jne WELCOME_NONE
     mov ecx, welcome_key
     jmp WELCOME_SHOW
+
+icons:
+    push dword [esp + 4]            ; the ui update_ui pushed
+    call PLAYER_ICONS
+    pushad
+    push dword [esp + 0x24]         ; the ui again, over pushad's eight
+    call rn_markers
+    add esp, 4
+    popad
+    ret 4
 
 welcome_key:
     db "st_start_match_welcome_message_5", 0

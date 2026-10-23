@@ -227,7 +227,11 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   parameterised message. The ms left are `rr_ms_left` of the rule's state (progress, the team
   taking it, owner, the players inside and `capture_rate[n - 1]`), only while the time rule is
   in play (world+18FE4h = 3), as the tick moves the units then only.
-- **Markers:** the same frame, `root.research_markers(own team, Z, then cp_id, on the screen, x,
+- **Markers:** every frame, from update_ui's call of update_player_icons (0x23B207: a fourth
+  hook, `icons`, calls it and then `rn_markers`; before update_ui's 40 ms gate and its checksum
+  of the hud state, past which the rest of the hud runs about once a second, when the match's
+  seconds change), while the time rule is in play (state 3; hidden in the countdown and after
+  the end): `root.research_markers(own team, Z, then cp_id, on the screen, x,
   y, metres, owner, taking, progress %, ms left, own player inside)` to the player-icons movie
   ([[ui+10h]+108h]+4, as update_player_icons 0x23ACC1), at a change and every 60 frames: the
   unit's position + 2 m up through the game's `base_game_scene::point_to_screen` (0x23DEC0,
@@ -235,7 +239,10 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   inside it), the distance from the camera director's position ([game+98h]+34h, as
   update_player_icons sizes a player's marker, 0x23AB63). At a match of another mode on the same
   ui, `research_markers(0, 0)` once. The movie's `HUDIconLayer.research_markers` sizes them
-  (`ResearchMarker`).
+  (`ResearchMarker`, its text in `MarkerLabel`'s font: Open Sans Condensed bold, the one bold
+  face the movie embeds). In play the same frame also sends `research_update` (at a change), so
+  the hud's rings and timers follow the capture; the ms left are whole seconds (rounded up), so
+  the numbers change once a second.
 - **0.27d's markers:** its player-icons movie has a third icon kind, `RoundProgress` (the letter
   and the ring, `CapturePointMarker.updateCaptureRendrer` as the hud's units; `set_capture_data`);
   the capturable_zone's tick (0x299D22) places icon 6Ah + index at the zone's position through

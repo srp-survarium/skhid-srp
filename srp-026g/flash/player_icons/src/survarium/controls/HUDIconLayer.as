@@ -48,14 +48,15 @@ package survarium.controls
          var i:uint = 0;
          var at:uint;
          var marker:ResearchMarker;
-         var probe:HUDMarker;
+         var probe:TextField;
          if(this._researchFormat == null && count > 0)
          {
-            // the players' names' font, as the movie has it
-            probe = this._class[0] ? new this._class[0]() as HUDMarker : null;
-            this._researchFormat = probe && probe.textField ? probe.textField.getTextFormat() : new TextFormat("Open Sans Condensed");
+            // the markers' labels' font as the movie embeds it (MarkerLabel:
+            // Open Sans Condensed bold, the one bold face it has; the
+            // players' names are Open Sans regular), its face kept
+            probe = new MarkerLabel().textField;
+            this._researchFormat = probe.length > 0 ? probe.getTextFormat() : probe.defaultTextFormat;
             this._researchFormat.size = 15;
-            this._researchFormat.bold = true;
             this._researchFormat.color = 0xFFFFFF;
          }
          while(this._research.length < count)
