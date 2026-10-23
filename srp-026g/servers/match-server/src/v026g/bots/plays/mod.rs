@@ -253,6 +253,14 @@ pub enum Look {
     Around,
 }
 
+impl Look {
+    /// At a container's use box, from its use point (`Container::use_point`,
+    /// the box's middle less a metre): a put-in or a steal.
+    pub fn use_box(at: Vec3) -> Self {
+        Self::Use(at + Vec3::new(0.0, 1.0, 0.0))
+    }
+}
+
 /// Where a body goes.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Go {

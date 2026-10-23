@@ -277,7 +277,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
                 return Step::Continue(
                     Intent::stay()
                         .crouched()
-                        .looking(Look::At(goal))
+                        .looking(Look::use_box(goal))
                         .hold_fire()
                         .into_base(),
                 );
@@ -302,7 +302,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             }
             let mut intent = Intent::stay()
                 .crouched()
-                .looking(Look::At(goal))
+                .looking(Look::use_box(goal))
                 .hold_fire()
                 .into_base();
             if cx.now >= *last_use + (num("use_every_s") * 1000.0) as u32 {
