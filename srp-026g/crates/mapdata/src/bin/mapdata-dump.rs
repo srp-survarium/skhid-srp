@@ -4,7 +4,14 @@
 //! mapdata-dump --db <resources.db> --out <dir>                  # every playable project
 //! mapdata-dump --db <resources.db> --out <dir> --map 117 --map 87
 //! mapdata-dump --db <resources.db> --out <dir> --project level_01/day_4 --stats 0.5
+//! mapdata-dump --db <resources.db> --patch <resources.db.patch_14> --patch <...> --out <dir> \
+//!     --project level_09/day_2
 //! ```
+//!
+//! `--patch` lays a resources.db patch over the archive as the game mounts
+//! it (repeatable, in mount order: ascending patch number); a map that only
+//! a patch has (London, level_09) is dumped with `--project`, since `--map`
+//! knows the stock maps only.
 //!
 //! The files are the game's content: keep them out of the repository.
 //! `--stats <cell>` also builds the walk grid and the sight tree of each
@@ -24,6 +31,9 @@ struct Cli {
     /// The game's resources.db.
     #[arg(long, env = mapdata::resources::PATH_VARIABLE)]
     db: PathBuf,
+    /// A resources.db patch laid over it; repeatable, in mount order.
+    #[arg(long = "patch")]
+    patches: Vec<PathBuf>,
     /// Where the `.mapdata` files go.
     #[arg(long)]
     out: PathBuf,
@@ -64,7 +74,9 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     projects.dedup();
 
     let started = Instant::now();
-    let mut resources = Resources::open(&cli.db)?;
+    let mut layers = vec![cli.db.clone()];
+    layers.extend(cli.patches.iter().cloned());
+    let mut resources = Resources::open_layers(&layers)?;
     if resources.unresolved_links > 0 {
         eprintln!(
             "warning: {} hard links in the index point at no file",

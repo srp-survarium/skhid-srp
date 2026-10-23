@@ -881,14 +881,23 @@ pickup draws unseen): hence the sync.
 On real maps (`real_hazards`, 0.5 m margin): 1-11 harmful zones a map,
 4,700-46,000 floors marked (level_08's river 520,000), 1-98 ms.
 
-The match server must (not wired yet):
-- keep `static_id(match_id)` with the bots, and after `Tactics::new`
-  call `tactics.hazards.attach(Anomalies::new(&tactics.world.map,
-  static_seed))`;
-- on each poll, `tactics.hazards.advance(clock.clock)` (the match clock,
-  the worlds' time);
-- on each trusted world, `tactics.hazards.sync_from_world(
-  decoded.sections.objects, snapshot.time)`.
+The match server does (wired): `Bots::tactics_ready` attaches
+`Anomalies::new(&tactics.world.map, static_seed)` (`static_id(match_id)`),
+`Bots::poll` advances it on the match clock, and each trusted world
+(`Game::observe` -> `observe_driven` -> `anomalies_from_world`) syncs it.
+
+Timed anomalies (exe patch 42, `dynamic_anomalies.md`): energy states
+charging 3000 (20 s) -> damage 2000 (4 s) -> artefact 1000 -> after the
+pick-up 50 (60 s) -> idle 0. The clients' rule charges an idle one (the
+server never predicts that: an idle core stays idle in the simulation, its
+zones off); a world that shows it charging gives its damage 20 s on, and a
+world after the pick-up turns it off. The simulation follows a state's end
+on the first tick past it, and chooses the next state on the tick after,
+as the client does (`Sim::idle` no longer skips that tick; a state's end
+used to be taken on its own tick). Test:
+`a_timed_anomaly_follows_the_worlds_and_is_never_predicted_to_charge`.
+`mapdata-dump --patch <resources.db.patch_n>` (repeatable, mount order)
+dumps maps that only patches have (London) or change.
 
 Rules for bots (`hazards`): a zone of a timer group is active by the
 simulation, its on spans widened by 1 s on each side; a route may cross it

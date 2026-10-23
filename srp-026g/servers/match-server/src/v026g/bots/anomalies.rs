@@ -197,9 +197,27 @@ struct Sim {
 }
 
 impl Sim {
-    /// Whether no tick can change anything until [`Self::next_event`].
+    /// Whether no tick can change anything until [`Self::next_event`]:
+    /// not while the energy falls, nor when a state's end has set an
+    /// energy another state is chosen by (the next tick chooses it: a
+    /// timed anomaly's chain, docs/notes/dynamic_anomalies.md).
     fn idle(&self) -> bool {
-        self.current.is_some() && !(self.energy_enabled && self.decrease > 0.0 && self.energy > 0.0)
+        self.current.is_some()
+            && !(self.energy_enabled && self.decrease > 0.0 && self.energy > 0.0)
+            && (self.finish != 0 || self.current == self.pick())
+    }
+
+    /// The state `select_state` (0x31BA90) takes when none holds it.
+    fn pick(&self) -> Option<usize> {
+        if self.states.is_empty() {
+            return None;
+        }
+        Some(
+            self.states
+                .iter()
+                .position(|s| s.enabled && !s.triggered && self.energy >= s.threshold)
+                .unwrap_or(0),
+        )
     }
 
     fn next_event(&self) -> u32 {
@@ -271,38 +289,34 @@ impl Sim {
             self.energy = (self.energy - self.decrease * TICK_MS as f32 / 1000.0).max(0.0);
         }
         // `select_state` 0x31BA90: a state with a finish time stays.
-        if !(self.current.is_some() && self.finish != 0) && !self.states.is_empty() {
-            let pick = self
-                .states
-                .iter()
-                .position(|s| s.enabled && !s.triggered && self.energy >= s.threshold)
-                .unwrap_or(0);
-            if self.current != Some(pick) {
-                if let Some(old) = self.current {
-                    for group in &mut self.states[old].groups {
-                        group.on.iter_mut().for_each(|on| *on = false);
-                        group.next = 0;
-                    }
+        if !(self.current.is_some() && self.finish != 0)
+            && let Some(pick) = self.pick()
+            && self.current != Some(pick)
+        {
+            if let Some(old) = self.current {
+                for group in &mut self.states[old].groups {
+                    group.on.iter_mut().for_each(|on| *on = false);
+                    group.next = 0;
                 }
-                self.current = Some(pick);
-                self.changes += 1;
-                // `anomaly_state::initialize` 0x31BC10.
-                for g in 0..self.states[pick].groups.len() {
-                    let group = &mut self.states[pick].groups[g];
-                    if !group.enabled {
-                        continue;
-                    }
-                    if group.keep_all {
-                        group.on.iter_mut().for_each(|on| *on = true);
-                        group.next = 0;
-                    } else {
-                        // Time 0, not now (0x31BC61).
-                        self.recharge(pick, g, 0);
-                    }
-                }
-                let active_ms = self.states[pick].active_ms;
-                self.finish = if active_ms > 0 { t + active_ms } else { 0 };
             }
+            self.current = Some(pick);
+            self.changes += 1;
+            // `anomaly_state::initialize` 0x31BC10.
+            for g in 0..self.states[pick].groups.len() {
+                let group = &mut self.states[pick].groups[g];
+                if !group.enabled {
+                    continue;
+                }
+                if group.keep_all {
+                    group.on.iter_mut().for_each(|on| *on = true);
+                    group.next = 0;
+                } else {
+                    // Time 0, not now (0x31BC61).
+                    self.recharge(pick, g, 0);
+                }
+            }
+            let active_ms = self.states[pick].active_ms;
+            self.finish = if active_ms > 0 { t + active_ms } else { 0 };
         }
         // `anomaly_state::execute` 0x31BCB0.
         if let Some(current) = self.current {
@@ -312,7 +326,8 @@ impl Sim {
                     self.recharge(current, g, t);
                 }
             }
-            if self.finish != 0 && t >= self.finish {
+            // The first tick past the end (`now > end`, 0x31BD16).
+            if self.finish != 0 && t > self.finish {
                 self.energy = self.states[current].energy_on_exit;
                 self.finish = 0;
             }
@@ -1464,6 +1479,127 @@ pub(super) mod tests {
         // From the world's own tick to 11 s: 21 ticks of 1.25.
         let energy = anomalies.cores[0].energy();
         assert!((energy - (1100.0 - 1.25 * 21.0)).abs() < 0.01, "{energy}");
+    }
+
+    /// A timed anomaly (exe patch 42, docs/notes/dynamic_anomalies.md):
+    /// states by energy charging 3000 (20 s) -> damage 2000 (4 s) ->
+    /// artefact 1000 -> after the pick-up 50 (60 s) -> idle 0; the
+    /// client's rule charges an idle one, a pick-up drops it to 50. The
+    /// server never predicts a charge; it follows the worlds.
+    fn timed() -> Anomaly {
+        let state = |threshold: f32, active_time_s: u32, exit: f32, zones: &[&str]| AnomalyState {
+            enabled: true,
+            threshold,
+            active_time_s,
+            energy_on_exit: exit,
+            groups: if zones.is_empty() {
+                Vec::new()
+            } else {
+                vec![ZoneGroup {
+                    enabled: true,
+                    keep_all: true,
+                    max_charged: 255,
+                    zones: zones.iter().map(|z| (*z).into()).collect(),
+                    ..ZoneGroup::default()
+                }]
+            },
+            ..AnomalyState::default()
+        };
+        Anomaly {
+            name: "place/timeout_anomaly_spring".into(),
+            position: Vec3::ZERO,
+            zones: vec!["charge".into(), "damage".into()],
+            energy: AnomalyEnergy {
+                enabled: true,
+                on_af_container_use: 50.0,
+                ..AnomalyEnergy::default()
+            },
+            artefacts: AnomalyArtefacts {
+                enabled: true,
+                first_spawn_s: 100_000.0,
+                respawn_s: 100_000.0,
+                variation_s: 0.0,
+                chance: 1.0,
+                max_count: 1,
+                containers: 1,
+            },
+            states: vec![
+                state(3000.0, 20, 2000.0, &["charge"]),
+                state(2000.0, 4, 1000.0, &["damage", "charge"]),
+                state(1000.0, 0, 0.0, &["damage"]),
+                state(50.0, 60, 0.0, &[]),
+                state(0.0, 0, 0.0, &[]),
+            ],
+        }
+    }
+
+    #[test]
+    fn a_timed_anomaly_follows_the_worlds_and_is_never_predicted_to_charge() {
+        let map = MapData {
+            zones: vec![
+                zone("charge", cylinder(0.0, 0.0, 0.3), 0.0),
+                zone("damage", cylinder(0.0, 0.0, 2.5), 0.5),
+            ],
+            anomalies: vec![timed()],
+            ..MapData::default()
+        };
+        let (charge, damage) = (0, 1);
+        let mut anomalies = Anomalies::new(&map, 0x8000_0042);
+        // Idle: off, and off for as far as the prediction goes.
+        anomalies.advance(20_000);
+        assert_eq!(anomalies.cores[0].state(), Some(4));
+        assert!(!anomalies.zone_on_now(damage) && !anomalies.zone_on_now(charge));
+        assert!(!anomalies.zone_active(damage, 200_000));
+        assert_eq!(
+            anomalies.control(damage),
+            Control::Energy {
+                threshold: 1000.0,
+                per_second: 0.0
+            }
+        );
+        // A world at 30 s: the rule chose it at 30 s (energy 3000,
+        // charging until 50 s), its artefact due at 54 s.
+        let mut world = anomalies.cores[0].base.clone();
+        world.advance(29_999);
+        world.energy = 3000.0;
+        world.current = Some(0);
+        world.finish = 50_000;
+        world.states[0].groups[0].on = vec![true];
+        world.art.pending = true;
+        world.art.next = 54_000;
+        let (objects, _) = world_bytes(&[3, 1, 4], &world, 0);
+        anomalies.advance(31_000);
+        let report = anomalies.sync_from_world(&objects, 30_000);
+        assert_eq!(report.synced.len(), 1, "found by its random value");
+        assert_eq!(anomalies.cores[0].state(), Some(0));
+        assert!(anomalies.zone_on_now(charge) && !anomalies.zone_on_now(damage));
+        // Damage from the first tick past 50 s (+1 tick for the new state),
+        // then the artefact state: on until a world shows the pick-up.
+        assert!(!anomalies.zone_active(damage, 49_000));
+        assert!(anomalies.zone_active(damage, 51_000));
+        assert!(anomalies.zone_active(damage, 120_000));
+        anomalies.advance(80_000);
+        assert_eq!(anomalies.cores[0].state(), Some(2));
+        assert!(anomalies.zone_on_now(damage) && !anomalies.zone_on_now(charge));
+        // A world at 90 s: taken at 90 s (energy 50, 60 s to wait).
+        let mut world = anomalies.cores[0].base.clone();
+        world.advance(89_999);
+        world.energy = 50.0;
+        world.current = Some(3);
+        world.finish = 150_000;
+        world.art.pending = false;
+        let (objects, _) = world_bytes(&[2, 7], &world, 0);
+        anomalies.advance(91_000);
+        let report = anomalies.sync_from_world(&objects, 90_000);
+        assert_eq!(report.synced.len(), 1);
+        assert_eq!(anomalies.cores[0].state(), Some(3));
+        assert!(!anomalies.zone_on_now(damage) && !anomalies.zone_on_now(charge));
+        // Idle again after 60 s, and nothing charges it on the server.
+        assert!(!anomalies.zone_active(damage, 150_000));
+        assert!(!anomalies.zone_active(damage, 300_000));
+        anomalies.advance(200_000);
+        assert_eq!(anomalies.cores[0].state(), Some(4));
+        assert_eq!(anomalies.cores[0].energy(), 0.0);
     }
 
     /// The saved worlds of real matches on level_02 and level_03, only with

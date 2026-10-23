@@ -972,6 +972,17 @@ The report: "with a high FOV some models disappear" (patch 22's `uro_fov`, 50 to
 - **Builds:** without a server sha256 `19ac89832023349fc20688c8b9b3635364298c5056da54af310c68af0f189ceb`, with `--server=skhid.link:1234` `4e9babea7d2b4e3c9ac08bc656a69805b5354d4833e071b0aa96498424c86548` (the revision byte REVISION's, 24). Against the builds of `main` bee9dc3 (`13084277…566c`, `0384d1ec…063c`) they differ in file 0x1484AF..0x1484B4 and 0x15E6A4..0x15E6AB (the two sites), 0xB71E47 and 0xB728AD (the two relocation entries), 0xC4BC60..0xC4BCED (fov_projection) and 0xC4C0E0..0xC4C115 (the two scales) and the PE checksum, and in nothing else (compared byte by byte).
 - **Checked:** `selftest_026g.py` check 40 (and checks 15 and 23); `check_fov_lod_026g.py` (Unicorn) runs the projection (k at 50 to 100 and five zooms), select_lod on a Kamaz-sized box (out at 113.7 m at 65 in the original, at every setting in the build; 87.4 m at 80 and 62.5 m at 100 with k zeroed) and the screen factor (equal to the original's at 20, 60 and 150 m). **Not run:** a game.
 
+### 3.38 Dynamic anomalies (written 2026-10-20, README patch 42, the next release's revision; the rules: `dynamic_anomalies.md`) — PROVEN in the code of 0.28a2 and 0.26g, the built exe's hooks and the game's anomaly tick run with Unicorn; not run in a game
+
+- **The release's rule** (0.28a2, BCJ-decoded; PROVEN): `timeout_anomalies_rule_core` constructor 0x5F7B30 (six config ints at +1A0h..+1B4h, the seed +1C0h), tick 0x5F7C00 (nothing before the world's start + delay or before `m_next_try_spawn_time_ms` +1C4h; the next try at now + interval - variation + draw(2 variation); the active count of states 1..3 against the maximum; the candidates of 0x5F7EC0: state 0, one of its artefacts free (+2ECh 0), no anomaly in a state other than 0 within the radius (container positions +74h); one drawn `(x*n)>>32`, its `m_start_charging_time_ms` = now). `timeout_anomaly_core` tick 0x5F41C0: 0 -> 1 at the start, 1 -> 2 after charging (zones on), 2 -> 3 after damage (an artefact into the container, 0x5F4360), 4 -> 0 after the post-artefact timeout; the taker's call 0x5F72C0: state 4, zones off.
+- **0.26g already has the timeline** (PROVEN): `select_state` 0x31BA90 keeps a state while its end (+2Ch) is set, else takes the first enabled state with energy >= threshold; `anomaly_state::initialize` 0x31BC10 sets the end at now + active_time_sec*1000; `execute` 0x31BCB0 sets energy = energy_on_exit at the first tick past it (`now > end`). `on_artefact_container_use` 0x33BCD0 (the container's owner, slot 10, from `use_execute` 0x31C832) adds energy_af_container_use, clamps to energy_maximum when above 0, makes an artefact due at now + `artefact_respawn_delay` 0x31BA00. `on_player_action` 0x33BB50 adds energy_on_* x param for every action and clamps the same way: so a timed core keeps energy_maximum 0 (a clamp would end an anomaly a player walks into).
+- **Where the rule finds things** (PROVEN): the anomaly cores are tick list 6 of the world (`server_game_project::set_game_world_core` 0x318B26: each core's delegate +194h {core, 0x31B5B0, prev, next +0Ch}, the list's first at world+188A4h, in the project's order; keys from a counter, so the order is the same in every game); the time rule is the rules vector's first (world+18824h; state +148h 3 = in process, start +12Ch): in a game the client class `timelimit_rule`, vtable 0xA06E8C (stored at 0x267A61 by its constructor 0x267A40 after the core's constructor 0x317DA0 stored `timelimit_rule_core`'s 0xA06E2C; its cook 0x9FD944 is set by the game's constructor at 0x1E9AEA, its create 0x206670), so the rule tests the slot both share, serialize 0x317F30 at +3Ch, which no other place of the exe holds (the first build compared the vtable with 0xA06E2C and would never have started in a game; #225's review, 2026-10-23); the static info is world+18FACh (0x2D00BB), its seed +577B0h (0x2D01D7); a core's place is its first container's use box: container+38h/+3Ch (geometries, usable_object::load 0x2F81F0) -> collision_geometry+18h (the ghost, collision_geometry::load 0x2F8C30) -> +18h (the bullet object, bt_ghost_object 0x3578F0) -> +40h (the world transform's origin: btCollisionObject 0x8E870 keeps the transform at +10h, create_ghost_object 0x357AA0 copies it there by 0x70C20).
+- **The patch** (`DYNAMIC_ANOMALIES_*`, builds with the late join): the arena's block `anomalies.code` (`dynamic_anomalies_026g.asm`, 823 bytes, linked by `link_026g.py` at 0xA433000 today, after the engine library; section 0.3: no section of its own, so the section count stays twelve). 0x2D1E20 (`push ecx; mov eax,51EB851Fh`, 6 bytes) jumps to `anomalies_tick_hook`: pushad, the rule (world, now = edi, the tick's length), popad, the two instructions, back to 0x2D1E26. 0x33BCD0 (`push ecx; push esi; mov esi,ecx; mov eax,[esi+15Ch]`, 10 bytes) jumps to `anomalies_pickup_hook`: a timed core gets energy = energy_af_container_use and no artefact due, `ret 8`; any other does the four instructions and goes on at 0x33BCDA. Neither site has a base relocation or a branch into it.
+- **Lockstep** (PROVEN by the code): the rule reads only the world and the static info's seed and writes only the chosen core's energy, pending (+138h) and its time (+13Ch), all three in the core's snapshot (`generic_anomaly_core::serialize` 0x31AF20); the try times and the draws are functions of the seed and the try's number (LCG 0x08088405). A rollback, a resync and a late joiner therefore choose alike, and the snapshot's format and hash are unchanged.
+- **Checked:** `check_dynamic_anomalies_026g.py <original exe>` (Unicorn, about 4 minutes): the built exe's atomic_tick entry and pick-up with the game's own `generic_anomaly_core::tick` on made-up worlds, every tick against the rules' model (111,000 checks): a 15-minute London-like match with pick-ups, a world copied at 5 minutes running on beside it, 16 against 15 active, 14.99 against 15.01 m, no free artefact, stock cores (their pick-up byte for byte the original's), the same choices at other addresses; the time rule as a game has it (`timelimit_rule`, 0xA06E8C), the core class (0xA06E2C) in the second world, and a first rule that is no time rule (tdm's vtable) choosing nothing; a memory-write hook allows the hooks only the chosen core's three fields. The self-test's check 42 reads both sites, the targets (the delegate, list 6, the static info, both time rules' vtables, the client constructor's store at 0x267A61 and the cook at 0x1E9AEA, serialize at +3Ch of those two vtables only), each hook's jump to its symbol in the link and the block's bytes in the exe; its call-shape check reads both ENTRY sites' `ret 8` against atomic_tick's and on_artefact_container_use's.
+- **Revisions.** A simulation change: the `next` row of `simulation_changes.tsv`. A game without it never charges a timed anomaly and desyncs from one with it: a server asks for the release's revision.
+- **Not run:** a game.
+
 ### 3.40 The player's own row in the Tab list is gold (written 2026-10-20, README patch 43, the next release's revision; the rule: `tab-list-left-places.md`) — PROVEN in the code and the movie, on_activate's end run with Unicorn; not run in a game
 
 The owner: "when pressing tab in game, your own character should be gold", "just like when you kill or get killed in a kill list top right".
@@ -1941,8 +1952,9 @@ section table (0x210..0x400): 12 slots
   research.state  state  0x1000   rn_state (research_native_026g.c)      -> 0xA430000, 0x38
   artefacts.code  code   0x1000   artefacts_026g.asm                     -> 0xA431000, 0x310
   engine.code     code   0x1000   engine_026g.asm (0.5)                  -> 0xA432000, 0x4A2
-  match_keys.code code   0x1000   match_keys_026g.asm (patch 58)         -> 0xA433000
-  match_keys.state state 0x1000   its option's variable                  -> 0xA434000, 0x4A
+  anomalies.code  code   0x1000   dynamic_anomalies_026g.asm (3.38)      -> 0xA433000, 0x337
+  match_keys.code code   0x1000   match_keys_026g.asm (patch 58)         -> 0xA434000
+  match_keys.state state 0x1000   its option's variable                  -> 0xA435000, 0x4A
   (a new block: wherever its row goes; the link places it and every block after it)
 ```
 
@@ -1980,12 +1992,17 @@ check_research_026g.py prints exactly what it printed on main.
 Two PRs adding blocks no longer collide on addresses; they meet only in the
 lock (whichever merges second runs `--write` again on top of the first).
 
-**The dynamic anomalies (#225).** #225 assembles `dynamic_anomalies_026g.asm`
-for a fixed `-DCAVE` and adds its bytes itself. On the arena: drop `org` /
-`-DCAVE` and its own `.srpx` code, give its hook labels `global` names, add
-one row `ArenaBlock("anomalies.code", "code", 0x1000,
-("dynamic_anomalies_026g.asm",))`, its hooks as (site, bytes, symbol,
-opcode) in `build()`, and `link_026g.py --write`.
+**The dynamic anomalies (#225), the first block added this way.** #225 had
+assembled `dynamic_anomalies_026g.asm` for a fixed `-DCAVE` (`.srpx`+4000h)
+and added its bytes itself. On the arena (2026-10-23): no `org`, no `-DCAVE`,
+no `.section.bin`, no padding to fixed entry offsets and no trailing
+address; its two entries are the globals `anomalies_tick_hook` and
+`anomalies_pickup_hook`; one row `ArenaBlock("anomalies.code", "code",
+0x1000, ("dynamic_anomalies_026g.asm",))` after `engine.code` (so no block
+before it moved); `DYNAMIC_ANOMALIES_HOOKS` are (site, bytes, symbol,
+opcode) rows patched in `build()` with Research's and the artefacts'; both
+sites are `INSTALLS` ENTRY rows; the lock written by `link_026g.py
+--write`. It calls no engine function, so no `engine_026g.tsv` row.
 
 **The older fixed sections, later.** `.srp` (the upload code and the small
 caves at fixed offsets: `SPOT_OFFSET`, `KIT_CHANGE_OFFSET`, ...), `.srpd`

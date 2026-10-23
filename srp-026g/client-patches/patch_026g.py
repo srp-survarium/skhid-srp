@@ -399,6 +399,15 @@ Patches:
   page; select_lod's x0.5 (0x16F2A4) and the factor's x100 (0x1590AF)
   call fov_lod_scale and fov_screen_scale, which multiply by k after the
   original's constant (k is 1 at 65 and less, and through a scope);
+- dynamic anomalies (patch 42, with the late join, client_patch.md section
+  3.38, docs/notes/dynamic_anomalies.md): the release's anomalies rule on
+  timed generic anomalies (energy_enabled, artefacts that never respawn by
+  themselves). game_world_core::atomic_tick (0x2D1E20) first runs the rule
+  (a try 20 to 40 s apart from the start + 30 s: one idle timed anomaly
+  with a free artefact and nothing busy within 15 m charges, while fewer
+  than 16 are active), and on_artefact_container_use (0x33BCD0) puts a
+  timed anomaly to its after-the-pick-up energy. The code is the arena's
+  block anomalies.code in `.srpx` (dynamic_anomalies_026g.asm);
 - on the death screen a drag turns the camera; the wheel does nothing
   (patch 46, with the late join, client_patch.md section 3.43, docs/notes/
   death-camera.md). A death leaves the player's input handler in the first
@@ -1647,6 +1656,26 @@ FOV_LOD_RELOCS = [0x1590B1, 0x16F2A8]
 FOV_LOD_STATE_OFFSET = 0xE50                  # after the scoreboard's (TAB_LIST_STATE_OFFSET)
 FOV_LOD_STATE_SIZE = 4
 
+# Dynamic anomalies (patch 42, README; client_patch.md section 3.38; the
+# rules: ../docs/notes/dynamic_anomalies.md). The release's anomalies rule
+# (0.28a2 timeout_anomalies_rule_core) on timed generic_anomaly_cores, whose
+# states are the release's timeline by energy. Two hooks into
+# dynamic_anomalies_026g.asm, the arena's block anomalies.code (link_026g.py
+# links it; each hook jumps to its entry by name): game_world_core::
+# atomic_tick's first six bytes (`push ecx; mov eax,51EB851Fh`, a constant)
+# jump to anomalies_tick_hook, which runs the rule before any object of the
+# tick and goes on at 0x2D1E26; generic_anomaly_core::
+# on_artefact_container_use's first ten (`push ecx; push esi; mov esi,ecx;
+# mov eax,[esi+15Ch]`) jump to anomalies_pickup_hook, which takes a timed
+# core's pick-up and goes on at 0x33BCDA with any other. No base relocation
+# under either. The code calls no engine function (it reads the world's and
+# the cores' fields and goes back into the two functions).
+DYNAMIC_ANOMALIES_HOOKS = (
+    (0x2D1E20, bytes.fromhex("51b81f85eb51"), "anomalies_tick_hook", 0xE9),             # atomic_tick
+    (0x33BCD0, bytes.fromhex("51568bf18b865c010000"), "anomalies_pickup_hook", 0xE9),   # on_artefact_container_use
+)
+DYNAMIC_ANOMALIES_EXITS = (0x2D1E26, 0x33BCDA)                 # where each goes on
+
 # A battery under the floor (patch 23, pickup_below_026g.asm at
 # PICKUP_VA): client_patch.md section 3.23.
 PICKUP_OFFSET = 0x800
@@ -2032,6 +2061,11 @@ INSTALLS = {
                       "fire_kind, a key-up back in the function", None, None),
     0x2DBD89: (JUMP, "the player's stagger 0x2DBCD0, `movss xmm2,[esi+31Ch]` after the hits' sum: stagger",
                None, None),
+    # the dynamic anomalies, patch 42 (in `.srpx`)
+    0x2D1E20: (ENTRY, "game_world_core::atomic_tick (the world, the tick's length; `ret 8`): the anomalies' "
+                      "rule, then the function", None, None),
+    0x33BCD0: (ENTRY, "generic_anomaly_core::on_artefact_container_use (thiscall: the container, the time; "
+                      "`ret 8`): a timed anomaly's pick-up, any other core's back in the function", None, None),
     # the kit keys and the match chat option, patch 58 (in `.srpx`)
     0x25CD41: (JUMP, "the game world's on_keyboard_action 0x25CD00, `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` "
                      "(edi = its input handler): keyboard", None, None),
@@ -2216,6 +2250,7 @@ ARENA = (
     ArenaBlock("research.state", "state", 0x1000, ("research_rule_026g.c", "research_native_026g.c")),
     ArenaBlock("artefacts.code", "code", 0x1000, ("artefacts_026g.asm",)),       # patch 54
     ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
+    ArenaBlock("anomalies.code", "code", 0x1000, ("dynamic_anomalies_026g.asm",)),  # patch 42
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
 )
@@ -3159,7 +3194,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             # its symbol.
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
-                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS:
+                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + DYNAMIC_ANOMALIES_HOOKS \
+                        + MATCH_KEYS_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3217,6 +3253,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      f"Research (mode 5: rule class {RESEARCH_CLASS:#x}, its hud and messages), "
                      "a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills "
                      "pain, body and head, and one press fires every artefact of its kind, "
+                     "dynamic anomalies (the release's rule on London's and Cologne's timed anomalies), "
                      "the keys 1, 2 and 3 pick a kit while the kits are shown, "
                      "an option hides the other players' chat lines in a match, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
