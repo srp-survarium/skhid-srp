@@ -6,7 +6,7 @@ anomaly particles they need. README.md has the rules and the commands.
     python build.py --live <resources.db> --live <resources.db.patch_N>... \\
         --release-natives <0.28d0 resources.db> \\
         --release-london <0.31a2 resources.NN.db>... --out <folder> [--maps level_08,level_09] \\
-        [--pack <id>@<version>]
+        [--pack <id>@<version>] [--over <pack folder>]...
 
 --live: the game the players have, stock first, then the live patches in
 release/patches.tsv order (a later archive's file wins). --release-*: the
@@ -14,7 +14,9 @@ release builds' archives. --pack: the out folder is a content pack
 (release/content.tsv's kind `pack`): files/<path> and pack.json, a
 replace_file (the live file's sha256) for each project, an add_file for
 each particle; --live must then be exactly what the manifest's packs are
-composed over: the stock db and its base rows' patches. Needs dbgrab (tools/re-kit/common/dbgrab;
+composed over: the stock db and its base rows' patches. --over: a pack
+composed beside this one (sponge@2), whose items and particles count as the
+game's. Needs dbgrab (tools/re-kit/common/dbgrab;
 DBGRAB names another). Prints per project what it did; refuses a project
 whose result names an object it does not have.
 """
@@ -36,13 +38,16 @@ import bcw  # noqa: E402
 REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 DBGRAB = os.environ.get("DBGRAB", os.path.join(REPO, "tools", "re-kit", "common", "dbgrab", "target", "release", "dbgrab"))
 
-# The artefact kinds of the release's places that 0.26g has. 758 (mochalka,
-# the Sponge) is a thrown artefact (data type 13) 0.26g cannot use: its
-# anomalies are left out. The owner (2026-10-23): "for now we don't have
-# Sponge"; main() refuses a kind that is not an artefact of the live
-# items_dict (0.26g has 54, 74 and 76 only).
-KINDS = {54: "lifebone", 74: "spring", 76: "onyx"}
-DROPPED_KINDS = {758: "mochalka"}
+# The artefact kinds of the release's places: all four. 758 (mochalka, the
+# Sponge) is pack sponge@2's item (exe patch 59); the owner (2026-10-23):
+# "let's also build Sponge on top of anomalies". main() refuses a kind that
+# is not an artefact of items_dict (the live game's, with --over's packs).
+KINDS = {54: "lifebone", 74: "spring", 76: "onyx", 758: "mochalka"}
+# A kind patch_14's London has no zone of takes the zone of the kind the
+# release gives the same: 0.28d0's mochalka zone is its lifebone zone
+# (toxic, the face, max_hit 0.5, no hit sound; Cologne day_2, checked
+# 2026-10-23), so patch_14's lifebone zone (toxic, face, gas) is its 0.26g form.
+TEMPLATE_OF = {"mochalka": "lifebone"}
 
 # A kind's damage zone: max_hit per listed body part per second (continuous,
 # interval 1000 ms; the zone's hit loop 0x319C00 hits each part). The release
@@ -54,11 +59,13 @@ DROPPED_KINDS = {758: "mochalka"}
 # give 0.26g's fatal pools the release's 0.5 a second (2 s, unarmoured, at
 # full intensity), from the live human_hit_params:
 #   lifebone, toxic on the face: infection 1 x m        -> m = 0.5
+#   mochalka, the same (the release's zone is lifebone's) -> m = 0.5
 #   spring, shock on the nine:   pain 8.0 x m (body 2m)  -> m = 0.0625
 #   onyx, radiation on the nine: infection 9 x m         -> m = 0.0556
 # docs/notes/dynamic_anomalies.md has the table and the stock zones beside it.
 MAX_HIT = {kind: struct.unpack("<f", struct.pack("<f", value))[0]          # as the f32 the project holds
-           for kind, value in {"lifebone": 0.5, "spring": 0.0625, "onyx": 0.0556}.items()}
+           for kind, value in {"lifebone": 0.5, "spring": 0.0625, "onyx": 0.0556,
+                                                 "mochalka": 0.5}.items()}
 
 # The timed anomaly (dynamic_anomalies_026g.asm, docs/notes/dynamic_anomalies.md):
 # energy thresholds of its states, highest first.
@@ -119,6 +126,29 @@ class Archive:
         out = tempfile.mkdtemp(dir=tmp)
         subprocess.run([DBGRAB, path, "get", name, out], capture_output=True, check=True)
         with open(os.path.join(out, name.replace("/", "__")), "rb") as file:
+            return file.read()
+
+
+class Over:
+    """Content packs the manifest composes beside this one (--over: their
+    folders, files/ and pack.json): files they add or replace count as the
+    game's (the Sponge's particles), their items_dict rows as its items. A
+    project they touch is refused: this pack's replace_file is over the live
+    file."""
+
+    def __init__(self, folders):
+        self.files, self.items = {}, []
+        for folder in folders or ():
+            with open(os.path.join(folder, "pack.json")) as file:
+                manifest = json.load(file)
+            for op in manifest["operations"]:
+                if op["op"] in ("add_file", "replace_file"):
+                    self.files[op["path"]] = os.path.join(folder, "files", op["path"])
+                elif op["op"] == "dictionary_add" and op["table"] == "items_dict":
+                    self.items += op["entries"]
+
+    def read(self, name):
+        with open(self.files[name], "rb") as file:
             return file.read()
 
 
@@ -233,7 +263,7 @@ def convert(project, release, templates, allowed, after_pickup):
             continue
         dict_id = core["artefact_dict_id"]
         if dict_id not in KINDS:
-            dropped[DROPPED_KINDS.get(dict_id, dict_id)] += 1
+            dropped[dict_id] += 1
             continue
         kind = KINDS[dict_id]
         place = core["full_name"].rsplit("/", 1)[0]
@@ -286,14 +316,16 @@ def templates_of(london):
         if obj["game_object_type"] != "generic_anomaly_core":
             continue
         out["core"] = obj
-        kind = next(k for k in KINDS.values() if f"timeout_anomaly_{k}" in obj["name"])
+        kind = next(k for k in KINDS.values() if k not in TEMPLATE_OF and f"timeout_anomaly_{k}" in obj["name"])
         zone = by_name[obj["states"][0]["groups"][0]["zones"][0]]
         if kind == "lifebone" and "indoor" not in zone["idle_particle"]:
             continue                                  # the outdoor lifebone: same keys
         out.setdefault(kind, zone)
-    missing = [k for k in ("core", *KINDS.values()) if k not in out]
+    missing = [k for k in ("core", *KINDS.values()) if k not in out and k not in TEMPLATE_OF]
     if missing:
         raise SystemExit(f"patch_14's London has no {missing}")
+    for kind, same in TEMPLATE_OF.items():
+        out[kind] = out[same]
     return out
 
 
@@ -315,6 +347,8 @@ def main():
     # The owner (2026-10-22): only London and Cologne; every other map keeps its static anomalies.
     parser.add_argument("--maps", default="level_08,level_09")
     parser.add_argument("--pack", help="<id>@<version>: write a content pack (files/ and pack.json)")
+    parser.add_argument("--over", action="append",
+                        help="a content pack's folder composed beside this one (sponge@2: item 758, its particles)")
     args = parser.parse_args()
     if args.pack and not re.fullmatch(r"[a-z0-9._-]+@[A-Za-z0-9._-]+", args.pack):
         raise SystemExit(f"--pack {args.pack}: a pack is named <id>@<version>")
@@ -330,19 +364,23 @@ def main():
                           {"op": "replace_file", "path": name, "base_sha256": hashlib.sha256(base).hexdigest()})
 
     live, natives, london = Archive(args.live), Archive(args.release_natives), Archive(args.release_london)
+    over = Over(args.over)
     maps = args.maps.split(",")
     if os.path.exists(args.out) and os.listdir(args.out):
         raise SystemExit(f"{args.out}: not empty")
     with tempfile.TemporaryDirectory() as tmp:
         london_now = bcw.loads(live.read("projects/level_09/day_2/client_project", tmp))
         items = bcw.loads(live.read("gameplay/db_static_dictionaries", tmp))["items_dict"]
-        artefacts = {i["dict_id"] for i in (items if isinstance(items, list) else items.values())
+        artefacts = {i["dict_id"] for i in list(items if isinstance(items, list) else items.values()) + over.items
                      if i["cfg_name"].startswith("gameplay/items/artefacts/")}
         if not set(KINDS) <= artefacts:
             raise SystemExit(f"artefact kinds the game does not have: {sorted(set(KINDS) - artefacts)}")
         templates = templates_of(london_now)
         allowed = collections.defaultdict(set)
         projects = [n for n in live.names(r"projects/level_0\d/[a-z]+_\d/client_project") if n.split("/")[1] in maps]
+        touched = sorted(set(projects) & set(over.files))
+        if touched:
+            raise SystemExit(f"--over packs change projects this pack replaces: {touched}")
         loaded = {}
         originals = {}
         for name in projects:
@@ -382,7 +420,10 @@ def main():
         materials = set()
         for particle in sorted(particles):
             name = f"particles/{particle}.particle"
-            if live.has(name):
+            if name in over.files:
+                print(f"{name}: an --over pack has it")
+                data = over.read(name)
+            elif live.has(name):
                 print(f"{name}: the game has it")
                 data = live.read(name, tmp)
             else:
@@ -391,13 +432,15 @@ def main():
                 put(name, data)
                 print(f"{name}: from the release ({len(data)} bytes)")
             materials |= {s for s in strings(bcw.loads(data)) if s.startswith("fx/")}
-        missing = sorted(m for m in materials if not live.has(f"material_instances/{m}.material"))
+        missing = sorted(m for m in materials if not live.has(f"material_instances/{m}.material")
+                         and f"material_instances/{m}.material" not in over.files)
         print(f"materials the particles name: {len(materials)}; not in the game: {missing or 'none'}")
     if args.pack:
         ident, version = args.pack.split("@", 1)
         manifest = {"format_version": 1, "id": ident, "version": version, "target_build": "0.26g",
                     "description": "dynamic anomalies: the release's timed anomalies on London and Cologne (the "
-                                   "client projects of level_08 and level_09 and the particles they need, "
+                                   "client projects of level_08 and level_09 and the particles they need; "
+                                   "the Sponge's anomalies with pack sponge@2, "
                                    "srp-026g/scripts/dynamic-anomalies; client patch 42)",
                     "operations": sorted(operations, key=lambda o: o["path"])}
         with open(os.path.join(args.out, "pack.json"), "w") as file:
