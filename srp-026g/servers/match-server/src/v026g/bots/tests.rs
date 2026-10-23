@@ -136,6 +136,10 @@ struct Game {
     rng: Rng,
     shots: u32,
     hits: u32,
+    /// By place: shots, and hits on an enemy.
+    shots_hits: Vec<(u32, u32)>,
+    /// The places that put a battery in at the last step.
+    put_in: Vec<Place>,
     /// Hits on a teammate (the game has friendly fire), and the teammates
     /// killed so.
     team_hits: u32,
@@ -279,6 +283,8 @@ impl Game {
             rng: Rng::new(seed),
             shots: 0,
             hits: 0,
+            shots_hits: vec![(0, 0); teams.len()],
+            put_in: Vec::new(),
             team_hits: 0,
             team_kills: 0,
             walled: 0,
@@ -370,6 +376,7 @@ impl Game {
     fn step(&mut self) {
         self.tick += TICK_MS;
         let tick = self.tick;
+        self.put_in.clear();
         let n = self.bodies.len();
         let mut pressed = vec![0u32; n];
         for body in &mut self.bodies {
@@ -469,6 +476,7 @@ impl Game {
     /// One shot of `shooter` at `at` ms (within the tick).
     fn shot(&mut self, shooter: Place, at: f32) {
         self.shots += 1;
+        self.shots_hits[shooter].0 += 1;
         let body = &self.bodies[shooter];
         let eye = Self::eye(body);
         let [fx, fz] = forward(body.yaw);
@@ -552,6 +560,7 @@ impl Game {
             self.team_hits += 1;
         } else {
             self.hits += 1;
+            self.shots_hits[shooter].1 += 1;
         }
         let other = &mut self.bodies[target];
         other.health -= 0.2;
@@ -649,6 +658,7 @@ impl Game {
                         self.stolen_home(battery, team);
                         self.points[usize::from(team)] += 1;
                         self.delivered[usize::from(team)] += 1;
+                        self.put_in.push(place);
                     }
                 }
                 None => {
@@ -2569,6 +2579,320 @@ impl BenchEvents {
     }
 }
 
+/// A spell of a bot holding fire for a teammate in its line
+/// ([`super::friends::Held`]), from its first tick to its last.
+#[derive(Clone, Debug)]
+struct Spell {
+    t0: u32,
+    who: Place,
+    target: Option<Place>,
+    ticks: u32,
+    /// Ticks it ran, it was ready to fire but for him, and it and he
+    /// moved across the line the same way and opposite ways (both over
+    /// [`BlockTally::SIDE_MPS`]).
+    run: u32,
+    ready: u32,
+    same: u32,
+    against: u32,
+    /// Ticks it held a side key, and he moved across the line (over
+    /// [`BlockTally::SIDE_MPS`]).
+    stepping: u32,
+    his: u32,
+    /// At its start: how far along the way to the target he stood, %
+    /// (100 at the target).
+    along: u32,
+    /// At its start: its play, his play, and whether he had a target.
+    plays: (String, String, bool),
+    /// Its target killed meanwhile: by itself, by a teammate.
+    target_killed: Option<bool>,
+}
+
+/// One ended spell: ms, running ms, ready ms, same-way ms, its end.
+type SpellDone = (u32, u32, u32, u32, &'static str);
+
+/// The real-map bench's blocked spells: every bot's, from the fire step's
+/// [`super::friends::Held`], a game tick at a time; each spell as it ends
+/// goes to the events (`"spell": [bot, blocker, ms, running ms, ready ms,
+/// same-way ms, opposite-way ms, end, side-key ms, blocker-across ms,
+/// along %, shooter's play, blocker's play, blocker aiming]`). And what
+/// the blockers' own work came to meanwhile, so that a way made for the
+/// shooter is seen to cost them nothing (`player_bots_behaviour.md` §2.6):
+/// their shots and hits while they block, the time from a
+/// new target to the first shot at it, their headway to their goal, and
+/// the carriers' times from the take to the put-in (the events'
+/// `"mission"` line at the run's end).
+#[derive(Default)]
+struct BlockTally {
+    spells: Vec<Option<Spell>>,
+    feet: Vec<Option<Vec3>>,
+    kills_seen: usize,
+    done: Vec<SpellDone>,
+    /// Bot ticks alive.
+    alive_ticks: u64,
+    /// By place: the game's shots and hits so far; the target and since
+    /// when it had it with no shot yet (and whether it blocked someone
+    /// meanwhile); the goal's distance a tick ago; the carry's start.
+    shots_hits: Vec<(u32, u32)>,
+    aiming: Vec<Option<(Place, u32, bool)>>,
+    goal_m: Vec<Option<f32>>,
+    carry_from: Vec<Option<u32>>,
+    /// [not blocking, blocking]: shots, hits; times from a new target to
+    /// the first shot, ms; ticks with a goal, and the headway made, m.
+    shots: [u32; 2],
+    hits: [u32; 2],
+    to_fire: [Vec<u32>; 2],
+    goal_ticks: [u64; 2],
+    headway_m: [f32; 2],
+    /// Carries put in: from the take, ms.
+    carries: Vec<u32>,
+}
+
+impl BlockTally {
+    /// Sideways speed counted as moving across the line, m/s.
+    const SIDE_MPS: f32 = 0.5;
+
+    /// After a game step.
+    fn tick(&mut self, game: &Game, bots: &Bots, events: &mut BenchEvents) {
+        let n = game.bodies.len();
+        self.spells.resize(n, None);
+        self.shots_hits.resize(n, (0, 0));
+        self.aiming.resize(n, None);
+        self.goal_m.resize(n, None);
+        self.carry_from.resize(n, None);
+        let moved: Vec<Option<Vec3>> = (0..n)
+            .map(|p| {
+                let body = &game.bodies[p];
+                let before = self.feet.get(p).copied().flatten();
+                before.filter(|_| body.alive).map(|b| body.feet - b)
+            })
+            .collect();
+        self.feet = game
+            .bodies
+            .iter()
+            .map(|b| b.alive.then_some(b.feet))
+            .collect();
+        if game.kill_log.len() < self.kills_seen {
+            self.kills_seen = 0;
+        }
+        for &(_, shooter, victim) in &game.kill_log[self.kills_seen..] {
+            for (place, spell) in self.spells.iter_mut().enumerate() {
+                if let Some(spell) = spell.as_mut()
+                    && spell.target == Some(victim)
+                {
+                    spell.target_killed = Some(shooter == place);
+                }
+            }
+        }
+        self.kills_seen = game.kill_log.len();
+        // The blockers now: teammates some bot holds fire for.
+        let mut blocking = vec![false; n];
+        for spell in self.spells.iter().flatten() {
+            blocking[spell.who] = true;
+        }
+        for bot in bots.bots.iter().flatten() {
+            let place = bot.place;
+            let body = &game.bodies[place];
+            let k = usize::from(blocking[place]);
+            let (s, h) = game.shots_hits[place];
+            let (s0, h0) = std::mem::replace(&mut self.shots_hits[place], (s, h));
+            self.shots[k] += s - s0;
+            self.hits[k] += h - h0;
+            // From a new target to the first shot at it.
+            let target = bot.reflex.target().filter(|_| body.alive);
+            self.aiming[place] = match (target, self.aiming[place]) {
+                (Some(t), Some((was, since, blocked))) if t == was => {
+                    let blocked = blocked || k == 1;
+                    if s > s0 {
+                        self.to_fire[usize::from(blocked)].push(game.tick - since);
+                        None
+                    } else {
+                        Some((was, since, blocked))
+                    }
+                }
+                // A new target with no shot this tick (a target taken while
+                // firing is not timed).
+                (Some(t), None) if s == s0 => Some((t, game.tick, k == 1)),
+                (Some(t), Some(_)) if s == s0 => Some((t, game.tick, k == 1)),
+                _ => None,
+            };
+            // Headway to the goal.
+            let goal = match bot.intent.go {
+                Go::To { at, within_m } if body.alive && body.feet.distance_xz(at) > within_m => {
+                    Some(body.feet.distance_xz(at))
+                }
+                _ => None,
+            };
+            if let (Some(now), Some(before)) = (goal, self.goal_m[place]) {
+                self.goal_ticks[k] += 1;
+                self.headway_m[k] += (before - now).clamp(-1.0, 1.0);
+            }
+            self.goal_m[place] = goal;
+            if body.alive {
+                self.alive_ticks += 1;
+            }
+            self.spell_tick(game, bots, bot, &moved, events);
+        }
+        // Carries: from the take to the put-in.
+        for (place, body) in game.bodies.iter().enumerate() {
+            match (body.carrying.is_some(), self.carry_from[place]) {
+                (true, None) => self.carry_from[place] = Some(game.tick),
+                (false, Some(from)) => {
+                    if game.put_in.contains(&place) {
+                        self.carries.push(game.tick - from);
+                    }
+                    self.carry_from[place] = None;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn spell_tick(
+        &mut self,
+        game: &Game,
+        bots: &Bots,
+        bot: &Bot,
+        moved: &[Option<Vec3>],
+        events: &mut BenchEvents,
+    ) {
+        let place = bot.place;
+        let body = &game.bodies[place];
+        let Some(held) = bot.reflex.held_for().filter(|_| body.alive) else {
+            if let Some(spell) = self.spells[place].take() {
+                let end = if !body.alive {
+                    "died"
+                } else {
+                    match spell.target_killed {
+                        Some(true) => "target killed by it",
+                        Some(false) => "target killed by another",
+                        None if bot.reflex.target() != spell.target => "target lost",
+                        None => "cleared",
+                    }
+                };
+                self.end(place, spell, end, events);
+            }
+            return;
+        };
+        let spell = self.spells[place].get_or_insert_with(|| Spell {
+            t0: game.tick,
+            who: held.who,
+            target: bot.reflex.target(),
+            ticks: 0,
+            run: 0,
+            ready: 0,
+            same: 0,
+            against: 0,
+            stepping: 0,
+            his: 0,
+            along: bot.reflex.target().map_or(0, |t| {
+                let to = game.bodies[t].feet.distance_xz(body.feet).max(0.1);
+                (100.0 * game.bodies[held.who].feet.distance_xz(body.feet) / to) as u32
+            }),
+            plays: {
+                let play = |p: Place| {
+                    bots.bots[p]
+                        .as_ref()
+                        .and_then(|b| b.assignment.as_ref())
+                        .map_or("none".to_owned(), |a| format!("{:?}", a.kind))
+                };
+                let aiming = bots.bots[held.who]
+                    .as_ref()
+                    .is_some_and(|b| b.reflex.target().is_some());
+                (play(place), play(held.who), aiming)
+            },
+            target_killed: None,
+        });
+        spell.who = held.who;
+        spell.ticks += 1;
+        spell.run += u32::from(held.running);
+        spell.ready += u32::from(held.ready);
+        spell.stepping += u32::from(body.keys & (key::LEFT | key::RIGHT) != 0);
+        let across = game.bodies[held.who].feet - body.feet;
+        let side = Vec3::new(-across.z, 0.0, across.x);
+        let len = side.length();
+        if let (Some(a), Some(b)) = (moved[place], moved[held.who])
+            && len > 0.01
+        {
+            let dt = TICK_MS as f32 / 1000.0;
+            let (va, vb) = (a.dot(side) / len / dt, b.dot(side) / len / dt);
+            spell.his += u32::from(vb.abs() > Self::SIDE_MPS);
+            if va.abs() > Self::SIDE_MPS && vb.abs() > Self::SIDE_MPS {
+                if va.signum() == vb.signum() {
+                    spell.same += 1;
+                } else {
+                    spell.against += 1;
+                }
+            }
+        }
+    }
+
+    fn end(&mut self, place: Place, spell: Spell, end: &'static str, events: &mut BenchEvents) {
+        let ms = |ticks: u32| ticks * TICK_MS;
+        events.line(serde_json::json!({
+            "t": spell.t0,
+            "spell": [place, spell.who, ms(spell.ticks), ms(spell.run), ms(spell.ready),
+                ms(spell.same), ms(spell.against), end, ms(spell.stepping), ms(spell.his), spell.along,
+                spell.plays.0, spell.plays.1, spell.plays.2],
+        }));
+        self.done.push((
+            ms(spell.ticks),
+            ms(spell.run),
+            ms(spell.ready),
+            ms(spell.same),
+            end,
+        ));
+    }
+
+    /// The spells under way at the end, and one line on all of them.
+    fn finish(&mut self, events: &mut BenchEvents) -> String {
+        for place in 0..self.spells.len() {
+            if let Some(spell) = self.spells[place].take() {
+                self.end(place, spell, "the run's end", events);
+            }
+        }
+        events.line(serde_json::json!({
+            "mission": {
+                "shots": self.shots, "hits": self.hits,
+                "to_fire_ms": [&self.to_fire[0], &self.to_fire[1]],
+                "goal_ticks": self.goal_ticks, "headway_m": self.headway_m,
+                "carries_ms": &self.carries,
+            }
+        }));
+        let mut ms: Vec<u32> = self.done.iter().map(|d| d.0).collect();
+        ms.sort_unstable();
+        let at = |q: f32| {
+            ms.get(((ms.len() as f32 * q) as usize).min(ms.len().saturating_sub(1)))
+                .copied()
+                .unwrap_or(0)
+        };
+        let total: u64 = ms.iter().map(|&m| u64::from(m)).sum();
+        let share = |f: fn(&SpellDone) -> u32| {
+            let part: u64 = self.done.iter().map(|d| u64::from(f(d))).sum();
+            100.0 * part as f32 / total.max(1) as f32
+        };
+        let mut ends: std::collections::BTreeMap<&str, u32> = Default::default();
+        for d in &self.done {
+            *ends.entry(d.4).or_default() += 1;
+        }
+        let bot_min = self.alive_ticks as f32 * TICK_MS as f32 / 60_000.0;
+        format!(
+            "blocked: {} spells, {:.1} s in all ({:.2} s a bot-minute alive), over 1 s {}; median {} ms, 90th {} ms, longest {} ms; running {:.0} %, ready to fire {:.0} %, moving the same way as the blocker {:.0} %; ends {ends:?}; blockers hit {} of {} shots",
+            ms.len(),
+            total as f32 / 1000.0,
+            total as f32 / 1000.0 / bot_min.max(1e-3),
+            ms.iter().filter(|&&m| m > 1000).count(),
+            at(0.5),
+            at(0.9),
+            ms.last().copied().unwrap_or(0),
+            share(|d| d.1),
+            share(|d| d.2),
+            share(|d| d.3),
+            self.hits[1],
+            self.shots[1],
+        )
+    }
+}
+
 /// Where the time of the bots' polls goes, seconds.
 #[derive(Default)]
 struct Times {
@@ -2956,12 +3280,14 @@ fn real_bot_cost() {
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
             let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
+            let mut blocks = BlockTally::default();
             while clock < limit_ms {
                 clock += 5;
                 while game.tick + TICK_MS <= clock {
                     let stats_before = game.stats.clone();
                     game.step();
                     carry.deaths(&stats_before, &game, &bots);
+                    blocks.tick(&game, &bots, &mut events);
                     let play_of = |place: Place| {
                         bots.bots[place]
                             .as_ref()
@@ -3321,6 +3647,7 @@ fn real_bot_cost() {
                 rows.join("; ")
             );
             eprintln!("  raids: {}", raid_line(&raids.finish()));
+            eprintln!("  {}", blocks.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
             eprintln!(
                 "  carriers: killed carrying {:?} (by team carrying), by the shooter's play {:?}; delivered {:?}; picked up {} lying + {} stolen; plays taken {takes_all} = {:.2} a bot-minute",
@@ -3365,7 +3692,7 @@ fn real_bot_cost() {
                  {limit_s} s of play: bots {:.1} ms a second = {:.2} % of a core; per bot {:.3} %\n  \
                  poll µs p50 {:.0}, p99 {:.0}, p99.9 {:.0}, max {:.0}; {} polls\n  \
                  parts: view {:.0} %, commander {:.0} %, think {:.0} %, ticks {:.0} %; worst µs view {:.0}, commander {:.0}, think {:.0}, ticks {:.0}\n  \
-                 rays {:.1} per bot a second; kills {kills}, shots {}, hits {}",
+                 rays {:.1} per bot a second; kills {kills}, shots {}, hits {}, team hits {}, team kills {}",
                 total * 1e3 / limit_s as f64,
                 total * 100.0 / limit_s as f64,
                 total * 100.0 / limit_s as f64 / teams.len() as f64,
@@ -3385,6 +3712,8 @@ fn real_bot_cost() {
                 rays as f64 / teams.len() as f64 / limit_s as f64,
                 game.shots,
                 game.hits,
+                game.team_hits,
+                game.team_kills,
             );
         }
     }

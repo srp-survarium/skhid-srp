@@ -127,6 +127,18 @@ pub struct Blocked {
     pub away: u32,
 }
 
+/// A bot holding fire for a teammate in its line, as its fire step saw
+/// it this tick ([`super::reflex::Reflex::held_for`]): the real-map
+/// bench's blocked spells (`player_bots_behaviour.md` §2.6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Held {
+    pub who: Place,
+    /// It would have fired but for him (aimed, in range, a round in).
+    pub ready: bool,
+    /// Its legs run.
+    pub running: bool,
+}
+
 /// The dictionary's category of shotguns ([`Gun::category`]).
 const SHOTGUN_CATEGORY: u8 = 14;
 

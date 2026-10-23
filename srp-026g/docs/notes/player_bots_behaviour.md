@@ -240,6 +240,51 @@ Audit issues 4 (a close enemy ignored, a far target kept) and 8 (bots hit 5.5-9.
 
 **Not verified:** no real match has been played with this. Whether the game drops the aim during a reload while AIM stays held is not traced (the aim-in counts from the bot's own press). The bench does not model recoil.
 
+### 2.6 Held up by a teammate in the line (measured 2026-10-23; no change kept)
+
+The owner asked how long bots stay blocked by a teammate in their line of fire ([`friends.rs`](../../servers/match-server/src/v026g/bots/friends.rs), the fire step in `reflex.rs`) and for coordination: the shooter steps against the blocker's motion, the blocker crouches or steps clear, without costing the blocker its own work (a firing blocker keeps firing, a moving one keeps going and at most bends its path, a carrier or an alarm play makes no adjustment).
+
+**The measure.** The fire step records whom it held fire for each tick (`Reflex::held_for`, `friends::Held`: the teammate, whether it was ready to fire but for him, whether it ran). The real-map bench's `BlockTally` (`bots/tests.rs`) turns that into spells, from the first tick held to the last. Each spell goes to the events as a `"spell"` line: the length; the time running, ready, and drifting across the line the same way as the blocker or the opposite way (both over 0.5 m/s); the time the shooter held a side key; the blocker's place along the way to the target; both plays; and how the spell ended. The run's end adds a `"mission"` line: the blockers' own shots and hits while they block, the time from a new target to the first shot at it, the headway to their goal, and the carriers' times from the take to the put-in. `bench.log` gains `hits, team hits, team kills` on the perf line and a `blocked:` summary.
+
+**Baseline** (`real_bot_cost`, 180 s, `SRP_BENCH_SIDES=4,10`, `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`, `SRP_BENCH_SPREAD=1`, seeds 1-16; batteries on maps `6/2,1/2,3/3,2/2,4/2,5/2`, team deathmatch on `6/4,8/4,1/4,2/4,5/4,7/4`; means a seed):
+
+| Measure | Batteries | Team DM |
+|---|---|---|
+| spells a bot-minute alive | 4.1 | 9.0 |
+| blocked, s a bot-minute | 1.51 | 2.77 |
+| spells over 1 s a bot-minute | 0.27 | 0.34 |
+| median / 90th / 99th percentile / longest, ms | 300 / 850 / 1,850 / 4,050 | 250 / 700 / 1,500 / 5,300 |
+| running, % of blocked time | 7.5 % | 9.5 % |
+| ready to fire but for him, % of blocked time | 42.5 % | 39.5 % |
+| shooter and blocker drifting the same way, % of blocked time | 11.0 % | 16.8 % |
+| ... the opposite way | 8.1 % | 12.7 % |
+| shooter holding a side key, % of blocked time | 80.6 % | 68.6 % |
+| ended: line cleared / target lost / target killed by another / shooter died | 62.4 / 35.6 / 1.3 / 0.4 % | 63.8 / 33.8 / 2.0 / 0.4 % |
+| ready, then the target lost or the shooter died (kills it might have had), a bot-minute | 0.62 | 1.26 |
+| blockers' hit rate: blocking someone / not | 19.7 / 20.6 % | 24.0 / 23.7 % |
+| new target to first shot: blocking / not, ms | 509 / 358 | 465 / 332 |
+| headway to goal: blocking / not, m/s | 0.37 / 1.10 | 0.69 / 1.32 |
+
+Without the bench's spread the figures are within a few percent of these (1.63 and 2.75 s a bot-minute).
+
+**Who blocks** (seeds 1-4). Spells with the blocker in the first fifth of the way to the target, beside the shooter, carry 73 % (batteries) and 62 % (team DM) of the blocked time and nearly all spells over 1 s. Those blockers move in only 19-33 % of their ticks. Most are firing at their own target from where they stand: in batteries, still Collect bots aiming at a target are 40 % of the blocked time; in team DM, Crossfire, Roam and HoldExit bots aiming from where they stand. The long block is two teammates side by side, both fighting. By the owner's rules the blocker then keeps firing and the shooter does the moving, and the shooter already holds a side key 70-80 % of the blocked time.
+
+**Tried and left off** (16 seeds, paired by seed; the change minus the base, ± the standard error of the difference a seed; * over 2 standard errors; the target is blocked seconds a bot-minute and seconds in spells over 1 s; without the bench's spread unless said):
+
+| Part | Batteries | Team DM | Why left off |
+|---|---|---|---|
+| (a) The shooter steps against the blocker's sideways velocity (over 0.5 m/s), else the side rule; the step's wall and floor check kept | −0.055 ± 0.083 | −0.083 ± 0.072 | Same-way drift fell (−3.0* and −4.2* points of blocked time) but blocked time did not, and the blockers' hit rate fell in batteries (−2.5 ± 0.7*). |
+| (b) The blocker, holding a teammate up over 300 ms: a side step it makes anyway goes away from his line | −0.011 ± 0.031 | −0.029 ± 0.082 | No gain. |
+| ... a walk straight on bends away from the line (never a sprint) | −0.056 ± 0.038 | +0.031 ± 0.056 | No gain. |
+| ... standing with no target: a step away from the line | −0.005 ± 0.031 | +0.056 ± 0.066 | No gain. |
+| ... standing with no target: crouches | −0.066 ± 0.024* (over 1 s −0.027 ± 0.009*) | +0.046 ± 0.070 | The only part over the bar, in batteries alone and without the spread (team DM kills then +4.7 ± 2.3*, both teams, deaths with them). With the spread: −0.034 ± 0.035 and −0.087 ± 0.097, team kills +0.9 ± 0.6 in batteries, and shooters died in a spell more often (+0.05 ± 0.02* points). After 150 ms instead of 300: +0.024 ± 0.032 and −0.064 ± 0.085, team kills +1.4 ± 0.5* in batteries. |
+| ... standing to fire at its own target: crouches where its target's chest shows from the crouched eye | +0.022 ± 0.024 | +0.046 ± 0.056 | No gain: beside the shooter, a crouched head is still within the line's 0.63 m floor (`near_m`, §2.5's soak), so it still blocks. |
+| (c) A running bot blocked long near its goal stops to clear the line | not built | not built | Running is 7.5-9.5 % of the blocked time. |
+
+The guards stayed within the noise for every part except as said. Guards checked: kills, deaths and K/D a team; team hits and team kills; deliveries; carriers killed; the time from the take to the put-in; plays ended within 1 s; flips; idle time; the blockers' hit rate and time to the first shot; and their headway. The blocker parts left alone the carrier and the plays the commander ranks an alarm: Hunt, Intercept, and Escort behind the carrier. The first three (b) rows also left every Collect bot alone; the two crouches did not. The parts were taken out again; only the measure is kept.
+
+**Not verified:** no real match was played with any of these. The bench's blocker is the bots' own body model: whether a crouched 0.26g body clears a line 0.63 m over it is the 0.100b model's heights (a GUESS, `friends.rs`).
+
 ## 3. Plays
 
 Each play has a score from the situation, a precondition and steps. A commander per team hands them out every ~0.5 s: never two bots on one ambush, and no bot parked at its own container. In the saved worlds lives that stay in their own third are the worst in every mode (K/D 0.3–0.6, ~0.03 batteries a life), so a steal is answered by the 1–2 nearest bots (the thief cheat and the alarms in §4); the only guard is play 18.

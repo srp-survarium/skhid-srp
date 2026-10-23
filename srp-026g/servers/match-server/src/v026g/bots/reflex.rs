@@ -997,6 +997,8 @@ pub struct Reflex {
     /// time).
     last_tick: Option<u32>,
     tick_ms: u32,
+    /// [friends] The teammate it held fire for at its last tick.
+    held_for: Option<super::friends::Held>,
     /// An enemy last seen (a seen track) at.
     last_seen: u32,
     /// Empty with a target seen and no cover found: reload where it is.
@@ -1237,6 +1239,11 @@ impl Reflex {
 
     pub fn target(&self) -> Option<Place> {
         self.target
+    }
+
+    /// [friends] The teammate it held fire for at its last tick, if any.
+    pub fn held_for(&self) -> Option<super::friends::Held> {
+        self.held_for
     }
 
     /// Grenades thrown this life.
@@ -2332,6 +2339,7 @@ impl Reflex {
             .last_tick
             .map_or(50, |last| now.saturating_sub(last).clamp(1, 100));
         self.last_tick = Some(now);
+        self.held_for = None;
         // The aim-in counts from the first tick of an unbroken press of the
         // aim (the input reaches the game within `aim_in_margin_ms`).
         let aim_since = self.aim_since.take();
@@ -2551,6 +2559,15 @@ impl Reflex {
         // [friends] A teammate in the line of fire: no shot, a step aside.
         let friend =
             self.friend_in_line(me, view, (point, error, lift), distance, gun, &aim.friends);
+        self.held_for = friend.map(|f| super::friends::Held {
+            who: f.who,
+            ready: fire_allowed
+                && within
+                && self.hands().held().rounds > 0
+                && distance <= range_m
+                && (aimed_in || hip_fits),
+            running,
+        });
         let mut wants = false;
         if fire_allowed
             && within
