@@ -439,6 +439,12 @@ fn pull_straight(
             .map_or(LinkKind::Walk, |(_, kind)| kind);
     }
     let low = |from: usize, to: usize| nodes[from..=to].iter().any(|&n| !grid.can_stand(n));
+    // A line pulled straight crosses no lip the search kept off
+    // ([`WalkGrid::is_lip`]): cutting a corner over a ledge's edge is how a
+    // bot strays off it (player_bots_stuck.md §8.5).
+    let mut lips: Vec<NodeId> = nodes.iter().copied().filter(|&n| grid.is_lip(n)).collect();
+    lips.sort_unstable();
+    let kept_back = |n: NodeId| allowed(n) && (!grid.is_lip(n) || lips.binary_search(&n).is_ok());
     let mut points = vec![Waypoint {
         at: grid.position(nodes[0]),
         node: nodes[0],
@@ -484,7 +490,7 @@ fn pull_straight(
         let mut j = i + 1;
         while j + 1 < nodes.len() && into[j + 1] == LinkKind::Walk && {
             checked();
-            straight_where(grid, nodes[i], nodes[j + 1], &allowed)
+            straight_where(grid, nodes[i], nodes[j + 1], kept_back)
         } {
             j += 1;
         }
@@ -900,11 +906,17 @@ mod tests {
         assert!(off.is_infinite(), "{off}");
         for y in [1.6, 3.0, 4.4] {
             let (s, off) = on_walkway.clone().progress(Vec3::new(8.0, y, 0.7));
-            assert!((s - 12.0).abs() < 1e-3 && (off - 0.7).abs() < 1e-3, "{y}: {s} {off}");
+            assert!(
+                (s - 12.0).abs() < 1e-3 && (off - 0.7).abs() < 1e-3,
+                "{y}: {s} {off}"
+            );
         }
         // On the ramp's foot the ramp is the leg it is on.
         let (s, off) = route.clone().progress(Vec3::new(18.0, 0.2, 0.5));
-        assert!((s - 2.0).abs() < 1e-3 && (off - 0.5).abs() < 1e-3, "{s} {off}");
+        assert!(
+            (s - 2.0).abs() < 1e-3 && (off - 0.5).abs() < 1e-3,
+            "{s} {off}"
+        );
     }
 
     /// A pulled leg keeps the heights of the floors it passes over, not
@@ -936,7 +948,11 @@ mod tests {
         let mut route = plan(&grid, from, to).unwrap();
         let top = grid.locate(Vec3::new(15.0, 1.8, 5.0), 1.0).unwrap();
         let (s, off) = route.progress(grid.position(top));
-        assert!(off < 1.0 && (8.0..12.0).contains(&s), "{s} {off}: {:?}", route.points());
+        assert!(
+            off < 1.0 && (8.0..12.0).contains(&s),
+            "{s} {off}: {:?}",
+            route.points()
+        );
     }
 
     /// A goal under a floor or in the air over one (as a play computes it
@@ -967,7 +983,10 @@ mod tests {
         let p = grid.position(goal_floor(&grid, Vec3::new(12.0, 1.0, 5.0)).unwrap());
         assert!(p.x > 9.0 && p.distance_xz(Vec3::new(12.0, 1.0, 5.0)) <= GOAL_REACH_M);
         // Too far over it.
-        assert_eq!(goal_floor(&grid, Vec3::new(5.0, 3.0 + GOAL_RISE_M + 1.0, 5.0)), None);
+        assert_eq!(
+            goal_floor(&grid, Vec3::new(5.0, 3.0 + GOAL_RISE_M + 1.0, 5.0)),
+            None
+        );
     }
 
     /// The search budget a real way needs, only with `SRP_MAPDATA_DIR`:

@@ -311,3 +311,188 @@ in the uploaded worlds, one every ≤ 10 s): the routes they favour by map
 and mode, and how they pass the spots of §3 (whether they jump the
 Cologne desk or go round it). The converter (`sur_convert`) already
 gathers those worlds.
+
+## 8. Under its own route, and goals on no floor (2026-10-23 audit, issues 1 and 5)
+
+From the decision audit of the owner's three PvB matches of 2026-10-23
+(issue 1: a carrier 273 s against a wall 8 m from its container in
+0x4da3b51d; issue 5: bots standing with a goal, 0x5d506a22 bot 14).
+
+### 8.1 A carrier under its own route (PROVEN)
+
+The carrier fell 2.9 m off the walkway its route went along, onto the
+floor below it, 0.7 m off the route on the ground plane. Three things
+held it there:
+
+1. **The route still said "on the way".** `Route::progress` measured the
+   distance to the route on the ground plane only, under `OFF_ROUTE_M`
+   (3 m), so the motor never answered `Walked::Off` and steered at the
+   walkway above: into the wall under it.
+   Now (`path.rs`): a route keeps the height of the floors it passes over
+   along each leg (`floors`, a sample where the height changes by
+   `FLOOR_SAMPLE_M` 0.1 m), and a leg whose floor at that point is more
+   than `OFF_ROUTE_HEIGHT_M` (1.5 m) from the feet is not one the body is
+   on. A body under its route is off it and plans again from its floor.
+   A height per leg (its two ends) was not enough: a pulled leg over a
+   ramp and a walkway has floors well off the line between its ends.
+2. **The stuck watch saw nothing.** It calls a body stuck when its keys,
+   reckoned on the walk grid, would have moved it 1.2 m. The grid had a
+   wall there too, so the reckoned body stood as still as the real one.
+   Now (`stuck.rs`): walk keys held in every world for `HELD_AFTER_MS`
+   (3 s) with the body within `HELD_MOVED_M` (0.5 m) is stuck too,
+   whatever the reckoning says. The note ends "(walk keys held, the body
+   still)".
+3. **"Took too long" changed nothing.** The audit said a retaken play
+   kept its route: it does not (`end_play` clears it). But the play was
+   taken again at once (it had been up only past `QUICK_FAIL_MS`), with
+   the search found for it. Now (`mod.rs`): a play that took too long is
+   set aside like one that failed quickly, and its found route, its
+   "no way" and its pending search are dropped.
+
+Test: `a_carrier_fallen_under_its_walkway_route_gets_home` (`tests.rs`,
+`walkway_world`: a walkway 3 m up with its container, a ramp down, a wall
+under it). A carrier with a route along the walkway, standing on the
+floor under it, delivers within 45 s (about 30 s). Before: it stood at
+x 14.5 against the wall to the end.
+
+### 8.2 Standing with a goal: goals on no floor (PROVEN for bot 14)
+
+The audit guessed that searches dropped while a partner moved kept the
+route from ever being found (LEAD). They were not the cause. In the bench
+the "searching" ticks are about none and no search is dropped. The bot
+stood because its goal was on no floor:
+
+- Buddy's goal is 9 m (`close_m`) short of the partner, toward the bot,
+  **at the partner's height**. With the partner up a ramp, or on a
+  walkway, that point is in the air or inside the ramp.
+- `WalkGrid::locate` looks within 3 m across and from 1 m above to 2.5 m
+  below a point: nothing. The search failed at once, the route was set to
+  none, and the bot stood (with no keys, so not stuck either).
+- 0x5d506a22, bot 14 (Buddy of 12), 116-131 s: its goal had no floor at
+  every second; it was 1.8-6 m under the floor its partner walked. The
+  nearest floor within 3 m across at any height had a way to it every
+  second.
+
+Now (`path.rs` `goal_floor`, used by the drive): a goal on no floor plans
+to the nearest floor within `GOAL_REACH_M` (3 m) across and
+`GOAL_RISE_M` (6 m) above or below. A bot already on its goal's floor
+plans nothing and has no "no way" counted against the play. Buddy itself
+(`plays/buddy.rs`) is unchanged.
+
+Tests: `a_goal_in_the_air_is_walked_to_the_floor_under_it` (a goal 4 m
+over the field: before, it never had a route) and
+`path::tests::a_goal_off_its_floor_plans_to_the_nearest_floor`.
+
+### 8.3 The old route while the next is searched
+
+The drive already walked the old route, or the part of the new one found
+so far, while a search went on over several polls. The audit's "drop the
+search and stand" was not what happened. What was missing was a trace:
+now a bot whose goal moved on before its search finished notes "dropped
+its route search to ... (n dropped since the last note)", at most once in
+`DROPPED_NOTE_MS` (5 s).
+
+Test: `a_bot_keeps_walking_its_route_while_its_next_search_goes_on`
+(a search of 150 floors a poll, a goal that moves; the bot walks on and
+is never without a route, and the dropped notes come 5 s or more apart).
+
+### 8.4 Off a ledge, in the reckoning (PROVEN)
+
+`body.rs` `slide` moves a reckoned body (the server's reckoning of a bot,
+for the stuck watch, and the tests' stand-in game) a quarter cell at a
+time, each step onto a floor walked to or dropped to from the one under
+it. Off a sheer ledge there is none: erosion takes the floor at the foot
+of the face (it is within a body's radius of the face), so the grid's
+drop from the ledge's last floor lands two cells on, and the step in
+between is over no floor. The body stood at the edge, or slid along it.
+
+- In the stand-in, bots spawned on some level_06 ledges never left them:
+  the play choice's standing spots (-23.3, 38.7, 143.4) and
+  (97.2, 27.5, 136.1) were this and a goal on no floor (8.2). It was not,
+  as first thought, the stand-in not jumping: no jump was near.
+- In the server, a bot walking off a ledge had a reckoned body that stood
+  still while its keys were held.
+
+Now: a step that no floor holds goes down the drop link ahead of it whose
+line passes within half a cell of where the step ends (`dropped_to`),
+and a step at a slant tries walk-or-drop whole before sliding along an
+axis, so a body walking into an edge at a slant goes over it, not along
+it. Test: `body::tests::a_body_walks_off_a_ledge_to_the_floor_below`
+(before: it stopped at the edge, 2 m up, and slid along it).
+
+A face exactly on a cell boundary gets no drop link at all (the face at
+x 10.0 in that test): grid follow-up, below.
+
+### 8.5 Routes along a lip
+
+Erosion keeps a body's radius back from walls and from a jump's face, but
+not from a drop (`LinkKind::Drop => false` in `erode`), so the floors of
+a walkway reach to its edge, and A* and the pulled straight line take the
+last cell before it whenever it is no longer. Cologne (level_08 day 4),
+the audit's walkway: its floors run z 25.1-27.1 at x -45.2, the route ran
+at z 26.9, on the lip; a way 1 m in costs the same. The client's capsule
+(radius 0.38) stays up until its centre is 0.24-0.29 m past the edge, so
+a bot on the lip falls if it strays 0.3 m, which a bot turning a corner
+or bumped by a teammate does.
+
+In the owner's matches, the bots' drops of 1.2 m or more between two
+worlds (positions.csv), by whether a walk-only way from the top to where
+they landed exists within 3 times the distance plus 6 m (else they went
+off a ledge), and how many of those off a ledge were back at the height
+they fell from within 30 s (they fell off the way they meant to go):
+
+| Match | a walk-only way (stairs, a ramp) | off a ledge | of them back up within 30 s |
+|---|---|---|---|
+| 0x130 (level_08 day 4) | 34 | 8 | 1 |
+| 0x4da (level_08 day 2) | 73 | 22 | 6 |
+| 0x5d5 (level_06 day 4) | 61 | 54 | 27 |
+
+Now (`mapdata` `grid.rs`): a lip is a floor with a drop of `LIP_DROP_M`
+(1 m) or more out of it (`WalkGrid::is_lip`), and walking onto one costs
+`LIP_PENALTY` (0.25 m) more in `link_cost`: the one cost A*, the
+distance maps and `next_step` all use, so they agree. A way along a
+ledge costs double there and takes the floors a cell back where there are
+any. And `path.rs` `pull_straight` pulls no line across a lip the search
+did not take (cutting a corner over an edge). The grid itself is
+unchanged (no `GRID_ALGO` bump): the cost is the grid's reading of it.
+
+LIPRESULT
+
+### 8.6 Measured
+
+The bench (`real_bot_cost`), 8 seeds, maps level_06/2, 01/2, 03/3,
+02/2, 04/2, 05/2, 06/4, 08/2, 4v4 and 10v10: 128 pairs, each one
+(map, size, seed) before and after; the mean of each, and the mean of the
+paired differences with its standard error. "Before" is f4c312ac.
+
+| | before | routes and stuck (8.1-8.3) | and the ledge (8.4) | ledge vs routes |
+|---|---|---|---|---|
+| pushing, s a match | 770 | 67 | 19 (-751 +- 56) | -48 +- 5 |
+| idle, s a match | 1042 | 379 | 284 (-758 +- 57) | |
+| idle while fighting, s | 48 | 25 | 11 | |
+| batteries delivered | 3.20 | 4.54 | 5.07 (+1.88 +- 0.21) | +0.53 +- 0.11 |
+| carry time, s | 24.5 | 27.9 | 25.3 (+0.0 +- 0.8) | -2.5 +- 0.7 |
+| stuck notes | 9.4 | 62.2 | 27.8 | -34 |
+| of them, keys held | 0 | 53.2 | 20 | |
+| reversals | 26.5 | 47.6 | 45.4 (+18.9 +- 1.4) | |
+| stood with a goal, % | 4.8 | 7.9 | 7.2 | |
+| grid searches | 923 | 1405 | 1392 | |
+| failed searches | 73 | 188 | 130 | |
+
+Bots that walked into walls before now notice and turn (the stuck notes
+and reversals go up as the pushing goes down: a reversal is a recovery's
+back-off or a re-plan after a fall). More searches: a bot off its route
+plans again instead of pushing.
+
+### 8.7 Left
+
+- **No drop link where a face lies on a cell boundary** (8.4): the grid
+  has no way down there at all (`mapdata`).
+- **Reversals and standing with a goal went up** with the fixes (more
+  re-plans, more "starved" and "ended" ticks): fewer seconds lost, but
+  more turns a human would not make.
+- **A partial route that runs out** before its search ends: the bot
+  stands until the search ends (a few polls).
+- **A goal under a ramp** plans to the nearest floor, which may be the
+  ramp's top or its foot: whichever is nearer, not whichever the play
+  meant.

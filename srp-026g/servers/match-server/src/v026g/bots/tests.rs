@@ -2996,7 +2996,7 @@ fn real_bot_cost() {
                     fight.sample(&game, game.tick);
                     let thieves = std::mem::take(&mut game.thieves);
                     raids.bodies(&game, &thieves, game.tick);
-                    routes.tick(&game, game.tick);
+                    routes.tick(&game, &bots, game.tick);
                     for place in thieves {
                         by_play.entry(play_of(place)).or_default()[4] += 1;
                         by_team[usize::from(teams[place])][5] += 1;
@@ -4232,6 +4232,10 @@ struct RouteTally {
     /// "is stuck" notes, and those of them by the walk keys alone.
     stuck: (u32, u32),
     no_route: [u64; 5],
+    /// Each body's feet at the last tick, and its falls of a metre or more
+    /// in a tick: off its route (no drop of it there), and taken by it.
+    feet: Vec<Option<Vec3>>,
+    falls: (u32, u32),
 }
 
 impl RouteTally {
@@ -4242,14 +4246,36 @@ impl RouteTally {
             idle_run: vec![(0, 0); bodies],
             last_move: vec![None; bodies],
             carry_from: vec![None; bodies],
+            feet: vec![None; bodies],
             no_route: super::path::no_routes(),
             ..Default::default()
         }
     }
 
-    /// A tick: the carries begun and ended.
-    fn tick(&mut self, game: &Game, time: u32) {
+    /// A tick: the carries begun and ended, and the falls.
+    fn tick(&mut self, game: &Game, bots: &Bots, time: u32) {
         for (place, body) in game.bodies.iter().enumerate() {
+            let before = std::mem::replace(&mut self.feet[place], body.alive.then_some(body.feet));
+            if let Some(from) = before
+                && body.alive
+                && from.y - body.feet.y >= 1.0
+            {
+                // Its route drops there: a corner over a metre under the
+                // one before, within a metre of where it landed.
+                let planned = bots.bots[place]
+                    .as_ref()
+                    .and_then(|bot| bot.route.as_ref())
+                    .is_some_and(|(route, _)| {
+                        route.points().windows(2).any(|w| {
+                            w[0].at.y - w[1].at.y >= 1.0 && w[1].at.distance_xz(body.feet) <= 1.0
+                        })
+                    });
+                if planned {
+                    self.falls.1 += 1;
+                } else {
+                    self.falls.0 += 1;
+                }
+            }
             match (self.carry_from[place], body.carrying) {
                 (None, Some(battery)) => self.carry_from[place] = Some((time, battery)),
                 (Some((from, battery)), None) => {
@@ -4345,7 +4371,7 @@ impl RouteTally {
         let no_route: Vec<u64> = (0..5).map(|k| now[k] - self.no_route[k]).collect();
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
-            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {}",
+            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {}",
             self.worlds,
             self.pushes.0,
             self.pushes.1,
@@ -4363,6 +4389,8 @@ impl RouteTally {
             no_route[2],
             no_route[3],
             no_route[4],
+            self.falls.0,
+            self.falls.1,
         )
     }
 }

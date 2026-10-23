@@ -187,9 +187,7 @@ impl Stuck {
             return false;
         }
         match self.held_from {
-            Some((at, from)) if (feet - from).length() < HELD_MOVED_M => {
-                time >= at + HELD_AFTER_MS
-            }
+            Some((at, from)) if (feet - from).length() < HELD_MOVED_M => time >= at + HELD_AFTER_MS,
             _ => {
                 self.held_from = Some((time, feet));
                 false
@@ -257,7 +255,9 @@ mod tests {
 
     /// [`Stuck::walking`] with no walk key shown held: the reckoned watch.
     fn walk(stuck: &mut Stuck, time: u32, feet: Vec3, meant: Option<f32>) -> Option<Recovery> {
-        stuck.walking(time, feet, meant, 0).map(|(recovery, _)| recovery)
+        stuck
+            .walking(time, feet, meant, 0)
+            .map(|(recovery, _)| recovery)
     }
 
     /// A body whose walk keys the worlds show held, and that stays put,
@@ -267,13 +267,19 @@ mod tests {
     #[test]
     fn walk_keys_held_and_no_move_is_stuck_without_the_reckoning() {
         let spot = Vec3::new(10.0, 0.0, 10.0);
-        let walking = |stuck: &mut Stuck, time, feet, keys| stuck.walking(time, feet, Some(0.0), keys);
+        let walking =
+            |stuck: &mut Stuck, time, feet, keys| stuck.walking(time, feet, Some(0.0), keys);
         let mut stuck = Stuck::default();
         assert_eq!(walking(&mut stuck, 0, spot, key::FORWARD), None);
         assert_eq!(walking(&mut stuck, 1_000, spot, key::FORWARD), None);
         assert_eq!(walking(&mut stuck, 2_000, spot, key::FORWARD), None);
         assert_eq!(
-            walking(&mut stuck, 3_000, spot + Vec3::new(0.3, 0.0, 0.0), key::FORWARD | key::SPRINT),
+            walking(
+                &mut stuck,
+                3_000,
+                spot + Vec3::new(0.3, 0.0, 0.0),
+                key::FORWARD | key::SPRINT
+            ),
             Some((Recovery::BackOff, true))
         );
         // A world with no walk key starts it again.
@@ -286,7 +292,12 @@ mod tests {
         // A side step out and back between the worlds' ends is a move.
         let mut stuck = Stuck::default();
         walking(&mut stuck, 0, spot, key::LEFT);
-        walking(&mut stuck, 1_500, spot + Vec3::new(1.0, 0.0, 0.0), key::RIGHT);
+        walking(
+            &mut stuck,
+            1_500,
+            spot + Vec3::new(1.0, 0.0, 0.0),
+            key::RIGHT,
+        );
         assert_eq!(walking(&mut stuck, 3_000, spot, key::LEFT), None);
         // So is a fall.
         let mut stuck = Stuck::default();
@@ -299,13 +310,19 @@ mod tests {
         let mut stuck = Stuck::default();
         let spot = Vec3::new(10.0, 0.0, 10.0);
         // Walking along: not stuck.
-        assert_eq!(walk(&mut stuck, 1_000, Vec3::new(0.0, 0.0, 0.0), None), None);
+        assert_eq!(
+            walk(&mut stuck, 1_000, Vec3::new(0.0, 0.0, 0.0), None),
+            None
+        );
         assert_eq!(
             walk(&mut stuck, 2_000, Vec3::new(3.0, 0.0, 0.0), None),
             None,
             "too soon to tell"
         );
-        assert_eq!(walk(&mut stuck, 2_600, Vec3::new(5.0, 0.0, 0.0), None), None);
+        assert_eq!(
+            walk(&mut stuck, 2_600, Vec3::new(5.0, 0.0, 0.0), None),
+            None
+        );
         // Caught: two worlds 1.5 s apart, 0.2 m between them.
         stuck.reset();
         assert_eq!(walk(&mut stuck, 10_000, spot, None), None);
@@ -315,7 +332,10 @@ mod tests {
         );
         // Again there: more each time.
         assert_eq!(walk(&mut stuck, 14_000, spot, None), None);
-        assert_eq!(walk(&mut stuck, 15_500, spot, None), Some(Recovery::Sidestep));
+        assert_eq!(
+            walk(&mut stuck, 15_500, spot, None),
+            Some(Recovery::Sidestep)
+        );
         assert_eq!(walk(&mut stuck, 17_000, spot, None), None);
         assert_eq!(walk(&mut stuck, 18_500, spot, None), Some(Recovery::GiveUp));
         // Elsewhere, or long after: a first time again.
@@ -363,7 +383,11 @@ mod tests {
         let spot = Vec3::new(10.0, 0.0, 10.0);
         assert_eq!(walk(&mut stuck, 0, spot, None), None);
         assert_eq!(walk(&mut stuck, 800, spot, Some(0.2)), None);
-        assert_eq!(walk(&mut stuck, 1_600, spot, Some(0.3)), None, "meant 0.5 m");
+        assert_eq!(
+            walk(&mut stuck, 1_600, spot, Some(0.3)),
+            None,
+            "meant 0.5 m"
+        );
         assert_eq!(walk(&mut stuck, 2_400, spot, Some(1.5)), None, "too soon");
         assert_eq!(
             walk(&mut stuck, 3_200, spot, Some(1.5)),
