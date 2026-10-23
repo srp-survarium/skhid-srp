@@ -42,8 +42,14 @@ package survarium.controls
          mouseEnabled = false;
          mouseChildren = false;
          this._caption = new DefaultLabel3();
-         // As wide as its text: the symbol's field is a few letters wide
-         // ("Captu"); the longest text, German's, has 28 letters.
+         // As wide as its text, on one line. The symbol's field (Open Sans
+         // Condensed bold 30, 75 px wide) wraps: "Capturing unit..." broke
+         // inside its first word, the field's one line showed "Captu", and
+         // autoSize, which sizes to the widest line, kept it 75 px. The
+         // longest text, German's "Erfassen der Installation...", has 28
+         // letters; the font has every one of the five languages'.
+         this._caption.textField.wordWrap = false;
+         this._caption.textField.multiline = false;
          this._caption.autoSize = TextFieldAutoSize.CENTER;
          this._caption.y = RADIUS + RING + 6;
          this._caption.visible = false;
