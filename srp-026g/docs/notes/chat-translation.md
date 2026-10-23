@@ -115,7 +115,76 @@ gate answers one question per line, **may it go?** Code: `translate/swear.rs` (t
 - **The game's own list is not used.** It matches inside words, so its false hits are what the
   owner sees ("it often breaks discussions"; "сабля"): below.
 
-GATE_TABLE
+### The gate's classifier: measured (2026-10-23)
+
+A test set of 996 lines written for it (synthetic; kept off the repository: it holds slurs and
+worse), about 200 a language: 75 clean, 15 words with a bad part inside ("сабля", "sukces"), 30
+swearing, 22 trash talk, 8 banter (all yes); 50 no (13 threats, 12 slurs, 8 sexual, 7 sexual
+with minors, 10 almost all obscenity). One threshold per language, chosen for recall on "no"
+weighted twice. 1 CPU core (Ryzen 5900X, one thread), int8 ONNX, one line at a time.
+
+| Classifier | Size (int8) | RAM | ms a line | Separates yes from no (AUC) | Recall on no | False no on swearing / trash talk / bad part inside | Licence |
+|---|---|---|---|---|---|---|---|
+| srp's word list alone | 0 | 0 | 0.2 | - | 0.27 (minors 11 of 35) | 0 / 0 / 0 | ours, LDNOOBW CC-BY 4.0 |
+| rubert-tiny-toxicity (ru) | 12 MB | 85 MB | 0.4 | 0.63 | blocks nearly all | 0.88 / 0.75 / 0.79 | MIT |
+| textdetox bert-multilingual | 179 MB | 322 MB | 8.5 | 0.51 | blocks nearly all | 0.95 / 0.93 / 0.93 | OpenRAIL++ |
+| Detoxify multilingual (XLM-R) | 279 MB | 629 MB | 10.4 | 0.77 | 0.90-1.0 | 0.88 / 0.57 / 0.59 | Apache-2.0 |
+| ModernBERT multilingual-toxicity-small | 268 MB | 712 MB | 11.6 | 0.74 | 0.72-1.0 | 0.75 / 0.60 / 0.53 | Apache-2.0 |
+| others (distilbert multilingual, German, English, bert-tiny) | 5-136 MB | 80-280 MB | 0.2-5 | 0.56-0.61 | block nearly all | 0.9-1.0 | various |
+| reference: mDeBERTa NLI, zero-shot | 1.1 GB (fp32; int8 breaks it) | 1.9 GB | 313 | 0.77 | 0.82-0.94 | 0.71 / 0.63 / 0.52 | MIT |
+| reference: Qwen2.5-0.5B, prompted | 491 MB | 614 MB | 235 | 0.71 | 0.88-1.0 | 0.88 / 0.54 / 0.85 | Apache-2.0 |
+| **fine-tuned on our labels: rubert-tiny-toxicity** | 12 MB | 85 MB | 0.4 | 0.82 | 0.82-0.90 | 0.43 / 0.31 / 0.39 | MIT |
+| **fine-tuned on our labels: multilingual-e5-small** | **118 MB** | **220-250 MB** | **3.5** | **0.93** | **0.86-0.96** | **0.18 / 0.20 / 0.25** | MIT |
+
+- **General toxicity models flag swearing and trash talk**, which the owner wants sent: no
+  threshold separates them (AUC 0.5-0.77); tuned for recall on "no", they say no to 60-99 % of
+  the swearing and trash talk. Choosing their categories (threat, identity, sexual heads only)
+  helps Detoxify and the ModernBERT one most, and not enough.
+- **Fine-tuned on the owner's labels it works:** e5-small, scored on lines it never saw (and not
+  on their translations): precision on "no" 0.58-0.77 and recall 0.86-0.96 per language, and
+  0.89 of the threats, 0.97 of the minors lines. Ukrainian (AUC 0.90) and Polish (0.94) about as
+  Russian (0.91); Polish has the most false no (trash talk, "sukces", "ciotka").
+- **All of it rests on 1 000 synthetic lines**: the real numbers come with real labels
+  (below).
+- OpenAI's moderation endpoint was considered (free, but the text goes to OpenAI); the owner
+  prefers local models always, so it is not built. Not measured (no key here).
+### The gate: recommendation, and the real fit
+
+- **The gate: srp's word list, then multilingual-e5-small fine-tuned on our yes/no labels,**
+  int8, one model for the five languages: 3.5 ms a line on one core, 118 MB, about 220-250 MB of
+  memory as a service. With rubert-tiny-toxicity fine-tuned instead (12 MB, 0.4 ms, 85 MB), about
+  twice the false no on swearing and trash talk.
+- **No off-the-shelf model is the gate:** they answer "is it toxic", the owner's question is "may
+  it go", and swearing and trash talk are yes.
+- **Not on real data yet**, so not switched on for players yet:
+  1. turn on the chat sample (`SRP_CHAT_SAMPLE_DIR`, players told first) for a few weeks;
+  2. label a few thousand of its lines in `labels.tsv` (below), by the owner's rules; a model
+     may pre-label, a person decides;
+  3. `python deploy/chat-moderation/train.py labels.tsv <out>` on the owner's PC (minutes on a
+     CPU; it prints a threshold per language for recall 0.95 on "no"), then
+     `python deploy/chat-moderation/export.py <out> <gate model folder>`;
+  4. the folder and a `models.json` beside srp (below); the thresholds in
+     `SRP_CHAT_MODERATION_THRESHOLDS`.
+  - Until then a model trained on the synthetic set exists (not in the repository) for an
+    in-game test, at a threshold of 0.05.
+- **labels.tsv**: one line each, tab-separated, no header: `lang`, `yes` or `no`, the text as
+  typed. `no` for threats against a real person, slurs and hate, sexual content, a line almost
+  entirely obscenity; `yes` for everything else, swearing, trash talk and banter included.
+  Never in the repository (the sample's privacy, and the "no" lines themselves).
+
+### Where the gate runs
+
+- **Its own small container beside srp** (`deploy/chat-moderation/`: `server.py`, `Dockerfile`,
+  `docker-compose.gate.yml`): 256 MB and half a CPU at most, reached by srp only on the compose
+  network. Not inside srp's 512 MB: srp and its bots' maps (35-150 MB each) need that, and a
+  Python runtime with the model is about 250 MB (about 160 MB in a native process). The host's
+  1 GB holds both; with more matches against bots, `SRP26_MEMORY` and the host grow first.
+- **Its answer:** `POST /score {"text", "lang"}` -> `{"score": P(no)}`; srp says no at or over
+  its language's threshold. No answer within 300 ms, an error, or the service down: no (fail
+  closed), and the readers get the original.
+- **Logs:** counts only (`/health`), never a text or an address.
+- Not deployed anywhere; the owner decides when.
+
 
 ## Protecting the API key
 
@@ -160,7 +229,11 @@ The owner's worry: the key's account restricted for what players type. So:
     do not work in the exe as they read [why is not traced; LIKELY the case of Cyrillic letters].
     Without them it also masks "сабля", "оглобля", "учеба", "гребля", "употреблять",
     "оскорблять", "мандарин", "Dickens" and "there".
-  - CLEAN_SET_RESULT
+  - on the gate's test set (446 clean lines and words with a bad part inside, five languages)
+    it masks something in **35 (8 %), 56 (13 %) without its clean entries**, among them "haha",
+    "chłopaki", "potrzebny", "potrzebuję", "weniger", "schreib", "österreich", "here",
+    "assessment", "represent", "корабля", "рубля", "психуй", "мандарины", "бляшанка",
+    "sukienkę", "dupleksie". srp's word list says no to none of them.
 - **Options for a fix** (spec only, not built):
   1. an exe patch that turns it off by default (the byte at 0xA70EC7, one byte): players keep the
      stock option to turn it back on; srp's gate decides what reaches the model;
@@ -229,6 +302,10 @@ srp's 512 MB beside the game for all directions; only opus-mt into English fits 
 Prices are the vendors' public ones as of 2026-10 (DeepL's changed in 2026: check at sign-up).
 
 ## Recommendation
+
+**The gate: srp's word list, then a local multilingual-e5-small fine-tuned on our labels**
+(above, "What never reaches the model"), in a small container beside srp. **The translation:
+Claude Haiku 5.5 (built)**, on a key of its own (below, "Protecting the API key").
 
 **Claude Haiku 5.5 (built).** About **$10-15 a month** at 5 000 lines a day (a few dollars at
 1 500), a line typically **under about 1 s** later for a reader of another language (capped at

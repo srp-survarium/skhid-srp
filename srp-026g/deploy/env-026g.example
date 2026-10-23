@@ -190,7 +190,7 @@ RUST_LOG=info
 # refuses, or does not answer for, is not sent. `none`: srp's word list alone
 # (a test, not for players).
 # SRP_CHAT_MODERATION_URL=http://127.0.0.1:8099/score
-# SRP_CHAT_MODERATION_THRESHOLDS=en=0.5,ru=0.5,uk=0.5,de=0.5,pl=0.5
+# SRP_CHAT_MODERATION_THRESHOLDS=en=0.05,ru=0.05,uk=0.05,de=0.05,pl=0.05
 # SRP_CHAT_MODERATION_TIMEOUT_MS=300
 
 # A nameless sample of the public channels' lines, to find slang for the

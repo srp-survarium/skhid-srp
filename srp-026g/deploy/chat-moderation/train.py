@@ -4,7 +4,7 @@ line go to translation (docs/notes/chat-translation.md, "The gate: the real
 fit"). For the owner's PC (CPU is enough for a few thousand lines; a GPU is
 used when there is one). Not run yet: there is no labelled data.
 
-    python train.py labels.tsv <out folder> [--base <model>] [--epochs 4]
+    python train.py labels.tsv <out folder> [--base <model>] [--epochs 8]
     python export.py <out folder> <gate model folder>
 
 labels.tsv, one line each, tab-separated, no header:
@@ -21,9 +21,10 @@ labels.tsv, one line each, tab-separated, no header:
 - text: the line as typed. Lines come from the chat sample
   (SRP_CHAT_SAMPLE_DIR: public channels, no names), labelled by hand.
 
-Base models: microsoft/Multilingual-MiniLM-L12-H384 (about 120 MB int8, the
-five languages) or cointegrated/rubert-tiny2 (about 30 MB, Russian and some
-Ukrainian). A fifth of the lines is held out: the script prints, per
+Base models: intfloat/multilingual-e5-small (the default: about 118 MB int8,
+the five languages; its word embeddings frozen, as benchmarked), or
+cointegrated/rubert-tiny-toxicity (about 12 MB, Russian first; twice the false
+"no" on swearing and trash talk). A fifth of the lines is held out: the script prints, per
 language, the threshold on the "no" probability that keeps recall on "no" at
 0.95 or more with the fewest false "no", for SRP_CHAT_MODERATION_THRESHOLDS.
 """
@@ -74,9 +75,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("labels")
     parser.add_argument("out")
-    parser.add_argument("--base", default="microsoft/Multilingual-MiniLM-L12-H384")
+    parser.add_argument("--base", default="intfloat/multilingual-e5-small")
     parser.add_argument("--tokenizer", default=None, help="when the base has none (MiniLM: xlm-roberta-base)")
-    parser.add_argument("--epochs", type=int, default=4)
+    parser.add_argument("--epochs", type=int, default=8)
+    parser.add_argument("--lr", type=float, default=5e-5)
+    parser.add_argument(
+        "--train-embeddings", action="store_true", help="also train the word embeddings"
+    )
     parser.add_argument("--seed", type=int, default=1)
     arguments = parser.parse_args()
     random.seed(arguments.seed)
@@ -94,7 +99,12 @@ def main():
     )
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-5)
+    if not arguments.train_embeddings:
+        for parameter in model.get_input_embeddings().parameters():
+            parameter.requires_grad = False
+    optimizer = torch.optim.AdamW(
+        [parameter for parameter in model.parameters() if parameter.requires_grad], lr=arguments.lr
+    )
     for epoch in range(arguments.epochs):
         model.train()
         random.shuffle(train)

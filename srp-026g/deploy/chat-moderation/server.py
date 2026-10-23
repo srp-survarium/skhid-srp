@@ -10,8 +10,9 @@ likely the line must not go.
 srp compares the score with its threshold for the language
 (SRP_CHAT_MODERATION_THRESHOLDS) and fails closed: no answer in time, no line.
 
-Models: int8 ONNX text classifiers, one folder each (model.onnx,
-tokenizer.json, config.json), made by export.py. models.json says which model
+Models: int8 ONNX text classifiers, one folder each (model.onnx, config.json,
+and tokenizer.json or, for an XLM-R vocabulary, sentencepiece.bpe.model), made
+by export.py or train.py. models.json says which model
 serves which language and which of its labels mean "must not go":
 
     {"models": {"tiny": {"dir": "rubert-tiny-toxicity", "labels": ["insult", ...]}},
@@ -19,7 +20,7 @@ serves which language and which of its labels mean "must not go":
      "default": "tiny"}
 
 Nothing is kept and nothing is logged but counts. Python 3.10+, onnxruntime,
-tokenizers, numpy (requirements.txt). Run it on a host of ours, bound to an
+numpy, sentencepiece or tokenizers (requirements.txt). Run it on a host of ours, bound to an
 address only srp reaches; never expose it.
 """
 
@@ -32,10 +33,33 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import numpy as np
 import onnxruntime as ort
-from tokenizers import Tokenizer
+
 
 MAX_TOKENS = 128
 MAX_BODY = 4096
+
+
+def tokenizer(folder):
+    """The text to ids of the model in `folder`. An XLM-R vocabulary (e5,
+    MiniLM) is read with sentencepiece when `sentencepiece.bpe.model` is there:
+    the same ids as tokenizer.json, in about 60 MB instead of about 280 MB."""
+    model = os.path.join(folder, "sentencepiece.bpe.model")
+    if os.path.isfile(model):
+        import sentencepiece
+
+        pieces = sentencepiece.SentencePieceProcessor(model_file=model)
+
+        def encode(text):
+            # XLM-R: <s>=0, <pad>=1, </s>=2, <unk>=3; a piece's id is one more.
+            body = [3 if piece == 0 else piece + 1 for piece in pieces.encode(text)]
+            return [0] + body[: MAX_TOKENS - 2] + [2]
+
+        return encode
+    from tokenizers import Tokenizer
+
+    fast = Tokenizer.from_file(os.path.join(folder, "tokenizer.json"))
+    fast.enable_truncation(MAX_TOKENS)
+    return lambda text: fast.encode(text).ids
 
 
 class Model:
@@ -46,8 +70,7 @@ class Model:
         self.session = ort.InferenceSession(
             os.path.join(folder, "model.onnx"), options, providers=["CPUExecutionProvider"]
         )
-        self.tokenizer = Tokenizer.from_file(os.path.join(folder, "tokenizer.json"))
-        self.tokenizer.enable_truncation(MAX_TOKENS)
+        self.tokenizer = tokenizer(folder)
         with open(os.path.join(folder, "config.json"), encoding="utf-8") as file:
             config = json.load(file)
         id2label = {int(index): name for index, name in config["id2label"].items()}
@@ -59,13 +82,13 @@ class Model:
         self.inputs = {feed.name for feed in self.session.get_inputs()}
 
     def score(self, text):
-        encoding = self.tokenizer.encode(text)
+        ids = self.tokenizer(text)
         feeds = {
-            "input_ids": np.array([encoding.ids], dtype=np.int64),
-            "attention_mask": np.array([encoding.attention_mask], dtype=np.int64),
+            "input_ids": np.array([ids], dtype=np.int64),
+            "attention_mask": np.ones((1, len(ids)), dtype=np.int64),
         }
         if "token_type_ids" in self.inputs:
-            feeds["token_type_ids"] = np.array([encoding.type_ids], dtype=np.int64)
+            feeds["token_type_ids"] = np.zeros((1, len(ids)), dtype=np.int64)
         logits = self.session.run(None, {k: v for k, v in feeds.items() if k in self.inputs})[0][0]
         if self.multi:
             probabilities = 1.0 / (1.0 + np.exp(-logits))

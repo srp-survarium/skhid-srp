@@ -45,10 +45,14 @@ def main():
     quantize_dynamic(plain, os.path.join(out, "model.onnx"), weight_type=QuantType.QInt8)
     os.remove(plain)
     tokenizer.backend_tokenizer.save(os.path.join(out, "tokenizer.json"))
+    # An XLM-R vocabulary: server.py reads it with sentencepiece (less memory).
+    vocab = getattr(tokenizer, "vocab_file", None)
+    if vocab and vocab.endswith("sentencepiece.bpe.model") and os.path.isfile(vocab):
+        shutil.copy(vocab, out)
     model.config.to_json_file(os.path.join(out, "config.json"))
     size = os.path.getsize(os.path.join(out, "model.onnx")) / 1e6
     print(f"{out}: model.onnx {size:.0f} MB; labels {model.config.id2label}")
-    for extra in ("LICENSE", "README.md"):
+    for extra in ("sentencepiece.bpe.model", "LICENSE", "README.md"):
         path = os.path.join(source, extra)
         if os.path.isfile(path):
             shutil.copy(path, out)
