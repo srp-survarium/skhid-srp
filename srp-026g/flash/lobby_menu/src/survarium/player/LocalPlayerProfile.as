@@ -54,6 +54,9 @@ package survarium.player
       
       public var checkbox_autobuy:Button;
       
+      // The auto-repair box: wear is gone, so it did nothing (the owner's
+      // of 2026-10-23). The original movie's graphics place it beside
+      // Autobuy; init hides it and moves Autobuy into its place.
       public var checkbox_autorepair:Button;
       
       public var ammoContainer:MovieClip;
@@ -62,14 +65,11 @@ package survarium.player
       
       private var _weightC:Number = 0;
       
-      // autobuy_changed's state: which of the auto buy (ammo) and auto repair boxes are ticked
+      // autobuy_changed's state: whether the autobuy (ammo) box is ticked
+      // (bit 1 was the auto-repair box, gone).
       private static const AUTOBUY_NONE:uint = 0;
       
       private static const AUTOBUY_AMMO:uint = 1;
-      
-      private static const AUTOBUY_REPAIR:uint = 2;
-      
-      private static const AUTOBUY_BOTH:uint = 3;
       
       private var _weightM:Number = 0;
       
@@ -575,7 +575,6 @@ package survarium.player
          this.btnShowAmmo.label = LocalizationData.getName("show_ammo");
          this.showPresetTitle();
          this.checkbox_autobuy.tipData = {name:LocalizationData.getName("auto_button_hint")};
-         this.checkbox_autorepair.tipData = {name:LocalizationData.getName("auto_repair_hint")};
       }
       
       override protected function init(e:Event) : void
@@ -587,14 +586,13 @@ package survarium.player
          LocalizationData.addButton(this.ammoContainer.btn_cancel,"cancel");
          LocalizationData.addButton(this.ammoContainer.btn_apply,"refill_ammo_btn");
          LocalizationData.addButton(this.checkbox_autobuy,"autobuy_button_label");
-         LocalizationData.addButton(this.checkbox_autorepair,"auto_repair_button_label");
          this.checkbox_autobuy.tooltipRendererName = "SrvProfileTipRendererStyled";
-         this.checkbox_autorepair.tooltipRendererName = "SrvProfileTipRendererStyled";
          this.ammoContainer.labelCostP.moneyType = MoneyType.PREMIUM;
-         this.checkbox_autorepair.visible = true;
-         this.checkbox_autorepair.enabled = true;
-         this.checkbox_autorepair.addEventListener(ButtonEvent.CLICK,this.onAutoRepair);
-         this.checkbox_autobuy.addEventListener(ButtonEvent.CLICK,this.onAutoRepair);
+         // The auto-repair box is gone (see its declaration): Autobuy takes
+         // its place at the row's start, no gap left.
+         this.checkbox_autorepair.visible = false;
+         this.checkbox_autobuy.x = this.checkbox_autorepair.x;
+         this.checkbox_autobuy.addEventListener(ButtonEvent.CLICK,this.onAutoBuy);
          trace("PlayerProfileInit2",this._ammo_share,this.ammoContainer,this.ammoContainer.labelCostR,this.ammoContainer.labelCostP,this.btnShowAmmo);
          this._ammo_share.autoBuyCheckBox = this.checkbox_autobuy;
          this.ammoContainer.addChildAt(this._ammo_share as DisplayObject,4);
@@ -611,32 +609,9 @@ package survarium.player
          this.makePresets();
       }
       
-      private function onAutoRepair(e:Event) : void
+      private function onAutoBuy(e:Event) : void
       {
-         trace("PP::updateAutoRepair",this.checkbox_autorepair.selected,this.getAutoBuyState());
-         ExternalInterface.call("autobuy_changed",this.getAutoBuyState());
-      }
-      
-      private function getAutoBuyState() : uint
-      {
-         if(this.checkbox_autorepair.selected == false && this.checkbox_autobuy.selected == false)
-         {
-            return AUTOBUY_NONE;
-         }
-         if(this.checkbox_autorepair.selected == true && this.checkbox_autobuy.selected == true)
-         {
-            return AUTOBUY_BOTH;
-         }
-         if(this.checkbox_autorepair.selected == true)
-         {
-            return AUTOBUY_REPAIR;
-         }
-         return AUTOBUY_AMMO;
-      }
-      
-      public function setAutoRepair(value:Boolean) : void
-      {
-         this.checkbox_autorepair.selected = value;
+         ExternalInterface.call("autobuy_changed",this.checkbox_autobuy.selected ? AUTOBUY_AMMO : AUTOBUY_NONE);
       }
       
       private function onAmmoButtonSwitch(e:Event) : void
@@ -807,7 +782,7 @@ package survarium.player
       }
       
       // A tip over a greyed button (a disabled one takes no hover): the
-      // game's tooltip (as Autorepair's), nested a Sprite deeper (a control
+      // game's tooltip (as Autobuy's), nested a Sprite deeper (a control
       // straight in a content Sprite may lose its mouse events to it). The
       // caller removes it with the holder.
       public static function reasonTip(parent:DisplayObjectContainer, x:Number, y:Number, w:Number, h:Number) : Sprite

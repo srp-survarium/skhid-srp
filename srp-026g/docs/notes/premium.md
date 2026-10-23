@@ -62,6 +62,8 @@ Record 0xD0 bytes, reader of the UI 0x227F60. PROVEN:
 
 `49 01 <u8>` carries `LocalPlayerProfile.getAutoBuyState()`: **0 neither, 1 autobuy, 2 auto-repair, 3 both** (PROVEN in the UI). The same number is the "autobuy flag" byte of `87` and the byte of `83 49 01`: the client hands it to `root.set_autobuy` as a number (0x227760) and `LobbyMenu.set_autobuy` ticks autobuy for 1 and 3, auto-repair for 2 and 3. A wire `FF` would untick both.
 
+- **The auto-repair box is gone from the Character panel** (the owner's, 2026-10-23: wear is gone, so it did nothing). Its code is out of the movie; the original movie's graphics still place it, so `LocalPlayerProfile.init` hides it and moves Autobuy into its place (the row's start, no gap). The movie now sends 0 or 1 only; an account whose auto-repair was on is still pushed 3, which ticks Autobuy as before, and its next Autobuy change clears the server's `auto_repair`. The server keeps the bit (with `SRP_ITEM_WEAR=on` it still repairs).
+
 What a match used: `session::v026g::autobuy` (the player's block of the last trusted snapshot when the match server read it, held to what the counters and the kit allow; else the bullets counter for a kit with one kind of ammo). Autobuy buys back in whole clips while the silver lasts; auto-repair repairs what the match wore by the lobby's silver repair. The three lists that end `89` carry what was spent.
 
 ## 4. The daily bonus (`99`, adds to results.md §4.1)
