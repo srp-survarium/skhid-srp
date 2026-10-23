@@ -50,7 +50,7 @@
 //!   three modifications and the player takes one
 //!   (`MessageRerollItem`: the window can not be closed before), or
 //!   [srp, the owner's rule of 2026-10-21] keeps the old one: the window's
-//!   "keep old" button (`docs/notes/reroll-keep-old.md`). [srp, the
+//!   Cancel button (`docs/notes/reroll-keep-old.md`). [srp, the
 //!   owner's rule of 2026-10-22] In silver or gold, at any time: the
 //!   game's six hours between silver changes are gone, so the item's
 //!   `reroll_time` stays 0 (one left from before is cleared,
