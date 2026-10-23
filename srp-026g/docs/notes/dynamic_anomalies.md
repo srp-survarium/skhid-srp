@@ -1,15 +1,5 @@
 # Dynamic anomalies (exe patch 42 and the content pack `dynamic-anomalies`)
 
-**Not shipped: taken out of revision 31 (owner, 2026-10-23) — the pre-built cores overflow the
-saved world; redesign pending.** With every timed core built in, the worst-case saved match
-world of Cologne and London is over the game's fixed 0x8000 buffer (section 6, "What a match
-must hold"). `main` keeps this note and the re-kit rows (the findings stay true); exe patch 42
-(`dynamic_anomalies_026g.asm`, check 42, `check_dynamic_anomalies_026g.py`), the pack builder
-(`scripts/dynamic-anomalies/`), the `dynamic-anomalies@3` row of `release/content.tsv`, the
-bots' timed-anomaly simulation and the Maps tab's one-marker-a-place merge are on the branch
-`feat/dynamic-anomalies`; the budget numbers and a guard in the pack build on
-`fix/anomalies-world-budget`. Below, "is", "ships" and file paths describe that branch.
-
 The owner (2026-10-20): "the anomalies in the release of london were dynamic, they appeared
 with artifacts and disappeared when artifacts were picked up, and they used to spawn in many
 lcoations"; "now there are just 7 static places". Start: "you should start worker on D". Not
@@ -285,43 +275,10 @@ anomalies per place:
 - A project now holds up to 65,902 config values (London day_3; Cologne up to 47,500). That
   is no limit: the live v011e_level_03 day_2 (patch 28) loads with 112,899. The format has no
   total limit (a table's count is u16 only).
-- **What a match must hold** (corrected 2026-10-23 from `fix/anomalies-world-budget`; #225's
-  review said Cologne's 87 timed cores need about 3.2 to 3.5 KB of about 5.4 KB free: wrong,
-  it left out each core's artefacts and its zones). Every client saves the match world each
-  tick into fixed buffers; one over its room asserts in `mutable_buffer::resize`
-  (0x7AB30/0x7AB70) and calls through a null allocator, so the game dies. PROVEN (the
-  serializers below, writers u8 0x1F3DE0, u16 0x2F5DA0, u32 0x1F48A0, f32 0x804E0):
-  - the rooms: the objects' state 0x2000 (`game_objects_serialized_state`, built at 0x3246D0
-    with no allocator; sent on the wire), the objects' second stream 0x2000 (the local
-    rollback history), the whole world 0x8000 (the hash 0x325150, the snapshot 0x27C059);
-  - a timed core (`generic_anomaly_core::serialize` 0x31AF20): 15 bytes idle (u8 pending, f32
-    energy, u8 state, the state's u32 end, u8 flags, u32 random), + 4 while an artefact is due,
-    + 5 for each zone a keep-all group of its state keeps on (0x31B2A0: damage 2, charging 1);
-  - in it, its container (0x31C530: 6, + 1 a player using it) and **every artefact of its
-    own in every state** (the loop 0x31B074; `artefact_base::serialize` 0x313670): 12 free,
-    up to 22 held and active (onyx 0x312A80);
-  - its damage and charge zones at the top level too (`damage_zone_core::serialize`
-    0x3193F0): 5 each; in the second stream 20 each (20 slots, 0x2E5C90), + 9 a slot that
-    holds a player.
-
-  So a core idle with n artefacts is 31 + 12n bytes: 91 with patch_14's 5 (Cologne's 87:
-  7,917, at the 8,192 of the objects' room with nothing else in the world), 43 with one. The
-  worst case (16 active cores, the rule's most; 44 artefacts taken in a 900 s match; the
-  largest objects section, 1,171, and the largest rest of the world, 27,294 with 20 players,
-  of the 20,167 saved live worlds of 2026-10-22):
-
-  | project | cores | artefacts | objects | world | margin of the world's 32,768 |
-  |---|---|---|---|---|---|
-  | Cologne (9: day, evening, prerain x modes 2-4), 5 a core (@3, as #225 built it) | 87 | 435 | 9,772 | 37,066 | -4,298 |
-  | Cologne, 1 a core | 87 | 87 | 5,596 | 32,890 | -122 |
-  | London (3: day x modes 2-4), 5 a core (@3, as #225 built it) | 81 | 405 | 9,226 | 36,520 | -3,752 |
-  | London, 1 a core | 81 | 81 | 5,338 | 32,632 | 136 |
-
-  The pack as merged overflows both maps by about 4 KB; even one artefact a core leaves
-  Cologne over and London 136 bytes under. All idle with one artefact a core: Cologne 32,206
-  (margin 562), London 31,948 (820). Every weather of a map has the same places, so the same
-  numbers. Hence the redesign: fewer pre-built cores (places), or cores that are not all in
-  the world at once.
+- **What a match must hold** (#225's review, 2026-10-23): the saved world goes through three
+  fixed buffers: 0x2000 for the objects' state, 0x2000 for the second stream, 0x8000 for the
+  whole world. Cologne's 87 timed cores need about 3.2 to 3.5 KB of them, against about
+  5.4 KB free in the fullest live 20-player world. To see in a full 20-player Cologne match.
 
 ## 7. The server
 

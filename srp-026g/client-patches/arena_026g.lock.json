@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 28746,
-  "sha256": "9b15e63b2dae83ed80192d0ee912f2f3ad3204a1804ca247373c8591fc817fd9",
+  "size": 32842,
+  "sha256": "100d89729c21f979b6c2f989d889ac7b2cb959f3ccdbad52651e2bb2618430a5",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -24,25 +24,32 @@
       "va": "0xa432000",
       "size": 1186
     },
-    "match_keys.code": {
+    "anomalies.code": {
       "kind": "code",
       "va": "0xa433000",
+      "size": 826
+    },
+    "match_keys.code": {
+      "kind": "code",
+      "va": "0xa434000",
       "size": 264
     },
     "match_keys.state": {
       "kind": "state",
-      "va": "0xa434000",
+      "va": "0xa435000",
       "size": 74
     }
   },
   "symbols": {
+    "anomalies_pickup_hook": "0xa43301e",
+    "anomalies_tick_hook": "0xa433000",
     "artefacts_fire": "0xa431014",
     "artefacts_lifebone": "0xa43100f",
     "artefacts_link": "0xa431005",
     "artefacts_loader": "0xa431000",
     "artefacts_stagger": "0xa431019",
     "artefacts_unlink": "0xa43100a",
-    "chat_variable": "0xa434000",
+    "chat_variable": "0xa435000",
     "engine_accept_decal_edit": "0xa432460",
     "engine_allocation_name": "0xa4322e0",
     "engine_apply_modifier": "0xa432210",
@@ -77,10 +84,10 @@
     "engine_write_u16": "0xa4320b0",
     "engine_write_u32": "0xa4320e0",
     "engine_write_u8": "0xa432080",
-    "hide_chat": "0xa434048",
-    "match_keys_chat": "0xa4330c3",
-    "match_keys_hud": "0xa433080",
-    "match_keys_keyboard": "0xa433000",
+    "hide_chat": "0xa435048",
+    "match_keys_chat": "0xa4340c3",
+    "match_keys_hud": "0xa434080",
+    "match_keys_keyboard": "0xa434000",
     "memcpy": "0xa42ebbf",
     "memset": "0xa42e65c",
     "research_hud": "0xa42d005",
