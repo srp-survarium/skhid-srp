@@ -2587,7 +2587,11 @@ scopes").
 - **Distance.** As near as keeps its ends on the screen at any spin, for the weapon's own length
   (its render box): a rifle about 63% of that part at 16:9, a pistol at the 0.3 m least (patch 32's
   NEAR_MIN, was 0.6).
-- **Room.** 2 230 bytes, now at `.srpw`+6B0h. `check_weapon_table_026g.py` 46 checks. Section 3.42,
+- **Ultra-wide screens.** Also as far as keeps the tilted ends 2% from the top and the bottom (it binds
+  beyond 16:10).
+- **A window over a weapon's.** The old weapon drawn through the rebuild is not measured; the new one
+  is framed for itself.
+- **Room.** 2 266 bytes, now at `.srpw`+6B0h. `check_weapon_table_026g.py` 48 checks. Section 3.42,
   round 5d.
 
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)

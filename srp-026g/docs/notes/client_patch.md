@@ -1178,22 +1178,27 @@ The owner's request (2026-10-21): "instead of focusing on players the camera wou
   |---|---|---|---|
   | 16:9 | 63% at 1.22 m | 63% at 1.59 m | 43% at 0.30 m |
   | 16:10 | 66% at 1.29 m | 66% at 1.67 m | 48% at 0.30 m |
-  | 21:9 | 53% at 0.88 m | 53% at 1.15 m | 26% at 0.30 m |
+  | 21:9 | 52% at 0.90 m | 52% at 1.17 m | 26% at 0.30 m |
+  | 32:9 | 30% at 0.90 m | 30% at 1.17 m | 15% at 0.30 m |
 
   The rifles are below the asked 70% because their ends must stay on the screen at any spin: a turned rifle's near end swings left toward the screen's edge (the middle sits at 0.27 of the width).
-- **Room.** The code grew to 2 230 bytes and moved from `.srpw`+800h to +6B0h (the stash ends at +6A5h), so patch 32's two `jmp CAMERA` are reassembled for 0xA42A6B0.
+- **The review's two fixes** (5d's review, 2026-10-23):
+  - **A window over a weapon's window kept the first weapon's distance.** `camera` reset LENGTH but the bench kept the old weapon (READY) through the ~0.3 s rebuild. `middle` measured that old weapon, and the new one was never measured: a pistol over the SVD stayed at 1.59 m, and a rifle over a pistol at 0.3 m with its ends off the screen. Now `middle` measures only when the character makes no player (+D2C4h −1, +D2C8h 0). Patch 32's start calls setup_profile at once, which sets them when a new player is to be made. So the old weapon drawn through the rebuild is not measured, and the window's weapon is measured on its first frame.
+  - **Ultra-wide screens put the tilted ends off the top and bottom.** frame_view took only the width's distance, so at 32:9 (3840 x 1080, 5120 x 1440), with the tilt ±1.2 over a full spin, the AK-12's and the SVD's ends went from −0.24 to 1.09 of the height. Now d is also at least TILT_ROOM · L = 0.962 L: the ends stay 2% in from the top and the bottom at any spin and tilt at the original's 65 degrees (the pitch's −0.25 included, emulated). That binds beyond 16:10. At 21:9 the tilted ends had come within 0.8% of the edge, so 21:9 moves a little further too (0.88 → 0.90 m for the AK-12); 16:9 and 16:10 are unchanged.
+- **Room.** The code grew to 2 230 bytes (2 266 with the review's fixes) and moved from `.srpw`+800h to +6B0h (the stash ends at +6A5h), so patch 32's two `jmp CAMERA` are reassembled for 0xA42A6B0.
 - **Checked:**
-  - **`check_weapon_table_026g.py` 46 checks (as is and rebased).** For 1280 x 720, 1920 x 1200 and 3440 x 1440 (viewport set), uro_fov 50, 65 and 100, and the AK-12, an SVD box and the PM:
+  - **`check_weapon_table_026g.py` 48 checks (as is and rebased).** For 1280 x 720, 1920 x 1200, 3440 x 1440, 3840 x 1080 and 5120 x 1440 (viewport set), uro_fov 50, 65 and 100, and the AK-12, an SVD box and the PM:
     - the zoom gives 65 degrees;
     - the middle projects to fx and the height's middle within 0.0002;
     - the distance is the formula's for the measured length;
-    - over a full spin at tilts 0 and ±1.2 the ends stay within the 2% margin (and in front of the near plane);
+    - over a full spin at tilts 0 and ±1.2 the ends stay within the 2% margin across and up and down (and in front of the near plane);
     - the results do not depend on uro_fov;
     - after the close the zoom is exactly 1.
+  - **A pistol's window over the SVD's**, the SVD drawn at the bench through the rebuild: the length is not measured then, and the pistol is framed for itself (1.59 m, then 0.30 m).
   - The other cases now have their targets from frame() (the side angle 0, every value landing exactly).
   - `check_weapon_preview_026g.py` (the side angle 0, the distance the 1 m weapon's, NEAR_MIN 0.3).
   - The self-test and the other weapon checks pass.
-- **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `482f974f0414b022b8869f123905f379369ada7beef912a61730b3d3ef378d48` (12 934 776 bytes). **Not run in a game.**
+- **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `4eb7c0dfc13a0fb27212863282755974fd1f99137f12b08355247110a0fb935b` (12 934 776 bytes; with the review's fixes). **Not run in a game.**
 
 ### 3.43 On the death screen a drag turns the camera; the wheel does nothing (written 2026-10-21, README patch 46, the next release's revision; the rules: `death-camera.md`) — PROVEN in the code, the mouse moves and the view's update run with Unicorn; the first build run in a game
 

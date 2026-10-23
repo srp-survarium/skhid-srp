@@ -124,7 +124,7 @@ VIEW_YAW, VIEW_PITCH, MIDDLE_Z, TILT_MAX = -math.pi / 2, -0.25, 0.2, 1.2
 # The bench's view (round 5d): the original's 65 degrees (vertical) whatever uro_fov, the weapon's
 # middle in the middle of the screen's part left of the upgrade window, as near as keeps its ends on
 # the screen (2% in) at any spin, at least 0.3 m away (weapon_table_026g.asm's frame_view)
-ORIGINAL_FOV, MARGIN, NEAR_VIEW = 65.0, 0.02, 0.3
+ORIGINAL_FOV, MARGIN, NEAR_VIEW, TILT_ROOM = 65.0, 0.02, 0.3, 0.962
 URO_FOV = 0xA6FA28                              # uro_fov's value (patch 22)
 
 
@@ -133,7 +133,10 @@ def frame(length, aspect=16 / 9):
     layout = aspect if aspect >= 1.85 else 16 / 9   # the lobby movie: by the width below 1.85, else the height
     fx = 0.5 - 441 / (1080 * layout)                # the upgrade window's left edge 882 of 1080 from the right
     t = math.tan(math.radians(ORIGINAL_FOV / 2)) * aspect
-    d = max(length * math.sqrt(1 / t ** 2 + (1 - 2 * MARGIN) ** 2) / (4 * (fx - MARGIN)), NEAR_VIEW)
+    # the width's (an end m in from the left at any spin) or the height's (m in from the top and the
+    # bottom at any spin and tilt: it binds beyond 21:9), at least NEAR_VIEW
+    d = max(length * math.sqrt(1 / t ** 2 + (1 - 2 * MARGIN) ** 2) / (4 * (fx - MARGIN)), TILT_ROOM * length,
+            NEAR_VIEW)
     return d, (1 - 2 * fx) * d * t, fx
 
 
@@ -145,7 +148,7 @@ def zoom_angle(zoom, uro):
 VIEW_DISTANCE, VIEW_SHIFT, _ = frame(1.0)      # a 1 m weapon (until the weapon's own length), 16:9
 LOOK = (BENCH[0], BENCH[1], BENCH[2] - VIEW_SHIFT)
 TABLE, FLY, TARGET_X, TARGET_Z, TARGET_YAW, TARGET_PITCH, SAVED_YAW, SAVED_PITCH, SPIN, TILT, READY = range(0, 44, 4)
-LEFT = 0x34                                    # (+2Ch, +30h unused since round 5)
+LEFT, LENGTH = 0x34, 0x30                      # (+2Ch EASE; +30h the weapon's length, round 5d)
 STAMP, BENCH_MATRIX = base.WEAPON_TABLE_STAMP_OFFSET, base.WEAPON_TABLE_MATRIX_OFFSET   # the interface
 SPEEDS = (0xE0, 0xE4, 0xE8)                    # the camera's three steps' speeds: side, height, distance
 STEPS = ((0x98, 0xAC), (0x9C, 0xA4), (0xC0, 0xC4))  # their targets and values
@@ -557,7 +560,7 @@ def main():
             return 0.5 + x / (2 * z * tv * aspect), 0.5 - y / (2 * z * tv), z
 
         views = []
-        for width, height in ((1280, 720), (1920, 1200), (3440, 1440)):
+        for width, height in ((1280, 720), (1920, 1200), (3440, 1440), (3840, 1080), (5120, 1440)):
             aspect = width / height
             for uro in (50.0, 65.0, 100.0):
                 for name, box in (("AK-12", None), ("SVD", SVD_BOX), ("PM", None)):
@@ -608,9 +611,10 @@ def main():
                             for v in ends:
                                 world = [sum(v[i] * m[4 * i + k] for i in range(3)) + m[12 + k] for k in range(3)]
                                 ex, ey, ez = on_screen(t, uro, aspect, world)
-                                assert ez > 0.05 and 0 < ey < 1, (name, uro, aspect, tilt, step, ey)
+                                assert ez > 0.05 and MARGIN - 0.002 <= ey <= 1 - MARGIN + 0.002, \
+                                    (name, uro, aspect, tilt, step, ey)
                                 lowest, highest = min(lowest, ex), max(highest, ex)
-                    assert lowest >= MARGIN - 0.005 and highest <= 1 - MARGIN + 0.005, (name, uro, aspect, lowest, highest)
+                    assert lowest >= MARGIN - 0.002 and highest <= 1 - MARGIN + 0.002, (name, uro, aspect, lowest, highest)
                     t.lobby.word(t.state + SPIN, 0)
                     t.lobby.word(t.state + TILT, 0)
                     t.site(MATRIX, (DECAL_PATH, HAND, DRAW_ITEM), regs)
@@ -630,12 +634,50 @@ def main():
                    if (a[0], a[1], a[3]) == (b[0], b[1], b[3]))
         assert same, views
         shares = {(w, h, n): (d, sh) for w, h, u, n, d, sh in views if u == 65.0}
-        say(f"the bench's view{rebased} at uro_fov 50, 65 and 100 and 16:9, 16:10 and 21:9: the zoom gives the "
-            "original's 65 degrees, the weapon's middle at the middle of the part left of the upgrade window "
-            "(0.270, 0.270, 0.329 of the width) and of the height within 0.0002, the distance frame()'s for its "
-            "length; over a full spin its ends within the screen's 2% margin; the same whatever uro_fov, and the "
-            "zoom 1 again after the close. At rest, of the free part's width: " + "; ".join(
+        say(f"the bench's view{rebased} at uro_fov 50, 65 and 100 and 16:9, 16:10, 21:9 and 32:9 (3840x1080, "
+            "5120x1440): the zoom gives the original's 65 degrees, the weapon's middle at the middle of the part "
+            "left of the upgrade window (0.270, 0.270, 0.329, 0.385 of the width) and of the height within 0.0002, "
+            "the distance frame()'s for its length (the height's beyond 21:9); over a full spin at tilts 0 and "
+            "+-1.2 its ends within the screen's 2% margin across and up and down; the same whatever uro_fov, and "
+            "the zoom 1 again after the close. At rest, of the free part's width: " + "; ".join(
                 f"{w}x{h} {n} {sh * 100:.0f}% at {d:.2f} m" for (w, h, n), (d, sh) in shares.items()))
+
+        # A weapon's window over a weapon's (review of 5d): the bench keeps the first weapon (READY) and draws
+        # it while the character makes the new player; that old weapon is not measured for the new view:
+        # the SVD's window, then a pistol's over it, the SVD drawn through the rebuild, then the pistol.
+        def draw(t, name, box=None):
+            t.lobby.word(FRAME + 4, LOBBY_DRAW + delta)
+            t.lobby.word(FRAME - 0xF0, CHARACTER)
+            t.lobby.word(CHARACTER + 0xD2B8, PLAYER)
+            t.weapon(name, box=box)
+            regs = {UC_X86_REG_EAX: 0, UC_X86_REG_EBX: PLAYER, UC_X86_REG_ECX: 0, UC_X86_REG_EDX: 0,
+                    UC_X86_REG_ESI: 0, UC_X86_REG_EDI: 0, UC_X86_REG_EBP: FRAME}
+            return t.site(MATRIX, (DECAL_PATH, HAND, DRAW_ITEM), regs)[0]
+
+        over = Table(patched, delta)
+        over.lobby.handler(START_HANDLER, SVD)
+        over.lobby.word(CHARACTER + 0xD2C4, -1)
+        draws = [draw(over, "AK-12", SVD_BOX)]
+        for n in range(200):
+            over.frame()
+        rifle = over.f(CAMERA + DISTANCE)
+        over.lobby.handler(START_HANDLER, lobby_check.PISTOL2)          # setup_profile: the new player's query
+        over.lobby.word(CHARACTER + 0xD2C4, 7)
+        for n in range(20):                                 # the rebuild: the SVD still at the bench
+            draws.append(draw(over, "AK-12", SVD_BOX))
+            over.frame()
+        waiting = over.flag(LENGTH)
+        over.lobby.word(CHARACTER + 0xD2C4, -1)             # the pistol's player
+        draws.append(draw(over, "PM"))
+        for n in range(300):
+            over.frame()
+        pistol_length = WEAPONS["PM"][2][2] - WEAPONS["PM"][1][2]
+        assert draws == [DRAW_ITEM] * len(draws) and waiting == 0, (draws, waiting)
+        assert math.isclose(rifle, frame(1.221)[0], rel_tol=1e-4), rifle
+        assert math.isclose(over.f(CAMERA + DISTANCE), frame(pistol_length)[0], rel_tol=1e-4), over.f(CAMERA + DISTANCE)
+        say(f"a pistol's window over the SVD's{rebased}, the SVD drawn at the bench through the rebuild: not "
+            f"measured then (the length waits); the pistol, once its player comes, is framed for itself: "
+            f"{rifle:.2f} m, then {over.f(CAMERA + DISTANCE):.2f} m")
 
         # Windows over windows.
         table = Table(patched, delta)

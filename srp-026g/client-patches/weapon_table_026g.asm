@@ -367,8 +367,10 @@ tick:
 ;   k = (1 - 2 fx) d T along its right ((0, 0, -1) at the bench's yaw) of it:
 ;   TARGET_Z = BENCH z - k. An end at r = L / 2 from the middle stays right
 ;   of m at any spin while d >= L sqrt(1 / T^2 + (1 - 2m)^2) / (4 (fx - m)):
-;   that d, at least NEAR_VIEW, in xmm1. Uses eax, xmm1 and the x87 stack
-;   (left empty).
+;   that d (and at least TILT_ROOM L: the ends m in from the top and the
+;   bottom at any spin and tilt within TILT_MAX, at the original's field of
+;   view, which binds beyond 21:9), at least NEAR_VIEW, in xmm1. Uses eax,
+;   xmm1 and the x87 stack (left empty).
 frame_view:
     sub esp, 8
     movss [esp], xmm0               ; L
@@ -404,6 +406,11 @@ frame_view:
     fdiv dword [esp+4]
     fsubr dword [edi+CONST(four_room)]      ; 4 (fx - m)
     fdivp st1, st0                  ; d, T
+    fld dword [esp]
+    fmul dword [edi+CONST(tilt_room)]       ; and the height's: its ends m in at any spin and tilt
+    fcomi st0, st1
+    fcmovb st0, st1
+    fstp st1
     fld dword [edi+CONST(near_view)]
     fcomi st0, st1
     fcmovb st0, st1
@@ -654,6 +661,11 @@ middle:
     jz .done
     cmp dword [edi+LENGTH], 0
     jne .measured
+    mov eax, [ebp+CHARACTER]        ; while the character makes its player the weapon drawn is the
+    cmp dword [eax+BUILDING], -1    ; old one (a window over a weapon's: the bench keeps it until
+    jne .measured                   ; the new player comes): the window's weapon is measured then
+    cmp byte [eax+BUILD_AGAIN], 0
+    jne .measured
     movss xmm0, [esi+BOX_MAX+8]     ; the window's weapon's length: its box along it, a default box 1 m
     subss xmm0, [esi+BOX_MIN+8]
     cmp dword [esi+BOX_MIN], 0xBF800000
@@ -854,6 +866,7 @@ spin_room:        dd 0.9216         ; (1 - 2m)^2, FRAME_MARGIN m 0.02 of the wid
 four_room:        dd 1.92           ; 4 (1/2 - m)
 panel_share:      dd 1.6333333      ; 4 * 441 / 1080: 4 (fx - m) = four_room - panel_share / a'
 panel_shift:      dd 0.8166667      ; 882 / 1080: 1 - 2 fx = panel_shift / a'
+tilt_room:        dd 0.962          ; TILT_ROOM: (1/2) sqrt(1 + 1 / ((1 - 2m) tan(65/2))^2), and the pitch's
 near_view:        dd 0.3            ; NEAR_VIEW: the nearest (patch 32's NEAR_MIN)
 middle_z:         dd 0.2            ; MIDDLE_Z: without a box, a rifle's middle (grip at the origin, along +z)
 tilt_max:         dd 1.2
