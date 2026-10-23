@@ -12,7 +12,10 @@
 //!
 //! - One candidate per enemy route (its slot), weighed by the route's
 //!   share of the side's lives times what a life on it gave, so the bots
-//!   spread over the best ways first.
+//!   spread over the best ways first. Only the best `most_cuts` ways are
+//!   cut, and ways whose cut points lie within `merge_m` of a better one's
+//!   are that one's cut: with the top players' routes in the table a side
+//!   has up to 10 ways, several through the same place.
 //! - The cut point: the route's first point at least `cut_progress` of
 //!   the way from their base to ours (past the middle: the owner's "never
 //!   in the middle"), out of every spawn area.
@@ -60,6 +63,12 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // once a quarter-minute a cut, a hazard on a spot still checked at each
     // poll.
     ("spots_keep_s", 15.0),
+    // Cut points this near are one cut (the better way's), metres; and
+    // at most this many ways are cut. GUESS: a cut's spot ring is 12-28 m,
+    // so two points 10 m apart are held from the same spots; 4 is the old
+    // table's most ways a side.
+    ("merge_m", 10.0),
+    ("most_cuts", 4.0),
 ];
 
 pub fn tuning() -> PlayTuning {
@@ -102,8 +111,9 @@ fn progress(from: Vec3, to: Vec3, at: Vec3) -> f32 {
     ((at.x - from.x) * dx + (at.z - from.z) * dz) / l
 }
 
-/// Each enemy route's cut: (route index, cut point, the point before it
-/// they come from, weight in (0, 1]).
+/// The enemy's best ways' cuts, best first: (route index, cut point, the
+/// point before it they come from, weight in (0, 1]); one a place
+/// (`merge_m`), `most_cuts` at most.
 pub fn cuts(cx: &Ctx) -> Vec<(usize, Vec3, Vec3, f32)> {
     let Some(side) = cx.bot.side else {
         return Vec::new();
@@ -121,7 +131,7 @@ pub fn cuts(cx: &Ctx) -> Vec<(usize, Vec3, Vec3, f32)> {
     if best <= 0.0 {
         return Vec::new();
     }
-    routes
+    let mut all = routes
         .iter()
         .enumerate()
         .filter_map(|(index, route)| {
@@ -136,7 +146,20 @@ pub fn cuts(cx: &Ctx) -> Vec<(usize, Vec3, Vec3, f32)> {
             let from = if i > 0 { route.points[i - 1] } else { theirs };
             Some((index, at, from, worth(route) / best))
         })
-        .collect()
+        .collect::<Vec<_>>();
+    all.sort_by(|a, b| b.3.total_cmp(&a.3).then(a.0.cmp(&b.0)));
+    let merge = cx.num(PlayKind::Cut, "merge_m");
+    let most = cx.num(PlayKind::Cut, "most_cuts").max(0.0) as usize;
+    let mut out: Vec<(usize, Vec3, Vec3, f32)> = Vec::new();
+    for cut in all {
+        if out.len() >= most {
+            break;
+        }
+        if out.iter().all(|kept| kept.1.distance_xz(cut.1) >= merge) {
+            out.push(cut);
+        }
+    }
+    out
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
@@ -336,10 +359,12 @@ mod tests {
             team: 1,
             lives,
             reward,
+            fight: reward,
             points: [65.0, 55.0, 45.0, 35.0, 25.0]
                 .iter()
                 .map(|&x| Vec3::new(x, 0.0, z))
                 .collect(),
+            ..Default::default()
         };
         s.tactics
             .set_routes(vec![route(30, 3.0, 30.0), route(10, 1.0, 5.0)]);
@@ -382,6 +407,44 @@ mod tests {
         let mut s = Scenario::field(Mode::TeamDeathmatch);
         s.bot(0, 0, Vec3::new(20.0, 0.0, 20.0));
         assert!(cut_candidates(&s).is_empty());
+    }
+
+    /// Ways through one place are one cut (the better way's), and only the
+    /// best `most_cuts` ways are cut.
+    #[test]
+    fn ways_through_one_place_are_one_cut_and_only_the_best_are_cut() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 20.0));
+        let route = |lives: u32, z: f32| HumanRoute {
+            team: 1,
+            lives,
+            reward: 1.0,
+            fight: 1.0,
+            points: [65.0, 55.0, 45.0, 35.0, 25.0]
+                .iter()
+                .map(|&x| Vec3::new(x, 0.0, z))
+                .collect(),
+            ..Default::default()
+        };
+        // Four ways: z 30 and 34 through one place (the second better), the
+        // others 12 m apart and less used.
+        s.tactics.set_routes(vec![
+            route(20, 30.0),
+            route(30, 34.0),
+            route(12, 5.0),
+            route(11, 17.0),
+        ]);
+        let ways = |s: &Scenario| cuts(&s.cx(0)).iter().map(|c| c.0).collect::<Vec<_>>();
+        assert_eq!(ways(&s), vec![1, 2, 3]);
+        s.tuning
+            .plays
+            .entry(PlayKind::Cut)
+            .or_insert_with(|| crate::v026g::bots::plays::default_tuning(PlayKind::Cut))
+            .numbers
+            .insert("most_cuts".into(), 2.0);
+        assert_eq!(ways(&s), vec![1, 2]);
+        let cuts = cuts(&s.cx(0));
+        assert!((cuts[0].3 - 1.0).abs() < 1e-6);
     }
 
     #[test]
