@@ -97,6 +97,16 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     the popup could offer. "Switch room" is not offered while a reason holds (`room_switch`
     asks the door's `room_enter_fit`). A queued player whose kit can not play when a place
     frees keeps its place, passed over, and the next goes in (`next_ready_in_queue`).
+  - Until the first list the reasons are not known: Play, Join, Queue and New room start greyed,
+    with no tip (the owner's, 2026-10-23: "the game starts with Play red, and you can quickly
+    click on it before it is blocked"). The list comes within about 2 s (it is asked again every
+    2 s); with none 10 s after the game's first word on Play (the lobby live; the asks made while
+    the movie loads are lost) the buttons light and the server's doors alone decide. Play is
+    greyed from the panel's start, before the game's first word on it. A Play that opened the
+    rooms window and is refused for the kit (code 15) within 6 s closes it again; a poll's plain
+    answer before Play's own does not end that, a room, another code, the window closed, or a
+    Join or New room in it do. The empty list's hint says "press Play" only while Play is really
+    lit (`noneNoPlay`, `noneQuiet` when New room is greyed too).
   - N, the minutes, come with the list (`<minutes>`); while a maintenance is planned the movie asks
     for the list every minute, so N and the rule's start follow.
   - **A new reason** gets a bit (`PlayBlock` or a lobby bit next to `BLOCK_MAINTENANCE`), a row

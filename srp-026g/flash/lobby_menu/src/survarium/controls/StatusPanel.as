@@ -452,6 +452,13 @@ package survarium.controls
       override protected function configUI() : void
       {
          super.configUI();
+         // Play greyed from the start until the presets' reasons are known
+         // (presets.md): the game may show the lobby before its first word
+         // on Play, and a quick press went through.
+         if(!LocalPlayerProfile.reasonsKnown())
+         {
+            this.playBtn.enabled = false;
+         }
          var textBonus:* = (this.right_corner.btnShowDailyMessage.content as MovieClip).getChildByName("textBonus");
          if((textBonus))
          {

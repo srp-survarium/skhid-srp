@@ -202,6 +202,16 @@ package survarium.player
       // the list asked again every minute while one is planned.
       private var _blocks:int = 0;
       
+      // Whether the reasons are known: a list came, or none in
+      // REASONS_FALLBACK_MS (then the server's doors alone decide). Until
+      // then Play and the rooms' entries are greyed, with no tip (the
+      // owner's of 2026-10-23: a quick click at the start went through).
+      private static const REASONS_FALLBACK_MS:int = 10000;
+      
+      private var _reasonsKnown:Boolean = false;
+      
+      private var _reasonsFallback:Timer;
+      
       private var _maintenanceMinutes:int = -1;
       
       private var _maintenanceWatch:Timer;
@@ -751,17 +761,18 @@ package survarium.player
          {"bit":BLOCK_MAINTENANCE,"key":null,"words":["Server maintenance soon: in {n} min","Скоро технічні роботи: за {n} хв","Скоро технические работы: через {n} мин","Bald Wartung: in {n} Min","Wkrótce przerwa techniczna: za {n} min"]}
       ];
       
-      // StatusPanel.showRoomsPlay: Play greyed while any reason holds.
+      // StatusPanel.showRoomsPlay: Play greyed while any reason holds, or
+      // while the reasons are not known yet.
       public static function mayPlay() : Boolean
       {
-         return me == null || me._blocks == 0;
+         return me == null || me._reasonsKnown && me._blocks == 0;
       }
       
       // Making a room: greyed under the maintenance rule only (a kit that
-      // can not play is warned in the room).
+      // can not play is warned in the room), and until the reasons are known.
       public static function mayCreate() : Boolean
       {
-         return me == null || (me._blocks & BLOCK_MAINTENANCE) == 0;
+         return me == null || me._reasonsKnown && (me._blocks & BLOCK_MAINTENANCE) == 0;
       }
       
       // Every reason that holds, a line each (the greyed buttons' tip).
@@ -804,6 +815,12 @@ package survarium.player
          var holder:Sprite = new Sprite();
          holder.x = x;
          holder.y = y;
+         // Not known yet (or none): greyed, no tip.
+         if(reasons() == "")
+         {
+            parent.addChild(holder);
+            return holder;
+         }
          var tip:ReasonsTip = new ReasonsTip();
          tip.graphics.beginFill(0,0.01);
          tip.graphics.drawRect(0,0,w,h);
@@ -826,7 +843,7 @@ package survarium.player
          {
             return true;
          }
-         if((me._blocks & BLOCK_MAINTENANCE) != 0)
+         if(!me._reasonsKnown || (me._blocks & BLOCK_MAINTENANCE) != 0)
          {
             return false;
          }
@@ -927,6 +944,42 @@ package survarium.player
          this._presetsRetry.addEventListener(TimerEvent.TIMER,this.onPresetsRetry);
          this._presetsRetry.start();
          this.askPresets();
+      }
+      
+      // RoomsWindow.playEnabled: the game's first word on Play, the lobby
+      // live; the fallback counts from here (the asks while the movie loads
+      // are lost), and an ask goes now.
+      public static function lobbyLive() : void
+      {
+         if(me == null || me._reasonsFallback != null)
+         {
+            return;
+         }
+         me._reasonsFallback = new Timer(REASONS_FALLBACK_MS,1);
+         me._reasonsFallback.addEventListener(TimerEvent.TIMER_COMPLETE,me.onReasonsFallback);
+         me._reasonsFallback.start();
+         me.askPresets();
+      }
+      
+      // StatusPanel: Play greyed from its start until the reasons are known.
+      public static function reasonsKnown() : Boolean
+      {
+         return me != null && me._reasonsKnown;
+      }
+      
+      // No list in REASONS_FALLBACK_MS: the buttons lit (none greyed for
+      // ever); the server's doors still refuse what may not go in.
+      private function onReasonsFallback(e:TimerEvent) : void
+      {
+         if(this._reasonsKnown)
+         {
+            return;
+         }
+         this._reasonsKnown = true;
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.kitsChanged();
+         }
       }
       
       private function onPresetsRetry(e:TimerEvent) : void
@@ -1302,6 +1355,7 @@ package survarium.player
          }
          var active:int = int(head[4]) - 1;
          this._blocks = int(head[5]);
+         this._reasonsKnown = true;
          this._maintenanceMinutes = head.length > 6 ? int(head[6]) : -1;
          this.watchMaintenance();
          if(active >= 0 && active < PRESET_COUNT)

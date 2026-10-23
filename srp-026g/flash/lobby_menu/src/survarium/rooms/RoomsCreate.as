@@ -67,6 +67,7 @@ package survarium.rooms
             // The maintenance rule: no room made (the server's; presets.md).
             if (!LocalPlayerProfile.mayCreate())
                 return;
+            win._openedByPlayAt = 0;
             win._view = "create";
             win._code = RoomCode.NONE;
             look._scrollPx = 0;

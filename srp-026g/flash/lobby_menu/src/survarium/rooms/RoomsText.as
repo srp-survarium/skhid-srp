@@ -19,6 +19,11 @@ package survarium.rooms
             "new": ["New room", "Нова кімната", "Новая комната", "Neuer Raum", "Nowy pokój"],
             "back": ["Back", "Назад", "Назад", "Zurück", "Wstecz"],
             "join": ["Join", "Увійти", "Войти", "Beitreten", "Dołącz"],
+            // Play greyed (presets.md, the reasons): no word of it; New room
+            // greyed too (a maintenance): no word of either.
+            "noneQuiet": ["No rooms yet.", "Кімнат ще немає.", "Комнат пока нет.", "Noch keine Räume.", "Brak pokojów."],
+            "noneNoPlay": ["No rooms yet. Make one.", "Кімнат ще немає. Створіть.", "Комнат пока нет. Создайте.",
+                "Noch keine Räume. Erstelle einen.", "Brak pokojów. Utwórz."],
             "none": ["No rooms yet. Make one, or press Play.", "Кімнат ще немає. Створіть або натисніть «Грати».",
                 "Комнат пока нет. Создайте или нажмите «Играть».", "Noch keine Räume. Erstelle einen oder drücke Spielen.",
                 "Brak pokojów. Utwórz lub naciśnij Graj."],
