@@ -1,29 +1,33 @@
-; The Sponge (exe patch 55): the hooks of artefact type 12, in front
-; of the C code of sponge_a_026g.c at +0xC000 of `.srpx` (sponge_a_026g.py
-; builds it; patch_026g.py puts it there). client_patch.md, patch 55.
+; The Sponge (exe patch 55): the hooks of artefact type 12, in front of
+; the C code of sponge_a_026g.c in the arena's block sponge.code
+; (link_026g.py links it; patch_026g.py's SPONGE_HOOKS jump to the eight
+; entries by their names). client_patch.md section 3.52.
 ;
-;   +00  construct  the artefact cook's construct 0x25E660 at its type switch
-;                   (0x25E68A `cmp eax,5 / ja`): type 12 (eax 9) is ours
-;   +05  size       its size 0x25E770 at 0x25E79A (`cmp eax,5 / ja short`)
-;   +0A  query      its query of the model 0x25E800 (the entry, `push ebp /
-;                   mov ebp,esp / and esp,-8`): a sponge's is ours
-;   +0F  predicate  the throw state's way in 0x2E4090 at 0x2E40C6 (the item's
-;                   vtable +64h, `call 0x30A090`: a null deref for any item
-;                   that is not a grenade set): a sponge not in the air
-;   +14  ready      the throw state's is_ready 0x33A650 at 0x33A677 (its
-;                   grenade's exploded flag): a sponge's zone on
-;   +19  throw      the throw 0x33A770 at 0x33A7BB (`call 0x30A250`): ours
-;   +1E  pull       the pull substate's pin 0x3103A0 at 0x3103C9 (`call
-;                   0x30A120`): ours
-;   +23  zone_hit   the damage zone's hit loop 0x319AF0 at 0x319C8B (the
-;                   receiver's vt+20h, instigator, inflictor and item 0): a
-;                   zone a sponge ticks names its thrower, its inflictor and it
+;   sponge_construct  the artefact cook's construct 0x25E660 at its type
+;                     switch (0x25E68A `cmp eax,5 / ja`): type 12 (eax 9) is ours
+;   sponge_size       its size 0x25E770 at 0x25E79A (`cmp eax,5 / ja short`)
+;   sponge_query      its query of the model 0x25E800 (the entry, `push ebp /
+;                     mov ebp,esp / and esp,-8`): a sponge's is ours
+;   sponge_predicate  the throw state's way in 0x2E4090 at 0x2E40C6 (the
+;                     item's vtable +64h, `call 0x30A090`: a null deref for any
+;                     item that is not a grenade set): a sponge not in the air
+;   sponge_ready      the throw state's is_ready 0x33A650 at 0x33A677 (its
+;                     grenade's exploded flag): a sponge's zone on
+;   sponge_throw      the throw 0x33A770 at 0x33A7BB (`call 0x30A250`): ours
+;   sponge_pull       the pull substate's pin 0x3103A0 at 0x3103C9 (`call
+;                     0x30A120`): ours
+;   sponge_zone_hit   the damage zone's hit loop 0x319AF0 at 0x319C8B (the
+;                     receiver's vt+20h, instigator, inflictor and item 0): a
+;                     zone a sponge ticks names its thrower, its inflictor and it
 ;
-; -D: CAVE (this code's VA), STATE (the state page), SP_VTABLE (the sponge's
-; vtable as objects hold it), and the C functions: SP_CONSTRUCT, SP_SIZE,
-; SP_COOK_QUERY, SP_CAN_THROW, SP_EXPLODED, SP_THROW, SP_PULL_PIN.
+; The C functions and data it uses are symbols of the link: sp_vtable (+4 is
+; the vtable as objects hold it, past its RTTI locator), sp_g (the state the
+; zone's hit reads) and the functions below.
 bits 32
-org CAVE
+global sponge_construct, sponge_size, sponge_query, sponge_predicate, sponge_ready, sponge_throw, sponge_pull
+global sponge_zone_hit
+extern sp_construct, sp_size, sp_cook_query, sp_can_throw, sp_exploded, sp_throw, sp_pull_pin, sp_vtable, sp_g
+section .text
 
 %define CONSTRUCT_DEFAULT 0x25E737 ; the switch's default: the base cook
 %define CONSTRUCT_TABLE   0x25E693 ; jmp [eax*4+25E754h]
@@ -41,19 +45,27 @@ org CAVE
 %define PULL_ON           0x3103DC
 %define ZONE_HIT_ON       0x319CAC
 %define TYPE_SPONGE_LESS3 9        ; data/type 12 after the switch's `add eax,-3`
-%define G_ZONE            STATE + 0x0
-%define G_INSTIGATOR      STATE + 0x4
-%define G_INFLICTOR       STATE + 0x8
-%define G_ITEM            STATE + 0xC
+%define SP_VTABLE         sp_vtable + 4 ; as objects hold it
+%define G_ZONE            sp_g + 0x0  ; struct sp_globals
+%define G_INSTIGATOR      sp_g + 0x4
+%define G_INFLICTOR       sp_g + 0x8
+%define G_ITEM            sp_g + 0xC
 
-entries:
+sponge_construct:
     jmp near construct
+sponge_size:
     jmp near size
+sponge_query:
     jmp near query
+sponge_predicate:
     jmp near predicate
+sponge_ready:
     jmp near ready
+sponge_throw:
     jmp near throw
+sponge_pull:
     jmp near pull
+sponge_zone_hit:
     jmp near zone_hit
 
 ; 0x25E68A, eax = data/type - 3; pushed ebx (= arg 2, &config), esi, edi;
@@ -69,7 +81,7 @@ construct:
     push dword [esp + 0x1C]           ; &effect
     push ebx                          ; &config
     push dword [esp + 0x1C]           ; the memory
-    call SP_CONSTRUCT                 ; stdcall: eax the object (0 for no memory)
+    call sp_construct                 ; stdcall: eax the object (0 for no memory)
     pop edi
     pop esi
     pop ebx
@@ -83,7 +95,7 @@ size:
     ja SIZE_DEFAULT
     jmp SIZE_TABLE
 .sponge:
-    call SP_SIZE
+    call sp_size
     pop edi
     pop esi
     pop ebx
@@ -95,7 +107,7 @@ query:
     push dword [esp + 0x10]
     push dword [esp + 0x10]
     push dword [esp + 0x10]
-    call SP_COOK_QUERY                ; thiscall: eax 1 when it was a sponge's
+    call sp_cook_query                ; thiscall: eax 1 when it was a sponge's
     pop ecx
     test eax, eax
     jz .stock
@@ -117,7 +129,7 @@ predicate:
     jmp PREDICATE_ON
 .sponge:
     push ecx
-    call SP_CAN_THROW
+    call sp_can_throw
     add esp, 4
     jmp PREDICATE_ON
 
@@ -130,7 +142,7 @@ ready:
     jmp READY_ON
 .sponge:
     push ecx
-    call SP_EXPLODED
+    call sp_exploded
     add esp, 4
     test al, al
     jnz READY_YES
@@ -155,7 +167,7 @@ throw:
     lea eax, [esp + 0x14]
     push eax
     push ecx
-    call SP_THROW                     ; cdecl (sponge, &hand, &aim)
+    call sp_throw                     ; cdecl (sponge, &hand, &aim)
     add esp, 12
     jmp THROW_ON
 
@@ -172,7 +184,7 @@ pull:
 .sponge:
     push eax                          ; the time: a tap's release already seen arms it
     push ecx
-    call SP_PULL_PIN                  ; cdecl (sponge, time): al = the index, 0
+    call sp_pull_pin                  ; cdecl (sponge, time): al = the index, 0
     add esp, 8
     jmp PULL_ON
 
@@ -207,5 +219,3 @@ zone_hit:
     push edx
     call eax
     jmp ZONE_HIT_ON
-
-    times 0x200 - ($ - $$) db 0xCC

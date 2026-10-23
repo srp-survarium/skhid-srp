@@ -1950,3 +1950,9 @@ va	name	source	ret_cleanup	result
 0x0031a410	survarium::damage_zone_core::intensity	manual		xmm0: clamp01(hit_curve(clamp01(relative distance))) x clamp01(speed_curve(the player's +334h))
 0x00062a80	vostok::curve::load	manual	32	
 0x00025f30	vostok::curve::evaluate	manual	20	xmm0: the curve's value at x
+0x000e0210		manual	0	a resource whose intrusive count (+0D0h) fell to 0 released (0x2608D4, 0x25FB1D: ecx the resource, eax &its count); the Sponge's release
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	manual	20	
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	manual	20	
+0x0007a1b0	vostok::physics::destroy_shape	manual	0	the shape's destructor (its vt+0, flag 0), then its memory to the physics allocator ([0x1F1D384] vt+18h) by its most derived address (0x42A390)
+0x0042a390	__RTCastToVoid	manual	0	EAX: the complete object's address (0 for 0)
+0x00260860	survarium::artefact<survarium::artefact_rattle_core>::`scalar deleting destructor'	manual	4	EAX: this; 0x25FA60 then, with flag 1, the memory freed (0x420F17)

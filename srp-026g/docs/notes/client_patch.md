@@ -1582,7 +1582,7 @@ A node is {prev, next, index, value}, linked at the tail of the holder's list ho
 
 **The spec.** The decoded 0.28d0 exe (`v028d0/out/game/binaries/x86/survarium.exe`, BCJ undone): artefact_sponge_core 0x5136E0..0x515270 (its action 0x514580, tick 0x514160, body 0x514400, regeneration callback 0x514380), the wrapper and cook 0x46A740..0x46AEA6, the config reader 0x5439E0, the zone's matrices 0x4AE930, the splash 0x5411C0. Its `artefact_sponge.options`: `duration` 10 s, `activation_timeout` 3 s, `throw_power` 15, the passive {0, 1, 0, 1, 1.5, 1} (regeneration, timeout, threshold: add and multiply), the splash `damage_type` toxic (4), radius 10, 0.05..1.5, `splash_pierce` 0, and an inline `damage_zone`.
 
-**The object.** 0.26g's artefact cook (vtable 0x9FC720) switches on `data/type` - 3 in construct (0x25E660, `cmp eax,5 / ja` at 0x25E68A) and size (0x25E770, at 0x25E79A); both are hooked for 9 (type 12). The object is Rattle's (0x25FA10: artefact_base 0x312FD0, the drawable at +340h, 360h bytes, vtable 0xA06124, 36 slots) and the sponge's fields to 688h (`struct sponge` in `sponge_a_026g.c`). The vtable is Rattle's with ours at slots 0 (the destructor), 11 (set_game_world), 13 (tick), 14 (removed), 26 and 27 (serialize, deserialize), 28, 29 (revived, from state 5 only), 31 (the passive's enable, +7Ch), 33 (+84h, its disable); its RTTI locator Rattle's (0xA4C044 of the vtable's -4), so `dynamic_cast` takes it for a Rattle, as no code of 0.26g casts to a type 12. 0.28's slots +84h, +88h, +8Ch and +A8h have no caller of 0.26g; +A8h (the end of the zone) is done in the tick.
+**The object.** 0.26g's artefact cook (vtable 0x9FC720) switches on `data/type` - 3 in construct (0x25E660, `cmp eax,5 / ja` at 0x25E68A) and size (0x25E770, at 0x25E79A); both are hooked for 9 (type 12). The object is Rattle's (0x25FA10: artefact_base 0x312FD0, the drawable at +340h, 360h bytes, vtable 0xA06124, 36 slots) and the sponge's fields to 698h (`struct sponge` in `sponge_a_026g.c`). The vtable is Rattle's with ours at slots 0 (the destructor), 11 (set_game_world), 13 (tick), 14 (removed), 26 and 27 (serialize, deserialize), 28, 29 (revived, from state 5 only), 31 (the passive's enable, +7Ch), 33 (+84h, its disable); its RTTI locator Rattle's (0xA4C044 of the vtable's -4), so `dynamic_cast` takes it for a Rattle, as no code of 0.26g casts to a type 12. 0.28's slots +84h, +88h, +8Ch and +A8h have no caller of 0.26g; +A8h (the end of the zone) is done in the tick.
 
 **The cook's query.** 0x25E800 (thiscall (parent, artefact, &config), `ret 0Ch`), hooked at its entry: for a sponge the four requests through query_resources 0xE5B60: model (Fh), particle (3Dh) and sound (101h) as Rattle's, and `damage_zone` (75h, damage_zone_cook 0x311139) with a variant<32> of the inline config (vtable 0x9ED1E4, type 0x125790) as its creation data, as 0.28's 0x46A9F0 does; the callback a boost::function in place. When loaded: Rattle's loader 0x2605F0 (edi = it) for the three, the zone the fourth (refcount +D0h), then 0x2EE8D0 (the core cook's finish). 0.26g's damage_zone_core resolves its collision geometries by link (resolve_links 0x307790) and its zones exist only as map objects; 0.28's zone takes its geometry from its config. So the sponge makes the geometry as a map's zone gets one (0x3046F0: 24h bytes from the cooks' allocator with 0xACED34's info, vtables 0xA13428/0xA13454, 0x2F8C30 with the config's first `collision_geometries` entry) and puts it at zone+11Ch[0], count 1; the zone's drawable is linked into the scene's list as a map's (+408h).
 
@@ -1602,7 +1602,7 @@ The grenade key's finder 0x2FE8B0 reads the item's +64h slot as 0.28's 0x4FE310 
 
 **The splash does no damage with 0.28d0's config.** 0x339630 (as 0.28's 0x5411C0) scales each target's damage by its occlusion over `splash_pierce`; with pierce 0 that is 0 or NaN and no hit is made, in 0.28 as here (the check: six targets, no hit in either). With pierce 1 the hits are bit-exact against 0.28's formula. The pack keeps 0.28d0's 0: the explosion itself deals no damage, as in 0.28d0; only the zone hurts.
 
-**The kill credit.** 0.28's zone has a damage_zone_owner (+230h, the sponge) and names its thrower; 0.26g's zone hit loop 0x319AF0 calls the receiver's vt+20h with instigator 0, inflictor 0, item 0 (0x319C8B..0x319CAA, `push ebx` x2 ... `push ebx / push edx / call eax`). The stub there passes, when edi is the zone the state page names (G: set while a sponge ticks its zone, cleared after), the thrower's game object (the place's player +110h, as the grenade's arm 0x30A1F1), the sponge's inflictor and the sponge; else ebx as before. The check compares the stack at the call with the original's for a zone that is not a sponge's (identical) and reads ours for a sponge's. The instigator (G's and the inflictor's +8) is found again from the thrower's place for each zone tick and cleared after it, so nothing keeps a pointer to a player that may go; a late joiner computes the same hits from the serialized place and explosion point (the check loads a state-7 world into a fresh sponge and ticks it; with the place's bit cleared or past the end no one is named).
+**The kill credit.** 0.28's zone has a damage_zone_owner (+230h, the sponge) and names its thrower; 0.26g's zone hit loop 0x319AF0 calls the receiver's vt+20h with instigator 0, inflictor 0, item 0 (0x319C8B..0x319CAA, `push ebx` x2 ... `push ebx / push edx / call eax`). The stub there passes, when edi is the zone `sp_g` names (the block sponge.state: set while a sponge ticks its zone, cleared after), the thrower's game object (the place's player +110h, as the grenade's arm 0x30A1F1), the sponge's inflictor and the sponge; else ebx as before. The check compares the stack at the call with the original's for a zone that is not a sponge's (identical) and reads ours for a sponge's. The instigator (G's and the inflictor's +8) is found again from the thrower's place for each zone tick and cleared after it, so nothing keeps a pointer to a player that may go; a late joiner computes the same hits from the serialized place and explosion point (the check loads a state-7 world into a fresh sponge and ticks it; with the place's bit cleared or past the end no one is named).
 
 **The passive.** 0.28's sponge links a regeneration modifier into the damage model's `infection` pool (0x2E58B0 on pools +108h; the pool's list +2E8h, next at node+20h) with its callback 0x514380; 0.26g's Lifebone has the same list and callback shape (0x312590, invoker 0x312640, vtable 0xA1566C|1): ours is Lifebone's with the sponge's modifier, which gives the same numbers as 0x514380 on the check's inputs. 0.28 leaves it linked while armed (its removed_from_inventory skips state 6); ours unlinks it at the explosion and at any removal from an inventory, and a second enable does not link it twice. `infection` is 0.26g's toxin pool; with 0.28d0's numbers the speed and the timeout are as they were (+0, x1) and the threshold +1.5; the pack's (regen_add 1000, timeout_mul 0) keep the pool full (a holder whose damage model has no such pool gets no node).
 
@@ -1610,9 +1610,53 @@ The grenade key's finder 0x2FE8B0 reads the item's +64h slot as 0.28's 0x4FE310 
 
 **Lifetimes.** removed_from_inventory (slot +34h, 0.28's 0x513200): the passive out in every state (0.28's skipped state 6, leaving the node in the old holder's pool and +418h pointing at it). Armed in the hand (not thrown) it falls from the hand: the hand's transform (0x309F00, the inventory still set during 0x2FC680's call) into the physics world with no speed, fuse and thrower kept; 0.28 left it to explode at m_transform (the identity). The destructor (slot 0) takes each thing out of what it went into, then destroys it: the passive out; the zone off (0x319D30(zone, 1): its ghosts out of the physics world) and its drawable out of the scene's list (scene+0DCh {?, head, tail}, prev +4, next +8: the list Rattle's 0x25FB30 links into); the geometry the sponge made out of the zone's +11Ch, destroyed (`collision_geometry::~collision_geometry` 0x2F8BE0, thiscall: its ghost 0x357BA0; 0x2F8BC0 would free with operator delete) and freed to the cooks' allocator it came from (`doug_lea_allocator::free_impl` 0x1539D0); the body out of the physics world (vt+38h) before its shape and the body are destroyed; the zone let go; the sponge's drawable out of the list; then Rattle's destructor (0x260860: its model out of the scene by the model's own flag). set_game_world links the zone's drawable once however often it runs. LIKELY, not proven: a sponge is destroyed with the level's objects, inside `game_world_core::~game_world_core` 0x2D02A0, while the physics world ([core+18FA4h], not destroyed there) and the scene are still there; stock grenades and Rattles remove nothing in their destructors (0x303770, 0x25FA60).
 
-**Other differences.** 0.28's `whole_ms` reads an int's bits; ours takes the config's float or int. Null checks on the inventory and the zone (0.28 has none). The position for the inflictor is a field (0.28's returned a pointer into a dead stack frame). The core artefact cook (0xA11C58, the server's) is not hooked: on clients 0x1F6F46 replaces it, and its unbounded jump tables crash on type 12 as on any type it does not know.
+**Other differences.** 0.28's `whole_ms` reads an int's bits; ours takes the config's float or int. Null checks on the inventory and the zone (0.28 has none). The position for the inflictor is a field, kept where m_transform is (0.28's returned a pointer into a dead stack frame). The core artefact cook (0xA11C58, the server's) is not hooked: on clients 0x1F6F46 replaces it, and its unbounded jump tables crash on type 12 as on any type it does not know.
 
-**Checked:** `selftest_026g.py` check 55; `check_sponge_a_026g.py` (Unicorn, the game's own code, 65 cases; `--v028d0` runs 0.28d0's action, passive, throw and splash on the same inputs, all equal, and its tap, unarmed; `--options` reads the decoded 0.28d0 `artefact_sponge.options`, equal to the embedded copy).
+**On the arena (2026-10-23, on top of #225).** The Sponge's code moved from its prebuilt `.bin` at
+`.srpx`+C000h onto the arena's link (section 0.3): `ArenaBlock("sponge.code", "code", 0x1000,
+("sponge_a_026g.asm", "sponge_a_026g.c"))` and `ArenaBlock("sponge.state", "state", 0x10,
+("sponge_a_026g.c",))` (`sp_g`, the four words the zone's hit reads, was the state page's);
+the asm's eight entries are the globals `sponge_construct` .. `sponge_zone_hit`, `SPONGE_HOOKS`
+name them, each site an `INSTALLS` row (seven JUMP, the query's entry an ENTRY: `ret 0Ch` as
+0x25E800); `sponge_a_026g.py` and its `.bin`/`.json` are gone. Every call of the game's
+functions goes through the engine library (section 0.5): 36 rows added to `engine_026g.tsv`
+(Rattle's constructor, loader, set_world, draw and destructor, the cook's finish, a resource's
+release 0xE0210, artefact_base's tick, serialize and deserialize, the hand's transform, the
+physics' shape and body calls, the splash, remove_item, the zone's sensor, tick and switch-off,
+the geometry's load and destructor, the matrix helpers, the float4x4 and float3 writers, the
+scene's model calls, the variant's type id), with the re-kit rows they lacked (0xE0210,
+0x301DE0, 0x81A70, 0x7A1B0, 0x42A390, 0x260860, 0x313760's third argument) and #225's wrong
+row of 0x2F8C30 (stack+4 "the config by value") dropped: the function reads its config from
+stack+8 (`mov ebx,[esp+140h]` after its `sub esp,134h` and push) and 0x3046F0 pushes the
+geometry, then the config. No inline asm is left. Two things changed so that every pointer the
+game calls is a function of the game or a declared one of ours (section 0.4):
+- the query's callback is the game's own boost::function of a bound member function (vtable
+  0xA09374|1, manager 0x27E890, invoker 0x202300, as the late join binds network_client's
+  0x27AA20 through 0x27D280), its buffer {sp_loaded, 0, the sponge}; sp_loaded is thiscall
+  (the sponge, the queries_result), `ret 4` as 0x27AA20, a `CALLBACKS` row; the cook and the
+  config resource it needs are kept in the sponge (+360h, +364h) while the query loads (the
+  inflictor that was there moved to the end); our own manager and invoker are gone;
+- the hit inflictor's slot 2 (where it is) is the game's getter 0x346480 (`lea eax,[ecx+10h] /
+  ret`), its position the field after the inflictor's four (+67Ch+10h), set wherever
+  m_transform moves (the launch, each tick in the air, the explosion, a load): the vtable holds
+  only the game's functions. No code of 0.26g was found to call that slot (the zone's hit and the
+  splash take the position from their own arguments); it answers as a grenade's would if one does.
+`INSTALLED_VTABLES` declares the artefact's (Rattle's 0xA06124, ten slots of ours), the
+drawable's (0xA061B8, one) and the inflictor's (no model, the game's three); each slot of ours
+has a case of `check_sponge_a_026g.py` that reaches it through the game's own call site
+(section 16: inventory::action 0x2FCB20, remove_item 0x2FC680, setup_from_profile's loop
+0x2FD1A5, generic_anomaly_core's serialize, deserialize, spawn_artefact and tick loops
+(0x31B074, 0x31B1A0, 0x31B965, 0x31B690), added_to_inventory 0x313470, artefact_base::tick
+0x313200, the scene's drawable loop 0x23DD41, the resource system's delete 0xFBB4E, the boost
+invoker 0x202300). The self-test's `ndisasm` reader now joins an instruction's bytes that
+ndisasm 2.16 puts on a continuation line (`-A000`, an instruction of more than 8 bytes): without
+it 0x25FA10's `mov dword [esi+340h],0A042A4h` was 8 bytes long and its `ret 8` read as `ret`.
+
+**Checked:** `selftest_026g.py` check 55 and the call shapes; `check_sponge_a_026g.py` (Unicorn,
+the game's own code, 80 cases with section 16's eleven; `--v028d0` runs 0.28d0's action,
+passive, throw and splash on the same inputs, all equal, and its tap, unarmed; `--options` reads
+the decoded 0.28d0 `artefact_sponge.options`, equal to the embedded copy); `check_engine_026g.py`
+on the 36 new thunks.
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 
@@ -1976,8 +2020,10 @@ section table (0x210..0x400): 12 slots
                                   research_native_026g.c                -> 0xA42D000, 0x2BF0
   research.state  state  0x1000   rn_state (research_native_026g.c)      -> 0xA430000, 0x38
   artefacts.code  code   0x1000   artefacts_026g.asm                     -> 0xA431000, 0x310
-  engine.code     code   0x1000   engine_026g.asm (0.5)                  -> 0xA432000, 0x47A
-  anomalies.code  code   0x1000   dynamic_anomalies_026g.asm (3.38)      -> 0xA433000, 0x337
+  engine.code     code   0x1000   engine_026g.asm (0.5)                  -> 0xA432000, 0x93E
+  anomalies.code  code   0x1000   dynamic_anomalies_026g.asm (3.38)      -> 0xA433000, 0x33A
+  sponge.code     code   0x1000   sponge_a_026g.asm, sponge_a_026g.c (3.52) -> 0xA434000, 0x214C
+  sponge.state    state  0x10     sp_g (sponge_a_026g.c)                 -> 0xA436150, 0x10
   (a new block: wherever its row goes; the link places it and every block after it)
 ```
 

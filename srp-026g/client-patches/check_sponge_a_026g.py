@@ -34,7 +34,6 @@ and its passive run through the game's regeneration tick (0x32A4B0). What
 each case checks is printed.
 """
 import argparse
-import json
 import lzma
 import math
 import os
@@ -51,19 +50,23 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "scripts", "research-mode"))
 import bcw  # noqa: E402
 
-SYMBOLS = {name: int(va, 16) for name, va in json.load(open(os.path.join(HERE, "sponge_a_026g.section.json")))
-           ["symbols"].items()}
-VA, STATE = base.SPONGE_A_VA, base.SPONGE_A_STATE_VA
+# The arena's link (link_026g.py): the sponge's C functions and data, and
+# sp_g, the state the zone's hit hook reads (the block sponge.state).
+ARENA = base.arena()
+SYMBOLS = {name: va for name, va in ARENA.symbols.items() if name.startswith("sp_")}
+STATE = SYMBOLS["sp_g"]
 # the content pack (release/content.tsv sponge@2), in the main checkout's private folder
 PACK = os.path.join(HERE, "..", "..", "..", "skhid-srp", "private", "content-packs", "sponge-2")
 HEAP, STACK, FAKE, CORE, CONFIG = 0x30000000, 0x21000000, 0x22000000, 0x40000000, 0x50000000
 STOP = FAKE + 0x10
 NEVER = 0xFFFFFFFF
 # struct sponge (sponge_a_026g.c's _Static_asserts)
-S_INFLICTOR, S_PASSIVE, S_DURATION, S_TIMEOUT, S_POWER, S_SPLASH, S_NODE, S_LINKED = \
+S_LOADING, S_PASSIVE, S_DURATION, S_TIMEOUT, S_POWER, S_SPLASH, S_NODE, S_LINKED = \
     0x360, 0x370, 0x3A4, 0x3A8, 0x3AC, 0x3B0, 0x3F0, 0x418
 S_EXPLODE, S_PIN, S_OWNER, S_BODY, S_PHYSICS, S_TRANSFORM, S_ZONE, S_SIZE = \
-    0x41C, 0x420, 0x421, 0x424, 0x428, 0x430, 0x470, 0x688
+    0x41C, 0x420, 0x421, 0x424, 0x428, 0x430, 0x470, 0x698
+S_INFLICTOR = 0x67C                                    # its position at +10h (the game's getter 0x346480)
+BIND_VTABLE = 0xA09374                                 # boost::function of a bound member (invoker 0x202300)
 S_SOUNDS, S_EFFECTS, S_SOUND_LOCAL, S_EFFECT_LOCAL = 0x474, 0x478, 0x47C, 0x57C
 # the game's
 STATE_AT, INVENTORY, SLOT, COUNT, WORLD = 0x280, 0x250, 0x254, 0x260, 0x248
@@ -523,7 +526,7 @@ def main():
 
     # 1. The cook: size and construct, type 12 ours, every other type the switch's.
     size, cleanup = r.thiscall(0x25E770, game.cook, game.resource_ptr)
-    check("the artefact cook's size for type 12 is the sponge's (688h), ret 4", size == S_SIZE and cleanup == 4,
+    check("the artefact cook's size for type 12 is the sponge's (698h), ret 4", size == S_SIZE and cleanup == 4,
           f"{size:#x}, cleanup {cleanup}")
     effect = r.allocate(4)
     sponge = r.allocate(S_SIZE, 0xAB)
@@ -611,8 +614,11 @@ def main():
           mine.get("creation", [1])[:3] == [0, 0, 0] and variant[0] == 0x9ED1E4
           and variant[2] == r.bytes(zone_value, 24) and variant[3] == mine["creation"][3] and variant[4] == type_id,
           f"type id {type_id:#x}")
-    check("the callback: our function (in place), {the sponge, the cook, the config resource}; the resource held",
-          functor[0] == SYMBOLS["sp_function_vtable"] | 1 and functor[2:5] == (sponge, game.cook, game.resource)
+    check("the callback: the game's boost::function of a bound member (0xA09374, in place), {sp_loaded, 0, the "
+          "sponge}; the cook and the config resource kept in the sponge (+360h, +364h) while it loads, the resource "
+          "held",
+          functor[0] == BIND_VTABLE | 1 and functor[2:5] == (SYMBOLS["sp_loaded"], 0, sponge)
+          and r.read(sponge + S_LOADING) == game.cook and r.read(sponge + S_LOADING + 4) == game.resource
           and r.read(game.resource + 0xD0) == 2, str([hex(v) for v in functor]))
     # the resources come (the resource system copies the function, then calls it)
     results_at = r.allocate(4 * 0x2E0 + 0x200)
@@ -633,12 +639,17 @@ def main():
     copy = r.allocate(0x18)
     r.emu.mem_write(copy, mine["functor"])
     invoker = r.read((functor[0] & ~1) + 4)
-    r.call(invoker, (copy + 8, results_at))
+    _, invoked_cleanup = r.call(invoker, (copy + 8, results_at))
     shape = r.read(r.read(zone + 0x11C))
+    check("driven: sp_loaded(results) through the game's boost invoker 0x202300 (the function's own vtable's): "
+          "ecx the sponge, the queries_result its argument, the stack as the invoker left it",
+          invoker == 0x202300 and invoked_cleanup == 0 and r.read(sponge + 0x354) == resources[0]
+          and r.read(sponge + S_LOADING) == 0 and r.read(sponge + S_LOADING + 4) == 0,
+          f"invoker {invoker:#x}, cleanup {invoked_cleanup}")
     check("loaded: Rattle's loader takes the model, particle and sound (+354h..+35Ch), the zone held (+470h), "
           "the cook's finish (cook, &resource, the sponge, the query), the resource let go",
           [r.read(sponge + 0x354 + 4 * i) for i in range(3)] == resources[:3] and r.read(sponge + S_ZONE) == zone
-          and r.read(zone + 0xD0) == 2 and finished == [(game.cook, copy + 8 + 8, sponge, query_done)]
+          and r.read(zone + 0xD0) == 2 and finished == [(game.cook, sponge + S_LOADING + 4, sponge, query_done)]
           and r.read(game.resource + 0xD0) == 1, f"finished {finished}")
     check("the zone's collision geometry made from the inline config (as 0x3046F0: 24h bytes, vtables "
           "0xA13428/0xA13454) and loaded (0x2F8C30) from collision_geometries[0]",
@@ -1448,6 +1459,121 @@ def main():
           and ("zone_off", z_zone, 0) in events and r.read(z + STATE_AT) == 3 and r.read(z + S_EXPLODE) == NEVER,
           f"{spent_use:#x} {ready_use:#x} ticks {len(z_ticks)}")
 
+    # 16. Each slot of ours reached through the game's own call site with what the game passes there
+    #     (patch_026g.py's INSTALLED_VTABLES name these cases; the self-test fails a slot of ours with none).
+    print("  16. through the game's own call sites")
+    f32word = lambda v: struct.unpack("<I", struct.pack("<f", v))[0]
+    holder = r.allocate(0x200)                           # an anomaly core's +118h: its artefacts at +98h, count +9Ch
+    anomaly = holder - 0x118                             # the core: the same list at +1B0h, +1B4h
+
+    def artefacts_of(*objs):
+        array = r.allocate(4 * len(objs))
+        for i, obj in enumerate(objs):
+            r.word(array + 4 * i, obj)
+        r.word(holder + 0x98, array)
+        r.word(holder + 0x9C, len(objs))
+    # slot 11: inventory::action's call (ecx the item; [esp+18h] pressed, [esp+1Ch] the time pushed after it)
+    act, _, _ = make_sponge(2)
+    r.word(game.inventory + 0x17C, 0x17)
+    eip1, moved1 = r.span(0x2FCB20, 0x2FCB33, {UC_X86_REG_ESI: act}, [0] * 6 + [1, 1100000])
+    pressed_slot = r.read(game.inventory + 0x17C)
+    r.call(SYMBOLS["sp_pull_pin"], (act, 1100010))
+    eip2, moved2 = r.span(0x2FCB20, 0x2FCB33, {UC_X86_REG_ESI: act}, [0] * 6 + [0, 1100020])
+    check("driven: slot 11, action(pressed, time), through inventory::action 0x2FCB20: the press takes the grenade "
+          "slot, the release arms the fuse at the release's time + 3000 on the tick grid",
+          eip1 == eip2 == 0x2FCB33 and moved1 == moved2 == 0 and pressed_slot == 2
+          and r.read(game.inventory + 0x17C) == 0x17 and r.read(act + S_EXPLODE) == 1103050
+          and r.read(act + STATE_AT) == 6, f"fuse {r.read(act + S_EXPLODE)}")
+    # slot 29: generic_anomaly_core::tick's loop (edi the core, esi the index; push ebx (time), push ebp (dt))
+    throw(act, 1.0, 0.5, 2.0)
+    artefacts_of(act)
+    splashes.clear()
+    late = []
+    for when in (1103000, 1103050):
+        eip, moved = r.span(0x31B690, 0x31B6A2, {UC_X86_REG_EDI: anomaly, UC_X86_REG_ESI: 0,
+                                                  UC_X86_REG_EBX: when, UC_X86_REG_EBP: 50})
+        late.append((eip, moved, r.read(act + STATE_AT)))
+    check("driven: slot 29, tick(dt, time), through generic_anomaly_core::tick's loop 0x31B690: armed until the "
+          "fuse's time, the splash and the zone at it (dt and time in their places: swapped, the time would be 50)",
+          late == [(0x31B6A2, 0, 6), (0x31B6A2, 0, 7)] and len(splashes) == 1 and splashes[0][3] == 1103050,
+          f"{late} {[s[3] for s in splashes]}")
+    # slots 26, 27: generic_anomaly_core::serialize's loop (ebx the core's +118h, edi the writer, [ebp+0Ch]
+    # the dumper) and deserialize's (edi the same, ebx the reader, [esp+14h] and [esp+18h] its two others)
+    ser, _, _ = make_sponge(3)
+    direct, _ = write(ser)
+    writer, buffer = r.allocate(0x20), r.allocate(0x10)
+    r.word(writer + 0x14, buffer)
+    r.word(buffer + 4, r.allocate(0x10))
+    r.word(buffer + 8, 0x10)
+    frame = r.allocate(0x20)
+    artefacts_of(ser)
+    eip, moved = r.span(0x31B074, 0x31B089, {UC_X86_REG_EBX: holder, UC_X86_REG_ESI: 0, UC_X86_REG_EDI: writer,
+                                              UC_X86_REG_EBP: frame})
+    through = r.bytes(r.read(buffer + 4), r.read(buffer + 0xC))
+    check("driven: slot 26, serialize(writer, dumper), through generic_anomaly_core::serialize's loop 0x31B074: the "
+          "same bytes as written directly", eip == 0x31B089 and moved == 0 and through == direct,
+          f"{len(through)} / {len(direct)} bytes")
+    fresh, _, _ = make_sponge(4)
+    reader, source = r.allocate(8), r.allocate(len(direct) + 16)
+    r.emu.mem_write(source, direct)
+    r.word(reader + 4, source)
+    artefacts_of(fresh)
+    eip, moved = r.span(0x31B1A0, 0x31B1BB, {UC_X86_REG_EDI: holder, UC_X86_REG_ESI: 0, UC_X86_REG_EBX: reader},
+                        [0] * 8)
+    again, _ = write(fresh)
+    check("driven: slot 27, deserialize(reader, a, b), through generic_anomaly_core::deserialize's loop 0x31B1A0: "
+          "every byte read, the same state written again", eip == 0x31B1BB and moved == 0
+          and r.read(reader + 4) - source == len(direct) and again == direct)
+    # slot 28: generic_anomaly_core::spawn_artefact's call ([esp+18h] the core, ebp the index x 4, [esp+1Ch] the world)
+    spawned, _, _ = make_sponge(5)
+    r.word(spawned + WORLD, 0)
+    artefacts_of(spawned)
+    eip, moved = r.span(0x31B965, 0x31B97E, {UC_X86_REG_EBP: 0}, [0] * 6 + [anomaly, CORE])
+    check("driven: slot 28, set_game_world_core(world), through generic_anomaly_core::spawn_artefact 0x31B965: the "
+          "world at +248h, its body kept", eip == 0x31B97E and moved == 0 and r.read(spawned + WORLD) == CORE
+          and r.read(spawned + S_BODY) != 0)
+    # slot 13: inventory::remove_item (eax the slot, esi the inventory) calls the item's +34h
+    held, _, _ = make_sponge(6)
+    was = in_pool(held + S_NODE)
+    remove_from_slot(6)
+    check("driven: slot 13, removed_from_inventory, through inventory::remove_item 0x2FC680: a held sponge's "
+          "passive out of the pool, state 0", was == 1 and in_pool(held + S_NODE) == 0 and r.read(held + STATE_AT) == 0)
+    # slot 31: artefact_base::added_to_inventory (the game's, the sponge's +30h) calls +7Ch
+    r.word(game.inventory + 0x10C + 4 * 6, held)
+    r.thiscall(vt(held, 10), held, game.inventory, 6)
+    r.thiscall(0x313470, held)
+    check("driven: slot 31, enable_passive, through artefact_base::added_to_inventory 0x313470: state 3, the node "
+          "in the infection pool once", r.read(held + STATE_AT) == 3 and in_pool(held + S_NODE) == 1)
+    # slot 33: artefact_base::tick (the game's) with the holder dead calls +84h
+    r.emu.mem_write(game.player + 0x33C, b"\x00")
+    r.thiscall(0x313200, held, 50, 1200000)
+    r.emu.mem_write(game.player + 0x33C, b"\x01")
+    check("driven: slot 33, disable_passive, through artefact_base::tick 0x313200 (the holder dead): state 5, the "
+          "node out of the pool", r.read(held + STATE_AT) == 5 and in_pool(held + S_NODE) == 0)
+    # slot 14: inventory::setup_from_profile's loop (esi the slot's cell) calls each item's +38h
+    cell = r.allocate(4)
+    r.word(cell, held)
+    eip, moved = r.span(0x2FD1A5, 0x2FD1BB, {UC_X86_REG_ESI: cell})
+    check("driven: slot 14, revived, through inventory::setup_from_profile's loop 0x2FD1A5: state 3 again, the "
+          "passive in", eip == 0x2FD1BB and moved == 0 and r.read(held + STATE_AT) == 3 and in_pool(held + S_NODE) == 1)
+    # the drawable: the scene's loop of its drawables (ebx the drawable)
+    seen_draw, _, _ = make_sponge(7)
+    tap(seen_draw, 1300000)
+    r.call(SYMBOLS["sp_pull_pin"], (seen_draw, 1300000))
+    game.log.clear()
+    r.word(seen_draw + 0x340 + 0x10, 3)
+    eip, moved = r.span(0x23DD41, 0x23DD49, {UC_X86_REG_EBX: seen_draw + 0x340})
+    check("driven: the drawable's draw, through the scene's loop 0x23DD41: armed in the hand, its model added",
+          eip == 0x23DD49 and moved == 0 and [e[0] for e in game.log if "model" in e[0]] == ["add_model"])
+    # slot 0: the resource system's delete of a resource whose count fell to 0 (esi the object; `push 0`)
+    gone, _, _ = make_sponge(8)
+    game.log.clear()
+    eip, moved = r.span(0xFBB4E, 0xFBB58, {UC_X86_REG_ESI: gone})
+    check("driven: slot 0, the destructor (flags 0), through the resource system's delete 0xFBB4E: the passive "
+          "out, then Rattle's destructor with the same flags (0: the memory is the resource system's)",
+          eip == 0xFBB58 and moved == 0 and in_pool(gone + S_NODE) == 0 and ("rattle_dtor", gone, 0) in game.log,
+          str([e for e in game.log if e[0] == "rattle_dtor"]))
+
     # 15. The content pack's own config (release/content.tsv sponge@2, SRP_SPONGE_PACK or --pack: its
     #     folder), loaded as the game loads it: the cook reads it, and its passive keeps infection full.
     pack_config = os.path.join(args.pack, "files", "gameplay", "items", "artefacts", "artefact_sponge.options")
@@ -1461,7 +1587,7 @@ def main():
         size, _ = p.thiscall(0x25E770, pgame.cook, pgame.resource_ptr)
         phit = splash_of(p, psponge + S_SPLASH)
         check("the pack's artefact_sponge.options (0.28d0's file but the passive's regen_add 1000 and timeout_mul "
-              "0): a sponge of 688h bytes; duration 10000, fuse 3000, throw power 15, the passive {1000, 1, 0, 0, "
+              "0): a sponge of 698h bytes; duration 10000, fuse 3000, throw power 15, the passive {1000, 1, 0, 0, "
               "1.5, 1}, the splash 0.28d0's (radius 10, 0.05..1.5, pierce 0: no damage of its own, toxic)",
               made == psponge and size == S_SIZE and p.read(psponge + S_DURATION) == 10000
               and p.read(psponge + S_TIMEOUT) == 3000 and p.readf(psponge + S_POWER) == 15.0

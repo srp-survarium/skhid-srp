@@ -8,9 +8,12 @@
  * game's own constructor 0x25FA10), then the sponge's own fields (struct
  * sponge). Every address is a VA of the original exe (image base 0x10000; it
  * is never rebased); the proof of each is in docs/notes/client_patch.md
- * (patch 55) and tools/re-kit/v026g. The code keeps its mutable state
- * (the zone being ticked, for the zone's hit hook) on the section's state
- * page (-DSP_STATE_VA).
+ * (patch 55) and tools/re-kit/v026g. The game's functions are called through
+ * the engine-function library (engine_026g.h: a cdecl function per engine
+ * function, its registers and cleanup from the re-kit); the arena's link
+ * (link_026g.py) places this code in the block sponge.code and its mutable
+ * state (sp_g: the zone being ticked, for the zone's hit hook) in
+ * sponge.state.
  *
  * 0.28 names a slot of its own artefact_base vtable (42 slots) by its 0.28
  * offset; 0.26g's (36 slots) by its own: action is 0.28 +28h, 0.26g +2Ch.
@@ -20,41 +23,36 @@ typedef unsigned short u16;
 typedef unsigned int u32;
 typedef int i32;
 
-#ifndef SP_STATE_VA
-#error "SP_STATE_VA: the section's state page (sponge_a_026g.py)"
-#endif
+#include "engine_026g.h"
 
 #define AT(base, offset, type) (*(type *)((u8 *)(base) + (offset)))
 #define THISCALL __attribute__((thiscall))
 #define STDCALL __attribute__((stdcall))
 #define CDECL __attribute__((cdecl))
-#define CLOBBERS "memory", "cc", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7"
 
 /* ---- the game ---------------------------------------------------------- */
 
-/* config look-ups (Research's) */
-#define CONFIG_CHILD 0xF6B10       /* eax = table, edi = key: the child */
-#define CONFIG_HAS 0xF6C00         /* eax = table, esi = key: al */
-#define DAMAGE_TYPE_OF 0x304370    /* esi = a damage type's name: eax its index (the grenade set's reader 0x309CA0) */
+/* The game's functions this code calls are the engine library's (engine_026g.tsv):
+ * the config's child and has (0xF6B10, 0xF6C00), a damage type's index
+ * (0x304370, the grenade set's reader 0x309CA0), the cooks' malloc and free
+ * (0xE4F90, 0x1539D0), Rattle's constructor, loader, set_world, draw and
+ * destructor (0x25FA10, 0x2605F0, 0x25FB30, 0x25FB80, 0x260860), the cook's
+ * finish (0x2EE8D0), the resource query (0xE5B60), a resource's release
+ * (0xE0210), artefact_base's tick, serialize and deserialize (0x313200,
+ * 0x313670, 0x313760), the modifiers' getter (0x2D5AE0), find_pool (0x2E58B0),
+ * the hand's transform (0x309F00), the physics' shape and body (0x7A390,
+ * 0x357100, 0x7A1B0, 0x42A390, 0x3576C0.., 0x3577D0..), the splash (0x339630),
+ * remove_from_slot (0x2FC680), the zone's sensor, tick and switch-off
+ * (0x3080B0, 0x319A70, 0x319D30), the geometry's load and destructor
+ * (0x2F8C30, 0x2F8BE0), the matrix helpers (0x573C0, 0x725E0, 0xEE700), the
+ * field writers (0x1F3DE0, 0x1F48A0, 0x301DE0, 0x81A70), the scene's model
+ * calls (0x21CD0, 0x22280, 0x21F40) and the variant's type id (0x125790). */
 /* allocation (the cooks' allocator, as research_native_026g.c) */
 #define ALLOCATOR 0x1F1D9C4
-#define ALLOCATE 0xE4F90           /* esi = allocator, eax = size, push its info; ret 4 */
 #define GEOMETRY_INFO (0xACED34 + 8) /* the collision geometry's allocation info (0x304719: 0x420789 is lea eax,[ecx+8]) */
-#define FREE 0x1539D0              /* ecx = allocator, eax = the memory; cdecl (&the pointer, zeroed) */
-/* the artefact cook (vtable 0x9FC70C, class 76h) */
-#define RATTLE_CONSTRUCT 0x25FA10  /* eax = &effect, ecx = config root; stdcall (memory, scene); artefact<rattle> */
-#define RATTLE_SIZE 0x360          /* 0x25E7C9 */
-#define RATTLE_VTABLE 0xA06124     /* 36 slots */
-#define RATTLE_DRAWABLE_VTABLE 0xA061B8
-#define RATTLE_LOADED 0x2605F0     /* edi = the artefact; stdcall (queries_result): model, particle, sound into +354h.. */
-#define RATTLE_DTOR 0x260860       /* thiscall (flags); ret 4 */
-#define RATTLE_SET_WORLD 0x25FB30  /* thiscall (world); +248h, links the drawable */
-#define RATTLE_DRAW 0x25FB80       /* thiscall (the drawable) */
-#define COOK_FINISH 0x2EE8D0       /* ecx = cook, edx = &config resource, esi = the artefact, edi = the query */
-#define QUERY 0xE5B60              /* eax = requests {name, class}, ecx = count; cdecl (&function, allocator,
-                                      creation data*[], parent, 1) */
+/* the artefact cook (vtable 0x9FC70C, class 76h): Rattle's object is 360h bytes
+ * (0x25E7C9), its vtable 0xA06124 (36 slots), its drawable's 0xA061B8 */
 #define CONFIG_VARIANT_VTABLE 0x9ED1E4 /* concrete_type_helper<binary_config_value> (0x2F2C8F) */
-#define CONFIG_VARIANT_TYPE 0x125790   /* the variant's type id of a binary_config_value */
 #define RESULT_STRIDE 0x2E0        /* queries_result: an entry's size, its resource at +12Ch */
 #define RESULT_RESOURCE 0x12C
 #define RESULT_QUERY 0x20          /* the query the results are for (0x25E9DF) */
@@ -62,11 +60,7 @@ typedef int i32;
 #define CLASS_PARTICLE 0x3D
 #define CLASS_DAMAGE_ZONE 0x75     /* damage_zone_cook (0x311139; client vtable 0xA0563C, 0x1F6E6C) */
 #define REFCOUNT 0xD0              /* a resource's intrusive count */
-#define RELEASE 0xE0210            /* ecx = a resource whose count fell to 0 */
-/* artefact_base (0.26g; client_patch.md 3.51, damage/artefacts.md) */
-#define BASE_TICK 0x313200         /* thiscall (dt, time); ret 8 */
-#define BASE_SERIALIZE 0x313670    /* thiscall (writer, dumper); ret 8 */
-#define BASE_DESERIALIZE 0x313760  /* thiscall (reader, a, b); ret 0Ch */
+/* artefact_base (0.26g; client_patch.md 3.51, docs/notes/artefacts.md) */
 #define I_WORLD 0x248              /* game_world_core* (set_world) */
 #define I_INVENTORY 0x250
 #define I_SLOT 0x254
@@ -84,23 +78,19 @@ typedef int i32;
 #define INV_DIRTY 0x184
 #define INV_OWNER 0x174            /* the holder's interface: vt+8 the damage model's owner, vt+0Ch the player */
 #define NO_SLOT 0x17
-#define REMOVE_FROM_SLOT 0x2FC680  /* eax = slot, esi = inventory (0.28 0x4FBE90) */
 /* the player (base_player) */
 #define P_GAME_OBJECT 0x110        /* the hit's instigator (the grenade's arm 0x30A1F1) */
 #define GO_ID 4                    /* u8: the killer a hit names (0x2D9AF4) */
 #define P_KIT 0x115
 #define P_PROFILE 0x6B8
 #define P_ALIVE 0x33C
-#define MODIFIERS 0x2D5AE0         /* eax = a kit's modifiers, esi = index; stdcall (B, k): xmm0 */
 #define M_DAMAGE 11                /* the splash's damages (0x30A3D3) */
 #define M_RADIUS 12                /* splash_radius (0x30A3A0) */
 #define M_THROW 27                 /* the throw's power (0x30A2CC) */
 #define POOLS 0x108                /* the damage model's pools */
-#define FIND_POOL 0x2E58B0         /* eax = pools, ecx = &name: eax the pool */
 #define POOL_REGEN 0x2E8           /* a pool's regeneration modifiers {?, head, tail}, next at node+20h */
 #define REGEN_CALLBACK 0x312590    /* Lifebone's: (info, modifier) speed, timeout, threshold */
 #define REGEN_FUNCTION_VTABLE (0xA1566C | 1) /* its boost::function's (in place) */
-#define HAND_TRANSFORM 0x309F00    /* eax = the item; stdcall (&out): the holder's RightMiddle1, as a grenade's */
 /* the world (game_world_core) */
 #define W_PHYSICS 0x18FA4          /* the physics world (rigid bodies, the zones' ghosts: 0x2D3B1E) */
 #define W_HITS 0x18F58             /* the splash's hit manager (0x30A4CF) */
@@ -109,15 +99,7 @@ typedef int i32;
 #define W_PLACES_END 0x1845C       /* their end (active_player_ptr 0x2D0AB0: the count) */
 #define W_ACTIVE_PLACES 0x18FD8    /* u32: a bit for each place in the match now (active_player_ptr) */
 /* the rigid body (grenade_core's 0x303890, 0.28's 0x514400 the same numbers) */
-#define MAKE_SHAPE 0x7A390         /* edx = type, ecx = &dims; cdecl (&scale, 0) */
-#define MAKE_BODY 0x357100         /* cdecl (&desc, shape) */
-#define DESTROY_SHAPE 0x7A1B0      /* esi = the shape */
-#define MOST_DERIVED 0x42A390      /* cdecl (object): the allocation (__RTDynamicCast to void*) */
 #define PHYSICS_ALLOCATOR 0x1F1D384
-#define SET_LINEAR 0x3576C0        /* ecx = &v; stdcall (body) */
-#define SET_ANGULAR 0x357750
-#define GET_LINEAR 0x3577D0        /* eax = body, edx = &out */
-#define GET_ANGULAR 0x357830
 #define B_SHAPE 0x10
 #define B_BULLET 0x14              /* the Bullet body: +100h, +104h damping */
 #define BV_SET_TRANSFORM 0x18
@@ -126,8 +108,6 @@ typedef int i32;
 #define PW_ADD 0x2C                /* (body, 818h, 8) */
 #define PW_UPDATE 0x20             /* (the body's object) */
 #define PW_REMOVE 0x38             /* (body, 1) */
-/* the splash (grenade's 0x30A4A0) */
-#define SPLASH 0x339630            /* esi = hit params; stdcall (hit manager, &position, time) */
 /* the damage zone (damage_zone_core, client damage_zone) */
 #define Z_BASE 0x108               /* base_game_object: +14h geometries, +18h their count, +1Ch active */
 #define Z_GEOMETRIES 0x11C
@@ -141,28 +121,14 @@ typedef int i32;
 #define Z_EFFECTS 0x43C            /* the effect zones', count +440h */
 #define Z_DRAWABLE 0x408           /* the client zone's drawable */
 #define ZV_ON_ACTIVATE 0x1C        /* thiscall (flag) */
-#define ACTIVATE_OBJECT 0x3080B0   /* stdcall (base, world) */
-#define ZONE_TICK 0x319A70         /* thiscall (dt, time, on a 50 ms tick) */
-#define ZONE_OFF 0x319D30          /* stdcall (zone, flag) */
 #define GV_SET_TRANSFORM 0x20      /* collision_geometry (vtable 0xA13428) */
 #define GV_GET_TRANSFORM 0x24
 #define GEOMETRY_VTABLE 0xA13428
 #define GEOMETRY_VTABLE2 0xA13454
-#define LOAD_GEOMETRY 0x2F8C30     /* stdcall (geometry, &config) */
-#define GEOMETRY_DTOR 0x2F8BE0     /* thiscall: its ghost (0x357BA0) and meshes gone, not freed (0x2F8BC0 deletes) */
-#define EULER 0x725E0              /* edi = &angles, esi = &out: eax */
-#define TRANSLATION 0x573C0        /* ecx = &position, eax = &out: eax */
-#define MULTIPLY 0xEE700           /* ecx = A, edx = B; cdecl (&out): B x A */
-/* field writers (Research's): eax = &value; stdcall (writer, file, line, function, name) */
-#define WRITE_U8 0x1F3DE0
-#define WRITE_U32 0x1F48A0
-#define WRITE_MATRIX 0x301DE0
-#define WRITE_VEC3 0x81A70
-/* the scene (the artefact's draw 0x25FB80) */
-#define ADD_MODEL 0x21CD0          /* eax = model+108h; stdcall (renderer, scene+4, &m, &m) */
-#define UPDATE_MODEL 0x22280
-#define REMOVE_MODEL 0x21F40       /* eax = model+108h; stdcall (renderer, scene+4) */
 #define RET_ZERO 0x300040          /* xor eax,eax; ret */
+#define FIELD_10H 0x346480         /* lea eax,[ecx+10h]; ret: the inflictor's position */
+#define BIND_VTABLE 0xA09374       /* boost::function's vtable of a bound member function taking a
+                                      queries_result (manager 0x27E890, invoker 0x202300: this, results) */
 
 enum {
     TYPE_SPONGE = 12,
@@ -177,14 +143,19 @@ enum {
 
 typedef struct { float m[16]; } matrix;
 
-/* hit_inflictor (0.28 +3C4h: {vt, u16 FFFFh, u8 0, the instigator, the item}) */
+/* hit_inflictor (0.28 +3C4h: {vt, u16 FFFFh, u8 0, the instigator, the item}),
+ * then where it is: its slot 2 (0.28's 0x514550, a pointer to the position)
+ * is the game's getter 0x346480 (`lea eax,[ecx+10h] / ret`), so the position
+ * is kept at +10h, set wherever m_transform moves (place). */
 struct inflictor {
     const u32 *vtable;
     u16 id;
     u8 flag, pad;
     void *instigator;              /* the thrower's game object (P_GAME_OBJECT) at the explosion */
     void *item;                    /* the sponge */
+    float position[3];             /* +10h */
 };
+_Static_assert(__builtin_offsetof(struct inflictor, position) == 0x10, "the getter's +10h");
 
 /* Lifebone's regeneration modifier: the callback reads +1Ch..+33h. */
 struct modifier {
@@ -216,7 +187,9 @@ struct splash {
 struct sponge {
     u8 base[0x340];                /* artefact_base */
     u8 drawable[0x20];             /* +340h the wrapper's (Rattle's): its draw reads the artefact by these offsets */
-    struct inflictor inflictor;    /* +360h */
+    u8 *loading_cook;              /* +360h the cook and the config resource (held) while the query loads */
+    u8 *loading_config;
+    u32 unused[2];
     struct modifier passive;       /* +370h passive/{regen,timeout,threshold}_{add,mul} */
     u32 duration_ms;               /* active/duration_s x 1000 (10 s) */
     u32 activation_timeout_ms;     /* activation_timeout_s x 1000 (3 s) */
@@ -237,9 +210,9 @@ struct sponge {
     u32 sounds, effects;           /* zones moved with the explosion */
     matrix sound_local[MAX_ZONES];
     matrix effect_local[MAX_ZONES];
-    float position[3];             /* the inflictor's position */
+    struct inflictor inflictor;    /* +67Ch */
 };
-_Static_assert(__builtin_offsetof(struct sponge, inflictor) == 0x360, "inflictor");
+_Static_assert(__builtin_offsetof(struct sponge, inflictor) == 0x67C, "inflictor");
 _Static_assert(__builtin_offsetof(struct sponge, passive) == 0x370, "passive");
 _Static_assert(__builtin_offsetof(struct sponge, splash) == 0x3B0, "splash");
 _Static_assert(__builtin_offsetof(struct sponge, node) == 0x3F0, "node");
@@ -248,25 +221,28 @@ _Static_assert(__builtin_offsetof(struct sponge, pin) == 0x420, "pin");
 _Static_assert(__builtin_offsetof(struct sponge, body) == 0x424, "body");
 _Static_assert(__builtin_offsetof(struct sponge, transform) == 0x430, "transform");
 _Static_assert(__builtin_offsetof(struct sponge, zone) == 0x470, "zone");
-_Static_assert(sizeof(struct sponge) == 0x688, "sponge");
+_Static_assert(sizeof(struct sponge) == 0x698, "sponge");
 _Static_assert(sizeof(struct splash) == 0x40 && sizeof(struct node) == 0x28, "splash, node");
 
-/* the zone's hit hook (sponge_a_026g.asm zone_hit) reads these */
+/* the zone's hit hook (sponge_a_026g.asm sponge_zone_hit) reads these: the
+ * arena's block sponge.state */
 struct sp_globals {
     u8 *zone;                      /* the zone a sponge ticks now */
     void *instigator, *inflictor, *item;
 };
-#define G ((struct sp_globals *)SP_STATE_VA)
+struct sp_globals sp_g;
+#define G (&sp_g)
 
 /* ---- small things freestanding code needs ------------------------------ */
 
-void *memset(void *to, int value, unsigned long size) {
+/* static: Research's are the global ones; gcc's own calls bind to these */
+static void *memset(void *to, int value, unsigned long size) {
     u8 *at = to;
     while (size--) *at++ = (u8)value;
     return to;
 }
 
-void *memcpy(void *to, const void *from, unsigned long size) {
+static void *memcpy(void *to, const void *from, unsigned long size) {
     u8 *a = to;
     const u8 *b = from;
     while (size--) *a++ = *b++;
@@ -283,17 +259,11 @@ _Static_assert(sizeof(cfg) == 24, "a config value is 24 bytes");
 enum { CFG_FLOAT = 2, CFG_INDEXED = 4 };
 
 static const cfg *child(const cfg *table, const char *key) {
-    const cfg *result;
-    __asm__ volatile("call *%[fn]" : "=a"(result), "+D"(key) : "a"(table), [fn] "r"(CONFIG_CHILD)
-                     : "ecx", "edx", CLOBBERS);
-    return result;
+    return (const cfg *)engine_cfg_child((const struct engine_cfg *)table, key);
 }
 
 static int has(const cfg *table, const char *key) {
-    u32 result;
-    __asm__ volatile("call *%[fn]" : "=a"(result), "+S"(key) : "a"(table), [fn] "r"(CONFIG_HAS)
-                     : "ecx", "edx", "edi", CLOBBERS);
-    return (u8)result;
+    return (int)engine_cfg_has((const struct engine_cfg *)table, key);
 }
 
 static const cfg *item(const cfg *table, u32 index) { return (const cfg *)table->data + index; }
@@ -313,11 +283,7 @@ static u32 whole_ms(const cfg *value) {
 }
 
 static void *allocate(u32 size, u32 info) {
-    void *result;
-    u32 allocator = *(u32 *)ALLOCATOR;
-    __asm__ volatile("push %[info]\n\tcall *%[fn]" : "=a"(result), "+S"(allocator)
-                     : "a"(size), [info] "r"(info), [fn] "r"(ALLOCATE) : "ecx", "edx", CLOBBERS);
-    return result;
+    return engine_malloc(*(void **)ALLOCATOR, size, (const void *)info);
 }
 
 static void acquire(u8 *resource) {
@@ -325,10 +291,8 @@ static void acquire(u8 *resource) {
 }
 
 static void release(u8 *resource) {
-    if (resource && __atomic_sub_fetch(&AT(resource, REFCOUNT, i32), 1, __ATOMIC_SEQ_CST) == 0) {
-        u8 *count = resource + REFCOUNT;           /* eax as 0x25FB1D has it */
-        __asm__ volatile("call *%[fn]" : "+c"(resource), "+a"(count) : [fn] "r"(RELEASE) : "edx", CLOBBERS);
-    }
+    if (resource && __atomic_sub_fetch(&AT(resource, REFCOUNT, i32), 1, __ATOMIC_SEQ_CST) == 0)
+        engine_resource_release(resource, resource + REFCOUNT);   /* eax as 0x25FB1D has it */
 }
 
 static u32 vt(const void *object, u32 offset) { return AT(*(const u8 *const *)object, offset, u32); }
@@ -351,60 +315,28 @@ static u8 *damage_model(const struct sponge *s) {
 /* The holder's modifier `index` on b (0x2D5AE0, k 1). */
 static float modified(const u8 *player, u32 index, float b) {
     u8 *mods = AT(player, P_PROFILE, u8 *) + 0x704 * AT(player, P_KIT, u8) + 0xF4;
-    float result;
-    union { float f; u32 u; } bb = {b}, kk = {1.0f};
-    u32 fn = MODIFIERS;
-    __asm__ volatile("push %[k]\n\tpush %[b]\n\tcall *%[fn]"
-                     : "=Yz"(result), "+S"(index), "+a"(mods), [b] "+c"(bb.u), [k] "+d"(kk.u), [fn] "+D"(fn)
-                     : : "memory", "cc", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
-    return result;
+    return engine_apply_modifier(mods, index, b, 1.0f);
 }
 
-static u8 *find_pool(u8 *pools, const char *name) {
-    u8 *result;
-    const char **key = &name;
-    __asm__ volatile("call *%[fn]" : "=a"(result), "+c"(key) : "a"(pools), [fn] "r"(FIND_POOL) : "edx", CLOBBERS);
-    return result;
-}
+static u8 *find_pool(u8 *pools, const char *name) { return engine_find_pool(pools, &name); }
 
-static void hand_transform(struct sponge *s, matrix *out) {
-    u32 ignored;
-    __asm__ volatile("push %[out]\n\tcall *%[fn]" : "=a"(ignored) : "a"(s), [out] "r"(out), [fn] "r"(HAND_TRANSFORM)
-                     : "ecx", "edx", CLOBBERS);
-}
+static void hand_transform(struct sponge *s, matrix *out) { engine_hand_transform(s, out); }
 
-static void multiply(const matrix *a, const matrix *b, matrix *out) {
-    __asm__ volatile("push %[out]\n\tcall *%[fn]\n\tadd $4, %%esp" : "+c"(a), "+d"(b)
-                     : [out] "r"(out), [fn] "r"(MULTIPLY) : "eax", CLOBBERS);
-}
+/* out = b, then a (b applied first) */
+static void multiply(const matrix *a, const matrix *b, matrix *out) { engine_matrix_multiply(a, b, out); }
 
-static void translation(const float *position, matrix *out) {
-    u32 ignored;
-    __asm__ volatile("call *%[fn]" : "=a"(ignored), "+c"(position) : "a"(out), [fn] "r"(TRANSLATION)
-                     : "edx", CLOBBERS);
-}
+static void translation(const float *position, matrix *out) { engine_matrix_translation(out, position); }
 
-static void euler(const float *angles, matrix *out) {
-    u32 ignored;
-    __asm__ volatile("call *%[fn]" : "=a"(ignored), "+D"(angles), "+S"(out) : [fn] "r"(EULER)
-                     : "ecx", "edx", CLOBBERS);
-}
-
-static void get_velocity(u32 fn, void *body, float out[3]) {
-    u32 ignored;
-    __asm__ volatile("call *%[fn]" : "=a"(ignored), "+d"(out) : "a"(body), [fn] "r"(fn) : "ecx", CLOBBERS);
-}
+static void euler(const float *angles, matrix *out) { engine_matrix_rotation(angles, out); }
 
 static const char SP_FILE[] = "artefact_sponge_core.cpp";
 static const char SP_SERIALIZE[] = "survarium::artefact_sponge_core::serialize";
 
-/* One field through the game's writer `fn`; `line` 0.28's line of it. */
-static void field(u8 *writer, u32 fn, const void *value, u32 line, const char *name) {
-    __asm__ volatile("push %[name]\n\tpush %[function]\n\tpush %[line]\n\tpush %[file]\n\tpush %[writer]\n\t"
-                     "call *%[fn]"
-                     : "+a"(value), [name] "+c"(name), [line] "+d"(line)
-                     : [function] "i"(SP_SERIALIZE), [file] "i"(SP_FILE), [writer] "r"(writer), [fn] "r"(fn)
-                     : CLOBBERS);
+/* One field through the game's writer `write`; `line` 0.28's line of it. */
+typedef void (*writer_fn)(const void *, void *, const char *, unsigned int, const char *, const char *);
+
+static void field(u8 *writer, writer_fn write, const void *value, u32 line, const char *name) {
+    write(value, writer, SP_FILE, line, SP_SERIALIZE, name);
 }
 
 /* ---- the rigid body ---------------------------------------------------- */
@@ -424,15 +356,9 @@ static void *make_body(void) {
     } desc = {{0.3f, 0, 0, 0}, 0.5f, 0, 0.8f, 1.0f, 0, {0}, 0.005f, {0.01f, 0.01f, 0.01f},
               {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}, 1, {0}};
     _Static_assert(sizeof desc == 0x50 && __builtin_offsetof(__typeof__(desc), last) == 0x4C, "desc");
-    u8 *shape, *body;
-    const float *d = dims;
-    u32 type = 3;
-    __asm__ volatile("push $0\n\tpush %[scale]\n\tcall *%[fn]\n\tadd $8, %%esp" : "=a"(shape), "+c"(d), "+d"(type)
-                     : [scale] "r"(scale), [fn] "r"(MAKE_SHAPE) : CLOBBERS);
+    u8 *shape = engine_create_collision_shape(3, dims, scale, 0);
     AT(shape, 0xFC, u32) |= 2;
-    void *description = &desc;                    /* in a register of its own, never esp itself */
-    __asm__ volatile("push %[shape]\n\tpush %[desc]\n\tcall *%[fn]\n\tadd $8, %%esp" : "=a"(body), [desc] "+S"(description)
-                     : [shape] "b"(shape), [fn] "D"(MAKE_BODY) : "ecx", "edx", CLOBBERS);
+    u8 *body = engine_create_rigid_body(&desc, shape);
     u8 *bullet = AT(body, B_BULLET, u8 *);
     AT(bullet, 0x104, float) = 0.03f;
     AT(bullet, 0x100, float) = 0.01f;
@@ -442,22 +368,25 @@ static void *make_body(void) {
 /* grenade_core's destructor 0x303770 (destroy_dynamic_rigid_body): the
  * shape, then the body through the physics allocator. */
 static void destroy_body(u8 *body) {
-    u8 *shape = AT(body, B_SHAPE, u8 *);
-    __asm__ volatile("call *%[fn]" : "+S"(shape) : [fn] "r"(DESTROY_SHAPE) : "eax", "ecx", "edx", CLOBBERS);
-    void *memory = ((CDECL void *(*)(void *))MOST_DERIVED)(body);
+    engine_destroy_shape(AT(body, B_SHAPE, u8 *));
+    void *memory = engine_rt_cast_to_void(body);
     ((THISCALL void (*)(void *, u32))vt(body, 8))(body, 0);
     u8 *allocator = *(u8 **)PHYSICS_ALLOCATOR;
     ((THISCALL void (*)(void *, void *, const char *, const char *, u32))vt(allocator, 0x18))(
         allocator, memory, "vostok::physics::destroy_dynamic_rigid_body", ".\\dynamic_rigid_body.cpp", 0x4E);
 }
 
-static void set_velocity(u32 fn, void *body, const float v[3]) {
-    ((THISCALL void (*)(const float *, void *))fn)(v, body);
-}
-
 static void physics_update(void *physics, void *body) {
     void *object = ((THISCALL void *(*)(void *))vt(body, BV_OBJECT))(body);
     ((THISCALL void (*)(void *, void *))vt(physics, PW_UPDATE))(physics, object);
+}
+
+/* The inflictor's position: where m_transform is (0.28's slot 2 read
+ * the transform at each call; 0.26g's getter reads the field). */
+static void place(struct sponge *s, const matrix *m) {
+    s->inflictor.position[0] = m->m[12];
+    s->inflictor.position[1] = m->m[13];
+    s->inflictor.position[2] = m->m[14];
 }
 
 /* 0.28's 0x5146E0: into the physics world at `transform` with `linear`, no
@@ -467,9 +396,10 @@ static void launch(struct sponge *s, const matrix *transform, const float linear
     u8 *world = AT(s, I_WORLD, u8 *);
     s->physics = AT(world, W_PHYSICS, void *);
     ((THISCALL void (*)(void *, const matrix *))vt(s->body, BV_SET_TRANSFORM))(s->body, transform);
+    place(s, transform);
     ((THISCALL void (*)(void *, void *, u32, u32))vt(s->physics, PW_ADD))(s->physics, s->body, 0x818, 8);
-    set_velocity(SET_LINEAR, s->body, linear);
-    set_velocity(SET_ANGULAR, s->body, zero);
+    engine_body_set_linear_velocity(linear, s->body);
+    engine_body_set_angular_velocity(zero, s->body);
     if (AT(s, I_COUNT, u16)) {
         AT(s, I_COUNT, u16) = 0;
         u8 *inventory = AT(s, I_INVENTORY, u8 *);
@@ -496,14 +426,14 @@ static void zone_on(struct sponge *s, u32 flag) {
     if (!s->zone) return;
     u8 *zone = s->zone, *physics = AT(AT(s, I_WORLD, u8 *), W_PHYSICS, u8 *);
     AT(zone, Z_WORLD, u8 *) = physics;
-    ((STDCALL void (*)(void *, void *))ACTIVATE_OBJECT)(zone + Z_BASE, physics);
+    engine_sensor_insert(zone + Z_BASE, physics);
     AT(zone, Z_LAST_HIT, u32) = NEVER;
     AT(zone, Z_HITTING, u8) = 0;
     ((THISCALL void (*)(void *, u32))vt(zone, ZV_ON_ACTIVATE))(zone, flag);
 }
 
 static void zone_off(struct sponge *s, u32 flag) {
-    if (s->zone) ((STDCALL void (*)(void *, u32))ZONE_OFF)(s->zone, flag);
+    if (s->zone) engine_zone_deactivate(s->zone, flag);
 }
 
 static int zone_active(const struct sponge *s) { return s->zone && AT(s->zone, Z_ACTIVE, u8); }
@@ -558,7 +488,7 @@ static void zone_tick(struct sponge *s, u32 dt, u32 time) {
     g->instigator = s->inflictor.instigator = owner_object(s);
     g->inflictor = &s->inflictor;
     g->item = s;
-    ((THISCALL void (*)(void *, u32, u32, u32))ZONE_TICK)(s->zone, dt, time, time % TICK == 0);
+    engine_zone_tick(s->zone, dt, time, time % TICK == 0);
     g->zone = 0;
     g->instigator = g->inflictor = g->item = 0;
     s->inflictor.instigator = 0;
@@ -691,10 +621,11 @@ static void splash_of(struct sponge *s, struct splash *out) {
 /* 0.28's tick 0x514160: states 6 and 7 are the sponge's own. */
 THISCALL void sp_tick(struct sponge *s, u32 dt, u32 time) {
     u32 state = AT(s, A_STATE, u32);
-    if (state != ST_ARMED && state != ST_ZONE) ((THISCALL void (*)(void *, u32, u32))BASE_TICK)(s, dt, time);
+    if (state != ST_ARMED && state != ST_ZONE) engine_artefact_tick(s, dt, time);
     if (s->physics) {
         matrix at;
         s->transform = *((THISCALL matrix * (*)(void *, matrix *)) vt(s->body, BV_GET_TRANSFORM))(s->body, &at);
+        place(s, &s->transform);
         physics_update(s->physics, s->body);
     }
     if (s->explode_time == NEVER) return;
@@ -703,14 +634,10 @@ THISCALL void sp_tick(struct sponge *s, u32 dt, u32 time) {
         struct splash hit;
         current_transform(s, &transform);
         float position[3] = {transform.m[12], transform.m[13], transform.m[14]};
+        place(s, &transform);
         splash_of(s, &hit);
         u8 *world = AT(s, I_WORLD, u8 *);
-        struct splash *params = &hit;
-        u32 when = time, hits = AT(world, W_HITS, u32), fn = SPLASH;
-        float *at = position;
-        __asm__ volatile("push %[when]\n\tpush %[at]\n\tpush %[hits]\n\tcall *%[fn]"
-                         : "+S"(params), [when] "+a"(when), [at] "+c"(at), [hits] "+d"(hits), [fn] "+D"(fn)
-                         : : CLOBBERS);
+        engine_splash_hit(&hit, AT(world, W_HITS, void *), position, time);
         s->inflictor.instigator = 0;                 /* the zone's ticks name him again each time */
         s->transform = transform;                    /* the explosion point: the zone's hits' position */
         zone_on(s, 1);
@@ -723,8 +650,7 @@ THISCALL void sp_tick(struct sponge *s, u32 dt, u32 time) {
         u8 *inventory = AT(s, I_INVENTORY, u8 *);
         u32 slot = AT(s, I_SLOT, u32);
         if (inventory && slot < NO_SLOT && AT(inventory, INV_SLOTS + 4 * slot, struct sponge *) == s)
-            __asm__ volatile("call *%[fn]" : "+a"(slot), "+S"(inventory) : [fn] "r"(REMOVE_FROM_SLOT)
-                             : "ecx", "edx", CLOBBERS);
+            engine_inventory_remove_item(inventory, slot);
         sp_disable_passive(s);                       /* 0.28 leaves it in the thrower's list (its +30h skips state 6) */
     }
     /* the zone runs on whatever the item's state (nothing can take an
@@ -768,28 +694,28 @@ void sp_throw(struct sponge *s, const matrix *hand, const matrix *aim) {
 /* ---- serialization (0.28's 0x513A70 / 0x513C80) ------------------------- */
 
 THISCALL void sp_serialize(struct sponge *s, u8 *writer, void *dumper) {
-    ((THISCALL void (*)(void *, void *, void *))BASE_SERIALIZE)(s, writer, dumper);
-    field(writer, WRITE_U32, &s->explode_time, 0x3B, "m_explode_time_ms");
-    field(writer, WRITE_U8, &s->pin, 0x3C, "m_is_pin_pulled");
+    engine_artefact_serialize(s, writer, dumper);
+    field(writer, engine_write_u32, &s->explode_time, 0x3B, "m_explode_time_ms");
+    field(writer, engine_write_u8, &s->pin, 0x3C, "m_is_pin_pulled");
     u8 thrown = s->physics != 0;
-    field(writer, WRITE_U8, &thrown, 0x3D, "thrown()");
+    field(writer, engine_write_u8, &thrown, 0x3D, "thrown()");
     if (thrown) {
         float v[3];
-        field(writer, WRITE_MATRIX, &s->transform, 0x41, "m_transform");
-        get_velocity(GET_LINEAR, s->body, v);
-        field(writer, WRITE_VEC3, v, 0x44, "linear_velocity");
-        get_velocity(GET_ANGULAR, s->body, v);
-        field(writer, WRITE_VEC3, v, 0x47, "angular_velocity");
+        field(writer, engine_write_matrix, &s->transform, 0x41, "m_transform");
+        engine_body_linear_velocity(s->body, v);
+        field(writer, engine_write_float3, v, 0x44, "linear_velocity");
+        engine_body_angular_velocity(s->body, v);
+        field(writer, engine_write_float3, v, 0x47, "angular_velocity");
     }
     /* ours: the tap waiting for the pull, the thrower's place (from the arming on) */
-    field(writer, WRITE_U8, &s->released, 0x48, "m_released_before_pin");
-    field(writer, WRITE_U8, &s->owner, 0x49, "m_zone_owner");
+    field(writer, engine_write_u8, &s->released, 0x48, "m_released_before_pin");
+    field(writer, engine_write_u8, &s->owner, 0x49, "m_zone_owner");
     if (AT(s, A_STATE, u32) == ST_ZONE && s->zone) {
         u8 *serial = s->zone + Z_SERIAL;
         ((THISCALL void (*)(void *, void *, void *))vt(serial, 0))(serial, writer, dumper);
         /* 0.28 wrote its geometry's transform, which is the explosion's:
          * m_transform, which the zone's hits' position (the inflictor's) is */
-        field(writer, WRITE_MATRIX, &s->transform, 0x4F, "m_damage_zone->get_collision_geometry(0)->transform()");
+        field(writer, engine_write_matrix, &s->transform, 0x4F, "m_damage_zone->get_collision_geometry(0)->transform()");
     }
 }
 
@@ -812,12 +738,13 @@ static void read_bytes(u8 *reader, void *out, u32 size) {
 }
 
 THISCALL void sp_deserialize(struct sponge *s, u8 *reader, void *a, void *b) {
-    ((THISCALL void (*)(void *, void *, void *, void *))BASE_DESERIALIZE)(s, reader, a, b);
+    engine_artefact_deserialize(s, reader, a, b);
     s->explode_time = read32(reader);
     s->pin = read8(reader) != 0;
     if (read8(reader)) {
         float linear[3], angular[3];
         read_bytes(reader, &s->transform, sizeof s->transform);
+        place(s, &s->transform);
         read_bytes(reader, linear, sizeof linear);
         read_bytes(reader, angular, sizeof angular);
         if (!s->physics) {
@@ -825,9 +752,9 @@ THISCALL void sp_deserialize(struct sponge *s, u8 *reader, void *a, void *b) {
         } else {
             ((THISCALL void (*)(void *, const matrix *))vt(s->body, BV_SET_TRANSFORM))(s->body, &s->transform);
             physics_update(s->physics, s->body);
-            set_velocity(SET_LINEAR, s->body, linear);
+            engine_body_set_linear_velocity(linear, s->body);
         }
-        set_velocity(SET_ANGULAR, s->body, angular);
+        engine_body_set_angular_velocity(angular, s->body);
     } else {
         leave_physics(s);
     }
@@ -839,6 +766,7 @@ THISCALL void sp_deserialize(struct sponge *s, u8 *reader, void *a, void *b) {
         u8 *serial = s->zone + Z_SERIAL;
         ((THISCALL void (*)(void *, void *, void *, void *))vt(serial, 4))(serial, reader, a, b);
         read_bytes(reader, &s->transform, sizeof s->transform);
+        place(s, &s->transform);
         u8 *shape = geometry(s);
         if (shape) ((THISCALL void (*)(void *, const matrix *))vt(shape, GV_SET_TRANSFORM))(shape, &s->transform);
         zone_place(s, &s->transform);
@@ -878,7 +806,7 @@ static void link_drawable(u8 *scene, u8 *drawable) {
 /* 0.28's set_world 0x46A760 / 0x514400: the world, the rigid body, both
  * drawables (the artefact's, as Rattle's 0x25FB30, and the zone's). */
 THISCALL void sp_set_world(struct sponge *s, u8 *world) {
-    ((THISCALL void (*)(void *, void *))RATTLE_SET_WORLD)(s, world);
+    engine_rattle_set_world(s, world);
     if (!s->body) s->body = make_body();
     u8 *scene = AT(s, 0x340 + D_SCENE, u8 *);
     if (scene && s->zone) {
@@ -888,10 +816,8 @@ THISCALL void sp_set_world(struct sponge *s, u8 *world) {
 }
 
 static void free_memory(void *memory) {
-    u32 allocator = *(u32 *)ALLOCATOR;
-    void *pointer = memory, **at = &pointer;
-    __asm__ volatile("push %[at]\n\tcall *%[fn]\n\tadd $4, %%esp" : "+a"(memory), "+c"(allocator)
-                     : [at] "r"(at), [fn] "r"(FREE) : "edx", CLOBBERS);
+    void *pointer = memory;
+    engine_free(*(void **)ALLOCATOR, memory, &pointer);
 }
 
 /* Each thing out of what it went into, before it goes: the passive out of
@@ -914,7 +840,7 @@ THISCALL void *sp_dtor(struct sponge *s, u32 flags) {
         s->made_geometry = 0;
         if (s->zone && AT(s->zone, Z_GEOMETRY_COUNT, u32) && AT(AT(s->zone, Z_GEOMETRIES, u8 **), 0, u8 *) == made)
             AT(AT(s->zone, Z_GEOMETRIES, u8 **), 0, u8 *) = 0;
-        ((THISCALL void (*)(void *))GEOMETRY_DTOR)(made);
+        engine_geometry_destroy(made);
         free_memory(made);
     }
     if (s->body) {
@@ -925,20 +851,19 @@ THISCALL void *sp_dtor(struct sponge *s, u32 flags) {
     release(s->zone);
     s->zone = 0;
     if (scene) unlink_drawable(scene, (u8 *)s + 0x340);
-    return ((THISCALL void *(*)(void *, u32))RATTLE_DTOR)(s, flags);
+    return engine_rattle_destroy(s, flags);
 }
 
 static u8 *renderer_of(u8 *scene) { return AT(AT(AT(scene, 0x9C, u8 *), 0x5360, u8 *), 0x200064, u8 *); }
 
-static void model_call(u32 fn, u8 *drawable, const matrix *m) {
+/* The scene's model calls (0x25FB80's): the model's instance (+108h), the
+ * renderer, the scene's +4, the matrix twice. */
+typedef void (*model_fn)(void *, void *, void *, const void *, const void *);
+
+static void model_call(model_fn add_or_update, u8 *drawable, const matrix *m) {
     u8 *scene = AT(drawable, D_SCENE, u8 *), *model = AT(drawable, D_MODEL, u8 *) + 0x108;
-    u8 *at = scene + 4, *renderer = renderer_of(scene);
-    if (m)                                       /* m in a register of its own: a local's address may be esp's */
-        __asm__ volatile("push %[m]\n\tpush %[m]\n\tpush %[at]\n\tpush %[r]\n\tcall *%[fn]"
-                         : "+a"(model), [at] "+c"(at), [r] "+d"(renderer), [m] "+S"(m) : [fn] "D"(fn) : CLOBBERS);
-    else
-        __asm__ volatile("push %[at]\n\tpush %[r]\n\tcall *%[fn]"
-                         : "+a"(model), [at] "+c"(at), [r] "+d"(renderer) : [fn] "r"(REMOVE_MODEL) : CLOBBERS);
+    if (add_or_update) add_or_update(model, renderer_of(scene), scene + 4, m, m);
+    else engine_scene_remove_model(model, renderer_of(scene), scene + 4);
 }
 
 /* 0.28's presenter (0x4B9F20): in state 6 the model at the sponge's
@@ -950,26 +875,15 @@ THISCALL void sp_draw(u8 *drawable) {
     if (state == ST_ARMED) {
         matrix m;
         current_transform(s, &m);
-        model_call(last == ST_ARMED ? UPDATE_MODEL : ADD_MODEL, drawable, &m);
+        model_call(last == ST_ARMED ? engine_scene_update_model : engine_scene_add_model, drawable, &m);
         AT(drawable, D_LAST, u32) = ST_ARMED;
         return;
     }
     if (last == ST_ARMED) {
-        model_call(REMOVE_MODEL, drawable, 0);
+        model_call(0, drawable, 0);
         AT(drawable, D_LAST, u32) = ST_NONE;
     }
-    ((THISCALL void (*)(u8 *))RATTLE_DRAW)(drawable);
-}
-
-/* hit_inflictor [2] (0.28's 0x514550): where it is. */
-THISCALL const float *sp_position(struct inflictor *self) {
-    struct sponge *s = (struct sponge *)((u8 *)self - __builtin_offsetof(struct sponge, inflictor));
-    matrix m;
-    current_transform(s, &m);
-    s->position[0] = m.m[12];
-    s->position[1] = m.m[13];
-    s->position[2] = m.m[14];
-    return s->position;
+    engine_rattle_draw(drawable);
 }
 
 /* ---- the vtables ------------------------------------------------------- */
@@ -1000,8 +914,9 @@ _Static_assert(sizeof sp_vtable == 37 * 4, "36 slots");
 /* the drawable's (Rattle's 0xA061B8, locator 0xA4C030) */
 __attribute__((used)) const u32 sp_drawable_vtable[1 + 1] = {0xA4C030, (u32)sp_draw};
 /* hit_inflictor's three (grenade_core's at its +0, locator 0xA5291C):
- * not a bullet, not a grenade, where it is (0.28's 0x97B9A8) */
-__attribute__((used)) const u32 sp_inflictor_vtable[1 + 3] = {0xA5291C, RET_ZERO, RET_ZERO, (u32)sp_position};
+ * not a bullet, not a grenade, where it is (0.28's 0x97B9A8); all three the
+ * game's own functions (the position the field at +10h) */
+__attribute__((used)) const u32 sp_inflictor_vtable[1 + 3] = {0xA5291C, RET_ZERO, RET_ZERO, FIELD_10H};
 
 /* ---- the cook ---------------------------------------------------------- */
 
@@ -1034,10 +949,7 @@ static void read_config(struct sponge *s, const cfg *root) {
     h->pierce = number(child(active, "splash_pierce"));
     h->stamina = number(child(active, "stamina_damage"));
     h->stopping = number(child(active, "stopping_power"));
-    const char *type = (const char *)child(active, "splash_damage_type")->data;
-    u32 index;
-    __asm__ volatile("call *%[fn]" : "=a"(index), "+S"(type) : [fn] "r"(DAMAGE_TYPE_OF) : "ecx", "edx", "edi", CLOBBERS);
-    h->type = index;
+    h->type = engine_damage_type_of((const char *)child(active, "splash_damage_type")->data);
     for (u32 i = 0; i < 8; ++i) h->bodies[i] = -1;
     const cfg *bodies = child(active, "splash_affected_bodies");
     for (u32 i = 0; i < bodies->count && i < 8; ++i) h->bodies[i] = (i32)item(bodies, i)->data;
@@ -1047,10 +959,8 @@ static void read_config(struct sponge *s, const cfg *root) {
  * sponge's (0.28's ctor 0x5136E0). */
 STDCALL struct sponge *sp_construct(struct sponge *s, u8 **resource, void *effect, void *scene) {
     if (!s) return 0;
+    engine_rattle_construct(effect, AT(*resource, 0x108, const cfg *), s, scene);
     const cfg *root = AT(*resource, 0x108, const cfg *);
-    __asm__ volatile("push %[scene]\n\tpush %[mem]\n\tcall *%[fn]" : "+a"(effect), "+c"(root)
-                     : [scene] "r"(scene), [mem] "r"(s), [fn] "r"(RATTLE_CONSTRUCT) : "edx", CLOBBERS);
-    root = AT(*resource, 0x108, const cfg *);
     memset((u8 *)s + 0x360, 0, sizeof *s - 0x360);
     AT(s, 0, const u32 *) = sp_vtable + 1;
     AT(s, 0x340, const u32 *) = sp_drawable_vtable + 1;
@@ -1081,29 +991,17 @@ struct creation {
 };
 _Static_assert(sizeof(struct creation) == 0x30, "variant<32>");
 
-/* our boost::function: in place, trivially copied */
-struct function_vtable {
-    void *manager, *invoker;
-};
+/* The query's callback: a boost::function of a member function bound to its
+ * object, in place and trivially copied (vtable BIND_VTABLE | 1), as the
+ * late join binds network_client's (0x27D280): the game's invoker 0x202300
+ * calls the function with ecx = the object + adj and the queries_result. */
 struct function {
     u32 vtable;
     u32 pad;
-    u32 buffer[4];                 /* the artefact, the cook, the config resource */
+    u32 buffer[4];                 /* the function, adj 0, the sponge */
 };
 
-CDECL void sp_manager(const u32 *in, u32 *out, u32 op);
-CDECL void sp_loaded(u32 *buffer, u8 *results);
-__attribute__((used)) const struct function_vtable sp_function_vtable = {sp_manager, sp_loaded};
-
-/* boost's manager ops: 0 clone, 1 move, 2 destroy, 3 check type, 4 type. */
-CDECL void sp_manager(const u32 *in, u32 *out, u32 op) {
-    if (op <= 1) {
-        for (int i = 0; i < 4; ++i) out[i] = in[i];
-    } else if (op == 3 || op == 4) {
-        out[0] = op == 3 ? 0 : (u32)&sp_function_vtable;
-        if (op == 4) ((u8 *)out)[4] = ((u8 *)out)[5] = 0;
-    }
-}
+THISCALL void sp_loaded(struct sponge *s, u8 *results);
 
 static const char *string_of(const cfg *value) { return (const char *)value->data; }
 
@@ -1132,7 +1030,7 @@ static void zone_cooked(struct sponge *s, u8 *zone, const cfg *config) {
         AT(shape, 4, u32) = GEOMETRY_VTABLE2;
         AT(AT(zone, Z_GEOMETRIES, u8 *), 0, u8 *) = shape;
         s->made_geometry = shape;
-        ((STDCALL void (*)(void *, const cfg *))LOAD_GEOMETRY)(shape, item(geometries, 0));
+        engine_geometry_load(shape, item(geometries, 0));
     }
     if (has(config, "sound_zones")) {
         const cfg *zones = child(config, "sound_zones");
@@ -1150,20 +1048,16 @@ static void zone_cooked(struct sponge *s, u8 *zone, const cfg *config) {
 /* The four resources come: Rattle's loader for the model, the particle and
  * the sound (entries 0..2), the zone (3); then the cook's finish, as the
  * stock callback 0x25E960 does for Rattle. */
-CDECL void sp_loaded(u32 *buffer, u8 *results) {
-    struct sponge *s = (struct sponge *)buffer[0];
-    u8 *cook = (u8 *)buffer[1];
-    u8 **resource = (u8 **)&buffer[2];
-    struct sponge *target = s;
-    __asm__ volatile("push %[r]\n\tcall *%[fn]" : "+D"(target) : [r] "r"(results), [fn] "r"(RATTLE_LOADED)
-                     : "eax", "ecx", "edx", CLOBBERS);
+THISCALL void sp_loaded(struct sponge *s, u8 *results) {
+    u8 *cook = s->loading_cook;
+    u8 **resource = &s->loading_config;
+    engine_rattle_loaded(s, results);
     u8 *zone = AT(results, RESULT_STRIDE * 3 + RESULT_RESOURCE, u8 *);
     const cfg *root = AT(*resource, 0x108, const cfg *);
     if (zone) zone_cooked(s, zone, child(child(data_of(root), "active"), "damage_zone"));
-    u8 *query = AT(results, RESULT_QUERY, u8 *);
-    __asm__ volatile("call *%[fn]" : "+c"(cook), "+d"(resource), "+S"(s), "+D"(query) : [fn] "r"(COOK_FINISH)
-                     : "eax", CLOBBERS);
-    release(*(u8 **)&buffer[2]);
+    engine_cook_finish_query(cook, resource, s, AT(results, RESULT_QUERY, u8 *));
+    release(s->loading_config);
+    s->loading_cook = s->loading_config = 0;
 }
 
 /* 0.28's cook 0x46A8A0 on 0.26g's (0x25E800): one query of the model, the
@@ -1182,16 +1076,12 @@ THISCALL u32 sp_cook_query(u8 *cook, u8 *parent, struct sponge *s, u8 **resource
     };
     struct creation zone = {CONFIG_VARIANT_VTABLE, 0, *child(child(data_of(root), "active"), "damage_zone"), {0}, 0, 0};
     zone.self = &zone;
-    zone.type = ((u32(*)(void))CONFIG_VARIANT_TYPE)();
+    zone.type = engine_config_variant_type();
     void *creation[4] = {0, 0, 0, &zone};
-    struct function done = {(u32)&sp_function_vtable | 1, 0, {(u32)s, (u32)cook, (u32)*resource, 0}};
+    s->loading_cook = cook;
+    s->loading_config = *resource;
     acquire(*resource);
-    void *list = requests, *pointers = creation, *function = &done;
-    u32 count = 4, fn = QUERY;
-    __asm__ volatile("push $1\n\tpush %[parent]\n\tpush %[creation]\n\tpushl %[allocator]\n\tpush %[done]\n\t"
-                     "call *%[fn]\n\tadd $20, %%esp"
-                     : "+a"(list), "+c"(count), [done] "+d"(function), [fn] "+S"(fn), [parent] "+D"(parent),
-                       [creation] "+b"(pointers)
-                     : [allocator] "m"(*(u32 *)ALLOCATOR) : CLOBBERS);
+    struct function done = {BIND_VTABLE | 1, 0, {(u32)sp_loaded, 0, (u32)s, 0}};
+    engine_query_resources(requests, 4, &done, *(void **)ALLOCATOR, creation, parent, 1);
     return 1;
 }

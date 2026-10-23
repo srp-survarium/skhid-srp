@@ -43,7 +43,7 @@ unsigned int engine_movie_invoke(void *movie, const char *method, void *result, 
 /* 0x2375c0 survarium::game_world_ui::show_parametrized_message: key ECX, ui ESP+4, first ESP+8, second ESP+12, third ESP+16; pops 16 */
 void engine_show_message(const char *key, void *ui, unsigned int first, unsigned int second, unsigned int third);
 
-/* 0x2e58b0 (unnamed): pools EAX, name ECX; pops 0; EAX */
+/* 0x2e58b0 survarium::damage_model::find_pool: pools EAX, name ECX; pops 0; EAX */
 void *engine_find_pool(void *pools, const char *const *name);
 
 /* 0x32a420 survarium::body_part::increase_health: pool ESI, time ESP+4, amount ESP+8; pops 8 */
@@ -108,5 +108,113 @@ void engine_mouse_ray(void *menu, float *direction, float *eye);
 
 /* 0x263950 survarium::lobby_character::accept_decal_edit: character ESI, host ESP+4, decal ESP+8; pops 8 */
 void engine_accept_decal_edit(void *character, unsigned int host, unsigned int decal);
+
+/* 0xe0210 (unnamed): resource ECX, count EAX; pops 0 */
+void engine_resource_release(void *resource, void *count);
+
+/* 0x309f00 survarium::grenade_set_core::logic_transform: item EAX, out ESP+4; pops 4 */
+void engine_hand_transform(void *item, void *out);
+
+/* 0xee700 vostok::math::float4x4::multiply_affine: second ECX, first EDX, out ESP+4; pops 0; EAX */
+void *engine_matrix_multiply(const void *second, const void *first, void *out);
+
+/* 0x573c0 vostok::math::float4x4::create_translation: out EAX, position ECX; pops 0; EAX */
+void *engine_matrix_translation(void *out, const float *position);
+
+/* 0x725e0 vostok::math::create_rotation: angles EDI, out ESI; pops 0 */
+void engine_matrix_rotation(const float *angles, void *out);
+
+/* 0x3577d0 vostok::physics::bullet_rigid_body::get_linear_velocity: body EAX, out EDX; pops 0 */
+void engine_body_linear_velocity(void *body, float *out);
+
+/* 0x357830 vostok::physics::bullet_rigid_body::get_angular_velocity: body EAX, out EDX; pops 0 */
+void engine_body_angular_velocity(void *body, float *out);
+
+/* 0x3576c0 vostok::physics::bullet_rigid_body::set_linear_velocity: velocity ECX, body ESP+4; pops 4 */
+void engine_body_set_linear_velocity(const float *velocity, void *body);
+
+/* 0x357750 vostok::physics::bullet_rigid_body::set_angular_velocity: velocity ECX, body ESP+4; pops 4 */
+void engine_body_set_angular_velocity(const float *velocity, void *body);
+
+/* 0x301de0 vostok::network_core::buffer_writer::w<class vostok::math::float4x4>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20 */
+void engine_write_matrix(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name);
+
+/* 0x81a70 vostok::network_core::buffer_writer::w<class vostok::math::float3>: value EAX, writer ESP+4, file ESP+8, line ESP+12, function ESP+16, name ESP+20; pops 20 */
+void engine_write_float3(const void *value, void *writer, const char *file, unsigned int line, const char *function, const char *name);
+
+/* 0x7a390 vostok::physics::create_collision_shape: type EDX, dims ECX, scale ESP+4, zero ESP+8; pops 0; EAX */
+void *engine_create_collision_shape(unsigned int type, const float *dims, const float *scale, unsigned int zero);
+
+/* 0x357100 vostok::physics::create_dynamic_rigid_body: description ESP+4, shape ESP+8; pops 0; EAX */
+void *engine_create_rigid_body(const void *description, void *shape);
+
+/* 0x7a1b0 vostok::physics::destroy_shape: shape ESI; pops 0 */
+void engine_destroy_shape(void *shape);
+
+/* 0x42a390 __RTCastToVoid: object ESP+4; pops 0; EAX */
+void *engine_rt_cast_to_void(void *object);
+
+/* 0x339630 survarium::splash_hit: parameters ESI, manager ESP+4, centre ESP+8, time ESP+12; pops 12 */
+void engine_splash_hit(const void *parameters, void *manager, const float *centre, unsigned int time);
+
+/* 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0 */
+void engine_inventory_remove_item(void *inventory, unsigned int slot);
+
+/* 0x21cd0 vostok::render::scene_renderer::add_model: model EAX, renderer ESP+4, scene ESP+8, first ESP+12, second ESP+16; pops 16 */
+void engine_scene_add_model(void *model, void *renderer, void *scene, const void *first, const void *second);
+
+/* 0x22280 vostok::render::scene_renderer::update_model: model EAX, renderer ESP+4, scene ESP+8, first ESP+12, second ESP+16; pops 16 */
+void engine_scene_update_model(void *model, void *renderer, void *scene, const void *first, const void *second);
+
+/* 0x21f40 vostok::render::scene_renderer::remove_model: model EAX, renderer ESP+4, scene ESP+8; pops 8 */
+void engine_scene_remove_model(void *model, void *renderer, void *scene);
+
+/* 0x304370 survarium::damage_type_from_string: name ESI; pops 0; EAX */
+unsigned int engine_damage_type_of(const char *name);
+
+/* 0x25fa10 survarium::artefact<survarium::artefact_rattle_core>::artefact<survarium::artefact_rattle_core>: effect EAX, root ECX, memory ESP+4, scene ESP+8; pops 8; EAX */
+void *engine_rattle_construct(void *effect, const void *root, void *memory, void *scene);
+
+/* 0x2605f0 survarium::artefact_cook::on_rattle_resources_loaded: artefact EDI, results ESP+4; pops 4 */
+void engine_rattle_loaded(void *artefact, void *results);
+
+/* 0x25fb30 survarium::artefact<survarium::artefact_rattle_core>::set_game_world_core: artefact ECX, world ESP+4; pops 4 */
+void engine_rattle_set_world(void *artefact, void *world);
+
+/* 0x25fb80 survarium::artefact<survarium::artefact_rattle_core>::draw: drawable ECX; pops 0 */
+void engine_rattle_draw(void *drawable);
+
+/* 0x260860 survarium::artefact<survarium::artefact_rattle_core>::`scalar deleting destructor': artefact ECX, flags ESP+4; pops 4; EAX */
+void *engine_rattle_destroy(void *artefact, unsigned int flags);
+
+/* 0x2ee8d0 survarium::artefact_core_cook::finish_query: cook ECX, resource EDX, artefact ESI, query EDI; pops 0 */
+void engine_cook_finish_query(void *cook, void *resource, void *artefact, void *query);
+
+/* 0x313200 survarium::artefact_base::tick: artefact ECX, dt ESP+4, time ESP+8; pops 8 */
+void engine_artefact_tick(void *artefact, unsigned int dt, unsigned int time);
+
+/* 0x313670 survarium::artefact_base::serialize: artefact ECX, writer ESP+4, dumper ESP+8; pops 8 */
+void engine_artefact_serialize(void *artefact, void *writer, void *dumper);
+
+/* 0x313760 survarium::artefact_base::deserialize: artefact ECX, reader ESP+4, a ESP+8, b ESP+12; pops 12 */
+void engine_artefact_deserialize(void *artefact, void *reader, void *a, void *b);
+
+/* 0x3080b0 survarium::collision_sensor::insert: sensor ESP+4, physics ESP+8; pops 8 */
+void engine_sensor_insert(void *sensor, void *physics);
+
+/* 0x319d30 survarium::damage_zone_core::deactivate: zone ESP+4, flag ESP+8; pops 8 */
+void engine_zone_deactivate(void *zone, unsigned int flag);
+
+/* 0x319a70 survarium::damage_zone_core::tick: zone ECX, dt ESP+4, time ESP+8, on_grid ESP+12; pops 12 */
+void engine_zone_tick(void *zone, unsigned int dt, unsigned int time, unsigned int on_grid);
+
+/* 0x2f8c30 survarium::collision_geometry::load: geometry ESP+4, config ESP+8; pops 8 */
+void engine_geometry_load(void *geometry, const void *config);
+
+/* 0x2f8be0 survarium::collision_geometry::~collision_geometry: geometry ECX; pops 0 */
+void engine_geometry_destroy(void *geometry);
+
+/* 0x125790 vostok::detail::type_to_int<vostok::configs::binary_config_value>::get: no arguments; pops 0; EAX */
+unsigned int engine_config_variant_type(void);
 
 #endif

@@ -2810,7 +2810,6 @@ va	name	location	role	basis
 0x002f84c0	survarium::usable_object::deserialize_usable_object	EDI	reader	inferred
 0x002f8510	survarium::usable_object::post_deserialize_resolve	ECX	usable_receiver	inferred
 0x002f8510	survarium::usable_object::post_deserialize_resolve	ESI	world	inferred
-0x002f8c30	survarium::collision_geometry::load	stack+4	config (binary_config_value by value, 8 bytes)	observed
 0x002fc4b0	survarium::inventory::inventory	EAX	inventory_storage	inferred
 0x002fc560	survarium::inventory::`scalar deleting destructor'	ECX	inventory receiver	inferred
 0x002fc560	survarium::inventory::`scalar deleting destructor'	stack+4	deallocation flags bit0	inferred
@@ -4540,3 +4539,22 @@ va	name	location	role	basis
 0x0007a1f0	vostok::physics::create_bt_primitive	EDX	the primitive's type (cmp edx,3 / jmp [edx*4+7A374h]): 0 sphere, 1 box, 2 cylinder (scale x the radius, y the half height), 3 capsule	observed
 0x0007a1f0	vostok::physics::create_bt_primitive	ECX	the scale (float3, [ecx] read first)	observed
 0x0007a1f0	vostok::physics::create_bt_primitive	ESI	the allocator (vtable +10h)	observed
+0x000e0210		ECX	the resource whose intrusive refcount at +0D0h fell to 0	observed
+0x000e0210		EAX	&its refcount field (that object+0D0h), passed on to 0xE02A0	observed
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	EAX	pointer to the value (a float4x4, 64 bytes)	observed
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	stack+4	buffer_writer receiver	observed
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	stack+8	diagnostic source filename	observed
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	stack+12	diagnostic source line	observed
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	stack+16	diagnostic caller function name	observed
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	stack+20	diagnostic value label	observed
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	EAX	pointer to the value (a float3, 12 bytes)	observed
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	stack+4	buffer_writer receiver	observed
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	stack+8	diagnostic source filename	observed
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	stack+12	diagnostic source line	observed
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	stack+16	diagnostic caller function name	observed
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	stack+20	diagnostic value label	observed
+0x0007a1b0	vostok::physics::destroy_shape	ESI	the shape (0 for none)	observed
+0x0042a390	__RTCastToVoid	stack+4	the object (a polymorphic pointer)	observed
+0x00260860	survarium::artefact<survarium::artefact_rattle_core>::`scalar deleting destructor'	ECX	the artefact	observed
+0x00260860	survarium::artefact<survarium::artefact_rattle_core>::`scalar deleting destructor'	stack+4	flags (bit 0: free the memory)	observed
+0x00313760	survarium::artefact_base::deserialize	stack+12	the third argument, passed on to 0x2FFF10 after the reader and stack+8	observed
