@@ -100,6 +100,9 @@ release's. The "Result" row is the build of the revision named in it.
 | `research_026g.asm`, `research_rule_026g.c`, `research_rule_026g.h`, `research_native_026g.c` | The source of patch 53 (Research, mode 5): the three hooks and their stubs in assembly, the rule's logic in C on integers (no pointer into the game), and its side in the game (the cook, the rule's twenty slots, the hud) in C |
 | `research_026g.section.bin`, `research_026g.section.json` | That code built for the start of `.srpx` (0xA42D000), which `patch_026g.py` reads, and beside it its symbols and what built it. The same tools give the same bytes; another compiler gives other bytes that do the same, so the file is kept, not rebuilt for a release |
 | `research_026g.py` | Builds those two files (`--write-bin`) or says whether they are what the sources give here (`--check-bin`). Needs nasm, gcc for x86 (`-m32`, SSE2 scalar floats) and GNU ld |
+| `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each (append only), and the generator of the four files after it from those rows and the re-kit's ABI rows (`--write`, `--check`; needs nasm) |
+| `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm`, `engine_026g.section.bin` | Generated, not edited: the C declarations, their addresses for NASM, the thunks and the thunks assembled for 0xA433000, the arena's block `engine.code` (`.srpx`+6000h) |
+| `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -138,8 +141,9 @@ the builder gives it, and the arena is byte-for-byte deterministic
 first two blocks, at the VAs it was built for, and the exe is byte for byte
 what main built before the arena. The old `.srp`/`.srpd`/`.srpc`/`.srpw` stay
 as they are; new patches append blocks (the artefacts, patch 54, took the third,
-`artefacts.code` at 0xA431000; the dynamic anomalies, #225, next:
-client_patch.md 0.3 says how).
+`artefacts.code` at 0xA431000; `anomalies.code` at 0xA432000 is kept for the
+dynamic anomalies, #225, int3 until they land: client_patch.md 0.3 says how;
+`engine.code` at 0xA433000 is the engine-function library, below).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
 a callback, a hook the game enters — declares in `patch_026g.py` the game's
@@ -167,6 +171,43 @@ self-test fails a slot or callback with none, or a case its script does not
 have, and a negative test shows both refused. **Not checked here:** INLINE sites (a call of ours over other instructions) and
 JUMP sites (a jump into ours from the game's code), which are declared but
 left to each patch's own Unicorn check.
+
+### Calling the game's functions: the engine-function library
+
+The game's compiler (LTO) gave many of its functions arguments in any
+register, some in registers and some on the stack, and either side cleaning
+up. A patch does not call them by hand: it calls the library's function,
+an ordinary cdecl one, and the library's thunk puts each argument where the
+game's function takes it (`docs/notes/client_patch.md` 0.5).
+
+- **From C:** `#include "engine_026g.h"` and call it:
+  `const struct engine_cfg *mode = engine_cfg_child(root, "mode");`. The
+  header gives each function its address; no inline asm. (Research's C does
+  this for the eleven game functions it calls; GetCurrentThreadId, a
+  Windows import, it calls through its import slot as before.)
+- **From NASM:** `%include "engine_026g.inc"`, push the arguments right to
+  left, `call engine_...`, `add esp, 4 x their count`. EBX, ESI, EDI and EBP
+  are kept; EAX, ECX and EDX are not. The result is in EAX (a byte result
+  widened), EDX:EAX for 64 bits, ST0 for a float.
+- **A function the library lacks:** add a row to `engine_026g.tsv` (at the
+  end: a row's place is its entry's address) with its C name, VA, where each
+  parameter goes (`EAX EDI`, `ESI ESP+4 ESP+8`; `-` for none) and its C
+  prototype. Its re-kit rows (`tools/re-kit/v026g/abi_inputs.tsv`, `abi.tsv`)
+  must have every argument and the cleanup (`ret_cleanup`) and, if it
+  returns something, the result; append the rows that are missing (from the
+  function's body and its callers; the re-kit's README). Then
+  `python engine_026g.py --write` and the self-test. The generator refuses a
+  row whose locations are not the re-kit's, a stack slot missing, a cleanup
+  larger than the slots or a result the rows do not give, and what it cannot
+  pass (an XMM argument, varargs).
+- **The check** (`check_engine_026g.py`, in the self-test): for every
+  function, what the exe's `ret`s pop is abi.tsv's cleanup; the thunk, called
+  with a marker per argument, reaches the real function once with each marker
+  in its register or slot, and comes back with the stack balanced, EBX ESI
+  EDI EBP kept and the result where C takes it; the config's look-ups, the
+  field writers, the statistics' listener, the pool lookup and the
+  allocation's name run for real on made-up data. Wrong rows (two arguments
+  swapped, a wrong cleanup, a wrong register) must fail it, and do.
 
 ## How to apply
 

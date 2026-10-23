@@ -2150,9 +2150,10 @@ def audit_installs(data, writes, installs=None):
 #   bytes never outgrow (grow a block only while it is the last); align a
 #   power of two from 16, 0x1000 for a page of its own.
 # A new patch appends its blocks at ARENA's end and takes its VAs from
-# ARENA_LAYOUT; the dynamic anomalies (#225), next, so:
-#   ArenaBlock("anomalies.code", "code", <its size>, 0x1000)  # 0xA432000
-# (its .bin assembled for that VA: the artefacts, patch 54, took +4000h).
+# ARENA_LAYOUT. The dynamic anomalies (#225, patch 42) have their page kept
+# at 0xA432000 (anomalies.code, int3 until patch 42 assembles its code for
+# it: the row stays, its bytes come); the engine-function library
+# (engine_026g.py) is at 0xA433000; the next block goes at 0xA434000.
 ARENA_NAME = b".srpx\0\0\0"
 ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execute, read, write
 ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
@@ -2167,6 +2168,8 @@ ARENA = (
     ArenaBlock("research.code", "code", 0x3000, 0x1000),     # patch 53: 0xA42D000
     ArenaBlock("research.state", "state", 0x1000, 0x1000),   # its rule's cook and the hud's cache: 0xA430000
     ArenaBlock("artefacts.code", "code", 0x1000, 0x1000),    # patch 54: 0xA431000
+    ArenaBlock("anomalies.code", "code", 0x1000, 0x1000),    # #225's (patch 42), kept for it: 0xA432000
+    ArenaBlock("engine.code", "code", 0x1000, 0x1000),       # the engine-function library: 0xA433000
 )
 
 
@@ -2198,6 +2201,8 @@ ARENA_PINNED = {
     "research.code": 0xA42D000,
     "research.state": 0xA430000,
     "artefacts.code": 0xA431000,
+    "anomalies.code": 0xA432000,
+    "engine.code": 0xA433000,
 }
 
 
@@ -2280,6 +2285,12 @@ RESEARCH_HOOKS = (
 # The artefacts (patch 54, ARTEFACTS_* above): the arena's third block, a page
 # of code at 0xA431000, where artefacts_026g.asm is assembled.
 ARTEFACTS_VA = ARENA_LAYOUT["artefacts.code"]
+# The engine-function library (engine_026g.py, client_patch.md section 0.5):
+# a cdecl thunk per engine function our code calls, each behind a `jmp near`
+# at ENGINE_VA + 5 x its row of engine_026g.tsv. One copy for every patch, so
+# one ABI check (check_engine_026g.py) covers every caller.
+ENGINE_VA = ARENA_LAYOUT["engine.code"]
+ENGINE_ENTRY = 5
 
 
 def research_layout(code):
@@ -3175,6 +3186,12 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                 if neutralize_relocs(data, [(va, va + len(expected))]):
                     sys.exit(f"{va:#x}: a base relocation under a hook of the artefacts")
             arena_bytes["artefacts.code"] = artefacts
+            arena_bytes["anomalies.code"] = b""          # #225's page: int3 until it lands
+            engine = open(engine_bin(), "rb").read()
+            if engine_entries(engine, ENGINE_VA) is None:
+                sys.exit(f"engine_026g.section.bin: not the library's entries, or assembled for another address "
+                         f"(engine_026g.py --write: VA {ENGINE_VA:#x})")
+            arena_bytes["engine.code"] = engine
             # The self-test's made-up blocks go after the patches' own: none
             # of those moves.
             check_arena()
@@ -3413,6 +3430,24 @@ def upgrade_preview_bin():
 
 def artefacts_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "artefacts_026g.section.bin")
+
+
+def engine_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "engine_026g.section.bin")
+
+
+def engine_entries(code, va):
+    """[the thunk's VA] of each entry of engine_026g.section.bin assembled at
+    `va`: its leading `jmp near`s up to the first thunk, each to a thunk in
+    the block past them, int3 between; None when the bytes are not that."""
+    out, at = [], 0
+    while at + ENGINE_ENTRY <= len(code) and code[at] == 0xE9 and (not out or va + at < min(out)):
+        out.append((va + at + ENGINE_ENTRY + struct.unpack_from("<i", code, at + 1)[0]) & 0xFFFFFFFF)
+        at += ENGINE_ENTRY
+    if not out or not all(va + at <= target < va + len(code) for target in out) \
+            or set(code[at:min(out) - va]) - {0xCC}:
+        return None
+    return out
 
 
 def artefacts_backs(code, va):

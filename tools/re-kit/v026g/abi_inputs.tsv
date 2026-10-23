@@ -4352,3 +4352,18 @@ va	name	location	role	basis
 0x0029a890	survarium::lobby_menu::exit_item_upgrade	ECX	the lobby menu	observed
 0x00284aa0	survarium::lobby_character::release_player	ESI	the lobby_character	observed
 0x00284aa0	survarium::lobby_character::release_player	entry ESP+4	byte: 1 also drops the player being made (+D2C9h)	observed
+0x002375c0	survarium::game_world_ui::show_parametrized_message	entry ESP+8 low byte	the message's first parameter, a GFx uint (21h at update_ui's welcome 0x23B362)	observed
+0x002375c0	survarium::game_world_ui::show_parametrized_message	entry ESP+12 low byte	the message's second parameter, a GFx uint (14h at the welcome)	observed
+0x002375c0	survarium::game_world_ui::show_parametrized_message	entry ESP+16	the message's third parameter, a GFx uint (1770h, its time in ms, at the welcome)	observed
+0x002e58b0		EAX	the damage model's pools (its owner+108h; +8 the list's head, a pool's name at +80h, the next at +0)	observed
+0x002e58b0		ECX	pointer to the name (a char *)	observed
+0x00313350		entry ESP+4	the artefact (artefact_base)	observed
+0x00313350		entry ESP+8	the time (artefact_base::action's, 0x313329)	observed
+0x00420789		ECX	the object; the result is its +8 (0xAC1220: the allocation's name of weapon_camo's and upgrade_preview's malloc)	observed
+0x000e5b60	vostok::resources::query_resources	EAX	the requests {name, class}	observed
+0x000e5b60	vostok::resources::query_resources	ECX	the requests' count	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+4	the callback, a boost::function	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+8	the allocator	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+12	the user data	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+16	the parent query, or 0	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+20	a flag (1 at weapon_camo's bake)	observed

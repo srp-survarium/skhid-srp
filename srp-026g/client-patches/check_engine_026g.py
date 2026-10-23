@@ -1,0 +1,344 @@
+#!/usr/bin/env python3
+"""The engine-function library's ABI check (engine_026g.py): every thunk of
+engine_026g.section.bin against the re-kit's rows and the original exe.
+
+    python check_engine_026g.py <original survarium.exe>
+
+Requires Python `unicorn` and NASM's ndisasm (NASM_DIR or PATH). The self-test
+runs the same (test_engine). For every function of engine_026g.tsv:
+
+- the cleanup: what the real function's `ret`s pop, read from the original exe
+  (selftest's function_pops, the call-shape check's reader), is abi.tsv's;
+- at the entry: the thunk, called as C calls it (cdecl, a distinct marker per
+  argument), reaches the real VA once, with each marker in the register or
+  stack slot the rows give it; there the real function's return is played
+  with what the exe's `ret` pops, EBX, ESI, EDI and EBP clobbered and a
+  result marker in EAX (EDX, XMM0): the thunk must come back to its caller
+  with the stack balanced, the four registers kept and the result where C
+  takes it (EAX, AL widened, EDX:EAX, ST0);
+- for the functions that run on made-up data (the config's child and has,
+  the field writers, the statistics' listener, the pool lookup, the
+  allocation's name): the real function runs, and
+  what it does is what the arguments in the rows' places make it do, so a
+  row with two arguments swapped fails here though the thunk follows it.
+
+The negative cases build wrong libraries (the config's table and key
+swapped, w<unsigned char> popping 16, value_exists' key in EDI) and wrong
+expectations (the checked-in thunks against a swapped row) and require the
+check to fail on each.
+"""
+import os
+import struct
+import sys
+
+from unicorn import Uc, UcError, UC_ARCH_X86, UC_MODE_32, UC_PROT_ALL, UC_HOOK_CODE
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, \
+    UC_X86_REG_ESP, UC_X86_REG_EBP, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EIP, UC_X86_REG_XMM0
+
+import patch_026g as base
+import engine_026g as engine
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REG = {"EAX": UC_X86_REG_EAX, "ECX": UC_X86_REG_ECX, "EDX": UC_X86_REG_EDX, "EBX": UC_X86_REG_EBX,
+       "ESI": UC_X86_REG_ESI, "EDI": UC_X86_REG_EDI, "EBP": UC_X86_REG_EBP}
+KEPT = {"EBX": 0x0B0B0B0B, "ESI": 0x05150515, "EDI": 0x0D1D0D1D, "EBP": 0x0B9B0B9B}
+HEAP, STACK, STUBS, CONFIG = 0x30000000, 0x21000000, 0x22000000, 0x50000000
+STOP = STUBS + 0x10
+RESULT, RESULT_HIGH = 0x7EADBE2A, 0x13579BDF
+RESIZE, DUMP_ON = 0x7AB30, 0x1F1D32C          # a buffer's resize (under the writers); the hash mismatch dump
+
+
+def marker(i):
+    return 0x41000000 + 0x10101 * (i + 1)
+
+
+class Run:
+    """The original exe's sections and the library's code, in Unicorn."""
+
+    def __init__(self, original, code):
+        self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
+        for _, rva, vsize, raw, rsize, _ in base.Headers(original).sections(original):
+            start = base.IMAGE_BASE + rva
+            emu.mem_map(start, (max(vsize, rsize) + 0xFFF) & ~0xFFF, UC_PROT_ALL)
+            emu.mem_write(start, bytes(original[raw:raw + min(rsize, vsize or rsize)]))
+        emu.mem_map(base.ENGINE_VA, 0x1000, UC_PROT_ALL)
+        emu.mem_write(base.ENGINE_VA, code + b"\xCC" * (0x1000 - len(code)))
+        for at, size in ((HEAP, 0x100000), (STACK, 0x10000), (STUBS, 0x1000), (CONFIG, 0x10000)):
+            emu.mem_map(at, size, UC_PROT_ALL)
+        self.heap = HEAP
+        self.hooks = {}                               # VA: f(run): what runs there instead
+        emu.hook_add(UC_HOOK_CODE, self.intercept)
+
+    def word(self, at, value):
+        self.emu.mem_write(at, struct.pack("<I", value & 0xFFFFFFFF))
+
+    def read(self, at, size=4):
+        return struct.unpack({1: "<B", 2: "<H", 4: "<I"}[size], self.emu.mem_read(at, size))[0]
+
+    def allocate(self, size, content=b""):
+        at = self.heap
+        self.heap += (size + 0xF) & ~0xF
+        self.emu.mem_write(at, content + bytes(size - len(content)))
+        return at
+
+    def text(self, value):
+        return self.allocate(len(value) + 1, value.encode() + b"\0")
+
+    def ret(self, cleanup, value=None):
+        emu = self.emu
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        if value is not None:
+            emu.reg_write(UC_X86_REG_EAX, value)
+        emu.reg_write(UC_X86_REG_ESP, sp + 4 + cleanup)
+        emu.reg_write(UC_X86_REG_EIP, self.read(sp))
+
+    def intercept(self, emu, address, size, user):
+        if address in self.hooks:
+            self.hooks[address](self)
+
+    def cdecl(self, entry, args, regs=None):
+        """entry(args) as C calls it, back at STOP: (eax, esp after - esp
+        before the call, the four kept registers as they came back)."""
+        emu = self.emu
+        sp = STACK + 0x8000 - 4 * len(args) - 4
+        self.word(sp, STOP)
+        for i, value in enumerate(args):
+            self.word(sp + 4 + 4 * i, value)
+        for name, value in KEPT.items():
+            emu.reg_write(REG[name], value)
+        for name, value in {"EAX": 0xEAEAEAEA, "ECX": 0xECECECEC, "EDX": 0xEDEDEDED, **(regs or {})}.items():
+            emu.reg_write(REG[name], value)
+        emu.reg_write(UC_X86_REG_ESP, sp)
+        emu.emu_start(entry, STOP, count=2_000_000)
+        return (emu.reg_read(UC_X86_REG_EAX), emu.reg_read(UC_X86_REG_ESP) - sp,
+                {name: emu.reg_read(REG[name]) for name in KEPT})
+
+
+def st0(run):
+    """ST0 popped as a float (an `fstp dword` run after the thunk's return)."""
+    at = STUBS + 0x300
+    run.emu.mem_write(at, b"\xD9\x1D" + struct.pack("<I", STUBS + 0x400))
+    run.emu.emu_start(at, at + 6)
+    return struct.unpack("<f", run.emu.mem_read(STUBS + 0x400, 4))[0]
+
+
+def exe_pops(original, va, cache={}):
+    """What the real function's rets pop, from the original exe (the
+    self-test's function_pops): the value, or None when they differ, none was
+    found or a branch could not be followed."""
+    if va not in cache:
+        import selftest_026g as selftest
+        image = cache.setdefault("image", selftest.Image(original))
+        found, lost = selftest.function_pops(image, va)
+        cache[va] = found.pop() if len(found) == 1 and not lost else None
+    return cache[va]
+
+
+def at_entry(run, f, entry, pops):
+    """The thunk at `entry` called with markers, stopped at f's VA, the
+    return played with `pops`; [(ok, text)]."""
+    emu, seen = run.emu, []
+
+    def real(run):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        seen.append(({name: emu.reg_read(r) for name, r in REG.items()},
+                     [run.read(sp + 4 * k) for k in range(len(f["args"]) + 1)]))
+        for name in KEPT:
+            emu.reg_write(REG[name], 0xBAD00000 + len(name))
+        emu.reg_write(UC_X86_REG_EDX, RESULT_HIGH)
+        emu.reg_write(UC_X86_REG_XMM0, struct.unpack("<I", struct.pack("<f", 1.5))[0] | 0xFFFF << 64)
+        run.ret(pops, RESULT)
+    run.hooks[f["va"]] = real
+    out = []
+    try:
+        eax, moved, kept = run.cdecl(entry, [marker(i) for i in range(len(f["params"]))])
+    except UcError as error:
+        return [(False, f"{f['symbol']}: the thunk faulted ({error})")]
+    finally:
+        del run.hooks[f["va"]]
+    if len(seen) != 1:
+        return [(False, f"{f['symbol']}: reached {f['va']:#x} {len(seen)} times, not once")]
+    regs, stack = seen[0]
+    where = []
+    for i, location in enumerate(f["args"]):
+        got = regs[location] if location in REG else stack[int(location[4:]) // 4]
+        if got != marker(i):
+            where.append(f"{f['params'][i][1]} not in {location} ({got:#x})")
+    out.append((not where and base.ENGINE_VA <= stack[0] < base.ENGINE_VA + 0x1000,
+                f"{f['symbol']}: at {f['va']:#x} each argument where the rows put it "
+                f"({', '.join(f['args']) or 'none'}), called from the library" + (": " + "; ".join(where) if where else "")))
+    result = {None: True, "EAX": eax == RESULT, "AL": eax == RESULT & 0xFF,
+              "EDX:EAX": eax == RESULT and run.emu.reg_read(UC_X86_REG_EDX) == RESULT_HIGH,
+              "XMM0": f["result"] == "XMM0" and st0(run) == 1.5}[f["result"]]
+    out.append((moved == 4 and kept == KEPT and result,
+                f"{f['symbol']}: back with the stack balanced (esp +{moved}, the return address only), EBX ESI EDI "
+                f"EBP kept, the result {f['result'] or '(none)'} where C takes it (eax {eax:#x})"))
+    return out
+
+
+# ---- the functions run for real ------------------------------------------
+
+def config(run):
+    import check_research_026g as research
+    run.emu.mem_write(CONFIG, research.loaded(research.config_bytes(), CONFIG))
+    return CONFIG
+
+
+def name_of(run, value):
+    out, at = bytearray(), run.read(value + 8)
+    while at and len(out) < 64 and run.read(at + len(out), 1):
+        out.append(run.read(at + len(out), 1))
+    return out.decode(errors="replace")
+
+
+def behaviour(run, entries):
+    """[(symbol, ok, text)] of the functions run on made-up data."""
+    out = []
+
+    def call(symbol, *args):
+        try:
+            return run.cdecl(entries[symbol], list(args))
+        except UcError as error:
+            return (None, None, str(error))
+    if "engine_cfg_child" in entries and "engine_cfg_has" in entries:
+        root = config(run)
+        mode, _, _ = call("engine_cfg_child", root, run.text("mode"))
+        inner, _, _ = call("engine_cfg_child", mode, run.text("mode")) if mode else (None, 0, 0)
+        out.append(("engine_cfg_child", mode is not None and name_of(run, mode) == "mode"
+                    and inner is not None and run.read(inner) == 5,
+                    "the config's child: root[\"mode\"] is the value named mode, its mode 5"))
+        yes, _, _ = call("engine_cfg_has", root, run.text("mode"))
+        no, _, _ = call("engine_cfg_has", root, run.text("nope"))
+        out.append(("engine_cfg_has", yes == 1 and no == 0, f"the config's has: mode {yes}, nope {no}"))
+
+    def resize(run):
+        emu, sp = run.emu, run.emu.reg_read(UC_X86_REG_ESP)
+        buffer, size = emu.reg_read(UC_X86_REG_EAX), run.read(sp + 4)
+        if size > run.read(buffer + 8):
+            fresh = run.allocate(size + 0x100)
+            emu.mem_write(fresh, bytes(emu.mem_read(run.read(buffer + 4), run.read(buffer + 0xC))))
+            run.word(buffer + 4, fresh)
+            run.word(buffer + 8, size + 0x100)
+        run.word(buffer + 0xC, size)
+        run.ret(4, 0)
+    run.hooks[RESIZE] = resize
+    run.emu.mem_write(DUMP_ON, b"\0\0")
+    for symbol, size, value in (("engine_write_u8", 1, 0xA5), ("engine_write_u16", 2, 0xBEEF),
+                                ("engine_write_u32", 4, 0x12345678)):
+        if symbol not in entries:
+            continue
+        writer, buffer = run.allocate(0x20), run.allocate(0x10)
+        run.word(writer + 0x14, buffer)
+        source = run.allocate(4, struct.pack("<I", value))
+        _, moved, _ = call(symbol, source, writer, run.text("file.c"), 7, run.text("fn"), run.text("field"))
+        size_now = run.read(buffer + 0xC)
+        got = bytes(run.emu.mem_read(run.read(buffer + 4), size_now)) if size_now else b""
+        out.append((symbol, moved == 4 and got == struct.pack("<I", value)[:size],
+                    f"{symbol}: appends the value's {size} bytes to the writer's buffer ({got.hex() or 'nothing'})"))
+    del run.hooks[RESIZE]
+    if "engine_statistics_notify" in entries:
+        listener, table, called = run.allocate(0x20), run.allocate(8), []
+        run.word(listener, table)
+        run.word(table + 4, STUBS + 0x100)
+
+        def invoker(run):
+            sp = run.emu.reg_read(UC_X86_REG_ESP)
+            called.append(tuple(run.read(sp + 4 * k) for k in range(1, 5)))
+            run.ret(0)
+        run.hooks[STUBS + 0x100] = invoker
+        _, moved, _ = call("engine_statistics_notify", listener, 3, 6, 100)
+        del run.hooks[STUBS + 0x100]
+        out.append(("engine_statistics_notify", moved == 4 and called == [(listener + 8, 3, 6, 100)],
+                    f"the statistics' listener: its invoker gets (functor, place 3, event 6, amount 100) {called}"))
+    if "engine_find_pool" in entries:
+        pools, first, second = run.allocate(0x10), run.allocate(0x90), run.allocate(0x90)
+        run.word(pools + 8, first)
+        run.word(first, second)
+        run.word(first + 0x80, run.text("health"))
+        run.word(second + 0x80, run.text("stamina"))
+        name = run.allocate(4)
+        run.word(name, run.text("stamina"))
+        got, moved, _ = call("engine_find_pool", pools, name)
+        out.append(("engine_find_pool", moved == 4 and got == second,
+                    f"the pool lookup: the second pool by its name ({got and hex(got)})"))
+    if "engine_allocation_name" in entries:
+        got, moved, _ = call("engine_allocation_name", 0xAC1220)
+        out.append(("engine_allocation_name", moved == 4 and got == 0xAC1228, f"the allocation's name: {got and hex(got)}"))
+    return out
+
+
+def run_checks(original, code=None, spec=None, abi=None, inputs=None, behave=True):
+    """[(ok, text)] of the library `code` (engine_026g.section.bin) against
+    the rows (engine_026g.tsv, the re-kit's) and the original exe."""
+    code = open(base.engine_bin(), "rb").read() if code is None else code
+    fs = engine.functions(spec, abi, inputs)
+    entries = base.engine_entries(code, base.ENGINE_VA)
+    out = [(entries is not None and len(entries) == len(fs),
+            f"the library's {len(fs)} entries are `jmp near`s at ENGINE_VA + 5 x their row")]
+    if not out[0][0]:
+        return out
+    run = Run(original, code)
+    for i, f in enumerate(fs):
+        pops = exe_pops(original, f["va"])
+        out.append((pops == f["cleanup"], f"{f['symbol']}: {f['va']:#x}'s rets pop {pops} in the original exe; "
+                    f"abi.tsv says {f['cleanup']}"))
+        out += at_entry(run, f, engine.entry_va(i), f["cleanup"] if pops is None else pops)
+    if behave:
+        named = {f["symbol"]: engine.entry_va(i) for i, f in enumerate(fs)}
+        out += [(ok, text) for _, ok, text in behaviour(run, named)]
+    return out
+
+
+def negative(original, nasm="nasm"):
+    """[(what, the check failed on it)] of the wrong libraries and rows."""
+    spec, abi, inputs = (engine.read_tsv(path) for path in (engine.SPEC, engine.REKIT / "abi.tsv",
+                                                            engine.REKIT / "abi_inputs.tsv"))
+
+    def library(spec=spec, abi=abi, inputs=inputs):
+        return engine.assemble(engine.asm_text(engine.functions(spec, abi, inputs)), nasm=nasm)
+
+    def failed(results):
+        return any(not ok for ok, _ in results)
+    out = []
+    # The config's table and key swapped: the thunk follows the row, the
+    # entry check agrees with it, the real lookup does not.
+    swapped = [dict(row, arguments="EDI EAX") if row["symbol"] == "engine_cfg_child" else row for row in spec]
+    out.append(("engine_cfg_child with its table and key swapped (EDI, EAX)",
+                failed(run_checks(original, library(swapped), swapped, abi, inputs))))
+    # w<unsigned char> popping 16: abi.tsv against the exe's `ret 14h`.
+    popping = [dict(row, ret_cleanup="16") if int(row["va"], 16) == 0x1F3DE0 else row for row in abi]
+    out.append(("w<unsigned char> (0x1F3DE0) popping 16 in abi.tsv",
+                failed(run_checks(original, library(abi=popping), spec, popping, inputs, behave=False))))
+    # value_exists' key in EDI: the row and the spec both say EDI.
+    edi_inputs = [dict(row, location="EDI") if int(row["va"], 16) == 0xF6C00 and row["location"] == "ESI" else row
+                  for row in inputs]
+    edi_spec = [dict(row, arguments="EAX EDI") if row["symbol"] == "engine_cfg_has" else row for row in spec]
+    out.append(("value_exists (0xF6C00) with its key in EDI in abi_inputs.tsv",
+                failed(run_checks(original, library(edi_spec, abi, edi_inputs), edi_spec, abi, edi_inputs))))
+    # The checked-in thunks against a swapped row: the entry check sees it.
+    out.append(("the built library against engine_malloc's size and allocator swapped (EAX, ESI)",
+                failed(run_checks(original, None, [dict(row, arguments="EAX ESI ESP+4")
+                                                   if row["symbol"] == "engine_malloc" else row for row in spec],
+                                  abi, inputs, behave=False))))
+    return out
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit(__doc__)
+    original = open(sys.argv[1], "rb").read()
+    nasm = os.path.join(os.environ["NASM_DIR"], "nasm") if os.environ.get("NASM_DIR") else "nasm"
+    bad = 0
+    for ok, text in run_checks(original):
+        print(("  ok    " if ok else "  FAIL  ") + text)
+        bad += not ok
+    print("negative: wrong rows and libraries the check must reject")
+    for what, failed in negative(original, nasm):
+        print(("  ok    " if failed else "  FAIL  ") + f"rejected: {what}")
+        bad += not failed
+    print(f"{bad} FAILED" if bad else "all cases passed")
+    sys.exit(1 if bad else 0)
+
+
+if __name__ == "__main__":
+    main()

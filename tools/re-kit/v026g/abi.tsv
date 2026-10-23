@@ -1869,3 +1869,8 @@ va	name	source	ret_cleanup	result
 0x0029a870	survarium::lobby_menu::start_item_upgrade	manual	4	the movie's callback 5: esi = menu+694h, edi = the item id (the first value's number), then 0x265DE0; al = 1
 0x0029a890	survarium::lobby_menu::exit_item_upgrade	manual	4	the movie's callback 6: esi = menu+694h, then 0x265F10; al = 1
 0x00284aa0	survarium::lobby_character::release_player	manual	4	lets its player (+D2B8h) go (vtable+24h(1), +28h, the reference); with the byte argument set, +D2C9h = 1: on_player_ready lets the player being made go too (0x284F90)
+0x000e4f90	vostok::memory::doug_lea_allocator::malloc_impl	manual	4	EAX: the block, or 0
+0x002e58b0		manual	0	EAX: the pool whose name (+80h) is the text, or 0
+0x00313350		manual	8	
+0x00420789		manual	0	EAX: ECX + 8
+0x000e5b60	vostok::resources::query_resources	manual	0	
