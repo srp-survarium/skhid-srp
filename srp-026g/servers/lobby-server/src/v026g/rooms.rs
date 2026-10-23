@@ -390,13 +390,23 @@ impl Core<'_> {
                         }
                         Err(refused) => code_of(refused),
                     },
-                    Ok(()) => match self.rooms.enqueue(who.account_id, gear, key, now) {
-                        Ok(place) => {
-                            log::info!("{}: waits in room {key}'s queue, place {place}", who.name);
-                            RoomCode::None
+                    Ok(()) => {
+                        let before = self.rooms.queue_place(who.account_id);
+                        match self.rooms.enqueue(who.account_id, gear, key, now) {
+                            Ok(place) => {
+                                // Queue stays lit while queued: a press again
+                                // is logged only when the place moved.
+                                if before != Some((key, place)) {
+                                    log::info!(
+                                        "{}: waits in room {key}'s queue, place {place}",
+                                        who.name
+                                    );
+                                }
+                                RoomCode::None
+                            }
+                            Err(refused) => code_of(refused),
                         }
-                        Err(refused) => code_of(refused),
-                    },
+                    }
                 };
                 self.send_room_state(who, code, now);
             }
