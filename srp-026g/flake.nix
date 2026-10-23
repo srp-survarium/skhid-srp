@@ -89,8 +89,10 @@
           # llvm-rc (the Windows programs' version and icon resources) and
           # llvm-readobj (client/bugtrap/tests/check_abi.py).
           pkgs.llvm
-          # The exe patches' arena: gcc (-m32) and GNU ld are the shell's
-          # own; NASM 2.16 (above).
+          # The exe patches (client-patches/*.py; release/build-zip runs
+          # them here): Python, and for the arena gcc (-m32) and GNU ld, the
+          # shell's own, and NASM 2.16 (above).
+          pkgs.python3
           nasm216
         ];
 

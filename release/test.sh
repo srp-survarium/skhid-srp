@@ -14,7 +14,8 @@
 #   nix shell nixpkgs#python3 nixpkgs#shellcheck -c release/test.sh
 #
 # Needs python3 (the HTTP servers, a ZIP) and the release srp-game-data
-# (built if missing); shellcheck runs if there is one.
+# (built if missing); shellcheck runs if there is one. SRP_026G_EXE (the
+# original 0.26g survarium.exe) adds a real exe build in the dev shell.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(dirname "$here")
@@ -34,6 +35,9 @@ if [[ ! -x $bin ]]; then
         'cd srp-026g && cargo build --quiet --release -p resources-db --bin srp-game-data')
 fi
 export SRP_GAME_DATA_BIN=$bin
+# This machine's nix and dirname, before the stand-ins (build-zip's exe step
+# runs for real with them alone, below).
+real_nix=$(command -v nix) real_dirname=$(command -v dirname)
 
 T=$(mktemp -d)
 pids=()
@@ -449,6 +453,29 @@ changed_env() { # <sed expressions>: a copy of release.env changed so; prints it
     sed "$1" "$T/release.env" >"$T/changed-$changed.env"
     printf '%s\n' "$T/changed-$changed.env"
 }
+
+# build-zip's exe step for real, not its stand-in: client_patches_python
+# runs a client-patches script in the checkout's dev shell, here with nothing
+# on PATH but nix (and dirname, for lib.sh), so python3 and the arena's gcc,
+# ld and NASM must be the dev shell's. The exe itself too when SRP_026G_EXE
+# names the original 0.26g survarium.exe (the self-test's variable).
+mkdir -p "$T/nix-only"
+ln -s "$real_nix" "$T/nix-only/nix"
+ln -s "$real_dirname" "$T/nix-only/dirname"
+dev_shell() { # <script and arguments, quoted for bash>
+    env PATH="$T/nix-only" "$BASH" -c ". $(printf '%q' "$here/lib.sh") && client_patches_python $(printf '%q' "$root") $1" 2>&1
+}
+out=$(dev_shell "link_026g.py --check" || true)
+check "build-zip's client-patches step: python3 in the dev shell with only nix on PATH, the arena linked there is the lock's" \
+    has "$out" "arena_026g.lock.json: current"
+out=$(dev_shell "make_client_026g.py" || true)
+check "... make_client_026g.py starts there (its usage)" has "$out" "--pack-zip"
+if [[ -f ${SRP_026G_EXE:-} ]]; then
+    out=$(dev_shell "patch_026g.py $(printf '%q' "$SRP_026G_EXE") $(printf '%q' "$T/dev-shell.exe")" || true)
+    check "... patch_026g.py builds the exe there, its arena linked from source" has "$out" "Research (mode 5"
+else
+    echo "skip patch_026g.py in the dev shell (SRP_026G_EXE names no original survarium.exe)"
+fi
 
 # The stock db: an archive of a dictionary and a project.
 mkdir -p "$T/stock/gameplay/items" "$T/stock/projects/p/day"

@@ -1769,8 +1769,13 @@ to a label as a two-byte short jump (`EB`): the five-byte entry tables of
 `research_026g.asm` and `artefacts_026g.asm` shrink and every entry after
 the first moves. `link_026g.py` refuses any NASM but 2.16;
 `nix develop ./srp-026g` has NASM 2.16.03 (built from its release tarball,
-`flake.nix`), the shell's gcc 15.2 and GNU ld 2.46. gcc 15.2 and 15.3 give
-the same bytes.
+`flake.nix`), Python 3, the shell's gcc 15.2.0 and GNU ld 2.46; the lock was
+written there. That gcc 15.2.0 also rebuilds main's last prebuilt Research
+`.bin` byte for byte (its `.json` named gcc 15.3.0, which gives the same
+bytes). `release/build-zip` runs `make_client_026g.py` and `patch_026g.py`
+in that shell (`client_patches_python`, release/lib.sh), and
+`release/test.sh` runs the same invocation for real with nothing but nix on
+PATH.
 
 **The lock, `arena_026g.lock.json`.** No prebuilt arena code is checked in;
 the lock is: the linked arena's VA, size and SHA-256, every block's kind, VA
