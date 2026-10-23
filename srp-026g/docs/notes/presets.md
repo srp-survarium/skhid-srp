@@ -139,6 +139,16 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   under the item's name, "Used in Loadout 2 and Loadout 4. Sell anyway?"; Sell sells, Cancel
   sells nothing. An item in no preset sells as before. The list (`lobby.md` 2.16.4) carries the
   items the presets use; the server sells as ever (the question is the client's).
+- **The inventory marks what the loadouts use** (the owner's, 2026-10-23): an owned item (stacks
+  too) that a loadout uses has a small badge with those loadouts' roman numerals at its tile's
+  bottom-left corner, above its name: "II", "I IV", a run of three or more joined ("I-V",
+  "II-IV V"). Every loadout that uses it, the active one too [choice: the badge says where an
+  item is, as the sale's question does; the game's own equipped mark still tells the kits worn].
+  The data is the sale's (the list's U rows); the inventory is drawn again when they change (a
+  list after a move, a choice, a sale). The badge: the stack count's font and size (CalibriBold
+  14), the equipped green, on a dark backing so it reads over any icon; it covers neither the
+  level (top-left) nor the count (bottom-right) (`ItemRendererInv.updateLoadoutBadge`,
+  `LocalPlayerProfile.loadoutMark`).
 - **Character panel:** its title is the switcher (the owner's, 2026-10-23: the dropdown left of
   the title was ugly). The title names the active preset in the title's own font and colour,
   centred, with a caret after it: "Loadout 2 · Lvl. 15" (the level's word is the kit tabs'

@@ -227,6 +227,9 @@ package survarium.player
       // server last said.
       private var _presetUses:Object = {};
       
+      // The U rows the uses came from, to tell a change.
+      private var _presetUsesRows:String = "";
+      
       // Asks again every 2 s until the first list comes: the first asks go
       // out while the movie loads, before the game takes them
       // ("ExternalInterface.call - handler is not installed"), and are lost;
@@ -912,6 +915,52 @@ package survarium.player
          return presetWord("sellMany").split("{list}").join(items.join(", ") + presetWord("sellAnd") + last);
       }
       
+      // The roman numerals of the five loadouts (ItemRendererInv's badge).
+      private static const ROMAN:Array = ["I","II","III","IV","V"];
+      
+      // ItemRendererInv: the loadouts that use `itemId` (the list's U rows,
+      // as the sale's question; the active one's too), in roman numerals:
+      // "II", "I IV", a run of three or more joined ("I-V", "II-IV V").
+      // "" when none does.
+      public static function loadoutMark(itemId:uint) : String
+      {
+         if(me == null)
+         {
+            return "";
+         }
+         var mask:int = int(me._presetUses[String(itemId)]);
+         var parts:Array = [];
+         var n:int = 0;
+         while(n < PRESET_COUNT)
+         {
+            if((mask & 1 << n) == 0)
+            {
+               n++;
+               continue;
+            }
+            var last:int = n;
+            while(last + 1 < PRESET_COUNT && (mask & 1 << last + 1) != 0)
+            {
+               last++;
+            }
+            if(last - n >= 2)
+            {
+               parts.push(ROMAN[n] + "-" + ROMAN[last]);
+            }
+            else
+            {
+               var k:int = n;
+               while(k <= last)
+               {
+                  parts.push(ROMAN[k]);
+                  k++;
+               }
+            }
+            n = last + 1;
+         }
+         return parts.join(" ");
+      }
+      
       private static function presetWord(key:String) : String
       {
          return String(PRESET_WORDS[key][RoomsText.language()]);
@@ -1551,12 +1600,14 @@ package survarium.player
             this._presetAt = active;
          }
          var uses:Object = {};
+         var usesRows:String = "";
          var i:int = 1;
          while(i < rows.length)
          {
             var name:String = String(rows[i].nickname);
             if(name.indexOf("U;") == 0)
             {
+               usesRows += name + "\n";
                var entries:Array = name.substr(2).split(",");
                var k:int = 0;
                while(k < entries.length)
@@ -1584,6 +1635,16 @@ package survarium.player
             i++;
          }
          this._presetUses = uses;
+         // The inventory's loadout badges follow (ItemRendererInv): drawn
+         // again when the uses changed.
+         if(usesRows != this._presetUsesRows)
+         {
+            this._presetUsesRows = usesRows;
+            if(this._playerInventory != null)
+            {
+               this._playerInventory.invalidateList();
+            }
+         }
          this._presetsSeen = true;
          if(this._presetsRetry != null)
          {
