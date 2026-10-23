@@ -65,19 +65,6 @@ package survarium.controls
          return entry != null ? entry.owner : null;
       }
 
-      // `owner` is in the stack and up now (its `shown`), on top or not.
-      public static function isOpen(owner:Object) : Boolean
-      {
-         for each(var entry:Object in _stack)
-         {
-            if(entry.owner === owner)
-            {
-               return isShown(entry);
-            }
-         }
-         return false;
-      }
-
       public static function any() : Boolean
       {
          return topEntry() != null;

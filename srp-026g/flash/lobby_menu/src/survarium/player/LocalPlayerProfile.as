@@ -749,14 +749,7 @@ package survarium.player
          }
          return true;
       }
-
-      // LobbyMenu.has_active_window: the presets list is open (a modal), so a dropdown holding
-      // the focus does not let Esc open the game's menu over it.
-      public static function presetListOpen() : Boolean
-      {
-         return me != null && me._presetList != null && Modals.isOpen(me._presetList);
-      }
-
+      
       // The reasons (presets.md's table): bits of the list's `<blocks>`,
       // each with its text: the game's own key where it has one ("#key"
       // when it is missing), else ours, in the lobby's five languages.

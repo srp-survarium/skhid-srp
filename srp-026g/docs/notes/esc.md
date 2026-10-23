@@ -29,8 +29,8 @@ window: "we fixed that a few times already, but ... not from a single place".
   (the item search also empties, `item-search.md`, unless a message box is on top; the Upgrade
   window is not one); the next Esc closes the modal.
 - **Nothing open** (no modal, no text box): Esc is the game's (its menu).
-- A dropdown's open list takes Esc itself (`has_active_window` says false), except while the
-  rooms window or the presets list is open: Esc then closes the top modal.
+- A dropdown's open list takes Esc itself (`has_active_window` says false); a closed dropdown
+  that still holds the focus does not, so Esc closes the top modal.
 - **A match found or loading** (`set_mm_sync_state`, `set_loading_level`) closes the message up
   with `Message.close`, not as Esc: nothing is answered.
 

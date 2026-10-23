@@ -3993,11 +3993,9 @@ package
       // box has the keys.
       public function has_active_window() : Boolean
       {
-         // a dropdown's open list takes Esc itself, but not over the rooms window or the presets
-         // list (tested first, as before #349): a dropdown still holding the focus must not let Esc
-         // open the game's menu over them
-         var roomsOrPresets:Boolean = RoomsWindow.me != null && Modals.isOpen(RoomsWindow.me) || LocalPlayerProfile.presetListOpen();
-         if(!roomsOrPresets && stage.focus is DropdownMenu)
+         // a dropdown's open list takes Esc itself; a closed dropdown still holding the focus does
+         // not, so Esc never opens the game's menu over a modal
+         if(stage.focus is DropdownMenu && DropdownMenu(stage.focus).selected)
          {
             trace("has_active_window::DropdownMenu");
             return false;
