@@ -29,10 +29,12 @@ too, for screenshots.
 - **Hidden:** everything of the lobby movie (windows, menus, chat, buttons). The character and the
   scene stay; drag and wheel still turn and zoom the camera.
 - **Clicks** land on nothing hidden.
-- **Shown again by:** F11, any key, Esc, a match found, its loading, the results.
-- **The key that shows it** does nothing in the lobby movie (Enter does not press Play, R does not
-  open the rooms, a letter does not start the search); the game's window keys (C, I, S, F, O)
-  still open their window, as they act before the movie gets the key.
+- **Shown again by:** F11, any key the lobby movie gets (letters, digits, arrows, Enter,
+  Backspace...), Esc, a match found, its loading, the results.
+- **The key that shows it does nothing else**, neither its press nor its release: Enter does not
+  press Play nor answer a message hidden with the interface, R does not open the rooms, a letter
+  does not start the search, C, I, S, F and O open no window.
+- **Other F keys** (the movie never gets them) do nothing while hidden: F6 does not press Play.
 - **Not while typing:** in a text box F11 is the box's, as before.
 - **The cursor stays** (its own movie); move it aside for a picture.
 

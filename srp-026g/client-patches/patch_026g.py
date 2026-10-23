@@ -456,7 +456,9 @@ Patches:
   before the kits show; lobby_menu::on_keyboard_action's binder call
   (0x26CCD2) asks again for kind 1 when the key has no lobby action, and on
   toggle_replay_ui invokes the lobby movie's root.toggle_interface and takes
-  the key (back at 0x26CCAE, al 1);
+  the key (back at 0x26CCAE, al 1); while the movie says its interface is
+  hidden (root.interface_hidden) any other key goes straight to the movie
+  (back at 0x26CDD2), no window key or F6's Play acting;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1924,14 +1926,18 @@ MATCH_KEYS_BACKS = (0x25CD4B, 0x25CF0D)        # on_keyboard_action: a key down,
 # - lobby_menu::on_keyboard_action's `call 0x207D50` (get_binded_action,
 #   kind 2) at 0x26CCD2: a key with no lobby action is asked again for kind
 #   1; toggle_replay_ui invokes the lobby movie's root.toggle_interface and
-#   returns at 0x26CCAE (al 1: taken, the movie does not get the key).
+#   returns at 0x26CCAE (al 1: taken, the movie does not get the key); any
+#   other key, while the movie answers root.interface_hidden true, returns at
+#   0x26CDD2 (the key to the movie, which shows the interface; no window key,
+#   no F6 Play).
 # No base relocation is under a site and no branch aims inside one.
 HIDE_UI_HOOKS = (
     (0x25CED1, bytes.fromhex("8b742410" "837e1800" "7432"), "hide_ui_match", 0xE9),   # on_keyboard_action: case 19h
     (0x23845B, bytes.fromhex("e8d0240000"), "hide_ui_kits", 0xE8),                  # the kits' show_cursor call
     (0x26CCD2, bytes.fromhex("e879b0f9ff"), "hide_ui_lobby", 0xE8),                 # the lobby's binder call
 )
-HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x23A930, 0x26CCAE)   # the replay's toggle, the key not taken, show_cursor, taken
+HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x23A930, 0x26CCAE, 0x26CDD2)
+# the replay's toggle, the key not taken, show_cursor; the lobby's key taken, and the key to the movie
 
 
 def weapon_camo_va(late_join):
@@ -3267,6 +3273,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "pain, body and head, and one press fires every artefact of its kind, "
                      "the keys 1, 2 and 3 pick a kit while the kits are shown, "
                      "an option hides the other players' chat lines in a match, "
+                     "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")

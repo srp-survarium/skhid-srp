@@ -456,6 +456,10 @@ package
       // The stage's children toggle_interface hid (docs/notes/hide-ui-key.md); null while the
       // interface is shown.
       private var _hiddenUi:Array;
+
+      // The key that showed the hidden interface: its release is taken too (onHiddenKeyUp); 0 when
+      // none.
+      private var _hiddenKeyUp:uint;
       
       public function LobbyMenu()
       {
@@ -1274,6 +1278,8 @@ package
          DragRegion.playerProfile = this.player_profile;
          stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onHiddenKey,true,100);
          stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onHiddenKey,false,100);
+         stage.addEventListener(KeyboardEvent.KEY_UP,this.onHiddenKeyUp,true,100);
+         stage.addEventListener(KeyboardEvent.KEY_UP,this.onHiddenKeyUp,false,100);
          stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onKeyDownStage);
          stage.addEventListener(KeyboardEvent.KEY_UP,this.onKeyUpStage);
          stage.addEventListener(InputEvent.INPUT,this.handleInput,false,0,true);
@@ -4031,6 +4037,7 @@ package
          trace("close_active_window");
          if(this.showInterface())
          {
+            _hiddenKeyUp = Keyboard.ESCAPE;
             return;
          }
          if(!SrvContextMenu.visisble && this.leaveTextBox())
@@ -5876,6 +5883,13 @@ package
          }
       }
 
+      // The exe asks this on every key in the lobby (exe patch 62): while it is true no key acts in
+      // the game (a window's key, F6's Play); the key comes to the movie, which shows the interface.
+      public function interface_hidden() : Boolean
+      {
+         return this._hiddenUi != null;
+      }
+
       // Shows what toggle_interface hid; true when it was hidden.
       private function showInterface() : Boolean
       {
@@ -5891,12 +5905,23 @@ package
          return true;
       }
 
-      // A key while the interface is hidden shows it, and is taken: no other handler of the movie
-      // gets it (Enter does not press Play, a letter does not start the item search).
+      // A key while the interface is hidden shows it, and is taken, its release too: no other
+      // handler of the movie gets it (Enter does not press Play nor answer a message hidden with the
+      // interface, a letter does not start the item search).
       private function onHiddenKey(e:KeyboardEvent) : void
       {
          if(this.showInterface())
          {
+            _hiddenKeyUp = e.keyCode;
+            e.stopImmediatePropagation();
+         }
+      }
+
+      private function onHiddenKeyUp(e:KeyboardEvent) : void
+      {
+         if(this._hiddenKeyUp != 0 && e.keyCode == this._hiddenKeyUp)
+         {
+            _hiddenKeyUp = 0;
             e.stopImmediatePropagation();
          }
       }

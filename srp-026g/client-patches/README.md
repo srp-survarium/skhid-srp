@@ -3254,9 +3254,13 @@ is asked again for kind 1 (its answer's toggle in a place of ours); `toggle_repl
 the lobby movie's `root.toggle_interface` and the key is taken (the return goes to 0x26CCAE, al
 1, as after a key the movie typed: the movie never gets it). The movie hides every shown child of
 its stage, so no click lands on the interface and the camera turns and zooms (`get_mouse_over`
-false); the same key, any key the movie gets (taken by `LobbyMenu.onHiddenKey`), Esc
-(`has_active_window` true, `close_active_window`), a match found, its loading or the results
-show it again.
+false); the same key, any key the movie gets, Esc (`has_active_window` true,
+`close_active_window`), a match found, its loading or the results show it again. While the movie
+answers `root.interface_hidden` true, any other key returns to 0x26CDD2, which hands it to the
+movie and returns 0: no action of the game acts on it (the window keys C, I, S, F, O, and F6,
+which presses Play at 0x26CDA2). The movie shows the interface and takes that key's press and
+its release (`LobbyMenu.onHiddenKey`, `onHiddenKeyUp`: a message hidden with the interface acts on
+Enter's release). F keys other than F11 (the movie never gets them) do nothing then.
 
 All three in the arena's blocks `hide_ui.code` and `hide_ui.state` (`hide_ui_026g.asm`), with
 the late join; `show_ui` and `get_binded_action` through the engine library (`engine_show_ui`,
@@ -3277,9 +3281,10 @@ icons hidden exactly when shown without the cursor, shown again exactly when thi
 every case at the original's 0x25CEDB or 0x25CF0D with its esp, ebp and stack; the kits' call
 (12 cases): the ui back exactly for a game world this key hid, then show_cursor with its byte
 and hud, back at 0x238460 with ebx, esi, edi, ebp kept; the lobby's call with the game's own
-get_binded_action on a binder of the action table's descriptions (F11, C, F, W, H, with and
-without the movie): `root.toggle_interface` and the key taken exactly for F11 with the movie,
-every other key back with the original's answer and toggle. The lobby movie builds from source
+get_binded_action on a binder of the action table's descriptions (F11, C, F, W, H, F6, Enter,
+with and without the movie, the interface hidden or shown, 28 cases): `root.toggle_interface`
+and the key taken exactly for F11 with the movie; the interface hidden, every other key to
+0x26CDD2; shown, back with the original's answer and toggle. The lobby movie builds from source
 (`tools/actionscript/flash_tree.py`). **Not run in a game.**
 
 ## Not ported, not done

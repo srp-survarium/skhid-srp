@@ -31,7 +31,12 @@
 ; 1; toggle_replay_ui invokes the lobby movie's root.toggle_interface (which
 ; hides it, or shows it, LobbyMenu.as), and the key is taken: the function
 ; returns at 0x26CCAE (al 1), as after a key the movie typed, and the movie
-; never gets it. Any other key goes on as before.
+; never gets it. While the movie says its interface is hidden
+; (root.interface_hidden), any other key goes to the movie with no action of
+; the game (a window's key, F6's Play at 0x26CDA2): the function goes on at
+; 0x26CDD2, which hands the key to the movie and returns 0; the movie shows the
+; interface and takes the key (its press and its release). Any other key, the
+; interface shown, goes on as before.
 BITS 32
 %include "engine_026g.inc"
 global hide_ui_match, hide_ui_kits, hide_ui_lobby
@@ -42,6 +47,7 @@ section .text
 %define KEY_OTHER 0x25CF0D         ; on_keyboard_action's end: the key not taken (al 0)
 %define SHOW_CURSOR 0x23A930       ; game_world_ui::show_cursor, edi the hud, `ret 4`
 %define LOBBY_TAKEN 0x26CCAE       ; lobby_menu::on_keyboard_action after a key the movie typed: al 1
+%define LOBBY_TO_MOVIE 0x26CDD2    ; its last part: the key to the movie (0x1FDD70), al 0
 %define HANDLER 0x10               ; the case's [esp+10h]: the game world's input handler
 %define REPLAY_MOVIE 0x18          ; the handler's +18h: the hud's +14h, the replay's controls
 %define WORLD 0x1C                 ; the handler's +1Ch: the hud's +18h, the game world
@@ -114,8 +120,9 @@ hide_ui_lobby:
     call engine_binded_action      ; the lobby's own actions first
     add esp, 16
     pop ecx
+    push eax                       ; the answer
     cmp eax, NO_ACTION
-    jne .done
+    jne .hidden
     sub esp, 4                     ; this answer's toggle: a place of ours, the function's left as it was
     mov edx, esp
     push edx
@@ -125,33 +132,68 @@ hide_ui_lobby:
     call engine_binded_action
     add esp, 20
     cmp eax, TOGGLE_UI
-    jne .none
-    mov edx, [ebx+LOBBY_MOVIE]
-    test edx, edx
-    jz .none
-    mov edx, [edx+0x108]
-    test edx, edx
-    jz .none
-    mov edx, [edx+4]               ; the movie, as the function invokes it
-    test edx, edx
-    jz .none
+    jne .hidden
+    call lobby_movie
+    test eax, eax
+    jz .hidden
     push 0                         ; no argument
     push 0
     push 0                         ; no result
     push toggle_interface
-    push edx
+    push eax
     call engine_movie_invoke
     add esp, 20
+    add esp, 4
     mov dword [esp], LOBBY_TAKEN   ; the key taken: the function returns 1, the movie never gets it
     ret 4
-.none:
-    mov eax, NO_ACTION
-.done:
+.hidden:                           ; the interface hidden: no action of the game (a window, F6's Play)
+    call lobby_movie
+    test eax, eax
+    jz .answer
+    sub esp, 24                    ; the answer, a GFx value (+4 its type, +8 a bool: nothing to release)
+    xor edx, edx
+    mov [esp], edx
+    mov [esp+4], edx
+    mov [esp+8], edx
+    mov [esp+12], edx
+    mov [esp+16], edx
+    mov [esp+20], edx
+    mov edx, esp
+    push 0
+    push 0
+    push edx
+    push interface_hidden
+    push eax
+    call engine_movie_invoke
+    add esp, 20
+    mov dl, [esp+8]
+    add esp, 24
+    test dl, dl
+    jz .answer
+    add esp, 4
+    mov dword [esp], LOBBY_TO_MOVIE ; the movie gets the key, as a typed one: it shows the interface
     ret 4
+.answer:
+    pop eax
+    ret 4
+
+; The lobby menu's movie (ebx the lobby menu): [[+690h]+108h]+4, or 0.
+lobby_movie:
+    mov eax, [ebx+LOBBY_MOVIE]
+    test eax, eax
+    jz .out
+    mov eax, [eax+0x108]
+    test eax, eax
+    jz .out
+    mov eax, [eax+4]
+.out:
+    ret
 
 section .rodata
 toggle_interface:
     db "root.toggle_interface", 0
+interface_hidden:
+    db "root.interface_hidden", 0
 
 section .bss
 alignb 4

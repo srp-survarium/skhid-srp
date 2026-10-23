@@ -4162,6 +4162,9 @@ def test_hide_ui(original, image, before):
           and rows(stock, 0x26CCAE, 0x14) == ["lea ecx,[esp+0x28]", "call 0x2afa70", "mov al,0x1", "pop edi",
                                               "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0xc"]
           and rows(stock, 0x26CCA9, 5) == ["call 0x1fdd70"] and popped(stock, 0x1FDD70, 0x1FDEC9) == 0x14
+          and rows(stock, 0x26CDA2, 7) == ["cmp esi,byte +0x40", "jnz 0x26ce11", "xor eax,eax"]
+          and rows(stock, 0x26CDD2, 0x30)[:3] == ["mov eax,[ebx+0x9c]", "mov ecx,[eax+0x5854]", "mov edx,[ebx+0x690]"]
+          and "call 0x1fdd70" in rows(stock, 0x26CDD2, 0x30) and "xor al,al" in rows(stock, 0x26CDD2, 0x3D)
           and popped(stock, 0x207D50, 0x207DB3) == 4 and stock.read(0x26CBDB, 6) == bytes.fromhex("8b9390060000"),
           "0x26CCD2 is lobby_menu::on_keyboard_action's (ebx the lobby menu, its movie [[+690h]+108h]+4) call of "
           "get_binded_action (0x207D50, `ret 4`) for kind 2; 0x26CCAE is where it goes after a key the movie "
@@ -4191,13 +4194,16 @@ def test_hide_ui(original, image, before):
     library = {linked.symbols[name] for name in ("engine_show_ui", "engine_binded_action", "engine_movie_invoke")}
     check(outside == sorted(set(P.HIDE_UI_BACKS[:3]) | library)
           and f"push dword {block.va + names:#x}" in texts and f"mov dword [esp],{P.HIDE_UI_BACKS[3]:#x}" in texts
+          and f"mov dword [esp],{P.HIDE_UI_BACKS[4]:#x}" in texts
+          and f"push dword {block.va + code.index(b'root.interface_hidden' + bytes(1)):#x}" in texts
           and state.va <= linked.symbols["hidden_world"] < state.va + state.size,
           "it goes on in on_keyboard_action (0x25CEDB, 0x25CF0D), jumps to show_cursor (0x23A930), returns to "
-          "0x26CCAE, calls the library's show_ui, get_binded_action and Invoke and nothing else; it invokes "
-          "root.toggle_interface; the game world it hid is in hide_ui.state")
+          "0x26CCAE or 0x26CDD2, calls the library's show_ui, get_binded_action and Invoke and nothing else; it "
+          "invokes root.toggle_interface and root.interface_hidden; the game world it hid is in hide_ui.state")
     here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
-    check("public function toggle_interface() : void" in here("flash", "lobby_menu", "src", "LobbyMenu.as"),
-          "the lobby movie has root.toggle_interface")
+    lobby = here("flash", "lobby_menu", "src", "LobbyMenu.as")
+    check("public function toggle_interface() : void" in lobby and "public function interface_hidden() : Boolean" in lobby,
+          "the lobby movie has root.toggle_interface and root.interface_hidden")
 
 
 def test_spot(original, image, before):

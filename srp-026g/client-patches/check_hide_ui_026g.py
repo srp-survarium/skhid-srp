@@ -27,12 +27,14 @@ the game's own show_ui (0x1F95F0) and get_binded_action (0x207D50):
 - the lobby: lobby_menu::on_keyboard_action's binder call (0x26CCD2) runs
   with a made-up key binder (the game's action table's descriptions, a few
   keys bound), edi 2, esi the key and ebx a made-up lobby menu (its movie
-  [[+690h]+108h]+4), until 0x26CCD7 (back from the call) or 0x26CCAE (the key
-  taken). Scaleform's Invoke (0x511600) is a stub that records it. F11 (bound
-  to toggle_replay_ui) invokes root.toggle_interface on the movie (no
-  result, no argument) and is taken; without the movie it is not. Every other
-  key comes back at 0x26CCD7 with the original's answer, toggle place and
-  registers.
+  [[+690h]+108h]+4), until 0x26CCD7 (back from the call), 0x26CCAE (the key
+  taken) or 0x26CDD2 (the key to the movie, no action). Scaleform's Invoke
+  (0x511600) is a stub that records it and answers root.interface_hidden
+  with a bool. F11 (bound to toggle_replay_ui) invokes root.toggle_interface
+  on the movie (no result, no argument) and is taken; without the movie it is
+  not. While the movie answers that its interface is hidden, every other key
+  (a window's, F6's Play, Enter) goes to 0x26CDD2; else it comes back at
+  0x26CCD7 with the original's answer, toggle place and registers.
 """
 import struct
 import sys
@@ -45,7 +47,7 @@ import patch_026g as base
 
 CASE, REPLAY_BACK, KEY_OTHER = 0x25CED1, 0x25CEDB, 0x25CF0D
 KITS_SITE, KITS_BACK, SHOW_CURSOR = 0x23845B, 0x238460, 0x23A930
-LOBBY_SITE, LOBBY_BACK, LOBBY_TAKEN = 0x26CCD2, 0x26CCD7, 0x26CCAE
+LOBBY_SITE, LOBBY_BACK, LOBBY_TAKEN, LOBBY_TO_MOVIE = 0x26CCD2, 0x26CCD7, 0x26CCAE, 0x26CDD2
 SHOW_MOVIE, HIDE_MOVIE, INVOKE = 0x23DC00, 0x23DC70, 0x511600
 ACTIONS = 0xA74AF0                     # the action table: 20-byte {name, id, kinds, toggle, key name}
 HANDLER, WORLD, HUD, LOBBY = 0x20000000, 0x20010000, 0x20020000, 0x20030000
@@ -57,9 +59,10 @@ GAME = dict(zip(REGS, (0x0A0A0A0A, 0x0C0C0C0C, 0x0D0D0D0D, 0x0B0B0B0B, 0x0505050
 OTHER_WORLD = 0x20070000
 # The keys bound (DIK code: action id), as the defaults have them: F11
 # toggle_replay_ui (kinds 5), C character (2) and crouch_toggle (5), F friends
-# (2) and melee (5), W forward (5); H nothing.
-F11, C, F, W, H = 0x57, 0x2E, 0x21, 0x11, 0x23
-BOUND = {0x19: F11, 0x40: C, 0x06: C, 0x44: F, 0x21: F, 0x0B: W}
+# (2) and melee (5), W forward (5), F6 next_player (5; the lobby's Play at
+# 0x26CDA2); H and Enter nothing.
+F11, C, F, W, H, F6, ENTER = 0x57, 0x2E, 0x21, 0x11, 0x23, 0x40, 0x1C
+BOUND = {0x19: F11, 0x40: C, 0x06: C, 0x44: F, 0x21: F, 0x0B: W, 0x17: F6}
 
 
 class Run:
@@ -72,6 +75,7 @@ class Run:
         for at in (HANDLER, WORLD, HUD, LOBBY, HOLDER, BINDER, KEYS, OTHER_WORLD, STACK, SENTINEL):
             emu.mem_map(at, 0x10000, UC_PROT_ALL)
         self.calls = []
+        self.hidden = 0
         for stub in (SHOW_MOVIE, HIDE_MOVIE, INVOKE, SHOW_CURSOR):
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=stub, end=stub)
         self.stops = ()
@@ -108,8 +112,10 @@ class Run:
             self.calls.append(("cursor", emu.reg_read(UC_X86_REG_EDI), args[0] & 0xFF))
             pops = 4
         else:                              # Invoke: thiscall (name, result, arguments, count), ret 10h; al 1
-            self.calls.append(("invoke", emu.reg_read(UC_X86_REG_ECX), self.text(args[0]), args[1], args[2],
-                               args[3]))
+            self.calls.append(("invoke", emu.reg_read(UC_X86_REG_ECX), self.text(args[0]), args[1] != 0,
+                               args[2], args[3]))
+            if args[1] and self.text(args[0]) == b"root.interface_hidden":
+                emu.mem_write(args[1] + 4, struct.pack("<II", 2, self.hidden))
             emu.reg_write(UC_X86_REG_EAX, 1)
             pops = 16
         emu.reg_write(UC_X86_REG_ESP, sp + 4 + pops)
@@ -166,8 +172,9 @@ class Run:
                 self.read(hidden_world) if hidden_world is not None else None)
 
     # The lobby: the site's push of the toggle's place done, then its call.
-    def lobby(self, key, movie):
+    def lobby(self, key, movie, hidden=0):
         emu = self.emu
+        self.hidden = hidden
         emu.mem_write(LOBBY, bytes(0x1000))
         self.word(LOBBY + 0x690, HOLDER if movie else 0)
         self.word(HOLDER + 0x108, UI)
@@ -177,7 +184,7 @@ class Run:
         self.word(toggle, 0x7E7E7E7E)
         self.word(sp, toggle)
         emu.mem_write(STACK + 0x8000, bytes(0x40))
-        regs, esp = self.run(LOBBY_SITE, (LOBBY_BACK, LOBBY_TAKEN), sp,
+        regs, esp = self.run(LOBBY_SITE, (LOBBY_BACK, LOBBY_TAKEN, LOBBY_TO_MOVIE), sp,
                              {**GAME, UC_X86_REG_EAX: BINDER, UC_X86_REG_EDI: 2, UC_X86_REG_ESI: key,
                               UC_X86_REG_EBX: LOBBY})
         return self.stopped, esp - sp, regs, list(self.calls), self.read(toggle)
@@ -248,23 +255,30 @@ def main():
                            + "show_cursor, back at 0x238460 with the byte popped, ebx esi edi ebp kept")
 
     print("the lobby (lobby_menu::on_keyboard_action's binder call, 0x26CCD2)")
-    for key, name in ((F11, "F11"), (C, "C"), (F, "F"), (W, "W"), (H, "H")):
+    asked = ("invoke", MOVIE, b"root.interface_hidden", True, 0, 0)
+    for key, name in ((F11, "F11"), (C, "C"), (F, "F"), (W, "W"), (H, "H"), (F6, "F6"), (ENTER, "Enter")):
         for movie in (True, False):
-            a = stock.lobby(key, movie)
-            b = patched.lobby(key, movie)
-            keep = {reg: GAME[reg] for reg in (UC_X86_REG_EBP,)}
-            keep.update({UC_X86_REG_EDI: 2, UC_X86_REG_ESI: key, UC_X86_REG_EBX: LOBBY})
-            kept = all(b[2][reg] == value for reg, value in keep.items())
-            if key == F11 and movie:
-                ok = a[0] == LOBBY_BACK and a[2][UC_X86_REG_EAX] == 0x49 and b[0] == LOBBY_TAKEN and b[1] == 4 \
-                    and kept and b[3] == [("invoke", MOVIE, b"root.toggle_interface", 0, 0, 0)] \
-                    and b[4] == a[4] == 0x7E7E7E7E
-                what = "root.toggle_interface invoked, the key taken (0x26ccae)"
-            else:
-                ok = a[0] == b[0] == LOBBY_BACK and a[1] == b[1] == 4 and kept and not b[3] \
-                    and a[2][UC_X86_REG_EAX] == b[2][UC_X86_REG_EAX] and a[4] == b[4]
-                what = f"action {b[2][UC_X86_REG_EAX]:#x} as the original's, its toggle place as the original's"
-            report(ok, f"{name}, movie {'yes' if movie else 'no'}: {what}, ebx esi edi ebp kept")
+            for hidden in (0, 1):
+                a = stock.lobby(key, movie, hidden)
+                b = patched.lobby(key, movie, hidden)
+                keep = {UC_X86_REG_EBP: GAME[UC_X86_REG_EBP], UC_X86_REG_EDI: 2, UC_X86_REG_ESI: key,
+                        UC_X86_REG_EBX: LOBBY}
+                kept = all(b[2][reg] == value for reg, value in keep.items())
+                same = a[0] == LOBBY_BACK and a[1] == b[1] == 4 and kept and not a[3] and a[4] == b[4]
+                if key == F11 and movie:
+                    ok = same and a[2][UC_X86_REG_EAX] == 0x49 and b[0] == LOBBY_TAKEN \
+                        and b[3] == [("invoke", MOVIE, b"root.toggle_interface", False, 0, 0)]
+                    what = "root.toggle_interface invoked, the key taken (0x26ccae)"
+                elif movie and hidden:
+                    ok = same and b[0] == LOBBY_TO_MOVIE and b[3] == [asked]
+                    what = "hidden: no action of the game, the key to the movie (0x26cdd2)"
+                else:
+                    ok = same and b[0] == LOBBY_BACK and b[3] == ([asked] if movie else []) \
+                        and a[2][UC_X86_REG_EAX] == b[2][UC_X86_REG_EAX]
+                    what = f"action {b[2][UC_X86_REG_EAX]:#x} as the original's"
+                report(ok, f"{name}, movie {'yes' if movie else 'no'}, the interface "
+                           f"{'hidden' if hidden else 'shown'}: {what}, its toggle place as the original's, "
+                           "ebx esi edi ebp kept")
 
     if failed:
         sys.exit(f"{failed} case(s) failed")
