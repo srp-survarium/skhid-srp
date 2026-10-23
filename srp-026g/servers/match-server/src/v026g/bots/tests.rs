@@ -2625,13 +2625,15 @@ fn bench_tuning() -> Tuning {
     {
         tuning.aim.friends.near_m = m;
     }
-    // Collect's and Intercept's numbers: `name=value,...`.
+    // Plays' numbers (Collect, Intercept, ...): `name=value,...`.
     for (var, kind) in [
         ("SRP_BENCH_COLLECT", super::plays::PlayKind::Collect),
         ("SRP_BENCH_INTERCEPT", super::plays::PlayKind::Intercept),
         ("SRP_BENCH_RAID", super::plays::PlayKind::Raid),
         ("SRP_BENCH_BUDDY", super::plays::PlayKind::Buddy),
         ("SRP_BENCH_TRADE", super::plays::PlayKind::Trade),
+        ("SRP_BENCH_ROAM", super::plays::PlayKind::Roam),
+        ("SRP_BENCH_CUT", super::plays::PlayKind::Cut),
     ] {
         let Ok(numbers) = std::env::var(var) else {
             continue;
