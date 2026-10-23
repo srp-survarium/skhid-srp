@@ -65,10 +65,25 @@ and drop weight from its config in the server game data.
 - Fringe and Renaissance gear starts at level 6, so a mask below it (1812 at 5,
   1814 at 3) is sold from their first rank (0): every player who has reached
   the faction can buy it.
-- 1816 also takes the helmet slot (`additional_model_slots`): its goggles are
-  rigid and bent when pulled under a helmet. Wearing it takes the helmet off
-  (srp's covered-slot rule, as the stock helmets with a built-in mask take the
-  mask off). srp reads it: covered slot 0.
+- 1816 is just a mask (the owner, 2026-10-23, T28: "the hunter mask should
+  just be a mask"; players asked to wear helmets with it). The pack made it
+  take the helmet slot too (`additional_model_slots`: its goggles are rigid
+  and bent when pulled under a helmet, so it was fitted over the bare head
+  only); `scripts/content-edit/protective-mask-1.json` takes `helmet` out of
+  that list. It is worn in the mask slot only (its category) and covers
+  nothing: a helmet goes on with it, and a helmet with a built-in mask still
+  takes it off. Kits that wear it need no repair: it was already in the mask
+  slot, with the helmet slot empty.
+  - Its model is the pack's, fitted over the bare head: with a helmet on,
+    the hood shows through it. In the bind pose 11 of the 12 helmet
+    surfaces worn with masks have part of its upper head (hood or goggles)
+    outside them (resource-porter's shell measure; the deepest: Biker's
+    helmet 30 mm, Master's hood 16 mm, Explorer's hat, Paratrooper's helmet
+    and the OZK-18KB 9-10 mm, the rest 3-8 mm; only the Master's hood's alpha
+    surface is clear). The cloth can be pulled in under the helmets as the
+    other masks' is (a face-069d pack version with 1816 fitted with
+    `helmets_worn_over_masks`), the goggles bending with it; an in-game look
+    decides.
 - 1823 and 1814 are both Renaissance balaclavas with one eye opening (STK2's
   and 0.69d's); the names keep them apart ("Army balaclava", "Balaclava").
 
@@ -77,8 +92,9 @@ and drop weight from its config in the server game data.
 1. The proposed armour / isolation, weights, prices and drop weights above
    (1823, 1812, 1813, 1816), and the levels of 1814 and 1815.
 2. The item descriptions (0.69d has none; written new).
-3. 1816 taking the helmet slot (the other way: worn with helmets, its goggles
-   bent or through the helmet).
+3. 1816 with helmets: as the pack fitted it (the hood through most helmets),
+   or refitted under them (the goggles bent); the slot itself is decided (T28,
+   a mask only).
 
 ## Fit checks (offline, resource-porter builders)
 

@@ -404,3 +404,16 @@ name and description keys have no text, `props_list` is empty). The "Onyx artifa
 openings, which the maps tab and the damage calculator take the names from, stay. Applied to revision
 29's live tables: 6 files edited, 0 unexpected differences.
 Text only: no server data, no simulation change.
+
+## protective-mask-1.json (2026-10-23)
+
+| change | why |
+|---|---|
+| The Protective mask (1816, `face_069d_protective_mask`, the face-069d pack) no longer covers the helmet slot: `helmet` out of its `data/additional_model_slots` (`remove_item` of a string; `['helmet']` -> `[]`, as the other ported masks have it) | the owner, 2026-10-23 (Skhid T28): "the hunter mask should just be a mask"; players asked to wear a helmet with it. The client's paperdoll locks the cells of the slots an item covers, and srp reads them from the same config (`item_params::covered_slots`), so a helmet now goes on with it |
+
+It stays in the mask slot (its dictionary category fits no other), so the kits that wear it need
+no repair: their helmet slot is empty and can now be filled. Its level, weight, price, armour and
+modifications are unchanged (`item_params::tests::the_protective_mask_of_the_built_game_data_is_just_a_mask`
+on the built server game data). Its model is the pack's, fitted over the bare head: with a helmet
+it shows through most helmets (`docs/notes/masks-pack.md`). Applied to revision 30's live files: 1
+file edited, 0 unexpected differences. No simulation change: the slot rule is the lobby's.

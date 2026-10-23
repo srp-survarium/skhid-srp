@@ -1324,6 +1324,72 @@ mod tests {
     }
 
     #[test]
+    fn a_mask_that_no_longer_covers_the_helmet_slot_is_worn_with_a_helmet() {
+        // The Protective mask (1816) covered the helmet slot until
+        // `protective-mask-1.json` (T28). The Bandit balaclava stands in for
+        // it (the test data has no 1816): first as it was, covering the
+        // helmet slot, then as the data now says, covering nothing.
+        let mut account = account();
+        let mask_id = account.add_item(1810, 100);
+        let mask = account.item(mask_id).unwrap().clone();
+        // The Paratrooper's helmet, which has no mask built in.
+        let helmet_id = account.add_item(dict("ren_helmet_1"), 100);
+        let helmet = account.item(helmet_id).unwrap().clone();
+        assert!(covered_slots(helmet.dict_id).is_empty());
+        let covers_helmet =
+            |dict_id: u16| -> &'static [u8] { if dict_id == mask.dict_id { &[0] } else { &[] } };
+        // A player's kit today: the mask on took the helmet off; the mask is
+        // in the mask slot (its category fits no other), the helmet owned.
+        put_on(
+            &mut account,
+            &covers_helmet,
+            &[relocation(&helmet, INVENTORY_SLOT, 0, 1)],
+        );
+        put_on(
+            &mut account,
+            &covers_helmet,
+            &[relocation(&mask, INVENTORY_SLOT, 1, 1)],
+        );
+        let slots = account.kits[0].slots;
+        assert!(slots[0].is_none());
+        assert_eq!(slots[1].map(|held| held.item_id), Some(mask_id));
+        assert!(account.item(helmet_id).is_some());
+        // Under the new data the kit loads as it was, and plays.
+        let kit = account.kits[0].slots;
+        account.repair();
+        assert_eq!(account.kits[0].slots, kit);
+        assert!(account.covered_items(&account.kits[0]).is_empty());
+        assert!(check_play(&account, 1, NOW).is_ok());
+        // A helmet goes on beside the mask, and the mask stays.
+        move_items(
+            &mut account,
+            1,
+            &[relocation(&helmet, INVENTORY_SLOT, 0, 1)],
+            NOW,
+        )
+        .unwrap();
+        let slots = account.kits[0].slots;
+        assert_eq!(slots[0].map(|held| held.item_id), Some(helmet_id));
+        assert_eq!(slots[1].map(|held| held.item_id), Some(mask_id));
+        assert_eq!(account.uncover_kits(), 0);
+        assert!(check_play(&account, 1, NOW).is_ok());
+        // A helmet with its mask built in still takes the mask off.
+        let (zubr, _) = owned_zubr_and_balaclava(&mut account);
+        move_items(
+            &mut account,
+            1,
+            &[relocation(&zubr, INVENTORY_SLOT, 0, 1)],
+            NOW,
+        )
+        .unwrap();
+        let slots = account.kits[0].slots;
+        assert_eq!(slots[0].map(|held| held.item_id), Some(zubr.item_id));
+        assert!(slots[1].is_none());
+        assert!(account.item(mask_id).is_some());
+        assert!(account.item(helmet_id).is_some());
+    }
+
+    #[test]
     fn an_item_moves_to_the_inventory_and_back() {
         let mut account = account();
         let pistol = account.inventory[0].clone();
