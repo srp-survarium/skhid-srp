@@ -439,3 +439,15 @@ first version's but London's. The Research maps of `research-mode@3` (`<w>_5`, m
 not in the list: they keep 0.26g's anomaly pools without the Sponge. Rendering and spawning only:
 the match's artefacts change, so it rides with the exe's Sponge patch and its
 `simulation_changes.tsv` row.
+
+## rattle-spawns-1.json (2026-10-23)
+
+| change | why |
+|---|---|
+| `client_objects[i]/artefacts` of each of the 200 cores `sponge-spawns-1` gives the Sponge: `{dict_id 759, count 1}` after the Sponge's `{758, 1}` (`add_entry`), the same 74 projects; the pools grow by one entry each again | the Rattle (pack `rattle@1`, items_dict 759) spawns where the Sponge does (`../../docs/notes/rattle.md`). Made by `../rattle/spawns.py` from `sponge-spawns-1.json`, so the two lists name the same cores; applied after it |
+
+Checked (2026-10-23): `sponge-spawns-1` then this list on `projects/level_01/day_2` of the stock
+db: each 2 cores, 0 unexpected differences (`[238]` 54 x10, 74 x10, then 758 x1, 759 x1). Not yet
+in a dry run of `release/build-content` over the live projects. The Research maps and #225's
+dynamic anomalies as for the Sponge (#225's kinds take 759 as a follow-up there). Rendering and
+spawning only: it rides with exe patch 59 and the `simulation_changes.tsv` row.
