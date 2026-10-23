@@ -92,6 +92,24 @@ const FAILED_KEEP_MS: u32 = 90_000;
 /// this, radians, or after this long there anyway, ms.
 const SETTLED_RAD: f32 = 0.06;
 const SETTLE_MS: u32 = 1_500;
+/// A use (a take, a put-in) is judged by a world of this long after it, ms,
+/// before it counts as failed or the next is pressed: the world showing
+/// it comes a second or two after the press (a world a second, behind the
+/// clock), and the bench's put-ins "failed" at the second press while the
+/// first had put the battery in, to be taken again and end "put it in" a
+/// second later (291 of 442 put-in plays, 8 seeds; GUESS: a press is in
+/// the next server frame).
+const USE_SEEN_MS: u32 = 300;
+/// ... unless no such world came for this long (the worlds stopped), ms.
+const USE_SEEN_WAIT_MS: u32 = 3_000;
+
+/// Whether a use pressed at `pressed` (0: none yet) has been judged by a
+/// world ([`USE_SEEN_MS`]).
+fn use_seen(cx: &Ctx, pressed: u32) -> bool {
+    pressed == 0
+        || cx.view.world_time >= pressed + USE_SEEN_MS
+        || cx.now >= pressed + USE_SEEN_WAIT_MS
+}
 /// Each use at a stand aims at the next of these heights over the
 /// battery's position (as the eye's height is a GUESS, `view`).
 const AIM_LIFTS_M: [f32; 2] = [BATTERY_AIM_M, 0.0];
@@ -108,6 +126,27 @@ pub struct FailedStand {
     pub feet: Vec3,
     pub crouch: bool,
     pub until: u32,
+    /// The last use's ray, for the log: from the eye to the battery's
+    /// point aimed at (metres; the client's ray is 2 m), how far down
+    /// (radians), and how far the view was off it (radians).
+    pub ray_m: f32,
+    pub down: f32,
+    pub off: f32,
+}
+
+impl FailedStand {
+    /// Its line in the log.
+    pub fn note(&self) -> String {
+        format!(
+            "took no battery {} from a stand {:.1} m off it ({}): its use's ray {:.2} m to it, {:.0} deg down, the view {:.1} deg off it",
+            self.battery,
+            self.feet.distance_xz(self.at),
+            if self.crouch { "crouched" } else { "standing" },
+            self.ray_m,
+            self.down.to_degrees(),
+            self.off.to_degrees(),
+        )
+    }
 }
 
 /// Where and how a body stands to take a battery.
@@ -626,7 +665,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
         State::Take { .. } => take(state, target, cx),
         State::Bring => {
             if cx.me.carrying.is_none() {
-                return Step::Done("brought home");
+                return Step::Done(carry_ended(cx, target, "brought home"));
             }
             let Some(home) = home else {
                 return Step::Failed("no container of ours");
@@ -646,9 +685,11 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
         }
         State::PutIn { tries: n, last_use } => {
             if cx.me.carrying.is_none() {
-                return Step::Done("put it in");
+                return Step::Done(carry_ended(cx, target, "put it in"));
             }
-            if *n >= tries {
+            // The last use not seen yet: it may have put it in.
+            let seen = use_seen(cx, *last_use);
+            if *n >= tries && seen {
                 return Step::Failed("could not put it in");
             }
             let mut intent = Intent::stay().hold_fire();
@@ -661,13 +702,27 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 }
                 intent = intent.looking(Look::use_box(home));
             }
-            if cx.now >= *last_use + every {
+            if cx.now >= *last_use + every && seen && *n < tries {
                 *n += 1;
                 *last_use = cx.now;
                 intent = intent.pressing(key::USE);
             }
             Step::Continue(intent)
         }
+    }
+}
+
+/// Why a carry ended with the bot no longer carrying: `home` if the battery
+/// is in a container; else the view believes another carries it (its uses
+/// at the container put nothing in, `view::Carry`), or it lies dropped.
+fn carry_ended(cx: &Ctx, target: TargetRef, home: &'static str) -> &'static str {
+    match target {
+        TargetRef::Battery(b) => match cx.view.batteries.get(b) {
+            Some(view::BatteryState::Carried(_)) => "someone else carries it",
+            Some(view::BatteryState::Free(_)) => "dropped it",
+            _ => home,
+        },
+        _ => home,
     }
 }
 
@@ -794,7 +849,8 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
             if s.crouch {
                 intent = intent.crouched();
             }
-            if cx.now < *last_use + every {
+            // The last use not seen yet: it may have taken it.
+            if cx.now < *last_use + every || !use_seen(cx, *last_use) {
                 return Step::Continue(intent);
             }
             if *tries < per_stand {
@@ -821,12 +877,22 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                 return Step::Continue(intent);
             }
             // Its uses spent there: kept, and another stand.
+            let eye = cx.me.eye();
+            let to = aim_now - eye;
+            let [fx, fz] = crate::v026g::bots::kin::forward(cx.me.yaw);
+            let (sin, cos) = cx.me.pitch.sin_cos();
+            let looking = Vec3::new(fx * cos, sin, fz * cos);
             failed = Some(FailedStand {
                 battery,
                 at,
                 feet: s.feet,
                 crouch: s.crouch,
                 until: cx.now + FAILED_KEEP_MS,
+                ray_m: to.length(),
+                down: (-to.y).atan2(to.x.hypot(to.z)),
+                off: (looking.dot(to) / to.length().max(1e-3))
+                    .clamp(-1.0, 1.0)
+                    .acos(),
             });
             tried.push(s);
             *stand = None;
@@ -1695,10 +1761,15 @@ mod tests {
         assert_ne!(intent.press & key::USE, 0, "a use at the stand");
         s.view.clock += 1_200;
         stand_at(&mut s, first.feet, TAKE_AT);
+        // No world since the use: it waits, the use may have taken it.
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_eq!(intent.press & key::USE, 0, "the first use not seen yet");
+        s.view.world_time = s.view.clock - 300;
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_ne!(intent.press & key::USE, 0, "the second use, aimed lower");
         // Both failed: the stand is kept, and another one taken.
         s.view.clock += 1_200;
+        s.view.world_time = s.view.clock - 300;
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         let failed = intent.failed_stand.expect("the stand is kept");
         assert_eq!(
@@ -1815,5 +1886,58 @@ mod tests {
         assert!(intent.straight);
         assert!(matches!(intent.go, Go::To { at, .. } if at == stand.feet));
         assert!(clear_from(&s, stand.feet));
+    }
+
+    /// A put-in counts its use failed only once a world after it shows
+    /// the battery still carried (the bench's put-ins "failed" while the
+    /// first use had put it in); it ends as the battery did.
+    #[test]
+    fn a_put_in_waits_for_a_world_after_its_use_and_ends_as_the_battery_did() {
+        let mut s = Scenario::field(Mode::Batteries);
+        s.battery(BatteryState::Carried(Some(0)));
+        s.bot(0, 0, Vec3::new(12.0, 0.0, 31.0)).carrying = Some(0);
+        let target = TargetRef::Battery(0);
+        let mut rng = Rng::new(1);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        assert_eq!(state, State::Bring);
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::PutIn { .. }), "{state:?}");
+        let used = |s: &Scenario, state: &mut State, rng: &mut Rng| {
+            intent_of(step(state, target, &s.cx(0), rng)).press & key::USE != 0
+        };
+        assert!(used(&s, &mut state, &mut rng), "the first use");
+        s.view.clock += 1_200;
+        assert!(!used(&s, &mut state, &mut rng), "no world since");
+        s.view.world_time = s.view.clock - 300;
+        assert!(used(&s, &mut state, &mut rng), "the second use");
+        s.view.clock += 1_200;
+        assert!(
+            matches!(
+                step(&mut state, target, &s.cx(0), &mut rng),
+                Step::Continue(_)
+            ),
+            "the second use not judged yet"
+        );
+        s.view.world_time = s.view.clock - 300;
+        assert_eq!(
+            step(&mut state, target, &s.cx(0), &mut rng),
+            Step::Failed("could not put it in")
+        );
+        // Not carrying any more: in, or another believed to carry it.
+        s.view.places[0].carrying = None;
+        for (battery, why) in [
+            (BatteryState::Home(0), "put it in"),
+            (BatteryState::Carried(Some(3)), "someone else carries it"),
+        ] {
+            s.view.batteries[0] = battery;
+            let mut state = State::PutIn {
+                tries: 1,
+                last_use: s.view.clock,
+            };
+            assert_eq!(
+                step(&mut state, target, &s.cx(0), &mut rng),
+                Step::Done(why)
+            );
+        }
     }
 }

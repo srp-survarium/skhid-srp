@@ -166,6 +166,13 @@ struct Game {
     /// at a battery 9 times from where the mesh blocks the line, and took
     /// it at once from a side with a clear one.
     use_line: bool,
+    /// How near a battery's middle a take's ray must pass, metres
+    /// ([`BATTERY_M`]; `SRP_BENCH_TAKE_M` in the real-map runs makes takes
+    /// fail as some do in the owner's matches, audit #7).
+    take_m: f32,
+    /// Batteries no use takes off the floor (`SRP_BENCH_UNTAKEABLE=<n>`:
+    /// the first n; as the sunk ones of audit #7, which a use never took).
+    untakeable: usize,
 }
 
 /// The soak map: the 80 x 40 m field (a wall across its middle up to
@@ -273,6 +280,8 @@ impl Game {
             took: vec![None; teams.len()],
             taken_killed: 0,
             use_line: false,
+            take_m: BATTERY_M,
+            untakeable: 0,
             world,
         };
         for place in 0..teams.len() {
@@ -542,7 +551,7 @@ impl Game {
     /// to it when [`Game::use_line`].
     fn uses_battery(&self, body: &Body, at: Vec3) -> bool {
         let point = at + BATTERY_MIDDLE;
-        if !Self::uses(body, point, BATTERY_M) {
+        if !Self::uses(body, point, self.take_m) {
             return false;
         }
         if !self.use_line {
@@ -588,9 +597,10 @@ impl Game {
                     }
                 }
                 None => {
-                    let free = self.batteries.iter().position(
-                        |b| matches!(b, Lying::Free(at, _) if self.uses_battery(&body, *at)),
-                    );
+                    let free = self.batteries.iter().enumerate().position(|(i, b)| {
+                        i >= self.untakeable
+                            && matches!(b, Lying::Free(at, _) if self.uses_battery(&body, *at))
+                    });
                     let theirs = self.containers.iter().position(|(t, at)| {
                         *t != team && Self::uses(&body, *at + USE_BOX_UP, USE_BOX_M)
                     });
@@ -1083,6 +1093,7 @@ fn soak_tuned(
     let trace = std::env::var_os("SRP_SOAK_TRACE").map_or(Trace::none(0), |dir| {
         Trace::open(std::path::Path::new(&dir), seed as u32, 0, u64::MAX)
     });
+    let cheat = if tuning.cheats.batteries { "-cheat" } else { "" };
     let mut bots = Bots::new(
         0x50AC + seed as u32,
         mode,
@@ -1100,7 +1111,7 @@ fn soak_tuned(
         bots.entered(place, true, 0);
     }
     let mut out = Outcome {
-        carry: CarryTally::new(format!("soak{per_team}-s{seed}")),
+        carry: CarryTally::new(format!("soak{per_team}-s{seed}{cheat}")),
         ..Outcome::default()
     };
     let rays_before = super::aimpoint::rays_cast();
@@ -2696,6 +2707,18 @@ fn real_bot_cost() {
                 timed,
             );
             game.use_line = std::env::var_os("SRP_BENCH_USE_LINE").is_some();
+            if let Some(m) = std::env::var("SRP_BENCH_TAKE_M")
+                .ok()
+                .and_then(|m| m.parse().ok())
+            {
+                game.take_m = m;
+            }
+            if let Some(n) = std::env::var("SRP_BENCH_UNTAKEABLE")
+                .ok()
+                .and_then(|n| n.parse().ok())
+            {
+                game.untakeable = n;
+            }
             // As the game does (`gather_victory_items_rule::select_spawners`):
             // this many batteries at spawners drawn at random (the mode's
             // count is 10), not one at every spawner.

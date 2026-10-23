@@ -978,6 +978,14 @@ impl Bots {
         };
         let before = self.tracker.view(&at(time), &self.tuning.kin, None);
         let new_deaths = self.tracker.facts(facts);
+        // Who the view believes carries the batteries, and why (`view`).
+        for text in self.tracker.take_notes() {
+            notes.push(Note {
+                place: usize::MAX,
+                time,
+                text,
+            });
+        }
         let after = self.tracker.view(&at(time), &self.tuning.kin, None);
         let kills_by = |bot: bool| {
             after
@@ -1846,20 +1854,7 @@ impl Bots {
                 if let Some(failed) = intent.failed_stand.take() {
                     bot.failed_stands.retain(|f| f.until > now);
                     bot.failed_stands.push(failed);
-                    bot.note(
-                        notes,
-                        now,
-                        format!(
-                            "took no battery {} from a stand {:.1} m off it ({})",
-                            failed.battery,
-                            failed.feet.distance_xz(failed.at),
-                            if failed.crouch {
-                                "crouched"
-                            } else {
-                                "standing"
-                            }
-                        ),
-                    );
+                    bot.note(notes, now, failed.note());
                 }
                 bot.intent = intent;
             }
