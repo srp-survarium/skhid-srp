@@ -50,12 +50,12 @@ use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 
 use super::curve::{self, Explain, Input, Score};
-use super::know::{Memory, TeamKnowledge, Track};
+use super::know::{Memory, Source, TeamKnowledge, Track};
 use super::rng::Rng;
 use super::signals::{MatchSignals, Mods};
 use super::tactics::Tactics;
 use super::tuning::{Personality, PlayTuning, Tuning};
-use super::view::{MatchView, Place, PlaceView};
+use super::view::{MatchView, Place, PlaceView, SoundKind};
 
 /// The rank bands, highest first: a candidate of a higher band beats any
 /// of a lower one (research B1 point 3); the commander counts an
@@ -418,6 +418,32 @@ pub const QUICK_FAIL_MS: u32 = 2_000;
 /// times a second in the owner's match of 2026-10-16).
 pub const SET_ASIDE_MS: u32 = 8_000;
 
+/// Whether each threat has a teammate of his own to cover him: `sees[t][m]`
+/// is whether teammate `m` may cover threat `t`. The first threat left
+/// free by the largest one-to-one match (augmenting paths; a few of each),
+/// if any.
+pub fn cover_each(sees: &[Vec<bool>]) -> Option<usize> {
+    let mates = sees.first().map_or(0, Vec::len);
+    let mut held: Vec<Option<usize>> = vec![None; mates];
+    fn find(t: usize, sees: &[Vec<bool>], seen: &mut [bool], held: &mut [Option<usize>]) -> bool {
+        for m in 0..held.len() {
+            if sees[t][m] && !seen[m] {
+                seen[m] = true;
+                if held[m].is_none_or(|other| find(other, sees, seen, held)) {
+                    held[m] = Some(t);
+                    return true;
+                }
+            }
+        }
+        false
+    }
+    (0..sees.len()).find(|&t| !find(t, sees, &mut vec![false; mates], &mut held))
+}
+
+/// An enemy last seen this recently is in sight now ([`Ctx::exposed_to`]):
+/// a few of the bot's senses (each think).
+pub const SEEN_NOW_MS: u32 = 700;
+
 /// What a play sees: the match, the bot, its knowledge, the team's, the
 /// signals and modifiers, the map's tactics and the tuning.
 pub struct Ctx<'a> {
@@ -598,6 +624,60 @@ impl Ctx<'_> {
             .no_way_to
             .iter()
             .any(|&(goal, until)| self.now < until && goal.distance_xz(at) <= super::REPLAN_MOVED_M)
+    }
+
+    /// The enemy a use here would be made under the eyes of, if any (a
+    /// take of a battery waits for the fight: `collect::take`). The
+    /// threats are the enemies the bot sees now ([`SEEN_NOW_MS`]) within
+    /// `exposed_m` with a clear line eye to eye, less those reloading (a
+    /// reload pressed within `reload_ms`). Each needs a teammate of his own
+    /// to cover him (alive, not carrying, with a clear line to him from
+    /// within `cover_m`): one teammate keeps one enemy busy, so two threats
+    /// seen by one teammate leave one free ([`cover_each`]). A use turns the
+    /// view from the fight and a carrier cannot shoot, so a take in a free
+    /// enemy's sight gave him free shots; players clear a battery's
+    /// surroundings first, or grab it while the enemy reloads or a teammate
+    /// keeps him busy (the owner, 2026-10-23).
+    pub fn exposed_to(&self, exposed_m: f32, reload_ms: u32, cover_m: f32) -> Option<Place> {
+        let eye = self.me.eye();
+        let threats: Vec<&PlaceView> = self
+            .memory
+            .tracks()
+            .iter()
+            .filter(|t| t.source == Source::Seen && self.now <= t.time + SEEN_NOW_MS)
+            .filter_map(|t| self.view.place(t.who))
+            .filter(|enemy| enemy.alive && enemy.present && enemy.team != self.me.team)
+            .filter(|enemy| {
+                let at = enemy.eye();
+                let reloading = self.view.sounds.iter().any(|s| {
+                    s.from == enemy.place
+                        && s.kind == SoundKind::Reload
+                        && self.now <= s.time + reload_ms
+                });
+                (at - eye).length() <= exposed_m && !reloading && self.tactics.sees(at, eye)
+            })
+            .collect();
+        if threats.is_empty() {
+            return None;
+        }
+        let mates: Vec<&PlaceView> = self
+            .view
+            .team(self.me.team)
+            .filter(|mate| mate.place != self.me.place && mate.carrying.is_none())
+            .collect();
+        let sees: Vec<Vec<bool>> = threats
+            .iter()
+            .map(|enemy| {
+                let at = enemy.eye();
+                mates
+                    .iter()
+                    .map(|mate| {
+                        (mate.eye() - at).length() <= cover_m && self.tactics.sees(mate.eye(), at)
+                    })
+                    .collect()
+            })
+            .collect();
+        cover_each(&sees).map(|free| threats[free].place)
     }
 
     /// Known enemies within `m` of `at` (by the memory, whatever the
@@ -966,6 +1046,7 @@ pub fn numbers(kind: PlayKind) -> &'static [(&'static str, f32)] {
 /// tuning draws from.
 pub mod considerations {
     use crate::v026g::bots::curve::{Consideration, Curve, Input};
+
 
     /// Nearer is better, out to `far` metres.
     pub fn near(far: f32) -> Consideration {

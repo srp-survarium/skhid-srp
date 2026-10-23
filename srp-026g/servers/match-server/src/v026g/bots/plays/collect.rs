@@ -224,6 +224,16 @@ fn back_spot(cx: &Ctx, at: Vec3, from: Option<Vec3>) -> Vec3 {
 
 pub const NUMBERS: &[(&str, f32)] = &[
     ("reach_m", 1.5),
+    // Within `hold_near_m` of the battery, a take waits while an enemy
+    // within `exposed_m` sees the bot, not reloading (a reload pressed
+    // within `reload_cover_s`) and kept busy by no teammate with a clear
+    // line to him from within `cover_m` (`Ctx::exposed_to`): it fights
+    // first. GUESSES; measured on the battery soak and the real-map bench
+    // (docs/notes/player_bots_behaviour.md §2.3).
+    ("hold_near_m", 3.0),
+    ("exposed_m", 25.0),
+    ("reload_cover_s", 1.5),
+    ("cover_m", 40.0),
     ("use_every_s", 1.2),
     // Uses pressed at one stand; stands tried a take (the first where it
     // stopped, then round the battery, `ring_stands`); how long it may
@@ -697,6 +707,22 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
         });
     };
     let me = cx.me.feet;
+    // In an enemy's sight, the fight first (`Ctx::exposed_to`): the play
+    // stays, its look gives way to the reflex's (no use within reach, so
+    // it aims, moves and fires), and its timers wait.
+    if me.distance_xz(at) <= num("hold_near_m")
+        && cx
+            .exposed_to(
+                num("exposed_m"),
+                (num("reload_cover_s") * 1000.0) as u32,
+                num("cover_m"),
+            )
+            .is_some()
+    {
+        *since = cx.now;
+        *arrived = None;
+        return Step::Continue(Intent::stay());
+    }
     // The use's ray from the eye must hit the battery: at it, not a metre
     // over it as at a place (`Look::At`), which from a crouch passes over
     // a battery on the floor.

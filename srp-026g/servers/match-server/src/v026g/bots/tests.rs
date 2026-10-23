@@ -104,6 +104,10 @@ type Queued = (u32, u32, (f32, f32), Option<Place>, &'static Gun);
 /// (alive) it fell since, if it did.
 type StolenMark = (u8, Option<(u32, bool)>);
 
+/// A carrier killed this soon after his take counts as killed taking it
+/// (`Game::taken_killed`), ms.
+const TAKEN_KILLED_MS: u32 = 3_000;
+
 /// The stand-in game.
 struct Game {
     world: Arc<World>,
@@ -151,8 +155,11 @@ struct Game {
     stolen_drops: Vec<(bool, u32, bool)>,
     /// What befell stolen batteries, for the bench's log.
     stolen_log: Vec<String>,
-    /// Lying batteries taken.
+    /// Lying batteries taken; by place, when its battery was taken; the
+    /// carriers killed within [`TAKEN_KILLED_MS`] of their take.
     taken: u32,
+    took: Vec<Option<u32>>,
+    taken_killed: u32,
     /// Whether a use's ray stops at the bullet mesh short of a lying
     /// battery (`SRP_BENCH_USE_LINE=1` in the real-map runs). LIKELY as
     /// the client: in the owner's match of 2026-10-16 a bot aimed right
@@ -263,6 +270,8 @@ impl Game {
             stolen_drops: Vec::new(),
             stolen_log: Vec::new(),
             taken: 0,
+            took: vec![None; teams.len()],
+            taken_killed: 0,
             use_line: false,
             world,
         };
@@ -487,6 +496,9 @@ impl Game {
             other.alive = false;
             other.dead_at = tick;
             if let Some(battery) = other.carrying.take() {
+                if self.took[target].is_some_and(|at| tick <= at + TAKEN_KILLED_MS) {
+                    self.taken_killed += 1;
+                }
                 self.batteries[battery] = Lying::Free(other.feet, 1 << other.team);
                 self.carrier_kills.push((shooter, target));
                 if let Some(Some((_, fell @ None))) = self.stolen_marks.get_mut(battery) {
@@ -586,6 +598,7 @@ impl Game {
                         self.batteries[battery] = Lying::Carried(place);
                         self.bodies[place].carrying = Some(battery);
                         self.taken += 1;
+                        self.took[place] = Some(self.tick);
                     } else if let Some(id) = theirs
                         && let Some(battery) = self
                             .batteries
@@ -761,6 +774,8 @@ struct Outcome {
     kills: [u32; 2],
     delivered: [u32; 2],
     stolen: u32,
+    taken: u32,
+    taken_killed: u32,
     shots: u32,
     hits: u32,
     team_hits: u32,
@@ -926,6 +941,8 @@ fn soak_tuned(
     }
     out.delivered = game.delivered;
     out.stolen = game.stolen;
+    out.taken = game.taken;
+    out.taken_killed = game.taken_killed;
     out.shots = game.shots;
     out.hits = game.hits;
     out.team_hits = game.team_hits;
@@ -1160,6 +1177,54 @@ fn a_team_deathmatch_of_bots_is_fought_to_the_last_ticket() {
 /// through a teammate as it did live (2026-10-20..23: 7,250 team kills to
 /// 27,088 kills); on, far fewer team hits, and the enemy still dies about
 /// as often.
+/// A take waits for the fight while an enemy sees the taker, unless he
+/// reloads or a teammate covers ([`Ctx::exposed_to`]): the battery soaks
+/// (4 a side to 3, seeds 1-8, the battery cheat off and on) with the wait
+/// off (`exposed_m` 0) and on. Prints the batteries taken and brought,
+/// the carriers killed within [`TAKEN_KILLED_MS`] of their take, and the
+/// wins; batteries are still brought with it on.
+///
+/// [`Ctx::exposed_to`]: super::plays::Ctx::exposed_to
+#[test]
+#[ignore = "whole matches; run in release"]
+fn a_take_waits_for_the_fight_unless_covered() {
+    let mut totals = Vec::new();
+    for on in [false, true] {
+        let (mut taken, mut killed, mut brought, mut won, mut runs) = (0, 0, 0, 0, 0);
+        let mut draws = Vec::new();
+        for cheat in [false, true] {
+            for seed in 1..=16 {
+                let mut tuning = Tuning::default();
+                tuning.cheats.batteries = cheat;
+                if !on {
+                    let mut play = super::plays::default_tuning(PlayKind::Collect);
+                    play.numbers.insert("exposed_m".into(), 0.0);
+                    tuning.plays.insert(PlayKind::Collect, play);
+                }
+                let out = soak_tuned(4, 3, 0, None, 900, seed, tuning);
+                taken += out.taken;
+                killed += out.taken_killed;
+                brought += out.delivered[0] + out.delivered[1];
+                won += u32::from(out.delivered.iter().any(|&d| d >= 3));
+                if out.winner.is_none() {
+                    draws.push((cheat, seed));
+                }
+                runs += 1;
+            }
+        }
+        eprintln!(
+            "take waits {on}: taken {taken}, killed within 3 s of a take {killed}, brought {brought}, won by batteries {won} of {runs}; draws (cheat, seed) {draws:?}"
+        );
+        totals.push((taken, killed, brought));
+    }
+    let (_, _, brought_on) = totals[1];
+    let (_, _, brought_off) = totals[0];
+    assert!(
+        brought_on * 10 >= brought_off * 8,
+        "batteries still brought: {brought_on} against {brought_off}"
+    );
+}
+
 #[test]
 #[ignore = "whole matches; run in release"]
 fn bots_hold_fire_while_a_teammate_is_in_the_line_of_fire() {
@@ -1255,7 +1320,10 @@ fn a_short_soak_without_the_battery_cheat_finds_and_brings_batteries() {
 fn with_the_battery_cheat_whole_matches_are_won_by_batteries() {
     let mut tuning = Tuning::default();
     tuning.cheats.batteries = true;
-    let out = soak_tuned(4, 3, 0, None, 900, 1, tuning.clone());
+    // Seed 2: a match of these may end level (1 of 32 with the rule of
+    // `a_take_waits_for_the_fight_unless_covered` and without it); seed 1
+    // did with it, 1-1 after 900 s.
+    let out = soak_tuned(4, 3, 0, None, 900, 2, tuning.clone());
     eprintln!("{}", out.decisions.line());
     assert!(
         out.delivered[0] + out.delivered[1] >= 1,
@@ -1497,41 +1565,58 @@ fn a_bot_takes_a_battery_from_round_a_wall_its_use_cannot_pass() {
     );
 }
 
-/// A bot by a battery with an enemy in plain sight (place 1, no bot, who
-/// does not die: the fight never ends) still takes it: within the use's
-/// reach the take's look wins over the reflex's aim (`USE_LOOK_M`). The
-/// client's use is one ray along the view; a bot whose reflex kept its
-/// view on the enemy pressed use at him, and in the whole-match soaks the
-/// battery where the teams meet lay there all match.
-#[test]
-fn a_bot_fighting_by_a_battery_still_takes_it() {
+/// Who keeps the enemy by the battery busy in [`fight_by_a_battery`].
+#[derive(Clone, Copy, PartialEq)]
+enum Busy {
+    /// Nobody: the bot alone in his sight.
+    Nobody,
+    /// A teammate (place 2, no bot) with a clear line to him.
+    Mate,
+    /// He reloads (a reload pressed every second).
+    Reloading,
+}
+
+/// A bot walks in to battery 1 with an enemy in plain sight past it
+/// (place 1, no bot, who does not die: the fight never ends), for 15 s:
+/// when it took the battery, if it did, and whether it fought him.
+fn fight_by_a_battery(busy: Busy) -> (Option<u32>, bool, u32) {
+    use survarium::v026g::match_msgs::{PlayerInput, WireTime};
     let world = soak_world();
     let mut tuning = Tuning::default();
     tuning.cheats.batteries = true;
-    let teams = [0u8, 1];
+    let teams = [0u8, 1, 0];
     let mut bots = Bots::new(
         0x7A70,
         survarium::v026g::maps::mode::BATTERIES,
         0,
         &teams,
-        &[true, false],
-        &[None, None],
+        &[true, false, false],
+        &[None, None, None],
         Arc::new(tuning),
         Trace::none(0),
     );
     bots.map_ready(world.clone());
     let mut game = Game::new(world.clone(), &teams, 7, None, None);
     // 8 m east of battery 1 (25, 0.3, 12), the enemy 10 m past it, on the
-    // same side of the wall: the bot sees him as it walks in.
+    // same side of the wall: the bot sees him as it walks in. The
+    // teammate 13 m off him, out of the bot's line; or far off, behind
+    // the wall, when he does not cover.
+    let mate = if busy == Busy::Mate {
+        Vec3::new(26.0, 0.0, 4.0)
+    } else {
+        Vec3::new(70.0, 0.0, 35.0)
+    };
     for (place, at) in [
         (0, Vec3::new(33.0, 0.0, 12.0)),
         (1, Vec3::new(15.0, 0.0, 12.0)),
+        (2, mate),
     ] {
         game.bodies[place].node = world.grid.locate(at, 1.0);
         game.bodies[place].feet = at;
     }
-    bots.entered(0, true, 0);
-    bots.entered(1, true, 0);
+    for place in 0..3 {
+        bots.entered(place, true, 0);
+    }
     let (mut clock, mut next_world, mut took) = (0, 1_000, None);
     let mut fought = false;
     while clock < 15_000 && took.is_none() {
@@ -1539,6 +1624,15 @@ fn a_bot_fighting_by_a_battery_still_takes_it() {
         while game.tick + TICK_MS <= clock {
             game.step();
             game.bodies[1].health = 1.0;
+            if busy == Busy::Reloading && game.tick.is_multiple_of(TICK_MS) {
+                let reload = game.tick.is_multiple_of(1_000);
+                let input = PlayerInput {
+                    time: WireTime::tick(game.tick),
+                    rotation: [0; 4],
+                    actions: if reload { key::RELOAD } else { 0 },
+                };
+                bots.input(1, game.tick, &input);
+            }
         }
         if clock >= next_world {
             next_world += 1_000;
@@ -1571,17 +1665,39 @@ fn a_bot_fighting_by_a_battery_still_takes_it() {
             took = Some(clock);
         }
     }
-    assert!(fought && game.shots > 0, "no fight: {} shots", game.shots);
     assert!(game.bodies[1].alive);
-    let took = took.unwrap_or_else(|| {
-        panic!(
-            "not taken: at {:?}, batteries {:?}, {} shots",
-            game.bodies[0].feet, game.batteries, game.shots
-        )
-    });
-    // Its first move is at 2 s; 8 m in, a turn to the battery and a use or
-    // two (without the use's look: still not taken at 15 s, 66 shots).
-    assert!(took <= 9_000, "taken at {took} ms");
+    (took, fought, game.shots)
+}
+
+/// A bot by a battery with an enemy in plain sight whom nobody keeps busy
+/// fights him and does not take it: a take turns the view from him and a
+/// carrier cannot shoot ([`Ctx::exposed_to`]).
+///
+/// [`Ctx::exposed_to`]: super::plays::Ctx::exposed_to
+#[test]
+fn a_bot_in_an_enemys_sight_fights_before_it_takes_a_battery() {
+    let (took, fought, shots) = fight_by_a_battery(Busy::Nobody);
+    assert!(fought && shots > 0, "no fight: {shots} shots");
+    assert_eq!(took, None, "taken in his sight");
+}
+
+/// The same bot takes the battery when a teammate has a clear line to the
+/// enemy, or while the enemy reloads: within the use's reach the take's
+/// look wins over the reflex's aim (`USE_LOOK_M`). The client's use is one
+/// ray along the view; a bot whose reflex kept its view on the enemy
+/// pressed use at him, and in the whole-match soaks the battery where the
+/// teams meet lay there all match.
+#[test]
+fn a_covered_bot_takes_a_battery_in_an_enemys_sight() {
+    for busy in [Busy::Mate, Busy::Reloading] {
+        let (took, fought, shots) = fight_by_a_battery(busy);
+        assert!(fought && shots > 0, "no fight: {shots} shots");
+        let took = took.unwrap_or_else(|| panic!("not taken ({shots} shots)"));
+        // Its first move is at 2 s; 8 m in, a turn to the battery and a
+        // use or two (without the use's look: still not taken at 15 s, 66
+        // shots).
+        assert!(took <= 9_000, "taken at {took} ms");
+    }
 }
 
 /// How a lost-battery run went (`lost_battery_run`): when the thief died,

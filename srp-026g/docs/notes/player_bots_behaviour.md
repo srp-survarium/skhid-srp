@@ -125,6 +125,34 @@ In two real matches (0x7db2c16a, 0x15aa5b99) bots ended a take "could not take i
 - A first version pressed at stands it had passed by up to 0.5 m (standing uses 2.1 m long) and over looks down past 1 rad: kills −7.2 ± 2.9 a seed; fixed before the numbers above.
 - Left: a battery the team believes lying where it is not (it lies on a crate and the look at it from below is blocked) is still tried at each stand (seen in the soaks); the team's look at it is `sense::sense_batteries`.
 
+### 2.3 A take waits for the fight unless covered (built 2026-10-23)
+
+A take is a use: the bot looks at the battery and its gun is down for the ~0.6 s animation, and the carrier cannot shoot after it. In the battery soaks the takers had an enemy in sight 91 % of their time next to a battery, so "never take in sight of an enemy" would bring back the batteries that were never taken. The owner's rule (2026-10-23): the bot does not start the take while a known enemy close by can see it, unless that enemy is reloading or down, or a teammate covers it.
+
+Within `hold_near_m` (3 m) of the battery, `take` (`plays/collect.rs`) stays and fights (the play's legs stop; the fight layer keeps aiming and firing) while `Ctx::exposed_to` (`plays/mod.rs`) names a threat:
+- a threat is an enemy, alive and present, seen by the bot within `SEEN_NOW_MS` (700 ms), within `exposed_m` (25 m: "close by"), with a clear line from his eye to the bot's, and no Reload sound of his within `reload_cover_s` (1.5 s);
+- a cover is a teammate of the bot, alive, present and not carrying, within `cover_m` (40 m) of the threat with a clear line from his eye to the threat's;
+- each threat needs a cover of its own: with two enemies in sight, one teammate who sees both covers one of them only (`plays::cover_each`, a matching by augmenting paths), and the bot waits for the other.
+
+The numbers are GUESSES; only `exposed_m` was tried at two values (below). `exposed_m` 0 turns the rule off.
+
+**Measured** (2026-10-23). The flat floor: `a_take_waits_for_the_fight_unless_covered` in `bots/tests.rs` (the battery soak, 4 a side, the first to bring 3 wins, at most 900 s, seeds 1-16, the cheat off and on: 32 matches a side). Real maps: `real_bot_cost`, 180 s, the 6 battery maps (levels 1-6, level 3 timed), 4 v 4 and 10 v 10, `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`, seeds 1-16 (192 runs a side), off with `SRP_BENCH_COLLECT=exposed_m=0`; ± is the seed-to-seed standard error of the difference a seed:
+
+| Run | Rule off | `exposed_m` 25 m (kept) | Difference a seed | `exposed_m` 40 m | Difference a seed |
+|---|---|---|---|---|---|
+| flat floor: takes | 214 | 188 | | 157 | |
+| carriers killed within 3 s of a take | 49 (23 % of takes) | 32 (17 %) | | 22 (14 %) | |
+| batteries brought | 95 | 95 | | 86 | |
+| matches ended level | 1 | 1 | | | |
+| real maps: delivered | 620 | 616 | −0.2 ± 0.3 | 616 | −0.2 ± 0.5 |
+| carriers killed carrying | 177 | 156 | −1.3 ± 0.7 | 160 | −1.1 ± 0.7 |
+| picked up | 1,015 | 994 | −1.3 ± 0.7 | 994 | −1.3 ± 1.0 |
+| kills | 2,138 | 2,107 | −1.9 ± 1.5 | 2,103 | −2.2 ± 2.0 |
+
+- The flat floor has no cover: a bot by a battery is nearly always in an enemy's sight there, so the rule bites hardest. At 40 m it halved the takers' deaths but brought 9 % fewer batteries; at 25 m a third of those deaths go and the batteries brought stay.
+- On the maps the batteries delivered are the same within the noise at either distance, and an eighth fewer carriers are killed carrying; the rest is within the noise.
+- `with_the_battery_cheat_whole_matches_are_won_by_batteries` moved from seed 1 to seed 2: seed 1 ended level, 1-1, with the rule (a level end came in 1 of the 32 soak matches with the rule and 1 without it, at other seeds).
+
 ## 3. Plays
 
 Each play has a score from the situation, a precondition and steps. A commander per team hands them out every ~0.5 s: never two bots on one ambush, and no bot parked at its own container. In the saved worlds lives that stay in their own third are the worst in every mode (K/D 0.3–0.6, ~0.03 batteries a life), so a steal is answered by the 1–2 nearest bots (the thief cheat and the alarms in §4); the only guard is play 18.

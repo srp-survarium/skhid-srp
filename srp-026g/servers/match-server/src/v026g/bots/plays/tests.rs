@@ -409,3 +409,18 @@ fn collect_fetches_a_known_battery_and_roam_heads_for_an_exit() {
         "{steps:?}"
     );
 }
+
+
+/// One teammate covers one threat: two threats he alone sees leave one
+/// free; a second teammate for the other covers both; a teammate who
+/// sees both and one who sees one are matched so both are covered.
+#[test]
+fn each_threat_needs_a_teammate_of_his_own() {
+    assert_eq!(cover_each(&[]), None);
+    assert_eq!(cover_each(&[vec![]]), Some(0));
+    assert_eq!(cover_each(&[vec![true]]), None);
+    assert_eq!(cover_each(&[vec![true], vec![true]]), Some(1));
+    assert_eq!(cover_each(&[vec![true, false], vec![false, true]]), None);
+    assert_eq!(cover_each(&[vec![true, true], vec![true, false]]), None);
+    assert_eq!(cover_each(&[vec![false, false], vec![true, true]]), Some(0));
+}
