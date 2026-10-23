@@ -880,7 +880,14 @@ pub(super) mod tests {
         let walk = |track: &mut BodyTrack, from: u32, to: u32, jump_at: Option<u32>| {
             for time in (from..=to).step_by(50) {
                 let jump = if jump_at == Some(time) { key::JUMP } else { 0 };
-                track.decided(time, key::FORWARD | jump, (0.0, 0.0), 0.0, &kin, Some(&grid));
+                track.decided(
+                    time,
+                    key::FORWARD | jump,
+                    (0.0, 0.0),
+                    0.0,
+                    &kin,
+                    Some(&grid),
+                );
             }
         };
         let mut track = BodyTrack::default();
@@ -892,7 +899,10 @@ pub(super) mod tests {
         start(&mut track);
         walk(&mut track, 50, 2_000, Some(450));
         let at = *track.estimate().unwrap();
-        assert!(at.feet.x > 11.0 && (at.feet.y - 0.9).abs() < 0.1, "jumped: {at:?}");
+        assert!(
+            at.feet.x > 11.0 && (at.feet.y - 0.9).abs() < 0.1,
+            "jumped: {at:?}"
+        );
         assert_eq!(at.air_until, 0);
         // A world after the jump: it did not get up.
         let below = Fix {
@@ -902,7 +912,10 @@ pub(super) mod tests {
         track.fixed(below, &kin, Some(&grid));
         walk(&mut track, 2_050, 3_000, None);
         let at = track.estimate().unwrap();
-        assert!(at.feet.x < 10.0 && at.feet.y.abs() < 0.1, "shown below: {at:?}");
+        assert!(
+            at.feet.x < 10.0 && at.feet.y.abs() < 0.1,
+            "shown below: {at:?}"
+        );
         // A world in the jump's air, at the foot: up again.
         let mut track = BodyTrack::default();
         start(&mut track);

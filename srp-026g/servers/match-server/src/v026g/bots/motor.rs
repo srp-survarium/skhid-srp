@@ -565,8 +565,9 @@ impl Motor {
         }
         let jump = self.jump_ahead(route, pose, s, &clear);
         // On a jump's line the view turns to the jump's way: a jump goes
-        // the way the body faces and its keys push (the client's jump step,
-        // 0x7BFE1..0x7C0F7), and a player looks where he jumps.
+        // the way the body faces and its keys push (the jump branch of the
+        // client's `bullet_character_controller::player_step`, 0x7BF80..
+        // 0x7C13B), and a player looks where he jumps.
         let lined = jump.filter(|jump| jump.lined);
         let turn = match lined {
             Some(jump) => self.turn_toward(pose, yaw_of(jump.way), aim.1),
@@ -676,11 +677,9 @@ impl Motor {
         let (dx, dz) = (feet.x - take_off.x, feet.z - take_off.z);
         let along = dx * way[0] + dz * way[1];
         let side = (dx * way[1] - dz * way[0]).abs();
-        let on_line = side <= LINED_SIDE_M
-            && along <= LINED_PAST_M
-            && along >= -(run_up + LINED_BEHIND_M);
-        if jump.back
-            && (at(run_up).distance_xz(feet) <= AT_RUN_UP_M || (run_up == 0.0 && on_line))
+        let on_line =
+            side <= LINED_SIDE_M && along <= LINED_PAST_M && along >= -(run_up + LINED_BEHIND_M);
+        if jump.back && (at(run_up).distance_xz(feet) <= AT_RUN_UP_M || (run_up == 0.0 && on_line))
         {
             jump.back = false;
         }
@@ -743,8 +742,7 @@ impl Motor {
             .pressed
             .is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S));
         let near = ahead.before <= JUMP_LEAD_S * speed + PRESS_M;
-        if !(ahead.lined && ahead.going && self.walking && still <= JUMP_FACING && near && rested)
-        {
+        if !(ahead.lined && ahead.going && self.walking && still <= JUMP_FACING && near && rested) {
             return 0;
         }
         jump.tries += 1;
@@ -1004,8 +1002,7 @@ pub fn is_up(feet: Vec3, take_off: Vec3, landing: Vec3) -> bool {
     let rise = landing.y - take_off.y;
     let (dx, dz) = (landing.x - take_off.x, landing.z - take_off.z);
     let past = (feet.x - take_off.x) * dx + (feet.z - take_off.z) * dz >= 0.5 * (dx * dx + dz * dz);
-    past
-        && feet.distance_xz(landing) <= UP_NEAR_M
+    past && feet.distance_xz(landing) <= UP_NEAR_M
         && feet.y >= landing.y - UP_M.min((0.5 * rise).max(0.1))
 }
 
@@ -1125,7 +1122,14 @@ mod tests {
     /// model) by the motor along `route`, up to `ledge`; aiming at the way
     /// it faces at the start if `aiming`. Until it arrives, gives up or
     /// `ticks` pass.
-    fn climb_ledge(route: &mut Route, ledge: &Ledge, start: Vec3, yaw: f32, ticks: usize, aiming: bool) -> Climb {
+    fn climb_ledge(
+        route: &mut Route,
+        ledge: &Ledge,
+        start: Vec3,
+        yaw: f32,
+        ticks: usize,
+        aiming: bool,
+    ) -> Climb {
         let kin = Kinematics::default();
         let mut rng = Rng::new(17);
         let mut motor = Motor::new(Feel::default(), &mut rng);
@@ -1251,7 +1255,14 @@ mod tests {
         for aiming in [false, true] {
             for turned in [false, true] {
                 let (mut route, ledge) = up_a_ledge(turned);
-                let climb = climb_ledge(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 300, aiming);
+                let climb = climb_ledge(
+                    &mut route,
+                    &ledge,
+                    Vec3::ZERO,
+                    yaw_of([1.0, 0.0]),
+                    300,
+                    aiming,
+                );
                 let label = format!("aiming {aiming}, turned {turned}");
                 assert!(climb.up, "{label}: {:?}", climb.poses.last());
                 assert_eq!(
@@ -1264,10 +1275,16 @@ mod tests {
                 assert_eq!(climb.walked, Walked::Arrived, "{label}");
                 let (_, at) = climb.presses[0];
                 let way = yaw_of(ledge.way);
-                assert!(wrap(at.yaw - way).abs() <= JUMP_FACING + 1e-3, "{label}: {at:?}");
+                assert!(
+                    wrap(at.yaw - way).abs() <= JUMP_FACING + 1e-3,
+                    "{label}: {at:?}"
+                );
                 let (dx, dz) = (at.feet.x - ledge.take_off.x, at.feet.z - ledge.take_off.z);
                 let side = (dx * ledge.way[1] - dz * ledge.way[0]).abs();
-                assert!(side <= 0.3 && at.feet.distance_xz(ledge.take_off) <= 0.9, "{label}: {at:?}");
+                assert!(
+                    side <= 0.3 && at.feet.distance_xz(ledge.take_off) <= 0.9,
+                    "{label}: {at:?}"
+                );
                 // No sprint from 2.5 m before the take-off.
                 for (pose, decision) in climb.poses.iter().zip(&climb.decisions) {
                     if pose.feet.distance_xz(ledge.take_off) <= LINE_UP_FROM_M {
@@ -1287,9 +1304,20 @@ mod tests {
         for aiming in [false, true] {
             let (mut route, mut ledge) = up_a_ledge(false);
             ledge.gets_up = false;
-            let climb = climb_ledge(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 800, aiming);
+            let climb = climb_ledge(
+                &mut route,
+                &ledge,
+                Vec3::ZERO,
+                yaw_of([1.0, 0.0]),
+                800,
+                aiming,
+            );
             assert!(!climb.up);
-            assert_eq!(climb.walked, Walked::JumpFailed(ledge.take_off), "aiming {aiming}");
+            assert_eq!(
+                climb.walked,
+                Walked::JumpFailed(ledge.take_off),
+                "aiming {aiming}"
+            );
             let ticks: Vec<usize> = climb.presses.iter().map(|&(tick, _)| tick).collect();
             assert_eq!(
                 ticks.len(),
@@ -1299,7 +1327,10 @@ mod tests {
                 &climb.poses[climb.poses.len().saturating_sub(5)..]
             );
             for &(_, at) in &climb.presses {
-                assert!(at.feet.x >= ledge.take_off.x - 0.9, "aiming {aiming}: {at:?}");
+                assert!(
+                    at.feet.x >= ledge.take_off.x - 0.9,
+                    "aiming {aiming}: {at:?}"
+                );
             }
             // Back at the run-up between two tries.
             for pair in ticks.windows(2) {
@@ -1320,7 +1351,14 @@ mod tests {
             ledge.take_off.x = 3.0;
             ledge.face = 0.0;
             ledge.gets_up = false;
-            let held = climb_ledge(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 200, aiming);
+            let held = climb_ledge(
+                &mut route,
+                &ledge,
+                Vec3::ZERO,
+                yaw_of([1.0, 0.0]),
+                200,
+                aiming,
+            );
             assert!(held.presses.is_empty(), "aiming {aiming}");
         }
     }
@@ -1336,11 +1374,27 @@ mod tests {
             jump,
             low: false,
         };
-        let route = || Route::new(vec![p(0.0, 0.0, false), p(4.6, 0.0, false), p(5.0, 0.9, true)]);
+        let route = || {
+            Route::new(vec![
+                p(0.0, 0.0, false),
+                p(4.6, 0.0, false),
+                p(5.0, 0.9, true),
+            ])
+        };
         let mut motor = Motor::new(Feel::default(), &mut rng);
-        let (_, walked) = motor.walk(&mut route(), &facing_x(Vec3::new(4.6, 0.0, 0.0)), 5.0, |_| true);
+        let (_, walked) = motor.walk(
+            &mut route(),
+            &facing_x(Vec3::new(4.6, 0.0, 0.0)),
+            5.0,
+            |_| true,
+        );
         assert_eq!(walked, Walked::OnTheWay);
-        let (_, walked) = motor.walk(&mut route(), &facing_x(Vec3::new(5.0, 0.9, 0.0)), 5.0, |_| true);
+        let (_, walked) = motor.walk(
+            &mut route(),
+            &facing_x(Vec3::new(5.0, 0.9, 0.0)),
+            5.0,
+            |_| true,
+        );
         assert_eq!(walked, Walked::Arrived);
     }
 
@@ -1355,15 +1409,22 @@ mod tests {
         // Pressed at the take-off.
         let mut pressed = false;
         for _ in 0..40 {
-            let (decision, _) = motor.walk(&mut route, &facing_x(Vec3::new(4.6, 0.0, 0.0)), 5.0, |_| true);
+            let (decision, _) =
+                motor.walk(&mut route, &facing_x(Vec3::new(4.6, 0.0, 0.0)), 5.0, |_| {
+                    true
+                });
             pressed |= decision.keys & key::JUMP != 0;
         }
         assert!(pressed);
         // Reckoned up and on.
-        motor.walk(&mut route, &facing_x(Vec3::new(6.5, 0.9, 0.0)), 5.0, |_| true);
+        motor.walk(&mut route, &facing_x(Vec3::new(6.5, 0.9, 0.0)), 5.0, |_| {
+            true
+        });
         assert!(route.segment() >= 2);
         // A world: under it.
-        let (_, walked) = motor.walk(&mut route, &facing_x(Vec3::new(4.7, 0.0, 0.0)), 5.0, |_| true);
+        let (_, walked) = motor.walk(&mut route, &facing_x(Vec3::new(4.7, 0.0, 0.0)), 5.0, |_| {
+            true
+        });
         assert_eq!(walked, Walked::OnTheWay);
         assert_eq!(route.segment(), 1);
         assert!(motor.lining_up());
