@@ -100,6 +100,11 @@ const STRAFE_CLEAR_M: f32 = 1.5;
 const JUMP_HOLD_MS: u32 = 300;
 /// What followed a jump is traced this long after it at most, ms.
 const JUMP_WATCH_MS: u32 = 3_000;
+/// A play's use look (`Look::Use`) this near the eye wins over the
+/// reflex's aim (`decide`): the client's use reaches 2 m from the eye
+/// (`base_player::detect_usable_object`, PROVEN), and the half metre more
+/// turns the view while the bot walks in.
+const USE_LOOK_M: f32 = 2.5;
 /// A goal no way was found to is not planned to again for this long, ms.
 const NO_WAY_RETRY_MS: u32 = 500;
 /// How long the plays leave a goal no way was found to (`Bot::no_way_to`):
@@ -2034,9 +2039,17 @@ fn drive_tick(
         && matches!(intent.go, Go::To { at, within_m } if me.feet.distance_xz(at) > within_m);
     let glance_yields =
         over.glance && (matches!(intent.look, Look::Use(_)) || me.carrying.is_some() || running);
+    // A use within its reach (a take of a battery, a put-in, a steal): the
+    // play's view wins over the reflex's aim, and the reflex neither takes
+    // the legs nor fires meanwhile. The client's use is one ray along the
+    // view (`base_player::detect_usable_object`, PROVEN), so a bot that
+    // kept its view on an enemy pressed use at him: in the whole-match
+    // soaks the battery where the teams meet lay there all match in 6 runs
+    // of 16 (its takers had a target 91 % of their time by it).
+    let using = matches!(intent.look, Look::Use(p) if (p - eye).length() <= USE_LOOK_M);
     let aim = over
         .look_at
-        .filter(|_| !glance_yields)
+        .filter(|_| !glance_yields && !using)
         .map(|p| {
             let (yaw, pitch) = aim_at(p);
             (yaw + over.error.0, pitch + over.error.1)
@@ -2049,7 +2062,7 @@ fn drive_tick(
     // The legs: the reflex's when it takes them (a push, breaking sight,
     // a re-peek, the weapon's range, in after a grenade), else the play's.
     let mut intent = intent;
-    if let Some(legs) = over.legs {
+    if let Some(legs) = over.legs.filter(|_| !using) {
         intent.go = Go::To {
             at: legs.at,
             within_m: legs.within_m,
@@ -2251,7 +2264,7 @@ fn drive_tick(
     } else {
         None
     };
-    if let Some(keys) = stepped.filter(|_| over.strafe != 0) {
+    if let Some(keys) = stepped.filter(|_| over.strafe != 0 && !using) {
         let left = over.strafe == key::LEFT;
         let [sx, sz] = kin::forward(me.yaw + std::f32::consts::FRAC_PI_2);
         let sign = if left { 1.0 } else { -1.0 };
@@ -2269,9 +2282,12 @@ fn drive_tick(
         decision.keys &= !key::SPRINT;
     }
     decision.turn.1 += over.pull;
-    if over.fire {
+    if over.fire && !using {
         decision.keys |= key::FIRE;
         decision.keys &= !key::SPRINT;
+    } else if over.fire {
+        // The shot the reflex counted this tick is not fired: given back.
+        bot.reflex.hold_fire(time);
     }
     decision.keys |= over.keys;
     if over.keys & (key::GRENADE | key::RELOAD | key::AIM | key::CROUCH) != 0 {

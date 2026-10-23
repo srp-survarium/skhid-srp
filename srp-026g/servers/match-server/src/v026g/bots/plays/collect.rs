@@ -649,7 +649,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 if (home + Vec3::new(0.0, 1.0, 0.0) - eye).length() > USE_NEAR_M {
                     intent = Intent::to(home, Pace::Walk).within(0.5).hold_fire();
                 }
-                intent = intent.looking(Look::At(home));
+                intent = intent.looking(Look::use_box(home));
             }
             if cx.now >= *last_use + every {
                 *n += 1;

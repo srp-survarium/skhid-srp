@@ -1497,6 +1497,93 @@ fn a_bot_takes_a_battery_from_round_a_wall_its_use_cannot_pass() {
     );
 }
 
+/// A bot by a battery with an enemy in plain sight (place 1, no bot, who
+/// does not die: the fight never ends) still takes it: within the use's
+/// reach the take's look wins over the reflex's aim (`USE_LOOK_M`). The
+/// client's use is one ray along the view; a bot whose reflex kept its
+/// view on the enemy pressed use at him, and in the whole-match soaks the
+/// battery where the teams meet lay there all match.
+#[test]
+fn a_bot_fighting_by_a_battery_still_takes_it() {
+    let world = soak_world();
+    let mut tuning = Tuning::default();
+    tuning.cheats.batteries = true;
+    let teams = [0u8, 1];
+    let mut bots = Bots::new(
+        0x7A70,
+        survarium::v026g::maps::mode::BATTERIES,
+        0,
+        &teams,
+        &[true, false],
+        &[None, None],
+        Arc::new(tuning),
+        Trace::none(0),
+    );
+    bots.map_ready(world.clone());
+    let mut game = Game::new(world.clone(), &teams, 7, None, None);
+    // 8 m east of battery 1 (25, 0.3, 12), the enemy 10 m past it, on the
+    // same side of the wall: the bot sees him as it walks in.
+    for (place, at) in [
+        (0, Vec3::new(33.0, 0.0, 12.0)),
+        (1, Vec3::new(15.0, 0.0, 12.0)),
+    ] {
+        game.bodies[place].node = world.grid.locate(at, 1.0);
+        game.bodies[place].feet = at;
+    }
+    bots.entered(0, true, 0);
+    bots.entered(1, true, 0);
+    let (mut clock, mut next_world, mut took) = (0, 1_000, None);
+    let mut fought = false;
+    while clock < 15_000 && took.is_none() {
+        clock += 25;
+        while game.tick + TICK_MS <= clock {
+            game.step();
+            game.bodies[1].health = 1.0;
+        }
+        if clock >= next_world {
+            next_world += 1_000;
+            if let Some((_, fixes, health, facts)) = game.world_at(clock / TICK_MS * TICK_MS - 300)
+            {
+                for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                    bots.fixed(place, fix, Some(health));
+                }
+                bots.facts(facts);
+            }
+        }
+        let (made, _) = bots.poll(Clock {
+            clock,
+            time_left_s: 600.0,
+            total_s: 900.0,
+            playing: true,
+        });
+        let target = bots.bots[0].as_ref().and_then(|bot| bot.reflex.target());
+        fought |= target == Some(1);
+        for made in made {
+            let r = made.input.rotation;
+            let turn = (
+                half_value(u16::from_le_bytes([r[0], r[1]])),
+                half_value(u16::from_le_bytes([r[2], r[3]])),
+            );
+            let gun = Arms::fallback().primary.0;
+            game.inputs[made.place].push_back((made.time, made.input.actions, turn, target, gun));
+        }
+        if game.bodies[0].carrying == Some(1) {
+            took = Some(clock);
+        }
+    }
+    assert!(fought && game.shots > 0, "no fight: {} shots", game.shots);
+    assert!(game.bodies[1].alive);
+    let took = took.unwrap_or_else(|| {
+        panic!(
+            "not taken: at {:?}, batteries {:?}, {} shots",
+            game.bodies[0].feet, game.batteries, game.shots
+        )
+    });
+    // Its first move is at 2 s; 8 m in, a turn to the battery and a use or
+    // two (without the use's look: still not taken at 15 s, 66 shots).
+    assert!(took <= 9_000, "taken at {took} ms");
+}
+
 /// How a lost-battery run went (`lost_battery_run`): when the thief died,
 /// when the team got a look spot, when its bot first went to look, when
 /// it took the battery (match ms).
