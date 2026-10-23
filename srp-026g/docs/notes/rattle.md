@@ -155,7 +155,9 @@ The item
   `hudItems` cell 3: QuickSlots.hudIcons maps lobby id 20 there, its gray copy too). LIKELY the
   Rattle's own picture: orange cracked pods on grey twigs, the part of `arttfacts02` (the
   pogremushka's texture) Lifebone's blue flower does not use; the other free cell, [18,1], is a
-  crystal coil. To confirm by eye.
+  crystal coil. Seen (2026-10-23) in the atlas of the built patch's lobby_menu.swf (ffdec
+  export of character 3276, the cell at (0, 1820) 171x83): orange pods on dark twigs, beside
+  the Sponge's [22,1]; not yet seen in a running lobby.
 - No combat-log icon: the Rattle deals no damage (0.26g's artefacts have no
   `combat_log_icon`).
 
@@ -174,8 +176,8 @@ Patch number
 
 - Changes what a match computes (a new artefact in the anomalies): the `next` row of
   `crates/session/src/v026g/simulation_changes.tsv`; the exe requires the pack.
-- The site's /maps lists each container's kinds from the maps' projects, which do not name
-  the Rattle: it does not show it until its builder learns the exe's rule.
+- The site's /maps shows it as the Sponge (scripts/maps-tab/build.py, EXE_KINDS); its icon
+  `artefact_rattle.webp` comes from the calculator's icon export of cell [21,1].
 - The pack `rattle@2` is made by `scripts/rattle/make_pack.py` (its folder goes into
   SKHID_PACKS_DIR as `rattle-2`). @1 had 0.20e's `data/spawn_sec` 0.5, a float where every
   0.26g artefact has an int: release/build-content's value-type check refused it; @2 has

@@ -98,5 +98,6 @@ spawns are the exe's (below), no map file. 0.28a2 brought the Sponge; the refere
   `crates/session/src/v026g/simulation_changes.tsv`.
 - The exe needs the pack's config (item 758): the release's exe requires its resources.db
   patch (patch 49).
-- The site's /maps lists each container's kinds from the maps' projects, which do not name
-  the Sponge: it does not show it (or the Rattle) until its builder learns the exe's rule.
+- The site's /maps shows it: its builder (scripts/maps-tab/build.py, EXE_KINDS) adds the
+  exe's two kinds to each anomaly that spawns artefacts, as the patch does; the lobby icon
+  `artefact_sponge.webp` comes from the calculator's icon export (cell [22,1]).
