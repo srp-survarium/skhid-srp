@@ -381,6 +381,51 @@ Asymmetric bench (`real_bot_cost`, 600 s, `SRP_BENCH_START=3,7` and `7,3`, 10 ba
 
 **Not verified:** no real match was played with these. The bench cannot show the overhang or the falls (the stand-in neither stands under the walk nor falls); their benefit rests on the real matches above.
 
+### 2.9 Teammates taken where they will be when the shot leaves (built 2026-10-23)
+
+The owner's evening matches on #343 (with #363 and #364): bots made 3.4 team kills per 100 bot deaths, against 3.3 before. One killed the owner while covering him (6da44bbb, 438.9 s). Others killed teammates 37-167° off their facing, mostly within 4 m.
+
+**What the worlds show** (1 s apart, so the facing is a second old):
+- **6da44bbb, 438.9 s:** bot 7 (CoverHuman) was firing at bot 4, 14 m away.
+  - At 436.9 s the owner was 0.3 m off its line, 0.9 m on.
+  - At 437.95 s he was 0.86 m off it, 2 m on, walking toward it at about 1.4 m/s.
+  - Bot 7 fired 5 rounds in the next second and killed both bot 4 and the owner.
+  - Bot 7's own reckoning matched the world (0.05 m off).
+- **The 12 kills off the facing:** in 11 of them the killer's shot counter rose in the second of the kill: they were bullets, and the killer had turned. In one (779532fa, 751.9 s) it did not, so it may have been a grenade. One more, 6da44bbb at 499.3 s, also had no shot, and its killer died in the same second; it was counted in line with the facing. Two such cases are too few to act on.
+
+**The gap.** A bot decides its input up to two ticks before the game plays it (`encode::LEAD_TICKS`, 100 ms). It decides from a view of its teammates as of the clock: a bot where its last decided tick put it, a human reckoned from his last input to the clock. A teammate who walks across the line in that time is not where the check looked. The bench shows it.
+- The real-map bench gained a line per team hit (`"teamhit"` in the events, `BlockTally::team_hit_tick`): whether the check would have held the shot on the true bodies, and on the shooter's reckoning of them.
+- Most of the bench's team hits are bodies standing in one another, under 0.3 m apart: 960 of 1,005 in batteries and 1,212 of 1,389 in team DM. The stand-in game has no body collisions, and its hit test counts a chest within 0.45 m of the line. The game has neither.
+- Of the rest, a check along the shot's own line held the shot in 39 of 45 and 159 of 177. Those shots were aimed in: cone 0.3°, spread under 0.1°. So the bot checked the right line against the wrong place for the teammate.
+
+**The change** (`FriendlyFireTuning::lead`, on): each teammate is also taken half way and all the way to where his velocity puts him at the tick decided. That is at most the encoder's lead past the clock (`friends::blocking`'s `ahead_s`). `lead_extra_ms` adds to it (0, a GUESS).
+
+**Measured** (`real_bot_cost`, 180 s, `SRP_BENCH_SIDES=4,10`, `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`, `SRP_BENCH_SPREAD=1`, seeds 1-16, paired; the base is the same binary with `SRP_BENCH_FF_LEAD=0`). Means a seed; * marks a difference over 2 standard errors:
+
+| Measure | Batteries before | after | Team DM before | after |
+|---|---|---|---|---|
+| team hits, bodies 0.3 m or more apart | 2.81 | 1.56* | 11.06 | 5.88* |
+| ... within 4 m | 2.12 | 1.12* | 8.31 | 3.50* |
+| team kills (all, the bench's own included) | 6.38 | 4.31* | 8.44 | 7.19 |
+| kills | 124.9 | 127.4 | 265.6 | 265.5 |
+| kills, team 0 / 1 | 61.6 / 63.3 | 60.2 / 67.2* | 129.1 / 136.5 | 131.0 / 134.5 |
+| deaths a bot-minute | 0.255 | 0.260 | 0.559 | 0.559 |
+| hit rate | 20.6 % | 21.2 % | 23.7 % | 23.8 % |
+| new target to first shot | 358 ms | 360 ms | 332 ms | 331 ms |
+| headway to goal | 1.10 m/s | 1.09 m/s* | 1.32 m/s | 1.32 m/s |
+| delivered / carriers killed | 39.5 / 10.6 | 39.0 / 11.1 | | |
+| plays ended within 1 s, flips, idle | 0.068, 0.45, 24.5 % | 0.068, 0.43, 24.8 % | 0.121, 0.52, 20.4 % | 0.126, 0.54, 20.3 % |
+| blocked by a teammate, s a bot-minute (§2.6) | 1.51 | 1.72* | 2.77 | 3.14* |
+
+- Bots hold fire for teammates a little more often (blocked time +14 %), and kills are unchanged.
+- **Team 1's kills in batteries:** +3.9 (team 0 −1.4, within the noise). Both teams are the same bots, so it is the maps' sides, as in §2.5.
+- **Headway:** −1.4 %.
+- **With `lead_extra_ms` 100:** team DM team hits went 11.1 → 2.8, but batteries' team kills did not fall (−0.6 ± 0.8). It is left at 0: the bench has no human input lag to justify more.
+
+**Tests:** `friends::tests::a_teammate_walking_into_the_line_is_taken_where_he_will_be`. The 8 whole-match tests (`--ignored`) pass. In `bots_hold_fire_while_a_teammate_is_in_the_line_of_fire` (friends on, 6 seeds), team kills went 6 → 1 and team hits 42 → 22, with kills 671 → 685.
+
+**Not verified:** no real match has been played with this. The owner's death fits the gap, but the worlds are a second apart and cannot prove the line at the shot. The grenade case is a LEAD: log the weapon of each team kill.
+
 ## 3. Plays
 
 Each play has a score from the situation, a precondition and steps. A commander per team hands them out every ~0.5 s: never two bots on one ambush, and no bot parked at its own container. In the saved worlds lives that stay in their own third are the worst in every mode (K/D 0.3–0.6, ~0.03 batteries a life), so a steal is answered by the 1–2 nearest bots (the thief cheat and the alarms in §4); the only guard is play 18.

@@ -143,6 +143,9 @@ struct Game {
     shots_hits: Vec<(u32, u32)>,
     /// The places that put a battery in at the last step.
     put_in: Vec<Place>,
+    /// The team hits of the last step: shooter, victim, the shot's eye
+    /// and direction.
+    team_hit_shots: Vec<(Place, Place, Vec3, Vec3, f32, Vec3)>,
     /// Hits on a teammate (the game has friendly fire), and the teammates
     /// killed so.
     team_hits: u32,
@@ -305,6 +308,7 @@ impl Game {
             hits: 0,
             shots_hits: vec![(0, 0); teams.len()],
             put_in: Vec::new(),
+            team_hit_shots: Vec::new(),
             team_hits: 0,
             team_kills: 0,
             walled: 0,
@@ -403,6 +407,7 @@ impl Game {
         self.tick += TICK_MS;
         let tick = self.tick;
         self.put_in.clear();
+        self.team_hit_shots.clear();
         let n = self.bodies.len();
         let mut pressed = vec![0u32; n];
         for body in &mut self.bodies {
@@ -587,6 +592,7 @@ impl Game {
         let (gun, keys) = (body.gun, body.keys);
         self.bodies[shooter].recoil.shot(at, top, 0.0);
         let (aim_state, cone) = self.bodies[shooter].spread.shot(gun, keys, at);
+        let view_dir = dir;
         let dir = if self.spread {
             bench_spread::deflect(dir, cone, &mut self.rng)
         } else {
@@ -657,6 +663,7 @@ impl Game {
         let team_hit = self.bodies[target].team == body.team;
         if team_hit {
             self.team_hits += 1;
+            self.team_hit_shots.push((shooter, target, eye, dir, cone, view_dir));
         } else {
             self.hits += 1;
             self.shots_hits[shooter].1 += 1;
@@ -2747,6 +2754,18 @@ struct BlockTally {
     headway_m: [f32; 2],
     /// Carries put in: from the take, ms.
     carries: Vec<u32>,
+    /// Team hits: in all; the teammate check on the true bodies along the
+    /// shot would have held it; on the shooter's reckoning of both. Each
+    /// goes to the events (`"teamhit": [shooter, victim, held on the true
+    /// bodies, held on the reckoned ones, the shooter's and the victim's
+    /// reckoning off (m), the victim's world's age (ms), apart (m), off the
+    /// shooter's facing (deg), the target's distance (m), shooter and
+    /// victim crouched, the gun's category, held on the view's line before
+    /// the spread, the cone (deg), the spread's turn (deg), aim held,
+    /// moving]`). The stand-in game has no body collisions: most of its
+    /// team hits are bodies standing in one another (under 0.3 m apart),
+    /// which the game does not have.
+    team_hits: [u32; 3],
 }
 
 impl BlockTally {
@@ -2755,6 +2774,7 @@ impl BlockTally {
 
     /// After a game step.
     fn tick(&mut self, game: &Game, bots: &Bots, events: &mut BenchEvents) {
+        self.team_hit_tick(game, bots, events);
         let n = game.bodies.len();
         self.spells.resize(n, None);
         self.shots_hits.resize(n, (0, 0));
@@ -2846,6 +2866,101 @@ impl BlockTally {
                 }
                 _ => {}
             }
+        }
+    }
+
+    /// Each team hit of the step: would the teammate check have held the
+    /// shot on the true bodies (the shot's own eye and line), and on the
+    /// bodies as the shooter reckoned them; how far the reckoning was off.
+    fn team_hit_tick(&mut self, game: &Game, bots: &Bots, events: &mut BenchEvents) {
+        let t = super::friends::FriendlyFireTuning::default();
+        let place_view = |place: Place, feet: Vec3, yaw: f32, pitch: f32| {
+            let body = &game.bodies[place];
+            PlaceView {
+                place,
+                team: body.team,
+                bot: true,
+                present: true,
+                alive: true,
+                feet,
+                yaw,
+                pitch,
+                velocity: [0.0, 0.0],
+                keys: body.keys,
+                health: body.health,
+                spawned: body.spawned,
+                kills: 0,
+                deaths: 0,
+                streak: 0,
+                carrying: None,
+                seen_at: 0,
+            }
+        };
+        let view = |places: Vec<PlaceView>| MatchView {
+            clock: game.tick,
+            mode: super::view::Mode::TeamDeathmatch,
+            time_left_s: 600.0,
+            total_s: 900.0,
+            points: [0, 0],
+            places,
+            batteries: Vec::new(),
+            marks: Vec::new(),
+            containers: Vec::new(),
+            sounds: Vec::new(),
+            deaths: Vec::new(),
+            world_time: 0,
+            can_respawn: [true, true],
+            next_battery: None,
+        };
+        for &(shooter, victim, _eye, dir, cone, view_dir) in &game.team_hit_shots {
+            let (a, b) = (&game.bodies[shooter], &game.bodies[victim]);
+            let distance = a
+                .target
+                .map_or(60.0, |target| game.bodies[target].feet.distance_xz(a.feet));
+            let spread = t.spread(a.gun);
+            let held_on = |me: PlaceView, him: PlaceView, dir: Vec3| {
+                super::friends::blocking(&me, &view(vec![me.clone(), him]), &[dir], distance, spread, 0.0, &t)
+                    .is_some_and(|blocked| blocked.who == victim)
+            };
+            let held = |me: PlaceView, him: PlaceView| held_on(me, him, dir);
+            let on_view = held_on(
+                place_view(shooter, a.feet, a.yaw, a.pitch),
+                place_view(victim, b.feet, b.yaw, b.pitch),
+                view_dir,
+            );
+            let deflected = view_dir.dot(dir).clamp(-1.0, 1.0).acos().to_degrees();
+            let truly = held(
+                place_view(shooter, a.feet, a.yaw, a.pitch),
+                place_view(victim, b.feet, b.yaw, b.pitch),
+            );
+            let estimate = |place: Place| bots.tracker.body(place).and_then(|body| body.estimate()).copied();
+            let (ea, eb) = (estimate(shooter), estimate(victim));
+            let reckoned = match (ea, eb) {
+                (Some(ea), Some(eb)) => held(
+                    place_view(shooter, ea.feet, ea.yaw, ea.pitch),
+                    place_view(victim, eb.feet, eb.yaw, eb.pitch),
+                ),
+                _ => false,
+            };
+            let off = |e: Option<super::body::Estimate>, body: &Body| e.map_or(-1.0, |e| e.feet.distance_xz(body.feet));
+            let fix_age = bots
+                .tracker
+                .body(victim)
+                .and_then(|body| body.fix())
+                .map_or(0, |fix| game.tick.saturating_sub(fix.time));
+            let to = b.feet - a.feet;
+            let [fx, fz] = forward(a.yaw);
+            let off_deg = (fx * to.z - fz * to.x).atan2(fx * to.x + fz * to.z).abs().to_degrees();
+            self.team_hits[0] += 1;
+            self.team_hits[1] += u32::from(truly);
+            self.team_hits[2] += u32::from(reckoned);
+            events.line(serde_json::json!({
+                "t": game.tick,
+                "teamhit": [shooter, victim, truly, reckoned, off(ea, a), off(eb, b), fix_age,
+                    a.feet.distance_xz(b.feet), off_deg, distance,
+                    a.keys & key::CROUCH != 0, b.keys & key::CROUCH != 0, a.gun.category,
+                    on_view, cone, deflected, a.keys & key::AIM != 0, bench_spread::moving(a.keys)],
+            }));
         }
     }
 
@@ -2958,6 +3073,7 @@ impl BlockTally {
                 "to_fire_ms": [&self.to_fire[0], &self.to_fire[1]],
                 "goal_ticks": self.goal_ticks, "headway_m": self.headway_m,
                 "carries_ms": &self.carries,
+                "team_hits": self.team_hits,
             }
         }));
         let mut ms: Vec<u32> = self.done.iter().map(|d| d.0).collect();
@@ -3050,6 +3166,17 @@ fn bench_tuning() -> Tuning {
         .and_then(|m| m.parse().ok())
     {
         tuning.aim.friends.near_m = m;
+    }
+    // The teammates led to the tick decided (`FriendlyFireTuning::lead`):
+    // 0 off, 1 on; and the lead's extra, ms.
+    if let Ok(v) = std::env::var("SRP_BENCH_FF_LEAD") {
+        tuning.aim.friends.lead = v != "0";
+    }
+    if let Some(ms) = std::env::var("SRP_BENCH_FF_LEAD_MS")
+        .ok()
+        .and_then(|m| m.parse().ok())
+    {
+        tuning.aim.friends.lead_extra_ms = ms;
     }
     // Collect's and Intercept's numbers: `name=value,...`.
     for (var, kind) in [

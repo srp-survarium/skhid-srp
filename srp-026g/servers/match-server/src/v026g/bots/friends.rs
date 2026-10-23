@@ -39,6 +39,18 @@
 //!
 //! With a teammate in the way the bot does not fire and steps to the side
 //! away from him ([`Blocked::away`]), as a player would to clear his line.
+//!
+//! A bot decides its input up to two ticks before the game plays it
+//! ([`super::encode::LEAD_TICKS`]), from a view of its teammates as of the
+//! clock: a teammate walking across the line in that time was missed (in
+//! 6da44bbb at 437.95 s the owner was 0.86 m off a bot's line 2 m on,
+//! walking toward it, and that bot killed him within the second). Each
+//! teammate is also taken where his velocity puts him at the tick decided
+//! ([`FriendlyFireTuning::lead`]). In the real-map bench (16 seeds, the
+//! game's spread), team hits between bodies 0.3 m or more apart went 2.8 ->
+//! 1.6 a seed in batteries and 11.1 -> 5.9 in team deathmatch, team kills
+//! 6.4 -> 4.3 and 8.4 -> 7.2, kills unchanged (`player_bots_behaviour.md`
+//! §2.9).
 
 use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
@@ -72,6 +84,14 @@ pub struct FriendlyFireTuning {
     /// from a teammate a few metres on, and the game's bullet met him
     /// there (0: none).
     pub near_m: f32,
+    /// Each teammate is also taken where his velocity puts him at the
+    /// tick being decided: a bot decides its input up to two ticks before
+    /// the game plays it, from a view of the teammates as of the clock (a
+    /// human's reckoned to the clock from his last input). Off: where the
+    /// view has him.
+    pub lead: bool,
+    /// Added to that lead, ms. GUESS.
+    pub lead_extra_ms: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -97,6 +117,8 @@ impl Default for FriendlyFireTuning {
             },
             past_target_m: 2.0,
             near_m: 0.63,
+            lead: true,
+            lead_extra_ms: 0,
         }
     }
 }
@@ -157,13 +179,16 @@ pub fn along(yaw: f32, pitch: f32) -> Vec3 {
 /// The nearest teammate of `me` whose body comes within the margin of any
 /// of the lines `dirs` from `me`'s eye, short of `distance` (the target's,
 /// metres) and [`FriendlyFireTuning::past_target_m`] past it; `spread`:
-/// the shot's spread from the line, radians ([`FriendlyFireTuning::spread`]).
+/// the shot's spread from the line, radians ([`FriendlyFireTuning::spread`]);
+/// `ahead_s`: each teammate is taken where the view has him, half way and
+/// this far along his velocity ([`FriendlyFireTuning::lead`]).
 pub fn blocking(
     me: &PlaceView,
     view: &MatchView,
     dirs: &[Vec3],
     distance: f32,
     spread: f32,
+    ahead_s: f32,
     t: &FriendlyFireTuning,
 ) -> Option<Blocked> {
     if !t.on {
@@ -182,10 +207,18 @@ pub fn blocking(
         } else {
             BODY_STANDING
         };
-        let foot = other.feet + Vec3::new(0.0, low, 0.0);
-        let head = other.feet + Vec3::new(0.0, high, 0.0);
         let width = t.body_m + if other.bot { 0.0 } else { t.human_m };
-        for &dir in dirs {
+        let [vx, vz] = other.velocity;
+        let lead = Vec3::new(vx, 0.0, vz) * ahead_s.max(0.0);
+        let leads: &[f32] = if lead.length() > 0.05 {
+            &[0.0, 0.5, 1.0]
+        } else {
+            &[0.0]
+        };
+        for (&dir, &share) in dirs.iter().flat_map(|dir| leads.iter().map(move |share| (dir, share))) {
+            let feet = other.feet + lead * share;
+            let foot = feet + Vec3::new(0.0, low, 0.0);
+            let head = feet + Vec3::new(0.0, high, 0.0);
             let Some((s, gap)) = ray_to_segment(eye, dir, reach, foot, head) else {
                 continue;
             };
@@ -305,7 +338,7 @@ mod tests {
         ] {
             let mate = body(2, 0, Vec3::new(x, 0.0, z), true);
             let v = view(vec![me.clone(), enemy.clone(), mate]);
-            let got = blocking(&me, &v, &[dir], 30.0, spread, &t);
+            let got = blocking(&me, &v, &[dir], 30.0, spread, 0.0, &t);
             assert_eq!(got.is_some(), blocks, "a teammate at ({x}, {z})");
         }
     }
@@ -320,7 +353,7 @@ mod tests {
         dead.alive = false;
         let dir = line_to(&me, enemy.chest());
         let v = view(vec![me.clone(), enemy, other_enemy, dead]);
-        assert_eq!(blocking(&me, &v, &[dir], 30.0, 0.05, &t), None);
+        assert_eq!(blocking(&me, &v, &[dir], 30.0, 0.05, 0.0, &t), None);
     }
 
     #[test]
@@ -334,8 +367,8 @@ mod tests {
         let near = Vec3::new(0.7, 0.0, 15.0);
         let bot = view(vec![me.clone(), enemy.clone(), body(2, 0, near, true)]);
         let human = view(vec![me.clone(), enemy, body(2, 0, near, false)]);
-        assert_eq!(blocking(&me, &bot, &[dir], 30.0, spread, &t), None);
-        assert!(blocking(&me, &human, &[dir], 30.0, spread, &t).is_some());
+        assert_eq!(blocking(&me, &bot, &[dir], 30.0, spread, 0.0, &t), None);
+        assert!(blocking(&me, &human, &[dir], 30.0, spread, 0.0, &t).is_some());
     }
 
     #[test]
@@ -355,7 +388,7 @@ mod tests {
             enemy,
             body(2, 0, Vec3::new(-0.2, 0.0, 10.0), true),
         ]);
-        let away = |v: &MatchView| blocking(&me, v, &[dir], 30.0, 0.05, &t).map(|b| b.away);
+        let away = |v: &MatchView| blocking(&me, v, &[dir], 30.0, 0.05, 0.0, &t).map(|b| b.away);
         assert_eq!(away(&right), Some(key::LEFT));
         assert_eq!(away(&left), Some(key::RIGHT));
     }
@@ -370,7 +403,7 @@ mod tests {
         let mut mate = body(2, 0, Vec3::new(0.0, 0.0, 12.0), true);
         mate.keys = key::CROUCH;
         let v = view(vec![me.clone(), enemy, mate]);
-        assert_eq!(blocking(&me, &v, &[dir], 23.0, 0.03, &t), None);
+        assert_eq!(blocking(&me, &v, &[dir], 23.0, 0.03, 0.0, &t), None);
     }
 
     #[test]
@@ -383,8 +416,31 @@ mod tests {
         // 0.5 m off the line 3 m on: the body and the bolt's spread alone
         // (0.39 m) let it pass; the floor does not.
         let mate = view(vec![me.clone(), enemy, body(2, 0, Vec3::new(0.5, 0.0, 3.0), true)]);
-        assert!(blocking(&me, &mate, &[dir], 30.0, spread, &t).is_some());
+        assert!(blocking(&me, &mate, &[dir], 30.0, spread, 0.0, &t).is_some());
         let off = FriendlyFireTuning { near_m: 0.0, ..t };
-        assert_eq!(blocking(&me, &mate, &[dir], 30.0, spread, &off), None);
+        assert_eq!(blocking(&me, &mate, &[dir], 30.0, spread, 0.0, &off), None);
+    }
+
+    /// 6da44bbb at 437.95 s: the owner 0.86 m off a bot's line 2 m on,
+    /// walking toward it. Where the view has him he is clear; a tenth of a
+    /// second on, at the tick decided, he is in it.
+    #[test]
+    fn a_teammate_walking_into_the_line_is_taken_where_he_will_be() {
+        let t = FriendlyFireTuning::default();
+        let me = body(0, 0, Vec3::ZERO, true);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 14.0), true);
+        let dir = line_to(&me, enemy.chest());
+        let mut mate = body(2, 0, Vec3::new(0.9, 0.0, 2.0), false);
+        mate.velocity = [-4.0, 0.0];
+        let v = view(vec![me.clone(), enemy.clone(), mate.clone()]);
+        assert_eq!(blocking(&me, &v, &[dir], 14.0, 0.05, 0.0, &t), None);
+        assert_eq!(
+            blocking(&me, &v, &[dir], 14.0, 0.05, 0.1, &t).map(|b| b.who),
+            Some(2)
+        );
+        // Walking away from the line: clear either way.
+        mate.velocity = [4.0, 0.0];
+        let v = view(vec![me.clone(), enemy, mate]);
+        assert_eq!(blocking(&me, &v, &[dir], 14.0, 0.05, 0.1, &t), None);
     }
 }
