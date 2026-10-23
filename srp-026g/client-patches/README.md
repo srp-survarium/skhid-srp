@@ -2601,9 +2601,11 @@ of the weapon").
   the Squad strip and the upgrade window. Its ends stay 2% clear of the screen's edge, the window's edge,
   the top and the bottom at any spin.
 - **Wheel.** The camera looks at the weapon's middle and a side angle places it, so the wheel zooms into
-  the weapon: its middle stays put. The wheel's range is 0.3 m to 1.25 of the framed distance; the
-  close flies back from wherever it left the camera.
-- **Room.** 2 378 bytes. `check_weapon_table_026g.py` 50 checks. Section 3.42, round 5e.
+  the weapon: its middle stays put. The wheel's range is 0.3 m to max(1.25 d, d + 0.5 m) of the framed
+  distance d; the close flies back from wherever it left the camera.
+- **The review's fix.** While the flight eases, the wheel's far clamp leaves the distance to the glide:
+  no snap when the weapon gets framed.
+- **Room.** 2 382 bytes. `check_weapon_table_026g.py` 52 checks. Section 3.42, round 5e.
 
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 
