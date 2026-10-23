@@ -223,7 +223,9 @@ that rule is mended when the accounts load, and never plays.
 | `SRP_CHAT_TRANSLATE` | off | `claude`: each reader gets a player's chat line in its game language, through Claude Haiku with the key of `ANTHROPIC_API_KEY` (never in a file of the repository); no key: off, said in the log. The line's text leaves the server; no name goes with it (`notes/chat-translation.md`) |
 | `SRP_CHAT_TRANSLATE_MODEL` | `claude-haiku-5-5` | The model |
 | `SRP_CHAT_TRANSLATE_TIMEOUT_MS` | 2000 | The longest a line waits for its translation, 200 to 10000; then, or on any error, the original goes |
-| `SRP_CHAT_SWEAR_DIR` | none | A folder with the game's five swear lists (`<language>/swear_filter_data_a_c`, copied from the game's `localization/`): one more input to srp's own list of what is masked before a line goes out. Set and not readable: translation stays off |
+| `SRP_CHAT_MODERATION_URL` | none (translation stays off) | The gate before translation: the local classifier service (`deploy/chat-moderation/`) srp asks whether a line may go (`notes/chat-translation.md`, "What never reaches the model"); a "no", a timeout or an error: not sent. `none`: srp's word list alone |
+| `SRP_CHAT_MODERATION_THRESHOLDS` | 0.5 each | `en=0.5,ru=0.5,...`: a score at or over its language's threshold is a "no" |
+| `SRP_CHAT_MODERATION_TIMEOUT_MS` | 300 | The gate's answer may take this long, 20 to 2000 |
 | `SRP_CHAT_SAMPLE_DIR` | off | A folder (on the data volume) where the public channels' lines are kept without any name, one file a UTC day, to find slang for the glossary (`srp-chat-glossary slang`). Off until the owner turns it on, after the players are told |
 | `SRP_CHAT_SAMPLE_KEEP_DAYS` | 14 | Older sample files are deleted, 1 to 90 |
 | `SRP_LOBBY_LINK_TIMEOUT_SECONDS` | 30 | A client silent this long loses its lobby link: offline for its friends (its room keeps its place while its session waits) |

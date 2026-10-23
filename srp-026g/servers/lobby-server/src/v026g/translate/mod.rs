@@ -4,10 +4,17 @@
 //! - **Off by default** (`SRP_CHAT_TRANSLATE`); off, chat is as it was.
 //! - **The backend** is pluggable ([`Backend`]): Claude Haiku over HTTPS
 //!   ([`claude::Claude`], the one shipped) or a fake one for the tests.
-//! - **Never in the lobby's way.** The backend runs on worker threads; the
-//!   lobby's thread only queues a job ([`Translator::request`]) and picks up
-//!   what is done ([`Translator::poll`]). A line waits for its translation
-//!   at most [`Config::timeout`]; then, or on any error, the original goes.
+//! - **A gate first, failing closed:** srp's word list (`swear`, on the
+//!   lobby's thread, free), then a tiny local classifier (`moderate`, on a
+//!   worker) say whether the line may go at all; "no", a timeout or an
+//!   error, and the readers get the original. A player whose lines are
+//!   refused often, and the whole server when refusals spike, are stopped a
+//!   while (`guard`).
+//! - **Never in the lobby's way.** The gate's call and the backend run on
+//!   worker threads; the lobby's thread only queues a job
+//!   ([`Translator::request`]) and picks up what is done
+//!   ([`Translator::poll`]). A line waits for its translation at most
+//!   [`Config::timeout`]; then, or on any error, the original goes.
 //! - **A cache** of each (text, language) translated, so "gg wp all" or a
 //!   line said to ten readers of one language is asked for once.
 //! - **A failing backend is left alone a while** ([`BACKOFF`]): every line
@@ -16,6 +23,8 @@
 pub mod claude;
 pub mod detect;
 pub mod glossary;
+pub mod guard;
+pub mod moderate;
 pub mod swear;
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -26,7 +35,9 @@ use std::time::{Duration, Instant};
 use session::LockExt;
 
 use glossary::Glossary;
-use swear::{Masked, SwearFilter};
+use guard::{Allow, Event, Guard};
+use moderate::{Gate, Moderator};
+use swear::{SwearFilter, Verdict};
 
 /// The game's five languages, as the client names them in `4F` (0x26C36E:
 /// english 0, russian 1, ukrainian 2, german 3, polish 4).
@@ -89,8 +100,9 @@ pub struct Translated {
     /// A text for some of the languages asked for. One left out, or one
     /// equal to the line, is given the original.
     pub lines: Vec<(Lang, String)>,
-    /// The backend declined the line (a refusal): every reader gets the
-    /// original, and the backend is not rested for it.
+    /// The backend declined the line (a refusal, or an answer that is no
+    /// translation): every reader gets the original, and the backend is
+    /// not rested for it.
     pub refused: bool,
 }
 
@@ -112,8 +124,9 @@ pub trait Backend: Send + Sync {
     fn translate(&self, line: &Line) -> Result<Translated, String>;
 }
 
-/// The settings (`SRP_CHAT_TRANSLATE*`, read once at start). The key is not
-/// here: the backend reads it from the environment itself.
+/// The settings (`SRP_CHAT_TRANSLATE*`, `SRP_CHAT_MODERATION*`, read once at
+/// start). The key is not here: the backend reads it from the environment
+/// itself.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config {
     /// `SRP_CHAT_TRANSLATE_MODEL`, default [`claude::DEFAULT_MODEL`].
@@ -121,9 +134,8 @@ pub struct Config {
     /// `SRP_CHAT_TRANSLATE_TIMEOUT_MS` (default 2000, 200 to 10000): the
     /// longest a line waits for its translation.
     pub timeout: Duration,
-    /// `SRP_CHAT_SWEAR_DIR`: the game's own swear lists, one more input to
-    /// srp's (`swear`); none: srp's alone.
-    pub swear_dir: Option<std::path::PathBuf>,
+    /// The gate (`moderate`); `Err`: translation stays off, why.
+    pub gate: Result<Gate, String>,
 }
 
 /// The default wait for a translation.
@@ -170,43 +182,42 @@ impl Config {
         let model = var("SRP_CHAT_TRANSLATE_MODEL")
             .filter(|model| !model.is_empty())
             .unwrap_or_else(|| claude::DEFAULT_MODEL.to_owned());
-        let swear_dir = var("SRP_CHAT_SWEAR_DIR")
-            .filter(|dir| !dir.is_empty() && dir != "off")
-            .map(std::path::PathBuf::from);
         Some(Self {
             model,
             timeout,
-            swear_dir,
+            gate: Gate::from_env(),
         })
     }
 
-    /// The translator: off (`None`, said loudly) when the backend can not
-    /// be made, as with no key.
+    /// The translator: off (`None`, said loudly) when the gate or the
+    /// backend can not be made, as with no key.
     pub fn build(&self) -> Option<Translator> {
-        // No line goes out unfiltered: a list that does not read keeps it off.
-        let swear = match &self.swear_dir {
-            None => SwearFilter::built_in(),
-            Some(dir) => match SwearFilter::with_game_lists(dir) {
-                Ok(swear) => swear,
-                Err(error) => {
-                    log::error!(
-                        "SRP_CHAT_SWEAR_DIR: {error}; chat is not translated without the lists"
-                    );
-                    return None;
-                }
-            },
+        // Nothing goes out without its gate.
+        let gate = match &self.gate {
+            Ok(gate) => gate.clone(),
+            Err(error) => {
+                log::error!("SRP_CHAT_TRANSLATE is on but {error}: chat is not translated");
+                return None;
+            }
         };
-        log::info!("Chat translation masks {} swear entries", swear.len());
         match claude::Claude::from_env(&self.model, self.timeout * 2) {
             Ok(backend) => {
                 log::info!(
-                    "Chat translation on: {} (a line waits at most {} ms)",
+                    "Chat translation on: {} (a line waits at most {} ms), gated by {}",
                     self.model,
-                    self.timeout.as_millis()
+                    self.timeout.as_millis(),
+                    gate.url.as_deref().unwrap_or("the word list alone")
                 );
-                let mut translator = Translator::threaded(Arc::new(backend), WORKERS, self.timeout);
-                translator.swear = swear;
-                Some(translator)
+                let moderator = gate
+                    .moderator()
+                    .map(|moderator| Arc::new(moderator) as Arc<dyn Moderator>);
+                Some(Translator::threaded(
+                    Arc::new(backend),
+                    moderator,
+                    gate,
+                    WORKERS,
+                    self.timeout,
+                ))
             }
             Err(error) => {
                 log::error!("SRP_CHAT_TRANSLATE is on but {error}: chat is not translated");
@@ -218,32 +229,64 @@ impl Config {
 
 /// A job for a worker.
 struct Job {
-    /// What the backend is given (the swear words masked).
     line: Line,
-    /// The line as said: the cache's key.
-    key: String,
-    /// The masked words, in their placeholders' order.
-    words: Vec<String>,
+    /// Whose line it is.
+    player: u32,
+}
+
+/// What became of a job.
+enum Outcome {
+    Translated(Translated),
+    /// The gate said no.
+    No,
+    /// The gate did not answer (a timeout, an error): not sent.
+    Unchecked(String),
+    /// The backend failed.
+    Failed(String),
 }
 
 /// A job's result.
 struct Done {
     key: String,
     to: Vec<Lang>,
-    words: Vec<String>,
-    result: Result<Translated, String>,
+    player: u32,
+    outcome: Outcome,
 }
 
 /// What never reached the backend, or came back as no translation: counts
-/// only, never a text (`swear`).
+/// only, never a text.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Withheld {
-    /// Lines not sent: mostly swearing, or blocked.
-    pub skipped: u64,
-    /// Lines the backend refused.
+    /// Lines the word list refused (blocked, or mostly obscene).
+    pub listed: u64,
+    /// Lines the gate's classifier refused.
+    pub flagged: u64,
+    /// Lines whose gate did not answer: not sent (fail closed).
+    pub unchecked: u64,
+    /// Lines of a throttled player, or while the breaker was open.
+    pub stopped: u64,
+    /// Lines the backend refused, or answered with no translation.
     pub refused: u64,
-    /// Answers that were no translation (a placeholder of its own).
-    pub garbled: u64,
+}
+
+/// The gate's classifier, then the backend: on a worker, or inline.
+fn run(
+    backend: &dyn Backend,
+    moderator: Option<&dyn Moderator>,
+    gate: &Gate,
+    job: &Job,
+) -> Outcome {
+    if let Some(moderator) = moderator {
+        match moderator.score(&job.line.text, job.line.from) {
+            Ok(score) if score < gate.threshold(job.line.from) => {}
+            Ok(_) => return Outcome::No,
+            Err(error) => return Outcome::Unchecked(error),
+        }
+    }
+    match backend.translate(&job.line) {
+        Ok(translated) => Outcome::Translated(translated),
+        Err(error) => Outcome::Failed(error),
+    }
 }
 
 enum Run {
@@ -270,6 +313,8 @@ pub enum Lookup {
 /// The lobby's side: the cache, the jobs under way and the workers' answers.
 pub struct Translator {
     backend: Arc<dyn Backend>,
+    moderator: Option<Arc<dyn Moderator>>,
+    gate: Gate,
     run: Run,
     /// The longest a line waits.
     pub timeout: Duration,
@@ -280,19 +325,33 @@ pub struct Translator {
     backoff_until: Option<Instant>,
     /// The terms sent with a line (`glossary`): srp's own by default.
     pub glossary: Glossary,
-    /// What is masked or never sent (`swear`): srp's own list by default.
+    /// The word list (`swear`): srp's own.
     pub swear: SwearFilter,
+    pub guard: Guard,
     pub withheld: Withheld,
 }
 
 impl Translator {
-    /// With `workers` threads calling `backend`.
-    pub fn threaded(backend: Arc<dyn Backend>, workers: usize, timeout: Duration) -> Self {
+    /// With `workers` threads calling the gate's `moderator` (if any) and
+    /// `backend`.
+    pub fn threaded(
+        backend: Arc<dyn Backend>,
+        moderator: Option<Arc<dyn Moderator>>,
+        gate: Gate,
+        workers: usize,
+        timeout: Duration,
+    ) -> Self {
         let (jobs, queue) = mpsc::sync_channel::<Job>(QUEUE);
         let (finished, done) = mpsc::channel();
         let queue = Arc::new(Mutex::new(queue));
         for index in 0..workers.max(1) {
-            let (backend, queue, finished) = (backend.clone(), queue.clone(), finished.clone());
+            let (backend, moderator, gate, queue, finished) = (
+                backend.clone(),
+                moderator.clone(),
+                gate.clone(),
+                queue.clone(),
+                finished.clone(),
+            );
             let spawned = std::thread::Builder::new()
                 .name(format!("chat-translate-{index}"))
                 .spawn(move || {
@@ -300,12 +359,12 @@ impl Translator {
                         // The lock is held only while waiting for a job.
                         let job = queue.locked().recv();
                         let Ok(job) = job else { return };
-                        let result = backend.translate(&job.line);
+                        let outcome = run(&*backend, moderator.as_deref(), &gate, &job);
                         let done = Done {
-                            key: job.key,
+                            key: job.line.text,
                             to: job.line.to,
-                            words: job.words,
-                            result,
+                            player: job.player,
+                            outcome,
                         };
                         if finished.send(done).is_err() {
                             return;
@@ -316,17 +375,40 @@ impl Translator {
                 log::error!("A chat translation worker did not start: {error}");
             }
         }
-        Self::with(backend, Run::Threads { jobs, done }, timeout)
+        Self::with(
+            backend,
+            moderator,
+            gate,
+            Run::Threads { jobs, done },
+            timeout,
+        )
     }
 
-    /// Calling `backend` in [`request`](Self::request) itself.
-    pub fn inline(backend: Arc<dyn Backend>, timeout: Duration) -> Self {
-        Self::with(backend, Run::Inline(Vec::new()), timeout)
+    /// Calling the gate and `backend` in [`request`](Self::request) itself.
+    pub fn inline(
+        backend: Arc<dyn Backend>,
+        moderator: Option<Arc<dyn Moderator>>,
+        timeout: Duration,
+    ) -> Self {
+        let gate = Gate {
+            url: None,
+            thresholds: Vec::new(),
+            timeout: moderate::DEFAULT_TIMEOUT,
+        };
+        Self::with(backend, moderator, gate, Run::Inline(Vec::new()), timeout)
     }
 
-    fn with(backend: Arc<dyn Backend>, run: Run, timeout: Duration) -> Self {
+    fn with(
+        backend: Arc<dyn Backend>,
+        moderator: Option<Arc<dyn Moderator>>,
+        gate: Gate,
+        run: Run,
+        timeout: Duration,
+    ) -> Self {
         Self {
             backend,
+            moderator,
+            gate,
             run,
             timeout,
             cache: HashMap::new(),
@@ -335,6 +417,7 @@ impl Translator {
             backoff_until: None,
             glossary: Glossary::shared().clone(),
             swear: SwearFilter::built_in(),
+            guard: Guard::default(),
             withheld: Withheld::default(),
         }
     }
@@ -350,11 +433,26 @@ impl Translator {
         }
     }
 
-    /// Ask for `text` in the languages of `to` that are neither cached nor
-    /// asked already. Those that can not be asked now (the backend is
+    fn log_withheld(&self) {
+        log::info!(
+            "Chat translation, lines not translated: {:?}",
+            self.withheld
+        );
+    }
+
+    /// Ask for `player`'s `text` in the languages of `to` that are neither
+    /// cached nor asked already. Those that can not be asked now (the word
+    /// list says no, the player or the server is stopped, the backend is
     /// backing off, the queue is full) are left out: their readers get the
     /// original.
-    pub fn request(&mut self, text: &str, from: Option<Lang>, to: &[Lang], now: Instant) {
+    pub fn request(
+        &mut self,
+        text: &str,
+        from: Option<Lang>,
+        to: &[Lang],
+        player: u32,
+        now: Instant,
+    ) {
         let to: Vec<Lang> = to
             .iter()
             .copied()
@@ -366,26 +464,27 @@ impl Translator {
         if to.is_empty() || self.backoff_until.is_some_and(|until| now < until) {
             return;
         }
-        let (masked, words) = match self.swear.mask(text) {
-            Masked::Send { text, words } => (text, words),
-            Masked::Skip => {
-                for lang in to {
-                    self.remember((text.to_owned(), lang), None);
-                }
-                self.withheld.skipped += 1;
-                log::info!("Chat translation: {:?}", self.withheld);
-                return;
+        if self.guard.allows(player, now) != Allow::Yes {
+            self.withheld.stopped += 1;
+            return;
+        }
+        if self.swear.judge(text) != Verdict::Pass {
+            for lang in to {
+                self.remember((text.to_owned(), lang), None);
             }
-        };
+            self.withheld.listed += 1;
+            self.guard.record(player, Event::No, now);
+            self.log_withheld();
+            return;
+        }
         let job = Job {
             line: Line {
-                glossary: self.glossary.entries(&masked, from, &to),
-                text: masked,
+                glossary: self.glossary.entries(text, from, &to),
+                text: text.to_owned(),
                 from,
                 to,
             },
-            key: text.to_owned(),
-            words,
+            player,
         };
         let asked: Vec<Lang> = job.line.to.clone();
         match &mut self.run {
@@ -398,12 +497,12 @@ impl Translator {
                 Err(TrySendError::Disconnected(_)) => return,
             },
             Run::Inline(done) => {
-                let result = self.backend.translate(&job.line);
+                let outcome = run(&*self.backend, self.moderator.as_deref(), &self.gate, &job);
                 done.push(Done {
-                    key: job.key,
+                    key: job.line.text,
                     to: job.line.to,
-                    words: job.words,
-                    result,
+                    player,
+                    outcome,
                 });
             }
         }
@@ -423,16 +522,31 @@ impl Translator {
             for lang in &done.to {
                 self.asked.remove(&(done.key.clone(), *lang));
             }
-            match done.result {
-                Ok(translated) if translated.refused => {
-                    for lang in &done.to {
-                        self.remember((done.key.clone(), *lang), None);
-                    }
-                    self.withheld.refused += 1;
-                    log::info!("Chat translation: {:?}", self.withheld);
+            let original = |translator: &mut Self| {
+                for lang in &done.to {
+                    translator.remember((done.key.clone(), *lang), None);
                 }
-                Ok(translated) => {
-                    let mut garbled = false;
+            };
+            match done.outcome {
+                Outcome::No => {
+                    original(self);
+                    self.withheld.flagged += 1;
+                    self.guard.record(done.player, Event::No, now);
+                    self.log_withheld();
+                }
+                Outcome::Unchecked(error) => {
+                    // Not cached: asked again later, when the gate answers.
+                    self.withheld.unchecked += 1;
+                    log::warn!("The chat gate did not answer ({error}): a line was not sent");
+                }
+                Outcome::Translated(translated) if translated.refused => {
+                    original(self);
+                    self.withheld.refused += 1;
+                    self.guard.record(done.player, Event::Refused, now);
+                    self.log_withheld();
+                }
+                Outcome::Translated(translated) => {
+                    self.guard.record(done.player, Event::Sent, now);
                     for lang in &done.to {
                         let text = translated
                             .lines
@@ -440,24 +554,14 @@ impl Translator {
                             .find(|(to, _)| to == lang)
                             .map(|(_, line)| clean(line))
                             .filter(|line| {
-                                let stray = swear::has_stray_placeholder(line, &done.words);
-                                garbled |= stray;
-                                !stray
-                            })
-                            .map(|line| swear::unmask(&line, &done.words))
-                            .filter(|line| {
                                 !line.is_empty()
                                     && *line != done.key
                                     && translated.source != Some(*lang)
                             });
                         self.remember((done.key.clone(), *lang), text);
                     }
-                    if garbled {
-                        self.withheld.garbled += 1;
-                        log::info!("Chat translation: {:?}", self.withheld);
-                    }
                 }
-                Err(error) => {
+                Outcome::Failed(error) => {
                     // Not cached: asked again after the backoff.
                     if self.backoff_until.is_none_or(|until| now >= until) {
                         log::error!(
@@ -557,28 +661,50 @@ pub mod fake {
             Echo::default().translate(line)
         }
     }
+
+    /// A gate that scores a line 0.9 when it holds `bad`, else 0.1; or that
+    /// never answers.
+    pub enum Classifier {
+        Flags(&'static str),
+        Down,
+    }
+
+    impl Moderator for Classifier {
+        fn score(&self, text: &str, _: Option<Lang>) -> Result<f32, String> {
+            match self {
+                Classifier::Flags(bad) => Ok(if text.contains(bad) { 0.9 } else { 0.1 }),
+                Classifier::Down => Err("timed out".to_owned()),
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::fake::{Broken, Echo, Stuck};
+    use super::fake::{Broken, Classifier, Echo, Refuses, Stuck};
     use super::*;
     use std::sync::atomic::Ordering;
+
+    const PLAYER: u32 = 1;
+
+    fn inline(backend: Arc<dyn Backend>) -> Translator {
+        Translator::inline(backend, None, DEFAULT_TIMEOUT)
+    }
 
     #[test]
     fn a_translation_is_asked_once_and_cached() {
         let echo = Arc::new(Echo::default());
-        let mut translator = Translator::inline(echo.clone(), DEFAULT_TIMEOUT);
+        let mut translator = inline(echo.clone());
         let now = Instant::now();
-        translator.request("привет", Some(Lang::Ru), &[Lang::En, Lang::De], now);
+        translator.request("привет", Some(Lang::Ru), &[Lang::En, Lang::De], PLAYER, now);
         assert_eq!(translator.lookup("привет", Lang::En), Lookup::Waiting);
         translator.poll(now);
         assert_eq!(
             translator.lookup("привет", Lang::En),
             Lookup::Text("en: привет".into())
         );
-        translator.request("привет", Some(Lang::Ru), &[Lang::En, Lang::De], now);
-        translator.request("привет", Some(Lang::Ru), &[Lang::Pl], now);
+        translator.request("привет", Some(Lang::Ru), &[Lang::En, Lang::De], PLAYER, now);
+        translator.request("привет", Some(Lang::Ru), &[Lang::Pl], PLAYER, now);
         translator.poll(now);
         assert_eq!(echo.calls.load(Ordering::Relaxed), 2);
         assert_eq!(
@@ -590,7 +716,7 @@ mod tests {
     #[test]
     fn the_glossary_terms_of_a_line_go_with_it() {
         let echo = Arc::new(Echo::default());
-        let mut translator = Translator::inline(echo.clone(), DEFAULT_TIMEOUT);
+        let mut translator = inline(echo.clone());
         translator.glossary = Glossary::parse(
             "map\tChemical Plant\tХимзавод\tХімзавод\tChemiewerk\tZakłady chemiczne\t",
         )
@@ -599,6 +725,7 @@ mod tests {
             "го на химзавод",
             Some(Lang::Ru),
             &[Lang::De],
+            PLAYER,
             Instant::now(),
         );
         let asked = echo.asked.locked();
@@ -611,79 +738,116 @@ mod tests {
     }
 
     #[test]
-    fn swear_words_never_reach_the_backend_and_come_back_after() {
+    fn swearing_goes_as_it_is_and_the_no_cases_never_go() {
         let echo = Arc::new(Echo::default());
-        let mut translator = Translator::inline(echo.clone(), DEFAULT_TIMEOUT);
+        let mut translator = inline(echo.clone());
         let now = Instant::now();
-        let line = "иди на базу, мудак, там снайпер";
-        translator.request(line, Some(Lang::Ru), &[Lang::De], now);
+        // The owner's: swearing is translated, not masked.
+        translator.request("бля, промазал", Some(Lang::Ru), &[Lang::De], PLAYER, now);
         translator.poll(now);
-        assert_eq!(
-            echo.asked.locked()[0].text,
-            "иди на базу, __X1__, там снайпер"
-        );
-        assert_eq!(
-            translator.lookup(line, Lang::De),
-            Lookup::Text("de: иди на базу, мудак, там снайпер".into())
-        );
-        assert_eq!(translator.withheld, Withheld::default());
-    }
-
-    #[test]
-    fn a_line_mostly_swearing_or_blocked_is_never_sent() {
-        let echo = Arc::new(Echo::default());
-        let mut translator = Translator::inline(echo.clone(), DEFAULT_TIMEOUT);
-        let now = Instant::now();
-        for line in ["сука блять", "kill yourself noob"] {
-            translator.request(line, None, &[Lang::En, Lang::De], now);
+        assert_eq!(echo.asked.locked()[0].text, "бля, промазал");
+        // Blocked and mostly obscene lines: never sent.
+        for (player, line) in [(2, "сука блять"), (3, "kill yourself noob")] {
+            translator.request(line, None, &[Lang::En, Lang::De], player, now);
             translator.poll(now);
             assert_eq!(translator.lookup(line, Lang::En), Lookup::Original);
         }
-        assert_eq!(echo.calls.load(Ordering::Relaxed), 0);
-        assert_eq!(translator.withheld.skipped, 2);
+        assert_eq!(echo.calls.load(Ordering::Relaxed), 1);
+        assert_eq!(translator.withheld.listed, 2);
     }
 
     #[test]
-    fn a_refusal_or_no_translation_gives_the_original_and_is_counted() {
-        let mut translator = Translator::inline(Arc::new(fake::Refuses), DEFAULT_TIMEOUT);
+    fn the_gate_decides_and_fails_closed() {
+        let echo = Arc::new(Echo::default());
         let now = Instant::now();
-        translator.request("hello there", Some(Lang::En), &[Lang::Ru], now);
+        let gate = Arc::new(Classifier::Flags("bad"));
+        let mut translator = Translator::inline(echo.clone(), Some(gate), DEFAULT_TIMEOUT);
+        translator.request("a bad line", Some(Lang::En), &[Lang::Ru], PLAYER, now);
+        translator.request("a good line", Some(Lang::En), &[Lang::Ru], PLAYER, now);
         translator.poll(now);
-        assert_eq!(translator.lookup("hello there", Lang::Ru), Lookup::Original);
-        assert_eq!(translator.withheld.refused, 1);
-        // Not a failing backend: the next line is asked at once.
-        translator.request("good game", Some(Lang::En), &[Lang::Ru], now);
-        assert_eq!(translator.lookup("good game", Lang::Ru), Lookup::Waiting);
-
-        // An answer with a placeholder of its own is no translation.
-        struct Invents;
-        impl Backend for Invents {
-            fn translate(&self, line: &Line) -> Result<Translated, String> {
-                Ok(Translated {
-                    lines: line
-                        .to
-                        .iter()
-                        .map(|lang| (*lang, "__X7__ ok".to_owned()))
-                        .collect(),
-                    ..Translated::default()
-                })
-            }
-        }
-        let mut translator = Translator::inline(Arc::new(Invents), DEFAULT_TIMEOUT);
-        translator.request("иди сюда, мудак", Some(Lang::Ru), &[Lang::En], now);
-        translator.poll(now);
+        assert_eq!(translator.lookup("a bad line", Lang::Ru), Lookup::Original);
         assert_eq!(
-            translator.lookup("иди сюда, мудак", Lang::En),
-            Lookup::Original
+            translator.lookup("a good line", Lang::Ru),
+            Lookup::Text("ru: a good line".into())
         );
-        assert_eq!(translator.withheld.garbled, 1);
+        assert_eq!(translator.withheld.flagged, 1);
+        assert_eq!(echo.calls.load(Ordering::Relaxed), 1);
+
+        // A gate that does not answer: nothing is sent.
+        let echo = Arc::new(Echo::default());
+        let mut translator = Translator::inline(
+            echo.clone(),
+            Some(Arc::new(Classifier::Down)),
+            DEFAULT_TIMEOUT,
+        );
+        translator.request("a good line", Some(Lang::En), &[Lang::Ru], PLAYER, now);
+        translator.poll(now);
+        assert_eq!(translator.lookup("a good line", Lang::Ru), Lookup::Original);
+        assert_eq!(echo.calls.load(Ordering::Relaxed), 0);
+        assert_eq!(translator.withheld.unchecked, 1);
+    }
+
+    #[test]
+    fn sexual_content_with_minors_is_never_sent() {
+        let echo = Arc::new(Echo::default());
+        let mut translator = inline(echo.clone());
+        let now = Instant::now();
+        for (player, line) in [(2, "anyone got child porn"), (3, "есть детское порно?")]
+        {
+            translator.request(line, None, &[Lang::De], player, now);
+            translator.poll(now);
+        }
+        assert_eq!(echo.calls.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn a_player_refused_three_times_is_not_sent_for_a_while() {
+        let echo = Arc::new(Echo::default());
+        let mut translator = inline(echo.clone());
+        let now = Instant::now();
+        for line in ["сука блять", "fuck fuck ok", "бля бля"] {
+            translator.request(line, None, &[Lang::De], PLAYER, now);
+        }
+        translator.request("hello all", Some(Lang::En), &[Lang::De], PLAYER, now);
+        translator.poll(now);
+        assert_eq!(translator.lookup("hello all", Lang::De), Lookup::Original);
+        assert_eq!(echo.calls.load(Ordering::Relaxed), 0);
+        assert_eq!(translator.withheld.stopped, 1);
+        // Another player is not.
+        translator.request("hello all", Some(Lang::En), &[Lang::De], 2, now);
+        translator.poll(now);
+        assert_eq!(echo.calls.load(Ordering::Relaxed), 1);
+        // The first, after its cooldown.
+        let later = now + guard::THROTTLE_COOLDOWN;
+        translator.request("good game", Some(Lang::En), &[Lang::De], PLAYER, later);
+        translator.poll(later);
+        assert_eq!(echo.calls.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn refusals_across_the_server_open_the_breaker() {
+        let mut translator = inline(Arc::new(Refuses));
+        let now = Instant::now();
+        for (player, line) in ["one line", "two lines", "three lines"].iter().enumerate() {
+            translator.request(line, Some(Lang::En), &[Lang::Ru], player as u32, now);
+            translator.poll(now);
+        }
+        assert_eq!(translator.withheld.refused, 3);
+        // Open: no line of anybody goes.
+        translator.request("four lines", Some(Lang::En), &[Lang::Ru], 9, now);
+        assert_eq!(translator.lookup("four lines", Lang::Ru), Lookup::Original);
+        assert_eq!(translator.withheld.stopped, 1);
+        assert_eq!(translator.guard.trips, 1);
+        let later = now + guard::BREAKER_OFF;
+        translator.request("four lines", Some(Lang::En), &[Lang::Ru], 9, later);
+        assert_eq!(translator.lookup("four lines", Lang::Ru), Lookup::Waiting);
     }
 
     #[test]
     fn a_failure_gives_the_original_and_the_backend_a_rest() {
-        let mut translator = Translator::inline(Arc::new(Broken), DEFAULT_TIMEOUT);
+        let mut translator = inline(Arc::new(Broken));
         let now = Instant::now();
-        translator.request("hallo", Some(Lang::De), &[Lang::En], now);
+        translator.request("hallo", Some(Lang::De), &[Lang::En], PLAYER, now);
         translator.poll(now);
         assert_eq!(translator.lookup("hallo", Lang::En), Lookup::Original);
         // Backing off: not even asked.
@@ -691,11 +855,12 @@ mod tests {
             "hallo",
             Some(Lang::De),
             &[Lang::En],
+            PLAYER,
             now + Duration::from_secs(1),
         );
         assert_eq!(translator.lookup("hallo", Lang::En), Lookup::Original);
         assert_eq!(translator.poll(now), 0);
-        translator.request("hallo", Some(Lang::De), &[Lang::En], now + BACKOFF);
+        translator.request("hallo", Some(Lang::De), &[Lang::En], PLAYER, now + BACKOFF);
         assert_eq!(translator.lookup("hallo", Lang::En), Lookup::Waiting);
     }
 
@@ -711,12 +876,13 @@ mod tests {
                 })
             }
         }
-        let mut translator = Translator::inline(Arc::new(Says), DEFAULT_TIMEOUT);
+        let mut translator = inline(Arc::new(Says));
         let now = Instant::now();
         translator.request(
             "camper",
             Some(Lang::De),
             &[Lang::En, Lang::Pl, Lang::Ru],
+            PLAYER,
             now,
         );
         translator.poll(now);
@@ -736,10 +902,15 @@ mod tests {
         let stuck = Arc::new(Stuck {
             release: Mutex::new(wait),
         });
-        let mut translator = Translator::threaded(stuck, 2, DEFAULT_TIMEOUT);
+        let gate = Gate {
+            url: None,
+            thresholds: Vec::new(),
+            timeout: moderate::DEFAULT_TIMEOUT,
+        };
+        let mut translator = Translator::threaded(stuck, None, gate, 2, DEFAULT_TIMEOUT);
         let now = Instant::now();
         // The request returns at once although the backend is stuck.
-        translator.request("hello", Some(Lang::En), &[Lang::Ru], now);
+        translator.request("hello", Some(Lang::En), &[Lang::Ru], PLAYER, now);
         assert_eq!(translator.poll(now), 0);
         assert_eq!(translator.lookup("hello", Lang::Ru), Lookup::Waiting);
         release.send(()).unwrap();

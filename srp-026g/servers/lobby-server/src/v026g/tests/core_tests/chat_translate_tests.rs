@@ -40,7 +40,7 @@ fn heard(world: &mut World, index: usize) -> Vec<String> {
 fn lobby(backend: Option<Arc<dyn Backend>>, languages: &[Option<u8>]) -> (World, Vec<usize>) {
     let mut world = World::new();
     world.core.translator =
-        backend.map(|backend| Translator::inline(backend, translate::DEFAULT_TIMEOUT));
+        backend.map(|backend| Translator::inline(backend, None, translate::DEFAULT_TIMEOUT));
     let players: Vec<usize> = languages
         .iter()
         .enumerate()
@@ -131,7 +131,18 @@ fn a_slow_backend_holds_a_line_no_longer_than_the_timeout_and_keeps_the_order() 
     });
     let (mut world, players) = lobby(None, &[Some(RUSSIAN), Some(RUSSIAN), Some(GERMAN)]);
     // On worker threads, as srp runs it; this backend never answers.
-    world.core.translator = Some(Translator::threaded(stuck, 1, translate::DEFAULT_TIMEOUT));
+    let gate = translate::moderate::Gate {
+        url: None,
+        thresholds: Vec::new(),
+        timeout: translate::moderate::DEFAULT_TIMEOUT,
+    };
+    world.core.translator = Some(Translator::threaded(
+        stuck,
+        None,
+        gate,
+        1,
+        translate::DEFAULT_TIMEOUT,
+    ));
     let [ivan, olga, hans] = players[..] else {
         unreachable!()
     };

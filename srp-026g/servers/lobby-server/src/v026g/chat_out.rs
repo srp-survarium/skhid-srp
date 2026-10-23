@@ -129,7 +129,7 @@ impl Core<'_> {
         if let Some(translator) = &mut self.translator
             && !wanted.is_empty()
         {
-            translator.request(&said.body, source, &wanted, now);
+            translator.request(&said.body, source, &wanted, said.from, now);
         }
         self.chat_queue.push_back(Pending {
             said,

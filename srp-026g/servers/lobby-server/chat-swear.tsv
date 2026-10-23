@@ -6,10 +6,11 @@
 #   stem   any word that begins with it
 #   allow  a word that begins with it is never one (innocent clashes)
 #   block  a word that begins with it, or with spaces a phrase anywhere in the line: the
-#          line is not sent at all (slurs, threats, sexual violence)
-# A swear word or stem is masked (__X1__) and put back after the translation; a line
-# whose words are more than half swearing is not sent. Add rows from what
-# `srp-chat-glossary slang` finds in the chat sample.
+#          line is not sent at all (slurs, threats, sexual violence, sexual content with
+#          minors); built in, never switched off
+# Swearing is translated as it is (the owner's); only a line whose words are more than
+# half obscene (word or stem) is not sent. The local classifier (moderate.rs) decides
+# the rest. Add rows from what `srp-chat-glossary slang` finds in the chat sample.
 #
 # ---- Hand-made, srp (2026-10-23): stems for the inflected mat and its transliteration.
 ru	stem	хуй
@@ -195,6 +196,31 @@ en	allow	hancock
 en	allow	bastardo
 de	allow	arschbombe
 # ---- Hand-made, srp: never sent (slurs, threats, sexual violence).
+# Sexual content involving minors: an absolute block, under every setting.
+*	block	child porn
+*	block	child sex
+*	block	kid porn
+*	block	kiddie porn
+*	block	pedophil
+*	block	paedophil
+*	block	pedofil
+*	block	loli
+*	block	shotacon
+*	block	детское порно
+*	block	детская порнография
+*	block	секс с детьми
+*	block	педофил
+*	block	лоли
+*	block	дитяче порно
+*	block	дитяча порнографія
+*	block	секс з дітьми
+*	block	педофіл
+*	block	kinderporn
+*	block	kinder porno
+*	block	pornografia dziecięca
+*	block	dziecięca pornografia
+*	block	seks z dziećmi
+# Threats.
 *	block	kys
 *	block	kill yourself
 *	block	kill urself

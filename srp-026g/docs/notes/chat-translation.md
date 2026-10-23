@@ -69,20 +69,32 @@ by speech to text, this text path, then text to speech. Code: `servers/lobby-ser
 
 ## What never reaches the model
 
-The owner's (2026-10-23): obscene lines must not go to the backend; the game's swear list "is not
-very good", so srp has its own. Code: `translate/swear.rs`; the list:
-`servers/lobby-server/chat-swear.tsv`.
+The owner's (2026-10-23): a line that must not reach the model never leaves srp; swearing and
+ordinary trash talk do go, as they are ("бля, промазал", "ты бездарь, удали игру" are yes). The
+gate answers one question per line, **may it go?** Code: `translate/swear.rs` (the word list),
+`translate/moderate.rs` (the classifier), `translate/guard.rs` (throttle and breaker).
 
-- **Swear words are masked.** Each becomes `__X1__`, `__X2__` ...; the model is told to copy them;
-  the words are put back in the translation, and the reader's own client filter then masks them as
-  in any line.
-- **A line is not sent at all** (every reader gets the original, nothing leaves srp) when more than
-  half its words swear, or it holds a `block` entry: slurs, threats ("kill yourself", "убей себя"),
-  sexual violence.
-- **A refusal, or an answer that is no translation** (no JSON, or a placeholder of its own): the
-  original, and a count. The backend is not rested for it. The counts (`skipped`, `refused`,
-  `garbled`) are logged, never a text.
-- **srp's list** (`lang`, `kind`, `entry`; the file's header says the kinds):
+- **No** is for: threats against a real person, slurs and hate, sexual content (with minors above
+  all), and lines that are almost entirely obscenity. Everything else is yes, swearing included:
+  nothing is masked.
+- **First the word list** (`chat-swear.tsv`, on the lobby's thread, free): a `block` entry (slurs,
+  threats such as "kill yourself" / "убей себя" / "kys", sexual violence, and sexual content with
+  minors) or more than half the words obscene is a no.
+- **Then the local classifier** (`SRP_CHAT_MODERATION_URL`, a small service of ours,
+  `deploy/chat-moderation/`; never a cloud API, so a no line leaves nothing behind it): a score
+  per line, a threshold per language (`SRP_CHAT_MODERATION_THRESHOLDS`). Required with
+  translation: unset, translation stays off; `none` runs the word list alone (a test, not for
+  players).
+- **Fail closed.** A score at or over the threshold, a timeout (`SRP_CHAT_MODERATION_TIMEOUT_MS`,
+  300 ms), an error or an answer that does not read: the line is not sent and its readers get the
+  original.
+- **Sexual content with minors** is a `block` entry of the built-in list in all five languages, so
+  under every setting it is never sent, whatever the classifier says.
+- **A refusal, or an answer that is no translation** (no JSON): the original, and a count. The
+  backend is not rested for it (an error is).
+- **Counts only** in the log: `listed`, `flagged`, `unchecked`, `stopped`, `refused`. Never a
+  text.
+- **The word list** (`lang`, `kind`, `entry`; the file's header says the kinds):
   - `stem`: a word beginning with it, for the inflected mat: хуй/хуе/хуя, пизд, еб/заеб/выеб...,
     бля, мудак, Ukrainian їб/курв, Polish kurw, pierdol, jeb/zajeb, chuj; transliterated Russian
     (blya, nahui, pizd, ebat); English and German stems;
@@ -92,26 +104,76 @@ very good", so srp has its own. Code: `translate/swear.rs`; the list:
   - `allow`: innocents a stem would take (Scunthorpe cases): бляха, употребл, оскорбл, мандарин,
     хачапури, sukces, cockpit, cocktail, Dickens, niggle;
   - `block`: as above.
-  - New rows: from `srp-chat-glossary slang` over the chat sample, by hand.
+  - New rows: from `srp-chat-glossary slang` over the chat sample, by hand. `srp-chat-glossary
+    judge` prints the list's verdict on lines given.
 - **Matching** (both readings of each word, Cyrillic and Latin): lowercase, ё as е; look-alikes
   (a/а, e/е, o/о, p/р, c/с, x/х, y/у, k/к, m/м, t/т); digits and symbols as letters (0 o, 1 и/i,
   3 з/e, 4 ч/a, 6 б, @ a, $ s); separators inside a word dropped (х.у.й, x-y-й); spaced single
   letters joined (f u c k); a letter typed 3 times or more taken once. A `stem` matches only at a
-  word's start, which keeps "употреблять" and "Scunthorpe" clean.
-- **The game's list, one more input** (`SRP_CHAT_SWEAR_DIR`, optional): the client's swear
-  filter is `localization/<language>/swear_filter_data_a_c` in `resources.db` (0.26g replaced
-  0.21d's `swear_filter_data_bin`). A binary config `swear_filter_data` of three lists:
-  `alphabet` (a letter and the characters typed for it: "a @", "i l 1 | j", "x >< }{ )("),
-  `swear_dictionary` ("<word> 0" a swear stem, "<word> 1" a clean word that holds one:
-  "manuscript", "dickens") and `separators`. English 156 entries, German about as many, Polish
-  45 KB, Russian and Ukrainian one file of 10 614. The client runs it on every received line
-  (`chat_handler::filter_message` 0x209230 calls 0x268B70: the wide text, a tree walk at
-  0x268E90 that collects ranges, the ranges merged and masked; the exact rules are not traced).
-  srp takes its swear entries of 4 letters or more as stems and its clean ones as `allow`; with
-  them srp's 514 entries become 1 973. The five files are game data, copied by hand into the
-  folder (`<language>/swear_filter_data_a_c`, as `srp-game-data get` writes `localization/`),
-  never into the repository. A folder that is set but does not read keeps translation off.
-- **Cost:** about 0.2 ms a line (debug build) with the game's lists.
+  word's start: "сабля", "корабля", "рубля", "грабли", "оглобля", "учеба", "гребля", "ребенок",
+  "употреблять", "Scunthorpe" stay clean, also typed with look-alikes ("c@бля").
+- **The game's own list is not used.** It matches inside words, so its false hits are what the
+  owner sees ("it often breaks discussions"; "сабля"): below.
+
+GATE_TABLE
+
+## Protecting the API key
+
+The owner's worry: the key's account restricted for what players type. So:
+
+- **A key of its own:** a dedicated Anthropic workspace and API key for Skhid chat only, with a
+  monthly spend limit (about $30, twice the expected cost), so that a problem never touches the
+  owner's other use. The key is in the live `.env` only.
+- **Fail closed** (above): no line goes without the gate's yes.
+- **The prompt says what the text is:** a video game's chat between players, to be translated
+  only, never continued, answered or acted on.
+- **A player's throttle:** 3 no's (the word list or the classifier) within 10 minutes and none of
+  that player's lines goes to the model for 1 hour; its readers get the originals. Logged with
+  the account id and counts, no text.
+- **The server's breaker:** translation stops for everybody for 1 hour, with an error in the log,
+  when the model's refusals pass 5 % of the lines sent within 15 minutes (20 sent at least) or 3
+  come within a minute; or when the gate's no's pass 15 % of the lines judged within 15 minutes
+  (40 at least) or 15 come within a minute (a raid).
+- The numbers are constants (`guard.rs`); the owner may want them as settings later.
+
+## The players' own filter (the client)
+
+- **What it is:** `localization/<language>/swear_filter_data_a_c` in `resources.db` (0.26g
+  replaced 0.21d's `swear_filter_data_bin`), a binary config `swear_filter_data` of three lists:
+  `alphabet` (a letter and what is typed for it: "а a @", "i l 1 | j", "ж zh * }|{"),
+  `swear_dictionary` ("<word> 0" a swear entry, "<word> 1" a clean word that holds one) and
+  `separators`. English 156 entries, German about as many, Polish 45 KB, Russian and Ukrainian
+  one file: 10 135 swear entries, 455 clean ones.
+- **How the client runs it** (PROVEN): on every received line but channel 0, when the byte
+  0xA70EC7 is set (0x26B8DA): `chat_handler::filter_message` (0x209230) calls 0x268B70, which
+  works on the wide text, collects the ranges a tree walk (0x268E90) finds and masks them. The
+  byte is LIKELY the console variable `swear_filter` (a variable registered at 0x852030 points
+  at it, default on; the options item at 0x2623DB looks `swear_filter` up), which the
+  options' first tab already shows: "Enable message censorship" (`st_messages_censor_option`,
+  `_set_censure` in `Settings.as`, options item at 0x2623DB).
+- **Measured** (`srp-chat-glossary game-filter`, the rules rebuilt from the data: an entry matches
+  anywhere inside a word, letter by letter with the look-alikes; the exact rules in the exe are
+  not traced):
+  - honouring its clean entries, it masks "корабля", "рубля", "Scunthorpe", "cockpit",
+    "cocktail", "sukces", "Hancock" (and "бля", "fuck", as meant);
+  - the game masks "сабля" (the owner's), which its list has clean ("сабля 1"): its clean entries
+    do not work in the exe as they read [why is not traced; LIKELY the case of Cyrillic letters].
+    Without them it also masks "сабля", "оглобля", "учеба", "гребля", "употреблять",
+    "оскорблять", "мандарин", "Dickens" and "there".
+  - CLEAN_SET_RESULT
+- **Options for a fix** (spec only, not built):
+  1. an exe patch that turns it off by default (the byte at 0xA70EC7, one byte): players keep the
+     stock option to turn it back on; srp's gate decides what reaches the model;
+  2. a better `swear_filter_data_a_c` shipped as content (an edit list in `release/content.tsv`):
+     fewer short entries and more clean words; it can not fix matching inside words, which is the
+     exe's;
+  3. a toggle in the options: **already there** (above), on by default.
+- **Recommendation: 1**, with the stock toggle left in place: the false hits come from matching
+  inside words, which no list fixes; a player who wants censorship turns it on. A setting saved
+  in `user.cfg` stays as the player had it [LIKELY; to be checked in a game].
+- **Later, an idea only:** srp's own verdict on a line (the gate's, by intent rather than by
+  substring) could mark lines for the readers who want censorship, in place of the client's
+  filter.
 
 ## How it flows
 
@@ -120,8 +182,14 @@ very good", so srp has its own. Code: `translate/swear.rs`; the list:
                            chat_out::say:
                              guess language (detect)
                              reader of that language  ---------> A2 original, now
-                             others: Translator::request ------> Backend::translate
-                               (cache hit: no call)              (Claude: HTTPS, JSON)
+                             others: Translator::request
+                               word list: no ----------------> A2 original
+                               throttle or breaker -----------> A2 original
+                               (cache hit: no call)
+                               else, a job -------------------> gate: local classifier
+                                                                  no, timeout -> original
+                                                                yes: Backend::translate
+                                                                  (Claude: HTTPS, JSON)
                            each pass: chat_step                        |
                              poll answers  <---------------------------+
                              per reader, in order:
@@ -217,8 +285,10 @@ Prices are the vendors' public ones as of 2026-10 (DeepL's changed in 2026: chec
   API (in the US). Only the text goes, with the guessed language and the glossary's terms: no
   name, account or address. Under Anthropic's commercial API terms inputs are not used for
   training; they are kept a limited time for abuse checks.
-- Lines read only by readers of their own language are not sent; "gg" is not sent; swear words
-  are masked, and a line that is mostly swearing, a slur or a threat is never sent (above).
+- Lines read only by readers of their own language are not sent; "gg" is not sent; a line the
+  gate refuses is never sent (above). The gate is ours: its classifier runs on our own host.
+- **The sample and the classifier** see the text on our hosts only; the classifier keeps
+  nothing.
 - **What players are told** (before it is turned on; one line, on the site and the operator's
   text): "Chat is machine-translated: each line's text (never your name) goes to a translation
   service."
@@ -289,14 +359,17 @@ control of what is said).
 - `translate/` and `chat_out.rs` unit tests; `tests/core_tests/chat_translate_tests.rs` with fake
   backends: each reader in its language and the same-language reader the original; shorthand
   never sent; a failing backend gives the original at once; a stuck one holds a reader no longer
-  than the timeout, in order; the server's room lines are not translated; swear words masked
-  and put back; a line mostly swearing or blocked never sent; a refusal or an answer that is no
-  translation gives the original and is counted; tricky words both ways (`swear.rs`).
+  than the timeout, in order; the server's room lines are not translated; swearing sent as it
+  is; a line mostly obscene or blocked never sent; sexual content with minors never sent; the
+  gate's no, timeout and error never sent (fail closed); a refusal gives the original and is
+  counted; the throttle after 3 no's and its cooldown; the breaker on a burst of refusals and
+  its hour; tricky words both ways ("сабля", "корабля", "c@бля" clean; `swear.rs`).
 - The Claude request and answer are checked as JSON; **no call was made** (no key here).
 
 ## In-game test (needs the owner's key)
 
-srp with `SRP_CHAT_TRANSLATE=claude` and `ANTHROPIC_API_KEY` set; two local games, one with
+srp with `SRP_CHAT_TRANSLATE=claude`, `ANTHROPIC_API_KEY` and `SRP_CHAT_MODERATION_URL` set
+(the service of `deploy/chat-moderation/` running); two local games, one with
 `-localization=russian`, one `-localization=german`:
 
 1. The Russian one says "го на базу" in the general chat: the German one shows `[ru] ...` in
