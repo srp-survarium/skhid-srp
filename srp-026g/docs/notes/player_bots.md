@@ -521,8 +521,10 @@ chosen in srp's changed lobby movie ("Player vs Bots"; the wire is
   over as deserted (`game.rs` `check_pvb_stall`). A game that is gone
   ends it by `BOTS_ALONE` (45 s), one that waits for a world by the lost
   world rule, as before.
-- **Its pay.** A quarter of the silver and experience (`SRP_PVB_PAY`; half
-  until 2026-10-23), no quest, no daily bonus; and as every match with a
+- **Its pay.** A quarter of the silver and experience and of the drop's
+  chance (`SRP_PVB_PAY`; half of the silver and experience and the whole
+  chance until 2026-10-23, when 21 of 37 matches played to their end
+  dropped something), no quest, no daily bonus; and as every match with a
   server's bot it moves no rating and no balance rating. The one witness
   could fake its numbers within what the server's checks allow, and the
   bots lose nearly every match: that is why it pays less. **Only a match

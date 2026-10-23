@@ -233,7 +233,7 @@ One player against the server's own bots, chosen in srp's changed lobby movie (`
 | `SRP_PVB` | off (the compose file sets `on`) | `on`: the mode is offered |
 | `SRP_PVB_MAX_GEAR` | 5 | The highest equipment level let in (the client's own, of the kits that can be played), 0 to 15 |
 | `SRP_PVB_MAX_MATCHES` | 5 | The most matches against bots at once, 1 to 20 (choices held for a Play count too). With `SRP_PVB=on` the match server keeps up to this many bots' maps in memory (or `SRP_MAPDATA_AT_ONCE` if more): about 35-70 MB each |
-| `SRP_PVB_PAY` | 0.25 | The share of a match's silver and experience such a match pays, 0 to 1. Only a match that came to its own end (the mode's rule or the time limit) with its player in it pays at all: one left, lost or stalled pays nothing. It counts for no quest and no daily bonus, and moves no rating |
+| `SRP_PVB_PAY` | 0.25 | The share of a match's silver, experience and drop chance such a match gives, 0 to 1. Only a match that came to its own end (the mode's rule or the time limit) with its player in it pays at all: one left, lost or stalled pays nothing. It counts for no quest and no daily bonus, and moves no rating |
 | `SRP_PVB_STALL_S` | 60 | A match against bots whose player has been asked for its world this long and uploaded none while it plays is over (as deserted), 10 to 3600 |
 
 ### Match server (`servers/match-server/src/v026g/mod.rs`)

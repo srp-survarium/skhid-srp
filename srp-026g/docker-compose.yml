@@ -139,8 +139,9 @@ services:
       # switch it off; the code's own default is off). Each match against
       # bots may hold a bots' map of its own in memory (35-150 MB, up to
       # SRP_PVB_MAX_MATCHES maps): raise SRP26_MEMORY with it. SRP_PVB_PAY
-      # (default 0.25): the share of silver and experience such a match pays,
-      # and only one played to its own end (time or score) pays at all.
+      # (default 0.25): the share of silver, experience and drop chance such
+      # a match gives, and only one played to its own end (time or score)
+      # pays at all.
       - SRP_PVB=${SRP_PVB:-on}
       - SRP_PVB_MAX_GEAR
       - SRP_PVB_MAX_MATCHES

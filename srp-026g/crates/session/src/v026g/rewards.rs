@@ -77,10 +77,10 @@
 //!   [`MatchResult::vs_bots`]; the owner's of 2026-10-16): its rows pay
 //!   [`Terms::pvb_pay`] (`SRP_PVB_PAY`, default a quarter) of their silver
 //!   and experience, and so do the premium half and the items' bonus
-//!   counted from them; reputation, the drop and the pay of a level reached
-//!   are as in any match. It counts for no quest and no daily bonus, and,
-//!   as every match with a bot of the server's, moves no rating and no
-//!   balance rating. **It pays only when it came to its own end** (the
+//!   counted from them, and the drop's chance, each of its parts;
+//!   reputation and the pay of a level reached are as in any match. It
+//!   counts for no quest and no daily bonus, and, as every match with a bot
+//!   of the server's, moves no rating and no balance rating. **It pays only when it came to its own end** (the
 //!   mode's rule or the time limit) with its player in it (the owner's of
 //!   2026-10-23: a match left at once ended at once and paid what was
 //!   made, so leaving was a way to farm). One its player left, lost, or
@@ -2081,6 +2081,12 @@ impl<'a> Shared<'a> {
             } else {
                 0.0
             };
+            // A match against bots rolls with its share of each part
+            // (`SRP_PVB_PAY`, as its silver and experience; the owner's of
+            // 2026-10-23: at the full chance 21 of 37 such matches dropped).
+            let share = pvb_pay as f32;
+            let (base, from_result, from_premium) =
+                (base * share, from_result * share, from_premium * share);
             let chance = base + from_result + from_premium;
             reward.drop_chance = chance;
             // The fourth part is a penalty ("for idleness"); srp has none.

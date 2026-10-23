@@ -2946,7 +2946,7 @@ fn a_match_against_bots_pays_only_when_played_to_its_end() {
 }
 
 /// The share is `SRP_PVB_PAY` of a match's silver and experience, cell by
-/// cell: at a quarter, the money rate 100 and the experience rate 4 it
+/// cell, and of its drop chance: at a quarter, the money rate 100 and the experience rate 4 it
 /// pays what the same match not against bots pays at 25 and 1.
 #[test]
 fn a_match_against_bots_played_to_its_end_pays_its_share() {
@@ -2984,6 +2984,12 @@ fn a_match_against_bots_played_to_its_end_pays_its_share() {
     assert_eq!(alice.reward.reputation, reference.reward.reputation);
     assert_eq!(alice.full.components, reference.full.components);
     assert!(!alice.reward.forfeited && !reference.reward.forfeited);
+    // And a quarter of each part of the drop's chance.
+    assert!(reference.reward.drop_chance > 0.0);
+    for (part, whole) in alice.full.drop_chances.iter().zip(reference.full.drop_chances) {
+        assert!((part - whole * 0.25).abs() < 1e-6, "{part} {whole}");
+    }
+    assert!((alice.reward.drop_chance - reference.reward.drop_chance * 0.25).abs() < 1e-6);
 }
 
 /// The rule is for matches against bots only: a match of players that
