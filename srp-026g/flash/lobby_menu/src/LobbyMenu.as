@@ -3993,8 +3993,11 @@ package
       // box has the keys.
       public function has_active_window() : Boolean
       {
-         // a dropdown's open list takes Esc itself
-         if(stage.focus is DropdownMenu)
+         // a dropdown's open list takes Esc itself, but not over the rooms window or the presets
+         // list (tested first, as before #349): a dropdown still holding the focus must not let Esc
+         // open the game's menu over them
+         var roomsOrPresets:Boolean = RoomsWindow.me != null && Modals.isOpen(RoomsWindow.me) || LocalPlayerProfile.presetListOpen();
+         if(!roomsOrPresets && stage.focus is DropdownMenu)
          {
             trace("has_active_window::DropdownMenu");
             return false;
@@ -4026,7 +4029,7 @@ package
          // it. Under a message or a popup Esc only leaves the box; the next Esc closes the message.
          if(this.inventory_list.searchFocused())
          {
-            if(!(Modals.top() is MessageBase) && (MainScene.activePop == null || MainScene.activePop == this.modifierWindow))
+            if(!Message.isMessage(Modals.top()) && (MainScene.activePop == null || MainScene.activePop == this.modifierWindow))
             {
                this.inventory_list.clearSearch();
                return true;
@@ -5226,7 +5229,16 @@ package
          stage.focus = null;
          var image:Class = this._load_images[level];
          this.lobbyGameLoad.backgroundImage(image);
-         this.close_active_window();
+         // the match loads: the message up goes (closed, not answered as Esc would), else the top
+         // modal closes
+         if(Message.isAnyMessage() != -1)
+         {
+            Message.close(Message.isAnyMessage());
+         }
+         else
+         {
+            this.close_active_window();
+         }
          dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
       }
       

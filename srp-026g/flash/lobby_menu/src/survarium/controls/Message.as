@@ -288,6 +288,13 @@ package survarium.controls
          return -1;
       }
 
+      // A box of this queue, not a MessageBase used as a window (the Upgrade window).
+      public static function isMessage(owner:Object) : Boolean
+      {
+         var message:MessageBase = owner as MessageBase;
+         return message != null && _instances[message.getMessageId()] === message;
+      }
+
       // A message shown is a modal over every window (Modals.MESSAGE). Esc does what its own
       // close does (MessageBase.cancelByEsc): its Cancel or X (the Upgrade window's donor with more
       // modifiers leaves its slot), an OK box's OK; one that is not closable now (a reroll being
@@ -304,7 +311,7 @@ package survarium.controls
             message.cancelByEsc();
          },function():Boolean
          {
-            return _instances[messageId] === message && message.visible && message.stage != null && !_hideMessages;
+            return _instances[messageId] === message && message.visible && message.stage != null;
          });
       }
 
