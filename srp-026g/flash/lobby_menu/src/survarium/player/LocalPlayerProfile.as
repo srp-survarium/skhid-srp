@@ -12,18 +12,16 @@ package survarium.player
    import flash.events.TimerEvent;
    import flash.external.*;
    import flash.text.TextField;
+   import flash.text.TextFormat;
    import flash.utils.getDefinitionByName;
    import flash.utils.Timer;
    import flash.utils.getTimer;
    import scaleform.clik.controls.Button;
-   import scaleform.clik.controls.ScrollingList;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.DragEvent;
    import scaleform.clik.events.IndexEvent;
-   import scaleform.clik.events.ListEvent;
    import scaleform.clik.motion.Tween;
-   import scaleform.clik.utils.Padding;
    import survarium.Util;
    import survarium.controls.Message;
    import survarium.controls.PlayerProfileBase;
@@ -38,6 +36,7 @@ package survarium.player
    import survarium.constants.MoneyType;
    import survarium.constants.SuperCategory;
    import survarium.constants.UiSound;
+   import survarium.rooms.RoomsLook;
    import survarium.rooms.RoomsText;
    import survarium.rooms.RoomsWindow;
    
@@ -123,11 +122,41 @@ package survarium.player
       
       private static const TITLE_H:Number = 31;
       
-      private static const CARET_W:Number = 10;
+      private static const CARET_W:Number = 12;
       
-      private static const CARET_H:Number = 6;
+      private static const CARET_H:Number = 7;
       
-      private static const CARET_GAP:Number = 8;
+      private static const CARET_GAP:Number = 10;
+      
+      // The title's text (the owner's of 2026-10-23: bigger): 24 px, the
+      // panel's stock title 22; still one line in the bar. Its field is
+      // the bar's width less the caret's room each side, so the longest
+      // title of the five languages ("Loadout 3 · nicht spielbar") fits,
+      // and set 1 px higher so the larger text stays centred in the bar.
+      private static const TITLE_SIZE:int = 24;
+      
+      private static const TITLE_TEXT_W:Number = TITLE_W - 2 * (CARET_GAP + CARET_W + 12);
+      
+      private static const TITLE_TEXT_Y:Number = 6;
+      
+      private static const TITLE_TEXT_H:Number = 34;
+      
+      // The open list under the title: five rows of ROW_H, their text
+      // ROW_SIZE px (the stock option rows': 24 and 14), in the look of the
+      // lobby's lists: the game's dropdown backdrop (near black, a faint
+      // frame), a line between rows, the active row as the rooms list's
+      // selected room (gold-tinted, a gold bar at its left), the name left
+      // and the level or state right. Hover and press lighten a row, and the
+      // title, alike.
+      private static const ROW_H:Number = 36;
+      
+      private static const ROW_SIZE:int = 19;
+      
+      private static const ROW_PAD:Number = 16;
+      
+      private static const HOVER_ALPHA:Number = 0.06;
+      
+      private static const PRESS_ALPHA:Number = 0.11;
       
       // A choice shown before the server's answer, at most this long (ms).
       private static const PRESET_PENDING_MS:int = 5000;
@@ -151,16 +180,28 @@ package survarium.player
       };
       
       // The title bar's press area and its hover / open look (below the
-      // title's text), the caret, and the open list (null: closed).
+      // title's text), the caret, and the open list (null: closed) with its
+      // rows, the row under the pointer and the one pressed (-1: none).
       private var _presetTitle:Sprite;
       
       private var _presetGlow:Shape;
       
       private var _presetCaret:Shape;
       
-      private var _presetList:ScrollingList;
+      private var _presetList:Sprite;
+      
+      private var _presetRows:Array = [];
+      
+      private var _presetRowOver:int = -1;
+      
+      private var _presetRowDown:int = -1;
       
       private var _presetHover:Boolean = false;
+      
+      // The title's font (the timeline's), for the rows.
+      private var _presetFont:String = null;
+      
+      private var _presetBold:Object = null;
       
       // The title's text field as the timeline placed it: its x and centre.
       private var _titleX:Number = 0;
@@ -890,8 +931,17 @@ package survarium.player
             });
             i++;
          }
-         this._titleX = this.labelText.x;
          this._titleCentre = this.labelText.x + this.labelText.width / 2;
+         var format:TextFormat = this.labelText.length > 0 ? this.labelText.getTextFormat() : this.labelText.defaultTextFormat;
+         this._presetFont = format.font;
+         this._presetBold = format.bold;
+         format.size = TITLE_SIZE;
+         this.labelText.defaultTextFormat = format;
+         this.labelText.setTextFormat(format);
+         this.labelText.width = TITLE_TEXT_W;
+         this.labelText.height = TITLE_TEXT_H;
+         this.labelText.y = TITLE_TEXT_Y;
+         this._titleX = this._titleCentre - TITLE_TEXT_W / 2;
          this.labelText.mouseEnabled = false;
          this._presetTitle = new Sprite();
          this._presetTitle.x = TITLE_X;
@@ -968,28 +1018,40 @@ package survarium.player
          this.sendPresets(PRESETS_FIRST);
       }
       
+      // "Loadout 2 · Lvl. 15": the name, then the detail.
       private function presetLabel(i:int) : String
       {
+         var detail:String = this.presetDetail(i);
+         return this.presetName(i) + (detail != "" ? " · " + detail : "");
+      }
+      
+      private function presetName(i:int) : String
+      {
+         return presetWord("preset") + " " + (i + 1);
+      }
+      
+      // The level, or why there is none ("": not known yet).
+      private function presetDetail(i:int) : String
+      {
          var preset:Object = this._presets[i];
-         var label:String = presetWord("preset") + " " + (i + 1);
          if(!preset.known)
          {
-            return label;
+            return "";
          }
          if(!preset.saved)
          {
-            return label + " · " + presetWord("empty");
+            return presetWord("empty");
          }
          if(preset.level < 0)
          {
-            return label + " · " + presetWord("unfit");
+            return presetWord("unfit");
          }
          var level:String = LocalizationData.getName("clan_players_level_label");
          if(level == null || level == "" || level == "clan_players_level_label")
          {
             level = presetWord("level");
          }
-         return label + " · " + level + " " + preset.level;
+         return level + " " + preset.level;
       }
       
       // The preset the title names: the one chosen while unanswered.
@@ -1013,13 +1075,13 @@ package survarium.player
          this.labelText.x = this._titleX - shift;
          this._presetCaret.visible = ready;
          this._presetCaret.x = this._titleCentre - shift + this.labelText.textWidth / 2 + CARET_GAP - TITLE_X;
-         this._presetCaret.y = TITLE_H / 2 - CARET_H / 2 + 1;
+         this._presetCaret.y = Math.round(TITLE_H / 2 - CARET_H / 2 + 2);
          this._presetTitle.buttonMode = ready && !this._presetsLocked;
          this.drawPresetTitle();
       }
       
-      // The lobby's list rows' look (OptionsListRenderer): over, white at
-      // 1/32; open, as a selected row, with its 1 px outline at 10 %.
+      // Over, lightened as a row of the list; open, with a 1 px outline at
+      // 10 % (the lobby's selected option row).
       private function drawPresetTitle() : void
       {
          if(this._presetTitle == null)
@@ -1032,7 +1094,7 @@ package survarium.player
          g.clear();
          if(live && (open || this._presetHover))
          {
-            g.beginFill(16777215,0.03125);
+            g.beginFill(16777215,HOVER_ALPHA);
             g.drawRect(0,0,TITLE_W,TITLE_H);
             g.endFill();
          }
@@ -1102,11 +1164,18 @@ package survarium.player
          {
             return;
          }
+         this.choosePresetAt(e.stageX,e.stageY);
+      }
+      
+      // The row under a stage point chosen (a press given to the panel or
+      // the list itself: scaleform-movie-pitfalls).
+      private function choosePresetAt(stageX:Number, stageY:Number) : void
+      {
          var i:int = 0;
-         while(i < PRESET_COUNT)
+         while(i < this._presetRows.length)
          {
-            var row:DisplayObject = this._presetList.getRendererAt(i) as DisplayObject;
-            if(row != null && row.visible && row.hitTestPoint(e.stageX,e.stageY,false))
+            var row:DisplayObject = this._presetRows[i] as DisplayObject;
+            if(row.hitTestPoint(stageX,stageY,false))
             {
                this.choosePreset(i);
                return;
@@ -1115,48 +1184,181 @@ package survarium.player
          }
       }
       
-      // The lobby's list (the game's dropdowns' list and rows) under the
-      // title, its width, five rows, the active one selected.
+      // The list under the title, its width, five rows, the active one
+      // marked (see ROW_H).
       private function openPresetList() : void
       {
          if(this._presetList != null || !this._presetsSeen || this._presetsLocked || stage == null)
          {
             return;
          }
-         var listClass:Class = getDefinitionByName("OptionScrollingList") as Class;
-         var list:ScrollingList = new listClass() as ScrollingList;
-         list.itemRenderer = getDefinitionByName("OptionsListRenderer") as Class;
-         list.width = TITLE_W;
-         list.padding = new Padding(0,0,0,0);
-         list.margin = 0;
-         list.wrapping = "normal";
-         list.thumbOffset = {
-            "top":0,
-            "bottom":0
-         };
-         list.rowCount = PRESET_COUNT;
-         list.dataProvider = new DataProvider(this.presetRows());
-         list.selectedIndex = this.presetShown();
+         var list:Sprite = new Sprite();
          list.x = TITLE_X;
          list.y = TITLE_Y + TITLE_H;
-         list.addEventListener(ListEvent.ITEM_CLICK,this.onPresetRow);
+         var g:Graphics = list.graphics;
+         g.beginFill(2039840,0.6);
+         g.drawRect(0,0,TITLE_W,PRESET_COUNT * ROW_H + 2);
+         g.endFill();
+         g.beginFill(197636,0.97);
+         g.drawRect(1,1,TITLE_W - 2,PRESET_COUNT * ROW_H);
+         g.endFill();
+         this._presetRows = [];
+         this._presetRowOver = -1;
+         this._presetRowDown = -1;
+         var i:int = 0;
+         while(i < PRESET_COUNT)
+         {
+            var row:Sprite = new Sprite();
+            row.x = 1;
+            row.y = 1 + i * ROW_H;
+            row.name = String(i);
+            row.buttonMode = true;
+            row.mouseChildren = false;
+            row.addChild(this.rowText());
+            row.addChild(this.rowText());
+            row.addEventListener(MouseEvent.ROLL_OVER,this.onPresetRowOver);
+            row.addEventListener(MouseEvent.ROLL_OUT,this.onPresetRowOut);
+            row.addEventListener(MouseEvent.MOUSE_DOWN,this.onPresetRowDown);
+            row.addEventListener(MouseEvent.MOUSE_UP,this.onPresetRowUp);
+            row.addEventListener(MouseEvent.CLICK,this.onPresetRow);
+            list.addChild(row);
+            this._presetRows.push(row);
+            i++;
+         }
+         list.addEventListener(MouseEvent.MOUSE_DOWN,this.onPresetListPress);
          this._presetList = list;
+         this.fillPresetRows();
          addChild(list);
          stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onStagePress);
          addEventListener(Event.ENTER_FRAME,this.watchPresetList);
          this.drawPresetTitle();
       }
       
-      private function presetRows() : Array
+      private function rowText() : TextField
       {
-         var rows:Array = [];
+         var field:TextField = new TextField();
+         field.defaultTextFormat = new TextFormat(this._presetFont,ROW_SIZE,16777215,this._presetBold);
+         field.embedFonts = true;
+         field.selectable = false;
+         field.mouseEnabled = false;
+         field.multiline = false;
+         field.wordWrap = false;
+         field.y = Math.round((ROW_H - ROW_SIZE * 1.22 - 4) / 2);
+         field.height = ROW_SIZE * 1.22 + 6;
+         return field;
+      }
+      
+      // The rows' texts and looks, as the presets now are.
+      private function fillPresetRows() : void
+      {
          var i:int = 0;
-         while(i < PRESET_COUNT)
+         while(i < this._presetRows.length)
          {
-            rows.push({"label":this.presetLabel(i)});
+            var row:Sprite = this._presetRows[i] as Sprite;
+            var active:Boolean = i == this.presetShown();
+            var nameField:TextField = row.getChildAt(0) as TextField;
+            var detailField:TextField = row.getChildAt(1) as TextField;
+            nameField.text = this.presetName(i);
+            nameField.textColor = active ? 16777215 : RoomsLook.LIGHT;
+            nameField.x = ROW_PAD;
+            nameField.width = nameField.textWidth + 8;
+            detailField.text = this.presetDetail(i);
+            detailField.textColor = active ? RoomsLook.LIGHT : RoomsLook.GREY;
+            detailField.width = detailField.textWidth + 8;
+            detailField.x = TITLE_W - 2 - ROW_PAD - detailField.textWidth - 4;
+            this.drawPresetRow(i);
             i++;
          }
-         return rows;
+      }
+      
+      private function drawPresetRow(i:int) : void
+      {
+         var row:Sprite = this._presetRows[i] as Sprite;
+         var w:Number = TITLE_W - 2;
+         var g:Graphics = row.graphics;
+         g.clear();
+         // Alpha 0 is not hit-tested in Scaleform: 0.01.
+         g.beginFill(0,0.01);
+         g.drawRect(0,0,w,ROW_H);
+         g.endFill();
+         if(i == this.presetShown())
+         {
+            g.beginFill(3943440,0.6);
+            g.drawRect(0,0,w,ROW_H);
+            g.endFill();
+            g.beginFill(RoomsLook.GOLD,1);
+            g.drawRect(0,0,3,ROW_H);
+            g.endFill();
+         }
+         if(i == this._presetRowDown || i == this._presetRowOver)
+         {
+            g.beginFill(16777215,i == this._presetRowDown ? PRESS_ALPHA : HOVER_ALPHA);
+            g.drawRect(0,0,w,ROW_H);
+            g.endFill();
+         }
+         if(i < PRESET_COUNT - 1)
+         {
+            g.beginFill(1976368,1);
+            g.drawRect(0,ROW_H - 1,w,1);
+            g.endFill();
+         }
+      }
+      
+      private function presetRowOf(e:MouseEvent) : int
+      {
+         var row:Sprite = e.currentTarget as Sprite;
+         return row != null ? int(row.name) : -1;
+      }
+      
+      private function onPresetRowOver(e:MouseEvent) : void
+      {
+         this._presetRowOver = this.presetRowOf(e);
+         this.redrawPresetRows();
+      }
+      
+      private function onPresetRowOut(e:MouseEvent) : void
+      {
+         var at:int = this.presetRowOf(e);
+         if(this._presetRowOver == at)
+         {
+            this._presetRowOver = -1;
+         }
+         if(this._presetRowDown == at)
+         {
+            this._presetRowDown = -1;
+         }
+         this.redrawPresetRows();
+      }
+      
+      private function onPresetRowDown(e:MouseEvent) : void
+      {
+         this._presetRowDown = this.presetRowOf(e);
+         this.redrawPresetRows();
+      }
+      
+      private function onPresetRowUp(e:MouseEvent) : void
+      {
+         this._presetRowDown = -1;
+         this.redrawPresetRows();
+      }
+      
+      private function redrawPresetRows() : void
+      {
+         var i:int = 0;
+         while(i < this._presetRows.length)
+         {
+            this.drawPresetRow(i);
+            i++;
+         }
+      }
+      
+      // A press Scaleform gives the list itself, not the row under it.
+      private function onPresetListPress(e:MouseEvent) : void
+      {
+         if(e.target == this._presetList)
+         {
+            this.choosePresetAt(e.stageX,e.stageY);
+         }
       }
       
       private function closePresetList() : void
@@ -1165,9 +1367,20 @@ package survarium.player
          {
             return;
          }
-         var list:ScrollingList = this._presetList;
+         var list:Sprite = this._presetList;
          this._presetList = null;
-         list.removeEventListener(ListEvent.ITEM_CLICK,this.onPresetRow);
+         for each(var row:Sprite in this._presetRows)
+         {
+            row.removeEventListener(MouseEvent.ROLL_OVER,this.onPresetRowOver);
+            row.removeEventListener(MouseEvent.ROLL_OUT,this.onPresetRowOut);
+            row.removeEventListener(MouseEvent.MOUSE_DOWN,this.onPresetRowDown);
+            row.removeEventListener(MouseEvent.MOUSE_UP,this.onPresetRowUp);
+            row.removeEventListener(MouseEvent.CLICK,this.onPresetRow);
+         }
+         this._presetRows = [];
+         this._presetRowOver = -1;
+         this._presetRowDown = -1;
+         list.removeEventListener(MouseEvent.MOUSE_DOWN,this.onPresetListPress);
          if(list.parent != null)
          {
             list.parent.removeChild(list);
@@ -1219,10 +1432,10 @@ package survarium.player
          this.closePresetList();
       }
       
-      private function onPresetRow(e:ListEvent) : void
+      private function onPresetRow(e:MouseEvent) : void
       {
          e.stopPropagation();
-         this.choosePreset(e.index);
+         this.choosePreset(this.presetRowOf(e));
       }
       
       // A preset picked: it becomes the active one (its kits put on). The
@@ -1389,8 +1602,7 @@ package survarium.player
          }
          if(this._presetList != null)
          {
-            this._presetList.dataProvider = new DataProvider(this.presetRows());
-            this._presetList.selectedIndex = this.presetShown();
+            this.fillPresetRows();
          }
          // A slot whose item is gone is just empty: no word of it (the
          // owner's of 2026-10-23).

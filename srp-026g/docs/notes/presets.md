@@ -140,11 +140,16 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   sells nothing. An item in no preset sells as before. The list (`lobby.md` 2.16.4) carries the
   items the presets use; the server sells as ever (the question is the client's).
 - **Character panel:** its title is the switcher (the owner's, 2026-10-23: the dropdown left of
-  the title was ugly). The title names the active preset in the title's own font, size and
-  colour, centred, with a caret after it: "Loadout 2 · Lvl. 15" (the level's word is the kit tabs'
-  own). A press anywhere on the title opens the five under it, the title bar's width: "Loadout 1 ·
-  Lvl. 15", "Loadout 4 · empty", "Loadout 3 · can't play", the active one marked as the lobby's
-  lists mark a selected row. A press on a row chooses it (one press to open, one to choose); a
+  the title was ugly). The title names the active preset in the title's own font and colour,
+  centred, with a caret after it: "Loadout 2 · Lvl. 15" (the level's word is the kit tabs'
+  own). A press anywhere on the title opens the five under it, the title bar's width: "Loadout 1"
+  left and "Lvl. 15", "empty" or "can't play" right. The look (the owner's, 2026-10-23: "bigger
+  font", "cleaner, nicer design"): the title 24 px (the panel's stock 22), its field the bar's
+  width less the caret's room, so every language's longest title fits one line; rows 36 px with
+  19 px text (the stock option rows': 24 and 14) on the game's dropdown backdrop, a line between
+  rows; the active row as the rooms list's selected room (gold-tinted, a gold bar at its left,
+  white text); hover and press lighten a row and the title alike (`LocalPlayerProfile`'s
+  `ROW_H`). A press on a row chooses it (one press to open, one to choose); a
   press outside or Esc closes the list with no change. No step arrows: each step would choose a
   preset, so going from 2 to 4 would put 3 on the way. Until the server's first list the title
   is "Character"; while the kits are locked (a search, a match) it takes no press.
