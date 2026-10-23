@@ -864,32 +864,33 @@ impl Bots {
             return notes;
         };
         let goal = *goal;
-        if let Some(recovery) = bot.stuck.walking(time, feet) {
+        let meant = self.tracker.body(place).and_then(|body| body.last_meant());
+        if let Some(recovery) = bot.stuck.walking(time, feet, meant) {
             bot.note(
                 &mut notes,
                 time,
                 format!("is stuck at {:?}: {recovery:?}", feet.to_array()),
             );
-            let side = if bot.rng.unit() < 0.5 {
-                key::LEFT
+            let (side, other) = if bot.rng.unit() < 0.5 {
+                (key::LEFT, key::RIGHT)
             } else {
-                key::RIGHT
+                (key::RIGHT, key::LEFT)
             };
+            // Each time again at the spot it backs off another way.
+            let escape = bot.stuck.escape(side, other);
             let ticks = |rng: &mut Rng, s: (f32, f32)| (rng.range(s.0, s.1) / kin::TICK_S) as u32;
             match recovery {
                 Recovery::BackOff => {
-                    bot.unstick = Some((
-                        key::BACK | side | key::JUMP,
-                        ticks(&mut bot.rng, (0.5, 0.8)),
-                    ));
+                    bot.unstick = Some((escape | key::JUMP, ticks(&mut bot.rng, (0.5, 0.8))));
                     bot.route = None;
                 }
                 Recovery::Sidestep => {
-                    bot.unstick = Some((side | key::JUMP, ticks(&mut bot.rng, (0.8, 1.3))));
+                    bot.unstick = Some((escape | key::JUMP, ticks(&mut bot.rng, (0.8, 1.3))));
                     bot.end_play(time, "stuck twice there", &mut notes);
                     self.teams[team].next_commander = time;
                 }
                 Recovery::GiveUp => {
+                    bot.unstick = Some((escape, ticks(&mut bot.rng, (0.8, 1.3))));
                     bot.end_play(time, "stuck there again", &mut notes);
                     bot.pause_until = time + 3_000;
                 }

@@ -301,10 +301,12 @@ the archive's index: a loader must follow them.
      0.3 s, and stops 3.5 m before a sharp corner; its heading sways by
      about a degree; standing, it looks about every 1-2 s.
    - **Stuck** (`bots::stuck`): two worlds 1.5 s apart that show the body
-     moved under 0.4 m while it walked. First a jump and a step back and
-     to a side, and the same route again; caught again at the same spot
-     within 20 s, a jump and a sidestep and another goal; a third time, it
-     stands a few seconds and goes elsewhere. A spot that caught it twice
+     moved under 0.4 m while its own keys, reckoned on the grid, meant at
+     least 1.2 m (since 2026-10-23: `player_bots_stuck.md`). First a jump
+     and a step back and to a side, and the same route again; caught again
+     at the same spot within 20 s, a jump and a step back the other way
+     and another goal; a third time, a step to a side, it stands a few
+     seconds and goes elsewhere (each time again there another way). A spot that caught it twice
      is kept clear of for 45 s (routes past it are not taken, unless every
      route passes it).
    - **What it does** (the one play of this stage): walks to one of the
