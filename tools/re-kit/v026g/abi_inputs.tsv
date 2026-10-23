@@ -4435,3 +4435,7 @@ va	name	location	role	basis
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+12	the body	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+16	the sender's name	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+20	the sender's clan tag	observed
+0x002e5040	survarium::damage_model::tick	stack+4	the damage model ([player+2E0h], from base_player::tick 0x2DAAF3 while [player+33Ch] is set); every pool of its list at +110h, the "pain" pool included, goes to body_part::regenerate 0x32A4B0	observed
+0x002e5040	survarium::damage_model::tick	stack+8	elapsed ms, passed on as 0x32A4B0 stack+4	observed
+0x002e5040	survarium::damage_model::tick	ESI	now ms, passed on as 0x32A4B0 stack+8 and stored at +328h	observed
+0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	ESI	index 36 (pain_regeneration_speed, multiplicative): its only call is 0x2D7043 in base_player::base_player 0x2D6990, which sets the "pain" pool's +A4h regeneration_speed = config x max(0, 1 + S) once; index 6 (pain_health) at 0x2D7007 scales its +9Ch the same way	observed

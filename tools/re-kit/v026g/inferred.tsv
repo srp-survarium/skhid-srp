@@ -3028,3 +3028,5 @@ va	status	ref_021d	name
 0x0026db80	inferred-high		survarium::base_game_statistics_handler::on_event
 0x0026db60	inferred-high		survarium::base_game_statistics_handler::deserialize
 0x0026dc30	inferred-high		survarium::base_game_statistics_handler::recalculate_scores
+0x002e5040	inferred-medium		survarium::damage_model::tick
+0x002e58b0	inferred-high	0x001d7fdb	survarium::damage_model::get_body_part
