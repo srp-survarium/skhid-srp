@@ -345,6 +345,23 @@ mod tests {
         let mut stuck = Stuck::default();
         walking(&mut stuck, 0, spot + Vec3::new(0.0, 3.0, 0.0), key::FORWARD);
         assert_eq!(walking(&mut stuck, 3_000, spot, key::FORWARD), None);
+        // 0x6da44bbb bot 4, 285.8-288.8 s: in a 1 m trench, forward held
+        // (sprint in some worlds) and a jump up its side every second that
+        // never got it up, the feet 0.08 m off at most; it stood 88 s with
+        // no stuck note (`player_bots_stuck.md` §8.6).
+        let mut stuck = Stuck::default();
+        let worlds = [
+            (285_800, Vec3::new(-48.95, 21.44, -82.03), key::FORWARD),
+            (286_800, Vec3::new(-48.97, 21.44, -82.02), key::FORWARD | key::SPRINT),
+            (287_800, Vec3::new(-48.97, 21.51, -82.02), key::FORWARD),
+            (288_800, Vec3::new(-48.97, 21.44, -82.03), key::FORWARD | key::SPRINT),
+        ];
+        let told: Vec<_> = worlds
+            .iter()
+            .map(|&(time, feet, keys)| walking(&mut stuck, time, feet, keys))
+            .collect();
+        assert_eq!(told[..3], [None, None, None]);
+        assert_eq!(told[3], Some((Recovery::BackOff, true)));
     }
 
     #[test]
