@@ -16,6 +16,8 @@ package survarium.buttons
       
       public var textFieldLabel:TextField;
       
+      // The original movie places the game's reroll lock (one modification an item) on the reroll
+      // window's rows (SrvModifierLabeledRendererSlectable); it is not used (configUI hides it).
       public var lockIcon:Sprite;
       
       protected var _content:Sprite = null;
@@ -91,6 +93,10 @@ package survarium.buttons
          super.configUI();
          preventAutosizing = true;
          this.textFieldLabel.autoSize = TextFieldAutoSize.LEFT;
+         if(this.lockIcon)
+         {
+            this.lockIcon.visible = false;
+         }
       }
       
       override protected function updateText() : void
@@ -102,17 +108,9 @@ package survarium.buttons
             trace("updateMLR::",_data.label,_data.state);
             this.textFieldLabel.text = _data.label;
             content = _data.icon;
-            if(this.lockIcon)
-            {
-               this.lockIcon.visible = _data.locked;
-            }
             // The reroll window's bonuses show their range on hover: `name` is the tip's text
             // (ModificationRolls.withRange: the reroll window, the craft window's new bonus).
             _tooltipRenderer = _data.rollRange ? SrvProfileTipRendererStyled : null;
-            if(_data.reroll_available != undefined)
-            {
-               alpha = _data.reroll_available ? 1 : 0.5;
-            }
             if(_data.state == ModificationState.DEFECT)
             {
                tint = new ColorTransform();
