@@ -110,6 +110,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench, turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x800 of `.srpw`, its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
 | `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears a decal (the bake patch 44 asks for paints it; the code takes two, the server gives one slot) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1000 of `.srpw` (its second page), no state of its own; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
 | `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 48: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xD60 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
+| `fast_weapon_026g.asm`, `fast_weapon_026g.section.bin`, `check_fast_weapon_026g.py` | Patch 56, an experiment: a weapon's upgrade window shows the weapon above the workbench without making the lobby character again (the weapon alone queried as the inventory does, its models put in the scene at patch 45's transform); assembled for the arena's `fastweapon.code` (0xA432000), its state `fastweapon.state`; its check runs the three sites and the query's callback with the game's own callers (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
 | `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time`; loaded as is and rebased (needs Unicorn). With `--rev12=` it compares the build with revision 12 byte by byte |
@@ -3014,6 +3015,59 @@ the build's loader too (aim -0.05 / -0.1, stopping power -1). Against the build 
 0x311BC0, 0x311DA0, 0x3122AA, 0x313300, 0x33AE13), `.srpx` one page longer (the artefacts'
 page at 0xA431000, its first four pages as they were) and the headers that follow (compared
 section by section). **Not run in a game.**
+
+### 56. Experiment: a weapon's upgrade window shows the weapon without making the character again
+
+Not for a release yet (the owner, 2026-10-23: "let's try another pass of spawning a weapon (quick),
+we might not merge it, but we need to test that"). Built by default on its branch;
+`--no-fast-weapon` builds the exe without it (the sites the original's, the block int3).
+`../docs/notes/client_patch.md` section 3.53 has the reading of the game behind it.
+
+Patch 32 shows a weapon's window by asking `setup_profile` for a whole new lobby character player
+holding the weapon (the player's query, its models, the armour's camouflage and decal bakes, the
+inventory): 133 to 534 ms after the first, 1.2 to 2.5 s the first time (patch 48's log lines of
+the owner's local games, 2026-10-21..23). Here only the weapon is made, as the inventory makes a
+held one: a query of class 46h (`weapon`, weapon_cook) with the record's data
+(inventory_cook::translate_query 0x2C7340..0x2C73D5), which gives the weapon with its merged config,
+its model, its scope and patch 44's camouflage and decal bakes. Its model and its scope's go into
+the lobby's scene at patch 45's transform (in the bind pose: no animation plays on it). The
+character keeps the kit it shows, its own weapon in its hand. The last weapon made is kept after
+the close, so the next window of the same record shows it at once.
+
+`fast_weapon_026g.asm` in the arena's block `fastweapon.code` (0xA432000, after patch 54's
+`artefacts.code`; #225's dynamic anomalies, planned there, would go at 0xA434000), its state
+`fastweapon.state` (0xA433000, 340h bytes). Three sites:
+
+| site | original | patched | code |
+|---|---|---|---|
+| 0x284B16 (setup_profile after its prologue; patch 32's setup_hook jumps here with the window's kit) | `sub esp,6Ch / push ebx / mov ebx,[ebp+8]` | `call 0xA432000` + 2 nops | `setup`: for the lobby's own character, its window open, patch 32's mode 1 and the kit's held record the window's item: the weapon asked for (`ask`: the weapon kept if its record is alike, the one in flight if it is that, else a query, or after the one in flight) and setup_profile returns; anything else the three instructions |
+| 0x284A7E (lobby_character::update) | `call 0x2474A0` (player::mt_draw) | `call 0xA432005` | `frame`: while the window it took is open and its weapon is there, the weapon's two models in the scene (once) and moved to the bench's transform (each frame), patch 45's READY, transform and stamp, one log line; mt_draw called from here, so patch 45's `is_table` is false and the held item stays in the hand. Closed: the models out of the scene (the weapon kept). Otherwise a jump to mt_draw |
+| 0x21D093 (the lobby menu's unload 0x21D080) | `call 0x2855B0` | `call 0xA43200A` | `unload`: that menu's weapon out of the scene and let go; a query in flight let go when it comes |
+
+The query's callback `ready` (+0Fh) is bound by the game's member callback 0x27D280 (as the late
+join's) and invoked by 0x202300; model lobby_character::on_player_ready 0x284F20 (`ret 4`). The log
+line: `srp: fast weapon: item <id> at the bench <n> ms after the window asked (made|kept)`, the
+lobby's clock from the window's first ask (start_item_upgrade's setup_profile) to the frame the
+weapon is first drawn, next to patch 48's `srp: lobby character's player made in <n> ms` of the
+old way (still written when the character is made, at the close after an attach).
+
+- **Left as it was:** armour windows, the squad panels, a weapon its kit does not hold in a way
+  patch 32 finds (patch 32's mode 0), the decal pose, the camera (patch 45), what is sent to the
+  server.
+- **Not the same as before:** the weapon is drawn in its bind pose, not the 3rd-view idle or
+  preview pose the character's held weapon plays (parts a weapon parks beside it in the bind pose,
+  the VSS's second magazine, may show). The decal editor's pick (patch 47) takes bone 1's pose from
+  the held weapon in the hand, another weapon's or posed: a decal placed in this window may land off
+  by that bone's offset (up to 20 cm for a pistol). Patch 48's preview of an attach makes the
+  weapon again, not the character.
+- **Checked:** `check_fast_weapon_026g.py` (Unicorn, 27 checks: setup_profile through the stash's
+  and patch 32's hooks, lobby_character::update's call, the unload, the callback through 0x27D280
+  and 0x202300, the record's ctor and copy, calculate_locator with the game's code; creation,
+  placement, close, reopens, attaches, a record asked while another is in flight, the unload, a
+  squad mate, armour, and 100 opens and closes with at most two weapons alive and the scene empty
+  after each close); `selftest_026g.py` check 56 and the arena's; the weapon checks of patches 32,
+  44, 45, 47 pass on the build, patch 48's on the build without it (`fast_weapon=False`).
+  **Not run in a game.**
 
 ## Not ported, not done
 

@@ -30,6 +30,9 @@ USAGE (this script never touches the source exe):
         Only the bitmap at the end of the patches' mount and the PE
         checksum differ; each <n> is 1 to 255. Not with --no-late-join,
         --cave=hash-mismatch or --cert-only
+    python patch_026g.py <survarium.exe> <survarium_srp.exe> --no-fast-weapon
+        the default build without the fast weapon experiment (patch 56): a
+        weapon's upgrade window makes the lobby character again, as before
     python patch_026g.py <survarium.exe> --check [--cave=...] [--cert-only]
         every check and patch in memory, nothing written
     python selftest_026g.py
@@ -1991,6 +1994,11 @@ INSTALLS = {
                       "fire_kind, a key-up back in the function", None, None),
     0x2DBD89: (JUMP, "the player's stagger 0x2DBCD0, `movss xmm2,[esi+31Ch]` after the hits' sum: stagger",
                None, None),
+    # the fast weapon, patch 56 (in `.srpx`)
+    0x284B16: (INLINE, "setup_profile after its prologue: the fast weapon's setup (or setup_profile returns)",
+               None, None),
+    0x284A7E: (CALLEE, "lobby_character::update's player::mt_draw: the fast weapon's frame", None, None),
+    0x21D093: (CALLEE, "the lobby menu's unload, its call 0x2855B0: the fast weapon's unload", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2061,6 +2069,12 @@ CALLBACKS = (
      "(0x318050) puts its tick 0x317F10; the list's runner 0x2D1D20 calls it with ecx the object and "
      "(dt, time, step); the marker is `mov dword [ecx+114h], rn_tick` (the delegate's function)",
      (RESEARCH_CHECK, "driven: the tick's (dt, time) through the tick list's runner 0x2D1D20")),
+    ("the fast weapon's query: ready", "fast_weapon", bytes.fromhex("c70424"), 0x284F20,
+     "0x27D280 makes the game's boost member callback of a resource query (the late join's); the lobby's own "
+     "player query's callback is lobby_character::on_player_ready 0x284F20 (ecx = the object, [esp+4] the "
+     "queries_result, `ret 4`), made the same way by 0x266490; the marker is `mov dword [esp], ready` (the "
+     "member function pushed for 0x27D280)",
+     ("check_fast_weapon_026g.py", "driven: ready through the game's member callback 0x27D280 and invoker 0x202300")),
 )
 
 
@@ -2150,7 +2164,8 @@ def audit_installs(data, writes, installs=None):
 #   bytes never outgrow (grow a block only while it is the last); align a
 #   power of two from 16, 0x1000 for a page of its own.
 # A new patch appends its blocks at ARENA's end and takes its VAs from
-# ARENA_LAYOUT; the dynamic anomalies (#225), next, so:
+# ARENA_LAYOUT; the dynamic anomalies (#225), next (0xA432000 without patch 56, the fast
+# weapon experiment, which takes it on its branch; 0xA434000 with it), so:
 #   ArenaBlock("anomalies.code", "code", <its size>, 0x1000)  # 0xA432000
 # (its .bin assembled for that VA: the artefacts, patch 54, took +4000h).
 ARENA_NAME = b".srpx\0\0\0"
@@ -2167,6 +2182,8 @@ ARENA = (
     ArenaBlock("research.code", "code", 0x3000, 0x1000),     # patch 53: 0xA42D000
     ArenaBlock("research.state", "state", 0x1000, 0x1000),   # its rule's cook and the hud's cache: 0xA430000
     ArenaBlock("artefacts.code", "code", 0x1000, 0x1000),    # patch 54: 0xA431000
+    ArenaBlock("fastweapon.code", "code", 0x1000, 0x1000),   # patch 56, the fast weapon experiment: 0xA432000
+    ArenaBlock("fastweapon.state", "state", 0x400, 0x10),    # its state: 0xA433000
 )
 
 
@@ -2198,6 +2215,8 @@ ARENA_PINNED = {
     "research.code": 0xA42D000,
     "research.state": 0xA430000,
     "artefacts.code": 0xA431000,
+    "fastweapon.code": 0xA432000,
+    "fastweapon.state": 0xA433000,
 }
 
 
@@ -2280,6 +2299,35 @@ RESEARCH_HOOKS = (
 # The artefacts (patch 54, ARTEFACTS_* above): the arena's third block, a page
 # of code at 0xA431000, where artefacts_026g.asm is assembled.
 ARTEFACTS_VA = ARENA_LAYOUT["artefacts.code"]
+
+# The fast weapon (patch 56, an experiment; README; client_patch.md section
+# 3.53): a weapon's upgrade window shows the weapon above the workbench
+# without making the lobby character again. fast_weapon_026g.asm in the
+# arena's fastweapon.code, its state fastweapon.state; it reads patch 32's
+# state (mode, item) and patch 45's (the turn) and writes patch 45's READY
+# and its interface (the transform, the stamp). Four `jmp near`: setup, frame,
+# unload, ready (the weapon query's callback). Three hooks:
+# - setup_profile after its prologue, `sub esp,6Ch / push ebx / mov
+#   ebx,[ebp+8]` at 0x284B16 (patch 32's setup_hook jumps here with the
+#   window's kit): setup, which for the lobby's own character in patch 32's
+#   mode 1 asks for the weapon alone (a query of class 46h, as the
+#   inventory's) and returns from setup_profile;
+# - lobby_character::update's `call 0x2474A0` (player::mt_draw) at 0x284A7E:
+#   frame, which puts the weapon's models in the scene at patch 45's
+#   transform while the window is open, and out of it after;
+# - the lobby menu's unload (0x21D080), its `call 0x2855B0` at 0x21D093:
+#   unload, which lets the weapon of that menu go.
+# No base relocation is under a site and no branch aims inside one. Built
+# unless build(fast_weapon=False) (--no-fast-weapon).
+FAST_WEAPON_VA = ARENA_LAYOUT["fastweapon.code"]
+FAST_WEAPON_STATE_VA = ARENA_LAYOUT["fastweapon.state"]
+FAST_WEAPON_ENTRIES = (0x0, 0x5, 0xA, 0xF)    # setup, frame, unload, ready: `jmp near` each
+FAST_WEAPON_READY = 0xF
+FAST_WEAPON_HOOKS = (
+    (0x284B16, bytes.fromhex("83ec6c538b5d08"), 0x0, 0xE8),     # setup_profile after its prologue: setup
+    (0x284A7E, bytes.fromhex("e81d2afcff"), 0x5, 0xE8),         # lobby_character::update's mt_draw: frame
+    (0x21D093, bytes.fromhex("e818850600"), 0xA, 0xE8),         # the lobby menu's unload: unload
+)
 
 
 def research_layout(code):
@@ -2568,7 +2616,7 @@ def add_code_section(data, name, va, code, characteristics):
 
 
 def build(original, mode, code=None, server=None, late_join=None, revision=None, required_patches=None,
-          arena=None):
+          arena=None, fast_weapon=True):
     """Returns (patched file, description). mode: "cert-only", "section" or
     "hash-mismatch"; code = the assembled .bin for that cave. An optional
     server embeds a default host:port in full builds only. late_join = the
@@ -2591,7 +2639,9 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
     offered patches); none when not given. It is the mount's bitmap and
     nothing else.
     arena: (blocks, {name: bytes}) appended after ARENA's own blocks, for
-    the self-test's made-up arenas; the build with the late join only."""
+    the self-test's made-up arenas; the build with the late join only.
+    fast_weapon: the fast weapon experiment (patch 56) in the build with the
+    late join; False leaves its block int3 and its three sites the game's."""
     if hashlib.sha256(original).hexdigest() != EXE_SHA256:
         sys.exit("the source is not the original 0.26g survarium.exe (sha256 mismatch)")
     if server is not None:
@@ -3175,6 +3225,24 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                 if neutralize_relocs(data, [(va, va + len(expected))]):
                     sys.exit(f"{va:#x}: a base relocation under a hook of the artefacts")
             arena_bytes["artefacts.code"] = artefacts
+            fast = open(fast_weapon_bin(), "rb").read()
+            if len(fast) > ARENA_BLOCKS["fastweapon.code"].size \
+                    or any(fast[at] != 0xE9 for at in FAST_WEAPON_ENTRIES) \
+                    or fast_weapon_layout(fast) != (FAST_WEAPON_VA, FAST_WEAPON_STATE_VA,
+                                                    late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET,
+                                                    late_join_state_va(late_join) + WEAPON_TABLE_STATE_OFFSET):
+                sys.exit(f"fast_weapon_026g.section.bin was assembled for another place or states: "
+                         f"-DCAVE={FAST_WEAPON_VA:#x} -DSTATE={FAST_WEAPON_STATE_VA:#x} "
+                         f"-DPREVIEW={late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:#x} "
+                         f"-DTABLE={late_join_state_va(late_join) + WEAPON_TABLE_STATE_OFFSET:#x}")
+            if fast_weapon:
+                for va, expected, offset, opcode in FAST_WEAPON_HOOKS:
+                    patch(data, va, expected, hook_bytes(FAST_WEAPON_VA, va, expected, offset, opcode))
+                    if neutralize_relocs(data, [(va, va + len(expected))]):
+                        sys.exit(f"{va:#x}: a base relocation under a hook of the fast weapon")
+                arena_bytes["fastweapon.code"] = fast
+            else:
+                arena_bytes["fastweapon.code"] = b""
             # The self-test's made-up blocks go after the patches' own: none
             # of those moves.
             check_arena()
@@ -3307,6 +3375,35 @@ def weapon_camo_bin():
 
 def research_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "research_026g.section.bin")
+
+
+def fast_weapon_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "fast_weapon_026g.section.bin")
+
+
+def fast_weapon_layout(code):
+    """(VA, state, patch 32's state, patch 45's state) fast_weapon_026g.section.bin
+    was assembled for, read from it: the member function its query hands
+    0x27D280 (`mov dword [esp], ready`, the marker CALLBACKS names) is the
+    fourth entry's target, so its address less that offset is the VA;
+    setup's `mov edi, imm32` (after its `pushad`) the state, setup's first
+    `cmp byte [imm32],0` patch 32's mode (+0), frame's `mov dword [imm32],1`
+    patch 45's READY (+28h). None when the code is not so."""
+    try:
+        targets = [at + 5 + struct.unpack_from("<i", code, at + 1)[0] for at in FAST_WEAPON_ENTRIES]
+        marker = code.index(bytes.fromhex("c70424"))
+        ready = struct.unpack_from("<I", code, marker + 3)[0]
+        setup, frame = targets[0], targets[1]
+        if code[setup:setup + 2] != b"\x60\xbf":                   # pushad; mov edi, STATE
+            return None
+        state = struct.unpack_from("<I", code, setup + 2)[0]
+        at = code.index(b"\x80\x3d", setup)                        # cmp byte [PREVIEW+P_MODE], 0
+        preview = struct.unpack_from("<I", code, at + 2)[0]
+        at = code.index(b"\xc7\x05", frame)                        # mov dword [TABLE+T_READY], 1
+        table = struct.unpack_from("<I", code, at + 2)[0] - 0x28
+    except (ValueError, struct.error, IndexError):
+        return None
+    return (ready - targets[3], state, preview, table)
 
 
 def spot_bin():
@@ -3493,12 +3590,14 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--") or a == "--check"]
     options = [a for a in sys.argv[1:] if a.startswith("--") and a != "--check"]
     mode, bin_path, server = "section", None, None
-    late_join, late_join_path, revision, required = True, None, None, None
+    late_join, late_join_path, revision, required, fast_weapon = True, None, None, None, True
     for option in options:
         if option == "--cert-only":
             mode = "cert-only"
         elif option == "--no-late-join":
             late_join = False
+        elif option == "--no-fast-weapon":
+            fast_weapon = False
         elif option.startswith("--late-join-bin="):
             late_join_path = option[16:]
         elif option.startswith("--cave=") and option[7:] in CAVES:
@@ -3532,7 +3631,7 @@ def main():
         sys.exit("--revision and --required-patches go with the default build only "
                  "(not --no-late-join, --cave=hash-mismatch or --cert-only)")
     data, description = build(open(source, "rb").read(), mode, code, server, late_join_code, revision=revision,
-                              required_patches=required)
+                              required_patches=required, fast_weapon=fast_weapon)
     if target != "--check":
         with open(target, "wb") as out:
             out.write(data)
