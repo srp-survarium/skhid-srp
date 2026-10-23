@@ -3,10 +3,16 @@
 //!
 //! **By the routes humans took** (`routes.rs`, `SRP_BOT_ROUTES`), when the
 //! map has them: each route out of the bot's base is weighed by what a
-//! human life on it gave (shrunk toward the side's mean when few lives
-//! went that way), and one is drawn by weight, not always the best, so the
-//! bots stay hard to read (research B2 "dual utility"). What the bot knows
-//! shifts the weights:
+//! human life on it gave for the bot's task (shrunk toward the side's mean
+//! when few lives went that way), and one is drawn by weight, not always
+//! the best, so the bots stay hard to read (research B2 "dual utility").
+//! The task ([`Task`]): a route's fights (kills and assists a life) always
+//! count; its batteries (found and put in a life) count by the share of
+//! the mode's batteries still out (neither home nor carried by the team),
+//! less for a bot that likes a fight (push at least `fighter_push`). So a
+//! bot takes battery routes while there are batteries to find, and
+//! fighting routes once they are in, in Team Deathmatch, and when it hunts
+//! kills. What the bot knows shifts the weights:
 //! - a known enemy on a route (any sense, a callout, the radar): less, or
 //!   more for a bot that likes a fight (push at least `fighter_push`);
 //! - a teammate killed on it in the last 20 s: less;
@@ -54,6 +60,10 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("death_factor", 0.4),
     ("friend_factor", 0.6),
     ("wide_sneak", 1.3),
+    // A route's batteries count this much for a bot that likes a fight
+    // (against 1 for the others), of the share still out. GUESS: half; a
+    // fighter still goes for batteries when nothing else is on.
+    ("fighter_battery", 0.5),
     // A route's point counts as reached within this, metres.
     ("reach_m", 5.0),
     // On its way, not this much further in `headway_s`: the run ends,
@@ -197,6 +207,55 @@ impl Ctx<'_> {
     }
 }
 
+/// What a human route is worth to a bot now: its fights, and its
+/// batteries by how many are still to be had (the module's doc).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Task {
+    pub fight: f32,
+    pub battery: f32,
+}
+
+impl Task {
+    /// The bot's task now.
+    pub fn of(cx: &Ctx) -> Self {
+        use crate::v026g::bots::view::BatteryState;
+        let batteries = &cx.view.batteries;
+        if !cx.view.mode.has_batteries() || batteries.is_empty() {
+            return Self {
+                fight: 1.0,
+                battery: 0.0,
+            };
+        }
+        // Out: neither in a container nor carried by a teammate.
+        let out = batteries
+            .iter()
+            .filter(|state| match state {
+                BatteryState::Home(_) => false,
+                BatteryState::Carried(Some(carrier)) => {
+                    cx.view.place(*carrier).is_none_or(|p| p.team != cx.me.team)
+                }
+                _ => true,
+            })
+            .count();
+        let fighter = cx.bot.personality.push >= cx.num(PlayKind::Roam, "fighter_push");
+        let like = if fighter {
+            cx.num(PlayKind::Roam, "fighter_battery")
+        } else {
+            1.0
+        };
+        Self {
+            fight: 1.0,
+            battery: like * out as f32 / batteries.len() as f32,
+        }
+    }
+
+    /// A route's worth for this task: as its reward (fights + 2 ×
+    /// batteries) with every battery still out.
+    pub fn value(&self, route: &crate::v026g::bots::routes::HumanRoute) -> f32 {
+        (self.fight * route.fight + self.battery * 2.0 * route.battery).max(0.0)
+    }
+}
+
 /// A human route of the bot's side, drawn by weight (the module's doc);
 /// its points from the first one ahead of the bot.
 fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
@@ -207,7 +266,12 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
     if lives <= 0.0 {
         return None;
     }
-    let mean = all.iter().map(|r| r.reward * r.lives as f32).sum::<f32>() / lives;
+    let task = Task::of(cx);
+    let mean = all
+        .iter()
+        .map(|r| task.value(r) * r.lives as f32)
+        .sum::<f32>()
+        / lives;
     let routes: Vec<Vec<Vec3>> = all
         .iter()
         .map(|route| {
@@ -246,8 +310,8 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
             }
             let near = |at: Vec3| points.iter().any(|p| p.distance_xz(at) < on);
             let prior = num("prior_lives");
-            let mut w =
-                (route.reward * route.lives as f32 + mean * prior) / (route.lives as f32 + prior);
+            let mut w = (task.value(route) * route.lives as f32 + mean * prior)
+                / (route.lives as f32 + prior);
             let enemies = cx.memory.tracks().iter().filter(|t| near(t.at)).count();
             let factor = if fighter {
                 num("fighter_enemy_factor")
@@ -464,7 +528,9 @@ mod tests {
             team: 0,
             lives: 20,
             reward,
+            fight: reward,
             points: points.iter().map(|&(x, z)| Vec3::new(x, 0.0, z)).collect(),
+            ..Default::default()
         };
         s.tactics.set_routes(vec![
             route(3.0, &[(20.0, 30.0), (35.0, 33.0), (50.0, 33.0)]),
@@ -503,6 +569,48 @@ mod tests {
         let (north, south) = draws(&s, 400);
         assert!((220..=310).contains(&north), "{north} {south}");
         assert!(south >= 90, "{north} {south}");
+    }
+
+    /// A battery route is drawn while the batteries are out, a fighting
+    /// route once they are all home (and always in Team Deathmatch).
+    #[test]
+    fn battery_routes_while_batteries_are_out_fighting_routes_once_they_are_in() {
+        use crate::v026g::bots::view::BatteryState;
+        let routes = |s: &mut Scenario| {
+            let route = |fight: f32, battery: f32, points: &[(f32, f32)]| HumanRoute {
+                team: 0,
+                lives: 100,
+                reward: fight + 2.0 * battery,
+                fight,
+                battery,
+                points: points.iter().map(|&(x, z)| Vec3::new(x, 0.0, z)).collect(),
+                ..Default::default()
+            };
+            s.tactics.set_routes(vec![
+                // North: where humans found batteries; south: where they fought.
+                route(0.2, 3.0, &[(20.0, 30.0), (35.0, 33.0), (50.0, 33.0)]),
+                route(1.5, 0.0, &[(20.0, 8.0), (30.0, 5.0), (52.0, 5.0)]),
+            ]);
+            s.bot(0, 0, Vec3::new(5.0, 0.0, 15.0));
+        };
+        let mut out = Scenario::field(Mode::Batteries);
+        routes(&mut out);
+        for _ in 0..10 {
+            out.battery(BatteryState::Free(Vec3::new(40.0, 0.0, 30.0)));
+        }
+        let (north, south) = draws(&out, 400);
+        assert!(north > 220, "batteries out: {north} {south}");
+        let mut home = Scenario::field(Mode::Batteries);
+        routes(&mut home);
+        for _ in 0..10 {
+            home.battery(BatteryState::Home(0));
+        }
+        let (north, south) = draws(&home, 400);
+        assert!(north < 120, "batteries home: {north} {south}");
+        let mut tdm = Scenario::field(Mode::TeamDeathmatch);
+        routes(&mut tdm);
+        let (north, south) = draws(&tdm, 400);
+        assert!(north < 120, "Team Deathmatch: {north} {south}");
     }
 
     #[test]

@@ -3508,6 +3508,8 @@ fn bench_tuning_of(side1: bool) -> Tuning {
         ("RAID", super::plays::PlayKind::Raid),
         ("BUDDY", super::plays::PlayKind::Buddy),
         ("TRADE", super::plays::PlayKind::Trade),
+        ("ROAM", super::plays::PlayKind::Roam),
+        ("CUT", super::plays::PlayKind::Cut),
     ] {
         let Ok(numbers) = var(name) else {
             continue;
