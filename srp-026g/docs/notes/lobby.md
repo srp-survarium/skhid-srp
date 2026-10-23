@@ -208,6 +208,8 @@ No direct send was found in 0x222330 (0.21d sent `21 02` per profile and `29 04`
 ### 2.10 0x8A prices (old 0x36 04) — PROVEN 0x271540 (0.21d 0x19DBDF)
 `u16 n` (lc+0x1EA9A0), `u32 packed_size`, then `packed_size` bytes of **raw LZMA2** that unpack to exactly `n × 8` bytes of `price_item`. The record is the same 8 bytes as 0.21d: `u32 cost, u16 dict_id, u8 level, u8 faction_id` (UI 0x223190 reads +4/+6/+7). n = 0 → nothing more is read. The reader does not advance past the packed bytes, so this must be the last field.
 
+**The shop's list is not shown from the `8A` itself** (read 2026-10-23): the reader's UI call `root.setup_shop_items` 0x223190 (its only call site 0x274C7F) → `GangShop.setupShopItems` fills the shop's `_items` and, in revision 29's movie, does not invalidate the component; the list the player sees (`InventoryList._shopItems`) is filled only in `GangShop.draw`, the frame after `invalidateData`, which only the reputations push (`8E` → `setPlayerProgress`) and `setFactionBonus` call. The `8A` is several KB (about ten parts): when a frame is drawn between the `8E` and the `8A`'s last part (a lossy link), the shop shows no items (the bundles of `95` come another way) until the next `8E`, after a match. srp therefore sends the `8E` a second time right after the `8A` (§3), and the movie now invalidates at the end of `setupShopItems`.
+
 ### 2.11 0x8B money (old 0x36 05) — PROVEN inline 0x274C89
 `u32 generic_money` (lc+0x1EA9A4), `u32 premium_money` (lc+0x1EA9A8) → `root.set_account_money{generic_money, premium_money}` 0x2238D0. The layout is unchanged. **The 0.21d dependency "send 0x0A before 0x05" (nickname) is gone.**
 
@@ -518,7 +520,7 @@ The sign-in `need_shop_items` flag still means "no shop array yet" (lc+0x1EE5F4 
 4. `96` mask, then `8E` reputations (+ quest_active_faction).
 5. `8D` six service prices.
 6. `94` (n = 0 or premium).
-7. `8A` prices (LZMA2), `95` shop. For an empty shop the reader 0x271650 still allocates a 0-record array, reads the packed size and calls the decoder with a 0-byte output (PROVEN: it has no `n == 0` branch as 0x8A's has). srp sends the LZMA2 stream of no bytes, its end marker: `95 00000000 01000000 00` (what an LZMA2 encoder writes for empty input; that the decoder takes it cleanly is LIKELY, as it is for `95 00000000 00000000`).
+7. `8A` prices (LZMA2), then `8E` again (§2.10: the shop's list is drawn only on a reputations push; the first `8E` stays before the `8A`, whose "can buy" marks need the reputations), `95` shop. For an empty shop the reader 0x271650 still allocates a 0-record array, reads the packed size and calls the decoder with a 0-byte output (PROVEN: it has no `n == 0` branch as 0x8A's has). srp sends the LZMA2 stream of no bytes, its end marker: `95 00000000 01000000 00` (what an LZMA2 encoder writes for empty input; that the decoder takes it cleanly is LIKELY, as it is for `95 00000000 00000000`).
 8. `89` inventory.
 9. `87` own account (profiles + items + level/exp).
 10. `8C` level + skills.
