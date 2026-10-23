@@ -673,10 +673,11 @@ def main():
     run.emu.mem_write(CORE + LOCAL_PLACE, b"\0")
     run.call(0x23B3DE, regs={UC_X86_REG_EDI: ui}, until=0x23B3FC)
     sent = run.invokes[-1] if run.invokes else None
-    check("mode 5: research_update with 32 numbers, then past the Team Deathmatch part",
-          sent is not None and sent[0] == movie and sent[1] == "root.research_update" and len(sent[3]) == 32
+    check("mode 5: research_update with 35 numbers (nine a unit, then the units' ms left: A contested, none), "
+          "then past the Team Deathmatch part",
+          sent is not None and sent[0] == movie and sent[1] == "root.research_update" and len(sent[3]) == 35
           and sent[3][:5] == [0, 5, 0, 100, 3] and sent[3][5:14] == [0, 0, -10, 0, 0, 100, 1, 1, 1]
-          and not run.messages, str(sent))
+          and sent[3][32] == 0 and not run.messages, str(sent))
     count = len(run.invokes)
     run.call(0x23B3DE, regs={UC_X86_REG_EDI: ui}, until=0x23B3FC)
     check("the same state again: nothing sent", len(run.invokes) == count)
@@ -694,6 +695,54 @@ def main():
     run.call(0x23B3DE, regs={UC_X86_REG_EDI: ui}, until=0x23B3E4)
     check("mode 4: nothing sent, on to its last players", len(run.invokes) == sent
           and run.emu.reg_read(UC_X86_REG_EIP) == 0x23B3E4)
+
+    # 8b. The units' markers: the player-icons movie ([[ui+10h]+108h]+4), the
+    # game's own point_to_screen (0x23DEC0: its camera +0Ch, projection +4Ch,
+    # viewport [[+9Ch]+53B0h]+108h) on a camera at the origin looking along
+    # +z, 90 degrees, a 1000 x 1000 screen; the distance from the camera
+    # director's position ([+98h]+34h). Unit B taken alone, half done.
+    icons_hold, icons_view, icons = run.allocate(0x200), run.allocate(0x10), run.allocate(0x10)
+    run.word(ui + 0x10, icons_hold)
+    run.word(icons_hold + 0x108, icons_view)
+    run.word(icons_view + 4, icons)
+    near, far = 0.1, 1000.0
+    run.emu.mem_write(game2 + 0xC, struct.pack("<16f", 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1))
+    run.emu.mem_write(game2 + 0x4C, struct.pack("<16f", 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, far / (far - near), 1,
+                                                 0, 0, -near * far / (far - near), 0))
+    scene, viewport, director = run.allocate(0x5400), run.allocate(0x110), run.allocate(0x40)
+    run.word(game2 + 0x9C, scene)
+    run.word(scene + 0x53B0, viewport)
+    run.word(viewport + 0x108, 1000)
+    run.word(viewport + 0x10C, 1000)
+    run.word(game2 + 0x98, director)
+    b = rule + R_STATE + S_ZONES + ZONE
+    run.word(b, FULL // 2)
+    run.emu.mem_write(b + 4, bytes([0, 2, 1, 0]))
+    run.word(b + 8, 1 << 5)
+    run.word(b + 12, 0)
+    run.word(rule + R_STATE + 12, 0xFFFFFFFF)
+    run.word(CORE + MATCH_STATE, 3)
+    run.word(ui + 0x20, 5)
+    count = len(run.invokes)
+    run.call(0x23B3DE, regs={UC_X86_REG_EDI: ui}, until=0x23B3FC)
+    marks = [i for i in run.invokes[count:] if i[1] == "root.research_markers"]
+    sent = marks[-1] if marks else None
+    values = sent[3] if sent else []
+    check("research_markers: A on the screen at (500, 400), 10 m away; B and C off it; B's 10 s left, also in "
+          "research_update",
+          sent is not None and sent[0] == icons and len(values) == 32 and values[:2] == [0, 3]
+          and values[2:7] == [0, 1, 500, 400, 10] and values[12:22] == [1, 0, 0, 0, 101, 2, 0, 50, 10000, 0]
+          and values[22:24] == [2, 0] and values[26] == 200
+          and run.invokes[-1][1] == "root.research_update" and run.invokes[-1][3][33] == 10000, str(sent))
+    count = len(run.invokes)
+    run.call(0x23B3DE, regs={UC_X86_REG_EDI: ui}, until=0x23B3FC)
+    check("the same again: nothing sent", len(run.invokes) == count)
+    run.word(ui + 0x20, 4)
+    run.call(0x23B3DE, regs={UC_X86_REG_EDI: ui}, until=0x23B3E4)
+    check("a match of mode 4 on the same ui: the markers hidden (none), once",
+          run.invokes[count:] == [(icons, "root.research_markers", 0, [0, 0])])
+    run.call(0x23B3DE, regs={UC_X86_REG_EDI: ui}, until=0x23B3E4)
+    check("then nothing", len(run.invokes) == count + 1)
     stock.emu.mem_write(stock.allocate(4), b"")
     stock_ui = stock.allocate(0x100)
     stock.word(stock_ui + 0x20, 4)

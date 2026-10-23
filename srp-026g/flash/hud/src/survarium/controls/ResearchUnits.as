@@ -3,15 +3,20 @@ package survarium.controls
    import flash.display.Graphics;
    import flash.display.Shape;
    import flash.display.Sprite;
+   import flash.filters.GlowFilter;
+   import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
+   import flash.text.TextFormat;
    import survarium.data.LocalizationData;
 
    // Research (mode 5): the research units under the teams' points. One circle
    // a unit, its letter, filled in the colour of its owner (the game's own
    // team blue, the other red, nobody grey), a ring as far round as the
-   // capture of the team taking it, and under them "Capturing unit..." while
-   // the game's own player is inside a unit his team is taking. The exe
-   // (research_native_026g.c) sends the state with HUD.research_update.
+   // capture of the team taking it, under a unit the time left of its
+   // capture or neutralisation while one runs, and under them "Capturing
+   // unit..." while the game's own player is inside a unit his team is
+   // taking. The exe (research_native_026g.c) sends the state with
+   // HUD.research_update.
    public class ResearchUnits extends Sprite
    {
 
@@ -35,6 +40,11 @@ package survarium.controls
       protected var _units:Array = [];
 
       protected var _caption:DefaultLabel3;
+
+      // A unit's time left, under its circle.
+      protected var _timers:Array = [];
+
+      protected static const TIMER_SIZE:Number = 16;
 
       public function ResearchUnits()
       {
@@ -137,23 +147,58 @@ package survarium.controls
          g.endFill();
       }
 
-      // units: [{cp_id, owner, capturing, progress (0..100), inside_0, inside_1, local}]
+      // "0:12": the seconds left, rounded up.
+      public static function timeText(ms:Number) : String
+      {
+         var seconds:int = Math.ceil(ms / 1000);
+         var minutes:int = int(seconds / 60);
+         seconds = seconds % 60;
+         return minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+      }
+
+      // A unit's timer: the caption's font (DefaultLabel3's), smaller.
+      protected function makeTimer() : TextField
+      {
+         var source:TextField = this._caption.textField;
+         var format:TextFormat = source.length > 0 ? source.getTextFormat() : source.defaultTextFormat;
+         var timer:TextField = new TextField();
+         format.size = TIMER_SIZE;
+         format.color = 0xFFFFFF;
+         timer.defaultTextFormat = format;
+         timer.embedFonts = true;
+         timer.selectable = false;
+         timer.mouseEnabled = false;
+         timer.multiline = false;
+         timer.wordWrap = false;
+         timer.autoSize = TextFieldAutoSize.CENTER;
+         timer.filters = [new GlowFilter(0,0.9,3,3,3)];
+         timer.visible = false;
+         return timer;
+      }
+
+      // units: [{cp_id, owner, capturing, progress (0..100), inside_0, inside_1, local, left (ms)}]
       public function update(units:Array, ownTeam:uint) : void
       {
          var i:int = 0;
          var unit:Object;
          var shape:Shape;
          var g:Graphics;
+         var timer:TextField;
          var capturing:Boolean = false;
+         var timed:Boolean = false;
          while(this._units.length < units.length)
          {
             shape = new Shape();
             addChild(shape);
             this._units.push(shape);
+            timer = this.makeTimer();
+            addChild(timer);
+            this._timers.push(timer);
          }
          while(this._units.length > units.length)
          {
             removeChild(this._units.pop());
+            removeChild(this._timers.pop());
          }
          while(i < units.length)
          {
@@ -173,6 +218,15 @@ package survarium.controls
                drawRing(g,RADIUS,RING,unit.progress / 100,colourOf(unit.capturing,ownTeam));
             }
             drawLetter(g,unit.cp_id,RADIUS);
+            timer = this._timers[i];
+            timer.visible = unit.left > 0;
+            if(timer.visible)
+            {
+               timed = true;
+               timer.text = timeText(unit.left);
+               timer.x = Math.round(shape.x - timer.width / 2);
+               timer.y = RADIUS + RING;
+            }
             if(unit.local && unit.capturing == ownTeam && !(unit.owner == ownTeam && unit.progress >= 100))
             {
                capturing = true;
@@ -184,6 +238,8 @@ package survarium.controls
             this._caption.text = LocalizationData.getName("research_capturing");
             this._caption.validateNow();
             this._caption.x = -Math.round(this._caption.width / 2);
+            // under the timers when one shows
+            this._caption.y = RADIUS + RING + 6 + (timed ? TIMER_SIZE + 2 : 0);
          }
          this._caption.visible = capturing;
       }

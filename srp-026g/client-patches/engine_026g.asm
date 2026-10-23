@@ -37,6 +37,7 @@ global engine_decal_value
 global engine_mouse_ray
 global engine_accept_decal_edit
 global engine_cc_bool
+global engine_point_to_screen
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -617,6 +618,24 @@ engine_cc_bool:
     push dword [esp + 36]   ; name -> 4
     mov eax, [esp + 36]   ; object
     call 0x1ddb0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_point_to_screen:
+    ; 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; out -> 12
+    push dword [esp + 28]   ; point -> 8
+    push dword [esp + 28]   ; game -> 4
+    call 0x23dec0
+    movzx eax, al
     pop edi
     pop esi
     pop ebx

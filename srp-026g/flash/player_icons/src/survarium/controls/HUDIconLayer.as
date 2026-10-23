@@ -5,6 +5,7 @@ package survarium.controls
    import flash.geom.ColorTransform;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
+   import flash.text.TextFormat;
    import flash.utils.Dictionary;
    import flash.utils.getDefinitionByName;
    
@@ -22,10 +23,65 @@ package survarium.controls
       protected var _enemyIds:Array = [];
       
       protected var _playerTeam:uint = 0;
-      
+
+      // Research's units on the screen (research_markers).
+      protected var _research:Array = [];
+
+      protected var _researchFormat:TextFormat;
+
       public function HUDIconLayer()
       {
          super();
+      }
+
+      // Research (mode 5), at a change and every second (research_native_026g.c
+      // markers): the game's own team, the number of units, then ten numbers a
+      // unit: cp_id, whether it is on the screen (off it or behind the camera:
+      // hidden, as 0.27d), x, y in pixels, its distance from the camera in
+      // metres, owner, the team taking it, its capture 0..100, the ms left of
+      // its capture or neutralisation (0 none), whether the game's own player
+      // is inside. Under the players' icons.
+      public function research_markers(values:Array) : void
+      {
+         var ownTeam:uint = uint(values[0]);
+         var count:uint = uint(values[1]);
+         var i:uint = 0;
+         var at:uint;
+         var marker:ResearchMarker;
+         var probe:HUDMarker;
+         if(this._researchFormat == null && count > 0)
+         {
+            // the players' names' font, as the movie has it
+            probe = this._class[0] ? new this._class[0]() as HUDMarker : null;
+            this._researchFormat = probe && probe.textField ? probe.textField.getTextFormat() : new TextFormat("Open Sans Condensed");
+            this._researchFormat.size = 15;
+            this._researchFormat.bold = true;
+            this._researchFormat.color = 0xFFFFFF;
+         }
+         while(this._research.length < count)
+         {
+            marker = new ResearchMarker(this._researchFormat);
+            marker.visible = false;
+            addChildAt(marker,0);
+            this._research.push(marker);
+         }
+         while(i < this._research.length)
+         {
+            marker = this._research[i];
+            at = 2 + 10 * i;
+            if(i >= count || at + 9 >= values.length || uint(values[at + 1]) == 0)
+            {
+               marker.visible = false;
+            }
+            else
+            {
+               marker.x = Number(values[at + 2]);
+               marker.y = Number(values[at + 3]);
+               marker.update(uint(values[at]),uint(values[at + 5]),uint(values[at + 6]),Number(values[at + 7]),Number(values[at + 8]),uint(values[at + 9]) != 0,ownTeam,Number(values[at + 4]));
+               marker.visible = true;
+            }
+            i++;
+         }
       }
       
       public function register_icon_renderer(kind:uint, renderer_class:Class) : void

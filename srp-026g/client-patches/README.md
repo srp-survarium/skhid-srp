@@ -3030,8 +3030,13 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   the statistics' tail: `m_team_points` the scores, `m_winner_team` the leader.
 - **The hud**: `cmp dword [edi+20h],4 / jne 0x23B3FC` at 0x23B3DE of game_world_ui::update_ui
   becomes a `call` of the hud stub: in mode 5 `rn_hud` sends `root.research_update` (numbers
-  only) at each change and every 60 frames, and the units' messages through the hud's
-  parameterised message (0x2375C0); then the compare and its branch. `cmp eax,4 / jne 0x23B36A` at
+  only; after the units' nine numbers each, the ms left of each unit's capture or
+  neutralisation) at each change and every 60 frames, the units' messages through the hud's
+  parameterised message (0x2375C0), and `root.research_markers` to the player-icons movie
+  ([[ui+10h]+108h]+4): each unit where it is on the screen by the game's own point_to_screen
+  (0x23DEC0, `engine_point_to_screen`), its distance from the camera director ([game+98h]+34h),
+  as update_player_icons places the players' markers (`research_mode.md`, "Markers"); in
+  another mode, once, none; then the compare and its branch. `cmp eax,4 / jne 0x23B36A` at
   0x23B351 (the match's first message by mode) becomes a `jmp` of the welcome stub: mode 5's is
   `st_start_match_welcome_message_5`.
 - **The section** `.srpx` (0xA42D000, after `.srpw`'s three pages) is the arena of the later
@@ -3051,14 +3056,16 @@ with it. No base relocation is under a site and no branch aims inside one.
 
 Checked: `test_research_rule_026g.c` (the rules: captures by 1 and 2 players, contested, the fall
 back, draining and taking, the owner refilling, the water-fill, the points and the end, kill
-invader, a place that left, the wire and its refusals); `check_research_026g.py` (Unicorn: the
+invader, a place that left, the wire and its refusals, the time left); `check_research_026g.py` (Unicorn: the
 constructor's hook registers the cook once and goes on as the original, a taken class; the cook
 makes the rule from a mode config with the game's look-ups; set_game_world_core links the tick;
 a capture at 20 s and its event, nothing outside play, the points in the statistics' tail, kill
 invader, serialize (rr_write's bytes through the game's writers; with the hash mismatch dump on,
 the 88 fields by name) and deserialize (two arguments, 8 bytes popped), the game's own serialize
 and deserialize loops over a world's rules with esp as before, the hud's points (the alive counts
-left), completed; update_ui in mode 5 and 4, the messages; the first message by mode);
+left), completed; update_ui in mode 5 and 4, the messages, the time left; the markers through
+the game's own point_to_screen on a made-up camera, hidden at a match of mode 4; the first message
+by mode);
 `selftest_026g.py` check 53 (also: every slot of ours pops what tdm_rule_core's and
 tdm_rule_cook's in its place pop; the cook's RTTI hierarchy). The first local test (2026-10-22)
 crashed at the first synchronization (slot 16, fixed) on a scrambled level (pack 1's vectors,

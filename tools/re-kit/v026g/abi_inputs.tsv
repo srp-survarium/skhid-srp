@@ -4435,3 +4435,6 @@ va	name	location	role	basis
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+12	the body	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+16	the sender's name	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+20	the sender's clan tag	observed
+0x0023dec0	survarium::base_game_scene::point_to_screen	entry ESP+4	the game ([game_world_ui+18h]): +0Ch the camera's transform (inverted by 0xEE040), +4Ch the projection (multiplied by 0xEEA10), [+9Ch]+53B0h -> +108h the viewport's width and height (u32)	observed
+0x0023dec0	survarium::base_game_scene::point_to_screen	entry ESP+8	the point, float3 in world space	observed
+0x0023dec0	survarium::base_game_scene::point_to_screen	entry ESP+12	the screen position out, float2 in pixels from the top left	observed
