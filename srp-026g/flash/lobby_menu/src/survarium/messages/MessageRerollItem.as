@@ -44,6 +44,8 @@ package survarium.messages
          "Du kannst jeden Modifikator eines Gegenstands beliebig oft ändern. Danach wählst du einen von drei zufälligen Modifikatoren.",
          "Możesz zmienić dowolny modyfikator przedmiotu, dowolną liczbę razy. Następnie wybierasz jeden z trzech losowych modyfikatorów."];
 
+      // The original movie places the game's lock hint (one modification an item) on this window;
+      // since any modification may be changed it is not used (configUI hides it).
       public var lockedHint:ToolTip;
       
       public var buttonReroll:Button;
@@ -104,7 +106,7 @@ package survarium.messages
       
       public function MessageRerollItem()
       {
-         trace("MessageRerollItem",this.modifiersList,this.modifiersList2,this.checkBoxRegularCost,this.checkBoxPremiumCost,this.wheels,this.rerollContainer,this.buttonReroll,this.buttonCraft,this.lockedHint);
+         trace("MessageRerollItem",this.modifiersList,this.modifiersList2,this.checkBoxRegularCost,this.checkBoxPremiumCost,this.wheels,this.rerollContainer,this.buttonReroll,this.buttonCraft);
          super();
       }
       
@@ -132,8 +134,6 @@ package survarium.messages
          super.configUI();
          this.modifiersList.setMaxFit(true);
          btnAccept.label = LocalizationData.getName("reroll");
-         this.lockedHint.tooltipRendererName = "SrvProfileTipRenderer";
-         this.lockedHint.tipData = {name:LocalizationData.getName("reroll_modifier_lock_hint")};
          this.lockedHint.visible = false;
          tabEnabled = true;
          btnAccept.enabled = false;
@@ -279,13 +279,11 @@ package survarium.messages
                modifier = modifiers[i];
                modifierIcon = iconContainer.getIcon(modifier.icon);
                // Skhid: every modifier may be changed, each any number of times (the owner's rule
-               // of 2026-10-22): none is greyed out or locked; the one changed last is selected.
+               // of 2026-10-22); the one changed last is selected.
                option = {
                   id:modifier.id,
                   icon:modifierIcon,
-                  label:modifier.textValue,
-                  reroll_available:true,
-                  locked:false
+                  label:modifier.textValue
                };
                options.push(ModificationRolls.withRange(option,modifier));
                i++;
