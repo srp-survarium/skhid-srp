@@ -39,8 +39,11 @@
 //!
 //! What does matter is the client's **output buffer**: the decode's result
 //! is not checked, so never send more than the reader's buffer holds
-//! (0x578A0 bytes for the static info, 0x8000 for a compressed snapshot,
-//! `n × 8` for the prices).
+//! (0x578A0 bytes for the static info, 0x10000 for a compressed snapshot
+//! with patch 60, 0x8000 before it, `n × 8` for the prices). A snapshot of
+//! up to 0xFF04 bytes is one stream of chunks with the 32 KiB dictionary:
+//! its matches reach no further back than 0x8000 (the encoder's
+//! `dict_size`), whatever the length of the output.
 
 use std::io::{Read, Write};
 
@@ -266,10 +269,10 @@ mod tests {
 
     #[test]
     fn packed_is_smaller_and_comes_back() {
-        for len in [0, 1, 2, 500, 9_000, 14_000, 0x8000] {
+        for len in [0, 1, 2, 500, 9_000, 14_000, 0x8000, 0xFF04] {
             let data = world_like(len);
             let stream = packed(&data);
-            assert_eq!(unpack(&stream, 0x8000).as_deref(), Some(&data[..]), "{len}");
+            assert_eq!(unpack(&stream, 0x1_0000).as_deref(), Some(&data[..]), "{len}");
             assert_eq!(stream.last(), Some(&0x00), "{len}: the end marker");
             if len >= 500 {
                 assert!(stream.len() < len, "{len}: {} bytes", stream.len());
@@ -304,7 +307,7 @@ mod tests {
     /// The compressed streams too, with the client's 32 KiB dictionary.
     #[test]
     fn a_real_decoder_reads_the_packed_streams() {
-        let streams: Vec<_> = [1, 500, 9_000, 14_000, 0x8000]
+        let streams: Vec<_> = [1, 500, 9_000, 14_000, 0x8000, 0xFF04]
             .into_iter()
             .map(|len| {
                 let data = world_like(len);

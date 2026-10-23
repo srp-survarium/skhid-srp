@@ -64,6 +64,9 @@ const LAG_HOLD_MS: u32 = 15_000;
 /// the replay passes the record's u64 as it is with the flag 0 (0x1EE2A1),
 /// so left in, the bit would be an action.
 const INPUT_FLAG: u32 = 1 << 31;
+/// Room kept in a key frame beyond its world: the zero bytes a world from
+/// before a late joiner's install is given (one a grenade or trap).
+const KEY_FRAME_SLACK: usize = 256;
 /// The least gap between two key frames, unless the caller gives one.
 const DEFAULT_KEY_FRAME_EVERY_MS: u32 = 10_000;
 /// The world kept for a late joiner is the first one this long after its
@@ -158,6 +161,8 @@ pub struct Report {
     pub first_world_ms: Option<u32>,
     pub start_ms: u32,
     pub end_ms: u32,
+    /// The most key frames the reader's 8 MiB holds with the largest world.
+    pub most_key_frames: usize,
     pub key_frames: Vec<u32>,
     /// The size of each key frame's parts: players, bullets, statistics,
     /// objects, physics, rules, effects (`None`: the world did not walk).
@@ -754,7 +759,15 @@ fn finish(
     must.dedup();
     report.late_joiners = entered.keys().filter(|&&(_, p)| p >= initial).count();
     let span = last_world.saturating_sub(first_world);
-    let room = (MAX_KEY_FRAMES - 2).saturating_sub(must.len()).max(1) as u32;
+    // Since patch 60 a world takes up to 0xFF00 bytes: 128 of those and the
+    // body are more than the reader's 8 MiB, so the most key frames is what
+    // the largest world (and its padding) leaves room for.
+    let most = most_key_frames(
+        chosen.values().map(Vec::len).max().unwrap_or(0),
+        options_decoded + body.len() + config.len(),
+    );
+    report.most_key_frames = most;
+    let room = most.saturating_sub(2).saturating_sub(must.len()).max(1) as u32;
     let every = settings.key_frame_every_ms.max(span / room);
     let mut times = vec![first_world];
     for &time in chosen.keys() {
@@ -765,7 +778,7 @@ fn finish(
     times.extend(&must);
     times.sort_unstable();
     times.dedup();
-    times.truncate(MAX_KEY_FRAMES);
+    times.truncate(most);
     times.retain(|time| !settings.drop_key_frames.contains(time));
     if settings.first_key_frame_only {
         times.truncate(1);
@@ -838,6 +851,16 @@ fn finish(
     let file = sur::write(&parts, options_decoded, settings.coding)?;
     sur::verify(&file).map_err(ConvertError::Verify)?;
     Ok((file, report))
+}
+
+/// The most key frames of worlds of up to `largest` bytes that the reader's
+/// 8 MiB holds beside `rest` (the options, the body and the config decoded):
+/// each takes `u16 len, u32 body_offset`, its `u32` time and the world, and
+/// [`KEY_FRAME_SLACK`] for zero bytes a late joiner's install may add; at
+/// least one, at most [`MAX_KEY_FRAMES`].
+fn most_key_frames(largest: usize, rest: usize) -> usize {
+    let left = sur::MAX_DECODED.saturating_sub(rest + 4 + 1);
+    (left / (6 + 4 + largest + KEY_FRAME_SLACK)).clamp(1, MAX_KEY_FRAMES)
 }
 
 /// The game objects a profile's kits put into the world core's list: one
@@ -1552,6 +1575,20 @@ mod tests {
             }
         }
         records
+    }
+
+    #[test]
+    fn the_largest_worlds_take_fewer_key_frames() {
+        // The stock exe's largest world: 128 key frames fit beside the
+        // largest options (20 profiles) and a long body.
+        let rest = 0x578A0 + (1 << 20);
+        assert_eq!(most_key_frames(0x8000, rest), MAX_KEY_FRAMES);
+        // Patch 60's (0xFF00 bytes): fewer, and they fit.
+        let most = most_key_frames(upload::MAX_TOTAL, rest);
+        assert!((100..MAX_KEY_FRAMES).contains(&most), "{most}");
+        assert!(rest + 4 + most * (6 + 4 + upload::MAX_TOTAL + KEY_FRAME_SLACK) < sur::MAX_DECODED);
+        // Nothing left still gives the first world.
+        assert_eq!(most_key_frames(upload::MAX_TOTAL, sur::MAX_DECODED), 1);
     }
 
     /// `(time, game objects)` of every key frame of a file.

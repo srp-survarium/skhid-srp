@@ -57,7 +57,7 @@ PACKET_WRITER   equ 0x2A8       ; [14] buffer_writer; its mutable_buffer is pkt+
 
 SNAPSHOT_MSG    equ 0xE0        ; C->S "leave", {inf, 500, 9F}; a real leave is empty
 CHUNK           equ 480         ; [15] 3 header + 1 id + 8 chunk header + 480 = 492 <= 0x1FC, 16 left for ack bytes
-BUFFER_SIZE     equ 0x8000      ; the same stack buffer hash() serializes into
+BUFFER_SIZE     equ 0xFF00      ; the same stack buffer hash() serializes into (0x8000 in the stock exe; patch 60, WORLD_ROOM)
 
 section cave start=0 vstart=CAVE align=1
 
@@ -254,7 +254,8 @@ section request_hook follows=ready_hook vstart=REQUEST_HOOK align=1
 ;     memcpy(data + old size, [esp+10h] = src, edi); `ret 8`. Saves ebx, esi;
 ;     edi is only read. Past the capacity with a null allocator it asserts
 ;     and dereferences null (0x7AB70), so a packet must stay <= 0x1FC bytes
-;     and the world <= 0x8000 (hash() has the same limit every 100 ms).
+;     and the world <= BUFFER_SIZE (hash() has the same limit every 50 ms;
+;     patch 60 makes both 0xFF00, the most a u16 total holds in 480s).
 ; [3] 0x424CA0: aligns the size, tail-jumps to _chkstk 0x429F20; hash() uses
 ;     it the same way (0x325176..0x32518A: buffer = esp after the call).
 ; [4] 0x2D1070: reads [eax+2FBCh], [eax+18FDDh], item +0xC0BB0 / +0xC0BB9;
@@ -300,5 +301,5 @@ section request_hook follows=ready_hook vstart=REQUEST_HOOK align=1
 ;     otherwise free = 0x1FC - size and min(wanted ack bytes, free) ack
 ;     bytes are appended (0x3FCA27..0x3FCA53); if some did not fit, one
 ;     extra keep-alive datagram carries them (0x3FCBCD..0x3FCBF4).
-; [16] hash() 0x32518A..0x3251B0: mutable_buffer {0, esp, 0x8000, 0} and
+; [16] hash() 0x32518A..0x3251B0: mutable_buffer {0, esp, 0x8000, 0} (0xFF00 with patch 60) and
 ;     writer {+0 0, +4 unset, +8 0, +0xC 0, +0x10 0xFF, +0x14 &buffer}.

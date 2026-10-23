@@ -37,6 +37,8 @@ global engine_decal_value
 global engine_mouse_ray
 global engine_accept_decal_edit
 global engine_cc_bool
+global engine_crt_malloc
+global engine_crt_free
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -617,6 +619,38 @@ engine_cc_bool:
     push dword [esp + 36]   ; name -> 4
     mov eax, [esp + 36]   ; object
     call 0x1ddb0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_crt_malloc:
+    ; 0xf7650 malloc: size ESP+4; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; size -> 4
+    call 0xf7650
+    add esp, 4                  ; the caller's part of the stack
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_crt_free:
+    ; 0xf76b0 free: block ESP+4; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; block -> 4
+    call 0xf76b0
+    add esp, 4                  ; the caller's part of the stack
     pop edi
     pop esi
     pop ebx

@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 28746,
-  "sha256": "9b15e63b2dae83ed80192d0ee912f2f3ad3204a1804ca247373c8591fc817fd9",
+  "size": 32898,
+  "sha256": "0658400d32f59563e97188dadc19524e5be7bad579f7a9b9fc144f613cecfd6f",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,7 +22,7 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 1186
+      "size": 1253
     },
     "match_keys.code": {
       "kind": "code",
@@ -33,6 +33,11 @@
       "kind": "state",
       "va": "0xa434000",
       "size": 74
+    },
+    "world_buffers.code": {
+      "kind": "code",
+      "va": "0xa435000",
+      "size": 130
     }
   },
   "symbols": {
@@ -52,6 +57,8 @@
     "engine_cc_bool": "0xa432480",
     "engine_cfg_child": "0xa432000",
     "engine_cfg_has": "0xa432020",
+    "engine_crt_free": "0xa4324d0",
+    "engine_crt_malloc": "0xa4324b0",
     "engine_decal_value": "0xa432420",
     "engine_find_item_by_id": "0xa432260",
     "engine_find_pool": "0xa4321b0",
@@ -120,7 +127,9 @@
     "rr_reset": "0xa42d470",
     "rr_serialized_size": "0xa42d397",
     "rr_tick": "0xa42d5e5",
-    "rr_write": "0xa42da9c"
+    "rr_write": "0xa42da9c",
+    "world_buffers_construct": "0xa435000",
+    "world_buffers_destroy": "0xa435040"
   },
   "built_with": {
     "cc": "gcc (GCC) 15.2.0",

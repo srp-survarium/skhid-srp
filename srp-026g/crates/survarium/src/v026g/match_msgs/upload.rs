@@ -22,8 +22,10 @@ use std::collections::{BTreeMap, VecDeque};
 pub const CHUNK_DATA: usize = 480;
 /// `u32 item_time, u16 offset, u16 total`.
 pub const CHUNK_HEADER: usize = 8;
-/// The client serializes its world into a 0x8000-byte buffer.
-pub const MAX_TOTAL: usize = 0x8000;
+/// The client serializes its world into a buffer of this size: 0x8000 in
+/// the stock exe, 0xFF00 with patch 60 (`client_patch.md` §3.54), the
+/// most whole chunks a `u16 total` holds (136 of 480).
+pub const MAX_TOTAL: usize = 0xFF00;
 /// The chunks of the largest world.
 pub const MAX_CHUNKS: usize = MAX_TOTAL.div_ceil(CHUNK_DATA);
 
@@ -32,7 +34,7 @@ pub const MAX_CHUNKS: usize = MAX_TOTAL.div_ceil(CHUNK_DATA);
 pub enum ChunkError {
     /// Shorter than the header and one byte.
     TooShort,
-    /// `total` is 0 or over 0x8000.
+    /// `total` is 0 or over [`MAX_TOTAL`].
     Total(u16),
     /// `offset` is no multiple of 480, or not below `total`.
     Offset { offset: u16, total: u16 },
@@ -66,7 +68,7 @@ pub struct Chunk<'a> {
 
 impl<'a> Chunk<'a> {
     /// Reads a non-empty 0xE0 payload: `offset % 480 == 0`,
-    /// `offset < total ≤ 0x8000` and exactly the length those two give.
+    /// `offset < total ≤ MAX_TOTAL` and exactly the length those two give.
     pub fn parse(payload: &'a [u8]) -> Result<Self, ChunkError> {
         if payload.len() <= CHUNK_HEADER {
             return Err(ChunkError::TooShort);
@@ -108,7 +110,7 @@ impl<'a> Chunk<'a> {
 
 /// The 0xE0 payloads a patched client sends for a world: what the injected
 /// code does, for tests and the client model. `None`: the body is empty or
-/// over 0x8000 bytes (the client asserts on such a world).
+/// over [`MAX_TOTAL`] bytes (the client asserts on such a world).
 pub fn split(item_time: u32, body: &[u8]) -> Option<Vec<Vec<u8>>> {
     if body.is_empty() || body.len() > MAX_TOTAL {
         return None;
@@ -310,13 +312,15 @@ mod tests {
         assert_eq!(chunk(0, 480, 480), Ok(()));
         assert_eq!(chunk(0, 481, 480), Ok(()));
         assert_eq!(chunk(480, 481, 1), Ok(()));
-        assert_eq!(chunk(0x7F80, 0x8000, 128), Ok(()), "the 69th chunk");
+        assert_eq!(chunk(0x7F80, 0x8000, 128), Ok(()), "the stock exe's 69th chunk");
+        assert_eq!(chunk(0xFD20, 0xFF00, 480), Ok(()), "the 136th chunk");
+        assert_eq!(chunk(0xFD20, 0xFFFF, 480), Err(ChunkError::Total(0xFFFF)));
         // The header alone, or less.
         assert_eq!(chunk(0, 1, 0), Err(ChunkError::TooShort));
         assert_eq!(Chunk::parse(&[1, 2, 3]), Err(ChunkError::TooShort));
         // Totals.
         assert_eq!(chunk(0, 0, 1), Err(ChunkError::Total(0)));
-        assert_eq!(chunk(0, 0x8001, 480), Err(ChunkError::Total(0x8001)));
+        assert_eq!(chunk(0, 0xFF01, 480), Err(ChunkError::Total(0xFF01)));
         // Offsets: off the 480 grid, at or past the total.
         assert_eq!(
             chunk(1, 500, 480),
@@ -357,12 +361,28 @@ mod tests {
     }
 
     #[test]
-    fn the_largest_world_is_69_chunks() {
-        assert_eq!(MAX_CHUNKS, 69);
-        let chunks = split(100, &world(MAX_TOTAL)).unwrap();
-        assert_eq!(chunks.len(), 69);
+    fn the_largest_world_is_136_chunks() {
+        // Patch 60: 0xFF00 bytes, 136 whole chunks; the last at 0xFD20.
+        assert_eq!(MAX_CHUNKS, 136);
+        let body = world(MAX_TOTAL);
+        let chunks = split(100, &body).unwrap();
+        assert_eq!(chunks.len(), 136);
         assert_eq!(chunks[0].len(), 488);
-        assert_eq!(chunks[68].len(), 8 + 128);
+        assert_eq!(chunks[135].len(), 488);
+        assert_eq!(&chunks[135][4..8], [0x20, 0xFD, 0x00, 0xFF]);
+        let mut reassembler = Reassembler::new();
+        let mut pushed = Vec::new();
+        for chunk in chunks.iter().rev() {
+            pushed.push(reassembler.push(&Chunk::parse(chunk).unwrap()));
+        }
+        assert!(pushed[..135].iter().all(|p| *p == Pushed::Stored));
+        assert_eq!(
+            pushed[135],
+            Pushed::Complete(Upload {
+                item_time: 100,
+                body
+            })
+        );
         assert_eq!(split(100, &world(MAX_TOTAL + 1)), None);
         assert_eq!(split(100, &[]), None);
     }

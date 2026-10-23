@@ -409,6 +409,13 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     its remove_affects, artefact_base::action's entry, the player's
     stagger) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
+60. the same build: the saved world's room as 0.28's (patch 60,
+    WORLD_SIZES and world_buffers_026g.asm, the arena's block
+    world_buffers.code): the hash's and the 0xE8's four immediates and the
+    upload's BUFFER_SIZE, the stream pair's constructor and destructor calls
+    before and after, no relocation under a site and no branch into one,
+    the block's code calling the game's pair and the library's malloc and
+    free only. check_world_buffers_026g.py runs it.
 The engine-function library (engine_026g.py, the arena's block engine.code;
 client_patch.md section 0.5): its files are what engine_026g.tsv and the
 re-kit's ABI rows give, and engine_026g.py refuses a spec row whose
@@ -1534,7 +1541,9 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
-        [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS] + \
+        [(va, len(old)) for va, old, _ in P.WORLD_SIZES] + \
+        [(va, len(old)) for va, old, _, _ in P.WORLD_BUFFERS_HOOKS]
 
 
 def pickup_sites():
@@ -4033,6 +4042,73 @@ def test_artefacts(original, image, before):
           "stopping power, from the loop or none (0x2DBCF9) at 0x2DBD89, -min(it, [+31Ch]) the slow")
 
 
+def test_world_buffers(original, image, before):
+    """Check 60: the saved world's room as 0.28's (patch 60, WORLD_SIZES and
+    WORLD_BUFFERS_HOOKS). check_world_buffers_026g.py runs the game's
+    constructor, writers, serialize, hash, deserialize and destructor, the
+    upload and the 0xE8's unpacking on worlds over the original's room."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    check(rows(stock, 0x325176, 0x11) == ["mov eax,0x8000", "mov byte [esi+0xc0bb8],0x1", "call 0x424ca0"]
+          and rows(stock, 0x32518A, 0x13)[:2] == ["mov eax,esp", "xor edi,edi"]
+          and rows(stock, 0x32519D, 7) == ["mov dword [ebp-0xc],0x8000"]
+          and rows(stock, 0x3251D1, 0xB) == ["push edx", "lea eax,[ebp-0x2c]", "push eax", "push esi", "call 0x324be0"],
+          "hash() (0x325150): `mov eax,0x8000` for the alloca (0x424CA0), its mutable_buffer's capacity 0x8000 "
+          "([ebp-0Ch]), no allocator ([ebp-14h]), then the item's serialize into it")
+    check(rows(stock, 0x27C059, 0xA) == ["mov eax,0x8000", "call 0x424ca0"]
+          and rows(stock, 0x27C07C, 0xB) == ["mov eax,0x8000", "mov [ebp-0xc],eax", "mov [ebp-0x1c],eax"]
+          and rows(stock, 0x27C08E, 0x14)[:2] == ["mov ecx,[ebp-0xc]", "push ecx"]
+          and rows(stock, 0x27C09C, 5) == ["lea ecx,[edi+0x4c]", "call edx"]
+          and stock.read(0x9FAFF8, 4) == struct.pack("<I", 0x357EB0),
+          "process_dynamic_match_info (0x27BFF0): the alloca of 0x8000, then 0x8000 the output's room passed to "
+          "the lzma2_compressor's decompress (vtable 0x9FAFF4 +4 = 0x357EB0) and its mutable_buffer's capacity")
+    for va, old, new in P.WORLD_SIZES:
+        check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old and image.read(va, len(new)) == new,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, {new.hex()} here")
+    check(P.WORLD_ROOM == 136 * 480 <= 0xFFFF and P.WORLD_ROOM + 4 <= P.WORLD_RECEIVE,
+          f"the world's room {P.WORLD_ROOM:#x} is 136 chunks of 480 in a u16 total; the receive's "
+          f"{P.WORLD_RECEIVE:#x} holds it and its u32 time")
+    upload = open(os.path.join(HERE, "snapshot_upload_026g.asm"), encoding="utf-8").read()
+    check(re.search(r"^BUFFER_SIZE\s+equ\s+0x([0-9A-F]+)\b", upload, re.M).group(1) == f"{P.WORLD_ROOM:X}",
+          "the upload's buffer (snapshot_upload_026g.asm BUFFER_SIZE) is the hash's")
+    check(rows(stock, 0x324634, 0xB) == ["lea eax,[esi+0xbbf30]", "call 0x3246d0"]
+          and rows(stock, 0x3246D0, 0x10)[:2] == ["mov [eax+0x2004],eax", "mov dword [eax+0x2008],0x2000"]
+          and rows(stock, 0x324713, 0x15) == ["lea edx,[ecx+0x2000]", "mov [edx],esi", "mov [edx+0xc],esi",
+                                               "mov [edx+0x4],ecx", "mov dword [edx+0x8],0x2000"]
+          and rows(stock, 0x3249B4, 0xB) == ["lea edi,[ebp+0xbbf30]", "call 0x324750"]
+          and popped(stock, 0x3246D0, 0x324750) == 0 and popped(stock, 0x324750, 0x3247D0) == 0
+          and rows(stock, 0x32475C, 0x12)[:2] == ["mov ecx,[edi+0x4028]", "test ecx,ecx"],
+          "the item's constructor (0x324510) builds its game objects' two streams at +0BBF30h with 0x3246D0 (eax): "
+          "{0, data in place, 0x2000} each; its destructor (0x324910) takes them down with 0x324750 (edi), which "
+          "frees a stream's data only through its allocator; both `ret`")
+    linked = P.arena()
+    block = linked.blocks["world_buffers.code"]
+    for va, old, symbol, opcode in P.WORLD_BUFFERS_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`call {target:#x}` ({symbol}, an entry of world_buffers.code) here")
+    sites = [(va, len(old)) for va, old, _ in P.WORLD_SIZES] + [(va, len(old)) for va, old, _, _ in P.WORLD_BUFFERS_HOOKS]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + size for va, size in sites)]
+    hits = [h for va, size in sites for h in aimed_inside(original, va, size, 0x82)
+            if not va <= h < va + size and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "world_buffers.code")
+    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's world_buffers.code ({len(code)} bytes)")
+    texts = [text for _, _, text in ndisasm(code, block.va)]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    library = {linked.symbols["engine_crt_malloc"], linked.symbols["engine_crt_free"]}
+    check(outside == sorted({0x3246D0, 0x324750} | library) and "push dword 0x4000" in texts
+          and texts.count("mov dword [ebx+0x2008],0x4000") == 1 and texts.count("mov dword [ebx+0x2008],0x2000") == 1,
+          "it calls the game's 0x3246D0 and 0x324750 and the library's malloc and free and nothing else; 0x4000 "
+          "bytes a stream, 0x2000 again when given back")
+
+
 def test_match_keys(original, image, before):
     """Check 58: the kit keys and the match chat option (patch 58,
     MATCH_KEYS_HOOKS). check_match_keys_026g.py runs the three entries from
@@ -5705,6 +5781,7 @@ def test_late_join(original, without, server, source):
     test_spot(original, image, before)
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)
+    test_world_buffers(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

@@ -1807,3 +1807,9 @@ va	status	ref_021d	name
 0x00511600	observed		Scaleform::GFx::Movie::Invoke
 0x000725e0	observed		vostok::math::create_rotation
 0x00054e10	observed		survarium::replay_network_client::is_this_place_mine
+0x000f7650	observed		malloc
+0x000f76b0	observed		free
+0x00324510	observed		survarium::game_state_history_item::game_state_history_item
+0x00324910	observed		survarium::game_state_history_item::~game_state_history_item
+0x003246d0	observed		survarium::game_objects_serialized_state::game_objects_serialized_state
+0x00324750	observed		survarium::game_objects_serialized_state::~game_objects_serialized_state

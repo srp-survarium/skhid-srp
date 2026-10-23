@@ -4433,3 +4433,9 @@ va	name	location	role	basis
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+12	the body	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+16	the sender's name	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+20	the sender's clan tag	observed
+0x000f7650	malloc	entry ESP+4	requested byte size (the allocator at [1F1D3F4h], "from malloc" 0x9E863C, under its lock 0x10A8C0)	observed
+0x000f76b0	free	entry ESP+4	the memory block malloc gave, or 0 (nothing done)	observed
+0x00324510	survarium::game_state_history_item::game_state_history_item	ESI	the item (0xC0BD0 bytes; the history's pool 0x2D3FEF, the rollback's remake 0x3252AC, the debug world on the stack 0x2D2446)	observed
+0x00324910	survarium::game_state_history_item::~game_state_history_item	entry ESP+4	the item	observed
+0x003246d0	survarium::game_objects_serialized_state::game_objects_serialized_state	EAX	the state, item+0BBF30h: two streams of 0x2000 bytes in place, each followed by its mutable_buffer {0, data, 2000h, 0} (+2000h, +4028h) and buffer_writer (+2010h, +4038h); kept in EAX	observed
+0x00324750	survarium::game_objects_serialized_state::~game_objects_serialized_state	EDI	the state, item+0BBF30h: frees each stream's data through its allocator when there is one (0 in the game)	observed
