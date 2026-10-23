@@ -692,7 +692,7 @@ def main():
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
     for e in edits.get('rename_key', []):
         n = 0
-        for p in sorted(fnmatch.filter(files, e['files'])):
+        for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
             b = bytearray(open(files[p], 'rb').read()) if p not in bufs else bufs[p]
             if rename_key(b, e['table'], e['from'], e['to']):
                 bufs[p] = b
@@ -700,7 +700,7 @@ def main():
         print('rename %s -> %s: %d files' % (e['from'], e['to'], n))
     for e in edits.get('replace_string', []):
         n = 0
-        for p in sorted(fnmatch.filter(files, e['files'])):
+        for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
             b = bytearray(open(files[p], 'rb').read()) if p not in bufs else bufs[p]
             k = replace_string(b, e['from'], e['to'])
             if k:
@@ -710,7 +710,7 @@ def main():
     shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
     for e in edits.get('add_entry', []):
         n = 0
-        for p in sorted(fnmatch.filter(files, e['files'])):
+        for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
             b = bytearray(open(files[p], 'rb').read()) if p not in bufs else bufs[p]
             if e.get('only_if'):
                 try:
