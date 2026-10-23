@@ -1906,6 +1906,9 @@ va	name	source	ret_cleanup	result
 0x00208ad0	survarium::chat_handler::add_message	manual	20	
 0x0026da00	survarium::base_game_statistics_handler::on_player_killed	manual	68	
 0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	
+0x00300710	survarium::victory_item_core::can_use	manual	4	AL: 1 when the user carries nothing ([user+0x10C]+0x178 is 0), his hand is not broken (byte +0x389 of [user+0x108] vtable+8, the damage model's broken hands) and [user+0x128] vtable+0x50 says no; else 0
+0x00300770	survarium::victory_item_core::use_info	manual	4	EAX: the prompt's string in can_use's order: st_cannot_pickup_item 0xA139E8 (carrying), st_cannot_pickup_item_broken_hand 0xA13A00, empty 0x9DB708, st_pickup_item 0xA13A24
+0x003007e0	survarium::victory_item_core::use_initialize	manual	8	
 0x00330ee0	survarium::weapon_dispersion_params::weapon_dispersion_params	manual	8	EAX = the params
 0x00331050	survarium::dispersion_calculator::initialize	manual	20	
 0x00331150	survarium::dispersion_calculator::fire	manual	4	

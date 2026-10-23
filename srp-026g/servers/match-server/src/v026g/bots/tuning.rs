@@ -106,6 +106,9 @@ pub struct SenseTuning {
     pub battery_near_m: f32,
     /// Rays a think may cast at batteries and spawners (nearest first).
     pub battery_rays: u32,
+    /// A battery the team knows is put right where it is seen lying
+    /// farther than this from the spot known, metres (`sense_batteries`).
+    pub battery_moved_m: f32,
     /// Timed batteries: a station's spawner seen this long ago is worth a
     /// look again, ms.
     pub spawner_recheck_ms: u32,
@@ -133,6 +136,7 @@ impl Default for SenseTuning {
             battery_sight_m: 35.0,
             battery_near_m: 3.0,
             battery_rays: 3,
+            battery_moved_m: 0.2,
             spawner_recheck_ms: 45_000,
         }
     }

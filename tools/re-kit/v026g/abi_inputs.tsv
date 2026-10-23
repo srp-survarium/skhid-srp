@@ -4449,6 +4449,11 @@ va	name	location	role	basis
 0x002f4eb0	survarium::shared_statistics::on_player_killed	entry ESP+32	u8 event 10 to the killer when set	observed
 0x002f4eb0	survarium::shared_statistics::on_player_killed	entry ESP+36	u8 the weapon's category: GRENADE_KILL (event 25) when it is the grenades' ([0x1F1DA1C], 0x2F514A)	observed
 0x002d9b90	survarium::base_player::hit_impl	entry ESP+8	the hit record: +44h u8 the inflictor's place, the killer of the death it causes (0x2D9EDC: the rules' kill event {killer, victim} through 0x2D1EA0 and generate_killed_event 0x2DA170); the only kill event of the game	observed
+0x00300710	survarium::victory_item_core::can_use	stack+4	user_data (its +0 the user)	observed
+0x00300770	survarium::victory_item_core::use_info	stack+4	user_data (its +0 the user)	observed
+0x003007e0	survarium::victory_item_core::use_initialize	ECX	the battery's usable_object (item+0x14)	observed
+0x003007e0	survarium::victory_item_core::use_initialize	stack+4	user_data, put on the battery's user list (count +0x28, first +0x30, last +0x34)	observed
+0x003007e0	survarium::victory_item_core::use_initialize	stack+8	stored at user_data+8	observed
 0x00330ee0	survarium::weapon_dispersion_params::weapon_dispersion_params	entry ESP+4	params out (this)	observed
 0x00330ee0	survarium::weapon_dispersion_params::weapon_dispersion_params	entry ESP+8	`dispersion` config value	observed
 0x00331050	survarium::dispersion_calculator::initialize	entry ESP+4	dispersion_calculator	observed

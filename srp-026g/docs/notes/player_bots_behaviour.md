@@ -123,7 +123,7 @@ In two real matches (0x7db2c16a, 0x15aa5b99) bots ended a take "could not take i
 
 - The stand-in counts a step walked straight as no standing (it has no route).
 - A first version pressed at stands it had passed by up to 0.5 m (standing uses 2.1 m long) and over looks down past 1 rad: kills −7.2 ± 2.9 a seed; fixed before the numbers above.
-- Left: a battery the team believes lying where it is not (it lies on a crate and the look at it from below is blocked) is still tried at each stand (seen in the soaks); the team's look at it is `sense::sense_batteries`.
+- Left: a battery the team believes lying where it is not (it lies on a crate and the look at it from below is blocked) is still tried at each stand (seen in the soaks); the team's look at it is `sense::sense_batteries`. Two such beliefs are fixed in §2.7.
 
 ### 2.3 A take waits for the fight unless covered (built 2026-10-23)
 
@@ -285,6 +285,102 @@ The guards stayed within the noise for every part except as said. Guards checked
 
 **Not verified:** no real match was played with any of these. The bench's blocker is the bots' own body model: whether a crouched 0.26g body clears a line 0.63 m over it is the 0.100b model's heights (a GUESS, `friends.rs`).
 
+### 2.7 Batteries not taken, and a carrier who camps (audit 6 and 7; built 2026-10-23)
+
+The audit of the owner's PvB matches of 2026-10-23 (`private/pvb-jumps-local/analysis/AUDIT.md`) ranked two battery mistakes. In 0x4da3b51d team 1 sent 29 lone intercepts, 8 of them killed, to a carrier who stood 8 m from his own container for 4 minutes (#6). Battery 3 lay 127 s and drew 57 Collect plays, 7 "took no battery" and one pickup (#7).
+
+**Why a battery was not taken.**
+- PROVEN, 0x4da3b51d b3: the team believed it at the spot it was first seen, 0.7 m from where it lay after its carrier died. `sense_batteries` looked again only when a battery lay over 1.5 m across from the belief, so takes aimed at the empty spot. Now a known battery that lies over 0.2 m (in 3D) from the belief is looked at again (`SenseTuning::battery_moved_m`; a few centimetres of settling costs no look). From a take's stand, close by, it is put right without a ray. "Took no battery" lines now end with the spot the take aimed at.
+- PROVEN, the worlds' frame: the bots took a lying battery's z as mirrored until a battery lying near a spawner voted for the plain reading, and needed it within 3 m of one reading and over 10 m from the other. The worlds are in the map's frame: in 0x4da3b51d the batteries at 50 s lie on level_08's spawner spots (`item`) to 0.01 m (battery 0 at (1.29, 33.27, 20.34), spawner (1.288, 33.267, 20.34)). On level_05 day 2 several spawners lie at z −0.5 to −1, where both readings are near a spawner and no vote is cast. In one bench match (seed 28, 10 v 10) the bots aimed 38 stands at the mirror images (z +0.82 and +0.54 for batteries at −0.82 and −0.54) and took no battery in 180 s. The vote is gone (`Bots::facts`).
+- PROVEN in the client (client_patch.md §3.23): a pickup needs a hand that is not broken (`victory_item_core::can_use` 0x300710, the prompt `st_cannot_pickup_item_broken_hand`; the use's every tick 0x300830). A theft from the enemy's container needs one too; a put-in does not. LEAD, not built: the bots cannot see their own broken limbs (where the worlds carry the damage model's hand byte is not decoded), so a bot with a broken hand still tries. Whether a medkit mends the hand is not checked.
+
+**A camping carrier.** `TeamKnowledge::carrier_places` keeps where the team's senses (seen, heard, the thief cheat) placed each enemy carrier over 30 s. `carrier_still` finds one whose places of the last `camp_s` (20 s), three at least, all lie within their error and `camp_m` (3 m) of their middle. Past `camp_half` (0.5) of the way from our container to his, he camps (`intercept_camping`). Such a carry is no alarm and no commitment, and both of its slots are offered (`camp_pair` 1), so two bots go at once, not one after another into his ground.
+
+**The bench.** `real_bot_cost` gains two stagings:
+- `SRP_BENCH_CAMP=<m>` freezes the first team-0 carrier within that many metres of his container: no moves, no use, until he dies or loses the battery.
+- `SRP_BENCH_NUDGE=<m>`: every 20 s one lying battery, in turn, moves that far on its floor, unseen.
+
+Each match prints a `sums:` line (JSON) and counts the stands given up at a belief more than 0.2 m from where the battery lay (`SRP_BENCH_SHOW_STALE=1` prints each).
+
+**Measured** (`real_bot_cost`, 180 s, `SRP_BENCH_SIDES=4,10`, `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`, `SRP_BENCH_SPREAD=1`; paired by seed, the change minus the base, ± the standard error of the difference a seed, * over 2 standard errors; means a seed):
+
+| Change, bench | Measure | Base | Change | Difference |
+|---|---|---|---|---|
+| Re-look at 0.2 m, not 1.5; batteries nudged 0.7 m (24 seeds, 6 maps) | stands given up | 43.0 | 1.7 | −41.3 ± 4.7* |
+| | of them at a spot the battery had left | 41.5 | 0 | −41.5 ± 4.7* |
+| | "could not take it" ends | 14.3 | 2.3 | −12.1 ± 1.6* |
+| | pickups | 57.8 | 63.1 | +5.3 ± 1.0* |
+| | delivered, team 0 / team 1 | 15.2 / 21.6 | 17.0 / 22.8 | +1.8 ± 0.4* / +1.2 ± 0.4* |
+| | Collect plays a pickup | 16.6 | 14.9 | −1.7 ± 0.25* |
+| | kills | 130.3 | 128.6 | −1.8 ± 2.1 |
+| | K/D team 0 / team 1 | 0.94 / 1.03 | 0.87 / 1.11 | −0.07 ± 0.03* / +0.09 ± 0.03* |
+| ... plain (32 seeds, 6 maps) | pickups, delivered, kills | 63.2, 39.6, 127.3 | 63.2, 39.6, 127.2 | all within ± 0.2 |
+| The map's frame; level_05 day 2 (64 seeds) | matches with no battery taken | 1 of 128 | 0 | |
+| | pickups | 8.39 | 8.77 | +0.38 ± 0.21 |
+| ... 6 maps (24 seeds) | everything | | | identical |
+| The pair; a carrier camps (24 seeds, maps 1, 2, 4-8 day 2) | Intercept bot-minutes, team 1 | 14.6 | 16.0 | +1.4 ± 0.3* |
+| | Intercept deaths a bot-minute, team 1 | 1.07 | 0.99 | −0.09 ± 0.05 |
+| | kills team 1 / deaths team 1 | 71.4 / 72.3 | 75.6 / 72.9 | +4.2 ± 1.2* / +0.5 ± 0.9 |
+| | K/D team 1 | 1.03 | 1.08 | +0.05 ± 0.02* |
+| | campers killed (of 10.5 camps) | 2.50 | 2.75 | +0.25 ± 0.15 |
+| | delivered | 49.7 | 49.9 | +0.2 ± 0.5 |
+| ... plain (24 seeds, 6 maps) | kills team 1 / deaths team 1 | 63.7 / 62.8 | 66.0 / 62.9 | +2.3 ± 0.8* / +0.1 ± 0.8 |
+| | carriers killed | 10.6 | 11.8 | +1.2 ± 0.4* |
+| | delivered | 39.6 | 39.3 | −0.3 ± 0.2 |
+
+- The nudge's K/D: both teams use the same code, so the move is between the sides (team 1's deaths −2.7 ± 1.0* in 10 v 10), and both deliver more.
+- The pair's effect is in 10 v 10 (4 v 4 within the noise): the team that sends it kills more and dies no more.
+
+**Tried and left off.**
+- The camping carrier's score times `camp_cut` 0.25 (one bot, no alarm). At a camper: team 1's Intercept minutes −3.6 ± 0.4* and its Intercept deaths −3.3 ± 0.9*, but the deaths a bot-minute did not fall (1.07 to 1.11), and K/D and deliveries stayed within the noise. On the plain bench it cut Intercept minutes by 10-20 %, and deliveries moved −0.3 ± 0.2. The number stays at 1 (off) for the bench.
+- The team's set-aside of a battery after two "could not take it" or three "took no battery" (30-60 s): not retried. #361 measured it worse on its guards. With the two causes above gone, stands given up are 0.03 a pickup on the plain bench (1.6 a seed, none at a stale spot), and the set-aside would leave real batteries lying.
+
+**Not verified:** no real match was played with these. The stand-in game's take is its own rule (§2.2). The camper is a frozen bot, not a player who hides and shoots.
+
+### 2.8 The owner's evening matches of 2026-10-23 (#343 at 3d886b74; built 2026-10-23)
+
+The check of the four evening PvB matches (`private/pvb-343-check/analysis/REPORT.md` §3, §4) found three things in this area.
+
+**A carrier no longer believed to carry** (0x1b8ee975, 607-651 s; PROVEN). One world showed batteries 6 and 8 picked up by bots 6 and 4 side by side, so each was the other's runner-up. Bot 4 put 8 in; bot 6's put-ins with 6 failed (why is open), and the belief moved (§2.4) to bot 4, who carried nothing. Bot 4 then tried 9 put-ins in 30 s, and bot 6 wandered 35 s with the battery, not knowing he had it, and died with it. Now one who picked up a battery is no runner-up for any other carry (the game gives a battery only to a player carrying nothing, `victory_item_core::can_use` 0x300710), even after he has put his own in (`Tracker::carriers_seen`; test `one_who_picked_up_another_battery_is_not_believed_to_carry_this_one`). On the plain bench it never changed a run (12 seeds, identical sums).
+
+**Raids taken at near-zero scores** (PROVEN; the cause LIKELY). In 0x6da44bbb the team behind (team 0) took 47 raids at 0.00-0.16: 849 bot-s, 14 deaths, no steal. In 0x1b8ee975 it took 57, none of which stole. Why Raid won there: behind on points an attack had no floor (`Bands::behind_floor` 0, §3), so any raid above zero kept the objective band over every fight play. Since the hold (a raid once taken is scored as if their dead were dead and none were near their container), those raids also ran on: 14 s median in 0x6da44bbb, against 4.5 s live before the hold. Raids taken at 0.005 had no enemy dead and 150-180 m to walk. The floor behind is now 0.06. In those two matches it would have left team 0 11 raids of 47 and 11 of 57; the one raid that stole that evening (team 1, 0.10) stays.
+
+Asymmetric bench (`real_bot_cost`, 600 s, `SRP_BENCH_START=3,7` and `7,3`, 10 batteries, maps 1-8 day 2, 4 v 4 and 7 v 7, seeds 1-6; a pair is a seed and a start; ± the standard error of the difference, * over 2 of them):
+
+| Measure, the side behind, a pair | Floor 0 | 0.03 | 0.06 | 0.10 |
+|---|---|---|---|---|
+| raids | 299 | 231 (−68 ± 11*) | 166 (−133 ± 8*) | 102 (−197 ± 11*) |
+| raid bot-s | 6,097 | 4,270 (−1,827 ± 175*) | 2,846 (−3,252 ± 210*) | 1,721 (−4,376 ± 241*) |
+| raid deaths | 29.5 | 26.4 (−3.1 ± 3.5) | 18.8 (−10.8 ± 2.8*) | 13.8 (−15.8 ± 3.2*) |
+| raid steals | 8.3 | 8.4 (+0.2 ± 1.1) | 9.2 (+0.9 ± 0.8) | 6.9 (−1.3 ± 1.1) |
+| points won back | 10.8 | 9.6 (−1.2 ± 2.7) | 10.3 (−0.4 ± 3.0) | 4.4 (−6.3 ± 2.9*) |
+| kills | 421 | 415 (−6 ± 6) | 434 (+13 ± 6*) | 420 (−1 ± 8) |
+
+- The bench's `sums:` line now carries each side's raids (runs, bot-s, came within 5 m, stole, died) and the steals; `SRP_BENCH_SHOW_RAIDS=1` prints each raid (side, score at the take, s, nearest m, stole, died, what came next).
+- With floor 0, the behind side's raids by score at the take: under 0.03, 2,037 raids and 22 steals (1.1 %); 0.03-0.10, 1,183 and 34 (2.9 %); 0.10 and over, 368 and 43 (11.7 %).
+- Before the hold, F0 measured a floor of 0.05 winning back less than 0 (§3). With the hold it costs nothing: the raids it removes are the long walks at no window.
+
+**Batteries the team could not take.**
+- *Under an overhang* (0x1b8ee975 battery 4, 236 s untaken; PROVEN on the map's grid). It lay at (−12.7, 36.3, 25.7) on a walk whose floor (36.2) is reached by route; a floor 2.7 m lower runs under it. Bots that fell off the walk stood on the lower floor, 1.4 m across from the battery, inside the take's reach (1.5 m across, no height), and tried their stands from below (one for 36 s; "took no battery"). Now a take whose stand under the battery's floor (over 1.2 m below it, `collect::BELOW_STAND_M`) has failed walks up to the stand by the route, however near across, and the take goes on there (test `a_take_failed_under_its_floor_walks_up_to_it`). A take from below that works is left alone: gating every take from 1.2 m below, before any use, cost 3.5 pickups of 66 a seed on the plain bench (−3.5 ± 0.7*); at 2.0 m, 0.3 ± 0.3.
+- *By a ledge the team keeps falling from* (0x1b8ee975 battery 6 at (5.1, 35.5, 60.1), 455 s untaken through 166 Collect plays; 17 falls logged as "off its reckoning, plans again to" the battery, 7 of them deaths). The way there is #372's. Here, a bot going for a battery that is over 2 m off its reckoning and over 1.2 m below the battery, within 8 m across of it, fell there (`TeamKnowledge::fell_near`; one fall a bot in 5 s). After 3 such falls within 120 s, the battery is not offered for 60 s after the last (`fallen_at`, collect's `fall_near_m`, `falls_aside`, `falls_window_s`, `falls_aside_s`; test `falls_at_a_battery_set_it_aside_for_a_while`). Replayed on the 17 falls' times (a GUESS: the later falls are taken to come as they did), it sets battery 6 aside for up to 300 of its 455 s, and 8 of the falls would not have happened. The stand-in body does not fall, so on the bench it never fires (identical sums).
+- *0x6da44bbb batteries 7 and 8, never moved in 900 s:* not the bots'. On the map's grid, battery 7 is walkable but lies behind a fixed zone (`past_fixed_zones` false); battery 8 is not reachable from the spawns. Neither was offered, which is right.
+
+**The plain bench** (180 s, 6 maps, 4 v 4 and 10 v 10, 24 seeds; the previous commit d41942c8; this commit; and this commit with the old raid floor, so the other three changes alone; a seed's sums, ± as above):
+
+| Measure | d41942c8 | This commit | Floor 0 (the other three) |
+|---|---|---|---|
+| pickups | 63.4 | 63.4 (0.0 ± 0.8) | 63.5 (+0.1 ± 0.3) |
+| delivered | 39.3 | 39.4 (+0.1 ± 0.4) | 39.1 (−0.2 ± 0.1) |
+| "could not take it" ends | 0.50 | 0.42 (−0.1 ± 0.2) | 0.33 (−0.2 ± 0.2) |
+| kills | 128.4 | 128.1 (−0.3 ± 1.5) | 128.9 (+0.5 ± 0.5) |
+| deaths team 0 / team 1 | 72.0 / 62.9 | 70.8 / 63.1 (−1.2 ± 0.9 / +0.3 ± 1.0) | 71.9 / 63.0 (0.0 ± 0.3 / +0.1 ± 0.3) |
+| carriers killed | 11.8 | 11.8 (+0.1 ± 0.6) | 11.9 (+0.2 ± 0.1) |
+| K/D team 0 / team 1 | 0.89 / 1.09 | 0.91 / 1.07 (+0.02 ± 0.02 / −0.02 ± 0.02) | 0.89 / 1.09 (0.00 ± 0.01 / 0.00 ± 0.01) |
+
+- The whole-match tests pass (`raids_in_whole_battery_matches`, `four_bots_a_side…`, `with_the_battery_cheat…`, `timed_batteries…`, `a_take_waits…`, `bots_hold_fire…`, the Team Deathmatch, `collects_filter_agrees…`).
+
+**Not verified:** no real match was played with these. The bench cannot show the overhang or the falls (the stand-in neither stands under the walk nor falls); their benefit rests on the real matches above.
+
 ## 3. Plays
 
 Each play has a score from the situation, a precondition and steps. A commander per team hands them out every ~0.5 s: never two bots on one ambush, and no bot parked at its own container. In the saved worlds lives that stay in their own third are the worst in every mode (K/D 0.3–0.6, ~0.03 batteries a life), so a steal is answered by the 1–2 nearest bots (the thief cheat and the alarms in §4); the only guard is play 18.
@@ -361,7 +457,7 @@ What decides the winner (52 matches of 6+ players with a result, 10 of them reco
 - The battery modes are won by the batteries: winners picked up more (20 of 25 matches), lost fewer on the way home (put in per pickup 1.00 against 0.67) and raided the enemy's container (play 24); more kills went with the win in only 64 % of them.
 - Winners mostly won the gunfight itself (the first aimed shot won 85 % against 71 %): skill or gear, not a team pattern. Focus fire, crossfire and who saw first did not separate them. For both sides, firing back within 0.5 s and breaking the line of sight when losing paid.
 - The commander keeps a slot (a battery, a post) with the bot that holds it unless another bot's claim beats it by the margin: two bots no longer swap one battery every half second.
-- **The commander's bands** (alarm > objective > fight > roam; `team::Bands`): an objective first, but only a real one. An objective scoring under 0.10 (its curves all but rule it out) competes in the roam band by its score; the bot's running play keeps its band down to half that. A second bot on a container a teammate already has (a second raider, a second guard of the lead) needs 0.20. In the owner's matches of 2026-10-16, 192 of 226 raids were taken at under 0.05, over a roam at 1.00, and gave no steal; the two that scored were taken at 0.21 and 0.24. In the fight band instead (tried), a raid at 0.02 still beat every roam. Bench, 600 s, 40 seeds, 6 maps, 4 v 4 and 10 v 10: raids taken 7,271 -> 510 (6,137 of them under 0.05 before), steals by raiders 8 -> 7, all steals 33 -> 30, deliveries 9,572 -> 9,543 (±37) and kills 22,353 -> 22,371 (±212), both within the noise. Alarms are never demoted. **Behind on points** (the HUD's score gap under 0) an attack on the enemy's container (raid, sneak, late denial; `team::attack`) has no floor and no second-bot bar (`Bands::behind_floor`, `Bands::behind_second`, both 0): attacks score as products of many parts and most sit under 0.10, so with the floor the team behind in the owner's 7 v 7 matches 0x652d4e6e, 0x1a0961e2 and 0x7298fb57 (2-5 down, every battery home) took none of them and held, grouped and roamed instead; before the floor it took 25-43 % of them and came back from -3 to 0 in one. Level or ahead the floor stands. Asymmetric bench (`SRP_BENCH_START=3,7` and `7,3`, 10 batteries all home, 7 v 7, 600 s, 4 battery maps, 20 seeds): points won back by the side behind 51 -> 110 (+59 ±18), its steals 81 -> 120, its deaths on an attack 0.67 -> 0.41 a bot-minute, 44 -> 79 % of its attack time with a teammate attacking too; a floor of 0.05 (+37) or the second bar kept (+38) won back less. With batteries lying (`0,2`, `2,0`) deliveries hold (+7 ±12). The normal bench (180 s, 20 seeds) holds: delivered 2457 -> 2452, kills 3204 -> 3208.
+- **The commander's bands** (alarm > objective > fight > roam; `team::Bands`): an objective first, but only a real one. An objective scoring under 0.10 (its curves all but rule it out) competes in the roam band by its score; the bot's running play keeps its band down to half that. A second bot on a container a teammate already has (a second raider, a second guard of the lead) needs 0.20. In the owner's matches of 2026-10-16, 192 of 226 raids were taken at under 0.05, over a roam at 1.00, and gave no steal; the two that scored were taken at 0.21 and 0.24. In the fight band instead (tried), a raid at 0.02 still beat every roam. Bench, 600 s, 40 seeds, 6 maps, 4 v 4 and 10 v 10: raids taken 7,271 -> 510 (6,137 of them under 0.05 before), steals by raiders 8 -> 7, all steals 33 -> 30, deliveries 9,572 -> 9,543 (±37) and kills 22,353 -> 22,371 (±212), both within the noise. Alarms are never demoted. **Behind on points** (the HUD's score gap under 0) an attack on the enemy's container (raid, sneak, late denial; `team::attack`) had no floor and no second-bot bar (`Bands::behind_floor`, `Bands::behind_second`, both 0; the floor is 0.06 since the raid hold, §2.8): attacks score as products of many parts and most sit under 0.10, so with the floor the team behind in the owner's 7 v 7 matches 0x652d4e6e, 0x1a0961e2 and 0x7298fb57 (2-5 down, every battery home) took none of them and held, grouped and roamed instead; before the floor it took 25-43 % of them and came back from -3 to 0 in one. Level or ahead the floor stands. Asymmetric bench (`SRP_BENCH_START=3,7` and `7,3`, 10 batteries all home, 7 v 7, 600 s, 4 battery maps, 20 seeds): points won back by the side behind 51 -> 110 (+59 ±18), its steals 81 -> 120, its deaths on an attack 0.67 -> 0.41 a bot-minute, 44 -> 79 % of its attack time with a teammate attacking too; a floor of 0.05 (+37) or the second bar kept (+38) won back less. With batteries lying (`0,2`, `2,0`) deliveries hold (+7 ±12). The normal bench (180 s, 20 seeds) holds: delivered 2457 -> 2452, kills 3204 -> 3208.
 ### 3.1 Fewer plays dropped at once, supports that do something (built 2026-10-23)
 
 The audit of three real 7 v 7 matches (2026-10-22) found plays taken and ended within the second over and over (the churn), followers standing beside their leader doing nothing, and few trades. What changed:

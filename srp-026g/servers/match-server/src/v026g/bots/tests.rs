@@ -111,6 +111,9 @@ type Queued = (u32, u32, (f32, f32), Option<Place>, &'static Gun);
 /// (alive) it fell since, if it did.
 type StolenMark = (u8, Option<(u32, bool)>);
 
+/// Every this long one lying battery is moved (`Game::nudge`), ms.
+const NUDGE_EVERY_MS: u32 = 20_000;
+
 /// A carrier killed this soon after his take counts as killed taking it
 /// (`Game::taken_killed`), ms.
 const TAKEN_KILLED_MS: u32 = 3_000;
@@ -187,6 +190,23 @@ struct Game {
     /// Batteries no use takes off the floor (`SRP_BENCH_UNTAKEABLE=<n>`:
     /// the first n; as the sunk ones of audit #7, which a use never took).
     untakeable: usize,
+    /// A camping carrier (audit #6, `SRP_BENCH_CAMP=<m>`): the first of
+    /// team 0's carriers to come within this of his container stops there,
+    /// moves no more and puts nothing in until he dies or no longer
+    /// carries (as the owner's match 0x4da3b51d's bot 13, 8 m from his
+    /// container for 273 s). The camper and when he began, once.
+    camp_m: Option<f32>,
+    camper: Option<(Place, u32)>,
+    camp_done: bool,
+    /// How the camping ended: (began, ended, he died).
+    camp_ended: Option<(u32, u32, bool)>,
+    /// Batteries moved unseen (audit #7, `SRP_BENCH_NUDGE=<m>`): every
+    /// [`NUDGE_EVERY_MS`] one lying battery, in turn, moves this far on its
+    /// floor, as one an enemy took and dropped dead a step on (the owner's
+    /// match 0x4da3b51d, battery 3: 0.7 m); the next nudge's time, and how
+    /// many moved.
+    nudge: Option<(f32, u32)>,
+    nudged: u32,
     /// Every shot, for the bench's fight tally ([`fight_tally`]).
     shot_facts: Vec<fight_tally::ShotFact>,
     /// Shots spread as the game's do ([`bench_spread`], `SRP_BENCH_SPREAD`).
@@ -304,6 +324,12 @@ impl Game {
             use_line: false,
             take_m: BATTERY_M,
             untakeable: 0,
+            camp_m: None,
+            camper: None,
+            camp_done: false,
+            camp_ended: None,
+            nudge: None,
+            nudged: 0,
             shot_facts: Vec::new(),
             spread: false,
             world,
@@ -414,7 +440,11 @@ impl Game {
             }
         }
         self.record();
+        self.camp(tick, &mut pressed);
         for place in 0..n {
+            if self.camper.is_some_and(|(p, _)| p == place) {
+                continue;
+            }
             if !self.bodies[place].alive {
                 let team = usize::from(self.bodies[place].team);
                 let may = self.tickets.is_none_or(|tickets| tickets[team] > 0);
@@ -444,6 +474,12 @@ impl Game {
         }
         self.shoot(tick);
         self.use_and_drop(&pressed);
+        if let Some((m, next)) = self.nudge
+            && tick >= next
+        {
+            self.nudge = Some((m, next + NUDGE_EVERY_MS));
+            self.nudge_one(m, tick);
+        }
         // Timed batteries: one appears by the next station in turn.
         if let Some((next, every)) = self.timed
             && tick >= next
@@ -453,6 +489,69 @@ impl Game {
             self.batteries
                 .push(Lying::Free(at + Vec3::new(1.5, 0.3, 0.0), 0));
             self.timed = Some((next + every, every));
+        }
+    }
+
+    /// A lying battery, the next in turn, moved `m` on its floor (`nudge`).
+    fn nudge_one(&mut self, m: f32, tick: u32) {
+        let lying: Vec<usize> = (0..self.batteries.len())
+            .filter(|&b| matches!(self.batteries[b], Lying::Free(..)))
+            .collect();
+        if lying.is_empty() {
+            return;
+        }
+        let k = (tick / NUDGE_EVERY_MS) as usize;
+        let battery = lying[k % lying.len()];
+        let Lying::Free(at, mask) = self.batteries[battery] else {
+            return;
+        };
+        let grid = &self.world.grid;
+        let a = k as f32 * 2.4;
+        let to = Vec3::new(at.x + m * a.cos(), at.y, at.z + m * a.sin());
+        let (Some(from_floor), Some(to_floor)) = (grid.locate(at, 0.6), grid.locate(to, 0.6)) else {
+            return;
+        };
+        let (from_floor, to_floor) = (grid.position(from_floor), grid.position(to_floor));
+        if to_floor.distance_xz(to) > 0.3 || (to_floor.y - from_floor.y).abs() > 0.5 {
+            return;
+        }
+        let up = at.y - from_floor.y;
+        self.batteries[battery] = Lying::Free(Vec3::new(to.x, to_floor.y + up, to.z), mask);
+        self.nudged += 1;
+    }
+
+    /// The camping carrier (`camp_m`): the first of team 0's carriers
+    /// within `camp_m` of his container becomes him; he presses no use
+    /// (and `step` does not move him) until he dies or no longer carries.
+    fn camp(&mut self, tick: u32, pressed: &mut [u32]) {
+        let Some(camp_m) = self.camp_m else {
+            return;
+        };
+        if let Some((place, began)) = self.camper {
+            let body = &self.bodies[place];
+            if body.alive && body.carrying.is_some() {
+                pressed[place] &= !key::USE;
+                return;
+            }
+            self.camp_ended = Some((began, tick, !body.alive));
+            self.camper = None;
+            self.camp_done = true;
+        }
+        if self.camp_done {
+            return;
+        }
+        let Some(&(_, home)) = self.containers.iter().find(|(t, _)| *t == 0) else {
+            return;
+        };
+        if let Some(place) = (0..self.bodies.len()).find(|&p| {
+            let body = &self.bodies[p];
+            body.alive
+                && body.team == 0
+                && body.carrying.is_some()
+                && body.feet.distance_xz(home) <= camp_m
+        }) {
+            self.camper = Some((place, tick));
+            pressed[place] &= !key::USE;
         }
     }
 
@@ -981,6 +1080,8 @@ impl CarryTally {
 /// One raid of a soak, from its take to the bot's next play.
 #[derive(Clone, Debug, Default)]
 struct RaidRun {
+    /// The raider.
+    place: Place,
     /// Its score at the take.
     score: f32,
     /// How long it ran, s.
@@ -1048,6 +1149,7 @@ impl RaidTally {
                 }
                 *raid = on.map(|a| {
                     let run = RaidRun {
+                        place,
                         score: a.score,
                         nearest_m: f32::INFINITY,
                         ..Default::default()
@@ -3192,6 +3294,13 @@ fn real_bot_cost() {
             {
                 game.untakeable = n;
             }
+            game.camp_m = std::env::var("SRP_BENCH_CAMP")
+                .ok()
+                .and_then(|m| m.parse().ok());
+            game.nudge = std::env::var("SRP_BENCH_NUDGE")
+                .ok()
+                .and_then(|m| m.parse().ok())
+                .map(|m| (m, NUDGE_EVERY_MS));
             game.spread = std::env::var_os("SRP_BENCH_SPREAD").is_some();
             // As the game does (`gather_victory_items_rule::select_spawners`):
             // this many batteries at spawners drawn at random (the mode's
@@ -3244,7 +3353,7 @@ fn real_bot_cost() {
             let mut decisions = Decisions::default();
             let mut plays: std::collections::BTreeMap<String, u32> = Default::default();
             // Takes: plays ended "could not take it", and stands given up.
-            let (mut take_ends, mut stands_given_up) = (0u32, 0u32);
+            let (mut take_ends, mut stands_given_up, mut stands_stale) = (0u32, 0u32, 0u32);
             let mut theft_looks = 0u32;
             let mut stolen_known: Vec<(usize, u32)> = Vec::new();
             // World-seconds a stolen battery that fell lay unknown to its
@@ -3275,6 +3384,10 @@ fn real_bot_cost() {
             // Carriers killed with a battery, by the shooter's play and by
             // the carrier's team; and every play taken (F3: churn).
             let mut carrier_kills: std::collections::BTreeMap<String, u32> = Default::default();
+            // Living bots' ticks and deaths by their play and team
+            // (`Kind/team`).
+            let mut play_ticks: std::collections::BTreeMap<String, u64> = Default::default();
+            let mut deaths_by: std::collections::BTreeMap<String, u32> = Default::default();
             let mut carriers_killed = [0u32; 2];
             let mut takes_all = 0u32;
             let mut raids = RaidTally::default();
@@ -3310,6 +3423,9 @@ fn real_bot_cost() {
                         }
                         if now.1 > before.1 {
                             by_play.entry(play_of(place)).or_default()[3] += now.1 - before.1;
+                            *deaths_by
+                                .entry(format!("{}/{}", play_of(place), teams[place]))
+                                .or_default() += now.1 - before.1;
                             if attacking(place) {
                                 side[4] += u64::from(now.1 - before.1);
                             }
@@ -3343,6 +3459,13 @@ fn real_bot_cost() {
                     }
                     for bot in bots.bots.iter().flatten() {
                         let body = &game.bodies[bot.place];
+                        if body.alive {
+                            let kind = bot
+                                .assignment
+                                .as_ref()
+                                .map_or("none".to_owned(), |a| format!("{:?}", a.kind));
+                            *play_ticks.entry(format!("{kind}/{}", bot.team)).or_default() += 1;
+                        }
                         let searching = bot.assignment.as_ref().is_some_and(|a| {
                             a.kind == super::plays::PlayKind::Collect
                                 && matches!(a.target, super::plays::TargetRef::Spawner(_))
@@ -3469,6 +3592,28 @@ fn real_bot_cost() {
                         take_ends += 1;
                     } else if note.text.starts_with("took no battery") {
                         stands_given_up += 1;
+                        // Aimed at a belief the battery had left (it lies
+                        // over 0.2 m from the spot the note gives).
+                        let believed = note
+                            .text
+                            .split("believed at (")
+                            .nth(1)
+                            .and_then(|s| s.split(')').next())
+                            .map(|s| s.split(", ").filter_map(|v| v.parse::<f32>().ok()).collect::<Vec<_>>());
+                        let battery = note
+                            .text
+                            .strip_prefix("took no battery ")
+                            .and_then(|s| s.split(' ').next())
+                            .and_then(|s| s.parse::<usize>().ok());
+                        if let (Some([x, y, z]), Some(battery)) = (believed.as_deref(), battery)
+                            && let Some(Lying::Free(at, _)) = game.batteries.get(battery)
+                            && (*at - Vec3::new(*x, *y, *z)).length() > 0.2
+                        {
+                            stands_stale += 1;
+                            if std::env::var("SRP_BENCH_SHOW_STALE").is_ok() {
+                                println!("  stale stand at {} ms: lies at {at:?}; {}", note.time, note.text);
+                            }
+                        }
                     }
                     let key: String = note
                         .text
@@ -3580,7 +3725,7 @@ fn real_bot_cost() {
                 game.stolen
             );
             eprintln!(
-                "  takes: {} taken, {take_ends} could-not-take ends, {stands_given_up} stands given up",
+                "  takes: {} taken, {take_ends} could-not-take ends, {stands_given_up} stands given up ({stands_stale} at a belief the battery had left)",
                 game.taken
             );
             // F2: stolen batteries that fell, alive (dropped) or at the
@@ -3646,7 +3791,30 @@ fn real_bot_cost() {
                 "  by play (takes, under 0.05, kills, deaths, steals): {}",
                 rows.join("; ")
             );
-            eprintln!("  raids: {}", raid_line(&raids.finish()));
+            let raid_runs = raids.finish();
+            eprintln!("  raids: {}", raid_line(&raid_runs));
+            // A side's raids: [runs, bot-s, came within 5 m, stole, died].
+            let mut raid_sums = [[0f32; 5]; 2];
+            for run in &raid_runs {
+                let side = &mut raid_sums[usize::from(teams[run.place] & 1)];
+                side[0] += 1.0;
+                side[1] += run.ran_s;
+                side[2] += f32::from(u8::from(run.nearest_m <= 5.0));
+                side[3] += f32::from(u8::from(run.stole));
+                side[4] += f32::from(u8::from(run.died));
+                if std::env::var("SRP_BENCH_SHOW_RAIDS").is_ok() {
+                    eprintln!(
+                        "  raid {} {:.3} {:.1} {:.1} {} {} {}",
+                        teams[run.place] & 1,
+                        run.score,
+                        run.ran_s,
+                        run.nearest_m,
+                        u8::from(run.stole),
+                        u8::from(run.died),
+                        run.next.split(';').next().unwrap_or_default().replace(' ', "_")
+                    );
+                }
+            }
             eprintln!("  {}", blocks.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
             eprintln!(
@@ -3659,6 +3827,43 @@ fn real_bot_cost() {
                 f64::from(takes_all) / teams.len() as f64 / (f64::from(limit_s) / 60.0)
             );
             eprintln!("  carry: {}", carry.line(game.taken));
+            // One line of sums for comparing runs paired by seed.
+            let mut kd = [[0u32; 2]; 2];
+            for (place, stat) in game.stats.iter().enumerate() {
+                let side = &mut kd[usize::from(teams[place])];
+                side[0] += stat.0;
+                side[1] += stat.1;
+            }
+            let play_s: std::collections::BTreeMap<&String, f64> = play_ticks
+                .iter()
+                .map(|(k, n)| (k, *n as f64 * f64::from(TICK_MS) / 1000.0))
+                .collect();
+            let play_rows: std::collections::BTreeMap<&String, [u32; 5]> =
+                by_play.iter().map(|(k, r)| (k, *r)).collect();
+            eprintln!(
+                "  sums: {}",
+                serde_json::json!({
+                    "map": format!("{project}-{per_team}v{per_team}"),
+                    "seed": seed,
+                    "kills": [kd[0][0], kd[1][0]],
+                    "deaths": [kd[0][1], kd[1][1]],
+                    "delivered": game.delivered,
+                    "points": game.points,
+                    "taken": game.taken,
+                    "take_ends": take_ends,
+                    "stands_given_up": stands_given_up,
+                    "stands_stale": stands_stale,
+                    "carriers_killed": carriers_killed,
+                    "play_s": play_s,
+                    "by_play": play_rows,
+                    "deaths_by": deaths_by,
+                    "camper": game.camper.map(|(p, t)| (p, t, game.bodies[p].alive)),
+                    "camp_ended": game.camp_ended,
+                    "nudged": game.nudged,
+                    "raids": raid_sums,
+                    "stolen": game.stolen,
+                })
+            );
             eprintln!(
                 "  search: {:.0} bot-s at spawners' spots, {search_deaths} deaths in it",
                 search_ticks as f64 * f64::from(TICK_MS) / 1000.0
@@ -3830,9 +4035,8 @@ fn a_dropped_battery_put_back_after_a_fall_stays_on_its_teams_hud() {
     bots.facts(lying(5_000, reset, 2));
     let kept = known(&bots, 1).expect("still on team 1's HUD");
     assert!(kept.hud && kept.time == 5_000);
-    // In the bots' frame (without a map, the mirrored one).
-    let reset_frame = Vec3::new(reset.x, reset.y, -reset.z);
-    assert!((kept.at - reset_frame).length() < 1e-3, "{kept:?}");
+    // Where the world has it: the worlds are in the map's frame.
+    assert!((kept.at - reset).length() < 1e-3, "{kept:?}");
     assert!(known(&bots, 0).is_none());
 }
 
