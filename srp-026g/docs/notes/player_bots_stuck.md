@@ -293,6 +293,12 @@ Ranked by what they would do for the bots (each a suggestion, not built):
    after 3 s, `stuck: <recovery>`, `jumped again` or `a new life`;
    `moved_m`, `rose_m` from where it jumped). A hop that frees a body is a
    `went on` with some metres moved; one that does not, a `stuck` soon after.
+   `scripts/bot-traces/jumps.py <trace dir> [--logs <host logs>]` reports
+   them: by kind, how often and what followed; the jumps made while firing
+   (refused by the game before the hold) against the others; and the
+   spots where hops repeat. The player's game simulates the jump, so the
+   server's simulated matches cannot show what a jump gains: only traces of
+   real matches can.
 3. **Short stops** (GUESS on impact). Players stand 2 s at the median, 6 s
    at the 90th percentile; bots look about 1-2 s at an arrival and stand to
    aim. Suggest: `tactics.rs`'s hold plays end in 2-6 s by that spread.
