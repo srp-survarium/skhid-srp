@@ -23,6 +23,13 @@
 //!   ledges on the move: when a world puts the body well behind where its
 //!   keys took the reckoning while the ground there climbs a little
 //!   ([`Feel::hop_behind_m`]); at most once in a few seconds.
+//! - **It lines up for a jump of its route** ([`Motor::jump_ahead`]): from
+//!   [`LINE_UP_FROM_M`] before the take-off it walks to a run-up on the
+//!   jump's own line, turns to the jump (standing, for a turn of more than
+//!   [`LINE_UP_GO`]), and jumps walking along it from the take-off; it
+//!   keeps to that line through the jump. A jump that did not get it up is
+//!   tried again only from the run-up, [`JUMP_TRIES`] times in all; then
+//!   it gives up on it ([`Walked::JumpFailed`]).
 //!
 //! The numbers are [`Feel`]'s: tuning, not game data.
 
@@ -160,10 +167,71 @@ pub enum Walked {
     Arrived,
     /// Farther off the route than the caller allows.
     Off(f32),
+    /// A jump of the route did not get the body up in [`JUMP_TRIES`]
+    /// tries: the take-off.
+    JumpFailed(Vec3),
 }
 
-/// A jump not yet up its ledge is tried again after this long, seconds.
+/// A jump not yet up its ledge is pressed again no sooner than this,
+/// seconds (the game's jump is over 0.8 s after the press,
+/// `body::JUMP_AIR_MS`).
 pub const JUMP_AGAIN_S: f32 = 1.0;
+/// A jump of the route is lined up from this far before its take-off along
+/// the route, metres ([`Motor::jump_ahead`]).
+pub const LINE_UP_FROM_M: f32 = 2.5;
+/// The run-up: the jump is walked into from this far behind the take-off on
+/// the jump's line, metres (or half that, or none, where the way back is
+/// not clear).
+pub const RUN_UP_M: f32 = 0.8;
+/// On the jump's line: within this of it to a side, metres …
+const LINED_SIDE_M: f32 = 0.3;
+/// … from this far behind the run-up …
+const LINED_BEHIND_M: f32 = 0.5;
+/// … to this far past the take-off (a body pressed to the ledge's face is
+/// about a tenth of a metre past it: the face is about the landing's cell
+/// centre, `player_bots_stuck.md` §8.9).
+const LINED_PAST_M: f32 = 0.15;
+/// The run-up is reached this near, metres.
+const AT_RUN_UP_M: f32 = 0.3;
+/// On the jump's line it walks only facing within this of the jump's way,
+/// radians (else it stands and turns) …
+pub const LINE_UP_GO: f32 = 0.45;
+/// … and presses jump facing within this.
+pub const JUMP_FACING: f32 = 0.2;
+/// The game's jump rises from about 0.2 s after the press (the worlds,
+/// `body::JUMP_AIR_MS`): it is pressed that long before the body walks
+/// over the take-off at its speed …
+const JUMP_LEAD_S: f32 = 0.2;
+/// … and this much more, metres.
+const PRESS_M: f32 = 0.15;
+/// A body moving less than this a tick, m, is standing ([`Ahead::going`]).
+const STANDING_M: f32 = 0.02;
+/// Moving within this of the jump's way, radians, it goes the way
+/// ([`Ahead::going`]).
+const GOING_TURN: f32 = 0.6;
+/// After a press the body is kept walking on the jump's line this long,
+/// seconds: the jump's 0.8 s and a tick.
+const CARRY_S: f32 = 0.85;
+/// The feet within this under the landing's floor (and at most half the
+/// jump's rise), within [`UP_NEAR_M`] of it across: up the ledge, metres.
+pub const UP_M: f32 = 0.35;
+const UP_NEAR_M: f32 = 1.5;
+/// A jump is pressed at most this many times while it does not get the body
+/// up; then the motor gives up on it ([`Walked::JumpFailed`]). In the
+/// owner's matches a jump that did not get up at once got up at the next
+/// press 29 times in 124, at the one after 15 times
+/// (`player_bots_stuck.md` §8.9).
+pub const JUMP_TRIES: u32 = 3;
+/// The tries at a jump count on over a route planned again to it within
+/// this, seconds.
+const TRY_KEPT_S: f32 = 10.0;
+/// A world that shows the body at most this far from the take-off of the
+/// jump it last pressed, on its floor, and not up, has it still under that
+/// jump: the route is looked at from that jump's leg again, metres.
+const UNDER_JUMP_M: f32 = 1.5;
+/// A route's end higher than the feet by more than this is not arrived at
+/// (the end up a ledge: it is jumped to), metres.
+const ARRIVE_BELOW_M: f32 = 0.5;
 /// A low leg this near ahead, metres, is walked crouched already.
 pub const LOW_AHEAD_M: f32 = 1.0;
 /// The hop's trail keeps this many walking ticks (4 s: more than a
@@ -188,9 +256,13 @@ pub struct Motor {
     sprinting: bool,
     /// Ticks faced the way well enough to sprint.
     facing_ticks: u32,
-    /// The waypoint last jumped to and the ticks since
-    /// ([`Motor::jump_key`]).
-    jumped_at: Option<(usize, u32)>,
+    /// The route jump being made ([`Motor::jump_ahead`]).
+    jump_try: Option<JumpTry>,
+    /// Whether this tick's walk lines up for a jump of the route (the caller
+    /// lets go of crouch then: a crouched body does not jump).
+    lining_up: bool,
+    /// The route jump this tick's decision pressed, if any.
+    pressed: Option<RoutePress>,
     /// The sway's phase and the time, seconds, for it.
     phase: f32,
     t: f32,
@@ -213,6 +285,49 @@ pub struct Motor {
     jump: Option<JumpBy>,
 }
 
+/// A jump of the route being made: its take-off and landing (the
+/// waypoints), the presses made at it and the tick of the last, and
+/// whether the next press waits for the run-up ([`RUN_UP_M`]).
+#[derive(Clone, Copy, Debug)]
+struct JumpTry {
+    take_off: Vec3,
+    landing: Vec3,
+    tries: u32,
+    pressed: Option<u32>,
+    back: bool,
+}
+
+/// A press of a route jump, for the trace: the jump's take-off and landing,
+/// which try, how far before the take-off along the jump's way the feet
+/// were (negative past it), and how far from the way the heading was.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RoutePress {
+    pub take_off: Vec3,
+    pub landing: Vec3,
+    pub tries: u32,
+    pub before: f32,
+    pub facing: f32,
+}
+
+/// What the jump ahead asks of this tick's walk ([`Motor::jump_ahead`]).
+#[derive(Clone, Copy, Debug)]
+struct Ahead {
+    /// The point to walk toward.
+    aim: Vec3,
+    /// On the jump's line (or in the jump): walk only facing its way, and
+    /// press near the take-off.
+    lined: bool,
+    /// The jump's way, unit (map x/z).
+    way: [f32; 2],
+    /// How far before the take-off along the way the feet are.
+    before: f32,
+    /// Not moving against the jump's way (since the last tick: standing,
+    /// or within [`GOING_TURN`] of it).
+    going: bool,
+    /// Given up on: the take-off.
+    failed: Option<Vec3>,
+}
+
 /// Why the motor pressed jump.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum JumpBy {
@@ -230,7 +345,9 @@ impl Motor {
             walking: false,
             sprinting: false,
             facing_ticks: 0,
-            jumped_at: None,
+            jump_try: None,
+            lining_up: false,
+            pressed: None,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
             look: None,
@@ -248,10 +365,29 @@ impl Motor {
         self.jump
     }
 
+    /// The route jump this tick's decision pressed, if any: where, which
+    /// try, how lined up.
+    pub fn route_press(&self) -> Option<RoutePress> {
+        self.pressed
+    }
+
+    /// Whether this tick's walk lines up for a jump of the route, or is in
+    /// one ([`Motor::jump_ahead`]): no crouch then.
+    pub fn lining_up(&self) -> bool {
+        self.lining_up
+    }
+
     /// A new tick's decision begins.
     fn next_tick(&mut self) {
         self.clock = self.clock.wrapping_add(1);
         self.jump = None;
+        self.pressed = None;
+        self.lining_up = false;
+    }
+
+    /// Seconds since the tick `at` of this motor's clock.
+    fn since(&self, at: u32) -> f32 {
+        self.clock.wrapping_sub(at) as f32 * TICK_S
     }
 
     /// The tick's turn toward `yaw` and `pitch` from the pose: eased, within
@@ -302,9 +438,9 @@ impl Motor {
     ) -> (Decision, Walked) {
         self.next_tick();
         self.look = None;
+        self.under_jump(route, pose.feet);
         let (s, off) = route.progress(pose.feet);
-        let left = route.length() - s;
-        if left <= self.feel.arrive_m || pose.feet.distance_xz(route.end()) <= self.feel.arrive_m {
+        if self.arrived(route, s, pose.feet) {
             self.walking = false;
             self.sprinting = false;
             let turn = self.turn_toward(pose, pose.yaw, 0.0);
@@ -313,14 +449,23 @@ impl Motor {
         if off > off_m {
             return (Decision::default(), Walked::Off(off));
         }
-        let mut ahead = self.feel.look_ahead_m + self.feel.look_ahead_per_speed * pose.speed;
-        let mut target = route.point_at(s + ahead);
-        while ahead > MIN_AHEAD_M && !clear(target) {
-            ahead *= 0.6;
-            target = route.point_at(s + ahead);
-        }
+        let jump = self.jump_ahead(route, pose, s, &clear);
+        let target = match jump {
+            Some(jump) => jump.aim,
+            None => {
+                let mut ahead =
+                    self.feel.look_ahead_m + self.feel.look_ahead_per_speed * pose.speed;
+                let mut target = route.point_at(s + ahead);
+                while ahead > MIN_AHEAD_M && !clear(target) {
+                    ahead *= 0.6;
+                    target = route.point_at(s + ahead);
+                }
+                target
+            }
+        };
         let (dx, dz) = (target.x - pose.feet.x, target.z - pose.feet.z);
-        let sway = self.sway();
+        // No sway lining up: the jump's line is narrow.
+        let sway = if jump.is_some() { 0.0 } else { self.sway() };
         let heading = if dx.abs() + dz.abs() < 1e-3 {
             pose.yaw
         } else {
@@ -329,8 +474,11 @@ impl Motor {
         let turn = self.turn_toward(pose, heading, 0.0);
         let still = wrap(heading - (pose.yaw + turn.0)).abs();
 
-        // Walk while turning; let go only for a big turn.
-        if self.walking && still > self.feel.stop_turn {
+        // Walk while turning; let go only for a big turn (on a jump's line,
+        // for a turn off its way: it stands and turns to it first).
+        if jump.is_some_and(|jump| jump.lined) {
+            self.walking = still < LINE_UP_GO;
+        } else if self.walking && still > self.feel.stop_turn {
             self.walking = false;
         } else if !self.walking && still < self.feel.go_turn {
             self.walking = true;
@@ -353,9 +501,10 @@ impl Motor {
             self.sprinting = false;
         }
         // Crouched where a standing body does not fit (a low passage):
-        // no sprint there.
-        let low = route.low_ahead(s, LOW_AHEAD_M);
-        if low {
+        // no sprint there. Lining up for a jump: neither (a crouched body
+        // does not jump).
+        let low = jump.is_none() && route.low_ahead(s, LOW_AHEAD_M);
+        if low || jump.is_some() {
             self.sprinting = false;
         }
         let mut keys = 0;
@@ -368,10 +517,24 @@ impl Motor {
                 keys |= key::CROUCH;
             }
         }
-        keys |= self.jump_key(route, s);
+        if let Some(jump) = jump {
+            if let Some(take_off) = jump.failed {
+                return (Decision { keys: 0, turn }, Walked::JumpFailed(take_off));
+            }
+            keys |= self.jump_key(&jump, still, pose.speed);
+        }
         let may = self.walking && still <= self.feel.hop_max_turn;
         keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may);
         (Decision { keys, turn }, Walked::OnTheWay)
+    }
+
+    /// Whether the route is walked to its end: within [`Feel::arrive_m`] of
+    /// it, and not under it ([`ARRIVE_BELOW_M`]: an end up a ledge is jumped
+    /// to).
+    fn arrived(&self, route: &Route, s: f32, feet: Vec3) -> bool {
+        let end = route.end();
+        (route.length() - s <= self.feel.arrive_m || feet.distance_xz(end) <= self.feel.arrive_m)
+            && end.y - feet.y <= ARRIVE_BELOW_M
     }
 
     /// The decision of one tick that walks the route while the view looks
@@ -389,57 +552,236 @@ impl Motor {
         self.look = None;
         self.sprinting = false;
         self.facing_ticks = 0;
+        self.under_jump(route, pose.feet);
         let (s, off) = route.progress(pose.feet);
-        let turn = self.turn_toward(pose, aim.0, aim.1);
-        if route.length() - s <= self.feel.arrive_m
-            || pose.feet.distance_xz(route.end()) <= self.feel.arrive_m
-        {
+        if self.arrived(route, s, pose.feet) {
             self.walking = false;
+            let turn = self.turn_toward(pose, aim.0, aim.1);
             return (Decision { keys: 0, turn }, Walked::Arrived);
         }
         if off > off_m {
+            let turn = self.turn_toward(pose, aim.0, aim.1);
             return (Decision { keys: 0, turn }, Walked::Off(off));
         }
-        let mut ahead = self.feel.look_ahead_m;
-        let mut target = route.point_at(s + ahead);
-        while ahead > MIN_AHEAD_M && !clear(target) {
-            ahead *= 0.6;
-            target = route.point_at(s + ahead);
-        }
+        let jump = self.jump_ahead(route, pose, s, &clear);
+        // On a jump's line the view turns to the jump's way: a jump goes
+        // the way the body faces and its keys push (the jump branch of the
+        // client's `bullet_character_controller::player_step`, 0x7BF80..
+        // 0x7C13B), and a player looks where he jumps.
+        let lined = jump.filter(|jump| jump.lined);
+        let turn = match lined {
+            Some(jump) => self.turn_toward(pose, yaw_of(jump.way), aim.1),
+            None => self.turn_toward(pose, aim.0, aim.1),
+        };
+        let target = match jump {
+            Some(jump) => jump.aim,
+            None => {
+                let mut ahead = self.feel.look_ahead_m;
+                let mut target = route.point_at(s + ahead);
+                while ahead > MIN_AHEAD_M && !clear(target) {
+                    ahead *= 0.6;
+                    target = route.point_at(s + ahead);
+                }
+                target
+            }
+        };
         let (dx, dz) = (target.x - pose.feet.x, target.z - pose.feet.z);
-        self.walking = true;
         let mut keys = keys_toward(wrap(yaw_of([dx, dz]) - (pose.yaw + turn.0)));
-        if route.low_ahead(s, LOW_AHEAD_M) {
+        self.walking = true;
+        if let Some(jump) = lined {
+            let still = wrap(yaw_of(jump.way) - (pose.yaw + turn.0)).abs();
+            self.walking = still < LINE_UP_GO;
+            keys = if self.walking { key::FORWARD } else { 0 };
+        } else if jump.is_none() && route.low_ahead(s, LOW_AHEAD_M) {
             keys |= key::CROUCH;
         }
-        // Up a ledge while aiming too (the walk aiming had no jump: a body
-        // walked into the ledge's wall for as long as it aimed).
-        keys |= self.jump_key(route, s);
+        if let Some(jump) = jump {
+            if let Some(take_off) = jump.failed {
+                return (Decision { keys: 0, turn }, Walked::JumpFailed(take_off));
+            }
+            let still = wrap(yaw_of(jump.way) - (pose.yaw + turn.0)).abs();
+            keys |= self.jump_key(&jump, still, pose.speed);
+        }
         keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), true);
         (Decision { keys, turn }, Walked::OnTheWay)
     }
 
-    /// The jump of this tick up the route's next ledge: just before it,
-    /// walking into it; again every [`JUMP_AGAIN_S`] while the body is still
-    /// short of it (a jump that did not get it up: it hit the edge, or it
-    /// came too early).
-    fn jump_key(&mut self, route: &Route, s: f32) -> u32 {
-        if let Some((_, ticks)) = self.jumped_at.as_mut() {
-            *ticks = ticks.saturating_add(1);
+    /// The route's next jump, if its take-off is within [`LINE_UP_FROM_M`]
+    /// along the route and the body is not up it yet: where to walk to line
+    /// up for it. A player lines up first and jumps from the edge: a jump
+    /// goes the way the body faces and its keys push, so a jump pressed
+    /// short of the take-off while steering past it flew on along the
+    /// approach where the jump's way turned from it (Cologne's battery 6,
+    /// `player_bots_stuck.md` §8.8-8.9).
+    ///
+    /// - Off the jump's line, or after a try that did not get up, it walks
+    ///   to the run-up ([`RUN_UP_M`] behind the take-off on the line, or
+    ///   half that, or the take-off itself, whichever it walks to straight).
+    /// - On the line ([`LINED_SIDE_M`]), and in the jump ([`CARRY_S`]), it
+    ///   walks along the jump's way, past the landing: the caller walks
+    ///   only facing it ([`LINE_UP_GO`]) and presses at the take-off
+    ///   ([`Motor::jump_key`]).
+    /// - [`JUMP_TRIES`] presses that did not get it up: given up on.
+    fn jump_ahead(
+        &mut self,
+        route: &Route,
+        pose: &Pose,
+        s: f32,
+        clear: &impl Fn(Vec3) -> bool,
+    ) -> Option<Ahead> {
+        let (k, before_route) = route.next_jump(s)?;
+        if before_route > LINE_UP_FROM_M {
+            return None;
         }
-        let Some((k, before)) = route.next_jump(s) else {
+        let points = route.points();
+        let (take_off, landing) = (points[k - 1].at, points[k].at);
+        let way = unit(landing.x - take_off.x, landing.z - take_off.z)?;
+        let feet = pose.feet;
+        if is_up(feet, take_off, landing) {
+            return None;
+        }
+        // The tries at this jump, kept over a route planned again to it.
+        let same = |t: &JumpTry| {
+            (t.take_off - take_off).length() < 0.3
+                && (t.landing - landing).length() < 0.3
+                && t.pressed.is_none_or(|at| self.since(at) < TRY_KEPT_S)
+        };
+        let mut jump = match self.jump_try {
+            Some(t) if same(&t) => t,
+            _ => JumpTry {
+                take_off,
+                landing,
+                tries: 0,
+                pressed: None,
+                back: false,
+            },
+        };
+        let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < CARRY_S);
+        self.lining_up = true;
+        if jump.tries >= JUMP_TRIES && !in_the_air {
+            self.jump_try = Some(jump);
+            return Some(Ahead {
+                aim: take_off,
+                lined: false,
+                way,
+                before: 0.0,
+                going: false,
+                failed: Some(take_off),
+            });
+        }
+        let at = |m: f32| Vec3::new(take_off.x - way[0] * m, take_off.y, take_off.z - way[1] * m);
+        let run_up = [RUN_UP_M, 0.5 * RUN_UP_M]
+            .into_iter()
+            .find(|&m| clear(at(m)))
+            .unwrap_or(0.0);
+        let (dx, dz) = (feet.x - take_off.x, feet.z - take_off.z);
+        let along = dx * way[0] + dz * way[1];
+        let side = (dx * way[1] - dz * way[0]).abs();
+        let on_line =
+            side <= LINED_SIDE_M && along <= LINED_PAST_M && along >= -(run_up + LINED_BEHIND_M);
+        if jump.back && (at(run_up).distance_xz(feet) <= AT_RUN_UP_M || (run_up == 0.0 && on_line))
+        {
+            jump.back = false;
+        }
+        let lined = in_the_air || (on_line && !jump.back);
+        let aim = if lined {
+            // Along the jump's way, past the landing.
+            Vec3::new(
+                take_off.x + way[0] * 3.0,
+                landing.y,
+                take_off.z + way[1] * 3.0,
+            )
+        } else if clear(at(run_up)) {
+            at(run_up)
+        } else {
+            // The run-up not in a line yet (round a corner): the route, up
+            // to the take-off.
+            let mut ahead = self.feel.look_ahead_m.min(before_route.max(0.0));
+            let mut target = route.point_at(s + ahead);
+            while ahead > MIN_AHEAD_M && !clear(target) {
+                ahead *= 0.6;
+                target = route.point_at(s + ahead);
+            }
+            target
+        };
+        // The way the feet went since the last tick (the hop's trail): a
+        // body facing the way but still moving off it (back from the
+        // run-up, the walk's blend) is not pressed for.
+        let going = self
+            .trail
+            .back()
+            .filter(|&&(at, _)| self.clock.wrapping_sub(at) <= 1)
+            .is_none_or(|&(_, before)| {
+                let (mx, mz) = (feet.x - before.x, feet.z - before.z);
+                let moved = mx.hypot(mz);
+                moved < STANDING_M || mx * way[0] + mz * way[1] >= GOING_TURN.cos() * moved
+            });
+        self.jump_try = Some(jump);
+        Some(Ahead {
+            aim,
+            lined,
+            way,
+            before: -along,
+            going,
+            failed: None,
+        })
+    }
+
+    /// The jump of this tick up the route's next ledge ([`Self::jump_ahead`]):
+    /// on the jump's line, walking and facing its way within
+    /// [`JUMP_FACING`] (`still`) and going it ([`Ahead::going`]), as the
+    /// body walks over the take-off
+    /// ([`JUMP_LEAD_S`] ahead at its `speed`), and not in a jump or within
+    /// [`JUMP_AGAIN_S`] of the last press. Each press counts a try; the next
+    /// waits for the run-up.
+    fn jump_key(&mut self, ahead: &Ahead, still: f32, speed: f32) -> u32 {
+        let Some(mut jump) = self.jump_try else {
             return 0;
         };
-        let again = match self.jumped_at {
-            Some((at, ticks)) => at != k || ticks as f32 * TICK_S >= JUMP_AGAIN_S,
-            None => true,
+        let rested = jump
+            .pressed
+            .is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S));
+        let near = ahead.before <= JUMP_LEAD_S * speed + PRESS_M;
+        if !(ahead.lined && ahead.going && self.walking && still <= JUMP_FACING && near && rested) {
+            return 0;
+        }
+        jump.tries += 1;
+        jump.pressed = Some(self.clock);
+        jump.back = true;
+        self.jump_try = Some(jump);
+        self.pressed = Some(RoutePress {
+            take_off: jump.take_off,
+            landing: jump.landing,
+            tries: jump.tries,
+            before: ahead.before,
+            facing: still,
+        });
+        self.jump = Some(JumpBy::Route);
+        key::JUMP
+    }
+
+    /// A world showed the body still under the jump it last pressed (on the
+    /// take-off's floor, near it, not up) while the reckoning had taken it
+    /// up and the route on past it (`body::JUMP_AIR_MS`): the route is
+    /// looked at from that jump's leg again, so the jump is lined up again
+    /// instead of walked on from under it.
+    fn under_jump(&self, route: &mut Route, feet: Vec3) {
+        let Some(jump) = self.jump_try else {
+            return;
         };
-        if self.walking && before < 0.8 && again {
-            self.jumped_at = Some((k, 0));
-            self.jump = Some(JumpBy::Route);
-            key::JUMP
-        } else {
-            0
+        if jump.pressed.is_none_or(|at| self.since(at) >= TRY_KEPT_S)
+            || is_up(feet, jump.take_off, jump.landing)
+            || feet.distance_xz(jump.take_off) > UNDER_JUMP_M
+            || (feet.y - jump.take_off.y).abs() > UP_M
+        {
+            return;
+        }
+        let leg = route
+            .points()
+            .iter()
+            .position(|point| point.jump && (point.at - jump.landing).length() < 0.3);
+        if let Some(k) = leg.filter(|&k| k >= 1 && route.segment() >= k) {
+            route.back_to(k - 1);
         }
     }
 
@@ -485,8 +827,9 @@ impl Motor {
             .hopped
             .is_none_or(|at| self.clock.wrapping_sub(at) as f32 * TICK_S >= feel.hop_every_s);
         let jumped = self
-            .jumped_at
-            .is_some_and(|(_, ticks)| (ticks as f32 * TICK_S) < feel.hop_after_jump_s);
+            .jump_try
+            .and_then(|jump| jump.pressed)
+            .is_some_and(|at| self.since(at) < feel.hop_after_jump_s);
         let from = (s - feel.hop_look_m).max(0.0);
         let low = route.low_ahead(from, feel.hop_look_m + LOW_AHEAD_M);
         let jump_near = route
@@ -650,6 +993,19 @@ impl Motor {
     }
 }
 
+/// Whether feet are up a jump from `take_off` to `landing`: within
+/// [`UP_NEAR_M`] of the landing across, and under its floor by at most
+/// [`UP_M`] and half the jump's rise (0.1 m for a jump that does not
+/// rise), and past the jump's middle along its way (a jump over a gap is
+/// made only across it).
+pub fn is_up(feet: Vec3, take_off: Vec3, landing: Vec3) -> bool {
+    let rise = landing.y - take_off.y;
+    let (dx, dz) = (landing.x - take_off.x, landing.z - take_off.z);
+    let past = (feet.x - take_off.x) * dx + (feet.z - take_off.z) * dz >= 0.5 * (dx * dx + dz * dz);
+    past && feet.distance_xz(landing) <= UP_NEAR_M
+        && feet.y >= landing.y - UP_M.min((0.5 * rise).max(0.1))
+}
+
 /// The unit vector of (`dx`, `dz`), if it is not (near) zero.
 fn unit(dx: f32, dz: f32) -> Option<[f32; 2]> {
     let length = dx.hypot(dz);
@@ -735,42 +1091,343 @@ mod tests {
         }
     }
 
-    /// A body kept short of a ledge (it hits the edge) jumps again every
-    /// [`JUMP_AGAIN_S`], walking or aiming; once up, it does not.
-    #[test]
-    fn a_jump_that_did_not_get_up_is_tried_again_also_aiming() {
-        let mut rng = Rng::new(3);
-        for aiming in [false, true] {
-            let mut motor = Motor::new(Feel::default(), &mut rng);
-            let mut route = ledge_then_low();
-            let pose = facing_x(Vec3::new(4.5, 0.0, 0.0));
-            let mut jumps = Vec::new();
-            for tick in 0..100 {
-                let (decision, _) = if aiming {
-                    motor.walk_aiming(&mut route, &pose, 5.0, |_| true, (pose.yaw, 0.0))
-                } else {
-                    motor.walk(&mut route, &pose, 5.0, |_| true)
-                };
-                assert_eq!(
-                    motor.jumped().is_some(),
-                    decision.keys & key::JUMP != 0
-                );
-                if decision.keys & key::JUMP != 0 {
-                    assert_eq!(motor.jumped(), Some(JumpBy::Route));
-                    jumps.push(tick);
+    /// A ledge 0.9 m high whose face is `face` m along the jump's way from
+    /// `take_off`, as the client has one: a body walks into its face and
+    /// stops, and gets up only by a jump pressed within `reach` m of the
+    /// face whose move crosses it along the jump's way (within 0.4 rad:
+    /// the client's jump goes the way the body faces and its keys push) in
+    /// [`body::JUMP_AIR_MS`](crate::v026g::bots::body::JUMP_AIR_MS); none
+    /// if not `gets_up`.
+    struct Ledge {
+        take_off: Vec3,
+        way: [f32; 2],
+        face: f32,
+        reach: f32,
+        gets_up: bool,
+    }
+
+    /// What a body walked by the motor at a [`Ledge`] did.
+    struct Climb {
+        /// The pose at each press of the jump key, and the tick.
+        presses: Vec<(usize, Pose)>,
+        decisions: Vec<Decision>,
+        poses: Vec<Pose>,
+        walked: Walked,
+        up: bool,
+        /// The tick it got up.
+        up_at: Option<usize>,
+    }
+
+    /// Walks a body that does what the keys and turns say (the movement
+    /// model) by the motor along `route`, up to `ledge`; aiming at the way
+    /// it faces at the start if `aiming`. Until it arrives, gives up or
+    /// `ticks` pass.
+    fn climb_ledge(
+        route: &mut Route,
+        ledge: &Ledge,
+        start: Vec3,
+        yaw: f32,
+        ticks: usize,
+        aiming: bool,
+    ) -> Climb {
+        let kin = Kinematics::default();
+        let mut rng = Rng::new(17);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let mut pose = Pose {
+            feet: start,
+            yaw,
+            pitch: 0.0,
+            speed: 0.0,
+        };
+        let mut blend = crate::v026g::bots::kin::Blend::default();
+        let air_ticks = (crate::v026g::bots::body::JUMP_AIR_MS as f32 / 1000.0 / TICK_S) as usize;
+        let landing_y = ledge.take_off.y + 0.9;
+        let along = |at: Vec3| {
+            (at.x - ledge.take_off.x) * ledge.way[0] + (at.z - ledge.take_off.z) * ledge.way[1]
+        };
+        let mut climb = Climb {
+            presses: Vec::new(),
+            decisions: Vec::new(),
+            poses: Vec::new(),
+            walked: Walked::OnTheWay,
+            up: false,
+            up_at: None,
+        };
+        let mut air: Option<usize> = None;
+        for tick in 0..ticks {
+            let (decision, walked) = if aiming {
+                motor.walk_aiming(route, &pose, 5.0, |_| true, (yaw, 0.0))
+            } else {
+                motor.walk(route, &pose, 5.0, |_| true)
+            };
+            assert!(!matches!(walked, Walked::Off(_)), "{tick}: {pose:?}");
+            assert_eq!(motor.jumped().is_some(), decision.keys & key::JUMP != 0);
+            climb.decisions.push(decision);
+            climb.poses.push(pose);
+            climb.walked = walked;
+            if walked != Walked::OnTheWay {
+                break;
+            }
+            if decision.keys & key::JUMP != 0 {
+                assert_eq!(motor.jumped(), Some(JumpBy::Route));
+                climb.presses.push((tick, pose));
+                if ledge.face - along(pose.feet) <= ledge.reach {
+                    air = Some(tick);
                 }
             }
-            // 5 s held short of it: a jump at once and every second.
-            let again = (JUMP_AGAIN_S / TICK_S) as usize;
-            assert_eq!(jumps.len(), 100 / again, "{aiming}: {jumps:?}");
-            assert!(jumps.windows(2).all(|w| w[1] - w[0] == again), "{jumps:?}");
-            // Up on the ledge: no more jumps.
-            let up = facing_x(Vec3::new(5.5, 0.0, 0.0));
-            for _ in 0..40 {
-                let (decision, _) = motor.walk(&mut route, &up, 5.0, |_| true);
-                assert_eq!(decision.keys & key::JUMP, 0);
+            pose.yaw = wrap(pose.yaw + decision.turn.0);
+            pose.pitch += decision.turn.1;
+            let local = blend.tick(kin.target_local(decision.keys, 1.0), kin.blend_ticks);
+            let velocity = crate::v026g::bots::kin::to_world(local, pose.yaw);
+            let mut to = Vec3::new(
+                pose.feet.x + velocity[0] * TICK_S,
+                pose.feet.y,
+                pose.feet.z + velocity[1] * TICK_S,
+            );
+            if !climb.up && along(to) > ledge.face {
+                let across = unit(velocity[0], velocity[1])
+                    .is_some_and(|v| v[0] * ledge.way[0] + v[1] * ledge.way[1] >= 0.4_f32.cos());
+                if ledge.gets_up && across && air.is_some_and(|at| tick - at <= air_ticks) {
+                    climb.up = true;
+                    climb.up_at = Some(tick);
+                    to.y = landing_y;
+                } else {
+                    // Against the face.
+                    let back = along(to) - ledge.face;
+                    to.x -= ledge.way[0] * back;
+                    to.z -= ledge.way[1] * back;
+                }
+            }
+            pose.speed = (to - pose.feet).length() / TICK_S;
+            pose.feet = to;
+        }
+        climb
+    }
+
+    /// A route along x to a take-off at x 4.6, up a 0.9 m ledge to x 5,
+    /// and on along x up there; with the take-off at `(x, z)` and the
+    /// jump's way turned to +z if `turned`.
+    fn up_a_ledge(turned: bool) -> (Route, Ledge) {
+        let p = |x: f32, y: f32, z: f32, jump| Waypoint {
+            at: Vec3::new(x, y, z),
+            node: 0,
+            jump,
+            low: false,
+        };
+        let (points, way) = if turned {
+            (
+                vec![
+                    p(0.0, 0.0, 0.0, false),
+                    p(5.0, 0.0, 0.0, false),
+                    p(5.0, 0.9, 0.4, true),
+                    p(5.0, 0.9, 6.0, false),
+                ],
+                [0.0, 1.0],
+            )
+        } else {
+            (
+                vec![
+                    p(0.0, 0.0, 0.0, false),
+                    p(4.6, 0.0, 0.0, false),
+                    p(5.0, 0.9, 0.0, true),
+                    p(10.0, 0.9, 0.0, false),
+                ],
+                [1.0, 0.0],
+            )
+        };
+        let take_off = points[1].at;
+        let ledge = Ledge {
+            take_off,
+            way,
+            face: 0.2,
+            reach: 1.2,
+            gets_up: true,
+        };
+        (Route::new(points), ledge)
+    }
+
+    /// A jump whose way turns from the approach (Cologne's battery 6) is
+    /// lined up: the body walks to the run-up, stands and turns to the
+    /// jump's way, and presses at the take-off facing it; the jump gets it
+    /// up at the first try, walking or aiming. No sprint lining up.
+    #[test]
+    fn a_turned_jump_is_lined_up_and_made_at_the_first_try() {
+        for aiming in [false, true] {
+            for turned in [false, true] {
+                let (mut route, ledge) = up_a_ledge(turned);
+                let climb = climb_ledge(
+                    &mut route,
+                    &ledge,
+                    Vec3::ZERO,
+                    yaw_of([1.0, 0.0]),
+                    300,
+                    aiming,
+                );
+                let label = format!("aiming {aiming}, turned {turned}");
+                assert!(climb.up, "{label}: {:?}", climb.poses.last());
+                assert_eq!(
+                    climb.presses.len(),
+                    1,
+                    "{label}: {:?}, up at {:?}",
+                    climb.presses,
+                    climb.up_at
+                );
+                assert_eq!(climb.walked, Walked::Arrived, "{label}");
+                let (_, at) = climb.presses[0];
+                let way = yaw_of(ledge.way);
+                assert!(
+                    wrap(at.yaw - way).abs() <= JUMP_FACING + 1e-3,
+                    "{label}: {at:?}"
+                );
+                let (dx, dz) = (at.feet.x - ledge.take_off.x, at.feet.z - ledge.take_off.z);
+                let side = (dx * ledge.way[1] - dz * ledge.way[0]).abs();
+                assert!(
+                    side <= 0.3 && at.feet.distance_xz(ledge.take_off) <= 0.9,
+                    "{label}: {at:?}"
+                );
+                // No sprint from 2.5 m before the take-off.
+                for (pose, decision) in climb.poses.iter().zip(&climb.decisions) {
+                    if pose.feet.distance_xz(ledge.take_off) <= LINE_UP_FROM_M {
+                        assert_eq!(decision.keys & key::SPRINT, 0, "{label}: {pose:?}");
+                    }
+                }
             }
         }
+    }
+
+    /// A jump that does not get the body up is tried again only from the
+    /// run-up, [`JUMP_TRIES`] times in all, each at the take-off; then it
+    /// is given up on ([`Walked::JumpFailed`]). Walking or aiming. Held
+    /// short of the take-off (a wall before it), it is never pressed.
+    #[test]
+    fn a_jump_that_did_not_get_up_is_tried_from_the_run_up_then_given_up() {
+        for aiming in [false, true] {
+            let (mut route, mut ledge) = up_a_ledge(false);
+            ledge.gets_up = false;
+            let climb = climb_ledge(
+                &mut route,
+                &ledge,
+                Vec3::ZERO,
+                yaw_of([1.0, 0.0]),
+                800,
+                aiming,
+            );
+            assert!(!climb.up);
+            assert_eq!(
+                climb.walked,
+                Walked::JumpFailed(ledge.take_off),
+                "aiming {aiming}"
+            );
+            let ticks: Vec<usize> = climb.presses.iter().map(|&(tick, _)| tick).collect();
+            assert_eq!(
+                ticks.len(),
+                JUMP_TRIES as usize,
+                "aiming {aiming}: {:?} then {:?}",
+                climb.presses,
+                &climb.poses[climb.poses.len().saturating_sub(5)..]
+            );
+            for &(_, at) in &climb.presses {
+                assert!(
+                    at.feet.x >= ledge.take_off.x - 0.9,
+                    "aiming {aiming}: {at:?}"
+                );
+            }
+            // Back at the run-up between two tries.
+            for pair in ticks.windows(2) {
+                let back = climb.poses[pair[0]..pair[1]]
+                    .iter()
+                    .any(|pose| pose.feet.x <= ledge.take_off.x - RUN_UP_M + AT_RUN_UP_M + 1e-3);
+                assert!(
+                    back,
+                    "aiming {aiming}: {pair:?} {:?}",
+                    climb.poses[pair[0]..pair[1]]
+                        .iter()
+                        .map(|pose| (pose.feet.x, pose.yaw))
+                        .collect::<Vec<_>>()
+                );
+            }
+            // A wall at x 3: never at the take-off, never pressed.
+            let (mut route, mut ledge) = up_a_ledge(false);
+            ledge.take_off.x = 3.0;
+            ledge.face = 0.0;
+            ledge.gets_up = false;
+            let held = climb_ledge(
+                &mut route,
+                &ledge,
+                Vec3::ZERO,
+                yaw_of([1.0, 0.0]),
+                200,
+                aiming,
+            );
+            assert!(held.presses.is_empty(), "aiming {aiming}");
+        }
+    }
+
+    /// A route's end up a ledge is not arrived at from under it; up it, it
+    /// is.
+    #[test]
+    fn an_end_up_a_ledge_is_arrived_at_only_up_it() {
+        let mut rng = Rng::new(19);
+        let p = |x: f32, y: f32, jump| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump,
+            low: false,
+        };
+        let route = || {
+            Route::new(vec![
+                p(0.0, 0.0, false),
+                p(4.6, 0.0, false),
+                p(5.0, 0.9, true),
+            ])
+        };
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let (_, walked) = motor.walk(
+            &mut route(),
+            &facing_x(Vec3::new(4.6, 0.0, 0.0)),
+            5.0,
+            |_| true,
+        );
+        assert_eq!(walked, Walked::OnTheWay);
+        let (_, walked) = motor.walk(
+            &mut route(),
+            &facing_x(Vec3::new(5.0, 0.9, 0.0)),
+            5.0,
+            |_| true,
+        );
+        assert_eq!(walked, Walked::Arrived);
+    }
+
+    /// A world that shows the body still under the jump it pressed, after
+    /// the reckoning took it up and the route on, has the route looked at
+    /// from the jump's leg again: it is not off the route, and lines up.
+    #[test]
+    fn under_a_jump_that_did_not_get_up_the_route_is_taken_back() {
+        let mut rng = Rng::new(23);
+        let (mut route, _) = up_a_ledge(false);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        // Pressed at the take-off.
+        let mut pressed = false;
+        for _ in 0..40 {
+            let (decision, _) =
+                motor.walk(&mut route, &facing_x(Vec3::new(4.6, 0.0, 0.0)), 5.0, |_| {
+                    true
+                });
+            pressed |= decision.keys & key::JUMP != 0;
+        }
+        assert!(pressed);
+        // Reckoned up and on.
+        motor.walk(&mut route, &facing_x(Vec3::new(6.5, 0.9, 0.0)), 5.0, |_| {
+            true
+        });
+        assert!(route.segment() >= 2);
+        // A world: under it.
+        let (_, walked) = motor.walk(&mut route, &facing_x(Vec3::new(4.7, 0.0, 0.0)), 5.0, |_| {
+            true
+        });
+        assert_eq!(walked, Walked::OnTheWay);
+        assert_eq!(route.segment(), 1);
+        assert!(motor.lining_up());
     }
 
     /// A low leg is walked crouched, from a metre before it, and not
@@ -1073,14 +1730,19 @@ mod tests {
             let jumps = reckoned(&mut motor, &mut route, lip, caught(0.0), 240, aiming);
             assert!(jumps.is_empty(), "low, aiming {aiming}: {jumps:?}");
             // Caught at the lip 1.2 m short of the route's own jump (at x
-            // 5.8 to 6.2), which the reckoning walks to: the jumps the route
-            // makes, and no more (whatever the time since its last).
+            // 5.8 to 6.2, up 0.9 m from the lip), which the reckoning walks
+            // to: the jumps the route makes, and no more (whatever the time
+            // since its last). 3 s: two tries, not given up yet.
+            let high = |x: f32, y: f32, jump| Waypoint {
+                at: Vec3::new(x, y, 0.0),
+                ..point(x, jump, false)
+            };
             let ledge = || {
                 Route::new(vec![
                     point(0.0, false, false),
-                    point(5.8, false, false),
-                    point(6.2, true, false),
-                    point(30.0, false, false),
+                    high(5.8, 0.4, false),
+                    high(6.2, 1.3, true),
+                    high(30.0, 1.3, false),
                 ])
             };
             let feel = Feel {
@@ -1094,7 +1756,7 @@ mod tests {
                 lip,
                 caught(0.0),
                 (30, 5.8),
-                240,
+                60,
                 aiming,
             );
             let no_hop = Feel {
@@ -1108,7 +1770,7 @@ mod tests {
                 lip,
                 caught(0.0),
                 (30, 5.8),
-                240,
+                60,
                 aiming,
             );
             assert!(!planned.is_empty());

@@ -37,7 +37,7 @@ use std::sync::Arc;
 use mapdata::{BatterySpawner, Container, NodeId, Vec3, World};
 use survarium::v026g::match_msgs::TICK_MS;
 
-use super::body::{Fix, slide};
+use super::body::{Fix, jumped_to, slide};
 use super::guns::{Arms, Gun};
 use super::kin::{Blend, Kinematics, TICK_S, forward, to_world};
 use super::recoil::{Cadence, Recoil, kick_of};
@@ -130,33 +130,6 @@ const TAKEN_KILLED_MS: u32 = 3_000;
 /// stood at its foot, and 100 of the 118 held-keys stuck notes of a bench
 /// were within a metre of a jump floor (`player_bots_stuck.md` §8.6).
 const STAND_IN_AIR_MS: u32 = 600;
-
-/// The floor a body in the air at `feet` (on `node`) gets up on walking
-/// toward `to`: a jump link of `node`'s ahead of the step whose line from
-/// `node` passes within half a cell of `to`, the nearest to it.
-fn jumped_to(grid: &mapdata::WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<NodeId> {
-    let half = grid.cell_size() * 0.5 + 1e-4;
-    let from = grid.position(node);
-    let (sx, sz) = (to.x - feet.x, to.z - feet.z);
-    grid.links(node)
-        .filter(|(_, kind)| *kind == mapdata::LinkKind::Jump)
-        .map(|(next, _)| next)
-        .filter(|&next| {
-            let at = grid.position(next);
-            let (dx, dz) = (at.x - from.x, at.z - from.z);
-            let len2 = dx * dx + dz * dz;
-            if len2 <= 0.0 || dx * sx + dz * sz <= 0.0 {
-                return false;
-            }
-            let t = (((to.x - from.x) * dx + (to.z - from.z) * dz) / len2).clamp(0.0, 1.0);
-            let (ex, ez) = (from.x + dx * t - to.x, from.z + dz * t - to.z);
-            ex * ex + ez * ez <= half * half
-        })
-        .min_by(|&a, &b| {
-            let d = |n: NodeId| grid.position(n).distance_xz(to);
-            d(a).total_cmp(&d(b))
-        })
-}
 
 /// A stand-in body walking into a 0.9 m ledge stops at its foot; in the
 /// air it gets up on it, by the grid's jump link.

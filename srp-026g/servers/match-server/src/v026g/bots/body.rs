@@ -14,7 +14,11 @@
 //!
 //! What the model does not know: other bodies in the way, being hit
 //! (`stopping speed`), slides off steep ground, a jump's arc. Each is put
-//! right by the next world.
+//! right by the next world. A jump it reckons only as the grid has it:
+//! pressed, the body is up a jump link it walks into within
+//! [`JUMP_AIR_MS`] ([`jumped_to`]), as a player who jumped takes himself to
+//! be up the ledge until he sees he is not; a jump that did not get it up
+//! is put right by the next world as the rest.
 //!
 //! The pitch is the base pitch (`m_look_pitch`), which a world saves; the
 //! view is that plus the weapon's kick ([`super::recoil`]: PROVEN,
@@ -29,6 +33,7 @@ use mapdata::{LinkKind, NodeId, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::kin::{Blend, Kinematics, TICK_S, to_world, wrap};
+use crate::v026g::drive::key;
 
 /// A world's word on the bot's body.
 #[derive(Clone, Debug, PartialEq)]
@@ -69,6 +74,10 @@ pub struct Estimate {
     pub keys: u32,
     /// The grid floor it stands on, where the map is known.
     pub node: Option<NodeId>,
+    /// Until when (ms) a jump pressed keeps it in the air: walking into a
+    /// floor its floor jumps to, it gets up on it ([`JUMP_AIR_MS`]); 0 on
+    /// the ground.
+    pub air_until: u32,
 }
 
 impl Estimate {
@@ -97,6 +106,12 @@ const LOCATE_M: f32 = 1.5;
 const PROJECT_MS: u32 = 3_000;
 /// The pitch's limit, radians (LIKELY, `kin`).
 const MAX_PITCH: f32 = 1.0;
+/// A jump pressed keeps the reckoned body in the air this long, ms
+/// ([`jumped_to`]). The worlds of the owner's matches of 2026-10-23 show a
+/// body that pressed jump rising from about 200 ms after the press, at the
+/// height of a 0.9-1 m ledge by 500 ms, and the jump over by 800 ms
+/// (`player_bots_stuck.md` §8.9; worlds a second apart).
+pub const JUMP_AIR_MS: u32 = 800;
 
 #[derive(Clone, Debug, Default)]
 pub struct BodyTrack {
@@ -333,6 +348,7 @@ impl BodyTrack {
                 .map_or(0.0, |tick| tick.kick),
             keys: held,
             node,
+            air_until: self.air_at(fix.time),
         };
         self.trail.clear();
         // The ticks after the world's, again from where the world has it.
@@ -347,9 +363,30 @@ impl BodyTrack {
     }
 }
 
+impl BodyTrack {
+    /// Until when a jump pressed at or before `time` keeps the body in the
+    /// air ([`JUMP_AIR_MS`]); 0 if none does.
+    fn air_at(&self, time: u32) -> u32 {
+        let mut held = false;
+        let mut pressed = None;
+        for tick in self.ticks.iter().take_while(|tick| tick.time <= time) {
+            let jump = tick.keys & key::JUMP != 0;
+            if jump && !held {
+                pressed = Some(tick.time);
+            }
+            held = jump;
+        }
+        pressed
+            .map(|at| at + JUMP_AIR_MS)
+            .filter(|&until| until > time)
+            .unwrap_or(0)
+    }
+}
+
 /// The body at the next decided tick: moved by the keys it held (a tick
 /// missed between two decided ones, a stall, held the same keys), then the
-/// tick's turn and keys taken.
+/// tick's turn and keys taken. In the air ([`Estimate::air_until`]), a step
+/// a ledge stops that walks into a floor its floor jumps to gets up on it.
 fn advance(
     mut at: Estimate,
     tick: Tick,
@@ -359,7 +396,7 @@ fn advance(
 ) -> Estimate {
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
     let target = kin.target_local(at.keys, level);
-    for _ in 0..steps {
+    for step in 1..=steps {
         let local = at.blend.tick(target, kin.blend_ticks);
         at.velocity = to_world(local, at.yaw);
         let to = Vec3::new(
@@ -369,7 +406,16 @@ fn advance(
         );
         match (grid, at.node) {
             (Some(grid), Some(node)) => {
-                let (node, feet, stopped) = slide(grid, node, at.feet, to);
+                let (mut node, mut feet, mut stopped) = slide(grid, node, at.feet, to);
+                if at.time + step * TICK_MS <= at.air_until
+                    && feet.distance_xz(to) > 1e-3
+                    && let Some(up) = jumped_to(grid, node, feet, to)
+                {
+                    node = up;
+                    feet = grid.position(up);
+                    stopped = false;
+                    at.air_until = 0;
+                }
                 at.node = Some(node);
                 at.feet = feet;
                 if stopped {
@@ -378,6 +424,11 @@ fn advance(
             }
             _ => at.feet = to,
         }
+    }
+    if tick.keys & key::JUMP != 0 && at.keys & key::JUMP == 0 {
+        at.air_until = tick.time + JUMP_AIR_MS;
+    } else if tick.time > at.air_until {
+        at.air_until = 0;
     }
     at.yaw = wrap(at.yaw + tick.turn.0);
     at.pitch = (at.pitch + tick.turn.1).clamp(-MAX_PITCH, MAX_PITCH);
@@ -455,6 +506,34 @@ fn dropped_to(grid: &WalkGrid, node: NodeId, at: Vec3, (sx, sz): (f32, f32)) -> 
                 let p = grid.position(n);
                 (p.x - px).powi(2) + (p.z - pz).powi(2)
             };
+            d(a).total_cmp(&d(b))
+        })
+}
+
+/// The floor a body in the air at `feet` (on `node`) gets up on walking
+/// toward `to`: a jump link of `node`'s ahead of the step whose line from
+/// `node` passes within half a cell of `to`, the nearest to it. The
+/// reckoning's ([`JUMP_AIR_MS`]) and the tests' stand-in game's.
+pub fn jumped_to(grid: &WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<NodeId> {
+    let half = grid.cell_size() * 0.5 + 1e-4;
+    let from = grid.position(node);
+    let (sx, sz) = (to.x - feet.x, to.z - feet.z);
+    grid.links(node)
+        .filter(|(_, kind)| *kind == LinkKind::Jump)
+        .map(|(next, _)| next)
+        .filter(|&next| {
+            let at = grid.position(next);
+            let (dx, dz) = (at.x - from.x, at.z - from.z);
+            let len2 = dx * dx + dz * dz;
+            if len2 <= 0.0 || dx * sx + dz * sz <= 0.0 {
+                return false;
+            }
+            let t = (((to.x - from.x) * dx + (to.z - from.z) * dz) / len2).clamp(0.0, 1.0);
+            let (ex, ez) = (from.x + dx * t - to.x, from.z + dz * t - to.z);
+            ex * ex + ez * ez <= half * half
+        })
+        .min_by(|&a, &b| {
+            let d = |n: NodeId| grid.position(n).distance_xz(to);
             d(a).total_cmp(&d(b))
         })
 }
@@ -773,6 +852,81 @@ pub(super) mod tests {
         }
         assert!(feet.x > 11.0 && feet.y.abs() < 0.1, "{feet:?}");
         assert_eq!(grid.locate(feet, 0.5), Some(node));
+    }
+
+    /// The reckoned body walking into a 0.9 m ledge stops at its foot;
+    /// with jump pressed, it gets up it within [`JUMP_AIR_MS`], also when
+    /// a world of a tick after the press puts it back at the foot (the
+    /// ticks since played again). A world after the jump showing it still
+    /// below keeps it there.
+    #[test]
+    fn a_jump_pressed_takes_the_reckoned_body_up_a_ledge() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 0.9));
+        triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y = v.y.min(0.9));
+            t
+        }));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        let kin = Kinematics {
+            blend_ticks: 1,
+            ..Kinematics::default()
+        };
+        // Facing +x.
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        let start = |track: &mut BodyTrack| {
+            track.fixed(fix(0, Vec3::new(8.0, 0.0, 5.0), yaw), &kin, Some(&grid));
+        };
+        let walk = |track: &mut BodyTrack, from: u32, to: u32, jump_at: Option<u32>| {
+            for time in (from..=to).step_by(50) {
+                let jump = if jump_at == Some(time) { key::JUMP } else { 0 };
+                track.decided(
+                    time,
+                    key::FORWARD | jump,
+                    (0.0, 0.0),
+                    0.0,
+                    &kin,
+                    Some(&grid),
+                );
+            }
+        };
+        let mut track = BodyTrack::default();
+        start(&mut track);
+        walk(&mut track, 50, 2_000, None);
+        let at = track.estimate().unwrap();
+        assert!(at.feet.x < 10.0 && at.feet.y.abs() < 0.1, "no jump: {at:?}");
+        let mut track = BodyTrack::default();
+        start(&mut track);
+        walk(&mut track, 50, 2_000, Some(450));
+        let at = *track.estimate().unwrap();
+        assert!(
+            at.feet.x > 11.0 && (at.feet.y - 0.9).abs() < 0.1,
+            "jumped: {at:?}"
+        );
+        assert_eq!(at.air_until, 0);
+        // A world after the jump: it did not get up.
+        let below = Fix {
+            keys: key::FORWARD,
+            ..fix(2_000, Vec3::new(9.6, 0.0, 5.0), yaw)
+        };
+        track.fixed(below, &kin, Some(&grid));
+        walk(&mut track, 2_050, 3_000, None);
+        let at = track.estimate().unwrap();
+        assert!(
+            at.feet.x < 10.0 && at.feet.y.abs() < 0.1,
+            "shown below: {at:?}"
+        );
+        // A world in the jump's air, at the foot: up again.
+        let mut track = BodyTrack::default();
+        start(&mut track);
+        walk(&mut track, 50, 1_000, Some(450));
+        let foot = Fix {
+            keys: key::FORWARD,
+            ..fix(600, Vec3::new(9.4, 0.0, 5.0), yaw)
+        };
+        track.fixed(foot, &kin, Some(&grid));
+        let at = track.estimate().unwrap();
+        assert!((at.feet.y - 0.9).abs() < 0.1, "in the air: {at:?}");
     }
 
     #[test]

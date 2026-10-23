@@ -11,7 +11,11 @@ and what followed it, at most 3 s later, another
     {"t", "bot", "jumped": <kind>, "after_ms", "then", "moved_m", "rose_m"}
 
 where `then` is "went on" (3 s passed), "stuck: <recovery>", "jumped again"
-or "a new life" (`docs/notes/player_bots_stuck.md` §6). Only the server's
+or "a new life" (`docs/notes/player_bots_stuck.md` §6). A route jump's lines
+have since §8.9 also `try` (1, 2, 3: its tries at that jump), `from` and `to`
+(the take-off and landing), `before_m` (how far short of the take-off it was
+pressed), `facing` (radians off the jump's way) and `crouch`; its follow-up
+`up_ms`: when a world first showed the body up it (null: none did). Only the server's
 side is known: the player's game simulates the jump, so a jump the game
 refused looks like one that went flat. Whether one helped is read from where
 the bot was 3 s later.
@@ -26,7 +30,12 @@ The report, by kind:
   refused them (`weapon_core::can_jump` 0x2E3A70), so these are what the
   hold gained: compare their outcomes with the same kind's other jumps;
 - for hops, the spots they repeat at (one 3 m cell of a map): a spot whose
-  hops keep coming to nothing is a grid or tuning problem, not a hop.
+  hops keep coming to nothing is a grid or tuning problem, not a hop;
+- route jumps at the first try: how many got the body up. A first try is a
+  route jump with `try` 1, or in a trace from before §8.9 one with no route
+  jump by that bot in the FIRST_GAP_S before; up is `up_ms` set, or (the
+  same measure for both) went on or rose at least UP_ROSE_M. By the jump's
+  rise, and the take-offs where most first tries fail.
 
     python jumps.py <trace files or dirs> [--logs <host logs>] [--since <match ms>]
 
@@ -52,6 +61,11 @@ CLIMB_M = 0.25
 # Hop spots: this size (m) of cell, and at least this many hops to list one.
 CELL_M = 3.0
 SPOT_MIN = 3
+# Route jumps: a first try in a trace without `try` has no route jump by the
+# same bot this long (s) before it; "up" without `up_ms` is went on, or rose
+# this much (m).
+FIRST_GAP_S = 2.5
+UP_ROSE_M = 0.4
 
 KINDS = ("route", "hop", "unstick")
 OUTCOMES = ("freed", "stayed", "stuck", "jumped again", "new life", "unknown")
@@ -155,6 +169,77 @@ def attempts(items):
     return [(c[0][0], c[-1][1], len(c)) for c in out]
 
 
+def first_tries(items):
+    """The route jumps that were a bot's first try at a jump."""
+    out, last = [], {}
+    for jump, follow in sorted(items, key=lambda i: (i[0]["_match"], i[0]["bot"], i[0]["t"])):
+        key = (jump["_match"], jump["bot"])
+        if "try" in jump:
+            first = jump["try"] == 1
+        else:
+            first = key not in last or jump["t"] - last[key] > FIRST_GAP_S * 1000
+        last[key] = jump["t"]
+        if first:
+            out.append((jump, follow))
+    return out
+
+
+def went_up(follow):
+    """By the fallback measure: went on, or rose UP_ROSE_M."""
+    if follow is None:
+        return None
+    return follow.get("then") == "went on" or (follow.get("rose_m") or 0.0) >= UP_ROSE_M
+
+
+def route_report(items):
+    firsts = first_tries(items)
+    known = [(j, f) for j, f in firsts if f is not None]
+    print(f"\nRoute jumps at the first try ({len(firsts)}; up: went on or rose {UP_ROSE_M} m;"
+          " `up_ms`: a world showed it up)")
+    up = sum(1 for _, f in known if went_up(f))
+    print(f"  {'all':22} {len(known):7} up {share(up, len(known))}")
+    seen = [(j, f) for j, f in known if "up_ms" in f]
+    if seen:
+        shown = sum(1 for _, f in seen if f["up_ms"] is not None)
+        print(f"  {'with up_ms':22} {len(seen):7} up {share(shown, len(seen))}"
+              f" (shown up), {share(sum(1 for _, f in seen if went_up(f)), len(seen))} (fallback)")
+        ms = [f["up_ms"] for _, f in seen if f["up_ms"] is not None]
+        if ms:
+            print(f"  {'':22} up after median {median(ms)} ms")
+    for label, pick in (("aiming", lambda j: j.get("aiming")), ("not aiming", lambda j: not j.get("aiming")),
+                        ("crouched", lambda j: j.get("crouch") is True)):
+        rows = [(j, f) for j, f in known if pick(j)]
+        if rows:
+            print(f"  {label:22} {len(rows):7} up {share(sum(1 for _, f in rows if went_up(f)), len(rows))}")
+    with_to = [(j, f) for j, f in known if j.get("from") and j.get("to")]
+    if with_to:
+        print("  by rise (m):")
+        bands = defaultdict(list)
+        for j, f in with_to:
+            bands[round(j["to"][1] - j["from"][1], 1)].append(went_up(f))
+        for rise in sorted(bands):
+            ups = bands[rise]
+            print(f"    {rise:5.1f} {len(ups):7} up {share(sum(ups), len(ups))}")
+        print(f"  pressed before the take-off median {median([j['before_m'] for j, _ in with_to])} m,"
+              f" facing off the way median {median([j['facing'] for j, _ in with_to])} rad")
+        retried = defaultdict(list)
+        for j, f in items:
+            if f is not None and "try" in j:
+                retried[j["try"]].append(went_up(f))
+        print("  by try: " + ", ".join(
+            f"{t}: {sum(u)} of {len(u)} up" for t, u in sorted(retried.items())))
+        spots = defaultdict(list)
+        for j, f in with_to:
+            x, _, z = j["from"]
+            spots[(j["_match"], round(x, 1), round(z, 1))].append(went_up(f))
+        worst = sorted(((k, v) for k, v in spots.items() if len(v) >= SPOT_MIN),
+                       key=lambda kv: (sum(kv[1]) / len(kv[1]), -len(kv[1])))[:10]
+        if worst:
+            print("  take-offs failing most (3+ first tries):")
+            for (match, x, z), ups in worst:
+                print(f"    match {match:08x} ({x:7.1f}, {z:7.1f}) {len(ups):4} up {share(sum(ups), len(ups))}")
+
+
 def share(n, total):
     return f"{100.0 * n / total:5.1f} %" if total else "    -  "
 
@@ -251,6 +336,8 @@ def main():
     table("Jumps made while firing (refused by the game before PR #343) against the others", rows)
     aiming = [i for k in KINDS for i in by_kind.get(k, []) if i[0].get("aiming")]
     table("Jumps made while aiming (any kind)", [("aiming", aiming)])
+
+    route_report(by_kind.get("route", []))
 
     if args.spots and spots:
         listed = sorted(

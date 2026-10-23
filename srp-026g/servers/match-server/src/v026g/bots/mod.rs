@@ -66,7 +66,7 @@ use body::Fix;
 use cheats::CheatClock;
 use encode::{Decision, Encoder};
 use know::{DangerSpot, LookSpot, Loss, Memory, Percept, Source, TeamKnowledge, Theft};
-use motor::{JumpBy, Motor, Pose, Walked};
+use motor::{JumpBy, Motor, Pose, RoutePress, Walked};
 use path::Route;
 use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
 use reflex::Reflex;
@@ -856,6 +856,9 @@ impl Bots {
             return notes;
         };
         let team = usize::from(bot.team & 1);
+        if let Some(feet) = feet {
+            bot.jump_seen(time, feet);
+        }
         if new_life && let Some(feet) = feet {
             bot.jump_followed(time, None, "a new life");
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
@@ -2304,6 +2307,10 @@ fn drive_tick(
                         {
                             bot.stuck.fell(time, from);
                         }
+                        // A jump it could not make: its take-off, likewise.
+                        if let Walked::JumpFailed(take_off) = walked {
+                            bot.stuck.failed_jump(time, take_off);
+                        }
                         bot.route = None;
                         path::no_route(path::NoRoute::Ended);
                     }
@@ -2371,6 +2378,13 @@ fn drive_tick(
         decision.keys &= !key::SPRINT;
     }
     decision.keys |= intent.hold | std::mem::take(&mut bot.press);
+    // Lining up for a jump of its route, and in it: standing (a crouched
+    // body seldom jumps: 9 route jumps of 12 pressed crouched did in the
+    // owner's matches, 6 unstick jumps of 23, against 149 of 159 standing;
+    // `player_bots_stuck.md` §8.9), and no sprint.
+    if bot.motor.lining_up() {
+        decision.keys &= !(key::CROUCH | key::SPRINT);
+    }
     if decision.keys & key::QUICK[0] != 0 {
         bot.medkits_used = bot.medkits_used.saturating_add(1);
     }
@@ -2382,12 +2396,16 @@ fn drive_tick(
     decision
 }
 
-/// A jump watched for its trace: why, when and from where.
+/// A jump watched for its trace: why, when and from where; for a jump of
+/// the route its take-off and landing, which try it was, and the first
+/// world's tick that showed the body up it.
 #[derive(Clone, Copy, Debug)]
 struct JumpWatch {
     by: &'static str,
     at: u32,
     from: Vec3,
+    route: Option<RoutePress>,
+    up: Option<u32>,
 }
 
 impl Bot {
@@ -2398,12 +2416,30 @@ impl Bot {
             return;
         };
         if self.tracing {
-            self.traced.push(serde_json::json!({
+            let mut line = serde_json::json!({
                 "t": time, "bot": self.place, "jumped": watch.by,
                 "after_ms": time.saturating_sub(watch.at), "then": then,
                 "moved_m": feet.map(|f| f.distance_xz(watch.from)),
                 "rose_m": feet.map(|f| f.y - watch.from.y),
-            }));
+            });
+            if let Some(route) = watch.route {
+                line["try"] = route.tries.into();
+                line["up_ms"] = watch.up.map(|up| up.saturating_sub(watch.at)).into();
+            }
+            self.traced.push(line);
+        }
+    }
+
+    /// A world of `time` showed the body at `feet`: up the route jump
+    /// watched, if it is ([`motor::is_up`]).
+    fn jump_seen(&mut self, time: u32, feet: Vec3) {
+        if let Some(watch) = self.jump_watch.as_mut()
+            && let Some(route) = watch.route
+            && watch.up.is_none()
+            && time > watch.at
+            && motor::is_up(feet, route.take_off, route.landing)
+        {
+            watch.up = Some(time);
         }
     }
 }
@@ -2423,13 +2459,29 @@ fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: Vec3, time:
             1
         };
         bot.jump_followed(time, Some(feet), "jumped again");
+        let route = (by == "route").then(|| bot.motor.route_press()).flatten();
         if bot.tracing {
-            bot.traced.push(serde_json::json!({
+            let mut line = serde_json::json!({
                 "t": time, "bot": bot.place, "jump": by, "pos": feet.to_array(),
                 "firing": lately, "aiming": keys & key::AIM != 0,
-            }));
+            });
+            if let Some(route) = route {
+                line["try"] = route.tries.into();
+                line["from"] = route.take_off.to_array().into();
+                line["to"] = route.landing.to_array().into();
+                line["before_m"] = route.before.into();
+                line["facing"] = route.facing.into();
+                line["crouch"] = (keys & key::CROUCH != 0).into();
+            }
+            bot.traced.push(line);
         }
-        bot.jump_watch = Some(JumpWatch { by, at: time, from: feet });
+        bot.jump_watch = Some(JumpWatch {
+            by,
+            at: time,
+            from: feet,
+            route,
+            up: None,
+        });
     }
     if bot.jump_hold == 0 {
         if firing {
