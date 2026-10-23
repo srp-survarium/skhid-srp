@@ -62,8 +62,14 @@ Mode variants of one map place different props (level_01: 1157 / 1159 /
   are turned into triangles (box exact, round shapes 12 sides × 6 rings),
   with the material of their `mtl`.
 - **Body** (`grid::Body`): radius 0.38, stand 1.8, crouch 1.1, step 0.6
-  (PROVEN); 60° (LIKELY); drop ≤ 5 m (`fall_params.harmless_height`);
-  jump ≤ 1.3 m (GUESS: the engine's numbers give about 1.7 m).
+  (PROVEN); ground walked up to 50° (PROVEN, `impassable_slope`), faces up
+  to 60° floors, climbs up 50-60° ground cut past a step; drop ≤ 5 m
+  (`fall_params.harmless_height`); jump ≤ 1.05 m (LIKELY, from the live
+  logs; was 1.3 m, GUESS). Since 2026-10-23, `player_bots_stuck.md`.
+- **A missing `walker_collision`** (fruit trees, level 3's anomalous
+  trees, a bench, a wheel: 0-60 placements a map) is stood in for by the
+  model's `collision` for the walking body (`MapData::triangles`, LIKELY:
+  `player_bots_stuck.md`).
 - **Play area.** The walker mesh reaches far off the map (to -666 m); the
   grid covers the `levelmap` x/z box, widened by 5 m and to hold every
   spawn and objective. level_03's box is 2 m and level_06, 07 and 08 have
@@ -161,6 +167,10 @@ let sees = world.sight.visible(eye_a, chest_b);       // bullet mesh
 Port of the prototype, with these changes:
 - Cells are half-open: a mesh ending on a cell line stops before it, a wall
   standing on one goes to one column.
+- A jump up is a wall to erosion (a crate's, a low wall's face): the floor
+  at its foot goes and the jump starts a cell back
+  (`player_bots_stuck.md`: Cologne's workbench). A jump lands only where
+  two more floors are walked on along it (no fence's top).
 - Erosion keeps a floor that is at least the radius (less 1 cm) from the
   near edge of a wall cell: `k` cells from it, `(k - 0.5) × cell`. That is
   1 round at 0.25 m cells; the prototype's `ceil(radius / cell)` = 2 rounds

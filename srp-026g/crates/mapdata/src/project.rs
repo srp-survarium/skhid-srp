@@ -33,6 +33,11 @@ use crate::library::{Library, Materials, WalkerBehaviour};
 use crate::math::{Rotation, Transform, Vec3};
 use crate::resources::{Error, Resources};
 
+/// A model's walking body's collision and its bullets' (`lib_name`s
+/// `<model>.model/walker_collision#[..]` and `<model>.model/collision#[..]`).
+const WALKER_COLLISION: &str = ".model/walker_collision";
+const BULLET_COLLISION: &str = ".model/collision";
+
 /// A body's collision filter: it meets an object when
 /// `object.cgroup & body.mask != 0` and `object.cmask & body.group != 0`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -576,19 +581,53 @@ impl MapData {
     }
 
     /// Every triangle a body with `filter` meets, placed in the map frame.
+    ///
+    /// A walking body's placement of a `walker_collision` the archive does
+    /// not have (fruit trees, level 3's anomalous trees, a bench, a wheel:
+    /// 0-60 placements a map) meets the model's own `collision` instead,
+    /// when the map has it. LIKELY: in the live logs of 2026-10-17..23
+    /// bots stood caught against those trees' bullet meshes with nothing
+    /// of the walker mesh within reach, and on level_02 two bodies at once
+    /// stayed stuck for minutes inside an anomalous tree
+    /// (`player_bots_stuck.md`); the engine's loading of a missing one is
+    /// not read.
     pub fn triangles(&self, filter: CollisionFilter) -> Vec<Triangle> {
+        let walking = filter == CollisionFilter::WALKER;
+        let by_name: HashMap<&str, usize> = if walking {
+            self.libraries
+                .iter()
+                .enumerate()
+                .map(|(i, library)| (library.name.as_str(), i))
+                .collect()
+        } else {
+            HashMap::new()
+        };
+        let library_of = |placement: &Placement| -> &Library {
+            let library = &self.libraries[placement.library as usize];
+            if walking && library.triangles.is_empty() {
+                let stand_in = library
+                    .name
+                    .contains(WALKER_COLLISION)
+                    .then(|| library.name.replacen(WALKER_COLLISION, BULLET_COLLISION, 1))
+                    .and_then(|name| by_name.get(name.as_str()).copied());
+                if let Some(index) = stand_in {
+                    return &self.libraries[index];
+                }
+            }
+            library
+        };
         let count = self
             .placements
             .iter()
             .filter(|p| filter.meets(p.cgroup, p.cmask))
-            .map(|p| self.libraries[p.library as usize].triangles.len())
+            .map(|p| library_of(p).triangles.len())
             .sum();
         let mut out = Vec::with_capacity(count);
         for placement in &self.placements {
             if !filter.meets(placement.cgroup, placement.cmask) {
                 continue;
             }
-            let library = &self.libraries[placement.library as usize];
+            let library = library_of(placement);
             let transform = placement.transform();
             let world: Vec<Vec3> = library
                 .vertices
@@ -1035,6 +1074,55 @@ mod tests {
         assert_eq!(walker[0].walker, WalkerBehaviour::Walk);
         let b = walker[0].v[1];
         assert!((b - Vec3::new(9.0, 1.0, 0.0)).length() < 1e-5, "{b:?}");
+        assert_eq!(map.bullet_triangles().len(), 1);
+    }
+
+    /// A tree whose `walker_collision` the archive lacks: the walking body
+    /// meets its `collision` (the same scale), the bullets as before; a
+    /// model with neither has nothing.
+    #[test]
+    fn a_missing_walker_collision_is_stood_in_for_by_the_models_collision() {
+        let empty = |name: &str| Library {
+            name: name.into(),
+            ..Library::default()
+        };
+        let trunk = Library {
+            name: "resources/models/flora/tree.model/collision#[1.20][1.20][1.20]".into(),
+            vertices: vec![
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 2.0, 0.0),
+                Vec3::new(0.3, 0.0, 0.0),
+            ],
+            triangles: vec![[0, 1, 2]],
+            walker: vec![WalkerBehaviour::BySlope],
+            primitives: 0,
+        };
+        let placement = |library: u32, cgroup: u16, cmask: u16| Placement {
+            library,
+            position: Vec3::new(5.0, 0.0, 5.0),
+            rotation: Vec3::ZERO,
+            cgroup,
+            cmask,
+        };
+        let map = MapData {
+            libraries: vec![
+                empty("resources/models/flora/tree.model/walker_collision#[1.20][1.20][1.20]"),
+                trunk,
+                empty("resources/models/flora/bush.model/walker_collision"),
+                // Another scale's collision is not this placement's.
+                empty("resources/models/flora/tree.model/walker_collision"),
+            ],
+            placements: vec![
+                placement(0, 2, 4),
+                placement(1, 8, 16),
+                placement(2, 2, 4),
+                placement(3, 2, 4),
+            ],
+            ..MapData::default()
+        };
+        let walker = map.walker_triangles();
+        assert_eq!(walker.len(), 1, "the trunk, once");
+        assert!((walker[0].v[1] - Vec3::new(5.0, 2.0, 5.0)).length() < 1e-5);
         assert_eq!(map.bullet_triangles().len(), 1);
     }
 }

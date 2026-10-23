@@ -108,6 +108,10 @@ pub struct BodyTrack {
     /// The distance between the reckoned feet and a world's, at the
     /// world's tick, for the last world that had both.
     last_error: Option<f32>,
+    /// How far the reckoning moved the body on the ground from the world
+    /// before to the last one (by the bot's own keys, on the walk grid):
+    /// how far it meant to go while the worlds show how far it went.
+    last_meant: Option<f32>,
     /// This life's speeds over the nominal ones (`Kinematics::level_of`).
     level: Option<f32>,
     /// The lives the worlds showed, the present one counted.
@@ -129,6 +133,13 @@ impl BodyTrack {
 
     pub fn last_error(&self) -> Option<f32> {
         self.last_error
+    }
+
+    /// How far the body was reckoned to move between the last two worlds
+    /// of this life ([`Self::fixed`]); none at a life's first world or
+    /// when the world's tick has no reckoning.
+    pub fn last_meant(&self) -> Option<f32> {
+        self.last_meant
     }
 
     /// The body reckoned on to `time` with the keys it holds (a human's,
@@ -254,14 +265,31 @@ impl BodyTrack {
             self.level = Some(level);
         }
         let level = self.level.unwrap_or(1.0);
-        self.last_error = (!new_life)
+        let reckoned = (!new_life)
             .then(|| {
                 self.trail
                     .iter()
                     .find(|(at, _)| *at == fix.time)
-                    .map(|(_, reckoned)| reckoned.distance_xz(feet))
+                    .map(|(_, reckoned)| *reckoned)
             })
             .flatten();
+        self.last_error = reckoned.map(|reckoned| reckoned.distance_xz(feet));
+        // The way reckoned from the world before to this one's tick, step
+        // by step (a turning body's way is longer than its displacement).
+        let before = self
+            .fix
+            .as_ref()
+            .filter(|last| last.alive)
+            .and_then(|last| last.feet);
+        self.last_meant = reckoned.zip(before).map(|(_, from)| {
+            let mut at = from;
+            let mut way = 0.0;
+            for &(_, feet) in self.trail.iter().filter(|(time, _)| *time <= fix.time) {
+                way += at.distance_xz(feet);
+                at = feet;
+            }
+            way
+        });
         let node = grid.and_then(|grid| grid.locate(feet, LOCATE_M));
         // The world has its own tick's keys (PROVEN, `kin`); its velocity
         // is its speed along the way the keys before were taking it.
@@ -464,6 +492,37 @@ pub(super) mod tests {
             keys: 0,
             speed: None,
         }
+    }
+
+    /// Between two worlds the keys meant a walk's length (the stuck
+    /// watch compares it with how far the worlds show the body went), and
+    /// nothing while it stood.
+    #[test]
+    fn the_way_the_keys_meant_between_two_worlds_is_kept() {
+        let kin = Kinematics {
+            blend_ticks: 1,
+            ..Kinematics::default()
+        };
+        let mut track = BodyTrack::default();
+        let at = Vec3::new(5.0, 0.0, 5.0);
+        track.fixed(fix(1_000, at, 0.0), &kin, None);
+        assert_eq!(track.last_meant(), None, "a life's first world");
+        for time in (1_050..=3_000).step_by(50) {
+            track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, None);
+        }
+        // The world shows it where it was: caught.
+        track.fixed(fix(2_500, at, 0.0), &kin, None);
+        let meant = track.last_meant().unwrap();
+        assert!((meant - kin.walk[0] * 1.45).abs() < 1e-3, "{meant}");
+        for time in (3_050..=4_500).step_by(50) {
+            track.decided(time, 0, (0.0, 0.0), 0.0, &kin, None);
+        }
+        track.fixed(fix(4_000, at, 0.0), &kin, None);
+        let meant = track.last_meant().unwrap();
+        // The forward ticks up to 3 000 only.
+        assert!((meant - kin.walk[0] * 0.5).abs() < 1e-3, "{meant}");
+        track.fixed(fix(4_500, at, 0.0), &kin, None);
+        assert!(track.last_meant().unwrap() < 1e-3, "it stood");
     }
 
     #[test]

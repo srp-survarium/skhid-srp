@@ -14,10 +14,12 @@
 //!    Two `walk` faces (stairs) may differ by up to 3 cells' width. Where no
 //!    step exists, a floor links one way to a lower floor within the
 //!    harmless fall ([`LinkKind::Drop`]) or to a higher one within the jump
-//!    height ([`LinkKind::Jump`]).
+//!    height ([`LinkKind::Jump`]). A walk up ground steeper than 50° is
+//!    cut once it climbs more than a step ([`WalkGrid::cut_steep_climbs`]).
 //! 4. Erosion by the body's radius: a floor with a wall beside it (a side
-//!    with no link of any kind) goes, round after round
-//!    ([`erosion_rounds`]). A floor `k` cells from a wall cell is at least
+//!    with no link of any kind, or a jump up: a ledge's face) goes, round
+//!    after round ([`erosion_rounds`]); the jump then starts from the
+//!    floor a step back. A floor `k` cells from a wall cell is at least
 //!    `(k - 0.5) × cell` from the wall; it stays when that is the radius
 //!    (within 1 cm). At 0.25 m cells that is 1 round, which keeps 0.9-1 m
 //!    doors open; 2 rounds (`ceil(radius / cell)`, the prototype) shut some.
@@ -54,12 +56,20 @@ pub struct Body {
     pub crouch_height: f32,
     /// Half of `stand_capsule_width` (0.76 m). PROVEN.
     pub radius: f32,
-    /// The cosine of the steepest ground (60°, LIKELY).
+    /// The cosine of the steepest ground walked up: 50° (PROVEN: the
+    /// character controller's `impassable_slope` 0x7de10 refuses ground
+    /// whose normal's y is under the cosine of 0.8727 rad, set at
+    /// 0x84d780; a body standing still slides from 40°, 0x7bc20). Faces up
+    /// to 60° are still floors; a climb up such ground is cut past a step
+    /// ([`WalkGrid::cut_steep_climbs`]). Was 60° (LIKELY) for both.
     pub min_ground_normal_y: f32,
     /// The highest drop taken (`fall_params.harmless_height`, 5 m).
     pub max_drop: f32,
-    /// The highest ledge reached by a jump. GUESS: about 1.7 m in the
-    /// engine's numbers; 1.3 m keeps a margin.
+    /// The highest ledge reached by a jump. LIKELY 1.05 m: the client's
+    /// jump follows its animation (not measured); in the live logs of
+    /// 2026-10-17..23 bots stuck at the foot of ledges 1.15-1.3 m high 4-8
+    /// times as often (by the ledges there are) as at those 0.8-1.0 m
+    /// (`player_bots_stuck.md`). Was 1.3.
     pub max_jump: f32,
 }
 
@@ -97,9 +107,10 @@ impl Default for Body {
             stand_height: 1.8,
             crouch_height: 1.1,
             radius: 0.38,
-            min_ground_normal_y: 0.5,
+            // cos 50°.
+            min_ground_normal_y: 0.642_787_6,
             max_drop: 5.0,
-            max_jump: 1.3,
+            max_jump: 1.05,
         }
     }
 }
@@ -165,9 +176,21 @@ const SEED_M: f32 = 3.0;
 struct Span {
     low: f32,
     high: f32,
-    /// 0 not a floor, 1 a floor by slope, 2 a `walk` face.
+    /// 0 not a floor, [`STEEP`] a floor too steep to walk up, 2 a floor
+    /// by slope, 3 a `walk` face (the higher wins where spans merge).
     walk: u8,
 }
+
+/// [`Span::walk`] of a face between 50° and 60°.
+const STEEP: u8 = 1;
+/// The cosine of the steepest face that is a floor (60°): rough ground's
+/// facets are steeper than the 50° walked up ([`Body::min_ground_normal_y`])
+/// and are stepped up; a climb up steep ground is cut past a step
+/// ([`WalkGrid::cut_steep_climbs`]).
+const STEEP_NORMAL_Y: f32 = 0.5;
+/// Two floors this near in height are level to each other (a walk across
+/// a slope), metres.
+const LEVEL_M: f32 = 0.05;
 
 /// See the module documentation.
 pub struct WalkGrid {
@@ -255,7 +278,16 @@ impl WalkGrid {
         let nx = (((area[2] - x0) / cell).max(0.0) as usize) + 1;
         let nz = (((area[3] - z0) / cell).max(0.0) as usize) + 1;
         let mut stats = BuildStats::default();
-        let columns = rasterize(triangles, x0, z0, cell, nx, nz, body, &mut stats);
+        let columns = rasterize(
+            triangles,
+            x0,
+            z0,
+            cell,
+            nx,
+            nz,
+            body.min_ground_normal_y,
+            &mut stats,
+        );
 
         // Floors per cell.
         let mut start = Vec::with_capacity(nx * nz + 1);
@@ -263,6 +295,7 @@ impl WalkGrid {
         let mut height = Vec::new();
         let mut ceiling = Vec::new();
         let mut forced = Vec::new();
+        let mut steep_face = Vec::new();
         for (index, mut column) in columns.into_iter().enumerate() {
             start.push(height.len() as u32);
             if column.is_empty() {
@@ -294,7 +327,8 @@ impl WalkGrid {
                     cell_of.push(index as u32);
                     height.push(span.high);
                     ceiling.push(above);
-                    forced.push(span.walk == 2);
+                    forced.push(span.walk == 3);
+                    steep_face.push(span.walk == STEEP);
                 }
             }
         }
@@ -317,7 +351,9 @@ impl WalkGrid {
             piece: Vec::new(),
         };
         let mut wide = grid.link(&forced);
-        grid.erode(&mut wide);
+        grid.drop_narrow_landings(&mut wide);
+        let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
+        grid.erode(&mut wide, &cut);
         stats.floors_after_erosion = grid.len();
         grid.keep_reached(&mut wide, seeds);
         grid.pieces(&wide);
@@ -403,22 +439,168 @@ impl WalkGrid {
         best.map(|(b, _, kind)| (b, kind))
     }
 
+    /// Whether a jump in direction `d` that lands on `b` lands on ground
+    /// the body fits on: two more floors walked on along the jump (the
+    /// body's width). A wall's or a fence's top a cell or two wide is no
+    /// landing: the body (0.76 m) slides off it or catches its edge.
+    /// level_07's 1 m wall with drops both sides had bots jumping at it.
+    fn lands(wide: &Wide, b: usize, d: usize) -> bool {
+        let walk = |a: usize| {
+            let next = wide.links[a][d];
+            (next != NONE && wide.kinds[a][d] == LinkKind::Walk).then_some(next as usize)
+        };
+        walk(b).and_then(walk).is_some()
+    }
+
+    /// Takes away the jumps that land on no room ([`Self::lands`]).
+    fn drop_narrow_landings(&self, wide: &mut Wide) {
+        for a in 0..self.height.len() {
+            for d in 0..8 {
+                let b = wide.links[a][d];
+                if b != NONE
+                    && wide.kinds[a][d] == LinkKind::Jump
+                    && !Self::lands(wide, b as usize, d)
+                {
+                    wide.links[a][d] = NONE;
+                }
+            }
+        }
+    }
+
+    /// Cuts the walks up steep ground past a step: a walk link up is
+    /// steep when either floor's face, or its ground by its neighbours'
+    /// heights, is steeper than [`Body::min_ground_normal_y`]'s slope (50°); the body
+    /// climbs steep ground only while it is at most [`Body::step`] over
+    /// the walkable ground the climb began on, and steps up off it onto
+    /// walkable ground (the client steps up rough ground's steep facets,
+    /// and does not walk up a steep slope: its `impassable_slope`). The
+    /// floors stay (a body comes down a slope); `walk` faces (stairs) are
+    /// not steep.
+    ///
+    /// Returns the directions cut, a bit each, by floor: no wall there for
+    /// [`Self::erode`] (the slope goes on).
+    fn cut_steep_climbs(&self, wide: &mut Wide, forced: &[bool], steep_face: &[bool]) -> Vec<u8> {
+        let n = self.height.len();
+        // The ground's slope at a floor, from its walk neighbours along x
+        // and z (one side where the other has none).
+        let tan_max = {
+            let up = self.body.min_ground_normal_y.max(1e-3);
+            (1.0 - up * up).max(0.0).sqrt() / up
+        };
+        let grade = |a: usize, wide: &Wide| -> f32 {
+            let side = |d: usize| {
+                let b = wide.links[a][d];
+                (b != NONE && wide.kinds[a][d] == LinkKind::Walk).then(|| self.height[b as usize])
+            };
+            let axis = |plus: usize, minus: usize| match (side(plus), side(minus)) {
+                (Some(p), Some(m)) => (p - m) / (2.0 * self.cell),
+                (Some(p), None) => (p - self.height[a]) / self.cell,
+                (None, Some(m)) => (self.height[a] - m) / self.cell,
+                (None, None) => 0.0,
+            };
+            axis(0, 1).hypot(axis(2, 3))
+        };
+        let steep_floor: Vec<bool> = (0..n)
+            .map(|a| steep_face[a] || grade(a, wide) > tan_max + 1e-3)
+            .collect();
+        // A walk onto or off a steep floor.
+        let on_steep =
+            |a: usize, b: usize| (steep_floor[a] || steep_floor[b]) && !(forced[a] && forced[b]);
+        // A floor's base: its own height on walkable ground or where a
+        // drop or jump lands; on steep ground, that of the ground its climb
+        // began on (none if it is only come down to).
+        let mut base: Vec<f32> = (0..n)
+            .map(|a| {
+                if steep_floor[a] {
+                    f32::NEG_INFINITY
+                } else {
+                    self.height[a]
+                }
+            })
+            .collect();
+        for a in 0..n {
+            for d in 0..8 {
+                let b = wide.links[a][d];
+                if b != NONE && wide.kinds[a][d] != LinkKind::Walk {
+                    base[b as usize] = self.height[b as usize];
+                }
+            }
+        }
+        let mut queue: Vec<usize> = (0..n).filter(|&a| base[a].is_finite()).collect();
+        let mut cut = vec![0u8; n];
+        while let Some(a) = queue.pop() {
+            for d in 0..8 {
+                let b = wide.links[a][d];
+                if b == NONE || wide.kinds[a][d] != LinkKind::Walk {
+                    continue;
+                }
+                let b = b as usize;
+                // A climb or a level walk carries the base on; a way down
+                // a steep slope does not (no climbing back from there).
+                if !on_steep(a, b)
+                    || steep_floor[b] && self.height[b] < self.height[a] - LEVEL_M
+                    || self.height[b] - base[a] > self.body.step
+                {
+                    continue;
+                }
+                let carried = base[a].min(self.height[b]);
+                if carried > base[b] {
+                    base[b] = carried;
+                    queue.push(b);
+                }
+            }
+        }
+        for a in 0..n {
+            for d in 0..8 {
+                let b = wide.links[a][d];
+                if b == NONE || wide.kinds[a][d] != LinkKind::Walk {
+                    continue;
+                }
+                let b = b as usize;
+                // Up onto walkable ground is a step; up onto steep ground
+                // only within a step of where the climb began.
+                if on_steep(a, b)
+                    && steep_floor[b]
+                    && self.height[b] > self.height[a] + LEVEL_M
+                    && self.height[b] - base[a] > self.body.step
+                {
+                    wide.links[a][d] = NONE;
+                    cut[a] |= 1 << d;
+                }
+            }
+        }
+        cut
+    }
+
     /// Removes floors within the body's radius of a wall, then compacts.
     ///
     /// A drop or jump whose landing went lands further on, up to the
     /// rounds of erosion past it: a body that drops beside a wall lands
     /// clear of it.
-    fn erode(&mut self, wide: &mut Wide) {
+    fn erode(&mut self, wide: &mut Wide, cut: &[u8]) {
         let n = self.height.len();
         let mut alive = vec![true; n];
         let rounds = erosion_rounds(self.body.radius, self.cell);
         for _ in 0..rounds {
+            // A side with no link is a wall (but for a climb cut off a
+            // slope); so is one whose link is a
+            // jump: the body walking by meets the ledge's face as it meets
+            // a wall (a crate, a low wall, a sill), and catches on it if its
+            // floor is nearer than its radius.
             let doomed: Vec<usize> = (0..n)
                 .filter(|&a| {
                     alive[a]
                         && (0..4).any(|d| {
                             let b = wide.links[a][d];
-                            b == NONE || (wide.kinds[a][d] == LinkKind::Walk && !alive[b as usize])
+                            if b == NONE {
+                                // A climb cut off a slope is no wall.
+                                return cut[a] & (1 << d) == 0;
+                            }
+                            match wide.kinds[a][d] {
+                                LinkKind::Walk => !alive[b as usize],
+                                LinkKind::Jump => true,
+                                LinkKind::Drop => false,
+                            }
                         })
                 })
                 .collect();
@@ -434,15 +616,31 @@ impl WalkGrid {
             let (i, k) = self.cell_xz(self.cell_of[a] as usize);
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
                 let b = wide.links[a][d];
-                if b == NONE || alive[b as usize] || wide.kinds[a][d] == LinkKind::Walk {
+                if b == NONE || alive[b as usize] {
                     continue;
                 }
-                wide.links[a][d] = NONE;
+                // A walk to a floor that went: a jump past it, if one
+                // was the way on (the floor at a ledge's foot went, the
+                // ledge stays: the jump starts a step back). Else the walk
+                // goes with the floor.
+                let walked = wide.kinds[a][d] == LinkKind::Walk;
+                if walked {
+                    let foot = wide.links[b as usize][d] != NONE
+                        && wide.kinds[b as usize][d] == LinkKind::Jump;
+                    if !foot {
+                        continue;
+                    }
+                } else {
+                    wide.links[a][d] = NONE;
+                }
                 for reach in 2..=furthest {
                     let Some(cell) = self.cell_index(i + di * reach, k + dk * reach) else {
                         break;
                     };
-                    if let Some((b, kind)) = self.ledge(a, cell, Some(&alive)) {
+                    if let Some((b, kind)) = self.ledge(a, cell, Some(&alive))
+                        && (!walked || kind == LinkKind::Jump)
+                        && (kind != LinkKind::Jump || Self::lands(wide, b as usize, d))
+                    {
                         wide.links[a][d] = b;
                         wide.kinds[a][d] = kind;
                         break;
@@ -1258,7 +1456,7 @@ fn rasterize(
     cell: f32,
     nx: usize,
     nz: usize,
-    body: Body,
+    min_ground_normal_y: f32,
     stats: &mut BuildStats,
 ) -> Vec<Vec<Span>> {
     let (x1, z1) = (x0 + nx as f32 * cell, z0 + nz as f32 * cell);
@@ -1286,8 +1484,9 @@ fn rasterize(
         stats.triangles_used += 1;
         let up = normal.y.abs() / length;
         let walk = match t.walker {
-            WalkerBehaviour::Walk => 2,
-            WalkerBehaviour::BySlope if up >= body.min_ground_normal_y => 1,
+            WalkerBehaviour::Walk => 3,
+            WalkerBehaviour::BySlope if up >= min_ground_normal_y => 2,
+            WalkerBehaviour::BySlope if up >= STEEP_NORMAL_Y => STEEP,
             _ => 0,
         };
         // Cells are half-open: a mesh ending on a cell line stops before it,
@@ -1669,7 +1868,7 @@ pub(crate) mod tests {
         assert_eq!(unlinked.digest(), grid.digest());
     }
 
-    const PINNED_TWO_ROOMS: u64 = 11_945_545_835_143_266_436;
+    const PINNED_TWO_ROOMS: u64 = 13_718_257_078_485_368_119;
 
     /// A search in slices of a few floors ends with the one search's answer
     /// (the same path, cost and floors expanded), with other searches made
@@ -2201,5 +2400,139 @@ pub(crate) mod tests {
         // there is no way back up.
         assert!(grid.distances_from(&[above]).reaches(below));
         assert!(!grid.distances_from(&[below]).reaches(above));
+    }
+
+    /// A closed box from the ground to `h` over x0..x1, z0..z1: its top
+    /// and its four sides.
+    fn crate_box(x0: f32, z0: f32, x1: f32, z1: f32, h: f32) -> Vec<Triangle> {
+        let side = |a: (f32, f32), b: (f32, f32)| {
+            let (p, q) = (Vec3::new(a.0, 0.0, a.1), Vec3::new(b.0, 0.0, b.1));
+            let (r, t) = (Vec3::new(b.0, h, b.1), Vec3::new(a.0, h, a.1));
+            [
+                Triangle {
+                    v: [p, q, r],
+                    walker: WalkerBehaviour::BySlope,
+                },
+                Triangle {
+                    v: [p, r, t],
+                    walker: WalkerBehaviour::BySlope,
+                },
+            ]
+        };
+        let mut tris = floor(x0, z0, x1, z1, h).to_vec();
+        tris.extend(side((x0, z0), (x1, z0)));
+        tris.extend(side((x1, z0), (x1, z1)));
+        tris.extend(side((x1, z1), (x0, z1)));
+        tris.extend(side((x0, z1), (x0, z0)));
+        tris
+    }
+
+    /// A crate 0.9 m high (a jump up) is a wall to a body walking by: no
+    /// floor is left nearer a side of it than the body's radius, so a way
+    /// along it keeps clear (level_08's crate by the wall, where bodies
+    /// stood caught for minutes), and it is still jumped on, from a step
+    /// back.
+    #[test]
+    fn a_body_walking_by_a_crate_it_could_jump_on_keeps_its_radius_off_it() {
+        let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        tris.extend(crate_box(4.0, 4.0, 6.0, 6.0, 0.9));
+        let grid = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+        let radius = Body::default().radius - 0.01;
+        // By a side (a corner's diagonal is eroded no more than a
+        // wall's: the body slides round it).
+        let beside = |p: Vec3| {
+            let dx = (4.0 - p.x).max(p.x - 6.0).max(0.0);
+            let dz = (4.0 - p.z).max(p.z - 6.0).max(0.0);
+            p.y < 0.5 && dx.min(dz) == 0.0 && dx.max(dz) < radius
+        };
+        for node in 0..grid.len() as NodeId {
+            let p = grid.position(node);
+            assert!(
+                !beside(p),
+                "a floor at {p:?} is within the body's radius of the crate"
+            );
+        }
+        // Along its side: the way keeps the radius off it.
+        let a = grid.locate(Vec3::new(3.6, 0.0, 2.0), 0.3).unwrap();
+        let b = grid.locate(Vec3::new(3.6, 0.0, 8.0), 0.3).unwrap();
+        for node in grid.path(a, b).unwrap().nodes {
+            assert!(!beside(grid.position(node)));
+        }
+        // Up on it: by a jump.
+        let top = grid.locate(Vec3::new(5.0, 0.9, 5.0), 0.3).unwrap();
+        let up: Vec<LinkKind> = grid
+            .path(a, top)
+            .unwrap()
+            .nodes
+            .windows(2)
+            .filter_map(|w| grid.links(w[0]).find(|l| l.0 == w[1]).map(|l| l.1))
+            .collect();
+        assert!(up.contains(&LinkKind::Jump), "{up:?}");
+    }
+
+    /// A wall 1 m high and a cell thick is no jump's landing (the body
+    /// slides off its top; level_07's wall had bots jumping at it): it is
+    /// a wall, and no way goes over it.
+    #[test]
+    fn the_top_of_a_thin_wall_is_no_landing() {
+        let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        tris.extend(crate_box(5.0, 0.0, 5.2, 10.0, 1.0));
+        let grid = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+        for node in 0..grid.len() as NodeId {
+            assert!(
+                grid.links(node).all(|(_, kind)| kind != LinkKind::Jump),
+                "a jump from {:?}",
+                grid.position(node)
+            );
+        }
+        let a = grid.locate(Vec3::new(2.0, 0.0, 5.0), 0.3).unwrap();
+        let b = grid.locate(Vec3::new(8.0, 0.0, 5.0), 0.3).unwrap();
+        assert!(!grid.distances_from(&[a]).reaches(b));
+    }
+
+    /// Ground steeper than 50° is not walked up past a step (the
+    /// client's `impassable_slope`; level_05's rubble, where bodies stood
+    /// caught at the foot); 45° is. Its floors stay, for coming down.
+    #[test]
+    fn ground_steeper_than_fifty_degrees_is_not_walked_up() {
+        let ramp = |degrees: f32| {
+            let rise = 3.0 * degrees.to_radians().tan();
+            let mut tris = floor(0.0, 0.0, 2.0, 10.0, 0.0).to_vec();
+            tris.extend(floor(5.0, 0.0, 10.0, 10.0, rise));
+            let (a, b) = (Vec3::new(2.0, 0.0, 0.0), Vec3::new(2.0, 0.0, 10.0));
+            let (c, d) = (Vec3::new(5.0, rise, 10.0), Vec3::new(5.0, rise, 0.0));
+            for v in [[a, b, c], [a, c, d]] {
+                tris.push(Triangle {
+                    v,
+                    walker: WalkerBehaviour::BySlope,
+                });
+            }
+            let grid = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+            let foot = grid.locate(Vec3::new(1.0, 0.0, 5.0), 0.3).unwrap();
+            let top = grid.locate(Vec3::new(7.5, rise, 5.0), 0.3).unwrap();
+            let up = grid.distances_from(&[foot]).reaches(top);
+            assert!(
+                grid.distances_from(&[top]).reaches(foot),
+                "down at {degrees}°"
+            );
+            up
+        };
+        assert!(ramp(45.0));
+        assert!(!ramp(55.0));
+        // A curb's steep face, lower than a step, is stepped up.
+        let mut tris = floor(0.0, 0.0, 3.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(3.5, 0.0, 10.0, 10.0, 0.45));
+        let (a, b) = (Vec3::new(3.0, 0.0, 0.0), Vec3::new(3.0, 0.0, 10.0));
+        let (c, d) = (Vec3::new(3.5, 0.45, 10.0), Vec3::new(3.5, 0.45, 0.0));
+        for v in [[a, b, c], [a, c, d]] {
+            tris.push(Triangle {
+                v,
+                walker: WalkerBehaviour::BySlope,
+            });
+        }
+        let grid = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+        let foot = grid.locate(Vec3::new(1.0, 0.0, 5.0), 0.3).unwrap();
+        let top = grid.locate(Vec3::new(7.0, 0.45, 5.0), 0.3).unwrap();
+        assert!(grid.distances_from(&[foot]).reaches(top));
     }
 }
