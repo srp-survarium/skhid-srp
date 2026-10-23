@@ -125,6 +125,10 @@ struct Game {
     rng: Rng,
     shots: u32,
     hits: u32,
+    /// Hits on a teammate (the game has friendly fire), and the teammates
+    /// killed so.
+    team_hits: u32,
+    team_kills: u32,
     /// Shots at the bot's target whose ray met the world short of him, and
     /// those with nothing of him showing.
     walled: u32,
@@ -246,6 +250,8 @@ impl Game {
             rng: Rng::new(seed),
             shots: 0,
             hits: 0,
+            team_hits: 0,
+            team_kills: 0,
             walled: 0,
             hidden: 0,
             metric_rays: 0,
@@ -401,8 +407,8 @@ impl Game {
     }
 
     /// Shots, each along the view (the base pitch and the kick) and each
-    /// kicking it: a hit on the nearest enemy chest within 0.45 m of the
-    /// ray.
+    /// kicking it: a hit on the nearest chest within 0.45 m of the ray, a
+    /// teammate's too (the game has friendly fire).
     fn shoot(&mut self, tick: u32) {
         for shooter in 0..self.bodies.len() {
             let body = &mut self.bodies[shooter];
@@ -450,7 +456,7 @@ impl Game {
         }
         let mut best: Option<(Place, f32)> = None;
         for (target, other) in self.bodies.iter().enumerate() {
-            if !other.alive || other.team == body.team {
+            if !other.alive || target == shooter {
                 continue;
             }
             let to = Self::chest(other) - eye;
@@ -469,7 +475,12 @@ impl Game {
         let Some((target, _)) = best else {
             return;
         };
-        self.hits += 1;
+        let team_hit = self.bodies[target].team == body.team;
+        if team_hit {
+            self.team_hits += 1;
+        } else {
+            self.hits += 1;
+        }
         let other = &mut self.bodies[target];
         other.health -= 0.2;
         if other.health <= 1e-3 {
@@ -491,8 +502,12 @@ impl Game {
                 let team = usize::from(other.team);
                 tickets[team] = tickets[team].saturating_sub(1);
             }
-            self.stats[shooter].0 += 1;
-            self.stats[shooter].2 += 1;
+            if team_hit {
+                self.team_kills += 1;
+            } else {
+                self.stats[shooter].0 += 1;
+                self.stats[shooter].2 += 1;
+            }
         }
     }
 
@@ -748,6 +763,8 @@ struct Outcome {
     stolen: u32,
     shots: u32,
     hits: u32,
+    team_hits: u32,
+    team_kills: u32,
     walled: u32,
     hidden: u32,
     /// Sight and aim rays the bots cast (`aimpoint`), per bot and second
@@ -911,6 +928,8 @@ fn soak_tuned(
     out.stolen = game.stolen;
     out.shots = game.shots;
     out.hits = game.hits;
+    out.team_hits = game.team_hits;
+    out.team_kills = game.team_kills;
     out.walled = game.walled;
     out.hidden = game.hidden;
     out.rays_per_bot_s = (super::aimpoint::rays_cast() - rays_before - game.metric_rays) as f32
@@ -1134,6 +1153,53 @@ fn a_team_deathmatch_of_bots_is_fought_to_the_last_ticket() {
         out.shots
     );
     assert!(out.least_moved_m > 20.0, "{}", out.least_moved_m);
+}
+
+/// No shot through a teammate (`friends`): Team Deathmatch matches of 6 a
+/// side with the check off and on, the same seeds. Off, a bot fires
+/// through a teammate as it did live (2026-10-20..23: 7,250 team kills to
+/// 27,088 kills); on, far fewer team hits, and the enemy still dies about
+/// as often.
+#[test]
+#[ignore = "whole matches; run in release"]
+fn bots_hold_fire_while_a_teammate_is_in_the_line_of_fire() {
+    let mut totals = Vec::new();
+    for on in [false, true] {
+        let mut tuning = bench_tuning();
+        tuning.aim.friends.on = on;
+        let (mut kills, mut team_kills, mut hits, mut team_hits, mut shots) = (0, 0, 0, 0, 0);
+        for seed in 1..=6 {
+            let out = soak_tuned(6, 0, 60, None, 600, seed, tuning.clone());
+            kills += out.kills[0] + out.kills[1];
+            team_kills += out.team_kills;
+            hits += out.hits;
+            team_hits += out.team_hits;
+            shots += out.shots;
+        }
+        eprintln!(
+            "friends.on {on}: kills {kills}, team kills {team_kills}; hits {hits}, team hits {team_hits} of {shots} shots"
+        );
+        totals.push((kills, team_kills, hits, team_hits));
+    }
+    let [
+        (kills_off, _, _, team_hits_off),
+        (kills_on, _, _, team_hits_on),
+    ] = totals[..]
+    else {
+        unreachable!()
+    };
+    assert!(
+        team_hits_off >= 20,
+        "the harness sees friendly fire with the check off: {team_hits_off}"
+    );
+    assert!(
+        team_hits_on * 4 <= team_hits_off,
+        "a quarter of the team hits at most: {team_hits_on} against {team_hits_off}"
+    );
+    assert!(
+        kills_on * 10 >= kills_off * 8,
+        "the enemy dies about as often: {kills_on} kills against {kills_off}"
+    );
 }
 
 /// Timed batteries: they come by the stations over time; bots wait there

@@ -249,6 +249,32 @@ side-stepped, and only a bolt action crouched.
   walk along its view weaves to the side. A run stays straight. The top
   players move on 84.5 % of the ticks while finishing a kill, the others on
   66.6 %.
+- **No shot through a teammate** (`friends.rs`, the owner 2026-10-23: bots
+  killed teammates, bots and players, standing between them and the enemy).
+  The game has friendly fire, and the aim's wall test looked at the world
+  only. In the saved worlds of the 257 player-against-bots matches of
+  2026-10-20..23 the bots made 27,088 kills and 7,250 team kills (21 % of
+  their kills; event 4, counted to the killer: the killer's own death rarely
+  falls in the same world, 291 of 7,356, a teammate's nearly always does).
+  Of the 4,234 team kills of a bot with one teammate's death in that world,
+  3,671 (87 %) had the victim within 1.5 m of the line from the killer to an
+  enemy beyond him a second before (median 0.24 m off the line, 5.8 m from
+  the killer), against 26 % of the killer's other teammates within 12 m.
+  The player died ~160 times (9 % of his deaths) in a world where a bot of
+  his team made a team kill. `received_damage` has no entries for a
+  teammate's damage (none in any of these worlds), so team damage short of
+  a kill is not counted there. Every weapon kind did it; team kills of all
+  its kills by the kit's weapon (the kit in use a world before): SMG 18 %,
+  rifle 17 %, shotgun 31 %, the camper's sniper rifle 34 % (GUESS: it
+  fires from behind its team). Now a bot does not fire while a living teammate's body (the
+  shins to the head, 0.35 m wide, 0.6 m for a player, whose body is
+  reckoned) comes within the margin of the view's line or the line it turns
+  to, short of the target and 2 m past: the margin grows by the weapon's
+  spread (`aim.friends.spread_deg`: 3° automatic, 1.5° semi-automatic,
+  0.75° bolt, 4° shotgun); it steps to the side away from him instead. The
+  test harness now lets a shot hit a teammate (it skipped them): 6 Team
+  Deathmatch matches of 6 a side, off then on, made 547 kills and 181 team
+  kills (985 team hits), then 696 kills and 10 team kills (85 team hits).
 
 ## 6. The aim at skill 1, the tiers' skill, the pull against the kick
 

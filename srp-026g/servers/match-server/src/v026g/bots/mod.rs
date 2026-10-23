@@ -33,6 +33,7 @@ pub mod body;
 pub mod cheats;
 pub mod curve;
 pub mod encode;
+pub mod friends;
 pub mod guns;
 pub mod hazards;
 pub mod kin;
