@@ -180,10 +180,12 @@ RUST_LOG=info
 # SRP_ROOMS_MAX=50
 
 # Chat translation (docs/notes/chat-translation.md): each reader gets a
-# player's chat line in its game language. Off by default. `claude` sends the
-# line's text (no name) to Anthropic's API; the key comes from here only.
-# SRP_CHAT_TRANSLATE=claude
-# ANTHROPIC_API_KEY=
+# player's chat line in its game language. Off by default. `grok` sends the
+# line's text (no name) to xAI (Grok); the key comes from here only, a key of
+# its own with a spend limit.
+# SRP_CHAT_TRANSLATE=grok
+# XAI_API_KEY=
+# (or SRP_CHAT_TRANSLATE=claude with ANTHROPIC_API_KEY)
 # SRP_CHAT_TRANSLATE_TIMEOUT_MS=2000
 # The gate before translation, required with it: the local classifier service
 # (deploy/chat-moderation/), its per-language thresholds and timeout. A line it

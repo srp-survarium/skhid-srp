@@ -97,8 +97,10 @@
 //!   (`pvb`, whose module says what each does and which server reads it).
 //! - `SRP_ROOMS_MAX` (50), `SRP_ROOMS_EXTRA_MAPS` (none): rooms, the
 //!   players' "servers" (`rooms`, whose module says what each does).
-//! - `SRP_CHAT_TRANSLATE` (default off; `claude`: on, with the key of
-//!   `ANTHROPIC_API_KEY`), `SRP_CHAT_TRANSLATE_MODEL` (`claude-haiku-5-5`),
+//! - `SRP_CHAT_TRANSLATE` (default off; `grok`: on, through xAI Grok with the
+//!   key of `XAI_API_KEY`; `claude`: through Claude, `ANTHROPIC_API_KEY`),
+//!   `SRP_CHAT_TRANSLATE_MODEL` (`grok-4.20-0309-non-reasoning`, or
+//!   `claude-haiku-5-5`),
 //!   `SRP_CHAT_TRANSLATE_TIMEOUT_MS` (2000): chat lines in each reader's
 //!   game language (`translate`, `chat_out`).
 //! - `SRP_CHAT_MODERATION_URL`, `SRP_CHAT_MODERATION_THRESHOLDS`,

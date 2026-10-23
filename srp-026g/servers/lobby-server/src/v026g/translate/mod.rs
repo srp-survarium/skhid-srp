@@ -2,8 +2,9 @@
 //! given to each reader in the reader's game language.
 //!
 //! - **Off by default** (`SRP_CHAT_TRANSLATE`); off, chat is as it was.
-//! - **The backend** is pluggable ([`Backend`]): Claude Haiku over HTTPS
-//!   ([`claude::Claude`], the one shipped) or a fake one for the tests.
+//! - **The backend** is pluggable ([`Backend`]): xAI Grok over HTTPS
+//!   ([`grok::Grok`], the default), Anthropic Claude ([`claude::Claude`]),
+//!   or a fake one for the tests.
 //! - **A gate first, failing closed:** srp's word list (`swear`, on the
 //!   lobby's thread, free), then a tiny local classifier (`moderate`, on a
 //!   worker) say whether the line may go at all; "no", a timeout or an
@@ -23,6 +24,7 @@
 pub mod claude;
 pub mod detect;
 pub mod glossary;
+pub mod grok;
 pub mod guard;
 pub mod moderate;
 pub mod swear;
@@ -124,12 +126,40 @@ pub trait Backend: Send + Sync {
     fn translate(&self, line: &Line) -> Result<Translated, String>;
 }
 
+/// The translation service (`SRP_CHAT_TRANSLATE`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Provider {
+    /// xAI Grok (`grok`; `on` too): the default.
+    Grok,
+    /// Anthropic Claude (`claude`).
+    Claude,
+}
+
+impl Provider {
+    pub fn default_model(self) -> &'static str {
+        match self {
+            Provider::Grok => grok::DEFAULT_MODEL,
+            Provider::Claude => claude::DEFAULT_MODEL,
+        }
+    }
+
+    /// The backend, with its key from the environment.
+    pub fn backend(self, model: &str, timeout: Duration) -> Result<Arc<dyn Backend>, String> {
+        Ok(match self {
+            Provider::Grok => Arc::new(grok::Grok::from_env(model, timeout)?),
+            Provider::Claude => Arc::new(claude::Claude::from_env(model, timeout)?),
+        })
+    }
+}
+
 /// The settings (`SRP_CHAT_TRANSLATE*`, `SRP_CHAT_MODERATION*`, read once at
 /// start). The key is not here: the backend reads it from the environment
 /// itself.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config {
-    /// `SRP_CHAT_TRANSLATE_MODEL`, default [`claude::DEFAULT_MODEL`].
+    pub provider: Provider,
+    /// `SRP_CHAT_TRANSLATE_MODEL`, default the provider's
+    /// ([`grok::DEFAULT_MODEL`], [`claude::DEFAULT_MODEL`]).
     pub model: String,
     /// `SRP_CHAT_TRANSLATE_TIMEOUT_MS` (default 2000, 200 to 10000): the
     /// longest a line waits for its translation.
@@ -157,14 +187,17 @@ impl Config {
                 .ok()
                 .map(|value| value.trim().to_owned())
         };
-        match var("SRP_CHAT_TRANSLATE").as_deref() {
+        let provider = match var("SRP_CHAT_TRANSLATE").as_deref() {
             None | Some("" | "off" | "0" | "no" | "false") => return None,
-            Some("claude" | "on") => {}
+            Some("grok" | "on") => Provider::Grok,
+            Some("claude") => Provider::Claude,
             Some(other) => {
-                log::error!("SRP_CHAT_TRANSLATE is `{other}`; it must be `claude` or off. Off");
+                log::error!(
+                    "SRP_CHAT_TRANSLATE is `{other}`; it must be `grok`, `claude` or off. Off"
+                );
                 return None;
             }
-        }
+        };
         let timeout = match var("SRP_CHAT_TRANSLATE_TIMEOUT_MS") {
             None => DEFAULT_TIMEOUT,
             Some(value) => match value.parse::<u64>() {
@@ -181,8 +214,9 @@ impl Config {
         };
         let model = var("SRP_CHAT_TRANSLATE_MODEL")
             .filter(|model| !model.is_empty())
-            .unwrap_or_else(|| claude::DEFAULT_MODEL.to_owned());
+            .unwrap_or_else(|| provider.default_model().to_owned());
         Some(Self {
+            provider,
             model,
             timeout,
             gate: Gate::from_env(),
@@ -200,7 +234,7 @@ impl Config {
                 return None;
             }
         };
-        match claude::Claude::from_env(&self.model, self.timeout * 2) {
+        match self.provider.backend(&self.model, self.timeout * 2) {
             Ok(backend) => {
                 log::info!(
                     "Chat translation on: {} (a line waits at most {} ms), gated by {}",
@@ -212,7 +246,7 @@ impl Config {
                     .moderator()
                     .map(|moderator| Arc::new(moderator) as Arc<dyn Moderator>);
                 Some(Translator::threaded(
-                    Arc::new(backend),
+                    backend,
                     moderator,
                     gate,
                     WORKERS,
@@ -805,7 +839,8 @@ mod tests {
         let echo = Arc::new(Echo::default());
         let mut translator = inline(echo.clone());
         let now = Instant::now();
-        for line in ["сука блять нахуй", "fuck fuck fuck", "бля бля бля сука"] {
+        for line in ["сука блять нахуй", "fuck fuck fuck", "бля бля бля сука"]
+        {
             translator.request(line, None, &[Lang::De], PLAYER, now);
         }
         translator.request("hello all", Some(Lang::En), &[Lang::De], PLAYER, now);

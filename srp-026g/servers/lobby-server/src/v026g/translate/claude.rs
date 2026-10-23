@@ -20,8 +20,8 @@ const URL: &str = "https://api.anthropic.com/v1/messages";
 const KEY_VAR: &str = "ANTHROPIC_API_KEY";
 
 /// The instructions, the same for every call (cached by the API once long
-/// enough).
-const SYSTEM: &str = "\
+/// enough). Grok's too (`grok`).
+pub(super) const SYSTEM: &str = "\
 You are the translation step of a video game's chat: Survarium, a \
 post-apocalyptic online shooter. Players type short lines to each other in \
 English (en), Russian (ru), Ukrainian (uk), German (de) or Polish (pl), and you \
@@ -58,7 +58,7 @@ language.
 - One line only: no line breaks.";
 
 /// The answer's shape: always the same, so the API compiles it once.
-fn schema() -> Value {
+pub(super) fn schema() -> Value {
     let codes: Vec<&str> = Lang::ALL.iter().map(|lang| lang.code()).collect();
     let mut sources = codes.clone();
     sources.push("other");
@@ -84,8 +84,9 @@ fn schema() -> Value {
     })
 }
 
-/// The request's body for `line`.
-pub fn request_body(model: &str, line: &Line) -> Value {
+/// The user message for `line`: the line, the guess, the languages wanted
+/// and the glossary's terms, as JSON.
+pub(super) fn user_message(line: &Line) -> String {
     let glossary: Vec<Value> = line
         .glossary
         .iter()
@@ -97,12 +98,17 @@ pub fn request_body(model: &str, line: &Line) -> Value {
             json!({ "term": entry.term, "words": words })
         })
         .collect();
-    let line = json!({
+    json!({
         "text": line.text,
         "guess": line.from.map_or("unknown", Lang::code),
         "into": line.to.iter().map(|lang| lang.code()).collect::<Vec<_>>(),
         "glossary": glossary,
-    });
+    })
+    .to_string()
+}
+
+/// The request's body for `line`.
+pub fn request_body(model: &str, line: &Line) -> Value {
     json!({
         "model": model,
         // A line is at most 255 bytes, so each translation is short.
@@ -117,7 +123,7 @@ pub fn request_body(model: &str, line: &Line) -> Value {
             "text": SYSTEM,
             "cache_control": { "type": "ephemeral" }
         }],
-        "messages": [{ "role": "user", "content": line.to_string() }]
+        "messages": [{ "role": "user", "content": user_message(line) }]
     })
 }
 
@@ -144,8 +150,17 @@ pub fn parse_response(body: &str, to: &[Lang]) -> Result<Translated, String> {
                 .and_then(|block| block["text"].as_str())
         })
         .ok_or("an answer with no text")?;
+    Ok(parse_answer(text, to))
+}
+
+/// The model's JSON answer: the translations of the languages asked for. One
+/// that is no JSON is no translation: declined.
+pub(super) fn parse_answer(text: &str, to: &[Lang]) -> Translated {
     let Ok(answer) = serde_json::from_str::<Value>(text) else {
-        return Ok(declined);
+        return Translated {
+            refused: true,
+            ..Translated::default()
+        };
     };
     let source = answer["source"].as_str().and_then(Lang::from_code);
     let lines = answer["translations"]
@@ -161,11 +176,11 @@ pub fn parse_response(body: &str, to: &[Lang]) -> Result<Translated, String> {
                 .collect()
         })
         .unwrap_or_default();
-    Ok(Translated {
+    Translated {
         source,
         lines,
         refused: false,
-    })
+    }
 }
 
 pub struct Claude {

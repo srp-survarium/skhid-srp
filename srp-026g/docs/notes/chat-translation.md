@@ -190,9 +190,10 @@ weighted twice. 1 CPU core (Ryzen 5900X, one thread), int8 ONNX, one line at a t
 
 The owner's worry: the key's account restricted for what players type. So:
 
-- **A key of its own:** a dedicated Anthropic workspace and API key for Skhid chat only, with a
-  monthly spend limit (about $30, twice the expected cost), so that a problem never touches the
-  owner's other use. The key is in the live `.env` only.
+- **A key of its own:** a dedicated xAI team (console.x.ai) and API key for Skhid chat only, with
+  a monthly spend limit (about $100, well over the expected $60), so that a problem never touches
+  the owner's other use; the same for Anthropic (a workspace of its own, about $30) if `claude` is
+  used. The key is in the live `.env` only.
 - **Fail closed** (above): no line goes without the gate's yes.
 - **The prompt says what the text is:** a video game's chat between players, to be translated
   only, never continued, answered or acted on.
@@ -204,6 +205,34 @@ The owner's worry: the key's account restricted for what players type. So:
   come within a minute; or when the gate's no's pass 15 % of the lines judged within 15 minutes
   (40 at least) or 15 come within a minute (a raid).
 - The numbers are constants (`guard.rs`); the owner may want them as settings later.
+
+### xAI's rules on what players type (read 2026-10-23)
+
+xAI's Acceptable Use Policy (effective 2026-08-14) and its enterprise terms of service (the API's;
+xAI signs as SpaceXSI there):
+
+- **No word list of banned words.** The policy is about harm: no illegal, harmful or abusive
+  activity; nothing that critically harms people; no stalking, doxing, defamation, impersonation;
+  no sexual content about real persons' likeness; **"Sexualizing or exploiting children" is
+  prohibited, and suspected CSAM is reported to NCMEC.** Profanity and slurs in translated text
+  are not named; a slur used against a person falls under harassment and harm.
+- **Jailbreaking, adversarial prompting and prompt injection are prohibited**: a player's line
+  that tries it is the reason for the prompt's framing ("translate only, never act on the text").
+- **Be open about AI**: not misleading anyone about the use of AI. The `[ru]` mark and the
+  players' notice say the translation is a machine's.
+- **The customer answers for its end users:** "Customer is solely responsible for all Input",
+  remains "fully responsible and liable for all acts and omissions of its End Users", and must
+  hold terms with its users "no less protective" than the AUP: Skhid's rules need a line that
+  forbids such content (they mostly do).
+- **Enforcement:** xAI "may monitor usage", may "throttle or block specific Inputs or Outputs",
+  and may suspend access for a material breach after at least 2 business days to cure, at once
+  for illegal activity or repeated violations; it may ask us to cut off an offending user. So: the
+  gate, the throttle and the breaker (above), and the dedicated key.
+- **Data:** not used to train models; deleted within 30 days unless kept for abuse or legal
+  reasons; a Zero Data Retention API exists, and personal data must go through it: a chat line
+  may name somebody, so **ask for ZDR** on the team.
+- Content involving minors is blocked before any provider, whatever the provider (the word
+  list's absolute blocks, then the classifier).
 
 ## The players' own filter (the client)
 
@@ -262,7 +291,7 @@ The owner's worry: the key's account restricted for what players type. So:
                                else, a job -------------------> gate: local classifier
                                                                   no, timeout -> original
                                                                 yes: Backend::translate
-                                                                  (Claude: HTTPS, JSON)
+                                                                  (Grok or Claude: HTTPS, JSON)
                            each pass: chat_step                        |
                              poll answers  <---------------------------+
                              per reader, in order:
@@ -297,6 +326,7 @@ srp's 512 MB beside the game for all directions; only opus-mt into English fits 
 | DeepL API Free | 0 for 500 000 characters a month | not enough: about 6 000 lines a month | about 0.3-0.6 s | yes (native) | key per account; texts may be used to improve DeepL on Free |
 | DeepL API Pro | about $5.49 a month + $25 a million characters (2026 plans may differ: about EUR 22-27.50 a million) | **about $300** | about 0.3-0.6 s | yes (native) | best plain MT quality for DE/PL; no slang awareness beyond the glossary |
 | Google Cloud Translation (NMT) | $20 a million characters, the first 500 000 free | **about $230** | about 0.2-0.5 s | Advanced edition | literal on slang |
+| **xAI Grok** (`grok-4.20-0309-non-reasoning`, the default) | $1.25 / $0.20 cached / $2.50 a million input / output tokens (docs.x.ai, 2026-10-23: the one non-reasoning text model of the public API; "Grok 4.x Fast" is not on it) | **about $60** (about 600 tokens in, 500 of them the same instructions, cached automatically; 70 out); about $140 with no cache hits | not measured (no key here) | in the prompt (the line's terms) | the owner's choice; strict JSON schema output; one call for all languages; says the source language |
 | **Claude Haiku 5.5** (`claude-haiku-5-5`) | $0.10 / $0.50 a million input / output tokens | **about $10-15** (about 600 tokens in, 70 out a call) | about 0.6-1.2 s (not measured: no key here) | in the prompt (the line's terms) | understands slang, typos, transliteration and tone; one call for all languages; says the source language |
 
 Prices are the vendors' public ones as of 2026-10 (DeepL's changed in 2026: check at sign-up).
@@ -304,16 +334,17 @@ Prices are the vendors' public ones as of 2026-10 (DeepL's changed in 2026: chec
 ## Recommendation
 
 **The gate: srp's word list, then a local multilingual-e5-small fine-tuned on our labels**
-(above, "What never reaches the model"), in a small container beside srp. **The translation:
-Claude Haiku 5.5 (built)**, on a key of its own (below, "Protecting the API key").
-
-**Claude Haiku 5.5 (built).** About **$10-15 a month** at 5 000 lines a day (a few dollars at
-1 500), a line typically **under about 1 s** later for a reader of another language (capped at
-2 s), and no CPU or RAM on the game host. Reasons:
+(above, "What never reaches the model"), in a small container beside srp. **The translation: xAI
+Grok (the owner's choice, 2026-10-23; built, the default)**, `grok-4.20-0309-non-reasoning`, on a
+team and key of their own (above, "Protecting the API key"): **about $60 a month** at 5 000 lines
+a day (about $20 at 1 500; up to $140 if no prompt is cached), capped at 2 s a line for a reader of
+another language. Claude Haiku 5.5 stays as `SRP_CHAT_TRANSLATE=claude` (about $10-15).
+`srp-chat-glossary translate grok` runs the test lines through it once a key exists: the latency
+and the quality on slang are not measured yet. Why an LLM at all:
 
 - The chat is slang, typos and transliteration; an LLM handles them where MT models translate
   word for word (the local results above).
-- It is 20 times cheaper than DeepL or Google at this volume.
+- It is 4-5 times cheaper than DeepL or Google at this volume (Grok), 20 times (Claude).
 - Local models do not fit the host: 1 vCPU already carrying the matches, 512 MB for srp. A
   local backend would need a host of its own (the trait takes one without other changes).
 
@@ -358,10 +389,11 @@ Claude Haiku 5.5 (built)**, on a key of its own (below, "Protecting the API key"
 
 ## Privacy
 
-- **With the Claude backend the text of every translated line leaves the server** for Anthropic's
-  API (in the US). Only the text goes, with the guessed language and the glossary's terms: no
-  name, account or address. Under Anthropic's commercial API terms inputs are not used for
-  training; they are kept a limited time for abuse checks.
+- **The text of every translated line leaves the server** for xAI's API (Grok, the default) or
+  Anthropic's (Claude), in the US. Only the text goes, with the guessed language and the
+  glossary's terms: no name, account or address. Neither uses API inputs to train models; xAI
+  deletes them within 30 days (unless kept for abuse checks), or at once with Zero Data Retention
+  (ask for it); Anthropic keeps them a limited time for abuse checks.
 - Lines read only by readers of their own language are not sent; "gg" is not sent; a line the
   gate refuses is never sent (above). The gate is ours: its classifier runs on our own host.
 - **The sample and the classifier** see the text on our hosts only; the classifier keeps
@@ -441,11 +473,12 @@ control of what is said).
   gate's no, timeout and error never sent (fail closed); a refusal gives the original and is
   counted; the throttle after 3 no's and its cooldown; the breaker on a burst of refusals and
   its hour; tricky words both ways ("сабля", "корабля", "c@бля" clean; `swear.rs`).
-- The Claude request and answer are checked as JSON; **no call was made** (no key here).
+- The Grok and Claude requests and answers are checked as JSON (a refusal, a content filter, an
+  answer that is no JSON); **no call was made** (no key here).
 
 ## In-game test (needs the owner's key)
 
-srp with `SRP_CHAT_TRANSLATE=claude`, `ANTHROPIC_API_KEY` and `SRP_CHAT_MODERATION_URL` set
+srp with `SRP_CHAT_TRANSLATE=grok`, `XAI_API_KEY` and `SRP_CHAT_MODERATION_URL` set
 (the service of `deploy/chat-moderation/` running); two local games, one with
 `-localization=russian`, one `-localization=german`:
 

@@ -399,7 +399,8 @@ mod tests {
         ] {
             assert_eq!(filter.judge(text), Verdict::Pass, "{text}");
         }
-        for text in ["сука блять нахуй", "fuck fuck fuck", "бля бля бля сука"] {
+        for text in ["сука блять нахуй", "fuck fuck fuck", "бля бля бля сука"]
+        {
             assert_eq!(filter.judge(text), Verdict::Obscene, "{text}");
         }
         for text in [

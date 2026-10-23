@@ -220,8 +220,8 @@ that rule is mended when the accounts load, and never plays.
 | `SRP_MATCH_MAPS` | every playable map of those modes | `maps_dict` ids, e.g. `117` (Team Deathmatch on level_01) for a first test: a room's pool by default, and what a clan team's match is drawn from |
 | `SRP_ROOMS_MAX` | 50 | The most rooms at once, 1 to 1000 |
 | `SRP_ROOMS_EXTRA_MAPS` | none | Playable `maps_dict` ids a room's maker may add to its pool besides `SRP_MATCH_MAPS` (the experimental maps) |
-| `SRP_CHAT_TRANSLATE` | off | `claude`: each reader gets a player's chat line in its game language, through Claude Haiku with the key of `ANTHROPIC_API_KEY` (never in a file of the repository); no key: off, said in the log. The line's text leaves the server; no name goes with it (`notes/chat-translation.md`) |
-| `SRP_CHAT_TRANSLATE_MODEL` | `claude-haiku-5-5` | The model |
+| `SRP_CHAT_TRANSLATE` | off | `grok`: each reader gets a player's chat line in its game language, through xAI Grok with the key of `XAI_API_KEY`; `claude`: through Claude Haiku with the key of `ANTHROPIC_API_KEY` (never in a file of the repository); no key: off, said in the log. The line's text leaves the server; no name goes with it (`notes/chat-translation.md`) |
+| `SRP_CHAT_TRANSLATE_MODEL` | `grok-4.20-0309-non-reasoning` (grok), `claude-haiku-5-5` (claude) | The model |
 | `SRP_CHAT_TRANSLATE_TIMEOUT_MS` | 2000 | The longest a line waits for its translation, 200 to 10000; then, or on any error, the original goes |
 | `SRP_CHAT_MODERATION_URL` | none (translation stays off) | The gate before translation: the local classifier service (`deploy/chat-moderation/`) srp asks whether a line may go (`notes/chat-translation.md`, "What never reaches the model"); a "no", a timeout or an error: not sent. `none`: srp's word list alone |
 | `SRP_CHAT_MODERATION_THRESHOLDS` | 0.5 each | `en=0.5,ru=0.5,...`: a score at or over its language's threshold is a "no" |

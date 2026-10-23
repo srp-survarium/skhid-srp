@@ -4,6 +4,7 @@
 //! srp-chat-glossary seed <localization folder>
 //! srp-chat-glossary slang <sample file>... [--dict <lang>=<word list>]... [--top <n>]
 //! srp-chat-glossary judge < lines
+//! srp-chat-glossary translate grok|claude < lines
 //! srp-chat-glossary game-filter <localization folder> < lines
 //! ```
 //!
@@ -22,6 +23,16 @@
 //!   words to `chat-swear.tsv`) are chosen by hand.
 //! - `judge`: srp's word list's verdict on each line of standard input
 //!   (`pass`, `blocked`, `obscene`), a tab, the line.
+//! - `translate`: each line of standard input through the translation
+//!   backend, as srp would send it (one call for the four other languages;
+//!   the glossary's terms), to measure it: the milliseconds, `refused` or
+//!   `ok`, the translations as JSON, a tab, the line. A line is the text, or
+//!   the gate's test set's rows (`lang<TAB>...<TAB>text`: the first field is
+//!   the language, the last the text). A line the word list refuses is not
+//!   sent (`blocked`). Needs `XAI_API_KEY` (grok) or `ANTHROPIC_API_KEY`
+//!   (claude); the model of `SRP_CHAT_TRANSLATE_MODEL` or the default. Run
+//!   only lines the local gate let through: the rest must not reach the
+//!   provider.
 //! - `game-filter`: what the game's own client swear filter would mask in
 //!   each line of standard input (the words, `|` between them; nothing for
 //!   a clean line), a tab, the line. The five `swear_filter_data_a_c` files
@@ -36,9 +47,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use lobby_server::v026g::translate::Lang;
 use lobby_server::v026g::translate::glossary::Glossary;
 use lobby_server::v026g::translate::swear::{SwearFilter, Verdict};
+use lobby_server::v026g::translate::{Lang, Line, Provider};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::game_data;
 use survarium::v026g::localization::Localization;
@@ -48,6 +59,7 @@ const USAGE: &str = "usage:
   srp-chat-glossary seed <localization folder>
   srp-chat-glossary slang <sample file>... [--dict <lang>=<word list>]... [--top <n>]
   srp-chat-glossary judge < lines
+  srp-chat-glossary translate grok|claude < lines
   srp-chat-glossary game-filter <localization folder> [--no-clean] < lines";
 
 /// The game's folder name of each language.
@@ -238,6 +250,59 @@ fn slang(arguments: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn translate(provider: &str) -> Result<(), String> {
+    let provider = match provider {
+        "grok" => Provider::Grok,
+        "claude" => Provider::Claude,
+        other => return Err(format!("no provider `{other}`: grok or claude")),
+    };
+    let model = std::env::var("SRP_CHAT_TRANSLATE_MODEL")
+        .ok()
+        .filter(|model| !model.trim().is_empty())
+        .unwrap_or_else(|| provider.default_model().to_owned());
+    let backend = provider.backend(&model, std::time::Duration::from_secs(10))?;
+    let filter = SwearFilter::built_in();
+    let glossary = Glossary::shared();
+    for row in std::io::stdin().lines() {
+        let row = row.map_err(|error| error.to_string())?;
+        let fields: Vec<&str> = row.split('\t').collect();
+        let text = fields.last().copied().unwrap_or_default();
+        let from = (fields.len() > 1)
+            .then(|| Lang::from_code(fields[0]))
+            .flatten();
+        if filter.judge(text) != Verdict::Pass {
+            println!("-\tblocked\t-\t{row}");
+            continue;
+        }
+        let to: Vec<Lang> = Lang::ALL
+            .into_iter()
+            .filter(|lang| Some(*lang) != from)
+            .collect();
+        let line = Line {
+            text: text.to_owned(),
+            from,
+            glossary: glossary.entries(text, from, &to),
+            to,
+        };
+        let started = std::time::Instant::now();
+        let result = backend.translate(&line);
+        let ms = started.elapsed().as_millis();
+        match result {
+            Ok(translated) if translated.refused => println!("{ms}\trefused\t-\t{row}"),
+            Ok(translated) => {
+                let lines: serde_json::Map<String, serde_json::Value> = translated
+                    .lines
+                    .into_iter()
+                    .map(|(lang, text)| (lang.code().to_owned(), serde_json::Value::from(text)))
+                    .collect();
+                println!("{ms}\tok\t{}\t{row}", serde_json::Value::Object(lines));
+            }
+            Err(error) => println!("{ms}\terror\t{error}\t{row}"),
+        }
+    }
+    Ok(())
+}
+
 fn judge() -> Result<(), String> {
     let filter = SwearFilter::built_in();
     for line in std::io::stdin().lines() {
@@ -392,6 +457,7 @@ fn main() -> ExitCode {
         Some((command, [folder])) if command == "seed" => seed(Path::new(folder)),
         Some((command, rest)) if command == "slang" => slang(rest),
         Some((command, [])) if command == "judge" => judge(),
+        Some((command, [provider])) if command == "translate" => translate(provider),
         Some((command, [folder])) if command == "game-filter" => {
             game_filter(Path::new(folder), false)
         }
