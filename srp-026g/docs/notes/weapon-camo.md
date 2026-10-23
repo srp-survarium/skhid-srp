@@ -217,3 +217,11 @@ three upgrades an item: "let's remove one decal instead for now". One decal a we
 - The two-page window (arrows, places, the inventory's filter on a turn, the new texts): built,
   not seen in a game.
 - The other 69 textures' picks were made after the owner's 22, by looking (the MP7 black copies the owner's MP7): worth a pass in the picker.
+- One-donor masks look coarse: the AK-12, the Vepr-12 and the VSS / SR-3M textures; to look at
+  every `guns.tsv` preview with the owner. If the 4.0 tiling looks too big on a weapon, give it
+  its own `data/camo_scale`.
+- A second decal on scoped guns (the owner, 2026-10-21: "let's remove one decal instead for
+  now"): a weapon's upgrades live in the 3-entry inline array of the 0xB4 item record (scope,
+  camouflage, one decal), so a fourth needs an exe change to that array or a side table. Then
+  the server's `WEAPON_DECAL_SLOTS` and the lobby's `UpgradeWindow.WEAPON_DECALS` take slot 1;
+  patch 47 already bakes two entries of `data/decals`.
