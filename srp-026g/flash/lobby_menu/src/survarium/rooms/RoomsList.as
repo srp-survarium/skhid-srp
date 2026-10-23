@@ -16,6 +16,7 @@ package survarium.rooms
     import survarium.constants.RoomFit;
     import survarium.constants.RoomPhase;
     import survarium.constants.RoomSide;
+    import survarium.player.LocalPlayerProfile;
 
     // The list, after the design: the table of the rooms on the left, the
     // room chosen on the right with its map's render, its facts and its
@@ -156,7 +157,7 @@ package survarium.rooms
                 ? win.say("queue") : win.say("join");
             var made:Array = look.footer(joinable != null ? [[win.say("new"), win.createView.onNew, null], [joinWord, onJoin, joinable]]
                 : [[win.say("new"), win.createView.onNew, null]]);
-            if (joinable != null && !joins(joinable))
+            if (joinable != null && (!joins(joinable) || !LocalPlayerProfile.mayEnter(joinable.max)))
                 made[1].enabled = false;
             renderSide(sel, tableW + 28);
         }
@@ -447,7 +448,7 @@ package survarium.rooms
         // with `preset`: 0 none, else put on before the join.
         private function joinRoom(room:Object, preset:int = -1):void
         {
-            if (room == null || win._steps.length > 0 || !joins(room))
+            if (room == null || win._steps.length > 0 || !joins(room) || !LocalPlayerProfile.mayEnter(room.max))
                 return;
             win._busyAt = getTimer();
             win._stepsAt = win._busyAt;

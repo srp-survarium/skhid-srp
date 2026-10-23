@@ -49,10 +49,21 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     owned items, it holds none, so every item stays in the inventory as it was (stacks whole):
     nothing is made, sold or lost; the preset left keeps its kits as its snapshot, and choosing
     it again puts them back exactly. The empty one chosen again changes nothing.
-  - With the kits empty (or none of them able to play): Play is refused as for any such kit
-    ("no weapon", `st_profile_check_failed_weapon`), no kit is given; a room's join and its
-    match start use their own kit check (code 12 / the member's "can't play" warning, taken out
-    at the start); an empty preset has no level and is never offered.
+  - With the kits empty (or the kit a match would take unable to play, `rules::kits_can_play`),
+    the owner's of 2026-10-23 ("cannot play pop up is bad, the button should just be gray"):
+    - **Play is greyed** (no press, no popup) and lights up as soon as the kits can play (a
+      switch, an equip): the movie reads `playable` in the presets list (`lobby.md` 2.16.4), the
+      server's own rule, so the two can not disagree. Leave (in a room or its queue) never greys.
+    - **Join** in the rooms list (and Queue), and a friend's "Join room", are greyed (the friend's
+      item left out of the menu) unless the join popup can offer another loadout that can play
+      (one at most the room's max level; any max level, a friend's room). The popup then says
+      "Your loadout can't play. Loadout N is level L." with "Exit" / "Switch and enter" (offer
+      kind 3); the active loadout is never offered.
+    - The server refuses all of them at the door (code 15: Play with or without an open room,
+      Join, a PIN's join, a queue): no room made or joined. The movie shows nothing of code 15.
+      Making a room by hand is not refused (the member check warns in the room).
+    - The game's own Play (`2F`, not the rooms' path) keeps its stock refusal ("no weapon").
+    - An empty preset has no level and is never offered.
   - A preset left with nothing in its kits is empty.
 - **Existing accounts:** preset 1 active (their kits as they are), presets 2 to 5 empty.
 - **A preset's level:** the rooms' measure (`matchmaking::gear_level`, the refusal "gear over the
@@ -102,7 +113,9 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   and enter | for low level ones it is exit or switch and enter"; "we choose the preset which has
   the highest allowed level"):
   - The preset offered is the saved one with the highest gear level the room allows (at most the
-    room's max). Ties are broken by the lower preset number.
+    room's max). Ties are broken by the lower preset number. One loadout is offered, with "Exit" /
+    "Switch and enter", even when two tie: no button a loadout (the owner's, 2026-10-23: "one
+    offer keeps the popup simple").
   - A room's gear range is its max level alone (the room's "level" is its members' match level,
     no cap). A room of any max level (0) offers nothing [choice].
   - **Room allows more than the kits:** gear at most the max, and a preset higher than the gear

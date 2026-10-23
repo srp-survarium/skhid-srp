@@ -556,10 +556,10 @@ fn a_loaded_account_has_an_active_preset_and_keeps_none_in_its_place() {
 fn a_join_offers_the_highest_preset_the_room_allows() {
     let levels = [Some(3), Some(9), Some(6), None, Some(9)];
     // A room of any max level: nothing.
-    assert_eq!(offer(2, 0, &levels), Offer::None);
+    assert_eq!(offer(2, 0, &levels, true, 1), Offer::None);
     // Gear over the max: the highest preset at most the max.
     assert_eq!(
-        offer(11, 7, &levels),
+        offer(11, 7, &levels, true, 1),
         Offer::Fits {
             preset: 3,
             level: 6
@@ -567,36 +567,36 @@ fn a_join_offers_the_highest_preset_the_room_allows() {
     );
     // Two alike: the lower number.
     assert_eq!(
-        offer(12, 10, &levels),
+        offer(12, 10, &levels, true, 1),
         Offer::Fits {
             preset: 2,
             level: 9
         }
     );
     // None fits: the refusal as before.
-    assert_eq!(offer(11, 2, &levels), Offer::None);
+    assert_eq!(offer(11, 2, &levels, true, 1), Offer::None);
     // The room allows more than the kits: a higher preset that fits.
     assert_eq!(
-        offer(4, 7, &levels),
+        offer(4, 7, &levels, true, 1),
         Offer::Higher {
             preset: 3,
             level: 6
         }
     );
     assert_eq!(
-        offer(4, 15, &levels),
+        offer(4, 15, &levels, true, 1),
         Offer::Higher {
             preset: 2,
             level: 9
         }
     );
     // None higher than the gear: no popup.
-    assert_eq!(offer(6, 7, &levels), Offer::None);
-    assert_eq!(offer(9, 15, &levels), Offer::None);
+    assert_eq!(offer(6, 7, &levels, true, 1), Offer::None);
+    assert_eq!(offer(9, 15, &levels, true, 1), Offer::None);
     // Gear at the max is no refusal: only a higher preset is offered.
-    assert_eq!(offer(7, 7, &levels), Offer::None);
+    assert_eq!(offer(7, 7, &levels, true, 1), Offer::None);
     // No preset saved: nothing.
-    assert_eq!(offer(11, 7, &[None; PRESETS]), Offer::None);
+    assert_eq!(offer(11, 7, &[None; PRESETS], true, 1), Offer::None);
 }
 
 /// The review's case: preset 2's kit 1 is empty and its kit 2 plays, and
@@ -684,19 +684,30 @@ fn an_empty_preset_starts_empty_and_gives_everything_back() {
     assert!(account.presets[0].is_some());
     assert_eq!(level(&account, 4, NOW), None);
     // No kit can play: Play is refused (no weapon), the gear level is 0;
-    // an empty preset is never offered: only one that can play, at a level
-    // over the gear (here preset 1 is level 0, so no popup, and the room's
-    // own kit check speaks, as for any kit that can not play).
+    // an empty preset is never offered. The join popup offers another
+    // preset whose kits can play, if one fits the room, any max level too
+    // ("Exit" / "Switch and enter"); the active one never.
     let levels = levels(&account, NOW);
     assert_eq!(levels[3], None);
     assert_eq!(levels[0], Some(0));
-    assert_eq!(offer(0, 30, &levels), Offer::None);
+    assert!(!rules::kits_can_play(&account, NOW));
     assert_eq!(
-        offer(0, 30, &[None, None, None, Some(0), Some(4)]),
-        Offer::Higher {
-            preset: 5,
-            level: 4
+        offer(0, 0, &levels, false, 4),
+        Offer::Unfit {
+            preset: 1,
+            level: 0
         }
+    );
+    assert_eq!(
+        offer(0, 3, &[None, Some(2), None, Some(9), Some(4)], false, 4),
+        Offer::Unfit {
+            preset: 2,
+            level: 2
+        }
+    );
+    assert_eq!(
+        offer(0, 0, &[None, None, None, Some(9), None], false, 4),
+        Offer::None
     );
 
     // Chosen again, or another empty one: nothing changes on the kits or

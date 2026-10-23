@@ -248,6 +248,15 @@ package survarium.rooms
             applyPlay();
         }
 
+        // LocalPlayerProfile, a presets list taken: whether the kits can play
+        // may have changed: Play and the list's Join again.
+        public function kitsChanged():void
+        {
+            applyPlay();
+            if (_shown && _view == "list" && _offer == null)
+                render();
+        }
+
         // StatusPanel's Play in a room ("Leave room"): out of the room.
         public function leaveRoom():void
         {
@@ -1172,8 +1181,8 @@ package survarium.rooms
         }
 
         // `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max>`: kind 0 joins as
-        // asked; 1 (the room allows more than our kits) and 2 (our gear is
-        // over its max) show the popup.
+        // asked; 1 (the room allows more than our kits), 2 (our gear is over
+        // its max) and 3 (our kits can not play, preset n can) show the popup.
         private function takeOffer(head:Array):void
         {
             var asked:Object = _offerAsk;
@@ -1181,7 +1190,7 @@ package survarium.rooms
                 return;
             _offerAsk = null;
             var kind:int = int(head[3]);
-            if (kind != 1 && kind != 2)
+            if (kind != 1 && kind != 2 && kind != 3)
             {
                 goOn(asked, 0);
                 return;
@@ -1233,7 +1242,7 @@ package survarium.rooms
             box.graphics.drawRect(x + 1, y + 1, w - 2, h - 2);
             box.graphics.endFill();
             look._content.addChild(box);
-            var text:String = say(_offer.kind == 1 ? "offerHigher" : "offerFits");
+            var text:String = say(_offer.kind == 1 ? "offerHigher" : _offer.kind == 3 ? "offerUnfit" : "offerFits");
             text = text.split("{max}").join(String(_offer.max)).split("{gear}").join(String(_offer.gear))
                 .split("{n}").join(String(_offer.preset)).split("{level}").join(String(_offer.level));
             var tf:TextField = look.text(look._content, "", x + 20, y + 18, w - 40, 15, RoomsLook.LIGHT, "center");
@@ -1274,7 +1283,8 @@ package survarium.rooms
 
         internal function message(y:Number):void
         {
-            if (_code != RoomCode.NONE)
+            // A kit that can not play: no word (Play and Join are greyed).
+            if (_code != RoomCode.NONE && _code != RoomCode.KIT_CANT_PLAY)
                 look.text(look._content, _code < RoomCode.NONE ? say("pin4") : say("code" + _code), 14, y, look._w - 28, 15, 0xFF8A7A);
         }
 

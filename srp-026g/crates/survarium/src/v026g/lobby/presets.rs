@@ -68,9 +68,11 @@ pub struct PresetRow {
     pub level: Option<u8>,
 }
 
-/// `91` at [`PRESETS_FIRST`]: the header `P2;L;<done>;<preset>;<active>`
-/// (`done` a [`PresetDone`], `preset` the one it was about, 0 for the
-/// list; `active` the active preset), then a row a preset, 1 first:
+/// `91` at [`PRESETS_FIRST`]: the header
+/// `P2;L;<done>;<preset>;<active>;<playable>` (`done` a [`PresetDone`],
+/// `preset` the one it was about, 0 for the list; `active` the active
+/// preset; `playable` 1 when the kit a match would take can play, the
+/// rooms' entries' rule, by which the movie greys Play and Join), then a row a preset, 1 first:
 /// `<preset>;<saved>;<level>` (`level` -1: none of its kits can play, or it
 /// is empty), then the items the presets use, `U;<item id>:<presets>,...`
 /// (`presets` bit `n - 1` for preset n), as many to a row as a name
@@ -81,10 +83,11 @@ pub fn preset_list(
     done: PresetDone,
     preset: u8,
     active: u8,
+    playable: bool,
     rows: &[PresetRow],
     uses: &[(u32, u8)],
 ) -> Result<ServerMessage, WireError> {
-    let names = list_names(done, preset, active, rows, uses);
+    let names = list_names(done, preset, active, playable, rows, uses);
     let rows: Vec<(u32, Ranked)> = names
         .into_iter()
         .enumerate()
@@ -107,13 +110,15 @@ fn list_names(
     done: PresetDone,
     preset: u8,
     active: u8,
+    playable: bool,
     rows: &[PresetRow],
     uses: &[(u32, u8)],
 ) -> Vec<String> {
     let most = (PRESETS_LAST - PRESETS_FIRST + 1) as usize;
     let mut names = vec![format!(
-        "{PRESETS_VERSION};L;{};{preset};{active}",
-        done as u8
+        "{PRESETS_VERSION};L;{};{preset};{active};{}",
+        done as u8,
+        u8::from(playable)
     )];
     for (index, row) in rows.iter().take(usize::from(PRESET_COUNT)).enumerate() {
         let level = row.level.map_or(-1, i32::from);
@@ -180,9 +185,9 @@ mod tests {
             PresetRow::default(),
         ];
         assert_eq!(
-            list_names(PresetDone::Chosen, 1, 1, &rows, &[(12, 1), (40, 5)]),
+            list_names(PresetDone::Chosen, 1, 1, true, &rows, &[(12, 1), (40, 5)]),
             [
-                "P2;L;1;1;1",
+                "P2;L;1;1;1;1",
                 "1;1;7",
                 "2;0;-1",
                 "3;1;-1",
@@ -191,7 +196,7 @@ mod tests {
                 "U;12:1,40:5"
             ]
         );
-        assert!(preset_list(PresetDone::Listed, 0, 3, &rows, &[]).is_ok());
+        assert!(preset_list(PresetDone::Listed, 0, 3, false, &rows, &[]).is_ok());
     }
 
     /// The items of five full presets: rows of at most a name each, every
@@ -199,7 +204,14 @@ mod tests {
     #[test]
     fn the_items_the_presets_use_fill_rows_of_a_name_each() {
         let uses: Vec<(u32, u8)> = (0..345).map(|n| (1_000_000 + n, 31)).collect();
-        let names = list_names(PresetDone::Listed, 0, 1, &[PresetRow::default(); 5], &uses);
+        let names = list_names(
+            PresetDone::Listed,
+            0,
+            1,
+            true,
+            &[PresetRow::default(); 5],
+            &uses,
+        );
         assert!(names.len() <= (PRESETS_LAST - PRESETS_FIRST + 1) as usize);
         assert!(names.iter().all(|name| name.len() <= limits::NAME));
         let listed: Vec<&str> = names[6..]

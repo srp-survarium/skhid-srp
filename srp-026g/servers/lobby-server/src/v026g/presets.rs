@@ -13,6 +13,7 @@
 use session::LockExt;
 use session::v026g::presets::{self, Applied, PresetError};
 use session::v026g::quests;
+use session::v026g::rules;
 use survarium::v026g::lobby::presets::{self as wire, PresetDone, PresetRequest, PresetRow};
 
 use super::core::{Core, Who};
@@ -61,7 +62,7 @@ impl Core<'_> {
     /// items they use. A slot left empty by a choice is said in the log
     /// only (the owner's of 2026-10-23: no notice).
     pub(super) fn send_presets(&mut self, who: &Who, done: PresetDone, preset: u8) {
-        let (rows, active, uses) = {
+        let (rows, active, playable, uses) = {
             let account = who.account.locked();
             let levels = presets::levels(&account, quests::now());
             let rows: Vec<PresetRow> = (1..=presets::PRESETS as u8)
@@ -71,11 +72,16 @@ impl Core<'_> {
                     level,
                 })
                 .collect();
-            (rows, account.active_preset, presets::uses(&account))
+            (
+                rows,
+                account.active_preset,
+                rules::kits_can_play(&account, quests::now()),
+                presets::uses(&account),
+            )
         };
         self.send_made(
             who.addr,
-            wire::preset_list(done, preset, active, &rows, &uses),
+            wire::preset_list(done, preset, active, playable, &rows, &uses),
         );
     }
 }

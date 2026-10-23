@@ -817,6 +817,30 @@ const AMMO_SLOTS: [usize; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
 /// (0x2CA770) and fails when either sum is under
 /// `categories_dict/category_<weapon's>/minimum_count`. The texts are its
 /// `st_profile_check_failed_*`.
+/// The kit a match would take now: the active one when usable, else the
+/// first ([`Account::settle_active_kit`], without changing the account).
+pub fn kit_to_play(account: &Account, now: u64) -> u32 {
+    if account
+        .kit_index(account.active_kit)
+        .is_some_and(|index| account.kit_usable(index, now))
+    {
+        account.active_kit
+    } else {
+        account
+            .kits
+            .first()
+            .map_or(account.active_kit, |kit| kit.id)
+    }
+}
+
+/// Whether the kit a match would take ([`kit_to_play`]) can play
+/// ([`check_play`]): the rooms' entries refuse otherwise, the rooms'
+/// member check (`member_fit`) takes such a member out at its match's
+/// start, and the lobby movie greys Play and Join by it (`presets.md`).
+pub fn kits_can_play(account: &Account, now: u64) -> bool {
+    check_play(account, kit_to_play(account, now), now).is_ok()
+}
+
 pub fn check_play(account: &Account, kit_id: u32, now: u64) -> Result<(), ActionError> {
     let index = account.kit_index(kit_id).ok_or(ActionError::NoSuchKit)?;
     if !account.kit_usable(index, now) {

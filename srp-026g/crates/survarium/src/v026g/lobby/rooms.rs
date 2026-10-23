@@ -380,8 +380,13 @@ pub enum RoomCode {
     /// "Switch and enter": the preset could not be chosen (the asker is in a
     /// match or on its way to one, or a kit rule refused): nothing changed,
     /// no room joined (`presets.md`). An empty preset is no refusal: it
-    /// starts as the kits worn.
+    /// starts empty.
     PresetRefused = 14,
+    /// The kit a match would take can not play (no weapon, too little
+    /// ammo): Play, Join, a queue and a friend's room refuse it at the door
+    /// (`presets.md`, the owner's of 2026-10-23). The movie greys those by
+    /// the same rule and says nothing of this code.
+    KitCantPlay = 15,
 }
 
 /// A room in [`room_list`].
@@ -894,6 +899,9 @@ pub enum OfferKind {
     /// The gear is over the room's max level and a preset fits ("Exit" or
     /// "Switch and enter").
     Fits = 2,
+    /// The kit a match would take can not play, and another preset that
+    /// can fits ("Exit" or "Switch and enter").
+    Unfit = 3,
 }
 
 /// The answer to `3B 00 <ROOM_OFFER_BASE + asked>`, one row at that start:

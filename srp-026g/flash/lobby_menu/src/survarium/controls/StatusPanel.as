@@ -30,6 +30,7 @@ package survarium.controls
    import survarium.messages.MessageEnterName;
    import survarium.messages.MessageMoneyExchange;
    import survarium.rooms.RoomsLook;
+   import survarium.player.LocalPlayerProfile;
    import survarium.rooms.RoomsWindow;
    import survarium.constants.ClanState;
    import survarium.constants.Faction;
@@ -925,7 +926,9 @@ package survarium.controls
          var btn:* = this.playBtn;
          if(leaving || queued || !each)
          {
-            var on:Boolean = !asking && (leaving || queued || nativePlay);
+            // Play greyed while the kit a match would take can not play (the
+            // server's rule, presets.md); Leave never.
+            var on:Boolean = !asking && (leaving || queued || nativePlay && LocalPlayerProfile.kitsPlay());
             if(btn.enabled != on)
             {
                btn.enabled = on;

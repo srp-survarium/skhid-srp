@@ -262,6 +262,19 @@ impl Core<'_> {
         Ok(())
     }
 
+    /// [`room_fit`], and the kit a match would take can play
+    /// ([`rules::kits_can_play`]): Play, Join (a PIN's too), a queue and a
+    /// friend's room refuse it at the door (the owner's of 2026-10-23); the
+    /// movie greys them by the same rule. Making a room by hand does not ask
+    /// it (the member check warns, `member_fit`).
+    fn room_enter_fit(&self, who: &Who) -> Result<(), RoomCode> {
+        self.room_fit(who)?;
+        if !rules::kits_can_play(&who.account.locked(), quests::now()) {
+            return Err(RoomCode::KitCantPlay);
+        }
+        Ok(())
+    }
+
     fn maintenance_is_near(&self) -> bool {
         self.store
             .minutes_to_maintenance()
@@ -366,7 +379,7 @@ impl Core<'_> {
             RoomRequest::Queue { key } => {
                 let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
                 let full = self.rooms.get(key).is_some_and(model::Room::is_full);
-                let code = match self.room_fit(who) {
+                let code = match self.room_enter_fit(who) {
                     Err(code) => code,
                     Ok(()) if !full => match self.rooms.join(who.account_id, gear, key, now) {
                         Ok(()) => {
@@ -446,7 +459,7 @@ impl Core<'_> {
 
     /// Join the room with that key; the state answers it.
     fn room_join(&mut self, who: &Who, key: u32, now: Instant) {
-        let code = match self.room_fit(who) {
+        let code = match self.room_enter_fit(who) {
             Err(code) => code,
             Ok(()) => match self.rooms.join(
                 who.account_id,
@@ -476,11 +489,13 @@ impl Core<'_> {
     /// none (the join then says why).
     fn room_offer(&mut self, who: &Who, key: u32) {
         let unix = quests::now();
-        let (gear, levels) = {
+        let (gear, levels, kits_play, active) = {
             let account = who.account.locked();
             (
                 matchmaking::gear_level(&account, unix),
                 presets::levels(&account, unix),
+                rules::kits_can_play(&account, unix),
+                account.active_preset,
             )
         };
         let target = match key {
@@ -490,16 +505,20 @@ impl Core<'_> {
             0 => None,
             key => Some(key),
         };
-        let max_level = match self.room_fit(who) {
-            Ok(()) => target
-                .and_then(|key| self.rooms.get(key))
-                .map_or(0, |room| room.spec.max_level),
-            Err(_) => 0,
+        let room = match self.room_fit(who) {
+            Ok(()) => target.and_then(|key| self.rooms.get(key)),
+            Err(_) => None,
         };
-        let (kind, preset, level) = match presets::offer(gear, max_level, &levels) {
+        let max_level = room.map_or(0, |room| room.spec.max_level);
+        let offered = match room {
+            Some(_) => presets::offer(gear, max_level, &levels, kits_play, active),
+            None => Offer::None,
+        };
+        let (kind, preset, level) = match offered {
             Offer::None => (OfferKind::None, 0, 0),
             Offer::Higher { preset, level } => (OfferKind::Higher, preset, level),
             Offer::Fits { preset, level } => (OfferKind::Fits, preset, level),
+            Offer::Unfit { preset, level } => (OfferKind::Unfit, preset, level),
         };
         if kind != OfferKind::None {
             log::info!(
@@ -625,7 +644,7 @@ impl Core<'_> {
         // Play is another choice than waiting: out of any queue.
         self.rooms.dequeue(who.account_id);
         if self.rooms.of(who.account_id).is_none() {
-            match self.room_fit(who) {
+            match self.room_enter_fit(who) {
                 Err(code) => {
                     log::info!("{}: Play into a room: refused ({code:?})", who.name);
                     self.room_codes.insert(who.account_id, code);
@@ -1358,18 +1377,7 @@ impl Core<'_> {
         let account = account.locked();
         // The kit the match would take (`settle_active_kit`, without
         // changing the account: this is read on every answer and tick).
-        let kit_id = if account
-            .kit_index(account.active_kit)
-            .is_some_and(|index| account.kit_usable(index, unix))
-        {
-            account.active_kit
-        } else {
-            account
-                .kits
-                .first()
-                .map_or(account.active_kit, |kit| kit.id)
-        };
-        if rules::check_play(&account, kit_id, unix).is_err() {
+        if !rules::kits_can_play(&account, unix) {
             return Fit::Kit;
         }
         let gear = matchmaking::gear_level(&account, unix);

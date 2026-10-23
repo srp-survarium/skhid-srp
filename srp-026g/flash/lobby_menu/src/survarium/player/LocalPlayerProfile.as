@@ -38,6 +38,7 @@ package survarium.player
    import survarium.constants.SuperCategory;
    import survarium.constants.UiSound;
    import survarium.rooms.RoomsText;
+   import survarium.rooms.RoomsWindow;
    
    public class LocalPlayerProfile extends PlayerProfileBase implements ILocalPlayerProfile
    {
@@ -92,7 +93,7 @@ package survarium.player
       // choosing another puts it on, and every change of the kits is the
       // active one's (the server's). srp's wire: the ranking request at
       // PRESETS_FIRST and on (lobby.md 2.16.4), answered with the list,
-      // `P2;L;<done>;<preset>;<active>`, a row `<preset>;<saved>;<level>`
+      // `P2;L;<done>;<preset>;<active>;<playable>`, a row `<preset>;<saved>;<level>`
       // each (level -1: none of its kits can play), then the items the
       // presets use, `U;<item id>:<presets>,...` (bit n - 1: preset n), which
       // a sale asks about (MessageAskSell).
@@ -189,6 +190,14 @@ package survarium.player
       // ("ExternalInterface.call - handler is not installed"), and are lost;
       // the title is the panel's name until a list comes.
       private var _presetsRetry:Timer;
+      
+      // The ask waiting for the end of the 2 s window (null: none).
+      private var _presetsLater:Timer;
+      
+      // Whether the kit a match would take can play (the list's
+      // `playable`, the server's rule for the rooms' entries): Play and
+      // Join greyed when not. True until a list says.
+      private var _kitsPlay:Boolean = true;
       
       // The kits locked (as the paper doll and the ammo button): no preset
       // chosen.
@@ -721,6 +730,35 @@ package survarium.player
          return true;
       }
       
+      // StatusPanel.showRoomsPlay: Play greyed while the kit a match would
+      // take can not play (the server's rule; presets.md).
+      public static function kitsPlay() : Boolean
+      {
+         return me == null || me._kitsPlay;
+      }
+      
+      // The rooms' Join (a room of `maxLevel`; 0: any, -1: not known): the
+      // kits can play, or the join popup can offer another loadout that can
+      // (the server's `presets::offer`): greyed otherwise.
+      public static function mayEnter(maxLevel:int) : Boolean
+      {
+         if(kitsPlay())
+         {
+            return true;
+         }
+         var i:int = 0;
+         while(i < PRESET_COUNT)
+         {
+            var preset:Object = me._presets[i];
+            if(i != me._presetAt && preset.known && preset.level >= 0 && (maxLevel <= 0 || preset.level <= maxLevel))
+            {
+               return true;
+            }
+            i++;
+         }
+         return false;
+      }
+      
       // MessageAskSell: the question a sale of `itemId` asks first, "" when
       // no preset uses it (the owner's of 2026-10-23).
       public static function sellWarning(itemId:uint) : String
@@ -1104,14 +1142,30 @@ package survarium.player
       }
       
       // The list now, at most every 2 s (an account pushed asks for it).
+      // An ask within the 2 s is not dropped: one ask goes at the window's
+      // end (one waiting at most), so the list follows the last change.
       private function askPresets() : void
       {
-         if(getTimer() - this._presetsAskedAt < 2000)
+         var since:int = getTimer() - this._presetsAskedAt;
+         if(since < 2000)
          {
+            if(this._presetsLater == null)
+            {
+               this._presetsLater = new Timer(2000 - since,1);
+               this._presetsLater.addEventListener(TimerEvent.TIMER_COMPLETE,this.onPresetsLater);
+               this._presetsLater.start();
+            }
             return;
          }
          this._presetsAskedAt = getTimer();
          this.sendPresets(PRESETS_FIRST);
+      }
+      
+      private function onPresetsLater(e:TimerEvent) : void
+      {
+         this._presetsLater.removeEventListener(TimerEvent.TIMER_COMPLETE,this.onPresetsLater);
+         this._presetsLater = null;
+         this.askPresets();
       }
       
       private function sendPresets(start:int) : void
@@ -1125,7 +1179,7 @@ package survarium.player
          }
       }
       
-      // `P2;L;<done>;<preset>;<active>`, then `<preset>;<saved>;<level>`
+      // `P2;L;<done>;<preset>;<active>;<playable>`, then `<preset>;<saved>;<level>`
       // each, then `U;<item id>:<presets>,...` rows.
       private function takePresets(rows:Array) : void
       {
@@ -1135,6 +1189,7 @@ package survarium.player
             return;
          }
          var active:int = int(head[4]) - 1;
+         this._kitsPlay = head.length < 6 || head[5] != "0";
          if(active >= 0 && active < PRESET_COUNT)
          {
             this._presetAt = active;
@@ -1185,6 +1240,10 @@ package survarium.player
             this._presetPending = -1;
          }
          this.showPresetTitle();
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.kitsChanged();
+         }
          if(this._presetList != null)
          {
             this._presetList.dataProvider = new DataProvider(this.presetRows());

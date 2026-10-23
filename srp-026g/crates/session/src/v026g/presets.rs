@@ -328,25 +328,47 @@ pub enum Offer {
     /// The gear is over the room's max level; `preset` fits ("Exit" or
     /// "Switch and enter").
     Fits { preset: u8, level: u8 },
+    /// The kit a match would take can not play; `preset`, another one
+    /// whose kits can, fits ("Exit" or "Switch and enter").
+    Unfit { preset: u8, level: u8 },
 }
 
 /// The popup of a join of a room of `max_level` (0: any) with the kits'
 /// gear at `gear` and the presets' `levels` ([`levels`]): the preset
 /// offered is the one with the highest level the room allows (at most its
-/// max level), the lower number of two alike (the owner's of 2026-10-23).
-/// A room of any max level offers nothing.
-pub fn offer(gear: u8, max_level: u8, levels: &[Option<u8>; PRESETS]) -> Offer {
-    if max_level == 0 {
+/// max level), the lower number of two alike (the owner's of 2026-10-23;
+/// one offer keeps the popup simple). A room of any max level offers
+/// nothing, unless the kits can not play (`kits_play`,
+/// [`rules::kits_can_play`]): then another preset (not `active`) whose
+/// kits can, if one fits ([`Offer::Unfit`]); the join is refused without.
+pub fn offer(
+    gear: u8,
+    max_level: u8,
+    levels: &[Option<u8>; PRESETS],
+    kits_play: bool,
+    active: u8,
+) -> Offer {
+    if kits_play && max_level == 0 {
         return Offer::None;
     }
     let mut best: Option<(u8, u8)> = None;
     for (index, level) in levels.iter().enumerate() {
-        let Some(level) = level.filter(|&level| level <= max_level) else {
+        let number = index as u8 + 1;
+        if !kits_play && number == active {
+            continue;
+        }
+        let Some(level) = level.filter(|&level| max_level == 0 || level <= max_level) else {
             continue;
         };
         if best.is_none_or(|(_, kept)| level > kept) {
-            best = Some((index as u8 + 1, level));
+            best = Some((number, level));
         }
+    }
+    if !kits_play {
+        return best.map_or(Offer::None, |(preset, level)| Offer::Unfit {
+            preset,
+            level,
+        });
     }
     match best {
         Some((preset, level)) if gear > max_level => Offer::Fits { preset, level },

@@ -734,7 +734,8 @@ fn equipment_over_the_max_level_keeps_a_member_out_of_the_match() {
 
 /// A member whose kit cannot play (no ammo) is marked in the room, counts
 /// for no start, and is taken out of the room when the match starts
-/// without it; it may come back.
+/// without it; it may come back once its kit can play (the door refuses a
+/// kit that can not, code 15).
 #[test]
 fn a_kit_without_ammo_counts_for_nothing_and_is_taken_out_at_the_start() {
     let mut world = World::new();
@@ -742,12 +743,14 @@ fn a_kit_without_ammo_counts_for_nothing_and_is_taken_out_at_the_start() {
     let dave = world.connect("Dave");
     let carol = world.connect("Carol");
     let key = create(&mut world, alice, spec(6), None);
+    let ammo = world.account(dave).kits[0].slots;
+    // In the room, then the ammo taken out of the kit.
+    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
     world.change(dave, |account| {
         for slot in [8, 9, 11, 12, 19, 20, 21, 22] {
             account.kits[0].slots[slot] = None;
         }
     });
-    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
     let marked = state(&mut world, alice);
     assert!(
         marked.iter().any(|row| row.ends_with(";1;0;Dave")),
@@ -762,7 +765,12 @@ fn a_kit_without_ammo_counts_for_nothing_and_is_taken_out_at_the_start() {
     assert!(sent_to_match(&world.take(carol)).is_some());
     assert!(sent_to_match(&world.take(dave)).is_none());
     assert_eq!(state(&mut world, dave), ["S1;N;13;0;0"]);
-    // Taken out, not turned out: Dave may come back.
+    // Taken out, not turned out: Dave may come back, once his kit plays.
+    assert_eq!(
+        rows(&mut world, dave, ROOM_JOIN_BASE + key, 1),
+        ["S1;N;15;0;0"]
+    );
+    world.change(dave, |account| account.kits[0].slots = ammo);
     let back = rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
     assert_eq!(header(&back)[1], "R", "{back:?}");
 }

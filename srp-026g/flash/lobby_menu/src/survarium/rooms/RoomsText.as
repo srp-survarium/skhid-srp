@@ -176,6 +176,12 @@ package survarium.rooms
                 "Ваше снаряжение {gear} выше макс. уровня комнаты {max}. Комплект {n}: уровень {level}.",
                 "Deine Ausrüstung {gear} liegt über der max. Stufe {max}. Loadout {n}: Stufe {level}.",
                 "Twój ekwipunek {gear} przekracza maks. poziom {max}. Zestaw {n}: poziom {level}."],
+            // The kits can not play; loadout {n} can, level {level}.
+            "offerUnfit": ["Your loadout can't play. Loadout {n} is level {level}.",
+                "Ваш комплект не для бою. Комплект {n}: рівень {level}.",
+                "Ваш комплект не для боя. Комплект {n}: уровень {level}.",
+                "Dein Loadout ist nicht spielbar. Loadout {n}: Stufe {level}.",
+                "Twój zestaw nie nadaje się do gry. Zestaw {n}: poziom {level}."],
             "enterAnyway": ["Enter anyway", "Увійти так", "Войти так", "Trotzdem rein", "Wejdź mimo to"],
             "switchEnter": ["Switch and enter", "Змінити й увійти", "Сменить и войти", "Wechseln, rein", "Zmień i wejdź"],
             "exit": ["Exit", "Вийти", "Выйти", "Abbrechen", "Wyjdź"]
