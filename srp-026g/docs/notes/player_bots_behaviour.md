@@ -287,13 +287,13 @@ Each play has a score from the situation, a precondition and steps. A commander 
    - teammates already on a route: it weighs less, so the team spreads (one or two per route).
    A bot whose route turns bad on the way picks again from where it stands.
 
-   **The best players' routes, by the bot's task (built 2026-10-23).** The table (format 2) keeps a route's kills and assists a life (`fight`) and its batteries found and put in a life (`battery`) apart. The 174 routes of all players are kept. 80 come from the top players of human matches of 10+ players, Oct 12-23, with bot matches left out. A top player is one of the side's first 2 by score (3 in matches of 12+), and only if present 60 %+ of the match with K/D 0.75-8; an unreliable one is not replaced by the next. A group of their lives becomes a route when all of these hold:
+   **The best players' routes, by the bot's task (built 2026-10-23).** The table (format 2) keeps a route's kills and assists a life (`fight`) and its batteries found and put in a life (`battery`) apart. The 174 routes of all players are kept. 57 come from the top players of human matches of 10+ players, Oct 12-23, with bot matches left out. A top player is one of the side's first 2 by score (3 in matches of 12+), and only if present 60 %+ of the match with K/D 0.75-8; an unreliable one is not replaced by the next. Only lives a bot could follow count: a life that walked 2 m+ on the floors of a damage zone that is on all match (bots keep off them; 13.6 % of lives, most on levels 6, 2 and 3) is left out of the routes and of the side's averages. Such lives' deaths went to no enemy (an anomaly, a fall) 3.9 % of the time, against 1.4 % for the others. A group of their lives becomes a route when all of these hold:
    - trusted: 10+ lives from 4+ matches and 4+ players;
    - it beats the side's average life by 2+ standard errors and the top players' own average by 15 %+, in fight or in batteries, with K/D no worse than the side's;
    - it lies a bar away from every other route: 20 % of the side's travelled width, 8-15 m (RMS of the sideways offsets);
    - a bot can walk it today (the walk check in `routes.rs`): no leg without a way, under 2 jumps, under 1.5 times the straight way, half its points usable (not in a hazard or a spawn area).
 
-   Up to 6 a side, best first. Fewer but better: past the 1.15 bar the extra groups were mostly the same way again. 183 of the 660 groups that paid failed the walk check (most for a detour round a wall or a hazard, or 2+ jumps). A new route's numbers are put on the all-player scale (times the side's average over its top players' average), so it weighs by what the way gave, not by who walked it.
+   Up to 6 a side, best first. Fewer but better: past the 1.15 bar the extra groups were mostly the same way again. 124 of the 612 groups that paid failed the walk check (most for a detour round a wall or a hazard, or 2+ jumps). A new route's numbers are put on the all-player scale (times the side's average over its top players' average), so it weighs by what the way gave, not by who walked it.
    - **By task (Roam):** a route weighs `fight + 2 x battery x out`, where `out` is the share of batteries neither home nor carried by a teammate. A fighter (`fighter_push`) counts batteries at `fighter_battery` (half). In Team Deathmatch, and once every battery is in, fight alone counts.
    - **A carrier's way home (Collect):** while known danger lies within `home_danger_m` (20 m) of the straight way home, a carrier takes the rest of one of its side's routes toward home. Known danger is an enemy seen, heard or on the radar, or a teammate killed in the last 20 s. The route must pass within `home_route_m` (20 m), carry less danger, and be at most `home_detour` (1.4) times as long. It walks with its fire held and drops a point once it is reached or a teammate dies by it.
 
@@ -301,24 +301,27 @@ Each play has a score from the situation, a precondition and steps. A commander 
 
    | | new table + code (32 seeds) | code, old table (32) | without the carrier's way (16) | without the cut merge (16) | without the task (32) |
    |---|---|---|---|---|---|
-   | kills, both teams | −19.8 ± 3.4* (of 432) | −1.3 ± 1.9 | −2.4 ± 1.2 | −12.6 ± 4.3* | −1.0 ± 0.6 |
-   | deaths a bot-minute | −0.016 ± 0.003* | −0.001 ± 0.002 | −0.002 ± 0.001 | −0.010 ± 0.003* | −0.001 ± 0.000 |
-   | K/D team 0 / team 1 | +0.004 ± 0.011 / −0.004 ± 0.012 | +0.013 ± 0.010 / −0.011 ± 0.009 | | | +0.008 ± 0.004 / −0.008 ± 0.004* |
-   | delivered (of 59) | −0.3 ± 0.5 | +0.3 ± 0.4 | −0.6 ± 0.5 | +0.3 ± 0.5 | +0.1 ± 0.2 |
-   | carriers killed (of 16) | −0.5 ± 0.7 | −0.7 ± 0.4* | +1.1 ± 0.4* | +0.5 ± 0.9 | +0.4 ± 0.2 |
-   | plays ended within 1 s, a bot-minute | −0.082 ± 0.012* (of 0.284) | +0.013 ± 0.010 | −0.005 ± 0.002* | −0.004 ± 0.012 | −0.001 ± 0.001 |
-   | A->B->A flips, a bot-minute | +0.001 ± 0.007 | +0.004 ± 0.004 | −0.006 ± 0.003 | −0.019 ± 0.008* | −0.001 ± 0.003 |
-   | idle 5 s+, % alive | +0.79 ± 0.20* (of 25.0) | −0.13 ± 0.14 | −0.03 ± 0.04 | +0.55 ± 0.26* | +0.03 ± 0.03 |
-   | standing with a goal and no route, % | −0.33 ± 0.08* (of 5.9) | −0.00 ± 0.04 | +0.04 ± 0.03 | +0.10 ± 0.07 | +0.02 ± 0.02 |
-   | held angles (HoldExit, Crossfire, Cut, Flank), s a bot-minute | +1.57 ± 0.08* | −0.35 ± 0.05* | −0.05 ± 0.03 | +1.33 ± 0.13* | |
+   | kills, both teams | −21.1 ± 3.1* (of 432) | −1.3 ± 1.9 | −2.4 ± 1.2 | −12.6 ± 4.3* | −1.0 ± 0.6 |
+   | deaths a bot-minute | −0.017 ± 0.002* | −0.001 ± 0.002 | −0.002 ± 0.001 | −0.010 ± 0.003* | −0.001 ± 0.000 |
+   | K/D team 0 / team 1 | +0.013 ± 0.013 / −0.014 ± 0.015 | +0.013 ± 0.010 / −0.011 ± 0.009 | | | +0.008 ± 0.004 / −0.008 ± 0.004* |
+   | delivered (of 59) | +0.0 ± 0.6 | +0.3 ± 0.4 | −0.6 ± 0.5 | +0.3 ± 0.5 | +0.1 ± 0.2 |
+   | carriers killed (of 16) | −1.3 ± 0.7 | −0.7 ± 0.4* | +1.1 ± 0.4* | +0.5 ± 0.9 | +0.4 ± 0.2 |
+   | plays ended within 1 s, a bot-minute | −0.080 ± 0.012* (of 0.284) | +0.013 ± 0.010 | −0.005 ± 0.002* | −0.004 ± 0.012 | −0.001 ± 0.001 |
+   | A->B->A flips, a bot-minute | −0.006 ± 0.006 | +0.004 ± 0.004 | −0.006 ± 0.003 | −0.019 ± 0.008* | −0.001 ± 0.003 |
+   | idle 5 s+, % alive | +0.29 ± 0.22 (of 25.0) | −0.13 ± 0.14 | −0.03 ± 0.04 | +0.55 ± 0.26* | +0.03 ± 0.03 |
+   | standing with a goal and no route, % | −0.23 ± 0.07* (of 5.9) | −0.00 ± 0.04 | +0.04 ± 0.03 | +0.10 ± 0.07 | +0.02 ± 0.02 |
+   | held angles (HoldExit, Crossfire, Cut, Flank), s a bot-minute | +1.23 ± 0.07* | −0.35 ± 0.05* | −0.05 ± 0.03 | +1.33 ± 0.13* | |
+   | Roam ended "the route turned bad", a bot-minute | −0.084 ± 0.013* (of 0.214) | | | | |
 
-   The ablation columns are each against the full change (new table and code), not against the base.
-   - **Which team the routes help:** new routes for one side only (old routes for the other), against the same seed with the old routes on both sides, 32 seeds each way (64). The new routes' team took +0.3 ± 0.3 points of the kills (Team Deathmatch +0.4 ± 0.4) and delivered −0.1 ± 0.3. So bots gain nothing clear from them against bots. In Team Deathmatch both teams killed less (the routes' team −4.0 ± 1.3, the other −6.1 ± 1.3).
-   - With the new routes on both sides bots spread more: deaths with no teammate within 20 m +3.5 ± 0.5 points, deaths traded within 5 s −1.4 ± 0.4. The fewer kills are Team Deathmatch on levels 1, 2 and 4 (level_02 10 v 10: −8.2 ± 1.1 of 31 a run); levels 5 and 6 had more (+1.8 ± 0.8, +2.2 ± 0.7). The battery maps did not change beyond the noise.
+   The ablation columns are each against the full change, not against the base, and were run with an earlier draw of 80 new routes (before the zone walkers were left out).
+   - **Which team the routes help:** new routes for one side only (old routes for the other), against the same seed with the old routes on both sides, 32 seeds each way (64). The new routes' team took +0.3 ± 0.3 points of the kills (Team Deathmatch +0.4 ± 0.4) and delivered +0.1 ± 0.2. So bots gain nothing clear from them against bots. In Team Deathmatch both teams killed less (the routes' team −4.9 ± 1.2, the other −6.8 ± 1.3).
+   - With the new routes on both sides bots spread more: deaths with no teammate within 20 m +2.6 ± 0.6 points, deaths traded within 5 s −0.9 ± 0.3. The fewer kills are mostly Team Deathmatch on levels 1, 2 and 4 (level_02 10 v 10: −7.9 ± 0.9 of 31 a run); level_03's had more (+2.4 ± 0.8).
    - They ship anyway (the owner's call, 2026-10-23): the routes paid against humans, and the bench's enemies are bots. They are to be checked in live Player vs Bots matches, bots' K/D against the humans and deliveries before and after.
    - Kept for their own numbers: the carrier's way home (carriers killed −0.7 ± 0.4 with the old table, +1.1 ± 0.4 without it) and the cut merge (without it, kills −12.6 ± 4.3 and Cut deaths +3.9 ± 1.4).
    - The task weighting shows nothing clear either way: Roam is about 6 s of a bot-minute, and most battery routes' batteries are small next to their fights. It is kept as the owner's requirement (routes by the bot's task); no guard is worse.
    - Left out: dropping the old routes that fail the walk check (44 of 174). It changed kills by +0.8 ± 3.9 and plays ended within 1 s by +0.035 ± 0.009* (16 seeds).
+   - **Anomalies** (`real_routes_and_the_damage_zones`, the zones as a match has them): of the 174 old routes, 43 have a point on a zone's floors (32 of an always-on zone) and 61 a leg crossing one. Roam already leaves out a point in a zone that is on when the route is drawn, and the walk goes round a zone or waits for it to switch off. Left out: moving such points at load to the nearest floor clear of every zone within 4 m (else dropping them). Roam's no-headway ends fell (−0.005 ± 0.002 a bot-minute), but idle time rose (+0.31 ± 0.12 points), failed searches rose (+0.9 ± 0.2 points) and Roam time fell (32 seeds; the same with the old table).
+   - Leaving the zone walkers out (57 routes against the earlier 80, same code): idle −0.50 ± 0.17 points and held angles −0.34 ± 0.05 s a bot-minute, but Roam no-headway ends +0.015 ± 0.002 a bot-minute and standing with no route +0.11 ± 0.05 points. It is kept because a route should be scored by the lives a bot can follow.
    - The whole-match tests and the real-map route and cut tests pass with the new table.
 
    **Sprinting on a route:** sprint out of spawn and behind the team's own lines; walk once within ~30 m of a known danger (an enemy sensed, last known or on the radar, a danger-map spot, a teammate's death). Lives that were mostly sprinting did far worse than steady movers reaching as far (K/D 0.2–1.0 against 0.6–2.3), but that is LIKELY skewed by short lives being mostly the run out of spawn, and sprinting right before a death was no commoner than before a kill. A cheap rule of thumb, not a finding.
