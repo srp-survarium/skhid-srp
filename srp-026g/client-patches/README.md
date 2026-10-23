@@ -3044,7 +3044,8 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   (0x23DEC0, `engine_point_to_screen`), its distance from the camera director ([game+98h]+34h),
   as update_player_icons places the players' markers (`research_mode.md`, "Markers"); and
   `research_update` at a change, so the hud's rings and timers follow the capture. In the
-  countdown, after the end and in another mode, once, none.
+  countdown, after the end (`end_time` set: the time rule stays in state 3) and in another
+  mode, once, none.
 - **The section** `.srpx` (0xA42D000, after `.srpw`'s three pages) is the arena of the later
   patches (the twelfth and last section table entry; "The arena" above, client_patch.md 0.3).
   Research has its first two blocks: `research.code` (the 256 bytes of `research_026g.asm`,
@@ -3073,7 +3074,7 @@ and deserialize loops over a world's rules with esp as before, the hud's points 
 left), completed; update_ui in mode 5 and 4, the messages, the time left; the markers through
 update_ui 0x23B200 itself with its gates closed (update_player_icons answered) and the game's own
 point_to_screen on a made-up camera: sent, nothing again, sent again when only the camera moved,
-hidden in the countdown and at a match of mode 4; the first message by mode);
+hidden at the end, in the countdown and at a match of mode 4; the first message by mode);
 `selftest_026g.py` check 53 (also: every slot of ours pops what tdm_rule_core's and
 tdm_rule_cook's in its place pop; the cook's RTTI hierarchy). The first local test (2026-10-22)
 crashed at the first synchronization (slot 16, fixed) on a scrambled level (pack 1's vectors,

@@ -230,8 +230,8 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
 - **Markers:** every frame, from update_ui's call of update_player_icons (0x23B207: a fourth
   hook, `icons`, calls it and then `rn_markers`; before update_ui's 40 ms gate and its checksum
   of the hud state, past which the rest of the hud runs about once a second, when the match's
-  seconds change), while the time rule is in play (state 3; hidden in the countdown and after
-  the end): `root.research_markers(own team, Z, then cp_id, on the screen, x,
+  seconds change), while the time rule is in play (state 3) and no end is set (hidden in the
+  countdown, and once `end_time` is set: the time rule stays in state 3 after Research's end): `root.research_markers(own team, Z, then cp_id, on the screen, x,
   y, metres, owner, taking, progress %, ms left, own player inside)` to the player-icons movie
   ([[ui+10h]+108h]+4, as update_player_icons 0x23ACC1), at a change and every 60 frames: the
   unit's position + 2 m up through the game's `base_game_scene::point_to_screen` (0x23DEC0,
