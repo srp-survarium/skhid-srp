@@ -139,11 +139,6 @@ const MIGRATIONS: &[&str] = &[
     drop_cards::MIGRATION,
     // 11: an account's kit presets and the active one (`presets`).
     presets::MIGRATION,
-    // 12: autobuy on for every account (the owner's of 2026-10-23: on by
-    // default). The column can not tell a box never touched from one turned
-    // off, so each account gets it on once, here; a box turned off later
-    // stays off. A new account starts with it on (`Account::with_loadout`).
-    "UPDATE g26_accounts SET autobuy = 1;",
 ];
 
 /// The child tables of an account, children of children first.
@@ -482,6 +477,11 @@ pub const GOLDEN_SILVER_GIVEN: &str = "golden_silver_given";
 /// (`GameAccounts::give_premium_armour_bonuses_once`): it is written after
 /// them.
 pub const PREMIUM_ARMOUR_GIVEN: &str = "premium_armour_given";
+
+/// The `g26_meta` key that says every account's autobuy was turned on, and
+/// the accounts were written (`GameAccounts::turn_autobuy_on_once`): it is
+/// written after them.
+pub const AUTOBUY_TURNED_ON: &str = "autobuy_turned_on";
 
 fn schema_version(connection: &Connection) -> Result<i64, PersistError> {
     connection.execute_batch(
@@ -1157,42 +1157,6 @@ mod tests {
         let old = SqliteRepository::open(&temp.path()).unwrap();
         assert_eq!(old.version().unwrap(), old_version);
         assert_eq!(repository.load_all().unwrap().len(), 1);
-    }
-
-    /// Step 12 ticks autobuy once for every account of before; a choice made
-    /// after it is kept.
-    #[test]
-    fn autobuy_is_turned_on_once_for_the_accounts_of_before() {
-        let temp = TempDb::new("autobuy-on");
-        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        let mut off = Account::new("Alice");
-        off.autobuy = false;
-        repository.save(1, &off).unwrap();
-        repository.save(2, &Account::new("Bob")).unwrap();
-        // The file as it was before the step.
-        repository
-            .connection
-            .execute(
-                "UPDATE g26_meta SET value = ?1 WHERE key = 'schema'",
-                [MIGRATIONS.len() as i64 - 1],
-            )
-            .unwrap();
-        drop(repository);
-        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        let loaded = repository.load_all().unwrap();
-        assert!(loaded.iter().all(|(_, account)| account.autobuy));
-        // Turned off after the step: off from then on.
-        repository.save(1, &off).unwrap();
-        drop(repository);
-        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
-        let loaded = repository.load_all().unwrap();
-        assert_eq!(
-            loaded
-                .iter()
-                .map(|(id, account)| (*id, account.autobuy))
-                .collect::<Vec<_>>(),
-            [(1, false), (2, true)]
-        );
     }
 
     #[test]
