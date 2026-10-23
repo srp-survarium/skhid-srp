@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 28746,
-  "sha256": "e1718e9ca82810194bb5b4a581c6c563012ddf37db66c25d0cccaa0c815bc4ed",
+  "size": 34480,
+  "sha256": "b957eb5041ae05ceff775cf4f2bc40930c9cb38e5ec9bcb1f0a9763f2d9adfa2",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,7 +22,7 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 1186
+      "size": 1222
     },
     "match_keys.code": {
       "kind": "code",
@@ -33,6 +33,11 @@
       "kind": "state",
       "va": "0xa434000",
       "size": 74
+    },
+    "team_damage.code": {
+      "kind": "code",
+      "va": "0xa435000",
+      "size": 1712
     }
   },
   "symbols": {
@@ -57,6 +62,7 @@
     "engine_find_pool": "0xa4321b0",
     "engine_free": "0xa432340",
     "engine_get_all_surfaces": "0xa432380",
+    "engine_hit_impl": "0xa4324b0",
     "engine_increase_health": "0xa4321d0",
     "engine_item_by_id": "0xa432280",
     "engine_log_passes": "0xa432300",
@@ -120,10 +126,22 @@
     "rr_reset": "0xa42d470",
     "rr_serialized_size": "0xa42d397",
     "rr_tick": "0xa42d5e5",
-    "rr_write": "0xa42da9c"
+    "rr_write": "0xa42da9c",
+    "td_count": "0xa435278",
+    "td_hit": "0xa435000",
+    "td_kd": "0xa435064",
+    "td_kd_made": "0xa435446",
+    "td_load": "0xa435572",
+    "td_load_entry": "0xa435097",
+    "td_lost": "0xa435024",
+    "td_options": "0xa4352d5",
+    "td_options_entry": "0xa435050",
+    "td_reflect": "0xa4351af",
+    "td_save": "0xa43548e",
+    "td_save_entry": "0xa43507f"
   },
   "built_with": {
-    "cc": "gcc (GCC) 15.3.0",
+    "cc": "gcc (GCC) 15.2.0",
     "ld": "GNU ld (GNU Binutils) 2.46",
     "nasm": "NASM version 2.16.03 compiled on Apr 17 2024"
   }

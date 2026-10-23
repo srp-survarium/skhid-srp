@@ -19,8 +19,22 @@ use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
 use survarium::v026g::match_msgs::static_info::score_weights as static_info_weights;
 use survarium::v026g::match_msgs::static_info::{
-    MatchOptions, MatchProfile, SCORE_EVENTS, StaticInfo, StaticInfoError,
+    MatchOptions, MatchProfile, SCORE_EVENTS, StaticInfo, StaticInfoError, TeamDamage,
 };
+
+/// `SRP_TEAM_DAMAGE` ([`TeamDamage::from_setting`]: unset or `on` for
+/// 0.28a's numbers, `off`, or `max_amount,max_ratio,return_ratio`). A value
+/// it cannot read is logged and leaves 0.28a's numbers.
+pub fn team_damage_from_env() -> Option<TeamDamage> {
+    let value = std::env::var("SRP_TEAM_DAMAGE").ok();
+    match TeamDamage::from_setting(value.as_deref()) {
+        Ok(team_damage) => team_damage,
+        Err(why) => {
+            log::error!("SRP_TEAM_DAMAGE {why}; team damage as 0.28a had it");
+            Some(TeamDamage::ORIGINAL)
+        }
+    }
+}
 
 /// Set in every [`static_id`], clear in every match id.
 const STATIC_ID_BIT: u32 = 0x8000_0000;
@@ -192,6 +206,9 @@ pub(crate) struct Formed {
     /// player blocks are read against.
     pub profiles: Vec<MatchProfile>,
     pub score_weights: [f32; SCORE_EVENTS],
+    /// What the static info says of team damage (exe patch 63), the same
+    /// for a late joiner's.
+    pub team_damage: Option<TeamDamage>,
     pub info: StaticInfo,
     pub formed_at: Instant,
     /// Experimental dialect: fixed twenty-slot histories/statistics/masks.
@@ -321,15 +338,20 @@ impl std::error::Error for JoinError {}
 pub struct MatchRegistry {
     host: String,
     port: u16,
+    /// Team damage in every match's static info (`SRP_TEAM_DAMAGE`, exe
+    /// patch 63): 0.28a's numbers unless set otherwise.
+    team_damage: Option<TeamDamage>,
     inner: Mutex<Inner>,
 }
 
 impl MatchRegistry {
-    /// A registry for a match server the clients reach at `host:port`.
+    /// A registry for a match server the clients reach at `host:port`,
+    /// team damage as 0.28a had it ([`TeamDamage::ORIGINAL`]).
     pub fn new(host: &str, port: u16) -> Self {
         Self {
             host: host.to_owned(),
             port,
+            team_damage: Some(TeamDamage::ORIGINAL),
             inner: Mutex::new(Inner {
                 last_id: random() | 1,
                 ..Inner::default()
@@ -337,11 +359,18 @@ impl MatchRegistry {
         }
     }
 
+    /// The registry with `team_damage` for the matches it makes (`None`:
+    /// off).
+    pub fn with_team_damage(mut self, team_damage: Option<TeamDamage>) -> Self {
+        self.team_damage = team_damage;
+        self
+    }
+
     /// The registry of the configured match server (`SRP_PUBLIC_HOST`,
     /// `SRP_MATCH_PORT`: the settings the 0.21d server has).
     pub fn from_config() -> Self {
         let config = &vostok::config::get().match_server;
-        Self::new(&config.public_host, config.port)
+        Self::new(&config.public_host, config.port).with_team_damage(team_damage_from_env())
     }
 
     /// The port the clients are told.
@@ -457,6 +486,7 @@ impl MatchRegistry {
             match_id: static_id(match_id),
             match_level: setup.match_level,
             score_weights,
+            team_damage: self.team_damage,
         };
         let info =
             StaticInfo::new(&options, Dictionary::shared()).map_err(CreateError::StaticInfo)?;
@@ -482,6 +512,7 @@ impl MatchRegistry {
                 places,
                 profiles,
                 score_weights,
+                team_damage: self.team_damage,
                 info,
                 formed_at: now,
                 growing_roster,
@@ -596,6 +627,7 @@ impl MatchRegistry {
                 match_id: static_id(match_id),
                 match_level: next.match_level,
                 score_weights: next.score_weights,
+                team_damage: next.team_damage,
             },
             Dictionary::shared(),
         )

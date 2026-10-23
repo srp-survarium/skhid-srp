@@ -104,6 +104,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
+| `team_damage_026g.asm`, `team_damage_026g.c`, `check_team_damage_026g.py` | Patch 63: team damage turned back on its dealer past a threshold, as 0.28a had it (the arena's block `team_damage.code`: the six entries in the asm, the logic in the C); its check runs the entries from the game's sites with the game's own options reader, kd_stats_rule constructor and field writers on made-up objects, beside the original (needs Unicorn) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
@@ -160,8 +161,8 @@ a hook jumps to, `extern` what it uses of other patches; its hooks as
 (site, bytes, symbol, opcode) rows made in `build()`; each declared in
 `INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
 asm, its C, and its state `rn_state`), the artefacts (patch 54), the
-engine library and the kit keys with the match chat option (patch 58) are
-the arena's blocks today. The older fixed sections stay as they are
+engine library, the kit keys with the match chat option (patch 58) and team
+damage (patch 63) are the arena's blocks today. The older fixed sections stay as they are
 (client_patch.md 0.3 says what moving one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
@@ -3213,6 +3214,40 @@ found by the game's lookup (0xEB7C0) and set and cleared by the game's execute (
 `user.cfg` line; the chat: every channel with the option off and on, in and out of a match,
 dropped exactly for 3 and 5 to 9 on, in a match, else given to add_message with the site's
 arguments, the stack and ebx, esi, edi, ebp as before. **Not run in a game.**
+
+### 63. Team damage turned back on its dealer past a threshold, as 0.28a had it (the next release's revision)
+
+A player's ask through the owner (2026-10-23): "old auto-damage for team damage/killing", past
+a threshold only. The rules and where they come from (0.28a2's config and code):
+`../docs/notes/team-damage.md`.
+
+**What it does.** Per roster place the game counts all the pain (0.26g's health that kills;
+0.28's "health") its hits took off other players, and of it teammates'. Once a player's team
+count is more than `max_amount` (3.0) and more than `max_ratio` (0.67) of all, each of his hits
+on a teammate leaves the teammate as he was and is dealt to him instead, its damage times
+`return_ratio` (2.0), through his own `hit_impl` (his armour; a hit of his own place, so a
+death by it is a suicide). Falls, anomalies, his own grenades on himself and hits without a
+dealer are neither counted nor turned. The numbers are the server's (`SRP_TEAM_DAMAGE`, srp's
+block after the static info's squads; on by default with 0.28a's).
+
+**How.** The arena's block `team_damage.code` (`team_damage_026g.asm`, `team_damage_026g.c`),
+with the late join, six sites (`TEAM_DAMAGE_HOOKS`): hit_impl's entry 0x2D9B90 (the turn) and
+its loss at 0x2D9EA9 (the counts); match_options::deserialize's end 0x1F0F30 (srp's block into
+the options' unused +57860h); kd_stats_rule_cook's constructor call 0x2CCE4A (the rule, grown
+from 1B8h to 268h at 0x2CCE37 and 0x2CCE5E, holds the numbers and the counts); the world's
+serialize at 0x2D2716 and deserialize at 0x2D2C75 (the counts saved and loaded after the
+effects: "SRTD", the places, two f32 each). No address and no base relocation under the sites;
+nothing aims inside them. `../docs/notes/client_patch.md` section 3.54.
+
+A simulation change (`../crates/session/src/v026g/simulation_changes.tsv` `next`): every world
+carries the counts, and a turned hit plays out otherwise.
+
+Checked: `selftest_026g.py` check 63 and the call shapes (0x2D9B90 ENTRY `ret 8`, 0x2CCE4A
+CALLEE `ret 4`, the others JUMP); `check_team_damage_026g.py` (Unicorn, beside the original):
+the game's options reader on ten static infos, the game's rule constructor with and without the
+numbers, the save and load with the game's writers (a record back; none, short or wrong: no
+counts, the reader not moved), hit_impl's entry for fourteen cases and its loss for five, a
+match of five team hits (dealt four times, then turned). **Not run in a game.**
 
 ## Not ported, not done
 

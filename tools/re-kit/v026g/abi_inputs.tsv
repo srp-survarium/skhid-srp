@@ -4450,3 +4450,8 @@ va	name	location	role	basis
 0x002e5040	survarium::damage_model::tick	stack+8	elapsed ms, passed on as 0x32A4B0 stack+4	observed
 0x002e5040	survarium::damage_model::tick	ESI	now ms, passed on as 0x32A4B0 stack+8 and stored at +328h	observed
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	ESI	index 36 (pain_regeneration_speed, multiplicative): its only call is 0x2D7043 in base_player::base_player 0x2D6990, which sets the "pain" pool's +A4h regeneration_speed = config x max(0, 1 + S) once; index 6 (pain_health) at 0x2D7007 scales its +9Ch the same way	observed
+0x001f0e70	survarium::match_options::deserialize	EAX	the reader {begin, cursor, size} (ESI in the body; 0x27B925, 0x1F0962): left at the end of the squads, srp's block after them	observed
+0x001f0e70	survarium::match_options::deserialize	entry ESP+4	the match options (EBX in the body)	observed
+0x001f0e70	survarium::match_options::deserialize	entry ESP+8	the items dictionary, passed to each profile's reader 0x1F1070	observed
+0x00323790	survarium::kd_stats_rule::kd_stats_rule	ESI	the rule (this; 1B8h bytes, 268h with patch 63)	observed
+0x00323790	survarium::kd_stats_rule::kd_stats_rule	entry ESP+4	the query: [query] the match options (+577B5h its places)	observed

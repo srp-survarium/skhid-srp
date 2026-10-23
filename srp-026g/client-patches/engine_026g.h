@@ -112,4 +112,7 @@ void engine_accept_decal_edit(void *character, unsigned int host, unsigned int d
 /* 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16 */
 void engine_cc_bool(void *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind);
 
+/* 0x2d9b90 survarium::base_player::hit_impl: player ESP+4, hit ESP+8; pops 8 */
+void engine_hit_impl(void *player, const void *hit);
+
 #endif
