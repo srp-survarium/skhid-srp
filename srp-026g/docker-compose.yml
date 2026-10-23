@@ -149,6 +149,11 @@ services:
       - SRP_PVB_MAX_MATCHES
       - SRP_PVB_PAY
       - SRP_PVB_STALL_S
+      # The bots' decision traces (off unless set; e.g.
+      # /srv/srp/data/bot-traces), cut to SRP_BOT_TRACE_MAX_MB (default
+      # 2000) together, the oldest first.
+      - SRP_BOT_TRACE_DIR
+      - SRP_BOT_TRACE_MAX_MB
       # Rooms, the players' "servers" (servers/lobby-server/src/v026g/rooms.rs):
       # every PvP match is a room's; they need the lobby movie that has them.
       - SRP_ROOMS_MAX

@@ -210,8 +210,10 @@ against a known wall 47 %, "free" 25 %. Not seen in a real game yet.
   only stops calling a still bot stuck.
 - **Diagonal corners** are eroded no more than before (a body slides round
   them).
-- **No decision traces** on the host: `SRP_BOT_TRACE_DIR` would give each
-  stuck line the route and the keys (its setting is the owner's call).
+- **No decision traces** on the host until 2026-10-23: `SRP_BOT_TRACE_DIR`
+  gives each stuck line the route and the keys. The owner turned it on
+  (`/srv/srp/data/bot-traces`, cut to `SRP_BOT_TRACE_MAX_MB`, 2000) with
+  the release of these fixes.
 - **A bot frozen in geometry** still has no way out but its recoveries
   and its death; the server cannot move a body.
 

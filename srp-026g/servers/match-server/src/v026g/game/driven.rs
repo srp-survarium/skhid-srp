@@ -31,7 +31,7 @@
 //!   on a thread of its own) they stand; if the map has no file they run
 //!   the stage 0 script instead. `SRP_BOT_TUNING` (a JSON file, read when
 //!   the match is made) changes their numbers; `SRP_BOT_TRACE_DIR` keeps
-//!   their decisions; `SRP_BOT_ROUTES` (a JSON file, private: made from
+//!   their decisions (`SRP_BOT_TRACE_MAX_MB` of them); `SRP_BOT_ROUTES` (a JSON file, private: made from
 //!   the players' saved worlds) gives them the routes humans took
 //!   (`bots/routes.rs`);
 //! - without it, the stage 0 script (`super::super::drive`).
@@ -104,7 +104,14 @@ impl Walkers {
         };
         let hash = tuning.hash();
         let trace = match std::env::var_os("SRP_BOT_TRACE_DIR").filter(|dir| !dir.is_empty()) {
-            Some(dir) => Trace::open(dir.as_ref(), id, hash),
+            Some(dir) => {
+                let max_mb = crate::v026g::parse_number(
+                    "SRP_BOT_TRACE_MAX_MB",
+                    std::env::var("SRP_BOT_TRACE_MAX_MB").ok().as_deref(),
+                    crate::v026g::bots::trace::DEFAULT_MAX_MB,
+                );
+                Trace::open(dir.as_ref(), id, hash, u64::from(max_mb) << 20)
+            }
             None => Trace::none(hash),
         };
         log::info!("Match {id:#x}: the bots run on tuning {hash:08x}");
