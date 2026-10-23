@@ -164,6 +164,23 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   place (entered, alive `+33Ch`, in the world `+33Fh`, team `+6B8h -> +45ECh`, feet `+43Ch`,
   capsule half height from the controller `[[+494h]]`); then the statistics' tail: `m_team_points` = the scores, `m_winner_team` = the
   leader.
+- **Statistics:** `[core+18FA8h]` is the statistics handler (vtable 0xA0755C; a world's load
+  calls its slot +34h, 0x2D2B0F); the shared statistics are at +8 in it: a place's record at
+  +8 + 1F8h x place, u16 events[28][3] first (the handler's `recalculate_scores` 0x26DC30), the
+  listener at +8 + 31A0h; the tail (+31D4h, +31E4h) is the handler's (tdm's 0x316257).
+  - Revision 30 counted at +0Ch + 1F8h x place and told the listener at +31A0h: each award 4
+    bytes on, and nobody told (that dword is the shared statistics' batteries pointer, 0 in
+    Research). Kit 0's award went into kit 2's cell of the right event; kit 1's and kit 2's into
+    the next event: a capture into 7 (a teammate cured), a neutralisation into 19 (a battery
+    found), each 2.5 a one, so 250 points instead of 30, and a help's pay a one; a kill invader
+    into 11 (participating, 0). The Tab score moved only at the next world loaded.
+  - 7 and 19 are one byte on the wire: at every world loaded (a rollback, many a second) the
+    cell is cut to the hundredths modulo 256, so the score fell by 640 when one passed 255 (the
+    owner's "670, then 70"). The server read the same bytes: live match 0x31973a2 scored 993
+    and 1023 and paid 124k silver.
+  - Fixed in the next revision (`check_research_026g.py` runs the game's own
+    `recalculate_scores` on the cell, and a kit 1 kill invader). No server-side workaround: the
+    release raises the minimum patch revision, so revision 30's games are refused.
 - **Wire (rules blob, between the respawn rule and the kd rule; little-endian):**
 
   | at | size | what |

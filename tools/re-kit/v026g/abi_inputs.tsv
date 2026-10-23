@@ -4393,6 +4393,8 @@ va	name	location	role	basis
 0x002f5d40	survarium::shared_statistics::notify_listener	entry ESP+4	u8 roster place	observed
 0x002f5d40	survarium::shared_statistics::notify_listener	entry ESP+8	the event (the statistics' events[e]: 2 a kill, 6/17/18 in hundredths)	observed
 0x002f5d40	survarium::shared_statistics::notify_listener	entry ESP+12	u16 the amount added	observed
+0x002f5d40	survarium::shared_statistics::notify_listener	EAX	precisely: the shared statistics' listener at shared+31A0h, the shared statistics being at +8 in the statistics handler [core+18FA8h]: handler+31A8h (0x2F4D9F, 0x26DA3C)	observed
+0x0026db60	survarium::base_game_statistics_handler::deserialize	ECX	the statistics handler, [core+18FA8h] (game_world_core::deserialize calls it as slot +34h at 0x2D2B0F); the shared statistics at +8 (ESI for 0x2F5BE0), then recalculate_scores 0x26DC30 with EDI the handler	observed
 0x0026db80	survarium::base_game_statistics_handler::on_event	ECX	the statistics object itself ([core+18FA8h]; vtable 0xA0755C, this slot +44h): m_scores[place] (+31F0h) grows by amount x the event's weight (x 0.01 for 6, 17, 18)	observed
 0x00265de0	survarium::lobby_character::start_item_upgrade	ESI	the lobby_character (lobby menu+694h)	observed
 0x00265de0	survarium::lobby_character::start_item_upgrade	EDI	the window's item id	observed
