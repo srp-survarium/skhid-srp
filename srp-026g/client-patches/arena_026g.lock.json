@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 21626,
-  "sha256": "9b542e06bd5ca0b286b7d486fa1339a68a0f2bee669330a2ea722f74b2bfaa61",
+  "size": 25402,
+  "sha256": "75c7bda2e53519e2d5ba5415ecdde34e0b37d4917e7a4729386cf6014a6ae8b2",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -23,9 +23,16 @@
       "kind": "code",
       "va": "0xa432000",
       "size": 1146
+    },
+    "anomalies.code": {
+      "kind": "code",
+      "va": "0xa433000",
+      "size": 826
     }
   },
   "symbols": {
+    "anomalies_pickup_hook": "0xa43301e",
+    "anomalies_tick_hook": "0xa433000",
     "artefacts_fire": "0xa431014",
     "artefacts_lifebone": "0xa43100f",
     "artefacts_link": "0xa431005",
