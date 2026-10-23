@@ -103,7 +103,11 @@ package survarium.controls
       private var _allwayShowControlPanel:Boolean = false;
       
       private var _hoverIndex:int = -1;
-      
+
+      // The item the right-click menu was opened on (a list item or a kit item): its Repair,
+      // Modification, Upgrade and Attachments act on it (menuItem).
+      private var _menuItem:ItemData = null;
+
       public var updateItemCard:Boolean = true;
       
       public var ignoreSelection:Boolean = false;
@@ -1839,13 +1843,11 @@ package survarium.controls
       
       protected function fixElement(event:Event = null) : void
       {
-         var position:Number = itemsTileList.getActualScrollPosition();
-         var item:* = itemsTileList.getRendererAt(itemsTileList.selectedIndex,position);
-         if(!item || !item.data)
+         var _data:Object = this.menuItem();
+         if(_data == null)
          {
             return;
          }
-         var _data:Object = item.data;
          trace("repairItem::",_data.itemId,_data.icon,_data.messIcon);
          var messageData:ItemData = new ItemData();
          messageData.itemId = _data.itemId;
@@ -1971,7 +1973,25 @@ package survarium.controls
       
       protected function upgradeItem(e:Event = null) : void
       {
+         if(this.menuItem() == null)
+         {
+            return;
+         }
          this._item_control.upgradeItem();
+      }
+
+      // The owned item the menu was opened on, put on the card (Modification, Upgrade and
+      // Attachments open for the card's item); null for one not owned. Not the list's selection or
+      // the card as they were: in the shop the list holds shop entries (item id 0) and a kit item
+      // has no row there, so either can be a shop entry (shop-character-menu.md).
+      private function menuItem() : ItemData
+      {
+         var item:ItemData = this._menuItem != null && this.owns(this._menuItem.itemId) ? this._inventoryItemsDict[this._menuItem.itemId] : null;
+         if(item != null && this._item_control.getItemData() != item)
+         {
+            this.setPrimaryItem(item);
+         }
+         return item;
       }
       
       protected function sellObject(value:ItemData) : void
@@ -2013,6 +2033,10 @@ package survarium.controls
       
       protected function upgradeElelemnt(event:Event = null) : void
       {
+         if(this.menuItem() == null)
+         {
+            return;
+         }
          this.openModifiersWindow();
       }
       
@@ -2047,9 +2071,8 @@ package survarium.controls
       
       protected function craftElement(event:Event = null) : void
       {
-         var position:Number = itemsTileList.getActualScrollPosition();
-         var item:* = itemsTileList.getRendererAt(itemsTileList.selectedIndex,position);
-         if(!item || !item.data || !item.data.enabled)
+         var item:ItemData = this.menuItem();
+         if(item == null || !item.enabled)
          {
             return;
          }
@@ -2879,6 +2902,7 @@ package survarium.controls
          var itemData:ItemData = activeItem.data as ItemData;
          var options:Array;
          var itemAvailable:Boolean;
+         var owned:Boolean;
          var fixable:Boolean;
          var rerollable:Boolean;
          var br:Boolean;
@@ -2900,10 +2924,14 @@ package survarium.controls
             return;
          }
          trace("itemData::",itemData.enabled);
+         _menuItem = itemData;
          if((itemData) && (itemData.enabled || this.buyable(itemData)))
          {
             options = [];
             itemAvailable = itemData.descriptor <= ItemPlace.INVENTORY && itemData.enabled;
+            // Repair, Modification, Upgrade and Attachments: only for an item the account owns
+            // (the server refuses any other)
+            owned = this.owns(itemData.itemId);
             if(itemAvailable)
             {
                if(itemData.usable)
@@ -2962,21 +2990,21 @@ package survarium.controls
                         }
                      }
                   }
-                  if(fixable)
+                  if(fixable && owned)
                   {
                      options.push({
                         name:LocalizationData.getName("fix"),
                         click_function:this.fixElement
                      });
                   }
-                  if(rerollable && !itemData.rerollTime && !itemData.broken)
+                  if(owned && rerollable && !itemData.rerollTime && !itemData.broken)
                   {
                      options.push({
                         name:LocalizationData.getName("btn_reroll_label"),
                         click_function:this.upgradeItem
                      });
                   }
-                  if(this.isUpgradeable(itemData))
+                  if(owned && this.isUpgradeable(itemData))
                   {
                      options.push({
                         name:LocalizationData.getName(this.upgradeLabelKey(itemData)),
@@ -2985,7 +3013,7 @@ package survarium.controls
                   }
                }
             }
-            if(ItemFactory.isItemCraftable(itemData) && itemAvailable)
+            if(ItemFactory.isItemCraftable(itemData) && itemAvailable && owned)
             {
                options.push({
                   name:LocalizationData.getName("craft"),
