@@ -613,7 +613,43 @@ it cannot walk.
 JUMP or crouch bits) count as held. Against the kept version it cost
 +24 s of pushing.
 
-Whole-match tests (`--ignored`, release): WHOLE_MATCH_RESULTS.
+Whole-match tests (`--ignored`, release, on the branch merged with
+`feat/bots-tiers-combined` 8a50657b): all 8 pass, among them
+`four_bots_a_side_fight_and_bring_batteries_to_a_win` and
+`timed_batteries_are_waited_for_at_the_stations_and_brought_home`.
+
+**On the current base.** The same bench, `feat/bots-tiers-combined`
+8a50657b against it merged with this work, 512 pairs. The base's bench has
+no `RouteTally` (pushing, idle and falls are this work's), and its stand-in
+does not jump, so these are the guards and the deliveries:
+
+| | base | with this | diff |
+|---|---|---|---|
+| batteries delivered | 1.99 | 3.50 | +1.52 +- 0.10* |
+| kills | 17.0 | 24.8 | +7.8 +- 0.4* |
+| K/D team 0 / team 1 | 1.03 / 1.02 | 1.23 / 1.11 | +0.20* / +0.09 |
+| carriers killed | 0.56 | 0.84 | +0.29 +- 0.06* |
+| ended within 1 s, % of plays | 12.0 | 13.8 | +1.8 +- 0.3* |
+| A-B-A flips, % of plays | 3.4 | 4.0 | +0.6 +- 0.1* |
+| stood with a goal, % | 6.2 | 7.7 | +1.5 +- 0.2* |
+
+The "stood with a goal and no route" ticks are up in every play (most in
+Collect, +0.5 points of goal ticks). These are short gaps between
+re-plans: the time idle 5 s or more fell from 36.6 % of the time alive to
+11.4 % (the "everything" table).
+
+The bench, to run again. The binary is `cargo test -p match-server
+--release --lib --no-run` in `srp-026g` under `nix develop`; give each
+checkout its own `CARGO_TARGET_DIR`. In `srp-026g/servers/match-server`,
+for seeds 1-16:
+
+    export SRP_MAPDATA_DIR=<mapdata dump>
+    export SRP_BENCH_MAPS=1/2,2/2,3/2,4/2,5/2,6/2,7/2,8/2,1/4,2/4,3/4,4/4,5/4,6/4,7/4,8/4
+    export SRP_BENCH_SIDES=4,10 SRP_BENCH_SECONDS=180 SRP_BENCH_BATTERIES=10 SRP_BENCH_USE_LINE=1
+    SRP_BENCH_SEED=<seed> <binary> --ignored --nocapture --exact v026g::bots::tests::real_bot_cost > s<seed>.log
+
+There is no `SRP_BOT_ROUTES`. Each (map, size, seed) is a pair; the tables
+are the mean of the paired differences with its standard error.
 
 ### 8.7 Left
 
@@ -632,5 +668,53 @@ Whole-match tests (`--ignored`, release): WHOLE_MATCH_RESULTS.
 - **A goal under a ramp** plans to the nearest floor, which may be the
   ramp's top or its foot: whichever is nearer, not whichever the play
   meant.
+- **Route jumps fail 4 times in 5 in the client** (8.8): 42 of 199 first
+  jumps got up. The motor jumps 0.8 m before the take-off on the
+  approach's heading and retries wherever the body slid to. It needs a
+  lined-up jump from the take-off, and no retry away from it. Cologne's
+  battery 6 cost seven deaths this way.
 - **The stand-in's jump** is a guess (600 ms in the air, up a grid jump
   link only): a jump the grid has no link for is still a wall in it.
+
+### 8.8 Two spots of the #343 check (2026-10-23 evening)
+
+The owner's four evening matches on `feat/bots-tiers-combined` without
+this work (`pvb-343-check/analysis/REPORT.md` §3, items 1 and 7).
+
+**0x6da44bbb bot 4, 285-375 s (level_01 day 2): caught.** It fell into
+a trench 1 m deep and 0.75 m wide at (-49.1, 21.5, -82.0). The walk grid
+has jump links up both of its sides; the bot jumped up one every second,
+88 times. The jumps never got it up: every world showed forward held and
+the feet within 0.08 m. The only answer was "Roam: made no headway" every
+10 s.
+
+The held-keys watch (8.1.2) calls this stuck 3 s in (a test from its
+worlds in `walk_keys_held_and_no_move_is_stuck_without_the_reckoning`),
+and the recovery steps back and to a side, then avoids the spot. Whether
+that gets it out of this trench is not shown: in the stand-in every jump
+up a grid link succeeds.
+
+**0x1b8ee975, battery 6 at (5.1, 35.5, 60.1) (Cologne, level_08 day 2):
+not this work.** Seven deaths in 106-345 s.
+
+- The route to it jumps from a platform's north edge (y 34.4, z 55.9)
+  up 0.9 m to a strip 0.75 m wide at z 56.4, over a gap with a long fall
+  under it.
+- Every death had the same trace:
+  - a route jump 0.8 m before the take-off (x 7.6-7.7);
+  - a second jump 1 s later, 1-1.5 m further west (x 6.1-6.6), still at
+    the platform's height: the first hit the step's face, and the body
+    slid west along it to the platform's end;
+  - the second jump went on west, into the gap.
+- The lip cost does not mark this edge: nothing under the gap is a
+  floor within a drop, so there is no drop link and no lip. The fall
+  spots do not help either: each bot died of the fall.
+
+The cause is the motor's jump. In the four evening matches 42 of 199
+first route jumps (21 %) got the body up (`went on` in the jump trace).
+The others were jumped again 1 s later, short of the ledge. The motor
+presses JUMP 0.8 m before the take-off, steering past it. Where the jump
+leg turns from the approach, the body flies on the approach's way. Its
+retry comes wherever the body slid to. A player lines up first and
+jumps from the edge. This needs the real client to measure (in the
+stand-in every jump succeeds), so it is a follow-up (8.7).

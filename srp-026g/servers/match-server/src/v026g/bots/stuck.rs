@@ -348,13 +348,21 @@ mod tests {
         // 0x6da44bbb bot 4, 285.8-288.8 s: in a 1 m trench, forward held
         // (sprint in some worlds) and a jump up its side every second that
         // never got it up, the feet 0.08 m off at most; it stood 88 s with
-        // no stuck note (`player_bots_stuck.md` §8.6).
+        // no stuck note (`player_bots_stuck.md` §8.8).
         let mut stuck = Stuck::default();
         let worlds = [
             (285_800, Vec3::new(-48.95, 21.44, -82.03), key::FORWARD),
-            (286_800, Vec3::new(-48.97, 21.44, -82.02), key::FORWARD | key::SPRINT),
+            (
+                286_800,
+                Vec3::new(-48.97, 21.44, -82.02),
+                key::FORWARD | key::SPRINT,
+            ),
             (287_800, Vec3::new(-48.97, 21.51, -82.02), key::FORWARD),
-            (288_800, Vec3::new(-48.97, 21.44, -82.03), key::FORWARD | key::SPRINT),
+            (
+                288_800,
+                Vec3::new(-48.97, 21.44, -82.03),
+                key::FORWARD | key::SPRINT,
+            ),
         ];
         let told: Vec<_> = worlds
             .iter()
