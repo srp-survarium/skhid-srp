@@ -71,3 +71,4 @@ engine_zone_tick	0x319a70	ECX:zone ESP+4:dt ESP+8:time ESP+12:bool	void engine_z
 engine_geometry_load	0x2f8c30	ESP+4:geometry ESP+8:config	void engine_geometry_load(void *geometry, const void *config)
 engine_geometry_destroy	0x2f8be0	ECX:geometry	void engine_geometry_destroy(void *geometry)
 engine_config_variant_type	0x125790	-	unsigned int engine_config_variant_type(void)
+engine_point_to_screen	0x23dec0	ESP+4:game ESP+8:point ESP+12:out	unsigned int engine_point_to_screen(void *game, const float *point, float *out)

@@ -218,3 +218,6 @@ extern engine_geometry_destroy
 ; unsigned int engine_config_variant_type(void)
 ; 0x125790 vostok::detail::type_to_int<vostok::configs::binary_config_value>::get: no arguments; pops 0; EAX
 extern engine_config_variant_type
+; unsigned int engine_point_to_screen(void *game, const float *point, float *out)
+; 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL
+extern engine_point_to_screen

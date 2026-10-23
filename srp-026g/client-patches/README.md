@@ -99,7 +99,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `research_026g.asm`, `research_rule_026g.c`, `research_rule_026g.h`, `research_native_026g.c` | The source of patch 53 (Research, mode 5): the three hooks and their stubs in assembly, the rule's logic in C on integers (no pointer into the game), and its side in the game (the cook, the rule's twenty slots, the hud) in C |
+| `research_026g.asm`, `research_rule_026g.c`, `research_rule_026g.h`, `research_native_026g.c` | The source of patch 53 (Research, mode 5): the four hooks and their stubs in assembly, the rule's logic in C on integers (no pointer into the game), and its side in the game (the cook, the rule's twenty slots, the hud) in C |
 | `link_026g.py`, `arena_026g.lock.json` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build; `--write` writes the lock (the linked arena's SHA-256, its blocks and symbols), `--check` compares. Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, and the thunks, the arena's block `engine.code` |
@@ -3037,14 +3037,27 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   the statistics' tail: `m_team_points` the scores, `m_winner_team` the leader.
 - **The hud**: `cmp dword [edi+20h],4 / jne 0x23B3FC` at 0x23B3DE of game_world_ui::update_ui
   becomes a `call` of the hud stub: in mode 5 `rn_hud` sends `root.research_update` (numbers
-  only) at each change and every 60 frames, and the units' messages through the hud's
-  parameterised message (0x2375C0); then the compare and its branch. `cmp eax,4 / jne 0x23B36A` at
-  0x23B351 (the match's first message by mode) becomes a `jmp` of the welcome stub: mode 5's is
-  `st_start_match_welcome_message_5`.
+  only; after the units' nine numbers each, the ms left of each unit's capture or
+  neutralisation, whole seconds) at each change and every 60 frames, and the units' messages
+  through the hud's parameterised message (0x2375C0); then the compare and its branch. `cmp
+  eax,4 / jne 0x23B36A` at 0x23B351 (the match's first message by mode) becomes a `jmp` of the
+  welcome stub: mode 5's is `st_start_match_welcome_message_5`.
+- **The markers**: `call 0x23AA10` at 0x23B207 of update_ui (update_player_icons, every frame,
+  before update_ui's 40 ms gate and its checksum of the hud state, behind which the hud hook
+  above runs about once a second) becomes a `call` of the icons stub: it calls
+  update_player_icons, then `rn_markers`, and returns as the call's `ret 4`. While the match is
+  in play `rn_markers` sends `root.research_markers` to the player-icons movie
+  ([[ui+10h]+108h]+4): each unit where it is on the screen by the game's own point_to_screen
+  (0x23DEC0, `engine_point_to_screen`), its distance from the camera director ([game+98h]+34h),
+  as update_player_icons places the players' markers (`research_mode.md`, "Markers"); and
+  `research_update` at a change, so the hud's rings and timers follow the capture. In the
+  countdown, after the end (`end_time` set: the time rule stays in state 3) and in another
+  mode, once, none.
 - **The section** `.srpx` (0xA42D000, after `.srpw`'s three pages) is the arena of the later
   patches (the twelfth and last section table entry; "The arena" above, client_patch.md 0.3).
   Research has its first two blocks: `research.code` (the 256 bytes of `research_026g.asm`,
-  three `jmp near`, the global symbols research_register, research_hud and research_welcome;
+  four `jmp near`, the global symbols research_register, research_hud, research_welcome and
+  research_icons;
   then the C code and its constants) and `research.state` (`rn_state`: the cook, the hud's
   cache; zeroed), linked from source (0xA42D000 and 0xA430000 today). The next blocks are patch
   54's, the engine library's and patch 58's.
@@ -3058,14 +3071,17 @@ with it. No base relocation is under a site and no branch aims inside one.
 
 Checked: `test_research_rule_026g.c` (the rules: captures by 1 and 2 players, contested, the fall
 back, draining and taking, the owner refilling, the water-fill, the points and the end, kill
-invader, a place that left, the wire and its refusals); `check_research_026g.py` (Unicorn: the
+invader, a place that left, the wire and its refusals, the time left); `check_research_026g.py` (Unicorn: the
 constructor's hook registers the cook once and goes on as the original, a taken class; the cook
 makes the rule from a mode config with the game's look-ups; set_game_world_core links the tick;
 a capture at 20 s and its event, nothing outside play, the points in the statistics' tail, kill
 invader, serialize (rr_write's bytes through the game's writers; with the hash mismatch dump on,
 the 88 fields by name) and deserialize (two arguments, 8 bytes popped), the game's own serialize
 and deserialize loops over a world's rules with esp as before, the hud's points (the alive counts
-left), completed; update_ui in mode 5 and 4, the messages; the first message by mode);
+left), completed; update_ui in mode 5 and 4, the messages, the time left; the markers through
+update_ui 0x23B200 itself with its gates closed (update_player_icons answered) and the game's own
+point_to_screen on a made-up camera: sent, nothing again, sent again when only the camera moved,
+hidden at the end, in the countdown and at a match of mode 4; the first message by mode);
 `selftest_026g.py` check 53 (also: every slot of ours pops what tdm_rule_core's and
 tdm_rule_cook's in its place pop; the cook's RTTI hierarchy). The first local test (2026-10-22)
 crashed at the first synchronization (slot 16, fixed) on a scrambled level (pack 1's vectors,

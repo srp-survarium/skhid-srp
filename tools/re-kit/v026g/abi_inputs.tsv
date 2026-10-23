@@ -4617,3 +4617,11 @@ va	name	location	role	basis
 0x00313880	survarium::artefact_base::fill_ui_info	stack+4	the hud's item info (8 bytes)	observed
 0x002ea3c0	vostok::buffer_vector<survarium::`anonymous namespace'::artefact>::push_back	ESI	the vector (+0 begin, +4 end, +8 the capacity's end; query_for_artefacts' _alloca list)	observed
 0x002ea3c0	vostok::buffer_vector<survarium::`anonymous namespace'::artefact>::push_back	EDI	the element: +0 the artefact's dict id (u16), +8 its count (query_for_artefacts 0x2E9DD3..0x2E9DE0)	observed
+0x0023dec0	survarium::base_game_scene::point_to_screen	entry ESP+4	the game ([game_world_ui+18h]): +0Ch the camera's transform (inverted by 0xEE040), +4Ch the projection (multiplied by 0xEEA10), [+9Ch]+53B0h -> +108h the viewport's width and height (u32)	observed
+0x0023dec0	survarium::base_game_scene::point_to_screen	entry ESP+8	the point, float3 in world space	observed
+0x0023dec0	survarium::base_game_scene::point_to_screen	entry ESP+12	the screen position out, float2 in pixels from the top left	observed
+0x0023aa10	survarium::game_world_ui::update_player_icons	entry ESP+4	the game_world_ui; called first thing by update_ui (0x23B207), every frame, before its gates	observed
+0x0023b200	survarium::game_world_ui::update_ui	EAX	the game_world_ui (kept in edi)	observed
+0x0023b200	survarium::game_world_ui::update_ui	entry ESP+4	the frame's ms (x 0.001 at 0x91A8F0: the movies' advance, vtable +5Ch)	observed
+0x0023b200	survarium::game_world_ui::update_ui	entry ESP+8	the time in ms: under 28h past [ui+33Ch] the rest of the hud waits (0x23B249..0x23B252); past that, the hud's part runs only when a checksum of the hud state [ui+24h..2D8h) differs from [ui+2E0h] (0x23B2CD..0x23B301)	observed
+0x0023b200	survarium::game_world_ui::update_ui	entry ESP+12 low byte	inside the 40 ms: nonzero advances the hud movie too, zero returns at once (0x23B254)	observed

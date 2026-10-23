@@ -75,6 +75,7 @@ global engine_zone_tick
 global engine_geometry_load
 global engine_geometry_destroy
 global engine_config_variant_type
+global engine_point_to_screen
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -1290,6 +1291,24 @@ engine_config_variant_type:
     push esi
     push edi
     call 0x125790
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_point_to_screen:
+    ; 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; out -> 12
+    push dword [esp + 28]   ; point -> 8
+    push dword [esp + 28]   ; game -> 4
+    call 0x23dec0
+    movzx eax, al
     pop edi
     pop esi
     pop ebx
