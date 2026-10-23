@@ -1,7 +1,30 @@
 # Crouched steps
 
-The owner's request and what it changes. Data only: no exe change. The change ships as a
-resources.db patch (`scripts/content-edit/crouch-steps-1.json`, its `release/content.tsv` row).
+The owner's request and what it changes. Data only: no exe change. The change ships as resources.db
+patches: `scripts/content-edit/crouch-steps-1.json` (the sounds, #272, rev 27) and
+`crouch-steps-2.json` (the step events, T27), each with its `release/content.tsv` row.
+
+- **T27 (the owner, 2026-10-23):** "for some reason we added sounds but the movement is still
+  silent when crouching". Rev 27+ players have crouch-steps-1 (patch 27 gives `material.pairs` and
+  the 1,577 `crouch/` files; no later patch overrides them, PROVEN), but a crouch step was never
+  played:
+  - the player subscribes `player_equipment_sound_effect::on_player_sound_event` (0x2A6470) to the
+    clip event channel `player_sound_events` of its body's animation player (0x29562D..0x295658);
+    the event's domain value picks the handler (0x2A64A2): 0 and 1 `on_foot_step` for one foot or
+    the other, 2, 3 and 4 three rustles (0x2A6580, 0x2A6630, 0x2A66C0). PROVEN;
+  - a clip has that channel or no step: every standing run and sprint clip has it (2 steps a cycle,
+    2 frames after each `anim_intervals` knot, with that domain's value: run 2 and 14 of 24,
+    AK sprint 1 and 10 of 18); the 16 moving crouch clips (`weapons/ak/player/crouch/3rd_view/`, which
+    rifles and pistols both play, `_hud` lists too) have only `anim_intervals` (0 and 15 of 30). So
+    crouch-walking never reached `on_foot_step`, and #272's pairs had nothing to play. PROVEN (the
+    clips' bytes);
+  - 0.31a2 (crouch audible) has the channel on its crouch clips (its 1st_view set, knots 2 and 17,
+    the intervals' domain values); its 3rd_view crouch clips have none.
+- **The T27 change:** the 16 moving crouch clips get the channel as 0.31a2's: knots 2 and 17, the
+  `anim_intervals` domain values (0 then 1; 1 then 0 for `aimed_backward*`, `aimed_left`,
+  `aimed_right`). The bone tracks stay byte for byte; the idle and `_look` clips stay without it, as
+  run's `_look` clips are. A crouched player now steps twice a 30-frame cycle, and each step plays
+  the crouch pair below (others 54, himself 57) at 40 %, as below.
 
 - **Request (the owner, 2026-10-21):** "when crouched player should still make sound, right now
   they don't at all, it should be lower volume (don't know by how much) but not 0".

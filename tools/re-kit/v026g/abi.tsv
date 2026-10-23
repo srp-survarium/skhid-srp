@@ -1093,6 +1093,7 @@ va	name	source	ret_cleanup	result
 0x002989d0	survarium::damage_zone::damage_zone	manual	4	
 0x0029a850	survarium::lobby_menu::process_default_cancel_decal_edit	manual	4	AL = 1
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	manual	16	
+0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	manual	4	EAX 0 (callback_return_type_enum)
 0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	manual	8	
 0x002aec40	vostok::render::stage_particles::is_effects_ready	manual	0	EAX: normalized0/1 effect+1C non-null result
 0x002c6f90		auto	0	

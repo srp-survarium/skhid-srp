@@ -1,0 +1,6 @@
+{
+ "_about": "Protective mask 1 (2026-10-23, Skhid T28): the 0.69d Protective mask (1816, face-069d pack; the owner's \"hunter mask\") is just a mask. It stays in the mask slot and no longer covers the helmet slot: `helmet` out of its data/additional_model_slots, which leaves the list empty as the other ported masks have it. The client's paperdoll stops locking the helmet cell under it, and srp reads the slots it covers from this config (item_params::covered_slots), so a helmet is worn with it. Its level, price, armour and modifications stay (srp-026g/docs/notes/masks-pack.md).",
+ "remove_item": [
+  {"file": "gameplay/items/armour/mask/face_069d_protective_mask.options", "path": "data/additional_model_slots", "value": "helmet"}
+ ]
+}

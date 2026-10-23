@@ -33,8 +33,6 @@ package survarium.interfaces
       
       function swapQuickSlots(firstIndex:int, secondIndex:int) : void;
       
-      function setAutoRepair(value:Boolean) : void;
-      
       function setAmmoShare(ammoShare:IAmmoShare) : void;
       
       function get_ammo_share() : IAmmoShare;

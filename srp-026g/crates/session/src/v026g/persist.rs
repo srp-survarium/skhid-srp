@@ -478,6 +478,11 @@ pub const GOLDEN_SILVER_GIVEN: &str = "golden_silver_given";
 /// them.
 pub const PREMIUM_ARMOUR_GIVEN: &str = "premium_armour_given";
 
+/// The `g26_meta` key that says every account's autobuy was turned on, and
+/// the accounts were written (`GameAccounts::turn_autobuy_on_once`): it is
+/// written after them.
+pub const AUTOBUY_TURNED_ON: &str = "autobuy_turned_on";
+
 fn schema_version(connection: &Connection) -> Result<i64, PersistError> {
     connection.execute_batch(
         "CREATE TABLE IF NOT EXISTS g26_meta (

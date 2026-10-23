@@ -2589,6 +2589,8 @@ va	name	location	role	basis
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+8	match summary	inferred
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+12	full player result	inferred
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+16	selected player index	inferred
+0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	ECX	player_equipment_sound_effect (+3Ch player, +44h toe positions set); subscribed to the clip event channel player_sound_events of the player's animation player (player+750h) at 0x29562D..0x295658	observed
+0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	entry ESP+4	animation_callback_params& (+0 the animated object, must be the player; +10h time; byte +20h the channel domain value: 0 and 1 on_foot_step for one toe or the other, 2 0x2A6580 rustle by movement id, 3 0x2A6630, 4 0x2A66C0)	observed
 0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	ESI	player_equipment_sound_effect (+38h logic selector, +3Ch player, +40h world); foot material = player u16 [0F2C4h + 4*state+24h + 2*third_person], state+24h: 1 crouch walk, 2 stand run, 3 sprint, 4 jump (boots walk_/run_/sprint_/jump_{1st,3rd}_view_material_id, copied to player+0F2C8h)	observed
 0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	entry ESP+4	foot position (float3*)	observed
 0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	entry ESP+8	step direction (float3*)	observed

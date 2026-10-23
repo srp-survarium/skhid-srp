@@ -171,3 +171,24 @@ Ctrl+F over an item list ([item-search.md](item-search.md)), written in the clas
   `MainScene.isCtrl`, `KeyCode`;
 - the box's words in the five languages are the code's own (`InventoryList.SEARCH_WORD`, the
   language by `RoomsText.language`); no content edit.
+
+## Scaleform pitfalls
+
+What the game's Scaleform did differently from Flash, found building the rooms window
+(2026-10-17); each cost a game round to find.
+
+- **Presses on a control placed straight in a content Sprite go to that Sprite** (the event's
+  target is the container); one nested a Sprite deeper works. Not masks, z-order or redraws.
+  What works: a MOUSE_DOWN listener on the container that, when `e.target` is the container,
+  finds the control under the point with `hitTestPoint` and calls its handler.
+- **A fill of alpha 0 is not hit-tested:** use 0.01. A gap inside a Sprite takes no click: put
+  a 0.01 hit Shape over the whole row.
+- `drawCircle` after `lineStyle` draws a stray line from the pen: draw two filled circles.
+- `BitmapData.draw` from a BitmapData that was itself drawn into shows red; repeated
+  alpha-blended draws wash out to white. Draw once, from the library bitmap.
+- `trace()` reaches no log: debug with an on-screen TextField. Input sent by a helper inside the
+  Wine prefix (SendInput) does not reach the game (DirectInput).
+- The game's Calibri has no ★ (U+2605) or ■: use words.
+- A CLIK button keeps its label at its natural height: don't squeeze its `setSize` height (a
+  skinned server button: 32).
+- A weakly held closure as a listener may be collected: keep listeners strong.
