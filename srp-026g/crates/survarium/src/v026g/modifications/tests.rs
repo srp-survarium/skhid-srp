@@ -352,11 +352,11 @@ fn a_roll_gives_what_the_item_takes() {
         }
         seen.extend(kinds);
     }
-    // Types 1..=5, 7..=10 and 12: 11 has no drop weight, 6 is a bolt
-    // action's.
+    // Types 1..=5, 7..=9 and 12: 11 has no drop weight, 6 is a bolt
+    // action's, 10 (reliability) never rolls (2026-10-23).
     assert_eq!(
         seen.into_iter().collect::<Vec<u8>>(),
-        [1, 2, 3, 4, 5, 7, 8, 9, 10, 12]
+        [1, 2, 3, 4, 5, 7, 8, 9, 12]
     );
     assert!(data.roll_for_rarity(rifle, 0, &mut rng).is_empty());
     // An item that takes nothing gets nothing.
@@ -418,10 +418,12 @@ fn a_reroll_offers_three_other_modifications() {
 
 #[test]
 fn a_reroll_offers_three_on_an_item_of_few_types() {
-    // A backpack takes three types that roll (18, 24, 32; as Skhid's
-    // Marauder backpack and Bandit balaclava take three): with two of its
-    // own, the replaced one's type and the third are left, two types, so
-    // another strength fills the offer; full, only the replaced one's type.
+    // A backpack takes three types that roll in the data (18, 24, 32; as
+    // Skhid's Marauder backpack and Bandit balaclava take three), and 32 is
+    // reliability, which never rolls (the owner's rule of 2026-10-23): with
+    // one of its own, the replaced one's type and the other are left, two
+    // types, so another strength fills the offer; with two, only the
+    // replaced one's type.
     let data = Modifications::shared();
     let backpack = dict("scav_back_1");
     let mut rng = Rng::new(5);
@@ -429,28 +431,30 @@ fn a_reroll_offers_three_on_an_item_of_few_types() {
     let mut kinds_seen = std::collections::BTreeSet::new();
     for _ in 0..300 {
         let choices = data
-            .reroll_choices(backpack, &[1062, 1120], 1062, &mut rng)
+            .reroll_choices(backpack, &[1062], 1062, &mut rng)
             .expect("an offer");
         assert!(choices[0] != choices[1] && choices[1] != choices[2] && choices[0] != choices[2]);
         for &choice in &choices {
             assert_ne!(choice, 1062);
-            assert_ne!(kind(choice), kind(1120), "the type the item keeps");
-            assert!(data.fits(backpack, &[1120], choice));
+            assert_ne!(kind(choice), kind(1201), "reliability");
+            assert!(data.fits(backpack, &[], choice));
             kinds_seen.insert(kind(choice));
         }
         // Both types left are offered before a second strength of one.
         let kinds: std::collections::BTreeSet<u8> = choices.iter().map(|&id| kind(id)).collect();
         assert_eq!(kinds.len(), 2);
     }
-    assert_eq!(kinds_seen.len(), 2);
-    let choices = data
-        .reroll_choices(backpack, &[1062, 1120, 1201], 1201, &mut rng)
-        .expect("an offer");
-    assert!(
-        choices
-            .iter()
-            .all(|&id| kind(id) == kind(1201) && id != 1201)
-    );
+    assert_eq!(kinds_seen, [kind(1062), kind(1120)].into());
+    for held in [&[1062, 1120][..], &[1062, 1120, 1201]] {
+        let choices = data
+            .reroll_choices(backpack, held, 1062, &mut rng)
+            .expect("an offer");
+        assert!(
+            choices
+                .iter()
+                .all(|&id| kind(id) == kind(1062) && id != 1062)
+        );
+    }
 }
 
 #[test]
@@ -776,4 +780,195 @@ fn the_premium_bonuses_are_the_most_their_property_gives() {
         }
     }
     assert!(seen >= premium.len(), "{seen}");
+}
+
+/// The ids of the "reliability" modifications ("Надежность"): those that
+/// change nothing but wear.
+fn reliability_ids(data: &Modifications) -> Vec<u32> {
+    data.modifications
+        .iter()
+        .filter(|row| row.only_changes_wear())
+        .map(|row| row.id)
+        .collect()
+}
+
+/// The owner's rule of 2026-10-23 (docs/notes/no-reliability-roll.md):
+/// which modifications are reliability, by the data.
+#[test]
+fn reliability_is_the_ten_rows_that_only_change_wear() {
+    let data = Modifications::shared();
+    let ids = reliability_ids(data);
+    let expected: Vec<u32> = (1200..=1204).chain(2090..=2094).collect();
+    assert_eq!(ids, expected);
+    for &id in &ids {
+        let row = data.modification(id).unwrap();
+        assert_eq!(row.name, "st_modify_reliability");
+        assert!(row.drop_weight > 0.0 && !row.rolls(), "{id}");
+        assert_eq!(row.lobby_info.len(), 1);
+        assert_eq!(row.lobby_info[0].0, "reliability");
+    }
+    // The lobby names a modification by its property: reliability's (123,
+    // `st_multiplicative_reliability_modifier`, "Reliability" /
+    // "Надійність" / "Надежность") is shown by these ten and no other.
+    let root = ConfigValue::parse(super::super::game_data::file(MODIFICATIONS_PATH)).unwrap();
+    let mut showing = Vec::new();
+    for row in root.req("modifications").unwrap().children() {
+        let id = number(row.req("id").unwrap()).unwrap();
+        let props = row
+            .req("ui_desc")
+            .and_then(|desc| desc.req("props_list"))
+            .unwrap()
+            .children();
+        if props
+            .iter()
+            .any(|prop| prop.i32_at("prop_id").unwrap() == 123)
+        {
+            showing.push(id);
+        }
+    }
+    showing.sort_unstable();
+    assert_eq!(showing, expected);
+    // Only these change wear, and every other row with a drop weight rolls.
+    for row in &data.modifications {
+        let wear = row
+            .modifiers
+            .iter()
+            .any(|modifier| WEAR_PARAMETERS.contains(&modifier.path.as_str()));
+        assert_eq!(wear, ids.contains(&row.id), "{}", row.id);
+        if !ids.contains(&row.id) {
+            assert_eq!(row.rolls(), row.drop_weight > 0.0, "{}", row.id);
+        }
+    }
+}
+
+/// No roll of any item gives reliability: a drop's, an upgrade's (both
+/// [`Modifications::roll`]) and a reroll's offer, whatever the item holds,
+/// reliability included.
+#[test]
+fn no_roll_gives_reliability() {
+    let data = Modifications::shared();
+    let reliability = reliability_ids(data);
+    let mut rng = Rng::new(23);
+    let (mut weapons, mut gear) = (0, 0);
+    for item in all_item_mods() {
+        if item.modifications == 0 {
+            continue;
+        }
+        let dict_id = item.dict_id;
+        let kind = item_params(dict_id).map_or("", |params| params.kind);
+        if is_weapon_kind(kind) {
+            weapons += 1;
+        } else {
+            gear += 1;
+        }
+        // The reliability this item could hold, as one from before.
+        let own: Vec<u32> = reliability
+            .iter()
+            .copied()
+            .filter(|&id| data.fits(dict_id, &[], id))
+            .take(1)
+            .collect();
+        for held in [&[][..], &own] {
+            assert!(
+                data.candidates(dict_id, held)
+                    .iter()
+                    .all(|row| !reliability.contains(&row.id)),
+                "{dict_id}"
+            );
+        }
+        for _ in 0..20 {
+            let rolled = data.roll_for_rarity(dict_id, 3, &mut rng);
+            assert!(
+                rolled.iter().all(|id| !reliability.contains(id)),
+                "{dict_id}"
+            );
+            let mut held = own.clone();
+            if let Some(id) = data.roll(dict_id, &held, &mut rng) {
+                assert!(!reliability.contains(&id), "{dict_id}");
+                held.push(id);
+            }
+            for &replaced in &held {
+                if let Some(choices) = data.reroll_choices(dict_id, &held, replaced, &mut rng) {
+                    for choice in choices {
+                        assert!(!reliability.contains(&choice), "{dict_id}");
+                        assert_ne!(choice, replaced);
+                        let others: Vec<u32> =
+                            held.iter().copied().filter(|&id| id != replaced).collect();
+                        assert!(data.fits(dict_id, &others, choice), "{dict_id}");
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        weapons >= 50 && gear >= 100,
+        "{weapons} weapons, {gear} gear"
+    );
+
+    // A rifle's reliability rerolls into another, valid modification.
+    let rifle = dict("ak_74m");
+    for _ in 0..200 {
+        let choices = data
+            .reroll_choices(rifle, &[2090, 2000], 2090, &mut rng)
+            .expect("an offer");
+        for choice in choices {
+            assert!(!reliability.contains(&choice));
+            assert!(data.fits(rifle, &[2000], choice));
+        }
+    }
+}
+
+/// The items for which reliability was one of three types that roll
+/// (backpacks, masks and respirators, oxygen packs): two are left, so they
+/// reach two modifications of their own by rolls, and none is left to
+/// offer for the reliability of a full one. No item that took a roll
+/// before has none now.
+#[test]
+fn items_of_few_types_roll_two() {
+    let data = Modifications::shared();
+    let reliability = reliability_ids(data);
+    let mut rng = Rng::new(4);
+    let mut two = Vec::new();
+    for item in all_item_mods() {
+        let dict_id = item.dict_id;
+        let rolled_before = data
+            .modifications
+            .iter()
+            .any(|row| row.drop_weight > 0.0 && item.modifications & (1 << row.kind) != 0);
+        let pool = data.candidates(dict_id, &[]);
+        assert_eq!(rolled_before, !pool.is_empty(), "{dict_id}: an empty pool");
+        let kinds: std::collections::BTreeSet<u8> = pool.iter().map(|row| row.kind).collect();
+        if kinds.len() < MAX_RANK && !kinds.is_empty() {
+            assert_eq!(kinds.len(), 2, "{dict_id}");
+            two.push(dict_id);
+            assert_eq!(data.roll_for_rarity(dict_id, 3, &mut rng).len(), 2);
+        }
+    }
+    let names: Vec<&str> = two
+        .iter()
+        .map(|&dict_id| item_params(dict_id).unwrap().kind)
+        .collect();
+    assert_eq!(two.len(), 19, "{names:?}");
+    assert!(
+        names
+            .iter()
+            .all(|kind| ["arm_back", "arm_mask", "arm_oxy"].contains(kind)),
+        "{names:?}"
+    );
+    assert!(two.contains(&dict("bandit_026_mask")));
+
+    // A full backpack: its reliability has nothing to turn into, its
+    // others another strength of their own type.
+    let backpack = dict("scav_back_1");
+    let full = [1062, 1120, 1201];
+    assert_eq!(data.reroll_choices(backpack, &full, 1201, &mut rng), None);
+    assert!(data.candidates(backpack, &[1062, 1120]).is_empty());
+    assert_eq!(data.roll(backpack, &[1062, 1120], &mut rng), None);
+    let choices = data
+        .reroll_choices(backpack, &full, 1120, &mut rng)
+        .unwrap();
+    for choice in choices {
+        assert!(!reliability.contains(&choice));
+        assert_eq!(data.modification(choice).unwrap().kind, 24);
+    }
 }
