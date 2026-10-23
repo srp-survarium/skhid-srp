@@ -376,15 +376,23 @@ mod tests {
                 );
                 for (k, kit) in kits.iter().enumerate() {
                     let capacity = carry_capacity(kit, &modifiers);
-                    let expected = movement_level(kit.weight(), capacity, &modifiers, 0.0);
+                    // The items' own movement speed (their default
+                    // modifications; a bot's items have no others).
+                    let items: f32 = kit
+                        .items
+                        .iter()
+                        .map(|item| item_added(item.dict_id, &[], "movement_speed_modifier"))
+                        .sum();
+                    let expected = movement_level(kit.weight(), capacity, &modifiers, items);
                     let level = profile_movement_level(&profile, k).unwrap();
                     assert!(
                         (level - expected).abs() < 1e-5,
                         "{tier} {role}: {level} {expected}"
                     );
                     // The tiers' kits: under 30 kg of 40, so a few percent
-                    // slower at most; the top tier's +5 % above.
-                    assert!((0.95..=1.05).contains(&level), "{tier} {role}: {level}");
+                    // slower at most; the skills' and the armour's speed
+                    // above.
+                    assert!((0.95..=1.15).contains(&level), "{tier} {role}: {level}");
                 }
                 assert_eq!(profile_movement_level(&profile, kits.len()), None);
             }

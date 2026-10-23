@@ -45,14 +45,14 @@ life's ammo. The carry limit is 30 kg with no skills (`default.player`); every k
 
 | Tier | Role | Weapon 1 (level) | Ammo (level), a life | Armour (level) | Kits: mass (kg) |
 |---|---|---|---|---|---|
-| 4-5 | flanker | `uzi` (2) | `ammo_9x19p_para` (2), 200 | `bm_torso_1` (1), `bm_back_1` (3), `bm_legs_5` (4), `bm_boots_1` (1) | 17.0, 15.2, 17.1 |
-| 4-5 | support | `ak_74u` (5) | `ammo_5.45x39_7n6m` (5), 90 | `bm_helmet_1` (3), `bm_torso_4` (3), `bm_back_1`, `bm_legs_5` | 18.35, 19.9, 19.0 |
-| 4-5 | rusher | `toz_34` (1) | `ammo_12mm_buck` (1), 60 | `scav_torso_1` (1), `bm_back_1`, `bm_legs_5`, `scav_boots_1` (1) | 17.0, 16.9, 15.1 |
-| 4-5 | camper | `mosin_nagant` (0) | `ammo_7.62x54r_old` (0), 30 | `bm_helmet_1`, `scav_torso_2` (3), `bm_back_1`, `bm_legs_5` | 19.0, 18.35, 19.9 |
-| 9-10 | flanker | `pp2000` (9) | `ammo_9x19p_7n31` (9), 150 | `edge_helmet_3` (8), `ren_torso_3` (8), `bm_back_1` (3), `edge_legs_2` (9), `edge_gloves_2` (9), `edge_boots_2` (9) | 19.2, 20.6, 22.5 |
-| 9-10 | support | `ak_74m` (10) | `ammo_5.45x39_7n10` (10), 120 | `ren_helmet_2` (9), `edge_torso_2` (9), `bm_back_1`, `bm_legs_5` (4), `ren_gloves_1` (9), `edge_boots_2` | 23.55, 22.35, 25.95 |
-| 9-10 | rusher | `spas_12` (7) | `ammo_12mm_buck` (1), 45 | `edge_helmet_3`, `edge_torso_3` (8), `bm_back_1`, `bm_legs_5`, `edge_gloves_2`, `edge_boots_2` | 21.8, 18.5, 19.9 |
-| 9-10 | camper | `sv_98` (9) | `ammo_7.62x54_7n1` (9), 30 | `ren_helmet_2`, `ren_mask_2` (9), `ren_torso_3`, `bm_back_1`, `ren_legs_2` (9), `ren_gloves_1`, `edge_boots_2` | 26.65, 24.15, 22.75 |
+| 4-5 | flanker | `vityaz` (4) | `ammo_9x19p_para` (2), 200 | `bm_torso_1` (1), `bm_back_1` (3), `bm_legs_5` (4), `bm_boots_1` (1) | 16.5, 15.2, 17.4 |
+| 4-5 | support | `ak_74u` (5) | `ammo_5.45x39_7n6m` (5), 90 | `bm_helmet_1` (3), `bm_torso_4` (3), `bm_back_1`, `bm_legs_5` | 18.35, 19.4, 19.25 |
+| 4-5 | rusher | `mp_153` (4) | `ammo_12mm_buck` (1), 60 | `scav_torso_1` (1), `bm_back_1`, `bm_legs_5`, `scav_boots_1` (1) | 17.3, 16.4, 15.1 |
+| 4-5 | camper | `rem_700` (5) | `ammo_7.62x51_ap` (5), 30 | `bm_helmet_1`, `scav_torso_2` (3), `bm_back_1`, `bm_legs_5` | 19.25, 18.35, 19.4 |
+| 9-10 | flanker | `pp2000` (9) | `ammo_9x19p_7n31` (9), 150 | `edge_helmet_3` (8), `ren_torso_3` (8), `bm_back_1` (3), `edge_legs_2` (9), `edge_gloves_2` (9), `edge_boots_2` (9) | 19.2, 21.4, 22.5 |
+| 9-10 | support | `akmn` (6) | `ammo_7.62x39_7n23` (9), 120 | `ren_helmet_2` (9), `edge_torso_2` (9), `bm_back_1`, `bm_legs_5` (4), `ren_gloves_1` (9), `edge_boots_2` | 24.55, 22.35, 25.95 |
+| 9-10 | rusher | `spas_12` (7) | `ammo_12mm_buck` (1), 45 | `edge_helmet_3`, `edge_torso_3` (8), `bm_back_1`, `bm_legs_5`, `edge_gloves_2`, `edge_boots_2` | 21.8, 18.5, 20.7 |
+| 9-10 | camper | `sv_98` (9) | `ammo_7.62x54_7n1` (9), 30 | `ren_helmet_2`, `ren_mask_2` (9), `ren_torso_3`, `bm_back_1`, `ren_legs_2` (9), `ren_gloves_1`, `edge_boots_2` | 26.65, 24.95, 22.75 |
 | 13-15 | flanker | `sr3m` (14) | `ammo_sp6` (14), 120 | `edge_helmet_4` (12), `edge_torso_5` (14), `edge_back_5` (14), `ren_legs_5` (14), `edge_gloves_5` (14), `edge_boots_6` (15) | 23.45, 24.25, 26.05 |
 | 13-15 | support | `ak_12` (15) | `ammo_6.5x39` (15), 120 | `edge_helmet_5` (14), `ren_mask_5` (14), `edge_torso_5`, `edge_back_5`, `ren_legs_5`, `edge_gloves_5`, `edge_boots_5` (14) | 27.6, 26.8, 26.6 |
 | 13-15 | rusher | `spas_12` (7) | `ammo_12mm_buck` (1), 60 | `edge_torso_5`, `edge_back_5`, `ren_legs_5`, `edge_gloves_5`, `edge_boots_6` | 25.9, 23.3, 24.1 |
@@ -65,12 +65,17 @@ Why these:
   `edge_back_5` (+1 size), `edge_torso_5` and `ren_legs_5` (+1 pocket each). `ren_back_1` (+2 and
   +2, 8 kg) would give pockets of three, but the match server's medkit and grenade plays count two a
   life (`plays::heal`, `reflex` `grenades`), so it is not used.
-- **Weapons.** The strongest common pick of each kind at the tier: 9-10 the PP-2000 (the highest SMG,
-  9), the AK-74M (10), the SV-98 (the only sniper weapon of 9-10); 13-15 the SR-3M (compact assault
-  rifle, 14; no SMG is above 9), the AK-12 (15), the VSK-94 (the sniper category's marksman rifle, 14,
-  automatic). The rusher keeps a shotgun, its personality's range: the SPAS-12 is the highest there is
-  (7); the kit's armour makes its level. Another agent researches what top players used; its list
-  changes only the tables.
+- **Weapons.** What the top players used in matches of 6 players or more (the live server's match
+  logs, 2026-10), where it is a stock item that fits the tier; else the strongest common pick of the
+  kind. 4-5: the Vityaz (SMG, 4), the MP-153 (semi-automatic shotgun, 4), the Remington 700 (bolt
+  action, 5) with `ammo_7.62x51_ap`; the support keeps the AK-74U (the lowest assault rifle, 5). 9-10:
+  the AKMN with `ammo_7.62x39_7n23` (the top players' assault rifle there), the PP-2000 (the highest
+  SMG, 9), the SV-98 (the only sniper weapon of 9-10); the rusher keeps the SPAS-12 (the Vityaz would
+  share the PP-2000's 9x19). 13-15: the SR-3M (compact assault rifle, 14), the AK-12 (15), the VSK-94
+  (the sniper category's marksman rifle, 14, automatic), the SPAS-12 (the highest shotgun, 7; the
+  kit's armour makes its level). The top players' 13-15 SMGs, the Kriss Vector and the FN P90, are
+  ported items that are not in the tests' game data (`resources/game-026g`), so no test could check
+  those kits; they wait for that data to have them.
 - **Ammo of its own.** Each kit's ammo differs from the bot's other kits' (four ammo types in each
   tier), so a kit picked when one runs out is full.
 

@@ -376,21 +376,22 @@ impl TierGear {
 /// 3, its default modifications 1030 `pocket_slots_modifier` +1 and 1170
 /// `pocket_slot_size_modifier` +1) and the trousers `bm_legs_5` (level 4,
 /// 1030) are the cheapest pair that opens the two more pockets.
-/// - Flanker: the Uzi (`uzi`, SMG, level 2, 32 rounds of 9x19) with its
-///   cheapest ammo (`ammo_9x19p_para`, level 2), light Black Market armour
+/// The weapons are the top players' picks at these levels (`pvb-tiers.md`).
+/// - Flanker: the Vityaz (`vityaz`, SMG, level 4) with its cheapest 9x19
+///   (`ammo_9x19p_para`, level 2), light Black Market armour
 ///   of level 1: `bm_torso_1` (3 kg, an ammo bag more) and `bm_boots_1`.
 /// - Support: the AK-74U (`ak_74u`, the lowest of the assault rifle
 ///   category 8: level 5) with `ammo_5.45x39_7n6m` (level 5); `bm_torso_4`
 ///   (level 3, 6 kg, a pocket more) and the helmet `bm_helmet_1`.
-/// - Rusher: the TOZ-34 (`toz_34`, double-barrelled shotgun, level 1) with
+/// - Rusher: the MP-153 (`mp_153`, semi-automatic shotgun, level 4) with
 ///   buckshot (`ammo_12mm_buck`, level 1); Scavengers' `scav_torso_1`
 ///   (level 1, 3 kg, an ammo bag more) and `scav_boots_1`.
-/// - Camper: the Mosin carbine (`mosin_nagant`, the sniper category 13,
-///   level 0 and free) with its free ammo (`ammo_7.62x54r_old`);
+/// - Camper: the Remington 700 (`rem_700`, bolt action, the sniper
+///   category 13, level 5) with `ammo_7.62x51_ap` (level 5);
 ///   `scav_torso_2` (level 3, 6 kg) and `bm_helmet_1`.
 pub const TIER_4_5: TierGear = TierGear {
     flanker: RoleGear {
-        weapon: "uzi",
+        weapon: "vityaz",
         ammo: "ammo_9x19p_para",
         armour: &[
             (2, "bm_torso_1"),
@@ -410,7 +411,7 @@ pub const TIER_4_5: TierGear = TierGear {
         ],
     },
     rusher: RoleGear {
-        weapon: "toz_34",
+        weapon: "mp_153",
         ammo: "ammo_12mm_buck",
         armour: &[
             (2, "scav_torso_1"),
@@ -420,8 +421,8 @@ pub const TIER_4_5: TierGear = TierGear {
         ],
     },
     camper: RoleGear {
-        weapon: "mosin_nagant",
-        ammo: "ammo_7.62x54r_old",
+        weapon: "rem_700",
+        ammo: "ammo_7.62x51_ap",
         armour: &[
             (0, "bm_helmet_1"),
             (2, "scav_torso_2"),
@@ -440,8 +441,8 @@ pub const TIER_4_5: TierGear = TierGear {
 ///   rounds, 750 a minute) with `ammo_9x19p_7n31` (level 9, the only
 ///   ammo it fires); Renaissance's `ren_torso_3` (level 8, 6.5 kg, a
 ///   pocket more) and light Edge pieces of level 8-9.
-/// - Support: the AK-74M (`ak_74m`, assault rifle, level 10) with
-///   `ammo_5.45x39_7n10` (level 10); Edge's `edge_torso_2` (level 9, 8 kg,
+/// - Support: the AKMN (`akmn`, assault rifle, level 6; the top players'
+///   pick at these levels) with `ammo_7.62x39_7n23` (level 9); Edge's `edge_torso_2` (level 9, 8 kg,
 ///   an ammo bag more) and Renaissance's helmet and gloves of level 9.
 /// - Rusher: the SPAS-12 (`spas_12`, level 7: no shotgun is higher) with
 ///   buckshot; the armour makes the kit level 9 (`edge_boots_2`).
@@ -462,8 +463,8 @@ pub const TIER_9_10: TierGear = TierGear {
         ],
     },
     support: RoleGear {
-        weapon: "ak_74m",
-        ammo: "ammo_5.45x39_7n10",
+        weapon: "akmn",
+        ammo: "ammo_7.62x39_7n23",
         armour: &[
             (0, "ren_helmet_2"),
             (2, "edge_torso_2"),
@@ -1361,10 +1362,13 @@ mod tests {
             item_params::item_params(dictionary.item_named(name).unwrap().dict_id).unwrap()
         };
         let low = |role: BotRole| BotTier::Low.gear().of(role).weapon;
-        assert_eq!(low(BotRole::Flanker), "uzi");
+        // The top players' picks at levels 4-5 (pvb-tiers.md), but the
+        // assault rifle, which is the lowest that sells for silver.
+        assert_eq!(low(BotRole::Flanker), "vityaz");
         assert_eq!(low(BotRole::Support), "ak_74u");
-        assert_eq!(low(BotRole::Rusher), "toz_34");
-        assert_eq!(low(BotRole::Camper), "mosin_nagant");
+        assert_eq!(low(BotRole::Rusher), "mp_153");
+        assert_eq!(low(BotRole::Camper), "rem_700");
+        assert_eq!(TIER_9_10.support.weapon, "akmn");
         // The kinds in every tier: an SMG or a compact rifle, an assault
         // rifle, a shotgun, the sniper category.
         let category = |name: &str| dictionary.item_named(name).unwrap().category;
@@ -1375,10 +1379,7 @@ mod tests {
             assert_eq!(category(gear.rusher.weapon), 14, "{tier}");
             assert_eq!(category(gear.camper.weapon), 13, "{tier}");
         }
-        assert_eq!(params("uzi").kind, "wpn_smg");
-        assert_eq!(params("toz_34").kind, "wpn_dbrl");
-        // The lowest tier's are the lowest of their kinds that sell for
-        // silver (the Mosin is free).
+        assert_eq!(params("vityaz").kind, "wpn_smg");
         let lowest = |category: u8| {
             dictionary
                 .items
@@ -1389,8 +1390,6 @@ mod tests {
                 .unwrap()
         };
         assert_eq!(params("ak_74u").item_level, lowest(8));
-        assert_eq!(params("toz_34").item_level, lowest(14));
-        assert_eq!(params("mosin_nagant").item_level, lowest(13));
         // The shotgun of the higher tiers is the highest there is.
         let highest = dictionary
             .items

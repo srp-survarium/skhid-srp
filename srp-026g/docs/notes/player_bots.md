@@ -210,10 +210,10 @@ the archive's index: a loader must follow them.
      item level 5 at most:
      | Role | Weapon 1 (level) and ammo | Armour |
      |---|---|---|
-     | flanker | `uzi` SMG (2), `ammo_9x19p_para` | `bm_torso_1`, `bm_boots_1` (level 1, light) |
+     | flanker | `vityaz` SMG (4; the Uzi until 2026-10-23), `ammo_9x19p_para` | `bm_torso_1`, `bm_boots_1` (level 1, light) |
      | support | `ak_74u` (5, the lowest of the assault rifle category), `ammo_5.45x39_7n6m` | `bm_torso_4` (3, 6 kg, a fourth pocket: a third medkit in slot 16), `bm_helmet_1` (3) |
-     | rusher | `toz_34` double-barrel shotgun (1), `ammo_12mm_buck` | `scav_torso_1`, `scav_boots_1` (level 1, light) |
-     | camper | `mosin_nagant` (0, free, the sniper category), `ammo_7.62x54r_old` | `scav_torso_2` (3, 6 kg), `bm_helmet_1` (3) |
+     | rusher | `mp_153` semi-automatic shotgun (4; the TOZ-34 until 2026-10-23), `ammo_12mm_buck` | `scav_torso_1`, `scav_boots_1` (level 1, light) |
+     | camper | `rem_700` (5, the sniper category; the Mosin until 2026-10-23), `ammo_7.62x51_ap` | `scav_torso_2` (3, 6 kg), `bm_helmet_1` (3) |
 
      The lobby gives each team's `k`-th bot `BotRole::nth(k)` (smooth
      weighted round robin: flanker, rusher, support, camper, ...) and
@@ -370,7 +370,8 @@ the archive's index: a loader must follow them.
      the station whose battery is due (6-20 m off) and keep moving (a hold
      weighs 0.3 of a Team Deathmatch one).
    - Kit and role (`survarium::v026g::loadouts::BotRole`): flanker (Uzi),
-     support (AK-74U), rusher (TOZ-34), camper (Mosin), each with two
+     support (AK-74U), rusher (TOZ-34), camper (Mosin) at first; the tiers
+     since 2026-10-23 are in `pvb-tiers.md`. Each with two
      medkits, two RGD-5 and the radio (passive: −20 % respawn time, PROVEN
      in the client); the role is read back from the gear and sets the
      bot's personality.
