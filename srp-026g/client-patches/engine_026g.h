@@ -112,4 +112,10 @@ void engine_accept_decal_edit(void *character, unsigned int host, unsigned int d
 /* 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16 */
 void engine_cc_bool(void *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind);
 
+/* 0xf7650 malloc: size ESP+4; pops 0; EAX */
+void *engine_crt_malloc(unsigned int size);
+
+/* 0xf76b0 free: block ESP+4; pops 0 */
+void engine_crt_free(void *block);
+
 #endif

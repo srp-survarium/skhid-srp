@@ -35,6 +35,10 @@ pub const MULTIPART: u8 = 0xFF;
 /// The match's client→server leave, which a patched client also sends with
 /// a payload: a chunk of its world (client_patch.md §3.4).
 pub const UPLOAD_CARRIER: u8 = 0xE0;
+/// The largest world a patched client uploads: 0xFF00 bytes since patch 60
+/// (`client_patch.md` §3.54; `survarium::v026g::match_msgs::upload::MAX_TOTAL`,
+/// which a test of that crate compares with this).
+pub const UPLOAD_MAX_TOTAL: usize = 0xFF00;
 
 /// The low-level ids (transport.md §3.4): one byte, last in the datagram.
 pub mod low_level {
@@ -312,7 +316,8 @@ fn parse_message(
 
 /// Length of a resource ACK or whole snapshot chunk. Snapshot header:
 /// `u32 item_time` (a tick), `u16 offset` (a
-/// multiple of 480), `u16 total` (over the offset, at most 0x8000), then
+/// multiple of 480), `u16 total` (over the offset, at most
+/// [`UPLOAD_MAX_TOTAL`]), then
 /// `min(480, total - offset)` bytes (client_patch.md §3.4).
 fn carrier_len(bytes: &[u8]) -> Option<usize> {
     let head = bytes.get(..8)?;
@@ -328,7 +333,7 @@ fn carrier_len(bytes: &[u8]) -> Option<usize> {
     (time.is_multiple_of(50)
         && offset.is_multiple_of(480)
         && offset < total
-        && total <= 0x8000
+        && total <= UPLOAD_MAX_TOTAL
         && bytes.len() >= len)
         .then_some(len)
 }
@@ -431,6 +436,18 @@ mod tests {
         let parsed = parse_match(Direction::ToServer, &datagram).unwrap();
         assert_eq!(parsed.messages[1].payload.len(), 10);
         datagram.pop();
+        assert!(parse_match(Direction::ToServer, &datagram).is_err());
+        // The last chunk of the largest world (patch 60: 0xFF00 bytes, at
+        // 0xFD20) joined; one of a larger total is no chunk.
+        let mut datagram = vec![7, 3, 0x01, 0xE0];
+        datagram.extend([0x32, 0, 0, 0, 0x20, 0xFD, 0x00, 0xFF]);
+        datagram.extend([0x5A; 480]);
+        datagram.push(0xE1);
+        let parsed = parse_match(Direction::ToServer, &datagram).unwrap();
+        assert_eq!(parsed.messages[0].payload.len(), 488);
+        assert_eq!(parsed.messages[1].id, 0xE1);
+        datagram[11] = 0xFF;
+        datagram[10] = 0x01;
         assert!(parse_match(Direction::ToServer, &datagram).is_err());
         // The real leave is empty, single or in a multi datagram.
         let parsed = parse_match(Direction::ToServer, &[8, 3, 0x00, 0xE0]).unwrap();

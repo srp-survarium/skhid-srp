@@ -33,3 +33,5 @@ engine_decal_value	0x264a10	ESI:lobby_character	unsigned long long engine_decal_
 engine_mouse_ray	0x26d130	ESI:menu EDI:direction ESP+4:eye	void engine_mouse_ray(void *menu, float *direction, float *eye)
 engine_accept_decal_edit	0x263950	ESI:lobby_character ESP+4:host ESP+8:decal	void engine_accept_decal_edit(void *character, unsigned int host, unsigned int decal)
 engine_cc_bool	0x01ddb0	EAX:object ESP+4:name ESP+8:value ESP+12:saved ESP+16:kind	void engine_cc_bool(void *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)
+engine_crt_malloc	0x0f7650	ESP+4:size	void *engine_crt_malloc(unsigned int size)
+engine_crt_free	0x0f76b0	ESP+4:block	void engine_crt_free(void *block)

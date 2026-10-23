@@ -592,8 +592,8 @@ impl ServerMessage {
             } => {
                 out.reserve(6 + body.len());
                 out.push(*generation);
-                // The client unpacks into 0x8000 bytes on its stack and
-                // does not check the result (0x27C059): a state over that
+                // The client unpacks into COMPRESSED_SNAPSHOT_BUFFER bytes on
+                // its stack and does not check the result (0x27C059): a state over that
                 // goes as it is, and so does one that would not shrink.
                 let stream = (*packed && 4 + body.len() <= COMPRESSED_SNAPSHOT_BUFFER)
                     .then(|| {
@@ -1376,7 +1376,7 @@ mod tests {
         let mut state = 539_650u32.to_le_bytes().to_vec();
         state.extend(&body);
         assert_eq!(lzma2::unpack(&payload[2..], 0x8000), Some(state));
-        // The client unpacks into 0x8000 bytes: the largest state that
+        // The client unpacks into 0x10000 bytes: the largest state that
         // fits is packed, one byte more goes as it is.
         let fits = vec![0; COMPRESSED_SNAPSHOT_BUFFER - 4];
         assert_eq!(ServerMessage::packed_snapshot(7, 50, &fits).payload()[1], 1);
@@ -1384,6 +1384,16 @@ mod tests {
         let payload = ServerMessage::packed_snapshot(7, 50, &over).payload();
         assert_eq!(payload[1], 0);
         assert_eq!(payload.len(), 2 + 4 + over.len());
+        // The largest world an upload brings (patch 60) is packed.
+        let largest: Vec<u8> = (0..upload::MAX_TOTAL).map(|i| (i % 41) as u8).collect();
+        let payload = ServerMessage::packed_snapshot(7, 50, &largest).payload();
+        assert_eq!(payload[1], 1);
+        let mut state = 50u32.to_le_bytes().to_vec();
+        state.extend(&largest);
+        assert_eq!(
+            lzma2::unpack(&payload[2..], COMPRESSED_SNAPSHOT_BUFFER),
+            Some(state)
+        );
     }
 
     #[test]

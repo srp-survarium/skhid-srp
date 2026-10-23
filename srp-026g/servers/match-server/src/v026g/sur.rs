@@ -798,4 +798,14 @@ mod tests {
             Err(SurError::KeyFrameTooLong(_))
         ));
     }
+
+    #[test]
+    fn the_largest_upload_is_one_key_frame() {
+        // Patch 60: a world of up to 0xFF00 bytes; with its u32 time it is
+        // one key frame (a u16 length), and the transport takes its chunks.
+        use survarium::v026g::match_msgs::upload::MAX_TOTAL;
+        const { assert!(4 + MAX_TOTAL <= MAX_KEY_FRAME_DATA) };
+        assert_eq!(udp_transport::wire::UPLOAD_MAX_TOTAL, MAX_TOTAL);
+        assert_eq!(KeyFrame::new(50, &vec![7; MAX_TOTAL], 0).data.len(), 0xFF04);
+    }
 }

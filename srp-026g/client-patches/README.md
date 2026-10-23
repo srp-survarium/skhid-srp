@@ -104,6 +104,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
+| `world_buffers_026g.asm`, `check_world_buffers_026g.py` | Patch 60: the saved world's room as 0.28's, the world 0xFF00 bytes and its game objects' two streams 0x4000 each (the arena's block `world_buffers.code`, four immediates); its check runs the game's world constructor, writers, serialize, hash, deserialize, destructor, the upload code and the 0xE8's LZMA2 on worlds over the original's room (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -159,8 +160,8 @@ a hook jumps to, `extern` what it uses of other patches; its hooks as
 (site, bytes, symbol, opcode) rows made in `build()`; each declared in
 `INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
 asm, its C, and its state `rn_state`), the artefacts (patch 54), the
-engine library and the kit keys with the match chat option (patch 58) are
-the arena's blocks today. The older fixed sections stay as they are
+engine library, the kit keys with the match chat option (patch 58) and the
+saved world's room (patch 60) are the arena's blocks today. The older fixed sections stay as they are
 (client_patch.md 0.3 says what moving one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
@@ -3212,6 +3213,53 @@ found by the game's lookup (0xEB7C0) and set and cleared by the game's execute (
 `user.cfg` line; the chat: every channel with the option off and on, in and out of a match,
 dropped exactly for 3 and 5 to 9 on, in a match, else given to add_message with the site's
 arguments, the stack and ebx, esi, edi, ebp as before. **Not run in a game.**
+
+### 60. A saved world's room as 0.28's (the next release's revision)
+
+The owner (2026-10-23): raise the fixed saved-world buffers to 0.28's sizes, so that maps can
+hold more objects later. A 0.26g world's buffers have no allocator: past its room a buffer
+asserts, in every game of the match at once.
+
+**The whole world.** `hash()` (0x325150) serializes the world every 50 ms into an alloca'd
+buffer of 0x8000 bytes, and the 0xE8's handler (0x27BFF0) unpacks a packed world into another;
+0.28d0 has 0x10000 at both. Four immediates (`WORLD_SIZES`): the hash's alloca and capacity
+(0x325176, 0x32519D) and the upload's own buffer (`snapshot_upload_026g.asm` `BUFFER_SIZE`)
+become 0xFF00, the 0xE8's alloca and room (0x27C059, 0x27C07C) 0x10000. Not 0x10000 for the
+world: an upload's chunk says its total in a `u16`, and a replay's key frame its length (time
+and world) in a `u16`; 0xFF00 is 136 whole chunks of 480 and keeps both formats as they are (a
+wider field would change the chunk header in the client, the transport's parser and the server
+together). The 0xE8's 0x10000 holds the world and its `u32` time. Both run on the logic thread
+(8 MiB of stack).
+
+**The game objects.** A world holds its game objects' state at +0BBF30h: two streams of 0x2000
+bytes in place (the first serialized, hashed and sent; the second kept by the world), each with
+its mutable_buffer and writer, made by 0x3246D0 and taken down by 0x324750. The world cannot
+grow (0xC0BD0 is in the code, and every later field would move), so the bytes move out: the
+item's constructor's `call 0x3246D0` (0x32463A) calls `world_buffers_construct`, which calls it
+and gives each stream 0x4000 bytes from the game's `malloc` (0xF7650, the engine library's
+`engine_crt_malloc`, behind the allocator's lock); the destructor's `call 0x324750` (0x3249BA)
+calls `world_buffers_destroy`, which calls it and gives the blocks back (`free` 0xF76B0). The
+allocator stays 0: no growth past 0x4000. Every reader and writer of the streams goes through
+their data pointer, and a world is never copied (each is constructed and destroyed by the
+game's own pair: the history's pool, the rollback's remake, the debug option's world on the
+stack), so each block has one owner. A malloc that fails leaves the stream as the game made it.
+
+In the builds with the late join. No base relocation under the six sites; nothing aims inside
+them. Nothing a match computes changes for a world that fit before (the hash covers the same
+bytes): no row in `../crates/session/src/v026g/simulation_changes.tsv`; replays recorded
+before still play (their worlds fit). The server takes uploads up to 0xFF00 bytes
+(`upload.rs`, the transport's `carrier_len`), packs worlds into the client's 0x10000, and a
+replay of worlds near 0xFF00 takes fewer than 128 key frames so that they fit the reader's
+8 MiB. `../docs/notes/client_patch.md` section 3.54.
+
+Checked: `selftest_026g.py` check 60 and the call shapes (0x32463A and 0x3249BA CALLEE, `ret`
+as 0x3246D0's and 0x324750's); `check_world_buffers_026g.py` (Unicorn, the original and the
+build): the streams from malloc, 0x3000 bytes in each (an assert in the original; 0x4001 one in
+the build too), a world of 0xB410 bytes serialized and hashed (the original's hash asserts at
+0x8410), the build's upload code sends it in 97 chunks that put together give it, the 0xE8
+unpacks it whole with the game's LZMA2 (the original: 0x8000 bytes of it), a second world reads
+it back to the same bytes, and the destructors, a remake in place and a failed malloc give
+every block back once. **Not run:** a game.
 
 ## Not ported, not done
 

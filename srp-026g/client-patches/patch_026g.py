@@ -1896,6 +1896,41 @@ MATCH_KEYS_HOOKS = (
 )
 MATCH_KEYS_BACKS = (0x25CD4B, 0x25CF0D)        # on_keyboard_action: a key down, any other
 
+# The saved world's room as 0.28's (patch 60, README; client_patch.md
+# section 3.54), in the builds with the late join:
+# - the whole world: game_state_history_item::hash (0x325150) serializes
+#   the world into an alloca'd buffer of 0x8000 bytes with no allocator, and
+#   process_dynamic_match_info (0x27BFF0, the 0xE8) unpacks a compressed one
+#   into another; a larger world asserts in the first (every 50 ms, in every
+#   game) and writes past the second. Both become WORLD_ROOM / WORLD_RECEIVE
+#   (0.28 has 0x10000 at both; the debug dump 0x325DE5 already has). The
+#   upload's own buffer (snapshot_upload_026g.asm BUFFER_SIZE) is the hash's.
+#   WORLD_ROOM is not 0x10000: an upload's chunk says its total in a u16
+#   (client_patch.md section 3.4; the server's carrier_len and upload.rs) and
+#   a replay's key frame its u32 time and the world in a u16 (0x1EE33E,
+#   sur.rs), so 0xFF00 (136 chunks of 480) keeps the wire and the replays as
+#   they are; the 0x10000 of the receive buffer holds the world and its u32
+#   time (the server packs up to `4 + world` there).
+# - the game objects' two streams (world_buffers_026g.asm in the arena's block
+#   world_buffers.code): 0x2000 bytes each in the world, 0x4000 as 0.28's on
+#   the heap; the item's constructor's and destructor's calls of the pair's
+#   (0x32463A, 0x3249BA) call world_buffers_construct / _destroy, which call
+#   them and then give or take the room.
+# No base relocation is under a site and no branch aims inside one.
+WORLD_ROOM = 0xFF00
+WORLD_RECEIVE = 0x10000
+WORLD_SIZES = (
+    (0x325176, bytes.fromhex("b800800000"), b"\xB8" + struct.pack("<I", WORLD_ROOM)),              # hash: alloca
+    (0x32519D, bytes.fromhex("c745f400800000"), bytes.fromhex("c745f4") + struct.pack("<I", WORLD_ROOM)),  # its capacity
+    (0x27C059, bytes.fromhex("b800800000"), b"\xB8" + struct.pack("<I", WORLD_RECEIVE)),           # 0xE8: alloca
+    (0x27C07C, bytes.fromhex("b800800000"), b"\xB8" + struct.pack("<I", WORLD_RECEIVE)),           # its capacity
+)
+WORLD_OBJECTS_ROOM = 0x4000                    # world_buffers_026g.asm ROOM
+WORLD_BUFFERS_HOOKS = (
+    (0x32463A, bytes.fromhex("e891000000"), "world_buffers_construct", 0xE8),   # the item's constructor
+    (0x3249BA, bytes.fromhex("e891fdffff"), "world_buffers_destroy", 0xE8),     # the item's destructor
+)
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after `.srpc`, which is one page."""
@@ -2039,6 +2074,12 @@ INSTALLS = {
                        "which calls it and registers the chat option's variable", None, None),
     0x26B916: (CALLEE, "process_incoming_text_message's add_message (stdcall: the handler, the channel, the "
                        "body, the name, the tag): chat, which drops the line or jumps to it", None, None),
+    # the saved world's room, patch 60 (in `.srpx`)
+    0x32463A: (CALLEE, "game_state_history_item's constructor's call of its game objects' state's (eax the "
+                       "state, item+0BBF30h): world_buffers_construct, which calls it and gives each stream "
+                       "0x4000 bytes", None, None),
+    0x3249BA: (CALLEE, "game_state_history_item's destructor's call of its game objects' state's (edi the "
+                       "state): world_buffers_destroy, which calls it and takes the room back", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2218,6 +2259,7 @@ ARENA = (
     ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
+    ArenaBlock("world_buffers.code", "code", 0x1000, ("world_buffers_026g.asm",)),  # patch 60
 )
 
 
@@ -2749,7 +2791,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *SPOT_COOLDOWN)
         sites.append((SPOT_COOLDOWN[0], SPOT_COOLDOWN[0] + len(SPOT_COOLDOWN[1])))
-        for site in ARTEFACTS_SIZES:
+        for site in ARTEFACTS_SIZES + WORLD_SIZES:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *REPLAY_REATTACH_THUNK)
@@ -3159,7 +3201,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             # its symbol.
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
-                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS:
+                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS \
+                        + WORLD_BUFFERS_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3219,6 +3262,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "pain, body and head, and one press fires every artefact of its kind, "
                      "the keys 1, 2 and 3 pick a kit while the kits are shown, "
                      "an option hides the other players' chat lines in a match, "
+                     f"a saved world takes {WORLD_ROOM:#x} bytes and its game objects {WORLD_OBJECTS_ROOM:#x}, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
