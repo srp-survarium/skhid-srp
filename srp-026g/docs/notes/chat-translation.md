@@ -84,16 +84,26 @@ by speech to text, this text path, then text to speech. Code: `servers/lobby-ser
 
 ## The backend: compared
 
-The scale: the repo has no chat counts (the live log is not read here); the server is planned for
-50 players (`DEPLOY.md`, the capacity report). Assumed: **up to 5 000 lines a day**, 40
-characters each, read in **2 other languages** on average: 12 M characters a month to translate,
-150 000 calls.
+The scale: the repo has no chat counts. Assumed: **up to 5 000 lines a day**, 40 characters each,
+read in **2 other languages** on average: 12 M characters a month to translate, 150 000 calls.
 
-The host: `DEPLOY.md` and the capacity report give **1 vCPU and 1 GB RAM**, srp's container 512 MB
-(`SRP26_CPUS`, `SRP26_MEMORY`); the match thread already takes most of a core at 150 players. A
-model on that core competes with the matches.
+The host: `DEPLOY.md` gives **1 CPU and 1 GB RAM**, srp's container 512 MB (`SRP26_CPUS`,
+`SRP26_MEMORY`), shared with the matches. A model on that core competes with them.
 
-LOCAL_TABLE
+Local, measured 2026-10-23 on a Ryzen 9 5900X pinned to 2 cores, one short line at a time, warm,
+on 40 real-style chat lines with slang (a VPS vCPU is likely 1.5-3 times slower):
+
+| Local | Pairs | Disk | RAM (RSS) | ms a line (median / p95) | Quality on chat | Licence |
+|---|---|---|---|---|---|---|
+| opus-mt (Marian, CTranslate2 int8) | a model a pair: into English direct for all four; ru, de and pl among themselves through English (2 hops, about 130 ms) | about 80 MB a pair | 420 MB the 4 into English; 780 MB with 8 | 49 / 78 | fluent on plain lines; slang fails: "изи катка" "Lola, Ice skating", "слились" "merged", "low hp" horsepower, "wtf" "if", "camper" "Wohnmobil" | CC-BY 4.0 |
+| Argos / LibreTranslate (CTranslate2 int8) | en to and from de, pl, ru, uk; the rest through English | 1.1 GB | 1.2 GB | 68 / 154 | about opus-mt's (several packages are opus-mt); ru to uk through English garbled | MIT code; models CC-BY or unstated |
+| NLLB-200 distilled 600M (CTranslate2 int8) | all 20 directions | 600 MB | 730 MB | 484 / 688 | hallucinates: "лол, изи катка" "Oh, my God.", "аптечка" "pharmacy", "не стреляй по своим" "Don't shoot yourself" | **CC-BY-NC 4.0: not for commercial use** |
+| M2M100 418M (CTranslate2 int8) | all 20 | 470 MB | 570 MB | 340 / 483 | worst: "gg ez" "Gdańsk", "snajper" "helicopter", random capitals | MIT |
+| Qwen2.5-1.5B-Instruct Q4_K_M (llama.cpp) | all, one prompt | 940 MB | 1.1-1.7 GB | 375 / 624 | best into English ("i'm at zero", "good game guys"); poor into ru, de, pl ("anyone want to squad up?" "want to eat?"), Cyrillic in Polish | Apache-2.0 |
+| Gemma-3-1B-it Q4_K_M (llama.cpp) | all, one prompt | 770 MB | 0.9-1.0 GB | 1293 / 1451 | unusable: wrong language, invented text, added swearing | Gemma terms |
+
+No local model got "изи катка" (an easy match) or "слились" (gave up) right. None of them fits
+srp's 512 MB beside the game for all directions; only opus-mt into English fits 1 GB.
 
 | Cloud | Price | A month at our scale | Latency | Glossary | Notes |
 |---|---|---|---|---|---|
