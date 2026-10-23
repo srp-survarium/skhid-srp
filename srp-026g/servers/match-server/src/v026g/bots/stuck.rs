@@ -39,6 +39,12 @@
 //! only door to the other side, and a body caught there once by another
 //! player gets through the next time; and where every route passes a spot,
 //! the bot takes one anyway (`Bot::choose`).
+//!
+//! A fall off its route is such a spot too, from the first fall
+//! ([`Stuck::fell`]): a bot that fell off a narrow way goes another way
+//! for a while if there is one, as a player would (`player_bots_stuck.md`
+//! §8.6). A spot is a place on one
+//! floor: a floor [`SPOT_HEIGHT_M`] over or under it is not near it.
 
 use mapdata::Vec3;
 
@@ -67,6 +73,12 @@ pub const HELD_MOVED_M: f32 = 0.5;
 pub const SPOT_M: f32 = 2.0;
 /// … if the earlier one was within this, ms.
 pub const AGAIN_MS: u32 = 20_000;
+/// A spot this far over or under a point is on another floor, not near it,
+/// metres. GUESS: over a storey's step of the grid's walk (0.6 m) and a
+/// ramp's rise within [`SPOT_M`], under a walkway's height over the floor
+/// under it (the falls off a route in a bench came down 2.5 m at the
+/// median, a third of them less than 1.5 m).
+pub const SPOT_HEIGHT_M: f32 = 2.0;
 /// A spot is avoided this long, ms.
 pub const SPOT_KEPT_MS: u32 = 45_000;
 /// A spot is avoided once it caught the body this many times.
@@ -103,6 +115,8 @@ struct Spot {
     at: Vec3,
     last: u32,
     times: u32,
+    /// A body fell off its route from here ([`Stuck::fell`]).
+    fell: bool,
 }
 
 impl Stuck {
@@ -137,7 +151,7 @@ impl Stuck {
         let times = match self
             .spots
             .iter_mut()
-            .find(|spot| spot.last + AGAIN_MS > time && spot.at.distance_xz(feet) < SPOT_M)
+            .find(|spot| spot.last + AGAIN_MS > time && near(spot.at, feet))
         {
             Some(spot) => {
                 spot.last = time;
@@ -149,6 +163,7 @@ impl Stuck {
                     at: feet,
                     last: time,
                     times: 1,
+                    fell: false,
                 });
                 1
             }
@@ -208,11 +223,34 @@ impl Stuck {
         }
     }
 
+    /// A fall off its route from `at` (the route's floor it fell from,
+    /// [`Route::fell_from`]): the spot there is avoided from the first
+    /// fall (where it is the only way, the bot takes it anyway), and is the
+    /// same spot while it is kept (a way back up to it takes a while).
+    pub fn fell(&mut self, time: u32, at: Vec3) {
+        self.spots.retain(|spot| spot.last + SPOT_KEPT_MS > time);
+        match self.spots.iter_mut().find(|spot| near(spot.at, at)) {
+            Some(spot) => {
+                spot.last = time;
+                spot.times += 1;
+                spot.fell = true;
+            }
+            None => self.spots.push(Spot {
+                at,
+                last: time,
+                times: 1,
+                fell: true,
+            }),
+        }
+    }
+
     /// The spots to keep clear of at `time`.
     pub fn avoided(&self, time: u32) -> impl Iterator<Item = Vec3> + '_ {
         self.spots
             .iter()
-            .filter(move |spot| spot.times >= AVOID_AFTER && spot.last + SPOT_KEPT_MS > time)
+            .filter(move |spot| {
+                (spot.fell || spot.times >= AVOID_AFTER) && spot.last + SPOT_KEPT_MS > time
+            })
             .map(|spot| spot.at)
     }
 
@@ -223,8 +261,7 @@ impl Stuck {
 
     /// Whether `point` is near a spot to keep clear of.
     pub fn near_spot(&self, time: u32, point: Vec3) -> bool {
-        self.avoided(time)
-            .any(|spot| spot.distance_xz(point) < SPOT_M)
+        self.avoided(time).any(|spot| near(spot, point))
     }
 
     /// Whether a route keeps clear of the spots (past its first metres).
@@ -235,17 +272,22 @@ impl Stuck {
         }
         let mut s = ROUTE_FROM_M;
         while s < route.length() {
-            let point = route.point_at(s);
-            if spots
-                .iter()
-                .any(|spot| spot.distance_xz(point) < ROUTE_CLEAR_M)
-            {
+            let point = route.floor_point(s);
+            if spots.iter().any(|spot| {
+                spot.distance_xz(point) < ROUTE_CLEAR_M && (spot.y - point.y).abs() < SPOT_HEIGHT_M
+            }) {
                 return false;
             }
             s += 0.5;
         }
         true
     }
+}
+
+/// Whether `point` is near the spot `spot`: within [`SPOT_M`] across and
+/// [`SPOT_HEIGHT_M`] up or down.
+pub fn near(spot: Vec3, point: Vec3) -> bool {
+    spot.distance_xz(point) < SPOT_M && (spot.y - point.y).abs() < SPOT_HEIGHT_M
 }
 
 #[cfg(test)]
@@ -372,6 +414,39 @@ mod tests {
         assert!(!stuck.clear(5_000, &route((20.0, 0.0))));
         assert!(stuck.clear(5_000, &route((0.0, 20.0))));
         assert!(stuck.clear(4_500 + SPOT_KEPT_MS, &route((20.0, 0.0))));
+    }
+
+    /// A fall from a spot of a walkway: it is avoided there, not on the
+    /// floor under it, and a route along the walkway is not clear; a
+    /// second fall there keeps it longer.
+    #[test]
+    fn a_spot_fallen_from_is_avoided_on_its_floor() {
+        let mut stuck = Stuck::default();
+        let spot = Vec3::new(10.0, 3.0, 0.3);
+        stuck.fell(0, spot);
+        assert!(stuck.near_spot(1_000, spot));
+        stuck.fell(30_000, spot + Vec3::new(0.5, 0.0, 0.0));
+        assert!(stuck.near_spot(SPOT_KEPT_MS + 1_000, spot));
+        assert!(
+            !stuck.near_spot(31_000, Vec3::new(10.0, 0.0, 0.3)),
+            "the floor under"
+        );
+        let route = |y: f32| {
+            Route::new(
+                [0.0, 20.0]
+                    .iter()
+                    .map(|&x| Waypoint {
+                        at: Vec3::new(x, y, 0.0),
+                        node: 0,
+                        jump: false,
+                        low: false,
+                    })
+                    .collect(),
+            )
+        };
+        assert!(!stuck.clear(31_000, &route(3.0)));
+        assert!(stuck.clear(31_000, &route(0.0)));
+        assert!(!stuck.near_spot(30_000 + SPOT_KEPT_MS, spot));
     }
 
     /// A body that did not move while its keys meant to move it nowhere

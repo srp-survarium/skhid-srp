@@ -24,7 +24,8 @@
 //!   second, 300 ms behind the clock, as the match gives the bots.
 //!
 //! The stand-in is much simpler than the game (no spread, no side kick, no
-//! armour, no stamina, no jumps; the rounds are not counted, the bots count
+//! armour, no stamina, a jump only up the grid's jump links
+//! ([`STAND_IN_AIR_MS`]); the rounds are not counted, the bots count
 //! their own): the runs check that bots of two teams find each
 //! other, fight, die, come back, take and bring batteries and end a
 //! match, with no input out of the rules; not how well.
@@ -86,6 +87,9 @@ struct Body {
     spawned: u32,
     carrying: Option<usize>,
     moved: f32,
+    /// Until when a jump pressed keeps the body in the air, ms
+    /// ([`STAND_IN_AIR_MS`]).
+    air_until: u32,
     /// The bot's target as its last input was made (the reflex's).
     target: Option<Place>,
     /// Its shots' spread ([`bench_spread`]).
@@ -114,6 +118,81 @@ type StolenMark = (u8, Option<(u32, bool)>);
 /// A carrier killed this soon after his take counts as killed taking it
 /// (`Game::taken_killed`), ms.
 const TAKEN_KILLED_MS: u32 = 3_000;
+
+/// How long a jump keeps a stand-in body in the air, ms: walking into a
+/// floor its floor jumps to ([`jumped_to`]) meanwhile, it gets up on it.
+/// GUESS: a bot jumps up its route's ledge 0.8 m short of it
+/// (`motor.rs` `jump_key`), 0.25 s at a run; the game's jump is up for
+/// about half a second. The stand-in had no jumps: a route up a jump link
+/// stood at its foot, and 100 of the 118 held-keys stuck notes of a bench
+/// were within a metre of a jump floor (`player_bots_stuck.md` §8.6).
+const STAND_IN_AIR_MS: u32 = 600;
+
+/// The floor a body in the air at `feet` (on `node`) gets up on walking
+/// toward `to`: a jump link of `node`'s ahead of the step whose line from
+/// `node` passes within half a cell of `to`, the nearest to it.
+fn jumped_to(grid: &mapdata::WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<NodeId> {
+    let half = grid.cell_size() * 0.5 + 1e-4;
+    let from = grid.position(node);
+    let (sx, sz) = (to.x - feet.x, to.z - feet.z);
+    grid.links(node)
+        .filter(|(_, kind)| *kind == mapdata::LinkKind::Jump)
+        .map(|(next, _)| next)
+        .filter(|&next| {
+            let at = grid.position(next);
+            let (dx, dz) = (at.x - from.x, at.z - from.z);
+            let len2 = dx * dx + dz * dz;
+            if len2 <= 0.0 || dx * sx + dz * sz <= 0.0 {
+                return false;
+            }
+            let t = (((to.x - from.x) * dx + (to.z - from.z) * dz) / len2).clamp(0.0, 1.0);
+            let (ex, ez) = (from.x + dx * t - to.x, from.z + dz * t - to.z);
+            ex * ex + ez * ez <= half * half
+        })
+        .min_by(|&a, &b| {
+            let d = |n: NodeId| grid.position(n).distance_xz(to);
+            d(a).total_cmp(&d(b))
+        })
+}
+
+/// A stand-in body walking into a 0.9 m ledge stops at its foot; in the
+/// air it gets up on it, by the grid's jump link.
+#[test]
+fn a_stand_in_body_in_the_air_gets_up_a_ledge() {
+    use super::body::tests::{floor, wall_x};
+    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+    triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 0.9));
+    triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+        t.v.iter_mut().for_each(|v| v.y = v.y.min(0.9));
+        t
+    }));
+    let grid = mapdata::WalkGrid::build(
+        &triangles,
+        [0.0, 0.0, 20.0, 10.0],
+        0.25,
+        mapdata::Body::default(),
+    );
+    let walk = |air: bool| {
+        let mut node = grid.locate(Vec3::new(8.0, 0.0, 5.0), 0.5).unwrap();
+        let mut feet = grid.position(node);
+        for _ in 0..40 {
+            let to = feet + Vec3::new(0.2, 0.0, 0.0);
+            (node, feet, _) = slide(&grid, node, feet, to);
+            if air
+                && feet.distance_xz(to) > 1e-3
+                && let Some(up) = jumped_to(&grid, node, feet, to)
+            {
+                node = up;
+                feet = grid.position(up);
+            }
+        }
+        feet
+    };
+    let stopped = walk(false);
+    assert!(stopped.x < 10.0 && stopped.y.abs() < 0.1, "{stopped:?}");
+    let up = walk(true);
+    assert!(up.x > 12.0 && (up.y - 0.9).abs() < 0.1, "{up:?}");
+}
 
 /// The stand-in game.
 struct Game {
@@ -261,6 +340,7 @@ impl Game {
             spawned: 0,
             carrying: None,
             moved: 0.0,
+            air_until: 0,
             target: None,
             spread: bench_spread::Spread::default(),
         };
@@ -384,6 +464,9 @@ impl Game {
                 queue.pop_front();
                 let body = &mut self.bodies[place];
                 pressed[place] = keys & !body.keys;
+                if pressed[place] & key::JUMP != 0 {
+                    body.air_until = tick + STAND_IN_AIR_MS;
+                }
                 body.keys = keys;
                 body.target = target;
                 // Another weapon taken, or a reload: no kick.
@@ -429,7 +512,18 @@ impl Game {
                 body.feet.z + v[1] * TICK_S,
             );
             if let Some(node) = body.node {
-                let (node, feet, _) = slide(&self.world.grid, node, body.feet, to);
+                let grid = &self.world.grid;
+                let (mut node, mut feet, _) = slide(grid, node, body.feet, to);
+                // In the air, walking into a floor the grid jumps to: up
+                // on it (once a jump).
+                if tick < body.air_until
+                    && feet.distance_xz(to) > 1e-3
+                    && let Some(up) = jumped_to(grid, node, feet, to)
+                {
+                    node = up;
+                    feet = grid.position(up);
+                    body.air_until = 0;
+                }
                 body.moved += feet.distance_xz(body.feet);
                 body.node = Some(node);
                 body.feet = feet;

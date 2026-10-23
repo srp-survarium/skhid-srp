@@ -30,6 +30,20 @@ const MAX_STRAIGHT_M: f32 = 40.0;
 /// (`docs/notes/player_bots_stuck.md` §8).
 pub const OFF_ROUTE_HEIGHT_M: f32 = 1.5;
 
+/// A body above its route's floor by more than [`OFF_ROUTE_HEIGHT_M`] is
+/// still on it if the route was that high within this far back along it
+/// (it is falling down the route's own drop), metres. GUESS: a body that
+/// walks off a 3 m ledge at a run (3.3 m/s) falls for 0.8 s and comes down
+/// about 2.6 m on; the bench's falls off the route went up 0.73 +- 0.16 a
+/// match when a planned drop was called off the route in the air.
+pub const FALL_BACK_M: f32 = 3.0;
+
+/// A body under its route's floor is taken to have fallen off it there
+/// ([`Route::fell_from`]) within this far of it across, metres. GUESS: a
+/// body that walks off a 3 m ledge comes down about 2.6 m on
+/// ([`FALL_BACK_M`]); farther, it came some other way.
+pub const FELL_FROM_M: f32 = 3.0;
+
 /// A route's floor heights ([`Route::progress`]) are kept where they change
 /// by this much from the last kept (between, on the line), metres: well
 /// under [`OFF_ROUTE_HEIGHT_M`], and a ramp of 30 m keeps a few dozen.
@@ -602,6 +616,45 @@ impl Route {
         }
     }
 
+    /// The highest floor from `s0` to `s1` metres along the route.
+    fn highest_floor(&self, s0: f32, s1: f32) -> f32 {
+        let k0 = self.floors.partition_point(|&(along, _)| along <= s0);
+        let k1 = self.floors.partition_point(|&(along, _)| along < s1);
+        self.floors[k0.min(k1)..k1]
+            .iter()
+            .map(|&(_, y)| y)
+            .fold(self.floor_at(s0).max(self.floor_at(s1)), f32::max)
+    }
+
+    /// The point `s` metres along the route on its floor.
+    pub fn floor_point(&self, s: f32) -> Vec3 {
+        let at = self.point_at(s);
+        Vec3::new(at.x, self.floor_at(s), at.z)
+    }
+
+    /// Where a body at `feet` fell off the route from, if it did: the
+    /// route's floor over it on the segment the body was last on or the
+    /// next, more than [`OFF_ROUTE_HEIGHT_M`] over the feet and within
+    /// [`FELL_FROM_M`] of them across (the nearest such).
+    pub fn fell_from(&self, feet: Vec3) -> Option<Vec3> {
+        let last = self.points.len().checked_sub(2)?;
+        (self.segment..=(self.segment + 1).min(last))
+            .filter_map(|segment| {
+                let (a, b) = (self.points[segment].at, self.points[segment + 1].at);
+                let (dx, dz) = (b.x - a.x, b.z - a.z);
+                let length2 = dx * dx + dz * dz;
+                let t = if length2 < 1e-6 {
+                    0.0
+                } else {
+                    (((feet.x - a.x) * dx + (feet.z - a.z) * dz) / length2).clamp(0.0, 1.0)
+                };
+                let at = self.floor_point(self.along[segment] + t * length2.sqrt());
+                (at.y - feet.y > OFF_ROUTE_HEIGHT_M && at.distance_xz(feet) <= FELL_FROM_M)
+                    .then_some(at)
+            })
+            .min_by(|p, q| p.distance_xz(feet).total_cmp(&q.distance_xz(feet)))
+    }
+
     /// The floor's height `s` metres along the route (on the line between
     /// the heights kept).
     fn floor_at(&self, s: f32) -> f32 {
@@ -630,9 +683,11 @@ impl Route {
     /// the segment it was last on and the next few, never behind: a route
     /// that passes the same place twice is followed in order. A segment
     /// whose floor where the body is along it is more than
-    /// [`OFF_ROUTE_HEIGHT_M`] above or below the feet is not where the body
-    /// is (a walkway over the floor it fell to); with none left it is off
-    /// the route (infinitely far).
+    /// [`OFF_ROUTE_HEIGHT_M`] above the feet is not where the body is (a
+    /// walkway over the floor it fell to), nor one that far under the feet
+    /// and under every floor of the route [`FALL_BACK_M`] back (a body
+    /// falling down the route's own drop is on it); with none left it is
+    /// off the route (infinitely far).
     pub fn progress(&mut self, feet: Vec3) -> (f32, f32) {
         if self.points.len() < 2 {
             return (0.0, self.end().distance_xz(feet));
@@ -648,8 +703,9 @@ impl Route {
             } else {
                 (((feet.x - a.x) * dx + (feet.z - a.z) * dz) / length2).clamp(0.0, 1.0)
             };
-            if (feet.y - self.floor_at(self.along[segment] + t * length2.sqrt())).abs()
-                > OFF_ROUTE_HEIGHT_M
+            let s = self.along[segment] + t * length2.sqrt();
+            if feet.y < self.floor_at(s) - OFF_ROUTE_HEIGHT_M
+                || feet.y > self.highest_floor(s - FALL_BACK_M, s) + OFF_ROUTE_HEIGHT_M
             {
                 continue;
             }
@@ -917,6 +973,51 @@ mod tests {
             (s - 2.0).abs() < 1e-3 && (off - 0.5).abs() < 1e-3,
             "{s} {off}"
         );
+    }
+
+    /// A body falling down its route's own drop is on the route while in
+    /// the air past the drop's foot; one as high over the route further on
+    /// (on a walkway over it) is off it.
+    #[test]
+    fn a_body_falling_down_its_routes_drop_is_on_it() {
+        let p = |x, y, z| Waypoint {
+            at: Vec3::new(x, y, z),
+            node: 0,
+            jump: false,
+            low: false,
+        };
+        // Along a walkway 3 m up to x 10, down to the ground at x 10.5, on
+        // to x 20.
+        let route = Route::new(vec![
+            p(0.0, 3.0, 0.0),
+            p(10.0, 3.0, 0.0),
+            p(10.5, 0.0, 0.0),
+            p(20.0, 0.0, 0.0),
+        ]);
+        let mut falling = route.clone();
+        falling.progress(Vec3::new(9.0, 3.0, 0.0));
+        for (x, y) in [(10.5, 2.8), (11.5, 2.0), (12.5, 0.5)] {
+            let (s, off) = falling.clone().progress(Vec3::new(x, y, 0.2));
+            assert!(
+                (s - x).abs() < 1e-3 && (off - 0.2).abs() < 1e-3,
+                "{x} {y}: {s} {off}"
+            );
+        }
+        let mut further = route.clone();
+        further.progress(Vec3::new(15.0, 0.0, 0.0));
+        let (_, off) = further.progress(Vec3::new(16.0, 3.0, 0.2));
+        assert!(off.is_infinite(), "{off}");
+        // Fallen off the walkway at x 6: from there; on the ground past the
+        // drop, or under the walkway far across, it fell from nowhere.
+        let mut walking = route.clone();
+        walking.progress(Vec3::new(5.0, 3.0, 0.0));
+        let from = walking.fell_from(Vec3::new(6.0, 0.0, 1.0)).unwrap();
+        assert!(
+            (from - Vec3::new(6.0, 3.0, 0.0)).length() < 1e-3,
+            "{from:?}"
+        );
+        assert_eq!(walking.fell_from(Vec3::new(6.0, 0.0, 4.0)), None);
+        assert_eq!(further.fell_from(Vec3::new(16.0, 0.0, 1.0)), None);
     }
 
     /// A pulled leg keeps the heights of the floors it passes over, not

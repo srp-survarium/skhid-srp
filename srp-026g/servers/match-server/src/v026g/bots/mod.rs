@@ -105,10 +105,6 @@ const JUMP_WATCH_MS: u32 = 3_000;
 /// (`base_player::detect_usable_object`, PROVEN), and the half metre more
 /// turns the view while the bot walks in.
 const USE_LOOK_M: f32 = 2.5;
-/// The plays' failure when they ran past their time (`collect`, `raid`,
-/// `retreat`, `sneak`): the play and its target are set aside as a quick
-/// failure is (`plays::SET_ASIDE_MS`).
-const TOOK_TOO_LONG: &str = "took too long";
 /// A goal no way was found to is not planned to again for this long, ms.
 const NO_WAY_RETRY_MS: u32 = 500;
 /// How long the plays leave a goal no way was found to (`Bot::no_way_to`):
@@ -539,9 +535,7 @@ struct Pending {
 
 /// Whether `point` is near one of `spots` ([`Stuck::near_spot`]).
 fn near_any(spots: &[Vec3], point: Vec3) -> bool {
-    spots
-        .iter()
-        .any(|spot| spot.distance_xz(point) < stuck::SPOT_M)
+    spots.iter().any(|&spot| stuck::near(spot, point))
 }
 
 /// A match's bots.
@@ -1883,26 +1877,8 @@ impl Bots {
                 self.teams[team].next_commander = now;
             }
             Step::Failed(why) => {
-                // A play that took too long is set aside too, and the way
-                // it went is not walked or searched again: a carrier stuck
-                // under its route took the same play again at once and
-                // stood there two more spans (0x4da3b51d, 214.6 and
-                // 334.9 s; `player_bots_stuck.md` §8).
-                let too_long = why == TOOK_TOO_LONG;
-                if too_long {
-                    bot.found = None;
-                    bot.no_way = None;
-                    if self
-                        .searching
-                        .pending
-                        .as_ref()
-                        .is_some_and(|p| p.place == bot.place)
-                    {
-                        self.searching.pending = None;
-                    }
-                }
                 if let Some(a) = bot.assignment.as_ref()
-                    && (too_long || now < a.since + plays::QUICK_FAIL_MS)
+                    && now < a.since + plays::QUICK_FAIL_MS
                 {
                     bot.set_aside.retain(|&(_, _, until)| until > now);
                     bot.set_aside
@@ -2290,6 +2266,13 @@ fn drive_tick(
                         None => bot.motor.walk(route, &pose, OFF_ROUTE_M, clear),
                     };
                     if walked != Walked::OnTheWay {
+                        // Fallen off it: the spot it fell from (`Stuck::fell`).
+                        if let Walked::Off(off) = walked
+                            && off.is_infinite()
+                            && let Some(from) = route.fell_from(pose.feet)
+                        {
+                            bot.stuck.fell(time, from);
+                        }
                         bot.route = None;
                         path::no_route(path::NoRoute::Ended);
                     }

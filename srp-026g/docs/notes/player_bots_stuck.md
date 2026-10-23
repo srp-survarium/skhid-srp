@@ -344,10 +344,12 @@ held it there:
    still)".
 3. **"Took too long" changed nothing.** The audit said a retaken play
    kept its route: it does not (`end_play` clears it). But the play was
-   taken again at once (it had been up only past `QUICK_FAIL_MS`), with
-   the search found for it. Now (`mod.rs`): a play that took too long is
-   set aside like one that failed quickly, and its found route, its
-   "no way" and its pending search are dropped.
+   taken again at once (it had been up only past `QUICK_FAIL_MS`). Setting
+   such a play aside like a quick failure was tried and left out: with 1
+   and 2 in, the carrier gets home without it (the test below passes
+   with it off, and fails only with both 1 and 2 off), plays end "took
+   too long" 3 times in 12 bench matches, and on the bench it moved
+   nothing beyond its error (8.6).
 
 Test: `a_carrier_fallen_under_its_walkway_route_gets_home` (`tests.rs`,
 `walkway_world`: a walkway 3 m up with its container, a ramp down, a wall
@@ -461,9 +463,9 @@ block 2 m high: the way along its edge had 33 of 33 floors on the lip,
 now 4 or fewer; a 0.8 m drop makes no lip). The lip's cell overlaps the
 block's top, so its centre (x 5.125) is even past the edge (x 5.1).
 
-On the bench (8.6's runs, the same 128 pairs, with 8.1-8.4 in both),
-falls of a metre or more in a tick, off the route (no drop of it there)
-and taken by the route:
+On a first bench (128 pairs, 8 seeds of 8 maps, with 8.1-8.4 in both;
+the final one is 8.6), falls of a metre or more in a tick, off the route
+(no drop of it there) and taken by the route:
 
 | | without | with the lip cost | diff |
 |---|---|---|---|
@@ -482,39 +484,153 @@ it is a route or a slide over an edge, not a stray: the client's strays
 
 ### 8.6 Measured
 
-The bench (`real_bot_cost`), 8 seeds, maps level_06/2, 01/2, 03/3,
-02/2, 04/2, 05/2, 06/4, 08/2, 4v4 and 10v10: 128 pairs, each one
-(map, size, seed) before and after; the mean of each, and the mean of the
-paired differences with its standard error. "Before" is f4c312ac.
+The bench (`real_bot_cost`, the stand-in game of `tests.rs`): levels 1-8,
+days 2 and 4, 4v4 and 10v10, 180 s, 10 batteries, seeds 1-16: 512 pairs,
+each one (map, size, seed) with and without. Each part was measured off
+with all the others in (a toggle, removed before the commit); the mean of
+the paired differences `with - without` with its standard error, `*`
+beyond 2 SE. A part is kept only if it moves its target beyond 2 SE and
+no guard (kills, deaths, K/D, deliveries, carriers killed, plays ended
+within 1 s, A-B-A flips, idle, standing with a goal) gets worse beyond
+it, or the cost is small against the gain and explained.
 
-| | before | routes and stuck (8.1-8.3) | and the ledge (8.4) | ledge vs routes |
-|---|---|---|---|---|
-| pushing, s a match | 770 | 67 | 19 (-751 +- 56) | -48 +- 5 |
-| idle, s a match | 1042 | 379 | 284 (-758 +- 57) | |
-| idle while fighting, s | 48 | 25 | 11 | |
-| batteries delivered | 3.20 | 4.54 | 5.07 (+1.88 +- 0.21) | +0.53 +- 0.11 |
-| carry time, s | 24.5 | 27.9 | 25.3 (+0.0 +- 0.8) | -2.5 +- 0.7 |
-| stuck notes | 9.4 | 62.2 | 27.8 | -34 |
-| of them, keys held | 0 | 53.2 | 20 | |
-| reversals | 26.5 | 47.6 | 45.4 (+18.9 +- 1.4) | |
-| stood with a goal, % | 4.8 | 7.9 | 7.2 | |
-| grid searches | 923 | 1405 | 1392 | |
-| failed searches | 73 | 188 | 130 | |
+**Everything** (all of 8.1-8.6 off, then on):
 
-Bots that walked into walls before now notice and turn (the stuck notes
-and reversals go up as the pushing goes down: a reversal is a recovery's
-back-off or a re-plan after a fall). More searches: a bot off its route
-plans again instead of pushing.
+| | without | with | diff |
+|---|---|---|---|
+| pushing, s a match | 539 | 1.5 | -538 +- 25* |
+| idle 5 s or more, % alive | 36.6 | 11.4 | -25.2 +- 1.0* |
+| batteries delivered | 1.74 | 3.10 | +1.36 +- 0.11* |
+| carry time, s | 26.9 | 24.0 | -2.9 +- 0.9* |
+| kills | 17.2 | 24.6 | +7.4 +- 0.4* |
+| deaths a bot-minute | 0.425 | 0.614 | +0.189 +- 0.009* |
+| K/D team 0 / team 1 | 1.07 / 1.03 | 1.22 / 1.06 | +0.15* / +0.03 |
+| carriers killed | 0.52 | 0.72 | +0.20 +- 0.06* |
+| plays taken a bot-minute | 5.68 | 7.50 | |
+| ended within 1 s, % of plays | 12.2 | 13.8 | +1.7 +- 0.3* |
+| A-B-A flips, % of plays | 3.3 | 4.0 | +0.7 +- 0.1* |
+| stood with a goal, % | 6.9 | 7.9 | +0.9 +- 0.2* |
+| reversals | 25.3 | 37.3 | +11.9 +- 0.7* |
+| falls off the route | 3.3 | 7.9 | +4.6 +- 0.2* |
+
+Bots that stood against walls now walk, fight and carry: more kills and
+deaths on both sides, more deliveries, more carriers killed (more of them
+carry). More plays end within 1 s because more are taken: read in the
+notes, they are the play choice switching (Crossfire to Roam or Buddy,
+Collect to Collect when a nearer battery shows), 1 of 786 after a stuck
+(follow-up below). More falls: a reckoned body now walks off a ledge
+(8.4) instead of standing at it, and the lip cost and fall spots take a
+part of them back.
+
+**Each part** (with it minus without it, the rest in; its target in bold):
+
+| | held keys (8.1.2) | route floors (8.1.1) | goal floor (8.2) | ledge (8.4) | lip (8.5) | fall spots (below) |
+|---|---|---|---|---|---|---|
+| pushing, s | **-42.6 +- 2.6*** | **-0.52 +- 0.20*** | -0.35 +- 0.16* | **-41.4 +- 2.4*** | -0.20 +- 0.20 | -0.13 +- 0.15 |
+| stuck notes | +4.2* | **-1.2 +- 0.2*** | 0.0 | -37* | -0.3 | -0.2 |
+| carry time, s | -0.74 +- 0.27* | +0.15 | 0.0 | -4.6 +- 0.6* | -0.25 | 0.0 |
+| delivered | +0.06 | +0.01 | 0.00 | +0.40 +- 0.06* | +0.02 | 0.00 |
+| falls off the route | +0.34 | -0.11 | -0.05 | +2.0* | **-2.30 +- 0.22*** | **-0.70 +- 0.16*** |
+| idle 5 s+, % | -2.4 +- 0.3* | +0.13 | -0.16 | -3.4* | +0.17 | +0.27 |
+| stood with a goal, % | +0.48 +- 0.12* | -0.11 | **-0.58 +- 0.10*** | -0.54* | -0.07 | -0.05 |
+| kills | +0.24 | -0.26 | +0.04 | +3.0* | -0.22 | -0.28 +- 0.13* |
+| deaths a bot-minute | +0.011 +- 0.005* | -0.007 | +0.004 | +0.085* | -0.005 | -0.005 |
+| K/D team 1 | -0.02 | -0.08 +- 0.03* | -0.06 +- 0.02* | -0.07 +- 0.04* | -0.03 | +0.01 |
+| carriers killed | +0.01 | -0.01 | +0.03 | -0.05 | -0.02 | +0.04 |
+| ended within 1 s, % | +0.03 +- 0.14 | -0.14 | -0.05 | +0.97 +- 0.21* | -0.12 | -0.09 |
+| A-B-A flips, % | -0.06 | +0.05 | +0.02 | -0.05 | +0.02 | -0.04 |
+| reversals | +1.0 +- 0.3* | 0.0 | -0.3 | -2.4* | +0.1 | -0.3 |
+
+K/D team 0 moved within its error for every part. The guards beyond
+2 SE:
+
+- K/D team 1 with route floors and the goal floor (-0.08, -0.06, at
+  2.5-3 SE). Team 0 and kills stayed flat, so this is a shift between
+  sides, not bots fighting worse.
+- Held keys: +0.5 % standing with a goal and +1 reversal (the recovery's
+  back-off and re-plan), against 43 s a match less pushing and 2.4 % less
+  idle.
+- The ledge: +1 % plays ended within 1 s, because more plays are taken.
+  The ledge is most of the "everything" activity.
+
+**The stand-in had no jumps.** A first run of this bench had held keys
+cost +0.5 % plays ended within 1 s and +0.2 % flips. Its stuck notes
+were the cause:
+
+- 100 of 118 were within 1 m of a jump's floor.
+- The two level_06 traps that held bodies longest ((110.3, 30.9, 130.2)
+  and (-12.5, 37.0, 150.0)) can be left only by a jump link.
+
+The stand-in never jumped (`floor_under` leaves out jump links). So the
+bots' JUMP did nothing, the keys stayed held, and the watch was right to
+call them stuck; in the server the body jumps.
+
+Now the stand-in jumps. A JUMP press keeps a body in the air
+`STAND_IN_AIR_MS` (600 ms). That is a GUESS from the motor's press 0.8 m
+before the face and the game's jump of about 0.5 s. A step the body
+cannot take in the air takes the jump link ahead of it (`jumped_to`).
+Test: `a_stand_in_body_in_the_air_gets_up_a_ledge`. With it, held keys
+no longer cost anything on plays ended within 1 s or on flips (above).
+
+**Fall spots.** With route floors in, a bot fallen off its route plans
+again from where it landed. On level_06 (16, 30, 102) the new route took
+it back onto the same narrow beam, so route floors first had +0.6 falls
+off the route.
+
+Now a body that fell off its route marks the spot it fell from
+(`stuck.rs` `Stuck::fell`, `path.rs` `Route::fell_from`):
+
+- A fall off the route is `Walked::Off` with no floor of the route under
+  or over the body within `OFF_ROUTE_HEIGHT_M`.
+- The spot is the route's floor point above the body, within
+  `FELL_FROM_M` (3 m) across.
+- It is avoided from the first fall (an ordinary stuck spot only from its
+  second), and kept `SPOT_KEPT_MS`.
+- A spot is on one floor. It is near a point within `SPOT_M` across and
+  `SPOT_HEIGHT_M` up or down (2 m, a GUESS: the falls off a route came
+  down 2.5 m at the median), so the floor under it is not avoided.
+
+A first version, which marked a spot only on the second fall, moved
+nothing beyond its error; this one is the column above. Tests:
+
+- `stuck::tests::a_spot_fallen_from_is_avoided_on_its_floor`;
+- the `fell_from` asserts in
+  `path::tests::a_body_falling_down_its_routes_drop_is_on_it`.
+
+**Left out: setting a play that "took too long" aside** (8.1.3). Over
+401 pairs (a run with it as a toggle) it moved nothing:
+
+- pushing -0.01 +- 0.06;
+- carry time -0.03 +- 0.06;
+- delivered +0.00 +- 0.01;
+- stood with a goal 0.00 +- 0.03;
+- flips -0.05 +- 0.03.
+
+With the route floors and held keys in, no play is retaken under a route
+it cannot walk.
+
+**Also left out: a held-keys rework**, in which only walk keys (not the
+JUMP or crouch bits) count as held. Against the kept version it cost
++24 s of pushing.
+
+Whole-match tests (`--ignored`, release): WHOLE_MATCH_RESULTS.
 
 ### 8.7 Left
 
+- **Plays ended within 1 s by the play choice**: Crossfire to Roam or
+  Buddy, Collect to Collect, about 4 % of plays taken. They are the
+  choice switching (a play ran out, or a higher band came), not the
+  routes (1 of 786 after a stuck): for the play choice and Crossfire.
 - **No drop link where a face lies on a cell boundary** (8.4): the grid
   has no way down there at all (`mapdata`).
-- **Reversals and standing with a goal went up** with the fixes (more
-  re-plans, more "starved" and "ended" ticks): fewer seconds lost, but
-  more turns a human would not make.
+- **Reversals went up** with the fixes (re-plans, a recovery's back-off):
+  fewer seconds lost, but more turns a human would not make.
+- **K/D team 1** fell 0.06-0.08 (2.5-3 SE) with route floors and the goal
+  floor while team 0 and kills stayed flat; worth a look per map.
 - **A partial route that runs out** before its search ends: the bot
   stands until the search ends (a few polls).
 - **A goal under a ramp** plans to the nearest floor, which may be the
   ramp's top or its foot: whichever is nearer, not whichever the play
   meant.
+- **The stand-in's jump** is a guess (600 ms in the air, up a grid jump
+  link only): a jump the grid has no link for is still a wall in it.
