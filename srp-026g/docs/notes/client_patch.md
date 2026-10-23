@@ -1109,6 +1109,134 @@ The owner's request (2026-10-21): "instead of focusing on players the camera wou
 - **Checked:** `check_upgrade_preview_026g.py` (Unicorn, the game's own setup_profile, profile copy, the movie's start and exit handlers 0x29A870/0x29A890 with the camera's setter and patch 45's camera, and on_player_ready 0x284F20 with its players' virtual calls stubbed): a rifle only in the stash with the chosen kit's weapon 2 the SVD (the owner's case): start, close before the player arrives, the window's player arrives, the account's is queried by on_player_ready, then arrives: the character holds the SVD; with 0x284B7C the original's bytes the same run ends with the stash rifle in the hands (the report); the same for armour the chosen kit does not wear; `early` itself for both characters, waiting or not, a player being made or not (the flag, every register). The other weapon checks pass; the self-test passes.
 - **Build** (local test, `--revision=30`): `survarium_skhid.esc-r30.exe` sha256 `c74062480cac6c06b9f8509ce24354b1d265a7c08a4342a890c95e0938451e5f` (12 934 776 bytes); against main's build with the same revision it differs in the PE checksum, `.srpw`'s virtual size, the site (7 bytes) and patch 48's code (+1Eh on). **Not run in a game.**
 
+**Round 5** (2026-10-23, after the owner's game run of round 4 (#313: "it works"): the camera waited about 200 ms at a window's start, for the window's player, before it flew to the bench; asked whether the flight should start at once and the weapon appear above the bench when its player is ready (round 2's "or happen at the same time"), the owner: "yes, let's"). PROVEN in the code, emulated:
+
+- **No wait.** The start no longer sets HOLD; the tick's hold block (the steps' speeds 0 until READY or 2 s, then the setter's speeds computed again) is gone, so the camera flies from the first tick (round 5b below: with eased speeds). `left` no longer tests HOLD: with the table on, a left-button drag off the movie turns the weapon, as before at the bench. State +2Ch and +30h (HOLD, the time held) are free (round 5b uses them); the interface (+48h, +50h) is where it was.
+- **Nothing in the wrong place.** Before, the table's player's held item stayed in the hand while the character made the window's player (the camera at the character, holding). Now the camera leaves at once, so the held item of the player being replaced is drawn with the decal pose's transform (`matrix` returns to 0x247794: translate(0, -10, 0), 10 m under the floor, as the stock decal editor puts the weapon away) until the new player is made; its first draw then is at the bench (READY). A refresh after the bench showed a weapon keeps the current one there, as round 3. A weapon its kit already shows needs no new player: at the bench from the first draw.
+- **What stays:** the close and the flight back, the drag and the left-button rules, the windows over windows, patch 48's preview and round 4's quick close (`check_upgrade_preview_026g.py`'s quick-Esc cases run patch 45's camera through the movie's handlers and pass).
+- **Checked:** `check_weapon_table_026g.py` 40 checks (as is and rebased): at the start the targets are the bench's and the steps' speeds the setter's, and the point, yaw, pitch, height and distance move at the first tick with READY 0; the point at the bench within 1 cm; while a player is being made before READY the held item takes the decal pose's way (registers kept), and the first draw after it is made puts it at the bench (READY 1); the left button with the table on. `check_weapon_decals_026g.py` (a ray before READY misses; the matrix entry now returns to the decal pose's way) and the other weapon checks pass; the self-test passes. 1 742 bytes (to `.srpw`+ECEh).
+- **Build** (local test, on #313, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `24735c9a873bd6ea0674ba71d71cd0b27ea2853a01823890a281b699de137a35` (12 934 776 bytes); against round 4's `esc-r30` it differs in the PE checksum and patch 45's code alone. **Not run in a game.**
+
+**Round 5b** (2026-10-23, the owner on round 5's build: "the camera jumps a bit at the end of the transition", and "i guess it is transition from camera move to the scene"). PROVEN, emulated tick by tick (`check_weapon_table_026g.py`'s Table: the window's start through the movie's handler, the camera's whole tick 0x283EF0, READY at the 12th tick, the eye and view from the matrix the tick gives the menu):
+
+- **The cause.** The flight had two motions. The point, yaw and pitch (this patch's) moved 5·dt of the way left each tick (an ease-out), and were snapped to their targets once all were within 0.001. The side angle, height and distance moved by the camera's own steps (0x283F62 height, 0x28412D side, 0x284222 distance) at the setter's constant speeds (|change|·1.111 a second, 0x2845C0), which reach their targets in 0.9 s and stop dead. Per 16 ms tick, the eye's and the view's move (|Δeye| + 1.2·|Δforward|) went 0.027 → 0.011 → 0.006 at 0.88 s (the distance's 0.84 m/s and the side angle's 23°/s stopping in one tick, the point still gliding). Then at 1.6 s it went 0.18 mm → 2.0 mm, the snap of the point, yaw and pitch, after creeping. No camera field changes at READY (nothing reads it there, nothing calls the setter again: its only callers are 0x265E73 and 0x265F44), and no dt is computed from the start. The hold had hidden none of this: it was there before too, just later.
+- **The fix** (`weapon_table_026g.asm`, 1 994 bytes, to `.srpw`+FCAh):
+  - **All seven ease out together.** While a flight eases (`camera` sets EASE +2Ch and its time +30h), the tick sets the camera's three steps' speeds to 5·|target − now| each tick, so they ease out with the point, yaw and pitch. EASE ends once those steps are within 0.001 (where they stop, 0x283FA0, 0x284253) and the point, yaw and pitch are there, or after 4 s.
+  - **The point, yaw and pitch land exactly, with no snap.** Each step is 5·dt of the way plus 0.01·dt (FLOOR, m or rad a second). The step that would pass the target lands on it, so the last moves are 0.15 mm and the "there" test is within 1e-6.
+  - **The bench and the wheel are unchanged.** At the bench (EASE over) the camera's steps keep their speeds (the wheel sets its own, 0x28409E). The close flies back the same way and ends exactly at the origin's point and the kept yaw and pitch.
+- **Residual:** the camera's own steps stop within 0.001 of their targets (the side angle 0.369 of 0.37, the distance 1.201 of 1.2), as the stock camera's do. The first tick is the flight's fastest (0.45 there, 0.74 back, an ease-out).
+- **Checked:** `check_weapon_table_026g.py` 42 checks (as is and rebased):
+  - the new flight case: there (READY mid-flight) and back, every tick's move is at most 1.01× the tick before (+0.2 mm) and at least 3/4 of it while above 2 mm; the last move is under 0.5 mm, and the easing is over at the bench;
+  - the start's speeds are 5× the way left;
+  - the bench within the steps' 0.001;
+  - run against round 5's bytes, the same measure fails at 0.88 s (two ticks) and at 1.6 s (the snap).
+
+  The other weapon checks and the self-test pass.
+- **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `5d4e83b863cbf48c2b671869ec77d859719afba30bcbeb8100bd477cdbf5de44` (12 934 776 bytes; round 5's was `24735c9a…7a35`). **Not run in a game.**
+
+**Round 5c** (2026-10-23, the owner on round 5b: "still the same problem", "same jump", "it is camera transition jump", "happens for every weapon"). PROVEN in the game's own log, then emulated.
+
+- **The debug build.** A local debug exe (branch `debug/camlog`, not for release) logged the camera each frame for 3 s after a window's start or close (`srp camlog` lines). The owner's run (01:35:10):
+  - frames 1–25 are the smooth flight, the distance's current value coming down 1.96 → 1.34 toward 1.2;
+  - the window's player is made between frames 25 and 26 ("made in 334 ms"; the player pointer changes);
+  - on frame 26 the current distance is **0.60**, the floor patch 32 gives the tick's last clamp, and the eye moves **0.80 m** in one frame: the jump;
+  - from frame 38 the distance creeps back, but only to **1.0924** of 1.2, and stays there.
+  - On the close (01:35:20) the second frame is cut to 0.60 again, and the cut stops once the camera has left the bench.
+- **The cause.** The tick casts a collision ray from its point back toward the eye (0x284309 → 0x2844D0, through the lobby's collision scene at menu+3104h). At a hit it overwrites the current distance (+C4h) with the hit's, and 0x284316 clamps that to the least (0.6). The Unicorn checks stub that ray, so they never saw it.
+- **What the ray hits.** Not identified by its object; what is known:
+  - it appears in the ray's way the frame the window's player is made and goes when that player is replaced;
+  - its hit points while the camera rests lie about 0.1 m in front of the bench's eye (the eye at (3.19, 1.57, 3.05) where (3.09, 1.60, 3.05) is meant);
+  - so it is something the window's player brings near the bench, not the room;
+  - no frame before that player had a hit.
+- **Why only now.** With round 2's hold the camera flew only after READY, so it came onto the bench with that object already there. The cut grew smoothly as it approached, and nobody noticed a 1.09 instead of 1.2. Flying at once (round 5), the object appears mid-flight, already within reach of the ray: the cut is one frame.
+- **The fix** (`weapon_table_026g.asm`, 1 870 bytes, to `.srpw`+F4Eh; a sixth entry `ray`, +19h):
+  - **No ray while the camera is the table's.** 0x284309's `call 2844D0h` is `call ray`, which returns at once (`ret 4`, as the ray) while FLY is set: flying there, at the bench, flying back. The bench's view is made with nothing between its eye and the bench. Every other time it jumps to the game's ray. Declared CALLEE in `INSTALLS`.
+  - **The steps are moved by the flight itself.** While a flight eases, the flight moves the camera's own side angle, height and distance the way it moves the point, yaw and pitch: 5·dt of the way plus 0.01·dt, landing exactly. The three steps' speeds are 0 meanwhile, as round 2's hold had them. So all seven end together and the bench's distance is exactly 1.2 (round 5b's per-tick speeds left them within the steps' 0.001).
+  - **Simpler code.** One routine (`glide`) for both tables. No snap threshold, no time cap.
+- **Checked:**
+  - **`check_weapon_table_026g.py`: 44 checks (as is and rebased).**
+    - New case: the ray stub reports a hit at 0.6 from READY on. No ray is cast while the camera is the table's, the flight is as smooth, and it rests at exactly 1.2, 1.3 and 0.37 with the eye 1.2 m from the bench.
+    - Once the stock camera is back, its ray is cast and cuts the distance as the original's.
+    - Round 5b's bytes under the same hit: an eye move of 0.77 m in one frame (the owner's log: 0.80 m) and a rest at 0.6.
+    - The flight case: speeds 0 meanwhile.
+  - The self-test, check 45, has the new site.
+  - The other weapon checks pass.
+- **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `ef9b3a2dd438c5677766f77338c5f3bb4396089e4a31e5a0b59a0fd9603b99a0` (12 934 776 bytes). **Not run in a game.**
+
+**Round 5d** (2026-10-23, the owner on 5c: "yes, it is smooth", then "the weapon is a bit too far, and is a bit off center to the right", "people go into that menu to interact with a weapon, so it should be front and center (also it seems we are centered from left to inventory, while there is still appearance tab)", "one problem is with fov", "i was on high fov (100) and that's why it was far too", "maybe we should not have fov affect weapon preview in lobby under bench?", "just like we did with scopes"). PROVEN in the code and the movie's source, emulated:
+
+- **The measured point.** The owner's screenshot (5c, uro_fov 100, 1280 x 720): the PPSh's middle at x ≈ 520, about 230 px long. The camera then looked at BENCH from 1.2 m with the stock side angle 0.37, which turns the view (rotY of the matrix): BENCH sits 20.5 degrees off the view's axis, to the left. At a vertical 100 degrees (patch 22: the lobby camera follows uro_fov, `fov_projection` on lobby_camera's vtable slot 0, its zoom at camera+94h) that projects to x = 640 − 640 tan 20.5° / (tan 50° · 16/9) = 527, and a 0.91 m model to 233 px. The maths agree with the picture. The appearance window's left edge is at 692 and the inventory at 820, so "to the right" is relative to the part left of the appearance window (centre ≈ 346), not the screen.
+- **The field of view, as a scope's.** A full scope's view is the original's whatever uro_fov because patch 22's angle `65 z + (uro_fov − 65) max(0, (z − 1/4) / (3/4))` drops the setting's term there. The bench uses the same projection and the same zoom field: `camera` sets TARGET_ZOOM (state +4Ch) to the z with that angle = 65, z = (uro_fov + 130) / (4 uro_fov − 65): 1.333 at 50, 1 at 65, 0.687 at 100. The flight glides camera+94h there with the rest (the field of view eases over the flight), and the close glides it back to 1, landing exactly: the player's field of view again. No second projection path. At uro_fov 65 nothing changes.
+- **Centre and size, once, at the original's 65 degrees.**
+  - **The free part's centre.** The lobby movie lays itself out on 1920 x 1080, scaled by the width below an aspect of 1.85 and by the height above (`LobbyMenu.onStageResize`). The inventory is right-aligned (`layoutData` −112, 580 wide), and the upgrade window's panel is 190 left of it (`UpgradeWindow` `container.x = inventory_list.x − x − 190`). So the free part ends 882 units from the right edge, and its middle is fx = 1/2 − 441 / (1080 a') of the width (a' the aspect from 1.85 on, else 16:9): 0.270 at 16:9 and 16:10, 0.329 at 21:9.
+  - **Centring.** The side angle is now 0 (`camera` passes 0 to the setter). The camera looks at a point k = (1 − 2 fx) d T along its right of BENCH (TARGET_Z = 3.05 − k), T = tan(65/2) · a. The weapon's middle (drawn at BENCH) lands at fx across and at the middle in height.
+  - **Distance.** An end at r = L/2 from the middle stays 2% in from the left edge at any spin while d ≥ L sqrt(1/T² + 0.96²) / (4 (fx − 0.02)), and that is d, at least 0.3 m. L is the window's weapon's render box along its length (`middle` measures it once; a default box counts as 1 m). Until the weapon is drawn the view is a 1 m weapon's; the frame it is, `tick` frames it for its own length and the flight eases there (EASE again).
+  - **Patch 32's NEAR_MIN** (its least distance while a weapon's window is open) is 0.3, was 0.6, so a pistol can come that near.
+- **What it gives** (check_weapon_table_026g.py, the same at uro_fov 50, 65 and 100), of the free part's width at rest:
+
+  | screen | AK-12 (0.94 m) | SVD (1.22 m) | PM (0.16 m) |
+  |---|---|---|---|
+  | 16:9 | 63% at 1.22 m | 63% at 1.59 m | 43% at 0.30 m |
+  | 16:10 | 66% at 1.29 m | 66% at 1.67 m | 48% at 0.30 m |
+  | 21:9 | 52% at 0.90 m | 52% at 1.17 m | 26% at 0.30 m |
+  | 32:9 | 30% at 0.90 m | 30% at 1.17 m | 15% at 0.30 m |
+
+  The rifles are below the asked 70% because their ends must stay on the screen at any spin: a turned rifle's near end swings left toward the screen's edge (the middle sits at 0.27 of the width).
+- **The review's two fixes** (5d's review, 2026-10-23):
+  - **A window over a weapon's window kept the first weapon's distance.** `camera` reset LENGTH but the bench kept the old weapon (READY) through the ~0.3 s rebuild. `middle` measured that old weapon, and the new one was never measured: a pistol over the SVD stayed at 1.59 m, and a rifle over a pistol at 0.3 m with its ends off the screen. Now `middle` measures only when the character makes no player (+D2C4h −1, +D2C8h 0). Patch 32's start calls setup_profile at once, which sets them when a new player is to be made. So the old weapon drawn through the rebuild is not measured, and the window's weapon is measured on its first frame.
+  - **Ultra-wide screens put the tilted ends off the top and bottom.** frame_view took only the width's distance, so at 32:9 (3840 x 1080, 5120 x 1440), with the tilt ±1.2 over a full spin, the AK-12's and the SVD's ends went from −0.24 to 1.09 of the height. Now d is also at least TILT_ROOM · L = 0.962 L: the ends stay 2% in from the top and the bottom at any spin and tilt at the original's 65 degrees (the pitch's −0.25 included, emulated). That binds beyond 16:10. At 21:9 the tilted ends had come within 0.8% of the edge, so 21:9 moves a little further too (0.88 → 0.90 m for the AK-12); 16:9 and 16:10 are unchanged.
+- **Room.** The code grew to 2 230 bytes (2 266 with the review's fixes) and moved from `.srpw`+800h to +6B0h (the stash ends at +6A5h), so patch 32's two `jmp CAMERA` are reassembled for 0xA42A6B0.
+- **Checked:**
+  - **`check_weapon_table_026g.py` 48 checks (as is and rebased).** For 1280 x 720, 1920 x 1200, 3440 x 1440, 3840 x 1080 and 5120 x 1440 (viewport set), uro_fov 50, 65 and 100, and the AK-12, an SVD box and the PM:
+    - the zoom gives 65 degrees;
+    - the middle projects to fx and the height's middle within 0.0002;
+    - the distance is the formula's for the measured length;
+    - over a full spin at tilts 0 and ±1.2 the ends stay within the 2% margin across and up and down (and in front of the near plane);
+    - the results do not depend on uro_fov;
+    - after the close the zoom is exactly 1.
+  - **A pistol's window over the SVD's**, the SVD drawn at the bench through the rebuild: the length is not measured then, and the pistol is framed for itself (1.59 m, then 0.30 m).
+  - The other cases now have their targets from frame() (the side angle 0, every value landing exactly).
+  - `check_weapon_preview_026g.py` (the side angle 0, the distance the 1 m weapon's, NEAR_MIN 0.3).
+  - The self-test and the other weapon checks pass.
+- **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `4eb7c0dfc13a0fb27212863282755974fd1f99137f12b08355247110a0fb935b` (12 934 776 bytes; with the review's fixes). **Not run in a game.**
+
+**Round 5e** (2026-10-23, the owner on 4c45c7a7 at 2560 x 1440: "a bit too much to the left", and "when scrolling the wheel to move the camera closer, it is not focused on the center of the weapon"). PROVEN in the code and the movie's layout, emulated:
+
+- **Where it sat.** In the owner's screenshot the Mosin spans 0.115..0.445 of the width (its middle 0.28; the model's middle, drawn at BENCH, at 5d's 0.270). The Squad strip ends at 0.046 and the Attachments window begins at 0.54, so the part a player sees free is 0.046..0.54 and 0.27 read as left-heavy.
+- **The new place.** The weapon's middle goes FRAME_SHIFT = 365 lobby-movie units left of the screen's middle: fx = 1/2 − 365 / (1080 a'). That is 0.310 at 16:9 and 16:10, 0.359 at 21:9 and 0.405 at 32:9. The free part's own middle, between the Squad strip's right edge (88 units, left-aligned) and the window's edge, is 397 units left; the 32 units more to the right are the owner's "a little more to the right". FRAME_SHIFT is the one constant to retune (`weapon_table_026g.asm`, `frame_shift`).
+- **Clear of the window too.** frame_view takes the largest of three distances:
+  - **the screen's left edge:** d ≥ L sqrt(1/T² + (1 − 2m)²) / (4 (1/2 − s − m));
+  - **the upgrade window's left edge:** d ≥ L sqrt(1/T² + (1 − 2m − 2p)²) / (4 (1/2 − p − m + s)), with p = 882 / (1080 a');
+  - **the height's:** 0.962 L, as in 5d.
+
+  With the middle at 0.31 the left edge binds at 16:9 and 16:10, the height beyond.
+- **The wheel zooms into the weapon.** 5d looked at a point beside the bench, so the stock wheel (the distance along the view, the point kept) slid the weapon across the screen.
+  - **Looking at the weapon.** The camera now looks at BENCH, the weapon's middle, and its side angle turns the view so that the middle is at fx: σ = atan(t cos P) + asin(t sin²P / (cos P sqrt(1 + t² cos²P))), with t = 2 s T and P = −0.25, the view's pitch. The asin's argument is below 0.03 and is taken as the angle (5e-6 rad).
+  - **Why the middle stays put.** The view's direction no longer depends on the distance, so the middle stays where it is on the screen at any distance. The distance becomes d sqrt(1 + t²): the middle is on the eye's line, not beside it.
+  - **Limits.** The wheel goes from NEAR_MIN (0.3) to the larger of 1.25 times the framed distance and the framed distance plus 0.5 m (a pistol framed at 0.3 m goes out to 0.8 m). `ray` clamps the target while the table is on, after the tick's wheel and step, and the distance itself only once the flight's easing is over. LENGTH holds the weapon's length negated until it is framed, then that farthest distance.
+  - **The close.** It flies back from wherever the wheel left the camera.
+- **The vertical.** The side angle turns the pitched view about the vertical, so the middle sits about 2% of the height below the middle (accepted; the owner found the height right).
+- **Room.** frame_view, the camera and the tick read their constants from a register (ebx or ebp, FC), and MIDDLES packs its x and y into bytes (6 bytes a weapon, all within 4 cm of the axis). The code is 2 378 bytes, ending at `.srpw`+FFAh of the page's 1000h.
+- **Checked:**
+  - **`check_weapon_table_026g.py` 50 checks (as is and rebased).** The bench's view at uro_fov 50/65/100 and 16:9, 16:10, 21:9, 32:9, for the AK-12, an SVD box and the PM:
+    - the middle within 0.0001 of fx;
+    - the distance and side angle frame()'s;
+    - over a full spin at tilts 0 and ±1.2 the ends 2% clear of the screen's left edge, the window's left edge, the top and the bottom.
+  - **The wheel at the bench:** in to 0.30 m, out to 1.25 of the framed distance and in again; the middle's projection moves at most 3e-7. The close then glides back to the stock camera, the zoom 1 and the yaw and pitch kept.
+  - The other cases as before (with the side angle frame()'s). `check_weapon_preview_026g.py` (the side angle at the start), the other weapon checks and the self-test pass.
+- **At rest**, of the part between the Squad strip and the window:
+
+  | screen | AK-12 | SVD | PM |
+  |---|---|---|---|
+  | 16:9 | 89% at 1.15 m | 89% at 1.50 m | 56% at 0.30 m |
+  | 16:10 | 92% at 1.19 m | 92% at 1.55 m | 60% at 0.30 m |
+  | 21:9 | 62% at 0.98 m | 62% at 1.28 m | 33% at 0.30 m |
+  | 32:9 | 35% at 0.98 m | 35% at 1.28 m | 19% at 0.30 m |
+
+  The spin margin (2% of the width) sets these; a larger FRAME_MARGIN gives a smaller resting weapon.
+- **The review's fix** (5e's review, 2026-10-23). `ray` clamped the current distance as well as its target to the wheel's farthest from the tick the weapon was framed, while the flight's glide was still bringing the distance in. A pistol framed on a settled view went 1.22 → 0.375 m in one frame (85 cm), a pistol over a rifle 1.27 → 0.375, a weapon drawn early in the flight 1.75 → 0.375. Now `ray` clamps the distance itself only once EASE is 0; while the flight eases, the glide brings it there. The farthest is now max(1.25 d, d + 0.5 m), set when framed (a pistol at 0.3 m could only reach 0.375 m). Checked with weapons drawn, not READY poked (`check_weapon_table_026g.py` 52 checks): a pistol and a rifle drawn at the flight's third frame, a pistol drawn after it settled, a pistol's window over a rifle's, and the wheel scrolled out before the framing. Every frame's distance step is within the glide's own (5 dt of the way left plus 0.01 dt) or the wheel's: 7.4 cm at most for the settled pistol, where 5e's bytes snap 85 cm. 2 382 bytes, to +FFEh.
+- **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `bbec605718fd1ffec45a2bf47132d581428dcda10de2d5021b46a1b55d935364`. **Not run in a game.**
+
 ### 3.43 On the death screen a drag turns the camera; the wheel does nothing (written 2026-10-21, README patch 46, the next release's revision; the rules: `death-camera.md`) — PROVEN in the code, the mouse moves and the view's update run with Unicorn; the first build run in a game
 
 The owner: "when player dies they can still move camera around, with holding a mouse button? Scroll shouldn't work though".

@@ -109,7 +109,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_baked_texture_026g.py` | Runs the original's and patch 35's baked-texture list of the camouflage/decal baker (the look-up, the push and check_loaded_baked_texture) on made-up loads, among them those of the crash of 2026-10-17 (needs Unicorn) |
 | `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, `-DFIND` the stash code's address and `-DCAMERA` patch 45's camera (weapon_table_026g.asm), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `weapon_stash_026g.asm`, `weapon_stash_026g.section.bin`, `check_weapon_stash_026g.py` | Patch 32's find_kit grown: a weapon no kit holds is shown in the chosen kit's hands from a scratch copy of the account's profile; assembled for 0x360 of `.srpw`; its check runs it with the game's own profile and record copies (needs Unicorn) |
-| `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench, turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x800 of `.srpw`, its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
+| `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench, turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x6B0 of `.srpw` (0x800 until round 5d), its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
 | `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears a decal (the bake patch 44 asks for paints it; the code takes two, the server gives one slot) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1000 of `.srpw` (its second page), no state of its own; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
 | `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 48: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xD60 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -1985,7 +1985,7 @@ scrolling, before the shell_32.dll check); seven sites:
   inventory and the account) keeps the weapon in the hands;
 - 0x284081, 0x28428C, 0x284316 (`movss xmmN,[0xA7AFA4]`, the camera tick's
   least distance 1.5 at the wheel, the step and the last clamp): a call and
-  three nops; the least is 0.6 from a weapon's window until the camera is
+  three nops; the least is 0.6 (0.3 since patch 45 round 5d) from a weapon's window until the camera is
   back at 1.49 after the close, 1.5 otherwise. The three base relocations
   of that address are disabled; the code finds its own address;
 - 0x284A33 (the character's update, `mov [ecx+0F49Ch],al`: the player's
@@ -2518,8 +2518,8 @@ lobby's character hold it (a kit's weapon, or a stash weapon in the chosen kit's
 scratch profile), with its scope and camouflage; patch 45 draws that held weapon on its own above
 the workbench by the lobby's right wall and flies the camera there.
 
-`weapon_table_026g.asm` at `.srpw`+800h (812 bytes in round 1, 1 488 in round 2 below; after the stash code), its state (40 bytes, then 48h)
-at `.srpd`+F00h; it begins with four `jmp near` (its entries; a fifth, `left`, in round 2):
+`weapon_table_026g.asm` at `.srpw`+800h (+6B0h since round 5d; 812 bytes in round 1, 1 488 in round 2 below; after the stash code), its state (40 bytes, then 48h)
+at `.srpd`+F00h; it begins with four `jmp near` (its entries; a fifth, `left`, in round 2; a sixth, `ray`, in round 5c):
 
 - **camera** (+0): patch 32's start_cam and exit_cam end with `jmp camera` instead of `jmp
   2845C0h` (the lobby camera's setter; `-DCAMERA` of `weapon_preview_026g.asm`, which without it
@@ -2620,6 +2620,64 @@ close's call for the account's kit returned early and the window's player came a
 too (revisions 28 and 29 have the same code), for a weapon no kit holds and for armour the chosen
 kit does not wear. Fixed by patch 48's `early` (below): the close waits for that player and the
 account's is made right after it. `../docs/notes/client_patch.md` section 3.42, round 4.
+
+Round 5 (2026-10-23, the owner: "yes, let's", to the camera flying at once instead of waiting about
+200 ms for the window's player): no hold. The camera flies to the bench from the window's first
+tick; the weapon appears above the bench when its player is made (until then the held item takes
+the decal pose's transform, 10 m under the floor: neither in the hand nor at the bench). A refresh
+keeps the bench's weapon as before; the close, the drag and the left button (with the table on)
+are unchanged. Section 3.42, round 5.
+
+Round 5b (2026-10-23, the owner: "the camera jumps a bit at the end of the transition"): the
+camera's own side angle, height and distance steps moved at the setter's constant speeds and
+stopped dead at 0.9 s while the point, yaw and pitch still glided, which then snapped 2 mm onto
+their targets at 1.6 s. Now a flight sets those steps' speeds to 5 × the way left each tick, so all
+seven ease out together, and the point, yaw and pitch land exactly (a least speed of 0.01 a second)
+instead of snapping (round 5c moves the three itself). The bench and the wheel are unchanged; the close flies back the same way.
+1 994 bytes. `check_weapon_table_026g.py` 42 checks (every tick's move no more than the one
+before, no sudden stop, no snap, there and back). Section 3.42, round 5b.
+
+Round 5c (2026-10-23, the owner: "same jump", and a per-frame camera log from a debug build): the
+jump was the camera's own collision ray (0x284309 -> 0x2844D0). It runs from the camera's point back
+to the eye and, at a hit, cuts the distance, which is then clamped to 0.6. The frame the window's
+player was made, something it brings near the bench came into the ray's way: the distance went
+1.34 -> 0.60 and the eye 0.80 m in one frame, then rested at 1.09 instead of 1.2. Now, while the
+camera is the table's (flying there, at the bench, flying back), no ray is cast (a sixth entry, `ray`,
++19h). The flight also moves the camera's own side angle, height and distance itself, so the bench's
+distance is exactly 1.2. 1 870 bytes. `check_weapon_table_026g.py` 44 checks (a ray hit at 0.6
+from READY on changes nothing). Section 3.42, round 5c.
+
+Round 5d (2026-10-23, the owner: "a bit too far", "off center to the right", "front and center",
+"maybe we should not have fov affect weapon preview in lobby under bench?", "just like we did with
+scopes").
+- **Field of view.** The bench's view is at the original's 65 degrees whatever uro_fov: the camera's
+  zoom (camera+94h, which patch 22's projection takes, as a scope's) glides over the flight to
+  (uro_fov + 130) / (4 uro_fov − 65) and back to 1 at the close.
+- **Centre.** The weapon's middle sits at the middle of the screen's part left of the upgrade window
+  (0.270 of the width at 16:9 and 16:10, 0.329 at 21:9, from the lobby movie's layout), by a look-at
+  point beside BENCH; the side angle is 0.
+- **Distance.** As near as keeps its ends on the screen at any spin, for the weapon's own length
+  (its render box): a rifle about 63% of that part at 16:9, a pistol at the 0.3 m least (patch 32's
+  NEAR_MIN, was 0.6).
+- **Ultra-wide screens.** Also as far as keeps the tilted ends 2% from the top and the bottom (it binds
+  beyond 16:10).
+- **A window over a weapon's.** The old weapon drawn through the rebuild is not measured; the new one
+  is framed for itself.
+- **Room.** 2 266 bytes, now at `.srpw`+6B0h. `check_weapon_table_026g.py` 48 checks. Section 3.42,
+  round 5d.
+
+Round 5e (2026-10-23, the owner: "a bit too much to the left"; the wheel "is not focused on the center
+of the weapon").
+- **Place.** The weapon's middle sits FRAME_SHIFT (365 lobby-movie units) left of the screen's middle:
+  0.310 of the width at 16:9 and 16:10, 0.359 at 21:9, a little right of the middle of the part between
+  the Squad strip and the upgrade window. Its ends stay 2% clear of the screen's edge, the window's edge,
+  the top and the bottom at any spin.
+- **Wheel.** The camera looks at the weapon's middle and a side angle places it, so the wheel zooms into
+  the weapon: its middle stays put. The wheel's range is 0.3 m to max(1.25 d, d + 0.5 m) of the framed
+  distance d; the close flies back from wherever it left the camera.
+- **The review's fix.** While the flight eases, the wheel's far clamp leaves the distance to the glide:
+  no snap when the weapon gets framed.
+- **Room.** 2 382 bytes. `check_weapon_table_026g.py` 52 checks. Section 3.42, round 5e.
 
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 

@@ -361,7 +361,7 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     on the page after `.srpc`): its hook, its entry and name format, its
     calls of patch 47's lookup and fill. check_weapon_camo_026g.py runs it.
 45. the same build: a weapon's upgrade window shows it above the lobby's
-    workbench (patch 45, weapon_table_026g.asm at `.srpw`+800h; patch 32
+    workbench (patch 45, weapon_table_026g.asm at `.srpw`+6B0h; patch 32
     grown: weapon_stash_026g.asm at +360h): the sites, the entries, the
     states. check_weapon_table_026g.py and check_weapon_stash_026g.py run them.
 47. the same build: decals on a weapon (patch 47, weapon_decals_026g.asm on
@@ -1749,6 +1749,7 @@ def test_weapon_table(original, image, before):
         0x247576: ["cmp byte [ebp-0x1],0x0", "jnz 0x247592"],
         0x24778F: ["cmp byte [ebx+0xf49c],0x0", "jz 0x2477c2"],
         0x283D81: ["test byte [eax+0xc],0x52", "setnz al"],
+        0x284309: ["call 0x2844d0"],
     }
     for va, old, offset, opcode in P.WEAPON_TABLE_HOOKS:
         entry = table_va + offset
@@ -1802,11 +1803,11 @@ def test_weapon_table(original, image, before):
           "from there, the match's 0x1F7DCE and the match's draw task (its address at 0x1F7CC6) alone; its "
           "[ebp-0E8h] is the decal pose's transform alone")
     texts = [t for _, _, t in ndisasm(code, table_va)]
-    listing = ndisasm(code[:code.index(bytes.fromhex("a008a80cb810bc1400"))], table_va)   # to `fields`
+    listing = ndisasm(code[:code.index(bytes.fromhex("a008a80cb810bc14944c00"))], table_va)   # to `fields`
     targets = {branch_target(t) for _, _, t in listing if branch_target(t) is not None}
     outside = {t for t in targets if not table_va <= t < table_va + len(code)}
     starts = {a for a, _, _ in listing}
-    check(outside == {0x2845C0} and all(t in starts for t in targets - outside)
+    check(outside == {0x2845C0, 0x2844D0} and all(t in starts for t in targets - outside)
           and [rows(image, table_va + at, 5)[0].startswith("jmp ") for at in P.WEAPON_TABLE_ENTRIES] == [True] * len(P.WEAPON_TABLE_ENTRIES)
           and [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)] == ["call [eax+0x24]"]
           and not [t for _, _, t in listing if re.search(r"\[(?:dword )?0x", t)]
@@ -1814,8 +1815,8 @@ def test_weapon_table(original, image, before):
           and P.weapon_preview_state(code, table_va)
           == P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_STATE_OFFSET,
           f"the weapon table at {table_va:#x} (.srpw+{P.WEAPON_TABLE_OFFSET:#x}) is weapon_table_026g.section.bin "
-          f"({len(code)} bytes), its state at 0x{P.WEAPON_TABLE_STATE_OFFSET:X} of .srpd; it begins with five "
-          "`jmp near`, jumps only to the camera's setter outside itself and calls only the lobby menu's "
+          f"({len(code)} bytes), its state at 0x{P.WEAPON_TABLE_STATE_OFFSET:X} of .srpd; it begins with six "
+          "`jmp near`, jumps only to the camera's setter and its collision ray outside itself and calls only the lobby menu's "
           "vtable+24h (is_mouse_over_ui), every branch inside it lands on an instruction, and no operand is an "
           "absolute address")
     mouse = {a: t for a, _, t in ndisasm(source.read(0x283D79, 0x13), 0x283D79)}
