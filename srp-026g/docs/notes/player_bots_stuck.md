@@ -672,7 +672,7 @@ are the mean of the paired differences with its standard error.
   jumps got up. The motor jumps 0.8 m before the take-off on the
   approach's heading and retries wherever the body slid to. It needs a
   lined-up jump from the take-off, and no retry away from it. Cologne's
-  battery 6 cost seven deaths this way.
+  battery 6 cost seven deaths this way. Done in 8.9.
 - **The stand-in's jump** is a guess (600 ms in the air, up a grid jump
   link only): a jump the grid has no link for is still a wall in it.
 
@@ -718,3 +718,112 @@ leg turns from the approach, the body flies on the approach's way. Its
 retry comes wherever the body slid to. A player lines up first and
 jumps from the edge. This needs the real client to measure (in the
 stand-in every jump succeeds), so it is a follow-up (8.7).
+
+### 8.9 Route jumps: lined up at the take-off (2026-10-24)
+
+**What the client does with a jump (LIKELY, from the code).**
+`base_player::jump` (0x2D7920) sets the controller's jump flag (+0x2C70C).
+The jump branch of `bullet_character_controller::player_step` (0x7BF80 to
+0x7C13B) moves the body by (its velocity × dt + the walk vector of the
+keys) × a scale (+0x2C704). It splits that into a vertical step
+(`step_jump_up` 0x7CFC0, `step_jump_down` 0x7D0F0) and a horizontal one
+(`step_jump_forward` 0x7CB90: a sweep that slides along what it hits). So
+a jump goes the way the body faces and its keys push, and against a face
+it slides along it.
+
+**What the jumps came to (the owner's 7 matches of 2026-10-23,
+`pvb-343-check` and `pvb-jumps-local`, `scripts/bot-traces/jumps.py`).**
+A first try is a route jump with no route jump by the same bot in the
+2.5 s before. It got up when the bot went on, or rose at least 0.4 m.
+
+- 108 of 234 first tries got up (46 %). Aiming: 11 of 40 (27 %); not
+  aiming: 97 of 194 (50 %).
+- By the jump's rise: 0.5-0.8 m about half; 0.9 m 36 %; 1.0 m 24 %. Three
+  first tries in four are on links of 0.9-1.05 m (the grid's `max_jump`
+  is 1.05). The worlds in the middle of a jump show the feet's top at
+  about 1.0 m.
+- Some take-offs never work: 1b8 (14.5, 53.9) 0 of 20, (55.2, 43.6) 1 of
+  19; others always do: (56.7, 42.9) 8 of 8, (4.1, 106.4) 9 of 9.
+- Retries got 51 of the 124 failed firsts up: 29 at the first retry, 15
+  at the second.
+- A press makes a jump (the worlds 200-750 ms after it show the body in
+  the air): route jumps standing 149 of 159, crouched 8 of 12; unstick
+  jumps standing 68 of 76, crouched 6 of 23; hops crouched 3 of 11.
+- Cologne's battery 6 (8.8): 550 ms after the press the body was 0.98 m
+  up, but had gone 1.31 m west along the approach and 0.09 m north, the
+  jump's way. It jumped high enough, the wrong way.
+- 81 "jumped again" follow-ups had already risen: the server's reckoning
+  did not jump, so it still had the body under the ledge.
+
+**The change.**
+
+- `motor.rs` `jump_ahead`: from 2.5 m before a jump's take-off
+  (`LINE_UP_FROM_M`) the motor lines up. Off the jump's line it walks to
+  the run-up, 0.8 m behind the take-off on the jump's line (0.4 m, or the
+  take-off itself, where that is not clear). On the line (0.3 m to the
+  side) it walks along the jump's way only while facing it within
+  0.45 rad (`LINE_UP_GO`): where the jump turns from the approach it
+  stands and turns first. No sway, sprint or crouch near the jump.
+- `jump_key`: it presses on the line, facing the way within 0.2 rad
+  (`JUMP_FACING`), moving along it (`Ahead::going`: not still walking
+  back from the run-up), within 0.2 s × speed + 0.15 m of the take-off.
+- Aiming (`walk_aiming`), on the line the view turns to the jump's way
+  and the legs push forward only: a strafed jump goes sideways.
+- A try that did not get up is tried again only from the run-up, never
+  where the body slid to. After 3 tries (`JUMP_TRIES`) the jump is given
+  up on: `Walked::JumpFailed`, and the take-off becomes a spot to keep
+  clear of, as a fall's (`Stuck::failed_jump`). Tries are kept for 10 s
+  over a route planned again to the same jump.
+- `is_up`: up a jump is within 1.5 m of the landing, past the leg's
+  middle, and under the landing's floor by at most 0.35 m (half the rise
+  for a low jump). `arrived`: a route's end up a ledge is not arrived at
+  from under it.
+- `body.rs`: the reckoning jumps. A press keeps it in the air for 800 ms
+  (`JUMP_AIR_MS`), and a step a ledge stops that walks into a grid jump
+  link gets up it (`jumped_to`, the stand-in's). A world that shows the
+  body still below puts it right; `Motor::under_jump` then takes the
+  route back to the jump's leg instead of walking on from under it.
+- `mod.rs`: no crouch or sprint while lining up. The trace's route jump
+  lines say which try (`try`), the take-off and landing (`from`, `to`),
+  how far short it was pressed (`before_m`), how far off the way it faced
+  (`facing`) and whether it was crouched; the follow-up says when a world
+  first showed it up (`up_ms`).
+
+**Measured.** The stand-in game of the bench jumps any grid link it walks
+into within 600 ms of a press, whichever way it faces: it cannot show the
+jumps' success. The bench guards the rest (below). The client's first-try
+share needs PvB matches played on this build (`jumps.py`, the "Route jumps
+at the first try" section; before: 108 of 234).
+
+The bench: 16 PvB maps, 4v4 and 10v10, 180 s, batteries 10, the use
+line, `SRP_BOT_ROUTES` on both, seeds 1-12: 384 (map, size, seed) pairs,
+this change against its base 0b2ae190. The mean of the paired
+differences ± its standard error; * beyond 2 SE.
+
+| | base | lined up | diff |
+|---|---|---|---|
+| kills | 18.94 | 19.17 | +0.23 ± 0.18 |
+| deaths a bot-minute | 0.452 | 0.460 | +0.009 ± 0.005 |
+| K/D team 0 / 1 | 1.28 / 1.14 | 1.30 / 1.14 | +0.02 ± 0.05 / +0.00 ± 0.05 |
+| delivered | 3.51 | 3.58 | +0.07 ± 0.05 |
+| carriers killed | 0.781 | 0.747 | -0.03 ± 0.06 |
+| quick ends a bot-minute | 1.12 | 1.14 | +0.03 ± 0.02 |
+| quick ends, % of plays taken | 14.95 | 15.28 | +0.33 ± 0.19 |
+| flips a bot-minute | 0.250 | 0.248 | -0.002 ± 0.008 |
+| idle 5 s+, % alive | 16.67 | 15.94 | -0.73 ± 0.33* |
+| stood with a goal, % | 7.33 | 6.92 | -0.41 ± 0.18* |
+| stuck notes | 9.07 | 7.90 | -1.17 ± 0.25* |
+| falls off the route | 7.81 | 6.57 | -1.23 ± 0.22* |
+| pushing, s a match | 1.89 | 1.03 | -0.86 ± 0.24* |
+
+No guard is worse beyond 2 SE (deaths +1.8 SE, quick ends +1.7 SE).
+
+**Left.**
+
+- Links of 0.9-1.05 m are at the client's reach, and some take-offs never
+  work even lined up. If the client still fails them, the grid's
+  `max_jump` for route jumps should come down (a `mapdata` change: the
+  grids are built with it), or such links should cost more.
+- 0x6da44bbb bot 4's trench (8.8): the worlds show the body about 0.9 m
+  above where the reckoning has it, a grid or reckoning mismatch there, not
+  a jump.
