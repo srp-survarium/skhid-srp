@@ -106,6 +106,11 @@ package survarium.rooms
         // Play was pressed and its answer has not come yet: Play stays grey
         // (until then; then while in a room).
         private var _playAskedAt:int = 0;
+
+        // The window was opened by Play (quickPlay) and nothing has answered
+        // it yet: a refusal of the kit (code 15) closes it again, so a
+        // refused Play leaves no rooms view behind (presets.md).
+        private var _openedByPlay:Boolean = false;
         // The list as last drawn, but its times: a change redraws it.
         private var _listSig:String = "";
         private var _windowsSeen:Object = {};
@@ -517,6 +522,7 @@ package survarium.rooms
         {
             _code = RoomCode.NONE;
             _steps = [];
+            _openedByPlay = !_shown;
             if (!_shown)
                 show(true);
             _fastUntil = getTimer() + 10000;
@@ -875,6 +881,18 @@ package survarium.rooms
                 var newCode:Boolean = code != _code;
                 _code = code;
                 applyPlay();
+                if (_openedByPlay && code == RoomCode.KIT_CANT_PLAY)
+                {
+                    _openedByPlay = false;
+                    _code = RoomCode.NONE;
+                    _playAskedAt = 0;
+                    applyPlay();
+                    if (_shown)
+                        show(false);
+                    return;
+                }
+                if (code != RoomCode.NONE || _playAskedAt == 0)
+                    _openedByPlay = false;
                 var wasRoom:Boolean = _view == "room";
                 if (had || wasRoom)
                     _view = "list";
@@ -898,6 +916,7 @@ package survarium.rooms
             else if (kind == "R")
             {
                 settle();
+                _openedByPlay = false;
                 _queueKey = 0;
                 _queuePlace = 0;
                 var was:Object = _room;

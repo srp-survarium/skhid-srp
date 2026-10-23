@@ -92,7 +92,7 @@ package survarium.rooms
             var inner:Sprite = look.scrollBox(14, 108, tableW - 12, look._h - RoomsLook.FOOT_H - 108 - 8);
             var sel:Object = null;
             if (win._rooms.length == 0)
-                look.text(inner, win.say("none"), 0, 14, tableW - 20, 16, RoomsLook.GREY);
+                look.text(inner, win.say(LocalPlayerProfile.mayPlay() ? "none" : LocalPlayerProfile.mayCreate() ? "noneNoPlay" : "noneQuiet"), 0, 14, tableW - 20, 16, RoomsLook.GREY);
             for (var i:int = 0; i < win._rooms.length; i++)
             {
                 var room:Object = win._rooms[i];
