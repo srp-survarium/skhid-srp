@@ -67,6 +67,13 @@ impl Default for Tuning {
 pub struct SenseTuning {
     /// The view's full width, degrees.
     pub view_deg: f32,
+    /// An enemy this near (metres, ground distance) with some part in a
+    /// clear line is seen whichever way the bot faces, as a player feels a
+    /// body he bumps and hears a man at arm's length (0: off). Match
+    /// 0x6da44bbb at 662-677 s: two bots 0.8 m apart for 15 s, each mostly
+    /// outside the other's 90 degrees, known to each other only as heard.
+    /// GUESS: a long step past arm's length.
+    pub touch_m: f32,
     /// Farther than this nothing is seen, metres.
     pub sight_m: f32,
     /// The noticing delay, ms: near and far (it grows with distance up to
@@ -106,6 +113,9 @@ pub struct SenseTuning {
     pub battery_near_m: f32,
     /// Rays a think may cast at batteries and spawners (nearest first).
     pub battery_rays: u32,
+    /// A battery the team knows is put right where it is seen lying
+    /// farther than this from the spot known, metres (`sense_batteries`).
+    pub battery_moved_m: f32,
     /// Timed batteries: a station's spawner seen this long ago is worth a
     /// look again, ms.
     pub spawner_recheck_ms: u32,
@@ -115,6 +125,7 @@ impl Default for SenseTuning {
     fn default() -> Self {
         Self {
             view_deg: 90.0,
+            touch_m: 2.0,
             sight_m: 150.0,
             notice_near_ms: 200,
             notice_far_ms: 500,
@@ -133,6 +144,7 @@ impl Default for SenseTuning {
             battery_sight_m: 35.0,
             battery_near_m: 3.0,
             battery_rays: 3,
+            battery_moved_m: 0.2,
             spawner_recheck_ms: 45_000,
         }
     }

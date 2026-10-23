@@ -551,6 +551,10 @@ pub struct Bots {
     /// random stream starts from it (`anomalies.rs`).
     static_seed: u32,
     pub tuning: Arc<Tuning>,
+    /// The real-map bench's one-sided runs: team 1 plays by this tuning
+    /// instead (`real_bot_cost`, `SRP_BENCH_ONE_SIDE`).
+    #[cfg(test)]
+    side1_tuning: Option<Arc<Tuning>>,
     tracker: Tracker,
     tactics: Option<Tactics>,
     teams: [TeamState; 2],
@@ -558,10 +562,6 @@ pub struct Bots {
     trace: Trace,
     /// Every place's weapon 1 kind, where known (play 11).
     weapons: Vec<Option<reflex::WeaponKind>>,
-    /// Votes on the frame of a lying battery's position in the worlds: as
-    /// written, or with z mirrored (physics); settled against the map's
-    /// battery places.
-    battery_votes: (u32, u32),
     /// The human routes of this map and mode (play 17), till the map is
     /// built and they are put on its floors.
     routes: Vec<routes::HumanRoute>,
@@ -617,7 +617,8 @@ impl Bots {
             bots,
             trace,
             tuning,
-            battery_votes: (0, 0),
+            #[cfg(test)]
+            side1_tuning: None,
             routes: Vec::new(),
             weapons: Vec::new(),
             searching: Searching {
@@ -686,35 +687,6 @@ impl Bots {
     /// Every place's weapon 1 kind (the matchup, play 11).
     pub fn set_weapons(&mut self, weapons: Vec<Option<reflex::WeaponKind>>) {
         self.weapons = weapons;
-    }
-
-    /// A lying battery's position from a world, in the map's frame: its
-    /// frame is settled by which reading lies nearer the map's battery
-    /// places (the worlds' frame is LIKELY the physics', z mirrored).
-    fn battery_frame(&mut self, raw: Vec3) -> Vec3 {
-        let mirrored = Vec3::new(raw.x, raw.y, -raw.z);
-        if let Some(tactics) = self.tactics.as_ref() {
-            let nearest = |p: Vec3| {
-                tactics
-                    .world
-                    .map
-                    .battery_spawners
-                    .iter()
-                    .map(|s| s.item.distance_xz(p))
-                    .fold(f32::INFINITY, f32::min)
-            };
-            let (a, b) = (nearest(raw), nearest(mirrored));
-            if a < 3.0 && b > 10.0 {
-                self.battery_votes.0 += 1;
-            } else if b < 3.0 && a > 10.0 {
-                self.battery_votes.1 += 1;
-            }
-        }
-        if self.battery_votes.0 > self.battery_votes.1 {
-            raw
-        } else {
-            mirrored
-        }
     }
 
     pub fn tracker(&self) -> &Tracker {
@@ -970,15 +942,16 @@ impl Bots {
 
     /// The rest of a trusted world: deaths become danger spots and duels,
     /// a battery of ours carried off is a theft.
+    ///
+    /// A lying battery's position is taken as the world gives it: the
+    /// worlds are in the map's frame (PROVEN, 0x4da3b51d: the batteries at
+    /// 50 s lie on level_08's spawner spots to 0.01 m). The bots once
+    /// guessed a mirrored z until a battery far from z = 0 voted otherwise;
+    /// on level_05, whose spawners lie at z -0.5 to -1, they took the mirror
+    /// image all match and never took those batteries.
     pub fn facts(&mut self, facts: WorldFacts) -> Vec<Note> {
         let mut notes = Vec::new();
         let time = facts.time;
-        let mut facts = facts;
-        for battery in &mut facts.batteries {
-            if let BatteryState::Free(raw) = battery {
-                *battery = BatteryState::Free(self.battery_frame(*raw));
-            }
-        }
         let at = |clock| Clock {
             clock,
             time_left_s: 0.0,
@@ -1429,13 +1402,24 @@ impl Bots {
         }
     }
 
+    /// The tuning team `team` plays by: the match's (the bench's one-sided
+    /// runs give team 1 another).
+    #[cfg_attr(not(test), allow(unused_variables))]
+    fn tuning_of(&self, team: u8) -> Arc<Tuning> {
+        #[cfg(test)]
+        if let Some(tuning) = self.side1_tuning.as_ref().filter(|_| team == 1) {
+            return tuning.clone();
+        }
+        self.tuning.clone()
+    }
+
     /// A team's commander tick: signals, modifiers, skill, and a play for
     /// each living bot.
     fn commander(&mut self, team: u8, view: &MatchView, notes: &mut Vec<Note>) {
         let Some(tactics) = self.tactics.as_ref() else {
             return;
         };
-        let tuning = self.tuning.clone();
+        let tuning = self.tuning_of(team);
         let now = view.clock;
         let state = &mut self.teams[usize::from(team)];
         state.next_commander = now + tuning.think.commander_ms;
@@ -1698,7 +1682,10 @@ impl Bots {
         let Some(tactics) = self.tactics.as_ref() else {
             return;
         };
-        let tuning = self.tuning.clone();
+        let Some(team) = self.bots[index].as_ref().map(|bot| bot.team) else {
+            return;
+        };
+        let tuning = self.tuning_of(team);
         let now = view.clock;
         let Some(bot) = self.bots[index].as_mut() else {
             return;
@@ -1758,6 +1745,47 @@ impl Bots {
             quiet,
             &mut bot.rng,
         ));
+        // An enemy carrier's place, first-hand or the thief cheat's (a
+        // callout is a teammate's own): whether he stays put (Intercept's
+        // camping carrier).
+        let carrying = |p: Place| view.batteries.contains(&BatteryState::Carried(Some(p)));
+        for percept in &percepts {
+            if matches!(
+                percept.source,
+                Source::Seen | Source::Heard | Source::Cheat(know::CheatKind::Thief)
+            ) && carrying(percept.who)
+            {
+                state.knowledge.carrier_at(
+                    percept.who,
+                    percept.at,
+                    percept.error_m,
+                    percept.time,
+                    carrying,
+                );
+            }
+        }
+        // Going for a battery, far off its reckoning and below it near it:
+        // it fell there (a ledge by the battery), which the team counts against
+        // offering it again (`plays::collect`, `fallen_at`).
+        if let Some(a) = bot.assignment.as_ref()
+            && a.kind == PlayKind::Collect
+            && let plays::TargetRef::Battery(battery) = a.target
+            && let Some(at) = state.knowledge.battery(battery).map(|k| k.at).or_else(|| {
+                match view.batteries.get(battery) {
+                    Some(BatteryState::Free(at)) if tuning.cheats.batteries => Some(*at),
+                    _ => None,
+                }
+            })
+            && me.feet.distance_xz(at) <= tuning.number(PlayKind::Collect, "fall_near_m")
+            && me.feet.y < at.y - plays::collect::BELOW_STAND_M
+            && self
+                .tracker
+                .body(bot.place)
+                .and_then(|body| body.last_error())
+                .is_some_and(|error| error > REPLAN_ERROR_M)
+        {
+            state.knowledge.fell_near(bot.place, at, now);
+        }
         percepts.extend(state.knowledge.heard_by(bot.place, now));
         // With the battery cheat off, the batteries and spawners' spots it
         // sees become its team's knowledge.
@@ -1906,7 +1934,10 @@ impl Bots {
     /// A bot's ticks due: the motor drives the intent (the reflex
     /// overriding the look and the trigger), the encoder makes inputs.
     fn ticks(&mut self, index: usize, clock: &Clock, view: &MatchView, made: &mut Vec<Made>) {
-        let tuning = self.tuning.clone();
+        let Some(team) = self.bots[index].as_ref().map(|bot| bot.team) else {
+            return;
+        };
+        let tuning = self.tuning_of(team);
         let Some(bot) = self.bots[index].as_mut() else {
             return;
         };

@@ -300,6 +300,36 @@ pub struct CarrierSeen {
 /// Seen carriers are kept this long, ms.
 pub const CARRIER_SEEN_KEEP_MS: u32 = 60_000;
 
+/// An enemy carrier's place as a bot of the team sensed it (seen, heard,
+/// or the thief cheat), with its error: whether he stays put
+/// ([`TeamKnowledge::carrier_still`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CarrierPlace {
+    pub who: Place,
+    pub at: Vec3,
+    pub error_m: f32,
+    pub time: u32,
+}
+
+/// Carriers' places are kept this long, ms.
+pub const CARRIER_PLACES_KEEP_MS: u32 = 30_000;
+
+/// A bot of the team fell near a battery it went for: it was far off its
+/// reckoning there (a ledge by the battery; [`TeamKnowledge::fell_near`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Fall {
+    pub who: Place,
+    pub at: Vec3,
+    pub time: u32,
+}
+
+/// Falls are kept this long, ms; a bot's falls this near in time are one.
+pub const FALLS_KEEP_MS: u32 = 120_000;
+const FALL_SAME_MS: u32 = 5_000;
+/// Falls this near a spot are at it, metres across and up or down.
+const FALL_SPOT_M: f32 = 1.5;
+const FALL_SPOT_UP_M: f32 = 2.0;
+
 /// A battery an enemy carrier dropped where he died, unseen: the kill feed
 /// says he died, the team knew he carried it (a theft of ours, or seen
 /// carrying), and the game's HUD shows the dropped battery only to his
@@ -352,6 +382,10 @@ pub struct TeamKnowledge {
     pub carriers_seen: Vec<CarrierSeen>,
     /// Where enemy carriers died with a battery the team cannot see.
     pub looks: Vec<LookSpot>,
+    /// Enemy carriers' places of the last [`CARRIER_PLACES_KEEP_MS`].
+    pub carrier_places: Vec<CarrierPlace>,
+    /// The team's falls by batteries of the last [`FALLS_KEEP_MS`].
+    pub falls: Vec<Fall>,
 }
 
 impl TeamKnowledge {
@@ -522,6 +556,97 @@ impl TeamKnowledge {
         self.carriers_seen
             .retain(|seen| seen.time + CARRIER_SEEN_KEEP_MS >= now);
         self.looks.retain(|look| look.until >= now);
+        self.carrier_places
+            .retain(|p| p.time + CARRIER_PLACES_KEEP_MS >= now);
+        self.falls.retain(|f| f.time + FALLS_KEEP_MS >= now);
+    }
+
+    /// `who`, going for a battery lying at `at`, fell near it (once in
+    /// [`FALL_SAME_MS`] a bot).
+    pub fn fell_near(&mut self, who: Place, at: Vec3, time: u32) {
+        if self
+            .falls
+            .iter()
+            .any(|f| f.who == who && f.time + FALL_SAME_MS > time)
+        {
+            return;
+        }
+        self.falls.push(Fall { who, at, time });
+    }
+
+    /// Whether a battery lying at `at` is set aside for the team: `count`
+    /// falls at it within `window_ms`, the last less than `aside_ms` ago
+    /// (0x1b8ee975: battery 6 lay 455 s by a ledge, 166 Collect plays, 17
+    /// falls, 7 of them deaths).
+    pub fn fallen_at(
+        &self,
+        at: Vec3,
+        now: u32,
+        count: usize,
+        window_ms: u32,
+        aside_ms: u32,
+    ) -> bool {
+        let falls: Vec<u32> = self
+            .falls
+            .iter()
+            .filter(|f| {
+                f.at.distance_xz(at) <= FALL_SPOT_M
+                    && (f.at.y - at.y).abs() <= FALL_SPOT_UP_M
+                    && f.time + window_ms >= now
+            })
+            .map(|f| f.time)
+            .collect();
+        count > 0
+            && falls.len() >= count
+            && falls
+                .iter()
+                .max()
+                .is_some_and(|&last| now < last + aside_ms)
+    }
+
+    /// A bot of the team sensed the enemy carrier at `who` at `at`, within
+    /// `error_m`. `carrying(place)`: whether a place carries now; the
+    /// places of one who no longer does are dropped (a new carry starts
+    /// afresh).
+    pub fn carrier_at(
+        &mut self,
+        who: Place,
+        at: Vec3,
+        error_m: f32,
+        time: u32,
+        carrying: impl Fn(Place) -> bool,
+    ) {
+        self.carrier_places.retain(|p| carrying(p.who));
+        self.carrier_places.push(CarrierPlace {
+            who,
+            at,
+            error_m,
+            time,
+        });
+    }
+
+    /// Where the enemy carrier at `who` has stayed: his places of the last
+    /// `window_ms` and more (the first at least that old) all lie within
+    /// their error and `still_m` of their middle, three of them at least;
+    /// that middle. A thief cheat's place (10 m off) is drawn every 3 s,
+    /// so a carrier who walks home on it is seen to move within seconds.
+    pub fn carrier_still(&self, who: Place, now: u32, window_ms: u32, still_m: f32) -> Option<Vec3> {
+        let places: Vec<&CarrierPlace> = self
+            .carrier_places
+            .iter()
+            .filter(|p| p.who == who)
+            .collect();
+        let first = places.iter().map(|p| p.time).min()?;
+        if places.len() < 3 || first + window_ms > now {
+            return None;
+        }
+        let n = places.len() as f32;
+        let sum = places.iter().fold(Vec3::ZERO, |sum, p| sum + p.at);
+        let middle = sum * (1.0 / n);
+        places
+            .iter()
+            .all(|p| p.at.distance_xz(middle) <= p.error_m + still_m)
+            .then_some(middle)
     }
 
     /// A bot of the team saw the enemy at `who` carrying `battery`.
@@ -603,6 +728,36 @@ mod tests {
             source: Source::Seen,
             busy: false,
         }
+    }
+
+    /// A carrier the thief cheat places within its 10 m every 3 s is still
+    /// once 20 s of places lie within their error and 3 m of their middle;
+    /// one who walks home is not, nor one known for less than 20 s, and a
+    /// new carry starts afresh.
+    #[test]
+    fn a_carrier_is_still_when_his_places_keep_within_their_error() {
+        let mut team = TeamKnowledge::default();
+        let at = Vec3::new(50.0, 0.0, 30.0);
+        let offsets = [(9.0f32, 0.0f32), (-6.0, 6.0), (0.0, -9.0), (5.0, 5.0)];
+        for k in 0..8u32 {
+            let (dx, dz) = offsets[k as usize % 4];
+            team.carrier_at(1, at + Vec3::new(dx, 0.0, dz), 10.0, k * 3_000, |_| true);
+        }
+        let still = team.carrier_still(1, 21_000, 20_000, 3.0).expect("still");
+        assert!(still.distance_xz(at) < 3.0, "{still:?}");
+        assert_eq!(team.carrier_still(1, 19_000, 20_000, 3.0), None, "too short");
+        assert_eq!(team.carrier_still(2, 21_000, 20_000, 3.0), None);
+        // Walking home at 1.5 m/s on the same cheat: not still.
+        let mut walking = TeamKnowledge::default();
+        for k in 0..8u32 {
+            let (dx, dz) = offsets[k as usize % 4];
+            let on = Vec3::new(4.5 * k as f32, 0.0, 0.0);
+            walking.carrier_at(1, at + on + Vec3::new(dx, 0.0, dz), 10.0, k * 3_000, |_| true);
+        }
+        assert_eq!(walking.carrier_still(1, 21_000, 20_000, 3.0), None);
+        // He no longer carries: the next place starts a new carry.
+        team.carrier_at(3, at, 0.0, 22_000, |p| p != 1);
+        assert_eq!(team.carrier_still(1, 22_000, 20_000, 3.0), None);
     }
 
     #[test]
@@ -902,5 +1057,28 @@ mod tests {
         team.forget_callouts(5);
         let left: Vec<Place> = team.heard_by(4, 2_300).iter().map(|p| p.who).collect();
         assert_eq!(left, vec![6]);
+    }
+
+    /// Three falls of the team at a battery within 120 s set it aside for
+    /// 60 s after the last; one bot's fall is counted once in 5 s, falls at
+    /// another battery or long ago do not count, and `count` 0 is off.
+    #[test]
+    fn falls_at_a_battery_set_it_aside_for_a_while() {
+        let mut team = TeamKnowledge::default();
+        let at = Vec3::new(5.0, 35.5, 60.0);
+        let aside = |team: &TeamKnowledge, now| team.fallen_at(at, now, 3, 120_000, 60_000);
+        team.fell_near(1, at, 10_000);
+        team.fell_near(1, at, 12_000);
+        team.fell_near(2, Vec3::new(20.0, 35.5, 60.0), 13_000);
+        team.fell_near(3, at + Vec3::new(0.0, 3.0, 0.0), 14_000);
+        team.fell_near(2, at + Vec3::new(1.0, 0.0, 0.0), 20_000);
+        assert!(!aside(&team, 21_000), "two falls here: {:?}", team.falls);
+        team.fell_near(1, at, 30_000);
+        assert!(aside(&team, 31_000));
+        assert!(aside(&team, 89_000));
+        assert!(!aside(&team, 91_000), "60 s after the last");
+        assert!(!team.fallen_at(at, 31_000, 0, 120_000, 60_000), "off");
+        // The first fall out of the window: two left.
+        assert!(!team.fallen_at(at, 31_000, 3, 15_000, 60_000));
     }
 }

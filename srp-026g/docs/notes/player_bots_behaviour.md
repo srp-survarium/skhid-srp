@@ -40,7 +40,7 @@ The server knows everything; a bot that used it all would play like a wallhack. 
 
 | Sense | Rule |
 |---|---|
-| Seen | Line of sight on the bullet mesh, inside a ~90° view, after a noticing delay of 0.2–0.5 s (longer far away, shorter if the enemy moves or fires) |
+| Seen | Line of sight on the bullet mesh, inside a ~90° view (any way within 2 m, §2.11), after a noticing delay of 0.2–0.5 s (longer far away, shorter if the enemy moves or fires) |
 | Heard | Shot ~60 m, sprint ~15 m, reload or weapon switch ~10 m; the position error grows with distance |
 | Told | What one bot senses, its bot teammates know ~1 s later (a callout) |
 | Inferred | What the HUD and kill feed give a human: deaths and respawn timers, score, match clock, the battery markers (marked ones and the team's own) |
@@ -123,7 +123,7 @@ In two real matches (0x7db2c16a, 0x15aa5b99) bots ended a take "could not take i
 
 - The stand-in counts a step walked straight as no standing (it has no route).
 - A first version pressed at stands it had passed by up to 0.5 m (standing uses 2.1 m long) and over looks down past 1 rad: kills −7.2 ± 2.9 a seed; fixed before the numbers above.
-- Left: a battery the team believes lying where it is not (it lies on a crate and the look at it from below is blocked) is still tried at each stand (seen in the soaks); the team's look at it is `sense::sense_batteries`.
+- Left: a battery the team believes lying where it is not (it lies on a crate and the look at it from below is blocked) is still tried at each stand (seen in the soaks); the team's look at it is `sense::sense_batteries`. Two such beliefs are fixed in §2.7.
 
 ### 2.3 A take waits for the fight unless covered (built 2026-10-23)
 
@@ -240,6 +240,285 @@ Audit issues 4 (a close enemy ignored, a far target kept) and 8 (bots hit 5.5-9.
 
 **Not verified:** no real match has been played with this. Whether the game drops the aim during a reload while AIM stays held is not traced (the aim-in counts from the bot's own press). The bench does not model recoil.
 
+### 2.6 Held up by a teammate in the line (measured 2026-10-23; no change kept)
+
+The owner asked how long bots stay blocked by a teammate in their line of fire ([`friends.rs`](../../servers/match-server/src/v026g/bots/friends.rs), the fire step in `reflex.rs`) and for coordination: the shooter steps against the blocker's motion, the blocker crouches or steps clear, without costing the blocker its own work (a firing blocker keeps firing, a moving one keeps going and at most bends its path, a carrier or an alarm play makes no adjustment).
+
+**The measure.** The fire step records whom it held fire for each tick (`Reflex::held_for`, `friends::Held`: the teammate, whether it was ready to fire but for him, whether it ran). The real-map bench's `BlockTally` (`bots/tests.rs`) turns that into spells, from the first tick held to the last. Each spell goes to the events as a `"spell"` line: the length; the time running, ready, and drifting across the line the same way as the blocker or the opposite way (both over 0.5 m/s); the time the shooter held a side key; the blocker's place along the way to the target; both plays; and how the spell ended. The run's end adds a `"mission"` line: the blockers' own shots and hits while they block, the time from a new target to the first shot at it, the headway to their goal, and the carriers' times from the take to the put-in. `bench.log` gains `hits, team hits, team kills` on the perf line and a `blocked:` summary.
+
+**Baseline** (`real_bot_cost`, 180 s, `SRP_BENCH_SIDES=4,10`, `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`, `SRP_BENCH_SPREAD=1`, seeds 1-16; batteries on maps `6/2,1/2,3/3,2/2,4/2,5/2`, team deathmatch on `6/4,8/4,1/4,2/4,5/4,7/4`; means a seed):
+
+| Measure | Batteries | Team DM |
+|---|---|---|
+| spells a bot-minute alive | 4.1 | 9.0 |
+| blocked, s a bot-minute | 1.51 | 2.77 |
+| spells over 1 s a bot-minute | 0.27 | 0.34 |
+| median / 90th / 99th percentile / longest, ms | 300 / 850 / 1,850 / 4,050 | 250 / 700 / 1,500 / 5,300 |
+| running, % of blocked time | 7.5 % | 9.5 % |
+| ready to fire but for him, % of blocked time | 42.5 % | 39.5 % |
+| shooter and blocker drifting the same way, % of blocked time | 11.0 % | 16.8 % |
+| ... the opposite way | 8.1 % | 12.7 % |
+| shooter holding a side key, % of blocked time | 80.6 % | 68.6 % |
+| ended: line cleared / target lost / target killed by another / shooter died | 62.4 / 35.6 / 1.3 / 0.4 % | 63.8 / 33.8 / 2.0 / 0.4 % |
+| ready, then the target lost or the shooter died (kills it might have had), a bot-minute | 0.62 | 1.26 |
+| blockers' hit rate: blocking someone / not | 19.7 / 20.6 % | 24.0 / 23.7 % |
+| new target to first shot: blocking / not, ms | 509 / 358 | 465 / 332 |
+| headway to goal: blocking / not, m/s | 0.37 / 1.10 | 0.69 / 1.32 |
+
+Without the bench's spread the figures are within a few percent of these (1.63 and 2.75 s a bot-minute).
+
+**Who blocks** (seeds 1-4). Spells with the blocker in the first fifth of the way to the target, beside the shooter, carry 73 % (batteries) and 62 % (team DM) of the blocked time and nearly all spells over 1 s. Those blockers move in only 19-33 % of their ticks. Most are firing at their own target from where they stand: in batteries, still Collect bots aiming at a target are 40 % of the blocked time; in team DM, Crossfire, Roam and HoldExit bots aiming from where they stand. The long block is two teammates side by side, both fighting. By the owner's rules the blocker then keeps firing and the shooter does the moving, and the shooter already holds a side key 70-80 % of the blocked time.
+
+**Tried and left off** (16 seeds, paired by seed; the change minus the base, ± the standard error of the difference a seed; * over 2 standard errors; the target is blocked seconds a bot-minute and seconds in spells over 1 s; without the bench's spread unless said):
+
+| Part | Batteries | Team DM | Why left off |
+|---|---|---|---|
+| (a) The shooter steps against the blocker's sideways velocity (over 0.5 m/s), else the side rule; the step's wall and floor check kept | −0.055 ± 0.083 | −0.083 ± 0.072 | Same-way drift fell (−3.0* and −4.2* points of blocked time) but blocked time did not, and the blockers' hit rate fell in batteries (−2.5 ± 0.7*). |
+| (b) The blocker, holding a teammate up over 300 ms: a side step it makes anyway goes away from his line | −0.011 ± 0.031 | −0.029 ± 0.082 | No gain. |
+| ... a walk straight on bends away from the line (never a sprint) | −0.056 ± 0.038 | +0.031 ± 0.056 | No gain. |
+| ... standing with no target: a step away from the line | −0.005 ± 0.031 | +0.056 ± 0.066 | No gain. |
+| ... standing with no target: crouches | −0.066 ± 0.024* (over 1 s −0.027 ± 0.009*) | +0.046 ± 0.070 | The only part over the bar, in batteries alone and without the spread (team DM kills then +4.7 ± 2.3*, both teams, deaths with them). With the spread: −0.034 ± 0.035 and −0.087 ± 0.097, team kills +0.9 ± 0.6 in batteries, and shooters died in a spell more often (+0.05 ± 0.02* points). After 150 ms instead of 300: +0.024 ± 0.032 and −0.064 ± 0.085, team kills +1.4 ± 0.5* in batteries. |
+| ... standing to fire at its own target: crouches where its target's chest shows from the crouched eye | +0.022 ± 0.024 | +0.046 ± 0.056 | No gain: beside the shooter, a crouched head is still within the line's 0.63 m floor (`near_m`, §2.5's soak), so it still blocks. |
+| (c) A running bot blocked long near its goal stops to clear the line | not built | not built | Running is 7.5-9.5 % of the blocked time. |
+
+The guards stayed within the noise for every part except as said. Guards checked: kills, deaths and K/D a team; team hits and team kills; deliveries; carriers killed; the time from the take to the put-in; plays ended within 1 s; flips; idle time; the blockers' hit rate and time to the first shot; and their headway. The blocker parts left alone the carrier and the plays the commander ranks an alarm: Hunt, Intercept, and Escort behind the carrier. The first three (b) rows also left every Collect bot alone; the two crouches did not. The parts were taken out again; only the measure is kept.
+
+**Not verified:** no real match was played with any of these. The bench's blocker is the bots' own body model: whether a crouched 0.26g body clears a line 0.63 m over it is the 0.100b model's heights (a GUESS, `friends.rs`).
+
+### 2.7 Batteries not taken, and a carrier who camps (audit 6 and 7; built 2026-10-23)
+
+The audit of the owner's PvB matches of 2026-10-23 (`private/pvb-jumps-local/analysis/AUDIT.md`) ranked two battery mistakes. In 0x4da3b51d team 1 sent 29 lone intercepts, 8 of them killed, to a carrier who stood 8 m from his own container for 4 minutes (#6). Battery 3 lay 127 s and drew 57 Collect plays, 7 "took no battery" and one pickup (#7).
+
+**Why a battery was not taken.**
+- PROVEN, 0x4da3b51d b3: the team believed it at the spot it was first seen, 0.7 m from where it lay after its carrier died. `sense_batteries` looked again only when a battery lay over 1.5 m across from the belief, so takes aimed at the empty spot. Now a known battery that lies over 0.2 m (in 3D) from the belief is looked at again (`SenseTuning::battery_moved_m`; a few centimetres of settling costs no look). From a take's stand, close by, it is put right without a ray. "Took no battery" lines now end with the spot the take aimed at.
+- PROVEN, the worlds' frame: the bots took a lying battery's z as mirrored until a battery lying near a spawner voted for the plain reading, and needed it within 3 m of one reading and over 10 m from the other. The worlds are in the map's frame: in 0x4da3b51d the batteries at 50 s lie on level_08's spawner spots (`item`) to 0.01 m (battery 0 at (1.29, 33.27, 20.34), spawner (1.288, 33.267, 20.34)). On level_05 day 2 several spawners lie at z −0.5 to −1, where both readings are near a spawner and no vote is cast. In one bench match (seed 28, 10 v 10) the bots aimed 38 stands at the mirror images (z +0.82 and +0.54 for batteries at −0.82 and −0.54) and took no battery in 180 s. The vote is gone (`Bots::facts`).
+- PROVEN in the client (client_patch.md §3.23): a pickup needs a hand that is not broken (`victory_item_core::can_use` 0x300710, the prompt `st_cannot_pickup_item_broken_hand`; the use's every tick 0x300830). A theft from the enemy's container needs one too; a put-in does not. LEAD, not built: the bots cannot see their own broken limbs (where the worlds carry the damage model's hand byte is not decoded), so a bot with a broken hand still tries. Whether a medkit mends the hand is not checked.
+
+**A camping carrier.** `TeamKnowledge::carrier_places` keeps where the team's senses (seen, heard, the thief cheat) placed each enemy carrier over 30 s. `carrier_still` finds one whose places of the last `camp_s` (20 s), three at least, all lie within their error and `camp_m` (3 m) of their middle. Past `camp_half` (0.5) of the way from our container to his, he camps (`intercept_camping`). Such a carry is no alarm and no commitment, and both of its slots are offered (`camp_pair` 1), so two bots go at once, not one after another into his ground.
+
+**The bench.** `real_bot_cost` gains two stagings:
+- `SRP_BENCH_CAMP=<m>` freezes the first team-0 carrier within that many metres of his container: no moves, no use, until he dies or loses the battery.
+- `SRP_BENCH_NUDGE=<m>`: every 20 s one lying battery, in turn, moves that far on its floor, unseen.
+
+Each match prints a `sums:` line (JSON) and counts the stands given up at a belief more than 0.2 m from where the battery lay (`SRP_BENCH_SHOW_STALE=1` prints each).
+
+**Measured** (`real_bot_cost`, 180 s, `SRP_BENCH_SIDES=4,10`, `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`, `SRP_BENCH_SPREAD=1`; paired by seed, the change minus the base, ± the standard error of the difference a seed, * over 2 standard errors; means a seed):
+
+| Change, bench | Measure | Base | Change | Difference |
+|---|---|---|---|---|
+| Re-look at 0.2 m, not 1.5; batteries nudged 0.7 m (24 seeds, 6 maps) | stands given up | 43.0 | 1.7 | −41.3 ± 4.7* |
+| | of them at a spot the battery had left | 41.5 | 0 | −41.5 ± 4.7* |
+| | "could not take it" ends | 14.3 | 2.3 | −12.1 ± 1.6* |
+| | pickups | 57.8 | 63.1 | +5.3 ± 1.0* |
+| | delivered, team 0 / team 1 | 15.2 / 21.6 | 17.0 / 22.8 | +1.8 ± 0.4* / +1.2 ± 0.4* |
+| | Collect plays a pickup | 16.6 | 14.9 | −1.7 ± 0.25* |
+| | kills | 130.3 | 128.6 | −1.8 ± 2.1 |
+| | K/D team 0 / team 1 | 0.94 / 1.03 | 0.87 / 1.11 | −0.07 ± 0.03* / +0.09 ± 0.03* |
+| ... plain (32 seeds, 6 maps) | pickups, delivered, kills | 63.2, 39.6, 127.3 | 63.2, 39.6, 127.2 | all within ± 0.2 |
+| The map's frame; level_05 day 2 (64 seeds) | matches with no battery taken | 1 of 128 | 0 | |
+| | pickups | 8.39 | 8.77 | +0.38 ± 0.21 |
+| ... 6 maps (24 seeds) | everything | | | identical |
+| The pair; a carrier camps (24 seeds, maps 1, 2, 4-8 day 2) | Intercept bot-minutes, team 1 | 14.6 | 16.0 | +1.4 ± 0.3* |
+| | Intercept deaths a bot-minute, team 1 | 1.07 | 0.99 | −0.09 ± 0.05 |
+| | kills team 1 / deaths team 1 | 71.4 / 72.3 | 75.6 / 72.9 | +4.2 ± 1.2* / +0.5 ± 0.9 |
+| | K/D team 1 | 1.03 | 1.08 | +0.05 ± 0.02* |
+| | campers killed (of 10.5 camps) | 2.50 | 2.75 | +0.25 ± 0.15 |
+| | delivered | 49.7 | 49.9 | +0.2 ± 0.5 |
+| ... plain (24 seeds, 6 maps) | kills team 1 / deaths team 1 | 63.7 / 62.8 | 66.0 / 62.9 | +2.3 ± 0.8* / +0.1 ± 0.8 |
+| | carriers killed | 10.6 | 11.8 | +1.2 ± 0.4* |
+| | delivered | 39.6 | 39.3 | −0.3 ± 0.2 |
+
+- The nudge's K/D: both teams use the same code, so the move is between the sides (team 1's deaths −2.7 ± 1.0* in 10 v 10), and both deliver more.
+- The pair's effect is in 10 v 10 (4 v 4 within the noise): the team that sends it kills more and dies no more.
+
+**Tried and left off.**
+- The camping carrier's score times `camp_cut` 0.25 (one bot, no alarm). At a camper: team 1's Intercept minutes −3.6 ± 0.4* and its Intercept deaths −3.3 ± 0.9*, but the deaths a bot-minute did not fall (1.07 to 1.11), and K/D and deliveries stayed within the noise. On the plain bench it cut Intercept minutes by 10-20 %, and deliveries moved −0.3 ± 0.2. The number stays at 1 (off) for the bench.
+- The team's set-aside of a battery after two "could not take it" or three "took no battery" (30-60 s): not retried. #361 measured it worse on its guards. With the two causes above gone, stands given up are 0.03 a pickup on the plain bench (1.6 a seed, none at a stale spot), and the set-aside would leave real batteries lying.
+
+**Not verified:** no real match was played with these. The stand-in game's take is its own rule (§2.2). The camper is a frozen bot, not a player who hides and shoots.
+
+### 2.8 The owner's evening matches of 2026-10-23 (#343 at 3d886b74; built 2026-10-23)
+
+The check of the four evening PvB matches (`private/pvb-343-check/analysis/REPORT.md` §3, §4) found three things in this area.
+
+**A carrier no longer believed to carry** (0x1b8ee975, 607-651 s; PROVEN). One world showed batteries 6 and 8 picked up by bots 6 and 4 side by side, so each was the other's runner-up. Bot 4 put 8 in; bot 6's put-ins with 6 failed (why is open), and the belief moved (§2.4) to bot 4, who carried nothing. Bot 4 then tried 9 put-ins in 30 s, and bot 6 wandered 35 s with the battery, not knowing he had it, and died with it. Now one who picked up a battery is no runner-up for any other carry (the game gives a battery only to a player carrying nothing, `victory_item_core::can_use` 0x300710), even after he has put his own in (`Tracker::carriers_seen`; test `one_who_picked_up_another_battery_is_not_believed_to_carry_this_one`). On the plain bench it never changed a run (12 seeds, identical sums).
+
+**Raids taken at near-zero scores** (PROVEN; the cause LIKELY). In 0x6da44bbb the team behind (team 0) took 47 raids at 0.00-0.16: 849 bot-s, 14 deaths, no steal. In 0x1b8ee975 it took 57, none of which stole. Why Raid won there: behind on points an attack had no floor (`Bands::behind_floor` 0, §3), so any raid above zero kept the objective band over every fight play. Since the hold (a raid once taken is scored as if their dead were dead and none were near their container), those raids also ran on: 14 s median in 0x6da44bbb, against 4.5 s live before the hold. Raids taken at 0.005 had no enemy dead and 150-180 m to walk. The floor behind is now 0.06. In those two matches it would have left team 0 11 raids of 47 and 11 of 57; the one raid that stole that evening (team 1, 0.10) stays.
+
+Asymmetric bench (`real_bot_cost`, 600 s, `SRP_BENCH_START=3,7` and `7,3`, 10 batteries, maps 1-8 day 2, 4 v 4 and 7 v 7, seeds 1-6; a pair is a seed and a start; ± the standard error of the difference, * over 2 of them):
+
+| Measure, the side behind, a pair | Floor 0 | 0.03 | 0.06 | 0.10 |
+|---|---|---|---|---|
+| raids | 299 | 231 (−68 ± 11*) | 166 (−133 ± 8*) | 102 (−197 ± 11*) |
+| raid bot-s | 6,097 | 4,270 (−1,827 ± 175*) | 2,846 (−3,252 ± 210*) | 1,721 (−4,376 ± 241*) |
+| raid deaths | 29.5 | 26.4 (−3.1 ± 3.5) | 18.8 (−10.8 ± 2.8*) | 13.8 (−15.8 ± 3.2*) |
+| raid steals | 8.3 | 8.4 (+0.2 ± 1.1) | 9.2 (+0.9 ± 0.8) | 6.9 (−1.3 ± 1.1) |
+| points won back | 10.8 | 9.6 (−1.2 ± 2.7) | 10.3 (−0.4 ± 3.0) | 4.4 (−6.3 ± 2.9*) |
+| kills | 421 | 415 (−6 ± 6) | 434 (+13 ± 6*) | 420 (−1 ± 8) |
+
+- The bench's `sums:` line now carries each side's raids (runs, bot-s, came within 5 m, stole, died) and the steals; `SRP_BENCH_SHOW_RAIDS=1` prints each raid (side, score at the take, s, nearest m, stole, died, what came next).
+- With floor 0, the behind side's raids by score at the take: under 0.03, 2,037 raids and 22 steals (1.1 %); 0.03-0.10, 1,183 and 34 (2.9 %); 0.10 and over, 368 and 43 (11.7 %).
+- Before the hold, F0 measured a floor of 0.05 winning back less than 0 (§3). With the hold it costs nothing: the raids it removes are the long walks at no window.
+
+**Batteries the team could not take.**
+- *Under an overhang* (0x1b8ee975 battery 4, 236 s untaken; PROVEN on the map's grid). It lay at (−12.7, 36.3, 25.7) on a walk whose floor (36.2) is reached by route; a floor 2.7 m lower runs under it. Bots that fell off the walk stood on the lower floor, 1.4 m across from the battery, inside the take's reach (1.5 m across, no height), and tried their stands from below (one for 36 s; "took no battery"). Now a take whose stand under the battery's floor (over 1.2 m below it, `collect::BELOW_STAND_M`) has failed walks up to the stand by the route, however near across, and the take goes on there (test `a_take_failed_under_its_floor_walks_up_to_it`). A take from below that works is left alone: gating every take from 1.2 m below, before any use, cost 3.5 pickups of 66 a seed on the plain bench (−3.5 ± 0.7*); at 2.0 m, 0.3 ± 0.3.
+- *By a ledge the team keeps falling from* (0x1b8ee975 battery 6 at (5.1, 35.5, 60.1), 455 s untaken through 166 Collect plays; 17 falls logged as "off its reckoning, plans again to" the battery, 7 of them deaths). The way there is #372's. Here, a bot going for a battery that is over 2 m off its reckoning and over 1.2 m below the battery, within 8 m across of it, fell there (`TeamKnowledge::fell_near`; one fall a bot in 5 s). After 3 such falls within 120 s, the battery is not offered for 60 s after the last (`fallen_at`, collect's `fall_near_m`, `falls_aside`, `falls_window_s`, `falls_aside_s`; test `falls_at_a_battery_set_it_aside_for_a_while`). Replayed on the 17 falls' times (a GUESS: the later falls are taken to come as they did), it sets battery 6 aside for up to 300 of its 455 s, and 8 of the falls would not have happened. The stand-in body does not fall, so on the bench it never fires (identical sums).
+- *0x6da44bbb batteries 7 and 8, never moved in 900 s:* not the bots'. On the map's grid, battery 7 is walkable but lies behind a fixed zone (`past_fixed_zones` false); battery 8 is not reachable from the spawns. Neither was offered, which is right.
+
+**The plain bench** (180 s, 6 maps, 4 v 4 and 10 v 10, 24 seeds; the previous commit d41942c8; this commit; and this commit with the old raid floor, so the other three changes alone; a seed's sums, ± as above):
+
+| Measure | d41942c8 | This commit | Floor 0 (the other three) |
+|---|---|---|---|
+| pickups | 63.4 | 63.4 (0.0 ± 0.8) | 63.5 (+0.1 ± 0.3) |
+| delivered | 39.3 | 39.4 (+0.1 ± 0.4) | 39.1 (−0.2 ± 0.1) |
+| "could not take it" ends | 0.50 | 0.42 (−0.1 ± 0.2) | 0.33 (−0.2 ± 0.2) |
+| kills | 128.4 | 128.1 (−0.3 ± 1.5) | 128.9 (+0.5 ± 0.5) |
+| deaths team 0 / team 1 | 72.0 / 62.9 | 70.8 / 63.1 (−1.2 ± 0.9 / +0.3 ± 1.0) | 71.9 / 63.0 (0.0 ± 0.3 / +0.1 ± 0.3) |
+| carriers killed | 11.8 | 11.8 (+0.1 ± 0.6) | 11.9 (+0.2 ± 0.1) |
+| K/D team 0 / team 1 | 0.89 / 1.09 | 0.91 / 1.07 (+0.02 ± 0.02 / −0.02 ± 0.02) | 0.89 / 1.09 (0.00 ± 0.01 / 0.00 ± 0.01) |
+
+- The whole-match tests pass (`raids_in_whole_battery_matches`, `four_bots_a_side…`, `with_the_battery_cheat…`, `timed_batteries…`, `a_take_waits…`, `bots_hold_fire…`, the Team Deathmatch, `collects_filter_agrees…`).
+
+**Not verified:** no real match was played with these. The bench cannot show the overhang or the falls (the stand-in neither stands under the walk nor falls); their benefit rests on the real matches above.
+
+### 2.9 Teammates taken where they will be when the shot leaves (built 2026-10-23)
+
+The owner's evening matches on #343 (with #363 and #364): bots made 3.4 team kills per 100 bot deaths, against 3.3 before. One killed the owner while covering him (6da44bbb, 438.9 s). Others killed teammates 37-167° off their facing, mostly within 4 m.
+
+**What the worlds show** (1 s apart, so the facing is a second old):
+- **6da44bbb, 438.9 s:** bot 7 (CoverHuman) was firing at bot 4, 14 m away.
+  - At 436.9 s the owner was 0.3 m off its line, 0.9 m on.
+  - At 437.95 s he was 0.86 m off it, 2 m on, walking toward it at about 1.4 m/s.
+  - Bot 7 fired 5 rounds in the next second and killed both bot 4 and the owner.
+  - Bot 7's own reckoning matched the world (0.05 m off).
+- **The 12 kills off the facing:** in 11 of them the killer's shot counter rose in the second of the kill: they were bullets, and the killer had turned. In one (779532fa, 751.9 s) it did not, so it may have been a grenade. One more, 6da44bbb at 499.3 s, also had no shot, and its killer died in the same second; it was counted in line with the facing. Two such cases are too few to act on.
+
+**The gap.** A bot decides its input up to two ticks before the game plays it (`encode::LEAD_TICKS`, 100 ms). It decides from a view of its teammates as of the clock: a bot where its last decided tick put it, a human reckoned from his last input to the clock. A teammate who walks across the line in that time is not where the check looked. The bench shows it.
+- The real-map bench gained a line per team hit (`"teamhit"` in the events, `BlockTally::team_hit_tick`): whether the check would have held the shot on the true bodies, and on the shooter's reckoning of them.
+- Most of the bench's team hits are bodies standing in one another, under 0.3 m apart: 960 of 1,005 in batteries and 1,212 of 1,389 in team DM. The stand-in game has no body collisions, and its hit test counts a chest within 0.45 m of the line. The game has neither.
+- Of the rest, a check along the shot's own line held the shot in 39 of 45 and 159 of 177. Those shots were aimed in: cone 0.3°, spread under 0.1°. So the bot checked the right line against the wrong place for the teammate.
+
+**The change** (`FriendlyFireTuning::lead`, on): each teammate is also taken half way and all the way to where his velocity puts him at the tick decided. That is at most the encoder's lead past the clock (`friends::blocking`'s `ahead_s`). `lead_extra_ms` adds to it (0, a GUESS).
+
+**Measured** (`real_bot_cost`, 180 s, `SRP_BENCH_SIDES=4,10`, `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`, `SRP_BENCH_SPREAD=1`, seeds 1-16, paired; the base is the same binary with `SRP_BENCH_FF_LEAD=0`). Means a seed; * marks a difference over 2 standard errors:
+
+| Measure | Batteries before | after | Team DM before | after |
+|---|---|---|---|---|
+| team hits, bodies 0.3 m or more apart | 2.81 | 1.56* | 11.06 | 5.88* |
+| ... within 4 m | 2.12 | 1.12* | 8.31 | 3.50* |
+| team kills (all, the bench's own included) | 6.38 | 4.31* | 8.44 | 7.19 |
+| kills | 124.9 | 127.4 | 265.6 | 265.5 |
+| kills, team 0 / 1 | 61.6 / 63.3 | 60.2 / 67.2* | 129.1 / 136.5 | 131.0 / 134.5 |
+| deaths a bot-minute | 0.255 | 0.260 | 0.559 | 0.559 |
+| hit rate | 20.6 % | 21.2 % | 23.7 % | 23.8 % |
+| new target to first shot | 358 ms | 360 ms | 332 ms | 331 ms |
+| headway to goal | 1.10 m/s | 1.09 m/s* | 1.32 m/s | 1.32 m/s |
+| delivered / carriers killed | 39.5 / 10.6 | 39.0 / 11.1 | | |
+| plays ended within 1 s, flips, idle | 0.068, 0.45, 24.5 % | 0.068, 0.43, 24.8 % | 0.121, 0.52, 20.4 % | 0.126, 0.54, 20.3 % |
+| blocked by a teammate, s a bot-minute (§2.6) | 1.51 | 1.72* | 2.77 | 3.14* |
+
+- Bots hold fire for teammates a little more often (blocked time +14 %), and kills are unchanged.
+- **Team 1's kills in batteries:** +3.9 (team 0 −1.4, within the noise). Both teams are the same bots, so it is the maps' sides, as in §2.5.
+- **Headway:** −1.4 %.
+- **With `lead_extra_ms` 100:** team DM team hits went 11.1 → 2.8, but batteries' team kills did not fall (−0.6 ± 0.8). It is left at 0: the bench has no human input lag to justify more.
+
+**Tests:** `friends::tests::a_teammate_walking_into_the_line_is_taken_where_he_will_be`. The 8 whole-match tests (`--ignored`) pass. In `bots_hold_fire_while_a_teammate_is_in_the_line_of_fire` (friends on, 6 seeds), team kills went 6 → 1 and team hits 42 → 22, with kills 671 → 685.
+
+**Not verified:** no real match has been played with this. The owner's death fits the gap, but the worlds are a second apart and cannot prove the line at the shot. The grenade case is a LEAD: log the weapon of each team kill.
+
+### 2.10 Answering a loss or a hit (measured 2026-10-23; no change kept)
+
+Audit issues 9 (few trades, chains of deaths to one killer) and 8's `hit_bearing` part (a bot hit by a shooter it has not sensed makes no turn). In the owner's matches 12-27 % of bot deaths were traded within 5 s (the killer killed by the victim's team), and one killer often took two or more of a team within 15 s.
+
+**The measure.** The real-map bench (`real_bot_cost`, `bots/tests.rs`) gains:
+- **`HitTally`:** every hit on a living bot starts a 3 s follow, unless one runs. It records whether the bot knew of the shooter at the hit (its target, or a track of him within 1.5 s), and then whether it turned to face him (within 20 degrees), took him as its target, hit him back, killed him or died. Each follow goes to the events as a `"hit"` line; `bench.log` gets a `hits taken:` line split by sensed and not sensed.
+- **The teammates at a kill:** at each kill, the victim's living teammates within 30 m, as a `"mates"` line. For each one: its distance to the victim and to the killer, whether its eye had a line to his chest, whether it knew of him, and whether he was its target.
+- **One-sided runs** (`SRP_BENCH_ONE_SIDE=1`): team 1 plays by the `SRP_BENCH_SIDE1_*` numbers (`COMBAT`, `SENSE`, `TRADE` and the other plays'), team 0 by the usual `SRP_BENCH_*`. A change given to team 0 alone then shows in its K/D. A change both teams get keeps K/D at 1. (`Bots::tuning_of`; test builds only.)
+
+**Baseline** (`real_bot_cost`, 180 s, 4 v 4 and 10 v 10, `SRP_BENCH_SPREAD=1`, seeds 1-16; batteries on maps `6/2,1/2,3/3,2/2,4/2,5/2` with `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`; team deathmatch on `6/4,8/4,1/4,2/4,5/4,7/4`; means a seed):
+
+| Measure | Batteries | Team DM |
+|---|---|---|
+| deaths traded within 5 s / 10 s | 11.0 / 19.1 % | 16.3 / 28.1 % |
+| chains (one killer, 2+ of a team, each within 15 s of the last), per 100 deaths | 13.8 | 18.0 |
+| deaths followed by another to the same killer within 15 s | 17.6 % | 25.2 % |
+| Trade plays a seed; their kills / deaths | 30.5; 3.2 / 1.4 | 171; 16.4 / 9.4 |
+| hits whose shooter the bot had not sensed | 4.7 % | 2.7 % |
+| ... it faced him within 1 s / took him as target within 1.5 s | 56.5 / 50.4 % | 59.0 / 52.5 % |
+| ... it hit him back within 3 s / died within 3 s | 6.5 / 26.3 % | 5.5 / 41.2 % |
+| hits by a shooter it knew of: hit back / died within 3 s | 19.1 / 26.6 % | 21.4 / 31.8 % |
+
+**Why deaths go untraded.** Take the victim's best-placed teammate within 30 m at the kill:
+
+| That teammate | Batteries: deaths, traded | Team DM: deaths, traded |
+|---|---|---|
+| had the killer as its target | 25 %, 28 % traded | 34 %, 32 % traded |
+| knew where he was, no line to him | 38 %, 6 % | 33 %, 9 % |
+| had a line and knew, not aiming at him | 14 %, 9 % | 19 %, 13 % |
+| none within 30 m | 20 %, 2 % | 12 %, 1 % |
+
+- Most trades come from the reflex in whatever play the trader holds, at a median 9.5 m (TDM) and 12.7 m (batteries) from the victim. Few come from the Trade play.
+- A teammate already aiming at the killer (median 23 m from him) kills him within 5 s in 13 % of cases, another teammate does in 21 %, and in 53 % (TDM; 58 % batteries) nobody dies within the 5 s. The trade is lost in the gunfight at 20-30 m, not in the choice to trade.
+- The second victim of a chain dies a median 8 m (TDM) and 11 m (batteries) from the first, 6-7 s later, 13-15 m from the killer.
+
+**Tried and left off** (16 seeds paired unless said; the change minus the base, ± the standard error of the difference a seed; * over 2 standard errors; both teams with the change unless "one-sided"):
+
+| Part | Traded within 5 s: batteries / TDM | Why left off |
+|---|---|---|
+| (a) Trade kept until the killer is down or no sense gave him for 2.5 s, at most 10 s (the kill feed's killer, else the known enemy nearest the body) | −0.60 ± 0.66 / −0.66 ± 0.85 | Trade kills +1.2* / +10.8*, but Trade deaths +1.9* / +12.9*; chains +1.1 ± 0.5* a 100 deaths (batteries). |
+| (b) Trade offered to the nearest teammate other than the partner killed within 25 m, the killer's place known within 35 m (one bot a victim) | +0.21 ± 0.77 / −0.18 ± 0.73 | Trade plays +70* / +203* and plays taken a bot-minute +0.26* / +0.62*. Trade kills and deaths rise alike (+6.3* / +7.2* in batteries, +19.6* / +16.8* in TDM). TDM team kills +1.6*. |
+| (c) A killer the kill feed names for 2 of the team within 15 s, alive: the bots within 35 m of his last kill hold where they are, crouched, looking at him, 8 s | +0.48 ± 0.79 / −1.16 ± 0.58* | TDM kills −9.6*. One-sided, team 0's K/D −0.020 ± 0.025 / +0.012 ± 0.022: its TDM deaths −4.9*, but its kills −2.8 with them. Chains unchanged. |
+| (d) Trade peeks the killer instead of walking to the body: the nearest spot within 10 m that sees his known place, 20 degrees or more round from the body as he sees it, held 5 s | +0.93 ± 0.79 / +0.20 ± 0.66 | Deaths followed by another to the same killer +2.9* (batteries). With (b): −0.64 ± 0.66 / +0.65 ± 0.99. With (b) and (f): −0.31 ± 0.95 / +0.33 ± 0.86. |
+| (e) The reflex's trade watch (play 21's look at the body, sights up) for any teammate's death within 20 m, not the partner's alone | −1.07 ± 1.18 / −0.33 ± 0.77 | Chains +1.8* (batteries); TDM hit rate −0.69*. |
+| (f) The watch aims at the killer as last sensed (the kill feed's), else at a shot heard, not at the body; 48 seeds | +0.16 ± 0.61 / +0.76 ± 0.45 | Under the bar in both modes; batteries chains +1.05 ± 0.43*. With (e): −0.02 ± 1.00 / +1.03 ± 1.01, carriers killed +2.3*. |
+| (g) `hit_bearing` on with `hit_cover` off: a hit from an unsensed shooter turns the bot along the hit marker's direction, no cover taken; 48 seeds | +0.75 ± 0.41 / +0.18 ± 0.47 | The unsensed-hit reaction moves the right way but under the bar: faced within 1 s +3.8 ± 2.2 / +1.0 ± 2.1, his target +3.6 ± 1.9 / −0.4 ± 2.3. One-sided K/D −0.034 ± 0.026 / +0.009 ± 0.028, and team 0's TDM hit rate −0.50 ± 0.26. |
+| (h) `hit_bearing` on, with its cover (`hit_cover`) | −0.07 ± 0.77 / +0.21 ± 0.58 | Delivered −1.1 ± 0.7 (as found before: the cover takes bots off their work). |
+
+The guards stayed within the noise for every part except as said. They were: kills, deaths and deaths per bot-minute; K/D one-sided; hit rate; team kills; delivered; carriers killed; plays taken.
+
+- Each part was a tuning number, off by default; with all of them off the runs matched the base exactly (the bench is deterministic).
+- Parts (c), (f) and the kill feed's killer read a `killer` on `view::Death`: the one enemy whose kills rose in the world that showed the death. The HUD's kill feed names the killer, so this is fair. The parts were taken out again; only the measure is kept.
+
+**What it says.** On the bench, going at the killer, by any of these routes, is an even duel: every Trade kill the changes added came with about one Trade death. A trade is lost where the teammate already aims at the killer and neither of them dies within 5 s. Better trades need the gunfight at 20-30 m to end sooner (aim, the aim-in, the hide of play 7), not a new play. The unsensed hit is rare between bots (3-5 % of hits): a far human sniper is the case `hit_bearing` was written for, and the bench has none.
+
+**Not verified:** no real match was played with any of these. The owner's evening matches on #343 (3d886b74) had trades within 5 s of 7-18 % and 17-19 chains a 100 bot deaths. Their deaths with no teammate within 20 m rose in TDM to 31-34 %, against 12 % with none within 30 m on the bench (a lead only; different maps).
+
+### 2.11 An enemy at arm's length (built 2026-10-23)
+
+In the owner's match 0x6da44bbb (on #343), bots 13 and 2 (opposite teams) stood 0.8-4 m apart from 662 to 681 s with a line both ways, both logged "is stuck", and neither had a target (`aim_at` None).
+
+**Why** (the saved worlds, the bots' trace, and the senses replayed on the real map):
+- They fought at 656-660 s. From 662 s they were wedged 0.8 m apart. With no target, their yaw followed their legs and the stuck recovery, so each was mostly outside the other's 90 degrees. The rays to the parts were sometimes blocked even at 0.76 m. Their memory had the other only as heard.
+- Nothing turns a bot toward a heard enemy who makes no new sound. The glance needs a fresh sound, and the play that answers sounds (6) is for shots.
+- Neither the stuck recovery nor the raid hold took over the fight. During the Raid at 656-660 s, bot 13 aimed, crouched and strafed. When bot 2 came into its view at 676.4 s, it took him and fired at 680.4 s. The gap was in the sense.
+
+**The rule** (`SenseTuning::touch_m` 2 m, `sense.rs`): an enemy within 2 m (ground distance) is seen whichever way the bot faces, if some part of him is in a clear line. It is as a player feels a body he bumps against and hears a man at arm's length. A wall between still hides him. The noticing delay and the rest of the sight rules are unchanged. Replayed on the match's worlds, bot 2 would have seen 13 in every sample from 662 to 680 s except 671 s.
+
+**Measured** (the bench of §2.5 at base `3d886b74`; the rule off by `SRP_BENCH_SENSE=touch_m=0` and on; seeds 1-16, and 1-32 at tiers 9-10; means a seed; * over 2 standard errors of the paired difference):
+
+| Measure | 4-5 off | on | 9-10 off | on | 13-15 off | on |
+|---|---|---|---|---|---|---|
+| enemies within reach engaged within 1 s | 76.7 % | 78.9 %* | 78.2 % | 79.0 %* | 76.9 % | 80.0 %* |
+| ... never engaged | 19.7 % | 18.4 %* | 19.3 % | 18.8 % | 19.7 % | 17.1 %* |
+| standoffs (within 5 m, a line both ways, 3 s, no hit) | 1.62 | 1.69 | 1.22 | 0.97 | 1.94 | 1.19* |
+| hit rate | 20.5 % | 20.6 % | 23.5 % | 23.6 % | 26.3 % | 26.5 % |
+| kills, team 0 / 1 | 61.6 / 63.3 | 60.6 / 64.8 | 69.0 / 72.3 | 68.9 / 72.3 | 69.5 / 71.2 | 69.6 / 72.5 |
+| deaths, team 0 / 1 | 69.3 / 61.9 | 70.7 / 61.3 | 78.7 / 69.4 | 78.7 / 69.2 | 77.2 / 69.8 | 78.5 / 69.9 |
+| K/D a seed, team 0 / 1 | 0.91 / 1.06 | 0.88 / 1.10 | 0.89 / 1.07 | 0.89 / 1.08 | 0.91 / 1.04 | 0.89 / 1.06 |
+| batteries delivered | 39.5 | 39.7 | 38.6 | 38.6 | 37.8 | 38.1 |
+| carriers killed carrying | 10.6 | 10.3 | 12.8 | 12.9 | 11.6 | 11.8 |
+| plays ended within 1 s | 239.9 | 236.2 | 254.6 | 257.3 | 231.4 | 231.1 |
+| target flips A→B→A | 70.1 | 69.0 | 66.8 | 69.3 | 68.0 | 68.6 |
+| standing with a goal and no route | 3.67 % | 3.70 % | 3.83 % | 3.82 % | 3.56 % | 3.55 % |
+
+- No guard moved by 2 standard errors. With 16 seeds, team 1's kills at tiers 9-10 were −1.50 ± 0.74. Seeds 17-32 brought it to 0.00 ± 0.70. At tiers 9-10 the flips (+2.5 ± 1.6) and plays ended within 1 s (+2.7 ± 2.2) lean up, inside the noise. The K/D shifts go opposite ways for the two teams, which are the same bots, so they come from the sides of the maps.
+- On the earlier base (`122ee630`, tiers 9-10, 16 seeds) the plays ended within 1 s rose +6.2 ± 2.4*. That rise is not in the runs on this base at any tier.
+- **Whole matches** (`--ignored`): all 8 pass with the rule on.
+
+**Tests:** `sense::tests::an_enemy_at_arms_length_behind_is_seen_unless_a_wall_is_between`; `tests::back_to_back_at_arms_length_each_takes_the_other_as_target` (two bots back to back 1 m apart on the soak map, each takes the other within 1.2 s; with the rule off neither does).
+
+**Not verified:** no real match has been played with this. The bench's stand-in bodies do not collide, so it cannot wedge two bots together as the match did. The bench measures only how often enemies come that near.
+
 ## 3. Plays
 
 Each play has a score from the situation, a precondition and steps. A commander per team hands them out every ~0.5 s: never two bots on one ambush, and no bot parked at its own container. In the saved worlds lives that stay in their own third are the worst in every mode (K/D 0.3–0.6, ~0.03 batteries a life), so a steal is answered by the 1–2 nearest bots (the thief cheat and the alarms in §4); the only guard is play 18.
@@ -316,7 +595,7 @@ What decides the winner (52 matches of 6+ players with a result, 10 of them reco
 - The battery modes are won by the batteries: winners picked up more (20 of 25 matches), lost fewer on the way home (put in per pickup 1.00 against 0.67) and raided the enemy's container (play 24); more kills went with the win in only 64 % of them.
 - Winners mostly won the gunfight itself (the first aimed shot won 85 % against 71 %): skill or gear, not a team pattern. Focus fire, crossfire and who saw first did not separate them. For both sides, firing back within 0.5 s and breaking the line of sight when losing paid.
 - The commander keeps a slot (a battery, a post) with the bot that holds it unless another bot's claim beats it by the margin: two bots no longer swap one battery every half second.
-- **The commander's bands** (alarm > objective > fight > roam; `team::Bands`): an objective first, but only a real one. An objective scoring under 0.10 (its curves all but rule it out) competes in the roam band by its score; the bot's running play keeps its band down to half that. A second bot on a container a teammate already has (a second raider, a second guard of the lead) needs 0.20. In the owner's matches of 2026-10-16, 192 of 226 raids were taken at under 0.05, over a roam at 1.00, and gave no steal; the two that scored were taken at 0.21 and 0.24. In the fight band instead (tried), a raid at 0.02 still beat every roam. Bench, 600 s, 40 seeds, 6 maps, 4 v 4 and 10 v 10: raids taken 7,271 -> 510 (6,137 of them under 0.05 before), steals by raiders 8 -> 7, all steals 33 -> 30, deliveries 9,572 -> 9,543 (±37) and kills 22,353 -> 22,371 (±212), both within the noise. Alarms are never demoted. **Behind on points** (the HUD's score gap under 0) an attack on the enemy's container (raid, sneak, late denial; `team::attack`) has no floor and no second-bot bar (`Bands::behind_floor`, `Bands::behind_second`, both 0): attacks score as products of many parts and most sit under 0.10, so with the floor the team behind in the owner's 7 v 7 matches 0x652d4e6e, 0x1a0961e2 and 0x7298fb57 (2-5 down, every battery home) took none of them and held, grouped and roamed instead; before the floor it took 25-43 % of them and came back from -3 to 0 in one. Level or ahead the floor stands. Asymmetric bench (`SRP_BENCH_START=3,7` and `7,3`, 10 batteries all home, 7 v 7, 600 s, 4 battery maps, 20 seeds): points won back by the side behind 51 -> 110 (+59 ±18), its steals 81 -> 120, its deaths on an attack 0.67 -> 0.41 a bot-minute, 44 -> 79 % of its attack time with a teammate attacking too; a floor of 0.05 (+37) or the second bar kept (+38) won back less. With batteries lying (`0,2`, `2,0`) deliveries hold (+7 ±12). The normal bench (180 s, 20 seeds) holds: delivered 2457 -> 2452, kills 3204 -> 3208.
+- **The commander's bands** (alarm > objective > fight > roam; `team::Bands`): an objective first, but only a real one. An objective scoring under 0.10 (its curves all but rule it out) competes in the roam band by its score; the bot's running play keeps its band down to half that. A second bot on a container a teammate already has (a second raider, a second guard of the lead) needs 0.20. In the owner's matches of 2026-10-16, 192 of 226 raids were taken at under 0.05, over a roam at 1.00, and gave no steal; the two that scored were taken at 0.21 and 0.24. In the fight band instead (tried), a raid at 0.02 still beat every roam. Bench, 600 s, 40 seeds, 6 maps, 4 v 4 and 10 v 10: raids taken 7,271 -> 510 (6,137 of them under 0.05 before), steals by raiders 8 -> 7, all steals 33 -> 30, deliveries 9,572 -> 9,543 (±37) and kills 22,353 -> 22,371 (±212), both within the noise. Alarms are never demoted. **Behind on points** (the HUD's score gap under 0) an attack on the enemy's container (raid, sneak, late denial; `team::attack`) had no floor and no second-bot bar (`Bands::behind_floor`, `Bands::behind_second`, both 0; the floor is 0.06 since the raid hold, §2.8): attacks score as products of many parts and most sit under 0.10, so with the floor the team behind in the owner's 7 v 7 matches 0x652d4e6e, 0x1a0961e2 and 0x7298fb57 (2-5 down, every battery home) took none of them and held, grouped and roamed instead; before the floor it took 25-43 % of them and came back from -3 to 0 in one. Level or ahead the floor stands. Asymmetric bench (`SRP_BENCH_START=3,7` and `7,3`, 10 batteries all home, 7 v 7, 600 s, 4 battery maps, 20 seeds): points won back by the side behind 51 -> 110 (+59 ±18), its steals 81 -> 120, its deaths on an attack 0.67 -> 0.41 a bot-minute, 44 -> 79 % of its attack time with a teammate attacking too; a floor of 0.05 (+37) or the second bar kept (+38) won back less. With batteries lying (`0,2`, `2,0`) deliveries hold (+7 ±12). The normal bench (180 s, 20 seeds) holds: delivered 2457 -> 2452, kills 3204 -> 3208.
 ### 3.1 Fewer plays dropped at once, supports that do something (built 2026-10-23)
 
 The audit of three real 7 v 7 matches (2026-10-22) found plays taken and ended within the second over and over (the churn), followers standing beside their leader doing nothing, and few trades. What changed:
