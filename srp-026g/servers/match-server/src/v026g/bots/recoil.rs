@@ -108,9 +108,9 @@ impl Kick {
 }
 
 /// The weapons whose kick is known: the AK-74M first (the default, for a
-/// weapon not here), then the five the server's bots carry
-/// (`super::guns::GUNS`). From the 0.26g configs (PROVEN).
-pub const KICKS: [Kick; 6] = [
+/// weapon not here), then the others the server's bots carry
+/// (`super::guns::GUNS`). From the 0.26g configs' `recoil` (PROVEN).
+pub const KICKS: [Kick; 12] = [
     Kick {
         item: "ak_74m",
         rpm: 650,
@@ -166,6 +166,61 @@ pub const KICKS: [Kick; 6] = [
         right_deg: (0.8, 0.8),
         power: 0.5,
         gains: (5.0, 10.0, 0.0),
+    },
+    // The tiers 9-10 and 13-15 (2026-10-23).
+    Kick {
+        item: "pp2000",
+        rpm: 750,
+        top_deg: (1.0, 1.2),
+        left_deg: (1.5, 1.5),
+        right_deg: (1.5, 1.5),
+        power: 0.6,
+        gains: (5.0, 15.0, 0.0),
+    },
+    Kick {
+        item: "spas_12",
+        rpm: 240,
+        top_deg: (1.5, 1.5),
+        left_deg: (1.5, 1.5),
+        right_deg: (1.5, 1.5),
+        power: 0.5,
+        gains: (5.0, 15.0, 0.0),
+    },
+    Kick {
+        item: "sv_98",
+        rpm: 220,
+        top_deg: (3.0, 3.0),
+        left_deg: (3.0, 3.0),
+        right_deg: (3.0, 3.0),
+        power: 1.0,
+        gains: (5.0, 15.0, 0.0),
+    },
+    Kick {
+        item: "sr3m",
+        rpm: 900,
+        top_deg: (2.0, 2.2),
+        left_deg: (1.4, 1.8),
+        right_deg: (1.4, 1.8),
+        power: 0.8,
+        gains: (5.0, 10.0, 0.0),
+    },
+    Kick {
+        item: "ak_12",
+        rpm: 650,
+        top_deg: (1.5, 1.5),
+        left_deg: (1.4, 1.8),
+        right_deg: (1.4, 1.8),
+        power: 0.5,
+        gains: (5.0, 10.0, 0.0),
+    },
+    Kick {
+        item: "vsk_94",
+        rpm: 600,
+        top_deg: (0.3, 0.4),
+        left_deg: (0.4, 0.6),
+        right_deg: (0.4, 0.6),
+        power: 0.4,
+        gains: (5.0, 15.0, 0.0),
     },
 ];
 

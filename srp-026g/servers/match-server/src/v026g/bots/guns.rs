@@ -59,7 +59,8 @@
 //! the weapon's [`Gun::cycle_ms`], so each press is one shot whatever that
 //! answer is.
 
-use survarium::v026g::loadouts::{BOT_AMMO_SLOTS, BotRole};
+use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::loadouts::{BOT_AMMO_SLOTS, BotRole, BotTier, Loadout, bot_kits};
 
 /// How a weapon reloads, ms (see the module's notes for where each comes
 /// from).
@@ -163,9 +164,9 @@ const fn frames_ms(frames: u32) -> u32 {
     (frames * 1000 + 15) / 30
 }
 
-/// The five weapons the server's bots carry
-/// (`survarium::v026g::loadouts`): each role's weapon 1 and the TT-33.
-pub const GUNS: [Gun; 5] = [
+/// The weapons the server's bots carry
+/// (`survarium::v026g::loadouts`, every tier's weapon 1) and the TT-33.
+pub const GUNS: [Gun; 12] = [
     // `wpn_uzi`: 32 rounds, 600 a minute, fire modes [-1, 1], reload 2.3 s
     // (its clip 80 f scaled to it).
     Gun {
@@ -238,6 +239,109 @@ pub const GUNS: [Gun; 5] = [
         show_ms: 500,
         hide_ms: 800,
     },
+    // The tiers 9-10 and 13-15 (2026-10-23). Each from its
+    // `wpn_<name>.options` (magazine, rate, first fire mode, reload time,
+    // show and hide times, its states) and the clips its states name
+    // (`animations/single/weapons/<folder>/item/stand/3rd_view/`), timed
+    // as the module says. PROVEN (data read), the times' rules LIKELY.
+    // `wpn_pp2000`: 20 rounds, 750 a minute, modes [-1, 1], a magazine
+    // (303) of 2.8 s, show and hide 0.5 s.
+    Gun {
+        item: "pp2000",
+        magazine: 20,
+        rpm: 750,
+        auto: true,
+        chamber_ms: 0,
+        reload: Reload::Magazine { ms: 2_800 },
+        show_ms: 500,
+        hide_ms: 500,
+    },
+    // `wpn_ak_74m`: 30 rounds, 650 a minute, modes [-1, 1], a magazine
+    // of 3.167 s (the `ak` clips, the AK-74U's).
+    Gun {
+        item: "ak_74m",
+        magazine: 30,
+        rpm: 650,
+        auto: true,
+        chamber_ms: 0,
+        reload: Reload::Magazine { ms: 3_167 },
+        show_ms: 800,
+        hide_ms: 800,
+    },
+    // `wpn_spas_12`: 8 shells, 240 a minute, modes [1]; fire state 315
+    // with the clips `shoot` (20 f) and `shoot_end` (20 f), reload round by
+    // round (306): `reload_start` 47 f, 3 s / 8 a shell, `reload_end` 34 f
+    // (the `mp153` clips). State 315 was not read in the exe: that
+    // `shoot_end` works the action after each shot, as a bolt's chamber
+    // state does, is a GUESS, taken so the bot never presses before the
+    // gun can fire (at worst it fires a little slower than it could).
+    Gun {
+        item: "spas_12",
+        magazine: 8,
+        rpm: 240,
+        auto: false,
+        chamber_ms: frames_ms(20),
+        reload: Reload::Rounds {
+            start_ms: frames_ms(47),
+            round_ms: 3_000 / 8,
+            finish_ms: frames_ms(34),
+        },
+        show_ms: 800,
+        hide_ms: 800,
+    },
+    // `wpn_sv_98`: 10 rounds, 220 a minute, modes [1], a bolt
+    // (`chamber_a_round`, 95 f), reload round by round: `reload_start`
+    // 48 f, 5 s / 10 a round, `reload_end` 62 f.
+    Gun {
+        item: "sv_98",
+        magazine: 10,
+        rpm: 220,
+        auto: false,
+        chamber_ms: frames_ms(95),
+        reload: Reload::Rounds {
+            start_ms: frames_ms(48),
+            round_ms: 5_000 / 10,
+            finish_ms: frames_ms(62),
+        },
+        show_ms: 800,
+        hide_ms: 800,
+    },
+    // `wpn_sr3m`: 20 rounds, 900 a minute, modes [-1, 1], a magazine of
+    // 3.167 s.
+    Gun {
+        item: "sr3m",
+        magazine: 20,
+        rpm: 900,
+        auto: true,
+        chamber_ms: 0,
+        reload: Reload::Magazine { ms: 3_167 },
+        show_ms: 800,
+        hide_ms: 800,
+    },
+    // `wpn_ak_12`: 30 rounds, 650 a minute, modes [-1, 1, 3], a magazine
+    // of 2.8 s.
+    Gun {
+        item: "ak_12",
+        magazine: 30,
+        rpm: 650,
+        auto: true,
+        chamber_ms: 0,
+        reload: Reload::Magazine { ms: 2_800 },
+        show_ms: 800,
+        hide_ms: 800,
+    },
+    // `wpn_vsk_94`: 20 rounds, 600 a minute, modes [-1, 1] (its first is
+    // automatic), a magazine of 3.367 s.
+    Gun {
+        item: "vsk_94",
+        magazine: 20,
+        rpm: 600,
+        auto: true,
+        chamber_ms: 0,
+        reload: Reload::Magazine { ms: 3_367 },
+        show_ms: 800,
+        hide_ms: 800,
+    },
 ];
 
 /// The facts of the weapon item `item`.
@@ -293,43 +397,72 @@ impl Load {
     }
 }
 
-/// What a bot carries: weapon 1 with its ammo, and the pistol with its.
+/// What a bot carries: weapon 1 with a life's ammo, and the pistol with
+/// its; and the rounds of weapon 1's ammo the kit has for the match.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Arms {
+    /// Weapon 1 and the rounds a life starts with (its ammo slots').
     pub primary: (&'static Gun, u32),
     pub pistol: Option<(&'static Gun, u32)>,
+    /// The rounds of weapon 1's ammo the kit has for the match, the life's
+    /// among them: the profile's storage, which the client refills the
+    /// slots from at each spawn (`loadouts::BOT_AMMO_LIVES`).
+    pub reserve: u32,
 }
 
+/// A kit's [`Arms`]: its weapon 1, the rounds of its ammo slots
+/// (`BOT_AMMO_SLOTS`) and their storage.
+fn arms_of(kit: &Loadout) -> Option<Arms> {
+    let weapon = Dictionary::shared().item(kit.slot(7)?.dict_id)?;
+    let ammo = kit
+        .items
+        .iter()
+        .filter(|item| BOT_AMMO_SLOTS.contains(&item.slot));
+    let rounds = ammo.clone().map(|item| item.count).sum();
+    let reserve = ammo.map(|item| item.stored.max(item.count)).sum();
+    Some(Arms {
+        primary: (gun(&weapon.name)?, rounds),
+        pistol: None,
+        reserve,
+    })
+}
+
+type ArmsTable = Vec<((BotTier, BotRole, usize), Option<Arms>)>;
+
 impl Arms {
-    /// A role's (`BotRole::name`, the personality of that name): weapon 1
-    /// and every round of its ammo slots (`BOT_AMMO_SLOTS`): a life's
-    /// ammo, not a clip each. No pistol: the bots carry none.
-    pub fn of_role(role: &str) -> Option<&'static Arms> {
-        static ALL: std::sync::OnceLock<Vec<(&'static str, Arms)>> = std::sync::OnceLock::new();
+    /// The `k`-th kit (0 on) of a bot of `role` in `tier`
+    /// (`loadouts::bot_kits`). No pistol: the bots carry none. `None` for
+    /// a kit that is not there or a weapon not in [`GUNS`].
+    pub fn of_kit(tier: BotTier, role: BotRole, k: usize) -> Option<&'static Arms> {
+        static ALL: std::sync::OnceLock<ArmsTable> = std::sync::OnceLock::new();
         ALL.get_or_init(|| {
-            BotRole::ALL
-                .into_iter()
-                .filter_map(|role| {
-                    let gear = role.gear();
-                    let rounds = gear
-                        .iter()
-                        .filter(|item| BOT_AMMO_SLOTS.contains(&item.slot))
-                        .map(|item| item.count)
-                        .sum();
-                    let primary = (gun(gear[0].name)?, rounds);
-                    Some((
-                        role.name(),
-                        Arms {
-                            primary,
-                            pistol: None,
-                        },
-                    ))
-                })
-                .collect()
+            let mut table = Vec::new();
+            for tier in BotTier::ALL {
+                for role in BotRole::ALL {
+                    for (k, kit) in bot_kits(tier, role).into_iter().enumerate() {
+                        table.push(((tier, role, k), arms_of(kit)));
+                    }
+                }
+            }
+            table
         })
         .iter()
-        .find(|(name, _)| *name == role)
-        .map(|(_, arms)| arms)
+        .find(|(key, _)| *key == (tier, role, k))
+        .and_then(|(_, arms)| arms.as_ref())
+    }
+
+    /// Every kit of a bot of `role` in `tier`, in its order.
+    pub fn kits_of(tier: BotTier, role: BotRole) -> Vec<&'static Arms> {
+        (0..role.kit_roles().len())
+            .filter_map(|k| Self::of_kit(tier, role, k))
+            .collect()
+    }
+
+    /// A role's (`BotRole::name`, the personality of that name) first kit
+    /// in the lowest tier.
+    pub fn of_role(role: &str) -> Option<&'static Arms> {
+        let role = BotRole::ALL.into_iter().find(|each| each.name() == role)?;
+        Self::of_kit(BotTier::Low, role, 0)
     }
 
     /// For a bot whose personality is no role (a tuning's own): the
@@ -395,10 +528,26 @@ mod tests {
             let params = item_params(item.dict_id).unwrap();
             assert_eq!(gun.magazine, params.magazine_capacity, "{}", gun.item);
         }
+        // Every kit of every tier: its weapon is known, a life's rounds
+        // are the kit's slot, its storage the lives' worth.
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let kits = Arms::kits_of(tier, role);
+                assert_eq!(kits.len(), 3, "{tier} {role}");
+                for (arms, kit_role) in kits.iter().zip(role.kit_roles()) {
+                    assert_eq!(arms.primary.0.item, tier.gear().of(kit_role).weapon);
+                    assert!(arms.pistol.is_none(), "the bots carry no weapon 2");
+                    assert!(arms.primary.1 >= arms.primary.0.magazine, "{tier} {role}");
+                    assert_eq!(
+                        arms.reserve,
+                        arms.primary.1 * survarium::v026g::loadouts::BOT_AMMO_LIVES
+                    );
+                }
+            }
+        }
         for role in BotRole::ALL {
             let arms = Arms::of_role(role.name()).unwrap();
-            assert_eq!(arms.primary.0.item, role.gear()[0].name);
-            assert!(arms.pistol.is_none(), "the bots carry no weapon 2");
+            assert_eq!(arms.primary.0.item, BotTier::Low.gear().of(role).weapon);
         }
         assert!(Arms::of_role("steady").is_none());
         assert_eq!(Arms::fallback().primary.0.item, "ak_74u");
@@ -406,7 +555,7 @@ mod tests {
 
     #[test]
     fn times_from_the_clips() {
-        let [uzi, ak, toz, mosin, tt] = &GUNS;
+        let [uzi, ak, toz, mosin, tt, pp2000, _, spas, sv_98, ..] = &GUNS;
         assert_eq!((uzi.shot_ms(), uzi.cycle_ms()), (100.0, 100));
         assert_eq!(ak.cycle_ms(), 93);
         assert_eq!((toz.cycle_ms(), tt.cycle_ms()), (250, 200));
@@ -423,6 +572,13 @@ mod tests {
         assert_eq!(ak.shots_held(100), 2);
         assert_eq!(ak.shots_held(600), 7);
         assert_eq!(uzi.shots_held(300), 3);
+        // The tiers 9-10 and 13-15: the PP-2000's 80 ms a shot; the
+        // SV-98's bolt, 95 f; the SPAS-12 round by round, 375 ms a shell.
+        assert_eq!(pp2000.cycle_ms(), 80);
+        assert_eq!(sv_98.cycle_ms(), 273 + 3_167);
+        assert_eq!(sv_98.reload_ms(0, 10), 1_600 + 5_000 + 2_067);
+        assert_eq!(spas.reload_ms(6, 2), 1_567 + 750 + 1_133);
+        assert_eq!(spas.cycle_ms(), 250 + 667);
     }
 
     /// A role's arms with the TT-33 and a clip of its ammo as weapon 2:
@@ -432,15 +588,16 @@ mod tests {
         Box::leak(Box::new(Arms {
             primary: (arms.primary.0, 30),
             pistol: gun("tt_33").map(|gun| (gun, 50)),
+            reserve: 30,
         }))
     }
 
     #[test]
     fn a_life_loads_from_its_ammo_and_reloads_what_is_left() {
-        // The support: 600 rounds (three slots of 200), 30 in the
-        // magazine, 570 to load.
+        // The support: a life's 90 rounds (three bags of 30), 30 in the
+        // magazine, 60 to load.
         let support = Hands::of(Arms::of_role("support").unwrap());
-        assert_eq!((support.primary.rounds, support.primary.spare), (30, 570));
+        assert_eq!((support.primary.rounds, support.primary.spare), (30, 60));
         // Dry with no weapon 2: no switch, ever.
         let mut bare = Hands::of(Arms::of_role("camper").unwrap());
         let mosin = bare.held_mut();

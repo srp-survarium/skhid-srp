@@ -189,6 +189,12 @@ the archive's index: a loader must follow them.
      name `Bot-<n>`, clan tag `BOT`, the kit of its role, session and
      account 0, no seat. **Removed 2026-10-17** with the queue (the
      owner's): the server's bots play only "Player vs Bots" (§8).
+   - **2026-10-23: three kits a bot, in three equipment tiers, each
+     kit's ammo maxed by the lobby's rule and refilled each life from its
+     storage; the tables and the switch are in `pvb-tiers.md`.** What
+     follows is the first kit as built on 2026-10-14, now the lowest
+     tier (`TIER_4_5`), the TT-33 since taken out, the support's
+     second medkit pocket since dropped (one pocket a type).
    - **The bots' kit** (`survarium::v026g::loadouts`; `BOT_KIT`:
      item, slot, count, input bit, what every role wears; `BotRole`,
      `BotRole::gear()`, `bot_kit(role)`, `bot_kit_items(role)`,
