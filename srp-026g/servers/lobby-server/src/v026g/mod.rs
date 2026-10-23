@@ -97,8 +97,22 @@
 //!   (`pvb`, whose module says what each does and which server reads it).
 //! - `SRP_ROOMS_MAX` (50), `SRP_ROOMS_EXTRA_MAPS` (none): rooms, the
 //!   players' "servers" (`rooms`, whose module says what each does).
+//! - `SRP_CHAT_TRANSLATE` (default off; `grok`: on, through xAI Grok with the
+//!   key of `XAI_API_KEY`; `claude`: through Claude, `ANTHROPIC_API_KEY`),
+//!   `SRP_CHAT_TRANSLATE_MODEL` (`grok-4.20-0309-non-reasoning`, or
+//!   `claude-haiku-5-5`),
+//!   `SRP_CHAT_TRANSLATE_TIMEOUT_MS` (2000): chat lines in each reader's
+//!   game language (`translate`, `chat_out`).
+//! - `SRP_CHAT_MODERATION_URL`, `SRP_CHAT_MODERATION_THRESHOLDS`,
+//!   `SRP_CHAT_MODERATION_TIMEOUT_MS` (300): the local gate before
+//!   translation, required with it (`translate::moderate`).
+//! - `SRP_CHAT_SAMPLE_DIR` (default off), `SRP_CHAT_SAMPLE_KEEP_DAYS` (14):
+//!   a nameless sample of public chat, to find slang for the glossary
+//!   (`chat_sample`).
 
 mod away;
+mod chat_out;
+mod chat_sample;
 mod clans;
 mod core;
 mod dispatch;
@@ -113,6 +127,7 @@ mod room_chat;
 pub mod rooms;
 mod shop;
 mod social;
+pub mod translate;
 
 #[cfg(test)]
 mod tests;
@@ -207,6 +222,12 @@ pub struct Settings {
     pub pvb: pvb::Config,
     /// Rooms (`SRP_ROOMS_MAX`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
     pub rooms: rooms::Config,
+    /// Chat translation (`SRP_CHAT_TRANSLATE*`; `translate`): off by
+    /// default.
+    pub chat_translate: Option<translate::Config>,
+    /// The sample of public chat for the glossary (`SRP_CHAT_SAMPLE_DIR`,
+    /// `SRP_CHAT_SAMPLE_KEEP_DAYS`; `chat_sample`): off by default.
+    pub chat_sample: Option<chat_sample::Config>,
 }
 
 impl Settings {
@@ -332,6 +353,8 @@ impl Settings {
         Self {
             pvb: pvb::Config::from_env(),
             rooms: rooms::Config::from_env(),
+            chat_translate: translate::Config::from_env(),
+            chat_sample: chat_sample::Config::from_env(),
             balance,
             squads,
             squads_off_text,
@@ -365,6 +388,8 @@ impl Settings {
             squads_off_text: DEFAULT_SQUADS_OFF_TEXT.to_owned(),
             pvb: pvb::Config::default(),
             rooms: rooms::Config::default(),
+            chat_translate: None,
+            chat_sample: None,
         }
     }
 }
@@ -595,6 +620,16 @@ impl Lobby {
         );
         core.packet_log = PacketLog::from_env();
         core.replays = self.replays.as_deref();
+        core.translator = self
+            .settings
+            .chat_translate
+            .as_ref()
+            .and_then(translate::Config::build);
+        core.chat_sample = self
+            .settings
+            .chat_sample
+            .clone()
+            .map(chat_sample::ChatSample::new);
         let mut buffer = [0_u8; 2048];
         while !self.inbox.stopped() {
             match self.socket.recv_from(&mut buffer) {

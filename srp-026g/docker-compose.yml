@@ -152,6 +152,20 @@ services:
       # every PvP match is a room's; they need the lobby movie that has them.
       - SRP_ROOMS_MAX
       - SRP_ROOMS_EXTRA_MAPS
+      # Chat translation (docs/notes/chat-translation.md), off by default:
+      # `claude` and a key in .env (never in the repository). The sample of
+      # public chat for the glossary is off too; it would go in the data
+      # volume, e.g. /srv/srp/data/chat-sample.
+      - SRP_CHAT_TRANSLATE
+      - SRP_CHAT_TRANSLATE_MODEL
+      - SRP_CHAT_TRANSLATE_TIMEOUT_MS
+      - SRP_CHAT_MODERATION_URL
+      - SRP_CHAT_MODERATION_THRESHOLDS
+      - SRP_CHAT_MODERATION_TIMEOUT_MS
+      - XAI_API_KEY
+      - ANTHROPIC_API_KEY
+      - SRP_CHAT_SAMPLE_DIR
+      - SRP_CHAT_SAMPLE_KEEP_DAYS
       # The bots' maps (docs/notes/player_bots_mapdata.md section 6): the
       # <project>.mapdata files, game data copied by hand into the data
       # volume. The grids and trees the server builds of them are written
