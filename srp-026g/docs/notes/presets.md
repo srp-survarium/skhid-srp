@@ -71,18 +71,21 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   them as bits (`<blocks>`, `lobby.md` 2.16.4), worked out by the server's own functions, the same
   that refuse at the door, so the movie's greying and the server can not disagree. A greyed Play,
   Join, Queue or New room shows every reason that holds in its tip (the game's tooltip, as
-  Autorepair's), a line each. The kit's reasons are `rules::PlayBlock` (`rules::play_blocks` of the
+  Autorepair's), a line each, with no full stop at a line's end (the game's own texts trimmed
+  too) and the text's left margin as wide as its right (`ReasonsTip`: the renderer's own margin
+  setting; the owner's, 2026-10-23: "no need for dot in the end and a bit more padding from the
+  left"). The kit's reasons are `rules::PlayBlock` (`rules::play_blocks` of the
   kit a match would take, `rules::kits_play_blocks`; `check_play` says the first); the maintenance
   rule is the lobby's (`Core::entry_blocks`, `BLOCK_MAINTENANCE`).
 
   | bit | reason | when | greys | server's door | text (en / uk / ru / de / pl) |
   | --- | --- | --- | --- | --- | --- |
-  | 1 | kit locked | the account may not use the kit a match would take (`kit_usable`; today only an account without kits) | Play; Join, Queue unless another loadout can play | code 15 | This profile is locked. / Цей профіль закритий. / Этот профиль закрыт. / Dieses Profil ist gesperrt. / Ten profil jest zablokowany. |
-  | 2 | covered slot | an item is worn in a slot another worn item covers (data from before the rule) | as 1 | code 15 | Two items share a slot. / Два предмети в одному слоті. / Два предмета в одном слоте. / Zwei Gegenstände in einem Platz. / Dwa przedmioty w jednym miejscu. |
-  | 4 | two pockets | one item type in two pockets (data from before the rule) | as 1 | code 15 | One item type in two pockets. / Один тип предмета у двох кишенях. / Один тип предмета в двух карманах. / Ein Gegenstandstyp in zwei Taschen. / Ten sam przedmiot w dwóch kieszeniach. |
-  | 8 | no ammo | a weapon has less ammo in the kit (or owned) than its category's minimum | as 1 | code 15 | the game's `st_profile_check_failed_weapon_ammo`; without it: Too little ammo for a weapon. / Замало набоїв до зброї. / Мало патронов к оружию. / Zu wenig Munition für eine Waffe. / Za mało amunicji do broni. |
-  | 16 | no weapon | no weapon in the kit (an empty loadout) | as 1 | code 15 | the game's `st_profile_check_failed_weapon`; without it: No weapon. / Немає зброї. / Нет оружия. / Keine Waffe. / Brak broni. |
-  | 32 | maintenance | a maintenance is planned within the rooms' window (`maintenance_is_near`, `MAINTENANCE_WINDOW`, 30 min: the minutes the clients are told, at which the game turns its own Play off) | Play, Join, Queue, New room | code 9 (no room made, no entry) | Server maintenance soon: in N min. / Скоро технічні роботи: за N хв. / Скоро технические работы: через N мин. / Bald Wartung: in N Min. / Wkrótce przerwa techniczna: za N min. |
+  | 1 | kit locked | the account may not use the kit a match would take (`kit_usable`; today only an account without kits) | Play; Join, Queue unless another loadout can play | code 15 | This profile is locked / Цей профіль закритий / Этот профиль закрыт / Dieses Profil ist gesperrt / Ten profil jest zablokowany |
+  | 2 | covered slot | an item is worn in a slot another worn item covers (data from before the rule) | as 1 | code 15 | Two items share a slot / Два предмети в одному слоті / Два предмета в одном слоте / Zwei Gegenstände in einem Platz / Dwa przedmioty w jednym miejscu |
+  | 4 | two pockets | one item type in two pockets (data from before the rule) | as 1 | code 15 | One item type in two pockets / Один тип предмета у двох кишенях / Один тип предмета в двух карманах / Ein Gegenstandstyp in zwei Taschen / Ten sam przedmiot w dwóch kieszeniach |
+  | 8 | no ammo | a weapon has less ammo in the kit (or owned) than its category's minimum | as 1 | code 15 | the game's `st_profile_check_failed_weapon_ammo`; without it: Too little ammo for a weapon / Замало набоїв до зброї / Мало патронов к оружию / Zu wenig Munition für eine Waffe / Za mało amunicji do broni |
+  | 16 | no weapon | no weapon in the kit (an empty loadout) | as 1 | code 15 | the game's `st_profile_check_failed_weapon`; without it: No weapon / Немає зброї / Нет оружия / Keine Waffe / Brak broni |
+  | 32 | maintenance | a maintenance is planned within the rooms' window (`maintenance_is_near`, `MAINTENANCE_WINDOW`, 30 min: the minutes the clients are told, at which the game turns its own Play off) | Play, Join, Queue, New room | code 9 (no room made, no entry) | Server maintenance soon: in N min / Скоро технічні роботи: за N хв / Скоро технические работы: через N мин / Bald Wartung: in N Min / Wkrótce przerwa techniczna: za N min |
 
   - Checked: the server at every room entry (`room_enter_fit`: Play with or without an open room,
     Join, a PIN's join, a queue; making a room: maintenance only), and for the list

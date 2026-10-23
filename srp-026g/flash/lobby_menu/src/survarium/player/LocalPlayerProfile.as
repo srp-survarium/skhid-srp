@@ -17,7 +17,6 @@ package survarium.player
    import flash.utils.getTimer;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ScrollingList;
-   import scaleform.clik.controls.ToolTip;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.DragEvent;
@@ -744,12 +743,12 @@ package survarium.player
       private static const BLOCK_MAINTENANCE:int = 32;
       
       private static const REASONS:Array = [
-         {"bit":1,"key":null,"words":["This profile is locked.","Цей профіль закритий.","Этот профиль закрыт.","Dieses Profil ist gesperrt.","Ten profil jest zablokowany."]},
-         {"bit":2,"key":null,"words":["Two items share a slot.","Два предмети в одному слоті.","Два предмета в одном слоте.","Zwei Gegenstände in einem Platz.","Dwa przedmioty w jednym miejscu."]},
-         {"bit":4,"key":null,"words":["One item type in two pockets.","Один тип предмета у двох кишенях.","Один тип предмета в двух карманах.","Ein Gegenstandstyp in zwei Taschen.","Ten sam przedmiot w dwóch kieszeniach."]},
-         {"bit":8,"key":"st_profile_check_failed_weapon_ammo","words":["Too little ammo for a weapon.","Замало набоїв до зброї.","Мало патронов к оружию.","Zu wenig Munition für eine Waffe.","Za mało amunicji do broni."]},
-         {"bit":16,"key":"st_profile_check_failed_weapon","words":["No weapon.","Немає зброї.","Нет оружия.","Keine Waffe.","Brak broni."]},
-         {"bit":BLOCK_MAINTENANCE,"key":null,"words":["Server maintenance soon: in {n} min.","Скоро технічні роботи: за {n} хв.","Скоро технические работы: через {n} мин.","Bald Wartung: in {n} Min.","Wkrótce przerwa techniczna: za {n} min."]}
+         {"bit":1,"key":null,"words":["This profile is locked","Цей профіль закритий","Этот профиль закрыт","Dieses Profil ist gesperrt","Ten profil jest zablokowany"]},
+         {"bit":2,"key":null,"words":["Two items share a slot","Два предмети в одному слоті","Два предмета в одном слоте","Zwei Gegenstände in einem Platz","Dwa przedmioty w jednym miejscu"]},
+         {"bit":4,"key":null,"words":["One item type in two pockets","Один тип предмета у двох кишенях","Один тип предмета в двух карманах","Ein Gegenstandstyp in zwei Taschen","Ten sam przedmiot w dwóch kieszeniach"]},
+         {"bit":8,"key":"st_profile_check_failed_weapon_ammo","words":["Too little ammo for a weapon","Замало набоїв до зброї","Мало патронов к оружию","Zu wenig Munition für eine Waffe","Za mało amunicji do broni"]},
+         {"bit":16,"key":"st_profile_check_failed_weapon","words":["No weapon","Немає зброї","Нет оружия","Keine Waffe","Brak broni"]},
+         {"bit":BLOCK_MAINTENANCE,"key":null,"words":["Server maintenance soon: in {n} min","Скоро технічні роботи: за {n} хв","Скоро технические работы: через {n} мин","Bald Wartung: in {n} Min","Wkrótce przerwa techniczna: za {n} min"]}
       ];
       
       // StatusPanel.showRoomsPlay: Play greyed while any reason holds.
@@ -784,7 +783,14 @@ package survarium.player
             {
                text = String(reason.words[RoomsText.language()]);
             }
-            lines.push(text.split("{n}").join(String(Math.max(0,me._maintenanceMinutes))));
+            // A line each, no full stop at its end (the owner's of
+            // 2026-10-23), the game's own texts too.
+            text = text.split("{n}").join(String(Math.max(0,me._maintenanceMinutes)));
+            while(text.length > 0 && (text.charAt(text.length - 1) == "." || text.charAt(text.length - 1) == " "))
+            {
+               text = text.substr(0,text.length - 1);
+            }
+            lines.push(text);
          }
          return lines.join("\n");
       }
@@ -798,7 +804,7 @@ package survarium.player
          var holder:Sprite = new Sprite();
          holder.x = x;
          holder.y = y;
-         var tip:ToolTip = new ToolTip();
+         var tip:ReasonsTip = new ReasonsTip();
          tip.graphics.beginFill(0,0.01);
          tip.graphics.drawRect(0,0,w,h);
          tip.graphics.endFill();
