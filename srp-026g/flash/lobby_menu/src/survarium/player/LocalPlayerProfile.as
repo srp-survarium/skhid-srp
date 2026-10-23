@@ -24,6 +24,7 @@ package survarium.player
    import scaleform.clik.motion.Tween;
    import survarium.Util;
    import survarium.controls.Message;
+   import survarium.controls.Modals;
    import survarium.controls.PlayerProfileBase;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
@@ -749,23 +750,6 @@ package survarium.player
          return true;
       }
       
-      // LobbyMenu.has_active_window / close_active_window: Esc closes the
-      // presets' list first (true: it was open).
-      public static function presetListOpen() : Boolean
-      {
-         return me != null && me._presetList != null;
-      }
-      
-      public static function closePresetListByEsc() : Boolean
-      {
-         if(!presetListOpen())
-         {
-            return false;
-         }
-         me.closePresetList();
-         return true;
-      }
-      
       // The reasons (presets.md's table): bits of the list's `<blocks>`,
       // each with its text: the game's own key where it has one ("#key"
       // when it is missing), else ours, in the lobby's five languages.
@@ -1281,6 +1265,11 @@ package survarium.player
          stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onStagePress);
          addEventListener(Event.ENTER_FRAME,this.watchPresetList);
          this.drawPresetTitle();
+         // a modal (Modals): Esc closes the list with no change
+         Modals.open(list,Modals.LOBBY,this.closePresetList,function():Boolean
+         {
+            return _presetList == list && list.stage != null;
+         });
       }
       
       private function rowText() : TextField
@@ -1418,6 +1407,7 @@ package survarium.player
          }
          var list:Sprite = this._presetList;
          this._presetList = null;
+         Modals.leave(list);
          for each(var row:Sprite in this._presetRows)
          {
             row.removeEventListener(MouseEvent.ROLL_OVER,this.onPresetRowOver);

@@ -2,6 +2,7 @@ package survarium.messages
 {
    import flash.events.Event;
    import scaleform.clik.core.UIComponent;
+   import survarium.controls.Message;
    
    public class MessageBase extends UIComponent
    {
@@ -46,6 +47,13 @@ package survarium.messages
          setActualScale(value,value);
       }
       
+      // What Esc does to this message when it is the top modal (Message.enterModals): what its own
+      // close does. Here that is just closing it; a message with a Cancel (or OK) runs that.
+      public function cancelByEsc() : void
+      {
+         Message.close(this._id);
+      }
+
       protected function cleanUp(event:Event = null) : void
       {
          removeEventListener(Event.REMOVED_FROM_STAGE,this.cleanUp);

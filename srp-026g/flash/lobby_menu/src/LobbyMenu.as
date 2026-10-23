@@ -94,6 +94,7 @@ package
    import survarium.controls.ItemCompare;
    import survarium.controls.ItemInfoRenderer;
    import survarium.controls.Message;
+   import survarium.controls.Modals;
    import survarium.controls.NotificationList;
    import survarium.controls.NotificationListScrollContent;
    import survarium.controls.PlayerInfo;
@@ -128,6 +129,7 @@ package
    import survarium.messages.MessageAskRelocate;
    import survarium.messages.MessageAskSell;
    import survarium.messages.MessageBox;
+   import survarium.messages.MessageBase;
    import survarium.messages.MessageCraftItem;
    import survarium.messages.MessageCreateChar;
    import survarium.messages.MessageExit;
@@ -1420,6 +1422,7 @@ package
          {
             removeChild(this._tutorialSliders);
          }
+         Modals.leave(this._tutorialSliders);
          _tutorialSliders = new TutorialSliders();
          if(value == TutorialHint.NONE)
          {
@@ -1447,6 +1450,14 @@ package
          }
          _tutorialIndex = value;
          addChild(this._tutorialSliders);
+         var sliders:TutorialSliders = this._tutorialSliders;
+         Modals.open(sliders,Modals.LOBBY,function():void
+         {
+            show_tutorial(TutorialHint.NONE);
+         },function():Boolean
+         {
+            return sliders.parent != null;
+         });
          this._tutorialSliders.background.width = MainScene.stageWidth;
          this._tutorialSliders.background.height = MainScene.stageHeight;
          this._tutorialSliders.textContainer.label.text = LocalizationData.getName("tutorial_slide_" + String(this._tutorialIndex) + "_label");
@@ -2242,6 +2253,14 @@ package
          this._tournament.init();
          this._tournament.x = (MainScene.stageWidth - this._tournament.background.width) / 2;
          this.updateTournamentPosition();
+         // a modal while unfolded: Esc folds it
+         Modals.open(this._tournament,Modals.LOBBY,function():void
+         {
+            _tournament.fold();
+         },function():Boolean
+         {
+            return _tournament.parent != null && _tournament.visible && !_tournament.isFold();
+         });
       }
       
       private function updateTournamentPosition() : void
@@ -2262,6 +2281,7 @@ package
          {
          }
          ExternalInterface.call("clan_match_closed");
+         Modals.leave(this._tournament);
          removeChild(this._tournament);
          this.squadList.lock(false);
       }
@@ -2290,6 +2310,15 @@ package
          this.backBlack.width = MainScene.stageWidth;
          this.backBlack.height = MainScene.stageHeight;
          addChild(this.craftWindow);
+         // a modal: Esc is its close (its own messages are modals over it)
+         var craft:MessageCraftItem = this.craftWindow;
+         Modals.open(craft,Modals.LOBBY,function():void
+         {
+            onCloseCraft();
+         },function():Boolean
+         {
+            return craft.parent != null;
+         });
          this.handleFrontInventory();
          this.inventory_list.lockControls(true);
          this.backBlack.alpha = 0.5;
@@ -2334,6 +2363,7 @@ package
             stage.focus = this;
          }
          this.inventory_list.lockControls(false);
+         Modals.leave(this.craftWindow);
          removeChild(this.craftWindow);
          removeChild(this.backBlack);
          if(this._craftFromShop)
@@ -3958,62 +3988,51 @@ package
          return Message.isAnyMessage() != -1 || MainScene.activePop != null || (this._tutorialSliders) && (this._tutorialSliders.parent);
       }
       
+      // The exe asks this on every key (0x26CB80) and, on Esc, calls close_active_window when it
+      // says true; false lets Esc open the game's menu. True: a modal is open (Modals) or a text
+      // box has the keys.
       public function has_active_window() : Boolean
       {
-         // The Character panel's presets list: Esc closes it first.
-         if(LocalPlayerProfile.presetListOpen())
-         {
-            return true;
-         }
-         // The rooms window counts while open (not under the results), so
-         // Esc closes it before it opens the game's menu.
-         if(RoomsWindow.me != null && RoomsWindow.me.escapable())
-         {
-            return true;
-         }
+         // a dropdown's open list takes Esc itself
          if(stage.focus is DropdownMenu)
          {
             trace("has_active_window::DropdownMenu");
             return false;
          }
-         var isAnyWindow:Boolean = !this._escapeHandled && (this._tutorialSliders && this._tutorialSliders.parent || this.craftWindow && this.craftWindow.parent || this._tournament && this._tournament.parent && this._tournament.visible && !this._tournament.isFold() || SrvContextMenu.visisble || MainScene.activeComponent != null || MainScene.activeWindow != null || Message.isAnyMessage() != -1 || MainScene.activePop != null || stage.focus is TextField || this.friendsMenu.visible);
+         var isAnyWindow:Boolean = !this._escapeHandled && (Modals.any() || stage.focus is TextField);
          _escapeHandled = false;
          return isAnyWindow;
       }
-      
+
+      // The one Esc handler (docs/notes/esc.md), from the exe and from handleInput, the same press
+      // handled once (_escapeHandled: handleInput takes the press's own key events). Esc first
+      // takes the keys from a text box (unless the right-click menu is open), then closes the
+      // topmost modal only: every modal (windows, popups, the Upgrade window, the rooms window,
+      // messages, the right-click menu...) enters Modals as it opens and leaves it as it closes.
       public function close_active_window() : void
       {
-         if(LocalPlayerProfile.closePresetListByEsc())
-         {
-            return;
-         }
-         if(RoomsWindow.me != null && RoomsWindow.me.closeByEsc())
-         {
-            return;
-         }
          _escapeHandled = true;
          trace("close_active_window");
-         if(SrvContextMenu.visisble)
+         if(!SrvContextMenu.visisble && this.leaveTextBox())
          {
-            SrvContextMenu.hide();
             return;
          }
-         if((this._tutorialSliders) && (this._tutorialSliders.parent))
-         {
-            this.show_tutorial(0);
-            return;
-         }
+         Modals.escape();
+      }
+
+      private function leaveTextBox() : Boolean
+      {
          // The item list's search box (docs/notes/item-search.md): Esc in it empties it and leaves
-         // it. Over a message or a popup Esc only leaves the box, and the message closes first.
+         // it. Under a message or a popup Esc only leaves the box; the next Esc closes the message.
          if(this.inventory_list.searchFocused())
          {
-            if(Message.isAnyMessage() == -1 && (MainScene.activePop == null || MainScene.activePop == this.modifierWindow))
+            if(!(Modals.top() is MessageBase) && (MainScene.activePop == null || MainScene.activePop == this.modifierWindow))
             {
                this.inventory_list.clearSearch();
-               return;
+               return true;
             }
             stage.focus = this.inventory_list;
-            return;
+            return true;
          }
          if(stage.focus is TextField)
          {
@@ -4025,37 +4044,28 @@ package
             {
                stage.focus = stage.focus.parent;
             }
+            return true;
+         }
+         return false;
+      }
+
+      // The friends list (F) is a modal while open: Esc closes it.
+      private function friendsToggled() : void
+      {
+         if(!this.friendsMenu.visible)
+         {
+            Modals.leave(this.friendsMenu);
             return;
          }
-         if((this.craftWindow) && (this.craftWindow.parent))
+         Modals.open(this.friendsMenu,Modals.LOBBY,function():void
          {
-            this.onCloseCraft();
-            return;
-         }
-         if((this._tournament && this._tournament.parent) && (this._tournament.visible) && !this._tournament.isFold())
+            friendsMenu.visible = false;
+            bottom_panel.btnFriends.selected = false;
+            Modals.leave(friendsMenu);
+         },function():Boolean
          {
-            this._tournament.fold();
-            return;
-         }
-         if(Message.isAnyMessage() != -1)
-         {
-            Message.close(Message.isAnyMessage());
-         }
-         else if((MainScene.activePop) && (MainScene.activePop.closePopup))
-         {
-            MainScene.activePop.closePopup();
-         }
-         // Skhid: the friends list (F) closes on Esc too, before the windows; it used to let Esc
-         // through to the game's menu.
-         else if(this.friendsMenu.visible)
-         {
-            this.friendsMenu.visible = false;
-            this.bottom_panel.btnFriends.selected = false;
-         }
-         else if((MainScene.activeWindow) && (MainScene.activeWindow.closeWindow))
-         {
-            MainScene.activeWindow.closeWindow();
-         }
+            return friendsMenu.visible;
+         });
       }
       
       public function show_character_toggle() : void
@@ -4098,6 +4108,7 @@ package
          }
          this.friendsMenu.visible = !this.friendsMenu.visible;
          this.bottom_panel.btnFriends.selected = this.friendsMenu.visible;
+         this.friendsToggled();
       }
       
       public function show_shop_toggle() : void
@@ -5177,9 +5188,10 @@ package
             this.topMenu.lockInventory(true);
             this.dragRegion.mouseEnabled = false;
             stage.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP));
+            // the match is found: the message up goes (closed, not answered as Esc would)
             if(Message.isAnyMessage() != -1)
             {
-               this.close_active_window();
+               Message.close(Message.isAnyMessage());
             }
          }
       }
@@ -5781,6 +5793,7 @@ package
          trace("toggleFriends::",e.target);
          this.friendsMenu.visible = !this.friendsMenu.visible;
          setChildIndex(this.friendsMenu,numChildren - 1);
+         this.friendsToggled();
       }
       
       private function toggleInvites(e:Event) : void
@@ -6077,10 +6090,6 @@ package
             toggle = !this.toggle;
             ++this.toggleIndex;
             return;
-         }
-         if(e.keyCode == Keyboard.ESCAPE && stage.focus is TextField && this.has_active_window())
-         {
-            trace("onKeyDownStage::close_active_window");
          }
          if(e.keyCode == KeyCode.LEFT_SHIFT)
          {

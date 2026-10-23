@@ -40,6 +40,12 @@ package survarium.messages
          Message.close(_id);
          ExternalInterface.call("system_message_ok_clicked",_id);
       }
+
+      // Esc is the box's OK, which tells the game
+      override public function cancelByEsc() : void
+      {
+         this.close();
+      }
       
       override public function handleInput(event:InputEvent) : void
       {
@@ -57,13 +63,7 @@ package survarium.messages
                   event.handled = true;
                }
                break;
-            case Keyboard.ESCAPE:
-               if(details.value == InputValue.KEY_UP)
-               {
-                  this.close();
-                  event.handled = true;
-               }
-               break;
+            // Esc: LobbyMenu.close_active_window (Modals), the one Esc handler (cancelByEsc)
          }
       }
       

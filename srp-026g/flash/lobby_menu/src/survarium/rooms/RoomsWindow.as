@@ -15,8 +15,7 @@ package survarium.rooms
     import flash.utils.getTimer;
     import scaleform.gfx.MouseEventEx;
     import survarium.controls.BottomPanel;
-    import survarium.controls.Message;
-    import survarium.controls.SrvContextMenu;
+    import survarium.controls.Modals;
     import survarium.player.LocalPlayerProfile;
     import survarium.controls.TopMenu;
     import survarium.constants.JoinHold;
@@ -321,31 +320,32 @@ package survarium.rooms
             return _room != null || _playAskedAt != 0 || getTimer() < _fastUntil;
         }
 
-        // LobbyMenu.has_active_window: the window counts while open, unless
-        // the results are over it, so Esc closes it before the game's menu.
-        public function escapable():Boolean
+        // The window is a modal (Modals, docs/notes/esc.md) while shown, but
+        // not under the results (Esc is theirs then): Esc hides it. Its join
+        // popup is a modal over it: Esc is the popup's Exit (no join).
+        private var _offerModal:Object = {};
+
+        private function enterModals():void
         {
-            return _shown && !resultsUp();
+            Modals.open(this, Modals.LOBBY, function():void
+            {
+                show(false);
+            }, function():Boolean
+            {
+                return _shown && !resultsUp();
+            });
         }
 
-        // LobbyMenu.close_active_window: Esc hides the window (true), unless
-        // a message (a player's equipment too) or a right-click menu is open
-        // over it: Esc closes that first.
-        public function closeByEsc():Boolean
+        private function enterOfferModal():void
         {
-            try
+            Modals.open(_offerModal, Modals.LOBBY, function():void
             {
-                if (!_shown || MainScene.activePop != null || resultsUp())
-                    return false;
-                if (Message.isAnyMessage() != -1 || SrvContextMenu.visisble)
-                    return false;
-                show(false);
-                return true;
-            }
-            catch (err:Error)
+                if (_offer != null)
+                    onOfferExit(null);
+            }, function():Boolean
             {
-            }
-            return false;
+                return _offer != null && _shown && !resultsUp();
+            });
         }
 
         private function setTab(text:String):void
@@ -590,6 +590,13 @@ package survarium.rooms
             }
             _shown = value;
             visible = value;
+            if (value)
+                enterModals();
+            else
+            {
+                Modals.leave(this);
+                Modals.leave(_offerModal);
+            }
             // Enter in the list joins the room chosen (once on the stage).
             if (value && !_keys && stage != null)
             {
@@ -1252,6 +1259,7 @@ package survarium.rooms
                 show(true);
             else
                 render();
+            enterOfferModal();
         }
 
         // The join (or Play) asked, with `preset` put on first (0: none).
