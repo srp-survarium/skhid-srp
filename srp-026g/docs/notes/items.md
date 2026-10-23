@@ -63,6 +63,13 @@ PROVEN by the data:
   0.03/s (body, head, arms, legs; pain 0.1/s), with the same 8 s timeout and
   cap (body 50 %). Body 0 -> 50 %: 16.7 s, 15.9 s at +5 %, 14.5 s at +15 %,
   11.5 s with three +15 % pieces. It works as its card says; it is small.
+  **Pain too** (2026-10-23, static): base_player::tick 0x2DAA60 ->
+  damage_model::tick 0x2E5040 -> 0x32A4B0 for every pool of the list that
+  get_body_part 0x2E58B0 finds "pain" in. Pain: 0.1/s up to 100 %, 8 s
+  after its last hit; 0 -> 100 % in 10 s, 9.5 s at +5 %, 8.7 s at +15 %,
+  6.9 s with three +15 % pieces. Index 36 `pain_regeneration_speed_modifier`
+  is read once, in base_player::base_player (0x2D7043), into the pain pool's
+  speed (x max(0, 1 + sum)); no item or skill sets it.
 - 47 items (every vest and every pair of trousers) have `camo_available`
   and `decal_available`; `items_compatibility` pairs no cosmetic with
   anything.
