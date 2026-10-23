@@ -719,6 +719,16 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.weapon_draw_bin(), "rb").read(),
           f"{os.path.basename(P.weapon_draw_bin())} is current ({len(fresh)} bytes)")
+    late = P.late_join_state_va(open(P.late_join_bin(), "rb").read())
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "out.bin")
+        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.FAST_WEAPON_VA:#x}",
+                        f"-DSTATE={P.FAST_WEAPON_STATE_VA:#x}", f"-DPREVIEW={late + P.WEAPON_PREVIEW_STATE_OFFSET:#x}",
+                        f"-DTABLE={late + P.WEAPON_TABLE_STATE_OFFSET:#x}",
+                        os.path.join(HERE, "fast_weapon_026g.asm"), "-o", out], check=True, timeout=60)
+        fresh = open(out, "rb").read()
+    check(fresh == open(P.fast_weapon_bin(), "rb").read(),
+          f"{os.path.basename(P.fast_weapon_bin())} is current ({len(fresh)} bytes)")
 
 
 def test_pe(original, image, mode):
@@ -1512,7 +1522,8 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.UPGRADE_PREVIEW_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
-        [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES]
+        [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
+        [(va, len(old)) for va, old, _, _ in P.FAST_WEAPON_HOOKS]
 
 
 def pickup_sites():
@@ -2078,6 +2089,61 @@ def test_research(original, image, before):
     check(read32(image, int(kept["symbols"]["rn_rule_vtable"], 16)) == 0xA4C970
           and hierarchy(source, 0xA4C970)[3] == ".?AVgame_match_rule_base@survarium@@",
           "the rule's vtable has game_match_rule_base's locator (0xA4C970)")
+
+
+def test_fast_weapon(original, image, before):
+    """Check 56: the fast weapon (an experiment; patch 56, FAST_WEAPON_HOOKS;
+    check_fast_weapon_026g.py runs the three sites and the query's callback
+    with the game's own callers). Here: each site is the original's
+    instructions before and the hook after, with no relocation under it and
+    no branch of the game into it; the entries are jumps; the code's calls and
+    jumps out of it are the game's functions it names; the build without it
+    (fast_weapon=False) has the three sites the original's and its block int3."""
+    source = Image(original)
+    code = open(P.fast_weapon_bin(), "rb").read()
+    late = P.late_join_state_va(open(P.late_join_bin(), "rb").read())
+    check(P.fast_weapon_layout(code) == (P.FAST_WEAPON_VA, P.FAST_WEAPON_STATE_VA,
+                                         late + P.WEAPON_PREVIEW_STATE_OFFSET, late + P.WEAPON_TABLE_STATE_OFFSET)
+          and image.read(P.FAST_WEAPON_VA, len(code)) == code,
+          f"fast_weapon_026g.section.bin ({len(code)} bytes) at {P.FAST_WEAPON_VA:#x} (fastweapon.code), assembled "
+          f"for its state {P.FAST_WEAPON_STATE_VA:#x}, patch 32's {late + P.WEAPON_PREVIEW_STATE_OFFSET:#x} and patch "
+          f"45's {late + P.WEAPON_TABLE_STATE_OFFSET:#x}")
+    originals = {0x284B16: ["sub esp,0x6c", "push ebx", "mov ebx,[ebp+0x8]"], 0x284A7E: ["call 0x2474a0"],
+                 0x21D093: ["call 0x2855b0"]}
+    loose = lambda text: text.replace("byte +", "")
+    for va, old, offset, opcode in P.FAST_WEAPON_HOOKS:
+        rows = ndisasm(source.read(va, len(old)), va)
+        hooked = ndisasm(image.read(va, len(old)), va)
+        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
+              and [loose(text) for _, _, text in rows] == originals[va]
+              and hooked[0][2].startswith("call") and branch_target(hooked[0][2]) == P.FAST_WEAPON_VA + offset
+              and all(text == "nop" for _, _, text in hooked[1:]),
+              f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]} + {len(hooked) - 1} nop; "
+              "the build without the late join keeps it")
+        hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
+                if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
+        relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
+        check(not hits and not relocated, f"{va:#x}: no branch aims inside the site, no base relocation under it")
+    entries = ndisasm(image.read(P.FAST_WEAPON_VA, 20), P.FAST_WEAPON_VA)
+    check([text.split()[0] for _, _, text in entries] == ["jmp"] * 4,
+          "the block starts with its four entries, `jmp near` each: setup, frame, unload, ready")
+    body = code[:code.index(b"srp\0")]
+    texts = [t for _, _, t in ndisasm(body, P.FAST_WEAPON_VA)]
+    targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
+    outside = {c for c in targets if not P.FAST_WEAPON_VA <= c < P.FAST_WEAPON_VA + len(code)}
+    want = {0x2474A0, 0x2855B0, 0xE5B60, 0x27D280, 0x2C8090, 0x2F7C10, 0x270390, 0xE0210, 0x21CD0, 0x21F40,
+            0x22280, 0x243BC0, 0x111ED0, 0x111860}
+    check(outside == want and any(t.startswith("call [edx+0x34]") for t in texts),
+          "its calls and jumps out of it: mt_draw and the unload's call (where its sites went), query_resources, "
+          "the member callback 0x27D280, the query data's type 0x2C8090, the record's ctor and copy, a resource's "
+          "release, the scene renderer's add, remove and update_model, weapon::calculate_locator, the log and its "
+          f"filter ({sorted(hex(c) for c in outside)}); and the network client's vtable+34h")
+    code_ = open(P.default_bin("section"), "rb").read()
+    without, _ = P.build(original, "section", code_, None, open(P.late_join_bin(), "rb").read(), fast_weapon=False)
+    plain = Image(without)
+    check(all(plain.read(va, len(old)) == old for va, old, _, _ in P.FAST_WEAPON_HOOKS)
+          and set(plain.read(P.FAST_WEAPON_VA, P.ARENA_BLOCKS["fastweapon.code"].size)) == {0xCC},
+          "fast_weapon=False (--no-fast-weapon): the three sites the original's, the block int3")
 
 
 def instruction(image, va):
@@ -5088,12 +5154,12 @@ def test_arena(original):
     bare = bytes(P.add_arena(bytearray(b"MZ"), (), {}))
     check(none == without and bare == b"MZ",
           "no block added: the exe is byte for byte the build's; with no block at all add_arena adds no section")
-    check(P.ARENA_LAYOUT == {"research.code": 0xA42D000, "research.state": 0xA430000,
-                             "artefacts.code": 0xA431000}
+    check(P.ARENA_LAYOUT == P.ARENA_PINNED and P.ARENA_LAYOUT["research.code"] == 0xA42D000
+          and P.ARENA_LAYOUT["research.state"] == 0xA430000 and P.ARENA_LAYOUT["artefacts.code"] == 0xA431000
           and [b.name for b in P.ARENA[:3]] == ["research.code", "research.state", "artefacts.code"],
           "ARENA's first blocks are Research's, at 0xA42D000 (code) and 0xA430000 (state), the VAs "
-          "research_026g.py links it for, then the artefacts' code (patch 54) at 0xA431000; the next "
-          "block (#225's) goes at 0xA432000")
+          "research_026g.py links it for, then the artefacts' code (patch 54) at 0xA431000; then "
+          f"{', '.join(f'{b.name} @ {P.ARENA_LAYOUT[b.name]:#x}' for b in P.ARENA[3:])} (ARENA_PINNED)")
     # Blocks of each kind, out of alignment order, built twice: the same bytes.
     blocks = (P.ArenaBlock("a.code", "code", 0x2800, 0x1000),
               P.ArenaBlock("a.state", "state", 0x1000, 0x1000),
@@ -5300,25 +5366,27 @@ def test_late_join(original, without, server, source):
           f"weapon_decals_026g.section.bin at +{P.WEAPON_DECALS_OFFSET:#x}, int3 padding and "
           f"upgrade_preview_026g.section.bin at +{P.UPGRADE_PREVIEW_OFFSET:#x} ({len(camo)} bytes), "
           "code | execute | read, on the page after .srpc, its file bytes right after .srpc's")
-    research = open(P.research_bin(), "rb").read()
-    research = research + b"\xCC" * (P.RESEARCH_STATE_OFFSET - len(research)) + bytes(P.RESEARCH_SIZE - P.RESEARCH_STATE_OFFSET)
-    artefacts = open(P.artefacts_bin(), "rb").read()
-    artefacts_size = P.ARENA_BLOCKS["artefacts.code"].size
-    arena = research + artefacts + b"\xCC" * (artefacts_size - len(artefacts))
+    _, arena_size = P.arena_layout(P.ARENA)
+    arena = bytearray(arena_size)
+    for block, body in (("research.code", open(P.research_bin(), "rb").read()),
+                        ("artefacts.code", open(P.artefacts_bin(), "rb").read()),
+                        ("fastweapon.code", open(P.fast_weapon_bin(), "rb").read())):
+        at = P.ARENA_LAYOUT[block] - P.ARENA_VA
+        arena[at:at + P.ARENA_BLOCKS[block].size] = body + b"\xCC" * (P.ARENA_BLOCKS[block].size - len(body))
     name_r, rva_r, vsize_r, raw_r, rsize_r, flags_r = sections[-1]
     check(name_r == P.ARENA_NAME and flags_r == P.ARENA_CHARACTERISTICS
           and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.ARENA_VA
           and P.RESEARCH_VA == P.ARENA_LAYOUT["research.code"] == P.ARENA_VA
           and P.RESEARCH_STATE_VA == P.ARENA_LAYOUT["research.state"] == P.ARENA_VA + 0x3000
           and P.ARTEFACTS_VA == P.ARENA_LAYOUT["artefacts.code"] == P.ARENA_VA + P.RESEARCH_SIZE
-          and vsize_r == P.RESEARCH_SIZE + artefacts_size and raw_r == raw_w + rsize_w
-          and rsize_r == align(vsize_r, headers.file_alignment)
-          and bytes(data[raw_r:raw_r + vsize_r]) == arena,
-          f".srpx, the arena, at VA {P.IMAGE_BASE + rva_r:#x}: its blocks research.code "
-          f"(research_026g.section.bin, int3 padding), research.state (+{P.RESEARCH_STATE_OFFSET:#x}, the page "
-          f"zeroed) and artefacts.code (+{P.RESEARCH_SIZE:#x}, artefacts_026g.section.bin, int3 padding) at the "
-          "VAs ARENA_LAYOUT gives them; code | data | execute | read | write, on the page after "
-          ".srpw, its file bytes right after .srpw's")
+          and P.FAST_WEAPON_VA == P.ARENA_LAYOUT["fastweapon.code"]
+          and vsize_r == arena_size and raw_r == raw_w + rsize_w and rsize_r == align(vsize_r, headers.file_alignment)
+          and bytes(data[raw_r:raw_r + vsize_r]) == bytes(arena),
+          f".srpx, the arena, at VA {P.IMAGE_BASE + rva_r:#x}: research.code (research_026g.section.bin, int3 "
+          f"padding), research.state (+{P.RESEARCH_STATE_OFFSET:#x}, the page zeroed), artefacts.code "
+          f"(+{P.RESEARCH_SIZE:#x}, artefacts_026g.section.bin, int3 padding), fastweapon.code "
+          "(fast_weapon_026g.section.bin, int3 padding) and fastweapon.state (zeros) at the VAs ARENA_LAYOUT gives "
+          "them; code | data | execute | read | write, on the page after .srpw, its file bytes right after .srpw's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
     check(get(data, headers.size_of_image_at) == align(rva_r + vsize_r, headers.section_alignment)
           and get(data, headers.optional + 12) == get(without, headers.optional + 12) + state_size
@@ -5477,6 +5545,7 @@ def test_late_join(original, without, server, source):
     test_weapon_decals(original, image, before)
     test_upgrade_preview(original, image, before)
     test_research(original, image, before)
+    test_fast_weapon(original, image, before)
     test_suicide_key(original, image, before)
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)

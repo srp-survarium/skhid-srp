@@ -489,8 +489,11 @@ def main():
         sys.exit(__doc__)
     original = open(sys.argv[1], "rb").read()
     late_join = open(base.late_join_bin(), "rb").read()
+    # The build without patch 56 (the fast weapon experiment, whose
+    # setup_profile site at 0x284B16 takes a weapon's window from the
+    # character's rebuild: check_fast_weapon_026g.py runs it).
     build, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(),
-                          late_join=late_join)
+                          late_join=late_join, fast_weapon=False)
     e = Emu(build)
     failures = 0
 

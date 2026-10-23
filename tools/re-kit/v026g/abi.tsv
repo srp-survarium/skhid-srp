@@ -1869,3 +1869,11 @@ va	name	source	ret_cleanup	result
 0x0029a870	survarium::lobby_menu::start_item_upgrade	manual	4	the movie's callback 5: esi = menu+694h, edi = the item id (the first value's number), then 0x265DE0; al = 1
 0x0029a890	survarium::lobby_menu::exit_item_upgrade	manual	4	the movie's callback 6: esi = menu+694h, then 0x265F10; al = 1
 0x00284aa0	survarium::lobby_character::release_player	manual	4	lets its player (+D2B8h) go (vtable+24h(1), +28h, the reference); with the byte argument set, +D2C9h = 1: on_player_ready lets the player being made go too (0x284F90)
+0x0027d280	boost::function<void(queries_result&)> member bind (resource query callback)	manual	16	EDI = the function: {0xA09374 | 1, -, pmf, adjust, object}; its invoker 0x202300 calls (object + adjust)->*pmf(queries_result&)
+0x002c8090	vostok::type_to_int<weapon query data>	manual	0	EAX = the type id of weapon_core_cook's variant<32> user data (helper 0xA0E7D0, 1Ch bytes)
+0x000e0210	vostok::resources resource's last reference	manual	0	the resource handed back to its cook (delete_resource); ECX = it, EAX = &its count
+0x0021d080	survarium::lobby_menu (vtable 0x9FFE74 slot 10, unload)	manual	0	lets the three lobby_characters' players go (0x21D100..), +D2C9h set on each
+0x002855b0	lobby_menu unload helper (ESI = menu+114h)	manual	0	
+0x0030a880	survarium::weapon_core_cook::translate_query	manual	4	the query's +108h: variant<32> {record+14h, record+60h, dictionary, world (weapon+180Ch), dict id, client vtable+34h ()+577B0h, 1}
+0x0024a920	survarium::weapon_cook::on_weapon_config_loaded	manual	16	queries the scope item (4Dh), object/model (10h), user_animations_in_place/preview (31h each), particles (3Dh)
+0x0024b190	survarium::weapon_cook::delete_resource	manual	4	the resource is the weapon's +10h (its inventory_item); the weapon is it - 10h

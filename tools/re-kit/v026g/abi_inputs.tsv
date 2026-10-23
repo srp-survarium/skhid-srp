@@ -4352,3 +4352,17 @@ va	name	location	role	basis
 0x0029a890	survarium::lobby_menu::exit_item_upgrade	ECX	the lobby menu	observed
 0x00284aa0	survarium::lobby_character::release_player	ESI	the lobby_character	observed
 0x00284aa0	survarium::lobby_character::release_player	entry ESP+4	byte: 1 also drops the player being made (+D2C9h)	observed
+0x0027d280	boost::function<void(queries_result&)> member bind (resource query callback)	EDI	the boost::function written	observed
+0x0027d280	boost::function<void(queries_result&)> member bind (resource query callback)	entry ESP+4	the member function	observed
+0x0027d280	boost::function<void(queries_result&)> member bind (resource query callback)	entry ESP+12	the object (the member's ECX)	observed
+0x000e0210	vostok::resources resource's last reference	ECX	the resource (count 0)	observed
+0x000e0210	vostok::resources resource's last reference	EAX	&its count (+0D0h)	observed
+0x000e5b60	vostok::resources::query_resources	EAX	requests: {path, class} each	observed
+0x000e5b60	vostok::resources::query_resources	ECX	how many requests	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+4	&the boost::function called with the queries_result (the first resource at +12Ch, 2E0h apart)	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+8	the allocator ([0x1F1D9C4])	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+12	&the user data pointers (variant<32>*), or 0	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+16	the parent query, 0 none	observed
+0x0030a880	survarium::weapon_core_cook::translate_query	entry ESP+4	the query (+108h the user data variant)	observed
+0x0024b190	survarium::weapon_cook::delete_resource	entry ESP+4	the resource (weapon+10h)	observed
+0x002855b0	lobby_menu unload helper (ESI = menu+114h)	ESI	the lobby menu's +114h	observed
