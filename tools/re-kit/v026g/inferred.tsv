@@ -1758,6 +1758,12 @@ va	status	ref_021d	name
 0x002966a0	inferred-medium	0x001aaf9b	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf0<void,survarium::breath_holding_sound_effect>,boost::_bi::list1<boost::_bi::value<survarium::breath_holding_sound_effect *> > > >::manager
 0x002966f0	inferred-medium	0x001aafe4	vostok::animation::mixing::binary_tree_animation_node::binary_tree_animation_node
 0x00296830	inferred-medium	0x001ab0d2	vostok::animation::mixing::animation_lexeme::animation_lexeme
+0x00296ab0	inferred-high		survarium::player_logic_preview_state::player_logic_preview_state
+0x00296b00	inferred-high		survarium::player_logic_preview_state::`scalar deleting destructor'
+0x00296b30	inferred-medium		survarium::player_logic_preview_state::initialize
+0x00296bf0	inferred-medium		survarium::player_logic_preview_state::on_animation_interval_end
+0x00296c20	inferred-medium		survarium::player_logic_preview_state::random_animation_index
+0x00296d00	inferred-high		survarium::player_logic_preview_state::selected_animations
 0x00297060	inferred-medium	0x001ab634	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::player_logic_preview_state,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::player_logic_preview_state *>,boost::arg<1> > > >::manager
 0x002977d0	inferred-high	0x001b142c	survarium::weapon_preview_state_cook::allocate_resource
 0x00297810	inferred-high	0x001b145e	survarium::weapon_preview_state_cook::create_resource
