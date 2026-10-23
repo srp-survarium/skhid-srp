@@ -147,6 +147,9 @@ struct Game {
     /// Carriers killed with a battery: (the shooter, the carrier), in
     /// order (the bench reads them by the shooter's play).
     carrier_kills: Vec<(Place, Place)>,
+    /// Every kill: (tick, the shooter, the killed), for the bench's
+    /// events (`SRP_BENCH_EVENTS`).
+    kill_log: Vec<(u32, Place, Place)>,
     /// By battery: stolen from this team's container, and when (ms) and
     /// how (alive: dropped by a live carrier) it fell since, if it did.
     stolen_marks: Vec<Option<StolenMark>>,
@@ -266,6 +269,7 @@ impl Game {
             stolen: 0,
             thieves: Vec::new(),
             carrier_kills: Vec::new(),
+            kill_log: Vec::new(),
             stolen_marks: Vec::new(),
             stolen_drops: Vec::new(),
             stolen_log: Vec::new(),
@@ -508,6 +512,7 @@ impl Game {
                     ));
                 }
             }
+            self.kill_log.push((tick, shooter, target));
             self.stats[target].1 += 1;
             self.stats[target].2 = 0;
             if let Some(tickets) = self.tickets.as_mut() {
@@ -2316,6 +2321,69 @@ fn a_battery_a_thief_dropped_by_our_container_is_looked_for_and_taken() {
     }
 }
 
+/// The real-map bench's events (`SRP_BENCH_EVENTS=<dir>`): the run's notes,
+/// its kills (shooter, killed) and each bot's place and play once a world,
+/// one JSON line each, in `<dir>/<level>-<mode>-<n>v<n>.jsonl`. What the
+/// plays' churn, the idle bots with a goal and the trades are counted from
+/// (`player_bots_behaviour.md` §3 "Play choice and trades").
+struct BenchEvents(Option<std::io::BufWriter<std::fs::File>>);
+
+impl BenchEvents {
+    fn open(level: u8, mode: u8, per_team: usize) -> Self {
+        Self(std::env::var_os("SRP_BENCH_EVENTS").map(|dir| {
+            let path = std::path::Path::new(&dir)
+                .join(format!("level_{level:02}-{mode}-{per_team}v{per_team}.jsonl"));
+            std::io::BufWriter::new(std::fs::File::create(path).unwrap())
+        }))
+    }
+
+    fn line(&mut self, value: serde_json::Value) {
+        use std::io::Write;
+        if let Some(file) = self.0.as_mut() {
+            writeln!(file, "{value}").unwrap();
+        }
+    }
+
+    fn note(&mut self, note: &Note) {
+        if self.0.is_some() {
+            self.line(serde_json::json!({"t": note.time, "bot": note.place, "note": note.text}));
+        }
+    }
+
+    /// The kills since the last call, and each bot as it is now: [place,
+    /// team, alive, x, z, yaw, play, aiming at someone, walking to a goal].
+    fn world(&mut self, clock: u32, game: &mut Game, bots: &Bots) {
+        let kills = std::mem::take(&mut game.kill_log);
+        if self.0.is_none() {
+            return;
+        }
+        for (tick, shooter, killed) in kills {
+            self.line(serde_json::json!({"t": tick, "kill": [shooter, killed]}));
+        }
+        let each: Vec<serde_json::Value> = bots
+            .bots
+            .iter()
+            .flatten()
+            .map(|bot| {
+                let body = &game.bodies[bot.place];
+                let goal = matches!(bot.intent.go, Go::To { at, within_m } if body.feet.distance_xz(at) > within_m);
+                serde_json::json!([
+                    bot.place,
+                    bot.team,
+                    body.alive,
+                    (body.feet.x * 10.0).round() / 10.0,
+                    (body.feet.z * 10.0).round() / 10.0,
+                    (body.yaw * 100.0).round() / 100.0,
+                    bot.assignment.as_ref().map(|a| format!("{:?}", a.kind)),
+                    bot.reflex.target().is_some(),
+                    goal,
+                ])
+            })
+            .collect();
+        self.line(serde_json::json!({"t": clock, "w": each}));
+    }
+}
+
 /// Where the time of the bots' polls goes, seconds.
 #[derive(Default)]
 struct Times {
@@ -2660,6 +2728,7 @@ fn real_bot_cost() {
             let mut carriers_killed = [0u32; 2];
             let mut takes_all = 0u32;
             let mut raids = RaidTally::default();
+            let mut events = BenchEvents::open(level, mode, per_team);
             while clock < limit_ms {
                 clock += 5;
                 while game.tick + TICK_MS <= clock {
@@ -2746,12 +2815,14 @@ fn real_bot_cost() {
                 }
                 if clock >= next_world {
                     next_world += 1_000;
+                    events.world(clock, &mut game, &bots);
                     if let Some((_, fixes, health, facts)) =
                         game.world_at(clock / TICK_MS * TICK_MS - 300)
                     {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             for note in bots.fixed(place, fix, Some(health)) {
                                 decisions.note(&note);
+                                events.note(&note);
                             }
                         }
                         for note in bots.facts(facts) {
@@ -2803,6 +2874,7 @@ fn real_bot_cost() {
                 raids.polled(&bots, &notes, &made);
                 for note in notes {
                     decisions.note(&note);
+                    events.note(&note);
                     if let Some(rest) = note.text.strip_prefix("takes ") {
                         takes_all += 1;
                         let kind = rest.split(' ').next().unwrap_or("").to_owned();
