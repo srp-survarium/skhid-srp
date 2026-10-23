@@ -37,3 +37,7 @@ The owner's rule and what it changes. Data: the weapons' animation lists
   and `on_site_right`, pistols `on_site_left`; the battery carrier's list is unchanged.
 - **Not changed:** the animations themselves, the death camera, the respawn time, srp
   (it reads none of these files).
+- **Fewer poses now (the owner, 2026-10-21: "we can think later what to do with those"):**
+  rifles have two death poses left, pistols one, all face up. Options for later: the face-down
+  pose back with its last frame fixed (the arm moved away from the face), death clips from other
+  versions, or the death camera treating that pose specially.

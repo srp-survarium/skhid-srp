@@ -1,6 +1,6 @@
 # The game requires its release's patches (patch 49)
 
-The rule after the crashes of 2026-10-21 (`~/next-srp-steps.md` "Rev 28 guard"). Code:
+The rule after the crashes of 2026-10-21. Code:
 `client-patches/mount_patches_026g.asm` (README patch 49, `client_patch.md` section 3.46);
 the release: `release/build-zip`, `release/lib.sh` (`exe_required_patches`,
 `check_exe_requires`).

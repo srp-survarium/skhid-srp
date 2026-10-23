@@ -262,4 +262,27 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   gives nothing, so account ids cannot be walked for anyone's kits. A place of the room's
   window from an older list (a member came or went since) gives nothing. The window's title is
   the whole name (from the room's member rows), not the state's cut one.
-- **Deferred:** "Full · N in queue" and the list's header totals: after rooms are solid.
+- **Deferred:**
+  - **The list's counts** (the owner's of 2026-10-18: after rooms are solid): "Full · N in
+    queue" on a full room, and totals in the list's header ("12 rooms · 87 players · 9
+    waiting").
+  - **A countdown in the last 10 s before a room's match** (the owner's of 2026-10-20, waiting
+    for the owner's pick of a sound):
+    - "for the last 10 seconds, can we have some count down timer", rising in pitch; "we need
+      sounds from game, not something random". The candidate: 0.46's `ui_sounds/countdown_start`
+      (its UI sound 20, 4.25 s of ticks; the owner: "we can most likely use that"). Mixes of
+      game sounds were made to listen to (pips, rising pips or clicks, with or without
+      `countdown_start` and a chime).
+    - The owner: "if we don't have chime at the end, we should have it when match starts to
+      load". The game plays the chime (UI sound 15, `match_selection_complete`) in
+      `LobbyMenu.set_mm_sync_state`, from `lobby_menu::set_match_making_status` (0x2252D0) on
+      0x85 status 1 place 0 ("match found"). The lobby sends that to a room's players too when
+      their match is seated (`play.rs` `queue_status`, `waiting(0, 0, now)`), so it LIKELY
+      still plays with rooms (the owner: "it used to play on search, not sure this happens
+      still with rooms"): to check in the game.
+    - How: the new sounds into `gameplay/ui_sounds` (ids 19 and up) by a content edit; the rooms
+      window plays them by id (`sound_play`), driven from one end time each frame; a big 10...1
+      over the lobby; stopped at once when the vote stops.
+  - **Some of a match's chat in the Room Chat tab** (the owner's of 2026-10-21: "match messages
+    should be preserved and shown in room chat (not all, but some)"): which lines (for example
+    all-chat lines, not team or system lines) to decide with the owner.

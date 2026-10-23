@@ -1336,7 +1336,7 @@ So of what the game logs, the dominant wait is the client's own send tick (a qua
 
 ### 3.46 The game stops at its start without a patch its release requires (written 2026-10-21, README patch 49, the next release's revision; the rules: `required-patches.md`) — PROVEN in the code, the mount run with Unicorn; not run in a game
 
-**Why** (the crash analysis of 2026-10-21, `~/next-srp-steps.md` "Rev 28 guard"): players whose updater could not reach the patches server started the revision 27 exe without the launcher and without patch_26/27. Patch 27 (section 0.2) skips a missing number, so the game ran on older content than the server: a profile with an item id its data did not have (crash A, a buffer_vector assert at the match's start), and other animation ids than the other players' in the world snapshots (crash B).
+**Why** (the crash analysis of 2026-10-21): players whose updater could not reach the patches server started the revision 27 exe without the launcher and without patch_26/27. Patch 27 (section 0.2) skips a missing number, so the game ran on older content than the server: a profile with an item id its data did not have (crash A, a buffer_vector assert at the match's start), and other animation ids than the other players' in the world snapshots (crash B).
 
 **The patch** (`mount_patches_026g.asm`, 759 bytes at `.srp`+400h, from 707; no new site): the probe's missing case. Before, `cmp eax,2` / `je .probe` / `cmp eax,3` / `je .probe` / `push eax` (the fatal's). Now:
 
