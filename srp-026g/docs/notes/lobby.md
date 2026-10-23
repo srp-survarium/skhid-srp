@@ -449,16 +449,16 @@ What happens around it:
 
 Code: `lobby/rooms.rs` (`survarium`: starts, decoding, writers), `session::v026g::rooms` (the rooms and their rules), `servers/lobby-server/src/v026g/rooms.rs` (the lobby's side), `play.rs` `play` / `launch` / `finish`, `session::Matchmaking::seat_sides_in_pool` / `append_player`. Tests: `lobby/rooms.rs`'s own, `session::v026g::rooms`'s own, `core_tests/rooms_tests.rs`, `core_tests/room_chat_tests.rs`.
 
-#### 2.16.4 Kit presets, on `3B` / 0x91: srp's own (contract P1, 2026-10-23)
+#### 2.16.4 Kit presets, on `3B` / 0x91: srp's own (contract P2, 2026-10-23)
 
 The Character panel's title, the switcher of five kit presets, one active (`presets.md`): the active one is the kits, so every kit change is its own and nothing is saved by hand. Starts from **2 090 000 000 to 2 090 000 099** (`PRESETS_FIRST`, `PRESETS_LAST`): above the rooms, inside an `int`. Every request is answered with the list, one `91` at 2 090 000 000.
 
 | start | request |
 |---|---|
 | 2 090 000 000 | the list |
-| 2 090 000 010 + preset | make that preset, 1 to 5, the active one (`session::v026g::presets::choose`): the kits stay with the one left, the chosen one is put on them (an empty one starts as the kits worn); done: the inventory and the account (`89`, `87`) before the list, as after `46 00` |
+| 2 090 000 010 + preset | make that preset, 1 to 5, the active one (`session::v026g::presets::choose`): the kits stay with the one left, the chosen one is put on them (an empty one starts empty: the kits emptied, every item still owned); done: the inventory and the account (`89`, `87`) before the list, as after `46 00` |
 
-The list: `P1;L;<done>;<preset>;<empty>;<active>` (`done` 0 the list, 1 chosen, 2 refused: the asker is in a match, or a kit rule refused; `preset` the one it was about, 0 for the list; `empty` the preset's slots a choice left empty, their items gone; `active` the active preset), then a row a preset, 1 first: `<preset>;<saved>;<level>` (`saved` 1: it holds something, the active one when the kits do; `level` the gear level its kits give now, the rooms' measure; -1: empty, or none of its kits can play). No exe change: the movie sends and reads it as the rooms' wire.
+The list: `P2;L;<done>;<preset>;<active>` (`done` 0 the list, 1 chosen, 2 refused: the asker is in a match, or a kit rule refused; `preset` the one it was about, 0 for the list; `active` the active preset), then a row a preset, 1 first: `<preset>;<saved>;<level>` (`saved` 1: it holds something, the active one when the kits do; `level` the gear level its kits give now, the rooms' measure; -1: empty, or none of its kits can play), then the items the presets use, `U;<item id>:<presets>,...` (`presets` bit n - 1 for preset n; the active one's: the kits' items; another's: the items it would put on now), as many to a row as a name holds (63 bytes), item ids rising, rows past 2 090 000 099 left out (`presets::uses`, `lobby::presets::preset_list`). The movie asks before a sale of one of them (`MessageAskSell`). P1 (until 2026-10-23) had `<empty>` before `<active>`, the slots a choice left empty, for a notice the owner removed. No exe change: the movie sends and reads it as the rooms' wire.
 
 ### 2.17 0x94 account services (old 0x36 0F) — PROVEN 0x2714D0 (0.21d 0x19E358)
 `u8 n`, n × 10 bytes {`u8 type`, `u8 skipped`, `u32 a`, `u32 b` (skipped)}. Only type 0 is used: premium = true, hours = a → `root.set_premium_state` 0x227D80 (`st_less_then_hour`, `%d %s` hours/days). **Types 1..4 (faction loyalty bonuses → `set_faction_bonus`) are no longer read: the loyalty display is gone.** The 0.21d 8-entry stack overflow hazard is gone with it.

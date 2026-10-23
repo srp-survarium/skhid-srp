@@ -39,6 +39,27 @@ fn choose(world: &mut World, index: usize, preset: u8) -> Vec<String> {
     lists[0].clone()
 }
 
+/// The kits worn kept as preset `preset` too, then that one chosen: the
+/// kits stay as they are (an empty preset would start empty).
+fn copied_into(world: &mut World, index: usize, preset: u8) {
+    world.change(index, |account| {
+        account.presets[usize::from(preset - 1)] = session::v026g::presets::snapshot(account);
+    });
+    choose(world, index, preset);
+}
+
+/// The `U;` rows of a list: every item a preset uses, with its presets.
+fn uses(list: &[String]) -> Vec<(u32, u8)> {
+    list.iter()
+        .filter_map(|row| row.strip_prefix("U;"))
+        .flat_map(|row| row.split(','))
+        .map(|entry| {
+            let (item, presets) = entry.split_once(':').unwrap();
+            (item.parse().unwrap(), presets.parse().unwrap())
+        })
+        .collect()
+}
+
 fn gear(world: &World, index: usize) -> u8 {
     matchmaking::gear_level(&world.account(index), quests::now())
 }
@@ -62,47 +83,70 @@ fn kits(world: &World, index: usize) -> Vec<[Option<session::v026g::account::Kit
 fn the_title_lists_the_presets_and_chooses_the_active_one() {
     let mut world = World::new();
     let alice = world.connect("Alice");
-    // Preset 1 active: the starter kit, level 0; the others empty.
+    let (pistol, rounds) = {
+        let account = world.account(alice);
+        (
+            account.kits[0].slots[7].unwrap().item_id,
+            account.kits[0].slots[8].unwrap().item_id,
+        )
+    };
+    // Preset 1 active: the starter kit, level 0; the others empty. The
+    // items preset 1 uses follow, for the sale's question.
     let (lists, _) = asked(&mut world, alice, PRESETS_FIRST);
     assert_eq!(
-        lists,
-        [[
-            "P1;L;0;0;0;1",
+        lists[0][..6],
+        [
+            "P2;L;0;0;1",
             "1;1;0",
             "2;0;-1",
             "3;0;-1",
             "4;0;-1",
             "5;0;-1"
-        ]]
+        ]
     );
+    assert_eq!(uses(&lists[0]), [(pistol, 1), (rounds, 1)]);
     let starter = kits(&world, alice);
+    let inventory = world.account(alice).inventory.clone();
 
-    // An empty preset chosen starts as the kits worn.
+    // An empty preset chosen starts empty (the owner's of 2026-10-23): the
+    // kits emptied, every item still owned as it was, preset 1 keeps them.
     let (lists, decoded) = asked(&mut world, alice, PRESET_CHOOSE_BASE + 2);
     assert_eq!(
-        lists,
-        [[
-            "P1;L;1;2;0;2",
+        lists[0][..6],
+        [
+            "P2;L;1;2;2",
             "1;1;0",
-            "2;1;0",
+            "2;0;-1",
             "3;0;-1",
             "4;0;-1",
             "5;0;-1"
-        ]]
+        ]
     );
+    assert_eq!(uses(&lists[0]), [(pistol, 1), (rounds, 1)]);
     assert!(sent_account(&decoded));
-    assert_eq!(kits(&world, alice), starter);
+    assert!(kits(&world, alice).iter().flatten().all(Option::is_none));
+    assert_eq!(world.account(alice).inventory, inventory);
+    // Chosen again: nothing changes.
+    let before = world.account(alice).clone();
+    assert_eq!(choose(&mut world, alice, 2)[0], "P2;L;1;2;2");
+    assert_eq!(*world.account(alice), before);
 
-    // Changed in preset 2 (as a match's results change an account): its
-    // level follows, preset 1 stays as it was left.
+    // Back to 1: the starter exactly. Then a copy of it as preset 2, changed
+    // there (as a match's results change an account): its level follows,
+    // preset 1 stays as it was left.
+    assert_eq!(choose(&mut world, alice, 1)[0], "P2;L;1;1;1");
+    assert_eq!(kits(&world, alice), starter);
+    copied_into(&mut world, alice, 2);
     with_gear(&mut world, alice, 5);
     let geared = kits(&world, alice);
     let inventory = world.account(alice).inventory.clone();
     let (lists, _) = asked(&mut world, alice, PRESETS_FIRST);
-    assert_eq!(lists[0][..3], ["P1;L;0;0;0;2", "1;1;0", "2;1;5"]);
+    assert_eq!(lists[0][..3], ["P2;L;0;0;2", "1;1;0", "2;1;5"]);
+    let ammo = world.account(alice).kits[0].slots[9].unwrap().item_id;
+    assert_eq!(uses(&lists[0]), [(pistol, 3), (rounds, 3), (ammo, 2)]);
 
     // Back to 1, then 2: each its own kits, nothing bought, sold or made.
-    assert_eq!(choose(&mut world, alice, 1)[0], "P1;L;1;1;0;1");
+    assert_eq!(choose(&mut world, alice, 1)[0], "P2;L;1;1;1");
     assert_eq!(kits(&world, alice), starter);
     assert_eq!(gear(&world, alice), 0);
     choose(&mut world, alice, 2);
@@ -112,13 +156,36 @@ fn the_title_lists_the_presets_and_chooses_the_active_one() {
     world.assert_clean();
 }
 
+/// Play with the kits of an empty preset (nothing worn): today's refusal,
+/// no weapon, and no kit given.
+#[test]
+fn play_with_an_empty_preset_is_refused() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    choose(&mut world, alice, 3);
+    world.settle();
+    world.take(alice);
+    let before = world.account(alice).clone();
+    world.ask(alice, request::play(1));
+    let decoded = world.take(alice);
+    assert!(
+        decoded.iter().any(|message| matches!(
+            message,
+            Decoded::Denied { text, .. } if text == "st_profile_check_failed_weapon"
+        )),
+        "{decoded:?}"
+    );
+    assert_eq!(*world.account(alice), before);
+    assert_eq!(gear(&world, alice), 0);
+}
+
 /// A move of the lobby (`46 00`) in the active preset is kept with it: away
 /// and back, the kits are as the move left them.
 #[test]
 fn a_move_in_the_kits_is_the_active_presets() {
     let mut world = World::new();
     let alice = world.connect("Alice");
-    choose(&mut world, alice, 2);
+    copied_into(&mut world, alice, 2);
     let (pistol, tt33) = {
         let account = world.account(alice);
         let pistol = account.kits[0].slots[7].unwrap().item_id;
@@ -137,20 +204,32 @@ fn a_move_in_the_kits_is_the_active_presets() {
     world.assert_clean();
 }
 
+/// A sold item's slot is just empty when its preset is chosen: no count of
+/// it in the list, nothing else said (the owner's of 2026-10-23). Before
+/// the sale, the list said preset 2 used the pistol (the lobby asks then).
 #[test]
-fn a_sold_item_is_counted_as_an_empty_slot() {
+fn a_sold_item_leaves_its_slot_empty_and_nothing_is_said() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     // Preset 2 the starter too; preset 1 sells the pistol.
-    choose(&mut world, alice, 2);
+    copied_into(&mut world, alice, 2);
     choose(&mut world, alice, 1);
     let pistol = world.account(alice).kits[0].slots[7].unwrap().item_id;
+    let (lists, _) = asked(&mut world, alice, PRESETS_FIRST);
+    assert!(uses(&lists[0]).contains(&(pistol, 3)));
     world.ask(alice, request::sell(pistol, 1));
     assert!(world.account(alice).item(pistol).is_none());
     let silver = world.account(alice).generic_money;
-    let (lists, _) = asked(&mut world, alice, PRESET_CHOOSE_BASE + 2);
-    // One slot empty; preset 2 now can not play (no weapon).
-    assert_eq!(lists[0][..3], ["P1;L;1;2;1;2", "1;1;-1", "2;1;-1"]);
+    let (lists, decoded) = asked(&mut world, alice, PRESET_CHOOSE_BASE + 2);
+    // Preset 2 now can not play (no weapon); the header is a plain choice.
+    assert_eq!(lists[0][..3], ["P2;L;1;2;2", "1;1;-1", "2;1;-1"]);
+    assert!(!uses(&lists[0]).iter().any(|(item, _)| *item == pistol));
+    assert!(
+        !decoded
+            .iter()
+            .any(|message| matches!(message, Decoded::Denied { .. })),
+        "{decoded:?}"
+    );
     assert_eq!(world.account(alice).kits[0].slots[7], None);
     assert_eq!(world.account(alice).generic_money, silver);
 }
@@ -170,7 +249,7 @@ fn gear_over_the_max_level_offers_the_highest_preset_that_fits() {
         None,
     );
     // Bob: preset 1 his starter kit (level 0); he plays preset 2, level 5.
-    choose(&mut world, bob, 2);
+    copied_into(&mut world, bob, 2);
     with_gear(&mut world, bob, 5);
     assert_eq!(
         rows(&mut world, bob, ROOM_OFFER_BASE + key, 1),
@@ -184,7 +263,7 @@ fn gear_over_the_max_level_offers_the_highest_preset_that_fits() {
     // "Switch and enter": preset 1 active, then the join.
     let (lists, decoded) = asked(&mut world, bob, ROOM_PRESET_BASE + key);
     assert!(sent_account(&decoded));
-    assert_eq!(lists[0][0], "P1;L;1;1;0;1");
+    assert_eq!(lists[0][0], "P2;L;1;1;1");
     let state = &lists[1];
     assert!(state[0].starts_with(&format!("S1;R;{key};")), "{state:?}");
     assert_eq!(gear(&world, bob), 0);
@@ -208,7 +287,7 @@ fn a_room_allowing_more_than_the_kits_offers_a_higher_preset() {
     );
     let open = create(&mut world, frank, spec(8), None);
     // Carol made preset 3 of level 5, and plays preset 1, her starter.
-    choose(&mut world, carol, 3);
+    copied_into(&mut world, carol, 3);
     with_gear(&mut world, carol, 5);
     choose(&mut world, carol, 1);
     assert_eq!(gear(&world, carol), 0);
@@ -279,7 +358,7 @@ fn play_offers_a_preset_for_the_room_it_would_take() {
         None,
     );
     // Erin: preset 2 of level 5; she plays preset 1, her starter.
-    choose(&mut world, erin, 2);
+    copied_into(&mut world, erin, 2);
     with_gear(&mut world, erin, 5);
     choose(&mut world, erin, 1);
     assert_eq!(
@@ -288,7 +367,7 @@ fn play_offers_a_preset_for_the_room_it_would_take() {
     );
     // "Switch and enter": preset 2 active, then Play, which takes that room.
     let (lists, _) = asked(&mut world, erin, ROOM_PRESET_BASE + 100_000);
-    assert_eq!(lists[0][0], "P1;L;1;2;0;2");
+    assert_eq!(lists[0][0], "P2;L;1;2;2");
     assert!(
         lists[1][0].starts_with(&format!("S1;R;{key};")),
         "{lists:?}"
@@ -319,7 +398,7 @@ fn switch_and_enter_plays_a_kit_of_the_preset_that_can_play() {
         None,
     );
     // Preset 2: kit 1 empty, the starter pistol and rounds in kit 2.
-    choose(&mut world, bob, 2);
+    copied_into(&mut world, bob, 2);
     world.change(bob, |account| {
         let starter = account.kits[0].slots;
         account.kits[0].slots = [None; 23];
@@ -335,7 +414,7 @@ fn switch_and_enter_plays_a_kit_of_the_preset_that_can_play() {
         [format!("S1;O;{key};2;2;0;5;3")]
     );
     let (lists, _) = asked(&mut world, bob, ROOM_PRESET_BASE + 100_000 + key);
-    assert_eq!(lists[0][0], "P1;L;1;2;0;2");
+    assert_eq!(lists[0][0], "P2;L;1;2;2");
     assert!(
         lists[1][0].starts_with(&format!("S1;R;{key};")),
         "{lists:?}"

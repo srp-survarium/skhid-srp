@@ -81,16 +81,18 @@ fn choosing_a_preset_keeps_the_kits_with_the_one_left() {
     let mut account = alice();
     let starter = all_worn(&account);
 
-    // An empty preset starts as the kits worn: nothing changes on them.
+    // An empty preset starts empty (the owner's of 2026-10-23): the kits
+    // emptied, preset 1 keeps them, nothing owned changes.
     let before = account.clone();
     assert_eq!(choose(&mut account, 2, NOW).unwrap(), Applied { empty: 0 });
     assert_eq!(account.active_preset, 2);
-    assert_eq!(account.kits, before.kits);
+    assert!(all_worn(&account).iter().all(Vec::is_empty));
+    assert_eq!(snapshot(&account), None);
     assert_eq!(account.presets[0], snapshot(&before));
     assert_eq!(account.presets[1], None);
+    assert_eq!(owned(&account), owned(&before));
 
-    // Preset 2 changed by hand: the rifle in kit 2, kit 1 empty.
-    account.kits[0].slots = [None; KIT_SLOTS];
+    // Preset 2 changed by hand: the rifle in kit 2.
     rifle_kit(&mut account);
     let rifle = all_worn(&account);
     let before = owned(&account);
@@ -291,8 +293,7 @@ fn a_sold_item_leaves_its_slot_empty() {
 /// Preset 2 holds kit 1 as Alice starts; she plays preset 1 with nothing
 /// worn.
 fn starter_in_2(account: &mut Account) {
-    choose(account, 2, NOW).unwrap();
-    choose(account, 1, NOW).unwrap();
+    account.presets[1] = snapshot(account);
     account.kits[0].slots = [None; KIT_SLOTS];
 }
 
@@ -660,4 +661,87 @@ fn an_item_that_no_longer_fits_its_slot_stays_out() {
     assert_eq!(account.kits[0].slots[7], None);
     assert!(account.kits[0].slots[8].is_some());
     assert_eq!(owned(&account), before);
+}
+
+/// An empty preset chosen starts empty (the owner's of 2026-10-23): the
+/// three kits emptied, every item still owned as it was (a kit names owned
+/// items; stacks whole), nothing made or sold; back to the preset left,
+/// its kits exactly; the empty one chosen again, nothing changes.
+#[test]
+fn an_empty_preset_starts_empty_and_gives_everything_back() {
+    let mut account = alice();
+    rifle_kit(&mut account);
+    let worn_before = all_worn(&account);
+    let kits_before = account.kits.clone();
+    let before = owned(&account);
+    assert!(worn_before.iter().flatten().count() >= 4);
+
+    assert_eq!(choose(&mut account, 4, NOW).unwrap(), Applied { empty: 0 });
+    assert_eq!(account.active_preset, 4);
+    assert!(all_worn(&account).iter().all(Vec::is_empty));
+    assert_eq!(owned(&account), before);
+    assert_eq!(snapshot(&account), None);
+    assert!(account.presets[0].is_some());
+    assert_eq!(level(&account, 4, NOW), None);
+    // No kit can play: Play is refused (no weapon), the gear level is 0;
+    // an empty preset is never offered: only one that can play, at a level
+    // over the gear (here preset 1 is level 0, so no popup, and the room's
+    // own kit check speaks, as for any kit that can not play).
+    let levels = levels(&account, NOW);
+    assert_eq!(levels[3], None);
+    assert_eq!(levels[0], Some(0));
+    assert_eq!(offer(0, 30, &levels), Offer::None);
+    assert_eq!(
+        offer(0, 30, &[None, None, None, Some(0), Some(4)]),
+        Offer::Higher {
+            preset: 5,
+            level: 4
+        }
+    );
+
+    // Chosen again, or another empty one: nothing changes on the kits or
+    // what is owned.
+    let same = account.clone();
+    assert_eq!(choose(&mut account, 4, NOW).unwrap(), Applied { empty: 0 });
+    assert_eq!(account, same);
+    choose(&mut account, 5, NOW).unwrap();
+    assert!(all_worn(&account).iter().all(Vec::is_empty));
+    assert_eq!(owned(&account), before);
+    assert_eq!(account.presets[3], None);
+
+    // Back to 1: its kits exactly, the kit played as it was.
+    choose(&mut account, 1, NOW).unwrap();
+    assert_eq!(all_worn(&account), worn_before);
+    assert_eq!(
+        account.kits.iter().map(|kit| kit.slots).collect::<Vec<_>>(),
+        kits_before.iter().map(|kit| kit.slots).collect::<Vec<_>>()
+    );
+    assert_eq!(account.active_kit, kits_before[0].id);
+    assert_eq!(owned(&account), before);
+}
+
+/// What the lobby gets to ask before a sale: each item a preset uses, with
+/// its presets; an item sold is in none.
+#[test]
+fn the_items_the_presets_use_are_listed_for_the_sale_question() {
+    let mut account = alice();
+    let pistol = account.kits[0].slots[7].unwrap().item_id;
+    let rounds = account.kits[0].slots[8].unwrap().item_id;
+    assert_eq!(uses(&account), [(pistol, 1), (rounds, 1)]);
+    // Preset 3 the starter plus the rifle kit, active; preset 1 left as
+    // the starter.
+    account.presets[2] = snapshot(&account);
+    choose(&mut account, 3, NOW).unwrap();
+    rifle_kit(&mut account);
+    let rifle = owned_id(&account, "mosin_nagant");
+    let rifle_rounds = owned_id(&account, "ammo_7.62x54r_old");
+    let mut expected = vec![(pistol, 5), (rounds, 5), (rifle, 4), (rifle_rounds, 4)];
+    expected.sort();
+    assert_eq!(uses(&account), expected);
+    // The pistol sold: in no preset.
+    rules::sell(&mut account, pistol, 1).unwrap();
+    assert!(!uses(&account).iter().any(|(item, _)| *item == pistol));
+    // An empty preset uses nothing.
+    choose(&mut account, 2, NOW).unwrap();
+    assert!(uses(&account).iter().all(|(_, presets)| presets & 2 == 0));
 }

@@ -237,9 +237,11 @@ fn play_a_playable_kit(account: &mut Account, now: u64) -> bool {
 
 /// Make preset `number` the active one, all or nothing. The kits as they
 /// are stay with the preset left (its snapshot); the chosen one is put on
-/// them ([`put_on`]). An empty preset chosen starts as the kits worn: they
-/// stay as they are [choice, `presets.md`]. The active one chosen again
-/// changes nothing.
+/// them ([`put_on`]). An empty preset chosen starts empty: the three kits
+/// emptied, their items left in the inventory as they are (a kit names
+/// owned items, it holds none), stacks whole (the owner's of 2026-10-23:
+/// "empty presets should start empty and not copy items from previous
+/// preset"). The active one chosen again changes nothing.
 pub fn choose(account: &mut Account, number: u8, now: u64) -> Result<Applied, PresetError> {
     let index = index(number)?;
     settle(account);
@@ -248,10 +250,10 @@ pub fn choose(account: &mut Account, number: u8, now: u64) -> Result<Applied, Pr
     }
     let left = usize::from(account.active_preset - 1);
     let mut changed = account.clone();
-    let applied = match account.presets[index] {
-        Some(chosen) => put_on(&mut changed, &chosen, now)?,
-        None => Applied { empty: 0 },
-    };
+    let chosen = account.presets[index].unwrap_or(Preset {
+        kits: [[None; KIT_SLOTS]; KITS],
+    });
+    let applied = put_on(&mut changed, &chosen, now)?;
     changed.presets[left] = snapshot(account);
     changed.presets[index] = None;
     changed.active_preset = number;
@@ -278,6 +280,36 @@ pub fn level(account: &Account, number: u8, now: u64) -> Option<u8> {
         .iter()
         .any(|kit| rules::check_play(kits, kit.id, now).is_ok())
         .then(|| matchmaking::gear_level(kits, now))
+}
+
+/// The items the presets use, item ids rising, each with its presets (bit
+/// `n - 1` for preset n): the active one's, those in the kits; another's,
+/// those it would put on now (an item gone is none; a stack used up, the
+/// one of its type owned now). The lobby asks before a sale of one of them
+/// (the owner's of 2026-10-23); the server sells as ever.
+pub fn uses(account: &Account) -> Vec<(u32, u8)> {
+    let mut uses: std::collections::BTreeMap<u32, u8> = std::collections::BTreeMap::new();
+    for number in 1..=PRESETS as u8 {
+        let bit = 1 << (number - 1);
+        if number == account.active_preset {
+            for held in account
+                .kits
+                .iter()
+                .flat_map(|kit| kit.slots.iter().flatten())
+            {
+                if account.item(held.item_id).is_some() {
+                    *uses.entry(held.item_id).or_default() |= bit;
+                }
+            }
+        } else if let Some(saved) = account.presets[usize::from(number - 1)] {
+            for slot in saved.kits.iter().flatten().flatten() {
+                if let Some(item_id) = owned(account, slot) {
+                    *uses.entry(item_id).or_default() |= bit;
+                }
+            }
+        }
+    }
+    uses.into_iter().collect()
 }
 
 /// Every preset's [`level`], preset 1 first.

@@ -28,24 +28,31 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   action, all or nothing: each kit emptied and filled through the lobby's kit rules
   (`rules::fill_kit`, the moves' own `relocate`): the item fits the slot, one item one slot of a
   kit, a covering item takes off what it covers, one pocket an item type.
-  - An item no longer owned (sold, crafted away, used up): its slot stays empty; the player is
-    told how many slots stayed empty.
+  - An item no longer owned (sold, crafted away, used up): its slot is just empty, and nothing
+    is said (the owner's, 2026-10-23: "I got a popup when item was sold, which I shouldn't", "the
+    slot should just be empty"). The server's log line still counts the slots.
   - A stack: the units kept, at most what is owned now. A stack used up and bought again is a new
     item: the stack of that type owned now is taken [choice].
   - A type in two pockets (data from before the rule): the first pocket keeps it, the other stays
-    empty (counted as empty).
+    empty.
   - An item that no longer fits its slot (the game's data changed since; the repair at load takes
-    such an item off a kit, not off a snapshot): its slot stays empty (counted); the preset can
-    still be chosen.
+    such an item off a kit, not off a snapshot): its slot stays empty; the preset can still be
+    chosen.
   - The kit played: when it can not play after the choice (no weapon, too little ammo) and another
     kit can, that one is played, the kit whose level is the preset's, so the room's gear check and
     the kit its match takes agree (review of #314).
   - Never buys (the ammo window's moves buy what is missing; choosing does not), never makes an
     item or money, never takes anything the account does not own.
   - Refused (nothing changes) while the player is in a match or on its way to one.
-  - **An empty preset chosen starts as the kits worn:** the kits stay as they are, and the preset
-    left keeps the same contents as its snapshot [choice: the least surprising; nothing comes off
-    the character, and the new preset then changes on its own].
+  - **An empty preset chosen starts empty** (the owner's, 2026-10-23: "empty presets should start
+    empty and not copy items from previous preset"): the three kits are emptied. A kit names
+    owned items, it holds none, so every item stays in the inventory as it was (stacks whole):
+    nothing is made, sold or lost; the preset left keeps its kits as its snapshot, and choosing
+    it again puts them back exactly. The empty one chosen again changes nothing.
+  - With the kits empty (or none of them able to play): Play is refused as for any such kit
+    ("no weapon", `st_profile_check_failed_weapon`), no kit is given; a room's join and its
+    match start use their own kit check (code 12 / the member's "can't play" warning, taken out
+    at the start); an empty preset has no level and is never offered.
   - A preset left with nothing in its kits is empty.
 - **Existing accounts:** preset 1 active (their kits as they are), presets 2 to 5 empty.
 - **A preset's level:** the rooms' measure (`matchmaking::gear_level`, the refusal "gear over the
@@ -53,11 +60,32 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   active one). The active preset's is the kits' own; another's is that of the kits it would give
   now (sold items gone). A preset none of whose kits can play (no weapon, too little ammo) has no
   level and is never offered.
+- **Players see "Loadout"** (the owner's, 2026-10-23), never "preset" (code, logs, docs and
+  tables keep "preset"). The movie's words, en / uk / ru / de / pl:
+
+  | word | en | uk | ru | de | pl |
+  | --- | --- | --- | --- | --- | --- |
+  | the name | Loadout 2 | Комплект 2 | Комплект 2 | Loadout 2 | Zestaw 2 |
+  | empty | empty | порожній | пустой | leer | pusty |
+  | can't play | can't play | не для бою | не для боя | nicht spielbar | nie do gry |
+  | refused | The loadout could not be chosen. | Не вдалося обрати комплект. | Не удалось выбрать комплект. | Das Loadout ließ sich nicht wählen. | Nie udało się wybrać zestawu. |
+  | sale, one | Used in Loadout 2. Sell anyway? | Використовується в комплекті 2. Продати? | Используется в комплекте 2. Продать? | Wird in Loadout 2 genutzt. Trotzdem verkaufen? | Używany w zestawie 2. Sprzedać? |
+  | sale, more | Used in Loadout 2 and Loadout 4. Sell anyway? | Використовується в комплектах 2 і 4. Продати? | Используется в комплектах 2 и 4. Продать? | Wird in Loadout 2 und 4 genutzt. Trotzdem verkaufen? | Używany w zestawach 2 i 4. Sprzedać? |
+
+  The level's word is the kit tabs' own (`clan_players_level_label`, "Lvl."). The join popup's
+  lines (`RoomsText` `offerHigher`, `offerFits`, `code14`) say "Loadout" too. The movie's fonts
+  (CalibriBold, Calibri Bold) have every glyph of them.
+- **A sale asks first** (the owner's, 2026-10-23: "when selling an item which is equipped in any
+  kit of any preset I should get a warning"): selling an item a preset uses, the active one's
+  kits or another's (an item it would put on now), the game's own sell dialog shows one more line
+  under the item's name, "Used in Loadout 2 and Loadout 4. Sell anyway?"; Sell sells, Cancel
+  sells nothing. An item in no preset sells as before. The list (`lobby.md` 2.16.4) carries the
+  items the presets use; the server sells as ever (the question is the client's).
 - **Character panel:** its title is the switcher (the owner's, 2026-10-23: the dropdown left of
   the title was ugly). The title names the active preset in the title's own font, size and
-  colour, centred, with a caret after it: "Preset 2 · Lvl. 15" (the level's word is the kit tabs'
-  own). A press anywhere on the title opens the five under it, the title bar's width: "Preset 1 ·
-  Lvl. 15", "Preset 4 · empty", "Preset 3 · can't play", the active one marked as the lobby's
+  colour, centred, with a caret after it: "Loadout 2 · Lvl. 15" (the level's word is the kit tabs'
+  own). A press anywhere on the title opens the five under it, the title bar's width: "Loadout 1 ·
+  Lvl. 15", "Loadout 4 · empty", "Loadout 3 · can't play", the active one marked as the lobby's
   lists mark a selected row. A press on a row chooses it (one press to open, one to choose); a
   press outside or Esc closes the list with no change. No step arrows: each step would choose a
   preset, so going from 2 to 4 would put 3 on the way. Until the server's first list the title
@@ -68,8 +96,7 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     it the title stayed "Character" (the first in-game test, 2026-10-23). A test session is
     checked with `scripts/presets-check/check_presets_session.py <runtime/packets> --since <start>`:
     every lobby client must get the list within 10 s and ask for it before any choice.
-  A choice that left slots empty, or was refused, says so in the game's message box ("N slots
-  left empty: those items are gone.") [choice: no line of its own].
+  A choice refused says so in the game's message box ("The loadout could not be chosen.").
 - **Joining a room** (the owner's, 2026-10-23: "If the person joins a high level room with low
   level preset, they get a warning which will switch them to the biggest one: enter anyway, switch
   and enter | for low level ones it is exit or switch and enter"; "we choose the preset which has

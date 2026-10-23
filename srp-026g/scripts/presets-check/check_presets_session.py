@@ -16,7 +16,7 @@ USAGE
 The Character panel's title names the active preset only once the lobby
 movie has the list (docs/notes/presets.md, lobby.md 2.16.4): the movie
 asks with a `3B` ranking request at 2 090 000 000 and the server answers
-with `91` rows, the first one's nickname `P1;L;...`. A movie whose first
+with `91` rows, the first one's nickname `P2;L;...`. A movie whose first
 ask is lost (sent while the game had not installed its handler yet) shows
 "Character" and takes no press: 2026-10-23, both builds of #314.
 
@@ -39,8 +39,8 @@ RAW = re.compile(r"^(\S+) (IN |OUT) \S+ len=\d+((?: [0-9A-F*]{2})*)\s*$")
 LIST = "80 DE 92 7C"
 ASK = re.compile(r"\b3B [0-9A-F]{2} [0-9A-F]{2} " + LIST)
 CHOOSE = re.compile(r"\b3B [0-9A-F]{2} [0-9A-F]{2} 8[B-F] DE 92 7C")
-# "P1;L;" in a 91 row's nickname.
-ANSWER = "50 31 3B 4C 3B"
+# "P<n>;L;" (the contract's version: P1, P2) in a 91 row's nickname.
+ANSWER = re.compile(r"50 3[0-9] 3B 4C 3B")
 
 
 def when(stamp):
@@ -62,7 +62,7 @@ def connection(path):
                     asked = at
                 if chose is None and CHOOSE.search(data):
                     chose = at
-            elif answered is None and ANSWER in data:
+            elif answered is None and ANSWER.search(data):
                 answered = at
     return first, last, asked, answered, chose
 

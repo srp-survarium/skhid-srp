@@ -20,14 +20,14 @@ use super::core::{Core, Who};
 impl Core<'_> {
     /// A presets request (`3B` at a presets start): answered with the list.
     pub(super) fn preset_request(&mut self, who: &Who, request: PresetRequest) {
-        let (done, preset, empty) = match request {
-            PresetRequest::List => (PresetDone::Listed, 0, 0),
+        let (done, preset) = match request {
+            PresetRequest::List => (PresetDone::Listed, 0),
             PresetRequest::Choose { preset } => match self.preset_choose(who, preset) {
-                Ok(applied) => (PresetDone::Chosen, preset, applied.empty),
-                Err(_) => (PresetDone::Refused, preset, 0),
+                Ok(_) => (PresetDone::Chosen, preset),
+                Err(_) => (PresetDone::Refused, preset),
             },
         };
-        self.send_presets(who, done, preset, empty);
+        self.send_presets(who, done, preset);
     }
 
     /// Preset `preset` the asker's active one (`presets::choose`), not while
@@ -57,9 +57,11 @@ impl Core<'_> {
         chosen
     }
 
-    /// The asker's presets (`P1;L`), with what its request did.
-    pub(super) fn send_presets(&mut self, who: &Who, done: PresetDone, preset: u8, empty: u32) {
-        let (rows, active) = {
+    /// The asker's presets (`P2;L`), with what its request did, and the
+    /// items they use. A slot left empty by a choice is said in the log
+    /// only (the owner's of 2026-10-23: no notice).
+    pub(super) fn send_presets(&mut self, who: &Who, done: PresetDone, preset: u8) {
+        let (rows, active, uses) = {
             let account = who.account.locked();
             let levels = presets::levels(&account, quests::now());
             let rows: Vec<PresetRow> = (1..=presets::PRESETS as u8)
@@ -69,11 +71,11 @@ impl Core<'_> {
                     level,
                 })
                 .collect();
-            (rows, account.active_preset)
+            (rows, account.active_preset, presets::uses(&account))
         };
         self.send_made(
             who.addr,
-            wire::preset_list(done, preset, empty, active, &rows),
+            wire::preset_list(done, preset, active, &rows, &uses),
         );
     }
 }

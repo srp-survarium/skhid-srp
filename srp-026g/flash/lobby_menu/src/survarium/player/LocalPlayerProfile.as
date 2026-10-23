@@ -86,13 +86,16 @@ package survarium.player
       protected var _convertedItems:Array;
       // Kit presets (presets.md, the owner's of 2026-10-23): five sets of the
       // three kits, one active. The panel's title is the switcher: it names
-      // the active preset ("Preset 2 · Lvl. 15"), and a press on it opens the
+      // the active preset ("Loadout 2 · Lvl. 15": players see "Loadout"),
+      // and a press on it opens the
       // five under it; a press on one chooses it. The active one is the kits:
       // choosing another puts it on, and every change of the kits is the
       // active one's (the server's). srp's wire: the ranking request at
       // PRESETS_FIRST and on (lobby.md 2.16.4), answered with the list,
-      // `P1;L;<done>;<preset>;<empty>;<active>` and a row
-      // `<preset>;<saved>;<level>` each (level -1: none of its kits can play).
+      // `P2;L;<done>;<preset>;<active>`, a row `<preset>;<saved>;<level>`
+      // each (level -1: none of its kits can play), then the items the
+      // presets use, `U;<item id>:<presets>,...` (bit n - 1: preset n), which
+      // a sale asks about (MessageAskSell).
       public static var me:LocalPlayerProfile;
       
       private static const PRESETS_FIRST:int = 2090000000;
@@ -127,15 +130,22 @@ package survarium.player
       // A choice shown before the server's answer, at most this long (ms).
       private static const PRESET_PENDING_MS:int = 5000;
       
-      // The words, in the lobby's five languages (RoomsText.language). The
-      // level's word is the kit tabs' own ("Lvl."), this one if it is missing.
+      // The words, in the lobby's five languages (RoomsText.language: en, uk,
+      // ru, de, pl). Players see "Loadout", never "preset" (the owner's of
+      // 2026-10-23; presets.md has the table). The level's word is the kit
+      // tabs' own ("Lvl."), this one if it is missing. A sale's question:
+      // "one" for one loadout ({n}), "many" for more ({list}: each "item",
+      // the last after "and").
       private static const PRESET_WORDS:Object = {
-         "preset":["Preset","Пресет","Пресет","Preset","Zestaw"],
+         "preset":["Loadout","Комплект","Комплект","Loadout","Zestaw"],
          "level":["Lvl.","Рів.","Ур.","Stufe","Poz."],
          "empty":["empty","порожній","пустой","leer","pusty"],
-         "unfit":["can't play","не для бою","не для боя","nicht spielbar","niegrywalny"],
-         "gone":["{n} slots left empty: those items are gone.","Порожніх слотів: {n}, цих предметів немає.","Пустых слотов: {n}, этих предметов нет.","{n} Plätze leer: diese Gegenstände fehlen.","Pustych miejsc: {n}, tych przedmiotów brak."],
-         "refused":["The preset could not be chosen.","Не вдалося обрати пресет.","Не удалось выбрать пресет.","Das Preset ließ sich nicht wählen.","Nie udało się wybrać zestawu."]
+         "unfit":["can't play","не для бою","не для боя","nicht spielbar","nie do gry"],
+         "refused":["The loadout could not be chosen.","Не вдалося обрати комплект.","Не удалось выбрать комплект.","Das Loadout ließ sich nicht wählen.","Nie udało się wybrać zestawu."],
+         "sellOne":["Used in Loadout {n}. Sell anyway?","Використовується в комплекті {n}. Продати?","Используется в комплекте {n}. Продать?","Wird in Loadout {n} genutzt. Trotzdem verkaufen?","Używany w zestawie {n}. Sprzedać?"],
+         "sellMany":["Used in {list}. Sell anyway?","Використовується в комплектах {list}. Продати?","Используется в комплектах {list}. Продать?","Wird in Loadout {list} genutzt. Trotzdem verkaufen?","Używany w zestawach {list}. Sprzedać?"],
+         "sellItem":["Loadout {n}","{n}","{n}","{n}","{n}"],
+         "sellAnd":[" and "," і "," и "," und "," i "]
       };
       
       // The title bar's press area and its hover / open look (below the
@@ -169,6 +179,10 @@ package survarium.player
       private var _presetPendingAt:int = 0;
       
       private var _presetsAskedAt:int = -100000;
+      
+      // Item id -> the presets that use it (bit n - 1: preset n), as the
+      // server last said.
+      private var _presetUses:Object = {};
       
       // Asks again every 2 s until the first list comes: the first asks go
       // out while the movie loads, before the game takes them
@@ -707,6 +721,42 @@ package survarium.player
          return true;
       }
       
+      // MessageAskSell: the question a sale of `itemId` asks first, "" when
+      // no preset uses it (the owner's of 2026-10-23).
+      public static function sellWarning(itemId:uint) : String
+      {
+         if(me == null)
+         {
+            return "";
+         }
+         var mask:int = int(me._presetUses[String(itemId)]);
+         var numbers:Array = [];
+         var n:int = 1;
+         while(n <= PRESET_COUNT)
+         {
+            if((mask & 1 << n - 1) != 0)
+            {
+               numbers.push(n);
+            }
+            n++;
+         }
+         if(numbers.length == 0)
+         {
+            return "";
+         }
+         if(numbers.length == 1)
+         {
+            return presetWord("sellOne").split("{n}").join(String(numbers[0]));
+         }
+         var items:Array = [];
+         for each(var number:int in numbers)
+         {
+            items.push(presetWord("sellItem").split("{n}").join(String(number)));
+         }
+         var last:String = String(items.pop());
+         return presetWord("sellMany").split("{list}").join(items.join(", ") + presetWord("sellAnd") + last);
+      }
+      
       private static function presetWord(key:String) : String
       {
          return String(PRESET_WORDS[key][RoomsText.language()]);
@@ -1075,24 +1125,42 @@ package survarium.player
          }
       }
       
-      // `P1;L;<done>;<preset>;<empty>;<active>`, then `<preset>;<saved>;<level>`
-      // each.
+      // `P2;L;<done>;<preset>;<active>`, then `<preset>;<saved>;<level>`
+      // each, then `U;<item id>:<presets>,...` rows.
       private function takePresets(rows:Array) : void
       {
          var head:Array = String(rows[0].nickname).split(";");
-         if(head[0] != "P1" || head[1] != "L")
+         if(head[0] != "P2" || head[1] != "L")
          {
             return;
          }
-         var active:int = int(head[5]) - 1;
+         var active:int = int(head[4]) - 1;
          if(active >= 0 && active < PRESET_COUNT)
          {
             this._presetAt = active;
          }
+         var uses:Object = {};
          var i:int = 1;
-         while(i < rows.length && i <= PRESET_COUNT)
+         while(i < rows.length)
          {
-            var f:Array = String(rows[i].nickname).split(";");
+            var name:String = String(rows[i].nickname);
+            if(name.indexOf("U;") == 0)
+            {
+               var entries:Array = name.substr(2).split(",");
+               var k:int = 0;
+               while(k < entries.length)
+               {
+                  var pair:Array = String(entries[k]).split(":");
+                  if(pair.length == 2)
+                  {
+                     uses[String(uint(pair[0]))] = int(pair[1]);
+                  }
+                  k++;
+               }
+               i++;
+               continue;
+            }
+            var f:Array = name.split(";");
             var at:int = int(f[0]) - 1;
             if(at >= 0 && at < PRESET_COUNT && f.length >= 3)
             {
@@ -1104,6 +1172,7 @@ package survarium.player
             }
             i++;
          }
+         this._presetUses = uses;
          this._presetsSeen = true;
          if(this._presetsRetry != null)
          {
@@ -1121,12 +1190,9 @@ package survarium.player
             this._presetList.dataProvider = new DataProvider(this.presetRows());
             this._presetList.selectedIndex = this.presetShown();
          }
-         var empty:int = int(head[4]);
-         if(done == PRESET_CHOSEN && empty > 0)
-         {
-            Message.showMessage("ok",presetWord("gone").split("{n}").join(String(empty)));
-         }
-         else if(done == PRESET_REFUSED)
+         // A slot whose item is gone is just empty: no word of it (the
+         // owner's of 2026-10-23).
+         if(done == PRESET_REFUSED)
          {
             Message.showMessage("ok",presetWord("refused"));
          }

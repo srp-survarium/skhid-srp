@@ -525,8 +525,8 @@ impl Core<'_> {
     /// not be chosen joins nothing (code 14).
     fn room_preset_join(&mut self, who: &Who, preset: u8, key: u32, now: Instant) {
         match self.preset_choose(who, preset) {
-            Ok(applied) => {
-                self.send_presets(who, PresetDone::Chosen, preset, applied.empty);
+            Ok(_) => {
+                self.send_presets(who, PresetDone::Chosen, preset);
                 if key == 0 {
                     self.room_play_pressed(who, now);
                 } else {
