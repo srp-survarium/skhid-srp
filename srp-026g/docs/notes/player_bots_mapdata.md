@@ -220,7 +220,8 @@ out. The digest, the file (`GRID_ALGO` 5) and `check()` carry the marks.
 The client's step (`step_up` 0x7C900, `step_down` 0x7E1B0,
 `impassable_slope` 0x7DE10, re-kit): a step of up to 0.6 m (`s_step_height`)
 with no slope test; a surface steeper than 50° is refused only when the feet
-ended higher. Not used by the grid yet.
+ended higher. Not used by the grid: "Grid: steep step-ups (parked)"
+below says why.
 
 Re-linking jumps up to 1 m beside walls (to open pits) was tried and
 dropped: no table changed. Cologne's pit by the bridge pillar leaves by a
@@ -300,6 +301,52 @@ With the team's fall spots the extra falls on route are gone, and
 deliveries keep within noise of the gain without them. Team kills over the
 512 runs: 4 at the tip, 4 with the stand-in's jump, 9 with this PR (within
 noise of each other).
+
+### Grid: steep step-ups (parked, 2026-10-24)
+
+**The rule tried.** A walk up onto a steep face (a floor on a 50-60°
+walker triangle) was cut once the climb rose more than 0.3 m (GUESS) over
+the walkable ground it began on, against the step's 0.6 m today. Ground
+steep only by its neighbours' heights kept the step. The basis was the
+client's `step_down` (0x7E1B0), which refuses a tick that lands on a facet
+steeper than 50° with the feet higher (`impassable_slope` 0x7DE10, PROVEN).
+Cutting both kinds (faces and grade) at 0.3 m was rejected first: it made
+a new pocket with no way out on level_04 (71 floors).
+
+**Where it fails.** It held the grid's hard limits on every map (day 2, 3
+and 4): no objective unreachable, no new pocket with no way out, no
+pocket's surest exit worse. Most maps lost 20-160 reached floors.
+level_06 (day 2 and 3) lost 4,638, nearly all of them one slope (x 47-80,
+z 119-135, y 31-39), entered only by walks up steep ground of 0.15-0.54 m
+each. Players stand on that slope: 998 positions in the server's 5 s
+worlds, 116 lives, 438 of its cells (non-bot matches, Oct 12-21).
+Cutting only where the face and the grade are both over 50° keeps the loss
+(4,583 floors, 114 lives).
+
+**They walk up, not hop.** Of the same matches, 76 have a recording (every
+input, per tick; the sprint key agrees with the worlds' sprint flag 96 % at
+no lag, 82 % at ±1 s). 30 times a player shows on the slope 5 s after
+being below it at its south edge (12 players, 10 matches). They rise 0.9-5.2
+m, 26 of them 2 m or more, with 0 jump presses in 2 climbs, 1 in 20 and 2-5
+in 8 (the same players press as often in the 5 s before). A jump rises
+0.998 m at most, so at least 26 climbs walked most of the way up faces the
+rule calls too steep. A hop link would not match that.
+
+**The follow-up (client RE).** The normal `step_down`'s sweep meets on
+level_06's slope at x 60-65, z 118-128. Either the collision there is not
+the walker mesh's 50-60° faces, or the sweep's normal at the convex edges
+is more upright than either facet (LIKELY). The rule can come back once
+that is known.
+
+**Strips, dropped.** A cost of 0.5 m (GUESS) on each walk onto a strip
+floor (1-2 cells between walls, voids or cut steep faces: 950-3,700
+reached floors a map) was benched with the rule above, against it alone
+(8 seeds, battery and team deathmatch, no tier): falls on route +2.8 ±
+0.7 and +2.1 ± 0.6 a match, jumps pressed +6.6 ± 1.7 and +3.1 ± 0.8, stuck
+notes +0.8 ± 0.5 and +0.6 ± 0.4. Per floor, a 10 m strip cost 20 m, so ways
+went round strips by drops and jumps. If it comes back: a flat cost per
+strip crossed (or on any link onto one), with a target measure for the
+strip cases (CG-8) first.
 
 ## 5. Measured (2026-10-14, release build, one thread)
 
