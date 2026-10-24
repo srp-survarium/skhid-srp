@@ -274,6 +274,13 @@ pub struct KnownBattery {
     pub hud: bool,
 }
 
+/// A known battery's spot for a note: where, and whether the HUD shows it.
+fn spot(known: KnownBattery) -> String {
+    let at = known.at;
+    let how = if known.hud { "on the HUD" } else { "seen" };
+    format!("[{:.1}, {:.1}, {:.1}] {how}", at.x, at.y, at.z)
+}
+
 /// A teammate's death (the kill feed), kept longer than a danger spot for
 /// the spawners' search: a spot where the team keeps dying is worth less.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -386,6 +393,12 @@ pub struct TeamKnowledge {
     pub carrier_places: Vec<CarrierPlace>,
     /// The team's falls by batteries of the last [`FALLS_KEEP_MS`].
     pub falls: Vec<Fall>,
+    /// What changed in [`Self::batteries`] and why, for the log (taken by
+    /// the bots' notes; [`Self::change_battery`]).
+    pub battery_notes: Vec<String>,
+    /// The known lying batteries each bot of the team may not take now,
+    /// and why (`collect::take_blocks`): a note goes out when it changes.
+    pub take_blocked: Vec<(Place, usize, &'static str)>,
 }
 
 impl TeamKnowledge {
@@ -469,6 +482,42 @@ impl TeamKnowledge {
         self.batteries[battery] = known;
     }
 
+    /// [`Self::set_battery`], with a note of the change and `why` when the
+    /// team comes to know the battery, forgets it, sees it moved over 1 m,
+    /// or it comes onto or goes off the HUD; a spot only put right again
+    /// writes nothing.
+    pub fn change_battery(
+        &mut self,
+        battery: usize,
+        known: Option<KnownBattery>,
+        why: impl FnOnce() -> String,
+    ) {
+        let was = self.battery(battery).copied();
+        let text = match (was, known) {
+            (None, Some(now)) => Some(format!(
+                "battery {battery} known at {} ({})",
+                spot(now),
+                why()
+            )),
+            (Some(then), None) => Some(format!(
+                "battery {battery} no longer known at {} ({})",
+                spot(then),
+                why()
+            )),
+            (Some(then), Some(now)) if (then.at - now.at).length() > 1.0 || then.hud != now.hud => {
+                Some(format!(
+                    "battery {battery} known at {}, was {} ({})",
+                    spot(now),
+                    spot(then),
+                    why()
+                ))
+            }
+            _ => None,
+        };
+        self.battery_notes.extend(text);
+        self.set_battery(battery, known);
+    }
+
     /// The batteries on the HUD of team `team`, from two worlds' states
     /// (`player_bots_behaviour.md` §2). The client (PROVEN in 0.21d's
     /// `gather_victory_items_rule::fill_match_hud_state` 0x1FBDF4 and
@@ -517,19 +566,24 @@ impl TeamKnowledge {
                         _ => false,
                     };
                     if hud {
-                        self.set_battery(battery, Some(KnownBattery { at, time, hud }));
+                        self.change_battery(battery, Some(KnownBattery { at, time, hud }), || {
+                            "the HUD shows it".into()
+                        });
                     } else if known.is_some_and(|k| k.hud) {
-                        self.set_battery(battery, None);
+                        self.change_battery(battery, None, || "the HUD no longer shows it".into());
                     }
                 }
                 BatteryState::Carried(carrier) => {
                     if known.is_some_and(|k| k.hud) || team_of(carrier) == Some(team) {
-                        self.set_battery(battery, None);
+                        self.change_battery(battery, None, || match carrier {
+                            Some(p) => format!("carried by player {p}"),
+                            None => "carried".into(),
+                        });
                     }
                 }
-                BatteryState::Home(_) => {
+                BatteryState::Home(id) => {
                     if known.is_some_and(|k| k.hud) {
-                        self.set_battery(battery, None);
+                        self.change_battery(battery, None, || format!("put in container {id}"));
                     }
                 }
             }

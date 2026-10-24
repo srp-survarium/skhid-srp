@@ -430,18 +430,91 @@ impl Ctx<'_> {
     /// asks it too: a battery nobody can take is not waited at. Nor is
     /// one the team keeps falling by ([`TeamKnowledge::fallen_at`]).
     pub fn can_take(&self, at: Vec3) -> bool {
+        self.take_block(at).is_none()
+    }
+
+    /// Why a battery lying at `at` may not be taken ([`Ctx::can_take`]),
+    /// the first reason found; `None`: it may.
+    pub fn take_block(&self, at: Vec3) -> Option<&'static str> {
         let num = |name| self.num(PlayKind::Collect, name);
-        self.tactics
-            .stand_to_take(at)
-            .is_some_and(|stand| self.reachable(stand, false) && !self.no_way_lately(stand))
-            && !self.team.fallen_at(
+        let Some(stand) = self.tactics.stand_to_take(at) else {
+            return Some("no stand to take it from");
+        };
+        if !self.reachable(stand, false) {
+            return Some("no way to its stand");
+        }
+        if self.no_way_lately(stand) {
+            return Some("no way to its stand lately");
+        }
+        self.team
+            .fallen_at(
                 at,
                 self.now,
                 num("falls_aside") as usize,
                 (num("falls_window_s") * 1000.0) as u32,
                 (num("falls_aside_s") * 1000.0) as u32,
             )
+            .then_some("the team keeps falling by it")
     }
+}
+
+/// Each battery the bot believes lies about, and why it is not offered a
+/// Collect of it (`None`: it is): [`Ctx::take_block`], else set aside or
+/// scored out. Empty while it carries one.
+pub fn take_blocks(cx: &Ctx) -> Vec<(usize, Option<&'static str>)> {
+    if !cx.view.mode.has_batteries() || cx.me.carrying.is_some() {
+        return Vec::new();
+    }
+    (0..cx.view.batteries.len())
+        .filter_map(|battery| {
+            let at = cx.battery_lying(battery)?;
+            let target = TargetRef::Battery(battery);
+            let why = cx.take_block(at).or_else(|| {
+                let aside =
+                    cx.bot.set_aside.iter().any(|&(k, t, until)| {
+                        k == PlayKind::Collect && t == target && cx.now < until
+                    });
+                cx.candidate(PlayKind::Collect, target, Some(battery as u32))
+                    .is_none()
+                    .then_some(if aside { "set aside" } else { "scored out" })
+            });
+            Some((battery, why))
+        })
+        .collect()
+}
+
+/// The notes for bot `place`'s [`take_blocks`] where they changed since
+/// the last (kept in [`TeamKnowledge::take_blocked`]): a battery that left
+/// its candidates and why, or came back. A battery no longer believed to
+/// lie about is dropped without a note (the knowledge's own note says why).
+pub fn note_take_blocks(
+    team: &mut TeamKnowledge,
+    place: Place,
+    blocks: &[(usize, Option<&'static str>)],
+) -> Vec<String> {
+    let was = |battery: usize| {
+        team.take_blocked
+            .iter()
+            .find(|&&(p, b, _)| p == place && b == battery)
+            .map(|&(_, _, why)| why)
+    };
+    let notes = blocks
+        .iter()
+        .filter_map(|&(battery, why)| match (was(battery), why) {
+            (before, Some(why)) if before != Some(why) => {
+                Some(format!("battery {battery} is no Collect candidate: {why}"))
+            }
+            (Some(_), None) => Some(format!("battery {battery} is a Collect candidate again")),
+            _ => None,
+        })
+        .collect();
+    team.take_blocked.retain(|&(p, _, _)| p != place);
+    team.take_blocked.extend(
+        blocks
+            .iter()
+            .filter_map(|&(battery, why)| Some((place, battery, why?))),
+    );
+    notes
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
@@ -1387,14 +1460,29 @@ mod tests {
         s.current = Some((PlayKind::Collect, target, s.view.clock));
         let mut rng = Rng::new(1);
         let mut state = start(target, &s.cx(0), &mut rng);
+        let noted = |s: &mut Scenario| {
+            let blocks = take_blocks(&s.cx(0));
+            note_take_blocks(&mut s.team, 0, &blocks)
+        };
+        assert!(
+            noted(&mut s).is_empty(),
+            "a candidate from the start: no note"
+        );
         s.no_way_to = vec![(at + Vec3::new(1.0, 0.0, 0.0), s.view.clock + 5_000)];
         assert!(collects(&s).is_empty());
         assert_eq!(
             step(&mut state, target, &s.cx(0), &mut rng),
             Step::Failed("no way to it")
         );
+        // Why it left the candidates is noted once.
+        assert_eq!(
+            noted(&mut s),
+            ["battery 0 is no Collect candidate: no way to its stand lately"]
+        );
+        assert!(noted(&mut s).is_empty());
         // Forgotten: fetched again.
         s.view.clock += 5_000;
+        assert_eq!(noted(&mut s), ["battery 0 is a Collect candidate again"]);
         assert_eq!(collects(&s), vec![TargetRef::Battery(0)]);
     }
 
