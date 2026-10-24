@@ -23,7 +23,12 @@
 //!   presses no jump then, and the time is not the exit's fault;
 //! - with every exit tried, or [`GIVE_UP_MS`] gone, it gives up
 //!   ([`Trapped::gave_up`]): it stays and aims, and the plays leave it
-//!   (`Ctx::trapped`, `Ctx::teammate_trapped`).
+//!   (`Ctx::trapped`, `Ctx::teammate_trapped`);
+//! - the escape is kept while the bot is in the pocket, its goal in it or
+//!   not: a goal that moves into the pocket stops the try under way (not
+//!   failed), and a bot that gave up stays given up until it is out (a
+//!   play's goal going in and out of the pocket gave up again and again,
+//!   each time handing its slot on).
 //!
 //! Every try is traced (`{"escape": …}`, then `{"escaped": …}`), so the
 //! owner's matches show which the client lands.
@@ -310,10 +315,10 @@ fn step(
     // Its goal is in the same pocket: nothing to get out of.
     let goal_in =
         pocket.is_some() && path::goal_floor(grid, goal).and_then(|g| grid.pocket_of(g)) == pocket;
-    let (Some(node), Some(pocket), false) = (node, pocket, goal_in) else {
+    let (Some(node), Some(pocket)) = (node, pocket) else {
         if let Some(old) = escape.take() {
-            // Out of the pocket (or no longer bound out of it): a try under
-            // way got it out when its feet are on a floor that returns.
+            // Out of the pocket: a try under way got it out when its feet
+            // are on a floor that returns.
             if let (Some(_), Some(node)) = (old.trying, node)
                 && grid.returns(node)
                 && let Some(&(exit, _)) = old.exits.get(old.at)
@@ -325,6 +330,33 @@ fn step(
         }
         return Out { goal: None, events };
     };
+    if goal_in {
+        // Nothing to get out for, for now: a try under way stops (not
+        // failed); the escape is kept, a bot that gave up stays so.
+        match escape.as_mut().filter(|state| state.pocket == pocket) {
+            Some(state) => {
+                if state.trying.take().is_some() {
+                    let landing = state
+                        .exits
+                        .get(state.at)
+                        .map(|(exit, _)| grid.position(exit.to));
+                    if route
+                        .as_ref()
+                        .zip(landing)
+                        .is_some_and(|((_, planned), landing)| planned.distance_xz(landing) < 0.1)
+                    {
+                        *route = None;
+                    }
+                }
+                board.set_trapped(place, Some(state.trapped()));
+            }
+            None => {
+                *escape = None;
+                board.set_trapped(place, None);
+            }
+        }
+        return Out { goal: None, events };
+    }
     let state = match escape {
         Some(state) if state.pocket == pocket => state,
         _ => {

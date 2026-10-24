@@ -7137,6 +7137,46 @@ mod pocket_runs {
         );
     }
 
+    /// A bot given up in a pit whose goal moves into the pit and out again
+    /// stays given up: it gives up once (the bench's level_06 bots gave up
+    /// hundreds of times, each handing their slot on).
+    #[test]
+    fn a_bot_given_up_in_a_pit_gives_up_once_as_its_goal_moves() {
+        let world = pit(1.6);
+        let grid = &world.grid;
+        let board = escape::Board::default();
+        let feet = Vec3::new(32.0, -1.6, 20.0);
+        let (outside, inside) = (Vec3::new(55.0, 0.0, 32.0), Vec3::new(31.0, -1.6, 19.0));
+        let (mut state, mut route) = (None, None);
+        let mut gave_up = 0;
+        for k in 0..40u32 {
+            let goal = if k % 4 < 2 { outside } else { inside };
+            let out = escape::tick(
+                &mut state,
+                &mut route,
+                grid,
+                &board,
+                0,
+                0,
+                feet,
+                goal,
+                k * 500,
+                true,
+            );
+            gave_up += out
+                .events
+                .iter()
+                .filter(|e| **e == escape::Event::GaveUp)
+                .count();
+            assert!(
+                board.trapped(0).is_some_and(|t| t.gave_up),
+                "at {k}: {:?}",
+                board.trapped(0)
+            );
+        }
+        assert_eq!(gave_up, 1);
+    }
+
     #[test]
     fn a_bot_in_a_pit_with_a_standing_exit_jumps_out_and_goes_on() {
         let world = pit(0.9);
