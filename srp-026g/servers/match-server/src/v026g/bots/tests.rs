@@ -4597,6 +4597,12 @@ fn real_bot_cost() {
             // enemies within 25 m of it, by the team: what
             // `collect::COLLECT_ENEMY_MARGIN` may cost.
             let mut collect_crowd_deaths = [0u32; 2];
+            // Deaths on a Collect of a lying battery the bot itself knew 4 or
+            // more enemies by (its remembered tracks within 25 m: the count
+            // `COLLECT_ENEMY_MARGIN` holds it through), by the team; of
+            // those, the ones with 4 or more living enemies there too.
+            let mut collect_held_deaths = [0u32; 2];
+            let mut collect_held_crowd_deaths = [0u32; 2];
             let mut takes_all = 0u32;
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
@@ -4668,6 +4674,23 @@ fn real_bot_cost() {
                             if crowded {
                                 collect_crowd_deaths[usize::from(teams[place])] +=
                                     now.1 - before.1;
+                            }
+                            let held = lying.is_some_and(|at| {
+                                bots.bots[place].as_ref().is_some_and(|b| {
+                                    b.memory
+                                        .tracks()
+                                        .iter()
+                                        .filter(|t| t.at.distance_xz(at) < 25.0)
+                                        .count()
+                                        >= 4
+                                })
+                            });
+                            if held {
+                                let team = usize::from(teams[place]);
+                                collect_held_deaths[team] += now.1 - before.1;
+                                if crowded {
+                                    collect_held_crowd_deaths[team] += now.1 - before.1;
+                                }
                             }
                             if attacking(place) {
                                 side[4] += u64::from(now.1 - before.1);
@@ -5125,6 +5148,8 @@ fn real_bot_cost() {
                     "stands_stale": stands_stale,
                     "carriers_killed": carriers_killed,
                     "collect_crowd_deaths": collect_crowd_deaths,
+                    "collect_held_deaths": collect_held_deaths,
+                    "collect_held_crowd_deaths": collect_held_crowd_deaths,
                     "play_s": play_s,
                     "by_play": play_rows,
                     "deaths_by": deaths_by,
