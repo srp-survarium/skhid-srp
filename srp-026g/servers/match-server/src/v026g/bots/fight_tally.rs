@@ -49,6 +49,14 @@ const STANDOFF_MS: u32 = 3_000;
 pub(super) const SAMPLE_MS: u32 = 200;
 /// The view counts as on an enemy within this, degrees.
 const ON_DEG: f32 = 15.0;
+/// [PR C] The range measure's bins, metres: each this wide, the last one
+/// open.
+const RANGE_BIN_M: f32 = 10.0;
+const RANGE_BINS: usize = 13;
+
+fn range_bin(d: f32) -> usize {
+    ((d / RANGE_BIN_M) as usize).min(RANGE_BINS - 1)
+}
 
 #[derive(Default, Clone, Copy)]
 struct Count {
@@ -133,6 +141,19 @@ pub(super) struct FightTally {
     grenades: [u32; 2],
     mates_near_blast: [u32; 3],
     thrower_near_blast: [u32; 2],
+    /// [PR C] Each place's weapon class, team, feet and life as of the last
+    /// step (a shot is counted before its step's sample).
+    places: Vec<(&'static str, u8, Vec3, bool)>,
+    /// Shots at the shooter's target by its weapon class, by the
+    /// distance's [`range_bin`].
+    by_class: BTreeMap<&'static str, [Count; RANGE_BINS]>,
+    /// By team: the hits it took and its deaths, by the shooter's distance
+    /// (a death at its last hit's).
+    hits_taken: [[u32; RANGE_BINS]; 2],
+    deaths_at: [[u32; RANGE_BINS]; 2],
+    last_hit_m: BTreeMap<Place, f32>,
+    /// Shots at the shooter's target, by its team.
+    at_target_by: [u32; 2],
 }
 
 /// [play 20] "throws a grenade at (x, y, z), blast at <ms>": the place and
@@ -177,6 +198,17 @@ impl FightTally {
         }
         self.aim[fact.aim_state as usize].add(hit);
         self.cone_sum += f64::from(fact.cone);
+        if let (Some(victim), Some(&(_, _, feet, _))) = (fact.hit, self.places.get(fact.shooter))
+            && let Some(&(_, team, at, _)) = self.places.get(victim)
+        {
+            let d = feet.distance_xz(at);
+            self.hits_taken[usize::from(team).min(1)][range_bin(d)] += 1;
+            self.last_hit_m.insert(victim, d);
+        }
+        if let (Some((_, distance, _)), Some(&(class, team, ..))) = (fact.target, self.places.get(fact.shooter)) {
+            self.at_target_by[usize::from(team).min(1)] += 1;
+            self.by_class.entry(class).or_insert([Count::default(); RANGE_BINS])[range_bin(distance)].add(hit);
+        }
         let Some((target, distance, off)) = fact.target else {
             return;
         };
@@ -232,6 +264,20 @@ impl FightTally {
 
     /// After the game's steps up to `clock`.
     pub(super) fn sample(&mut self, game: &Game, clock: u32) {
+        // [PR C] Deaths by the last hit's distance; then the places.
+        for (place, body) in game.bodies.iter().enumerate() {
+            if let Some(&(_, team, _, true)) = self.places.get(place)
+                && !body.alive
+                && let Some(d) = self.last_hit_m.remove(&place)
+            {
+                self.deaths_at[usize::from(team).min(1)][range_bin(d)] += 1;
+            }
+        }
+        self.places = game
+            .bodies
+            .iter()
+            .map(|b| (b.gun.class(), b.team, b.feet, b.alive))
+            .collect();
         // The grenades going off: who of the thrower's team is near.
         for (thrower, at, _) in self.blasts.iter().filter(|(_, _, blast)| clock >= *blast) {
             let Some(team) = game.bodies.get(*thrower).map(|b| b.team) else {
@@ -374,7 +420,8 @@ impl FightTally {
         format!(
             "fight: episodes {} farther {} never {}; close {} engaged<=1s {} median_ms {} never {}; standoffs {}; exposed {} not_facing {}; quick_ends {} flips {}; team kills {:?} deaths {:?}\n  \
              shots: bands(<10,<20,<35,<60,60+) {}; still hip {} still aim {} moving hip {} moving aim {}; crouched {}; first3 {} later {}; line on body {} off median {:.1} deg; aim hip {} aiming-in {} aimed-in {} cone mean {:.2} deg\n  \
-             grenades: thrown {} held back {}; at the blasts teammates within 3/6/10 m {} {} {}; the thrower within 6/10 m {} {}",
+             grenades: thrown {} held back {}; at the blasts teammates within 3/6/10 m {} {} {}; the thrower within 6/10 m {} {}
+               ranges ({} m bins): {}; hits taken by team {:?} {:?}; deaths by team {:?} {:?}; at the target {} shots, {} into a wall, {} with nothing of him showing; by team {:?} {:?} {:?}",
             self.episodes,
             self.farther,
             self.never,
@@ -410,6 +457,25 @@ impl FightTally {
             self.mates_near_blast[2],
             self.thrower_near_blast[0],
             self.thrower_near_blast[1],
+            RANGE_BIN_M,
+            self.by_class
+                .iter()
+                .map(|(class, bins)| format!(
+                    "{class} {}",
+                    bins.iter().map(|c| format!("{}/{}", c.hits, c.shots)).collect::<Vec<_>>().join(" ")
+                ))
+                .collect::<Vec<_>>()
+                .join(" | "),
+            self.hits_taken[0],
+            self.hits_taken[1],
+            self.deaths_at[0],
+            self.deaths_at[1],
+            self.band.iter().map(|c| c.shots).sum::<u32>(),
+            game.walled,
+            game.hidden,
+            self.at_target_by,
+            game.walled_by,
+            game.hidden_by,
         )
     }
 }
