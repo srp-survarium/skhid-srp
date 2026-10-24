@@ -628,6 +628,21 @@ The owner's matches of 2026-10-24 on #343 were recorded per tick (`SRP_RECORD_MI
 - The past-target rule takes the hits on a teammate behind the target from 19 to 5 and from 11 to 3 (both modes, 16 seeds together); what is left is mostly over 15 m past it.
 - Batteries' team 0 / team 1 kills move apart (−3.9 / +3.6): the same bots on both sides, so the maps' sides, as in §2.5.
 
+**Again on the led aim** (`37d3ea72` merged, the same settings, seeds 1-16, base `SRP_BENCH_FF_TOUCH_M=0 SRP_BENCH_FF_PAST_M=2` against both rules; means a seed, * over 2 standard errors):
+
+| Measure | Batteries base | both rules | Team DM base | both rules |
+|---|---|---|---|---|
+| team hits | 4.94 | 1.38* | 7.62 | 3.38* |
+| ... 0.3-2 m apart | 1.38 | 0.06* | 2.00 | 0.25* |
+| ... more than 2 m past the target (16 seeds together) | 11 | 1 | 7 | 3 |
+| team kills | 0.62 | 0.06* | 0.44 | 0.19 |
+| kills | 266.9 | 268.2 | 375.1 | 376.1 |
+| hit rate | 27.1 % | 27.6 %* | 30.0 % | 30.5 % |
+| blocked by a teammate, s a bot-minute | 0.99 | 1.29* | 2.01 | 2.52* |
+
+- The same as before the led aim: team hits fall by 56-72 %, kills do not move (+1.3 ± 3.4, +1.0 ± 3.8), blocked time +25-30 %. The batteries' team kills fall by 2 standard errors here (−0.56 ± 0.13).
+- Whole matches with the led aim: all 7 pass; in `bots_hold_fire_while_a_teammate_is_in_the_line_of_fire` (friends on) team kills 1, team hits 11 of 12416 shots (friends off: 166 and 973).
+
 **Tests:** `friends::tests::the_owner_beside_a_bot_that_reckons_itself_past_him_holds_its_fire` (481.1 s), `a_teammate_a_step_off_the_line_at_arms_length_holds_the_fire` (643.3 s), `a_teammate_standing_in_the_shooter_blocks_whatever_the_line` (207.6 s), `the_touch_rule_holds_for_the_front_half_level_with_the_eye_and_near`, `the_nearest_to_blocking_is_named_for_the_trace`, `a_teammate_on_the_line_behind_the_target_blocks` (556 s and 239 s); `reflex::tests::a_shot_held_or_fired_near_a_teammate_is_noted_with_where_it_had_him`. The 7 whole-match tests (`--ignored`) pass; in `bots_hold_fire_while_a_teammate_is_in_the_line_of_fire` (friends on) team kills 0 and team hits 8 (§2.9: 1 and 22).
 
 **Not verified:** no real match has been played with this. The bench's bodies do not collide, so it cannot wedge two bots or put the reckoning off as the matches did: its gain at 0.3-2 m is the stand-in's near misses, and the live gain rests on the recordings above.
