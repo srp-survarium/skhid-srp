@@ -4486,3 +4486,20 @@ va	name	location	role	basis
 0x003317c0	survarium::dispersion_calculator::get_injury_penalty	entry ESP+4	broken arms count (u8)	observed
 0x0032fe40	survarium::transition_helper::tick	ECX	helper {cur, start, target, duration s, start ms}	observed
 0x0032fe40	survarium::transition_helper::tick	EDX	time ms	observed
+0x0007c900	vostok::physics::bullet_character_controller::step_up	EAX	bullet_character_controller (+B0h position, +1D0h dims, +1F0h capsule up axis)	observed
+0x0007c900	vostok::physics::bullet_character_controller::step_up	entry ESP+4	float* receiving the rise of the feet (player_step passes the step offset slot later given to step_down)	observed
+0x0007bda0	vostok::physics::bullet_character_controller::player_step	EAX	bullet_character_controller	observed
+0x0007bda0	vostok::physics::bullet_character_controller::player_step	entry ESP+4	float dt (the tick)	observed
+0x0007e1b0	vostok::physics::bullet_character_controller::step_down	entry ESP+4	bullet_character_controller	observed
+0x0007e1b0	vostok::physics::bullet_character_controller::step_down	entry ESP+8	float step offset from step_up (subtracted from the down distance)	observed
+0x0007e1b0	vostok::physics::bullet_character_controller::step_down	entry ESP+0xC	bool: |velocity.up| < 2.0 (0xA7AB0C); then the extra down distance is 0.05 (0xA7AB18), else the fall of this tick	observed
+0x0007e1b0	vostok::physics::bullet_character_controller::step_down	entry ESP+0x10	float[3]* the feet at the start of the tick (reference point for impassable_slope and the revert)	observed
+0x0007de10	vostok::physics::bullet_character_controller::impassable_slope	EAX	float[3]* the hit normal	observed
+0x0007de10	vostok::physics::bullet_character_controller::impassable_slope	ECX	bullet_character_controller	observed
+0x0007de10	vostok::physics::bullet_character_controller::impassable_slope	EDI	float[3]* reference point (step_down: the feet at the start of the tick)	observed
+0x0007f100	vostok::physics::bullet_character_controller::setup_shape_dim	ESI	bullet_character_controller	observed
+0x0007f100	vostok::physics::bullet_character_controller::setup_shape_dim	EAX	float[2]* {capsule diameter, total height}	observed
+0x0007d590	vostok::physics::bullet_character_controller::step_forward	ESI	float[3]* the move this tick	observed
+0x0007d590	vostok::physics::bullet_character_controller::step_forward	entry ESP+4	bullet_character_controller (passed on in ECX)	observed
+0x0007ea80	vostok::physics::bullet_character_controller::step_down_sweep_test_impl	ESI	bullet_character_controller	observed
+0x0007ea80	vostok::physics::bullet_character_controller::step_down_sweep_test_impl	entry ESP+4	float signed down distance (negative = down)	observed

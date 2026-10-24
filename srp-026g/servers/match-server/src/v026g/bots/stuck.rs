@@ -115,6 +115,20 @@ pub const ROUND_FACTOR: f32 = 1.5;
 /// grid the way to team 0's container round its pit's stair edge was 0.1-2.7
 /// m longer; a way round a whole building is not worth a spot.
 pub const ROUND_EXTRA_M: f32 = 10.0;
+/// A second way out of the same zones within this, toward the same goal,
+/// gives that goal up ([`Stuck::zone_escape`]), ms. GUESS: two of
+/// level_03's electric pairs' on spans (6 s on, 6 s off) and the walk back.
+pub const ZONE_AGAIN_MS: u32 = 30_000;
+/// The goals of two ways out are the same within this, metres (a goal that
+/// moved less is planned to again, `mod.rs` `REPLAN_MOVED_M`).
+const ZONE_GOAL_M: f32 = 2.0;
+/// A held route is looked over for the zones ahead at most this often, ms
+/// (`Tactics::route_shut_ahead`). GUESS: a tenth of a zone's on or off span;
+/// a route dropped there is searched again at once.
+pub const ZONE_CHECK_MS: u32 = 500;
+/// A way out of a zone a bot with no goal walks is kept this long, ms,
+/// before it is looked for again. GUESS: a few metres at a walk.
+pub const ZONE_OUT_KEPT_MS: u32 = 2_000;
 
 /// What a stuck bot does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -141,6 +155,16 @@ pub struct Stuck {
     told: Vec<(Vec3, bool)>,
     /// The team's spots to keep clear of, as last shared ([`Self::share`]).
     team: Vec<Vec3>,
+    /// Its ways out of zones lately: the zones' set, the goal, the time,
+    /// and whether it was off those zones' floors since
+    /// ([`Self::zone_escape`], [`Self::zone_on`]).
+    zone_escapes: Vec<(u16, Vec3, u32, bool)>,
+    /// When its held route was last looked over for zones
+    /// ([`ZONE_CHECK_MS`]).
+    pub zone_checked: u32,
+    /// The way out of a zone it walks with no goal of its own: where to,
+    /// and till when it is kept ([`ZONE_OUT_KEPT_MS`]).
+    pub zone_out: Option<(Vec3, u32)>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -249,11 +273,44 @@ impl Stuck {
     /// then the other side, then straight to each side (a body caught in a
     /// corner between two props gets out the way it did not try).
     pub fn escape(&self, side: u32, other: u32) -> u32 {
-        match self.last_times % 4 {
-            1 => key::BACK | side,
-            2 => key::BACK | other,
-            3 => other,
-            _ => side,
+        self.escapes(side, other)[0]
+    }
+
+    /// [`Self::escape`]'s keys first, then the others in their turn: for a
+    /// way that does not step into a zone (`Tactics::zone_free_step`).
+    pub fn escapes(&self, side: u32, other: u32) -> [u32; 4] {
+        let order = [side, key::BACK | side, key::BACK | other, other];
+        std::array::from_fn(|k| order[(self.last_times as usize + k) % 4])
+    }
+
+    /// A way out of the zones of set `set` (`Hazards::set_of`) toward
+    /// `goal`, at `time`: whether it is the second out of those zones
+    /// toward that goal within [`ZONE_AGAIN_MS`], with the body off their
+    /// floors in between (another way out in one stay is not counted).
+    /// Then the way there goes in and out again (a zone between it and its
+    /// goal that keeps coming on as it gets there), and the goal is given
+    /// up for a while (`Bot::no_way_to`) for the play to choose again. A
+    /// zone the body left is not held as on meanwhile: the Cologne anomaly
+    /// bench's 15 s memory shut the only way's open windows (run 8: 11
+    /// back-outs, 79.5 s to the goal against 41.7 s).
+    pub fn zone_escape(&mut self, time: u32, set: u16, goal: Vec3) -> bool {
+        self.zone_escapes
+            .retain(|&(_, _, at, _)| time < at.saturating_add(ZONE_AGAIN_MS));
+        let same =
+            |&(s, g, _, _): &(u16, Vec3, u32, bool)| s == set && g.distance_xz(goal) <= ZONE_GOAL_M;
+        let again = self.zone_escapes.iter().any(|e| same(e) && e.3);
+        match self.zone_escapes.iter_mut().find(|e| same(e) && !e.3) {
+            Some(stay) => stay.2 = time,
+            None => self.zone_escapes.push((set, goal, time, false)),
+        }
+        again
+    }
+
+    /// The body is on a floor of the zones of set `set` (0: none): the
+    /// ways out of other zones' floors are left ([`Self::zone_escape`]).
+    pub fn zone_on(&mut self, set: u16) {
+        for escape in self.zone_escapes.iter_mut().filter(|e| e.0 != set) {
+            escape.3 = true;
         }
     }
 

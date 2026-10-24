@@ -883,3 +883,102 @@ when the way round is long).
   spots at match start.
 - A bot already in a pit with no route still stands. The stuck watch needs
   a route; getting out of pockets is a later change.
+
+### Bots in damage zones (2026-10-24)
+
+**Why.** In the Cologne match 0x60aeff4f (CG-18), bots walked into level_03's
+electric pairs as they came on, stood in them with no goal, and backed out
+of a zone the way they came when a chase re-planned their route mid-zone.
+The routes checked a zone only at the moment of the search, so a zone that
+came on before the bot got there was walked into. The way out of a zone took
+the nearest exit with no thought of the goal, and found nothing when the
+bot was deeper than its search.
+
+**The change** (`hazards.rs`, `tactics.rs`, `stuck.rs`, `mod.rs`).
+
+- **Arrival time.** A route takes a zoned floor only when its zones stay off
+  for the pass (`PASS_MS`) from the bot's earliest arrival there: the
+  straight distance from the start at sprint pace (`hazards::ARRIVE_MPS`,
+  5 m/s). The region stage samples the zone's near and far distances, so it
+  stays permissive.
+- **Held routes.** Every 500 ms the route's next 15 m is checked the same way.
+  When a zone ahead will be on when the bot gets there, the route is dropped
+  and searched again (`Tactics::route_shut_ahead`). This is not done while
+  the bot is on a zone's floors walking out.
+- **Getting out toward the goal.** The way out of a zone weighs the goal:
+  exits within 6 m of the nearest are scored on the walk to them (× 3) plus
+  their distance to the goal. An exit on the far side counts only when the
+  zone stays off for the walk at 3 m/s, or the zone is mild (5 hp/s or less).
+  Escapes from spawn-area marks stay nearest.
+- **Deep in a zone.** When the search ends before an exit, the bot takes the
+  match's exit field instead: a search from every unmarked floor back over
+  the marked ones, built once a match on first need.
+- **No goal.** A bot holding a spot, or standing at its goal, walks out of a
+  zone that is on (or coming on), and holds the exit for 2 s.
+- **Re-entries.** A second escape from the same zones toward the same goal,
+  after having left them, within 30 s, marks that goal no way for a while
+  (`Stuck::zone_escape`), as an unreachable goal is.
+- **Unstick keys** do not step onto a zone's floors when another key set
+  does not.
+- All the numbers are GUESS consts.
+
+**Tests** (`zone_runs` in `tests.rs`, the Cologne anomaly bench's runs):
+
+| Run | Result | Stock |
+|---|---|---|
+| Only way, 6 s on / 6 s off | crosses in an off span, 0 s on | 1.2 s on |
+| With a detour | 0 s on | 1.2 s on |
+| A chase re-planned every 1.5 s | no back-outs, arrives at 17 s | 2 back-outs, 41.7 s |
+| No goal, in the gap as it comes on | 0 s on | 5.9 s each span |
+| Pushed into a small zone, no goal | 2.1 s (fixes once a second) | 27 s |
+| Pushed 25 m into a big zone | out by the exit field, 8.5 s on, arrives | stood 37 s |
+
+**Measured** (`real_bot_cost`, 16 maps × 4v4 and 10v10 × seeds 1-16 = 512
+pairs, with `SRP_BOT_ROUTES`, against 639490d6 with the same zone tally; ±
+is 1 SE, * beyond 2 SE). `RouteTally` counts living bot-seconds on a zone's
+floors while it is on (sampled each world), entries onto zones' floors, and
+re-entries into the zones last left within 30 s.
+
+| | before | after | change |
+|---|---|---|---|
+| bot-s on a zone while on | 2.15 | 1.80 | -0.35 ± 0.13* |
+| zone entries | 8.91 | 8.63 | -0.28 ± 0.16 |
+| re-entries within 30 s | 1.78 | 1.76 | -0.03 ± 0.08 |
+
+By map (all seeds, bot-s on a zone while on): level_03 day 2 36 → 4 and day
+4 35 → 20, level_02 day 2 54 → 19, level_06 522 → 420; level_07 day 4 82 →
+107, the one worse. Escapes: 975 back the nearest way, 201 on toward the
+goal, none found nothing (the exit field).
+
+Guards: K/D -0.02 ± 0.02 and +0.02 ± 0.02, kills +0.09 ± 0.10, delivered
+-0.01 ± 0.02, carriers killed -0.06 ± 0.04, quick ends a bot-minute -0.004 ±
+0.007, flips -0.001 ± 0.003, idle -0.08 ± 0.12, team kills 0.008 → 0.012
+(+0.004 ± 0.004). Fall ticks are up +0.37 ± 0.16*. These are route drops, not
+falls off: planned drops on routes that go round zones +0.28 ± 0.15, falls
+off the route +0.09 ± 0.09 (no change). Stuck notes +0.08 ± 0.10.
+
+CPU (the same 512 matches, 8 at a time on one machine, so noisy):
+
+| | before | after |
+|---|---|---|
+| bots, ms a second (mean a match) | 18.61 | 19.45 (+4.5 %) |
+| poll µs p99 / p99.9 (mean a match) | 2046 / 4263 | 2138 / 4367 |
+| worst poll µs (p99 of matches' worst / worst) | 74159 / 251145 | 72186 / 134900 |
+| worst think / ticks µs | 51754 / 251135 | 60401 / 134892 |
+| grid searches, count / ms each | 681139 / 1.440 | 684190 / 1.478 |
+| map_ready ms, level_03 day 2 / day 4 / level_06 day 2 / level_07 day 2 | 376 / 460 / 480 / 196 | 381 / 468 / 467 / 189 |
+
+The exit field is built on first need during play, not at map_ready, so its
+build is in the polls' worst times, which did not grow.
+
+**Left.**
+
+- Re-entries did not move. Most entries are of always-on, low-damage zones on
+  levels 1 and 2, crossed on purpose when there is no other way. The
+  re-entry mark acts only on a second escape toward the same goal.
+- level_06 and level_07's big zones still hold bots for seconds: their
+  bot-seconds are mostly escapes back the nearest way from a zone the route
+  had to cross.
+- The arrival check assumes a healthy bot at sprint pace. A bot slowed by a
+  broken leg, no stamina or a hit's stagger gets there later than that; the
+  4 s pass and the held-route check every 500 ms cover only part of it.
