@@ -5948,7 +5948,9 @@ impl RouteTally {
         let escapes = super::tactics::escapes::counts();
         let escaped: Vec<u64> = (0..3).map(|k| escapes[k] - self.escapes[k]).collect();
         let pockets = super::escape::counts::counts();
-        let pocketed: Vec<u64> = (0..4).map(|k| pockets[k] - self.pocket_escapes[k]).collect();
+        let pocketed: Vec<u64> = (0..4)
+            .map(|k| pockets[k] - self.pocket_escapes[k])
+            .collect();
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
             "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {}",
@@ -6902,7 +6904,12 @@ mod pocket_runs {
         let world = pit(0.9);
         let bottom = world.grid.locate(Vec3::new(32.0, -0.9, 20.0), 0.3).unwrap();
         assert!(world.grid.in_pocket(bottom));
-        let seen = drive(world, Vec3::new(32.0, -0.9, 20.0), Vec3::new(55.0, 0.0, 32.0), 40_000);
+        let seen = drive(
+            world,
+            Vec3::new(32.0, -0.9, 20.0),
+            Vec3::new(55.0, 0.0, 32.0),
+            40_000,
+        );
         assert!(seen.out_ms.is_some_and(|at| at <= 15_000), "{seen:?}");
         assert!(seen.arrived_ms.is_some(), "{seen:?}");
         assert_eq!(seen.trapped, None, "{seen:?}");
@@ -6912,7 +6919,12 @@ mod pocket_runs {
     /// up at once and the plays see it ([`escape::Trapped::gave_up`]).
     #[test]
     fn a_bot_in_a_pit_with_no_exit_gives_up() {
-        let seen = drive(pit(1.6), Vec3::new(32.0, -1.6, 20.0), Vec3::new(55.0, 0.0, 32.0), 5_000);
+        let seen = drive(
+            pit(1.6),
+            Vec3::new(32.0, -1.6, 20.0),
+            Vec3::new(55.0, 0.0, 32.0),
+            5_000,
+        );
         assert_eq!(seen.out_ms, None, "{seen:?}");
         assert!(seen.trapped.is_some_and(|t| t.gave_up), "{seen:?}");
     }
@@ -6921,34 +6933,14 @@ mod pocket_runs {
     /// standing try at each of its two lowest rims, then it gives up.
     #[test]
     fn a_bot_in_a_pit_with_sprint_exits_tries_two_then_gives_up() {
-        let seen = drive(pit(1.2), Vec3::new(32.0, -1.2, 20.0), Vec3::new(55.0, 0.0, 32.0), 35_000);
+        let seen = drive(
+            pit(1.2),
+            Vec3::new(32.0, -1.2, 20.0),
+            Vec3::new(55.0, 0.0, 32.0),
+            35_000,
+        );
         assert_eq!(seen.out_ms, None, "{seen:?}");
         assert!(seen.trapped.is_some_and(|t| t.gave_up), "{seen:?}");
-    }
-
-    /// A bot given up in a pocket is far from every target out of it
-    /// (`Ctx::path_dist`): a slot it holds near one (`team::COMMIT_M`) goes
-    /// to a teammate. One escaping, or a target in its own pocket, is as
-    /// near as before.
-    #[test]
-    fn a_bot_given_up_in_a_pit_is_far_from_targets_out_of_it() {
-        use super::super::plays::tests::Scenario;
-        let mut s = Scenario::field(super::super::view::Mode::Batteries);
-        s.tactics = Tactics::new(pit(1.6), 1.0);
-        let feet = Vec3::new(32.0, -1.6, 20.0);
-        s.bot(0, 0, feet);
-        let rim = Vec3::new(29.0, 0.0, 20.0);
-        let near = s.cx(0).path_dist(rim);
-        assert!(near < 5.0, "{near}");
-        let (mut state, mut route) = (None, None);
-        let grid = &s.tactics.world.grid;
-        let out = escape::tick(
-            &mut state, &mut route, grid, &s.tactics.escapes, 0, 0, feet, rim, 3_000,
-        );
-        assert_eq!(out.events, [escape::Event::GaveUp]);
-        assert!(s.cx(0).trapped().is_some_and(|t| t.gave_up));
-        assert!(s.cx(0).path_dist(rim) >= 1_000.0);
-        assert!(s.cx(0).path_dist(Vec3::new(33.0, -1.6, 21.0)) < 5.0, "in its pit");
     }
 
     /// The fight's side step (`Tactics::clear_step_for`) does not step off
@@ -6967,7 +6959,10 @@ mod pocket_runs {
                 "depth {depth}"
             );
             let (a, b) = (Vec3::new(31.0, -depth, 19.0), Vec3::new(31.0, -depth, 21.0));
-            assert!(tactics.clear_step_for(a, b, 0, Some(0), false), "depth {depth}: inside");
+            assert!(
+                tactics.clear_step_for(a, b, 0, Some(0), false),
+                "depth {depth}: inside"
+            );
         }
     }
 
@@ -6993,10 +6988,17 @@ mod pocket_runs {
             .collect();
         for (level, mode) in maps {
             let project = format!("level_{level:02}/day_{mode}");
-            let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(&project))).unwrap();
+            let map =
+                mapdata::MapData::read(&dir.join(mapdata::format::file_name(&project))).unwrap();
             let world = Arc::new(World::build(map, mapdata::CELL, mapdata::Body::default()));
             let grid = &world.grid;
-            let Some(goal) = world.map.spawns.iter().find(|s| s.team == 0).map(|s| s.position) else {
+            let Some(goal) = world
+                .map
+                .spawns
+                .iter()
+                .find(|s| s.team == 0)
+                .map(|s| s.position)
+            else {
                 continue;
             };
             let mut pockets: Vec<NodeId> = (0..grid.len() as NodeId)
@@ -7006,7 +7008,8 @@ mod pocket_runs {
             pockets.dedup();
             // By the surest way out: standing, sprint, steep, none; out
             // with the escape off and on, and the seconds it took on.
-            let mut by: std::collections::BTreeMap<String, (u32, u32, u32, f32)> = Default::default();
+            let mut by: std::collections::BTreeMap<String, (u32, u32, u32, f32)> =
+                Default::default();
             for &pocket in &pockets {
                 let kind = grid
                     .pocket_exits(pocket)

@@ -1048,8 +1048,7 @@ impl Tactics {
         let home = grid.pocket_of(from);
         let trap = |node: NodeId| {
             grid.pocket_of(node).is_some_and(|pocket| {
-                Some(pocket) != home
-                    && !super::escape::standing_exit(grid, &self.escapes, pocket)
+                Some(pocket) != home && !super::escape::standing_exit(grid, &self.escapes, pocket)
             })
         };
         !trap(to)

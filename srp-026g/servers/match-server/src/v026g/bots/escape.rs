@@ -30,8 +30,8 @@ use std::sync::Mutex;
 
 use mapdata::{ExitJump, NodeId, PocketExit, PocketId, Vec3, WalkGrid};
 
-use super::view::Place;
 use super::path::{self, Route};
+use super::view::Place;
 
 /// A standing-jump exit is tried this many times (the motor presses up to
 /// `motor::JUMP_TRIES` times in each). GUESS: the client's standing jump
@@ -187,7 +187,13 @@ pub fn standing_exit(grid: &WalkGrid, board: &Board, pocket: PocketId) -> bool {
 /// The exits to try out of the pocket of `from`, in order, with their
 /// tries: the team's that worked, the standing ones, the lowest
 /// [`SPRINT_EXITS`] sprint-only ones; [`EXITS_MOST`] at most.
-fn exits(grid: &WalkGrid, board: &Board, team: u8, pocket: PocketId, from: NodeId) -> Vec<(PocketExit, u8)> {
+fn exits(
+    grid: &WalkGrid,
+    board: &Board,
+    team: u8,
+    pocket: PocketId,
+    from: NodeId,
+) -> Vec<(PocketExit, u8)> {
     let all = grid.pocket_exits(from);
     let mut sprint: Vec<PocketExit> = all
         .iter()
@@ -215,7 +221,11 @@ fn exits(grid: &WalkGrid, board: &Board, team: u8, pocket: PocketId, from: NodeI
         .copied()
         .filter(|exit| exit.jump == ExitJump::Standing)
         .collect();
-    standing.sort_by(|a, b| (a.across, a.rise).partial_cmp(&(b.across, b.rise)).unwrap_or(std::cmp::Ordering::Equal));
+    standing.sort_by(|a, b| {
+        (a.across, a.rise)
+            .partial_cmp(&(b.across, b.rise))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     let standing = standing.into_iter().map(|exit| (exit, STANDING_TRIES));
     let sprint = sprint
         .into_iter()
@@ -281,7 +291,8 @@ fn step(
     let node = grid.locate(feet, 1.5);
     let pocket = node.and_then(|node| grid.pocket_of(node));
     // Its goal is in the same pocket: nothing to get out of.
-    let goal_in = pocket.is_some() && path::goal_floor(grid, goal).and_then(|g| grid.pocket_of(g)) == pocket;
+    let goal_in =
+        pocket.is_some() && path::goal_floor(grid, goal).and_then(|g| grid.pocket_of(g)) == pocket;
     let (Some(node), Some(pocket), false) = (node, pocket, goal_in) else {
         if let Some(old) = escape.take() {
             // Out of the pocket (or no longer bound out of it): a try under
@@ -313,7 +324,10 @@ fn step(
     };
     // The try under way: its route walked on, or ended in the pocket.
     if let Some(began) = state.trying {
-        let landing = state.exits.get(state.at).map(|(exit, _)| grid.position(exit.to));
+        let landing = state
+            .exits
+            .get(state.at)
+            .map(|(exit, _)| grid.position(exit.to));
         let walking = route
             .as_ref()
             .zip(landing)

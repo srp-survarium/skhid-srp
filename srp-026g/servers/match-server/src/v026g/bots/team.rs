@@ -233,12 +233,34 @@ fn on_container(c: &Candidate, given: &[(PlayKind, TargetRef)]) -> bool {
     matches!(c.target, TargetRef::Container(_)) && given.contains(&(c.kind, c.target))
 }
 
+/// [`assign_at`] for a team whose bots of `given_up` gave up in a pocket
+/// (`escape.rs`): a slot one holds goes to a teammate as a free one, even
+/// within [`COMMIT_M`] of its target, and none takes a slotted play.
+pub fn assign_trapped(
+    asking: Vec<Asking>,
+    now: u32,
+    gap: f32,
+    given_up: &[Place],
+) -> Vec<(Place, Assignment, bool)> {
+    assign_given_up(asking, now, &Bands::used(), gap, given_up)
+}
+
 /// [`assign`] with the bands given.
 pub fn assign_with(
+    asking: Vec<Asking>,
+    now: u32,
+    bands: &Bands,
+    gap: f32,
+) -> Vec<(Place, Assignment, bool)> {
+    assign_given_up(asking, now, bands, gap, &[])
+}
+
+fn assign_given_up(
     mut asking: Vec<Asking>,
     now: u32,
     bands: &Bands,
     gap: f32,
+    given_up: &[Place],
 ) -> Vec<(Place, Assignment, bool)> {
     let behind = gap < 0.0;
     for bot in &mut asking {
@@ -259,6 +281,7 @@ pub fn assign_with(
     // the holder's way to the target).
     let held: Vec<(SlotKey, Place, f32, Option<f32>)> = asking
         .iter()
+        .filter(|bot| !given_up.contains(&bot.place))
         .filter_map(|bot| {
             let current = bot.current?;
             let slot = current.slot?;
@@ -275,9 +298,11 @@ pub fn assign_with(
     let mut given: Vec<(PlayKind, TargetRef)> = Vec::new();
     let mut out = Vec::new();
     for bot in asking {
+        let trapped = given_up.contains(&bot.place);
         let free = |c: &&Candidate| {
             c.slot.is_none_or(|slot| {
-                !taken.contains(&slot)
+                !trapped
+                    && !taken.contains(&slot)
                     && held.iter().all(|&(s, holder, score, holder_m)| {
                         s != slot || holder == bot.place || takes_held(c, score, holder_m)
                     })
@@ -489,6 +514,49 @@ mod tests {
             run(at(0.36, 3.0), at(0.61, 12.0), true),
             (PlayKind::Trade, collect)
         );
+    }
+
+    /// A holder by its target that gave up in a pocket (`escape.rs`) lets
+    /// the slot go to a teammate, and takes no slotted play itself.
+    #[test]
+    fn a_holder_given_up_in_a_pocket_lets_its_slot_go() {
+        let at = |score: f32, path_m: f32| Candidate {
+            why: Explain {
+                parts: vec![(Input::PathDist, path_m, 0.9)],
+            },
+            ..c(PlayKind::Collect, Rank::Objective, score, Some(0), 0)
+        };
+        let current = Assignment {
+            kind: PlayKind::Collect,
+            target: TargetRef::Battery(0),
+            slot: Some(SlotKey {
+                kind: PlayKind::Collect,
+                key: 0,
+            }),
+            score: 0.6,
+            since: 100,
+            reason: "the best play",
+        };
+        let run = |given_up: &[Place]| {
+            let asking = vec![
+                Asking {
+                    place: 1,
+                    candidates: vec![at(0.9, 3.0), c(PlayKind::Roam, Rank::Roam, 0.9, None, 9)],
+                    current: Some(&current),
+                },
+                Asking {
+                    place: 2,
+                    candidates: vec![at(0.5, 12.0), c(PlayKind::Roam, Rank::Roam, 0.9, None, 8)],
+                    current: None,
+                },
+            ];
+            let out = assign_trapped(asking, 1_000, 0.0, given_up);
+            let of = |place| out.iter().find(|(p, _, _)| *p == place).unwrap().1.kind;
+            (of(1), of(2))
+        };
+        let (collect, roam) = (PlayKind::Collect, PlayKind::Roam);
+        assert_eq!(run(&[]), (collect, roam));
+        assert_eq!(run(&[1]), (roam, collect));
     }
 
     #[test]

@@ -1674,7 +1674,13 @@ impl Bots {
             })
             .collect();
         let gap = state.signals.score_gap;
-        for (place, assignment, changed) in team::assign_at(asking, now, gap) {
+        // [pockets] Bots given up in a pocket (`escape.rs`) let their slots go.
+        let given_up: Vec<Place> = asked
+            .iter()
+            .map(|&(place, _, _)| place)
+            .filter(|&place| tactics.escapes.trapped(place).is_some_and(|t| t.gave_up))
+            .collect();
+        for (place, assignment, changed) in team::assign_trapped(asking, now, gap, &given_up) {
             let Some(me) = view.place(place) else {
                 continue;
             };
@@ -2609,7 +2615,11 @@ fn drive_tick(
                         // A jump it could not make: its take-off, likewise
                         // (not an escape's: a pocket's rim is no way).
                         if let Walked::JumpFailed(take_off) = walked
-                            && !bot.stuck.escape.as_ref().is_some_and(escape::Escape::trying)
+                            && !bot
+                                .stuck
+                                .escape
+                                .as_ref()
+                                .is_some_and(escape::Escape::trying)
                         {
                             bot.stuck.failed_jump(time, take_off);
                         }
