@@ -7289,8 +7289,17 @@ mod pocket_runs {
             let mut by: std::collections::BTreeMap<String, (u32, u32, u32, f32)> =
                 Default::default();
             for &pocket in &pockets {
-                let kind = grid
+                // Only the exits whose take-off the bot walks to inside the
+                // pocket: the others' floors are reached by drops from
+                // elsewhere (level_06's (63.85, 83.9) listed "standing" exits
+                // it could not get to).
+                let inside = |n: NodeId| grid.pocket_of(n) == grid.pocket_of(pocket);
+                let reachable: Vec<mapdata::PocketExit> = grid
                     .pocket_exits(pocket)
+                    .into_iter()
+                    .filter(|e| path::plan_where(grid, pocket, e.from, inside).is_some())
+                    .collect();
+                let kind = reachable
                     .iter()
                     .map(|e| e.jump)
                     .min()
@@ -7303,8 +7312,7 @@ mod pocket_runs {
                 }
                 escape::counts::OFF.store(false, std::sync::atomic::Ordering::Relaxed);
                 if kind == "standing" && outs[1].is_none() {
-                    let exits: Vec<(f32, f32)> = grid
-                        .pocket_exits(pocket)
+                    let exits: Vec<(f32, f32)> = reachable
                         .iter()
                         .filter(|e| e.jump == mapdata::ExitJump::Standing)
                         .take(4)
