@@ -1315,13 +1315,6 @@ impl CarryTally {
     /// from there.
     fn world(&mut self, game: &Game, bots: &Bots) {
         self.arrived.resize(game.bodies.len(), None);
-        let log = &game.put_in_log;
-        for &(place, tick) in &log[self.put_ins_seen.min(log.len())..] {
-            if let Some(at) = self.arrived[place].take() {
-                self.put_in_waits.push(tick.saturating_sub(at));
-            }
-        }
-        self.put_ins_seen = log.len();
         self.pressed.resize(game.bodies.len(), false);
         // The uses old enough that the next one from the same stand is in.
         let presses = &game.put_presses;
@@ -1353,6 +1346,15 @@ impl CarryTally {
             }
         }
         self.first_seen = presses.len();
+        // The put-ins since, after the uses: a carry's first use and its
+        // put-in may fall between the same two worlds.
+        let log = &game.put_in_log;
+        for &(place, tick) in &log[self.put_ins_seen.min(log.len())..] {
+            if let Some(at) = self.arrived[place].take() {
+                self.put_in_waits.push(tick.saturating_sub(at));
+            }
+        }
+        self.put_ins_seen = log.len();
         for (place, body) in game.bodies.iter().enumerate() {
             let home = game.containers.iter().find(|(t, _)| *t == body.team);
             if !body.alive || body.carrying.is_none() {
