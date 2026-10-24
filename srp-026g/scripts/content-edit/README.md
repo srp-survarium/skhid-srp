@@ -458,3 +458,11 @@ artefacts, that container at that index, its own kinds as the row says) and stop
 answer; `spots.py check` says whether this file is still what they give. `--check` on revision 31's
 live files: 84 files edited, 0 unexpected differences. It changes what a match computes (where the
 two artefacts spawn): it rides with exe patch 59 and its `simulation_changes.tsv` row.
+
+## interface-level-1.json (2026-10-24)
+
+| change | why |
+|---|---|
+| new `st_interface_level_option` "Interface" (Oberfläche, Interfejs, Интерфейс, Інтерфейс), `st_interface_full` "Full" (Voll, Pełny, Полный, Повний), `st_interface_minimal` "Minimal" (Minimal, Minimalny, Минимальный, Мінімальний), `st_interface_disabled` "Disabled" (Aus, Wyłączony, Отключён, Вимкнений), in the six localization tables | the label and the values of the gameplay options' selector exe patch 64 adds for `g_interface_level` (`../../docs/notes/interface-level.md`; the owner, 2026-10-24: "full/minimal/disabled selector through < full >") |
+
+Text only: no server data, no simulation change.

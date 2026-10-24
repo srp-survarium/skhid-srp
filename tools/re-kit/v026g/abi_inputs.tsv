@@ -4648,3 +4648,18 @@ va	name	location	role	basis
 0x001f6670		ECX	generic_anomaly_core_cook	observed
 0x001f6680		ECX	generic_anomaly_core_cook	observed
 0x0031ba00	survarium::generic_anomaly_core::artefact_respawn_delay	ECX	generic_anomaly_core	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	EAX	the console command object (4Ch bytes; vtable cc_value<unsigned int> 0x9DC30C, which the callers make cc_u32 0x9E7CCC; linked at the head of the list 0x1F1D66C; +20h a boost::function its setter 0xECD90 calls after a change, 0 none)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+4	the name (+10h)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+8	the value address of an unsigned int (+40h)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+12	the least (+44h; 0 for minimap_position)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+16	the most (+48h; 2 for minimap_position)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+20	saved to user.cfg, a byte (+1Dh; 1 for minimap_position)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+24	a command kind (+14h; 2 for minimap_position)	observed
+0x00261100	survarium::options_item_int::options_item_int	EAX	the row's index in its tab (options_item_base keeps its low byte at +14h)	observed
+0x00261100	survarium::options_item_int::options_item_int	ECX	the options tab (+10h)	observed
+0x00261100	survarium::options_item_int::options_item_int	entry ESP+4	the item's memory (20h bytes)	observed
+0x00261100	survarium::options_item_int::options_item_int	entry ESP+8	the console command's name (options_item_base 0x260E90 looks the command up)	observed
+0x00261100	survarium::options_item_int::options_item_int	entry ESP+12	the keys of the choices' labels, an array of pointers (+18h)	observed
+0x00261100	survarium::options_item_int::options_item_int	entry ESP+16	their count (+1Ch, a byte)	observed
+0x00202150		entry ESP+4	the allocator	observed
+0x00202150		entry ESP+8	the count	observed

@@ -107,6 +107,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `team_damage_026g.asm`, `team_damage_026g.c`, `check_team_damage_026g.py` | Patch 63: team damage turned back on its dealer past a threshold, as 0.28a had it (the arena's block `team_damage.code`: the six entries in the asm, the logic in the C); its check runs the entries from the game's sites with the game's own options reader, kd_stats_rule constructor and field writers on made-up objects, beside the original (needs Unicorn) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
+| `interface_026g.asm`, `interface_026g.c`, `check_interface_026g.py` | Patch 64: the interface settings, saved choices of the gameplay options that reach the match's movies, the first the interface's level (Full, Minimal, Disabled; the arena's blocks `interface.code`, `interface.data` and `interface.state`: the four entries in the asm, the table and the logic in the C); its check runs the entries from the game's sites with the game's own console variable, look-up, execute, options item and labels code on made-up objects, beside the original (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `sponge_a_026g.asm`, `sponge_a_026g.c` | The source of patch 59's Sponge (artefact type 12): the ten hooks, the resolve_links slot and their stubs in assembly, and 0.28d0's artefact_sponge_core written again in C on 0.26g's interfaces (the object, its vtables, the cook's query, the throw, the explosion, the zone, the passive, the state), and the owner's spots (where the Sponge and the Rattle spawn: the pool, the links, the spawn) |
 | `rattle_026g.asm`, `rattle_026g.c` | The source of patch 59's Rattle (artefact type 8): the seven hooks and their stubs in assembly (the cook, the steps' and the shots' point proxies, the sound thread's amplitude and loudness), and the Rattle's active, state and quiet in C (the arena's blocks `rattle.code`, `rattle.state`) |
@@ -3572,6 +3573,48 @@ a key kF9 set for 19h kept in the 41st row (the original keeps it in none), the 
 `bind toggle_replay_ui kF9` (the original's nothing), the binder's own bind binds it, its save
 writes `bind toggle_replay_ui kF9`, and that line read back binds it again. The lobby movie builds from source
 (`tools/actionscript/flash_tree.py`). **Not run in a game.**
+
+### 64. The interface settings: the interface's level, Full, Minimal or Disabled (the next release's revision)
+
+The owner (2026-10-24): an options selector `< Full >` for the interface, Full, Minimal or
+Disabled, the first of more interface settings. The rules: `../docs/notes/interface-level.md`;
+the code read: `client_patch.md` section 3.57.
+
+**A setting** is a row of `interface_settings` (`interface_026g.c`): a saved console variable of
+the game's own kind (cc_u32, as the hud's `minimap_position`), a row of the gameplay options (the
+game's `options_item_int`, the arrow selector, after the tab's 16) with its label and values'
+keys, and the method of the match's movies that gets its value. The first: `g_interface_level`
+(0 Full, 1 Minimal, 2 Disabled), labelled by content edit `interface-level-1.json`, given to the
+hud and the player icons as `root.set_interface_level`.
+
+**The patch** (`interface_026g.asm` and `.c`, the arena's blocks `interface.code`, `.data` and
+`.state`; `INTERFACE_HOOKS`):
+
+- 0x2339DE, the hud's constructor's `call 0x1DDB0` registering show_quests_progress once (CALLEE,
+  `ret 10h`): that, then each setting's cc_u32 (0x1DCD0 and the vtable 0x9E7CCC, 0 to its count -
+  1, saved in `user.cfg`, kind 2), before the configs run;
+- 0x262731, options_tab::options_tab's store of the gameplay tab's option 15 (JUMP): that, then an
+  options_item_int (0x261100) per setting at 16 + i, back at 0x262736;
+- 0x2005F2, fill_settings_data's `call 0x202150` making the gameplay labels (CALLEE): that, then
+  each setting's label key at 16 + i;
+- 0x1F8023, the game world's `call 0x23B200` of the hud's update_ui (CALLEE, `ret 0Ch`), every
+  frame of a match: that, then each movie (the hud's, the player icons') gets
+  `root.set_interface_level(value)` when the value it was given last differs or the movie is
+  another. The value is the larger of the setting and a mode's least (`interface_force(setting,
+  least)`: a Blackout mode forces Disabled through it);
+- the gameplay tab's 10h rows (0x26232A `mov edi,10h`, 0x26232F `mov byte [ebx+4],10h`, 0x2005EF
+  `push 10h`, 0x200B08 `mov bl,10h`) become 10h + `interface_count` (the C table's, read from the
+  link: `INTERFACE_COUNTS`).
+
+**The movies.** The main menu's `SelectorRow` places the game's arrow selector (the video options'
+`OptionStepperCyclic`) for each row and `Settings` binds it as the timeline's own controls. The
+hud and the player icons have `set_interface_level`: Disabled hides the root as F11 does (patch 62;
+F11 shows it again at the chosen level); Minimal hides the elements each movie's
+`InterfaceLevel.SHOWN` leaves out (the kill feed, the minimap, the quests, the names over heads,
+the text under Research's markers).
+
+**Checked:** `selftest_026g.py` check 64 and the call shapes; `check_interface_026g.py` (Unicorn):
+19 cases. No simulation change. **Not run:** a game.
 
 ## Not ported, not done
 

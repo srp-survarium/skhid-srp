@@ -1,6 +1,7 @@
 package survarium.controls
 {
    import flash.display.MovieClip;
+   import flash.display.Sprite;
    import flash.filters.DropShadowFilter;
    import flash.geom.ColorTransform;
    import flash.text.TextField;
@@ -8,6 +9,7 @@ package survarium.controls
    import flash.text.TextFormat;
    import flash.utils.Dictionary;
    import flash.utils.getDefinitionByName;
+   import survarium.constants.InterfaceLevel;
    
    public class HUDIconLayer extends MovieClip
    {
@@ -29,9 +31,45 @@ package survarium.controls
 
       protected var _researchFormat:TextFormat;
 
+      // The layers, from the bottom: Research's units, the players' markers (kind 0), the objects'
+      // markers (kind 1). Each is an element of the interface level's table (InterfaceLevel.SHOWN).
+      protected var _researchLayer:Sprite = new Sprite();
+
+      protected var _players:Sprite = new Sprite();
+
+      protected var _objects:Sprite = new Sprite();
+
+      // The interface's level (exe patch 64; docs/notes/interface-level.md).
+      protected var _level:uint = InterfaceLevel.FULL;
+
       public function HUDIconLayer()
       {
          super();
+         addChild(this._researchLayer);
+         addChild(this._players);
+         addChild(this._objects);
+      }
+
+      // The level: each layer, the players' names and Research's texts as the table says.
+      public function set_interface_level(level:uint) : void
+      {
+         var marker:HUDMarker;
+         var unit:ResearchMarker;
+         _level = level;
+         this._researchLayer.visible = InterfaceLevel.shows("research",level);
+         this._players.visible = InterfaceLevel.shows("players",level);
+         this._objects.visible = InterfaceLevel.shows("markers",level);
+         for each(marker in this._markers)
+         {
+            if(marker.kind == 0)
+            {
+               marker.nameShown = InterfaceLevel.shows("names",level);
+            }
+         }
+         for each(unit in this._research)
+         {
+            unit.textShown = InterfaceLevel.shows("researchText",level);
+         }
       }
 
       // Research (mode 5), at a change and every second (research_native_026g.c
@@ -63,7 +101,8 @@ package survarium.controls
          {
             marker = new ResearchMarker(this._researchFormat);
             marker.visible = false;
-            addChildAt(marker,0);
+            marker.textShown = InterfaceLevel.shows("researchText",this._level);
+            this._researchLayer.addChild(marker);
             this._research.push(marker);
          }
          while(i < this._research.length)
@@ -98,11 +137,12 @@ package survarium.controls
          {
             (renderer.textField as TextField).autoSize = TextFieldAutoSize.CENTER;
             renderer.textField.visible = false;
+            renderer.nameShown = InterfaceLevel.shows("names",this._level);
          }
          renderer.kind = kind;
          this._markers[id] = renderer;
          renderer.visible = false;
-         addChild(renderer);
+         (kind == 0 ? this._players : this._objects).addChild(renderer);
       }
       
       public function set_enemy_icon_ids(value:Array) : void

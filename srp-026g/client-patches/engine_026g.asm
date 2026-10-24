@@ -77,6 +77,8 @@ global engine_geometry_destroy
 global engine_config_variant_type
 global engine_point_to_screen
 global engine_binded_action
+global engine_cc_u32
+global engine_options_item_int
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -1328,6 +1330,47 @@ engine_binded_action:
     mov edi, [esp + 28]   ; kinds
     mov esi, [esp + 32]   ; key
     call 0x207d50
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_cc_u32:
+    ; 0x1dcd0 vostok::console_commands::cc_value<unsigned int>::cc_value: object EAX, name ESP+4, value ESP+8, least ESP+12, most ESP+16, saved ESP+20, kind ESP+24; pops 24
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 44]   ; kind -> 24
+    push dword [esp + 44]   ; saved -> 20
+    push dword [esp + 44]   ; most -> 16
+    push dword [esp + 44]   ; least -> 12
+    push dword [esp + 44]   ; value -> 8
+    push dword [esp + 44]   ; name -> 4
+    mov eax, [esp + 44]   ; object
+    call 0x1dcd0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_options_item_int:
+    ; 0x261100 survarium::options_item_int::options_item_int: index EAX, tab ECX, memory ESP+4, name ESP+8, keys ESP+12, count ESP+16; pops 16; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; count -> 16
+    push dword [esp + 40]   ; keys -> 12
+    push dword [esp + 40]   ; name -> 8
+    push dword [esp + 40]   ; memory -> 4
+    mov eax, [esp + 36]   ; index
+    mov ecx, [esp + 40]   ; tab
+    call 0x261100
     pop edi
     pop esi
     pop ebx

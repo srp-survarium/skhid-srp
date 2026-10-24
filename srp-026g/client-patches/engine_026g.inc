@@ -224,3 +224,9 @@ extern engine_point_to_screen
 ; unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
 ; 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX
 extern engine_binded_action
+; void engine_cc_u32(void *object, const char *name, unsigned int *value, unsigned int least, unsigned int most, unsigned int saved, unsigned int kind)
+; 0x1dcd0 vostok::console_commands::cc_value<unsigned int>::cc_value: object EAX, name ESP+4, value ESP+8, least ESP+12, most ESP+16, saved ESP+20, kind ESP+24; pops 24
+extern engine_cc_u32
+; void *engine_options_item_int(unsigned int index, void *tab, void *memory, const char *name, const char *const *keys, unsigned int count)
+; 0x261100 survarium::options_item_int::options_item_int: index EAX, tab ECX, memory ESP+4, name ESP+8, keys ESP+12, count ESP+16; pops 16; EAX
+extern engine_options_item_int

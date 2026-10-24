@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 69800,
-  "sha256": "51e44832ef455d65ecaf0fe34bbc2285ac6a09894e12e743353966c7647bc37e",
+  "size": 74624,
+  "sha256": "5e6883fd381c8b1364117bf9fef66684b7a3504114743dbb639e63d713090e7f",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,7 +22,7 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 2542
+      "size": 2630
     },
     "match_keys.code": {
       "kind": "code",
@@ -68,6 +68,21 @@
       "kind": "data",
       "va": "0xa43d000",
       "size": 4264
+    },
+    "interface.code": {
+      "kind": "code",
+      "va": "0xa43f000",
+      "size": 738
+    },
+    "interface.data": {
+      "kind": "data",
+      "va": "0xa43f2f0",
+      "size": 120
+    },
+    "interface.state": {
+      "kind": "state",
+      "va": "0xa43f370",
+      "size": 16
     }
   },
   "symbols": {
@@ -95,6 +110,7 @@
     "engine_camouflage_parameters": "0xa432360",
     "engine_camouflage_parameters_type": "0xa4323f0",
     "engine_cc_bool": "0xa432480",
+    "engine_cc_u32": "0xa4329f0",
     "engine_cfg_child": "0xa432000",
     "engine_cfg_has": "0xa432020",
     "engine_config_variant_type": "0xa4329a0",
@@ -124,6 +140,7 @@
     "engine_model_instance_release": "0xa4323d0",
     "engine_mouse_ray": "0xa432440",
     "engine_movie_invoke": "0xa432150",
+    "engine_options_item_int": "0xa432a20",
     "engine_point_to_screen": "0xa4329b0",
     "engine_profile_assign": "0xa4322a0",
     "engine_profile_construct": "0xa4322c0",
@@ -157,6 +174,17 @@
     "hide_ui_lobby": "0xa43c11c",
     "hide_ui_match": "0xa43c000",
     "hide_ui_reset": "0xa43c0f0",
+    "interface_count": "0xa43f250",
+    "interface_force": "0xa43f154",
+    "interface_labelled": "0xa43f125",
+    "interface_labels": "0xa43f034",
+    "interface_made": "0xa43f0be",
+    "interface_options": "0xa43f01f",
+    "interface_register": "0xa43f000",
+    "interface_registered": "0xa43f076",
+    "interface_settings": "0xa43f300",
+    "interface_sync": "0xa43f167",
+    "interface_ui": "0xa43f050",
     "match_keys_chat": "0xa4330c3",
     "match_keys_hud": "0xa433080",
     "match_keys_keyboard": "0xa433000",

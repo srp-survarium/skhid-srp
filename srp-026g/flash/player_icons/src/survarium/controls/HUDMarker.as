@@ -32,6 +32,9 @@ package survarium.controls
       protected var _visibleTarget:Boolean = false;
       
       protected var _labelRenderer:Label;
+
+      // The interface's level shows the players' names (HUDIconLayer.set_interface_level).
+      protected var _nameShown:Boolean = true;
       
       public function HUDMarker()
       {
@@ -102,6 +105,12 @@ package survarium.controls
          this._tm.delay = value;
       }
       
+      public function set nameShown(value:Boolean) : void
+      {
+         _nameShown = value;
+         this.textField.visible = value && this._visibleTarget;
+      }
+
       public function showName() : *
       {
          if(this._visibleTarget == true)
@@ -152,7 +161,7 @@ package survarium.controls
       protected function handleTimerShow(e:Event) : void
       {
          this._tm.removeEventListener(TimerEvent.TIMER_COMPLETE,this.handleTimerShow);
-         this.textField.visible = true;
+         this.textField.visible = this._nameShown;
       }
       
       protected function handleTimerHide(e:Event) : void

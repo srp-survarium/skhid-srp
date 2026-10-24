@@ -12,6 +12,9 @@ too, for screenshots.
   ausblenden, Ukryj interfejs): the last row of the game keys, F11 by default. Rebound there like
   any other key, saved and read back as the others (`bind toggle_replay_ui <key>` in `user.cfg`).
   The owner, 2026-10-24: "there is no in settings option to switch it".
+- **With the interface level** (Options, Game, "Interface"; `interface-level.md`): in a match F11
+  hides what the chosen level shows and shows it again at that level; the level Disabled hides
+  what F11 hides.
 - **Why F11:** the game has no screenshot key; F12 is Steam's, Print Screen Windows'. F11 did
   nothing in a match or the lobby. Free in every group otherwise: B, H, J, U, Y, Z, 9, 0, F4,
   F7-F10, F12, Caps Lock (L is the game's in a match).

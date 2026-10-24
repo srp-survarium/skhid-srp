@@ -1,0 +1,29 @@
+{
+ "_about": "The gameplay options' \"Interface\" selector (g_interface_level: Full, Minimal, Disabled; exe patch 64 adds the row, its label key st_interface_level_option, its values' st_interface_full, st_interface_minimal, st_interface_disabled): their labels in the six localization tables (docs/notes/interface-level.md).",
+ "add_key": [
+  {"file": "localization/english/localization", "table": "strings", "key": "st_interface_level_option", "text": "Interface"},
+  {"file": "localization/german/localization", "table": "strings", "key": "st_interface_level_option", "text": "Oberfläche"},
+  {"file": "localization/polish/localization", "table": "strings", "key": "st_interface_level_option", "text": "Interfejs"},
+  {"file": "localization/russian/localization", "table": "strings", "key": "st_interface_level_option", "text": "Интерфейс"},
+  {"file": "localization/original/localization", "table": "strings", "key": "st_interface_level_option", "text": "Интерфейс"},
+  {"file": "localization/ukrainian/localization", "table": "strings", "key": "st_interface_level_option", "text": "Інтерфейс"},
+  {"file": "localization/english/localization", "table": "strings", "key": "st_interface_full", "text": "Full"},
+  {"file": "localization/german/localization", "table": "strings", "key": "st_interface_full", "text": "Voll"},
+  {"file": "localization/polish/localization", "table": "strings", "key": "st_interface_full", "text": "Pełny"},
+  {"file": "localization/russian/localization", "table": "strings", "key": "st_interface_full", "text": "Полный"},
+  {"file": "localization/original/localization", "table": "strings", "key": "st_interface_full", "text": "Полный"},
+  {"file": "localization/ukrainian/localization", "table": "strings", "key": "st_interface_full", "text": "Повний"},
+  {"file": "localization/english/localization", "table": "strings", "key": "st_interface_minimal", "text": "Minimal"},
+  {"file": "localization/german/localization", "table": "strings", "key": "st_interface_minimal", "text": "Minimal"},
+  {"file": "localization/polish/localization", "table": "strings", "key": "st_interface_minimal", "text": "Minimalny"},
+  {"file": "localization/russian/localization", "table": "strings", "key": "st_interface_minimal", "text": "Минимальный"},
+  {"file": "localization/original/localization", "table": "strings", "key": "st_interface_minimal", "text": "Минимальный"},
+  {"file": "localization/ukrainian/localization", "table": "strings", "key": "st_interface_minimal", "text": "Мінімальний"},
+  {"file": "localization/english/localization", "table": "strings", "key": "st_interface_disabled", "text": "Disabled"},
+  {"file": "localization/german/localization", "table": "strings", "key": "st_interface_disabled", "text": "Aus"},
+  {"file": "localization/polish/localization", "table": "strings", "key": "st_interface_disabled", "text": "Wyłączony"},
+  {"file": "localization/russian/localization", "table": "strings", "key": "st_interface_disabled", "text": "Отключён"},
+  {"file": "localization/original/localization", "table": "strings", "key": "st_interface_disabled", "text": "Отключён"},
+  {"file": "localization/ukrainian/localization", "table": "strings", "key": "st_interface_disabled", "text": "Вимкнений"}
+ ]
+}

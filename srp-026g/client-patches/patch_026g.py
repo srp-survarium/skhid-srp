@@ -100,7 +100,7 @@ USAGE (this script never touches the source exe):
     its own, 0xFA0 of the late join's state page, checked).
     The arena, `.srpx` (Research, the artefacts' code, the engine-function
     library, the kit keys and the match chat option, the hide-the-interface
-    key), is linked from its C and
+    key, the interface settings), is linked from its C and
     NASM sources at every build
     (link_026g.py: gcc -m32, GNU ld and NASM 2.16 are needed) and must be
     arena_026g.lock.json's (`python link_026g.py --write` after a change).
@@ -491,6 +491,20 @@ Patches:
   the key (back at 0x26CCAE, al 1); while the movie says its interface is
   hidden (root.interface_hidden) any other key goes straight to the movie
   (back at 0x26CDD2), no window key or F6's Play acting;
+- the interface settings: saved choices of the gameplay options that reach
+  the match's movies, the first the interface's level (Full, Minimal,
+  Disabled; patch 64, with the late join; docs/notes/interface-level.md).
+  interface_026g.asm and .c (the arena's blocks interface.code, .data and
+  .state): the hud's constructor's registration of show_quests_progress
+  (0x2339DE) also makes each setting's cc_u32 (g_interface_level, 0..2,
+  saved in user.cfg); options_tab::options_tab, the gameplay tab's option 15
+  stored (0x262731), adds one options_item_int per setting at 16 + i (the
+  tab's count, 0x26232A and 0x26232F, 16 + the settings');
+  fill_settings_data's gameplay labels (0x2005F2, the count 0x2005EF and its
+  loop's 0x200B08 the same) get their label keys; after the game world's
+  call of the hud's update_ui (0x1F8023), each match movie (the hud's, the
+  player icons') gets root.set_interface_level(value) when its value
+  changed;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2047,6 +2061,61 @@ def hide_ui_table_writes(linked):
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
 
+# The interface settings (patch 64, README; client_patch.md section 3.57;
+# the rules: ../docs/notes/interface-level.md): interface_026g.asm and .c in
+# the arena's blocks interface.code, .data and .state (ARENA below), four
+# entries:
+# - the hud's constructor's `call 0x1DDB0` (cc_value<bool>, eax the object,
+#   four arguments pushed; `ret 10h`) registering show_quests_progress at
+#   0x2339DE, once (its static guard): the variable, then each setting's
+#   cc_u32 (0x1DCD0 and the vtable 0x9E7CCC, as minimap_position at
+#   0x2338F5), saved in user.cfg, kind 2: made before the configs run
+#   (game::game 0x1E9070 makes the game world before query_base_resources),
+#   found by the options' look-up;
+# - options_tab::options_tab (0x262300), the gameplay tab (case 0): `mov
+#   ecx,[ebx] / mov [ecx+3Ch],edi` at 0x262731 stores option 15; then one
+#   options_item_int (0x261100, as option 9 minimap_position) per setting at
+#   16 + i, and back at 0x262736;
+# - fill_settings_data (0x2005E0): its `call 0x202150` at 0x2005F2 makes the
+#   gameplay labels (cdecl, the allocator and the count; 4Ch-byte
+#   buffer_strings); then each setting's label key at 16 + i;
+# - the game world's `call 0x23B200` (game_world_ui::update_ui, eax the hud,
+#   three arguments, `ret 0Ch`) at 0x1F8023, every frame of a match: then
+#   each movie, the hud's ([[hud+8]+108h]+4) and the player icons'
+#   ([[hud+10h]+108h]+4), gets root.set_interface_level(value) when the value
+#   it was given last differs (a new movie: again).
+# The gameplay tab's 10h rows (options_tab's `mov edi,10h` and `mov byte
+# [ebx+4],10h`, fill_settings_data's `push 10h` and `mov bl,10h`) become 10h
+# + interface_count (the C table's, read from the link). No base relocation
+# is under a site and no branch aims inside one.
+INTERFACE_HOOKS = (
+    (0x2339DE, bytes.fromhex("e8cda3deff"), "interface_register", 0xE8),   # the hud's show_quests_progress
+    (0x262731, bytes.fromhex("8b0b89793c"), "interface_options", 0xE9),     # the gameplay tab's option 15 stored
+    (0x2005F2, bytes.fromhex("e8591b0000"), "interface_labels", 0xE8),      # the gameplay labels made
+    (0x1F8023, bytes.fromhex("e8d8310400"), "interface_ui", 0xE8),          # the game world's update_ui
+)
+INTERFACE_BACKS = (0x262736,)                   # options_tab::options_tab after option 15
+INTERFACE_ROWS = 0x10                           # the gameplay tab's own rows
+INTERFACE_COUNTS = (                            # (site, its bytes, where the 10h is)
+    (0x26232A, bytes.fromhex("bf10000000"), 1),   # options_tab: mov edi,10h (the array)
+    (0x26232F, bytes.fromhex("c6430410"), 3),     # options_tab: mov byte [ebx+4],10h (the count)
+    (0x2005EF, bytes.fromhex("6a10"), 1),         # fill_settings_data: push 10h (the labels)
+    (0x200B08, bytes.fromhex("b310"), 1),         # fill_settings_data: mov bl,10h (its loop)
+)
+
+
+def interface_count(linked):
+    """How many interface settings the link's table has (interface_count)."""
+    at = linked.symbols["interface_count"] - linked.va
+    return struct.unpack_from("<I", linked.image, at)[0]
+
+
+def interface_count_writes(linked):
+    """[(site, its bytes, the new bytes)]: the gameplay tab's count, 10h +
+    the settings'."""
+    rows = INTERFACE_ROWS + interface_count(linked)
+    return [(va, old, old[:at] + bytes([rows]) + old[at + 1:]) for va, old, at in INTERFACE_COUNTS]
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after `.srpc`, which is one page."""
@@ -2254,6 +2323,17 @@ INSTALLS = {
     0x26CCD2: (CALLEE, "lobby_menu::on_keyboard_action's get_binded_action (eax the binder, edi 2, esi the key, "
                        "the toggle's place pushed; `ret 4`): lobby, which on toggle_replay_ui returns to 0x26CCAE "
                        "instead", None, None),
+    # the interface settings, patch 64 (in `.srpx`)
+    0x2339DE: (CALLEE, "the hud's constructor's cc_value<bool> (0x1DDB0, eax the object, the name, the value's "
+                       "address, saved, kind pushed; `ret 10h`) of show_quests_progress: register, which makes it "
+                       "and then the settings' cc_u32", None, None),
+    0x262731: (JUMP, "options_tab::options_tab's `mov ecx,[ebx] / mov [ecx+3Ch],edi` (the gameplay tab's option "
+                     "15 stored, ebx the tab): options, the settings' rows after it, back at 0x262736", None, None),
+    0x2005F2: (CALLEE, "fill_settings_data's `call 0x202150` (cdecl: the allocator, the count) making the gameplay "
+                       "labels: labels, which makes them and puts the settings' label keys after the game's 16",
+               None, None),
+    0x1F8023: (CALLEE, "the game world's call of game_world_ui::update_ui (eax the hud, three arguments; `ret 0Ch`): "
+                       "ui, which calls it and gives the match's movies the settings that changed", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2497,6 +2577,10 @@ ARENA = (
     ArenaBlock("rattle.state", "state", 0x10, ("rattle_026g.c",)),                  # rt_g: the steps' quiet
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
     ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
+    # the interface settings, patch 64: the asm's four entries, then the C code
+    ArenaBlock("interface.code", "code", 0x1000, ("interface_026g.asm", "interface_026g.c")),
+    ArenaBlock("interface.data", "data", 0x10, ("interface_026g.c",)),            # the settings and their variables
+    ArenaBlock("interface.state", "state", 0x10, ("interface_026g.c",)),          # what each movie was given
 )
 
 
@@ -3529,11 +3613,11 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             if linked is not None:
                 for va, expected, symbol, opcode in (RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS
                                                      + TEAM_DAMAGE_HOOKS + SPONGE_HOOKS + RATTLE_HOOKS
-                                                     + HIDE_UI_HOOKS):
+                                                     + HIDE_UI_HOOKS + INTERFACE_HOOKS):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
-                for va, old, new in hide_ui_table_writes(linked):
+                for va, old, new in hide_ui_table_writes(linked) + interface_count_writes(linked):
                     patch(data, va, old, new)
                 va, expected, symbol = SPONGE_SLOT
                 patch_section_value(data, va, expected, struct.pack("<I", arena_target(linked, symbol)))
@@ -3594,6 +3678,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "the keys 1, 2 and 3 pick a kit while the kits are shown, "
                      "an option hides the other players' chat lines in a match, "
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
+                     "the gameplay options' interface level (Full, Minimal, Disabled) reaches the match's movies, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")

@@ -37,6 +37,7 @@ package
    import survarium.constants.CombatAction;
    import survarium.constants.CombatLogTeam;
    import survarium.constants.Faction;
+   import survarium.constants.InterfaceLevel;
    import survarium.constants.ItemDictId;
    import survarium.constants.MinimapPosition;
    import survarium.constants.ProfileState;
@@ -495,6 +496,11 @@ package
             grayBitmaps[index] = newIcon;
          }
          this.quick_slots.setGrayIcons(grayBitmaps);
+         // the game's own visibility of each element of the interface level's table (showElement)
+         for(var element:String in InterfaceLevel.SHOWN)
+         {
+            this._shown[element] = this[element].visible;
+         }
          this.pregameInfo.visible = false;
          this.show_profiles_selector(false);
          this.show_quests_progress(false);
@@ -513,7 +519,7 @@ package
          this.damageInd.scaleX = this.stageWidth / 1280;
          this.damageInd.scaleY = this.stageHeight / 720;
          stage.addEventListener(Event.RESIZE,this.onResize);
-         this.container_icon.visible = false;
+         this.showElement("container_icon",false);
          this.effects[this.BLOOD_EFFECT] = BloodEffect;
          this.effects[this.BLOOD_DRIP1] = Blood_drip1;
          this.effects[this.BLOOD_DRIP2] = Blood_drip2;
@@ -847,15 +853,46 @@ package
 
       private var _interfaceHidden:Boolean;
 
+      // The interface's level (exe patch 64, the gameplay option; docs/notes/interface-level.md):
+      // Disabled hides the root as F11 does, Minimal the elements InterfaceLevel.SHOWN leaves out.
+      private var _interfaceLevel:uint = InterfaceLevel.FULL;
+
+      // The game's own visibility of each element of InterfaceLevel.SHOWN, by its name: the element
+      // is shown when the game and the level both show it (showElement).
+      private var _shown:Object = {};
+
       public function hide_interface(hidden:Boolean) : void
       {
          _interfaceHidden = hidden;
-         visible = !hidden;
+         this.showInterface();
       }
 
       public function interface_hidden() : Boolean
       {
          return this._interfaceHidden;
+      }
+
+      // The exe at the level's change and at a new movie's first frame.
+      public function set_interface_level(level:uint) : void
+      {
+         _interfaceLevel = level;
+         this.showInterface();
+      }
+
+      private function showInterface() : void
+      {
+         visible = !this._interfaceHidden && this._interfaceLevel != InterfaceLevel.DISABLED;
+         for(var element:String in this._shown)
+         {
+            this[element].visible = this._shown[element] && InterfaceLevel.shows(element,this._interfaceLevel);
+         }
+      }
+
+      // The game shows or hides an element of the level's table.
+      private function showElement(element:String, shown:Boolean) : void
+      {
+         this._shown[element] = shown;
+         this[element].visible = shown && InterfaceLevel.shows(element,this._interfaceLevel);
       }
 
       // _stageLayer stays the root's last child, whatever is added or moved to the top later.
@@ -1146,7 +1183,7 @@ package
       {
          this.minimap.layoutData.alignV = value == MinimapPosition.TOP ? "top" : "bottom";
          this.minimap.layoutData.offsetV = value == MinimapPosition.TOP ? 36 : -36;
-         this.minimap.visible = value != MinimapPosition.HIDDEN;
+         this.showElement("minimap",value != MinimapPosition.HIDDEN);
       }
       
       public function set_quests_progress(value:Array) : void
@@ -1203,7 +1240,7 @@ package
       public function show_quests_progress(value:Boolean) : void
       {
          trace("hud::show_quests_progress",value);
-         this.questList.visible = value;
+         this.showElement("questList",value);
       }
       
       private function setlayout() : void
@@ -1441,7 +1478,7 @@ package
       
       public function show_chat(bool:Boolean) : void
       {
-         this.chat.visible = bool;
+         this.showElement("chat",bool);
       }
       
       public function set_mode(mode:uint) : void
@@ -1668,7 +1705,7 @@ package
       public function show_player_list(bool:Boolean) : void
       {
          this.player_list.visible = bool;
-         this.questTaskList.visible = bool && this.questList.visible;
+         this.showElement("questTaskList",bool && this._shown["questList"]);
       }
       
       public function show_debug_damage(bool:Boolean) : void
@@ -1734,7 +1771,7 @@ package
       
       public function show_game_info(bool:Boolean) : void
       {
-         this.progress_indicator.visible = bool;
+         this.showElement("progress_indicator",bool);
       }
       
       public function show_crosshair(bool:Boolean) : void
@@ -1771,16 +1808,9 @@ package
       public function show_slots(bool:Boolean) : void
       {
          trace("showSlots::",bool,this.quick_slots.slots_list.width,this.quick_slots.slots_list.visible);
-         if(bool)
+         if(this.quick_slots)
          {
-            if(this.quick_slots)
-            {
-               this.quick_slots.visible = true;
-            }
-         }
-         else if(this.quick_slots)
-         {
-            this.quick_slots.visible = false;
+            this.showElement("quick_slots",bool);
          }
       }
       
@@ -1881,6 +1911,7 @@ package
       public function set_minimap_props(value:Object) : void
       {
          this.minimap.setProps(value);
+         this.showElement("minimap",this.minimap.visible);
          this.tabMinimap.setProps(value);
          this.updateFullMinimapLayout();
       }
@@ -1930,7 +1961,7 @@ package
       public function set_game_type(type:uint) : void
       {
          _gameType = type;
-         this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
+         this.showElement("researchUnits",type == this.GAME_MODE_RESEARCH);
          if(type == this.GAME_MODE_RESEARCH)
          {
             this.progress_indicator.gotoAndStop(this.GAME_MODE_TEAMDEATHMATCH + 1);
@@ -2390,13 +2421,13 @@ package
       
       public function show_container_icon(value:uint) : void
       {
-         this.container_icon.visible = true;
+         this.showElement("container_icon",true);
          this.container_icon.gotoAndStop(value + 1);
       }
       
       public function hide_container_icon() : void
       {
-         this.container_icon.visible = false;
+         this.showElement("container_icon",false);
       }
       
       public function show_warning_indicator() : void

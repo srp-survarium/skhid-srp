@@ -14,7 +14,8 @@ package survarium.controls
    // other red, nobody grey, as the hud's units), a ring as far round as the
    // capture of the team taking it, larger while the game's own player is
    // inside. Smaller with distance; under it the time left of a capture or
-   // neutralisation while one runs, else the distance in metres. The layer
+   // neutralisation while one runs, else the distance in metres (not at the
+   // interface level Minimal: textShown). The layer
    // (HUDIconLayer.research_markers) places it.
    public class ResearchMarker extends Sprite
    {
@@ -46,6 +47,12 @@ package survarium.controls
       protected var _label:TextField;
 
       protected var _drawn:String = "";
+
+      // The interface's level shows the text under the marker (HUDIconLayer.set_interface_level).
+      public function set textShown(value:Boolean) : void
+      {
+         this._label.visible = value;
+      }
 
       public function ResearchMarker(format:TextFormat)
       {

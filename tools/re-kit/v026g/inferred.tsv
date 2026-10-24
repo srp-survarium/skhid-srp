@@ -3135,3 +3135,4 @@ va	status	ref_021d	name
 0x00311a60	inferred-medium		survarium::artefact_spring_core::fill_ui_info
 0x00312450	inferred-medium	0x001f4506	survarium::artefact_lifebone_core::disable_active_effects
 0x00207450	inferred-medium		survarium::key_binder::bind_command_save
+0x0001dcd0	inferred-high		vostok::console_commands::cc_value<unsigned int>::cc_value

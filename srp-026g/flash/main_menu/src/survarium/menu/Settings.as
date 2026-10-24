@@ -446,7 +446,8 @@ package survarium.menu
          this.btn_close.addEventListener(ButtonEvent.CLICK,this.onExit);
          this.btn_cancel.addEventListener(ButtonEvent.CLICK,this.onCancel);
          this.btn_accept.addEventListener(ButtonEvent.CLICK,this.onAccept);
-         this._element_map[0] = ["_setter_invite","_setter_message","_set_censure","_only_friends","_no_in_batle","_hide_spam","theCross","_setter_static_cross","_setter_static_minimap","_setter_static_minimap_position","_setter_static_show_quests","_slider_quest_alpha","_setter_static_use_seed","_upload_speed","_setter_kill_cross","_setter_static_allow_statistics"];
+         // the gameplay options' 16 rows, then exe patch 64's (SelectorRow: "_interface_level")
+         this._element_map[0] = ["_setter_invite","_setter_message","_set_censure","_only_friends","_no_in_batle","_hide_spam","theCross","_setter_static_cross","_setter_static_minimap","_setter_static_minimap_position","_setter_static_show_quests","_slider_quest_alpha","_setter_static_use_seed","_upload_speed","_setter_kill_cross","_setter_static_allow_statistics"].concat(SelectorRow.names(0));
          this._element_map[1] = ["_setter_inverse_mouse","_slider_mouse_sens","_default_button","keysLobby","keysChat","keysGame"];
          this._element_map[2] = ["_select_monitor","_fscr_resolution","_fullscreen","_vsync","_antialias","_filtering","gamma_option","_slider_fov","_overall_graphics","_texture_q","_geometry_q","_shadow_q","_lighting_q","_water_q","_decorations","_post_process","_ao_q","_particples_q","_motion_blur"];
          this._element_map[3] = ["_total_volume","_game_volume","_sound_volume","_sound_сhat","_use_mik","_mic_sens","_ptt"];
@@ -456,6 +457,7 @@ package survarium.menu
       protected function create_content(settings:Array) : void
       {
          SrpFovSlider.apply(this);
+         SelectorRow.place(this.settings_content);
          var key:Object;
          var tabIndex:uint;
          var i:int;
@@ -556,6 +558,7 @@ package survarium.menu
          {
             hideChat.enabled = true;
          }
+         SelectorRow.show(this.settings_content);
          SrpFovSlider.finish(this);
       }
       

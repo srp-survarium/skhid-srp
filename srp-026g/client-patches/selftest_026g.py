@@ -1566,7 +1566,9 @@ def late_join_sites():
         [(va, len(old)) for va, old, _ in P.RATTLE_SIZES] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
-        [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS]
+        [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
+        [(va, len(old)) for va, old, _, _ in P.INTERFACE_HOOKS] + \
+        [(va, len(old)) for va, old, _ in P.INTERFACE_COUNTS]
 
 
 def pickup_sites():
@@ -4640,7 +4642,8 @@ def test_hide_ui(original, image, before):
     own = lambda movie: {p: t for p, t in tree(movie).items() if not p.startswith("scaleform")}
     hud_adds = sorted((p, m.group(1), m.group(2)) for p, t in own("hud").items() for m in stage_add.finditer(t))
     icon_adds = [(p, m.group(1)) for p, t in own("player_icons").items() for m in stage_add.finditer(t)]
-    check(all("public function hide_interface(hidden:Boolean) : void" in t and "visible = !hidden;" in t
+    check(all("public function hide_interface(hidden:Boolean) : void" in t and "_interfaceHidden = hidden;" in t
+              and "visible = !this._interfaceHidden && this._interfaceLevel != InterfaceLevel.DISABLED;" in t
               for t in (hud, icons)) and "public function interface_hidden() : Boolean" in hud
           and hud_adds == [("HUD.as", "stage", "this.effectContainer")] and not icon_adds
           and "stage.addChildAt(this.effectContainer,stage.getChildIndex(this));" in hud
@@ -4648,12 +4651,103 @@ def test_hide_ui(original, image, before):
           and all(f"override public function {f}" in hud for f in ("addChild(", "addChildAt(", "setChildIndex("))
           and "InterfaceHider" not in "".join(tree("hud").values()) + "".join(tree("player_icons").values())
           and all(f"this.effects[this.{name}] = " in hud for name in ("BLOOD_EFFECT", "BLOOD_DRIP1", "GRENADE_EFFECT")),
-          "the hud's and the player icons' interface is their root, hidden in one step (root.hide_interface; the "
-          "hud's interface_hidden); the hud's fps line is in the root's _stageLayer; the one thing on the hud's "
+          "the hud's and the player icons' interface is their root, hidden in one step (root.hide_interface, "
+          "or patch 64's level Disabled; the hud's interface_hidden); the hud's fps line is in the root's _stageLayer; the one thing on the hud's "
           "stage beside the root is the screen effects' container (add_effect's blood, its drips, the grenade's "
           "flash), below the root, placed as the root is scaled: the scene's, so it stays (the owner, 2026-10-24)")
     check("public function toggle_interface() : void" in lobby and "public function interface_hidden() : Boolean" in lobby,
           "the lobby movie has root.toggle_interface and root.interface_hidden")
+
+
+def test_interface(original, image, before):
+    """Check 64: the interface settings (patch 64, INTERFACE_*).
+    check_interface_026g.py runs the four entries from the game's sites with
+    the game's own console functions, options items and labels on made-up
+    objects."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 40).split(b"\0")[0]
+    check(rows(stock, 0x2339B9, 0x3F)[:12] == ["test byte [dword 0xa2ae1f8],0x2", "jnz 0x233a01",
+                                          "or dword [dword 0xa2ae1f8],byte +0x2", "push byte +0x2", "push byte +0x1",
+                                          "lea eax,[ebp+0x35c]", "push eax", "push dword 0xa03170",
+                                          "mov eax,0xa2ae160", "call 0x1ddb0", "push dword 0x86c920",
+                                          "mov dword [dword 0xa2ae160],0x9e7c4c"]
+          and cstr(0xA03170) == b"show_quests_progress"
+          and rows(stock, 0x2338F5, 0x26)[5:9] == ["push dword 0xa0315c", "mov eax,0xa2ae1a8", "call 0x1dcd0",
+                                                   "push dword 0x86c960"]
+          and stock.read(0x233911, 10) == bytes.fromhex("c705a8e12a0acc7c9e00") and cstr(0xA0315C) == b"minimap_position"
+          and popped(stock, 0x1DDB0, 0x1DE20) == 16 and popped(stock, 0x1DCD0, 0x1DD40) == 24,
+          "the hud's constructor registers show_quests_progress once (its guard 0xA2AE1F8 bit 2) with "
+          "cc_value<bool> (0x1DDB0, `ret 10h`) at 0x2339DE, as it registers minimap_position with "
+          "cc_value<unsigned int> (0x1DCD0, `ret 18h`) and the vtable cc_u32 0x9E7CCC")
+    check(rows(stock, 0x262324, 0x14) == ["mov esi,[dword 0x1f1d9c4]", "mov edi,0x10", "mov byte [ebx+0x4],0x10",
+                                          "call 0x2632e0"]
+          and struct.unpack("<I", stock.read(0x262EF0, 4))[0] == 0x262324
+          and rows(stock, 0x262731, 0x1C)[:10] == ["mov ecx,[ebx]", "mov [ecx+0x3c],edi", "mov eax,ebx", "pop edi",
+                                              "pop esi", "pop ebx", "ret 0x8", "mov ecx,[ebx]", "xor edi,edi",
+                                              "mov [ecx+0x3c],edi"]
+          and rows(stock, 0x262589, 0x16) == ["push byte +0x3", "push dword 0xa742d4", "push dword 0xa0315c",
+                                              "push eax", "mov al,0x9", "mov ecx,ebx", "call 0x261100"]
+          and popped(stock, 0x261100, 0x261130) == 16,
+          "options_tab::options_tab's gameplay tab (case 0, 0x262324) has 10h rows (the array 0x2632E0, the count "
+          "+4) and stores its option 15 at 0x262731; option 9, minimap_position, is an options_item_int (0x261100, "
+          "`ret 10h`) of three keys")
+    check(rows(stock, 0x2005E6, 0x16) == ["mov eax,[0x1f1d9c4]", "push ebx", "push ebp", "push esi", "push edi",
+                                          "push byte +0x10", "push eax", "call 0x202150", "mov esi,eax",
+                                          "add esp,byte +0x8"]
+          and rows(stock, 0x200AF8, 0x2A)[3:6] == ["mov esi,[esp+0x14]", "mov bl,0x10", "jmp short 0x200b22"]
+          and struct.unpack("<I", stock.read(0x200F40, 4))[0] == 0x200B04,
+          "fill_settings_data makes the gameplay labels with 0x202150 (cdecl, the allocator and 10h) at 0x2005F2 "
+          "and gives its loop 10h rows of them (0x200B08)")
+    check(rows(stock, 0x1F801C, 0x0C) == ["push edx", "push eax", "sub eax,esi", "push eax", "mov eax,edi",
+                                          "call 0x23b200"]
+          and popped(stock, 0x23B200, 0x23B740) == 12,
+          "0x1F8023 is the game world's call of game_world_ui::update_ui (0x23B200, eax the hud, three arguments, "
+          "`ret 0Ch`)")
+    linked = P.arena()
+    block = linked.blocks["interface.code"]
+    for va, old, symbol, opcode in P.INTERFACE_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}, an entry of interface.code) here")
+    count = P.interface_count(linked)
+    writes = P.interface_count_writes(linked)
+    check(count == 1 and all(stock.read(va, len(old)) == old == before.read(va, len(old))
+                             and image.read(va, len(new)) == new for va, old, new in writes)
+          and [rows(image, va, len(new))[0] for va, _, new in writes]
+          == ["mov edi,0x11", "mov byte [ebx+0x4],0x11", "push byte +0x11", "mov bl,0x11"],
+          f"the gameplay tab's count is 10h + {count} setting(s): options_tab's array and count, fill_settings_data's "
+          "labels and loop; the build without the late join has them as the original")
+    sites = [(va, len(old)) for va, old, _, _ in P.INTERFACE_HOOKS] + [(va, len(old)) for va, old, _ in
+                                                                       P.INTERFACE_COUNTS]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + size for va, size in sites)]
+    hits = [h for va, size in sites for h in aimed_inside(original, va, size, 0x82)
+            if not va <= h < va + size and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "interface.code")
+    check(image.read(block.va, len(code)) == code,
+          f"the code at {block.va:#x} is the link's interface.code ({len(code)} bytes)")
+    data = linked.blocks["interface.data"]
+    check(data.va <= linked.symbols["interface_settings"] < data.va + data.size
+          and b"g_interface_level\0" in code and b"root.set_interface_level\0" in code
+          and all(key + b"\0" in code for key in (b"st_interface_level_option", b"st_interface_full",
+                                                   b"st_interface_minimal", b"st_interface_disabled")),
+          "the settings' table is in interface.data; the variable's name, the movies' method and the label keys "
+          "in interface.code")
+    here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
+    check(all("public function set_interface_level(level:uint) : void" in here("flash", *path)
+              for path in (("hud", "src", "HUD.as"), ("player_icons", "src", "player_icons_fla", "MainTimeline.as")))
+          and 'name:"_interface_level"' in here("flash", "main_menu", "src", "survarium", "menu", "SelectorRow.as")
+          and ".concat(SelectorRow.names(0));" in here("flash", "main_menu", "src", "survarium", "menu", "Settings.as")
+          and "\nedit\tinterface-level-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
+                                                            encoding="utf-8").read(),
+          "the hud and player icons movies have root.set_interface_level, the main menu binds the gameplay "
+          "option 16 (_interface_level), release/content.tsv labels it (interface-level-1.json)")
 
 
 def test_spot(original, image, before):
@@ -6252,6 +6346,7 @@ def test_late_join(original, without, server, source):
     test_sponge_a(original, image, before)
     test_rattle(original, image, before)
     test_hide_ui(original, image, before)
+    test_interface(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

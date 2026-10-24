@@ -26,6 +26,7 @@ package player_icons_fla
    import flash.xml.*;
    import scaleform.gfx.Extensions;
    import survarium.Util;
+   import survarium.constants.InterfaceLevel;
    import survarium.controls.HUDIconLayer;
    import survarium.controls.HUDMarker;
    
@@ -37,6 +38,10 @@ package player_icons_fla
       public var movingLeft:Boolean;
       
       public var lastPosY:Number;
+
+      private var _interfaceHidden:Boolean;
+
+      private var _interfaceLevel:uint = InterfaceLevel.FULL;
       
       public function MainTimeline()
       {
@@ -48,7 +53,25 @@ package player_icons_fla
       // and names over heads are this movie's root, hidden in one step with the hud; the movie runs on.
       public function hide_interface(hidden:Boolean) : void
       {
-         visible = !hidden;
+         _interfaceHidden = hidden;
+         this.showInterface();
+      }
+
+      // The interface's level (exe patch 64, the gameplay option; docs/notes/interface-level.md):
+      // Disabled hides the root as F11 does; Minimal the elements InterfaceLevel.SHOWN leaves out.
+      public function set_interface_level(level:uint) : void
+      {
+         _interfaceLevel = level;
+         if(this.iconControl)
+         {
+            this.iconControl.set_interface_level(level);
+         }
+         this.showInterface();
+      }
+
+      private function showInterface() : void
+      {
+         visible = !this._interfaceHidden && this._interfaceLevel != InterfaceLevel.DISABLED;
       }
 
       public function create_player_icon(id:uint, kind:uint = 0, baseScale:Number = 1) : void
