@@ -827,3 +827,59 @@ No guard is worse beyond 2 SE (deaths +1.8 SE, quick ends +1.7 SE).
 - 0x6da44bbb bot 4's trench (8.8): the worlds show the body about 0.9 m
   above where the reckoning has it, a grid or reckoning mismatch there, not
   a jump.
+
+### Team-wide stuck spots (2026-10-24)
+
+**Why.** In the Cologne match 0x60aeff4f, bots of one team got stuck at a
+spot, or fell off the route at an edge, where a teammate had already got
+stuck or fallen. Each bot's stuck watch kept its spots to itself
+(`Stuck`: avoided after 2 stucks, for 45 s), so each mate learned the same
+spot again.
+
+**The change** (`stuck.rs`, three `mod.rs` hunks).
+
+- Each bot tells its team what it learned: every stuck note, and every fall
+  off the route at the spot it fell from (`Stuck::tell`).
+- At each commander tick (500 ms) the team merges those into its spots
+  (`TeamSpots::learn`, merged by the stuck watch's `near`: 2 m round, 2 m
+  high). A spot becomes avoided after a fall there, or after 2 stucks by
+  any of the team's bots. Avoided spots are kept for the match, at most 64
+  a team; past that, the least recently hit spot that is not avoided goes
+  first.
+- Every bot of the team routes clear of the avoided spots, as it does of
+  its own (`Stuck::avoided_for`). A spot within 3 m of the bot's goal is
+  exempt, so a goal next to an edge stays reachable.
+- **Detour cap:** when the way round is long (over 1.5 × the straight
+  distance plus 10 m), the route through is searched too. The way round is
+  taken only if it is at most 1.5 × the way through plus 10 m
+  (`stuck::worth_round`).
+- All the numbers are GUESS consts in `stuck.rs`.
+
+**Measured** (`real_bot_cost`, 16 maps × 4v4 and 10v10 × seeds 1-16 = 512
+pairs, with `SRP_BOT_ROUTES`, against d8dcea55; ± is 1 SE, * beyond 2 SE).
+The tally (`RouteTally` in `tests.rs`) counts a stuck note or fall within
+`near` of a spot where a teammate had one before.
+
+| | before | after | change |
+|---|---|---|---|
+| stuck at a mate's spot | 0.94 | 0.55 | -0.39 ± 0.07* |
+| falls at a mate's fall spot | 1.91 | 1.13 | -0.79 ± 0.10* |
+| falls off the route | 6.59 | 5.62 | -0.96 ± 0.15* |
+| stuck notes | 7.99 | 7.62 | -0.36 ± 0.14* |
+| pushing, s a match | 1.18 | 0.93 | -0.26 ± 0.12* |
+| quick ends % takes | 9.33 | 9.09 | -0.23 ± 0.11* |
+
+No guard is worse beyond 2 SE: K/D -0.01 ± 0.03 and +0.03 ± 0.02, kills
++0.01 ± 0.14, delivered -0.03 ± 0.03, carriers killed -0.05 ± 0.05, quick
+ends a bot-minute -0.007 ± 0.011, flips +0.007 ± 0.005, idle -0.20 ± 0.17,
+team kills 0.016 → 0.008. Route searches are up 2.8 % (the second search
+when the way round is long).
+
+**Left.**
+
+- The first fall at a spot is not prevented. Falls with no route (fight side
+  steps, pushes) are not learned. A long edge with several fall points is
+  learned one point at a time. Grid's pocket entries can seed the team's
+  spots at match start.
+- A bot already in a pit with no route still stands. The stuck watch needs
+  a route; getting out of pockets is a later change.

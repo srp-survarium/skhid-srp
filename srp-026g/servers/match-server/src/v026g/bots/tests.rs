@@ -5275,6 +5275,12 @@ struct RouteTally {
     /// in a tick: off its route (no drop of it there), and taken by it.
     feet: Vec<Option<Vec3>>,
     falls: (u32, u32),
+    /// Each body's team, where its bots got stuck or fell off their route
+    /// (team, place, where), and the stucks and falls off at a spot a
+    /// teammate had already (`stuck::TeamSpots`).
+    teams: Vec<Option<u8>>,
+    marks: Vec<(u8, usize, Vec3)>,
+    repeats: (u32, u32),
 }
 
 impl RouteTally {
@@ -5286,6 +5292,7 @@ impl RouteTally {
             last_move: vec![None; bodies],
             carry_from: vec![None; bodies],
             feet: vec![None; bodies],
+            teams: vec![None; bodies],
             no_route: super::path::no_routes(),
             ..Default::default()
         }
@@ -5294,6 +5301,9 @@ impl RouteTally {
     /// A tick: the carries begun and ended, and the falls.
     fn tick(&mut self, game: &Game, bots: &Bots, time: u32) {
         for (place, body) in game.bodies.iter().enumerate() {
+            if let Some(bot) = bots.bots[place].as_ref() {
+                self.teams[place] = Some(bot.team);
+            }
             let before = std::mem::replace(&mut self.feet[place], body.alive.then_some(body.feet));
             if let Some(from) = before
                 && body.alive
@@ -5313,6 +5323,7 @@ impl RouteTally {
                     self.falls.1 += 1;
                 } else {
                     self.falls.0 += 1;
+                    self.repeats.1 += u32::from(self.mark(place, from));
                 }
             }
             match (self.carry_from[place], body.carrying) {
@@ -5396,9 +5407,26 @@ impl RouteTally {
 
     fn note(&mut self, note: &Note) {
         if note.text.starts_with("is stuck at") {
+            if let Some(feet) = self.feet.get(note.place).copied().flatten() {
+                self.repeats.0 += u32::from(self.mark(note.place, feet));
+            }
             self.stuck.0 += 1;
             self.stuck.1 += u32::from(note.text.contains("(walk keys held"));
         }
+    }
+
+    /// A stuck or a fall off its route of `place`'s bot at `at`: whether a
+    /// teammate had one there already.
+    fn mark(&mut self, place: usize, at: Vec3) -> bool {
+        let Some(team) = self.teams.get(place).copied().flatten() else {
+            return false;
+        };
+        let again = self
+            .marks
+            .iter()
+            .any(|&(t, p, spot)| t == team && p != place && super::stuck::near(spot, at));
+        self.marks.push((team, place, at));
+        again
     }
 
     /// The line the bench prints (one `routes:` line, `key value` pairs).
@@ -5410,7 +5438,7 @@ impl RouteTally {
         let no_route: Vec<u64> = (0..5).map(|k| now[k] - self.no_route[k]).collect();
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
-            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {}",
+            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {}",
             self.worlds,
             self.pushes.0,
             self.pushes.1,
@@ -5430,6 +5458,8 @@ impl RouteTally {
             no_route[4],
             self.falls.0,
             self.falls.1,
+            self.repeats.0,
+            self.repeats.1,
         )
     }
 }
