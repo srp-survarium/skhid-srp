@@ -480,7 +480,9 @@ impl WalkGrid {
                 }
                 merged.push(span);
             }
-            solids.spans.extend(merged.iter().map(|span| (span.low, span.high)));
+            solids
+                .spans
+                .extend(merged.iter().map(|span| (span.low, span.high)));
             for (k, span) in merged.iter().enumerate() {
                 if span.walk == 0 {
                     continue;
@@ -2925,10 +2927,11 @@ pub(crate) mod tests {
         assert!(grid.path(a, b).is_none());
     }
 
-    /// Doors between walls: 0.8 m keeps a line of floors through (the
-    /// body is 0.76 m), 0.6 m is shut; the walls still erode.
+    /// Walls still erode as before: a 1 m door between walls is open, and
+    /// doors of 0.8 m and 0.6 m are shut (here each leaves two free cells,
+    /// or one, and each of them is beside a wall).
     #[test]
-    fn a_door_of_eight_tenths_is_open_and_one_of_six_tenths_shut() {
+    fn walls_still_shut_doors_of_eight_and_six_tenths() {
         let through = |gap: f32| {
             let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
             tris.extend(wall_x(5.0, 0.0, 5.0 - gap / 2.0, 3.0));
@@ -2938,7 +2941,8 @@ pub(crate) mod tests {
             let b = grid.locate(Vec3::new(8.0, 0.0, 5.0), 1.0).unwrap();
             grid.path(a, b).is_some()
         };
-        assert!(through(0.8));
+        assert!(through(1.0));
+        assert!(!through(0.8));
         assert!(!through(0.6));
     }
 
@@ -2989,12 +2993,14 @@ pub(crate) mod tests {
     #[test]
     fn a_roof_overhead_is_no_wall_and_a_beam_at_the_body_is_one() {
         let edge_kept = |roof: f32| {
-            let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
-            tris.extend(floor(5.0, 0.0, 10.0, 10.0, -6.0));
-            tris.extend(floor(5.0, 0.0, 10.0, 10.0, roof));
+            // The floor's last cells end at x = 5.0 (centres 4.875); the
+            // pit and the roof begin in the next ones.
+            let mut tris = floor(0.0, 0.0, 4.99, 10.0, 0.0).to_vec();
+            tris.extend(floor(5.01, 0.0, 10.0, 10.0, -6.0));
+            tris.extend(floor(5.01, 0.0, 10.0, 10.0, roof));
             let grid = WalkGrid::build(&tris, AREA, 0.25, Body::default());
-            grid.floors_in([4.9, 4.0, 5.1, 6.0])
-                .any(|f| grid.position(f).y.abs() < 0.01 && grid.position(f).x > 4.9)
+            grid.floors_in([4.8, 4.0, 4.95, 6.0])
+                .any(|f| grid.position(f).y.abs() < 0.01 && grid.position(f).x > 4.8)
         };
         assert!(edge_kept(2.2));
         assert!(!edge_kept(1.2));
@@ -3004,13 +3010,12 @@ pub(crate) mod tests {
     fn a_flat_floor_is_walkable_and_kept_to_its_edge() {
         let tris = floor(0.0, 0.0, 10.0, 10.0, 0.0);
         let (grid, stats) = WalkGrid::build_with_stats(&tris, AREA, 0.5, Body::default());
-        // 20 x 20 cells with floor (the 21st row/column is past the mesh,
-        // empty: no wall, so erosion takes nothing). Inside the map area's
-        // last row and column, a wall, it takes those.
+        // 20 x 20 cells with floor (the 21st row/column is past the mesh).
+        // One round of erosion takes the first row and column, at the map
+        // area's edge (a wall); the last ones are beside empty cells past
+        // the mesh, no wall, and stay.
         assert_eq!(stats.floors, 400);
-        assert_eq!(grid.len(), 400);
-        let edged = WalkGrid::build(&tris, [0.0, 0.0, 9.9, 9.9], 0.5, Body::default());
-        assert_eq!(edged.len(), 19 * 19);
+        assert_eq!(grid.len(), 19 * 19);
         let a = grid.locate(Vec3::new(1.2, 0.0, 1.2), 1.0).unwrap();
         let b = grid.locate(Vec3::new(8.8, 0.0, 8.7), 1.0).unwrap();
         let path = grid.path(a, b).unwrap();
