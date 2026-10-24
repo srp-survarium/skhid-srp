@@ -8,6 +8,7 @@
 //! it depends on no lobby code.
 
 use std::collections::{HashMap, HashSet};
+use std::net::IpAddr;
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -288,6 +289,21 @@ struct Inner {
     /// it takes a joiner, or why it takes none.
     admitting: HashMap<u32, Result<Instant, Closed>>,
     live: HashMap<u32, Live>,
+    /// The IP each place's game connected to the match from (its latest
+    /// 0xD8): what the voice relay checks a talker's datagrams against
+    /// (`super::voice`).
+    connections: HashMap<(u32, u8), IpAddr>,
+}
+
+/// A session's place as the voice relay needs it (`super::voice`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VoiceSeat {
+    pub match_id: u32,
+    /// The roster place: the speaker's slot on the voice wire.
+    pub place: u8,
+    pub team: u8,
+    /// The IP of the place's match connection; `None` before its 0xD8.
+    pub ip: Option<IpAddr>,
 }
 
 /// A new account could not be appended to a running match. Appended slots
@@ -673,6 +689,38 @@ impl MatchRegistry {
         self.inner().seats.get(&session_id).copied()
     }
 
+    /// The place's game connected to its match from `ip` (its 0xD8).
+    pub(crate) fn set_connection(&self, seat: Seat, ip: IpAddr) {
+        let mut inner = self.inner();
+        if inner.matches.contains_key(&seat.match_id) {
+            inner
+                .connections
+                .insert((seat.match_id, seat.place), ip.to_canonical());
+        }
+    }
+
+    /// The seat of a session with its team and its match connection's IP,
+    /// for the voice relay. `None` for a session with no place, and for a
+    /// bot's place (no game talks for it).
+    pub fn voice_seat(&self, session_id: u32) -> Option<VoiceSeat> {
+        let inner = self.inner();
+        let seat = *inner.seats.get(&session_id)?;
+        let place = inner
+            .matches
+            .get(&seat.match_id)?
+            .places
+            .get(usize::from(seat.place))?;
+        if place.bot || place.driven {
+            return None;
+        }
+        Some(VoiceSeat {
+            match_id: seat.match_id,
+            place: seat.place,
+            team: place.team,
+            ip: inner.connections.get(&(seat.match_id, seat.place)).copied(),
+        })
+    }
+
     /// Gives up a session's place (the player will not come, or left for
     /// good): it can be put in another match. A client of it that still
     /// connects is turned away.
@@ -822,6 +870,7 @@ impl MatchRegistry {
         inner.admitting.remove(&match_id);
         inner.live.remove(&match_id);
         inner.seats.retain(|_, seat| seat.match_id != match_id);
+        inner.connections.retain(|(id, _), _| *id != match_id);
         inner.matches.remove(&match_id)
     }
 }

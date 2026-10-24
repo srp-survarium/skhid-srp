@@ -1,4 +1,4 @@
-# Voice chat (design, not built)
+# Voice chat (being built: PR #357)
 
 The owner asked for voice chat in matches (2026-10-23). This note is the design and what the
 0.26g exe and the later builds already have. Nothing here is built yet: 0.26g has no capture
@@ -147,7 +147,7 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 
 | type | dir | body | when |
 |---|---|---|---|
-| 01 HELLO | C->S | `u32 session, u8 flags` (bit 0: hears, i.e. volume > 0) | on match connect, then every 2 s (keeps NAT open, tells srp where to send) |
+| 01 HELLO | C->S | `u32 session, u8 flags, u32 muted` (bit 0: hears, i.e. volume > 0 and voice not disabled; bit n of muted: slot n muted; the mask may be left out) | on match connect, every 2 s (keeps NAT open, tells srp where to send), and at once on a change |
 | 02 START | C->S | `u32 session, u16 utt, u32 client_ms` | P down |
 | 03 AUDIO | C->S | `u32 session, u16 utt, u16 seq, u8 n, n x (u8 len, Opus frame)` | every 40 ms while held (n = 2) |
 | 04 END | C->S | `u32 session, u16 utt, u16 frames` | P up; sent 3 times, 30 ms apart |
@@ -169,7 +169,8 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 - **Utterances.** srp keeps one open utterance per speaker:
   `{match, team, speaker slot, utt, started_at (server), last_audio_at}`.
   - START opens it and is forwarded at once.
-  - Each AUDIO goes to every teammate with a HELLO in the last 6 s, except the speaker and a
+  - Each AUDIO goes to every teammate with a HELLO in the last 6 s, except the speaker, a
+    listener whose HELLO mutes the speaker's slot, and a
     listener whose flags say it does not hear.
   - END closes it.
   - No AUDIO for 1 s closes it as a timeout. After 30 s it is cut (END reason 2); the talker's
@@ -192,6 +193,16 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
     and later an audio stream (types 85-8F). The wire above does not change.
 - **The voice socket** runs beside the match server's (`servers/match-server/src/v026g`). It
   reads the seats from the match registry the lobby fills.
+- **Built** (`servers/match-server/src/v026g/voice.rs`, srp's thread `voice`):
+  - the port is always the match port + 1 (`SRP_VOICE=off` turns it off); Docker publishes it
+    (`SRP26_VOICE_PORT`), and the host's firewall must let it in;
+  - the registry keeps each place's match-connection IP (set at its 0xD8) and answers
+    `voice_seat(session)`: match, place, team, IP; bots' places have none;
+  - a released seat (left by 0xE0, the match's result) neither talks nor hears from the next
+    second on;
+  - tests: `cargo test -p match-server --lib voice` (17: team-only, mutes, IP and seat checks,
+    malformed and large datagrams, lost START, timeout, the 30 s cut, the rate limit, the tap's
+    text, real sockets over the registry, the 0xD8 setting the IP).
 
 ## The client
 
@@ -258,12 +269,25 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
   by the owner, with a notice to the players before it is turned on. It holds an utterance in
   memory only while it works on it.
 
-## Open for the owner
+## Open for the owner (decided 2026-10-25)
 
-- The radio effect beyond `VOICE_NEAR`: on (as designed), or plain everywhere as in 0.69. And
-  the distance.
-- The key: the stock P, or another free key (list above).
-- Dead players talking to their team: yes (as designed) or no.
+- **Radio effect: on.** A teammate within 25 m (`VOICE_NEAR`) is heard plain; farther, through
+  the radio filter (band-pass 300-3400 Hz, light clipping, a little noise). Same volume near and
+  far: not proximity chat. Each client decides from its own simulation.
+- **Push-to-talk: P**, the stock `ptt` action, rebindable in Controls.
+- **Dead players talk to their team: yes.**
+
+## Added by the owner (2026-10-25)
+
+- **Muting**, without the Tab list (Tab frees no cursor; Blackout hides the list):
+  - the Esc menu gets a "Voice" panel: the teammates, a mute toggle each, and "Mute all";
+  - a key "mute the last speaker" in Controls (default M only if M is free in every group);
+  - mutes are per account, kept across matches; the HUD list marks or leaves out the muted;
+  - client-side: a muted slot is not played; HELLO also carries the mask of muted slots, and
+    the relay sends that listener nothing of them.
+- **"Disable voice chat"** in the options, beside "Hide chat in match": nothing played, no
+  microphone, PTT does nothing, the HUD list empty, and HELLO says "does not hear", so the relay
+  sends nothing. Saved as the other options, at once, no restart.
 
 ## Estimate and tests
 
