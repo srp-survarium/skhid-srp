@@ -1049,8 +1049,10 @@ counted per map):
 
 Standing pockets by map, out with the escape on: level_01 10/10, level_02 2/6,
 level_03 4/6, level_04 6/10, level_05 2/2, level_06 20/31, level_07 4/6,
-level_08 0/9. level_08's (pit A among them) are 0.8-1.0 m across, beyond the
-stand-in's jump.
+level_08 0/9. Of the 32 left, 28 have no Standing exit nearer than 0.7 m
+across (level_08's, pit A among them, are 0.9-1.0 m), beyond the stand-in's
+jump. The other 4, on level_06, have an exit 0.5-0.56 m across and still
+stayed: not explained yet.
 
 MEASURED
 
@@ -1059,6 +1061,8 @@ MEASURED
 - Team spots and routes are not kept from pockets with no way out: routes
   never plan into a pocket for a goal outside it, and the grid's sink cost
   moved nothing in the bench. To measure first.
+- Four level_06 pockets with a Standing exit within the stand-in's reach
+  (0.5-0.56 m across) were not left in the sweep: to trace.
 - The unstick jumps in `fixed()` should wait for the hurt PR's
   `Hurt::may_jump`, and a hurt bot's failed tries should not count toward
   giving up.
