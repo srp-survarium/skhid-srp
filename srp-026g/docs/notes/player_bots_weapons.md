@@ -821,6 +821,21 @@ The machine guns (12) and the pistols (24) are too few.
   empty-in-view ones are a fifth of them, so a lull reload only adds reloads an
   enemy can walk into. The earlier-lull variant waited on empty-in-view reloads
   dominating; they do not, so it was not tried.
+- **An enemy in view before a reload: the bots more often than the players.**
+  - **The bots:** an enemy within 4° of the view, in sight and within 40 m, in
+    the 1 s before 43-67 % of their reloads (rifles 43 %, SMGs 47 %, bolt
+    actions 56 %, shotguns 67 %).
+  - **The players (the owner's rule):** a living enemy within 5° of the view in
+    the 1 s before 30-43 % of their reloads (rifles 32 %, SMGs 35 %, bolt
+    actions 30 %, shotguns 32 %); within 30°, 65-75 %. The 10-match study of
+    the top players had 55 % in sight.
+  - **The two counts differ:** the players' has no line-of-sight test (walls
+    included), and its positions between worlds miss close enemies. Still, at
+    a cone that narrow the bots' share is above the players' in every class:
+    the reloads the bots start with an enemy on view are not all human-like.
+  - **Next (a follow-up, not here):** no tactical reload soon after contact, or
+    a reload given up when an enemy comes into view, if the game lets a
+    reload be cut short (not checked).
 - **What stands out is the shotguns.** 62 % of their reloads come with the
   magazine out, and 37 % of all their reloads have an enemy in view. Among the
   players, a shotgun is out at 11 % of reloads. Not followed here.
