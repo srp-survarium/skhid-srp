@@ -229,3 +229,63 @@ at -0.06 (2 SE), past early stopping's guard, so all 16 ran.
   in, so the row leaves out more of after's quick carries. The PR fixes the
   order (uses first); this bench ran before that fix. Arrival to put-in
   times all 76.
+
+## Bots: a battery whose stand is in a pocket no carrier leaves is not taken (Cologne CG-11)
+
+### Why
+
+In the Cologne match a battery lay on the floor of pit A, a pocket: no
+walk leads back out. Bots went in for it, took it and could not bring it
+out. A carrier cannot sprint (`victory_item_core::can_sprint`), so a pocket
+that only a sprint jump leaves keeps a carrier in it. #396 (unstuck's
+escapes) marks the pockets (`WalkGrid::pocket_of`) and the team's ways out
+of them.
+
+### What changed
+
+- `plays/collect.rs`, `Ctx::take_block`: after the way checks, a battery
+  whose take stand is in a pocket (`Ctx::in_pocket`) with no way out for a
+  carrier (`Ctx::escape_known(stand, true)`: a standing jump, or one a
+  teammate got out by this match) is blocked: "its stand is in a pocket a
+  carrier cannot leave" (`POCKET_BLOCK`).
+  - Every takeable check goes through it: Collect's candidates and its
+    re-checks, Ambush (`can_take`), and #387's take-block notes, which now
+    name this reason.
+  - No expiry: the pocket's ways out come from the grid, and a teammate's
+    escape counts once it is made.
+  - It reads the stand, not the battery, since the taker stands there.
+- `plays/escort.rs`: no escort for a carrier who gave up getting out of his
+  pocket (`Ctx::teammate_trapped(..).gave_up`). An escort would only walk in
+  to him.
+- `tests.rs`, the carry tally: from the take-block notes, the batteries
+  left out for their pocket and the seconds one bot or more left each out
+  (to the run's last note when no later note says otherwise), and the
+  Ambush plays taken.
+
+### Where it acts
+
+An ignored probe (`collect::tests::pocket_stands_on_the_real_maps`) looks at
+every battery spawner on levels 1-8, days 2 and 3: no spawner's take stand
+is in a pocket on any map. So the rule acts only on a battery that came
+into a pocket later, carried or dropped there, as pit A's battery in
+Cologne (a carrier died in it). The unit test
+`a_battery_in_a_pocket_no_carrier_leaves_is_not_taken` is that case: a
+battery lying in a 3 m pit is no candidate, and says why; one in a pit with
+a 0.9 m standing rim (pit A's) still is.
+
+### Bench
+
+`real_bot_cost`, the `batt` preset, tiers none, 4-5, 9-10 and 13-15, seeds
+1-8. Base is 54ececcf (#396) with this PR's tally; "after" adds the change.
+- None, 4-5 and 13-15: base and after are the same in every count.
+- 9-10: one seed parts slightly. Flips -0.25 (SE 0.25), carriers killed
+  -0.12 (0.12), delivered +0. No battery was left out for its pocket there
+  either, so it is the escort filter: carriers who gave up their pocket
+  number 1.6 a seed.
+- Left out for the pocket: 0 batteries and 0 s in every tier. The stand-in
+  has 0.1-0.6 deaths in pockets a seed, too few for a battery to lie there
+  in 8 seeds.
+- Ambush takes are unchanged (12.5, 12.5, 15.75, 14.9 a seed).
+- Bot ms/s, summed over a seed's 12 runs, after minus base: -0.85 (SE
+  0.97), -0.94 (0.93), +0.52 (0.94), +0.66 (0.65). No cost.
+- Delivered, flips, quick ends, pocket bot-s and pocket deaths do not move.
