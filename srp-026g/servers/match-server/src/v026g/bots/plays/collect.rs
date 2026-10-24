@@ -286,6 +286,53 @@ fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3) -> Vec<(TakeStand, f32)> {
     out
 }
 
+/// Where a body stands to take a battery lying at `at`: the floor
+/// [`Tactics::stand_to_take`] gives (its own, or the one beside it whose
+/// crouched eye sees it nearest), else, for a battery on a box top over
+/// the crouched eye (1.05 m and up: a beside floor's crouched eye is under
+/// the top, which hides it), the floor beside it whose **standing** eye
+/// sees it nearest within [`USE_REACH_M`](crate::v026g::bots::tactics::USE_REACH_M).
+/// A take from there stands (`ring_stands` has the standing stands too).
+pub fn take_stand(cx: &Ctx, at: Vec3) -> Option<Vec3> {
+    if let Some(stand) = cx.tactics.stand_to_take(at) {
+        return Some(stand);
+    }
+    standing_stand(cx.tactics, at)
+}
+
+/// The floor beside a battery at `at` whose standing eye sees it nearest
+/// within the use's reach, if any ([`take_stand`]).
+fn standing_stand(tactics: &crate::v026g::bots::tactics::Tactics, at: Vec3) -> Option<Vec3> {
+    use crate::v026g::bots::tactics::USE_REACH_M as R;
+    let grid = &tactics.world.grid;
+    let mut best: Option<(f32, Vec3)> = None;
+    for node in grid.floors_in([at.x - R, at.z - R, at.x + R, at.z + R]) {
+        if !tactics.walkable(node) {
+            continue;
+        }
+        let feet = grid.position(node);
+        let eye = feet + Vec3::new(0.0, view::EYE_STANDING, 0.0);
+        let d = (at - eye).length();
+        if d <= R && best.is_none_or(|(b, _)| d < b) && tactics.sees(eye, at) {
+            best = Some((d, feet));
+        }
+    }
+    best.map(|(_, feet)| feet)
+}
+
+/// Whether the feet are at the height of the floor a walk to `at` ends on
+/// (`path::goal_floor`): not over it by more than `motor::ARRIVE_ABOVE_M`
+/// nor under it by more than `motor::ARRIVE_BELOW_M`, the rule
+/// `drive_tick` and the motor end a walk by. No floor: true.
+fn at_goal_height(cx: &Ctx, at: Vec3) -> bool {
+    use crate::v026g::bots::motor::{ARRIVE_ABOVE_M, ARRIVE_BELOW_M};
+    let grid = &cx.tactics.world.grid;
+    crate::v026g::bots::path::goal_floor(grid, at).is_none_or(|node| {
+        let dy = cx.me.feet.y - grid.position(node).y;
+        dy <= ARRIVE_ABOVE_M && -dy <= ARRIVE_BELOW_M
+    })
+}
+
 /// Where a body right over a battery lying at `at` steps back to: a metre
 /// off it the way it came (`from`), else behind its back.
 fn back_spot(cx: &Ctx, at: Vec3, from: Option<Vec3>) -> Vec3 {
@@ -461,7 +508,7 @@ impl Ctx<'_> {
     /// the first reason found; `None`: it may.
     pub fn take_block(&self, at: Vec3) -> Option<&'static str> {
         let num = |name| self.num(PlayKind::Collect, name);
-        let Some(stand) = self.tactics.stand_to_take(at) else {
+        let Some(stand) = take_stand(self, at) else {
             return Some("no stand to take it from");
         };
         if !self.reachable(stand, false) {
@@ -782,7 +829,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 }
                 _ => return Step::Failed("no spawner"),
             }
-            let Some(stand) = cx.tactics.stand_to_take(at) else {
+            let Some(stand) = take_stand(cx, at) else {
                 return Step::Failed("no way to it");
             };
             if !cx.reachable(stand, false) || cx.no_way_lately(stand) {
@@ -798,7 +845,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 return Step::Failed("someone took it");
             }
             // A hazard switched on round it (the cloud's energy rose).
-            let Some(stand) = cx.tactics.stand_to_take(at) else {
+            let Some(stand) = take_stand(cx, at) else {
                 return Step::Failed("no way to it");
             };
             // Or every way in crosses a hazard (a battery ringed by fire):
@@ -806,7 +853,10 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             if !cx.reachable(stand, false) || cx.no_way_lately(stand) {
                 return Step::Failed("no way to it");
             }
-            if cx.me.feet.distance_xz(stand) <= num("reach_m") {
+            // Within reach across and at the stand floor's height, as
+            // `drive_tick` ends the walk there (`at_goal_height`): from an
+            // overhang over it the walk goes on (Cologne CG-17).
+            if cx.me.feet.distance_xz(stand) <= num("reach_m") && at_goal_height(cx, stand) {
                 *state = State::Take {
                     tries: 0,
                     last_use: 0,
@@ -827,9 +877,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             // reach across is no goal); the take goes on once up.
             if !tried.is_empty()
                 && let TargetRef::Battery(battery) = target
-                && let Some(stand) = cx
-                    .battery_lying(battery)
-                    .and_then(|at| cx.tactics.stand_to_take(at))
+                && let Some(stand) = cx.battery_lying(battery).and_then(|at| take_stand(cx, at))
                 && cx.me.feet.y < stand.y - BELOW_STAND_M
             {
                 return Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(0.0));
@@ -1120,7 +1168,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
             UseFrom::Far if cx.now < *since + walk_ms => {
                 // On the floor: stopped short of it, where the look down
                 // is easy; on a shelf: at the floor beside it.
-                let Some(to) = cx.tactics.stand_to_take(at) else {
+                let Some(to) = take_stand(cx, at) else {
                     return Step::Failed("no way to it");
                 };
                 let below = me.y + view::EYE_CROUCHED - aim.y;
@@ -2119,6 +2167,12 @@ mod tests {
                     let at = spawner.item;
                     let why = cx.take_block(at).unwrap_or("takeable");
                     *reasons.entry(why).or_default() += 1;
+                    if s.tactics.stand_to_take(at).is_none() {
+                        let standing = standing_stand(&s.tactics, at);
+                        eprintln!(
+                            "level {level} mode {mode} spawner {i} at {at:?}: no crouched stand;                              standing stand {standing:?}"
+                        );
+                    }
                     let Some(stand) = s.tactics.stand_to_take(at) else {
                         continue;
                     };
@@ -2492,6 +2546,33 @@ mod tests {
                 Step::Done(why)
             );
         }
+    }
+
+    /// Cologne CG-17: a bot within reach across of its take stand but over
+    /// it (an overhang) by more than `motor::ARRIVE_ABOVE_M` does not start
+    /// the take: it walks on to the stand. At the stand's height it does.
+    #[test]
+    fn a_fetch_over_its_stand_walks_on() {
+        let at = Vec3::new(20.0, 0.0, 20.0);
+        let run = |feet: Vec3| {
+            let mut s = Scenario::field(Mode::Batteries);
+            s.bot(0, 0, feet);
+            s.battery(BatteryState::Free(at));
+            let target = TargetRef::Battery(0);
+            s.current = Some((PlayKind::Collect, target, s.view.clock));
+            let mut rng = Rng::new(1);
+            let mut state = State::Fetch;
+            let step = step(&mut state, target, &s.cx(0), &mut rng);
+            (state, step)
+        };
+        let (state, step) = run(Vec3::new(20.0, 1.5, 20.5));
+        assert_eq!(state, State::Fetch);
+        assert!(
+            matches!(&step, Step::Continue(i) if matches!(i.go, Go::To { at: to, .. } if to.distance_xz(at) < 0.01)),
+            "{step:?}"
+        );
+        let (state, _) = run(Vec3::new(20.0, 0.0, 20.5));
+        assert!(matches!(state, State::Take { .. }), "{state:?}");
     }
 
     /// Bot 0's view on its container's use box (a metre over its use

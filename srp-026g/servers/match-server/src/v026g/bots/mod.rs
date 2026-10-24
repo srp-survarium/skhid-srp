@@ -2358,8 +2358,18 @@ fn drive_tick(
         intent.objective = false;
         intent.straight = false;
     }
+    // A goal within reach across is reached only at its floor's height
+    // (the motor's own rule, `motor::arrived`): a bot over it (an overhang,
+    // a box top, the top of a drop) or under it walks on. The floor is
+    // asked only once across says reached. Cologne CG-17.
     let goal = match intent.go {
         Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
+        Go::To { at, .. } => path::goal_floor(&tactics.world.grid, at)
+            .map(|node| tactics.world.grid.position(node).y)
+            .filter(|&y| {
+                me.feet.y - y > motor::ARRIVE_ABOVE_M || y - me.feet.y > motor::ARRIVE_BELOW_M
+            })
+            .map(|_| at),
         _ => None,
     };
     // [zones] With no goal to walk (holding a spot, standing at its goal,
