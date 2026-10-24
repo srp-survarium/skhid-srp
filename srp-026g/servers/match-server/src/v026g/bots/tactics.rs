@@ -131,7 +131,7 @@ const SPAWN_BITS: u32 = 8;
 /// the spawn areas, the regions, the exits and the searches they come
 /// from), so a stored base of the old build is never read for the new.
 /// `the_base_and_its_digest_are_fixed` fails until then.
-pub const TACTICS_ALGO: u32 = 2;
+pub const TACTICS_ALGO: u32 = 3;
 
 /// What a spot is for.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -874,7 +874,7 @@ impl Tactics {
                 break;
             }
             for (b, _) in grid.links(a) {
-                if seen.insert(b) {
+                if grid.plans(a, b) && seen.insert(b) {
                     queue.push_back((b, d + grid.position(b).distance_xz(at)));
                 }
             }
@@ -937,6 +937,9 @@ impl Tactics {
         let mut queue = std::collections::VecDeque::new();
         for a in (0..grid.len() as NodeId).filter(|&a| marked(a)) {
             for (b, _) in grid.links(a) {
+                if !grid.plans(a, b) {
+                    continue;
+                }
                 if !marked(b) {
                     if let std::collections::hash_map::Entry::Vacant(entry) = field.entry(a) {
                         entry.insert(b);
@@ -1258,7 +1261,9 @@ fn walkable_from_spawns(world: &World) -> Vec<u64> {
     }
     while let Some(a) = queue.pop() {
         for (b, _) in grid.links(a) {
-            mark(&mut bits, b, &mut queue);
+            if grid.plans(a, b) {
+                mark(&mut bits, b, &mut queue);
+            }
         }
     }
     bits
@@ -1407,7 +1412,7 @@ pub(super) mod tests {
     fn the_base_and_its_digest_are_fixed() {
         let base = TacticsBase::build(field(), 1.0);
         assert_eq!(base.digest(), PINNED_FIELD);
-        assert_eq!(TACTICS_ALGO, 2);
+        assert_eq!(TACTICS_ALGO, 3);
     }
 
     const PINNED_FIELD: u64 = 736_835_410_510_453_169;

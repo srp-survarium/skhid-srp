@@ -7303,6 +7303,33 @@ mod pocket_runs {
         assert!(seen.trapped.is_some_and(|t| t.gave_up), "{seen:?}");
     }
 
+    /// A pit with no way out is shut: no route is planned into it from the
+    /// yard (its rim's drops stay links), while a bot put in it is still in
+    /// its pocket and gives up as before.
+    #[test]
+    fn no_route_is_planned_into_a_shut_pit_and_a_bot_in_it_still_gives_up() {
+        let world = pit(1.6);
+        let grid = &world.grid;
+        let bottom = grid.locate(Vec3::new(32.0, -1.6, 20.0), 0.3).unwrap();
+        let yard = grid.locate(Vec3::new(20.0, 0.0, 20.0), 0.3).unwrap();
+        assert!(grid.in_pocket(bottom) && grid.in_shut_pocket(bottom));
+        let pocket = grid.pocket_of(bottom).unwrap();
+        assert!(
+            grid.pocket_entries(pocket)
+                .iter()
+                .any(|e| e.kind == mapdata::LinkKind::Drop)
+        );
+        assert!(crate::v026g::bots::path::plan(grid, yard, bottom).is_none());
+        let seen = drive(
+            world.clone(),
+            Vec3::new(32.0, -1.6, 20.0),
+            Vec3::new(55.0, 0.0, 32.0),
+            5_000,
+        );
+        assert_eq!(seen.out_ms, None, "{seen:?}");
+        assert!(seen.trapped.is_some_and(|t| t.gave_up), "{seen:?}");
+    }
+
     /// A pit 1.2 m deep (sprint-only ways out; no bot sprints yet): one
     /// standing try at each of its two lowest rims, then it gives up.
     #[test]
