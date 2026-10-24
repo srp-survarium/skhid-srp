@@ -73,6 +73,7 @@ given), LIKELY or GUESS.
 | [shop-character-menu.md](shop-character-menu.md) | The character menu (kits) shown on the left in the Shop tab too (the owner, 2026-10-22) |
 | [ui_scale.md](ui_scale.md) | The UI at high resolutions: how each Flash movie follows the screen size, what is drawn 1:1 at 4K and how small, the HUD centring fixes |
 | [launcher_updater.md](launcher_updater.md) | The game's own updater (`survarium_updater.exe`), which the Skhid launcher does not use: its arguments, what it said on the pipe, what it did on the network |
+| [artefact-glow.md](artefact-glow.md) | Research: the glow of an artefact's active (a particle effect with lights on the carrier's body, `data/effect`), its code path, who sees it (third person only, from the world, late joiners too), per artefact; the Rattle glows Lifebone's green, the Sponge not at all |
 | [../DEPLOY.md](../DEPLOY.md) | The Docker files for the 0.26g server beside the live 0.21d one (ports table), certificates, the players' overlay. Nothing is deployed |
 
 The draft patcher is in `srp-026g/client-patches/`. The data dumps

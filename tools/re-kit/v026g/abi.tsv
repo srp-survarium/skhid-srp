@@ -1900,3 +1900,26 @@ va	name	source	ret_cleanup	result
 0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	manual	16	
 0x0025cd00	survarium::game_world::on_keyboard_action	manual	12	AL: 1 the key taken (no later handler gets it)
 0x00208ad0	survarium::chat_handler::add_message	manual	20	
+0x00313200	survarium::artefact_base::tick	manual	8	
+0x00313470	survarium::artefact_base::added_to_inventory	manual	0	
+0x00313490	survarium::artefact_base::removed_from_inventory	manual	0	
+0x00313530	survarium::artefact_base::decrement_amount	manual	0	
+0x00313640	survarium::artefact_base::effect_calculator::operator()	manual	16	EAX: the result pointer; {u32 0, f32 0.0, u8 finished = artefact state != 4}
+0x002de090	survarium::game_effect_player::add	manual	20	
+0x002dda80	survarium::game_effect_player::resolve_link	manual	8	
+0x00329050	survarium::game_effect_emitter::emit	manual	0	EAX: EDI, the effect pointer written
+0x002e5cf0	survarium::game_effect_ptr_wrapper::deserialize	manual	4	
+0x002ac290	survarium::particle_game_effect_presenter::play_effect	manual	8	
+0x002ac310	survarium::particle_game_effect_presenter::update_effect	manual	8	
+0x002ac360	survarium::particle_game_effect_presenter::clear	manual	0	
+0x002ac400	survarium::particle_game_effect_presenter::visit	manual	8	
+0x002ac870	survarium::particle_game_effect_presenter::deserialize	manual	12	
+0x002971c0	survarium::first_person_game_effects_presenter::first_person_game_effects_presenter	manual	8	EAX: EDI
+0x00297570	survarium::third_person_game_effects_presenter::third_person_game_effects_presenter	manual	0	
+0x0029a0f0	survarium::particle_game_effect_emitter::particle_game_effect_emitter	manual	32	EAX: ESI
+0x0029a220	survarium::particle_game_effect_emitter::emit	manual	12	EAX: the result pointer (stack+4)
+0x002ae1e0	survarium::particle_game_effect::particle_game_effect	manual	28	EAX: ESI
+0x0025a540	survarium::particle_game_effect_emitter_cook::translate_query	manual	4	
+0x002ec760	survarium::game_effect_emitter_cook::translate_query	manual	4	
+0x002ee650	survarium::artefact_core_cook::on_config_loaded	manual	4	
+0x002ee7c0	survarium::artefact_core_cook::on_effect_loaded	manual	16	
