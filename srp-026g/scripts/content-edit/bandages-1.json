@@ -1,5 +1,5 @@
 {
- "_about": "The bandage buff (the owner, 2026-10-24: legs and hands full, pain, body and head 35 %; srp-026g/docs/notes/bandages.md). Pack of bandages (bandages, dict id 66, the only bandage of 0.26g's dictionary): an influence is the pool's health added per second while the drug is active (medkit::tick 0x33D790: amount x the elapsed seconds x drug_amount (57), increase_health 0x32A420, clamped to the pool's max), for data/activity_time_sec 1 s after activation_delay_sec 1 s. Hands and legs (max 0.5) 0.3/s -> 1/s, full as the medkit's 1/s; three new influences after right_leg, made like it: body (max 1.0) 0.35/s, head (max 0.4) 0.14/s, pain (max 1.0) 0.35/s, 35 % of each pool in the 1 s. The injury removal, times, weight and card unchanged.",
+ "_about": "The bandage buff (the owner, 2026-10-24: legs and hands full, pain, body and head 35 %; srp-026g/docs/notes/bandages.md). Pack of bandages (bandages, dict id 66, the only bandage of 0.26g's dictionary): an influence is the pool's health added per second while the drug is active (medkit::tick 0x33D790: amount x the elapsed seconds x drug_amount (57), increase_health 0x32A420, clamped to the pool's max), for data/activity_time_sec 1 s after activation_delay_sec 1 s. Hands and legs (max 0.5) 0.3/s -> 1/s, full as the medkit's 1/s; three new influences after right_leg, made like it: body (max 1.0) 0.35/s, head (max 0.4) 0.14/s, pain (max 1.0) 0.35/s, 35 % of each pool in the 1 s. The lobby (the owner, 2026-10-25): st_base_bandages_description says what it heals, in the six localization tables (UTF-8, as they keep their texts; every character already used in its table, '%' unspaced as theirs); the card's Heal amount line (props_list prop_id 12, \"30\") is taken out, so it no longer contradicts the text. The injury removal, times and weight unchanged.",
  "set": [
   {"file": "gameplay/items/drugs/bandages.options", "path": "data/influences[0]/amount", "from": 0.3, "to": 1},
   {"file": "gameplay/items/drugs/bandages.options", "path": "data/influences[1]/amount", "from": 0.3, "to": 1},
@@ -10,5 +10,46 @@
   {"files": "gameplay/items/drugs/bandages.options", "list": "data/influences", "after": {"body_part": "right_leg"}, "like": {"body_part": "right_leg"}, "values": {"body_part": "body", "amount": 0.35}},
   {"files": "gameplay/items/drugs/bandages.options", "list": "data/influences", "after": {"body_part": "body"}, "like": {"body_part": "right_leg"}, "values": {"body_part": "head", "amount": 0.14}},
   {"files": "gameplay/items/drugs/bandages.options", "list": "data/influences", "after": {"body_part": "head"}, "like": {"body_part": "right_leg"}, "values": {"body_part": "pain", "amount": 0.35}}
+ ],
+ "remove_entry": [
+  {"file": "gameplay/items/drugs/bandages.options", "list": "ui_desc/props_list", "where": {"prop_id": 12}}
+ ],
+ "edit_text": [
+  {
+   "file": "localization/english/localization",
+   "path": "strings/st_base_bandages_description",
+   "from": "A standard set of bandages. Serves well as a first-aid tool in the battlefield. Use it to neutralize the critical effect of arms and legs wounds. ",
+   "to": "Fully heals arms and legs. Restores 35% of body, head and pain."
+  },
+  {
+   "file": "localization/german/localization",
+   "path": "strings/st_base_bandages_description",
+   "from": "Das standardmäßige  Erste-Hilfe Paket. Kommt ausgezeichnet für die Erweisung der Erstversorgung unter den Bedingungen des Kampfs heran. Bei der Nutzung neutralisiert den Effekt der kritischen Verwundung der Hände und der Beine.",
+   "to": "Heilt Arme und Beine vollständig. Stellt 35% von Körper, Kopf und Schmerz wieder her."
+  },
+  {
+   "file": "localization/polish/localization",
+   "path": "strings/st_base_bandages_description",
+   "from": "Standardowy zestaw bandaży Wykorzystywane są do udzielania pierwszej pomocy na polu bitwy. Opatruj nimi krytyczne rany rąk i nóg.",
+   "to": "W pełni leczy ręce i nogi. Przywraca 35% zdrowia tułowia, głowy i bólu."
+  },
+  {
+   "file": "localization/russian/localization",
+   "path": "strings/st_base_bandages_description",
+   "from": "Стандартный перевязочный пакет. Отлично подходит для оказания первой помощи в условиях боя. При использовании нейтрализует эффект критического ранения рук и ног.",
+   "to": "Полностью лечит руки и ноги. Восстанавливает 35% здоровья тела, головы и боли."
+  },
+  {
+   "file": "localization/original/localization",
+   "path": "strings/st_base_bandages_description",
+   "from": "Стандартный перевязочный пакет. Отлично подходит для оказания первой помощи в условиях боя. При использовании нейтрализует эффект критического ранения рук и ног.",
+   "to": "Полностью лечит руки и ноги. Восстанавливает 35% здоровья тела, головы и боли."
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_base_bandages_description",
+   "from": "Стандартний пакет для перев'язування. Призначений для надання першої медичної допомоги в умовах бою. Використання нейтралізує ефект критичного поранення рук і ніг.",
+   "to": "Повністю лікує руки і ноги. Відновлює 35% здоров'я тіла, голови та болю."
+  }
  ]
 }

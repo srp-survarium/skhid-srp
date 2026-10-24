@@ -9,6 +9,7 @@ bandage in 0.26g. The edit list is `scripts/content-edit/bandages-1.json`.
 - Pain, body and head: 35 % of each pool healed.
 - Hand and leg injuries removed, as before.
 - Use time 1 s, then active for 1 s, as before. Weight and price stay the same.
+- The lobby says so: a new description and no "Heal amount" line on the card.
 
 ## How a drug heals (PROVEN, `medkit::tick` 0x33D790)
 
@@ -32,6 +33,15 @@ bandage in 0.26g. The edit list is `scripts/content-edit/bandages-1.json`.
 | pain | none | 0.35/s: +0.35 of 1.0 (35 %) |
 
 - "35 %" means 35 % of the pool's max, not 35 % of what is missing.
-- The medkit's pain influence is 0, so the medkit takes no pain away. Bandages now do.
-- The lobby card ("Heal amount" 30) and the description stay the same.
+- The medkit's pain influence is 0, so the medkit takes no pain away. Bandages now do. The
+  medkit stays like this (the owner, 2026-10-25).
 - The match simulation changes (`simulation_changes.tsv` `next` row).
+
+## The lobby (the owner, 2026-10-25)
+
+- Description (`st_base_bandages_description`, all six tables): "Fully heals arms and legs.
+  Restores 35% of body, head and pain."
+- The card's "Heal amount" line (`ui_desc/props_list` prop_id 12, "30") is removed, so it can't
+  contradict the description. Use time, active time and weight stay on the card.
+- Each text uses only characters its table already has, and writes "35%" with no space, as the
+  tables do.
