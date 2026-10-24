@@ -3293,8 +3293,8 @@ fn a_nickname_is_checked_and_changed() {
 }
 
 /// No tutorial (`session::v026g::tutorial`): a new account is told every
-/// step is done, so its client runs none of it, and starts with 60 000
-/// silver, 500 gold, the steps' experience, the ammo and the starter kit
+/// step is done, so its client runs none of it, and starts with 15 000
+/// silver, 150 gold, the steps' experience, the ammo and the starter kit
 /// (`tutorial::tests`); a step a client sends anyway is not answered.
 #[test]
 fn a_new_account_has_no_tutorial_and_what_it_paid() {

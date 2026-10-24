@@ -107,10 +107,10 @@ pub const SIGNUP_REPUTATION_LEVEL: u8 = 5;
 pub const AMMO_CONFIGS: &str = "gameplay/items/weapons/ammo/";
 
 /// The gear each of a new account's three kits wears, `(slot, item)`, each
-/// the plain item of its English name: the Novice's knit cap (1821), the
-/// Amber respirator (43), the Survivor's jacket (325, not the premium 345),
-/// the Oxygen tank (9, the back slot), the Chemical protection pants (46),
-/// gloves (42) and boots (38).
+/// the item of its English name: the Novice's knit cap (1821), the Amber
+/// respirator (43), the Survivor's jacket (325, the gold shop's; 345 is
+/// its premium-armour copy), the Oxygen tank (9, the back slot), the
+/// Chemical protection pants (46), gloves (42) and boots (38).
 pub const STARTER_GEAR: [(u8, &str); 7] = [
     (0, "novice_026_helmet"),
     (1, "scav_resp_1"),
