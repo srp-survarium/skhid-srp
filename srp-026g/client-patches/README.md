@@ -3506,12 +3506,13 @@ cmp dword [esi+18h],0 / jz 0x25CF0D`) does nothing without the replay's movie (t
 +18h, the hud's +14h). The patch jumps there to `hide_ui_match`: with the replay's movie it goes
 on at 0x25CEDB as before; without it, the hud movie ([[hud+8]+108h]+4, the hud the handler's
 +4) is asked `root.interface_hidden`, and it and the player icons' movie ([[hud+10h]+108h]+4)
-get `root.hide_interface(not that)`: each hides every layer of its stage (`InterfaceHider`), the
-hud, the crosshair, the minimap, the kits, the markers over heads, and goes on running, so what
+get `root.hide_interface(not that)`: each hides its root, which is its whole interface (the hud's
+fps line, which the game put on the stage, is in the root's `_stageLayer`), the hud, the
+crosshair, the minimap, the kits, the markers over heads, and goes on running, so what
 happens meanwhile (kill feed, messages) plays out unseen. The kits before the start and after a
 death too; the start, a death and a respawn keep the state (the owner, 2026-10-24). The hud's
-screen effects stay: their container (`add_effect`'s blood, drips, the grenade's flash) goes on
-the stage below the hidden hud while hidden. The key is not taken (0x25CF0D, al 0), as in the original. Not the game
+screen effects stay: their container (`add_effect`'s blood, drips, the grenade's flash) is on the
+stage below the root, placed as the root is scaled, so hiding the root leaves it. The key is not taken (0x25CF0D, al 0), as in the original. Not the game
 world's own `show_ui` (0x1F95F0, slot 8 of its vtable 0x9FC4F4, its state +0A0h; the activation
 shows the ui with it at 0x1F8476, the deactivation hides it at 0x1F96D1), which the first build
 used: the movies it hides (+204h and +20Ch) stand still, and when shown they played everything
@@ -3544,10 +3545,12 @@ Rendering and input only; no row in `../crates/session/src/v026g/simulation_chan
 
 Checked: `selftest_026g.py` check 62 (the action's entry, the switch and its case, the kits'
 call, the lobby's call and its taken path, the block's code, exits, calls and data; the movies'
-`InterfaceHider` one class in the three, the lobby's stage layers it covers, the right-click menu
-closed only when open, the topmost objects hidden too: the exe makes the corner's exit and
-settings buttons topmost with `root.enable_element`, and Scaleform draws those whatever their
-parents' visibility; the movies' functions) and the call shapes (0x26CCD2 CALLEE,
+interface their root: in each movie's own sources no layer is added to the stage but through the
+root's `_stageLayer` (the lobby's every former stage layer listed; the hud's one stage child
+beside the root the screen effects), the right-click menu closed only when open, the lobby's
+`enable_element` empty (the exe's lobby state promoted the corner's exit and settings buttons to
+Scaleform's topmost level with it, drawn whatever their parents), the tutorial's private test
+functions gone; the movies' functions) and the call shapes (0x26CCD2 CALLEE,
 `ret 4` as its model; 0x25CED1 JUMP); `check_hide_ui_026g.py` (Unicorn): the case 19h with and
 without the replay's movie, the hud movie and the icons', the interface hidden or shown (16
 cases): `root.hide_interface(not hidden)` to the hud and the icons exactly without the replay's
