@@ -1345,15 +1345,14 @@ impl WalkGrid {
         self.flags[node as usize] & NO_EXIT != 0
     }
 
-    /// Whether a way is planned over the link `from` to `to` of `kind`:
-    /// every link but a drop into a pocket with no way out
-    /// ([`Self::in_shut_pocket`]) from a floor outside it. The link stays
-    /// (a body knocked or overshooting over the edge falls in, and is in
-    /// the pocket); a way inside the pocket, and out of it, is planned.
-    pub fn plans(&self, from: NodeId, to: NodeId, kind: LinkKind) -> bool {
-        kind != LinkKind::Drop
-            || !self.in_shut_pocket(to)
-            || self.pocket_of(from) == self.pocket_of(to)
+    /// Whether a way is planned over the link `from` to `to`: every link
+    /// but one into a pocket with no way out ([`Self::in_shut_pocket`])
+    /// from a floor outside it, a drop or a walk down a step that does not
+    /// walk back. The link stays (a body knocked or overshooting over the
+    /// edge falls in, and is in the pocket); a way inside the pocket, and
+    /// out of it, is planned.
+    pub fn plans(&self, from: NodeId, to: NodeId) -> bool {
+        !self.in_shut_pocket(to) || self.pocket_of(from) == self.pocket_of(to)
     }
 
     /// Whether `node` is not in a pocket and links into one: a pocket's
@@ -1711,7 +1710,7 @@ impl WalkGrid {
     ///
     /// Infinite for a link no way is planned over ([`Self::plans`]).
     pub fn link_cost(&self, from: NodeId, to: NodeId, kind: LinkKind) -> f32 {
-        if !self.plans(from, to, kind) {
+        if !self.plans(from, to) {
             return f32::INFINITY;
         }
         let lip = if kind != LinkKind::Drop && self.is_lip(to) {

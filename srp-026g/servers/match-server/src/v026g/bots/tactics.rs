@@ -873,8 +873,8 @@ impl Tactics {
             if seen.len() > ESCAPE_FLOORS {
                 break;
             }
-            for (b, kind) in grid.links(a) {
-                if grid.plans(a, b, kind) && seen.insert(b) {
+            for (b, _) in grid.links(a) {
+                if grid.plans(a, b) && seen.insert(b) {
                     queue.push_back((b, d + grid.position(b).distance_xz(at)));
                 }
             }
@@ -936,8 +936,8 @@ impl Tactics {
             std::collections::HashMap::new();
         let mut queue = std::collections::VecDeque::new();
         for a in (0..grid.len() as NodeId).filter(|&a| marked(a)) {
-            for (b, kind) in grid.links(a) {
-                if !grid.plans(a, b, kind) {
+            for (b, _) in grid.links(a) {
+                if !grid.plans(a, b) {
                     continue;
                 }
                 if !marked(b) {
@@ -1260,8 +1260,8 @@ fn walkable_from_spawns(world: &World) -> Vec<u64> {
         return vec![u64::MAX; grid.len().div_ceil(64)];
     }
     while let Some(a) = queue.pop() {
-        for (b, kind) in grid.links(a) {
-            if grid.plans(a, b, kind) {
+        for (b, _) in grid.links(a) {
+            if grid.plans(a, b) {
                 mark(&mut bits, b, &mut queue);
             }
         }

@@ -349,6 +349,7 @@ fn the_grid_table() {
         ]
         .join("\t"),
     ];
+    let mut shut_planned = Vec::new();
     let mut objective_lines = vec!["project\tkind\tx\ty\tz\twhy".to_owned()];
     let mut pocket_lines = vec!["project\tx\ty\tz\tfloors\texit".to_owned()];
     for project in &projects {
@@ -361,6 +362,9 @@ fn the_grid_table() {
             .grid
             .clone();
         let row = table_row(&map, &grid);
+        if row.shut_planned > 0 {
+            shut_planned.push(project.clone());
+        }
         for (kind, at, why) in &row.objective_list {
             let line = format!(
                 "{project}\t{kind}\t{:.2}\t{:.2}\t{:.2}\t{why}",
@@ -415,4 +419,6 @@ fn the_grid_table() {
     if let Some(out) = std::env::var_os("SRP_GRID_POCKETS_OUT") {
         std::fs::write(out, pocket_lines.join("\n") + "\n").unwrap();
     }
+    // No way is planned into a pocket with no way out.
+    assert!(shut_planned.is_empty(), "planned into a shut pocket: {shut_planned:?}");
 }

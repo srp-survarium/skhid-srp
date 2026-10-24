@@ -128,7 +128,7 @@ impl Regions {
             let ra = of[a as usize];
             for (b, kind) in grid.links(a) {
                 let rb = of[b as usize];
-                if ra != rb && grid.plans(a, b, kind) {
+                if ra != rb && grid.plans(a, b) {
                     pairs.push((ra, rb, kind as u8));
                 }
             }
