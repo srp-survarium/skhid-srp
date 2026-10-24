@@ -324,8 +324,12 @@ pub struct CombatTuning {
     pub range_by_weapon: bool,
     /// The players' range by weapon class, metres: no bot holds its fire
     /// nearer than the best players shoot. MEASURED: the 95th percentile
-    /// of the fire distances of the 2 best players of each match with 12
-    /// or more people (the notes' section above).
+    /// of the distance of every trigger run of the 2 best players (by
+    /// kills, then K/D) of each of the 402 players' matches with 12 or
+    /// more people, to the enemy nearest their aim (within 5°)
+    /// (`player_bots_weapons.md`, "Bots: the fire range by weapon"). The
+    /// machine guns (17 runs) and the pistols (48) are too few for one:
+    /// none ([`NO_FLOOR_M`], the ceiling).
     pub range_floor_rifle_m: f32,
     pub range_floor_smg_m: f32,
     pub range_floor_shotgun_m: f32,
@@ -764,13 +768,13 @@ impl Default for CombatTuning {
             aim_carry_ms: LOST_MS,
             reacquire_keep: false,
             range_by_weapon: false,
-            range_floor_rifle_m: 67.0,
-            range_floor_smg_m: 61.0,
-            range_floor_shotgun_m: 45.0,
-            range_floor_pistol_m: 48.0,
-            range_floor_mg_m: 70.0,
-            range_floor_marksman_m: 89.0,
-            range_floor_bolt_m: 104.0,
+            range_floor_rifle_m: 90.0,
+            range_floor_smg_m: 90.0,
+            range_floor_shotgun_m: 91.0,
+            range_floor_pistol_m: NO_FLOOR_M,
+            range_floor_mg_m: NO_FLOOR_M,
+            range_floor_marksman_m: 84.0,
+            range_floor_bolt_m: 105.0,
             body_half_m: 0.25,
             fire_body_share: 0.0,
             fire_within_min_deg: 0.5,
@@ -861,6 +865,10 @@ impl CombatTuning {
         }
     }
 }
+
+/// [PR C] A class with no players' range ([`CombatTuning::range_floor_m`]):
+/// past every ceiling, so the ceiling holds.
+pub const NO_FLOOR_M: f32 = 1_000.0;
 
 /// Play 11: the distance band to an enemy, metres, by the bot's weapon
 /// (`own`) and his (`enemy`): its own weapon's band, then an enemy shotgun
@@ -3707,14 +3715,20 @@ mod tests {
             ..CombatTuning::default()
         };
         let gun = |item| guns::gun(item).unwrap();
-        assert_eq!(off.fire_range_m(gun("vityaz"), 80.0), 80.0);
-        assert_eq!(on.fire_range_m(gun("vityaz"), 80.0), on.range_floor_smg_m);
-        assert_eq!(on.fire_range_m(gun("ak_74u"), 80.0), on.range_floor_rifle_m);
-        assert_eq!(on.fire_range_m(gun("mp_153"), 80.0), on.range_floor_shotgun_m);
+        assert_eq!(off.fire_range_m(gun("mosin_nagant"), 120.0), 120.0);
+        // The players fire a bolt action to 105 m.
         assert_eq!(on.fire_range_m(gun("mosin_nagant"), 120.0), on.range_floor_bolt_m);
-        // Never past the ceiling.
-        assert_eq!(on.fire_range_m(gun("vss"), 80.0), 80.0);
-        assert_eq!(on.fire_range_m(gun("vityaz"), 50.0), 50.0);
+        // Past today's ceiling for the rest, or no floor (the pistols).
+        for item in ["vityaz", "ak_74u", "mp_153", "vss", "tt_33"] {
+            assert_eq!(on.fire_range_m(gun(item), 80.0), 80.0, "{item}");
+        }
+        // A floor under the ceiling shortens it.
+        let short = CombatTuning {
+            range_floor_smg_m: 50.0,
+            ..on
+        };
+        assert_eq!(short.fire_range_m(gun("vityaz"), 80.0), 50.0);
+        assert_eq!(short.fire_range_m(gun("ak_74u"), 80.0), 80.0);
     }
 
     /// [PR B] With `aim_carry`, the aim stays pressed while the target is
