@@ -46,9 +46,11 @@ package survarium.rooms
         // The game's bold Calibri (the font of these lists) has U+2026.
         public static const DOTS:String = "…";
         // The render a level is drawn with: the v0.21 ports with the map they
-        // are an older look of, the v0.11 ones with their one loading image.
+        // are an older look of, the v0.11 ones and the STALKER maps with their one loading image.
         private static const RENDER_LEVEL:Object = {"10": 3, "11": 6};
-        private static const RENDER_ONE:Object = {"12": "Level_v011e", "13": "Level_v011e"};
+        private static const RENDER_ONE:Object = {"12": "Level_v011e", "13": "Level_v011e",
+            "14": "Level_cs_mp_bath", "15": "Level_cs_mp_military_1", "16": "Level_cs_training_camp",
+            "17": "Level_cs_mp_rembasa", "18": "Level_soc_ug_station", "19": "Level_soc_ug_depository"};
         private static const RENDER:Object = {"1": "day", "2": "rain", "3": "evn", "4": "night", "5": "prerain"};
         private static var _renders:Object = {};
 

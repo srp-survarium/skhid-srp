@@ -211,7 +211,14 @@ package survarium.rooms
             ["Chemical Plant (v0.11)", "Хімзавод (v0.11)", "Химзавод (v0.11)", "Chemiebetrieb (v0.11)",
                 "Zakłady chemiczne (v0.11)"],
             ["Vostok Radar Station (v0.11)", "РЛС \"Восток\" (v0.11)", "РЛС \"Восток\" (v0.11)", "RS Vostok (v0.11)",
-                "Stacja Radarowa \"Vostok\" (v0.11)"]
+                "Stacja Radarowa \"Vostok\" (v0.11)"],
+            // The STALKER maps (levels 14-19).
+            ["Experimental Pool", "Басейн", "Бассейн", "Versuchsbecken", "Basen"],
+            ["Military Warehouses", "Армійські склади", "Армейские склады", "Militärlager", "Magazyny wojskowe"],
+            ["Training Camp", "Тренувальний табір", "Тренировочный лагерь", "Trainingslager", "Obóz szkoleniowy"],
+            ["Repair Depot", "Ремонтна база", "Ремонтная база", "Reparaturdepot", "Baza remontowa"],
+            ["Station", "Станція", "Станция", "Station", "Stacja"],
+            ["Depository", "Сховище", "Хранилище", "Depot", "Magazyn"]
         ];
         private static const MODES:Object = {
             "2": ["Protective device", "Захисний пристрій", "Защитное устройство", "Schutzeinrichtung", "Urządzenie ochronne"],

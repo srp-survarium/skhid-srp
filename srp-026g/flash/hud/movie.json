@@ -4,5 +4,13 @@
   "archive": "resources.db.patch_22",
   "archive_offset": 1091584,
   "movie_size": 7713475,
-  "movie_sha256": "b924b29db06070dfe7d89827a3cf3bc71f14ae4cbca9a2546d95ac977951ec80"
+  "movie_sha256": "b924b29db06070dfe7d89827a3cf3bc71f14ae4cbca9a2546d95ac977951ec80",
+  "images": {
+    "minimap_cs_mp_bath": "images/minimap_cs_mp_bath",
+    "minimap_cs_mp_military_1": "images/minimap_cs_mp_military_1",
+    "minimap_cs_mp_rembasa": "images/minimap_cs_mp_rembasa",
+    "minimap_cs_training_camp": "images/minimap_cs_training_camp",
+    "minimap_soc_ug_depository": "images/minimap_soc_ug_depository",
+    "minimap_soc_ug_station": "images/minimap_soc_ug_station"
+  }
 }

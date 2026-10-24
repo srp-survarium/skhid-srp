@@ -73,7 +73,13 @@ package survarium.controls
          "level_08":new Map_08(),
          "level_09":new Map_09(),
          "v011e_level_04":new minimap_zv11e(),
-         "v011e_level_03":new minimap_bv11()
+         "v011e_level_03":new minimap_bv11(),
+         "cs_mp_bath":new minimap_cs_mp_bath(),
+         "cs_mp_military_1":new minimap_cs_mp_military_1(),
+         "cs_training_camp":new minimap_cs_training_camp(),
+         "cs_mp_rembasa":new minimap_cs_mp_rembasa(),
+         "soc_ug_station":new minimap_soc_ug_station(),
+         "soc_ug_depository":new minimap_soc_ug_depository()
       };
       
       protected var _objects:Dictionary = new Dictionary(true);
@@ -146,6 +152,38 @@ package survarium.controls
             "size":100,
             "posX":14.23,
             "posY":-42.196
+         };
+         // The STALKER maps (srp-026g/scripts/stalker-maps/ui_images.py; the frame of
+         // resource-porter's render_minimap.py, docs/notes/stalker-maps.md).
+         this._minimapProps.cs_mp_bath = {
+            "size":73.143,
+            "posX":-7.02,
+            "posY":15.03
+         };
+         this._minimapProps.cs_mp_military_1 = {
+            "size":141.527,
+            "posX":-5.845,
+            "posY":12.13
+         };
+         this._minimapProps.cs_training_camp = {
+            "size":101.818,
+            "posX":17.81,
+            "posY":4.03
+         };
+         this._minimapProps.cs_mp_rembasa = {
+            "size":89.164,
+            "posX":2.285,
+            "posY":-7.7
+         };
+         this._minimapProps.soc_ug_station = {
+            "size":139.055,
+            "posX":170.25,
+            "posY":-53.8
+         };
+         this._minimapProps.soc_ug_depository = {
+            "size":73.143,
+            "posX":30.285,
+            "posY":6.97
          };
          this._minimapProps.level_05 = {
             "size":90,

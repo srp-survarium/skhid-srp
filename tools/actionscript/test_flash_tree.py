@@ -101,6 +101,24 @@ class MovieTests(unittest.TestCase):
             flash_tree.check(flash_tree.assemble(original, [do_abc('x', 'A', 'pkg.B'), do_abc('y', 'A')]))
 
 
+    def test_images_are_defined_before_the_code_and_bound_after_it(self):
+        original = movie([(2, tag(2, struct.pack('<H', 7) + b'shape')), do_abc('old', 'A')])
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'images').mkdir()
+            Path(tmp, 'images', 'map.jpg').write_bytes(b'\xff\xd8jpeg\xff\xd9')
+            Path(tmp, 'images', 'map.alpha').write_bytes(b'zlib-alpha')
+            built = flash_tree.assemble(original, [do_abc('x', 'A', 'MapBitmap')], {'MapBitmap': 'images/map'}, Path(tmp))
+        _, tags = swf.split(built)
+        kinds = [kind for kind, _ in tags]
+        self.assertEqual(kinds, [2, swf.DEFINE_BITS_JPEG3, swf.DO_ABC, swf.SYMBOL_CLASS, 0])
+        self.assertEqual(swf.symbol_classes(tags), [(8, 'MapBitmap')])
+        body = swf.payload(tags[1][1])
+        self.assertEqual(struct.unpack_from('<HI', body), (8, 8))
+        self.assertEqual(body[6:14], b'\xff\xd8jpeg\xff\xd9')
+        self.assertEqual(body[14:], b'zlib-alpha')
+        self.assertEqual(flash_tree.check(built), 2)
+
+
 class TreeTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

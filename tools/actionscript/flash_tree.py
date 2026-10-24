@@ -10,7 +10,11 @@
 
 A tree is the movie's complete ActionScript; movie.json names the original
 movie, whose graphics, fonts, sounds and symbol bindings (everything but the
-code) the build keeps. The build is one `compc` run of Apache Flex 4.16.1
+code) the build keeps. movie.json's optional "images" adds bitmaps the
+original lacks: {"<class>": "images/<name>"}, each a DefineBitsJPEG3 of
+images/<name>.jpg (colour) and images/<name>.alpha (its 8-bit alpha, one byte
+a pixel, zlib) bound to its class, a BitmapData subclass of the tree (a new
+map's minimap or loading picture). The build is one `compc` run of Apache Flex 4.16.1
 over src/ (strict, optimized, no debug information, the original's SWF
 version), against the Flash Player API (playerglobal.swc) only: every class
 the movie uses is in the tree.
@@ -84,11 +88,26 @@ def compile_tree(source, tools, version, work):
     return [(kind, raw) for kind, raw in tags if kind == swf.DO_ABC and swf.do_abc(raw)[1] not in roots]
 
 
-def assemble(original_data, code):
-    """The original movie with `code` (DoABC tags) in place of all of its code, where its code began."""
+def image_tags(images, movie_dir, used):
+    """DefineBitsJPEG3 tags for `images` ({class: png file}) and the SymbolClass
+    binding them, with character ids above every id the movie uses."""
+    defines, pairs, cid = [], [], max(used | {0})
+    for name, stem in sorted(images.items()):
+        jpeg = (movie_dir / (stem + '.jpg')).read_bytes()
+        alpha = (movie_dir / (stem + '.alpha')).read_bytes()
+        cid += 1
+        defines.append((swf.DEFINE_BITS_JPEG3, swf.define_bits_jpeg3(cid, jpeg, alpha)))
+        pairs.append((cid, name))
+    return defines, ([(swf.SYMBOL_CLASS, swf.symbol_class(pairs))] if pairs else [])
+
+
+def assemble(original_data, code, images=None, movie_dir=None):
+    """The original movie with `code` (DoABC tags) in place of all of its code, where its code began;
+    the tree's own images defined before it and bound after it."""
     header, tags = swf.split(original_data)
     first = next(i for i, (kind, _) in enumerate(tags) if kind in (swf.DO_ABC, swf.DO_ABC_OLD))
-    kept = tags[:first] + code + [t for t in tags[first:] if t[0] not in (swf.DO_ABC, swf.DO_ABC_OLD)]
+    defines, binding = image_tags(images, movie_dir, swf.character_ids(tags)) if images else ([], [])
+    kept = tags[:first] + defines + code + binding + [t for t in tags[first:] if t[0] not in (swf.DO_ABC, swf.DO_ABC_OLD)]
     return swf.compressed(swf.join(header, kept), original_data)
 
 
@@ -129,7 +148,7 @@ def build(movie_dir, original_swf, tools, report=print):
             code = compile_tree(place / 'src', tools, swf.uncompressed(data)[3], Path(work))
         finally:
             shutil.rmtree(place / 'src')
-    movie = assemble(data, code)
+    movie = assemble(data, code, spec.get('images'), movie_dir)
     report(f'{movie_dir.name}: {check(movie)} classes in {len(code)} ABC blocks over the original\'s graphics')
     return movie
 

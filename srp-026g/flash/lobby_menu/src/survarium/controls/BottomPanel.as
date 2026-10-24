@@ -447,7 +447,13 @@ package survarium.controls
             "10":["Vostok Radar Station (v0.21)","РЛС \"Восток\" (v0.21)","РЛС \"Восток\" (v0.21)","RS Vostok (v0.21)","Stacja Radarowa \"Vostok\" (v0.21)"],
             "11":["Mamayev Kurgan (v0.21)","Мамаїв курган (v0.21)","Мамаев курган (v0.21)","Mamaew kurgan (v0.21)","Kurhan Mamaja (v0.21)"],
             "12":["Chemical Plant (v0.11)","Хімзавод (v0.11)","Химзавод (v0.11)","Chemiebetrieb (v0.11)","Zakłady chemiczne (v0.11)"],
-            "13":["Vostok Radar Station (v0.11)","РЛС \"Восток\" (v0.11)","РЛС \"Восток\" (v0.11)","RS Vostok (v0.11)","Stacja Radarowa \"Vostok\" (v0.11)"]
+            "13":["Vostok Radar Station (v0.11)","РЛС \"Восток\" (v0.11)","РЛС \"Восток\" (v0.11)","RS Vostok (v0.11)","Stacja Radarowa \"Vostok\" (v0.11)"],
+            "14":["Experimental Pool","Басейн","Бассейн","Versuchsbecken","Basen"],
+            "15":["Military Warehouses","Армійські склади","Армейские склады","Militärlager","Magazyny wojskowe"],
+            "16":["Training Camp","Тренувальний табір","Тренировочный лагерь","Trainingslager","Obóz szkoleniowy"],
+            "17":["Repair Depot","Ремонтна база","Ремонтная база","Reparaturdepot","Baza remontowa"],
+            "18":["Station","Станція","Станция","Station","Stacja"],
+            "19":["Depository","Сховище","Хранилище","Depot","Magazyn"]
          };
          var modes:Object = {
             "2":["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne"],

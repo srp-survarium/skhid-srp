@@ -3,6 +3,9 @@ import struct
 import zlib
 
 DO_ABC, DO_ABC_OLD, SYMBOL_CLASS, END = 82, 72, 76, 0
+DEFINE_BITS_JPEG3 = 35
+# Tags whose body starts with the character id they define.
+DEFINES = {2, 6, 10, 11, 20, 21, 22, 32, 33, 34, 35, 36, 37, 39, 46, 48, 60, 62, 75, 83, 84, 87, 90, 91}
 
 
 def uncompressed(data):
@@ -224,3 +227,19 @@ def abc_definitions(data):
     if r.pos != len(data):
         raise ValueError('Bytes after the ABC block')
     return classes, scripts
+
+
+def character_ids(tags):
+    """Every character id the movie's define tags use."""
+    return {struct.unpack_from('<H', payload(raw))[0] for kind, raw in tags if kind in DEFINES}
+
+
+def define_bits_jpeg3(cid, jpeg, alpha_zlib):
+    """A DefineBitsJPEG3 tag: a JPEG and its 8-bit alpha (one byte a pixel, zlib-compressed)."""
+    return tag(DEFINE_BITS_JPEG3, struct.pack('<HI', cid, len(jpeg)) + jpeg + alpha_zlib)
+
+
+def symbol_class(pairs):
+    """A SymbolClass tag binding (character id, class name) pairs."""
+    body = struct.pack('<H', len(pairs)) + b''.join(struct.pack('<H', cid) + name.encode('utf-8') + b'\0' for cid, name in pairs)
+    return tag(SYMBOL_CLASS, body)
