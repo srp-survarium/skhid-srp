@@ -200,12 +200,32 @@ pub struct CombatTuning {
     /// The key held this long once the view is on the throw, ms (drawn).
     pub grenade_hold_ms: (u32, u32),
     pub grenade_within_deg: f32,
-    /// Not with a teammate this near the place, metres.
+    /// Not with a teammate this near the place, metres. GUESS: the RGD-5's
+    /// blast (`splash_radius` 10 m, damage 1.3 to 0.05 of a body's health
+    /// from its middle to its edge) falls under half a body's health at
+    /// 6.4 m if it falls evenly.
     pub grenade_friend_m: f32,
+    /// [play 20] The teammates are checked against the blast at the press
+    /// and every tick of the hold too, where their walk takes them
+    /// (`grenade_lead_s`), not only at the decision where they stand; a
+    /// teammate in it then: the throw given up, or the key let go before
+    /// the throw starts (the client throws only once its weapon reaches the
+    /// throw state, 0x2D8E05: `player_bots.md`). Match 0x60aeff4f: 2 of the
+    /// 5 team kills were grenades.
+    pub grenade_recheck: bool,
+    /// How far ahead a teammate's velocity is followed, s. GUESS: past
+    /// 1.5 s a walk is not a prediction (the blast is ~4.5 s after the
+    /// press).
+    pub grenade_lead_s: f32,
     /// The view not on the throw by this, ms: given up.
     pub grenade_give_up_ms: u32,
     /// After a throw, the legs go at the place from/until this, ms.
     pub grenade_push_ms: (u32, u32),
+    /// The legs' push after a throw counts from the blast (the grenade's
+    /// `ttl_ms` after the let-go), not from the let-go: the RGD-5 goes off
+    /// 4 s after the throw (`rgd-5.options`), and a push from 1.5 s walked
+    /// the thrower to within 3 m of it before it did.
+    pub grenade_push_after_blast: bool,
     /// An enemy seen crouched, aiming and slower than this (m/s) holds an
     /// angle; remembered this long, ms.
     pub held_speed: f32,
@@ -675,8 +695,11 @@ impl Default for CombatTuning {
             grenade_hold_ms: (500, 800),
             grenade_within_deg: 6.0,
             grenade_friend_m: 6.0,
+            grenade_recheck: true,
+            grenade_lead_s: 1.5,
             grenade_give_up_ms: 1_500,
             grenade_push_ms: (1_500, 3_500),
+            grenade_push_after_blast: true,
             held_speed: 0.3,
             held_memory_ms: 5_000,
             camp_ms: 8_000,
@@ -915,6 +938,38 @@ enum Cover {
     },
 }
 
+/// [play 20] The bots' grenade's fuse (`loadouts::BOT_GRENADE`'s
+/// `ttl_ms`, from the throw to the blast), ms; none without its config,
+/// and then no throw.
+fn grenade_fuse_ms() -> Option<u32> {
+    survarium::v026g::weapons::grenade_named(survarium::v026g::loadouts::BOT_GRENADE.name)
+        .map(|g| g.ttl_ms)
+}
+
+/// [play 20] A teammate of `me` within `grenade_friend_m` of `at`, now or
+/// on his way there: along his velocity for `grenade_lead_s`.
+fn friend_in_blast(me: &PlaceView, view: &MatchView, at: Vec3, c: &CombatTuning) -> Option<Place> {
+    view.team(me.team)
+        .filter(|p| p.place != me.place)
+        .find(|p| {
+            let walk = Vec3::new(p.velocity[0], 0.0, p.velocity[1]) * c.grenade_lead_s;
+            nearest_xz(p.feet, p.feet + walk, at) < c.grenade_friend_m
+        })
+        .map(|p| p.place)
+}
+
+/// The ground distance from `at` to the segment `a`-`b`.
+fn nearest_xz(a: Vec3, b: Vec3, at: Vec3) -> f32 {
+    let (dx, dz) = (b.x - a.x, b.z - a.z);
+    let length = dx * dx + dz * dz;
+    let s = if length > 0.0 {
+        (((at.x - a.x) * dx + (at.z - a.z) * dz) / length).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    Vec3::new(a.x + s * dx, at.y, a.z + s * dz).distance_xz(at)
+}
+
 /// A grenade being thrown (play 20).
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Throw {
@@ -1006,6 +1061,9 @@ pub struct Reflex {
     throw: Option<Throw>,
     thrown: u8,
     next_grenade_roll: u32,
+    /// [play 20] Throws made and given up since the last think, for the
+    /// bot's notes ([`Reflex::take_throw_notes`]).
+    throw_notes: Vec<String>,
     /// Enemies seen holding an angle: who, where, when.
     held: Vec<(Place, Vec3, u32)>,
     camps: Vec<Camp>,
@@ -1294,6 +1352,13 @@ impl Reflex {
     /// [`FRIEND_NOTE_ROOM_M`] of blocking it.
     pub fn take_friend_note(&mut self) -> Option<serde_json::Value> {
         self.friend_note.take()
+    }
+
+    /// [play 20] The throws let go since the last call ("throws a grenade
+    /// at (x, y, z), blast at <ms>") and those given up for a teammate in
+    /// the blast ("holds a grenade back at (x, y, z): teammate <place>").
+    pub fn take_throw_notes(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.throw_notes)
     }
 
     /// Grenades thrown this life.
@@ -2149,6 +2214,9 @@ impl Reflex {
             .filter(|camp| camp.last >= camp.since + c.camp_ms)
             .map(|camp| camp.at);
         let friend_near = |at: Vec3| {
+            if c.grenade_recheck {
+                return friend_in_blast(me, view, at, c).is_some();
+            }
             view.team(me.team)
                 .any(|p| p.place != me.place && p.feet.distance_xz(at) < c.grenade_friend_m)
         };
@@ -2403,7 +2471,23 @@ impl Reflex {
             let point = throw.at + Vec3::new(0.0, 1.0 + 0.12 * d, 0.0);
             let error = (floor * (rng.unit() - 0.5), floor * 0.5 * (rng.unit() - 0.5));
             let mut keys = 0;
+            // A teammate in the blast, or about to walk into it: no press,
+            // or the key let go before the throw starts.
+            let friend = c
+                .grenade_recheck
+                .then(|| friend_in_blast(me, view, throw.at, c))
+                .flatten();
+            let fuse = grenade_fuse_ms();
             match throw.pressed {
+                _ if friend.is_some() || fuse.is_none() => {
+                    self.throw = None;
+                    if let Some(mate) = friend {
+                        self.throw_notes.push(format!(
+                            "holds a grenade back at ({:.1}, {:.1}, {:.1}): teammate {mate}",
+                            throw.at.x, throw.at.y, throw.at.z
+                        ));
+                    }
+                }
                 None if off_by(me, point, error) <= c.grenade_within_deg.to_radians() => {
                     throw.pressed = Some(now);
                     keys = key::GRENADE;
@@ -2416,12 +2500,22 @@ impl Reflex {
                     // Let go: thrown. Then in, after it goes off.
                     self.throw = None;
                     self.thrown += 1;
+                    let blast = now + fuse.unwrap_or(0);
+                    let from = if c.grenade_push_after_blast {
+                        blast
+                    } else {
+                        now + c.grenade_push_ms.0
+                    };
                     self.push = Some(Push {
                         toward: throw.at,
-                        from: now + c.grenade_push_ms.0,
-                        until: now + c.grenade_push_ms.1,
+                        from,
+                        until: from + c.grenade_push_ms.1.saturating_sub(c.grenade_push_ms.0),
                         why: LegsWhy::AfterGrenade,
                     });
+                    self.throw_notes.push(format!(
+                        "throws a grenade at ({:.1}, {:.1}, {:.1}), blast at {blast}",
+                        throw.at.x, throw.at.y, throw.at.z
+                    ));
                 }
             }
             return Override {
@@ -4260,6 +4354,106 @@ mod tests {
             &mut rng,
         );
         assert_eq!(reflex.grenades_thrown(), 0);
+    }
+
+    /// Match 0x60aeff4f: 2 of the 5 team kills were the bots' own
+    /// grenades. A teammate who walks at the place once the key is down
+    /// (clear of it at the decision) has the key let go and the throw given
+    /// up; with the re-check off the grenade goes. A throw let go sends the
+    /// legs in only once it has gone off (the RGD-5's `ttl_ms`).
+    #[test]
+    fn a_grenade_is_held_back_from_a_teammate_walking_into_its_blast() {
+        let camper_at = Vec3::new(0.0, 0.0, 18.0);
+        let mut camper = body(1, 1, camper_at, 0.0);
+        camper.keys = key::CROUCH | key::AIM;
+        let fuse = grenade_fuse_ms().expect("the RGD-5's config");
+        assert_eq!(fuse, 4_000);
+        // (walks in, recheck) -> (throws, held back, the legs' push from)
+        let run = |walks_in: bool, recheck: bool| {
+            let mut me = body(0, 0, Vec3::ZERO, 0.0);
+            let aim = AimTuning {
+                combat: CombatTuning {
+                    grenade_chance: 1.0,
+                    grenade_roll_ms: 500,
+                    grenade_recheck: recheck,
+                    ..CombatTuning::default()
+                },
+                ..AimTuning::default()
+            };
+            // A teammate standing 11 m from the place, beside it.
+            let still = body(3, 0, Vec3::new(11.0, 0.0, 18.0), 0.0);
+            // ... then 9 m off, walking at it at 3 m/s.
+            let mut walking = body(3, 0, Vec3::new(9.0, 0.0, 18.0), 0.0);
+            walking.velocity = [-3.0, 0.0];
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(10);
+            let mut mate = still.clone();
+            let view = |me: &PlaceView, mate: &PlaceView| {
+                view_of(vec![me.clone(), camper.clone(), mate.clone()])
+            };
+            for now in [1_000, 1_300] {
+                sense(
+                    &mut memory,
+                    &[percept(1, camper_at, now, Source::Seen)],
+                    now,
+                );
+                reflex.think_with(
+                    &me,
+                    &Situation::of(&view(&me, &mate)),
+                    &memory,
+                    now,
+                    &aim,
+                    0.5,
+                    &mut rng,
+                );
+            }
+            let (mut throws, mut held_back, mut pushed) = (Vec::new(), 0, None);
+            let mut now = 1_800;
+            while now < 14_000 {
+                sense(&mut memory, &[], now);
+                let view = view(&me, &mate);
+                if now % 250 == 0 {
+                    reflex.think_with(&me, &Situation::of(&view), &memory, now, &aim, 0.5, &mut rng);
+                }
+                let before = reflex.grenades_thrown();
+                let o = reflex.tick(&me, &view, &memory, now, true, &aim, 0.5, &mut rng);
+                if let Some(look) = o.look_at.filter(|_| o.keys & key::GRENADE != 0) {
+                    facing(&mut me, look);
+                    if walks_in {
+                        mate = walking.clone();
+                    }
+                } else if let Some(look) = o.look_at.filter(|_| o.error != (0.0, 0.0)) {
+                    facing(&mut me, look);
+                }
+                if reflex.grenades_thrown() > before {
+                    throws.push(now);
+                }
+                if pushed.is_none()
+                    && o.legs.is_some_and(|l| l.why == LegsWhy::AfterGrenade)
+                {
+                    pushed = Some(now);
+                }
+                held_back += reflex
+                    .take_throw_notes()
+                    .iter()
+                    .filter(|n| n.starts_with("holds a grenade back") && n.ends_with("teammate 3"))
+                    .count();
+                now += 50;
+            }
+            (throws, held_back, pushed)
+        };
+        let (throws, held_back, _) = run(true, true);
+        assert!(throws.is_empty(), "{throws:?}");
+        assert!(held_back >= 1);
+        let (throws, held_back, _) = run(true, false);
+        assert_eq!(throws.len(), 2, "{throws:?}");
+        assert_eq!(held_back, 0);
+        // Nobody near: thrown, and in only after the blast.
+        let (throws, held_back, pushed) = run(false, true);
+        assert_eq!((throws.len(), held_back), (2, 0), "{throws:?}");
+        let pushed = pushed.expect("the legs go in after the throw");
+        assert!(pushed >= throws[0] + fuse, "{pushed} after a throw at {}", throws[0]);
     }
 
     #[test]
