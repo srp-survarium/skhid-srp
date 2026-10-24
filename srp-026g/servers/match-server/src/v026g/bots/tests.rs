@@ -26,10 +26,11 @@
 //! The stand-in is much simpler than the game (no spread, no side kick, no
 //! armour, no stamina, a jump only up to the client's height
 //! ([`STAND_IN_AIR_MS`], [`stand_in_jump`]), none with a broken leg, a
-//! hit's stagger as one slow ([`STAND_IN_LEG_SHARE`], [`STAND_IN_STAGGER`]); the rounds are not counted, the bots count
-//! their own): the runs check that bots of two teams find each
-//! other, fight, die, come back, take and bring batteries and end a
-//! match, with no input out of the rules; not how well.
+//! hit's stagger as one slow ([`STAND_IN_LEG_SHARE`], [`STAND_IN_STAGGER`]);
+//! the rounds are not counted, the bots count their own): the runs check
+//! that bots of two teams find each other, fight, die, come back, take
+//! and bring batteries and end a match, with no input out of the rules;
+//! not how well.
 //! `SRP_BOT_NOTES=1` prints what each bot did.
 
 use std::collections::VecDeque;
@@ -651,7 +652,8 @@ impl Game {
                 queue.pop_front();
                 let body = &mut self.bodies[place];
                 pressed[place] = keys & !body.keys;
-                if pressed[place] & key::JUMP != 0 && body.legs.iter().all(|&pool| pool > 0.0) {
+                let legs_whole = body.legs.iter().all(|&pool| pool > 0.0);
+                if pressed[place] & key::JUMP != 0 && legs_whole {
                     body.air_until = tick + STAND_IN_AIR_MS;
                 }
                 body.keys = keys;
