@@ -1739,14 +1739,15 @@ fn a_player_against_the_servers_bots_plays_a_match_to_the_results() {
         reserved_rows(games[0], PVB_STATUS_START).is_some()
     });
     let rows = reserved_rows(&solo, PVB_STATUS_START).unwrap();
-    // The starter kit's level (`tutorial`; 3 on the test data, which has
-    // no SOK-94): within the bots' 5.
+    // The starter kits' highest level (`tutorial`; 4, the third's MP-153,
+    // on the test data, which has no SOK-94): within the bots' 5.
     let gear = {
         let account = stack.accounts.get(account_id(&stack, "E2ePvb")).unwrap();
         let account = account.locked();
-        session::v026g::matchmaking::kit_level(&account, &account.kits[0])
+        let level = |kit| session::v026g::matchmaking::kit_level(&account, kit);
+        account.kits.iter().map(level).max().unwrap()
     };
-    assert_eq!(gear, 3);
+    assert_eq!(gear, 4);
     assert_eq!(rows[0].0, format!("B1;0;{gear};5;6.8.10;8;61;0;5"));
     assert_eq!(rows.len(), 17);
     assert!(rows.iter().any(|row| row.0 == "117;1;4;5"), "{rows:?}");
