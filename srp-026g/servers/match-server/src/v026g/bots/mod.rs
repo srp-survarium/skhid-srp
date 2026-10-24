@@ -1559,6 +1559,16 @@ impl Bots {
             })
             .collect();
         self.teams[usize::from(team)].knowledge.searching = searching;
+        // What the team knows of each enemy human, for the match (CG-12).
+        let tracks = self
+            .bots
+            .iter()
+            .flatten()
+            .filter(|b| b.team == team)
+            .flat_map(|b| b.memory.tracks());
+        self.teams[usize::from(team)]
+            .knowledge
+            .learn_humans(team, view, tracks, now);
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
         let mut blocks = Vec::new();
