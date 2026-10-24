@@ -298,6 +298,8 @@ pub struct CombatTuning {
     /// aim-in started again. PR A's gate tally: the aim-in under way was
     /// the first gate of a quarter of the on-view ticks with no shot.
     /// GUESS: `aim_carry_ms` the measure's "lost a moment" ([`LOST_MS`]).
+    /// On: one-sided on the bench (team 1 alone, 16 seeds, batt and tdm,
+    /// tiers 4-5 to 13-15) its K/D went up 0.18-0.29 in every cell.
     pub aim_carry: bool,
     pub aim_carry_ms: u32,
     /// Fire-gates PR B: a target taken again within `aim_carry_ms` of
@@ -306,7 +308,9 @@ pub struct CombatTuning {
     /// taken as a fresh one (the error three times the skill's again, a
     /// new reaction). PR A's measure: the reaction again and the aim-in
     /// again at a target lost a moment held 1.5 % and 16 % of the on-view
-    /// ticks with no shot.
+    /// ticks with no shot. Off: one-sided on the bench its K/D moved
+    /// 0.02-0.04, within the noise, and it is the one exception to the
+    /// noticing wait ([`Memory::in_sight`]).
     pub reacquire_keep: bool,
     pub body_half_m: f32,
     /// Audit issue 8: fire only once the view is within `fire_body_share`
@@ -735,7 +739,7 @@ impl Default for CombatTuning {
             aim_in_first: true,
             aim_in_margin_ms: 50,
             hip_cone_share: 0.58,
-            aim_carry: false,
+            aim_carry: true,
             aim_carry_ms: LOST_MS,
             reacquire_keep: false,
             body_half_m: 0.25,
