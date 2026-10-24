@@ -100,7 +100,9 @@ pub struct Track {
 }
 
 /// An enemy seen, and noticed: the only thing the motor may aim at. Made
-/// only by [`Memory::seen`].
+/// only by [`Memory::seen`], and by [`Memory::in_sight`] for its one use:
+/// the reflex taking back its own last target, lost a moment ago, before
+/// he is noticed again.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SeenTrack(Track);
 
@@ -207,6 +209,18 @@ impl Memory {
         let since = track.sight_since?;
         (track.source == Source::Seen && now >= since + track.notice_ms && track.time + 400 >= now)
             .then_some(SeenTrack(*track))
+    }
+
+    /// The enemy at `who` in sight now, noticed or not: [`Self::seen`]
+    /// without the noticing delay only, so still a live sight (seen,
+    /// `sight_since` set, sensed within 400 ms). Its one allowed use: the
+    /// reflex taking back its own last target, lost under
+    /// `CombatTuning::aim_carry_ms` ago (`CombatTuning::reacquire_keep`),
+    /// which noticed him already.
+    pub(super) fn in_sight(&self, who: Place, now: u32) -> Option<SeenTrack> {
+        let track = self.tracks.iter().find(|t| t.who == who)?;
+        track.sight_since?;
+        (track.source == Source::Seen && track.time + 400 >= now).then_some(SeenTrack(*track))
     }
 
     /// Every enemy seen now and noticed.
@@ -1013,6 +1027,25 @@ mod tests {
         // He no longer carries: the next place starts a new carry.
         team.carrier_at(3, at, 0.0, 22_000, |p| p != 1);
         assert_eq!(team.carrier_still(1, 22_000, 20_000, 3.0), None);
+    }
+
+    /// [`Memory::in_sight`] skips only the noticing delay: never a track
+    /// not seen, one only heard, or one out of sight over 400 ms.
+    #[test]
+    fn in_sight_is_a_live_sight_before_its_noticing() {
+        let mut memory = Memory::default();
+        assert!(memory.in_sight(3, 1_000).is_none(), "never seen");
+        memory.update(&[seen(3, 1_000)], 1_000, |_| 300, 3_000, 20_000);
+        assert!(memory.seen(3, 1_100).is_none());
+        assert_eq!(memory.in_sight(3, 1_100).map(|t| t.who()), Some(3));
+        let heard = Percept {
+            source: Source::Heard,
+            ..seen(4, 1_000)
+        };
+        memory.update(&[heard], 1_000, |_| 300, 3_000, 20_000);
+        assert!(memory.in_sight(4, 1_100).is_none(), "only heard");
+        memory.update(&[], 1_500, |_| 300, 3_000, 20_000);
+        assert!(memory.in_sight(3, 1_500).is_none(), "out of sight over 400 ms");
     }
 
     #[test]

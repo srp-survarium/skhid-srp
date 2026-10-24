@@ -456,7 +456,7 @@ fn gates() -> Vec<(u32, &'static str)> {
         all.push((bit, name));
         // The reflex's own gates are about its target: another enemy than
         // the one in view comes before them.
-        if bit == gate::NO_TARGET {
+        if bit == gate::LOST {
             all.push((0, OTHER));
         }
     }
@@ -468,16 +468,21 @@ impl GateTally {
     /// A tick on view of `enemy` with no shot, the bot's gates `gates` as of
     /// `now`.
     pub(super) fn tick(&mut self, gates: super::super::reflex::Gates, enemy: Place, now: u32) {
+        use super::super::reflex::gate;
         let names = gates_names();
         self.first.resize(names.len(), 0);
         self.every.resize(names.len(), 0);
         self.ticks += 1;
         let stale = now > gates.at + 2 * super::TICK_MS;
         let other = !stale && gates.target.is_some_and(|t| t != enemy);
+        // Lost a moment: only the enemy in view; another lost is none.
+        let lost = gates.bits & gate::LOST != 0;
         let failed = |bit: u32, name: &str| match name {
             STALE => stale,
-            OTHER => other,
+            OTHER => other && gates.bits & (gate::NO_TARGET | gate::LOST) == 0,
             NONE => !stale && !other && gates.bits == 0,
+            _ if bit == gate::LOST => !stale && lost && !other,
+            _ if bit == gate::NO_TARGET => !stale && (gates.bits & bit != 0 || (lost && other)),
             _ => !stale && gates.bits & bit != 0,
         };
         let mut first = true;
