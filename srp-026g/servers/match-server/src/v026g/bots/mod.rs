@@ -2193,6 +2193,23 @@ fn team_no_way(own: &[(Vec3, u32)], team: &[(Vec3, u32)]) -> Vec<(Vec3, u32)> {
 /// end of its nearest way out (`Tactics::escape`), kept
 /// [`stuck::ZONE_OUT_KEPT_MS`] so the route to it is not searched every
 /// tick.
+/// A goal asked within at most this across is a spot (a take or put-in
+/// stand, the reflex's step): it is reached only at its floor's height. A
+/// wider one (a hunt's 2 m, an escort's 3 m, an ambush's reach) is an area,
+/// and a body in it on a slope or another floor is there, metres. GUESS:
+/// over collect's widest stand (its reach × 0.6, 1.08 m) and the reflex's
+/// 1 m; under the hunt's 2 m. All goals at first: the tdm bench's pocket
+/// tries rose 2.3 to 2.5 SE (bots in a hunt's area walked on, into pits).
+const HEIGHT_GOAL_WITHIN_M: f32 = 1.2;
+
+/// A body within a spot's reach across but over its floor (an overhang, a
+/// box top, the top of a drop) or under it walks on: the motor's own rule
+/// for a route's end (`motor::arrived`). An area's goal never does.
+fn off_goal_height(within_m: f32, feet_y: f32, floor_y: f32) -> bool {
+    within_m <= HEIGHT_GOAL_WITHIN_M
+        && (feet_y - floor_y > motor::ARRIVE_ABOVE_M || floor_y - feet_y > motor::ARRIVE_BELOW_M)
+}
+
 fn zone_way_out(
     bot: &mut Bot,
     tactics: &Tactics,
@@ -2358,18 +2375,17 @@ fn drive_tick(
         intent.objective = false;
         intent.straight = false;
     }
-    // A goal within reach across is reached only at its floor's height
-    // (the motor's own rule, `motor::arrived`): a bot over it (an overhang,
-    // a box top, the top of a drop) or under it walks on. The floor is
-    // asked only once across says reached. Cologne CG-17.
+    // A close goal within reach across is reached only at its floor's
+    // height (`off_goal_height`). The floor is asked only once across says
+    // reached. Cologne CG-17.
     let goal = match intent.go {
         Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
-        Go::To { at, .. } => path::goal_floor(&tactics.world.grid, at)
-            .map(|node| tactics.world.grid.position(node).y)
-            .filter(|&y| {
-                me.feet.y - y > motor::ARRIVE_ABOVE_M || y - me.feet.y > motor::ARRIVE_BELOW_M
-            })
-            .map(|_| at),
+        Go::To { at, within_m } if within_m <= HEIGHT_GOAL_WITHIN_M => {
+            path::goal_floor(&tactics.world.grid, at)
+                .map(|node| tactics.world.grid.position(node).y)
+                .filter(|&y| off_goal_height(within_m, me.feet.y, y))
+                .map(|_| at)
+        }
         _ => None,
     };
     // [zones] With no goal to walk (holding a spot, standing at its goal,

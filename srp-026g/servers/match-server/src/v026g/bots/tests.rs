@@ -7487,4 +7487,17 @@ mod arrival_height {
         let mut route = Route::new(vec![p(0.0, 0.0), p(1.0, 1.0)]);
         assert_ne!(walked(&mut route, Vec3::new(1.0, 0.0, 0.0)), Walked::Arrived);
     }
+
+    #[test]
+    fn a_spot_is_reached_at_its_floors_height_and_an_area_anywhere_in_it() {
+        use crate::v026g::bots::off_goal_height;
+        // A take stand (within 0.1 m): a body on the box over it, or at the
+        // foot of the box it is on, walks on; a stair's rise does not.
+        assert!(off_goal_height(0.1, 1.5, 0.0));
+        assert!(off_goal_height(0.1, 0.0, 1.0));
+        assert!(!off_goal_height(0.1, 0.3, 0.0));
+        // A hunt's area (within 2 m): a body in it 1 m down a slope is there.
+        assert!(!off_goal_height(2.0, 0.0, 1.0));
+        assert!(!off_goal_height(2.0, 1.5, 0.0));
+    }
 }
