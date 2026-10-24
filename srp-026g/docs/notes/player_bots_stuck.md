@@ -953,9 +953,23 @@ goal, none found nothing (the exit field).
 Guards: K/D -0.02 ± 0.02 and +0.02 ± 0.02, kills +0.09 ± 0.10, delivered
 -0.01 ± 0.02, carriers killed -0.06 ± 0.04, quick ends a bot-minute -0.004 ±
 0.007, flips -0.001 ± 0.003, idle -0.08 ± 0.12, team kills 0.008 → 0.012
-(+0.004 ± 0.004). Fall ticks are up +0.37 ± 0.16*, most of it planned drops
-on routes (+0.28 ± 0.15), which go round zones; falls off the route +0.09 ±
-0.09. Stuck notes +0.08 ± 0.10, searches +0.4 %.
+(+0.004 ± 0.004). Fall ticks are up +0.37 ± 0.16*. These are route drops, not
+falls off: planned drops on routes that go round zones +0.28 ± 0.15, falls
+off the route +0.09 ± 0.09 (no change). Stuck notes +0.08 ± 0.10.
+
+CPU (the same 512 matches, 8 at a time on one machine, so noisy):
+
+| | before | after |
+|---|---|---|
+| bots, ms a second (mean a match) | 18.61 | 19.45 (+4.5 %) |
+| poll µs p99 / p99.9 (mean a match) | 2046 / 4263 | 2138 / 4367 |
+| worst poll µs (p99 of matches' worst / worst) | 74159 / 251145 | 72186 / 134900 |
+| worst think / ticks µs | 51754 / 251135 | 60401 / 134892 |
+| grid searches, count / ms each | 681139 / 1.440 | 684190 / 1.478 |
+| map_ready ms, level_03 day 2 / day 4 / level_06 day 2 / level_07 day 2 | 376 / 460 / 480 / 196 | 381 / 468 / 467 / 189 |
+
+The exit field is built on first need during play, not at map_ready, so its
+build is in the polls' worst times, which did not grow.
 
 **Left.**
 
