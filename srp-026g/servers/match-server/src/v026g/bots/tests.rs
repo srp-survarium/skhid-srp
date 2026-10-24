@@ -6047,6 +6047,13 @@ struct RouteTally {
     pocket_worlds: u32,
     pocket_deaths: u32,
     pocket_escapes: [u64; 7],
+    /// [CG-17] Each body's walk at the last tick to an exact spot
+    /// (`Motor::exact_end`), and when it last landed a planned drop on one;
+    /// planned drops on an exact walk (this tick's or the last), and of
+    /// them those whose bot picked a battery up within 10 s.
+    exact_was: Vec<bool>,
+    exact_drop: Vec<Option<u32>>,
+    falls_exact: (u32, u32),
 }
 
 impl RouteTally {
@@ -6065,6 +6072,8 @@ impl RouteTally {
             escapes: super::tactics::escapes::counts(),
             pocket_in: vec![false; bodies],
             pocket_escapes: super::escape::counts::counts(),
+            exact_was: vec![false; bodies],
+            exact_drop: vec![None; bodies],
             ..Default::default()
         }
     }
@@ -6092,13 +6101,27 @@ impl RouteTally {
                     });
                 if planned {
                     self.falls.1 += 1;
+                    let exact = self.exact_was[place]
+                        || bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end);
+                    if exact {
+                        self.falls_exact.0 += 1;
+                        self.exact_drop[place] = Some(time);
+                    }
                 } else {
                     self.falls.0 += 1;
                     self.repeats.1 += u32::from(self.mark(place, from));
                 }
             }
+            self.exact_was[place] = bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end);
             match (self.carry_from[place], body.carrying) {
-                (None, Some(battery)) => self.carry_from[place] = Some((time, battery)),
+                (None, Some(battery)) => {
+                    if let Some(at) = self.exact_drop[place].take()
+                        && time <= at + 10_000
+                    {
+                        self.falls_exact.1 += 1;
+                    }
+                    self.carry_from[place] = Some((time, battery));
+                }
                 (Some((from, battery)), None) => {
                     self.carry_from[place] = None;
                     if matches!(game.batteries.get(battery), Some(Lying::Home(_))) {
@@ -6254,7 +6277,7 @@ impl RouteTally {
             .collect();
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
-            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {}",
+            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {} falls_exact {} falls_exact_taken {}",
             self.worlds,
             self.pushes.0,
             self.pushes.1,
@@ -6291,6 +6314,8 @@ impl RouteTally {
             pocketed[4],
             pocketed[5],
             pocketed[6],
+            self.falls_exact.0,
+            self.falls_exact.1,
         )
     }
 }
