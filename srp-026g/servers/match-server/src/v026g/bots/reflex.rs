@@ -312,6 +312,27 @@ pub struct CombatTuning {
     /// 0.02-0.04, within the noise, and it is the one exception to the
     /// noticing wait ([`Memory::in_sight`]).
     pub reacquire_keep: bool,
+    /// Fire-gates PR C: the trigger's range by the weapon in hand, where
+    /// it was `AimTuning::range_m` for all but the bolt actions (target
+    /// choice keeps that). The farther of the config's
+    /// ([`Gun::fire_range_m`] at `range_hit_share`) and the players' floor
+    /// of its class ([`Self::range_floor_m`]), never past today's ceiling
+    /// (`range_m`, or `fire.bolt_range_m` for a bolt action): so it only
+    /// shortens.
+    /// GUESS: `range_hit_share` a fifth of the aimed-in shots on him.
+    pub range_by_weapon: bool,
+    pub range_hit_share: f32,
+    /// The players' floor by weapon class, metres: no bot holds its fire
+    /// nearer than players shoot. MEASURED: the 95th percentile of the
+    /// distance of the players' trigger runs that hit, all 631 matches
+    /// (`player_bots_weapons.md`, "Bots: the fire range by weapon").
+    pub range_floor_rifle_m: f32,
+    pub range_floor_smg_m: f32,
+    pub range_floor_shotgun_m: f32,
+    pub range_floor_pistol_m: f32,
+    pub range_floor_mg_m: f32,
+    pub range_floor_marksman_m: f32,
+    pub range_floor_bolt_m: f32,
     pub body_half_m: f32,
     /// Audit issue 8: fire only once the view is within `fire_body_share`
     /// of his body's half width (`body_half_m`) at his distance of where
@@ -742,6 +763,15 @@ impl Default for CombatTuning {
             aim_carry: true,
             aim_carry_ms: LOST_MS,
             reacquire_keep: false,
+            range_by_weapon: false,
+            range_hit_share: 0.2,
+            range_floor_rifle_m: 67.0,
+            range_floor_smg_m: 61.0,
+            range_floor_shotgun_m: 45.0,
+            range_floor_pistol_m: 48.0,
+            range_floor_mg_m: 70.0,
+            range_floor_marksman_m: 89.0,
+            range_floor_bolt_m: 104.0,
             body_half_m: 0.25,
             fire_body_share: 0.0,
             fire_within_min_deg: 0.5,
@@ -800,6 +830,30 @@ impl Default for CombatTuning {
 }
 
 impl CombatTuning {
+    /// [PR C] The players' floor of a weapon class ([`Gun::class`]).
+    pub fn range_floor_m(&self, class: &str) -> f32 {
+        match class {
+            "smg" => self.range_floor_smg_m,
+            "shotgun" => self.range_floor_shotgun_m,
+            "pistol" => self.range_floor_pistol_m,
+            "mg" => self.range_floor_mg_m,
+            "marksman" => self.range_floor_marksman_m,
+            "bolt" => self.range_floor_bolt_m,
+            _ => self.range_floor_rifle_m,
+        }
+    }
+
+    /// [PR C] The trigger's range with `gun` in hand, under the ceiling
+    /// `ceiling_m` ([`Self::range_by_weapon`]).
+    pub fn fire_range_m(&self, gun: &Gun, ceiling_m: f32) -> f32 {
+        if !self.range_by_weapon {
+            return ceiling_m;
+        }
+        gun.fire_range_m(self.range_hit_share, self.body_half_m)
+            .max(self.range_floor_m(gun.class()))
+            .min(ceiling_m)
+    }
+
     pub fn band(&self, kind: WeaponKind) -> (f32, f32) {
         match kind {
             WeaponKind::Pistol => self.band_pistol,
@@ -3041,11 +3095,14 @@ impl Reflex {
         let aimed_in = self
             .aim_since
             .is_some_and(|since| now >= since + gun.aim_ms + c.aim_in_margin_ms);
-        let range_m = if bolt {
-            c.fire.bolt_range_m.max(aim.range_m)
-        } else {
-            aim.range_m
-        };
+        let range_m = c.fire_range_m(
+            gun,
+            if bolt {
+                c.fire.bolt_range_m.max(aim.range_m)
+            } else {
+                aim.range_m
+            },
+        );
         // [friends] A teammate in the line of fire: no shot, a step aside.
         let lines = Self::fire_lines(me, view, (point, error, lift), now, &aim.friends);
         let friend = super::friends::blocking(
@@ -3641,6 +3698,28 @@ mod tests {
         reflex.gate_using(5_100);
         assert_eq!(reflex.gates().bits, gate::UNSTICK | gate::USING);
         assert_eq!(gate::names(gate::UNSTICK | gate::USING), ["unstick", "using"]);
+    }
+
+    /// [PR C] With `range_by_weapon`, the trigger's range is the farther of
+    /// the config's and the players' floor of the class, under today's
+    /// ceiling; without, the ceiling.
+    #[test]
+    fn the_fire_range_follows_the_weapon_in_hand() {
+        let off = CombatTuning::default();
+        let on = CombatTuning {
+            range_by_weapon: true,
+            ..CombatTuning::default()
+        };
+        let gun = |item| guns::gun(item).unwrap();
+        assert_eq!(off.fire_range_m(gun("vityaz"), 80.0), 80.0);
+        // The config's (the damage's floor, 40 m) is under the players' 61.
+        assert_eq!(on.fire_range_m(gun("vityaz"), 80.0), on.range_floor_smg_m);
+        assert_eq!(on.fire_range_m(gun("ak_74u"), 80.0), on.range_floor_rifle_m);
+        assert_eq!(on.fire_range_m(gun("mp_153"), 80.0), on.range_floor_shotgun_m);
+        assert_eq!(on.fire_range_m(gun("mosin_nagant"), 120.0), on.range_floor_bolt_m);
+        // Never past the ceiling.
+        assert_eq!(on.fire_range_m(gun("vss"), 80.0), 80.0);
+        assert_eq!(on.fire_range_m(gun("vityaz"), 50.0), 50.0);
     }
 
     /// [PR B] With `aim_carry`, the aim stays pressed while the target is
