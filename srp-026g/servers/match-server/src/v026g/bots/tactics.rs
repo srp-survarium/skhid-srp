@@ -1035,7 +1035,11 @@ impl Tactics {
     /// bot at `a` is not in already. A step off a rim into a pit it never
     /// gets out of costs the bot the match; in its own pocket it steps as
     /// it likes. Once bots sprint, a pocket with a sprint exit counts too,
-    /// for one not carrying.
+    /// for one not carrying. Nor onto a floor near an unwalled fall
+    /// (`WalkGrid::near_fall`): a stride's overshoot there goes over the
+    /// edge (a third of the falls off route that keeping such edges
+    /// added were side steps: `player_bots_mapdata.md`, "Grid: walls at
+    /// the body's height").
     pub fn clear_step_for(
         &self,
         a: Vec3,
@@ -1050,9 +1054,11 @@ impl Tactics {
         };
         let home = grid.pocket_of(from);
         let trap = |node: NodeId| {
-            grid.pocket_of(node).is_some_and(|pocket| {
-                Some(pocket) != home && !super::escape::standing_exit(grid, &self.escapes, pocket)
-            })
+            grid.near_fall(node)
+                || grid.pocket_of(node).is_some_and(|pocket| {
+                    Some(pocket) != home
+                        && !super::escape::standing_exit(grid, &self.escapes, pocket)
+                })
         };
         !trap(to)
             && path::straight_where(grid, from, to, |node| {
