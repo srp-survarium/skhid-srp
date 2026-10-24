@@ -1814,3 +1814,8 @@ va	status	ref_021d	name
 0x00331330	reviewed	0x00207954	survarium::dispersion_calculator::calculate_character_dispersion
 0x00331480	reviewed	0x00207aaa	survarium::dispersion_calculator::get_character_skill_influence
 0x0032fe40	reviewed	0x002075a9	survarium::transition_helper::tick
+0x0007bda0	reviewed	0x0021d4a9	vostok::physics::bullet_character_controller::player_step
+0x0007c900	reviewed	0x0021dbe5	vostok::physics::bullet_character_controller::step_up
+0x0007de10	reviewed	0x0021eebb	vostok::physics::bullet_character_controller::impassable_slope
+0x0007e1b0	reviewed	0x0021f2f1	vostok::physics::bullet_character_controller::step_down
+0x0007f100	reviewed	0x0021fc66	vostok::physics::bullet_character_controller::setup_shape_dim

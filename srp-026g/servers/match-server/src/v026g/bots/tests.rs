@@ -24,8 +24,8 @@
 //!   second, 300 ms behind the clock, as the match gives the bots.
 //!
 //! The stand-in is much simpler than the game (no spread, no side kick, no
-//! armour, no stamina, a jump only up the grid's jump links
-//! ([`STAND_IN_AIR_MS`]); the rounds are not counted, the bots count
+//! armour, no stamina, a jump only up to the client's height
+//! ([`STAND_IN_AIR_MS`], [`stand_in_jump`]); the rounds are not counted, the bots count
 //! their own): the runs check that bots of two teams find each
 //! other, fight, die, come back, take and bring batteries and end a
 //! match, with no input out of the rules; not how well.
@@ -151,43 +151,156 @@ const TAKEN_KILLED_MS: u32 = 3_000;
 /// were within a metre of a jump floor (`player_bots_stuck.md` §8.6).
 const STAND_IN_AIR_MS: u32 = 600;
 
+/// A jump of the stand-in: how high the feet get over the floor jumped
+/// from, and how far ahead a jump with no grid link lands, m.
+#[derive(Clone, Copy, Debug)]
+struct StandInJump {
+    rise_m: f32,
+    ahead_m: f32,
+}
+
+/// The client's jump standing or walking: the `on_site*` clips' root tops
+/// at 0.998 m (PROVEN, the jump study). How far it carries was never
+/// measured: GUESS 0.6 m ahead, kept short on purpose.
+const STANDING_JUMP: StandInJump = StandInJump {
+    rise_m: 0.998,
+    ahead_m: 0.6,
+};
+
+/// The client's sprint jump: 1.282-1.350 m by clip (PROVEN, the jump
+/// study), played at a press with forward and sprint held at walk speed or
+/// more, any weapon, no battery carried (PROVEN,
+/// `player_logic_jump_state::initialize` 0x337040). No bot's jump picks it
+/// yet. The distance is [`STANDING_JUMP`]'s (GUESS).
+const SPRINT_JUMP: StandInJump = StandInJump {
+    rise_m: 1.30,
+    ahead_m: 0.6,
+};
+
+/// Where a stand-in body in the air, walking from `feet` (on `node`) into
+/// `to` and stopped, gets up with `jump`:
+/// - by the grid's jump link ([`jumped_to`]) when its rise is within the
+///   jump: a higher link is not made, as in the client;
+/// - else, with no link, on the highest floor (then the nearest) within
+///   `ahead_m` ahead on the walk's line and up to the jump's rise: a jump
+///   the grid does not plan (out of a pocket, up a ledge a stuck bot hops
+///   at).
+fn stand_in_jump(
+    grid: &mapdata::WalkGrid,
+    node: NodeId,
+    feet: Vec3,
+    to: Vec3,
+    jump: StandInJump,
+) -> Option<NodeId> {
+    let base = grid.position(node).y;
+    if let Some(up) = jumped_to(grid, node, feet, to)
+        && grid.position(up).y - base <= jump.rise_m
+    {
+        return Some(up);
+    }
+    let (dx, dz) = (to.x - feet.x, to.z - feet.z);
+    let len = (dx * dx + dz * dz).sqrt();
+    if len <= 1e-6 {
+        return None;
+    }
+    let (ux, uz) = (dx / len, dz / len);
+    let side = grid.cell_size() * 0.5 + 1e-4;
+    let reach = jump.ahead_m;
+    let area = [
+        feet.x - reach,
+        feet.z - reach,
+        feet.x + reach,
+        feet.z + reach,
+    ];
+    grid.floors_in(area)
+        .filter(|&n| n != node && grid.can_stand(n))
+        .filter_map(|n| {
+            let at = grid.position(n);
+            let (ex, ez) = (at.x - feet.x, at.z - feet.z);
+            let ahead = ex * ux + ez * uz;
+            let across = (ex * uz - ez * ux).abs();
+            let rise = at.y - base;
+            (ahead > 0.0 && ahead <= reach && across <= side && rise > 0.0 && rise <= jump.rise_m)
+                .then_some((n, at.y, ahead))
+        })
+        .max_by(|a, b| a.1.total_cmp(&b.1).then(b.2.total_cmp(&a.2)))
+        .map(|(n, _, _)| n)
+}
+
+/// A stand-in world: a floor at 0 and a ledge `rise` m high from x 10 on,
+/// its grid built for `body`.
+fn ledge_grid(rise: f32, body: mapdata::Body) -> mapdata::WalkGrid {
+    use super::body::tests::{floor, wall_x};
+    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+    triangles.extend(floor(10.0, 0.0, 20.0, 10.0, rise));
+    triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+        t.v.iter_mut().for_each(|v| v.y = v.y.min(rise));
+        t
+    }));
+    mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, body)
+}
+
+/// Where a stand-in body walking east from x 8 at 0.2 m a tick ends after
+/// 40 ticks: in the air all the way with `jump` (one jump), or never.
+fn walk_into_ledge(grid: &mapdata::WalkGrid, jump: Option<StandInJump>) -> Vec3 {
+    let mut node = grid.locate(Vec3::new(8.0, 0.0, 5.0), 0.5).unwrap();
+    let mut feet = grid.position(node);
+    let mut jumped = false;
+    for _ in 0..40 {
+        let to = feet + Vec3::new(0.2, 0.0, 0.0);
+        (node, feet, _) = slide(grid, node, feet, to);
+        if let Some(jump) = jump
+            && !jumped
+            && feet.distance_xz(to) > 1e-3
+            && let Some(up) = stand_in_jump(grid, node, feet, to, jump)
+        {
+            node = up;
+            feet = grid.position(up);
+            jumped = true;
+        }
+    }
+    feet
+}
+
 /// A stand-in body walking into a 0.9 m ledge stops at its foot; in the
 /// air it gets up on it, by the grid's jump link.
 #[test]
 fn a_stand_in_body_in_the_air_gets_up_a_ledge() {
-    use super::body::tests::{floor, wall_x};
-    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
-    triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 0.9));
-    triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
-        t.v.iter_mut().for_each(|v| v.y = v.y.min(0.9));
-        t
-    }));
-    let grid = mapdata::WalkGrid::build(
-        &triangles,
-        [0.0, 0.0, 20.0, 10.0],
-        0.25,
-        mapdata::Body::default(),
-    );
-    let walk = |air: bool| {
-        let mut node = grid.locate(Vec3::new(8.0, 0.0, 5.0), 0.5).unwrap();
-        let mut feet = grid.position(node);
-        for _ in 0..40 {
-            let to = feet + Vec3::new(0.2, 0.0, 0.0);
-            (node, feet, _) = slide(&grid, node, feet, to);
-            if air
-                && feet.distance_xz(to) > 1e-3
-                && let Some(up) = jumped_to(&grid, node, feet, to)
-            {
-                node = up;
-                feet = grid.position(up);
-            }
-        }
-        feet
-    };
-    let stopped = walk(false);
+    let grid = ledge_grid(0.9, mapdata::Body::default());
+    let stopped = walk_into_ledge(&grid, None);
     assert!(stopped.x < 10.0 && stopped.y.abs() < 0.1, "{stopped:?}");
-    let up = walk(true);
+    let up = walk_into_ledge(&grid, Some(STANDING_JUMP));
     assert!(up.x > 12.0 && (up.y - 0.9).abs() < 0.1, "{up:?}");
+}
+
+/// A grid jump link higher than the client's jump (1.03 m, linked under
+/// the grid's 1.05 m) is not made: the body stays at the ledge's foot.
+#[test]
+fn a_stand_in_jump_does_not_make_a_link_over_the_clients_height() {
+    let grid = ledge_grid(1.03, mapdata::Body::default());
+    let stayed = walk_into_ledge(&grid, Some(STANDING_JUMP));
+    assert!(stayed.x < 10.0 && stayed.y.abs() < 0.1, "{stayed:?}");
+}
+
+/// With no grid link (a grid built for a 0.5 m jump), the jump still gets
+/// up a 0.9 m ledge; not up a 1.2 m one, which only a sprint jump clears.
+#[test]
+fn a_stand_in_jump_gets_up_a_ledge_with_no_link_within_its_height() {
+    let low = mapdata::Body {
+        max_jump: 0.5,
+        ..mapdata::Body::default()
+    };
+    let grid = ledge_grid(0.9, low);
+    let up = walk_into_ledge(&grid, Some(STANDING_JUMP));
+    assert!(up.x > 10.0 && (up.y - 0.9).abs() < 0.1, "{up:?}");
+    let grid = ledge_grid(1.2, low);
+    let stayed = walk_into_ledge(&grid, Some(STANDING_JUMP));
+    assert!(stayed.x < 10.0 && stayed.y.abs() < 0.1, "{stayed:?}");
+    let sprint = walk_into_ledge(&grid, Some(SPRINT_JUMP));
+    assert!(
+        sprint.x > 10.0 && (sprint.y - 1.2).abs() < 0.1,
+        "{sprint:?}"
+    );
 }
 
 /// The stand-in game.
@@ -571,11 +684,11 @@ impl Game {
             if let Some(node) = body.node {
                 let grid = &self.world.grid;
                 let (mut node, mut feet, _) = slide(grid, node, body.feet, to);
-                // In the air, walking into a floor the grid jumps to: up
-                // on it (once a jump).
+                // In the air, walking into a floor the jump clears: up on
+                // it (once a jump).
                 if tick < body.air_until
                     && feet.distance_xz(to) > 1e-3
-                    && let Some(up) = jumped_to(grid, node, feet, to)
+                    && let Some(up) = stand_in_jump(grid, node, feet, to, STANDING_JUMP)
                 {
                     node = up;
                     feet = grid.position(up);
@@ -3065,9 +3178,208 @@ struct BlockTally {
     /// team hits are bodies standing in one another (under 0.3 m apart),
     /// which the game does not have.
     team_hits: [u32; 3],
+    /// [measure] By place: the view's episode on a visible enemy.
+    onview: Vec<Option<OnView>>,
+    /// [measure] The on-view ticks with no shot by the fire gates.
+    gates: fight_tally::GateTally,
+}
+
+/// [measure] A bot free to fire with its view within 4 deg of a visible
+/// enemy within 40 m (the Cologne report's episodes, per tick).
+#[derive(Clone, Copy)]
+struct OnView {
+    enemy: Place,
+    start: u32,
+    last: u32,
+    ticks: u32,
+    fired: Option<u32>,
+    held: u32,
+    false_held: u32,
+    new_held: u32,
+    near_line: u32,
+    distance: f32,
+}
+
+fn measure_place_view(game: &Game, place: Place) -> PlaceView {
+    let body = &game.bodies[place];
+    PlaceView {
+        place,
+        team: body.team,
+        bot: true,
+        present: true,
+        alive: true,
+        feet: body.feet,
+        yaw: body.yaw,
+        pitch: body.pitch,
+        velocity: [0.0, 0.0],
+        keys: body.keys,
+        health: body.health,
+        spawned: body.spawned,
+        kills: 0,
+        deaths: 0,
+        streak: 0,
+        carrying: None,
+        seen_at: 0,
+        known_at: 0,
+    }
+}
+
+fn measure_view(game: &Game, places: Vec<PlaceView>) -> MatchView {
+    MatchView {
+        clock: game.tick,
+        mode: super::view::Mode::TeamDeathmatch,
+        time_left_s: 600.0,
+        total_s: 900.0,
+        points: [0, 0],
+        places,
+        batteries: Vec::new(),
+        marks: Vec::new(),
+        containers: Vec::new(),
+        sounds: Vec::new(),
+        deaths: Vec::new(),
+        world_time: 0,
+        can_respawn: [true, true],
+        next_battery: None,
+    }
 }
 
 impl BlockTally {
+    /// [measure] With `SRP_BENCH_GATES` set, every fire gate is tested each
+    /// tick (`Reflex::gate_tally`: `clear_shot`'s rays though an earlier
+    /// gate failed; no shot changes), for the gate tally's "every" counts.
+    fn gate_tally(bots: &mut Bots) {
+        static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        if *ON.get_or_init(|| std::env::var_os("SRP_BENCH_GATES").is_some()) {
+            for bot in bots.bots.iter_mut().flatten() {
+                bot.reflex.gate_tally = true;
+            }
+        }
+    }
+
+    /// [measure] The view-on-enemy episodes, a tick at a time.
+    fn onview_tick(&mut self, game: &Game, bots: &Bots, bot: &Bot, fired: bool, events: &mut BenchEvents) {
+        let place = bot.place;
+        self.onview.resize(game.bodies.len(), None);
+        let me = &game.bodies[place];
+        let eye = Game::eye(me);
+        let [fx, fz] = forward(me.yaw);
+        let pitch = me.recoil.view(me.pitch);
+        let view_dir = Vec3::new(fx * pitch.cos(), pitch.sin(), fz * pitch.cos());
+        let free = me.alive && me.carrying.is_none() && bot.intent.fire;
+        let seen = if free {
+            game.bodies
+                .iter()
+                .enumerate()
+                .filter(|(e, b)| {
+                    *e != place && b.alive && b.team != me.team && b.feet.distance_xz(me.feet) <= 40.0
+                })
+                .filter_map(|(e, b)| {
+                    let to = Game::chest(b) - eye;
+                    let off = (to.dot(view_dir) / to.length().max(0.01)).clamp(-1.0, 1.0).acos();
+                    (off <= 4f32.to_radians()).then_some((e, off))
+                })
+                .filter(|&(e, _)| {
+                    let b = &game.bodies[e];
+                    super::aimpoint::shows(eye, b.feet, b.keys & key::CROUCH != 0, &game.world.sight, || true)
+                })
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+                .map(|(e, _)| e)
+        } else {
+            None
+        };
+        let now = game.tick;
+        let mut ep = self.onview[place].take();
+        if let Some(e) = ep
+            && (!me.alive || (seen != Some(e.enemy) && now > e.last + 2 * TICK_MS))
+        {
+            Self::end_onview(place, e, events);
+            ep = None;
+        }
+        if let Some(enemy) = seen {
+            let e = ep.get_or_insert(OnView {
+                enemy,
+                start: now,
+                last: now,
+                ticks: 0,
+                fired: None,
+                held: 0,
+                false_held: 0,
+                new_held: 0,
+                near_line: 0,
+                distance: game.bodies[enemy].feet.distance_xz(me.feet),
+            });
+            if e.enemy == enemy {
+                e.last = now;
+            }
+        }
+        if let Some(e) = ep.as_mut() {
+            e.ticks += 1;
+            if !fired {
+                self.gates.tick(bot.reflex.gates(), e.enemy, now);
+            }
+            if fired && e.fired.is_none() {
+                e.fired = Some(now - e.start);
+            }
+            let target = &game.bodies[e.enemy];
+            let to = Game::chest(target) - eye;
+            let distance = target.feet.distance_xz(me.feet);
+            if let Some(held) = bot.reflex.held_for() {
+                e.held += 1;
+                let t = bots.tuning.aim.friends;
+                let base = super::friends::FriendlyFireTuning {
+                    touch_m: 0.0,
+                    past_target_m: 2.0,
+                    ..t
+                };
+                let dirs = [view_dir, to * (1.0 / to.length().max(0.01))];
+                let view = measure_view(
+                    game,
+                    vec![measure_place_view(game, place), measure_place_view(game, held.who)],
+                );
+                let on = |t: &super::friends::FriendlyFireTuning| {
+                    super::friends::blocking(
+                        &measure_place_view(game, place),
+                        &view,
+                        &dirs,
+                        distance,
+                        t.spread(me.gun),
+                        0.0,
+                        t,
+                    )
+                    .is_some_and(|b| b.who == held.who)
+                };
+                let truly = on(&t);
+                e.false_held += u32::from(!truly);
+                e.new_held += u32::from(truly && !on(&base));
+            }
+            // A teammate within 1.2 m of the line in plan, between the eye
+            // and the enemy (the report's measure).
+            let (lx, lz) = (to.x, to.z);
+            let len = lx.hypot(lz).max(0.01);
+            let near = game.bodies.iter().enumerate().any(|(p, b)| {
+                if p == place || !b.alive || b.team != me.team {
+                    return false;
+                }
+                let (dx, dz) = (b.feet.x - eye.x, b.feet.z - eye.z);
+                let s = (dx * lx + dz * lz) / len;
+                s > 0.0 && s < len && ((dx * lz - dz * lx) / len).abs() <= 1.2
+            });
+            e.near_line += u32::from(near);
+        }
+        self.onview[place] = ep;
+    }
+
+    fn end_onview(place: Place, e: OnView, events: &mut BenchEvents) {
+        if e.last < e.start + 9 * TICK_MS {
+            return;
+        }
+        events.line(serde_json::json!({
+            "t": e.start,
+            "onview": [place, e.enemy, e.last - e.start + TICK_MS, e.fired, e.ticks, e.held,
+                e.false_held, e.new_held, e.near_line, e.distance],
+        }));
+    }
+
     /// Sideways speed counted as moving across the line, m/s.
     const SIDE_MPS: f32 = 0.5;
 
@@ -3118,6 +3430,7 @@ impl BlockTally {
             let (s0, h0) = std::mem::replace(&mut self.shots_hits[place], (s, h));
             self.shots[k] += s - s0;
             self.hits[k] += h - h0;
+            self.onview_tick(game, bots, bot, s > s0, events);
             // From a new target to the first shot at it.
             let target = bot.reflex.target().filter(|_| body.alive);
             self.aiming[place] = match (target, self.aiming[place]) {
@@ -3362,6 +3675,11 @@ impl BlockTally {
 
     /// The spells under way at the end, and one line on all of them.
     fn finish(&mut self, events: &mut BenchEvents) -> String {
+        for place in 0..self.onview.len() {
+            if let Some(e) = self.onview[place].take() {
+                Self::end_onview(place, e, events);
+            }
+        }
         for place in 0..self.spells.len() {
             if let Some(spell) = self.spells[place].take() {
                 self.end(place, spell, "the run's end", events);
@@ -3770,6 +4088,17 @@ fn bench_tuning_of(side1: bool) -> Tuning {
         }
         tuning.aim.combat = serde_json::from_value(combat).expect("SRP_BENCH_COMBAT: known names");
     }
+    // The aim's own numbers (`AimTuning`: `range_m`, `fire_within_deg`,
+    // `pause_ms`, ...), as `SRP_BENCH_COMBAT`'s.
+    if let Ok(numbers) = var("AIM") {
+        let mut aim = serde_json::to_value(&tuning.aim).unwrap();
+        let sep = if numbers.contains(';') { ';' } else { ',' };
+        for pair in numbers.split(sep).filter(|p| !p.is_empty()) {
+            let (name, value) = pair.split_once('=').expect("SRP_BENCH_AIM: name=value");
+            aim[name] = serde_json::from_str(value).expect("SRP_BENCH_AIM: a JSON value");
+        }
+        tuning.aim = serde_json::from_value(aim).expect("SRP_BENCH_AIM: known names");
+    }
     // The senses' numbers (`SenseTuning`), as `SRP_BENCH_COMBAT`'s.
     if let Ok(numbers) = var("SENSE") {
         let mut sense = serde_json::to_value(&tuning.sense).unwrap();
@@ -4094,6 +4423,8 @@ fn real_bot_cost() {
             let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
             let mut routes = RouteTally::start(game.bodies.len());
             let mut push = PushTally::start(&world, game.bodies.len());
+            let mut human = HumanTally::start();
+            bots.bench_human = human.as_ref().map(|h| h.place);
             let mut blocks = BlockTally::default();
             let mut hits = HitTally::default();
             while clock < limit_ms {
@@ -4102,6 +4433,7 @@ fn real_bot_cost() {
                     let stats_before = game.stats.clone();
                     game.step();
                     carry.deaths(&stats_before, &game, &bots);
+                    BlockTally::gate_tally(&mut bots);
                     blocks.tick(&game, &bots, &mut events);
                     hits.tick(&mut game, &bots, &mut events);
                     let play_of = |place: Place| {
@@ -4143,6 +4475,9 @@ fn real_bot_cost() {
                     raids.bodies(&game, &thieves, game.tick);
                     routes.tick(&game, &bots, game.tick);
                     push.tick(&bots);
+                    if let Some(human) = &mut human {
+                        human.tick(&game, &thieves);
+                    }
                     for place in thieves {
                         by_play.entry(play_of(place)).or_default()[4] += 1;
                         by_team[usize::from(teams[place])][5] += 1;
@@ -4214,7 +4549,7 @@ fn real_bot_cost() {
                                 carry.note(&note);
                             }
                         }
-                        routes.world(&game);
+                        routes.world(&game, &bots);
                         push.world(&game, &bots);
                         for note in bots.facts(facts) {
                             decisions.note(&note);
@@ -4526,10 +4861,14 @@ fn real_bot_cost() {
                 }
             }
             eprintln!("  {}", blocks.finish(&mut events));
+            eprintln!("  {}", blocks.gates.line());
             eprintln!("  {}", hits.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
             eprintln!("  routes: {}", routes.line());
             eprintln!("  push: {}", push.line(&bots));
+            if let Some(human) = &human {
+                eprintln!("  human: {}", human.line());
+            }
             eprintln!(
                 "  carriers: killed carrying {:?} (by team carrying), by the shooter's play {:?}; delivered {:?}; picked up {} lying + {} stolen; plays taken {takes_all} = {:.2} a bot-minute",
                 carriers_killed,
@@ -5504,6 +5843,16 @@ struct RouteTally {
     teams: Vec<Option<u8>>,
     marks: Vec<(u8, usize, Vec3)>,
     repeats: (u32, u32),
+    /// Each body's zone set at the last world (0: none) and the set it
+    /// last left, when; living bot-worlds on a zone's floors while it is
+    /// on; entries onto zones' floors, and of them back onto the set left
+    /// within `stuck::ZONE_AGAIN_MS`; the escapes' count at the start
+    /// (`tactics::escapes`).
+    zone_in: Vec<u16>,
+    zone_left: Vec<Option<(u16, u32)>>,
+    zone_on: u32,
+    zone_entries: (u32, u32),
+    escapes: [u64; 3],
 }
 
 impl RouteTally {
@@ -5517,6 +5866,9 @@ impl RouteTally {
             feet: vec![None; bodies],
             teams: vec![None; bodies],
             no_route: super::path::no_routes(),
+            zone_in: vec![0; bodies],
+            zone_left: vec![None; bodies],
+            escapes: super::tactics::escapes::counts(),
             ..Default::default()
         }
     }
@@ -5564,10 +5916,14 @@ impl RouteTally {
         }
     }
 
-    /// A world: the runs of pushing and standing, and the reversals.
-    fn world(&mut self, game: &Game) {
+    /// A world: the runs of pushing and standing, the reversals, and the
+    /// bots on zones' floors.
+    fn world(&mut self, game: &Game, bots: &Bots) {
         const WALK: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
         for (place, body) in game.bodies.iter().enumerate() {
+            if bots.bots[place].is_some() {
+                self.zones(place, body, bots, game.tick);
+            }
             let now = (body.feet, body.alive);
             let before = self.last[place].replace(now);
             let Some((from, true)) = before.filter(|_| body.alive) else {
@@ -5600,6 +5956,37 @@ impl RouteTally {
             } else if moved >= 1.5 {
                 self.last_move[place] = None;
             }
+        }
+    }
+
+    /// `place`'s bot's zone at `time`: on its floors while on, entered
+    /// (again).
+    fn zones(&mut self, place: usize, body: &Body, bots: &Bots, time: u32) {
+        let Some(tactics) = bots.tactics.as_ref() else {
+            return;
+        };
+        let hazards = &tactics.hazards;
+        let node = body
+            .alive
+            .then(|| tactics.world.grid.locate(body.feet, 1.0))
+            .flatten();
+        let set = node.map_or(0, |node| hazards.set_of(node));
+        let on = node
+            .and_then(|node| hazards.zone_of(node))
+            .is_some_and(|zone| zone.activity.active(time));
+        self.zone_on += u32::from(on);
+        let was = std::mem::replace(&mut self.zone_in[place], set);
+        if was == 0 && set != 0 {
+            self.zone_entries.0 += 1;
+            let again = self.zone_left[place].is_some_and(|(left, at)| {
+                left == set && time.saturating_sub(at) <= super::stuck::ZONE_AGAIN_MS
+            });
+            self.zone_entries.1 += u32::from(again);
+        } else if was != 0 && set == 0 && body.alive {
+            self.zone_left[place] = Some((was, time));
+        }
+        if !body.alive {
+            self.zone_left[place] = None;
         }
     }
 
@@ -5659,9 +6046,11 @@ impl RouteTally {
         }
         let now = super::path::no_routes();
         let no_route: Vec<u64> = (0..5).map(|k| now[k] - self.no_route[k]).collect();
+        let escapes = super::tactics::escapes::counts();
+        let escaped: Vec<u64> = (0..3).map(|k| escapes[k] - self.escapes[k]).collect();
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
-            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {}",
+            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {}",
             self.worlds,
             self.pushes.0,
             self.pushes.1,
@@ -5683,6 +6072,12 @@ impl RouteTally {
             self.falls.1,
             self.repeats.0,
             self.repeats.1,
+            self.zone_on,
+            self.zone_entries.0,
+            self.zone_entries.1,
+            escaped[0],
+            escaped[1],
+            escaped[2],
         )
     }
 }
@@ -5888,6 +6283,160 @@ impl PushTally {
     }
 }
 
+/// An enemy within this of the human stand-in, with a line to him, meets
+/// him, m.
+const MEET_M: f32 = 25.0;
+/// A take met: an enemy met him this long before it, ms.
+const MET_BEFORE_MS: u32 = 10_000;
+/// A teammate this near at a take supports him, m.
+const SUPPORT_M: f32 = 15.0;
+/// His death traded: his killer dies this soon after, ms.
+const TRADED_MS: u32 = 5_000;
+
+/// The human stand-in (`SRP_BENCH_HUMAN=<place>`, CG-12): a bot the plays
+/// take for a human, whose commander gives it Raid on the enemy's container
+/// whenever it is a candidate. Read each tick: his takes from their
+/// container and from the floor, how many an enemy met (a line to him
+/// within [`MEET_M`] in the [`MET_BEFORE_MS`] before), the time from his
+/// first theft to the next meeting, his deliveries, his takes with a
+/// teammate within [`SUPPORT_M`], and his deaths traded.
+struct HumanTally {
+    place: Place,
+    /// The tick an enemy last met him.
+    met_at: Option<u32>,
+    steals: u32,
+    steals_met: u32,
+    takes: u32,
+    takes_met: u32,
+    supported: u32,
+    first_steal: Option<u32>,
+    /// From his first theft to the next meeting, ms.
+    first_meet_ms: Option<u32>,
+    delivered: u32,
+    deaths: u32,
+    traded: u32,
+    /// His deaths not yet traded: (tick, killer).
+    open_deaths: Vec<(u32, Place)>,
+    kills_seen: usize,
+    last_kill: Option<(u32, Place, Place)>,
+    carrying: Option<usize>,
+}
+
+impl HumanTally {
+    fn start() -> Option<Self> {
+        let place = std::env::var("SRP_BENCH_HUMAN").ok()?.parse().ok()?;
+        Some(HumanTally {
+            place,
+            met_at: None,
+            steals: 0,
+            steals_met: 0,
+            takes: 0,
+            takes_met: 0,
+            supported: 0,
+            first_steal: None,
+            first_meet_ms: None,
+            delivered: 0,
+            deaths: 0,
+            traded: 0,
+            open_deaths: Vec::new(),
+            kills_seen: 0,
+            last_kill: None,
+            carrying: None,
+        })
+    }
+
+    /// After the tick's step; `thieves` are the tick's takes from a
+    /// container.
+    fn tick(&mut self, game: &Game, thieves: &[Place]) {
+        let tick = game.tick;
+        let Some(me) = game.bodies.get(self.place) else {
+            return;
+        };
+        if me.alive {
+            let crouched = me.keys & key::CROUCH != 0;
+            let met = game.bodies.iter().any(|b| {
+                b.alive
+                    && b.team != me.team
+                    && b.feet.distance_xz(me.feet) <= MEET_M
+                    && super::aimpoint::shows(Game::eye(b), me.feet, crouched, &game.world.sight, || {
+                        true
+                    })
+            });
+            if met {
+                if let Some(first) = self.first_steal
+                    && self.first_meet_ms.is_none()
+                    && tick > first
+                {
+                    self.first_meet_ms = Some(tick - first);
+                }
+                self.met_at = Some(tick);
+            }
+        }
+        let met_lately = self
+            .met_at
+            .is_some_and(|at| tick.saturating_sub(at) <= MET_BEFORE_MS);
+        let supported = game.bodies.iter().enumerate().any(|(p, b)| {
+            p != self.place && b.alive && b.team == me.team && b.feet.distance_xz(me.feet) <= SUPPORT_M
+        });
+        let stole = thieves.contains(&self.place);
+        let took = game.took[self.place] == Some(tick) && !stole;
+        if stole {
+            self.steals += 1;
+            self.steals_met += u32::from(met_lately);
+            self.first_steal.get_or_insert(tick);
+        }
+        if took {
+            self.takes += 1;
+            self.takes_met += u32::from(met_lately);
+        }
+        if stole || took {
+            self.supported += u32::from(supported);
+        }
+        self.delivered += u32::from(
+            self.carrying.is_some() && me.carrying.is_none() && game.put_in.contains(&self.place),
+        );
+        self.carrying = me.carrying;
+        // The events' world takes the log: what was seen is gone if its
+        // last entry is not where it was.
+        if self.kills_seen > 0 && game.kill_log.get(self.kills_seen - 1) != self.last_kill.as_ref() {
+            self.kills_seen = 0;
+        }
+        for &(at, shooter, victim) in &game.kill_log[self.kills_seen..] {
+            if victim == self.place {
+                self.deaths += 1;
+                self.open_deaths.push((at, shooter));
+            } else if let Some(i) = self
+                .open_deaths
+                .iter()
+                .position(|&(died, killer)| killer == victim && at <= died + TRADED_MS)
+            {
+                self.traded += 1;
+                self.open_deaths.remove(i);
+            }
+        }
+        self.kills_seen = game.kill_log.len();
+        self.last_kill = game.kill_log.last().copied();
+        self.open_deaths.retain(|&(died, _)| tick <= died + TRADED_MS);
+    }
+
+    /// The bench's `human:` line.
+    fn line(&self) -> String {
+        format!(
+            "place {} steals {} steals_met {} takes {} takes_met {} supported {} first_meet_ms {} delivered {} deaths {} traded {}",
+            self.place,
+            self.steals,
+            self.steals_met,
+            self.takes,
+            self.takes_met,
+            self.supported,
+            self.first_meet_ms.map_or(-1, i64::from),
+            self.delivered,
+            self.deaths,
+            self.traded,
+        )
+    }
+}
+
 /// Match 0x6da44bbb at 662-677 s: two bots of the two teams 0.8-1 m apart,
 /// each facing away from the other, knew each other only as heard (no
 /// target, no shot for 15 s). Here two bots stand 1 m apart back to back
@@ -5974,4 +6523,307 @@ fn back_to_back_at_arms_length_each_takes_the_other_as_target() {
     // The first world shows them at 500 ms: a think and the notice later.
     assert!(with.iter().all(|t| t.is_some_and(|t| t <= 1_200)), "{with:?}");
     assert_eq!(without, [None, None], "off: back to back unseen");
+}
+
+/// Bots by damage zones: the Cologne anomaly bench's runs, one bot of side 0
+/// on an 80 x 40 m field with walls across x = 40, its goal given every
+/// poll (no play), a zone's timing set by hand.
+mod zone_runs {
+    use mapdata::{MapData, RayTree, Rotation, Shape, ShapeKind, Spawn, WalkGrid, Zone, ZoneKind};
+
+    use super::super::anomalies::Control;
+    use super::super::hazards::Activity;
+    use super::*;
+    use crate::v026g::bots::body::tests::{floor, wall_x};
+
+    fn zone(name: &str, center: Vec3, half: Vec3) -> Zone {
+        Zone {
+            kind: ZoneKind::Damage,
+            name: name.into(),
+            team: -1,
+            position: center,
+            damage_type: "electric".into(),
+            damage: None,
+            shapes: vec![Shape {
+                kind: ShapeKind::Box,
+                center,
+                rotation: Rotation::IDENTITY,
+                half,
+            }],
+        }
+    }
+
+    /// The field, walls across x = 40 over the `walls` z ranges, the zones.
+    fn field(walls: &[(f32, f32)], zones: Vec<Zone>) -> Arc<World> {
+        let mut triangles = floor(0.0, 0.0, 80.0, 40.0, 0.0).to_vec();
+        for &(z0, z1) in walls {
+            triangles.extend(wall_x(40.0, z0, z1));
+        }
+        let grid = WalkGrid::build(
+            &triangles,
+            [0.0, 0.0, 80.0, 40.0],
+            0.25,
+            mapdata::Body::default(),
+        );
+        let spawn = |team: i32, x: f32, z: f32| Spawn {
+            position: Vec3::new(x, 0.0, z),
+            rotation: Vec3::ZERO,
+            team,
+            priority: 0,
+            point_id: 0,
+            layer: "default".into(),
+        };
+        let map = MapData {
+            spawns: vec![spawn(0, 5.0, 10.0), spawn(1, 75.0, 10.0)],
+            zones,
+            ..MapData::default()
+        };
+        let sight = RayTree::build(&triangles);
+        Arc::new(World::assemble(map, grid.into(), sight.into()))
+    }
+
+    /// The wall's only gap (z 25-30; with `detour` also z 0-3), a 4 x 5 m
+    /// zone in it.
+    fn gap(detour: bool) -> Arc<World> {
+        let walls: &[(f32, f32)] = if detour {
+            &[(3.0, 25.0), (30.0, 40.0)]
+        } else {
+            &[(0.0, 25.0), (30.0, 40.0)]
+        };
+        let zone = zone("gap", Vec3::new(40.0, 1.0, 27.5), Vec3::new(2.0, 1.0, 2.5));
+        field(walls, vec![zone])
+    }
+
+    /// On 6 s, off 6 s, from `first_on` (level_03's electric pairs).
+    fn timer(first_on: u32) -> Activity {
+        Activity::Spans(
+            (0..20)
+                .map(|k| (first_on + k * 12_000, first_on + k * 12_000 + 6_000))
+                .collect(),
+        )
+    }
+
+    struct Run {
+        world: Arc<World>,
+        start: Vec3,
+        goal: Option<Vec3>,
+        /// Zone 0's timing, put back every poll; none: always on.
+        activity: Option<Activity>,
+        /// The body put here at this time (pushed in).
+        push: Option<(u32, Vec3)>,
+        /// Its route dropped this often, ms (a chase: the goal moves on).
+        replan_every: Option<u32>,
+        until: u32,
+    }
+
+    fn run(world: Arc<World>, activity: Option<Activity>) -> Run {
+        Run {
+            world,
+            start: Vec3::new(12.0, 0.0, 27.5),
+            goal: Some(Vec3::new(60.0, 0.0, 27.5)),
+            activity,
+            push: None,
+            replan_every: None,
+            until: 60_000,
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct Seen {
+        /// Ms on a zone's floors while it is on, and the longest stretch.
+        on_ms: u32,
+        longest_on_ms: u32,
+        /// Steps off the zone's floors back west, the goal east of it.
+        back_outs: u32,
+        /// When it got within 1.5 m of its goal.
+        arrived_ms: Option<u32>,
+    }
+
+    fn drive(run: Run) -> Seen {
+        let world = run.world.clone();
+        let teams = [0u8];
+        let mut bots = Bots::new(
+            0xA70A,
+            survarium::v026g::maps::mode::BATTERIES,
+            0,
+            &teams,
+            &[true],
+            &[None],
+            Arc::new(Tuning::default()),
+            Trace::none(0),
+        );
+        bots.map_ready(world.clone());
+        let mut game = Game::new(world.clone(), &teams, 7, None, None);
+        game.bodies[0].node = world.grid.locate(run.start, 1.0);
+        game.bodies[0].feet = run.start;
+        bots.entered(0, true, 0);
+        let middle = world.map.zones[0].shapes[0].center.x;
+        let mut seen = Seen::default();
+        let (mut clock, mut next_world) = (0u32, 1_000u32);
+        let (mut pushed, mut on_run, mut was_in) = (false, 0u32, false);
+        while clock < run.until {
+            clock += 25;
+            while game.tick + TICK_MS <= clock {
+                game.step();
+            }
+            if let Some((at, to)) = run.push
+                && !pushed
+                && clock >= at
+            {
+                pushed = true;
+                game.bodies[0].node = world.grid.locate(to, 1.0);
+                game.bodies[0].feet = to;
+            }
+            if clock >= next_world {
+                next_world += 1_000;
+                if let Some((_, fixes, health, facts)) =
+                    game.world_at(clock / TICK_MS * TICK_MS - 300)
+                {
+                    for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                        bots.fixed(place, fix, Some(health));
+                    }
+                    bots.facts(facts);
+                }
+            }
+            if let (Some(activity), Some(tactics)) = (&run.activity, bots.tactics.as_mut()) {
+                tactics.hazards.zones[0].control = Control::Timer;
+                tactics.hazards.zones[0].activity = activity.clone();
+            }
+            let now = Clock {
+                clock,
+                time_left_s: 600.0,
+                total_s: 900.0,
+                playing: true,
+            };
+            let view = bots.tracker.view(&now, &bots.tuning.kin, Some(&world));
+            bots.searching.left = SEARCHES_PER_POLL;
+            bots.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+            bots.go_on_searching();
+            if let Some(bot) = bots.bots[0].as_mut() {
+                bot.intent = match run.goal {
+                    Some(at) => Intent::to(at, Pace::Run).within(1.0),
+                    None => Intent::stay(),
+                };
+                if run.replan_every.is_some_and(|every| clock % every == 0) {
+                    bot.route = None;
+                }
+            }
+            let mut made = Vec::new();
+            bots.ticks(0, &now, &view, &mut made);
+            for made in made {
+                let r = made.input.rotation;
+                let turn = (
+                    half_value(u16::from_le_bytes([r[0], r[1]])),
+                    half_value(u16::from_le_bytes([r[2], r[3]])),
+                );
+                let gun = Arms::fallback().primary.0;
+                game.inputs[made.place].push_back((made.time, made.input.actions, turn, None, gun));
+            }
+            if clock % 100 != 0 {
+                continue;
+            }
+            let hazards = &bots.tactics.as_ref().unwrap().hazards;
+            let feet = game.bodies[0].feet;
+            let node = world.grid.locate(feet, 1.0);
+            let marked = node.is_some_and(|node| hazards.zone_of(node).is_some());
+            if node.is_some_and(|node| hazards.on_at(node, clock)) {
+                seen.on_ms += 100;
+                on_run += 100;
+                seen.longest_on_ms = seen.longest_on_ms.max(on_run);
+            } else {
+                on_run = 0;
+            }
+            if was_in && !marked && run.goal.is_some_and(|goal| goal.x > middle) && feet.x < middle
+            {
+                seen.back_outs += 1;
+            }
+            was_in = marked;
+            if let Some(goal) = run.goal
+                && seen.arrived_ms.is_none()
+                && feet.distance_xz(goal) <= 1.5
+            {
+                seen.arrived_ms = Some(clock);
+            }
+        }
+        eprintln!("{seen:?}");
+        seen
+    }
+
+    /// Runs 1 and 3: a route through the only gap (or one with a detour) is
+    /// not walked onto the zone's floors while it is on (from 6.5 s): it
+    /// crosses in an off span, or goes round. Stock: 1.2 s on them, both.
+    #[test]
+    fn a_bot_on_its_way_keeps_off_a_zone_while_it_is_on() {
+        for detour in [false, true] {
+            let seen = drive(run(gap(detour), Some(timer(6_500))));
+            assert_eq!(seen.on_ms, 0, "detour {detour}: {seen:?}");
+            assert!(seen.arrived_ms.is_some(), "detour {detour}: {seen:?}");
+        }
+    }
+
+    /// Run 8: the only way, its route planned again every 1.5 s (a chase):
+    /// it crosses forward, never backing out the way it came. Stock: 2
+    /// back-outs, the goal at 41.7 s.
+    #[test]
+    fn a_chasing_bot_crosses_a_switching_zone_without_backing_out() {
+        let mut chase = run(gap(false), Some(timer(6_500)));
+        chase.replan_every = Some(1_500);
+        let seen = drive(chase);
+        assert_eq!(seen.back_outs, 0, "{seen:?}");
+        assert!(seen.arrived_ms.is_some_and(|at| at <= 35_000), "{seen:?}");
+    }
+
+    /// Runs 4 and 4b: with no goal (holding), or standing at its goal, in
+    /// the gap when the zone comes on: out as it does. Stock: 5.9 s on its
+    /// floors each on span.
+    #[test]
+    fn a_bot_with_no_goal_walks_out_of_a_zone_coming_on() {
+        for goal in [None, Some(Vec3::new(40.3, 0.0, 27.5))] {
+            let mut hold = run(gap(false), Some(timer(6_500)));
+            hold.start = Vec3::new(40.0, 0.0, 27.5);
+            hold.goal = goal;
+            hold.until = 30_000;
+            let seen = drive(hold);
+            assert!(seen.on_ms <= 1_000, "goal {goal:?}: {seen:?}");
+        }
+    }
+
+    /// Run 6b: with no goal, pushed into a small zone always on: out at
+    /// once (within its next fixes: the stand-in sends them each second).
+    /// Stock: 27 s, to the run's end.
+    #[test]
+    fn a_bot_with_no_goal_pushed_into_a_zone_walks_out() {
+        let small = zone(
+            "small",
+            Vec3::new(30.0, 1.0, 20.0),
+            Vec3::new(2.0, 1.0, 2.0),
+        );
+        let mut pushed = run(field(&[], vec![small]), None);
+        pushed.start = Vec3::new(20.0, 0.0, 20.0);
+        pushed.goal = None;
+        pushed.push = Some((3_000, Vec3::new(30.0, 0.0, 20.0)));
+        pushed.until = 30_000;
+        let seen = drive(pushed);
+        assert!(seen.on_ms <= 3_000, "{seen:?}");
+    }
+
+    /// Run 5: pushed 25 m into a big zone always on, deeper than the way
+    /// out's search reaches: out by the exit field, then on to its goal.
+    /// Stock: its escapes found nothing, it stood 37 s.
+    #[test]
+    fn a_bot_deep_in_a_big_zone_walks_out() {
+        let big = zone(
+            "big",
+            Vec3::new(25.0, 1.0, 20.0),
+            Vec3::new(25.0, 1.0, 20.0),
+        );
+        let mut deep = run(field(&[], vec![big]), None);
+        deep.start = Vec3::new(60.0, 0.0, 20.0);
+        deep.goal = Some(Vec3::new(70.0, 0.0, 30.0));
+        deep.push = Some((3_000, Vec3::new(25.0, 0.0, 20.0)));
+        deep.until = 40_000;
+        let seen = drive(deep);
+        assert!(seen.on_ms <= 15_000, "{seen:?}");
+        assert!(seen.arrived_ms.is_some(), "{seen:?}");
+    }
 }

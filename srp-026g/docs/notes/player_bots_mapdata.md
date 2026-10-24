@@ -159,7 +159,9 @@ let sees = world.sight.visible(eye_a, chest_b);       // bullet mesh
 - `WalkGrid`: `locate`, `position`, `headroom` / `can_stand` (crouch-only
   floors), `links` / `incoming`, `path`, `distances_to` (cost from every
   floor to the targets) and `distances_from` (where a team gets),
-  `floors_in(area)` (the floors under an x/z box).
+  `floors_in(area)` (the floors under an x/z box); from the spawns,
+  `reached` / `returns` / `in_pocket`, `pocket_of` / `pocket_floors` and
+  `pocket_exits` (below, "Grid: pockets and jumps").
 - `RayTree`: `visible(a, b)`, `ray_cast(origin, dir, max)`.
 
 ### The walk grid
@@ -183,6 +185,121 @@ Port of the prototype, with these changes:
 **Use 0.25 m cells** (`mapdata::CELL`). 0.5 m cells shut 1 m doors: on
 level_02 and level_04 the teams then reach 13-64 of the spawns and A*
 finds 0-1 of 25 paths.
+
+### Grid: pockets and jumps
+
+The grid's build marks, from the spawns (`World::build` passes them;
+`build_kept(..., seeds, spawns)`):
+- **reached**: forward over every link from the spawns' floors (within
+  1.5 m of a spawn, as the bots' tactics find them);
+- **returns**: a walk gets from the floor into the main area, the largest
+  strongly connected set of reached floors. Not "back to a spawn":
+  level_05's spawns are left by a drop, and that made 97,292 floors and all
+  53 objectives a pocket;
+- **pocket**: reached and not returns, labelled by its lowest floor
+  (`pocket_of`, `pocket_floors`). A floor that is not a pocket and links
+  into one is a pocket's edge.
+
+With no spawn located every floor is reached and returns. The marks cost
+a way nothing (below: the bench). A jump of 0.95-1.05 m costs 4 m more
+(`MARGINAL_JUMP_PENALTY`): the client's jump tops at 0.998 m (PROVEN), and
+the grid links jumps up to 1.05 m.
+`pocket_exits(floor)` lists a pocket's ways out that are no link: floors
+that return within 1 m across and 0.2-1.35 m up, with headroom over the
+take-off, one per landing (the jump's distance was never measured: the 1 m
+is a GUESS). Each says what it takes (`ExitJump`): `Standing`, the jump (up
+to 0.998 m, or across a gap); `Sprint`, only the sprint jump (up to 1.35 m:
+a run-up with sprint held, any weapon, never with a battery; no bot's jump
+picks it yet); `Steep`, a rise within a step into a neighbour cell: a walk
+up it would be a link, so the grid cut it as a climb onto steep ground (the
+client's `step_down` refuses that too), and a jump onto it is not proven.
+`pocket_entries(pocket)` lists the links into a pocket from its edge,
+mostly drops: the take-offs a body keeps off when the pocket has no way
+out. The digest, the file (`GRID_ALGO` 5) and `check()` carry the marks.
+
+The client's step (`step_up` 0x7C900, `step_down` 0x7E1B0,
+`impassable_slope` 0x7DE10, re-kit): a step of up to 0.6 m (`s_step_height`)
+with no slope test; a surface steeper than 50° is refused only when the feet
+ended higher. Not used by the grid yet.
+
+Re-linking jumps up to 1 m beside walls (to open pits) was tried and
+dropped: no table changed. Cologne's pit by the bridge pillar leaves by a
+1.23 m jump onto the tyre (z 18.62), a sprint jump's height; the cells
+between were never floors (the pillar).
+
+The table per map (`tests/grid_table.rs`, 0.25 m cells; pockets by
+their surest way out, `pocket_exits` from the pocket's lowest floor):
+
+| project | floors | reached | pocket floors | pockets | out by jump / sprint only / steep only / none | objectives unreached | in a pocket | jumps | of them 0.998-1.05 m |
+|---|---|---|---|---|---|---|---|---|---|
+| level_01_day_2 | 426,363 | 378,194 | 15 | 5 | 5 / 0 / 0 / 0 | 3 of 39 | 0 | 5,469 | 365 |
+| level_01_day_4 | 427,238 | 379,323 | 15 | 5 | 5 / 0 / 0 / 0 | 0 of 0 | 0 | 5,353 | 356 |
+| level_02_day_2 | 468,474 | 384,373 | 20 | 6 | 3 / 2 / 0 / 1 | 2 of 53 | 0 | 6,103 | 768 |
+| level_02_day_4 | 465,251 | 383,224 | 20 | 6 | 3 / 2 / 0 / 1 | 0 of 0 | 0 | 5,972 | 735 |
+| level_03_day_2 | 581,303 | 246,613 | 49 | 6 | 4 / 0 / 0 / 2 | 2 of 52 | 0 | 5,722 | 325 |
+| level_03_day_4 | 585,481 | 246,816 | 49 | 5 | 2 / 1 / 0 / 2 | 0 of 0 | 0 | 5,669 | 336 |
+| level_04_day_2 | 381,364 | 337,238 | 255 | 13 | 5 / 3 / 0 / 5 | 5 of 35 | 0 | 5,922 | 765 |
+| level_04_day_4 | 378,643 | 336,360 | 255 | 13 | 5 / 3 / 0 / 5 | 0 of 0 | 0 | 5,855 | 762 |
+| level_05_day_2 | 188,042 | 110,870 | 385 | 6 | 1 / 1 / 0 / 4 | 0 of 53 | 0 | 2,762 | 142 |
+| level_05_day_4 | 188,533 | 111,569 | 385 | 6 | 1 / 1 / 0 / 4 | 0 of 1 | 0 | 2,750 | 149 |
+| level_06_day_2 | 694,496 | 216,303 | 5,059 | 29 | 16 / 4 / 0 / 9 | 0 of 34 | 0 | 6,688 | 579 |
+| level_06_day_4 | 685,586 | 211,898 | 4,755 | 25 | 15 / 1 / 0 / 9 | 0 of 0 | 0 | 6,445 | 516 |
+| level_07_day_2 | 240,106 | 141,417 | 1,950 | 10 | 3 / 5 / 0 / 2 | 2 of 41 | 0 | 6,554 | 353 |
+| level_07_day_4 | 240,901 | 142,310 | 1,950 | 10 | 3 / 5 / 0 / 2 | 0 of 0 | 0 | 6,437 | 335 |
+| level_08_day_2 | 128,859 | 118,411 | 710 | 9 | 5 / 1 / 0 / 3 | 3 of 24 | 0 | 2,942 | 447 |
+| level_08_day_4 | 128,181 | 117,938 | 607 | 8 | 4 / 1 / 0 / 3 | 0 of 0 | 0 | 2,845 | 435 |
+
+162 pockets in all: 80 leave by the jump, 30 only by the sprint jump, 52
+have no way out within 1.35 m. Every pocket with a steep exit has a jump
+out too. Of the 26 with none on the day_2 maps, 12 are pits (every floor
+that returns within 2 m is 1.5 m or more higher); the other 14 have one
+lower, 1-2.8 m across. Of the 9 of those looked at cell by cell, each had a
+wall, a void or a crouch-only space between (the grid makes no jump into
+crouch-only space: the client's is not proven). At the base the table was the same but for level_05: 97,292
+pocket floors and 53 objectives in a pocket (the spawn rule above). No
+jump link lands 3-4 cells along its direction on any map.
+
+The bench's stand-in body (`bots/tests.rs`, `stand_in_jump`) jumps as the
+client does: by a grid jump link only within 0.998 m, else onto the highest
+floor up to 0.998 m within 0.6 m ahead (GUESS) on its walk's line; the
+sprint jump (1.30 m) is in a test only, as no bot's jump picks it yet.
+
+The bench (`real_bot_cost`: the 16 projects, 4 v 4 and 10 v 10, 180 s, 10
+batteries; 16 seeds, 512 pairs; `with − without`, * beyond 2 SE). It is
+deterministic per seed: a seed run again gives the same decisions.
+
+| | stuck notes | delivered | carriers killed | K/D team 0 / 1 | falls on route |
+|---|---|---|---|---|---|
+| the stand-in's jump, against the base | +1.15 ± 0.19* | −0.09 ± 0.03* | −0.045 ± 0.047 | −0.04 ± 0.04 / +0.01 ± 0.03 | −1.12 ± 0.23* |
+| the marginal-jump cost, pockets' marks, against the stand-in's jump | −0.56 ± 0.19* | +0.07 ± 0.03* | −0.049 ± 0.050 | +0.06 ± 0.04 / −0.02 ± 0.02 | +0.42 ± 0.20* |
+| with the pocket costs too, against without them | −0.01 ± 0.08 | −0.02 ± 0.02 | −0.033 ± 0.020 | −0.02 ± 0.01* / +0.01 ± 0.01 | +0.10 ± 0.07 |
+| with the marginal-jump cost, against without it (pocket costs in both) | −0.69 ± 0.20* | +0.04 ± 0.04 | −0.100 ± 0.049* | +0.05 ± 0.04 / −0.02 ± 0.02 | +0.41 ± 0.20* |
+
+- The stand-in's jump is a measurement change: the bench's body no longer
+  makes the 0.998-1.05 m jumps the client cannot, so bots that took them
+  stall (more stuck notes, fewer deliveries).
+- The marginal-jump cost makes the gain: ways go round a jump at the
+  client's limit when the way round is short, so fewer bots stall at one;
+  more of them go down planned drops instead (falls on route).
+- **The pocket costs were measured and removed**: 30 m more into a pocket
+  and 1 m onto its rim moved no target, and team 0's K/D was a little worse
+  with them. Pockets are small and routes seldom pass one. A cost there
+  needs its own evidence (unstuck's bench) before it comes back.
+- Quick ends, flips, idle and team kills (friendly fire: 6 over the 512
+  runs with the stand-in's jump, 3 with this) did not move beyond noise.
+
+On the combined tip with unstuck's team-wide stuck and fall spots (#383)
+and the batteries' 0.6 s put (#384), 512 pairs:
+
+| | stuck notes | delivered | carriers killed | K/D team 0 / 1 | quick ends / bot-min | falls on route |
+|---|---|---|---|---|---|---|
+| the stand-in's jump, against the tip | +0.95 ± 0.19* | −0.10 ± 0.04* | −0.037 ± 0.052 | −0.01 ± 0.04 / −0.01 ± 0.03 | +0.004 ± 0.012 | −0.77 ± 0.22* |
+| this PR, against the tip with the stand-in's jump | −0.37 ± 0.16* | +0.04 ± 0.03 | −0.047 ± 0.048 | +0.01 ± 0.04 / +0.01 ± 0.03 | +0.018 ± 0.013 | −0.01 ± 0.18 |
+
+With the team's fall spots the extra falls on route are gone, and
+deliveries keep within noise of the gain without them. Team kills over the
+512 runs: 4 at the tip, 4 with the stand-in's jump, 9 with this PR (within
+noise of each other).
 
 ## 5. Measured (2026-10-14, release build, one thread)
 

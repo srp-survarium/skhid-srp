@@ -224,6 +224,16 @@ struct Looked {
     part: Option<Part>,
 }
 
+/// [measure] What kept a shot from going clear ([`Sight::blocked`]): no
+/// part of the target shows; the view's ray, or the aim's, hits the world
+/// this far along, metres.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Blocked {
+    Hidden,
+    View(f32),
+    Aim(f32),
+}
+
 /// Where the aim goes this tick, and whether a part of the target shows.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Aim {
@@ -343,14 +353,21 @@ impl Sight {
     /// to (`aim`'s point with `error`, yaw and pitch, radians), each up to
     /// the target. Always with no map; never when no part shows.
     pub fn clear_shot(&self, me: &PlaceView, aim: &Aim, error: (f32, f32)) -> bool {
+        self.blocked(me, aim, error).is_none()
+    }
+
+    /// [measure] What keeps [`Self::clear_shot`] from passing, if anything:
+    /// no part shows, or which ray hits the world first and how far along
+    /// it, metres (the same rays in the same order).
+    pub fn blocked(&self, me: &PlaceView, aim: &Aim, error: (f32, f32)) -> Option<Blocked> {
         let Some(world) = &self.world else {
-            return true;
+            return None;
         };
         if !aim.shows {
-            return false;
+            return Some(Blocked::Hidden);
         }
         if self.reach <= 0.0 {
-            return true;
+            return None;
         }
         let eye = me.eye();
         let along = |yaw: f32, pitch: f32| {
@@ -363,9 +380,15 @@ impl Sight {
             yaw_of([to.x, to.z]) + error.0,
             to.y.atan2(to.x.hypot(to.z)) + error.1,
         );
-        [along(me.yaw, me.pitch), along(yaw, pitch)]
-            .into_iter()
-            .all(|dir| ray_cast(&world.sight, eye, dir, self.reach).is_none())
+        if let Some(m) = ray_cast(&world.sight, eye, along(me.yaw, me.pitch), self.reach) {
+            return Some(Blocked::View(m));
+        }
+        ray_cast(&world.sight, eye, along(yaw, pitch), self.reach).map(Blocked::Aim)
+    }
+
+    /// [measure] How long ago its target's parts were last looked at, ms.
+    pub fn looked_ms(&self, now: u32) -> Option<u32> {
+        self.looked.map(|l| now.saturating_sub(l.at))
     }
 
     /// With no target: the last part seen, for [`PRE_AIM_MS`] after.

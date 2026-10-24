@@ -1918,3 +1918,10 @@ va	name	source	ret_cleanup	result
 0x00331560	survarium::dispersion_calculator::get_character_state_dispersion	manual	8	XMM0 = state dispersion
 0x003317c0	survarium::dispersion_calculator::get_injury_penalty	manual	4	XMM0 = additive penalty
 0x0032fe40	survarium::transition_helper::tick	manual	0	AL = 1 when the value is at its target after the tick
+0x0007c900	vostok::physics::bullet_character_controller::step_up	manual	4	[entry ESP+4] := how far the feet rose (0.6 when the capsule half-cylinder >= 0.3); the capsule is shortened from below by 2*0.3 (s_step_height 0xA7AB08 x 0.5) through setup_shape_dim with its top kept, +40h moved accordingly; no sweep, no slope test
+0x0007bda0	vostok::physics::bullet_character_controller::player_step	manual	4	none observed; moves the controller one tick: jump flag +0x2C70C set -> step_jump_up/forward/down, else step_up, step_forward, step_down
+0x0007e1b0	vostok::physics::bullet_character_controller::step_down	manual	28	sweeps the shortened capsule down by step offset + 0.05 (or + the fall this tick), tests the hit with impassable_slope, then restores the capsule (+60h stand / +68h crouch dims) keeping the feet
+0x0007de10	vostok::physics::bullet_character_controller::impassable_slope	manual	0	AL = 1 when normal.up < the walkable-slope dot (0x21E51D8, cos 0.8727) and the capsule feet (+40h - up*(r+halfH)) are above the reference point by more than 1e-5; else 0
+0x0007f100	vostok::physics::bullet_character_controller::setup_shape_dim	manual	0	writes dims +1D0h = {d/2, (h-d)/2, d/2, 0} (radius, half-cylinder, radius) and updates the Bullet shape at +70h
+0x0007d590	vostok::physics::bullet_character_controller::step_forward	manual	4	normalizes the move [ESI] and calls step_forward_impl; nothing when it is shorter than 1e-5 squared
+0x0007ea80	vostok::physics::bullet_character_controller::step_down_sweep_test_impl	manual	24	AL = hit; +40h := the start moved down to the contact (the sweep fraction)
