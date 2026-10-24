@@ -47,6 +47,7 @@ use survarium::v026g::match_msgs::snapshot::{Battery, Decoded};
 use super::*;
 use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::maps::{MapState, Maps};
+use crate::v026g::bots::motor::Hurt;
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::routes::RouteTable;
 use crate::v026g::bots::tactics::Tactics;
@@ -487,6 +488,11 @@ impl Game {
                 .damage
                 .as_ref()
                 .and_then(|damage| damage.part_health.first().copied());
+            if let Some(damage) = motion.damage.as_ref() {
+                let legs = [6, 7].map(|part| damage.part_health.get(part).copied());
+                let hurt = Hurt::of(legs, damage.last_hit_time_ms, snapshot.time);
+                walkers.bots.hurt(place, hurt);
+            }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);
         }

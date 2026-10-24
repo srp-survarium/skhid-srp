@@ -3304,6 +3304,7 @@ mod tests {
                     yaw: me.yaw,
                     pitch: me.pitch,
                     speed: 0.0,
+                    ..Default::default()
                 };
                 let d = motor.aim_still(&pose, want);
                 me.yaw = wrap(me.yaw + d.turn.0);
@@ -3668,6 +3669,7 @@ mod tests {
                 yaw: me.yaw,
                 pitch: seen.pitch,
                 speed: 0.0,
+                ..Default::default()
             };
             let turn = motor.aim_still(&pose, (me.yaw, want)).turn.1 + o.pull;
             let keys = o.keys | if o.fire { key::FIRE } else { 0 };

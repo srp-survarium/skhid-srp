@@ -337,6 +337,8 @@ struct Game {
     inputs: Vec<VecDeque<Queued>>,
     /// The worlds of the last two seconds.
     history: VecDeque<Recorded>,
+    /// The bodies' hurts in those worlds ([`Game::hurts_at`]).
+    hurts: VecDeque<(u32, Vec<Hurt>)>,
     tick: u32,
     rng: Rng,
     shots: u32,
@@ -517,6 +519,7 @@ impl Game {
             timed: timed.map(|every| (every, every)),
             inputs: vec![VecDeque::new(); teams.len()],
             history: VecDeque::new(),
+            hurts: VecDeque::new(),
             tick: 0,
             rng: Rng::new(seed),
             shots: 0,
@@ -1164,6 +1167,21 @@ impl Game {
         while self.history.len() > 40 {
             self.history.pop_front();
         }
+        let tick = self.tick;
+        let hurts = self
+            .bodies
+            .iter()
+            .map(|b| Hurt::of(b.legs.map(Some), b.last_hit, tick))
+            .collect();
+        self.hurts.push_back((tick, hurts));
+        while self.hurts.len() > 40 {
+            self.hurts.pop_front();
+        }
+    }
+
+    /// The bodies' hurts in the world of `tick` ([`Self::world_at`]).
+    fn hurts_at(&self, tick: u32) -> Option<Vec<Hurt>> {
+        self.hurts.iter().find(|(t, _)| *t == tick).map(|(_, h)| h.clone())
     }
 
     fn world_at(&self, tick: u32) -> Option<Recorded> {
@@ -4252,9 +4270,11 @@ fn real_bot_cost() {
                 if clock >= next_world {
                     next_world += 1_000;
                     events.world(clock, &mut game, &bots);
-                    if let Some((_, fixes, health, facts)) =
-                        game.world_at(clock / TICK_MS * TICK_MS - 300)
-                    {
+                    let world_tick = clock / TICK_MS * TICK_MS - 300;
+                    for (place, hurt) in game.hurts_at(world_tick).into_iter().flatten().enumerate() {
+                        bots.hurt(place, hurt);
+                    }
+                    if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             for note in bots.fixed(place, fix, Some(health)) {
                                 routes.note(&note);
