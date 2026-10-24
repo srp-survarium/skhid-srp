@@ -35,9 +35,10 @@
 //!    of reached floors that all walk to each other); a pocket floor is reached
 //!    and does not return ([`WalkGrid::in_pocket`]), and pockets are its
 //!    floors joined by links either way ([`WalkGrid::pocket_of`]). Walk
-//!    geometry only: the match's zones are not in it. A link into a pocket
-//!    costs [`POCKET_PENALTY`] more, and walking onto its rim
-//!    [`POCKET_EDGE_PENALTY`].
+//!    geometry only: the match's zones are not in it. The marks cost a
+//!    way nothing (an extra cost into a pocket and onto its rim was
+//!    benched and moved nothing: `player_bots_mapdata.md`, "Grid: pockets
+//!    and jumps"); they tell where a body would not get back from.
 //!
 //! Positions are in the map frame, at the feet ([`crate::math`]).
 
@@ -184,14 +185,6 @@ pub const MARGINAL_JUMP_M: f32 = 0.95;
 /// reaches stays reachable).
 pub const MARGINAL_JUMP_PENALTY: f32 = 4.0;
 
-/// The extra cost of a link into a pocket from outside it, metres
-/// ([`WalkGrid::in_pocket`]): a body there cannot get back to a spawn. Not
-/// forbidden, so a goal in a pocket still has a way. GUESS, benched.
-pub const POCKET_PENALTY: f32 = 30.0;
-/// The extra cost of walking onto a floor that links into a pocket
-/// ([`WalkGrid::is_pocket_edge`]), instead of [`LIP_PENALTY`]: a way keeps
-/// a cell back from a pocket's rim. GUESS, benched.
-pub const POCKET_EDGE_PENALTY: f32 = 1.0;
 /// A spawn's floor is found within this, metres (as the bots' tactics find
 /// it, `walkable_from_spawns`).
 const SPAWN_M: f32 = 1.5;
@@ -1321,7 +1314,7 @@ impl WalkGrid {
     }
 
     /// Whether `node` is not in a pocket and links into one: a pocket's
-    /// rim ([`POCKET_EDGE_PENALTY`]).
+    /// rim ([`Self::pocket_entries`]).
     pub fn is_pocket_edge(&self, node: NodeId) -> bool {
         self.flags[node as usize] & POCKET_EDGE != 0
     }
@@ -1669,22 +1662,12 @@ impl WalkGrid {
 
     /// The cost of a link: its length plus the kind's penalty, plus
     /// [`LIP_PENALTY`] for walking onto a lip ([`Self::is_lip`]), so a
-    /// way keeps a cell back from a ledge where it can
-    /// ([`POCKET_EDGE_PENALTY`] onto a pocket's rim), plus
+    /// way keeps a cell back from a ledge where it can, plus
     /// [`MARGINAL_JUMP_PENALTY`] for a jump higher than
-    /// [`MARGINAL_JUMP_M`] and [`POCKET_PENALTY`] into a pocket.
+    /// [`MARGINAL_JUMP_M`].
     pub fn link_cost(&self, from: NodeId, to: NodeId, kind: LinkKind) -> f32 {
-        let lip = if kind == LinkKind::Drop {
-            0.0
-        } else if self.is_pocket_edge(to) {
-            POCKET_EDGE_PENALTY
-        } else if self.is_lip(to) {
+        let lip = if kind != LinkKind::Drop && self.is_lip(to) {
             LIP_PENALTY
-        } else {
-            0.0
-        };
-        let pocket = if self.in_pocket(to) && !self.in_pocket(from) {
-            POCKET_PENALTY
         } else {
             0.0
         };
@@ -1695,11 +1678,7 @@ impl WalkGrid {
         } else {
             0.0
         };
-        (self.position(to) - self.position(from)).length()
-            + kind.penalty()
-            + lip
-            + marginal
-            + pocket
+        (self.position(to) - self.position(from)).length() + kind.penalty() + lip + marginal
     }
 
     /// Whether a floor is a lip: the last floor before a ledge at least
@@ -2665,16 +2644,14 @@ pub(crate) mod tests {
         )
     }
 
-    /// A pit 1.6 m deep is a pocket with no way out; its rim is marked, a
-    /// way into it costs [`POCKET_PENALTY`] more but is there, and a way
-    /// round it keeps off its rim. 1.2 m deep, it has ways out within the
+    /// A pit 1.6 m deep is a pocket with no way out; its rim is marked and
+    /// a way into it is there. 1.2 m deep, it has ways out within the
     /// sprint jump ([`WalkGrid::pocket_exits`]). The marks read back.
     #[test]
     fn a_pit_with_no_walk_out_is_a_pocket() {
         let grid = pit_grid(1.6);
         let spawn = grid.locate(Vec3::new(2.0, 0.0, 5.0), 0.3).unwrap();
         let bottom = grid.locate(Vec3::new(10.0, -1.6, 5.0), 0.3).unwrap();
-        let far = grid.locate(Vec3::new(18.0, 0.0, 5.0), 0.3).unwrap();
         assert!(grid.reached(spawn) && grid.returns(spawn) && !grid.in_pocket(spawn));
         assert!(grid.reached(bottom) && !grid.returns(bottom) && grid.in_pocket(bottom));
         let pocket = grid.pocket_of(bottom).unwrap();
@@ -2688,26 +2665,9 @@ pub(crate) mod tests {
         assert!(rim > 0);
         assert!(grid.pocket_exits(bottom).is_empty(), "1.6 m: no way out");
         assert!(grid.pocket_exits(spawn).is_empty(), "not in a pocket");
-        // In: there, at a price; round: off the rim.
+        // In: there (the marks cost a way nothing).
         let into = grid.path(spawn, bottom).unwrap();
-        assert!(into.cost > POCKET_PENALTY);
-        let round = grid.path(spawn, far).unwrap();
-        assert!(round.nodes.iter().all(|&f| !grid.in_pocket(f)));
-        assert!(
-            round
-                .nodes
-                .iter()
-                .filter(|&&f| grid.is_pocket_edge(f))
-                .count()
-                <= 2,
-            "{:?}",
-            round
-                .nodes
-                .iter()
-                .filter(|&&f| grid.is_pocket_edge(f))
-                .map(|&f| grid.position(f))
-                .collect::<Vec<_>>()
-        );
+        assert_eq!(into.nodes.last(), Some(&bottom));
         // Written and read back, the same marks.
         let path = std::env::temp_dir().join(format!("srp-pit-{}.bin", std::process::id()));
         grid.write(&path, 7).unwrap();
