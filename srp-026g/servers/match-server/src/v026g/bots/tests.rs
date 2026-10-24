@@ -162,10 +162,12 @@ const STAND_IN_STAGGER_MS: u32 = 500;
 /// The leg a hit of `shooter` on `target` at `tick` lands on, if any
 /// ([`STAND_IN_LEG_SHARE`]): a hash, so the game's draws are not moved.
 fn stand_in_leg_hit(tick: u32, shooter: Place, target: Place) -> Option<usize> {
-    let h = (tick ^ (shooter as u32).wrapping_mul(0x85EB_CA6B) ^ (target as u32).wrapping_mul(0x9E37_79B9))
-        .wrapping_mul(0xC2B2_AE35);
+    let from = (shooter as u32).wrapping_mul(0x85EB_CA6B);
+    let to = (target as u32).wrapping_mul(0x9E37_79B9);
+    let h = (tick ^ from ^ to).wrapping_mul(0xC2B2_AE35);
     let h = h ^ (h >> 16);
-    (h % STAND_IN_LEG_SHARE == 0).then_some(((h >> 8) & 1) as usize)
+    let leg = ((h >> 8) & 1) as usize;
+    h.is_multiple_of(STAND_IN_LEG_SHARE).then_some(leg)
 }
 
 /// A jump of the stand-in: how high the feet get over the floor jumped
@@ -1181,7 +1183,8 @@ impl Game {
 
     /// The bodies' hurts in the world of `tick` ([`Self::world_at`]).
     fn hurts_at(&self, tick: u32) -> Option<Vec<Hurt>> {
-        self.hurts.iter().find(|(t, _)| *t == tick).map(|(_, h)| h.clone())
+        let (_, hurts) = self.hurts.iter().find(|(t, _)| *t == tick)?;
+        Some(hurts.clone())
     }
 
     fn world_at(&self, tick: u32) -> Option<Recorded> {
@@ -4276,7 +4279,8 @@ fn real_bot_cost() {
                     next_world += 1_000;
                     events.world(clock, &mut game, &bots);
                     let world_tick = clock / TICK_MS * TICK_MS - 300;
-                    for (place, hurt) in game.hurts_at(world_tick).into_iter().flatten().enumerate() {
+                    let hurts = game.hurts_at(world_tick).unwrap_or_default();
+                    for (place, hurt) in hurts.into_iter().enumerate() {
                         bots.hurt(place, hurt);
                     }
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
