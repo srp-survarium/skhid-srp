@@ -3028,3 +3028,29 @@ va	status	ref_021d	name
 0x0026db80	inferred-high		survarium::base_game_statistics_handler::on_event
 0x0026db60	inferred-high		survarium::base_game_statistics_handler::deserialize
 0x0026dc30	inferred-high		survarium::base_game_statistics_handler::recalculate_scores
+0x00313350	inferred-medium		survarium::artefact_base::play_active_effect
+0x00313200	inferred-medium	0x001f4eee	survarium::artefact_base::tick
+0x00313470	inferred-medium	0x001f50cb	survarium::artefact_base::added_to_inventory
+0x00313470	inferred-medium	0x001f50cb	survarium::artefact_base::initialize
+0x00313490	inferred-medium	0x001f50df	survarium::artefact_base::removed_from_inventory
+0x00313530	inferred-medium	0x001f5100	survarium::artefact_base::decrement_amount
+0x00313640	inferred-medium	0x001f515a	survarium::artefact_base::effect_calculator::operator()
+0x002de090	inferred-medium	0x001d75b4	survarium::game_effect_player::add
+0x002dda80	inferred-medium		survarium::game_effect_player::resolve_link
+0x002ddad0	inferred-high		survarium::game_effect_player::serialize
+0x00329050	inferred-medium	0x002048b3	survarium::game_effect_emitter::emit
+0x002e5cf0	inferred-medium		survarium::game_effect_ptr_wrapper::deserialize
+0x002ac290	inferred-medium		survarium::particle_game_effect_presenter::play_effect
+0x002ac310	inferred-medium		survarium::particle_game_effect_presenter::update_effect
+0x002ac360	inferred-medium	0x001b027c	survarium::particle_game_effect_presenter::clear
+0x002ac400	inferred-medium	0x001b0574	survarium::particle_game_effect_presenter::visit
+0x002ac870	inferred-medium		survarium::particle_game_effect_presenter::deserialize
+0x002971c0	inferred-medium	0x00188090	survarium::first_person_game_effects_presenter::first_person_game_effects_presenter
+0x00297570	inferred-medium		survarium::third_person_game_effects_presenter::third_person_game_effects_presenter
+0x0029a0f0	inferred-medium		survarium::particle_game_effect_emitter::particle_game_effect_emitter
+0x0029a220	inferred-medium	0x001b3138	survarium::particle_game_effect_emitter::emit
+0x002ae1e0	inferred-medium	0x001b4286	survarium::particle_game_effect::particle_game_effect
+0x0025a540	inferred-medium	0x00192886	survarium::particle_game_effect_emitter_cook::translate_query
+0x002ec760	inferred-medium	0x001dbaf5	survarium::game_effect_emitter_cook::translate_query
+0x002ee650	inferred-medium	0x001dc1a8	survarium::artefact_core_cook::on_config_loaded
+0x002ee7c0	inferred-medium	0x001dc2e0	survarium::artefact_core_cook::on_effect_loaded
