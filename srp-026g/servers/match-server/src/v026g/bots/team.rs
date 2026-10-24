@@ -23,15 +23,50 @@
 //!   A slot already held stays with its holder while its play is still a
 //!   candidate, unless another bot's candidate for it beats the holder's
 //!   by [`MARGIN`] (else two bots near one battery swap it every tick,
-//!   neither going for it; seen in the soaks).
+//!   neither going for it; seen in the soaks). A bot farther from the
+//!   target than the holder needs [`MARGIN_FAR`], and a holder within
+//!   [`COMMIT_M`] of it keeps it against any claim: each bot scores from
+//!   its own memory, and the holder, nearest and in sight of the danger
+//!   there, knew of more enemies by the battery than a teammate behind,
+//!   so the slot went back and forth and nobody took it (Cologne
+//!   0x60aeff4f, battery 2: six hand-offs in 20 s).
 //! - The commander says why: each assignment carries the winner's score and
 //!   the runners-up for the trace.
 
+use super::curve::Input;
 use super::plays::{Candidate, PlayKind, Rank, SlotKey, TargetRef};
 use super::view::Place;
 
 /// A candidate of the same band must beat the running play by this.
 pub const MARGIN: f32 = 0.12;
+
+/// A bot farther from a held slot's target than its holder must beat the
+/// holder's score by this to take it.
+pub const MARGIN_FAR: f32 = 0.30;
+
+/// A holder this near its slot's target (its way there, metres) keeps the
+/// slot against any other bot's claim.
+pub const COMMIT_M: f32 = 5.0;
+
+/// The candidate's way to its target, metres, when it weighs one.
+fn path_m(c: &Candidate) -> Option<f32> {
+    c.why
+        .parts
+        .iter()
+        .find(|(input, _, _)| *input == Input::PathDist)
+        .map(|&(_, value, _)| value)
+}
+
+/// Whether `c` (another bot's) may take a slot held at `score` by a holder
+/// `holder_m` from its target.
+fn takes_held(c: &Candidate, score: f32, holder_m: Option<f32>) -> bool {
+    let margin = match (holder_m, path_m(c)) {
+        (Some(held), _) if held <= COMMIT_M => return false,
+        (Some(held), Some(mine)) if mine > held => MARGIN_FAR,
+        _ => MARGIN,
+    };
+    c.score.get() >= score + margin
+}
 
 /// How the commander reads a candidate's band (F2 of the owner's matches
 /// of 2026-10-16, `player_bots_behaviour.md` §3 "The commander's bands").
@@ -220,8 +255,9 @@ pub fn assign_with(
         let (rb, sb) = best(b);
         rb.cmp(&ra).then(sb.total_cmp(&sa))
     });
-    // Slots held by running plays still asked for: (slot, holder, score).
-    let held: Vec<(SlotKey, Place, f32)> = asking
+    // Slots held by running plays still asked for: (slot, holder, score,
+    // the holder's way to the target).
+    let held: Vec<(SlotKey, Place, f32, Option<f32>)> = asking
         .iter()
         .filter_map(|bot| {
             let current = bot.current?;
@@ -231,7 +267,7 @@ pub fn assign_with(
                 .find(|c| {
                     c.slot == Some(slot) && c.kind == current.kind && c.target == current.target
                 })
-                .map(|c| (slot, bot.place, c.score.get()))
+                .map(|c| (slot, bot.place, c.score.get(), path_m(c)))
         })
         .collect();
     let mut taken: Vec<SlotKey> = Vec::new();
@@ -242,8 +278,8 @@ pub fn assign_with(
         let free = |c: &&Candidate| {
             c.slot.is_none_or(|slot| {
                 !taken.contains(&slot)
-                    && held.iter().all(|&(s, holder, score)| {
-                        s != slot || holder == bot.place || c.score.get() >= score + MARGIN
+                    && held.iter().all(|&(s, holder, score, holder_m)| {
+                        s != slot || holder == bot.place || takes_held(c, score, holder_m)
                     })
             })
         };
@@ -394,6 +430,65 @@ mod tests {
         assert_eq!(run(0.55), (PlayKind::Collect, PlayKind::Roam));
         // Much better placed: it goes over.
         assert_eq!(run(0.8), (PlayKind::Roam, PlayKind::Collect));
+    }
+
+    /// Cologne's battery 2: the holder by the battery knew more enemies
+    /// there and scored less than a teammate behind it.
+    #[test]
+    fn a_held_slot_goes_to_a_farther_bot_by_the_far_margin_and_never_from_by_its_target() {
+        let at = |score: f32, path_m: f32| Candidate {
+            why: Explain {
+                parts: vec![(Input::PathDist, path_m, 0.9)],
+            },
+            ..c(PlayKind::Collect, Rank::Objective, score, Some(0), 0)
+        };
+        let current = Assignment {
+            kind: PlayKind::Collect,
+            target: TargetRef::Battery(0),
+            slot: Some(SlotKey {
+                kind: PlayKind::Collect,
+                key: 0,
+            }),
+            score: 0.6,
+            since: 100,
+            reason: "the best play",
+        };
+        let run = |holder: Candidate, other: Candidate, alarm: bool| {
+            let mut mine = vec![holder, c(PlayKind::Roam, Rank::Roam, 0.9, None, 9)];
+            if alarm {
+                mine.push(c(PlayKind::Trade, Rank::Alarm, 0.7, None, 7));
+            }
+            let asking = vec![
+                Asking {
+                    place: 1,
+                    candidates: mine,
+                    current: (!alarm).then_some(&current),
+                },
+                Asking {
+                    place: 2,
+                    candidates: vec![other, c(PlayKind::Roam, Rank::Roam, 0.9, None, 8)],
+                    current: None,
+                },
+            ];
+            let out = assign(asking, 1_000);
+            let of = |place| out.iter().find(|(p, _, _)| *p == place).unwrap().1.kind;
+            (of(1), of(2))
+        };
+        let (collect, roam) = (PlayKind::Collect, PlayKind::Roam);
+        // By the battery: kept against a far better score.
+        assert_eq!(run(at(0.36, 3.0), at(0.61, 12.0), false), (collect, roam));
+        assert_eq!(run(at(0.36, 3.0), at(0.95, 2.0), false), (collect, roam));
+        // Farther off: a farther bot needs the far margin.
+        assert_eq!(run(at(0.36, 12.0), at(0.61, 20.0), false), (collect, roam));
+        assert_eq!(run(at(0.36, 12.0), at(0.70, 20.0), false), (roam, collect));
+        // A nearer bot, the usual margin.
+        assert_eq!(run(at(0.36, 12.0), at(0.50, 8.0), false), (roam, collect));
+        // An alarm takes the holder (the poll after, it runs the alarm),
+        // and the slot goes.
+        assert_eq!(
+            run(at(0.36, 3.0), at(0.61, 12.0), true),
+            (PlayKind::Trade, collect)
+        );
     }
 
     #[test]

@@ -23,7 +23,10 @@
 //! battery, a thief or a carrier are other plays' business (collect,
 //! intercept, escort win over a roam), so they do not weigh here. A route
 //! that turns bad on the way (a teammate killed by its next point) ends
-//! the run, and the commander picks again from where the bot stands.
+//! the run, and the commander picks again from where the bot stands. A
+//! route already bad where a run would start on it is not drawn: drawn, it
+//! ended at its first step, and the commander drew it again (Cologne
+//! 0x60aeff4f: 218 such ends, a bot 57 times in 17 s in its spawn).
 //!
 //! **Without routes**, to the exits of the enemy base, by a way of its
 //! own: a waypoint off the straight way, drawn per run. The team spreads
@@ -305,7 +308,10 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
         .iter()
         .zip(&routes)
         .map(|(route, points)| {
-            if points.is_empty() {
+            let Some(first) = start_index(points, mine, num("reach_m")) else {
+                return 0.0;
+            };
+            if turned_bad(cx, points[first]) {
                 return 0.0;
             }
             let near = |at: Vec3| points.iter().any(|p| p.distance_xz(at) < on);
@@ -356,18 +362,31 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
         })
         .or_else(|| weights.iter().rposition(|&w| w > 0.0))?;
     let points = &routes[index];
-    // From the point nearest the bot; the next one if it is there already.
-    let nearest = (0..points.len()).min_by(|&a, &b| {
-        points[a]
-            .distance_xz(mine)
-            .total_cmp(&points[b].distance_xz(mine))
-    })?;
-    let first = if points[nearest].distance_xz(mine) < num("reach_m") * 3.0 {
+    let first = start_index(points, mine, num("reach_m"))?;
+    Some(points[first..].to_vec())
+}
+
+/// Where a run on a route's `points` starts: the point nearest the bot, or
+/// the next one if it is there already. None when that is past the end.
+fn start_index(points: &[Vec3], mine: Vec3, reach: f32) -> Option<usize> {
+    let nearest = (0..points.len())
+        .min_by(|&a, &b| points[a].distance_xz(mine).total_cmp(&points[b].distance_xz(mine)))?;
+    let first = if points[nearest].distance_xz(mine) < reach * 3.0 {
         nearest + 1
     } else {
         nearest
     };
-    (first < points.len()).then(|| points[first..].to_vec())
+    (first < points.len()).then_some(first)
+}
+
+/// A teammate killed by `at` in the last 10 s: a route whose next point
+/// this is has turned bad. The step asks it of the next point, the draw of
+/// the first, so a route is never drawn to end at its first step.
+fn turned_bad(cx: &Ctx, at: Vec3) -> bool {
+    let on = cx.num(PlayKind::Roam, "on_route_m") * 0.75;
+    cx.team
+        .danger_within(cx.now, 10_000)
+        .any(|d| d.at.distance_xz(at) < on)
 }
 
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
@@ -450,12 +469,7 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
             };
             // A teammate killed by the next point lately: the route has
             // turned bad; the commander picks again from here.
-            let on = cx.num(PlayKind::Roam, "on_route_m") * 0.75;
-            if cx
-                .team
-                .danger_within(cx.now, 10_000)
-                .any(|d| d.at.distance_xz(at) < on)
-            {
+            if turned_bad(cx, at) {
                 return Step::Done("the route turned bad");
             }
             // The pair's follower left behind: wait a little, once a run
@@ -626,6 +640,36 @@ mod tests {
         });
         let (north, south) = draws(&s, 400);
         assert!(south > north, "{north} {south}");
+    }
+
+    /// A route already bad where the run would start is not drawn: drawn,
+    /// it ended at its first step and was drawn again (Cologne's loops).
+    #[test]
+    fn a_route_bad_where_it_starts_is_not_drawn() {
+        let mut s = Scenario::field(Mode::Batteries);
+        with_routes(&mut s);
+        s.bot(0, 0, Vec3::new(5.0, 0.0, 15.0));
+        let now = s.view.clock;
+        // A teammate killed 3 s ago by the north route's first point.
+        s.team.danger.push(DangerSpot {
+            at: Vec3::new(22.0, 0.0, 30.0),
+            time: now - 3_000,
+            victim: 3,
+        });
+        let (north, south) = draws(&s, 200);
+        assert_eq!((north, south), (0, 200));
+        let mut rng = Rng::new(1);
+        let mut state = start(TargetRef::None, &s.cx(0), &mut rng);
+        let first = step(&mut state, TargetRef::None, &s.cx(0), &mut rng);
+        assert!(!matches!(first, Step::Done(_)), "{first:?}");
+        // Both routes bad there: no route, the way ahead instead.
+        s.team.danger.push(DangerSpot {
+            at: Vec3::new(20.0, 0.0, 9.0),
+            time: now - 3_000,
+            victim: 5,
+        });
+        let state = start(TargetRef::None, &s.cx(0), &mut Rng::new(1));
+        assert!(!matches!(state, State::Route { .. }), "{state:?}");
     }
 
     /// A bot that gets nowhere on its way for `headway_s` ends the run, so
