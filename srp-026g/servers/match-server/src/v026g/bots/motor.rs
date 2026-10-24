@@ -151,13 +151,58 @@ impl Default for Feel {
 }
 
 /// Where the body is, as the motor needs it.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Pose {
     pub feet: Vec3,
     pub yaw: f32,
     pub pitch: f32,
     /// Ground speed, m/s.
     pub speed: f32,
+    /// Hurt so it does not jump now ([`Hurt::may_jump`]): the motor
+    /// presses no jump and counts no try at one.
+    pub no_jump: bool,
+}
+
+/// What the world last showed of the body's hurts, as the jump needs it
+/// (the sprint-jump RE, `FINDINGS.md` §1.8).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Hurt {
+    /// A leg pool (`Damage::part_health` 6 or 7, 0.5 full) at 0: the game
+    /// takes no jump of any kind then, for about 8 s (PROVEN).
+    pub leg_broken: bool,
+    /// The last bullet hit, the world's ms (`m_last_hit_time_ms`).
+    pub last_hit_ms: Option<u32>,
+}
+
+/// After a hit the body is staggered this long, ms (`stagger_duration`,
+/// PROVEN): slowed by up to half, so a jump of the route pressed then may
+/// fall short of its landing [GUESS]; it is held until the stagger ends.
+pub const HIT_JUMP_HOLD_MS: u32 = 500;
+
+/// A leg pool at or under this is broken (the worlds show 0, and 0.01-0.03
+/// just after it mends).
+const LEG_BROKEN: f32 = 0.005;
+
+impl Hurt {
+    /// From the world's leg pools and last hit at `now`, ms (a hit time
+    /// of 0 or later than `now` is none).
+    pub fn of(legs: [Option<f32>; 2], last_hit_ms: u32, now: u32) -> Self {
+        Self {
+            leg_broken: legs.iter().flatten().any(|&pool| pool <= LEG_BROKEN),
+            last_hit_ms: (last_hit_ms != 0 && last_hit_ms <= now).then_some(last_hit_ms),
+        }
+    }
+
+    /// Whether the body may jump at `now`, ms: no broken leg, and not
+    /// within [`HIT_JUMP_HOLD_MS`] of the last hit. Stamina is not in the
+    /// world's state, so its gate (no jump under 10, nor from 0 until back
+    /// over 20) is not known here.
+    pub fn may_jump(&self, now: u32) -> bool {
+        !self.leg_broken
+            && self
+                .last_hit_ms
+                .is_none_or(|at| now >= at.saturating_add(HIT_JUMP_HOLD_MS))
+    }
 }
 
 /// What the motor did with a route this tick.
@@ -545,9 +590,9 @@ impl Motor {
             if let Some(take_off) = jump.failed {
                 return (Decision { keys: 0, turn }, Walked::JumpFailed(take_off));
             }
-            keys |= self.jump_key(&jump, still, pose.speed);
+            keys |= self.jump_key(&jump, still, pose);
         }
-        let may = self.walking && still <= self.feel.hop_max_turn;
+        let may = self.walking && still <= self.feel.hop_max_turn && !pose.no_jump;
         keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may);
         (Decision { keys, turn }, Walked::OnTheWay)
     }
@@ -624,9 +669,9 @@ impl Motor {
                 return (Decision { keys: 0, turn }, Walked::JumpFailed(take_off));
             }
             let still = wrap(yaw_of(jump.way) - (pose.yaw + turn.0)).abs();
-            keys |= self.jump_key(&jump, still, pose.speed);
+            keys |= self.jump_key(&jump, still, pose);
         }
-        keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), true);
+        keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), !pose.no_jump);
         (Decision { keys, turn }, Walked::OnTheWay)
     }
 
@@ -756,12 +801,18 @@ impl Motor {
     /// [`JUMP_FACING`] (`still`) and going it ([`Ahead::going`]), as the
     /// body walks over the take-off
     /// ([`JUMP_LEAD_S`] ahead at its `speed`), and not in a jump or within
-    /// [`JUMP_AGAIN_S`] of the last press. Each press counts a try; the next
-    /// waits for the run-up.
-    fn jump_key(&mut self, ahead: &Ahead, still: f32, speed: f32) -> u32 {
+    /// [`JUMP_AGAIN_S`] of the last press, nor hurt so it does not jump
+    /// ([`Pose::no_jump`]: no press, so no try is spent on a jump the game
+    /// would not take). Each press counts a try; the next waits for the
+    /// run-up.
+    fn jump_key(&mut self, ahead: &Ahead, still: f32, pose: &Pose) -> u32 {
         let Some(mut jump) = self.jump_try else {
             return 0;
         };
+        if pose.no_jump {
+            return 0;
+        }
+        let speed = pose.speed;
         let rested = jump
             .pressed
             .is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S));
@@ -825,7 +876,8 @@ impl Motor {
     /// ground from the floors the reckoning walked (the route's corners are
     /// far apart: a lip between two is not in its heights).
     ///
-    /// `may`: walking the way, not turning hard. None by a low floor (where
+    /// `may`: walking the way, not turning hard, not hurt so it does not
+    /// jump. None by a low floor (where
     /// it walks crouched), nor by a jump of the route or soon after one,
     /// nor within [`Feel::hop_every_s`] of the last. Both looked for from
     /// [`Feel::hop_look_m`] behind: a world may put the body back behind a
@@ -1112,6 +1164,7 @@ mod tests {
             yaw: yaw_of([1.0, 0.0]),
             pitch: 0.0,
             speed: 0.0,
+            ..Default::default()
         }
     }
 
@@ -1154,6 +1207,19 @@ mod tests {
         ticks: usize,
         aiming: bool,
     ) -> Climb {
+        climb_ledge_hurt(route, ledge, start, yaw, ticks, aiming, 0)
+    }
+
+    /// [`climb_ledge`], hurt so it does not jump for the first `hurt_ticks`.
+    fn climb_ledge_hurt(
+        route: &mut Route,
+        ledge: &Ledge,
+        start: Vec3,
+        yaw: f32,
+        ticks: usize,
+        aiming: bool,
+        hurt_ticks: usize,
+    ) -> Climb {
         let kin = Kinematics::default();
         let mut rng = Rng::new(17);
         let mut motor = Motor::new(Feel::default(), &mut rng);
@@ -1162,6 +1228,7 @@ mod tests {
             yaw,
             pitch: 0.0,
             speed: 0.0,
+            ..Default::default()
         };
         let mut blend = crate::v026g::bots::kin::Blend::default();
         let air_ticks = (crate::v026g::bots::body::JUMP_AIR_MS as f32 / 1000.0 / TICK_S) as usize;
@@ -1179,6 +1246,7 @@ mod tests {
         };
         let mut air: Option<usize> = None;
         for tick in 0..ticks {
+            pose.no_jump = tick < hurt_ticks;
             let (decision, walked) = if aiming {
                 motor.walk_aiming(route, &pose, 5.0, |_| true, (yaw, 0.0))
             } else {
@@ -1268,6 +1336,51 @@ mod tests {
             gets_up: true,
         };
         (Route::new(points), ledge)
+    }
+
+    /// Hurt so it does not jump (a broken leg: about 8 s) as it comes to a
+    /// jump of its route, the body presses nothing and spends no try; once
+    /// it may jump it makes the jump at the first try, walking or aiming.
+    #[test]
+    fn a_hurt_body_presses_no_jump_and_spends_no_try() {
+        let hurt_ticks = (8.0 / TICK_S) as usize;
+        for aiming in [false, true] {
+            let (mut route, ledge) = up_a_ledge(false);
+            let climb = climb_ledge_hurt(
+                &mut route,
+                &ledge,
+                Vec3::ZERO,
+                yaw_of([1.0, 0.0]),
+                hurt_ticks + 300,
+                aiming,
+                hurt_ticks,
+            );
+            let label = format!("aiming {aiming}");
+            assert!(
+                climb.presses.iter().all(|&(tick, _)| tick >= hurt_ticks),
+                "{label}: {:?}",
+                climb.presses
+            );
+            assert!(climb.up, "{label}: {:?}", climb.poses.last());
+            assert_eq!(climb.presses.len(), 1, "{label}: {:?}", climb.presses);
+            assert_eq!(climb.walked, Walked::Arrived, "{label}");
+        }
+    }
+
+    /// A broken leg, or a hit within the stagger, holds the jump; a hit
+    /// time of 0 or after the world's is none.
+    #[test]
+    fn a_broken_leg_or_a_fresh_hit_holds_the_jump() {
+        let now = 10_000;
+        assert!(Hurt::default().may_jump(now));
+        assert!(Hurt::of([Some(0.5), Some(0.2)], 0, now).may_jump(now));
+        assert!(!Hurt::of([Some(0.5), Some(0.0)], 0, now).may_jump(now));
+        assert!(!Hurt::of([Some(0.0), None], 0, now).may_jump(now));
+        assert!(Hurt::of([None, None], 0, now).may_jump(now));
+        let hit = Hurt::of([Some(0.5); 2], now - 200, now);
+        assert!(!hit.may_jump(now));
+        assert!(hit.may_jump(now - 200 + HIT_JUMP_HOLD_MS));
+        assert_eq!(Hurt::of([Some(0.5); 2], now + 50, now).last_hit_ms, None);
     }
 
     /// A jump whose way turns from the approach (Cologne's battery 6) is
@@ -1497,6 +1610,7 @@ mod tests {
             yaw,
             pitch: 0.0,
             speed: 0.0,
+            ..Default::default()
         };
         let mut blend = crate::v026g::bots::kin::Blend::default();
         let mut decisions = Vec::new();
@@ -1565,6 +1679,7 @@ mod tests {
             yaw: 0.0,
             pitch: 0.0,
             speed: 0.0,
+            ..Default::default()
         };
         let mut turned = 0.0_f32;
         for _ in 0..200 {
@@ -1608,6 +1723,7 @@ mod tests {
                 yaw: yaw_of([1.0, 0.0]),
                 pitch: 0.0,
                 speed: 3.3,
+                ..Default::default()
             };
             let (decision, walked) = if aiming {
                 motor.walk_aiming(route, &pose, 5.0, |_| true, (pose.yaw, 0.0))
