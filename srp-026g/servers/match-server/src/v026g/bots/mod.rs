@@ -33,6 +33,7 @@ pub mod body;
 pub mod cheats;
 pub mod curve;
 pub mod encode;
+pub mod escape;
 pub mod friends;
 pub mod guns;
 pub mod hazards;
@@ -915,7 +916,17 @@ impl Bots {
         };
         let goal = *goal;
         let meant = self.tracker.body(place).and_then(|body| body.last_meant());
-        if let Some((recovery, by_keys)) = bot.stuck.walking(time, feet, meant, keys) {
+        // [pockets] A try at a pocket's exit runs up to its rim and jumps:
+        // not stuck, and the try has its own clock (`escape::TRY_MS`). No
+        // note, no spot for the team, no recovery fighting the try.
+        let trying = bot
+            .stuck
+            .escape
+            .as_ref()
+            .is_some_and(escape::Escape::trying);
+        if trying {
+            bot.stuck.reset();
+        } else if let Some((recovery, by_keys)) = bot.stuck.walking(time, feet, meant, keys) {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             bot.note(
                 &mut notes,
@@ -953,13 +964,20 @@ impl Bots {
                 _ => escapes[0],
             };
             let ticks = |rng: &mut Rng, s: (f32, f32)| (rng.range(s.0, s.1) / kin::TICK_S) as u32;
+            // [pockets] No jump the game would refuse (a broken leg, a hit's
+            // stagger): the keys alone.
+            let jump = if bot.hurt.may_jump(time) {
+                key::JUMP
+            } else {
+                0
+            };
             match recovery {
                 Recovery::BackOff => {
-                    bot.unstick = Some((escape | key::JUMP, ticks(&mut bot.rng, (0.5, 0.8))));
+                    bot.unstick = Some((escape | jump, ticks(&mut bot.rng, (0.5, 0.8))));
                     bot.route = None;
                 }
                 Recovery::Sidestep => {
-                    bot.unstick = Some((escape | key::JUMP, ticks(&mut bot.rng, (0.8, 1.3))));
+                    bot.unstick = Some((escape | jump, ticks(&mut bot.rng, (0.8, 1.3))));
                     bot.end_play(time, "stuck twice there", &mut notes);
                     self.teams[team].next_commander = time;
                 }
@@ -1684,7 +1702,13 @@ impl Bots {
             })
             .collect();
         let gap = state.signals.score_gap;
-        for (place, assignment, changed) in team::assign_at(asking, now, gap) {
+        // [pockets] Bots given up in a pocket (`escape.rs`) let their slots go.
+        let given_up: Vec<Place> = asked
+            .iter()
+            .map(|&(place, _, _)| place)
+            .filter(|&place| tactics.escapes.trapped(place).is_some_and(|t| t.gave_up))
+            .collect();
+        for (place, assignment, changed) in team::assign_trapped(asking, now, gap, &given_up) {
             let Some(me) = view.place(place) else {
                 continue;
             };
@@ -1694,6 +1718,12 @@ impl Bots {
             if !changed {
                 bot.assignment = Some(assignment);
                 continue;
+            }
+            #[cfg(test)]
+            if given_up.contains(&place)
+                && bot.assignment.as_ref().is_some_and(|a| a.slot.is_some())
+            {
+                escape::counts::handed();
             }
             // The new play starts.
             bot.give_way(assignment.kind, now);
@@ -2353,6 +2383,33 @@ fn drive_tick(
         intent.straight = false;
     }
     let goal = goal.or(zone_out);
+    // [pockets] On a pocket's floor with its goal out of the pocket (no
+    // link of the grid leads out of one), its ways out are tried, each a
+    // route with a jump onto the rim (`escape.rs`); the try's landing is its
+    // goal meanwhile. Cologne CG-3: a bot stood in pit A aiming all match.
+    let goal = if intent.straight {
+        goal
+    } else {
+        let grid = &tactics.world.grid;
+        let out = escape::tick(
+            &mut bot.stuck.escape,
+            &mut bot.route,
+            grid,
+            &tactics.escapes,
+            bot.place,
+            me.team,
+            me.feet,
+            goal.unwrap_or(me.feet),
+            time,
+            bot.hurt.may_jump(time),
+        );
+        if bot.tracing {
+            for event in &out.events {
+                bot.traced.push(escape::trace(time, bot.place, grid, event));
+            }
+        }
+        out.goal.or(goal)
+    };
     // Standing to aim (no way to walk): the reflex's side step may move it;
     // walking a route while it aims, the step weaves the walk
     // ([`weave`], `strafe_walking`).
@@ -2591,8 +2648,15 @@ fn drive_tick(
                         {
                             bot.stuck.fell(time, from);
                         }
-                        // A jump it could not make: its take-off, likewise.
-                        if let Walked::JumpFailed(take_off) = walked {
+                        // A jump it could not make: its take-off, likewise
+                        // (not an escape's: a pocket's rim is no way).
+                        if let Walked::JumpFailed(take_off) = walked
+                            && !bot
+                                .stuck
+                                .escape
+                                .as_ref()
+                                .is_some_and(escape::Escape::trying)
+                        {
                             bot.stuck.failed_jump(time, take_off);
                         }
                         bot.route = None;
@@ -2637,7 +2701,7 @@ fn drive_tick(
         let [sx, sz] = kin::forward(me.yaw + std::f32::consts::FRAC_PI_2);
         let sign = if left { 1.0 } else { -1.0 };
         let to = me.feet + Vec3::new(sign * sx * STRAFE_CLEAR_M, 0.0, sign * sz * STRAFE_CLEAR_M);
-        if tactics.clear_line_for(me.feet, to, time, bot.side, intent.objective) {
+        if tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective) {
             decision.keys = keys;
         }
     }

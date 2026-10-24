@@ -165,6 +165,8 @@ pub struct Stuck {
     /// The way out of a zone it walks with no goal of its own: where to,
     /// and till when it is kept ([`ZONE_OUT_KEPT_MS`]).
     pub zone_out: Option<(Vec3, u32)>,
+    /// Its escape from the pocket it is in (`escape.rs`).
+    pub escape: Option<super::escape::Escape>,
 }
 
 #[derive(Clone, Copy, Debug)]
