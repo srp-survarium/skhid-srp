@@ -4593,6 +4593,10 @@ fn real_bot_cost() {
             let mut play_ticks: std::collections::BTreeMap<String, u64> = Default::default();
             let mut deaths_by: std::collections::BTreeMap<String, u32> = Default::default();
             let mut carriers_killed = [0u32; 2];
+            // Deaths on a Collect of a lying battery with 4 or more living
+            // enemies within 25 m of it, by the team: what
+            // `collect::COLLECT_ENEMY_MARGIN` may cost.
+            let mut collect_crowd_deaths = [0u32; 2];
             let mut takes_all = 0u32;
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
@@ -4638,6 +4642,33 @@ fn real_bot_cost() {
                             *deaths_by
                                 .entry(format!("{}/{}", play_of(place), teams[place]))
                                 .or_default() += now.1 - before.1;
+                            let lying = bots.bots[place]
+                                .as_ref()
+                                .and_then(|b| b.assignment.as_ref())
+                                .and_then(|a| match (a.kind, a.target) {
+                                    (
+                                        super::plays::PlayKind::Collect,
+                                        super::plays::TargetRef::Battery(battery),
+                                    ) => match game.batteries.get(battery) {
+                                        Some(&Lying::Free(at, _)) => Some(at),
+                                        _ => None,
+                                    },
+                                    _ => None,
+                                });
+                            let crowded = lying.is_some_and(|at| {
+                                let team = game.bodies[place].team;
+                                game.bodies
+                                    .iter()
+                                    .filter(|b| {
+                                        b.alive && b.team != team && b.feet.distance_xz(at) < 25.0
+                                    })
+                                    .count()
+                                    >= 4
+                            });
+                            if crowded {
+                                collect_crowd_deaths[usize::from(teams[place])] +=
+                                    now.1 - before.1;
+                            }
                             if attacking(place) {
                                 side[4] += u64::from(now.1 - before.1);
                             }
@@ -5093,6 +5124,7 @@ fn real_bot_cost() {
                     "stands_given_up": stands_given_up,
                     "stands_stale": stands_stale,
                     "carriers_killed": carriers_killed,
+                    "collect_crowd_deaths": collect_crowd_deaths,
                     "play_s": play_s,
                     "by_play": play_rows,
                     "deaths_by": deaths_by,
