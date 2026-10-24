@@ -739,3 +739,24 @@ weapon class and 10 m, hits taken and deaths by team and distance):
 **Fire at the bot's own target with no line**, at the defaults: 2.0-3.0 % of
 those shots leave with nothing of him showing, and 6-8 % meet the world short
 of him (with the spread on, some of those are the cone clipping his cover).
+
+**The line looked at again while firing: tried, and dropped.**
+- **The idea:** a bot whose target had moved half his width since the last look
+  looked at his parts again before the next shot, not only every
+  `LOOK_AGAIN_MS` (100 ms).
+- **The bench:** team 1 alone with it, against 2841b08b, seeds 1-8, both
+  presets, tiers 4-5/9-10/13-15. The tally now counts these shots by the
+  shooter's team.
+- **The shots with nothing of him showing:**
+  - Team 1's share stayed at 2.0-3.0 %, as team 0's did.
+  - Team 1 against team 0: +0.18 ± 0.07 points over 48 matches, and
+    +0.29 ± 0.27 in 4 control matches without it.
+- **The shots that met the world short of him:** +0.03 ± 0.11 points.
+- **Its K/D** was flat, at worst −0.06 ± 0.03 (batt 13-15), and fails the
+  early stop.
+- **So those shots do not come from a stale look:** the parts are already looked
+  at every 100 ms, ahead by the target's speed. It is what the bot sees against
+  where the stand-in has him at the shot. Not followed here.
+
+**Base:** benched against 2841b08b, the commit this was built on, then merged
+with 54ececcf (#396).
