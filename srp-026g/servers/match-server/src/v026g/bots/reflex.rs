@@ -322,12 +322,6 @@ pub struct CombatTuning {
     /// in every class, and its aimed-in cone keeps hitting past 200 m
     /// (`player_bots_weapons.md`, "Bots: the fire range by weapon").
     pub range_by_weapon: bool,
-    /// Fire-gates PR C: while the trigger is held (or a press is due), the
-    /// target's parts are looked at again as soon as he has moved
-    /// [`super::aimpoint::RETEST_MOVED_M`] since the last look, not only
-    /// every [`super::aimpoint::LOOK_AGAIN_MS`]. The bench: 2-3 % of the
-    /// shots at a bot's own target left with nothing of him showing.
-    pub line_retest: bool,
     /// The players' range by weapon class, metres: no bot holds its fire
     /// nearer than the best players shoot. MEASURED: the 95th percentile
     /// of the distance of every trigger run of the 2 best players (by
@@ -774,7 +768,6 @@ impl Default for CombatTuning {
             aim_carry_ms: LOST_MS,
             reacquire_keep: false,
             range_by_weapon: false,
-            line_retest: false,
             range_floor_rifle_m: 90.0,
             range_floor_smg_m: 90.0,
             range_floor_shotgun_m: 91.0,
@@ -2827,11 +2820,6 @@ impl Reflex {
         self.last_tick = Some(now);
         self.held_for = None;
         self.gate_tick(now);
-        // [PR C] The next look re-tests the line while firing.
-        self.sight.retest_while_firing(
-            c.line_retest
-                && (self.held_ms > 0 || now < self.press_until || now < self.burst_until),
-        );
         // The aim-in counts from the first tick of an unbroken press of the
         // aim (the input reaches the game within `aim_in_margin_ms`).
         let aim_since = self.aim_since.take();

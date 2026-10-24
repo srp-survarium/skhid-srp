@@ -53,10 +53,6 @@ use super::view::{MatchView, Place, PlaceView};
 
 /// A target's parts are looked at again after this, ms.
 pub const LOOK_AGAIN_MS: u32 = 100;
-/// [PR C] While firing (with `CombatTuning::line_retest`), they are also
-/// looked at again as soon as he has moved this far since the last look,
-/// metres. GUESS: the body's half width (`CombatTuning::body_half_m`).
-pub const RETEST_MOVED_M: f32 = 0.25;
 /// The last part seen is looked at this long after the target is out of
 /// sight, ms.
 pub const PRE_AIM_MS: u32 = 1_500;
@@ -225,8 +221,6 @@ struct Looked {
     who: Place,
     at: u32,
     crouched: bool,
-    /// His feet at the look.
-    feet: Vec3,
     part: Option<Part>,
 }
 
@@ -262,9 +256,6 @@ pub struct Sight {
     reach: f32,
     /// The last part seen of a target, where it was, and when.
     last_seen: Option<(Place, Vec3, u32)>,
-    /// [PR C] Firing, with the line re-tested as he moves
-    /// ([`Self::retest_while_firing`]).
-    retest: bool,
 }
 
 impl std::fmt::Debug for Sight {
@@ -310,17 +301,13 @@ impl Sight {
             (now.saturating_sub(view.clock) + LOOK_AGAIN_MS).min(AHEAD_MAX_MS) as f32 / 1000.0;
         let then = body.feet + Vec3::new(body.velocity[0], 0.0, body.velocity[1]) * ahead_s;
         let due = self.looked.is_none_or(|l| {
-            l.who != who
-                || l.crouched != body.crouched()
-                || now >= l.at + LOOK_AGAIN_MS
-                || (self.retest && body.feet.distance_xz(l.feet) > RETEST_MOVED_M)
+            l.who != who || l.crouched != body.crouched() || now >= l.at + LOOK_AGAIN_MS
         });
         if due {
             self.looked = Some(Looked {
                 who,
                 at: now,
                 crouched: body.crouched(),
-                feet: body.feet,
                 part: aim_part_moving(eye, body, then, sight),
             });
         }
@@ -397,12 +384,6 @@ impl Sight {
             return Some(Blocked::View(m));
         }
         ray_cast(&world.sight, eye, along(yaw, pitch), self.reach).map(Blocked::Aim)
-    }
-
-    /// [PR C] Whether the next looks re-test the line as the target moves
-    /// (the bot is firing, with `CombatTuning::line_retest`).
-    pub fn retest_while_firing(&mut self, on: bool) {
-        self.retest = on;
     }
 
     /// [measure] How long ago its target's parts were last looked at, ms.
@@ -729,29 +710,6 @@ mod tests {
         look.update(&me, None, &view, &hidden, 1_300);
         assert!(look.pre_aim(1_300).is_some());
         assert!(look.pre_aim(1_000 + PRE_AIM_MS + 1).is_none());
-    }
-
-    /// [PR C] A target who steps behind cover within a look's
-    /// [`LOOK_AGAIN_MS`]: shown still until the next look; re-tested as he
-    /// moves while the bot fires, no longer.
-    #[test]
-    fn while_firing_the_line_is_looked_at_again_as_he_moves() {
-        let world = world_of(&[wall(19.0, -3.0, 1.0, 0.0, 3.0)]);
-        let me = body(0, 0, Vec3::ZERO, false);
-        let open = body(1, 1, Vec3::new(3.0, 0.0, 20.0), false);
-        let covered = body(1, 1, Vec3::new(0.0, 0.0, 20.0), false);
-        let run = |retest: bool| {
-            let mut look = Sight::default();
-            look.retest_while_firing(retest);
-            let view = view_of(vec![me.clone(), open.clone()]);
-            look.update(&me, Some(1), &view, &world, 1_000);
-            assert!(look.aim(1, Some(&open), open.chest()).shows);
-            let view = view_of(vec![me.clone(), covered.clone()]);
-            look.update(&me, Some(1), &view, &world, 1_050);
-            look.aim(1, Some(&covered), covered.chest()).shows
-        };
-        assert!(run(false), "the look of 50 ms ago");
-        assert!(!run(true), "looked at again: behind the wall");
     }
 
     #[test]
