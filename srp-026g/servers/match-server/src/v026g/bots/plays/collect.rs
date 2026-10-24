@@ -446,9 +446,49 @@ pub fn tuning() -> PlayTuning {
             considerations::near(200.0),
             considerations::health_above(0.25),
             considerations::modifier(Input::ObjectiveUrgency, 0.6),
-            Consideration::new(Input::EnemiesNearTarget, 0.0, 4.0, Curve::Linear).inverted(),
+            Consideration::new(Input::EnemiesNearTarget, 0.0, ENEMIES_OUT, Curve::Linear)
+                .inverted(),
         ],
         numbers: Default::default(),
+    }
+}
+
+/// The enemies known by a battery (within 25 m, [`Input::EnemiesNearTarget`])
+/// at which it scores out of Collect: the consideration's top in [`tuning`].
+const ENEMIES_OUT: f32 = 4.0;
+
+/// How many enemies over [`ENEMIES_OUT`] a bot already on a battery's
+/// Collect stands before the battery scores out for it: while
+/// [`ENEMIES_OUT`] or more are known by it, the bot reads this many fewer. A
+/// battery out comes back only below [`ENEMIES_OUT`] (hysteresis).
+///
+/// GUESS (2026-10-25): one enemy. Why: the count is of the bot's remembered
+/// enemies (`Memory::tracks`), whose spots move with sight, hearing and
+/// callouts and which drop when not sensed for a while, so the 4th one's
+/// spot crossing 25 m, or his track dropping, flipped the battery in and
+/// out. level_02 day 2 10v10, 16 seeds (a182512a): 1,135 times out for
+/// "enemies by it", a median 2.5 s out, 47% back within 2 s; the bot left
+/// its Collect each time. A bot that is not on the battery yet reads the
+/// count as it is.
+pub const COLLECT_ENEMY_MARGIN: f32 = 1.0;
+
+/// Bot's Collect candidate for lying battery `battery` (`None`: scored out
+/// or set aside), with [`COLLECT_ENEMY_MARGIN`] for the one it is on.
+fn battery_candidate(cx: &Ctx, battery: usize) -> Option<Candidate> {
+    let target = TargetRef::Battery(battery);
+    let slot = Some(battery as u32);
+    let on_it = matches!(cx.bot.current, Some((PlayKind::Collect, t, _)) if t == target);
+    let near = cx.input(Input::EnemiesNearTarget, PlayKind::Collect, target);
+    if on_it && near >= ENEMIES_OUT {
+        let read = near - COLLECT_ENEMY_MARGIN;
+        cx.candidate_given(
+            PlayKind::Collect,
+            target,
+            slot,
+            &[(Input::EnemiesNearTarget, read)],
+        )
+    } else {
+        cx.candidate(PlayKind::Collect, target, slot)
     }
 }
 
@@ -536,15 +576,13 @@ pub fn take_blocks(cx: &Ctx) -> TakeBlocks {
                     cx.bot.set_aside.iter().any(|&(k, t, until)| {
                         k == PlayKind::Collect && t == target && cx.now < until
                     });
-                cx.candidate(PlayKind::Collect, target, Some(battery as u32))
-                    .is_none()
-                    .then(|| {
-                        if aside {
-                            "set aside"
-                        } else {
-                            scored_out(cx, target)
-                        }
-                    })
+                battery_candidate(cx, battery).is_none().then(|| {
+                    if aside {
+                        "set aside"
+                    } else {
+                        scored_out(cx, target)
+                    }
+                })
             });
             list.push((battery, why, cx.me.feet.distance_xz(at)));
         }
@@ -641,11 +679,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     }
     for battery in 0..cx.view.batteries.len() {
         if cx.battery_lying(battery).is_some_and(|at| cx.can_take(at)) {
-            out.extend(cx.candidate(
-                PlayKind::Collect,
-                TargetRef::Battery(battery),
-                Some(battery as u32),
-            ));
+            out.extend(battery_candidate(cx, battery));
         }
     }
     if cx.tuning.cheats.batteries {
@@ -1589,6 +1623,53 @@ mod tests {
             !matches!(on.go, Go::To { within_m, .. } if within_m == 0.0),
             "{on:?}"
         );
+    }
+
+    /// The enemies known by a battery hovering at the cut-off (4) do not
+    /// flip a bot's Collect of it: on it, it stays a candidate at 4 and
+    /// leaves at 5; out, it comes back at 3, not at 4.
+    #[test]
+    fn enemies_hovering_at_the_cut_off_do_not_flip_a_collect() {
+        use crate::v026g::bots::know::Source;
+        let at = Vec3::new(25.0, 0.0, 15.0);
+        let target = TargetRef::Battery(0);
+        let scene = |enemies: usize, on_it: bool| {
+            let mut s = with_toxic(0.3);
+            s.battery(BatteryState::Free(at));
+            for e in 0..enemies {
+                let off = Vec3::new(4.0 + e as f32, 0.0, 6.0);
+                s.enemy(1 + e as Place, 1, at + off, Some(Source::Heard));
+            }
+            if on_it {
+                s.current = Some((PlayKind::Collect, target, s.view.clock));
+            }
+            s
+        };
+        let offered = |enemies, on_it| collects(&scene(enemies, on_it)) == vec![target];
+        // Not on it: out at the cut-off.
+        assert!(offered(3, false));
+        assert!(!offered(4, false));
+        // On it: 3, 4, 3 keep it; 5 is out.
+        assert!(offered(3, true));
+        assert!(offered(4, true));
+        assert!(!offered(5, true));
+        // The score on it at 4 is the score at 3: one enemy fewer read.
+        let score = |enemies, on_it| {
+            let mut out = Vec::new();
+            candidates(&scene(enemies, on_it).cx(0), &mut out);
+            out.iter().find(|c| c.target == target).map(|c| c.score)
+        };
+        assert_eq!(score(4, true), score(3, false));
+        // The note agrees: out for the enemies only when not on it.
+        let whys = |s: &Scenario| {
+            take_blocks(&s.cx(0))
+                .list
+                .iter()
+                .map(|&(_, why, _)| why)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(whys(&scene(4, true)), [None]);
+        assert_eq!(whys(&scene(4, false)), [Some("scored out: enemies by it")]);
     }
 
     #[test]
