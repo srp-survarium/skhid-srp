@@ -200,6 +200,23 @@ const STANDING_JUMP: StandInJump = StandInJump {
     ahead_m: 0.6,
 };
 
+/// [`STANDING_JUMP`] as the stand-in game jumps it: `SRP_BENCH_JUMP_AHEAD_M`
+/// sets how far ahead a jump with no grid link lands (a sensitivity row;
+/// the grid lists pocket exits up to 1.0 m across), else the GUESS 0.6 m.
+fn standing_jump() -> StandInJump {
+    static AHEAD: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    let ahead_m = *AHEAD.get_or_init(|| {
+        std::env::var("SRP_BENCH_JUMP_AHEAD_M")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(STANDING_JUMP.ahead_m)
+    });
+    StandInJump {
+        ahead_m,
+        ..STANDING_JUMP
+    }
+}
+
 /// The client's sprint jump: 1.282-1.350 m by clip (PROVEN, the jump
 /// study), played at a press with forward and sprint held at walk speed or
 /// more, any weapon, no battery carried (PROVEN,
@@ -747,7 +764,7 @@ impl Game {
                 // it (once a jump).
                 if tick < body.air_until
                     && feet.distance_xz(to) > 1e-3
-                    && let Some(up) = stand_in_jump(grid, node, feet, to, STANDING_JUMP)
+                    && let Some(up) = stand_in_jump(grid, node, feet, to, standing_jump())
                 {
                     node = up;
                     feet = grid.position(up);
