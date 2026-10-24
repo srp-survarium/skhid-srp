@@ -99,7 +99,8 @@ USAGE (this script never touches the source exe):
     (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, PRESS
     its own, 0xFA0 of the late join's state page, checked).
     The arena, `.srpx` (Research, the artefacts' code, the engine-function
-    library, the kit keys and the match chat option), is linked from its C and
+    library, the kit keys and the match chat option, the hide-the-interface
+    key), is linked from its C and
     NASM sources at every build
     (link_026g.py: gcc -m32, GNU ld and NASM 2.16 are needed) and must be
     arena_026g.lock.json's (`python link_026g.py --write` after a change).
@@ -444,6 +445,21 @@ Patches:
   (g_private_messages_in_game), which makes that option live and saved in
   user.cfg; add_message's call for a received line (0x26B916) drops a
   player's line in a match while it is on (channels 3 and 5 to 9);
+- one key hides the whole interface and shows it again, in a match and in
+  the lobby (patch 62, with the late join; docs/notes/hide-ui-key.md): the
+  game's action toggle_replay_ui (19h, F11), which only worked in a replay.
+  hide_ui_026g.asm (the arena's blocks hide_ui.code and .data): the game
+  world's on_keyboard_action case 19h (0x25CED1) without the replay's movie
+  asks the hud movie root.interface_hidden and gives it and the player icons'
+  movie root.hide_interface(not that), the kits before the start too (the
+  movies go on running: what happens while hidden plays out unseen; a death
+  keeps the state; initialize_match's root.reset (0x234AE8) shows both
+  again: a new match starts shown); lobby_menu::on_keyboard_action's binder call
+  (0x26CCD2) asks again for kind 1 when the key has no lobby action, and on
+  toggle_replay_ui invokes the lobby movie's root.toggle_interface and takes
+  the key (back at 0x26CCAE, al 1); while the movie says its interface is
+  hidden (root.interface_hidden) any other key goes straight to the movie
+  (back at 0x26CDD2), no window key or F6's Play acting;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1896,6 +1912,74 @@ MATCH_KEYS_HOOKS = (
 )
 MATCH_KEYS_BACKS = (0x25CD4B, 0x25CF0D)        # on_keyboard_action: a key down, any other
 
+# The key that hides the interface (patch 62, README; client_patch.md section
+# 3.54; the rules: ../docs/notes/hide-ui-key.md): hide_ui_026g.asm in the
+# arena's blocks hide_ui.code and hide_ui.data (ARENA below), three entries:
+# - the game world's on_keyboard_action 0x25CD00, its case of action 19h
+#   (toggle_replay_ui, F11; the switch's table 0x25CF30 + 8 * 4), `mov
+#   esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D` at 0x25CED1: with
+#   the replay's movie (the handler's +18h) it goes on at 0x25CEDB as before;
+#   without it the hud movie ([[hud+8]+108h]+4, the hud the handler's +4) is
+#   asked root.interface_hidden and it and the player icons' movie
+#   ([[hud+10h]+108h]+4) get root.hide_interface(not that), whatever the
+#   cursor; both ways the key is not taken (0x25CF0D). Not the game world's
+#   show_ui (0x1F95F0): the movies it hides stand still, and what came
+#   meanwhile played at once when shown (the owner's test of 64ce3ce7);
+# - lobby_menu::on_keyboard_action's `call 0x207D50` (get_binded_action,
+#   kind 2) at 0x26CCD2: a key with no lobby action is asked again for kind
+#   1; toggle_replay_ui invokes the lobby movie's root.toggle_interface and
+#   returns at 0x26CCAE (al 1: taken, the movie does not get the key); any
+#   other key, while the movie answers root.interface_hidden true, returns at
+#   0x26CDD2 (the key to the movie, which shows the interface; no window key,
+#   no F6 Play).
+# - initialize_match's `call 0x511600` (Invoke, root.reset) at 0x234AE8 (ecx
+#   the hud movie, ebp the hud): the reset, then the hud and the player icons'
+#   root.hide_interface(false): a new match starts shown (the movies are the
+#   last match's).
+# No base relocation is under a site and no branch aims inside one.
+HIDE_UI_HOOKS = (
+    (0x25CED1, bytes.fromhex("8b742410" "837e1800" "7432"), "hide_ui_match", 0xE9),   # on_keyboard_action: case 19h
+    (0x26CCD2, bytes.fromhex("e879b0f9ff"), "hide_ui_lobby", 0xE8),                 # the lobby's binder call
+    (0x234AE8, bytes.fromhex("e813cb2d00"), "hide_ui_reset", 0xE8),                 # a match's root.reset
+)
+# The options' controls (the same patch): the six functions of game_options
+# that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
+# 29h rows, the 29th toggle_replay_ui) instead: (site, its bytes, where in
+# them the address is, the row's field it names) and (site, its bytes, where
+# the count 28h is).
+HIDE_UI_TABLE = 0xA9DB28
+HIDE_UI_ROWS = 0x28
+HIDE_UI_TABLE_REFS = (
+    (0x201150, bytes.fromhex("b828dba900"), 1, 0x0),           # the conflicts' loop: mov eax,table
+    (0x201248, bytes.fromhex("be2cdba900"), 1, 0x4),           # the conflict message: mov esi,table+4
+    (0x2013BF, bytes.fromhex("0528dba900"), 1, 0x0),           # a key set: add eax,table
+    (0x201A19, bytes.fromhex("be34dba900"), 1, 0xC),           # the movie's rows: mov esi,table+0Ch
+    (0x201D05, bytes.fromhex("c744240c28dba900"), 4, 0x0),     # the keys from the binder: mov [esp+0Ch],table
+    (0x201F2B, bytes.fromhex("be38dba900"), 1, 0x10),          # the apply: mov esi,table+10h
+)
+HIDE_UI_TABLE_COUNTS = (
+    (0x201159, bytes.fromhex("c744241828000000"), 4),
+    (0x20124D, bytes.fromhex("bb28000000"), 1),
+    (0x20140B, bytes.fromhex("80fb28"), 2),
+    (0x201A1E, bytes.fromhex("c744244428000000"), 4),
+    (0x201D0D, bytes.fromhex("c744241028000000"), 4),
+    (0x201F34, bytes.fromhex("c745f828000000"), 3),
+)
+
+
+def hide_ui_table_writes(linked):
+    """[(site, its bytes, the new bytes)] of the six functions' table and
+    counts, `controls` being the link's."""
+    table = linked.symbols["controls"]
+    out = [(va, old, old[:at] + struct.pack("<I", table + field) + old[at + 4:])
+           for va, old, at, field in HIDE_UI_TABLE_REFS]
+    out += [(va, old, old[:at] + bytes([HIDE_UI_ROWS + 1]) + old[at + 1:]) for va, old, at in HIDE_UI_TABLE_COUNTS]
+    return out
+
+
+HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
+# the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after `.srpc`, which is one page."""
@@ -2039,6 +2123,16 @@ INSTALLS = {
                        "which calls it and registers the chat option's variable", None, None),
     0x26B916: (CALLEE, "process_incoming_text_message's add_message (stdcall: the handler, the channel, the "
                        "body, the name, the tag): chat, which drops the line or jumps to it", None, None),
+    # the key that hides the interface, patch 62 (in `.srpx`)
+    0x25CED1: (JUMP, "the game world's on_keyboard_action 0x25CD00, its case of action 19h (toggle_replay_ui), "
+                     "`mov esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D`: match, back at 0x25CEDB (the "
+                     "replay's controls, esi the handler) or 0x25CF0D", None, None),
+    0x234AE8: (CALLEE, "initialize_match's Invoke of root.reset (thiscall: the hud movie, the name, the result, "
+                       "the arguments, the count; `ret 10h`): reset, which invokes it and shows the hud and the "
+                       "icons", None, None),
+    0x26CCD2: (CALLEE, "lobby_menu::on_keyboard_action's get_binded_action (eax the binder, edi 2, esi the key, "
+                       "the toggle's place pushed; `ret 4`): lobby, which on toggle_replay_ui returns to 0x26CCAE "
+                       "instead", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2126,6 +2220,15 @@ def our_ranges(data, writes):
     return ours + [(va, va + len(new)) for va, old, new in writes if is_cave(old) or va == HASH_MISMATCH_VA]
 
 
+def arena_data_ranges():
+    """[(lo, hi)] of the arena's data and state blocks (arena_026g.lock.json,
+    which every build's link must be): no code is there, so an address of one
+    the game is given (a table it reads) is data, not an install."""
+    lock = linker.read_lock()
+    blocks = lock["blocks"].values() if lock else ()
+    return [(int(b["va"], 16), int(b["va"], 16) + b["size"]) for b in blocks if b["kind"] != "code"]
+
+
 def installs_of(data, writes):
     """{site VA: (how, our VA, the original's bytes from the site)} of every
     function build() made the game call, found at any offset of any write
@@ -2133,7 +2236,9 @@ def installs_of(data, writes):
     any other 4 bytes that name our code ("pointer": a slot, a delegate, a
     `push imm32`, a `mov imm32`), and a body replaced in place ("body")."""
     ours = our_ranges(data, writes)
-    inside = lambda target: any(lo <= target < hi for lo, hi in ours)
+    data_blocks = arena_data_ranges()
+    inside = lambda target: any(lo <= target < hi for lo, hi in ours) \
+        and not any(lo <= target < hi for lo, hi in data_blocks)
     out = {}
     for va, old, new in writes:
         if is_cave(old) or va == HASH_MISMATCH_VA:
@@ -2218,6 +2323,8 @@ ARENA = (
     ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
+    ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
+    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
 )
 
 
@@ -3159,10 +3266,12 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             # its symbol.
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
-                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS:
+                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                for va, old, new in hide_ui_table_writes(linked):
+                    patch(data, va, old, new)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
                              "says")
@@ -3219,6 +3328,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "pain, body and head, and one press fires every artefact of its kind, "
                      "the keys 1, 2 and 3 pick a kit while the kits are shown, "
                      "an option hides the other players' chat lines in a match, "
+                     "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
