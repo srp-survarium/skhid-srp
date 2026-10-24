@@ -45,7 +45,6 @@ package
    import survarium.constants.Team;
    import survarium.constants.TeamSide;
    import survarium.constants.UiSound;
-   import survarium.controls.InterfaceHider;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.ResearchUnits;
@@ -388,7 +387,15 @@ package
          styleObject.color = "#8B8B8B";
          style.setStyle("gray_highlight",styleObject);
          MainScene.textStyleSheet = style;
-         addChild(this.effectContainer);
+         // The screen effects (add_effect: the pain's red edges, the blood drips, the grenade's flash)
+         // are the scene's, not the interface (the owner, 2026-10-24): on the stage below the hud's
+         // root, placed over the screen as the root is scaled (placeEffects), so hiding the
+         // interface (the root) leaves them.
+         this.effectContainer.mouseEnabled = this.effectContainer.mouseChildren = false;
+         stage.addChildAt(this.effectContainer,stage.getChildIndex(this));
+         _stageLayer = new Sprite();
+         this._stageLayer.name = "stageLayer";
+         super.addChild(this._stageLayer);
          addChild(this.hitmarkContainer);
          playerInfo = new HUDPlayerInfo() as MovieClip;
          hud_overlay = new SrvHudOverlay();
@@ -447,7 +454,7 @@ package
          player_list = new SrvPlayerList();
          addChild(this.player_list);
          gameInfo = new GameInfo();
-         stage.addChild(this.gameInfo);
+         this._stageLayer.addChild(this.gameInfo);
          this.gameInfo.x = 20;
          this.gameInfo.y = 8;
          addChild(this._profilePanel);
@@ -829,53 +836,62 @@ package
          this._profilePanel.profileSelector.pickByKey(index);
       }
       
-      // The key that hides the interface (exe patch 62, F11; docs/notes/hide-ui-key.md): hidden, every
-      // layer of the hud's stage is (InterfaceHider: the hud, the crosshair, the minimap, the kits,
-      // the death screen, the kill feed, the chat, the hit marks, the fps line); the movie goes on
-      // running, so what happens meanwhile plays out and goes unseen. The screen effects stay (the
-      // owner, 2026-10-24: the pain's red edges are the scene's, not the interface): their container
-      // (the blood, its drips, the grenade's flash) goes on the stage below the hidden hud, drawn as
-      // it was, and comes back into the hud when shown. The exe asks interface_hidden on the key and
-      // calls this with the other state; a death or a respawn keeps it.
-      private var _hider:InterfaceHider;
+      // The key that hides the interface (exe patch 62, F11; docs/notes/hide-ui-key.md). The interface
+      // is the root: the hud, the crosshair, the minimap, the kits, the death screen, the kill feed,
+      // the chat, the hit marks, and in _stageLayer (its last child, drawn at the stage's scale) the
+      // fps line the game put on the stage. Hidden in one step; the movie goes on running, so what
+      // happens meanwhile plays out unseen; the screen effects are not the root's and stay. The exe
+      // asks interface_hidden on the key and calls this with the other state; a death or a respawn
+      // keeps it.
+      private var _stageLayer:Sprite;
 
-      private var _effectsIndex:int;
+      private var _interfaceHidden:Boolean;
 
       public function hide_interface(hidden:Boolean) : void
       {
-         if(this._hider == null)
-         {
-            _hider = new InterfaceHider(stage,null,[this.effectContainer]);
-         }
-         if(hidden && !this._hider.hidden)
-         {
-            _effectsIndex = getChildIndex(this.effectContainer);
-            stage.addChildAt(this.effectContainer,0);
-            this.placeEffects();
-            this._hider.hide();
-         }
-         else if(!hidden && this._hider.hidden)
-         {
-            this._hider.show();
-            addChildAt(this.effectContainer,Math.min(this._effectsIndex,numChildren));
-            this.placeEffects();
-         }
+         _interfaceHidden = hidden;
+         visible = !hidden;
       }
 
       public function interface_hidden() : Boolean
       {
-         return this._hider != null && this._hider.hidden;
+         return this._interfaceHidden;
       }
 
-      // The screen effects' place: the screen at 1280x720 in the hud, the same seen from the stage
-      // while the interface is hidden.
+      // _stageLayer stays the root's last child, whatever is added or moved to the top later.
+      override public function addChild(child:DisplayObject) : DisplayObject
+      {
+         super.addChild(child);
+         this.keepStageLayerOnTop();
+         return child;
+      }
+
+      override public function addChildAt(child:DisplayObject, index:int) : DisplayObject
+      {
+         super.addChildAt(child,index);
+         this.keepStageLayerOnTop();
+         return child;
+      }
+
+      override public function setChildIndex(child:DisplayObject, index:int) : void
+      {
+         super.setChildIndex(child,index);
+         this.keepStageLayerOnTop();
+      }
+
+      private function keepStageLayerOnTop() : void
+      {
+         if(this._stageLayer != null && this._stageLayer.parent == this && getChildIndex(this._stageLayer) != numChildren - 1)
+         {
+            super.setChildIndex(this._stageLayer,numChildren - 1);
+         }
+      }
+
+      // The screen effects' place: the screen at 1280x720 in the hud's units, seen from the stage.
       private function placeEffects() : void
       {
          var place:Matrix = new Matrix(this.stageWidth / 1280,0,0,this.stageHeight / 720,0,0);
-         if(this.effectContainer.parent != this)
-         {
-            place.concat(this.transform.matrix);
-         }
+         place.concat(this.transform.matrix);
          this.effectContainer.transform.matrix = place;
       }
 
@@ -2455,6 +2471,10 @@ package
          }
          scaleX = this.scaleFactor;
          scaleY = this.scaleFactor;
+         if(this._stageLayer)
+         {
+            this._stageLayer.scaleX = this._stageLayer.scaleY = 1 / this.scaleFactor;
+         }
          trace("HUD::finalScaleFactor::",this.scaleFactor);
          this.layout.setScaleFactor(this.scaleFactor);
          this.damageInd.scaleX = this.stageWidth / 1280;

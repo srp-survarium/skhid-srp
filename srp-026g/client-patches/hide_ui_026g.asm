@@ -14,9 +14,9 @@
 ; handler's +18h, the hud's +14h; a match has none). There, without that
 ; movie, the hud movie ([[hud+8]+108h]+4) is asked root.interface_hidden and
 ; both it and the player icons' movie ([[hud+10h]+108h]+4) get
-; root.hide_interface(not that): each hides every shown child of its stage
-; and keeps them hidden, the hud, the crosshair, the minimap, the kits and the
-; markers over heads. The movies go on running (not the game world's
+; root.hide_interface(not that): each hides its root, its whole interface
+; (the hud, the crosshair, the minimap, the kits, the death screen and the
+; markers over heads; the hud's screen effects are beside it and stay). The movies go on running (not the game world's
 ; show_ui, 0x1F95F0, whose hidden movies stand still and play what came
 ; meanwhile at once when shown): what happens while hidden plays out unseen.
 ; The kits before the start and the death screen too: the start, a death

@@ -55,8 +55,10 @@ too, for screenshots.
 
 - Exe patch 62 (`hide_ui_026g.asm`; `client_patch.md` 3.54): in a match it calls the hud and
   player icons' movies' `hide_interface`; in the lobby the lobby movie's `toggle_interface`.
-- The movies (lobby, hud, player icons): `InterfaceHider` hides every layer of the movie's stage
-  and keeps it hidden; the movie goes on running.
+- The movies (lobby, hud, player icons): the interface is the movie's root, hidden in one step;
+  what the game put on the stage is in the root's `_stageLayer` (kept the root's last child, at
+  the stage's scale); the hud's screen effects are the one thing beside it. The movie goes on
+  running.
 - The controls row: patch 62 gives the options a 41st row (its table moved into the arena); its
   label is content edit `hide-interface-1.json`.
 - No simulation change, no server change.

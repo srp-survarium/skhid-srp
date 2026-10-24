@@ -4247,54 +4247,81 @@ def test_hide_ui(original, image, before):
     check("\nedit\thide-interface-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                        encoding="utf-8").read(),
           "release/content.tsv makes the label (hide-interface-1.json)")
-    # the movies' side: one InterfaceHider in each (every child of the stage hidden, those shown or
-    # added later too, shown again exactly), the lobby's every stage layer among them
-    hider = here("flash", "lobby_menu", "src", "survarium", "controls", "InterfaceHider.as")
-    stage_layers = sorted({m.group(1) for name in ("LobbyMenu.as", "survarium/controls/Message.as",
-                                                   "survarium/controls/SrvContextMenu.as",
-                                                   "scaleform/clik/managers/DragManager.as",
-                                                   "scaleform/clik/managers/PopUpManager.as",
-                                                   "survarium/char/CharWindow.as")
-                           for m in re.finditer(r"stage\.addChild\(([\w.]+)\)",
-                                                here("flash", "lobby_menu", "src", *name.split("/")))})
-    check(all(here("flash", movie, "src", "survarium", "controls", "InterfaceHider.as") == hider
-              for movie in ("hud", "player_icons"))
-          and "this._stage.getChildAt(i)" in hider and "child.visible = false;" in hider
-          and "new Timer(100)" in hider and "this._timer.stop();" in hider
-          and len(stage_layers) >= 14,
-          "one InterfaceHider in the lobby, hud and player icons movies: every shown child of the stage hidden, "
-          "every 100 ms again while hidden (a layer shown or added later), shown again exactly; the lobby's "
-          f"stage layers it hides: the root (panels, bars, windows, chat) and {', '.join(stage_layers)}")
-    lobby = here("flash", "lobby_menu", "src", "LobbyMenu.as")
+    # the movies' side: each movie's interface is its root, hidden in one step; every layer the
+    # game put on the stage is in the root's _stageLayer (the lobby's: _layers and _overlay)
+    tree = lambda movie: {os.path.relpath(os.path.join(d, f), os.path.join(HERE, "..", "flash", movie, "src")):
+                          open(os.path.join(d, f), encoding="utf-8").read()
+                          for d, _, fs in os.walk(os.path.join(HERE, "..", "flash", movie, "src")) for f in fs
+                          if f.endswith(".as")}
+    stage_add = re.compile(r"((?:\w+\.)*\w*stage)\.addChild(?:At)?\(([^,)]+)")
+    lobby_tree = tree("lobby_menu")
+    lobby = lobby_tree["LobbyMenu.as"]
+    found = sorted((path, m.group(1), m.group(2)) for path, text in lobby_tree.items()
+                   for m in stage_add.finditer(text))
+    # Message's `_stage` is the messages' container (Message.initStage(this._top_container)), the
+    # name editor's `MainScene.stage` the root (MainScene.stage = this): both inside the root
+    allowed = {("survarium/controls/Message.as", "_stage"), ("survarium/char/CharWindow.as", "MainScene.stage")}
+    layered = sorted({m.group(1) for m in re.finditer(r"this\._(?:layers|overlay)\.addChild\(([\w.]+)\)", lobby)})
+    check(not [f for f in found if (f[0], f[1]) not in allowed]
+          and "Message.initStage(this._top_container);" in lobby and "MainScene.stage = this;" in lobby
+          and "SrvContextMenu.registerStage(stage,this._layers);" in lobby
+          and "DragManager.init(this.stage,this._overlay);" in lobby and "PopUpManager.layer = this._layers;" in lobby
+          and "_layer.addChild(_id);" in lobby_tree["survarium/controls/SrvContextMenu.as"]
+          and "(layer ? layer : _stage).addChild(_dragCanvas);" in lobby_tree["scaleform/clik/managers/DragManager.as"]
+          and "host.addChild(_defaultPopupCanvas);" in lobby_tree["scaleform/clik/managers/PopUpManager.as"]
+          and lobby.index("this.makeStageLayer();") < lobby.index("this.init();")
+          and "super.addChild(this._stageLayer);" in lobby
+          and all(f"override public function {f}" in lobby for f in ("addChild(", "addChildAt(", "setChildIndex("))
+          and "this._stageLayer.scaleX = this._stageLayer.scaleY = 1 / scaleFactor;" in lobby
+          and layered == ["this._front_container", "this._top2_container", "this._top_container", "this._wheelBack",
+                          "this._wheelsMC", "this.fadeBack", "this.lobbyGameLoad", "this.tipContainer"]
+          and "InterfaceHider" not in "".join(lobby_tree.values()),
+          "the lobby's interface is its root: nothing of it is added to the stage (Message's container and "
+          "MainScene.stage are inside the root); what the game put on the stage is in the root's last child, "
+          "_stageLayer, at the stage's scale, made before anything else and kept last (addChild, addChildAt, "
+          f"setChildIndex): {', '.join(layered)}, the right-click menu and CLIK's popup canvas in _layers, the "
+          "drag canvas in _overlay; no InterfaceHider, no timer")
     toggle = lobby[lobby.index("public function toggle_interface() : void"):]
     toggle = toggle[:toggle.index("public function interface_hidden()")]
     check("if(SrvContextMenu.visisble)\n         {\n            SrvContextMenu.hide();" in toggle
-          and toggle.count("SrvContextMenu.hide()") == 1 and "this._hider.hide();" in toggle
-          and "_hiddenUi" not in lobby,
+          and toggle.count("SrvContextMenu.hide()") == 1 and "this.hideItemHint(null);" in toggle
+          and "visible = false;" in toggle and "_hiddenUi" not in lobby,
           "the lobby's toggle_interface closes a right-click menu only when one is open (none ever opened: "
-          "SrvContextMenu.hide's removeChild(null) threw, owner's test of 64ce3ce7), then hides the whole stage")
+          "SrvContextMenu.hide's removeChild(null) threw, owner's test of 64ce3ce7) and the item cards (on "
+          "Scaleform's topmost level, drawn whatever their parents), then hides the root")
     names = lambda text: [m.start() for m in re.finditer(re.escape(text + b"\0"), original)]
+    enable = lobby[lobby.index("public function enable_element(value:*, value2:Boolean = true) : void"):]
+    enable = enable[:enable.index("}") + 1]
     check(names(b"root.enable_element") and names(b"root.statusPanel.btn_off") and names(b"root.statusPanel.btn_settings")
-          and "InteractiveObjectEx.setTopmostLevel(target,value);" in lobby
-          and "this._topmost.push(target);" in lobby and "this._topmost.splice(at,1);" in lobby
-          and "new InterfaceHider(stage,this.topmostObjects)" in toggle
-          and "for each(var extra:Object in this._extras())" in hider,
-          "the objects of Scaleform's topmost level are hidden too: the exe makes the exit and settings buttons "
-          "topmost (root.enable_element of root.statusPanel.btn_off and btn_settings), drawn whatever their "
-          "parents (they stayed in the owner's test of 335343b6); the lobby's one setTopmostLevel keeps the list "
-          "the hider hides with the stage")
+          and stock.read(0x2A3F22, 0x1B) == bytes.fromhex("6a01" "68a011a000" "e8" + struct.pack("<i", 0x22A660 - 0x2A3F2E).hex()
+                                                          + "8b4720" "6a01" "68bc11a000" "e8"
+                                                          + struct.pack("<i", 0x22A660 - 0x2A3F3D).hex())
+          and struct.unpack("<I", stock.read(0xA0CBF8, 4))[0] == 0x2A3EA0
+          and enable.count("\n") == 2 and "setTopmostLevel" not in enable and "_topmost" not in lobby
+          and not any(f"function {t}(" in lobby for t in ("testDragTutor", "testPlayTutor", "testAmmoTutor",
+                                                         "testAmmoTutor2", "testFactionPreTutor", "testFactionTutor",
+                                                         "testCloseSlide", "showSlideOnVs", "testTutorComplete")),
+          "the exe's lobby state (lobby_menu_state 0xA0CBF4, slot 1 0x2A3EA0, at every lobby entry) calls "
+          "root.enable_element(root.statusPanel.btn_off / btn_settings, true), which put the corner buttons on "
+          "Scaleform's topmost level (drawn whatever their parents: they stayed in the owner's test of 335343b6); "
+          "the lobby's enable_element does nothing now, and the tutorial's private test functions are gone")
     hud = here("flash", "hud", "src", "HUD.as")
     icons = here("flash", "player_icons", "src", "player_icons_fla", "MainTimeline.as")
-    check(all("public function hide_interface(hidden:Boolean) : void" in t for t in (hud, icons))
-          and "new InterfaceHider(stage)" in icons and "public function interface_hidden() : Boolean" in hud
-          and "new InterfaceHider(stage,null,[this.effectContainer])" in hud
-          and "stage.addChildAt(this.effectContainer,0);" in hud and "this.placeEffects();" in hud
-          and "this._keep.indexOf(child) < 0" in hider
+    own = lambda movie: {p: t for p, t in tree(movie).items() if not p.startswith("scaleform")}
+    hud_adds = sorted((p, m.group(1), m.group(2)) for p, t in own("hud").items() for m in stage_add.finditer(t))
+    icon_adds = [(p, m.group(1)) for p, t in own("player_icons").items() for m in stage_add.finditer(t)]
+    check(all("public function hide_interface(hidden:Boolean) : void" in t and "visible = !hidden;" in t
+              for t in (hud, icons)) and "public function interface_hidden() : Boolean" in hud
+          and hud_adds == [("HUD.as", "stage", "this.effectContainer")] and not icon_adds
+          and "stage.addChildAt(this.effectContainer,stage.getChildIndex(this));" in hud
+          and "this._stageLayer.addChild(this.gameInfo);" in hud and "place.concat(this.transform.matrix);" in hud
+          and all(f"override public function {f}" in hud for f in ("addChild(", "addChildAt(", "setChildIndex("))
+          and "InterfaceHider" not in "".join(tree("hud").values()) + "".join(tree("player_icons").values())
           and all(f"this.effects[this.{name}] = " in hud for name in ("BLOOD_EFFECT", "BLOOD_DRIP1", "GRENADE_EFFECT")),
-          "the hud and the player icons' movies have root.hide_interface, the hud root.interface_hidden; the hud's "
-          "screen effects stay while hidden (the owner, 2026-10-24: the pain's red edges are the scene's): their "
-          "container (add_effect's blood, its drips, the grenade's flash) goes on the stage below the hidden hud, "
-          "kept by the hider, placed as it was")
+          "the hud's and the player icons' interface is their root, hidden in one step (root.hide_interface; the "
+          "hud's interface_hidden); the hud's fps line is in the root's _stageLayer; the one thing on the hud's "
+          "stage beside the root is the screen effects' container (add_effect's blood, its drips, the grenade's "
+          "flash), below the root, placed as the root is scaled: the scene's, so it stays (the owner, 2026-10-24)")
     check("public function toggle_interface() : void" in lobby and "public function interface_hidden() : Boolean" in lobby,
           "the lobby movie has root.toggle_interface and root.interface_hidden")
 

@@ -40,6 +40,7 @@ package
    import scaleform.clik.layout.Layout;
    import scaleform.clik.layout.LayoutData;
    import scaleform.clik.managers.DragManager;
+   import scaleform.clik.managers.PopUpManager;
    import scaleform.clik.ui.InputDetails;
    import scaleform.gfx.Extensions;
    import scaleform.gfx.FocusManager;
@@ -89,7 +90,6 @@ package
    import survarium.constants.VoucherType;
    import survarium.controls.BottomPanel;
    import survarium.controls.DragRegion;
-   import survarium.controls.InterfaceHider;
    import survarium.controls.GangShop;
    import survarium.controls.InventoryList;
    import survarium.controls.ItemCompare;
@@ -454,8 +454,21 @@ package
       
       protected var _escapeHandled:Boolean = false;
 
-      // Hides the interface for toggle_interface (docs/notes/hide-ui-key.md); made at the first.
-      private var _hider:InterfaceHider;
+      // The interface is this movie's root, every layer of it (docs/notes/hide-ui-key.md): the panels,
+      // bars, windows and chat are the root's children, and what the game first put on the stage is
+      // in _stageLayer, the root's last child, drawn at the stage's scale: _layers (tooltips' cards
+      // aside, every layer put above the lobby: the front, top and top2 containers with messages,
+      // the wheels, the loading screen, the fades, the right-click menu, CLIK's popups) and over it
+      // _overlay (the tooltips and the dragged item, CLIK's drag canvas). toggle_interface hides
+      // the root, so all of it, in one step; nothing of the interface is on the stage beside it.
+      private var _stageLayer:Sprite;
+
+      private var _layers:Sprite;
+
+      private var _overlay:Sprite;
+
+      // Hidden by toggle_interface (exe patch 62, F11).
+      private var _interfaceHidden:Boolean;
 
       // The key that showed the hidden interface: its release is taken too (onHiddenKeyUp); 0 when
       // none.
@@ -467,6 +480,7 @@ package
          trace("LobbyMenu::super");
          id = this;
          MainScene.stage = this;
+         this.makeStageLayer();
          this.init();
          this.initSubsystems();
          this._itemFactory.registerItemDescriptor(this._itemDescriptor);
@@ -482,8 +496,51 @@ package
          timer.delay = 1000 * 60;
          timer.start();
          this.tipContainer = new Sprite();
-         stage.addChild(this.tipContainer);
+         this._overlay.addChild(this.tipContainer);
          ToolTip.tipContainer = this.tipContainer;
+      }
+
+      // The layers the game first put on the stage, in the root (see _stageLayer): made before
+      // anything is added; CLIK's popup canvas and the right-click menu are told where theirs go.
+      private function makeStageLayer() : void
+      {
+         _stageLayer = new Sprite();
+         this._stageLayer.name = "stageLayer";
+         _layers = new Sprite();
+         _overlay = new Sprite();
+         this._stageLayer.addChild(this._layers);
+         this._stageLayer.addChild(this._overlay);
+         super.addChild(this._stageLayer);
+         PopUpManager.layer = this._layers;
+      }
+
+      // _stageLayer stays the root's last child, whatever is added or moved to the top later.
+      override public function addChild(child:DisplayObject) : DisplayObject
+      {
+         super.addChild(child);
+         this.keepStageLayerOnTop();
+         return child;
+      }
+
+      override public function addChildAt(child:DisplayObject, index:int) : DisplayObject
+      {
+         super.addChildAt(child,index);
+         this.keepStageLayerOnTop();
+         return child;
+      }
+
+      override public function setChildIndex(child:DisplayObject, index:int) : void
+      {
+         super.setChildIndex(child,index);
+         this.keepStageLayerOnTop();
+      }
+
+      private function keepStageLayerOnTop() : void
+      {
+         if(this._stageLayer != null && this._stageLayer.parent == this && getChildIndex(this._stageLayer) != numChildren - 1)
+         {
+            super.setChildIndex(this._stageLayer,numChildren - 1);
+         }
       }
       
       public static function get stageWidth() : Number
@@ -597,13 +654,16 @@ package
          }
       }
       
+      // The exe calls this at every entry of the lobby's state (0x2A3EA0, lobby_menu_state's) with
+      // the exit and settings buttons (root.statusPanel.btn_off, btn_settings) and true, and at a
+      // match's loading (0x220400) with false; its other callers are the tutorial's states, which
+      // are no longer entered (no-tutorial.md). It put the two buttons on Scaleform's topmost level
+      // (drawn above all, and whatever their parents' visibility) and the tooltips, the drag
+      // canvas and the tutorial's highlights with them (onStageUpdate). Nothing promotes them now:
+      // the buttons are the status panel's, the tooltips and the dragged item are _overlay's, on
+      // top of everything else of the movie (docs/notes/hide-ui-key.md).
       public function enable_element(value:*, value2:Boolean = true) : void
       {
-         this.setTopmostLevel(value,value2);
-         if(value2)
-         {
-            addEventListener(Event.RENDER,this.onStageUpdate);
-         }
       }
       
       public function highlight_element(value:*, value2:Boolean = true) : void
@@ -765,29 +825,10 @@ package
          this.inventory_list.ignoreSelection = false;
       }
       
-      // The objects of Scaleform's topmost level now: drawn whatever their parents' visibility, so
-      // toggle_interface hides them by themselves (the exe makes the exit and settings buttons
-      // topmost, root.enable_element(root.statusPanel.btn_off / btn_settings)).
-      private var _topmost:Array = [];
-
       private function setTopmostLevel(target:*, value:Boolean) : void
       {
          trace("setTopmostLevel::",target.name,target,value);
          InteractiveObjectEx.setTopmostLevel(target,value);
-         var at:int = this._topmost.indexOf(target);
-         if(value && at < 0)
-         {
-            this._topmost.push(target);
-         }
-         else if(!value && at >= 0)
-         {
-            this._topmost.splice(at,1);
-         }
-      }
-
-      private function topmostObjects() : Array
-      {
-         return this._topmost;
       }
       
       public function close_slide() : void
@@ -1232,9 +1273,9 @@ package
          this.inventory_list.itemsTileList.addEventListener(ListEvent.ITEM_ROLL_OVER,this.onInventoryListItemRollOver);
          this.inventory_list.itemsTileList.addEventListener(ListEvent.ITEM_ROLL_OUT,this.onInventoryListItemRollOut);
          this.player_profile.profileItems.addEventListener(Event.COMPLETE,this.updateItemCard);
-         SrvContextMenu.registerStage(stage);
+         SrvContextMenu.registerStage(stage,this._layers);
          SrvContextMenu.setPatternt(new ContextPattern());
-         DragManager.init(this.stage);
+         DragManager.init(this.stage,this._overlay);
          Message.registerMessage("ask",MessageAsk);
          Message.registerMessage("repair",SrvMessageRepairSkinned);
          Message.registerMessage("askr",MessageAskRelocate);
@@ -1270,9 +1311,9 @@ package
          Message.registerMessage("upgrade_item",SrvMessageRerollItemSkinned);
          Message.registerMessage("daily_reward",SrvMessageDailyReward);
          Message.registerMessage("player_info",SrvMessagePlayerProfile);
-         stage.addChild(this._front_container);
-         stage.addChild(this._top_container);
-         stage.addChild(this._top2_container);
+         this._layers.addChild(this._front_container);
+         this._layers.addChild(this._top_container);
+         this._layers.addChild(this._top2_container);
          Message.initStage(this._top_container);
          this.bottom_panel.btnFriends.tooltipRendererName = "SrvProfileTipRenderer";
          LocalizationData.addCallback(this.updateButtonsLocal,"btn_friends");
@@ -1860,10 +1901,10 @@ package
          this._wheelBack.height = stage.stageHeight;
          this._wheelBack.alpha = 1;
          this._wheelsMC.alpha = 1;
-         stage.addChild(this._wheelBack);
+         this._layers.addChild(this._wheelBack);
          this._wheelsMC.x = (stage.stageWidth - this._wheelsMC.width) / 2;
          this._wheelsMC.y = (stage.stageHeight - this._wheelsMC.height) / 2;
-         stage.addChild(this._wheelsMC);
+         this._layers.addChild(this._wheelsMC);
          TweenLite.to(this._wheelBack,1,{
             delay:2,
             alpha:0,
@@ -1882,8 +1923,8 @@ package
             this._wheelsMC.playAnimation(false);
             TweenLite.killTweensOf(this._wheelBack);
             TweenLite.killTweensOf(this._wheelsMC);
-            stage.removeChild(this._wheelBack);
-            stage.removeChild(this._wheelsMC);
+            this._layers.removeChild(this._wheelBack);
+            this._layers.removeChild(this._wheelsMC);
          }
       }
       
@@ -5272,7 +5313,7 @@ package
          addChild(this.chat);
          trace("_top_container::this");
          this._top_container.visible = false;
-         stage.addChild(this.lobbyGameLoad);
+         this._layers.addChild(this.lobbyGameLoad);
          stage.focus = null;
          var image:Class = this._load_images[level];
          this.lobbyGameLoad.backgroundImage(image);
@@ -5705,6 +5746,8 @@ package
          this._front_container.scaleX = this._front_container.scaleY = scaleFactor;
          scaleX = scaleFactor;
          scaleY = scaleFactor;
+         // the layers the game first put on the stage keep the stage's scale
+         this._stageLayer.scaleX = this._stageLayer.scaleY = 1 / scaleFactor;
          trace("finalScaleFactor::",scaleFactor);
          this.statusPanel.onStageResize();
          this.playerLoadingIndicator.alpha = 0.7;
@@ -5769,7 +5812,7 @@ package
       {
          this.fadeBack.width = 2048;
          this.fadeBack.height = 2048;
-         stage.addChild(this.fadeBack);
+         this._layers.addChild(this.fadeBack);
          this.fadeBack.alpha = 1;
          TweenLite.to(this.fadeBack,0.5,{
             alpha:0,
@@ -5786,9 +5829,9 @@ package
       
       private function removeFadeSprite() : void
       {
-         if((this.fadeBack) && stage.contains(this.fadeBack))
+         if((this.fadeBack) && this._layers.contains(this.fadeBack))
          {
-            stage.removeChild(this.fadeBack);
+            this._layers.removeChild(this.fadeBack);
          }
       }
       
@@ -5796,7 +5839,7 @@ package
       {
          this.fadeBack.width = 2048;
          this.fadeBack.height = 2048;
-         stage.addChild(this.fadeBack);
+         this._layers.addChild(this.fadeBack);
          if(force)
          {
             this.fadeBack.alpha = 0;
@@ -5878,13 +5921,12 @@ package
       
       // The key that hides the interface (docs/notes/hide-ui-key.md): the exe calls this for F11,
       // the game's toggle_replay_ui key (exe patch 62), when no text box has the keys. The whole
-      // interface goes (InterfaceHider: every layer on the stage, the lobby's root with its panels,
-      // bars, windows and chat, and the stage's own: messages, popups, menus, tooltips, the dragged
-      // item, the loading screen; the topmost objects too, the exit and settings buttons the exe
-      // makes topmost, drawn whatever their parents), the character and the scene stay: no click
-      // lands on the interface and the camera turns and zooms (get_mouse_over). An open right-click
-      // menu is closed first. Shown again by the same key, any key the movie gets (onHiddenKey: that key does
-      // nothing else), Esc, a match found, its loading or the results.
+      // interface is the root (see _stageLayer): hidden in one step, the character and the scene
+      // stay; no click lands on the interface and the camera turns and zooms (get_mouse_over). The
+      // item cards, which are on Scaleform's topmost level (drawn whatever their parents'
+      // visibility, above the windows), and an open right-click menu are closed first. Shown again
+      // by the same key, any key the movie gets (onHiddenKey: that key does nothing else), Esc, a
+      // match found, its loading or the results.
       public function toggle_interface() : void
       {
          if(this.showInterface())
@@ -5895,24 +5937,28 @@ package
          {
             SrvContextMenu.hide();
          }
-         if(this._hider == null)
-         {
-            _hider = new InterfaceHider(stage,this.topmostObjects);
-         }
-         this._hider.hide();
+         this.hideItemHint(null);
+         visible = false;
+         _interfaceHidden = true;
       }
 
       // The exe asks this on every key in the lobby (exe patch 62): while it is true no key acts in
       // the game (a window's key, F6's Play); the key comes to the movie, which shows the interface.
       public function interface_hidden() : Boolean
       {
-         return this._hider != null && this._hider.hidden;
+         return this._interfaceHidden;
       }
 
       // Shows what toggle_interface hid; true when it was hidden.
       private function showInterface() : Boolean
       {
-         return this._hider != null && this._hider.show();
+         if(!this._interfaceHidden)
+         {
+            return false;
+         }
+         visible = true;
+         _interfaceHidden = false;
+         return true;
       }
 
       // A key while the interface is hidden shows it, and is taken, its release too: no other
@@ -6024,56 +6070,6 @@ package
             bundle_icon:0
          });
          this.setup_bundle_data(arr);
-      }
-      
-      private function testDragTutor() : void
-      {
-         this.clean_highlight();
-         this.show_slide("text1");
-         this.highlight_element(this.player_profile.paperDoll.getSlotAt(ProfileSlot.WEAPON_1),true);
-         this.highlight_inventory_items([106,107]);
-      }
-      
-      private function testPlayTutor() : void
-      {
-         this.clean_highlight();
-         this.show_slide("text1");
-         this.highlight_element(this.statusPanel.playBtn,true);
-         this.show_video_tutorial_link(true);
-         this.highlight_element(this.statusPanel.videoTutorial,true);
-      }
-      
-      private function testAmmoTutor2() : void
-      {
-         this.clean_highlight();
-         this.close_slide();
-      }
-      
-      private function testAmmoTutor() : void
-      {
-         this.clean_highlight();
-         this.show_slide("text1");
-         this.highlight_element(this.ammoShare.getAmmoRenderer(0),true);
-      }
-      
-      private function testFactionPreTutor() : void
-      {
-         this.clean_highlight();
-         this.show_slide("testFactionPreTutor");
-         this.highlight_element(this.topMenu.questButton,true);
-      }
-      
-      private function testFactionTutor() : void
-      {
-         this.clean_highlight();
-         this.show_slide("testFactionTutor","",false);
-         this.set_quest_active_faction(Faction.NONE);
-         this.set_sybsystem_active("Quests",true);
-         this.questWindow.setControlsEnabled(false);
-         this.highlight_element(this.questWindow.btnJoin,true);
-         this.highlight_element(this.questWindow.getFactionButton(0),true);
-         this.highlight_element(this.questWindow.getFactionButton(1),true);
-         this.enable_element(this.questWindow.noFactionSelected,true);
       }
       
       private function testTRewards() : void
@@ -6219,23 +6215,6 @@ package
          {
             MainScene.isShift = false;
          }
-      }
-      
-      private function testCloseSlide() : void
-      {
-         this.victory_screen.addEventListener(Event.CLOSE,this.showSlideOnVs);
-      }
-      
-      private function showSlideOnVs(e:Event) : void
-      {
-         this.victory_screen.removeEventListener(Event.CLOSE,this.showSlideOnVs);
-         this.show_slide("rewrwer","gdfgdfg");
-      }
-      
-      private function testTutorComplete() : void
-      {
-         this.close_slide();
-         this.show_tutorial_complete_message();
       }
       
       public function enable_second_weapon(boolean:Boolean) : void
