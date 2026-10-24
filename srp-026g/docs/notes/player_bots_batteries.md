@@ -143,3 +143,35 @@ first 400: `no way to its stand` 119, `scored out` 91, `seen by` 65
 (6 of them near), `a Collect candidate again` 59, `carried by` 39,
 `no stand to take it from` 10, `no way to its stand lately` 8, `seen
 empty` 5, `the HUD shows it` 4.
+
+## Bots: a put-in's use is pressed once the view is on the box; a use that surely missed is judged at once
+
+### Why
+
+After #384 (above), a put-in's use was judged only after the 0.6 s put, and
+arrival to put-in grew 0.7 s. The put-in pressed use as soon as it stood
+near the container, while its view was still turning to the box (a take
+waits for that, `settled`). Each press that missed then cost one use's spacing
+plus the 0.6 s put before the next.
+
+### What changed
+
+- `plays/collect.rs`, `State::PutIn`: near the box (eye within
+  `USE_NEAR_M`), the use is pressed once the view is on the box's middle (a
+  metre over the container's use point, within `SETTLED_RAD`, as a take), or
+  after `SETTLE_MS` (1.5 s) there anyway.
+- At the press the bot measures how far its use ray (2 m from the eye, along
+  its view) passes the box's middle. Over `PUT_MISS_M` = 1 m, the use began
+  no put, and the next use need not wait for one. **GUESS:** the use box's
+  size is not known; the bench's stand-in takes 0.6 m, so 1 m is well outside
+  it. A bot standing close (the box 1.2 m from the eye) is judged missed only
+  when its back is nearly to the box, so the guess cuts short no use that may
+  have reached it.
+- `tests.rs`, the stand-in: each use a carrier presses within 3 m of its
+  container is recorded with whether it began a put and how far its ray
+  passed the box. The carry tally prints `uses at home N, missed M, far F
+  (began a put B), far then in K; first uses from arrival A took S ms`. "Far"
+  are the uses the bot judges missed at once (ray over 1 m off); "began a
+  put" counts those the stand-in took all the same (a put the bot would
+  cut short); "far then in" those whose carrier's next use, from the same
+  stand (within 0.3 m) and within 3 s, did begin a put.

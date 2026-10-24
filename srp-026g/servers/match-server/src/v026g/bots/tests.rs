@@ -1160,13 +1160,15 @@ struct CarryTally {
     /// The uses at the containers ([`Game::put_presses`]) counted so far;
     /// of them: all, those that missed the box (no put began, none going
     /// on), those whose ray passed it by over [`FAR_MISS_M`] (the bot
-    /// judges those missed at once), and of these the ones whose carrier's
-    /// next use from the same stand began a put; and the waits from the
+    /// judges those missed at once), of these the ones that began a put all
+    /// the same (a put the bot cut short) and the ones whose carrier's next
+    /// use from the same stand began a put; and the waits from the
     /// arrival to the carry's first use there, ms.
     presses_seen: usize,
     presses: u32,
     presses_missed: u32,
     presses_far: u32,
+    far_began: u32,
     far_then_in: u32,
     pressed: Vec<bool>,
     first_seen: usize,
@@ -1211,6 +1213,7 @@ impl CarryTally {
             self.presses_missed += u32::from(!press.began && !press.putting);
             if press.miss > FAR_MISS_M {
                 self.presses_far += 1;
+                self.far_began += u32::from(press.began);
                 let next = presses[self.presses_seen + 1..].iter().find(|p| {
                     p.place == press.place
                         && p.tick <= press.tick + NEXT_PRESS_MS
@@ -1302,7 +1305,7 @@ impl CarryTally {
 
     fn line(&self, taken: u32) -> String {
         format!(
-            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms; uses at home {}, missed {}, far {}, far then in {}; first uses from arrival {} took {} ms",
+            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms; uses at home {}, missed {}, far {} (began a put {}), far then in {}; first uses from arrival {} took {} ms",
             self.right,
             self.wrong,
             self.unknown,
@@ -1321,6 +1324,7 @@ impl CarryTally {
             self.presses,
             self.presses_missed,
             self.presses_far,
+            self.far_began,
             self.far_then_in,
             self.first_press_waits.len(),
             self.first_press_waits
