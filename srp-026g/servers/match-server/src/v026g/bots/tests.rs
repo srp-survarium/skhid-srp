@@ -71,6 +71,19 @@ const USE_BOX_M: f32 = 0.6;
 /// another (0: in at the press, as before).
 const PUT_MS: u32 = 600;
 
+/// A carrier's use at his container in the stand-in: when, from where, how
+/// far its ray passed the use box's middle, whether it began a put, and
+/// whether one was going on already.
+#[derive(Clone, Copy, Debug)]
+struct PutPress {
+    place: usize,
+    tick: u32,
+    feet: Vec3,
+    miss: f32,
+    began: bool,
+    putting: bool,
+}
+
 /// A body of the stand-in game.
 #[derive(Clone, Debug)]
 struct Body {
@@ -261,6 +274,8 @@ struct Game {
     /// the body died or no longer carries that battery.
     put_ms: u32,
     putting: Vec<Option<(usize, usize, u32)>>,
+    /// Each use a carrier pressed within [`ARRIVED_M`] of his container.
+    put_presses: Vec<PutPress>,
     /// A camping carrier (audit #6, `SRP_BENCH_CAMP=<m>`): the first of
     /// team 0's carriers to come within this of his container stops there,
     /// moves no more and puts nothing in until he dies or no longer
@@ -403,6 +418,7 @@ impl Game {
                 .and_then(|ms| ms.parse().ok())
                 .unwrap_or(PUT_MS),
             putting: vec![None; teams.len()],
+            put_presses: Vec::new(),
             camp_m: None,
             camper: None,
             camp_done: false,
@@ -807,6 +823,17 @@ impl Game {
         (to - dir * along).length() <= radius
     }
 
+    /// How far `body`'s use ray (from the eye, [`USE_REACH_M`] long)
+    /// passes `point`.
+    fn ray_miss(body: &Body, point: Vec3) -> f32 {
+        let eye = Self::eye(body);
+        let [fx, fz] = forward(body.yaw);
+        let (c, s) = (body.pitch.cos(), body.pitch.sin());
+        let dir = Vec3::new(fx * c, s, fz * c);
+        let along = (point - eye).dot(dir).clamp(0.0, USE_REACH_M);
+        (eye + dir * along - point).length()
+    }
+
     /// [`Self::uses`] a lying battery, the ray clear of the bullet mesh up
     /// to it when [`Game::use_line`].
     fn uses_battery(&self, body: &Body, at: Vec3) -> bool {
@@ -859,15 +886,29 @@ impl Game {
             match body.carrying {
                 Some(battery) => {
                     let home = self.containers.iter().position(|(t, _)| *t == team);
-                    if self.putting[place].is_none()
-                        && let Some(id) = home
-                        && Self::uses(&body, self.containers[id].1 + USE_BOX_UP, USE_BOX_M)
-                    {
+                    let was_putting = self.putting[place].is_some();
+                    let began = !was_putting
+                        && home.is_some_and(|id| {
+                            Self::uses(&body, self.containers[id].1 + USE_BOX_UP, USE_BOX_M)
+                        });
+                    if began && let Some(id) = home {
                         if self.put_ms == 0 {
                             self.put_into(place, battery, id);
                         } else {
                             self.putting[place] = Some((battery, id, self.tick));
                         }
+                    }
+                    if let Some(id) = home
+                        && body.feet.distance_xz(self.containers[id].1) <= ARRIVED_M
+                    {
+                        self.put_presses.push(PutPress {
+                            place,
+                            tick: self.tick,
+                            feet: body.feet,
+                            miss: Self::ray_miss(&body, self.containers[id].1 + USE_BOX_UP),
+                            began,
+                            putting: was_putting,
+                        });
                     }
                 }
                 None => {
@@ -1116,10 +1157,30 @@ struct CarryTally {
     arrived: Vec<Option<u32>>,
     put_ins_seen: usize,
     put_in_waits: Vec<u32>,
+    /// The uses at the containers ([`Game::put_presses`]) counted so far;
+    /// of them: all, those that missed the box (no put began, none going
+    /// on), those whose ray passed it by over [`FAR_MISS_M`] (the bot
+    /// judges those missed at once), and of these the ones whose carrier's
+    /// next use from the same stand began a put; and the waits from the
+    /// arrival to the carry's first use there, ms.
+    presses_seen: usize,
+    presses: u32,
+    presses_missed: u32,
+    presses_far: u32,
+    far_then_in: u32,
+    pressed: Vec<bool>,
+    first_seen: usize,
+    first_press_waits: Vec<u32>,
 }
 
 /// A carrier is at his container within this, metres (xz).
 const ARRIVED_M: f32 = 3.0;
+/// The bot's rule for a use that surely missed the box (`collect`'s
+/// `PUT_MISS_M`), metres; the next use "from the same stand" is within
+/// [`SAME_STAND_M`] and [`NEXT_PRESS_MS`] of it.
+const FAR_MISS_M: f32 = 1.0;
+const SAME_STAND_M: f32 = 0.3;
+const NEXT_PRESS_MS: u32 = 3_000;
 
 impl CarryTally {
     fn new(run: String) -> Self {
@@ -1140,10 +1201,41 @@ impl CarryTally {
             }
         }
         self.put_ins_seen = game.put_in.len();
+        self.pressed.resize(game.bodies.len(), false);
+        // The uses old enough that the next one from the same stand is in.
+        let presses = &game.put_presses;
+        while let Some(press) = presses.get(self.presses_seen)
+            && press.tick + NEXT_PRESS_MS <= game.tick
+        {
+            self.presses += 1;
+            self.presses_missed += u32::from(!press.began && !press.putting);
+            if press.miss > FAR_MISS_M {
+                self.presses_far += 1;
+                let next = presses[self.presses_seen + 1..].iter().find(|p| {
+                    p.place == press.place
+                        && p.tick <= press.tick + NEXT_PRESS_MS
+                        && p.feet.distance_xz(press.feet) <= SAME_STAND_M
+                });
+                self.far_then_in += u32::from(next.is_some_and(|p| p.began));
+            }
+            self.presses_seen += 1;
+        }
+        // The carry's first use there, from its arrival.
+        for press in &presses[self.first_seen.min(presses.len())..] {
+            if let Some(at) = self.arrived.get(press.place).copied().flatten()
+                && !self.pressed[press.place]
+                && press.tick >= at
+            {
+                self.pressed[press.place] = true;
+                self.first_press_waits.push(press.tick - at);
+            }
+        }
+        self.first_seen = presses.len();
         for (place, body) in game.bodies.iter().enumerate() {
             let home = game.containers.iter().find(|(t, _)| *t == body.team);
             if !body.alive || body.carrying.is_none() {
                 self.arrived[place] = None;
+                self.pressed[place] = false;
             } else if self.arrived[place].is_none()
                 && home.is_some_and(|(_, at)| at.distance_xz(body.feet) <= ARRIVED_M)
             {
@@ -1210,7 +1302,7 @@ impl CarryTally {
 
     fn line(&self, taken: u32) -> String {
         format!(
-            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms",
+            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms; uses at home {}, missed {}, far {}, far then in {}; first uses from arrival {} took {} ms",
             self.right,
             self.wrong,
             self.unknown,
@@ -1222,7 +1314,19 @@ impl CarryTally {
             self.intercept_deaths,
             self.beliefs_moved,
             self.put_in_waits.len(),
-            self.put_in_waits.iter().map(|&ms| u64::from(ms)).sum::<u64>(),
+            self.put_in_waits
+                .iter()
+                .map(|&ms| u64::from(ms))
+                .sum::<u64>(),
+            self.presses,
+            self.presses_missed,
+            self.presses_far,
+            self.far_then_in,
+            self.first_press_waits.len(),
+            self.first_press_waits
+                .iter()
+                .map(|&ms| u64::from(ms))
+                .sum::<u64>(),
         )
     }
 }

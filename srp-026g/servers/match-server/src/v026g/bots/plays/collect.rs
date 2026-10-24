@@ -118,6 +118,23 @@ const USE_SEEN_WAIT_MS: u32 = 3_000;
 /// of 2026-10-24 all 6 put-ins judged failed after [`USE_SEEN_MS`] went in
 /// 0.3-3.3 s later, by the same carrier.
 const PUT_TIME_MS: u32 = 600;
+/// A put-in's use whose ray (the client's, 2 m from the eye) passes the
+/// use box's middle farther than this, metres, missed it: no put began, and
+/// the next use need not wait for one. GUESS: the box's size is not known
+/// (the bench's stand-in takes 0.6 m); 1 m is well outside it.
+const PUT_MISS_M: f32 = 1.0;
+/// The client's use ray, metres (`base_player::detect_usable_object`).
+const USE_RAY_M: f32 = 2.0;
+
+/// How far the bot's use ray, from its eye along its view, passes `point`.
+fn use_ray_miss(cx: &Ctx, point: Vec3) -> f32 {
+    let eye = cx.me.eye();
+    let [fx, fz] = crate::v026g::bots::kin::forward(cx.me.yaw);
+    let (sin, cos) = cx.me.pitch.sin_cos();
+    let dir = Vec3::new(fx * cos, sin, fz * cos);
+    let along = (point - eye).dot(dir).clamp(0.0, USE_RAY_M);
+    (eye + dir * along - point).length()
+}
 
 /// Whether a use pressed at `pressed` (0: none yet), whose effect shows
 /// `lasts` ms after the press, has been judged by a world
@@ -690,6 +707,11 @@ pub enum State {
     PutIn {
         tries: u8,
         last_use: u32,
+        /// Since when it stands within a use of the box (`None`: walking up).
+        arrived: Option<u32>,
+        /// Its last use's ray provably passed the box ([`PUT_MISS_M`]): no
+        /// put began, so no put is waited for.
+        missed: bool,
     },
 }
 
@@ -812,6 +834,8 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 *state = State::PutIn {
                     tries: 0,
                     last_use: 0,
+                    arrived: None,
+                    missed: false,
                 };
             } else {
                 let points = via.get_or_insert_with(|| way_home(cx, home));
@@ -841,28 +865,46 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     .hold_fire(),
             )
         }
-        State::PutIn { tries: n, last_use } => {
+        State::PutIn {
+            tries: n,
+            last_use,
+            arrived,
+            missed,
+        } => {
             if cx.me.carrying.is_none() {
                 return Step::Done(carry_ended(cx, target, "put it in"));
             }
-            // The last use not seen yet: it may have put it in.
-            let seen = use_seen(cx, *last_use, PUT_TIME_MS);
+            // The last use not seen yet: it may have put it in; one whose
+            // ray passed the box began no put.
+            let seen = *missed || use_seen(cx, *last_use, PUT_TIME_MS);
             if *n >= tries && seen {
                 return Step::Failed("could not put it in");
             }
             let mut intent = Intent::stay().hold_fire();
+            let mut aimed = home.is_none();
             if let Some(home) = home {
                 // Its use box's middle is a metre over `home`
                 // (`Container::use_point`).
+                let aim = home + Vec3::new(0.0, 1.0, 0.0);
                 let eye = cx.me.feet + Vec3::new(0.0, view::EYE_STANDING, 0.0);
-                if (home + Vec3::new(0.0, 1.0, 0.0) - eye).length() > USE_NEAR_M {
+                if (aim - eye).length() > USE_NEAR_M {
                     intent = Intent::to(home, Pace::Walk).within(0.5).hold_fire();
+                    *arrived = None;
+                } else {
+                    // Pressed once the view is on the box, as a take's
+                    // (or after a while there anyway): a use pressed while
+                    // still turning to it missed it.
+                    let since = *arrived.get_or_insert(cx.now);
+                    aimed = aimed_at(cx, aim) || cx.now >= since + SETTLE_MS;
                 }
                 intent = intent.looking(Look::use_box(home));
             }
-            if cx.now >= *last_use + every && seen && *n < tries {
+            if cx.now >= *last_use + every && seen && *n < tries && aimed {
                 *n += 1;
                 *last_use = cx.now;
+                *missed = home.is_some_and(|home| {
+                    use_ray_miss(cx, home + Vec3::new(0.0, 1.0, 0.0)) > PUT_MISS_M
+                });
                 intent = intent.pressing(key::USE);
             }
             Step::Continue(intent)
@@ -1279,10 +1321,12 @@ fn back_off(cx: &Ctx, at: Vec3, aim: Vec3, from: Option<Vec3>) -> Intent {
 /// Whether the view looks at `aim` from the stand's eye (its own estimate
 /// of its view, `PlaceView`), within [`SETTLED_RAD`].
 fn settled(cx: &Ctx, stand: TakeStand, aim: Vec3) -> bool {
+    cx.me.crouched() == stand.crouch && aimed_at(cx, aim)
+}
+
+/// Whether the bot's view is on `aim` within [`SETTLED_RAD`].
+fn aimed_at(cx: &Ctx, aim: Vec3) -> bool {
     use crate::v026g::bots::kin::{wrap, yaw_of};
-    if cx.me.crouched() != stand.crouch {
-        return false;
-    }
     let eye = cx.me.eye();
     let (dx, dz) = (aim.x - eye.x, aim.z - eye.z);
     let yaw = yaw_of([dx, dz]);
@@ -2239,6 +2283,7 @@ mod tests {
     /// A put-in counts its use failed only once a world after it shows
     /// the battery still carried (the bench's put-ins "failed" while the
     /// first use had put it in); it ends as the battery did.
+    /// (Facing the box: [`a_put_in_presses_once_the_view_is_on_the_box`].)
     #[test]
     fn a_put_in_waits_for_a_world_after_its_use_and_ends_as_the_battery_did() {
         let mut s = Scenario::field(Mode::Batteries);
@@ -2253,6 +2298,7 @@ mod tests {
         let used = |s: &Scenario, state: &mut State, rng: &mut Rng| {
             intent_of(step(state, target, &s.cx(0), rng)).press & key::USE != 0
         };
+        face_use_box(&mut s);
         assert!(used(&s, &mut state, &mut rng), "the first use");
         s.view.clock += 1_200;
         assert!(!used(&s, &mut state, &mut rng), "no world since");
@@ -2284,11 +2330,78 @@ mod tests {
             let mut state = State::PutIn {
                 tries: 1,
                 last_use: s.view.clock,
+                arrived: None,
+                missed: false,
             };
             assert_eq!(
                 step(&mut state, target, &s.cx(0), &mut rng),
                 Step::Done(why)
             );
         }
+    }
+
+    /// Bot 0's view on its container's use box (a metre over its use
+    /// point), from where it stands.
+    fn face_use_box(s: &mut Scenario) {
+        use crate::v026g::bots::kin::yaw_of;
+        let home = s.view.container_of(0).expect("a container").at;
+        let me = &mut s.view.places[0];
+        let eye = me.eye();
+        let aim = home + Vec3::new(0.0, 1.0, 0.0);
+        let (dx, dz) = (aim.x - eye.x, aim.z - eye.z);
+        me.yaw = yaw_of([dx, dz]);
+        me.pitch = (aim.y - eye.y).atan2(dx.hypot(dz));
+    }
+
+    /// A put-in's use is pressed once the view is on the box (a use
+    /// pressed while still turning missed it, and since the put's wait each
+    /// miss cost 0.6 s more), or after [`SETTLE_MS`] there anyway; a use
+    /// whose ray passed the box by over [`PUT_MISS_M`] began no put, so the
+    /// next waits for none.
+    #[test]
+    fn a_put_in_presses_once_the_view_is_on_the_box() {
+        let mut s = Scenario::field(Mode::Batteries);
+        s.battery(BatteryState::Carried(Some(0)));
+        s.bot(0, 0, Vec3::new(12.0, 0.0, 31.0)).carrying = Some(0);
+        let target = TargetRef::Battery(0);
+        let mut rng = Rng::new(1);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::PutIn { .. }), "{state:?}");
+        let used = |s: &Scenario, state: &mut State, rng: &mut Rng| {
+            intent_of(step(state, target, &s.cx(0), rng)).press & key::USE != 0
+        };
+        // Turned away (its back to the box, 1.2 m off): no use yet, and
+        // none while it turns.
+        face_use_box(&mut s);
+        s.view.places[0].yaw += std::f32::consts::PI;
+        assert!(!used(&s, &mut state, &mut rng), "turned away");
+        s.view.clock += 1_000;
+        assert!(!used(&s, &mut state, &mut rng), "still turned away");
+        // After SETTLE_MS there it presses anyway: a miss, judged at once.
+        s.view.clock += SETTLE_MS;
+        assert!(
+            used(&s, &mut state, &mut rng),
+            "pressed after the settle time"
+        );
+        assert!(
+            matches!(state, State::PutIn { missed: true, .. }),
+            "{state:?}"
+        );
+        // The next, on the box, after the use's spacing only: no world
+        // came since, and no put is waited for.
+        face_use_box(&mut s);
+        s.view.clock += 1_200;
+        assert!(
+            used(&s, &mut state, &mut rng),
+            "the next use, no put waited for"
+        );
+        assert!(
+            matches!(state, State::PutIn { missed: false, .. }),
+            "{state:?}"
+        );
+        // That one may have begun a put: the next waits for it.
+        s.view.clock += 1_200;
+        assert!(!used(&s, &mut state, &mut rng), "the put waited for");
     }
 }
