@@ -1322,14 +1322,19 @@ impl WalkGrid {
         self.flags[node as usize] & (REACHED | RETURNS) == REACHED
     }
 
-    /// Marks the floors of the pockets with no way out ([`NO_EXIT`]).
+    /// Marks the floors of the pockets with no way out ([`NO_EXIT`]). A
+    /// pocket of more than [`POCKET_EXIT_FLOORS`] floors is never marked:
+    /// [`Self::pocket_exits`] looks at that many, so an exit past them
+    /// would go unseen.
     fn mark_no_exit(&mut self) {
-        let mut ids: Vec<PocketId> = self.pockets.iter().map(|&(_, p)| p).collect();
-        ids.sort_unstable();
-        ids.dedup();
-        let shut: std::collections::HashSet<PocketId> = ids
+        let mut floors: std::collections::HashMap<PocketId, usize> = Default::default();
+        for &(_, p) in &self.pockets {
+            *floors.entry(p).or_default() += 1;
+        }
+        let shut: std::collections::HashSet<PocketId> = floors
             .into_iter()
-            .filter(|&p| self.pocket_exits(p).is_empty())
+            .filter(|&(p, n)| n <= POCKET_EXIT_FLOORS && self.pocket_exits(p).is_empty())
+            .map(|(p, _)| p)
             .collect();
         for i in 0..self.pockets.len() {
             let (a, p) = self.pockets[i];
