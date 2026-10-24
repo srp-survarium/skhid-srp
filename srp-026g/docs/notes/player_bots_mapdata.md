@@ -387,8 +387,22 @@ puts one on the lowest floor near it: here the pit (8.5-9.0 m), under the
 floor players walk (10.3-10.6 m; of the players' positions within 2 m, 180
 of 181 on day 2, all 132 on day 3, 430 of 481 on day 4 stand on it). Before,
 bots were routed into the pit and the leg out had no way; now the point is
-unwalkable and dropped. A follow-up puts such a point on the lowest floor a
-way is planned to.
+unwalkable and dropped.
+
+**Route points on a planned floor (2026-10-25).** `on_floors` now takes the
+lowest floor a way is planned to (none in a shut pocket). The routes check,
+from #402's tip: points lost 143 → 141 (level_05's two points come back on
+the walkway at 10.5 m), legs with no way 10 → 10, jumps 86 → 86, length
++9 m. Three level_07 points (days 2, 3, 4, around (-7, -2) and (5, -2)) move
+from a shut pocket at 2.5 m to 5.8-9.7 m and stay dropped, as before;
+players there stand at about 21 m (139 of 154, 26 of 26 and 74 of 79
+positions), so "the lowest floor" is the wrong rule for those 2-D points
+(the routes' follow-up). Bench (seeds 1-16, after side, against #402's
+tip): every map but level_05 and every TDM match decision-identical; per
+seed run, batteries 4-5 falls on route 63.8 → 62.6 (z −2.2) and kills
+240.0 → 238.8 (z −2.2), 9-10 planned drops 329.2 → 328.4 (z −2.0), the rest
+within 2 SE. On level_05 (32 matches a cell) falls on route −19, 0, −4 and
+legs with no way +116, −382, −969 by tier; no time in pockets either side.
 
 **Bench** (c8bd1281 against 54ececcf, the base before #398/#399/#401,
 batteries and team deathmatch, tiers 4-5, 9-10 and 13-15, seeds 1-16,
@@ -406,7 +420,7 @@ drops, time and deaths in pockets (batt 13-15 pocket deaths −0.19, z −1.9),
 give-ups, deliveries, carriers killed, team kills and stuck. batt 4-5's quick
 ends are the one guard past 2 SE, of about 60.
 
-**Follow-ups.** Route points on the lowest planned floor (above).
+**Follow-ups.** Route points with a height (level_07, above).
 Grid gaps: level_07
 (82, -25); level_06_day_4 (13.6, 108.6); level_03 (-16, -15); passages
 narrower than the body. The erosion by body height (floors beside a fall
