@@ -578,6 +578,11 @@ pub struct Bots {
     /// instead (`real_bot_cost`, `SRP_BENCH_ONE_SIDE`).
     #[cfg(test)]
     side1_tuning: Option<Arc<Tuning>>,
+    /// The real-map bench's human stand-in (`SRP_BENCH_HUMAN`, CG-12):
+    /// the plays take this bot for a human, and its commander gives it
+    /// Raid whenever Raid is a candidate.
+    #[cfg(test)]
+    pub bench_human: Option<Place>,
     tracker: Tracker,
     tactics: Option<Tactics>,
     teams: [TeamState; 2],
@@ -643,6 +648,8 @@ impl Bots {
             tuning,
             #[cfg(test)]
             side1_tuning: None,
+            #[cfg(test)]
+            bench_human: None,
             routes: Vec::new(),
             weapons: Vec::new(),
             searching: Searching {
@@ -1477,6 +1484,23 @@ impl Bots {
         let Some(tactics) = self.tactics.as_ref() else {
             return;
         };
+        // The bench's human stand-in: a human to the plays.
+        #[cfg(test)]
+        let stand_in;
+        #[cfg(test)]
+        let view = match self.bench_human {
+            Some(place) => {
+                stand_in = {
+                    let mut view = view.clone();
+                    if let Some(p) = view.places.iter_mut().find(|p| p.place == place) {
+                        p.bot = false;
+                    }
+                    view
+                };
+                &stand_in
+            }
+            None => view,
+        };
         let tuning = self.tuning_of(team);
         let now = view.clock;
         let state = &mut self.teams[usize::from(team)];
@@ -1583,6 +1607,16 @@ impl Bots {
             })
             .collect();
         self.teams[usize::from(team)].knowledge.searching = searching;
+        // What the team knows of each enemy human, for the match (CG-12).
+        let tracks = self
+            .bots
+            .iter()
+            .flatten()
+            .filter(|b| b.team == team)
+            .flat_map(|b| b.memory.tracks());
+        self.teams[usize::from(team)]
+            .knowledge
+            .learn_humans(team, view, tracks, now);
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
         let mut blocks = Vec::new();
@@ -1622,6 +1656,12 @@ impl Bots {
             };
             let mut candidates = Vec::new();
             plays::candidates(&cx, &mut candidates);
+            #[cfg(test)]
+            if self.bench_human == Some(bot.place)
+                && candidates.iter().any(|c| c.kind == plays::PlayKind::Raid)
+            {
+                candidates.retain(|c| c.kind == plays::PlayKind::Raid);
+            }
             blocks.push((bot.place, plays::collect::take_blocks(&cx)));
             asked.push((bot.place, candidates, bot.assignment.clone()));
         }
@@ -2052,6 +2092,7 @@ impl Bots {
             if let Some(line) = bot.reflex.take_friend_note() {
                 bot.traced.push(line);
             }
+            bot.traced.extend(bot.reflex.take_gate_note());
             let (input, turn) = bot.encoder.encode(time, decision);
             let keys = bot.encoder.keys();
             // [recoil] The part of the pitch turn the kick takes, and the
@@ -2196,6 +2237,7 @@ fn drive_tick(
         bot.motor.track = None;
         let decision = bot.motor.rest();
         let by = (keys & key::JUMP != 0).then_some("unstick");
+        bot.reflex.skipped_tick(time);
         let keys = jumping(bot, keys, by, me.feet, time);
         return Decision { keys, ..decision };
     }
@@ -2215,6 +2257,7 @@ fn drive_tick(
     };
     // [aimpoint] What of its target shows, before the reflex aims.
     bot.reflex.look(aiming_me, view, &tactics.world, time);
+    bot.reflex.outer_gates(time, !intent.fire, bot.jump_hold > 0);
     let over = bot.reflex.tick(
         aiming_me,
         view,
@@ -2631,6 +2674,7 @@ fn drive_tick(
     } else if over.fire {
         // The shot the reflex counted this tick is not fired: given back.
         bot.reflex.hold_fire(time);
+        bot.reflex.gate_using(time);
     }
     decision.keys |= over.keys;
     if over.keys & (key::GRENADE | key::RELOAD | key::AIM | key::CROUCH) != 0 {
@@ -2718,6 +2762,7 @@ fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: Vec3, time:
             1
         };
         bot.jump_followed(time, Some(feet), "jumped again");
+        bot.reflex.jumped(by);
         let route = (by == "route").then(|| bot.motor.route_press()).flatten();
         if bot.tracing {
             let mut line = serde_json::json!({
@@ -2751,6 +2796,7 @@ fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: Vec3, time:
     bot.jump_hold -= 1;
     if firing {
         bot.reflex.hold_fire(time);
+        bot.reflex.gate_jump(time);
     }
     (keys | key::JUMP) & !key::FIRE
 }

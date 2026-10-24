@@ -427,3 +427,94 @@ pub(super) fn aim_off(eye: Vec3, dir: Vec3, chest: Vec3) -> (f32, f32) {
     let cos = (to.dot(dir) / d).clamp(-1.0, 1.0);
     (Vec3::new(to.x, 0.0, to.z).length(), cos.acos().to_degrees())
 }
+
+/// [measure] The gate tally: the ticks a bot had its view on an enemy
+/// (the on-view episodes, `tests.rs` `OnView`) and fired no shot, by the
+/// first fire gate that held it and by every gate that did
+/// ([`super::super::reflex::gate`]). The one part of the bench read from the
+/// bots' own state (the reflex's record of its tick); nothing decides by it.
+#[derive(Default)]
+pub(super) struct GateTally {
+    pub ticks: u32,
+    /// By [`GATES`]' index.
+    first: Vec<u32>,
+    every: Vec<u32>,
+}
+
+/// The tally's gates: the reflex's ([`super::super::reflex::gate::NAMES`]),
+/// with three of the bench's own in their place in the order: the bot's
+/// record is older than a tick (it did not run), it aimed at another
+/// enemy than the one in its view, and no gate failed.
+const STALE: &str = "not_run";
+const OTHER: &str = "other_target";
+const NONE: &str = "none";
+
+fn gates() -> Vec<(u32, &'static str)> {
+    use super::super::reflex::gate;
+    let mut all = vec![(0, STALE)];
+    for &(bit, name) in &gate::NAMES {
+        all.push((bit, name));
+        // The reflex's own gates are about its target: another enemy than
+        // the one in view comes before them.
+        if bit == gate::NO_TARGET {
+            all.push((0, OTHER));
+        }
+    }
+    all.push((0, NONE));
+    all
+}
+
+impl GateTally {
+    /// A tick on view of `enemy` with no shot, the bot's gates `gates` as of
+    /// `now`.
+    pub(super) fn tick(&mut self, gates: super::super::reflex::Gates, enemy: Place, now: u32) {
+        let names = gates_names();
+        self.first.resize(names.len(), 0);
+        self.every.resize(names.len(), 0);
+        self.ticks += 1;
+        let stale = now > gates.at + 2 * super::TICK_MS;
+        let other = !stale && gates.target.is_some_and(|t| t != enemy);
+        let failed = |bit: u32, name: &str| match name {
+            STALE => stale,
+            OTHER => other,
+            NONE => !stale && !other && gates.bits == 0,
+            _ => !stale && gates.bits & bit != 0,
+        };
+        let mut first = true;
+        for (i, &(bit, name)) in names.iter().enumerate() {
+            if failed(bit, name) {
+                self.every[i] += 1;
+                if first {
+                    self.first[i] += 1;
+                    first = false;
+                }
+            }
+        }
+    }
+
+    /// One line: the ticks, then each gate's share as the first and as any.
+    pub(super) fn line(&self) -> String {
+        let pct = |n: u32| 100.0 * f64::from(n) / f64::from(self.ticks.max(1));
+        let names = gates_names();
+        let part = |counts: &[u32]| {
+            names
+                .iter()
+                .zip(counts)
+                .filter(|(_, n)| **n > 0)
+                .map(|((_, name), n)| format!("{name} {n} {:.1}%", pct(*n)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        format!(
+            "gates on view, no shot: {} ticks; first: {}; every: {}",
+            self.ticks,
+            part(&self.first),
+            part(&self.every)
+        )
+    }
+}
+
+fn gates_names() -> &'static [(u32, &'static str)] {
+    static NAMES: std::sync::OnceLock<Vec<(u32, &'static str)>> = std::sync::OnceLock::new();
+    NAMES.get_or_init(gates)
+}
