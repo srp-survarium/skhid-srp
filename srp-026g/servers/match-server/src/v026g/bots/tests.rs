@@ -7498,6 +7498,9 @@ mod arrival_height {
         assert!(!off_goal_height(0.1, 0.3, 0.0));
         // A hunt's area (within 2 m): a body in it 1 m down a slope is there.
         assert!(!off_goal_height(2.0, 0.0, 1.0));
+        // A hunt's (2 m) or an escort's (3 m) area on a slope: a body up the
+        // slope, its feet over the goal's floor, has arrived.
         assert!(!off_goal_height(2.0, 1.5, 0.0));
+        assert!(!off_goal_height(3.0, 1.2, 0.0));
     }
 }
