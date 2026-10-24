@@ -348,6 +348,63 @@ went round strips by drops and jumps. If it comes back: a flat cost per
 strip crossed (or on any link onto one), with a target measure for the
 strip cases (CG-8) first.
 
+### Grid: no way planned into a pocket with no way out (2026-10-25)
+
+**The rule.** A pocket whose surest exit is none (no jump the body makes
+leads out, `pocket_exits`) marks its floors `NO_EXIT`. No way is planned
+over a link into such a pocket from a floor outside it, whatever the link
+(a drop, or a walk down a step that does not walk back): `WalkGrid::plans`,
+and its cost is infinite. The link stays, so a body knocked or overshooting
+over the edge is in the pocket, and ways inside it and out of it are still
+planned. The regions and the tactics' floods (the escape flood, the exit
+field, the floors walkable from the spawns) skip the same links, so no spot
+or way out lands in one. A battery lying there has no stand (no floor of
+the pocket is walkable from the spawns) and keeps the pocket's take block
+(`collect::POCKET_BLOCK`). `GRID_ALGO` 8 (6 and 7 were unreleased
+variants), `TACTICS_ALGO` 3.
+
+**The grid table** (every map, day 2, 3 and 4): 79 shut pockets, none
+planned into (`shut_planned` 0, asserted), 7,733 floors no longer planned
+onto (level_07 1,600 a map, level_05 382, level_06 167-355, the rest 5-244).
+No objective in a shut pocket or behind an unplanned way; objectives
+unreached 19, as before.
+
+**Players there.** Of the human positions in the server's 5 s worlds (the
+audit of the erosion work, non-bot matches), 308 stand on floors now
+unplanned, 14 lives. 245 of them (6 lives) are level_05_day_4's pocket of
+372 floors around (-10.4, 9.1, -22.8). Players get out of it, so it is a
+grid gap (an exit the grid does not see), not a pit: on the follow-up list.
+The rest are 2-38 a map (level_03, 04, 06, 08).
+
+**The routes check** (the stored human routes, walked by the planner):
+legs with no way 12 → 10, points lost 141 → 143, jumps 86 → 86, length
++0.1 %. The two lost points are one point of level_05's day 2 and day 3
+routes at (-7.8, -21.3): it lies in the shut pocket, so it is now
+unwalkable and dropped; before, the leg out of it had no way.
+
+**Bench** (c8bd1281 against 54ececcf, the base before #398/#399/#401,
+batteries and team deathmatch, tiers 4-5, 9-10 and 13-15, seeds 1-16,
+after side): decisions differ on every cell. Per seed run, past 2 SE:
+
+| cell | change |
+|---|---|
+| batt 4-5 | kills 236.5 → 240.0 (z +2.9); quick ends 327.1 → 334.8 (z +2.5) |
+| batt 13-15 | idle −49 s (z −2.7); legs with no way +323 (z +2.2) |
+| tdm 4-5 | K/D of team 0 +0.03 (z +2.4) |
+| tdm 9-10 | flips −3.6 (z −3.1) |
+
+Everything else is within 2 SE: falls on route (z −1.1 to +1.2), planned
+drops, time and deaths in pockets (batt 13-15 pocket deaths −0.19, z −1.9),
+give-ups, deliveries, carriers killed, team kills and stuck. batt 4-5's quick
+ends are the one guard past 2 SE, of about 60.
+
+**Follow-ups (grid gaps).** level_05_day_4's pocket above; level_07
+(82, -25); level_06_day_4 (13.6, 108.6); level_03 (-16, -15); passages
+narrower than the body. The erosion by body height (floors beside a fall
+kept, with a cost on them) is rebuilt on top of this rule: benched alone it
+raised falls on route on every cell, from route legs along the edges and
+from planned drops off them.
+
 ## 5. Measured (2026-10-14, release build, one thread)
 
 0.25 m cells, all 72 projects; the day_4 project of each map, and one
