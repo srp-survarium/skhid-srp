@@ -981,6 +981,46 @@ So a route could be drawn with a fresh death right at its first point and end at
 
 **Not verified:** no real match has been played with either change.
 
+### A memory of each enemy human, and a human stand-in on the bench (Cologne CG-12; built 2026-10-24)
+
+In Cologne the owner stole from the same container by the same lane again and again, and the bots met him there no more often the third time than the first: what the team knew of him was gone in 10 s. This PR gives the team a memory of him for the match. Nothing reads it yet: the container holder (CG-1 with CG-12, batteries' `guard_lead.rs`) is its first user, in phase 3.
+
+**The memory** (`know.rs`, `TeamKnowledge::humans`, `HumanLanes`), one entry per enemy human (`PlaceView::bot` false), kept for the match:
+- **His lanes:** 6 m cells of his places, at most one place a second.
+  - Each cell has the mean of its places and a count with a 3-minute half-life.
+  - Places come only from the team's own senses: the bots' seen, heard and told tracks within 6 m of error. A cheat's place never counts.
+- **His thefts** from our container: the HUD's theft (`TeamKnowledge::thefts`), each counted once.
+- **Where he killed us:** his scoreboard kills going up, placed at our latest death of the last 2 s (the kill feed).
+- It is fed in the commander's poll (`TeamKnowledge::learn_humans`).
+- `HumanLanes::thief_lane(near, within_m, now)` gives the cells near a point (our container) of the humans who stole from us, best first, by count times thefts.
+
+**The stand-in** (`real_bot_cost`, `SRP_BENCH_HUMAN=<place>`, test builds only):
+- That bot is a human to the plays: its team covers and escorts him, the enemy pairs up on and intercepts him, and the memory learns him.
+- Its commander gives it Raid on the enemy's container whenever Raid is a candidate.
+- A `human:` line per run counts:
+  - his steals and floor takes, and those met (an enemy with a line to him within 25 m in the 10 s before);
+  - the time from his first theft to the next meeting;
+  - his takes with a teammate within 15 m;
+  - his deliveries, his deaths, and those traded within 5 s.
+
+**Checks:**
+- With `SRP_BENCH_HUMAN` unset, the decisions are byte-identical to the base (b222a338): `SRP_TRACE_DECISIONS`, batteries and TDM presets, seeds 1-2, the same lines and md5.
+- The bot tests pass.
+
+**The baseline for phase 3** (batteries preset, place 0, seeds 1-16, no tier; in the bench cache):
+
+| | 4 v 4 (96 runs) | 10 v 10 (96 runs) |
+|---|---|---|
+| steals, met | 21, 12 met | 1, 0 met |
+| floor takes, met | 85, 21 met | 50, 17 met |
+| takes with a teammate within 15 m | 27 of 106 | 32 of 51 |
+| delivered | 76 | 34 |
+| deaths, traded within 5 s | 99, 4 | 157, 23 |
+| first meeting after his first theft | median 1.7 s (19) | 6.6 s (1) |
+
+- He steals rarely: a Raid is a candidate only when the enemy's container holds batteries, and in 3 minutes at 10 v 10 it seldom does.
+- For the holder's bench, `SRP_BENCH_START` (batteries in the containers from the start) or longer runs would give him more thefts.
+
 ## 4. Event reactions
 
 | Event | How bots learn it | Reaction |
