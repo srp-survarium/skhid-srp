@@ -371,7 +371,7 @@ unreached 19, as before.
 
 **Players there.** Of the human positions in the server's 5 s worlds (the
 audit of the erosion work, non-bot matches), 308 stand on floors now
-unplanned, 14 lives. 245 of them (5 lives, 4 matches) are level_05_day_4's
+unplanned, 14 lives. 243 of them (5 lives, 3 matches) are level_05_day_4's
 pocket of 372 floors around (-10.4, 9.1, -22.8), a pit 1.2-1.6 m below the
 ground west of it. In the recordings (the worlds' positions, every input)
 each of the 5 drops in from the west, crouches there (most ticks) and never
