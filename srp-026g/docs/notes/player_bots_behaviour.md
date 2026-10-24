@@ -968,6 +968,14 @@ So a route could be drawn with a fresh death right at its first point and end at
 - **K/D.** No team moved beyond 2 SE in any run but one: CG-17, TDM 9-10, team 0 +0.041 ± 0.019*, team 1 −0.049 ± 0.027. Both teams had the change, so this is a map side's effect, as in §3.2.
 - **More carriers killed with CG-17 (batteries; 0.167 -> 0.182 and 0.178 -> 0.198 a pickup).** Bots also picked up more (+3.2* and +2.9), Escort time rose (+100 s* and +77 s), and Intercept time rose (+54 s and +49 s). The extra kills were spread over Collect, Intercept, Station and Retreat shooters, and deliveries were even.
   - A play that keeps its bot now runs to its end on both sides, carriers and their hunters alike. With both teams changed, a carrier killed is the other team's gain.
+  - **It did not last on #384's 0.6 s put** (base 31d87767, batteries, same seeds), so it was the old stand-in's instant put-in. CG-17 alone / both, tiers 4-5 and 9-10:
+    - carriers killed +0.06 ± 1.00 / +0.31 ± 0.95 and +0.75 ± 1.63 / +0.44 ± 1.43, 0.172 -> 0.172 and 0.192 -> 0.196 a pickup;
+    - delivered −0.06 ± 0.87 / +0.12 ± 0.93 and −0.31 ± 0.64 / −0.44 ± 0.76;
+    - kills −0.9 ± 3.9 / −0.3 ± 3.5 and −2.4 ± 2.8 / −1.6 ± 2.5;
+    - K/D within ±0.026 ± 0.023;
+    - hit % within ±0.2, team kills ±0.06, idle s −83 ± 70 to −23;
+    - slot hand-offs −66* / −66* and −75* / −77*; quick ends −43* / −55* and −44* / −55*; flips −14* / −20* and −19* / −22*;
+    - "route turned bad" ends (both) 11.5 -> 1.0* and 6.8 -> 1.6*.
 - **CG-10 alone** moves nothing but what it fixes: the draws that ended at once, and so the quick ends.
 - The 7 whole-match tests pass (on the tip 55a60c08 merged in).
 
