@@ -2639,6 +2639,9 @@ fn drive_tick(
             }
             match bot.route.as_mut() {
                 Some((route, route_at)) => {
+                    // `route_at` is the goal's `at`, copied unchanged where
+                    // the route was planned, so the two compare exactly (a
+                    // replan that snapped it to a floor would turn this off).
                     bot.motor.exact_end = exact_at == Some(*route_at);
                     let side = bot.side;
                     let objective = intent.objective;
