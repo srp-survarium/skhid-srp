@@ -1534,7 +1534,10 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
-        [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
+        [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS]
 
 
 def pickup_sites():
@@ -4117,6 +4120,229 @@ def test_match_keys(original, image, before):
           "release/content.tsv labels it (match-chat-off-1.json)")
 
 
+def test_hide_ui(original, image, before):
+    """Check 62: the key that hides the interface (patch 62,
+    HIDE_UI_HOOKS). check_hide_ui_026g.py runs the three entries from the
+    game's sites on made-up objects, with the game's own show_ui and
+    get_binded_action."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 40).split(b"\0")[0]
+    entry = struct.unpack("<5I", stock.read(0xA74CA8, 20))
+    check(cstr(entry[0]) == b"toggle_replay_ui" and entry[1:4] == (0x19, 5, 0) and cstr(entry[4]) == b"kF11"
+          and rows(stock, 0x25CD5A, 0x11) == ["lea edx,[esp+0x14]", "push edx", "mov edi,0x1", "call 0x207d50",
+                                              "mov edi,eax"]
+          and rows(stock, 0x25CE10, 0x13) == ["lea ecx,[edi-0x11]", "cmp ecx,byte +0x8", "ja near 0x25cf0d",
+                                              "jmp [ecx*4+0x25cf30]"]
+          and struct.unpack("<I", stock.read(0x25CF30 + 8 * 4, 4))[0] == 0x25CED1
+          and rows(stock, 0x25CED1, 0x0A) == ["mov esi,[esp+0x10]", "cmp dword [esi+0x18],byte +0x0",
+                                              "jz 0x25cf0d"]
+          and rows(stock, 0x25CEE4, 0x29)[:5] == ["cmp byte [esi+0x2e0],0x0", "lea edi,[esi+0x4]", "setz cl",
+                                                 "movzx edx,cl", "push edx"]
+          and stock.read(0x25CD16, 4) == bytes.fromhex("897c2410"),
+          "toggle_replay_ui is action 19h (kinds 5, F11; the action table's entry 0xA74CA8); the game world's "
+          "on_keyboard_action asks the binder for kind 1 (0x25CD5F) and its case 19h (the table 0x25CF30 + 20h) "
+          "at 0x25CED1 takes the handler from [esp+10h] (0x25CD16) and does nothing without the replay's movie "
+          "(+18h); with it, the replay's controls and the cursor (0x25CEDB..)")
+    check(rows(stock, 0x1F95F0, 0x10)[6:9] == ["push esi", "push edi", "mov edi,ecx"]
+          and stock.read(0x1F95FF, 6) == bytes.fromhex("389fa0000000")
+          and stock.read(0x1F960B, 6) == bytes.fromhex("8db704020000") and stock.read(0x1F9618, 6) == bytes.fromhex("8db70c020000")
+          and stock.read(0x1F9634, 6) == bytes.fromhex("8d8704020000") and stock.read(0x1F9641, 6) == bytes.fromhex("8d870c020000")
+          and popped(stock, 0x1F95F0, 0x1F965B) == 4
+          and struct.unpack("<I", stock.read(0x9FC514, 4))[0] == 0x1F95F0
+          and rows(stock, 0x1F8966, 0x0F) == ["lea esi,[ebx+0x1fc]", "lea eax,[esp+0x30]", "call 0x233f40"]
+          and stock.read(0x23383C, 3) == bytes.fromhex("897d18"),
+          "game_world::show_ui (0x1F95F0, slot 8 of its vtable 0x9FC4F4, `ret 4`) shows or hides the hud movie "
+          "(+204h) and the player icons' (+20Ch), its state +0A0h; the hud is the game world's +1FCh (0x1F8966), "
+          "the game world its +18h (0x23383C)")
+    check(image.read(0x23845A, 6) == stock.read(0x23845A, 6) == bytes.fromhex("53e8d0240000"),
+          "the kits' show_cursor call (0x23845B) is the original's: a death or a respawn keeps the interface "
+          "hidden (the owner, 2026-10-24)")
+    check(rows(stock, 0x234AC1, 0x2F) == ["mov ecx,[ebp+0x8]", "add esp,byte +0xc", "push esi", "lea ebx,[ebp+0x8]",
+                                          "push esi", "mov [ebp+0x334],esi", "mov edx,[ecx+0x108]", "mov ecx,[edx+0x4]",
+                                          "push esi", "push dword 0xa03348", "mov [esp+0xa8],ebx", "call 0x511600",
+                                          "mov eax,[ebp+0x10]"]
+          and cstr(0xA03348) == b"root.reset",
+          "0x234AE8 is initialize_match's (0x234880, ebp the hud: [+8] its movie, [+10h] the player icons') Invoke "
+          "of root.reset on the hud movie, its four arguments pushed: a new match, the movies the last match's")
+    check(rows(stock, 0x26CCC2, 0x15) == ["mov eax,[eax+0x5344]", "lea edx,[esp+0x10]", "push edx",
+                                          "mov edi,0x2", "call 0x207d50"]
+          and rows(stock, 0x26CCAE, 0x14) == ["lea ecx,[esp+0x28]", "call 0x2afa70", "mov al,0x1", "pop edi",
+                                              "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0xc"]
+          and rows(stock, 0x26CCA9, 5) == ["call 0x1fdd70"] and popped(stock, 0x1FDD70, 0x1FDEC9) == 0x14
+          and rows(stock, 0x26CDA2, 7) == ["cmp esi,byte +0x40", "jnz 0x26ce11", "xor eax,eax"]
+          and rows(stock, 0x26CDD2, 0x30)[:3] == ["mov eax,[ebx+0x9c]", "mov ecx,[eax+0x5854]", "mov edx,[ebx+0x690]"]
+          and "call 0x1fdd70" in rows(stock, 0x26CDD2, 0x30) and "xor al,al" in rows(stock, 0x26CDD2, 0x3D)
+          and popped(stock, 0x207D50, 0x207DB3) == 4 and stock.read(0x26CBDB, 6) == bytes.fromhex("8b9390060000"),
+          "0x26CCD2 is lobby_menu::on_keyboard_action's (ebx the lobby menu, its movie [[+690h]+108h]+4) call of "
+          "get_binded_action (0x207D50, `ret 4`) for kind 2; 0x26CCAE is where it goes after a key the movie "
+          "typed (0x1FDD70 pops its five arguments): al 1, the key taken")
+    linked = P.arena()
+    block = linked.blocks["hide_ui.code"]
+    for va, old, symbol, opcode in P.HIDE_UI_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}, an entry of hide_ui.code) here")
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.HIDE_UI_HOOKS)]
+    hits = [h for va, old, _, _ in P.HIDE_UI_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside a hook"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "hide_ui.code")
+    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's hide_ui.code ({len(code)} bytes)")
+    names = code.index(b"root.toggle_interface\0")
+    texts = [text for va, _, text in ndisasm(code[:names], block.va)]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    library = {linked.symbols[name] for name in ("engine_binded_action", "engine_movie_invoke")}
+    pushed = lambda text: f"push dword {block.va + code.index(text + bytes(1)):#x}" in texts
+    check(outside == sorted(set(P.HIDE_UI_BACKS[:2]) | library)
+          and f"mov dword [esp],{P.HIDE_UI_BACKS[2]:#x}" in texts and f"mov dword [esp],{P.HIDE_UI_BACKS[3]:#x}" in texts
+          and all(pushed(t) for t in (b"root.toggle_interface", b"root.interface_hidden", b"root.hide_interface"))
+          and "hide_ui.state" not in linked.blocks,
+          "it goes on in on_keyboard_action (0x25CEDB, 0x25CF0D), returns to "
+          "0x26CCAE or 0x26CDD2, calls the library's get_binded_action and Invoke and nothing else (not the game "
+          "world's show_ui: its hidden movies stand still); it invokes root.toggle_interface, "
+          "root.interface_hidden and root.hide_interface, and keeps no state of its own")
+    here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
+    # the options' controls: the game's 40 rows, the six functions that read them, the arena's 41
+    table, count = P.HIDE_UI_TABLE, P.HIDE_UI_ROWS
+    empty = lambda at: struct.pack("<III", at + 0x1C, at + 0x1C, at + 0x3C) + bytes(32) + \
+        struct.pack("<III", at + 0x48, at + 0x48, at + 0x68) + bytes(32)
+    original_rows = [stock.read(table + 0x68 * i, 0x68) for i in range(count)]
+    check(all(row[16:] == empty(table + 0x68 * i) for i, row in enumerate(original_rows))
+          and 0x19 not in [struct.unpack_from("<I", row)[0] for row in original_rows]
+          and cstr(struct.unpack_from("<I", original_rows[-1], 4)[0]) == b"st_ptt_action",
+          f"the options' controls are {count} static rows of 68h bytes at {table:#x} (the action, its label's "
+          "key, the group, the type, two empty buffer_strings pointing into the row), the last ptt's; none is 19h")
+    check([rows(stock, va, len(old))[0] for va, old, _, _ in P.HIDE_UI_TABLE_REFS]
+          == ["mov eax,0xa9db28", "mov esi,0xa9db2c", "add eax,0xa9db28", "mov esi,0xa9db34",
+              "mov dword [esp+0xc],0xa9db28", "mov esi,0xa9db38"]
+          and [rows(stock, va, len(old))[0] for va, old, _ in P.HIDE_UI_TABLE_COUNTS]
+          == ["mov dword [esp+0x18],0x28", "mov ebx,0x28", "cmp bl,0x28", "mov dword [esp+0x44],0x28",
+              "mov dword [esp+0x10],0x28", "mov dword [ebp-0x8],0x28"],
+          "the table's six readers (0x201150, 0x201248, 0x2013BF, 0x201A19, 0x201D05, 0x201F2B) and their six "
+          "counts of 28h")
+    controls = linked.symbols["controls"]
+    data_block = linked.blocks["hide_ui.data"]
+    arena_rows = [image.read(controls + 0x68 * i, 0x68) for i in range(count + 1)]
+    new_row = arena_rows[count]
+    label = struct.unpack_from("<I", new_row, 4)[0]
+    check(data_block.va <= controls and controls + 0x68 * (count + 1) <= data_block.va + data_block.size
+          and all(arena_rows[i][:16] == original_rows[i][:16] and arena_rows[i][16:] == empty(controls + 0x68 * i)
+                  for i in range(count))
+          and struct.unpack_from("<4I", new_row) == (0x19, label, 2, 1)
+          and new_row[16:] == empty(controls + 0x68 * count)
+          and image.read(label, 25) == b"st_hide_interface_action\0",
+          f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows, each pointing into itself, and a 41st: "
+          "19h, st_hide_interface_action, group 2, type 1")
+    writes = P.hide_ui_table_writes(linked)
+    check(all(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              for va, old, new in writes)
+          and [rows(image, va, len(new))[0] for va, _, new in writes[:6]]
+          == [f"mov eax,{controls:#x}", f"mov esi,{controls + 4:#x}", f"add eax,{controls:#x}",
+              f"mov esi,{controls + 0xC:#x}", f"mov dword [esp+0xc],{controls:#x}", f"mov esi,{controls + 0x10:#x}"]
+          and [rows(image, va, len(new))[0][-4:] for va, _, new in writes[6:]] == ["0x29"] * 6
+          and {va + at for va, _, at, _ in P.HIDE_UI_TABLE_REFS}
+          <= {v for kind, v in image.relocations().values() if kind == 3},
+          "the six readers read `controls`, their counts are 29h, their addresses keep their base relocations; "
+          "the build without the late join has them as the original")
+    check("\nedit\thide-interface-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
+                                                       encoding="utf-8").read(),
+          "release/content.tsv makes the label (hide-interface-1.json)")
+    # the movies' side: each movie's interface is its root, hidden in one step; every layer the
+    # game put on the stage is in the root's _stageLayer (the lobby's: _layers and _overlay)
+    tree = lambda movie: {os.path.relpath(os.path.join(d, f), os.path.join(HERE, "..", "flash", movie, "src")):
+                          open(os.path.join(d, f), encoding="utf-8").read()
+                          for d, _, fs in os.walk(os.path.join(HERE, "..", "flash", movie, "src")) for f in fs
+                          if f.endswith(".as")}
+    stage_add = re.compile(r"((?:\w+\.)*\w*stage)\.addChild(?:At)?\(([^,)]+)")
+    lobby_tree = tree("lobby_menu")
+    lobby = lobby_tree["LobbyMenu.as"]
+    found = sorted((path, m.group(1), m.group(2)) for path, text in lobby_tree.items()
+                   for m in stage_add.finditer(text))
+    # Message's `_stage` is the messages' container (Message.initStage(this._top_container)), the
+    # name editor's `MainScene.stage` the root (MainScene.stage = this): both inside the root
+    allowed = {("survarium/controls/Message.as", "_stage"), ("survarium/char/CharWindow.as", "MainScene.stage")}
+    layered = sorted({m.group(1) for m in re.finditer(r"this\._(?:layers|overlay)\.addChild\(([\w.]+)\)", lobby)})
+    check(not [f for f in found if (f[0], f[1]) not in allowed]
+          and "Message.initStage(this._top_container);" in lobby and "MainScene.stage = this;" in lobby
+          and "SrvContextMenu.registerStage(stage,this._layers);" in lobby
+          and "DragManager.init(this.stage,this._overlay);" in lobby and "PopUpManager.layer = this._layers;" in lobby
+          and "_layer.addChild(_id);" in lobby_tree["survarium/controls/SrvContextMenu.as"]
+          and "(layer ? layer : _stage).addChild(_dragCanvas);" in lobby_tree["scaleform/clik/managers/DragManager.as"]
+          and "host.addChild(_defaultPopupCanvas);" in lobby_tree["scaleform/clik/managers/PopUpManager.as"]
+          and lobby.index("this.makeStageLayer();") < lobby.index("this.init();")
+          and "super.addChild(this._stageLayer);" in lobby
+          and all(f"override public function {f}" in lobby for f in ("addChild(", "addChildAt(", "setChildIndex("))
+          and "this._stageLayer.scaleX = this._stageLayer.scaleY = 1 / scaleFactor;" in lobby
+          and layered == ["this._cards", "this._corner", "this._front_container", "this._top2_container",
+                          "this._top_container", "this._wheelBack", "this._wheelsMC", "this.fadeBack",
+                          "this.lobbyGameLoad", "this.tipContainer"]
+          and lobby.index("this._overlay.addChild(this._corner);") < lobby.index("this._overlay.addChild(this._cards);")
+          and lobby.count("this._cards.addChild(this.itemHintRenderer") == 5
+          and "setTopmostLevel(this.itemHintRenderer" not in lobby
+          and "InterfaceHider" not in "".join(lobby_tree.values()),
+          "the lobby's interface is its root: nothing of it is added to the stage (Message's container and "
+          "MainScene.stage are inside the root); what the game put on the stage is in the root's last child, "
+          "_stageLayer, at the stage's scale, made before anything else and kept last (addChild, addChildAt, "
+          f"setChildIndex): {', '.join(layered)}, the right-click menu and CLIK's popup canvas in _layers; "
+          "_overlay, above every modal: _corner, _cards (the item cards, no longer topmost), the drag canvas, the "
+          "tooltips; no InterfaceHider, no timer")
+    toggle = lobby[lobby.index("public function toggle_interface() : void"):]
+    toggle = toggle[:toggle.index("public function interface_hidden()")]
+    check("if(SrvContextMenu.visisble)\n         {\n            SrvContextMenu.hide();" in toggle
+          and toggle.count("SrvContextMenu.hide()") == 1 and "this.hideItemHint(null);" in toggle
+          and "visible = false;" in toggle and "_hiddenUi" not in lobby,
+          "the lobby's toggle_interface closes a right-click menu only when one is open (none ever opened: "
+          "SrvContextMenu.hide's removeChild(null) threw, owner's test of 64ce3ce7) and the item cards (on "
+          "Scaleform's topmost level, drawn whatever their parents), then hides the root")
+    names = lambda text: [m.start() for m in re.finditer(re.escape(text + b"\0"), original)]
+    enable = lobby[lobby.index("public function enable_element(value:*, value2:Boolean = true) : void"):]
+    enable = enable[:enable.index("public function highlight_element(")]
+    check(names(b"root.enable_element") and names(b"root.statusPanel.btn_off") and names(b"root.statusPanel.btn_settings")
+          and stock.read(0x2A3F22, 0x1B) == bytes.fromhex("6a01" "68a011a000" "e8" + struct.pack("<i", 0x22A660 - 0x2A3F2E).hex()
+                                                          + "8b4720" "6a01" "68bc11a000" "e8"
+                                                          + struct.pack("<i", 0x22A660 - 0x2A3F3D).hex())
+          and struct.unpack("<I", stock.read(0xA0CBF8, 4))[0] == 0x2A3EA0
+          and "setTopmostLevel" not in enable and "this._corner.addChild(button);" in enable
+          and "this.statusPanel.addChildAt(button," in enable and "button != this.statusPanel.btn_off" in enable
+          and "_topmost" not in lobby and "dispatchEvent(new Event(LAID_OUT));" in lobby_tree["survarium/controls/StatusPanel.as"]
+          and "this.statusPanel.addEventListener(StatusPanel.LAID_OUT,this.onStatusPanelLaidOut);" in lobby
+          and not any(f"function {t}(" in lobby for t in ("testDragTutor", "testPlayTutor", "testAmmoTutor",
+                                                         "testAmmoTutor2", "testFactionPreTutor", "testFactionTutor",
+                                                         "testCloseSlide", "showSlideOnVs", "testTutorComplete")),
+          "the exe's lobby state (lobby_menu_state 0xA0CBF4, slot 1 0x2A3EA0, at every lobby entry) calls "
+          "root.enable_element(root.statusPanel.btn_off / btn_settings, true), which put the corner buttons on "
+          "Scaleform's topmost level (above every modal, and drawn whatever their parents: they stayed in the owner's "
+          "test of 335343b6); the lobby's enable_element puts them in _corner instead (above every modal, inside the "
+          "root, drawn where the status panel draws them after each of its layouts) and back with false; the "
+          "tutorial's private test functions are gone")
+    hud = here("flash", "hud", "src", "HUD.as")
+    icons = here("flash", "player_icons", "src", "player_icons_fla", "MainTimeline.as")
+    own = lambda movie: {p: t for p, t in tree(movie).items() if not p.startswith("scaleform")}
+    hud_adds = sorted((p, m.group(1), m.group(2)) for p, t in own("hud").items() for m in stage_add.finditer(t))
+    icon_adds = [(p, m.group(1)) for p, t in own("player_icons").items() for m in stage_add.finditer(t)]
+    check(all("public function hide_interface(hidden:Boolean) : void" in t and "visible = !hidden;" in t
+              for t in (hud, icons)) and "public function interface_hidden() : Boolean" in hud
+          and hud_adds == [("HUD.as", "stage", "this.effectContainer")] and not icon_adds
+          and "stage.addChildAt(this.effectContainer,stage.getChildIndex(this));" in hud
+          and "this._stageLayer.addChild(this.gameInfo);" in hud and "place.concat(this.transform.matrix);" in hud
+          and all(f"override public function {f}" in hud for f in ("addChild(", "addChildAt(", "setChildIndex("))
+          and "InterfaceHider" not in "".join(tree("hud").values()) + "".join(tree("player_icons").values())
+          and all(f"this.effects[this.{name}] = " in hud for name in ("BLOOD_EFFECT", "BLOOD_DRIP1", "GRENADE_EFFECT")),
+          "the hud's and the player icons' interface is their root, hidden in one step (root.hide_interface; the "
+          "hud's interface_hidden); the hud's fps line is in the root's _stageLayer; the one thing on the hud's "
+          "stage beside the root is the screen effects' container (add_effect's blood, its drips, the grenade's "
+          "flash), below the root, placed as the root is scaled: the scene's, so it stays (the owner, 2026-10-24)")
+    check("public function toggle_interface() : void" in lobby and "public function interface_hidden() : Boolean" in lobby,
+          "the lobby movie has root.toggle_interface and root.interface_hidden")
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -5645,7 +5871,8 @@ def test_late_join(original, without, server, source):
     fov_sites = {va for va, _, _ in P.FOV_PATCHES}
     with_address = {P.REMOVE_MODEL_VA, P.PICKUP_HOOKS[0][0]} | fov_sites | \
         {va for va, old, _, _ in P.WEAPON_PREVIEW_HOOKS if old[:3] == b"\xf3\x0f\x10"} | \
-        {va for va, _, _, _ in P.FOV_LOD_HOOKS}
+        {va for va, _, _, _ in P.FOV_LOD_HOOKS} | \
+        {va for va, _, _, _ in P.HIDE_UI_TABLE_REFS}   # the options' table, now the arena's (relocated alike)
     kept = [(lo, hi) for lo, hi in sites if lo not in with_address]
     under_kept = [va for kind, va in Image(original).relocations().values()
                   if kind == 3 and any(va + 4 > lo and va < hi for lo, hi in kept)]
@@ -5663,6 +5890,8 @@ def test_late_join(original, without, server, source):
           f"distance ({P.PICKUP_RELOC:#x}) and of the lobby camera's least "
           f"({', '.join(f'{va:#x}' for va in P.WEAPON_PREVIEW_RELOCS)}) and of patch 40's two constants "
           f"({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), which are disabled, "
+          "and of the options' controls table's six readers (patch 62: their address is the arena's, kept "
+          "relocatable) "
           f"and of the field-of-view option's name "
           f"({option:#x}, an address for an address), which stays; the rest of the table is the build's without it")
 
@@ -5705,6 +5934,7 @@ def test_late_join(original, without, server, source):
     test_spot(original, image, before)
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)
+    test_hide_ui(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

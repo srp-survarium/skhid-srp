@@ -105,6 +105,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
+| `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -160,8 +161,8 @@ a hook jumps to, `extern` what it uses of other patches; its hooks as
 (site, bytes, symbol, opcode) rows made in `build()`; each declared in
 `INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
 asm, its C, and its state `rn_state`), the artefacts (patch 54), the
-engine library and the kit keys with the match chat option (patch 58) are
-the arena's blocks today. The older fixed sections stay as they are
+engine library, the kit keys with the match chat option (patch 58) and the
+key that hides the interface (patch 62) are the arena's blocks today. The older fixed sections stay as they are
 (client_patch.md 0.3 says what moving one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
@@ -3213,6 +3214,110 @@ found by the game's lookup (0xEB7C0) and set and cleared by the game's execute (
 `user.cfg` line; the chat: every channel with the option off and on, in and out of a match,
 dropped exactly for 3 and 5 to 9 on, in a match, else given to add_message with the site's
 arguments, the stack and ebx, esi, edi, ebp as before. **Not run in a game.**
+
+### 62. One key hides the interface, in a match and in the lobby (the next release's revision)
+
+A player's ask through the owner (2026-10-23): a key that hides the whole interface, in the lobby
+too, for screenshots. The rules: `../docs/notes/hide-ui-key.md`.
+
+**The key.** The game's own action `toggle_replay_ui` (19h; the action table's entry 0xA74CA8,
+kinds 5, default F11), which in the original shows and hides the replay viewer's controls and
+does nothing in a match or the lobby. No new action: the action table (0xA74AF0..0xA74FA0, its
+end the key names' start, read by 15 sites) is a fixed table. The game has no screenshot key (no
+such action, command or string): players take them with Steam (F12), Windows or other tools; F11
+is none of theirs.
+
+**The controls options' row** (the owner, 2026-10-24: "there is no in settings option to switch
+it"). The options' list of keys is a table of its own, 28h static rows of 68h bytes at 0xA9DB28
+(the action, its label's localization key, the group: 2 game, 0 lobby, 1 chat; the type; two
+buffer_strings, the key being set and the key kept, each three pointers into its own 32-byte
+buffer), read by six functions of game_options, each counting 28h rows: 0x201150 (a key's
+conflicts), 0x201248 (the conflict message), 0x2013BF (a key set: kept in the row of its action),
+0x201A19 (the rows sent to the movie, `root.set_keybindings`), 0x201D05 (the keys read from the
+binder, `root.set_keybind`) and 0x201F2B (accept: `bind <action> <key>` or `unbind <action>`
+through the console for each row whose key changed). The movie only names an action
+(`start_bind_key`), so a row for 19h cannot be the movie's alone: a key set for an action without
+a row is kept nowhere (0x2013A0) and never applied. The patch links the table again, its 40 rows
+and a 41st (19h, `st_hide_interface_action`, group 2, type 1), as `controls` in the arena's block
+`hide_ui.data`, and points the six functions at it (their immediates) with counts of 29h. Saving
+needs nothing more: the binder's own `bind` command saves every bound action of its 48h bindings
+by name (0x207450) and reads them back (`bind_key` 0x207DC0). The label is content edit
+`hide-interface-1.json` ("Hide interface", Скрыть интерфейс, Сховати інтерфейс, Oberfläche
+ausblenden, Ukryj interfejs). The default stays the action table's F11 (the options' reset sets
+the binder's defaults).
+
+**The match.** `on_keyboard_action` (0x25CD00) asks the binder for kind 1 (0x25CD5F) and switches
+on actions 11h..19h (0x25CE1C, the table 0x25CF30); case 19h at 0x25CED1 (`mov esi,[esp+10h] /
+cmp dword [esi+18h],0 / jz 0x25CF0D`) does nothing without the replay's movie (the handler's
++18h, the hud's +14h). The patch jumps there to `hide_ui_match`: with the replay's movie it goes
+on at 0x25CEDB as before; without it, the hud movie ([[hud+8]+108h]+4, the hud the handler's
++4) is asked `root.interface_hidden`, and it and the player icons' movie ([[hud+10h]+108h]+4)
+get `root.hide_interface(not that)`: each hides its root, which is its whole interface (the hud's
+fps line, which the game put on the stage, is in the root's `_stageLayer`), the hud, the
+crosshair, the minimap, the kits, the markers over heads, and goes on running, so what
+happens meanwhile (kill feed, messages) plays out unseen. The kits before the start and after a
+death too; the start, a death and a respawn keep the state (the owner, 2026-10-24). A new match
+starts shown: the movies are the last match's, and `initialize_match` (0x234880) invokes the hud
+movie's `root.reset` at 0x234AE8 (ebp the hud), which shows the hud; the patch calls
+`hide_ui_reset` there, which invokes it and gives the hud and the icons
+`root.hide_interface(false)`. The hud's
+screen effects stay: their container (`add_effect`'s blood, drips, the grenade's flash) is on the
+stage below the root, placed as the root is scaled, so hiding the root leaves it. The key is not taken (0x25CF0D, al 0), as in the original. Not the game
+world's own `show_ui` (0x1F95F0, slot 8 of its vtable 0x9FC4F4, its state +0A0h; the activation
+shows the ui with it at 0x1F8476, the deactivation hides it at 0x1F96D1), which the first build
+used: the movies it hides (+204h and +20Ch) stand still, and when shown they played everything
+that came meanwhile at once (the owner's test of 64ce3ce7).
+
+**The lobby.** `lobby_menu::on_keyboard_action` (0x26CB80) asks the binder for the lobby's
+actions (kind 2) at 0x26CCD2 (eax the binder, edi 2, esi the key); the F keys never reach the
+lobby movie (its DIK-to-Flash key map, made at 0x1FDF20, has none). The patch calls
+`hide_ui_lobby` there: the lobby's own lookup first, as before; when the key has none, the binder
+is asked again for kind 1 (its answer's toggle in a place of ours); `toggle_replay_ui` invokes
+the lobby movie's `root.toggle_interface` and the key is taken (the return goes to 0x26CCAE, al
+1, as after a key the movie typed: the movie never gets it). The movie hides every shown child of
+its stage, so no click lands on the interface and the camera turns and zooms (`get_mouse_over`
+false); the same key, any key the movie gets, Esc (`has_active_window` true,
+`close_active_window`), a match found, its loading or the results show it again. While the movie
+answers `root.interface_hidden` true, any other key returns to 0x26CDD2, which hands it to the
+movie and returns 0: no action of the game acts on it (the window keys C, I, S, F, O, and F6,
+which presses Play at 0x26CDA2). The movie shows the interface and takes that key's press and
+its release (`LobbyMenu.onHiddenKey`, `onHiddenKeyUp`: a message hidden with the interface acts on
+Enter's release). F keys other than F11 (the movie never gets them) do nothing then.
+
+All three in the arena's block `hide_ui.code`, the controls in `hide_ui.data`
+(`hide_ui_026g.asm`), with the late join; `get_binded_action` and Invoke through the engine
+library (`engine_binded_action`, `engine_movie_invoke`); no state of its own (the movies keep it). No base relocation under the sites (0x25CED1 ten bytes, 0x26CCD2 and
+0x234AE8 a `call` each); nothing aims inside them (the switch's table aims at 0x25CED1, the
+jump's own first byte).
+
+Rendering and input only; no row in `../crates/session/src/v026g/simulation_changes.tsv`.
+`../docs/notes/client_patch.md` section 3.54.
+
+Checked: `selftest_026g.py` check 62 (the action's entry, the switch and its case, the kits'
+call, the lobby's call and its taken path, the block's code, exits, calls and data; the movies'
+interface their root: in each movie's own sources no layer is added to the stage but through the
+root's `_stageLayer` (the lobby's every former stage layer listed; the hud's one stage child
+beside the root the screen effects), the right-click menu closed only when open, the lobby's
+`enable_element` moving the corner's exit and settings buttons into `_overlay`'s `_corner`
+(above every modal, inside the root; the exe's lobby state promoted them to Scaleform's topmost
+level with it, drawn whatever their parents), the item cards in `_cards`, the tutorial's private test
+functions gone; the movies' functions) and the call shapes (0x26CCD2 and 0x234AE8
+CALLEE, `ret 4` and `ret 10h` as their models; 0x25CED1 JUMP); `check_hide_ui_026g.py` (Unicorn): the case 19h with and
+without the replay's movie, the hud movie and the icons', the interface hidden or shown (16
+cases): `root.hide_interface(not hidden)` to the hud and the icons exactly without the replay's
+movie with the hud's, every case at the original's 0x25CEDB or 0x25CF0D with its esp, ebp and
+stack; the lobby's call with the game's own
+get_binded_action on a binder of the action table's descriptions (F11, C, F, W, H, F6, Enter,
+with and without the movie, the interface hidden or shown, 28 cases): `root.toggle_interface`
+and the key taken exactly for F11 with the movie; the interface hidden, every other key to
+0x26CDD2; shown, back with the original's answer and toggle; the options' controls with the
+game's own game_options functions (GFx objects, the strings' look-up, buffer_string's printf and
+the CRT's sscanf_s stubbed): the list sent to the movie is the original's 40 rows and a 41st
+(19h, its label, group 2, type 1), the keys read from the binder the original's 40 and (19h, kF11),
+a key kF9 set for 19h kept in the 41st row (the original keeps it in none), the accept runs
+`bind toggle_replay_ui kF9` (the original's nothing), the binder's own bind binds it, its save
+writes `bind toggle_replay_ui kF9`, and that line read back binds it again. The lobby movie builds from source
+(`tools/actionscript/flash_tree.py`). **Not run in a game.**
 
 ## Not ported, not done
 

@@ -426,3 +426,11 @@ file edited, 0 unexpected differences. No simulation change: the slot rule is th
 
 Applied to revision 30's live tables (from the stock db and patches 12 to 30): 6 files edited, 0
 unexpected differences. Text only: no server data, no simulation change.
+
+## hide-interface-1.json (2026-10-24)
+
+| change | why |
+|---|---|
+| a new `st_hide_interface_action` "Hide interface" (Oberfläche ausblenden, Ukryj interfejs, Скрыть интерфейс, Сховати інтерфейс), in the six localization tables | the label of the controls options' row exe patch 62 adds for `toggle_replay_ui` (F11), the key that hides the interface in a match and the lobby and the replay's controls in a replay (`../../docs/notes/hide-ui-key.md`; the owner, 2026-10-24: "there is no in settings option to switch it") |
+
+Text only: no server data, no simulation change.

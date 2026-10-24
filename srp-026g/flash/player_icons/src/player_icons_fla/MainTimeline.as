@@ -44,6 +44,13 @@ package player_icons_fla
          addFrameScript(0,this.frame1);
       }
       
+      // The key that hides the interface (exe patch 62, F11; docs/notes/hide-ui-key.md): the markers
+      // and names over heads are this movie's root, hidden in one step with the hud; the movie runs on.
+      public function hide_interface(hidden:Boolean) : void
+      {
+         visible = !hidden;
+      }
+
       public function create_player_icon(id:uint, kind:uint = 0, baseScale:Number = 1) : void
       {
          this.iconControl.create_player_icon(id,kind,baseScale);
