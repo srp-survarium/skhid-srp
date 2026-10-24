@@ -229,7 +229,8 @@ fn table_row(map: &MapData, grid: &WalkGrid) -> Row {
             None => (3, "none"),
         };
         row.pockets_by_exit[class] += 1;
-        row.pocket_list.push((grid.position(lowest), members.len(), name));
+        row.pocket_list
+            .push((grid.position(lowest), members.len(), name));
     }
     // The objectives: batteries, containers, stations.
     let objectives: Vec<Vec3> = map
