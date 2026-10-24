@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 28746,
-  "sha256": "e1718e9ca82810194bb5b4a581c6c563012ddf37db66c25d0cccaa0c815bc4ed",
+  "size": 41128,
+  "sha256": "2909918b87eb71a05c0d2492a4d3c7629261692e3454402fec0441bae375bf03",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,7 +22,7 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 1186
+      "size": 1230
     },
     "match_keys.code": {
       "kind": "code",
@@ -33,6 +33,16 @@
       "kind": "state",
       "va": "0xa434000",
       "size": 74
+    },
+    "hide_ui.code": {
+      "kind": "code",
+      "va": "0xa435000",
+      "size": 573
+    },
+    "hide_ui.data": {
+      "kind": "data",
+      "va": "0xa436000",
+      "size": 4264
     }
   },
   "symbols": {
@@ -43,10 +53,12 @@
     "artefacts_stagger": "0xa431019",
     "artefacts_unlink": "0xa43100a",
     "chat_variable": "0xa434000",
+    "controls": "0xa436000",
     "engine_accept_decal_edit": "0xa432460",
     "engine_allocation_name": "0xa4322e0",
     "engine_apply_modifier": "0xa432210",
     "engine_artefact_effect": "0xa4321f0",
+    "engine_binded_action": "0xa4324b0",
     "engine_camouflage_parameters": "0xa432360",
     "engine_camouflage_parameters_type": "0xa4323f0",
     "engine_cc_bool": "0xa432480",
@@ -78,6 +90,9 @@
     "engine_write_u32": "0xa4320e0",
     "engine_write_u8": "0xa432080",
     "hide_chat": "0xa434048",
+    "hide_ui_lobby": "0xa43511c",
+    "hide_ui_match": "0xa435000",
+    "hide_ui_reset": "0xa4350f0",
     "match_keys_chat": "0xa4330c3",
     "match_keys_hud": "0xa433080",
     "match_keys_keyboard": "0xa433000",
@@ -123,7 +138,7 @@
     "rr_write": "0xa42da9c"
   },
   "built_with": {
-    "cc": "gcc (GCC) 15.3.0",
+    "cc": "gcc (GCC) 15.2.0",
     "ld": "GNU ld (GNU Binutils) 2.46",
     "nasm": "NASM version 2.16.03 compiled on Apr 17 2024"
   }

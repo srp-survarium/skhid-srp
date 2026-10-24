@@ -24,6 +24,7 @@
 //!   takes.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, TryLockError};
 use std::time::{Duration, Instant};
 
@@ -145,6 +146,9 @@ pub struct GameAccounts {
     flush_hooks: Mutex<Vec<FlushHook>>,
     /// The admin's audit rows not written yet ([`Self::write_admin`]).
     pending_actions: Mutex<Vec<AdminAction>>,
+    /// A new account wears the starter kits and has the starter premium
+    /// ([`tutorial::signup_grant_with`]); off only in tests ([`Self::set_starter_kit`]).
+    starter_kit: AtomicBool,
 }
 
 impl Default for GameAccounts {
@@ -166,6 +170,7 @@ impl GameAccounts {
             restored_results: Mutex::new(Vec::new()),
             flush_hooks: Mutex::new(Vec::new()),
             pending_actions: Mutex::new(Vec::new()),
+            starter_kit: AtomicBool::new(true),
         }
     }
 
@@ -245,6 +250,7 @@ impl GameAccounts {
             restored_results: Mutex::new(results),
             flush_hooks: Mutex::new(Vec::new()),
             pending_actions: Mutex::new(Vec::new()),
+            starter_kit: AtomicBool::new(true),
         })
     }
 
@@ -538,9 +544,19 @@ impl GameAccounts {
         let made = !self.accounts.locked().contains_key(&account_id);
         let account = self.get_or_create(account_id, name);
         if made {
-            tutorial::signup_grant(&mut account.locked());
+            let wear_kit = self.starter_kit.load(Ordering::Relaxed);
+            tutorial::signup_grant_with(&mut account.locked(), wear_kit, quests::now());
         }
         (account, made)
+    }
+
+    /// **Testing only**: whether a new account wears the starter kits and
+    /// has the starter premium (on by default). Off, its first kit is the
+    /// stock one (the TT-33), it has no premium, and the rest of the grant
+    /// is the same: the lobby's tests, written against such an account.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_starter_kit(&self, on: bool) {
+        self.starter_kit.store(on, Ordering::Relaxed);
     }
 
     /// How many accounts have 0.26g state.

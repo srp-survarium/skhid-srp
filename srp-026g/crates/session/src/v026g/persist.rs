@@ -1241,4 +1241,49 @@ mod tests {
             .collect();
         assert_eq!(ids, [1, 2]);
     }
+
+    /// The starter grant is a new account's only: one signed up, played
+    /// and written comes back from the file as it was, and its next sign-in
+    /// gives it nothing again.
+    #[test]
+    fn an_account_loaded_from_the_file_is_not_given_the_starter_kit_again() {
+        use crate::v026g::GameAccounts;
+        use crate::v026g::tutorial::{SIGNUP_ROUNDS, SIGNUP_SILVER};
+
+        let temp = TempDb::new("starter-once");
+        let open = || {
+            let repository = SqliteGameRepository::open(&temp.path()).unwrap();
+            GameAccounts::with_repository(Box::new(repository)).unwrap()
+        };
+        let store = open();
+        let (account, made) = store.sign_up(5, "Alice");
+        assert!(made);
+        // It spends silver and rounds, and its respirator is gone.
+        let played = {
+            let mut account = account.locked();
+            assert_eq!(account.generic_money, SIGNUP_SILVER);
+            account.generic_money = 1_234;
+            let stack = account
+                .inventory
+                .iter_mut()
+                .find(|item| item.condition_or_stack == SIGNUP_ROUNDS)
+                .unwrap();
+            stack.condition_or_stack = 7;
+            let respirator = account.kits[0].slots[1].unwrap().item_id;
+            account.inventory.retain(|item| item.item_id != respirator);
+            account.sync_kits();
+            account.clone()
+        };
+        store.mark_dirty(5);
+        assert_eq!(store.flush(), 1);
+        drop(store);
+
+        let store = open();
+        let loaded = store.get(5).unwrap().locked().clone();
+        assert_eq!(loaded, played);
+        let (again, made) = store.sign_up(5, "Alice");
+        assert!(!made);
+        assert_eq!(*again.locked(), played);
+        assert!(!store.is_dirty(5));
+    }
 }

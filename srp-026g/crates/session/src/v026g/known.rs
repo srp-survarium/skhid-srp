@@ -190,7 +190,7 @@ impl fmt::Display for Lacking {
 
 /// Every item this crate's code names (the game's files do not): the drop
 /// card, the vouchers, buckshot, the grenade of the grenade quests, the
-/// tutorial's two weapons. See [`check_code`].
+/// starter kit of a new account. See [`check_code`].
 pub fn named_items() -> Vec<Named> {
     let mut named: Vec<Named> = vec![
         ("rewards::DROP_CARD", super::rewards::DROP_CARD),
@@ -199,11 +199,7 @@ pub fn named_items() -> Vec<Named> {
         ("autobuy::BUCKSHOT", super::autobuy::BUCKSHOT),
         ("quests::GRENADE", super::quests::GRENADE),
     ];
-    named.extend(
-        super::tutorial::SIGNUP_AMMO
-            .iter()
-            .map(|&(name, _)| ("tutorial::SIGNUP_AMMO", name)),
-    );
+    named.extend(super::tutorial::starter_names().map(|name| ("tutorial::starter kit", name)));
     named
 }
 
@@ -237,6 +233,12 @@ pub fn check_code() -> Result<(), GameDataError> {
             missing.push(format!("tutorial award {name}"));
         }
     }
+    let table = Modifications::shared();
+    for (_, modification) in super::tutorial::STARTER_MODIFICATIONS {
+        if table.modification(modification).is_none() {
+            missing.push(format!("tutorial::STARTER_MODIFICATIONS {modification}"));
+        }
+    }
     if missing.is_empty() {
         Ok(())
     } else {
@@ -251,9 +253,16 @@ pub fn check_code() -> Result<(), GameDataError> {
 mod tests {
     use super::*;
 
+    /// All but the starter kit's knit cap, of a patch the test data
+    /// predates: srp refuses such data. The released data has it
+    /// (`tests/starter_kit.rs`).
     #[test]
     fn what_the_lobby_code_names_is_in_the_data() {
-        assert_eq!(check_code(), Ok(()));
+        let error = check_code().unwrap_err().to_string();
+        assert!(
+            error.contains("lacks what srp's code names: tutorial::starter kit novice_026_helmet."),
+            "{error}"
+        );
     }
 
     /// Data without the drop card or a voucher: named, with where.
@@ -268,7 +277,8 @@ mod tests {
             tables::lacking(&dictionary, &named_items()),
             [
                 "rewards::DROP_CARD drop_card",
-                "premium::RENAME_VOUCHER rename_account_voucher"
+                "premium::RENAME_VOUCHER rename_account_voucher",
+                "tutorial::starter kit novice_026_helmet"
             ]
         );
     }

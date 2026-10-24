@@ -46,6 +46,7 @@ given), LIKELY or GUESS.
 | [fall_damage.md](fall_damage.md) | Fall damage: the formula, the values (fatal_damage 1.0 as in 0.27, the owner, 2026-10-19), the lethal heights stock and now; how speed counts (vertical only; what a jump or a steep slope adds) |
 | [battery_pickup.md](battery_pickup.md) | The battery pick-up 20 % faster: take_time 0.6 -> 0.5 (the owner, 2026-10-20), why the animation plays faster and is not cut, what the release needs |
 | [battery_respawn.md](battery_respawn.md) | Battery modes: respawn 10 s (the owner, 2026-10-21): respawn_time 8 -> 10 in the configs of modes 2 and 3 (Team Deathmatch keeps 8), where the exe reads it, the modifiers on top, the HUD countdown, the simulation change |
+| [bandages.md](bandages.md) | Bandages (the owner, 2026-10-24): hands and legs fully healed, pain, body and head 35 %; how a drug heals (influences per second over its activity time, medkit::tick 0x33D790), the values before and after; the lobby description and the card without "Heal amount" (2026-10-25) |
 | [v011e_spawn_protection.md](v011e_spawn_protection.md) | The v0.11 maps (Vostok Radar Station, Chemical Plant): spawn protection 6 s (the owner, 2026-10-21): invulnerability_time 2 -> 6 on their 174 respawn points, why it was 2 s, how protection works (respawn point, base zones), the simulation change |
 | [grenade_bounce.md](grenade_bounce.md) | Grenade bounces louder (the owner, 2026-10-21): where the bounce sound comes from (material pairs, three grenade-only collections), its reload-click distance curve, the `mid_range` curve it gets (retuned after the owner's test of revision 27), who hears it |
 | [crouch_steps.md](crouch_steps.md) | Crouched steps audible at 40 % of walking (the owner, 2026-10-21): why crouching was silent (the crouch foot materials' empty pairs, and, T27, no step events in the crouch clips), what 0.31a2 did, the copies, who hears them |
@@ -343,8 +344,8 @@ Known gaps a live session will meet:
 - Premium, the shop's bundles, the daily bonus, a nickname change,
   autobuy and auto-repair are there (`premium.md`). **There is no
   tutorial since 2026-10-19** (`premium.md` §5): a new account gets the
-  daily bonus window at its sign-in, and starts with 10 000 silver and
-  500 gold.
+  daily bonus window at its sign-in, and starts with 15 000 silver,
+  150 gold, a month of premium and three starter kits (`no-tutorial.md`).
 - **The lobby on a screen wider than 16:9** (seen 2026-10-12 at 3440x1440:
   the top bar's parts overlap). The lobby SWF is drawn for 1920x1080 and
   has two paths split at aspect 1.85 (`LobbyMenu.onStageResize`: scale by

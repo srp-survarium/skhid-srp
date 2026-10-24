@@ -4435,10 +4435,27 @@ va	name	location	role	basis
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+12	the body	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+16	the sender's name	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+20	the sender's clan tag	observed
-0x00207d50	survarium::key_binder::get_binded_action	EAX	the key binder (48h bindings of 12 bytes from +0)	observed
-0x00207d50	survarium::key_binder::get_binded_action	EDI	the group mask, tested against the action's kind (8 the chat keys)	observed
-0x00207d50	survarium::key_binder::get_binded_action	ESI	the key code	observed
-0x00207d50	survarium::key_binder::get_binded_action	entry ESP+4	where the binding's +0Ch is stored	observed
+0x00207d50	survarium::key_binder::get_binded_action	EAX	the key binder (the game's +5344h): 48h bindings of 0Ch bytes indexed by the action id, each its description (+4 the id, +8 a mask, +0Ch a flag) and two bound keys (+4 the DIK code)	observed
+0x00207d50	survarium::key_binder::get_binded_action	EDI	the kinds asked, a mask tested against each description's +8 (1 by the game world's on_keyboard_action at 0x25CD5F, 2 by the lobby's at 0x26CCCD; toggle_replay_ui, 19h, is 5)	observed
+0x00207d50	survarium::key_binder::get_binded_action	ESI	the key (DIK code)	observed
+0x00207d50	survarium::key_binder::get_binded_action	entry ESP+4	out: the found action's toggle flag (its description's +0Ch), written only when one is found	observed
+0x0023a930	survarium::game_world_ui::show_cursor	EDI	the hud (game_world_ui: +2DCh the cursor's flag, +0Ch the cursor movie, +18h the game world)	observed
+0x0023a930	survarium::game_world_ui::show_cursor	entry ESP+4	shown, a byte (1 from show_profiles_selector's call at 0x23845B and the replay's toggle at 0x25CF08)	observed
+0x002383b0	survarium::game_world_ui::show_profiles_selector	EAX	the hud (game_world_ui; +2DFh the kits' state)	observed
+0x002383b0	survarium::game_world_ui::show_profiles_selector	entry ESP+4	shown, a byte: the kits (the death screen, before the start); calls show_cursor with it at 0x23845B	observed
+0x001f95f0	survarium::game_world::show_ui	ECX	the game world (base_game_scene): shown (render) or hidden are the hud movie (+204h, the game_world_ui's +8) and the player icons' (+20Ch, its +10h); the state is +0A0h (0 at the construction, show_ui(1) by the activation at 0x1F8476, show_ui(0) at 0x1F96D1)	observed
+0x0021d570	survarium::lobby_menu::show_ui	ECX	the lobby menu: shown (render) or hidden are the lobby movie (+690h) and +68Ch, the state +0A0h	observed
+0x002019e0	survarium::game_options::initialize_bindings	entry ESP+4	the options (+0Ch the movie's holder, +34h the game); the rows: the controls table (0xA9DB28, 28h rows of 68h bytes; exe patch 62: its own 29h)	observed
+0x00201cf0	survarium::game_options::reset_bindings	entry ESP+4	the options (+34h the game: +5344h the binder)	observed
+0x00201cf0	survarium::game_options::reset_bindings	entry ESP+8	the default flag of each root.set_keybind, a byte	observed
+0x002013a0	survarium::game_options::assign_binding	EAX	the key's name ("" to clear)	observed
+0x002013a0	survarium::game_options::assign_binding	entry ESP+4	the options (+34h the game)	observed
+0x002013a0	survarium::game_options::assign_binding	entry ESP+8	the action: the row whose +0 it is gets the key in its +10h buffer_string; none, nowhere (root.set_keybind is invoked anyway)	observed
+0x00207450	survarium::key_binder::bind_command_save	ECX	the bind command (+10h its name, +60h which key of a binding: 0 bind, 1 bind_sec, +64h the binder)	observed
+0x00207450	survarium::key_binder::bind_command_save	entry ESP+4	the lines' list (+4 its end, +0Ch its capacity's end, +10h the allocator of the lines)	observed
+0x0033d790	survarium::medkit::tick	ECX	the medkit (any drug): influences at +280h (14h each: the pool name first, the per-second amount at +10h), their count byte +288h, healed so far per influence (floats) +284h, delay ms left +2ACh, activity ms left +2A8h	observed
+0x0033d790	survarium::medkit::tick	entry ESP+4	elapsed ms: the delay first; then min(it, activity left) x 0.001 s x apply_modifier(57 drug_amount, amount, 1.0) to each influence pool (by name, 0x2E58B0) through increase_health 0x32A420, skipped below 1e-6; at the first active tick remove_affects 0x33DA50; set_active(0) when the activity is spent	observed
+0x0033cac0	survarium::medkit::medkit	EAX	the item config: data/activity_time_sec (at least 0.001) x 1000 -> +29Ch ms; parameters/activity_time_skill_influence -> +2A0h, the k of the activity time through apply_modifier 34 drug_activity_time; data/influences -> +280h, count +288h	observed
 0x00208870	survarium::chat_handler::on_keyboard_action	ECX	chat handler receiver	observed
 0x00208870	survarium::chat_handler::on_keyboard_action	entry ESP+4	the input world (vtable+24h: the keyboard)	observed
 0x00208870	survarium::chat_handler::on_keyboard_action	entry ESP+8	the key code, looked up in the chat keys (group 8: actions 45h, 46h; 47h ptt unused)	observed
