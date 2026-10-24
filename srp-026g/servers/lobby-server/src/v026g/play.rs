@@ -1347,6 +1347,7 @@ mod tests {
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
             team_damage: None,
+            blackout: false,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (index, read) = parse_payload(&info.payload(1).unwrap(), dictionary).unwrap();
@@ -1417,6 +1418,7 @@ mod tests {
             match_level: 1,
             score_weights: SCORE_WEIGHTS,
             team_damage: None,
+            blackout: false,
         };
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (_, read) = parse_payload(&info.payload(0).unwrap(), dictionary).unwrap();

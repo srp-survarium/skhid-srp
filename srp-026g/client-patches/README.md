@@ -106,6 +106,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `team_damage_026g.asm`, `team_damage_026g.c`, `check_team_damage_026g.py` | Patch 63: team damage turned back on its dealer past a threshold, as 0.28a had it (the arena's block `team_damage.code`: the six entries in the asm, the logic in the C); its check runs the entries from the game's sites with the game's own options reader, kd_stats_rule constructor and field writers on made-up objects, beside the original (needs Unicorn) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
+| `blackout_026g.asm`, `blackout_026g.c`, `check_blackout_026g.py` | Patch 64 (a prototype): Blackout, a battery match with no interface and a team's band on every character (the arena's blocks `blackout.code` and `blackout.state`); its check runs the options reader, a match's reset and F11, and the character's records from the game's sites on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `sponge_a_026g.asm`, `sponge_a_026g.c` | The source of patch 59's Sponge (artefact type 12): the ten hooks, the resolve_links slot and their stubs in assembly, and 0.28d0's artefact_sponge_core written again in C on 0.26g's interfaces (the object, its vtables, the cook's query, the throw, the explosion, the zone, the passive, the state), and the owner's spots (where the Sponge and the Rattle spawn: the pool, the links, the spawn) |
@@ -169,7 +170,7 @@ asm, its C, and its state `rn_state`), the artefacts (patch 54), the
 engine library, the kit keys with the match chat option (patch 58), team
 damage (patch 63), the Sponge and the Rattle (patch 59: `sponge.code` and
 `sponge.state`, `rattle.code` and `rattle.state`) and the key that hides the
-interface (patch 62) are the arena's blocks today. The older fixed sections
+interface (patch 62) and Blackout (patch 64) are the arena's blocks today. The older fixed sections
 stay as they are
 (client_patch.md 0.3 says what moving one would take).
 
@@ -3572,6 +3573,44 @@ a key kF9 set for 19h kept in the 41st row (the original keeps it in none), the 
 `bind toggle_replay_ui kF9` (the original's nothing), the binder's own bind binds it, its save
 writes `bind toggle_replay_ui kF9`, and that line read back binds it again. The lobby movie builds from source
 (`tools/actionscript/flash_tree.py`). **Not run in a game.**
+
+### 64. Blackout: a battery match with no interface, a team's band on every character (a prototype; the next release's revision)
+
+The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.md section 3.57.
+`blackout_026g.asm` and `blackout_026g.c` (the arena's blocks `blackout.code` and
+`blackout.state`), with the late join:
+
+- **The flag.** srp's block after the static info's squads (patch 63's reader at 0x1F0F30, which
+  now calls `bo_options` too) with tag 2, one byte 1 (`SRP_BLACKOUT=on`, battery maps): the
+  options' +57870h (the unused "Mode" string's last 16 bytes) holds "SRBO", else zeros; the
+  options last read (a match's 0xE4 or a replay's chunk 1) are remembered (`bo_last`).
+- **The interface.** Patch 62's reset of a match's interface (initialize_match's root.reset,
+  0x234AE8) calls `hide_ui_force(bo_match())`: the one entry that forces the state. Forced, the
+  hud and the icons get `root.hide_interface(true)` for the match and the case 19h (F11) goes
+  on at 0x25CF0D with nothing invoked (a replay's controls still toggle); not forced, both are
+  shown and F11 works.
+- **The band.** profile_skin_visual_cook::on_configs_loaded (0x204560) at 0x2056F0, after the
+  parts and the head (`mov edx,[esp+58h] / mov esi,[ebp+0Ch]`, JUMP, back at 0x2056F7): for a
+  profile of the remembered options (a place's start, places 0 to 19; the lobby's profiles are
+  not there) in a Blackout match, one more of the visual's 20 part records (+234h, C0Ch each,
+  +F324h in use): base_model `ported/blackout/band_blue` (team 0) or `band_green` (team 1),
+  part_name `band`, part 2 (the torso's); `srpbo<team>_` after the visual's name (the combined
+  skin's cache key), so a band never shows on the same kit without one. The models are the
+  content pack `blackout-bands`.
+- **Nothing a match computes:** no `simulation_changes.tsv` row.
+
+**Checked:** `selftest_026g.py` check 64 (the site and its neighbours, the records' layout and
+their queries, no relocation under it, no branch into it, the block's bytes, the two calls from
+patch 63's and 62's entries; check 62's list of calls now names `bo_match` and its one state,
+`hide_ui_forced`); `check_blackout_026g.py` (Unicorn): the game's options reader on nine blocks
+(Blackout alone, after team damage, after an unknown tag; team damage alone, value 0, two bytes,
+a short block, another magic, none): "SRBO" exactly for the first three; the reset then F11
+after a Blackout, a plain and a Blackout static info: forced hidden and F11 doing nothing, then
+shown and F11 hiding, then forced again; a replay's F11 as before; on_configs_loaded's site on a
+visual of the game's own constructor: the blue or green record and the name for places 0, 7 and
+19, nothing for the lobby's profile, a profile inside the options off a place's start, team 2,
+a full visual or no Blackout, registers and frame as the original's. `check_hide_ui_026g.py` and
+`check_team_damage_026g.py` pass as before. **Not run in a game.**
 
 ## Not ported, not done
 

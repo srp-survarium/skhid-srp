@@ -60,13 +60,17 @@ too, for screenshots.
   what the game put on the stage is in the root's `_stageLayer` (kept the root's last child, at
   the stage's scale); the hud's screen effects are the one thing beside it. The movie goes on
   running.
+- Forced: `hide_ui_force` (patch 62's code) is the one entry that forces the interface hidden
+  for a match and locks F11; Blackout (patch 64) calls it from the reset.
 - The controls row: patch 62 gives the options a 41st row (its table moved into the arena); its
   label is content edit `hide-interface-1.json`.
 - No simulation change, no server change.
 
 ## Later: a match without UI
 
-The owner's ask (2026-10-23), specced, not built: "the no-UI battery mode", Battery Hunt's rules
+A prototype is built (2026-10-24): `blackout.md` (a server switch and the static info's flag,
+S.T.A.L.K.E.R. Clear Sky's bands, everything hidden as F11 hides it). The spec below was the
+first plan: "the no-UI battery mode", Battery Hunt's rules
 with no UI for anyone; the teams told apart by coloured bands on the characters.
 
 ### Rules

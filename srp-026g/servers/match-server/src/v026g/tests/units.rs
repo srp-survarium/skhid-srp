@@ -6,7 +6,9 @@ use crate::v026g::{
     parse_switch,
 };
 
-use super::{MAP_BATTERIES, session_of, setup};
+use super::{MAP_BATTERIES, MAP_TDM, session_of, setup};
+use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::match_msgs::static_info::parse_options;
 
 #[test]
 fn a_made_match_seats_its_players_until_it_is_over() {
@@ -120,6 +122,26 @@ fn what_the_clients_could_not_hold_is_refused_when_the_match_is_made() {
     assert_eq!(registry.match_count(), 0);
     assert_eq!(registry.seat(session_of(0)), None);
     assert!(registry.create(setup(20, MAP_BATTERIES)).is_ok());
+}
+
+#[test]
+fn blackout_goes_to_battery_matches_only() {
+    // maps_dict 61: Rudnya's batteries (mode 2); 62: its chargers (mode 3).
+    let blackout = MatchRegistry::new("127.0.0.1", 1236).with_blackout(true);
+    for (map_id, expected) in [(MAP_BATTERIES, true), (62, true), (MAP_TDM, false)] {
+        let ticket = blackout.create(setup(2, map_id)).unwrap();
+        let formed = blackout.formed(ticket.match_id).unwrap();
+        assert_eq!(formed.blackout, expected, "map {map_id}");
+        let options = parse_options(formed.info.options(), Dictionary::shared()).unwrap();
+        assert_eq!(options.blackout, expected, "map {map_id}");
+        blackout.end(ticket.match_id);
+    }
+    // Off by default: no entry.
+    let plain = MatchRegistry::new("127.0.0.1", 1236);
+    let ticket = plain.create(setup(2, MAP_BATTERIES)).unwrap();
+    let formed = plain.formed(ticket.match_id).unwrap();
+    assert!(!formed.blackout);
+    assert!(!parse_options(formed.info.options(), Dictionary::shared()).unwrap().blackout);
 }
 
 #[test]

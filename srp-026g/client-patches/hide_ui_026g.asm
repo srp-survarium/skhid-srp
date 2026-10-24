@@ -28,6 +28,14 @@
 ; after it. The key is not taken (0x25CF0D, al 0), as in the
 ; original.
 ;
+; Forced (patch 64, Blackout; ../docs/notes/blackout.md): hide_ui_force is the
+; one place that forces the state: forced, both movies get
+; root.hide_interface(true) and F11 does nothing in the match (the case 19h
+; goes on to 0x25CF0D, the replay's controls still toggled); not forced, both
+; are shown and F11 works. The reset calls it with bo_match's answer (the
+; match's static info said Blackout), so a Blackout match is hidden from its
+; first frame to its end, and the next match starts as the server says.
+;
 ; The lobby. lobby_menu::on_keyboard_action (0x26CB80) asks the key binder for
 ; the lobby's actions (kind 2) at 0x26CCD2 (eax the binder, edi 2, esi the
 ; key); the F keys never reach the lobby movie (its key map, 0x1FDF20, has
@@ -61,7 +69,9 @@
 ; action).
 BITS 32
 %include "engine_026g.inc"
-global hide_ui_match, hide_ui_lobby, hide_ui_reset
+global hide_ui_match, hide_ui_lobby, hide_ui_reset, hide_ui_force
+global hide_ui_forced                ; the forced state (the self-test reads it)
+extern bo_match                    ; patch 64 (blackout_026g.c): 1 for a Blackout match
 global controls                    ; the options' controls, 41 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
 section .text
 
@@ -86,6 +96,8 @@ hide_ui_match:
     mov esi, [esp+HANDLER]
     cmp dword [esi+REPLAY_MOVIE], 0
     jne REPLAY_TOGGLE              ; a replay: its controls, as before
+    cmp byte [hide_ui_forced], 0
+    jne KEY_OTHER                  ; forced hidden (hide_ui_force): the key does nothing
     lea edi, [esi+HUD]
     call hud_hidden
     cmp eax, -1
@@ -188,12 +200,27 @@ hide_ui_reset:
     call engine_movie_invoke
     add esp, 20
     push eax
-    push 0
-    call hide_hud
+    call bo_match                  ; a Blackout match: forced hidden, else shown
+    push eax
+    call hide_ui_force
     add esp, 4
     pop eax
     pop edi
     ret 16
+
+; The interface forced hidden for the match ([esp+4] 1) or shown and free
+; ([esp+4] 0): edi the hud. The one entry that forces it. ebx, esi, edi and
+; ebp kept.
+hide_ui_force:
+    mov eax, [esp+4]
+    test eax, eax
+    setnz al
+    movzx eax, al
+    mov [hide_ui_forced], al
+    push eax
+    call hide_hud
+    add esp, 4
+    ret
 
 ; lobby_menu::on_keyboard_action's call of get_binded_action (0x26CCD2): eax
 ; the binder, edi 2 (the lobby's kind), esi the key, [esp+4] the toggle's
@@ -299,6 +326,8 @@ hide_interface_label:
 %endmacro
 
 section .data
+hide_ui_forced:                          ; 1 while hide_ui_force holds the interface hidden
+    db 0
 align 4
 controls:                          ; the game's 40 rows (0xA9DB28), in their order
     CONTROL 0x04, 0x9FCC70, 2, 1   ; st_jump_action

@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 69800,
-  "sha256": "51e44832ef455d65ecaf0fe34bbc2285ac6a09894e12e743353966c7647bc37e",
+  "size": 74308,
+  "sha256": "e61bed0876e3a9dfe4cc34a741717f45e62eff93bef684336f92bb5683e4f2f6",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -37,7 +37,7 @@
     "team_damage.code": {
       "kind": "code",
       "va": "0xa435000",
-      "size": 1712
+      "size": 1720
     },
     "sponge.code": {
       "kind": "code",
@@ -62,12 +62,22 @@
     "hide_ui.code": {
       "kind": "code",
       "va": "0xa43c000",
-      "size": 573
+      "size": 617
     },
     "hide_ui.data": {
       "kind": "data",
       "va": "0xa43d000",
-      "size": 4264
+      "size": 4268
+    },
+    "blackout.code": {
+      "kind": "code",
+      "va": "0xa43f000",
+      "size": 576
+    },
+    "blackout.state": {
+      "kind": "state",
+      "va": "0xa43f240",
+      "size": 4
     }
   },
   "symbols": {
@@ -77,8 +87,12 @@
     "artefacts_loader": "0xa431000",
     "artefacts_stagger": "0xa431019",
     "artefacts_unlink": "0xa43100a",
+    "bo_match": "0xa43f0dc",
+    "bo_options": "0xa43f048",
+    "bo_visual": "0xa43f0f8",
+    "bo_visual_entry": "0xa43f000",
     "chat_variable": "0xa434000",
-    "controls": "0xa43d000",
+    "controls": "0xa43d004",
     "engine_accept_decal_edit": "0xa432460",
     "engine_allocation_name": "0xa4322e0",
     "engine_apply_modifier": "0xa432210",
@@ -154,9 +168,11 @@
     "engine_zone_deactivate": "0xa432920",
     "engine_zone_tick": "0xa432940",
     "hide_chat": "0xa434048",
-    "hide_ui_lobby": "0xa43c11c",
+    "hide_ui_force": "0xa43c12d",
+    "hide_ui_forced": "0xa43d000",
+    "hide_ui_lobby": "0xa43c148",
     "hide_ui_match": "0xa43c000",
-    "hide_ui_reset": "0xa43c0f0",
+    "hide_ui_reset": "0xa43c0fd",
     "match_keys_chat": "0xa4330c3",
     "match_keys_hud": "0xa433080",
     "match_keys_keyboard": "0xa433000",
@@ -266,18 +282,18 @@
     "sponge_spawn": "0xa43602d",
     "sponge_throw": "0xa436019",
     "sponge_zone_hit": "0xa436023",
-    "td_count": "0xa435278",
+    "td_count": "0xa435282",
     "td_hit": "0xa435000",
-    "td_kd": "0xa435064",
-    "td_kd_made": "0xa435446",
-    "td_load": "0xa435572",
-    "td_load_entry": "0xa435097",
+    "td_kd": "0xa43506e",
+    "td_kd_made": "0xa435450",
+    "td_load": "0xa43557c",
+    "td_load_entry": "0xa4350a1",
     "td_lost": "0xa435024",
-    "td_options": "0xa4352d5",
+    "td_options": "0xa4352df",
     "td_options_entry": "0xa435050",
-    "td_reflect": "0xa4351af",
-    "td_save": "0xa43548e",
-    "td_save_entry": "0xa43507f"
+    "td_reflect": "0xa4351b9",
+    "td_save": "0xa435498",
+    "td_save_entry": "0xa435089"
   },
   "built_with": {
     "cc": "gcc (GCC) 15.2.0",

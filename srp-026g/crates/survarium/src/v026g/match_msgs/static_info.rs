@@ -17,7 +17,8 @@
 //!
 //! The client reads the fields above and nothing after them; srp's block
 //! is read by exe patches only (`match_options::deserialize`'s end,
-//! 0x1F0F30): tag 1 is [`TeamDamage`] (patch 63).
+//! 0x1F0F30): tag 1 is [`TeamDamage`] (patch 63), tag 2 the Blackout
+//! flag (patch 64: `docs/notes/blackout.md`).
 //!
 //! The client checks nothing of this: a string, a kit or an item too many
 //! writes over its memory, an item the dictionary lacks crashes it later.
@@ -315,12 +316,18 @@ pub struct MatchOptions {
     /// Team damage turned back on its dealer past a threshold (srp's block,
     /// tag 1); `None`: off, the block not sent.
     pub team_damage: Option<TeamDamage>,
+    /// A Blackout match (srp's block, tag 2; exe patch 64,
+    /// `docs/notes/blackout.md`): no interface for anyone, a team's band on
+    /// every character. `false`: the entry not sent.
+    pub blackout: bool,
 }
 
 /// srp's block after the options: its magic, then tagged entries.
 pub const SRPX_MAGIC: &[u8; 4] = b"SRPX";
 /// The entry of [`TeamDamage`].
 pub const SRPX_TEAM_DAMAGE: u8 = 1;
+/// The entry of [`MatchOptions::blackout`]: one byte, 1.
+pub const SRPX_BLACKOUT: u8 = 2;
 
 /// 0.28a's `teamdamage_params` (`gameplay/players/default.player` of 0.28a2,
 /// 0.28d0 and 0.31a2; `docs/notes/team-damage.md`), which exe patch 63 plays:
@@ -689,12 +696,19 @@ pub fn options_bytes(
         *squad = profile.squad;
     }
     out.extend(squads);
+    let mut block = Vec::new();
     if let Some(team_damage) = &options.team_damage {
         if !team_damage.is_valid() {
             return Err(StaticInfoError::TeamDamage);
         }
+        team_damage.write(&mut block);
+    }
+    if options.blackout {
+        block.extend([SRPX_BLACKOUT, 1, 1]);
+    }
+    if !block.is_empty() {
         out.extend(SRPX_MAGIC);
-        team_damage.write(&mut out);
+        out.extend(block);
     }
     if out.len() > OPTIONS_BUFFER {
         return Err(StaticInfoError::TooLarge(out.len()));
@@ -928,7 +942,7 @@ pub fn parse_options(
         *weight = reader.f32()?;
     }
     let squads = reader.take(MAX_PLAYERS)?;
-    let team_damage = read_srp_block(&mut reader)?;
+    let (team_damage, blackout) = read_srp_block(&mut reader)?;
     if !reader.bytes.is_empty() {
         return Err(StaticInfoError::Trailing(reader.bytes.len()));
     }
@@ -950,20 +964,22 @@ pub fn parse_options(
         match_level,
         score_weights,
         team_damage,
+        blackout,
     })
 }
 
 /// srp's block after the options, if any: as patch 63's `td_options` reads
 /// it, but strict (an unknown tag, a short entry or numbers it would drop
 /// are refused, so a test sees them).
-fn read_srp_block(reader: &mut Reader) -> Result<Option<TeamDamage>, StaticInfoError> {
+fn read_srp_block(reader: &mut Reader) -> Result<(Option<TeamDamage>, bool), StaticInfoError> {
     if reader.bytes.is_empty() {
-        return Ok(None);
+        return Ok((None, false));
     }
     if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC {
         return Err(StaticInfoError::SrpBlock);
     }
     let mut team_damage = None;
+    let mut blackout = false;
     while !reader.bytes.is_empty() {
         let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
         let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
@@ -984,10 +1000,11 @@ fn read_srp_block(reader: &mut Reader) -> Result<Option<TeamDamage>, StaticInfoE
                 }
                 team_damage = Some(rules);
             }
+            (SRPX_BLACKOUT, 1) if entry.u8()? == 1 => blackout = true,
             _ => return Err(StaticInfoError::SrpBlock),
         }
     }
-    Ok(team_damage)
+    Ok((team_damage, blackout))
 }
 
 /// Reads a 0xE4 payload as the client at its local index would: the
@@ -1069,6 +1086,7 @@ mod tests {
             match_level: 3,
             score_weights: SCORE_WEIGHTS,
             team_damage: None,
+            blackout: false,
         }
     }
 
@@ -1088,7 +1106,7 @@ mod tests {
         assert_eq!(parse_options(&bytes, dictionary()), Ok(with.clone()));
         // An unknown tag, a short entry, another magic: refused.
         for bad in [
-            [&without[..], &b"SRPX"[..], &[2, 0][..]].concat(),
+            [&without[..], &b"SRPX"[..], &[9, 0][..]].concat(),
             [&without[..], &block[..block.len() - 1]].concat(),
             [&without[..], b"SRPY", &block[4..]].concat(),
         ] {
@@ -1106,6 +1124,30 @@ mod tests {
             options_bytes(&with, dictionary()),
             Err(StaticInfoError::TeamDamage)
         );
+    }
+
+    #[test]
+    fn blackout_is_an_entry_of_the_block_and_reads_back() {
+        let mut with = options(vec![alice()]);
+        let without = options_bytes(&with, dictionary()).unwrap();
+        with.blackout = true;
+        let bytes = options_bytes(&with, dictionary()).unwrap();
+        assert_eq!(bytes[..without.len()], without[..]);
+        assert_eq!(bytes[without.len()..], b"SRPX\x02\x01\x01"[..]);
+        assert_eq!(parse_options(&bytes, dictionary()), Ok(with.clone()));
+        // With team damage: one block, team damage's entry first.
+        with.team_damage = Some(TeamDamage::ORIGINAL);
+        let both = options_bytes(&with, dictionary()).unwrap();
+        assert_eq!(&both[without.len()..without.len() + 6], b"SRPX\x01\x0c");
+        assert_eq!(both[both.len() - 3..], [2, 1, 1]);
+        assert_eq!(parse_options(&both, dictionary()), Ok(with));
+        // Another value or length: refused.
+        for bad in [&b"SRPX\x02\x01\x00"[..], &b"SRPX\x02\x02\x01\x01"[..]] {
+            assert_eq!(
+                parse_options(&[&without[..], bad].concat(), dictionary()),
+                Err(StaticInfoError::SrpBlock)
+            );
+        }
     }
 
     #[test]

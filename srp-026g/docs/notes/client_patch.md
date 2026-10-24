@@ -1715,6 +1715,37 @@ A player's ask through the owner: a key that hides the whole interface, the lobb
 - **What changes:** F11 in a match hides the hud, crosshair, minimap and markers until F11 or the kits; F11 in the lobby hides the lobby's interface until a key. Rendering and input only, no simulation change.
 - **Checked:** `selftest_026g.py` check 62 and the call shapes; `check_hide_ui_026g.py` (Unicorn): 16 match cases, 28 lobby cases, 5 of the options (README patch 62). **Not run:** a game: that show_ui's hide leaves nothing of the hud (the hit marks and blood effects are the hud movie's, LIKELY), that the player icons' movie is +20Ch (LIKELY: initialize_resources' third movie, the exe's names in that order), that a stage child of the lobby keeps its own `visible`, and that Scaleform's capture listeners run as Flash's.
 
+### 3.57 Blackout: a battery match with no interface, a team's band on every character (written 2026-10-24, README patch 64, a prototype; the rules: `blackout.md`) — PROVEN in the code, the options reader, the reset, F11 and the character's records run with Unicorn with the game's own code; not run in a game
+
+- **The visual** (PROVEN). profile_skin_visual_cook::on_configs_loaded (0x204560; entry ESP+12 the
+  profile, ESP+16 the kit) makes a skeleton_combined_cook_data (0xF328 bytes, constructor
+  0x127C30): +0 the bind pose's path, +118h the skeleton's, +234h 20 part records of C0Ch
+  (constructor 0x127CB0: +0 base_model, +114h part_name, +228h material, buffer_strings over
+  their own 104h bytes; +34Ch the camouflage parameters; +C08h the part), +F324h the records in
+  use. The parts loop over the slot table 0xA79870 (gloves, torso, boots, pants, helmet, mask,
+  back) from record 1 (0x204735), each item's `additional_models` a record more (0x205520); the
+  head is record 0, written last (0x205659) unless an item says `remove_head_model`. Both paths
+  meet at 0x2056F0, where every record is made; the query of the combined skin follows
+  (0x20579F, its name [esp+348h]: per part `%d_`, `%I64d` or `0_`, the cache's key).
+  skeleton_combined_model_cook::query_resources_by_data (0x128260) queries per record in use
+  `resources/models/<base_model>.skinned_model/render/<part_name>/converted_model`,
+  `.../export_properties` and `<base_model>.skinned_model/settings`: a part needs nothing but
+  the two names. Nothing reads +C08h at that offset.
+- **A match's profiles** (LIKELY). The players' profiles are the match options' (player+6B8h,
+  section 3.54), 45FCh apart from +0; the lobby's are its own. The visual's profile is the one
+  its query was made with (0x2026E4, the cook's user data); that a match's character is queried
+  with the player's options profile is read from the data flow, not seen in a game.
+- **The flag** (PROVEN). match_options' +57840h (40h bytes) is the "Mode" string, only emptied
+  (0x3183E3) and logged (0x27BD08); patch 63 keeps its numbers at +57860h, patch 64 "SRBO" at
+  +57870h. The reader (patch 63's entry at 0x1F0F30) runs for 0xE4 (0x27B928) and for a replay's
+  chunk 1 (0x1F096C).
+- **The patch:** README patch 64. Exe code: the hook at 0x2056F0 (`bo_visual_entry`, JUMP), the
+  call of `bo_options` in patch 63's options entry, `hide_ui_force` and the `hide_ui_forced`
+  byte in patch 62. Content: the pack `blackout-bands` (`blackout.md`).
+- **Checked:** selftest check 64; `check_blackout_026g.py`. **Not run in a game.** Not known: the
+  band's look in a match (the pack's fit is offline), whether any part of the game reads a
+  record's +C08h through another base.
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]

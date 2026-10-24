@@ -1566,7 +1566,8 @@ def late_join_sites():
         [(va, len(old)) for va, old, _ in P.RATTLE_SIZES] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
-        [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS]
+        [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
+        [(va, len(old)) for va, old, _, _ in P.BLACKOUT_HOOKS]
 
 
 def pickup_sites():
@@ -4433,6 +4434,66 @@ def test_team_damage(original, image, before):
           f"the code at {block.va:#x} is the link's team_damage.code ({len(code)} bytes)")
 
 
+def test_blackout(original, image, before):
+    """Check 64: Blackout (patch 64, BLACKOUT_*): the site of the band, its
+    code, and the two calls from patch 63's and patch 62's entries.
+    check_blackout_026g.py runs them from the game's sites (the options
+    reader, initialize_match's reset and F11, the visual's records made by the
+    game's constructor) on made-up objects."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    check(rows(stock, 0x2056E6, 0x16) == ["mov dword [esi+0xc08],0x0", "mov edx,[esp+0x58]", "mov esi,[ebp+0xc]",
+                                          "mov eax,0x205810"]
+          and rows(stock, 0x20564E, 0x0B) == ["cmp byte [esp+0x14],0x0", "jz near 0x2056f0"]
+          and rows(stock, 0x205703, 4) == ["mov eax,[esp+0x1c]"]
+          and rows(stock, 0x205766, 7) == ["mov ecx,[esp+0x348]"]
+          and rows(stock, 0x204646, 7) == ["mov [esp+0x348],ecx"]
+          and rows(stock, 0x204735, 7) == ["mov byte [esi+0xf324],0x1"]
+          and rows(stock, 0x2045B4, 4) == ["mov [esp+0x1c],eax"]
+          and stock.read(0x20457B, 3) == bytes.fromhex("8b4d10"),
+          "profile_skin_visual_cook::on_configs_loaded (0x204560; [ebp+10h] the profile) reaches 0x2056F0 after "
+          "the parts and the head (or past the head, 0x205653), its visual at [esp+1Ch] (records from 1, "
+          "0x204735), its name's buffer at [esp+348h]; `mov edx,[esp+58h] / mov esi,[ebp+0Ch]` there")
+    check(rows(stock, 0x127CB0, 0x30)[:3] == ["push esi", "mov esi,ecx", "lea eax,[esi+0xc]"]
+          and stock.read(0x127C65, 2) == bytes.fromhex("6a14") and stock.read(0x127C81, 5) == bytes.fromhex("680c0c0000")
+          and stock.read(0x127C86, 6) == bytes.fromhex("8d9634020000")
+          and rows(stock, 0x1282F3, 6) == ["mov eax,[edi+0x114]"]
+          and stock.read(0x128307, 5) == bytes.fromhex("b828d39e00"),
+          "the visual's 20 part records of C0Ch at +234h (0x127C30), each +0 base_model and +114h part_name; "
+          "skeleton_combined_model_cook queries resources/models/<base_model>.skinned_model/render/<part_name>")
+    linked = P.arena()
+    block = linked.blocks["blackout.code"]
+    for va, old, symbol, opcode in P.BLACKOUT_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`jmp {target:#x}` ({symbol}, an entry of blackout.code) here")
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.BLACKOUT_HOOKS)]
+    hits = [h for va, old, _, _ in P.BLACKOUT_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the site, and no branch aims inside it"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "blackout.code")
+    check(image.read(block.va, len(code)) == code,
+          f"the code at {block.va:#x} is the link's blackout.code ({len(code)} bytes)")
+    texts = [text for _, _, text in ndisasm(code, block.va)]
+    check(f"jmp {P.BLACKOUT_BACKS[0]:#x}" in texts and "blackout.state" in linked.blocks,
+          "bo_visual_entry goes on at 0x2056F7; the options last read are blackout.state's")
+    td = P.linker.block_bytes(linked, "team_damage.code")
+    td_block = linked.blocks["team_damage.code"]
+    td_texts = [text for _, _, text in ndisasm(td, td_block.va)]
+    hide = P.linker.block_bytes(linked, "hide_ui.code")
+    hide_block = linked.blocks["hide_ui.code"]
+    hide_texts = [text for _, _, text in ndisasm(hide[:hide.index(b"root.toggle_interface")], hide_block.va)]
+    check(f"call {linked.symbols['bo_options']:#x}" in td_texts
+          and f"call {linked.symbols['bo_match']:#x}" in hide_texts
+          and f"call {linked.symbols['hide_ui_force']:#x}" in hide_texts,
+          "patch 63's options entry calls bo_options; patch 62's reset calls bo_match, then hide_ui_force")
+
+
 def test_hide_ui(original, image, before):
     """Check 62: the key that hides the interface (patch 62,
     HIDE_UI_HOOKS). check_hide_ui_026g.py runs the three entries from the
@@ -4511,16 +4572,21 @@ def test_hide_ui(original, image, before):
     texts = [text for va, _, text in ndisasm(code[:names], block.va)]
     outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
                       and not block.va <= branch_target(t) < block.va + len(code)})
-    library = {linked.symbols[name] for name in ("engine_binded_action", "engine_movie_invoke")}
+    library = {linked.symbols[name] for name in ("engine_binded_action", "engine_movie_invoke", "bo_match")}
     pushed = lambda text: f"push dword {block.va + code.index(text + bytes(1)):#x}" in texts
+    forced = linked.symbols["hide_ui_forced"]
+    data = linked.blocks["hide_ui.data"]
     check(outside == sorted(set(P.HIDE_UI_BACKS[:2]) | library)
+          and data.va <= forced < data.va + data.size
+          and f"cmp byte [dword {forced:#x}],0x0" in texts and f"mov [{forced:#x}],al" in texts
           and f"mov dword [esp],{P.HIDE_UI_BACKS[2]:#x}" in texts and f"mov dword [esp],{P.HIDE_UI_BACKS[3]:#x}" in texts
           and all(pushed(t) for t in (b"root.toggle_interface", b"root.interface_hidden", b"root.hide_interface"))
           and "hide_ui.state" not in linked.blocks,
           "it goes on in on_keyboard_action (0x25CEDB, 0x25CF0D), returns to "
-          "0x26CCAE or 0x26CDD2, calls the library's get_binded_action and Invoke and nothing else (not the game "
-          "world's show_ui: its hidden movies stand still); it invokes root.toggle_interface, "
-          "root.interface_hidden and root.hide_interface, and keeps no state of its own")
+          "0x26CCAE or 0x26CDD2, calls the library's get_binded_action and Invoke and patch 64's bo_match and "
+          "nothing else (not the game world's show_ui: its hidden movies stand still); it invokes "
+          "root.toggle_interface, root.interface_hidden and root.hide_interface; its one state is "
+          "hide_ui_force's byte `hide_ui_forced` (hide_ui.data), which the case 19h reads")
     here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
     # the options' controls: the game's 40 rows, the six functions that read them, the arena's 41
     table, count = P.HIDE_UI_TABLE, P.HIDE_UI_ROWS
@@ -6252,6 +6318,7 @@ def test_late_join(original, without, server, source):
     test_sponge_a(original, image, before)
     test_rattle(original, image, before)
     test_hide_ui(original, image, before)
+    test_blackout(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)
