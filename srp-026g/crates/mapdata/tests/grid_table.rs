@@ -12,7 +12,8 @@
 //! every level's `day_2` and `day_4`).
 //!
 //! The pockets are found here from the grid's links alone, so the table
-//! reads the same on a grid of any build.
+//! reads the same on a grid of any build; the grid's own marks
+//! ([`WalkGrid::in_pocket`]) must agree.
 
 use mapdata::{Body, MapData, NodeId, Vec3, WalkGrid};
 
@@ -43,8 +44,76 @@ struct Row {
     jumps: usize,
     /// Jump links by rise: up to 0.95, 0.95-0.998, 0.998-1.05 m.
     jumps_by_rise: [usize; 3],
-    /// Jump links landing 3 or 4 cells on (past eroded floors).
+    /// Jump links landing 3 or 4 cells along their direction.
     far_jumps: usize,
+}
+
+/// The largest strongly connected set of the `reached` floors, by
+/// Tarjan's algorithm (iterative).
+fn largest_component(grid: &WalkGrid, reached: &[bool]) -> Vec<NodeId> {
+    let n = grid.len();
+    let mut index = vec![u32::MAX; n];
+    let mut low = vec![0u32; n];
+    let mut on_stack = vec![false; n];
+    let mut stack: Vec<NodeId> = Vec::new();
+    let mut next = 0u32;
+    let mut best: Vec<NodeId> = Vec::new();
+    for root in 0..n as NodeId {
+        if !reached[root as usize] || index[root as usize] != u32::MAX {
+            continue;
+        }
+        // (floor, its links, the next one to look at)
+        let mut calls: Vec<(NodeId, Vec<NodeId>, usize)> = Vec::new();
+        let open = |a: NodeId, index: &mut [u32], low: &mut [u32], next: &mut u32| {
+            index[a as usize] = *next;
+            low[a as usize] = *next;
+            *next += 1;
+            let links: Vec<NodeId> = grid
+                .links(a)
+                .map(|(b, _)| b)
+                .filter(|&b| reached[b as usize])
+                .collect();
+            (a, links, 0)
+        };
+        calls.push(open(root, &mut index, &mut low, &mut next));
+        stack.push(root);
+        on_stack[root as usize] = true;
+        while let Some((a, links, i)) = calls.last_mut() {
+            let a = *a;
+            if *i < links.len() {
+                let b = links[*i];
+                *i += 1;
+                if index[b as usize] == u32::MAX {
+                    calls.push(open(b, &mut index, &mut low, &mut next));
+                    stack.push(b);
+                    on_stack[b as usize] = true;
+                } else if on_stack[b as usize] {
+                    low[a as usize] = low[a as usize].min(index[b as usize]);
+                }
+                continue;
+            }
+            calls.pop();
+            if let Some((parent, _, _)) = calls.last() {
+                let p = *parent as usize;
+                low[p] = low[p].min(low[a as usize]);
+            }
+            if low[a as usize] == index[a as usize] {
+                let mut component = Vec::new();
+                loop {
+                    let b = stack.pop().unwrap();
+                    on_stack[b as usize] = false;
+                    component.push(b);
+                    if b == a {
+                        break;
+                    }
+                }
+                if component.len() > best.len() {
+                    best = component;
+                }
+            }
+        }
+    }
+    best
 }
 
 fn table_row(map: &MapData, grid: &WalkGrid) -> Row {
@@ -74,7 +143,8 @@ fn table_row(map: &MapData, grid: &WalkGrid) -> Row {
                 } else {
                     2
                 }] += 1;
-                if pa.distance_xz(pb) > 2.5 * grid.cell_size() {
+                let cells = (pa.x - pb.x).abs().max((pa.z - pb.z).abs()) / grid.cell_size();
+                if cells > 2.5 {
                     row.far_jumps += 1;
                 }
             }
@@ -103,7 +173,22 @@ fn table_row(map: &MapData, grid: &WalkGrid) -> Row {
         seen
     };
     let reached = flood(&|a, out| out.extend(grid.links(a).map(|(b, _)| b)));
-    let returns = flood(&|a, out| out.extend(into[a as usize].iter().copied()));
+    // The main area: the largest strongly connected set of reached floors
+    // (Tarjan's, the grid uses Kosaraju's); returns: walks back into it.
+    let main = largest_component(grid, &reached);
+    let mut returns = vec![spawns.is_empty(); n];
+    let mut queue: Vec<NodeId> = main.clone();
+    for &a in &main {
+        returns[a as usize] = true;
+    }
+    while let Some(a) = queue.pop() {
+        for &b in &into[a as usize] {
+            if !returns[b as usize] {
+                returns[b as usize] = true;
+                queue.push(b);
+            }
+        }
+    }
     let pocket = |a: NodeId| reached[a as usize] && !returns[a as usize];
     row.reached = reached.iter().filter(|&&r| r).count();
     row.returns = returns.iter().filter(|&&r| r).count();
@@ -177,6 +262,24 @@ fn table_row(map: &MapData, grid: &WalkGrid) -> Row {
             Some(f) if reached[f as usize] => {}
             _ => row.objectives_unreached += 1,
         }
+    }
+    // The grid's own marks agree.
+    for a in 0..n as NodeId {
+        assert_eq!(
+            grid.in_pocket(a),
+            pocket(a),
+            "{}: floor {a} at {:?}",
+            map.project,
+            grid.position(a)
+        );
+        assert_eq!(grid.reached(a), reached[a as usize], "{}", map.project);
+        assert_eq!(grid.returns(a), returns[a as usize], "{}", map.project);
+        assert_eq!(
+            grid.pocket_of(a).is_some(),
+            pocket(a),
+            "{}: floor {a}",
+            map.project
+        );
     }
     row
 }

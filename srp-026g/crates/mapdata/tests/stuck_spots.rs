@@ -23,12 +23,14 @@ fn grid(project: &str) -> Option<WalkGrid> {
             return None;
         }
     };
+    let spawns: Vec<mapdata::Vec3> = map.spawns.iter().map(|s| s.position).collect();
     Some(WalkGrid::build_kept(
         &map.walker_triangles(),
         map.play_area(mapdata::AREA_MARGIN),
         mapdata::CELL,
         Body::default(),
         &map.grid_seeds(),
+        &spawns,
     ))
 }
 
