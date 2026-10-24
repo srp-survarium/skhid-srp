@@ -4494,8 +4494,8 @@ fn real_bot_cost() {
             let limit_ms = limit_s * 1000;
             let (mut clock, mut next_world) = (0, 1_000);
             // Living bots' ticks with a goal to walk to, and those of them
-            // with no route: a bot standing where it means to walk.
-            let (mut goal_ticks, mut stood_ticks) = (0u64, 0u64);
+            // with no route: a bot standing where it means to walk. By team.
+            let (mut goal_ticks, mut stood_ticks) = ([0u64; 2], [0u64; 2]);
             let mut stood_by: std::collections::BTreeMap<String, u64> = Default::default();
             // By the bot's play: takes (and those scoring under 0.05),
             // kills, deaths, steals (the objective plays' yield, F2).
@@ -4623,10 +4623,11 @@ fn real_bot_cost() {
                             && body.alive
                             && body.feet.distance_xz(at) > within_m
                         {
-                            goal_ticks += 1;
+                            let team = usize::from(body.team);
+                            goal_ticks[team] += 1;
                             // A step walked straight has no route.
                             if bot.route.is_none() && !bot.intent.straight {
-                                stood_ticks += 1;
+                                stood_ticks[team] += 1;
                                 let play = bot
                                     .assignment
                                     .as_ref()
@@ -4867,8 +4868,10 @@ fn real_bot_cost() {
             top.sort_by_key(|entry| std::cmp::Reverse(entry.1));
             eprintln!("  notes: {:?}", &top[..top.len().min(24)]);
             eprintln!(
-                "  stood with a goal and no route: {stood_ticks} of {goal_ticks} bot ticks ({:.1} %); delivered {:?}; points {:?}, stolen {}",
-                100.0 * stood_ticks as f64 / goal_ticks.max(1) as f64,
+                "  stood with a goal and no route: {} of {} bot ticks ({:.1} %), by team {stood_ticks:?} of {goal_ticks:?}; delivered {:?}; points {:?}, stolen {}",
+                stood_ticks.iter().sum::<u64>(),
+                goal_ticks.iter().sum::<u64>(),
+                100.0 * stood_ticks.iter().sum::<u64>() as f64 / goal_ticks.iter().sum::<u64>().max(1) as f64,
                 game.delivered,
                 game.points,
                 game.stolen

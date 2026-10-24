@@ -590,3 +590,79 @@ runs match b222a338's base runs (`coord/base-b222a338`) line for line,
 the two give the same counts.
 
 Test: `reflex::tests::the_fire_gates_name_what_held_the_shot_and_change_none`.
+
+## Bots: the aim held through a target lost a moment, and the restarts named
+
+**The restarts, measured first.** PR A's `aiming_in` (a quarter of the
+on-view ticks with no shot) was mostly a restart: the reflex lets go of the
+aim when its target drops out of `Memory::seen` and starts the aim-in from
+nothing when he is back. Three gates of the record now name the restarts
+(`reflex::gate::LOST`, `REACTION_AGAIN`, `AIMING_AGAIN`; "a moment" is
+`LOST_MS`, 1 s):
+
+- **`aiming_again`**, the aim-in under way at the target the bot had already
+  aimed in on: 16-17 % first, against 7-10 % for a fresh aim-in.
+- **`lost`**, no seen target, the one lost under a second ago: 11 %. Most of
+  it is `know`'s noticing wait (400 ms) started again on a target out of
+  sight for a moment. A target never seen is `no_target`, 2.5-3.5 %.
+- **`reaction_again`**, the reaction waited again at a target lost a moment:
+  1.5 %.
+
+The record decides nothing: with the flags off, the decision digests match
+the base's.
+
+**`CombatTuning::aim_carry` (on).** The aim stays pressed, and its time runs
+on, through a threat's look and while the target is lost for at most
+`aim_carry_ms` (GUESS: `LOST_MS`). Seen again, the sights are up at once.
+`aiming_in` + `aiming_again` as the first gate: 23-27 % → 2-4 %.
+
+**`CombatTuning::reacquire_keep` (off).** A target taken again within
+`aim_carry_ms` keeps what the bot had of him (the error settled so far, the
+reaction already waited, the draws for him), where he was a fresh one (the
+error three times the skill's, a new reaction). It reads
+`Memory::in_sight`, a narrow exception to the noticing wait: only for the
+reflex's own last target, lost under `aim_carry_ms` ago, still in live sight
+(seen, `sight_since` set, seen within 400 ms). Off by default, it never runs:
+the default digests match aim_carry's alone.
+
+**Bench, one-sided** (team 1 alone with the change, `SRP_BENCH_ONE_SIDE`,
+seeds 1-16, both presets, against fc01ace3). Each flag alone, change ±
+standard error, `*` beyond 2 SE:
+
+| cell | aim_carry K/D (team 1) | kills / deaths (team 1) | hit % | reacquire_keep K/D |
+|---|---|---|---|---|
+| batt 4-5 | 1.05 → 1.23, +0.18 ± 0.04* | +11.1 / −7.4 | −2.3* | +0.02 ± 0.05 |
+| batt 9-10 | 1.06 → 1.25, +0.19 ± 0.04* | +12.3 / −7.6 | −1.8* | +0.03 ± 0.02 |
+| batt 13-15 | 1.05 → 1.33, +0.27 ± 0.03* | +22.9 / −9.1 | −2.7* | +0.02 ± 0.04 |
+| tdm 4-5 | 1.00 → 1.18, +0.18 ± 0.02* | +12.9 / −8.4 | −2.5* | +0.03 ± 0.03 |
+| tdm 9-10 | 1.00 → 1.24, +0.23 ± 0.04* | +15.8 / −11.6 | −2.6* | +0.03 ± 0.03 |
+| tdm 13-15 | 1.00 → 1.29, +0.29 ± 0.05* | +23.3 / −11.3 | −2.2* | +0.04 ± 0.03 |
+
+- **aim_carry's guards:**
+  - The time moving while aimed went up 0.4-1.0 points, so the bots still
+    strafe.
+  - Team kills, team hits, quick ends, flips and carriers lost are flat
+    within 2 SE.
+  - Its shots went up 10-15 % and its hit rate fell 2-3 points: more shots
+    at the sights' first moments. What part of the fall is the fresh
+    target's tripled error on a target taken again is not shown.
+- **Delivered in batt 13-15** fell 2.2 ± 1.1, on team 0, the side without
+  the change:
+  - Team 0's deliveries: −3.5 ± 0.7. Team 1's: +1.3 ± 0.9.
+  - Team 1's carriers lost (+0.3 ± 1.3) and time per carry (+0.08 ± 0.07 s)
+    are flat.
+  - Team 1 wins the carry fights; its carriers do not stop to fight.
+- **Stood with a goal and no route, in batt 13-15:**
+  - +0.23 ± 0.11 points for both teams together.
+  - By team: +0.19 ± 0.16 (team 0) and +0.27 ± 0.22 (team 1), neither
+    beyond 2 SE.
+  - It counts bots with a goal and no route, not standing to aim. The aim
+    carry changes it only through where the fights leave bots waiting.
+- **reacquire_keep's guards:** carriers lost by team 1 moved +2.0 ± 0.7 in
+  batt 4-5 and −1.8 ± 0.7 in batt 9-10, which reads as noise. The rest are
+  flat. No measurable effect, so it stays off.
+
+Tests: `reflex::tests::the_aim_is_held_through_a_target_lost_a_moment`,
+`a_target_taken_again_a_moment_after_keeps_what_it_had_of_him`,
+`another_enemy_in_sight_still_waits_his_noticing`;
+`know::tests::in_sight_is_a_live_sight_before_its_noticing`.
