@@ -1691,6 +1691,12 @@ impl Bots {
                 bot.assignment = Some(assignment);
                 continue;
             }
+            #[cfg(test)]
+            if given_up.contains(&place)
+                && bot.assignment.as_ref().is_some_and(|a| a.slot.is_some())
+            {
+                escape::counts::handed();
+            }
             // The new play starts.
             bot.give_way(assignment.kind, now);
             let no_way = team_no_way(&bot.no_way_to, &state.no_way_to);

@@ -5745,7 +5745,7 @@ struct RouteTally {
     pocket_in: Vec<bool>,
     pocket_worlds: u32,
     pocket_deaths: u32,
-    pocket_escapes: [u64; 4],
+    pocket_escapes: [u64; 5],
 }
 
 impl RouteTally {
@@ -5948,12 +5948,12 @@ impl RouteTally {
         let escapes = super::tactics::escapes::counts();
         let escaped: Vec<u64> = (0..3).map(|k| escapes[k] - self.escapes[k]).collect();
         let pockets = super::escape::counts::counts();
-        let pocketed: Vec<u64> = (0..4)
+        let pocketed: Vec<u64> = (0..5)
             .map(|k| pockets[k] - self.pocket_escapes[k])
             .collect();
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
-            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {}",
+            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {}",
             self.worlds,
             self.pushes.0,
             self.pushes.1,
@@ -5987,6 +5987,7 @@ impl RouteTally {
             pocketed[1],
             pocketed[2],
             pocketed[3],
+            pocketed[4],
         )
     }
 }

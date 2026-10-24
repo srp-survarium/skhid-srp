@@ -982,3 +982,86 @@ build is in the polls' worst times, which did not grow.
 - The arrival check assumes a healthy bot at sprint pace. A bot slowed by a
   broken leg, no stamina or a hit's stagger gets there later than that; the
   4 s pass and the held-route check every 500 ms cover only part of it.
+
+### Bots out of pockets (2026-10-24)
+
+**Why.** In the Cologne match 0x60aeff4f (CG-3), bots that dropped into
+level_08's pit A stood there for the rest of the match: the pit's rim is
+0.90 m up and 1.0 m across, beyond the grid's jump links, so no route led
+out, and the unstick keys tried the same walls. The grid knows such places
+since #389: a pocket is a set of floors from which no route reaches the
+spawns, and `pocket_exits` lists the ledges a jump could leave it by
+(Standing up to 0.998 m, Sprint up to 1.35 m, Steep beyond).
+
+**The change** (`escape.rs`, `path.rs`, `stuck.rs`, `tactics.rs`, `team.rs`,
+`mod.rs`, `plays/mod.rs`).
+
+- **Trying the ways out.** A bot in a pocket whose goal is outside it walks
+  to an exit's take-off inside the pocket and jumps it: the route ends with
+  a jump waypoint to the landing (`Route::then_jump`), so the motor lines it
+  up with its run-up and presses as for a route's own jumps. Exits are tried
+  in this order: those the team got out by before (`escape::Board`), then the
+  Standing ones, shortest across first and then lowest (2 tries each), then
+  the 2 lowest Sprint ones (1 try each). Steep ones are not tried. A try ends
+  when the bot stands on a floor that reaches the spawns again (worked, and
+  the team learns the exit), or fails after 12 s or when its route is dropped.
+- **Giving up.** With no exit left to try, or 40 s after the first try, the
+  bot gives up on the pocket and is marked trapped (`Ctx::trapped`). Its
+  failed jumps while trying do not count as the motor's failed jumps.
+- **Slots.** A bot given up in a pocket lets its slot go, even inside
+  `COMMIT_M`, and takes no slotted play (`team::assign_trapped`), so a
+  teammate takes the battery or the spot. `Ctx::path_dist` is unchanged.
+- **Side steps.** The fight's side step does not step into a pocket the bot
+  is not in that has no Standing exit (`Tactics::clear_step_for`).
+- **For the plays.** `Ctx::trapped`, `teammate_trapped`, `in_pocket` and
+  `escape_known(at, carrying)` (a way out the team knows, or a Standing
+  exit; a carrier counts Standing exits only).
+- Trace lines: `{"escape":{from,to,rise,across,jump},"try":n}`,
+  `{"escaped":"worked"|"failed","exit":..}`, `{"escaped":"gave up"}`.
+- All the numbers are GUESS consts.
+
+**The stand-in's limit.** The bench's walker lands a jump that is not a grid
+link only on a floor within 0.6 m ahead (a GUESS of the client's standing
+jump), so it cannot land the exits 0.8-1.0 m across that most Standing
+pockets have (the grid links jumps up to 1.05 m, so what is left is gaps).
+Pit A is one of them. Whether bots get out of those is for the client
+recordings to show.
+
+**Tests** (`pocket_runs` in `tests.rs`, a pit in an 80 × 40 yard, with
+`max_jump` 0.6 so a 0.9 m rim has no link):
+
+| Pit | Result |
+|---|---|
+| 0.9 m, Standing exits | out at 2.6 s, at the goal at 7.55 s |
+| 1.2 m, Sprint exits | tries the 2 lowest once each, gives up |
+| 1.6 m, no exit | gives up |
+| Side step beside a 1.6 m pit | keeps out |
+
+The ignored `pocket_sweep` drives a bot from each pocket of each bench map
+to its team's spawn for 60 s, with the escape off and on (16 maps, pockets
+counted per map):
+
+| Pockets | count | out, escape off | out, escape on | mean time out |
+|---|---|---|---|---|
+| Standing exits | 80 | 0 | 48 | 2.2-4.0 s |
+| Sprint exits only | 30 | 0 | 1 | 2.2 s |
+| No exit | 52 | 0 | 0 | |
+
+Standing pockets by map, out with the escape on: level_01 10/10, level_02 2/6,
+level_03 4/6, level_04 6/10, level_05 2/2, level_06 20/31, level_07 4/6,
+level_08 0/9. level_08's (pit A among them) are 0.8-1.0 m across, beyond the
+stand-in's jump.
+
+MEASURED
+
+**Left.**
+
+- Team spots and routes are not kept from pockets with no way out: routes
+  never plan into a pocket for a goal outside it, and the grid's sink cost
+  moved nothing in the bench. To measure first.
+- The unstick jumps in `fixed()` should wait for the hurt PR's
+  `Hurt::may_jump`, and a hurt bot's failed tries should not count toward
+  giving up.
+- A bot that gave up stays in the pocket. Killing itself is gated on the
+  client recordings showing that bots still cannot leave with nothing else
+  wrong.

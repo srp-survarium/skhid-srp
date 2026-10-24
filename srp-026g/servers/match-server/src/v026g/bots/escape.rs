@@ -424,12 +424,12 @@ pub fn trace(time: u32, place: Place, grid: &WalkGrid, event: &Event) -> serde_j
 }
 
 /// The escapes' events so far, for the bench's count: tries, worked,
-/// failed, gave up.
+/// failed, gave up, and slots handed on by bots given up (`mod.rs`).
 #[cfg(test)]
 pub mod counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
 
     /// The escape off, for the pocket sweep's before (`tests.rs`).
     pub static OFF: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -444,7 +444,12 @@ pub mod counts {
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 4] {
+    /// A bot given up in a pocket left a slotted play.
+    pub fn handed() {
+        COUNTS[4].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 5] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
