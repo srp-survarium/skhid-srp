@@ -63,6 +63,13 @@ const BATTERY_M: f32 = 0.2;
 /// (`Container::use_point`), and how near the ray must pass it.
 const USE_BOX_UP: Vec3 = Vec3::new(0.0, 1.0, 0.0);
 const USE_BOX_M: f32 = 0.6;
+/// How long a put-in takes, ms: the battery's put state lasts
+/// `states[2].put_time`, 0.6 s (`gameplay/victory_items/default.options`,
+/// `docs/notes/battery_pickup.md`), and the battery goes in at its end
+/// (LIKELY: in the owner's Cologne match of 2026-10-24 every put-in a bot
+/// judged failed went in 0.3-3.3 s later). `SRP_BENCH_PUT_MS=<ms>` sets
+/// another (0: in at the press, as before).
+const PUT_MS: u32 = 600;
 
 /// A body of the stand-in game.
 #[derive(Clone, Debug)]
@@ -248,6 +255,12 @@ struct Game {
     /// Batteries no use takes off the floor (`SRP_BENCH_UNTAKEABLE=<n>`:
     /// the first n; as the sunk ones of audit #7, which a use never took).
     untakeable: usize,
+    /// How long a put-in takes ([`PUT_MS`]), and each place's put under
+    /// way: the battery, the container, and when it began. A use pressed
+    /// while one is under way does nothing (GUESS); the put ends unmade if
+    /// the body died or no longer carries that battery.
+    put_ms: u32,
+    putting: Vec<Option<(usize, usize, u32)>>,
     /// A camping carrier (audit #6, `SRP_BENCH_CAMP=<m>`): the first of
     /// team 0's carriers to come within this of his container stops there,
     /// moves no more and puts nothing in until he dies or no longer
@@ -385,6 +398,11 @@ impl Game {
             use_line: false,
             take_m: BATTERY_M,
             untakeable: 0,
+            put_ms: std::env::var("SRP_BENCH_PUT_MS")
+                .ok()
+                .and_then(|ms| ms.parse().ok())
+                .unwrap_or(PUT_MS),
+            putting: vec![None; teams.len()],
             camp_m: None,
             camper: None,
             camp_done: false,
@@ -809,6 +827,19 @@ impl Game {
     }
 
     fn use_and_drop(&mut self, pressed: &[u32]) {
+        // The puts whose time is up go in.
+        for place in 0..self.bodies.len() {
+            let Some((battery, id, began)) = self.putting[place] else {
+                continue;
+            };
+            let body = &self.bodies[place];
+            if !body.alive || body.carrying != Some(battery) {
+                self.putting[place] = None;
+            } else if self.tick >= began + self.put_ms {
+                self.putting[place] = None;
+                self.put_into(place, battery, id);
+            }
+        }
         for place in 0..self.bodies.len() {
             let body = self.bodies[place].clone();
             if !body.alive {
@@ -828,15 +859,15 @@ impl Game {
             match body.carrying {
                 Some(battery) => {
                     let home = self.containers.iter().position(|(t, _)| *t == team);
-                    if let Some(id) = home
+                    if self.putting[place].is_none()
+                        && let Some(id) = home
                         && Self::uses(&body, self.containers[id].1 + USE_BOX_UP, USE_BOX_M)
                     {
-                        self.batteries[battery] = Lying::Home(id as u8);
-                        self.bodies[place].carrying = None;
-                        self.stolen_home(battery, team);
-                        self.points[usize::from(team)] += 1;
-                        self.delivered[usize::from(team)] += 1;
-                        self.put_in.push(place);
+                        if self.put_ms == 0 {
+                            self.put_into(place, battery, id);
+                        } else {
+                            self.putting[place] = Some((battery, id, self.tick));
+                        }
                     }
                 }
                 None => {
@@ -871,6 +902,17 @@ impl Game {
                 }
             }
         }
+    }
+
+    /// `place`'s battery goes into container `id`.
+    fn put_into(&mut self, place: Place, battery: usize, id: usize) {
+        let team = self.bodies[place].team;
+        self.batteries[battery] = Lying::Home(id as u8);
+        self.bodies[place].carrying = None;
+        self.stolen_home(battery, team);
+        self.points[usize::from(team)] += 1;
+        self.delivered[usize::from(team)] += 1;
+        self.put_in.push(place);
     }
 
     /// A stolen battery fell (its first fall since the theft counts).
@@ -1069,7 +1111,15 @@ struct CarryTally {
     intercept_deaths: u32,
     /// Beliefs the view dropped or moved (its notes).
     beliefs_moved: u32,
+    /// Each carrier's first world within [`ARRIVED_M`] of his container on
+    /// this carry, and the put-ins seen; the put-ins' waits from there, ms.
+    arrived: Vec<Option<u32>>,
+    put_ins_seen: usize,
+    put_in_waits: Vec<u32>,
 }
+
+/// A carrier is at his container within this, metres (xz).
+const ARRIVED_M: f32 = 3.0;
 
 impl CarryTally {
     fn new(run: String) -> Self {
@@ -1079,8 +1129,27 @@ impl CarryTally {
         }
     }
 
-    /// A world: each carried battery's believed carrier against the truth.
+    /// A world: each carried battery's believed carrier against the truth;
+    /// the carriers at their containers, and how long the put-ins took
+    /// from there.
     fn world(&mut self, game: &Game, bots: &Bots) {
+        self.arrived.resize(game.bodies.len(), None);
+        for &place in &game.put_in[self.put_ins_seen.min(game.put_in.len())..] {
+            if let Some(at) = self.arrived[place].take() {
+                self.put_in_waits.push(game.tick.saturating_sub(at));
+            }
+        }
+        self.put_ins_seen = game.put_in.len();
+        for (place, body) in game.bodies.iter().enumerate() {
+            let home = game.containers.iter().find(|(t, _)| *t == body.team);
+            if !body.alive || body.carrying.is_none() {
+                self.arrived[place] = None;
+            } else if self.arrived[place].is_none()
+                && home.is_some_and(|(_, at)| at.distance_xz(body.feet) <= ARRIVED_M)
+            {
+                self.arrived[place] = Some(game.tick);
+            }
+        }
         for (battery, lying) in game.batteries.iter().enumerate() {
             if let Lying::Carried(place) = *lying {
                 match bots.tracker().carrier(battery) {
@@ -1141,7 +1210,7 @@ impl CarryTally {
 
     fn line(&self, taken: u32) -> String {
         format!(
-            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}",
+            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms",
             self.right,
             self.wrong,
             self.unknown,
@@ -1152,6 +1221,8 @@ impl CarryTally {
             self.intercept_takes,
             self.intercept_deaths,
             self.beliefs_moved,
+            self.put_in_waits.len(),
+            self.put_in_waits.iter().map(|&ms| u64::from(ms)).sum::<u64>(),
         )
     }
 }
@@ -1501,6 +1572,43 @@ fn soak_tuned(
         );
     }
     out
+}
+
+/// The stand-in's put-in lasts [`PUT_MS`]: the battery goes in at its end,
+/// a use pressed meanwhile does nothing, and a carrier who died first puts
+/// nothing in.
+#[test]
+fn a_stand_in_put_in_goes_in_at_the_end_of_the_put() {
+    let mut game = Game::new(soak_world(), &[0, 1], 1, None, None);
+    let (_, home) = game.containers[0];
+    let feet = home + Vec3::new(0.0, 0.0, 1.0);
+    let body = &mut game.bodies[0];
+    body.alive = true;
+    body.feet = feet;
+    // Facing the use box (-z), a metre over the container's point.
+    body.yaw = std::f32::consts::PI;
+    body.pitch = (1.0 - 1.6f32).atan2(1.0);
+    body.carrying = Some(0);
+    game.batteries[0] = Lying::Carried(0);
+    game.put_ms = PUT_MS;
+    game.use_and_drop(&[key::USE, 0]);
+    assert_eq!(game.batteries[0], Lying::Carried(0), "in the put");
+    game.tick += PUT_MS - 50;
+    game.use_and_drop(&[key::USE, 0]);
+    assert_eq!(game.batteries[0], Lying::Carried(0), "a press meanwhile");
+    game.tick += 50;
+    game.use_and_drop(&[0, 0]);
+    assert_eq!(game.batteries[0], Lying::Home(0));
+    assert_eq!(game.delivered[0], 1);
+    // Dead before the put ends: nothing goes in.
+    game.bodies[0].carrying = Some(1);
+    game.batteries[1] = Lying::Carried(0);
+    game.use_and_drop(&[key::USE, 0]);
+    game.bodies[0].alive = false;
+    game.tick += PUT_MS;
+    game.use_and_drop(&[0, 0]);
+    assert_eq!(game.batteries[1], Lying::Carried(0));
+    assert_eq!(game.delivered[0], 1);
 }
 
 /// A short run every build: two minutes of 4 against 4, fights and no
@@ -4048,6 +4156,7 @@ fn real_bot_cost() {
                     fight.note(&note);
                     events.note(&note);
                     carry.note(&note);
+                    push.note(&note, &bots);
                     if let Some(rest) = note.text.strip_prefix("takes ") {
                         takes_all += 1;
                         let kind = rest.split(' ').next().unwrap_or("").to_owned();
@@ -5540,6 +5649,14 @@ struct PushTally {
     /// Per spot play (HoldExit, Crossfire, Cut) and team: runs, of them
     /// reached.
     spot: [[[u32; 2]; 2]; 3],
+    /// Roam runs ended "the route turned bad".
+    turned_bad: u32,
+    /// Each place's last play taken ("Kind Target"), while it runs it.
+    last_take: Vec<Option<String>>,
+    /// A slot handed from one teammate to another: a bot takes the play
+    /// and target a teammate was running, and the teammate no longer runs
+    /// it.
+    handoffs: u32,
 }
 
 impl PushTally {
@@ -5565,7 +5682,45 @@ impl PushTally {
             last: vec![None; bodies],
             runs: vec![None; bodies],
             spot: [[[0; 2]; 2]; 3],
+            turned_bad: 0,
+            last_take: vec![None; bodies],
+            handoffs: 0,
         }
+    }
+
+    /// The commander's notes, after its poll: Roam's "the route turned
+    /// bad" ends, and slot hand-offs.
+    fn note(&mut self, note: &Note, bots: &Bots) {
+        if note.text.starts_with("ends ") {
+            self.turned_bad += u32::from(note.text == "ends Roam: the route turned bad");
+            if let Some(last) = self.last_take.get_mut(note.place) {
+                *last = None;
+            }
+            return;
+        }
+        let Some(rest) = note.text.strip_prefix("takes ") else {
+            return;
+        };
+        let what = rest.split(" (score").next().unwrap_or(rest).to_owned();
+        let Some(Some(me)) = bots.bots.get(note.place) else {
+            return;
+        };
+        // Plays with no target take no slot.
+        if !what.ends_with(" None") {
+            for other in bots.bots.iter().flatten() {
+                let running = |a: &Assignment| format!("{:?} {:?}", a.kind, a.target) == what;
+                if other.place != note.place
+                    && other.team == me.team
+                    && self.last_take[other.place].as_deref() == Some(what.as_str())
+                    && !other.assignment.as_ref().is_some_and(running)
+                {
+                    self.handoffs += 1;
+                    self.last_take[other.place] = None;
+                    break;
+                }
+            }
+        }
+        self.last_take[note.place] = Some(what);
     }
 
     /// A bot's progress from its side's spawns to the enemy's.
@@ -5670,7 +5825,8 @@ impl PushTally {
                 s(2)[1],
             );
         }
-        out.trim_end().to_owned()
+        out += &format!("turned_bad {} handoffs {}", self.turned_bad, self.handoffs);
+        out
     }
 }
 

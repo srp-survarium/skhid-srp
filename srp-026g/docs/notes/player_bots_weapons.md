@@ -438,3 +438,70 @@ target at that distance (`hip_cone_share` × the half cone against
 **Not traced:** how the client poses the weapon bone that the shot starts from;
 recoil (look pitch + weapon+0x478) climbs bursts on top of the cone, LIKELY for
 bots too. The bench models the cone but not the recoil.
+
+## Bots check teammates against a grenade's blast at the press and the hold
+
+**The fault (Cologne CG-7):** a bot looked for teammates within
+`grenade_friend_m` (6 m) of the landing point only when it chose to throw.
+The RGD-5 then flies and lies for its fuse, 4 s, and a teammate who walked in
+during that time was caught. The team's push was also timed from the press,
+not from the blast.
+
+**The grenade, from its config** (`gameplay/items/weapons/rgd-5.options`,
+`data` block, read by `weapons::grenade_named`): `ttl_ms` 4000,
+`splash_radius` 10 m, `splash_max_damage` 1.3, `splash_min_damage` 0.05,
+`explode_on_contact` false. With an even falloff the blast does under half a
+body's health from 6.4 m out, which is why `grenade_friend_m` stays 6 m (GUESS).
+
+**What the bots do now** (`CombatTuning::grenade_recheck`,
+`grenade_lead_s`, `grenade_push_after_blast`):
+
+- At the choice, at every tick of the press and at the let-go, each living
+  teammate counts as the line from his feet to where his velocity takes him
+  in `grenade_lead_s` (1.5 s, GUESS: the time an advancing teammate needs to
+  close half the blast's radius). If that line passes within
+  `grenade_friend_m` of the landing point, the bot lets go of the button
+  before the throw starts. In 0.26g releasing bit 23 before the weapon reaches
+  state 6 cancels the throw (`player_bots.md`), so the grenade stays in hand.
+  The bot notes `holds a grenade back at ...: teammate N`.
+- At the let-go, the blast falls at the press time plus the config's `ttl_ms`,
+  and the team's push starts then, not 1.5 s after the press.
+- The fight tally counts, at each blast, the living teammates within 3, 6 and
+  10 m, and the thrower within 6 and 10 m. The bench has no grenade physics
+  (the clients simulate the grenades), so these are the places at the blast,
+  not damage.
+
+**Bench** (paired, `real_bot_cost`, 180 s, the 6 battery maps, 4v4 and 10v10,
+`SRP_BENCH_SPREAD=1`, seeds 1-16, one binary. "Off" is
+`grenade_recheck=false,grenade_push_after_blast=false`. Means per seed over 12
+matches, ± 1 SE of the paired difference, * beyond 2 SE):
+
+| | tiers 4-5 off → on | tiers 9-10 off → on | tiers 13-15 off → on |
+|---|---|---|---|
+| grenades thrown | 14.12 → 13.06 (−1.06 ± 0.86) | 8.94 → 9.06 (+0.12 ± 0.64) | 11.12 → 9.25 (−1.88 ± 1.11) |
+| held back | 0 → 0.62* | 0 → 0.62* | 0 → 0.38* |
+| teammates within 3 m of a blast | 0.31 → 0.19 | 0.12 → 0.00 | 0.06 → 0.06 |
+| teammates within 6 m | 0.81 → 0.38 (−0.44 ± 0.30) | 0.62 → 0.12* | 0.69 → 0.12* |
+| teammates within 10 m | 2.12 → 1.69 | 1.88 → 0.88 (−1.00 ± 0.54) | 1.94 → 1.06* |
+| the thrower within 6 m | 0.88 → 0.44* | 0.44 → 0.38 | 0.75 → 0.19* |
+| the thrower within 10 m | 2.38 → 1.12* | 1.19 → 1.06 | 2.00 → 0.81* |
+| team hits (all weapons) | 1.81 → 1.88 | 1.69 → 1.62 | 1.31 → 1.31 |
+| team kills (all weapons) | 0.19 → 0.19 | 0.12 → 0.19 (+0.06 ± 0.06) | 0.12 → 0.06 |
+| kills | 246.5 → 249.1 (+2.6 ± 2.2) | 269.9 → 272.0 (+2.1 ± 2.0) | 281.5 → 284.7 (+3.2 ± 2.6) |
+| K/D team 0 / team 1 | 0.98 / 1.05 → 1.01 / 1.02* | 0.97 / 1.08 → 0.96 / 1.08 | 0.99 / 1.05 → 0.99 / 1.05 |
+| delivered | 74.94 → 75.69 (+0.75 ± 0.50) | 75.06 → 75.25 | 72.44 → 73.19 (+0.75 ± 0.60) |
+| carriers killed | 17.81 → 17.81 | 19.19 → 19.12 | 20.94 → 21.12 |
+| quick ends | 416.1 → 409.6 | 412.2 → 408.4 | 416.9 → 421.6 |
+| flips | 152.5 → 150.6 | 153.6 → 152.2 | 149.7 → 154.8 (+5.1 ± 2.8) |
+| stood % | 6.07 → 5.96 | 5.78 → 5.80 | 6.04 → 6.02 |
+
+Teammates at the blast within 6 m fall by about three quarters at every tier.
+The thrower is near his own blast half as often, because the push now waits
+for the blast. No guard moves beyond 2 SE against the change. The K/D shift at
+tiers 4-5 is between the two sides, and both run the same bots, so it is a side
+effect of the seeds, not a gain. Team kills from grenades can't be told apart
+here: the bench has no blast damage, and the team-kill counts above are from
+bullets.
+
+Test: `reflex::tests::a_grenade_is_held_back_from_a_teammate_walking_into_its_blast`,
+`weapons::tests::the_bots_grenade_is_read_from_its_config`.
