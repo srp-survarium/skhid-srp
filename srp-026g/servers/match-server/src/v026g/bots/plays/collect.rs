@@ -853,10 +853,10 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             if !cx.reachable(stand, false) || cx.no_way_lately(stand) {
                 return Step::Failed("no way to it");
             }
-            // Within reach across and at the stand floor's height, as
-            // `drive_tick` ends the walk there (`at_goal_height`): from an
-            // overhang over it the walk goes on (Cologne CG-17).
-            if cx.me.feet.distance_xz(stand) <= num("reach_m") && at_goal_height(cx, stand) {
+            // Within reach across and at the stand floor's height
+            // (`at_goal_height`, the motor's rule for a route's end).
+            let near = cx.me.feet.distance_xz(stand) <= num("reach_m");
+            if near && at_goal_height(cx, stand) {
                 *state = State::Take {
                     tries: 0,
                     last_use: 0,
@@ -869,7 +869,12 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 };
                 return Step::Continue(Intent::stay().looking(Look::At(at)));
             }
-            Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(num("reach_m") * 0.6))
+            // Near across but over its floor (an overhang, a box top) or
+            // under it: a goal within reach across is no goal, so the walk
+            // asks for the stand itself, and the route ends there only at its
+            // floor's height (`motor::arrived`). Cologne CG-17.
+            let within = if near { 0.0 } else { num("reach_m") * 0.6 };
+            Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(within))
         }
         State::Take { tried, .. } => {
             // Under its floor (fallen, or under an overhang), a stand there
@@ -2568,7 +2573,7 @@ mod tests {
         let (state, step) = run(Vec3::new(20.0, 1.5, 20.5));
         assert_eq!(state, State::Fetch);
         assert!(
-            matches!(&step, Step::Continue(i) if matches!(i.go, Go::To { at: to, .. } if to.distance_xz(at) < 0.01)),
+            matches!(&step, Step::Continue(i) if matches!(i.go, Go::To { at: to, within_m } if to.distance_xz(at) < 0.01 && within_m == 0.0)),
             "{step:?}"
         );
         let (state, _) = run(Vec3::new(20.0, 0.0, 20.5));
