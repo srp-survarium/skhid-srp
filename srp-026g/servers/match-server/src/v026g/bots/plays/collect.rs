@@ -476,6 +476,15 @@ impl Ctx<'_> {
     pub fn take_block(&self, at: Vec3) -> Option<&'static str> {
         let num = |name| self.num(PlayKind::Collect, name);
         let Some(stand) = self.tactics.stand_to_take(at) else {
+            // No way is planned into a pocket the grid knows no way out of,
+            // so none of its floors is a stand; a battery there is its.
+            let grid = &self.tactics.world.grid;
+            if grid
+                .locate(at, 1.5)
+                .is_some_and(|node| grid.in_shut_pocket(node))
+            {
+                return Some(POCKET_BLOCK);
+            }
             return Some("no stand to take it from");
         };
         if !self.reachable(stand, false) {
@@ -2022,11 +2031,13 @@ mod tests {
             s.battery(BatteryState::Free(Vec3::new(32.0, -depth, 20.0)));
             s
         };
+        // The deep pit has no way out on the grid: no way is planned in, so
+        // it holds no stand, and the block is still the pocket's.
         let deep = scene(3.0);
         let at = Vec3::new(32.0, -3.0, 20.0);
-        let stand = deep.tactics.stand_to_take(at).expect("a stand");
-        assert!(deep.cx(0).in_pocket(stand));
-        assert!(!deep.cx(0).escape_known(stand, true));
+        assert_eq!(deep.tactics.stand_to_take(at), None);
+        assert!(deep.cx(0).in_pocket(at));
+        assert!(!deep.cx(0).escape_known(at, true));
         assert_eq!(deep.cx(0).take_block(at), Some(POCKET_BLOCK));
         assert!(collects(&deep).is_empty());
         assert_eq!(take_blocks(&deep.cx(0)), vec![(0, Some(POCKET_BLOCK))]);

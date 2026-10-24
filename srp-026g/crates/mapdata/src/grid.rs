@@ -38,7 +38,11 @@
 //!    geometry only: the match's zones are not in it. The marks cost a
 //!    way nothing (an extra cost into a pocket and onto its rim was
 //!    benched and moved nothing: `player_bots_mapdata.md`, "Grid: pockets
-//!    and jumps"); they tell where a body would not get back from.
+//!    and jumps"); they tell where a body would not get back from. But a
+//!    pocket with no way out at all (no jump the body makes leads out,
+//!    [`WalkGrid::pocket_exits`]) is shut ([`WalkGrid::in_shut_pocket`]):
+//!    no way is planned into it from outside ([`WalkGrid::plans`]). Its
+//!    floors, links and marks stay, for a body that falls in.
 //!
 //! Positions are in the map frame, at the feet ([`crate::math`]).
 
@@ -211,6 +215,10 @@ const REACHED: u8 = 1;
 const RETURNS: u8 = 2;
 /// Not in a pocket, and links into one.
 const POCKET_EDGE: u8 = 4;
+/// In a pocket with no way out ([`WalkGrid::pocket_exits`] from its
+/// lowest floor finds none): no way is planned into it
+/// ([`WalkGrid::plans`]).
+const NO_EXIT: u8 = 8;
 
 /// A pocket ([`WalkGrid::pocket_of`]): its lowest floor's id.
 pub type PocketId = NodeId;
@@ -492,6 +500,7 @@ impl WalkGrid {
         grid.pieces(&wide);
         grid.mark_pockets(&wide, spawns);
         grid.pack(wide);
+        grid.mark_no_exit();
         stats.floors_kept = grid.len();
         (grid, stats)
     }
@@ -1313,6 +1322,44 @@ impl WalkGrid {
         self.flags[node as usize] & (REACHED | RETURNS) == REACHED
     }
 
+    /// Marks the floors of the pockets with no way out ([`NO_EXIT`]). A
+    /// pocket of more than [`POCKET_EXIT_FLOORS`] floors is never marked:
+    /// [`Self::pocket_exits`] looks at that many, so an exit past them
+    /// would go unseen.
+    fn mark_no_exit(&mut self) {
+        let mut floors: std::collections::HashMap<PocketId, usize> = Default::default();
+        for &(_, p) in &self.pockets {
+            *floors.entry(p).or_default() += 1;
+        }
+        let shut: std::collections::HashSet<PocketId> = floors
+            .into_iter()
+            .filter(|&(p, n)| n <= POCKET_EXIT_FLOORS && self.pocket_exits(p).is_empty())
+            .map(|(p, _)| p)
+            .collect();
+        for i in 0..self.pockets.len() {
+            let (a, p) = self.pockets[i];
+            if shut.contains(&p) {
+                self.flags[a as usize] |= NO_EXIT;
+            }
+        }
+    }
+
+    /// Whether `node` is in a pocket with no way out: no jump the body
+    /// makes leads out ([`Self::pocket_exits`]).
+    pub fn in_shut_pocket(&self, node: NodeId) -> bool {
+        self.flags[node as usize] & NO_EXIT != 0
+    }
+
+    /// Whether a way is planned over the link `from` to `to`: every link
+    /// but one into a pocket with no way out ([`Self::in_shut_pocket`])
+    /// from a floor outside it, a drop or a walk down a step that does not
+    /// walk back. The link stays (a body knocked or overshooting over the
+    /// edge falls in, and is in the pocket); a way inside the pocket, and
+    /// out of it, is planned.
+    pub fn plans(&self, from: NodeId, to: NodeId) -> bool {
+        !self.in_shut_pocket(to) || self.pocket_of(from) == self.pocket_of(to)
+    }
+
     /// Whether `node` is not in a pocket and links into one: a pocket's
     /// rim ([`Self::pocket_entries`]).
     pub fn is_pocket_edge(&self, node: NodeId) -> bool {
@@ -1665,7 +1712,12 @@ impl WalkGrid {
     /// way keeps a cell back from a ledge where it can, plus
     /// [`MARGINAL_JUMP_PENALTY`] for a jump higher than
     /// [`MARGINAL_JUMP_M`].
+    ///
+    /// Infinite for a link no way is planned over ([`Self::plans`]).
     pub fn link_cost(&self, from: NodeId, to: NodeId, kind: LinkKind) -> f32 {
+        if !self.plans(from, to) {
+            return f32::INFINITY;
+        }
         let lip = if kind != LinkKind::Drop && self.is_lip(to) {
             LIP_PENALTY
         } else {
@@ -2147,6 +2199,9 @@ impl SlicedSearch {
                     continue;
                 }
                 let c = cu + grid.link_cost(u, v, kind);
+                if !c.is_finite() {
+                    continue;
+                }
                 if m != seen || c < cost[v as usize] {
                     mark[v as usize] = seen;
                     cost[v as usize] = c;
@@ -2665,9 +2720,14 @@ pub(crate) mod tests {
         assert!(rim > 0);
         assert!(grid.pocket_exits(bottom).is_empty(), "1.6 m: no way out");
         assert!(grid.pocket_exits(spawn).is_empty(), "not in a pocket");
-        // In: there (the marks cost a way nothing).
-        let into = grid.path(spawn, bottom).unwrap();
-        assert_eq!(into.nodes.last(), Some(&bottom));
+        // Shut: no way is planned in from outside (the drops stay, a body
+        // that falls in is in the pocket); inside, ways are planned.
+        assert!(grid.in_shut_pocket(bottom) && !grid.in_shut_pocket(spawn));
+        assert!(grid.path(spawn, bottom).is_none());
+        assert!(!grid.distances_from(&[spawn]).reaches(bottom));
+        assert!(!grid.distances_to(&[bottom]).reaches(spawn));
+        let corner = grid.locate(Vec3::new(9.0, -1.6, 4.0), 0.3).unwrap();
+        assert!(grid.path(bottom, corner).is_some());
         // Written and read back, the same marks.
         let path = std::env::temp_dir().join(format!("srp-pit-{}.bin", std::process::id()));
         grid.write(&path, 7).unwrap();
@@ -2675,6 +2735,7 @@ pub(crate) mod tests {
         std::fs::remove_file(&path).ok();
         assert_eq!(read.digest(), grid.digest());
         assert_eq!(read.pocket_of(bottom), Some(pocket));
+        assert!(read.in_shut_pocket(bottom));
         // Into it only by drops from its rim, 1.6 m down.
         let entries = grid.pocket_entries(pocket);
         assert!(!entries.is_empty());
@@ -2687,7 +2748,9 @@ pub(crate) mod tests {
         // 1.2 m deep: ways out to the yard, none higher than 1.35 m.
         let grid = pit_grid(1.2);
         let bottom = grid.locate(Vec3::new(10.0, -1.2, 5.0), 0.3).unwrap();
-        assert!(grid.in_pocket(bottom));
+        assert!(grid.in_pocket(bottom) && !grid.in_shut_pocket(bottom));
+        let spawn = grid.locate(Vec3::new(2.0, 0.0, 5.0), 0.3).unwrap();
+        assert!(grid.path(spawn, bottom).is_some(), "a way out: planned in");
         let exits = grid.pocket_exits(bottom);
         assert!(!exits.is_empty());
         assert!(exits.iter().all(|e| {
