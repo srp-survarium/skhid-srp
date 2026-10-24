@@ -364,7 +364,8 @@ So a bot over its goal stopped, and the take went nowhere.
 ### Bench
 
 Against base-939b2cca (the coordinator's, reproduced game for game), the
-standard presets, this PR's binary (exact-spot arrival):
+standard presets, this PR's binary (exact-spot arrival); the merged tree's
+checks (the tests with the map files, clippy, the probe) on b43d67ce:
 
 - **tdm:** seeds 1-2 on tiers none, 9-10 and 13-15, every run's decisions
   digest equal to base's: no walk in tdm asks for an exact spot.
@@ -375,9 +376,27 @@ standard presets, this PR's binary (exact-spot arrival):
   - quick ends +2.25 (2.65), +5.31 (2.84), +2.00 (3.58), +8.12 (7.06);
   - falls off the route +1.25 (0.77), -2.38 (0.82), +1.62 (1.38), -1.75
     (1.44);
-  - planned drops +2.88 (1.38), +2.44 (1.13), +2.88 (1.66), -0.38 (3.09):
-    a Fetch over its stand now walks down to it by the route, a planned
-    drop; spread over the maps, none over 1.8 SE alone;
+  - planned drops +2.88 (1.38), +2.44 (1.13), +2.88 (1.66), -0.38 (3.09),
+    the one guard past 2 SE (below);
   - stuck, idle, pocket tries and seconds within 2 SE everywhere;
   - bot ms/s -6.7, -29.7, -16.0, -18.0 (summed over a seed's 12 runs).
 - Grid algo 5.
+
+**Planned drops** (none and 13-15, 16 seeds; the bench's `falls_exact`
+counts the drops landed on an exact walk, and of them those followed by a
+pickup within 10 s; base has no exact walks, so 0 there):
+
+| | none | 13-15 |
+|---|---|---|
+| excess, after - base, per seed | +2.88 (1.38) | +2.44 (1.13) |
+| on an exact walk (Fetch to its stand) | +0.88 (0.35) | +0.88 (0.24) |
+| of those, a pickup within 10 s | 10 of 14 | 12 of 14 |
+| remainder | +2.00 (1.36) | +1.56 (1.08) |
+| games with base's decisions, their remainder | 149 of 192, 0 | 154 of 192, 0 |
+| diverged games' remainder, per game | +0.74 (0.50) | +0.66 (0.92) |
+| their drops per bot-hour (base 48), after - base | +1.00 (0.94) | +1.16 (1.34) |
+| their living bot-seconds, per game | -5.1 (3.2) | -4.9 (4.2) |
+
+The remainder is only in the games an exact walk turned (one decision
+changed, the rest of the match played otherwise); per map none is over
+1.8 SE. Unplanned falls, stuck and pockets are not up, nor deliveries down.
