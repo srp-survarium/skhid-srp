@@ -21,6 +21,10 @@ answers root.interface_hidden with a bool:
   before the start too), and nothing without the hud movie; esp, ebp and the
   stack as the original's; the kits' show_cursor call (0x23845B) is the
   original's (a death keeps the interface hidden: no case of its own);
+- a match's reset: initialize_match's Invoke of root.reset (0x234AE8) runs
+  with ecx the hud movie and ebp a made-up hud: the reset, then
+  root.hide_interface(false) to the hud and the icons (a new match starts
+  shown), back at 0x234AED with the arguments popped, al the reset's;
 - the lobby: lobby_menu::on_keyboard_action's binder call (0x26CCD2) runs
   with a made-up key binder (the game's action table's descriptions, a few
   keys bound), edi 2, esi the key and ebx a made-up lobby menu (its movie
@@ -55,6 +59,7 @@ import patch_026g as base
 
 CASE, REPLAY_BACK, KEY_OTHER = 0x25CED1, 0x25CEDB, 0x25CF0D
 KITS_SITE, KITS_BACK, SHOW_CURSOR = 0x23845B, 0x238460, 0x23A930
+RESET_SITE, RESET_BACK, RESET_NAME = 0x234AE8, 0x234AED, 0xA03348
 LOBBY_SITE, LOBBY_BACK, LOBBY_TAKEN, LOBBY_TO_MOVIE = 0x26CCD2, 0x26CCD7, 0x26CCAE, 0x26CDD2
 SHOW_MOVIE, HIDE_MOVIE, INVOKE = 0x23DC00, 0x23DC70, 0x511600
 ACTIONS = 0xA74AF0                     # the action table: 20-byte {name, id, kinds, toggle, key name}
@@ -200,6 +205,17 @@ class Run:
         regs, esp = self.run(CASE, (REPLAY_BACK, KEY_OTHER), sp, {**GAME, UC_X86_REG_EBP: sp + 0x14})
         return (self.stopped, esp, regs[UC_X86_REG_ESI] if self.stopped == REPLAY_BACK else None,
                 regs[UC_X86_REG_EBP], self.read(sp, 0x40) == before, self.invokes())
+
+    # A match's reset: initialize_match's Invoke of root.reset, its four pushes done, ebp the hud.
+    def reset(self, movie, icons):
+        emu = self.emu
+        emu.mem_write(HUD, bytes(0x400))
+        self.movies(HUD, movie, icons)
+        sp = STACK + 0x8000 - 16
+        for i, value in enumerate((RESET_NAME, 0, 0, 0)):
+            self.word(sp + 4 * i, value)
+        regs, esp = self.run(RESET_SITE, (RESET_BACK,), sp, {**GAME, UC_X86_REG_ECX: HUD_MOVIE, UC_X86_REG_EBP: HUD})
+        return self.stopped, esp - sp, regs, self.invokes()
 
     # The lobby: the site's push of the toggle's place done, then its call.
     def lobby(self, key, movie, hidden=0):
@@ -369,6 +385,23 @@ def main():
                                f"{'hidden' if hidden else 'shown'}: "
                                + (f"root.hide_interface({1 - hidden}) to the hud" + (" and the icons" if icons else "")
                                   if want else "nothing") + f", at {b[0]:#x} as the original")
+
+    print("a match's reset (initialize_match's root.reset Invoke, 0x234AE8)")
+    for movie in (0, 1):
+        for icons in (0, 1):
+            a = stock.reset(movie, icons)
+            b = patched.reset(movie, icons)
+            reset = (HUD_MOVIE, "root.reset", ())
+            want = [reset] + ([(HUD_MOVIE, "root.hide_interface", (0,))] if movie else []) \
+                + ([(ICONS_MOVIE, "root.hide_interface", (0,))] if icons else [])
+            keep = {reg: GAME[reg] for reg in (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI)}
+            ok = a[0] == b[0] == RESET_BACK and a[1] == b[1] == 16 and a[3] == [reset] and b[3] == want \
+                and b[2][UC_X86_REG_EBP] == HUD and all(b[2][reg] == value for reg, value in keep.items()) \
+                and (b[2][UC_X86_REG_EAX] & 0xFF) == 1
+            report(ok, f"hud movie {movie} icons {icons}: root.reset, then "
+                       + (", ".join(n for n, here in (("the hud", movie), ("the icons", icons)) if here) or "nothing")
+                       + " shown"
+                       + ", back at 0x234aed with the four arguments popped, al the reset's, ebx esi edi ebp kept")
 
     print("the lobby (lobby_menu::on_keyboard_action's binder call, 0x26CCD2)")
     asked = ("invoke", MOVIE, b"root.interface_hidden", True, 0, 0)

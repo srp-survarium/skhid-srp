@@ -484,7 +484,8 @@ Patches:
   asks the hud movie root.interface_hidden and gives it and the player icons'
   movie root.hide_interface(not that), the kits before the start too (the
   movies go on running: what happens while hidden plays out unseen; a death
-  keeps the state); lobby_menu::on_keyboard_action's binder call
+  keeps the state; initialize_match's root.reset (0x234AE8) shows both
+  again: a new match starts shown); lobby_menu::on_keyboard_action's binder call
   (0x26CCD2) asks again for kind 1 when the key has no lobby action, and on
   toggle_replay_ui invokes the lobby movie's root.toggle_interface and takes
   the key (back at 0x26CCAE, al 1); while the movie says its interface is
@@ -1980,7 +1981,7 @@ TEAM_DAMAGE_SIZES = (
 
 # The key that hides the interface (patch 62, README; client_patch.md section
 # 3.55; the rules: ../docs/notes/hide-ui-key.md): hide_ui_026g.asm in the
-# arena's blocks hide_ui.code and hide_ui.data (ARENA below), two entries:
+# arena's blocks hide_ui.code and hide_ui.data (ARENA below), three entries:
 # - the game world's on_keyboard_action 0x25CD00, its case of action 19h
 #   (toggle_replay_ui, F11; the switch's table 0x25CF30 + 8 * 4), `mov
 #   esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D` at 0x25CED1: with
@@ -1998,10 +1999,15 @@ TEAM_DAMAGE_SIZES = (
 #   other key, while the movie answers root.interface_hidden true, returns at
 #   0x26CDD2 (the key to the movie, which shows the interface; no window key,
 #   no F6 Play).
+# - initialize_match's `call 0x511600` (Invoke, root.reset) at 0x234AE8 (ecx
+#   the hud movie, ebp the hud): the reset, then the hud and the player icons'
+#   root.hide_interface(false): a new match starts shown (the movies are the
+#   last match's).
 # No base relocation is under a site and no branch aims inside one.
 HIDE_UI_HOOKS = (
     (0x25CED1, bytes.fromhex("8b742410" "837e1800" "7432"), "hide_ui_match", 0xE9),   # on_keyboard_action: case 19h
     (0x26CCD2, bytes.fromhex("e879b0f9ff"), "hide_ui_lobby", 0xE8),                 # the lobby's binder call
+    (0x234AE8, bytes.fromhex("e813cb2d00"), "hide_ui_reset", 0xE8),                 # a match's root.reset
 )
 # The options' controls (the same patch): the six functions of game_options
 # that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
@@ -2242,6 +2248,9 @@ INSTALLS = {
     0x25CED1: (JUMP, "the game world's on_keyboard_action 0x25CD00, its case of action 19h (toggle_replay_ui), "
                      "`mov esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D`: match, back at 0x25CEDB (the "
                      "replay's controls, esi the handler) or 0x25CF0D", None, None),
+    0x234AE8: (CALLEE, "initialize_match's Invoke of root.reset (thiscall: the hud movie, the name, the result, "
+                       "the arguments, the count; `ret 10h`): reset, which invokes it and shows the hud and the "
+                       "icons", None, None),
     0x26CCD2: (CALLEE, "lobby_menu::on_keyboard_action's get_binded_action (eax the binder, edi 2, esi the key, "
                        "the toggle's place pushed; `ret 4`): lobby, which on toggle_replay_ui returns to 0x26CCAE "
                        "instead", None, None),

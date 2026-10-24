@@ -4471,6 +4471,13 @@ def test_hide_ui(original, image, before):
     check(image.read(0x23845A, 6) == stock.read(0x23845A, 6) == bytes.fromhex("53e8d0240000"),
           "the kits' show_cursor call (0x23845B) is the original's: a death or a respawn keeps the interface "
           "hidden (the owner, 2026-10-24)")
+    check(rows(stock, 0x234AC1, 0x2F) == ["mov ecx,[ebp+0x8]", "add esp,byte +0xc", "push esi", "lea ebx,[ebp+0x8]",
+                                          "push esi", "mov [ebp+0x334],esi", "mov edx,[ecx+0x108]", "mov ecx,[edx+0x4]",
+                                          "push esi", "push dword 0xa03348", "mov [esp+0xa8],ebx", "call 0x511600",
+                                          "mov eax,[ebp+0x10]"]
+          and cstr(0xA03348) == b"root.reset",
+          "0x234AE8 is initialize_match's (0x234880, ebp the hud: [+8] its movie, [+10h] the player icons') Invoke "
+          "of root.reset on the hud movie, its four arguments pushed: a new match, the movies the last match's")
     check(rows(stock, 0x26CCC2, 0x15) == ["mov eax,[eax+0x5344]", "lea edx,[esp+0x10]", "push edx",
                                           "mov edi,0x2", "call 0x207d50"]
           and rows(stock, 0x26CCAE, 0x14) == ["lea ecx,[esp+0x28]", "call 0x2afa70", "mov al,0x1", "pop edi",
@@ -4586,14 +4593,19 @@ def test_hide_ui(original, image, before):
           and "super.addChild(this._stageLayer);" in lobby
           and all(f"override public function {f}" in lobby for f in ("addChild(", "addChildAt(", "setChildIndex("))
           and "this._stageLayer.scaleX = this._stageLayer.scaleY = 1 / scaleFactor;" in lobby
-          and layered == ["this._front_container", "this._top2_container", "this._top_container", "this._wheelBack",
-                          "this._wheelsMC", "this.fadeBack", "this.lobbyGameLoad", "this.tipContainer"]
+          and layered == ["this._cards", "this._corner", "this._front_container", "this._top2_container",
+                          "this._top_container", "this._wheelBack", "this._wheelsMC", "this.fadeBack",
+                          "this.lobbyGameLoad", "this.tipContainer"]
+          and lobby.index("this._overlay.addChild(this._corner);") < lobby.index("this._overlay.addChild(this._cards);")
+          and lobby.count("this._cards.addChild(this.itemHintRenderer") == 5
+          and "setTopmostLevel(this.itemHintRenderer" not in lobby
           and "InterfaceHider" not in "".join(lobby_tree.values()),
           "the lobby's interface is its root: nothing of it is added to the stage (Message's container and "
           "MainScene.stage are inside the root); what the game put on the stage is in the root's last child, "
           "_stageLayer, at the stage's scale, made before anything else and kept last (addChild, addChildAt, "
-          f"setChildIndex): {', '.join(layered)}, the right-click menu and CLIK's popup canvas in _layers, the "
-          "drag canvas in _overlay; no InterfaceHider, no timer")
+          f"setChildIndex): {', '.join(layered)}, the right-click menu and CLIK's popup canvas in _layers; "
+          "_overlay, above every modal: _corner, _cards (the item cards, no longer topmost), the drag canvas, the "
+          "tooltips; no InterfaceHider, no timer")
     toggle = lobby[lobby.index("public function toggle_interface() : void"):]
     toggle = toggle[:toggle.index("public function interface_hidden()")]
     check("if(SrvContextMenu.visisble)\n         {\n            SrvContextMenu.hide();" in toggle
@@ -4604,20 +4616,25 @@ def test_hide_ui(original, image, before):
           "Scaleform's topmost level, drawn whatever their parents), then hides the root")
     names = lambda text: [m.start() for m in re.finditer(re.escape(text + b"\0"), original)]
     enable = lobby[lobby.index("public function enable_element(value:*, value2:Boolean = true) : void"):]
-    enable = enable[:enable.index("}") + 1]
+    enable = enable[:enable.index("public function highlight_element(")]
     check(names(b"root.enable_element") and names(b"root.statusPanel.btn_off") and names(b"root.statusPanel.btn_settings")
           and stock.read(0x2A3F22, 0x1B) == bytes.fromhex("6a01" "68a011a000" "e8" + struct.pack("<i", 0x22A660 - 0x2A3F2E).hex()
                                                           + "8b4720" "6a01" "68bc11a000" "e8"
                                                           + struct.pack("<i", 0x22A660 - 0x2A3F3D).hex())
           and struct.unpack("<I", stock.read(0xA0CBF8, 4))[0] == 0x2A3EA0
-          and enable.count("\n") == 2 and "setTopmostLevel" not in enable and "_topmost" not in lobby
+          and "setTopmostLevel" not in enable and "this._corner.addChild(button);" in enable
+          and "this.statusPanel.addChildAt(button," in enable and "button != this.statusPanel.btn_off" in enable
+          and "_topmost" not in lobby and "dispatchEvent(new Event(LAID_OUT));" in lobby_tree["survarium/controls/StatusPanel.as"]
+          and "this.statusPanel.addEventListener(StatusPanel.LAID_OUT,this.onStatusPanelLaidOut);" in lobby
           and not any(f"function {t}(" in lobby for t in ("testDragTutor", "testPlayTutor", "testAmmoTutor",
                                                          "testAmmoTutor2", "testFactionPreTutor", "testFactionTutor",
                                                          "testCloseSlide", "showSlideOnVs", "testTutorComplete")),
           "the exe's lobby state (lobby_menu_state 0xA0CBF4, slot 1 0x2A3EA0, at every lobby entry) calls "
           "root.enable_element(root.statusPanel.btn_off / btn_settings, true), which put the corner buttons on "
-          "Scaleform's topmost level (drawn whatever their parents: they stayed in the owner's test of 335343b6); "
-          "the lobby's enable_element does nothing now, and the tutorial's private test functions are gone")
+          "Scaleform's topmost level (above every modal, and drawn whatever their parents: they stayed in the owner's "
+          "test of 335343b6); the lobby's enable_element puts them in _corner instead (above every modal, inside the "
+          "root, drawn where the status panel draws them after each of its layouts) and back with false; the "
+          "tutorial's private test functions are gone")
     hud = here("flash", "hud", "src", "HUD.as")
     icons = here("flash", "player_icons", "src", "player_icons_fla", "MainTimeline.as")
     own = lambda movie: {p: t for p, t in tree(movie).items() if not p.startswith("scaleform")}
