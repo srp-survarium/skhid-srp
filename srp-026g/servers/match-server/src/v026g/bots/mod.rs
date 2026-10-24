@@ -577,6 +577,11 @@ pub struct Bots {
     /// instead (`real_bot_cost`, `SRP_BENCH_ONE_SIDE`).
     #[cfg(test)]
     side1_tuning: Option<Arc<Tuning>>,
+    /// The real-map bench's human stand-in (`SRP_BENCH_HUMAN`, CG-12):
+    /// the plays take this bot for a human, and its commander gives it
+    /// Raid whenever Raid is a candidate.
+    #[cfg(test)]
+    pub bench_human: Option<Place>,
     tracker: Tracker,
     tactics: Option<Tactics>,
     teams: [TeamState; 2],
@@ -642,6 +647,8 @@ impl Bots {
             tuning,
             #[cfg(test)]
             side1_tuning: None,
+            #[cfg(test)]
+            bench_human: None,
             routes: Vec::new(),
             weapons: Vec::new(),
             searching: Searching {
@@ -1476,6 +1483,23 @@ impl Bots {
         let Some(tactics) = self.tactics.as_ref() else {
             return;
         };
+        // The bench's human stand-in: a human to the plays.
+        #[cfg(test)]
+        let stand_in;
+        #[cfg(test)]
+        let view = match self.bench_human {
+            Some(place) => {
+                stand_in = {
+                    let mut view = view.clone();
+                    if let Some(p) = view.places.iter_mut().find(|p| p.place == place) {
+                        p.bot = false;
+                    }
+                    view
+                };
+                &stand_in
+            }
+            None => view,
+        };
         let tuning = self.tuning_of(team);
         let now = view.clock;
         let state = &mut self.teams[usize::from(team)];
@@ -1582,6 +1606,16 @@ impl Bots {
             })
             .collect();
         self.teams[usize::from(team)].knowledge.searching = searching;
+        // What the team knows of each enemy human, for the match (CG-12).
+        let tracks = self
+            .bots
+            .iter()
+            .flatten()
+            .filter(|b| b.team == team)
+            .flat_map(|b| b.memory.tracks());
+        self.teams[usize::from(team)]
+            .knowledge
+            .learn_humans(team, view, tracks, now);
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
         let mut blocks = Vec::new();
@@ -1621,6 +1655,12 @@ impl Bots {
             };
             let mut candidates = Vec::new();
             plays::candidates(&cx, &mut candidates);
+            #[cfg(test)]
+            if self.bench_human == Some(bot.place)
+                && candidates.iter().any(|c| c.kind == plays::PlayKind::Raid)
+            {
+                candidates.retain(|c| c.kind == plays::PlayKind::Raid);
+            }
             blocks.push((bot.place, plays::collect::take_blocks(&cx)));
             asked.push((bot.place, candidates, bot.assignment.clone()));
         }

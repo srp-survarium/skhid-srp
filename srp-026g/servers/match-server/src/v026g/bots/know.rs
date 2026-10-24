@@ -260,6 +260,155 @@ pub struct Theft {
     pub thief: Option<Place>,
 }
 
+/// A lane cell's side (CG-12's memory of each enemy human), m.
+pub const LANE_CELL_M: f32 = 6.0;
+/// A lane cell's count halves in this, ms: what he did minutes ago still
+/// counts, what he did at the start fades.
+pub const LANE_HALF_LIFE_MS: u32 = 180_000;
+/// At most one place of a human a this, ms, goes into his lane: the count
+/// is the time he was known there, not how many bots knew it.
+pub const LANE_SAMPLE_MS: u32 = 1_000;
+
+/// A 6 m cell of an enemy human's lanes: where he was known in it (the
+/// mean of his places), how much (decayed by [`LANE_HALF_LIFE_MS`]) and
+/// when last.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LaneCell {
+    pub cell: (i32, i32),
+    pub at: Vec3,
+    pub count: f32,
+    pub time: u32,
+}
+
+impl LaneCell {
+    /// Its count at `now`.
+    pub fn count_at(&self, now: u32) -> f32 {
+        decayed(self.count, now.saturating_sub(self.time))
+    }
+}
+
+fn decayed(count: f32, ms: u32) -> f32 {
+    count * 0.5f32.powf(ms as f32 / LANE_HALF_LIFE_MS as f32)
+}
+
+/// What the team knows of one enemy human for the whole match (Cologne
+/// CG-12), only from its own senses and its HUD: his lanes (the cells of
+/// his places the team saw, heard or was told), the batteries he stole
+/// from us, and where he killed us (the kill feed: his kills went up as
+/// one of us died).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct EnemyHuman {
+    pub who: Place,
+    pub cells: Vec<LaneCell>,
+    /// When a place of his last went into his lanes.
+    pub last: Option<u32>,
+    /// The batteries he stole from us: (battery, when).
+    pub thefts: Vec<(usize, u32)>,
+    /// Where he killed one of us, and when.
+    pub kills: Vec<(Vec3, u32)>,
+    /// His kills as the scoreboard last showed them.
+    kills_shown: u32,
+}
+
+/// The team's memory of each enemy human ([`EnemyHuman`]), kept for the
+/// match.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct HumanLanes {
+    pub humans: Vec<EnemyHuman>,
+}
+
+impl HumanLanes {
+    pub fn get(&self, who: Place) -> Option<&EnemyHuman> {
+        self.humans.iter().find(|h| h.who == who)
+    }
+
+    fn human_mut(&mut self, who: Place) -> &mut EnemyHuman {
+        let i = match self.humans.iter().position(|h| h.who == who) {
+            Some(i) => i,
+            None => {
+                self.humans.push(EnemyHuman {
+                    who,
+                    ..Default::default()
+                });
+                self.humans.len() - 1
+            }
+        };
+        &mut self.humans[i]
+    }
+
+    /// The team knew `who` at `at` (sensed at `time`): one place a
+    /// [`LANE_SAMPLE_MS`] goes into his lanes.
+    pub fn knew(&mut self, who: Place, at: Vec3, time: u32) {
+        let human = self.human_mut(who);
+        if human.last.is_some_and(|last| time < last + LANE_SAMPLE_MS) {
+            return;
+        }
+        human.last = Some(time);
+        let cell = (
+            (at.x / LANE_CELL_M).floor() as i32,
+            (at.z / LANE_CELL_M).floor() as i32,
+        );
+        match human.cells.iter_mut().find(|c| c.cell == cell) {
+            Some(c) => {
+                let count = c.count_at(time);
+                c.at = (c.at * count + at) * (1.0 / (count + 1.0));
+                c.count = count + 1.0;
+                c.time = time;
+            }
+            None => human.cells.push(LaneCell {
+                cell,
+                at,
+                count: 1.0,
+                time,
+            }),
+        }
+    }
+
+    /// He stole `battery` from us at `time` (the HUD's theft); a theft is
+    /// counted once.
+    pub fn stole(&mut self, who: Place, battery: usize, time: u32) {
+        let human = self.human_mut(who);
+        if !human.thefts.contains(&(battery, time)) {
+            human.thefts.push((battery, time));
+        }
+    }
+
+    /// The scoreboard shows `kills` for him: the kills since the last
+    /// showing were at `at`, our latest death, if the team knows one.
+    pub fn shown_kills(&mut self, who: Place, kills: u32, at: Option<Vec3>, time: u32) {
+        let human = self.human_mut(who);
+        if kills > human.kills_shown
+            && let Some(at) = at
+        {
+            human.kills.push((at, time));
+        }
+        human.kills_shown = kills;
+    }
+
+    /// The lanes near `near` (within `within_m`) of the humans who stole
+    /// from us, best first: each cell's count at `now` times its human's
+    /// thefts, the same cell of two thieves added. For a holder of our
+    /// container (CG-1, CG-12): where a thief comes from.
+    pub fn thief_lane(&self, near: Vec3, within_m: f32, now: u32) -> Vec<(Vec3, f32)> {
+        let mut out: Vec<((i32, i32), Vec3, f32)> = Vec::new();
+        for human in self.humans.iter().filter(|h| !h.thefts.is_empty()) {
+            let thefts = human.thefts.len() as f32;
+            for c in &human.cells {
+                if c.at.distance_xz(near) > within_m {
+                    continue;
+                }
+                let weight = c.count_at(now) * thefts;
+                match out.iter_mut().find(|o| o.0 == c.cell) {
+                    Some(o) => o.2 += weight,
+                    None => out.push((c.cell, c.at, weight)),
+                }
+            }
+        }
+        out.sort_by(|a, b| b.2.total_cmp(&a.2));
+        out.into_iter().map(|(_, at, w)| (at, w)).collect()
+    }
+}
+
 /// Where a team believes a battery lies (the fair battery knowledge,
 /// `player_bots_behaviour.md` §2), used with the battery cheat off.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -376,6 +525,8 @@ pub struct TeamKnowledge {
     /// "Shot from there" callouts of the last 20 s.
     pub shots_from: Vec<ShotFrom>,
     pub thefts: Vec<Theft>,
+    /// Each enemy human's lanes, thefts and kills, for the match (CG-12).
+    pub humans: HumanLanes,
     /// By battery number.
     pub batteries: Vec<Option<KnownBattery>>,
     /// By battery spawner: when a bot of the team last saw its spot.
@@ -545,6 +696,56 @@ impl TeamKnowledge {
     /// A view without the masks (a tool or test that gives none) reckons
     /// the HUD from the states: our carrier's drop is ours, and a battery
     /// that moved more than 1 m between two worlds left the HUD.
+    /// The commander's poll: what team `team`'s bots know of each enemy
+    /// human goes into [`Self::humans`] (CG-12). His places from their
+    /// own senses and callouts (`tracks`: the bots' memories; the latest of
+    /// each human, within [`LANE_CELL_M`] of error), the thefts the HUD
+    /// told, and his kills on the scoreboard placed at our latest death of
+    /// the last 2 s (the kill feed).
+    pub fn learn_humans<'a>(
+        &mut self,
+        team: u8,
+        view: &MatchView,
+        tracks: impl Iterator<Item = &'a Track>,
+        now: u32,
+    ) {
+        let human = |who: Place| {
+            view.place(who)
+                .is_some_and(|p| !p.bot && p.team & 1 != team & 1)
+        };
+        let mut latest: Vec<(Place, Vec3, u32, f32)> = Vec::new();
+        for t in tracks {
+            if !t.source.own() || t.error_m > LANE_CELL_M || !human(t.who) {
+                continue;
+            }
+            match latest.iter_mut().find(|l| l.0 == t.who) {
+                Some(l) if (t.time, -t.error_m) > (l.2, -l.3) => {
+                    *l = (t.who, t.at, t.time, t.error_m)
+                }
+                Some(_) => {}
+                None => latest.push((t.who, t.at, t.time, t.error_m)),
+            }
+        }
+        latest.sort_by_key(|l| l.0);
+        for (who, at, time, _) in latest {
+            self.humans.knew(who, at, time);
+        }
+        for theft in &self.thefts {
+            if let Some(thief) = theft.thief.filter(|&p| human(p)) {
+                self.humans.stole(thief, theft.battery, theft.time);
+            }
+        }
+        let death = self
+            .losses
+            .iter()
+            .filter(|l| l.time + 2_000 >= now)
+            .max_by_key(|l| l.time)
+            .map(|l| l.at);
+        for p in view.places.iter().filter(|p| p.present && human(p.place)) {
+            self.humans.shown_kills(p.place, p.kills, death, now);
+        }
+    }
+
     pub fn hud_update(&mut self, team: u8, before: &MatchView, after: &MatchView, time: u32) {
         let team_of = |carrier: Option<Place>| carrier.and_then(|p| after.place(p)).map(|p| p.team);
         for (battery, now) in after.batteries.iter().enumerate() {
@@ -1135,5 +1336,90 @@ mod tests {
         assert!(!team.fallen_at(at, 31_000, 0, 120_000, 60_000), "off");
         // The first fall out of the window: two left.
         assert!(!team.fallen_at(at, 31_000, 3, 15_000, 60_000));
+    }
+
+    /// CG-12: an enemy human's places go into his lanes once a second, in
+    /// 6 m cells that fade with a 3 minute half-life; a bot's, a
+    /// teammate's or a sense with too large an error do not.
+    #[test]
+    fn an_enemy_humans_places_make_his_lanes_and_fade() {
+        let mut view = battery_view(vec![]);
+        // Place 2: an enemy human; place 3: a human of ours; place 1: an
+        // enemy bot.
+        for (place, team) in [(2, 1), (3, 0)] {
+            let mut p = view.places[1].clone();
+            p.place = place;
+            p.team = team;
+            p.bot = false;
+            view.places.push(p);
+        }
+        let track = |who: Place, x: f32, time: u32, source: Source, error_m: f32| Track {
+            who,
+            at: Vec3::new(x, 0.0, 1.0),
+            error_m,
+            time,
+            source,
+            sight_since: None,
+            notice_ms: 0,
+            own: None,
+        };
+        let mut team = TeamKnowledge::default();
+        let tracks = [
+            track(2, 1.0, 1_000, Source::Seen, 0.5),
+            track(1, 1.0, 1_000, Source::Seen, 0.5),
+            track(3, 1.0, 1_000, Source::Seen, 0.5),
+            track(2, 30.0, 1_000, Source::Heard, 10.0),
+        ];
+        team.learn_humans(0, &view, tracks.iter(), 1_000);
+        // Another bot's sight 0.4 s later is the same second: not counted.
+        let later = [track(2, 3.0, 1_400, Source::Told { by: 4 }, 2.0)];
+        team.learn_humans(0, &view, later.iter(), 1_400);
+        assert_eq!(team.humans.humans.len(), 1, "{:?}", team.humans);
+        let him = team.humans.get(2).unwrap();
+        assert_eq!(him.cells.len(), 1);
+        assert_eq!(him.cells[0].count, 1.0);
+        // A second later in the same cell: counted, at the mean.
+        let again = [track(2, 3.0, 2_000, Source::Told { by: 4 }, 2.0)];
+        team.learn_humans(0, &view, again.iter(), 2_000);
+        let cell = team.humans.get(2).unwrap().cells[0];
+        assert!((cell.count - 2.0).abs() < 0.01, "{cell:?}");
+        assert!((cell.at.x - 2.0).abs() < 0.01, "{cell:?}");
+        // A cheat's place is not the team's knowledge.
+        let cheat = [track(2, 50.0, 4_000, Source::Cheat(CheatKind::Radar), 0.0)];
+        team.learn_humans(0, &view, cheat.iter(), 4_000);
+        assert_eq!(team.humans.get(2).unwrap().cells.len(), 1);
+        // Half of it 3 minutes on.
+        let half = cell.count_at(2_000 + LANE_HALF_LIFE_MS);
+        assert!((half - 1.0).abs() < 0.01, "{half}");
+    }
+
+    /// CG-12: the thief's lane near our container, best first; a human
+    /// who never stole gives none, and his kills are placed at our latest
+    /// death.
+    #[test]
+    fn the_thief_lane_is_his_cells_near_the_container_by_count_and_thefts() {
+        let mut lanes = HumanLanes::default();
+        for s in 0..5u32 {
+            lanes.knew(2, Vec3::new(10.0, 0.0, 1.0), s * 1_000);
+        }
+        lanes.knew(2, Vec3::new(20.0, 0.0, 1.0), 6_000);
+        lanes.knew(2, Vec3::new(200.0, 0.0, 1.0), 7_000);
+        lanes.knew(5, Vec3::new(30.0, 0.0, 1.0), 6_000);
+        let near = Vec3::new(0.0, 0.0, 0.0);
+        assert!(lanes.thief_lane(near, 60.0, 8_000).is_empty());
+        lanes.stole(2, 4, 7_500);
+        lanes.stole(2, 4, 7_500);
+        let lane = lanes.thief_lane(near, 60.0, 8_000);
+        assert_eq!(lane.len(), 2, "{lane:?}");
+        assert!(
+            (lane[0].0.x - 10.0).abs() < 0.01 && lane[1].0.x == 20.0,
+            "{lane:?}"
+        );
+        assert_eq!(lanes.get(2).unwrap().thefts, vec![(4, 7_500)]);
+        // Kills: the first showing with none, then one at our death.
+        lanes.shown_kills(2, 0, None, 1_000);
+        lanes.shown_kills(2, 1, Some(Vec3::new(5.0, 0.0, 5.0)), 9_000);
+        lanes.shown_kills(2, 1, Some(Vec3::new(6.0, 0.0, 5.0)), 9_500);
+        assert_eq!(lanes.get(2).unwrap().kills, vec![(Vec3::new(5.0, 0.0, 5.0), 9_000)]);
     }
 }
