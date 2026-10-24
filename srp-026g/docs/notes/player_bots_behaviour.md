@@ -817,7 +817,12 @@ Bench, TDM, routes, tier 9-10, 16 seeds paired (difference a seed ± standard er
 - How far the bots get (past half way, past 70 %) is unchanged in every run. The change makes the forward plays run and arrive; it does not move the team forward.
 - Other tiers (fix and choke, both teams, 16 seeds):
   - TDM: kills +25.3 ± 3.9* at tier 4-5 and +19.6 ± 3.5* at tier 13-15; quick ends −391* and −349*; Cut arrivals +7 to +10*.
-  - Batteries: quick ends −65* and −55*. Delivered −0.1 ± 0.9 and −1.3 ± 0.8; carriers killed +1.3 ± 1.4 and +2.3 ± 0.8*. Over the three tiers carriers killed come out at +0.7 a run (−1.6 at tier 9-10), the guard that leans the wrong way.
+  - Batteries: quick ends −65* and −55*. Delivered −0.1 ± 0.9 and −1.3 ± 0.8; carriers killed +1.3 ± 1.4 and +2.3 ± 0.8* (on the base 6ef3c48b).
+  - The tier 13-15 batteries run again on #380's base 37d3ea72, seeds 1-32:
+    - carriers killed +0.06 ± 0.75 (seeds 1-16: −0.69 ± 1.05; seeds 17-32: +0.81 ± 1.08), 0.203 -> 0.201 a pickup;
+    - delivered +1.19 ± 0.57*;
+    - Escort time −15 ± 19 s, K/D within ±0.006.
+    - The same seeds 1-16 gave +2.3 on one base and −0.7 on the other, so that +2.3 was noise: a change of base reshuffles every run.
   - In some two-sided runs the teams' K/D moved by ±0.06* in opposite directions, though both teams had the change: a map side's effect, not the change's.
 - The 7 whole-match tests pass.
 
