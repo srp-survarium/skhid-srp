@@ -228,8 +228,9 @@ pub enum ExitJump {
     /// Up to [`STANDING_JUMP_M`] (and more than a step, or across a gap):
     /// the client's jump, any weapon.
     Standing,
-    /// Up to [`POCKET_EXIT_HIGH_M`]: only the sprint jump, rifles only
-    /// (1.282-1.350 m by clip, PROVEN). No bot's jump picks it yet.
+    /// Up to [`POCKET_EXIT_HIGH_M`]: only the sprint jump (1.282-1.350 m
+    /// by clip, PROVEN): a run-up with sprint held, any weapon, never with a
+    /// battery (PROVEN, 0x337040). No bot's jump picks it yet.
     Sprint,
     /// Up to [`STEP_UP_M`] into a neighbour cell. A walk up it would be a
     /// link, so the grid cut it: a climb onto steep ground (the client's
@@ -1382,7 +1383,7 @@ impl WalkGrid {
     /// most, and the exits come in that order. Empty out of a pocket.
     /// Candidates for an escape to try, not links: no way is planned into a
     /// pocket by them. A bot tries only the exits its jump makes: a
-    /// [`ExitJump::Sprint`] one takes a rifle and a sprint, a
+    /// [`ExitJump::Sprint`] one takes a sprint run-up and no battery, a
     /// [`ExitJump::Steep`] one none yet.
     pub fn pocket_exits(&self, from: NodeId) -> Vec<PocketExit> {
         let Some(pocket) = self.pocket_of(from) else {

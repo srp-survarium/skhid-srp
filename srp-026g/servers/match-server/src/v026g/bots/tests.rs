@@ -147,10 +147,11 @@ const STANDING_JUMP: StandInJump = StandInJump {
     ahead_m: 0.6,
 };
 
-/// The client's jump while sprinting with a rifle: 1.282-1.350 m by clip
-/// (PROVEN, the jump study). What makes the client play it is not read
-/// yet, so no bot's jump picks it. The distance is [`STANDING_JUMP`]'s
-/// (GUESS).
+/// The client's sprint jump: 1.282-1.350 m by clip (PROVEN, the jump
+/// study), played at a press with forward and sprint held at walk speed or
+/// more, any weapon, no battery carried (PROVEN,
+/// `player_logic_jump_state::initialize` 0x337040). No bot's jump picks it
+/// yet. The distance is [`STANDING_JUMP`]'s (GUESS).
 const SPRINT_JUMP: StandInJump = StandInJump {
     rise_m: 1.30,
     ahead_m: 0.6,
