@@ -376,9 +376,7 @@ va	status	ref_021d	name
 0x0007b840	inferred-medium	0x0021d20d	vostok::physics::bullet_character_controller::get_corrected_walk_vector
 0x0007ba30	inferred-medium	0x0021d38e	vostok::physics::bullet_character_controller::get_slide_acceleration
 0x0007bc20	inferred-medium	0x0021d428	vostok::physics::bullet_character_controller::need_slide_on_supporting_surface
-0x0007bda0	inferred-medium	0x0021d4a9	vostok::physics::bullet_character_controller::player_step
 0x0007c7e0	inferred-medium	0x0021db35	vostok::physics::bullet_character_controller::can_skeep_player_step
-0x0007c900	inferred-medium	0x0021dbe5	vostok::physics::bullet_character_controller::step_up
 0x0007cb90	inferred-medium	0x0021ddbd	vostok::physics::bullet_character_controller::step_jump_forward
 0x0007cfc0	inferred-medium	0x0021e130	vostok::physics::bullet_character_controller::step_jump_up
 0x0007d0f0	inferred-medium	0x0021e244	vostok::physics::bullet_character_controller::step_jump_down
@@ -387,14 +385,11 @@ va	status	ref_021d	name
 0x0007d660	inferred-medium	0x0021e7bf	vostok::physics::bullet_character_controller::slide_in_impassable_case_impl
 0x0007d9c0	inferred-medium	0x0021eab2	vostok::physics::bullet_character_controller::side_slide_on_slope
 0x0007da50	inferred-medium	0x0021eb33	vostok::physics::bullet_character_controller::impassable_slope_down_slide
-0x0007de10	inferred-medium	0x0021eebb	vostok::physics::bullet_character_controller::impassable_slope
 0x0007df20	inferred-medium	0x0021f0ba	vostok::physics::bullet_character_controller::side_slide_on_low_ceiling
-0x0007e1b0	inferred-medium	0x0021f2f1	vostok::physics::bullet_character_controller::step_down
 0x0007ea80	inferred-medium	0x0021f822	vostok::physics::bullet_character_controller::step_down_sweep_test_impl
 0x0007eeb0	inferred-medium	0x0021fbe0	vostok::physics::bullet_character_controller::can_straighten
 0x0007ef90	inferred-medium	0x0021fc07	vostok::physics::bullet_character_controller::on_ground
 0x0007f050	inferred-medium		vostok::physics::bullet_character_controller::end_jump
-0x0007f100	inferred-medium	0x0021fc66	vostok::physics::bullet_character_controller::setup_shape_dim
 0x0007f1a0	inferred-medium	0x0021fcf1	vostok::physics::bullet_character_controller::setup_crouch_state
 0x0007f310	inferred-medium	0x0021fd8e	vostok::physics::bullet_character_controller::initialize
 0x0007f4a0	inferred-medium	0x0021fe60	vostok::physics::bullet_character_controller::insert

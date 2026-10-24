@@ -127,12 +127,14 @@ fn stats(map: MapData, cell: f32) {
     let place = t.elapsed().as_secs_f32();
     let area = map.play_area(mapdata::AREA_MARGIN);
     let t = Instant::now();
+    let spawns: Vec<mapdata::Vec3> = map.spawns.iter().map(|s| s.position).collect();
     let (grid, built) = mapdata::WalkGrid::build_kept_with_stats(
         &walker,
         area,
         cell,
         Body::default(),
         &map.grid_seeds(),
+        &spawns,
     );
     let grid_time = t.elapsed().as_secs_f32();
     let t = Instant::now();
