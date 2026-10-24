@@ -357,6 +357,9 @@ struct Game {
     /// killed so.
     team_hits: u32,
     team_kills: u32,
+    /// Jumps pressed, and of them those a broken leg refused.
+    jumps_pressed: u32,
+    jumps_refused: u32,
     /// Shots at the bot's target whose ray met the world short of him, and
     /// those with nothing of him showing.
     walled: u32,
@@ -531,6 +534,8 @@ impl Game {
             put_in: Vec::new(),
             team_hit_shots: Vec::new(),
             team_hits: 0,
+            jumps_pressed: 0,
+            jumps_refused: 0,
             team_kills: 0,
             walled: 0,
             hidden: 0,
@@ -652,9 +657,13 @@ impl Game {
                 queue.pop_front();
                 let body = &mut self.bodies[place];
                 pressed[place] = keys & !body.keys;
-                let legs_whole = body.legs.iter().all(|&pool| pool > 0.0);
-                if pressed[place] & key::JUMP != 0 && legs_whole {
-                    body.air_until = tick + STAND_IN_AIR_MS;
+                if pressed[place] & key::JUMP != 0 {
+                    self.jumps_pressed += 1;
+                    if body.legs.iter().all(|&pool| pool > 0.0) {
+                        body.air_until = tick + STAND_IN_AIR_MS;
+                    } else {
+                        self.jumps_refused += 1;
+                    }
                 }
                 body.keys = keys;
                 body.target = target;
@@ -4609,6 +4618,10 @@ fn real_bot_cost() {
             eprintln!("  {}", hits.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
             eprintln!("  routes: {}", routes.line());
+            eprintln!(
+                "  jumps: pressed {} refused {}",
+                game.jumps_pressed, game.jumps_refused
+            );
             eprintln!("  push: {}", push.line(&bots));
             if let Some(human) = &human {
                 eprintln!("  human: {}", human.line());
