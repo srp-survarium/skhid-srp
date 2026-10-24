@@ -511,16 +511,25 @@ impl Ctx<'_> {
     }
 }
 
+/// A bot's known lying batteries and why each is no Collect candidate
+/// ([`take_blocks`]), for the notes.
+pub struct TakeBlocks {
+    now: u32,
+    /// Battery, why it is not offered (`None`: it is), the bot's ground
+    /// distance to it (m).
+    list: Vec<(usize, Option<&'static str>, f32)>,
+}
+
 /// Each battery the bot believes lies about, and why it is not offered a
 /// Collect of it (`None`: it is): [`Ctx::take_block`], else set aside or
 /// scored out. Empty while it carries one.
-pub fn take_blocks(cx: &Ctx) -> Vec<(usize, Option<&'static str>)> {
-    if !cx.view.mode.has_batteries() || cx.me.carrying.is_some() {
-        return Vec::new();
-    }
-    (0..cx.view.batteries.len())
-        .filter_map(|battery| {
-            let at = cx.battery_lying(battery)?;
+pub fn take_blocks(cx: &Ctx) -> TakeBlocks {
+    let mut list = Vec::new();
+    if cx.view.mode.has_batteries() && cx.me.carrying.is_none() {
+        for battery in 0..cx.view.batteries.len() {
+            let Some(at) = cx.battery_lying(battery) else {
+                continue;
+            };
             let target = TargetRef::Battery(battery);
             let why = cx.take_block(at).or_else(|| {
                 let aside =
@@ -529,44 +538,88 @@ pub fn take_blocks(cx: &Ctx) -> Vec<(usize, Option<&'static str>)> {
                     });
                 cx.candidate(PlayKind::Collect, target, Some(battery as u32))
                     .is_none()
-                    .then_some(if aside { "set aside" } else { "scored out" })
+                    .then(|| {
+                        if aside {
+                            "set aside"
+                        } else {
+                            scored_out(cx, target)
+                        }
+                    })
             });
-            Some((battery, why))
-        })
-        .collect()
+            list.push((battery, why, cx.me.feet.distance_xz(at)));
+        }
+    }
+    TakeBlocks { now: cx.now, list }
+}
+
+/// Which of Collect's considerations scored `target` out (its first 0), for
+/// the note: the way's length, the bot's health, or the enemies by it.
+fn scored_out(cx: &Ctx, target: TargetRef) -> &'static str {
+    let play = cx.play(PlayKind::Collect);
+    let (_, why) = crate::v026g::bots::curve::score(&play.considerations, |input| {
+        cx.input(input, PlayKind::Collect, target)
+    });
+    match why.parts.last().map(|&(input, _, _)| input) {
+        Some(Input::PathDist) => "scored out: its way",
+        Some(Input::Health) => "scored out: hurt",
+        Some(Input::EnemiesNearTarget) => "scored out: enemies by it",
+        _ => "scored out",
+    }
 }
 
 /// The notes for bot `place`'s [`take_blocks`] where they changed since
 /// the last (kept in [`TeamKnowledge::take_blocked`]): a battery that left
-/// its candidates and why, or came back. A battery no longer believed to
-/// lie about is dropped without a note (the knowledge's own note says why).
+/// its candidates and why, or came back, with the bot's distance to it and
+/// how long it was a candidate (or out) before. A battery no longer believed
+/// to lie about is dropped without a note (the knowledge's own note says
+/// why).
 pub fn note_take_blocks(
     team: &mut TeamKnowledge,
     place: Place,
-    blocks: &[(usize, Option<&'static str>)],
+    blocks: &TakeBlocks,
 ) -> Vec<String> {
+    let now = blocks.now;
     let was = |battery: usize| {
         team.take_blocked
             .iter()
-            .find(|&&(p, b, _)| p == place && b == battery)
-            .map(|&(_, _, why)| why)
+            .find(|&&(p, b, _, _)| p == place && b == battery)
+            .map(|&(_, _, why, since)| (why, since))
     };
-    let notes = blocks
-        .iter()
-        .filter_map(|&(battery, why)| match (was(battery), why) {
-            (before, Some(why)) if before != Some(why) => {
-                Some(format!("battery {battery} is no Collect candidate: {why}"))
+    let held_s = |since: u32| now.saturating_sub(since) as f32 / 1000.0;
+    let mut notes = Vec::new();
+    let mut rows = Vec::new();
+    for &(battery, why, dist) in &blocks.list {
+        let before = was(battery);
+        let since = match (before, why) {
+            (Some((before, since)), why) if before == why => since,
+            (before, Some(why)) => {
+                let for_s = match before {
+                    Some((None, since)) => format!(", a candidate for {:.1} s", held_s(since)),
+                    Some((Some(_), since)) => format!(", out for {:.1} s", held_s(since)),
+                    None => String::new(),
+                };
+                notes.push(format!(
+                    "battery {battery} is no Collect candidate: {why} ({dist:.0} m off{for_s})"
+                ));
+                // Out for another reason: still out since then.
+                match before {
+                    Some((Some(_), since)) => since,
+                    _ => now,
+                }
             }
-            (Some(_), None) => Some(format!("battery {battery} is a Collect candidate again")),
-            _ => None,
-        })
-        .collect();
-    team.take_blocked.retain(|&(p, _, _)| p != place);
-    team.take_blocked.extend(
-        blocks
-            .iter()
-            .filter_map(|&(battery, why)| Some((place, battery, why?))),
-    );
+            (Some((Some(_), since)), None) => {
+                notes.push(format!(
+                    "battery {battery} is a Collect candidate again ({dist:.0} m off, out for {:.1} s)",
+                    held_s(since)
+                ));
+                now
+            }
+            (_, None) => now,
+        };
+        rows.push((place, battery, why, since));
+    }
+    team.take_blocked.retain(|&(p, _, _, _)| p != place);
+    team.take_blocked.extend(rows);
     notes
 }
 
@@ -1565,12 +1618,18 @@ mod tests {
         // Why it left the candidates is noted once.
         assert_eq!(
             noted(&mut s),
-            ["battery 0 is no Collect candidate: no way to its stand lately"]
+            [concat!(
+                "battery 0 is no Collect candidate: no way to its stand lately ",
+                "(41 m off, a candidate for 0.0 s)"
+            )]
         );
         assert!(noted(&mut s).is_empty());
         // Forgotten: fetched again.
         s.view.clock += 5_000;
-        assert_eq!(noted(&mut s), ["battery 0 is a Collect candidate again"]);
+        assert_eq!(
+            noted(&mut s),
+            ["battery 0 is a Collect candidate again (41 m off, out for 5.0 s)"]
+        );
         assert_eq!(collects(&s), vec![TargetRef::Battery(0)]);
     }
 
@@ -2040,7 +2099,9 @@ mod tests {
         assert!(!deep.cx(0).escape_known(at, true));
         assert_eq!(deep.cx(0).take_block(at), Some(POCKET_BLOCK));
         assert!(collects(&deep).is_empty());
-        assert_eq!(take_blocks(&deep.cx(0)), vec![(0, Some(POCKET_BLOCK))]);
+        let blocks = take_blocks(&deep.cx(0));
+        let whys: Vec<_> = blocks.list.iter().map(|&(b, why, _)| (b, why)).collect();
+        assert_eq!(whys, vec![(0, Some(POCKET_BLOCK))]);
         let rim = scene(0.9);
         let at = Vec3::new(32.0, -0.9, 20.0);
         let stand = rim.tactics.stand_to_take(at).expect("a stand");
