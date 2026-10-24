@@ -52,8 +52,9 @@ impl World {
     fn with_settings(settings: Settings) -> Self {
         let store: &'static SessionStore = Box::leak(Box::new(SessionStore::new()));
         let accounts: &'static GameAccounts = Box::leak(Box::new(GameAccounts::new()));
-        // The tests are written against the stock first kit (the TT-33):
-        // a new account wears no starter kit unless a test turns it on.
+        // The tests are written against the stock first kit (the TT-33) and
+        // no premium: a new account has neither starter kit nor starter
+        // premium unless a test turns them on.
         accounts.set_starter_kit(false);
         let results: &'static Results = Box::leak(Box::new(Results::new()));
         let host: &'static TestHost = Box::leak(Box::new(TestHost::default()));
@@ -3302,7 +3303,10 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
     world.accounts.set_starter_kit(true);
     let alice = world.connect("Alice");
     // The start is what the client is first told: no window for it.
-    assert_eq!(told_money(&world.take(alice)), Some((60_000, 500)));
+    let decoded = world.take(alice);
+    assert_eq!(told_money(&decoded), Some((15_000, 150)));
+    // A month of premium: 720 hours left.
+    assert_eq!(told_premium(&decoded), Some(Some(720)));
     // Its inventory, the respirator's and the gloves' modifications too.
     let held: Vec<(u16, Vec<u32>)> = world
         .client(alice)
@@ -3324,7 +3328,7 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
     let account = world.account(alice);
     assert_eq!(
         (account.generic_money, account.premium_money),
-        (60_000, 500)
+        (15_000, 150)
     );
     assert_eq!(account.exp_total, 250);
     // The Scavengers' quests, never neutral, at their level 5.

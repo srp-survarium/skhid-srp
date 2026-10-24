@@ -36,7 +36,7 @@
 //! `gameplay/awards/unique_awards.options` ([`survarium::v026g::awards`]):
 //! `tutorial_completed` 1000 silver and 250 experience, the two notes
 //! 25 gold each, the match's tutorial 50 gold. **A new account starts**
-//! with 60 000 silver and 500 gold ([`SIGNUP_SILVER`], [`SIGNUP_GOLD`]),
+//! with 15 000 silver, 150 gold, a month of premium ([`SIGNUP_SILVER`], [`SIGNUP_GOLD`]),
 //! the steps' experience, 1000 rounds of every ammo
 //! ([`starter_ammo`]), the Scavengers at their highest reputation level
 //! and a starter kit worn in each of its three kits ([`STARTER_GEAR`],
@@ -84,10 +84,15 @@ pub const AWARDS: [&str; 4] = [
 /// The faction a new account takes quests from: the Scavengers.
 pub const SIGNUP_FACTION: u8 = survarium::prices::faction::SCAVENGERS;
 
-/// What a new account's balance is: silver (10 000, and 50 000 more since
-/// 2026-10-24) and gold.
-pub const SIGNUP_SILVER: u32 = 60_000;
-pub const SIGNUP_GOLD: u32 = 500;
+/// What a new account's balance is: 15 000 silver and 150 gold (the owner's of
+/// 2026-10-24; before, 10 000 and 500).
+pub const SIGNUP_SILVER: u32 = 15_000;
+pub const SIGNUP_GOLD: u32 = 150;
+
+/// The premium a new account starts with, from its making: the shop's
+/// month (`shop_offers::PREMIUM_OFFERS` id 3, "a month (30 days)"), added
+/// as every premium is (`premium::add_premium`).
+pub const SIGNUP_PREMIUM_DAYS: u32 = 30;
 
 /// The rounds a new account owns of every ammo ([`starter_ammo`]): the
 /// client's own most of a free stack (`rules::MAX_FREE_UNITS`).
@@ -235,14 +240,15 @@ pub fn experience() -> u32 {
 /// [`SIGNUP_ROUNDS`] of every ammo, the Scavengers at
 /// [`SIGNUP_REPUTATION_LEVEL`] and their quests (the tutorial ended in the
 /// faction's choice; the owner's of 2026-10-19: Scavengers, never neutral),
-/// and the starter kit worn in its three kits ([`wear_starter_kit`]).
-pub fn signup_grant(account: &mut Account) {
-    signup_grant_with(account, true);
+/// and the starter kit worn in its three kits ([`wear_starter_kit`]), and
+/// [`SIGNUP_PREMIUM_DAYS`] of premium from `now` (Unix seconds).
+pub fn signup_grant(account: &mut Account, now: u64) {
+    signup_grant_with(account, true, now);
 }
 
-/// [`signup_grant`], the kit worn only with `wear_kit` (off only in the
-/// lobby's tests, `GameAccounts::set_starter_kit`).
-pub fn signup_grant_with(account: &mut Account, wear_kit: bool) {
+/// [`signup_grant`], the kits worn and the premium given only with `starter_kit`
+/// (off only in the lobby's tests, `GameAccounts::set_starter_kit`).
+pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
     let dictionary = Dictionary::shared();
     // The reputation first: the quests are given by its level.
     let points = dictionary
@@ -260,6 +266,9 @@ pub fn signup_grant_with(account: &mut Account, wear_kit: bool) {
         .expect("every faction is open to a new account");
     account.generic_money = account.generic_money.max(SIGNUP_SILVER);
     account.premium_money = account.premium_money.max(SIGNUP_GOLD);
+    if starter_kit {
+        super::premium::add_premium(account, u64::from(SIGNUP_PREMIUM_DAYS) * 86_400, now);
+    }
     // Short of a level: nothing more to pay.
     account.add_experience(experience());
     for dict_id in starter_ammo(dictionary) {
@@ -272,7 +281,7 @@ pub fn signup_grant_with(account: &mut Account, wear_kit: bool) {
             account.add_to_stack(dict_id, SIGNUP_ROUNDS - owned);
         }
     }
-    if wear_kit {
+    if starter_kit {
         wear_starter_kit(account, dictionary);
     }
     account.extras.tutorial_flags = ALL_DONE;
@@ -400,12 +409,26 @@ mod tests {
         use survarium::v026g::item_params::item_params;
 
         assert_eq!(experience(), 250);
+        const NOW: u64 = 1_800_000_000;
         let mut account = Account::new("Alice");
-        signup_grant(&mut account);
+        signup_grant(&mut account, NOW);
         assert_eq!(
             (account.generic_money, account.premium_money),
-            (60_000, 500)
+            (15_000, 150)
         );
+        // A month of premium, the shop's: 30 days from the making, 720
+        // hours as the lobby is told.
+        assert_eq!(
+            survarium::v026g::shop_offers::PREMIUM_OFFERS
+                .iter()
+                .find(|&&(id, _)| id == 3)
+                .map(|&(_, days)| days),
+            Some(SIGNUP_PREMIUM_DAYS)
+        );
+        assert_eq!(account.premium_until, NOW + 30 * 86_400);
+        assert!(account.is_premium(NOW) && account.is_premium(NOW + 30 * 86_400 - 1));
+        assert!(!account.is_premium(NOW + 30 * 86_400));
+        assert_eq!(account.premium_hours(NOW), Some(720));
         assert_eq!(account.exp_total, 250);
         assert_eq!(account.level(), 0);
         assert_eq!(account.quest_faction, SIGNUP_FACTION);

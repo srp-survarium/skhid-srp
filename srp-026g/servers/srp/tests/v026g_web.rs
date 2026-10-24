@@ -293,8 +293,9 @@ fn the_page_changes_an_account_and_its_open_game_is_told() {
             && game.has(|message| {
                 matches!(
                     message,
+                    // A new account's month (720 hours) and the 24.
                     Decoded::Services {
-                        premium_hours: Some(24)
+                        premium_hours: Some(744)
                     }
                 )
             })

@@ -10,7 +10,10 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
 - **Steps sent anyway** (`4B 01`, `4B 02`, `46 0A`): not answered, nothing paid.
 - **A new account starts with** (its first 0.26g sign-in, `GameAccounts::sign_up`, once,
   before its client hears of it: no window, no notice; `tutorial::signup_grant`):
-  - 60 000 silver (10 000, +50 000 since 2026-10-24) and 500 gold;
+  - 15 000 silver and 150 gold (the owner's of 2026-10-24; before, 10 000 and 500);
+  - a month of premium: 30 days (the shop's month, `PREMIUM_OFFERS` id 3) from the account's
+    making at its first sign-in, added as all premium is (`premium::add_premium`); the lobby
+    is told the hours left (720);
   - the steps' 250 experience (the game's `unique_awards.options`);
   - exactly 1000 rounds of every ammo: each stack of the dictionary under
     `gameplay/items/weapons/ammo/`, the ported weapons' too (34 on the released data);

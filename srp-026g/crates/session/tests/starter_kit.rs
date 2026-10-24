@@ -22,10 +22,10 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     assert_eq!(known::check_code(), Ok(()));
 
     let mut account = Account::new("Alice");
-    tutorial::signup_grant(&mut account);
+    tutorial::signup_grant(&mut account, 1_800_000_000);
     assert_eq!(
         (account.generic_money, account.premium_money),
-        (60_000, 500)
+        (15_000, 150)
     );
     assert_eq!(account.reputation_level(1), 5);
 
