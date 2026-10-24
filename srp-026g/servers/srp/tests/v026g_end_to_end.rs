@@ -1739,8 +1739,8 @@ fn a_player_against_the_servers_bots_plays_a_match_to_the_results() {
         reserved_rows(games[0], PVB_STATUS_START).is_some()
     });
     let rows = reserved_rows(&solo, PVB_STATUS_START).unwrap();
-    // The starter kits' highest level (`tutorial`; 4, the third's MP-153,
-    // on the test data, which has no SOK-94): within the bots' 5.
+    // The starter kits' highest level (`tutorial`; 4, the third's MP-153):
+    // within the bots' 5.
     let gear = {
         let account = stack.accounts.get(account_id(&stack, "E2ePvb")).unwrap();
         let account = account.locked();

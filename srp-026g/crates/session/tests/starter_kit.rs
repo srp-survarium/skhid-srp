@@ -1,5 +1,5 @@
 //! A new account's starter kit on the released game data, by its dict ids
-//! (the test data predates the SOK-94 and the knit cap; the unit test
+//! (the test data predates the knit cap; the unit test
 //! `tutorial::tests::a_new_account_starts_with_the_starter_kit` covers the
 //! rest on it). Its own binary: the data must be this process's before any
 //! table is used.
@@ -66,12 +66,16 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
         assert_eq!(stacks, [50], "{dict_id}");
     }
 
-    // Every kit, `(slot, dict id, count, modifications)`: the same gear,
-    // the SOK-94, and its own second weapon.
+    // No SOK-94 (the owner's of 2026-10-24).
+    assert!(account.inventory.iter().all(|item| item.dict_id != 2215));
+
+    // Every kit, `(slot, dict id, count, modifications)`: the same gear and
+    // its own one weapon in weapon slot 1, weapon slot 2 empty.
     type Worn = (usize, u16, u32, Vec<(u32, bool)>);
-    let second = [(88, 70, 100), (12, 51, 20), (110, 22, 30)];
+    // `(weapon, ammo, rounds, the kit's level)`.
+    let weapons = [(88, 70, 100, 3), (12, 51, 20, 3), (110, 22, 30, 4)];
     let mut item_ids: Vec<Vec<u32>> = Vec::new();
-    for (kit, (weapon, ammo, rounds)) in account.kits.iter().zip(second) {
+    for (kit, (weapon, ammo, rounds, level)) in account.kits.iter().zip(weapons) {
         let worn: Vec<Worn> = kit
             .slots
             .iter()
@@ -92,10 +96,8 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
                 (4, 46, 1, vec![]),
                 (5, 42, 1, vec![(1133, false)]),
                 (6, 38, 1, vec![]),
-                (7, 2215, 1, vec![]),
-                (8, 81, 60, vec![]),
-                (10, weapon, 1, vec![]),
-                (11, ammo, rounds, vec![]),
+                (7, weapon, 1, vec![]),
+                (8, ammo, rounds, vec![]),
                 (13, 67, 2, vec![]),
                 (14, 82, 2, vec![]),
             ],
@@ -108,17 +110,22 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
                 assert_eq!(item.condition_or_stack, FULL_CONDITION);
             }
         }
-        assert!(dictionary.compatible(2215, 81) && dictionary.compatible(weapon, ammo));
+        assert!(dictionary.compatible(weapon, ammo));
         assert_eq!(rules::check_play(&account, kit.id, 0), Ok(()));
         let weight = account.kit_weight(kit);
         assert!(weight <= 30.0, "kit {}: {weight}", kit.id);
-        // The kit's level for the rooms, the bots and the matchmaking: 6,
-        // the 7.62x39's `match_making_level` (the lowest of the SOK-94's
-        // ammo; the rifle is 4, the armour 2 and 3, the second weapons and
-        // their ammo 1 to 4).
-        assert_eq!(session::v026g::matchmaking::kit_level(&account, kit), 6);
-        item_ids.push(kit.slots[..8].iter().flatten().map(|s| s.item_id).collect());
+        // The kit's level for the rooms, the bots (at most 5) and the
+        // matchmaking: the armour, the oxygen tank and the drugs are 2 and
+        // 3, the Kiparis and its ammo 2, the TOZ-122 and its ammo 3, the
+        // MP-153 4 and its ammo 1.
+        assert_eq!(
+            session::v026g::matchmaking::kit_level(&account, kit),
+            level,
+            "kit {}",
+            kit.id
+        );
+        item_ids.push(kit.slots[..7].iter().flatten().map(|s| s.item_id).collect());
     }
-    // The gear and the SOK-94 are one item each, worn by all three kits.
+    // The gear is one item each, worn by all three kits.
     assert!(item_ids.iter().all(|ids| *ids == item_ids[0]));
 }

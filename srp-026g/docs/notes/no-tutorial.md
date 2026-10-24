@@ -21,10 +21,10 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
     - Novice's knit cap (1821), Amber respirator (43), Survivor's jacket (325, not the
       premium 345), Oxygen tank (9, back slot), Chemical protection pants (46), gloves (42)
       and boots (38);
-    - weapon slot 1: SOK-94 (2215) with 60 rounds of 7.62x39 (81);
-    - weapon slot 2: kit 1 OTs-02 Kiparis (88, not the premium 332) with 100 rounds of 9x18
-      (70); kit 2 TOZ-122 (12; the game has no TOZ-11) with 20 rounds of 7.62x51 (51); kit 3
-      MP-153 Baikal (110) with 30 rounds of 12x70 smallshot (22);
+    - one weapon, in weapon slot 1 (weapon slot 2 empty; no SOK-94): kit 1 OTs-02 Kiparis
+      (88, not the premium 332) with 100 rounds of 9x18 (70); kit 2 TOZ-122 (12; the game has
+      no TOZ-11) with 20 rounds of 7.62x51 (51); kit 3 MP-153 Baikal (110) with 30 rounds of
+      12x70 smallshot (22);
     - rounds: each weapon's category's `optimal_count` in whole clips;
     - pockets: 2 medkits (67) and 2 antitoxins (82), from stacks of 50 each owned (a player's
       one pocket, +1 pocket from the jacket's 1030, +1 unit each from the pants' 1170);
@@ -34,11 +34,11 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
     "Isolation: +20"), the gloves 1133 (shown "Collection time: -20%"; beside their own
     default 1130, -5%);
   - autobuy on (`premium.md` §3).
-- **Each kit's level is 6** (the 7.62x39's `match_making_level`; the SOK-94 is 4, the
-  armour 2 and 3, the second weapons 2 to 4): over the bots' max gear 5, so playing the bots
-  takes a kit changed by the player.
+- **The kits' levels are 3, 3 and 4** (`match_making_level`: the armour, the oxygen tank and
+  the drugs 2 and 3, the Kiparis 2, the TOZ-122 3, the MP-153 4): each can play the bots
+  (max gear 5).
 - **srp refuses to start** on game data without a starter item or modification
-  (`known::check_code`). The test data lacks the knit cap and the SOK-94; the whole kit on
+  (`known::check_code`). The test data lacks the knit cap; the whole kit on
   released data: `SRP_TEST_GAME_DATA=<server-game-data.db> cargo test -p session --test
   starter_kit -- --ignored`.
 - **New player** (the first match's drop table): no more experience than an account starts

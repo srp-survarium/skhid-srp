@@ -253,17 +253,14 @@ pub fn check_code() -> Result<(), GameDataError> {
 mod tests {
     use super::*;
 
-    /// All but the starter kit's two items of patches the test data
-    /// predates (the knit cap, the SOK-94): srp refuses such data. The
-    /// released data has them (`tests/starter_kit.rs`).
+    /// All but the starter kit's knit cap, of a patch the test data
+    /// predates: srp refuses such data. The released data has it
+    /// (`tests/starter_kit.rs`).
     #[test]
     fn what_the_lobby_code_names_is_in_the_data() {
         let error = check_code().unwrap_err().to_string();
         assert!(
-            error.contains(
-                "lacks what srp's code names: tutorial::starter kit novice_026_helmet, \
-                 tutorial::starter kit soc_vepr."
-            ),
+            error.contains("lacks what srp's code names: tutorial::starter kit novice_026_helmet."),
             "{error}"
         );
     }
@@ -281,8 +278,7 @@ mod tests {
             [
                 "rewards::DROP_CARD drop_card",
                 "premium::RENAME_VOUCHER rename_account_voucher",
-                "tutorial::starter kit novice_026_helmet",
-                "tutorial::starter kit soc_vepr"
+                "tutorial::starter kit novice_026_helmet"
             ]
         );
     }
