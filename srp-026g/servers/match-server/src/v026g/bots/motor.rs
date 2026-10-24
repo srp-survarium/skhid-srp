@@ -276,7 +276,15 @@ const TRY_KEPT_S: f32 = 10.0;
 const UNDER_JUMP_M: f32 = 1.5;
 /// A route's end higher than the feet by more than this is not arrived at
 /// (the end up a ledge: it is jumped to), metres.
-const ARRIVE_BELOW_M: f32 = 0.5;
+pub(super) const ARRIVE_BELOW_M: f32 = 0.5;
+/// An exact spot's route end ([`Motor::exact_end`]) lower than the feet by
+/// more than this is not arrived at (the bot is over it: on an overhang, a
+/// box top, the top of a drop; it walks on by the route), metres. GUESS:
+/// over a step or stair's rise the grid walks, under a storey. Collect's
+/// Fetch→Take uses the same rule. Cologne CG-17: a bot on the overhang over
+/// battery 2's stand was "there". Every route's end at first: the batt
+/// bench's stuck rose +1.5 to +2.7 (about 2 SE) for it.
+pub(super) const ARRIVE_ABOVE_M: f32 = 0.6;
 /// A route whose last leg is a jump is arrived at only on its landing:
 /// the end at most this higher than the feet, metres. GUESS: above a
 /// floor's unevenness under the feet, well below the lowest jump (a
@@ -325,6 +333,10 @@ pub struct Motor {
     /// reflex's, at a seen target: `CombatTuning::turn_feed`): a turn onto
     /// the aim follows it ([`Motor::aim_toward`]).
     pub track: Option<(f32, f32)>,
+    /// This tick's route ends at an exact spot the play asked for (a goal
+    /// within 0: Collect's walk to its stand): it is not arrived at from over
+    /// it ([`ARRIVE_ABOVE_M`]). Cleared each tick before the walk sets it.
+    pub exact_end: bool,
     /// The ticks decided so far (each decision is a tick).
     clock: u32,
     /// The hop's memory ([`Motor::hop_key`]): the feet at the last walking
@@ -407,6 +419,7 @@ impl Motor {
             look: None,
             turn_time: None,
             track: None,
+            exact_end: false,
             clock: 0,
             trail: VecDeque::new(),
             way: [0.0, 0.0],
@@ -605,7 +618,8 @@ impl Motor {
     /// Whether the route is walked to its end: within [`Feel::arrive_m`] of
     /// it, and not under it ([`ARRIVE_BELOW_M`]: an end up a ledge is jumped
     /// to; [`ARRIVE_ON_LANDING_M`] when the last leg is a jump: on its
-    /// landing).
+    /// landing) nor, for an exact spot's end ([`Motor::exact_end`]), over it
+    /// ([`ARRIVE_ABOVE_M`]).
     fn arrived(&self, route: &Route, s: f32, feet: Vec3) -> bool {
         let end = route.end();
         let below = if route.points().last().is_some_and(|p| p.jump) {
@@ -615,6 +629,7 @@ impl Motor {
         };
         (route.length() - s <= self.feel.arrive_m || feet.distance_xz(end) <= self.feel.arrive_m)
             && end.y - feet.y <= below
+            && (!self.exact_end || feet.y - end.y <= ARRIVE_ABOVE_M)
     }
 
     /// The decision of one tick that walks the route while the view looks
