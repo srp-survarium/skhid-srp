@@ -51,7 +51,7 @@ pub mod mode {
     pub const ALL: [u8; 4] = [BATTERIES, TIMED_BATTERIES, TEAM_DEATHMATCH, RESEARCH];
     /// The modes whose maps have the teams' battery containers.
     pub const WITH_BATTERIES: [u8; 2] = [BATTERIES, TIMED_BATTERIES];
-    /// Blackout ("Batteries: Blackout", `docs/notes/blackout.md`): a mode of
+    /// Blackout ("Protective device: Blackout", `docs/notes/blackout.md`): a mode of
     /// the lobby's only. A match of it is one of [`super::BLACKOUT_RULES`]
     /// with the static info's Blackout flag; no config says 6.
     pub const BLACKOUT: u8 = 6;

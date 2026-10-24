@@ -6,7 +6,7 @@ changes of 2026-10-25 are in. Nothing here ships until the owner says so.
 
 ## The mode
 
-- **Its own mode in the lobby:** "Batteries: Blackout" (Захисний пристрій: Блекаут, Защитное
+- **Its own mode in the lobby:** "Protective device: Blackout" (Захисний пристрій: Блекаут, Защитное
   устройство: Блэкаут, Schutzeinrichtung: Blackout, Urządzenie ochronne: Blackout): a tick of
   the rooms' create window, a card of the vote, a row of the room and match lists.
 - **Offered** while the server runs with `SRP_BLACKOUT=on` (off by default): the rooms' pool then

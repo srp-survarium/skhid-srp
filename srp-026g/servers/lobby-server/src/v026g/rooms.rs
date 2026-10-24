@@ -107,7 +107,7 @@ pub struct Config {
     /// `SRP_ROOMS_EXTRA_MAPS`: playable ids a pool may hold besides the
     /// match pool.
     pub extra_maps: Vec<u8>,
-    /// `SRP_BLACKOUT=on`: the rooms offer Blackout ("Batteries: Blackout",
+    /// `SRP_BLACKOUT=on`: the rooms offer Blackout ("Protective device: Blackout",
     /// `docs/notes/blackout.md`): each plain battery map of the pool once
     /// more, as mode 6 by its lobby id (`maps::blackout_pairs`).
     pub blackout: bool,

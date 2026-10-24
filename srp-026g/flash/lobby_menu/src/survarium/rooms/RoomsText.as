@@ -219,7 +219,7 @@ package survarium.rooms
                 "Schutzeinrichtung: Ladestationen", "Urządzenie ochronne: ładowarki"],
             "4": ["Team Deathmatch", "Командний бій", "Командный бой", "Kommandokampf", "Walka drużynowa"],
             "5": ["Research", "Дослідження", "Исследование", "Forschung", "Badania"],
-            "6": ["Batteries: Blackout", "Захисний пристрій: Блекаут", "Защитное устройство: Блэкаут",
+            "6": ["Protective device: Blackout", "Захисний пристрій: Блекаут", "Защитное устройство: Блэкаут",
                 "Schutzeinrichtung: Blackout", "Urządzenie ochronne: Blackout"]
         };
         // maps_dict's map_weather_id: 1 day, 2 rain, 3 evening, 4 night, 5 prerain.
