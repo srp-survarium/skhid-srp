@@ -9,7 +9,9 @@
 //!
 //! `SRP_GRID_TABLE_OUT=<file>` also writes the table there (tab-separated);
 //! `SRP_GRID_TABLE_MAPS=level_01_day_2,...` picks the projects (default:
-//! every level's `day_2` and `day_4`).
+//! every level's `day_2` and `day_4`); `SRP_GRID_POCKETS_OUT=<file>` writes
+//! every pocket (its lowest floor, floors, surest way out), to compare two
+//! builds pocket by pocket.
 //!
 //! The pockets are found here from the grid's links alone, so the table
 //! reads the same on a grid of any build; the grid's own marks
@@ -43,6 +45,8 @@ struct Row {
     jumps_by_rise: [usize; 3],
     /// Jump links landing 3 or 4 cells along their direction.
     far_jumps: usize,
+    /// Each pocket: its lowest floor, its floors, its surest way out.
+    pocket_list: Vec<(Vec3, usize, &'static str)>,
 }
 
 /// The largest strongly connected set of the `reached` floors, by
@@ -218,12 +222,14 @@ fn table_row(map: &MapData, grid: &WalkGrid) -> Row {
         row.pocket_floors += members.len();
         let lowest = members.iter().copied().min().unwrap();
         let surest = grid.pocket_exits(lowest).iter().map(|e| e.jump).min();
-        row.pockets_by_exit[match surest {
-            Some(ExitJump::Standing) => 0,
-            Some(ExitJump::Sprint) => 1,
-            Some(ExitJump::Steep) => 2,
-            None => 3,
-        }] += 1;
+        let (class, name) = match surest {
+            Some(ExitJump::Standing) => (0, "standing"),
+            Some(ExitJump::Sprint) => (1, "sprint"),
+            Some(ExitJump::Steep) => (2, "steep"),
+            None => (3, "none"),
+        };
+        row.pockets_by_exit[class] += 1;
+        row.pocket_list.push((grid.position(lowest), members.len(), name));
     }
     // The objectives: batteries, containers, stations.
     let objectives: Vec<Vec3> = map
@@ -298,6 +304,7 @@ fn the_grid_table() {
         ]
         .join("\t"),
     ];
+    let mut pocket_lines = vec!["project\tx\ty\tz\tfloors\texit".to_owned()];
     for project in &projects {
         let path = dir.join(format!("{project}.mapdata"));
         let Ok(map) = MapData::read(&path) else {
@@ -308,6 +315,12 @@ fn the_grid_table() {
             .grid
             .clone();
         let row = table_row(&map, &grid);
+        for (at, floors, exit) in &row.pocket_list {
+            pocket_lines.push(format!(
+                "{project}\t{:.2}\t{:.2}\t{:.2}\t{floors}\t{exit}",
+                at.x, at.y, at.z
+            ));
+        }
         let numbers = [
             row.floors,
             row.reached,
@@ -336,5 +349,8 @@ fn the_grid_table() {
     }
     if let Some(out) = std::env::var_os("SRP_GRID_TABLE_OUT") {
         std::fs::write(out, lines.join("\n") + "\n").unwrap();
+    }
+    if let Some(out) = std::env::var_os("SRP_GRID_POCKETS_OUT") {
+        std::fs::write(out, pocket_lines.join("\n") + "\n").unwrap();
     }
 }
