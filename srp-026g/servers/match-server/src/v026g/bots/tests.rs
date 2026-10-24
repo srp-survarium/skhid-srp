@@ -6047,6 +6047,13 @@ struct RouteTally {
     pocket_worlds: u32,
     pocket_deaths: u32,
     pocket_escapes: [u64; 7],
+    /// [CG-17] Each body's walk at the last tick to an exact spot
+    /// (`Motor::exact_end`), and when it last landed a planned drop on one;
+    /// planned drops on an exact walk (this tick's or the last), and of
+    /// them those whose bot picked a battery up within 10 s.
+    exact_was: Vec<bool>,
+    exact_drop: Vec<Option<u32>>,
+    falls_exact: (u32, u32),
 }
 
 impl RouteTally {
@@ -6065,6 +6072,8 @@ impl RouteTally {
             escapes: super::tactics::escapes::counts(),
             pocket_in: vec![false; bodies],
             pocket_escapes: super::escape::counts::counts(),
+            exact_was: vec![false; bodies],
+            exact_drop: vec![None; bodies],
             ..Default::default()
         }
     }
@@ -6092,13 +6101,27 @@ impl RouteTally {
                     });
                 if planned {
                     self.falls.1 += 1;
+                    let exact = self.exact_was[place]
+                        || bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end);
+                    if exact {
+                        self.falls_exact.0 += 1;
+                        self.exact_drop[place] = Some(time);
+                    }
                 } else {
                     self.falls.0 += 1;
                     self.repeats.1 += u32::from(self.mark(place, from));
                 }
             }
+            self.exact_was[place] = bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end);
             match (self.carry_from[place], body.carrying) {
-                (None, Some(battery)) => self.carry_from[place] = Some((time, battery)),
+                (None, Some(battery)) => {
+                    if let Some(at) = self.exact_drop[place].take()
+                        && time <= at + 10_000
+                    {
+                        self.falls_exact.1 += 1;
+                    }
+                    self.carry_from[place] = Some((time, battery));
+                }
                 (Some((from, battery)), None) => {
                     self.carry_from[place] = None;
                     if matches!(game.batteries.get(battery), Some(Lying::Home(_))) {
@@ -6254,7 +6277,7 @@ impl RouteTally {
             .collect();
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
-            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {}",
+            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {} falls_exact {} falls_exact_taken {}",
             self.worlds,
             self.pushes.0,
             self.pushes.1,
@@ -6291,6 +6314,8 @@ impl RouteTally {
             pocketed[4],
             pocketed[5],
             pocketed[6],
+            self.falls_exact.0,
+            self.falls_exact.1,
         )
     }
 }
@@ -7459,5 +7484,89 @@ mod pocket_runs {
                 );
             }
         }
+    }
+}
+
+/// The arrival at a route's end in height (`motor::arrived`, Cologne
+/// CG-17): within reach across, a body over its end by more than
+/// `ARRIVE_ABOVE_M` (an overhang, the top of a drop) walks on; one on a
+/// box top its route ends on has arrived; one at the box's foot has not.
+mod arrival_height {
+    use super::*;
+    use crate::v026g::bots::kin::yaw_of;
+    use crate::v026g::bots::motor::{Feel, Motor, Pose, Walked};
+    use crate::v026g::bots::path::{Route, Waypoint};
+
+    fn p(x: f32, y: f32) -> Waypoint {
+        Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump: false,
+            low: false,
+        }
+    }
+
+    fn walked_on(motor: &mut Motor, route: &mut Route, feet: Vec3, exact: bool) -> Walked {
+        let pose = Pose {
+            feet,
+            yaw: yaw_of([1.0, 0.0]),
+            ..Default::default()
+        };
+        motor.exact_end = exact;
+        motor.walk(route, &pose, 5.0, |_| true).1
+    }
+
+    fn walked(route: &mut Route, feet: Vec3, exact: bool) -> Walked {
+        let mut rng = Rng::new(17);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        walked_on(&mut motor, route, feet, exact)
+    }
+
+    #[test]
+    fn a_body_over_an_exact_spots_end_has_not_arrived() {
+        // An overhang 1.5 m over the end, right above it: a walk to an exact
+        // spot (Collect's to its stand) walks on.
+        let mut route = Route::new(vec![p(0.0, 0.0), p(1.0, 0.0)]);
+        assert_ne!(walked(&mut route, Vec3::new(1.0, 1.5, 0.0), true), Walked::Arrived);
+        // A stair's rise over it still counts.
+        let mut route = Route::new(vec![p(0.0, 0.0), p(1.0, 0.0)]);
+        assert_eq!(walked(&mut route, Vec3::new(1.0, 0.3, 0.0), true), Walked::Arrived);
+    }
+
+    #[test]
+    fn a_body_over_any_other_routes_end_has_arrived_as_before() {
+        let mut route = Route::new(vec![p(0.0, 0.0), p(1.0, 0.0)]);
+        assert_eq!(walked(&mut route, Vec3::new(1.0, 1.5, 0.0), false), Walked::Arrived);
+    }
+
+    #[test]
+    fn an_exact_walk_then_another_route_over_its_end_is_arrived() {
+        // The tick an exact walk is over its end it walks on; the next tick
+        // (an escape's or a zone's route, the flag cleared) it is there.
+        let mut rng = Rng::new(17);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let over = Vec3::new(1.0, 1.5, 0.0);
+        let mut route = Route::new(vec![p(0.0, 0.0), p(1.0, 0.0)]);
+        assert_ne!(walked_on(&mut motor, &mut route, over, true), Walked::Arrived);
+        let mut route = Route::new(vec![p(0.0, 0.0), p(1.0, 0.0)]);
+        assert_eq!(walked_on(&mut motor, &mut route, over, false), Walked::Arrived);
+    }
+
+    #[test]
+    fn an_exact_route_past_a_drop_is_arrived_at_only_once_dropped() {
+        // Along a ledge 2 m up, then down past its edge: at the top of the
+        // drop, 0.3 m across from the end, it walks on; once down, it is there.
+        let mut route = Route::new(vec![p(0.0, 2.0), p(0.7, 2.0), p(1.0, 0.0)]);
+        assert_ne!(walked(&mut route, Vec3::new(0.7, 2.0, 0.0), true), Walked::Arrived);
+        let mut route = Route::new(vec![p(0.0, 2.0), p(0.7, 2.0), p(1.0, 0.0)]);
+        assert_eq!(walked(&mut route, Vec3::new(1.0, 0.0, 0.0), true), Walked::Arrived);
+    }
+
+    #[test]
+    fn a_box_top_reached_is_arrived_and_its_foot_is_not() {
+        let mut route = Route::new(vec![p(0.0, 0.0), p(1.0, 1.0)]);
+        assert_eq!(walked(&mut route, Vec3::new(1.0, 1.0, 0.0), true), Walked::Arrived);
+        let mut route = Route::new(vec![p(0.0, 0.0), p(1.0, 1.0)]);
+        assert_ne!(walked(&mut route, Vec3::new(1.0, 0.0, 0.0), true), Walked::Arrived);
     }
 }

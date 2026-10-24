@@ -289,3 +289,114 @@ a 0.9 m standing rim (pit A's) still is.
 - Bot ms/s, summed over a seed's 12 runs, after minus base: -0.85 (SE
   0.97), -0.94 (0.93), +0.52 (0.94), +0.66 (0.65). No cost.
 - Delivered, flips, quick ends, pocket bot-s and pocket deaths do not move.
+
+## Bots: a take's stand is reached at its floor's height, not from over it (Cologne CG-17)
+
+### Why
+
+In the Cologne match a bot stood on the overhang over battery 2's stand at
+spot B and counted as there. Every "arrived" test was flat (xz): the steer's
+end of a walk in `drive_tick`, Collect's Fetch→Take, and the motor's end of
+a route, which only refused an end above the feet (a ledge to jump up to).
+So a bot over its goal stopped, and the take went nowhere.
+
+### What changed
+
+- **An exact spot's route end** (`motor::arrived`, `Motor::exact_end`): a
+  walk to a spot the play asks for exactly (a goal within 0: today Collect's
+  walk to its stand) is not arrived at with the feet over the end by more
+  than `motor::ARRIVE_ABOVE_M` (0.6 m, GUESS: over a step's or a stair's
+  rise, under a storey). `drive_tick` clears the flag each tick and sets it
+  only when the route walked is to the play's own exact goal, so an
+  escape's, a zone's or a reflex's route never has it. Every other route
+  ends as before (`ARRIVE_BELOW_M`, #396's landing rule).
+- **Collect's Fetch→Take** (`over_goal`): a bot within reach across of its
+  take stand but over the stand's floor (from `path::goal_floor`) by more
+  than `ARRIVE_ABOVE_M` (on an overhang or a box top) does not start the
+  take: it asks for the stand itself (`within(0.0)`, as Take already did
+  from under its stand). A goal within reach across is no goal in
+  `drive_tick`, so the route's end decides. From under the stand the take
+  starts as before: Take goes up by the route itself once a stand there
+  failed (`BELOW_STAND_M`).
+- **A side effect, by design:** an exact spot's route that ends past a drop
+  is arrived at only once the bot has dropped, not at the drop's top.
+- **The probe** (`pocket_stands_on_the_real_maps`) prints the spawners with
+  no crouched stand: of about 500 on levels 1-8, days 2 and 3, five. Grid
+  algo 5.
+
+### What was tried and left out
+
+- **The motor's over-the-end rule on every route.** Against the same build
+  with that rule off (16 seeds), it added batt stuck +1.5 (2.1 SE, no tier)
+  and +2.7 (1.9 SE, 13-15), with delivered -0.4 and -0.5; CG-17 needs it
+  only for the stand walk.
+
+- **The height rule in `drive_tick`'s goal.** On the tdm bench (8 seeds,
+  against base-939b2cca) it raised pocket tries on tier 9-10 by +7.75
+  (2.3 SE) and pocket seconds by +88 (3.0 SE). Limited to goals within
+  1.2 m, it still gave +8.0 tries (3.9 SE) and +58 s (3.9 SE): every intent
+  without its own reach asks within 1 m, and so do the reflex's steps, so
+  bots in fights walked on to points they stood by, into pits. With only
+  that rule off, tdm 9-10 played out as base's, game for game; with only
+  the motor's rule off, the tries stayed up (+9.4, 3.6 SE). So `drive_tick`
+  is as it was.
+- **Fetch refusing the take from under its stand too** (more than
+  `ARRIVE_BELOW_M` under it). Alone (the motor's rule, `within(0.0)` and
+  the standing stand off) it gave batt stuck +9.1 (5.4 SE) and quick ends
+  +17.9 (2.3 SE) at 16 seeds; everything but it, stuck -1.0, quick ends
+  +10 (1.6 SE).
+- **A standing take stand beside a high box** (`take_stand`: the floor
+  beside a battery on a box top whose standing eye sees it within the
+  use's reach, when no crouched eye does). It adds one spawner of the five,
+  level_02 day 2 spawner 39 (stand 1.34 m under the battery; the other four
+  are seen from no floor within 1.8 m). That battery, shut all match
+  before, became live (taken 20 times in 16 seeds of level_02 day 2 10v10),
+  and the team's plays churned round it: batt quick ends +12.3 (2.2 SE) at
+  16 seeds, +12.9 per seed (3.6 SE) on that map alone, with delivered,
+  taken and points each up about 1 SE there. The switches were Collect's
+  running play ending within 1 s of being given ("the play ran out or a
+  higher band came": Crossfire→Collect +24, Collect→Collect +18,
+  Collect→Cut +18, Collect→HoldExit +17), a weakness of Collect's
+  assignment that any battery more brings out. It comes back with a fix
+  for that churn, in its own PR. The shared finder's rewrite and
+  marginal-jump stands wait for the grid's erosion fix (algo 6).
+
+### Bench
+
+Against base-939b2cca (the coordinator's, reproduced game for game), the
+standard presets, this PR's binary (exact-spot arrival); the merged tree's
+checks (the tests with the map files, clippy, the probe) on b43d67ce:
+
+- **tdm:** seeds 1-2 on tiers none, 9-10 and 13-15, every run's decisions
+  digest equal to base's: no walk in tdm asks for an exact spot.
+- **batt** (none and 13-15 on 16 seeds; 4-5 and 9-10 on 8), after minus
+  base per seed (SE):
+  - delivered +0.19 (0.41), -0.06 (0.34), +0.88 (0.69), +0.62 (0.60);
+  - flips -0.75 (1.97), +0.38 (1.30), -1.50 (3.03), +0.38 (1.52);
+  - quick ends +2.25 (2.65), +5.31 (2.84), +2.00 (3.58), +8.12 (7.06);
+  - falls off the route +1.25 (0.77), -2.38 (0.82), +1.62 (1.38), -1.75
+    (1.44);
+  - planned drops +2.88 (1.38), +2.44 (1.13), +2.88 (1.66), -0.38 (3.09),
+    the one guard past 2 SE (below);
+  - stuck, idle, pocket tries and seconds within 2 SE everywhere;
+  - bot ms/s -6.7, -29.7, -16.0, -18.0 (summed over a seed's 12 runs).
+- Grid algo 5.
+
+**Planned drops** (none and 13-15, 16 seeds; the bench's `falls_exact`
+counts the drops landed on an exact walk, and of them those followed by a
+pickup within 10 s; base has no exact walks, so 0 there):
+
+| | none | 13-15 |
+|---|---|---|
+| excess, after - base, per seed | +2.88 (1.38) | +2.44 (1.13) |
+| on an exact walk (Fetch to its stand) | +0.88 (0.35) | +0.88 (0.24) |
+| of those, a pickup within 10 s | 10 of 14 | 12 of 14 |
+| remainder | +2.00 (1.36) | +1.56 (1.08) |
+| games with base's decisions, their remainder | 149 of 192, 0 | 154 of 192, 0 |
+| diverged games' remainder, per game | +0.74 (0.50) | +0.66 (0.92) |
+| their drops per bot-hour (base 48), after - base | +1.00 (0.94) | +1.16 (1.34) |
+| their living bot-seconds, per game | -5.1 (3.2) | -4.9 (4.2) |
+
+The remainder is only in the games an exact walk turned (one decision
+changed, the rest of the match played otherwise); per map none is over
+1.8 SE. Unplanned falls, stuck and pockets are not up, nor deliveries down.

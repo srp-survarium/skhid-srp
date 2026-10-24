@@ -286,6 +286,20 @@ fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3) -> Vec<(TakeStand, f32)> {
     out
 }
 
+/// Whether the feet are over the floor a walk to `at` ends on
+/// (`path::goal_floor`) by more than `motor::ARRIVE_ABOVE_M` (an overhang, a
+/// box top), the motor's rule for a route's end (`motor::arrived`). Under
+/// it is not asked: Take goes up by the route itself once a stand there
+/// failed (`BELOW_STAND_M`), and refusing the take from under it cost the
+/// batt bench stuck +9.1 (5.4 SE) and quick ends +17.9 (2.3 SE) at 16 seeds.
+/// No floor: false.
+fn over_goal(cx: &Ctx, at: Vec3) -> bool {
+    use crate::v026g::bots::motor::ARRIVE_ABOVE_M;
+    let grid = &cx.tactics.world.grid;
+    crate::v026g::bots::path::goal_floor(grid, at)
+        .is_some_and(|node| cx.me.feet.y - grid.position(node).y > ARRIVE_ABOVE_M)
+}
+
 /// Where a body right over a battery lying at `at` steps back to: a metre
 /// off it the way it came (`from`), else behind its back.
 fn back_spot(cx: &Ctx, at: Vec3, from: Option<Vec3>) -> Vec3 {
@@ -815,7 +829,10 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             if !cx.reachable(stand, false) || cx.no_way_lately(stand) {
                 return Step::Failed("no way to it");
             }
-            if cx.me.feet.distance_xz(stand) <= num("reach_m") {
+            // Within reach across and not over the stand's floor
+            // (`over_goal`, the motor's rule for a route's end).
+            let near = cx.me.feet.distance_xz(stand) <= num("reach_m");
+            if near && !over_goal(cx, stand) {
                 *state = State::Take {
                     tries: 0,
                     last_use: 0,
@@ -828,7 +845,12 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 };
                 return Step::Continue(Intent::stay().looking(Look::At(at)));
             }
-            Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(num("reach_m") * 0.6))
+            // Near across but over its floor (an overhang, a box top): a
+            // goal within reach across is no goal, so the walk
+            // asks for the stand itself, and the route ends there only at its
+            // floor's height (`motor::arrived`). Cologne CG-17.
+            let within = if near { 0.0 } else { num("reach_m") * 0.6 };
+            Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(within))
         }
         State::Take { tried, .. } => {
             // Under its floor (fallen, or under an overhang), a stand there
@@ -2130,6 +2152,11 @@ mod tests {
                     let at = spawner.item;
                     let why = cx.take_block(at).unwrap_or("takeable");
                     *reasons.entry(why).or_default() += 1;
+                    if s.tactics.stand_to_take(at).is_none() {
+                        eprintln!(
+                            "level {level} mode {mode} spawner {i} at {at:?}: no crouched stand"
+                        );
+                    }
                     let Some(stand) = s.tactics.stand_to_take(at) else {
                         continue;
                     };
@@ -2503,6 +2530,33 @@ mod tests {
                 Step::Done(why)
             );
         }
+    }
+
+    /// Cologne CG-17: a bot within reach across of its take stand but over
+    /// it (an overhang) by more than `motor::ARRIVE_ABOVE_M` does not start
+    /// the take: it walks on to the stand. At the stand's height it does.
+    #[test]
+    fn a_fetch_over_its_stand_walks_on() {
+        let at = Vec3::new(20.0, 0.0, 20.0);
+        let run = |feet: Vec3| {
+            let mut s = Scenario::field(Mode::Batteries);
+            s.bot(0, 0, feet);
+            s.battery(BatteryState::Free(at));
+            let target = TargetRef::Battery(0);
+            s.current = Some((PlayKind::Collect, target, s.view.clock));
+            let mut rng = Rng::new(1);
+            let mut state = State::Fetch;
+            let step = step(&mut state, target, &s.cx(0), &mut rng);
+            (state, step)
+        };
+        let (state, step) = run(Vec3::new(20.0, 1.5, 20.5));
+        assert_eq!(state, State::Fetch);
+        assert!(
+            matches!(&step, Step::Continue(i) if matches!(i.go, Go::To { at: to, within_m } if to.distance_xz(at) < 0.01 && within_m == 0.0)),
+            "{step:?}"
+        );
+        let (state, _) = run(Vec3::new(20.0, 0.0, 20.5));
+        assert!(matches!(state, State::Take { .. }), "{state:?}");
     }
 
     /// Bot 0's view on its container's use box (a metre over its use
