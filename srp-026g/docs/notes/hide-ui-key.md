@@ -18,18 +18,25 @@ too, for screenshots.
 
 ## In a match
 
-- **Hidden:** the hud (health, ammo, kill feed, chat lines, timers), the crosshair, the minimap,
-  the markers over heads and batteries. The 3D world, the weapon and the Esc menu stay.
+- **Hidden:** the whole hud (health, ammo, kill feed, chat, timers, the fps line), the crosshair,
+  the minimap, the markers over heads and batteries. The 3D world, the weapon and the Esc menu
+  stay.
 - **F11 again** shows it.
-- **The kit screen is never hidden:** F11 does nothing while the kits are shown (the death
-  screen, before the start), and the interface comes back by itself when they are shown.
+- **Unseen, not held back:** the hud keeps running while hidden; kill-feed lines and messages of
+  that time come and go unseen, and showing it shows only what is current.
+- **Before the start:** F11 works during the countdown too, the kits with the rest; the start
+  keeps what the player chose (the owner, 2026-10-24).
+- **After a death:** the interface comes back by itself when the kits are shown, so the death
+  screen's kits are never hidden.
 - **The next match** starts with the interface shown.
 - **Not taken:** the key also goes on to the game as before (nothing uses F11 there).
 
 ## In the lobby
 
-- **Hidden:** everything of the lobby movie (windows, menus, chat, buttons). The character and the
-  scene stay; drag and wheel still turn and zoom the camera.
+- **Hidden:** the whole interface: panels, the top and bottom bars, windows, popups, messages,
+  chat, tooltips, right-click menus (an open one is closed), the item being dragged, the loading
+  screen; one coming up while hidden stays hidden. Only the character and the scene stay; drag and
+  wheel still turn and zoom the camera.
 - **Clicks** land on nothing hidden.
 - **Shown again by:** F11, any key the lobby movie gets (letters, digits, arrows, Enter,
   Backspace...), Esc, a match found, its loading, the results.
@@ -42,9 +49,10 @@ too, for screenshots.
 
 ## How
 
-- Exe patch 62 (`hide_ui_026g.asm`; `client_patch.md` 3.54): the match uses the game's own
-  `game_world::show_ui`; the lobby calls the lobby movie's `toggle_interface`.
-- Lobby movie: `LobbyMenu.toggle_interface`.
+- Exe patch 62 (`hide_ui_026g.asm`; `client_patch.md` 3.54): in a match it calls the hud and
+  player icons' movies' `hide_interface`; in the lobby the lobby movie's `toggle_interface`.
+- The movies (lobby, hud, player icons): `InterfaceHider` hides every layer of the movie's stage
+  and keeps it hidden; the movie goes on running.
 - The controls row: patch 62 gives the options a 41st row (its table moved into the arena); its
   label is content edit `hide-interface-1.json`.
 - No simulation change, no server change.
@@ -79,7 +87,7 @@ with no UI for anyone; the teams told apart by coloured bands on the characters.
   at +Ch of the rule's options, `research_native_026g.c`).
 - **Not show_ui(false):** `game_world::show_ui` (0x1F95F0) hides all of `hud.swf`, and the kits,
   the Tab list, chat and messages are in it (`HUD.as`: `_profilePanel`, `player_list`, chat).
-  - `player_icons.swf` hidden all match (show_ui's +20Ch, as patch 62 hides it);
+  - `player_icons.swf` hidden all match (its `hide_interface`, as patch 62 hides it);
   - `hud.swf` stays and gets a new `root.set_bare(true)`, which hides the parts above and keeps
     them hidden whatever the exe calls later (`show_crosshair`, `update_objects`, ...);
   - patch 62's show path leaves `player_icons.swf` hidden in such a match.

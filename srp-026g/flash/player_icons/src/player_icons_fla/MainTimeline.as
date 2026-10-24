@@ -27,6 +27,7 @@ package player_icons_fla
    import scaleform.gfx.Extensions;
    import survarium.Util;
    import survarium.controls.HUDIconLayer;
+   import survarium.controls.InterfaceHider;
    import survarium.controls.HUDMarker;
    
    public dynamic class MainTimeline extends MovieClip
@@ -44,6 +45,26 @@ package player_icons_fla
          addFrameScript(0,this.frame1);
       }
       
+      // The key that hides the interface (exe patch 62, F11; docs/notes/hide-ui-key.md): the markers
+      // and names over heads hidden with the hud (InterfaceHider), the movie running on.
+      private var _hider:InterfaceHider;
+
+      public function hide_interface(hidden:Boolean) : void
+      {
+         if(this._hider == null)
+         {
+            _hider = new InterfaceHider(stage);
+         }
+         if(hidden)
+         {
+            this._hider.hide();
+         }
+         else
+         {
+            this._hider.show();
+         }
+      }
+
       public function create_player_icon(id:uint, kind:uint = 0, baseScale:Number = 1) : void
       {
          this.iconControl.create_player_icon(id,kind,baseScale);

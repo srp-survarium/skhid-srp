@@ -4192,16 +4192,16 @@ def test_hide_ui(original, image, before):
     texts = [text for va, _, text in ndisasm(code[:names], block.va)]
     outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
                       and not block.va <= branch_target(t) < block.va + len(code)})
-    state = linked.blocks["hide_ui.state"]
-    library = {linked.symbols[name] for name in ("engine_show_ui", "engine_binded_action", "engine_movie_invoke")}
+    library = {linked.symbols[name] for name in ("engine_binded_action", "engine_movie_invoke")}
+    pushed = lambda text: f"push dword {block.va + code.index(text + bytes(1)):#x}" in texts
     check(outside == sorted(set(P.HIDE_UI_BACKS[:3]) | library)
-          and f"push dword {block.va + names:#x}" in texts and f"mov dword [esp],{P.HIDE_UI_BACKS[3]:#x}" in texts
-          and f"mov dword [esp],{P.HIDE_UI_BACKS[4]:#x}" in texts
-          and f"push dword {block.va + code.index(b'root.interface_hidden' + bytes(1)):#x}" in texts
-          and state.va <= linked.symbols["hidden_world"] < state.va + state.size,
+          and f"mov dword [esp],{P.HIDE_UI_BACKS[3]:#x}" in texts and f"mov dword [esp],{P.HIDE_UI_BACKS[4]:#x}" in texts
+          and all(pushed(t) for t in (b"root.toggle_interface", b"root.interface_hidden", b"root.hide_interface"))
+          and "hide_ui.state" not in linked.blocks,
           "it goes on in on_keyboard_action (0x25CEDB, 0x25CF0D), jumps to show_cursor (0x23A930), returns to "
-          "0x26CCAE or 0x26CDD2, calls the library's show_ui, get_binded_action and Invoke and nothing else; it "
-          "invokes root.toggle_interface and root.interface_hidden; the game world it hid is in hide_ui.state")
+          "0x26CCAE or 0x26CDD2, calls the library's get_binded_action and Invoke and nothing else (not the game "
+          "world's show_ui: its hidden movies stand still); it invokes root.toggle_interface, "
+          "root.interface_hidden and root.hide_interface, and keeps no state of its own")
     here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
     # the options' controls: the game's 40 rows, the six functions that read them, the arena's 41
     table, count = P.HIDE_UI_TABLE, P.HIDE_UI_ROWS
@@ -4248,7 +4248,37 @@ def test_hide_ui(original, image, before):
     check("\nedit\thide-interface-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                        encoding="utf-8").read(),
           "release/content.tsv makes the label (hide-interface-1.json)")
+    # the movies' side: one InterfaceHider in each (every child of the stage hidden, those shown or
+    # added later too, shown again exactly), the lobby's every stage layer among them
+    hider = here("flash", "lobby_menu", "src", "survarium", "controls", "InterfaceHider.as")
+    stage_layers = sorted({m.group(1) for name in ("LobbyMenu.as", "survarium/controls/Message.as",
+                                                   "survarium/controls/SrvContextMenu.as",
+                                                   "scaleform/clik/managers/DragManager.as",
+                                                   "scaleform/clik/managers/PopUpManager.as",
+                                                   "survarium/char/CharWindow.as")
+                           for m in re.finditer(r"stage\.addChild\(([\w.]+)\)",
+                                                here("flash", "lobby_menu", "src", *name.split("/")))})
+    check(all(here("flash", movie, "src", "survarium", "controls", "InterfaceHider.as") == hider
+              for movie in ("hud", "player_icons"))
+          and "this._stage.getChildAt(i)" in hider and "child.visible = false;" in hider
+          and "new Timer(100)" in hider and "this._timer.stop();" in hider
+          and len(stage_layers) >= 14,
+          "one InterfaceHider in the lobby, hud and player icons movies: every shown child of the stage hidden, "
+          "every 100 ms again while hidden (a layer shown or added later), shown again exactly; the lobby's "
+          f"stage layers it hides: the root (panels, bars, windows, chat) and {', '.join(stage_layers)}")
     lobby = here("flash", "lobby_menu", "src", "LobbyMenu.as")
+    toggle = lobby[lobby.index("public function toggle_interface() : void"):]
+    toggle = toggle[:toggle.index("public function interface_hidden()")]
+    check("if(SrvContextMenu.visisble)\n         {\n            SrvContextMenu.hide();" in toggle
+          and toggle.count("SrvContextMenu.hide()") == 1 and "this._hider.hide();" in toggle
+          and "_hiddenUi" not in lobby,
+          "the lobby's toggle_interface closes a right-click menu only when one is open (none ever opened: "
+          "SrvContextMenu.hide's removeChild(null) threw, owner's test of 64ce3ce7), then hides the whole stage")
+    hud = here("flash", "hud", "src", "HUD.as")
+    icons = here("flash", "player_icons", "src", "player_icons_fla", "MainTimeline.as")
+    check(all("public function hide_interface(hidden:Boolean) : void" in t and "new InterfaceHider(stage)" in t
+              for t in (hud, icons)) and "public function interface_hidden() : Boolean" in hud,
+          "the hud and the player icons' movies have root.hide_interface, the hud root.interface_hidden")
     check("public function toggle_interface() : void" in lobby and "public function interface_hidden() : Boolean" in lobby,
           "the lobby movie has root.toggle_interface and root.interface_hidden")
 

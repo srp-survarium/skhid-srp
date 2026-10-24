@@ -44,6 +44,7 @@ package
    import survarium.constants.Team;
    import survarium.constants.TeamSide;
    import survarium.constants.UiSound;
+   import survarium.controls.InterfaceHider;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.ResearchUnits;
@@ -827,6 +828,34 @@ package
          this._profilePanel.profileSelector.pickByKey(index);
       }
       
+      // The key that hides the interface (exe patch 62, F11; docs/notes/hide-ui-key.md): hidden, every
+      // layer of the hud's stage is (InterfaceHider: the hud, the crosshair, the minimap, the kits,
+      // the kill feed, the chat, the fps line); the movie goes on running, so what happens meanwhile
+      // plays out and goes unseen. The exe asks interface_hidden on the key and calls this with the
+      // other state, and with false when the kits are shown after a death.
+      private var _hider:InterfaceHider;
+
+      public function hide_interface(hidden:Boolean) : void
+      {
+         if(this._hider == null)
+         {
+            _hider = new InterfaceHider(stage);
+         }
+         if(hidden)
+         {
+            this._hider.hide();
+         }
+         else
+         {
+            this._hider.show();
+         }
+      }
+
+      public function interface_hidden() : Boolean
+      {
+         return this._hider != null && this._hider.hidden;
+      }
+
       public function setup_player_profiles(value:Array) : void
       {
          var i:uint;
