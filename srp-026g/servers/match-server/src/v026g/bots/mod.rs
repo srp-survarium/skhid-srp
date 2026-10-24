@@ -917,8 +917,23 @@ impl Bots {
             } else {
                 (key::RIGHT, key::LEFT)
             };
-            // Each time again at the spot it backs off another way.
-            let escape = bot.stuck.escape(side, other);
+            // Each time again at the spot it backs off another way; not
+            // into a zone that is on (none of the four: it only jumps).
+            let escapes = bot.stuck.escapes(side, other);
+            let yaw = self
+                .tracker
+                .body(place)
+                .and_then(|body| body.estimate())
+                .map(|at| at.yaw);
+            let escape = match (self.tactics.as_ref(), yaw) {
+                (Some(tactics), Some(yaw)) => escapes
+                    .into_iter()
+                    .find(|&keys| {
+                        tactics.zone_free_step(feet, feet + unstick_step(keys, yaw), time)
+                    })
+                    .unwrap_or(0),
+                _ => escapes[0],
+            };
             let ticks = |rng: &mut Rng, s: (f32, f32)| (rng.range(s.0, s.1) / kin::TICK_S) as u32;
             match recovery {
                 Recovery::BackOff => {
@@ -1412,8 +1427,16 @@ impl Bots {
                 .as_deref()
                 .is_none_or(|spots| !near_any(spots, grid.position(node)))
         };
-        let ended =
-            tactics.resume_route(&mut pending.planning, time, side, objective, open, floors);
+        let start = pending.ends.0;
+        let ended = tactics.resume_route(
+            &mut pending.planning,
+            start,
+            time,
+            side,
+            objective,
+            open,
+            floors,
+        );
         let Some(mut route) = ended else {
             pending.spots = spots;
             self.searching.pending = Some(pending);
@@ -2083,6 +2106,56 @@ fn team_no_way(own: &[(Vec3, u32)], team: &[(Vec3, u32)]) -> Vec<(Vec3, u32)> {
 
 /// One tick of a living bot (`me` with its base pitch): the reflex's look
 /// and trigger, the play's legs and stance, the presses.
+/// Where a bot at `feet` with no goal of its own walks out of the zone it
+/// is in, if a zone there is on or about to be (`Hazards::allowed`): the
+/// end of its nearest way out (`Tactics::escape`), kept
+/// [`stuck::ZONE_OUT_KEPT_MS`] so the route to it is not searched every
+/// tick.
+fn zone_way_out(
+    bot: &mut Bot,
+    tactics: &Tactics,
+    feet: Vec3,
+    time: u32,
+    objective: bool,
+) -> Option<Vec3> {
+    let from = tactics.world.grid.locate(feet, 1.5)?;
+    if tactics.hazards.allowed(from, time) {
+        bot.stuck.zone_out = None;
+        return None;
+    }
+    if let Some((to, until)) = bot.stuck.zone_out
+        && time < until
+    {
+        return Some(to);
+    }
+    let out = tactics.escape(from, None, time, bot.side, objective)?;
+    let to = out.point_at(out.length());
+    bot.stuck.zone_out = Some((to, time + stuck::ZONE_OUT_KEPT_MS));
+    Some(to)
+}
+
+/// The way the walk keys `keys` move a body facing `yaw`, on the ground,
+/// [`STRAFE_CLEAR_M`] long (the fight's side step's test): for the stuck
+/// watch's keys (`Tactics::zone_free_step`).
+fn unstick_step(keys: u32, yaw: f32) -> Vec3 {
+    let [fx, fz] = kin::forward(yaw);
+    let [lx, lz] = kin::forward(yaw + std::f32::consts::FRAC_PI_2);
+    let ahead =
+        f32::from(u8::from(keys & key::FORWARD != 0)) - f32::from(u8::from(keys & key::BACK != 0));
+    let left =
+        f32::from(u8::from(keys & key::LEFT != 0)) - f32::from(u8::from(keys & key::RIGHT != 0));
+    let (x, z) = (ahead * fx + left * lx, ahead * fz + left * lz);
+    let length = x.hypot(z);
+    if length < 1e-3 {
+        return Vec3::ZERO;
+    }
+    Vec3::new(
+        x / length * STRAFE_CLEAR_M,
+        0.0,
+        z / length * STRAFE_CLEAR_M,
+    )
+}
+
 fn drive_tick(
     bot: &mut Bot,
     me: &PlaceView,
@@ -2204,6 +2277,27 @@ fn drive_tick(
         Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
         _ => None,
     };
+    // [zones] With no goal to walk (holding a spot, standing at its goal,
+    // aiming still), out of a zone that is on or about to be first,
+    // whatever the play: its way out is walked as the goal, the reflex
+    // aiming and firing meanwhile. A goal walked to has its own way out
+    // (`escaping` below). The Cologne anomaly bench, runs 4 and 6b: a bot
+    // with no goal stood 5.9 s of each on span, and 27 s in a zone always on.
+    let zone_set = tactics
+        .world
+        .grid
+        .locate(me.feet, 1.5)
+        .map_or(0, |node| tactics.hazards.set_of(node));
+    bot.stuck.zone_on(zone_set);
+    let zone_out = if goal.is_none() {
+        zone_way_out(bot, tactics, me.feet, time, intent.objective)
+    } else {
+        None
+    };
+    if zone_out.is_some() {
+        intent.straight = false;
+    }
+    let goal = goal.or(zone_out);
     // Standing to aim (no way to walk): the reflex's side step may move it;
     // walking a route while it aims, the step weaves the walk
     // ([`weave`], `strafe_walking`).
@@ -2220,6 +2314,18 @@ fn drive_tick(
                 .route
                 .as_ref()
                 .is_none_or(|(_, planned)| planned.distance_xz(at) > REPLAN_MOVED_M);
+            // [zones] A zone ahead on its route that is on when it gets
+            // there (one that came on, or it is late): planned again.
+            let shut = !replan && time >= bot.stuck.zone_checked + stuck::ZONE_CHECK_MS && {
+                bot.stuck.zone_checked = time;
+                bot.route
+                    .as_mut()
+                    .is_some_and(|(route, _)| tactics.route_shut_ahead(route, me.feet, time))
+            };
+            if shut {
+                bot.route = None;
+            }
+            let replan = replan || shut;
             // A goal with no way lately: not searched again every tick.
             let no_way = bot.no_way.is_some_and(|(goal, until)| {
                 time < until && goal.distance_xz(at) <= REPLAN_MOVED_M
@@ -2285,18 +2391,39 @@ fn drive_tick(
                 // as near as it gets, nothing to search.
                 let there = ends.is_some_and(|(from, to)| from == to);
                 // On a floor it may not walk on (in a fire it stepped
-                // into): out to the nearest one it may first; the goal is
-                // planned from there.
+                // into, a zone about to come on): out first, the way that
+                // leads on to the goal when it is out in time
+                // (`Tactics::escape`); the goal is planned from there. Even
+                // on the goal's floor: no standing in a fire.
                 let escaping =
                     ends.is_some_and(|(from, _)| !tactics.allowed(from, time, side, objective));
                 let floors = &mut searching.floors;
                 // Left under way past this poll's floors: whether round the
                 // spots, and the search.
                 let mut left = None;
-                let route = if there {
+                let route = if escaping {
+                    let route = ends.and_then(|(from, _)| {
+                        tactics.escape(from, Some(at), time, side, objective)
+                    });
+                    // [zones] Out of the same zones toward the same goal
+                    // twice lately: the way there keeps going into them;
+                    // the goal is given up for the play to choose again.
+                    if let Some((from, _)) = ends
+                        && route.is_some()
+                        && zone_out.is_none()
+                        && tactics.hazards.set_of(from) != 0
+                        && bot
+                            .stuck
+                            .zone_escape(time, tactics.hazards.set_of(from), at)
+                    {
+                        bot.no_way_to.retain(|&(goal, until)| {
+                            time < until && goal.distance_xz(at) > REPLAN_MOVED_M
+                        });
+                        bot.no_way_to.push((at, time + NO_WAY_KEEP_MS));
+                    }
+                    route
+                } else if there {
                     None
-                } else if escaping {
-                    ends.and_then(|(from, _)| tactics.escape(from, time, side, objective))
                 } else if let Some((from, to)) = ends {
                     let open = |node: NodeId| !(avoiding && near_any(&spots, grid.position(node)));
                     match tactics.start_route(from, to, time, side, objective, open, floors) {
@@ -2360,7 +2487,7 @@ fn drive_tick(
                     // toward the goal, not standing (else the old route).
                     let open = |node: NodeId| !(round && near_any(&spots, grid.position(node)));
                     if let Some(partial) =
-                        tactics.partial_route(&planning, time, side, objective, open)
+                        tactics.partial_route(&planning, ends.0, time, side, objective, open)
                     {
                         bot.route = Some((partial, at));
                     }
