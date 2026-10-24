@@ -314,11 +314,16 @@ const CARRIER_OTHERS: usize = 4;
 /// The believed carrier's uses at his own container (feet within this of
 /// it, metres): after this many, each followed by a world this long after
 /// it still showing the battery carried, he does not carry it, if another
-/// candidate may (a put-in is a use on the key; the PutIn play presses
-/// two a play, and is taken again).
+/// candidate whose own use met the battery may (a put-in is a use on the
+/// key; the PutIn play presses two a play, and is taken again).
+/// The wait covers the put (`states[2].put_time` 0.6 s; the battery goes
+/// in at its end) and the world's lag: at 1.5 s, in the owner's Cologne
+/// match of 2026-10-24 the belief moved off the real carrier 1 s before
+/// each of 3 put-ins went in, once to a bot 8 m off that had pressed
+/// nothing (GUESS, 0.6 s + 2 s + slack).
 const PUT_IN_NEAR_M: f32 = 2.5;
 const PUT_IN_FAILS: usize = 3;
-const PUT_IN_SEEN_MS: u32 = 1_500;
+const PUT_IN_SEEN_MS: u32 = 3_000;
 /// A believed carrier died, and the battery stayed carried this long
 /// after: another candidate has it (the drop shows in the world after the
 /// death's, about a second on).
@@ -349,8 +354,9 @@ impl UsePress {
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Carry {
     carrier: Option<Place>,
-    /// Who else may have it, likeliest first.
-    others: Vec<Place>,
+    /// Who else may have it, likeliest first, and whether their own use
+    /// met it (else only near it).
+    others: Vec<(Place, bool)>,
     /// Who it is not with: their put-ins failed, or they died and it
     /// stayed carried.
     not_with: Vec<Place>,
@@ -783,7 +789,7 @@ impl Tracker {
             picked.push((battery, best.place));
             carry.others = candidates
                 .iter()
-                .map(|c| c.place)
+                .map(|c| (c.place, c.miss.is_some()))
                 .take(CARRIER_OTHERS)
                 .collect();
             let others: Vec<String> = candidates
@@ -816,7 +822,7 @@ impl Tracker {
         for &(battery, place) in &picked {
             for (other, carry) in self.carries.iter_mut().enumerate() {
                 if other != battery {
-                    carry.others.retain(|&p| p != place);
+                    carry.others.retain(|&(p, _)| p != place);
                 }
             }
         }
@@ -826,7 +832,10 @@ impl Tracker {
                 continue;
             }
             let carry = &self.carries[battery];
-            let why = match (carry.carrier, carry.died) {
+            // Failed put-ins tell only that it is not his: another takes the
+            // belief only if his own use met it. A death with it still
+            // carried tells someone has it: the likeliest.
+            let (why, pressed_only) = match (carry.carrier, carry.died) {
                 (Some(_), _)
                     if carry
                         .put_ins
@@ -835,22 +844,27 @@ impl Tracker {
                         .count()
                         >= PUT_IN_FAILS =>
                 {
-                    format!(
-                        "{} uses at his container put nothing in",
-                        carry.put_ins.len()
+                    (
+                        format!(
+                            "{} uses at his container put nothing in",
+                            carry.put_ins.len()
+                        ),
+                        true,
                     )
                 }
                 (None, Some(died)) if died + DEAD_CARRY_MS <= time => {
-                    "he died and it stayed carried".to_string()
+                    ("he died and it stayed carried".to_string(), false)
                 }
                 _ => continue,
             };
             let was = carry.carrier.or(carry.not_with.last().copied());
-            let next = carry.others.iter().copied().find(|&place| {
-                !carry.not_with.contains(&place)
+            let next = carry.others.iter().copied().find_map(|(place, pressed)| {
+                (!carry.not_with.contains(&place)
+                    && (pressed || !pressed_only)
                     && Some(place) != carry.carrier
                     && self.places.get(place).is_some_and(|s| s.alive)
-                    && !self.carries.iter().any(|c| c.carrier == Some(place))
+                    && !self.carries.iter().any(|c| c.carrier == Some(place)))
+                .then_some(place)
             });
             let carry = &mut self.carries[battery];
             carry.put_ins.clear();
@@ -869,7 +883,14 @@ impl Tracker {
                 was.map_or("nobody".to_string(), |p| p.to_string()),
                 match (next, carry.carrier) {
                     (Some(next), _) => format!("player {next}"),
-                    (None, Some(still)) => format!("still player {still}, no one else near it"),
+                    (None, Some(still)) => format!(
+                        "still player {still}, no one else {}",
+                        if pressed_only {
+                            "whose use met it"
+                        } else {
+                            "near it"
+                        }
+                    ),
                     (None, None) => "nobody known".to_string(),
                 }
             ));
@@ -1394,7 +1415,7 @@ mod tests {
             );
         }
         at.world(
-            6_400,
+            8_000,
             vec![BatteryState::Carried(None), BatteryState::Home(1)],
         );
         assert_eq!(at.tracker.carrier(0), Some(1));
@@ -1402,46 +1423,89 @@ mod tests {
         assert!(
             notes
                 .iter()
-                .any(|n| n.ends_with("now still player 1, no one else near it")),
+                .any(|n| n.ends_with("now still player 1, no one else whose use met it")),
             "{notes:?}"
         );
     }
 
-    /// The belief went to the wrong teammate (the taker's use was not
-    /// relayed): its uses at its own container put nothing in, so the
-    /// other has it; and a believed carrier who died while the battery
-    /// stayed carried did not carry it.
+    /// The belief went to the wrong teammate: place 1's use met the battery
+    /// a while before the world showed it lying (stale), place 0's later
+    /// one too, from nearer. Place 0's uses at its own container put
+    /// nothing in, judged after the put and the world's lag, so place 1 has
+    /// it; and a believed carrier who died while the battery stayed carried
+    /// did not carry it.
     #[test]
     fn a_belief_moves_on_when_put_ins_fail_or_its_carrier_dies_with_it_still_carried() {
         let mut at = AtTheContainer::new();
-        at.press(0, 1_600, 0);
-        at.world(2_000, vec![BatteryState::Carried(None)]);
-        assert_eq!(at.tracker.carrier(0), Some(0), "the only use near it");
+        at.press(1, 1_050, key::CROUCH);
+        at.world(2_100, vec![BatteryState::Free(BATTERY)]);
+        // Place 0 turns to the battery, standing at the container.
+        at.stand(
+            0,
+            2_150,
+            AT_IT,
+            (-1.5f32).atan2(0.8),
+            (0.12 - 1.6f32).atan2(1.7),
+        );
+        at.press(0, 2_200, 0);
+        at.world(2_500, vec![BatteryState::Carried(None)]);
+        assert_eq!(at.tracker.carrier(0), Some(0), "the fresher, nearer use");
         at.tracker.take_notes();
-        for (i, time) in [2_400, 3_600, 4_800].into_iter().enumerate() {
+        for (i, time) in [2_700, 3_900, 5_100].into_iter().enumerate() {
             at.press(0, time, 0);
             at.world(time + 1_000, vec![BatteryState::Carried(None)]);
             assert_eq!(at.tracker.carrier(0), Some(0), "use {i} not yet judged");
         }
-        at.world(6_400, vec![BatteryState::Carried(None)]);
+        // 2 s after the third use: the put (0.6 s) may still show.
+        at.world(7_100, vec![BatteryState::Carried(None)]);
+        assert_eq!(
+            at.tracker.carrier(0),
+            Some(0),
+            "the third use not judged yet"
+        );
+        at.world(8_200, vec![BatteryState::Carried(None)]);
         assert_eq!(at.tracker.carrier(0), Some(1));
         let notes = at.tracker.take_notes();
         assert!(
             notes.iter().any(|n| n
-                == "player 0 no longer believed to carry battery 0 (3 uses at his container \
-                    put nothing in); now player 1"),
+                == "player 0 no longer believed to carry battery 0 (3 uses at his container put nothing in); now player 1"),
             "{notes:?}"
         );
         // Place 1 dies; the battery stays carried: place 0 has it after
         // all (the only other one near, ruled out before, is not taken
         // again), so the belief is nobody.
-        let mut dead = fix(7_000, BESIDE);
+        let mut dead = fix(9_000, BESIDE);
         dead.alive = false;
         dead.feet = None;
         at.tracker.fixed(1, dead, None, &at.kin, None);
-        at.world(7_000, vec![BatteryState::Carried(None)]);
+        at.world(9_000, vec![BatteryState::Carried(None)]);
         assert_eq!(at.tracker.carrier(0), None);
-        at.world(10_000, vec![BatteryState::Carried(None)]);
+        at.world(12_000, vec![BatteryState::Carried(None)]);
         assert_eq!(at.tracker.carrier(0), None);
+    }
+
+    /// Cologne 2026-10-24: failed put-ins move the belief only to one whose
+    /// own use met the battery; a teammate who was only near it is not
+    /// believed the carrier (bot 4, 8 m off, had pressed nothing).
+    #[test]
+    fn failed_put_ins_move_no_belief_to_a_teammate_who_pressed_nothing() {
+        let mut at = AtTheContainer::new();
+        at.press(0, 1_600, 0);
+        at.world(2_000, vec![BatteryState::Carried(None)]);
+        assert_eq!(at.tracker.carrier(0), Some(0), "the only use near it");
+        at.tracker.take_notes();
+        for time in [2_400, 3_600, 4_800] {
+            at.press(0, time, 0);
+            at.world(time + 1_000, vec![BatteryState::Carried(None)]);
+        }
+        at.world(8_000, vec![BatteryState::Carried(None)]);
+        assert_eq!(at.tracker.carrier(0), Some(0));
+        let notes = at.tracker.take_notes();
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.ends_with("now still player 0, no one else whose use met it")),
+            "{notes:?}"
+        );
     }
 }
