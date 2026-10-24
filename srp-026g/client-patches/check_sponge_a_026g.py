@@ -1862,25 +1862,25 @@ def main():
         free_a = {i for i in range(6) if trials.random() < 0.6}
         most = trials.randint(len(occupied) + 1, 5)
         seed = trials.getrandbits(32)
-        r = spawn(k_run, "run", run_core, run_conts, run_objs, free_c, free_a, seed, occupied=occupied, most=most)
+        got = spawn(k_run, "run", run_core, run_conts, run_objs, free_c, free_a, seed, occupied=occupied, most=most)
         s = spawn(k_stock, "stock", stock_core, stock_conts, stock_objs, free_c, free_a, seed, occupied=occupied,
                   most=most)
-        same_draws += r[2:4] == s[2:4] and (r[0] == s[0] or r[1] is None)
-        declined = r[1] is None and s[1] is not None
-        due_ok += r[4] == (1 if declined else s[4])
-        if r[1] is None:
+        same_draws += got[2:4] == s[2:4] and (got[0] == s[0] or got[1] is None)
+        declined = got[1] is None and s[1] is not None
+        due_ok += got[4] == (1 if declined else s[4])
+        if got[1] is None:
             # none taken: the stock had no free artefact, or the container's kinds were all taken
             if s[1] is None or s[0] is None:
-                empty_ok += r[0] is None
+                empty_ok += got[0] is None
             else:
                 want = pick_of[s[0]]
                 empty_ok += not any(kinds_of[i] == want if want else kinds_of[i] == 54 for i in free_a)
             seen["none"] += 1
             seen["declined"] += declined
         else:
-            want = pick_of[r[0]]
-            rule += kinds_of[r[1]] == want if want else kinds_of[r[1]] == 54
-            seen[kinds_of[r[1]]] += 1
+            want = pick_of[got[0]]
+            rule += kinds_of[got[1]] == want if want else kinds_of[got[1]] == 54
+            seen[kinds_of[got[1]]] += 1
     check(f"the picked core, {n} spawns from random occupied and free containers, free artefacts, max counts and "
           "random states, on the build and the original exe: the same draws (the random state after, the next "
           "spawn's time, the container), a picked container gets only its kind (0 and 3 the Sponge, 2 the "
