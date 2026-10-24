@@ -271,6 +271,10 @@ pub struct Motor {
     /// The turn's time constant for this tick when not the feel's (the
     /// reflex aims faster or slower by skill).
     pub turn_time: Option<f32>,
+    /// The aim's turn rate this tick, yaw and pitch, radians a second (the
+    /// reflex's, at a seen target: `CombatTuning::turn_feed`): a turn onto
+    /// the aim follows it ([`Motor::aim_toward`]).
+    pub track: Option<(f32, f32)>,
     /// The ticks decided so far (each decision is a tick).
     clock: u32,
     /// The hop's memory ([`Motor::hop_key`]): the feet at the last walking
@@ -352,6 +356,7 @@ impl Motor {
             t: 0.0,
             look: None,
             turn_time: None,
+            track: None,
             clock: 0,
             trail: VecDeque::new(),
             way: [0.0, 0.0],
@@ -393,10 +398,29 @@ impl Motor {
     /// The tick's turn toward `yaw` and `pitch` from the pose: eased, within
     /// the top speed and change of speed, never past the aim.
     fn turn_toward(&mut self, pose: &Pose, yaw: f32, pitch: f32) -> (f32, f32) {
+        self.turn_fed(pose, yaw, pitch, (0.0, 0.0))
+    }
+
+    /// [`Self::turn_toward`] onto the aim, following its turn rate
+    /// ([`Self::track`]).
+    fn aim_toward(&mut self, pose: &Pose, yaw: f32, pitch: f32) -> (f32, f32) {
+        let feed = self.track.unwrap_or((0.0, 0.0));
+        self.turn_fed(pose, yaw, pitch, feed)
+    }
+
+    /// [`Self::turn_toward`] with the aim turning at `feed` (radians a
+    /// second): the ease asks the rate to close the gap and that rate too.
+    /// The aim is where the target is at this tick, so a turn of the whole
+    /// gap at one tick needs none of it: at a time constant of `turn_time`
+    /// the part of the rate the ease leaves behind is `1 - tick / turn_time`
+    /// of it, and that is what is added (none at a tick's time constant).
+    fn turn_fed(&mut self, pose: &Pose, yaw: f32, pitch: f32, feed: (f32, f32)) -> (f32, f32) {
         let feel = &self.feel;
         let turn_time = self.turn_time.unwrap_or(feel.turn_time_s).max(0.02);
-        let ease = |rate: &mut f32, left: f32| {
-            let want = (left / turn_time).clamp(-feel.max_turn_speed, feel.max_turn_speed);
+        let share = (1.0 - TICK_S / turn_time).max(0.0);
+        let ease = |rate: &mut f32, left: f32, feed: f32| {
+            let want = (left / turn_time + feed * share)
+                .clamp(-feel.max_turn_speed, feel.max_turn_speed);
             let step = feel.max_turn_accel * TICK_S;
             *rate += (want - *rate).clamp(-step, step);
             let mut turn = *rate * TICK_S;
@@ -414,8 +438,8 @@ impl Motor {
         let pitch_left = pitch - pose.pitch;
         let (mut yaw_rate, mut pitch_rate) = self.rate;
         let turn = (
-            ease(&mut yaw_rate, yaw_left),
-            ease(&mut pitch_rate, pitch_left),
+            ease(&mut yaw_rate, yaw_left, feed.0),
+            ease(&mut pitch_rate, pitch_left, feed.1),
         );
         self.rate = (yaw_rate, pitch_rate);
         turn
@@ -556,11 +580,11 @@ impl Motor {
         let (s, off) = route.progress(pose.feet);
         if self.arrived(route, s, pose.feet) {
             self.walking = false;
-            let turn = self.turn_toward(pose, aim.0, aim.1);
+            let turn = self.aim_toward(pose, aim.0, aim.1);
             return (Decision { keys: 0, turn }, Walked::Arrived);
         }
         if off > off_m {
-            let turn = self.turn_toward(pose, aim.0, aim.1);
+            let turn = self.aim_toward(pose, aim.0, aim.1);
             return (Decision { keys: 0, turn }, Walked::Off(off));
         }
         let jump = self.jump_ahead(route, pose, s, &clear);
@@ -571,7 +595,7 @@ impl Motor {
         let lined = jump.filter(|jump| jump.lined);
         let turn = match lined {
             Some(jump) => self.turn_toward(pose, yaw_of(jump.way), aim.1),
-            None => self.turn_toward(pose, aim.0, aim.1),
+            None => self.aim_toward(pose, aim.0, aim.1),
         };
         let target = match jump {
             Some(jump) => jump.aim,
@@ -931,7 +955,7 @@ impl Motor {
         self.sprinting = false;
         self.facing_ticks = 0;
         self.look = None;
-        let turn = self.turn_toward(pose, aim.0, aim.1);
+        let turn = self.aim_toward(pose, aim.0, aim.1);
         Decision { keys: 0, turn }
     }
 
@@ -948,7 +972,7 @@ impl Motor {
         self.facing_ticks = 0;
         self.look = None;
         let turn = match aim {
-            Some((yaw, pitch)) => self.turn_toward(pose, yaw, pitch),
+            Some((yaw, pitch)) => self.aim_toward(pose, yaw, pitch),
             None => self.turn_toward(pose, pose.yaw, pose.pitch),
         };
         let (dx, dz) = (to.x - pose.feet.x, to.z - pose.feet.z);

@@ -287,6 +287,7 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            known_at: 0,
         }
     }
 

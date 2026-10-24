@@ -519,6 +519,59 @@ In the owner's match 0x6da44bbb (on #343), bots 13 and 2 (opposite teams) stood 
 
 **Not verified:** no real match has been played with this. The bench's stand-in bodies do not collide, so it cannot wedge two bots together as the match did. The bench measures only how often enemies come that near.
 
+### 2.12 The aim led to the tick the input runs at (built 2026-10-24)
+
+A bot decides each tick 50-100 ms before it runs (`encode.rs`, `LEAD_TICKS` 2). Its aim was where the view had the target when it decided:
+- a human is reckoned to the clock;
+- a bot is known to its last decided tick.
+
+The view's own eye was where its last decided tick left it, and the turn eased onto the aim with no account of how fast the aim's bearing moves. So a crossing target was trailed by the time from the view's knowledge to the input's tick, and by the turn's ease.
+
+**Live** (the owner's recorded matches 0x5e7d0fc0 and 0x31632b5a, decoded per tick):
+- Against bots the trail is small: −0.03 s and +0.04 s of the target's speed across.
+- Against the human crossing at 2.5 m/s or more (53 ticks), the miss was 0.73 m at his position and 0.50 m at where he was 100 ms before: the bot aimed where he had been.
+- The human's ping adds to that; a bot never has one.
+- The main part of the live gap in hit rate (7-13 % against the bench's 21-26 %) is not the aim but where bots shoot: long range, and part-exposed targets.
+
+**The change** (`CombatTuning`, all on by default):
+- `lead_target`: the aim point of a seen target is led along his speed from the time the view has him for (`PlaceView::known_at`) to the tick decided, at most `lead_most_ms` 300. A bot decided past the tick is led back, at most two ticks.
+- `lead_own`: the reflex sees and aims from the eye where this tick's keys put it, its last decided tick's feet led along its speed (at most 100 ms).
+- `turn_feed`: the turn onto a seen target follows the bearing's turn rate (`Override::track`, `Motor::aim_toward`). The rate is scaled by `1 - tick / turn_time`, since the aim point is already where he is at the tick: at skill 1 (a tick's time constant) it adds nothing.
+
+**The bench's ping** (`SRP_BENCH_PING=<lo>-<hi>`, ms; `Tracker::seen_late`): each place's body is known as a live human's is, its ping before the clock, and reckoned on from there. Each place gets its own ping, drawn by the seed. Without it the bench's bots know each other to their decided ticks, up to 100 ms past the clock, which no live human gives them.
+
+**Measured** (the bench of §2.5 at base `6ef3c48b`; the change off by `SRP_BENCH_COMBAT=lead_target=false,lead_own=false,turn_feed=false` and on; seeds 1-8, 12 runs a seed; means a seed; * over 2 standard errors of the paired difference):
+
+| Measure | 4-5 off | on | 9-10 off | on | 13-15 off | on |
+|---|---|---|---|---|---|---|
+| hit rate, no ping | 22.6 % | 23.7 %* | 25.4 % | 26.8 %* | 28.0 % | 29.5 %* |
+| hit rate, ping 0-150 ms | 21.8 % | 22.8 %* | 24.6 % | 26.5 %* | 26.1 % | 28.6 %* |
+| kills, no ping | 236.4 | 249.1* | 267.9 | 269.6 | 280.1 | 289.5 |
+| kills, ping 0-150 ms | 236.6 | 247.2* | 254.4 | 271.2* | 269.0 | 278.4* |
+| shots, ping 0-150 ms | 6,300 | 6,128 | 5,907 | 5,766* | 5,801 | 5,515* |
+| team kills, ping 0-150 ms | 1.8 | 1.0 | 1.4 | 1.0 | 0.9 | 0.9 |
+| team hits, ping 0-150 ms | 9.6 | 10.8 | 12.9 | 9.6 | 10.4 | 7.9 |
+| batteries delivered, ping 0-150 ms | 72.9 | 72.8 | 72.2 | 72.0 | 71.8 | 70.9 |
+
+- The ping costs the old aim 0.7-1.9 points of hit rate, and 13.5 kills a seed at tiers 9-10. With the change, the hit rate is above the old aim's without a ping at every tier.
+- **One side with it** (`SRP_BENCH_ONE_SIDE`, ping 0-150 ms, each team with it in half the runs, 16 logs a tier):
+  - tiers 9-10: K/D 1.09 with it, 0.91 without; kills +12.0 ± 6.0 a log;
+  - tiers 13-15: K/D 1.12 against 0.89; kills +16.0 ± 6.8*.
+- **Each part off alone** (ping 0-150 ms; the full change minus it):
+
+  | Part off | 9-10 hit rate | 9-10 kills | 13-15 hit rate | 13-15 kills |
+  |---|---|---|---|---|
+  | `lead_target` | +1.11 ± 0.44* | +16.6 ± 5.7* | +0.78 ± 0.32* | +7.8 ± 4.0 |
+  | `lead_own` | +0.61 ± 0.45 | +15.1 ± 6.3* | +0.69 ± 0.46 | +3.1 ± 2.9 |
+  | `turn_feed` | +1.15 ± 0.29* | +9.1 ± 4.7 | +0.59 ± 0.27* | +9.5 ± 3.6* |
+
+  Every part adds, and none raises team kills. The turn feed adds no overshoot that costs hits against the bench's strafing targets.
+- **Whole matches** (`--ignored`): all pass with it on.
+
+**Tests:** `reflex::tests::the_duel_numbers_are_a_top_players_at_the_best_skill` (its enemy known at the tick, as the view would have him). `lost_battery_run` keeps the change off, as it keeps the older aim changes off: with it the bot kills the thief at 2.6 s, before he takes the battery.
+
+**Not verified:** no live match has been played with it. The next recorded match should show the miss against a crossing human at about his position, not 100 ms behind.
+
 ## 3. Plays
 
 Each play has a score from the situation, a precondition and steps. A commander per team hands them out every ~0.5 s: never two bots on one ambush, and no bot parked at its own container. In the saved worlds lives that stay in their own third are the worst in every mode (K/D 0.3–0.6, ~0.03 batteries a life), so a steal is answered by the 1–2 nearest bots (the thief cheat and the alarms in §4); the only guard is play 18.
