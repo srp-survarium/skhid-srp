@@ -1072,6 +1072,14 @@ impl Bots {
                 let knowledge = &mut self.teams[usize::from(team)].knowledge;
                 knowledge.hud_update(team, &before, &after, time);
                 knowledge.settle_looks(team, &after);
+                for text in knowledge.battery_notes.drain(..) {
+                    let text = format!("team {team}: {text}");
+                    notes.push(Note {
+                        place: usize::MAX,
+                        time,
+                        text,
+                    });
+                }
             }
         }
         // A battery of ours taken from home.
@@ -1553,6 +1561,7 @@ impl Bots {
         self.teams[usize::from(team)].knowledge.searching = searching;
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
+        let mut blocks = Vec::new();
         for bot in self
             .bots
             .iter()
@@ -1589,6 +1598,7 @@ impl Bots {
             };
             let mut candidates = Vec::new();
             plays::candidates(&cx, &mut candidates);
+            blocks.push((bot.place, plays::collect::take_blocks(&cx)));
             asked.push((bot.place, candidates, bot.assignment.clone()));
         }
         let asking = asked
@@ -1696,6 +1706,18 @@ impl Bots {
             bot.running = Some(running);
             bot.route = None;
             bot.assignment = Some(assignment);
+        }
+        // Why known batteries left a bot's Collect candidates, when it
+        // changed (`collect::note_take_blocks`).
+        let knowledge = &mut self.teams[usize::from(team)].knowledge;
+        for (place, blocks) in blocks {
+            for text in plays::collect::note_take_blocks(knowledge, place, &blocks) {
+                notes.push(Note {
+                    place,
+                    time: now,
+                    text,
+                });
+            }
         }
     }
 
@@ -1842,6 +1864,9 @@ impl Bots {
                 |index| worth[index],
                 rays,
             );
+            for text in state.knowledge.battery_notes.drain(..) {
+                bot.note(notes, now, text);
+            }
         }
         let skill = bot.skill;
         let notice_factor = signals::mix(tuning.aim.notice, skill);
