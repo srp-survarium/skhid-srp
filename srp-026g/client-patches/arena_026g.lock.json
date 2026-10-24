@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 69800,
-  "sha256": "64020aeb9dc5cf149a593bef05607bef7d609469ccc972c334e52ee380c17030",
+  "sha256": "af424d593950637beb91e9a12aa55e320f2a226e53a7c4e92083cfc45af3db4e",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -62,7 +62,7 @@
     "hide_ui.code": {
       "kind": "code",
       "va": "0xa43c000",
-      "size": 561
+      "size": 529
     },
     "hide_ui.data": {
       "kind": "data",
@@ -154,8 +154,7 @@
     "engine_zone_deactivate": "0xa432920",
     "engine_zone_tick": "0xa432940",
     "hide_chat": "0xa434048",
-    "hide_ui_kits": "0xa43c030",
-    "hide_ui_lobby": "0xa43c110",
+    "hide_ui_lobby": "0xa43c0f0",
     "hide_ui_match": "0xa43c000",
     "match_keys_chat": "0xa4330c3",
     "match_keys_hud": "0xa433080",

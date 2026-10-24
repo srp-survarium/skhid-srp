@@ -3508,17 +3508,14 @@ on at 0x25CEDB as before; without it, the hud movie ([[hud+8]+108h]+4, the hud t
 +4) is asked `root.interface_hidden`, and it and the player icons' movie ([[hud+10h]+108h]+4)
 get `root.hide_interface(not that)`: each hides every layer of its stage (`InterfaceHider`), the
 hud, the crosshair, the minimap, the kits, the markers over heads, and goes on running, so what
-happens meanwhile (kill feed, messages) plays out unseen. The kits before the start too; the
-start keeps the state. The key is not taken (0x25CF0D, al 0), as in the original. Not the game
+happens meanwhile (kill feed, messages) plays out unseen. The kits before the start and after a
+death too; the start, a death and a respawn keep the state (the owner, 2026-10-24). The hud's
+screen effects stay: their container (`add_effect`'s blood, drips, the grenade's flash) goes on
+the stage below the hidden hud while hidden. The key is not taken (0x25CF0D, al 0), as in the original. Not the game
 world's own `show_ui` (0x1F95F0, slot 8 of its vtable 0x9FC4F4, its state +0A0h; the activation
 shows the ui with it at 0x1F8476, the deactivation hides it at 0x1F96D1), which the first build
 used: the movies it hides (+204h and +20Ch) stand still, and when shown they played everything
 that came meanwhile at once (the owner's test of 64ce3ce7).
-
-**The kits.** `show_profiles_selector` (0x2383B0) shows the kits with `show_cursor(1)` (its call
-at 0x23845B, edi the hud); the patch calls `hide_ui_kits` there, which for a 1 asks the hud
-movie and, hidden, gives it and the icons' `root.hide_interface(false)`, then jumps to
-`show_cursor`: the death screen's kits are never hidden.
 
 **The lobby.** `lobby_menu::on_keyboard_action` (0x26CB80) asks the binder for the lobby's
 actions (kind 2) at 0x26CCD2 (eax the binder, edi 2, esi the key); the F keys never reach the
@@ -3536,10 +3533,10 @@ which presses Play at 0x26CDA2). The movie shows the interface and takes that ke
 its release (`LobbyMenu.onHiddenKey`, `onHiddenKeyUp`: a message hidden with the interface acts on
 Enter's release). F keys other than F11 (the movie never gets them) do nothing then.
 
-All three in the arena's block `hide_ui.code`, the controls in `hide_ui.data`
+Both in the arena's block `hide_ui.code`, the controls in `hide_ui.data`
 (`hide_ui_026g.asm`), with the late join; `get_binded_action` and Invoke through the engine
-library (`engine_binded_action`, `engine_movie_invoke`); no state of its own (the movies keep it). No base relocation under the sites (0x25CED1 ten bytes, 0x23845B and
-0x26CCD2 a `call` each); nothing aims inside them (the switch's table aims at 0x25CED1, the
+library (`engine_binded_action`, `engine_movie_invoke`); no state of its own (the movies keep it). No base relocation under the sites (0x25CED1 ten bytes, 0x26CCD2 a
+`call`); nothing aims inside them (the switch's table aims at 0x25CED1, the
 jump's own first byte).
 
 Rendering and input only; no row in `../crates/session/src/v026g/simulation_changes.tsv`.
@@ -3548,14 +3545,14 @@ Rendering and input only; no row in `../crates/session/src/v026g/simulation_chan
 Checked: `selftest_026g.py` check 62 (the action's entry, the switch and its case, the kits'
 call, the lobby's call and its taken path, the block's code, exits, calls and data; the movies'
 `InterfaceHider` one class in the three, the lobby's stage layers it covers, the right-click menu
-closed only when open, the movies' functions) and the call shapes (0x23845B and 0x26CCD2 CALLEE,
-`ret 4` as their models; 0x25CED1 JUMP); `check_hide_ui_026g.py` (Unicorn): the case 19h with and
+closed only when open, the topmost objects hidden too: the exe makes the corner's exit and
+settings buttons topmost with `root.enable_element`, and Scaleform draws those whatever their
+parents' visibility; the movies' functions) and the call shapes (0x26CCD2 CALLEE,
+`ret 4` as its model; 0x25CED1 JUMP); `check_hide_ui_026g.py` (Unicorn): the case 19h with and
 without the replay's movie, the hud movie and the icons', the interface hidden or shown (16
 cases): `root.hide_interface(not hidden)` to the hud and the icons exactly without the replay's
 movie with the hud's, every case at the original's 0x25CEDB or 0x25CF0D with its esp, ebp and
-stack; the kits' call (16 cases): `root.hide_interface(false)` exactly for a 1 and a hud that
-answers hidden, then show_cursor with its byte and hud, back at 0x238460 with ebx, esi, edi, ebp
-kept; the lobby's call with the game's own
+stack; the lobby's call with the game's own
 get_binded_action on a binder of the action table's descriptions (F11, C, F, W, H, F6, Enter,
 with and without the movie, the interface hidden or shown, 28 cases): `root.toggle_interface`
 and the key taken exactly for F11 with the movie; the interface hidden, every other key to

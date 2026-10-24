@@ -483,9 +483,8 @@ Patches:
   world's on_keyboard_action case 19h (0x25CED1) without the replay's movie
   asks the hud movie root.interface_hidden and gives it and the player icons'
   movie root.hide_interface(not that), the kits before the start too (the
-  movies go on running: what happens while hidden plays out unseen);
-  show_profiles_selector's show_cursor call (0x23845B) shows a hidden hud and
-  icons again before the kits show; lobby_menu::on_keyboard_action's binder call
+  movies go on running: what happens while hidden plays out unseen; a death
+  keeps the state); lobby_menu::on_keyboard_action's binder call
   (0x26CCD2) asks again for kind 1 when the key has no lobby action, and on
   toggle_replay_ui invokes the lobby movie's root.toggle_interface and takes
   the key (back at 0x26CCAE, al 1); while the movie says its interface is
@@ -1981,7 +1980,7 @@ TEAM_DAMAGE_SIZES = (
 
 # The key that hides the interface (patch 62, README; client_patch.md section
 # 3.55; the rules: ../docs/notes/hide-ui-key.md): hide_ui_026g.asm in the
-# arena's blocks hide_ui.code and hide_ui.data (ARENA below), three entries:
+# arena's blocks hide_ui.code and hide_ui.data (ARENA below), two entries:
 # - the game world's on_keyboard_action 0x25CD00, its case of action 19h
 #   (toggle_replay_ui, F11; the switch's table 0x25CF30 + 8 * 4), `mov
 #   esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D` at 0x25CED1: with
@@ -1992,9 +1991,6 @@ TEAM_DAMAGE_SIZES = (
 #   cursor; both ways the key is not taken (0x25CF0D). Not the game world's
 #   show_ui (0x1F95F0): the movies it hides stand still, and what came
 #   meanwhile played at once when shown (the owner's test of 64ce3ce7);
-# - show_profiles_selector's `call 0x23A930` (show_cursor) at 0x23845B: for a
-#   1, a hud movie that answers hidden gets root.hide_interface(false), the
-#   icons' too, before the kits are shown;
 # - lobby_menu::on_keyboard_action's `call 0x207D50` (get_binded_action,
 #   kind 2) at 0x26CCD2: a key with no lobby action is asked again for kind
 #   1; toggle_replay_ui invokes the lobby movie's root.toggle_interface and
@@ -2005,7 +2001,6 @@ TEAM_DAMAGE_SIZES = (
 # No base relocation is under a site and no branch aims inside one.
 HIDE_UI_HOOKS = (
     (0x25CED1, bytes.fromhex("8b742410" "837e1800" "7432"), "hide_ui_match", 0xE9),   # on_keyboard_action: case 19h
-    (0x23845B, bytes.fromhex("e8d0240000"), "hide_ui_kits", 0xE8),                  # the kits' show_cursor call
     (0x26CCD2, bytes.fromhex("e879b0f9ff"), "hide_ui_lobby", 0xE8),                 # the lobby's binder call
 )
 # The options' controls (the same patch): the six functions of game_options
@@ -2043,8 +2038,8 @@ def hide_ui_table_writes(linked):
     return out
 
 
-HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x23A930, 0x26CCAE, 0x26CDD2)
-# the replay's toggle, the key not taken, show_cursor; the lobby's key taken, and the key to the movie
+HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
+# the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
 
 
 def weapon_camo_va(late_join):
@@ -2247,8 +2242,6 @@ INSTALLS = {
     0x25CED1: (JUMP, "the game world's on_keyboard_action 0x25CD00, its case of action 19h (toggle_replay_ui), "
                      "`mov esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D`: match, back at 0x25CEDB (the "
                      "replay's controls, esi the handler) or 0x25CF0D", None, None),
-    0x23845B: (CALLEE, "show_profiles_selector's show_cursor (edi the hud, the byte pushed; `ret 4`): kits, which "
-                       "shows a hidden ui first and jumps to it", None, None),
     0x26CCD2: (CALLEE, "lobby_menu::on_keyboard_action's get_binded_action (eax the binder, edi 2, esi the key, "
                        "the toggle's place pushed; `ret 4`): lobby, which on toggle_replay_ui returns to 0x26CCAE "
                        "instead", None, None),

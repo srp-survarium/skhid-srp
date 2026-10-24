@@ -8,6 +8,7 @@ package
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.display.Sprite;
+   import flash.geom.Matrix;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.events.TimerEvent;
@@ -830,30 +831,52 @@ package
       
       // The key that hides the interface (exe patch 62, F11; docs/notes/hide-ui-key.md): hidden, every
       // layer of the hud's stage is (InterfaceHider: the hud, the crosshair, the minimap, the kits,
-      // the kill feed, the chat, the fps line); the movie goes on running, so what happens meanwhile
-      // plays out and goes unseen. The exe asks interface_hidden on the key and calls this with the
-      // other state, and with false when the kits are shown after a death.
+      // the death screen, the kill feed, the chat, the hit marks, the fps line); the movie goes on
+      // running, so what happens meanwhile plays out and goes unseen. The screen effects stay (the
+      // owner, 2026-10-24: the pain's red edges are the scene's, not the interface): their container
+      // (the blood, its drips, the grenade's flash) goes on the stage below the hidden hud, drawn as
+      // it was, and comes back into the hud when shown. The exe asks interface_hidden on the key and
+      // calls this with the other state; a death or a respawn keeps it.
       private var _hider:InterfaceHider;
+
+      private var _effectsIndex:int;
 
       public function hide_interface(hidden:Boolean) : void
       {
          if(this._hider == null)
          {
-            _hider = new InterfaceHider(stage);
+            _hider = new InterfaceHider(stage,null,[this.effectContainer]);
          }
-         if(hidden)
+         if(hidden && !this._hider.hidden)
          {
+            _effectsIndex = getChildIndex(this.effectContainer);
+            stage.addChildAt(this.effectContainer,0);
+            this.placeEffects();
             this._hider.hide();
          }
-         else
+         else if(!hidden && this._hider.hidden)
          {
             this._hider.show();
+            addChildAt(this.effectContainer,Math.min(this._effectsIndex,numChildren));
+            this.placeEffects();
          }
       }
 
       public function interface_hidden() : Boolean
       {
          return this._hider != null && this._hider.hidden;
+      }
+
+      // The screen effects' place: the screen at 1280x720 in the hud, the same seen from the stage
+      // while the interface is hidden.
+      private function placeEffects() : void
+      {
+         var place:Matrix = new Matrix(this.stageWidth / 1280,0,0,this.stageHeight / 720,0,0);
+         if(this.effectContainer.parent != this)
+         {
+            place.concat(this.transform.matrix);
+         }
+         this.effectContainer.transform.matrix = place;
       }
 
       public function setup_player_profiles(value:Array) : void
@@ -2441,8 +2464,7 @@ package
          this.layout.setScaleFactor(this.scaleFactor);
          this.damageInd.scaleX = this.stageWidth / 1280;
          this.damageInd.scaleY = this.stageHeight / 720;
-         this.effectContainer.scaleX = this.stageWidth / 1280;
-         this.effectContainer.scaleY = this.stageHeight / 720;
+         this.placeEffects();
          // The middle of the centre pixel in screen pixels (the crosshair is
          // drawn at 1:1, below): at a scale of 2 the half pixel in HUD units
          // was a whole pixel off.

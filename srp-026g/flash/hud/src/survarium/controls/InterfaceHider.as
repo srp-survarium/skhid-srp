@@ -7,9 +7,13 @@ package survarium.controls
 
    // The key that hides the interface (docs/notes/hide-ui-key.md, exe patch 62): every shown child
    // of the stage is hidden (the movie's root and every layer put on the stage: windows, popups,
-   // messages, menus, tooltips, the dragged item, the loading screen), and a layer shown or added
-   // while hidden is hidden too (checked every 100 ms), so nothing of the interface stays on the
-   // screen. The movie goes on running. show() shows again exactly the layers it hid.
+   // messages, menus, tooltips, the dragged item, the loading screen), and the objects `extras`
+   // names: those of Scaleform's topmost level, which are drawn whatever their parents' visibility
+   // (the lobby's exit and settings buttons, which the exe makes topmost with
+   // root.enable_element). The objects of `keep` stay (the hud's screen effects: blood, the
+   // grenade's flash). One shown or added while hidden is hidden too (checked every 100 ms),
+   // so nothing of the interface stays on the screen. The movie goes on running. show() shows
+   // again exactly what it hid.
    public class InterfaceHider
    {
       private var _stage:Stage;
@@ -18,10 +22,16 @@ package survarium.controls
 
       private var _timer:Timer;
 
-      public function InterfaceHider(stageRef:Stage)
+      private var _extras:Function;
+
+      private var _keep:Array;
+
+      public function InterfaceHider(stageRef:Stage, extras:Function = null, keep:Array = null)
       {
          super();
          _stage = stageRef;
+         _extras = extras;
+         _keep = keep ? keep : [];
          _timer = new Timer(100);
          this._timer.addEventListener(TimerEvent.TIMER,this.onTimer);
       }
@@ -63,16 +73,27 @@ package survarium.controls
          var i:int = 0;
          while(i < this._stage.numChildren)
          {
-            var child:DisplayObject = this._stage.getChildAt(i);
-            if(child != null && child.visible)
-            {
-               child.visible = false;
-               if(this._hidden.indexOf(child) < 0)
-               {
-                  this._hidden.push(child);
-               }
-            }
+            this.hideOne(this._stage.getChildAt(i));
             i++;
+         }
+         if(this._extras != null)
+         {
+            for each(var extra:Object in this._extras())
+            {
+               this.hideOne(extra as DisplayObject);
+            }
+         }
+      }
+
+      private function hideOne(child:DisplayObject) : void
+      {
+         if(child != null && child.visible && this._keep.indexOf(child) < 0)
+         {
+            child.visible = false;
+            if(this._hidden.indexOf(child) < 0)
+            {
+               this._hidden.push(child);
+            }
          }
       }
 
