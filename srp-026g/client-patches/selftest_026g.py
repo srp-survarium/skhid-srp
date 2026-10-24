@@ -1563,7 +1563,9 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.SPONGE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.RATTLE_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.RATTLE_SIZES] + \
-        [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
+        [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS]
 
 
 def pickup_sites():
@@ -4493,6 +4495,51 @@ def test_hide_ui(original, image, before):
           "0x26CCAE or 0x26CDD2, calls the library's show_ui, get_binded_action and Invoke and nothing else; it "
           "invokes root.toggle_interface and root.interface_hidden; the game world it hid is in hide_ui.state")
     here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
+    # the options' controls: the game's 40 rows, the six functions that read them, the arena's 41
+    table, count = P.HIDE_UI_TABLE, P.HIDE_UI_ROWS
+    empty = lambda at: struct.pack("<III", at + 0x1C, at + 0x1C, at + 0x3C) + bytes(32) + \
+        struct.pack("<III", at + 0x48, at + 0x48, at + 0x68) + bytes(32)
+    original_rows = [stock.read(table + 0x68 * i, 0x68) for i in range(count)]
+    check(all(row[16:] == empty(table + 0x68 * i) for i, row in enumerate(original_rows))
+          and 0x19 not in [struct.unpack_from("<I", row)[0] for row in original_rows]
+          and cstr(struct.unpack_from("<I", original_rows[-1], 4)[0]) == b"st_ptt_action",
+          f"the options' controls are {count} static rows of 68h bytes at {table:#x} (the action, its label's "
+          "key, the group, the type, two empty buffer_strings pointing into the row), the last ptt's; none is 19h")
+    check([rows(stock, va, len(old))[0] for va, old, _, _ in P.HIDE_UI_TABLE_REFS]
+          == ["mov eax,0xa9db28", "mov esi,0xa9db2c", "add eax,0xa9db28", "mov esi,0xa9db34",
+              "mov dword [esp+0xc],0xa9db28", "mov esi,0xa9db38"]
+          and [rows(stock, va, len(old))[0] for va, old, _ in P.HIDE_UI_TABLE_COUNTS]
+          == ["mov dword [esp+0x18],0x28", "mov ebx,0x28", "cmp bl,0x28", "mov dword [esp+0x44],0x28",
+              "mov dword [esp+0x10],0x28", "mov dword [ebp-0x8],0x28"],
+          "the table's six readers (0x201150, 0x201248, 0x2013BF, 0x201A19, 0x201D05, 0x201F2B) and their six "
+          "counts of 28h")
+    controls = linked.symbols["controls"]
+    data_block = linked.blocks["hide_ui.data"]
+    arena_rows = [image.read(controls + 0x68 * i, 0x68) for i in range(count + 1)]
+    new_row = arena_rows[count]
+    label = struct.unpack_from("<I", new_row, 4)[0]
+    check(data_block.va <= controls and controls + 0x68 * (count + 1) <= data_block.va + data_block.size
+          and all(arena_rows[i][:16] == original_rows[i][:16] and arena_rows[i][16:] == empty(controls + 0x68 * i)
+                  for i in range(count))
+          and struct.unpack_from("<4I", new_row) == (0x19, label, 2, 1)
+          and new_row[16:] == empty(controls + 0x68 * count)
+          and image.read(label, 25) == b"st_hide_interface_action\0",
+          f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows, each pointing into itself, and a 41st: "
+          "19h, st_hide_interface_action, group 2, type 1")
+    writes = P.hide_ui_table_writes(linked)
+    check(all(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              for va, old, new in writes)
+          and [rows(image, va, len(new))[0] for va, _, new in writes[:6]]
+          == [f"mov eax,{controls:#x}", f"mov esi,{controls + 4:#x}", f"add eax,{controls:#x}",
+              f"mov esi,{controls + 0xC:#x}", f"mov dword [esp+0xc],{controls:#x}", f"mov esi,{controls + 0x10:#x}"]
+          and [rows(image, va, len(new))[0][-4:] for va, _, new in writes[6:]] == ["0x29"] * 6
+          and {va + at for va, _, at, _ in P.HIDE_UI_TABLE_REFS}
+          <= {v for kind, v in image.relocations().values() if kind == 3},
+          "the six readers read `controls`, their counts are 29h, their addresses keep their base relocations; "
+          "the build without the late join has them as the original")
+    check("\nedit\thide-interface-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
+                                                       encoding="utf-8").read(),
+          "release/content.tsv makes the label (hide-interface-1.json)")
     lobby = here("flash", "lobby_menu", "src", "LobbyMenu.as")
     check("public function toggle_interface() : void" in lobby and "public function interface_hidden() : Boolean" in lobby,
           "the lobby movie has root.toggle_interface and root.interface_hidden")
@@ -6026,7 +6073,8 @@ def test_late_join(original, without, server, source):
     fov_sites = {va for va, _, _ in P.FOV_PATCHES}
     with_address = {P.REMOVE_MODEL_VA, P.PICKUP_HOOKS[0][0]} | fov_sites | \
         {va for va, old, _, _ in P.WEAPON_PREVIEW_HOOKS if old[:3] == b"\xf3\x0f\x10"} | \
-        {va for va, _, _, _ in P.FOV_LOD_HOOKS}
+        {va for va, _, _, _ in P.FOV_LOD_HOOKS} | \
+        {va for va, _, _, _ in P.HIDE_UI_TABLE_REFS}   # the options' table, now the arena's (relocated alike)
     kept = [(lo, hi) for lo, hi in sites if lo not in with_address]
     under_kept = [va for kind, va in Image(original).relocations().values()
                   if kind == 3 and any(va + 4 > lo and va < hi for lo, hi in kept)]
@@ -6044,6 +6092,8 @@ def test_late_join(original, without, server, source):
           f"distance ({P.PICKUP_RELOC:#x}) and of the lobby camera's least "
           f"({', '.join(f'{va:#x}' for va in P.WEAPON_PREVIEW_RELOCS)}) and of patch 40's two constants "
           f"({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), which are disabled, "
+          "and of the options' controls table's six readers (patch 62: their address is the arena's, kept "
+          "relocatable) "
           f"and of the field-of-view option's name "
           f"({option:#x}, an address for an address), which stays; the rest of the table is the build's without it")
 

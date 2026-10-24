@@ -1,0 +1,11 @@
+{
+ "_about": "The controls options' row of the key that hides the interface (toggle_replay_ui, F11; exe patch 62 adds the row, its label key st_hide_interface_action): its label in the six localization tables (docs/notes/hide-ui-key.md).",
+ "add_key": [
+  {"file": "localization/english/localization", "table": "strings", "key": "st_hide_interface_action", "text": "Hide interface"},
+  {"file": "localization/german/localization", "table": "strings", "key": "st_hide_interface_action", "text": "Oberfläche ausblenden"},
+  {"file": "localization/polish/localization", "table": "strings", "key": "st_hide_interface_action", "text": "Ukryj interfejs"},
+  {"file": "localization/russian/localization", "table": "strings", "key": "st_hide_interface_action", "text": "Скрыть интерфейс"},
+  {"file": "localization/original/localization", "table": "strings", "key": "st_hide_interface_action", "text": "Скрыть интерфейс"},
+  {"file": "localization/ukrainian/localization", "table": "strings", "key": "st_hide_interface_action", "text": "Сховати інтерфейс"}
+ ]
+}

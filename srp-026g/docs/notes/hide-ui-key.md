@@ -8,8 +8,10 @@ too, for screenshots.
 - **F11 hides the interface and shows it again.** It is the game's own action
   `toggle_replay_ui` (shown and hid only the replay viewer's controls before), so a replay keeps
   F11 as it was.
-- **Not in the options' controls list:** that list and the action table are fixed tables in the
-  exe. Rebinding is the game's binding of `toggle_replay_ui`.
+- **Options, Controls, "Hide interface"** (Скрыть интерфейс, Сховати інтерфейс, Oberfläche
+  ausblenden, Ukryj interfejs): the last row of the game keys, F11 by default. Rebound there like
+  any other key, saved and read back as the others (`bind toggle_replay_ui <key>` in `user.cfg`).
+  The owner, 2026-10-24: "there is no in settings option to switch it".
 - **Why F11:** the game has no screenshot key; F12 is Steam's, Print Screen Windows'. F11 did
   nothing in a match or the lobby. Free in every group otherwise: B, H, J, U, Y, Z, 9, 0, F4,
   F7-F10, F12, Caps Lock (L is the game's in a match).
@@ -43,7 +45,9 @@ too, for screenshots.
 - Exe patch 62 (`hide_ui_026g.asm`; `client_patch.md` 3.55): the match uses the game's own
   `game_world::show_ui`; the lobby calls the lobby movie's `toggle_interface`.
 - Lobby movie: `LobbyMenu.toggle_interface`.
-- No simulation change, no server change, no content row.
+- The controls row: patch 62 gives the options a 41st row (its table moved into the arena); its
+  label is content edit `hide-interface-1.json`.
+- No simulation change, no server change.
 
 ## Later: a match without UI
 
