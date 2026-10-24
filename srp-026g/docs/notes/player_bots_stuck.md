@@ -1051,7 +1051,8 @@ Standing pockets by map, out with the escape on: level_01 10/10, level_02 2/6,
 level_03 4/6, level_04 6/10, level_05 2/2, level_06 20/31, level_07 4/6,
 level_08 0/9. Of the 32 left, 28 have no Standing exit nearer than 0.7 m
 across (level_08's, pit A among them, are 0.9-1.0 m), beyond the stand-in's
-jump. The other 4, on level_06, have an exit 0.5-0.56 m across and still
+landing reach of 0.6 m, a GUESS of the client's standing jump. They are to be
+checked again against the real jump reach once it is measured. The other 4, on level_06, have an exit 0.5-0.56 m across and still
 stayed: not explained yet.
 
 MEASURED
