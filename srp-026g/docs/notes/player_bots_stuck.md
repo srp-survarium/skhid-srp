@@ -994,7 +994,7 @@ spawns, and `pocket_exits` lists the ledges a jump could leave it by
 (Standing up to 0.998 m, Sprint up to 1.35 m, Steep beyond).
 
 **The change** (`escape.rs`, `path.rs`, `stuck.rs`, `tactics.rs`, `team.rs`,
-`mod.rs`, `plays/mod.rs`).
+`motor.rs`, `mod.rs`, `plays/mod.rs`).
 
 - **Trying the ways out.** A bot in a pocket whose goal is outside it walks
   to an exit's take-off inside the pocket and jumps it: the route ends with
@@ -1007,7 +1007,15 @@ spawns, and `pocket_exits` lists the ledges a jump could leave it by
   the team learns the exit), or fails after 12 s or when its route is dropped.
 - **Giving up.** With no exit left to try, or 40 s after the first try, the
   bot gives up on the pocket and is marked trapped (`Ctx::trapped`). Its
-  failed jumps while trying do not count as the motor's failed jumps.
+  failed jumps while trying do not count as the motor's failed jumps. The
+  escape is kept while the bot is in the pocket, its goal in it or not: a
+  goal that moves in stops the try under way (not failed), and a bot that
+  gave up stays so until it is out (a play's goal going in and out of the
+  pocket made it give up again and again, handing its slot on each time).
+- **No stuck watch while trying.** A try runs up to the rim and jumps; the
+  stuck watch took that for stuck, noted it, marked a spot for the team and
+  backed off or side-stepped against the try. While a try is under way the
+  watch is off (`Stuck::reset`); the try has its own clock.
 - **Slots.** A bot given up in a pocket lets its slot go, even inside
   `COMMIT_M`, and takes no slotted play (`team::assign_trapped`), so a
   teammate takes the battery or the spot. `Ctx::path_dist` is unchanged.
@@ -1026,9 +1034,11 @@ spawns, and `pocket_exits` lists the ledges a jump could leave it by
 **The stand-in's limit.** The bench's walker lands a jump that is not a grid
 link only on a floor within 0.6 m ahead (a GUESS of the client's standing
 jump), so it cannot land the exits 0.8-1.0 m across that most Standing
-pockets have (the grid links jumps up to 1.05 m, so what is left is gaps).
-Pit A is one of them. Whether bots get out of those is for the client
-recordings to show.
+pockets have (the grid links jumps up to 1.05 m, so what is left is gaps;
+the grid lists exits up to 1.0 m across, `POCKET_EXIT_ACROSS_M`). Pit A is
+one of them. `SRP_BENCH_JUMP_AHEAD_M` sets the stand-in's reach for a
+sensitivity row; the real reach is not measured, and whether bots get out
+of those pockets is for the client recordings to show.
 
 **Tests** (`pocket_runs` in `tests.rs`, a pit in an 80 × 40 yard, with
 `max_jump` 0.6 so a 0.9 m rim has no link):
@@ -1069,7 +1079,62 @@ on its landing (`ARRIVE_ON_LANDING_M`, 0.15 m). The fix is general (any route
 ending in a near, low jump); alone it moved nothing in the bench (batt and
 tdm presets, seeds 1-8, everything within 1 SE).
 
-MEASURED
+**Measured** (`real_bot_cost`, the change against 626db4b5 with the same
+pocket tally, both sides run here; ± is 1 SE, * beyond 2 SE). `RouteTally`
+counts living bot-seconds on a pocket's floors (`pocket bot-s`), deaths
+there, and the escape's tries, exits that worked or failed, give-ups and
+slots handed on. The stand-in's reach changes both sides, so each row is
+its own pair: the batt and tdm presets, tier unset, seeds 1-16 (192 pairs
+a preset).
+
+| | reach 1.0 m (the grid's exits) | reach 0.6 m (the GUESS) |
+|---|---|---|
+| pocket bot-s, batt | 11.60 → 8.91, -2.69 ± 1.77 | 12.80 → 9.76, -3.04 ± 1.56 |
+| pocket bot-s, tdm | 10.29 → 2.99, -7.29 ± 2.04* | 11.93 → 10.74, -1.19 ± 2.32 |
+| pocket deaths, batt / tdm | -0.021 ± 0.010* / -0.073 ± 0.027* | -0.016 ± 0.009 / -0.010 ± 0.024 |
+| tries / worked / gave up (sum), batt | 111 / 108 / 18 | 93 / 90 / 22 |
+| tries / worked / gave up (sum), tdm | 88 / 35 / 4 | 204 / 10 / 19 |
+
+Guards (batt; tdm), reach 1.0 m: K/D +0.02 ± 0.02 and +0.00 ± 0.03;
+-0.01 ± 0.01 and -0.00 ± 0.01, kills -0.19 ± 0.14; +0.27 ± 0.12*, delivered
+-0.03 ± 0.05, carriers killed -0.05 ± 0.05, quick ends a bot-minute
+-0.064 ± 0.019* (better); 0.000 ± 0.004, flips -0.007 ± 0.004;
+-0.000 ± 0.005, idle -0.12 ± 0.14; -0.50 ± 0.17* (better), team kills
+0.000; -0.006 ± 0.006, stuck notes +0.05 ± 0.15; -0.11 ± 0.10, falls off
+the route 0.00 ± 0.07; -0.05 ± 0.10. Falls on the route (drops of a metre
+or more in a tick where the bot's own route has a corner a metre lower
+within a metre of the landing: planned drops) are up in tdm, +0.30 ±
+0.14*: +2.31 ± 0.55* in the 29 matches with tries (pocket bot-s -44.7 ±
+10.7* there), -0.06 ± 0.12 in the 163 without. Bots out of pockets walk
+routes that drop.
+
+Reach 0.6 m: K/D -0.04 ± 0.03 and +0.04 ± 0.03; -0.01 ± 0.02 and +0.02 ±
+0.02, kills +0.08 ± 0.12; +0.11 ± 0.11, delivered +0.05 ± 0.04, carriers
+killed +0.02 ± 0.06, quick ends -0.046 ± 0.019* (better); -0.000 ± 0.003,
+flips +0.001 ± 0.003; +0.001 ± 0.004, idle -0.13 ± 0.13; -0.01 ± 0.15, team
+kills +0.006 ± 0.006 both, stuck notes -0.15 ± 0.19; -0.06 ± 0.13. Falls off
+the route in batt +0.18 ± 0.09*: +1.24 ± 0.49* in the 21 matches with a
+give-up, +0.03 ± 0.03 in the 138 with no pocket: tries at rims the stand-in
+cannot land, bounded by the give-up clock.
+
+Slots handed on by bots given up: 0-2 a seed in every row.
+
+The 16-map bench (`SRP_BOT_ROUTES`, 16 maps × 4v4 and 10v10, seeds 1-16:
+512 pairs) at reach 0.6 m: pocket bot-s 18.53 → 17.93 (-0.60 ± 1.18), jumps
+pressed +1.80 ± 0.37*, stuck notes +0.07 ± 0.09, stuck at a mate's spot
++0.02 ± 0.04, flips -0.003 ± 0.003, quick ends -0.025 ± 0.009* (better),
+carriers killed +0.049 ± 0.028, falls off the route +0.15 ± 0.06* (+0.43 ±
+0.23 in matches with tries, +0.03 ± 0.02 without), pushing +0.56 ± 0.17*
+(tries pushing at rims).
+
+The hurt clocks never came into play in the bench (no pocketed bot was hurt
+in a try; tries 0.5-1.1 a match): seeds 1-8 of batt and tdm against the same
+build without them, every guard within 1.5 SE. `a_hurt_bot_spends_no_try_on_a_pit`
+shows what they do.
+
+The real jump reach is not measured: the change is judged on the owner's
+recordings of the final test matches.
+
 
 **Left.**
 
@@ -1078,7 +1143,8 @@ MEASURED
   moved nothing in the bench. To measure first.
 - A bot that gave up stays in the pocket. Killing itself is gated on the
   client recordings showing that bots still cannot leave with nothing else
-  wrong.
+  wrong. The 26 Standing pockets whose exits are all 0.7 m or more across
+  are the evidence to check first.
 
 ### Jumps while hurt (2026-10-24)
 
