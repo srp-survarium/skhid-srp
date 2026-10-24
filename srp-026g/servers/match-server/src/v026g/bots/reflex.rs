@@ -328,6 +328,28 @@ pub struct CombatTuning {
     /// with no target is). Bench, tiers 9-10: without it contacts never
     /// engaged rose 0.62 ± 0.28 points a seed.
     pub switch_between_thinks: bool,
+    /// The aim at a seen target is where he will be at the tick decided:
+    /// his part where the view has him ([`PlaceView::known_at`]: a human
+    /// reckoned to the clock, a bot to its last decided tick) led along his
+    /// speed to that tick, which is up to [`super::encode::LEAD_TICKS`]
+    /// past the clock. Before, the aim was where the view had him: in the
+    /// owner's recorded match 0x31632b5a (2026-10-24) a bot aimed at a human
+    /// crossing at 2.5 m/s or more was 0.73 m off him and 0.50 m off where he
+    /// was 100 ms before, and a live human's ping makes that more. Bench
+    /// (`player_bots_behaviour.md` §2.12): with the pings, +1.1 points of hit
+    /// rate alone.
+    pub lead_target: bool,
+    /// The lead's most, ms (a view older than that is not led on).
+    pub lead_most_ms: u32,
+    /// The aim is taken from the eye where its own keys put it at the tick
+    /// decided (its last decided tick's feet led along its speed), not
+    /// where that tick left it: the shot leaves from there.
+    pub lead_own: bool,
+    /// The turn onto a seen target also follows his bearing's turn rate
+    /// (his speed against the bot's, across the line), so a steady crossing
+    /// target is not trailed by the turn's ease (the turn's time constant,
+    /// `settle_s` / 2, of the bearing's rate: 0.05 s of it at skill 0.6).
+    pub turn_feed: bool,
     /// The turn to a threat, even with a target: hit, at the nearest enemy
     /// it sensed firing in the last `threat_shot_ms` (seen, or heard: where
     /// it heard him); not hit, at a shot heard within `threat_heard_m`
@@ -688,6 +710,10 @@ impl Default for CombatTuning {
             switch_facing_deg: 0.0,
             switch_facing_margin_m: 10.0,
             switch_between_thinks: true,
+            lead_target: true,
+            lead_most_ms: 300,
+            lead_own: true,
+            turn_feed: true,
             threat_shot_ms: 1_000,
             threat_heard_m: 25.0,
             // Half the sense's view (`SenseTuning::view_deg`).
@@ -856,6 +882,9 @@ pub struct Override {
     /// and slowed the carrier: the bench lost a third of its deliveries
     /// once play 6 ran again).
     pub glance: bool,
+    /// The look's turn rate, yaw and pitch, radians a second, while it aims
+    /// at a seen target (`turn_feed`): the motor's turn follows it.
+    pub track: Option<(f32, f32)>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -2385,6 +2414,7 @@ impl Reflex {
                 band_m: self.band,
                 strafe: 0,
                 glance: false,
+                track: None,
             };
         }
         // An enemy noticed since the last think (the noticing is its
@@ -2493,7 +2523,11 @@ impl Reflex {
         // [aimpoint] The part of him that shows (none: where he was last
         // seen); a shot only clear of the world (the last test below).
         let aimed = self.sight.aim(track.who(), body, point);
-        let point = aimed.point;
+        // Where he will be at the tick decided (`lead_target`).
+        let led = body.filter(|_| aimed.shows && c.lead_target);
+        let point = led.map_or(aimed.point, |body| {
+            aimed.point + lead(body, now, c.lead_most_ms)
+        });
         // The error settles from its start toward the skill's, never to 0,
         // and wanders slowly about him as a player's tracking does.
         let t = now.saturating_sub(self.since) as f32 / 1000.0;
@@ -2630,6 +2664,9 @@ impl Reflex {
             band_m: self.band,
             strafe,
             glance: false,
+            track: body
+                .filter(|_| aimed.shows && c.turn_feed)
+                .map(|body| bearing_rate(me, point, body.velocity)),
         }
     }
 
@@ -2702,6 +2739,33 @@ impl Reflex {
     }
 }
 
+/// How far `body` goes along its speed from the time the view has it for
+/// ([`PlaceView::known_at`]) to the tick `now`, at most `most_ms` (and back
+/// at most two ticks, for a bot decided past `now`).
+fn lead(body: &PlaceView, now: u32, most_ms: u32) -> Vec3 {
+    let back = (super::encode::LEAD_TICKS * survarium::v026g::match_msgs::TICK_MS) as i64;
+    let ms = (i64::from(now) - i64::from(body.known_at)).clamp(-back, i64::from(most_ms));
+    let s = ms as f32 / 1000.0;
+    Vec3::new(body.velocity[0] * s, 0.0, body.velocity[1] * s)
+}
+
+/// The turn rate, yaw and pitch, radians a second, of the line from
+/// `me`'s eye to `point` as `velocity` (the target's, on the ground) and
+/// `me`'s own move them: what a turn follows to stay on a steady target.
+fn bearing_rate(me: &PlaceView, point: Vec3, velocity: [f32; 2]) -> (f32, f32) {
+    const DT: f32 = 0.05;
+    let to = point - me.eye();
+    let rel = [velocity[0] - me.velocity[0], velocity[1] - me.velocity[1]];
+    let next = to + Vec3::new(rel[0] * DT, 0.0, rel[1] * DT);
+    let angles = |v: Vec3| (yaw_of([v.x, v.z]), v.y.atan2(v.x.hypot(v.z)));
+    if to.x.hypot(to.z) <= 0.3 {
+        return (0.0, 0.0);
+    }
+    let (yaw0, pitch0) = angles(to);
+    let (yaw1, pitch1) = angles(next);
+    (wrap(yaw1 - yaw0) / DT, (pitch1 - pitch0) / DT)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2728,6 +2792,7 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            known_at: 0,
         }
     }
 
@@ -2971,6 +3036,8 @@ mod tests {
             }
             let mut enemy = body(1, 1, Vec3::new(x, 0.0, 20.0), 0.0);
             enemy.velocity = [dir * 2.5, 0.0];
+            // The view has him as he is at the tick (no lead to make).
+            enemy.known_at = now;
             let view = view_of(vec![me.clone(), enemy.clone()]);
             if now >= next_think {
                 next_think = now + rng.range(200.0, 400.0) as u32;

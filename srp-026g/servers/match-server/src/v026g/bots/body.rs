@@ -149,6 +149,33 @@ impl BodyTrack {
         self.fix.as_ref()
     }
 
+    /// The bench only: `estimate` as a human's body is seen, known `late`
+    /// ms before `clock` (his ping) and reckoned on to the clock: the feet
+    /// of its last decided tick by then and its speed between that tick and
+    /// the one before, on in a line. With no trail that old, `estimate`.
+    #[cfg(test)]
+    pub fn seen_late(&self, estimate: Estimate, clock: u32, late: u32) -> Estimate {
+        let known = clock.saturating_sub(late);
+        let Some(k) = self.trail.iter().rposition(|&(time, _)| time <= known) else {
+            return estimate;
+        };
+        let (time, feet) = self.trail[k];
+        let velocity = match k.checked_sub(1).map(|k| self.trail[k]) {
+            Some((before, from)) if time > before => {
+                let s = (time - before) as f32 / 1000.0;
+                [(feet.x - from.x) / s, (feet.z - from.z) / s]
+            }
+            _ => estimate.velocity,
+        };
+        let ahead = clock.saturating_sub(time) as f32 / 1000.0;
+        Estimate {
+            time: clock,
+            feet: Vec3::new(feet.x + velocity[0] * ahead, feet.y, feet.z + velocity[1] * ahead),
+            velocity,
+            ..estimate
+        }
+    }
+
     pub fn last_error(&self) -> Option<f32> {
         self.last_error
     }

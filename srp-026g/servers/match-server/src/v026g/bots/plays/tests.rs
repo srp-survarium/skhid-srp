@@ -131,6 +131,7 @@ impl Scenario {
                 streak: 0,
                 carrying: None,
                 seen_at: 0,
+                known_at: 0,
             });
         }
         let p = &mut self.view.places[place];
