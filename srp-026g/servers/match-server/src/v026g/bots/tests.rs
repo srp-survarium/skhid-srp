@@ -377,6 +377,9 @@ struct Game {
     /// those with nothing of him showing.
     walled: u32,
     hidden: u32,
+    /// [PR C] The same by the shooter's team.
+    walled_by: [u32; 2],
+    hidden_by: [u32; 2],
     /// Rays the counts above cast (not the bots').
     metric_rays: u64,
     delivered: [u32; 2],
@@ -556,6 +559,8 @@ impl Game {
             jumps_refused: 0,
             team_kills: 0,
             walled: 0,
+            walled_by: [0; 2],
+            hidden_by: [0; 2],
             hidden: 0,
             metric_rays: 0,
             delivered: [0, 0],
@@ -889,12 +894,15 @@ impl Game {
         {
             let before = super::aimpoint::rays_cast();
             let crouched = target.keys & key::CROUCH != 0;
+            let team = usize::from(body.team).min(1);
             if !super::aimpoint::shows(eye, target.feet, crouched, &self.world.sight, || true) {
                 self.hidden += 1;
+                self.hidden_by[team] += 1;
             }
             let reach = (Self::chest(target) - eye).length() - 0.5;
             if self.world.sight.ray_cast(eye, dir, reach).is_some() {
                 self.walled += 1;
+                self.walled_by[team] += 1;
             }
             self.metric_rays += super::aimpoint::rays_cast() - before;
         }

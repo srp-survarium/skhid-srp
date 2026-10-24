@@ -152,6 +152,8 @@ pub(super) struct FightTally {
     hits_taken: [[u32; RANGE_BINS]; 2],
     deaths_at: [[u32; RANGE_BINS]; 2],
     last_hit_m: BTreeMap<Place, f32>,
+    /// Shots at the shooter's target, by its team.
+    at_target_by: [u32; 2],
 }
 
 /// [play 20] "throws a grenade at (x, y, z), blast at <ms>": the place and
@@ -203,7 +205,8 @@ impl FightTally {
             self.hits_taken[usize::from(team).min(1)][range_bin(d)] += 1;
             self.last_hit_m.insert(victim, d);
         }
-        if let (Some((_, distance, _)), Some(&(class, ..))) = (fact.target, self.places.get(fact.shooter)) {
+        if let (Some((_, distance, _)), Some(&(class, team, ..))) = (fact.target, self.places.get(fact.shooter)) {
+            self.at_target_by[usize::from(team).min(1)] += 1;
             self.by_class.entry(class).or_insert([Count::default(); RANGE_BINS])[range_bin(distance)].add(hit);
         }
         let Some((target, distance, off)) = fact.target else {
@@ -418,7 +421,7 @@ impl FightTally {
             "fight: episodes {} farther {} never {}; close {} engaged<=1s {} median_ms {} never {}; standoffs {}; exposed {} not_facing {}; quick_ends {} flips {}; team kills {:?} deaths {:?}\n  \
              shots: bands(<10,<20,<35,<60,60+) {}; still hip {} still aim {} moving hip {} moving aim {}; crouched {}; first3 {} later {}; line on body {} off median {:.1} deg; aim hip {} aiming-in {} aimed-in {} cone mean {:.2} deg\n  \
              grenades: thrown {} held back {}; at the blasts teammates within 3/6/10 m {} {} {}; the thrower within 6/10 m {} {}
-               ranges ({} m bins): {}; hits taken by team {:?} {:?}; deaths by team {:?} {:?}; at the target {} shots, {} into a wall, {} with nothing of him showing",
+               ranges ({} m bins): {}; hits taken by team {:?} {:?}; deaths by team {:?} {:?}; at the target {} shots, {} into a wall, {} with nothing of him showing; by team {:?} {:?} {:?}",
             self.episodes,
             self.farther,
             self.never,
@@ -470,6 +473,9 @@ impl FightTally {
             self.band.iter().map(|c| c.shots).sum::<u32>(),
             game.walled,
             game.hidden,
+            self.at_target_by,
+            game.walled_by,
+            game.hidden_by,
         )
     }
 }
