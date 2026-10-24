@@ -286,8 +286,9 @@ fn the_page_changes_an_account_and_its_open_game_is_told() {
     alice.until("the account again", |game| {
         game.has(|message| matches!(message, Decoded::Skills { level: 2, .. }))
             && game.has(|message| {
+                // A new account's 3000 with the Scavengers and the 40.
                 matches!(message, Decoded::Reputations { reputations, .. }
-                    if reputations.contains(&(1, 40)))
+                    if reputations.contains(&(1, 3_040)))
             })
             && game.has(|message| {
                 matches!(
@@ -401,13 +402,11 @@ fn moderation_reaches_the_open_game_and_the_database() {
     });
     alice.forget();
 
-    let pistol = stack.accounts.get(id).unwrap().locked().inventory[0].item_id;
-    assert!(
-        stack.accounts.get(id).unwrap().locked().kits[0]
-            .slot_of(pistol)
-            .is_some()
-    );
-    let take = pistol.to_string();
+    // The starter kit's jacket, worn (`session::v026g::tutorial`).
+    let jacket = stack.accounts.get(id).unwrap().locked().kits[0].slots[2]
+        .expect("the starter jacket")
+        .item_id;
+    let take = jacket.to_string();
     let asked = [
         ("tab", "items"),
         ("items_user", "WebFarmer"),
@@ -426,7 +425,7 @@ fn moderation_reaches_the_open_game_and_the_database() {
                 .model
                 .inventory()
                 .iter()
-                .all(|item| item.item_id != pistol)
+                .all(|item| item.item_id != jacket)
     });
     // The audit trail (in the database) has both, the newest first.
     let actions = stack.accounts.admin_actions(id, 10, true).unwrap();
@@ -434,7 +433,7 @@ fn moderation_reaches_the_open_game_and_the_database() {
     assert_eq!(kinds, ["items", "money"]);
     assert!(
         stack.accounts.get(id).unwrap().locked().kits[0]
-            .slot_of(pistol)
+            .slot_of(jacket)
             .is_none()
     );
     alice.assert_clean();

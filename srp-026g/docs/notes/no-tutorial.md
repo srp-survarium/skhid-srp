@@ -9,11 +9,30 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
   off for the ranking's recounts.
 - **Steps sent anyway** (`4B 01`, `4B 02`, `46 0A`): not answered, nothing paid.
 - **A new account starts with** (its first 0.26g sign-in, `GameAccounts::sign_up`, once,
-  before its client hears of it: no window, no notice): 10 000 silver and 500 gold, the
-  steps' 250 experience (the game's `unique_awards.options`), and 1000 rounds each of
-  7.62x25 (TT-33, PPSh-41) and 7.62x54R (Mosin) on its starting stacks, and the Scavengers as
-  its quest faction (the tutorial ended in the faction's choice; never neutral). Autobuy is on
-  (`premium.md` §3).
+  before its client hears of it: no window, no notice; `tutorial::signup_grant`):
+  - 60 000 silver (10 000, +50 000 since 2026-10-24) and 500 gold;
+  - the steps' 250 experience (the game's `unique_awards.options`);
+  - exactly 1000 rounds of every ammo: each stack of the dictionary under
+    `gameplay/items/weapons/ammo/`, the ported weapons' too (34 on the released data);
+  - the Scavengers at reputation level 5, their highest (3000 points), as earned: all they
+    sell is buyable; they are its quest faction (never neutral);
+  - its first kit wearing, each the plain item of its English name, new, full condition:
+    Novice's knit cap (1821), Amber respirator (43), Survivor's jacket (325, not the premium
+    345), Chemical protection pants (46), gloves (42) and boots (38), SOK-94 (2215) in weapon
+    slot 1 with 60 rounds of 7.62x39 (81), OTs-02 Kiparis (88, not the premium 332) in weapon
+    slot 2 with 100 rounds of 9x18 (70) (each weapon's category's `optimal_count` in whole
+    clips); put on by the lobby's rule (`rules::fill_kit`);
+  - the TT-33, the Mosin and the PPSh-41 stay owned, in the inventory;
+  - modifications of their own (the reroll's storage): the respirator 1183 (shown
+    "Isolation: +20"), the gloves 1133 (shown "Collection time: -20%"; beside their own
+    default 1130, -5%);
+  - autobuy on (`premium.md` §3).
+- **The first kit's level is 6** (the 7.62x39's `match_making_level`; the SOK-94 is 4, the
+  armour 2 and 3): over the bots' max gear 5, so playing the bots takes another kit.
+- **srp refuses to start** on game data without a starter item or modification
+  (`known::check_code`). The test data lacks the knit cap and the SOK-94; the whole kit on
+  released data: `SRP_TEST_GAME_DATA=<server-game-data.db> cargo test -p session --test
+  starter_kit -- --ignored`.
 - **New player** (the first match's drop table): no more experience than an account starts
   with.
 - **Accounts made before:** keep what they have and get no tutorial; steps they had not done

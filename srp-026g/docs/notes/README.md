@@ -342,8 +342,8 @@ Known gaps a live session will meet:
 - Premium, the shop's bundles, the daily bonus, a nickname change,
   autobuy and auto-repair are there (`premium.md`). **There is no
   tutorial since 2026-10-19** (`premium.md` §5): a new account gets the
-  daily bonus window at its sign-in, and starts with 10 000 silver and
-  500 gold.
+  daily bonus window at its sign-in, and starts with 60 000 silver,
+  500 gold and a starter kit (`no-tutorial.md`).
 - **The lobby on a screen wider than 16:9** (seen 2026-10-12 at 3440x1440:
   the top bar's parts overlap). The lobby SWF is drawn for 1920x1080 and
   has two paths split at aspect 1.85 (`LobbyMenu.onStageResize`: scale by

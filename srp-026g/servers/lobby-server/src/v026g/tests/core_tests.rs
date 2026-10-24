@@ -52,6 +52,9 @@ impl World {
     fn with_settings(settings: Settings) -> Self {
         let store: &'static SessionStore = Box::leak(Box::new(SessionStore::new()));
         let accounts: &'static GameAccounts = Box::leak(Box::new(GameAccounts::new()));
+        // The tests are written against the stock first kit (the TT-33):
+        // a new account wears no starter kit unless a test turns it on.
+        accounts.set_starter_kit(false);
         let results: &'static Results = Box::leak(Box::new(Results::new()));
         let host: &'static TestHost = Box::leak(Box::new(TestHost::default()));
         let inbox: &'static Inbox = Box::leak(Box::new(Inbox::default()));
@@ -356,8 +359,9 @@ fn a_sign_in_is_answered_with_the_whole_account_in_the_clients_order() {
         ]
     );
     assert!(client.ids.contains(&0xA1));
-    // The three free weapons and their two kinds of ammo.
-    assert_eq!(client.model.inventory().len(), 5);
+    // The three free weapons and every ammo (`tutorial::starter_ammo`).
+    let ammo = session::v026g::tutorial::starter_ammo(Dictionary::shared()).len();
+    assert_eq!(client.model.inventory().len(), 3 + ammo);
     // Play is enabled: more than half an hour to maintenance. The counts
     // came with the pushes and, as 0x9F is sent once and may be lost,
     // again on the next pass.
@@ -498,6 +502,7 @@ fn buying_selling_and_moving_go_round_with_their_pushes() {
         known_to_every_seller(account);
     });
     let record = buyable(&world.account(alice), false);
+    let before = world.client(alice).model.inventory().len();
 
     // Buy: `83 47 00`, then the inventory, the account and the money.
     world.ask(
@@ -515,7 +520,7 @@ fn buying_selling_and_moving_go_round_with_their_pushes() {
         decoded[3],
         Decoded::Money { generic, .. } if generic == 5_000_000 - record.cost
     ));
-    assert_eq!(world.client(alice).model.inventory().len(), 6);
+    assert_eq!(world.client(alice).model.inventory().len(), before + 1);
     assert!(world.account(alice).item(item_id).is_some());
 
     // Move the pistol off the kit: no `83`, the pushes are the answer.
@@ -536,7 +541,7 @@ fn buying_selling_and_moving_go_round_with_their_pushes() {
         decoded[0],
         Decoded::Permitted(Permitted::Sold { item_id: sold, amount: 1 }) if sold == item_id
     ));
-    assert_eq!(world.client(alice).model.inventory().len(), 5);
+    assert_eq!(world.client(alice).model.inventory().len(), before);
     assert!(world.account(alice).item(item_id).is_none());
     world.assert_clean();
 }
@@ -2839,7 +2844,8 @@ fn a_bundle_and_a_premium_item_are_bought_for_gold() {
     let id = |name: &str| dictionary.item_named(name).unwrap().dict_id;
     let silver = world.account(alice).generic_money;
 
-    // The AK-74N bundle (offer 9): the rifle and 2000 rounds, 1500 gold.
+    // The AK-74N bundle (offer 9): the rifle and 2000 rounds, 1500 gold,
+    // onto the 1000 a new account has.
     world.ask(alice, request::buy_offer(9, 0));
     let decoded = world.take(alice);
     assert!(matches!(
@@ -2855,7 +2861,7 @@ fn a_bundle_and_a_premium_item_are_bought_for_gold() {
         .map(|item| (item.dict_id, item.condition_or_stack))
         .collect();
     assert!(owned.contains(&(id("ak_74n_premium"), FULL_CONDITION)));
-    assert!(owned.contains(&(id("ammo_5.45x39_7n6m"), 2_000)));
+    assert!(owned.contains(&(id("ammo_5.45x39_7n6m"), 3_000)));
 
     // Two repair kits from the shop's list: 50 gold each, silver untouched.
     world.ask(
@@ -3286,31 +3292,52 @@ fn a_nickname_is_checked_and_changed() {
 }
 
 /// No tutorial (`session::v026g::tutorial`): a new account is told every
-/// step is done, so its client runs none of it, and starts with 10 000
-/// silver, 500 gold, the steps' experience and the ammo; a step a client
-/// sends anyway is not answered.
+/// step is done, so its client runs none of it, and starts with 60 000
+/// silver, 500 gold, the steps' experience, the ammo and the starter kit
+/// (`tutorial::tests`); a step a client sends anyway is not answered.
 #[test]
 fn a_new_account_has_no_tutorial_and_what_it_paid() {
     use survarium::v026g::lobby::tutorial_model::State;
     let mut world = World::new();
+    world.accounts.set_starter_kit(true);
     let alice = world.connect("Alice");
     // The start is what the client is first told: no window for it.
-    assert_eq!(told_money(&world.take(alice)), Some((10_000, 500)));
+    assert_eq!(told_money(&world.take(alice)), Some((60_000, 500)));
+    // Its inventory, the respirator's and the gloves' modifications too.
+    let held: Vec<(u16, Vec<u32>)> = world
+        .client(alice)
+        .model
+        .inventory()
+        .iter()
+        .filter(|item| !item.modifications.is_empty())
+        .map(|item| {
+            let ids = item.modifications.iter().map(|m| m.id).collect();
+            (item.dict_id, ids)
+        })
+        .collect();
+    assert_eq!(held, [(43, vec![1183]), (42, vec![1133])]);
+    assert_eq!(
+        world.client(alice).model.inventory().len(),
+        world.account(alice).inventory.len()
+    );
     assert_eq!(world.client(alice).model.tutorial().state(), State::Default);
     let account = world.account(alice);
-    assert_eq!((account.generic_money, account.premium_money), (10_000, 500));
+    assert_eq!(
+        (account.generic_money, account.premium_money),
+        (60_000, 500)
+    );
     assert_eq!(account.exp_total, 250);
-    // The Scavengers' quests, never neutral.
+    // The Scavengers' quests, never neutral, at their level 5.
     assert_eq!(account.quest_faction, 1);
-    for (name, rounds) in session::v026g::tutorial::SIGNUP_AMMO {
-        let dict_id = Dictionary::shared().item_named(name).unwrap().dict_id;
+    assert_eq!(account.reputation_level(1), 5);
+    for dict_id in session::v026g::tutorial::starter_ammo(Dictionary::shared()) {
         let owned: u32 = account
             .inventory
             .iter()
             .filter(|item| item.dict_id == dict_id)
             .map(|item| item.condition_or_stack)
             .sum();
-        assert!(owned > rounds, "{name}: {owned}");
+        assert_eq!(owned, session::v026g::tutorial::SIGNUP_ROUNDS, "{dict_id}");
     }
     drop(account);
     // Given once: the next sign-in gives nothing more.
