@@ -37,10 +37,10 @@ at least 4 rattles? 50 -> 75 -> 87 -> 94?")
 
 ## Spawns
 
-- As the Sponge: one Rattle in every map anomaly that spawns artefacts (a core with an
-  artefact container and kinds), after the Sponge: exe patch 59 gives the anomaly cook the
-  core's table with {758, 1} and {759, 1} after its own kinds (`sponge.md` "Spawns",
-  client_patch.md 3.52); no map file ships. No timed anomalies (main has none since #345).
+- At the owner's spots only (2026-10-24), as the Sponge: 24 containers on the maps (edit list
+  `artefact-spots-1`, `scripts/sponge/spots.tsv`); a picked container spawns only the Rattle,
+  the anomaly's others its own kinds, an anomaly with no pick is 0.26g's (`sponge.md` "Spawns",
+  client_patch.md 3.52). No timed anomalies (main has none since #345).
 
 ## Content (a pack, as sponge@2)
 
@@ -176,8 +176,9 @@ Patch number
 
 - Changes what a match computes (a new artefact in the anomalies): the `next` row of
   `crates/session/src/v026g/simulation_changes.tsv`; the exe requires the pack.
-- The site's /maps shows it as the Sponge (scripts/maps-tab/build.py, EXE_KINDS); its icon
-  `artefact_rattle.webp` comes from the calculator's icon export of cell [21,1].
+- The site's /maps shows it at its spots, as the Sponge (scripts/maps-tab/build.py reads
+  `mode/artefact_spots`); its icon `artefact_rattle.webp` comes from the calculator's icon
+  export of cell [21,1].
 - The pack `rattle@2` is made by `scripts/rattle/make_pack.py` (its folder goes into
   SKHID_PACKS_DIR as `rattle-2`). @1 had 0.20e's `data/spawn_sec` 0.5, a float where every
   0.26g artefact has an int: release/build-content's value-type check refused it; @2 has

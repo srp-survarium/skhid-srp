@@ -21,18 +21,24 @@
 ;                     zone a sponge ticks names its thrower, its inflictor and it
 ;   sponge_artefacts  the anomaly cook's look-up of a core's `artefacts`
 ;                     (0x2E9D40 at 0x2E9D53, `call 0xF6B10`): the table, or
-;                     a copy with the Sponge and the Rattle after its kinds
-;                     (sp_artefacts: every static anomaly that spawns
-;                     artefacts holds both, for the Rattle's patch too)
+;                     for a core with the owner's spots a copy with the
+;                     Sponge's and the Rattle's units after its kinds
+;                     (sp_artefacts, for the Rattle's patch too)
+;   sponge_spawn      spawn_artefact 0x31B6C0 at 0x31B800, the container
+;                     chosen: the artefact it may take (sp_spawn_pick), or
+;                     none this time
+;   sponge_links      the core's resolve_links 0x33C440 (its vtable slot
+;                     0xA16A10, thiscall, `ret 1Ch`): the original, then the
+;                     kinds of its picked containers kept (sp_links)
 ;
 ; The C functions and data it uses are symbols of the link: sp_vtable (+4 is
 ; the vtable as objects hold it, past its RTTI locator), sp_g (the state the
 ; zone's hit reads) and the functions below.
 bits 32
 global sponge_construct, sponge_size, sponge_query, sponge_predicate, sponge_ready, sponge_throw, sponge_pull
-global sponge_zone_hit, sponge_artefacts
+global sponge_zone_hit, sponge_artefacts, sponge_spawn, sponge_links
 extern sp_construct, sp_size, sp_cook_query, sp_can_throw, sp_exploded, sp_throw, sp_pull_pin, sp_vtable, sp_g
-extern sp_artefacts
+extern sp_artefacts, sp_spawn_pick, sp_links
 section .text
 
 %define CONSTRUCT_DEFAULT 0x25E737 ; the switch's default: the base cook
@@ -51,6 +57,9 @@ section .text
 %define PULL_ON           0x3103DC
 %define ZONE_HIT_ON       0x319CAC
 %define CONFIG_CHILD      0xF6B10  ; operator[]: eax the table, edi the key; eax the child (the call replaced)
+%define SPAWN_ON          0x31B85F ; edx = the artefact (spawn_artefact's third draw done)
+%define SPAWN_NONE        0x31B8C2 ; no artefact: the next delay
+%define RESOLVE_LINKS     0x33C440 ; the slot's own function: thiscall (resolver, config by value), ret 1Ch
 %define TYPE_SPONGE_LESS3 9        ; data/type 12 after the switch's `add eax,-3`
 %define SP_VTABLE         sp_vtable + 4 ; as objects hold it
 %define G_ZONE            sp_g + 0x0  ; struct sp_globals
@@ -76,6 +85,10 @@ sponge_zone_hit:
     jmp near zone_hit
 sponge_artefacts:
     jmp near artefacts
+sponge_spawn:
+    jmp near spawn
+sponge_links:
+    jmp near links
 
 ; 0x25E68A, eax = data/type - 3; pushed ebx (= arg 2, &config), esi, edi;
 ; [esp+10h].. the memory, &config, &effect, the scene.
@@ -230,11 +243,39 @@ zone_hit:
     jmp ZONE_HIT_ON
 
 ; 0x2E9D53, called: eax = the core's config, edi = "artefacts" (as operator[]
-; 0xF6B10 takes them; it keeps ebx, esi, edi and ebp, and so does this).
+; 0xF6B10 takes them; it keeps ebx, esi, edi and ebp, and so does this);
+; [ebp+8] the cook (query_for_artefacts' frame).
 artefacts:
+    push dword [ebp + 8]              ; the cook
     push eax                          ; the core's config
     call CONFIG_CHILD                 ; eax = its artefacts table
     push eax
-    call sp_artefacts                 ; cdecl (table, core): the table to read
-    add esp, 8
+    call sp_artefacts                 ; cdecl (table, core, cook): the table to read
+    add esp, 12
     ret
+
+; 0x31B800, jumped to: edi = the core, [ebp-8] the container chosen (its
+; draw made), the free list's room allocated below; ebx, ecx, edx free.
+spawn:
+    push dword [ebp - 8]
+    push edi
+    call sp_spawn_pick                ; cdecl (core, container): the artefact or 0
+    add esp, 8
+    test eax, eax
+    jz SPAWN_NONE
+    mov edx, eax
+    jmp SPAWN_ON
+
+; the core's vtable slot 0xA16A10: thiscall, ecx = the core's +4, [esp+4]
+; the link resolver, [esp+8] its config by value (24 bytes); ret 1Ch.
+links:
+    push ecx
+    times 7 push dword [esp + 0x20]   ; the resolver and the config again
+    call RESOLVE_LINKS
+    pop ecx
+    lea eax, [esp + 8]                ; the config
+    push eax
+    push ecx
+    call sp_links                     ; cdecl (core+4, &config)
+    add esp, 8
+    ret 0x1C

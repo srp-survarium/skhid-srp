@@ -108,7 +108,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
-| `sponge_a_026g.asm`, `sponge_a_026g.c` | The source of patch 59's Sponge (artefact type 12): the nine hooks and their stubs in assembly, and 0.28d0's artefact_sponge_core written again in C on 0.26g's interfaces (the object, its vtables, the cook's query, the throw, the explosion, the zone, the passive, the state), and the static anomalies' kinds (the Sponge and the Rattle in every anomaly that spawns artefacts) |
+| `sponge_a_026g.asm`, `sponge_a_026g.c` | The source of patch 59's Sponge (artefact type 12): the ten hooks, the resolve_links slot and their stubs in assembly, and 0.28d0's artefact_sponge_core written again in C on 0.26g's interfaces (the object, its vtables, the cook's query, the throw, the explosion, the zone, the passive, the state), and the owner's spots (where the Sponge and the Rattle spawn: the pool, the links, the spawn) |
 | `rattle_026g.asm`, `rattle_026g.c` | The source of patch 59's Rattle (artefact type 8): the seven hooks and their stubs in assembly (the cook, the steps' and the shots' point proxies, the sound thread's amplitude and loudness), and the Rattle's active, state and quiet in C (the arena's blocks `rattle.code`, `rattle.state`) |
 | `check_rattle_026g.py` | Checks of patch 59's Rattle: runs the built exe's hooks and the Rattle's slots with the game's own cook, Rattle constructor, artefact_base, patch 54's press, on_player_sound_event, 0x657C0, play_sound_callback and the sound thread's stores on made-up items, players, weapons and proxies, each slot of ours through the game's caller (needs Unicorn); with `--pack` the pack's own config |
 | `check_sponge_a_026g.py` | Checks of patch 59's Sponge: runs the built exe's hooks and the sponge's slots with the game's own cook, Rattle constructor, config look-ups, splash and damage zone code on made-up items, players and worlds, and the anomaly cook's kinds loop (needs Unicorn); with `--v028d0` the same inputs through 0.28d0's own code, with `--options` the config read from a decoded `artefact_sponge.options`, with `--project` every anomaly of a map's client_project |
@@ -3242,8 +3242,8 @@ arguments, the stack and ebx, esi, edi, ebp as before. **Not run in a game.**
 
 Two artefacts in one patch, shipped together (the owner, 2026-10-23: "we will also add sponge and
 rattle artifacts"): the Sponge (0.28's thrown toxic artefact, item 758) and the Rattle (0.20e's cut
-artefact, item 759, its effect ours). Every static map anomaly that spawns artefacts holds one of
-each, by the exe (below), so no map file ships for them.
+artefact, item 759, its effect ours). They spawn at the owner's spots (each map's mode configs'
+`mode/artefact_spots`, edit list `artefact-spots-1`), so no map file ships for them.
 
 #### The Sponge: artefact type 12 as 0.28d0's code
 
@@ -3316,16 +3316,18 @@ texts in six languages); the hud movie draws its combat-log icon (`SpongeLogIcon
   Spring and Rattle destructors: the physics world, the holder's pool and the scene's list are
   neither called nor walked (any may be gone first); its body, the geometry it made and its hold
   on the zone go.
-- **The static anomalies' kinds**, for the Sponge and the Rattle: the anomaly cook's look-up of a
-  core's `artefacts` (`call 0xF6B10` at 0x2E9D53 in query_for_artefacts 0x2E9D40, the only reader
-  of that key) is `sponge_artefacts`: a core with artefact containers and kinds gets a copy of its
-  table with {758, 1} and {759, 1} after its own kinds (each unless it has it), from a ring of
-  eight copies in `sponge.state`; the maps' projects stay as they are (edit lists of them shipped
-  74 whole projects).
-- **The arena**: `sponge_a_026g.asm` (the nine entries `sponge_construct` .. `sponge_artefacts`,
-  `jmp near` each, and the stubs) and the C code, the block `sponge.code`, `sp_g` and the kinds'
-  copies the block `sponge.state` (`patch_026g.py` `ARENA`, `SPONGE_HOOKS`; `link_026g.py` places
-  them). The C
+- **The owner's spots**, for the Sponge and the Rattle: the anomaly cook's look-up of a core's
+  `artefacts` (`call 0xF6B10` at 0x2E9D53 in query_for_artefacts 0x2E9D40, the only reader of
+  that key; one artefact a unit) is `sponge_artefacts`: the match's map (its options' map id,
+  the items dictionary's loaded mode config) gives the spots, and a core with spots gets a unit
+  of the kind for each; the core's resolve_links slot (0xA16A10) is `sponge_links`, which keeps
+  which containers are picked; spawn_artefact's free list and third draw (0x31B800) are
+  `sponge_spawn`: a picked container takes its kind, the core's other containers its own kinds,
+  with 0.26g's draws (none free of those: nothing there this time).
+- **The arena**: `sponge_a_026g.asm` (the eleven entries `sponge_construct` .. `sponge_links`,
+  `jmp near` each, and the stubs) and the C code, the block `sponge.code`, `sp_g`, the kinds'
+  copies and the spots the block `sponge.state` (`patch_026g.py` `ARENA`, `SPONGE_HOOKS`,
+  `SPONGE_SLOT`; `link_026g.py` places them). The C
   code calls the game only through the engine library (`engine_026g.tsv`). Its vtables are
   `INSTALLED_VTABLES` rows and its query callback a `CALLBACKS` row, each slot of ours run
   through the game's own call site by `check_sponge_a_026g.py`.
@@ -3333,7 +3335,7 @@ texts in six languages); the hud movie draws its combat-log icon (`SpongeLogIcon
 What it does that 0.28d0 does not, and why: `../docs/notes/client_patch.md` section 3.52 (the
 splash of 0.28d0's config does no damage there either: `splash_pierce` 0).
 
-Checked (the Sponge): `selftest_026g.py` check 59 (the nine sites before and after, no relocation under one
+Checked (the Sponge): `selftest_026g.py` check 59 (the ten sites and the slot before and after, no relocation under one
 and no branch into one, the entries and the stubs' exits, the block, the C code's calls through the
 engine library) and the call shapes (the query's entry, ten artefact slots, the draw, the
 callback: each pops what its model pops, each reached through the game's own caller);
@@ -3346,8 +3348,10 @@ arguments against the original, serialization round trips in every state, the dr
 revive, patch 54's press; a removal while armed, a load turning the passive out and in, a late
 joiner's zone and a thrower who left, a tap, the destructor in the air and with the zone on with
 the physics world, the holder's pool and the scene's list unmapped, a container's can_use on a
-spent sponge; the anomaly cook's kinds loop on made-up cores beside the original exe, twenty in a
-row, and with `--project` every core of a map; each slot of ours through the game's own call site
+spent sponge; the owner's spots: the anomaly cook's kinds loop on made-up cores and maps beside the
+original exe, resolve_links through the slot, spawn_artefact whole against the original's (the same
+draws; a picked container its kind, the others the core's own), a late joiner's the same, and with
+`--project` every core of every live map with its spots; each slot of ours through the game's own call site
 (inventory::action, remove_item, setup_from_profile, the anomaly core's serialize, deserialize,
 spawn and tick loops, added_to_inventory, artefact_base::tick, the scene's drawable loop, the
 resource system's delete, the boost invoker 0x202300); with `--v028d0` 0.28d0's own action, passive, throw and

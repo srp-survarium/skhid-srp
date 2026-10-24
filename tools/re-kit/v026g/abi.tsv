@@ -2002,3 +2002,7 @@ va	name	source	ret_cleanup	result
 0x002013a0	survarium::game_options::assign_binding	manual	8	AL: the row of the action kept the key
 0x00201f20	survarium::game_options::apply_key_bindings	manual	0	for each row whose key set (+10h) differs from the kept (+3Ch): the console's `bind <action> <key>`, or `unbind <action>` for none
 0x00207450	survarium::key_binder::bind_command_save	manual	8	pushes `<command> <action> <key>` for every bound action of the binder's 48h bindings onto the list
+0x0021f910	survarium::items_dictionary::map_descriptor_by_id	manual	0	EAX: the map's entry of the dictionary's +160h ({u32 id, mode name, the mode config resource}, 12 bytes, count +164h; the resource kept by on_map_configs_loaded 0x2C9BA0, its root at +108h), NULL (and a log) for an id it has not
+0x001f6670		manual	0	EAX: the items dictionary, [[[this+20h]+9Ch]+53A4h] (generic_anomaly_core_cook's vtable 0x9FC6DC slot 9; query_for_artefacts calls it before item_by_id 0x1F0090)
+0x001f6680		manual	0	EAX: the match seed, [[[this+20h]+9Ch]+53ACh] vt+34h (the match options) +577B0h (generic_anomaly_core_cook's slot 10); the map id is the u8 at +577B4h of the same options
+0x0031ba00	survarium::generic_anomaly_core::artefact_respawn_delay	manual	0	EAX: the next spawn's delay in ms from +130h and its variation; one draw of the core's random (+1B8h)

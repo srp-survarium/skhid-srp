@@ -445,3 +445,16 @@ lobby's pick is seeded from RDTSC.
 | a new `st_hide_interface_action` "Hide interface" (Oberfläche ausblenden, Ukryj interfejs, Скрыть интерфейс, Сховати інтерфейс), in the six localization tables | the label of the controls options' row exe patch 62 adds for `toggle_replay_ui` (F11), the key that hides the interface in a match and the lobby and the replay's controls in a replay (`../../docs/notes/hide-ui-key.md`; the owner, 2026-10-24: "there is no in settings option to switch it") |
 
 Text only: no server data, no simulation change.
+
+## artefact-spots-1.json (2026-10-24)
+
+| change | why |
+|---|---|
+| `mode/artefact_spots` (a new key: an indexed table, `add_value` with a list) in the mode configs of the 11 maps the owner picked spots on (84 files: `gameplay/game_modes/<map>_<weather>_<mode>.options`, every `maps_dict` entry whose `mode/match_making_params/map_name` is in that map's folder, the Research maps' too): one row a spot, `{core, index, container, kind}` (the anomaly core's `full_name`, the container's place in its `artefact_containers`, its name, 758 or 759); 60 spots, 36 Sponge and 24 Rattle | the owner chose where the Sponge and the Rattle spawn in the spawn editor ("I click a Larkspur spot and make it a Rattle: now the Rattle spawns there"). Exe patch 59 reads the match's map's table (the items dictionary keeps every map's mode config loaded): a core with spots gets a unit of the kind for each, a picked container spawns only its kind, the core's other containers its own kinds, an anomaly with no spot is 0.26g's (`../../docs/notes/sponge.md` "Spawns") |
+
+Made by `../sponge/spots.py edit-list` from `../sponge/spots.tsv` (the editor's 60 files, `spots.py
+import`), which checks every row against every live project of its map (the core there once, spawning
+artefacts, that container at that index, its own kinds as the row says) and stops on any other
+answer; `spots.py check` says whether this file is still what they give. `--check` on revision 31's
+live files: 84 files edited, 0 unexpected differences. It changes what a match computes (where the
+two artefacts spawn): it rides with exe patch 59 and its `simulation_changes.tsv` row.

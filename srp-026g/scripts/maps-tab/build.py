@@ -17,7 +17,9 @@ plays them), and of each map
   `parameters.capture_zones` (`cp_id`, `position`);
 - artefact containers and what spawns there: the project's `client_objects`
   (`artefact_container`, grouped by their `generic_anomaly_core`), and the
-  kinds exe patch 59 adds to every core that spawns artefacts (EXE_KINDS);
+  owner's spots of the Sponge and the Rattle in the mode config
+  (`mode/artefact_spots`, read by exe patch 59: a picked container spawns
+  only its kind);
 - the minimap and its frame: `flash_movies/hud.swf`, class
   `survarium.controls.Minimap` (`_minimapProps`, `_levels`), keyed by the
   project's `project_name` as the HUD does;
@@ -165,15 +167,13 @@ def heading(o):
     return round(math.degrees(math.atan2(-vz, vx)) - 90) % 360
 
 
-# Exe patch 59 (srp-026g/client-patches/sponge_a_026g.c, sp_artefacts) adds
-# these kinds to every generic_anomaly_core with kinds and artefact containers,
-# after its own: the Sponge (758) and the Rattle (759). The projects do not
-# name them; a game whose items_dict lacks one shows none of it.
-EXE_KINDS = (758, 759)
-
-
-def objects(project, artefact_keys):
-    """What the tab shows of one project."""
+def objects(project, artefact_keys, spots=()):
+    """What the tab shows of one project; `spots` its mode config's
+    `mode/artefact_spots` (exe patch 59, srp-026g/client-patches/sponge_a_026g.c
+    sp_spawn_pick): a picked container of a core that spawns artefacts spawns
+    only its kind (a kind the items_dict lacks: the core's own); the core's
+    other containers its own kinds."""
+    picked = {(s["core"], s["index"]): s["kind"] for s in spots or ()}
     so = project.get("server_objects") or {}
     spawners = so.get("victory_item_spawners") or []
     stations = [xzy(o) for o in so.get("victory_item_spawn_points") or []]
@@ -183,11 +183,10 @@ def objects(project, artefact_keys):
         if o.get("game_object_type") != "generic_anomaly_core":
             continue
         ids = [a["dict_id"] for a in o.get("artefacts") or []]
-        if ids and o.get("artefact_containers"):
-            ids += [i for i in EXE_KINDS if i not in ids]
         kinds = {artefact_keys[i] for i in ids if i in artefact_keys}
-        for name in o.get("artefact_containers") or []:
-            kinds_of[name] |= kinds
+        for index, name in enumerate(o.get("artefact_containers") or []):
+            kind = picked.get((o.get("full_name"), index)) if ids else None
+            kinds_of[name] |= {artefact_keys[kind]} if kind in artefact_keys else kinds
     # A container's own position is its anomaly's pivot, shared by all of
     # them; where the artefact is found is its collision geometry (the zone
     # the search runs in).
@@ -270,9 +269,11 @@ def main():
             for mode_id in sorted(m["modes"]):
                 mm = m["modes"][mode_id]
                 seen = None
+                configs = {c["project"]: c["config"] for c in mm["configs"]}
                 for path in mm["projects"]:
                     project = load(raw, f"projects/{path}/client_project")
-                    got = objects(project, artefact_keys)
+                    mode_config = load(raw, "gameplay/game_modes/" + configs[path]) or {}
+                    got = objects(project, artefact_keys, (mode_config.get("mode") or {}).get("artefact_spots"))
                     if seen is not None and got != seen:
                         die(f"{path}: its objects differ from {mm['projects'][0]}'s (same map and mode)")
                     seen = got

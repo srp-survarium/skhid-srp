@@ -4643,3 +4643,8 @@ va	name	location	role	basis
 0x002013a0	survarium::game_options::assign_binding	entry ESP+8	the action: the row whose +0 it is gets the key in its +10h buffer_string; none, nowhere (root.set_keybind is invoked anyway)	observed
 0x00207450	survarium::key_binder::bind_command_save	ECX	the bind command (+10h its name, +60h which key of a binding: 0 bind, 1 bind_sec, +64h the binder)	observed
 0x00207450	survarium::key_binder::bind_command_save	entry ESP+4	the lines' list (+4 its end, +0Ch its capacity's end, +10h the allocator of the lines)	observed
+0x0021f910	survarium::items_dictionary::map_descriptor_by_id	EDX	the items dictionary	observed
+0x0021f910	survarium::items_dictionary::map_descriptor_by_id	EDI	the map id (maps_dict id)	observed
+0x001f6670		ECX	generic_anomaly_core_cook	observed
+0x001f6680		ECX	generic_anomaly_core_cook	observed
+0x0031ba00	survarium::generic_anomaly_core::artefact_respawn_delay	ECX	generic_anomaly_core	observed

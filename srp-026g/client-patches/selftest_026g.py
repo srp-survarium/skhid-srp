@@ -411,10 +411,11 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
 59. the same build: the Sponge and the Rattle (patch 59). The Sponge
     (sponge_a_026g.asm and sponge_a_026g.c, the arena's blocks sponge.code
-    and sponge.state): the original's nine sites (the artefact cook's
+    and sponge.state): the original's ten sites and a slot (the artefact cook's
     construct and size switches and its query's entry, the throw-grenade
     state's way in, is_ready, throw and the pull substate's pin, the damage
-    zone's hit, the anomaly cook's look-up of a core's kinds), the jumps and
+    zone's hit, the anomaly cook's look-up of a core's kinds, spawn_artefact's pick of an
+    artefact, the core's resolve_links slot), the jumps and
     the call to their symbols, no relocation under one and no branch into
     one, the entries and the stubs' exits, the C code's calls through the
     engine library, the hit inflictor's vtable (the game's three functions).
@@ -2454,10 +2455,11 @@ def test_sponge_a(original, image, before):
     check(block.kind == "code" and block.va % 0x1000 == 0 and image.read(block.va, len(code)) == code
           and state.kind == "state"
           and all(state.va <= linked.symbols[name] < state.va + state.size
-                  for name in ("sp_g", "sp_kinds", "sp_kinds_next"))
+                  for name in ("sp_g", "sp_kinds", "sp_kinds_next", "sp_spots", "sp_spot_cores", "sp_spot_next"))
           and not any(image.read(state.va, state.size)),
           f"the Sponge's code is the arena's block sponge.code at {block.va:#x} ({len(code)} bytes, the link's), "
-          f"its state (sp_g, the kinds' copies sp_kinds and their turn) the block sponge.state at {state.va:#x}, "
+          f"its state (sp_g, the kinds' copies and their turn, the map's spots, the cores' spots) the block "
+          f"sponge.state at {state.va:#x}, "
           f"{state.size:#x} bytes of zeros")
     originals = {
         0x25E68A: ["cmp eax,0x5", "ja near 0x25e737"], 0x25E79A: ["cmp eax,0x5", "ja 0x25e7d2"],
@@ -2470,7 +2472,14 @@ def test_sponge_a(original, image, before):
         0x319C8B: ["push ebx", "push ebx", "sub esp,0x8", "fstp [esp+0x4]", "fld [esp+0x20]",
                    "fstp [esp]", "push edx", "lea edx,[esp+0x3c]", "push edx", "mov edx,[esp+0xb4]",
                    "push ebx", "push edx", "call eax"],
-        0x2E9D53: ["call 0xf6b10"]}
+        0x2E9D53: ["call 0xf6b10"],
+        0x31B800: ["xor ebx,ebx", "mov [ebp-0x18],ecx", "mov [ebp-0x14],eax", "test esi,esi", "jna 0x31b83c",
+                   "mov edx,[edi+0x1b0]", "mov eax,[edx+ebx*4]", "cmp [eax+0x280],0x0", "jnz 0x31b82d",
+                   "mov [ebp-0xc],eax", "lea eax,[ebp-0xc]", "push eax", "lea esi,[ebp-0x18]", "call 0x31c250",
+                   "inc ebx", "cmp ebx,[edi+0x1b4]", "jc 0x31b80c", "mov eax,[ebp-0x14]", "mov ecx,[ebp-0x18]",
+                   "sub eax,ecx", "sar eax,byte 0x2", "mov edx,eax", "test edx,edx", "jna 0x31b8c2",
+                   "mov eax,[edi+0x1b8]", "imul eax,eax,0x8088405", "inc eax", "mov [edi+0x1b8],eax", "mul edx",
+                   "mov edx,[ecx+edx*4]"]}
     loose = lambda text: text.replace("byte +", "").replace("byte -", "-").replace("dword ", "")
     entries = []
     for va, old, symbol, opcode in P.SPONGE_HOOKS:
@@ -2482,7 +2491,8 @@ def test_sponge_a(original, image, before):
               and [loose(text) for _, _, text in rows] == originals[va]
               and hooked[0][2].startswith("call" if opcode == 0xE8 else "jmp")
               and branch_target(hooked[0][2]) == entry
-              and block.va <= entry < block.va + 0x2D and all(text == "nop" for _, _, text in hooked[1:]),
+              and block.va <= entry < block.va + 5 * len(P.SPONGE_HOOKS)
+              and all(text == "nop" for _, _, text in hooked[1:]),
               f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]} ({symbol}) + {len(hooked) - 1} nop; "
               "the build without the late join keeps it" + ("" if [loose(t) for _, _, t in rows] == originals[va]
                                                               else f" (ndisasm: {[loose(t) for _, _, t in rows]})"))
@@ -2491,10 +2501,18 @@ def test_sponge_a(original, image, before):
         relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
         check(not hits and not relocated, f"{va:#x}: no branch aims inside the site, no base relocation under it"
               + "".join(f", {h:#x}" for h in hits + relocated))
-    check(entries == [block.va + 5 * i for i in range(9)]
-          and [t.split()[0] for _, _, t in ndisasm(image.read(block.va, 0x2D), block.va)] == ["jmp"] * 9,
-          "the block starts with its nine entries, `jmp near` each: construct, size, query, predicate, ready, "
-          "throw, pull, zone_hit, artefacts")
+    va, old, symbol = P.SPONGE_SLOT
+    entry = linked.symbols[symbol]
+    relocated = [r for kind, r in source.relocations().values() if kind == 3 and r == va]
+    check(source.read(va, 4) == old == before.read(va, 4) and struct.unpack("<I", old)[0] == 0x33C440
+          and image.read(va, 4) == struct.pack("<I", entry) and relocated == [va],
+          f"{va:#x}: generic_anomaly_core's resolve_links slot, 0x33C440 in the original and the build without the "
+          f"late join, {symbol} ({entry:#x}) here; its base relocation kept (the exe is never rebased)")
+    entries.append(entry)
+    check(entries == [block.va + 5 * i for i in range(11)]
+          and [t.split()[0] for _, _, t in ndisasm(image.read(block.va, 0x37), block.va)] == ["jmp"] * 11,
+          "the block starts with its eleven entries, `jmp near` each: construct, size, query, predicate, ready, "
+          "throw, pull, zone_hit, artefacts, spawn, links")
     # the stubs: from the entries to the first C function (the asm's .text comes first in the block)
     c_start = min(va for name, va in linked.symbols.items() if name.startswith("sp_") and block.va <= va < block.va
                   + len(code))
@@ -2503,10 +2521,12 @@ def test_sponge_a(original, image, before):
     targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
     outside = {c for c in targets if not block.va <= c < block.va + len(code)}
     check(outside == {0x25E737, 0x25E693, 0x25E7D2, 0x25E79F, 0x25E806, 0x30A090, 0x2E40D2, 0x33A683, 0x33A696,
-                      0x33A692, 0x30A250, 0x33A7D9, 0x30A120, 0x3103DC, 0x319CAC, 0xF6B10},
+                      0x33A692, 0x30A250, 0x33A7D9, 0x30A120, 0x3103DC, 0x319CAC, 0xF6B10, 0x31B85F, 0x31B8C2,
+                      0x33C440},
           "the stubs leave to the switches' defaults and tables, the query's way on, each throw-state site's way "
-          "on and the call each replaces, the zone hit's way on, and the kinds' look-up it replaces "
-          f"(operator[] 0xF6B10) ({sorted(hex(c) for c in outside)})")
+          "on and the call each replaces, the zone hit's way on, the kinds' look-up it replaces (operator[] "
+          "0xF6B10), spawn_artefact's two ways on (an artefact, none) and the slot's own resolve_links "
+          f"({sorted(hex(c) for c in outside)})")
     # The C code reaches the game's functions through the engine library
     # (check_engine_026g.py proves each thunk): a call of each one's entry,
     # and none of their VAs in the code.
@@ -6019,6 +6039,7 @@ def test_late_join(original, without, server, source):
     ranges = [(P.file_offset(va), size) for va, size in late_join_sites()]
     ranges.append((P.data_file_offset(P.CLOCK_FACTOR_VA), 4))
     ranges.append((image.offset(P.REPLAY_REATTACH_SLOT[0]), 4))
+    ranges.append((image.offset(P.SPONGE_SLOT[0]), 4))
     ranges += [(P.file_offset(P.REVISION_VA) + 4, 1), (P.file_offset(P.LATE_JOIN_READY_VA) + 1, 4),
                (P.file_offset(P.DB_SIGNATURE_VA), len(P.DB_SIGNATURE[1])), (P.file_offset(P.STALE_DLL_VA), len(P.STALE_DLL[1])),
                (P.file_offset(P.MOUNT_QUERY_VA), len(P.MOUNT_QUERY[1])), (P.file_offset(P.MOUNTED_VA), len(P.MOUNTED[1])),
