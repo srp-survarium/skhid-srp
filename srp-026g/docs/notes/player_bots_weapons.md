@@ -666,3 +666,76 @@ Tests: `reflex::tests::the_aim_is_held_through_a_target_lost_a_moment`,
 `a_target_taken_again_a_moment_after_keeps_what_it_had_of_him`,
 `another_enemy_in_sight_still_waits_his_noticing`;
 `know::tests::in_sight_is_a_live_sight_before_its_noticing`.
+
+## Bots: the fire range by weapon, and the line looked at again while firing
+
+**The trigger's range, today:** 80 m for every weapon (`AimTuning::range_m`) and
+120 m for a bolt action (`FireTuning::bolt_range_m`).
+
+**What the configs say: under the players' use in every class.**
+- **Where the damage stops falling (`min_damage_distance`):**
+  - 30 m for the shotguns;
+  - 40 m for the SMGs, the pistols (the Magnum 50), the AK-74U and the 9A-91;
+  - 50 m for the other rifles, the machine guns, the VSS and the VSK-94;
+  - 100 m for the bolt actions, the SVD, the SKS and the SOCOM 16.
+- **That is not where a weapon stops:** each hit past it still does
+  `min_damage_amount` of its damage.
+- **The aimed-in cone** (`base_dispersion`, 0.05-2°) keeps a fifth of its shots
+  on a torso past 200 m.
+- So neither term is used: the range comes from the players alone.
+
+**The players' range (owner's rule: the 2 best of each match with 12 or more
+people).**
+- **Matches:** 402 of the 631 players' recordings (302 of them rev21). In each,
+  the 2 best by kills, then K/D.
+- **Runs:** every trigger run of theirs. Its distance is to the living enemy
+  nearest their aim, within 5°, taken over up to 10 ticks of the run (positions
+  between worlds, both within 1.5 s).
+- **Sensitivity:** at a 3° cone or an 8° cone, and also counting runs that pass
+  within 2 m of an enemy (the "2 m" column).
+
+p95, m. Hit runs in brackets: runs that hit one enemy, at his distance.
+
+| class | runs (matches) | p50 / p90 / p95 / p99 | 3° / 8° / 2 m p95 | hit runs, p95 (n) |
+|---|---|---|---|---|
+| rifles (cat 8) | 4520 (208) | 38 / 72 / 90 / 124 | 93 / 89 / 85 | 65 (1942) |
+| SMGs | 1482 (122) | 32 / 70 / 90 / 131 | 92 / 90 / 80 | 58 (652) |
+| shotguns | 377 (19) | 26 / 64 / 91 / 126 | 89 / 89 / 89 | 49 (143) |
+| automatic marksman (VSS, VSK-94) | 773 (43) | 44 / 75 / 84 / 130 | | 74 (188) |
+| SVD | 547 (18) | 67 / 105 / 112 / 123 | | 104 (157) |
+| bolt actions | 844 (55) | 58 / 94 / 105 / 132 | 105 / 107 / 105 | 105 (140) |
+| machine guns | 17 (4) | too few | | |
+| pistols | 48 (7) | too few | | |
+
+**What the numbers carry:**
+- **Close fights are under-counted.** Positions between worlds (about 2.25 s
+  apart) are off by a few metres, a wide angle up close. Only 30 % of the hit
+  runs at 0-15 m fall within 5°, against 85 % at 60 m or more. So the table
+  reads long.
+- **There is no line-of-sight test.** The enemy nearest the aim may be behind a
+  wall. Of the runs within 5°, 583 of 8615 are past 90 m, and only 87 of those
+  hit. So the upper tail mixes real long shots with fire at enemies out of view.
+- **The hit runs are a sure floor, but short:** they count no missed long shot.
+
+**In the code** (`CombatTuning::range_by_weapon`, off):
+- The trigger's range is the class's p95 (`range_floor_*_m`, MEASURED), never
+  past today's ceiling: 80 m, or 120 m for a bolt action.
+- The machine guns and the pistols have too few runs for a number; they keep
+  the ceiling (`NO_FLOOR_M`).
+- **Only the bolt actions would change: 120 → 105 m.** Every other class's p95
+  is past 80 m. That is too small to bench, so the flag stays off.
+- **No change with it off:** at its defaults this PR's decision digests match
+  2841b08b's, 12 of 12 (batt and tdm, tiers 4-5/9-10/13-15, seeds 1-2).
+- **The Cologne report's 80-106 m fire with a Vityaz** cannot come from the
+  trigger (80 m). It was fire at another target than the one measured.
+
+**The bench's ranges** (the new `ranges` line of the fight tally: shots by
+weapon class and 10 m, hits taken and deaths by team and distance):
+- **Shotguns:** at the defaults, 11 % of the bots' shotgun shots are at 60 m or
+  more, and 8 % of those hit (32 % under 60 m).
+- **The other classes:** rifles, SMGs and bolts put 12-15 % of their shots at
+  60 m or more, hitting 7-8 % there.
+
+**Fire at the bot's own target with no line**, at the defaults: 2.0-3.0 % of
+those shots leave with nothing of him showing, and 6-8 % meet the world short
+of him (with the spread on, some of those are the cone clipping his cover).
