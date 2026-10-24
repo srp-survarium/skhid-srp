@@ -4603,6 +4603,11 @@ fn real_bot_cost() {
             // those, the ones with 4 or more living enemies there too.
             let mut collect_held_deaths = [0u32; 2];
             let mut collect_held_crowd_deaths = [0u32; 2];
+            // Those held deaths by the bot's ground distance to the battery
+            // (up to 3 m, 10 m, farther), and by whether it had an enemy in
+            // sight then (seen, not): which narrower hold would have let it go.
+            let mut collect_held_dist = [0u32; 3];
+            let mut collect_held_seen = [0u32; 2];
             let mut takes_all = 0u32;
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
@@ -4685,8 +4690,16 @@ fn real_bot_cost() {
                                         >= 4
                                 })
                             });
-                            if held {
+                            if held && let Some(at) = lying {
                                 let team = usize::from(teams[place]);
+                                let n = now.1 - before.1;
+                                let off = game.bodies[place].feet.distance_xz(at);
+                                collect_held_dist[usize::from(off > 3.0) + usize::from(off > 10.0)] +=
+                                    n;
+                                let seen = bots.bots[place].as_ref().is_some_and(|b| {
+                                    b.memory.tracks().iter().any(|t| t.sight_since.is_some())
+                                });
+                                collect_held_seen[usize::from(!seen)] += n;
                                 collect_held_deaths[team] += now.1 - before.1;
                                 if crowded {
                                     collect_held_crowd_deaths[team] += now.1 - before.1;
@@ -5150,6 +5163,8 @@ fn real_bot_cost() {
                     "collect_crowd_deaths": collect_crowd_deaths,
                     "collect_held_deaths": collect_held_deaths,
                     "collect_held_crowd_deaths": collect_held_crowd_deaths,
+                    "collect_held_dist": collect_held_dist,
+                    "collect_held_seen": collect_held_seen,
                     "play_s": play_s,
                     "by_play": play_rows,
                     "deaths_by": deaths_by,
