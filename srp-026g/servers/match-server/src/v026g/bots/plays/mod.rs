@@ -459,7 +459,42 @@ pub struct Ctx<'a> {
     pub tuning: &'a Tuning,
 }
 
+/// A bot given up in a pocket is this far from every target out of it
+/// ([`Ctx::path_dist`]), metres: past every play's distance curve.
+const GAVE_UP_FAR_M: f32 = 1_000.0;
+
 impl Ctx<'_> {
+    /// This bot in a pocket with its goal out of it, escaping or given up
+    /// (`escape.rs`).
+    pub fn trapped(&self) -> Option<super::escape::Trapped> {
+        self.tactics.escapes.trapped(self.me.place)
+    }
+
+    /// The bot of `place` (a teammate) trapped in a pocket, if it is.
+    pub fn teammate_trapped(&self, place: Place) -> Option<super::escape::Trapped> {
+        self.tactics.escapes.trapped(place)
+    }
+
+    /// Whether the floor at `at` is in a pocket: no walk leads back out
+    /// (`WalkGrid::pocket_of`).
+    pub fn in_pocket(&self, at: Vec3) -> bool {
+        let grid = &self.tactics.world.grid;
+        grid.locate(at, 1.5).is_some_and(|node| grid.in_pocket(node))
+    }
+
+    /// Whether the pocket at `at` has a way out this bot's team takes now
+    /// (`escape::way_out`): a standing jump, or one a teammate got out by;
+    /// `carrying`: for a bot that will carry a battery out (never a sprint
+    /// jump). Out of any pocket: true.
+    pub fn escape_known(&self, at: Vec3, carrying: bool) -> bool {
+        let grid = &self.tactics.world.grid;
+        grid.locate(at, 1.5)
+            .and_then(|node| grid.pocket_of(node))
+            .is_none_or(|pocket| {
+                super::escape::way_out(grid, &self.tactics.escapes, self.me.team, pocket, carrying)
+            })
+    }
+
     /// The play's tuning.
     pub fn play(&self, kind: PlayKind) -> PlayTuning {
         self.tuning
@@ -711,7 +746,19 @@ impl Ctx<'_> {
     /// The walk to `at`, metres: the ground distance with a detour factor
     /// (cheap; a route is planned only for the play taken).
     pub fn path_dist(&self, at: Vec3) -> f32 {
+        // Given up in a pocket (`escape.rs`): out of it is nowhere near, so
+        // a slot it holds (`team::COMMIT_M`) goes to a teammate.
+        if self.trapped().is_some_and(|trapped| trapped.gave_up) && !self.in_my_pocket(at) {
+            return GAVE_UP_FAR_M;
+        }
         self.me.feet.distance_xz(at) * 1.25
+    }
+
+    /// Whether `at` is in the pocket this bot stands in.
+    fn in_my_pocket(&self, at: Vec3) -> bool {
+        let grid = &self.tactics.world.grid;
+        let pocket = |p: Vec3| grid.locate(p, 1.5).and_then(|node| grid.pocket_of(node));
+        pocket(self.me.feet).is_some_and(|mine| pocket(at) == Some(mine))
     }
 
     /// A consideration's input for a candidate of `kind` at `target`.

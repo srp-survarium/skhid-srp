@@ -33,6 +33,7 @@ pub mod body;
 pub mod cheats;
 pub mod curve;
 pub mod encode;
+pub mod escape;
 pub mod friends;
 pub mod guns;
 pub mod hazards;
@@ -2298,6 +2299,32 @@ fn drive_tick(
         intent.straight = false;
     }
     let goal = goal.or(zone_out);
+    // [pockets] On a pocket's floor with its goal out of the pocket (no
+    // link of the grid leads out of one), its ways out are tried, each a
+    // route with a jump onto the rim (`escape.rs`); the try's landing is its
+    // goal meanwhile. Cologne CG-3: a bot stood in pit A aiming all match.
+    let goal = if intent.straight {
+        goal
+    } else {
+        let grid = &tactics.world.grid;
+        let out = escape::tick(
+            &mut bot.stuck.escape,
+            &mut bot.route,
+            grid,
+            &tactics.escapes,
+            bot.place,
+            me.team,
+            me.feet,
+            goal.unwrap_or(me.feet),
+            time,
+        );
+        if bot.tracing {
+            for event in &out.events {
+                bot.traced.push(escape::trace(time, bot.place, grid, event));
+            }
+        }
+        out.goal.or(goal)
+    };
     // Standing to aim (no way to walk): the reflex's side step may move it;
     // walking a route while it aims, the step weaves the walk
     // ([`weave`], `strafe_walking`).
@@ -2536,8 +2563,11 @@ fn drive_tick(
                         {
                             bot.stuck.fell(time, from);
                         }
-                        // A jump it could not make: its take-off, likewise.
-                        if let Walked::JumpFailed(take_off) = walked {
+                        // A jump it could not make: its take-off, likewise
+                        // (not an escape's: a pocket's rim is no way).
+                        if let Walked::JumpFailed(take_off) = walked
+                            && !bot.stuck.escape.as_ref().is_some_and(escape::Escape::trying)
+                        {
                             bot.stuck.failed_jump(time, take_off);
                         }
                         bot.route = None;
@@ -2582,7 +2612,7 @@ fn drive_tick(
         let [sx, sz] = kin::forward(me.yaw + std::f32::consts::FRAC_PI_2);
         let sign = if left { 1.0 } else { -1.0 };
         let to = me.feet + Vec3::new(sign * sx * STRAFE_CLEAR_M, 0.0, sign * sz * STRAFE_CLEAR_M);
-        if tactics.clear_line_for(me.feet, to, time, bot.side, intent.objective) {
+        if tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective) {
             decision.keys = keys;
         }
     }
