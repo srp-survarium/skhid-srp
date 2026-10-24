@@ -73,7 +73,7 @@ use reflex::Reflex;
 use rng::Rng;
 use sense::RayBudget;
 use signals::{Duel, MatchSignals, Mods, Skill};
-use stuck::{Recovery, Stuck};
+use stuck::{Recovery, Stuck, TeamSpots};
 use tactics::Tactics;
 use team::{Asking, Assignment};
 use trace::Trace;
@@ -167,6 +167,8 @@ struct TeamState {
     /// Goals a bot of the team proved no way to, and until when the
     /// team's plays leave them ([`TEAM_NO_WAY_KEEP_MS`]).
     no_way_to: Vec<(Vec3, u32)>,
+    /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
+    spots: TeamSpots,
 }
 
 /// One bot.
@@ -616,6 +618,7 @@ impl Bots {
             signals: MatchSignals::default(),
             next_commander: 0,
             no_way_to: Vec::new(),
+            spots: TeamSpots::default(),
         };
         let bots = teams
             .iter()
@@ -1451,8 +1454,14 @@ impl Bots {
         // What a bot of the team proved no way to lately, the whole team
         // leaves for longer, from the proof on.
         state.no_way_to.retain(|&(_, until)| now < until);
-        for bot in self.bots.iter().flatten().filter(|b| b.team == team) {
+        for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
             learn_no_way(&mut state.no_way_to, &bot.no_way_to, now);
+            state.spots.learn(now, &bot.stuck.tell());
+        }
+        // Where its bots got stuck or fell, every bot keeps clear of.
+        let spots = state.spots.avoided();
+        for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
+            bot.stuck.share(spots.clone());
         }
         let since_theft = state
             .knowledge
@@ -2241,7 +2250,7 @@ fn drive_tick(
                 let objective = intent.objective;
                 // Round the spots it got stuck at, if there is a way; else
                 // through them (a second search only when there are any).
-                let spots: Vec<Vec3> = bot.stuck.avoided(time).collect();
+                let spots: Vec<Vec3> = bot.stuck.avoided_for(time, at).collect();
                 let avoiding = !spots.is_empty();
                 let ends = grid.locate(me.feet, 1.5).zip(path::goal_floor(grid, at));
                 // Already on the goal's floor (the nearest to a goal on none):
@@ -2278,6 +2287,34 @@ fn drive_tick(
                                     left = Some((false, planning));
                                     None
                                 }
+                            }
+                        }
+                        // Round them only where that is not much longer
+                        // (`stuck::worth_round`), else through them.
+                        Ok(Some(round))
+                            if avoiding
+                                && stuck::may_be_long(
+                                    round.length(),
+                                    grid.position(from),
+                                    grid.position(to),
+                                ) =>
+                        {
+                            let through = tactics.start_route(
+                                from,
+                                to,
+                                time,
+                                side,
+                                objective,
+                                |_| true,
+                                floors,
+                            );
+                            match through {
+                                Ok(Some(through))
+                                    if !stuck::worth_round(round.length(), through.length()) =>
+                                {
+                                    Some(through)
+                                }
+                                _ => Some(round),
                             }
                         }
                         Ok(route) => route,

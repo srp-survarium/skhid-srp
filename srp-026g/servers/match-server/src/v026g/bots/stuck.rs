@@ -45,6 +45,15 @@
 //! for a while if there is one, as a player would (`player_bots_stuck.md`
 //! §8.6). A spot is a place on one
 //! floor: a floor [`SPOT_HEIGHT_M`] over or under it is not near it.
+//!
+//! The team learns them too ([`TeamSpots`]): a spot that caught its bots
+//! [`TEAM_AVOID_AFTER`] times, whichever bots, or one a bot fell off its
+//! route from, every bot of the team keeps clear of for the match, as
+//! players who saw a teammate stick or fall there would (0x60aeff4f,
+//! Cologne: 14 blocks by 6 bots at one strip; two carriers 4 s apart off
+//! one stair's edge into a pit they never left). Round them only where
+//! the way is not much longer ([`worth_round`]), and never at the goal
+//! itself ([`GOAL_FREE_M`]).
 
 use mapdata::Vec3;
 
@@ -87,6 +96,25 @@ const AVOID_AFTER: u32 = 2;
 /// where the body is now, are not looked at), metres.
 const ROUTE_CLEAR_M: f32 = 1.2;
 const ROUTE_FROM_M: f32 = SPOT_M + 0.5;
+/// A team spot is kept clear of once its bots were caught there this many
+/// times, whichever bots ([`TeamSpots`]). GUESS: as a bot's own
+/// ([`AVOID_AFTER`]).
+pub const TEAM_AVOID_AFTER: u32 = 2;
+/// The spots a team keeps at most; the least lately hit go first. GUESS:
+/// the Cologne match had 9 spots hit twice or more; a route's check costs
+/// a test a spot a floor.
+pub const TEAM_SPOTS_MAX: usize = 64;
+/// A team spot this near the goal is not kept clear of: a block at a
+/// container's put-in stand or a battery's take stand never shuts the goal,
+/// metres. GUESS: past [`SPOT_M`] and a use's 2 m reach.
+pub const GOAL_FREE_M: f32 = 3.0;
+/// A way round the spots is taken when it is at most this many times the
+/// way through them…
+pub const ROUND_FACTOR: f32 = 1.5;
+/// … plus this, metres; else the bot goes through. GUESS: on Cologne's
+/// grid the way to team 0's container round its pit's stair edge was 0.1-2.7
+/// m longer; a way round a whole building is not worth a spot.
+pub const ROUND_EXTRA_M: f32 = 10.0;
 
 /// What a stuck bot does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -108,6 +136,11 @@ pub struct Stuck {
     spots: Vec<Spot>,
     /// How often at the spot of the last time.
     last_times: u32,
+    /// Its stucks and falls since the team last heard ([`Self::tell`]):
+    /// where, and whether a fall.
+    told: Vec<(Vec3, bool)>,
+    /// The team's spots to keep clear of, as last shared ([`Self::share`]).
+    team: Vec<Vec3>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -169,6 +202,7 @@ impl Stuck {
             }
         };
         self.last_times = times;
+        self.told.push((feet, false));
         let recovery = match times {
             1 => Recovery::BackOff,
             2 => Recovery::Sidestep,
@@ -228,6 +262,7 @@ impl Stuck {
     /// fall (where it is the only way, the bot takes it anyway), and is the
     /// same spot while it is kept (a way back up to it takes a while).
     pub fn fell(&mut self, time: u32, at: Vec3) {
+        self.told.push((at, true));
         self.spots.retain(|spot| spot.last + SPOT_KEPT_MS > time);
         match self.spots.iter_mut().find(|spot| near(spot.at, at)) {
             Some(spot) => {
@@ -252,6 +287,26 @@ impl Stuck {
     /// §8.9).
     pub fn failed_jump(&mut self, time: u32, at: Vec3) {
         self.fell(time, at);
+    }
+
+    /// Its stucks and falls since the team last heard, for [`TeamSpots::learn`].
+    pub fn tell(&mut self) -> Vec<(Vec3, bool)> {
+        std::mem::take(&mut self.told)
+    }
+
+    /// The team's spots to keep clear of ([`TeamSpots::avoided`]).
+    pub fn share(&mut self, team: Vec<Vec3>) {
+        self.team = team;
+    }
+
+    /// The spots to keep clear of at `time` on the way to `goal`: its own
+    /// ([`Self::avoided`]) and the team's, but those within [`GOAL_FREE_M`]
+    /// of the goal.
+    pub fn avoided_for(&self, time: u32, goal: Vec3) -> impl Iterator<Item = Vec3> + '_ {
+        self.avoided(time)
+            .chain(self.team.iter().copied().filter(move |spot| {
+                !(spot.distance_xz(goal) < GOAL_FREE_M && (spot.y - goal.y).abs() < SPOT_HEIGHT_M)
+            }))
     }
 
     /// The spots to keep clear of at `time`.
@@ -298,6 +353,84 @@ impl Stuck {
 /// [`SPOT_HEIGHT_M`] up or down.
 pub fn near(spot: Vec3, point: Vec3) -> bool {
     spot.distance_xz(point) < SPOT_M && (spot.y - point.y).abs() < SPOT_HEIGHT_M
+}
+
+/// Whether a way round the spots (`round`, of `round_m`) may be longer than
+/// [`ROUND_FACTOR`] × the way through plus [`ROUND_EXTRA_M`]: only then is
+/// the way through searched to compare ([`worth_round`]); the way through
+/// is no shorter than the straight line from `from` to `to`.
+pub fn may_be_long(round_m: f32, from: Vec3, to: Vec3) -> bool {
+    round_m > (to - from).length() * ROUND_FACTOR + ROUND_EXTRA_M
+}
+
+/// Whether the way round the spots (`round_m`) is worth it against the way
+/// through them (`through_m`).
+pub fn worth_round(round_m: f32, through_m: f32) -> bool {
+    round_m <= through_m * ROUND_FACTOR + ROUND_EXTRA_M
+}
+
+/// A team's spots ([`Stuck`]'s, told to it at its commander's ticks): kept
+/// for the match.
+#[derive(Clone, Debug, Default)]
+pub struct TeamSpots {
+    spots: Vec<TeamSpot>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct TeamSpot {
+    at: Vec3,
+    last: u32,
+    /// Its bots' stucks there, and whether one fell off its route from it.
+    caught: u32,
+    fell: bool,
+}
+
+impl TeamSpot {
+    fn avoided(&self) -> bool {
+        self.fell || self.caught >= TEAM_AVOID_AFTER
+    }
+}
+
+impl TeamSpots {
+    /// A bot's stucks and falls ([`Stuck::tell`]) at `time`.
+    pub fn learn(&mut self, time: u32, told: &[(Vec3, bool)]) {
+        for &(at, fell) in told {
+            match self.spots.iter_mut().find(|spot| near(spot.at, at)) {
+                Some(spot) => {
+                    spot.last = time;
+                    spot.caught += u32::from(!fell);
+                    spot.fell |= fell;
+                }
+                None => {
+                    if self.spots.len() >= TEAM_SPOTS_MAX
+                        && let Some(oldest) = self
+                            .spots
+                            .iter()
+                            .enumerate()
+                            .min_by_key(|(_, spot)| (spot.avoided(), spot.last))
+                            .map(|(i, _)| i)
+                    {
+                        self.spots.swap_remove(oldest);
+                    }
+                    self.spots.push(TeamSpot {
+                        at,
+                        last: time,
+                        caught: u32::from(!fell),
+                        fell,
+                    });
+                }
+            }
+        }
+    }
+
+    /// The spots its bots keep clear of.
+    pub fn avoided(&self) -> Vec<Vec3> {
+        self.spots
+            .iter()
+            .filter(|spot| spot.avoided())
+            .map(|spot| spot.at)
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -529,5 +662,93 @@ mod tests {
                 key::LEFT
             ]
         );
+    }
+
+    /// Spot B of 0x60aeff4f (Cologne, (-15.0, 35.1, 37.5)): bots 1, 5, 11,
+    /// 12, 13 and 14 caught there 14 times, each learning it alone. Two
+    /// bots' stucks there make every bot of the team keep clear of it for
+    /// the match; one does not.
+    #[test]
+    fn a_spot_two_bots_stuck_at_is_kept_clear_of_by_the_team() {
+        let spot_b = Vec3::new(-15.0, 35.1, 37.5);
+        let goal = Vec3::new(40.0, 33.0, 30.0);
+        let mut team = TeamSpots::default();
+        let mut first = Stuck::default();
+        first.told.push((spot_b, false));
+        team.learn(724_000, &first.tell());
+        assert!(first.tell().is_empty(), "told once");
+        let mut third = Stuck::default();
+        third.share(team.avoided());
+        assert_eq!(third.avoided_for(730_000, goal).count(), 0, "caught once");
+        let mut second = Stuck::default();
+        second
+            .told
+            .push((spot_b + Vec3::new(0.6, 0.0, -0.4), false));
+        team.learn(740_000, &second.tell());
+        third.share(team.avoided());
+        let spots: Vec<Vec3> = third.avoided_for(860_000, goal).collect();
+        assert_eq!(spots, [spot_b]);
+        // Kept for the match, past a bot's own keep.
+        assert!(third.avoided(860_000 + SPOT_KEPT_MS).next().is_none());
+        assert_eq!(third.avoided_for(860_000 + SPOT_KEPT_MS, goal).count(), 1);
+        // On another floor, or as the goal itself: not kept clear of.
+        assert!(!near(spot_b, spot_b + Vec3::new(0.0, -4.0, 0.0)));
+        assert_eq!(
+            third
+                .avoided_for(860_000, spot_b + Vec3::new(1.5, 0.0, 1.0))
+                .count(),
+            0
+        );
+    }
+
+    /// 0x60aeff4f: bots 9 and 5 (team 0) walked off pit A's stair 4 s
+    /// apart, at (-53.0, 34.9, 16.2): one fall makes the spot the team's.
+    #[test]
+    fn a_fall_is_kept_clear_of_by_the_team_at_once() {
+        let edge = Vec3::new(-53.0, 34.9, 16.2);
+        let mut team = TeamSpots::default();
+        let mut nine = Stuck::default();
+        nine.fell(116_400, edge);
+        team.learn(116_500, &nine.tell());
+        let mut five = Stuck::default();
+        five.share(team.avoided());
+        assert_eq!(
+            five.avoided_for(117_000, Vec3::new(-53.0, 37.1, 25.8))
+                .collect::<Vec<_>>(),
+            [edge]
+        );
+        // A failed jump is a fall's spot too.
+        let mut team = TeamSpots::default();
+        let mut jumper = Stuck::default();
+        jumper.failed_jump(1_000, edge);
+        team.learn(1_000, &jumper.tell());
+        assert_eq!(team.avoided(), [edge]);
+    }
+
+    /// The team keeps [`TEAM_SPOTS_MAX`] spots; a new one pushes out the
+    /// least lately hit that is not kept clear of first.
+    #[test]
+    fn the_team_keeps_its_spots_to_a_bound() {
+        let mut team = TeamSpots::default();
+        let kept = Vec3::new(500.0, 0.0, 0.0);
+        team.learn(0, &[(kept, true)]);
+        for i in 0..TEAM_SPOTS_MAX as u32 {
+            team.learn(1 + i, &[(Vec3::new(10.0 * i as f32, 0.0, 50.0), false)]);
+        }
+        assert_eq!(team.spots.len(), TEAM_SPOTS_MAX);
+        assert_eq!(team.avoided(), [kept]);
+    }
+
+    /// A way round is taken when at most 1.5 times the way through plus
+    /// 10 m; the way through is searched only when the way round may be
+    /// longer than that against the straight line.
+    #[test]
+    fn a_way_round_is_taken_when_not_much_longer() {
+        assert!(worth_round(13.7, 13.6));
+        assert!(worth_round(28.4, 25.7));
+        assert!(!worth_round(60.0, 30.0));
+        let (from, to) = (Vec3::ZERO, Vec3::new(20.0, 0.0, 0.0));
+        assert!(!may_be_long(40.0, from, to));
+        assert!(may_be_long(41.0, from, to));
     }
 }
