@@ -11,10 +11,12 @@
  * the hud.
  *
  * Its effect is on sound, presentation only: every game computes from the
- * carrier's artefacts (lockstep state) how loud the sounds he makes are for
- * others, and marks the sound's proxy (rattle_026g.asm). The marks are the
- * quiet q, u16 at proxy+3Ah (the second of the proxy's ext parameters, which
- * the constructor 0x5A6B0 zeroes and no code reads): gain 1 - q/65535.
+ * carrier's artefacts (lockstep state) how loud the sounds he makes are, and
+ * marks the sound's proxy (rattle_026g.asm): the point proxy others hear,
+ * and the hud proxy his own game plays in first person, with the same quiet.
+ * The marks are the quiet q, u16 at proxy+3Ah (the second of the proxy's ext
+ * parameters, which the constructors 0x5A6B0 and 0x5A840 zero and no code
+ * reads): gain 1 - q/65535.
  *
  * Every address is a VA of the original exe (image base 0x10000; never
  * rebased). The game's functions are called through the engine-function
@@ -245,9 +247,9 @@ STDCALL struct rattle *rt_construct(struct rattle *r, const cfg *root) {
 
 static float clamp01(float x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
 
-/* The gains of what `player` makes for others: his steps and movement noise
- * (each Rattle he owns, x its passive's factor or, active, its active's),
- * his shots (x each active Rattle's). */
+/* The gains of what `player` makes, for others and himself alike: his steps
+ * and movement noise (each Rattle he owns, x its passive's factor or,
+ * active, its active's), his shots (x each active Rattle's). */
 static void gains(const u8 *player, float *steps, float *shots) {
     *steps = 1, *shots = 1;
     u8 *inventory = player ? AT(player, P_INVENTORY, u8 *) : 0;
@@ -272,16 +274,16 @@ static u32 quiet(float gain) {
 }
 
 /* on_player_sound_event's and on_landing's hooks: the quiet of `player`'s
- * steps, for the point proxies 0x657C0 makes until the hook clears it. */
+ * steps, for the point and hud proxies 0x657C0 makes until the hook clears it. */
 STDCALL void rt_steps(const u8 *player) {
     float steps, shots;
     gains(player, &steps, &shots);
     G->pending = quiet(steps);
 }
 
-/* play_sound_callback's point proxy (0x297F79): `effect` a weapon's
- * weapon_sound_effect, `out` &the proxy's pointer. A fire handler's effect
- * gets its user's shot quiet. */
+/* play_sound_callback's point proxy (0x297F79) and hud proxy (0x297F5E, the
+ * user in first person): `effect` a weapon's weapon_sound_effect, `out` &the
+ * proxy's pointer. A fire handler's effect gets its user's shot quiet. */
 STDCALL void rt_shot(const u8 *effect, u8 *const *out) {
     u8 *proxy = out ? *out : 0;
     if (!proxy || !effect) return;

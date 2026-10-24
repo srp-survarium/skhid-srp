@@ -1997,3 +1997,5 @@ va	name	source	ret_cleanup	result
 0x000633f0		manual	4	a voice's volume: [[EAX+14h]+2Ch] = clamp(the float, 0, 1), at once for a new voice (+24h), else when it changed by 1e-5 or more
 0x00306d50		manual	0	EAX: the step sounds of a material (a table at ECX+308h); step_manager::on_step plays its +20h
 0x00245430		manual	0	AL: 1 when the weapon's record (ECX+828h) already has the sound event (EAX): on_sound_event plays it no more; else 0, recorded (0x245B70)
+0x0005a840	vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal	manual	16	a hud proxy (0x65100's): as 0x5A6B0 (vtable 0x9E0EC0, +38h..+3Ch m_ext_params zeroed) but +80h 3, the point proxy's 0
+0x0005c280	vostok::sound::sound_scene::notify_listener2	manual	8	its emitters' propagators to calculate_hdr_audio_frame 0x5C7A0 (0x5C31D), hud proxies' too; a proxy of kind 3 (+80h, hud) not panned in 3D (0x5C37C); each voice's volume the amplitude x the description's (0x5C710..0x5C743)

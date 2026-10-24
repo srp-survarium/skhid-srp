@@ -4619,3 +4619,5 @@ va	name	location	role	basis
 0x00306d50		EDX	the foot's material type	observed
 0x00245430		ECX	the weapon core	observed
 0x00245430		EAX	the sound event (its time and clip)	observed
+0x0005a840	vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal	ESI	the proxy's memory (a 90h block of the scene's pool)	observed
+0x0005c280	vostok::sound::sound_scene::notify_listener2	stack+4	the sound scene	observed

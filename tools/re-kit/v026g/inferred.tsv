@@ -3127,3 +3127,4 @@ va	status	ref_021d	name
 0x00311a60	inferred-medium		survarium::artefact_spring_core::fill_ui_info
 0x00312450	inferred-medium	0x001f4506	survarium::artefact_lifebone_core::disable_active_effects
 0x0005b200	inferred-medium		vostok::sound::sound_instance_proxy_internal::set_position
+0x0005a840	inferred-medium		vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal

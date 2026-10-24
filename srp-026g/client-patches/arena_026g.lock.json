@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 55652,
-  "sha256": "103b30d1315dff649048f9be483331b335f2308c47f4c93d415438f92a7d5cd6",
+  "size": 55716,
+  "sha256": "6aa9c2235bec0706cc9ed735bf2c1cdc1103338649bfdd6d60d1dbff20a4e8c1",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -47,11 +47,11 @@
     "rattle.code": {
       "kind": "code",
       "va": "0xa43a000",
-      "size": 2396
+      "size": 2460
     },
     "rattle.state": {
       "kind": "state",
-      "va": "0xa43a960",
+      "va": "0xa43a9a0",
       "size": 4
     }
   },
@@ -142,10 +142,12 @@
     "memset": "0xa42e65c",
     "rattle_amplitude": "0xa43a019",
     "rattle_construct": "0xa43a000",
+    "rattle_hud": "0xa43a023",
     "rattle_landing": "0xa43a00a",
     "rattle_loudness": "0xa43a01e",
     "rattle_point": "0xa43a00f",
     "rattle_shot": "0xa43a014",
+    "rattle_shot_hud": "0xa43a028",
     "rattle_steps": "0xa43a005",
     "research_hud": "0xa42d005",
     "research_register": "0xa42d000",
@@ -185,18 +187,18 @@
     "rr_serialized_size": "0xa42d397",
     "rr_tick": "0xa42d5e5",
     "rr_write": "0xa42da9c",
-    "rt_active_effect_ended": "0xa43a191",
-    "rt_construct": "0xa43a4bc",
-    "rt_deserialize": "0xa43a1e3",
-    "rt_disable_active": "0xa43a188",
-    "rt_enable_active": "0xa43a2f0",
-    "rt_g": "0xa43a960",
-    "rt_serialize": "0xa43a293",
-    "rt_shot": "0xa43a6c5",
-    "rt_steps": "0xa43a630",
-    "rt_tick_impl": "0xa43a16a",
-    "rt_ui_info": "0xa43a19e",
-    "rt_vtable": "0xa43a860",
+    "rt_active_effect_ended": "0xa43a1d6",
+    "rt_construct": "0xa43a501",
+    "rt_deserialize": "0xa43a228",
+    "rt_disable_active": "0xa43a1cd",
+    "rt_enable_active": "0xa43a335",
+    "rt_g": "0xa43a9a0",
+    "rt_serialize": "0xa43a2d8",
+    "rt_shot": "0xa43a70a",
+    "rt_steps": "0xa43a675",
+    "rt_tick_impl": "0xa43a1af",
+    "rt_ui_info": "0xa43a1e3",
+    "rt_vtable": "0xa43a8a0",
     "sp_action": "0xa435ce3",
     "sp_artefacts": "0xa436edb",
     "sp_can_throw": "0xa436854",

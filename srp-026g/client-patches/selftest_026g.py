@@ -2576,7 +2576,8 @@ def test_rattle(original, image, before):
     originals = {
         0x25E72C: ["call 0x25fa10"], 0x2A6470: ["mov eax,ecx", "mov edx,[eax+0x3c]"],
         0x1F3BB6: ["call 0x23fbe0"], 0x065874: ["call 0x64f80"], 0x297F79: ["call 0x65670"],
-        0x05CA37: ["movss [esi+0x4c],xmm0"], 0x05C8BA: ["movss [esi+0x40],xmm0"]}
+        0x05CA37: ["movss [esi+0x4c],xmm0"], 0x05C8BA: ["movss [esi+0x40],xmm0"],
+        0x065803: ["call 0x65100"], 0x297F5E: ["call 0x65100"]}
     loose = lambda text: text.replace("byte +", "").replace("byte -", "-").replace("dword ", "")
     entries = []
     for va, old, symbol, opcode in P.RATTLE_HOOKS:
@@ -2604,19 +2605,20 @@ def test_rattle(original, image, before):
                   "pop edi", "pop esi", "mov eax,0x360", "pop ebx", "ret 0x4"] and not relocated,
               f"{va:#x}: the cook's size of a type 8 artefact, 360h (Rattle's) in the original and the build "
               f"without the late join, {P.RATTLE_OBJECT_SIZE:#x} here (struct rattle)")
-    check(entries == [block.va + 5 * i for i in range(7)]
-          and [t.split()[0] for _, _, t in ndisasm(image.read(block.va, 0x23), block.va)] == ["jmp"] * 7,
-          "the block starts with its seven entries, `jmp near` each: construct, steps, landing, point, shot, "
-          "amplitude, loudness")
+    check(entries == [block.va + 5 * i for i in range(9)]
+          and [t.split()[0] for _, _, t in ndisasm(image.read(block.va, 0x2D), block.va)] == ["jmp"] * 9,
+          "the block starts with its nine entries, `jmp near` each: construct, steps, landing, point, shot, "
+          "amplitude, loudness, hud, shot_hud")
     c_start = min(va for name, va in linked.symbols.items() if name.startswith("rt_") and block.va <= va < block.va
                   + len(code))
     plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
     texts = [plain(t) for _, _, t in ndisasm(code[:c_start - block.va], block.va)]
     targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
     outside = {c for c in targets if not block.va <= c < block.va + len(code)}
-    check(outside == {0x25FA10, 0x2A6475, 0x23FBE0, 0x64F80, 0x65670, 0x5CA3C, 0x5C8BF},
+    check(outside == {0x25FA10, 0x2A6475, 0x23FBE0, 0x64F80, 0x65670, 0x65100, 0x5CA3C, 0x5C8BF},
           "the stubs leave to Rattle's constructor, on_player_sound_event's way on, on_landing's step, the two "
-          f"point proxies' makers, and the sound thread's two ways on ({sorted(hex(c) for c in outside)})")
+          "point proxies' makers, the hud proxy's maker, and the sound thread's two ways on "
+          f"({sorted(hex(c) for c in outside)})")
     import engine_026g
     library = {f["symbol"]: (linked.symbols[f["symbol"]], f["va"]) for f in engine_026g.functions()}
     c_listing = [plain(t) for _, _, t in ndisasm(code[c_start - block.va:], c_start)]
