@@ -4435,7 +4435,7 @@ def test_team_damage(original, image, before):
 
 
 def test_blackout(original, image, before):
-    """Check 64: Blackout (patch 64, BLACKOUT_*): the site of the band, its
+    """Check 65: Blackout (patch 65, BLACKOUT_*): the site of the band, its
     code, and the two calls from patch 63's and patch 62's entries.
     check_blackout_026g.py runs them from the game's sites (the options
     reader, initialize_match's reset and F11, the visual's records made by the
@@ -4583,7 +4583,7 @@ def test_hide_ui(original, image, before):
           and all(pushed(t) for t in (b"root.toggle_interface", b"root.interface_hidden", b"root.hide_interface"))
           and "hide_ui.state" not in linked.blocks,
           "it goes on in on_keyboard_action (0x25CEDB, 0x25CF0D), returns to "
-          "0x26CCAE or 0x26CDD2, calls the library's get_binded_action and Invoke and patch 64's bo_match and "
+          "0x26CCAE or 0x26CDD2, calls the library's get_binded_action and Invoke and patch 65's bo_match and "
           "nothing else (not the game world's show_ui: its hidden movies stand still); it invokes "
           "root.toggle_interface, root.interface_hidden and root.hide_interface; its one state is "
           "hide_ui_force's byte `hide_ui_forced` (hide_ui.data), which the case 19h reads")

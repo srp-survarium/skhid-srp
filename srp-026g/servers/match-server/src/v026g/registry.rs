@@ -36,7 +36,7 @@ pub fn team_damage_from_env() -> Option<TeamDamage> {
     }
 }
 
-/// `SRP_BLACKOUT` (exe patch 64, `docs/notes/blackout.md`): `on` makes
+/// `SRP_BLACKOUT` (exe patch 65, `docs/notes/blackout.md`): `on` makes
 /// every battery match (modes 2 and 3) a Blackout match, no interface and a
 /// team's band on every character; unset, empty or `off`: none. Another
 /// value is logged and read as `off`.
@@ -225,7 +225,7 @@ pub(crate) struct Formed {
     /// What the static info says of team damage (exe patch 63), the same
     /// for a late joiner's.
     pub team_damage: Option<TeamDamage>,
-    /// Whether the static info says Blackout (exe patch 64), the same for a
+    /// Whether the static info says Blackout (exe patch 65), the same for a
     /// late joiner's.
     pub blackout: bool,
     pub info: StaticInfo,
@@ -360,7 +360,7 @@ pub struct MatchRegistry {
     /// Team damage in every match's static info (`SRP_TEAM_DAMAGE`, exe
     /// patch 63): 0.28a's numbers unless set otherwise.
     team_damage: Option<TeamDamage>,
-    /// Every battery match a Blackout match (`SRP_BLACKOUT`, exe patch 64).
+    /// Every battery match a Blackout match (`SRP_BLACKOUT`, exe patch 65).
     blackout: bool,
     inner: Mutex<Inner>,
 }

@@ -14,7 +14,7 @@
 ;   st0 holds a value: the C code is SSE only). td_count counts it; back at
 ;   0x2D9EB1 with every register and xmm0 as the instruction left them.
 ; - td_options: match_options::deserialize's epilogue at 0x1F0F30 (ebx the
-;   options, esi the reader): td_options reads the srp block, then patch 64's
+;   options, esi the reader): td_options reads the srp block, then patch 65's
 ;   bo_options its Blackout entry (blackout_026g.c), then the function's own
 ;   five pops and `ret 8`.
 ; - td_kd: kd_stats_rule_cook's create, its `call 0x323790` (the rule's
@@ -30,7 +30,7 @@ BITS 32
 %include "engine_026g.inc"
 global td_hit, td_lost, td_options_entry, td_kd, td_save_entry, td_load_entry
 extern td_reflect, td_count, td_options, td_kd_made, td_save, td_load
-extern bo_options                  ; patch 64 (blackout_026g.c)
+extern bo_options                  ; patch 65 (blackout_026g.c)
 section .text
 
 %define HIT_IMPL_BODY 0x2D9B96     ; hit_impl after `push ebp / mov ebp,esp / sub esp,6Ch`
@@ -82,7 +82,7 @@ td_options_entry:
     push ebx                       ; the options
     call td_options
     add esp, 8
-    push esi                       ; the same, for Blackout's entry (patch 64)
+    push esi                       ; the same, for Blackout's entry (patch 65)
     push ebx
     call bo_options
     add esp, 8

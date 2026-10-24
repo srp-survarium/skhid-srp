@@ -18,7 +18,7 @@
 //! The client reads the fields above and nothing after them; srp's block
 //! is read by exe patches only (`match_options::deserialize`'s end,
 //! 0x1F0F30): tag 1 is [`TeamDamage`] (patch 63), tag 2 the Blackout
-//! flag (patch 64: `docs/notes/blackout.md`).
+//! flag (patch 65: `docs/notes/blackout.md`).
 //!
 //! The client checks nothing of this: a string, a kit or an item too many
 //! writes over its memory, an item the dictionary lacks crashes it later.
@@ -316,7 +316,7 @@ pub struct MatchOptions {
     /// Team damage turned back on its dealer past a threshold (srp's block,
     /// tag 1); `None`: off, the block not sent.
     pub team_damage: Option<TeamDamage>,
-    /// A Blackout match (srp's block, tag 2; exe patch 64,
+    /// A Blackout match (srp's block, tag 2; exe patch 65,
     /// `docs/notes/blackout.md`): no interface for anyone, a team's band on
     /// every character. `false`: the entry not sent.
     pub blackout: bool,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 64 (blackout_026g.asm and .c: Blackout, a battery match with no
+"""Run patch 65 (blackout_026g.asm and .c: Blackout, a battery match with no
 interface and a team's band on every character) in the default build on
 made-up game objects.
 

@@ -288,7 +288,7 @@ LZMA2 raw stream, to the end of the message, decoding to <= 0x578A0 bytes:
                                 the stock reader stops at the squads; exe patch 63 reads tag 1,
                                 team damage {f32 max_amount, max_ratio, return_ratio}
                                 (team-damage.md); sent only when SRP_TEAM_DAMAGE is not off;
-                                patch 64 reads tag 2, one byte 1: Blackout (blackout.md;
+                                patch 65 reads tag 2, one byte 1: Blackout (blackout.md;
                                 SRP_BLACKOUT=on, battery maps only)
 ```
 

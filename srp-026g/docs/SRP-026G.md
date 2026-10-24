@@ -258,7 +258,7 @@ Each is an escape hatch for one thing not proven against a live client.
 | `SRP_RESTORE_LIMIT` | 0 | Resyncs in a row without agreement after which a client is disconnected; 0: no limit |
 | `SRP_COMPRESS_STATE` | on | `off`: the world (0xE8) goes to the clients as it is, not as LZMA2 (since 2026-10-13; `docs/notes/match.md` section 27) |
 | `SRP_TEAM_DAMAGE` | on (0.28a's `3,0.67,2`) | Team damage turned back on its dealer past a threshold (exe patch 63, `docs/notes/team-damage.md`): `off`, or `max_amount,max_ratio,return_ratio`. Sent in every match's static info; a value it cannot read is logged and leaves 0.28a's |
-| `SRP_BLACKOUT` | off | `on`: every battery match (modes 2 and 3) is a Blackout match, a prototype (exe patch 64, `docs/notes/blackout.md`): no interface for anyone, a team's band on every character; tag 2 of the static info's srp block. Another value is logged and read as `off` |
+| `SRP_BLACKOUT` | off | `on`: every battery match (modes 2 and 3) is a Blackout match, a prototype (exe patch 65, `docs/notes/blackout.md`): no interface for anyone, a team's band on every character; tag 2 of the static info's srp block. Another value is logged and read as `off` |
 | `SRP_MAPDATA_DIR` | unset (off; the compose file sets `/srv/srp/data/mapdata`) | The bots' maps: the `<project>.mapdata` files (`docs/notes/player_bots_mapdata.md` section 6; game data, copied into the data volume by hand). A folder that is not there, or a project with no file: bots without maps (a warning) |
 | `SRP_MAPDATA_BUILT` | `<SRP_MAPDATA_DIR>/built` | Where the server writes the grids and trees it builds of the maps and reads them the next time; `off`: built at each load |
 | `SRP_MAPDATA_KEEP` | 1 | Built maps kept that no match holds |

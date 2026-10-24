@@ -1715,7 +1715,7 @@ A player's ask through the owner: a key that hides the whole interface, the lobb
 - **What changes:** F11 in a match hides the hud, crosshair, minimap and markers until F11 or the kits; F11 in the lobby hides the lobby's interface until a key. Rendering and input only, no simulation change.
 - **Checked:** `selftest_026g.py` check 62 and the call shapes; `check_hide_ui_026g.py` (Unicorn): 16 match cases, 28 lobby cases, 5 of the options (README patch 62). **Not run:** a game: that show_ui's hide leaves nothing of the hud (the hit marks and blood effects are the hud movie's, LIKELY), that the player icons' movie is +20Ch (LIKELY: initialize_resources' third movie, the exe's names in that order), that a stage child of the lobby keeps its own `visible`, and that Scaleform's capture listeners run as Flash's.
 
-### 3.57 Blackout: a battery match with no interface, a team's band on every character (written 2026-10-24, README patch 64, a prototype; the rules: `blackout.md`) — PROVEN in the code, the options reader, the reset, F11 and the character's records run with Unicorn with the game's own code; not run in a game
+### 3.58 Blackout: a battery match with no interface, a team's band on every character (written 2026-10-24, README patch 65, a prototype; the rules: `blackout.md`) — PROVEN in the code, the options reader, the reset, F11 and the character's records run with Unicorn with the game's own code; not run in a game
 
 - **The visual** (PROVEN). profile_skin_visual_cook::on_configs_loaded (0x204560; entry ESP+12 the
   profile, ESP+16 the kit) makes a skeleton_combined_cook_data (0xF328 bytes, constructor
@@ -1736,13 +1736,13 @@ A player's ask through the owner: a key that hides the whole interface, the lobb
   its query was made with (0x2026E4, the cook's user data); that a match's character is queried
   with the player's options profile is read from the data flow, not seen in a game.
 - **The flag** (PROVEN). match_options' +57840h (40h bytes) is the "Mode" string, only emptied
-  (0x3183E3) and logged (0x27BD08); patch 63 keeps its numbers at +57860h, patch 64 "SRBO" at
+  (0x3183E3) and logged (0x27BD08); patch 63 keeps its numbers at +57860h, patch 65 "SRBO" at
   +57870h. The reader (patch 63's entry at 0x1F0F30) runs for 0xE4 (0x27B928) and for a replay's
   chunk 1 (0x1F096C).
-- **The patch:** README patch 64. Exe code: the hook at 0x2056F0 (`bo_visual_entry`, JUMP), the
+- **The patch:** README patch 65. Exe code: the hook at 0x2056F0 (`bo_visual_entry`, JUMP), the
   call of `bo_options` in patch 63's options entry, `hide_ui_force` and the `hide_ui_forced`
   byte in patch 62. Content: the pack `blackout-bands` (`blackout.md`).
-- **Checked:** selftest check 64; `check_blackout_026g.py`. **Not run in a game.** Not known: the
+- **Checked:** selftest check 65; `check_blackout_026g.py`. **Not run in a game.** Not known: the
   band's look in a match (the pack's fit is offline), whether any part of the game reads a
   record's +C08h through another base.
 

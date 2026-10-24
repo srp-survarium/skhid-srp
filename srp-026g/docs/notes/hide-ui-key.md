@@ -61,7 +61,7 @@ too, for screenshots.
   the stage's scale); the hud's screen effects are the one thing beside it. The movie goes on
   running.
 - Forced: `hide_ui_force` (patch 62's code) is the one entry that forces the interface hidden
-  for a match and locks F11; Blackout (patch 64) calls it from the reset.
+  for a match and locks F11; Blackout (patch 65) calls it from the reset.
 - The controls row: patch 62 gives the options a 41st row (its table moved into the arena); its
   label is content edit `hide-interface-1.json`.
 - No simulation change, no server change.

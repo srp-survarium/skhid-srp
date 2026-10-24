@@ -28,7 +28,7 @@
 ; after it. The key is not taken (0x25CF0D, al 0), as in the
 ; original.
 ;
-; Forced (patch 64, Blackout; ../docs/notes/blackout.md): hide_ui_force is the
+; Forced (patch 65, Blackout; ../docs/notes/blackout.md): hide_ui_force is the
 ; one place that forces the state: forced, both movies get
 ; root.hide_interface(true) and F11 does nothing in the match (the case 19h
 ; goes on to 0x25CF0D, the replay's controls still toggled); not forced, both
@@ -71,7 +71,7 @@ BITS 32
 %include "engine_026g.inc"
 global hide_ui_match, hide_ui_lobby, hide_ui_reset, hide_ui_force
 global hide_ui_forced                ; the forced state (the self-test reads it)
-extern bo_match                    ; patch 64 (blackout_026g.c): 1 for a Blackout match
+extern bo_match                    ; patch 65 (blackout_026g.c): 1 for a Blackout match
 global controls                    ; the options' controls, 41 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
 section .text
 

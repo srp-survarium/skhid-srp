@@ -492,7 +492,7 @@ Patches:
   hidden (root.interface_hidden) any other key goes straight to the movie
   (back at 0x26CDD2), no window key or F6's Play acting;
 - Blackout, a battery match with no interface and a team's band on every
-  character (patch 64, a prototype, with the late join;
+  character (patch 65, a prototype, with the late join;
   docs/notes/blackout.md; SRP_BLACKOUT, srp's block's tag 2).
   blackout_026g.asm and .c (the arena's blocks blackout.code and .state):
   match_options::deserialize's end (patch 63's entry at 0x1F0F30) keeps the
@@ -2057,7 +2057,7 @@ def hide_ui_table_writes(linked):
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
 
-# Blackout (patch 64, a prototype; README; client_patch.md section 3.57; the
+# Blackout (patch 65, a prototype; README; client_patch.md section 3.58; the
 # rules: ../docs/notes/blackout.md): blackout_026g.asm (the entry) and
 # blackout_026g.c (the logic) in the arena's block blackout.code, the options
 # last read in blackout.state. One hook of its own:
@@ -2279,11 +2279,11 @@ INSTALLS = {
                      "replay's controls, esi the handler) or 0x25CF0D", None, None),
     0x234AE8: (CALLEE, "initialize_match's Invoke of root.reset (thiscall: the hud movie, the name, the result, "
                        "the arguments, the count; `ret 10h`): reset, which invokes it and shows the hud and the "
-                       "icons (hides them for the match: Blackout, patch 64)", None, None),
+                       "icons (hides them for the match: Blackout, patch 65)", None, None),
     0x26CCD2: (CALLEE, "lobby_menu::on_keyboard_action's get_binded_action (eax the binder, edi 2, esi the key, "
                        "the toggle's place pushed; `ret 4`): lobby, which on toggle_replay_ui returns to 0x26CCAE "
                        "instead", None, None),
-    # Blackout, patch 64 (in `.srpx`)
+    # Blackout, patch 65 (in `.srpx`)
     0x2056F0: (JUMP, "profile_skin_visual_cook::on_configs_loaded after the parts and the head, `mov edx,[esp+58h] "
                      "/ mov esi,[ebp+0Ch]`: bo_visual_entry, a Blackout match's band, back at 0x2056F7", None, None),
 }
@@ -2529,7 +2529,7 @@ ARENA = (
     ArenaBlock("rattle.state", "state", 0x10, ("rattle_026g.c",)),                  # rt_g: the steps' quiet
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
     ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
-    ArenaBlock("blackout.code", "code", 0x1000, ("blackout_026g.asm", "blackout_026g.c")),  # patch 64
+    ArenaBlock("blackout.code", "code", 0x1000, ("blackout_026g.asm", "blackout_026g.c")),  # patch 65
     ArenaBlock("blackout.state", "state", 0x10, ("blackout_026g.c",)),              # bo_last: the options last read
 )
 

@@ -106,7 +106,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `team_damage_026g.asm`, `team_damage_026g.c`, `check_team_damage_026g.py` | Patch 63: team damage turned back on its dealer past a threshold, as 0.28a had it (the arena's block `team_damage.code`: the six entries in the asm, the logic in the C); its check runs the entries from the game's sites with the game's own options reader, kd_stats_rule constructor and field writers on made-up objects, beside the original (needs Unicorn) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
-| `blackout_026g.asm`, `blackout_026g.c`, `check_blackout_026g.py` | Patch 64 (a prototype): Blackout, a battery match with no interface and a team's band on every character (the arena's blocks `blackout.code` and `blackout.state`); its check runs the options reader, a match's reset and F11, and the character's records from the game's sites on made-up objects (needs Unicorn) |
+| `blackout_026g.asm`, `blackout_026g.c`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface and a team's band on every character (the arena's blocks `blackout.code` and `blackout.state`); its check runs the options reader, a match's reset and F11, and the character's records from the game's sites on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `sponge_a_026g.asm`, `sponge_a_026g.c` | The source of patch 59's Sponge (artefact type 12): the ten hooks, the resolve_links slot and their stubs in assembly, and 0.28d0's artefact_sponge_core written again in C on 0.26g's interfaces (the object, its vtables, the cook's query, the throw, the explosion, the zone, the passive, the state), and the owner's spots (where the Sponge and the Rattle spawn: the pool, the links, the spawn) |
@@ -170,7 +170,7 @@ asm, its C, and its state `rn_state`), the artefacts (patch 54), the
 engine library, the kit keys with the match chat option (patch 58), team
 damage (patch 63), the Sponge and the Rattle (patch 59: `sponge.code` and
 `sponge.state`, `rattle.code` and `rattle.state`) and the key that hides the
-interface (patch 62) and Blackout (patch 64) are the arena's blocks today. The older fixed sections
+interface (patch 62) and Blackout (patch 65) are the arena's blocks today. The older fixed sections
 stay as they are
 (client_patch.md 0.3 says what moving one would take).
 
@@ -3574,9 +3574,9 @@ a key kF9 set for 19h kept in the 41st row (the original keeps it in none), the 
 writes `bind toggle_replay_ui kF9`, and that line read back binds it again. The lobby movie builds from source
 (`tools/actionscript/flash_tree.py`). **Not run in a game.**
 
-### 64. Blackout: a battery match with no interface, a team's band on every character (a prototype; the next release's revision)
+### 65. Blackout: a battery match with no interface, a team's band on every character (a prototype; the next release's revision)
 
-The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.md section 3.57.
+The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.md section 3.58.
 `blackout_026g.asm` and `blackout_026g.c` (the arena's blocks `blackout.code` and
 `blackout.state`), with the late join:
 
@@ -3599,7 +3599,7 @@ The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.
   content pack `blackout-bands`.
 - **Nothing a match computes:** no `simulation_changes.tsv` row.
 
-**Checked:** `selftest_026g.py` check 64 (the site and its neighbours, the records' layout and
+**Checked:** `selftest_026g.py` check 65 (the site and its neighbours, the records' layout and
 their queries, no relocation under it, no branch into it, the block's bytes, the two calls from
 patch 63's and 62's entries; check 62's list of calls now names `bo_match` and its one state,
 `hide_ui_forced`); `check_blackout_026g.py` (Unicorn): the game's options reader on nine blocks

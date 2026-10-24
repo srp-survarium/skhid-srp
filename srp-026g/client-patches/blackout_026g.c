@@ -1,6 +1,6 @@
-/* Blackout, exe patch 64 (prototype; the rules: ../docs/notes/blackout.md;
- * client_patch.md section 3.57): a battery match with no interface, the teams
- * told apart by a band on every character's arm (S.T.A.L.K.E.R. Clear Sky's
+/* Blackout, exe patch 65 (prototype; the rules: ../docs/notes/blackout.md;
+ * client_patch.md section 3.58): a battery match with no interface, the teams
+ * told apart by a band on every character's arm (S.T.A.L.K.E.R. Clear Sky's and Call of Pripyat's
  * multiplayer bands, the content pack blackout-bands).
  *
  * - bo_options: srp's block after the static info's squads (the entries
@@ -32,7 +32,7 @@ enum {
     PROFILES = 20,                 /* player_profile[20] at +0 */
     PROFILE_SIZE = 0x45FC,         /* match.md: the player table's stride */
     PROFILE_TEAM = 0x45EC,         /* u32 the team (team_damage_026g.c) */
-    OPTIONS_BLACKOUT = 0x57870,    /* the "Mode" string's (+57840h, 40h bytes) last 16: patch 64's */
+    OPTIONS_BLACKOUT = 0x57870,    /* the "Mode" string's (+57840h, 40h bytes) last 16: patch 65's */
     BO_MAGIC = 0x4F425253,         /* "SRBO" */
     SRPX_BLACKOUT = 2,             /* srp's entry: one byte, 1 */
     /* skeleton_combined_cook_data (the visual; constructor 0x127C30): the

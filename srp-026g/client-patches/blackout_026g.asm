@@ -1,11 +1,11 @@
-; Patch 64 (build 2777): Blackout, a battery match with no interface and a
+; Patch 65 (build 2777): Blackout, a battery match with no interface and a
 ; team's band on every character (prototype). The arena's block blackout.code
 ; (link_026g.py links it with blackout_026g.c, the logic; its state, the
 ; options last read, in blackout.state); patch_026g.py's BLACKOUT_HOOKS jump
 ; to the entry by its name. The other two parts of the patch are calls from
 ; patch 63's and patch 62's entries: td_options_entry calls bo_options (srp's
 ; block's tag 2), hide_ui_reset calls bo_match (hide_ui_026g.asm). The rules:
-; ../docs/notes/blackout.md; client_patch.md section 3.57.
+; ../docs/notes/blackout.md; client_patch.md section 3.58.
 ;
 ; - bo_visual_entry: profile_skin_visual_cook::on_configs_loaded (0x204560) at
 ;   0x2056F0, after the parts and the head (`mov edx,[esp+58h] / mov
