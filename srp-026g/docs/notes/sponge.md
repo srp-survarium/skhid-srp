@@ -87,8 +87,12 @@ owner's spots (edit list `artefact-spots-1`, below). 0.28a2 brought the Sponge; 
 - The draws are 0.26g's (the chance, the container, the artefact, the delay; the server's
   bots model them so): the artefact's draw is made whenever any of the pool is free, as
   0.26g's, and chooses among those the container may take. When the picked kind is not free
-  (a player has it, or its cloud is still on), nothing spawns there that time, as when no
-  artefact is free, and the anomaly tries again after its delay.
+  (a player has it, or its cloud is still on), nothing spawns there that time and the anomaly
+  stays due: it tries again after its delay (0.26g marks an anomaly that is about to fill as
+  not due before it picks the artefact; the patch marks it due again, or an anomaly of one
+  artefact, as London's, would never spawn again in that match).
+- Each game keeps the picked anomalies of its current world only (a new world's cooks start
+  afresh), so a long session, a fresh game and a late joiner all have the same.
 - No timed anomalies: main has none since #345; #346 (their redesign) decides for its own
   cores.
 

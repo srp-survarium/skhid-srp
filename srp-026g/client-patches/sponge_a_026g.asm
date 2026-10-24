@@ -59,6 +59,7 @@ section .text
 %define CONFIG_CHILD      0xF6B10  ; operator[]: eax the table, edi the key; eax the child (the call replaced)
 %define SPAWN_ON          0x31B85F ; edx = the artefact (spawn_artefact's third draw done)
 %define SPAWN_NONE        0x31B8C2 ; no artefact: the next delay
+%define CORE_DUE          0x138    ; the core's spawn pending flag (cleared at 0x31B7C1, tested at 0x31B662)
 %define RESOLVE_LINKS     0x33C440 ; the slot's own function: thiscall (resolver, config by value), ret 1Ch
 %define TYPE_SPONGE_LESS3 9        ; data/type 12 after the switch's `add eax,-3`
 %define SP_VTABLE         sp_vtable + 4 ; as objects hold it
@@ -259,12 +260,17 @@ artefacts:
 spawn:
     push dword [ebp - 8]
     push edi
-    call sp_spawn_pick                ; cdecl (core, container): the artefact or 0
+    call sp_spawn_pick                ; cdecl (core, container): the artefact, 0 or 1
     add esp, 8
     test eax, eax
-    jz SPAWN_NONE
+    jz SPAWN_NONE                     ; none free: 0.26g's way
+    cmp eax, 1
+    je .declined
     mov edx, eax
     jmp SPAWN_ON
+.declined:                            ; free ones, none the container may take:
+    mov byte [edi + CORE_DUE], 1      ; still due (0x31B7C1 cleared it for a spawn
+    jmp SPAWN_NONE                    ; that did not happen), then the delay
 
 ; the core's vtable slot 0xA16A10: thiscall, ecx = the core's +4, [esp+4]
 ; the link resolver, [esp+8] its config by value (24 bytes); ret 1Ch.
