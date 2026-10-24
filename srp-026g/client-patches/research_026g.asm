@@ -18,11 +18,14 @@
 ;                 `ret 4`, its argument pushed: every frame, before update_ui's
 ;                 40 ms and hud-state gates): `call` here; the players' icons,
 ;                 then rn_markers(ui), the units' markers, and back as the
-;                 call's `ret 4`
+;                 call's `ret 4`. In a Blackout match (patch 65, bo_match)
+;                 neither: the markers' movie is given nothing to draw, no
+;                 name, marker or icon over any player or object
 ;
 bits 32
 global research_register, research_hud, research_welcome, research_icons
 extern rn_register, rn_hud, rn_markers ; the C functions
+extern bo_match                        ; patch 65 (blackout_026g.c): 1 for a Blackout match
 section .text
 
 %define GAME_COOKS_DONE 0x1EC170   ; what the hooked call called
@@ -76,6 +79,11 @@ welcome:
     jmp WELCOME_SHOW
 
 icons:
+    pushad
+    call bo_match
+    test eax, eax
+    popad                           ; (no flags changed)
+    jnz .blackout
     push dword [esp + 4]            ; the ui update_ui pushed
     call PLAYER_ICONS
     pushad
@@ -83,6 +91,8 @@ icons:
     call rn_markers
     add esp, 4
     popad
+    ret 4
+.blackout:
     ret 4
 
 welcome_key:

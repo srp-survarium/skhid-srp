@@ -140,6 +140,7 @@ impl MatchHost for RegistryHost {
             vs_bots: setup.vs_bots,
             private: setup.private,
             room_minimum: setup.room_minimum,
+            blackout: setup.blackout,
         };
         let ticket = match pool {
             session::QueuePool::Standard => self.0.create(setup),
@@ -388,9 +389,6 @@ pub struct Options {
     /// had it (`SRP_TEAM_DAMAGE`; exe patch 63, `docs/notes/team-damage.md`):
     /// 0.28a's numbers by default, `None` off.
     pub team_damage: Option<TeamDamage>,
-    /// Every battery match a Blackout match (`SRP_BLACKOUT=on`; exe patch
-    /// 64, `docs/notes/blackout.md`): off by default.
-    pub blackout: bool,
 }
 
 impl Options {
@@ -411,7 +409,6 @@ impl Options {
             bots: session::v026g::bots::from_env(),
             replays: ReplaySettings::from_env(),
             team_damage: matches::team_damage_from_env(),
-            blackout: matches::blackout_from_env(),
         }
     }
 
@@ -427,7 +424,6 @@ impl Options {
             bots: Vec::new(),
             replays: None,
             team_damage: Some(TeamDamage::ORIGINAL),
-            blackout: false,
         }
     }
 }
@@ -485,8 +481,7 @@ impl Stack {
         let match_addr = match_socket.local_addr()?;
         let registry = Arc::new(
             MatchRegistry::new(&options.match_public_host, match_addr.port())
-                .with_team_damage(options.team_damage)
-                .with_blackout(options.blackout),
+                .with_team_damage(options.team_damage),
         );
 
         // One for the process: the match server converts, the lobby gives

@@ -5,6 +5,7 @@ package
    import flash.display.BitmapData;
    import flash.display.BlendMode;
    import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.display.Sprite;
@@ -393,6 +394,8 @@ package
          // interface (the root) leaves them.
          this.effectContainer.mouseEnabled = this.effectContainer.mouseChildren = false;
          stage.addChildAt(this.effectContainer,stage.getChildIndex(this));
+         this._keptLayer.mouseEnabled = this._keptLayer.mouseChildren = false;
+         stage.addChildAt(this._keptLayer,stage.getChildIndex(this) + 1);
          _stageLayer = new Sprite();
          this._stageLayer.name = "stageLayer";
          super.addChild(this._stageLayer);
@@ -856,6 +859,86 @@ package
       public function interface_hidden() : Boolean
       {
          return this._interfaceHidden;
+      }
+
+      // Forced hidden for a whole match (Blackout, exe patch 65's hide_ui_force; docs/notes/blackout.md):
+      // the interface hidden as by the key, except what a forced match keeps: always the pre-match
+      // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts), and
+      // while the Tab list is asked for (show_player_list) the ammo and the quick-use slots
+      // (keptOnTab), not the list. A kept part is in _keptLayer: on the stage over the root, placed as
+      // the root is (placeKept), so the hidden root leaves it; back at its place in the root when not.
+      private const _keptLayer:Sprite = new Sprite();
+
+      private const _keptAt:Dictionary = new Dictionary();
+
+      private var _forced:Boolean;
+
+      public function force_interface_hidden(forced:Boolean) : void
+      {
+         this._forced = forced;
+         this.keep(this.keptWhenForced(),forced);
+         if(!forced)
+         {
+            this.keep(this.keptOnTab(),false);
+         }
+         this.hide_interface(forced);
+      }
+
+      public function interface_forced() : Boolean
+      {
+         return this._forced;
+      }
+
+      private function keptWhenForced() : Array
+      {
+         return [this.pregameInfo];
+      }
+
+      private function keptOnTab() : Array
+      {
+         return [this.ammoInd,this.quick_slots];
+      }
+
+      // `parts` into the kept layer or back to where each was. A part keeps its place on the screen:
+      // in the kept layer (the root's transform) its matrix is its own times its parents' up to the
+      // root; it remembers its parent, its index there and its own matrix to go back.
+      private function keep(parts:Array, kept:Boolean) : void
+      {
+         for each(var part:DisplayObject in parts)
+         {
+            if(part == null)
+            {
+               continue;
+            }
+            var was:Object = this._keptAt[part];
+            if(kept && was == null && part.parent != null)
+            {
+               var place:Matrix = part.transform.matrix.clone();
+               for(var up:DisplayObjectContainer = part.parent; up != null && up != this; up = up.parent)
+               {
+                  place.concat(up.transform.matrix);
+               }
+               this._keptAt[part] = {
+                  "parent":part.parent,
+                  "index":part.parent.getChildIndex(part),
+                  "matrix":part.transform.matrix.clone()
+               };
+               this._keptLayer.addChild(part);
+               part.transform.matrix = place;
+            }
+            else if(!kept && was != null)
+            {
+               var parent:DisplayObjectContainer = was.parent as DisplayObjectContainer;
+               parent.addChildAt(part,Math.min(int(was.index),parent.numChildren));
+               part.transform.matrix = was.matrix as Matrix;
+               delete this._keptAt[part];
+            }
+         }
+      }
+
+      private function placeKept() : void
+      {
+         this._keptLayer.transform.matrix = this.transform.matrix;
       }
 
       // _stageLayer stays the root's last child, whatever is added or moved to the top later.
@@ -1667,6 +1750,12 @@ package
       
       public function show_player_list(bool:Boolean) : void
       {
+         // Forced (Blackout): Tab shows the ammo and the quick-use slots only, never the list.
+         if(this._forced)
+         {
+            this.keep(this.keptOnTab(),bool);
+            return;
+         }
          this.player_list.visible = bool;
          this.questTaskList.visible = bool && this.questList.visible;
       }
@@ -1844,9 +1933,9 @@ package
       public function reset() : void
       {
          trace("HUD::reset");
-         // a new match starts with the interface shown (the movie is the last match's; the exe's
-         // patch 62 shows the player icons' with it)
-         this.hide_interface(false);
+         // a new match starts with the interface shown and nothing forced (the movie is the last
+         // match's; the exe's patch 62 shows the player icons' with it, or forces both, patch 65)
+         this.force_interface_hidden(false);
          this.clear_minimap();
          this.chat.clear();
          this.show_ammo(false);
@@ -2488,6 +2577,7 @@ package
          this.damageInd.scaleX = this.stageWidth / 1280;
          this.damageInd.scaleY = this.stageHeight / 720;
          this.placeEffects();
+         this.placeKept();
          // The middle of the centre pixel in screen pixels (the crosshair is
          // drawn at 1:1, below): at a scale of 2 the half pixel in HUD units
          // was a whole pixel off.

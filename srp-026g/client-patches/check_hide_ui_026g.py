@@ -23,7 +23,8 @@ answers root.interface_hidden with a bool:
   original's (a death keeps the interface hidden: no case of its own);
 - a match's reset: initialize_match's Invoke of root.reset (0x234AE8) runs
   with ecx the hud movie and ebp a made-up hud: the reset, then
-  root.hide_interface(false) to the hud and the icons (a new match starts
+  the hud root.force_interface_hidden(false) and the icons
+  root.hide_interface(false) (patch 65's hide_ui_force; a new match starts
   shown), back at 0x234AED with the arguments popped, al the reset's;
 - the lobby: lobby_menu::on_keyboard_action's binder call (0x26CCD2) runs
   with a made-up key binder (the game's action table's descriptions, a few
@@ -392,7 +393,7 @@ def main():
             a = stock.reset(movie, icons)
             b = patched.reset(movie, icons)
             reset = (HUD_MOVIE, "root.reset", ())
-            want = [reset] + ([(HUD_MOVIE, "root.hide_interface", (0,))] if movie else []) \
+            want = [reset] + ([(HUD_MOVIE, "root.force_interface_hidden", (0,))] if movie else []) \
                 + ([(ICONS_MOVIE, "root.hide_interface", (0,))] if icons else [])
             keep = {reg: GAME[reg] for reg in (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI)}
             ok = a[0] == b[0] == RESET_BACK and a[1] == b[1] == 16 and a[3] == [reset] and b[3] == want \

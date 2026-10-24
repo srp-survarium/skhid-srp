@@ -138,7 +138,7 @@ use udp_transport::{Config, Table};
 pub use registry::{
     CreateError, DRAW, JoinError, LiveMatch, LivePhase, LiveStanding, MatchEnd, MatchPlayer,
     MatchRegistry, MatchResult, MatchSetup, MatchTicket, PlayerResult, ResultsSink, Seat,
-    blackout_from_env, static_id, team_damage_from_env,
+    static_id, team_damage_from_env,
 };
 pub use replay::{replays_from_env, replays_of};
 pub use server::{run, run_on, run_on_with_replays};

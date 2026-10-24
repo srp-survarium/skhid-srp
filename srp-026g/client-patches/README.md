@@ -3586,17 +3586,22 @@ The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.
   options last read (a match's 0xE4 or a replay's chunk 1) are remembered (`bo_last`).
 - **The interface.** Patch 62's reset of a match's interface (initialize_match's root.reset,
   0x234AE8) calls `hide_ui_force(bo_match())`: the one entry that forces the state. Forced, the
-  hud and the icons get `root.hide_interface(true)` for the match and the case 19h (F11) goes
+  hud gets `root.force_interface_hidden(true)` (its root hidden but for the pre-match countdown,
+  and while Tab is held the ammo and the quick-use slots, never the list: HUD.as) and the icons `root.hide_interface(true)` for the match, and the case 19h (F11) goes
   on at 0x25CF0D with nothing invoked (a replay's controls still toggle); not forced, both are
   shown and F11 works.
+- **Nothing over the world.** Research's per-frame entry at update_ui's call of
+  update_player_icons (0x23B207, patch 53) runs neither it nor the units' markers in a Blackout
+  match: the markers' movie gets no name, marker or icon of any player or object.
 - **The band.** profile_skin_visual_cook::on_configs_loaded (0x204560) at 0x2056F0, after the
   parts and the head (`mov edx,[esp+58h] / mov esi,[ebp+0Ch]`, JUMP, back at 0x2056F7): for a
   profile of the remembered options (a place's start, places 0 to 19; the lobby's profiles are
   not there) in a Blackout match, one more of the visual's 20 part records (+234h, C0Ch each,
-  +F324h in use): base_model `ported/blackout/band_blue` (team 0) or `band_green` (team 1),
-  part_name `band`, part 2 (the torso's); `srpbo<team>_` after the visual's name (the combined
-  skin's cache key), so a band never shows on the same kit without one. The models are the
-  content pack `blackout-bands`.
+  +F324h in use): the band of its torso (its first record of part 2, if
+  `blackout_torsos_026g.h` names it): base_model `ported/blackout/<the torso's base_model, '/'
+  as '_'>_blue` (team 0) or `_red` (team 1), part_name `band`, part 2; `srpbo<team>_` after the
+  visual's name (the combined skin's cache key), so a band never shows on the same kit without
+  one. The models are the content pack `blackout-bands@2`.
 - **Nothing a match computes:** no `simulation_changes.tsv` row.
 
 **Checked:** `selftest_026g.py` check 65 (the site and its neighbours, the records' layout and

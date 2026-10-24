@@ -16,10 +16,11 @@
 //! ([`form`]).
 
 use survarium::v026g::lobby::rooms::{LEVEL_MAX, MIN_SIDES, PoolEntry, RoomForm, SIZES, WAITS};
+use survarium::v026g::maps;
 
 /// The window's defaults (and a room Play makes): 8 v 8, from 1 v 1, any
 /// max level, a wait of 30 s, the match pool without the experimental maps,
-/// every mode.
+/// every mode but Blackout (its maker ticks it).
 pub const DEFAULT_SIZE: u8 = 8;
 pub const DEFAULT_MIN_SIDE: u8 = 1;
 pub const DEFAULT_MAX_LEVEL: u8 = 0;
@@ -134,7 +135,11 @@ pub fn defaults(entries: &[PoolEntry]) -> RoomForm {
                     .any(|&(tile_, extra)| tile_ == tile(entry) && !extra)
             })
             .collect(),
-        modes_off: Vec::new(),
+        // Blackout is chosen, never given: out unless the maker ticks it.
+        modes_off: modes(entries)
+            .into_iter()
+            .filter(|&mode| mode == maps::mode::BLACKOUT)
+            .collect(),
     }
 }
 
@@ -237,6 +242,20 @@ mod tests {
             .filter(|(entry, on)| **on && !form.modes_off.contains(&entry.mode))
             .map(|(entry, _)| entry.map_id)
             .collect()
+    }
+
+    #[test]
+    fn blackout_is_out_of_the_defaults() {
+        let mut entries = pool();
+        entries.push(entry(255, 1, 1, maps::mode::BLACKOUT, false));
+        let form = form(None, &entries, 4);
+        assert_eq!(form.modes_off, vec![maps::mode::BLACKOUT]);
+        assert!(!chosen(&form, &entries).contains(&255));
+        // Chosen once, kept: a room made with it gives it back.
+        let kept = RoomSettings::of_room(8, 1, 0, 30, &[10, 255], &entries);
+        assert!(!kept.modes_off.contains(&maps::mode::BLACKOUT));
+        let again = super::form(Some(&kept), &entries, 4);
+        assert_eq!(chosen(&again, &entries), vec![10, 255]);
     }
 
     #[test]

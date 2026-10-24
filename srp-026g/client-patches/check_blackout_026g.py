@@ -55,11 +55,14 @@ OPTIONS_BLACKOUT, MAGIC = 0x57870, b"SRBO"
 PROFILE_SIZE, PROFILE_TEAM = 0x45FC, 0x45EC
 RECORDS, RECORD_SIZE, COUNT = 0x234, 0xC0C, 0xF324
 FRAME = 0x500                          # on_configs_loaded's frame below ebp (its esp is ebp - 5A4h and more)
+TORSO = b"character/human/edge/edge_hunter_01_torso_s1"
+ICONS_SITE, ICONS_BACK, PLAYER_ICONS = 0x23B206, 0x23B20C, 0x23AA10
 
 
 class Run(hide.Run):
     def __init__(self, data):
         super().__init__(data)
+        self.linked = None
         for at, size in ((OPTIONS, 0x60000), (WORK, 0x10000), (VISUAL, 0x10000), (LOBBY_PROFILE, 0x10000)):
             self.emu.mem_map(at, size, UC_PROT_ALL)
 
@@ -92,14 +95,53 @@ class Run(hide.Run):
         self.run(VISUAL_CONSTRUCTOR, (hide.SENTINEL,), sp, {**hide.GAME, UC_X86_REG_ESI: VISUAL})
         emu.mem_write(VISUAL + COUNT, bytes([count]))
 
+    # update_ui's `push edi / call` of update_player_icons (0x23B206), a made-up ui in edi:
+    # how many times 0x23AA10 ran (a stub: it pops the ui), back at 0x23B20C, the registers.
+    def icons_fed(self):
+        emu = self.emu
+        self.fed = 0
+        def stub(emu, address, size, _):
+            sp = emu.reg_read(UC_X86_REG_ESP)
+            self.fed += 1
+            emu.reg_write(UC_X86_REG_ESP, sp + 8)
+            emu.reg_write(hide.UC_X86_REG_EIP, self.read(sp))
+        handles = [emu.hook_add(hide.UC_HOOK_CODE, stub, begin=PLAYER_ICONS, end=PLAYER_ICONS)]
+        # Research's units' markers (rn_markers) after the icons: not this check's (it returns at once).
+        markers = self.linked.symbols.get("rn_markers") if self.linked else None
+        if markers:
+            def none(emu, address, size, _):
+                sp = emu.reg_read(UC_X86_REG_ESP)
+                emu.reg_write(UC_X86_REG_ESP, sp + 4)
+                emu.reg_write(hide.UC_X86_REG_EIP, self.read(sp))
+            handles.append(emu.hook_add(hide.UC_HOOK_CODE, none, begin=markers, end=markers))
+        sp = hide.STACK + 0x8000
+        regs, esp = self.run(ICONS_SITE, (ICONS_BACK,), sp, {**hide.GAME, UC_X86_REG_EDI: hide.HUD})
+        for handle in handles:
+            emu.hook_del(handle)
+        kept = all(regs[r] == v for r, v in hide.GAME.items() if r != UC_X86_REG_EDI) and \
+            regs[UC_X86_REG_EDI] == hide.HUD
+        return self.fed, self.stopped == ICONS_BACK and esp == sp, kept
+
     def string(self, at):
         begin, end, cap = struct.unpack("<III", self.emu.mem_read(at, 12))
         return bytes(self.emu.mem_read(begin, end - begin)), begin == at + 12, cap == begin + 0x104
 
     # on_configs_loaded at 0x2056F0: its esp frame and ebp frame made up.
-    def configs_loaded(self, profile, count=4):
+    # Record `index` of the visual made the part `kind` of model `model` (its text in its own buffer).
+    def record(self, index, kind, model):
+        at = VISUAL + RECORDS + index * RECORD_SIZE
+        begin = self.read(at)
+        self.emu.mem_write(begin, model + b"\0")
+        self.word(at + 4, begin + len(model))
+        self.word(at + 0xC08, kind)
+
+    def configs_loaded(self, profile, count=4, torso=TORSO):
         emu = self.emu
         self.visual(count)
+        # record 1 the gloves, record 2 the torso (as the slot table's order puts them)
+        self.record(1, 1, b"character/human/edge/edge_hunter_01_hand")
+        if torso is not None:
+            self.record(2, 2, torso)
         ebp = hide.STACK + 0x9000
         sp = ebp - FRAME - 0x5A4 + 0x100
         emu.mem_write(sp, bytes(0x1000))
@@ -136,6 +178,7 @@ def main():
     code = open(base.default_bin("section"), "rb").read()
     built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
     stock, patched = Run(original), Run(bytes(built))
+    patched.linked = base.arena()
     failed = 0
 
     def report(ok, text):
@@ -169,16 +212,19 @@ def main():
     reset = (hide.HUD_MOVIE, "root.reset", ())
     hides = lambda flag: [(hide.HUD_MOVIE, "root.hide_interface", (flag,)),
                           (hide.ICONS_MOVIE, "root.hide_interface", (flag,))]
+    forces = lambda flag: [(hide.HUD_MOVIE, "root.force_interface_hidden", (flag,)),
+                           (hide.ICONS_MOVIE, "root.hide_interface", (flag,))]
     asked = (hide.HUD_MOVIE, "root.interface_hidden", ())
     for name, block, blackout in (("a Blackout match", srpx((2, b"\x01")), True),
                                   ("the next, without", b"", False),
                                   ("a Blackout match again", srpx(team_damage, (2, b"\x01")), True)):
         patched.options(empty_options(block))
         r = patched.reset(1, 1)
-        ok = r[0] == hide.RESET_BACK and r[1] == 16 and r[3] == [reset] + hides(1 if blackout else 0) \
+        ok = r[0] == hide.RESET_BACK and r[1] == 16 and r[3] == [reset] + forces(1 if blackout else 0) \
             and r[2][UC_X86_REG_EBP] == hide.HUD and (r[2][UC_X86_REG_EAX] & 0xFF) == 1
-        report(ok, f"{name}: root.reset, then root.hide_interface({int(blackout)}) to the hud and the icons, "
-                   "back at 0x234aed with the arguments popped")
+        report(ok, f"{name}: root.reset, then the hud's root.force_interface_hidden({int(blackout)}) (its "
+                   f"countdown kept, HUD.as) and the icons' root.hide_interface({int(blackout)}), back at "
+                   "0x234aed with the arguments popped")
         for hidden in (0, 1):
             m = patched.match(0, 1, 1, hidden)
             want = [] if blackout else [asked] + [h for h in hides(1 - hidden)]
@@ -191,22 +237,26 @@ def main():
                f"{name}, a replay: F11 toggles the replay's controls (0x25cedb), nothing invoked")
 
     print("the character (on_configs_loaded at 0x2056F0)")
-    blue = (b"ported/blackout/band_blue", True, True)
-    green = (b"ported/blackout/band_green", True, True)
-    for name, block, place_team, profile, want in (
-            ("place 0, team 0, Blackout", srpx((2, b"\x01")), (0, 0), OPTIONS, (blue, b"srpbo0_")),
-            ("place 7, team 1, Blackout", srpx((2, b"\x01")), (7, 1), OPTIONS + 7 * PROFILE_SIZE,
-             (green, b"srpbo1_")),
-            ("place 19, team 0, Blackout", srpx((2, b"\x01")), (19, 0), OPTIONS + 19 * PROFILE_SIZE,
-             (blue, b"srpbo0_")),
-            ("the lobby's profile, Blackout", srpx((2, b"\x01")), (0, 0), LOBBY_PROFILE, None),
-            ("inside the options but not a place", srpx((2, b"\x01")), (0, 0), OPTIONS + 0x100, None),
-            ("place 3, team 2, Blackout", srpx((2, b"\x01")), (3, 2), OPTIONS + 3 * PROFILE_SIZE, None),
-            ("place 0, no Blackout", srpx(team_damage), (0, 0), OPTIONS, None)):
+    band = lambda colour: (b"ported/blackout/character_human_edge_edge_hunter_01_torso_s1_" + colour, True, True)
+    exo = b"ported/duty_026/duty_03_torso_s1"
+    on = srpx((2, b"\x01"))
+    for name, block, place_team, profile, torso, want in (
+            ("place 0, team 0, Blackout", on, (0, 0), OPTIONS, TORSO, (band(b"blue"), b"srpbo0_")),
+            ("place 7, team 1, Blackout", on, (7, 1), OPTIONS + 7 * PROFILE_SIZE, TORSO,
+             (band(b"red"), b"srpbo1_")),
+            ("place 19, team 0, the Duty exoskeleton's torso", on, (19, 0), OPTIONS + 19 * PROFILE_SIZE, exo,
+             ((b"ported/blackout/ported_duty_026_duty_03_torso_s1_blue", True, True), b"srpbo0_")),
+            ("a torso the bands pack has none for", on, (0, 0), OPTIONS, b"character/human/edge/unknown_torso_s1",
+             None),
+            ("no torso record", on, (0, 0), OPTIONS, None, None),
+            ("the lobby's profile, Blackout", on, (0, 0), LOBBY_PROFILE, TORSO, None),
+            ("inside the options but not a place", on, (0, 0), OPTIONS + 0x100, TORSO, None),
+            ("place 3, team 2, Blackout", on, (3, 2), OPTIONS + 3 * PROFILE_SIZE, TORSO, None),
+            ("place 0, no Blackout", srpx(team_damage), (0, 0), OPTIONS, TORSO, None)):
         for run in (stock, patched):
             run.options(empty_options(block))
             run.team(*place_team)
-        a, b = stock.configs_loaded(profile), patched.configs_loaded(profile)
+        a, b = stock.configs_loaded(profile, torso=torso), patched.configs_loaded(profile, torso=torso)
         same = a["at"] == b["at"] == VISUAL_BACK and a["esp"] and b["esp"] and a["kept"] and b["kept"] \
             and a["stack"] and b["stack"] and a["edx"] == b["edx"] == 0x58585858 \
             and a["esi"] == b["esi"] == 0x0C0C0C0C and a["records"] == 4 and a["name"] == b"12_0_7_"
@@ -224,6 +274,15 @@ def main():
     b = patched.configs_loaded(OPTIONS, count=20)
     report(b["at"] == VISUAL_BACK and b["records"] == 20 and b["name"] == b"12_0_7_",
            "a visual of 20 records in a Blackout match: nothing added")
+
+    print("the markers' movie's feed (update_ui's update_player_icons, 0x23B207)")
+    for name, block, fed in (("a Blackout match", on, 0), ("a match without", b"", 1)):
+        for run, want in ((stock, 1), (patched, fed)):
+            run.options(empty_options(block))
+            calls, back, kept = run.icons_fed()
+            report(back and kept and calls == want,
+                   f"{name}, {'the build' if run is patched else 'the original'}: update_player_icons run "
+                   f"{calls} time(s) (wanted {want}), back at 0x23b20c with the ui popped, the registers kept")
 
     if failed:
         sys.exit(f"{failed} case(s) failed")

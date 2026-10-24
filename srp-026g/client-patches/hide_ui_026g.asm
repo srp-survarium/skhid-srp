@@ -158,28 +158,36 @@ hide_hud:
     push ebx
     mov ebx, [esp+8]
     mov ecx, HUD_MOVIE
-    call .one
+    mov edx, hide_interface
+    call invoke_bool
     mov ecx, ICONS_MOVIE
-    call .one
+    mov edx, hide_interface
+    call invoke_bool
     pop ebx
     ret
-.one:
+
+; edi the hud, ecx the movie holder's place in it, edx the method's name, ebx
+; the bool: the method invoked on that movie with the bool, nothing without
+; the movie. ebx, esi, edi and ebp kept.
+invoke_bool:
+    push edx
     call movie_of
+    pop edx
     test eax, eax
     jz .skip
     sub esp, 24                    ; one GFx value: a bool
-    xor edx, edx
-    mov [esp], edx
+    xor ecx, ecx
+    mov [esp], ecx
     mov dword [esp+4], GFX_BOOL
     mov [esp+8], ebx
-    mov [esp+12], edx
-    mov [esp+16], edx
-    mov [esp+20], edx
-    mov edx, esp
+    mov [esp+12], ecx
+    mov [esp+16], ecx
+    mov [esp+20], ecx
+    mov ecx, esp
     push 1
-    push edx
+    push ecx
     push 0
-    push hide_interface
+    push edx
     push eax
     call engine_movie_invoke
     add esp, 20 + 24
@@ -209,17 +217,26 @@ hide_ui_reset:
     ret 16
 
 ; The interface forced hidden for the match ([esp+4] 1) or shown and free
-; ([esp+4] 0): edi the hud. The one entry that forces it. ebx, esi, edi and
-; ebp kept.
+; ([esp+4] 0): edi the hud. The one entry that forces it: the hud movie's
+; root.force_interface_hidden (its root hidden but for the parts a forced
+; match keeps: the pre-match countdown, HUD.as), the player icons'
+; root.hide_interface, and F11 locked while forced. ebx, esi, edi and ebp
+; kept.
 hide_ui_force:
     mov eax, [esp+4]
     test eax, eax
     setnz al
     movzx eax, al
     mov [hide_ui_forced], al
-    push eax
-    call hide_hud
-    add esp, 4
+    push ebx
+    mov ebx, eax
+    mov ecx, HUD_MOVIE
+    mov edx, force_interface_hidden
+    call invoke_bool
+    mov ecx, ICONS_MOVIE
+    mov edx, hide_interface
+    call invoke_bool
+    pop ebx
     ret
 
 ; lobby_menu::on_keyboard_action's call of get_binded_action (0x26CCD2): eax
@@ -310,6 +327,8 @@ interface_hidden:
     db "root.interface_hidden", 0
 hide_interface:
     db "root.hide_interface", 0
+force_interface_hidden:
+    db "root.force_interface_hidden", 0
 
 hide_interface_label:
     db "st_hide_interface_action", 0

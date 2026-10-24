@@ -51,6 +51,55 @@ pub mod mode {
     pub const ALL: [u8; 4] = [BATTERIES, TIMED_BATTERIES, TEAM_DEATHMATCH, RESEARCH];
     /// The modes whose maps have the teams' battery containers.
     pub const WITH_BATTERIES: [u8; 2] = [BATTERIES, TIMED_BATTERIES];
+    /// Blackout ("Batteries: Blackout", `docs/notes/blackout.md`): a mode of
+    /// the lobby's only. A match of it is one of [`super::BLACKOUT_RULES`]
+    /// with the static info's Blackout flag; no config says 6.
+    pub const BLACKOUT: u8 = 6;
+}
+
+/// The rules a Blackout match plays: the plain battery mode (no chargers).
+pub const BLACKOUT_RULES: u8 = mode::BATTERIES;
+
+/// Blackout's maps, `(the lobby's id, the maps_dict id played)`: one for
+/// each playable map of [`BLACKOUT_RULES`] in `rules_ids`, by id, each named
+/// by an id `maps_dict` (`dictionary_ids`) does not use, from 255 down (0
+/// never). The lobby's rooms pool, cards and rows carry the lobby's id; a
+/// match is made on the id played, with the flag.
+pub fn blackout_pairs_of(dictionary_ids: &[u8], rules_ids: &[u8]) -> Vec<(u8, u8)> {
+    let mut free = (1..=u8::MAX).rev().filter(|id| !dictionary_ids.contains(id));
+    let mut played: Vec<u8> = rules_ids.to_vec();
+    played.sort_unstable();
+    played.dedup();
+    played
+        .into_iter()
+        .map_while(|id| free.next().map(|lobby| (lobby, id)))
+        .collect()
+}
+
+/// [`blackout_pairs_of`] the game data's dictionary and playable maps.
+pub fn blackout_pairs() -> &'static [(u8, u8)] {
+    static SHARED: std::sync::OnceLock<Vec<(u8, u8)>> = std::sync::OnceLock::new();
+    SHARED.get_or_init(|| {
+        let dictionary: Vec<u8> = Dictionary::shared().maps.iter().map(|map| map.id).collect();
+        let rules: Vec<u8> = playable_in(BLACKOUT_RULES).map(|map| map.id).collect();
+        blackout_pairs_of(&dictionary, &rules)
+    })
+}
+
+/// The `maps_dict` id a lobby's Blackout id plays, if it is one.
+pub fn blackout_played(id: u8) -> Option<u8> {
+    blackout_pairs()
+        .iter()
+        .find(|(lobby, _)| *lobby == id)
+        .map(|&(_, played)| played)
+}
+
+/// The lobby's Blackout id of a `maps_dict` id of [`BLACKOUT_RULES`].
+pub fn blackout_id(map_id: u8) -> Option<u8> {
+    blackout_pairs()
+        .iter()
+        .find(|(_, played)| *played == map_id)
+        .map(|&(lobby, _)| lobby)
 }
 
 /// `match_making_params.map_weather_id`.
@@ -410,6 +459,25 @@ mod tests {
 
     fn ids(mode: u8) -> Vec<u8> {
         playable_in(mode).map(|map| map.id).collect()
+    }
+
+    #[test]
+    fn blackout_names_its_maps_by_free_ids_from_the_top() {
+        let pairs = blackout_pairs_of(&[1, 61, 63, 254, 252], &[63, 61, 61]);
+        assert_eq!(pairs, vec![(255, 61), (253, 63)]);
+        // No free id left: no more Blackout maps.
+        let all: Vec<u8> = (1..=254).collect();
+        assert_eq!(blackout_pairs_of(&all, &[61, 63]), vec![(255, 61)]);
+        // The data's: every plain battery map has one, none of them a maps_dict id.
+        let pairs = blackout_pairs();
+        assert_eq!(pairs.len(), playable_in(BLACKOUT_RULES).count());
+        for &(lobby, played) in pairs {
+            assert!(map_mode(lobby).is_none());
+            assert_eq!(map_mode(played).map(|map| map.mode), Some(BLACKOUT_RULES));
+            assert_eq!(blackout_played(lobby), Some(played));
+            assert_eq!(blackout_id(played), Some(lobby));
+        }
+        assert_eq!(blackout_played(61), None);
     }
 
     #[test]

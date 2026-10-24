@@ -107,6 +107,10 @@ pub struct Config {
     /// `SRP_ROOMS_EXTRA_MAPS`: playable ids a pool may hold besides the
     /// match pool.
     pub extra_maps: Vec<u8>,
+    /// `SRP_BLACKOUT=on`: the rooms offer Blackout ("Batteries: Blackout",
+    /// `docs/notes/blackout.md`): each plain battery map of the pool once
+    /// more, as mode 6 by its lobby id (`maps::blackout_pairs`).
+    pub blackout: bool,
 }
 
 impl Default for Config {
@@ -114,6 +118,7 @@ impl Default for Config {
         Self {
             max_rooms: DEFAULT_MAX_ROOMS,
             extra_maps: Vec::new(),
+            blackout: false,
         }
     }
 }
@@ -141,13 +146,23 @@ impl Config {
             }),
             None => Vec::new(),
         };
+        let blackout = match var("SRP_BLACKOUT").unwrap_or_default().trim() {
+            "on" => true,
+            "" | "off" => false,
+            other => {
+                log::error!("SRP_BLACKOUT is `{other}`; it must be `on` or `off`. Using off");
+                false
+            }
+        };
         log::info!(
-            "Rooms: {max_rooms} at most, {} experimental maps",
-            extra_maps.len()
+            "Rooms: {max_rooms} at most, {} experimental maps, Blackout {}",
+            extra_maps.len(),
+            if blackout { "offered" } else { "off" }
         );
         Self {
             max_rooms,
             extra_maps,
+            blackout,
         }
     }
 }
@@ -197,7 +212,9 @@ struct Ready {
 
 impl Core<'_> {
     /// The maps a pool may hold, in the order their bits name them: the
-    /// match pool, then the experimental maps.
+    /// match pool, then the experimental maps, then (`SRP_BLACKOUT=on`)
+    /// Blackout's: each plain battery map of those once more, as mode 6 by
+    /// its lobby id (its tile the same map and weather).
     pub(super) fn room_entries(&self) -> Vec<PoolEntry> {
         let pool = &self.settings.maps;
         let extra = self
@@ -206,7 +223,8 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        pool.iter()
+        let entries = pool
+            .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
             .filter_map(|(id, extra)| {
@@ -219,6 +237,25 @@ impl Core<'_> {
                     extra,
                 })
             })
+            .collect::<Vec<_>>();
+        let blackout: Vec<PoolEntry> = if self.settings.rooms.blackout {
+            entries
+                .iter()
+                .filter(|entry| entry.mode == maps::BLACKOUT_RULES)
+                .filter_map(|entry| {
+                    Some(PoolEntry {
+                        map_id: maps::blackout_id(entry.map_id)?,
+                        mode: maps::mode::BLACKOUT,
+                        ..*entry
+                    })
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        entries
+            .into_iter()
+            .chain(blackout)
             // A create names its entries by bit: no more than the bits.
             .take(wire::POOL_BITS)
             .collect()
@@ -1047,6 +1084,9 @@ impl Core<'_> {
         let mine = i32::from(self.level_of(account_id, quests::now()).min);
         self.rooms
             .open_rooms(account_id, gear)
+            // Blackout is played by who chose it: Play never puts anyone
+            // into a room whose pool offers it.
+            .filter(|room| !room.pool.iter().any(|id| maps::blackout_played(*id).is_some()))
             .min_by_key(|room| {
                 (
                     (i32::from(self.room_level(room)) - mine).abs(),

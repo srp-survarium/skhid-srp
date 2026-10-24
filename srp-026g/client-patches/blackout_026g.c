@@ -1,7 +1,8 @@
 /* Blackout, exe patch 65 (prototype; the rules: ../docs/notes/blackout.md;
  * client_patch.md section 3.58): a battery match with no interface, the teams
- * told apart by a band on every character's arm (S.T.A.L.K.E.R. Clear Sky's and Call of Pripyat's
- * multiplayer bands, the content pack blackout-bands).
+ * told apart by a plain armband on every character's upper arms, blue (team
+ * 0) or red (team 1): the content pack blackout-bands@2, a band for each
+ * torso model made of its own sleeve and skinned as the sleeve is.
  *
  * - bo_options: srp's block after the static info's squads (the entries
  *   patch 63's td_options reads; match_options::deserialize's end, 0x1F0F30)
@@ -16,7 +17,9 @@
  * - bo_visual: profile_skin_visual_cook::on_configs_loaded (0x204560), after
  *   its parts and the head (0x2056F0): for a profile of those options (a
  *   match's player; the lobby's profiles are the lobby's own), one more part
- *   record, the band of the profile's team (team 0 blue, team 1 green), and
+ *   record: the band of the visual's torso (its first record of the torso,
+ *   part 2, one of BO_TORSOS) in the profile's team's colour,
+ *   `ported/blackout/<the torso's base_model, '/' as '_'>_<blue|red>`, and
  *   the visual's name (its resource's, the cache's key) told apart by team.
  *
  * Nothing a match computes: textures and the interface only (no
@@ -55,10 +58,39 @@ enum {
     VISUAL_COUNT = 0xF324,
 };
 
-/* The bands (pack blackout-bands: models/ported/blackout/band_<colour>.skinned_model, surface `band`). */
-static const char *const BAND_MODEL[2] = {"ported/blackout/band_blue", "ported/blackout/band_green"};
+#include "blackout_torsos_026g.h"
+
+/* The bands (pack blackout-bands@2): models/<BAND_DIR><torso>_<colour>.skinned_model, surface `band`. */
+static const char BAND_DIR[] = "ported/blackout/";
+static const char *const BAND_COLOUR[2] = {"_blue", "_red"};
 static const char BAND_PART[] = "band";
 static const char *const BAND_NAME[2] = {"srpbo0_", "srpbo1_"};
+
+enum { BAND_TEXT = 0x104 };        /* a record's buffer_string: 104h bytes */
+
+static int same(const u8 *a, const char *b) {
+    while (*a && *a == (u8)*b) {
+        ++a;
+        ++b;
+    }
+    return *a == (u8)*b;
+}
+
+/* The visual's torso (its first record of part 2) if the bands pack has one
+ * for it: its base_model's text, else 0. */
+static const u8 *torso_of(u8 *visual, u32 count) {
+    for (u32 i = 0; i < count && i < RECORDS; ++i) {
+        u8 *record = visual + VISUAL_RECORDS + i * RECORD_SIZE;
+        if (AT(record, RECORD_KIND, u32) != KIND_TORSO)
+            continue;
+        const u8 *text = *(u8 **)(record + RECORD_MODEL);
+        for (u32 t = 0; t < sizeof BO_TORSOS / sizeof BO_TORSOS[0]; ++t)
+            if (same(text, BO_TORSOS[t]))
+                return text;
+        return 0;
+    }
+    return 0;
+}
 
 /* The options last read (a match's or a replay's). */
 static u8 *bo_last;
@@ -120,8 +152,21 @@ void bo_visual(u8 *visual, u8 *profile, u8 **name) {
     u32 team = AT(profile, PROFILE_TEAM, u32), count = visual[VISUAL_COUNT];
     if (team > 1 || count >= RECORDS)
         return;
+    const u8 *torso = torso_of(visual, count);
+    if (!torso)
+        return;
+    /* ported/blackout/<the torso's base_model, '/' as '_'>_<colour> */
+    char band[BAND_TEXT];
+    u32 at = 0;
+    for (const char *c = BAND_DIR; *c; ++c)
+        band[at++] = *c;
+    for (const u8 *c = torso; *c && at < BAND_TEXT - 8; ++c)
+        band[at++] = *c == '/' ? '_' : (char)*c;
+    for (const char *c = BAND_COLOUR[team]; *c; ++c)
+        band[at++] = *c;
+    band[at] = 0;
     u8 *record = visual + VISUAL_RECORDS + count * RECORD_SIZE;
-    set_text((u8 **)(record + RECORD_MODEL), BAND_MODEL[team]);
+    set_text((u8 **)(record + RECORD_MODEL), band);
     set_text((u8 **)(record + RECORD_PART), BAND_PART);
     AT(record, RECORD_KIND, u32) = KIND_TORSO;
     visual[VISUAL_COUNT] = (u8)(count + 1);

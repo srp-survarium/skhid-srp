@@ -36,22 +36,6 @@ pub fn team_damage_from_env() -> Option<TeamDamage> {
     }
 }
 
-/// `SRP_BLACKOUT` (exe patch 65, `docs/notes/blackout.md`): `on` makes
-/// every battery match (modes 2 and 3) a Blackout match, no interface and a
-/// team's band on every character; unset, empty or `off`: none. Another
-/// value is logged and read as `off`.
-pub fn blackout_from_env() -> bool {
-    let value = std::env::var("SRP_BLACKOUT").unwrap_or_default();
-    match value.trim().to_ascii_lowercase().as_str() {
-        "on" => true,
-        "" | "off" => false,
-        _ => {
-            log::error!("SRP_BLACKOUT `{value}` is not `on` or `off`; no Blackout matches");
-            false
-        }
-    }
-}
-
 /// Set in every [`static_id`], clear in every match id.
 const STATIC_ID_BIT: u32 = 0x8000_0000;
 
@@ -131,6 +115,9 @@ pub struct MatchSetup {
     /// ([`MatchEnd::NotMade`]; `docs/notes/match.md` section 34). `None`
     /// (clan matches, against bots): the clients' rule alone.
     pub room_minimum: Option<u8>,
+    /// A Blackout match (the lobby's rooms, `docs/notes/blackout.md`): the
+    /// static info's flag (exe patch 65), on a battery map only.
+    pub blackout: bool,
 }
 
 /// Where the players of a made match connect.
@@ -360,8 +347,6 @@ pub struct MatchRegistry {
     /// Team damage in every match's static info (`SRP_TEAM_DAMAGE`, exe
     /// patch 63): 0.28a's numbers unless set otherwise.
     team_damage: Option<TeamDamage>,
-    /// Every battery match a Blackout match (`SRP_BLACKOUT`, exe patch 65).
-    blackout: bool,
     inner: Mutex<Inner>,
 }
 
@@ -373,7 +358,6 @@ impl MatchRegistry {
             host: host.to_owned(),
             port,
             team_damage: Some(TeamDamage::ORIGINAL),
-            blackout: false,
             inner: Mutex::new(Inner {
                 last_id: random() | 1,
                 ..Inner::default()
@@ -388,20 +372,11 @@ impl MatchRegistry {
         self
     }
 
-    /// The registry with every battery match it makes a Blackout match
-    /// (`true`) or none (`false`, the default).
-    pub fn with_blackout(mut self, blackout: bool) -> Self {
-        self.blackout = blackout;
-        self
-    }
-
     /// The registry of the configured match server (`SRP_PUBLIC_HOST`,
     /// `SRP_MATCH_PORT`: the settings the 0.21d server has).
     pub fn from_config() -> Self {
         let config = &vostok::config::get().match_server;
-        Self::new(&config.public_host, config.port)
-            .with_team_damage(team_damage_from_env())
-            .with_blackout(blackout_from_env())
+        Self::new(&config.public_host, config.port).with_team_damage(team_damage_from_env())
     }
 
     /// The port the clients are told.
@@ -518,7 +493,7 @@ impl MatchRegistry {
             match_level: setup.match_level,
             score_weights,
             team_damage: self.team_damage,
-            blackout: self.blackout && maps::mode::WITH_BATTERIES.contains(&map.mode),
+            blackout: setup.blackout && maps::mode::WITH_BATTERIES.contains(&map.mode),
         };
         let info =
             StaticInfo::new(&options, Dictionary::shared()).map_err(CreateError::StaticInfo)?;

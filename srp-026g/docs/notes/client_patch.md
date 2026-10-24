@@ -1739,9 +1739,19 @@ A player's ask through the owner: a key that hides the whole interface, the lobb
   (0x3183E3) and logged (0x27BD08); patch 63 keeps its numbers at +57860h, patch 65 "SRBO" at
   +57870h. The reader (patch 63's entry at 0x1F0F30) runs for 0xE4 (0x27B928) and for a replay's
   chunk 1 (0x1F096C).
+- **The markers** (PROVEN in the code; LIKELY the cause). The player icons' movie (`player_icons.swf`) is
+  loaded with each game world (game_world::load, 0x1F8F69) and fed every frame by update_player_icons
+  (0x23AA10, from update_ui at 0x23B207: create_player_icon 0x23BE57, the names 0x23C00D, the props
+  0x23B1C0). The first Blackout build hid it at initialize_match's reset with root.hide_interface; the
+  owner still saw a teammate's name and marker: LIKELY the movie's root does not exist yet then (a movie
+  never advanced), so the Invoke does nothing. Plain F11 is a key in a running match (the root exists):
+  not affected. Now a Blackout match does not feed the movie at all.
 - **The patch:** README patch 65. Exe code: the hook at 0x2056F0 (`bo_visual_entry`, JUMP), the
-  call of `bo_options` in patch 63's options entry, `hide_ui_force` and the `hide_ui_forced`
-  byte in patch 62. Content: the pack `blackout-bands` (`blackout.md`).
+  call of `bo_options` in patch 63's options entry, `hide_ui_force` (the hud's
+  root.force_interface_hidden, the markers' root.hide_interface) and the `hide_ui_forced` byte in
+  patch 62, `bo_match` in Research's per-frame icons entry (patch 53, 0x23B207). Content: the pack
+  `blackout-bands@2`, a band per torso; the exe's table of its torsos is
+  `blackout_torsos_026g.h` (`blackout.md`).
 - **Checked:** selftest check 65; `check_blackout_026g.py`. **Not run in a game.** Not known: the
   band's look in a match (the pack's fit is offline), whether any part of the game reads a
   record's +C08h through another base.

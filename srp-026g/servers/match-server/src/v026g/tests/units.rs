@@ -125,23 +125,24 @@ fn what_the_clients_could_not_hold_is_refused_when_the_match_is_made() {
 }
 
 #[test]
-fn blackout_goes_to_battery_matches_only() {
+fn blackout_is_the_setup_flag_on_battery_maps_only() {
     // maps_dict 61: Rudnya's batteries (mode 2); 62: its chargers (mode 3).
-    let blackout = MatchRegistry::new("127.0.0.1", 1236).with_blackout(true);
-    for (map_id, expected) in [(MAP_BATTERIES, true), (62, true), (MAP_TDM, false)] {
-        let ticket = blackout.create(setup(2, map_id)).unwrap();
-        let formed = blackout.formed(ticket.match_id).unwrap();
+    let registry = MatchRegistry::new("127.0.0.1", 1236);
+    for (map_id, asked, expected) in [
+        (MAP_BATTERIES, true, true),
+        (62, true, true),
+        (MAP_TDM, true, false),
+        (MAP_BATTERIES, false, false),
+    ] {
+        let mut made = setup(2, map_id);
+        made.blackout = asked;
+        let ticket = registry.create(made).unwrap();
+        let formed = registry.formed(ticket.match_id).unwrap();
         assert_eq!(formed.blackout, expected, "map {map_id}");
         let options = parse_options(formed.info.options(), Dictionary::shared()).unwrap();
         assert_eq!(options.blackout, expected, "map {map_id}");
-        blackout.end(ticket.match_id);
+        registry.end(ticket.match_id);
     }
-    // Off by default: no entry.
-    let plain = MatchRegistry::new("127.0.0.1", 1236);
-    let ticket = plain.create(setup(2, MAP_BATTERIES)).unwrap();
-    let formed = plain.formed(ticket.match_id).unwrap();
-    assert!(!formed.blackout);
-    assert!(!parse_options(formed.info.options(), Dictionary::shared()).unwrap().blackout);
 }
 
 #[test]

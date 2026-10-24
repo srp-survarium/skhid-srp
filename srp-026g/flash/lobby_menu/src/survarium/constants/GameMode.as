@@ -15,6 +15,10 @@ package survarium.constants
       // Research: capture the research units (docs/notes/research_mode.md)
       public static const RESEARCH:int = 5;
       
+      // Blackout ("Batteries: Blackout", docs/notes/blackout.md): the lobby's own mode, its
+      // matches the plain battery mode with no interface and the teams' armbands
+      public static const BLACKOUT:int = 6;
+      
       public function GameMode()
       {
          super();

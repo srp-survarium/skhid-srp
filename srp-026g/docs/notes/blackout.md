@@ -1,71 +1,86 @@
 # Blackout (prototype)
 
 The owner (2026-10-24): "make a game with all ui disabled and players having color bands to
-distinguish teams… this is the new battery mode"; "take bands from stalker". Working name, not
-final. A prototype to try locally: nothing here is decided until the owner says so.
+distinguish teams… this is the new battery mode". A prototype to try locally; the owner's
+changes of 2026-10-25 are in. Nothing here ships until the owner says so.
 
-## Rules (the prototype's defaults)
+## The mode
 
-- **Which matches:** every battery match (modes 2 and 3) while the server runs with
-  `SRP_BLACKOUT=on`; off by default. Battery rules unchanged (chargers spawn batteries, a team
-  deposits them in its container).
-- **No interface for the whole match:** exactly what F11 (patch 62) hides, from the match's first
-  frame (the kits before the start too) to its end. Ammo, health, score, crosshair, minimap,
-  markers, kill feed, chat, Tab list: all hidden.
-- **Kept:** the screen effects (pain edges, blood drips, grenade flash), the 3D world, the Esc
-  menu, the cursor of the kit screen.
-- **F11 does nothing** in a Blackout match; keys 1 to 3 still pick a kit while hidden.
-- **The end:** the hud stays hidden to the match's end (its winner/loser line too); the lobby and
-  its results screen are as always.
-- **Bands:** every player wears his team's armband on the upper arm: team 0 blue, team 1 green
-  (absolute colours, the same for every viewer and in replays).
-- **Not in the lobby:** the band is only on a match's characters.
-- **Replays and late joiners:** they get the flag with the static info, so they see the match
-  as it was (no interface, the bands); a replay's own controls still toggle with F11.
-- **Not a simulation change:** the interface and the characters' looks only; no
-  `simulation_changes.tsv` row.
+- **Its own mode in the lobby:** "Batteries: Blackout" (Захисний пристрій: Блекаут, Защитное
+  устройство: Блэкаут, Schutzeinrichtung: Blackout, Urządzenie ochronne: Blackout): a tick of
+  the rooms' create window, a card of the vote, a row of the room and match lists.
+- **Offered** while the server runs with `SRP_BLACKOUT=on` (off by default): the rooms' pool then
+  holds each plain battery map of the match pool once more as Blackout.
+- **Rules:** the plain battery mode (mode 2, "Protective device": batteries from the spawners,
+  no chargers), on its maps; the battery rules unchanged. Not the chargers' mode (3).
+- **Chosen, never given:**
+  - out of the create window's defaults: a maker ticks it;
+  - Play never puts anyone into a room whose pool offers it, and a room Play makes has none;
+  - so only who made or joined such a room plays it; a room with Blackout and other modes plays
+    whichever its vote picks.
+- **Bots:** not offered (Play vs Bots lists its own maps).
+
+## In the match
+
+- **Nothing over the world:** no names, markers or icons over any player or object, none through
+  walls, no spot marks, no Research markers (the markers' movie is given nothing to draw).
+- **No interface:** what F11 hides (patch 62) for the whole match, from its first frame: ammo,
+  health, score, crosshair, minimap, kill feed, chat, Tab list, the match clock, the kits and the
+  death screen with its respawn timer.
+- **One exception, the pre-match countdown** ("… 00:15"): shown while it runs, hidden with the
+  rest when play starts.
+- **Tab held:** the ammo (in the weapon and carried) and the quick-use slots with their counts;
+  hidden again when Tab is let go. Never the player list or the score (the owner, 2026-10-25).
+- **Kept:** the screen effects (pain edges, blood, grenade flash), the Esc menu, the kit screen's
+  cursor; keys 1 to 3 pick a kit.
+- **F11 does nothing**; a replay's controls still toggle with it.
+- **The end:** the lobby and its results screen as always.
+- **Replays and late joiners** see the match as it was (no interface, the bands).
+- **Not a simulation change:** what is drawn only; no `simulation_changes.tsv` row.
 
 ## Bands
 
-- **Source:** the multiplayer team bodies of Clear Sky and Call of Pripyat (byte-identical; taken
-  from Call of Pripyat): `meshes/actors/stalker_mp/mp_team_{blue,green}_1.ogf`, textures
-  `act_mp_team_{blue,green}_1.dds`. The band is a child mesh of each body, on both upper arms,
-  self-lit in STALKER. Shadow of Chernobyl's MP has faction suits, no bands.
-- **Content:** pack `blackout-bands` (resource-porter `feat/blackout-bands`,
-  `examples/build-blackout-bands.rs`): two models on the native skeleton,
-  `models/ported/blackout/band_blue` and `band_green`, surface `band`, the cloth cut from each
-  texture around its emblem (64x256, flat normal map); no item, no dictionary row.
-- **On the body:** a 32-segment ring on each upper arm, rigid on `LeftArm` / `RightArm`, 61 mm
-  wide, its centre 208 mm below the shoulder (0.65-0.88 of the upper arm: lower than STALKER's
-  spot, below the armpits and the combat suit's shoulder plates), the emblem outwards.
-- **Fit:** one ring outside every sleeve of 70 torso models + 5 mm: about 70 cm around, so it
-  stands 2-5 cm off most sleeves (least 5 mm, mean 19-49 mm); in some clips a sleeve pokes
-  through its top edge (worst 28 mm, the AK lobby idle). Snug bands need sizes per torso.
-- **Team colour:** two models, one per team; the exe picks the model by the player's team. Not
-  self-lit (the plain cloth material).
+- **Look:** a plain cloth armband on both upper arms, solid blue (team 0) or red (team 1); no
+  emblem, not self-lit. The same colours for every viewer.
+- **Fit:** one band per torso model, cut from that torso's own sleeve (0.45 to 0.67 of the way
+  from shoulder to elbow, 60 mm wide, 4 mm out) and skinned with the sleeve's own weights, so it
+  moves with the sleeve. Measured on the model data: never more than 4 mm off the sleeve in the
+  bind pose and the AK and pistol idles and run; 3 to 13 % of a band's edge runs under straps or
+  plates next to the sleeve. It goes 78 to 100 % round the arm (less where a sleeve is the chest's).
+- **Content:** pack `blackout-bands@2` (resource-porter `feat/blackout-bands`): 70 torsos x 2
+  colours, `models/ported/blackout/<torso base_model, '/' as '_'>_<blue|red>`, surface `band`; no
+  item, no dictionary row. A torso the pack does not know gets no band.
+- **v1** (STALKER's multiplayer bands, one ring for all torsos) floated: one size outside every
+  sleeve, low on the arm, rigid on the upper arm. Dropped.
 
 ## How
 
-- **Server:** `SRP_BLACKOUT=on` puts tag 2 (one byte, 1) in srp's block after the static info's
-  squads (`static_info.rs`), for battery maps only; a late joiner's static info keeps it.
+- **Lobby (srp):** Blackout's maps are named by ids of the lobby's own (`maps::blackout_pairs`:
+  ids `maps_dict` does not use, from 255 down), mode 6 in the rooms' pool, cards and rows. A
+  room's match on such a card is made on the battery map with `MatchSetup::blackout`.
+- **Static info:** the flag is tag 2 (one byte, 1) of srp's block after the squads, on battery
+  maps only; a late joiner's static info keeps it.
 - **Exe, patch 65** (`blackout_026g.asm` and `.c`; `client_patch.md` 3.58):
-  - patch 63's reader of srp's block (0x1F0F30) keeps the flag in the options (+57870h);
-  - patch 62's reset of a match's interface (0x234AE8) calls `hide_ui_force` with it: the one
-    entry that forces the interface hidden and locks F11;
-  - `profile_skin_visual_cook::on_configs_loaded` (0x2056F0) adds one part record, the team's
-    band, to a match's player's character, and tells the visual's name apart by team.
-- **Movies:** no change; patch 62's `hide_interface` hides each movie's root.
-- **With the interface levels** (`feat/interface-level`, its own patch 64): the one forcing call,
-  `hide_ui_force(bo_match())` in patch 62's reset, becomes `interface_force(0, 2)` (Disabled) or
-  `interface_force(0, 0)` once both are merged.
+  - patch 63's reader of srp's block keeps the flag in the options (+57870h);
+  - patch 62's reset of a match's interface calls `hide_ui_force(bo_match())`: the one entry that
+    forces the interface hidden (the hud's `root.force_interface_hidden`, the markers'
+    `root.hide_interface`) and locks F11;
+  - Research's per-frame entry of `update_player_icons` runs neither it nor the units' markers in
+    a Blackout match;
+  - `profile_skin_visual_cook::on_configs_loaded` adds the band of the player's torso and team.
+- **The hud movie:** `force_interface_hidden` hides the root as F11 does and keeps the countdown
+  (`pregameInfo`) in a layer over it, placed as the root; while forced, the game's Tab
+  (`show_player_list`) moves the ammo (`ammoInd`) and the quick-use slots into that layer and back
+  instead of showing the list; the reset of the next match unforces it.
+- **The lobby movie:** `GameMode.BLACKOUT`, its names; the create window ticks the modes the pool
+  offers; a mode's colour on the vote card from one table.
+- **With the interface levels** (`feat/interface-level`, its own patch 64): the forcing call
+  becomes `interface_force(0, 2)` (Disabled) once both are merged, its countdown exception kept.
 
 ## Open for the owner
 
-- The name; which modes; relative colours (own team blue, enemy green) instead of absolute.
-- The end of the match: show the hud's winner/loser line, or the interface, once it is over.
-- Score: none in the match, or a short line on each battery delivered.
-- The bands' look: loose one-size rings (now), a few sizes picked per torso, or self-lit as
-  STALKER's (an emissive material).
-- A game without patch 65 would show the interface and no bands: refuse it by revision before
-  a release (`SRP_MIN_PATCH_REVISION`).
-- Rooms: offered as its own mode, or a server switch only (today: the switch).
+- The name; relative colours (own team blue, enemy red) instead of fixed ones.
+- A room's saved settings from before Blackout existed show it ticked (they cannot tell "chosen"
+  from "unknown"); a schema step fixes that before a release.
+- A game without patch 65 would show the interface and no bands: refuse it by revision before a
+  release (`SRP_MIN_PATCH_REVISION`).

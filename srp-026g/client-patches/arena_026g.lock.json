@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 74308,
-  "sha256": "e61bed0876e3a9dfe4cc34a741717f45e62eff93bef684336f92bb5683e4f2f6",
+  "size": 78404,
+  "sha256": "0d1f82e19df71d8c8ae21e3524ee37b3f4f51d31ad4776e784e19629f6e575d1",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -62,7 +62,7 @@
     "hide_ui.code": {
       "kind": "code",
       "va": "0xa43c000",
-      "size": 617
+      "size": 677
     },
     "hide_ui.data": {
       "kind": "data",
@@ -72,11 +72,11 @@
     "blackout.code": {
       "kind": "code",
       "va": "0xa43f000",
-      "size": 576
+      "size": 4664
     },
     "blackout.state": {
       "kind": "state",
-      "va": "0xa43f240",
+      "va": "0xa440240",
       "size": 4
     }
   },
@@ -168,11 +168,11 @@
     "engine_zone_deactivate": "0xa432920",
     "engine_zone_tick": "0xa432940",
     "hide_chat": "0xa434048",
-    "hide_ui_force": "0xa43c12d",
+    "hide_ui_force": "0xa43c135",
     "hide_ui_forced": "0xa43d000",
-    "hide_ui_lobby": "0xa43c148",
+    "hide_ui_lobby": "0xa43c169",
     "hide_ui_match": "0xa43c000",
-    "hide_ui_reset": "0xa43c0fd",
+    "hide_ui_reset": "0xa43c105",
     "match_keys_chat": "0xa4330c3",
     "match_keys_hud": "0xa433080",
     "match_keys_keyboard": "0xa433000",

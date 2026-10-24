@@ -2099,6 +2099,8 @@ def test_research(original, image, before):
     texts = [plain(t) for _, _, t in ndisasm(stubs, research_va)]
     targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
     outside = {c for c in targets if not research_va <= c < research_va + len(code)}
+    # patch 65's bo_match (blackout.code): a Blackout match feeds the markers' movie nothing
+    outside.discard(linked.symbols["bo_match"])
     check(outside == {0x1EC170, 0x23B35B, 0x23B36A, 0x23AA10} and "mov [esp],0x23b3fc" in texts
           and "mov ecx,0xa03aac" in texts,
           "the stubs leave to the constructor's replaced call, update_ui's message (TDM's key or mode 5's) and its "
@@ -4488,6 +4490,20 @@ def test_blackout(original, image, before):
     hide = P.linker.block_bytes(linked, "hide_ui.code")
     hide_block = linked.blocks["hide_ui.code"]
     hide_texts = [text for _, _, text in ndisasm(hide[:hide.index(b"root.toggle_interface")], hide_block.va)]
+    research = P.linker.block_bytes(linked, "research.code")
+    research_block = linked.blocks["research.code"]
+    research_texts = [text for _, _, text in ndisasm(research[:0x100], research_block.va)]
+    hud = open(os.path.join(HERE, "..", "flash", "hud", "src", "HUD.as"), encoding="utf-8").read()
+    check(f"call {linked.symbols['bo_match']:#x}" in research_texts
+          and "public function force_interface_hidden(forced:Boolean) : void" in hud
+          and "return [this.pregameInfo];" in hud and "this._keptLayer.addChild(part);" in hud
+          and "return [this.ammoInd,this.quick_slots];" in hud and "this.keep(this.keptOnTab(),bool);" in hud
+          and "this._keptLayer.transform.matrix = this.transform.matrix;" in hud
+          and "this.force_interface_hidden(false);" in hud,
+          "Research's per-frame entry of update_player_icons asks bo_match (a Blackout match feeds the markers' "
+          "movie nothing); the hud's force_interface_hidden keeps the pre-match countdown (pregameInfo) in a "
+          "layer over the hidden root, placed as the root, and Tab (show_player_list) the ammo and the "
+          "quick-use slots, never the list; a new match's reset unforces it")
     check(f"call {linked.symbols['bo_options']:#x}" in td_texts
           and f"call {linked.symbols['bo_match']:#x}" in hide_texts
           and f"call {linked.symbols['hide_ui_force']:#x}" in hide_texts,
@@ -4574,18 +4590,21 @@ def test_hide_ui(original, image, before):
                       and not block.va <= branch_target(t) < block.va + len(code)})
     library = {linked.symbols[name] for name in ("engine_binded_action", "engine_movie_invoke", "bo_match")}
     pushed = lambda text: f"push dword {block.va + code.index(text + bytes(1)):#x}" in texts
+    named = lambda text: f"mov edx,{block.va + code.index(text + bytes(1)):#x}" in texts
     forced = linked.symbols["hide_ui_forced"]
     data = linked.blocks["hide_ui.data"]
     check(outside == sorted(set(P.HIDE_UI_BACKS[:2]) | library)
           and data.va <= forced < data.va + data.size
           and f"cmp byte [dword {forced:#x}],0x0" in texts and f"mov [{forced:#x}],al" in texts
           and f"mov dword [esp],{P.HIDE_UI_BACKS[2]:#x}" in texts and f"mov dword [esp],{P.HIDE_UI_BACKS[3]:#x}" in texts
-          and all(pushed(t) for t in (b"root.toggle_interface", b"root.interface_hidden", b"root.hide_interface"))
+          and all(pushed(t) for t in (b"root.toggle_interface", b"root.interface_hidden"))
+          and all(named(t) for t in (b"root.hide_interface", b"root.force_interface_hidden"))
           and "hide_ui.state" not in linked.blocks,
           "it goes on in on_keyboard_action (0x25CEDB, 0x25CF0D), returns to "
           "0x26CCAE or 0x26CDD2, calls the library's get_binded_action and Invoke and patch 65's bo_match and "
           "nothing else (not the game world's show_ui: its hidden movies stand still); it invokes "
-          "root.toggle_interface, root.interface_hidden and root.hide_interface; its one state is "
+          "root.toggle_interface, root.interface_hidden, root.hide_interface and (forced) the hud's "
+          "root.force_interface_hidden; its one state is "
           "hide_ui_force's byte `hide_ui_forced` (hide_ui.data), which the case 19h reads")
     here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
     # the options' controls: the game's 40 rows, the six functions that read them, the arena's 41
@@ -4708,16 +4727,18 @@ def test_hide_ui(original, image, before):
     icon_adds = [(p, m.group(1)) for p, t in own("player_icons").items() for m in stage_add.finditer(t)]
     check(all("public function hide_interface(hidden:Boolean) : void" in t and "visible = !hidden;" in t
               for t in (hud, icons)) and "public function interface_hidden() : Boolean" in hud
-          and hud_adds == [("HUD.as", "stage", "this.effectContainer")] and not icon_adds
+          and hud_adds == [("HUD.as", "stage", "this._keptLayer"), ("HUD.as", "stage", "this.effectContainer")]
+          and not icon_adds
           and "stage.addChildAt(this.effectContainer,stage.getChildIndex(this));" in hud
           and "this._stageLayer.addChild(this.gameInfo);" in hud and "place.concat(this.transform.matrix);" in hud
           and all(f"override public function {f}" in hud for f in ("addChild(", "addChildAt(", "setChildIndex("))
           and "InterfaceHider" not in "".join(tree("hud").values()) + "".join(tree("player_icons").values())
           and all(f"this.effects[this.{name}] = " in hud for name in ("BLOOD_EFFECT", "BLOOD_DRIP1", "GRENADE_EFFECT")),
           "the hud's and the player icons' interface is their root, hidden in one step (root.hide_interface; the "
-          "hud's interface_hidden); the hud's fps line is in the root's _stageLayer; the one thing on the hud's "
-          "stage beside the root is the screen effects' container (add_effect's blood, its drips, the grenade's "
-          "flash), below the root, placed as the root is scaled: the scene's, so it stays (the owner, 2026-10-24)")
+          "hud's interface_hidden); the hud's fps line is in the root's _stageLayer; beside the root on the "
+          "hud's stage are the screen effects' container (add_effect's blood, its drips, the grenade's flash), "
+          "below the root, placed as the root is scaled: the scene's, so it stays (the owner, 2026-10-24); and "
+          "the forced hiding's kept layer above it (patch 65)")
     check("public function toggle_interface() : void" in lobby and "public function interface_hidden() : Boolean" in lobby,
           "the lobby movie has root.toggle_interface and root.interface_hidden")
 
