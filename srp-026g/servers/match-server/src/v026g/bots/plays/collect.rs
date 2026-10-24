@@ -323,7 +323,7 @@ fn standing_stand(tactics: &crate::v026g::bots::tactics::Tactics, at: Vec3) -> O
 /// Whether the feet are at the height of the floor a walk to `at` ends on
 /// (`path::goal_floor`): not over it by more than `motor::ARRIVE_ABOVE_M`
 /// nor under it by more than `motor::ARRIVE_BELOW_M`, the rule
-/// `drive_tick` and the motor end a walk by. No floor: true.
+/// the motor ends a route by (`motor::arrived`). No floor: true.
 fn at_goal_height(cx: &Ctx, at: Vec3) -> bool {
     use crate::v026g::bots::motor::{ARRIVE_ABOVE_M, ARRIVE_BELOW_M};
     let grid = &cx.tactics.world.grid;

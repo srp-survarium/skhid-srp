@@ -280,7 +280,7 @@ pub(super) const ARRIVE_BELOW_M: f32 = 0.5;
 /// A route's end lower than the feet by more than this is not arrived at
 /// (the bot is over it: on an overhang, a box top, the top of a drop; it
 /// walks on by the route), metres. GUESS: over a step or stair's rise the
-/// grid walks, under a storey. The same rule ends a goal in `drive_tick`.
+/// grid walks, under a storey. Collect's Fetch→Take uses the same rule.
 /// Cologne CG-17: a bot on the overhang over battery 2's stand was "there".
 pub(super) const ARRIVE_ABOVE_M: f32 = 0.6;
 /// A route whose last leg is a jump is arrived at only on its landing:

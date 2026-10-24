@@ -289,3 +289,51 @@ a 0.9 m standing rim (pit A's) still is.
 - Bot ms/s, summed over a seed's 12 runs, after minus base: -0.85 (SE
   0.97), -0.94 (0.93), +0.52 (0.94), +0.66 (0.65). No cost.
 - Delivered, flips, quick ends, pocket bot-s and pocket deaths do not move.
+
+## Bots: a goal is reached at its floor's height; a standing take stand beside a high box (Cologne CG-17)
+
+### Why
+
+In the Cologne match a bot stood on the overhang over battery 2's stand at
+spot B and counted as there. Every "arrived" test was flat (xz): the steer's
+end of a walk in `drive_tick`, Collect's Fetch→Take, and the motor's end of
+a route, which only refused an end above the feet (a ledge to jump up to).
+So a bot over its goal stopped, and the take went nowhere.
+
+### What changed
+
+- **One rule for "arrived":** within reach across, and the feet at the
+  goal floor's height, not over it by more than `motor::ARRIVE_ABOVE_M`
+  (0.6 m, GUESS: over a step's or a stair's rise, under a storey) nor under
+  it by more than `motor::ARRIVE_BELOW_M` (0.5 m, as before). Two places
+  use it:
+  - `motor::arrived`, a route's end (#396's landing rule for a last leg
+    that is a jump stays);
+  - Collect's Fetch→Take (`at_goal_height`, the stand's floor from
+    `path::goal_floor`). A bot near across but off that height (over the
+    stand on an overhang or a box top, or under it) asks for the stand
+    itself (`within(0.0)`, as Take already did from under its stand): a
+    goal within reach across is no goal in `drive_tick`, so only the
+    route's end decides.
+- **Not in `drive_tick`:** the first version also ended `drive_tick`'s
+  goal by the height rule. On the tdm bench (8 seeds, against
+  base-939b2cca) it raised pocket tries on tier 9-10 by +7.75 (2.3 SE) and
+  pocket seconds by +88 (3.0 SE). Limited to goals within 1.2 m, it still
+  gave +8.0 tries (3.9 SE) and +58 s (3.9 SE): every intent without its own
+  reach asks within 1 m, and so do the reflex's steps, so bots in fights
+  walked on to points they stood by, into pits. With only that rule off,
+  tdm 9-10 played out as base's, game for game; with only the motor's rule
+  off, the tries stayed up (+9.4, 3.6 SE). So `drive_tick` is as it was.
+- **A side effect, by design:** a route that ends past a drop is arrived at
+  only once the bot has dropped, not at the drop's top.
+- `collect::take_stand`: `Tactics::stand_to_take`'s stand, else, for a
+  battery on a box top over the crouched eye, the floor beside it whose
+  **standing** eye sees it within the use's reach. Collect's five stand
+  look-ups and the search's `shut_all_match` use it.
+- **The probe** (`pocket_stands_on_the_real_maps`): of about 500 spawners
+  on levels 1-8, days 2 and 3, five have no crouched stand. The standing
+  eye adds one, level_02 day 2 spawner 39 (stand 1.34 m under the battery);
+  the other four are seen from no floor within 1.8 m. Grid algo 5. The
+  shared finder's rewrite and marginal-jump stands wait for the grid's
+  erosion fix (algo 6), and come back only if the probe's numbers change
+  there.
