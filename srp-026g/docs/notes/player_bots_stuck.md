@@ -1070,3 +1070,63 @@ MEASURED
 - A bot that gave up stays in the pocket. Killing itself is gated on the
   client recordings showing that bots still cannot leave with nothing else
   wrong.
+
+### Jumps while hurt (2026-10-24)
+
+The game takes no jump of any kind with a broken leg (a leg pool,
+`Damage::part_health` 6 or 7, 0.5 full, at 0; about 8 s), and the 0.5 s
+stagger after each hit slows the body by up to half (the sprint-jump RE,
+`FINDINGS.md` §1.8, PROVEN). A bot pressed its route jumps and hops through
+both: a press the game refuses still counted one of the jump's
+`JUMP_TRIES`, and three gave the jump up.
+
+- **The gate** (`motor.rs`, `Hurt`, `Pose::no_jump`): while `Hurt::may_jump`
+  is false (a broken leg, or within `HIT_JUMP_HOLD_MS` 500 of the last hit)
+  `jump_key` presses nothing and counts no try, and `hop_key` does not hop.
+  The leg gate is PROVEN; the hit hold is a GUESS (the stagger stops the
+  sprint, not the jump: a slowed body may land short).
+- **Hops are no combat move:** `hop_key` jumps only walking a route, when a
+  world puts the body back behind its reckoning while the ground climbs (a
+  lip). No dodge under fire uses it, so the hit hold costs no fight.
+- **What it reads:** the leg pools, and `m_last_hit_time_ms`
+  (`Damage::last_hit_time_ms`, the damage model's field after the second
+  chance, which the decoder already stepped over), from each trusted world
+  (`game/driven.rs` → `Bots::hurt`). `Hurt::may_jump` is for other jumps
+  too (unstuck's escape).
+- **Stamina is left out.** The game takes no jump under 10 stamina, nor from
+  0 until it is back over 20, but the world's state does not carry stamina:
+  a server reckoning would be a GUESS on unknown rates (its regeneration,
+  each hit's stamina damage). Open, for the sprint RE.
+
+**The stand-in** (`bots/tests.rs`, a measurement change for every later
+bench): one hit in 4 lands on a leg (`STAND_IN_LEG_SHARE`, GUESS), taking
+0.25 of its 0.5 pool (`STAND_IN_LEG_HIT`, GUESS: one or two rifle hits empty
+one); an empty leg refuses every jump for 8 s. A hit slows the body to 0.75
+of its speed for 0.5 s (`STAND_IN_STAGGER`, GUESS between the game's 15-50
+%). The leg is drawn by a hash, so the game's draws do not move. Each run
+prints `jumps: pressed N refused N`.
+
+**Bench** (`real_bot_cost`, presets batt and tdm, tier none, seeds 1-16:
+192 pairs each; `with − without`, * beyond 2 SE; before: fc01ace3, which
+decides as 0741a7c0):
+
+| | jumps refused | jumps pressed | stuck notes | kills | K/D team 0 / 1 | delivered | carriers killed |
+|---|---|---|---|---|---|---|---|
+| the stand-in's hurts, against the tip, batt | | | −0.13 ± 0.31 | +0.41 ± 0.26 | +0.00 ± 0.08 / +0.03 ± 0.08 | +0.02 ± 0.09 | +0.19 ± 0.13 |
+| the stand-in's hurts, against the tip, tdm | | | +0.20 ± 0.28 | −0.08 ± 0.28 | −0.00 ± 0.08 / −0.02 ± 0.05 | | |
+| the gate, against the stand-in's hurts, batt | −0.109 ± 0.026* | −0.18 ± 0.11 | +0.09 ± 0.07 | −0.02 ± 0.06 | −0.01 ± 0.01 / +0.00 ± 0.01 | −0.01 ± 0.01 | −0.01 ± 0.02 |
+| the gate, against the stand-in's hurts, tdm | −0.146 ± 0.030* | −0.14 ± 0.07 | +0.05 ± 0.06 | −0.02 ± 0.06 | −0.00 ± 0.01 / +0.00 ± 0.01 | | |
+
+- The gate takes away 55 % of the jumps the game refuses (0.20 → 0.09 a
+  match in batt, 0.27 → 0.13 in tdm). The rest are pressed before a world
+  shows the leg broken: the bench's worlds come every second, 300 ms behind.
+- No guard is worse beyond 2 SE: quick ends +0.003 ± 0.004 / −0.002 ±
+  0.002, flips +0.002 ± 0.001 / −0.004 ± 0.002, idle 5 s+ +0.03 ± 0.06 /
+  +0.03 ± 0.08, team kills 1 / 1 over the 192 runs each, as without.
+- Such jumps are rare (0.2-0.3 a match, of 15-25 jumps), so stuck notes do
+  not move. Beside the guards: falls on route −0.12 ± 0.06* in batt, falls
+  off the route +0.08 ± 0.03* in tdm.
+- The stand-in's hurts moved no row beyond 2 SE against the tip (the
+  nearest: batt deaths a bot-minute +0.013 ± 0.007, reversals +1.42 ±
+  0.71). Team kills over the 192 runs: batt 0 / 1 / 1, tdm 3 / 1 / 1 (tip,
+  the stand-in's hurts, the gate).

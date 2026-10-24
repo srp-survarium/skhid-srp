@@ -67,7 +67,7 @@ use body::Fix;
 use cheats::CheatClock;
 use encode::{Decision, Encoder};
 use know::{DangerSpot, LookSpot, Loss, Memory, Percept, Source, TeamKnowledge, Theft};
-use motor::{JumpBy, Motor, Pose, RoutePress, Walked};
+use motor::{Hurt, JumpBy, Motor, Pose, RoutePress, Walked};
 use path::Route;
 use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
 use reflex::Reflex;
@@ -208,6 +208,8 @@ pub struct Bot {
     /// and the last tick the trigger was down.
     jump_hold: u32,
     fired_at: Option<u32>,
+    /// Its hurts as the last trusted world showed them ([`Bots::hurt`]).
+    hurt: Hurt,
     /// The last jump, until what followed it is traced.
     jump_watch: Option<JumpWatch>,
     /// Whether the match traces, and the trace lines made while driving
@@ -313,6 +315,7 @@ impl Bot {
             unstick: None,
             jump_hold: 0,
             fired_at: None,
+            hurt: Hurt::default(),
             jump_watch: None,
             tracing: false,
             traced: Vec::new(),
@@ -873,6 +876,14 @@ impl Bots {
             &self.tuning.kin,
             world.as_deref(),
         );
+    }
+
+    /// A trusted world's word on one place's hurts (with its body's,
+    /// [`Self::fixed`]): what its jumps may do ([`Hurt::may_jump`]).
+    pub fn hurt(&mut self, place: Place, hurt: Hurt) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.hurt = hurt;
+        }
     }
 
     /// A trusted world's word on one place's body.
@@ -2233,6 +2244,7 @@ fn drive_tick(
         yaw: me.yaw,
         pitch: me.pitch,
         speed: me.speed(),
+        no_jump: !bot.hurt.may_jump(time),
     };
     if bot
         .jump_watch
