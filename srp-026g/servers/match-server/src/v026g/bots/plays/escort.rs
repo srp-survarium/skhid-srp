@@ -114,6 +114,11 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         if carrier.place == cx.me.place || carrier.feet.distance_xz(home) < home_m {
             continue;
         }
+        // A carrier who gave up getting out of his pocket goes nowhere: no
+        // escort walks in to him (`escape.rs`).
+        if cx.teammate_trapped(carrier.place).is_some_and(|t| t.gave_up) {
+            continue;
+        }
         let key = carrier.place as u32 * 2;
         out.extend(cx.candidate(PlayKind::Escort, TargetRef::Place(carrier.place), Some(key)));
         // Behind him: above the batteries to collect.

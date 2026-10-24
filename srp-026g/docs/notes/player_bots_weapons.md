@@ -666,3 +666,179 @@ Tests: `reflex::tests::the_aim_is_held_through_a_target_lost_a_moment`,
 `a_target_taken_again_a_moment_after_keeps_what_it_had_of_him`,
 `another_enemy_in_sight_still_waits_his_noticing`;
 `know::tests::in_sight_is_a_live_sight_before_its_noticing`.
+
+## Bots: the fire range by weapon, and the line looked at again while firing
+
+**The trigger's range, today:** 80 m for every weapon (`AimTuning::range_m`) and
+120 m for a bolt action (`FireTuning::bolt_range_m`).
+
+**What the configs say: under the players' use in every class.**
+- **Where the damage stops falling (`min_damage_distance`):**
+  - 30 m for the shotguns;
+  - 40 m for the SMGs, the pistols (the Magnum 50), the AK-74U and the 9A-91;
+  - 50 m for the other rifles, the machine guns, the VSS and the VSK-94;
+  - 100 m for the bolt actions, the SVD, the SKS and the SOCOM 16.
+- **That is not where a weapon stops:** each hit past it still does
+  `min_damage_amount` of its damage.
+- **The aimed-in cone** (`base_dispersion`, 0.05-2°) keeps a fifth of its shots
+  on a torso past 200 m.
+- So neither term is used: the range comes from the players alone.
+
+**The players' range (owner's rule: the 2 best of each match with 12 or more
+people).**
+- **Matches:** 402 of the 631 players' recordings (302 of them rev21). In each,
+  the 2 best by kills, then K/D.
+- **Runs:** every trigger run of theirs. Its distance is to the living enemy
+  nearest their aim, within 5°, taken over up to 10 ticks of the run (positions
+  between worlds, both within 1.5 s).
+- **Sensitivity:** at a 3° cone or an 8° cone, and also counting runs that pass
+  within 2 m of an enemy (the "2 m" column).
+
+p95, m. Hit runs in brackets: runs that hit one enemy, at his distance.
+
+| class | runs (matches) | p50 / p90 / p95 / p99 | 3° / 8° / 2 m p95 | hit runs, p95 (n) |
+|---|---|---|---|---|
+| rifles (cat 8) | 4520 (208) | 38 / 72 / 90 / 124 | 93 / 89 / 85 | 65 (1942) |
+| SMGs | 1482 (122) | 32 / 70 / 90 / 131 | 92 / 90 / 80 | 58 (652) |
+| shotguns | 377 (19) | 26 / 64 / 91 / 126 | 89 / 89 / 89 | 49 (143) |
+| automatic marksman (VSS, VSK-94) | 773 (43) | 44 / 75 / 84 / 130 | | 74 (188) |
+| SVD | 547 (18) | 67 / 105 / 112 / 123 | | 104 (157) |
+| bolt actions | 844 (55) | 58 / 94 / 105 / 132 | 105 / 107 / 105 | 105 (140) |
+| machine guns | 17 (4) | too few | | |
+| pistols | 48 (7) | too few | | |
+
+**What the numbers carry:**
+- **Close fights are under-counted.** Positions between worlds (about 2.25 s
+  apart) are off by a few metres, a wide angle up close. Only 30 % of the hit
+  runs at 0-15 m fall within 5°, against 85 % at 60 m or more. So the table
+  reads long.
+- **There is no line-of-sight test.** The enemy nearest the aim may be behind a
+  wall. Of the runs within 5°, 583 of 8615 are past 90 m, and only 87 of those
+  hit. So the upper tail mixes real long shots with fire at enemies out of view.
+- **The hit runs are a sure floor, but short:** they count no missed long shot.
+
+**In the code** (`CombatTuning::range_by_weapon`, off):
+- The trigger's range is the class's p95 (`range_floor_*_m`, MEASURED), never
+  past today's ceiling: 80 m, or 120 m for a bolt action.
+- The machine guns and the pistols have too few runs for a number; they keep
+  the ceiling (`NO_FLOOR_M`).
+- **Only the bolt actions would change: 120 → 105 m.** Every other class's p95
+  is past 80 m. That is too small to bench, so the flag stays off.
+- **No change with it off:** at its defaults this PR's decision digests match
+  2841b08b's, 12 of 12 (batt and tdm, tiers 4-5/9-10/13-15, seeds 1-2).
+- **The Cologne report's 80-106 m fire with a Vityaz** cannot come from the
+  trigger (80 m). It was fire at another target than the one measured.
+
+**The bench's ranges** (the new `ranges` line of the fight tally: shots by
+weapon class and 10 m, hits taken and deaths by team and distance):
+- **Shotguns:** at the defaults, 11 % of the bots' shotgun shots are at 60 m or
+  more, and 8 % of those hit (32 % under 60 m).
+- **The other classes:** rifles, SMGs and bolts put 12-15 % of their shots at
+  60 m or more, hitting 7-8 % there.
+
+**Fire at the bot's own target with no line**, at the defaults: 2.0-3.0 % of
+those shots leave with nothing of him showing, and 6-8 % meet the world short
+of him (with the spread on, some of those are the cone clipping his cover).
+
+**The line looked at again while firing: tried, and dropped.**
+- **The idea:** a bot whose target had moved half his width since the last look
+  looked at his parts again before the next shot, not only every
+  `LOOK_AGAIN_MS` (100 ms).
+- **The bench:** team 1 alone with it, against 2841b08b, seeds 1-8, both
+  presets, tiers 4-5/9-10/13-15. The tally now counts these shots by the
+  shooter's team.
+- **The shots with nothing of him showing:**
+  - Team 1's share stayed at 2.0-3.0 %, as team 0's did.
+  - Team 1 against team 0: +0.18 ± 0.07 points over 48 matches, and
+    +0.29 ± 0.27 in 4 control matches without it.
+- **The shots that met the world short of him:** +0.03 ± 0.11 points.
+- **Its K/D** was flat, at worst −0.06 ± 0.03 (batt 13-15), and fails the
+  early stop.
+- **So those shots do not come from a stale look:** the parts are already looked
+  at every 100 ms, ahead by the target's speed. It is what the bot sees against
+  where the stand-in has him at the shot. Not followed here.
+
+**Base:** benched against 2841b08b, the commit this was built on, then merged
+with 54ececcf (#396).
+
+## Bots: the reloads measured, and a reload at the lull tried and dropped
+
+**The measure** (the reflex's `ReloadNote` of its last reload, read by the
+bench's `ReloadTally`; nothing decides by it). By team and weapon class:
+- why each reload started: empty with a target seen (out of sight first, or
+  where it stands), empty with none seen, or tactical (`reload_idle_ms`);
+- the share of the magazine left;
+- an enemy on view (the on-view episodes' 4°) within 1 s before;
+- the time from its end to the next shot;
+- deaths while reloading;
+- and the on-view ticks with no shot that the reload held (the `RELOAD` gate),
+  by why the reload started.
+
+**The bots at the defaults** (939b2cca, 48 matches: batt and tdm, tiers
+4-5/9-10/13-15, seeds 1-8):
+
+| class | reloads | empty, in view | empty, none seen | tactical | an enemy on view 1 s before | share left (median) |
+|---|---|---|---|---|---|---|
+| bolt actions | 3,605 | 4 % | 3 % | 93 % | 56 % | 0.60 |
+| rifles | 6,578 | 12 % | 8 % | 80 % | 43 % | 0.43 |
+| SMGs | 5,892 | 13 % | 10 % | 76 % | 47 % | 0.40 |
+| shotguns | 14,218 | 37 % | 25 % | 38 % | 67 % | 0.00 |
+
+- 13 % of the reloads end in the bot's death (4,056 of 30,293).
+- The on-view ticks the reload held: 34 % in an empty-in-view reload, 27 % in
+  an empty one, 38 % in a tactical one. The last start with nobody seen, and
+  then an enemy walks into view.
+
+**The players** (the owner's rule: the 2 best by kills, then K/D, of each of the
+402 players' matches with 12 or more people; rounds counted from each world's
+magazine, the shots in between from the weapon's rate, about ±1-2 rounds):
+
+| class | reloads | before empty | share left, the ones before empty (median) | an enemy within 30° 1 s before | from the last shot, median |
+|---|---|---|---|---|---|
+| rifles | 6,144 | 96 % | 0.53 | 69 % | 400 ms |
+| SMGs | 2,491 | 91 % | 0.45 | 70 % | 150 ms |
+| bolt actions | 366 | 84 % | 0.60 | 65 % | 4,200 ms |
+| VSS, VSK-94 | 734 | 89 % | 0.50 | 70 % | 250 ms |
+| SVD | 196 (unstable) | 92 % | 0.60 | 71 % | 1,150 ms |
+| shotguns | 158 (unstable) | 89 % | 0.50 | 70 % | 550 ms |
+
+The machine guns (12) and the pistols (24) are too few.
+
+**A reload at the lull: tried, and dropped.**
+- **The idea** (`reload_lull`): reload as the players do, at the lull after a
+  burst. That is the target down or lost, no target seen for 250 ms (GUESS), and
+  the rounds left at most the players' median share for the class (above). It
+  was never done while the aim was carried through a target lost a moment.
+- **The bench:** team 1 alone with it, against the same build with it off,
+  seeds 1-8, both presets, tiers 4-5/9-10/13-15. It reloaded about 60 times a
+  match at the lull.
+- **The target did not move.** Team 1's empty-in-view reloads per kill stayed
+  flat, and went the wrong way at batt 4-5: +0.05 ± 0.03. The `RELOAD` share of
+  the first gates was flat too, at most +0.4 ± 0.3 points.
+- **A guard was worse beyond 3 SE:** team 1's deaths while reloading at batt
+  13-15, +5.6 ± 1.5. K/D was −0.02 ± 0.01 at batt 9-10, flat elsewhere.
+- **So it fails the early stop.** Most reloads are tactical already, and
+  empty-in-view ones are a fifth of them, so a lull reload only adds reloads an
+  enemy can walk into. The earlier-lull variant waited on empty-in-view reloads
+  dominating; they do not, so it was not tried.
+- **An enemy in view before a reload: the bots more often than the players.**
+  - **The bots:** an enemy within 4° of the view, in sight and within 40 m, in
+    the 1 s before 43-67 % of their reloads (rifles 43 %, SMGs 47 %, bolt
+    actions 56 %, shotguns 67 %).
+  - **The players (the owner's rule):** a living enemy within 5° of the view in
+    the 1 s before 30-43 % of their reloads (rifles 32 %, SMGs 35 %, bolt
+    actions 30 %, shotguns 32 %); within 30°, 65-75 %. The 10-match study of
+    the top players had 55 % in sight.
+  - **The two counts differ:** the players' has no line-of-sight test (walls
+    included), and its positions between worlds miss close enemies. Still, at
+    a cone that narrow the bots' share is above the players' in every class:
+    the reloads the bots start with an enemy on view are not all human-like.
+  - **Next (a follow-up, not here):** no tactical reload soon after contact, or
+    a reload given up when an enemy comes into view, if the game lets a
+    reload be cut short (not checked).
+- **What stands out is the shotguns.** 62 % of their reloads come with the
+  magazine out, and 37 % of all their reloads have an enemy in view. Among the
+  players, a shotgun is out at 11 % of reloads. Not followed here.
+
+**No change:** at the defaults, this PR's decision digests match 939b2cca's,
+48 of 48 (batt and tdm, tiers 4-5/9-10/13-15, seeds 1-8).

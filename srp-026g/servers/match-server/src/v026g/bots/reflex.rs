@@ -312,6 +312,31 @@ pub struct CombatTuning {
     /// 0.02-0.04, within the noise, and it is the one exception to the
     /// noticing wait ([`Memory::in_sight`]).
     pub reacquire_keep: bool,
+    /// Fire-gates PR C: the trigger's range by the class of the weapon in
+    /// hand ([`Self::range_floor_m`]), where it was `AimTuning::range_m`
+    /// for all but the bolt actions (target choice keeps that); never past
+    /// today's ceiling (`range_m`, or `fire.bolt_range_m` for a bolt
+    /// action), so it only shortens. Not from the configs: where a
+    /// weapon's damage is down to its floor (`min_damage_distance`, 30-50 m
+    /// but 100 for the bolts, the SVD and the SKS) is under the players' use
+    /// in every class, and its aimed-in cone keeps hitting past 200 m
+    /// (`player_bots_weapons.md`, "Bots: the fire range by weapon").
+    pub range_by_weapon: bool,
+    /// The players' range by weapon class, metres: no bot holds its fire
+    /// nearer than the best players shoot. MEASURED: the 95th percentile
+    /// of the distance of every trigger run of the 2 best players (by
+    /// kills, then K/D) of each of the 402 players' matches with 12 or
+    /// more people, to the enemy nearest their aim (within 5°)
+    /// (`player_bots_weapons.md`, "Bots: the fire range by weapon"). The
+    /// machine guns (17 runs) and the pistols (48) are too few for one:
+    /// none ([`NO_FLOOR_M`], the ceiling).
+    pub range_floor_rifle_m: f32,
+    pub range_floor_smg_m: f32,
+    pub range_floor_shotgun_m: f32,
+    pub range_floor_pistol_m: f32,
+    pub range_floor_mg_m: f32,
+    pub range_floor_marksman_m: f32,
+    pub range_floor_bolt_m: f32,
     pub body_half_m: f32,
     /// Audit issue 8: fire only once the view is within `fire_body_share`
     /// of his body's half width (`body_half_m`) at his distance of where
@@ -742,6 +767,14 @@ impl Default for CombatTuning {
             aim_carry: true,
             aim_carry_ms: LOST_MS,
             reacquire_keep: false,
+            range_by_weapon: false,
+            range_floor_rifle_m: 90.0,
+            range_floor_smg_m: 90.0,
+            range_floor_shotgun_m: 91.0,
+            range_floor_pistol_m: NO_FLOOR_M,
+            range_floor_mg_m: NO_FLOOR_M,
+            range_floor_marksman_m: 84.0,
+            range_floor_bolt_m: 105.0,
             body_half_m: 0.25,
             fire_body_share: 0.0,
             fire_within_min_deg: 0.5,
@@ -800,6 +833,28 @@ impl Default for CombatTuning {
 }
 
 impl CombatTuning {
+    /// [PR C] The players' floor of a weapon class ([`Gun::class`]).
+    pub fn range_floor_m(&self, class: &str) -> f32 {
+        match class {
+            "smg" => self.range_floor_smg_m,
+            "shotgun" => self.range_floor_shotgun_m,
+            "pistol" => self.range_floor_pistol_m,
+            "mg" => self.range_floor_mg_m,
+            "marksman" => self.range_floor_marksman_m,
+            "bolt" => self.range_floor_bolt_m,
+            _ => self.range_floor_rifle_m,
+        }
+    }
+
+    /// [PR C] The trigger's range with `gun` in hand, under the ceiling
+    /// `ceiling_m` ([`Self::range_by_weapon`]).
+    pub fn fire_range_m(&self, gun: &Gun, ceiling_m: f32) -> f32 {
+        if !self.range_by_weapon {
+            return ceiling_m;
+        }
+        self.range_floor_m(gun.class()).min(ceiling_m)
+    }
+
     pub fn band(&self, kind: WeaponKind) -> (f32, f32) {
         match kind {
             WeaponKind::Pistol => self.band_pistol,
@@ -810,6 +865,10 @@ impl CombatTuning {
         }
     }
 }
+
+/// [PR C] A class with no players' range ([`CombatTuning::range_floor_m`]):
+/// past every ceiling, so the ceiling holds.
+pub const NO_FLOOR_M: f32 = 1_000.0;
 
 /// Play 11: the distance band to an enemy, metres, by the bot's weapon
 /// (`own`) and his (`enemy`): its own weapon's band, then an enemy shotgun
@@ -1147,6 +1206,29 @@ pub struct Gates {
     pub target: Option<Place>,
 }
 
+/// [measure] Why a reload started ([`Reflex::reload_note`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReloadWhy {
+    /// The magazine out with a target seen: out of sight first, or where
+    /// it stands.
+    EmptyInView,
+    /// The magazine out, no target seen.
+    Empty,
+    /// Before the magazine is out ([`CombatTuning::reload_idle_ms`]).
+    Tactical,
+}
+
+/// [measure] The last reload: when it started and is done, why, and the
+/// rounds left of the magazine.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ReloadNote {
+    pub at: u32,
+    pub until: u32,
+    pub why: ReloadWhy,
+    pub left: u32,
+    pub magazine: u32,
+}
+
 /// [measure] A target lost this long ago, ms, counts as lost a moment
 /// ([`gate::LOST`], [`gate::REACTION_AGAIN`]).
 pub const LOST_MS: u32 = 1000;
@@ -1249,6 +1331,8 @@ pub struct Reflex {
     friend_note: Option<serde_json::Value>,
     /// [measure] This tick's fire gates ([`Reflex::gates`]).
     gates: Gates,
+    /// [measure] The last reload ([`Reflex::reload_note`]).
+    reload_note: Option<ReloadNote>,
     /// [measure] The bench's gate tally: every gate is tested each tick,
     /// `clear_shot`'s rays too, though an earlier one failed (no decision
     /// changes; only the rays cost).
@@ -1532,6 +1616,11 @@ impl Reflex {
     /// running ([`gate`]).
     pub fn gates(&self) -> Gates {
         self.gates
+    }
+
+    /// [measure] The last reload started, if any.
+    pub fn reload_note(&self) -> Option<ReloadNote> {
+        self.reload_note
     }
 
     /// [measure] The gate trace note made since the last call (with
@@ -2579,7 +2668,19 @@ impl Reflex {
         {
             return 0;
         }
+        let (left, magazine) = (load.rounds, load.gun.magazine);
         let ms = load.reload();
+        self.reload_note = Some(ReloadNote {
+            at: now,
+            until: now + ms,
+            why: match (left, seen) {
+                (0, true) => ReloadWhy::EmptyInView,
+                (0, false) => ReloadWhy::Empty,
+                _ => ReloadWhy::Tactical,
+            },
+            left,
+            magazine,
+        });
         self.busy_until = now + ms;
         self.busy_why = gate::RELOAD;
         self.held_ms = 0;
@@ -3041,11 +3142,14 @@ impl Reflex {
         let aimed_in = self
             .aim_since
             .is_some_and(|since| now >= since + gun.aim_ms + c.aim_in_margin_ms);
-        let range_m = if bolt {
-            c.fire.bolt_range_m.max(aim.range_m)
-        } else {
-            aim.range_m
-        };
+        let range_m = c.fire_range_m(
+            gun,
+            if bolt {
+                c.fire.bolt_range_m.max(aim.range_m)
+            } else {
+                aim.range_m
+            },
+        );
         // [friends] A teammate in the line of fire: no shot, a step aside.
         let lines = Self::fire_lines(me, view, (point, error, lift), now, &aim.friends);
         let friend = super::friends::blocking(
@@ -3641,6 +3745,32 @@ mod tests {
         reflex.gate_using(5_100);
         assert_eq!(reflex.gates().bits, gate::UNSTICK | gate::USING);
         assert_eq!(gate::names(gate::UNSTICK | gate::USING), ["unstick", "using"]);
+    }
+
+    /// [PR C] With `range_by_weapon`, the trigger's range is the players'
+    /// of the class, under today's ceiling; without, the ceiling.
+    #[test]
+    fn the_fire_range_follows_the_weapon_in_hand() {
+        let off = CombatTuning::default();
+        let on = CombatTuning {
+            range_by_weapon: true,
+            ..CombatTuning::default()
+        };
+        let gun = |item| guns::gun(item).unwrap();
+        assert_eq!(off.fire_range_m(gun("mosin_nagant"), 120.0), 120.0);
+        // The players fire a bolt action to 105 m.
+        assert_eq!(on.fire_range_m(gun("mosin_nagant"), 120.0), on.range_floor_bolt_m);
+        // Past today's ceiling for the rest, or no floor (the pistols).
+        for item in ["vityaz", "ak_74u", "mp_153", "vss", "tt_33"] {
+            assert_eq!(on.fire_range_m(gun(item), 80.0), 80.0, "{item}");
+        }
+        // A floor under the ceiling shortens it.
+        let short = CombatTuning {
+            range_floor_smg_m: 50.0,
+            ..on
+        };
+        assert_eq!(short.fire_range_m(gun("vityaz"), 80.0), 50.0);
+        assert_eq!(short.fire_range_m(gun("ak_74u"), 80.0), 80.0);
     }
 
     /// [PR B] With `aim_carry`, the aim stays pressed while the target is

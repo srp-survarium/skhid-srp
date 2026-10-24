@@ -438,6 +438,11 @@ pub fn tuning() -> PlayTuning {
     }
 }
 
+/// Why a battery is no Collect candidate when its stand is in a pocket
+/// with no way out for a carrier (no standing jump, and no teammate got out
+/// by one): whoever took it could not bring it home.
+pub const POCKET_BLOCK: &str = "its stand is in a pocket a carrier cannot leave";
+
 impl Ctx<'_> {
     /// Whether a battery lying at `at` may be taken: a floor to stand on
     /// for it (one on a shelf is taken from the floor beside it) that a way
@@ -445,7 +450,9 @@ impl Ctx<'_> {
     /// team proved no way to it lately ([`Ctx::no_way_lately`]). A battery
     /// no way leads to now (inside a hazard) is left for later. Ambush
     /// asks it too: a battery nobody can take is not waited at. Nor is
-    /// one the team keeps falling by ([`TeamKnowledge::fallen_at`]).
+    /// one the team keeps falling by ([`TeamKnowledge::fallen_at`]), nor
+    /// one whose stand is in a pocket no carrier gets out of
+    /// ([`POCKET_BLOCK`]).
     pub fn can_take(&self, at: Vec3) -> bool {
         self.take_block(at).is_none()
     }
@@ -462,6 +469,12 @@ impl Ctx<'_> {
         }
         if self.no_way_lately(stand) {
             return Some("no way to its stand lately");
+        }
+        // Its taker carries it out: a sprint jump is no way (Cologne CG-11,
+        // pit A). No expiry: the pocket's ways out are the grid's, and a
+        // teammate's escape there counts once made (`escape::way_out`).
+        if self.in_pocket(stand) && !self.escape_known(stand, true) {
+            return Some(POCKET_BLOCK);
         }
         self.team
             .fallen_at(
@@ -1915,6 +1928,95 @@ mod tests {
         assert_eq!(collects(&ring(true)), vec![TargetRef::Battery(0)]);
     }
 
+    /// The field's floor with a walled pit at x 30-34, z 18-22, `depth` m
+    /// deep. The grid links no jump over 0.6 m, so the pit is a pocket; a
+    /// 0.9 m rim is a standing jump out (as pit A's), 3 m none.
+    fn pit_world(depth: f32) -> std::sync::Arc<mapdata::World> {
+        use mapdata::{MapData, RayTree, Spawn, Triangle, WalkGrid, WalkerBehaviour};
+
+        use crate::v026g::bots::body::tests::floor;
+        let y = -depth;
+        let mut tris: Vec<Triangle> = Vec::new();
+        tris.extend(floor(0.0, 0.0, 30.0, 40.0, 0.0));
+        tris.extend(floor(34.0, 0.0, 80.0, 40.0, 0.0));
+        tris.extend(floor(30.0, 0.0, 34.0, 18.0, 0.0));
+        tris.extend(floor(30.0, 22.0, 34.0, 40.0, 0.0));
+        tris.extend(floor(30.0, 18.0, 34.0, 22.0, y));
+        let walker = WalkerBehaviour::BySlope;
+        for (a, b) in [
+            ((30.0, 18.0), (34.0, 18.0)),
+            ((30.0, 22.0), (34.0, 22.0)),
+            ((30.0, 18.0), (30.0, 22.0)),
+            ((34.0, 18.0), (34.0, 22.0)),
+        ] {
+            let (p, q) = (Vec3::new(a.0, y, a.1), Vec3::new(b.0, y, b.1));
+            let (r, s) = (Vec3::new(b.0, 0.0, b.1), Vec3::new(a.0, 0.0, a.1));
+            tris.push(Triangle {
+                v: [p, q, r],
+                walker,
+            });
+            tris.push(Triangle {
+                v: [p, r, s],
+                walker,
+            });
+        }
+        let spawns = [Vec3::new(5.0, 0.0, 10.0), Vec3::new(75.0, 0.0, 10.0)];
+        let grid = WalkGrid::build_kept(
+            &tris,
+            [0.0, 0.0, 80.0, 40.0],
+            0.25,
+            mapdata::Body {
+                max_jump: 0.6,
+                ..mapdata::Body::default()
+            },
+            &spawns,
+            &spawns,
+        );
+        let spawn = |team: i32, at: Vec3| Spawn {
+            position: at,
+            rotation: Vec3::ZERO,
+            team,
+            priority: 0,
+            point_id: 0,
+            layer: "default".into(),
+        };
+        let map = MapData {
+            spawns: vec![spawn(0, spawns[0]), spawn(1, spawns[1])],
+            ..MapData::default()
+        };
+        let sight = RayTree::build(&tris);
+        std::sync::Arc::new(mapdata::World::assemble(map, grid.into(), sight.into()))
+    }
+
+    /// Cologne CG-11: a battery in a pit no carrier gets out of is no
+    /// Collect candidate, and says why; one in a pit with a standing jump
+    /// out (pit A's 0.9 m rim) still is.
+    #[test]
+    fn a_battery_in_a_pocket_no_carrier_leaves_is_not_taken() {
+        let scene = |depth: f32| {
+            let mut s = Scenario::field(Mode::Batteries);
+            s.tactics = Tactics::new(pit_world(depth), 1.0);
+            s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
+            s.battery(BatteryState::Free(Vec3::new(32.0, -depth, 20.0)));
+            s
+        };
+        let deep = scene(3.0);
+        let at = Vec3::new(32.0, -3.0, 20.0);
+        let stand = deep.tactics.stand_to_take(at).expect("a stand");
+        assert!(deep.cx(0).in_pocket(stand));
+        assert!(!deep.cx(0).escape_known(stand, true));
+        assert_eq!(deep.cx(0).take_block(at), Some(POCKET_BLOCK));
+        assert!(collects(&deep).is_empty());
+        assert_eq!(take_blocks(&deep.cx(0)), vec![(0, Some(POCKET_BLOCK))]);
+        let rim = scene(0.9);
+        let at = Vec3::new(32.0, -0.9, 20.0);
+        let stand = rim.tactics.stand_to_take(at).expect("a stand");
+        assert!(rim.cx(0).in_pocket(stand));
+        assert!(rim.cx(0).escape_known(stand, true));
+        assert_eq!(rim.cx(0).take_block(at), None);
+        assert_eq!(collects(&rim), vec![TargetRef::Battery(0)]);
+    }
+
     /// The real maps (private files; `SRP_MAPDATA_DIR`, in release): for
     /// every battery spawner of the battery modes and a bot at each side's
     /// first spawn, Collect's filter (`Ctx::reachable`) says what the
@@ -1982,6 +2084,58 @@ mod tests {
         }
         eprintln!("{} of {pairs} disagree", wrong.len());
         assert!(wrong.is_empty(), "{wrong:?}");
+    }
+
+    /// The real maps (private files; `SRP_MAPDATA_DIR`, in release): each
+    /// battery spawner's take stand, whether it is in a pocket and has a
+    /// way out for a carrier or anyone, and the first reason a bot at side
+    /// 0's spawn may not take it (CG-11). Prints only.
+    #[test]
+    #[ignore = "needs the private map files"]
+    fn pocket_stands_on_the_real_maps() {
+        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        for level in 1..=8u8 {
+            for mode in [2u8, 3] {
+                let path =
+                    std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
+                let Ok(map) = mapdata::MapData::read(&path) else {
+                    continue;
+                };
+                let world = std::sync::Arc::new(mapdata::World::build(
+                    map,
+                    mapdata::CELL,
+                    mapdata::Body::default(),
+                ));
+                let mut s = Scenario::field(Mode::Batteries);
+                s.tactics = Tactics::new(world.clone(), 1.0);
+                let from = world.map.spawns[0].position;
+                s.bot(0, world.map.spawns[0].team as u8, from);
+                let pockets = (0..world.grid.len())
+                    .filter(|&n| world.grid.in_pocket(n as mapdata::NodeId))
+                    .count();
+                let mut reasons = std::collections::BTreeMap::<&str, usize>::new();
+                for (i, spawner) in world.map.battery_spawners.iter().enumerate() {
+                    let cx = s.cx(0);
+                    let at = spawner.item;
+                    let why = cx.take_block(at).unwrap_or("takeable");
+                    *reasons.entry(why).or_default() += 1;
+                    let Some(stand) = s.tactics.stand_to_take(at) else {
+                        continue;
+                    };
+                    if cx.in_pocket(stand) {
+                        eprintln!(
+                            "level {level} mode {mode} spawner {i} at {at:?}: stand in a pocket,                              carrier way out {}, anyone's {}, first block: {why}",
+                            cx.escape_known(stand, true),
+                            cx.escape_known(stand, false),
+                        );
+                    }
+                }
+                eprintln!(
+                    "level {level} mode {mode}: {} spawners, {pockets} pocket floors; {reasons:?}",
+                    world.map.battery_spawners.len()
+                );
+            }
+        }
     }
 
     /// Fetching a battery a hazard closes round: the play gives up at once

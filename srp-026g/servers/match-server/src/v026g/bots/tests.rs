@@ -394,6 +394,9 @@ struct Game {
     /// those with nothing of him showing.
     walled: u32,
     hidden: u32,
+    /// [PR C] The same by the shooter's team.
+    walled_by: [u32; 2],
+    hidden_by: [u32; 2],
     /// Rays the counts above cast (not the bots').
     metric_rays: u64,
     delivered: [u32; 2],
@@ -573,6 +576,8 @@ impl Game {
             jumps_refused: 0,
             team_kills: 0,
             walled: 0,
+            walled_by: [0; 2],
+            hidden_by: [0; 2],
             hidden: 0,
             metric_rays: 0,
             delivered: [0, 0],
@@ -906,12 +911,15 @@ impl Game {
         {
             let before = super::aimpoint::rays_cast();
             let crouched = target.keys & key::CROUCH != 0;
+            let team = usize::from(body.team).min(1);
             if !super::aimpoint::shows(eye, target.feet, crouched, &self.world.sight, || true) {
                 self.hidden += 1;
+                self.hidden_by[team] += 1;
             }
             let reach = (Self::chest(target) - eye).length() - 0.5;
             if self.world.sight.ray_cast(eye, dir, reach).is_some() {
                 self.walled += 1;
+                self.walled_by[team] += 1;
             }
             self.metric_rays += super::aimpoint::rays_cast() - before;
         }
@@ -1390,6 +1398,16 @@ struct CarryTally {
     pressed: Vec<bool>,
     first_seen: usize,
     first_press_waits: Vec<u32>,
+    /// Cologne CG-11 (`collect::POCKET_BLOCK`): by battery, the bots whose
+    /// candidates leave it out for its pocket (the take-block notes), since
+    /// when one does; the batteries ever so, and the ms one bot or more did
+    /// (to the run's end if no note says otherwise). Ambush plays taken.
+    pocket_holders: Vec<Vec<usize>>,
+    pocket_since: Vec<Option<u32>>,
+    pocket_batteries: Vec<bool>,
+    pocket_ms: u32,
+    ambush_takes: u32,
+    last_time: u32,
 }
 
 /// A carrier is at his container within this, metres (xz).
@@ -1507,8 +1525,57 @@ impl CarryTally {
             self.intercept_takes += 1;
         } else if text.contains("believed to carry battery") {
             self.beliefs_moved += 1;
+        } else if text.starts_with("takes Ambush") {
+            self.ambush_takes += 1;
+        } else if let Some((battery, why)) = text
+            .strip_prefix("battery ")
+            .and_then(|rest| rest.split_once(' '))
+            .and_then(|(n, rest)| Some((n.parse::<usize>().ok()?, rest)))
+            && why.contains("Collect candidate")
+        {
+            self.pocket_note(
+                battery,
+                note.place,
+                note.time,
+                why.ends_with(super::plays::collect::POCKET_BLOCK),
+            );
         }
+        self.last_time = self.last_time.max(note.time);
         self.dump(note.place, note.time, text);
+    }
+
+    /// A take-block note of bot `place` on `battery`: left out for its
+    /// pocket (`pocket`), or for another reason or back as a candidate.
+    fn pocket_note(&mut self, battery: usize, place: usize, time: u32, pocket: bool) {
+        if self.pocket_holders.len() <= battery {
+            self.pocket_holders.resize(battery + 1, Vec::new());
+            self.pocket_since.resize(battery + 1, None);
+            self.pocket_batteries.resize(battery + 1, false);
+        }
+        let holders = &mut self.pocket_holders[battery];
+        holders.retain(|&p| p != place);
+        if pocket {
+            holders.push(place);
+            self.pocket_batteries[battery] = true;
+            self.pocket_since[battery].get_or_insert(time);
+        } else if holders.is_empty()
+            && let Some(since) = self.pocket_since[battery].take()
+        {
+            self.pocket_ms += time.saturating_sub(since);
+        }
+    }
+
+    /// The batteries left out for their pockets, and the seconds one bot
+    /// or more did, to the run's last note.
+    fn pocket_counts(&self) -> (usize, f32) {
+        let open: u32 = self
+            .pocket_since
+            .iter()
+            .flatten()
+            .map(|&since| self.last_time.saturating_sub(since))
+            .sum();
+        let batteries = self.pocket_batteries.iter().filter(|&&b| b).count();
+        (batteries, (self.pocket_ms + open) as f32 / 1000.0)
     }
 
     fn dump(&self, place: usize, time: u32, text: &str) {
@@ -1524,8 +1591,9 @@ impl CarryTally {
     }
 
     fn line(&self, taken: u32) -> String {
+        let pocket = self.pocket_counts();
         format!(
-            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms; uses at home {}, missed {}, far {} (began a put {}), far then in {}; first uses from arrival {} took {} ms",
+            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms; uses at home {}, missed {}, far {} (began a put {}), far then in {}; first uses from arrival {} took {} ms; pocket blocked {} batteries {:.1} s; ambush takes {}",
             self.right,
             self.wrong,
             self.unknown,
@@ -1551,6 +1619,9 @@ impl CarryTally {
                 .iter()
                 .map(|&ms| u64::from(ms))
                 .sum::<u64>(),
+            pocket.0,
+            pocket.1,
+            self.ambush_takes,
         )
     }
 }
@@ -3283,6 +3354,8 @@ struct BlockTally {
     onview: Vec<Option<OnView>>,
     /// [measure] The on-view ticks with no shot by the fire gates.
     gates: fight_tally::GateTally,
+    /// [measure] The bots' reloads.
+    reloads: fight_tally::ReloadTally,
 }
 
 /// [measure] A bot free to fire with its view within 4 deg of a visible
@@ -3417,6 +3490,7 @@ impl BlockTally {
             e.ticks += 1;
             if !fired {
                 self.gates.tick(bot.reflex.gates(), e.enemy, now);
+                self.reloads.held(me.team, bot.reflex.gates(), bot.reflex.reload_note());
             }
             if fired && e.fired.is_none() {
                 e.fired = Some(now - e.start);
@@ -3468,6 +3542,7 @@ impl BlockTally {
             e.near_line += u32::from(near);
         }
         self.onview[place] = ep;
+        self.reloads.tick(place, me.gun.class(), me.team, me.alive, seen.is_some(), fired, bot.reflex.reload_note(), now);
     }
 
     fn end_onview(place: Place, e: OnView, events: &mut BenchEvents) {
@@ -4969,6 +5044,7 @@ fn real_bot_cost() {
             }
             eprintln!("  {}", blocks.finish(&mut events));
             eprintln!("  {}", blocks.gates.line());
+            eprintln!("  {}", blocks.reloads.line());
             eprintln!("  {}", hits.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
             eprintln!("  routes: {}", routes.line());

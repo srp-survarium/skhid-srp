@@ -115,6 +115,22 @@ pub struct Gun {
     pub dispersion: Dispersion,
 }
 
+impl Gun {
+    /// [PR C] The measure's class: by its category, and the sniper
+    /// category split by its bolt.
+    pub fn class(&self) -> &'static str {
+        match (self.category, self.handling) {
+            (15, _) => "smg",
+            (16, _) => "mg",
+            (17, _) => "pistol",
+            (14, _) => "shotgun",
+            (13, Handling::Bolt) => "bolt",
+            (13, _) => "marksman",
+            _ => "rifle",
+        }
+    }
+}
+
 /// The rows of the bursts' table an automatic weapon takes
 /// (`player_bots_weapons.md` §3): the players hold a submachine gun longer
 /// than a rifle or a machine gun at every distance, and tap either past 35 m.
