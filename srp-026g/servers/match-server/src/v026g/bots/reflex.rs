@@ -6,7 +6,9 @@
 //!
 //! The fairness rules hold by type: the reflex aims and fires only at a
 //! `know::SeenTrack`, so never at what no sense gave, and never before the
-//! noticing delay; the first shot waits a reaction delay more
+//! noticing delay (but for its own last target, noticed already and back in
+//! sight a moment after he was lost: `CombatTuning::reacquire_keep`); the
+//! first shot waits a reaction delay more
 //! (`AimTuning::reaction_ms`). Its aim is a human's: it starts off by
 //! `AimTuning::error_deg` × 3 and settles toward its error over `settle_s`,
 //! wanders slowly about the target as it tracks him (`wander_deg`); the
@@ -298,6 +300,14 @@ pub struct CombatTuning {
     /// GUESS: `aim_carry_ms` the measure's "lost a moment" ([`LOST_MS`]).
     pub aim_carry: bool,
     pub aim_carry_ms: u32,
+    /// Fire-gates PR B: a target taken again within `aim_carry_ms` of
+    /// losing him keeps what it had of him (the error settled so far, the
+    /// reaction already waited, the stance drawn for him), where it was
+    /// taken as a fresh one (the error three times the skill's again, a
+    /// new reaction). PR A's measure: the reaction again and the aim-in
+    /// again at a target lost a moment held 1.5 % and 16 % of the on-view
+    /// ticks with no shot.
+    pub reacquire_keep: bool,
     pub body_half_m: f32,
     /// Audit issue 8: fire only once the view is within `fire_body_share`
     /// of his body's half width (`body_half_m`) at his distance of where
@@ -727,6 +737,7 @@ impl Default for CombatTuning {
             hip_cone_share: 0.58,
             aim_carry: false,
             aim_carry_ms: LOST_MS,
+            reacquire_keep: false,
             body_half_m: 0.25,
             fire_body_share: 0.0,
             fire_within_min_deg: 0.5,
@@ -1253,6 +1264,11 @@ pub struct Reflex {
     aimed_target: Option<Place>,
     lost: Option<(Place, u32)>,
     reacquired: bool,
+    /// The lost target's take: since, the error, the first shot's time
+    /// (`CombatTuning::reacquire_keep`).
+    lost_take: (u32, (f32, f32), u32),
+    /// The target was taken back before he was noticed again.
+    retaken: bool,
     /// An enemy last seen (a seen track) at.
     last_seen: u32,
     /// Empty with a target seen and no cover found: reload where it is.
@@ -1520,10 +1536,32 @@ impl Reflex {
         self.gate_note.take()
     }
 
+    /// Its last target `who`, lost a moment ago, taken back as it had him
+    /// (`CombatTuning::reacquire_keep`): the error settled, the reaction
+    /// waited; seen in sight before he is noticed again.
+    fn retake(&mut self, who: Place) {
+        self.reacquired = true;
+        self.retaken = true;
+        self.target = Some(who);
+        (self.since, self.error, self.first_shot_at) = self.lost_take;
+        self.sound = None;
+    }
+
+    /// The target as seen: noticed ([`Memory::seen`]); taken back before
+    /// he is noticed again ([`Self::retake`]), in sight
+    /// ([`Memory::in_sight`]).
+    fn seen_target(&self, memory: &Memory, target: Place, now: u32) -> Option<SeenTrack> {
+        memory
+            .seen(target, now)
+            .or_else(|| self.retaken.then(|| memory.in_sight(target, now)).flatten())
+    }
+
     /// The target is no more (none seen): [measure] noted as lost at `now`.
     fn lose_target(&mut self, now: u32) {
+        self.retaken = false;
         if let Some(who) = self.target.take() {
             self.lost = Some((who, now));
+            self.lost_take = (self.since, self.error, self.first_shot_at);
         }
     }
 
@@ -1772,7 +1810,15 @@ impl Reflex {
         rng: &mut Rng,
     ) {
         let c = &aim.combat;
-        let seen = memory.all_seen(now);
+        let mut seen = memory.all_seen(now);
+        // A target taken back before he is noticed again stays one.
+        if let Some(track) = self
+            .target
+            .and_then(|target| self.seen_target(memory, target, now))
+            .filter(|t| !seen.iter().any(|s| s.who() == t.who()))
+        {
+            seen.push(track);
+        }
         let in_range = |t: &&SeenTrack| t.at().distance_xz(me.feet) <= aim.range_m;
         let d = |t: &SeenTrack| t.at().distance_xz(me.feet);
         // The present target, unless another seen enemy presses more
@@ -1820,7 +1866,20 @@ impl Reflex {
                 .min_by(|a, b| score(a).total_cmp(&score(b)))
         });
         match choice {
+            Some(track)
+                if Some(track.who()) != self.target
+                    && c.reacquire_keep
+                    && self.target.is_none()
+                    && self
+                        .lost
+                        .is_some_and(|(who, at)| who == track.who() && now <= at + c.aim_carry_ms) =>
+            {
+                // Taken again a moment after he was lost: as it had him.
+                self.retake(track.who());
+                self.retaken = false;
+            }
             Some(track) if Some(track.who()) != self.target => {
+                self.retaken = false;
                 self.reacquired = self
                     .lost
                     .is_some_and(|(who, at)| who == track.who() && now <= at + LOST_MS);
@@ -2779,6 +2838,18 @@ impl Reflex {
         // (the owner, 2026-10-23: a sighting to the first shot of ~400-450
         // ms at skill 1). Only a seen, noticed enemy in range, as a think
         // takes one.
+        // Its own last target back in sight a moment after he was lost,
+        // noticed already: taken back as it had him, before he is noticed
+        // again (`reacquire_keep`).
+        if c.reacquire_keep
+            && self.target.is_none()
+            && let Some((who, _)) = self.lost.filter(|(_, at)| now <= at + c.aim_carry_ms)
+            && memory
+                .in_sight(who, now)
+                .is_some_and(|t| t.at().distance_xz(me.feet) <= aim.range_m)
+        {
+            self.retake(who);
+        }
         if self.target.is_none()
             && memory
                 .all_seen(now)
@@ -2802,7 +2873,7 @@ impl Reflex {
                 self.choose(me, Some(view), memory, now, aim, skill, rng);
             }
         }
-        let seen = self.target.and_then(|target| memory.seen(target, now));
+        let seen = self.target.and_then(|target| self.seen_target(memory, target, now));
         if seen.is_some() {
             self.last_seen = now;
         }
@@ -3629,6 +3700,117 @@ mod tests {
         let (held, bits) = run(false);
         assert!(!held);
         assert_ne!(bits & gate::AIMING_AGAIN, 0, "{:?}", gate::names(bits));
+    }
+
+    /// [PR B] With `reacquire_keep`, a target taken again a moment after
+    /// he was lost keeps the reaction already waited and the error settled:
+    /// no second reaction; without it a fresh reaction is waited.
+    #[test]
+    fn a_target_taken_again_a_moment_after_keeps_what_it_had_of_him() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 30.0), 0.0);
+        let view = view_of(vec![me.clone(), enemy]);
+        let sight = |time| percept(1, Vec3::new(0.0, 0.0, 30.0), time, Source::Seen);
+        // (keep) -> (gates once taken again, the error then)
+        let run = |keep: bool| {
+            let aim = AimTuning {
+                combat: CombatTuning {
+                    reacquire_keep: keep,
+                    ..CombatTuning::default()
+                },
+                ..AimTuning::default()
+            };
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(9);
+            sense(&mut memory, &[sight(1_000)], 1_000);
+            reflex.think(&me, &memory, 1_000, &aim, 1.0, &mut rng);
+            sense(&mut memory, &[sight(1_300)], 1_300);
+            reflex.think(&me, &memory, 1_300, &aim, 1.0, &mut rng);
+            let mut now = 1_300;
+            while now < 3_300 {
+                sense(&mut memory, &[sight(now)], now);
+                reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+                now += 50;
+            }
+            let settled = reflex.error;
+            let lost_at = now;
+            while now < lost_at + 500 {
+                sense(&mut memory, &[], now);
+                reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+                now += 50;
+            }
+            assert_eq!(reflex.target(), None);
+            let mut bits = 0;
+            let mut again = None;
+            for _ in 0..20 {
+                sense(&mut memory, &[sight(now)], now);
+                reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+                if reflex.target() == Some(1) {
+                    again.get_or_insert(reflex.error);
+                    bits |= reflex.gates().bits;
+                }
+                now += 50;
+            }
+            (bits, settled, again.expect("taken again"))
+        };
+        let (bits, settled, again) = run(true);
+        assert_eq!(bits & (gate::REACTION | gate::REACTION_AGAIN), 0, "{:?}", gate::names(bits));
+        assert_eq!(again, settled);
+        let (bits, _, _) = run(false);
+        assert_ne!(bits & gate::REACTION_AGAIN, 0, "{:?}", gate::names(bits));
+    }
+
+    /// [PR B] `reacquire_keep` skips the noticing only for its own last
+    /// target: another enemy who comes into sight then still waits his.
+    #[test]
+    fn another_enemy_in_sight_still_waits_his_noticing() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let first = Vec3::new(0.0, 0.0, 30.0);
+        let other = Vec3::new(5.0, 0.0, 25.0);
+        let view = view_of(vec![me.clone(), body(1, 1, first, 0.0), body(2, 1, other, 0.0)]);
+        let aim = AimTuning {
+            combat: CombatTuning {
+                reacquire_keep: true,
+                ..CombatTuning::default()
+            },
+            ..AimTuning::default()
+        };
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::default();
+        let mut rng = Rng::new(9);
+        let mut now = 1_000;
+        while now < 3_000 {
+            sense(&mut memory, &[percept(1, first, now, Source::Seen)], now);
+            if now % 250 == 0 {
+                reflex.think(&me, &memory, now, &aim, 1.0, &mut rng);
+            }
+            reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+            now += 50;
+        }
+        assert_eq!(reflex.target(), Some(1));
+        // He goes out of sight; a moment later the other comes into it.
+        let lost_at = now;
+        while now < lost_at + 450 {
+            sense(&mut memory, &[], now);
+            reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+            now += 50;
+        }
+        assert_eq!(reflex.target(), None);
+        let came = now;
+        sense(&mut memory, &[percept(2, other, now, Source::Seen)], now);
+        reflex.think(&me, &memory, now, &aim, 1.0, &mut rng);
+        reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+        assert_eq!(reflex.target(), None, "not before his noticing");
+        assert!(memory.seen(2, now).is_none());
+        // Once noticed, he is taken.
+        while memory.seen(2, now).is_none() {
+            now += 50;
+            sense(&mut memory, &[percept(2, other, now, Source::Seen)], now);
+            assert!(now < came + 2_000);
+        }
+        reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+        assert_eq!(reflex.target(), Some(2));
     }
 
     #[test]
