@@ -249,7 +249,12 @@ fn table_row(map: &MapData, grid: &WalkGrid) -> Row {
         row.pocket_list
             .push((grid.position(lowest), members.len(), name));
         for &a in &members {
-            assert_eq!(grid.in_shut_pocket(a), class == 3, "{}: floor {a}", map.project);
+            assert_eq!(
+                grid.in_shut_pocket(a),
+                class == 3,
+                "{}: floor {a}",
+                map.project
+            );
         }
         if class == 3 {
             row.shut_pockets += 1;
@@ -357,7 +362,10 @@ fn the_grid_table() {
             .clone();
         let row = table_row(&map, &grid);
         for (kind, at, why) in &row.objective_list {
-            let line = format!("{project}\t{kind}\t{:.2}\t{:.2}\t{:.2}\t{why}", at.x, at.y, at.z);
+            let line = format!(
+                "{project}\t{kind}\t{:.2}\t{:.2}\t{:.2}\t{why}",
+                at.x, at.y, at.z
+            );
             eprintln!("{line}");
             objective_lines.push(line);
         }
