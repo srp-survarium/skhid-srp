@@ -24,8 +24,8 @@
 //!   second, 300 ms behind the clock, as the match gives the bots.
 //!
 //! The stand-in is much simpler than the game (no spread, no side kick, no
-//! armour, no stamina, a jump only up the grid's jump links
-//! ([`STAND_IN_AIR_MS`]); the rounds are not counted, the bots count
+//! armour, no stamina, a jump only up to the client's height
+//! ([`STAND_IN_AIR_MS`], [`stand_in_jump`]); the rounds are not counted, the bots count
 //! their own): the runs check that bots of two teams find each
 //! other, fight, die, come back, take and bring batteries and end a
 //! match, with no input out of the rules; not how well.
@@ -131,43 +131,155 @@ const TAKEN_KILLED_MS: u32 = 3_000;
 /// were within a metre of a jump floor (`player_bots_stuck.md` §8.6).
 const STAND_IN_AIR_MS: u32 = 600;
 
+/// A jump of the stand-in: how high the feet get over the floor jumped
+/// from, and how far ahead a jump with no grid link lands, m.
+#[derive(Clone, Copy, Debug)]
+struct StandInJump {
+    rise_m: f32,
+    ahead_m: f32,
+}
+
+/// The client's jump standing or walking: the `on_site*` clips' root tops
+/// at 0.998 m (PROVEN, the jump study). How far it carries was never
+/// measured: GUESS 0.6 m ahead, kept short on purpose.
+const STANDING_JUMP: StandInJump = StandInJump {
+    rise_m: 0.998,
+    ahead_m: 0.6,
+};
+
+/// The client's jump while sprinting with a rifle: 1.282-1.350 m by clip
+/// (PROVEN, the jump study). What makes the client play it is not read
+/// yet, so no bot's jump picks it. The distance is [`STANDING_JUMP`]'s
+/// (GUESS).
+const SPRINT_JUMP: StandInJump = StandInJump {
+    rise_m: 1.30,
+    ahead_m: 0.6,
+};
+
+/// Where a stand-in body in the air, walking from `feet` (on `node`) into
+/// `to` and stopped, gets up with `jump`:
+/// - by the grid's jump link ([`jumped_to`]) when its rise is within the
+///   jump: a higher link is not made, as in the client;
+/// - else, with no link, on the highest floor (then the nearest) within
+///   `ahead_m` ahead on the walk's line and up to the jump's rise: a jump
+///   the grid does not plan (out of a pocket, up a ledge a stuck bot hops
+///   at).
+fn stand_in_jump(
+    grid: &mapdata::WalkGrid,
+    node: NodeId,
+    feet: Vec3,
+    to: Vec3,
+    jump: StandInJump,
+) -> Option<NodeId> {
+    let base = grid.position(node).y;
+    if let Some(up) = jumped_to(grid, node, feet, to)
+        && grid.position(up).y - base <= jump.rise_m
+    {
+        return Some(up);
+    }
+    let (dx, dz) = (to.x - feet.x, to.z - feet.z);
+    let len = (dx * dx + dz * dz).sqrt();
+    if len <= 1e-6 {
+        return None;
+    }
+    let (ux, uz) = (dx / len, dz / len);
+    let side = grid.cell_size() * 0.5 + 1e-4;
+    let reach = jump.ahead_m;
+    let area = [
+        feet.x - reach,
+        feet.z - reach,
+        feet.x + reach,
+        feet.z + reach,
+    ];
+    grid.floors_in(area)
+        .filter(|&n| n != node && grid.can_stand(n))
+        .filter_map(|n| {
+            let at = grid.position(n);
+            let (ex, ez) = (at.x - feet.x, at.z - feet.z);
+            let ahead = ex * ux + ez * uz;
+            let across = (ex * uz - ez * ux).abs();
+            let rise = at.y - base;
+            (ahead > 0.0 && ahead <= reach && across <= side && rise > 0.0 && rise <= jump.rise_m)
+                .then_some((n, at.y, ahead))
+        })
+        .max_by(|a, b| a.1.total_cmp(&b.1).then(b.2.total_cmp(&a.2)))
+        .map(|(n, _, _)| n)
+}
+
+/// A stand-in world: a floor at 0 and a ledge `rise` m high from x 10 on,
+/// its grid built for `body`.
+fn ledge_grid(rise: f32, body: mapdata::Body) -> mapdata::WalkGrid {
+    use super::body::tests::{floor, wall_x};
+    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+    triangles.extend(floor(10.0, 0.0, 20.0, 10.0, rise));
+    triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+        t.v.iter_mut().for_each(|v| v.y = v.y.min(rise));
+        t
+    }));
+    mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, body)
+}
+
+/// Where a stand-in body walking east from x 8 at 0.2 m a tick ends after
+/// 40 ticks: in the air all the way with `jump` (one jump), or never.
+fn walk_into_ledge(grid: &mapdata::WalkGrid, jump: Option<StandInJump>) -> Vec3 {
+    let mut node = grid.locate(Vec3::new(8.0, 0.0, 5.0), 0.5).unwrap();
+    let mut feet = grid.position(node);
+    let mut jumped = false;
+    for _ in 0..40 {
+        let to = feet + Vec3::new(0.2, 0.0, 0.0);
+        (node, feet, _) = slide(grid, node, feet, to);
+        if let Some(jump) = jump
+            && !jumped
+            && feet.distance_xz(to) > 1e-3
+            && let Some(up) = stand_in_jump(grid, node, feet, to, jump)
+        {
+            node = up;
+            feet = grid.position(up);
+            jumped = true;
+        }
+    }
+    feet
+}
+
 /// A stand-in body walking into a 0.9 m ledge stops at its foot; in the
 /// air it gets up on it, by the grid's jump link.
 #[test]
 fn a_stand_in_body_in_the_air_gets_up_a_ledge() {
-    use super::body::tests::{floor, wall_x};
-    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
-    triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 0.9));
-    triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
-        t.v.iter_mut().for_each(|v| v.y = v.y.min(0.9));
-        t
-    }));
-    let grid = mapdata::WalkGrid::build(
-        &triangles,
-        [0.0, 0.0, 20.0, 10.0],
-        0.25,
-        mapdata::Body::default(),
-    );
-    let walk = |air: bool| {
-        let mut node = grid.locate(Vec3::new(8.0, 0.0, 5.0), 0.5).unwrap();
-        let mut feet = grid.position(node);
-        for _ in 0..40 {
-            let to = feet + Vec3::new(0.2, 0.0, 0.0);
-            (node, feet, _) = slide(&grid, node, feet, to);
-            if air
-                && feet.distance_xz(to) > 1e-3
-                && let Some(up) = jumped_to(&grid, node, feet, to)
-            {
-                node = up;
-                feet = grid.position(up);
-            }
-        }
-        feet
-    };
-    let stopped = walk(false);
+    let grid = ledge_grid(0.9, mapdata::Body::default());
+    let stopped = walk_into_ledge(&grid, None);
     assert!(stopped.x < 10.0 && stopped.y.abs() < 0.1, "{stopped:?}");
-    let up = walk(true);
+    let up = walk_into_ledge(&grid, Some(STANDING_JUMP));
     assert!(up.x > 12.0 && (up.y - 0.9).abs() < 0.1, "{up:?}");
+}
+
+/// A grid jump link higher than the client's jump (1.03 m, linked under
+/// the grid's 1.05 m) is not made: the body stays at the ledge's foot.
+#[test]
+fn a_stand_in_jump_does_not_make_a_link_over_the_clients_height() {
+    let grid = ledge_grid(1.03, mapdata::Body::default());
+    let stayed = walk_into_ledge(&grid, Some(STANDING_JUMP));
+    assert!(stayed.x < 10.0 && stayed.y.abs() < 0.1, "{stayed:?}");
+}
+
+/// With no grid link (a grid built for a 0.5 m jump), the jump still gets
+/// up a 0.9 m ledge; not up a 1.2 m one, which only a sprint jump clears.
+#[test]
+fn a_stand_in_jump_gets_up_a_ledge_with_no_link_within_its_height() {
+    let low = mapdata::Body {
+        max_jump: 0.5,
+        ..mapdata::Body::default()
+    };
+    let grid = ledge_grid(0.9, low);
+    let up = walk_into_ledge(&grid, Some(STANDING_JUMP));
+    assert!(up.x > 10.0 && (up.y - 0.9).abs() < 0.1, "{up:?}");
+    let grid = ledge_grid(1.2, low);
+    let stayed = walk_into_ledge(&grid, Some(STANDING_JUMP));
+    assert!(stayed.x < 10.0 && stayed.y.abs() < 0.1, "{stayed:?}");
+    let sprint = walk_into_ledge(&grid, Some(SPRINT_JUMP));
+    assert!(
+        sprint.x > 10.0 && (sprint.y - 1.2).abs() < 0.1,
+        "{sprint:?}"
+    );
 }
 
 /// The stand-in game.
@@ -533,11 +645,11 @@ impl Game {
             if let Some(node) = body.node {
                 let grid = &self.world.grid;
                 let (mut node, mut feet, _) = slide(grid, node, body.feet, to);
-                // In the air, walking into a floor the grid jumps to: up
-                // on it (once a jump).
+                // In the air, walking into a floor the jump clears: up on
+                // it (once a jump).
                 if tick < body.air_until
                     && feet.distance_xz(to) > 1e-3
-                    && let Some(up) = jumped_to(grid, node, feet, to)
+                    && let Some(up) = stand_in_jump(grid, node, feet, to, STANDING_JUMP)
                 {
                     node = up;
                     feet = grid.position(up);
