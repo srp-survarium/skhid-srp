@@ -112,6 +112,9 @@ pub struct Tactics {
     spot_lists: std::sync::Mutex<Vec<KeptSpots>>,
     /// [`Self::exit_of`]'s field, once made.
     exit_field: std::sync::Mutex<Option<ExitField>>,
+    /// The teams' escapes from pockets that worked, and their trapped bots
+    /// (`escape.rs`), for the match.
+    pub escapes: super::escape::Board,
 }
 
 /// [`Tactics::exit_of`]'s field: each marked floor's way out.
@@ -484,6 +487,7 @@ impl Tactics {
             past_fixed: Default::default(),
             spot_lists: Default::default(),
             exit_field: Default::default(),
+            escapes: Default::default(),
             base,
         }
     }
@@ -1021,6 +1025,36 @@ impl Tactics {
         path::straight_where(grid, from, to, |node| {
             self.allowed(node, time, side, objective)
         })
+    }
+
+    /// [`Self::clear_line_for`] for the fight's side step: nor into a
+    /// pocket with no standing-jump way out (`escape::standing_exit`) the
+    /// bot at `a` is not in already. A step off a rim into a pit it never
+    /// gets out of costs the bot the match; in its own pocket it steps as
+    /// it likes. Once bots sprint, a pocket with a sprint exit counts too,
+    /// for one not carrying.
+    pub fn clear_step_for(
+        &self,
+        a: Vec3,
+        b: Vec3,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+    ) -> bool {
+        let grid = &self.world.grid;
+        let (Some(from), Some(to)) = (grid.locate(a, 1.0), grid.locate(b, 0.6)) else {
+            return false;
+        };
+        let home = grid.pocket_of(from);
+        let trap = |node: NodeId| {
+            grid.pocket_of(node).is_some_and(|pocket| {
+                Some(pocket) != home && !super::escape::standing_exit(grid, &self.escapes, pocket)
+            })
+        };
+        !trap(to)
+            && path::straight_where(grid, from, to, |node| {
+                self.allowed(node, time, side, objective) && !trap(node)
+            })
     }
 
     /// Whether `point` is a place a goal may be: on a floor a walk gets to,

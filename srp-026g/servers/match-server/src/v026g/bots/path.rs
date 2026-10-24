@@ -597,6 +597,31 @@ impl Route {
         route
     }
 
+    /// This route with a jump from its end onto `to` (on floor `node`): a
+    /// way out of a pocket, which no link of the grid makes
+    /// (`escape.rs`). The floors along it are kept; the jump's leg is as
+    /// high as the line between its ends.
+    pub fn then_jump(self, to: Vec3, node: NodeId) -> Self {
+        let Self {
+            mut points,
+            mut floors,
+            along,
+            ..
+        } = self;
+        let Some(&last) = points.last() else {
+            return Self::new(Vec::new());
+        };
+        let along = along.last().copied().unwrap_or(0.0);
+        points.push(Waypoint {
+            at: to,
+            node,
+            jump: true,
+            low: false,
+        });
+        floors.push((along + last.at.distance_xz(to), to.y));
+        Self::with_floors(points, floors)
+    }
+
     /// A route by its corners and the floors' heights along it
     /// ([`Route::floors`]).
     fn with_floors(points: Vec<Waypoint>, floors: Vec<(f32, f32)>) -> Self {
