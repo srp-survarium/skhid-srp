@@ -638,7 +638,7 @@ impl Ctx<'_> {
     /// match ([`Tactics::past_fixed_zones`]: level_01's swamp). Whatever
     /// lies there stays there.
     pub fn shut_all_match(&self, at: Vec3) -> bool {
-        let Some(stand) = collect::take_stand(self, at) else {
+        let Some(stand) = self.tactics.stand_to_take(at) else {
             return true;
         };
         let grid = &self.tactics.world.grid;
