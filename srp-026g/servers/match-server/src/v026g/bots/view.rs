@@ -132,6 +132,11 @@ pub struct PlaceView {
     pub carrying: Option<usize>,
     /// The time of the world (or input) the body was last put right by.
     pub seen_at: u32,
+    /// The time (ms) `feet` and `velocity` are for: a bot's last decided
+    /// tick (up to [`super::encode::LEAD_TICKS`] past the clock), a human's
+    /// reckoning to the clock. A bot's input for a tick runs then, so what
+    /// it aims at is led from this to that tick (`reflex`, `lead_target`).
+    pub known_at: u32,
 }
 
 impl PlaceView {
@@ -406,6 +411,13 @@ pub struct Tracker {
     sounds: VecDeque<Sound>,
     deaths: VecDeque<Death>,
     world_time: u32,
+    /// The bench only: by place, a bot seen as a human is, its body known
+    /// this many ms before the clock (his ping and the input's way) and
+    /// reckoned on from there to the clock ([`BodyTrack::seen_late`]). The
+    /// bench's bots are otherwise known to their decided tick, which no
+    /// live human is.
+    #[cfg(test)]
+    pub seen_late: Option<Vec<u32>>,
 }
 
 impl Tracker {
@@ -436,6 +448,8 @@ impl Tracker {
             sounds: VecDeque::new(),
             deaths: VecDeque::new(),
             world_time: 0,
+            #[cfg(test)]
+            seen_late: None,
         }
     }
 
@@ -930,7 +944,14 @@ impl Tracker {
             .enumerate()
             .map(|(place, state)| {
                 let estimate = if state.bot {
-                    state.body.estimate().copied()
+                    let own = state.body.estimate().copied();
+                    // The bench's bots seen as humans are (`seen_late`).
+                    #[cfg(test)]
+                    let own = match self.seen_late.as_ref().and_then(|late| late.get(place)) {
+                        Some(&late) => own.map(|e| state.body.seen_late(e, clock.clock, late)),
+                        None => own,
+                    };
+                    own
                 } else {
                     state
                         .body
@@ -958,6 +979,7 @@ impl Tracker {
                     streak: state.stats.2,
                     carrying,
                     seen_at: state.body.fix().map_or(0, |fix| fix.time),
+                    known_at: estimate.map_or(clock.clock, |e| e.time),
                 }
             })
             .collect();

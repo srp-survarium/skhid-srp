@@ -115,6 +115,7 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            known_at: 0,
         };
         let thief_at = Vec3::new(50.0, 0.0, 50.0);
         let view = MatchView {

@@ -65,7 +65,7 @@
 //! test's margin on the true bodies, and in one the two stood in one
 //! another. In 5 of them the shooter's or the victim's reckoning was
 //! 0.45-4.8 m off about then (its trace, the worlds' corrections)
-//! (`player_bots_behaviour.md` §2.12).
+//! (`player_bots_behaviour.md` §2.13).
 
 use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
@@ -448,6 +448,7 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            known_at: 0,
         }
     }
 

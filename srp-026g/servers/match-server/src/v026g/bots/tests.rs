@@ -2384,6 +2384,11 @@ fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBattery {
     // Likewise the shots before the sights are up (`aim_in_first` off):
     // with the aim-in first it kills him at 2.95 s, before the take.
     tuning.aim.combat.aim_in_first = false;
+    // And the aim led to the input's tick (2026-10-24): with it the bot
+    // kills him at 2.6 s, before the take.
+    tuning.aim.combat.lead_target = false;
+    tuning.aim.combat.lead_own = false;
+    tuning.aim.combat.turn_feed = false;
     if let Some(weight) = look_weight {
         tuning
             .plays
@@ -2966,6 +2971,7 @@ impl BlockTally {
                 streak: 0,
                 carrying: None,
                 seen_at: 0,
+                known_at: 0,
             }
         };
         let view = |places: Vec<PlaceView>| MatchView {
@@ -3438,6 +3444,19 @@ fn bench_tuning() -> Tuning {
     bench_tuning_of(false)
 }
 
+/// `SRP_BENCH_PING=<lo>-<hi>` (or one number), ms: a ping for each of
+/// `places`, drawn evenly between the two by `seed`.
+fn bench_pings(places: usize, seed: u32) -> Option<Vec<u32>> {
+    let text = std::env::var("SRP_BENCH_PING").ok().filter(|t| !t.is_empty())?;
+    let (lo, hi) = text.split_once('-').unwrap_or((&text, &text));
+    let (lo, hi): (f32, f32) = (
+        lo.trim().parse().expect("SRP_BENCH_PING: ms"),
+        hi.trim().parse().expect("SRP_BENCH_PING: ms"),
+    );
+    let mut rng = Rng::new(0x9146 + u64::from(seed));
+    Some((0..places).map(|_| rng.range(lo, hi.max(lo)) as u32).collect())
+}
+
 /// [`bench_tuning`]; for `side1`, the plays', the reflex's and the senses'
 /// numbers from `SRP_BENCH_SIDE1_<name>` instead of `SRP_BENCH_<name>`
 /// (the one-sided runs, `SRP_BENCH_ONE_SIDE`: team 1 plays by it).
@@ -3693,6 +3712,14 @@ fn real_bot_cost() {
             // alone shows in its K/D.
             if std::env::var_os("SRP_BENCH_ONE_SIDE").is_some() {
                 bots.side1_tuning = Some(Arc::new(bench_tuning_of(true)));
+            }
+            // Every body seen as a live human is (`SRP_BENCH_PING=<lo>-<hi>`,
+            // ms): known to the clock less a ping drawn for each place, and
+            // reckoned on from there (`Tracker::seen_late`). Off, the
+            // bench's bots know each other to their decided ticks, up to
+            // 100 ms past the clock, which no live human gives them.
+            if let Some(pings) = bench_pings(teams.len(), seed) {
+                bots.tracker.seen_late = Some(pings);
             }
             let mut fight = fight_tally::FightTally::default();
             if let Some(table) = &table {

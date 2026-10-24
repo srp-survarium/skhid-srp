@@ -82,6 +82,9 @@ use view::{BatteryState, Clock, MatchView, Place, PlaceView, Tracker, WorldFacts
 
 /// From a bot's entry to its first move, ms.
 const START_AFTER_MS: u32 = 2_000;
+/// The own eye is led at most this far past its last decided tick
+/// (`CombatTuning::lead_own`): a tick, or two after a skipped one.
+const LEAD_OWN_MOST_MS: u32 = 100;
 /// A body farther than this off its route plans again, metres.
 const OFF_ROUTE_M: f32 = 3.0;
 /// A goal that moved this much is planned to again, metres.
@@ -1965,6 +1968,7 @@ impl Bots {
                         yaw: at.yaw,
                         pitch: at.pitch,
                         velocity: at.velocity,
+                        known_at: at.time,
                         ..me.clone()
                     };
                     drive_tick(bot, &me, view, tactics, &tuning, time, searching)
@@ -2065,15 +2069,30 @@ fn drive_tick(
     if let Some((keys, ticks)) = bot.unstick {
         bot.unstick = (ticks > 1).then_some((keys & !key::JUMP, ticks - 1));
         bot.motor.turn_time = None;
+        bot.motor.track = None;
         let decision = bot.motor.rest();
         let by = (keys & key::JUMP != 0).then_some("unstick");
         let keys = jumping(bot, keys, by, me.feet, time);
         return Decision { keys, ..decision };
     }
+    // The reflex sees and aims from the eye where this tick's move puts it
+    // (`CombatTuning::lead_own`): the shot leaves from there.
+    let led_me;
+    let aiming_me = if tuning.aim.combat.lead_own {
+        let ahead = time.saturating_sub(me.known_at).min(LEAD_OWN_MOST_MS) as f32 / 1000.0;
+        led_me = PlaceView {
+            feet: me.feet + Vec3::new(me.velocity[0] * ahead, 0.0, me.velocity[1] * ahead),
+            known_at: time,
+            ..me.clone()
+        };
+        &led_me
+    } else {
+        me
+    };
     // [aimpoint] What of its target shows, before the reflex aims.
-    bot.reflex.look(me, view, &tactics.world, time);
+    bot.reflex.look(aiming_me, view, &tactics.world, time);
     let over = bot.reflex.tick(
-        me,
+        aiming_me,
         view,
         &bot.memory,
         time,
@@ -2084,7 +2103,7 @@ fn drive_tick(
         &mut bot.rng,
     );
     bot.motor.turn_time = over.turn_time_s;
-    let eye = me.eye();
+    let eye = aiming_me.eye();
     let aim_at = |p: Vec3| {
         let (dx, dz) = (p.x - eye.x, p.z - eye.z);
         (kin::yaw_of([dx, dz]), (p.y - eye.y).atan2(dx.hypot(dz)))
@@ -2105,6 +2124,7 @@ fn drive_tick(
     // soaks the battery where the teams meet lay there all match in 6 runs
     // of 16 (its takers had a target 91 % of their time by it).
     let using = matches!(intent.look, Look::Use(p) if (p - eye).length() <= USE_LOOK_M);
+    bot.motor.track = over.track.filter(|_| !glance_yields && !using);
     let aim = over
         .look_at
         .filter(|_| !glance_yields && !using)
