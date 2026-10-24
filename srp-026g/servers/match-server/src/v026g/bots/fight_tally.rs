@@ -421,7 +421,7 @@ impl FightTally {
             "fight: episodes {} farther {} never {}; close {} engaged<=1s {} median_ms {} never {}; standoffs {}; exposed {} not_facing {}; quick_ends {} flips {}; team kills {:?} deaths {:?}\n  \
              shots: bands(<10,<20,<35,<60,60+) {}; still hip {} still aim {} moving hip {} moving aim {}; crouched {}; first3 {} later {}; line on body {} off median {:.1} deg; aim hip {} aiming-in {} aimed-in {} cone mean {:.2} deg\n  \
              grenades: thrown {} held back {}; at the blasts teammates within 3/6/10 m {} {} {}; the thrower within 6/10 m {} {}
-               ranges ({} m bins): {}; hits taken by team {:?} {:?}; deaths by team {:?} {:?}; at the target {} shots, {} into a wall, {} with nothing of him showing; by team {:?} {:?} {:?}",
+             ranges ({} m bins): {}; hits taken by team {:?} {:?}; deaths by team {:?} {:?}; at the target {} shots, {} into a wall, {} with nothing of him showing; by team {:?} {:?} {:?}",
             self.episodes,
             self.farther,
             self.never,
@@ -588,4 +588,136 @@ impl GateTally {
 fn gates_names() -> &'static [(u32, &'static str)] {
     static NAMES: std::sync::OnceLock<Vec<(u32, &'static str)>> = std::sync::OnceLock::new();
     NAMES.get_or_init(gates)
+}
+
+/// [measure] The bots' reloads (the reflex's own record of each,
+/// [`super::super::reflex::ReloadNote`]; nothing decides by it): by weapon
+/// class, why each started, the share of the magazine left, an enemy on
+/// view (the on-view episodes' 4°) within 1 s before, the time to the next
+/// shot after it is done; deaths while reloading by team; and the on-view
+/// ticks with no shot that the reload held, by why.
+#[derive(Default)]
+pub(super) struct ReloadTally {
+    /// By place: the last reload counted (its start), the last tick with an
+    /// enemy on view, and a reload done, waiting for its next shot.
+    counted: Vec<Option<u32>>,
+    last_view: Vec<Option<u32>>,
+    waiting: Vec<Option<(u32, &'static str)>>,
+    by_class: BTreeMap<&'static str, ClassReloads>,
+    died: [u32; 2],
+    held: [u32; 3],
+}
+
+#[derive(Default)]
+struct ClassReloads {
+    why: [u32; 3],
+    left: Vec<f32>,
+    in_view_1s: u32,
+    next_shot_ms: Vec<u32>,
+}
+
+fn why_index(why: super::super::reflex::ReloadWhy) -> usize {
+    use super::super::reflex::ReloadWhy;
+    match why {
+        ReloadWhy::EmptyInView => 0,
+        ReloadWhy::Empty => 1,
+        ReloadWhy::Tactical => 2,
+    }
+}
+
+impl ReloadTally {
+    /// A bot's tick: its place, weapon class and team, alive, an enemy on
+    /// view, a shot this tick, and its last reload.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn tick(
+        &mut self,
+        place: Place,
+        class: &'static str,
+        team: u8,
+        alive: bool,
+        on_view: bool,
+        fired: bool,
+        note: Option<super::super::reflex::ReloadNote>,
+        now: u32,
+    ) {
+        let n = place + 1;
+        if self.counted.len() < n {
+            self.counted.resize(n, None);
+            self.last_view.resize(n, None);
+            self.waiting.resize(n, None);
+        }
+        if on_view {
+            self.last_view[place] = Some(now);
+        }
+        if let Some(note) = note
+            && self.counted[place] != Some(note.at)
+        {
+            self.counted[place] = Some(note.at);
+            let c = self.by_class.entry(class).or_default();
+            c.why[why_index(note.why)] += 1;
+            c.left.push(note.left as f32 / note.magazine.max(1) as f32);
+            if self.last_view[place].is_some_and(|t| t + 1_000 >= note.at) {
+                c.in_view_1s += 1;
+            }
+            self.waiting[place] = Some((note.until, class));
+        }
+        if let Some(note) = note
+            && now < note.until
+            && !alive
+            && self.waiting[place].is_some()
+        {
+            self.died[usize::from(team).min(1)] += 1;
+            self.waiting[place] = None;
+        }
+        if let Some((until, class)) = self.waiting[place]
+            && fired
+            && now >= until
+        {
+            self.by_class.entry(class).or_default().next_shot_ms.push(now - until);
+            self.waiting[place] = None;
+        }
+        if !alive {
+            self.waiting[place] = None;
+        }
+    }
+
+    /// An on-view tick with no shot, with the bot's gates and last reload.
+    pub(super) fn held(&mut self, gates: super::super::reflex::Gates, note: Option<super::super::reflex::ReloadNote>) {
+        use super::super::reflex::gate;
+        if gates.bits & gate::RELOAD != 0
+            && let Some(note) = note
+        {
+            self.held[why_index(note.why)] += 1;
+        }
+    }
+
+    pub(super) fn line(&self) -> String {
+        let q = |v: &[f32]| {
+            let mut v = v.to_vec();
+            v.sort_by(f32::total_cmp);
+            let at = |p: f32| v.get(((v.len() as f32 - 1.0) * p).round() as usize).copied().unwrap_or(0.0);
+            format!("{:.2}/{:.2}/{:.2}", at(0.25), at(0.5), at(0.75))
+        };
+        let classes: Vec<String> = self
+            .by_class
+            .iter()
+            .map(|(class, c)| {
+                let mut next = c.next_shot_ms.clone();
+                next.sort_unstable();
+                format!(
+                    "{class} {:?} left {} in view 1s {} next shot median {}",
+                    c.why,
+                    q(&c.left),
+                    c.in_view_1s,
+                    next.get(next.len() / 2).copied().unwrap_or(0)
+                )
+            })
+            .collect();
+        format!(
+            "reloads (empty in view, empty, tactical): {}; died reloading by team {:?}; on view held by the reload {:?}",
+            classes.join(" | "),
+            self.died,
+            self.held
+        )
+    }
 }
