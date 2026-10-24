@@ -760,3 +760,70 @@ of him (with the spread on, some of those are the cone clipping his cover).
 
 **Base:** benched against 2841b08b, the commit this was built on, then merged
 with 54ececcf (#396).
+
+## Bots: the reloads measured, and a reload at the lull tried and dropped
+
+**The measure** (the reflex's `ReloadNote` of its last reload, read by the
+bench's `ReloadTally`; nothing decides by it). By team and weapon class:
+- why each reload started: empty with a target seen (out of sight first, or
+  where it stands), empty with none seen, or tactical (`reload_idle_ms`);
+- the share of the magazine left;
+- an enemy on view (the on-view episodes' 4°) within 1 s before;
+- the time from its end to the next shot;
+- deaths while reloading;
+- and the on-view ticks with no shot that the reload held (the `RELOAD` gate),
+  by why the reload started.
+
+**The bots at the defaults** (939b2cca, 48 matches: batt and tdm, tiers
+4-5/9-10/13-15, seeds 1-8):
+
+| class | reloads | empty, in view | empty, none seen | tactical | an enemy on view 1 s before | share left (median) |
+|---|---|---|---|---|---|---|
+| bolt actions | 3,605 | 4 % | 3 % | 93 % | 56 % | 0.60 |
+| rifles | 6,578 | 12 % | 8 % | 80 % | 43 % | 0.43 |
+| SMGs | 5,892 | 13 % | 10 % | 76 % | 47 % | 0.40 |
+| shotguns | 14,218 | 37 % | 25 % | 38 % | 67 % | 0.00 |
+
+- 13 % of the reloads end in the bot's death (4,056 of 30,293).
+- The on-view ticks the reload held: 34 % in an empty-in-view reload, 27 % in
+  an empty one, 38 % in a tactical one. The last start with nobody seen, and
+  then an enemy walks into view.
+
+**The players** (the owner's rule: the 2 best by kills, then K/D, of each of the
+402 players' matches with 12 or more people; rounds counted from each world's
+magazine, the shots in between from the weapon's rate, about ±1-2 rounds):
+
+| class | reloads | before empty | share left, the ones before empty (median) | an enemy within 30° 1 s before | from the last shot, median |
+|---|---|---|---|---|---|
+| rifles | 6,144 | 96 % | 0.53 | 69 % | 400 ms |
+| SMGs | 2,491 | 91 % | 0.45 | 70 % | 150 ms |
+| bolt actions | 366 | 84 % | 0.60 | 65 % | 4,200 ms |
+| VSS, VSK-94 | 734 | 89 % | 0.50 | 70 % | 250 ms |
+| SVD | 196 (unstable) | 92 % | 0.60 | 71 % | 1,150 ms |
+| shotguns | 158 (unstable) | 89 % | 0.50 | 70 % | 550 ms |
+
+The machine guns (12) and the pistols (24) are too few.
+
+**A reload at the lull: tried, and dropped.**
+- **The idea** (`reload_lull`): reload as the players do, at the lull after a
+  burst. That is the target down or lost, no target seen for 250 ms (GUESS), and
+  the rounds left at most the players' median share for the class (above). It
+  was never done while the aim was carried through a target lost a moment.
+- **The bench:** team 1 alone with it, against the same build with it off,
+  seeds 1-8, both presets, tiers 4-5/9-10/13-15. It reloaded about 60 times a
+  match at the lull.
+- **The target did not move.** Team 1's empty-in-view reloads per kill stayed
+  flat, and went the wrong way at batt 4-5: +0.05 ± 0.03. The `RELOAD` share of
+  the first gates was flat too, at most +0.4 ± 0.3 points.
+- **A guard was worse beyond 3 SE:** team 1's deaths while reloading at batt
+  13-15, +5.6 ± 1.5. K/D was −0.02 ± 0.01 at batt 9-10, flat elsewhere.
+- **So it fails the early stop.** Most reloads are tactical already, and
+  empty-in-view ones are a fifth of them, so a lull reload only adds reloads an
+  enemy can walk into. The earlier-lull variant waited on empty-in-view reloads
+  dominating; they do not, so it was not tried.
+- **What stands out is the shotguns.** 62 % of their reloads come with the
+  magazine out, and 37 % of all their reloads have an enemy in view. Among the
+  players, a shotgun is out at 11 % of reloads. Not followed here.
+
+**No change:** at the defaults, this PR's decision digests match 939b2cca's,
+48 of 48 (batt and tdm, tiers 4-5/9-10/13-15, seeds 1-8).

@@ -251,35 +251,6 @@ pub struct CombatTuning {
     /// 1.6 reloads a minute against 1.0 of the others).
     pub reload_idle_ms: u32,
     pub reload_some_share: f32,
-    /// Fire-gates reloads: a reload at the lull after a burst, as the best
-    /// players reload, rather than once the magazine is out with an enemy
-    /// in view. With the target down or lost and no target seen for
-    /// `reload_lull_ms`, the bot reloads when its rounds left are at most
-    /// its class's `reload_lull_left_*` share of the magazine (one round
-    /// fired at least). Never while the aim is carried through a target
-    /// lost a moment (`aim_carry`: lost within `aim_carry_ms`, still
-    /// known, the aim held): a reload would drop it; a target down (its
-    /// track forgotten at his death) carries nothing.
-    /// GUESS: `reload_lull_ms` 250, a little under the players' median
-    /// 300 ms from a burst to the reload (`reload_idle_ms`).
-    pub reload_lull: bool,
-    pub reload_lull_ms: u32,
-    /// The players' share of the magazine left at a reload before it is
-    /// out, by weapon class ([`Gun::class`]). MEASURED: the median of the
-    /// 2 best players (by kills, then K/D) of each of the 402 players'
-    /// matches with 12 or more people, over their reloads with rounds left:
-    /// rifles 0.53 (5,800), SMGs 0.45 (2,200), bolt actions 0.60 (310),
-    /// the other sniper rifles 0.50 (800: the VSS/VSK 0.47, the SVD 0.60),
-    /// shotguns 0.50 (140, unstable). The pistols (17) and the machine
-    /// guns (12) are too few: the rifles' (`player_bots_weapons.md`,
-    /// "Bots: reloads at the lull").
-    pub reload_lull_left_rifle: f32,
-    pub reload_lull_left_smg: f32,
-    pub reload_lull_left_shotgun: f32,
-    pub reload_lull_left_pistol: f32,
-    pub reload_lull_left_mg: f32,
-    pub reload_lull_left_marksman: f32,
-    pub reload_lull_left_bolt: f32,
     /// A weapon that fires one round a press: the trigger held this long,
     /// ms, and never past half its shot (so it is up before the fire state
     /// is over, [`super::guns`]); the next press after the weapon's cycle
@@ -784,15 +755,6 @@ impl Default for CombatTuning {
             trade_m: 40.0,
             reload_idle_ms: 400,
             reload_some_share: 0.4,
-            reload_lull: false,
-            reload_lull_ms: 250,
-            reload_lull_left_rifle: 0.53,
-            reload_lull_left_smg: 0.45,
-            reload_lull_left_shotgun: 0.5,
-            reload_lull_left_pistol: 0.53,
-            reload_lull_left_mg: 0.53,
-            reload_lull_left_marksman: 0.5,
-            reload_lull_left_bolt: 0.6,
             press_ms: 100,
             press_gap_ms: 50,
             recoil_pull: 1.0,
@@ -881,20 +843,6 @@ impl CombatTuning {
             "marksman" => self.range_floor_marksman_m,
             "bolt" => self.range_floor_bolt_m,
             _ => self.range_floor_rifle_m,
-        }
-    }
-
-    /// The players' share of the magazine left at a reload, by weapon
-    /// class ([`Self::reload_lull`]).
-    pub fn reload_lull_left(&self, class: &str) -> f32 {
-        match class {
-            "smg" => self.reload_lull_left_smg,
-            "shotgun" => self.reload_lull_left_shotgun,
-            "pistol" => self.reload_lull_left_pistol,
-            "mg" => self.reload_lull_left_mg,
-            "marksman" => self.reload_lull_left_marksman,
-            "bolt" => self.reload_lull_left_bolt,
-            _ => self.reload_lull_left_rifle,
         }
     }
 
@@ -1268,8 +1216,6 @@ pub enum ReloadWhy {
     Empty,
     /// Before the magazine is out ([`CombatTuning::reload_idle_ms`]).
     Tactical,
-    /// At the lull, and not idle yet ([`CombatTuning::reload_lull`]).
-    Lull,
 }
 
 /// [measure] The last reload: when it started and is done, why, and the
@@ -2695,9 +2641,7 @@ impl Reflex {
     /// also reload by itself at a press on an empty weapon (its reload
     /// predicate 0x2E3EF0 takes the trigger with nothing in it); the count
     /// keeps the bot from needing that.
-    /// At the lull ([`CombatTuning::reload_lull`]), unless `carried`: the
-    /// aim held through a target lost a moment.
-    fn reload(&mut self, seen: bool, carried: bool, now: u32, c: &CombatTuning) -> u32 {
+    fn reload(&mut self, seen: bool, now: u32, c: &CombatTuning) -> u32 {
         if now < self.busy_until {
             return 0;
         }
@@ -2718,14 +2662,7 @@ impl Reflex {
         let load = hands.held_mut();
         let fired = load.gun.magazine - load.rounds;
         let some = ((load.gun.magazine as f32 * c.reload_some_share).ceil() as u32).max(1);
-        let lull = c.reload_lull
-            && !seen
-            && !carried
-            && now >= last_seen + c.reload_lull_ms
-            && fired >= 1
-            && load.rounds as f32 <= load.gun.magazine as f32 * c.reload_lull_left(load.gun.class());
-        let idle = !seen && now >= last_seen + c.reload_idle_ms && fired >= some;
-        let tactical = lull || idle;
+        let tactical = !seen && now >= last_seen + c.reload_idle_ms && fired >= some;
         if load.loadable() == 0
             || !(load.rounds == 0 && (!seen || hiding || reload_here) || tactical)
         {
@@ -2739,8 +2676,7 @@ impl Reflex {
             why: match (left, seen) {
                 (0, true) => ReloadWhy::EmptyInView,
                 (0, false) => ReloadWhy::Empty,
-                _ if idle => ReloadWhy::Tactical,
-                _ => ReloadWhy::Lull,
+                _ => ReloadWhy::Tactical,
             },
             left,
             magazine,
@@ -3046,14 +2982,7 @@ impl Reflex {
         if seen.is_some() {
             self.last_seen = now;
         }
-        // The aim carried through a target lost a moment (`aim_carry`): not
-        // one down (forgotten at his death).
-        let carried = c.aim_carry
-            && aim_since.is_some()
-            && self.lost.is_some_and(|(who, at)| {
-                now <= at + c.aim_carry_ms && memory.tracks().iter().any(|t| t.who == who)
-            });
-        let reload = self.reload(seen.is_some(), carried, now, c);
+        let reload = self.reload(seen.is_some(), now, c);
         // A threat (a hit's shooter, a near shot from outside the view): a
         // moment's look, even from a target (`Self::threats`).
         if let Some(threat) = self.threat.filter(|t| now < t.until) {
@@ -5689,46 +5618,6 @@ mod tests {
             reloads[0] >= 4_500 + aim.combat.reload_idle_ms - 500,
             "{reloads:?}"
         );
-    }
-
-    #[test]
-    fn it_reloads_at_the_lull_unless_the_aim_is_carried() {
-        // A little fire, then nothing seen: with `reload_lull`, a reload
-        // `reload_lull_ms` after, before `reload_idle_ms`; with the aim
-        // carried through him lost a moment, none before the idle one.
-        let first = |lull: bool, carry: bool| {
-            let mut me = body(0, 0, Vec3::ZERO, 0.0);
-            let enemy_at = Vec3::new(0.0, 0.0, 20.0);
-            let view = view_of(vec![me.clone(), body(1, 1, enemy_at, 0.0)]);
-            let mut aim = AimTuning {
-                fire_within_deg: 180.0,
-                ..AimTuning::default()
-            };
-            aim.combat.reload_lull = lull;
-            aim.combat.reload_lull_left_smg = 1.0;
-            aim.combat.aim_carry = carry;
-            let ticks = duel(
-                "flanker",
-                &Situation::of(&view),
-                &mut me,
-                enemy_at,
-                &aim,
-                1_000,
-                12_000,
-                4_500,
-            );
-            let aimed = ticks.iter().any(|t| t.0 >= 4_500 && t.2 & key::AIM != 0);
-            (pressed(&ticks, key::RELOAD), aimed, aim.combat)
-        };
-        let (idle, _, c) = first(false, false);
-        let (lull, _, _) = first(true, false);
-        let (carried, aimed, _) = first(true, true);
-        eprintln!("idle {idle:?} lull {lull:?} carried {carried:?} aimed {aimed}");
-        assert_eq!(lull.len(), 1, "{lull:?}");
-        assert!(lull[0] >= 4_500 + c.reload_lull_ms - 100 && lull[0] < idle[0], "{lull:?} {idle:?}");
-        if aimed {
-            assert!(carried[0] >= idle[0], "{carried:?} {idle:?}");
-        }
     }
 
     #[test]

@@ -606,12 +606,12 @@ pub(super) struct ReloadTally {
     /// By team and class.
     by_class: BTreeMap<(u8, &'static str), ClassReloads>,
     died: [u32; 2],
-    held: [[u32; 4]; 2],
+    held: [[u32; 3]; 2],
 }
 
 #[derive(Default)]
 struct ClassReloads {
-    why: [u32; 4],
+    why: [u32; 3],
     left: Vec<f32>,
     in_view_1s: u32,
     next_shot_ms: Vec<u32>,
@@ -623,7 +623,6 @@ fn why_index(why: super::super::reflex::ReloadWhy) -> usize {
         ReloadWhy::EmptyInView => 0,
         ReloadWhy::Empty => 1,
         ReloadWhy::Tactical => 2,
-        ReloadWhy::Lull => 3,
     }
 }
 
@@ -722,7 +721,7 @@ impl ReloadTally {
             })
             .collect();
         format!(
-            "reloads (empty in view, empty, tactical, lull): {}; died reloading by team {:?}; on view held by the reload by team {:?}",
+            "reloads (empty in view, empty, tactical): {}; died reloading by team {:?}; on view held by the reload by team {:?}",
             classes.join(" | "),
             self.died,
             self.held
@@ -747,7 +746,7 @@ fn the_reload_tally_counts_each_reload_once_and_what_came_of_it() {
     t.tick(0, "rifle", 1, true, false, false, Some(b), 5_000);
     t.tick(0, "rifle", 1, false, false, false, Some(b), 5_100);
     let c = &t.by_class[&(1, "rifle")];
-    assert_eq!(c.why, [1, 0, 1, 0]);
+    assert_eq!(c.why, [1, 0, 1]);
     assert_eq!(c.in_view_1s, 1);
     assert_eq!(c.next_shot_ms, vec![300]);
     assert_eq!(c.left, vec![0.0, 10.0 / 30.0]);
