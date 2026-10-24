@@ -420,5 +420,8 @@ fn the_grid_table() {
         std::fs::write(out, pocket_lines.join("\n") + "\n").unwrap();
     }
     // No way is planned into a pocket with no way out.
-    assert!(shut_planned.is_empty(), "planned into a shut pocket: {shut_planned:?}");
+    assert!(
+        shut_planned.is_empty(),
+        "planned into a shut pocket: {shut_planned:?}"
+    );
 }
