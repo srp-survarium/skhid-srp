@@ -320,17 +320,18 @@ fn standing_stand(tactics: &crate::v026g::bots::tactics::Tactics, at: Vec3) -> O
     best.map(|(_, feet)| feet)
 }
 
-/// Whether the feet are at the height of the floor a walk to `at` ends on
-/// (`path::goal_floor`): not over it by more than `motor::ARRIVE_ABOVE_M`
-/// nor under it by more than `motor::ARRIVE_BELOW_M`, the rule
-/// the motor ends a route by (`motor::arrived`). No floor: true.
-fn at_goal_height(cx: &Ctx, at: Vec3) -> bool {
-    use crate::v026g::bots::motor::{ARRIVE_ABOVE_M, ARRIVE_BELOW_M};
+/// Whether the feet are over the floor a walk to `at` ends on
+/// (`path::goal_floor`) by more than `motor::ARRIVE_ABOVE_M` (an overhang, a
+/// box top), the motor's rule for a route's end (`motor::arrived`). Under
+/// it is not asked: Take goes up by the route itself once a stand there
+/// failed (`BELOW_STAND_M`), and refusing the take from under it cost the
+/// batt bench stuck +9.1 (5.4 SE) and quick ends +17.9 (2.3 SE) at 16 seeds.
+/// No floor: false.
+fn over_goal(cx: &Ctx, at: Vec3) -> bool {
+    use crate::v026g::bots::motor::ARRIVE_ABOVE_M;
     let grid = &cx.tactics.world.grid;
-    crate::v026g::bots::path::goal_floor(grid, at).is_none_or(|node| {
-        let dy = cx.me.feet.y - grid.position(node).y;
-        dy <= ARRIVE_ABOVE_M && -dy <= ARRIVE_BELOW_M
-    })
+    crate::v026g::bots::path::goal_floor(grid, at)
+        .is_some_and(|node| cx.me.feet.y - grid.position(node).y > ARRIVE_ABOVE_M)
 }
 
 /// Where a body right over a battery lying at `at` steps back to: a metre
@@ -853,10 +854,10 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             if !cx.reachable(stand, false) || cx.no_way_lately(stand) {
                 return Step::Failed("no way to it");
             }
-            // Within reach across and at the stand floor's height
-            // (`at_goal_height`, the motor's rule for a route's end).
+            // Within reach across and not over the stand's floor
+            // (`over_goal`, the motor's rule for a route's end).
             let near = cx.me.feet.distance_xz(stand) <= num("reach_m");
-            if near && at_goal_height(cx, stand) {
+            if near && !over_goal(cx, stand) {
                 *state = State::Take {
                     tries: 0,
                     last_use: 0,
@@ -869,8 +870,8 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 };
                 return Step::Continue(Intent::stay().looking(Look::At(at)));
             }
-            // Near across but over its floor (an overhang, a box top) or
-            // under it: a goal within reach across is no goal, so the walk
+            // Near across but over its floor (an overhang, a box top): a
+            // goal within reach across is no goal, so the walk
             // asks for the stand itself, and the route ends there only at its
             // floor's height (`motor::arrived`). Cologne CG-17.
             let within = if near { 0.0 } else { num("reach_m") * 0.6 };
