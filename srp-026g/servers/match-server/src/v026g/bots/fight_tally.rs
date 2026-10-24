@@ -602,15 +602,16 @@ pub(super) struct ReloadTally {
     /// enemy on view, and a reload done, waiting for its next shot.
     counted: Vec<Option<u32>>,
     last_view: Vec<Option<u32>>,
-    waiting: Vec<Option<(u32, &'static str)>>,
-    by_class: BTreeMap<&'static str, ClassReloads>,
+    waiting: Vec<Option<(u32, u8, &'static str)>>,
+    /// By team and class.
+    by_class: BTreeMap<(u8, &'static str), ClassReloads>,
     died: [u32; 2],
-    held: [u32; 3],
+    held: [[u32; 4]; 2],
 }
 
 #[derive(Default)]
 struct ClassReloads {
-    why: [u32; 3],
+    why: [u32; 4],
     left: Vec<f32>,
     in_view_1s: u32,
     next_shot_ms: Vec<u32>,
@@ -622,6 +623,7 @@ fn why_index(why: super::super::reflex::ReloadWhy) -> usize {
         ReloadWhy::EmptyInView => 0,
         ReloadWhy::Empty => 1,
         ReloadWhy::Tactical => 2,
+        ReloadWhy::Lull => 3,
     }
 }
 
@@ -653,13 +655,13 @@ impl ReloadTally {
             && self.counted[place] != Some(note.at)
         {
             self.counted[place] = Some(note.at);
-            let c = self.by_class.entry(class).or_default();
+            let c = self.by_class.entry((team, class)).or_default();
             c.why[why_index(note.why)] += 1;
             c.left.push(note.left as f32 / note.magazine.max(1) as f32);
             if self.last_view[place].is_some_and(|t| t + 1_000 >= note.at) {
                 c.in_view_1s += 1;
             }
-            self.waiting[place] = Some((note.until, class));
+            self.waiting[place] = Some((note.until, team, class));
         }
         if let Some(note) = note
             && now < note.until
@@ -669,11 +671,11 @@ impl ReloadTally {
             self.died[usize::from(team).min(1)] += 1;
             self.waiting[place] = None;
         }
-        if let Some((until, class)) = self.waiting[place]
+        if let Some((until, team, class)) = self.waiting[place]
             && fired
             && now >= until
         {
-            self.by_class.entry(class).or_default().next_shot_ms.push(now - until);
+            self.by_class.entry((team, class)).or_default().next_shot_ms.push(now - until);
             self.waiting[place] = None;
         }
         if !alive {
@@ -681,13 +683,19 @@ impl ReloadTally {
         }
     }
 
-    /// An on-view tick with no shot, with the bot's gates and last reload.
-    pub(super) fn held(&mut self, gates: super::super::reflex::Gates, note: Option<super::super::reflex::ReloadNote>) {
+    /// An on-view tick with no shot of a bot of `team`, with its gates and
+    /// last reload.
+    pub(super) fn held(
+        &mut self,
+        team: u8,
+        gates: super::super::reflex::Gates,
+        note: Option<super::super::reflex::ReloadNote>,
+    ) {
         use super::super::reflex::gate;
         if gates.bits & gate::RELOAD != 0
             && let Some(note) = note
         {
-            self.held[why_index(note.why)] += 1;
+            self.held[usize::from(team).min(1)][why_index(note.why)] += 1;
         }
     }
 
@@ -701,11 +709,11 @@ impl ReloadTally {
         let classes: Vec<String> = self
             .by_class
             .iter()
-            .map(|(class, c)| {
+            .map(|((team, class), c)| {
                 let mut next = c.next_shot_ms.clone();
                 next.sort_unstable();
                 format!(
-                    "{class} {:?} left {} in view 1s {} next shot median {}",
+                    "t{team} {class} {:?} left {} in view 1s {} next shot median {}",
                     c.why,
                     q(&c.left),
                     c.in_view_1s,
@@ -714,10 +722,34 @@ impl ReloadTally {
             })
             .collect();
         format!(
-            "reloads (empty in view, empty, tactical): {}; died reloading by team {:?}; on view held by the reload {:?}",
+            "reloads (empty in view, empty, tactical, lull): {}; died reloading by team {:?}; on view held by the reload by team {:?}",
             classes.join(" | "),
             self.died,
             self.held
         )
     }
+}
+
+#[test]
+fn the_reload_tally_counts_each_reload_once_and_what_came_of_it() {
+    use super::super::reflex::{ReloadNote, ReloadWhy};
+    let mut t = ReloadTally::default();
+    let note = |at: u32, why, left| ReloadNote { at, until: at + 2_000, why, left, magazine: 30 };
+    // On view at 1000, empty at 1500: in view within 1 s; the next shot
+    // 300 ms after it is done.
+    let a = note(1_500, ReloadWhy::EmptyInView, 0);
+    t.tick(0, "rifle", 1, true, true, true, None, 1_000);
+    for now in (1_500..=3_800).step_by(50) {
+        t.tick(0, "rifle", 1, true, false, now == 3_800, Some(a), now);
+    }
+    // A tactical one at 10 left, and the bot dies in it.
+    let b = note(5_000, ReloadWhy::Tactical, 10);
+    t.tick(0, "rifle", 1, true, false, false, Some(b), 5_000);
+    t.tick(0, "rifle", 1, false, false, false, Some(b), 5_100);
+    let c = &t.by_class[&(1, "rifle")];
+    assert_eq!(c.why, [1, 0, 1, 0]);
+    assert_eq!(c.in_view_1s, 1);
+    assert_eq!(c.next_shot_ms, vec![300]);
+    assert_eq!(c.left, vec![0.0, 10.0 / 30.0]);
+    assert_eq!(t.died, [0, 1]);
 }

@@ -3490,7 +3490,7 @@ impl BlockTally {
             e.ticks += 1;
             if !fired {
                 self.gates.tick(bot.reflex.gates(), e.enemy, now);
-                self.reloads.held(bot.reflex.gates(), bot.reflex.reload_note());
+                self.reloads.held(me.team, bot.reflex.gates(), bot.reflex.reload_note());
             }
             if fired && e.fired.is_none() {
                 e.fired = Some(now - e.start);
