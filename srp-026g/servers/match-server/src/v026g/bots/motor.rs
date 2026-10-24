@@ -277,6 +277,11 @@ const UNDER_JUMP_M: f32 = 1.5;
 /// A route's end higher than the feet by more than this is not arrived at
 /// (the end up a ledge: it is jumped to), metres.
 const ARRIVE_BELOW_M: f32 = 0.5;
+/// A route whose last leg is a jump is arrived at only on its landing:
+/// the end at most this higher than the feet, metres. GUESS: above a
+/// floor's unevenness under the feet, well below the lowest jump (a
+/// pocket's rim 0.23 m up, 0.56 m off, was "walked" with no press).
+const ARRIVE_ON_LANDING_M: f32 = 0.15;
 /// A low leg this near ahead, metres, is walked crouched already.
 pub const LOW_AHEAD_M: f32 = 1.0;
 /// The hop's trail keeps this many walking ticks (4 s: more than a
@@ -599,11 +604,17 @@ impl Motor {
 
     /// Whether the route is walked to its end: within [`Feel::arrive_m`] of
     /// it, and not under it ([`ARRIVE_BELOW_M`]: an end up a ledge is jumped
-    /// to).
+    /// to; [`ARRIVE_ON_LANDING_M`] when the last leg is a jump: on its
+    /// landing).
     fn arrived(&self, route: &Route, s: f32, feet: Vec3) -> bool {
         let end = route.end();
+        let below = if route.points().last().is_some_and(|p| p.jump) {
+            ARRIVE_ON_LANDING_M
+        } else {
+            ARRIVE_BELOW_M
+        };
         (route.length() - s <= self.feel.arrive_m || feet.distance_xz(end) <= self.feel.arrive_m)
-            && end.y - feet.y <= ARRIVE_BELOW_M
+            && end.y - feet.y <= below
     }
 
     /// The decision of one tick that walks the route while the view looks
@@ -1336,6 +1347,45 @@ mod tests {
             gets_up: true,
         };
         (Route::new(points), ledge)
+    }
+
+    /// A route whose last leg is a jump 0.5 m off and 0.3 m up (a pocket's
+    /// rim, `escape.rs`) is not walked until the body is up on it: the
+    /// motor presses the jump and gets up. The same end by a walk (no jump)
+    /// is arrived at as before.
+    #[test]
+    fn a_near_low_jump_at_a_routes_end_is_pressed() {
+        let p = |x: f32, y: f32, jump| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump,
+            low: false,
+        };
+        let ledge = Ledge {
+            take_off: Vec3::ZERO,
+            way: [1.0, 0.0],
+            face: 0.25,
+            reach: 1.2,
+            gets_up: true,
+        };
+        let mut route = Route::new(vec![p(0.0, 0.0, false), p(0.5, 0.3, true)]);
+        let climb = climb_ledge(
+            &mut route,
+            &ledge,
+            Vec3::ZERO,
+            yaw_of([1.0, 0.0]),
+            300,
+            false,
+        );
+        assert!(!climb.presses.is_empty(), "{:?}", climb.poses.last());
+        assert!(climb.up, "{:?}", climb.poses.last());
+        assert_eq!(climb.walked, Walked::Arrived);
+        let mut walk = Route::new(vec![p(0.0, 0.0, false), p(0.5, 0.3, false)]);
+        let mut rng = Rng::new(17);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let (decision, walked) = motor.walk(&mut walk, &facing_x(Vec3::ZERO), 5.0, |_| true);
+        assert_eq!(walked, Walked::Arrived);
+        assert_eq!(decision.keys & key::JUMP, 0);
     }
 
     /// Hurt so it does not jump (a broken leg: about 8 s) as it comes to a
