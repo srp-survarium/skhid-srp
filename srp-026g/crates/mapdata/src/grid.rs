@@ -269,6 +269,20 @@ pub struct PocketExit {
     pub jump: ExitJump,
 }
 
+/// A way into a pocket ([`WalkGrid::pocket_entries`]): a link from a floor
+/// that is in no pocket (a pocket's edge, [`WalkGrid::is_pocket_edge`]) to a
+/// floor of the pocket.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PocketEntry {
+    pub from: NodeId,
+    pub to: NodeId,
+    /// A drop mostly; a walk where the way back up was cut (steep ground),
+    /// a jump onto a pocket's floor.
+    pub kind: LinkKind,
+    /// How much lower `to` is, metres (negative up).
+    pub fall: f32,
+}
+
 /// The 8 neighbour directions (dx, dz); `DIRS[d ^ 1]` is the opposite.
 const DIRS: [(i32, i32); 8] = [
     (1, 0),
@@ -1329,6 +1343,33 @@ impl WalkGrid {
             .iter()
             .filter(move |&&(_, p)| p == pocket)
             .map(|&(a, _)| a)
+    }
+
+    /// The ways into `pocket`: every link from a floor in no pocket to one
+    /// of the pocket's floors, in the order of the pocket's floors. The
+    /// take-offs (`from`) are where a body must not step to keep out of a
+    /// pocket with no way out ([`WalkGrid::pocket_exits`] empty).
+    pub fn pocket_entries(&self, pocket: PocketId) -> Vec<PocketEntry> {
+        // A packed link reaches up to 4 cells.
+        let r = 4.5 * self.cell;
+        let mut entries = Vec::new();
+        for b in self.pocket_floors(pocket) {
+            let at = self.position(b);
+            for a in self.floors_in([at.x - r, at.z - r, at.x + r, at.z + r]) {
+                if !self.is_pocket_edge(a) {
+                    continue;
+                }
+                if let Some((_, kind)) = self.links(a).find(|&(to, _)| to == b) {
+                    entries.push(PocketEntry {
+                        from: a,
+                        to: b,
+                        kind,
+                        fall: self.height[a as usize] - at.y,
+                    });
+                }
+            }
+        }
+        entries
     }
 
     /// The ways out of `from`'s pocket that are no link: jumps from a floor
@@ -2673,6 +2714,15 @@ pub(crate) mod tests {
         std::fs::remove_file(&path).ok();
         assert_eq!(read.digest(), grid.digest());
         assert_eq!(read.pocket_of(bottom), Some(pocket));
+        // Into it only by drops from its rim, 1.6 m down.
+        let entries = grid.pocket_entries(pocket);
+        assert!(!entries.is_empty());
+        assert!(entries.iter().all(|e| {
+            e.kind == LinkKind::Drop
+                && grid.is_pocket_edge(e.from)
+                && grid.pocket_of(e.to) == Some(pocket)
+                && (1.5..=1.7).contains(&e.fall)
+        }));
         // 1.2 m deep: ways out to the yard, none higher than 1.35 m.
         let grid = pit_grid(1.2);
         let bottom = grid.locate(Vec3::new(10.0, -1.2, 5.0), 0.3).unwrap();
