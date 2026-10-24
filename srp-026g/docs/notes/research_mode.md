@@ -263,3 +263,96 @@ Left out, and why:
   `set_capture_data`, `update_capture_progress`; minimap objects `capture_point` with `cp_id`.
 - Source: `/mnt/hdd/Projects/Survarium Builds/v0.27d0-build2500` (Inno + `.sup`, unpacked into
   `/mnt/hdd/Projects/weapon-survey-20261016/work/builds/v027d0`); the exe is x86-BCJ filtered.
+
+## Markers in the retail game
+
+Read from the x86-BCJ-decoded exes of 0.27d0, 0.28a2, 0.28d0, 0.31a2 and 0.46c2, and from
+`player_icons.swf` of 0.27d0, 0.28a2 (the same file as 0.28d0) and 0.46c2, decompiled with
+FFDec. The 0.31a2 movie was not read: its db is split into `resources.0N.db`.
+
+**The size is constant at any distance, in every build read.** The marker is bigger only while
+the game's own player is inside the unit.
+
+- **Exe, 0.27d0.** The zone's tick calls the placer at 0x299D22:
+  `push index; eax = zone position; call 0x234BE0`. 0x234BE0 makes the icon id `6Ah + index`.
+  It then calls the icons' placer `0x234C20(ui, id, position, 0)` and sets the icon's alpha
+  byte to `C3h`:
+
+      234be6: add bl,0x6a
+      234be9: push 0x0              ; no distance scaling
+      ...
+      234bee: call 0x234c20
+      234bfa: cmp BYTE PTR [esi+ecx*8],0xc3
+      234c16: mov BYTE PTR [ecx],0xc3   ; alpha 195/255 = 0.76
+
+  - In 0x234C20, `point_to_screen` 0x236D90 fails off the screen or behind the camera. The
+    icon is then hidden (`+3C2h = 0`); it is not clamped to the screen's edge.
+  - The 4th argument picks the distance path. Players' icons pass 1; the units pass 0:
+
+        234c8a: cmp BYTE PTR [ebp+0x14],0x0
+        234c8e: movss xmm0,[0xa9aa9c]     ; scale 1.0
+        234c96: mov BYTE PTR [esp+0x13],0xff
+        234c9b: je 0x234da9               ; units: skip the distance code
+
+    The skipped code is the players' curve, the same one 0.26g's `update_player_icons`
+    0x23AA10 runs. Over 1 to 100 m, `t = clamp((d - 1) / 99, 0, 1)`; the scale goes 3 to 1
+    and the alpha 255 to 128 (constants at 0xA9DFFC: 1, 3, 1, 100, 80h, FFh).
+  - 0x234DA9 places the icon at the projected point, raised by 5 px times the scale. It goes
+    through 0x234700, the icon's x, y and scale record.
+  - The units' icons are created once, kind 2, base scale 1 (0x22D588..0x22D5C3):
+    `fld1; push 2; push id; call 0x234410` (`root.create_player_icon`), ids 6Ah..6Ch.
+- **Movie, 0.27d0** (`HUDIconLayer.set_player_icon_props`). The size is the exe's `z` times the
+  base scale, so 1 x 1:
+
+      renderer.scaleX = renderer.scaleY = props.z * renderer.baseScale;
+
+  - `CapturePointMarker.updateCaptureRendrer` (through `RoundProgress.setData`, from
+    `root.set_capture_data`) sets the only other size. 46 px art shows at 24 px, or 34 px
+    (x1.42) with the `active` highlight while the game's own player is inside:
+
+        rendrer.scaleX = rendrer.scaleY = player ? 34 / 46 : 24 / 46;
+        rendrer.active.visible = player;
+
+    `player` is the local player's bit in the zone's per-team occupant mask (0x299B59).
+  - Alpha is the exe's `C3h`. A unit being taken (capture modes 2 and 3) blinks: an
+    ENTER_FRAME handler sets `rendrer.alpha` from the clip's frame.
+  - The marker has no label, timer or distance. It shows the letter, the stroke, the progress
+    ring (`Util.drawSegment` mask) and the crossed swords while contested.
+- **0.28a2, 0.28d0.** The movie's marker code is 0.27d's, less one `trace`. The exe is the
+  same: 0.28a2 0x574510 `push 0` -> placer 0x4F71A0, alpha `C3h`, create scale 1.0 at 0xAC7AE4;
+  0.28d0 0x4A1D30 -> 0x4245B0.
+- **0.31a2, 0.46c2.** The icons are grouped (group 8 for the units), and the placer is
+  0x51AE90 (0.31a2) or 0x6D1F70 (0.46c2). It still gets distance flag 0, alpha `C3h` and base
+  scale 1.0. 0.46c2 also hides the markers while a game flag (`+3E1658h`) is set. 0.46c2's movie
+  takes colours from the exe (`label_color`, `border_color`, `flashing`, `swords`, `big`) and
+  keeps `big ? 34 / 46 : 24 / 46`.
+
+**Ours (PR #367)** does scale, and nothing overrides it:
+
+- `ResearchMarker` is a plain Sprite under the layer. It is not one of the layer's `_markers`
+  (`set_player_icons_props` sets only those) and not a CLIK component.
+- `rn_markers` measures from the same camera point as `update_player_icons`:
+  `[[game+98h]+34h..3Ch]`, read at 0x23AB63..0x23AB7F.
+- The curve is weak at the distances seen in play. Scale is 1 up to 15 m, then 0.97 at 25 m,
+  0.92 at 40, 0.85 at 60, 0.78 at 80, 0.72 at 100 and 0.55 at 150.
+- The nine levels' day `_5` projects (0.27d; London from 0.31a2) put a unit 51-137 m from a first
+  spawn (median 91 m) and 13-120 m from the next unit (median 49 m). At a spawn the near and
+  far units differ by about a fifth: level_01 team 1 has B at 63 m (0.84) and A at 113 m (0.67).
+  The 30 px circle shrinks 4-5 px.
+- The label keeps its 15 px text at any distance (`1 / scale`) and is wider than the circle, so
+  the marker's footprint barely changes.
+- Walking changes the scale by 0.3 % a metre, too little to see.
+- Players' icons in the same layer go 3x to 1x over 1-100 m.
+
+0.26g side (re-kit): `update_player_icons` 0x23AA10 keeps each icon's record at
+`ui + 18h * id + 374h`: x, y and scale, alpha at +384h, visible at +386h, dirty bits at +389h.
+Its x, y and scale setter is 0x23C050 (0.27d 0x234700).
+
+Two ways to go (the owner's pick):
+
+- **Retail's look.** Constant size, alpha 0.76, x1.42 with a highlight while inside, hidden off
+  the screen. 0.27d had no distance or timer text: keep the timer (players asked for it) and
+  drop the metres.
+- **Visible scaling.** Use the player icons' range: full size up to 10 m, then 0.5 at 100 m
+  (63 m gives 0.71 and 113 m gives 0.5). Scale the label with the marker, or show only the
+  timer, so the whole marker shrinks.

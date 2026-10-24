@@ -4435,3 +4435,6 @@ va	name	location	role	basis
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+12	the body	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+16	the sender's name	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+20	the sender's clan tag	observed
+0x0023c050	survarium::game_world_ui::set_player_icon_position	entry ESP+4	the game_world_ui (icon record at +18h * id + 374h: x, y, scale; dirty bit 1 at +389h)	observed
+0x0023c050	survarium::game_world_ui::set_player_icon_position	AL	the icon id	observed
+0x0023c050	survarium::game_world_ui::set_player_icon_position	EDX	float[3]: x, y (pixels), scale	observed
