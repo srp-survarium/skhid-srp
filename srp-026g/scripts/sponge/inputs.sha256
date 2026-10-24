@@ -1,4 +1,4 @@
-# sha256 and the input each file is (make_pack.py --stock: 0.26g as the manifest's packs are composed over it; --donor: 0.28d0), at its game path
+# sha256 and the input each file is (make_pack.py --stock: 0.26g as the manifest's packs are composed over it; --donor: 0.28d0; --retail: 0.69d0), at its game path
 4f990998e543800bd208ef3e5d40cb50df29ef6389fa3d6e5b83e51f1b0d842b  stock/gameplay/items/artefacts/artefact_lifebone.options
 c94aae41d475b4664b16f31660c4baa300f02f339cddfd6e3662c92a89bab292  stock/gameplay/items/artefacts/artefact_spring.options
 e28f7564faa79f3d3d234ec1895a6095bc804433c47c58ac6371a47d23deb8e6  stock/material_instances/fx/artifacts/caustic.material
@@ -11,12 +11,11 @@ e28f7564faa79f3d3d234ec1895a6095bc804433c47c58ac6371a47d23deb8e6  stock/material
 64aa082fad8cf6a62ba5dd9ab1b6883ae4f9bd8fc04f33cc9e4dfa000d196451  donor/models/item/artefacts/artefact_sponge.model/render/artefacts_s/export_properties
 434b6ad0bef5d05ade19077917ec7d17f6bc95a58519032c143d238aae15aacd  donor/models/item/artefacts/artefact_sponge.model/render/export_properties
 57bdec750dbd514c884b02d19328d5de9885f086dec2a475bec9e0b80cd8b800  donor/models/item/artefacts/artefact_sponge.model/settings
-1d8bb0e762f9e1779c2864180b6be154d82d8816d6d147565e438bb77b111dd8  donor/particles/fx/artifacts/pre_mochalka1.particle
 04bec798c9a086f9932f506702dcbcbd8eaaf7cebbdaf6d3f3acf4752d698498  donor/particles/fx/artifacts/pre_mochalka2.particle
 e4e66a19bda9ecef09cfc7bfceff46698d1d46550413086a15c08a8f5335a435  donor/particles/fx/artifacts/pre_mochalka2_indoor.particle
 e7059e32b8a963a6ba9a7b8d5aab869b04df9b2179b5c315541e722c7dd75524  donor/particles/fx/artifacts/mochalka_idle.particle
-0748e418c042114419cea2609ab354102a8e171fa067c8d131010f2be075d6c5  donor/particles/fx/artifacts/mochalka_explosion.particle
-fd28661e52eea5035f6a0dbbaa21af7e31a1725323e8df6feb9c2f95c55a3252  donor/particles/fx/test/idle_particle.particle
+ebd07decfcbf92f798315ee80b27d2bd350fbbc3ee5940566ad381f596f98c1d  retail/particles/fx/artifacts/pre_mochalka1.particle
+e0932847dfc8772a1bf625c521dc4a90a3c8f72fb4d4139520073992b814d2ce  retail/particles/fx/artifacts/mochalka_explosion.particle
 2378af5201549c67de46c28920c650ab980fef6ea963ece345fd8a93b79442b2  donor/material_instances/fx/artifacts/dust_hi.material
 41b5dfe2f6cedff1d61bf1dc2b6fa689a7e7bc90fb49a47c9ff1d39f31296ce8  donor/material_instances/fx/artifacts/dust_tiled2.material
 7928e24390bd15d8466a8fb51e254d6ca195c074ade0e8ffd593c4d788f71a5c  donor/material_instances/fx/artifacts/glow_spher_distortion.material

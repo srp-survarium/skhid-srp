@@ -1,7 +1,11 @@
 /* The Sponge (artefact_sponge, data type 12), exe patch 59: 0.28d0's
  * artefact_sponge_core (0x5136E0..0x515270), its wrapper and cook
  * (0x46A740..0x46AEA6) and its cook data reader (0x5439E0) written again on
- * 0.26g build 2777's own interfaces.
+ * 0.26g build 2777's own interfaces, thrown and exploding as retail's (0.31a2
+ * on, 0.69d0's numbers): the fuse `ttl_ms` from the pin's pull and, as 0.26g's
+ * grenade_core does it (0x303C10, 0x3041B0), the first contact once less than
+ * `safe_time` of it is left explodes it (0.28's fuse from the release, with no
+ * contact, is gone).
  *
  * The object is artefact<artefact_rattle_core>'s (Rattle, type 8: a bare
  * artefact_base and the wrapper's drawable at +340h, 360h bytes, built by the
@@ -108,6 +112,10 @@ typedef int i32;
 #define PW_ADD 0x2C                /* (body, 818h, 8) */
 #define PW_UPDATE 0x20             /* (the body's object) */
 #define PW_REMOVE 0x38             /* (body, 1) */
+#define PW_ADD_CONTACT 0x70        /* (body, &boost::function): its contacts call it (0x78310: kept by pointer) */
+#define PW_REMOVE_CONTACT 0x74     /* (body, &the same function) (0x783A0) */
+#define CONTACT_VTABLE 0xA13FAC    /* grenade_core's contact callback's boost::function (manager 0x3042D0,
+                                      invoker 0x202300: (buffer, &contact_point), ecx = this + adj) */
 /* the damage zone (damage_zone_core, client damage_zone) */
 #define Z_BASE 0x108               /* base_game_object: +14h geometries, +18h their count, +1Ch active */
 #define Z_GEOMETRIES 0x11C
@@ -133,6 +141,8 @@ typedef int i32;
 enum {
     TYPE_SPONGE = 12,
     ST_NONE = 0, ST_PASSIVE = 3, ST_ACTIVE = 4, ST_DEAD = 5, ST_ARMED = 6, ST_ZONE = 7,
+    CONTACT_ARMED = 1,             /* grenade_core +156h: the first contact not yet seen (set at the pull) */
+    CONTACT_HIT = 2,               /* a contact seen since the last tick: the tick applies the rule */
     NEVER = 0xFFFFFFFFu,
     TICK = 50,
     MAX_PLACES = 20, KITS = 3, PLACE_SIZE = 0x30, PLACE_KIT = 0xC,
@@ -142,6 +152,15 @@ enum {
 /* ---- the object -------------------------------------------------------- */
 
 typedef struct { float m[16]; } matrix;
+
+/* A boost::function in place, trivially copied (vtable | 1): {the
+ * function, adj 0, the object} in its buffer; the game's invoker 0x202300
+ * calls the function with ecx = the object + adj and its argument. */
+struct function {
+    u32 vtable;
+    u32 pad;
+    u32 buffer[4];                 /* the function, adj 0, the sponge */
+};
 
 /* hit_inflictor (0.28 +3C4h: {vt, u16 FFFFh, u8 0, the instigator, the item}),
  * then where it is: its slot 2 (0.28's 0x514550, a pointer to the position)
@@ -191,8 +210,8 @@ struct sponge {
     u8 *loading_config;
     u32 unused[2];
     struct modifier passive;       /* +370h passive/{regen,timeout,threshold}_{add,mul} */
-    u32 duration_ms;               /* active/duration_s x 1000 (10 s) */
-    u32 activation_timeout_ms;     /* activation_timeout_s x 1000 (3 s) */
+    u32 duration_ms;               /* active/duration_s x 1000 (15 s) */
+    u32 ttl_ms;                    /* data/ttl_ms, the fuse from the pin's pull (3 s; grenade_core's key) */
     float throw_power;             /* active/throw_power (15) */
     struct splash splash;          /* +3B0h the template */
     struct node node;              /* +3F0h the passive's */
@@ -200,7 +219,7 @@ struct sponge {
     u32 explode_time;              /* m_explode_time_ms, NEVER: not armed */
     u8 pin;                        /* m_is_pin_pulled */
     u8 owner;                      /* the thrower's place (GO_ID), taken when it is armed; FFh none */
-    u8 released;                   /* the key let go before the pin was pulled (a tap): the pull arms it */
+    u8 contact;                    /* CONTACT_ARMED, CONTACT_HIT */
     u8 pad;
     void *body;                    /* the rigid body (made at set_world) */
     void *physics;                 /* the physics world while thrown */
@@ -211,8 +230,15 @@ struct sponge {
     matrix sound_local[MAX_ZONES];
     matrix effect_local[MAX_ZONES];
     struct inflictor inflictor;    /* +67Ch */
+    struct function contact_fn;    /* +698h its contacts' callback (sp_contact), the physics world's while thrown */
+    u32 safe_time_ms;              /* data/safe_time: a first contact with less of the fuse left explodes it */
+    u8 explode_on_contact;         /* data/explode_on_contact */
+    u8 contact_registered;         /* contact_fn in the physics world's list */
+    u8 pad2[2];
 };
 _Static_assert(__builtin_offsetof(struct sponge, inflictor) == 0x67C, "inflictor");
+_Static_assert(__builtin_offsetof(struct sponge, contact_fn) == 0x698, "contact_fn");
+_Static_assert(__builtin_offsetof(struct sponge, safe_time_ms) == 0x6B0, "safe_time_ms");
 _Static_assert(__builtin_offsetof(struct sponge, passive) == 0x370, "passive");
 _Static_assert(__builtin_offsetof(struct sponge, splash) == 0x3B0, "splash");
 _Static_assert(__builtin_offsetof(struct sponge, node) == 0x3F0, "node");
@@ -221,7 +247,7 @@ _Static_assert(__builtin_offsetof(struct sponge, pin) == 0x420, "pin");
 _Static_assert(__builtin_offsetof(struct sponge, body) == 0x424, "body");
 _Static_assert(__builtin_offsetof(struct sponge, transform) == 0x430, "transform");
 _Static_assert(__builtin_offsetof(struct sponge, zone) == 0x470, "zone");
-_Static_assert(sizeof(struct sponge) == 0x698, "sponge");
+_Static_assert(sizeof(struct sponge) == 0x6B8, "sponge");
 _Static_assert(sizeof(struct splash) == 0x40 && sizeof(struct node) == 0x28, "splash, node");
 
 /* the zone's hit hook (sponge_a_026g.asm sponge_zone_hit) reads these: the
@@ -389,8 +415,35 @@ static void place(struct sponge *s, const matrix *m) {
     s->inflictor.position[2] = m->m[14];
 }
 
+/* Its contacts' callback into the physics world with the body (as
+ * grenade_core::throw_grenade 0x303C10 registers its own, 0x304220 and
+ * vt+70h), out before the body leaves (as its 0x303D50, vt+74h). The world
+ * keeps the function by pointer (0x78310), so it is the sponge's own field,
+ * and registered once. */
+static void contact_on(struct sponge *s) {
+    if (!s->explode_on_contact || s->contact_registered || !s->physics) return;
+    ((THISCALL void (*)(void *, void *, void *))vt(s->physics, PW_ADD_CONTACT))(s->physics, s->body, &s->contact_fn);
+    s->contact_registered = 1;
+}
+
+static void contact_off(struct sponge *s) {
+    if (s->contact_registered && s->physics)
+        ((THISCALL void (*)(void *, void *, void *))vt(s->physics, PW_REMOVE_CONTACT))(s->physics, s->body,
+                                                                                     &s->contact_fn);
+    s->contact_registered = 0;
+}
+
+/* A contact of the body (the physics world's step calls it through the
+ * game's invoker 0x202300): only noted; the next tick applies the rule
+ * (sp_tick), on the world's tick grid as every game sees it. grenade_core's
+ * 0x3041B0 reads nothing of the contact point either. */
+THISCALL void sp_contact(struct sponge *s, const void *point) {
+    (void)point;
+    if (s->contact & CONTACT_ARMED) s->contact |= CONTACT_HIT;
+}
+
 /* 0.28's 0x5146E0: into the physics world at `transform` with `linear`, no
- * spin; the item count 0, the inventory dirty. */
+ * spin; the item count 0, the inventory dirty; its contacts called back. */
 static void launch(struct sponge *s, const matrix *transform, const float linear[3]) {
     static const float zero[3] = {0, 0, 0};
     u8 *world = AT(s, I_WORLD, u8 *);
@@ -398,6 +451,7 @@ static void launch(struct sponge *s, const matrix *transform, const float linear
     ((THISCALL void (*)(void *, const matrix *))vt(s->body, BV_SET_TRANSFORM))(s->body, transform);
     place(s, transform);
     ((THISCALL void (*)(void *, void *, u32, u32))vt(s->physics, PW_ADD))(s->physics, s->body, 0x818, 8);
+    contact_on(s);
     engine_body_set_linear_velocity(linear, s->body);
     engine_body_set_angular_velocity(zero, s->body);
     if (AT(s, I_COUNT, u16)) {
@@ -408,6 +462,7 @@ static void launch(struct sponge *s, const matrix *transform, const float linear
 }
 
 static void leave_physics(struct sponge *s) {
+    contact_off(s);
     if (s->physics) ((THISCALL void (*)(void *, void *, u32))vt(s->physics, PW_REMOVE))(s->physics, s->body, 1);
     s->physics = 0;
 }
@@ -528,37 +583,35 @@ THISCALL void sp_disable_passive(struct sponge *s) {
 
 /* ---- the slots --------------------------------------------------------- */
 
-/* Armed at `time`: state 6, the explosion activation_timeout later rounded
- * up to the world's tick grid (as 0.26g's pull_pin 0x30A120), the thrower
- * the holder now. Once: only when not armed. */
+/* Armed at the pin's pull, `time` (retail's start_timer_on_throw false):
+ * state 6, the explosion ttl_ms later rounded up to the world's tick grid
+ * (as 0.26g's grenade pull_pin 0x30A120), the first contact armed (as
+ * grenade_core::pull_pin 0x303B90 sets +156h), the thrower the holder now.
+ * Once: only when not armed. */
 static void arm(struct sponge *s, u32 time) {
     if (s->explode_time != NEVER) return;
     AT(s, A_STATE, u32) = ST_ARMED;
-    u32 origin = AT(AT(s, I_WORLD, u8 *), W_TIME_BASE, u32), due = s->activation_timeout_ms + time;
+    u32 origin = AT(AT(s, I_WORLD, u8 *), W_TIME_BASE, u32), due = s->ttl_ms + time;
     due = due > origin ? due - origin - 1 : 0;
     s->explode_time = (due / TICK + 1) * TICK + origin;
+    s->contact = s->explode_on_contact ? CONTACT_ARMED : 0;
     u8 *player = holder(s);
     s->owner = player ? player[P_GAME_OBJECT + GO_ID] : 0xFF;
-    s->released = 0;
 }
 
 /* 0.28's action 0x514580: a press (not armed) puts it in the grenade slot
- * (the throw state starts); a release takes it out and, with the pin pulled,
- * arms it. A release before the pull (a tap: both in one tick, or the
- * release first) is kept, and the pull arms it (0.28 would throw it unarmed:
- * it never explodes and is never thrown again). */
+ * (the throw state starts: its pull arms it); a release takes it out (the
+ * throw state throws it). The fuse is the pull's, so a tap (the release
+ * before the pull) needs nothing of its own. */
 THISCALL void sp_action(struct sponge *s, u32 pressed, u32 time) {
+    (void)time;
     u8 *inventory = AT(s, I_INVENTORY, u8 *);
     if (!inventory) return;
     if ((u8)pressed && s->explode_time == NEVER) {
         AT(inventory, INV_GRENADE_SLOT, u32) = AT(s, I_SLOT, u32);
-        s->released = 0;
         return;
     }
     AT(inventory, INV_GRENADE_SLOT, u32) = NO_SLOT;
-    if (s->explode_time != NEVER) return;
-    if (s->pin) arm(s, time);
-    else s->released = 1;
 }
 
 /* The passive as the state says: in while it is in an inventory and held
@@ -628,6 +681,15 @@ THISCALL void sp_tick(struct sponge *s, u32 dt, u32 time) {
         place(s, &s->transform);
         physics_update(s->physics, s->body);
     }
+    /* The first contact since the pull (grenade_core's rule, 0x3041B0):
+     * with less than safe_time of the fuse left it explodes now, this tick;
+     * earlier, it is spent and the fuse decides. */
+    if (s->contact & CONTACT_HIT) {
+        s->contact = 0;
+        if (AT(s, A_STATE, u32) == ST_ARMED && s->explode_time != NEVER
+            && (i32)(s->explode_time - time) < (i32)s->safe_time_ms)
+            s->explode_time = time;
+    }
     if (s->explode_time == NEVER) return;
     if (AT(s, A_STATE, u32) == ST_ARMED && time == s->explode_time) {
         matrix transform;
@@ -669,11 +731,10 @@ THISCALL void sp_tick(struct sponge *s, u32 dt, u32 time) {
 /* 0.28's grenade_set_base[6] 0x515150: ready to be thrown (not in the air). */
 u32 sp_can_throw(struct sponge *s) { return !s->physics; }
 
-/* [1] 0x514610: the pin; the "grenade index" 0. A release already seen
- * (a tap) arms it now. */
+/* [1] 0x514610: the pin; the "grenade index" 0. The fuse starts here. */
 u32 sp_pull_pin(struct sponge *s, u32 time) {
     s->pin = 1;
-    if (s->released) arm(s, time);
+    arm(s, time);
     return 0;
 }
 
@@ -707,8 +768,8 @@ THISCALL void sp_serialize(struct sponge *s, u8 *writer, void *dumper) {
         engine_body_angular_velocity(s->body, v);
         field(writer, engine_write_float3, v, 0x47, "angular_velocity");
     }
-    /* ours: the tap waiting for the pull, the thrower's place (from the arming on) */
-    field(writer, engine_write_u8, &s->released, 0x48, "m_released_before_pin");
+    /* ours: the first contact's state (armed, seen), the thrower's place (from the arming on) */
+    field(writer, engine_write_u8, &s->contact, 0x48, "m_contact");
     field(writer, engine_write_u8, &s->owner, 0x49, "m_zone_owner");
     if (AT(s, A_STATE, u32) == ST_ZONE && s->zone) {
         u8 *serial = s->zone + Z_SERIAL;
@@ -758,7 +819,7 @@ THISCALL void sp_deserialize(struct sponge *s, u8 *reader, void *a, void *b) {
     } else {
         leave_physics(s);
     }
-    s->released = read8(reader) != 0;
+    s->contact = read8(reader) & (CONTACT_ARMED | CONTACT_HIT);
     s->owner = read8(reader);
     s->inflictor.instigator = 0;
     if (AT(s, A_STATE, u32) == ST_ZONE && s->zone) {
@@ -840,6 +901,7 @@ static void free_memory(void *memory) {
 THISCALL void *sp_dtor(struct sponge *s, u32 flags) {
     s->linked = 0;
     s->physics = 0;
+    s->contact_registered = 0;
     if (s->zone && G->zone == s->zone) G->zone = 0;
     if (s->made_geometry) {
         u8 *made = s->made_geometry;
@@ -942,7 +1004,10 @@ static void read_config(struct sponge *s, const cfg *root) {
     s->passive.threshold_add = number(child(passive, "threshold_add"));
     s->passive.threshold_mul = number(child(passive, "threshold_mul"));
     s->duration_ms = whole_ms(child(active, "duration_s"));
-    s->activation_timeout_ms = whole_ms(child(data, "activation_timeout_s"));
+    /* grenade_core's keys where 0.26g's grenades have them (data/: its cook 0x2E9290) */
+    s->ttl_ms = (u32)(i32)number(child(data, "ttl_ms"));
+    s->safe_time_ms = (u32)(i32)number(child(data, "safe_time"));
+    s->explode_on_contact = has(data, "explode_on_contact") && child(data, "explode_on_contact")->data != 0;
     s->throw_power = number(child(active, "throw_power"));
     struct splash *h = &s->splash;
     h->radius = number(child(active, "splash_radius"));
@@ -976,6 +1041,9 @@ STDCALL struct sponge *sp_construct(struct sponge *s, u8 **resource, void *effec
     s->node.modifier = &s->passive;
     s->explode_time = NEVER;
     s->owner = 0xFF;
+    s->contact_fn.vtable = CONTACT_VTABLE | 1;
+    s->contact_fn.buffer[0] = (u32)sp_contact;
+    s->contact_fn.buffer[2] = (u32)s;
     for (int i = 0; i < 16; ++i) s->transform.m[i] = i % 5 == 0 ? 1.0f : 0.0f;
     return s;
 }
@@ -994,14 +1062,9 @@ struct creation {
 _Static_assert(sizeof(struct creation) == 0x30, "variant<32>");
 
 /* The query's callback: a boost::function of a member function bound to its
- * object, in place and trivially copied (vtable BIND_VTABLE | 1), as the
- * late join binds network_client's (0x27D280): the game's invoker 0x202300
- * calls the function with ecx = the object + adj and the queries_result. */
-struct function {
-    u32 vtable;
-    u32 pad;
-    u32 buffer[4];                 /* the function, adj 0, the sponge */
-};
+ * object (struct function, vtable BIND_VTABLE | 1), as the late join binds
+ * network_client's (0x27D280): the game's invoker 0x202300 calls the
+ * function with ecx = the object + adj and the queries_result. */
 
 THISCALL void sp_loaded(struct sponge *s, u8 *results);
 

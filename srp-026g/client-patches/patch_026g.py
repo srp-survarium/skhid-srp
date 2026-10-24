@@ -2211,6 +2211,15 @@ CALLBACKS = (
      "is 0x27AA20 (thiscall, the queries_result; `ret 4`); the marker is the `mov dword [ebp-78h]` storing "
      "the function in the buffer (sp_loaded's VA follows `C7 45 88`)",
      (SPONGE_CHECK, "driven: sp_loaded(results) through the game's boost invoker 0x202300")),
+    ("the Sponge's contacts: sp_contact", "sponge.code", bytes.fromhex("c786a0060000"), 0x3041B0,
+     "launch subscribes the sponge's contact_fn (+698h) on its body with the physics world's vt+70h "
+     "(0x78310), a boost::function of vtable 0xA13FAC|1, grenade_core's own for its contacts (0x304220, "
+     "made in its throw_grenade 0x303C10): the invoker 0x202300 calls [buffer] with ecx = the sponge and "
+     "the contact point pushed, as grenade_core's thunk 0x2DD730 reaches its on_contact 0x3041B0 "
+     "(thiscall, the contact point; `ret 4`); the marker is sp_construct's `mov dword [esi+6A0h]` storing "
+     "the function in the buffer (sp_contact's VA follows `C7 86 A0 06 00 00`)",
+     (SPONGE_CHECK, "a contact reported through the game's invoker (0x202300: ecx the sponge, its argument "
+                    "popped by sp_contact)")),
 )
 
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""make_pack.py: the content pack of the Sponge (0.28d0's artefact_sponge, items_dict 758).
+"""make_pack.py: the content pack of the Sponge (0.28d0's artefact_sponge, items_dict 758, as
+retail's: thrown, exploding on contact, 0.69d0's numbers and particles).
 
-usage: python3 -I make_pack.py --stock <folder> --donor <folder> [--base-files <files.tsv>]
-                               --out <packs folder>/sponge-<version>
+usage: python3 -I make_pack.py --stock <folder> --donor <folder> --retail <folder>
+                               [--base-files <files.tsv>] --out <packs folder>/sponge-<version>
 
 --stock       0.26g's files the pack is made from, at their game paths, as the manifest's packs
               are composed over them (the stock resources.db and the base rows' patches:
@@ -10,6 +11,9 @@ usage: python3 -I make_pack.py --stock <folder> --donor <folder> [--base-files <
               every `stock/` path of inputs.sha256.
 --donor       0.28d0's files, at their game paths (`vostok-port extract --db <0.28d0 resources.db>
               --path <path> --output <folder>/<path>`): every `donor/` path of inputs.sha256.
+--retail      0.69d0's files (the last build; its archive's volumes as one split, `vostok-port
+              extract --db <0.69d0 .split>`), at their game paths: every `retail/` path of
+              inputs.sha256.
 --base-files  optional: `srp-game-data files` of the same archives; with it, every material and
               texture the pack's particles and materials name must be in 0.26g or in the pack.
 --out         the pack's folder (a new one): pack.json and files/, for `vostok-port pack` and the
@@ -18,13 +22,17 @@ usage: python3 -I make_pack.py --stock <folder> --donor <folder> [--base-files <
 Every input is checked against inputs.sha256. What the pack holds:
 - items_dict row 758 (artefact_sponge, category 12, a stack, base cost 0, as Lifebone's 54);
 - gameplay/items/artefacts/artefact_sponge.options: 0.28d0's file, which exe patch 59 (0.28d0's
-  artefact_sponge_core written again for 0.26g) reads as it is, with two numbers of the owner's
+  artefact_sponge_core written again for 0.26g, thrown and exploding as retail's) reads, with
+  retail's fuse, contact and numbers (RETAIL: 0.69d0's game.options, ammo_grenades_etc/
+  artefact_sponge, in the keys and places 0.26g and the patch read), two numbers of the owner's
   static toxin rule (PASSIVE: the passive keeps the toxin pool `infection` full while the Sponge
   is owned) and the description key srp's own text (0.28d0 names Spring's);
 - the model item/artefacts/artefact_sponge (0.28d0's files as they are: the model format is
   0.26g's; its material item/artefacts_sponge is 0.26g's own);
-- the particles of the Sponge (PARTICLES): 0.28d0's without MarginMultiplier (0.26g's particle
-  loader has no such property);
+- the particles of the Sponge: the spawn's and the cloud's 0.69d0's (RETAIL_PARTICLES: retail's,
+  0.46c2 on; read from the later builds' 16-byte values, read_compact, and written in 0.26g's
+  24-byte layout), the others 0.28d0's (PARTICLES), all without MarginMultiplier (0.26g's
+  particle loader has no such property);
 - the materials of those particles 0.26g has not (MATERIALS): 0.28d0's without the parameters
   0.26g's effect has not (LATER_PARAMETERS), scroll directions as floats (0.26g's type), and
   checked to select a shader 0.26g ships: their shader switches are those of the 0.26g material
@@ -42,6 +50,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import struct
 import sys
 
 HERE = Path(__file__).resolve().parent
@@ -49,7 +58,7 @@ sys.path.insert(0, str(HERE.parent / 'research-mode'))
 import bcw  # noqa: E402
 
 PACK_ID = 'sponge'
-VERSION = '2'
+VERSION = '3'
 DICT_ID = 758
 CONFIG = 'gameplay/items/artefacts/artefact_sponge.options'
 # The owner's static toxin rule (2026-10-22): while a Sponge is owned its passive keeps infection
@@ -59,6 +68,29 @@ CONFIG = 'gameplay/items/artefacts/artefact_sponge.options'
 # 1000 refills the pool at the next regeneration tick, timeout_mul 0 takes the delay after a hit
 # away; the threshold stays 0.28d0's (+1.5: past full).
 PASSIVE = {'regen_add': (0, 1000), 'timeout_mul': (1, 0)}
+# Retail's Sponge (0.69d0's game.options, ammo_grenades_etc/artefact_sponge; the owner chose its
+# numbers, 2026-10-24) over 0.28d0's file: {path: (0.28d0's value, ours)}, None for a key one of
+# them has not. In 0.26g's keys and places: the fuse, safe time and contact rule are
+# grenade_core's (data/ttl_ms, data/safe_time, data/explode_on_contact: 0.26g's grenade cook
+# 0x2E9290, the RGD-5's keys), read by exe patch 59 (as retail its own grenade_core, 0.31a2 on);
+# the splash and the zone stay where 0.28d0 has them (data/active), the toxin's hit types
+# 0.28d0's (retail's 0.69d0 names them "fire" and "health"). The fuse starts at the pin's pull
+# (0.69d0's start_timer_on_throw false); 0.26g has no exploded_ttl_ms.
+RETAIL = {
+    ('data', 'activation_timeout_s'): (3, None),           # 0.28's fuse from the release
+    ('data', 'ttl_ms'): (None, 3000),                       # ttl_ms 3000
+    ('data', 'safe_time'): (None, 1500),                    # safe_time 1500
+    ('data', 'explode_on_contact'): (None, True),           # explode_on_contact true
+    ('data', 'active', 'duration_s'): (10, 15),             # duration_s 15
+    ('data', 'active', 'splash_min_damage'): (0.05, 0.3),   # explosive.min_damage 0.3
+    ('data', 'active', 'splash_max_damage'): (1.5, 0.3),    # explosive.max_damage 0.3
+    ('data', 'active', 'splash_pierce'): (0, 0.1),          # explosive.player_pierce 0.1
+    ('data', 'active', 'damage_zone', 'max_hit'): (1.5, 0.2),
+    ('data', 'active', 'damage_zone', 'idle_particle'): ('fx/test/idle_particle', 'fx/artifacts/mochalka_explosion'),
+    ('data', 'active', 'damage_zone', 'activated_particle'): ('fx/artifacts/mochalka_explosion', None),
+}
+# the cloud's cylinder: 5.5 m across (0.28d0 3.5)
+ZONE_MESH = ((3.5, 1.5, 3.5), (5.5, 1.5, 5.5))
 # 0.28d0's ui_desc names Spring's description (st_artefact_spring_description); the Sponge's own
 # is texts.tsv's.
 DESCRIPTION = ('st_artefact_spring_description', 'st_artefact_sponge_description')
@@ -71,10 +103,12 @@ DONOR_TEXTS = ('st_artefact_sponge_name', 'st_sponge_pickup_hint')
 # scripts/maps-tab/build.py artefact_names); a Ukrainian typo.
 CORRECTIONS = {('english', 'st_sponge_pickup_hint'): ('Artifact Sponge.', 'Sponge artifact.'),
                ('ukrainian', 'st_sponge_pickup_hint'): ('ядовидих', 'отруйних')}
-PARTICLES = ('fx/artifacts/pre_mochalka1', 'fx/artifacts/pre_mochalka2', 'fx/artifacts/pre_mochalka2_indoor',
-             'fx/artifacts/mochalka_idle', 'fx/artifacts/mochalka_explosion',
-             # the damage zone's idle_particle (data/active/damage_zone)
-             'fx/test/idle_particle')
+PARTICLES = ('fx/artifacts/pre_mochalka2', 'fx/artifacts/pre_mochalka2_indoor', 'fx/artifacts/mochalka_idle')
+# retail's (0.69d0's): the spawn's (object/particle_on_spawn; 0.46c2's change: its 1000-particle
+# emitter on, a second glow) and the cloud's, the zone's idle particle for its whole time (0.31a2's
+# change: 0.28d0's played it once at the zone's start and looped the test billboard
+# fx/test/idle_particle; its emitters last 20 s, 0.28d0's 10)
+RETAIL_PARTICLES = ('fx/artifacts/pre_mochalka1', 'fx/artifacts/mochalka_explosion')
 # The materials the particles name that 0.26g has not, each with the 0.26g material whose shader
 # switches (use_*, two_sided: the shader permutation) it must have.
 MATERIALS = {
@@ -182,10 +216,30 @@ def check_types(made, model, where, skip=()):
     walk(made, model, ())
 
 
+def at_path(config, path):
+    for key in path[:-1]:
+        config = config[key]
+    return config
+
+
 def sponge_config(donor, lifebone):
-    """0.28d0's artefact_sponge.options as exe patch 59 reads it: the file as it is but PASSIVE and
-    DESCRIPTION."""
+    """0.28d0's artefact_sponge.options as exe patch 59 reads it: the file but RETAIL, ZONE_MESH,
+    PASSIVE and DESCRIPTION."""
     config = copy.deepcopy(donor)
+    for path, (was, now) in RETAIL.items():
+        table = at_path(config, path)
+        have = table.get(path[-1])
+        if (have is None) != (was is None) or (was is not None and abs(have - was) > 1e-6 if isinstance(was, float)
+                                               else have != was):
+            sys.exit(f'donor {CONFIG}: {"/".join(path)} is {have!r}, not {was!r}')
+        if now is None:
+            del table[path[-1]]
+        else:
+            table[path[-1]] = now
+    mesh = config['data']['active']['damage_zone']['collision_geometries'][0]['meshes'][0]
+    if tuple(mesh['scale']) != ZONE_MESH[0]:
+        sys.exit(f'donor {CONFIG}: the zone\'s mesh scale is {mesh["scale"]!r}')
+    mesh['scale'] = ZONE_MESH[1]
     passive = config['data']['passive']
     for key, (was, now) in PASSIVE.items():
         if passive.get(key) != was or type(passive[key]) is not int:
@@ -197,12 +251,11 @@ def sponge_config(donor, lifebone):
     names['description'] = DESCRIPTION[1]
     # What 0.28d0 says the Sponge is, so a later donor cannot slip in unnoticed.
     for key, want in (('type', 12), ('amount', 1), ('spawn_sec', 2), ('effect', 'artefact_spring'),
-                      ('activation_timeout_s', 3), ('cooldown_sec', 0)):
+                      ('cooldown_sec', 0)):
         if donor['data'][key] != want:
             sys.exit(f'donor {CONFIG}: data/{key} is {donor["data"][key]!r}, not {want!r}')
     active = donor['data']['active']
-    for key, want in (('duration_s', 10), ('throw_power', 15), ('splash_pierce', 0), ('splash_radius', 10),
-                      ('splash_damage_type', 'toxic')):
+    for key, want in (('throw_power', 15), ('splash_radius', 10), ('splash_damage_type', 'toxic')):
         if active[key] != want:
             sys.exit(f'donor {CONFIG}: data/active/{key} is {active[key]!r}, not {want!r}')
     if donor['ui_desc']['icon'] != [22, 1] or donor['ui_desc']['combat_log_icon'] != 17:
@@ -213,8 +266,48 @@ def sponge_config(donor, lifebone):
     return config
 
 
+COMPACT = 16
+COMPACT_DATA = (1 << 44) - 1
+
+
+def read_compact(data):
+    """A binary config of the later builds (0.46c2 on, 0.69d0's: 16-byte values, resource-porter's
+    binary_config.rs parse_compact) as bcw's nodes, which bcw.write lays out as 0.26g reads them:
+    a value's u64 bits 0..44 its data (a scalar, or a table's, string's or vector's offset), 44..48
+    its type (bcw's codes), 48..64 its count; a named child's second u64 its key's offset (bits
+    0..48). The root is a table whose children start at byte 16."""
+    def value(at):
+        a = struct.unpack_from('<Q', data, at)[0]
+        payload, kind, count = a & COMPACT_DATA, (a >> 44) & 0xF, a >> 48
+        if kind == bcw.BOOL:
+            return (kind, 1 if payload else 0, 4)
+        if kind in (bcw.INT, bcw.FLOAT):
+            return (kind, payload & 0xFFFFFFFF, 4)
+        if kind == bcw.STRING:
+            raw = bytes(data[payload:payload + count])
+            if not raw.endswith(b'\0'):
+                raise ValueError(f'a string at {at:#x} not NUL-terminated')
+            return (kind, raw[:-1], count)
+        if kind in (6, 7, 8):
+            return (kind, bytes(data[payload:payload + 4 * (kind - 4)]), 4 * (kind - 4))
+        if kind == bcw.NAMED:
+            children = []
+            for i in range(count):
+                child = payload + COMPACT * i
+                key_at = struct.unpack_from('<Q', data, child + 8)[0] & ((1 << 48) - 1)
+                children.append((bytes(data[key_at:data.index(b'\0', key_at)]), value(child)))
+            return (kind, children, count)
+        if kind == bcw.INDEXED:
+            return (kind, [value(payload + COMPACT * i) for i in range(count)], count)
+        raise ValueError(f'value type {kind} at {at:#x}')
+    head = struct.unpack_from('<Q', data, 0)[0]
+    if head & COMPACT_DATA != COMPACT or (head >> 44) & 0xF not in (bcw.NAMED, bcw.INDEXED):
+        raise ValueError('not a compact (16-byte) binary config')
+    return value(0)
+
+
 def strip_margin(node, counted):
-    """A 0.28d0 particle without MarginMultiplier (0.26g has no such property: #225's
+    """A 0.28d0 or 0.69d0 particle without MarginMultiplier (0.26g has no such property: #225's
     convert_particle; nothing else of the particles is unknown to 0.26g's loader)."""
     kind = node[0]
     if kind == bcw.NAMED:
@@ -309,6 +402,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--stock', required=True, type=Path)
     parser.add_argument('--donor', required=True, type=Path)
+    parser.add_argument('--retail', required=True, type=Path)
     parser.add_argument('--base-files', type=Path)
     parser.add_argument('--out', required=True, type=Path)
     args = parser.parse_args()
@@ -321,6 +415,7 @@ def main():
             sums[path.strip()] = sha
     stock = Folder(args.stock, sums, 'stock')
     donor = Folder(args.donor, sums, 'donor')
+    retail = Folder(args.retail, sums, 'retail')
     files, log = {}, []
 
     files[CONFIG] = bcw.dump(sponge_config(bcw.loads(donor.read(CONFIG)),
@@ -328,7 +423,10 @@ def main():
     spring = bcw.loads(stock.read('gameplay/items/artefacts/artefact_spring.options'))
     if spring['data']['effect'] != 'artefact_spring':
         sys.exit('0.26g has no effect artefact_spring (artefact_spring.options data/effect)')
-    log.append(f'{CONFIG}: 0.28d0\'s but ' + ', '.join(f'data/passive/{k} {a} -> {b}' for k, (a, b) in PASSIVE.items())
+    log.append(f'{CONFIG}: 0.28d0\'s but retail\'s (0.69d0) '
+               + ', '.join(f'{"/".join(path)} {a} -> {b}' for path, (a, b) in RETAIL.items())
+               + f', the zone\'s mesh {ZONE_MESH[0]} -> {ZONE_MESH[1]}; '
+               + ', '.join(f'data/passive/{k} {a} -> {b}' for k, (a, b) in PASSIVE.items())
                + f', the description {DESCRIPTION[1]}')
 
     for path in sorted(p[len('donor/'):] for p in sums if p.startswith('donor/' + MODEL)):
@@ -336,12 +434,15 @@ def main():
     log.append(f'model item/artefacts/artefact_sponge: 0.28d0\'s {len([p for p in files if p.startswith(MODEL)])} files')
 
     named = {}
-    for particle in PARTICLES:
+    for particle, source, build in [(p, donor, '0.28d0') for p in PARTICLES] + \
+            [(p, retail, '0.69d0') for p in RETAIL_PARTICLES]:
         path = f'particles/{particle}.particle'
         counted = [0]
-        data = bcw.write(strip_margin(bcw.read(donor.read(path)), counted))
+        tree = read_compact(source.read(path)) if source is retail else bcw.read(source.read(path))
+        data = bcw.write(strip_margin(tree, counted))
         files[path] = data
-        log.append(f'particle {particle}: {counted[0]} MarginMultiplier taken out')
+        log.append(f'particle {particle}: {build}\'s' + (' (16-byte values, laid out in 0.26g\'s 24)' if source is retail
+                                                          else '') + f', {counted[0]} MarginMultiplier taken out')
         for key, value in strings(bcw.loads(data)):
             if key == 'Material':
                 named.setdefault(value, set()).add(particle)
@@ -407,11 +508,12 @@ def main():
         'id': PACK_ID,
         'version': VERSION,
         'target_build': '0.26g',
-        'description': 'the Sponge (items_dict 758, 0.28d0\'s artefact_sponge): its config (0.28d0\'s, the passive '
-                       'keeping infection full), model, particles, materials, textures and texts',
+        'description': 'the Sponge (items_dict 758, 0.28d0\'s artefact_sponge as retail\'s): its config (0.28d0\'s '
+                       'with 0.69d0\'s fuse, contact and numbers, the passive keeping infection full), model, '
+                       'particles (the spawn\'s and the cloud\'s 0.69d0\'s), materials, textures and texts',
         'operations': operations,
         'notes': ['made by srp-026g/scripts/sponge/make_pack.py from inputs.sha256 and texts.tsv',
-                  'donor: Survarium 0.28d0'] + log,
+                  'donor: Survarium 0.28d0; retail: Survarium 0.69d0'] + log,
     }
     for path, data in files.items():
         target = args.out / 'files' / path

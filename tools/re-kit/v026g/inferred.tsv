@@ -3126,3 +3126,15 @@ va	status	ref_021d	name
 0x00313880	inferred-high		survarium::artefact_base::fill_ui_info
 0x00311a60	inferred-medium		survarium::artefact_spring_core::fill_ui_info
 0x00312450	inferred-medium	0x001f4506	survarium::artefact_lifebone_core::disable_active_effects
+0x002dd730	inferred-high		survarium::grenade_core::`vcall'{32}
+0x003041b0	inferred-high		survarium::grenade_core::on_contact
+0x00304220	inferred-medium		boost::function<void (vostok::physics::contact_point const &)>::function<grenade_core's bound on_contact>
+0x003042d0	inferred-medium		boost::detail::function::functor_manager<grenade_core's bound on_contact>::manage
+0x00202300	inferred-medium		boost::detail::function::void_function_obj_invoker1<a bound member function>::invoke
+0x00298cc0	inferred-medium		survarium::damage_zone::play_looped_sound
+0x00298d80	inferred-high		survarium::damage_zone::play_activated
+0x00298eb0	inferred-medium		survarium::damage_zone::play_deactivated
+0x00298fe0	inferred-high		survarium::damage_zone::start_idle
+0x002990d0	inferred-high		survarium::damage_zone::stop_idle
+0x002991a0	inferred-medium		survarium::damage_zone::start_hitting
+0x00299320	inferred-medium		survarium::damage_zone::stop_hitting
