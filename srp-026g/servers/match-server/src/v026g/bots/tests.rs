@@ -276,6 +276,9 @@ struct Game {
     putting: Vec<Option<(usize, usize, u32)>>,
     /// Each use a carrier pressed within [`ARRIVED_M`] of his container.
     put_presses: Vec<PutPress>,
+    /// Every put-in of the run: who, and the tick it went in (`put_in`
+    /// holds only the last step's).
+    put_in_log: Vec<(Place, u32)>,
     /// A camping carrier (audit #6, `SRP_BENCH_CAMP=<m>`): the first of
     /// team 0's carriers to come within this of his container stops there,
     /// moves no more and puts nothing in until he dies or no longer
@@ -419,6 +422,7 @@ impl Game {
                 .unwrap_or(PUT_MS),
             putting: vec![None; teams.len()],
             put_presses: Vec::new(),
+            put_in_log: Vec::new(),
             camp_m: None,
             camper: None,
             camp_done: false,
@@ -954,6 +958,7 @@ impl Game {
         self.points[usize::from(team)] += 1;
         self.delivered[usize::from(team)] += 1;
         self.put_in.push(place);
+        self.put_in_log.push((place, self.tick));
     }
 
     /// A stolen battery fell (its first fall since the theft counts).
@@ -1197,12 +1202,13 @@ impl CarryTally {
     /// from there.
     fn world(&mut self, game: &Game, bots: &Bots) {
         self.arrived.resize(game.bodies.len(), None);
-        for &place in &game.put_in[self.put_ins_seen.min(game.put_in.len())..] {
+        let log = &game.put_in_log;
+        for &(place, tick) in &log[self.put_ins_seen.min(log.len())..] {
             if let Some(at) = self.arrived[place].take() {
-                self.put_in_waits.push(game.tick.saturating_sub(at));
+                self.put_in_waits.push(tick.saturating_sub(at));
             }
         }
-        self.put_ins_seen = game.put_in.len();
+        self.put_ins_seen = log.len();
         self.pressed.resize(game.bodies.len(), false);
         // The uses old enough that the next one from the same stand is in.
         let presses = &game.put_presses;
