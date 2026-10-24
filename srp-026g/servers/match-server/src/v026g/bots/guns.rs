@@ -113,6 +113,86 @@ pub struct Gun {
     pub aim_ms: u32,
     /// How wide its shots spread (`survarium::v026g::weapons::Dispersion`).
     pub dispersion: Dispersion,
+    /// Full damage up to the first, metres (`max_damage_distance`); down to
+    /// its floor (`min_damage_amount`) at the second
+    /// (`min_damage_distance`) and that floor beyond.
+    pub damage_m: (f32, f32),
+}
+
+/// [PR C] Of a cone `cone_deg` wide (the game's draw, `θ = frac(N(0,
+/// 0.5)) × D / 2`, `player_bots_weapons.md` §9), the share of shots within
+/// `theta_deg` of the aim.
+fn cone_share(cone_deg: f32, theta_deg: f32) -> f32 {
+    if cone_deg <= 0.0 {
+        return 1.0;
+    }
+    // |frac(n)| < u for n ~ N(0, 0.5): the folded normal's mass in
+    // [k, k + u) for each whole k.
+    let u = (2.0 * theta_deg / cone_deg).min(1.0);
+    let below = |x: f32| erf(x / (0.5 * std::f32::consts::SQRT_2));
+    (0..4)
+        .map(|k| below(k as f32 + u) - below(k as f32))
+        .sum::<f32>()
+        .min(1.0)
+}
+
+/// The error function (Abramowitz and Stegun 7.1.26, within 1.5e-7).
+fn erf(x: f32) -> f32 {
+    let t = 1.0 / (1.0 + 0.327_591_1 * x.abs());
+    let poly = t
+        * (0.254_829_6
+            + t * (-0.284_496_7 + t * (1.421_413_8 + t * (-1.453_152 + t * 1.061_405_4))));
+    (1.0 - poly * (-x * x).exp()).copysign(x)
+}
+
+impl Gun {
+    /// [PR C] The farthest the bots fire it, metres, from its config: the
+    /// nearer of where its damage is down to its floor
+    /// (`min_damage_distance`) and where its aimed-in cone keeps less than
+    /// `hit_share` of its shots within `half_m` of the aim.
+    ///
+    /// The damage's floor is not where it stops: beyond it every hit still
+    /// does `min_damage_amount` of the full. Ending there is a choice (too
+    /// little a hit to be worth the round), not the weapon's limit. The
+    /// cone's part never binds for the 0.26g weapons aimed in (0.05-1°:
+    /// over 200 m at a fifth of the shots); it is there for a weapon whose
+    /// base is wide.
+    pub fn fire_range_m(&self, hit_share: f32, half_m: f32) -> f32 {
+        let cone = self.dispersion.cone_deg(0.0, 0.0, true);
+        let (mut near, mut far) = (1.0f32, 2_000.0f32);
+        let share = |d: f32| cone_share(cone, half_m.atan2(d).to_degrees());
+        if share(far) >= hit_share {
+            near = far;
+        }
+        for _ in 0..40 {
+            let mid = 0.5 * (near + far);
+            if share(mid) >= hit_share {
+                near = mid;
+            } else {
+                far = mid;
+            }
+        }
+        let falloff = if self.damage_m.1 > 0.0 {
+            self.damage_m.1
+        } else {
+            f32::MAX
+        };
+        near.min(falloff)
+    }
+
+    /// [PR C] The measure's class: by its category, and the sniper
+    /// category split by its bolt.
+    pub fn class(&self) -> &'static str {
+        match (self.category, self.handling) {
+            (15, _) => "smg",
+            (16, _) => "mg",
+            (17, _) => "pistol",
+            (14, _) => "shotgun",
+            (13, Handling::Bolt) => "bolt",
+            (13, _) => "marksman",
+            _ => "rifle",
+        }
+    }
 }
 
 /// The rows of the bursts' table an automatic weapon takes
@@ -264,6 +344,7 @@ impl Gun {
             category: w.category,
             aim_ms: ms(w.aim_time),
             dispersion: w.dispersion,
+            damage_m: (w.max_damage_distance, w.min_damage_distance),
         }
     }
 }
@@ -606,5 +687,33 @@ mod tests {
         assert_eq!(camper.held().gun.item, "tt_33");
         assert_eq!((camper.held().rounds, camper.held().spare), (8, 42));
         assert_eq!(camper.switch_ms(), None);
+    }
+
+    /// [PR C] The cone's shares are the game's draw (§9: |θ| has median
+    /// 0.31·D/2 and never passes D/2), and every weapon's fire range is
+    /// within its damage's floor. With `--nocapture`, the table of the
+    /// notes.
+    #[test]
+    fn the_fire_range_is_the_damage_floor_or_the_cone() {
+        assert!(cone_share(1.0, 0.0) < 1e-6);
+        assert!((cone_share(1.0, 0.5) - 1.0).abs() < 1e-4);
+        assert!((cone_share(1.0, 0.31 * 0.5) - 0.5).abs() < 0.03);
+        for gun in guns() {
+            let range = gun.fire_range_m(0.2, 0.25);
+            assert!(range > 0.0, "{}", gun.item);
+            if gun.damage_m.1 > 0.0 {
+                assert!(range <= gun.damage_m.1, "{}", gun.item);
+            }
+            eprintln!(
+                "fire range {} {} cat {}: damage full to {} m, floor at {} m; aimed cone {:.2} deg; range {:.0} m",
+                gun.item,
+                gun.class(),
+                gun.category,
+                gun.damage_m.0,
+                gun.damage_m.1,
+                gun.dispersion.cone_deg(0.0, 0.0, true),
+                range
+            );
+        }
     }
 }
