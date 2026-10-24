@@ -19,12 +19,10 @@
 ; markers over heads. The movies go on running (not the game world's
 ; show_ui, 0x1F95F0, whose hidden movies stand still and play what came
 ; meanwhile at once when shown): what happens while hidden plays out unseen.
-; The kits before the start too; the start keeps the state. The key is not
-; taken (0x25CF0D, al 0), as in the original.
-;
-; The kits. show_profiles_selector (0x2383B0) shows the kits with
-; show_cursor(1) (its call at 0x23845B, edi the hud): before it, a hidden hud
-; and icons are shown again, so the death screen's kits are never hidden.
+; The kits before the start and the death screen too: the start, a death
+; and a respawn keep the state (the owner, 2026-10-24; keys 1 to 3 still pick
+; a kit, patch 58). The key is not taken (0x25CF0D, al 0), as in the
+; original.
 ;
 ; The lobby. lobby_menu::on_keyboard_action (0x26CB80) asks the key binder for
 ; the lobby's actions (kind 2) at 0x26CCD2 (eax the binder, edi 2, esi the
@@ -59,13 +57,12 @@
 ; action).
 BITS 32
 %include "engine_026g.inc"
-global hide_ui_match, hide_ui_kits, hide_ui_lobby
+global hide_ui_match, hide_ui_lobby
 global controls                    ; the options' controls, 41 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
 section .text
 
 %define REPLAY_TOGGLE 0x25CEDB     ; the case 19h after its replay test: the replay's controls
 %define KEY_OTHER 0x25CF0D         ; on_keyboard_action's end: the key not taken (al 0)
-%define SHOW_CURSOR 0x23A930       ; game_world_ui::show_cursor, edi the hud, `ret 4`
 %define LOBBY_TAKEN 0x26CCAE       ; lobby_menu::on_keyboard_action after a key the movie typed: al 1
 %define LOBBY_TO_MOVIE 0x26CDD2    ; its last part: the key to the movie (0x1FDD70), al 0
 %define HANDLER 0x10               ; the case's [esp+10h]: the game world's input handler
@@ -94,20 +91,6 @@ hide_ui_match:
     call hide_hud
     add esp, 4
     jmp KEY_OTHER
-
-; show_profiles_selector's call of show_cursor (0x23845B): [esp+4] shown, edi
-; the hud.
-hide_ui_kits:
-    cmp byte [esp+4], 0
-    je .cursor
-    call hud_hidden
-    cmp eax, 1
-    jne .cursor
-    push 0
-    call hide_hud
-    add esp, 4
-.cursor:
-    jmp SHOW_CURSOR
 
 ; The hud's movie (edi the hud, ecx the holder's place in it): eax the movie or 0.
 movie_of:

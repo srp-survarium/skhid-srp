@@ -19,13 +19,8 @@ answers root.interface_hidden with a bool:
   patch asks the hud movie root.interface_hidden and gives the hud movie and
   the icons' root.hide_interface(not that), whatever the cursor (the kits
   before the start too), and nothing without the hud movie; esp, ebp and the
-  stack as the original's;
-- the kits: show_profiles_selector's call of show_cursor (0x23845B) runs with
-  edi a made-up hud and show_cursor (0x23A930) a stub that records its byte
-  and hud and pops it. For a 1, a hud movie that answers hidden gets
-  root.hide_interface(false), the icons' too, before show_cursor; anything
-  else only reaches show_cursor; both back at 0x238460 with the byte popped
-  and ebx, esi, edi, ebp kept;
+  stack as the original's; the kits' show_cursor call (0x23845B) is the
+  original's (a death keeps the interface hidden: no case of its own);
 - the lobby: lobby_menu::on_keyboard_action's binder call (0x26CCD2) runs
   with a made-up key binder (the game's action table's descriptions, a few
   keys bound), edi 2, esi the key and ebx a made-up lobby menu (its movie
@@ -206,17 +201,6 @@ class Run:
         return (self.stopped, esp, regs[UC_X86_REG_ESI] if self.stopped == REPLAY_BACK else None,
                 regs[UC_X86_REG_EBP], self.read(sp, 0x40) == before, self.invokes())
 
-    # The kits: the site's push done, then its call.
-    def kits(self, byte, movie, icons, hidden):
-        emu = self.emu
-        emu.mem_write(HUD, bytes(0x400))
-        self.movies(HUD, movie, icons)
-        self.hidden = hidden
-        sp = STACK + 0x8000 - 4
-        self.word(sp, 0x37373700 | byte)
-        regs, esp = self.run(KITS_SITE, (KITS_BACK,), sp, {**GAME, UC_X86_REG_EDI: HUD})
-        return self.stopped, esp - sp, regs, [c for c in self.calls if c[0] == "cursor"], self.invokes()
-
     # The lobby: the site's push of the toggle's place done, then its call.
     def lobby(self, key, movie, hidden=0):
         emu = self.emu
@@ -385,23 +369,6 @@ def main():
                                f"{'hidden' if hidden else 'shown'}: "
                                + (f"root.hide_interface({1 - hidden}) to the hud" + (" and the icons" if icons else "")
                                   if want else "nothing") + f", at {b[0]:#x} as the original")
-
-    print("the kits (show_profiles_selector's show_cursor call, 0x23845B)")
-    for byte in (0, 1):
-        for movie in (0, 1):
-            for icons in (0, 1):
-                for hidden in (0, 1):
-                    a = stock.kits(byte, movie, icons, hidden)
-                    b = patched.kits(byte, movie, icons, hidden)
-                    want = ([asked] if byte and movie else []) + (hides(0, icons) if byte and movie and hidden else [])
-                    keep = {reg: GAME[reg] for reg in (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EBP)}
-                    ok = a[0] == b[0] == KITS_BACK and a[1] == b[1] == 4 and a[3] == b[3] == [("cursor", HUD, byte)] \
-                        and not a[4] and b[4] == want and b[2][UC_X86_REG_EDI] == HUD \
-                        and all(b[2][reg] == value for reg, value in keep.items())
-                    report(ok, f"shown {byte}, hud movie {movie} icons {icons}, the interface "
-                               f"{'hidden' if hidden else 'shown'}: "
-                               + ("shown again, then " if b[4][1:] else "") + "show_cursor, back at 0x238460 with "
-                               "the byte popped, ebx esi edi ebp kept")
 
     print("the lobby (lobby_menu::on_keyboard_action's binder call, 0x26CCD2)")
     asked = ("invoke", MOVIE, b"root.interface_hidden", True, 0, 0)

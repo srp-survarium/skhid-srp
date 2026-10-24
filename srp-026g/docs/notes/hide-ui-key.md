@@ -18,16 +18,19 @@ too, for screenshots.
 
 ## In a match
 
-- **Hidden:** the whole hud (health, ammo, kill feed, chat, timers, the fps line), the crosshair,
-  the minimap, the markers over heads and batteries. The 3D world, the weapon and the Esc menu
-  stay.
+- **Hidden:** the whole hud (health, ammo, kill feed, chat, timers, the hit direction marks, the
+  bleeding, toxic and radiation icons, the corner frames, the fps line), the crosshair, the
+  minimap, the markers over heads and batteries. The 3D world, the weapon and the Esc menu stay.
+- **Kept, the screen effects** (the owner, 2026-10-24: "part of the scene feel, not UI"): the
+  pain's red edges, the blood drips, the grenade's flash (the hud's effects, `add_effect`); the
+  game's own post-effects are not touched.
 - **F11 again** shows it.
 - **Unseen, not held back:** the hud keeps running while hidden; kill-feed lines and messages of
   that time come and go unseen, and showing it shows only what is current.
-- **Before the start:** F11 works during the countdown too, the kits with the rest; the start
-  keeps what the player chose (the owner, 2026-10-24).
-- **After a death:** the interface comes back by itself when the kits are shown, so the death
-  screen's kits are never hidden.
+- **Before the start and after a death:** the kits and the death screen hide with the rest; the
+  start, a death and a respawn keep what the player chose (the owner, 2026-10-24: "when you die,
+  the UI comes back" was not wanted). Keys 1, 2 and 3 still pick a kit while hidden; F11 shows
+  it. The mouse cursor of the kit screen is its own movie and shows.
 - **The next match** starts with the interface shown.
 - **Not taken:** the key also goes on to the game as before (nothing uses F11 there).
 
@@ -35,7 +38,8 @@ too, for screenshots.
 
 - **Hidden:** the whole interface: panels, the top and bottom bars, windows, popups, messages,
   chat, tooltips, right-click menus (an open one is closed), the item being dragged, the loading
-  screen; one coming up while hidden stays hidden. Only the character and the scene stay; drag and
+  screen, the exit and settings buttons of the top right corner; one coming up while hidden stays
+  hidden. Only the character and the scene stay; drag and
   wheel still turn and zoom the camera.
 - **Clicks** land on nothing hidden.
 - **Shown again by:** F11, any key the lobby movie gets (letters, digits, arrows, Enter,

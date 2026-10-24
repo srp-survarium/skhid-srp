@@ -765,10 +765,29 @@ package
          this.inventory_list.ignoreSelection = false;
       }
       
+      // The objects of Scaleform's topmost level now: drawn whatever their parents' visibility, so
+      // toggle_interface hides them by themselves (the exe makes the exit and settings buttons
+      // topmost, root.enable_element(root.statusPanel.btn_off / btn_settings)).
+      private var _topmost:Array = [];
+
       private function setTopmostLevel(target:*, value:Boolean) : void
       {
          trace("setTopmostLevel::",target.name,target,value);
          InteractiveObjectEx.setTopmostLevel(target,value);
+         var at:int = this._topmost.indexOf(target);
+         if(value && at < 0)
+         {
+            this._topmost.push(target);
+         }
+         else if(!value && at >= 0)
+         {
+            this._topmost.splice(at,1);
+         }
+      }
+
+      private function topmostObjects() : Array
+      {
+         return this._topmost;
       }
       
       public function close_slide() : void
@@ -5861,9 +5880,10 @@ package
       // the game's toggle_replay_ui key (exe patch 62), when no text box has the keys. The whole
       // interface goes (InterfaceHider: every layer on the stage, the lobby's root with its panels,
       // bars, windows and chat, and the stage's own: messages, popups, menus, tooltips, the dragged
-      // item, the loading screen), the character and the scene stay: no click lands on the
-      // interface and the camera turns and zooms (get_mouse_over). An open right-click menu is closed
-      // first. Shown again by the same key, any key the movie gets (onHiddenKey: that key does
+      // item, the loading screen; the topmost objects too, the exit and settings buttons the exe
+      // makes topmost, drawn whatever their parents), the character and the scene stay: no click
+      // lands on the interface and the camera turns and zooms (get_mouse_over). An open right-click
+      // menu is closed first. Shown again by the same key, any key the movie gets (onHiddenKey: that key does
       // nothing else), Esc, a match found, its loading or the results.
       public function toggle_interface() : void
       {
@@ -5877,7 +5897,7 @@ package
          }
          if(this._hider == null)
          {
-            _hider = new InterfaceHider(stage);
+            _hider = new InterfaceHider(stage,this.topmostObjects);
          }
          this._hider.hide();
       }

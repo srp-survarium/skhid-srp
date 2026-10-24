@@ -4155,10 +4155,9 @@ def test_hide_ui(original, image, before):
           "game_world::show_ui (0x1F95F0, slot 8 of its vtable 0x9FC4F4, `ret 4`) shows or hides the hud movie "
           "(+204h) and the player icons' (+20Ch), its state +0A0h; the hud is the game world's +1FCh (0x1F8966), "
           "the game world its +18h (0x23383C)")
-    check(rows(stock, 0x23845A, 6) == ["push ebx", "call 0x23a930"] and stock.read(0x2383BF, 2) == bytes.fromhex("8bf8")
-          and popped(stock, 0x23A930, 0x23A9CA) == 4 and stock.read(0x23A93A, 6) == bytes.fromhex("389fdc020000"),
-          "0x23845B is show_profiles_selector's (edi the hud) call of show_cursor (0x23A930, the byte pushed, "
-          "`ret 4`)")
+    check(image.read(0x23845A, 6) == stock.read(0x23845A, 6) == bytes.fromhex("53e8d0240000"),
+          "the kits' show_cursor call (0x23845B) is the original's: a death or a respawn keeps the interface "
+          "hidden (the owner, 2026-10-24)")
     check(rows(stock, 0x26CCC2, 0x15) == ["mov eax,[eax+0x5344]", "lea edx,[esp+0x10]", "push edx",
                                           "mov edi,0x2", "call 0x207d50"]
           and rows(stock, 0x26CCAE, 0x14) == ["lea ecx,[esp+0x28]", "call 0x2afa70", "mov al,0x1", "pop edi",
@@ -4194,11 +4193,11 @@ def test_hide_ui(original, image, before):
                       and not block.va <= branch_target(t) < block.va + len(code)})
     library = {linked.symbols[name] for name in ("engine_binded_action", "engine_movie_invoke")}
     pushed = lambda text: f"push dword {block.va + code.index(text + bytes(1)):#x}" in texts
-    check(outside == sorted(set(P.HIDE_UI_BACKS[:3]) | library)
-          and f"mov dword [esp],{P.HIDE_UI_BACKS[3]:#x}" in texts and f"mov dword [esp],{P.HIDE_UI_BACKS[4]:#x}" in texts
+    check(outside == sorted(set(P.HIDE_UI_BACKS[:2]) | library)
+          and f"mov dword [esp],{P.HIDE_UI_BACKS[2]:#x}" in texts and f"mov dword [esp],{P.HIDE_UI_BACKS[3]:#x}" in texts
           and all(pushed(t) for t in (b"root.toggle_interface", b"root.interface_hidden", b"root.hide_interface"))
           and "hide_ui.state" not in linked.blocks,
-          "it goes on in on_keyboard_action (0x25CEDB, 0x25CF0D), jumps to show_cursor (0x23A930), returns to "
+          "it goes on in on_keyboard_action (0x25CEDB, 0x25CF0D), returns to "
           "0x26CCAE or 0x26CDD2, calls the library's get_binded_action and Invoke and nothing else (not the game "
           "world's show_ui: its hidden movies stand still); it invokes root.toggle_interface, "
           "root.interface_hidden and root.hide_interface, and keeps no state of its own")
@@ -4274,11 +4273,28 @@ def test_hide_ui(original, image, before):
           and "_hiddenUi" not in lobby,
           "the lobby's toggle_interface closes a right-click menu only when one is open (none ever opened: "
           "SrvContextMenu.hide's removeChild(null) threw, owner's test of 64ce3ce7), then hides the whole stage")
+    names = lambda text: [m.start() for m in re.finditer(re.escape(text + b"\0"), original)]
+    check(names(b"root.enable_element") and names(b"root.statusPanel.btn_off") and names(b"root.statusPanel.btn_settings")
+          and "InteractiveObjectEx.setTopmostLevel(target,value);" in lobby
+          and "this._topmost.push(target);" in lobby and "this._topmost.splice(at,1);" in lobby
+          and "new InterfaceHider(stage,this.topmostObjects)" in toggle
+          and "for each(var extra:Object in this._extras())" in hider,
+          "the objects of Scaleform's topmost level are hidden too: the exe makes the exit and settings buttons "
+          "topmost (root.enable_element of root.statusPanel.btn_off and btn_settings), drawn whatever their "
+          "parents (they stayed in the owner's test of 335343b6); the lobby's one setTopmostLevel keeps the list "
+          "the hider hides with the stage")
     hud = here("flash", "hud", "src", "HUD.as")
     icons = here("flash", "player_icons", "src", "player_icons_fla", "MainTimeline.as")
-    check(all("public function hide_interface(hidden:Boolean) : void" in t and "new InterfaceHider(stage)" in t
-              for t in (hud, icons)) and "public function interface_hidden() : Boolean" in hud,
-          "the hud and the player icons' movies have root.hide_interface, the hud root.interface_hidden")
+    check(all("public function hide_interface(hidden:Boolean) : void" in t for t in (hud, icons))
+          and "new InterfaceHider(stage)" in icons and "public function interface_hidden() : Boolean" in hud
+          and "new InterfaceHider(stage,null,[this.effectContainer])" in hud
+          and "stage.addChildAt(this.effectContainer,0);" in hud and "this.placeEffects();" in hud
+          and "this._keep.indexOf(child) < 0" in hider
+          and all(f"this.effects[this.{name}] = " in hud for name in ("BLOOD_EFFECT", "BLOOD_DRIP1", "GRENADE_EFFECT")),
+          "the hud and the player icons' movies have root.hide_interface, the hud root.interface_hidden; the hud's "
+          "screen effects stay while hidden (the owner, 2026-10-24: the pain's red edges are the scene's): their "
+          "container (add_effect's blood, its drips, the grenade's flash) goes on the stage below the hidden hud, "
+          "kept by the hider, placed as it was")
     check("public function toggle_interface() : void" in lobby and "public function interface_hidden() : Boolean" in lobby,
           "the lobby movie has root.toggle_interface and root.interface_hidden")
 
