@@ -3064,9 +3064,208 @@ struct BlockTally {
     /// team hits are bodies standing in one another (under 0.3 m apart),
     /// which the game does not have.
     team_hits: [u32; 3],
+    /// [measure] By place: the view's episode on a visible enemy.
+    onview: Vec<Option<OnView>>,
+    /// [measure] The on-view ticks with no shot by the fire gates.
+    gates: fight_tally::GateTally,
+}
+
+/// [measure] A bot free to fire with its view within 4 deg of a visible
+/// enemy within 40 m (the Cologne report's episodes, per tick).
+#[derive(Clone, Copy)]
+struct OnView {
+    enemy: Place,
+    start: u32,
+    last: u32,
+    ticks: u32,
+    fired: Option<u32>,
+    held: u32,
+    false_held: u32,
+    new_held: u32,
+    near_line: u32,
+    distance: f32,
+}
+
+fn measure_place_view(game: &Game, place: Place) -> PlaceView {
+    let body = &game.bodies[place];
+    PlaceView {
+        place,
+        team: body.team,
+        bot: true,
+        present: true,
+        alive: true,
+        feet: body.feet,
+        yaw: body.yaw,
+        pitch: body.pitch,
+        velocity: [0.0, 0.0],
+        keys: body.keys,
+        health: body.health,
+        spawned: body.spawned,
+        kills: 0,
+        deaths: 0,
+        streak: 0,
+        carrying: None,
+        seen_at: 0,
+        known_at: 0,
+    }
+}
+
+fn measure_view(game: &Game, places: Vec<PlaceView>) -> MatchView {
+    MatchView {
+        clock: game.tick,
+        mode: super::view::Mode::TeamDeathmatch,
+        time_left_s: 600.0,
+        total_s: 900.0,
+        points: [0, 0],
+        places,
+        batteries: Vec::new(),
+        marks: Vec::new(),
+        containers: Vec::new(),
+        sounds: Vec::new(),
+        deaths: Vec::new(),
+        world_time: 0,
+        can_respawn: [true, true],
+        next_battery: None,
+    }
 }
 
 impl BlockTally {
+    /// [measure] With `SRP_BENCH_GATES` set, every fire gate is tested each
+    /// tick (`Reflex::gate_tally`: `clear_shot`'s rays though an earlier
+    /// gate failed; no shot changes), for the gate tally's "every" counts.
+    fn gate_tally(bots: &mut Bots) {
+        static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        if *ON.get_or_init(|| std::env::var_os("SRP_BENCH_GATES").is_some()) {
+            for bot in bots.bots.iter_mut().flatten() {
+                bot.reflex.gate_tally = true;
+            }
+        }
+    }
+
+    /// [measure] The view-on-enemy episodes, a tick at a time.
+    fn onview_tick(&mut self, game: &Game, bots: &Bots, bot: &Bot, fired: bool, events: &mut BenchEvents) {
+        let place = bot.place;
+        self.onview.resize(game.bodies.len(), None);
+        let me = &game.bodies[place];
+        let eye = Game::eye(me);
+        let [fx, fz] = forward(me.yaw);
+        let pitch = me.recoil.view(me.pitch);
+        let view_dir = Vec3::new(fx * pitch.cos(), pitch.sin(), fz * pitch.cos());
+        let free = me.alive && me.carrying.is_none() && bot.intent.fire;
+        let seen = if free {
+            game.bodies
+                .iter()
+                .enumerate()
+                .filter(|(e, b)| {
+                    *e != place && b.alive && b.team != me.team && b.feet.distance_xz(me.feet) <= 40.0
+                })
+                .filter_map(|(e, b)| {
+                    let to = Game::chest(b) - eye;
+                    let off = (to.dot(view_dir) / to.length().max(0.01)).clamp(-1.0, 1.0).acos();
+                    (off <= 4f32.to_radians()).then_some((e, off))
+                })
+                .filter(|&(e, _)| {
+                    let b = &game.bodies[e];
+                    super::aimpoint::shows(eye, b.feet, b.keys & key::CROUCH != 0, &game.world.sight, || true)
+                })
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+                .map(|(e, _)| e)
+        } else {
+            None
+        };
+        let now = game.tick;
+        let mut ep = self.onview[place].take();
+        if let Some(e) = ep
+            && (!me.alive || (seen != Some(e.enemy) && now > e.last + 2 * TICK_MS))
+        {
+            Self::end_onview(place, e, events);
+            ep = None;
+        }
+        if let Some(enemy) = seen {
+            let e = ep.get_or_insert(OnView {
+                enemy,
+                start: now,
+                last: now,
+                ticks: 0,
+                fired: None,
+                held: 0,
+                false_held: 0,
+                new_held: 0,
+                near_line: 0,
+                distance: game.bodies[enemy].feet.distance_xz(me.feet),
+            });
+            if e.enemy == enemy {
+                e.last = now;
+            }
+        }
+        if let Some(e) = ep.as_mut() {
+            e.ticks += 1;
+            if !fired {
+                self.gates.tick(bot.reflex.gates(), e.enemy, now);
+            }
+            if fired && e.fired.is_none() {
+                e.fired = Some(now - e.start);
+            }
+            let target = &game.bodies[e.enemy];
+            let to = Game::chest(target) - eye;
+            let distance = target.feet.distance_xz(me.feet);
+            if let Some(held) = bot.reflex.held_for() {
+                e.held += 1;
+                let t = bots.tuning.aim.friends;
+                let base = super::friends::FriendlyFireTuning {
+                    touch_m: 0.0,
+                    past_target_m: 2.0,
+                    ..t
+                };
+                let dirs = [view_dir, to * (1.0 / to.length().max(0.01))];
+                let view = measure_view(
+                    game,
+                    vec![measure_place_view(game, place), measure_place_view(game, held.who)],
+                );
+                let on = |t: &super::friends::FriendlyFireTuning| {
+                    super::friends::blocking(
+                        &measure_place_view(game, place),
+                        &view,
+                        &dirs,
+                        distance,
+                        t.spread(me.gun),
+                        0.0,
+                        t,
+                    )
+                    .is_some_and(|b| b.who == held.who)
+                };
+                let truly = on(&t);
+                e.false_held += u32::from(!truly);
+                e.new_held += u32::from(truly && !on(&base));
+            }
+            // A teammate within 1.2 m of the line in plan, between the eye
+            // and the enemy (the report's measure).
+            let (lx, lz) = (to.x, to.z);
+            let len = lx.hypot(lz).max(0.01);
+            let near = game.bodies.iter().enumerate().any(|(p, b)| {
+                if p == place || !b.alive || b.team != me.team {
+                    return false;
+                }
+                let (dx, dz) = (b.feet.x - eye.x, b.feet.z - eye.z);
+                let s = (dx * lx + dz * lz) / len;
+                s > 0.0 && s < len && ((dx * lz - dz * lx) / len).abs() <= 1.2
+            });
+            e.near_line += u32::from(near);
+        }
+        self.onview[place] = ep;
+    }
+
+    fn end_onview(place: Place, e: OnView, events: &mut BenchEvents) {
+        if e.last < e.start + 9 * TICK_MS {
+            return;
+        }
+        events.line(serde_json::json!({
+            "t": e.start,
+            "onview": [place, e.enemy, e.last - e.start + TICK_MS, e.fired, e.ticks, e.held,
+                e.false_held, e.new_held, e.near_line, e.distance],
+        }));
+    }
+
     /// Sideways speed counted as moving across the line, m/s.
     const SIDE_MPS: f32 = 0.5;
 
@@ -3117,6 +3316,7 @@ impl BlockTally {
             let (s0, h0) = std::mem::replace(&mut self.shots_hits[place], (s, h));
             self.shots[k] += s - s0;
             self.hits[k] += h - h0;
+            self.onview_tick(game, bots, bot, s > s0, events);
             // From a new target to the first shot at it.
             let target = bot.reflex.target().filter(|_| body.alive);
             self.aiming[place] = match (target, self.aiming[place]) {
@@ -3361,6 +3561,11 @@ impl BlockTally {
 
     /// The spells under way at the end, and one line on all of them.
     fn finish(&mut self, events: &mut BenchEvents) -> String {
+        for place in 0..self.onview.len() {
+            if let Some(e) = self.onview[place].take() {
+                Self::end_onview(place, e, events);
+            }
+        }
         for place in 0..self.spells.len() {
             if let Some(spell) = self.spells[place].take() {
                 self.end(place, spell, "the run's end", events);
@@ -3769,6 +3974,17 @@ fn bench_tuning_of(side1: bool) -> Tuning {
         }
         tuning.aim.combat = serde_json::from_value(combat).expect("SRP_BENCH_COMBAT: known names");
     }
+    // The aim's own numbers (`AimTuning`: `range_m`, `fire_within_deg`,
+    // `pause_ms`, ...), as `SRP_BENCH_COMBAT`'s.
+    if let Ok(numbers) = var("AIM") {
+        let mut aim = serde_json::to_value(&tuning.aim).unwrap();
+        let sep = if numbers.contains(';') { ';' } else { ',' };
+        for pair in numbers.split(sep).filter(|p| !p.is_empty()) {
+            let (name, value) = pair.split_once('=').expect("SRP_BENCH_AIM: name=value");
+            aim[name] = serde_json::from_str(value).expect("SRP_BENCH_AIM: a JSON value");
+        }
+        tuning.aim = serde_json::from_value(aim).expect("SRP_BENCH_AIM: known names");
+    }
     // The senses' numbers (`SenseTuning`), as `SRP_BENCH_COMBAT`'s.
     if let Ok(numbers) = var("SENSE") {
         let mut sense = serde_json::to_value(&tuning.sense).unwrap();
@@ -4103,6 +4319,7 @@ fn real_bot_cost() {
                     let stats_before = game.stats.clone();
                     game.step();
                     carry.deaths(&stats_before, &game, &bots);
+                    BlockTally::gate_tally(&mut bots);
                     blocks.tick(&game, &bots, &mut events);
                     hits.tick(&mut game, &bots, &mut events);
                     let play_of = |place: Place| {
@@ -4530,6 +4747,7 @@ fn real_bot_cost() {
                 }
             }
             eprintln!("  {}", blocks.finish(&mut events));
+            eprintln!("  {}", blocks.gates.line());
             eprintln!("  {}", hits.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
             eprintln!("  routes: {}", routes.line());

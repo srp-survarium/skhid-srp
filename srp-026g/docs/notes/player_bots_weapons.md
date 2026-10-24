@@ -505,3 +505,88 @@ bullets.
 
 Test: `reflex::tests::a_grenade_is_held_back_from_a_teammate_walking_into_its_blast`,
 `weapons::tests::the_bots_grenade_is_read_from_its_config`.
+
+## Bots: the fire gates of each tick, tallied on the bench and traced
+
+**What it measures (Cologne CG-2: bots with an enemy in their sights and no
+shot).** Each tick the reflex records every gate that held its shot
+(`reflex::gate`), not only the first:
+
+- **The bot's own gates first:** getting unstuck (the reflex did not run),
+  the play's word, a jump held (by its source: route, hop, unstick), a use in
+  reach.
+- **Then the fire step's, in its order:** a throw, a threat's look, no seen
+  target, the view off by more than `within_deg`, the reaction, a reload or
+  the switch, no round, the range, the hip cone too wide with the sights not
+  up (running, or the aim-in under way), a teammate in the line,
+  `clear_shot` (no part shows, or the view's or the aim's ray hits the
+  world), the pause between bursts, the trigger between presses, a burst
+  cut short.
+
+Nothing decides by the record. `clear_shot`'s rays are cast as before, only
+when the other gates let the shot go, unless `Reflex::gate_tally` asks for
+every gate. Tracing, a view held 300 ms on a seen target (within
+`within_deg` + 2°) with no shot, or a burst cut, is noted with every gate's
+value: the time to the first shot, the weapon busy and why, rounds, distance
+and range, the aim-in against `aim_ms` + margin, `hip_fits`, the pause, the
+teammate, which ray hit and how far, the lift, and the looked part's age. At
+most one note per target a second.
+
+**The bench's tally** (`fight_tally::GateTally`, on 10054fd4's on-view
+episodes) counts the ticks a bot's view was within 4° of a visible enemy
+within 40 m, free to fire, and no shot left. It counts them by the first gate
+that held the shot and by every gate. Two gates of the bench's own sit in the
+order: `other_target` (the reflex aimed at another enemy than the one in
+view, right after `no_target`) and `none` (every gate passed and the game
+counted no shot). `SRP_BENCH_GATES=1` tests every gate each tick;
+`SRP_BENCH_AIM=name=json,...` sets `AimTuning` as `SRP_BENCH_COMBAT` does
+`CombatTuning`.
+
+**Bench:** both presets (`batt`, `tdm`), seeds 1-8, 96 matches a tier,
+`SRP_BENCH_GATES=1`, b222a338 + this change. Shares of the on-view ticks with
+no shot, first gate / any gate:
+
+| gate | batt 9-10 | tdm 9-10 | Cologne (level_08 day_4) 9-10 | all tiers, both presets (first) |
+|---|---|---|---|---|
+| aiming_in | 25.0 / 37.7 | 24.4 / 37.4 | 25.0 / 38.6 | 22.7-26.3 |
+| no_target | 13.7 / 13.7 | 13.8 / 13.8 | 15.0 / 15.0 | 13.3-14.0 |
+| reload | 12.7 / 15.0 | 12.5 / 14.9 | 10.6 / 12.8 | 12.4-13.6 |
+| running | 8.7 / 14.4 | 8.7 / 14.7 | 7.4 / 12.0 | 7.6-9.3 |
+| other_target | 7.3 / 7.6 | 8.2 / 8.5 | 8.3 / 8.7 | 6.7-8.2 |
+| trigger | 6.0 / 6.2 | 5.6 / 5.9 | 4.9 / 5.1 | 5.5-6.1 |
+| none | 5.5 | 5.3 | 4.9 | 5.3-5.6 |
+| view_ray | 4.4 / 16.7 | 4.3 / 17.1 | 4.4 / 18.9 | 3.9-4.8 |
+| reaction | 3.8 / 5.8 | 3.9 / 6.1 | 4.5 / 7.6 | 3.4-3.9 |
+| friend | 3.1 / 8.7 | 4.0 / 11.4 | 5.1 / 13.8 | 3.0-4.1 |
+| hidden | 2.4 / 10.1 | 2.1 / 9.9 | 2.5 / 12.1 | 2.0-2.4 |
+| within | 2.0 / 3.6 | 2.1 / 3.7 | 2.4 / 4.7 | 1.5-3.8 |
+| pause | 2.0 / 2.2 | 1.9 / 2.0 | 1.4 / 1.6 | 1.8-2.1 |
+| aim_ray | 1.6 / 6.6 | 1.4 / 6.4 | 1.4 / 6.5 | 1.3-1.8 |
+| threat | 1.2 | 1.0 | 1.7 | 1.0-1.3 |
+| rounds, unstick, cut | under 1 | under 1 | under 1 | under 1 |
+| range, play, jump, using, throw | 0 | 0 | 0 | 0 |
+
+**What it says for the next fixes:**
+
+- **The aim-in is the first gate:** a quarter of the held ticks, and with
+  running another 8-9 %. The hip cone does not fit and the sights are not
+  up yet. This is the aim-in restart the plan put first.
+- **No seen target (13-15 %) and another target (7-8 %)** come next: the
+  view is on an enemy the reflex has not noticed, or it aims at another. That
+  is the noticing and target choice, not a fire gate.
+- **Reloads** hold 12-14 %.
+- **The friend gate** is first only 3-5 % of the time, though a teammate is
+  in the line in 8-14 % of the held ticks: it is last in line, as planned.
+- **The walls:** the view's ray is blocked in 16-19 % of the held ticks and
+  the aim's in 5-8 %, but the rays are the first gate only 5-7 % of the
+  time: something else holds the shot first.
+- **The jump hold, the play's word and the range never hold a shot here:**
+  the on-view measure counts only bots free to fire within 40 m. The 80-106 m
+  ticks of the Cologne report are outside it.
+
+**No behaviour change:** the decision digests (inputs and notes) of the gate
+runs match b222a338's base runs (`coord/base-b222a338`) line for line,
+`SRP_BENCH_GATES=1` and all. With no tier set, the bench plays as tier 4-5:
+the two give the same counts.
+
+Test: `reflex::tests::the_fire_gates_name_what_held_the_shot_and_change_none`.
