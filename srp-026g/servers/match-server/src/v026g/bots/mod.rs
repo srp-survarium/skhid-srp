@@ -2028,6 +2028,7 @@ impl Bots {
             if let Some(line) = bot.reflex.take_friend_note() {
                 bot.traced.push(line);
             }
+            bot.traced.extend(bot.reflex.take_gate_note());
             let (input, turn) = bot.encoder.encode(time, decision);
             let keys = bot.encoder.keys();
             // [recoil] The part of the pitch turn the kick takes, and the
@@ -2122,6 +2123,7 @@ fn drive_tick(
         bot.motor.track = None;
         let decision = bot.motor.rest();
         let by = (keys & key::JUMP != 0).then_some("unstick");
+        bot.reflex.skipped_tick(time);
         let keys = jumping(bot, keys, by, me.feet, time);
         return Decision { keys, ..decision };
     }
@@ -2141,6 +2143,7 @@ fn drive_tick(
     };
     // [aimpoint] What of its target shows, before the reflex aims.
     bot.reflex.look(aiming_me, view, &tactics.world, time);
+    bot.reflex.outer_gates(time, !intent.fire, bot.jump_hold > 0);
     let over = bot.reflex.tick(
         aiming_me,
         view,
@@ -2474,6 +2477,7 @@ fn drive_tick(
     } else if over.fire {
         // The shot the reflex counted this tick is not fired: given back.
         bot.reflex.hold_fire(time);
+        bot.reflex.gate_using(time);
     }
     decision.keys |= over.keys;
     if over.keys & (key::GRENADE | key::RELOAD | key::AIM | key::CROUCH) != 0 {
@@ -2561,6 +2565,7 @@ fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: Vec3, time:
             1
         };
         bot.jump_followed(time, Some(feet), "jumped again");
+        bot.reflex.jumped(by);
         let route = (by == "route").then(|| bot.motor.route_press()).flatten();
         if bot.tracing {
             let mut line = serde_json::json!({
@@ -2594,6 +2599,7 @@ fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: Vec3, time:
     bot.jump_hold -= 1;
     if firing {
         bot.reflex.hold_fire(time);
+        bot.reflex.gate_jump(time);
     }
     (keys | key::JUMP) & !key::FIRE
 }

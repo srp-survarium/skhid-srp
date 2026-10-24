@@ -2953,6 +2953,8 @@ struct BlockTally {
     team_hits: [u32; 3],
     /// [measure] By place: the view's episode on a visible enemy.
     onview: Vec<Option<OnView>>,
+    /// [measure] The on-view ticks with no shot by the fire gates.
+    gates: fight_tally::GateTally,
 }
 
 /// [measure] A bot free to fire with its view within 4 deg of a visible
@@ -3015,6 +3017,18 @@ fn measure_view(game: &Game, places: Vec<PlaceView>) -> MatchView {
 }
 
 impl BlockTally {
+    /// [measure] With `SRP_BENCH_GATES` set, every fire gate is tested each
+    /// tick (`Reflex::gate_tally`: `clear_shot`'s rays though an earlier
+    /// gate failed; no shot changes), for the gate tally's "every" counts.
+    fn gate_tally(bots: &mut Bots) {
+        static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        if *ON.get_or_init(|| std::env::var_os("SRP_BENCH_GATES").is_some()) {
+            for bot in bots.bots.iter_mut().flatten() {
+                bot.reflex.gate_tally = true;
+            }
+        }
+    }
+
     /// [measure] The view-on-enemy episodes, a tick at a time.
     fn onview_tick(&mut self, game: &Game, bots: &Bots, bot: &Bot, fired: bool, events: &mut BenchEvents) {
         let place = bot.place;
@@ -3073,6 +3087,9 @@ impl BlockTally {
         }
         if let Some(e) = ep.as_mut() {
             e.ticks += 1;
+            if !fired {
+                self.gates.tick(bot.reflex.gates(), e.enemy, now);
+            }
             if fired && e.fired.is_none() {
                 e.fired = Some(now - e.start);
             }
@@ -3844,6 +3861,17 @@ fn bench_tuning_of(side1: bool) -> Tuning {
         }
         tuning.aim.combat = serde_json::from_value(combat).expect("SRP_BENCH_COMBAT: known names");
     }
+    // The aim's own numbers (`AimTuning`: `range_m`, `fire_within_deg`,
+    // `pause_ms`, ...), as `SRP_BENCH_COMBAT`'s.
+    if let Ok(numbers) = var("AIM") {
+        let mut aim = serde_json::to_value(&tuning.aim).unwrap();
+        let sep = if numbers.contains(';') { ';' } else { ',' };
+        for pair in numbers.split(sep).filter(|p| !p.is_empty()) {
+            let (name, value) = pair.split_once('=').expect("SRP_BENCH_AIM: name=value");
+            aim[name] = serde_json::from_str(value).expect("SRP_BENCH_AIM: a JSON value");
+        }
+        tuning.aim = serde_json::from_value(aim).expect("SRP_BENCH_AIM: known names");
+    }
     // The senses' numbers (`SenseTuning`), as `SRP_BENCH_COMBAT`'s.
     if let Ok(numbers) = var("SENSE") {
         let mut sense = serde_json::to_value(&tuning.sense).unwrap();
@@ -4176,6 +4204,7 @@ fn real_bot_cost() {
                     let stats_before = game.stats.clone();
                     game.step();
                     carry.deaths(&stats_before, &game, &bots);
+                    BlockTally::gate_tally(&mut bots);
                     blocks.tick(&game, &bots, &mut events);
                     hits.tick(&mut game, &bots, &mut events);
                     let play_of = |place: Place| {
@@ -4600,6 +4629,7 @@ fn real_bot_cost() {
                 }
             }
             eprintln!("  {}", blocks.finish(&mut events));
+            eprintln!("  {}", blocks.gates.line());
             eprintln!("  {}", hits.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
             eprintln!("  routes: {}", routes.line());
