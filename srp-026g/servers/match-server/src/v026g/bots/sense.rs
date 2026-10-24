@@ -272,36 +272,49 @@ pub fn sense_batteries(
             BatteryLook::Battery(..) | BatteryLook::Gone(..) => &BATTERY_HEIGHTS,
             BatteryLook::Spawner(..) => &BATTERY_HEIGHTS[..1],
         };
-        let seen = near(at) || {
+        // How it was seen, for the note: near, or the height of the first
+        // clear line (the ones before it blocked).
+        let seen = if near(at) {
+            Some("near".to_string())
+        } else {
             if cast >= tuning.battery_rays {
                 break;
             }
             cast += 1;
-            let mut seen = false;
-            for &up in heights {
+            let mut seen = None;
+            for (k, &up) in heights.iter().enumerate() {
                 if !rays.take() {
                     break 'looks;
                 }
                 if super::aimpoint::sight_line(sight, eye, at + Vec3::new(0.0, up, 0.0)) {
-                    seen = true;
+                    seen = Some(format!("a clear line at +{up:.2} m, {k} blocked before it"));
                     break;
                 }
             }
             seen
         };
-        if !seen {
+        let Some(how) = seen else {
             continue;
-        }
+        };
+        let by = |what: &str| {
+            format!(
+                "{what} by player {} from [{:.1}, {:.1}, {:.1}], {how}",
+                me.place, eye.x, eye.y, eye.z
+            )
+        };
         match look {
-            BatteryLook::Battery(battery, at) => team.set_battery(
+            BatteryLook::Battery(battery, at) => team.change_battery(
                 battery,
                 Some(KnownBattery {
                     at,
                     time: view.clock,
                     hud: false,
                 }),
+                || by("seen"),
             ),
-            BatteryLook::Gone(battery, _) => team.set_battery(battery, None),
+            BatteryLook::Gone(battery, _) => {
+                team.change_battery(battery, None, || by("seen empty"))
+            }
             BatteryLook::Spawner(index, _) => team.saw_spawner(index, view.clock),
         }
     }
@@ -588,6 +601,26 @@ mod tests {
         assert!(team.battery(4).is_none(), "seen gone");
         assert_eq!(team.battery(0).map(|k| k.hud), Some(false));
         assert_eq!(team.spawner_seen(0), Some(view.clock));
+        // Each change is noted, with the bot, its eye and how it saw.
+        let notes = std::mem::take(&mut team.battery_notes);
+        assert_eq!(notes.len(), 3, "{notes:?}");
+        assert!(
+            notes[0]
+                .starts_with("battery 3 known at [1.0, 0.3, -2.0] seen (seen by player 0 from ["),
+            "{notes:?}"
+        );
+        assert!(notes[0].ends_with("], near)"), "{notes:?}");
+        assert!(
+            notes[1].starts_with(
+                "battery 4 no longer known at [6.0, 0.3, 8.0] seen (seen empty by player 0 from ["
+            ),
+            "{notes:?}"
+        );
+        assert!(notes[1].ends_with(", 0 blocked before it)"), "{notes:?}");
+        assert!(
+            notes[2].starts_with("battery 0 known at [3.0, 0.3, 10.0] seen (seen by player 0"),
+            "{notes:?}"
+        );
         // The next think: battery 1 and spawner 1 lie behind the wall,
         // battery 2 behind the bot. The battery is tried at its three
         // heights, the spot at one.

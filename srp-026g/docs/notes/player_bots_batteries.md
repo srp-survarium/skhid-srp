@@ -90,3 +90,56 @@ bot change. Means per seed; * = the difference is over 2 SE.
   not reach the box.
 - The soaks (`raids_in_whole_battery_matches` and the 7 other whole-match
   tests) pass.
+
+## Bots: a trace of the team's battery knowledge and of why a known battery is no Collect candidate
+
+In the Cologne match battery 2 lay under the overhang at spot B and left
+every bot's candidates at 855.3 s, and the log could not say why. This PR
+adds notes only; no decision changes (below).
+
+### The notes
+
+- **The team's knowledge** (`TeamKnowledge::change_battery`, the
+  `batteries` list): a note when the team comes to know a battery,
+  forgets it, sees it moved over 1 m, or it comes onto or goes off the
+  HUD; a spot only put right again writes nothing. Each says why:
+  - `seen by player N from [eye], near` or `..., a clear line at +h m, k
+    blocked before it` (`sense_batteries`: within `battery_near_m` no ray
+    is cast; else the box's top, middle and foot are tried, the first
+    clear line counts);
+  - `seen empty by player N from [eye], ...` the same way, for a spot
+    believed to hold a battery that is not there;
+  - `the HUD shows it`, `the HUD no longer shows it`, `carried by player
+    N`, `put in container N` (`hud_update`).
+  The HUD's notes are the team's (`team T: ...`, place `usize::MAX`), the
+  sightings the bot's own.
+- **A bot's Collect candidates** (`collect::take_blocks` and
+  `note_take_blocks`, at each commander pass): for each battery the bot
+  believes lies about, a note when it stops being a Collect candidate and
+  why, once per change per bot: `no stand to take it from`, `no way to
+  its stand`, `no way to its stand lately`, `the team keeps falling by
+  it` (the reasons of `Ctx::can_take`, now `Ctx::take_block`), `set
+  aside` or `scored out`; and `... is a Collect candidate again` when it
+  comes back. A battery no longer believed to lie about leaves without a
+  note: the knowledge's note says why.
+- Either would have settled 855.3 s. The leading guess stays "seen empty"
+  from a spot that could not see under the overhang; the next real match
+  with the trace reads it.
+
+### No decision changes
+
+The bench's decisions file (`SRP_TRACE_DECISIONS`: every input and note
+of each run) of `real_bot_cost` (the six maps, 4v4 and 10v10, 180 s, 10
+batteries, the use line on), seeds 1 and 2, base 31d87767 and this PR:
+with the new notes taken out, the files are the same byte for byte.
+
+| seed | base lines | PR lines | new notes | the rest |
+|---|---|---|---|---|
+| 1 | 532,705 | 535,945 | 3,240 | the same |
+| 2 | 537,636 | 539,673 | 2,037 | the same |
+
+About 270 new notes a run (the runs had 200-500 notes before). Seed 1's
+first 400: `no way to its stand` 119, `scored out` 91, `seen by` 65
+(6 of them near), `a Collect candidate again` 59, `carried by` 39,
+`no stand to take it from` 10, `no way to its stand lately` 8, `seen
+empty` 5, `the HUD shows it` 4.
