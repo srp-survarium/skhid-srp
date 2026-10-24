@@ -4156,6 +4156,7 @@ fn real_bot_cost() {
                     fight.note(&note);
                     events.note(&note);
                     carry.note(&note);
+                    push.note(&note, &bots);
                     if let Some(rest) = note.text.strip_prefix("takes ") {
                         takes_all += 1;
                         let kind = rest.split(' ').next().unwrap_or("").to_owned();
@@ -5592,6 +5593,14 @@ struct PushTally {
     /// Per spot play (HoldExit, Crossfire, Cut) and team: runs, of them
     /// reached.
     spot: [[[u32; 2]; 2]; 3],
+    /// Roam runs ended "the route turned bad".
+    turned_bad: u32,
+    /// Each place's last play taken ("Kind Target"), while it runs it.
+    last_take: Vec<Option<String>>,
+    /// A slot handed from one teammate to another: a bot takes the play
+    /// and target a teammate was running, and the teammate no longer runs
+    /// it.
+    handoffs: u32,
 }
 
 impl PushTally {
@@ -5617,7 +5626,45 @@ impl PushTally {
             last: vec![None; bodies],
             runs: vec![None; bodies],
             spot: [[[0; 2]; 2]; 3],
+            turned_bad: 0,
+            last_take: vec![None; bodies],
+            handoffs: 0,
         }
+    }
+
+    /// The commander's notes, after its poll: Roam's "the route turned
+    /// bad" ends, and slot hand-offs.
+    fn note(&mut self, note: &Note, bots: &Bots) {
+        if note.text.starts_with("ends ") {
+            self.turned_bad += u32::from(note.text == "ends Roam: the route turned bad");
+            if let Some(last) = self.last_take.get_mut(note.place) {
+                *last = None;
+            }
+            return;
+        }
+        let Some(rest) = note.text.strip_prefix("takes ") else {
+            return;
+        };
+        let what = rest.split(" (score").next().unwrap_or(rest).to_owned();
+        let Some(Some(me)) = bots.bots.get(note.place) else {
+            return;
+        };
+        // Plays with no target take no slot.
+        if !what.ends_with(" None") {
+            for other in bots.bots.iter().flatten() {
+                let running = |a: &Assignment| format!("{:?} {:?}", a.kind, a.target) == what;
+                if other.place != note.place
+                    && other.team == me.team
+                    && self.last_take[other.place].as_deref() == Some(what.as_str())
+                    && !other.assignment.as_ref().is_some_and(running)
+                {
+                    self.handoffs += 1;
+                    self.last_take[other.place] = None;
+                    break;
+                }
+            }
+        }
+        self.last_take[note.place] = Some(what);
     }
 
     /// A bot's progress from its side's spawns to the enemy's.
@@ -5722,7 +5769,8 @@ impl PushTally {
                 s(2)[1],
             );
         }
-        out.trim_end().to_owned()
+        out += &format!("turned_bad {} handoffs {}", self.turned_bad, self.handoffs);
+        out
     }
 }
 
