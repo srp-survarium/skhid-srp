@@ -49,7 +49,7 @@ pub mod resources;
 pub mod sight;
 
 pub use grid::{
-    Body, BuildStats, DistanceMap, LinkKind, NodeId, Path, PocketExit, PocketId, Search,
+    Body, BuildStats, DistanceMap, ExitJump, LinkKind, NodeId, Path, PocketExit, PocketId, Search,
     SlicedSearch, WalkGrid,
 };
 pub use library::{Library, Materials, WalkerBehaviour};

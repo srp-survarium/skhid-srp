@@ -206,6 +206,11 @@ pub const POCKET_EXIT_LOW_M: f32 = 0.2;
 /// study); its standing jump tops at 0.998 m.
 pub const POCKET_EXIT_HIGH_M: f32 = 1.35;
 pub const POCKET_EXIT_FLOORS: usize = 2_000;
+/// The client's step up, walking (`s_step_height`, `step_up` 0x7C900:
+/// PROVEN, no slope test), and its standing jump's top (the `on_site*`
+/// clips' root, PROVEN, the jump study), metres.
+pub const STEP_UP_M: f32 = 0.6;
+pub const STANDING_JUMP_M: f32 = 0.998;
 
 /// [`WalkGrid`]'s `flags`: a walk from a spawn's floor gets here.
 const REACHED: u8 = 1;
@@ -217,6 +222,38 @@ const POCKET_EDGE: u8 = 4;
 /// A pocket ([`WalkGrid::pocket_of`]): its lowest floor's id.
 pub type PocketId = NodeId;
 
+/// What a [`PocketExit`] takes: surest first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExitJump {
+    /// Up to [`STANDING_JUMP_M`] (and more than a step, or across a gap):
+    /// the client's jump, any weapon.
+    Standing,
+    /// Up to [`POCKET_EXIT_HIGH_M`]: only the sprint jump, rifles only
+    /// (1.282-1.350 m by clip, PROVEN). No bot's jump picks it yet.
+    Sprint,
+    /// Up to [`STEP_UP_M`] into a neighbour cell. A walk up it would be a
+    /// link, so the grid cut it: a climb onto steep ground (the client's
+    /// `step_down` refuses ground steeper than 50° when the feet end
+    /// higher, PROVEN). Whether a jump onto it holds is not proven: no
+    /// way out to send a bot to yet.
+    Steep,
+}
+
+impl ExitJump {
+    /// The jump a rise of `rise` metres takes, `across` metres on the ground
+    /// on a grid of `cell` m cells.
+    pub fn for_rise(rise: f32, across: f32, cell: f32) -> Self {
+        // A diagonal neighbour is 1.41 cells across.
+        if rise <= STEP_UP_M && across <= 1.5 * cell {
+            Self::Steep
+        } else if rise <= STANDING_JUMP_M {
+            Self::Standing
+        } else {
+            Self::Sprint
+        }
+    }
+}
+
 /// A way out of a pocket that is no link ([`WalkGrid::pocket_exits`]): a
 /// jump from a floor of the pocket up to a floor that returns.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -227,6 +264,9 @@ pub struct PocketExit {
     pub rise: f32,
     /// How far apart they are on the ground, metres.
     pub across: f32,
+    /// What it takes: the jump, the sprint jump, or a climb onto steep
+    /// ground.
+    pub jump: ExitJump,
 }
 
 /// The 8 neighbour directions (dx, dz); `DIRS[d ^ 1]` is the opposite.
@@ -1019,9 +1059,10 @@ impl WalkGrid {
         let in_pocket = (0..n).filter(|&a| self.in_pocket(a as NodeId)).count();
         if in_pocket != self.pockets.len()
             || self.pockets.windows(2).any(|w| w[0].0 >= w[1].0)
-            || self.pockets.iter().any(|&(a, p)| {
-                a as usize >= n || p > a || !self.in_pocket(a) || !self.in_pocket(p)
-            })
+            || self
+                .pockets
+                .iter()
+                .any(|&(a, p)| a as usize >= n || p > a || !self.in_pocket(a) || !self.in_pocket(p))
         {
             return Err("bad pockets".into());
         }
@@ -1294,12 +1335,14 @@ impl WalkGrid {
     /// of the pocket to a floor that returns, within
     /// [`POCKET_EXIT_ACROSS_M`] across and [`POCKET_EXIT_LOW_M`] to
     /// [`POCKET_EXIT_HIGH_M`] higher, with room to stand on landing; one a
-    /// landing floor, from the take-off nearest it. The pocket's floors are
+    /// landing floor, from the take-off that takes the surest jump
+    /// ([`PocketExit::jump`]), then the nearest. The pocket's floors are
     /// looked at nearest `from` first (by cells), [`POCKET_EXIT_FLOORS`] at
     /// most, and the exits come in that order. Empty out of a pocket.
-    /// Candidates for an escape to try (the client's jump tops at 0.998 m,
-    /// its sprint jump at 1.35 m), not links: no way is planned into a
-    /// pocket by them.
+    /// Candidates for an escape to try, not links: no way is planned into a
+    /// pocket by them. A bot tries only the exits its jump makes: a
+    /// [`ExitJump::Sprint`] one takes a rifle and a sprint, a
+    /// [`ExitJump::Steep`] one none yet.
     pub fn pocket_exits(&self, from: NodeId) -> Vec<PocketExit> {
         let Some(pocket) = self.pocket_of(from) else {
             return Vec::new();
@@ -1332,9 +1375,10 @@ impl WalkGrid {
                     to: b,
                     rise,
                     across,
+                    jump: ExitJump::for_rise(rise, across, self.cell),
                 };
                 match landing.get(&b) {
-                    Some(&i) if exits[i].across <= across => {}
+                    Some(&i) if (exits[i].jump, exits[i].across) <= (exit.jump, across) => {}
                     Some(&i) => exits[i] = exit,
                     None => {
                         landing.insert(b, exits.len());
@@ -2531,7 +2575,10 @@ pub(crate) mod tests {
             let path = grid.path(from, to).unwrap();
             path.nodes
                 .windows(2)
-                .filter(|w| grid.links(w[0]).any(|(b, k)| b == w[1] && k == LinkKind::Jump))
+                .filter(|w| {
+                    grid.links(w[0])
+                        .any(|(b, k)| b == w[1] && k == LinkKind::Jump)
+                })
                 .count()
         };
         assert_eq!(way(2.0), 0, "a short walk round");
@@ -2552,15 +2599,28 @@ pub(crate) mod tests {
         let mut wall = |a: (f32, f32), b: (f32, f32)| {
             let (p, q) = (Vec3::new(a.0, y, a.1), Vec3::new(b.0, y, b.1));
             let (r, s) = (Vec3::new(b.0, 0.0, b.1), Vec3::new(a.0, 0.0, a.1));
-            tris.push(Triangle { v: [p, q, r], walker });
-            tris.push(Triangle { v: [p, r, s], walker });
+            tris.push(Triangle {
+                v: [p, q, r],
+                walker,
+            });
+            tris.push(Triangle {
+                v: [p, r, s],
+                walker,
+            });
         };
         wall((8.0, 3.0), (12.0, 3.0));
         wall((8.0, 7.0), (12.0, 7.0));
         wall((8.0, 3.0), (8.0, 7.0));
         wall((12.0, 3.0), (12.0, 7.0));
         let spawn = [Vec3::new(2.0, 0.0, 5.0)];
-        WalkGrid::build_kept(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default(), &spawn, &spawn)
+        WalkGrid::build_kept(
+            &tris,
+            [0.0, 0.0, 20.0, 10.0],
+            0.25,
+            Body::default(),
+            &spawn,
+            &spawn,
+        )
     }
 
     /// A pit 1.6 m deep is a pocket with no way out; its rim is marked, a
@@ -2580,7 +2640,9 @@ pub(crate) mod tests {
         let floors: Vec<NodeId> = grid.pocket_floors(pocket).collect();
         assert!(floors.len() > 100 && floors.iter().all(|&f| grid.position(f).y < -1.5));
         assert!(floors.iter().all(|&f| grid.pocket_of(f) == Some(pocket)));
-        let rim = (0..grid.len() as NodeId).filter(|&f| grid.is_pocket_edge(f)).count();
+        let rim = (0..grid.len() as NodeId)
+            .filter(|&f| grid.is_pocket_edge(f))
+            .count();
         assert!(rim > 0);
         assert!(grid.pocket_exits(bottom).is_empty(), "1.6 m: no way out");
         assert!(grid.pocket_exits(spawn).is_empty(), "not in a pocket");
@@ -2590,9 +2652,19 @@ pub(crate) mod tests {
         let round = grid.path(spawn, far).unwrap();
         assert!(round.nodes.iter().all(|&f| !grid.in_pocket(f)));
         assert!(
-            round.nodes.iter().filter(|&&f| grid.is_pocket_edge(f)).count() <= 2,
+            round
+                .nodes
+                .iter()
+                .filter(|&&f| grid.is_pocket_edge(f))
+                .count()
+                <= 2,
             "{:?}",
-            round.nodes.iter().filter(|&&f| grid.is_pocket_edge(f)).map(|&f| grid.position(f)).collect::<Vec<_>>()
+            round
+                .nodes
+                .iter()
+                .filter(|&&f| grid.is_pocket_edge(f))
+                .map(|&f| grid.position(f))
+                .collect::<Vec<_>>()
         );
         // Written and read back, the same marks.
         let path = std::env::temp_dir().join(format!("srp-pit-{}.bin", std::process::id()));
@@ -2612,10 +2684,23 @@ pub(crate) mod tests {
                 && grid.pocket_of(e.from) == grid.pocket_of(bottom)
                 && (1.15..=1.25).contains(&e.rise)
                 && e.across <= POCKET_EXIT_ACROSS_M
+                && e.jump == ExitJump::Sprint
         }));
         // A grid built without spawns has no pockets.
         let none = two_rooms();
         assert!((0..none.len() as NodeId).all(|f| none.reached(f) && !none.in_pocket(f)));
+    }
+
+    /// A rise of up to 0.6 m into a neighbour cell out of a pocket is a
+    /// cut climb onto steep ground; across a gap it takes a jump, and over
+    /// 0.998 m a sprint jump.
+    #[test]
+    fn an_exit_within_a_step_is_steep_only_into_a_neighbour_cell() {
+        assert_eq!(ExitJump::for_rise(0.5, 0.25, 0.25), ExitJump::Steep);
+        assert_eq!(ExitJump::for_rise(0.5, 0.354, 0.25), ExitJump::Steep);
+        assert_eq!(ExitJump::for_rise(0.5, 0.75, 0.25), ExitJump::Standing);
+        assert_eq!(ExitJump::for_rise(0.9, 0.25, 0.25), ExitJump::Standing);
+        assert_eq!(ExitJump::for_rise(1.2, 0.25, 0.25), ExitJump::Sprint);
     }
 
     /// A spawn on a platform 2 m up, left by a drop (as level_05's day_2):
@@ -2626,8 +2711,14 @@ pub(crate) mod tests {
         let mut tris: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
         tris.extend(floor(1.0, 4.0, 3.0, 6.0, 2.0));
         let spawn = [Vec3::new(2.0, 2.0, 5.0)];
-        let grid =
-            WalkGrid::build_kept(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default(), &spawn, &spawn);
+        let grid = WalkGrid::build_kept(
+            &tris,
+            [0.0, 0.0, 20.0, 10.0],
+            0.25,
+            Body::default(),
+            &spawn,
+            &spawn,
+        );
         let yard = grid.locate(Vec3::new(15.0, 0.0, 5.0), 0.3).unwrap();
         assert!(grid.reached(yard) && grid.returns(yard) && !grid.in_pocket(yard));
         let top = grid.locate(Vec3::new(2.0, 2.0, 5.0), 0.3).unwrap();

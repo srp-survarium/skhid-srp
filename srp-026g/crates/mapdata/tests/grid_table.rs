@@ -15,18 +15,14 @@
 //! reads the same on a grid of any build; the grid's own marks
 //! ([`WalkGrid::in_pocket`]) must agree.
 
-use mapdata::{Body, MapData, NodeId, Vec3, WalkGrid};
+use mapdata::{Body, ExitJump, MapData, NodeId, Vec3, WalkGrid};
 
 /// A spawn's floor, as the bots' tactics find it (`walkable_from_spawns`).
 const SPAWN_M: f32 = 1.5;
 /// An objective's floor (the grid's seeds).
 const OBJECTIVE_M: f32 = 3.0;
-/// The client's jump (PROVEN, the jump study) and its sprint jump.
+/// The client's jump (PROVEN, the jump study).
 const JUMP_M: f32 = 0.998;
-const SPRINT_JUMP_M: f32 = 1.35;
-/// A pocket's way out: a floor that returns, within this across.
-const EXIT_ACROSS_M: f32 = 1.0;
-const EXIT_LOW_M: f32 = 0.2;
 
 #[derive(Default)]
 struct Row {
@@ -35,9 +31,10 @@ struct Row {
     returns: usize,
     pocket_floors: usize,
     pockets: usize,
-    /// Pockets of 4 floors or more, by their lowest way out: within the
-    /// jump, within the sprint jump, none.
-    big_pockets: [usize; 3],
+    /// Pockets by their surest way out ([`WalkGrid::pocket_exits`] from
+    /// the pocket's lowest floor): the jump, only the sprint jump, only a
+    /// climb onto steep ground, none.
+    pockets_by_exit: [usize; 4],
     objectives: usize,
     objectives_unreached: usize,
     objectives_in_pocket: usize,
@@ -219,32 +216,13 @@ fn table_row(map: &MapData, grid: &WalkGrid) -> Row {
             }
         }
         row.pocket_floors += members.len();
-        if members.len() < 4 {
-            continue;
-        }
-        // Its lowest way out by a jump to a floor that returns.
-        let mut lowest = f32::INFINITY;
-        for &a in &members {
-            let at = grid.position(a);
-            let r = EXIT_ACROSS_M;
-            for b in grid.floors_in([at.x - r, at.z - r, at.x + r, at.z + r]) {
-                let to = grid.position(b);
-                let rise = to.y - at.y;
-                if returns[b as usize]
-                    && grid.can_stand(b)
-                    && to.distance_xz(at) <= EXIT_ACROSS_M
-                    && rise >= EXIT_LOW_M
-                {
-                    lowest = lowest.min(rise);
-                }
-            }
-        }
-        row.big_pockets[if lowest <= JUMP_M {
-            0
-        } else if lowest <= SPRINT_JUMP_M {
-            1
-        } else {
-            2
+        let lowest = members.iter().copied().min().unwrap();
+        let surest = grid.pocket_exits(lowest).iter().map(|e| e.jump).min();
+        row.pockets_by_exit[match surest {
+            Some(ExitJump::Standing) => 0,
+            Some(ExitJump::Sprint) => 1,
+            Some(ExitJump::Steep) => 2,
+            None => 3,
         }] += 1;
     }
     // The objectives: batteries, containers, stations.
@@ -305,9 +283,10 @@ fn the_grid_table() {
             "returns",
             "pocket_floors",
             "pockets",
-            "pockets4_out_jump",
-            "pockets4_out_sprint",
-            "pockets4_no_out",
+            "pockets_out_jump",
+            "pockets_sprint_only",
+            "pockets_steep_only",
+            "pockets_no_out",
             "objectives",
             "obj_unreached",
             "obj_in_pocket",
@@ -335,9 +314,10 @@ fn the_grid_table() {
             row.returns,
             row.pocket_floors,
             row.pockets,
-            row.big_pockets[0],
-            row.big_pockets[1],
-            row.big_pockets[2],
+            row.pockets_by_exit[0],
+            row.pockets_by_exit[1],
+            row.pockets_by_exit[2],
+            row.pockets_by_exit[3],
             row.objectives,
             row.objectives_unreached,
             row.objectives_in_pocket,
