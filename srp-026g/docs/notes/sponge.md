@@ -2,8 +2,8 @@
 
 Client patch 59 with the Rattle (README section 59, client_patch.md section 3.52;
 `rattle.md`): 0.28d0's `artefact_sponge_core` written again on 0.26g's interfaces. The
-content pack `sponge@2` (release/content.tsv; srp-026g/scripts/sponge/make_pack.py); the
-spawns are the exe's (below), no map file. 0.28a2 brought the Sponge; the reference is
+content pack `sponge@2` (release/content.tsv; srp-026g/scripts/sponge/make_pack.py) and the
+owner's spots (edit list `artefact-spots-1`, below). 0.28a2 brought the Sponge; the reference is
 0.28d0's `artefact_sponge.options` and its code.
 
 ## As in 0.28d0
@@ -63,20 +63,32 @@ spawns are the exe's (below), no map file. 0.28a2 brought the Sponge; the refere
   explosion point.
 - A rollback's load sets the passive by the state loaded, so every game has the same pools.
 
-## Spawns
+## Spawns (the owner's spots, 2026-10-24)
 
-- Static anomalies: every map anomaly that spawns artefacts (a generic_anomaly_core with an
-  artefact container and kinds) carries one Sponge and one Rattle too ({758, count 1} and
-  {759, count 1} after its own kinds), on every map: the stock maps in their weathers and
-  modes, London, the 0.21d and v0.11e maps and the Research maps alike. The cores without a
-  container (v0.11e level 4's track controllers) are left as they are, and a core that names a
-  kind already keeps its own entry.
-- The exe does it, not the maps' files (2026-10-23): the anomaly cook's look-up of a core's
-  `artefacts` table (0x2E9D53, the only reader of that key) gets the table with the two
-  entries after its own (client_patch.md 3.52, "The static anomalies' kinds"). Before, edit
-  lists put them in the maps' client projects (sponge-spawns-1, rattle-spawns-1: 200 cores of
-  74 projects), which shipped those 74 whole projects (a project is one 0.7-1 MB file; a patch
-  holds whole files).
+- The owner chose where the Sponge and the Rattle spawn, in a spawn editor: 60 containers of
+  map anomalies on 11 maps, 36 Sponge and 24 Rattle (`scripts/sponge/spots.tsv`; level_01..06,
+  London, the v0.11e and 0.21d maps). "I click a Larkspur spot and make it a Rattle: now the
+  Rattle spawns there."
+- A picked container spawns only its kind. The anomaly's other containers spawn its own kinds,
+  as before. An anomaly with no pick is as 0.26g has it: no Sponge or Rattle there.
+- Per map: level_03 and v011e_level_03, level_04 and v011e_level_04 have the same anomalies but
+  their own picks. A container two anomalies share (level_03's antenna) is picked for one of
+  them only; none of the picks is one.
+- The content: each picked map's mode configs hold `mode/artefact_spots`, one row a spot (the
+  core's `full_name`, the container's index in its `artefact_containers`, its name, the kind):
+  edit list `artefact-spots-1`, made by `scripts/sponge/spots.py` from spots.tsv, which checks
+  every row against every live project of its map and stops on a core or container it does
+  not find. No map project ships.
+- The exe (client_patch.md 3.52, "The owner's spots"): the match's map (its options' map id)
+  picks the mode config (the items dictionary keeps them loaded); the anomaly cook gives a core
+  one artefact of the kind for each of its spots (the world grows by those units only: 60
+  units in all, at most 10 on a map); the core's links keep which containers are picked; the
+  spawn takes the picked kind there, the core's own kinds elsewhere.
+- The draws are 0.26g's (the chance, the container, the artefact, the delay; the server's
+  bots model them so): the artefact's draw is made whenever any of the pool is free, as
+  0.26g's, and chooses among those the container may take. When the picked kind is not free
+  (a player has it, or its cloud is still on), nothing spawns there that time, as when no
+  artefact is free, and the anomaly tries again after its delay.
 - No timed anomalies: main has none since #345; #346 (their redesign) decides for its own
   cores.
 
@@ -98,6 +110,6 @@ spawns are the exe's (below), no map file. 0.28a2 brought the Sponge; the refere
   `crates/session/src/v026g/simulation_changes.tsv`.
 - The exe needs the pack's config (item 758): the release's exe requires its resources.db
   patch (patch 49).
-- The site's /maps shows it: its builder (scripts/maps-tab/build.py, EXE_KINDS) adds the
-  exe's two kinds to each anomaly that spawns artefacts, as the patch does; the lobby icon
+- The site's /maps shows it at its spots only: its builder (scripts/maps-tab/build.py) reads
+  the mode configs' `mode/artefact_spots` as the patch does; the lobby icon
   `artefact_sponge.webp` comes from the calculator's icon export (cell [22,1]).

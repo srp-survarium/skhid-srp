@@ -5,7 +5,7 @@ players, worlds and zones, and 0.28d0's own sponge code on the same inputs.
 
     python check_sponge_a_026g.py <original survarium.exe> [--v028d0 <0.28d0 survarium.exe>]
                                   [--options <artefact_sponge.options>] [--pack <sponge-2 folder>]
-                                  [--project <a map's client_project>]...
+                                  [--project <a map's client_project>]... [--spots <artefact-spots-1.json>]
 
 Requires Python `unicorn`. The built exe's sections are loaded as they are
 and its code runs as machine code; the game's own code runs where the patch
@@ -32,14 +32,20 @@ run on the same numbers, and must agree. --options checks the config this
 script writes against the 0.28d0 file. --pack (or SRP_SPONGE_PACK) names the
 content pack's folder: its artefact_sponge.options is read by the build's cook
 and its passive run through the game's regeneration tick (0x32A4B0). The
-static anomalies' kinds (sponge_artefacts, 0x2E9D53, for the Sponge and the
-Rattle) run in the anomaly cook's own loop 0x2E9D49..0x2E9DFB (operator[]
-0xF6B10, the buffer_vector's push 0x2EA3C0, the stack probe 0x424CA0) on
-made-up cores, beside the original exe, and with --project on every
-generic_anomaly_core of a map's client_project as the game loads it (each
-`srp-game-data get` writes one). What each case checks is printed.
+owner's spots (for the Sponge and the Rattle): the anomaly cook's own loop
+0x2E9D49..0x2E9DFB (operator[] 0xF6B10, the buffer_vector's push 0x2EA3C0,
+the stack probe 0x424CA0) with sponge_artefacts on made-up cores and made-up
+maps' mode configs (the match options' map id, the items dictionary's
+maps), the core's resolve_links 0x33C440 through its vtable slot with
+sponge_links, and spawn_artefact 0x31B6C0 whole (its container take
+0x31C930 and artefact spawn 0x3134C0 answered here) beside the original
+exe's; with --project every generic_anomaly_core of a map's client_project
+with that map's spots of --spots (the edit list artefact-spots-1). What each
+case checks is printed.
 """
 import argparse
+import collections
+import json
 import lzma
 import math
 import os
@@ -510,7 +516,9 @@ def main():
                         help="the content pack's folder (sponge@2: private/content-packs/sponge-2)")
     parser.add_argument("--project", action="append", default=[],
                         help="a map's projects/<map>/<weather>/client_project (srp-game-data get), each core's "
-                             "kinds run through the cook's loop")
+                             "kinds run through the cook's loop with its map's spots (--spots)")
+    parser.add_argument("--spots", default=os.path.join(HERE, "..", "scripts", "content-edit", "artefact-spots-1.json"),
+                        help="the edit list of the owner's spots (each map's mode configs' mode/artefact_spots)")
     args = parser.parse_args()
     original = open(args.original, "rb").read()
     code = open(base.default_bin("section"), "rb").read()
@@ -1633,20 +1641,60 @@ def main():
           eip == 0xFBB58 and moved == 0 and left == 1 and r.read(gone + S_LINKED) == 0
           and ("rattle_dtor", gone, 0) in game.log, str([e for e in game.log if e[0] == "rattle_dtor"]))
 
-    # 17. The static anomalies' kinds: the anomaly cook's look-up of a core's `artefacts` (0x2E9D53,
-    #     sponge_artefacts) in its own first loop (0x2E9D49..0x2E9DFB: the kinds' list it queries and
-    #     hands the core), on the build and on the original exe.
-    print("  17. the static anomalies' kinds: the Sponge and the Rattle in every anomaly that spawns artefacts")
+    # 17. The owner's spots (the Sponge and the Rattle): the anomaly cook's look-up of a core's
+    #     `artefacts` (0x2E9D53, sponge_artefacts) in its own first loop (0x2E9D49..0x2E9DFB, the kinds'
+    #     list it makes one artefact a unit of), the core's resolve_links through its vtable slot
+    #     (0xA16A10, sponge_links) and spawn_artefact 0x31B6C0 whole (sponge_spawn at 0x31B800), on
+    #     the build and the original exe.
+    print("  17. the owner's spots: the Sponge and the Rattle where they are picked")
     k_run, k_stock = Run(pe_sections(built)), Run(pe_sections(original))
+    spots_g, cores_g = ARENA.symbols["sp_spots"], ARENA.symbols["sp_spot_cores"]
+    SPOT_CORES, SPOT_CONTAINERS = 64, 32
 
-    def cooked_kinds(emu, core):
-        """the cook's list for a core's config (a bcw value or a loaded file's bytes): [(dict_id, count)],
-        the sum of the counts, the config's bytes untouched"""
+    def match_world(emu, maps):
+        """A cook whose context leads to a client: its match's options name map 7, its items
+        dictionary has a mode config for each of `maps` ({id: the mode table, or None for no
+        config}), as on_map_configs_loaded leaves them ({u32 id, name, resource} at +160h)."""
+        cook, context, client, dictionary = (emu.allocate(0x40), emu.allocate(0x100), emu.allocate(0x6000),
+                                             emu.allocate(0x200))
+        options = emu.allocate(0x57900)
+        emu.word(cook + 0x20, context)
+        emu.word(context + 0x9C, client)
+        match = emu.allocate(0x10)
+        emu.word(match, emu.vtable({13: (lambda e: options, 0)}))
+        emu.word(client + 0x53AC, match)
+        emu.word(client + 0x53A4, dictionary)
+        table = emu.allocate(12 * len(maps))
+        for i, (map_id, mode) in enumerate(sorted(maps.items())):
+            resource = 0
+            if mode is not None:
+                blob = bcw.dump({"mode": mode})
+                at = emu.allocate(len(blob) + 0x10)
+                emu.emu.mem_write(at, loaded(blob, at))
+                resource = emu.allocate(0x200)
+                emu.word(resource + 0x108, at)
+            emu.word(table + 12 * i, map_id)
+            emu.word(table + 12 * i + 8, resource)
+        emu.word(dictionary + 0x160, table)
+        emu.word(dictionary + 0x164, len(maps))
+        return cook, options
+
+    def on_map(emu, options, map_id):
+        emu.emu.mem_write(options + 0x577B4, bytes([map_id]))
+
+    def loaded_config(emu, core):
         blob = core if isinstance(core, (bytes, bytearray)) else bcw.dump(core)
         at = emu.allocate(len(blob) + 0x10)
         image = loaded(blob, at)
         emu.emu.mem_write(at, image)
+        return at, image
+
+    def cooked_kinds(emu, core, cook=0):
+        """the cook's list for a core's config: [(dict_id, count)], the sum of the counts, the config
+        untouched"""
+        at, image = loaded_config(emu, core)
         frame = STACK + 0x8100                          # ebp; esp below it, the alloca's room under that
+        emu.word(frame + 0x8, cook)
         emu.word(frame + 0x10, at)
         eip, _ = emu.span(0x2E9D49, 0x2E9DFB, {UC_X86_REG_EBP: frame})
         begin, end = emu.read(frame - 0x20), emu.read(frame - 0x1C)
@@ -1655,60 +1703,255 @@ def main():
 
     lifebone = {"dict_id": 54, "count": 10}
     spring = {"dict_id": 74, "count": 10}
-    containers = ["logic/a/artefact_container(1)", "logic/a/artefact_container(2)"]
+    names = [f"logic/a/artefact_container({i})" for i in range(4)]
+    spot_rows = [{"core": "logic/a/anomaly_lifebone", "index": 0, "container": names[0], "kind": 758},
+                 {"core": "logic/a/anomaly_lifebone", "index": 2, "container": names[2], "kind": 759},
+                 {"core": "logic/a/anomaly_lifebone", "index": 3, "container": names[3], "kind": 758},
+                 {"core": "logic/a/anomaly_lifebone", "index": 9, "container": "past the end", "kind": 759},
+                 {"core": "logic/a/anomaly_spring", "index": 1, "container": names[1], "kind": 759}]
+    cook, options = match_world(k_run, {7: {"name": "x", "artefact_spots": spot_rows}, 8: {"name": "y"}, 9: None})
+    picked = {"full_name": "logic/a/anomaly_lifebone", "artefacts": [lifebone], "artefact_containers": names}
     cores = (
-        ("one kind and two containers", {"artefacts": [lifebone], "artefact_containers": containers},
-         [(54, 10), (758, 1), (759, 1)]),
-        ("two kinds", {"artefacts": [lifebone, spring], "artefact_containers": containers},
-         [(54, 10), (74, 10), (758, 1), (759, 1)]),
-        ("the Sponge already there (a map that names it)",
-         {"artefacts": [lifebone, {"dict_id": 758, "count": 3}], "artefact_containers": containers},
-         [(54, 10), (758, 3), (759, 1)]),
-        ("both already there", {"artefacts": [{"dict_id": 759, "count": 2}, {"dict_id": 758, "count": 1}],
-                                "artefact_containers": containers}, [(759, 2), (758, 1)]),
-        ("no artefact containers (v011e level 4's track controllers)", {"artefacts": [lifebone]}, [(54, 10)]),
-        ("an empty containers list", {"artefacts": [lifebone], "artefact_containers": []}, [(54, 10)]),
-        ("no kinds", {"artefacts": [], "artefact_containers": containers}, []),
+        ("a core with three spots (two Sponges, a Rattle; a fourth past its containers left out)", 7, picked,
+         [(54, 10), (758, 2), (759, 1)]),
+        ("another core with a spot", 7, {"full_name": "logic/a/anomaly_spring", "artefacts": [spring],
+                                         "artefact_containers": names}, [(74, 10), (759, 1)]),
+        ("a core with no spot on that map", 7, {"full_name": "logic/a/anomaly_onyx", "artefacts": [lifebone, spring],
+                                                "artefact_containers": names}, [(54, 10), (74, 10)]),
+        ("the picked core on a map whose mode config has no spots", 8, picked, [(54, 10)]),
+        ("the picked core on a map whose mode config is not loaded", 9, picked, [(54, 10)]),
+        ("the picked core on a map the dictionary does not have", 10, picked, [(54, 10)]),
+        ("the picked core without its containers", 7, {"full_name": "logic/a/anomaly_lifebone",
+                                                       "artefacts": [lifebone]}, [(54, 10)]),
     )
-    for what, core, want in cores:
-        eip, kinds, total, kept = cooked_kinds(k_run, core)
+    for what, map_id, core, want in cores:
+        on_map(k_run, options, map_id)
+        eip, kinds, total, kept = cooked_kinds(k_run, core, cook)
         s_eip, s_kinds, s_total, _ = cooked_kinds(k_stock, core)
-        check(f"a core with {what}: the cook's kinds {kinds} (the original exe's {s_kinds}), counted {total}; "
-              "the config untouched",
+        check(f"{what}: the cook's kinds {kinds} (the original exe's {s_kinds}), counted {total}; the config "
+              "untouched",
               eip == s_eip == 0x2E9DFB and kinds == want and kinds[:len(s_kinds)] == s_kinds
               and total == sum(c for _, c in want) and s_total == sum(c for _, c in s_kinds) and kept)
-    # the copies live in a ring of slots: a run of cores, each read before the next copy is made
+    on_map(k_run, options, 7)
     run_ok = []
     for i in range(20):
-        _, kinds, _, _ = cooked_kinds(k_run, {"artefacts": [{"dict_id": 54 + i, "count": i + 1}],
-                                              "artefact_containers": containers})
-        run_ok.append(kinds == [(54 + i, i + 1), (758, 1), (759, 1)])
-    check("twenty cores cooked in a row (the copies' ring of eight slots, each slot taken again): each its own "
-          "kind, then the Sponge's and the Rattle's", all(run_ok), str(run_ok))
-    totals = [0, 0, 0]                                 # projects, cores, cores that spawn
+        _, kinds, _, _ = cooked_kinds(k_run, dict(picked, artefacts=[{"dict_id": 54 + i, "count": i + 1}]), cook)
+        run_ok.append(kinds == [(54 + i, i + 1), (758, 2), (759, 1)])
+    check("twenty picked cores cooked in a row (the copies' ring of eight slots, each slot taken again): each its "
+          "own kind, then its spots' units", all(run_ok), str(run_ok))
+
+    # The core's links: resolve_links through the slot (the game's own, then sponge_links).
+    def make_core(emu, n, pool_vtables, random=1):
+        core = emu.allocate(0x200)
+        containers = [emu.allocate(0x80) for _ in range(n)]
+        vec = emu.allocate(4 * n)
+        for i, container in enumerate(containers):          # as resolve_links leaves them
+            emu.word(vec + 4 * i, container)
+        emu.word(core + 0x140, vec)
+        emu.word(core + 0x144, vec + 4 * n)
+        states = emu.allocate(4)
+        emu.word(core + 0x180, states)
+        emu.word(core + 0x184, states)
+        pool = emu.allocate(4 * len(pool_vtables))
+        objects = []
+        for i, vt_ in enumerate(pool_vtables):
+            obj = emu.allocate(0x300)
+            emu.word(obj, vt_)
+            emu.word(obj + 0xD0, 1)
+            emu.word(pool + 4 * i, obj)
+            objects.append(obj)
+        emu.word(core + 0x1B0, pool)
+        emu.word(core + 0x1B4, len(pool_vtables))
+        emu.word(core + 0x1B8, random)
+        emu.float(core + 0x134, 1.0)                    # artefacts_respawn_chance
+        emu.word(core + 0x128, n + 1)                   # max_artefacts_count
+        return core, containers, objects
+
+    def link(emu, core, containers, config):
+        by_name = {}
+        for name, container in zip(config.get("artefact_containers") or [], containers):
+            by_name[name] = container
+        resolver = emu.allocate(0x10)
+        emu.word(resolver, emu.vtable({1: (lambda e: by_name.get(e.string(e.arg(0))), 4)}))
+        at, _ = loaded_config(emu, config)
+        record = struct.unpack("<6I", emu.bytes(at, 24))
+        slot = emu.read(0xA16A10)
+        _, popped = emu.call(slot, (resolver,) + record, {UC_X86_REG_ECX: core + 4})
+        vec = emu.read(core + 0x140)
+        resolved = [emu.read(vec + 4 * i) for i in range(len(containers))]
+        return slot, popped, resolved, [emu.read(c + 0x50) for c in containers]
+
+    def spot_kinds(emu, core):
+        for i in range(SPOT_CORES):
+            entry = cores_g + i * (4 + 2 * SPOT_CONTAINERS)
+            if emu.read(entry) == core:
+                return [emu.read(entry + 4 + 2 * j, 2) for j in range(SPOT_CONTAINERS)]
+        return None
+
+    LIFEBONE_VT, SPONGE_VT, RATTLE_VT = 0xA05FB0, SYMBOLS["sp_vtable"] + 4, ARENA.symbols["rt_vtable"] + 4
+    on_map(k_run, options, 7)
+    cooked_kinds(k_run, picked, cook)                   # the cook sets the map's spots
+    core_a, conts_a, _ = make_core(k_run, 4, [LIFEBONE_VT] * 3)
+    slot, popped, resolved, owners = link(k_run, core_a, conts_a, picked)
+    kinds_a = spot_kinds(k_run, core_a)
+    check("the core's resolve_links through its vtable slot 0xA16A10 (sponge_links): the game's resolve_links "
+          "fills its containers in artefact_containers' order and names the core their owner, then the core's "
+          "spots are kept: Sponge at 0 and 3, Rattle at 2, none at 1 (and none past its containers); ret 1Ch",
+          slot == ARENA.symbols["sponge_links"] and popped == 0x1C and resolved == conts_a
+          and owners == [core_a] * 4 and kinds_a is not None and kinds_a[:4] == [758, 0, 759, 758]
+          and not any(kinds_a[4:]), str(kinds_a[:6] if kinds_a else None))
+    plain_core, plain_conts, _ = make_core(k_run, 4, [LIFEBONE_VT] * 3)
+    link(k_run, plain_core, plain_conts, {"full_name": "logic/a/anomaly_onyx", "artefacts": [lifebone],
+                                         "artefact_containers": names})
+    # a core at a picked core's address that has no spot (the next match's): its old entry goes
+    link(k_run, core_a, conts_a, {"full_name": "logic/a/anomaly_onyx", "artefacts": [lifebone],
+                                  "artefact_containers": names})
+    gone = spot_kinds(k_run, core_a)
+    link(k_run, core_a, conts_a, picked)
+    check("a core with no spot keeps no entry; a core linked again at a picked core's address without spots (a "
+          "later match's) loses the old entry, and gets it back when linked with its spots",
+          spot_kinds(k_run, plain_core) is None and gone is None and spot_kinds(k_run, core_a)[:4] == [758, 0, 759, 758])
+
+    # spawn_artefact whole, on the build and on the original: the same draws.
+    spawned = {}
+
+    def watch(emu, key):
+        emu.stub(lambda e: None, 0, at=0x31C930, name="container_take")
+        emu.stub(lambda e: spawned.setdefault(key, []).append((e.emu.reg_read(UC_X86_REG_EAX), e.arg(0))), 4,
+                 at=0x3134C0, name="artefact_spawn")
+    watch(k_run, "run")
+    watch(k_stock, "stock")
+
+    def spawn(emu, key, core, containers, objects, free_containers, free_artefacts, random, time=100000):
+        for i, c in enumerate(containers):
+            emu.word(c + 0x4C, 0)
+            emu.word(c + 0x60, 0 if i in free_containers else time + 1)
+        for i, o in enumerate(objects):
+            emu.word(o + 0x280, 0 if i in free_artefacts else 3)
+        emu.word(core + 0x1B8, random)
+        spawned[key] = []
+        emu.thiscall(0x31B6C0, core, time)
+        got = spawned[key]
+        container = containers.index(got[0][1]) if got else None
+        artefact = objects.index(got[0][0]) if got else None
+        return container, artefact, emu.read(core + 0x1B8), emu.read(core + 0x13C)
+
+    import random as rnd
+    trials = rnd.Random(59)
+    # the picked core: pool 0..2 Lifebone, 3, 4 Sponges, 5 Rattle (its cook's units)
+    pool = [LIFEBONE_VT] * 3 + [SPONGE_VT] * 2 + [RATTLE_VT]
+    run_core, run_conts, run_objs = make_core(k_run, 4, pool)
+    link(k_run, run_core, run_conts, picked)
+    stock_core, stock_conts, stock_objs = make_core(k_stock, 4, pool)
+    kinds_of = [54, 54, 54, 758, 758, 759]
+    pick_of = [758, 0, 759, 758]
+    same_draws = rule = empty_ok = 0
+    n = 300
+    seen = collections.Counter()
+    for _ in range(n):
+        free_c = {i for i in range(4) if trials.random() < 0.6}
+        free_a = {i for i in range(6) if trials.random() < 0.6}
+        seed = trials.getrandbits(32)
+        r = spawn(k_run, "run", run_core, run_conts, run_objs, free_c, free_a, seed)
+        s = spawn(k_stock, "stock", stock_core, stock_conts, stock_objs, free_c, free_a, seed)
+        same_draws += r[2:] == s[2:] and (r[0] == s[0] or r[1] is None)
+        if r[1] is None:
+            # none taken: the stock had no free artefact, or the container's kinds were all taken
+            if s[1] is None or s[0] is None:
+                empty_ok += r[0] is None
+            else:
+                want = pick_of[s[0]]
+                empty_ok += not any(kinds_of[i] == want if want else kinds_of[i] == 54 for i in free_a)
+            seen["none"] += 1
+        else:
+            want = pick_of[r[0]]
+            rule += kinds_of[r[1]] == want if want else kinds_of[r[1]] == 54
+            seen[kinds_of[r[1]]] += 1
+    check(f"the picked core, {n} spawns from random free containers, free artefacts and random states, on the "
+          "build and the original exe: the same draws (the random state after, the next spawn's time, the "
+          "container), a picked container gets only its kind (0 and 3 the Sponge, 2 the Rattle), the other only "
+          "the core's own kind; when its kind is taken nothing spawns there (as with no free artefact)",
+          same_draws == n and rule + seen["none"] == n and empty_ok == seen["none"],
+          f"{same_draws}/{n} same draws, {rule} by the rule, {seen}")
+    # a core with no spots (its pool the core's own kinds only): 0.26g's choice, exactly
+    plain_pool = [LIFEBONE_VT] * 4
+    p_core, p_conts, p_objs = make_core(k_run, 4, plain_pool)
+    link(k_run, p_core, p_conts, {"full_name": "logic/a/anomaly_onyx", "artefacts": [lifebone],
+                                  "artefact_containers": names})
+    s_core, s_conts, s_objs = make_core(k_stock, 4, plain_pool)
+    same = 0
+    for _ in range(n):
+        free_c = {i for i in range(4) if trials.random() < 0.6}
+        free_a = {i for i in range(4) if trials.random() < 0.6}
+        seed = trials.getrandbits(32)
+        same += spawn(k_run, "run", p_core, p_conts, p_objs, free_c, free_a, seed) \
+            == spawn(k_stock, "stock", s_core, s_conts, s_objs, free_c, free_a, seed)
+    check(f"a core with no spot, {n} spawns: the build and the original exe take the same container and the same "
+          "artefact with the same draws", same == n, f"{same}/{n}")
+    # every game the same: a second build (a late joiner's world, linked from the same data) takes the same
+    again = Run(pe_sections(built))
+    a_cook, a_options = match_world(again, {7: {"name": "x", "artefact_spots": spot_rows}})
+    on_map(again, a_options, 7)
+    cooked_kinds(again, picked, a_cook)
+    watch(again, "again")
+    j_core, j_conts, j_objs = make_core(again, 4, pool)
+    link(again, j_core, j_conts, picked)
+    agree = 0
+    for _ in range(100):
+        free_c = {i for i in range(4) if trials.random() < 0.6}
+        free_a = {i for i in range(6) if trials.random() < 0.6}
+        seed = trials.getrandbits(32)
+        agree += spawn(k_run, "run", run_core, run_conts, run_objs, free_c, free_a, seed) \
+            == spawn(again, "again", j_core, j_conts, j_objs, free_c, free_a, seed)
+    check("a second game (a late joiner's: its cores linked from the same mode config) spawns the same "
+          "container and artefact from the same state, 100 of 100", agree == 100, f"{agree}/100")
+
+    # The live maps: each project's cores with the edit list's spots of its map.
+    # The edit list's spots, by map folder (its mode configs are <folder>_<weather>_<mode>.options).
+    spots_by_map = {}
+    for e in json.load(open(args.spots))["add_value"] if args.spots else ():
+        for f in e["files"]:
+            spots_by_map.setdefault(f.rsplit("/", 1)[-1].removesuffix(".options").rsplit("_", 2)[0], e["value"])
+    totals = [0, 0, 0, 0]                               # projects, cores, cores with spots, spots
+    p_cook, p_options = match_world(k_run, {1: {"name": "p"}})
+    on_map(k_run, p_options, 1)
+    p_resource = k_run.read(k_run.read(k_run.read(k_run.read(k_run.read(p_cook + 0x20) + 0x9C) + 0x53A4) + 0x160) + 8)
     for project in args.project:
+        folder = os.path.basename(os.path.dirname(os.path.dirname(project)))
+        rows = spots_by_map.get(folder, [])
+        at, _ = loaded_config(k_run, {"mode": {"name": "p", "artefact_spots": rows}})
+        k_run.word(p_resource + 0x108, at)              # this map's mode config
         tree = bcw.load(project)
-        n = n_spawning = 0
+        n_cores = n_picked = 0
         bad = []
-        objects = tree.get("client_objects") or []
-        for index, obj in enumerate(objects):
+        objects_ = tree.get("client_objects") or []
+        named = collections.Counter(o.get("full_name") for o in objects_
+                                    if o.get("game_object_type") == "generic_anomaly_core")
+        for r in rows:
+            match_ = [o for o in objects_ if o.get("game_object_type") == "generic_anomaly_core"
+                      and o.get("full_name") == r["core"]]
+            if len(match_) != 1 or r["index"] >= len(match_[0].get("artefact_containers") or []) \
+                    or match_[0]["artefact_containers"][r["index"]] != r["container"]:
+                bad.append(("no such spot", r))
+        for index, obj in enumerate(objects_):
             if obj.get("game_object_type") != "generic_anomaly_core":
                 continue
-            n += 1
+            n_cores += 1
             own = [(a["dict_id"], a["count"]) for a in obj.get("artefacts") or []]
-            spawning = bool(own) and bool(obj.get("artefact_containers"))
-            n_spawning += spawning
-            _, kinds, _, _ = cooked_kinds(k_run, obj)
-            want = own + ([(758, 1), (759, 1)] if spawning else [])
+            mine = [r for r in rows if r["core"] == obj.get("full_name")
+                    and r["index"] < len(obj.get("artefact_containers") or [])]
+            add = [(k, sum(r["kind"] == k for r in mine)) for k in (758, 759)]
+            want = own + ([(k, c) for k, c in add if c] if own and obj.get("artefact_containers") else [])
+            n_picked += bool(mine)
+            _, kinds, _, _ = cooked_kinds(k_run, obj, p_cook)
             if kinds != want:
                 bad.append((index, kinds, want))
-        check(f"{project}: every one of its {n} anomaly cores (as the project holds it): the {n_spawning} "
-              "with kinds and containers get the Sponge and the Rattle after their own, the others as they are",
-              not bad, str(bad[:3]))
-        totals = [totals[0] + 1, totals[1] + n, totals[2] + n_spawning]
+        check(f"{project}: its {len(rows)} spots each a core of it and that container at that index; every one of "
+              f"its {n_cores} anomaly cores: the {n_picked} with spots get their units after their own kinds, the "
+              "others as they are", not bad, str(bad[:3]))
+        totals = [totals[0] + 1, totals[1] + n_cores, totals[2] + n_picked, totals[3] + len(rows)]
     if args.project:
-        print(f"  --  {totals[0]} projects: {totals[1]} anomaly cores, {totals[2]} of them with the Sponge and "
-              "the Rattle")
+        print(f"  --  {totals[0]} projects: {totals[1]} anomaly cores, {totals[2]} of them with spots")
 
     # 15. The content pack's own config (release/content.tsv sponge@2, SRP_SPONGE_PACK or --pack: its
     #     folder), loaded as the game loads it: the cook reads it, and its passive keeps infection full.

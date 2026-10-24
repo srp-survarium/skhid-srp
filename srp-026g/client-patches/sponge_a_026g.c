@@ -256,7 +256,7 @@ typedef struct {
     u16 type, count;
 } cfg;
 _Static_assert(sizeof(cfg) == 24, "a config value is 24 bytes");
-enum { CFG_INT = 1, CFG_FLOAT = 2, CFG_NAMED = 3, CFG_INDEXED = 4 };
+enum { CFG_INT = 1, CFG_FLOAT = 2, CFG_NAMED = 3, CFG_INDEXED = 4, CFG_STR = 5 };
 
 static const cfg *child(const cfg *table, const char *key) {
     return (const cfg *)engine_cfg_child((const struct engine_cfg *)table, key);
@@ -1088,26 +1088,60 @@ THISCALL u32 sp_cook_query(u8 *cook, u8 *parent, struct sponge *s, u8 **resource
     return 1;
 }
 
-/* ---- the static anomalies' kinds (0x2E9D53) ---------------------------- */
+/* ---- the owner's spots (0x2E9D53, resolve_links, spawn_artefact) ------- */
 
-/* Every map anomaly that spawns artefacts (a generic_anomaly_core with
- * artefact containers and kinds) holds the Sponge and the Rattle too, one of
- * each, after its own kinds ({758, 1} and {759, 1}; the owner, 2026-10-22
- * and 23). generic_anomaly_core_cook::query_for_artefacts 0x2E9D40 is the
- * only reader of a core's `artefacts` (its key's one reference, 0x2E9D4F):
- * it sizes its lists from the table's count, reads each entry's dict_id
- * (u16) and count (int) with operator[], queries every kind's item and hands
- * the core the result. So the anomaly is given a copy of its table with the
- * two entries after its own (each one unless the core has that kind), not a
- * changed project: no map file ships for it. The copy's entries are the
- * table's records (their keys stay the project's) and the new ones copies of
- * its first entry with their own two keys, the values ours. The function
- * reads the table only before its first call out (the loop 0x2E9DA6..
- * 0x2E9DF6, which copies each entry): a copy lives in one of SP_KINDS_RING
- * slots, taken in turn, until that many more cores have been cooked. */
-enum { KIND_SPONGE = 758, KIND_RATTLE = 759, KINDS_MAX = 16, SP_KINDS_RING = 8 };
+/* The Sponge (758) and the Rattle (759) spawn only where the owner put them
+ * (2026-10-24): a picked container of an anomaly spawns only its kind, the
+ * anomaly's other containers spawn its own kinds as before, an anomaly with
+ * no pick is 0.26g's. The picks are content: each map's mode configs hold
+ * `mode/artefact_spots`, [{core (its full_name), index (in its
+ * artefact_containers), container, kind}] (edit list artefact-spots-1,
+ * scripts/sponge/spots.py); the items dictionary keeps every map's mode
+ * config loaded (items_dictionary_cook::on_map_configs_loaded 0x2C9BA0: a
+ * map entry {u32 id, mode name, the config resource} at +160h, 12 bytes,
+ * their count +164h), and the match's options name the map
+ * (match_options+577B4h, the u8 map_id of the 0xE4 message; static_info.md).
+ *
+ * Three places:
+ * - the anomaly cook's look-up of a core's `artefacts` (0x2E9D53 in
+ *   generic_anomaly_core_cook::query_for_artefacts 0x2E9D40, the only reader
+ *   of that key: it makes one artefact per unit of each {kind, count}):
+ *   sp_artefacts gives a core with picks a copy of its table with {758, n}
+ *   and {759, m} after its own kinds, n and m its picks of each;
+ * - the core's resolve_links (its vtable slot 0xA16A10; the containers of
+ *   +140h in the order of artefact_containers): sp_links keeps, for a core
+ *   with picks, the kind of each picked container (sp_spot_cores);
+ * - spawn_artefact 0x31B6C0, after it chose a free container (its second
+ *   draw): sp_spawn_pick takes the artefact. The draws are the stock's: the
+ *   third is made whenever any artefact of the pool is free (state 0), as
+ *   0.26g makes it, and picks among those the container may take: its kind
+ *   for a picked container, the core's own kinds for another (never a picked
+ *   kind); none of those free (a player has it), nothing spawns there this
+ *   time, as with no free artefact, and the delay is drawn as 0.26g's. A
+ *   core with no picks takes among all its free artefacts: 0.26g's choice. */
+enum {
+    KIND_SPONGE = 758, KIND_RATTLE = 759, KINDS_MAX = 16, SP_KINDS_RING = 8,
+    SPOT_CONTAINERS = 32, SPOT_CORES = 64,
+};
 static const u16 ADDED_KINDS[] = {KIND_SPONGE, KIND_RATTLE};
 #define ADDED_COUNT (sizeof ADDED_KINDS / sizeof ADDED_KINDS[0])
+/* the cook's way to the client (as its seed getter 0x1F6680 and dictionary getter 0x1F6670) */
+#define COOK_CONTEXT 0x20
+#define CONTEXT_CLIENT 0x9C
+#define CLIENT_DICTIONARY 0x53A4
+#define CLIENT_MATCH 0x53AC          /* vt+34h: the match options (0x1F6694) */
+#define OPTIONS_MAP_ID 0x577B4
+#define DICTIONARY_MAPS 0x160        /* {u32 id, mode name, config resource} x [+164h] (0x21F910) */
+#define DICTIONARY_MAP_COUNT 0x164
+#define MAP_ENTRY 12
+#define MAP_CONFIG 8
+#define RESOURCE_ROOT 0x108          /* a config resource's root value (0x2C9C81) */
+/* generic_anomaly_core (spawn_artefact 0x31B6C0, resolve_links 0x33C440) */
+#define CORE_CONTAINERS 0x140        /* begin, end: the containers in artefact_containers' order */
+#define CORE_POOL 0x1B0              /* the artefacts, their count +1B4h */
+#define CORE_POOL_COUNT 0x1B4
+#define CORE_RANDOM 0x1B8            /* x * 8088405h + 1 per draw */
+#define RANDOM_MUL 0x08088405u
 
 struct sp_kinds {
     cfg table;                        /* the core's table, its entries below */
@@ -1116,6 +1150,21 @@ struct sp_kinds {
 };
 struct sp_kinds sp_kinds[SP_KINDS_RING];
 u32 sp_kinds_next;
+/* the current map's spots (set at each core's cook; the cores of a project
+ * are cooked before any is linked) */
+const cfg *sp_spots;
+struct sp_spot_core {
+    u8 *core;
+    u16 kind[SPOT_CONTAINERS];        /* a picked container's kind, 0 none */
+};
+struct sp_spot_core sp_spot_cores[SPOT_CORES];
+u32 sp_spot_next;
+extern const u32 rt_vtable[];
+
+static int same_text(const char *a, const char *b) {
+    while (*a && *a == *b) ++a, ++b;
+    return *a == *b;
+}
 
 /* `key` of a named table, if an int (dict_id, count) */
 static const cfg *int_key(const cfg *table, const char *key) {
@@ -1124,37 +1173,152 @@ static const cfg *int_key(const cfg *table, const char *key) {
     return value->type == CFG_INT ? value : 0;
 }
 
-const cfg *sp_artefacts(const cfg *table, const cfg *core) {
-    if (!table || table->type != CFG_INDEXED || table->count == 0 || table->count > KINDS_MAX) return table;
+static const char *text_key(const cfg *table, const char *key) {
+    if (!table || table->type != CFG_NAMED || !has(table, key)) return 0;
+    const cfg *value = child(table, key);
+    return value->type == CFG_STR ? (const char *)value->data : 0;
+}
+
+/* The match's map's `mode/artefact_spots`, 0 for none. */
+static const cfg *map_spots(u8 *cook) {
+    u8 *context = cook ? AT(cook, COOK_CONTEXT, u8 *) : 0;
+    u8 *client = context ? AT(context, CONTEXT_CLIENT, u8 *) : 0;
+    u8 *match = client ? AT(client, CLIENT_MATCH, u8 *) : 0;
+    u8 *dictionary = client ? AT(client, CLIENT_DICTIONARY, u8 *) : 0;
+    if (!match || !dictionary) return 0;
+    u8 *options = ((THISCALL u8 *(*)(void *))vt(match, 0x34))(match);
+    if (!options) return 0;
+    u32 id = AT(options, OPTIONS_MAP_ID, u8);
+    u8 *maps = AT(dictionary, DICTIONARY_MAPS, u8 *);
+    for (u32 i = 0; maps && i < AT(dictionary, DICTIONARY_MAP_COUNT, u32); ++i) {
+        u8 *map = maps + MAP_ENTRY * i;
+        if (AT(map, 0, u32) != id) continue;
+        u8 *resource = AT(map, MAP_CONFIG, u8 *);
+        const cfg *root = resource ? AT(resource, RESOURCE_ROOT, const cfg *) : 0;
+        const cfg *mode = root && has(root, "mode") ? child(root, "mode") : 0;
+        const cfg *spots = mode && mode->type == CFG_NAMED && has(mode, "artefact_spots")
+                           ? child(mode, "artefact_spots") : 0;
+        return spots && spots->type == CFG_INDEXED ? spots : 0;
+    }
+    return 0;
+}
+
+/* The spot `i` of the table: its core, container index and kind (0 for a row
+ * that is not one). */
+static u32 spot(const cfg *spots, u32 i, const char **core, u32 *index) {
+    const cfg *row = item(spots, i);
+    const cfg *at = int_key(row, "index"), *kind = int_key(row, "kind");
+    *core = text_key(row, "core");
+    *index = at ? at->data : ~0u;
+    u32 k = kind ? kind->data : 0;
+    return *core && at && (k == KIND_SPONGE || k == KIND_RATTLE) ? k : 0;
+}
+
+const cfg *sp_artefacts(const cfg *table, const cfg *core, u8 *cook) {
+    const cfg *spots = sp_spots = map_spots(cook);
+    if (!spots || !table || table->type != CFG_INDEXED || table->count == 0 || table->count > KINDS_MAX) return table;
     if (!has(core, "artefact_containers")) return table;
     const cfg *containers = child(core, "artefact_containers");
     if (containers->type != CFG_INDEXED || containers->count == 0) return table;
+    const char *name = text_key(core, "full_name");
+    if (!name) return table;
+    u32 picks[ADDED_COUNT] = {0, 0};
+    for (u32 i = 0; i < spots->count; ++i) {
+        const char *of;
+        u32 index, kind = spot(spots, i, &of, &index);
+        if (kind && index < containers->count && index < SPOT_CONTAINERS && same_text(of, name))
+            ++picks[kind - KIND_SPONGE];
+    }
+    if (!picks[0] && !picks[1]) return table;
     const cfg *first = item(table, 0);
     if (first->count != 2 || !int_key(first, "dict_id") || !int_key(first, "count")) return table;
-    u16 adding[ADDED_COUNT];
-    u32 added = 0;
-    for (u32 k = 0; k < ADDED_COUNT; ++k) {
-        int there = 0;
-        for (u32 i = 0; i < table->count; ++i) {
-            const cfg *id = int_key(item(table, i), "dict_id");
-            there |= id && (u16)id->data == ADDED_KINDS[k];
-        }
-        if (!there) adding[added++] = ADDED_KINDS[k];
-    }
-    if (!added) return table;
     struct sp_kinds *copy = &sp_kinds[__atomic_fetch_add(&sp_kinds_next, 1, __ATOMIC_RELAXED) % SP_KINDS_RING];
-    u32 count = table->count;
+    u32 count = table->count, added = 0;
     memcpy(copy->entries, (const cfg *)table->data, count * sizeof(cfg));
-    for (u32 k = 0; k < added; ++k) {
-        memcpy(copy->keys[k], (const cfg *)first->data, sizeof copy->keys[k]);
-        cfg *entry = &copy->entries[count + k];
+    for (u32 k = 0; k < ADDED_COUNT; ++k) {
+        if (!picks[k]) continue;
+        memcpy(copy->keys[added], (const cfg *)first->data, sizeof copy->keys[added]);
+        cfg *entry = &copy->entries[count + added];
         *entry = *first;
-        entry->data = (u32)copy->keys[k];
-        ((cfg *)child(entry, "dict_id"))->data = adding[k];
-        ((cfg *)child(entry, "count"))->data = 1;
+        entry->data = (u32)copy->keys[added];
+        ((cfg *)child(entry, "dict_id"))->data = ADDED_KINDS[k];
+        ((cfg *)child(entry, "count"))->data = picks[k];
+        ++added;
     }
     copy->table = *table;
     copy->table.data = (u32)copy->entries;
     copy->table.count = (u16)(count + added);
     return &copy->table;
+}
+
+static struct sp_spot_core *spot_core(const u8 *core) {
+    for (u32 i = 0; i < SPOT_CORES; ++i)
+        if (sp_spot_cores[i].core == core) return &sp_spot_cores[i];
+    return 0;
+}
+
+/* After a core's resolve_links (`base` its +4, the link resolver's; `config`
+ * its config): the kinds of its picked containers, or no entry. */
+void sp_links(u8 *base, const cfg *config) {
+    u8 *core = base - 4;
+    struct sp_spot_core *entry = spot_core(core);
+    if (entry) entry->core = 0;
+    const cfg *spots = sp_spots;
+    const char *name = spots ? text_key(config, "full_name") : 0;
+    if (!name) return;
+    u32 containers = (u32)(AT(core, CORE_CONTAINERS + 4, u8 *) - AT(core, CORE_CONTAINERS, u8 *)) / 4;
+    u16 kinds[SPOT_CONTAINERS] = {0};
+    u32 any = 0;
+    for (u32 i = 0; i < spots->count; ++i) {
+        const char *of;
+        u32 index, kind = spot(spots, i, &of, &index);
+        if (kind && index < containers && index < SPOT_CONTAINERS && same_text(of, name))
+            kinds[index] = (u16)kind, any = 1;
+    }
+    if (!any) return;
+    entry = spot_core(0);
+    if (!entry) entry = &sp_spot_cores[sp_spot_next++ % SPOT_CORES];
+    entry->core = core;
+    memcpy(entry->kind, kinds, sizeof kinds);
+}
+
+static u32 kind_of(const u8 *artefact) {
+    const u32 *vtable = AT(artefact, 0, const u32 *);
+    return vtable == sp_vtable + 1 ? KIND_SPONGE : vtable == rt_vtable + 1 ? KIND_RATTLE : 0;
+}
+
+/* spawn_artefact's artefact for `container` (0x31B800: the container chosen,
+ * the pool's free list not yet made): the artefact, or 0 for none (the delay
+ * then, 0x31B8C2). */
+void *sp_spawn_pick(u8 *core, u8 *container) {
+    u8 **pool = AT(core, CORE_POOL, u8 **);
+    u32 count = AT(core, CORE_POOL_COUNT, u32), free = 0;
+    for (u32 i = 0; i < count; ++i) free += AT(pool[i], A_STATE, u32) == 0;
+    if (!free) return 0;                              /* 0.26g: no third draw */
+    u32 random = AT(core, CORE_RANDOM, u32) * RANDOM_MUL + 1;
+    AT(core, CORE_RANDOM, u32) = random;
+    u32 pick = 0;
+    struct sp_spot_core *entry = spot_core(core);
+    if (entry) {
+        u8 **at = AT(core, CORE_CONTAINERS, u8 **), **end = AT(core, CORE_CONTAINERS + 4, u8 **);
+        for (u32 i = 0; at + i < end && i < SPOT_CONTAINERS; ++i)
+            if (at[i] == container) {
+                pick = entry->kind[i];
+                break;
+            }
+    }
+    u32 taken = 0;
+    for (int pass = 0; pass < 2; ++pass) {
+        u32 n = 0;
+        for (u32 i = 0; i < count; ++i) {
+            if (AT(pool[i], A_STATE, u32) != 0) continue;
+            u32 kind = kind_of(pool[i]);
+            if (entry ? (pick ? kind != pick : kind != 0) : 0) continue;
+            if (pass && n == taken) return pool[i];
+            ++n;
+        }
+        if (!n) return 0;                             /* none it may take: nothing this time */
+        taken = (u32)(((unsigned long long)random * n) >> 32);
+    }
+    return 0;
 }

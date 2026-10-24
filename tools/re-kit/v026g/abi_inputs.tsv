@@ -4597,3 +4597,8 @@ va	name	location	role	basis
 0x00313880	survarium::artefact_base::fill_ui_info	stack+4	the hud's item info (8 bytes)	observed
 0x002ea3c0	vostok::buffer_vector<survarium::`anonymous namespace'::artefact>::push_back	ESI	the vector (+0 begin, +4 end, +8 the capacity's end; query_for_artefacts' _alloca list)	observed
 0x002ea3c0	vostok::buffer_vector<survarium::`anonymous namespace'::artefact>::push_back	EDI	the element: +0 the artefact's dict id (u16), +8 its count (query_for_artefacts 0x2E9DD3..0x2E9DE0)	observed
+0x0021f910	survarium::items_dictionary::map_descriptor_by_id	EDX	the items dictionary	observed
+0x0021f910	survarium::items_dictionary::map_descriptor_by_id	EDI	the map id (maps_dict id)	observed
+0x001f6670		ECX	generic_anomaly_core_cook	observed
+0x001f6680		ECX	generic_anomaly_core_cook	observed
+0x0031ba00	survarium::generic_anomaly_core::artefact_respawn_delay	ECX	generic_anomaly_core	observed

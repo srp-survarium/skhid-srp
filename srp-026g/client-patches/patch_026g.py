@@ -456,9 +456,13 @@ Patches:
   by on_player_sound_event 0x2A6470 and on_landing at 0x1F3BB6) and of his
   fire states' sounds (0x297F79) carry the quiet his Rattles give, and the
   sound thread scales a propagator's amplitude (0x5CA37) and HDR loudness
-  (0x5C8BA) by it. Every static map anomaly that spawns artefacts holds both:
-  the anomaly cook's look-up of the core's `artefacts` (0x2E9D53) returns
-  the table with {758, 1} and {759, 1} after the core's own kinds;
+  (0x5C8BA) by it. Both spawn only at the owner's spots (each map's mode
+  configs' `mode/artefact_spots`): the anomaly cook's look-up of a core's
+  `artefacts` (0x2E9D53) adds a unit of the kind for each picked container,
+  the core's resolve_links (vtable slot 0xA16A10) keeps which containers
+  are picked, and spawn_artefact (0x31B800, the container chosen) takes a
+  picked container's kind there and the core's own kinds elsewhere, with
+  0.26g's draws;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2072,7 +2076,13 @@ INSTALLS = {
                      "sponge_zone_hit", None, None),
     0x2E9D53: (CALLEE, "generic_anomaly_core_cook::query_for_artefacts 0x2E9D40, the `artefacts` table's look-up "
                        "(operator[] 0xF6B10, eax the core's config, edi the key): sponge_artefacts, the table with "
-                       "the Sponge and the Rattle after the core's own kinds", None, None),
+                       "a unit of the Sponge or the Rattle for each of the core's spots", None, None),
+    0x31B800: (JUMP, "generic_anomaly_core::spawn_artefact 0x31B6C0, the container chosen, its free list and third "
+                     "draw: sponge_spawn, the artefact the container may take (back at 0x31B85F) or none "
+                     "(0x31B8C2)", None, None),
+    0xA16A10: (SLOT, "generic_anomaly_core's link resolver vtable 0xA16A10 (the core's +4) slot 0, "
+                     "resolve_links 0x33C440 (thiscall, the resolver and the config by value, `ret 1Ch`): sponge_links, the original "
+                     "and then the core's spots kept", None, None),
     # the Rattle, patch 59 (in `.srpx`)
     0x25E72C: (CALLEE, "the artefact cook's construct, type 8's `call 0x25FA10` (Rattle's constructor, stdcall "
                        "(memory, scene)): rattle_construct, the Rattle's vtable and numbers after it", None, None),
@@ -2404,13 +2414,17 @@ RESEARCH_HOOKS = (
 # - the damage zone's hit loop 0x319AF0 at 0x319C8B (the receiver's vt+20h
 #   with no instigator, inflictor or item): a zone a sponge ticks names its
 #   thrower (kill credit), its inflictor and it;
-# - the static anomalies' spawns, for the Sponge and the Rattle both (a
-#   `call`): generic_anomaly_core_cook::query_for_artefacts 0x2E9D40 looks
-#   up the core's `artefacts` table at 0x2E9D53 (operator[] 0xF6B10); the
-#   only reader of that key in the exe, it sizes its lists from the table
-#   and queries every kind's item. A core with artefact containers and kinds
-#   gets a copy of its table with {758, 1} and {759, 1} after its own kinds
-#   (each unless it has it already): the maps' projects stay as they are.
+# - the owner's spots, for the Sponge and the Rattle both (the content:
+#   each map's mode configs' `mode/artefact_spots`, edit list
+#   artefact-spots-1): generic_anomaly_core_cook::query_for_artefacts
+#   0x2E9D40 looks up the core's `artefacts` table at 0x2E9D53 (a `call` of
+#   operator[] 0xF6B10; the only reader of that key, it makes one artefact a
+#   unit): a core with spots gets a copy with a unit of the kind for each;
+#   spawn_artefact 0x31B6C0 at 0x31B800 (a `jmp`, through its third draw to
+#   0x31B85F), the container chosen: the artefact it may take, its spot's
+#   kind or the core's own kinds, with 0.26g's draws; and the core's
+#   resolve_links (SPONGE_SLOT, its vtable slot) keeps which containers are
+#   picked. The maps' projects stay as they are.
 # No base relocation is under a site and no branch aims inside one.
 SPONGE_HOOKS = (
     (0x25E68A, bytes.fromhex("83f8050f87a4000000"), "sponge_construct", 0xE9),          # construct's type switch
@@ -2424,7 +2438,13 @@ SPONGE_HOOKS = (
     (0x319C8B, bytes.fromhex("535383ec08d95c2404d9442420d91c24528d54243c528b9424b40000005352ffd0"),
      "sponge_zone_hit", 0xE9),                                                          # the zone's hit
     (0x2E9D53, bytes.fromhex("e8b8cde0ff"), "sponge_artefacts", 0xE8),                  # an anomaly's kinds
+    (0x31B800, bytes.fromhex(
+        "33db894de88945ec85f676308b97b00100008b049a83b88002000000750f8945f48d45f4508d75e8e8230a0000433b9fb401000072d68b45ec8b4de82bc1c1f8028bd085d2767b8b87b801000069c005840808408987b8010000f7e28b1491"), "sponge_spawn", 0xE9),                                                     # an anomaly's spawn
 )
+# generic_anomaly_core's link resolver's resolve_links 0x33C440 (the vtable
+# 0xA16A10 of the core's +4, its slot 0): sponge_links (patch_section_value;
+# the slot keeps its base relocation).
+SPONGE_SLOT = (0xA16A10, struct.pack("<I", 0x33C440), "sponge_links")
 # The Rattle, artefact type 8 (patch 59 with the Sponge, README; client_patch.md
 # section 3.53; docs/notes/rattle.md): rattle_026g.asm's seven entries and
 # stubs, then the C code of rattle_026g.c and its constant data, in the
@@ -3338,6 +3358,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                va, expected, symbol = SPONGE_SLOT
+                patch_section_value(data, va, expected, struct.pack("<I", arena_target(linked, symbol)))
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
                              "says")
