@@ -111,13 +111,21 @@ const SETTLE_MS: u32 = 1_500;
 const USE_SEEN_MS: u32 = 300;
 /// ... unless no such world came for this long (the worlds stopped), ms.
 const USE_SEEN_WAIT_MS: u32 = 3_000;
+/// A put-in takes this long before the battery is in, ms: the battery's put
+/// state lasts `states[2].put_time`, 0.6 s (`docs/notes/battery_pickup.md`;
+/// a take's battery is in hand at once). PROVEN that the state lasts it;
+/// LIKELY that the battery goes in at its end: in the owner's Cologne match
+/// of 2026-10-24 all 6 put-ins judged failed after [`USE_SEEN_MS`] went in
+/// 0.3-3.3 s later, by the same carrier.
+const PUT_TIME_MS: u32 = 600;
 
-/// Whether a use pressed at `pressed` (0: none yet) has been judged by a
-/// world ([`USE_SEEN_MS`]).
-fn use_seen(cx: &Ctx, pressed: u32) -> bool {
+/// Whether a use pressed at `pressed` (0: none yet), whose effect shows
+/// `lasts` ms after the press, has been judged by a world
+/// ([`USE_SEEN_MS`] after that).
+fn use_seen(cx: &Ctx, pressed: u32, lasts: u32) -> bool {
     pressed == 0
-        || cx.view.world_time >= pressed + USE_SEEN_MS
-        || cx.now >= pressed + USE_SEEN_WAIT_MS
+        || cx.view.world_time >= pressed + lasts + USE_SEEN_MS
+        || cx.now >= pressed + lasts + USE_SEEN_WAIT_MS
 }
 /// Each use at a stand aims at the next of these heights over the
 /// battery's position (as the eye's height is a GUESS, `view`).
@@ -765,7 +773,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 return Step::Done(carry_ended(cx, target, "put it in"));
             }
             // The last use not seen yet: it may have put it in.
-            let seen = use_seen(cx, *last_use);
+            let seen = use_seen(cx, *last_use, PUT_TIME_MS);
             if *n >= tries && seen {
                 return Step::Failed("could not put it in");
             }
@@ -1014,7 +1022,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                 intent = intent.crouched();
             }
             // The last use not seen yet: it may have taken it.
-            if cx.now < *last_use + every || !use_seen(cx, *last_use) {
+            if cx.now < *last_use + every || !use_seen(cx, *last_use, 0) {
                 return Step::Continue(intent);
             }
             if *tries < per_stand {
@@ -2160,6 +2168,9 @@ mod tests {
         assert!(used(&s, &mut state, &mut rng), "the first use");
         s.view.clock += 1_200;
         assert!(!used(&s, &mut state, &mut rng), "no world since");
+        // A world 0.6 s after the press: the put (0.6 s) may not be in it.
+        s.view.world_time = s.view.clock - 600;
+        assert!(!used(&s, &mut state, &mut rng), "the put not judged yet");
         s.view.world_time = s.view.clock - 300;
         assert!(used(&s, &mut state, &mut rng), "the second use");
         s.view.clock += 1_200;
