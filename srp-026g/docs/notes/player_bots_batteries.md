@@ -70,7 +70,7 @@ bot change. Means per seed; * = the difference is over 2 SE.
 | beliefs moved | 0.25 | 0.00 | -0.25 | 0.19 |
 | belief right / wrong (world-s) | 2,355 / 0 | 2,332 / 0 | -23 | 46 |
 | put-ins timed from arrival | 5.81 | 7.12 | +1.31 | 0.73 |
-| arrival to put-in, mean (s) | 2.27 | 2.96 | +0.68 | 0.17 * |
+| arrival to put-in, mean (s) (superseded, below) | 2.27 | 2.96 | +0.68 | 0.17 * |
 | K/D team 0 / team 1 | 1.00 / 1.04 | 1.02 / 1.01 | | 0.02 / 0.03 |
 | kills team 0 / team 1 | 124.8 / 127.3 | 124.6 / 123.8 | -0.2 / -3.4 | 1.8 / 2.0 |
 | team kills | 0.06 | 0.12 | +0.06 | 0.06 |
@@ -82,6 +82,10 @@ bot change. Means per seed; * = the difference is over 2 SE.
 - Deliveries, pickups, carriers killed, kills and K/D do not move beyond
   noise. "Intercept: lost him" rose 6.8 -> 8.4 (SE 0.8), the only other
   metric past 2 SE of about 40; LIKELY noise.
+- **Superseded:** the two "from arrival" rows timed only the put-ins that
+  landed on a world's tick (the tally read the stand-in's per-step put-in
+  list at worlds only): 6-7 of about 75 a seed. The next section times
+  all of them: with this PR alone, arrival to put-in is 2.79 s.
 - **The cost:** arrival to put-in is 0.7 s longer (LIKELY: a use that does
   not reach the box is now judged after the put time too, so each retry
   waits 0.6 s more). Only 6-7 put-ins a seed are timed (the carrier's
@@ -143,3 +147,85 @@ first 400: `no way to its stand` 119, `scored out` 91, `seen by` 65
 (6 of them near), `a Collect candidate again` 59, `carried by` 39,
 `no stand to take it from` 10, `no way to its stand lately` 8, `seen
 empty` 5, `the HUD shows it` 4.
+
+## Bots: a put-in's use is pressed once the view is on the box; a use that surely missed is judged at once
+
+### Why
+
+After #384 (above), a put-in's use was judged only after the 0.6 s put, and
+arrival to put-in grew 0.7 s (on a small sample; see the correction there). The put-in pressed use as soon as it stood
+near the container, while its view was still turning to the box (a take
+waits for that, `settled`). Each press that missed then cost one use's spacing
+plus the 0.6 s put before the next.
+
+### What changed
+
+- `plays/collect.rs`, `State::PutIn`: near the box (eye within
+  `USE_NEAR_M`), the use is pressed once the view is on the box's middle (a
+  metre over the container's use point, within `SETTLED_RAD`, as a take), or
+  after `SETTLE_MS` (1.5 s) there anyway.
+- At the press the bot measures how far its use ray (2 m from the eye, along
+  its view) passes the box's middle. Over `PUT_MISS_M` = 1 m, the use began
+  no put, and the next use need not wait for one. **GUESS:** the use box's
+  size is not known; the bench's stand-in takes 0.6 m, so 1 m is well outside
+  it. A bot standing close (the box 1.2 m from the eye) is judged missed only
+  when its back is nearly to the box, so the guess cuts short no use that may
+  have reached it.
+- `tests.rs`, the stand-in: each use a carrier presses within 3 m of its
+  container is recorded with whether it began a put and how far its ray
+  passed the box. The carry tally prints `uses at home N, missed M, far F
+  (began a put B), far then in K; first uses from arrival A took S ms`. "Far"
+  are the uses the bot judges missed at once (ray over 1 m off); "began a
+  put" counts those the stand-in took all the same (a put the bot would
+  cut short); "far then in" those whose carrier's next use, from the same
+  stand (within 0.3 m) and within 3 s, did begin a put.
+- `tests.rs`, the tally: every put-in is timed from the carrier's arrival
+  (a log of the run's put-ins). #384's tally timed only those that landed on
+  a world's tick (6-7 of about 75 a seed).
+
+### Bench
+
+`real_bot_cost`, the `batt` preset (the six maps, 4v4 and 10v10, 180 s, 10
+batteries, the use line on, spread on), no tier, 16 seeds. Base is
+b222a338 (#384 and #387) with this PR's tally; "after" adds the bot change.
+Means per seed; * = the difference is over 2 SE. Seeds 1-8 left K/D team 1
+at -0.06 (2 SE), past early stopping's guard, so all 16 ran.
+
+| | base | after | diff | SE |
+|---|---|---|---|---|
+| uses at home (within 3 m) | 147.6 | 75.6 | -72.0 | 1.5 * |
+| of them missed the box (no put began) | 72.6 | 0.25 | -72.4 | 1.1 * |
+| ray over 1 m off (judged missed at once) | 53.8 | 0.12 | -53.6 | 0.7 * |
+| of these, began a put all the same | 0 | 0 | 0 | 0 |
+| of these, the next use from the same stand went in | 40.9 | 0.06 | -40.8 | 0.9 * |
+| arrival to first use, mean (s) | 0.50 | 1.01 | +0.51 | 0.01 * |
+| put-ins timed from arrival | 75.8 | 75.9 | +0.1 | 0.8 |
+| arrival to put-in, mean (s) | 2.79 | 1.68 | -1.10 | 0.01 * |
+| collect: could not put it in | 0.06 | 0 | -0.06 | 0.06 |
+| collect: put it in | 43.8 | 42.2 | -1.6 | 1.5 |
+| delivered | 75.8 | 75.9 | +0.1 | 0.7 |
+| pickups | 101.8 | 100.3 | -1.6 | 1.5 |
+| carriers killed | 18.4 | 18.5 | +0.1 | 1.5 |
+| plays ended within 1 s | 379.3 | 392.2 | +12.9 | 12.1 |
+| A-B-A flips in 10 s | 102.5 | 103.8 | +1.3 | 8.3 |
+| stood with a goal (ticks) | 26,608 | 27,179 | +571 | 580 |
+| K/D team 0 / team 1 | 1.00 / 1.05 | 1.03 / 1.01 | +0.03 / -0.03 | 0.03 / 0.03 |
+| kills (all) | 229.5 | 233.8 | +4.3 | 3.1 |
+| team kills | 0.12 | 0.12 | 0 | 0.13 |
+
+- Half the uses at the box missed it: the bot pressed while still turning.
+  Now the press waits for the aim (+0.5 s to the first use), and arrival
+  to put-in is 1.1 s shorter: the 0.7 s #384 cost is more than won back.
+- **The 1 m guess cut short no put:** of the uses the bot judged missed
+  at once, none began a put in the stand-in (0 in 16 seeds). In base, 41 a
+  seed were followed by a use from the same stand that went in; now
+  nearly no use is judged so, because nearly none misses.
+- Deliveries and every guard stay within noise.
+- **The "arrival to first use" row is a partial sample.** It times 67 base
+  and 48 after carries a seed, of 76. The tally reads the game at worlds,
+  once a second. When a carry's first use and its put-in, 0.6 s later,
+  fell between the same two worlds, the put-in cleared the arrival before
+  the use was timed. That happens more often now that the first use goes
+  in, so the row leaves out more of after's quick carries. The PR fixes the
+  order (uses first); this bench ran before that fix. Arrival to put-in
+  times all 76.

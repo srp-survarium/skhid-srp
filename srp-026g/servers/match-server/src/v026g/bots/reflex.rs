@@ -1010,6 +1010,114 @@ pub const FRIEND_NOTE_MS: u32 = 100;
 /// margin, metres ([`super::friends::Near::room`]).
 pub const FRIEND_NOTE_ROOM_M: f32 = 1.0;
 
+/// [measure] The fire gates: why a tick fired no shot. A tick's
+/// [`Gates::bits`] has a bit for each gate that failed, the outer ones
+/// (the bot's: getting unstuck, the play, a jump held, a use) first, then
+/// the reflex's in the order its fire step tests them. Nothing decides by
+/// them; the bench's gate tally and the trace read them.
+pub mod gate {
+    /// Getting unstuck had the keys: the reflex did not run.
+    pub const UNSTICK: u32 = 1 << 0;
+    /// The play allows no fire (a carrier, a put-in).
+    pub const PLAY: u32 = 1 << 1;
+    /// A jump held (`JUMP_HOLD_MS`), by the jump's source.
+    pub const JUMP_ROUTE: u32 = 1 << 2;
+    pub const JUMP_HOP: u32 = 1 << 3;
+    pub const JUMP_UNSTICK: u32 = 1 << 4;
+    pub const JUMP_OTHER: u32 = 1 << 5;
+    /// A use in reach had the view: the reflex's shot given back.
+    pub const USING: u32 = 1 << 6;
+    /// A grenade throw had the look and the hands.
+    pub const THROW: u32 = 1 << 7;
+    /// A threat's look (a hit's shooter, a near shot).
+    pub const THREAT: u32 = 1 << 8;
+    /// No seen target.
+    pub const NO_TARGET: u32 = 1 << 9;
+    /// The view farther off than `within_deg`.
+    pub const WITHIN: u32 = 1 << 10;
+    /// The reaction after noticing (`first_shot_at`).
+    pub const REACTION: u32 = 1 << 11;
+    /// A reload, or the switch to the pistol, under way.
+    pub const RELOAD: u32 = 1 << 12;
+    pub const SWITCH: u32 = 1 << 13;
+    /// No round in the weapon.
+    pub const ROUNDS: u32 = 1 << 14;
+    /// Farther than the weapon's range.
+    pub const RANGE: u32 = 1 << 15;
+    /// The hip cone does not fit and the sights are not up: running (no
+    /// aim while it runs), or the aim-in under way.
+    pub const RUNNING: u32 = 1 << 16;
+    pub const AIMING_IN: u32 = 1 << 17;
+    /// A teammate in the line of fire.
+    pub const FRIEND: u32 = 1 << 18;
+    /// `clear_shot`: no part of him shows; the view's ray hits the world;
+    /// the aim's ray does.
+    pub const HIDDEN: u32 = 1 << 19;
+    pub const VIEW_RAY: u32 = 1 << 20;
+    pub const AIM_RAY: u32 = 1 << 21;
+    /// Every gate passed, an automatic weapon between its bursts.
+    pub const PAUSE: u32 = 1 << 22;
+    /// Every gate passed, the trigger did not take it (a weapon of a round a
+    /// press between its presses).
+    pub const TRIGGER: u32 = 1 << 23;
+    /// The tick cut a burst short (a gate failed before `burst_until`).
+    pub const CUT: u32 = 1 << 24;
+
+    /// The gates' names, in their order.
+    pub const NAMES: [(u32, &str); 25] = [
+        (UNSTICK, "unstick"),
+        (PLAY, "play"),
+        (JUMP_ROUTE, "jump_route"),
+        (JUMP_HOP, "jump_hop"),
+        (JUMP_UNSTICK, "jump_unstick"),
+        (JUMP_OTHER, "jump_other"),
+        (USING, "using"),
+        (THROW, "throw"),
+        (THREAT, "threat"),
+        (NO_TARGET, "no_target"),
+        (WITHIN, "within"),
+        (REACTION, "reaction"),
+        (RELOAD, "reload"),
+        (SWITCH, "switch"),
+        (ROUNDS, "rounds"),
+        (RANGE, "range"),
+        (RUNNING, "running"),
+        (AIMING_IN, "aiming_in"),
+        (FRIEND, "friend"),
+        (HIDDEN, "hidden"),
+        (VIEW_RAY, "view_ray"),
+        (AIM_RAY, "aim_ray"),
+        (PAUSE, "pause"),
+        (TRIGGER, "trigger"),
+        (CUT, "cut"),
+    ];
+
+    /// The names of `bits`, in order.
+    pub fn names(bits: u32) -> Vec<&'static str> {
+        NAMES
+            .iter()
+            .filter(|(bit, _)| bits & bit != 0)
+            .map(|(_, name)| *name)
+            .collect()
+    }
+}
+
+/// [measure] One tick's fire gates ([`gate`]): the tick, the gates that
+/// failed, and the target the reflex aimed at.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Gates {
+    pub at: u32,
+    pub bits: u32,
+    pub target: Option<Place>,
+}
+
+/// [measure] A gate trace note per bot and target at most this often, ms.
+pub const GATE_NOTE_MS: u32 = 1000;
+/// [measure] ... once its view has been this long on a seen target, within
+/// `fire_within_deg` + [`GATE_NOTE_SLACK_DEG`], with no shot, ms.
+pub const GATE_NOTE_AFTER_MS: u32 = 300;
+pub const GATE_NOTE_SLACK_DEG: f32 = 2.0;
+
 #[derive(Clone, Debug, Default)]
 pub struct Reflex {
     target: Option<Place>,
@@ -1099,6 +1207,21 @@ pub struct Reflex {
     /// ... at most every [`FRIEND_NOTE_MS`], the last at this.
     friend_noted: u32,
     friend_note: Option<serde_json::Value>,
+    /// [measure] This tick's fire gates ([`Reflex::gates`]).
+    gates: Gates,
+    /// [measure] The bench's gate tally: every gate is tested each tick,
+    /// `clear_shot`'s rays too, though an earlier one failed (no decision
+    /// changes; only the rays cost).
+    pub gate_tally: bool,
+    /// [measure] The source of the jump held ([`Reflex::jumped`]), a
+    /// [`gate`] bit; what keeps the weapon busy, likewise.
+    jump_by: u32,
+    busy_why: u32,
+    /// [measure] With `tracing`: since when the view is on the target with
+    /// no shot; the last gate note, its target and time.
+    on_since: Option<(Place, u32)>,
+    gate_noted: Option<(Place, u32)>,
+    gate_note: Option<serde_json::Value>,
     /// An enemy last seen (a seen track) at.
     last_seen: u32,
     /// Empty with a target seen and no cover found: reload where it is.
@@ -1352,6 +1475,79 @@ impl Reflex {
     /// [`FRIEND_NOTE_ROOM_M`] of blocking it.
     pub fn take_friend_note(&mut self) -> Option<serde_json::Value> {
         self.friend_note.take()
+    }
+
+    /// [measure] The fire gates of the last tick it ran or was kept from
+    /// running ([`gate`]).
+    pub fn gates(&self) -> Gates {
+        self.gates
+    }
+
+    /// [measure] The gate trace note made since the last call (with
+    /// `tracing`), if any.
+    pub fn take_gate_note(&mut self) -> Option<serde_json::Value> {
+        self.gate_note.take()
+    }
+
+    /// [measure] The gates of the tick at `now`: those noted already this
+    /// tick are kept, an earlier tick's dropped.
+    fn gate_tick(&mut self, now: u32) -> &mut Gates {
+        if self.gates.at != now {
+            self.gates = Gates {
+                at: now,
+                ..Gates::default()
+            };
+        }
+        &mut self.gates
+    }
+
+    /// [measure] The bot's own gates before its tick: the play allows no
+    /// fire; a jump is held (by the source [`Self::jumped`] noted).
+    pub fn outer_gates(&mut self, now: u32, play_off: bool, jump_held: bool) {
+        let jump = self.jump_gate();
+        let g = self.gate_tick(now);
+        if play_off {
+            g.bits |= gate::PLAY;
+        }
+        if jump_held {
+            g.bits |= jump;
+        }
+    }
+
+    /// [measure] Getting unstuck had the keys at `now`: no tick ran.
+    pub fn skipped_tick(&mut self, now: u32) {
+        self.gate_tick(now).bits |= gate::UNSTICK;
+    }
+
+    /// [measure] A use in reach took the view at `now`: the shot given back.
+    pub fn gate_using(&mut self, now: u32) {
+        self.gate_tick(now).bits |= gate::USING;
+    }
+
+    /// [measure] A jump pressed (`by`: "route", "hop", "unstick") starts a
+    /// hold: its source, for the hold's ticks.
+    pub fn jumped(&mut self, by: &str) {
+        self.jump_by = match by {
+            "route" => gate::JUMP_ROUTE,
+            "hop" => gate::JUMP_HOP,
+            "unstick" => gate::JUMP_UNSTICK,
+            _ => gate::JUMP_OTHER,
+        };
+    }
+
+    /// [measure] The source of the jump held, as a gate.
+    fn jump_gate(&self) -> u32 {
+        if self.jump_by == 0 {
+            gate::JUMP_OTHER
+        } else {
+            self.jump_by
+        }
+    }
+
+    /// [measure] The jump held took this tick's trigger at `now`.
+    pub fn gate_jump(&mut self, now: u32) {
+        let jump = self.jump_gate();
+        self.gate_tick(now).bits |= jump;
     }
 
     /// [play 20] The throws let go since the last call ("throws a grenade
@@ -2263,6 +2459,7 @@ impl Reflex {
         if let Some(ms) = hands.switch_ms() {
             hands.pistol_out = true;
             self.busy_until = now + ms;
+            self.busy_why = gate::SWITCH;
             self.held_ms = 0;
             self.press_until = 0;
             self.next_press = 0;
@@ -2280,6 +2477,7 @@ impl Reflex {
         }
         let ms = load.reload();
         self.busy_until = now + ms;
+        self.busy_why = gate::RELOAD;
         self.held_ms = 0;
         self.press_until = 0;
         self.reload_here = false;
@@ -2458,6 +2656,7 @@ impl Reflex {
             .map_or(50, |last| now.saturating_sub(last).clamp(1, 100));
         self.last_tick = Some(now);
         self.held_for = None;
+        self.gate_tick(now);
         // The aim-in counts from the first tick of an unbroken press of the
         // aim (the input reaches the game within `aim_in_margin_ms`).
         let aim_since = self.aim_since.take();
@@ -2467,6 +2666,7 @@ impl Reflex {
         // Play 20: a throw under way has the look and the hands.
         if let Some(mut throw) = self.throw {
             self.held_ms = 0;
+            self.gates.bits |= gate::THROW;
             let d = throw.at.distance_xz(me.feet);
             let point = throw.at + Vec3::new(0.0, 1.0 + 0.12 * d, 0.0);
             let error = (floor * (rng.unit() - 0.5), floor * 0.5 * (rng.unit() - 0.5));
@@ -2569,6 +2769,9 @@ impl Reflex {
         // A threat (a hit's shooter, a near shot from outside the view): a
         // moment's look, even from a target (`Self::threats`).
         if let Some(threat) = self.threat.filter(|t| now < t.until) {
+            self.gates.bits |= gate::THREAT;
+            self.gates.target = self.target;
+            self.on_since = None;
             self.strafe = 0;
             self.strafe_until = 0;
             // No new shot; a one-round press under way is held to its end
@@ -2585,6 +2788,8 @@ impl Reflex {
             };
         }
         let Some(track) = seen else {
+            self.gates.bits |= gate::NO_TARGET;
+            self.on_since = None;
             self.target = None;
             self.held_ms = 0;
             self.strafe = 0;
@@ -2725,20 +2930,39 @@ impl Reflex {
                 && (aimed_in || hip_fits),
             running,
         });
+        // [measure] Each gate that fails ([`gate`]); the play's word and the
+        // jump hold are the bot's ([`Self::outer_gates`]).
+        let mut failed = 0;
+        for (fails, bit) in [
+            (!within, gate::WITHIN),
+            (now < self.first_shot_at, gate::REACTION),
+            (now < self.busy_until, self.busy_why),
+            (self.hands().held().rounds == 0, gate::ROUNDS),
+            (distance > range_m, gate::RANGE),
+            (!(aimed_in || hip_fits) && running, gate::RUNNING),
+            (!(aimed_in || hip_fits) && !running, gate::AIMING_IN),
+            (friend.is_some(), gate::FRIEND),
+        ] {
+            if fails {
+                failed |= bit;
+            }
+        }
+        let open = fire_allowed && failed == 0;
+        // The shot leaves along the view (kick and all): the wall test is on
+        // the view now and the one it turns to, each with the kick's lift
+        // not taken back. Tested only when the rest let the shot go, unless
+        // the gate tally wants every gate.
+        let blocked = if open || self.gate_tally {
+            self.shot_blocked(me, &aimed, error, lift)
+        } else {
+            None
+        };
+        if let Some(blocked) = blocked {
+            failed |= blocked_gate(blocked);
+        }
         let mut wants = false;
-        if fire_allowed
-            && within
-            && now >= self.first_shot_at
-            && now >= self.busy_until
-            && self.hands().held().rounds > 0
-            && distance <= range_m
-            && (aimed_in || hip_fits)
-            && friend.is_none()
-            // The shot leaves along the view (kick and all): the wall test is
-            // on the view now and the one it turns to, each with the kick's
-            // lift not taken back.
-            && self.clear_shot(me, &aimed, error, lift)
-        {
+        let burst = matches!(gun.handling, Handling::Burst(_));
+        if open && blocked.is_none() {
             match gun.handling {
                 Handling::Burst(_) if now < self.burst_until => wants = true,
                 // A burst as long as the best players hold this kind of
@@ -2750,11 +2974,29 @@ impl Reflex {
                         + rng.range(aim.pause_ms.0 as f32, aim.pause_ms.1 as f32) as u32;
                     wants = true;
                 }
-                Handling::Burst(_) => {}
+                Handling::Burst(_) => failed |= gate::PAUSE,
                 _ => wants = true,
             }
+        } else if burst && now < self.burst_until && self.held_ms > 0 {
+            failed |= gate::CUT;
         }
         let fire = self.trigger(wants, fire_allowed, now, c, distance, rng);
+        if wants && !fire {
+            failed |= gate::TRIGGER;
+        }
+        self.gates.bits |= failed;
+        self.gates.target = Some(track.who());
+        if self.tracing {
+            self.note_gates(
+                me,
+                (track.who(), distance, off, within_deg),
+                (aimed_in, hip_fits, running, ads, range_m),
+                (&aimed, error, lift, blocked),
+                fire,
+                now,
+                aim,
+            );
+        }
         if self.tracing
             && (fire || self.held_for.is_some_and(|h| h.ready))
             && now >= self.friend_noted + FRIEND_NOTE_MS
@@ -2808,24 +3050,91 @@ impl Reflex {
         }
     }
 
-    /// [aimpoint] [`super::aimpoint::Sight::clear_shot`] with the view (and
-    /// the view it turns to) `lift` higher.
-    fn clear_shot(
+    /// [aimpoint] [`super::aimpoint::Sight::blocked`] with the view (and
+    /// the view it turns to) `lift` higher: what keeps the shot from going
+    /// clear, if anything.
+    fn shot_blocked(
         &self,
         me: &PlaceView,
         aimed: &super::aimpoint::Aim,
         error: (f32, f32),
         lift: f32,
-    ) -> bool {
+    ) -> Option<super::aimpoint::Blocked> {
         if lift == 0.0 {
-            return self.sight.clear_shot(me, aimed, error);
+            return self.sight.blocked(me, aimed, error);
         }
         let lifted = PlaceView {
             pitch: (me.pitch + lift).clamp(-1.0, 1.0),
             ..me.clone()
         };
         self.sight
-            .clear_shot(&lifted, aimed, (error.0, error.1 + lift))
+            .blocked(&lifted, aimed, (error.0, error.1 + lift))
+    }
+
+    /// [measure] With `tracing`, a gate note per target at most every
+    /// [`GATE_NOTE_MS`]: when the view has been on a seen target (within
+    /// its `within_deg` + [`GATE_NOTE_SLACK_DEG`]) for
+    /// [`GATE_NOTE_AFTER_MS`] with no shot, or when a gate cut a burst
+    /// short. It has every gate's value, not only the first that failed.
+    #[allow(clippy::too_many_arguments)]
+    fn note_gates(
+        &mut self,
+        me: &PlaceView,
+        (target, distance, off, within_deg): (Place, f32, f32, f32),
+        (aimed_in, hip_fits, running, ads, range_m): (bool, bool, bool, bool, f32),
+        (aimed, error, lift, blocked): (&super::aimpoint::Aim, (f32, f32), f32, Option<super::aimpoint::Blocked>),
+        fired: bool,
+        now: u32,
+        aim: &AimTuning,
+    ) {
+        let near = off <= (within_deg + GATE_NOTE_SLACK_DEG).to_radians();
+        if fired || !near {
+            self.on_since = None;
+        } else if self.on_since.is_none_or(|(who, _)| who != target) {
+            self.on_since = Some((target, now));
+        }
+        let bits = self.gates.bits;
+        let held = self
+            .on_since
+            .is_some_and(|(_, since)| now >= since + GATE_NOTE_AFTER_MS);
+        let due = self
+            .gate_noted
+            .is_none_or(|(who, at)| who != target || now >= at + GATE_NOTE_MS);
+        if !(due && (held || bits & gate::CUT != 0)) {
+            return;
+        }
+        self.gate_noted = Some((target, now));
+        let c = &aim.combat;
+        let round = |v: f32| (v * 1000.0).round() / 1000.0;
+        let gun = self.hands().held().gun;
+        let rounds = self.hands().held().rounds;
+        let (ray, ray_m) = match blocked {
+            None => (None, None),
+            Some(super::aimpoint::Blocked::Hidden) => (Some("hidden"), None),
+            Some(super::aimpoint::Blocked::View(m)) => (Some("view"), Some(round(m))),
+            Some(super::aimpoint::Blocked::Aim(m)) => (Some("aim"), Some(round(m))),
+        };
+        self.gate_note = Some(serde_json::json!({
+            "t": now, "bot": me.place, "gates": gate::names(bits),
+            "why": if bits & gate::CUT != 0 { "cut" } else { "no_shot" },
+            "target": target, "distance": round(distance), "range_m": range_m,
+            "off_deg": round(off.to_degrees()), "within_deg": round(within_deg),
+            "on_ms": self.on_since.map(|(_, since)| now - since),
+            "first_shot_in": self.first_shot_at as i64 - now as i64,
+            "busy_in": self.busy_until as i64 - now as i64,
+            "busy": gate::names(self.busy_why),
+            "rounds": rounds,
+            "ads": ads, "running": running,
+            "aim_ms": self.aim_since.map(|since| now - since),
+            "aim_needs_ms": gun.aim_ms + c.aim_in_margin_ms, "aimed_in": aimed_in,
+            "hip_fits": hip_fits,
+            "pause_in": self.pause_until as i64 - now as i64,
+            "burst_in": self.burst_until as i64 - now as i64,
+            "friend": self.held_for.map(|h| h.who),
+            "shows": aimed.shows, "looked_ms": self.sight.looked_ms(now),
+            "ray": ray, "ray_m": ray_m, "lift": round(lift),
+            "error": [round(error.0), round(error.1)],
+        }));
     }
 
     /// [friends] The lines a shot may take (the view now and the view it
@@ -2913,6 +3222,15 @@ impl Reflex {
         let shock = spread * (2.0 * a - a * a).sqrt() * 12f32.sqrt();
         self.wander.0 += -self.wander.0 * a + shock * (rng.unit() - 0.5);
         self.wander.1 += -self.wander.1 * a + 0.5 * shock * (rng.unit() - 0.5);
+    }
+}
+
+/// [measure] The gate of what kept a shot from going clear.
+fn blocked_gate(blocked: super::aimpoint::Blocked) -> u32 {
+    match blocked {
+        super::aimpoint::Blocked::Hidden => gate::HIDDEN,
+        super::aimpoint::Blocked::View(_) => gate::VIEW_RAY,
+        super::aimpoint::Blocked::Aim(_) => gate::AIM_RAY,
     }
 }
 
@@ -3091,6 +3409,89 @@ mod tests {
                 assert_eq!(note["mate_pos"][0].as_f64().unwrap() as f32, mate.x);
             }
         }
+    }
+
+    /// [measure] The gates of a tick name what held the shot: the reaction
+    /// first, then a teammate at arm's length, the range, the play's word
+    /// and a jump held (the bot's); the gate tally tests every gate and
+    /// changes no shot; tracing, a held view on him is noted with them.
+    #[test]
+    fn the_fire_gates_name_what_held_the_shot_and_change_none() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let aim = AimTuning::default();
+        // (enemy 20 m or 100 m on, a teammate touching in front, tally)
+        let run = |far: bool, mate: bool, tally: bool| {
+            let z = if far { 100.0 } else { 20.0 };
+            let enemy = body(1, 1, Vec3::new(0.0, 0.0, z), 0.0);
+            let mut places = vec![me.clone(), enemy];
+            if mate {
+                places.push(body(2, 0, Vec3::new(1.2, 0.0, 1.2), 0.0));
+            }
+            let view = view_of(places);
+            let sight = |time| percept(1, Vec3::new(0.0, 0.0, z), time, Source::Seen);
+            let mut memory = Memory::default();
+            let mut reflex = Reflex {
+                tracing: true,
+                gate_tally: tally,
+                ..Reflex::default()
+            };
+            let mut aim = aim.clone();
+            aim.range_m = 150.0;
+            let mut rng = Rng::new(9);
+            sense(&mut memory, &[sight(1_000)], 1_000);
+            reflex.think(&me, &memory, 1_000, &aim, 1.0, &mut rng);
+            sense(&mut memory, &[sight(1_300)], 1_300);
+            reflex.think(&me, &memory, 1_300, &aim, 1.0, &mut rng);
+            aim.range_m = 80.0;
+            let (mut fires, mut gates, mut notes) = (Vec::new(), Vec::new(), Vec::new());
+            for k in 0..30 {
+                let now = 1_300 + k * 50;
+                sense(&mut memory, &[sight(now)], now);
+                reflex.outer_gates(now, false, false);
+                fires.push(reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng).fire);
+                let g = reflex.gates();
+                assert_eq!((g.at, g.target), (now, Some(1)));
+                gates.push(g.bits);
+                notes.extend(reflex.take_gate_note());
+            }
+            (fires, gates, notes)
+        };
+        // Clear: the reaction, then shots.
+        let (fires, gates, _) = run(false, false, false);
+        assert_ne!(gates[0] & gate::REACTION, 0, "{:?}", gate::names(gates[0]));
+        assert!(fires.iter().any(|&f| f));
+        for (fired, bits) in fires.iter().zip(&gates) {
+            if *fired {
+                assert_eq!(bits & !(gate::PAUSE | gate::TRIGGER), 0, "{:?}", gate::names(*bits));
+            }
+        }
+        // The gate tally changes no shot.
+        assert_eq!(run(false, false, true).0, fires);
+        assert_eq!(run(false, true, true).0, run(false, true, false).0);
+        // A teammate at arm's length: held for him, and noted so.
+        let (fires, gates, notes) = run(false, true, true);
+        assert!(fires.iter().all(|&f| !f));
+        assert!(gates[10..].iter().all(|bits| bits & gate::FRIEND != 0));
+        let note = notes.first().expect("a held view is noted");
+        assert_eq!(note["why"], "no_shot");
+        assert!(note["gates"].as_array().unwrap().iter().any(|g| g == "friend"));
+        assert_eq!(note["friend"], 2);
+        assert!(notes.len() <= 2, "one a second: {notes:?}");
+        // 100 m on, the range at 80 m: the range.
+        let (fires, gates, _) = run(true, false, true);
+        assert!(fires.iter().all(|&f| !f));
+        assert!(gates[10..].iter().all(|bits| bits & gate::RANGE != 0));
+        // The bot's own gates: the play's word; a jump held, by its source.
+        let mut reflex = Reflex::default();
+        reflex.outer_gates(5_000, true, false);
+        assert_eq!(reflex.gates().bits, gate::PLAY);
+        reflex.jumped("hop");
+        reflex.outer_gates(5_050, false, true);
+        assert_eq!(reflex.gates().bits, gate::JUMP_HOP);
+        reflex.skipped_tick(5_100);
+        reflex.gate_using(5_100);
+        assert_eq!(reflex.gates().bits, gate::UNSTICK | gate::USING);
+        assert_eq!(gate::names(gate::UNSTICK | gate::USING), ["unstick", "using"]);
     }
 
     #[test]
