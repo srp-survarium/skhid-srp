@@ -2086,6 +2086,58 @@ mod tests {
         assert!(wrong.is_empty(), "{wrong:?}");
     }
 
+    /// The real maps (private files; `SRP_MAPDATA_DIR`, in release): each
+    /// battery spawner's take stand, whether it is in a pocket and has a
+    /// way out for a carrier or anyone, and the first reason a bot at side
+    /// 0's spawn may not take it (CG-11). Prints only.
+    #[test]
+    #[ignore = "needs the private map files"]
+    fn pocket_stands_on_the_real_maps() {
+        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        for level in 1..=8u8 {
+            for mode in [2u8, 3] {
+                let path =
+                    std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
+                let Ok(map) = mapdata::MapData::read(&path) else {
+                    continue;
+                };
+                let world = std::sync::Arc::new(mapdata::World::build(
+                    map,
+                    mapdata::CELL,
+                    mapdata::Body::default(),
+                ));
+                let mut s = Scenario::field(Mode::Batteries);
+                s.tactics = Tactics::new(world.clone(), 1.0);
+                let from = world.map.spawns[0].position;
+                s.bot(0, world.map.spawns[0].team as u8, from);
+                let pockets = (0..world.grid.len())
+                    .filter(|&n| world.grid.in_pocket(n as mapdata::NodeId))
+                    .count();
+                let mut reasons = std::collections::BTreeMap::<&str, usize>::new();
+                for (i, spawner) in world.map.battery_spawners.iter().enumerate() {
+                    let cx = s.cx(0);
+                    let at = spawner.item;
+                    let why = cx.take_block(at).unwrap_or("takeable");
+                    *reasons.entry(why).or_default() += 1;
+                    let Some(stand) = s.tactics.stand_to_take(at) else {
+                        continue;
+                    };
+                    if cx.in_pocket(stand) {
+                        eprintln!(
+                            "level {level} mode {mode} spawner {i} at {at:?}: stand in a pocket,                              carrier way out {}, anyone's {}, first block: {why}",
+                            cx.escape_known(stand, true),
+                            cx.escape_known(stand, false),
+                        );
+                    }
+                }
+                eprintln!(
+                    "level {level} mode {mode}: {} spawners, {pockets} pocket floors; {reasons:?}",
+                    world.map.battery_spawners.len()
+                );
+            }
+        }
+    }
+
     /// Fetching a battery a hazard closes round: the play gives up at once
     /// instead of standing till `give_up_s`.
     #[test]
