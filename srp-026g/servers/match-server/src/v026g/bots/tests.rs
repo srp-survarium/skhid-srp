@@ -3354,6 +3354,8 @@ struct BlockTally {
     onview: Vec<Option<OnView>>,
     /// [measure] The on-view ticks with no shot by the fire gates.
     gates: fight_tally::GateTally,
+    /// [measure] The bots' reloads.
+    reloads: fight_tally::ReloadTally,
 }
 
 /// [measure] A bot free to fire with its view within 4 deg of a visible
@@ -3488,6 +3490,7 @@ impl BlockTally {
             e.ticks += 1;
             if !fired {
                 self.gates.tick(bot.reflex.gates(), e.enemy, now);
+                self.reloads.held(me.team, bot.reflex.gates(), bot.reflex.reload_note());
             }
             if fired && e.fired.is_none() {
                 e.fired = Some(now - e.start);
@@ -3539,6 +3542,7 @@ impl BlockTally {
             e.near_line += u32::from(near);
         }
         self.onview[place] = ep;
+        self.reloads.tick(place, me.gun.class(), me.team, me.alive, seen.is_some(), fired, bot.reflex.reload_note(), now);
     }
 
     fn end_onview(place: Place, e: OnView, events: &mut BenchEvents) {
@@ -5040,6 +5044,7 @@ fn real_bot_cost() {
             }
             eprintln!("  {}", blocks.finish(&mut events));
             eprintln!("  {}", blocks.gates.line());
+            eprintln!("  {}", blocks.reloads.line());
             eprintln!("  {}", hits.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
             eprintln!("  routes: {}", routes.line());

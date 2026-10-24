@@ -1206,6 +1206,29 @@ pub struct Gates {
     pub target: Option<Place>,
 }
 
+/// [measure] Why a reload started ([`Reflex::reload_note`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReloadWhy {
+    /// The magazine out with a target seen: out of sight first, or where
+    /// it stands.
+    EmptyInView,
+    /// The magazine out, no target seen.
+    Empty,
+    /// Before the magazine is out ([`CombatTuning::reload_idle_ms`]).
+    Tactical,
+}
+
+/// [measure] The last reload: when it started and is done, why, and the
+/// rounds left of the magazine.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ReloadNote {
+    pub at: u32,
+    pub until: u32,
+    pub why: ReloadWhy,
+    pub left: u32,
+    pub magazine: u32,
+}
+
 /// [measure] A target lost this long ago, ms, counts as lost a moment
 /// ([`gate::LOST`], [`gate::REACTION_AGAIN`]).
 pub const LOST_MS: u32 = 1000;
@@ -1308,6 +1331,8 @@ pub struct Reflex {
     friend_note: Option<serde_json::Value>,
     /// [measure] This tick's fire gates ([`Reflex::gates`]).
     gates: Gates,
+    /// [measure] The last reload ([`Reflex::reload_note`]).
+    reload_note: Option<ReloadNote>,
     /// [measure] The bench's gate tally: every gate is tested each tick,
     /// `clear_shot`'s rays too, though an earlier one failed (no decision
     /// changes; only the rays cost).
@@ -1591,6 +1616,11 @@ impl Reflex {
     /// running ([`gate`]).
     pub fn gates(&self) -> Gates {
         self.gates
+    }
+
+    /// [measure] The last reload started, if any.
+    pub fn reload_note(&self) -> Option<ReloadNote> {
+        self.reload_note
     }
 
     /// [measure] The gate trace note made since the last call (with
@@ -2638,7 +2668,19 @@ impl Reflex {
         {
             return 0;
         }
+        let (left, magazine) = (load.rounds, load.gun.magazine);
         let ms = load.reload();
+        self.reload_note = Some(ReloadNote {
+            at: now,
+            until: now + ms,
+            why: match (left, seen) {
+                (0, true) => ReloadWhy::EmptyInView,
+                (0, false) => ReloadWhy::Empty,
+                _ => ReloadWhy::Tactical,
+            },
+            left,
+            magazine,
+        });
         self.busy_until = now + ms;
         self.busy_why = gate::RELOAD;
         self.held_ms = 0;
