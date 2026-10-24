@@ -48,9 +48,10 @@
 
 use survarium::v026g::awards::{Awards, kind, name};
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::item_params::shop_unit;
+use survarium::v026g::item_params::{self, shop_unit};
 use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation};
 use survarium::v026g::lobby::{self, FULL_CONDITION, ServerMessage};
+use survarium::v026g::modifications::Modifications;
 
 use super::account::Account;
 
@@ -120,8 +121,8 @@ pub const STARTER_GEAR: [(u8, &str); 7] = [
 /// the premium 332) with 9x18 (70); the TOZ-122 (12) with 7.62x51 (51),
 /// the game has no TOZ-11; the MP-153 Baikal (110) with 12x70 smallshot
 /// (22). Each weapon's ammo is its plain round (not the PBM, M59 or slug),
-/// loaded with its category's `optimal_count` of rounds in whole clips
-/// ([`loaded_rounds`]).
+/// its ammo slot filled to the most it takes ([`full_rounds`]: three bags
+/// of the gear, so three clips).
 pub const STARTER_WEAPONS: [(&str, &str); 3] = [
     ("kiparis", "ammo_9x18_makarov"),
     ("toz_122", "ammo_7.62x51"),
@@ -132,8 +133,10 @@ pub const STARTER_WEAPONS: [(&str, &str); 3] = [
 pub const WEAPON_SLOT: (u8, u8) = (7, 8);
 
 /// The pockets of every kit, `(slot, item, units)`: 2 medkits (67) and 2
-/// antitoxins (82). A player has one pocket of one unit; the jacket's
-/// default 1030 adds a pocket and the pants' 1170 a unit to each.
+/// antitoxins (82), each pocket full. A player has one pocket of one unit;
+/// the jacket's default 1030 adds a pocket and the pants' 1170 a unit to
+/// each, and a drug fills half a pocket, so a pocket takes the pocket size
+/// of it (`LocalPaperDoll`): 2.
 pub const STARTER_POCKETS: [(u8, &str, u32); 2] = [(13, "medkit", 2), (14, "antitoxin", 2)];
 
 /// What a new account owns of the pockets' items, `(item, units)`: the kits
@@ -162,15 +165,45 @@ pub fn starter_ammo(dictionary: &Dictionary) -> Vec<u16> {
         .collect()
 }
 
-/// The rounds of `ammo` a kit loads for `weapon`: its category's
-/// `optimal_count`, up to a whole clip (the ammo window's step).
-pub fn loaded_rounds(dictionary: &Dictionary, weapon: u16, ammo: u16) -> u32 {
-    let optimal = dictionary
-        .item(weapon)
-        .and_then(|item| dictionary.categories.iter().find(|c| c.id == item.category))
-        .map_or(0, |category| category.optimal_count);
-    let clip = shop_unit(ammo);
-    optimal.div_ceil(clip) * clip
+/// The ammo bags of a kit whose worn items have `modifications` (their
+/// defaults and their own): the player's (`default.player`
+/// `ammo_bags_count`, 3) and what the modifications add
+/// (`parameters/ammo_bags_modifier`, 1050 and 1051), the lobby's
+/// `PlayerInfo.ammoBags` for an account of no skills.
+pub fn ammo_bags(modifications: impl IntoIterator<Item = u32>) -> u32 {
+    let table = Modifications::shared();
+    let added: f32 = modifications
+        .into_iter()
+        .filter_map(|id| table.modification(id))
+        .flat_map(|row| &row.modifiers)
+        .filter(|modifier| modifier.path == "parameters/ammo_bags_modifier")
+        .map(|modifier| modifier.value)
+        .sum();
+    (item_params::player().ammo_bags_count as f32 + added).max(0.0) as u32
+}
+
+/// The most rounds of `ammo` an ammo slot takes with `bags` ammo bags: what
+/// the ammo window fills it to, `int(bags × clips a bag) × clip_size`
+/// (`AmmoShareElement`, clips a bag `1 / required_bags`, `ItemFactory`).
+pub fn full_rounds(ammo: u16, bags: u32) -> u32 {
+    let required = item_params::item_params(ammo).map_or(1, |params| params.required_bags.max(1));
+    bags / required * shop_unit(ammo)
+}
+
+/// [`ammo_bags`] of a kit wearing [`STARTER_GEAR`] and its
+/// [`STARTER_MODIFICATIONS`].
+pub fn starter_ammo_bags(dictionary: &Dictionary) -> u32 {
+    let gear = STARTER_GEAR
+        .iter()
+        .filter_map(|&(_, name)| dictionary.item_named(name))
+        .flat_map(|item| {
+            item_params::item_params(item.dict_id)
+                .map_or(&[][..], |params| params.default_modifications)
+                .iter()
+                .copied()
+        });
+    let own = STARTER_MODIFICATIONS.iter().map(|&(_, id)| id);
+    ammo_bags(gear.chain(own))
 }
 
 /// Every item name of the starter kit, for the start's check
@@ -293,6 +326,7 @@ pub fn wear_starter_kit(account: &mut Account, dictionary: &Dictionary) {
             count_in_inventory: 0,
         })
     };
+    let bags = starter_ammo_bags(dictionary);
     for (kit, (weapon, ammo)) in STARTER_WEAPONS.into_iter().enumerate() {
         let mut moves: Vec<Relocation> = Vec::new();
         for (slot, name) in STARTER_GEAR {
@@ -300,9 +334,9 @@ pub fn wear_starter_kit(account: &mut Account, dictionary: &Dictionary) {
         }
         let (slot, ammo_slot) = WEAPON_SLOT;
         if let Some(weapon) = wear(account, slot, weapon, 1) {
-            let rounds = dictionary.item_named(ammo).map_or(0, |ammo| {
-                loaded_rounds(dictionary, weapon.dict_id, ammo.dict_id)
-            });
+            let rounds = dictionary
+                .item_named(ammo)
+                .map_or(0, |ammo| full_rounds(ammo.dict_id, bags));
             moves.push(weapon);
             moves.extend(wear(account, ammo_slot, ammo, rounds));
         }
@@ -364,7 +398,6 @@ mod tests {
     fn a_new_account_starts_with_the_starter_kit() {
         use super::super::account::KIT_SLOTS;
         use survarium::v026g::item_params::item_params;
-        use survarium::v026g::modifications::Modifications;
 
         assert_eq!(experience(), 250);
         let mut account = Account::new("Alice");
@@ -411,13 +444,18 @@ mod tests {
         }
 
         // Each of the three kits wears the kit, the rest of its slots empty.
-        let rounds = |weapon: &str, ammo: &str| {
-            let id = |name: &str| dictionary.item_named(name).unwrap().dict_id;
-            loaded_rounds(dictionary, id(weapon), id(ammo))
+        // Each ammo slot full: the gear has no ammo bag modification, so
+        // the player's three bags, three clips of one bag each.
+        let bags = starter_ammo_bags(dictionary);
+        assert_eq!(bags, 3);
+        let rounds = |_weapon: &str, ammo: &str| {
+            full_rounds(dictionary.item_named(ammo).unwrap().dict_id, bags)
         };
-        assert_eq!(rounds("kiparis", "ammo_9x18_makarov"), 100);
-        assert_eq!(rounds("toz_122", "ammo_7.62x51"), 20);
-        assert_eq!(rounds("mp_153", "ammo_12mm_buck"), 30);
+        assert_eq!(rounds("kiparis", "ammo_9x18_makarov"), 150);
+        assert_eq!(rounds("toz_122", "ammo_7.62x51"), 30);
+        assert_eq!(rounds("mp_153", "ammo_12mm_buck"), 45);
+        // A bag modification counts: 1051 adds two.
+        assert_eq!(ammo_bags([1030, 1051]), 5);
         let mut missing = Vec::new();
         let mut levels = Vec::new();
         for (index, (weapon, ammo)) in STARTER_WEAPONS.into_iter().enumerate() {

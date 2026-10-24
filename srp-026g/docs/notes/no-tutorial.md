@@ -22,10 +22,11 @@ The owner's of 2026-10-19. Code: `session::v026g::tutorial`; the client's side: 
       premium 345), Oxygen tank (9, back slot), Chemical protection pants (46), gloves (42)
       and boots (38);
     - one weapon, in weapon slot 1 (weapon slot 2 empty; no SOK-94): kit 1 OTs-02 Kiparis
-      (88, not the premium 332) with 100 rounds of 9x18 (70); kit 2 TOZ-122 (12; the game has
-      no TOZ-11) with 20 rounds of 7.62x51 (51); kit 3 MP-153 Baikal (110) with 30 rounds of
+      (88, not the premium 332) with 150 rounds of 9x18 (70); kit 2 TOZ-122 (12; the game has
+      no TOZ-11) with 30 rounds of 7.62x51 (51); kit 3 MP-153 Baikal (110) with 45 rounds of
       12x70 smallshot (22);
-    - rounds: each weapon's category's `optimal_count` in whole clips;
+    - rounds: the ammo slot full, as the ammo window fills it: the player's 3 ammo bags (no
+      bag modification on the gear) × one clip a bag: 150, 30 and 45;
     - pockets: 2 medkits (67) and 2 antitoxins (82), from stacks of 50 each owned (a player's
       one pocket, +1 pocket from the jacket's 1030, +1 unit each from the pants' 1170);
     - put on by the lobby's rule (`rules::fill_kit`);

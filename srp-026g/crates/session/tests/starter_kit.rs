@@ -73,7 +73,10 @@ fn a_new_account_on_the_released_data_wears_the_whole_kit() {
     // its own one weapon in weapon slot 1, weapon slot 2 empty.
     type Worn = (usize, u16, u32, Vec<(u32, bool)>);
     // `(weapon, ammo, rounds, the kit's level)`.
-    let weapons = [(88, 70, 100, 3), (12, 51, 20, 3), (110, 22, 30, 4)];
+    // The ammo slot full: three bags of one clip each (no ammo bag
+    // modification on the gear).
+    assert_eq!(tutorial::starter_ammo_bags(dictionary), 3);
+    let weapons = [(88, 70, 150, 3), (12, 51, 30, 3), (110, 22, 45, 4)];
     let mut item_ids: Vec<Vec<u32>> = Vec::new();
     for (kit, (weapon, ammo, rounds, level)) in account.kits.iter().zip(weapons) {
         let worn: Vec<Worn> = kit
