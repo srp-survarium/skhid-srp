@@ -1390,6 +1390,16 @@ struct CarryTally {
     pressed: Vec<bool>,
     first_seen: usize,
     first_press_waits: Vec<u32>,
+    /// Cologne CG-11 (`collect::POCKET_BLOCK`): by battery, the bots whose
+    /// candidates leave it out for its pocket (the take-block notes), since
+    /// when one does; the batteries ever so, and the ms one bot or more did
+    /// (to the run's end if no note says otherwise). Ambush plays taken.
+    pocket_holders: Vec<Vec<usize>>,
+    pocket_since: Vec<Option<u32>>,
+    pocket_batteries: Vec<bool>,
+    pocket_ms: u32,
+    ambush_takes: u32,
+    last_time: u32,
 }
 
 /// A carrier is at his container within this, metres (xz).
@@ -1507,8 +1517,57 @@ impl CarryTally {
             self.intercept_takes += 1;
         } else if text.contains("believed to carry battery") {
             self.beliefs_moved += 1;
+        } else if text.starts_with("takes Ambush") {
+            self.ambush_takes += 1;
+        } else if let Some((battery, why)) = text
+            .strip_prefix("battery ")
+            .and_then(|rest| rest.split_once(' '))
+            .and_then(|(n, rest)| Some((n.parse::<usize>().ok()?, rest)))
+            && why.contains("Collect candidate")
+        {
+            self.pocket_note(
+                battery,
+                note.place,
+                note.time,
+                why.ends_with(super::plays::collect::POCKET_BLOCK),
+            );
         }
+        self.last_time = self.last_time.max(note.time);
         self.dump(note.place, note.time, text);
+    }
+
+    /// A take-block note of bot `place` on `battery`: left out for its
+    /// pocket (`pocket`), or for another reason or back as a candidate.
+    fn pocket_note(&mut self, battery: usize, place: usize, time: u32, pocket: bool) {
+        if self.pocket_holders.len() <= battery {
+            self.pocket_holders.resize(battery + 1, Vec::new());
+            self.pocket_since.resize(battery + 1, None);
+            self.pocket_batteries.resize(battery + 1, false);
+        }
+        let holders = &mut self.pocket_holders[battery];
+        holders.retain(|&p| p != place);
+        if pocket {
+            holders.push(place);
+            self.pocket_batteries[battery] = true;
+            self.pocket_since[battery].get_or_insert(time);
+        } else if holders.is_empty()
+            && let Some(since) = self.pocket_since[battery].take()
+        {
+            self.pocket_ms += time.saturating_sub(since);
+        }
+    }
+
+    /// The batteries left out for their pockets, and the seconds one bot
+    /// or more did, to the run's last note.
+    fn pocket_counts(&self) -> (usize, f32) {
+        let open: u32 = self
+            .pocket_since
+            .iter()
+            .flatten()
+            .map(|&since| self.last_time.saturating_sub(since))
+            .sum();
+        let batteries = self.pocket_batteries.iter().filter(|&&b| b).count();
+        (batteries, (self.pocket_ms + open) as f32 / 1000.0)
     }
 
     fn dump(&self, place: usize, time: u32, text: &str) {
@@ -1524,8 +1583,9 @@ impl CarryTally {
     }
 
     fn line(&self, taken: u32) -> String {
+        let pocket = self.pocket_counts();
         format!(
-            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms; uses at home {}, missed {}, far {} (began a put {}), far then in {}; first uses from arrival {} took {} ms",
+            "carrier believed right {} wrong {} unknown {} world-s; put-ins failed {}; takes failed {}, stands failed {}; collect takes {} for {taken} pickups; intercepts {}, interceptors killed {}; beliefs moved {}; put-ins from arrival {} took {} ms; uses at home {}, missed {}, far {} (began a put {}), far then in {}; first uses from arrival {} took {} ms; pocket blocked {} batteries {:.1} s; ambush takes {}",
             self.right,
             self.wrong,
             self.unknown,
@@ -1551,6 +1611,9 @@ impl CarryTally {
                 .iter()
                 .map(|&ms| u64::from(ms))
                 .sum::<u64>(),
+            pocket.0,
+            pocket.1,
+            self.ambush_takes,
         )
     }
 }
