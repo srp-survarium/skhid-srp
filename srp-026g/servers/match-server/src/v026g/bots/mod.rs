@@ -2251,6 +2251,8 @@ fn drive_tick(
     // base pitch and the kick the last tick left (the reflex takes back
     // this tick's rise itself, `Override::pull`).
     let kick = bot.reflex.weapon_tick(me, time);
+    // Only this tick's walk to the play's own exact spot sets it (below).
+    bot.motor.exact_end = false;
     let me = &PlaceView {
         pitch: (me.pitch + kick).clamp(-1.0, 1.0),
         ..me.clone()
@@ -2409,6 +2411,13 @@ fn drive_tick(
             }
         }
         out.goal.or(goal)
+    };
+    // The play's own exact spot (a goal within 0): its route is not arrived
+    // at from over its end (`Motor::exact_end`). A reflex's legs replaced
+    // the play's goal above; an escape's or a zone's goal is not this one.
+    let exact_at = match intent.go {
+        Go::To { at, within_m: 0.0 } => Some(at),
+        _ => None,
     };
     // Standing to aim (no way to walk): the reflex's side step may move it;
     // walking a route while it aims, the step weaves the walk
@@ -2629,7 +2638,8 @@ fn drive_tick(
                 }
             }
             match bot.route.as_mut() {
-                Some((route, _)) => {
+                Some((route, route_at)) => {
+                    bot.motor.exact_end = exact_at == Some(*route_at);
                     let side = bot.side;
                     let objective = intent.objective;
                     let clear = |p: Vec3| tactics.clear_line_for(me.feet, p, time, side, objective);
