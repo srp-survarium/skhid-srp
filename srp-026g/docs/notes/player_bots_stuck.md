@@ -1042,21 +1042,32 @@ recordings to show.
 
 The ignored `pocket_sweep` drives a bot from each pocket of each bench map
 to its team's spawn for 60 s, with the escape off and on (16 maps, pockets
-counted per map):
+counted per map). A pocket is labelled by the lowest exit the bot walks to
+inside it (an exit on a floor reached only by a drop from elsewhere is not
+the bot's):
 
-| Pockets | count | out, escape off | out, escape on | mean time out |
-|---|---|---|---|---|
-| Standing exits | 80 | 0 | 48 | 2.2-4.0 s |
-| Sprint exits only | 30 | 0 | 1 | 2.2 s |
-| No exit | 52 | 0 | 0 | |
+| Pockets | count | out, escape off | out, escape on |
+|---|---|---|---|
+| Standing exits | 79 | 0 | 53 |
+| Sprint exits only | 30 | 0 | 1 |
+| Steep only | 1 | 0 | 0 |
+| No exit | 52 | 0 | 0 |
 
 Standing pockets by map, out with the escape on: level_01 10/10, level_02 2/6,
-level_03 4/6, level_04 6/10, level_05 2/2, level_06 20/31, level_07 4/6,
-level_08 0/9. Of the 32 left, 28 have no Standing exit nearer than 0.7 m
-across (level_08's, pit A among them, are 0.9-1.0 m), beyond the stand-in's
-landing reach of 0.6 m, a GUESS of the client's standing jump. They are to be
-checked again against the real jump reach once it is measured. The other 4, on level_06, have an exit 0.5-0.56 m across and still
-stayed: not explained yet.
+level_03 4/6, level_04 8/10, level_05 2/2, level_06 23/30, level_07 4/6,
+level_08 0/9; out in 2.2-4.0 s on average. The 26 left have no Standing
+exit nearer than 0.7 m across (level_08's, pit A among them, are 0.9-1.0 m),
+beyond the stand-in's landing reach of 0.6 m, a GUESS of the client's
+standing jump. They are to be checked again against the real jump reach
+once it is measured.
+
+Three level_06 pockets with a Standing exit 0.5-0.56 m across were not left
+until the motor's arrival was fixed (`motor.rs`): a route whose last leg is
+a jump to a landing within `arrive_m` (0.6 m) and under `ARRIVE_BELOW_M`
+(0.5 m) up was "walked" with no press. Such a route is now arrived at only
+on its landing (`ARRIVE_ON_LANDING_M`, 0.15 m). The fix is general (any route
+ending in a near, low jump); alone it moved nothing in the bench (batt and
+tdm presets, seeds 1-8, everything within 1 SE).
 
 MEASURED
 
@@ -1065,8 +1076,6 @@ MEASURED
 - Team spots and routes are not kept from pockets with no way out: routes
   never plan into a pocket for a goal outside it, and the grid's sink cost
   moved nothing in the bench. To measure first.
-- Four level_06 pockets with a Standing exit within the stand-in's reach
-  (0.5-0.56 m across) were not left in the sweep: to trace.
 - A bot that gave up stays in the pocket. Killing itself is gated on the
   client recordings showing that bots still cannot leave with nothing else
   wrong.
