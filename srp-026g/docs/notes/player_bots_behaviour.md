@@ -732,6 +732,121 @@ Left out, with numbers (battery bench below unless stated, 16 seeds, difference 
 - The 7 whole-match tests pass. In `a_take_waits_for_the_fight_unless_covered`, carriers killed within 3 s of a take went 52 -> 43 (cheat off) and 40 -> 34 (cheat on). In `bots_hold_fire_while_a_teammate_is_in_the_line_of_fire` (one run, friends on), team kills went 10 -> 19.
 - Run notes (level_06 10 v 10, seed 3): before, HoldExit and Crossfire ended with "no spot" about every 25 s. After, none did. Some Crossfire <-> Buddy switches remain; that is what the fight floor was for.
 
+### 3.2 Pushing forward, chasing, and the top player (measured 2026-10-24)
+
+Two questions from the owner's matches 4-7 of 2026-10-24 (#343; 10 v 10 and 7 v 7 PvB) and the "cologne" match 0x60aeff4f (level_08 batteries, 10 v 10):
+- Bots rarely push into the enemy half: Crossfire, HoldExit and similar plays reach their spot in 0-3 % of runs.
+- PairUp seems to feed the top player: in match 7, 23 of the owner's 47 kills were PairUp bots.
+
+**A bug: a switch to another target of the same play put that play on cooldown (fixed).**
+- The commander stamped the running play's `last_ran` at every switch, even when the new play was the same kind (Crossfire on one choke to Crossfire on another).
+- At the next poll the new run's `cooldown` consideration was 0, so the run was no longer a candidate and was dropped within a second. That is the "the play ran out" Crossfire -> Roam / Buddy / HoldExit at 0.5 s in the traces.
+- In the traces, a Crossfire run that followed another Crossfire run was dropped within 1 s as no longer a candidate in 115 of 130 (match 6), 132/142 (7), 123/133 (5), 63/75 (4) and 73/78 (cologne). After any other play, 0-1 %. Cut -> Cut: 19/22, 21/27, 34/38, 5/8, 6/7.
+- Now `Bot::give_way` stamps the cooldown only when the next play is another kind. A same-kind switch goes on, and its cooldown counts from the play's own end.
+
+**Why the pushes do not arrive.** In the live traces (match 7):
+- Crossfire: 442 runs, median 2.5 s, 290 of them at a known enemy's last place.
+  - 122 were replaced by another Crossfire.
+  - 160 were dropped as no longer a candidate (Roam, Buddy and others; the bug).
+  - 54 were replaced by PairUp; 35 bots died.
+- HoldExit: 199 runs, median 5.3 s. None ended by itself.
+  - 66 were replaced by PairUp and 41 bots died.
+  - The rest went to Crossfire, Roam or Trade.
+- Cologne gives the same picture (Crossfire 331 runs at a median of 2.0 s; HoldExit 175 runs at 3.4 s, replaced mostly by PairUp and Collect).
+- The traces' step lines come every 5 s, so arrivals counted from them are a lower bound. The bench counts each tick and also finds few arrivals: team 0 reaches HoldExit's hold in 5.6 of 120 runs and Crossfire's in 6.75 of 417 (TDM, routes, tier 9-10).
+
+So the plays are mostly replaced on the way: by the cooldown bug, by a same-band play scoring better (PairUp, Collect, Intercept) or by an alarm. The spots and the routing are not the cause (GUESS for the spots: not checked one by one).
+
+**Holding back is not simply a bug (LIKELY).** On the bench, a bot past half way trades worse than one behind it: kills 37 against deaths 46 past half way, against about 1.0 K/D overall. Two tries to keep the forward plays running were left out:
+
+| Try (TDM, routes, tier 9-10, 16 seeds) | Arrivals | Past half way | K/D of the team with it |
+|---|---|---|---|
+| HoldExit kept against a same-band play unless it is beaten by 0.3, one-sided | +0.7 ± 0.6 | | −0.046 ± 0.024 |
+| HoldExit and Crossfire on an exit kept by 0.3, both teams | +1.9*, +2.1* | +3.0 ± 0.7* | team 0's deaths +5.7*, K/D −0.024 ± 0.026 |
+
+**Real players: chasing and crossfire.** Saved worlds of the live host, Oct 12-23: 331 human matches of 10+ players on levels 1-8 (196 TDM, 135 batteries; the routes' set, §1 of `private/bot-routes/report-20261023.md`).
+- Kills are counted only where one world step (about 5 s) shows one victim and one killer of the other side: 12,056 in TDM and 7,759 in batteries.
+- "Top" means the side's first 2 by final score. Positions only: there is no line of sight. All findings here are LIKELY.
+
+*Chasing.* The victim's teammates 5-60 m from the killer at the kill, what they did in the next 10 s, and their kills and deaths in the next 30 s (TDM; batteries within a few points):
+
+| From the killer | Who | Closed in 5 m+ | Held | Moved away | Died within 10 s | K/D: closed in / held / away |
+|---|---|---|---|---|---|---|
+| 30-60 m | rest | 31 % | 36 % | 11 % | 22 % | 0.89 / 1.23 / 0.55 |
+| 30-60 m | top | 38 % | 28 % | 13 % | 20 % | 2.25 / 2.65 / 1.50 |
+| 5-30 m | rest | 16 % | 35 % | 19 % | 29 % | 1.27 / 1.30 / 0.58 |
+| 5-30 m | top | 21 % | 32 % | 21 % | 25 % | 2.98 / 2.81 / 1.39 |
+
+- From 30-60 m, closing in gave more kills (0.44 against 0.37 a player in 30 s) and the killer died more often (58 against 55 %), but more deaths: the players who held had the better K/D, top players too.
+- Within 30 m, closing in and holding came out even.
+- Moving away was worst everywhere.
+- Top players close in more often than the rest, but not mostly.
+
+*Crossfire.* At a kill, 33 % of victims had another of the killer's team within 35 m at 60 degrees or more round from the killer, 26 % had one on the killer's side, and 41 % had none.
+- The set-up, measured every 10 s: each player with enemies 15-35 m from him and none nearer.
+- Did he die within 10 s?
+  - With one enemy there: 16.5 % (TDM), 17.3 % (batteries).
+  - With two or more on one side (within 60 degrees): 24.8 %, 27.2 %.
+  - With two or more 60 degrees or more apart: 25.4 %, 28.9 %.
+- What counts is a second player there, not the angle (+0.6 and +1.7 points). The recordings found the same (`WINNERS.md` §5: crossfire kills, winners 4 % against losers 7 %).
+
+**A running Crossfire keeps its choke (built).**
+- With the cooldown fixed, Crossfire was offered at every newer last place of every enemy within 60 m, and moved on. The bots chased.
+- On the bench, the fixed team alone (one-sided) died more past half way (+7.8*) and lost K/D (−0.047 ± 0.022; −0.015 ± 0.033 on the mirror side).
+- Now a running Crossfire is offered on its own choke only, until it ends (held, given up, gone) or another play replaces it. The real players above say the same: from 30-60 m, holding beat closing in.
+
+Bench, TDM, routes, tier 9-10, 16 seeds paired (difference a seed ± standard error, * beyond 2):
+
+| | Cooldown fix alone, both teams | Fix and the choke kept, both teams | Fix and choke, one-sided (team 0 / mirror on team 1) |
+|---|---|---|---|
+| quick ends | 655 -> 328 (−326 ± 19*) | 655 -> 261 (−394 ± 8*) | −185 ± 18* / −176 ± 17* |
+| A->B->A flips | +31 ± 5* | −16 ± 5* | −5.5 ± 4.5 / −3.1 ± 4.1 |
+| kills | +22.8 ± 4.2* | +17.9 ± 3.5* | +5.6 ± 3.0 / +6.7 ± 3.9 |
+| Crossfire runs, team 0 | 417 -> 518* | 417 -> 264* | |
+| Crossfire arrivals, team 0 / 1 | +2.2 ± 1.3 / +2.0 ± 1.0* | +1.4 ± 1.1 / +4.5 ± 0.9* | +4.1 ± 0.9* (the team with it) |
+| Cut arrivals, team 0 / 1 | +4.9* / +6.1* | +7.1* / +6.1* | +8.9* (the team with it) |
+| Roam / Buddy time, team 0, s | −664* / −603* | −453* / −387* | |
+| deaths past half way, team with it | | +6.7* / +8.4* | +9.1* |
+| K/D, team with it | neutral | neutral | +0.016 ± 0.024 / −0.002 ± 0.030 |
+
+- With the fix alone, one-sided: K/D −0.047 ± 0.022 (team 0 alone), −0.015 ± 0.033 (team 1 alone).
+- Batteries (6 maps, 16 seeds), fix and choke, both teams:
+  - quick ends −73 ± 10*;
+  - delivered +0.1 ± 0.9, carriers killed −1.6 ± 1.3, kills +1.9 ± 2.3;
+  - one-sided, the team with it: K/D +0.040 ± 0.017*.
+- How far the bots get (past half way, past 70 %) is unchanged in every run. The change makes the forward plays run and arrive; it does not move the team forward.
+- Other tiers (fix and choke, both teams, 16 seeds):
+  - TDM: kills +25.3 ± 3.9* at tier 4-5 and +19.6 ± 3.5* at tier 13-15; quick ends −391* and −349*; Cut arrivals +7 to +10*.
+  - Batteries: quick ends −65* and −55*. Delivered −0.1 ± 0.9 and −1.3 ± 0.8; carriers killed +1.3 ± 1.4 and +2.3 ± 0.8*. Over the three tiers carriers killed come out at +0.7 a run (−1.6 at tier 9-10), the guard that leans the wrong way.
+  - In some two-sided runs the teams' K/D moved by ±0.06* in opposite directions, though both teams had the change: a map side's effect, not the change's.
+- The 7 whole-match tests pass.
+
+**PairUp does not feed the top player (LIKELY).** In the owner's matches, take team 1's bot-seconds within 30 m of him, by the play running, and his kills of those bots (his kills placed from the world statistics):
+
+| Match | PairUp: deaths a minute near him | Other plays |
+|---|---|---|
+| 4 | 2.08 | 1.11-1.37 (Collect, Intercept) |
+| 5 | 1.25 | 1.66-3.15 |
+| 7 | 1.60 (860 of 1,705 near-seconds) | 1.49-2.88 |
+| cologne | 0.96 (498 of 1,610) | 1.40 all others together |
+
+- Pooled over 4, 5 and 7: PairUp 1.50 deaths a minute, others about 1.80. The K/D against him was 12/62 = 0.19 for PairUp and 13/71 = 0.18 for the others. In cologne: 4/8 for PairUp, 5/26 for the others.
+- PairUp has many of his kills because it holds most of the time spent near him: it is taken because he is near, mostly from hearing or callouts (about 85 % of takes; 45 of about 280 in match 7 from seeing him).
+- No gate by his K/D: a gated PairUp leaves the same bots near him in other plays, which die as fast or faster. On the bench, one-sided PairUp off (`top_min` 1000) gave team 0's K/D −0.019 ± 0.018, quick ends +45* and HoldExit time +49 s*.
+- Weak points (not changed):
+  - The pair rarely forms. At a PairUp bot's death, a teammate was within 8 m in 26 % of cases, against 28 % for other plays.
+  - When the owner killed a PairUp bot's teammate (38 cases in match 7), the PairUp bot died to him within 10 s in 10 cases and killed him in 3.
+  - PairUp replaces HoldExit and Crossfire on the way (69 and 60 times in match 7), which is part of why the forward plays do not arrive.
+
+**The measure.** `real_bot_cost` prints a `push:` line (`PushTally`, `bots/tests.rs`):
+- per team: alive bot-worlds, the share past half way and past 70 % of the way from its spawns to the enemy's;
+- kills and deaths, all and past half way;
+- HoldExit, Crossfire and Cut runs, and how many reached their hold.
+
+`SRP_BENCH_HOLDEXIT_*`, `SRP_BENCH_CROSSFIRE_*` and `SRP_BENCH_PAIRUP_*` (and their `SRP_BENCH_SIDE1_` forms) set those plays' numbers.
+
+**Not verified:** no real match has been played with the change.
+
 ## 4. Event reactions
 
 | Event | How bots learn it | Reaction |

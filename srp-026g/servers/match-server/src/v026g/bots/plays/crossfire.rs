@@ -131,6 +131,13 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     {
         chokes.push(t);
     }
+    // ... and is the only one offered: a crossfire is held on its choke
+    // until it ends, not moved to each enemy's newer last place. Moved, the
+    // bots chased (bench, one side so: deaths past half way +8 a run and
+    // K/D −0.047 ± 0.022; kept: K/D +0.016 ± 0.024; §3.2).
+    if let Some(t) = running {
+        chokes.retain(|c| *c == t);
+    }
     for choke in chokes {
         let Some(key) = choke_key(choke) else {
             continue;
@@ -329,6 +336,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
 mod tests {
     use super::super::tests::Scenario;
     use super::*;
+    use crate::v026g::bots::know::Source;
 
     fn crossfires(s: &Scenario, place: Place) -> Vec<Candidate> {
         let mut out = Vec::new();
@@ -412,6 +420,24 @@ mod tests {
             let left = until - s.view.clock;
             assert!((lo..=hi).contains(&left), "{mode:?} {left}");
         }
+    }
+
+    #[test]
+    fn a_running_crossfire_is_offered_on_its_own_choke_only() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(30.0, 0.0, 35.0));
+        s.bot(2, 0, Vec3::new(20.0, 0.0, 35.0));
+        // An enemy heard 30 m off: his last place is a choke too.
+        s.enemy(5, 1, Vec3::new(60.0, 0.0, 35.0), Some(Source::Heard));
+        let all = crossfires(&s, 0);
+        let exit = TargetRef::Exit(0);
+        assert!(all.iter().any(|c| c.target == TargetRef::Place(5)), "{all:#?}");
+        assert!(all.iter().any(|c| c.target == exit), "{all:#?}");
+        // Running on the exit, it is not moved to his place.
+        s.current = Some((PlayKind::Crossfire, exit, s.view.clock));
+        let out = crossfires(&s, 0);
+        assert_eq!(out.len(), 2, "{out:#?}");
+        assert!(out.iter().all(|c| c.target == exit), "{out:#?}");
     }
 
     #[test]

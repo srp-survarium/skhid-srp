@@ -417,6 +417,23 @@ impl Bot {
         &tuning.personalities[self.personality.min(tuning.personalities.len() - 1)]
     }
 
+    /// The commander gave it play `next`: the running play stops, and its
+    /// cooldown counts from now. A switch to another target of the same
+    /// play goes on with it, so the cooldown counts from the play's own end
+    /// instead: stamped at the switch, it zeroed the new run's candidate at
+    /// the next poll and the run was dropped within the second (Crossfire
+    /// to Crossfire 88-93 % of the time in the owner's matches 4-7 of
+    /// 2026-10-24, Cut to Cut 70-89 %).
+    fn give_way(&mut self, next: PlayKind, now: u32) {
+        if let Some(running) = self.running.take()
+            && running.kind() != next
+        {
+            let kind = running.kind();
+            self.last_ran.retain(|(k, _)| *k != kind);
+            self.last_ran.push((kind, now));
+        }
+    }
+
     /// Its play ended: remembered, and the commander asked again.
     fn end_play(&mut self, now: u32, why: &str, notes: &mut Vec<Note>) {
         if let Some(running) = self.running.take() {
@@ -1586,11 +1603,7 @@ impl Bots {
                 continue;
             }
             // The new play starts.
-            if let Some(running) = bot.running.take() {
-                let kind = running.kind();
-                bot.last_ran.retain(|(k, _)| *k != kind);
-                bot.last_ran.push((kind, now));
-            }
+            bot.give_way(assignment.kind, now);
             let no_way = team_no_way(&bot.no_way_to, &state.no_way_to);
             let cx = Ctx {
                 now,

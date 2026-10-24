@@ -3502,6 +3502,9 @@ fn bench_tuning_of(side1: bool) -> Tuning {
         ("TRADE", super::plays::PlayKind::Trade),
         ("ROAM", super::plays::PlayKind::Roam),
         ("CUT", super::plays::PlayKind::Cut),
+        ("HOLDEXIT", super::plays::PlayKind::HoldExit),
+        ("CROSSFIRE", super::plays::PlayKind::Crossfire),
+        ("PAIRUP", super::plays::PlayKind::PairUp),
     ] {
         let Ok(numbers) = var(name) else {
             continue;
@@ -3852,6 +3855,7 @@ fn real_bot_cost() {
             let mut events = BenchEvents::open(level, mode, per_team);
             let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
             let mut routes = RouteTally::start(game.bodies.len());
+            let mut push = PushTally::start(&world, game.bodies.len());
             let mut blocks = BlockTally::default();
             let mut hits = HitTally::default();
             while clock < limit_ms {
@@ -3875,6 +3879,7 @@ fn real_bot_cost() {
                             .is_some_and(|a| super::team::attack(a.kind))
                     };
                     for (place, (now, before)) in game.stats.iter().zip(&stats_before).enumerate() {
+                        push.stats(place, teams[place], now.0 - before.0, now.1 - before.1);
                         let side = &mut by_team[usize::from(teams[place])];
                         if now.0 > before.0 {
                             by_play.entry(play_of(place)).or_default()[2] += now.0 - before.0;
@@ -3899,6 +3904,7 @@ fn real_bot_cost() {
                     let thieves = std::mem::take(&mut game.thieves);
                     raids.bodies(&game, &thieves, game.tick);
                     routes.tick(&game, &bots, game.tick);
+                    push.tick(&bots);
                     for place in thieves {
                         by_play.entry(play_of(place)).or_default()[4] += 1;
                         by_team[usize::from(teams[place])][5] += 1;
@@ -3971,6 +3977,7 @@ fn real_bot_cost() {
                             }
                         }
                         routes.world(&game);
+                        push.world(&game, &bots);
                         for note in bots.facts(facts) {
                             decisions.note(&note);
                             carry.note(&note);
@@ -4283,6 +4290,7 @@ fn real_bot_cost() {
             eprintln!("  {}", hits.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
             eprintln!("  routes: {}", routes.line());
+            eprintln!("  push: {}", push.line(&bots));
             eprintln!(
                 "  carriers: killed carrying {:?} (by team carrying), by the shooter's play {:?}; delivered {:?}; picked up {} lying + {} stolen; plays taken {takes_all} = {:.2} a bot-minute",
                 carriers_killed,
@@ -4804,6 +4812,27 @@ fn the_side_step_weaves_a_walk_along_the_view() {
     assert_eq!(weave(key::LEFT, key::RIGHT), None);
     assert_eq!(weave(0, key::LEFT), None);
     assert_eq!(weave(key::FORWARD, 0), None);
+}
+
+/// The commander moving a bot's Crossfire to another choke leaves the
+/// play's cooldown alone (the new run is still a candidate at the next
+/// poll); a switch to another play starts it.
+#[test]
+fn a_switch_to_another_target_of_the_same_play_keeps_its_cooldown() {
+    use super::plays::{PlayKind, Running, crossfire};
+    let tuning = Tuning::default();
+    let mut bot = Bot::new(1, 0, 0, Some("support"), &tuning);
+    bot.last_ran.push((PlayKind::Crossfire, 1_000));
+    bot.running = Some(Running::Crossfire(crossfire::State::NoSpot));
+    bot.give_way(PlayKind::Crossfire, 60_000);
+    assert!(bot.running.is_none());
+    assert_eq!(bot.last_ran, vec![(PlayKind::Crossfire, 1_000)]);
+    bot.running = Some(Running::Crossfire(crossfire::State::NoSpot));
+    bot.give_way(PlayKind::Roam, 61_000);
+    assert_eq!(bot.last_ran, vec![(PlayKind::Crossfire, 61_000)]);
+    // With nothing running, nothing is stamped.
+    bot.give_way(PlayKind::Cut, 62_000);
+    assert_eq!(bot.last_ran, vec![(PlayKind::Crossfire, 61_000)]);
 }
 
 /// A jump while the trigger is down: held [`JUMP_HOLD_MS`] with the trigger
@@ -5386,6 +5415,160 @@ impl RouteTally {
             self.falls.0,
             self.falls.1,
         )
+    }
+}
+
+/// How far forward the bots go, as the #343 check's `advance.py` counts it
+/// from a match's worlds: each living bot's progress along the line from
+/// its side's spawns (0) to the enemy's (1), once a world; kills and deaths
+/// by where the bot stood; and the spot plays' runs (HoldExit, Crossfire,
+/// Cut) that reached their spot, read each tick.
+struct PushTally {
+    /// Each map side's spawns' middle.
+    spawns: Vec<(i32, Vec3)>,
+    /// Per team: living bot-worlds, of them past half way, past 70 %.
+    worlds: [[u32; 3]; 2],
+    /// Per team: kills and deaths, all and past half way.
+    kills: [[u32; 2]; 2],
+    deaths: [[u32; 2]; 2],
+    /// Each place's progress at the last world.
+    last: Vec<Option<f32>>,
+    /// Each bot's spot-play run: (kind, since, reached its spot).
+    runs: Vec<Option<(usize, u32, bool)>>,
+    /// Per spot play (HoldExit, Crossfire, Cut) and team: runs, of them
+    /// reached.
+    spot: [[[u32; 2]; 2]; 3],
+}
+
+impl PushTally {
+    fn start(world: &World, bodies: usize) -> Self {
+        let mut spawns: Vec<(i32, Vec3, u32)> = Vec::new();
+        for s in &world.map.spawns {
+            match spawns.iter_mut().find(|e| e.0 == s.team) {
+                Some(e) => {
+                    e.1 = e.1 + s.position;
+                    e.2 += 1;
+                }
+                None => spawns.push((s.team, s.position, 1)),
+            }
+        }
+        PushTally {
+            spawns: spawns
+                .into_iter()
+                .map(|(team, sum, n)| (team, sum * (1.0 / n as f32)))
+                .collect(),
+            worlds: [[0; 3]; 2],
+            kills: [[0; 2]; 2],
+            deaths: [[0; 2]; 2],
+            last: vec![None; bodies],
+            runs: vec![None; bodies],
+            spot: [[[0; 2]; 2]; 3],
+        }
+    }
+
+    /// A bot's progress from its side's spawns to the enemy's.
+    fn progress(&self, side: Option<i32>, at: Vec3) -> Option<f32> {
+        let side = side?;
+        let own = self.spawns.iter().find(|s| s.0 == side)?.1;
+        let enemy = self.spawns.iter().find(|s| s.0 != side)?.1;
+        let (ax, az) = (enemy.x - own.x, enemy.z - own.z);
+        let len2 = ax * ax + az * az;
+        (len2 > 1.0).then(|| ((at.x - own.x) * ax + (at.z - own.z) * az) / len2)
+    }
+
+    fn world(&mut self, game: &Game, bots: &Bots) {
+        for bot in bots.bots.iter().flatten() {
+            let body = &game.bodies[bot.place];
+            let p = body
+                .alive
+                .then(|| self.progress(bot.side, body.feet))
+                .flatten();
+            self.last[bot.place] = p;
+            if let Some(p) = p {
+                let w = &mut self.worlds[usize::from(bot.team & 1)];
+                w[0] += 1;
+                w[1] += u32::from(p > 0.5);
+                w[2] += u32::from(p > 0.7);
+            }
+        }
+    }
+
+    /// A place's kills and deaths this tick.
+    fn stats(&mut self, place: usize, team: u8, kills: u32, deaths: u32) {
+        let forward = u32::from(self.last[place].is_some_and(|p| p > 0.5));
+        let t = usize::from(team & 1);
+        self.kills[t][0] += kills;
+        self.kills[t][1] += kills * forward;
+        self.deaths[t][0] += deaths;
+        self.deaths[t][1] += deaths * forward;
+    }
+
+    fn tick(&mut self, bots: &Bots) {
+        use super::plays::{PlayKind, Running, crossfire, cut, hold_exit};
+        for bot in bots.bots.iter().flatten() {
+            let run = bot.assignment.as_ref().and_then(|a| {
+                let kind = match a.kind {
+                    PlayKind::HoldExit => 0,
+                    PlayKind::Crossfire => 1,
+                    PlayKind::Cut => 2,
+                    _ => return None,
+                };
+                Some((kind, a.since))
+            });
+            let held = matches!(
+                bot.running,
+                Some(Running::HoldExit(hold_exit::State::Hold { .. }))
+                    | Some(Running::Crossfire(crossfire::State::Hold { .. }))
+                    | Some(Running::Cut(cut::State::Hold { .. }))
+            );
+            let t = usize::from(bot.team & 1);
+            match (&mut self.runs[bot.place], run) {
+                (Some((kind, since, reached)), Some((k, s))) if *kind == k && *since == s => {
+                    *reached |= held;
+                }
+                (slot, run) => {
+                    if let Some((kind, _, reached)) = slot.take() {
+                        self.spot[kind][t][0] += 1;
+                        self.spot[kind][t][1] += u32::from(reached);
+                    }
+                    *slot = run.map(|(k, s)| (k, s, held));
+                }
+            }
+        }
+    }
+
+    /// The line the bench prints (one `push:` line, `key value` pairs, team
+    /// 0's then team 1's).
+    fn line(mut self, bots: &Bots) -> String {
+        for bot in bots.bots.iter().flatten() {
+            if let Some((kind, _, reached)) = self.runs[bot.place].take() {
+                let t = usize::from(bot.team & 1);
+                self.spot[kind][t][0] += 1;
+                self.spot[kind][t][1] += u32::from(reached);
+            }
+        }
+        let mut out = String::new();
+        for t in 0..2 {
+            let w = self.worlds[t];
+            let s = |k: usize| self.spot[k][t];
+            out += &format!(
+                "worlds{t} {} half{t} {} past70_{t} {} kills{t} {} kills_fwd{t} {} deaths{t} {} deaths_fwd{t} {} hold_exit{t} {} hold_exit_at{t} {} crossfire{t} {} crossfire_at{t} {} cut{t} {} cut_at{t} {} ",
+                w[0],
+                w[1],
+                w[2],
+                self.kills[t][0],
+                self.kills[t][1],
+                self.deaths[t][0],
+                self.deaths[t][1],
+                s(0)[0],
+                s(0)[1],
+                s(1)[0],
+                s(1)[1],
+                s(2)[0],
+                s(2)[1],
+            );
+        }
+        out.trim_end().to_owned()
     }
 }
 
