@@ -25,7 +25,8 @@
 //!
 //! The stand-in is much simpler than the game (no spread, no side kick, no
 //! armour, no stamina, a jump only up to the client's height
-//! ([`STAND_IN_AIR_MS`], [`stand_in_jump`]); the rounds are not counted, the bots count
+//! ([`STAND_IN_AIR_MS`], [`stand_in_jump`]), none with a broken leg, a
+//! hit's stagger as one slow ([`STAND_IN_LEG_SHARE`], [`STAND_IN_STAGGER`]); the rounds are not counted, the bots count
 //! their own): the runs check that bots of two teams find each
 //! other, fight, die, come back, take and bring batteries and end a
 //! match, with no input out of the rules; not how well.
@@ -97,6 +98,11 @@ struct Body {
     /// Until when a jump pressed keeps the body in the air, ms
     /// ([`STAND_IN_AIR_MS`]).
     air_until: u32,
+    /// The leg pools (0.5 full), until when an empty one is broken, and
+    /// the last hit's tick (0: none this life), [`STAND_IN_LEG_SHARE`].
+    legs: [f32; 2],
+    leg_broken_until: u32,
+    last_hit: u32,
     /// The bot's target as its last input was made (the reflex's).
     target: Option<Place>,
     /// Its shots' spread ([`bench_spread`]).
@@ -137,6 +143,30 @@ const TAKEN_KILLED_MS: u32 = 3_000;
 /// stood at its foot, and 100 of the 118 held-keys stuck notes of a bench
 /// were within a metre of a jump floor (`player_bots_stuck.md` §8.6).
 const STAND_IN_AIR_MS: u32 = 600;
+
+/// A stand-in body's legs: one hit in this many lands on a leg [GUESS: the
+/// hip and foot zones], taking [`STAND_IN_LEG_HIT`] of its pool (0.5 full;
+/// one or two rifle hits empty one, LIKELY, sprint-jump RE `FINDINGS.md`
+/// §1.8). An empty pool breaks the leg: no jump at all for
+/// [`STAND_IN_LEG_BROKEN_MS`] (PROVEN), then it is whole (the game mends
+/// it slowly).
+const STAND_IN_LEG_SHARE: u32 = 4;
+const STAND_IN_LEG_HIT: f32 = 0.25;
+const STAND_IN_LEG_BROKEN_MS: u32 = 8_000;
+/// After a hit the stand-in walks at this share of its speed for
+/// [`STAND_IN_STAGGER_MS`] (the game's stagger: up to half, a rifle hit
+/// 15-35 %, PROVEN; the share a GUESS between).
+const STAND_IN_STAGGER: f32 = 0.75;
+const STAND_IN_STAGGER_MS: u32 = 500;
+
+/// The leg a hit of `shooter` on `target` at `tick` lands on, if any
+/// ([`STAND_IN_LEG_SHARE`]): a hash, so the game's draws are not moved.
+fn stand_in_leg_hit(tick: u32, shooter: Place, target: Place) -> Option<usize> {
+    let h = (tick ^ (shooter as u32).wrapping_mul(0x85EB_CA6B) ^ (target as u32).wrapping_mul(0x9E37_79B9))
+        .wrapping_mul(0xC2B2_AE35);
+    let h = h ^ (h >> 16);
+    (h % STAND_IN_LEG_SHARE == 0).then_some(((h >> 8) & 1) as usize)
+}
 
 /// A jump of the stand-in: how high the feet get over the floor jumped
 /// from, and how far ahead a jump with no grid link lands, m.
@@ -470,6 +500,9 @@ impl Game {
             carrying: None,
             moved: 0.0,
             air_until: 0,
+            legs: [0.5; 2],
+            leg_broken_until: 0,
+            last_hit: 0,
             target: None,
             spread: bench_spread::Spread::default(),
         };
@@ -559,6 +592,9 @@ impl Game {
         body.pitch = 0.0;
         body.blend = Blend::default();
         body.health = 1.0;
+        body.legs = [0.5; 2];
+        body.leg_broken_until = 0;
+        body.last_hit = 0;
         body.alive = true;
         body.spawned = tick;
         body.carrying = None;
@@ -610,7 +646,7 @@ impl Game {
                 queue.pop_front();
                 let body = &mut self.bodies[place];
                 pressed[place] = keys & !body.keys;
-                if pressed[place] & key::JUMP != 0 {
+                if pressed[place] & key::JUMP != 0 && body.legs.iter().all(|&pool| pool > 0.0) {
                     body.air_until = tick + STAND_IN_AIR_MS;
                 }
                 body.keys = keys;
@@ -650,7 +686,14 @@ impl Game {
                 continue;
             }
             let body = &mut self.bodies[place];
-            let level = if body.carrying.is_some() { 0.95 } else { 1.0 };
+            if body.leg_broken_until != 0 && tick >= body.leg_broken_until {
+                body.legs = body.legs.map(|pool| if pool > 0.0 { pool } else { 0.5 });
+                body.leg_broken_until = 0;
+            }
+            let mut level = if body.carrying.is_some() { 0.95 } else { 1.0 };
+            if body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS {
+                level *= STAND_IN_STAGGER;
+            }
             let local = body.blend.tick(
                 self.kin.target_local(body.keys, level),
                 self.kin.blend_ticks,
@@ -873,6 +916,13 @@ impl Game {
         }
         let other = &mut self.bodies[target];
         other.health -= 0.2;
+        other.last_hit = tick;
+        if let Some(leg) = stand_in_leg_hit(tick, shooter, target) {
+            other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
+            if other.legs[leg] <= 0.0 && other.leg_broken_until == 0 {
+                other.leg_broken_until = tick + STAND_IN_LEG_BROKEN_MS;
+            }
+        }
         if other.health <= 1e-3 {
             other.alive = false;
             other.dead_at = tick;
