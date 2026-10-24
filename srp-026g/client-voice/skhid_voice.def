@@ -1,0 +1,12 @@
+LIBRARY skhid_voice.dll
+EXPORTS
+    sv_version
+    sv_start
+    sv_stop
+    sv_ptt
+    sv_settings
+    sv_radio
+    sv_mute
+    sv_talking
+    sv_slot
+    sv_last_speaker

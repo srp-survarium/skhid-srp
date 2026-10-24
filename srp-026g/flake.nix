@@ -72,8 +72,103 @@
         };
         patches = [ ];
       });
+
+      # skhid_voice.dll (client-voice/, voice_win.c says what it is): in-match
+      # voice chat, beside survarium.exe. libopus as the DLL has it: floating
+      # point (opus 1.6.1's fixed-point build for x86 does not link: its
+      # SSE4.1 SILK functions are missing), no custom modes, a static
+      # library; the same build for the loopback test on Linux.
+      opusForVoice = opus: opus.overrideAttrs (old: {
+        mesonFlags = (old.mesonFlags or [ ]) ++ [ "-Dcustom-modes=false" ];
+      });
+      mingw32 = pkgs.pkgsCross.mingw32;
+      # This file's CRLF line ends, out of the shell snippets.
+      noCR = builtins.replaceStrings [ "\r" ] [ "" ];
+      voiceOpusWin = (opusForVoice mingw32.libopus).overrideAttrs (old: {
+        mesonFlags = old.mesonFlags ++ [ "-Ddefault_library=static" ];
+      });
+      skhidVoice = mingw32.stdenv.mkDerivation {
+        pname = "skhid-voice";
+        version = "1";
+        src = ./client-voice;
+        # mcfgthread: the cross gcc's thread model names it on every link;
+        # nothing of it is used, and --as-needed leaves it out.
+        buildInputs = [ voiceOpusWin mingw32.windows.mcfgthreads ];
+        dontConfigure = true;
+        buildPhase = noCR ''
+          runHook preBuild
+          # libopus's objects export its API (.drectve): only the DLL's own
+          # names (skhid_voice.def) are exported.
+          ${mingw32.stdenv.cc.targetPrefix}objcopy -R .drectve \
+            ${voiceOpusWin}/lib/libopus.a libopus-static.a
+          $CC -std=c99 -O2 -Wall -Wextra -Werror -D_WIN32_WINNT=0x0601 \
+            -msse2 -mfpmath=sse \
+            -I${voiceOpusWin.dev}/include/opus \
+            -shared -o skhid_voice.dll \
+            voice_win.c voice_core.c skhid_voice.def libopus-static.a \
+            -static -static-libgcc -Wl,--as-needed -Wl,--gc-sections \
+            -lws2_32 -lwinmm -s
+          # Nothing but Windows' own DLLs.
+          imports=$(${mingw32.stdenv.cc.targetPrefix}objdump -p skhid_voice.dll \
+            | sed -n 's/^\tDLL Name: //p' | tr 'A-Z' 'a-z' | sort | tr '\n' ' ')
+          echo "skhid_voice.dll imports: $imports"
+          for dll in $imports; do
+            case $dll in
+              kernel32.dll | msvcrt.dll | winmm.dll | ws2_32.dll) ;;
+              *) echo "skhid_voice.dll imports $dll" >&2; exit 1 ;;
+            esac
+          done
+          runHook postBuild
+        '';
+        installPhase = noCR ''
+          mkdir -p $out
+          cp skhid_voice.dll $out/
+        '';
+      };
+
+      # Its smoke test for Windows or Wine (client-voice/smoke_voice.c).
+      skhidVoiceSmoke = mingw32.stdenv.mkDerivation {
+        pname = "skhid-voice-smoke";
+        version = "1";
+        src = ./client-voice;
+        buildInputs = [ mingw32.windows.mcfgthreads ];
+        dontConfigure = true;
+        buildPhase = noCR ''
+          $CC -std=c99 -O2 -Wall -Wno-cast-function-type -o smoke_voice.exe smoke_voice.c \
+            -static -static-libgcc -Wl,--as-needed -lws2_32
+        '';
+        installPhase = noCR ''
+          mkdir -p $out
+          cp smoke_voice.exe $out/
+        '';
+      };
+
+      voiceLoopback = pkgs.stdenv.mkDerivation {
+        name = "skhid-voice-loopback";
+        src = ./client-voice;
+        nativeBuildInputs = [ pkgs.pkg-config ];
+        buildInputs = [ (opusForVoice pkgs.libopus) ];
+        dontConfigure = true;
+        buildPhase = noCR ''
+          $CC -std=c99 -D_DEFAULT_SOURCE -O2 -Wall -Wextra -Werror \
+            $(pkg-config --cflags opus) -o test_voice test_voice.c voice_core.c \
+            $(pkg-config --libs opus) -lm
+          ./test_voice >test_voice.log || { cat test_voice.log; exit 1; }
+          cat test_voice.log
+        '';
+        installPhase = noCR ''
+          mkdir -p $out
+          cp test_voice.log $out/
+        '';
+      };
     in
     {
+      packages.${system} = {
+        skhid-voice = skhidVoice;
+        skhid-voice-smoke = skhidVoiceSmoke;
+      };
+      checks.${system}.voice-loopback = voiceLoopback;
+
       devShells.${system}.default = pkgs.mkShell {
         name = "srp";
 
