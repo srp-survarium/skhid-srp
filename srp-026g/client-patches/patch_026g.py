@@ -475,12 +475,13 @@ Patches:
 - one key hides the whole interface and shows it again, in a match and in
   the lobby (patch 62, with the late join; docs/notes/hide-ui-key.md): the
   game's action toggle_replay_ui (19h, F11), which only worked in a replay.
-  hide_ui_026g.asm (the arena's blocks hide_ui.code and .state): the game
+  hide_ui_026g.asm (the arena's blocks hide_ui.code and .data): the game
   world's on_keyboard_action case 19h (0x25CED1) without the replay's movie
-  hides or shows the hud and the player icons with the game world's own
-  show_ui (0x1F95F0), not while the kits are shown; show_profiles_selector's
-  show_cursor call (0x23845B) gives a game world this key hid its ui back
-  before the kits show; lobby_menu::on_keyboard_action's binder call
+  asks the hud movie root.interface_hidden and gives it and the player icons'
+  movie root.hide_interface(not that), the kits before the start too (the
+  movies go on running: what happens while hidden plays out unseen);
+  show_profiles_selector's show_cursor call (0x23845B) shows a hidden hud and
+  icons again before the kits show; lobby_menu::on_keyboard_action's binder call
   (0x26CCD2) asks again for kind 1 when the key has no lobby action, and on
   toggle_replay_ui invokes the lobby movie's root.toggle_interface and takes
   the key (back at 0x26CCAE, al 1); while the movie says its interface is
@@ -1976,16 +1977,20 @@ TEAM_DAMAGE_SIZES = (
 
 # The key that hides the interface (patch 62, README; client_patch.md section
 # 3.55; the rules: ../docs/notes/hide-ui-key.md): hide_ui_026g.asm in the
-# arena's blocks hide_ui.code and hide_ui.state (ARENA below), three entries:
+# arena's blocks hide_ui.code and hide_ui.data (ARENA below), three entries:
 # - the game world's on_keyboard_action 0x25CD00, its case of action 19h
 #   (toggle_replay_ui, F11; the switch's table 0x25CF30 + 8 * 4), `mov
 #   esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D` at 0x25CED1: with
 #   the replay's movie (the handler's +18h) it goes on at 0x25CEDB as before;
-#   without it the game world's show_ui (0x1F95F0, state +0A0h) hides the hud
-#   and the player icons (not while the cursor shows the kits) or shows them
-#   when this key hid them; both ways the key is not taken (0x25CF0D);
-# - show_profiles_selector's `call 0x23A930` (show_cursor) at 0x23845B: a
-#   game world this key hid gets its ui back before the kits are shown;
+#   without it the hud movie ([[hud+8]+108h]+4, the hud the handler's +4) is
+#   asked root.interface_hidden and it and the player icons' movie
+#   ([[hud+10h]+108h]+4) get root.hide_interface(not that), whatever the
+#   cursor; both ways the key is not taken (0x25CF0D). Not the game world's
+#   show_ui (0x1F95F0): the movies it hides stand still, and what came
+#   meanwhile played at once when shown (the owner's test of 64ce3ce7);
+# - show_profiles_selector's `call 0x23A930` (show_cursor) at 0x23845B: for a
+#   1, a hud movie that answers hidden gets root.hide_interface(false), the
+#   icons' too, before the kits are shown;
 # - lobby_menu::on_keyboard_action's `call 0x207D50` (get_binded_action,
 #   kind 2) at 0x26CCD2: a key with no lobby action is asked again for kind
 #   1; toggle_replay_ui invokes the lobby movie's root.toggle_interface and
@@ -2479,7 +2484,6 @@ ARENA = (
     ArenaBlock("rattle.code", "code", 0x1000, ("rattle_026g.asm", "rattle_026g.c")),
     ArenaBlock("rattle.state", "state", 0x10, ("rattle_026g.c",)),                  # rt_g: the steps' quiet
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
-    ArenaBlock("hide_ui.state", "state", 0x1000, ("hide_ui_026g.asm",)),         # the game world it hid
     ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
 )
 

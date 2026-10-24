@@ -73,4 +73,3 @@ engine_geometry_destroy	0x2f8be0	ECX:geometry	void engine_geometry_destroy(void 
 engine_config_variant_type	0x125790	-	unsigned int engine_config_variant_type(void)
 engine_point_to_screen	0x23dec0	ESP+4:game ESP+8:point ESP+12:out	unsigned int engine_point_to_screen(void *game, const float *point, float *out)
 engine_binded_action	0x207d50	EAX:binder EDI:kinds ESI:key ESP+4:toggle	unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
-engine_show_ui	0x1f95f0	ECX:world ESP+4:visibility	void engine_show_ui(void *world, unsigned int shown)

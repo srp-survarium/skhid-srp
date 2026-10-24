@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 69800,
-  "sha256": "85c92996f95fdc6b0dc16173808324593949054cffe965f75ca6eccbef668473",
+  "size": 65704,
+  "sha256": "004c3b694d408e0216c2894cf3acef9173dd108afa127476c0077a43933fb323",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,7 +22,7 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 2566
+      "size": 2542
     },
     "match_keys.code": {
       "kind": "code",
@@ -62,16 +62,11 @@
     "hide_ui.code": {
       "kind": "code",
       "va": "0xa43b000",
-      "size": 433
-    },
-    "hide_ui.state": {
-      "kind": "state",
-      "va": "0xa43c000",
-      "size": 4
+      "size": 561
     },
     "hide_ui.data": {
       "kind": "data",
-      "va": "0xa43d000",
+      "va": "0xa43c000",
       "size": 4264
     }
   },
@@ -83,7 +78,7 @@
     "artefacts_stagger": "0xa431019",
     "artefacts_unlink": "0xa43100a",
     "chat_variable": "0xa434000",
-    "controls": "0xa43d000",
+    "controls": "0xa43c000",
     "engine_accept_decal_edit": "0xa432460",
     "engine_allocation_name": "0xa4322e0",
     "engine_apply_modifier": "0xa432210",
@@ -147,7 +142,6 @@
     "engine_sensor_insert": "0xa432900",
     "engine_setup_profile": "0xa432240",
     "engine_show_message": "0xa432180",
-    "engine_show_ui": "0xa4329f0",
     "engine_splash_hit": "0xa4326e0",
     "engine_statistics_notify": "0xa432110",
     "engine_string_assign": "0xa432320",
@@ -159,10 +153,9 @@
     "engine_write_u8": "0xa432080",
     "engine_zone_deactivate": "0xa432920",
     "engine_zone_tick": "0xa432940",
-    "hidden_world": "0xa43c000",
     "hide_chat": "0xa434048",
-    "hide_ui_kits": "0xa43b06b",
-    "hide_ui_lobby": "0xa43b0a4",
+    "hide_ui_kits": "0xa43b030",
+    "hide_ui_lobby": "0xa43b110",
     "hide_ui_match": "0xa43b000",
     "match_keys_chat": "0xa4330c3",
     "match_keys_hud": "0xa433080",

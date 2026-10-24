@@ -232,7 +232,4 @@ unsigned int engine_point_to_screen(void *game, const float *point, float *out);
 /* 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX */
 unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle);
 
-/* 0x1f95f0 survarium::game_world::show_ui: world ECX, shown ESP+4; pops 4 */
-void engine_show_ui(void *world, unsigned int shown);
-
 #endif

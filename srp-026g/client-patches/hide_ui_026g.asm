@@ -12,17 +12,19 @@
 ; 11h..19h (0x25CE1C, the table 0x25CF30): 19h goes to 0x25CED1, which takes
 ; the handler ([esp+10h]) and does nothing without the replay's movie (the
 ; handler's +18h, the hud's +14h; a match has none). There, without that
-; movie, the game world's own show_ui (0x1F95F0, its state +0A0h; the
-; activation shows the ui with it, the deactivation hides it) hides or shows
-; the hud movie and the player icons' movie: the hud, the crosshair, the
-; minimap and the markers over heads. Hidden only by this key, and not while
-; the hud shows the cursor (the kits: the death screen, before the start).
-; The key is not taken (0x25CF0D, al 0), as in the original.
+; movie, the hud movie ([[hud+8]+108h]+4) is asked root.interface_hidden and
+; both it and the player icons' movie ([[hud+10h]+108h]+4) get
+; root.hide_interface(not that): each hides every shown child of its stage
+; and keeps them hidden, the hud, the crosshair, the minimap, the kits and the
+; markers over heads. The movies go on running (not the game world's
+; show_ui, 0x1F95F0, whose hidden movies stand still and play what came
+; meanwhile at once when shown): what happens while hidden plays out unseen.
+; The kits before the start too; the start keeps the state. The key is not
+; taken (0x25CF0D, al 0), as in the original.
 ;
 ; The kits. show_profiles_selector (0x2383B0) shows the kits with
-; show_cursor(1) (its call at 0x23845B, edi the hud): before it, a game world
-; this key hid gets its ui back, so the death screen and its kits are never
-; hidden.
+; show_cursor(1) (its call at 0x23845B, edi the hud): before it, a hidden hud
+; and icons are shown again, so the death screen's kits are never hidden.
 ;
 ; The lobby. lobby_menu::on_keyboard_action (0x26CB80) asks the key binder for
 ; the lobby's actions (kind 2) at 0x26CCD2 (eax the binder, edi 2, esi the
@@ -59,7 +61,6 @@ BITS 32
 %include "engine_026g.inc"
 global hide_ui_match, hide_ui_kits, hide_ui_lobby
 global controls                    ; the options' controls, 41 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
-global hidden_world                ; the game world this key hid, or 0 (check_hide_ui_026g.py reads it)
 section .text
 
 %define REPLAY_TOGGLE 0x25CEDB     ; the case 19h after its replay test: the replay's controls
@@ -69,10 +70,10 @@ section .text
 %define LOBBY_TO_MOVIE 0x26CDD2    ; its last part: the key to the movie (0x1FDD70), al 0
 %define HANDLER 0x10               ; the case's [esp+10h]: the game world's input handler
 %define REPLAY_MOVIE 0x18          ; the handler's +18h: the hud's +14h, the replay's controls
-%define WORLD 0x1C                 ; the handler's +1Ch: the hud's +18h, the game world
-%define CURSOR 0x2E0               ; the handler's +2E0h: the hud's +2DCh, the cursor shown
-%define HUD_WORLD 0x18             ; the hud's +18h: the game world
-%define UI_SHOWN 0xA0              ; the game world's +0A0h: show_ui's state
+%define HUD 4                      ; the handler's +4: the hud (game_world_ui)
+%define HUD_MOVIE 8                ; the hud's movie holders: the hud's +8, the player icons' +10h
+%define ICONS_MOVIE 0x10
+%define GFX_BOOL 2                 ; a GFx value's type (+4): a bool (+8)
 %define LOBBY_MOVIE 0x690          ; the lobby menu's movie holder: [[+690h]+108h]+4
 %define NO_ACTION 0x49             ; the binder's answer for a key without an action
 %define TOGGLE_UI 0x19             ; toggle_replay_ui
@@ -84,27 +85,14 @@ hide_ui_match:
     mov esi, [esp+HANDLER]
     cmp dword [esi+REPLAY_MOVIE], 0
     jne REPLAY_TOGGLE              ; a replay: its controls, as before
-    mov ecx, [esi+WORLD]
-    test ecx, ecx
-    jz KEY_OTHER
-    cmp byte [ecx+UI_SHOWN], 0
-    je .show
-    cmp byte [esi+CURSOR], 0
-    jne KEY_OTHER                  ; the kits are shown: not hidden
-    mov [hidden_world], ecx
-    push 0
-    push ecx
-    call engine_show_ui
-    add esp, 8
-    jmp KEY_OTHER
-.show:
-    cmp [hidden_world], ecx
-    jne KEY_OTHER                  ; hidden, but not by this key: left as it is
-    mov dword [hidden_world], 0
-    push 1
-    push ecx
-    call engine_show_ui
-    add esp, 8
+    lea edi, [esi+HUD]
+    call hud_hidden
+    cmp eax, -1
+    je KEY_OTHER                   ; no hud movie
+    xor eax, 1
+    push eax
+    call hide_hud
+    add esp, 4
     jmp KEY_OTHER
 
 ; show_profiles_selector's call of show_cursor (0x23845B): [esp+4] shown, edi
@@ -112,20 +100,92 @@ hide_ui_match:
 hide_ui_kits:
     cmp byte [esp+4], 0
     je .cursor
-    mov eax, [edi+HUD_WORLD]
-    test eax, eax
-    jz .cursor
-    cmp [hidden_world], eax
-    jne .cursor                    ; not hidden by this key
-    mov dword [hidden_world], 0
-    cmp byte [eax+UI_SHOWN], 0
+    call hud_hidden
+    cmp eax, 1
     jne .cursor
-    push 1
-    push eax
-    call engine_show_ui
-    add esp, 8
+    push 0
+    call hide_hud
+    add esp, 4
 .cursor:
     jmp SHOW_CURSOR
+
+; The hud's movie (edi the hud, ecx the holder's place in it): eax the movie or 0.
+movie_of:
+    mov eax, [edi+ecx]
+    test eax, eax
+    jz .out
+    mov eax, [eax+0x108]
+    test eax, eax
+    jz .out
+    mov eax, [eax+4]
+.out:
+    ret
+
+; edi the hud: eax 1 when its movie says its interface is hidden, 0 when not,
+; -1 without the movie. ebx, esi, edi and ebp kept.
+hud_hidden:
+    mov ecx, HUD_MOVIE
+    call movie_of
+    test eax, eax
+    jz .none
+    sub esp, 24                    ; the answer, a GFx value (a bool: nothing to release)
+    xor edx, edx
+    mov [esp], edx
+    mov [esp+4], edx
+    mov [esp+8], edx
+    mov [esp+12], edx
+    mov [esp+16], edx
+    mov [esp+20], edx
+    mov edx, esp
+    push 0
+    push 0
+    push edx
+    push interface_hidden
+    push eax
+    call engine_movie_invoke
+    add esp, 20
+    movzx eax, byte [esp+8]
+    add esp, 24
+    test eax, eax
+    setnz al
+    ret
+.none:
+    or eax, -1
+    ret
+
+; edi the hud, [esp+4] 1 to hide, 0 to show: root.hide_interface of the hud's
+; movie and the player icons'. ebx, esi, edi and ebp kept.
+hide_hud:
+    push ebx
+    mov ebx, [esp+8]
+    mov ecx, HUD_MOVIE
+    call .one
+    mov ecx, ICONS_MOVIE
+    call .one
+    pop ebx
+    ret
+.one:
+    call movie_of
+    test eax, eax
+    jz .skip
+    sub esp, 24                    ; one GFx value: a bool
+    xor edx, edx
+    mov [esp], edx
+    mov dword [esp+4], GFX_BOOL
+    mov [esp+8], ebx
+    mov [esp+12], edx
+    mov [esp+16], edx
+    mov [esp+20], edx
+    mov edx, esp
+    push 1
+    push edx
+    push 0
+    push hide_interface
+    push eax
+    call engine_movie_invoke
+    add esp, 20 + 24
+.skip:
+    ret
 
 ; lobby_menu::on_keyboard_action's call of get_binded_action (0x26CCD2): eax
 ; the binder, edi 2 (the lobby's kind), esi the key, [esp+4] the toggle's
@@ -213,6 +273,8 @@ toggle_interface:
     db "root.toggle_interface", 0
 interface_hidden:
     db "root.interface_hidden", 0
+hide_interface:
+    db "root.hide_interface", 0
 
 hide_interface_label:
     db "st_hide_interface_action", 0
@@ -272,8 +334,3 @@ controls:                          ; the game's 40 rows (0xA9DB28), in their ord
     CONTROL 0x46, 0x9FC910, 1, 0   ; st_select_send_to_action
     CONTROL 0x47, 0x9FC900, 1, 0   ; st_ptt_action
     CONTROL TOGGLE_UI, hide_interface_label, 2, 1   ; st_hide_interface_action (F11)
-
-section .bss
-alignb 4
-hidden_world:
-    resd 1

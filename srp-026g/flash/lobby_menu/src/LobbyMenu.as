@@ -89,6 +89,7 @@ package
    import survarium.constants.VoucherType;
    import survarium.controls.BottomPanel;
    import survarium.controls.DragRegion;
+   import survarium.controls.InterfaceHider;
    import survarium.controls.GangShop;
    import survarium.controls.InventoryList;
    import survarium.controls.ItemCompare;
@@ -453,9 +454,8 @@ package
       
       protected var _escapeHandled:Boolean = false;
 
-      // The stage's children toggle_interface hid (docs/notes/hide-ui-key.md); null while the
-      // interface is shown.
-      private var _hiddenUi:Array;
+      // Hides the interface for toggle_interface (docs/notes/hide-ui-key.md); made at the first.
+      private var _hider:InterfaceHider;
 
       // The key that showed the hidden interface: its release is taken too (onHiddenKeyUp); 0 when
       // none.
@@ -3733,7 +3733,7 @@ package
       
       public function get_mouse_over() : Boolean
       {
-         if(this._hiddenUi != null)
+         if(this.interface_hidden())
          {
             return false;
          }
@@ -4010,7 +4010,7 @@ package
       public function has_active_window() : Boolean
       {
          // the hidden interface is the top: Esc shows it (close_active_window)
-         if(this._hiddenUi != null)
+         if(this.interface_hidden())
          {
             return true;
          }
@@ -5858,52 +5858,41 @@ package
       }
       
       // The key that hides the interface (docs/notes/hide-ui-key.md): the exe calls this for F11,
-      // the game's toggle_replay_ui key (exe patch 62), when no text box has the keys. Every shown
-      // child of the stage is hidden, the lobby's root with it: no click lands on the interface and
-      // the camera turns and zooms (get_mouse_over). Shown again by the same key, any key the movie
-      // gets (onHiddenKey: that key does nothing else), Esc, a match found, its loading or the
-      // results.
+      // the game's toggle_replay_ui key (exe patch 62), when no text box has the keys. The whole
+      // interface goes (InterfaceHider: every layer on the stage, the lobby's root with its panels,
+      // bars, windows and chat, and the stage's own: messages, popups, menus, tooltips, the dragged
+      // item, the loading screen), the character and the scene stay: no click lands on the
+      // interface and the camera turns and zooms (get_mouse_over). An open right-click menu is closed
+      // first. Shown again by the same key, any key the movie gets (onHiddenKey: that key does
+      // nothing else), Esc, a match found, its loading or the results.
       public function toggle_interface() : void
       {
          if(this.showInterface())
          {
             return;
          }
-         SrvContextMenu.hide();
-         _hiddenUi = [];
-         var i:int = 0;
-         while(i < stage.numChildren)
+         if(SrvContextMenu.visisble)
          {
-            var child:DisplayObject = stage.getChildAt(i);
-            if(child.visible)
-            {
-               child.visible = false;
-               this._hiddenUi.push(child);
-            }
-            i++;
+            SrvContextMenu.hide();
          }
+         if(this._hider == null)
+         {
+            _hider = new InterfaceHider(stage);
+         }
+         this._hider.hide();
       }
 
       // The exe asks this on every key in the lobby (exe patch 62): while it is true no key acts in
       // the game (a window's key, F6's Play); the key comes to the movie, which shows the interface.
       public function interface_hidden() : Boolean
       {
-         return this._hiddenUi != null;
+         return this._hider != null && this._hider.hidden;
       }
 
       // Shows what toggle_interface hid; true when it was hidden.
       private function showInterface() : Boolean
       {
-         if(this._hiddenUi == null)
-         {
-            return false;
-         }
-         for each(var child:DisplayObject in this._hiddenUi)
-         {
-            child.visible = true;
-         }
-         _hiddenUi = null;
-         return true;
+         return this._hider != null && this._hider.show();
       }
 
       // A key while the interface is hidden shows it, and is taken, its release too: no other
