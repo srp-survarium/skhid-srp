@@ -1891,6 +1891,9 @@ impl Bots {
         };
         bot.reflex
             .think_with(me, &sit, &bot.memory, now, &tuning.aim, skill, &mut bot.rng);
+        for text in bot.reflex.take_throw_notes() {
+            bot.note(notes, now, text);
+        }
         // Hit from a direction alone (the HUD's marker): its callout.
         if let Some((at, bearing)) = bot.reflex.take_hit_note() {
             self.teams[team].knowledge.shots_from.push(know::ShotFrom {

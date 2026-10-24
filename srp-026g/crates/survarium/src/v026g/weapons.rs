@@ -378,6 +378,80 @@ pub fn weapon_named(name: &str) -> Option<&'static WeaponParams> {
     all().iter().find(|w| w.name == name)
 }
 
+/// A grenade's numbers, from the `data` block of its config
+/// (`gameplay/items/weapons/rgd-5.options`): how long it lives once thrown
+/// and how far its blast reaches. The match server's bots time their throws
+/// and keep teammates out of the blast by these (`bots::reflex`, play 20).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GrenadeParams {
+    /// `ttl_ms`: from the throw to the blast, ms.
+    pub ttl_ms: u32,
+    /// `splash_radius`: the blast's reach, metres.
+    pub splash_radius: f32,
+    /// `splash_max_damage` / `splash_min_damage`: at its middle and at its
+    /// edge (shares of a body's health, before armour).
+    pub splash_max_damage: f32,
+    pub splash_min_damage: f32,
+    /// `throw_power`.
+    pub throw_power: f32,
+    /// `explode_on_contact`.
+    pub explode_on_contact: bool,
+}
+
+impl GrenadeParams {
+    /// From an item's config (`data`).
+    pub fn from_config(config: &ConfigValue) -> Result<Self, ConfigError> {
+        let data = config.req("data")?;
+        let number = |key: &str| -> Result<f32, ConfigError> {
+            data.req(key)?
+                .as_f32()
+                .ok_or_else(|| ConfigError(format!("`data.{key}` is not a number")))
+        };
+        let ttl = number("ttl_ms")?;
+        if ttl <= 0.0 {
+            return Err(ConfigError("`data.ttl_ms` is not above 0".into()));
+        }
+        Ok(Self {
+            ttl_ms: ttl.round() as u32,
+            splash_radius: number("splash_radius")?,
+            splash_max_damage: number("splash_max_damage")?,
+            splash_min_damage: number("splash_min_damage")?,
+            throw_power: number("throw_power")?,
+            explode_on_contact: data
+                .get("explode_on_contact")
+                .and_then(ConfigValue::as_bool)
+                .unwrap_or(false),
+        })
+    }
+}
+
+/// Every grenade of the game data (an item whose config's
+/// `parameters.type` is `grenade`), by name, read once.
+pub fn grenades() -> &'static [(&'static str, GrenadeParams)] {
+    static SHARED: std::sync::OnceLock<Vec<(&'static str, GrenadeParams)>> =
+        std::sync::OnceLock::new();
+    SHARED.get_or_init(|| {
+        let data = super::game_data::shared();
+        Dictionary::shared()
+            .items
+            .iter()
+            .filter_map(|item| {
+                let config = super::game_data::config(data, &item.cfg_name).ok()??;
+                let kind = config.get("parameters")?.get("type")?.as_str()?;
+                (kind == "grenade")
+                    .then(|| GrenadeParams::from_config(&config).ok())
+                    .flatten()
+                    .map(|params| (item.name.as_str(), params))
+            })
+            .collect()
+    })
+}
+
+/// The grenade `name` (`items_dict`).
+pub fn grenade_named(name: &str) -> Option<GrenadeParams> {
+    grenades().iter().find(|(n, _)| *n == name).map(|(_, g)| *g)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -426,6 +500,19 @@ mod tests {
         let tt = weapon_named("tt_33").unwrap();
         assert_eq!(tt.reload_state, STATE_RELOAD_EMPTY);
         assert_eq!(weapon(mosin.dict_id), Some(mosin));
+    }
+
+    #[test]
+    fn the_bots_grenade_is_read_from_its_config() {
+        // The RGD-5 (`loadouts::BOT_GRENADE`): 4 s from the throw, a 10 m
+        // blast, not on contact.
+        let rgd = grenade_named("rgd-5").unwrap();
+        assert_eq!(rgd.ttl_ms, 4_000);
+        assert_eq!(rgd.splash_radius, 10.0);
+        assert!(rgd.splash_max_damage > rgd.splash_min_damage);
+        assert!(!rgd.explode_on_contact);
+        assert_eq!(grenade_named("rgd-5"), Some(rgd));
+        assert_eq!(grenade_named("no such grenade"), None);
     }
 
     /// The `dispersion` blocks and the player's character dispersion, as

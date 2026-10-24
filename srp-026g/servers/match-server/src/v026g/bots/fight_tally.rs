@@ -123,6 +123,26 @@ pub(super) struct FightTally {
     quick_ends: u32,
     flips: u32,
     next_sample: u32,
+    /// [play 20] Grenades let go (the thrower, the place, the blast's
+    /// time) not gone off yet; and the counts: thrown, held back for a
+    /// teammate, and at the blasts the thrower's teammates within 3, 6 and
+    /// 10 m of the place (the RGD-5's `splash_radius` is 10 m) and the
+    /// thrower within 6 and 10 m. The stand-in has no grenades: the place
+    /// thrown at stands for where it lands.
+    blasts: Vec<(Place, Vec3, u32)>,
+    grenades: [u32; 2],
+    mates_near_blast: [u32; 3],
+    thrower_near_blast: [u32; 2],
+}
+
+/// [play 20] "throws a grenade at (x, y, z), blast at <ms>": the place and
+/// the time.
+fn thrown_at(text: &str) -> Option<(Vec3, u32)> {
+    let rest = text.strip_prefix("throws a grenade at (")?;
+    let (xyz, rest) = rest.split_once("), blast at ")?;
+    let mut v = xyz.split(", ").map(|n| n.parse::<f32>().ok());
+    let at = Vec3::new(v.next()??, v.next()??, v.next()??);
+    Some((at, rest.trim().parse().ok()?))
 }
 
 fn moving(keys: u32) -> bool {
@@ -178,6 +198,15 @@ impl FightTally {
     }
 
     pub(super) fn note(&mut self, note: &Note) {
+        if let Some((at, blast)) = thrown_at(&note.text) {
+            self.grenades[0] += 1;
+            self.blasts.push((note.place, at, blast));
+            return;
+        }
+        if note.text.starts_with("holds a grenade back") {
+            self.grenades[1] += 1;
+            return;
+        }
         let Some(rest) = note.text.strip_prefix("takes ") else {
             return;
         };
@@ -203,6 +232,27 @@ impl FightTally {
 
     /// After the game's steps up to `clock`.
     pub(super) fn sample(&mut self, game: &Game, clock: u32) {
+        // The grenades going off: who of the thrower's team is near.
+        for (thrower, at, _) in self.blasts.iter().filter(|(_, _, blast)| clock >= *blast) {
+            let Some(team) = game.bodies.get(*thrower).map(|b| b.team) else {
+                continue;
+            };
+            for (place, body) in game.bodies.iter().enumerate() {
+                if !body.alive || body.team != team {
+                    continue;
+                }
+                let d = body.feet.distance_xz(*at);
+                if place == *thrower {
+                    self.thrower_near_blast[0] += u32::from(d <= 6.0);
+                    self.thrower_near_blast[1] += u32::from(d <= 10.0);
+                } else {
+                    for (count, m) in self.mates_near_blast.iter_mut().zip([3.0, 6.0, 10.0]) {
+                        *count += u32::from(d <= m);
+                    }
+                }
+            }
+        }
+        self.blasts.retain(|(_, _, blast)| clock < *blast);
         if clock < self.next_sample {
             return;
         }
@@ -323,7 +373,8 @@ impl FightTally {
         let bands: Vec<String> = self.band.iter().map(Count::text).collect();
         format!(
             "fight: episodes {} farther {} never {}; close {} engaged<=1s {} median_ms {} never {}; standoffs {}; exposed {} not_facing {}; quick_ends {} flips {}; team kills {:?} deaths {:?}\n  \
-             shots: bands(<10,<20,<35,<60,60+) {}; still hip {} still aim {} moving hip {} moving aim {}; crouched {}; first3 {} later {}; line on body {} off median {:.1} deg; aim hip {} aiming-in {} aimed-in {} cone mean {:.2} deg",
+             shots: bands(<10,<20,<35,<60,60+) {}; still hip {} still aim {} moving hip {} moving aim {}; crouched {}; first3 {} later {}; line on body {} off median {:.1} deg; aim hip {} aiming-in {} aimed-in {} cone mean {:.2} deg\n  \
+             grenades: thrown {} held back {}; at the blasts teammates within 3/6/10 m {} {} {}; the thrower within 6/10 m {} {}",
             self.episodes,
             self.farther,
             self.never,
@@ -352,6 +403,13 @@ impl FightTally {
             self.aim[1].text(),
             self.aim[2].text(),
             self.cone_sum / f64::from(self.aim.iter().map(|c| c.shots).sum::<u32>().max(1)),
+            self.grenades[0],
+            self.grenades[1],
+            self.mates_near_blast[0],
+            self.mates_near_blast[1],
+            self.mates_near_blast[2],
+            self.thrower_near_blast[0],
+            self.thrower_near_blast[1],
         )
     }
 }
