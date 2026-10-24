@@ -7330,6 +7330,66 @@ mod pocket_runs {
         assert!(seen.trapped.is_some_and(|t| t.gave_up), "{seen:?}");
     }
 
+    /// A route's point over a shut pit under a walkway is put on the
+    /// walkway, not on the pit's floor below it (level_05's point at
+    /// (-7.8, -21.3), `HumanRoute::on_floors`).
+    #[test]
+    fn a_route_point_over_a_shut_pit_lands_on_the_walkway_over_it() {
+        let y = -3.0;
+        let mut tris: Vec<Triangle> = Vec::new();
+        tris.extend(floor(0.0, 0.0, 30.0, 40.0, 0.0));
+        tris.extend(floor(36.0, 0.0, 80.0, 40.0, 0.0));
+        tris.extend(floor(30.0, 0.0, 36.0, 14.0, 0.0));
+        tris.extend(floor(30.0, 26.0, 36.0, 40.0, 0.0));
+        tris.extend(floor(30.0, 14.0, 36.0, 26.0, y));
+        tris.extend(floor(30.0, 18.0, 36.0, 22.0, 0.0));
+        let walker = WalkerBehaviour::BySlope;
+        let mut wall = |a: (f32, f32), b: (f32, f32)| {
+            let (p, q) = (Vec3::new(a.0, y, a.1), Vec3::new(b.0, y, b.1));
+            let (r, s) = (Vec3::new(b.0, 0.0, b.1), Vec3::new(a.0, 0.0, a.1));
+            tris.push(Triangle {
+                v: [p, q, r],
+                walker,
+            });
+            tris.push(Triangle {
+                v: [p, r, s],
+                walker,
+            });
+        };
+        wall((30.0, 14.0), (36.0, 14.0));
+        wall((30.0, 26.0), (36.0, 26.0));
+        wall((30.0, 14.0), (30.0, 26.0));
+        wall((36.0, 14.0), (36.0, 26.0));
+        let spawns = [Vec3::new(5.0, 0.0, 10.0), Vec3::new(75.0, 0.0, 10.0)];
+        let grid = WalkGrid::build_kept(
+            &tris,
+            [0.0, 0.0, 80.0, 40.0],
+            0.25,
+            mapdata::Body::default(),
+            &spawns,
+            &spawns,
+        );
+        let at = Vec3::new(33.0, 0.0, 17.0);
+        let below = grid.locate(Vec3::new(33.0, y, 17.0), 0.3).unwrap();
+        assert!(grid.in_shut_pocket(below));
+        let route = crate::v026g::bots::routes::HumanRoute {
+            team: 0,
+            lives: 1,
+            reward: 0.0,
+            fight: 0.0,
+            battery: 0.0,
+            died: 0.0,
+            points: vec![at],
+        }
+        .on_floors(&grid);
+        let [point] = route.points[..] else {
+            panic!("{:?}", route.points)
+        };
+        assert!(point.y.abs() < 0.1 && point.distance_xz(at) < 2.0, "{point:?}");
+        let node = grid.locate(point, 0.3).unwrap();
+        assert!(!grid.in_shut_pocket(node));
+    }
+
     /// A pit 1.2 m deep (sprint-only ways out; no bot sprints yet): one
     /// standing try at each of its two lowest rims, then it gives up.
     #[test]
