@@ -1117,8 +1117,16 @@ THISCALL u32 sp_cook_query(u8 *cook, u8 *parent, struct sponge *s, u8 **resource
  *   0.26g makes it, and picks among those the container may take: its kind
  *   for a picked container, the core's own kinds for another (never a picked
  *   kind); none of those free (a player has it), nothing spawns there this
- *   time, as with no free artefact, and the delay is drawn as 0.26g's. A
- *   core with no picks takes among all its free artefacts: 0.26g's choice. */
+ *   time, the delay drawn as 0.26g's, and the core stays due (+138h back to
+ *   1: spawn_artefact cleared it at 0x31B7C1 for the spawn that would fill
+ *   it, and the core's tick 0x31B662 never tries a core that is not due).
+ *   A core with no picks takes among all its free artefacts: 0.26g's choice.
+ *
+ * The cores' spots are a world's: a core's cook after any link starts a new
+ * generation (the next world's: a project's cores are all cooked before any
+ * is linked), and an entry of an older one is free. So the table holds the
+ * current world's picked cores only, the same in every game whatever its
+ * history (a fresh one, a late joiner, a long session). */
 enum {
     KIND_SPONGE = 758, KIND_RATTLE = 759, KINDS_MAX = 16, SP_KINDS_RING = 8,
     SPOT_CONTAINERS = 32, SPOT_CORES = 64,
@@ -1154,11 +1162,12 @@ u32 sp_kinds_next;
  * are cooked before any is linked) */
 const cfg *sp_spots;
 struct sp_spot_core {
-    u8 *core;
+    u8 *core;                         /* 0 free */
+    u32 generation;                   /* its world's; another is free */
     u16 kind[SPOT_CONTAINERS];        /* a picked container's kind, 0 none */
 };
 struct sp_spot_core sp_spot_cores[SPOT_CORES];
-u32 sp_spot_next;
+u32 sp_spot_generation, sp_linked;    /* the world's generation; a link since its last cook */
 extern const u32 rt_vtable[];
 
 static int same_text(const char *a, const char *b) {
@@ -1215,6 +1224,7 @@ static u32 spot(const cfg *spots, u32 i, const char **core, u32 *index) {
 }
 
 const cfg *sp_artefacts(const cfg *table, const cfg *core, u8 *cook) {
+    if (sp_linked) ++sp_spot_generation, sp_linked = 0;   /* the next world's cooks */
     const cfg *spots = sp_spots = map_spots(cook);
     if (!spots || !table || table->type != CFG_INDEXED || table->count == 0 || table->count > KINDS_MAX) return table;
     if (!has(core, "artefact_containers")) return table;
@@ -1251,9 +1261,13 @@ const cfg *sp_artefacts(const cfg *table, const cfg *core, u8 *cook) {
     return &copy->table;
 }
 
+/* The current world's entry of `core`; for 0, a free entry. */
 static struct sp_spot_core *spot_core(const u8 *core) {
-    for (u32 i = 0; i < SPOT_CORES; ++i)
-        if (sp_spot_cores[i].core == core) return &sp_spot_cores[i];
+    for (u32 i = 0; i < SPOT_CORES; ++i) {
+        struct sp_spot_core *entry = &sp_spot_cores[i];
+        int current = entry->core && entry->generation == sp_spot_generation;
+        if (core ? current && entry->core == core : !current) return entry;
+    }
     return 0;
 }
 
@@ -1261,6 +1275,7 @@ static struct sp_spot_core *spot_core(const u8 *core) {
  * its config): the kinds of its picked containers, or no entry. */
 void sp_links(u8 *base, const cfg *config) {
     u8 *core = base - 4;
+    sp_linked = 1;
     struct sp_spot_core *entry = spot_core(core);
     if (entry) entry->core = 0;
     const cfg *spots = sp_spots;
@@ -1277,8 +1292,9 @@ void sp_links(u8 *base, const cfg *config) {
     }
     if (!any) return;
     entry = spot_core(0);
-    if (!entry) entry = &sp_spot_cores[sp_spot_next++ % SPOT_CORES];
+    if (!entry) return;                               /* more picked cores than a map has */
     entry->core = core;
+    entry->generation = sp_spot_generation;
     memcpy(entry->kind, kinds, sizeof kinds);
 }
 
@@ -1288,8 +1304,10 @@ static u32 kind_of(const u8 *artefact) {
 }
 
 /* spawn_artefact's artefact for `container` (0x31B800: the container chosen,
- * the pool's free list not yet made): the artefact, or 0 for none (the delay
- * then, 0x31B8C2). */
+ * the pool's free list not yet made): the artefact, 0 for none free (0.26g's
+ * way: the delay, 0x31B8C2), SPAWN_DECLINED for free ones the container may
+ * not take (the delay too, the core kept due). */
+#define SPAWN_DECLINED ((void *)1)
 void *sp_spawn_pick(u8 *core, u8 *container) {
     u8 **pool = AT(core, CORE_POOL, u8 **);
     u32 count = AT(core, CORE_POOL_COUNT, u32), free = 0;
@@ -1317,7 +1335,7 @@ void *sp_spawn_pick(u8 *core, u8 *container) {
             if (pass && n == taken) return pool[i];
             ++n;
         }
-        if (!n) return 0;                             /* none it may take: nothing this time */
+        if (!n) return SPAWN_DECLINED;                /* none it may take: nothing this time */
         taken = (u32)(((unsigned long long)random * n) >> 32);
     }
     return 0;

@@ -1782,10 +1782,12 @@ def main():
         return slot, popped, resolved, [emu.read(c + 0x50) for c in containers]
 
     def spot_kinds(emu, core):
+        """the current world's entry of `core` (struct sp_spot_core: the core, its generation, the kinds)"""
+        generation = emu.read(ARENA.symbols["sp_spot_generation"])
         for i in range(SPOT_CORES):
-            entry = cores_g + i * (4 + 2 * SPOT_CONTAINERS)
-            if emu.read(entry) == core:
-                return [emu.read(entry + 4 + 2 * j, 2) for j in range(SPOT_CONTAINERS)]
+            entry = cores_g + i * (8 + 2 * SPOT_CONTAINERS)
+            if emu.read(entry) == core and emu.read(entry + 4) == generation:
+                return [emu.read(entry + 8 + 2 * j, 2) for j in range(SPOT_CONTAINERS)]
         return None
 
     LIFEBONE_VT, SPONGE_VT, RATTLE_VT = 0xA05FB0, SYMBOLS["sp_vtable"] + 4, ARENA.symbols["rt_vtable"] + 4
@@ -1822,19 +1824,25 @@ def main():
     watch(k_run, "run")
     watch(k_stock, "stock")
 
-    def spawn(emu, key, core, containers, objects, free_containers, free_artefacts, random, time=100000):
+    def spawn(emu, key, core, containers, objects, free_containers, free_artefacts, random, time=100000,
+              occupied=(), most=None):
+        """spawn_artefact on a due core (+138h 1): (the container, the artefact, the random state after, the
+        next spawn's time, +138h after); `occupied` containers hold an artefact, `most` max_artefacts_count"""
+        if most is not None:
+            emu.word(core + 0x128, most)
         for i, c in enumerate(containers):
-            emu.word(c + 0x4C, 0)
+            emu.word(c + 0x4C, 0x7000 if i in occupied else 0)
             emu.word(c + 0x60, 0 if i in free_containers else time + 1)
         for i, o in enumerate(objects):
             emu.word(o + 0x280, 0 if i in free_artefacts else 3)
         emu.word(core + 0x1B8, random)
+        emu.emu.mem_write(core + 0x138, b"\x01")
         spawned[key] = []
         emu.thiscall(0x31B6C0, core, time)
         got = spawned[key]
         container = containers.index(got[0][1]) if got else None
         artefact = objects.index(got[0][0]) if got else None
-        return container, artefact, emu.read(core + 0x1B8), emu.read(core + 0x13C)
+        return container, artefact, emu.read(core + 0x1B8), emu.read(core + 0x13C), emu.read(core + 0x138, 1)
 
     import random as rnd
     trials = rnd.Random(59)
@@ -1845,16 +1853,21 @@ def main():
     stock_core, stock_conts, stock_objs = make_core(k_stock, 4, pool)
     kinds_of = [54, 54, 54, 758, 758, 759]
     pick_of = [758, 0, 759, 758]
-    same_draws = rule = empty_ok = 0
+    same_draws = rule = empty_ok = due_ok = 0
     n = 300
     seen = collections.Counter()
     for _ in range(n):
-        free_c = {i for i in range(4) if trials.random() < 0.6}
+        occupied = {i for i in range(4) if trials.random() < 0.25}
+        free_c = {i for i in range(4) if i not in occupied and trials.random() < 0.6}
         free_a = {i for i in range(6) if trials.random() < 0.6}
+        most = trials.randint(len(occupied) + 1, 5)
         seed = trials.getrandbits(32)
-        r = spawn(k_run, "run", run_core, run_conts, run_objs, free_c, free_a, seed)
-        s = spawn(k_stock, "stock", stock_core, stock_conts, stock_objs, free_c, free_a, seed)
-        same_draws += r[2:] == s[2:] and (r[0] == s[0] or r[1] is None)
+        r = spawn(k_run, "run", run_core, run_conts, run_objs, free_c, free_a, seed, occupied=occupied, most=most)
+        s = spawn(k_stock, "stock", stock_core, stock_conts, stock_objs, free_c, free_a, seed, occupied=occupied,
+                  most=most)
+        same_draws += r[2:4] == s[2:4] and (r[0] == s[0] or r[1] is None)
+        declined = r[1] is None and s[1] is not None
+        due_ok += r[4] == (1 if declined else s[4])
         if r[1] is None:
             # none taken: the stock had no free artefact, or the container's kinds were all taken
             if s[1] is None or s[0] is None:
@@ -1863,16 +1876,29 @@ def main():
                 want = pick_of[s[0]]
                 empty_ok += not any(kinds_of[i] == want if want else kinds_of[i] == 54 for i in free_a)
             seen["none"] += 1
+            seen["declined"] += declined
         else:
             want = pick_of[r[0]]
             rule += kinds_of[r[1]] == want if want else kinds_of[r[1]] == 54
             seen[kinds_of[r[1]]] += 1
-    check(f"the picked core, {n} spawns from random free containers, free artefacts and random states, on the "
-          "build and the original exe: the same draws (the random state after, the next spawn's time, the "
-          "container), a picked container gets only its kind (0 and 3 the Sponge, 2 the Rattle), the other only "
-          "the core's own kind; when its kind is taken nothing spawns there (as with no free artefact)",
-          same_draws == n and rule + seen["none"] == n and empty_ok == seen["none"],
-          f"{same_draws}/{n} same draws, {rule} by the rule, {seen}")
+    check(f"the picked core, {n} spawns from random occupied and free containers, free artefacts, max counts and "
+          "random states, on the build and the original exe: the same draws (the random state after, the next "
+          "spawn's time, the container), a picked container gets only its kind (0 and 3 the Sponge, 2 the "
+          "Rattle), the other only the core's own kind; when its kind is taken nothing spawns there and the core "
+          "stays due (+138h 1), else +138h as the original leaves it",
+          same_draws == n and rule + seen["none"] == n and empty_ok == seen["none"] and due_ok == n
+          and seen["declined"] > 0, f"{same_draws}/{n} same draws, {due_ok} due right, {rule} by the rule, {seen}")
+    # max_artefacts_count 1 (level_09's Sponge anomalies, one container each): its picked container's Sponge
+    # taken, the original would spawn another kind and clear +138h (full); nothing spawns, the core stays due,
+    # and it spawns the Sponge at a later try once the Sponge is free again
+    dead = spawn(k_run, "run", run_core, run_conts, run_objs, {0}, {0, 1, 2}, 0x1234, most=1)
+    dead_stock = spawn(k_stock, "stock", stock_core, stock_conts, stock_objs, {0}, {0, 1, 2}, 0x1234, most=1)
+    later = spawn(k_run, "run", run_core, run_conts, run_objs, {0}, {0, 1, 2, 3}, dead[2], most=1)
+    check("max_artefacts_count 1, no container occupied, the picked container's Sponges taken: nothing spawns, "
+          "the core stays due (+138h 1; the original spawns a Larkspur and clears it, 0x31B7C1) with the same "
+          "draws; at its next try with a Sponge free it spawns the Sponge there, and then is full (+138h 0)",
+          dead[:2] == (None, None) and dead[4] == 1 and dead_stock[0] == 0 and dead_stock[4] == 0
+          and dead[2:4] == dead_stock[2:4] and later[:2] == (0, 3) and later[4] == 0, f"{dead} {dead_stock} {later}")
     # a core with no spots (its pool the core's own kinds only): 0.26g's choice, exactly
     plain_pool = [LIFEBONE_VT] * 4
     p_core, p_conts, p_objs = make_core(k_run, 4, plain_pool)
@@ -1901,10 +1927,52 @@ def main():
         free_c = {i for i in range(4) if trials.random() < 0.6}
         free_a = {i for i in range(6) if trials.random() < 0.6}
         seed = trials.getrandbits(32)
-        agree += spawn(k_run, "run", run_core, run_conts, run_objs, free_c, free_a, seed) \
-            == spawn(again, "again", j_core, j_conts, j_objs, free_c, free_a, seed)
+        agree += spawn(k_run, "run", run_core, run_conts, run_objs, free_c, free_a, seed, most=2) \
+            == spawn(again, "again", j_core, j_conts, j_objs, free_c, free_a, seed, most=2)
     check("a second game (a late joiner's: its cores linked from the same mode config) spawns the same "
           "container and artefact from the same state, 100 of 100", agree == 100, f"{agree}/100")
+    # A long session: many worlds one after another in one game, their cores at addresses used before or new;
+    # each world's picked cores keep their spots and no other core has any, as in a fresh game of that world.
+    session_rows = [{"core": f"logic/s/core_{k}", "index": i, "container": names[i], "kind": 758 + (k + i) % 2}
+                    for k in range(8) for i in range(k % 3 + 1)]
+    want_of = {f"logic/s/core_{k}": [758 + (k + i) % 2 for i in range(k % 3 + 1)] + [0] * (4 - (k % 3 + 1))
+               for k in range(8)}
+    s_cook, s_options = match_world(k_run, {7: {"name": "x", "artefact_spots": session_rows}})
+    on_map(k_run, s_options, 7)
+    reused = [make_core(k_run, 4, [LIFEBONE_VT])[:2] for _ in range(6)]
+    worlds_ok, last = 0, None
+    for world in range(40):
+        layout = [(f"logic/s/core_{k}", trials.random() < 0.5) for k in trials.sample(range(8), 6)] + \
+                 [(f"logic/s/plain_{k}", trials.random() < 0.5) for k in range(4)]
+        configs = [{"full_name": name, "artefacts": [lifebone], "artefact_containers": names} for name, _ in layout]
+        for config in configs:                          # the world's cooks, then its links
+            cooked_kinds(k_run, config, s_cook)
+        free_reused = list(reused)
+        cores_now = []
+        for (name, again_), config in zip(layout, configs):
+            core, conts = free_reused.pop() if again_ and free_reused else make_core(k_run, 4, [LIFEBONE_VT])[:2]
+            link(k_run, core, conts, config)
+            cores_now.append((name, core))
+        got = [(name, (spot_kinds(k_run, core) or [None])[:4]) for name, core in cores_now]
+        want = [(name, want_of.get(name, [None])[:4] if name in want_of else [None]) for name, _ in cores_now]
+        worlds_ok += got == want
+        last = (layout, got)
+    fresh = Run(pe_sections(built))
+    f_cook, f_options = match_world(fresh, {7: {"name": "x", "artefact_spots": session_rows}})
+    on_map(fresh, f_options, 7)
+    layout, got = last
+    configs = [{"full_name": name, "artefacts": [lifebone], "artefact_containers": names} for name, _ in layout]
+    for config in configs:
+        cooked_kinds(fresh, config, f_cook)
+    fresh_got = []
+    for (name, _), config in zip(layout, configs):
+        core, conts = make_core(fresh, 4, [LIFEBONE_VT])[:2]
+        link(fresh, core, conts, config)
+        fresh_got.append((name, (spot_kinds(fresh, core) or [None])[:4]))
+    check("a long session, 40 worlds in one game (6 picked and 4 other cores each, at addresses used before or "
+          "new; over 160 picked cores in all, past the table's 64): in each world its picked cores have their "
+          "spots and the others none; the last world's spots in a fresh game are the same",
+          worlds_ok == 40 and fresh_got == got, f"{worlds_ok}/40 {got} {fresh_got}")
 
     # The live maps: each project's cores with the edit list's spots of its map.
     # The edit list's spots, by map folder (its mode configs are <folder>_<weather>_<mode>.options).

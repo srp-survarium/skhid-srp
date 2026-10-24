@@ -2448,7 +2448,8 @@ def test_sponge_a(original, image, before):
     check(block.kind == "code" and block.va % 0x1000 == 0 and image.read(block.va, len(code)) == code
           and state.kind == "state"
           and all(state.va <= linked.symbols[name] < state.va + state.size
-                  for name in ("sp_g", "sp_kinds", "sp_kinds_next", "sp_spots", "sp_spot_cores", "sp_spot_next"))
+                  for name in ("sp_g", "sp_kinds", "sp_kinds_next", "sp_spots", "sp_spot_cores", "sp_spot_generation",
+                               "sp_linked"))
           and not any(image.read(state.va, state.size)),
           f"the Sponge's code is the arena's block sponge.code at {block.va:#x} ({len(code)} bytes, the link's), "
           f"its state (sp_g, the kinds' copies and their turn, the map's spots, the cores' spots) the block "
