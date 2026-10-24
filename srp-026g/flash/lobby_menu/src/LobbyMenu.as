@@ -2,6 +2,8 @@ package
 {
    import com.greensock.TweenLite;
    import flash.display.Bitmap;
+   import flash.utils.Dictionary;
+   import flash.geom.Matrix;
    import flash.display.BitmapData;
    import flash.display.DisplayObject;
    import flash.display.InteractiveObject;
@@ -456,16 +458,25 @@ package
 
       // The interface is this movie's root, every layer of it (docs/notes/hide-ui-key.md): the panels,
       // bars, windows and chat are the root's children, and what the game first put on the stage is
-      // in _stageLayer, the root's last child, drawn at the stage's scale: _layers (tooltips' cards
-      // aside, every layer put above the lobby: the front, top and top2 containers with messages,
-      // the wheels, the loading screen, the fades, the right-click menu, CLIK's popups) and over it
-      // _overlay (the tooltips and the dragged item, CLIK's drag canvas). toggle_interface hides
-      // the root, so all of it, in one step; nothing of the interface is on the stage beside it.
+      // in _stageLayer, the root's last child, drawn at the stage's scale: _layers (every layer put
+      // above the lobby: the front, top and top2 containers with messages, the wheels, the loading
+      // screen, the fades, the right-click menu, CLIK's popups) and over it _overlay, above every
+      // modal: _corner (the exit and settings buttons while the exe wants them above all, drawn as
+      // the status panel is), _cards (the item cards, drawn as the root is), CLIK's drag canvas and
+      // the tooltips. toggle_interface hides the root, so all of it, in one step; nothing of the
+      // interface is on the stage beside it.
       private var _stageLayer:Sprite;
 
       private var _layers:Sprite;
 
       private var _overlay:Sprite;
+
+      private var _corner:Sprite;
+
+      private var _cards:Sprite;
+
+      // where enable_element took a corner button from: its index in the status panel
+      private var _cornerHome:Dictionary = new Dictionary(true);
 
       // Hidden by toggle_interface (exe patch 62, F11).
       private var _interfaceHidden:Boolean;
@@ -508,8 +519,12 @@ package
          this._stageLayer.name = "stageLayer";
          _layers = new Sprite();
          _overlay = new Sprite();
+         _corner = new Sprite();
+         _cards = new Sprite();
          this._stageLayer.addChild(this._layers);
          this._stageLayer.addChild(this._overlay);
+         this._overlay.addChild(this._corner);
+         this._overlay.addChild(this._cards);
          super.addChild(this._stageLayer);
          PopUpManager.layer = this._layers;
       }
@@ -533,6 +548,23 @@ package
       {
          super.setChildIndex(child,index);
          this.keepStageLayerOnTop();
+      }
+
+      private function onStatusPanelLaidOut(e:Event) : void
+      {
+         this.placeOverlay();
+      }
+
+      // _corner is drawn as the status panel, _cards as the root: their coordinates are those.
+      private function placeOverlay() : void
+      {
+         this._cards.scaleX = this._cards.scaleY = scaleX;
+         if(this.statusPanel)
+         {
+            var place:Matrix = this.statusPanel.transform.matrix.clone();
+            place.scale(scaleX,scaleY);
+            this._corner.transform.matrix = place;
+         }
       }
 
       private function keepStageLayerOnTop() : void
@@ -657,15 +689,30 @@ package
       // The exe calls this at every entry of the lobby's state (0x2A3EA0, lobby_menu_state's) with
       // the exit and settings buttons (root.statusPanel.btn_off, btn_settings) and true, and at a
       // match's loading (0x220400) with false; its other callers are the tutorial's states, which
-      // are no longer entered (no-tutorial.md). It put the two buttons on Scaleform's topmost level
-      // (drawn above all, and whatever their parents' visibility) and the tooltips, the drag
-      // canvas and the tutorial's highlights with them (onStageUpdate). Nothing promotes them now:
-      // the buttons are the status panel's, the tooltips and the dragged item are _overlay's, on
-      // top of everything else of the movie (docs/notes/hide-ui-key.md).
+      // are no longer entered (no-tutorial.md). The stock movie put them on Scaleform's topmost
+      // level (above every modal: a message's dim, the results, the wheels; drawn whatever their
+      // parents' visibility). Here the two buttons go to _corner, above every modal and inside the
+      // root, drawn where the status panel draws them (placeOverlay), and back into the status panel
+      // with false; anything else is the tutorial's, ignored.
       public function enable_element(value:*, value2:Boolean = true) : void
       {
+         var button:DisplayObject = value as DisplayObject;
+         if(button == null || !this.statusPanel || button != this.statusPanel.btn_off && button != this.statusPanel.btn_settings)
+         {
+            return;
+         }
+         if(value2 && button.parent == this.statusPanel)
+         {
+            this._cornerHome[button] = this.statusPanel.getChildIndex(button);
+            this.placeOverlay();
+            this._corner.addChild(button);
+         }
+         else if(!value2 && button.parent == this._corner)
+         {
+            this.statusPanel.addChildAt(button,Math.min(int(this._cornerHome[button]),this.statusPanel.numChildren));
+         }
       }
-      
+
       public function highlight_element(value:*, value2:Boolean = true) : void
       {
          var target:InteractiveObject;
@@ -1363,6 +1410,7 @@ package
          statusPanel = new SrvTopMenuContainer();
          this.statusPanel.addEventListener(StatusPanel.SHOW_DAILY_MESSAGE,this.show_daily_reward_window_on_event);
          this.statusPanel.addEventListener(StatusPanel.MATCH_SETTINGS,this.onMatchSettigsToggle);
+         this.statusPanel.addEventListener(StatusPanel.LAID_OUT,this.onStatusPanelLaidOut);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_SELECTED,this.openTournamentWindow2);
          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_DESELECTED,this.openTournamentWindow2);
          this.statusPanel.matchSettings.addEventListener(Event.CONNECT,this.onRequestPlayers);
@@ -1636,7 +1684,7 @@ package
          this.itemHintRendererSec.mouseEnabled = this.itemHintRendererSec.mouseChildren = false;
          this.itemHintRenderer.x = this.player_profile.x + e.itemRenderer.x + e.itemRenderer.width + 3;
          this.itemHintRenderer.y = this.player_profile.y + e.itemRenderer.y - 5;
-         addChild(this.itemHintRenderer);
+         this._cards.addChild(this.itemHintRenderer);
          this.itemHintRenderer.data = e.itemData;
          this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
          var maxPox:int = this.itemHintRenderer.y + this.itemHintRenderer.height;
@@ -1720,7 +1768,7 @@ package
          }
          _pdTarget = e.itemRenderer as MovieClip;
          this._pdTarget.addEventListener(Event.RENDER,this.onHintTargetRender);
-         addChild(this.itemHintRenderer);
+         this._cards.addChild(this.itemHintRenderer);
          if(e.target is ScrollingList)
          {
             this.itemHintRenderer.x = this.inventory_list.x - 195 - this.itemHintRenderer.width;
@@ -1752,15 +1800,15 @@ package
             // Both cards coloured, each against the other: the equipped (or the craft window's) one
             // too (craft-menu.md, "Comparing items").
             this.itemHintRendererSec.itemCompare.setSecondaryWeapon(e.itemData);
-            addChild(this.itemHintRendererSec);
+            this._cards.addChild(this.itemHintRendererSec);
          }
          else
          {
             this.itemHintRenderer.displaylabel(false);
             this.itemHintRenderer.itemCompare.setSecondaryWeapon(null);
-            if(this.contains(this.itemHintRendererSec))
+            if(this._cards.contains(this.itemHintRendererSec))
             {
-               removeChild(this.itemHintRendererSec);
+               this._cards.removeChild(this.itemHintRendererSec);
             }
          }
          this.itemHintRenderer.data = e.itemData;
@@ -1781,8 +1829,6 @@ package
                alpha:1
             });
          }
-         this.setTopmostLevel(this.itemHintRenderer,true);
-         this.setTopmostLevel(this.itemHintRendererSec,true);
       }
       
       // A craft slot's item left of the window, compared with the other slot's; the item being
@@ -1801,7 +1847,7 @@ package
          this.itemHintRenderer.displaylabel(secondData != null);
          this.itemHintRenderer.itemCompare.setSecondaryWeapon(secondData);
          this.itemHintRenderer.data = e.itemData;
-         addChild(this.itemHintRenderer);
+         this._cards.addChild(this.itemHintRenderer);
          this.itemHintRenderer.x = this.craftWindow.x - this.itemHintRenderer.width - 3;
          this.itemHintRenderer.y = this.craftWindow.y;
          if(secondData)
@@ -1810,7 +1856,7 @@ package
             this.itemHintRendererSec.data = secondData;
             // both cards coloured, each against the other
             this.itemHintRendererSec.itemCompare.setSecondaryWeapon(e.itemData);
-            addChild(this.itemHintRendererSec);
+            this._cards.addChild(this.itemHintRendererSec);
             this.itemHintRendererSec.y = this.itemHintRenderer.y;
             var hoveredMain:Boolean = e.itemRenderer == this.craftWindow.dragItemSlot1;
             var left:ItemInfoRenderer = hoveredMain ? this.itemHintRenderer : this.itemHintRendererSec;
@@ -1824,8 +1870,6 @@ package
                right.x = left.x + left.width + 1;
             }
          }
-         this.setTopmostLevel(this.itemHintRenderer,true);
-         this.setTopmostLevel(this.itemHintRendererSec,true);
       }
 
       private function onHintTargetRender(e:Event) : void
@@ -1869,13 +1913,13 @@ package
             _pdTarget = null;
          }
          trace("hideItemHint");
-         if(this.contains(this.itemHintRenderer))
+         if(this._cards.contains(this.itemHintRenderer))
          {
-            removeChild(this.itemHintRenderer);
+            this._cards.removeChild(this.itemHintRenderer);
          }
-         if(this.contains(this.itemHintRendererSec))
+         if(this._cards.contains(this.itemHintRendererSec))
          {
-            removeChild(this.itemHintRendererSec);
+            this._cards.removeChild(this.itemHintRendererSec);
          }
       }
       
@@ -5748,6 +5792,7 @@ package
          scaleY = scaleFactor;
          // the layers the game first put on the stage keep the stage's scale
          this._stageLayer.scaleX = this._stageLayer.scaleY = 1 / scaleFactor;
+         this.placeOverlay();
          trace("finalScaleFactor::",scaleFactor);
          this.statusPanel.onStageResize();
          this.playerLoadingIndicator.alpha = 0.7;
@@ -5923,8 +5968,7 @@ package
       // the game's toggle_replay_ui key (exe patch 62), when no text box has the keys. The whole
       // interface is the root (see _stageLayer): hidden in one step, the character and the scene
       // stay; no click lands on the interface and the camera turns and zooms (get_mouse_over). The
-      // item cards, which are on Scaleform's topmost level (drawn whatever their parents'
-      // visibility, above the windows), and an open right-click menu are closed first. Shown again
+      // item cards and an open right-click menu are closed first. Shown again
       // by the same key, any key the movie gets (onHiddenKey: that key does nothing else), Esc, a
       // match found, its loading or the results.
       public function toggle_interface() : void

@@ -3256,7 +3256,11 @@ get `root.hide_interface(not that)`: each hides its root, which is its whole int
 fps line, which the game put on the stage, is in the root's `_stageLayer`), the hud, the
 crosshair, the minimap, the kits, the markers over heads, and goes on running, so what
 happens meanwhile (kill feed, messages) plays out unseen. The kits before the start and after a
-death too; the start, a death and a respawn keep the state (the owner, 2026-10-24). The hud's
+death too; the start, a death and a respawn keep the state (the owner, 2026-10-24). A new match
+starts shown: the movies are the last match's, and `initialize_match` (0x234880) invokes the hud
+movie's `root.reset` at 0x234AE8 (ebp the hud), which shows the hud; the patch calls
+`hide_ui_reset` there, which invokes it and gives the hud and the icons
+`root.hide_interface(false)`. The hud's
 screen effects stay: their container (`add_effect`'s blood, drips, the grenade's flash) is on the
 stage below the root, placed as the root is scaled, so hiding the root leaves it. The key is not taken (0x25CF0D, al 0), as in the original. Not the game
 world's own `show_ui` (0x1F95F0, slot 8 of its vtable 0x9FC4F4, its state +0A0h; the activation
@@ -3280,10 +3284,10 @@ which presses Play at 0x26CDA2). The movie shows the interface and takes that ke
 its release (`LobbyMenu.onHiddenKey`, `onHiddenKeyUp`: a message hidden with the interface acts on
 Enter's release). F keys other than F11 (the movie never gets them) do nothing then.
 
-Both in the arena's block `hide_ui.code`, the controls in `hide_ui.data`
+All three in the arena's block `hide_ui.code`, the controls in `hide_ui.data`
 (`hide_ui_026g.asm`), with the late join; `get_binded_action` and Invoke through the engine
-library (`engine_binded_action`, `engine_movie_invoke`); no state of its own (the movies keep it). No base relocation under the sites (0x25CED1 ten bytes, 0x26CCD2 a
-`call`); nothing aims inside them (the switch's table aims at 0x25CED1, the
+library (`engine_binded_action`, `engine_movie_invoke`); no state of its own (the movies keep it). No base relocation under the sites (0x25CED1 ten bytes, 0x26CCD2 and
+0x234AE8 a `call` each); nothing aims inside them (the switch's table aims at 0x25CED1, the
 jump's own first byte).
 
 Rendering and input only; no row in `../crates/session/src/v026g/simulation_changes.tsv`.
@@ -3294,10 +3298,11 @@ call, the lobby's call and its taken path, the block's code, exits, calls and da
 interface their root: in each movie's own sources no layer is added to the stage but through the
 root's `_stageLayer` (the lobby's every former stage layer listed; the hud's one stage child
 beside the root the screen effects), the right-click menu closed only when open, the lobby's
-`enable_element` empty (the exe's lobby state promoted the corner's exit and settings buttons to
-Scaleform's topmost level with it, drawn whatever their parents), the tutorial's private test
-functions gone; the movies' functions) and the call shapes (0x26CCD2 CALLEE,
-`ret 4` as its model; 0x25CED1 JUMP); `check_hide_ui_026g.py` (Unicorn): the case 19h with and
+`enable_element` moving the corner's exit and settings buttons into `_overlay`'s `_corner`
+(above every modal, inside the root; the exe's lobby state promoted them to Scaleform's topmost
+level with it, drawn whatever their parents), the item cards in `_cards`, the tutorial's private test
+functions gone; the movies' functions) and the call shapes (0x26CCD2 and 0x234AE8
+CALLEE, `ret 4` and `ret 10h` as their models; 0x25CED1 JUMP); `check_hide_ui_026g.py` (Unicorn): the case 19h with and
 without the replay's movie, the hud movie and the icons', the interface hidden or shown (16
 cases): `root.hide_interface(not hidden)` to the hud and the icons exactly without the replay's
 movie with the hud's, every case at the original's 0x25CEDB or 0x25CF0D with its esp, ebp and

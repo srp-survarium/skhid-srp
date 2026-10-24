@@ -1844,6 +1844,9 @@ package
       public function reset() : void
       {
          trace("HUD::reset");
+         // a new match starts with the interface shown (the movie is the last match's; the exe's
+         // patch 62 shows the player icons' with it)
+         this.hide_interface(false);
          this.clear_minimap();
          this.chat.clear();
          this.show_ammo(false);

@@ -31,15 +31,16 @@ too, for screenshots.
   start, a death and a respawn keep what the player chose (the owner, 2026-10-24: "when you die,
   the UI comes back" was not wanted). Keys 1, 2 and 3 still pick a kit while hidden; F11 shows
   it. The mouse cursor of the kit screen is its own movie and shows.
-- **The next match** starts with the interface shown.
+- **The next match** starts with the interface shown (the hud's reset; patch 62 shows the
+  markers' movie with it).
 - **Not taken:** the key also goes on to the game as before (nothing uses F11 there).
 
 ## In the lobby
 
 - **Hidden:** the whole interface: panels, the top and bottom bars, windows, popups, messages,
   chat, tooltips, right-click menus (an open one is closed), the item being dragged, the loading
-  screen, the exit and settings buttons of the top right corner; one coming up while hidden stays
-  hidden. Only the character and the scene stay; drag and
+  screen, the exit and settings buttons of the top right corner (shown, they are above every
+  window and message, as in the stock lobby); one coming up while hidden stays hidden. Only the character and the scene stay; drag and
   wheel still turn and zoom the camera.
 - **Clicks** land on nothing hidden.
 - **Shown again by:** F11, any key the lobby movie gets (letters, digits, arrows, Enter,

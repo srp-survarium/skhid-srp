@@ -21,7 +21,11 @@
 ; meanwhile at once when shown): what happens while hidden plays out unseen.
 ; The kits before the start and the death screen too: the start, a death
 ; and a respawn keep the state (the owner, 2026-10-24; keys 1 to 3 still pick
-; a kit, patch 58). The key is not taken (0x25CF0D, al 0), as in the
+; a kit, patch 58). A new match starts shown: the movies are the last
+; match's, and the hud's initialize_match (0x234880) invokes the hud movie's
+; root.reset (its call at 0x234AE8, ebp the hud), which shows the hud
+; (HUD.reset); there the player icons' movie gets root.hide_interface(false)
+; after it. The key is not taken (0x25CF0D, al 0), as in the
 ; original.
 ;
 ; The lobby. lobby_menu::on_keyboard_action (0x26CB80) asks the key binder for
@@ -57,7 +61,7 @@
 ; action).
 BITS 32
 %include "engine_026g.inc"
-global hide_ui_match, hide_ui_lobby
+global hide_ui_match, hide_ui_lobby, hide_ui_reset
 global controls                    ; the options' controls, 41 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
 section .text
 
@@ -169,6 +173,27 @@ hide_hud:
     add esp, 20 + 24
 .skip:
     ret
+
+; initialize_match's Invoke of root.reset (0x234AE8): ecx the hud movie, the
+; four arguments pushed (`ret 10h`), ebp the hud. The reset, then the hud and
+; the icons shown (the reset shows the hud already).
+hide_ui_reset:
+    push edi
+    mov edi, ebp
+    push dword [esp+20]            ; the count
+    push dword [esp+20]            ; the arguments
+    push dword [esp+20]            ; the result
+    push dword [esp+20]            ; the name
+    push ecx
+    call engine_movie_invoke
+    add esp, 20
+    push eax
+    push 0
+    call hide_hud
+    add esp, 4
+    pop eax
+    pop edi
+    ret 16
 
 ; lobby_menu::on_keyboard_action's call of get_binded_action (0x26CCD2): eax
 ; the binder, edi 2 (the lobby's kind), esi the key, [esp+4] the toggle's
