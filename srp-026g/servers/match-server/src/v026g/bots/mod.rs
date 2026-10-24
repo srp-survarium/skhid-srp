@@ -916,7 +916,17 @@ impl Bots {
         };
         let goal = *goal;
         let meant = self.tracker.body(place).and_then(|body| body.last_meant());
-        if let Some((recovery, by_keys)) = bot.stuck.walking(time, feet, meant, keys) {
+        // [pockets] A try at a pocket's exit runs up to its rim and jumps:
+        // not stuck, and the try has its own clock (`escape::TRY_MS`). No
+        // note, no spot for the team, no recovery fighting the try.
+        let trying = bot
+            .stuck
+            .escape
+            .as_ref()
+            .is_some_and(escape::Escape::trying);
+        if trying {
+            bot.stuck.reset();
+        } else if let Some((recovery, by_keys)) = bot.stuck.walking(time, feet, meant, keys) {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
             bot.note(
                 &mut notes,
