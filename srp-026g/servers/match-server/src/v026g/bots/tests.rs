@@ -3468,6 +3468,22 @@ fn bench_tuning_of(side1: bool) -> Tuning {
     if let Ok(v) = std::env::var("SRP_BENCH_FF_LEAD") {
         tuning.aim.friends.lead = v != "0";
     }
+    // Teammates this far past the target count
+    // (`FriendlyFireTuning::past_target_m`).
+    if let Some(m) = std::env::var("SRP_BENCH_FF_PAST_M")
+        .ok()
+        .and_then(|m| m.parse().ok())
+    {
+        tuning.aim.friends.past_target_m = m;
+    }
+    // A teammate this near in front blocks whatever his angle
+    // (`FriendlyFireTuning::touch_m`; 0 off).
+    if let Some(m) = std::env::var("SRP_BENCH_FF_TOUCH_M")
+        .ok()
+        .and_then(|m| m.parse().ok())
+    {
+        tuning.aim.friends.touch_m = m;
+    }
     if let Some(ms) = std::env::var("SRP_BENCH_FF_LEAD_MS")
         .ok()
         .and_then(|m| m.parse().ok())

@@ -919,6 +919,13 @@ struct Threat {
     bearing: Option<f32>,
 }
 
+/// [friends] A shot fired or held near a teammate is traced at most this
+/// often, ms ...
+pub const FRIEND_NOTE_MS: u32 = 100;
+/// ... when the teammate nearest to blocking it was within this of the
+/// margin, metres ([`super::friends::Near::room`]).
+pub const FRIEND_NOTE_ROOM_M: f32 = 1.0;
+
 #[derive(Clone, Debug, Default)]
 pub struct Reflex {
     target: Option<Place>,
@@ -999,6 +1006,12 @@ pub struct Reflex {
     tick_ms: u32,
     /// [friends] The teammate it held fire for at its last tick.
     held_for: Option<super::friends::Held>,
+    /// [friends] The match traces: a shot fired or held near a teammate is
+    /// noted ([`Reflex::take_friend_note`]) ...
+    pub tracing: bool,
+    /// ... at most every [`FRIEND_NOTE_MS`], the last at this.
+    friend_noted: u32,
+    friend_note: Option<serde_json::Value>,
     /// An enemy last seen (a seen track) at.
     last_seen: u32,
     /// Empty with a target seen and no cover found: reload where it is.
@@ -1244,6 +1257,14 @@ impl Reflex {
     /// [friends] The teammate it held fire for at its last tick, if any.
     pub fn held_for(&self) -> Option<super::friends::Held> {
         self.held_for
+    }
+
+    /// [friends] The trace line of the last tick's shot, fired or held,
+    /// with the teammate nearest to the line as the bot had him
+    /// ([`super::friends::closest`]), if he was within
+    /// [`FRIEND_NOTE_ROOM_M`] of blocking it.
+    pub fn take_friend_note(&mut self) -> Option<serde_json::Value> {
+        self.friend_note.take()
     }
 
     /// Grenades thrown this life.
@@ -2557,8 +2578,16 @@ impl Reflex {
             aim.range_m
         };
         // [friends] A teammate in the line of fire: no shot, a step aside.
-        let friend =
-            self.friend_in_line(me, view, (point, error, lift), distance, gun, now, &aim.friends);
+        let lines = Self::fire_lines(me, view, (point, error, lift), now, &aim.friends);
+        let friend = super::friends::blocking(
+            me,
+            view,
+            &lines.0,
+            distance,
+            aim.friends.spread(gun),
+            lines.1,
+            &aim.friends,
+        );
         self.held_for = friend.map(|f| super::friends::Held {
             who: f.who,
             ready: fire_allowed
@@ -2598,6 +2627,21 @@ impl Reflex {
             }
         }
         let fire = self.trigger(wants, fire_allowed, now, c, distance, rng);
+        if self.tracing
+            && (fire || self.held_for.is_some_and(|h| h.ready))
+            && now >= self.friend_noted + FRIEND_NOTE_MS
+        {
+            self.note_friend(
+                me,
+                view,
+                &lines,
+                (track.who(), distance),
+                gun,
+                fire,
+                now,
+                &aim.friends,
+            );
+        }
         // Down the sights as above; crouched as drawn for its kind; the
         // side step while it stands to aim, for every target with an
         // automatic weapon, for some with a bolt or a marksman rifle, also
@@ -2653,23 +2697,19 @@ impl Reflex {
             .clear_shot(&lifted, aimed, (error.0, error.1 + lift))
     }
 
-    /// [friends] The teammate in the line of fire, if any: on the view now
-    /// and the view it turns to (`point` with `error`), each `lift` higher
-    /// as [`Self::clear_shot`]'s, short of `distance` and a little past;
-    /// the teammates led to `now`, the tick decided
+    /// [friends] The lines a shot may take (the view now and the view it
+    /// turns to, `point` with `error`, each `lift` higher as
+    /// [`Self::clear_shot`]'s), and how far ahead of the view's clock
+    /// teammates are led for the tick decided, `now`, seconds
     /// ([`super::friends::FriendlyFireTuning::lead`]).
-    #[allow(clippy::too_many_arguments)]
-    fn friend_in_line(
-        &self,
+    fn fire_lines(
         me: &PlaceView,
         view: &MatchView,
         (point, error, lift): (Vec3, (f32, f32), f32),
-        distance: f32,
-        gun: &Gun,
         now: u32,
         t: &super::friends::FriendlyFireTuning,
-    ) -> Option<super::friends::Blocked> {
-        use super::friends::{along, blocking};
+    ) -> ([Vec3; 2], f32) {
+        use super::friends::along;
         let to = point - me.eye();
         let dirs = [
             along(me.yaw, (me.pitch + lift).clamp(-1.0, 1.0)),
@@ -2685,7 +2725,47 @@ impl Reflex {
         } else {
             0.0
         };
-        blocking(me, view, &dirs, distance, t.spread(gun), ahead_s, t)
+        (dirs, ahead_s)
+    }
+
+    /// [friends] The trace line of a shot `fired` or held at `target` (and
+    /// its distance), with the teammate nearest to blocking it as the bot
+    /// had him, if he was within [`FRIEND_NOTE_ROOM_M`]: where the bot had
+    /// itself and him, how near the line and its margin, how old his
+    /// world was.
+    #[allow(clippy::too_many_arguments)]
+    fn note_friend(
+        &mut self,
+        me: &PlaceView,
+        view: &MatchView,
+        (dirs, ahead_s): &([Vec3; 2], f32),
+        (target, distance): (Place, f32),
+        gun: &Gun,
+        fired: bool,
+        now: u32,
+        t: &super::friends::FriendlyFireTuning,
+    ) {
+        let Some(near) =
+            super::friends::closest(me, view, dirs, distance, t.spread(gun), *ahead_s, t)
+                .filter(|near| near.room() <= FRIEND_NOTE_ROOM_M)
+        else {
+            return;
+        };
+        let him = view.place(near.who);
+        let round = |v: f32| (v * 1000.0).round() / 1000.0;
+        let at = |v: Vec3| [round(v.x), round(v.y), round(v.z)];
+        self.friend_noted = now;
+        self.friend_note = Some(serde_json::json!({
+            "t": now, "bot": me.place, "friend": if fired { "fired" } else { "held" },
+            "clock": view.clock, "target": target, "distance": round(distance),
+            "pos": at(me.feet), "yaw": round(me.yaw), "pitch": round(me.pitch),
+            "keys": me.keys, "lines": [at(dirs[0]), at(dirs[1])],
+            "mate": near.who, "mate_pos": at(near.feet), "mate_bot": him.map(|h| h.bot),
+            "mate_velocity": him.map(|h| [round(h.velocity[0]), round(h.velocity[1])]),
+            "mate_keys": him.map(|h| h.keys), "mate_seen_at": him.map(|h| h.seen_at),
+            "along": round(near.s), "gap": near.gap.map(round), "margin": round(near.margin),
+            "touch": near.touch, "held_for": self.held_for.map(|h| h.who),
+        }));
     }
 
     /// The aim's wander, one tick on: a mean-reverting walk whose spread is
@@ -2804,6 +2884,51 @@ mod tests {
         // The play holds fire: no shot.
         let o = reflex.tick(&me, &view, &memory, 2_400, false, &aim, 1.0, &mut rng);
         assert!(!o.fire);
+    }
+
+    /// [friends] A teammate at arm's length in front holds the fire whatever
+    /// his angle off the line; tracing, the held shots and the shots fired
+    /// past a teammate near the line are noted with where the bot had him.
+    #[test]
+    fn a_shot_held_or_fired_near_a_teammate_is_noted_with_where_it_had_him() {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), 0.0);
+        let aim = AimTuning::default();
+        let sight = |time| percept(1, Vec3::new(0.0, 0.0, 20.0), time, Source::Seen);
+        // (where the teammate stands, fires, held, touching)
+        for (mate, fires, touch) in [
+            // 1.2 m on, 1.2 m to the side: 45 degrees off, touching.
+            (Vec3::new(1.2, 0.0, 1.2), false, true),
+            // 1.5 m off the line 10 m on: clear by 0.87 m.
+            (Vec3::new(1.5, 0.0, 10.0), true, false),
+        ] {
+            let view = view_of(vec![me.clone(), enemy.clone(), body(2, 0, mate, 0.0)]);
+            let mut memory = Memory::default();
+            let mut reflex = Reflex {
+                tracing: true,
+                ..Reflex::default()
+            };
+            let mut rng = Rng::new(9);
+            sense(&mut memory, &[sight(1_000)], 1_000);
+            reflex.think(&me, &memory, 1_000, &aim, 1.0, &mut rng);
+            sense(&mut memory, &[sight(1_300)], 1_300);
+            reflex.think(&me, &memory, 1_300, &aim, 1.0, &mut rng);
+            let (mut fired, mut notes) = (false, Vec::new());
+            for k in 0..30 {
+                let now = 1_300 + k * 50;
+                sense(&mut memory, &[sight(now)], now);
+                fired |= reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng).fire;
+                notes.extend(reflex.take_friend_note());
+            }
+            assert_eq!(fired, fires, "a teammate at {mate:?}");
+            assert!(!notes.is_empty(), "a teammate at {mate:?}");
+            for note in &notes {
+                assert_eq!(note["mate"], 2);
+                assert_eq!(note["touch"], touch);
+                assert_eq!(note["friend"], if fires { "fired" } else { "held" });
+                assert_eq!(note["mate_pos"][0].as_f64().unwrap() as f32, mate.x);
+            }
+        }
     }
 
     #[test]

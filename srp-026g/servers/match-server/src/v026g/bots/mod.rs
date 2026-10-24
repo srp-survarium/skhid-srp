@@ -1948,6 +1948,7 @@ impl Bots {
             return;
         };
         bot.tracing = self.trace.enabled();
+        bot.reflex.tracing = bot.tracing;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         let searching = &mut self.searching;
         for time in bot.encoder.ticks(clock.clock, entered + START_AFTER_MS) {
@@ -1970,6 +1971,9 @@ impl Bots {
                 }
                 _ => bot.motor.rest(),
             };
+            if let Some(line) = bot.reflex.take_friend_note() {
+                bot.traced.push(line);
+            }
             let (input, turn) = bot.encoder.encode(time, decision);
             let keys = bot.encoder.keys();
             // [recoil] The part of the pitch turn the kick takes, and the

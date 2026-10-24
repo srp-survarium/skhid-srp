@@ -519,6 +519,68 @@ In the owner's match 0x6da44bbb (on #343), bots 13 and 2 (opposite teams) stood 
 
 **Not verified:** no real match has been played with this. The bench's stand-in bodies do not collide, so it cannot wedge two bots together as the match did. The bench measures only how often enemies come that near.
 
+### 2.12 Team kills at point-blank and past the target (built 2026-10-24)
+
+The owner's matches of 2026-10-24 on #343 were recorded per tick (`SRP_RECORD_MIN_PLAYERS=1`): 0x5e7d0fc0 (Vector lab TDM, 3 team kills), 0x31632b5a (Tarakanivskiy fort TDM, 7, one of them the owner) and 0x60aeff4f (level 8 batteries, 5). Each bot's input at each tick, with the worlds, gives its view and its body tick by tick (the analysis's `rec-relay` and `tickpos.py`, `private/pvb-343-check/analysis`). The 15 team kills, killer and victim at the killer's shots:
+
+| match, time | killer → victim | apart | off the line | what |
+|---|---|---|---|---|
+| 5e7d, 84.8 s | 1 → 12 | 3.1-3.9 m | 0.9-1.5 m, the victim 1.2 m higher | outside the margin on the true bodies |
+| 5e7d, 207.6 s | 8 → 4 | 0.02 m | in him | the two stood in one another for five worlds |
+| 5e7d, 241.8 s | 6 → 4 | 0.3-0.5 m | 0.1 m | the victim's reckoning 3.3 m off at the next world |
+| 3163, 45.6 s | 2 → 12 | 2.2-2.5 m | 0.3 m | the victim's reckoning 4.3 m off; the world that put it right reached the server 0.55 s after the shots |
+| 3163, 155.2 s | 4 → 12 | 29 m | | grenade |
+| 3163, 273.8 s | 15 → 13 | 1.0 m | 0.34 m | the killer stuck (backing off); its reckoning 4.3-4.8 m off at the worlds before |
+| 3163, 481.1 s | 15 → the owner | 0.5-0.9 m | 0.27-0.31 m | the killer crouched, backing off; its reckoning 0.45 m off (its trace) |
+| 3163, 643.3 s | 6 → 8 | 1.2-1.5 m | 0.42-0.59 m | the killer's reckoning 2.0-2.6 m off at the worlds around |
+| 3163, 884.4 s | 4 → 2 | 6.6 m | 0.2-0.4 m across, the victim 1.3 m lower | see below |
+| 3163, 910.0 s | 4 → ? | | | no victim found |
+| 60ae, 210 s | 2 → 8 | | | grenade |
+| 60ae, 239 s | 14 → 18 | 17-22 m | 0.04-0.75 m | 11.5 m past the target (enemy 13 at 5.8 m) |
+| 60ae, 481 s | 7 → 3 | 7.2 m | 3.6-3.8 m | grenade (thrown at 477.5 s) |
+| 60ae, 556 s | 1 → 2 | 14.2-14.8 m | 0.1-0.6 m | 3.2-4.0 m past the target (enemy 15 at 11 m, killed in the same burst) |
+| 60ae, 867 s | 1 → 4 | 0.13 m | in him | the two stood in one another |
+
+**Point-blank.** 7 kills were at 0.02-2.5 m. On the true bodies 5 were inside the line test's margin (0.63 m near the shooter, §2.6) and 2 had the bodies in one another. The gate missed them because it judged from the server's picture. The server reckons each body on from its last world with no other body in the way (`body.rs`: "other bodies in the way" is put right only by the next world, one a second at best, a quarter of a second late or more). When bodies touch or are wedged, the game stops them and the reckoning walks on: in 5 of the 7 the shooter's or the victim's reckoning was 0.45-4.8 m off about then (the trace's positions against the per-tick ones; the "off its reckoning" log, over 2 m only). At 0.5-1.5 m that puts a teammate in front beside or behind the bot in its picture. A teammate standing in the shooter was not looked at either: the line test takes a body only where his nearest approach to the line is ahead of the eye.
+
+**Past the target.** 2 kills had the teammate on the line behind the enemy, 3.5 m and 11.5 m past him. The gate looked only `past_target_m` (2 m) past the target. The misses go on, and so do the rounds after a kill (at 556 s the same burst killed the enemy and the teammate behind him).
+
+**The 6.6 m case** (3163, 884.4 s). Bot 4 fired at the owner 34 m off with bot 2 6.6 m on, 0.2-0.4 m across the line in plan. Bot 4 was coming down a slope and stood 1.3 m higher. On the worlds' heights (1 s apart, the killer's interpolated between 7.15 and 6.22 m), the line from its eye passed 0.44-0.99 m from bot 2's head at its four shots, around the 0.70 m margin there: which side depends on where the killer stood on the slope between the two worlds. The heights cannot settle it, and bot 2's reckoning was 1.0 m off (0.7 m across that line) 1.4 s before. Not solved; the trace note below shows the bot's own picture next time.
+
+**The rules** (`friends.rs`):
+- **Touch** (`FriendlyFireTuning::touch_m`, 2 m): a teammate whose feet are within 2 m of the shooter's blocks whatever his angle off the line, if some of his body is in the front half of a line (his feet no more than his half width behind the eye, seen from above) and his body is within `TOUCH_HEIGHT_M` (1 m) of the eye's height.
+- **Past the target** (`past_target_m` 2 → 15 m): teammates up to 15 m behind the target count, with the margin as it grows along the line.
+
+**The trace** (`SRP_BOT_TRACE_DIR`): each shot fired or held at a ready trigger near a teammate gets a line, at most every 100 ms a bot, when the teammate nearest to blocking it was within 1 m of the margin (`friends::closest`, `Near::room`): `"friend": "fired"|"held"`, the tick and the view's clock, the target and its distance, the bot's feet, yaw, pitch and keys as it had them, the two lines, and the teammate as it had him (`mate`, `mate_pos` led to the tick, `mate_velocity`, `mate_keys`, `mate_seen_at`: his last world's tick), the nearest approach (`along`, `gap`), the `margin`, `touch`, `held_for`. Against the recording's per-tick bodies this shows how far the bot's picture was off at each team kill.
+
+**Measured** (`real_bot_cost`, 180 s, `SRP_BENCH_SIDES=4,10`, `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`, `SRP_BENCH_SPREAD=1`, `SRP_BENCH_TIER=9-10`; batteries on maps `6/2,1/2,3/3,2/2,4/2,5/2`, team deathmatch on `6/4,8/4,1/4,2/4,5/4,7/4`; seeds 1-16, the same binary with `SRP_BENCH_FF_TOUCH_M=0` and `SRP_BENCH_FF_PAST_M=2` for the base; means a seed of 12 runs, * over 2 standard errors of the paired difference). Team hits are bench hits on a teammate; "apart" is the bodies' distance, and under 0.3 m is the stand-in's own (no body collisions, §2.9):
+
+| Measure | Batteries base | touch | touch + past 15 m | Team DM base | touch | touch + past 15 m |
+|---|---|---|---|---|---|---|
+| team hits | 5.31 | 2.50* | 1.62* | 9.69 | 4.25* | 4.62* |
+| ... bodies 0.3 m or more apart | 4.00 | 2.44 | 1.56* | 7.50 | 4.25* | 4.50* |
+| ... 0.3-2 m apart | 1.38 | 0.25* | 0.25* | 3.19 | 0.31* | 0.44* |
+| ... more than 2 m past the target (16 seeds together) | 13 | 19 | 5 | 18 | 11 | 3 |
+| team kills (all, the stand-in's own included) | 0.75 | 0.44 | 0.19 | 0.69 | 0.25 | 0.31 |
+| kills | 260.9 | 263.8 | 260.6 | 370.6 | 372.3 | 373.3 |
+| kills, team 0 / 1 | 130.6 / 130.3 | 129.1 / 134.7 | 126.7 / 133.9 | 187.8 / 182.8 | 190.9 / 181.4 | 189.5 / 183.8 |
+| hit rate | 25.4 % | 25.6 % | 25.7 % | 28.2 % | 28.3 % | 28.5 % |
+| blocked by a teammate, s a bot-minute (§2.6) | 1.03 | 1.23* | 1.30* | 2.16 | 2.55* | 2.66* |
+
+- Team hits halve or better in both modes, and at 0.3-2 m apart they fall by 80-90 %. Team kills are too few on the bench at these tiers to move by 2 standard errors (team deathmatch −0.38 ± 0.20 with both rules).
+- Kills do not move: −0.3 ± 4.3 (batteries) and +2.8 ± 5.9 (team DM) with both rules. The past-target rule alone, against the touch rule: −3.3 ± 3.0 and +1.1 ± 2.8.
+- Bots hold fire for a teammate 23-26 % longer (0.27 and 0.50 s more a bot-minute).
+- The past-target rule takes the hits on a teammate behind the target from 19 to 5 and from 11 to 3 (both modes, 16 seeds together); what is left is mostly over 15 m past it.
+- Batteries' team 0 / team 1 kills move apart (−3.9 / +3.6): the same bots on both sides, so the maps' sides, as in §2.5.
+
+**Tests:** `friends::tests::the_owner_beside_a_bot_that_reckons_itself_past_him_holds_its_fire` (481.1 s), `a_teammate_a_step_off_the_line_at_arms_length_holds_the_fire` (643.3 s), `a_teammate_standing_in_the_shooter_blocks_whatever_the_line` (207.6 s), `the_touch_rule_holds_for_the_front_half_level_with_the_eye_and_near`, `the_nearest_to_blocking_is_named_for_the_trace`, `a_teammate_on_the_line_behind_the_target_blocks` (556 s and 239 s); `reflex::tests::a_shot_held_or_fired_near_a_teammate_is_noted_with_where_it_had_him`. The 7 whole-match tests (`--ignored`) pass; in `bots_hold_fire_while_a_teammate_is_in_the_line_of_fire` (friends on) team kills 0 and team hits 9 (§2.9: 1 and 22).
+
+**Not verified:** no real match has been played with this. The bench's bodies do not collide, so it cannot wedge two bots or put the reckoning off as the matches did: its gain at 0.3-2 m is the stand-in's near misses, and the live gain rests on the recordings above.
+
+**Leads, not acted on:**
+- The reckoning itself: bodies that touch could stop each other in `body.rs`/`view.rs` as the game stops them. That would fix the picture for every use, not only the fire.
+- The worlds' heights are 0.7-0.95 m over the trace's feet for every bot in these matches (the world's position against the walk grid's floor). The offset is the same for shooter and victim, so it does not move the line test, but it is not known why.
+
 ## 3. Plays
 
 Each play has a score from the situation, a precondition and steps. A commander per team hands them out every ~0.5 s: never two bots on one ambush, and no bot parked at its own container. In the saved worlds lives that stay in their own third are the worst in every mode (K/D 0.3–0.6, ~0.03 batteries a life), so a steal is answered by the 1–2 nearest bots (the thief cheat and the alarms in §4); the only guard is play 18.

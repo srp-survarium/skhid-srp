@@ -9,8 +9,9 @@
 //! so a bot fired with a teammate's body on the line.
 //!
 //! A teammate blocks the shot when his body comes within a margin of a
-//! line the bullets may take, short of the target (and a little past it:
-//! a miss goes on). The lines are the view now and the view it turns to
+//! line the bullets may take, short of the target and up to
+//! [`FriendlyFireTuning::past_target_m`] past it (a miss goes on). The
+//! lines are the view now and the view it turns to
 //! this tick, as the wall test's; the margin is the body's half width and,
 //! growing with the distance along the line, the weapon's spread
 //! ([`FriendlyFireTuning::spread_deg`]: an automatic weapon's burst
@@ -51,6 +52,20 @@
 //! 1.6 a seed in batteries and 11.1 -> 5.9 in team deathmatch, team kills
 //! 6.4 -> 4.3 and 8.4 -> 7.2, kills unchanged (`player_bots_behaviour.md`
 //! §2.9).
+//!
+//! A teammate within [`FriendlyFireTuning::touch_m`] of the shooter
+//! blocks whatever his angle off the line, if any of his body is in the
+//! front half of it and level with the eye. The server reckons each body on
+//! from its last world with no other body in the way (`body.rs`), so two
+//! bodies that touch or are wedged are half a metre to a few metres off in
+//! the bot's picture, and a teammate in front of it there can be beside or
+//! behind it, or stand in it, where the line test does not look. In the
+//! owner's matches of 2026-10-24 (0x5e7d0fc0, 0x31632b5a, per-tick
+//! recordings) 6 of the 10 team kills were at 0-2.5 m: 5 inside the line
+//! test's margin on the true bodies, and in one the two stood in one
+//! another. In 5 of them the shooter's or the victim's reckoning was
+//! 0.45-4.8 m off about then (its trace, the worlds' corrections)
+//! (`player_bots_behaviour.md` §2.12).
 
 use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
@@ -76,8 +91,10 @@ pub struct FriendlyFireTuning {
     /// automatic weapon's bloom over a burst, one round of a semi-automatic
     /// or bolt weapon, a shotgun's pellets.
     pub spread_deg: SpreadDeg,
-    /// Teammates this far past the target count too, metres (a miss goes
-    /// on).
+    /// Teammates this far past the target count too, metres: a miss goes
+    /// on, and so do the rounds after a kill (in 0x60aeff4f two bots were
+    /// killed on the line 3.5 m and 11.5 m behind the enemy their teammate
+    /// fired at; 2 m before 2026-10-24).
     pub past_target_m: f32,
     /// The least margin, metres, however near the shooter: the body's
     /// half width and the spread alone let a line pass a hand's width
@@ -92,6 +109,14 @@ pub struct FriendlyFireTuning {
     pub lead: bool,
     /// Added to that lead, ms. GUESS.
     pub lead_extra_ms: u32,
+    /// A teammate whose feet are this near the shooter's, metres, blocks
+    /// whatever his angle off the line, if any of his body is in the front
+    /// half of it and level with the eye ([`TOUCH_HEIGHT_M`]): the server
+    /// reckons each body on from its world without the others in the way,
+    /// so bodies that touch are often half a metre or more off in the
+    /// bot's picture, and one beside or in front of it can be behind it
+    /// there (0: off).
+    pub touch_m: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -115,10 +140,11 @@ impl Default for FriendlyFireTuning {
                 bolt: 0.75,
                 shotgun: 4.0,
             },
-            past_target_m: 2.0,
+            past_target_m: 15.0,
             near_m: 0.63,
             lead: true,
             lead_extra_ms: 0,
+            touch_m: 2.0,
         }
     }
 }
@@ -178,7 +204,8 @@ pub fn along(yaw: f32, pitch: f32) -> Vec3 {
 
 /// The nearest teammate of `me` whose body comes within the margin of any
 /// of the lines `dirs` from `me`'s eye, short of `distance` (the target's,
-/// metres) and [`FriendlyFireTuning::past_target_m`] past it; `spread`:
+/// metres) and [`FriendlyFireTuning::past_target_m`] past it, or who
+/// stands within [`FriendlyFireTuning::touch_m`] in front of it; `spread`:
 /// the shot's spread from the line, radians ([`FriendlyFireTuning::spread`]);
 /// `ahead_s`: each teammate is taken where the view has him, half way and
 /// this far along his velocity ([`FriendlyFireTuning::lead`]).
@@ -194,40 +221,11 @@ pub fn blocking(
     if !t.on {
         return None;
     }
-    let eye = me.eye();
-    let reach = distance + t.past_target_m;
-    let grow = spread.tan();
     let mut best: Option<(f32, Place, f32)> = None;
-    for other in view.team(me.team) {
-        if other.place == me.place || !other.alive || !other.present {
-            continue;
-        }
-        let (low, high) = if other.crouched() {
-            BODY_CROUCHED
-        } else {
-            BODY_STANDING
-        };
-        let width = t.body_m + if other.bot { 0.0 } else { t.human_m };
-        let [vx, vz] = other.velocity;
-        let lead = Vec3::new(vx, 0.0, vz) * ahead_s.max(0.0);
-        let leads: &[f32] = if lead.length() > 0.05 {
-            &[0.0, 0.5, 1.0]
-        } else {
-            &[0.0]
-        };
-        for (&dir, &share) in dirs.iter().flat_map(|dir| leads.iter().map(move |share| (dir, share))) {
-            let feet = other.feet + lead * share;
-            let foot = feet + Vec3::new(0.0, low, 0.0);
-            let head = feet + Vec3::new(0.0, high, 0.0);
-            let Some((s, gap)) = ray_to_segment(eye, dir, reach, foot, head) else {
-                continue;
-            };
-            if gap <= (width + grow * s).max(t.near_m) && best.is_none_or(|(d, _, _)| s < d) {
-                // Which side of the line he stands on, seen from above:
-                // his offset across the line, to the shooter's right.
-                let [rx, rz] = forward(me.yaw - std::f32::consts::FRAC_PI_2);
-                let to = other.feet - me.feet;
-                best = Some((s, other.place, to.x * rx + to.z * rz));
+    for other in mates(me, view) {
+        for near in assess(me, other, dirs, distance, spread, ahead_s, t) {
+            if near.blocks() && best.is_none_or(|(d, _, _)| near.s < d) {
+                best = Some((near.s, other.place, side(me, other)));
             }
         }
     }
@@ -235,6 +233,169 @@ pub fn blocking(
         who,
         away: if right >= 0.0 { key::LEFT } else { key::RIGHT },
     })
+}
+
+/// The teammate nearest to blocking `me`'s shot as [`blocking`] weighs
+/// him (the least [`Near::room`]), for the trace: where the bot had him
+/// and how near the line he was. `None` with friends off, or with no
+/// teammate short of the target or touching.
+pub fn closest(
+    me: &PlaceView,
+    view: &MatchView,
+    dirs: &[Vec3],
+    distance: f32,
+    spread: f32,
+    ahead_s: f32,
+    t: &FriendlyFireTuning,
+) -> Option<Near> {
+    if !t.on {
+        return None;
+    }
+    mates(me, view)
+        .flat_map(|other| assess(me, other, dirs, distance, spread, ahead_s, t))
+        .min_by(|a, b| a.room().total_cmp(&b.room()))
+}
+
+/// A teammate weighed against one line of fire.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Near {
+    pub who: Place,
+    /// Where the bot had his feet (led, [`FriendlyFireTuning::lead`]).
+    pub feet: Vec3,
+    /// How far along the line his nearest approach is, metres; for one
+    /// touching, at most his feet's distance.
+    pub s: f32,
+    /// His body's nearest approach to the line, metres (none: behind the
+    /// eye).
+    pub gap: Option<f32>,
+    /// The margin the line keeps from him there, metres.
+    pub margin: f32,
+    /// Within [`FriendlyFireTuning::touch_m`], in front.
+    pub touch: bool,
+}
+
+impl Near {
+    pub fn blocks(&self) -> bool {
+        self.touch || self.gap.is_some_and(|gap| gap <= self.margin)
+    }
+
+    /// How much more than the margin the line keeps from him, metres
+    /// (negative: he blocks; touching: -1).
+    pub fn room(&self) -> f32 {
+        if self.touch {
+            -1.0
+        } else {
+            self.gap.map_or(f32::INFINITY, |gap| gap - self.margin)
+        }
+    }
+}
+
+/// The eye must be within this of a touching teammate's body in height,
+/// metres, for him to block: one a floor below or above is not in the way
+/// of a level shot.
+pub const TOUCH_HEIGHT_M: f32 = 1.0;
+
+/// `me`'s living, present teammates.
+fn mates<'a>(me: &'a PlaceView, view: &'a MatchView) -> impl Iterator<Item = &'a PlaceView> {
+    view.team(me.team)
+        .filter(move |other| other.place != me.place && other.alive && other.present)
+}
+
+/// Which side of `me` `other` stands on, seen from above: his offset across
+/// `me`'s view, to the right.
+fn side(me: &PlaceView, other: &PlaceView) -> f32 {
+    let [rx, rz] = forward(me.yaw - std::f32::consts::FRAC_PI_2);
+    let to = other.feet - me.feet;
+    to.x * rx + to.z * rz
+}
+
+/// `other` against each line of `dirs`, where the view has him and where
+/// his velocity takes him in `ahead_s` (half way and all the way): one
+/// [`Near`] for each line and place where his nearest approach is ahead of
+/// the eye, or where he touches.
+fn assess(
+    me: &PlaceView,
+    other: &PlaceView,
+    dirs: &[Vec3],
+    distance: f32,
+    spread: f32,
+    ahead_s: f32,
+    t: &FriendlyFireTuning,
+) -> Vec<Near> {
+    let eye = me.eye();
+    let reach = distance + t.past_target_m;
+    let grow = spread.tan();
+    let (low, high) = if other.crouched() {
+        BODY_CROUCHED
+    } else {
+        BODY_STANDING
+    };
+    let width = t.body_m + if other.bot { 0.0 } else { t.human_m };
+    let [vx, vz] = other.velocity;
+    let lead = Vec3::new(vx, 0.0, vz) * ahead_s.max(0.0);
+    let leads: &[f32] = if lead.length() > 0.05 {
+        &[0.0, 0.5, 1.0]
+    } else {
+        &[0.0]
+    };
+    let mut out = Vec::new();
+    for &dir in dirs {
+        for &share in leads {
+            let feet = other.feet + lead * share;
+            let foot = feet + Vec3::new(0.0, low, 0.0);
+            let head = feet + Vec3::new(0.0, high, 0.0);
+            let along = ray_to_segment(eye, dir, reach, foot, head);
+            let touch = touching(me, eye, dir, feet, (foot.y, head.y), width, t.touch_m);
+            if along.is_none() && !touch {
+                continue;
+            }
+            let apart = feet.distance_xz(me.feet);
+            let (s, gap) = match along {
+                Some((s, gap)) if touch => (s.min(apart), Some(gap)),
+                Some((s, gap)) => (s, Some(gap)),
+                None => (apart, None),
+            };
+            out.push(Near {
+                who: other.place,
+                feet,
+                s,
+                gap,
+                margin: (width + grow * s).max(t.near_m),
+                touch,
+            });
+        }
+    }
+    out
+}
+
+/// A teammate's body (`feet`, its height `span` and half `width`) within
+/// `touch_m` of `me`'s feet, some of it in the front half of the line
+/// `dir` seen from above, and level with the eye ([`TOUCH_HEIGHT_M`]).
+fn touching(
+    me: &PlaceView,
+    eye: Vec3,
+    dir: Vec3,
+    feet: Vec3,
+    span: (f32, f32),
+    width: f32,
+    touch_m: f32,
+) -> bool {
+    if touch_m <= 0.0 || feet.distance_xz(me.feet) > touch_m {
+        return false;
+    }
+    if eye.y < span.0 - TOUCH_HEIGHT_M || eye.y > span.1 + TOUCH_HEIGHT_M {
+        return false;
+    }
+    // The line's way over the ground; a line near straight up or down
+    // goes the view's way.
+    let flat = dir.x.hypot(dir.z);
+    let [hx, hz] = if flat > 0.1 {
+        [dir.x / flat, dir.z / flat]
+    } else {
+        forward(me.yaw)
+    };
+    let to = feet - me.feet;
+    to.x * hx + to.z * hz >= -width
 }
 
 /// The nearest approach of the ray `from + dir * s` (`dir` of unit length,
@@ -334,7 +495,7 @@ mod tests {
             // Behind the shooter.
             (0.0, -3.0, false),
             // Far past the enemy.
-            (0.0, 40.0, false),
+            (0.0, 50.0, false),
         ] {
             let mate = body(2, 0, Vec3::new(x, 0.0, z), true);
             let v = view(vec![me.clone(), enemy.clone(), mate]);
@@ -415,7 +576,11 @@ mod tests {
         let spread = t.spread_deg.bolt.to_radians();
         // 0.5 m off the line 3 m on: the body and the bolt's spread alone
         // (0.39 m) let it pass; the floor does not.
-        let mate = view(vec![me.clone(), enemy, body(2, 0, Vec3::new(0.5, 0.0, 3.0), true)]);
+        let mate = view(vec![
+            me.clone(),
+            enemy,
+            body(2, 0, Vec3::new(0.5, 0.0, 3.0), true),
+        ]);
         assert!(blocking(&me, &mate, &[dir], 30.0, spread, 0.0, &t).is_some());
         let off = FriendlyFireTuning { near_m: 0.0, ..t };
         assert_eq!(blocking(&me, &mate, &[dir], 30.0, spread, 0.0, &off), None);
@@ -442,5 +607,182 @@ mod tests {
         mate.velocity = [4.0, 0.0];
         let v = view(vec![me.clone(), enemy, mate]);
         assert_eq!(blocking(&me, &v, &[dir], 14.0, 0.05, 0.1, &t), None);
+    }
+
+    /// The touch rule off: the gate as it was before it.
+    fn untouched(t: FriendlyFireTuning) -> FriendlyFireTuning {
+        FriendlyFireTuning { touch_m: 0.0, ..t }
+    }
+
+    /// Match 0x31632b5a ("match 7") at 481.1 s: bot 15, crouched and
+    /// backing off, fired at an enemy 9.7 m beyond the owner, who stood
+    /// 0.54 m from it, 35 degrees off its view and 0.35 m higher; the bot
+    /// reckoned itself 0.45 m off (its trace against the per-tick
+    /// positions). Seen right the line passes 0.31 m from him and both
+    /// gates hold; where the bot had itself, a little past him along its
+    /// view, he stands beside its eye, the line's nearest approach is
+    /// behind it and only the touch rule holds.
+    #[test]
+    fn the_owner_beside_a_bot_that_reckons_itself_past_him_holds_its_fire() {
+        let t = FriendlyFireTuning::default();
+        let mut me = body(0, 0, Vec3::ZERO, true);
+        me.keys = key::CROUCH;
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 9.7), true);
+        let dir = line_to(&me, enemy.chest());
+        let spread = t.spread_deg.auto.to_radians();
+        // Yaw 0 faces +z: 0.44 m on, 0.31 m to the side, 0.35 m up.
+        let truly = body(2, 0, Vec3::new(-0.31, 0.35, 0.44), false);
+        let v = view(vec![me.clone(), enemy.clone(), truly]);
+        assert!(blocking(&me, &v, &[dir], 9.7, spread, 0.0, &t).is_some());
+        assert!(blocking(&me, &v, &[dir], 9.7, spread, 0.0, &untouched(t)).is_some());
+        // The bot 0.45 m further along its view than it is: he is 0.01 m
+        // behind its eye.
+        let seen = body(2, 0, Vec3::new(-0.31, 0.35, -0.01), false);
+        let v = view(vec![me.clone(), enemy, seen]);
+        assert_eq!(
+            blocking(&me, &v, &[dir], 9.7, spread, 0.0, &untouched(t)),
+            None
+        );
+        assert_eq!(
+            blocking(&me, &v, &[dir], 9.7, spread, 0.0, &t).map(|b| b.who),
+            Some(2)
+        );
+    }
+
+    /// Match 0x31632b5a at 643.3 s: bot 6 killed bot 8 1.2-1.5 m away,
+    /// 20-24 degrees off its view (0.42-0.59 m off the line, inside the
+    /// 0.63 m floor). The reckoning of bodies that touch is half a metre
+    /// or more off: 0.5 m further to the side, he is 1 m off the line, and
+    /// only the touch rule holds.
+    #[test]
+    fn a_teammate_a_step_off_the_line_at_arms_length_holds_the_fire() {
+        let t = FriendlyFireTuning::default();
+        let me = body(0, 0, Vec3::ZERO, true);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 26.3), true);
+        let dir = line_to(&me, enemy.chest());
+        let spread = t.spread_deg.auto.to_radians();
+        for (x, z, old) in [(0.42, 1.16, true), (0.59, 1.35, true), (1.0, 1.2, false)] {
+            let v = view(vec![
+                me.clone(),
+                enemy.clone(),
+                body(2, 0, Vec3::new(x, 0.0, z), true),
+            ]);
+            assert_eq!(
+                blocking(&me, &v, &[dir], 26.3, spread, 0.0, &untouched(t)).is_some(),
+                old,
+                "the gate before, a teammate at ({x}, {z})"
+            );
+            assert!(
+                blocking(&me, &v, &[dir], 26.3, spread, 0.0, &t).is_some(),
+                "at ({x}, {z})"
+            );
+        }
+    }
+
+    /// Match 0x5e7d0fc0 ("match 6") at 207.6 s: bots 8 and 4 stood in one
+    /// another (0.02 m apart, five worlds running) and 8 fired up at the
+    /// owner 20 m off, killing 4. A teammate in the shooter's own body
+    /// blocks.
+    #[test]
+    fn a_teammate_standing_in_the_shooter_blocks_whatever_the_line() {
+        let t = FriendlyFireTuning::default();
+        let me = body(0, 0, Vec3::ZERO, true);
+        let enemy = body(1, 1, Vec3::new(0.0, 8.8, 20.5), true);
+        let dir = line_to(&me, enemy.chest());
+        let mate = body(2, 0, Vec3::new(0.02, 0.0, -0.1), true);
+        let v = view(vec![me.clone(), enemy, mate]);
+        assert_eq!(
+            blocking(&me, &v, &[dir], 22.0, 0.05, 0.0, &untouched(t)),
+            None
+        );
+        assert!(blocking(&me, &v, &[dir], 22.0, 0.05, 0.0, &t).is_some());
+    }
+
+    #[test]
+    fn the_touch_rule_holds_for_the_front_half_level_with_the_eye_and_near() {
+        let t = FriendlyFireTuning::default();
+        let me = body(0, 0, Vec3::ZERO, true);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 30.0), true);
+        let dir = line_to(&me, enemy.chest());
+        for (x, y, z, blocks, why) in [
+            (1.9, 0.0, 0.3, true, "beside, 81 degrees off, 1.9 m"),
+            (
+                1.2,
+                0.0,
+                -0.3,
+                true,
+                "his body reaching into the front half",
+            ),
+            (0.8, 0.0, -0.8, false, "behind"),
+            (2.0, 0.0, 1.5, false, "2.5 m off"),
+            (1.2, -3.0, 0.5, false, "a floor below"),
+            (1.2, 2.6, 0.5, false, "a floor above"),
+            (1.2, -0.8, 0.5, true, "a step down"),
+        ] {
+            let v = view(vec![
+                me.clone(),
+                enemy.clone(),
+                body(2, 0, Vec3::new(x, y, z), true),
+            ]);
+            assert_eq!(
+                blocking(&me, &v, &[dir], 30.0, 0.0, 0.0, &t).is_some(),
+                blocks,
+                "{why}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_nearest_to_blocking_is_named_for_the_trace() {
+        let t = FriendlyFireTuning::default();
+        let me = body(0, 0, Vec3::ZERO, true);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 30.0), true);
+        let dir = line_to(&me, enemy.chest());
+        let spread = t.spread_deg.bolt.to_radians();
+        // 1.5 m off the line 10 m on, and 3 m off it 20 m on: clear, the
+        // first the nearer to blocking.
+        let v = view(vec![
+            me.clone(),
+            enemy,
+            body(2, 0, Vec3::new(3.0, 0.0, 20.0), true),
+            body(3, 0, Vec3::new(1.5, 0.0, 10.0), true),
+        ]);
+        assert_eq!(blocking(&me, &v, &[dir], 30.0, spread, 0.0, &t), None);
+        let near = closest(&me, &v, &[dir], 30.0, spread, 0.0, &t).unwrap();
+        assert_eq!(near.who, 3);
+        assert!(!near.blocks() && !near.touch);
+        assert!((near.gap.unwrap() - 1.5).abs() < 0.05, "{near:?}");
+        assert!(near.room() > 0.5 && near.room() < 1.0, "{near:?}");
+    }
+
+    /// Match 0x60aeff4f at 556 s: bot 1 fired at enemy 15 11 m off and
+    /// killed him and bot 2, who stood on the line 3.5 m behind him; at
+    /// 239 s bot 14 fired at enemy 13 5.8 m off and killed bot 18 on the
+    /// line 11.5 m behind him. The misses go on, and the rounds after a
+    /// kill.
+    #[test]
+    fn a_teammate_on_the_line_behind_the_target_blocks() {
+        let t = FriendlyFireTuning::default();
+        let short = FriendlyFireTuning {
+            past_target_m: 2.0,
+            ..t
+        };
+        let me = body(0, 0, Vec3::ZERO, true);
+        let spread = t.spread_deg.auto.to_radians();
+        for (target, x, z) in [(11.0, 0.3, 14.5), (5.8, -0.22, 17.3)] {
+            let enemy = body(1, 1, Vec3::new(0.0, 0.0, target), true);
+            let dir = line_to(&me, enemy.chest());
+            let v = view(vec![
+                me.clone(),
+                enemy,
+                body(2, 0, Vec3::new(x, 0.0, z), true),
+            ]);
+            assert_eq!(blocking(&me, &v, &[dir], target, spread, 0.0, &short), None);
+            assert!(
+                blocking(&me, &v, &[dir], target, spread, 0.0, &t).is_some(),
+                "a teammate {:.1} m past the target",
+                z - target
+            );
+        }
     }
 }
