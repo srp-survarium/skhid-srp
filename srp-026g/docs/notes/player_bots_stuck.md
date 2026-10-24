@@ -1011,6 +1011,9 @@ spawns, and `pocket_exits` lists the ledges a jump could leave it by
 - **Slots.** A bot given up in a pocket lets its slot go, even inside
   `COMMIT_M`, and takes no slotted play (`team::assign_trapped`), so a
   teammate takes the battery or the spot. `Ctx::path_dist` is unchanged.
+- **Hurt.** While the bot may not jump (`Hurt::may_jump`: a broken leg, a
+  hit's stagger) the clocks of its try and of its giving up stand still, and
+  the stuck recovery's back-off and side step press no jump.
 - **Side steps.** The fight's side step does not step into a pocket the bot
   is not in that has no Standing exit (`Tactics::clear_step_for`).
 - **For the plays.** `Ctx::trapped`, `teammate_trapped`, `in_pocket` and
@@ -1064,9 +1067,6 @@ MEASURED
   moved nothing in the bench. To measure first.
 - Four level_06 pockets with a Standing exit within the stand-in's reach
   (0.5-0.56 m across) were not left in the sweep: to trace.
-- The unstick jumps in `fixed()` should wait for the hurt PR's
-  `Hurt::may_jump`, and a hurt bot's failed tries should not count toward
-  giving up.
 - A bot that gave up stays in the pocket. Killing itself is gated on the
   client recordings showing that bots still cannot leave with nothing else
   wrong.

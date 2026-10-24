@@ -5950,7 +5950,7 @@ struct RouteTally {
     pocket_in: Vec<bool>,
     pocket_worlds: u32,
     pocket_deaths: u32,
-    pocket_escapes: [u64; 5],
+    pocket_escapes: [u64; 7],
 }
 
 impl RouteTally {
@@ -6153,12 +6153,12 @@ impl RouteTally {
         let escapes = super::tactics::escapes::counts();
         let escaped: Vec<u64> = (0..3).map(|k| escapes[k] - self.escapes[k]).collect();
         let pockets = super::escape::counts::counts();
-        let pocketed: Vec<u64> = (0..5)
+        let pocketed: Vec<u64> = (0..7)
             .map(|k| pockets[k] - self.pocket_escapes[k])
             .collect();
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
-            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {}",
+            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {}",
             self.worlds,
             self.pushes.0,
             self.pushes.1,
@@ -6193,6 +6193,8 @@ impl RouteTally {
             pocketed[2],
             pocketed[3],
             pocketed[4],
+            pocketed[5],
+            pocketed[6],
         )
     }
 }
@@ -7105,6 +7107,36 @@ mod pocket_runs {
     /// A pit 0.9 m deep (a standing jump out): the bot in it jumps out
     /// onto its rim and walks on to its goal. Before, its searches found no
     /// way and it stood there.
+    /// While it may not jump (a broken leg) a try's clock stands still: a
+    /// try begun, then 20 s hurt, is not failed; 12 s after the leg mends
+    /// it is.
+    #[test]
+    fn a_hurt_bot_spends_no_try_on_a_pit() {
+        let world = pit(0.9);
+        let grid = &world.grid;
+        let board = escape::Board::default();
+        let (feet, goal) = (Vec3::new(32.0, -0.9, 20.0), Vec3::new(55.0, 0.0, 32.0));
+        let (mut state, mut route) = (None, None);
+        let mut tick = |time: u32, may_jump: bool| {
+            escape::tick(
+                &mut state, &mut route, grid, &board, 0, 0, feet, goal, time, may_jump,
+            )
+            .events
+        };
+        let first = tick(0, true);
+        assert!(matches!(first[..], [escape::Event::Try(_, 1)]), "{first:?}");
+        for time in (500..=20_000).step_by(500) {
+            let events = tick(time, false);
+            assert!(events.is_empty(), "at {time}: {events:?}");
+        }
+        assert!(tick(20_000 + escape::TRY_MS - 500, true).is_empty());
+        let failed = tick(20_000 + escape::TRY_MS, true);
+        assert!(
+            matches!(failed.first(), Some(escape::Event::Failed(_))),
+            "{failed:?}"
+        );
+    }
+
     #[test]
     fn a_bot_in_a_pit_with_a_standing_exit_jumps_out_and_goes_on() {
         let world = pit(0.9);

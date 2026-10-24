@@ -954,13 +954,20 @@ impl Bots {
                 _ => escapes[0],
             };
             let ticks = |rng: &mut Rng, s: (f32, f32)| (rng.range(s.0, s.1) / kin::TICK_S) as u32;
+            // [pockets] No jump the game would refuse (a broken leg, a hit's
+            // stagger): the keys alone.
+            let jump = if bot.hurt.may_jump(time) {
+                key::JUMP
+            } else {
+                0
+            };
             match recovery {
                 Recovery::BackOff => {
-                    bot.unstick = Some((escape | key::JUMP, ticks(&mut bot.rng, (0.5, 0.8))));
+                    bot.unstick = Some((escape | jump, ticks(&mut bot.rng, (0.5, 0.8))));
                     bot.route = None;
                 }
                 Recovery::Sidestep => {
-                    bot.unstick = Some((escape | key::JUMP, ticks(&mut bot.rng, (0.8, 1.3))));
+                    bot.unstick = Some((escape | jump, ticks(&mut bot.rng, (0.8, 1.3))));
                     bot.end_play(time, "stuck twice there", &mut notes);
                     self.teams[team].next_commander = time;
                 }
@@ -2384,6 +2391,7 @@ fn drive_tick(
             me.feet,
             goal.unwrap_or(me.feet),
             time,
+            bot.hurt.may_jump(time),
         );
         if bot.tracing {
             for event in &out.events {

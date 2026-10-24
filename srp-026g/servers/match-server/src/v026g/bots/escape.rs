@@ -18,6 +18,9 @@
 //!   at most [`SPRINT_EXITS`] sprint-only ones, the lowest first, with one
 //!   standing try each (a rounded edge may let it through; no bot sprints
 //!   yet); climbs onto steep ground are not tried;
+//! - while it may not jump (a broken leg, a hit's stagger: `motor::Hurt`)
+//!   the clocks of the try and of the giving up stand still: the motor
+//!   presses no jump then, and the time is not the exit's fault;
 //! - with every exit tried, or [`GIVE_UP_MS`] gone, it gives up
 //!   ([`Trapped::gave_up`]): it stays and aims, and the plays leave it
 //!   (`Ctx::trapped`, `Ctx::teammate_trapped`).
@@ -73,6 +76,14 @@ pub struct Escape {
     at: usize,
     trying: Option<u32>,
     gave_up: bool,
+    /// The last tick seen, and the time spent unable to jump since the
+    /// first (added to [`GIVE_UP_MS`]).
+    last: u32,
+    held: u32,
+    /// For the bench: hurt (no jump) during the try under way, and since
+    /// the first try.
+    #[cfg(test)]
+    hurt: (bool, bool),
 }
 
 impl Escape {
@@ -252,7 +263,8 @@ pub struct Out {
 /// `goal`, at `time`: `escape` is its state, `route` its route and the goal
 /// it was planned for. In a pocket its goal is out of, a try's route is
 /// set in `route` and its landing given as the goal; out of one, the state
-/// is dropped (a try that got it out is learned by the team).
+/// is dropped (a try that got it out is learned by the team). With
+/// `may_jump` false the try's and the giving up's clocks stand still.
 #[allow(clippy::too_many_arguments)]
 pub fn tick(
     escape: &mut Option<Escape>,
@@ -264,6 +276,7 @@ pub fn tick(
     feet: Vec3,
     goal: Vec3,
     time: u32,
+    may_jump: bool,
 ) -> Out {
     #[cfg(test)]
     if counts::OFF.load(std::sync::atomic::Ordering::Relaxed) {
@@ -272,7 +285,10 @@ pub fn tick(
             events: Vec::new(),
         };
     }
-    step(escape, route, grid, board, place, team, feet, goal, time).counted()
+    step(
+        escape, route, grid, board, place, team, feet, goal, time, may_jump,
+    )
+    .counted()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -286,6 +302,7 @@ fn step(
     feet: Vec3,
     goal: Vec3,
     time: u32,
+    may_jump: bool,
 ) -> Out {
     let mut events = Vec::new();
     let node = grid.locate(feet, 1.5);
@@ -319,9 +336,25 @@ fn step(
                 at: 0,
                 trying: None,
                 gave_up: false,
+                last: time,
+                held: 0,
+                #[cfg(test)]
+                hurt: (false, false),
             })
         }
     };
+    #[cfg(test)]
+    if !may_jump {
+        state.hurt = (state.trying.is_some() || state.hurt.0, true);
+    }
+    if !may_jump {
+        let still = time.saturating_sub(state.last);
+        state.held += still;
+        if let Some(began) = state.trying.as_mut() {
+            *began += still;
+        }
+    }
+    state.last = time;
     // The try under way: its route walked on, or ended in the pocket.
     if let Some(began) = state.trying {
         let landing = state
@@ -345,6 +378,10 @@ fn step(
         }
         if let Some((exit, left)) = state.exits.get_mut(state.at) {
             events.push(Event::Failed(*exit));
+            #[cfg(test)]
+            if state.hurt.0 {
+                counts::hurt(5);
+            }
             *left = left.saturating_sub(1);
             if *left == 0 {
                 state.at += 1;
@@ -354,7 +391,7 @@ fn step(
     if !state.gave_up {
         // The next try: a route to its take-off inside the pocket.
         let mut next = None;
-        while time < state.since + GIVE_UP_MS
+        while time < state.since + state.held + GIVE_UP_MS
             && let Some(&(exit, left)) = state.exits.get(state.at)
         {
             let inside = |n: NodeId| grid.pocket_of(n) == Some(pocket);
@@ -371,6 +408,10 @@ fn step(
                 let landing = grid.position(exit.to);
                 *route = Some((walk.then_jump(landing, exit.to), landing));
                 state.trying = Some(time);
+                #[cfg(test)]
+                {
+                    state.hurt.0 = false;
+                }
                 let tries = match exit.jump {
                     ExitJump::Standing => STANDING_TRIES,
                     _ => SPRINT_TRIES,
@@ -385,6 +426,10 @@ fn step(
             None => {
                 state.gave_up = true;
                 events.push(Event::GaveUp);
+                #[cfg(test)]
+                if state.hurt.1 {
+                    counts::hurt(6);
+                }
             }
         }
     }
@@ -424,12 +469,13 @@ pub fn trace(time: u32, place: Place, grid: &WalkGrid, event: &Event) -> serde_j
 }
 
 /// The escapes' events so far, for the bench's count: tries, worked,
-/// failed, gave up, and slots handed on by bots given up (`mod.rs`).
+/// failed, gave up, slots handed on by bots given up (`mod.rs`), and tries
+/// failed and give-ups of bots that were hurt (no jump) in them.
 #[cfg(test)]
 pub mod counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
+    static COUNTS: [AtomicU64; 7] = [const { AtomicU64::new(0) }; 7];
 
     /// The escape off, for the pocket sweep's before (`tests.rs`).
     pub static OFF: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -449,7 +495,12 @@ pub mod counts {
         COUNTS[4].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 5] {
+    /// A try failed (5) or a give-up (6) of a bot hurt in it.
+    pub fn hurt(k: usize) {
+        COUNTS[k].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 7] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
