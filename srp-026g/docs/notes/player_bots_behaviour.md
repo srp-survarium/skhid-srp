@@ -931,6 +931,48 @@ Bench, TDM, routes, tier 9-10, 16 seeds paired (difference a seed ± standard er
 
 **Not verified:** no real match has been played with the change.
 
+### Roam's routes already bad, and slots handed between teammates (Cologne CG-10, CG-17; built 2026-10-24)
+
+**CG-10: a Roam drawn and dropped at once.** Roam's draw and its step tested a death on the route differently:
+- `draw_route` weighs a route down by 0.4 a death near any of its points;
+- `step` ends the run "the route turned bad" when its next point is within 0.75 × `on_route_m` of a death in the last 10 s.
+
+So a route could be drawn with a fresh death right at its first point and end at its first step. In Cologne battery 2 this repeated: draw, end, draw.
+- **Fix:** both use one test (`turned_bad`), and the draw gives no weight to a route whose first point (`start_index`) already fails it.
+
+**CG-17: a slot handed back and forth.** Each bot scores a slot from its own memory (enemies near the target, the path to it). So a farther teammate could score the held slot 0.12 above its nearer holder, take it, and lose it back the same way. In Cologne battery 2 the same slots changed hands every few seconds.
+- **Fix** (`team.rs`, `takes_held`):
+  - a held slot goes to a bot farther along the path than its holder only by `MARGIN_FAR` 0.30;
+  - it never goes away from a holder within `COMMIT_M` 5 m of its target;
+  - a nearer bot still takes it by `MARGIN` 0.12.
+
+**The bench.** `real_bot_cost`, both teams with the change, routes as live, 6 maps × 4v4 and 10v10, 16 seeds, paired per seed against the tally only (`f5b7b16a`). Each fix was measured alone and together; * = beyond 2 SE.
+
+| | CG-10 alone | CG-17 alone | Both |
+|---|---|---|---|
+| "route turned bad" ends, batteries 4-5 / 9-10 | 10 -> 1.9* / 9.6 -> 1.4* | −0.8 / +5.4 ± 4.2 | 10 -> 1.1* / 9.6 -> 1.7* |
+| "route turned bad" ends, TDM 4-5 / 9-10 | 124 -> 20* / 142 -> 20* | −5 / +14 ± 15 | 124 -> 19* / 142 -> 21* |
+| slot hand-offs, batteries 4-5 / 9-10 | −3.0 / +3.1 | 288 -> 219* / 288 -> 226* | 288 -> 217* / 288 -> 228* |
+| slot hand-offs, TDM 4-5 / 9-10 | +0.7 / −0.2 | 126 -> 88* / 125 -> 92* | 126 -> 87* / 125 -> 90* |
+| quick ends, batteries 4-5 / 9-10 | −6.7 / −13* | −45* / −34* | −56* / −44* |
+| quick ends, TDM 4-5 / 9-10 | −111* / −124* | −18 / +8 | −117* / −127* |
+| A->B->A flips, batteries 4-5 / 9-10 | −1.5 / −5.2* | −15* / −18* | −15* / −16* |
+| kills, batteries 4-5 / 9-10 | +0.1 / −0.1 | −3.9 ± 2.4 / +3.9 ± 4.4 | −3.1 ± 2.1 / +3.4 ± 3.9 |
+| kills, TDM 4-5 / 9-10 | +0.6 / −1.4 | +0.9 / +4.8 ± 4.0 | +0.1 / +4.4 ± 3.2 |
+| delivered, batteries 4-5 / 9-10 | −0.3 / +0.1 | +0.9 ± 1.0 / +0.1 ± 0.8 | +0.8 ± 1.1 / +0.1 ± 0.9 |
+| carriers killed, batteries 4-5 / 9-10 | −0.3 / −0.1 | +2.1 ± 1.3 / +2.6 ± 1.3* | +2.9 ± 1.4* / +2.5 ± 1.1* |
+| idle s (all bots) | −8 to +20 | −205 ± 106 to +12 | −191 ± 110 to +20 |
+| hit %, TDM 9-10 | −0.1 | −0.8 ± 0.3* | −0.9 ± 0.4* |
+| team kills | 0.06-0.19, unchanged | ±0.2, not beyond 2 SE | ±0.1, not beyond 2 SE |
+
+- **K/D.** No team moved beyond 2 SE in any run but one: CG-17, TDM 9-10, team 0 +0.041 ± 0.019*, team 1 −0.049 ± 0.027. Both teams had the change, so this is a map side's effect, as in §3.2.
+- **More carriers killed with CG-17 (batteries; 0.167 -> 0.182 and 0.178 -> 0.198 a pickup).** Bots also picked up more (+3.2* and +2.9), Escort time rose (+100 s* and +77 s), and Intercept time rose (+54 s and +49 s). The extra kills were spread over Collect, Intercept, Station and Retreat shooters, and deliveries were even.
+  - A play that keeps its bot now runs to its end on both sides, carriers and their hunters alike. With both teams changed, a carrier killed is the other team's gain.
+- **CG-10 alone** moves nothing but what it fixes: the draws that ended at once, and so the quick ends.
+- The 7 whole-match tests pass (on the tip 55a60c08 merged in).
+
+**Not verified:** no real match has been played with either change.
+
 ## 4. Event reactions
 
 | Event | How bots learn it | Reaction |
