@@ -164,6 +164,17 @@ pub const LIP_DROP_M: f32 = 1.0;
 /// there are any (a step inward costs about 0.1 m once); measured on the
 /// bots' bench (falls off the route, player_bots_stuck.md §8.5).
 pub const LIP_PENALTY: f32 = 0.25;
+
+/// Jumps higher than this cost [`MARGINAL_JUMP_PENALTY`] more, metres: the
+/// client's jump tops at 0.998 m (PROVEN, the jump study), so a jump link
+/// of 0.95-1.05 m is made only where the ledge's edge or the floors' heights
+/// are kind (the Cologne match: 7 of 11 at 1.0 m got up, 12 of 18 at 0.9 m).
+pub const MARGINAL_JUMP_M: f32 = 0.95;
+/// GUESS, benched: a route takes a walk of up to 4 m more round a marginal
+/// jump, and the jump where there is no way round (an objective only it
+/// reaches stays reachable).
+pub const MARGINAL_JUMP_PENALTY: f32 = 4.0;
+
 /// The 8 neighbour directions (dx, dz); `DIRS[d ^ 1]` is the opposite.
 const DIRS: [(i32, i32); 8] = [
     (1, 0),
@@ -1209,14 +1220,23 @@ impl WalkGrid {
 
     /// The cost of a link: its length plus the kind's penalty, plus
     /// [`LIP_PENALTY`] for walking onto a lip ([`Self::is_lip`]), so a
-    /// way keeps a cell back from a ledge where it can.
+    /// way keeps a cell back from a ledge where it can, plus
+    /// [`MARGINAL_JUMP_PENALTY`] for a jump higher than
+    /// [`MARGINAL_JUMP_M`].
     pub fn link_cost(&self, from: NodeId, to: NodeId, kind: LinkKind) -> f32 {
         let lip = if kind != LinkKind::Drop && self.is_lip(to) {
             LIP_PENALTY
         } else {
             0.0
         };
-        (self.position(to) - self.position(from)).length() + kind.penalty() + lip
+        let marginal = if kind == LinkKind::Jump
+            && self.height[to as usize] - self.height[from as usize] > MARGINAL_JUMP_M
+        {
+            MARGINAL_JUMP_PENALTY
+        } else {
+            0.0
+        };
+        (self.position(to) - self.position(from)).length() + kind.penalty() + lip + marginal
     }
 
     /// Whether a floor is a lip: the last floor before a ledge at least
@@ -2112,6 +2132,34 @@ pub(crate) mod tests {
         assert_eq!(erosion_rounds(0.38, 0.2), 2);
         assert_eq!(erosion_rounds(0.38, 0.1), 4);
         assert_eq!(erosion_rounds(0.0, 0.5), 0);
+    }
+
+    /// A way up a 1.0 m ledge (a marginal jump) walks 3 m round by a ramp
+    /// instead; with the ramp 6 m round, it jumps.
+    #[test]
+    fn a_way_walks_round_a_marginal_jump_when_the_way_round_is_short() {
+        let way = |round: f32| {
+            let mut tris: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+            tris.extend(floor(10.0, 0.0, 20.0, 10.0, 1.0));
+            tris.extend(wall_x(10.0, 0.0, 10.0, 1.0));
+            // Steps up at x 8-10 from z `round` on: 5 steps of 0.2 m.
+            for s in 0..5 {
+                let x0 = 8.0 + 0.4 * s as f32;
+                tris.extend(floor(x0, round, x0 + 0.4, 10.0, 0.2 * (s + 1) as f32));
+            }
+            let grid = WalkGrid::build(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+            let from = grid.locate(Vec3::new(9.0, 0.0, 1.0), 0.3).unwrap();
+            let to = grid.locate(Vec3::new(11.5, 1.0, 1.0), 0.3).unwrap();
+            let path = grid.path(from, to).unwrap();
+            let jumps = path
+                .nodes
+                .windows(2)
+                .filter(|w| grid.links(w[0]).any(|(b, k)| b == w[1] && k == LinkKind::Jump))
+                .count();
+            jumps
+        };
+        assert_eq!(way(2.0), 0, "a short walk round");
+        assert_eq!(way(7.0), 1, "a long walk round");
     }
 
     #[test]
