@@ -34,7 +34,18 @@ the game's own show_ui (0x1F95F0) and get_binded_action (0x207D50):
   on the movie (no result, no argument) and is taken; without the movie it is
   not. While the movie answers that its interface is hidden, every other key
   (a window's, F6's Play, Enter) goes to 0x26CDD2; else it comes back at
-  0x26CCD7 with the original's answer, toggle place and registers.
+  0x26CCD7 with the original's answer, toggle place and registers;
+- the options' controls: game_options' own functions on a made-up options
+  object (its movie, the game, the binder above), GFx objects, the strings'
+  look-up, buffer_string's printf and the CRT's sscanf_s stubbed: the rows
+  sent to the movie (0x2019E0) are the original's 40 and a 41st (19h,
+  st_hide_interface_action, group 2, type 1); the keys read from the binder
+  (0x201CF0) the original's 40 and (19h, kF11); a key kF9 set for 19h
+  (0x2013A0) is kept in the 41st row and in no row of the original; the
+  accept (0x201F20) runs `bind toggle_replay_ui kF9` through the console (the
+  original nothing); the binder's own bind (0x207DC0) binds 19h to kF9, its
+  save (0x207450) writes `bind toggle_replay_ui kF9`, and that line read
+  back binds it again.
 """
 import struct
 import sys
@@ -65,6 +76,32 @@ F11, C, F, W, H, F6, ENTER = 0x57, 0x2E, 0x21, 0x11, 0x23, 0x40, 0x1C
 BOUND = {0x19: F11, 0x40: C, 0x06: C, 0x44: F, 0x21: F, 0x0B: W, 0x17: F6}
 
 
+KEY_NAMES = 0xA74FA0                   # the key names: 88h-byte {name, DIK code, ...}, to a null name
+
+
+def file_at(data, va):
+    """The file offset of a VA of the exe's sections."""
+    for _, rva, vsize, raw, rsize, _ in base.Headers(data).sections(data):
+        if rva <= va - base.IMAGE_BASE < rva + rsize:
+            return raw + va - base.IMAGE_BASE - rva
+    raise KeyError(hex(va))
+
+
+def key_entry(data, dik=None, name=None):
+    """The key-name table's entry of a DIK code or a name (the exe's own)."""
+    i = 0
+    while True:
+        entry = KEY_NAMES + 0x88 * i
+        text, code = struct.unpack_from("<II", data, file_at(data, entry))
+        if text == 0:
+            raise KeyError(dik if name is None else name)
+        if dik is not None and code == dik:
+            return entry
+        if name is not None and bytes(data[file_at(data, text):file_at(data, text) + len(name) + 1]) == name + b"\0":
+            return entry
+        i += 1
+
+
 class Run:
     def __init__(self, data):
         self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
@@ -75,6 +112,7 @@ class Run:
         for at in (HANDLER, WORLD, HUD, LOBBY, HOLDER, BINDER, KEYS, OTHER_WORLD, STACK, SENTINEL):
             emu.mem_map(at, 0x10000, UC_PROT_ALL)
         self.calls = []
+        self.invoked = []
         self.hidden = 0
         for stub in (SHOW_MOVIE, HIDE_MOVIE, INVOKE, SHOW_CURSOR):
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=stub, end=stub)
@@ -87,9 +125,7 @@ class Run:
             action = self.read(description + 4)
             self.word(BINDER + 12 * action, description)
             if action in BOUND:
-                key = KEYS + 16 * action
-                self.word(key + 4, BOUND[action])
-                self.word(BINDER + 12 * action + 4, key)
+                self.word(BINDER + 12 * action + 4, key_entry(data, BOUND[action]))
 
     def word(self, at, value):
         self.emu.mem_write(at, struct.pack("<I", value & 0xFFFFFFFF))
@@ -114,6 +150,9 @@ class Run:
         else:                              # Invoke: thiscall (name, result, arguments, count), ret 10h; al 1
             self.calls.append(("invoke", emu.reg_read(UC_X86_REG_ECX), self.text(args[0]), args[1] != 0,
                                args[2], args[3]))
+            values = [struct.unpack("<II", self.emu.mem_read(args[2] + 24 * i + 4, 8)) for i in range(args[3])]
+            self.invoked.append(tuple(self.text(v).decode() if t == 6 else v & 0xFF if t == 2 else v
+                                      for t, v in values))
             if args[1] and self.text(args[0]) == b"root.interface_hidden":
                 emu.mem_write(args[1] + 4, struct.pack("<II", 2, self.hidden))
             emu.reg_write(UC_X86_REG_EAX, 1)
@@ -131,7 +170,7 @@ class Run:
         for reg, value in regs.items():
             self.emu.reg_write(reg, value)
         self.emu.reg_write(UC_X86_REG_ESP, sp)
-        self.stops, self.stopped, self.started, self.calls = stops, None, False, []
+        self.stops, self.stopped, self.started, self.calls, self.invoked = stops, None, False, [], []
         self.emu.emu_start(start, 0, count=500000)
         return {reg: self.emu.reg_read(reg) for reg in REGS}, self.emu.reg_read(UC_X86_REG_ESP)
 
@@ -189,6 +228,117 @@ class Run:
                               UC_X86_REG_EBX: LOBBY})
         return self.stopped, esp - sp, regs, list(self.calls), self.read(toggle)
 
+
+
+# The options' controls: game_options' functions on a made-up options object.
+KEYBINDINGS, KEYS_FROM_BINDER, KEY_SET, APPLY = 0x2019E0, 0x201CF0, 0x2013A0, 0x201F20
+LOCALIZE, CREATE_OBJECT, CREATE_ARRAY = 0x1FF0F0, 0x511700, 0x511710
+BIND_KEY, BIND_SAVE, LOOKUP = 0x207DC0, 0x207450, 0xEB7C0
+ASSIGN = 0xE4590                       # buffer_string's printf-like assign (eax the string; cdecl format, ...)
+SCANF = 0x422B46                       # the CRT's sscanf_s (cdecl: text, format, then a place and its size each)
+SENT = 0x201C8B                        # 0x2019E0 after root.set_keybindings, before the keys
+COMMANDS = 0x1F1D66C                   # the console commands' list head
+DEFAULTS_SET = 0x1F1D9D4               # bind_key's "the defaults were set" flag
+OPTIONS, GAMEOBJ, GFX, STUBS, CONSOLE, OUT = 0x25000000, 0x25010000, 0x25030000, 0x25040000, 0x25050000, 0x25060000
+OBJECT, ARRAY = 0x08, 0x09             # the made-up GFx values' types (no managed bit 40h)
+
+
+class Options(Run):
+    def __init__(self, data):
+        super().__init__(data)
+        emu = self.emu
+        for at in (OPTIONS, GAMEOBJ, GFX, STUBS, CONSOLE, OUT):
+            emu.mem_map(at, 0x10000, UC_PROT_ALL)
+        # the options: +0Ch the movie's holder, +34h the game (+5344h the binder, +52A8h the strings)
+        self.word(OPTIONS + 0x0C, HOLDER)
+        self.word(HOLDER + 0x108, UI)
+        self.word(UI + 4, MOVIE)
+        self.word(OPTIONS + 0x34, GAMEOBJ)
+        self.word(GAMEOBJ + 0x5344, BINDER)
+        # a GFx object interface: +8 release, +14h SetMember, +3Ch PushBack
+        self.word(GFX, GFX + 0x100)
+        for slot, stub in ((0x08, STUBS), (0x14, STUBS + 0x10), (0x3C, STUBS + 0x20)):
+            self.word(GFX + 0x100 + slot, stub)
+        # the console's bind and unbind (+0 the vtable, +4 execute; +0Ch the next, +10h the name)
+        for i, name in enumerate((b"bind", b"unbind")):
+            command = CONSOLE + 0x100 * i
+            emu.mem_write(CONSOLE + 0x800 + 0x20 * i, name + b"\0")
+            self.word(command, CONSOLE + 0x400)
+            self.word(command + 0x0C, CONSOLE + 0x100 * (i + 1) if i == 0 else 0)
+            self.word(command + 0x10, CONSOLE + 0x800 + 0x20 * i)
+        self.word(CONSOLE + 0x404, STUBS + 0x30)
+        self.word(COMMANDS, CONSOLE)
+        self.word(DEFAULTS_SET, 1)
+        for stub in (STUBS, STUBS + 0x10, STUBS + 0x20, STUBS + 0x30, STUBS + 0x40, LOCALIZE, CREATE_OBJECT,
+                     CREATE_ARRAY, ASSIGN, SCANF):
+            emu.hook_add(UC_HOOK_CODE, self.gfx, begin=stub, end=stub)
+        self.objects, self.rows, self.lines, self.handles, self.heap = {}, [], [], 0x100, OUT + 0x1000
+
+    def gfx(self, emu, address, size, _):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        args = [self.read(sp + 4 * i) for i in range(1, 6)]
+        if address in (CREATE_OBJECT, CREATE_ARRAY):  # (&value, ...): a new object or array
+            self.handles += 1
+            self.objects[self.handles] = {}
+            self.emu.mem_write(args[0], struct.pack("<III", GFX, OBJECT if address == CREATE_OBJECT else ARRAY,
+                                                    self.handles))
+            pops = 16 if address == CREATE_OBJECT else 4
+        elif address == STUBS:                # release
+            pops = 8
+        elif address == STUBS + 0x10:         # SetMember(data, name, &value, is a display object)
+            kind, value = struct.unpack("<II", self.emu.mem_read(args[2] + 4, 8))
+            self.objects[args[0]][self.text(args[1]).decode()] = self.text(value).decode() if kind == 6 else value
+            pops = 16
+        elif address == STUBS + 0x20:         # PushBack(data, &value)
+            self.rows.append(self.objects[self.read(args[1] + 8)])
+            pops = 8
+        elif address == STUBS + 0x30:         # a console command's execute(the arguments)
+            self.lines.append((self.text(self.read(emu.reg_read(UC_X86_REG_ECX) + 0x10)), self.text(args[0])))
+            pops = 4
+        elif address == ASSIGN:               # buffer_string assign "%s" (the CRT's printf is not run)
+            if self.text(args[0]) != b"%s":
+                raise ValueError(f"assign with {self.text(args[0])!r}")
+            string, text = emu.reg_read(UC_X86_REG_EAX), self.text(args[1])
+            begin, capacity = self.read(string), self.read(string + 8)
+            text = text[:capacity - begin - 1]
+            emu.mem_write(begin, text + b"\0")
+            self.word(string + 4, begin + len(text))
+            pops = 0
+        elif address == SCANF:                # sscanf_s(text, "%255s %255s", a, 256, b, 256): two words
+            if self.text(args[1]) != b"%255s %255s":
+                raise ValueError(f"sscanf with {self.text(args[1])!r}")
+            words = self.text(args[0]).split()
+            for i, word in enumerate(words[:2]):
+                emu.mem_write(self.read(sp + 12 + 8 * i), word[:255] + b"\0")
+            emu.reg_write(UC_X86_REG_EAX, min(len(words), 2))
+            pops = 0
+        elif address == STUBS + 0x40:         # the save's allocator: malloc(size, ...)
+            emu.reg_write(UC_X86_REG_EAX, self.heap)
+            self.heap += (args[0] + 15) & ~15
+            pops = 20
+        else:                                 # the strings' look-up (key, out): the key itself
+            self.emu.mem_write(args[1], self.text(args[0]) + b"\0")
+            pops = 8
+        emu.reg_write(UC_X86_REG_ESP, sp + 4 + pops)
+        emu.reg_write(UC_X86_REG_EIP, self.read(sp))
+
+    def call(self, start, args, regs=None, until=SENTINEL):
+        sp = STACK + 0x8000 - 4 * (len(args) + 1)
+        self.word(sp, SENTINEL)
+        for i, value in enumerate(args):
+            self.word(sp + 4 + 4 * i, value)
+        self.calls, self.invoked = [], []
+        out, esp = self.run(start, (until,), sp, {**GAME, **(regs or {})})
+        return out, esp - sp
+
+    def table(self):
+        """The rows of the options' controls as 0x2019E0 sends them (root.set_keybindings)."""
+        self.objects, self.rows = {}, []
+        self.call(KEYBINDINGS, [OPTIONS], until=SENT)
+        return list(self.rows), list(self.calls)
+
+    def set_keybind_calls(self):
+        return [values for call, values in zip(self.calls, self.invoked) if call[2] == b"root.set_keybind"]
 
 def main():
     if len(sys.argv) != 2:
@@ -279,6 +429,60 @@ def main():
                 report(ok, f"{name}, movie {'yes' if movie else 'no'}, the interface "
                            f"{'hidden' if hidden else 'shown'}: {what}, its toggle place as the original's, "
                            "ebx esi edi ebp kept")
+
+    print("the options' controls (game_options 0x2019E0, 0x201CF0, 0x2013A0, 0x201F20; the binder's bind "
+          "0x207DC0 and its save 0x207450)")
+    s_opt, p_opt = Options(original), Options(bytes(built))
+    a_rows, _ = s_opt.table()
+    b_rows, b_calls = p_opt.table()
+    new = {"action_id": 0x19, "group_id": 2, "type": 1, "label": "st_hide_interface_action"}
+    report(len(a_rows) == 40 and len(b_rows) == 41 and b_rows[:40] == a_rows and b_rows[40] == new
+           and [c[2] for c in b_calls] == [b"root.set_keybindings"],
+           f"the list sent to the movie (root.set_keybindings): the original's {len(a_rows)} rows, then "
+           f"{b_rows[40] if len(b_rows) > 40 else None}")
+    s_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
+    p_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
+    a_keys, b_keys = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()
+    report(len(a_keys) == 40 and b_keys[:40] == a_keys and b_keys[40:] == [(0x19, "kF11", 1)],
+           f"the keys from the binder (root.set_keybind): the original's 40, then {b_keys[40:]}")
+    for run in (s_opt, p_opt):
+        run.emu.mem_write(OUT, b"kF9\0")
+        run.call(KEY_SET, [OPTIONS, 0x19], {UC_X86_REG_EAX: OUT})
+    a_set, b_set = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()
+    kept = [s_opt.text(s_opt.read(0xA9DB28 + 0x68 * i + 0x10)) for i in range(40)]
+    report(a_set == b_set == [(0x19, "kF9", 0)] and b"kF9" not in kept
+           and p_opt.text(p_opt.read(linked.symbols["controls"] + 40 * 0x68 + 0x10)) == b"kF9",
+           f"a key set for 19h (kF9, 0x2013A0): shown {b_set} by both, kept in the 41st row; the original "
+           "keeps it in no row")
+    for run in (s_opt, p_opt):
+        run.lines = []
+        run.call(APPLY, [])
+    report(not s_opt.lines and p_opt.lines == [(b"bind", b"toggle_replay_ui kF9")],
+           f"the apply (0x201F20) runs {p_opt.lines}; the original's runs {s_opt.lines}")
+    f9, f11 = key_entry(original, name=b"kF9"), key_entry(original, name=b"kF11")
+    slot = BINDER + 12 * 0x19 + 4
+    p_opt.emu.mem_write(OUT + 0x100, p_opt.lines[0][1] + b"\0" if p_opt.lines else b"\0")
+    p_opt.call(BIND_KEY, [OUT + 0x100, 0], {UC_X86_REG_ECX: BINDER})
+    bound = p_opt.read(slot)
+    # the bind command's save: +10h its name, +60h its key (0 the first), +64h the binder; the list it
+    # fills: +4 its end, +0Ch its capacity's end, +10h an allocator (+10h its malloc)
+    command, saved, allocator = CONSOLE + 0x600, OUT + 0x2000, OUT + 0x3000
+    p_opt.word(command + 0x10, CONSOLE + 0x800)
+    p_opt.word(command + 0x60, 0)
+    p_opt.word(command + 0x64, BINDER)
+    p_opt.word(allocator, allocator + 0x20)
+    p_opt.word(allocator + 0x20 + 0x10, STUBS + 0x40)
+    for field, value in ((0, OUT + 0x2100), (4, OUT + 0x2100), (0xC, OUT + 0x2400), (0x10, allocator)):
+        p_opt.word(saved + field, value)
+    p_opt.call(BIND_SAVE, [saved], {UC_X86_REG_ECX: command})
+    lines = [p_opt.text(p_opt.read(at)) for at in range(OUT + 0x2100, p_opt.read(saved + 4), 4)]
+    p_opt.word(slot, f11)
+    line = next((x for x in lines if x.startswith(b"bind toggle_replay_ui ")), b"")
+    p_opt.emu.mem_write(OUT + 0x200, line[len(b"bind "):] + b"\0")
+    p_opt.call(BIND_KEY, [OUT + 0x200, 0], {UC_X86_REG_ECX: BINDER})
+    report(bound == f9 and line == b"bind toggle_replay_ui kF9" and p_opt.read(slot) == f9,
+           f"the binder's bind (0x207DC0) binds 19h to kF9; its save (0x207450) writes {line!r} among "
+           f"{len(lines)} lines; read back (bind, after F11 again) it binds kF9")
 
     if failed:
         sys.exit(f"{failed} case(s) failed")

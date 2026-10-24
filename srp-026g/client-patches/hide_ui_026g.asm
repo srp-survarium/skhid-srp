@@ -37,9 +37,28 @@
 ; 0x26CDD2, which hands the key to the movie and returns 0; the movie shows the
 ; interface and takes the key (its press and its release). Any other key, the
 ; interface shown, goes on as before.
+;
+; The controls options. The options' list of keys is a table of the game's,
+; 28h rows of 68h bytes at 0xA9DB28 (static data: the action, the label's
+; localization key, the group (2 game, 0 lobby, 1 chat), the type, then two
+; buffer_strings, the key being set and the key kept, each three pointers
+; into its own 32-byte buffer), read by six functions of game_options
+; (0x201150, 0x201248, 0x2013BF, 0x201A19, 0x201D05, 0x201F2B: the keys
+; sent to the movie, a key set, a conflict, the movie's rows, the keys
+; read from the binder, the keys applied with the console's bind/unbind),
+; each counting 28h rows. A key set for an action without a row is kept
+; nowhere (0x2013A0 finds no row) and never applied. `controls` below is that
+; table again, the same 40 rows (each row's pointers its own), and a 41st:
+; toggle_replay_ui in the game group, labelled st_hide_interface_action
+; (content edit hide-interface-1.json); patch_026g.py points the six
+; functions at it and makes their counts 29h. The binding is the binder's
+; as any other: applied with `bind toggle_replay_ui <key>`, saved and read
+; back by the binder's own bind command (its save 0x207450 writes every bound
+; action).
 BITS 32
 %include "engine_026g.inc"
 global hide_ui_match, hide_ui_kits, hide_ui_lobby
+global controls                    ; the options' controls, 41 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
 global hidden_world                ; the game world this key hid, or 0 (check_hide_ui_026g.py reads it)
 section .text
 
@@ -194,6 +213,65 @@ toggle_interface:
     db "root.toggle_interface", 0
 interface_hidden:
     db "root.interface_hidden", 0
+
+hide_interface_label:
+    db "st_hide_interface_action", 0
+
+; A row of the controls: the action, its label's key, the group, the type, and
+; two empty buffer_strings (begin, end, the buffer's end; 32 bytes).
+%macro CONTROL 4
+%%row:
+    dd %1, %2, %3, %4
+    dd %%row + 0x1C, %%row + 0x1C, %%row + 0x3C
+    times 32 db 0
+    dd %%row + 0x48, %%row + 0x48, %%row + 0x68
+    times 32 db 0
+%endmacro
+
+section .data
+align 4
+controls:                          ; the game's 40 rows (0xA9DB28), in their order
+    CONTROL 0x04, 0x9FCC70, 2, 1   ; st_jump_action
+    CONTROL 0x05, 0x9FCC5C, 2, 1   ; st_crouch_action
+    CONTROL 0x06, 0x9FCC44, 2, 1   ; st_crouch_toggle_action
+    CONTROL 0x29, 0x9FCC2C, 2, 1   ; st_aim_toggle_action
+    CONTROL 0x08, 0x9FCC14, 2, 1   ; st_sprint_toggle_action
+    CONTROL 0x07, 0x9FCC00, 2, 1   ; st_sprint_action
+    CONTROL 0x09, 0x9FCBE4, 2, 1   ; st_next_fire_queue_action
+    CONTROL 0x0A, 0x9FCBD0, 2, 1   ; st_next_ammo_action
+    CONTROL 0x24, 0x9FCBC0, 2, 1   ; st_next_weapon
+    CONTROL 0x25, 0x9FCBB0, 2, 1   ; st_prev_weapon
+    CONTROL 0x0B, 0x9FCB98, 2, 1   ; st_move_forward_action
+    CONTROL 0x0C, 0x9FCB80, 2, 1   ; st_move_backward_action
+    CONTROL 0x0D, 0x9FCB68, 2, 1   ; st_left_strafe_action
+    CONTROL 0x0E, 0x9FCB50, 2, 1   ; st_right_strafe_action
+    CONTROL 0x1D, 0x9FCB38, 2, 1   ; st_first_weapon_action
+    CONTROL 0x1E, 0x9FCB20, 2, 1   ; st_second_weapon_action
+    CONTROL 0x20, 0x9FCB08, 2, 1   ; st_throw_grenade_action
+    CONTROL 0x21, 0x9FCAF8, 2, 1   ; st_melee_action
+    CONTROL 0x22, 0x9FCAE8, 2, 1   ; st_spot_action
+    CONTROL 0x26, 0x9FCAD0, 2, 1   ; st_weapon_fire_action
+    CONTROL 0x27, 0x9FCAB8, 2, 1   ; st_weapon_reload_action
+    CONTROL 0x28, 0x9FCAA0, 2, 1   ; st_weapon_aim_action
+    CONTROL 0x2A, 0x9FCA88, 2, 1   ; st_dealy_breath_action
+    CONTROL 0x39, 0x9FCA70, 2, 1   ; st_quick_use_action_1
+    CONTROL 0x3A, 0x9FCA58, 2, 1   ; st_quick_use_action_2
+    CONTROL 0x3B, 0x9FCA40, 2, 1   ; st_quick_use_action_3
+    CONTROL 0x3C, 0x9FCA28, 2, 1   ; st_quick_use_action_4
+    CONTROL 0x3D, 0x9FCA10, 2, 1   ; st_quick_use_action_5
+    CONTROL 0x3E, 0x9FC9F8, 2, 1   ; st_quick_use_action_6
+    CONTROL 0x3F, 0x9FC9E0, 2, 1   ; st_start_chat_action
+    CONTROL 0x35, 0x9FC9D0, 2, 1   ; st_use_action
+    CONTROL 0x36, 0x9FC9C0, 2, 1   ; st_drop_action
+    CONTROL 0x40, 0x9FC9A4, 0, 1   ; st_show_character_action
+    CONTROL 0x41, 0x9FC988, 0, 1   ; st_show_inventory_action
+    CONTROL 0x42, 0x9FC974, 0, 1   ; st_show_shop_action
+    CONTROL 0x43, 0x9FC95C, 0, 1   ; st_show_options_action
+    CONTROL 0x44, 0x9FC944, 0, 1   ; st_show_friends_action
+    CONTROL 0x45, 0x9FC92C, 1, 0   ; st_send_message_action
+    CONTROL 0x46, 0x9FC910, 1, 0   ; st_select_send_to_action
+    CONTROL 0x47, 0x9FC900, 1, 0   ; st_ptt_action
+    CONTROL TOGGLE_UI, hide_interface_label, 2, 1   ; st_hide_interface_action (F11)
 
 section .bss
 alignb 4

@@ -1936,6 +1936,41 @@ HIDE_UI_HOOKS = (
     (0x23845B, bytes.fromhex("e8d0240000"), "hide_ui_kits", 0xE8),                  # the kits' show_cursor call
     (0x26CCD2, bytes.fromhex("e879b0f9ff"), "hide_ui_lobby", 0xE8),                 # the lobby's binder call
 )
+# The options' controls (the same patch): the six functions of game_options
+# that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
+# 29h rows, the 29th toggle_replay_ui) instead: (site, its bytes, where in
+# them the address is, the row's field it names) and (site, its bytes, where
+# the count 28h is).
+HIDE_UI_TABLE = 0xA9DB28
+HIDE_UI_ROWS = 0x28
+HIDE_UI_TABLE_REFS = (
+    (0x201150, bytes.fromhex("b828dba900"), 1, 0x0),           # the conflicts' loop: mov eax,table
+    (0x201248, bytes.fromhex("be2cdba900"), 1, 0x4),           # the conflict message: mov esi,table+4
+    (0x2013BF, bytes.fromhex("0528dba900"), 1, 0x0),           # a key set: add eax,table
+    (0x201A19, bytes.fromhex("be34dba900"), 1, 0xC),           # the movie's rows: mov esi,table+0Ch
+    (0x201D05, bytes.fromhex("c744240c28dba900"), 4, 0x0),     # the keys from the binder: mov [esp+0Ch],table
+    (0x201F2B, bytes.fromhex("be38dba900"), 1, 0x10),          # the apply: mov esi,table+10h
+)
+HIDE_UI_TABLE_COUNTS = (
+    (0x201159, bytes.fromhex("c744241828000000"), 4),
+    (0x20124D, bytes.fromhex("bb28000000"), 1),
+    (0x20140B, bytes.fromhex("80fb28"), 2),
+    (0x201A1E, bytes.fromhex("c744244428000000"), 4),
+    (0x201D0D, bytes.fromhex("c744241028000000"), 4),
+    (0x201F34, bytes.fromhex("c745f828000000"), 3),
+)
+
+
+def hide_ui_table_writes(linked):
+    """[(site, its bytes, the new bytes)] of the six functions' table and
+    counts, `controls` being the link's."""
+    table = linked.symbols["controls"]
+    out = [(va, old, old[:at] + struct.pack("<I", table + field) + old[at + 4:])
+           for va, old, at, field in HIDE_UI_TABLE_REFS]
+    out += [(va, old, old[:at] + bytes([HIDE_UI_ROWS + 1]) + old[at + 1:]) for va, old, at in HIDE_UI_TABLE_COUNTS]
+    return out
+
+
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x23A930, 0x26CCAE, 0x26CDD2)
 # the replay's toggle, the key not taken, show_cursor; the lobby's key taken, and the key to the movie
 
@@ -2178,6 +2213,15 @@ def our_ranges(data, writes):
     return ours + [(va, va + len(new)) for va, old, new in writes if is_cave(old) or va == HASH_MISMATCH_VA]
 
 
+def arena_data_ranges():
+    """[(lo, hi)] of the arena's data and state blocks (arena_026g.lock.json,
+    which every build's link must be): no code is there, so an address of one
+    the game is given (a table it reads) is data, not an install."""
+    lock = linker.read_lock()
+    blocks = lock["blocks"].values() if lock else ()
+    return [(int(b["va"], 16), int(b["va"], 16) + b["size"]) for b in blocks if b["kind"] != "code"]
+
+
 def installs_of(data, writes):
     """{site VA: (how, our VA, the original's bytes from the site)} of every
     function build() made the game call, found at any offset of any write
@@ -2185,7 +2229,9 @@ def installs_of(data, writes):
     any other 4 bytes that name our code ("pointer": a slot, a delegate, a
     `push imm32`, a `mov imm32`), and a body replaced in place ("body")."""
     ours = our_ranges(data, writes)
-    inside = lambda target: any(lo <= target < hi for lo, hi in ours)
+    data_blocks = arena_data_ranges()
+    inside = lambda target: any(lo <= target < hi for lo, hi in ours) \
+        and not any(lo <= target < hi for lo, hi in data_blocks)
     out = {}
     for va, old, new in writes:
         if is_cave(old) or va == HASH_MISMATCH_VA:
@@ -2272,6 +2318,7 @@ ARENA = (
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
     ArenaBlock("hide_ui.state", "state", 0x1000, ("hide_ui_026g.asm",)),         # the game world it hid
+    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
 )
 
 
@@ -3217,6 +3264,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                for va, old, new in hide_ui_table_writes(linked):
+                    patch(data, va, old, new)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
                              "says")

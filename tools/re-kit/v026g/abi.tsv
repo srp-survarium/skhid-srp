@@ -1903,3 +1903,8 @@ va	name	source	ret_cleanup	result
 0x00207d50	survarium::key_binder::get_binded_action	manual	4	EAX: the bound action's id (game_action_id); 49h when the key is bound to no action of the kinds asked
 0x0023a930	survarium::game_world_ui::show_cursor	manual	4	
 0x002383b0	survarium::game_world_ui::show_profiles_selector	manual	4	
+0x002019e0	survarium::game_options::initialize_bindings	manual	4	sends the controls table's rows to the options movie (root.set_keybindings: action_id, group_id, type, label), then reset_bindings(1)
+0x00201cf0	survarium::game_options::reset_bindings	manual	8	each row's keys from the binder (+10h set and +3Ch kept), root.set_keybind for each
+0x002013a0	survarium::game_options::assign_binding	manual	8	AL: the row of the action kept the key
+0x00201f20	survarium::game_options::apply_key_bindings	manual	0	for each row whose key set (+10h) differs from the kept (+3Ch): the console's `bind <action> <key>`, or `unbind <action>` for none
+0x00207450	survarium::key_binder::bind_command_save	manual	8	pushes `<command> <action> <key>` for every bound action of the binder's 48h bindings onto the list

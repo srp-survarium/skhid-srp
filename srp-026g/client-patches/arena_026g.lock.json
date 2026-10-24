@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 36868,
-  "sha256": "6ff8412107e68897041cfad7e00d25f16c3c4b4274101f4b4adde022c81af63d",
+  "size": 45224,
+  "sha256": "08c9dd37e86f5d4daf1b02cb5da49c4918ca4aecf77b171acfdcbdcfbb7e01bb",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -37,12 +37,17 @@
     "hide_ui.code": {
       "kind": "code",
       "va": "0xa435000",
-      "size": 408
+      "size": 433
     },
     "hide_ui.state": {
       "kind": "state",
       "va": "0xa436000",
       "size": 4
+    },
+    "hide_ui.data": {
+      "kind": "data",
+      "va": "0xa437000",
+      "size": 4264
     }
   },
   "symbols": {
@@ -53,6 +58,7 @@
     "artefacts_stagger": "0xa431019",
     "artefacts_unlink": "0xa43100a",
     "chat_variable": "0xa434000",
+    "controls": "0xa437000",
     "engine_accept_decal_edit": "0xa432460",
     "engine_allocation_name": "0xa4322e0",
     "engine_apply_modifier": "0xa432210",
