@@ -3414,7 +3414,11 @@ and unmarked, play_sound_callback's proxy with the effect where the hook reads i
 step getting every register and argument, the sound thread's amplitude and loudness for gains 1,
 0.7, 0.25 or 0.5 and 0 with the stacks as they were; the hud's quick slot, artefact_base::action
 and tick, decrement_amount, the anomaly's serialize and deserialize loops reaching its slots; with
-`--pack` the pack's own config). **Not run in a game.**
+`--pack` the pack's own config; and the real path to the voice a listener hears, from the
+carrier's foot event, landing and fire state's sound through the game's own code to the proxy
+played, its propagator, the listener's frame and the voice's volume, beside the original's; the
+carrier's own game plays his step as a hud sound, not quieted). **Not run in a game** (the owner's
+test of 2026-10-24 listened with the carrier's own game playing too: `docs/notes/rattle.md`).
 
 ## Not ported, not done
 

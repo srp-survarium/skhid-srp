@@ -210,3 +210,31 @@ Patch number
   decision).
 - Verified statically and in Unicorn only (`selftest_026g.py` check 59, `check_rattle_026g.py`);
   not run in a game.
+
+## The first test in the game (the owner, 2026-10-24): "it doesn't dampen shots nor movements"
+
+- The test: two local games on one machine (CamoBob, CamoAlice; both at s_general_volume 100,
+  both playing to the same speakers), the owner the carrier: pickup and activation messages
+  shown, no quieter steps or shots, passive or active.
+- Why (PROVEN in the code, and run in Unicorn from the event to the voice): only the others'
+  games quiet a carrier. His own game plays his steps and shots as hud sounds in first person
+  (0x657C0's flag, play_sound_callback's first-person branch), never marked; so the carrier's own
+  game played them at full beside the other game's quieted ones, and that is all that could be
+  heard. In the other game the same steps and shots take the hooked path: every footstep and
+  landing sound is on_step's (its only callers: on_foot_step and landing_step), every weapon sound
+  of another player is play_sound_callback's point proxy at 0x297F79; the proxy played is the one
+  marked, the sound thread's propagator holds it (+8, its constructor 0x5CB00), and the voice's
+  volume is the amplitude x the gain.
+- `check_rattle_026g.py` now drives that path from the carrier's foot event, landing and fire
+  state's sound through the game's own code to the voice's volume a listener's frame gives (0.2 at
+  8 m; 0.14 with a passive Rattle; none with an active one; a shot 0.05 with two active), and the
+  carrier's own first-person step (a hud sound, not quieted).
+- To hear it: the carrier's game muted (pavucontrol: its Wine stream muted, or s_general_volume 0
+  in its user.cfg before starting it), the listener's game playing; the listener stands still
+  within about 10 m and watches the carrier walk, run, jump and shoot, with the Rattle in an
+  artefact slot (steps 70 %), then active (steps silent, shots 50 %, 10 s), then after it (70 %).
+  The listener's window is then unfocused: LIKELY it keeps its sound (game::on_application_deactivate
+  0x1EDDA0 calls one engine world, +5358h, not the sound world's holder +5350h); if it is silent,
+  a second person drives one of the two games.
+- Open (the owner's decision): 0.20e also quieted the carrier's own steps (1st person 65 %
+  passive, 40 % active, keys dropped from our config); the owner's rules say others.

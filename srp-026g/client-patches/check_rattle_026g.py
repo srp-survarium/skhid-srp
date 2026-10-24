@@ -24,8 +24,13 @@ cook reads the content pack's own artefact_rattle.options. Each slot of
 ours is reached through the game's own caller too (the cases `driven: ...`,
 which patch_026g.py's INSTALLED_VTABLES names): the hud's quick slot
 (0x23A25B), artefact_base::action and tick, decrement_amount, and
-generic_anomaly_core's serialize and deserialize loops. What each case
-checks is printed.
+generic_anomaly_core's serialize and deserialize loops. Last, what a
+listener hears of a carrier (SoundWorld, a fresh Run of the build and of
+the original): his animation's foot event, his landing and his fire state's
+sound run through the game's own code to the point proxy it plays, and a
+listener's frame (the propagator the game makes of that proxy, 0x5C7A0, the
+voice's volume) gives the volume; and his own game in first person plays a
+hud sound, not quieted. What each case checks is printed.
 """
 import argparse
 import math
@@ -78,6 +83,286 @@ def quiet_of(gain):
     gain = min(max(f32(gain), 0.0), 1.0)
     q = f32(f32(f32(1.0 - gain) * 65535.0) + 0.5)
     return 0xFFFF if q >= 65535.0 else int(q)
+
+
+class SoundWorld:
+    """A made-up match around the game's own sound code, for one exe: a
+    carrier (place 3; the Game's inventory is his) with his equipment's
+    sound effect and a weapon's fire state, the world they play in (its
+    sound scene, step manager and client with the camera), and the sound
+    thread's side (a propagator of a played proxy, the listener's frame, the
+    voice). Answered here: the scene's pool of point proxies (0x65450, a
+    fresh block), the command that hands a played proxy to the sound thread
+    (0x5CEA0, recorded), the hud proxy maker (0x65100, recorded, no proxy),
+    the foot's ray, the step sound of a material (0x306D50), the weapon's
+    record of the sound events it played (0x245430, none yet), the voice
+    maker (0x59E70) and the sounds' own vtables. Everything between runs as
+    the game's code: the animation event to the step's proxy, the shot's
+    scheduled callback to its proxy, the proxies' constructor, position and
+    play, the propagator's constructor 0x5CB00, the listener's frame
+    0x5C7A0 and the voice's volume (notify_listener2 0x5C710..0x5C748,
+    0x633F0)."""
+    DISTANCE = 8.0                                  # metres: amplitude 2 / 8 = 0.25
+    VOLUME = 0.8                                    # the sound's own volume: a voice at 0.25 x 0.8 = 0.2
+
+    def __init__(self, r, game):
+        self.r = r
+        self.game = game
+        self.made, self.played, self.hud, self.voices = [], [], [], []
+        # the world (+94h the sound scene, +9Ch the client; slot 13 the step manager, slot 7 the
+        # materials), the client (+53ACh the camera, +5350h the sound world's holder), the scene's pool
+        world, client, scene, pool = r.allocate(0x5000), r.allocate(0x6000), r.allocate(0x200), r.allocate(0x40)
+        self.camera, holder, sound_world = r.allocate(0x10), r.allocate(0x10), r.allocate(0x200)
+        steps = r.allocate(0x40)
+        r.word(world, r.vtable({7: (lambda r: 0x7777, 0), 13: (lambda r: steps, 0)}))
+        r.word(world + 0x94, scene)
+        r.word(world + 0x9C, client)
+        r.word(client + 0x53AC, self.camera)
+        r.word(client + 0x5350, holder)
+        r.word(holder, r.vtable({2: (lambda r: sound_world, 0)}))
+        r.word(scene + 0x188, pool)
+        r.word(pool + 0x34, 16)                                       # 16 free, none taken
+        r.stub(self.take, 0, at=0x65450, name="the scene's pool")
+        r.stub(lambda r: self.played.append(r.arg(1)), 8, at=0x5CEA0, name="the sound thread's command")
+        r.stub(lambda r: (self.hud.append(r.arg(0)), r.word(r.arg(0), 0), r.arg(0))[2], 0x10, at=0x65100,
+               name="the hud proxy")
+        # the step manager (+4 the world) and its foot's ray: a hit (+1Ch of the ray's result) on material 7
+        hit, collision, middle = r.allocate(0x10), r.allocate(0x10), r.allocate(0x200)
+        r.word(steps + 4, world)
+        r.word(world + 0x4D4C, middle)
+        r.word(middle + 0x130, collision)
+        r.word(hit, r.vtable({4: (lambda r: 7, 8)}))
+        r.word(collision, r.vtable({18: (lambda r: r.word(r.arg(0) + 0x1C, hit), 0x20)}))
+        # a sound (its intrusive count +D0h) and the step sound of the material
+        self.sound = r.allocate(0x200)
+        r.word(self.sound, r.vtable({7: (lambda r: 0x5555, 0)}))
+        r.word(self.sound + 0xD0, 5)
+        record = r.allocate(0x80)
+        r.word(record + 0x20, self.sound)
+        r.stub(lambda r: record, 0, at=0x306D50, name="the step sound of a material")
+        # the carrier: the game's player (+10Ch the inventory, +114h place 3, +120h the world's core,
+        # +F474h the world, +F470h the view (+358h 0: first person), +118h his transform's holder)
+        self.player = player = r.allocate(0x10000)
+        r.word(player + 0x10C, game.inventory)
+        r.emu.mem_write(player + 0x114, bytes([game.PLACE, 0]))
+        r.word(player + 0x120, CORE)
+        r.word(player + 0xF474, world)
+        r.word(player + 0xF470, r.allocate(0x400))
+        transform = r.allocate(0x80)
+        r.word(player + 0x118, r.vtable({10: (lambda r: transform, 0)}))
+        r.word(player + 0xD0, 5)                                      # his intrusive count (the camera's hold)
+        r.float(player + 0x310, 1000.0)                               # no fall damage at the landing
+        r.word(player + 0xF460, r.allocate(0x40))                     # the landing's steps (0x23FBE0): their
+        r.floats(player + 0xF464, [1.0, 5.0])                         # sounds' table, speeds for a step and a
+        r.word(player + 0xF46C, 0)                                    # hard one, the last one's time
+        # his equipment's sound effect (+3Ch the player, +38h his movement, +40h the world, +44h feet set)
+        self.effect = effect = r.allocate(0x80)
+        movement, inner = r.allocate(0x40), r.allocate(0x40)
+        r.word(effect + 0x3C, player)
+        r.word(effect + 0x38, inner)
+        r.word(inner + 0x20, movement)
+        r.word(effect + 0x40, world)
+        r.emu.mem_write(effect + 0x44, b"\x01")
+        # his weapon (+8 the user, +594h the user's game object, +650h its position) and its fire state
+        # (weapon_core_fire_state 0xA04EE4, its weapon_sound_effect at +168h: +30h the weapon, +34h the
+        # world, +18h the third person's sounds and +24h the ones of them playing, +3Ah at most)
+        weapon = r.allocate(0x800)
+        r.word(weapon + 8, player)
+        r.word(weapon + 0x594, player + 0x110)
+        state = r.allocate(0x400)
+        r.word(state, 0xA04EE4)
+        self.shot = shot = state + 0x168
+        r.word(shot + 0x30, weapon)
+        r.word(shot + 0x34, world)
+        sounds, playing = r.allocate(0x10), r.allocate(0x40)
+        r.word(sounds, self.sound)
+        r.word(shot + 0x18, sounds)
+        r.word(shot + 0x1C, sounds + 4)
+        r.word(shot + 0x24, playing)
+        r.word(shot + 0x28, playing)
+        r.word(shot + 0x2C, playing + 0x40)
+        r.emu.mem_write(shot + 0x3A, b"\x08")
+        # the sound thread: the sound's interface for its propagators (slot 1 the envelope, +110h its
+        # length; slot 2 the description: +4 dB at 1 m, +8 its volume), the voice maker
+        self.description = r.allocate(0x40)
+        r.float(self.description + 8, self.VOLUME)
+        envelope, envelope_vt, holder_ = r.allocate(0x200), r.allocate(0x40), r.allocate(0x10)
+        loud = r.allocate(0x20)                                       # `fld 1.0 / ret 8`: full loudness
+        r.float(loud + 0x10, 1.0)
+        r.emu.mem_write(loud, b"\xD9\x05" + struct.pack("<I", loud + 0x10) + b"\xC2\x08\x00")
+        r.word(envelope_vt + 0x1C, loud)
+        r.word(envelope, envelope_vt)
+        r.word(envelope + 0x110, 1000)
+        r.word(holder_, envelope)
+        self.interface = r.allocate(0x10)
+        r.word(self.interface, r.vtable({1: (lambda r: holder_, 4), 2: (lambda r: self.description, 0)}))
+        r.stub(self.voice, 0xC, at=0x59E70, name="the voice maker")
+        r.stub(lambda r: 0, 0, at=0x245430, name="the weapon's played events")
+
+    def take(self, r):
+        proxy = r.allocate(0x90, 0xCD)
+        self.made.append(proxy)
+        return proxy
+
+    def voice(self, r):
+        voice, mixer = r.allocate(0x40), r.allocate(0x40)
+        r.word(voice + 0x14, mixer)
+        self.voices.append(mixer)
+        return voice
+
+    def view(self, first_person):
+        """the camera on the carrier in first person (his own game), or on no one (another's)"""
+        self.r.word(self.camera + 4, self.player if first_person else 0)
+
+    def step(self, first_person=False):
+        """an animation's foot event of the carrier (0x2A6470, event 0): the proxies played"""
+        r = self.r
+        self.view(first_person)
+        event = r.allocate(0x40)
+        r.word(event, self.player)
+        r.word(event + 0x10, r.read(CORE + 0x18FC4) + 100)           # after the world's time
+        before = len(self.played)
+        value, cleanup = r.thiscall(0x2A6470, self.effect, event)
+        return self.played[before:], (value, cleanup)
+
+    def landing(self, speed=7.5):
+        """player::on_landing 0x1F3B30 at `speed`, 60 ms after the last: the proxies played"""
+        r = self.r
+        self.view(False)
+        r.word(self.player + 0xF46C, 0)
+        r.word(self.player + 0x324, 60)
+        before = len(self.played)
+        r.emu.reg_write(UC_X86_REG_XMM0, struct.unpack("<I", struct.pack("<f", speed))[0])
+        _, cleanup = r.call(0x1F3B30, (struct.unpack("<I", struct.pack("<f", speed))[0],),
+                            {UC_X86_REG_ECX: self.player})
+        return self.played[before:], cleanup
+
+    def fire(self, first_person=False):
+        """the fire state's sound, as the timer runs it (play_sound_callback 0x297E20 with the
+        effect 0x2981A0 bound, sound 0, played): the proxies played"""
+        r = self.r
+        self.view(first_person)
+        before = len(self.played)
+        r.word(self.shot + 0x28, r.read(self.shot + 0x24))            # nothing playing
+        r.emu.reg_write(UC_X86_REG_EBX, 0)
+        _, cleanup = r.call(0x297E20, (0, 0, 0, 1), {UC_X86_REG_ECX: self.shot})
+        return self.played[before:], cleanup
+
+    def heard(self, proxy):
+        """a propagator of `proxy` (the game's 0x5CB00) at DISTANCE in a listener's frame (0x5C7A0):
+        (its proxy, amplitude, HDR loudness, the voice's volume or None for no voice)"""
+        r = self.r
+        propagator = r.allocate(0x60)
+        r.call(0x5CB00, (0,), {UC_X86_REG_EAX: proxy, UC_X86_REG_ECX: self.interface, UC_X86_REG_ESI: propagator})
+        r.word(propagator + 0x24, 10)                                 # started 10 ms ago
+        r.word(propagator + 0x2C, 1000)
+        r.float(propagator + 0x38, self.DISTANCE)
+        listener, span, array = r.allocate(0x400), r.allocate(8), r.allocate(4)
+        r.word(array, propagator)
+        r.word(span, array)
+        r.word(span + 4, array + 4)
+        before = len(self.voices)
+        r.call(0x5C7A0, (listener, span), {UC_X86_REG_EAX: 16})
+        volume = None
+        if len(self.voices) > before:
+            r.span(0x5C710, 0x5C748, {UC_X86_REG_EDI: propagator}, [0] * 10 + [self.description] + [0] * 8)
+            volume = r.readf(self.voices[-1] + 0x2C)
+        return r.read(propagator + 8), r.readf(propagator + 0x4C), r.readf(propagator + 0x40), volume
+
+
+def hold(emu, game, states):
+    """the Game's inventory's artefact slots 13..18: a Rattle cooked by `emu`'s cook in each state"""
+    for slot in range(13, 19):
+        emu.word(game.inventory + 0x10C + 4 * slot, 0)
+    for slot, state in zip(range(13, 19), states):
+        memory = emu.allocate(R_SIZE, 0xAB)
+        emu.thiscall(0x25E660, game.cook, memory, game.resource_ptr, emu.allocate(4), game.scene)
+        emu.word(memory + 0x25C, game.dict_item)
+        emu.thiscall(emu.read(emu.read(memory) + 4 * 28), memory, CORE)
+        emu.word(memory + STATE_AT, state)
+        emu.word(game.inventory + 0x10C + 4 * slot, memory)
+
+
+def real_path(check, built, original, options):
+    """The sounds others hear of a carrier, from the game's own event to the
+    voice, in the build and the original (SoundWorld)."""
+    worlds = {}
+    for name, data in (("build", built), ("original", original)):
+        emu = Run(pe_sections(data))
+        game = Game(emu, options)
+        worlds[name] = (emu, game, SoundWorld(emu, game))
+    r, game, w = worlds["build"]
+    stock, stock_game, s = worlds["original"]
+    full = SoundWorld.VOLUME * 2.0 / SoundWorld.DISTANCE              # 0.2: what everyone hears unquieted
+    near = lambda a, b: a is not None and b is not None and abs(a - b) < 1e-4
+
+    def one(world, played):
+        """the one proxy played, made by the scene's pool, as a listener hears it"""
+        if len(played) != 1 or played[0] != world.made[-1]:
+            return None
+        proxy, amplitude, loudness, volume = world.heard(played[0])
+        return proxy == played[0], world.r.read(played[0] + QUIET, 2), amplitude, loudness, volume
+
+    heard = {}
+    for states in ((), (3,), (4,)):
+        hold(r, game, states)
+        played, (value, cleanup) = w.step()
+        heard[states] = one(w, played), value, cleanup, r.read(STATE)
+    none, passive, active = (heard[k][0] for k in ((), (3,), (4,)))
+    hold(stock, stock_game, (4,))
+    stock_step = one(s, s.step()[0])
+    check("a step others hear, from the carrier's animation event (on_player_sound_event 0x2A6470, a foot: "
+          "on_foot_step, the step manager's on_step 0x248AD0, play_sound 0x657C0, the pool's point proxy "
+          "0x64F80 and its constructor, its position and play) to the voice a listener's frame makes of it "
+          "(the propagator 0x5CB00 of the proxy played, calculate_hdr_audio_frame 0x5C7A0, the voice's volume "
+          "0x633F0) at 8 m: no Rattle 0.2 as the original's (an active Rattle changes nothing there), a "
+          "passive Rattle 0.14 (x0.7), an active one no voice (amplitude 0); eax 0, ret 4, nothing pending "
+          "after",
+          none and passive and active and stock_step and none[0] and passive[0] and active[0]
+          and [none[1], passive[1], active[1]] == [0, quiet_of(0.7), 0xFFFF]
+          and near(none[4], full) and near(stock_step[4], full) and stock_step[1] == 0
+          and near(passive[4], full * 0.7) and near(passive[2], 0.25 * 0.7)
+          and active[4] is None and active[2] == 0.0
+          and abs(passive[3] - (none[3] + 20 * math.log10(0.7))) < 1e-3
+          and all(v[1:] == (0, 4, 0) for v in heard.values()),
+          f"volumes {none and none[4]}, {passive and passive[4]}, {active and active[4]}; the original "
+          f"{stock_step and stock_step[4]}")
+
+    hold(r, game, (3, 3))
+    played, cleanup = w.landing()
+    landing = one(w, played)
+    check("a landing others hear, from player::on_landing 0x1F3B30 (its step 0x23FBE0, on_step, 0x657C0) to "
+          "the voice: two passive Rattles 0.098 (x0.49); ret 4, nothing pending after",
+          landing and landing[0] and landing[1] == quiet_of(0.49) and near(landing[4], full * 0.49)
+          and cleanup == 4 and r.read(STATE) == 0, str(landing))
+
+    shots = {}
+    for states in ((), (3,), (4, 4)):
+        hold(r, game, states)
+        played, cleanup = w.fire()
+        shots[states] = one(w, played), cleanup
+    hold(stock, stock_game, (4, 4))
+    stock_shot = one(s, s.fire()[0])
+    bare, passive_shot, two_active = (shots[k][0] for k in ((), (3,), (4, 4)))
+    check("a shot others hear, from the fire state's sound as its timer runs it (play_sound_callback 0x297E20 "
+          "with the weapon_sound_effect at +168h of weapon_core_fire_state, emit_point_sound 0x65670, the "
+          "pool's proxy, its position and play) to the voice: no Rattle 0.2 as the original's, a passive one "
+          "0.2 (the passive leaves shots), two active 0.05 (x0.25); ret 10h",
+          bare and passive_shot and two_active and stock_shot and two_active[0]
+          and near(bare[4], full) and near(passive_shot[4], full) and near(stock_shot[4], full)
+          and two_active[1] == quiet_of(0.25) and near(two_active[4], full * 0.25)
+          and all(v[1] == 0x10 for v in shots.values()),
+          f"volumes {bare and bare[4]}, {passive_shot and passive_shot[4]}, {two_active and two_active[4]}; "
+          f"the original {stock_shot and stock_shot[4]}")
+
+    hold(r, game, (4,))
+    hud_before = len(w.hud)
+    played, (value, cleanup) = w.step(first_person=True)
+    check("the carrier's own game (its camera his, in first person): his step is a hud sound (0x65100), no "
+          "point proxy, nothing marked: the Rattle quiets him for the others, not for himself (rattle.md); two "
+          "local games on one machine both play to its speakers, his own at full",
+          played == [] and len(w.hud) == hud_before + 1 and value == 0 and cleanup == 4 and r.read(STATE) == 0,
+          f"{len(played)} point proxies, {len(w.hud) - hud_before} hud")
 
 
 def main():
@@ -483,6 +768,10 @@ def main():
               bcw.loads(data) == bcw.loads(options))
     else:
         print(f"  --  the pack's config not read (no {pack_config})")
+
+    # 9. The real path: what a listener hears, from the game's own event to the voice.
+    print("  from the carrier's event to the voice a listener hears")
+    real_path(check, built, original, options)
 
     failed = results.count(False)
     if failed:

@@ -1987,3 +1987,13 @@ va	name	source	ret_cleanup	result
 0x001f6670		manual	0	EAX: the items dictionary, [[[this+20h]+9Ch]+53A4h] (generic_anomaly_core_cook's vtable 0x9FC6DC slot 9; query_for_artefacts calls it before item_by_id 0x1F0090)
 0x001f6680		manual	0	EAX: the match seed, [[[this+20h]+9Ch]+53ACh] vt+34h (the match options) +577B0h (generic_anomaly_core_cook's slot 10); the map id is the u8 at +577B4h of the same options
 0x0031ba00	survarium::generic_anomaly_core::artefact_respawn_delay	manual	0	EAX: the next spawn's delay in ms from +130h and its variation; one draw of the core's random (+1B8h)
+0x0005cb00	vostok::sound::new_sound_propagator::new_sound_propagator	manual	4	EAX: the propagator (ESI); +8 the proxy, +0Ch the sound's interface, +18h the argument, the rest zeroed (+30h 3)
+0x0005aba0	vostok::sound::sound_instance_proxy_internal::play	manual	12	the three arguments at +2Ch..+34h, +7Ch counted, then emit_sound_propagators (0x5CEA0) with the proxy: the sound thread's command
+0x0005b200	vostok::sound::sound_instance_proxy_internal::set_position	manual	4	the position as three halves at +40h (one 8-byte atomic store, 0x52F40) unless +80h; slot 4 of the point proxy's vtable 0x9E0EC0
+0x0005cea0	vostok::sound::sound_scene::emit_sound_propagators	manual	8	posts emit_sound_propagators_impl (0x5CFF0) for the proxy to the sound thread
+0x00065450	vostok::memory::new_helper<vostok::sound::sound_instance_proxy_internal>::call<vostok::memory::single_size_buffer_allocator<144,vostok::threading::multi_threading_policy> >	manual	0	EAX: a 90h block of the pool, +30h counted
+0x00065100	vostok::sound::sound_scene::new_hud_sound_instance_proxy	manual	16	EAX: the first argument, &the new hud proxy (its intrusive pointer)
+0x00059e70	vostok::sound::sound_world::create_sound_voice	manual	12	EAX: the voice (0: none)
+0x000633f0		manual	4	a voice's volume: [[EAX+14h]+2Ch] = clamp(the float, 0, 1), at once for a new voice (+24h), else when it changed by 1e-5 or more
+0x00306d50		manual	0	EAX: the step sounds of a material (a table at ECX+308h); step_manager::on_step plays its +20h
+0x00245430		manual	0	AL: 1 when the weapon's record (ECX+828h) already has the sound event (EAX): on_sound_event plays it no more; else 0, recorded (0x245B70)
