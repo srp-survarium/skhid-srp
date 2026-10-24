@@ -40,8 +40,9 @@ Edits (edits.json):
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
   "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
                     a new key of the named table in each file, in its place by name CRC: a bool,
-                    an int, a float (a number with a point), a text, or an object (a named table of
-                    those); a file that has the key already is refused
+                    an int, a float (a number with a point), a text, an object (a named table of
+                    those) or a list (an indexed table of those; its items unnamed, as the game's
+                    files keep them); a file that has the key already is refused
   "remove_item":    [{"file", "path", "value"}]        the one item equal to `value` of an indexed table of
                                                        numbers (an item's `default_modifications`) or of
                                                        strings (a weapon's `death` animations); the
@@ -357,11 +358,15 @@ def add_key(buf, table, key, text):
 def value_record(buf, name_off, key, value):
     """A 24-byte record of `value` named `key` (its name at `name_off`); a table's children and
     texts are appended."""
-    crc = zlib.crc32(key.encode()) & 0xffffffff
+    crc = zlib.crc32(key.encode()) & 0xffffffff if key is not None else 0
     if isinstance(value, dict):
         kids = sorted((value_record(buf, append(buf, k.encode() + b'\0'), k, v) for k, v in value.items()),
                       key=lambda r: REC.unpack(r)[2])
         return REC.pack(append_array(buf, kids) if kids else 0, name_off, crc, T_NAMED, len(kids))
+    if isinstance(value, list):
+        # an indexed table: its items in order, with no name (offset 0, CRC 0) as the game's files
+        kids = [value_record(buf, 0, None, v) for v in value]
+        return REC.pack(append_array(buf, kids) if kids else 0, name_off, crc, T_INDEXED, len(kids))
     if isinstance(value, bool):
         return REC.pack(int(value), name_off, crc, T_BOOL, 4)
     if isinstance(value, int):
@@ -809,7 +814,7 @@ def main():
                 (o and n and o[0] == n[0] == T_STR and (o[1], n[1]) in strings) or \
                 (o and n and o[0] == n[0] == T_STR and any(q.endswith('/' + k.decode()) and n[1] == x + o[1]
                                                            for k, x in prefixed.get(p, ()))) or \
-                (o is None and any(q == a or q.startswith(a + '/') for a in added.get(p, ()))) or \
+                (o is None and any(q == a or q.startswith((a + '/', a + '[')) for a in added.get(p, ()))) or \
                 (o and n and o[0] == n[0] and n[1] - o[1] == grown.get(p, {}).get(q, 0) != 0)
             bad += not ok
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))

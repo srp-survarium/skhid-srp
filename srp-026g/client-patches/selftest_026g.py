@@ -409,6 +409,24 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     its remove_affects, artefact_base::action's entry, the player's
     stagger) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
+59. the same build: the Sponge and the Rattle (patch 59). The Sponge
+    (sponge_a_026g.asm and sponge_a_026g.c, the arena's blocks sponge.code
+    and sponge.state): the original's ten sites and a slot (the artefact cook's
+    construct and size switches and its query's entry, the throw-grenade
+    state's way in, is_ready, throw and the pull substate's pin, the damage
+    zone's hit, the anomaly cook's look-up of a core's kinds, spawn_artefact's pick of an
+    artefact, the core's resolve_links slot), the jumps and
+    the call to their symbols, no relocation under one and no branch into
+    one, the entries and the stubs' exits, the C code's calls through the
+    engine library, the hit inflictor's vtable (the game's three functions).
+    check_sponge_a_026g.py runs it. The Rattle (rattle_026g.asm and
+    rattle_026g.c, the blocks rattle.code and rattle.state): the original's
+    seven sites (the cook's case for type 8, on_player_sound_event's entry,
+    on_landing's step, the two point proxies' makers, the sound thread's
+    stores of a propagator's amplitude and HDR loudness) and the hooks to
+    their symbols, no relocation under one and no branch into one, the
+    cook's size for type 8, the entries, the stubs' exits, the C code's
+    calls through the engine library. check_rattle_026g.py runs it.
 The engine-function library (engine_026g.py, the arena's block engine.code;
 client_patch.md section 0.5): its files are what engine_026g.tsv and the
 re-kit's ABI rows give, and engine_026g.py refuses a spec row whose
@@ -495,6 +513,12 @@ def ndisasm(code, va):
     rows = []
     for line in out.splitlines():
         parts = line.split(None, 2)
+        if len(parts) == 1 and parts[0].startswith("-") and rows:
+            # an instruction of more than 8 bytes: ndisasm puts the rest of
+            # its bytes on a line of their own (`         -A000`)
+            at, code_hex, text = rows[-1]
+            rows[-1] = (at, code_hex + parts[0][1:], text)
+            continue
         if len(parts) == 3 and not parts[0].startswith("-"):
             # ndisasm 3 spells the same 32-bit indirect call with explicit
             # size/distance qualifiers; keep the 2.x spelling for checks.
@@ -1534,7 +1558,10 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
-        [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.SPONGE_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.RATTLE_HOOKS] + \
+        [(va, len(old)) for va, old, _ in P.RATTLE_SIZES]
 
 
 def pickup_sites():
@@ -2159,7 +2186,21 @@ def function_pops(image, entry, limit=20000):
             target = branch_target(text)
             if op == "jmp":
                 if target is None:
-                    lost.append(f"{va:#x}: {text}")
+                    # A switch's jump table after the function's code (MSVC's
+                    # `jmp [r*4+table]`): its entries, read while each aims
+                    # between the function's entry and the table.
+                    table = re.fullmatch(r"jmp (?:dword )?\[(?:e[a-d]x|e[sd]i|ebp)\*4\+0x([0-9a-f]+)\]", text)
+                    cases = []
+                    if table:
+                        at = int(table.group(1), 16)
+                        while len(cases) < 256:
+                            case = struct.unpack("<I", image.read(at + 4 * len(cases), 4))[0]
+                            if not entry <= case < at:
+                                break
+                            cases.append(case)
+                    if not cases:
+                        lost.append(f"{va:#x}: {text}")
+                    todo += cases
                     break
                 va = target
                 continue
@@ -2386,6 +2427,209 @@ def test_fov_lod(original, image, before):
                        and any(va + 4 > site and va < site + len(old) for site, old, _, _ in P.FOV_LOD_HOOKS))
     check(relocated == P.FOV_LOD_RELOCS, "the original has a base relocation under each site, at its constant's "
           f"address ({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), disabled in the build")
+
+
+def test_sponge_a(original, image, before):
+    """Check 59: the Sponge (patch 59, SPONGE_HOOKS; link_026g.py links
+    sponge_a_026g.asm and sponge_a_026g.c into the arena's blocks sponge.code
+    and sponge.state; check_sponge_a_026g.py runs the cook, the throw state's
+    sites, the fuse, the splash, the zone, the serialization and each slot of
+    ours through the game's own callers). Here: each site is the original's
+    instructions before and the jump to its symbol after, with no relocation
+    under it and no branch into it; the entries are jumps; the stubs leave
+    only to the sites' ways on and the original calls they replace; the C
+    code calls the game through the engine library, never by a game VA. Each
+    slot of ours popping what Rattle's pops is test_call_shapes'
+    (INSTALLED_VTABLES), the query's callback too (CALLBACKS)."""
+    source = Image(original)
+    linked = P.arena()
+    code = P.linker.block_bytes(linked, "sponge.code")
+    block, state = linked.blocks["sponge.code"], linked.blocks["sponge.state"]
+    check(block.kind == "code" and block.va % 0x1000 == 0 and image.read(block.va, len(code)) == code
+          and state.kind == "state"
+          and all(state.va <= linked.symbols[name] < state.va + state.size
+                  for name in ("sp_g", "sp_kinds", "sp_kinds_next", "sp_spots", "sp_spot_cores", "sp_spot_generation",
+                               "sp_linked"))
+          and not any(image.read(state.va, state.size)),
+          f"the Sponge's code is the arena's block sponge.code at {block.va:#x} ({len(code)} bytes, the link's), "
+          f"its state (sp_g, the kinds' copies and their turn, the map's spots, the cores' spots) the block "
+          f"sponge.state at {state.va:#x}, "
+          f"{state.size:#x} bytes of zeros")
+    originals = {
+        0x25E68A: ["cmp eax,0x5", "ja near 0x25e737"], 0x25E79A: ["cmp eax,0x5", "ja 0x25e7d2"],
+        0x25E800: ["push ebp", "mov ebp,esp", "and esp,-0x8"],
+        0x2E40C6: ["mov eax,[ecx]", "mov edx,[eax+0x64]", "call edx", "call 0x30a090"],
+        0x33A677: ["mov ecx,[esi+0x17c]", "mov edx,[ecx+0x268]"],
+        0x33A7BB: ["mov ecx,[esi+0x17c]", "add edi,0x44c", "push edi", "lea eax,[esp+0x14]", "push eax",
+                   "mov al,[esi+0x180]", "push ecx", "call 0x30a250"],
+        0x3103C9: ["mov esi,[esi+0x138]", "mov ecx,[esi+0x17c]", "push eax", "push ecx", "call 0x30a120"],
+        0x319C8B: ["push ebx", "push ebx", "sub esp,0x8", "fstp [esp+0x4]", "fld [esp+0x20]",
+                   "fstp [esp]", "push edx", "lea edx,[esp+0x3c]", "push edx", "mov edx,[esp+0xb4]",
+                   "push ebx", "push edx", "call eax"],
+        0x2E9D53: ["call 0xf6b10"],
+        0x31B800: ["xor ebx,ebx", "mov [ebp-0x18],ecx", "mov [ebp-0x14],eax", "test esi,esi", "jna 0x31b83c",
+                   "mov edx,[edi+0x1b0]", "mov eax,[edx+ebx*4]", "cmp [eax+0x280],0x0", "jnz 0x31b82d",
+                   "mov [ebp-0xc],eax", "lea eax,[ebp-0xc]", "push eax", "lea esi,[ebp-0x18]", "call 0x31c250",
+                   "inc ebx", "cmp ebx,[edi+0x1b4]", "jc 0x31b80c", "mov eax,[ebp-0x14]", "mov ecx,[ebp-0x18]",
+                   "sub eax,ecx", "sar eax,byte 0x2", "mov edx,eax", "test edx,edx", "jna 0x31b8c2",
+                   "mov eax,[edi+0x1b8]", "imul eax,eax,0x8088405", "inc eax", "mov [edi+0x1b8],eax", "mul edx",
+                   "mov edx,[ecx+edx*4]"]}
+    loose = lambda text: text.replace("byte +", "").replace("byte -", "-").replace("dword ", "")
+    entries = []
+    for va, old, symbol, opcode in P.SPONGE_HOOKS:
+        rows = ndisasm(source.read(va, len(old)), va)
+        hooked = ndisasm(image.read(va, len(old)), va)
+        entry = linked.symbols[symbol]
+        entries.append(entry)
+        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
+              and [loose(text) for _, _, text in rows] == originals[va]
+              and hooked[0][2].startswith("call" if opcode == 0xE8 else "jmp")
+              and branch_target(hooked[0][2]) == entry
+              and block.va <= entry < block.va + 5 * len(P.SPONGE_HOOKS)
+              and all(text == "nop" for _, _, text in hooked[1:]),
+              f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]} ({symbol}) + {len(hooked) - 1} nop; "
+              "the build without the late join keeps it" + ("" if [loose(t) for _, _, t in rows] == originals[va]
+                                                              else f" (ndisasm: {[loose(t) for _, _, t in rows]})"))
+        hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
+                if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
+        relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
+        check(not hits and not relocated, f"{va:#x}: no branch aims inside the site, no base relocation under it"
+              + "".join(f", {h:#x}" for h in hits + relocated))
+    va, old, symbol = P.SPONGE_SLOT
+    entry = linked.symbols[symbol]
+    relocated = [r for kind, r in source.relocations().values() if kind == 3 and r == va]
+    check(source.read(va, 4) == old == before.read(va, 4) and struct.unpack("<I", old)[0] == 0x33C440
+          and image.read(va, 4) == struct.pack("<I", entry) and relocated == [va],
+          f"{va:#x}: generic_anomaly_core's resolve_links slot, 0x33C440 in the original and the build without the "
+          f"late join, {symbol} ({entry:#x}) here; its base relocation kept (the exe is never rebased)")
+    entries.append(entry)
+    check(entries == [block.va + 5 * i for i in range(11)]
+          and [t.split()[0] for _, _, t in ndisasm(image.read(block.va, 0x37), block.va)] == ["jmp"] * 11,
+          "the block starts with its eleven entries, `jmp near` each: construct, size, query, predicate, ready, "
+          "throw, pull, zone_hit, artefacts, spawn, links")
+    # the stubs: from the entries to the first C function (the asm's .text comes first in the block)
+    c_start = min(va for name, va in linked.symbols.items() if name.startswith("sp_") and block.va <= va < block.va
+                  + len(code))
+    plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
+    texts = [plain(t) for _, _, t in ndisasm(code[:c_start - block.va], block.va)]
+    targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
+    outside = {c for c in targets if not block.va <= c < block.va + len(code)}
+    check(outside == {0x25E737, 0x25E693, 0x25E7D2, 0x25E79F, 0x25E806, 0x30A090, 0x2E40D2, 0x33A683, 0x33A696,
+                      0x33A692, 0x30A250, 0x33A7D9, 0x30A120, 0x3103DC, 0x319CAC, 0xF6B10, 0x31B85F, 0x31B8C2,
+                      0x33C440},
+          "the stubs leave to the switches' defaults and tables, the query's way on, each throw-state site's way "
+          "on and the call each replaces, the zone hit's way on, the kinds' look-up it replaces (operator[] "
+          "0xF6B10), spawn_artefact's two ways on (an artefact, none) and the slot's own resolve_links "
+          f"({sorted(hex(c) for c in outside)})")
+    # The C code reaches the game's functions through the engine library
+    # (check_engine_026g.py proves each thunk): a call of each one's entry,
+    # and none of their VAs in the code.
+    import engine_026g
+    library = {f["symbol"]: (linked.symbols[f["symbol"]], f["va"]) for f in engine_026g.functions()}
+    c_listing = [plain(t) for _, _, t in ndisasm(code[c_start - block.va:], c_start)]
+    for symbol in ("engine_cfg_child", "engine_cfg_has", "engine_malloc", "engine_free", "engine_query_resources",
+                   "engine_resource_release", "engine_rattle_construct", "engine_rattle_loaded",
+                   "engine_rattle_set_world", "engine_rattle_draw", "engine_rattle_destroy", "engine_cook_finish_query",
+                   "engine_artefact_tick", "engine_artefact_serialize", "engine_artefact_deserialize",
+                   "engine_apply_modifier", "engine_find_pool", "engine_hand_transform", "engine_splash_hit",
+                   "engine_inventory_remove_item", "engine_sensor_insert", "engine_zone_tick", "engine_zone_deactivate",
+                   "engine_geometry_load", "engine_geometry_destroy", "engine_create_collision_shape",
+                   "engine_create_rigid_body", "engine_destroy_shape", "engine_rt_cast_to_void",
+                   "engine_body_set_linear_velocity", "engine_body_set_angular_velocity",
+                   "engine_body_linear_velocity", "engine_body_angular_velocity", "engine_matrix_multiply",
+                   "engine_matrix_translation", "engine_matrix_rotation", "engine_write_u8", "engine_write_u32",
+                   "engine_write_matrix", "engine_write_float3", "engine_scene_add_model", "engine_scene_update_model",
+                   "engine_scene_remove_model", "engine_damage_type_of", "engine_config_variant_type"):
+        entry, real = library[symbol]
+        named = any(t == f"call {entry:#x}" or t.endswith(f",{entry:#x}") or t == f"push {entry:#x}"
+                    for t in c_listing)
+        check(named and struct.pack("<I", real) not in code[c_start - block.va:],
+              f"the C code calls {symbol} ({entry:#x}, the library's thunk of {real:#x}), not {real:#x} itself")
+    read32 = lambda va: struct.unpack("<I", image.read(va, 4))[0]
+    inflictor = linked.symbols["sp_inflictor_vtable"]
+    check([read32(inflictor + 4 * i) for i in range(4)] == [0xA5291C, 0x300040, 0x300040, 0x346480]
+          and source.read(0x346480, 4) == bytes.fromhex("8d4110c3"),
+          "the hit inflictor's vtable: grenade_core's locator, not a bullet, not a grenade (0x300040), the position "
+          "the game's getter 0x346480 (`lea eax,[ecx+10h] / ret`: the field after the inflictor's four)")
+
+
+def test_rattle(original, image, before):
+    """Check 59: the Rattle (patch 59, RATTLE_HOOKS and RATTLE_SIZES;
+    link_026g.py links rattle_026g.asm and rattle_026g.c into the arena's
+    blocks rattle.code and rattle.state; check_rattle_026g.py runs the cook,
+    the active, the serialization, the sound hooks and the quiet, each slot
+    of ours through the game's own callers). Here: each site is the
+    original's instructions before and the call or jump to its symbol after,
+    with no relocation under it and no branch into it; the cook's size of a
+    type 8 artefact; the entries are jumps; the stubs leave only to the
+    sites' ways on and the calls they replace; the C code calls the game
+    through the engine library, never by a game VA. Each slot of ours popping
+    what Rattle's pops is test_call_shapes' (INSTALLED_VTABLES)."""
+    source = Image(original)
+    linked = P.arena()
+    code = P.linker.block_bytes(linked, "rattle.code")
+    block, state = linked.blocks["rattle.code"], linked.blocks["rattle.state"]
+    check(block.kind == "code" and block.va % 0x1000 == 0 and image.read(block.va, len(code)) == code
+          and state.kind == "state" and linked.symbols["rt_g"] == state.va and not any(image.read(state.va, state.size)),
+          f"the Rattle's code is the arena's block rattle.code at {block.va:#x} ({len(code)} bytes, the link's), "
+          f"its state rt_g the block rattle.state at {state.va:#x}, zeros")
+    originals = {
+        0x25E72C: ["call 0x25fa10"], 0x2A6470: ["mov eax,ecx", "mov edx,[eax+0x3c]"],
+        0x1F3BB6: ["call 0x23fbe0"], 0x065874: ["call 0x64f80"], 0x297F79: ["call 0x65670"],
+        0x05CA37: ["movss [esi+0x4c],xmm0"], 0x05C8BA: ["movss [esi+0x40],xmm0"]}
+    loose = lambda text: text.replace("byte +", "").replace("byte -", "-").replace("dword ", "")
+    entries = []
+    for va, old, symbol, opcode in P.RATTLE_HOOKS:
+        rows = ndisasm(source.read(va, len(old)), va)
+        hooked = ndisasm(image.read(va, len(old)), va)
+        entry = linked.symbols[symbol]
+        entries.append(entry)
+        kind = "call" if opcode == 0xE8 else "jmp"
+        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
+              and [loose(text) for _, _, text in rows] == originals[va]
+              and hooked[0][2].startswith(kind) and branch_target(hooked[0][2]) == entry
+              and all(text == "nop" for _, _, text in hooked[1:]),
+              f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]} ({symbol}); the build without the late "
+              "join keeps it" + ("" if [loose(t) for _, _, t in rows] == originals[va]
+                                 else f" (ndisasm: {[loose(t) for _, _, t in rows]})"))
+        hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
+                if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
+        relocated = [r for kind_, r in source.relocations().values() if kind_ == 3 and r + 4 > va and r < va + len(old)]
+        check(not hits and not relocated, f"{va:#x}: no branch aims inside the site, no base relocation under it"
+              + "".join(f", {h:#x}" for h in hits + relocated))
+    for va, old, new in P.RATTLE_SIZES:
+        relocated = [r for kind_, r in source.relocations().values() if kind_ == 3 and r + 4 > va and r < va + len(old)]
+        check(source.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              and [t for _, _, t in ndisasm(source.read(0x25E7C7, 11), 0x25E7C7)] == [
+                  "pop edi", "pop esi", "mov eax,0x360", "pop ebx", "ret 0x4"] and not relocated,
+              f"{va:#x}: the cook's size of a type 8 artefact, 360h (Rattle's) in the original and the build "
+              f"without the late join, {P.RATTLE_OBJECT_SIZE:#x} here (struct rattle)")
+    check(entries == [block.va + 5 * i for i in range(7)]
+          and [t.split()[0] for _, _, t in ndisasm(image.read(block.va, 0x23), block.va)] == ["jmp"] * 7,
+          "the block starts with its seven entries, `jmp near` each: construct, steps, landing, point, shot, "
+          "amplitude, loudness")
+    c_start = min(va for name, va in linked.symbols.items() if name.startswith("rt_") and block.va <= va < block.va
+                  + len(code))
+    plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
+    texts = [plain(t) for _, _, t in ndisasm(code[:c_start - block.va], block.va)]
+    targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
+    outside = {c for c in targets if not block.va <= c < block.va + len(code)}
+    check(outside == {0x25FA10, 0x2A6475, 0x23FBE0, 0x64F80, 0x65670, 0x5CA3C, 0x5C8BF},
+          "the stubs leave to Rattle's constructor, on_player_sound_event's way on, on_landing's step, the two "
+          f"point proxies' makers, and the sound thread's two ways on ({sorted(hex(c) for c in outside)})")
+    import engine_026g
+    library = {f["symbol"]: (linked.symbols[f["symbol"]], f["va"]) for f in engine_026g.functions()}
+    c_listing = [plain(t) for _, _, t in ndisasm(code[c_start - block.va:], c_start)]
+    for symbol in ("engine_cfg_child", "engine_cfg_has", "engine_artefact_serialize", "engine_artefact_deserialize",
+                   "engine_artefact_ui_info", "engine_apply_modifier", "engine_write_u32"):
+        entry, real = library[symbol]
+        named = any(t == f"call {entry:#x}" or t.endswith(f",{entry:#x}") or t == f"push {entry:#x}"
+                    for t in c_listing)
+        check(named and struct.pack("<I", real) not in code[c_start - block.va:],
+              f"the C code calls {symbol} ({entry:#x}, the library's thunk of {real:#x}), not {real:#x} itself")
+    for va, what in ((0xA04EE4, "weapon_core_fire_state's handler"), (0xA05150, "the double barrel's fire handler"),
+                     (0xA05248, "the pistol's fire handler")):
+        check(struct.pack("<I", va) in code[c_start - block.va:], f"the C code names {what} ({va:#x})")
 
 
 # A battery's usable-object vtables: can_use at +30h, get_transform at +44h.
@@ -5561,6 +5805,7 @@ def test_late_join(original, without, server, source):
     ranges = [(P.file_offset(va), size) for va, size in late_join_sites()]
     ranges.append((P.data_file_offset(P.CLOCK_FACTOR_VA), 4))
     ranges.append((image.offset(P.REPLAY_REATTACH_SLOT[0]), 4))
+    ranges.append((image.offset(P.SPONGE_SLOT[0]), 4))
     ranges += [(P.file_offset(P.REVISION_VA) + 4, 1), (P.file_offset(P.LATE_JOIN_READY_VA) + 1, 4),
                (P.file_offset(P.DB_SIGNATURE_VA), len(P.DB_SIGNATURE[1])), (P.file_offset(P.STALE_DLL_VA), len(P.STALE_DLL[1])),
                (P.file_offset(P.MOUNT_QUERY_VA), len(P.MOUNT_QUERY[1])), (P.file_offset(P.MOUNTED_VA), len(P.MOUNTED[1])),
@@ -5705,6 +5950,8 @@ def test_late_join(original, without, server, source):
     test_spot(original, image, before)
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)
+    test_sponge_a(original, image, before)
+    test_rattle(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)
