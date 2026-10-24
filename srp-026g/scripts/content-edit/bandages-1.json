@@ -1,0 +1,14 @@
+{
+ "_about": "The bandage buff (the owner, 2026-10-24: legs and hands full, pain, body and head 35 %; srp-026g/docs/notes/bandages.md). Pack of bandages (bandages, dict id 66, the only bandage of 0.26g's dictionary): an influence is the pool's health added per second while the drug is active (medkit::tick 0x33D790: amount x the elapsed seconds x drug_amount (57), increase_health 0x32A420, clamped to the pool's max), for data/activity_time_sec 1 s after activation_delay_sec 1 s. Hands and legs (max 0.5) 0.3/s -> 1/s, full as the medkit's 1/s; three new influences after right_leg, made like it: body (max 1.0) 0.35/s, head (max 0.4) 0.14/s, pain (max 1.0) 0.35/s, 35 % of each pool in the 1 s. The injury removal, times, weight and card unchanged.",
+ "set": [
+  {"file": "gameplay/items/drugs/bandages.options", "path": "data/influences[0]/amount", "from": 0.3, "to": 1},
+  {"file": "gameplay/items/drugs/bandages.options", "path": "data/influences[1]/amount", "from": 0.3, "to": 1},
+  {"file": "gameplay/items/drugs/bandages.options", "path": "data/influences[2]/amount", "from": 0.3, "to": 1},
+  {"file": "gameplay/items/drugs/bandages.options", "path": "data/influences[3]/amount", "from": 0.3, "to": 1}
+ ],
+ "add_entry": [
+  {"files": "gameplay/items/drugs/bandages.options", "list": "data/influences", "after": {"body_part": "right_leg"}, "like": {"body_part": "right_leg"}, "values": {"body_part": "body", "amount": 0.35}},
+  {"files": "gameplay/items/drugs/bandages.options", "list": "data/influences", "after": {"body_part": "body"}, "like": {"body_part": "right_leg"}, "values": {"body_part": "head", "amount": 0.14}},
+  {"files": "gameplay/items/drugs/bandages.options", "list": "data/influences", "after": {"body_part": "head"}, "like": {"body_part": "right_leg"}, "values": {"body_part": "pain", "amount": 0.35}}
+ ]
+}
