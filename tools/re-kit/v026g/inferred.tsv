@@ -855,12 +855,12 @@ va	status	ref_021d	name
 0x0014ad80	inferred-medium	0x000f0386	vostok::buffer_vector<vostok::render::sun_cascade>::push_back
 0x0014aeb0	inferred-medium	0x000f0444	vostok::render::sun_cascade::sun_cascade
 0x0014c9c0	inferred-medium	0x000f178d	vostok::buffer_vector<vostok::render::stage_particles::particle_emitter_instance_entry>::push_back
-0x0014d080	inferred-medium	0x000f18a1	vostok::render::decal_properties::decal_properties
+0x0014d080	inferred-high	0x000f18a1	vostok::render::decal_properties::decal_properties
 0x0014d170	inferred-medium	0x000f1943	vostok::render::decal_shader_constants_and_geometry::decal_shader_constants_and_geometry
 0x0014d2d0	inferred-medium	0x000f1a42	vostok::render::decal_shader_constants_and_geometry::set
 0x0014d370	inferred-medium	0x000f1abc	vostok::render::decal_shader_constants_and_geometry::create_decal_geometry
-0x0014da80	inferred-medium	0x000f1eb6	vostok::render::get_decal_view_matrix
-0x0014dbd0	inferred-medium	0x000f1fc2	vostok::render::get_world_to_decal_matrix
+0x0014da80	inferred-high	0x000f1eb6	vostok::render::get_decal_view_matrix
+0x0014dbd0	inferred-high	0x000f1fc2	vostok::render::get_world_to_decal_matrix
 0x0014e2e0	inferred-medium	0x000f23cc	vostok::render::skeleton_decal_instance_node::on_model_updated
 0x0014ea60	inferred-medium	0x000f282a	vostok::render::material::initialize_nomaterial_material
 0x0014ee20	inferred-medium	0x000f29cf	vostok::render::base_basis::set
@@ -3033,12 +3033,15 @@ va	status	ref_021d	name
 0x002f5d40	inferred-medium		survarium::shared_statistics::notify_listener
 0x0026db80	inferred-medium		survarium::base_game_statistics_handler::on_event
 0x0001ddb0	inferred-high		vostok::console_commands::cc_value<bool>::cc_value
+0x000eef40	inferred-high		vostok::math::create_orthographic_projection
+0x00179650	inferred-high		std::sort<vostok::render::decal_instance **,sort_by_priority_predicate>
 0x0026b6f0	inferred-medium	0x0019b858	survarium::messaging_client::process_incoming_text_message
 0x0026db80	inferred-high		survarium::base_game_statistics_handler::on_event
 0x0026db60	inferred-high		survarium::base_game_statistics_handler::deserialize
 0x0026dc30	inferred-high		survarium::base_game_statistics_handler::recalculate_scores
 0x00207450	inferred-medium		survarium::key_binder::bind_command_save
 0x0023b5f0	inferred-medium		survarium::game_world_ui::on_world_event
+0x00263330	inferred-high		vostok::render::decal_properties::decal_properties
 0x002d43b0	inferred-medium		survarium::game_world_core::new_world_event
 0x002d0a60	inferred-medium		survarium::game_world_core::push_world_event
 0x002e58b0	inferred-medium		survarium::damage_model::find_body_part

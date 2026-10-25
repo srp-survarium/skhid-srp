@@ -4436,6 +4436,15 @@ va	name	location	role	basis
 0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	entry ESP+8	the value address of a bool byte (+40h)	observed
 0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	entry ESP+12	saved to user.cfg, a byte (+1Dh; 1 for show_quests_progress)	observed
 0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	entry ESP+16	a command kind (+14h; 2 for show_quests_progress)	observed
+0x000eef40	vostok::math::create_orthographic_projection	EAX	out float4x4	observed
+0x000eef40	vostok::math::create_orthographic_projection	XMM0	far	observed
+0x000eef40	vostok::math::create_orthographic_projection	XMM3	near	observed
+0x000eef40	vostok::math::create_orthographic_projection	entry ESP+4	width	observed
+0x000eef40	vostok::math::create_orthographic_projection	entry ESP+8	height	observed
+0x0014dbd0	vostok::render::get_world_to_decal_matrix	entry ESP+4	out float4x4	observed
+0x0014dbd0	vostok::render::get_world_to_decal_matrix	entry ESP+8	decal_instance (+4 transform, +58h width, +5Ch height, +60h far distance)	observed
+0x00179650	std::sort<vostok::render::decal_instance **,sort_by_priority_predicate>	ESI	first	observed
+0x00179650	std::sort<vostok::render::decal_instance **,sort_by_priority_predicate>	EAX	last (stage_decals_accumulate::execute 0x178A52 sorts its copy of the visible decals)	observed
 0x0025cd00	survarium::game_world::on_keyboard_action	ECX	the game world's input handler (game_world+1F8h; the hud at +4, the hud's cursor flag at +2E0h)	observed
 0x0025cd00	survarium::game_world::on_keyboard_action	entry ESP+4	the input world	observed
 0x0025cd00	survarium::game_world::on_keyboard_action	entry ESP+8	the key (DirectInput code: 2..4 the keys 1..3, 1Ch Enter, 1 Esc)	observed

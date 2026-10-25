@@ -1903,6 +1903,10 @@ va	name	source	ret_cleanup	result
 0x000e5b60	vostok::resources::query_resources	manual	0	
 0x00233810	survarium::game_world_ui::game_world_ui	manual	4	
 0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	manual	16	
+0x000eef40	vostok::math::create_orthographic_projection	manual	0	EAX: the matrix (D3DXMatrixOrthoLH: 2/w, 2/h, 1/(far-near), -near/(far-near))
+0x0014d080	vostok::render::decal_properties::decal_properties	manual		the default: draw_priority (+68h) 0 (bullet marks: game_world add_decal 0x25BEE7)
+0x0014dbd0	vostok::render::get_world_to_decal_matrix	manual	0	EAX: the matrix: no origin shift (the direction offset multiplied by 0), ortho(decal_width, decal_height, 0.01, decal_far_distance)
+0x00179650	std::sort<vostok::render::decal_instance **,sort_by_priority_predicate>	manual	0	
 0x0025cd00	survarium::game_world::on_keyboard_action	manual	12	AL: 1 the key taken (no later handler gets it)
 0x00208ad0	survarium::chat_handler::add_message	manual	20	
 0x00207d50	survarium::key_binder::get_binded_action	manual	4	EAX: the bound action's id (game_action_id); 49h when the key is bound to no action of the kinds asked
