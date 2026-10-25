@@ -7583,6 +7583,68 @@ mod pocket_runs {
         assert!(!grid.in_shut_pocket(node));
     }
 
+    /// A route's point with the players' height over a walkway 4 m up,
+    /// open both ways (a ramp to it) over an open floor, is put on the
+    /// level they stood at: the walkway for 4 m, the floor under it for
+    /// 0 m. Without a height, or with one no floor near has (12 m), it
+    /// takes the lowest floor, as before (level_07's middle deck at 20.6 m,
+    /// `HumanRoute::on_floors`).
+    #[test]
+    fn a_route_point_with_a_height_lands_on_the_walkway_over_an_open_floor() {
+        let deck = 4.0;
+        let mut tris: Vec<Triangle> = Vec::new();
+        tris.extend(floor(0.0, 0.0, 80.0, 40.0, 0.0));
+        tris.extend(floor(30.0, 10.0, 36.0, 30.0, deck));
+        let walker = WalkerBehaviour::BySlope;
+        let (a, b, c, d) = (
+            Vec3::new(36.0, deck, 18.0),
+            Vec3::new(52.0, 0.0, 18.0),
+            Vec3::new(52.0, 0.0, 22.0),
+            Vec3::new(36.0, deck, 22.0),
+        );
+        tris.push(Triangle {
+            v: [a, b, c],
+            walker,
+        });
+        tris.push(Triangle {
+            v: [a, c, d],
+            walker,
+        });
+        let spawns = [Vec3::new(5.0, 0.0, 10.0), Vec3::new(75.0, 0.0, 10.0)];
+        let grid = WalkGrid::build_kept(
+            &tris,
+            [0.0, 0.0, 80.0, 40.0],
+            0.25,
+            mapdata::Body::default(),
+            &spawns,
+            &spawns,
+        );
+        let put = |height: f32| {
+            let route = crate::v026g::bots::routes::HumanRoute {
+                team: 0,
+                lives: 1,
+                points: vec![Vec3::new(33.0, height, 20.0)],
+                ..Default::default()
+            }
+            .on_floors(&grid);
+            let [point] = route.points[..] else {
+                panic!("{height}: {:?}", route.points)
+            };
+            assert!(
+                point.distance_xz(Vec3::new(33.0, 0.0, 20.0)) < 2.0,
+                "{point:?}"
+            );
+            let node = grid.locate(point, 0.3).unwrap();
+            assert!(!grid.in_shut_pocket(node), "{point:?}");
+            point.y
+        };
+        assert!((put(deck) - deck).abs() < 0.1, "{}", put(deck));
+        assert!((put(deck + 0.4) - deck).abs() < 0.1);
+        assert!(put(0.0).abs() < 0.1, "{}", put(0.0));
+        assert!(put(f32::NAN).abs() < 0.1, "{}", put(f32::NAN));
+        assert!(put(12.0).abs() < 0.1, "{}", put(12.0));
+    }
+
     /// A pit 1.2 m deep (sprint-only ways out; no bot sprints yet): one
     /// standing try at each of its two lowest rims, then it gives up.
     #[test]
