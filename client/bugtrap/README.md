@@ -214,7 +214,7 @@ A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
   authorization/bearer/basic-auth, token, secret, API/access/session-key, cookie,
   credential, command-line or URL-userinfo markers are replaced with a fixed
   removal notice. Following unframed lines are removed until the next native
-  `channel <level>\t[HH:MM:SS.mmm]\t` (or the game's `[HH:MM:SS:mmm]`) or updater `YYYY-MM-DD HH:MM:SS ` record.
+  `channel <level>\t[HH:MM:SS.mmm]\t` (also with a colon before the milliseconds, `[HH:MM:SS:mmm]`) or updater `YYYY-MM-DD HH:MM:SS ` record.
   This deliberately favors omission over retaining ambiguous continuations.
   Unclosed quotes/trailing backslashes in sensitive lines, oversized lines,
   invalid UTF-8, UTF-16/32, NUL/binary/control bytes omit the entire source.

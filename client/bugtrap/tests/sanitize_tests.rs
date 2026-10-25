@@ -124,9 +124,9 @@ fn failure_after_sensitive_record_is_not_hidden_by_dropped_output() {
     assert_eq!(filter.read(&mut out), Err(1234));
 }
 #[test]
-fn the_games_own_clock_frames_a_record() {
-    // The game writes [HH:MM:SS:mmm]: after a removed record, the next one
-    // of the game's is kept, its unframed continuation is not.
+fn a_colon_before_the_milliseconds_also_frames_a_record() {
+    // [HH:MM:SS:mmm] frames a record as [HH:MM:SS.mmm] does: after a removed
+    // one, the next record is kept, the unframed continuation is not.
     let text = b"game <INFO>\t[12:00:01:000]\tlogin password=SYNTHETIC\r\ncontinued-SYNTHETIC\r\ngame <INFO>\t[12:00:02:000]\tloading level\r\n";
     let (out, removed) = filter(text, 5).unwrap();
     let out = String::from_utf8(out).unwrap();
@@ -144,7 +144,7 @@ fn the_games_own_clock_frames_a_record() {
 #[test]
 fn a_tail_starts_at_a_record_never_inside_a_continuation() {
     // A tail cut inside a sensitive record's continuation lines.
-    let tail = b"continued-SYNTHETIC\r\nmore-SYNTHETIC\r\ngame <INFO>\t[12:00:02:000]\tloading level\r\nrender <ERROR>\t[12:00:03:000]\tmissing\r\n";
+    let tail = b"continued-SYNTHETIC\r\nmore-SYNTHETIC\r\ngame <INFO>\t[12:00:02.000]\tloading level\r\nrender <ERROR>\t[12:00:03.000]\tmissing\r\n";
     let from = sanitize::from_record(tail);
     assert!(from.starts_with(b"game <INFO>"));
     let (out, _) = filter(from, 7).unwrap();

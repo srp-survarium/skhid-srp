@@ -16,10 +16,11 @@ import zipfile
 build = Path(sys.argv[1]).resolve()
 assert os.environ.get("WINEPREFIX"), "set a disposable WINEPREFIX"
 
-# A game log as the game writes it ([HH:MM:SS:mmm]): 30 records, one of them
-# with a password and an unframed continuation line.
+# A game log as 0.26g writes it ([HH:MM:SS.mmm]): 30 records, one of them with
+# a password and an unframed continuation line; record 27 with the colon form
+# [HH:MM:SS:mmm], which the filter takes too.
 LOG = "".join(
-    f"game <INFO>\t[12:00:{n:02}:000]\t" + ("login password=hunter2\r\nsecond-hunter2" if n == 25 else f"record {n}") + "\r\n"
+    f"game <INFO>\t[12:00:{n:02}{':' if n == 27 else '.'}000]\t" + ("login password=hunter2\r\nsecond-hunter2" if n == 25 else f"record {n}") + "\r\n"
     for n in range(1, 31)
 ).encode()
 
@@ -80,7 +81,7 @@ with tempfile.TemporaryDirectory(prefix="srp-report-test-") as temporary:
         assert "\r\nDump:      saved\r\n" in text, text
         # The game log's last 20 lines, the password's record removed.
         tail = text.split("\r\nGame log:  ", 1)[1]
-        assert "record 12\r\n" in tail and "record 24\r\n" in tail and "record 30\r\n" in tail, tail
+        assert all(f"record {n}\r\n" in tail for n in (12, 24, 26, 27, 30)), tail
         assert "record 11\r\n" not in tail, tail  # 31 lines: the 20 last start at record 12
         assert "hunter2" not in text and "[SRP: sensitive log record removed]" in tail, tail
         print(f"PASS {mode}: {text.splitlines()[1]} at {offset(text, 'Address:')[0]}+..., "

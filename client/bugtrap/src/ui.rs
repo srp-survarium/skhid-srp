@@ -153,6 +153,9 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
                 for id in [1034, 1035, 1037, 1038] {
                     ShowWindow(GetDlgItem(window, id), SW_HIDE);
                 }
+                // No file: the instructions take the File and Folder rows' place.
+                let slack = place(window, 1036).top - place(window, 1037).top;
+                lift(window, &[1039, 1036, 1033, 1013, 1041, IDCANCEL], slack);
             }
             data.icon = bug_icon(false);
             data.small_icon = bug_icon(true);
@@ -347,16 +350,35 @@ unsafe fn tighten(window: HWND) {
         needed.bottom + gap.bottom,
         SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
     );
-    for id in [
-        1039, 1040, 1042, 1037, 1034, 1038, 1035, 1036, 1033, 1013, 1041, IDCANCEL,
-    ] {
+    lift(
+        window,
+        &[
+            1039, 1040, 1042, 1037, 1034, 1038, 1035, 1036, 1033, 1013, 1041, IDCANCEL,
+        ],
+        slack,
+    );
+}
+
+/// Where a control is, in the dialog's client coordinates.
+unsafe fn place(window: HWND, id: i32) -> RECT {
+    let mut r: RECT = core::mem::zeroed();
+    GetWindowRect(GetDlgItem(window, id), &mut r);
+    MapWindowPoints(null_mut(), window, (&mut r as *mut RECT).cast(), 2);
+    r
+}
+
+/// Moves the controls `ids` up by `slack` pixels (the white panel, 1039, gets
+/// that much shorter instead) and makes the dialog that much shorter.
+unsafe fn lift(window: HWND, ids: &[i32], slack: i32) {
+    if slack <= 0 {
+        return;
+    }
+    for &id in ids {
         let control = GetDlgItem(window, id);
         if control.is_null() {
             continue;
         }
-        let mut r: RECT = core::mem::zeroed();
-        GetWindowRect(control, &mut r);
-        MapWindowPoints(null_mut(), window, (&mut r as *mut RECT).cast(), 2);
+        let r = place(window, id);
         // The white panel behind the text gets shorter; the rest moves up.
         let (top, height) = if id == 1039 {
             (r.top, r.bottom - r.top - slack)

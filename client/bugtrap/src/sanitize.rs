@@ -204,7 +204,7 @@ fn clock(text: &[u8]) -> bool {
     text.len() == 12
         && text[2] == b':'
         && text[5] == b':'
-        // HH:MM:SS.mmm, and the game's own HH:MM:SS:mmm.
+        // HH:MM:SS.mmm as the game writes it; HH:MM:SS:mmm is taken too.
         && (text[8] == b'.' || text[8] == b':')
         && digits(&text[..2])
         && digits(&text[3..5])
