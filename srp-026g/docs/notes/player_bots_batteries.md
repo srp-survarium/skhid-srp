@@ -816,3 +816,105 @@ every sum is equal. In those batt runs bots gave up 8 escapes of 366
 (`pocket_gave_up`), none while carrying, and no carrier stayed trapped past
 Collect's 120 s: the case is rare on these maps, and the test is what
 covers it.
+
+## Bots: a battery in a zone on all match is taken by a crossing the bot's health bears
+
+### Why
+
+A battery whose stand no route reaches because zones that never switch lie
+on it or round it (`Tactics::past_fixed_zones`: level_01's swamp, level_02's
+fruit cloud, level_06's acid) was never taken (Cologne CG-19): Collect
+blocked it as "no way to its stand", and a bot that walked in anyway was
+pulled out by `zone_way_out`. The route search is right to keep out: a
+zone's damage is a cost to weigh, not a wall.
+
+### What changed
+
+- **`plays/collect.rs`, `Crossing` and `crossing_to`:** for a stand that
+  needs one (`Ctx::needs_crossing`: walkable with the zones off, but not past
+  the zones on all match), the cheapest walk in a line from a dry floor a
+  route reaches (out of the zones' 1 m marks, not the other side's spawn,
+  past the zones on all match), found along 16 ways within 25 m: the
+  nearest such floor each way, in a line `Tactics::clear_line_through_zones`
+  walks. Its damage is the game data's (`Hazards::hit_per_s`, raw, before
+  armour, the marks' margin included; a zone of no known damage counts as
+  lethal), summed along the line at 2.5 m/s. The walk in stops 1 m short of
+  a battery on the floor (a take uses from about 1.2 m), and the take stands
+  there 4 s. A walk into a pit with no way out by a bot's own jump
+  (`escape::standing_exit`, the side step's rule) is no crossing. GUESSES:
+  the speed, the stop, the take's time, the 25 m.
+- **The budget, at the bot's current health:** in and out and the take cost
+  at most 0.5 of it and leave at least 0.4 (`CROSS_SHARE`, `CROSS_LEFT`).
+  GUESSES, never lethal by the zones alone.
+- **`take_block` / Fetch:** such a battery is offered when its crossing fits
+  and its dry edge is reachable; Fetch walks to the edge by the route, then
+  the take walks in by a line (`straight`), upright till near.
+- **Take, on a crossing:** the ring's stands may lie on the zone's floors
+  (no route need reach them; not into a pit), lines are over zones, and
+  each intent says the zone's floor is the play's choice (`Intent::zone_ok`,
+  set fresh each tick). Each tick, at the current health (enemy fire
+  counts), the take gives up once the way out would leave under 0.25
+  (`CROSS_ABORT_LEFT`): the crossing a carrier walks out by from there
+  (`Ctx::way_out`), else the line back to the edge. Given up, no
+  `zone_ok`, and `zone_way_out` walks it out as before.
+- **Bring:** a carrier with no way out of zones on all match walks out first
+  by its cheapest crossing, in a line (no `zone_ok`: a straight goal needs
+  none).
+- **The score:** a crossing's battery scores times (1 − its cost / health):
+  a dry one as good wins.
+- **`plays/mod.rs`:** `Intent::zone_ok`; **`mod.rs`:** `zone_way_out` only
+  for an intent without it. **`tactics.rs`:** `spawn_ok` public, and
+  `clear_line_through_zones` (zones that switch too: the caller weighs every
+  zone's damage; no pocket or fall checked).
+- **Tests:** a crossing taken within budget (to the edge, in by a line,
+  `zone_ok`; given up when hurt inside; not offered to a bot too hurt, nor
+  where it hurts ten times as much; a dry battery as near scores above it);
+  a carrier in a zone walks out by a crossing; a bot in a zone by choice
+  stays and walks out once its intent drops it (`tests.rs`); the real maps'
+  survey `zone_crossings_on_the_real_maps` (ignored, prints).
+
+### The real maps
+
+`zone_crossings_on_the_real_maps`, team 0, levels 1-7: of 82 spawners whose
+stand needs a crossing, 43 have one and 7 fit at full health. On the bench's
+6 maps: 47, 28 and 5. The rest cost too much: the swamp's (level_01, 0.062
+a second) and level_03's are 16-21 m of it, level_03 day 2's fire 1.2 a
+second, level_06's acid 0.25.
+
+**Follow-up:** 19 of the bench maps' 47 have no straight dry way within
+25 m (most of level_02's and level_03 day 2's): no crossing in a line
+reaches them. A crossing by a route over the zones' floors (`path.rs`)
+would; left for now.
+
+### The bench's zone damage (a GUESS)
+
+The stand-in game took no zone damage, so a crossing was free there. With
+`SRP_BENCH_ZONE_DAMAGE=1` (off by default) each living body in an active
+zone loses the zones' raw `hit_per_s` a tick (no margin, before armour), and
+dies at 0 (its battery falls where it stood). Off, the bench decides as
+before: 2c3b3818 + the gated model, batt and tdm, and CG-19 on tdm, seeds 1-2
+of each tier, give base-1dee0543's decisions digests in all 18 runs. How the
+game hurts in a zone is the owner's CG-20 test (stand in level_07's middle
+zone and level_06's acid, watch health); until then the model is a guess.
+The sums gain `zone_deaths`, `zone_hp` (health lost), `zone_takes` (takes
+from floors of zones on all match, marks included) and `zone_spots` (their
+distinct spots, per map).
+
+### Bench
+
+Both sides with the zone damage on: 2c3b3818 + the model against CG-19 +
+the model, batt preset, 3 tiers × 16 seeds over 12 maps; per seed summed
+over the maps, paired diff (SE).
+
+| tier | zone takes | zone deaths | zone hp | delivered | carriers killed | deaths | quick ends | flips |
+|---|---|---|---|---|---|---|---|---|
+| 13-15 | +1.06 (0.25) | 0 | +0.03 (0.01) | +0.12 (0.18) | +0.12 (0.36) | −1.12 (0.49) | +0.25 (1.16) | +0.12 (0.69) |
+| 9-10 | +0.94 (0.19) | 0 | +0.00 (0.00) | +0.75 (0.25) | +0.62 (0.36) | −0.44 (0.85) | +1.31 (1.01) | −1.00 (0.68) |
+| 4-5 | +0.88 (0.18) | 0 | +0.00 (0.00) | +0.56 (0.16) | −0.19 (0.29) | +0.56 (0.62) | −1.75 (1.02) | −0.06 (0.62) |
+
+Base takes 0.1-0.2 a seed from such floors (batteries on the marks' edge,
+taken from dry floor). No zone death on either side. K/D team 0 +0.001,
+−0.003, +0.004; guard deaths −0.25, −0.25, −0.12; idle and none_s no worse.
+A looser budget (0.75 of health, 0.2 left) took more (+1.31 to +1.75 a seed)
+for more zone damage (+0.10 to +0.19 a seed) and no more delivered, and its
+quick ends at 13-15 rose +5.0 (2.7): 0.5 stays.

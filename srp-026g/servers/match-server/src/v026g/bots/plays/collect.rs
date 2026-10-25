@@ -645,7 +645,12 @@ fn line_hurt(tactics: &Tactics, a: Vec3, b: Vec3) -> f32 {
 /// zones on all match, out of the zones' marks, not the other side's
 /// spawn) nearest `to` along each of [`CROSS_WAYS`] ways within
 /// [`CROSS_MAX_M`], in a line walked to it.
-pub fn crossing_to(tactics: &Tactics, to: Vec3, side: Option<i32>, stop_m: f32) -> Option<Crossing> {
+pub fn crossing_to(
+    tactics: &Tactics,
+    to: Vec3,
+    side: Option<i32>,
+    stop_m: f32,
+) -> Option<Crossing> {
     let grid = &tactics.world.grid;
     let mut best: Option<Crossing> = None;
     for k in 0..CROSS_WAYS {
@@ -683,9 +688,7 @@ pub fn crossing_to(tactics: &Tactics, to: Vec3, side: Option<i32>, stop_m: f32) 
                         .locate(stop, 1.5)
                         .map_or(0.0, |node| tactics.hazards.hit_per_s(node)),
                 };
-                if crossing.cost().is_finite()
-                    && best.is_none_or(|b| crossing.cost() < b.cost())
-                {
+                if crossing.cost().is_finite() && best.is_none_or(|b| crossing.cost() < b.cost()) {
                     best = Some(crossing);
                 }
             }
@@ -1749,8 +1752,7 @@ fn next_stand(
         .into_iter()
         .filter(|(s, _)| !gave_up(*s) && !tried.iter().any(|t| t.same(s.feet, s.crouch)))
         .filter(|(s, _)| {
-            !steep
-                || (me.distance_xz(s.feet) <= STRAIGHT_M && clear_line(cx, me, s.feet, crossing))
+            !steep || (me.distance_xz(s.feet) <= STRAIGHT_M && clear_line(cx, me, s.feet, crossing))
         })
         .map(|(s, pitch)| {
             let side_tried = tried.iter().any(|t| {
@@ -1792,7 +1794,8 @@ fn straight_if_clear(cx: &Ctx, intent: Intent, to: Vec3, crossing: bool) -> Inte
 /// crossing, over the zones' floors too.
 fn clear_line(cx: &Ctx, a: Vec3, b: Vec3, crossing: bool) -> bool {
     if crossing {
-        cx.tactics.clear_line_through_zones(a, b, cx.bot.side, false)
+        cx.tactics
+            .clear_line_through_zones(a, b, cx.bot.side, false)
     } else {
         cx.tactics.clear_line_for(a, b, cx.now, cx.bot.side, false)
     }
@@ -1910,7 +1913,13 @@ mod tests {
         s.bot(0, 0, crossing.edge);
         step(&mut state, target, &s.cx(0), &mut rng);
         assert!(
-            matches!(state, State::Take { crossing: Some(_), .. }),
+            matches!(
+                state,
+                State::Take {
+                    crossing: Some(_),
+                    ..
+                }
+            ),
             "{state:?}"
         );
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
@@ -1962,11 +1971,7 @@ mod tests {
         let mut state = start(target, &s.cx(0), &mut rng);
         assert!(matches!(state, State::Bring { .. }));
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
-        let edge = s
-            .cx(0)
-            .way_out()
-            .map(|c| c.edge)
-            .expect("a crossing out");
+        let edge = s.cx(0).way_out().map(|c| c.edge).expect("a crossing out");
         // Walked straight: no way out of the zone is asked for.
         assert!(intent.straight && !intent.zone_ok, "{intent:?}");
         assert!(matches!(intent.go, Go::To { at, .. } if at.distance_xz(edge) < 0.01));

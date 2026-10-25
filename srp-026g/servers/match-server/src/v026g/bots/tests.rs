@@ -7393,10 +7393,7 @@ mod zone_runs {
         let by_choice = pushed(30_000);
         assert!(by_choice.on_ms >= 25_000, "{by_choice:?}");
         let dropped = pushed(12_000);
-        assert!(
-            (8_000..=12_000).contains(&dropped.on_ms),
-            "{dropped:?}"
-        );
+        assert!((8_000..=12_000).contains(&dropped.on_ms), "{dropped:?}");
         let never = pushed(0);
         assert!(never.on_ms <= 3_000, "{never:?}");
     }
