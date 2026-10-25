@@ -435,6 +435,9 @@ pub struct BotFacts<'a> {
     /// Nothing left to fire ([`super::reflex::Reflex::dry`]): it takes no
     /// play that seeks a fight ([`PlayKind::seeks_fight`]).
     pub dry: bool,
+    /// The goal its motor walks a crossing or a ring's walk out to, across
+    /// zones on all match (`crossing.rs`), while it has a route there.
+    pub crossing: Option<Vec3>,
 }
 
 /// A play that fails this soon after it starts ...

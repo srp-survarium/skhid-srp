@@ -399,6 +399,20 @@ impl Hazards {
         self.zones_at(node).any(|zone| !zone.switches())
     }
 
+    /// Whether zones mark `node` and none of them ever switches off
+    /// ([`Hazard::switches`]): a floor shut all match and by nothing else, which
+    /// a crossing may walk (`crossing.rs`).
+    pub fn only_fixed_at(&self, node: NodeId) -> bool {
+        let mut any = false;
+        for zone in self.zones_at(node) {
+            if zone.switches() {
+                return false;
+            }
+            any = true;
+        }
+        any
+    }
+
     /// Which zones never switch off, by index: what [`Self::fixed_at`]
     /// reads; it changes only at [`Self::attach`].
     pub fn fixed_zones(&self) -> Vec<bool> {
