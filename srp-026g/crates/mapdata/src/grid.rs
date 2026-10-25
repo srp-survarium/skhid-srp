@@ -16,13 +16,24 @@
 //!    harmless fall ([`LinkKind::Drop`]) or to a higher one within the jump
 //!    height ([`LinkKind::Jump`]). A walk up ground steeper than 50° is
 //!    cut once it climbs more than a step ([`WalkGrid::cut_steep_climbs`]).
-//! 4. Erosion by the body's radius: a floor with a wall beside it (a side
-//!    with no link of any kind, or a jump up: a ledge's face) goes, round
-//!    after round ([`erosion_rounds`]); the jump then starts from the
-//!    floor a step back. A floor `k` cells from a wall cell is at least
+//! 4. Erosion by the body's radius: a floor with a wall beside it goes,
+//!    round after round ([`erosion_rounds`]); the jump then starts from the
+//!    floor a step back. A wall is a jump up (a ledge's face), or a side
+//!    with no link where the cell beside holds solid at the body's height,
+//!    from a step over the floor to the standing height
+//!    ([`WalkGrid::wall_beside`]): a slab's edge or a steep skirt below the
+//!    feet, a fall, or a roof overhead is none. A floor `k` cells from a wall cell is at least
 //!    `(k - 0.5) × cell` from the wall; it stays when that is the radius
 //!    (within 1 cm). At 0.25 m cells that is 1 round, which keeps 0.9-1 m
 //!    doors open; 2 rounds (`ceil(radius / cell)`, the prototype) shut some.
+//!    The floors so kept beside a fall deeper than the harmless drop, and
+//!    those within the body's radius and a margin of them, are near a fall
+//!    ([`WalkGrid::near_fall`]); those within as much of a lip (a drop of
+//!    1 m or more, [`WalkGrid::is_lip`]) are near a lip
+//!    ([`WalkGrid::near_lip`]): a way onto one costs more, so routes keep
+//!    off such edges where they can (a body there slips off). A cost, not
+//!    a block: a walkway or a stair all within the band is still the way,
+//!    and a drop off a lip is walked to across the band.
 //! 5. With seeds (a map's spawns and objectives, [`WalkGrid::build_kept`]):
 //!    only the floors a body gets to stay: those reached from a seed's
 //!    floor, those leading into them, and what those link to. The rest
@@ -179,6 +190,23 @@ pub const LIP_DROP_M: f32 = 1.0;
 /// bots' bench (falls off the route, player_bots_stuck.md §8.5).
 pub const LIP_PENALTY: f32 = 0.25;
 
+/// How far past the body's radius a floor near an unwalled side over a
+/// fall ([`WalkGrid::near_fall`]) still counts as near it, metres. GUESS:
+/// a cell, the overshoot of a turn at a walk.
+pub const FALL_EDGE_MARGIN_M: f32 = 0.25;
+/// The extra cost of walking onto a floor near a fall, metres. GUESS: two
+/// lips' ([`LIP_PENALTY`]): a way along such an edge costs three times
+/// the walk and keeps to the floors further in where there are any; on a
+/// walkway with falls both sides it is still the way.
+pub const FALL_EDGE_PENALTY: f32 = 0.5;
+/// The extra cost of a drop per metre it falls, so a drop costs about the
+/// walk down it replaces: a stair walks about two metres per metre down,
+/// and the link's length counts one. GUESS. Without it the cost of a way
+/// along an edge ([`FALL_EDGE_PENALTY`]) is dodged by dropping off it
+/// (the planned drops rose 27-56 a cell on the bots' bench), and players
+/// take few of the drops bots take (the fall-spot study, 2026-10-25).
+pub const DROP_DESCENT_PENALTY: f32 = 1.0;
+
 /// Jumps higher than this cost [`MARGINAL_JUMP_PENALTY`] more, metres: the
 /// client's jump tops at 0.998 m (PROVEN, the jump study), so a jump link
 /// of 0.95-1.05 m is made only where the ledge's edge or the floors' heights
@@ -219,6 +247,11 @@ const POCKET_EDGE: u8 = 4;
 /// lowest floor finds none): no way is planned into it
 /// ([`WalkGrid::plans`]).
 const NO_EXIT: u8 = 8;
+/// Within the body's radius and [`FALL_EDGE_MARGIN_M`] of an unwalled side
+/// over a fall: [`WalkGrid::near_fall`].
+const NEAR_FALL: u8 = 16;
+/// As much from a lip: [`WalkGrid::near_lip`].
+const NEAR_LIP: u8 = 32;
 
 /// A pocket ([`WalkGrid::pocket_of`]): its lowest floor's id.
 pub type PocketId = NodeId;
@@ -296,6 +329,13 @@ const DIRS: [(i32, i32); 8] = [
     (1, -1),
     (-1, 1),
 ];
+/// Whether erosion counts as a wall a side over a fall deeper than the
+/// harmless one, or with nothing beside, where no solid is at the body's
+/// height ([`WalkGrid::wall_beside`]): `false` keeps the floors at such an
+/// edge (the body meets nothing there; it does not walk off, no link
+/// leads off). A bench variant (`player_bots_mapdata.md`, "Grid: walls
+/// at the body's height").
+pub const DEEP_FALL_IS_WALL: bool = false;
 /// Spans this close in y are one solid.
 const MERGE_GAP: f32 = 0.05;
 /// Spans whose tops differ less than this are one floor.
@@ -354,11 +394,21 @@ pub struct WalkGrid {
     pockets: Vec<(NodeId, PocketId)>,
 }
 
+/// The solid spans while the grid is built ([`WalkGrid::wall_beside`]):
+/// per cell, its merged spans (lowest y, highest y), floors or not.
+struct Solids {
+    /// Per cell, its first span; `nx * nz + 1` entries.
+    start: Vec<u32>,
+    spans: Vec<(f32, f32)>,
+}
+
 /// The links while the grid is built, a whole floor id a direction; packed
 /// into `to` and `how` at the end (28 B a floor instead of 56).
 struct Wide {
     links: Vec<[u32; 8]>,
     kinds: Vec<[LinkKind; 8]>,
+    /// Floors at an unwalled side over a fall ([`WalkGrid::erode`]).
+    fall: Vec<bool>,
 }
 
 /// Counts of a build, for logs and the docs.
@@ -435,8 +485,13 @@ impl WalkGrid {
         let mut ceiling = Vec::new();
         let mut forced = Vec::new();
         let mut steep_face = Vec::new();
+        let mut solids = Solids {
+            start: Vec::with_capacity(nx * nz + 1),
+            spans: Vec::new(),
+        };
         for (index, mut column) in columns.into_iter().enumerate() {
             start.push(height.len() as u32);
+            solids.start.push(solids.spans.len() as u32);
             if column.is_empty() {
                 continue;
             }
@@ -457,6 +512,9 @@ impl WalkGrid {
                 }
                 merged.push(span);
             }
+            solids
+                .spans
+                .extend(merged.iter().map(|span| (span.low, span.high)));
             for (k, span) in merged.iter().enumerate() {
                 if span.walk == 0 {
                     continue;
@@ -472,6 +530,7 @@ impl WalkGrid {
             }
         }
         start.push(height.len() as u32);
+        solids.start.push(solids.spans.len() as u32);
         stats.floors = height.len();
 
         let mut grid = Self {
@@ -494,13 +553,18 @@ impl WalkGrid {
         let mut wide = grid.link(&forced);
         grid.drop_narrow_landings(&mut wide);
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
-        grid.erode(&mut wide, &cut);
+        grid.erode(&mut wide, &cut, &solids);
+        drop(solids);
         stats.floors_after_erosion = grid.len();
         grid.keep_reached(&mut wide, seeds);
         grid.pieces(&wide);
         grid.mark_pockets(&wide, spawns);
+        let fall = std::mem::take(&mut wide.fall);
         grid.pack(wide);
         grid.mark_no_exit();
+        grid.mark_near(&fall, NEAR_FALL);
+        let lips: Vec<bool> = (0..grid.len() as NodeId).map(|a| grid.is_lip(a)).collect();
+        grid.mark_near(&lips, NEAR_LIP);
         stats.floors_kept = grid.len();
         (grid, stats)
     }
@@ -544,7 +608,11 @@ impl WalkGrid {
                 kinds[a][d] = best.2;
             }
         }
-        Wide { links, kinds }
+        Wide {
+            links,
+            kinds,
+            fall: vec![false; n],
+        }
     }
 
     /// The floor in `cell` nearest in height that `a` drops or jumps to,
@@ -720,16 +788,17 @@ impl WalkGrid {
     /// A drop or jump whose landing went lands further on, up to the
     /// rounds of erosion past it: a body that drops beside a wall lands
     /// clear of it.
-    fn erode(&mut self, wide: &mut Wide, cut: &[u8]) {
+    fn erode(&mut self, wide: &mut Wide, cut: &[u8], solids: &Solids) {
         let n = self.height.len();
         let mut alive = vec![true; n];
         let rounds = erosion_rounds(self.body.radius, self.cell);
         for _ in 0..rounds {
-            // A side with no link is a wall (but for a climb cut off a
-            // slope); so is one whose link is a
-            // jump: the body walking by meets the ledge's face as it meets
-            // a wall (a crate, a low wall, a sill), and catches on it if its
-            // floor is nearer than its radius.
+            // A side with no link is a wall when the body meets solid
+            // there ([`Self::wall_beside`]; a climb cut off a slope is
+            // none); so is one whose link is a jump: the body walking by
+            // meets the ledge's face as it meets a wall (a crate, a low
+            // wall, a sill), and catches on it if its floor is nearer than
+            // its radius.
             let doomed: Vec<usize> = (0..n)
                 .filter(|&a| {
                     alive[a]
@@ -737,7 +806,7 @@ impl WalkGrid {
                             let b = wide.links[a][d];
                             if b == NONE {
                                 // A climb cut off a slope is no wall.
-                                return cut[a] & (1 << d) == 0;
+                                return cut[a] & (1 << d) == 0 && self.wall_beside(a, d, solids);
                             }
                             match wide.kinds[a][d] {
                                 LinkKind::Walk => !alive[b as usize],
@@ -791,7 +860,84 @@ impl WalkGrid {
                 }
             }
         }
+        // The floors kept at an unwalled side over a fall: no link, no cut
+        // climb, no wall, and no floor beside within a step up or the
+        // harmless drop down (a body walking off falls further).
+        wide.fall = (0..n)
+            .map(|a| {
+                alive[a]
+                    && (0..4).any(|d| {
+                        wide.links[a][d] == NONE
+                            && cut[a] & (1 << d) == 0
+                            && self.fall_beside(a, d)
+                            && !self.wall_beside(a, d, solids)
+                    })
+            })
+            .collect();
         self.compact(wide, &alive);
+    }
+
+    /// Whether the side of `a` along `d`, with no link, is a wall for
+    /// [`Self::erode`]: the cell beside holds solid between a step over
+    /// `a`'s floor and the standing height, where the walking body's
+    /// capsule meets it. Solid only below that (a slab's edge or a steep
+    /// skirt under the feet, the ground of a fall) or only above (a roof)
+    /// is no wall, nor is an empty cell; the map area's edge is one. With
+    /// [`DEEP_FALL_IS_WALL`], so is a side with no floor beside within a
+    /// step up or the harmless fall down.
+    fn wall_beside(&self, a: usize, d: usize, solids: &Solids) -> bool {
+        let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+        let (di, dk) = DIRS[d];
+        let Some(cell) = self.cell_index(i + di, k + dk) else {
+            return true;
+        };
+        let feet = self.height[a];
+        let (low, high) = (feet + self.body.step, feet + self.body.stand_height);
+        let spans = &solids.spans[solids.start[cell] as usize..solids.start[cell + 1] as usize];
+        if spans.iter().any(|&(l, h)| l < high && h > low) {
+            return true;
+        }
+        DEEP_FALL_IS_WALL
+            && !(self.start[cell]..self.start[cell + 1]).any(|b| {
+                let y = self.height[b as usize];
+                y <= feet + self.body.step && y >= feet - self.body.max_drop
+            })
+    }
+
+    /// Whether the cell beside `a` along `d` is inside the map area and
+    /// holds no floor within a step up or the harmless drop down.
+    fn fall_beside(&self, a: usize, d: usize) -> bool {
+        let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+        let (di, dk) = DIRS[d];
+        let Some(cell) = self.cell_index(i + di, k + dk) else {
+            return false;
+        };
+        let feet = self.height[a];
+        !(self.start[cell]..self.start[cell + 1]).any(|b| {
+            let y = self.height[b as usize];
+            y <= feet + self.body.step && y >= feet - self.body.max_drop
+        })
+    }
+
+    /// Marks `flag` ([`NEAR_FALL`], [`NEAR_LIP`]) the floors within the
+    /// body's radius and [`FALL_EDGE_MARGIN_M`] of a floor of `fall` (the
+    /// floors at an unwalled side over a fall, or the lips), within a step
+    /// of its height.
+    fn mark_near(&mut self, fall: &[bool], flag: u8) {
+        let r = self.body.radius + FALL_EDGE_MARGIN_M;
+        for a in (0..self.len() as NodeId).filter(|&a| fall[a as usize]) {
+            let at = self.position(a);
+            let near: Vec<NodeId> = self
+                .floors_in([at.x - r, at.z - r, at.x + r, at.z + r])
+                .filter(|&b| {
+                    let p = self.position(b);
+                    p.distance_xz(at) <= r && (p.y - at.y).abs() <= self.body.step
+                })
+                .collect();
+            for b in near {
+                self.flags[b as usize] |= flag;
+            }
+        }
     }
 
     /// Drops the floors no body gets to from `seeds` (step 5 of the
@@ -895,6 +1041,11 @@ impl WalkGrid {
         }
         wide.links = links;
         wide.kinds = kinds;
+        let mut k = 0;
+        wide.fall.retain(|_| {
+            k += 1;
+            alive[k - 1]
+        });
         let mut start = Vec::with_capacity(self.start.len());
         let mut node = 0usize;
         for c in 0..self.nx * self.nz {
@@ -1350,6 +1501,24 @@ impl WalkGrid {
         self.flags[node as usize] & NO_EXIT != 0
     }
 
+    /// Whether `node` is within the body's radius and
+    /// [`FALL_EDGE_MARGIN_M`] of an unwalled side over a fall deeper than
+    /// the harmless drop, the edges the walls at the body's height keep: a
+    /// way onto it costs [`FALL_EDGE_PENALTY`] more.
+    pub fn near_fall(&self, node: NodeId) -> bool {
+        self.flags[node as usize] & NEAR_FALL != 0
+    }
+
+    /// Whether `node` is within the body's radius and
+    /// [`FALL_EDGE_MARGIN_M`] of a lip ([`Self::is_lip`]): a walk onto it
+    /// costs [`LIP_PENALTY`] more, a cell's length, so a way along a lip
+    /// keeps a body's width in where the floor allows, and a way across
+    /// the band to a drop pays it about once (every unplanned fall of the
+    /// bots' bench was off a lip, none off a deeper fall: 2026-10-25).
+    pub fn near_lip(&self, node: NodeId) -> bool {
+        self.flags[node as usize] & NEAR_LIP != 0
+    }
+
     /// Whether a way is planned over the link `from` to `to`: every link
     /// but one into a pocket with no way out ([`Self::in_shut_pocket`])
     /// from a floor outside it, a drop or a walk down a step that does not
@@ -1711,7 +1880,8 @@ impl WalkGrid {
     /// [`LIP_PENALTY`] for walking onto a lip ([`Self::is_lip`]), so a
     /// way keeps a cell back from a ledge where it can, plus
     /// [`MARGINAL_JUMP_PENALTY`] for a jump higher than
-    /// [`MARGINAL_JUMP_M`].
+    /// [`MARGINAL_JUMP_M`], plus [`FALL_EDGE_PENALTY`] for walking onto a
+    /// floor near a fall ([`Self::near_fall`]).
     ///
     /// Infinite for a link no way is planned over ([`Self::plans`]).
     pub fn link_cost(&self, from: NodeId, to: NodeId, kind: LinkKind) -> f32 {
@@ -1730,7 +1900,26 @@ impl WalkGrid {
         } else {
             0.0
         };
-        (self.position(to) - self.position(from)).length() + kind.penalty() + lip + marginal
+        let fall = if kind == LinkKind::Drop {
+            0.0
+        } else if self.near_fall(to) {
+            FALL_EDGE_PENALTY
+        } else if self.near_lip(to) {
+            LIP_PENALTY
+        } else {
+            0.0
+        };
+        let descent = if kind == LinkKind::Drop {
+            DROP_DESCENT_PENALTY * (self.height[from as usize] - self.height[to as usize]).max(0.0)
+        } else {
+            0.0
+        };
+        (self.position(to) - self.position(from)).length()
+            + kind.penalty()
+            + lip
+            + marginal
+            + fall
+            + descent
     }
 
     /// Whether a floor is a lip: the last floor before a ledge at least
@@ -2423,7 +2612,7 @@ pub(crate) mod tests {
         assert_eq!(unlinked.digest(), grid.digest());
     }
 
-    const PINNED_TWO_ROOMS: u64 = 3_388_945_378_875_081_803;
+    const PINNED_TWO_ROOMS: u64 = 2_302_127_104_512_711_115;
 
     /// A search in slices of a few floors ends with the one search's answer
     /// (the same path, cost and floors expanded), with other searches made
@@ -2871,14 +3060,190 @@ pub(crate) mod tests {
         assert!(grid.path(a, b).is_none());
     }
 
+    /// Walls still erode as before: a 1 m door between walls is open, and
+    /// doors of 0.8 m and 0.6 m are shut (here each leaves two free cells,
+    /// or one, and each of them is beside a wall).
     #[test]
-    fn a_flat_floor_is_walkable_and_eroded_at_its_edge() {
+    fn walls_still_shut_doors_of_eight_and_six_tenths() {
+        let through = |gap: f32| {
+            let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+            tris.extend(wall_x(5.0, 0.0, 5.0 - gap / 2.0, 3.0));
+            tris.extend(wall_x(5.0, 5.0 + gap / 2.0, 10.0, 3.0));
+            let grid = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+            let a = grid.locate(Vec3::new(2.0, 0.0, 5.0), 1.0).unwrap();
+            let b = grid.locate(Vec3::new(8.0, 0.0, 5.0), 1.0).unwrap();
+            grid.path(a, b).is_some()
+        };
+        assert!(through(1.0));
+        assert!(!through(0.8));
+        assert!(!through(0.6));
+    }
+
+    /// A walkway 1 m wide on a slab over a fall deeper than the harmless
+    /// one, its sides steep skirts that end under the feet: the body meets
+    /// nothing beside it, so its floors are kept to the edges (eroded
+    /// before, as against walls), and none links off it. Half a metre wide,
+    /// it is still walked.
+    #[test]
+    fn a_walkway_over_a_fall_keeps_its_edge_floors() {
+        for (x0, x1) in [(4.5, 5.5), (4.75, 5.25)] {
+            let mut tris = floor(0.0, 0.0, 10.0, 10.0, -6.0).to_vec();
+            tris.extend(floor(x0, 0.0, x1, 10.0, 3.0));
+            for x in [x0, x1] {
+                for t in wall_x(x, 0.0, 10.0, 2.9) {
+                    tris.push(Triangle {
+                        v: t.v.map(|v| Vec3::new(v.x, v.y - 1.0, v.z)),
+                        walker: t.walker,
+                    });
+                }
+            }
+            let grid = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+            let a = grid.locate(Vec3::new(5.0, 3.0, 1.0), 0.3).unwrap();
+            let b = grid.locate(Vec3::new(5.0, 3.0, 9.0), 0.3).unwrap();
+            assert!(grid.path(a, b).is_some(), "{x0}-{x1}");
+            let on: Vec<NodeId> = grid
+                .floors_in([0.0, 0.0, 10.0, 10.0])
+                .filter(|&f| grid.position(f).y > 2.0)
+                .collect();
+            let widest = on
+                .iter()
+                .map(|&f| (grid.position(f).x - 5.0).abs())
+                .fold(0.0, f32::max);
+            assert!(widest >= (x1 - x0) / 2.0 - 0.25, "{x0}-{x1}: {widest}");
+            for &f in &on {
+                assert!(
+                    grid.links(f).all(|(t, _)| grid.position(t).y > 2.0),
+                    "{:?}",
+                    grid.position(f)
+                );
+            }
+        }
+    }
+
+    /// A slab over a 9 m fall, its edges no wall: the floors at the edge and
+    /// within the body's radius and the margin of it are near the fall, its
+    /// middle is not, and a way from edge to edge along the slab keeps in
+    /// from the edge.
+    #[test]
+    fn a_way_along_an_edge_over_a_fall_keeps_in_from_it() {
+        let mut tris = floor(0.0, 0.0, 10.0, 10.0, -6.0).to_vec();
+        tris.extend(floor(2.0, 0.0, 8.0, 10.0, 3.0));
+        let grid = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+        let on = |x: f32, z: f32| grid.locate(Vec3::new(x, 3.0, z), 0.2).unwrap();
+        let (edge, middle) = (on(2.125, 5.0), on(5.125, 5.0));
+        assert!(grid.near_fall(edge));
+        assert!(!grid.near_fall(middle));
+        let r = Body::default().radius + FALL_EDGE_MARGIN_M;
+        assert!(!grid.near_fall(on(2.125 + r + 0.25, 5.0)));
+        let path = grid.path(on(2.125, 1.0), on(2.125, 9.0)).unwrap();
+        let near = path.nodes.iter().filter(|&&f| grid.near_fall(f)).count();
+        assert!(
+            near * 3 < path.nodes.len(),
+            "{near} of {}",
+            path.nodes.len()
+        );
+        // The ground far below is near no fall.
+        assert!(!grid.near_fall(grid.locate(Vec3::new(1.0, -6.0, 5.0), 0.3).unwrap()));
+    }
+
+    /// A slab 2 m over the ground, its edges no wall (a lip, a drop the
+    /// body makes): the band is there as at a fall, a body's width wide,
+    /// and a way along the slab keeps in from it.
+    #[test]
+    fn a_way_along_a_lip_keeps_a_body_width_in_from_it() {
+        let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(2.0, 0.0, 8.0, 10.0, 2.0));
+        let grid = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+        let on = |x: f32, z: f32| grid.locate(Vec3::new(x, 2.0, z), 0.2).unwrap();
+        let edge = on(2.125, 5.0);
+        assert!(grid.is_lip(edge));
+        assert!(grid.near_lip(edge));
+        let r = Body::default().radius + FALL_EDGE_MARGIN_M;
+        assert!(grid.near_lip(on(2.125 + r - 0.25, 5.0)));
+        assert!(!grid.near_lip(on(2.125 + r + 0.25, 5.0)));
+        assert!(!grid.near_lip(on(5.125, 5.0)));
+        let path = grid.path(on(2.125, 1.0), on(2.125, 9.0)).unwrap();
+        let near = path.nodes.iter().filter(|&&f| grid.near_lip(f)).count();
+        assert!(
+            near * 3 < path.nodes.len(),
+            "{near} of {}",
+            path.nodes.len()
+        );
+        // The ground below the lip is near none.
+        assert!(!grid.near_lip(grid.locate(Vec3::new(1.0, 0.0, 5.0), 0.3).unwrap()));
+    }
+
+    /// The band at a lip is a cost, not a block: a stair whose open side
+    /// is the short way down is still dropped off, and a narrow walkway
+    /// between two lips is still walked.
+    #[test]
+    fn the_band_at_a_lip_keeps_drops_off_it_and_walkways_along_it() {
+        let kinds = |grid: &WalkGrid, path: &Path| -> Vec<LinkKind> {
+            path.nodes
+                .windows(2)
+                .filter_map(|w| grid.links(w[0]).find(|l| l.0 == w[1]).map(|l| l.1))
+                .collect()
+        };
+        let area = [0.0, 0.0, 10.0, 20.0];
+        // A deck 2 m up with a ramp at its far end, open on both sides.
+        let mut tris = floor(0.0, 0.0, 10.0, 20.0, 0.0).to_vec();
+        tris.extend(floor(4.0, 0.0, 6.0, 10.0, 2.0));
+        let (a, b) = (Vec3::new(4.0, 2.0, 10.0), Vec3::new(6.0, 2.0, 10.0));
+        let (c, d) = (Vec3::new(6.0, 0.0, 16.0), Vec3::new(4.0, 0.0, 16.0));
+        let walker = WalkerBehaviour::BySlope;
+        tris.push(Triangle {
+            v: [a, b, c],
+            walker,
+        });
+        tris.push(Triangle {
+            v: [a, c, d],
+            walker,
+        });
+        let grid = WalkGrid::build(&tris, area, 0.25, Body::default());
+        let deck = grid.locate(Vec3::new(5.0, 2.0, 2.0), 0.2).unwrap();
+        let below = grid.locate(Vec3::new(2.0, 0.0, 2.0), 0.2).unwrap();
+        let down = grid.path(deck, below).unwrap();
+        assert!(kinds(&grid, &down).contains(&LinkKind::Drop));
+        // A walkway 0.75 m wide, 2 m up: all band, still the way along it.
+        let mut tris = floor(0.0, 0.0, 10.0, 20.0, 0.0).to_vec();
+        tris.extend(floor(4.0, 0.0, 4.75, 20.0, 2.0));
+        let grid = WalkGrid::build(&tris, area, 0.25, Body::default());
+        let on = |z: f32| grid.locate(Vec3::new(4.375, 2.0, z), 0.3).unwrap();
+        let along = grid.path(on(1.0), on(19.0)).unwrap();
+        assert!(along.nodes.iter().all(|&n| grid.near_lip(n)));
+        assert!(along.nodes.iter().all(|&n| grid.position(n).y > 1.9));
+        assert!(!kinds(&grid, &along).contains(&LinkKind::Drop));
+    }
+
+    /// A floor's edge over a pit with a roof over it: the roof above the
+    /// standing height is no wall (the floor at the edge stays); a beam at
+    /// the body's height is one (it goes).
+    #[test]
+    fn a_roof_overhead_is_no_wall_and_a_beam_at_the_body_is_one() {
+        let edge_kept = |roof: f32| {
+            // The floor's last cells end at x = 5.0 (centres 4.875); the
+            // pit and the roof begin in the next ones.
+            let mut tris = floor(0.0, 0.0, 4.99, 10.0, 0.0).to_vec();
+            tris.extend(floor(5.01, 0.0, 10.0, 10.0, -6.0));
+            tris.extend(floor(5.01, 0.0, 10.0, 10.0, roof));
+            let grid = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+            grid.floors_in([4.8, 4.0, 4.95, 6.0])
+                .any(|f| grid.position(f).y.abs() < 0.01 && grid.position(f).x > 4.8)
+        };
+        assert!(edge_kept(2.2));
+        assert!(!edge_kept(1.2));
+    }
+
+    #[test]
+    fn a_flat_floor_is_walkable_and_kept_to_its_edge() {
         let tris = floor(0.0, 0.0, 10.0, 10.0, 0.0);
         let (grid, stats) = WalkGrid::build_with_stats(&tris, AREA, 0.5, Body::default());
-        // 20 x 20 cells with floor (the 21st row/column is past the mesh);
-        // one round of erosion takes the outer ring.
+        // 20 x 20 cells with floor (the 21st row/column is past the mesh).
+        // One round of erosion takes the first row and column, at the map
+        // area's edge (a wall); the last ones are beside empty cells past
+        // the mesh, no wall, and stay.
         assert_eq!(stats.floors, 400);
-        assert_eq!(grid.len(), 18 * 18);
+        assert_eq!(grid.len(), 19 * 19);
         let a = grid.locate(Vec3::new(1.2, 0.0, 1.2), 1.0).unwrap();
         let b = grid.locate(Vec3::new(8.8, 0.0, 8.7), 1.0).unwrap();
         let path = grid.path(a, b).unwrap();
