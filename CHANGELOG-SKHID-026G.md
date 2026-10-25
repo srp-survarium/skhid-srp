@@ -612,3 +612,9 @@ kept and can be put back).
 - TODO: #422 Rooms: the create window opens with its saved settings, preloaded
 - TODO: #424 Lobby card: stats over their scale show their real value
 - TODO: #418 Kill feed: wall, ricochet and pain-shock icons after the weapon (patch 67)
+
+## 25 Oct, 13:52 — TODO: the owner's words (update required)
+
+<!-- Revision 33 (026g-rev33), released 2026-10-25 13:52 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #436 Kill feed: a suicide row with the pain icon no longer empties the feed
