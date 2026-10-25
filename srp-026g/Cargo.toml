@@ -6,6 +6,7 @@ members = [
   "crates/session",
   "crates/srp-validate",
   "crates/survarium",
+  "crates/sync-core",
   "crates/udp-transport",
   "crates/vostok",
 
