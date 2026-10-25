@@ -340,12 +340,19 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
 
 pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
     let num = |name| cx.num(PlayKind::Cut, name);
-    if cx.point_of(target).is_none() {
+    let Some(at) = cx.point_of(target) else {
         return Step::Failed("no cut point");
-    }
+    };
     match state {
         State::NoSpot => Step::Failed("no spot by their way"),
         State::Going { spot, from } => {
+            // Its spot proved no way to: another of the fine ones (none:
+            // kept, and the think leaves the play, `goal_shut`).
+            if cx.no_way_lately(*spot)
+                && let Some(new) = pick(cx, at, *from, rng)
+            {
+                *spot = new;
+            }
             let (spot, from) = (*spot, *from);
             if let Some((_, _, started)) = cx.bot.current
                 && cx.now > started + (num("give_up_s") * 1000.0) as u32
@@ -619,5 +626,24 @@ mod tests {
         );
         assert!(with_cuts * 10 >= sides * 9, "{with_cuts} of {sides}");
         assert!(spots * 10 >= cuts_n * 8, "{spots} of {cuts_n}");
+    }
+
+    /// A spot its bot proved no way to is left for another fine one.
+    #[test]
+    fn a_spot_proved_no_way_to_is_left_for_another() {
+        let mut s = field(Mode::TeamDeathmatch);
+        let (_, at, _, _) = cuts(&s.cx(0))[0];
+        let target = TargetRef::Point(at);
+        let mut rng = Rng::new(4);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        let State::Going { spot: first, .. } = state else {
+            panic!("{state:?}")
+        };
+        s.no_way_to = vec![(first, s.view.clock + 5_000)];
+        step(&mut state, target, &s.cx(0), &mut rng);
+        let State::Going { spot, .. } = state else {
+            panic!("{state:?}")
+        };
+        assert!(!s.cx(0).no_way_lately(spot), "{first:?} {spot:?}");
     }
 }

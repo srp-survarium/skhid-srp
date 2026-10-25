@@ -2642,9 +2642,12 @@ fn a_goal_proved_no_way_to_is_shut_while_the_proof_holds_but_not_for_a_carrier()
 /// think and takes another at once (the commander is due at once), the one
 /// it left set aside for it while the proof holds; before, it stood there
 /// to the play's end (up to 70 s of Crossfire, 90 s of Buddy), searching
-/// again every 500 ms. A lone bot in a team deathmatch roams; the commander
-/// is held off meanwhile, so the leaving is the think's (Collect leaves a
-/// stand proved no way to itself, and its commander a battery).
+/// again every 500 ms. A play with other spots takes another of them
+/// (`hold_exit`, `crossfire`, `cut`, `buddy`), so the proof here shuts all
+/// the floor within 40 m of the goal: no spot is left, and the think is the
+/// last resort. A lone bot in a team deathmatch; the commander is held off
+/// meanwhile, so the leaving is the think's (Collect leaves a stand proved
+/// no way to itself, and its commander a battery).
 #[test]
 fn a_bot_leaves_a_play_whose_goal_it_proved_no_way_to_and_takes_another() {
     let world = soak_world();
@@ -2713,7 +2716,14 @@ fn a_bot_leaves_a_play_whose_goal_it_proved_no_way_to_and_takes_another() {
             // Walking to its first play's goal: proved no way to.
             (None, Some(a)) if bot.route.is_some() => {
                 if let Go::To { at, .. } = bot.intent.go {
-                    bot.no_way_to.push((at, clock + NO_WAY_KEEP_MS));
+                    // Points 2 m apart: every floor within 40 m is within
+                    // `REPLAN_MOVED_M` of one.
+                    for i in -20..=20 {
+                        for j in -20..=20 {
+                            let p = Vec3::new(at.x + 2.0 * i as f32, at.y, at.z + 2.0 * j as f32);
+                            bot.no_way_to.push((p, clock + NO_WAY_KEEP_MS));
+                        }
+                    }
                     proved = Some((clock, a.kind, a.target, at));
                     bots.teams[0].next_commander = clock + 10_000;
                 }

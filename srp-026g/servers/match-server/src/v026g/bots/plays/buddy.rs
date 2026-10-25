@@ -123,6 +123,9 @@ pub enum State {
         /// What it watches near him, off his facing, degrees.
         watch_deg: f32,
         turn_at: u32,
+        /// Till when it keeps going round him ([`round_him`]): a point
+        /// beside him proved no way to lately ([`ROUND_HOLD_MS`]).
+        round_until: u32,
     },
 }
 
@@ -141,6 +144,7 @@ pub fn start(_target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     State::Follow {
         watch_deg: draw_watch(rng),
         turn_at: next_turn(cx, rng),
+        round_until: 0,
     }
 }
 
@@ -203,7 +207,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     let d = cx.me.feet.distance_xz(him.feet);
     let close = num("close_m");
     if d <= close * 1.4 {
-        let State::Follow { watch_deg, turn_at } = state;
+        let State::Follow { watch_deg, turn_at, .. } = state;
         if cx.now >= *turn_at {
             *watch_deg = draw_watch(rng);
             *turn_at = next_turn(cx, rng);
@@ -221,6 +225,19 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
         him.feet.y,
         him.feet.z + (cx.me.feet.z - him.feet.z) * k,
     );
+    // That point proved no way to (beyond a drop, on a ledge): the nearest
+    // of those round him it may have a way to, kept up [`ROUND_HOLD_MS`]
+    // past the proof (not back to the shut side the think the point slides
+    // out of it); none: kept, and the think leaves the play, `goal_shut`.
+    let State::Follow { round_until, .. } = state;
+    if cx.no_way_lately(at) {
+        *round_until = cx.now + ROUND_HOLD_MS;
+    }
+    let at = if cx.now < *round_until {
+        round_him(cx, him.feet).unwrap_or(at)
+    } else {
+        at
+    };
     let pace = if d > num("keep_m") {
         cx.pace_toward(at)
     } else {
@@ -228,6 +245,32 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     };
     Step::Continue(Intent::to(at, pace).within(close * 0.3))
 }
+
+/// Of the points [`ROUND_HIM_M`] round `feet` (not his own cell: two bodies
+/// there block each other), the nearest this bot may have a way to
+/// ([`Ctx::reachable`], no search lately proved none).
+fn round_him(cx: &Ctx, feet: Vec3) -> Option<Vec3> {
+    ROUND_HIM_M
+        .iter()
+        .flat_map(|&m| {
+            (0..8).map(move |k| {
+                let yaw = k as f32 * std::f32::consts::FRAC_PI_4;
+                along(feet, yaw, m)
+            })
+        })
+        .filter(|&p| cx.reachable(p, false) && !cx.no_way_lately(p))
+        .min_by(|a, b| {
+            a.distance_xz(cx.me.feet)
+                .total_cmp(&b.distance_xz(cx.me.feet))
+        })
+}
+
+/// How far round the partner [`round_him`] looks, metres.
+const ROUND_HIM_M: [f32; 2] = [1.5, 2.0];
+
+/// How long it keeps going round him once the point beside him is no
+/// longer proved no way to, ms.
+const ROUND_HOLD_MS: u32 = 3_000;
 
 #[cfg(test)]
 mod tests {
@@ -355,5 +398,35 @@ mod tests {
         assert!(lagging(&s.cx(0)).is_none(), "20 m: near enough");
         s.view.places[0].feet = Vec3::new(20.0, 0.0, 130.0);
         assert!(lagging(&s.cx(0)).is_none(), "100 m: respawned at home");
+    }
+
+    /// The point beside him proved no way to: the nearest point 1.5-2 m round
+    /// him it may have a way to, not his own spot.
+    #[test]
+    fn beside_him_proved_no_way_to_it_goes_round_him_instead() {
+        let mut s = pair(40.0);
+        let mut rng = Rng::new(5);
+        let him = s.view.places[0].feet;
+        let mut state = start(TargetRef::Place(0), &s.cx(2), &mut rng);
+        let to = |st: Step| match st {
+            Step::Continue(Intent { go: Go::To { at, .. }, .. }) => at,
+            other => panic!("{other:?}"),
+        };
+        let beside = to(step(&mut state, TargetRef::Place(0), &s.cx(2), &mut rng));
+        assert!(beside.distance_xz(him) > 5.0, "{beside:?}");
+        s.no_way_to = vec![(beside, s.view.clock + 5_000)];
+        let round = to(step(&mut state, TargetRef::Place(0), &s.cx(2), &mut rng));
+        let d = round.distance_xz(him);
+        assert!((1.4..=2.1).contains(&d), "{round:?} {d}");
+        // The nearest of them: on its side of him.
+        assert!(round.x < him.x, "{round:?}");
+        // Kept round him for ROUND_HOLD_MS past the proof, then beside again.
+        s.no_way_to.clear();
+        s.view.clock += ROUND_HOLD_MS - 50;
+        let kept = to(step(&mut state, TargetRef::Place(0), &s.cx(2), &mut rng));
+        assert_eq!(kept, round);
+        s.view.clock += 50;
+        let back = to(step(&mut state, TargetRef::Place(0), &s.cx(2), &mut rng));
+        assert_eq!(back, beside);
     }
 }
