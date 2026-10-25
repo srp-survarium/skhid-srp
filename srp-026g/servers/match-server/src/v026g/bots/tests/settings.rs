@@ -70,6 +70,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_EVENTS", "unset", "a folder for the run's events, one JSON line each"),
     s("SRP_BENCH_NOTES", "unset", "a file the carry tally's notes are appended to"),
     s("SRP_BENCH_GATES", "off", "test every fire gate each tick, for the gate tally's counts (no shot changes)"),
+    s("SRP_WRITE_GOLDEN", "off", "a path: the made-up match test writes its counts there instead of comparing (tallies/owner/golden.rs)"),
     s("SRP_BENCH_SHOW_STALE", "off", "print the stale-belief lines"),
     s("SRP_BENCH_SHOW_RAIDS", "off", "print the raid lines"),
     s("SRP_BENCH_WHY", "off", "print why each play ended"),

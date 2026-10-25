@@ -37,6 +37,7 @@ use crate::v026g::drive::key;
 
 mod campers;
 mod fight;
+mod golden;
 mod grenades;
 mod jumps;
 mod moving;
