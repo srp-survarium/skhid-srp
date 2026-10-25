@@ -1194,6 +1194,47 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
     assert_eq!(form(&mut world, alice).1, made);
 }
 
+/// The movie asks for its create window's start once, as its lobby comes
+/// up (the owner's of 2026-10-25: the window opens filled, nothing applied
+/// after it is drawn): the form is answered right after the sign-in,
+/// before any rooms window, and a room made by hand is in the answer to
+/// the next sign-in. Asking it tells no game its room (`room_unseen`).
+#[test]
+fn the_create_window_start_is_there_from_the_sign_in() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    // The lobby's first asks, before anything is opened: a new player's is
+    // the defaults.
+    let (fields, _) = form(&mut world, alice);
+    assert_eq!(fields, ["0", "8", "1", "0", "30"]);
+
+    // A room made by hand: what the movie keeps for its next window (the
+    // same game asking again gets the same).
+    rows(&mut world, alice, bits_start(0, 0b11), 1);
+    let made_spec = RoomSpec {
+        size: 7,
+        min_side: 3,
+        max_level: 0,
+        wait: 60,
+        pin: false,
+    };
+    let key = create(&mut world, alice, made_spec, None);
+    let made = (
+        ["1", "7", "3", "0", "60"].map(str::to_owned).to_vec(),
+        world.core.rooms.get(key).unwrap().pool.clone(),
+    );
+    assert_eq!(form(&mut world, alice), made);
+
+    // Her game started anew: its first ask has it, and she is still not
+    // told her room by it.
+    let (account_id, _) = world.ids[alice];
+    let session = world.new_session(account_id);
+    let again = world.connect_session((account_id, session));
+    world.take(again);
+    assert_eq!(form(&mut world, again), made);
+    assert!(world.core.room_unseen.contains_key(&account_id));
+}
+
 /// A full room's queue (the owner's of 2026-10-17): who is in no room waits
 /// for a place and is told its place; when a member leaves, the first in
 /// the queue is in the room at once, and the next moves up; leaving the

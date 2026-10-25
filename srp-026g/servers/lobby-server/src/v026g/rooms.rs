@@ -42,8 +42,10 @@
 //!   (`Rooms::came_by_play`) until it chooses the room (a join).
 //! - **Remembered.** A room made by hand (a create, not Play) is its maker's
 //!   next create window, kept with the account (`room_remember`; not the
-//!   PIN; the owner's of 2026-10-20); the window asks for it fitted to the
-//!   pool and the maker's equipment now (`room_settings::form`).
+//!   PIN; the owner's of 2026-10-20); the movie asks for it fitted to the
+//!   pool and the maker's equipment now (`room_settings::form`) once, as
+//!   its lobby comes up, so the window opens filled (the owner's of
+//!   2026-10-25).
 //! - A member whose game is gone (crashed, killed, its link silent) keeps
 //!   its place while its session is kept: the link's 30 s and the session's
 //!   60 s, about 90 s in all (the owner's of 2026-10-18); then it leaves the

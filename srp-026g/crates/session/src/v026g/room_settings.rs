@@ -352,4 +352,33 @@ mod tests {
         assert_eq!(fitted(kept(8, 1, 9, 30), 6).2, 9);
         assert_eq!(fitted(kept(8, 1, 3, 30), 20).2, 15);
     }
+
+    /// The lobby movie's create window opens with these defaults while it
+    /// has no form yet (and a first-time player's form is them): the same,
+    /// so nothing changes when the form is in. It asks for the form as the
+    /// lobby comes up (`RoomsWindow`), not as the window opens (the owner's
+    /// of 2026-10-25: no settings applied after the window is drawn).
+    #[test]
+    fn the_movie_opens_with_the_same_defaults_and_has_the_form_before() {
+        let create =
+            include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsCreate.as");
+        let window =
+            include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsWindow.as");
+        let wire = include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsWire.as");
+        for (name, value) in [
+            ("DEFAULT_SIZE", DEFAULT_SIZE),
+            ("DEFAULT_MIN_SIDE", DEFAULT_MIN_SIDE),
+            ("DEFAULT_WAIT", DEFAULT_WAIT),
+        ] {
+            assert!(
+                create.contains(&format!("const {name}:int = {value};")),
+                "{name}"
+            );
+        }
+        assert_eq!(DEFAULT_MAX_LEVEL, 0);
+        assert!(wire.contains("const LEVEL_ANY:int = 0;"));
+        assert!(create.contains("_max = RoomsWire.LEVEL_ANY;"));
+        assert!(window.contains("ask(RoomsWire.SETTINGS, 1);"));
+        assert!(!create.contains("RoomsWire.SETTINGS"));
+    }
 }

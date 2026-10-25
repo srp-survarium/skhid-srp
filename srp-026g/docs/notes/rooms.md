@@ -24,9 +24,16 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     map/weather tiles and the modes. Not the PIN: typed each time (the owner may change
     that). A room Play made keeps nothing. Nothing kept: the defaults (8 v 8, from 1 v 1,
     any max level, 30 s, every mode, the pool without the experimental maps).
-  - Fitted when the window opens: a map or mode no longer offered is dropped; one added
-    later is in (an experimental one out); the max level never below the maker's gear now;
-    other values within today's ranges; nothing of the pool left: the default pool.
+  - Fitted when asked: a map or mode no longer offered is dropped; one added later is in
+    (an experimental one out); the max level never below the maker's gear (again as the
+    window opens: the gear may have changed since); other values within today's ranges;
+    nothing of the pool left: the default pool.
+  - **Preloaded** (the owner's of 2026-10-25: the window was drawn first and the settings
+    applied after; "slick and fast"): the movie asks for them once as the lobby comes up
+    (after the pool) and keeps them; New room opens already filled and no answer redraws
+    it. A room made from the window updates that copy as the server keeps it. None yet
+    (not answered so far): the window opens with the defaults and stays so until it is
+    opened again.
   - No button puts the defaults back (the owner's of 2026-10-20: "no need for that").
   - **A PIN: no rewards** (the owner's of 2026-10-20: "let's remove rewards for private (pin)
     games"; players farmed silver in 1 v 1 PIN rooms): every match of a room with a PIN pays
