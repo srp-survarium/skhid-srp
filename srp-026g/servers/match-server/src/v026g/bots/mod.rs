@@ -2737,7 +2737,8 @@ fn drive_tick(
         decision.keys |= key::CROUCH;
         decision.keys &= !key::SPRINT;
     }
-    if intent.pace != Pace::Run {
+    // A sprint jump's run keeps sprint at any pace: it is the jump's.
+    if intent.pace != Pace::Run && !bot.motor.sprint_run() {
         decision.keys &= !key::SPRINT;
     }
     decision.turn.1 += over.pull;
@@ -2757,9 +2758,12 @@ fn drive_tick(
     // Lining up for a jump of its route, and in it: standing (a crouched
     // body seldom jumps: 9 route jumps of 12 pressed crouched did in the
     // owner's matches, 6 unstick jumps of 23, against 149 of 159 standing;
-    // `player_bots_stuck.md` §8.9), and no sprint.
+    // `player_bots_stuck.md` §8.9), and no sprint but a sprint jump's.
     if bot.motor.lining_up() {
-        decision.keys &= !(key::CROUCH | key::SPRINT);
+        decision.keys &= !key::CROUCH;
+        if !bot.motor.sprint_run() {
+            decision.keys &= !key::SPRINT;
+        }
     }
     if decision.keys & key::QUICK[0] != 0 {
         bot.medkits_used = bot.medkits_used.saturating_add(1);

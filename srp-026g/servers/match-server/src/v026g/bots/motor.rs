@@ -423,6 +423,9 @@ pub struct Motor {
     /// Whether this tick's walk lines up for a jump of the route (the caller
     /// lets go of crouch then: a crouched body does not jump).
     lining_up: bool,
+    /// Whether this tick's walk runs at a sprint jump, or is in its air,
+    /// with sprint held (the caller keeps sprint then).
+    sprint_run: bool,
     /// The route jump this tick's decision pressed, if any.
     pressed: Option<RoutePress>,
     /// The sway's phase and the time, seconds, for it.
@@ -535,6 +538,7 @@ impl Motor {
             facing_ticks: 0,
             jump_try: None,
             lining_up: false,
+            sprint_run: false,
             pressed: None,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
@@ -567,12 +571,19 @@ impl Motor {
         self.lining_up
     }
 
+    /// Whether this tick's walk runs at a sprint jump or is in its air: the
+    /// sprint key is the jump's, whatever the pace.
+    pub fn sprint_run(&self) -> bool {
+        self.sprint_run
+    }
+
     /// A new tick's decision begins.
     fn next_tick(&mut self) {
         self.clock = self.clock.wrapping_add(1);
         self.jump = None;
         self.pressed = None;
         self.lining_up = false;
+        self.sprint_run = false;
     }
 
     /// Seconds since the tick `at` of this motor's clock.
@@ -715,6 +726,7 @@ impl Motor {
         // the run-up through the jump.
         let low = jump.is_none() && route.low_ahead(s, LOW_AHEAD_M);
         let sprint_run = jump.is_some_and(|jump| jump.sprint && jump.lined) && self.walking;
+        self.sprint_run = sprint_run;
         if sprint_run {
             self.sprinting = true;
             if let Some(t) = self.jump_try.as_mut()
