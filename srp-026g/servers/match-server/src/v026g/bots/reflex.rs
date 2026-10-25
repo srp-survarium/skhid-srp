@@ -1612,6 +1612,11 @@ impl Reflex {
         self.friend_note.take()
     }
 
+    /// A reload or a switch under way at `now` (the weapon is not idle).
+    pub fn weapon_busy(&self, now: u32) -> bool {
+        now < self.busy_until
+    }
+
     /// [measure] The fire gates of the last tick it ran or was kept from
     /// running ([`gate`]).
     pub fn gates(&self) -> Gates {

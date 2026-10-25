@@ -30,6 +30,14 @@
 //!   keeps to that line through the jump. A jump that did not get it up is
 //!   tried again only from the run-up, [`JUMP_TRIES`] times in all; then
 //!   it gives up on it ([`Walked::JumpFailed`]).
+//! - **It sprint-jumps a marginal jump** (higher than the standing jump's
+//!   0.998 m top half clears, with room past the landing:
+//!   [`Route::sprint_jump`]) when the game would give it the sprint clip
+//!   ([`Pose::sprint_jump`]): it lines up from [`SPRINT_LINE_UP_FROM_M`],
+//!   runs at it on the jump's line with sprint held for
+//!   [`SPRINT_RUN_UP_S`], and presses with the ledge's edge
+//!   [`sprint_press_m`] ahead. A first try only: one that did not get up,
+//!   or a run-up the gate or the ground spoiled, is jumped standing.
 //!
 //! The numbers are [`Feel`]'s: tuning, not game data.
 
@@ -161,6 +169,33 @@ pub struct Pose {
     /// Hurt so it does not jump now ([`Hurt::may_jump`]): the motor
     /// presses no jump and counts no try at one.
     pub no_jump: bool,
+    /// The game would give a sprint jump now: the gate of the sprint-jump
+    /// RE (`FINDINGS.md` §1, §7): no battery carried, the weapon idle and
+    /// not aiming, standing, not hit within [`SPRINT_HIT_HOLD_MS`]. The
+    /// speed and the keys are the motor's own.
+    pub sprint_jump: bool,
+    /// The gates that refuse it, [`no_sprint`] bits (for the bench).
+    pub no_sprint: u8,
+}
+
+/// Why a sprint jump is refused ([`Pose::no_sprint`]).
+pub mod no_sprint {
+    /// A battery carried (`victory_item_core::can_sprint` is false, PROVEN).
+    pub const CARRYING: u8 = 1;
+    /// Hit within [`super::SPRINT_HIT_HOLD_MS`], or a leg broken.
+    pub const HURT: u8 = 2;
+    /// The trigger down within the weapon's shot interval or chambering.
+    pub const FIRED: u8 = 4;
+    /// Aiming, or the aim key up within the weapon's aim time.
+    pub const AIMED: u8 = 8;
+    /// A reload or a switch under way.
+    pub const BUSY: u8 = 16;
+    /// Crouched.
+    pub const CROUCHED: u8 = 32;
+    /// No clear run-up on the jump's line ([`super::SPRINT_RUN_UP_M`]).
+    pub const RUN_UP: u8 = 64;
+    /// Walking while aiming ([`super::Motor::walk_aiming`]): no sprint.
+    pub const WALK_AIMING: u8 = 128;
 }
 
 /// What the world last showed of the body's hurts, as the jump needs it
@@ -202,6 +237,16 @@ impl Hurt {
             && self
                 .last_hit_ms
                 .is_none_or(|at| now >= at.saturating_add(HIT_JUMP_HOLD_MS))
+    }
+
+    /// Whether the body may sprint-jump at `now`, ms, by its hurts: no
+    /// broken leg, and not within [`SPRINT_HIT_HOLD_MS`] of the last hit
+    /// (the stagger takes sprint away for 0.5 s, and the run builds again).
+    pub fn may_sprint_jump(&self, now: u32) -> bool {
+        !self.leg_broken
+            && self
+                .last_hit_ms
+                .is_none_or(|at| now >= at.saturating_add(SPRINT_HIT_HOLD_MS))
     }
 }
 
@@ -257,6 +302,62 @@ const GOING_TURN: f32 = 0.6;
 /// After a press the body is kept walking on the jump's line this long,
 /// seconds: the jump's 0.8 s and a tick.
 const CARRY_S: f32 = 0.85;
+
+/// A sprint jump ([`Route::sprint_jump`]) is lined up from this far before
+/// its take-off along the route, metres: the run-up ([`SPRINT_RUN_UP_M`])
+/// and a little to walk onto its line.
+pub const SPRINT_LINE_UP_FROM_M: f32 = 7.0;
+/// The sprint run-up starts this far behind the take-off on the jump's
+/// line, metres: [`SPRINT_RUN_UP_S`] at the run's 3.5-5 m/s and the press
+/// [`SPRINT_PRESS_M`] before the edge.
+pub const SPRINT_RUN_UP_M: f32 = 5.5;
+/// Sprint is held this long on the jump's line before the press, seconds:
+/// the game plays the sprint clip only at walk speed or more at the press,
+/// and a run from a walk is past it within 0.25-0.5 s (LIKELY, the
+/// Cologne worlds; 0.75 s is safe: the sprint-jump RE `FINDINGS.md`
+/// §3.1, §7.4).
+pub const SPRINT_RUN_UP_S: f32 = 0.75;
+/// The sprint jump is pressed with the ledge's edge this far ahead at most,
+/// metres (the middle of the window that lands in every gait phase, 0.5 m
+/// to [`sprint_far_m`]: `FINDINGS.md` §5, §7.7, LIKELY) …
+pub const SPRINT_PRESS_M: f32 = 2.25;
+/// … and this far at least: nearer, nothing must touch the body before
+/// the press (else the speed test fails), so the try is jumped standing.
+pub const SPRINT_NEAR_M: f32 = 0.5;
+/// The ground speed at the press at least, m/s: the game's test is the
+/// walk cap, 3.5 m/s × (1 + modifiers), 3.32-3.70 (`FINDINGS.md` §1.2).
+pub const SPRINT_SPEED_MIN: f32 = 3.7;
+/// After a sprint press the body is kept on the jump's line this long,
+/// seconds: the prepare's 0.15 s, the clip's 0.88 s and a tick.
+const SPRINT_CARRY_S: f32 = 1.1;
+/// After a hit no sprint jump for this long, ms: the stagger's 0.5 s with
+/// no sprint and the run built again (`FINDINGS.md` §1.8, §7.8, LIKELY).
+pub const SPRINT_HIT_HOLD_MS: u32 = 1_250;
+
+/// The farthest the ledge's edge may be ahead at the sprint press for a
+/// ledge `rise` metres up, metres: where the clip's root comes back down
+/// through that height (left leg; `FINDINGS.md` §5, LIKELY), between the
+/// table's heights by line.
+pub fn sprint_far_m(rise: f32) -> f32 {
+    const FAR: [(f32, f32); 4] = [(0.8, 3.61), (1.0, 3.38), (1.1, 3.24), (1.2, 3.06)];
+    if rise <= FAR[0].0 {
+        return FAR[0].1;
+    }
+    for w in FAR.windows(2) {
+        let ((h0, f0), (h1, f1)) = (w[0], w[1]);
+        if rise <= h1 {
+            return f0 + (f1 - f0) * (rise - h0) / (h1 - h0);
+        }
+    }
+    FAR[3].1
+}
+
+/// Where the sprint jump up a ledge `rise` metres up is pressed: the ledge's
+/// edge this far ahead, metres ([`SPRINT_PRESS_M`], within half a metre of
+/// [`sprint_far_m`]).
+pub fn sprint_press_m(rise: f32) -> f32 {
+    SPRINT_PRESS_M.min(sprint_far_m(rise) - 0.5)
+}
 /// The feet within this under the landing's floor (and at most half the
 /// jump's rise), within [`UP_NEAR_M`] of it across: up the ledge, metres.
 pub const UP_M: f32 = 0.35;
@@ -364,6 +465,13 @@ struct JumpTry {
     tries: u32,
     pressed: Option<u32>,
     back: bool,
+    /// A sprint jump ([`Route::sprint_jump`]) jumped standing from now on:
+    /// its first try did not get up, or its run-up was spoiled.
+    standing: bool,
+    /// The tick sprint was first held on the jump's line, this run-up.
+    sprint_since: Option<u32>,
+    /// The last press was a sprint jump's.
+    sprinted: bool,
     /// [measure] Counted up, or given up on, in the jump tally.
     #[cfg(test)]
     tallied: bool,
@@ -379,6 +487,8 @@ pub struct RoutePress {
     pub tries: u32,
     pub before: f32,
     pub facing: f32,
+    /// A sprint jump's press.
+    pub sprint: bool,
 }
 
 /// What the jump ahead asks of this tick's walk ([`Motor::jump_ahead`]).
@@ -398,6 +508,12 @@ struct Ahead {
     going: bool,
     /// Given up on: the take-off.
     failed: Option<Vec3>,
+    /// Made sprinting ([`Route::sprint_jump`], [`Pose::sprint_jump`]).
+    sprint: bool,
+    /// How far the ledge's edge (half way to the landing) is ahead along
+    /// the way, and how high the jump rises, metres.
+    edge: f32,
+    rise: f32,
 }
 
 /// Why the motor pressed jump.
@@ -542,7 +658,7 @@ impl Motor {
         if off > off_m {
             return (Decision::default(), Walked::Off(off));
         }
-        let jump = self.jump_ahead(route, pose, s, &clear);
+        let jump = self.jump_ahead(route, pose, s, &clear, pose.sprint_jump, pose.no_sprint);
         let target = match jump {
             Some(jump) => jump.aim,
             None => {
@@ -595,10 +711,22 @@ impl Motor {
         }
         // Crouched where a standing body does not fit (a low passage):
         // no sprint there. Lining up for a jump: neither (a crouched body
-        // does not jump).
+        // does not jump), but on a sprint jump's line: sprint held from
+        // the run-up through the jump.
         let low = jump.is_none() && route.low_ahead(s, LOW_AHEAD_M);
-        if low || jump.is_some() {
+        let sprint_run = jump.is_some_and(|jump| jump.sprint && jump.lined) && self.walking;
+        if sprint_run {
+            self.sprinting = true;
+            if let Some(t) = self.jump_try.as_mut()
+                && t.sprint_since.is_none()
+            {
+                t.sprint_since = Some(self.clock);
+            }
+        } else if low || jump.is_some() {
             self.sprinting = false;
+            if let Some(t) = self.jump_try.as_mut() {
+                t.sprint_since = None;
+            }
         }
         let mut keys = 0;
         if self.walking {
@@ -664,7 +792,8 @@ impl Motor {
             let turn = self.aim_toward(pose, aim.0, aim.1);
             return (Decision { keys: 0, turn }, Walked::Off(off));
         }
-        let jump = self.jump_ahead(route, pose, s, &clear);
+        // No sprint while aiming: a sprint jump is jumped standing.
+        let jump = self.jump_ahead(route, pose, s, &clear, false, no_sprint::WALK_AIMING);
         // On a jump's line the view turns to the jump's way: a jump goes
         // the way the body faces and its keys push (the jump branch of the
         // client's `bullet_character_controller::player_step`, 0x7BF80..
@@ -729,9 +858,17 @@ impl Motor {
         pose: &Pose,
         s: f32,
         clear: &impl Fn(Vec3) -> bool,
+        may_sprint: bool,
+        no_sprint: u8,
     ) -> Option<Ahead> {
         let (k, before_route) = route.next_jump(s)?;
-        if before_route > LINE_UP_FROM_M {
+        let sprint_jump = route.sprint_jump(k);
+        let reach = if sprint_jump {
+            SPRINT_LINE_UP_FROM_M
+        } else {
+            LINE_UP_FROM_M
+        };
+        if before_route > reach {
             return None;
         }
         let points = route.points();
@@ -747,7 +884,7 @@ impl Motor {
                 && !t.tallied
             {
                 t.tallied = true;
-                let (tries, marginal) = (t.tries, marginal(take_off, landing));
+                let (tries, marginal, sprinted) = (t.tries, marginal(take_off, landing), t.sprinted);
                 tally(|j| {
                     if tries == 1 && marginal {
                         j.marginal_first_up += 1;
@@ -756,6 +893,9 @@ impl Motor {
                     }
                     if marginal {
                         j.marginal_up += 1;
+                    }
+                    if tries == 1 && sprinted {
+                        j.sprint_up += 1;
                     }
                 });
             }
@@ -775,11 +915,58 @@ impl Motor {
                 tries: 0,
                 pressed: None,
                 back: false,
+                standing: false,
+                sprint_since: None,
+                sprinted: false,
                 #[cfg(test)]
                 tallied: false,
             },
         };
-        let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < CARRY_S);
+        let carry = if jump.sprinted {
+            SPRINT_CARRY_S
+        } else {
+            CARRY_S
+        };
+        let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < carry);
+        let at = |m: f32| Vec3::new(take_off.x - way[0] * m, take_off.y, take_off.z - way[1] * m);
+        let (dx, dz) = (feet.x - take_off.x, feet.z - take_off.z);
+        let along = dx * way[0] + dz * way[1];
+        let side = (dx * way[1] - dz * way[0]).abs();
+        // A sprint jump's first try sprints; it is jumped standing once a
+        // try did not get up, or once on its line (or near the take-off)
+        // the gate refuses or the run-up is not clear.
+        let on_sprint_line = side <= LINED_SIDE_M
+            && along <= LINED_PAST_M
+            && along >= -(SPRINT_RUN_UP_M + LINED_BEHIND_M);
+        if sprint_jump && !jump.standing && !in_the_air {
+            let near = before_route <= LINE_UP_FROM_M || on_sprint_line;
+            let refused = if !may_sprint {
+                no_sprint
+            } else if near && !on_sprint_line && !clear(at(SPRINT_RUN_UP_M)) {
+                no_sprint::RUN_UP
+            } else {
+                0
+            };
+            if jump.tries > 0 || (near && refused != 0) {
+                jump.standing = true;
+                jump.sprint_since = None;
+                #[cfg(test)]
+                if jump.tries == 0 {
+                    tally(|j| {
+                        for bit in 0..8usize {
+                            if refused & (1u8 << bit) != 0 {
+                                j.refused[bit] += 1;
+                            }
+                        }
+                    });
+                }
+            }
+        }
+        let sprint = sprint_jump && !jump.standing;
+        if !sprint && before_route > LINE_UP_FROM_M {
+            self.jump_try = Some(jump);
+            return None;
+        }
         self.lining_up = true;
         if jump.tries >= JUMP_TRIES && !in_the_air {
             #[cfg(test)]
@@ -797,16 +984,19 @@ impl Motor {
                 before: 0.0,
                 going: false,
                 failed: Some(take_off),
+                sprint: false,
+                edge: 0.0,
+                rise: 0.0,
             });
         }
-        let at = |m: f32| Vec3::new(take_off.x - way[0] * m, take_off.y, take_off.z - way[1] * m);
-        let run_up = [RUN_UP_M, 0.5 * RUN_UP_M]
-            .into_iter()
-            .find(|&m| clear(at(m)))
-            .unwrap_or(0.0);
-        let (dx, dz) = (feet.x - take_off.x, feet.z - take_off.z);
-        let along = dx * way[0] + dz * way[1];
-        let side = (dx * way[1] - dz * way[0]).abs();
+        let run_up = if sprint {
+            SPRINT_RUN_UP_M
+        } else {
+            [RUN_UP_M, 0.5 * RUN_UP_M]
+                .into_iter()
+                .find(|&m| clear(at(m)))
+                .unwrap_or(0.0)
+        };
         let on_line =
             side <= LINED_SIDE_M && along <= LINED_PAST_M && along >= -(run_up + LINED_BEHIND_M);
         if jump.back && (at(run_up).distance_xz(feet) <= AT_RUN_UP_M || (run_up == 0.0 && on_line))
@@ -814,12 +1004,17 @@ impl Motor {
             jump.back = false;
         }
         let lined = in_the_air || (on_line && !jump.back);
+        if !lined {
+            jump.sprint_since = None;
+        }
         let aim = if lined {
-            // Along the jump's way, past the landing.
+            // Along the jump's way, past the landing (a sprint jump's
+            // clip carries 4.4 m).
+            let past = if sprint { 6.0 } else { 3.0 };
             Vec3::new(
-                take_off.x + way[0] * 3.0,
+                take_off.x + way[0] * past,
                 landing.y,
-                take_off.z + way[1] * 3.0,
+                take_off.z + way[1] * past,
             )
         } else if clear(at(run_up)) {
             at(run_up)
@@ -854,6 +1049,9 @@ impl Motor {
             before: -along,
             going,
             failed: None,
+            sprint,
+            edge: 0.5 * take_off.distance_xz(landing) - along,
+            rise: landing.y - take_off.y,
         })
     }
 
@@ -874,24 +1072,59 @@ impl Motor {
             return 0;
         }
         let speed = pose.speed;
+        let carry = if jump.sprinted {
+            SPRINT_CARRY_S
+        } else {
+            CARRY_S
+        };
         let rested = jump
             .pressed
-            .is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S));
-        let near = ahead.before <= JUMP_LEAD_S * speed + PRESS_M;
-        if !(ahead.lined && ahead.going && self.walking && still <= JUMP_FACING && near && rested) {
+            .is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(carry));
+        let ready = ahead.lined && ahead.going && self.walking && still <= JUMP_FACING && rested;
+        let mut sprint = ahead.sprint;
+        if sprint && jump.pressed.is_none() && ahead.edge < SPRINT_NEAR_M {
+            // The sprint press's window passed unpressed (too slow, or the
+            // run held too short): this try is jumped standing.
+            sprint = false;
+            jump.standing = true;
+            jump.sprint_since = None;
+            self.jump_try = Some(jump);
+            #[cfg(test)]
+            tally(|j| j.missed += 1);
+        }
+        let press = if sprint && jump.pressed.is_some() {
+            // In the sprint jump's air: no press again.
+            false
+        } else if sprint {
+            let held = jump
+                .sprint_since
+                .is_some_and(|at| self.since(at) >= SPRINT_RUN_UP_S);
+            ready
+                && held
+                && speed >= SPRINT_SPEED_MIN
+                && ahead.edge <= sprint_press_m(ahead.rise)
+        } else {
+            ready && ahead.before <= JUMP_LEAD_S * speed + PRESS_M
+        };
+        if !press {
             return 0;
         }
         jump.tries += 1;
         jump.pressed = Some(self.clock);
         jump.back = true;
+        jump.sprinted = sprint;
         #[cfg(test)]
-        if jump.tries == 1 {
+        {
             let marginal = marginal(jump.take_off, jump.landing);
+            let first = jump.tries == 1;
             tally(|j| {
-                if marginal {
+                if first && marginal {
                     j.marginal_first += 1;
-                } else {
+                } else if first {
                     j.other_first += 1;
+                }
+                if sprint {
+                    j.sprint += 1;
                 }
             });
         }
@@ -902,6 +1135,7 @@ impl Motor {
             tries: jump.tries,
             before: ahead.before,
             facing: still,
+            sprint,
         });
         self.jump = Some(JumpBy::Route);
         key::JUMP
@@ -1164,6 +1398,14 @@ pub struct JumpTally {
     /// The other jumps pressed a first time, and got up by that press.
     pub other_first: u32,
     pub other_first_up: u32,
+    /// Sprint presses, and the jumps a first sprint press got up.
+    pub sprint: u32,
+    pub sprint_up: u32,
+    /// Sprint jumps jumped standing at their first try, by the gate that
+    /// refused ([`no_sprint`]: one count per bit).
+    pub refused: [u32; 8],
+    /// Sprint presses whose window passed unpressed ([`SPRINT_NEAR_M`]).
+    pub missed: u32,
 }
 
 #[cfg(test)]
@@ -1171,13 +1413,24 @@ impl JumpTally {
     /// The bench's line.
     pub fn line(&self) -> String {
         format!(
-            "marginal first {} up {} (any try {}, failed {}); other first {} up {}",
+            "marginal first {} up {} (any try {}, failed {}); other first {} up {}; sprint {} up {} missed {}; refused carrying {} hurt {} fired {} aimed {} busy {} crouched {} run-up {} walk-aiming {}",
             self.marginal_first,
             self.marginal_first_up,
             self.marginal_up,
             self.marginal_failed,
             self.other_first,
             self.other_first_up,
+            self.sprint,
+            self.sprint_up,
+            self.missed,
+            self.refused[0],
+            self.refused[1],
+            self.refused[2],
+            self.refused[3],
+            self.refused[4],
+            self.refused[5],
+            self.refused[6],
+            self.refused[7],
         )
     }
 }
@@ -1192,6 +1445,10 @@ thread_local! {
             marginal_failed: 0,
             other_first: 0,
             other_first_up: 0,
+            sprint: 0,
+            sprint_up: 0,
+            refused: [0; 8],
+            missed: 0,
         })
     };
 }
@@ -1349,10 +1606,12 @@ mod tests {
         ticks: usize,
         aiming: bool,
     ) -> Climb {
-        climb_ledge_hurt(route, ledge, start, yaw, ticks, aiming, 0)
+        climb_ledge_hurt(route, ledge, start, yaw, ticks, aiming, 0, false)
     }
 
-    /// [`climb_ledge`], hurt so it does not jump for the first `hurt_ticks`.
+    /// [`climb_ledge`], hurt so it does not jump for the first `hurt_ticks`,
+    /// and with the sprint jump's gate open if `sprint_gate`.
+    #[allow(clippy::too_many_arguments)]
     fn climb_ledge_hurt(
         route: &mut Route,
         ledge: &Ledge,
@@ -1361,6 +1620,7 @@ mod tests {
         ticks: usize,
         aiming: bool,
         hurt_ticks: usize,
+        sprint_gate: bool,
     ) -> Climb {
         let kin = Kinematics::default();
         let mut rng = Rng::new(17);
@@ -1389,6 +1649,7 @@ mod tests {
         let mut air: Option<usize> = None;
         for tick in 0..ticks {
             pose.no_jump = tick < hurt_ticks;
+            pose.sprint_jump = sprint_gate;
             let (decision, walked) = if aiming {
                 motor.walk_aiming(route, &pose, 5.0, |_| true, (yaw, 0.0))
             } else {
@@ -1535,6 +1796,7 @@ mod tests {
                 hurt_ticks + 300,
                 aiming,
                 hurt_ticks,
+                false,
             );
             let label = format!("aiming {aiming}");
             assert!(
@@ -1610,6 +1872,151 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    /// A route along x to a take-off at x 9.8, up a 1.0 m ledge to x 10
+    /// (its face at 0.1 m), on along x up there, the jump marked to be made
+    /// sprinting ([`Route::sprint_jump`]); and the [`Ledge`] it is, gotten
+    /// up by a press within `reach` of its face (the sprint jump's window,
+    /// [`sprint_far_m`]) or never.
+    fn up_a_sprint_ledge(reach: f32, gets_up: bool) -> (Route, Ledge) {
+        let p = |x: f32, y: f32, jump| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump,
+            low: false,
+        };
+        let points = vec![
+            p(0.0, 0.0, false),
+            p(9.8, 0.0, false),
+            p(10.0, 1.0, true),
+            p(16.0, 1.0, false),
+        ];
+        let ledge = Ledge {
+            take_off: points[1].at,
+            way: [1.0, 0.0],
+            face: 0.1,
+            reach,
+            gets_up,
+        };
+        (Route::new(points).with_sprint(vec![2]), ledge)
+    }
+
+    /// The press windows: the edge at most [`SPRINT_PRESS_M`] ahead, and
+    /// half a metre inside [`sprint_far_m`] (the RE's table, by line
+    /// between its heights).
+    #[test]
+    fn the_sprint_press_is_inside_the_clips_window() {
+        assert!((sprint_far_m(1.0) - 3.38).abs() < 1e-4);
+        assert!((sprint_far_m(1.05) - 3.31).abs() < 1e-4);
+        assert!((sprint_far_m(1.3) - 3.06).abs() < 1e-4);
+        assert!((sprint_far_m(0.5) - 3.61).abs() < 1e-4);
+        assert_eq!(sprint_press_m(1.0), SPRINT_PRESS_M);
+        assert!(sprint_press_m(1.0) <= sprint_far_m(1.0) - 0.5);
+    }
+
+    /// A marginal jump marked to be sprinted, with the gate open: the body
+    /// runs at it on its line with sprint held for [`SPRINT_RUN_UP_S`] and
+    /// more, presses once at sprint speed with the edge within
+    /// [`SPRINT_NEAR_M`]-[`SPRINT_PRESS_M`] ahead, keeps forward and sprint
+    /// held in the air, and gets up at the first try.
+    #[test]
+    fn a_sprint_jump_is_run_at_and_pressed_from_its_window() {
+        let (mut route, ledge) = up_a_sprint_ledge(sprint_far_m(1.0), true);
+        let climb = climb_ledge_hurt(
+            &mut route,
+            &ledge,
+            Vec3::ZERO,
+            yaw_of([1.0, 0.0]),
+            400,
+            false,
+            0,
+            true,
+        );
+        assert!(climb.up, "{:?}", climb.poses.last());
+        assert_eq!(climb.presses.len(), 1, "{:?}", climb.presses);
+        assert_eq!(climb.walked, Walked::Arrived);
+        let (tick, at) = climb.presses[0];
+        let keys = climb.decisions[tick].keys;
+        assert_eq!(keys & (key::FORWARD | key::SPRINT), key::FORWARD | key::SPRINT);
+        let edge = ledge.take_off.x + ledge.face - at.feet.x;
+        assert!(
+            (SPRINT_NEAR_M..=SPRINT_PRESS_M + 0.3).contains(&edge),
+            "{edge}: {at:?}"
+        );
+        assert!(at.speed >= SPRINT_SPEED_MIN, "{at:?}");
+        let held = climb.decisions[..tick]
+            .iter()
+            .rev()
+            .take_while(|d| d.keys & key::SPRINT != 0)
+            .count();
+        assert!(held as f32 * TICK_S >= SPRINT_RUN_UP_S, "{held}");
+        for d in &climb.decisions[tick..climb.up_at.unwrap()] {
+            assert_eq!(d.keys & (key::FORWARD | key::SPRINT), key::FORWARD | key::SPRINT);
+        }
+    }
+
+    /// The same jump with the gate shut (a battery carried, the weapon not
+    /// idle: [`Pose::sprint_jump`]), or not marked to be sprinted: jumped
+    /// standing from the take-off, no sprint from [`LINE_UP_FROM_M`].
+    #[test]
+    fn a_sprint_jump_the_gate_refuses_is_jumped_standing() {
+        for marked in [true, false] {
+            let (route, ledge) = up_a_sprint_ledge(1.2, true);
+            let mut route = if marked {
+                route
+            } else {
+                Route::new(route.points().to_vec())
+            };
+            let climb = climb_ledge_hurt(
+                &mut route,
+                &ledge,
+                Vec3::ZERO,
+                yaw_of([1.0, 0.0]),
+                400,
+                false,
+                0,
+                !marked,
+            );
+            assert!(climb.up, "marked {marked}: {:?}", climb.poses.last());
+            assert_eq!(climb.presses.len(), 1, "marked {marked}");
+            let (_, at) = climb.presses[0];
+            assert!(at.feet.distance_xz(ledge.take_off) <= 0.9, "{at:?}");
+            for (pose, decision) in climb.poses.iter().zip(&climb.decisions) {
+                if pose.feet.distance_xz(ledge.take_off) <= LINE_UP_FROM_M {
+                    assert_eq!(decision.keys & key::SPRINT, 0, "{pose:?}");
+                }
+            }
+        }
+    }
+
+    /// A sprint jump that does not get up is tried again standing, from the
+    /// standing run-up, and given up on after [`JUMP_TRIES`] in all.
+    #[test]
+    fn a_sprint_jump_that_did_not_get_up_is_tried_standing() {
+        let (mut route, ledge) = up_a_sprint_ledge(sprint_far_m(1.0), false);
+        let climb = climb_ledge_hurt(
+            &mut route,
+            &ledge,
+            Vec3::ZERO,
+            yaw_of([1.0, 0.0]),
+            1_200,
+            false,
+            0,
+            true,
+        );
+        assert!(!climb.up);
+        assert!(matches!(climb.walked, Walked::JumpFailed(_)), "{:?}", climb.walked);
+        assert_eq!(climb.presses.len() as u32, JUMP_TRIES, "{:?}", climb.presses);
+        let sprinted: Vec<bool> = climb
+            .presses
+            .iter()
+            .map(|&(tick, _)| climb.decisions[tick].keys & key::SPRINT != 0)
+            .collect();
+        assert_eq!(sprinted, [true, false, false]);
+        for &(_, at) in &climb.presses[1..] {
+            assert!(at.feet.distance_xz(ledge.take_off) <= 0.9, "{at:?}");
         }
     }
 

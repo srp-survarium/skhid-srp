@@ -134,8 +134,9 @@ struct Body {
     drawn_at: u32,
     moved: f32,
     /// Until when a jump pressed keeps the body in the air, ms
-    /// ([`STAND_IN_AIR_MS`]).
+    /// ([`STAND_IN_AIR_MS`]), and the jump's clip ([`stand_in_clip`]).
     air_until: u32,
+    air_jump: StandInJump,
     /// The leg pools (0.5 full), until when an empty one is broken, and
     /// the last hit's tick (0: none this life), [`STAND_IN_LEG_SHARE`].
     legs: [f32; 2],
@@ -244,12 +245,28 @@ fn standing_jump() -> StandInJump {
 /// The client's sprint jump: 1.282-1.350 m by clip (PROVEN, the jump
 /// study), played at a press with forward and sprint held at walk speed or
 /// more, any weapon, no battery carried (PROVEN,
-/// `player_logic_jump_state::initialize` 0x337040). No bot's jump picks it
-/// yet. The distance is [`STANDING_JUMP`]'s (GUESS).
+/// `player_logic_jump_state::initialize` 0x337040; [`stand_in_clip`]).
+/// The distance is [`STANDING_JUMP`]'s (GUESS).
 const SPRINT_JUMP: StandInJump = StandInJump {
     rise_m: 1.30,
     ahead_m: 0.6,
 };
+
+/// The clip a jump pressed with `keys` at ground speed `speed` (m/s) plays:
+/// the sprint jump's with forward and sprint held, none of back, fire, aim
+/// or crouch, no battery carried and faster than the walk cap (3.5 m/s;
+/// the game's test is at least the cap, and a walk is at it exactly: the
+/// stand-in takes the walk's as the standing clip), else the standing one
+/// (the sprint-jump RE, `FINDINGS.md` §1, PROVEN).
+fn stand_in_clip(keys: u32, speed: f32, carrying: bool) -> StandInJump {
+    let held = key::FORWARD | key::SPRINT;
+    let spoils = key::BACK | key::FIRE | key::AIM | key::CROUCH;
+    if keys & held == held && keys & spoils == 0 && !carrying && speed > 3.5 + 1e-3 {
+        SPRINT_JUMP
+    } else {
+        standing_jump()
+    }
+}
 
 /// Where a stand-in body in the air, walking from `feet` (on `node`) into
 /// `to` and stopped, gets up with `jump`:
@@ -411,9 +428,11 @@ struct Game {
     /// killed so.
     team_hits: u32,
     team_kills: u32,
-    /// Jumps pressed, and of them those a broken leg refused.
+    /// Jumps pressed, of them those a broken leg refused, and the sprint
+    /// jumps ([`stand_in_clip`]).
     jumps_pressed: u32,
     jumps_refused: u32,
+    sprint_jumps: u32,
     /// Shots at the bot's target whose ray met the world short of him, and
     /// those with nothing of him showing.
     walled: u32,
@@ -577,6 +596,7 @@ impl Game {
             drawn_at: 0,
             moved: 0.0,
             air_until: 0,
+            air_jump: STANDING_JUMP,
             legs: [0.5; 2],
             leg_broken_until: 0,
             last_hit: 0,
@@ -605,6 +625,7 @@ impl Game {
             team_hits: 0,
             jumps_pressed: 0,
             jumps_refused: 0,
+            sprint_jumps: 0,
             team_kills: 0,
             walled: 0,
             walled_by: [0; 2],
@@ -737,6 +758,11 @@ impl Game {
                     self.jumps_pressed += 1;
                     if body.legs.iter().all(|&pool| pool > 0.0) {
                         body.air_until = tick + STAND_IN_AIR_MS;
+                        let [x, z] = body.blend.now(self.kin.blend_ticks);
+                        body.air_jump = stand_in_clip(keys, x.hypot(z), body.carrying.is_some());
+                        if body.air_jump.rise_m > STANDING_JUMP.rise_m {
+                            self.sprint_jumps += 1;
+                        }
                     } else {
                         self.jumps_refused += 1;
                     }
@@ -815,7 +841,7 @@ impl Game {
                 // it (once a jump).
                 if tick < body.air_until
                     && feet.distance_xz(to) > 1e-3
-                    && let Some(up) = stand_in_jump(grid, node, feet, to, standing_jump())
+                    && let Some(up) = stand_in_jump(grid, node, feet, to, body.air_jump)
                 {
                     node = up;
                     feet = grid.position(up);
@@ -5243,8 +5269,8 @@ fn real_bot_cost() {
             eprintln!("  {}", fight.line(&game));
             eprintln!("  routes: {}", routes.line());
             eprintln!(
-                "  jumps: pressed {} refused {}",
-                game.jumps_pressed, game.jumps_refused
+                "  jumps: pressed {} refused {} sprint {}",
+                game.jumps_pressed, game.jumps_refused, game.sprint_jumps
             );
             eprintln!("  route jumps: {}", super::motor::take_jump_tally().line());
             eprintln!("  push: {}", push.line(&bots));

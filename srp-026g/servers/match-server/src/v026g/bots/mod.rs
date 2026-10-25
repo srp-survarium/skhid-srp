@@ -67,7 +67,7 @@ use body::Fix;
 use cheats::CheatClock;
 use encode::{Decision, Encoder};
 use know::{DangerSpot, LookSpot, Loss, Memory, Percept, Source, TeamKnowledge, Theft};
-use motor::{Hurt, JumpBy, Motor, Pose, RoutePress, Walked};
+use motor::{Hurt, JumpBy, Motor, Pose, RoutePress, Walked, no_sprint};
 use path::Route;
 use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
 use reflex::Reflex;
@@ -208,6 +208,9 @@ pub struct Bot {
     /// and the last tick the trigger was down.
     jump_hold: u32,
     fired_at: Option<u32>,
+    /// The last tick the aim key was down (the sprint jump's gate,
+    /// [`sprint_gate`]).
+    aimed_at: Option<u32>,
     /// Its hurts as the last trusted world showed them ([`Bots::hurt`]).
     hurt: Hurt,
     /// The last jump, until what followed it is traced.
@@ -315,6 +318,7 @@ impl Bot {
             unstick: None,
             jump_hold: 0,
             fired_at: None,
+            aimed_at: None,
             hurt: Hurt::default(),
             jump_watch: None,
             tracing: false,
@@ -467,6 +471,7 @@ impl Bot {
         self.unstick = None;
         self.jump_hold = 0;
         self.fired_at = None;
+        self.aimed_at = None;
         // The kit it spawned in keeps its storage less what it fired; the
         // kit it picked fills this life from its own (0x2FCB70: the slot's
         // rounds, at most what the storage has).
@@ -2259,12 +2264,15 @@ fn drive_tick(
         ..me.clone()
     };
     let intent = bot.intent;
+    let no_sprint = sprint_gate(bot, me, time);
     let pose = Pose {
         feet: me.feet,
         yaw: me.yaw,
         pitch: me.pitch,
         speed: me.speed(),
         no_jump: !bot.hurt.may_jump(time),
+        sprint_jump: no_sprint == 0,
+        no_sprint,
     };
     if bot
         .jump_watch
@@ -2819,6 +2827,9 @@ impl Bot {
 /// no jump while it fires.
 fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: Vec3, time: u32) -> u32 {
     let firing = keys & key::FIRE != 0;
+    if keys & key::AIM != 0 {
+        bot.aimed_at = Some(time);
+    }
     if let Some(by) = by.filter(|_| bot.jump_hold == 0) {
         let lately = firing || bot.fired_at.is_some_and(|at| time < at + JUMP_HOLD_MS);
         bot.jump_hold = if lately {
@@ -2840,6 +2851,7 @@ fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: Vec3, time:
                 line["to"] = route.landing.to_array().into();
                 line["before_m"] = route.before.into();
                 line["facing"] = route.facing.into();
+                line["sprint"] = route.sprint.into();
                 line["crouch"] = (keys & key::CROUCH != 0).into();
             }
             bot.traced.push(line);
@@ -2864,6 +2876,37 @@ fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: Vec3, time:
         bot.reflex.gate_jump(time);
     }
     (keys | key::JUMP) & !key::FIRE
+}
+
+/// The gates that refuse `bot` a sprint jump at `time`, [`no_sprint`]
+/// bits (none: the game gives one): the sprint-jump RE's (`FINDINGS.md`
+/// §1, §7, PROVEN): no battery carried; the weapon idle, not chambering
+/// after the last shot (its cycle), not reloading or switching
+/// ([`Reflex::weapon_busy`]); not aiming, nor within the weapon's aim time
+/// of the aim key's release; standing; and its hurts
+/// ([`Hurt::may_sprint_jump`]).
+fn sprint_gate(bot: &Bot, me: &PlaceView, time: u32) -> u8 {
+    let gun = bot.reflex.held_gun();
+    let mut no = 0;
+    if me.carrying.is_some() {
+        no |= no_sprint::CARRYING;
+    }
+    if !bot.hurt.may_sprint_jump(time) {
+        no |= no_sprint::HURT;
+    }
+    if bot.fired_at.is_some_and(|at| time < at + gun.cycle_ms()) {
+        no |= no_sprint::FIRED;
+    }
+    if me.keys & key::AIM != 0 || bot.aimed_at.is_some_and(|at| time < at + gun.aim_ms) {
+        no |= no_sprint::AIMED;
+    }
+    if bot.reflex.weapon_busy(time) {
+        no |= no_sprint::BUSY;
+    }
+    if me.keys & key::CROUCH != 0 {
+        no |= no_sprint::CROUCHED;
+    }
+    no
 }
 
 /// A walk's keys with the side step `strafe` woven in: a walk straight to

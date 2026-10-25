@@ -873,6 +873,15 @@ impl Route {
         self.sprint.binary_search(&k).is_ok()
     }
 
+    /// This route with the jumps to points `sprint` made sprinting (the
+    /// motor's tests).
+    #[cfg(test)]
+    pub fn with_sprint(mut self, mut sprint: Vec<usize>) -> Self {
+        sprint.sort_unstable();
+        self.sprint = sprint;
+        self
+    }
+
     /// The next waypoint after `s` that is reached by a jump: its index and
     /// the distance to the waypoint before it (where the jump starts).
     pub fn next_jump(&self, s: f32) -> Option<(usize, f32)> {
@@ -1177,6 +1186,35 @@ mod tests {
             "{s} {off}: {:?}",
             route.points()
         );
+    }
+
+    /// A jump up a 1.0 m deck (marginal: the standing jump's 0.998 m top
+    /// half clears it) is made sprinting when the deck goes on past the
+    /// landing ([`SPRINT_LANDING_ROOM_M`]); not onto a deck 1.5 m deep, nor
+    /// a 0.8 m jump.
+    #[test]
+    fn a_marginal_jump_with_room_past_its_landing_is_sprinted() {
+        use crate::v026g::bots::body::tests::floor;
+        let sprinted = |rise: f32, deck_to: f32| {
+            let mut triangles = floor(0.0, 0.0, 30.0, 10.0, 0.0).to_vec();
+            triangles.extend(floor(15.0, 0.0, deck_to, 10.0, rise));
+            let grid = WalkGrid::build(
+                &triangles,
+                [0.0, 0.0, 30.0, 10.0],
+                0.25,
+                mapdata::Body::default(),
+            );
+            let from = grid.locate(Vec3::new(5.0, 0.0, 5.0), 1.0).unwrap();
+            let to = grid.locate(Vec3::new(15.6, rise, 5.0), 1.0).unwrap();
+            let route = plan(&grid, from, to).unwrap();
+            let k = (1..route.points().len())
+                .find(|&k| route.points()[k].jump)
+                .unwrap_or_else(|| panic!("no jump: {:?}", route.points()));
+            route.sprint_jump(k)
+        };
+        assert!(sprinted(1.0, 30.0));
+        assert!(!sprinted(1.0, 16.5));
+        assert!(!sprinted(0.8, 30.0));
     }
 
     /// A goal under a floor or in the air over one (as a play computes it
