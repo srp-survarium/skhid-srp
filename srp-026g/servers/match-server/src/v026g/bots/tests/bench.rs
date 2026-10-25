@@ -9,7 +9,7 @@ pub(crate) struct BenchEvents(pub(crate) Option<std::io::BufWriter<std::fs::File
 
 impl BenchEvents {
     pub(crate) fn open(level: u8, mode: u8, per_team: usize) -> Self {
-        Self(std::env::var_os("SRP_BENCH_EVENTS").map(|dir| {
+        Self(bench_settings().var_os("SRP_BENCH_EVENTS").map(|dir| {
             let path = std::path::Path::new(&dir)
                 .join(format!("level_{level:02}-{mode}-{per_team}v{per_team}.jsonl"));
             std::io::BufWriter::new(std::fs::File::create(path).unwrap())
@@ -108,7 +108,7 @@ pub(crate) fn bench_tuning() -> Tuning {
 /// `SRP_BENCH_PING=<lo>-<hi>` (or one number), ms: a ping for each of
 /// `places`, drawn evenly between the two by `seed`.
 pub(crate) fn bench_pings(places: usize, seed: u32) -> Option<Vec<u32>> {
-    let text = std::env::var("SRP_BENCH_PING").ok().filter(|t| !t.is_empty())?;
+    let text = bench_settings().var("SRP_BENCH_PING").ok().filter(|t| !t.is_empty())?;
     let (lo, hi) = text.split_once('-').unwrap_or((&text, &text));
     let (lo, hi): (f32, f32) = (
         lo.trim().parse().expect("SRP_BENCH_PING: ms"),
@@ -124,49 +124,39 @@ pub(crate) fn bench_pings(places: usize, seed: u32) -> Option<Vec<u32>> {
 pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
     let var = |name: &str| {
         let prefix = if side1 { "SRP_BENCH_SIDE1_" } else { "SRP_BENCH_" };
-        std::env::var(format!("{prefix}{name}"))
+        bench_settings().var(&format!("{prefix}{name}"))
     };
     let mut tuning = Tuning::default();
     // The battery cheat instead of the fair battery knowledge.
-    if std::env::var_os("SRP_BENCH_CHEAT").is_some() {
+    if bench_settings().flag("SRP_BENCH_CHEAT") {
         tuning.cheats.batteries = true;
     }
-    if let Some(m) = std::env::var("SRP_BENCH_BATTERY_SIGHT_M")
-        .ok()
-        .and_then(|m| m.parse().ok())
+    if let Some(m) = bench_settings().number("SRP_BENCH_BATTERY_SIGHT_M")
     {
         tuning.sense.battery_sight_m = m;
     }
-    if let Some(m) = std::env::var("SRP_BENCH_FRIEND_NEAR_M")
-        .ok()
-        .and_then(|m| m.parse().ok())
+    if let Some(m) = bench_settings().number("SRP_BENCH_FRIEND_NEAR_M")
     {
         tuning.aim.friends.near_m = m;
     }
     // The teammates led to the tick decided (`FriendlyFireTuning::lead`):
     // 0 off, 1 on; and the lead's extra, ms.
-    if let Ok(v) = std::env::var("SRP_BENCH_FF_LEAD") {
+    if let Ok(v) = bench_settings().var("SRP_BENCH_FF_LEAD") {
         tuning.aim.friends.lead = v != "0";
     }
     // Teammates this far past the target count
     // (`FriendlyFireTuning::past_target_m`).
-    if let Some(m) = std::env::var("SRP_BENCH_FF_PAST_M")
-        .ok()
-        .and_then(|m| m.parse().ok())
+    if let Some(m) = bench_settings().number("SRP_BENCH_FF_PAST_M")
     {
         tuning.aim.friends.past_target_m = m;
     }
     // A teammate this near in front blocks whatever his angle
     // (`FriendlyFireTuning::touch_m`; 0 off).
-    if let Some(m) = std::env::var("SRP_BENCH_FF_TOUCH_M")
-        .ok()
-        .and_then(|m| m.parse().ok())
+    if let Some(m) = bench_settings().number("SRP_BENCH_FF_TOUCH_M")
     {
         tuning.aim.friends.touch_m = m;
     }
-    if let Some(ms) = std::env::var("SRP_BENCH_FF_LEAD_MS")
-        .ok()
-        .and_then(|m| m.parse().ok())
+    if let Some(ms) = bench_settings().number("SRP_BENCH_FF_LEAD_MS")
     {
         tuning.aim.friends.lead_extra_ms = ms;
     }
@@ -229,7 +219,7 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
         }
         tuning.sense = serde_json::from_value(sense).expect("SRP_BENCH_SENSE: known names");
     }
-    if let Ok(floors) = std::env::var("SRP_BENCH_SEARCH_FLOORS") {
+    if let Ok(floors) = bench_settings().var("SRP_BENCH_SEARCH_FLOORS") {
         tuning.think.search_floors_per_poll = if floors == "max" {
             u32::MAX
         } else {
@@ -313,27 +303,23 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
 /// ```
 pub(crate) fn real_bot_cost() {
     use std::time::Instant;
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = bench_settings().var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
-    let table = std::env::var_os("SRP_BOT_ROUTES")
+    let table = bench_settings().var_os("SRP_BOT_ROUTES")
         .map(|path| super::routes::RouteTable::load(std::path::Path::new(&path)).unwrap());
-    let limit_s: u32 = std::env::var("SRP_BENCH_SECONDS")
-        .ok()
-        .and_then(|s| s.parse().ok())
+    let limit_s: u32 = bench_settings().number("SRP_BENCH_SECONDS")
         .unwrap_or(240);
-    let sizes: Vec<usize> = std::env::var("SRP_BENCH_SIDES")
+    let sizes: Vec<usize> = bench_settings().var("SRP_BENCH_SIDES")
         .ok()
         .map(|s| s.split(',').filter_map(|n| n.parse().ok()).collect())
         .unwrap_or(vec![4, 8, 10]);
     // Another match of the same map and size (0: the digests' runs).
-    let seed: u32 = std::env::var("SRP_BENCH_SEED")
-        .ok()
-        .and_then(|s| s.parse().ok())
+    let seed: u32 = bench_settings().number("SRP_BENCH_SEED")
         .unwrap_or(0);
     use survarium::v026g::maps::mode;
-    let maps: Vec<(u8, u8)> = std::env::var("SRP_BENCH_MAPS")
+    let maps: Vec<(u8, u8)> = bench_settings().var("SRP_BENCH_MAPS")
         .ok()
         .map(|s| {
             s.split(',')
@@ -374,7 +360,7 @@ pub(crate) fn real_bot_cost() {
             );
             // Every bot of one tier (`SRP_BENCH_TIER=4-5|9-10|13-15`): its
             // kits and its skill.
-            if let Ok(tier) = std::env::var("SRP_BENCH_TIER")
+            if let Ok(tier) = bench_settings().var("SRP_BENCH_TIER")
                 && !tier.is_empty()
             {
                 let tier: survarium::v026g::loadouts::BotTier =
@@ -385,7 +371,7 @@ pub(crate) fn real_bot_cost() {
             // One-sided (`SRP_BENCH_ONE_SIDE`): team 1 by the
             // `SRP_BENCH_SIDE1_*` numbers, so a change given to team 0
             // alone shows in its K/D.
-            if std::env::var_os("SRP_BENCH_ONE_SIDE").is_some() {
+            if bench_settings().flag("SRP_BENCH_ONE_SIDE") {
                 bots.side1_tuning = Some(Arc::new(bench_tuning_of(true)));
             }
             // Every body seen as a live human is (`SRP_BENCH_PING=<lo>-<hi>`,
@@ -402,7 +388,7 @@ pub(crate) fn real_bot_cost() {
             }
             // Every place's weapon known as a live match knows it (the
             // weapon 1 of its role): play 11's matchup against the enemy's.
-            if std::env::var_os("SRP_BENCH_WEAPONS").is_some() {
+            if bench_settings().flag("SRP_BENCH_WEAPONS") {
                 let weapons = bots
                     .bots
                     .iter()
@@ -430,33 +416,23 @@ pub(crate) fn real_bot_cost() {
                 tickets,
                 timed,
             );
-            game.use_line = std::env::var_os("SRP_BENCH_USE_LINE").is_some();
-            if let Some(m) = std::env::var("SRP_BENCH_TAKE_M")
-                .ok()
-                .and_then(|m| m.parse().ok())
+            game.use_line = bench_settings().flag("SRP_BENCH_USE_LINE");
+            if let Some(m) = bench_settings().number("SRP_BENCH_TAKE_M")
             {
                 game.take_m = m;
             }
-            if let Some(n) = std::env::var("SRP_BENCH_UNTAKEABLE")
-                .ok()
-                .and_then(|n| n.parse().ok())
+            if let Some(n) = bench_settings().number("SRP_BENCH_UNTAKEABLE")
             {
                 game.untakeable = n;
             }
-            game.camp_m = std::env::var("SRP_BENCH_CAMP")
-                .ok()
-                .and_then(|m| m.parse().ok());
-            game.nudge = std::env::var("SRP_BENCH_NUDGE")
-                .ok()
-                .and_then(|m| m.parse().ok())
+            game.camp_m = bench_settings().number("SRP_BENCH_CAMP");
+            game.nudge = bench_settings().number("SRP_BENCH_NUDGE")
                 .map(|m| (m, NUDGE_EVERY_MS));
-            game.spread = std::env::var_os("SRP_BENCH_SPREAD").is_some();
+            game.spread = bench_settings().flag("SRP_BENCH_SPREAD");
             // As the game does (`gather_victory_items_rule::select_spawners`):
             // this many batteries at spawners drawn at random (the mode's
             // count is 10), not one at every spawner.
-            if let Some(count) = std::env::var("SRP_BENCH_BATTERIES")
-                .ok()
-                .and_then(|n| n.parse::<usize>().ok())
+            if let Some(count) = bench_settings().number::<usize>("SRP_BENCH_BATTERIES")
                 && timed.is_none()
                 && mode != mode::TEAM_DEATHMATCH
             {
@@ -473,7 +449,7 @@ pub(crate) fn real_bot_cost() {
             // One side behind from the start (F0): `SRP_BENCH_START=a,b`
             // puts `a` of the lying batteries in team 0's container and
             // `b` in team 1's, with the points, the rest left lying.
-            let start: [u32; 2] = std::env::var("SRP_BENCH_START")
+            let start: [u32; 2] = bench_settings().var("SRP_BENCH_START")
                 .ok()
                 .and_then(|s| {
                     let (a, b) = s.split_once(',')?;
@@ -589,9 +565,7 @@ pub(crate) fn real_bot_cost() {
             let mut blocks = BlockTally::default();
             let mut hits = HitTally::default();
             let mut owner = owner::OwnerTally::new(game.bodies.len());
-            bots.bench_camper = std::env::var("SRP_BENCH_CAMPER")
-                .ok()
-                .and_then(|v| v.parse().ok())
+            bots.bench_camper = bench_settings().number("SRP_BENCH_CAMPER")
                 .map(|place| (place, None));
             owner.camper = bots.bench_camper.map(|(place, _)| place);
             // The zones' own shapes, for their hits on the bodies; batteries
@@ -599,7 +573,7 @@ pub(crate) fn real_bot_cost() {
             // The zones' damage to the stand-in's bodies, with
             // SRP_BENCH_ZONE_DAMAGE=1 only (a GUESS of the game's until the
             // owner's CG-20 test): off, the bench decides as before.
-            let zone_damage = std::env::var("SRP_BENCH_ZONE_DAMAGE").is_ok_and(|v| v == "1");
+            let zone_damage = bench_settings().var("SRP_BENCH_ZONE_DAMAGE").is_ok_and(|v| v == "1");
             let inside = Hazards::build(&world, 0.0);
             let (mut zone_takes, mut zone_spots) = (0u32, Vec::<Vec3>::new());
             while clock < limit_ms {
@@ -985,7 +959,7 @@ pub(crate) fn real_bot_cost() {
                             && (*at - Vec3::new(*x, *y, *z)).length() > 0.2
                         {
                             stands_stale += 1;
-                            if std::env::var("SRP_BENCH_SHOW_STALE").is_ok() {
+                            if bench_settings().var("SRP_BENCH_SHOW_STALE").is_ok() {
                                 println!("  stale stand at {} ms: lies at {at:?}; {}", note.time, note.text);
                             }
                         }
@@ -1059,7 +1033,7 @@ pub(crate) fn real_bot_cost() {
                 search_us / 1e3 / searched.max(1) as f64,
                 search_us / 1e4 / (times.view + times.commander + times.think + times.ticks)
             );
-            if std::env::var_os("SRP_BENCH_WHY").is_some() {
+            if bench_settings().flag("SRP_BENCH_WHY") {
                 let tactics = bots.tactics.as_ref().unwrap();
                 let grid = &tactics.world.grid;
                 for bot in bots.bots.iter().flatten() {
@@ -1194,7 +1168,7 @@ pub(crate) fn real_bot_cost() {
                 side[2] += f32::from(u8::from(run.nearest_m <= 5.0));
                 side[3] += f32::from(u8::from(run.stole));
                 side[4] += f32::from(u8::from(run.died));
-                if std::env::var("SRP_BENCH_SHOW_RAIDS").is_ok() {
+                if bench_settings().var("SRP_BENCH_SHOW_RAIDS").is_ok() {
                     eprintln!(
                         "  raid {} {:.3} {:.1} {:.1} {} {} {}",
                         teams[run.place] & 1,
@@ -1356,7 +1330,7 @@ pub(crate) fn real_bot_cost() {
             );
             let line = format!("{project} {per_team}v{per_team}: {}", decisions.line());
             eprintln!("  {line}");
-            if let Some(out) = std::env::var_os("SRP_DECISIONS_OUT") {
+            if let Some(out) = bench_settings().var_os("SRP_DECISIONS_OUT") {
                 use std::io::Write;
                 let mut file = std::fs::OpenOptions::new()
                     .create(true)

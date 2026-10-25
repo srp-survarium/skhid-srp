@@ -44,7 +44,7 @@ pub(crate) struct HumanTally {
 
 impl HumanTally {
     pub(crate) fn start() -> Option<Self> {
-        let place = std::env::var("SRP_BENCH_HUMAN").ok()?.parse().ok()?;
+        let place = bench_settings().var("SRP_BENCH_HUMAN").ok()?.parse().ok()?;
         Some(HumanTally {
             place,
             met_at: None,

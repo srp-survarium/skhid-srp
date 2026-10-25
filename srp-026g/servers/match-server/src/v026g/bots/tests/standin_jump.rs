@@ -31,9 +31,7 @@ pub(crate) const STANDING_JUMP: StandInJump = StandInJump {
 pub(crate) fn standing_jump() -> StandInJump {
     static AHEAD: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
     let ahead_m = *AHEAD.get_or_init(|| {
-        std::env::var("SRP_BENCH_JUMP_AHEAD_M")
-            .ok()
-            .and_then(|v| v.parse().ok())
+        bench_settings().number("SRP_BENCH_JUMP_AHEAD_M")
             .unwrap_or(STANDING_JUMP.ahead_m)
     });
     StandInJump {
@@ -186,7 +184,7 @@ pub(crate) fn a_stand_in_jump_gets_up_a_ledge_with_no_link_within_its_height() {
 /// [`stand_in_jump`]), only to compare with benches of older bases.
 pub(crate) fn honest_stand_in() -> bool {
     static HONEST: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *HONEST.get_or_init(|| std::env::var("SRP_BENCH_STAND_IN").map_or(true, |v| v != "old"))
+    *HONEST.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN").map_or(true, |v| v != "old"))
 }
 
 /// A jump clip's root over the floor it leaves, every 2 of its 24 frames

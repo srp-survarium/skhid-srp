@@ -1,3 +1,29 @@
+//! The stand-in game: the body and the match around it (`Game`), as the module doc of
+//! `tests/mod.rs` describes. A change here moves what the bots meet, so every result of the
+//! bench with it: a model change is one visible edit of this file, and one of the switches
+//! below when it should not move everyone's numbers.
+//!
+//! The game-model switches (the environment, read by [`bench_settings`]; `settings.rs` is the
+//! list with what each does) and what each is when unset:
+//!
+//! | switch | when unset |
+//! |---|---|
+//! | `SRP_BENCH_USE_LINE` | off: a use needs no clear line |
+//! | `SRP_BENCH_TAKE_M` | [`BATTERY_M`], 0.2 m |
+//! | `SRP_BENCH_UNTAKEABLE` | 0 |
+//! | `SRP_BENCH_CAMP` | no camping carrier |
+//! | `SRP_BENCH_NUDGE` | no nudged battery |
+//! | `SRP_BENCH_SPREAD` | off: no shot spread |
+//! | `SRP_BENCH_BATTERIES` | one battery at every spawner |
+//! | `SRP_BENCH_START` | 0,0: every battery lying |
+//! | `SRP_BENCH_ZONE_DAMAGE` | off: zones do not hurt the bodies |
+//! | `SRP_BENCH_PUT_MS` | [`PUT_MS`], 600 ms |
+//! | `SRP_BENCH_JUMP_AHEAD_M` ([`standin_jump`](super::standin_jump)) | `STANDING_JUMP.ahead_m` |
+//! | `SRP_BENCH_STAND_IN` | the honest jump (the client's clips); `old`: the lift up any floor |
+//!
+//! The model's constants stay here: `RESPAWN_BATTERIES_MS`, `RESPAWN_TDM_MS`, `DRAW_MS`,
+//! `PUT_MS`, `USE_REACH_M`, `STAND_IN_LEG_*`, `STAND_IN_STAGGER*`.
+
 use super::*;
 
 /// The client's use: a ray from the eye this long (`usable_objects_detection_distance`).
@@ -436,9 +462,7 @@ impl Game {
             use_line: false,
             take_m: BATTERY_M,
             untakeable: 0,
-            put_ms: std::env::var("SRP_BENCH_PUT_MS")
-                .ok()
-                .and_then(|ms| ms.parse().ok())
+            put_ms: bench_settings().number("SRP_BENCH_PUT_MS")
                 .unwrap_or(PUT_MS),
             putting: vec![None; teams.len()],
             put_presses: Vec::new(),

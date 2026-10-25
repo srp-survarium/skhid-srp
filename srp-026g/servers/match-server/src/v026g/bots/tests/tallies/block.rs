@@ -151,7 +151,7 @@ impl BlockTally {
     /// gate failed; no shot changes), for the gate tally's "every" counts.
     pub(crate) fn gate_tally(bots: &mut Bots) {
         static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-        if *ON.get_or_init(|| std::env::var_os("SRP_BENCH_GATES").is_some()) {
+        if *ON.get_or_init(|| bench_settings().flag("SRP_BENCH_GATES")) {
             for bot in bots.bots.iter_mut().flatten() {
                 bot.reflex.gate_tally = true;
             }

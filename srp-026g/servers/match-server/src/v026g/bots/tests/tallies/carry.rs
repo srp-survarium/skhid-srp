@@ -227,7 +227,7 @@ impl CarryTally {
     }
 
     pub(crate) fn dump(&self, place: usize, time: u32, text: &str) {
-        if let Some(path) = std::env::var_os("SRP_BENCH_NOTES") {
+        if let Some(path) = bench_settings().var_os("SRP_BENCH_NOTES") {
             use std::io::Write;
             let mut file = std::fs::OpenOptions::new()
                 .create(true)
