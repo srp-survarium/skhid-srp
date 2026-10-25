@@ -63,6 +63,9 @@ PROVEN by the data:
   0.03/s (body, head, arms, legs; pain 0.1/s), with the same 8 s timeout and
   cap (body 50 %). Body 0 -> 50 %: 16.7 s, 15.9 s at +5 %, 14.5 s at +15 %,
   11.5 s with three +15 % pieces. It works as its card says; it is small.
+  Pain: 0.1/s up to 100 %, 8 s after its last hit, with this bonus (0 -> 100 %
+  in 10 s, 6.9 s with three +15 % pieces). Index 36 `pain_regeneration_speed`
+  is read once, in the ctor (0x2D7043); no item or skill sets it.
 - 47 items (every vest and every pair of trousers) have `camo_available`
   and `decal_available`; `items_compatibility` pairs no cosmetic with
   anything.
