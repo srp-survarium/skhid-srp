@@ -1029,6 +1029,15 @@ route search in `mod.rs`).
   then it plans to the new goal. Before, the escape took the nearest way
   out: on Mamayev Kurgan's batteries (10 v 10, tier 9-10, seed 5) one led
   down a 4 m drop into the 0.25 a second zone below, where the bot died.
+- **A carrier's own way out yields.** Collect's line way out of zones
+  (`Ctx::way_out`: to the nearest dry floor) is not asked while the motor
+  walks a crossing or a ring's walk out (`BotFacts::crossing`). On Mamayev
+  Kurgan's acid the two took turns a poll each, as the floor under the
+  carrier switched `needs_crossing`: the route 8 m on toward home, the line
+  to a floor 0.5 m up it never stepped onto. It stood 60 s there, 0.66 to
+  0.38 health. One way at a time, the running one kept (arbitration, not
+  blending; a behaviour tree's Running node): [steering](https://faculty.cc.gatech.edu/~surban6/2018sp-gameAI/lectures/2018_02_01_steering_continued.pdf),
+  [behavior trees](https://en.wikipedia.org/wiki/Behavior_tree_(artificial_intelligence,_robotics_and_control)).
 - **`MILD_HIT_PS`** (the escape's mild zone) is now 0.05 of health a second.
   Health and the zones' hits are fractions (`BodyView::health`, `[0, 1]`).
   At 5.0, every harmful zone of the maps but one (Mamayev Kurgan's 120 a
@@ -1086,6 +1095,10 @@ ba77c815; with `SRP_BENCH_ZONE_DAMAGE=1`):
   refused. Stretches in zones that left a body under 0.6 health: Mamayev
   Kurgan batteries 10 → 94 (78 begun under 0.7 health, 18 in a fight),
   TDM 25 → 43; the worst stretch took 0.72.
+- The carrier's way out (bf6526b0, against ba77c815): Mamayev Kurgan
+  batteries' stretches under 0.6 94 → 30 (ring walk-outs 37 → 0, Collect's
+  straight walk 27 → 0), zone deaths 1 → 1; every other map's decisions the
+  same; batteries 10 v 10 −0.47 ± 0.27 ms a second side by side.
 - CPU against C, same load (0c5d9a2d): batteries 10 v 10 +0.48 ± 0.29 ms
   a second plain, +0.87 ± 0.34 with zone damage; TDM 10 v 10 +0.37 ± 0.31.
 - The stand-in's spawn alone (C against fbe66237) moves Rudnya (no way
@@ -1094,9 +1107,8 @@ ba77c815; with `SRP_BENCH_ZONE_DAMAGE=1`):
   earlier bench numbers were partly its artefact.
 
 Open: an escape's way out runs over any floors, so it may drop into a
-stronger zone below (`Tactics::escape`); 78 of the 94 stretches above begin
-under 0.7 health and are not crossings (the start needs 0.7): what puts a
-hurt bot in Mamayev Kurgan's zones is not yet traced.
+stronger zone below (`Tactics::escape`). Mamayev Kurgan batteries' 30
+stretches under 0.6 left: walk-on 17, escape 8, crossings 5.
 
 ### Bots out of pockets (2026-10-24)
 
