@@ -445,3 +445,14 @@ Text only: no server data, no simulation change.
 
 Applied to the live files: 7 files edited, 0 unexpected differences. The simulation changes (the
 `next` row of `simulation_changes.tsv`).
+
+## socom-nerf-1.json (2026-10-25)
+
+| change | why |
+|---|---|
+| SOCOM 16 (`wpn_socom16`): `bullet_damage` 0.7 -> 0.6, `bullet_pierce` 0.45 -> 0.4 (f32 kept); the card's damage (prop 1) 70 -> 60 and armour piercing (prop 3) 45 -> 40 | the owner: "Nerf SOCOM: 10 damage, 5 penetration", read as 10 and 5 off in the card's units (x100). Set to 10 and 5 it would take 11 body shots at 10 m, unarmoured. Its falloff (`min_damage_amount` 0.6 from 30 m to 100 m) stays ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)) |
+| `item_level` and `match_making_level` 12 -> 15 | the owner: "move SOCOM to lvl 15". The card's "Equipment level" is `item_level`; the two are equal in every 0.26g item. The SOCOM is not sold (no faction), so no shop rank changes; drops, matchmaking and craft prices follow the level |
+
+Applied to the live file (stock 0.26g with patches 12..=33, after weapon-balance-2): 1 file
+edited, 0 unexpected differences. The simulation changes (the `next` row of
+`simulation_changes.tsv`).
