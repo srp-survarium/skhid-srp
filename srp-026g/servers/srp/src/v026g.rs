@@ -267,10 +267,10 @@ pub struct Settled {
 }
 
 /// Write what the matches settled (every account they marked, and the
-/// reports after them: [`GameAccounts::flush`]), then tell the lobby: each
-/// online player's account changed, and the match is finished (the players
-/// get `85 00`, what the match changed and the results screen). In this order,
-/// so what a player is shown has been written.
+/// reports after them: [`GameAccounts::flush`]), then [`tell`] the lobby.
+/// The lobby's own pushes (`85 00`, the account, the results screen) come
+/// after the write; a client that asks for its results first is answered
+/// from memory (`Results` has the report as soon as it is settled).
 pub fn write_and_tell(
     accounts: &GameAccounts,
     store: &SessionStore,
@@ -278,6 +278,13 @@ pub fn write_and_tell(
     settled: &Settled,
 ) {
     accounts.flush();
+    tell(store, inbox, settled);
+}
+
+/// Tell the lobby: each online player's account changed, and the match is
+/// finished (the players get `85 00`, what the match changed and the results
+/// screen; for a match called off, its room votes again).
+pub fn tell(store: &SessionStore, inbox: &Inbox, settled: &Settled) {
     for &account_id in &settled.players {
         if store.is_online(account_id) {
             inbox.account_changed(account_id);
@@ -348,7 +355,8 @@ impl Settler {
     /// clients hear the end. The rewards are given in memory here (the
     /// lobby reads them at once); the write and the lobby's notices go to
     /// the settled-writer thread, so another match's relays never wait for
-    /// the database.
+    /// the database. A match called off settles nothing: the lobby is told
+    /// here, before this returns.
     pub fn match_ended(&mut self, result: matches::MatchResult) {
         // Each account's latest place: one it left and came back from is
         // nobody's (the rewards take the same, `settle`).
@@ -391,7 +399,17 @@ impl Settler {
                 .map(|player| player.account_id)
                 .collect(),
         };
-        // Written before anyone is told: what a player is shown is kept.
+        if settled.not_made {
+            // Nothing was settled, so nothing waits for the database. The
+            // lobby is told here, before this returns: the match server
+            // lets the match go from its registry right after
+            // (housekeeping's `registry.end`), and a lobby that saw it gone
+            // before this notice would finish it as made (`room_match_over`:
+            // Play's members out of their room).
+            tell(&self.store, &self.inbox, &settled);
+            return;
+        }
+        // Written before the lobby is told (`write_and_tell`).
         if let Err(mpsc::SendError(settled)) = self.writer.send(settled) {
             // No writer (it ends only with the stack): here, as before.
             log::error!("Match {match_id:#x}: the settled-writer thread is gone; written here");
@@ -772,13 +790,17 @@ fn supervise(
 mod settled_tests {
     use super::*;
 
-    fn not_made(match_id: u32) -> matches::MatchResult {
+    use session::v026g::MemoryGameRepository;
+
+    /// A match that ended with `end` and nobody in it: nothing is settled
+    /// (`NoShow` goes to the writer, `NotMade` is told at once).
+    fn ended(match_id: u32, end: matches::MatchEnd) -> matches::MatchResult {
         matches::MatchResult {
             match_id,
             map_id: 1,
             game_mode: 1,
             match_level: 1,
-            end: matches::MatchEnd::NotMade,
+            end,
             winner: None,
             team_points: [0, 0],
             duration_ms: 0,
@@ -791,12 +813,31 @@ mod settled_tests {
         }
     }
 
-    fn settler(writer: mpsc::Sender<Settled>) -> Settler {
-        let accounts = Arc::new(GameAccounts::new());
-        let results = Results::attached(&accounts);
+    fn made(match_id: u32) -> matches::MatchResult {
+        ended(match_id, matches::MatchEnd::NoShow)
+    }
+
+    fn not_made(match_id: u32) -> matches::MatchResult {
+        ended(match_id, matches::MatchEnd::NotMade)
+    }
+
+    /// Accounts over a repository in memory, account 1 made and marked to
+    /// be written (a write of the next flush).
+    fn accounts() -> (Arc<GameAccounts>, MemoryGameRepository) {
+        let repository = MemoryGameRepository::default();
+        let accounts = Arc::new(
+            GameAccounts::with_repository(Box::new(repository.clone())).expect("the accounts"),
+        );
+        accounts.get_or_create(1, "Alice");
+        accounts.mark_dirty(1);
+        (accounts, repository)
+    }
+
+    fn settler(accounts: &Arc<GameAccounts>, writer: mpsc::Sender<Settled>) -> Settler {
+        let results = Results::attached(accounts);
         Settler::new(
             Arc::new(SessionStore::new()),
-            accounts,
+            accounts.clone(),
             results,
             Inbox::new(),
             writer,
@@ -814,9 +855,10 @@ mod settled_tests {
             held.recv().expect("the gate");
             done.send(settled.match_id).expect("the test");
         });
-        let mut settler = settler(writer);
-        settler.match_ended(not_made(7));
-        settler.match_ended(not_made(8));
+        let (accounts, _) = accounts();
+        let mut settler = settler(&accounts, writer);
+        settler.match_ended(made(7));
+        settler.match_ended(made(8));
         assert!(
             written.try_recv().is_err(),
             "nothing written yet: the writer is held"
@@ -828,22 +870,64 @@ mod settled_tests {
         assert_eq!(written.iter().collect::<Vec<_>>(), vec![7, 8]);
     }
 
+    /// A match called off is told on the match server's thread, before
+    /// `match_ended` returns (housekeeping lets the match go from the
+    /// registry right after, and a lobby that saw it gone first would
+    /// finish it as made): not through the writer, which is held in a
+    /// write here, and with no write of its own.
+    #[test]
+    fn a_called_off_match_is_told_at_once_while_the_writer_is_held() {
+        let (accounts, repository) = accounts();
+        let (sent, queue) = mpsc::channel::<Settled>();
+        let (writer, thread) = {
+            let accounts = accounts.clone();
+            let store = Arc::new(SessionStore::new());
+            let inbox = Inbox::new();
+            spawn_settled_writer(move |settled| {
+                sent.send(settled.clone()).expect("the test");
+                write_and_tell(&accounts, &store, &inbox, settled);
+            })
+        };
+        let mut settler = settler(&accounts, writer);
+        let gate = repository.hold_saves();
+        settler.match_ended(made(20));
+        while repository.saves_held() == 0 {
+            std::thread::yield_now();
+        }
+        // The writer waits in its write of match 20; the call-off returns.
+        settler.match_ended(not_made(21));
+        assert_eq!(repository.saves(), 0, "nothing written yet");
+        drop(gate);
+        drop(settler);
+        thread.join().expect("the writer");
+        let queued: Vec<u32> = queue.iter().map(|settled| settled.match_id).collect();
+        assert_eq!(queued, vec![20], "the call-off never went to the writer");
+        assert_eq!(repository.saves(), 1, "the made match's write");
+    }
+
     /// With no writer the settler writes and tells on its own thread, as
     /// before; a writer whose work panics goes on with the next match.
     #[test]
     fn no_writer_or_a_panicking_one_still_settles() {
+        let (accounts, repository) = accounts();
         let (writer, gone) = mpsc::channel::<Settled>();
         drop(gone);
-        settler(writer).match_ended(not_made(9));
+        settler(&accounts, writer).match_ended(made(9));
+        assert_eq!(
+            repository.saves(),
+            1,
+            "written on the match server's thread"
+        );
+        assert!(!accounts.is_dirty(1));
 
         let (done, written) = mpsc::channel::<u32>();
         let (writer, thread) = spawn_settled_writer(move |settled| {
             assert_ne!(settled.match_id, 10, "a write that fails");
             done.send(settled.match_id).expect("the test");
         });
-        let mut settler = settler(writer);
-        settler.match_ended(not_made(10));
-        settler.match_ended(not_made(11));
+        let mut settler = settler(&accounts, writer);
+        settler.match_ended(made(10));
+        settler.match_ended(made(11));
         drop(settler);
         thread.join().expect("the writer survives a panic");
         assert_eq!(written.iter().collect::<Vec<_>>(), vec![11]);
