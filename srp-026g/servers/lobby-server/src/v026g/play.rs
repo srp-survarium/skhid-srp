@@ -133,7 +133,7 @@ pub struct MatchPlayer {
 
 /// The name the server's `n`-th bot of a match plays under (1 on).
 fn server_bot_name(n: usize) -> String {
-    format!("Bot-{n}")
+    survarium::v026g::loadouts::bot_name(n)
 }
 
 /// The match server's own bot of `role` on `team` with the equipment of
@@ -145,42 +145,17 @@ fn server_bot_name(n: usize) -> String {
 /// medkits, the radio and two RGD-5 grenades. Its kits carry the skills of
 /// its kits' gear level (`bot_skills::BOT_SKILL_TIERS`), as a player's
 /// carry the player's. The match server reads the tier and the role back
-/// from the profile (`loadouts::bot_of`).
+/// from the profile (`loadouts::bot_of`). The profile is
+/// `loadouts::bot_profile`, which the real-map bench builds its bots' from
+/// too; so are their roles (`loadouts::bot_roles`).
 pub fn server_bot(n: usize, team: u8, role: BotRole, tier: BotTier) -> MatchPlayer {
-    let kits = survarium::v026g::loadouts::bot_kits(tier, role);
-    let mut profile = MatchProfile::from_loadouts(
-        &server_bot_name(n),
-        team,
-        &kits,
-        survarium::v026g::bot_skills::bot_modifiers(&kits),
-        survarium::v026g::dictionary::Dictionary::shared(),
-        1,
-    );
-    profile.clan_tag = "BOT".to_owned();
     MatchPlayer {
         session_id: 0,
         account_id: 0,
-        profile,
+        profile: survarium::v026g::loadouts::bot_profile(n, team, role, tier),
         bot: false,
         driven: true,
     }
-}
-
-/// The roles of bots on `teams`, in order: each team's `k`-th bot gets
-/// `BotRole::nth(k)` (the shares by smooth weighted round robin: a
-/// flanker, a rusher, a support, a camper, ...), so it depends only on the
-/// bots' places and the same roster gets the same roles.
-fn server_bot_roles(teams: &[u8]) -> Vec<BotRole> {
-    let mut on_team = [0_usize; 2];
-    teams
-        .iter()
-        .map(|&team| {
-            let k = &mut on_team[usize::from(team.min(1))];
-            let role = BotRole::nth(*k);
-            *k += 1;
-            role
-        })
-        .collect()
 }
 
 /// The teams of `count` bots added to a roster whose teams are `teams`:
@@ -931,7 +906,7 @@ impl Core<'_> {
             (2 * usize::from(choice.size)).saturating_sub(formed.seats.len())
         });
         let bot_teams = server_bot_teams(&seat_teams, [sides[0].0, sides[1].0], bots);
-        let bot_roles = server_bot_roles(&bot_teams);
+        let bot_roles = survarium::v026g::loadouts::bot_roles(&bot_teams);
         let bot_tier = BotTier::of_gear(gear);
         if bots > 0 {
             log::info!(
@@ -1439,18 +1414,5 @@ mod tests {
         let info = StaticInfo::new(&options, dictionary).expect("a client can hold it");
         let (_, read) = parse_payload(&info.payload(0).unwrap(), dictionary).unwrap();
         assert_eq!(read.players[0].items, profile.items);
-    }
-
-    #[test]
-    fn each_teams_bots_take_the_roles_by_the_shares() {
-        use BotRole::*;
-        assert_eq!(
-            server_bot_roles(&[0, 1, 0, 1, 0, 1, 0, 1]),
-            [
-                Flanker, Flanker, Rusher, Rusher, Support, Support, Camper, Camper
-            ]
-        );
-        assert_eq!(server_bot_roles(&[1, 1, 1]), [Flanker, Rusher, Support]);
-        assert!(server_bot_roles(&[]).is_empty());
     }
 }

@@ -876,6 +876,55 @@ pub fn bot_role_of(profile: &MatchProfile) -> Option<BotRole> {
     bot_of(profile).map(|(_, role)| role)
 }
 
+/// The roles of the server's bots on `teams`, in order: each team's `k`-th
+/// bot gets `BotRole::nth(k)` (the shares by smooth weighted round robin: a
+/// flanker, a rusher, a support, a camper, ...), so it depends only on the
+/// bots' places and the same roster gets the same roles.
+///
+/// One home for the lobby (`lobby-server` `play.rs`, which gives the bots
+/// of a match their roles) and for the real-map bench
+/// (`match-server` `bots/tests/bench.rs`, whose bots must carry what the
+/// lobby gives).
+pub fn bot_roles(teams: &[u8]) -> Vec<BotRole> {
+    let mut on_team = [0_usize; 2];
+    teams
+        .iter()
+        .map(|&team| {
+            let k = &mut on_team[usize::from(team.min(1))];
+            let role = BotRole::nth(*k);
+            *k += 1;
+            role
+        })
+        .collect()
+}
+
+/// The name the server's `n`-th bot of a match plays under (1 on).
+pub fn bot_name(n: usize) -> String {
+    format!("Bot-{n}")
+}
+
+/// The profile of the server's bot number `n` of its match (1 on) of `role`
+/// on `team` with the equipment of `tier`: the role's three kits of the
+/// tier ([`bot_kits`]), each another weapon in slot 7 with its own ammo, the
+/// role's armour and the pockets; its kits carry the skills of their gear
+/// level (`bot_skills::bot_modifiers`), as a player's carry the player's.
+/// The match server reads the tier and the role back from it ([`bot_of`]).
+///
+/// One home for the lobby (`play::server_bot`) and for the real-map bench.
+pub fn bot_profile(n: usize, team: u8, role: BotRole, tier: BotTier) -> MatchProfile {
+    let kits = bot_kits(tier, role);
+    let mut profile = MatchProfile::from_loadouts(
+        &bot_name(n),
+        team,
+        &kits,
+        super::bot_skills::bot_modifiers(&kits),
+        Dictionary::shared(),
+        1,
+    );
+    profile.clan_tag = "BOT".to_owned();
+    profile
+}
+
 /// What the type 1 (added) modifiers of the default modifications of
 /// `dict_id` add to `parameter` (e.g. `pocket_slots_modifier`).
 pub fn default_modifier(dict_id: u16, parameter: &str) -> f32 {
@@ -1507,5 +1556,42 @@ mod tests {
             .map(|&role| (0..20).filter(|&k| BotRole::nth(k) == role).count())
             .collect();
         assert_eq!(twenty, [6, 5, 6, 3]);
+    }
+
+    /// The lobby's roles for the bots of a match (moved here from the lobby
+    /// with the function): each team's k-th bot takes `BotRole::nth(k)`,
+    /// whatever the other team's.
+    #[test]
+    fn each_teams_bots_take_the_roles_by_the_shares() {
+        use BotRole::*;
+        assert_eq!(
+            bot_roles(&[0, 1, 0, 1, 0, 1, 0, 1]),
+            [Flanker, Flanker, Rusher, Rusher, Support, Support, Camper, Camper]
+        );
+        assert_eq!(bot_roles(&[1, 1, 1]), [Flanker, Rusher, Support]);
+        // Teams one after the other, as the bench's, take the same by team.
+        assert_eq!(
+            bot_roles(&[0, 0, 0, 0, 1, 1, 1, 1]),
+            [Flanker, Rusher, Support, Camper, Flanker, Rusher, Support, Camper]
+        );
+        assert!(bot_roles(&[]).is_empty());
+    }
+
+    /// A bot's profile is its role's kits of the tier, under its number's
+    /// name and the BOT tag, on its team; and reads back as that tier and
+    /// role.
+    #[test]
+    fn a_bots_profile_is_its_roles_kits_of_the_tier() {
+        for tier in BotTier::ALL {
+            for role in BotRole::ALL {
+                let profile = bot_profile(7, 1, role, tier);
+                assert_eq!(profile.name, bot_name(7));
+                assert_eq!(profile.name, "Bot-7");
+                assert_eq!(profile.clan_tag, "BOT");
+                assert_eq!(profile.team, 1);
+                assert_eq!(profile.kits.len(), 3, "{tier} {role}");
+                assert_eq!(bot_of(&profile), Some((tier, role)));
+            }
+        }
     }
 }
