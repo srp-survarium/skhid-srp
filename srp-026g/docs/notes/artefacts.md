@@ -65,6 +65,68 @@ onyx gives +1 second to activation time"; then 60 %, not 50 %)
   54 makes the active's time left; the hud writes it in. (%s, not `{s}`: the game's localizer (0x1FEF90, every text set_parameterized_message shows) makes `{NAME}` the key of the action NAME (`{USE}`) and any other name nothing, and drops a `}` after a character; the
   owner's first test showed "for  s.".)
 
+## Your own glow (the owner, 2026-10-25: "you see yourself shining (hands and body if you look
+down) when you use artifact? Note that your vision should still be clear")
+
+- The carrier sees his own active artefact's glow: on his arms and hands, and on his legs and
+  body when he looks down. Everyone else sees the glow as before.
+- Each kind its own colour, as in the third person: Lifebone green, Onyx orange, Spring blue.
+- Vision (the owner, 2026-10-25: "use the original effects seen by other people, but with the
+  head cleaned somewhat"; "we will see, a bit of that is fine"): the carrier's glow is the one
+  everyone else sees, without what sits on the head, face or neck (the camera is in the head).
+- It starts and ends with the active, as the third person's (no glow on the cooldown).
+- Visual only: no exe change, nothing in a match, nothing sent; no `simulation_changes` row.
+- How (content pack `artefact-glow@4`, `scripts/artefact-glow/make_pack.py`):
+  - A particle effect is shown by the presenters of its `view` (the cook 0x25A730, 1 when
+    absent): 1 the third-person presenters (the other players' view of a player), 0 the
+    first-person presenter (the player the camera is in), 2 both. The stock glow has none: only
+    the others saw it.
+  - `effect_artefact_<kind>` becomes a composite (type 110) of the stock particle effect and a
+    first-person one (`view` 0) playing `fx/artifacts/human_<kind>_fp`.
+  - `human_<kind>_fp` is the stock particle system exactly (its ten emitters, sizes, rates, point
+    lights, colours and haze), with Head, Face and Neck off in every emitter's animated domain.
+    The pack maker compares the whole tree with the stock one and refuses any other difference (it
+    proves that on a changed rate, an emitter left out and the head left on).
+  - The first-person presenter plays it on the carrier's own body model (the same model and
+    skeleton the others see, posed with the first-person animations; the head's parts are
+    shadow-only there and parts 1 and 2 drawn as foreground, `player::set_head_visibility`
+    0x1F37A0).
+  - `scripts/artefact-glow/view_cone.py` measures each emitter against the middle of the
+    first-person view in two nominal poses (the rifle at the hip and aimed): the strokes and rays
+    on the forearms, the haze on the arms, `rays_chest` and the lights come near it when aiming;
+    kept, as the owner asked.
+  - The end: the effect's time calculator is the artefact's (`artefact_base::effect_calculator`
+    0x313640): finished when the artefact leaves its active state (4); both children with it.
+- History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
+  too little in the first person; version 3, the stock glow without the head, was tested by the
+  owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.
+- Checked: `client-patches/check_artefact_glow_026g.py` (Unicorn, the game's code): the cook,
+  the presenters' constructors, the handler, the calculator, and the whole chain a match runs:
+  each presenter built by its constructor, given to a player by `player::set_effect_presenter`,
+  an activation sent by `game_effect_player` 0x2DE3A0 through the effect's own accept 0x2AE2E0.
+- The Sponge (PR #369) has `data/effect` `artefact_spring`: it gets Spring's twin once both are
+  merged. The Rattle (`effect_artefact_rattle`, `human_rattle`) needs its own composite.
+- Later (the owner): the glow fades out at the active's end instead of stopping at once (board
+  T82; a debug build of the stop path is on the branch `debug/artefact-glow-stop`).
+
+## Several kinds at once (the owner, 2026-10-25: "what happens with colours, do they mix? We
+should mix them just as retail does")
+
+- 0.26g: each active artefact plays its own effect, side by side; nothing replaces another and
+  there is no cap (`game_effect_player::add` 0x2DE090 appends an item to the player's list).
+- The glow's sprites (rays, strokes, sparks) are additive (`blend_mode` 2: source alpha, one;
+  0x1CD1D2's switch), so where kinds overlap their colours add (green and blue to cyan, all
+  three towards white); the shared `light_idle` sprite is alpha-blended (mode 1), the haze a
+  distortion; each kind's point lights add as lights do.
+- Retail does the same: 0.27d to 0.31a2 list the same three effect and particle files (by name,
+  their archives' listings); 0.46c2 and
+  0.69d0 (configs read from their archives) keep one particle effect per kind
+  (`effect_artefact_<kind>`: `fx/artifacts/human_<kind>`, no `view`, no combined or synergy
+  effect; 0.46 adds Wood shine's own). 0.69's `human_sinergia` particle is no artefact's
+  `data/effect`.
+- So nothing changes in the third person; the first-person glows overlap the same way (each
+  kind its own additive effect).
+
 ## Texts
 
 - The only texts: each artefact's pickup hint (the passive) and activation hint (the active), fixed
