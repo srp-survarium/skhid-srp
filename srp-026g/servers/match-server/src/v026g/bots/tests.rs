@@ -6230,6 +6230,30 @@ fn the_side_step_weaves_a_walk_along_the_view() {
     assert_eq!(weave(key::FORWARD, 0), None);
 }
 
+/// A carrier's line way out yields to its motor's crossing only while the
+/// motor walks it: a crossing left with no route (the route dropped by the
+/// unstick's back-off, or a search that found none) holds nothing back, so
+/// a carrier standing in the zone takes its line out (`collect.rs`).
+#[test]
+fn a_crossing_with_no_route_left_does_not_hold_a_carriers_way_out() {
+    use super::path::{Route, Waypoint};
+    let tuning = Tuning::default();
+    let mut bot = Bot::new(1, 0, 0, Some("support"), &tuning);
+    let home = Vec3::new(10.0, 0.0, 10.0);
+    bot.crossing = Some(home);
+    assert_eq!(walks_crossing(&bot), None);
+    let point = |x: f32| Waypoint {
+        at: Vec3::new(x, 0.0, 0.0),
+        node: 0,
+        jump: false,
+        low: false,
+    };
+    bot.route = Some((Route::new(vec![point(0.0), point(5.0)]), home));
+    assert_eq!(walks_crossing(&bot), Some(home));
+    bot.crossing = None;
+    assert_eq!(walks_crossing(&bot), None);
+}
+
 /// The commander moving a bot's Crossfire to another choke leaves the
 /// play's cooldown alone (the new run is still a candidate at the next
 /// poll); a switch to another play starts it.

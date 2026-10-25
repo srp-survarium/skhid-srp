@@ -1798,7 +1798,7 @@ impl Bots {
                     set_aside: &bot.set_aside,
                     failed_stands: &bot.failed_stands,
                     dry: bot.reflex.dry(),
-                    crossing: bot.crossing,
+                    crossing: walks_crossing(bot),
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,
@@ -1882,7 +1882,7 @@ impl Bots {
                     set_aside: &bot.set_aside,
                     failed_stands: &bot.failed_stands,
                     dry: bot.reflex.dry(),
-                    crossing: bot.crossing,
+                    crossing: walks_crossing(bot),
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,
@@ -2177,7 +2177,7 @@ impl Bots {
                 set_aside: &bot.set_aside,
                 failed_stands: &bot.failed_stands,
                 dry: bot.reflex.dry(),
-                crossing: bot.crossing,
+                crossing: walks_crossing(bot),
             },
             memory: &bot.memory,
             team: &state.knowledge,
@@ -2347,6 +2347,15 @@ pub(crate) mod why {
 /// one lately (`Bot::long_kept`, `crossing::LONG_RETRY_MS`).
 fn long_kept(kept: Option<(Vec3, u32)>, goal: Vec3, now: u32) -> bool {
     kept.is_some_and(|(to, until)| now < until && to.distance_xz(goal) <= crossing::LONG_RETRY_M)
+}
+
+/// The goal of the crossing (or a ring's walk out) a bot's motor walks now:
+/// `Bot::crossing` while it has a route. The plays' `BotFacts::crossing`:
+/// a carrier's line way out yields to it (`collect.rs`). A crossing left
+/// with no route (the unstick's back-off and the other places that drop the
+/// route, a search that found none) holds nothing back.
+fn walks_crossing(bot: &Bot) -> Option<Vec3> {
+    bot.crossing.filter(|_| bot.route.is_some())
 }
 
 /// A team learns its bot's goals with no way lately (`Bot::no_way_to`,

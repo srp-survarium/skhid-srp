@@ -436,7 +436,7 @@ pub struct BotFacts<'a> {
     /// play that seeks a fight ([`PlayKind::seeks_fight`]).
     pub dry: bool,
     /// The goal its motor walks a crossing or a ring's walk out to, across
-    /// zones on all match (`crossing.rs`), if any.
+    /// zones on all match (`crossing.rs`), while it has a route there.
     pub crossing: Option<Vec3>,
 }
 
