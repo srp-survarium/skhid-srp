@@ -106,6 +106,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
+| `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -161,8 +162,8 @@ a hook jumps to, `extern` what it uses of other patches; its hooks as
 (site, bytes, symbol, opcode) rows made in `build()`; each declared in
 `INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
 asm, its C, and its state `rn_state`), the artefacts (patch 54), the
-engine library, the kit keys with the match chat option (patch 58) and the
-key that hides the interface (patch 62) are the arena's blocks today. The older fixed sections stay as they are
+engine library, the kit keys with the match chat option (patch 58), the
+key that hides the interface (patch 62) and the kill feed's flags (patch 67) are the arena's blocks today. The older fixed sections stay as they are
 (client_patch.md 0.3 says what moving one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
@@ -3346,6 +3347,45 @@ a key kF9 set for 19h kept in the 41st row (the original keeps it in none), the 
 `bind toggle_replay_ui kF9` (the original's nothing), the binder's own bind binds it, its save
 writes `bind toggle_replay_ui kF9`, and that line read back binds it again. The lobby movie builds from source
 (`tools/actionscript/flash_tree.py`). **Not run in a game.**
+
+### 67. The kill feed shows a kill through a wall and a kill by pain (the next release's revision)
+
+The owner (2026-10-25): "when a character is killed from pain, the character should get <weapon>
+<white painkiller> icon"; "when through a wall: <weapon> <wall shot> icon (available in last
+patches)". The rules: `../docs/notes/kill-feed-icons.md`; the evidence: `client_patch.md` 3.55.
+
+**The flags.** A death makes a kill event in every game's simulation:
+`base_player::generate_killed_event` (0x2DA170, the victim in esi, the killing bullet or 0 in
+ebp) writes the victim, the killer, the weapon's icon and the cause icon (+4: 1 headshot, 3 no
+killer) into an event node whose first 12 bytes its allocation zeroes. The patch
+(`kill_feed_event`, called at 0x2DA3D1 in place of `mov [eax+4],bl / mov edx,[esi+120h]`)
+writes the cause icon and, in the node's +5, the flags: 1 when the bullet went through something
+before this hit (its trajectory's segments, +84h, which each pierce and each reflection adds one
+to, past its reflections, +88h), 2 when the victim's pain pool is empty and its body and head
+pools are not (the damage model's parts by name, 0x2E58B0, health +0A0h). Both are the
+simulation's own state, alike in every game; nothing else is written.
+
+**To the movie.** The hud's event handler (0x23B5F0) pushes the node's byte +4 as
+`on_player_killed`'s fifth argument; at 0x23B6F0 it pushes the word (`KILL_FEED_ARGUMENT`), and
+on_player_killed reads the first byte alone for extra_icon (0x2380EA). `kill_feed_row`, called at
+0x23814F (after extra_icon, before mastery_icon), sets the description's `penetration_icon` and
+`pain_icon` (GFx ints, 0 or 1; 0.69d0's name for the wall flag) the way the function sets its own
+members, then does the site's two moves.
+
+**The movie.** `CombatLogItem` shows `CombatLogWallIcon` (0.69d0's `icon_penetration.png`) and
+`CombatLogPainIcon` (the Anesthetic's hud picture in white) after the weapon and before the
+cause icon, for a kill or a suicide row, in 0.69d0's order; the build adds the two bitmaps
+(`../flash/hud/bitmaps/`, made by `../scripts/kill-feed-icons/make_icons.py`).
+
+**Checked:** `selftest_026g.py` check 67 (the sites' original code, the hooks, no relocation under
+them and no branch into them, the code the link's, its one jump into the game the part lookup;
+the movie's row); `check_kill_feed_026g.py` (Unicorn): the event from 0x2DA3AD to its queueing
+in 15 cases (a bullet death, a pain death, body or head emptied with pain, a headshot through
+pain, pain all but empty, a toxic death, through a wall, a ricochet, pierces and a ricochet, a
+wall and pain, no bullet, no damage model, the parts in another order, no head pool) with the
+game's own part lookup: the node the original's but +5; the handler's five arguments; the row's
+members (penetration_icon, pain_icon, then mastery_icon) against the original's mastery_icon
+alone, with the registers and the frame as the original's. **Not run in a game.**
 
 ## Not ported, not done
 

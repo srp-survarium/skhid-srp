@@ -23,6 +23,8 @@ bytes):
   taken out is a deleted file.
 - `movie.json` names the original movie (its archive entry and sha256). Its graphics, fonts and
   sounds are not source: the build takes everything but the code from it.
+- `bitmaps/<class>.png` (the hud's kill feed icons): a bitmap the original lacks, which the build
+  adds bound to `<class>`, a `BitmapData` class of `src/`.
 
 ## Cleaned up over the export
 

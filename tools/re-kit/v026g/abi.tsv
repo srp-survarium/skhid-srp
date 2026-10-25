@@ -1913,3 +1913,6 @@ va	name	source	ret_cleanup	result
 0x002013a0	survarium::game_options::assign_binding	manual	8	AL: the row of the action kept the key
 0x00201f20	survarium::game_options::apply_key_bindings	manual	0	for each row whose key set (+10h) differs from the kept (+3Ch): the console's `bind <action> <key>`, or `unbind <action>` for none
 0x00207450	survarium::key_binder::bind_command_save	manual	8	pushes `<command> <action> <key>` for every bound action of the binder's 48h bindings onto the list
+0x002da170	survarium::base_player::generate_killed_event	manual	20	queues a kill event (type 0): +0 the victim's place, +1 the killer, +2 the weapon's icon, +4 the cause icon (1 headshot, 3 no killer or the victim; else 0); patch 67 adds +5, its flags
+0x00237c70	survarium::game_world_ui::on_player_killed	manual	20	root.add_log_message with action_id, who_name, who_team, victim_name, victim_team, object_icon, extra_icon, mastery_icon
+0x0023b5f0	survarium::game_world_ui::on_world_event	manual	8	

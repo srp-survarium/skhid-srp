@@ -1537,7 +1537,9 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
-        [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS]
+        [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
+        [(va, len(old)) for va, old, _, _ in P.KILL_FEED_HOOKS] + \
+        [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))]
 
 
 def pickup_sites():
@@ -4377,6 +4379,87 @@ def test_hide_ui(original, image, before):
           "the lobby movie has root.toggle_interface and root.interface_hidden")
 
 
+def test_kill_feed(original, image, before):
+    """Check 67: the kill feed's wall and pain icons (patch 67,
+    KILL_FEED_HOOKS, KILL_FEED_ARGUMENT). check_kill_feed_026g.py runs the
+    three sites from the game's code on made-up victims, bullets and
+    descriptions, with the game's own part lookup."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 40).split(b"\0")[0]
+    check(rows(stock, 0x2DA3A8, 0x37) == ["call 0x2d43b0", "mov ecx,[esp+0x44]", "mov [eax+0x24],ecx",
+                                          "mov cl,[esp+0x48]", "xor edi,edi", "mov [eax+0x18],edi",
+                                          "movzx edx,byte [esi+0x114]", "mov [eax],dl", "movzx edx,byte [esp+0x4c]",
+                                          "mov [eax+0x1],cl", "mov [eax+0x2],dl", "mov [eax+0x4],bl",
+                                          "mov edx,[esi+0x120]", "call 0x2d0a60"]
+          and rows(stock, 0x2DA179, 4) == ["mov ebp,[esp+0x50]"]
+          and stock.read(0x2D9EFC, 0x1E) == bytes.fromhex("8b45fc50" "8b450c8b48408b1051" "0fb6484452" "8b503c5152" "8bf3e856020000")
+          and stock.read(0x2D43F6, 8) == bytes.fromhex("8908" "894804" "894808"),
+          "generate_killed_event (0x2DA170, esi the victim, ebp its fifth argument: hit_impl's bullet [ebp-4], "
+          "0x2D9EFC) writes the kill event's victim, killer, weapon icon and cause icon (+4) into a node whose "
+          "+0..+0Bh the allocation (0x2D43B0) zeroes, then queues it (0x2D0A60, eax the node, edx the world)")
+    check(rows(stock, 0x23B6F0, 0x19) == ["movzx edx,byte [edi+0x4]", "movzx eax,byte [edi+0x2]",
+                                          "movzx ecx,byte [edi+0x1]", "push edx", "movzx edx,byte [edi]", "push eax",
+                                          "push ecx", "push edx", "push ebx", "call 0x237c70"]
+          and popped(stock, 0x237C70, 0x238227) == 0x14
+          and [t for t in rows(stock, 0x237C70, 0x5B7) if "esp+0x104" in t] == ["movzx eax,byte [esp+0x104]"]
+          and "push dword 0xa036a4" in rows(stock, 0x23814F, 0x36)
+          and cstr(0xA03698) == b"extra_icon" and cstr(0xA036A4) == b"mastery_icon"
+          and cstr(0xA036B4) == b"root.add_log_message",
+          "the hud's event handler (0x23B5F0) gives on_player_killed (0x237C70, `ret 14h`) the node's bytes, the "
+          "cause icon fifth, which it reads as a byte alone (0x2380EA) for extra_icon; 0x23814F starts its "
+          "mastery_icon, before root.add_log_message")
+    check(rows(stock, 0x2D9C3D, 0x15)[:4] == ["mov eax,[ebx+0x2e0]", "add eax,0x108", "lea ecx,[ebp+0x8]",
+                                              "mov dword [ebp+0x8],0x9fb1ec"]
+          and cstr(0x9FB1EC) == b"pain" and stock.read(0x2D9C5E, 8) == bytes.fromhex("f30f1080a0000000")
+          and stock.read(0x32EE20, 6) == bytes.fromhex("ff8684000000") and stock.read(0x32E33A, 6) == bytes.fromhex("fe8388000000")
+          and stock.read(0x32BB1B, 12) == bytes.fromhex("899e84000000" "889e88000000"),
+          "the damage model's parts by name (0x2E58B0, hit_impl's lookup of \"pain\"; health +0A0h); a bullet's "
+          "segments +84h (one more for each pierce and reflection, 0x32EE20) and reflections +88h (0x32E33A), "
+          "zero at its construction")
+    linked = P.arena()
+    block = linked.blocks["kill_feed.code"]
+    for va, old, symbol, opcode in P.KILL_FEED_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`call {target:#x}` ({symbol}, an entry of kill_feed.code) and nops here")
+    va, old, new = P.KILL_FEED_ARGUMENT
+    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+          and rows(image, va, len(new)) == ["movzx edx,word [edi+0x4]"],
+          f"{va:#x}: the handler pushes the node's word +4 (the cause icon, the flags) here")
+    sites = list(P.KILL_FEED_HOOKS) + [(va, old, None, None)]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(s - 4 < v < s + len(o) for s, o, _, _ in sites)]
+    hits = [h for s, o, _, _ in sites for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "kill_feed.code")
+    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's kill_feed.code ({len(code)} bytes)")
+    names = code.index(struct.pack("<I", block.va + code.index(b"pain\0")))   # the names' pointers: the data
+    texts = [text for va, _, text in ndisasm(code[:names], block.va)]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    pushed = lambda text: f"push dword {block.va + code.index(text + bytes(1)):#x}" in texts
+    check(outside == [0x2E58B0] and pushed(b"penetration_icon") and pushed(b"pain_icon")
+          and "kill_feed.state" not in linked.blocks
+          and [t for t in texts if t.startswith("mov [") and "esp" not in t] == ["mov [eax+0x4],bl", "mov [eax+0x5],dl"],
+          "it jumps to the part lookup (0x2E58B0) and calls nothing else of the game's (SetMember through the "
+          "description's interface), sets penetration_icon and pain_icon, writes the node's +4 and +5 and nothing "
+          "else outside its frame, and keeps no state")
+    here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
+    item = here("flash", "hud", "src", "survarium", "controls", "CombatLogItem.as")
+    check("data.penetration_icon == 1" in item and "data.pain_icon == 1" in item
+          and "new CombatLogWallIcon()" in item and "new CombatLogPainIcon()" in item
+          and all(os.path.isfile(os.path.join(HERE, "..", "flash", "hud", "bitmaps", f"{n}.png"))
+                  for n in ("CombatLogWallIcon", "CombatLogPainIcon")),
+          "the hud movie's kill feed row shows penetration_icon and pain_icon (its bitmaps CombatLogWallIcon and "
+          "CombatLogPainIcon)")
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -5969,6 +6052,7 @@ def test_late_join(original, without, server, source):
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)
     test_hide_ui(original, image, before)
+    test_kill_feed(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

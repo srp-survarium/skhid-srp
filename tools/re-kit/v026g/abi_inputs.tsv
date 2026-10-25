@@ -4466,3 +4466,17 @@ va	name	location	role	basis
 0x0033d790	survarium::medkit::tick	ECX	the medkit (any drug): influences at +280h (14h each: the pool name first, the per-second amount at +10h), their count byte +288h, healed so far per influence (floats) +284h, delay ms left +2ACh, activity ms left +2A8h	observed
 0x0033d790	survarium::medkit::tick	entry ESP+4	elapsed ms: the delay first; then min(it, activity left) x 0.001 s x apply_modifier(57 drug_amount, amount, 1.0) to each influence pool (by name, 0x2E58B0) through increase_health 0x32A420, skipped below 1e-6; at the first active tick remove_affects 0x33DA50; set_active(0) when the activity is spent	observed
 0x0033cac0	survarium::medkit::medkit	EAX	the item config: data/activity_time_sec (at least 0.001) x 1000 -> +29Ch ms; parameters/activity_time_skill_influence -> +2A0h, the k of the activity time through apply_modifier 34 drug_activity_time; data/influences -> +280h, count +288h	observed
+0x002da170	survarium::base_player::generate_killed_event	ESI	the victim (place +114h, world +120h, damage model +2E0h)	observed
+0x002da170	survarium::base_player::generate_killed_event	entry ESP+4	the time (the event's +24h)	observed
+0x002da170	survarium::base_player::generate_killed_event	entry ESP+8	the killer's place (0FFh: none)	observed
+0x002da170	survarium::base_player::generate_killed_event	entry ESP+0Ch	the hit's bone name (brain or face: a headshot)	observed
+0x002da170	survarium::base_player::generate_killed_event	entry ESP+10h	the hit's damage source (+224h its icon)	observed
+0x002da170	survarium::base_player::generate_killed_event	entry ESP+14h	the killing bullet or 0 (hit_impl's [ebp-4]; +84h its segments, +88h its reflections, +40h its damage parameters)	observed
+0x00237c70	survarium::game_world_ui::on_player_killed	entry ESP+4	the hud	observed
+0x00237c70	survarium::game_world_ui::on_player_killed	entry ESP+8	the victim's place	observed
+0x00237c70	survarium::game_world_ui::on_player_killed	entry ESP+0Ch	the killer's place (0FFh: the victim)	observed
+0x00237c70	survarium::game_world_ui::on_player_killed	entry ESP+10h	the weapon's icon (object_icon)	observed
+0x00237c70	survarium::game_world_ui::on_player_killed	entry ESP+14h	the cause icon (extra_icon), its first byte alone read; patch 67: the flags in its second	observed
+0x0023b5f0	survarium::game_world_ui::on_world_event	EDI	the event (+18h its type: 0 a kill, 1, 2)	observed
+0x0023b5f0	survarium::game_world_ui::on_world_event	entry ESP+4	the hud	observed
+0x0023b5f0	survarium::game_world_ui::on_world_event	entry ESP+8	the event's frame is confirmed (setbe at 0x1FB695): the hud keeps its time (+2D8h)	observed
