@@ -1,9 +1,8 @@
 //! The registry and the settings.
 
 use crate::v026g::{
-    CreateError, LateInputs, MatchRegistry, Seat, parse_late_inputs, parse_number,
-    parse_snapshot_dir,
-    parse_switch,
+    CreateError, LateInputs, MatchRegistry, Netcode, Seat, parse_late_inputs, parse_netcode,
+    parse_number, parse_snapshot_dir, parse_switch,
 };
 
 use super::{MAP_BATTERIES, session_of, setup};
@@ -146,4 +145,28 @@ fn the_settings_and_their_defaults() {
         parse_snapshot_dir(Some("d:/worlds")),
         Some(std::path::PathBuf::from("d:/worlds"))
     );
+}
+
+#[test]
+fn the_netcode_is_the_stock_one_unless_switched_and_its_tick_50_unless_set() {
+    use sync_core::{Grid, TickLen};
+    let ticks = |grid| Netcode::Ticks { grid };
+    assert_eq!(parse_netcode(None, None), Netcode::Relays);
+    assert_eq!(parse_netcode(Some("off"), None), Netcode::Relays);
+    assert_eq!(parse_netcode(Some("v070"), None), Netcode::Relays);
+    // A tick without the protocol: the stock one, at 50.
+    assert_eq!(parse_netcode(None, Some("20")), Netcode::Relays);
+    assert_eq!(parse_netcode(Some("v069"), None), ticks(Grid::STOCK));
+    assert_eq!(parse_netcode(Some(" V069 "), Some("")), ticks(Grid::STOCK));
+    assert_eq!(
+        parse_netcode(Some("v069"), Some("25")),
+        ticks(Grid::of(TickLen::Ms25))
+    );
+    assert_eq!(
+        parse_netcode(Some("v069"), Some("20")),
+        ticks(Grid::of(TickLen::Ms20))
+    );
+    assert_eq!(parse_netcode(Some("v069"), Some("40")), ticks(Grid::STOCK));
+    // The default is off.
+    assert_eq!(crate::v026g::Settings::default().netcode, Netcode::Relays);
 }

@@ -109,6 +109,17 @@ pub struct Config {
     /// The patch revision its sign-in says: one that speaks the late join
     /// (5 and later; only such a game plays in rooms).
     pub revision: u8,
+    /// The match protocol its game announces (`--ticks`: the per-tick one,
+    /// for a server with `SRP_NETCODE=v069`).
+    pub protocol: Protocol,
+}
+
+/// The match protocol a bot's game speaks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Protocol {
+    Stock,
+    /// The per-tick protocol (`match_server::v026g`, `SRP_NETCODE`).
+    Ticks,
 }
 
 /// SHA-1 as the client prints it: 40 lower-case hex characters.
@@ -652,12 +663,13 @@ impl Bot {
                     let ip = host.parse::<IpAddr>().ok().or(lobby_ip);
                     let drive = self.config.drive;
                     let link = ip.zip(socket().ok()).map(|(ip, socket)| {
-                        let mut client =
-                            if survarium::v026g::match_msgs::late_join::spoken_by(self.config.revision) {
-                                MatchClient::idle_growing(session)
-                            } else {
-                                MatchClient::idle(session)
-                            };
+                        let growing =
+                            survarium::v026g::match_msgs::late_join::spoken_by(self.config.revision);
+                        let mut client = match (growing, self.config.protocol) {
+                            (true, Protocol::Ticks) => MatchClient::idle_ticks(session),
+                            (true, Protocol::Stock) => MatchClient::idle_growing(session),
+                            (false, _) => MatchClient::idle(session),
+                        };
                         client.connect();
                         MatchLink {
                             addr: SocketAddr::new(ip, *port),

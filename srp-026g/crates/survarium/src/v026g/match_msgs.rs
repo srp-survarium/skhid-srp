@@ -34,12 +34,18 @@ pub mod static_info;
 pub mod upload;
 
 use client_model::COMPRESSED_SNAPSHOT_BUFFER;
+pub use sync_core::wire::{
+    Arrival, ClientUpdate, OwnOutcome, Outcome, PlaceInput, PlaceProfile, Places, ServerUpdate,
+    WireError,
+};
+pub use sync_core::{GameTime, Grid, TickLen};
 use upload::{Chunk, ChunkError};
 
 use super::lzma2;
 
-/// The simulation's tick: every time on the wire but 0xE5's is a tick.
-pub const TICK_MS: u32 = 50;
+/// The simulation's tick: every time on the wire but 0xE5's is a tick. The
+/// stock grid's ([`sync_core::Grid::STOCK`]).
+pub const TICK_MS: u32 = sync_core::TICK_MS;
 /// `player_profile[20]` in the match options.
 pub const MAX_PLAYERS: usize = 20;
 
@@ -84,6 +90,12 @@ pub mod id {
     pub const UPLOAD_REQUEST: u8 = 0xF6;
 
     pub const CLIENT_FIRST: u8 = CONNECT;
+    /// The per-tick protocol's ids (`udp_transport::Table::MatchTicks`):
+    /// a client's update of a tick, the server's. Never on a match of the
+    /// stock protocol: a stock client drops the datagram.
+    pub const CLIENT_UPDATE: u8 = 0xE2;
+    pub const SERVER_UPDATE: u8 = 0xF7;
+
     pub const CLIENT_LAST: u8 = KEEP_ALIVE;
     pub const SERVER_FIRST: u8 = PORTS;
     pub const SERVER_LAST: u8 = UPLOAD_REQUEST;
@@ -183,7 +195,13 @@ pub fn sdiff8(a: u8, b: u8) -> i32 {
 /// The tick byte of a time: `time / 50`, low 8 bits
 /// (`serialize_local_fixed_time` 0x3185F0).
 pub fn tick_byte(time_ms: u32) -> u8 {
-    (time_ms / TICK_MS) as u8
+    tick_byte_in(Grid::STOCK, time_ms)
+}
+
+/// [`tick_byte`] on a match's grid: a match of another tick has the game's
+/// writer re-stamped to its tick (`netcode_port_069.md` 6.1, WIRE).
+pub fn tick_byte_in(grid: Grid, time_ms: u32) -> u8 {
+    grid.ticks(GameTime(time_ms)) as u8
 }
 
 /// The time a tick byte means to a receiver whose clock is at `clock_ms`
@@ -192,9 +210,16 @@ pub fn tick_byte(time_ms: u32) -> u8 {
 /// with no error. `None`: before time 0 (the client's unsigned arithmetic
 /// would wrap there).
 pub fn tick_time(byte: u8, clock_ms: u32) -> Option<u32> {
-    let current = i64::from(clock_ms / TICK_MS);
+    tick_time_in(Grid::STOCK, byte, clock_ms)
+}
+
+/// [`tick_time`] on a match's grid (the reach is 127 of its ticks: 2.54 s
+/// at 20 ms).
+pub fn tick_time_in(grid: Grid, byte: u8, clock_ms: u32) -> Option<u32> {
+    let tick_ms = i64::from(grid.tick_ms());
+    let current = i64::from(grid.ticks(GameTime(clock_ms)));
     let tick = current + i64::from(sdiff8(byte, current as u8));
-    u32::try_from(tick * i64::from(TICK_MS)).ok()
+    u32::try_from(tick * tick_ms).ok()
 }
 
 /// A time as a message carries it: the tick, and for the "precise" ids the
@@ -427,8 +452,15 @@ pub enum ServerMessage {
     /// random one of them. Give the server's one port twice.
     Ports { min: u16, max: u16 },
     /// 0xE4: the client's own roster place, then the match options as a
-    /// raw LZMA2 stream ([`static_info::StaticInfo::payload`]).
-    StaticInfo { local_index: u8, lzma2: Vec<u8> },
+    /// raw LZMA2 stream ([`static_info::StaticInfo::payload`]). With
+    /// `ticks`, the per-tick protocol's trailer after the stream
+    /// ([`static_info::ticks_trailer`]): only to a client that announced
+    /// it.
+    StaticInfo {
+        local_index: u8,
+        lzma2: Vec<u8>,
+        ticks: Option<Grid>,
+    },
     /// 0xE5: sets the client's game time and clears its history. Taken only
     /// when `generation` is newer than the client's ([`Generation`]); the
     /// client answers 0xDB.
@@ -482,6 +514,67 @@ pub enum ServerMessage {
     /// 0xF6 with its one payload byte: "upload your event-horizon world".
     /// Only for patched clients ([`upload`]).
     UploadRequest,
+    /// 0xF7, the per-tick protocol only: the tick closed, for one client.
+    Update(Update),
+}
+
+/// A server update of the per-tick protocol as the server builds it
+/// ([`sync_core::wire::ServerUpdate`] is its layout).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Update {
+    pub tick: GameTime,
+    pub entered: Places,
+    pub left: Places,
+    pub arrival: Arrival,
+    pub inputs: Vec<PlaceInput>,
+    pub profiles: Vec<PlaceProfile>,
+    pub outcomes: Vec<OwnOutcome>,
+}
+
+impl Update {
+    /// The tick closed, nothing in it yet.
+    pub fn empty(tick: GameTime) -> Self {
+        Self {
+            tick,
+            entered: Places::EMPTY,
+            left: Places::EMPTY,
+            arrival: None,
+            inputs: Vec::new(),
+            profiles: Vec::new(),
+            outcomes: Vec::new(),
+        }
+    }
+
+    pub fn wire(&self) -> ServerUpdate<'_> {
+        ServerUpdate {
+            tick: self.tick,
+            entered: self.entered,
+            left: self.left,
+            arrival: self.arrival,
+            inputs: &self.inputs,
+            profiles: &self.profiles,
+            outcomes: &self.outcomes,
+        }
+    }
+
+    /// Reads one, as a client of the match's grid does.
+    pub fn parse(payload: &[u8], grid: Grid) -> Result<Self, WireError> {
+        let view = ServerUpdate::parse(payload, grid)?;
+        Ok(Self {
+            tick: view.tick,
+            entered: view.entered,
+            left: view.left,
+            arrival: view.arrival,
+            inputs: view.inputs().collect(),
+            profiles: view.profiles().collect(),
+            outcomes: view.outcomes().collect(),
+        })
+    }
+
+    /// Whether it says nothing but that its tick closed.
+    pub fn is_empty(&self) -> bool {
+        self.wire().is_empty()
+    }
 }
 
 impl ServerMessage {
@@ -553,6 +646,7 @@ impl ServerMessage {
             Self::MoveProfileInput { .. } => id::MOVE_PROFILE_INPUT,
             Self::DiscardProfileInput { .. } => id::DISCARD_PROFILE_INPUT,
             Self::UploadRequest => id::UPLOAD_REQUEST,
+            Self::Update(_) => id::SERVER_UPDATE,
         }
     }
 
@@ -565,10 +659,24 @@ impl ServerMessage {
                 out.extend(min.to_le_bytes());
                 out.extend(max.to_le_bytes());
             }
-            Self::StaticInfo { local_index, lzma2 } => {
-                out.reserve(1 + lzma2.len());
+            Self::StaticInfo {
+                local_index,
+                lzma2,
+                ticks,
+            } => {
+                out.reserve(1 + lzma2.len() + static_info::TICKS_TRAILER_LEN);
                 out.push(*local_index);
                 out.extend_from_slice(lzma2);
+                if let Some(grid) = ticks {
+                    out.extend(static_info::ticks_trailer(*grid));
+                }
+            }
+            Self::Update(update) => {
+                let wire = update.wire();
+                out.resize(wire.wire_len(), 0);
+                // The sizes are the server's own, under the wire's limits.
+                let written = wire.write(&mut out).unwrap_or(0);
+                out.truncate(written);
             }
             Self::SetTime {
                 generation,
@@ -1391,9 +1499,50 @@ mod tests {
         let info = ServerMessage::StaticInfo {
             local_index: 1,
             lzma2: vec![0x01, 0x00, 0x00, 0x55, 0x00],
+            ticks: None,
         };
         assert_eq!(info.id(), 0xE4);
         assert_eq!(info.payload(), [0x01, 0x01, 0x00, 0x00, 0x55, 0x00]);
+    }
+
+    #[test]
+    fn the_per_tick_trailer_ends_the_static_info_and_reads_back() {
+        let info = ServerMessage::StaticInfo {
+            local_index: 1,
+            lzma2: vec![0x01, 0x00, 0x00, 0x55, 0x00],
+            ticks: Some(Grid::of(TickLen::Ms25)),
+        };
+        let payload = info.payload();
+        assert_eq!(
+            payload,
+            [0x01, 0x01, 0x00, 0x00, 0x55, 0x00, 25, 1, b'S', b'R', b'P', b'T']
+        );
+        let (body, grid) = static_info::split_ticks_trailer(&payload).unwrap();
+        assert_eq!(body, &payload[..6]);
+        assert_eq!(grid, Some(Grid::of(TickLen::Ms25)));
+        // None: the stock payload as it is.
+        let stock = &payload[..6];
+        assert_eq!(static_info::split_ticks_trailer(stock).unwrap(), (stock, None));
+        // A tick the game cannot run.
+        let mut forty = payload.clone();
+        forty[6] = 40;
+        assert!(static_info::split_ticks_trailer(&forty).is_err());
+    }
+
+    #[test]
+    fn an_update_is_the_wire_layout_behind_0xf7() {
+        let mut update = Update::empty(GameTime(1100));
+        update.outcomes.push(OwnOutcome {
+            update: GameTime(1000),
+            outcome: Outcome::Moved {
+                to: GameTime(1100),
+            },
+        });
+        let message = ServerMessage::Update(update.clone());
+        assert_eq!(message.id(), 0xF7);
+        let payload = message.payload();
+        assert_eq!(payload.len(), update.wire().wire_len());
+        assert_eq!(Update::parse(&payload, Grid::STOCK), Ok(update));
     }
 
     #[test]

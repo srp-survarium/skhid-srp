@@ -78,4 +78,6 @@ unsafe extern "C" {
     pub fn engine_cc_bool(object: *mut c_void, name: *const u8, value: *mut u8, saved: u32, kind: u32);
     /// 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX
     pub fn engine_binded_action(binder: *const c_void, kinds: u32, key: u32, toggle: *mut u32) -> u32;
+    /// 0x7ac10 vostok::network_core::buffer_writer::w: writer ESP+4, source ESP+8, length EDI; pops 8
+    pub fn engine_writer_write(writer: *mut c_void, source: *const c_void, length: u32);
 }

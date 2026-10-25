@@ -43,8 +43,8 @@
 
 use mapdata::MapData;
 
-/// The anomaly tick, ms.
-pub const TICK_MS: u32 = 50;
+/// The anomaly tick, ms: the stock grid's ([`sync_core::Grid::STOCK`]).
+pub const TICK_MS: u32 = sync_core::TICK_MS;
 /// How far a schedule is predicted, ms.
 pub const PREDICT_MS: u32 = 300_000;
 /// A prediction is made again this long after the last at the latest.

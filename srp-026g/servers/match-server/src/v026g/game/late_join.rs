@@ -5,7 +5,7 @@
 use super::*;
 use session::matchmaking_policy::Closed;
 use survarium::v026g::match_msgs::late_join::{Prepare, Prepared, Proposal, Status};
-use survarium::v026g::match_msgs::{MAX_PLAYERS, id};
+use survarium::v026g::match_msgs::{GameTime, MAX_PLAYERS, id};
 
 const RETRY: Duration = Duration::from_secs(1);
 const PREPARE_TIMEOUT: Duration = Duration::from_secs(60);
@@ -571,6 +571,7 @@ impl Game {
             }
         }
         let clock = self.clock(now);
+        let grid = self.grid();
         // The group's latest deadline: a member started once more has
         // more time (`check_joiner_worlds`), and the members that caught
         // up wait for it that long, not their own (one pending group at a
@@ -652,12 +653,12 @@ impl Game {
                 // Require a world captured after the barrier. Old cached
                 // snapshots and the newcomer's initial upload cannot qualify.
                 admission.phase = AdmissionPhase::CatchingUp {
-                    snapshot_after: grid_up(clock),
+                    snapshot_after: grid.ceil(GameTime(clock)).0,
                 };
                 log::info!(
                     "Match {:#x}: new place {index} prepared; requesting a world from {} ms or later",
                     self.id,
-                    grid_up(clock)
+                    grid.ceil(GameTime(clock)).0
                 );
                 self.request_upload(index, now, Duration::ZERO);
             }
@@ -868,7 +869,7 @@ impl Game {
                 }
                 return;
             }
-            let at = grid_up(clock + ROSTER_LEAD_MS);
+            let at = self.grid_up(clock + ROSTER_LEAD_MS);
             for &index in &caught_up {
                 // Its tick: after a stand-in's entry, when one shares it
                 // (`Game::after_stand_ins`).
@@ -940,6 +941,7 @@ impl Game {
     /// to catch up in. `caught_up` are the newcomers about to enter.
     fn check_joiner_worlds(&mut self, caught_up: &[usize], now: Instant) {
         let clock = self.clock(now);
+        let grid = self.grid();
         let settle = self
             .settings
             .timing
@@ -1031,12 +1033,12 @@ impl Game {
             admission.extra_time = JOINER_EXTRA_TIME;
             admission.forget_wrong();
             if let AdmissionPhase::CatchingUp { snapshot_after } = &mut admission.phase {
-                *snapshot_after = (*snapshot_after).max(grid_up(clock));
+                *snapshot_after = (*snapshot_after).max(grid.ceil(GameTime(clock)).0);
             }
             log::info!(
                 "Match {id:#x}: new place {index} is started once more, from a world from {} ms on \
                  ({}; {} s more to catch up)",
-                grid_up(clock),
+                grid.ceil(GameTime(clock)).0,
                 if admission.upload_received {
                     "its own world was saved".to_owned()
                 } else {

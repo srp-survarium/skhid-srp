@@ -15,8 +15,8 @@ use super::super::lzma2;
 use super::snapshot::Sections;
 use super::static_info::{self, MatchOptions, StaticInfoError};
 use super::{
-    BatchInput, Generation, Length, MAX_PLAYERS, PlayerInput, ServerMessage, TICK_MS, TimeReply,
-    WireTime, id, mask_bytes, player_inputs_len, server_length,
+    BatchInput, Generation, Grid, Length, MAX_PLAYERS, PlayerInput, ServerMessage, TICK_MS,
+    TimeReply, Update, WireError, WireTime, id, mask_bytes, player_inputs_len, server_length,
 };
 
 /// A compressed snapshot is decoded into a buffer of this size.
@@ -49,6 +49,9 @@ pub enum ModelError {
     /// A message with a tick, before any 0xE5 set the clock it is read
     /// against.
     NoClock,
+    /// A 0xF7 that is no update of the match's grid, or one to a game
+    /// that was never told the per-tick protocol (it has no such id).
+    Update(Option<WireError>),
 }
 
 impl std::fmt::Display for ModelError {
@@ -65,6 +68,8 @@ impl std::fmt::Display for ModelError {
             Self::SnapshotWithoutTime => write!(f, "0xE8 with no 0xE5 before it"),
             Self::SnapshotState => write!(f, "0xE8's state is no world"),
             Self::NoClock => write!(f, "a tick before the clock was set"),
+            Self::Update(Some(error)) => write!(f, "0xF7: {error:?}"),
+            Self::Update(None) => write!(f, "0xF7 to a game of the stock protocol"),
         }
     }
 }
@@ -127,10 +132,13 @@ pub fn decode_server(id: u8, payload: &[u8], roster: u8) -> Result<ServerMessage
             max: u16_at(payload, 2),
         },
         id::STATIC_INFO => {
+            let (payload, ticks) =
+                static_info::split_ticks_trailer(payload).map_err(ModelError::StaticInfo)?;
             let (&local_index, lzma2) = payload.split_first().ok_or(wrong_length)?;
             ServerMessage::StaticInfo {
                 local_index,
                 lzma2: lzma2.to_vec(),
+                ticks,
             }
         }
         id::SET_TIME => ServerMessage::SetTime {
@@ -348,6 +356,9 @@ pub struct ClientModel {
     pub world_loaded: bool,
     /// Snapshots loaded: 1 is the first sync, each more a "FULL RESYNC".
     pub syncs: u32,
+    /// The per-tick protocol, from its 0xE4's trailer: the match's grid.
+    /// `None`: the stock protocol (it has no 0xF7).
+    pub ticks: Option<Grid>,
 }
 
 /// The client's event horizon (`gwc+0x18FB4`): `max_ping_time_in_ms` +
@@ -371,7 +382,29 @@ impl ClientModel {
             last_resync: None,
             world_loaded: false,
             syncs: 0,
+            ticks: None,
         }
+    }
+
+    /// 0xF7, the per-tick protocol's update: taken in the state of the
+    /// other match messages, once the game has its core. What of it its
+    /// world takes (nothing at or before the last world's time) is the
+    /// patch's to sort out, by the same rules as the stock handlers'.
+    fn receive_update(&mut self, payload: &[u8]) -> Result<Taken, ModelError> {
+        let grid = self.ticks.ok_or(ModelError::Update(None))?;
+        let update = Update::parse(payload, grid).map_err(|error| ModelError::Update(Some(error)))?;
+        if self.state != State::StaticInfoReceived {
+            return Ok(Taken::Skipped(Skip::WrongState));
+        }
+        if !self.ready {
+            return Ok(Taken::Skipped(Skip::NoCore));
+        }
+        let time = Some(update.tick.0);
+        Ok(Taken::Applied(Applied {
+            message: ServerMessage::Update(update),
+            time,
+            reply: None,
+        }))
     }
 
     /// The roster size, once the static info came.
@@ -417,6 +450,24 @@ impl ClientModel {
         self.correction_left
     }
 
+    /// Its clock corrected by `ms` as `floating_timer::set_offset` does
+    /// (0xE7's handler; the per-tick protocol's client steering calls it
+    /// itself): over time at its factor, or at once without one.
+    pub fn shift_clock(&mut self, ms: i32) {
+        if self.clock_factor.is_some() {
+            self.correction_left = f64::from(ms);
+        } else if let Some(clock) = &mut self.clock {
+            *clock = clock.saturating_add_signed(ms);
+        }
+    }
+
+    /// Its clock set `ms` forward (or back) at once.
+    pub fn jump_clock(&mut self, ms: i32) {
+        if let Some(clock) = &mut self.clock {
+            *clock = clock.saturating_add_signed(ms);
+        }
+    }
+
     /// Whether its simulation runs: it has loaded a snapshot.
     pub fn is_synced(&self) -> bool {
         self.last_resync.is_some()
@@ -457,6 +508,9 @@ impl ClientModel {
         } else {
             self.roster().max(1).min(MAX_PLAYERS as u8)
         };
+        if id == id::SERVER_UPDATE {
+            return self.receive_update(payload);
+        }
         let message = decode_server(id, payload, roster)?;
         let wanted = match id {
             id::PORTS => State::Connecting,
@@ -470,11 +524,12 @@ impl ClientModel {
         let mut reply = None;
         match &message {
             ServerMessage::Ports { .. } => self.state = State::PortsKnown,
-            ServerMessage::StaticInfo { .. } => {
+            ServerMessage::StaticInfo { ticks, .. } => {
                 let (index, options) = static_info::parse_payload(payload, dictionary)
                     .map_err(ModelError::StaticInfo)?;
                 self.local_index = Some(index);
                 self.options = Some(options);
+                self.ticks = *ticks;
                 self.state = State::StaticInfoReceived;
             }
             ServerMessage::SetTime {
@@ -698,6 +753,12 @@ mod tests {
             ServerMessage::StaticInfo {
                 local_index: 3,
                 lzma2: vec![1, 0, 0, 9, 0],
+                ticks: None,
+            },
+            ServerMessage::StaticInfo {
+                local_index: 3,
+                lzma2: vec![1, 0, 0, 9, 0],
+                ticks: Some(Grid::STOCK),
             },
             ServerMessage::SetTime {
                 generation: 200,
@@ -752,6 +813,7 @@ mod tests {
         }
         // Every server id was covered.
         ids.sort_unstable();
+        ids.dedup();
         assert_eq!(ids, (0xE3..=0xF6).collect::<Vec<u8>>());
     }
 

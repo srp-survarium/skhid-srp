@@ -13,7 +13,10 @@ use std::collections::{BTreeMap, VecDeque};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, mode};
 use survarium::v026g::match_msgs::client_model::{ClientModel, Skip, Taken};
-use survarium::v026g::match_msgs::late_join::{CONNECT_CAPABILITY, Prepare, Prepared, Status};
+use sync_core::clock::Order;
+use survarium::v026g::match_msgs::late_join::{
+    CONNECT_CAPABILITY, Prepare, Prepared, Status, TICKS_CAPABILITY,
+};
 use survarium::v026g::match_msgs::motion;
 use survarium::v026g::match_msgs::players::{self, PlayerState};
 use survarium::v026g::match_msgs::rules::{
@@ -24,11 +27,13 @@ use survarium::v026g::match_msgs::snapshot::{
     Respawn, Rules, Sections, Statistics, StatisticsTail, Tdm, Timed, Timelimit, VictoryItemStatus,
 };
 use survarium::v026g::match_msgs::{
-    PlayerInput, ServerMessage, TICK_MS, WireTime, id, tick_byte, upload,
+    GameTime, Grid, PlayerInput, ServerMessage, WireTime, id, tick_byte, tick_byte_in, upload,
 };
 use udp_transport::seq::{Recorded, Window};
 use udp_transport::wire::{self, low_level};
 use udp_transport::{Class, Direction, Table, ack};
+
+pub mod ticks;
 
 /// The client's event horizon: `max_ping_time_in_ms` + 250.
 pub const HORIZON_MS: u32 = 500;
@@ -491,6 +496,17 @@ pub struct Client {
     pub hash_last_sent: u32,
     last_hashed: u32,
     next_keep_alive_ms: u64,
+    /// It announces the per-tick protocol in its 0xD8 (a patched exe of
+    /// it; growing rosters only).
+    pub announce_ticks: bool,
+    /// The per-tick protocol, once its 0xE4 said the match plays it.
+    pub per_tick: Option<ticks::PerTick>,
+    /// The per-tick protocol: it steers its own clock (phase 3; the
+    /// default). Off: its clock is as the server's 0xE5 left it.
+    pub steers: bool,
+    /// How far behind its clock each of the others' inputs came, in ms:
+    /// the depth of the rollback it makes its world do (either protocol).
+    pub remote_depths: Vec<u32>,
 }
 
 impl Client {
@@ -540,7 +556,26 @@ impl Client {
             hash_last_sent: 0,
             last_hashed: 0,
             next_keep_alive_ms: 0,
+            announce_ticks: false,
+            per_tick: None,
+            steers: true,
+            remote_depths: Vec::new(),
         }
+    }
+
+    /// A patched game of the per-tick protocol (`Client::growing` that
+    /// announces it).
+    pub fn ticks(session: u32, players: usize, map_id: u8) -> Self {
+        let mut client = Self::growing(session, players, map_id);
+        client.announce_ticks = true;
+        client
+    }
+
+    /// The test bot of a game of the per-tick protocol.
+    pub fn idle_ticks(session: u32) -> Self {
+        let mut client = Self::idle_growing(session);
+        client.announce_ticks = true;
+        client
     }
 
     /// A client that cannot simulate the game (the test bot): a stock
@@ -600,6 +635,11 @@ impl Client {
         self.send(id::LEAVE, &bytes, true);
     }
 
+    /// Its grid: the 0xE4 trailer's, or the game's own.
+    pub fn grid(&self) -> Grid {
+        self.model.ticks.unwrap_or(Grid::STOCK)
+    }
+
     pub fn clock(&self) -> u32 {
         self.model.clock.unwrap_or(0)
     }
@@ -608,10 +648,11 @@ impl Client {
     /// hash: none loaded from a snapshot, none younger than the horizon.
     pub fn horizon(&self) -> Option<u32> {
         let resync = self.model.last_resync?;
-        let time = self.clock().checked_sub(HORIZON_MS)? / TICK_MS * TICK_MS;
+        let grid = self.grid();
+        let time = grid.floor(GameTime(self.clock().checked_sub(HORIZON_MS)?)).0;
         let time = self
             .frozen_at
-            .map_or(time, |at| time.min(at / TICK_MS * TICK_MS));
+            .map_or(time, |at| time.min(grid.floor(GameTime(at)).0));
         (time > resync).then_some(time)
     }
 
@@ -626,10 +667,10 @@ impl Client {
     /// 0xD8: the first message.
     pub fn connect(&mut self) {
         let mut payload = self.session.to_le_bytes().to_vec();
-        payload.push(if self.model.growing_roster {
-            CONNECT_CAPABILITY
-        } else {
-            0
+        payload.push(match (self.model.growing_roster, self.announce_ticks) {
+            (true, true) => CONNECT_CAPABILITY | TICKS_CAPABILITY,
+            (true, false) => CONNECT_CAPABILITY,
+            (false, _) => 0,
         });
         self.send(id::CONNECT, &payload, true);
     }
@@ -656,6 +697,15 @@ impl Client {
     /// An input at its own clock's tick (or `ahead_ms` from it).
     pub fn input(&mut self, ahead_ms: i32, actions: u32) -> PlayerInput {
         let time = self.clock().saturating_add_signed(ahead_ms);
+        if let Some(per_tick) = self.per_tick.as_mut() {
+            // The per-tick protocol: in its next update.
+            let at = per_tick.make_input(time, false, actions);
+            return PlayerInput {
+                time: WireTime::tick(at.0),
+                rotation: [0x00, 0x3C, 0x00, 0xC0],
+                actions,
+            };
+        }
         let input = PlayerInput {
             time: WireTime::tick(time),
             rotation: [0x00, 0x3C, 0x00, 0xC0],
@@ -666,6 +716,14 @@ impl Client {
     }
 
     pub fn send_input(&mut self, input: PlayerInput) {
+        // The per-tick protocol: in its next update.
+        let clock = self.clock();
+        if let Some(per_tick) = self.per_tick.as_mut() {
+            if let Some(time) = input.time.resolve(clock) {
+                per_tick.make(time, input.time.ms.is_some(), input.rotation, input.actions);
+            }
+            return;
+        }
         let mut payload = vec![input.time.tick];
         payload.extend(input.time.ms);
         payload.extend(input.rotation);
@@ -680,13 +738,17 @@ impl Client {
     }
 
     pub fn profile_input(&mut self, value: u8) -> u8 {
+        let clock = self.clock();
+        if let Some(per_tick) = self.per_tick.as_mut() {
+            return tick_byte(per_tick.make_profile(clock, value).0);
+        }
         let tick = tick_byte(self.clock());
         self.send(id::PROFILE_INPUT, &[tick, value], true);
         tick
     }
 
     pub fn report(&mut self, time: u32, crc: u32) {
-        let mut payload = vec![tick_byte(time)];
+        let mut payload = vec![tick_byte_in(self.grid(), time)];
         payload.extend(crc.to_le_bytes());
         self.send(id::HASH, &payload, false);
     }
@@ -750,8 +812,14 @@ impl Client {
             // 50 ms grid of its own clock, `last_sent + interval <= now`,
             // and the timer is armed again even with nothing to report.
             // With 100 ms it reports every second tick, on its own phase.
-            let grid = self.clock() / TICK_MS * TICK_MS;
-            if self.hash_last_sent + self.hash_interval_ms <= grid {
+            let grid = self.grid().floor(GameTime(self.clock())).0;
+            // A match of another tick: its patch re-stamps the interval to a tick.
+            let interval = if self.grid() == Grid::STOCK {
+                self.hash_interval_ms
+            } else {
+                self.grid().tick_ms()
+            };
+            if self.hash_last_sent + interval <= grid {
                 self.hash_last_sent = grid;
                 if let Some(time) = self.horizon().filter(|time| *time > self.last_hashed)
                     && !self.no_hashes
@@ -765,6 +833,16 @@ impl Client {
             if now_ms >= self.next_keep_alive_ms {
                 self.next_keep_alive_ms = now_ms + 1000;
                 self.send(id::KEEP_ALIVE, &[], false);
+            }
+            // The per-tick protocol: an update a tick, while its world
+            // runs (a world that stands still sends none).
+            let clock = self.clock();
+            if self.frozen_at.is_none()
+                && let Some(per_tick) = self.per_tick.as_mut()
+            {
+                for payload in per_tick.due_updates(clock) {
+                    self.send(ticks::UPDATE_ID, &payload, true);
+                }
             }
         }
         let mut datagrams = Vec::new();
@@ -824,7 +902,13 @@ impl Client {
         } else {
             self.model.roster()
         });
-        let parsed = match wire::parse(Table::Match, Direction::ToClient, datagram, mask_bytes) {
+        // A game of the per-tick protocol has the table with 0xF7.
+        let table = if self.announce_ticks {
+            Table::MatchTicks
+        } else {
+            Table::Match
+        };
+        let parsed = match wire::parse(table, Direction::ToClient, datagram, mask_bytes) {
             Ok(parsed) => parsed,
             Err(error) => {
                 self.faults
@@ -962,45 +1046,86 @@ impl Client {
                     self.send(id::TIME_REPLY, &payload, false);
                 }
             }
+            // The stock protocol's relays: how far behind its clock they come.
+            ServerMessage::InputRelay { .. }
+            | ServerMessage::InputsRelay { .. }
+            | ServerMessage::ProfileInputRelay { .. } => {
+                if let Some(time) = taken.time {
+                    self.remote_depths.push(self.clock().saturating_sub(time));
+                }
+            }
             ServerMessage::Snapshot { time, body, .. } => {
                 if self.simulates {
                     self.sim.load(*time, body);
                 }
                 self.last_hashed = *time;
             }
+            ServerMessage::StaticInfo {
+                ticks: Some(grid), ..
+            } => {
+                self.per_tick = Some(ticks::PerTick::new(*grid));
+            }
             ServerMessage::PlayerEntered { player, .. } => {
-                if let Some(at) = taken.time
-                    && self.simulates
-                {
-                    self.sim.events.push((at, *player, true));
+                if let Some(at) = taken.time {
+                    self.take_entry(*player, at);
                 }
             }
             ServerMessage::PlayerLeft { player, .. } => {
                 if Some(*player) == self.model.local_index {
                     self.told_to_leave = true;
                     self.closed = true;
-                } else if let Some(at) = taken.time
-                    && self.simulates
-                {
-                    // The game takes a leave only of a player in the
-                    // entered mask of the newest tick it played at or
-                    // before the leave's (`leave_match` 0x2D18A0,
-                    // 0x2D1B4B..0x2D1B9D): an entry it has not played yet
-                    // is not there, and the leave is dropped
-                    // (`dropped_leaves`). A copy of one taken is nothing.
-                    let event = (at, *player, false);
-                    if !self.sim.events.contains(&event) {
-                        // A world that stands still (`frozen_at`) plays
-                        // nothing past it.
-                        let played = at.min(self.clock()).min(self.frozen_at.unwrap_or(u32::MAX));
-                        let mask = self.sim.rule_at(played).mask;
-                        if mask & 1u32.checked_shl(u32::from(*player)).unwrap_or(0) == 0 {
-                            self.dropped_leaves.push((at, *player));
+                } else if let Some(at) = taken.time {
+                    self.take_leave(*player, at);
+                }
+            }
+            ServerMessage::Update(update) => {
+                let generation = self.model.generation.0;
+                let resynced = self.model.last_resync.unwrap_or(0);
+                let clock = self.clock();
+                let new = self
+                    .per_tick
+                    .as_mut()
+                    .is_some_and(|per_tick| per_tick.take(update, generation, resynced, clock));
+                if new {
+                    for each in &update.inputs {
+                        let time = each.input.time(update.tick).0;
+                        if time > resynced {
+                            self.remote_depths.push(clock.saturating_sub(time));
                         }
                     }
-                    // Taken all the same: the tests of other rules count on
-                    // it; a test of the leaves asserts `dropped_leaves`.
-                    self.sim.events.push(event);
+                }
+                // Its clock, steered from how early its updates came.
+                let factor = self
+                    .model
+                    .clock_factor
+                    .map_or(1000, |factor| (factor * 1000.0) as u32);
+                let order = match self.per_tick.as_mut() {
+                    Some(per_tick) if new && self.steers => per_tick.steer(update, clock, factor),
+                    _ => Order::Keep,
+                };
+                match order {
+                    Order::Keep => {}
+                    Order::Shift { ms } => self.model.shift_clock(ms),
+                    Order::Jump { ms } => self.model.jump_clock(ms),
+                }
+                if new {
+                    let at = update.tick.0;
+                    // Before its world, a roster change is kept (the
+                    // game's own lists outlive the load); "older than last
+                    // resync" refused.
+                    if at > resynced {
+                        for place in update.entered.iter() {
+                            self.take_entry(place.get(), at);
+                        }
+                        for place in update.left.iter() {
+                            if Some(place.get()) == self.model.local_index {
+                                self.faults
+                                    .push(format!("its own leave in the update of {at} ms"));
+                            } else {
+                                self.take_leave(place.get(), at);
+                            }
+                        }
+                    }
                 }
             }
             ServerMessage::UploadRequest => {
@@ -1019,6 +1144,38 @@ impl Client {
             _ => {}
         }
         self.taken.push(taken.message);
+    }
+
+    /// A roster entry of `player` at `at` taken into its simulation.
+    fn take_entry(&mut self, player: u8, at: u32) {
+        if self.simulates {
+            self.sim.events.push((at, player, true));
+        }
+    }
+
+    /// A leave of another player taken into its simulation.
+    fn take_leave(&mut self, player: u8, at: u32) {
+        if !self.simulates {
+            return;
+        }
+        // The game takes a leave only of a player in the entered mask of
+        // the newest tick it played at or before the leave's (`leave_match`
+        // 0x2D18A0, 0x2D1B4B..0x2D1B9D): an entry it has not played yet is
+        // not there, and the leave is dropped (`dropped_leaves`). A copy of
+        // one taken is nothing.
+        let event = (at, player, false);
+        if !self.sim.events.contains(&event) {
+            // A world that stands still (`frozen_at`) plays nothing past
+            // it.
+            let played = at.min(self.clock()).min(self.frozen_at.unwrap_or(u32::MAX));
+            let mask = self.sim.rule_at(played).mask;
+            if mask & 1u32.checked_shl(u32::from(player)).unwrap_or(0) == 0 {
+                self.dropped_leaves.push((at, player));
+            }
+        }
+        // Taken all the same: the tests of other rules count on it; a test
+        // of the leaves asserts `dropped_leaves`.
+        self.sim.events.push(event);
     }
 
     // ------------------------------------------------------------ looking
@@ -1054,6 +1211,29 @@ impl Client {
             } => Some((*generation, *time)),
             _ => None,
         })
+    }
+
+    /// The roster changes its simulation took: player, entered.
+    pub fn sim_events(&self) -> Vec<(u8, bool)> {
+        self.sim
+            .events
+            .iter()
+            .map(|(_, player, entered)| (*player, *entered))
+            .collect()
+    }
+
+    /// The roster changes of `player` its simulation took: when, entered;
+    /// a copy once.
+    pub fn sim_event_times(&self, player: u8) -> Vec<(u32, bool)> {
+        let mut events: Vec<(u32, bool)> = self
+            .sim
+            .events
+            .iter()
+            .filter(|(_, who, _)| *who == player)
+            .map(|(at, _, entered)| (*at, *entered))
+            .collect();
+        events.dedup();
+        events
     }
 
     pub fn entered(&self) -> Vec<u8> {

@@ -106,7 +106,7 @@ impl Game {
             .map(|stand_in| stand_in.entered_at)
             .max()
         {
-            Some(entry) if at <= entry => entry + TICK_MS,
+            Some(entry) if at <= entry => entry + self.tick_ms(),
             _ => at,
         }
     }
@@ -207,7 +207,7 @@ impl Game {
         let mut chosen: Vec<usize> = free[..missing].iter().map(|(_, index)| *index).collect();
         chosen.sort_unstable();
         let last = self.events.iter().map(|(at, _, _)| *at).max().unwrap_or(0);
-        let at = grid_up(clock + ROSTER_LEAD_MS).max(last + TICK_MS);
+        let at = self.grid_up(clock + ROSTER_LEAD_MS).max(last + self.tick_ms());
         log::info!(
             "Match {:#x}: {entered} of the {needed} places the clients' start needs are in \
              ({} v {} players; {}); places {chosen:?} stand in at {at} ms, and the countdown \
@@ -268,7 +268,7 @@ impl Game {
                     self.resync_behind_stand_in(index, stand_in, now);
                 }
             }
-            let at = grid_up(clock + ROSTER_LEAD_MS);
+            let at = self.grid_up(clock + ROSTER_LEAD_MS);
             self.stand_ins[which].left_at = Some(at);
             self.roster_change(Some(stand_in.index), stand_in.index, false, at, now);
             log::info!(

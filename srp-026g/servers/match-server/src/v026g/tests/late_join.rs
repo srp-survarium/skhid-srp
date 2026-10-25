@@ -226,8 +226,12 @@ fn growing_dialect_requires_an_explicit_client_capability() {
 #[test]
 fn stock_debug_flag_is_not_a_growing_roster_capability() {
     use survarium::v026g::match_msgs::late_join::has_connect_capability;
+    use survarium::v026g::match_msgs::late_join::speaks_ticks;
+    // 0x80, with bit 0 for -debug_hash_mismatch and bit 1 for the per-tick
+    // protocol.
     for flag in 0..=u8::MAX {
-        assert_eq!(has_connect_capability(flag), matches!(flag, 0x80 | 0x81));
+        assert_eq!(has_connect_capability(flag), matches!(flag, 0x80..=0x83));
+        assert_eq!(speaks_ticks(flag), matches!(flag, 0x82 | 0x83));
     }
     for growing in [false, true] {
         let mut bench = if growing {

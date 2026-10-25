@@ -412,6 +412,19 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     its remove_affects, artefact_base::action's entry, the player's
     stagger, Onyx's hit callback's state test) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
+79. the same build: the per-tick protocol's client (patch 79,
+    netcode_026g.asm and rust/netcode, the arena's blocks netcode.code and
+    netcode.state): the original's sites (the dispatch before its bound,
+    the length getter and the two infos before their tables, the connect's
+    send, the two senders' new_packet, the send pass's synchronize) and
+    the four range bytes, the hooks and new ids in the build, no relocation
+    under a site and no branch into one, the code the link's. The tick's
+    sites (tick_sites_026g.py, stamped at run time): each the original's
+    instruction and value, every division by 50 of the code among them,
+    rust/netcode/src/sites.rs current, the build's bytes there the
+    original's (patch 3's hash interval 50); the replay's start (0x1EBF8C)
+    the only call of its network client's constructor.
+    check_netcode_026g.py runs the entries and the stamps.
 The engine-function library (engine_026g.py, the arena's block engine.code;
 client_patch.md section 0.5): its files are what engine_026g.tsv and the
 re-kit's ABI rows give, and engine_026g.py refuses a spec row whose
@@ -1540,7 +1553,9 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
         [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.CLIENT_VERIFY_HOOKS + (P.CLIENT_VERIFY_DISPATCH,)] + \
-        [(P.FSM_STATE_GUARD[0], len(P.FSM_STATE_GUARD[1]))]
+        [(P.FSM_STATE_GUARD[0], len(P.FSM_STATE_GUARD[1]))] + \
+        [(va, len(old)) for va, old, _, _ in P.NETCODE_HOOKS] + \
+        [(va, len(old)) for va, old, _ in P.NETCODE_RANGES]
 
 
 def pickup_sites():
@@ -4594,6 +4609,73 @@ def test_bake_cache(original, image, before):
           f"the code at {block.va:#x} is the link's bake_cache.code ({len(code)} bytes), its tables bake_cache.state")
 
 
+def test_netcode(original, image, before):
+    """Check 79: the per-tick protocol's client (patch 79, NETCODE_HOOKS,
+    NETCODE_RANGES). check_netcode_026g.py runs the entries on made-up
+    messages, senders and send passes."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    check(rows(0x27A30E, 0x29) == ["mov ebx,[ebp+0xc]", "mov eax,[ebx+0x4]", "mov esi,ecx", "mov ecx,[ebp+0x8]",
+                                   "mov [ebp-0xc],eax", "movzx eax,cl", "mov [ebp+0xc],eax", "add eax,0xffffff1d",
+                                   "cmp eax,byte +0x13", "ja near 0x27a644", "jmp [eax*4+0x27a738]"]
+          and rows(0x27A721, 0x17) == ["mov ecx,[ebx+0x8]", "add esp,byte +0x4", "add ecx,[ebx]", "mov [ebx+0x4],ecx",
+                                       "lea esp,[ebp-0x70]", "pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp",
+                                       "ret 0x8"],
+          "on_match_packet_received (0x27A300, thiscall, `ret 8`): ESI the client, EBX the reader, EAX the id at "
+          "0x27A322 before its bound (13h) and its table; its end 0x27A6FC journals the message, 0x27A72C returns")
+    check(rows(0x279694, 0xD) == ["sub esi,0xd8", "jmp [esi*4+0x2799e0]"]
+          and rows(0x279A60, 6) == ["add ecx,0xffffff28"] and rows(0x279B10, 6) == ["add ecx,0xffffff1d"],
+          "get_message_length's `sub esi,0D8h` (0x279694) before its table; get_sending_message_info (0x279A60) "
+          "and get_received_message_info (0x279B10) start with their ids' bias")
+    check(rows(0x27A247, 5) == ["call 0x379090"] and rows(0x27CD1F, 5) == ["call 0x27e6d0"]
+          and popped(stock, 0x27E6D0, 0x27E9F0) == 0xC,
+          "send_connect's send at 0x27A247 (`call 0x379090`); send_match_messages's synchronize at 0x27CD1F "
+          "(`call 0x27E6D0`, `ret 0Ch`)")
+    check(rows(0x27EB21, 0xC) == ["mov eax,[edx+0x18]", "add ebx,0xdc", "push ebx", "call eax"]
+          and rows(0x27EB43, 0xA) == ["mov ecx,[esi]", "mov edx,[ecx]", "mov eax,[edx+0x1c]", "push ebx", "call eax"]
+          and rows(0x27ECAC, 0xA) == ["mov eax,[edx+0x18]", "push dword 0xde", "call eax"]
+          and rows(0x27ECC8, 0xA) == ["mov ecx,[edi]", "mov edx,[ecx]", "mov eax,[edx+0x1c]", "push ebx", "call eax"]
+          and popped(stock, 0x37A0E0, 0x37A2A0) == 4 and popped(stock, 0x27A2A0, 0x27A300) == 4
+          and popped(stock, 0x3184A0, 0x318540) == 4 and popped(stock, 0x3185A0, 0x318690) == 4,
+          "the player-input sender's and the kit-choice sender's new_packet (0x27EB21, 0x27ECAC) to their "
+          "enqueue's end (0x27EB4D, 0x27ECD2): new_packet, the writer and enqueue each pop their argument")
+    linked = P.arena()
+    block = linked.blocks["netcode.code"]
+    for va, old, symbol, opcode in P.NETCODE_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'call' if opcode == 0xE8 else 'jmp'} {target:#x}` ({symbol}, an entry of netcode.code) here")
+    for va, old, new in P.NETCODE_RANGES:
+        check(stock.read(va, 1) == old == before.read(va, 1) and image.read(va, 1) == new,
+              f"{va:#x}: a range's last id {old.hex()} in the original, {new.hex()} here")
+    sites = [(s, o) for s, o, _, _ in P.NETCODE_HOOKS] + [(va, old) for va, old, _ in P.NETCODE_RANGES]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(s - 4 < v < s + len(o) for s, o in sites)]
+    hits = [h for s, o in sites for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "netcode.code")
+    check(image.read(block.va, len(code)) == code and "netcode.state" in linked.blocks,
+          f"the code at {block.va:#x} is the link's netcode.code ({len(code)} bytes: the NASM entries and the Rust "
+          "crate rust/netcode), its machine in netcode.state")
+    import tick_sites_026g as T
+    problems = T.check_exe(original)
+    built = [at for at, kind, _, _ in T.SITES
+             if image.read(at, T.WIDTH[kind]) != (bytes([50]) if kind == "Hash8" else stock.read(at, T.WIDTH[kind]))]
+    callers = branches_into(original, 0x218A40, 0x218A41)
+    check(not problems and not built and T.RUST.read_bytes() == T.rust()
+          and callers == ["0x1ebf8c rel32"],
+          f"the tick's {len(T.SITES)} sites (tick_sites_026g.py; rust/netcode/src/sites.rs current): each the "
+          "original's instruction and value, every division by 50 of the code among them; the build's bytes there "
+          "the original's (patch 3's hash interval 50); replay_network_client's constructor (0x218A40) called from "
+          "0x1EBF8C alone" + "".join(f"\n          {p}" for p in problems[:8] + [hex(b) for b in built[:8]]
+                                         + callers[:4]))
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -6186,6 +6268,7 @@ def test_late_join(original, without, server, source):
     test_kill_feed(original, image, before)
     test_fall_gravity(original, image, before)
     test_bake_cache(original, image, before)
+    test_netcode(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

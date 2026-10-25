@@ -154,7 +154,7 @@ impl Config {
     pub fn for_table(table: Table) -> Self {
         Self {
             idle: match table {
-                Table::Match => Duration::from_millis(100),
+                Table::Match | Table::MatchTicks => Duration::from_millis(100),
                 Table::Lobby => Duration::from_millis(250),
             },
             ack_delay: Duration::from_millis(20),
@@ -170,7 +170,7 @@ impl Config {
             // The lobby's sign-in is left as it was: its messages live
             // until they are acked, so a thin line only makes it slow.
             bulk_burst: match table {
-                Table::Match => 4,
+                Table::Match | Table::MatchTicks => 4,
                 Table::Lobby => u32::MAX,
             },
             bulk_pace: Duration::from_millis(3),
@@ -180,7 +180,7 @@ impl Config {
             // Some 15 ms is a fraction of the 250 ms a relay has before its
             // tick is final. The lobby has no short-lived ids.
             gather: match table {
-                Table::Match => Duration::from_millis(15),
+                Table::Match | Table::MatchTicks => Duration::from_millis(15),
                 Table::Lobby => Duration::ZERO,
             },
         }
@@ -442,6 +442,14 @@ impl Transport {
 
     pub fn table(&self) -> Table {
         self.table
+    }
+
+    /// The connection's table from now on: a match client that speaks the
+    /// per-tick protocol, once it has connected, gets
+    /// [`Table::MatchTicks`]. Both must be a match's or both the lobby's.
+    pub fn set_table(&mut self, table: Table) {
+        debug_assert_eq!(table.is_match(), self.table.is_match());
+        self.table = table;
     }
 
     /// Write every datagram of this connection to `log` from now on.

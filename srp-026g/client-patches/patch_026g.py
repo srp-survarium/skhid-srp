@@ -1152,6 +1152,52 @@ WEAPON_DRAW_HOOK = (0x284A33, bytes.fromhex("88819cf40000"), 0, 0xE8)   # the pl
 ACTION_STATE_VA = 0x242460                    # player_input_handler: the state of a buffered action
 SUICIDE_KEY_HOOK = (0x242196, bytes.fromhex("e8c5020000"), "suicide_key", 0xE8)
 
+# The per-tick protocol's client (patch 79, README; client_patch.md section
+# 3.61; ../docs/notes/netcode_port_069.md phases 2 to 4): netcode_026g.asm
+# and the Rust crate rust/netcode in the arena's blocks netcode.code and
+# netcode.state.
+# - Statically: the match table object's tables know C->S 0xE2 and S->C
+#   0xF7: the length getter 0x279670 (its `sub esi,0D8h` at 0x279694, then
+#   a table with no bound), the sent and received infos 0x279A60 and
+#   0x279B10 (their first instruction, `add ecx,..`, then a table with no
+#   bound), and the id ranges the two constructors write (NETCODE_RANGES:
+#   E3..F6 to E3..F7 and D8..E1 to D8..E2); 0xD8's capability byte gets
+#   bit 1 (the call that sends it, 0x27A247, after the late join's
+#   connect_capability wrote it).
+# - On a match of the per-tick protocol (0xE4's trailer): the dispatch's
+#   `add eax,0FFFFFF1Dh` (0x27A322, before its bound and its table) to
+#   netcode_dispatch: 0xF7 to the Rust handler (the stock messages of its
+#   changes through the game's own dispatch 0x27A300), the static info's
+#   trailer taken off; the two senders' new_packet (0x27EB21 the player's,
+#   0x27ECAC the kit choice's) to netcode_own_input / netcode_own_profile,
+#   which take the own input and skip the stock packet; synchronize's call
+#   in the send pass (0x27CD1F) to netcode_synchronize, which sends the
+#   updates due after it.
+# - The tick (phase 4): the static info stamps the match's tick into the
+#   exe at run time (tick_sites_026g.py's sites, VirtualProtect); a replay's
+#   start (the call of its network client's constructor, 0x1EBF8C) the
+#   stock 50. The build is the stock 50: no site is written here.
+# No base relocation under any site.
+NETCODE_HOOKS = (
+    (0x27A322, bytes.fromhex("051dffffff"), "netcode_dispatch", 0xE9),           # the dispatch, before its bound
+    (0x279694, bytes.fromhex("81eed8000000"), "netcode_length", 0xE9),          # the length getter
+    (0x279A60, bytes.fromhex("81c128ffffff"), "netcode_send_info", 0xE9),       # the sent message's info
+    (0x279B10, bytes.fromhex("81c11dffffff"), "netcode_received_info", 0xE9),   # the received message's info
+    (0x27A247, bytes.fromhex("e844ee0f00"), "netcode_connect", 0xE8),           # 0xD8 sent: its capability bit
+    (0x27EB21, bytes.fromhex("8b421881c3dc000000"), "netcode_own_input", 0xE9), # the player-input sender
+    (0x27ECAC, bytes.fromhex("8b421868de000000"), "netcode_own_profile", 0xE9), # the kit-choice sender
+    (0x27CD1F, bytes.fromhex("e8ac190000"), "netcode_synchronize", 0xE8),       # the send pass's synchronize
+    (0x1EBF8C, bytes.fromhex("e8afca0200"), "netcode_replay", 0xE8),            # a replay's start: the stock tick
+)
+# The ranges' last ids, in the two constructors (`mov byte [esi+5],0F6h`,
+# `mov byte [esi+7],0E1h`: their immediates).
+NETCODE_RANGES = (
+    (0x2792D3, b"\xf6", b"\xf7"),
+    (0x2792DB, b"\xe1", b"\xe2"),
+    (0x27A156, b"\xf6", b"\xf7"),
+    (0x27A15E, b"\xe1", b"\xe2"),
+)
+
 # The scoreboard (Tab) shows the places in the match and no place whose
 # player left (patch 39, README; client_patch.md section 3.36; the rules:
 # docs/notes/tab-list-left-places.md). A place is in the match from the
@@ -2242,6 +2288,26 @@ INSTALLS = {
     0x25CF60: (ENTRY, "the game world's on_mouse_key_action: warmup_keys", None, None),
     0x1F364B: (CALLEE, "update_camera's view update: death_view", None, None),
     0x242196: (CALLEE, "the input builder's last action call: suicide_key", None, None),
+    # the per-tick protocol's client, patch 79 (in `.srpx`)
+    0x27A322: (JUMP, "on_match_packet_received's `add eax,0FFFFFF1Dh` (EAX the id, ESI the client, EBX the "
+                     "reader): netcode_dispatch, 0xF7 to the update's handler, the static info's trailer off, "
+                     "back at 0x27A327 or the dispatch's end 0x27A6FC", None, None),
+    0x279694: (JUMP, "get_message_length's `sub esi,0D8h` (DL the id): netcode_length, 0xE2 and 0xF7 to "
+                     "0xF6's variable case 0x2799C1, back at 0x27969A", None, None),
+    0x279A60: (JUMP, "get_sending_message_info's `add ecx,..` (ECX the id, EAX the info): netcode_send_info, "
+                     "0xE2's info and `ret`, back at 0x279A66", None, None),
+    0x279B10: (JUMP, "get_received_message_info's `add ecx,..`: netcode_received_info, 0xF7's info and "
+                     "`ret`, back at 0x279B16", None, None),
+    0x27A247: (CALLEE, "send_connect's `call 0x379090` (ESI the packet, EDI the capability byte's offset): "
+                       "netcode_connect, bit 1 set, on to 0x379090", None, None),
+    0x27EB21: (JUMP, "the player-input sender's new_packet (`mov eax,[edx+18h] / add ebx,0DCh`): "
+                     "netcode_own_input, taken (on to 0x27EB4D) or back at 0x27EB2A", None, None),
+    0x27ECAC: (JUMP, "the kit-choice sender's new_packet (`mov eax,[edx+18h] / push 0DEh`): "
+                     "netcode_own_profile, taken (on to 0x27ECD2) or back at 0x27ECB4", None, None),
+    0x27CD1F: (CALLEE, "send_match_messages's `call synchronize` 0x27E6D0 (`ret 0Ch`, EAX in, AL out, EBX the "
+                       "client): netcode_synchronize, synchronize then the updates due", None, None),
+    0x1EBF8C: (CALLEE, "the replay's `call replay_network_client::replay_network_client` 0x218A40 (its only "
+                       "caller): netcode_replay, the stock protocol and tick, on to 0x218A40", None, None),
     0x265E73: (CALLEE, "start_item_upgrade's camera: the stash's start, then start_cam", None, None),
     0x265F44: (CALLEE, "exit_item_upgrade's camera: the stash's exit, then exit_cam", None, None),
     0x284B10: (ENTRY, "setup_profile: the stash's setup, then setup_hook", None, None),
@@ -2557,6 +2623,11 @@ ARENA = (
     # the client check, patches 75, 77 and 78: the entries (NASM) and the
     # Rust crate (srp-validate's checks); no state
     ArenaBlock("client_verify.code", "code", 0x1000, ("client_verify_026g.asm", "rust/client_verify/Cargo.toml")),
+    # patch 79, the per-tick protocol's client: the NASM entries and the
+    # Rust crate (docs/notes/netcode_port_069.md); its machine's state
+    ArenaBlock("netcode.code", "code", 0x1000, ("netcode_026g.asm", "rust/netcode/Cargo.toml")),
+    ArenaBlock("netcode.state", "state", 0x1000, ("rust/netcode/Cargo.toml",)),
+    ArenaBlock("netcode.data", "data", 0x1000, ("rust/netcode/Cargo.toml",)),
 )
 
 
@@ -3491,7 +3562,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + (SUICIDE_KEY_HOOK,) + CLIENT_VERIFY_HOOKS:
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + (SUICIDE_KEY_HOOK,) + CLIENT_VERIFY_HOOKS \
+                        + NETCODE_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3502,6 +3574,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                 if neutralize_relocs(data, [(va, va + len(expected))]) != [CLIENT_VERIFY_DISPATCH_RELOC]:
                     sys.exit(f"{va:#x}: the base relocation under the match dispatch's jump is not where it was read")
                 patch(data, *FSM_STATE_GUARD)               # patch 76, in place
+                for va, old, new in NETCODE_RANGES:         # patch 79: the tables' two new ids
+                    patch(data, va, old, new)
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
                 patch(data, *KILL_FEED_ARGUMENT)
@@ -3571,6 +3645,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      "baked camouflage textures kept from game to game and made once while asked for again, "
+                     "the per-tick protocol (0xE2, 0xF7) with a server that plays it, on the tick its static "
+                     "info gives, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")

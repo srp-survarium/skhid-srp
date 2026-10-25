@@ -518,7 +518,7 @@ impl Game {
                 if self.live() == 0 {
                     continue;
                 }
-                let at = grid_up(clock + ROSTER_LEAD_MS);
+                let at = self.grid_up(clock + ROSTER_LEAD_MS);
                 let at = self.roster_change(None, index, true, at, now);
                 if let Some(drive) = self.drives[index].as_mut() {
                     drive.entered(at);
@@ -576,6 +576,19 @@ impl Game {
                     ));
                 }
             }
+        }
+        if self.per_tick.is_some() {
+            // The per-tick protocol: each bot's inputs land as its update
+            // of their tick would, and go with the tick's update.
+            let mut by_place: std::collections::BTreeMap<usize, Vec<(u32, Relayed)>> =
+                std::collections::BTreeMap::new();
+            for (index, time, what) in due {
+                by_place.entry(index).or_default().push((time, what));
+            }
+            for (index, made) in by_place {
+                self.bot_inputs(index, made);
+            }
+            return;
         }
         for (index, time, what) in due {
             if matches!(what, Relayed::Profile { .. }) {

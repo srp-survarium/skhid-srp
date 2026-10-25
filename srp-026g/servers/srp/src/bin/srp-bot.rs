@@ -24,7 +24,7 @@ place in the match, stays to the end without playing, takes the results
 and presses Play again.
 
   srp-bot [--server HOST:PORT] [--name NAME] [--password PASSWORD]
-          [--count N] [--once] [--kit ID] [--drive] [--revision N]
+          [--count N] [--once] [--kit ID] [--drive] [--revision N] [--ticks]
 
   --server    the login server, as the game's -server= (default
               127.0.0.1:1234; or SRP_BOT_SERVER)
@@ -41,6 +41,8 @@ and presses Play again.
   --drive     in a match, send inputs: a fixed script (walk, turn a quarter,
               walk, sprint, crouch, fire, reload, weapon 2, turn back),
               again and again; each input is printed (srp::drive)
+  --ticks     its game speaks the per-tick protocol (a server with
+              SRP_NETCODE=v069 takes no other)
 
 The server must name the bots' accounts: SRP_BOT_ACCOUNTS=bot-1,bot-2
 (testing only: never on a public server).
@@ -75,6 +77,7 @@ fn main() {
     let mut kit = None;
     let mut drive = false;
     let mut revision = survarium::v026g::match_msgs::late_join::PATCH_REVISION;
+    let mut protocol = bot::Protocol::Stock;
 
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -114,6 +117,7 @@ fn main() {
             }
             "--once" => once = true,
             "--drive" => drive = true,
+            "--ticks" => protocol = bot::Protocol::Ticks,
             "--help" | "-h" => {
                 print!("{USAGE}");
                 return;
@@ -144,6 +148,7 @@ fn main() {
             kit,
             drive,
             revision,
+            protocol,
         })
         .collect();
     let print: bot::Print = Arc::new(|line| println!("{} {line}", clock()));

@@ -11,6 +11,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "netcode"
+version = "0.1.0"
+dependencies = [
+ "patch-core",
+ "sync-core",
+]
+
+[[package]]
 name = "patch-core"
 version = "0.1.0"
 
@@ -24,3 +32,7 @@ version = "0.1.0"
 dependencies = [
  "patch-core",
 ]
+
+[[package]]
+name = "sync-core"
+version = "0.1.0"

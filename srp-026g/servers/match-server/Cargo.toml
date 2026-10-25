@@ -18,6 +18,9 @@ serde_json = { workspace = true }
 
 session = { workspace = true }
 survarium = { workspace = true }
+# The grid, the per-tick protocol's wire and its rules, shared with the
+# patched client (`no_std`).
+sync-core = { workspace = true }
 udp-transport = { workspace = true }
 vostok = { workspace = true }
 

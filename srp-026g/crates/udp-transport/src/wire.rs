@@ -254,7 +254,7 @@ fn parse_message(
     // Patched clients use E0 for snapshots and resource ACKs. Single messages
     // consume the whole area; multi messages need the extension's own length.
     // An E0 without either extension prefix remains an empty leave.
-    let carrier = table == Table::Match
+    let carrier = table.is_match()
         && direction == Direction::ToServer
         && id == UPLOAD_CARRIER
         && !multipart;

@@ -33,6 +33,7 @@ given), LIKELY or GUESS.
 | [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage: ids 1824-1862, prices, icon cells, the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [client_world_check.md](client_world_check.md) | The client check (patches 75..78): every world and match message a game is sent, checked with the match server's own `srp-validate` before the game reads it; the read-site guards; the cost, the false refusals found, the split between the server and the client (`world_validation.md` comes with #289) |
+| [netcode_ticks.md](netcode_ticks.md) | The per-tick protocol (0.69's netcode, `SRP_NETCODE=v069`, patch 79): one update a tick each way, the server's outcomes of each game's inputs, each game's own clock steering, the match's tick (50, or 25 and 20 for trials) |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
 | [static_info.md](static_info.md) | Match start (0xE4): match options, profiles with kits, byte layout |
 | [matchmaking.md](matchmaking.md) | The player's level as the client computes it, the search screen, srp's queue rules (sides of 8, level range, match level, least-played map) |

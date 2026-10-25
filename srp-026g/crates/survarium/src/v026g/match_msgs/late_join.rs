@@ -27,8 +27,27 @@ pub fn spoken_by(revision: u8) -> bool {
     revision >= FIRST_REVISION
 }
 
+/// D8's bit for the per-tick protocol (`sync_core::wire`), on top of this
+/// dialect: 0x82, or 0x83 with `-debug_hash_mismatch`. A server that does
+/// not speak it takes such a game as one of this dialect (its 0xE4 then
+/// has no per-tick trailer, and the game plays the stock protocol).
+pub const TICKS_CAPABILITY: u8 = 0x02;
+/// D8's bit for `-debug_hash_mismatch` in this dialect.
+pub const DEBUG_CAPABILITY: u8 = 0x01;
+
 pub fn has_connect_capability(debug: u8) -> bool {
-    matches!(debug, CONNECT_CAPABILITY | 0x81)
+    debug & !(DEBUG_CAPABILITY | TICKS_CAPABILITY) == CONNECT_CAPABILITY
+}
+
+/// Whether a D8 of this dialect announces the per-tick protocol.
+pub fn speaks_ticks(debug: u8) -> bool {
+    has_connect_capability(debug) && debug & TICKS_CAPABILITY != 0
+}
+
+/// Whether a D8 of this dialect is of a game run with
+/// `-debug_hash_mismatch`.
+pub fn runs_debug(debug: u8) -> bool {
+    has_connect_capability(debug) && debug & DEBUG_CAPABILITY != 0
 }
 
 /// Binds an acknowledgement to one match and one immutable profile proposal.

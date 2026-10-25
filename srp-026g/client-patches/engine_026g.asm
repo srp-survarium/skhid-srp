@@ -38,6 +38,7 @@ global engine_mouse_ray
 global engine_accept_decal_edit
 global engine_cc_bool
 global engine_binded_action
+global engine_writer_write
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -636,6 +637,23 @@ engine_binded_action:
     mov edi, [esp + 28]   ; kinds
     mov esi, [esp + 32]   ; key
     call 0x207d50
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_writer_write:
+    ; 0x7ac10 vostok::network_core::buffer_writer::w: writer ESP+4, source ESP+8, length EDI; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; source -> 8
+    push dword [esp + 24]   ; writer -> 4
+    mov edi, [esp + 36]   ; length
+    call 0x7ac10
     pop edi
     pop esi
     pop ebx

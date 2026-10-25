@@ -326,6 +326,7 @@ Struct `{u32 lifetime_ms; u16 resend_ms; u8 flags}` (0x279A60 / 0x279B10; copied
 | DF | 5 | 0 | 0 | 0x9F | send-once |
 | E0 | 0 | ∞ | 500 | 0x9F | reliable, plain |
 | E1 | 0 | 0 | 0 | 0x9F | send-once |
+| E2 (patch 79 only: `Table::MatchTicks`) | var (needs ≥1 B) | ∞ | 50 | 0x9F | reliable, plain, alone in its datagram: the game's update of a tick (`netcode_ticks.md`) |
 
 - All C→S messages are fixed length and plain. **In a multi datagram from the client, the messages are concatenated with no length bytes.** The server must use these lengths.
 - **The server must dedup** D8, D9, DA, DE and E0 at application level, as in 0.21d.
@@ -356,6 +357,7 @@ Struct `{u32 lifetime_ms; u16 resend_ms; u8 flags}` (0x279A60 / 0x279B10; copied
 | F5 | 1 | ∞ | 50 | 0x9F | reliable, plain |
 | F6 | var (needs ≥1 B) | ∞ | 500 | 0x20 | reliable, **unique**, length-prefixed |
 | E2 | — | — | — | — | the jump table entry is 0: never send it |
+| F7 (patch 79 only: `Table::MatchTicks`) | var (needs ≥1 B) | 500 | 50 | 0x20 | **unique**, length-prefixed: the server's update of a tick (`netcode_ticks.md`); a stock client has no such id (out of its range) |
 
 **ED/EE length** (0x27975B–0x2799A2):
 - The payload is `[1 or 2 bytes] [B-byte player mask] [8 bytes per set bit]`, with `B = getter+8`.
@@ -364,7 +366,7 @@ Struct `{u32 lifetime_ms; u16 resend_ms; u8 flags}` (0x279A60 / 0x279B10; copied
 
 **Notes:**
 - Lifetimes and resend times apply to the sender. For S→C they are the server's choice. The client only uses `flags`, and lifetime only for multipart expiry (LIKELY).
-- The unique ids E4, E5, E6, E7, E8 and F6 all use unique channel 0 and **share one u8 counter** starting at 0. A multipart message consumes one id.
+- The unique ids E4, E5, E6, E7, E8 and F6 (and F7 of patch 79) all use unique channel 0 and **share one u8 counter** starting at 0. A multipart message consumes one id.
 
 ### 4.1 The lobby connection has its own table, and it uses ordering (added 2026-10-12) — PROVEN
 
