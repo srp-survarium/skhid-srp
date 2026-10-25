@@ -79,7 +79,13 @@ So a weapon is sent at most three records whatever it wears. Armour is sent as b
   id the kit names: the inventory's item of that id with the lowest item id (as the movie's
   `getInventoryItemOf`). A scoped weapon's camouflage shows worn on it.
 - **The preview (patch 48).** Its `apply` calls `weapon_kit_preview_apply` through a dword the
-  build writes: the queued change on the logical slots, packed again as the server packs.
+  build writes: the queued change on the logical slots, packed again as the server packs. A muzzle
+  device's or grip's record holds its own dict id (patch 48 looks for a scope's variant only
+  outside 2601..2699).
+- **The window** (the lobby movie, `UpgradeWindow`): the Attachments page has the scope's, the
+  muzzle device's and the grip's slots (`weapon-camo.md`, the weapon's window: two pages). Muzzle
+  devices are dict ids 2601..2649, grips 2650..2699 (`ItemDictId`, `devices.tsv`): category 22 as
+  the scopes, told apart by the range.
 - **The client never writes a weapon's record itself**: srp answers a weapon's `46 01` and `46 02`
   with the inventory and the account only (no `83 46 01` / `02`, whose own copy of the record would
   be a fourth, or take the kit off for its own).

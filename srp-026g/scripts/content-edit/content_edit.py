@@ -42,6 +42,9 @@ Edits (edits.json):
                     a new key of the named table in each file, in its place by name CRC: a bool,
                     an int, a float (a number with a point), a text, or an object (a named table of
                     those); a file that has the key already is refused
+  "add_item":       [{"file", "path", "value"}]        a new last item of the indexed table `path`: a number,
+                                                       a text, a list (an indexed table: a movie's
+                                                       [key, text] pair) or an object (a named table)
   "remove_item":    [{"file", "path", "value"}]        the one item equal to `value` of an indexed table of
                                                        numbers (an item's `default_modifications`) or of
                                                        strings (a weapon's `death` animations); the
@@ -758,6 +761,14 @@ def main():
             grown.setdefault(p, {}).setdefault(table, 0)
             grown[p][table] += 1
         print('value %s/%s: %d files' % (e['table'], e['key'], len(e['files'])))
+    for e in edits.get('add_item', []):
+        b = buf(e['file'])
+        at = len(children(b, find(b, e['path'])))
+        add_item(b, e['path'], e['value'])
+        added.setdefault(e['file'], []).append('/%s[%d]' % (e['path'], at))
+        grown.setdefault(e['file'], {}).setdefault('/' + e['path'], 0)
+        grown[e['file']]['/' + e['path']] += 1
+        print('item %s[%d]: %s' % (e['path'], at, json.dumps(e['value'], ensure_ascii=False)))
     removed = {}
     for e in edits.get('remove_item', []):
         remove_item(buf(e['file']), e['path'], e['value'])
@@ -824,7 +835,7 @@ def main():
                 (o and n and o[0] == n[0] == T_STR and (o[1], n[1]) in strings) or \
                 (o and n and o[0] == n[0] == T_STR and any(q.endswith('/' + k.decode()) and n[1] == x + o[1]
                                                            for k, x in prefixed.get(p, ()))) or \
-                (o is None and any(q == a or q.startswith(a + '/') for a in added.get(p, ()))) or \
+                (o is None and any(q == a or q.startswith(a + '/') or q.startswith(a + '[') for a in added.get(p, ()))) or \
                 (o and n and o[0] == n[0] and n[1] - o[1] == grown.get(p, {}).get(q, 0) != 0)
             bad += not ok
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))

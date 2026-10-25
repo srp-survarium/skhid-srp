@@ -65,6 +65,12 @@ package survarium.upgrade
       public var decalSlot:UpgradeSlot;
       
       public var camoSlot:UpgradeSlot;
+
+      // a weapon's muzzle device and grip, on its Attachments page (made here: the movie's window
+      // has four slots; the scope's symbol, SrvModifierRendererSk)
+      public var muzzleSlot:UpgradeSlot;
+
+      public var gripSlot:UpgradeSlot;
       
       protected var _slotAgreements:Object = {
          3:[ItemCategory.CAMOUFLAGES],
@@ -89,8 +95,8 @@ package survarium.upgrade
       
       protected var editData:Object = null;
 
-      // A weapon's window has two pages, its attachments (the scope) and its appearance (the decals and
-      // the camouflage), turned by the arrows either side of the title.
+      // A weapon's window has two pages, its attachments (the scope, the muzzle device, the grip) and
+      // its appearance (the decals and the camouflage), turned by the arrows either side of the title.
       public static const PAGE_ATTACHMENTS:int = 0;
 
       public static const PAGE_APPEARANCE:int = 1;
@@ -213,7 +219,29 @@ package survarium.upgrade
          {
             return false;
          }
+         if(isMuzzleDevice(int(item.dictId)) || isGrip(int(item.dictId)))
+         {
+            return !instance.takesKit();
+         }
          return !fits(hostDictId,int(item.dictId));
+      }
+
+      // A muzzle device or a grip: an item of the scopes' category in its own dict id range.
+      public static function isMuzzleDevice(dictId:int) : Boolean
+      {
+         return dictId >= ItemDictId.MUZZLE_DEVICE_FIRST && dictId <= ItemDictId.MUZZLE_DEVICE_LAST;
+      }
+
+      public static function isGrip(dictId:int) : Boolean
+      {
+         return dictId >= ItemDictId.GRIP_FIRST && dictId <= ItemDictId.GRIP_LAST;
+      }
+
+      // The window's weapon takes a muzzle device and a grip: one with a camouflage (its config's data
+      // table, which a device's modification adds to; the server's modifications::cosmetic_slots).
+      public function takesKit() : Boolean
+      {
+         return hostDictId >= 0 && Boolean(this._data) && this._data.camoAvailable > 0;
       }
       
       // A weapon's upgrades by its logical slots (decals 0 and 1, camouflage 2, scope 3, muzzle 4,
@@ -455,6 +483,7 @@ package survarium.upgrade
             this.decalSlot1.visible = this._data.decalAvailable > 1;
             this.decalSlot2.visible = this._data.decalAvailable > 2;
             this.camoSlot.visible = this._data.camoAvailable > 0;
+            this.muzzleSlot.visible = this.gripSlot.visible = false;
             if(hostDictId >= 0)
             {
                // a weapon: its scope in camoSlot (CosmeticSlot.CAMOUFLAGE), its camouflage in decalSlot2
@@ -464,7 +493,8 @@ package survarium.upgrade
                this.decalSlot1.visible = this.weaponDecals() > 1;
                this.decalSlot2.visible = this._data.camoAvailable > 0;
                this.camoSlot.visible = hasScopes(hostDictId);
-               this._hasAttachments = this.camoSlot.visible;
+               this.muzzleSlot.visible = this.gripSlot.visible = this.takesKit();
+               this._hasAttachments = this.camoSlot.visible || this.muzzleSlot.visible;
                this._hasAppearance = this.decalSlot.visible || this.decalSlot2.visible;
                // a new window opens on the attachments when the weapon takes scopes; the account's
                // update keeps the page
@@ -532,13 +562,16 @@ package survarium.upgrade
          else
          {
             this.decalSlot2.visible = this.decalSlot1.visible = this.decalSlot.visible = this.camoSlot.visible = false;
+            this.muzzleSlot.visible = this.gripSlot.visible = false;
             this.decalSlot2.data = this.decalSlot1.data = this.decalSlot.data = this.camoSlot.data = null;
+            this.muzzleSlot.data = this.gripSlot.data = null;
          }
       }
 
       // A weapon's slots in armour's places, as its appearance window has them: on the appearance page
-      // its decal at the top, where armour's second decal is, and its camouflage at the bottom, under
-      // the line, where armour's camouflage is; on the attachments page the scope at the top.
+      // its decals at the top, where armour's second and first decals are, and its camouflage at the
+      // bottom, under the line, where armour's camouflage is; on the attachments page the scope, the
+      // muzzle device and the grip in those three places, without the line.
       protected function placeWeaponSlots() : void
       {
          var i:uint = 0;
@@ -557,6 +590,8 @@ package survarium.upgrade
          this.placeSlot(this.decalSlot1,this._slotPlaces[this.decalSlot]);
          this.placeSlot(this.decalSlot2,this._slotPlaces[this.camoSlot]);
          this.placeSlot(this.camoSlot,this._slotPlaces[this.decalSlot1]);
+         this.placeSlot(this.muzzleSlot,this._slotPlaces[this.decalSlot]);
+         this.placeSlot(this.gripSlot,this._slotPlaces[this.camoSlot]);
       }
 
       protected function placeSlot(slot:UpgradeSlot, place:Array) : void
@@ -587,7 +622,8 @@ package survarium.upgrade
       {
          var attachments:Boolean = page == PAGE_ATTACHMENTS;
          this._page = page;
-         this.camoSlot.visible = attachments && this._hasAttachments;
+         this.camoSlot.visible = attachments && hasScopes(hostDictId);
+         this.muzzleSlot.visible = this.gripSlot.visible = attachments && this.takesKit();
          this.decalSlot.visible = !attachments && this.weaponDecals() > 0;
          this.decalSlot1.visible = !attachments && this.weaponDecals() > 1;
          this.decalSlot2.visible = !attachments && this._data.camoAvailable > 0;
@@ -697,6 +733,8 @@ package survarium.upgrade
             this.decalSlot1.highlighted = category == ItemCategory.DECALS && this.decalSlot1.visible && Boolean(this.decalSlot1.enabled);
             this.decalSlot2.highlighted = category == ItemCategory.CAMOUFLAGES && this.decalSlot2.visible && Boolean(this.decalSlot2.enabled);
             this.camoSlot.highlighted = category == ItemCategory.SCOPES && fits(hostDictId,dictId) && Boolean(this.camoSlot.enabled);
+            this.muzzleSlot.highlighted = category == ItemCategory.SCOPES && isMuzzleDevice(dictId) && this.muzzleSlot.visible && Boolean(this.muzzleSlot.enabled);
+            this.gripSlot.highlighted = category == ItemCategory.SCOPES && isGrip(dictId) && this.gripSlot.visible && Boolean(this.gripSlot.enabled);
             return;
          }
          var i:int = 0;
@@ -805,11 +843,13 @@ package survarium.upgrade
          this.dropSlots.visible = false;
          this._iconContainerBig = IconContainer.getInstance("camo_big");
          LocalizationData.addCallback(this.onLocal,"accept");
+         this.muzzleSlot = this.addWeaponSlot(CosmeticSlot.MUZZLE);
+         this.gripSlot = this.addWeaponSlot(CosmeticSlot.GRIP);
          this.camoSlot.setTransitionSize(95,105);
          this.decalSlot.setTransitionSize(95,105);
          this.decalSlot1.setTransitionSize(95,105);
          this.decalSlot2.setTransitionSize(95,105);
-         this._slots.push(this.decalSlot,this.decalSlot1,this.decalSlot2,this.camoSlot);
+         this._slots.push(this.decalSlot,this.decalSlot1,this.decalSlot2,this.camoSlot,this.muzzleSlot,this.gripSlot);
          this._pagePrev = this.addPageArrow(PAGE_PREV_X,false);
          this._pageNext = this.addPageArrow(PAGE_NEXT_X,true);
          var child:int = 0;
@@ -859,6 +899,23 @@ package survarium.upgrade
          instance = this;
       }
       
+      // A slot of the scope's kind, beside it in the window (placed by placeWeaponSlots), hidden until a
+      // weapon's Attachments page shows it.
+      protected function addWeaponSlot(index:int) : UpgradeSlot
+      {
+         var slot:UpgradeSlot = new SrvModifierRendererSk();
+         slot.name = index == CosmeticSlot.MUZZLE ? "muzzleSlot" : "gripSlot";
+         slot.index = index;
+         slot.x = this.camoSlot.x;
+         slot.y = this.camoSlot.y;
+         slot.scaleX = this.camoSlot.scaleX;
+         slot.scaleY = this.camoSlot.scaleY;
+         slot.setTransitionSize(95,105);
+         slot.visible = false;
+         this.container.addChildAt(slot,this.container.getChildIndex(this.camoSlot) + 1);
+         return slot;
+      }
+
       private function onItemMouseClicked(event:MouseEvent) : void
       {
          var category:int = 0;
@@ -871,10 +928,15 @@ package survarium.upgrade
          }
       }
       
-      // What goes in a weapon's slot: its camouflage, its scope or a decal.
+      // What goes in a weapon's slot: its camouflage, a scope, muzzle device or grip (the scopes'
+      // category), or a decal.
       protected function weaponSlotCategory(slot:UpgradeSlot) : int
       {
-         return slot == this.decalSlot2 ? ItemCategory.CAMOUFLAGES : (slot == this.camoSlot ? ItemCategory.SCOPES : ItemCategory.DECALS);
+         if(slot == this.decalSlot2)
+         {
+            return ItemCategory.CAMOUFLAGES;
+         }
+         return slot == this.camoSlot || slot == this.muzzleSlot || slot == this.gripSlot ? ItemCategory.SCOPES : ItemCategory.DECALS;
       }
 
       private function setScaleMode() : void
@@ -999,6 +1061,8 @@ package survarium.upgrade
          this.decalSlot1.label = LocalizationData.getName("decal_slot");
          this.decalSlot2.label = LocalizationData.getName(hostDictId >= 0 ? "camo_slot" : "decal_slot");
          this.camoSlot.label = LocalizationData.getName("camo_slot");
+         this.muzzleSlot.label = LocalizationData.getName("muzzle_slot");
+         this.gripSlot.label = LocalizationData.getName("grip_slot");
          this.infoContainer.infoDescr.text = LocalizationData.getName("modification_screen_hint") + "\n" + LocalizationData.getName("modification_screen_edit_decal_hint");
          this.infoContainer.background.height = this.infoContainer.infoDescr.textHeight + 24;
       }

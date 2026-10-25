@@ -255,6 +255,12 @@ edited, 0 unexpected differences; in `release/build-content 27` (2026-10-21, aft
 tables and duty-name-uk-1): the same. Text only; the lobby movie of the same change is built from
 its tree.
 
+
+## weapon-kit-slots-1.json (2026-10-25)
+
+| change | why |
+|---|---|
+| New texts `st_srp_muzzle_slot` (Muzzle, Mündung, Wylot, Дуло in russian, original and ukrainian) and `st_srp_grip_slot` (Grip, Griff, Chwyt, Рукоять in russian and original, Руків'я in ukrainian) in the six localization tables; the lobby movie's keys `muzzle_slot` and `grip_slot` mapped to them in `localization/flash_movies_localizations.options` (`lobby_menu_strings`, two items appended: `add_item`) | the weapon window's Attachments page has a muzzle device's and a grip's slot beside the scope's (the weapon kit, client patch 68; `../../docs/notes/weapon-kit.md`, `weapon-camo.md`); an empty slot shows its label |
 ## battery-respawn-1.json (2026-10-21)
 
 | change | why |

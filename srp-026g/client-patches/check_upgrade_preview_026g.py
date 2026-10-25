@@ -35,6 +35,8 @@ can_move_item_to_slot (0x2CA910: a vest in slot 2). What must hold:
   (drop_upgrade_item): the upgrade goes;
 - a scope: its record holds the variant made for the weapon, found by
   `srp_scope_fit` (names, or dict ids); no variant: nothing previewed;
+  a muzzle device (category 22, dict id 2601..2649) its own dict id, named
+  by the kit (slot 4);
 - not the window's item, no weapon shown, a character without its window:
   nothing previewed, nothing made;
 - `again` for a squad mate's character and the 0x87 site with nothing
@@ -506,8 +508,9 @@ def main():
         print(("ok    " if ok else "FAIL  ") + text)
 
     AK, SVD, STASH, CAMO, CAMO2, DECAL, SCOPE, SCOPE2, VEST = 1501, 1502, 1504, 1601, 1602, 1603, 1604, 1605, 1505
+    MUZZLE = 1607
     inventory = [(AK, 501, [(DECAL, 603, 0)]), (SVD, 502, []), (STASH, 504, []), (VEST, 505, []),
-                 (CAMO, 601, []), (CAMO2, 602, []), (DECAL, 603, []), (SCOPE, 2101, []), (SCOPE2, 2102, [])]
+                 (CAMO, 601, []), (CAMO2, 602, []), (DECAL, 603, []), (SCOPE, 2101, []), (SCOPE2, 2102, []), (MUZZLE, 2601, [])]
     items = [(501, RIFLE, "ak_x", None), (502, RIFLE, "svd_x", None), (504, RIFLE, "rifle_x", None),
              (505, 2, "vest_x", None), (601, CAMO_CATEGORY, "camo_a", None), (602, CAMO_CATEGORY, "camo_b", None),
              (603, 26, "decal_a", None), (2101, SCOPE_CATEGORY, "shop_scope_pso_1", None),
@@ -515,7 +518,8 @@ def main():
              (2001, SCOPE_CATEGORY, "fit_svd_pso_1", ("shop_scope_pso_1", ["svd_x"])),
              (2002, SCOPE_CATEGORY, "fit_ak_pso_1", ("shop_scope_pso_1", ["ak_x_premium", "ak_x"])),
              (2003, SCOPE_CATEGORY, "fit_ak_pso_1_b", ("shop_scope_pso_1", ["ak_x"])),
-             (2004, SCOPE_CATEGORY, "fit_rifle_acog", (2102, [504]))]
+             (2004, SCOPE_CATEGORY, "fit_rifle_acog", (2102, [504])),
+             (2601, SCOPE_CATEGORY, "srp_flash_hider_04", None)]
     kits = [{WEAPON_1: AK, 2: VEST}, {WEAPON_2: SVD}, {}]
     table = [(AK, [(DECAL, 603, 0)]), (VEST, []), (SVD, [])]
 
@@ -620,6 +624,19 @@ def main():
         "a scope's record holds the variant: the AK's PSO-1 the first (lowest) entry naming the scope and the "
         "weapon by name (2002, not 2003); a rifle only in the stash, shown in the chosen kit's hands, its "
         "ACOG by dict ids (2004); the SVD and the ACOG, no variant: nothing previewed, nothing made")
+
+    # 5b. a muzzle device: its own dict id, alone the kit's own; with a scope named by the kit
+    fresh()
+    e.relocate(AK, MUZZLE, 4)
+    rec = e.table_record(e.copy(1), AK)
+    alone = e.upgrades(rec) == [(DECAL, 603, 0), (MUZZLE, 2601, 3, KIT(4))]
+    e.made()
+    e.calls = []
+    e.relocate(AK, SCOPE, 3)
+    rec = e.table_record(e.copy(2), AK)
+    say(alone and e.upgrades(rec) == [(DECAL, 603, 0), (SCOPE, 2002, 3, KIT(3) | 2601 << 16)],
+        "a muzzle device (category 22, dict id 2601) into slot 4: its own dict id, no variant looked for, the kit's "
+        "own; a scope then: the kit the scope's, the device named in its value (bits 16..31)")
 
     # 6. nothing previewed
     for name, prepare, args in (

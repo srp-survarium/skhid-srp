@@ -117,6 +117,8 @@ ORG CAVE
 %define CONFIG_ROOT     0x108
 %define ENTRY_CATEGORY  0x228
 %define SCOPE_CATEGORY  22
+%define KIT_DEVICE_FIRST 2601       ; muzzle devices 2601..2649, grips 2650..2699 (the lobby movie's ItemDictId)
+%define KIT_DEVICE_LAST 2699
 %define NODE_TYPE       0x14        ; config node: +0 value or children, u16 type, u16 count
 %define NODE_COUNT      0x16
 %define NODE_SIZE       0x18
@@ -277,7 +279,9 @@ item_dict:
 ; eax = an upgrade's dict id, edi = the host's id, ebp = the account's
 ; profile: CF clear and eax = the dict id its record on the host holds: a
 ; scope's (category 22) the variant made for the host's weapon, any other
-; upgrade's its own. CF set: no variant. Every other register kept.
+; upgrade's its own (a muzzle device's and a grip's too: category 22, dict
+; ids 2601..2699, the weapon kit's, weapon-kit.md). CF set: no variant.
+; Every other register kept.
 record_dict:
     pushad
     mov esi, [ebp+CLIENT_PLAYERS]
@@ -289,6 +293,12 @@ record_dict:
     jz .no
     cmp byte [eax+ENTRY_CATEGORY], SCOPE_CATEGORY
     jne .own
+    mov ecx, [esp+28]               ; the dict id (pushad's eax)
+    cmp ecx, KIT_DEVICE_FIRST
+    jb .scope
+    cmp ecx, KIT_DEVICE_LAST
+    jbe .own
+.scope:
     sub esp, 16                     ; the scope's dict id and name, the weapon's
     mov ecx, [esp+16+28]
     mov [esp], ecx

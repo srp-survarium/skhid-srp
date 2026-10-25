@@ -51,6 +51,9 @@ ITEM_CONFIGS = 'gameplay/items/attachments/'
 CATEGORY = 22
 KINDS = {'flash_hider': {'type': 'srp_muzl', 'key': 'srp_muzzle_model', 'description': 'st_srp_flash_hider_desc'},
          'muzzle_brake': {'type': 'srp_muzl', 'key': 'srp_muzzle_model', 'description': 'st_srp_muzzle_brake_desc'}}
+# each kind's dict ids: the lobby movie tells a muzzle device and a grip from a scope by them
+# (ItemDictId.MUZZLE_DEVICE_FIRST..LAST, GRIP_FIRST..LAST; patch 48's KIT_DEVICE_FIRST..LAST)
+DICT_RANGES = {'flash_hider': (2601, 2649), 'muzzle_brake': (2601, 2649)}
 # modifier types (vostok::configs, the modification's apply 0x358560): 0 the value set, 1 added
 SET, ADD, ADD_KEY = 0, 1, 3
 
@@ -93,6 +96,9 @@ def read_devices():
     for dict_id, name, kind, model, english, icon_row, icon_col, recoil, shoot in rows('devices.tsv'):
         if kind not in KINDS:
             sys.exit(f'devices.tsv: {name}: no kind {kind}')
+        first, last = DICT_RANGES[kind]
+        if not first <= int(dict_id) <= last:
+            sys.exit(f'devices.tsv: {name}: a {kind} takes a dict id of {first}..{last}, not {dict_id}')
         stem = model.removeprefix('models/').removesuffix('.model')
         devices.append({'dict_id': int(dict_id), 'name': name, 'kind': kind, 'model': model, 'english': english,
                         'model_name': stem, 'icon': (int(icon_row), int(icon_col)),

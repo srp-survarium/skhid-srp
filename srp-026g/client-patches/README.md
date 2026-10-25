@@ -2867,6 +2867,8 @@ the last query's time and kit) at `.srpd`+D60h, after the patches' mount's and b
   called at once. A scope's record holds the variant made for the weapon, as the server's
   (`ScopeFits`): the first category-22 entry of the items dictionary whose config's
   `srp_scope_fit` names the scope and the weapon (by name or dict id); none: nothing is queued.
+  A muzzle device or grip (category 22 too, dict ids 2601..2699: the weapon kit's, patch 68)
+  holds its own dict id, no variant looked for.
 - **account** (+0Ah): the 0x87 reader's last call (`call 0x270320` at 0x270313): each account
   answers the oldest queued change (srp pushes the account after every `46 01` / `46 02`, a
   refusal too).

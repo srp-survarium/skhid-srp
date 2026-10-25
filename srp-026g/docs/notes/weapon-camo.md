@@ -86,9 +86,9 @@ attachments", "scrolling form one preselects correct selection in upgrades in in
 of decals/camo should be exactly the same as in appearance", "with camo at the bottom separated by
 separator".
 
-- **One window, two pages.** Attachments: the scope (slot 3). Appearance: the decal (slot 0) and
-  the camouflage (slot 2). One page at a time, in armour's window as drawn (three slots at
-  most, at scale 1).
+- **One window, two pages.** Attachments: the scope (slot 3), the muzzle device (4) and the grip
+  (5). Appearance: the decals (slots 0 and 1) and the camouflage (slot 2). One page at a time, in
+  armour's window as drawn (three slots a page, at scale 1).
 - **The title bar.** The page's name in the middle, an arrow button on each side. Either arrow
   turns to the other page. A weapon with only one page (no scopes, or no camouflage or decal) has
   no arrows.
@@ -104,9 +104,18 @@ separator".
   weapon's button in the item panel and its inventory menu entry say Attachments.
 - **Where the slots are.** Armour's places: the Appearance page has the decal at the top (where
   armour's second decal is), the line, the camouflage at the bottom (where armour's camouflage
-  is); the Attachments page has the scope at the top, without the line.
-- **Which page opens.** Attachments when the weapon takes scopes, else Appearance; the account's
-  update after a change keeps the page.
+  is); the Attachments page has the scope, the muzzle device and the grip in those three places,
+  without the line. The muzzle's and grip's slots are made by the window (the movie has four: the
+  scope's symbol, `SrvModifierRendererSk`), labelled `muzzle_slot` and `grip_slot`
+  (`st_srp_muzzle_slot`, `st_srp_grip_slot`: Muzzle, Mündung, Wylot, Дуло; Grip, Griff, Chwyt,
+  Рукоять, Руків'я; `scripts/content-edit/weapon-kit-slots-1.json`).
+- **Which page opens.** Attachments when the weapon takes scopes, a muzzle device or a grip (a
+  weapon with a camouflage: the device's modification adds to its config's `data`, the server's
+  rule), else Appearance; the account's update after a change keeps the page.
+- **What goes where.** Every category-22 item (the scopes' filter): a scope into the scope's slot
+  when it fits the weapon; a muzzle device (dict ids 2601..2649, `ItemDictId.MUZZLE_DEVICE_*`) into
+  the muzzle's; a grip (2650..2699) into the grip's. Dragging one lights only its slot; a device
+  or grip is greyed only on a weapon without a camouflage.
 - **The inventory follows.** Opening and each turn select the inventory's filter of the page, as
   armour's window opens on its own: scopes (22); camouflages and decals (25, 26).
 - **Changes.** Each slot sends its change when it is made, on either page; Confirm closes the
