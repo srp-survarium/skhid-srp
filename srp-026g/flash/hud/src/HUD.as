@@ -1973,6 +1973,8 @@ package
       
       public function set_parameterized_message(text:String, fonSize:uint, shift:uint, time:uint = 2500) : void
       {
+         // {s} in a message is its time on screen, in seconds (Onyx's activation hint: its active's time, exe patch 54).
+         text = text.split("{s}").join(String(Math.ceil(time / 1000)));
          if(!this.contextInfo3.visible)
          {
             this.contextInfo3.visible = true;

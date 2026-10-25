@@ -28,7 +28,7 @@
 ; sets) is the stagger's: a hit's slow is times max(0, 1 + its sum).
 BITS 32
 global artefacts_loader, artefacts_link, artefacts_unlink, artefacts_lifebone, artefacts_fire
-global artefacts_stagger, artefacts_onyx
+global artefacts_stagger, artefacts_onyx, artefacts_popup
 section .text
 
 %define CONFIG_CHILD 0xF6B10       ; eax = a config value, edi = a key: eax = its child
@@ -49,6 +49,8 @@ section .text
 %define ONYX_TIME_LEFT 0xF14       ; an Onyx's active time left, ms (its tick 0x3127E0 counts it down)
 %define ONYX_EXTRA_MS 1000         ; each Onyx fired with others: 1 s more for all of them
 %define ONYX_HIT_BACK 0x312C0A     ; Onyx's hit callback after its state test: `mov eax,[esp+8]`
+%define POPUP_SHOW 0x25F9E8        ; Onyx's client update: `push 14h`, then set_parameterized_message
+%define POPUP_SKIP 0x25F9F8        ; ... after it: the state seen, the function's end
 %define AIM_TIME 0x31              ; the aim_time modifier's index (49)
 %define STOPPING 0x2A              ; list 42: the stagger's multiplier
 %define AIM_NODE 0x3B8             ; the active's aim_time node in a Spring
@@ -70,6 +72,8 @@ artefacts_stagger:
     jmp near stagger               ; +25 from 0x2DBD89
 artefacts_onyx:
     jmp near onyx_hit              ; +30 from 0x312C03
+artefacts_popup:
+    jmp near onyx_popup            ; +35 from 0x25F9DD
 
 ; The loader at 0x33AE13 `mov dword [esi+48h],13h` (the active's third
 ; node): ebx = `data`, esi = the config; eax, edi and xmm0 are the next
@@ -430,6 +434,49 @@ onyx_hit:
     pop ebx
     pop esi
     ret 0xC
+
+; Onyx's client update 0x25F640 (ecx = ebx = the Onyx +F20h) when it sees
+; the state turn 4 for the local player's Onyx, at 0x25F9DD `mov ecx,
+; [ebx-0C30h] / push 0BB8h`: the activation hint (+2F0h) shown by
+; set_parameterized_message 0x2375C0 (the text, 21h, 14h, 3000 ms). Now
+; its time on screen is the active's time left (+F14h, ms), which the hud
+; writes for the hint's {s} in seconds; and of the Onyx one press fired
+; (state 4, the same activation time +2A0h) only the first of the slots
+; shows it, so a press shows it once. An Onyx in no slot shows its own.
+; esi (the game) is kept; eax, ecx, edx and edi are free there.
+onyx_popup:
+    push esi
+    lea edi, [ebx-0xF20]           ; the Onyx
+    mov eax, [edi+0x250]           ; the inventory
+    test eax, eax
+    jz .show
+    mov edx, FIRST_SLOT
+.slot:
+    mov ecx, [eax+0x10C+edx*4]
+    test ecx, ecx
+    jz .next
+    cmp ecx, edi
+    je .show                       ; it is the first of its press
+    mov esi, [ecx]
+    cmp esi, [edi]
+    jne .next
+    cmp dword [ecx+0x280], 4
+    jne .next
+    mov esi, [ecx+0x2A0]
+    cmp esi, [edi+0x2A0]
+    je .skip                       ; an Onyx before it, fired by the same press
+.next:
+    inc edx
+    cmp edx, LAST_SLOT
+    jbe .slot
+.show:
+    pop esi
+    mov ecx, [ebx-0xC30]           ; the activation hint
+    push dword [ebx-0xC]           ; its time on screen: the active's time left, ms
+    jmp POPUP_SHOW
+.skip:
+    pop esi
+    jmp POPUP_SKIP
 
 aim_key:
     db "aim_time_mod", 0

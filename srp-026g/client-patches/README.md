@@ -3111,14 +3111,22 @@ does what no config of 0.26g could.
   Onyx multiplied a hit n times. At 0x312C03, its state test, an active Onyx that is not the
   first active Onyx (its class) of the slots 13..18 returns (`ret 0Ch`) and leaves the hit as it
   is: n active Onyx reduce it once. The passive and an Onyx in no slot go on as before.
+- **Onyx's pop-up.** Onyx's client update (0x25F640, slot 0 of its wrapper's vtable 0xA06118,
+  ebx = the Onyx +F20h) shows the activation hint (+2F0h, a localization key, fixed text) with
+  set_parameterized_message 0x2375C0 (size 21h, shift 14h, 3000 ms) when it sees the state turn
+  4 for the local player's Onyx: once for each Onyx, all the same text. At 0x25F9DD (`mov ecx,
+  [ebx-0C30h] / push 0BB8h`) the time on screen becomes the active's time left (+F14h), and of
+  the Onyx fired by one press (state 4, the same activation time +2A0h) only the first of the
+  slots shows it. The hud movie's set_parameterized_message writes a text's `{s}` as that time in
+  seconds (rounded up); the six hints say "60% for {s} s" (`artefact-texts-1.json`).
 
 The code is `artefacts_026g.asm` in the arena (`.srpx`, "The arena" above): its block
-`artefacts.code`, a code page after Research's two (0xA431000 today, as linked): seven `jmp near`
-entries, global symbols the hooks jump to (artefacts_loader ... artefacts_onyx), 990 bytes in
+`artefacts.code`, a code page after Research's two (0xA431000 today, as linked): eight `jmp near`
+entries, global symbols the hooks jump to (artefacts_loader ... artefacts_popup), 1088 bytes in
 all. No base relocation is under a site and nothing aims inside one. Only in the builds with the
 late join.
 
-**Call shapes.** The seven sites are declared in `INSTALLS`: Spring's active link 0x311BC0, its
+**Call shapes.** The eight sites are declared in `INSTALLS`: Spring's active link 0x311BC0, its
 unlink 0x311DA0 and artefact_base::action 0x313300 are ENTRY (their first bytes jump to ours;
 ours goes on in the function or, for a key-down, returns `ret 8` itself: each pops what the
 function does, 0, 4 and 8, checked by the self-test against the original and `abi.tsv`); the
@@ -3155,8 +3163,10 @@ Onyx with the game's enable_active, countdown 0x3127E0, end test 0x312A50 and hi
 1, 2 and 3 Onyx pressed once are active 3, 4 and 5 s (the original: the pressed one, 3 s), a hit
 of damage 1 and piercing 0.5 is 0.4 and 0.2 through all their callbacks (the original 0.4^n),
 after 3 s one has ended and two or three have 1 or 2 s left; a cooling Onyx beside a ready one:
-the ready one alone, 3 s, x0.95 x0.4; two Onyx active from two presses: x0.4 once;
-68 / 67 checks). The edited retail Spring config was read by
+the ready one alone, 3 s, x0.95 x0.4; two Onyx active from two presses: x0.4 once; the end of
+Onyx's client update from 0x25F9DD with set_parameterized_message stubbed: the hint once, 3000,
+4000 and 5000 ms on screen (the original: once for each Onyx, 3000 ms), and once for each of two
+presses; 80 / 79 checks). The edited retail Spring config was read by
 the build's loader too (aim -0.05 / -0.1, stopping power -1). Against the build of `main`
 5e03028, the default build differs in the eight sites (0x25E7A9, 0x2EEA75, 0x2DBD89,
 0x311BC0, 0x311DA0, 0x3122AA, 0x313300, 0x33AE13), `.srpx` one page longer (the artefacts'
