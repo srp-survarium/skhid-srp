@@ -49,6 +49,16 @@ use super::tactics::Tactics;
 /// its goal's crossing or none.
 const RING_M2: f32 = 100.0;
 
+/// A crossing's search for a long plain route that kept the plain one is
+/// not made again for this long, ms, to a goal this near, m
+/// (`Bot::long_kept`). The bot walks the plain route meanwhile, and its
+/// goal (a battery, a spot, a foe) mostly stays near: in the bench 2 in 3
+/// crossing searches kept the plain route, on maps whose zones are too
+/// wide to cross (Vostok Radar Station, Tarakanovsky Fort, School) nearly
+/// all. GUESS: half a play's goal kept (`NO_WAY_KEEP_MS`), a room.
+pub const LONG_RETRY_MS: u32 = 10_000;
+pub const LONG_RETRY_M: f32 = 10.0;
+
 /// [`RING_M2`] in floors of the grid.
 fn ring_floors() -> usize {
     (RING_M2 / (mapdata::CELL * mapdata::CELL)) as usize
@@ -208,8 +218,9 @@ pub fn resume(
 }
 
 /// What the motor takes after a crossing's search from floor `from`: the
-/// route, and whether it is a crossing. `plain` is the plain search's
-/// answer, `crossed` the crossing's.
+/// route, whether it is a crossing, and whether it is the plain route kept
+/// (a long one: not searched again soon, [`LONG_RETRY_MS`]). `plain` is the
+/// plain search's answer, `crossed` the crossing's.
 #[allow(clippy::too_many_arguments)]
 pub fn choose(
     tactics: &Tactics,
@@ -220,30 +231,31 @@ pub fn choose(
     time: u32,
     side: Option<i32>,
     objective: bool,
-) -> (Option<Route>, bool) {
+) -> (Option<Route>, bool, bool) {
     let Some(crossed) = crossed else {
         count(Count::Refused);
-        return (plain, false);
+        let kept = plain.is_some();
+        return (plain, false, kept);
     };
     let cost = hurt(tactics, &crossed, 0.0, crossed.length());
     let borne = bears(cost, health);
     match plain {
         Some(plain) if stuck::worth_round(plain.length(), crossed.length()) || !borne => {
             count(Count::Refused);
-            (Some(plain), false)
+            (Some(plain), false, true)
         }
         _ if borne => {
             count(Count::Taken);
-            (Some(crossed), cost > 0.0)
+            (Some(crossed), cost > 0.0, false)
         }
         _ => match out_of_ring(tactics, from, &crossed, health, time, side, objective) {
             Some(out) => {
                 count(Count::RingWalk);
-                (Some(out), true)
+                (Some(out), true, false)
             }
             None => {
                 count(Count::Refused);
-                (None, false)
+                (None, false, false)
             }
         },
     }
@@ -412,7 +424,8 @@ mod tests {
         let Ok(crossed) = start(tactics, a, b, 0, Some(0), false, health, &mut iters) else {
             panic!("an unbounded search ends");
         };
-        choose(tactics, a, plain, crossed, health, 0, Some(0), false)
+        let (route, crossing, _) = choose(tactics, a, plain, crossed, health, 0, Some(0), false);
+        (route, crossing)
     }
 
     const WEST: Vec3 = Vec3::new(30.0, 0.0, 30.0);

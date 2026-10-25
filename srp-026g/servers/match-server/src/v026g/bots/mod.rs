@@ -247,6 +247,10 @@ pub struct Bot {
     /// while it heads there, those zones' floors are not escaped from nor
     /// shut its route ahead.
     crossing: Option<Vec3>,
+    /// A goal a crossing's search for a long plain route kept the plain one
+    /// to, and until when such a search is not made again to a goal near it
+    /// (`crossing::LONG_RETRY_MS`).
+    long_kept: Option<(Vec3, u32)>,
     /// Its route searches dropped since it last noted them.
     dropped: path::Dropped,
     /// Its kits by index (the profile's, `survarium::v026g::loadouts::
@@ -347,6 +351,7 @@ impl Bot {
             medkits_used: 0,
             found: None,
             crossing: None,
+            long_kept: None,
             dropped: path::Dropped::default(),
             kits,
             life_carried,
@@ -482,6 +487,7 @@ impl Bot {
         self.route = None;
         self.found = None;
         self.crossing = None;
+        self.long_kept = None;
         self.intent = Intent::stay();
         self.stuck.reset();
         self.unstick = None;
@@ -1523,9 +1529,15 @@ impl Bots {
             return;
         };
         let mut crossed = false;
+        let mut kept = false;
         let (from, to) = pending.ends;
+        let long_kept = self
+            .bots
+            .get(pending.place)
+            .and_then(|bot| bot.as_ref())
+            .is_some_and(|bot| long_kept(bot.long_kept, pending.goal, time));
         if let Some(second) = pending.second.take() {
-            (route, crossed) = crossing::choose(
+            (route, crossed, kept) = crossing::choose(
                 tactics,
                 from,
                 second.plain,
@@ -1549,10 +1561,12 @@ impl Bots {
             }
             // No way, or a long one past zones on all match: a crossing's
             // search (`crossing.rs`).
-            if crossing::wanted(tactics, route.as_ref(), from, to, side, objective, health) {
+            if !(route.is_some() && long_kept)
+                && crossing::wanted(tactics, route.as_ref(), from, to, side, objective, health)
+            {
                 match crossing::start(tactics, from, to, time, side, objective, health, floors) {
                     Ok(crossing_route) => {
-                        (route, crossed) = crossing::choose(
+                        (route, crossed, kept) = crossing::choose(
                             tactics,
                             from,
                             route,
@@ -1576,6 +1590,9 @@ impl Bots {
             }
         }
         if let Some(Some(bot)) = self.bots.get_mut(pending.place) {
+            if kept {
+                bot.long_kept = Some((pending.goal, time + crossing::LONG_RETRY_MS));
+            }
             bot.found = Some((pending.goal, route, crossed));
         }
     }
@@ -2279,6 +2296,12 @@ impl Bots {
     }
 }
 
+/// Whether a crossing's search for a long route to `goal` kept the plain
+/// one lately (`Bot::long_kept`, `crossing::LONG_RETRY_MS`).
+fn long_kept(kept: Option<(Vec3, u32)>, goal: Vec3, now: u32) -> bool {
+    kept.is_some_and(|(to, until)| now < until && to.distance_xz(goal) <= crossing::LONG_RETRY_M)
+}
+
 /// A team learns its bot's goals with no way lately (`Bot::no_way_to`,
 /// kept [`NO_WAY_KEEP_MS`] from the proof): each is left by the team
 /// [`TEAM_NO_WAY_KEEP_MS`] from its latest proof.
@@ -2761,6 +2784,7 @@ fn drive_tick(
                 if left.is_none()
                     && !escaping
                     && !there
+                    && !(route.is_some() && long_kept(bot.long_kept, at, time))
                     && let Some((from, to)) = ends
                     && crossing::wanted(
                         tactics,
@@ -2775,7 +2799,8 @@ fn drive_tick(
                     match crossing::start(tactics, from, to, time, side, objective, me.health, floors)
                     {
                         Ok(crossing_route) => {
-                            (route, crossed) = crossing::choose(
+                            let kept;
+                            (route, crossed, kept) = crossing::choose(
                                 tactics,
                                 from,
                                 route,
@@ -2785,6 +2810,9 @@ fn drive_tick(
                                 side,
                                 objective,
                             );
+                            if kept {
+                                bot.long_kept = Some((at, time + crossing::LONG_RETRY_MS));
+                            }
                         }
                         Err(planning) => {
                             let plain = route.take();
