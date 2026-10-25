@@ -4859,6 +4859,11 @@ fn real_bot_cost() {
             // on a play taken since its last motor tick (no tick yet to plan).
             let mut stood_routing = [0u64; 2];
             let mut stood_by: std::collections::BTreeMap<String, u64> = Default::default();
+            // By the bot's play: its searches that found no way (each sets
+            // `Bot::no_way` afresh) and its ticks stood at a goal one of them
+            // was for, while it is not searched again (`NO_WAY_RETRY_MS`).
+            let mut no_way_by: std::collections::BTreeMap<String, [u64; 2]> = Default::default();
+            let mut no_way_seen: Vec<Option<u32>> = vec![None; teams.len()];
             // By the bot's play: takes (and those scoring under 0.05),
             // kills, deaths, steals (the objective plays' yield, F2).
             let mut by_play: std::collections::BTreeMap<String, [u32; 5]> = Default::default();
@@ -5141,6 +5146,17 @@ fn real_bot_cost() {
                             search_deaths += 1;
                         }
                         was_alive[bot.place] = body.alive;
+                        let play_now = || {
+                            bot.assignment
+                                .as_ref()
+                                .map_or("none".to_owned(), |a| format!("{:?}", a.kind))
+                        };
+                        if let Some((_, until)) = bot.no_way
+                            && no_way_seen[bot.place] != Some(until)
+                        {
+                            no_way_seen[bot.place] = Some(until);
+                            no_way_by.entry(play_now()).or_default()[0] += 1;
+                        }
                         if let Go::To { at, within_m } = bot.intent.go
                             && body.alive
                             && body.feet.distance_xz(at) > within_m
@@ -5162,6 +5178,11 @@ fn real_bot_cost() {
                                     .as_ref()
                                     .map_or("none".into(), |a| format!("{:?}", a.kind));
                                 *stood_by.entry(play).or_default() += 1;
+                                if bot.no_way.is_some_and(|(goal, until)| {
+                                    clock < until && goal.distance_xz(at) <= super::REPLAN_MOVED_M
+                                }) {
+                                    no_way_by.entry(play_now()).or_default()[1] += 1;
+                                }
                             }
                         }
                     }
@@ -5449,6 +5470,14 @@ fn real_bot_cost() {
             let mut by: Vec<_> = stood_by.into_iter().collect();
             by.sort_by_key(|entry| std::cmp::Reverse(entry.1));
             eprintln!("  stood by play: {:?}", &by[..by.len().min(8)]);
+            let rows: Vec<String> = no_way_by
+                .iter()
+                .map(|(k, r)| format!("{k} {} {}", r[0], r[1]))
+                .collect();
+            eprintln!(
+                "  no way by play (searches failed, ticks stood at its goal): {}",
+                rows.join("; ")
+            );
             let rows: Vec<String> = by_play
                 .iter()
                 .map(|(k, r)| format!("{k} {} {} {} {} {}", r[0], r[1], r[2], r[3], r[4]))
