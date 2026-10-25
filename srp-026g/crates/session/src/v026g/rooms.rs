@@ -792,6 +792,40 @@ impl Rooms {
         }
     }
 
+    /// The account, whose seat in the room's match being played is kept,
+    /// is a member of the room again and in its match: it joined it from
+    /// the list after it left (live, 2026-10-25). Its seat is its place: no
+    /// PIN, no size and no max level asked; one the owner took out stays
+    /// out. It leaves the room it was in. Whether it is a member now.
+    ///
+    /// The room may be over its size by it (its place was taken while it
+    /// was out): [`Room::is_full`] then keeps everyone else out until it is
+    /// under it again, and a match of the room never seats more than its
+    /// size a side ([`sides`]): who does not fit waits in the room.
+    pub fn back_in(&mut self, account_id: u32, key: u32) -> bool {
+        let Some(room) = self.rooms.get(&key) else {
+            return false;
+        };
+        if room.kicked.contains(&account_id) {
+            return false;
+        }
+        if !room.members.contains(&account_id) {
+            self.leave(account_id);
+            let serial = self.next_serial();
+            let Some(room) = self.rooms.get_mut(&key) else {
+                return false;
+            };
+            room.members.push(account_id);
+            room.serial = serial;
+            self.of_account.insert(account_id, key);
+            self.dequeue(account_id);
+        }
+        if let Some(room) = self.rooms.get_mut(&key) {
+            room.in_match.insert(account_id);
+        }
+        true
+    }
+
     /// A member that went into the room's running match late was let go
     /// before it entered: it waits in the room again.
     pub fn join_failed(&mut self, key: u32, account_id: u32) {

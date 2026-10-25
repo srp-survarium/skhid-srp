@@ -1789,6 +1789,137 @@ fn newcomers_fill_the_side_with_fewer_players_in_the_match() {
     }
 }
 
+/// The answer to a request at `start` among what the client took with it
+/// ("match found" too): its rows, and all it took.
+fn answer_with(world: &mut World, index: usize, start: u32) -> (Vec<String>, Vec<Decoded>) {
+    world.take(index);
+    world.ask(index, request::ranking(start, 1));
+    let decoded = world.take(index);
+    let rows = decoded
+        .iter()
+        .rev()
+        .find_map(|message| match message {
+            Decoded::EloList(rows) => Some(rows.iter().map(|row| row.0.clone()).collect()),
+            _ => None,
+        })
+        .expect("an answer");
+    (rows, decoded)
+}
+
+/// The last client of a room match lost it (its link broke, its game is
+/// back in the lobby); its seat in the match is kept, and it leaves the
+/// room. Its client, account, session and place.
+fn last_out_of_the_match_and_the_room(
+    world: &mut World,
+    id: u32,
+    player: usize,
+) -> (usize, u32, u32, usize) {
+    let (account, session) = world.ids[player];
+    let (place, _) = seat_of(world, id, player);
+    world.ask(player, request::leave(1, true));
+    world.advance(Duration::from_secs(2));
+    world.take(player);
+    let left = rows(world, player, ROOM_LEAVE, 1);
+    assert_eq!(left, ["S1;N;0;0;0"], "{left:?}");
+    assert!(world.core.rooms.of(account).is_none());
+    assert_eq!(
+        world.store.matchmaking().seat(session).map(|seat| seat.1),
+        Some(place)
+    );
+    (player, account, session, place)
+}
+
+/// Live, 2026-10-25 (riad5, room 4799): a player whose link broke left
+/// his room, and every room refused him ("InMatch") until he pressed Play.
+/// His seat is kept for the whole match; joining his room again is Play's
+/// "back to its seat": a member again, in the match, the same place.
+#[test]
+fn joining_the_room_whose_match_keeps_the_seat_goes_back_to_it() {
+    let mut world = World::new();
+    let (key, ticket, id, players) = room_match_of_four(&mut world);
+    let (dave, account, session, place) =
+        last_out_of_the_match_and_the_room(&mut world, id, players[3]);
+    let (joined, mut took) = answer_with(&mut world, dave, ROOM_JOIN_BASE + key);
+    assert_eq!(header(&joined)[KEY], key.to_string(), "{joined:?}");
+    assert_eq!(header(&joined)[CODE], "0", "{joined:?}");
+    world.advance(Duration::from_secs(1));
+    took.extend(world.take(dave));
+    let (sent, _) = sent_to_match(&took).expect("back to his seat");
+    assert_eq!(sent, ticket);
+    assert_eq!(world.store.matchmaking().seat(session), Some((id, place)));
+    let room = world.core.rooms.get(key).unwrap();
+    assert!(room.members.contains(&account) && room.in_match.contains(&account));
+    assert_eq!(world.core.matches[&id].seats.len(), 4);
+}
+
+/// While his seat is kept, another room refuses him with code 5, whose
+/// text says to press Play or wait for the match to end.
+#[test]
+fn another_room_refuses_a_player_whose_seat_is_kept_and_says_to_press_play() {
+    let mut world = World::new();
+    let (_, _, id, players) = room_match_of_four(&mut world);
+    let (dave, account, _, _) = last_out_of_the_match_and_the_room(&mut world, id, players[3]);
+    let erin = world.connect("Erin");
+    let other = create(&mut world, erin, spec(6), None);
+    let refused = rows(&mut world, dave, ROOM_JOIN_BASE + other, 1);
+    assert_eq!(refused, ["S1;N;5;0;0"], "{refused:?}");
+    assert!(
+        !world
+            .core
+            .rooms
+            .get(other)
+            .unwrap()
+            .members
+            .contains(&account)
+    );
+    let text = include_str!("../../../../../../flash/lobby_menu/src/survarium/rooms/RoomsText.as");
+    assert!(text.contains(
+        "\"code5\": [\"You're still in a match: press Play to return to it, or wait for it to end.\""
+    ));
+}
+
+/// His place in the room was taken while he was out: he comes back all the
+/// same (the seat is his), the room one over its size; it lets nobody else
+/// in until it is under its size again.
+#[test]
+fn back_to_the_seat_may_put_the_room_over_its_size() {
+    let mut world = World::new();
+    let players: Vec<usize> = (0..12).map(|i| world.connect(&format!("P{i}"))).collect();
+    let key = create(&mut world, players[0], spec(6), None);
+    for &player in &players[1..] {
+        rows(&mut world, player, ROOM_JOIN_BASE + key, 1);
+    }
+    world.advance(VOTE_AND_WAIT);
+    let (ticket, _) = sent_to_match(&world.take(players[0])).expect("a match");
+    let (&id, _) = world
+        .core
+        .matches
+        .iter()
+        .find(|(_, running)| running.ticket.match_id == ticket)
+        .unwrap();
+    let (dave, account, session, place) =
+        last_out_of_the_match_and_the_room(&mut world, id, players[11]);
+    let erin = world.connect("Erin");
+    rows(&mut world, erin, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(world.core.rooms.get(key).unwrap().members.len(), 12);
+    let (joined, _) = answer_with(&mut world, dave, ROOM_JOIN_BASE + key);
+    assert_eq!(header(&joined)[CODE], "0", "{joined:?}");
+    assert_eq!(world.core.rooms.get(key).unwrap().members.len(), 13);
+    assert_eq!(world.store.matchmaking().seat(session), Some((id, place)));
+    assert!(
+        world
+            .core
+            .rooms
+            .get(key)
+            .unwrap()
+            .in_match
+            .contains(&account)
+    );
+    let frank = world.connect("Frank");
+    let full = rows(&mut world, frank, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(full, ["S1;N;4;0;0"], "{full:?}");
+}
+
 /// The members of a member list (`S1;G;<key>;<members>`, then two rows a
 /// member: `P;<i>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;<side>;
 /// <account>` and its whole name) that the asker gets for the room of
