@@ -2304,8 +2304,9 @@ fn drive_tick(
     // A carrier never fires: in the game a new fire press drops the battery
     // (the input handler 0x2D8E73..0x2D8EC8, PROVEN), whatever its play.
     // `carrying` comes with the worlds (up to 2 s after a take); the take
-    // itself uses and Bring holds fire meanwhile.
-    let may_fire = intent.fire && me.carrying.is_none();
+    // itself uses and Bring holds fire meanwhile. A play that let go of it
+    // (`Intent::let_go`) may fire while the view still shows it carried.
+    let may_fire = intent.fire && (me.carrying.is_none() || intent.let_go);
     bot.reflex.outer_gates(time, !may_fire, bot.jump_hold > 0);
     let over = bot.reflex.tick(
         aiming_me,

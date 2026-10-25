@@ -282,6 +282,9 @@ pub struct Intent {
     /// Whether the reflex may fire (a carrier cannot; a sneak holds fire
     /// till seen).
     pub fire: bool,
+    /// The play let go of its battery (`collect`'s `LetGo`): the reflex
+    /// may fire though the view, up to 2 s late, still shows it carried.
+    pub let_go: bool,
     /// The goal is in the enemy base (their container): their spawn area
     /// is open to the route (`Tactics::allowed`).
     pub objective: bool,
@@ -304,6 +307,7 @@ impl Intent {
             press: 0,
             hold: 0,
             fire: true,
+            let_go: false,
             objective: false,
             straight: false,
             failed_stand: None,
@@ -367,6 +371,14 @@ impl Intent {
     pub fn hold_fire(self) -> Self {
         Self {
             fire: false,
+            ..self
+        }
+    }
+
+    /// The battery let go of ([`Intent::let_go`]).
+    pub fn let_go(self) -> Self {
+        Self {
+            let_go: true,
             ..self
         }
     }
