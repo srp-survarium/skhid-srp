@@ -303,7 +303,15 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             Step::Continue(Intent::to(new, cx.pace_toward(new)).within(reach))
         }
         State::NoSpot => Step::Failed("no spot round the choke"),
-        State::Going { spot, .. } => {
+        State::Going { spot, checked } => {
+            // Its spot proved no way to: another of the fine ones (none:
+            // kept, and the think leaves the play, `goal_shut`).
+            if cx.no_way_lately(*spot)
+                && let Some(new) = pick(cx, choke, rng)
+            {
+                *spot = new;
+                *checked = cx.now;
+            }
             let spot = *spot;
             let d = cx.me.feet.distance_xz(spot);
             if d <= reach {
@@ -452,5 +460,40 @@ mod tests {
         s.bot(3, 0, near + Vec3::new(0.0, 0.0, -1.0));
         assert!(crowded(&s.cx(3), choke, s.view.places[3].feet));
         assert!(!crowded(&s.cx(0), choke, s.view.places[0].feet));
+    }
+
+    /// A spot its bot proved no way to is left for another fine one; with
+    /// none left it is kept, for the think to leave the play (`goal_shut`).
+    #[test]
+    fn a_spot_proved_no_way_to_is_left_for_another() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(25.0, 0.0, 35.0));
+        s.bot(2, 0, Vec3::new(20.0, 0.0, 38.0));
+        let mut rng = Rng::new(2);
+        let exit = TargetRef::Exit(0);
+        s.current = Some((PlayKind::Crossfire, exit, s.view.clock));
+        let mut state = start(exit, &s.cx(0), &mut rng);
+        let State::Going { spot: first, .. } = state else {
+            panic!("{state:?}")
+        };
+        s.no_way_to = vec![(first, s.view.clock + 5_000)];
+        let st = step(&mut state, exit, &s.cx(0), &mut rng);
+        let State::Going { spot, .. } = state else {
+            panic!("{state:?}")
+        };
+        assert!(!s.cx(0).no_way_lately(spot), "{first:?} {spot:?}");
+        assert!(
+            matches!(st, Step::Continue(Intent { go: Go::To { at, .. }, .. }) if at == spot),
+            "{st:?}"
+        );
+        // Every spot proved no way to: kept.
+        let choke = s.tactics.exits(1)[0];
+        let until = s.view.clock + 5_000;
+        s.no_way_to = spots_by(&s.cx(0), choke)
+            .iter()
+            .map(|&at| (at, until))
+            .collect();
+        step(&mut state, exit, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::Going { spot: kept, .. } if kept == spot), "{state:?}");
     }
 }

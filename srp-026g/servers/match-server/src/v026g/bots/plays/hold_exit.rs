@@ -217,6 +217,13 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     match state {
         State::NoSpot => Step::Failed("no spot by the exit"),
         State::Going { spot } => {
+            // Its spot proved no way to: another of the fine ones (none:
+            // kept, and the think leaves the play, `goal_shut`).
+            if cx.no_way_lately(*spot)
+                && let Some(new) = pick(cx, exit, rng)
+            {
+                *spot = new;
+            }
             let spot = *spot;
             if let Some((_, _, started)) = cx.bot.current
                 && cx.now > started + (num("give_up_s") * 1000.0) as u32
@@ -406,5 +413,24 @@ mod tests {
                 assert!(spot.distance_xz(here) >= 10.0);
             }
         }
+    }
+
+    /// A spot its bot proved no way to is left for another fine one.
+    #[test]
+    fn a_spot_proved_no_way_to_is_left_for_another() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 35.0));
+        let mut rng = Rng::new(3);
+        let exit = TargetRef::Exit(0);
+        let mut state = start(exit, &s.cx(0), &mut rng);
+        let State::Going { spot: first } = state else {
+            panic!("{state:?}")
+        };
+        s.no_way_to = vec![(first, s.view.clock + 5_000)];
+        step(&mut state, exit, &s.cx(0), &mut rng);
+        let State::Going { spot } = state else {
+            panic!("{state:?}")
+        };
+        assert!(!s.cx(0).no_way_lately(spot), "{first:?} {spot:?}");
     }
 }
