@@ -456,3 +456,32 @@ Applied to the live files: 7 files edited, 0 unexpected differences. The simulat
 Applied to the live file (stock 0.26g with patches 12..=33, after weapon-balance-2): 1 file
 edited, 0 unexpected differences. The simulation changes (the `next` row of
 `simulation_changes.tsv`).
+
+## vostok-021-no-godrays-1.json (2026-10-25)
+
+| change | why |
+|---|---|
+| Vostok Radar Station (v0.21), both projects (`projects/v021d_level_03/day_2`, map 166, and `day_4`, map 152): the environment's (`client_objects[0]`, `environment_day`) `god_rays_intensity` 1.02 -> 0 (f32 kept) | the owner: "Remove god rays on the 0.21 Vostok map". 0 is School's day value (`level_02/day_*`, an int 0 there), the stock map without god rays |
+
+What drew them: the environment's god-ray settings, copied by the port from 0.21d's
+`projects/level_03/day` as they were (intensity 1.02, attenuation 1.92, colour blend power 1, the
+sun at 26 degrees). No volume fog or post-process object adds to them; the 15 lamp cones
+(`cone_light_volume`: the stock mesh and `fx/cone_volume_material`) are 0.26g's own Vostok's (16
+there) and stay. The values are not out of 0.26g's range (its lobby has 1.02, Cologne's day 1.65),
+but 0.26g's `god_rays.ps` reads the attenuation another way: with d the distance from the sun on
+screen (in screen heights), 0.21d weighted the rays by `exp(-20 d^attenuation)` and 0.26g by
+`(1 - min(d, 1))^attenuation`. The rays' strength (weight x intensity):
+
+| d | 0.21d, its values (1.02, 1.92) | 0.26g, the same values (live) | 0.26g's own Vostok day (0.65, 2.6) |
+|---|---|---|---|
+| 0.1 | 0.80 | 0.83 | 0.49 |
+| 0.25 | 0.25 | 0.59 | 0.31 |
+| 0.5 | 0.005 | 0.27 | 0.11 |
+| 0.75 | 0.00001 | 0.07 | 0.02 |
+
+So in 0.26g the ported rays spread over the screen whenever the low sun is in view. Mamayev
+Kurgan (v0.21) has the same values and is not changed.
+
+Applied to the live files (stock 0.26g with patches 12..=33): 2 files edited, 0 unexpected
+differences. Visual only: the server game data keeps only a project's `server_objects`, so srp
+does not read it, and no simulation change.
