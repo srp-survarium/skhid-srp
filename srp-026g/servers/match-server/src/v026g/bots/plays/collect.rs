@@ -1192,7 +1192,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             let Some(stand) = cx.tactics.stand_to_take(at) else {
                 return Step::Failed("no way to it");
             };
-            if !cx.reachable(stand, false) || cx.no_way_lately(stand) {
+            if !cx.can_go(stand) {
                 return Step::Failed("no way to it");
             }
             Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(num("reach_m") * 0.6))
@@ -1221,7 +1221,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             let stand = crossing.unwrap_or(stand);
             // Or every way in crosses a hazard (a battery ringed by fire):
             // the search said so, and the bot does something else.
-            if !cx.reachable(stand, false) || cx.no_way_lately(stand) {
+            if !cx.can_go(stand) {
                 return Step::Failed("no way to it");
             }
             // Within reach across and not over the stand's floor
@@ -1491,7 +1491,7 @@ fn way_home(cx: &Ctx, home: Vec3) -> Vec<Vec3> {
                 .copied()
                 .filter(|&p| p.distance_xz(home) < to_home)
                 .filter(|&p| cx.tactics.fine_goal(p, cx.now, Some(side)))
-                .filter(|&p| cx.reachable(p, false) && !cx.no_way_lately(p))
+                .filter(|&p| cx.can_go(p))
                 .collect();
             if back.is_empty() {
                 return None;

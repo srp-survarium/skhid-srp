@@ -16,7 +16,6 @@
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::tactics::SpotQuery;
-use crate::v026g::bots::view::Mode;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     ("spot_min_m", 6.0),
@@ -44,7 +43,8 @@ pub fn tuning() -> PlayTuning {
 /// Seconds until the next battery; `None` outside mode 3 or before the
 /// world says.
 fn due_in(cx: &Ctx) -> Option<f32> {
-    (cx.view.mode == Mode::TimedBatteries)
+    let stations = cx.view.mode.has_stations();
+    stations
         .then_some(cx.view.next_battery?)
         .map(|at| at as f32 / 1000.0 - cx.now as f32 / 1000.0)
 }
@@ -130,6 +130,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
 mod tests {
     use super::super::tests::Scenario;
     use super::*;
+    use crate::v026g::bots::view::Mode;
 
     fn with_station(s: &mut Scenario) {
         let world = crate::v026g::bots::tactics::tests::field_with(|map| {

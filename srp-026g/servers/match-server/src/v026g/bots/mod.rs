@@ -2421,9 +2421,7 @@ fn goal_shut(intent: &Intent, me: &PlaceView, no_way_to: &[(Vec3, u32)], now: u3
     me.carrying.is_none()
         && matches!(intent.go, Go::To { at, within_m }
         if me.feet.distance_xz(at) > within_m
-            && no_way_to.iter().any(|&(goal, until)| {
-                now < until && goal.distance_xz(at) <= REPLAN_MOVED_M
-            }))
+            && plays::goals::no_way_near(no_way_to, at, now))
 }
 
 /// A bot's goals with no way lately and its team's

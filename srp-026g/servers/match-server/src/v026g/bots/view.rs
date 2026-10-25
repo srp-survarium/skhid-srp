@@ -65,6 +65,36 @@ impl Mode {
     pub fn has_batteries(self) -> bool {
         self != Self::TeamDeathmatch
     }
+
+    /// Team Deathmatch: tickets and a fight to the last body, no batteries.
+    pub fn is_deathmatch(self) -> bool {
+        self == Self::TeamDeathmatch
+    }
+
+    /// The key of a play's weight for this mode (`weight_tdm`,
+    /// `weight_batteries`, `weight_timed`), for the plays that weigh the
+    /// timed batteries apart from the plain ones (Cut, HoldExit); Crossfire
+    /// and Flank weigh only Team Deathmatch apart ([`Self::is_deathmatch`]).
+    pub fn weight_key(self) -> &'static str {
+        match self {
+            Self::TeamDeathmatch => "weight_tdm",
+            Self::Batteries => "weight_batteries",
+            Self::TimedBatteries => "weight_timed",
+        }
+    }
+
+    /// Timed batteries: the batteries come on a clock to charging stations
+    /// (Station), and are not lying about to be found.
+    pub fn has_stations(self) -> bool {
+        self == Self::TimedBatteries
+    }
+
+    /// Whether a spawner's spot seen empty is worth looking at again after
+    /// a time (`spawner_recheck_ms`): only where the batteries come on a
+    /// clock, not where they once spawned.
+    pub fn rechecks_spawners(self) -> bool {
+        self == Self::TimedBatteries
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -213,7 +243,7 @@ impl MatchView {
             self.points[usize::from(!team & 1)],
         );
         let gap = ours as f32 - theirs as f32;
-        if self.mode == Mode::TeamDeathmatch {
+        if self.mode.is_deathmatch() {
             gap / 10.0
         } else {
             gap

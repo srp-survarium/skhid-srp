@@ -19,7 +19,6 @@ use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
 use crate::v026g::bots::kin;
 use crate::v026g::bots::tactics::SpotQuery;
-use crate::v026g::bots::view::Mode;
 use crate::v026g::drive::key;
 
 pub const NUMBERS: &[(&str, f32)] = &[
@@ -77,7 +76,7 @@ pub fn tuning() -> PlayTuning {
 /// The candidate's score times the mode's weight (`weight_tdm`,
 /// `weight_batteries`): the players' research favours the play in one mode.
 fn weighed(cx: &Ctx, kind: PlayKind, mut c: Candidate) -> Option<Candidate> {
-    let weight = if cx.view.mode == Mode::TeamDeathmatch {
+    let weight = if cx.view.mode.is_deathmatch() {
         cx.num(kind, "weight_tdm")
     } else {
         cx.num(kind, "weight_batteries")
@@ -311,6 +310,7 @@ mod tests {
     use super::super::tests::Scenario;
     use super::*;
     use crate::v026g::bots::know::{Percept, Source};
+    use crate::v026g::bots::view::Mode;
 
     /// The enemy at `who` seen without a break for the last `ms`.
     fn watched(s: &mut Scenario, who: Place, ms: u32) {

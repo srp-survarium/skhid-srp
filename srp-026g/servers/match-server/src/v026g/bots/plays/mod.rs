@@ -32,6 +32,7 @@ pub mod crossfire;
 pub mod cut;
 pub mod escort;
 pub mod flank;
+pub mod goals;
 pub mod guard_lead;
 pub mod heal;
 pub mod hold_exit;
@@ -683,10 +684,7 @@ impl Ctx<'_> {
     /// Whether this bot's search to a goal at `at` (the motor's, within
     /// its replan distance) proved no way lately (`Bot::no_way_to`).
     pub fn no_way_lately(&self, at: Vec3) -> bool {
-        self.bot
-            .no_way_to
-            .iter()
-            .any(|&(goal, until)| self.now < until && goal.distance_xz(at) <= super::REPLAN_MOVED_M)
+        goals::no_way_near(self.bot.no_way_to, at, self.now)
     }
 
     /// The enemy a use here would be made under the eyes of, if any (a
@@ -906,14 +904,15 @@ pub fn spawner_worth_checking(
     tuning: &Tuning,
     index: usize,
 ) -> bool {
-    use super::view::Mode;
     let Some(spawner) = tactics.world.map.battery_spawners.get(index) else {
         return false;
     };
-    let fresh = match (view.mode, known.spawner_seen(index)) {
-        (_, None) => true,
-        (Mode::TimedBatteries, Some(seen)) => view.clock >= seen + tuning.sense.spawner_recheck_ms,
-        _ => false,
+    let fresh = match known.spawner_seen(index) {
+        None => true,
+        Some(seen) if view.mode.rechecks_spawners() => {
+            view.clock >= seen + tuning.sense.spawner_recheck_ms
+        }
+        Some(_) => false,
     };
     fresh
         && !known

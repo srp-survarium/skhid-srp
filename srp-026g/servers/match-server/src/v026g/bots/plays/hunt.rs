@@ -12,7 +12,6 @@
 //! its aggression is held low by the commander (`Bots::commander`).
 
 use super::*;
-use crate::v026g::bots::view::Mode;
 
 pub const NUMBERS: &[(&str, f32)] = &[("near_m", 25.0), ("search_s", 6.0)];
 
@@ -27,7 +26,7 @@ pub fn tuning() -> PlayTuning {
 /// Whether the enemies of `cx`'s bot can no longer respawn in a Team
 /// Deathmatch.
 fn endgame(cx: &Ctx) -> bool {
-    cx.view.mode == Mode::TeamDeathmatch && !cx.view.can_respawn[usize::from(!cx.me.team & 1)]
+    cx.view.mode.is_deathmatch() && !cx.view.can_respawn[usize::from(!cx.me.team & 1)]
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
@@ -89,6 +88,7 @@ mod tests {
     use super::super::tests::Scenario;
     use super::*;
     use crate::v026g::bots::know::Source;
+    use crate::v026g::bots::view::Mode;
 
     #[test]
     fn the_hunt_is_on_only_in_a_deathmatch_whose_enemies_cannot_respawn() {

@@ -18,7 +18,6 @@
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
 use crate::v026g::bots::tactics::{SpotQuery, Tactics};
-use crate::v026g::bots::view::Mode;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // The spot: this far from the choke, metres.
@@ -83,7 +82,7 @@ pub fn tuning() -> PlayTuning {
 /// The candidate's score times the mode's weight (`weight_tdm`,
 /// `weight_batteries`): the players' research favours the play in one mode.
 fn weighed(cx: &Ctx, kind: PlayKind, mut c: Candidate) -> Option<Candidate> {
-    let weight = if cx.view.mode == Mode::TeamDeathmatch {
+    let weight = if cx.view.mode.is_deathmatch() {
         cx.num(kind, "weight_tdm")
     } else {
         cx.num(kind, "weight_batteries")
@@ -243,8 +242,7 @@ fn fine_spots(cx: &Ctx, choke: Vec3) -> Vec<Vec3> {
         .filter(|at| {
             cx.tactics.fine_goal(*at, cx.now, cx.bot.side)
                 && others.iter().all(|(_, o)| round(choke, *at, *o) >= apart)
-                && cx.reachable(*at, false)
-                && !cx.no_way_lately(*at)
+                && cx.can_go(*at)
         })
         .collect()
 }
@@ -306,16 +304,13 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
         State::Going { spot, checked } => {
             // Its spot proved no way to: another of the fine ones (none:
             // kept, and the think leaves the play, `goal_shut`).
-            if cx.no_way_lately(*spot)
-                && let Some(new) = pick(cx, choke, rng)
-            {
-                *spot = new;
+            if goals::repick_if_shut(cx, spot, || pick(cx, choke, rng)) {
                 *checked = cx.now;
             }
             let spot = *spot;
             let d = cx.me.feet.distance_xz(spot);
             if d <= reach {
-                let s = if cx.view.mode == Mode::TeamDeathmatch {
+                let s = if cx.view.mode.is_deathmatch() {
                     rng.range(num("hold_tdm_min_s"), num("hold_tdm_max_s"))
                 } else {
                     rng.range(num("hold_batteries_min_s"), num("hold_batteries_max_s"))
@@ -348,6 +343,7 @@ mod tests {
     use super::super::tests::Scenario;
     use super::*;
     use crate::v026g::bots::know::Source;
+    use crate::v026g::bots::view::Mode;
 
     fn crossfires(s: &Scenario, place: Place) -> Vec<Candidate> {
         let mut out = Vec::new();
