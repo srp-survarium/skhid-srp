@@ -16,6 +16,7 @@ mod late_join_edge_cases;
 mod resync_gate;
 mod sockets;
 mod start;
+mod ticks;
 mod units;
 
 use std::net::{SocketAddr, UdpSocket};
@@ -31,7 +32,7 @@ use survarium::v026g::match_msgs::static_info::{MatchItem, MatchKit, NO_PROTECTI
 
 use super::game::Game;
 use super::server::{Server, serve};
-use super::{MatchPlayer, MatchProfile, MatchRegistry, MatchResult, MatchSetup, Settings};
+use super::{MatchPlayer, MatchProfile, MatchRegistry, MatchResult, MatchSetup, Netcode, Settings};
 use client::Client;
 
 /// Modes 2 (batteries) and 4 (Team Deathmatch) on level_01.
@@ -112,7 +113,14 @@ pub struct Bench {
     in_air: Vec<(u64, usize, bool, Vec<u8>)>,
     /// The wall-clock time spent in the server's `poll`.
     pub server_busy: Duration,
+    /// More delay for one datagram: (now ms, place, to the server, bytes) ->
+    /// ms. For
+    /// jitter, and to make datagrams overtake each other.
+    pub jitter: Option<Jitter>,
 }
+
+/// See [`Bench::jitter`].
+pub type Jitter = Box<dyn FnMut(u64, usize, bool, &[u8]) -> u64>;
 
 impl Bench {
     /// A match of `players` made, nobody connected yet. All clients are
@@ -135,6 +143,36 @@ impl Bench {
 
     pub fn growing(players: usize, map_id: u8, settings: Settings) -> Self {
         Self::with_dialect(players, map_id, settings, &[], &[], true)
+    }
+
+    /// A match of the per-tick protocol (`SRP_NETCODE=v069`), on the stock
+    /// grid: growing rosters, every client announcing it.
+    pub fn ticks(players: usize, map_id: u8, mut settings: Settings) -> Self {
+        settings.netcode = Netcode::Ticks {
+            grid: sync_core::Grid::STOCK,
+        };
+        let mut bench = Self::growing(players, map_id, settings);
+        for client in &mut bench.clients {
+            client.announce_ticks = true;
+        }
+        bench
+    }
+
+    /// "Player vs Bots" on the per-tick protocol.
+    pub fn ticks_vs_bots(
+        players: usize,
+        map_id: u8,
+        mut settings: Settings,
+        driven: &[usize],
+    ) -> Self {
+        settings.netcode = Netcode::Ticks {
+            grid: sync_core::Grid::STOCK,
+        };
+        let mut bench = Self::vs_bots(players, map_id, settings, driven);
+        for client in &mut bench.clients {
+            client.announce_ticks = true;
+        }
+        bench
     }
 
     /// A match of growing rosters with the server's own bots at `driven`.
@@ -231,6 +269,7 @@ impl Bench {
             one_way: Vec::new(),
             in_air: Vec::new(),
             server_busy: Duration::ZERO,
+            jitter: None,
         }
     }
 
@@ -243,11 +282,13 @@ impl Bench {
     pub fn restart(&mut self, place: usize) {
         let old = &self.clients[place];
         let (players, map_id) = (old.sim.players, old.sim.map_id);
+        let ticks = old.announce_ticks;
         self.clients[place] = if old.model.growing_roster {
             Client::growing(old.session, players, map_id)
         } else {
             Client::new(old.session, true, players, map_id)
         };
+        self.clients[place].announce_ticks = ticks;
         let port = self
             .addrs
             .iter()
@@ -266,8 +307,13 @@ impl Bench {
         let now = self.now();
         self.land(true, now);
         for (place, client) in self.clients.iter_mut().enumerate() {
-            let delay = self.one_way.get(place).copied().unwrap_or(0);
+            let way = self.one_way.get(place).copied().unwrap_or(0);
             for datagram in client.poll(self.ms) {
+                let delay = way
+                    + self
+                        .jitter
+                        .as_mut()
+                        .map_or(0, |jitter| jitter(self.ms, place, true, &datagram));
                 if delay == 0 {
                     self.server.receive(self.addrs[place], &datagram, now);
                 } else {
@@ -281,7 +327,11 @@ impl Bench {
         for (addr, datagram) in out {
             // A client that is gone hears nothing.
             if let Some(place) = self.addrs.iter().position(|each| *each == addr) {
-                let delay = self.one_way.get(place).copied().unwrap_or(0);
+                let delay = self.one_way.get(place).copied().unwrap_or(0)
+                    + self
+                        .jitter
+                        .as_mut()
+                        .map_or(0, |jitter| jitter(self.ms, place, false, &datagram));
                 if delay == 0 {
                     self.clients[place].receive(&datagram);
                 } else {

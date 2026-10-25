@@ -4539,3 +4539,9 @@ va	name	location	role	basis
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	EDI	the record copied (124h: path buffer_string +0, '/' +110h, CRC +114h, size +118h, age +11Ch, loading +120h)	observed
 0x000e0210	vostok::render::render_model_instance::destroy	ECX	the model instance whose count (+0D0h) reached 0	observed
 0x000e0210	vostok::render::render_model_instance::destroy	EAX	&its count	observed
+0x00279a60	survarium::network_messages_info_getter::get_sending_message_info	ECX	the C->S message id	observed
+0x00279a60	survarium::network_messages_info_getter::get_sending_message_info	EAX	the info out {u32 lifetime, u16 resend, u8 flags}	observed
+0x00279b10	survarium::network_messages_info_getter::get_received_message_info	ECX	the S->C message id	observed
+0x00279b10	survarium::network_messages_info_getter::get_received_message_info	EAX	the info out {u32 lifetime, u16 resend, u8 flags}	observed
+0x0027e6d0		EBX	the network client	observed
+0x0027e6d0		entry ESP+0Ch	the packet sender	observed

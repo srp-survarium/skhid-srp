@@ -109,8 +109,9 @@ use survarium::v026g::match_msgs::rules::{self, TimelimitParams, TimelimitRule, 
 use survarium::v026g::match_msgs::snapshot::{self, Rules, Sections, Standing, Statistics, event};
 use survarium::v026g::match_msgs::upload::{Pushed, Reassembler, Upload};
 use survarium::v026g::match_msgs::{
-    ClientMessage, FORCED_MISMATCH, Generation, PlayerInput, ServerMessage, TICK_MS, TimeReply,
-    WireTime, clock as game_clock, parse_client, tick_byte, tick_time,
+    ClientMessage, ClientUpdate, FORCED_MISMATCH, Generation, OwnOutcome, Outcome, PlayerInput,
+    ServerMessage, TICK_MS, TimeReply, WireTime, clock as game_clock, id as msg_id, parse_client,
+    tick_byte, tick_time,
 };
 use udp_transport::{Event, SendError, Transport};
 
@@ -123,7 +124,9 @@ mod driven;
 mod late_join;
 mod live;
 mod start;
+mod ticks;
 use late_join::{Admission, LoadingProfile};
+use ticks::{RosterChange, Ticks};
 
 /// A tick is final this long after it: the server's event horizon.
 const HORIZON_MS: u32 = 250;
@@ -580,7 +583,7 @@ struct DiscardRun {
 /// after the load (`Game::send_held_answers`).
 #[derive(Clone, Debug)]
 struct Answer {
-    message: ServerMessage,
+    said: Said,
     /// The time of the input, as its owner has it.
     time: u32,
     /// Where the others have it, if it was moved.
@@ -590,6 +593,15 @@ struct Answer {
     tracked: bool,
     /// The copy sent, until it is acked.
     serial: Option<u64>,
+}
+
+/// What an answer says.
+#[derive(Clone, Debug)]
+enum Said {
+    /// A message of its own (the stock protocol).
+    Message(ServerMessage),
+    /// An outcome, in the client's next 0xF7 (the per-tick protocol).
+    Outcome(OwnOutcome),
 }
 
 struct Peer {
@@ -799,6 +811,11 @@ struct Peer {
     /// not yet sent on ([`WAITING_RELAY_FLUSH`]), and when they may go.
     held: Vec<ServerMessage>,
     held_until: Instant,
+    /// The per-tick protocol: the outcomes of its own updates for its next
+    /// 0xF7 (`ticks`).
+    outbox: Vec<Answer>,
+    /// The ticks of its updates already handled (copies come again).
+    updates_seen: HashSet<u32>,
 }
 
 impl Peer {
@@ -921,6 +938,9 @@ pub(crate) struct Game {
     stand_ins: Vec<start::StandIn>,
     /// `SRP_RECORD_DIR`: every datagram of the match ([`super::record`]).
     recording: Option<Recording>,
+    /// The per-tick protocol's state (`SRP_NETCODE=v069`, [`ticks`]);
+    /// `None`: the stock protocol.
+    per_tick: Option<Ticks>,
 }
 
 impl Game {
@@ -929,7 +949,16 @@ impl Game {
         let players = formed.places.len();
         let rule = TimelimitRule::new(TimelimitParams::of(formed.map, players as u8));
         let walkers = driven::Walkers::new(&formed, &settings);
+        let per_tick = match settings.netcode {
+            super::Netcode::Relays => None,
+            // A lane for every place a roster can grow to.
+            super::Netcode::Ticks { grid } => Some(Ticks::new(
+                grid,
+                survarium::v026g::match_msgs::MAX_PLAYERS,
+            )),
+        };
         Self {
+            per_tick,
             id: formed.match_id,
             port,
             settings,
@@ -1227,6 +1256,10 @@ impl Game {
             }
         }
         self.reset_catchup(index, true);
+        // A new game: its updates start anew.
+        if let Some(ticks) = self.per_tick.as_mut() {
+            ticks.reset(index);
+        }
         log::info!(
             "Match {:#x}: player {index} (session {session_id:#x}) connected from {addr}",
             self.id
@@ -1332,6 +1365,8 @@ impl Game {
             relays_acked: 0,
             relays_lost: 0,
             farewell: None,
+            outbox: Vec::new(),
+            updates_seen: HashSet::new(),
         };
         // One port: the client probes it once and sends everything there.
         send(
@@ -1376,6 +1411,25 @@ impl Game {
         if self.accept_prepared(index, id, payload) {
             return;
         }
+        if id == msg_id::CLIENT_UPDATE {
+            let Some(grid) = self.per_tick.as_ref().map(|ticks| ticks.grid) else {
+                return;
+            };
+            // It left or timed out: whatever it still sends is of no match.
+            let gone = self.peers[index]
+                .as_ref()
+                .is_none_or(|peer| peer.stage == Stage::Gone);
+            match ClientUpdate::parse(payload, grid) {
+                Ok(_) if gone => {}
+                Ok(update) => self.client_update(index, update, now),
+                Err(error) => log::debug!(
+                    "Match {:#x}: player {index} sent an update that is none ({error:?}); \
+                     ignored",
+                    self.id
+                ),
+            }
+            return;
+        }
         let message = match parse_client(id, payload) {
             Ok(message) => message,
             Err(error) => {
@@ -1387,6 +1441,16 @@ impl Game {
             }
         };
         let bot = self.is_bot(index);
+        if self.per_tick.is_some()
+            && matches!(
+                message,
+                ClientMessage::Input(_) | ClientMessage::ProfileInput { .. }
+            )
+        {
+            // A game of the per-tick protocol sends its inputs in its
+            // updates (0xE2): one of these is no game of this match's.
+            return;
+        }
         let Some(peer) = self.peers[index].as_mut() else {
             return;
         };
@@ -1407,8 +1471,11 @@ impl Game {
             // A resent copy: the client is placed already.
             ClientMessage::Connect { .. } => {}
             ClientMessage::PortProbe { .. } => {
+                // With the per-tick protocol, its trailer: the game plays
+                // it, on the match's grid.
+                let ticks = self.per_tick.as_ref().map(|ticks| ticks.grid);
                 if peer.stage == Stage::Connecting
-                    && let Some(info) = self.formed.info.message(index as u8)
+                    && let Some(info) = self.formed.info.message_with(index as u8, ticks)
                 {
                     send(peer, &info);
                     peer.installed_roster = self.formed.places.len();
@@ -1905,6 +1972,24 @@ impl Game {
         } else {
             self.after_stand_ins(at)
         };
+        // The per-tick protocol: in the update of its tick, a tick still
+        // open, after the place's last change (one a tick).
+        let at = match self.per_tick.as_ref() {
+            Some(ticks) => {
+                let last = self
+                    .events
+                    .iter()
+                    .filter(|(_, who, _)| *who == index)
+                    .map(|(at, _, _)| *at)
+                    .max();
+                let at = ticks.roster_at(at);
+                match last {
+                    Some(last) if at <= last => ticks.roster_at(last + 1),
+                    _ => at,
+                }
+            }
+            None => at,
+        };
         if entered && let Some(admission) = &mut self.admissions[index] {
             admission.enter();
         }
@@ -1915,7 +2000,20 @@ impl Game {
         } else {
             ServerMessage::PlayerLeft { tick, player }
         };
-        for (other, peer) in self.peers.iter_mut().enumerate() {
+        let peers = match self.per_tick.as_mut() {
+            Some(ticks) => {
+                ticks.note_roster(RosterChange {
+                    at: sync_core::GameTime(at),
+                    place: index,
+                    entered,
+                    except,
+                });
+                // Sent with its tick's update (`ticks::close_tick`).
+                &mut [][..]
+            }
+            None => &mut self.peers[..],
+        };
+        for (other, peer) in peers.iter_mut().enumerate() {
             if Some(other) == except {
                 continue;
             }
@@ -2344,11 +2442,13 @@ impl Game {
             let Some(peer) = self.peers[index].as_ref() else {
                 return clock;
             };
+            // With the per-tick protocol: its newest update's tick.
             let newest = peer
                 .inputs_seen
                 .iter()
                 .copied()
                 .chain(peer.profiles_seen.iter().map(|(at, _)| *at))
+                .chain(self.own_made_to(index))
                 .max()
                 .map_or(0, |at| at + RESYNC_CLOCK_MARGIN_MS);
             // The game follows the last copy of the generation it took:
@@ -2535,6 +2635,22 @@ impl Game {
     /// the snapshot (given up waiting for) is from before it; never a
     /// stand-in's of its place (`start`).
     fn roster_since(&self, index: usize, time: u32) -> Vec<(u32, ServerMessage)> {
+        self.roster_events_since(index, time)
+            .into_iter()
+            .map(|(at, who, entered)| {
+                let (tick, player) = (tick_byte(at), who as u8);
+                let message = if entered {
+                    ServerMessage::PlayerEntered { tick, player }
+                } else {
+                    ServerMessage::PlayerLeft { tick, player }
+                };
+                (at, message)
+            })
+            .collect()
+    }
+
+    /// The roster changes of [`Game::roster_since`]: time, place, entered.
+    fn roster_events_since(&self, index: usize, time: u32) -> Vec<(u32, usize, bool)> {
         let early = self.peers[index]
             .as_ref()
             .and_then(|peer| peer.entered_early);
@@ -2547,15 +2663,7 @@ impl Game {
                             && early.is_some()
                             && !self.is_stand_in_event(*at, *who, *entered)))
             })
-            .map(|&(at, who, entered)| {
-                let (tick, player) = (tick_byte(at), who as u8);
-                let message = if entered {
-                    ServerMessage::PlayerEntered { tick, player }
-                } else {
-                    ServerMessage::PlayerLeft { tick, player }
-                };
-                (at, message)
-            })
+            .copied()
             .collect()
     }
 
@@ -2593,6 +2701,10 @@ impl Game {
     /// it, to a game that still plays, would be moved by that game to a
     /// tick of its own if older than its horizon.
     fn send_replay(&mut self, index: usize, time: u32, now: Instant) {
+        if self.per_tick.is_some() {
+            self.send_tick_replay(index, time, now);
+            return;
+        }
         let replay: Vec<(u32, ServerMessage)> = self
             .inputs
             .iter()
@@ -2835,7 +2947,21 @@ impl Game {
         let resync_from = self.peers[index].as_ref().and_then(|peer| peer.resync_from);
         // A client in a resync has had its replay (`send_replay`), and the
         // relays since as they came.
-        let replay: Vec<ServerMessage> = if resync_from.is_some() {
+        // The per-tick protocol: the closed updates since the snapshot, its
+        // roster changes in them for a game that enters (it keeps the
+        // leaves until its world is loaded).
+        let tick_replay: Vec<(u32, ServerMessage, bool)> =
+            if self.per_tick.is_some() && resync_from.is_none() {
+                let roster = if entering {
+                    self.roster_events_since(index, snapshot.time)
+                } else {
+                    Vec::new()
+                };
+                self.closed_updates(index, snapshot.time, &roster)
+            } else {
+                Vec::new()
+            };
+        let replay: Vec<ServerMessage> = if resync_from.is_some() || self.per_tick.is_some() {
             Vec::new()
         } else {
             self.inputs
@@ -2846,7 +2972,7 @@ impl Game {
         };
         // A game that enters: the others' entries since its world, ahead
         // of the world (`entries_since`).
-        let entries = if entering && resync_from.is_none() {
+        let entries = if entering && resync_from.is_none() && self.per_tick.is_none() {
             self.entries_since(index, snapshot.time)
         } else {
             Vec::new()
@@ -2931,6 +3057,20 @@ impl Game {
             }
         }
         peer.early_entries.clear();
+        for (at, message, has_roster) in &tick_replay {
+            let serial = if entering {
+                send_waiting(peer, message)
+            } else {
+                send_kept(peer, message)
+            };
+            if let (Some(serial), true, ServerMessage::Update(update)) =
+                (serial, *has_roster && entering, message)
+            {
+                for who in update.entered.iter() {
+                    peer.early_entries.push((*at, who.index(), serial, false));
+                }
+            }
+        }
         if peer.time_answered {
             for (at, who, message) in &entries {
                 if let Some(serial) = send_waiting(peer, message) {
@@ -3120,7 +3260,10 @@ impl Game {
         // after its load: before it, the client's 0xEA handler crashes
         // (`roster_change`). The entries sent ahead of the load
         // (`entries_since`) are not sent again.
-        let events: Vec<(u32, ServerMessage)> = if resync_from.is_some() {
+        // The per-tick protocol: they were in its updates, ahead of the
+        // load (its game keeps the leaves until its world is loaded).
+        let events: Vec<(u32, ServerMessage)> = if resync_from.is_some() || self.per_tick.is_some()
+        {
             Vec::new()
         } else {
             let sent = self.peers[index]
@@ -3235,10 +3378,18 @@ impl Game {
         let client_clock = given_clock(&peer.set_times, now).unwrap_or(clock);
         let past =
             |answer: &Answer| answer.time > time || answer.moved_to.is_some_and(|to| to > time);
+        // An outcome of the per-tick protocol for an update up to the
+        // world is put in by its game, not moved: that needs no history
+        // (`sync_core::confirm`); a confirmation needs nothing.
         let lost = held
             .iter()
             .filter(|answer| {
+                let needs_history = match answer.outcome_of() {
+                    Some(own) => own.outcome != Outcome::Confirmed && answer.time > time,
+                    None => true,
+                };
                 past(answer)
+                    && needs_history
                     && (answer.time <= time || answer.time + ANSWER_REACH_MS <= client_clock)
             })
             .count();
@@ -4890,6 +5041,8 @@ impl Game {
             self.log_transition(step, clock);
         }
         self.poll_driven(now);
+        // The per-tick protocol: the ticks due close, and their updates go.
+        self.close_ticks(now);
 
         for index in 0..self.peers.len() {
             self.check_in_flight(index, now);
@@ -5794,7 +5947,7 @@ impl Answer {
     /// To a player input at `time` (0xF1/0xF2, or 0xEF/0xF0 to `moved_to`).
     fn input(message: ServerMessage, time: u32, moved_to: Option<u32>) -> Self {
         Self {
-            message,
+            said: Said::Message(message),
             time,
             moved_to,
             tracked: true,
@@ -5809,6 +5962,29 @@ impl Answer {
             ..Self::input(message, time, moved_to)
         }
     }
+
+    /// An update's outcome (the per-tick protocol): it goes in an 0xF7,
+    /// which is tracked as a whole.
+    fn outcome(own: OwnOutcome) -> Self {
+        Self {
+            said: Said::Outcome(own),
+            time: own.update.0,
+            moved_to: match own.outcome {
+                Outcome::Moved { to } => Some(to.0),
+                Outcome::Confirmed | Outcome::Discarded => None,
+            },
+            tracked: false,
+            serial: None,
+        }
+    }
+
+    /// The outcome it says, if it is one.
+    fn outcome_of(&self) -> Option<OwnOutcome> {
+        match self.said {
+            Said::Outcome(own) => Some(own),
+            Said::Message(_) => None,
+        }
+    }
 }
 
 /// Tell a client what became of an input of its own, or hold that from the
@@ -5816,7 +5992,8 @@ impl Answer {
 /// match.md section 30): its history is cleared, and whether it takes a
 /// drop or a move then is not settled; after the load it does. A sent
 /// answer is remembered until acked: if the client's resync begins before
-/// it arrives, it goes again after the load.
+/// it arrives, it goes again after the load. An outcome of the per-tick
+/// protocol waits in its outbox for its next 0xF7 (`ticks`).
 fn answer_owner(peer: &mut Peer, mut answer: Answer, now: Instant) {
     if peer.resync_from.is_some() {
         // Its inputs on its new clock are in time: these are mostly the
@@ -5826,7 +6003,14 @@ fn answer_owner(peer: &mut Peer, mut answer: Answer, now: Instant) {
         }
         return;
     }
-    answer.serial = send_drop_order(peer, &answer.message, now);
+    let message = match &answer.said {
+        Said::Message(message) => message.clone(),
+        Said::Outcome(_) => {
+            peer.outbox.push(answer);
+            return;
+        }
+    };
+    answer.serial = send_drop_order(peer, &message, now);
     let Some(serial) = answer.serial else {
         return;
     };
@@ -5838,6 +6022,11 @@ fn answer_owner(peer: &mut Peer, mut answer: Answer, now: Instant) {
             answer.moved_to.unwrap_or(answer.time),
         );
     }
+    remember_answer(peer, answer);
+}
+
+/// An answer sent (its `serial` set): kept until acked.
+fn remember_answer(peer: &mut Peer, answer: Answer) {
     let transport = &peer.transport;
     peer.sent_answers.retain(|sent| {
         sent.serial

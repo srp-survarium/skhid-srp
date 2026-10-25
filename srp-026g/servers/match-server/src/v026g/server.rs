@@ -407,7 +407,24 @@ impl Server {
             self.games.insert(seat.match_id, game);
         }
         let growing = survarium::v026g::match_msgs::late_join::has_connect_capability(debug);
-        if (growing && debug == 0x81) || (!growing && debug != 0) {
+        let ticks = survarium::v026g::match_msgs::late_join::speaks_ticks(debug);
+        if let super::Netcode::Ticks { .. } = self.settings.netcode {
+            if !ticks {
+                // One supported client: a game of the stock protocol has no
+                // place in a match of the per-tick one (`SRP_NETCODE`).
+                log::warn!(
+                    "{addr} (session {session_id:#x}) does not speak the per-tick protocol \
+                     (0xD8 byte {debug:#04x}) and this server plays it: turned away"
+                );
+                transport.disconnect(now);
+                self.pending.insert(addr, transport);
+                return;
+            }
+            transport.set_table(udp_transport::Table::MatchTicks);
+        }
+        if (growing && survarium::v026g::match_msgs::late_join::runs_debug(debug))
+            || (!growing && debug != 0)
+        {
             log::info!(
                 "{addr} (session {session_id:#x}) runs with -debug_hash_mismatch: a stock client \
                  like it would read an upload request (0xF6) as a world to compare"

@@ -107,3 +107,6 @@ extern engine_cc_bool
 ; unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
 ; 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX
 extern engine_binded_action
+; void engine_writer_write(void *writer, const void *source, unsigned int length)
+; 0x7ac10 vostok::network_core::buffer_writer::w: writer ESP+4, source ESP+8, length EDI; pops 8
+extern engine_writer_write

@@ -28,7 +28,7 @@ use super::super::loadouts::Loadout;
 use super::super::skills::{MODIFIERS, write_modifier_block};
 use super::super::{lzma2, maps};
 use super::snapshot::event;
-use super::{MAX_PLAYERS, ServerMessage};
+use super::{Grid, MAX_PLAYERS, ServerMessage, TickLen};
 
 /// A profile holds 3 kits.
 pub const MAX_KITS: usize = 3;
@@ -354,6 +354,9 @@ pub enum StaticInfoError {
     Lzma2,
     /// Reading: the local index is not below N.
     LocalIndex { index: u8, roster: u8 },
+    /// Reading: a per-tick trailer of another version, or of a tick the
+    /// game cannot run.
+    TicksTrailer { tick_ms: u8, version: u8 },
 }
 
 impl std::fmt::Display for StaticInfoError {
@@ -389,6 +392,9 @@ impl std::fmt::Display for StaticInfoError {
             Self::Lzma2 => write!(f, "not a stored LZMA2 stream"),
             Self::LocalIndex { index, roster } => {
                 write!(f, "local index {index} in a roster of {roster}")
+            }
+            Self::TicksTrailer { tick_ms, version } => {
+                write!(f, "a per-tick trailer of {tick_ms} ms, version {version}")
             }
         }
     }
@@ -642,9 +648,16 @@ impl StaticInfo {
     /// 0xE4 for the client at roster place `local_index`. `None`: no such
     /// place (the client would have no local player).
     pub fn message(&self, local_index: u8) -> Option<ServerMessage> {
+        self.message_with(local_index, None)
+    }
+
+    /// As [`StaticInfo::message`], with the per-tick protocol's trailer
+    /// when `ticks` ([`ticks_trailer`]).
+    pub fn message_with(&self, local_index: u8, ticks: Option<Grid>) -> Option<ServerMessage> {
         (local_index < self.roster).then(|| ServerMessage::StaticInfo {
             local_index,
             lzma2: self.lzma2.clone(),
+            ticks,
         })
     }
 
@@ -856,10 +869,52 @@ pub fn parse_options(
 
 /// Reads a 0xE4 payload as the client at its local index would: the
 /// index, the stored LZMA2 stream, the options. For tests.
+/// The per-tick protocol's trailer of 0xE4 (`netcode_port_069.md` 6.5):
+/// after the LZMA2 stream, the match's tick in ms, the protocol's version
+/// ([`sync_core::wire::VERSION`]) and the magic `SRPT`. Sent only to a
+/// client that announced the protocol in its 0xD8; its patch reads the
+/// trailer from the end of the message and gives the stock handler the
+/// message without it.
+pub const TICKS_MAGIC: [u8; 4] = *b"SRPT";
+pub const TICKS_TRAILER_LEN: usize = 6;
+
+pub fn ticks_trailer(grid: Grid) -> [u8; TICKS_TRAILER_LEN] {
+    let [s, r, p, t] = TICKS_MAGIC;
+    [
+        grid.tick_ms() as u8,
+        sync_core::wire::VERSION,
+        s,
+        r,
+        p,
+        t,
+    ]
+}
+
+/// A 0xE4 payload without its per-tick trailer, and the grid the trailer
+/// gives: `None` when it has none. `Err` for a trailer of another version
+/// or tick.
+pub fn split_ticks_trailer(payload: &[u8]) -> Result<(&[u8], Option<Grid>), StaticInfoError> {
+    let Some(at) = payload.len().checked_sub(TICKS_TRAILER_LEN) else {
+        return Ok((payload, None));
+    };
+    let (body, trailer) = payload.split_at(at);
+    if trailer[2..] != TICKS_MAGIC {
+        return Ok((payload, None));
+    }
+    let tick = TickLen::from_ms(trailer[0].into())
+        .filter(|_| trailer[1] == sync_core::wire::VERSION)
+        .ok_or(StaticInfoError::TicksTrailer {
+            tick_ms: trailer[0],
+            version: trailer[1],
+        })?;
+    Ok((body, Some(Grid::of(tick))))
+}
+
 pub fn parse_payload(
     payload: &[u8],
     dictionary: &Dictionary,
 ) -> Result<(u8, MatchOptions), StaticInfoError> {
+    let (payload, _) = split_ticks_trailer(payload)?;
     let (&index, stream) = payload.split_first().ok_or(StaticInfoError::Truncated)?;
     let bytes = lzma2::unstore(stream).ok_or(StaticInfoError::Lzma2)?;
     let options = parse_options(&bytes, dictionary)?;

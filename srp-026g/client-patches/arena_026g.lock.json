@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 178360,
-  "sha256": "07236c9992bbd57ca7be9de73cf888b0646914df37846f992998e2c4a3286769",
+  "size": 200244,
+  "sha256": "22b6946234b56f58d632399f6c866c362070dbe832d05e3120cac090f78c76a1",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,7 +22,7 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 1230
+      "size": 1258
     },
     "match_keys.code": {
       "kind": "code",
@@ -68,6 +68,16 @@
       "kind": "code",
       "va": "0xa455000",
       "size": 14520
+    },
+    "netcode.code": {
+      "kind": "code",
+      "va": "0xa459000",
+      "size": 10668
+    },
+    "netcode.state": {
+      "kind": "state",
+      "va": "0xa45c000",
+      "size": 7732
     }
   },
   "symbols": {
@@ -138,6 +148,7 @@
     "engine_write_u16": "0xa4320b0",
     "engine_write_u32": "0xa4320e0",
     "engine_write_u8": "0xa432080",
+    "engine_writer_write": "0xa4324d0",
     "hide_chat": "0xa434048",
     "hide_ui_lobby": "0xa43511c",
     "hide_ui_match": "0xa435000",
@@ -150,6 +161,19 @@
     "memcpy": "0xa42ebbf",
     "memset": "0xa42e65c",
     "message_hook": "0xa455112",
+    "netcode_connect": "0xa4590ab",
+    "netcode_dispatch": "0xa459000",
+    "netcode_length": "0xa459049",
+    "netcode_own_input": "0xa4590bf",
+    "netcode_own_input_hook": "0xa45982f",
+    "netcode_own_profile": "0xa4590e9",
+    "netcode_own_profile_hook": "0xa4598a7",
+    "netcode_received_info": "0xa459087",
+    "netcode_send": "0xa4598fb",
+    "netcode_send_info": "0xa459063",
+    "netcode_static_info": "0xa459ef4",
+    "netcode_synchronize": "0xa459112",
+    "netcode_update": "0xa45a02c",
     "research_hud": "0xa42d005",
     "research_register": "0xa42d000",
     "research_welcome": "0xa42d00a",

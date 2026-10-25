@@ -21,7 +21,7 @@
 //!
 //! Every choice is listed in [`Report`].
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
 use survarium::v026g::dictionary::Dictionary;
@@ -31,8 +31,12 @@ use survarium::v026g::maps;
 use survarium::v026g::match_msgs::snapshot;
 use survarium::v026g::match_msgs::static_info;
 use survarium::v026g::match_msgs::upload::{Chunk, Pushed, Reassembler};
-use survarium::v026g::match_msgs::{mask_bytes, tick_time};
-use udp_transport::table::{Direction, Table};
+use survarium::v026g::match_msgs::{
+    ClientUpdate, GameTime, Grid, Update, mask_bytes, tick_time,
+};
+use sync_core::confirm::{Action, OwnInputs};
+use sync_core::wire::Input;
+use udp_transport::table::{CLIENT_UPDATE, Direction, SERVER_UPDATE, Table};
 use udp_transport::wire;
 
 use super::record::{self, IN, NOTE, OUT, Record, RecordRef};
@@ -120,6 +124,10 @@ pub struct Report {
     /// What the transport parser said, by direction, for those.
     pub unparsed_why: BTreeMap<String, usize>,
     pub inputs: usize,
+    /// The per-tick protocol: the server's updates (0xF7) and the places'
+    /// own (0xE2) read, copies once.
+    pub updates: usize,
+    pub own_updates: usize,
     pub input_copies: usize,
     pub input_conflicts: usize,
     pub dropped_future: usize,
@@ -343,6 +351,133 @@ struct Gather {
     options: BTreeMap<u8, Vec<u8>>,
     /// The options of each roster, and when a 0xE4 of it first went out.
     rosters: BTreeMap<u8, (u32, static_info::MatchOptions)>,
+    /// A match of the per-tick protocol: its updates.
+    ticks: TickRecords,
+}
+
+/// What is read of a match of the per-tick protocol (`game/ticks.rs`):
+/// every time is a u32 there, so nothing is read against a clock. The
+/// others' inputs and the roster changes come in the server's updates
+/// (0xF7); a place's own inputs in its own updates (0xE2), put where the
+/// outcomes the server sent it say (the place's own game does the same,
+/// `sync_core::confirm`): so a match of one player against the server's
+/// bots has the player's inputs too.
+#[derive(Default)]
+struct TickRecords {
+    /// From the 0xE4's per-tick trailer.
+    grid: Option<Grid>,
+    /// The parts of the 0xF7s, by place and unique id.
+    parts: HashMap<(u8, u8), Assembly>,
+    own: HashMap<u8, OwnRecords>,
+    inputs: BTreeMap<(u32, u8), InputValue>,
+    profiles: BTreeMap<(u32, u8), u8>,
+    entered: BTreeMap<(u32, u8), ()>,
+    left: BTreeMap<(u32, u8), ()>,
+}
+
+/// A split message's parts: how many, and those come, by index.
+type Assembly = (u8, BTreeMap<u8, Vec<u8>>);
+
+/// A place's own updates and what became of them.
+#[derive(Default)]
+struct OwnRecords {
+    book: OwnInputs,
+    seen: HashSet<u32>,
+    inputs: BTreeMap<u32, InputValue>,
+    profiles: BTreeMap<u32, u8>,
+}
+
+impl TickRecords {
+    /// A place's own update (0xE2), once.
+    fn own_update(&mut self, place: u8, payload: &[u8]) -> bool {
+        let Some(grid) = self.grid else {
+            return false;
+        };
+        let Ok(update) = ClientUpdate::parse(payload, grid) else {
+            return false;
+        };
+        let own = self.own.entry(place).or_default();
+        if !own.seen.insert(update.tick.0) {
+            return false;
+        }
+        own.book.sent(&update);
+        for input in update.inputs() {
+            own.inputs
+                .insert(input.time(update.tick).0, input_value(input));
+        }
+        for value in update.profiles() {
+            own.profiles.insert(update.tick.0, *value);
+        }
+        true
+    }
+
+    /// The server's update to `place` (0xF7), whole.
+    fn server_update(&mut self, place: u8, payload: &[u8]) -> bool {
+        let Some(grid) = self.grid else {
+            return false;
+        };
+        let Ok(update) = Update::parse(payload, grid) else {
+            return false;
+        };
+        let tick = update.tick.0;
+        for each in &update.inputs {
+            let time = each.input.time(update.tick).0;
+            self.inputs
+                .entry((time, each.place.get()))
+                .or_insert_with(|| input_value(&each.input));
+        }
+        for each in &update.profiles {
+            self.profiles
+                .entry((tick, each.place.get()))
+                .or_insert(each.value);
+        }
+        for who in update.entered.iter() {
+            self.entered.insert((tick, who.get()), ());
+        }
+        for who in update.left.iter() {
+            self.left.insert((tick, who.get()), ());
+        }
+        let own = self.own.entry(place).or_default();
+        for outcome in &update.outcomes {
+            let mut actions = Vec::new();
+            own.book
+                .resolve(*outcome, GameTime(0), &mut |action| actions.push(action));
+            for action in actions {
+                match action {
+                    Action::DiscardInput { time } => {
+                        own.inputs.remove(&time.0);
+                    }
+                    Action::DiscardProfile { time } => {
+                        own.profiles.remove(&time.0);
+                    }
+                    Action::MoveInput { from, to } => {
+                        if let Some(value) = own.inputs.remove(&from.0) {
+                            own.inputs.insert(to.0, value);
+                        }
+                    }
+                    Action::MoveProfile { from, to } => {
+                        if let Some(value) = own.profiles.remove(&from.0) {
+                            own.profiles.insert(to.0, value);
+                        }
+                    }
+                    Action::InsertInput { time, input } => {
+                        own.inputs.insert(time.0, input_value(&input));
+                    }
+                    Action::InsertProfile { time, value } => {
+                        own.profiles.insert(time.0, value);
+                    }
+                }
+            }
+        }
+        true
+    }
+}
+
+fn input_value(input: &Input) -> InputValue {
+    InputValue {
+        rotation: input.rotation,
+        actions: input.actions & !INPUT_FLAG,
+    }
 }
 
 impl Gather {
@@ -369,6 +504,7 @@ impl Gather {
             worlds: BTreeMap::new(),
             options: BTreeMap::new(),
             rosters: BTreeMap::new(),
+            ticks: TickRecords::default(),
         })
     }
 
@@ -382,12 +518,20 @@ impl Gather {
         let place = self.places.entry(record.place).or_default();
         if record.kind == IN {
             report.datagrams_in += 1;
-            let Ok(datagram) = wire::parse(Table::Match, Direction::ToServer, record.bytes, 0)
+            // The per-tick protocol's table is the stock one and 0xE2, 0xF7.
+            let Ok(datagram) =
+                wire::parse(Table::MatchTicks, Direction::ToServer, record.bytes, 0)
             else {
                 report.unparsed += 1;
                 return;
             };
             for message in &datagram.messages {
+                if message.id == CLIENT_UPDATE {
+                    if self.ticks.own_update(record.place, message.payload) {
+                        report.own_updates += 1;
+                    }
+                    continue;
+                }
                 if message.id != wire::UPLOAD_CARRIER
                     || message.part.is_some()
                     || message.payload.is_empty()
@@ -417,7 +561,7 @@ impl Gather {
         } else {
             mask_bytes(place.roster)
         };
-        let parsed = wire::parse(Table::Match, Direction::ToClient, record.bytes, mask_len);
+        let parsed = wire::parse(Table::MatchTicks, Direction::ToClient, record.bytes, mask_len);
         let datagram = match parsed {
             Ok(datagram) => datagram,
             Err(error) => {
@@ -448,7 +592,15 @@ impl Gather {
                     }
                     let whole: Vec<u8> = parts.values().flatten().copied().collect();
                     place.options.remove(&x);
-                    if let Ok((_, parsed)) = static_info::parse_payload(&whole, dictionary) {
+                    // The per-tick protocol's trailer: the match's grid, and
+                    // no part of the options' stream.
+                    let Ok((whole, grid)) = static_info::split_ticks_trailer(&whole) else {
+                        continue;
+                    };
+                    if let Some(grid) = grid {
+                        self.ticks.grid.get_or_insert(grid);
+                    }
+                    if let Ok((_, parsed)) = static_info::parse_payload(whole, dictionary) {
                         let roster = parsed.players.len() as u8;
                         place.roster = roster;
                         self.options
@@ -457,6 +609,32 @@ impl Gather {
                         let clock = (i64::from(record.at_ms) - self.offset).max(0) as u32;
                         let first = self.rosters.entry(roster).or_insert((clock, parsed));
                         first.0 = first.0.min(clock);
+                    }
+                    continue;
+                }
+                // The per-tick protocol's update, whole: read as it comes.
+                SERVER_UPDATE => {
+                    let Some(x) = message.x else { continue };
+                    let key = (record.place, x);
+                    let (count, parts) = self.ticks.parts.entry(key).or_insert((1, BTreeMap::new()));
+                    match message.part {
+                        Some(part) => {
+                            if let Some(n) = part.count {
+                                *count = n;
+                            }
+                            parts.insert(part.index, payload.to_vec());
+                            if parts.len() < usize::from(*count) {
+                                continue;
+                            }
+                        }
+                        None => {
+                            parts.insert(0, payload.to_vec());
+                        }
+                    }
+                    let whole: Vec<u8> = parts.values().flatten().copied().collect();
+                    self.ticks.parts.remove(&key);
+                    if self.ticks.server_update(record.place, &whole) {
+                        report.updates += 1;
                     }
                     continue;
                 }
@@ -508,6 +686,7 @@ fn finish(
         worlds,
         options,
         rosters,
+        ticks,
     } = gathered;
     // The places' half-read uploads and options are of no use now.
     drop(places);
@@ -645,6 +824,32 @@ fn finish(
     }
     drop(copies);
     report.messages_lost = kept.iter().filter(|kept| !**kept).count();
+    // The per-tick protocol's events: the others' as the server sent them,
+    // each place's own as its outcomes left them.
+    let TickRecords {
+        inputs: tick_inputs,
+        profiles: tick_profiles,
+        entered: tick_entered,
+        left: tick_left,
+        own,
+        ..
+    } = ticks;
+    for ((time, player), value) in tick_inputs {
+        keep_value(&mut inputs, &mut report, time, player, value);
+    }
+    for (place, own) in own {
+        for (time, value) in own.inputs {
+            keep_value(&mut inputs, &mut report, time, place, value);
+        }
+        for (time, value) in own.profiles {
+            profiles.entry((time, place)).or_insert(value);
+        }
+    }
+    for (key, value) in tick_profiles {
+        profiles.entry(key).or_insert(value);
+    }
+    entered.extend(tick_entered);
+    left.extend(tick_left);
 
     report.inputs = inputs.len();
     report.profiles = profiles.len();
@@ -1134,15 +1339,26 @@ fn keep_input(
     bytes: &[u8],
 ) {
     let actions = u32::from_le_bytes(bytes[4..8].try_into().expect("4 bytes"));
+    if actions & INPUT_FLAG != 0 && !inputs.contains_key(&(time, player)) {
+        report.flagged_inputs += 1;
+    }
     let value = InputValue {
         rotation: bytes[0..4].try_into().expect("4 bytes"),
         actions: actions & !INPUT_FLAG,
     };
+    keep_value(inputs, report, time, player, value);
+}
+
+/// An input's value kept for its time and player, once.
+fn keep_value(
+    inputs: &mut BTreeMap<(u32, u8), InputValue>,
+    report: &mut Report,
+    time: u32,
+    player: u8,
+    value: InputValue,
+) {
     match inputs.get(&(time, player)) {
         None => {
-            if actions & INPUT_FLAG != 0 {
-                report.flagged_inputs += 1;
-            }
             inputs.insert((time, player), value);
         }
         Some(known) if *known == value => report.input_copies += 1,
@@ -1356,6 +1572,87 @@ mod tests {
                     .map(move |i| (r.event.time, i.0, i.1.actions))
             })
             .collect()
+    }
+
+    /// A match of the per-tick protocol, one player and a bot: the
+    /// player's own inputs are only in its updates (0xE2) and the outcomes
+    /// it was sent; the bot's in the server's updates to the player.
+    #[test]
+    fn a_per_tick_recording_has_the_own_inputs_where_the_outcomes_put_them() {
+        use survarium::v026g::match_msgs::{
+            OwnOutcome, Outcome, PlaceInput, Places, ServerMessage,
+        };
+        use sync_core::wire::{CLIENT_UPDATE_MAX, Place};
+        let mut records: Vec<Record> = recording()
+            .into_iter()
+            .filter(|record| record.kind != OUT || record.bytes[3] == 0xE4)
+            .collect();
+        // Its 0xE4s with the trailer.
+        for record in &mut records {
+            if record.kind == OUT && record.bytes[3] == 0xE4 {
+                record
+                    .bytes
+                    .extend(static_info::ticks_trailer(Grid::STOCK));
+            }
+        }
+        let own = |tick: u32, back: u8, actions: u32| {
+            let mut update = ClientUpdate::empty(GameTime(tick));
+            if actions != 0 {
+                update
+                    .push_input(Input {
+                        back,
+                        rotation: [1, 2, 3, 4],
+                        actions,
+                    })
+                    .unwrap();
+            }
+            let mut bytes = vec![0; CLIENT_UPDATE_MAX];
+            let len = update.write(&mut bytes).unwrap();
+            bytes.truncate(len);
+            bytes
+        };
+        // Player 0: 1000 confirmed; 1050 (3 ms back) moved to 1150; 1100
+        // discarded; a copy of 1000.
+        for (at, tick, back, actions) in [
+            (2300, 1000, 0, 0x10),
+            (2310, 1000, 0, 0x10),
+            (2350, 1050, 3, 0x11),
+            (2400, 1100, 0, 0x12),
+            (2450, 1150, 0, 0),
+        ] {
+            records.push(datagram(IN, 0, at, CLIENT_UPDATE, None, &own(tick, back, actions)));
+        }
+        let mut update = Update::empty(GameTime(1150));
+        update.entered = Places::EMPTY.with(Place::new(1).unwrap());
+        update.inputs.push(PlaceInput {
+            place: Place::new(1).unwrap(),
+            input: Input {
+                back: 0,
+                rotation: [5, 6, 7, 8],
+                actions: 0x20,
+            },
+        });
+        for (update_tick, outcome) in [
+            (1000, Outcome::Confirmed),
+            (1050, Outcome::Moved { to: GameTime(1150) }),
+            (1100, Outcome::Discarded),
+        ] {
+            update.outcomes.push(OwnOutcome {
+                update: GameTime(update_tick),
+                outcome,
+            });
+        }
+        let payload = ServerMessage::Update(update).payload();
+        records.push(datagram(OUT, 0, 2500, SERVER_UPDATE, Some(7), &payload));
+        records.sort_by_key(|record| record.at_ms);
+        let (file, report) = convert(&records, b"config", Settings::default()).unwrap();
+        assert_eq!(report.unparsed, 0, "{:?}", report.unparsed_why);
+        assert_eq!((report.updates, report.own_updates), (1, 4));
+        assert_eq!(
+            inputs_of(&file),
+            [(1000, 0, 0x10), (1147, 0, 0x11), (1150, 1, 0x20)]
+        );
+        assert!(report.roster_events.contains(&(1150, 'E', 1)));
     }
 
     #[test]

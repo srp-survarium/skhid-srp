@@ -68,7 +68,7 @@ impl PacketLog {
     /// `lobby`.
     pub fn connection(&self, table: Table, peer: SocketAddr) -> io::Result<ConnectionLog> {
         let kind = match table {
-            Table::Match => "match",
+            Table::Match | Table::MatchTicks => "match",
             Table::Lobby => "lobby",
         };
         let address: String = peer

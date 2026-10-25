@@ -8,6 +8,12 @@
 //!   0xD8..=0xE1. Only E4, E8 and F6 are variable; six server ids are
 //!   unique; nothing is ordered; ED/EE have a length that depends on their
 //!   content and the roster size.
+//! - **MatchTicks**: the match of the per-tick protocol (a patched client
+//!   that announced it, on a server that speaks it; `netcode_port_069.md`
+//!   5.1, 5.2): the match table and one id more each way, the client's
+//!   tables relocated by its patch. Client 0xE2 is its update of a tick
+//!   (variable, plain, sent until acked every 50 ms); server 0xF7 the
+//!   server's (variable, unique so that it splits, 500 ms every 50 ms).
 //! - **Lobby** (client vtable 0xA07FA8): server ids 0x80..=0xAA, client ids
 //!   0x2E..=0x50. Every id is variable. Every client id is unique. Server
 //!   ids are unique, or unique and ordered (flags 0x60: the x byte is then
@@ -23,8 +29,15 @@ use std::time::Duration;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Table {
     Match,
+    /// A match on the per-tick protocol: [`Table::Match`] and 0xE2, 0xF7.
+    MatchTicks,
     Lobby,
 }
+
+/// The client's update of a tick (`MatchTicks`).
+pub const CLIENT_UPDATE: u8 = 0xE2;
+/// The server's update of a tick (`MatchTicks`).
+pub const SERVER_UPDATE: u8 = 0xF7;
 
 /// Who sends the message.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -152,11 +165,18 @@ const fn lobby(class: Class) -> MessageInfo {
 }
 
 impl Table {
+    /// Whether it is a match's (either protocol).
+    pub fn is_match(self) -> bool {
+        matches!(self, Table::Match | Table::MatchTicks)
+    }
+
     /// The id range of a direction (the table object's bytes +4..+7).
     pub fn range(self, direction: Direction) -> (u8, u8) {
         match (self, direction) {
             (Table::Match, Direction::ToClient) => (0xE3, 0xF6),
             (Table::Match, Direction::ToServer) => (0xD8, 0xE1),
+            (Table::MatchTicks, Direction::ToClient) => (0xE3, SERVER_UPDATE),
+            (Table::MatchTicks, Direction::ToServer) => (0xD8, CLIENT_UPDATE),
             (Table::Lobby, Direction::ToClient) => (0x80, 0xAA),
             (Table::Lobby, Direction::ToServer) => (0x2E, 0x50),
         }
@@ -170,6 +190,8 @@ impl Table {
         let info = match (self, direction) {
             (Table::Match, Direction::ToServer) => match_to_server(id),
             (Table::Match, Direction::ToClient) => match_to_client(id),
+            (Table::MatchTicks, Direction::ToServer) => match_ticks_to_server(id),
+            (Table::MatchTicks, Direction::ToClient) => match_ticks_to_client(id),
             (Table::Lobby, Direction::ToServer) => Some(lobby(Class::Unique)),
             (Table::Lobby, Direction::ToClient) => lobby_to_client(id),
         };
@@ -196,9 +218,39 @@ impl Table {
     /// Match 100 ms (0x27A120), lobby 500 ms (0x26F0E8).
     pub fn client_idle(self) -> Duration {
         match self {
-            Table::Match => ms(100),
+            Table::Match | Table::MatchTicks => ms(100),
             Table::Lobby => ms(500),
         }
+    }
+}
+
+/// Client → server, a match of the per-tick protocol: the match's, and its
+/// update of a tick, kept until acked (its outcome comes only for an update
+/// the server has).
+fn match_ticks_to_server(id: u8) -> Option<MessageInfo> {
+    match id {
+        CLIENT_UPDATE => Some(MessageInfo {
+            length: Length::Variable {
+                first_min: 1,
+                part_min: 1,
+            },
+            class: Class::Plain,
+            lifetime: Lifetime::Forever,
+            resend: ms(50),
+        }),
+        _ => match_to_server(id),
+    }
+}
+
+/// Server → client, a match of the per-tick protocol: the match's, and the
+/// update of a tick (unique: a large one splits; the receiver drops a copy).
+fn match_ticks_to_client(id: u8) -> Option<MessageInfo> {
+    match id {
+        SERVER_UPDATE => Some(MessageInfo {
+            resend: ms(50),
+            ..unique_variable(1, 1, Lifetime::For(ms(500)))
+        }),
+        _ => match_to_client(id),
     }
 }
 
@@ -367,6 +419,45 @@ mod tests {
             Table::Match.lookup(Direction::ToServer, 0xE2),
             Lookup::OutOfRange
         );
+    }
+
+    #[test]
+    fn the_per_tick_match_table_is_the_match_and_one_id_more_each_way() {
+        for direction in [Direction::ToClient, Direction::ToServer] {
+            let (low, high) = Table::Match.range(direction);
+            for id in low..=high {
+                assert_eq!(
+                    Table::MatchTicks.lookup(direction, id),
+                    Table::Match.lookup(direction, id),
+                    "{id:#04x}"
+                );
+            }
+        }
+        let update = Table::MatchTicks
+            .info(Direction::ToServer, CLIENT_UPDATE)
+            .unwrap();
+        assert!(matches!(update.length, Length::Variable { .. }));
+        assert_eq!(
+            (update.class, update.lifetime, update.resend),
+            (Class::Plain, Lifetime::Forever, ms(50))
+        );
+        let update = Table::MatchTicks
+            .info(Direction::ToClient, SERVER_UPDATE)
+            .unwrap();
+        assert!(matches!(update.length, Length::Variable { .. }));
+        assert_eq!(
+            (update.class, update.lifetime, update.resend),
+            (Class::Unique, Lifetime::For(ms(500)), ms(50))
+        );
+        assert_eq!(
+            Table::MatchTicks.lookup(Direction::ToClient, 0xF8),
+            Lookup::OutOfRange
+        );
+        assert_eq!(
+            Table::Match.lookup(Direction::ToClient, SERVER_UPDATE),
+            Lookup::OutOfRange
+        );
+        assert!(Table::MatchTicks.is_match() && !Table::Lobby.is_match());
     }
 
     #[test]

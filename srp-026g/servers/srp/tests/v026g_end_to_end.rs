@@ -1252,6 +1252,7 @@ impl BotRun {
             kit: None,
             drive,
             revision: survarium::v026g::match_msgs::late_join::PATCH_REVISION,
+            protocol: srp::bot::Protocol::Stock,
         };
         let print: srp::bot::Print = {
             let lines = lines.clone();
