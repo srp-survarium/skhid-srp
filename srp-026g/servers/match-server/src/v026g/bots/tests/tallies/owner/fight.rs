@@ -17,6 +17,13 @@ pub(super) struct FightCounts {
     /// Fire ticks by weapon class and band; hits by the same.
     pub(super) fire: BTreeMap<&'static str, [u32; 5]>,
     pub(super) hits_band: BTreeMap<&'static str, [u32; 5]>,
+    /// By weapon class with a players' range ([`CLASS_RANGE_M`]): fire
+    /// ticks with an enemy in the view and those of them past the range;
+    /// hits and those from past it; the ticks the range alone held the
+    /// shot.
+    pub(super) fire_range: BTreeMap<&'static str, [u32; 2]>,
+    pub(super) hits_range: BTreeMap<&'static str, [u32; 2]>,
+    pub(super) range_held: BTreeMap<&'static str, u32>,
     /// Fire ticks and hits by the shooter's movement ([`MOVES`]).
     pub(super) fire_move: [u32; 5],
     pub(super) hits_move: [u32; 5],
@@ -66,6 +73,33 @@ pub(crate) const FIRE_ON_DEG: f32 = 10.0;
 pub(crate) const FIRE_BANDS: [f32; 5] = [10.0, 20.0, 35.0, 50.0, 80.0];
 
 pub(crate) const FIRE_MIN_M: f32 = 2.0;
+
+/// Fire past the weapon class's range (X1, `x1_hit_by_distance.py`,
+/// `range_cap`): the enemy nearest the view within [`FIRE_ON_DEG`], at
+/// [`FIRE_MIN_M`] to this many metres (past the bolt's range and the
+/// ceilings of `choose`), is the fire's distance.
+pub(crate) const FIRE_FAR_M: f32 = 130.0;
+
+/// The players' range by weapon class, m: the p95 of the distance of the
+/// hit runs of the best players of the 402 live matches with 12 or more
+/// people (`player_bots_weapons.md`). The yardstick of the counts, whatever
+/// the bots' tuning is (`CombatTuning::range_floor_*_m` is that tuning);
+/// the pistols and machine guns have none.
+pub(crate) const CLASS_RANGE_M: [(&str, f32); 5] = [
+    ("rifle", 65.0),
+    ("smg", 58.0),
+    ("shotgun", 49.0),
+    ("marksman", 74.0),
+    ("bolt", 105.0),
+];
+
+/// The players' range of a weapon class ([`CLASS_RANGE_M`]).
+pub(crate) fn class_range_m(class: &str) -> Option<f32> {
+    CLASS_RANGE_M
+        .iter()
+        .find(|(name, _)| *name == class)
+        .map(|&(_, range)| range)
+}
 
 /// Turned on the shooter (`turn_hit.py`): hits this far apart start a
 /// case, ms; from more than this off the view, degrees; turned when the
@@ -327,6 +361,52 @@ pub(crate) fn fire_counts_by_the_range_of_the_enemy_in_view() {
     assert_eq!(json["fire_by_class"][class], serde_json::json!([0, 0, 10, 0, 0]), "{json}");
 }
 
+#[test]
+pub(crate) fn fire_past_the_class_range_is_counted_with_its_hits_and_the_shots_the_range_held() {
+    let (mut game, mut tally) = made_up(&[0, 1, 0, 1]);
+    let class = game.bodies[0].gun.class();
+    let range = class_range_m(class).expect("the stand-in's weapon has a players' range");
+    play(&mut game, &mut tally, 10, |k, game| {
+        // Bot 0 fires facing +z at an enemy 5 m inside the class's range,
+        // bot 2 at one 5 m past it; one hit each; bot 2's shot is held for
+        // the range alone on 3 of the ticks.
+        put(game, 0, 5.0, 5.0, key::FIRE);
+        put(game, 1, 5.0, 5.0 + range - 5.0, 0);
+        put(game, 2, 25.0, 5.0, key::FIRE);
+        put(game, 3, 25.0, 5.0 + range + 5.0, 0);
+        game.bodies[0].yaw = 0.0;
+        game.bodies[2].yaw = 0.0;
+        if k == 5 {
+            game.hit_log.extend([(game.tick, 0, 1), (game.tick, 2, 3)]);
+        }
+        let mut nows = vec![bot_now(); 4];
+        nows[2].as_mut().unwrap().range_held = k < 3;
+        nows
+    });
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["fire_past_class_range"][class], serde_json::json!([20, 10]), "{json}");
+    assert_eq!(json["hits_past_class_range"][class], serde_json::json!([2, 1]));
+    assert_eq!(json["fire_past_class_range_pct"], 50.0);
+    assert_eq!(json["hit_rate_in_class_range"], 0.1);
+    assert_eq!(json["hit_rate_past_class_range"], 0.1);
+    assert_eq!(json["hit_rate_by_class_range"][class], serde_json::json!([0.1, 0.1]));
+    assert_eq!(json["fire_held_by_class_range"][class], 3);
+}
+
+/// The counts' yardstick is the numbers the tuning defaults to; a bench
+/// variant of the tuning (the shotgun at 35 m) leaves the yardstick alone.
+#[test]
+pub(crate) fn the_counts_class_ranges_are_the_tunings_defaults() {
+    let tuning = crate::v026g::bots::reflex::CombatTuning::default();
+    for (class, range) in CLASS_RANGE_M {
+        assert_eq!(tuning.range_floor_m(class), range, "{class}");
+    }
+    for class in ["pistol", "mg"] {
+        assert_eq!(class_range_m(class), None);
+        assert!(tuning.range_floor_m(class) >= crate::v026g::bots::reflex::NO_FLOOR_M);
+    }
+}
+
 /// The living enemy of the body at `place` (of `team`) that `t` is, if it is one.
 fn enemy_of(game: &Game, place: Place, team: u8, t: Place) -> Option<&super::super::Body> {
     game.bodies
@@ -399,20 +479,34 @@ impl OwnerTally {
                 None => self.fight.fire_no_target += 1,
             }
             // By range: the enemy nearest the view.
-            let on = game
-                .bodies
-                .iter()
-                .filter(|b| b.alive && b.team != body.team)
-                .filter_map(|b| {
-                    let d = b.feet.distance_xz(body.feet);
-                    let off = off_deg(body.yaw, body.feet, b.feet);
-                    ((FIRE_MIN_M..=FIRE_BANDS[4]).contains(&d) && off <= FIRE_ON_DEG)
-                        .then_some((off, d))
-                })
-                .min_by(|a, b| a.0.total_cmp(&b.0));
-            if let Some((_, d)) = on {
+            let in_view = |reach: f32| {
+                game.bodies
+                    .iter()
+                    .filter(|b| b.alive && b.team != body.team)
+                    .filter_map(|b| {
+                        let d = b.feet.distance_xz(body.feet);
+                        let off = off_deg(body.yaw, body.feet, b.feet);
+                        ((FIRE_MIN_M..=reach).contains(&d) && off <= FIRE_ON_DEG)
+                            .then_some((off, d))
+                    })
+                    .min_by(|a, b| a.0.total_cmp(&b.0))
+            };
+            if let Some((_, d)) = in_view(FIRE_BANDS[4]) {
                 self.fight.fire.entry(body.gun.class()).or_insert([0; 5])[band_of(d)] += 1;
             }
+            // And against the class's range, as far as it reaches.
+            if let (Some(range), Some((_, d))) = (class_range_m(body.gun.class()), in_view(FIRE_FAR_M)) {
+                let count = self.fight.fire_range.entry(body.gun.class()).or_default();
+                count[0] += 1;
+                count[1] += u32::from(d > range);
+            }
+        }
+    }
+
+    /// The shot the range alone held back this tick (fire key or not).
+    pub(super) fn fight_range_held(&mut self, body: &super::super::Body, now: &BotNow) {
+        if body.alive && now.range_held && class_range_m(body.gun.class()).is_some() {
+            *self.fight.range_held.entry(body.gun.class()).or_default() += 1;
         }
     }
 
@@ -446,6 +540,11 @@ impl OwnerTally {
             self.fight.hits_move[self.recs[shooter].last().map_or(0, move_of)] += 1;
             let band = band_of(s.feet.distance_xz(v.feet));
             self.fight.hits_band.entry(s.gun.class()).or_insert([0; 5])[band] += 1;
+            if let Some(range) = class_range_m(s.gun.class()) {
+                let count = self.fight.hits_range.entry(s.gun.class()).or_default();
+                count[0] += 1;
+                count[1] += u32::from(s.feet.distance_xz(v.feet) > range);
+            }
         }
     }
 
@@ -560,6 +659,21 @@ impl OwnerTally {
                 (*class, (0..5).map(|b| rate(hits[b], fire[b])).collect())
             })
             .collect();
+        // X1: hits a fire tick within the class's range and past it.
+        let [fire_all, fire_past] = self.fight.fire_range.values().fold([0, 0], |a, v| [a[0] + v[0], a[1] + v[1]]);
+        let [hits_all, hits_past] = self.fight.hits_range.values().fold([0, 0], |a, v| [a[0] + v[0], a[1] + v[1]]);
+        let rate_in = rate(hits_all - hits_past, fire_all - fire_past);
+        let rate_past = rate(hits_past, fire_past);
+        let rate_range_class: BTreeMap<&str, [f64; 2]> = self
+            .fight
+            .fire_range
+            .iter()
+            .map(|(class, fire)| {
+                let hits = self.fight.hits_range.get(class).copied().unwrap_or_default();
+                (*class, [rate(hits[0] - hits[1], fire[0] - fire[1]), rate(hits[1], fire[1])])
+            })
+            .collect();
+        let held: u32 = self.fight.range_held.values().sum();
         let json = serde_json::json!({
             "dry_s": (self.fight.dry_ticks as f64 * tick_s).round(),
             "reload_s": (self.fight.reload_ticks as f64 * tick_s).round(),
@@ -571,6 +685,13 @@ impl OwnerTally {
             "fire_by_class": self.fight.fire,
             "fire_far_by_class": fire_far,
             "fire_far_close_class_pct": pct(fire_near_class[1].into(), fire_near_class[0].into()),
+            "fire_past_class_range": self.fight.fire_range,
+            "fire_past_class_range_pct": pct(fire_past.into(), fire_all.into()),
+            "hits_past_class_range": self.fight.hits_range,
+            "hit_rate_in_class_range": rate_in,
+            "hit_rate_past_class_range": rate_past,
+            "hit_rate_by_class_range": rate_range_class,
+            "fire_held_by_class_range": self.fight.range_held,
             "hits_by_class": self.fight.hits_band,
             "hit_rate_by_class": hit_rate_class,
             "fire_by_move": by_move(&self.fight.fire_move),
@@ -589,7 +710,7 @@ impl OwnerTally {
             "died_unturned": died_unturned,
         });
         let text = format!(
-            "owner-test: dry {} s (deaths {}), reloading {} s (deaths {}), reloads {} in a line {} died {}; fire >=35 m by class {}; side hits {} turned in 3 s {} died unturned {}\n  owner-test fight: fire/hits by move {}; hits a fire tick by class and band {}; fire at a target {} out of line {} ({:.1} %), no target {}; target switches {} with the hurter in line {}",
+            "owner-test: dry {} s (deaths {}), reloading {} s (deaths {}), reloads {} in a line {} died {}; fire >=35 m by class {}; side hits {} turned in 3 s {} died unturned {}\n  owner-test fight: fire/hits by move {}; hits a fire tick by class and band {}; fire past the class range {} of {} ({:.1} %), hits a tick within {} past {}, held by the range {}; fire at a target {} out of line {} ({:.1} %), no target {}; target switches {} with the hurter in line {}",
             json["dry_s"],
             self.fight.deaths_dry,
             json["reload_s"],
@@ -603,6 +724,12 @@ impl OwnerTally {
             died_unturned,
             MOVES.iter().enumerate().map(|(i, m)| format!("{m} {}/{}", self.fight.fire_move[i], self.fight.hits_move[i])).collect::<Vec<_>>().join(" "),
             json["hit_rate_by_class"],
+            fire_past,
+            fire_all,
+            json["fire_past_class_range_pct"].as_f64().unwrap_or(0.0),
+            rate_in,
+            rate_past,
+            held,
             self.fight.fire_on_target,
             self.fight.fire_hidden,
             json["fire_hidden_pct"].as_f64().unwrap_or(0.0),
