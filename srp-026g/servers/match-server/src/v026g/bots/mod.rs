@@ -2720,7 +2720,10 @@ fn drive_tick(
         let [sx, sz] = kin::forward(me.yaw + std::f32::consts::FRAC_PI_2);
         let sign = if left { 1.0 } else { -1.0 };
         let to = me.feet + Vec3::new(sign * sx * STRAFE_CLEAR_M, 0.0, sign * sz * STRAFE_CLEAR_M);
-        if tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective) {
+        let clear = tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective);
+        #[cfg(test)]
+        motor::counts::side_step(clear);
+        if clear {
             decision.keys = keys;
         }
     }
