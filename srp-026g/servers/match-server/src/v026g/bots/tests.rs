@@ -7301,7 +7301,7 @@ mod pocket_runs {
     /// A way out is known once the team got out by one (`Board::learn`):
     /// the 1.2 m pit has only sprint exits (no bot sprints), so none is
     /// known until a bot of the team gets out by one, and then for that
-    /// team only.
+    /// team only, and not for its carriers.
     #[test]
     fn a_way_out_is_known_once_the_team_got_out_by_it() {
         let world = pit(1.2);
@@ -7315,6 +7315,9 @@ mod pocket_runs {
         board.learn_for_test(0, pocket, exits[0]);
         assert!(escape::way_out(grid, &board, 0, pocket, false));
         assert!(!escape::way_out(grid, &board, 1, pocket, false));
+        // Not for a carrier: it cannot sprint, and a sprint rim is no way
+        // out it is known to make.
+        assert!(!escape::way_out(grid, &board, 0, pocket, true));
     }
 
     #[test]
