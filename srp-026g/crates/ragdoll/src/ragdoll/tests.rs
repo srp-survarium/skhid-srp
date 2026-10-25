@@ -1,0 +1,385 @@
+//! The solver's tests: a made-up standing body on flat ground (Y up).
+
+use super::*;
+extern crate std;
+use crate::limits::{angle_between, signed_angle};
+use crate::skeleton::{BONES, Bone};
+
+/// A plane at height `floor` (and, if set, a wall at z = `wall` facing -Z).
+pub(crate) struct Ground {
+    pub floor: f32,
+    pub wall: Option<f32>,
+    pub queries: usize,
+}
+
+impl Ground {
+    pub(crate) fn flat() -> Ground {
+        Ground { floor: 0.0, wall: None, queries: 0 }
+    }
+}
+
+impl Level for Ground {
+    fn sweep(&mut self, from: Vec3, to: Vec3, radius: f32) -> Sweep {
+        self.queries += 1;
+        let mut best: Option<(f32, Vec3, Vec3)> = None;
+        // the floor: the sphere's bottom reaches it
+        let (a, b) = (from.y - radius - self.floor, to.y - radius - self.floor);
+        if a <= 0.0 || b < 0.0 {
+            let t = if a <= 0.0 { 0.0 } else { a / (a - b) };
+            let p = from.lerp(to, t);
+            best = Some((t, Vec3::new(p.x, self.floor, p.z), Vec3::Y));
+        }
+        if let Some(wall) = self.wall {
+            let (a, b) = (wall - (from.z + radius), wall - (to.z + radius));
+            if a <= 0.0 || b < 0.0 {
+                let t = if a <= 0.0 { 0.0 } else { a / (a - b) };
+                if best.is_none_or(|(bt, ..)| t < bt) {
+                    let p = from.lerp(to, t);
+                    best = Some((t, Vec3::new(p.x, p.y, wall), -Vec3::Z));
+                }
+            }
+        }
+        match best {
+            Some((_, point, normal)) => Sweep::Hit { point, normal },
+            None => Sweep::Clear,
+        }
+    }
+}
+
+fn at(name: &str) -> Vec3 {
+    let (x, y, z) = match name {
+        "Root" => (0.0, 0.0, 0.0),
+        "Hip" => (0.0, 1.0, 0.0),
+        "LeftUpLeg" => (0.1, 0.95, 0.0),
+        "LeftKnee" => (0.1, 0.53, 0.0),
+        "LeftLeg" => (0.1, 0.52, 0.0),
+        "LeftFoot" => (0.1, 0.09, 0.0),
+        "LeftToe" => (0.1, 0.03, 0.14),
+        "Spin" => (0.0, 1.1, 0.0),
+        "Spin_1" => (0.0, 1.22, 0.0),
+        "Chest" => (0.0, 1.34, 0.0),
+        "LeftClavicle" => (0.04, 1.48, 0.0),
+        "LeftArm" => (0.19, 1.45, 0.0),
+        "LeftForeArm" => (0.21, 1.17, 0.03),
+        "LeftHand" => (0.22, 0.93, 0.06),
+        "Neck" => (0.0, 1.53, 0.0),
+        "Head" => (0.0, 1.62, 0.0),
+        "Weapon" => (-0.2, 1.0, 0.3),
+        _ => return Vec3::new(f32::NAN, 0.0, 0.0),
+    };
+    Vec3::new(x, y, z)
+}
+
+/// The made-up skeleton: every bone at its place (Right mirrors Left; a
+/// bone not listed sits 2 cm from its parent), every rotation `turn`.
+pub(crate) fn standing(turn: Quat, shift: Vec3) -> Skeleton {
+    let mut out = [Pose::IDENTITY; BONE_COUNT];
+    for (i, (name, parent)) in BONES.iter().enumerate() {
+        let mirrored = name.strip_prefix("Right").map(|rest| {
+            let p = at(&["Left", rest].concat());
+            Vec3::new(-p.x, p.y, p.z)
+        });
+        let p = mirrored.unwrap_or_else(|| at(name));
+        let p = if p.is_finite() {
+            p
+        } else {
+            out[parent.expect("the root is listed") as usize].position + Vec3::new(0.0, 0.0, 0.02)
+        };
+        out[i] = Pose::new(turn, p);
+    }
+    for pose in out.iter_mut() {
+        pose.position = turn.rotate(pose.position) + shift;
+    }
+    out
+}
+
+fn start<'a>(now: &'a Skeleton, before: &'a DriverBones, cause: Cause, gun: Option<GunShape>) -> Start<'a> {
+    Start { now, before, dt: 1.0 / 60.0, up: Vec3::Y, cause, gun }
+}
+
+const SHOT: Cause = Cause::Body { part: Part::Torso, direction: Vec3::new(0.0, 0.0, -1.0), heavy: false };
+const GUN: GunShape = GunShape { centre: Vec3::ZERO, axis: Vec3::Z, half: 0.35, radius: 0.04 };
+
+/// Runs at 60 frames a second until settled; the seconds it took.
+fn run(ragdoll: &mut Ragdoll, ground: &mut Ground, clip: Option<&DriverBones>, mut each: impl FnMut(&Ragdoll)) -> f32 {
+    let mut t = 0.0;
+    loop {
+        let motion = ragdoll.step(1.0 / 60.0, clip, ground);
+        t += 1.0 / 60.0;
+        each(ragdoll);
+        if motion == Motion::Settled {
+            return t;
+        }
+        assert!(t < 10.0, "never settled");
+    }
+}
+
+fn joint_gaps(r: &Ragdoll) -> f32 {
+    r.joints
+        .iter()
+        .map(|j| {
+            let p = &r.bodies[j.parent.index()];
+            let c = &r.bodies[j.child.index()];
+            (p.pose.apply(j.anchor_parent) - c.pose.apply(j.anchor_child)).length()
+        })
+        .fold(0.0, max)
+}
+
+#[test]
+fn the_rig_draws_the_death_pose_back_and_parts_of_inverts_it() {
+    let now = standing(Quat::from_axis_angle(Vec3::Y, 0.7), Vec3::new(3.0, 2.0, -1.0));
+    let before = driver_bones(&now);
+    let ragdoll = Ragdoll::new(&start(&now, &before, Cause::Unknown, Some(GUN))).unwrap();
+    let (parts, gun) = ragdoll.poses();
+    let mut drawn = [Pose::IDENTITY; BONE_COUNT];
+    ragdoll.rig().draw(&parts, gun, &mut drawn);
+    for i in 0..BONE_COUNT {
+        assert!((drawn[i].position - now[i].position).length() < 1e-4, "{}", Bone(i as u8).name());
+        assert!(drawn[i].rotation.dot(now[i].rotation).abs() > 0.9999, "{}", Bone(i as u8).name());
+    }
+    let back = ragdoll.rig().parts_of(&driver_bones(&now));
+    for (a, b) in back.iter().zip(parts.iter()) {
+        assert!((a.position - b.position).length() < 1e-4);
+    }
+    assert!(joint_gaps(&ragdoll) < 1e-4);
+    // the start's motion: none, the poses being the same
+    assert!(ragdoll.bodies.iter().all(|b| b.velocity.length() < 1e-3 && b.spin.length() < 1e-3));
+}
+
+#[test]
+fn a_shot_body_falls_and_settles_within_two_seconds_of_landing_on_flat_ground() {
+    let mut times = std::vec::Vec::new();
+    for (turn, cause) in [
+        (0.0, SHOT),
+        (1.3, SHOT),
+        (2.5, Cause::Body { part: Part::LeftThigh, direction: Vec3::X, heavy: true }),
+        (0.4, Cause::Head { direction: Vec3::new(0.0, 0.0, 1.0) }),
+        (-1.0, Cause::Blast { centre: Vec3::new(1.0, 0.0, 0.5) }),
+    ] {
+        let now = standing(Quat::from_axis_angle(Vec3::Y, turn), Vec3::ZERO);
+        let before = driver_bones(&now);
+        let mut ragdoll = Ragdoll::new(&start(&now, &before, cause, Some(GUN))).unwrap();
+        let mut ground = Ground::flat();
+        let mut lowest = f32::MAX;
+        let mut landed = None;
+        let t = run(&mut ragdoll, &mut ground, None, |r| {
+            for b in r.bodies.iter().chain(r.gun.iter()) {
+                let (a, c) = b.shape.ends(b.pose);
+                lowest = lowest.min(a.y.min(c.y) - b.shape.radius);
+            }
+            if landed.is_none() && r.bodies[Part::Pelvis.index()].pose.position.y < 0.35 {
+                landed = Some(r.age);
+            }
+        });
+        times.push((landed.expect("it fell"), t));
+        // it fell: the pelvis near the ground, nothing deep in it
+        let pelvis = ragdoll.bodies[Part::Pelvis.index()].pose.position;
+        assert!(pelvis.y < 0.45, "{cause:?}: pelvis at {pelvis:?}");
+        assert!(lowest > -0.04, "{cause:?}: sank to {lowest}");
+        assert!(joint_gaps(&ragdoll) < 0.02, "{cause:?}: joints apart by {}", joint_gaps(&ragdoll));
+    }
+    // (landed, settled): a body that stood dead still topples for most of a
+    // second before it lands (the game's clip drives that part); once down
+    // it is at rest within 2 s
+    assert!(times.iter().all(|&(landed, settled)| settled - landed < 2.0 && settled < 3.0), "{times:?} s");
+}
+
+/// Every joint within its limit (a few degrees of give).
+fn within_limits(r: &Ragdoll, slack: f32) -> Result<(), (Part, f32, f32)> {
+    for j in r.joints.iter() {
+        let p = &r.bodies[j.parent.index()];
+        let c = &r.bodies[j.child.index()];
+        match j.limit {
+            Limit::Swing { cone, axis_parent, forward_parent, axis_child, .. } => {
+                let a = p.pose.rotation.rotate(axis_parent);
+                let b = c.pose.rotation.rotate(axis_child);
+                let angle = angle_between(a, b);
+                if let Some(toward) = b.reject(a).direction() {
+                    let reach = cone.reach(toward, p.pose.rotation.rotate(forward_parent));
+                    if angle > reach + slack {
+                        return Err((j.child, angle, reach));
+                    }
+                }
+            }
+            Limit::Hinge { hinge_parent, limb_parent, limb_child, min, max, .. } => {
+                let h = p.pose.rotation.rotate(hinge_parent);
+                let a = p.pose.rotation.rotate(limb_parent).reject(h).direction().unwrap();
+                let b = c.pose.rotation.rotate(limb_child).reject(h).direction().unwrap();
+                let phi = signed_angle(a, b, h);
+                if phi < min - slack || phi > max + slack {
+                    return Err((j.child, phi, max));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn joint_limits_hold_through_a_violent_fall() {
+    // dropped from 3 m, spun hard, against a wall
+    let now = standing(Quat::from_axis_angle(Vec3::Y, 0.3), Vec3::new(0.0, 3.0, 0.0));
+    let mut before = driver_bones(&now);
+    for (i, b) in before.iter_mut().enumerate() {
+        // each part was elsewhere a frame ago: wild start speeds (clamped)
+        b.position += Vec3::new((i as f32 * 1.7).sin(), (i as f32).cos(), 0.5) * 0.4;
+    }
+    let mut ragdoll = Ragdoll::new(&start(&now, &before, SHOT, Some(GUN))).unwrap();
+    // the start speed is clamped; the shot adds 2 m/s to the torso and 0.4 to each
+    assert!(ragdoll.bodies.iter().all(|b| b.velocity.length() <= START_SPEED + 2.4 + 1e-3));
+    let mut ground = Ground { floor: 0.0, wall: Some(0.6), queries: 0 };
+    let mut worst = 0.0f32;
+    run(&mut ragdoll, &mut ground, None, |r| {
+        if let Err((part, angle, limit)) = within_limits(r, degrees(8.0)) {
+            panic!("{part:?} at {} degrees, limit {}", angle.to_degrees(), limit.to_degrees());
+        }
+        worst = worst.max(joint_gaps(r));
+        for b in r.bodies.iter() {
+            assert!(b.pose.position.z < 0.6, "through the wall: {:?}", b.pose.position);
+        }
+    });
+    assert!(worst < 0.05, "joints apart by {worst}");
+    within_limits(&ragdoll, degrees(3.0)).unwrap();
+}
+
+#[test]
+fn the_drive_follows_the_clip_then_lets_go() {
+    // the clip falls back 30 cm in a frame: with the drive the body turns with it
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let mut bent = before;
+    // the clip bends the knees fully
+    let knee = Quat::from_axis_angle(Vec3::X, 1.2);
+    for part in [Part::LeftShin, Part::RightShin] {
+        bent[part.index()].rotation = knee * bent[part.index()].rotation;
+    }
+    let mut ragdoll = Ragdoll::new(&start(&now, &before, Cause::Unknown, None)).unwrap();
+    let mut ground = Ground::flat();
+    let relative = |r: &Ragdoll| {
+        let thigh = r.bodies[Part::LeftThigh.index()].pose.rotation;
+        let shin = r.bodies[Part::LeftShin.index()].pose.rotation;
+        thigh.conjugate() * shin
+    };
+    let rest = relative(&ragdoll);
+    for _ in 0..6 {
+        ragdoll.step(1.0 / 60.0, Some(&bent), &mut ground);
+    }
+    let turned = relative(&ragdoll).rotation_from(rest).length();
+    assert!(turned > 0.3, "the knee followed the clip by {turned} rad");
+    assert!(strength(Cause::Unknown, Group::Legs, 0.3) <= 0.03 + 1e-6);
+    assert!(strength(Cause::Unknown, Group::Neck, 0.0) == 1.0);
+    assert_eq!(strength(Cause::Head { direction: Vec3::X }, Group::Neck, 0.07), 0.0);
+    assert!((strength(Cause::Blast { centre: Vec3::ZERO }, Group::Arms, 0.0) - 0.4).abs() < 1e-6);
+}
+
+#[test]
+fn degenerate_input_gives_no_nan() {
+    // every bone at one point, zero rotations
+    let mut collapsed = [Pose::new(Quat::IDENTITY, Vec3::new(1.0, 0.5, 1.0)); BONE_COUNT];
+    let before = driver_bones(&collapsed);
+    let mut ragdoll = Ragdoll::new(&start(&collapsed, &before, SHOT, Some(GUN))).unwrap();
+    let mut ground = Ground::flat();
+    for dt in [0.0, -1.0, f32::NAN, 1e9, 1.0 / 60.0, 1.0 / 60.0] {
+        ragdoll.step(dt, None, &mut ground);
+        let (parts, gun) = ragdoll.poses();
+        assert!(parts.iter().all(|p| p.is_finite()) && gun.is_none_or(|g| g.is_finite()));
+    }
+    run(&mut ragdoll, &mut ground, None, |r| assert!(r.poses().0.iter().all(|p| p.is_finite())));
+    // a NaN or an infinite bone: no ragdoll (the game's clip is drawn)
+    collapsed[5].position.x = f32::NAN;
+    assert!(Ragdoll::new(&start(&collapsed, &before, SHOT, None)).is_none());
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let mut bad = driver_bones(&now);
+    bad[2].rotation.w = f32::INFINITY;
+    assert!(Ragdoll::new(&start(&now, &bad, SHOT, None)).is_none());
+    // a NaN clip target is ignored, a zero up is refused
+    let mut ragdoll = Ragdoll::new(&start(&now, &driver_bones(&now), SHOT, None)).unwrap();
+    let mut nan_clip = driver_bones(&now);
+    nan_clip[0].position.y = f32::NAN;
+    ragdoll.step(1.0 / 60.0, Some(&nan_clip), &mut ground);
+    assert!(ragdoll.poses().0.iter().all(|p| p.is_finite()));
+    let mut s = start(&now, &before, SHOT, None);
+    s.up = Vec3::ZERO;
+    assert!(Ragdoll::new(&s).is_none());
+}
+
+#[test]
+fn queries_a_frame_are_bounded_and_few_on_the_ground() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let mut ground = Ground::flat();
+    let mut ragdoll = Ragdoll::new(&start(&now, &before, SHOT, Some(GUN))).unwrap();
+    let mut per_frame = std::vec::Vec::new();
+    loop {
+        let asked = ground.queries;
+        let motion = ragdoll.step(1.0 / 60.0, None, &mut ground);
+        per_frame.push(ground.queries - asked);
+        if motion == Motion::Settled {
+            break;
+        }
+    }
+    // at most both ends of every body, and fewer than one a body over the
+    // last half second (on the ground, most bodies keep their plane)
+    assert!(per_frame.iter().all(|&n| n <= 2 * (PARTS + 1)), "{per_frame:?}");
+    let tail = &per_frame[per_frame.len() - 30..];
+    assert!(tail.iter().sum::<usize>() < 30 * (PARTS + 1), "{tail:?}");
+}
+
+#[test]
+fn closest_points_of_segments() {
+    let (a, b) = closest_points(Vec3::ZERO, Vec3::X, Vec3::new(0.5, 1.0, -1.0), Vec3::new(0.5, 1.0, 1.0));
+    assert!((a - Vec3::new(0.5, 0.0, 0.0)).length() < 1e-6);
+    assert!((b - Vec3::new(0.5, 1.0, 0.0)).length() < 1e-6);
+    let (a, b) = closest_points(Vec3::ZERO, Vec3::ZERO, Vec3::ZERO, Vec3::ZERO);
+    assert_eq!((a, b), (Vec3::ZERO, Vec3::ZERO));
+}
+
+#[test]
+#[ignore = "a trace for tuning: cargo test -p ragdoll trace -- --ignored --nocapture"]
+fn trace() {
+    extern crate std;
+    use std::println;
+    let now = standing(Quat::from_axis_angle(Vec3::Y, 2.5), Vec3::ZERO);
+    let before = driver_bones(&now);
+    let mut ragdoll = Ragdoll::new(&start(&now, &before, Cause::Body { part: Part::LeftThigh, direction: Vec3::X, heavy: true }, Some(GUN))).unwrap();
+    let mut ground = Ground::flat();
+    let mut frame = 0;
+    run(&mut ragdoll, &mut ground, None, |r| {
+        frame += 1;
+        if (0..0).contains(&frame) {
+            for i in [7usize, 8, 9, 10] {
+                let b = &r.bodies[i];
+                println!(
+                    "  {i} pos {:.4} {:.4} {:.4} spin {:.3} {:.3} {:.3} contact {:?}",
+                    b.pose.position.x, b.pose.position.y, b.pose.position.z, b.spin.x, b.spin.y, b.spin.z,
+                    matches!(b.contact, Contact::Plane { .. })
+                );
+            }
+        }
+        if frame % 3 == 0 {
+            let mut fastest = (0.0, 0.0, 0);
+            for (i, b) in r.bodies.iter().chain(r.gun.iter()).enumerate() {
+                let (v, w) = (b.velocity.length(), b.spin.length());
+                if v + w * 0.1 > fastest.0 + fastest.1 * 0.1 {
+                    fastest = (v, w, i);
+                }
+            }
+            let mut kinetic = 0.0;
+            let mut potential = 0.0;
+            for b in r.bodies.iter() {
+                let m = 1.0 / b.inverse_mass;
+                let local = b.pose.rotation.conjugate().rotate(b.spin);
+                let inertia = Vec3::new(1.0 / b.inverse_inertia.x, 1.0 / b.inverse_inertia.y, 1.0 / b.inverse_inertia.z);
+                kinetic += 0.5 * m * b.velocity.length_squared() + 0.5 * local.dot(local.mul_each(inertia));
+                potential += m * GRAVITY * b.pose.position.y;
+            }
+            println!(
+                "t {:.2} pelvis y {:.2} fastest {:?} kinetic {kinetic:.1} total {:.1}",
+                r.age,
+                r.bodies[0].pose.position.y,
+                fastest,
+                kinetic + potential
+            );
+        }
+    });
+}
