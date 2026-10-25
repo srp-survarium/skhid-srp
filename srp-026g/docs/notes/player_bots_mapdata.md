@@ -419,6 +419,60 @@ the previous point's pick (with no previous pick, the lower). 2 m first: at 5 m 
 floor beside pulled the median off the point's own floor (36 points moved 1.5 m+ when 2 m
 came first). Mode 3 rows keep no heights (a follow-up).
 
+**Human perches (V-S2b, 2026-10-26).** The table may also carry two top-level lists, read by no
+server yet (a server without this code ignores them and plays as before; the reader is a
+follow-up, with both keys optional):
+
+```json
+"perches":    [{"level": "level_01", "x": -43.0, "y": 25.9, "z": 12.0, "rate": 24.8, "dwell": 10.0, "n": 166}],
+"perch_maps": [{"level": "level_01", "p75": 22.3, "share": 0.0575, "visits": 1462, "minutes": 6701.0}]
+```
+
+A perch is where real players stand still on high ground: a run of one life's samples all above
+the level's p75 feet height, within 1.5 m of the run's first sample, at most 7 s apart, lasting
+3 s or more (a stay point). The wait at the life's own spawn (within 30 s of the spawn and 4 m of
+it) is no visit: on Rudnya, Chemical Plant, Tarakanovsky Fort and Vector Laboratory 213-355 runs
+a level were that. `x`, `y`, `z` are map metres, `y` the feet height like `heights`; `rate` is the
+perch's visits per 1000 alive player-minutes of the level (all modes), `n` its visits, `dwell` its
+median dwell in seconds (the worlds are about 5 s apart: 5 s steps). `perch_maps`: `p75` the line,
+`share` the humans' share of alive time spent on a perch visit (0.040-0.082 a level; the stand-in
+bots' 0.003-0.016, the coordinator's count, is what this field is for), `visits` and `minutes` the
+totals behind `rate`. A level has 95 to 155 groups; the table keeps those seen in 3+ matches, most visits first, until they cover
+80 % of the level's visits (22-43 perches a level, 253 in all).
+
+Made privately from the live host's 12+ player human matches, all weather pooled (379 matches,
+Oct 12-23) by `scripts/bot-routes/perches.py` (`--routes` the old table, `--out` the new one; its
+other keys are kept; tests: `python -m unittest test_perches`). Visits are grouped by peak cover at
+4 m across and 2 m up or down, not by order, so the same data gives the same table. Pooling is
+checked, not assumed: in the day-only matches 96-100 % of each level's pooled visits are at perches
+seen 2+ times there, and in the evening and rain matches, and in the battery and Team Deathmatch
+matches separately, 98-100 % are; the rank correlation of the perches' rates between those splits
+and the pool is 0.6-0.9. On the
+bots' walk grid (day_2 and day_4) all 253 perches lie on a floor within 1.5 m (mean 0.1-0.24 m
+off the height, 23 of 506 probes more than 0.5 m) and are reachable from both teams' spawns with a
+way back. The reader still puts a perch on the floor nearest it.
+
+| level | matches | alive min | p75 m | visits | share | groups | kept | covering |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Rudnya | 41 | 6701 | 22.3 | 1462 | 5.8 % | 138 | 36 | 81 % |
+| School | 58 | 9040 | 19.5 | 2397 | 5.2 % | 155 | 40 | 80 % |
+| Vostok Radar Station | 38 | 6233 | 5.6 | 1487 | 4.2 % | 150 | 43 | 80 % |
+| Chemical Plant | 38 | 5907 | 9.5 | 1539 | 5.3 % | 99 | 30 | 81 % |
+| Tarakanovsky Fort | 63 | 8836 | 8.3 | 2046 | 5.3 % | 96 | 27 | 81 % |
+| Mamayev Kurgan | 31 | 5053 | 36.8 | 1059 | 4.0 % | 95 | 28 | 81 % |
+| Vector Laboratory | 46 | 6736 | 21.1 | 1292 | 4.9 % | 120 | 27 | 81 % |
+| Cologne | 64 | 9645 | 35.0 | 3493 | 8.2 % | 109 | 22 | 80 % |
+
+Limits (GUESS where not counted): the worlds' 5 s spacing makes every visit at least 5 s and
+hides stands shorter than that; 9-26 % of the perch time is runs of 60 s or more (camping or
+away from the keyboard), which `share` counts and `rate` counts once; the p75 line is a level's
+own height distribution, so a flat map's perches (Vostok Radar Station, 5.6 m) are the upper
+quarter of its floors, not roofs. Best practice: stay points are found with a distance and a time
+threshold on a trajectory
+(<https://trackintel.readthedocs.io/en/stable/modules/preprocessing.html>,
+<https://arxiv.org/pdf/1904.09357>), and tactical positions for FPS bots are learned from recorded
+human play (Thurau and Bauckhage, "Tactical Waypoint Maps", <https://pub.uni-bielefeld.de/record/2618350>).
+
 The route's own lives come from the human matches of 10+ players, Oct 12-23, bot matches left
 out (they made the routes). Where those give fewer than 10 positions (122 points: a route's
 mean way can pass where few of them walked), every human's positions count, for the height
