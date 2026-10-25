@@ -19,6 +19,10 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   for the lobby. compc lays the code out by where the source lies, so every
   tree is compiled from one place (`/tmp/srp-flash-build/<movie>`, one build
   at a time): the same tree gives the same bytes from any checkout.
+- A bitmap the original lacks is `bitmaps/<class>.png` beside `src/` (8-bit RGBA or RGB):
+  the build adds it as a DefineBitsLossless2 of a new character id before the code, bound
+  to `<class>` by a SymbolClass after it; `<class>` is a `BitmapData` of the tree, as the
+  original's own bitmaps are (the hud's `hudItems`), made with `new <class>()`.
 - The build checks what the movie needs to load: every ABC block parses, and
   every class a SymbolClass tag binds is defined, once.
 - `original` cuts the original movie (the one whose graphics the build keeps)
