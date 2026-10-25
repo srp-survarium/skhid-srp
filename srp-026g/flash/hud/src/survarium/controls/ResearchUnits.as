@@ -13,9 +13,10 @@ package survarium.controls
    // a unit, its letter, filled in the colour of its owner (the game's own
    // team blue, the other red, nobody grey), a ring as far round as the
    // capture of the team taking it, under a unit the time left of its
-   // capture or neutralisation while one runs, and under them "Capturing
-   // unit..." while the game's own player is inside a unit his team is
-   // taking. The exe (research_native_026g.c) sends the state with
+   // capture or neutralisation while one runs; the unit the game's own player
+   // is inside larger (INSIDE), and under them "Capturing unit..." while
+   // his team alone is inside it and changes it: draining the other team's
+   // capture or ownership, or capturing. The exe (research_native_026g.c) sends the state with
    // HUD.research_update.
    public class ResearchUnits extends Sprite
    {
@@ -32,10 +33,15 @@ package survarium.controls
 
       protected static const RING:Number = 4;
 
-      protected static const SPACING:Number = 40;
+      // Room for a neighbour at INSIDE: 1.42 x (RADIUS + RING) + RADIUS + RING < SPACING.
+      protected static const SPACING:Number = 48;
 
-      // From the bottom of the bars to the units' centres (HUD.placeResearchUnits).
-      public static const TOP:Number = RADIUS + RING + 8;
+      // The unit the game's own player is inside: larger, as retail's active
+      // highlight (0.27d CapturePointMarker: 34 / 46 against 24 / 46).
+      public static const INSIDE:Number = 34 / 24;
+
+      // From the bottom of the bars to the units' centres (HUD.placeResearchUnits), room for one at INSIDE.
+      public static const TOP:Number = Math.ceil((RADIUS + RING) * INSIDE) + 4;
 
       protected var _units:Array = [];
 
@@ -205,6 +211,7 @@ package survarium.controls
             unit = units[i];
             shape = this._units[i];
             shape.x = (i - (units.length - 1) / 2) * SPACING;
+            shape.scaleX = shape.scaleY = unit.local ? INSIDE : 1;
             g = shape.graphics;
             g.clear();
             g.beginFill(0,0.45);
@@ -225,9 +232,10 @@ package survarium.controls
                timed = true;
                timer.text = timeText(unit.left);
                timer.x = Math.round(shape.x - timer.width / 2);
-               timer.y = RADIUS + RING;
+               timer.y = Math.round((RADIUS + RING) * shape.scaleY);
             }
-            if(unit.local && unit.capturing == ownTeam && !(unit.owner == ownTeam && unit.progress >= 100))
+            // his team alone inside, the unit not his and full: it drains or fills
+            if(unit.local && ownTeam <= 1 && unit["inside_" + (1 - ownTeam)] == 0 && !(unit.owner == ownTeam && unit.progress >= 100))
             {
                capturing = true;
             }
@@ -239,7 +247,7 @@ package survarium.controls
             this._caption.validateNow();
             this._caption.x = -Math.round(this._caption.width / 2);
             // under the timers when one shows
-            this._caption.y = RADIUS + RING + 6 + (timed ? TIMER_SIZE + 2 : 0);
+            this._caption.y = Math.round((RADIUS + RING) * INSIDE) + 6 + (timed ? TIMER_SIZE + 2 : 0);
          }
          this._caption.visible = capturing;
       }
