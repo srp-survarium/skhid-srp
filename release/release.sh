@@ -560,13 +560,13 @@ record_branch() { printf 'release/record-rev%s' "$1"; }
 # The changes of what a match computes, by revision (a PR adds `next`).
 SIMULATION_CHANGES=srp-026g/crates/session/src/v026g/simulation_changes.tsv
 # The exe's patch files of srp-026g/client-patches changed from <a> to <b>,
-# one a line: not the notes, tests and checks, nor patch_026g.py when only
+# one a line: not the notes, tests, checks and debug tools, nor patch_026g.py when only
 # its REVISION line changed (a record's).
 exe_patch_changes() { # <a> <b>
     local path
     git -C "$REPO" diff --name-only "$1" "$2" -- srp-026g/client-patches 2>/dev/null | while read -r path; do
         case ${path##*/} in
-        *.md | *.txt | test_* | check_* | selftest_*) continue ;;
+        *.md | *.txt | test_* | check_* | selftest_* | debug_*) continue ;;
         patch_026g.py)
             git -C "$REPO" diff -U0 "$1" "$2" -- "$path" | grep -E '^[-+][^-+]' | grep -qvE '^[-+]REVISION = [0-9]+$' || continue ;;
         esac

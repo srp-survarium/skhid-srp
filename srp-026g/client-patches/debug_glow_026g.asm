@@ -1,12 +1,12 @@
 ; A DEBUG build only (debug_glow_026g.py): never in patch_026g.py's release
-; patch. Logs the artefacts' glow at every step of its chain into the game's
-; own log (Survarium_<name>.log, channel "game", info), each line starting
-; "srp-glow:", once per event: an activation, a presenter's activation or
-; stop, a play, a stop of a particle system, an effect given back to its
-; emitter, the artefact's calculator ending an effect, the local body's bones
-; the particles read (40 a activation), and, from the start, the models added
-; to the scene and their foreground and visibility parts (capped).
-; The sections's own data follow the code (the section is RWX).
+; patch. Logs the artefacts' glow along its start and stop path into the
+; game's own log (Survarium_<name>.log, channel "game", info), each line
+; starting "srp-glow:", once per event: an activation, a presenter's
+; activation or stop, a play, the artefact's calculator ending an effect, a
+; stop of a particle system, an effect given back to its emitter, the removal
+; of a particle system instance, and on the render side particle_world's stop,
+; its removal of an instance and an instance's reset (capped).
+; The section's own data follow the code (the section is RWX).
 BITS 32
 org BASE
 
@@ -153,10 +153,6 @@ stub_activate:
     jne .tp
     mov ebp, [ecx + 0x478]
     mov [local_player], ebx
-    mov eax, [ebx + 0xF290]
-    mov [local_body], eax
-    mov dword [bone_budget], 40
-    mov dword [other_bone_budget], 4
     jmp .target
 .tp:
     cmp edx, TP_VT
@@ -434,9 +430,6 @@ log_instance:                            ; ecx = the format, edx = 1: a finish t
 align 4
 k1000:          dd 1000.0
 local_player:   dd 0
-local_body:     dd 0
-bone_budget:    dd 0
-other_bone_budget: dd 0
 remove_budget:  dd 300
 render_budget:  dd 400
 stop_budget:    dd 600
