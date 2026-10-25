@@ -42,6 +42,9 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // The score times this by mode.
     ("weight_tdm", 1.0),
     ("weight_batteries", 0.7),
+    // Timed batteries: as the plain ones until a bench says otherwise (it was
+    // `weight_batteries` there).
+    ("weight_timed", 0.7),
     ("give_up_s", 70.0),
     // A spot too near the other half's is chosen again at most this often.
     ("repick_every_s", 3.0),
@@ -80,13 +83,10 @@ pub fn tuning() -> PlayTuning {
 }
 
 /// The candidate's score times the mode's weight (`weight_tdm`,
-/// `weight_batteries`): the players' research favours the play in one mode.
+/// `weight_batteries`, `weight_timed`): the players' research favours the
+/// play in one mode.
 fn weighed(cx: &Ctx, kind: PlayKind, mut c: Candidate) -> Option<Candidate> {
-    let weight = if cx.view.mode.is_deathmatch() {
-        cx.num(kind, "weight_tdm")
-    } else {
-        cx.num(kind, "weight_batteries")
-    };
+    let weight = cx.num(kind, cx.view.mode.weight_key());
     c.score = Score::new(c.score.get() * weight);
     (!c.score.is_zero()).then_some(c)
 }
