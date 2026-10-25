@@ -918,3 +918,41 @@ taken from dry floor). No zone death on either side. K/D team 0 +0.001,
 A looser budget (0.75 of health, 0.2 left) took more (+1.31 to +1.75 a seed)
 for more zone damage (+0.10 to +0.19 a seed) and no more delivered, and its
 quick ends at 13-15 rose +5.0 (2.7): 0.5 stays.
+
+## Bots: a carrier's way home leaves points no way leads to
+
+### Why
+
+A carrier's way home along a human route (`way_home`) kept every point that
+was a fine goal (`Tactics::fine_goal`), whether or not a way led to it, and
+Bring kept a point until it was reached. A point the bot's search proved no
+way to (`Bot::no_way_to`) was tried again every replan (500 ms): routes'
+stood-with-goal trace found Collect's no-way retries go from 125 to 2,278
+with route points at the players' height.
+
+### What changed
+
+- **`way_home`:** keeps only points a way leads to (`Ctx::reachable`) and
+  none the bot's search found no way to lately (`Ctx::no_way_lately`), as
+  #417 did for the spot plays.
+- **Bring:** a point its search found no way to since it was chosen is
+  dropped, and the carrier goes on to the next (the straight way home when
+  none is left).
+- **Test:** `a_carrier_goes_home_by_a_human_route_clear_of_known_danger`
+  gains both cases.
+
+### Bench
+
+f9088f39 against the fix, batt, 3 tiers × 16 seeds over 12 maps, both with
+a bench-only tally of route searches that found no way, by play (not in the
+tree). The fix decides as the base in 47 of the 48 seed × tier runs: one
+seed at 13-15 differs, by +0.12 kills and deaths. On today's routes (no
+heights; #426 shelved them) carriers' failed searches all aim at their own
+container, not a way point (traced at 13-15, seeds 1-4: 100 of 100; 98 of
+them one carrier off the map's edge in one seed), so the case the fix is for
+does not come up here; it does with route points at the players' height.
+
+Bots' CPU, the bench's own lines, 288 matches a side (paired by seed and
+tier, B − A, SE): battery 10v10 68.7 → 68.3 ms a second (−0.4, 0.1), p95
+144.3 → 138.5, poll p99.9 −336 µs (72); battery 4v4 18.5 → 18.4 (−0.1,
+0.1), poll p99.9 −109 µs (32). No rise.

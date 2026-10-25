@@ -3167,7 +3167,10 @@ mod tests {
         let mut s = setup(true);
         s.no_way_to = vec![(point, s.view.clock + 5_000)];
         let left = goal(&s);
-        assert!(left.distance_xz(Vec3::new(12.0, 0.0, 30.0)) < 1.0, "{left:?}");
+        assert!(
+            left.distance_xz(Vec3::new(12.0, 0.0, 30.0)) < 1.0,
+            "{left:?}"
+        );
         let mut s = setup(true);
         let target = TargetRef::Battery(0);
         let mut rng = Rng::new(1);
