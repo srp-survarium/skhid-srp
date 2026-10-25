@@ -72,29 +72,38 @@ down) when you use artifact? Note that your vision should still be clear")
   body when he looks down. Everyone else sees the glow as before.
 - Each kind its own colour, as in the third person: Lifebone green, Onyx orange, Spring blue.
 - Vision stays clear: nothing on the head, face, neck or chest (the camera is in the head), no
-  heat haze, no light of the glow's own; fewer and smaller particles than the third person's.
+  heat haze; the glow's point lights dimmed (x0.35, 0.86 m) so they tint the hands, not the view.
 - It starts and ends with the active, as the third person's (no glow on the cooldown).
 - Visual only: no exe change, nothing in a match, nothing sent; no `simulation_changes` row.
-- How (content pack `artefact-glow@1`, `scripts/artefact-glow/make_pack.py`):
+- How (content pack `artefact-glow@2`, `scripts/artefact-glow/make_pack.py`):
   - A particle effect is shown by the presenters of its `view` (the cook 0x25A730, 1 when
     absent): 1 the third-person presenters (the other players' view of a player), 0 the
     first-person presenter (the player the camera is in), 2 both. The stock glow has none: only
     the others saw it.
   - `effect_artefact_<kind>` becomes a composite (type 110) of the stock particle effect and a
     first-person one (`view` 0) playing `fx/artifacts/human_<kind>_fp`.
-  - The first-person particle system is the stock one without `up_light` (it spawns on the head
-    and carries the particle point lights), `distortion` (the heat haze) and `rays_chest`; every
-    emitter's Head, Face, Neck, FrontChest and BackChest off; the rays half as big and half as
-    many, the rising sparks half as many, the strokes along the limbs 0.6 wide.
   - The first-person presenter plays it on the carrier's own body model (the same model and
     skeleton the others see, posed with the first-person animations; the head's parts are
-    shadow-only there, `player::set_head_visibility` 0x1F37A0), so it sits on the arms and legs
-    in view. LIKELY: the arms are drawn as foreground, the particles in the world pass; the
-    owner's test says whether they line up.
+    shadow-only there and parts 1 and 2 (LIKELY the torso and arms) drawn as foreground,
+    `player::set_head_visibility` 0x1F37A0). The foreground is drawn after the world with a depth
+    range of its own (`renderer::foreground_begin` 0x13E010), so a particle on the arms, drawn in
+    the world pass, is hidden behind them: only what stands out of the arms' outline, what lights
+    them, and the legs when one looks down can show (LIKELY: read from the code, not seen).
+  - Version 1 (tested by the owner, 2026-10-25: the carrier saw no glow at all) was a lighter
+    copy (no `up_light`, rays half as big and half as many, strokes 0.6 wide): little of it stood
+    out of the arms. The presenter path was right (the check below runs it whole).
+  - Version 2: the first-person particle system is the stock one without `distortion` (the heat
+    haze) and `rays_chest`; every emitter's Head, Face, Neck, FrontChest and BackChest off; the
+    rest at the stock size and rate (the glow stands out of the arms' outline as on everyone
+    else); `up_light` kept, its soft glow around the arms, hands and legs, its point lights at
+    x0.35 intensity and x0.7 radius, which tint the carrier's own hands and weapon.
   - The end: the effect's time calculator is the artefact's (`artefact_base::effect_calculator`
     0x313640): finished when the artefact leaves its active state (4); both children with it.
-- Checked: `client-patches/check_artefact_glow_026g.py` (the game's cook, presenters, handler
-  and calculator in Unicorn); not run in a game.
+- Checked: `client-patches/check_artefact_glow_026g.py` (Unicorn, the game's code): the cook,
+  the presenters' constructors, the handler, the calculator, and the whole chain a match runs:
+  each presenter built by its constructor, given to a player by `player::set_effect_presenter`,
+  an activation sent by `game_effect_player` 0x2DE3A0 through the effect's own accept 0x2AE2E0.
+  Version 2 not run in a game yet.
 - The Sponge and the Rattle (PR #369) get theirs the same way once their effects are on main.
 
 ## Several kinds at once (the owner, 2026-10-25: "what happens with colours, do they mix? We

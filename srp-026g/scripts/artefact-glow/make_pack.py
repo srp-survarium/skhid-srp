@@ -19,14 +19,20 @@ effect_zone_radiation) of two particle children with the same time and the same 
 artefact's effect_calculator: the effect ends when the artefact leaves its active state):
 
 - the stock effect as it is (no `view`: the third person, what everyone else sees, unchanged);
-- `view` 0 with fx/artifacts/human_<kind>_fp, a first-person copy of the particle system:
-  - out: the emitters that would cross the carrier's eyes or wash out the view: `up_light`
-    (it spawns on the head and carries the particle point lights), `distortion` (the heat haze,
-    a screen-space warp) and `rays_chest` (the chest, just under the camera);
+- `view` 0 with fx/artifacts/human_<kind>_fp, a first-person copy of the particle system.
+  In the first person the body's arms and torso are drawn in the foreground pass
+  (player::set_head_visibility 0x1F37A0: set_model_foreground on parts 1 and 2;
+  renderer::foreground_begin 0x13E010 gives them a depth range of their own), after the world:
+  a particle on the arms, drawn in the world pass, is hidden behind them. What shows is what
+  stands out of the arms' outline, what lights them, and the legs when one looks down. So:
+  - out: `distortion` (the heat haze, a screen-space warp) and `rays_chest` (the chest,
+    just under the camera);
   - no particle on the head, face, neck or chest (Head, Face, Neck, FrontChest, BackChest off
-    in every emitter's animated domain); the arms, hands and legs keep theirs;
-  - lighter: the rays half as big and half as many, the rising sparks half as many, the strokes
-    along the limbs 0.6 of their width;
+    in every emitter's animated domain); the arms, hands and legs keep theirs, at the stock size
+    and rate, so the glow stands out of the arms' outline as it does on everyone else;
+  - `up_light` kept (its soft glow around the arms, hands and legs) with its point lights
+    dimmed: intensity x0.35, radius x0.7 (0.86 m), enough to tint the carrier's own hands and
+    weapon in the artefact's colour without washing out the view;
   - the same materials (additive), so the kinds' colours add up as they do in the third person.
 """
 import argparse
@@ -39,7 +45,7 @@ import sys
 import zlib
 
 PACK_ID = 'artefact-glow'
-VERSION = '1'
+VERSION = '2'
 # kind -> (effect config, particle system); the stock files, by sha256.
 KINDS = {
     'lifebone': 'fx/artifacts/human_zhivokost',
@@ -56,20 +62,15 @@ STOCK = {
 }
 COMPOSITE, PARTICLE = 110, 114
 FIRST_PERSON = 0
-DROP = {'up_light', 'distortion', 'rays_chest'}
+DROP = {'distortion', 'rays_chest'}
 NEAR_EYES = ('Head', 'Face', 'Neck', 'FrontChest', 'BackChest')
 DOMAIN = 'particle_action_initial_animated_domain_type'
 LIGHT = 'particle_action_light_type'
-# emitter name -> {property: factor} on the y of its curves' keys (sizes in m, rates a second)
+# emitter name -> {property: factor} on the y of its curves' keys
 SCALE = {
-    'rays': {'InitSize': 0.5, 'Rate': 0.5},
-    'up': {'Rate': 0.5},
-    'left_hend': {'InitSize': 0.6},
-    'right_hend': {'InitSize': 0.6},
-    'body': {'InitSize': 0.6},
-    'left_leg': {'InitSize': 0.6},
-    'right_leg': {'InitSize': 0.6},
+    'up_light': {'Intensity': 0.35, 'Radius': 0.7},   # its Light action: dim point lights
 }
+LIGHT_EMITTER, LIGHT_PEAK = 'up_light', 0.35
 
 T_BOOL, T_INT, T_FLOAT, T_NAMED, T_INDEXED, T_STR = 0, 1, 2, 3, 4, 5
 REC = struct.Struct('<QQIHH')
@@ -200,8 +201,8 @@ def first_person_particle(tree):
         lit = False
         for aguid, action in dict(emitter[1])['children'][1]:
             kind = get(action, 'particle_entity_type')[1]
-            if kind == LIGHT:
-                raise SystemExit(f'{name}: a light action outside the dropped emitters')
+            if kind == LIGHT and name != LIGHT_EMITTER:
+                raise SystemExit(f'{name}: a light action outside {LIGHT_EMITTER}')
             if kind == DOMAIN:
                 props = [(k, (T_BOOL, 0) if k in NEAR_EYES else c) for k, c in get(action, 'properties')[1]]
                 lit = any(c == (T_BOOL, 1) for k, c in props)
@@ -238,14 +239,24 @@ def composite_effect(tree, fp_system):
 
 
 def check_particle(tree, kept):
-    """What the first-person copy must not have: a light, a distortion, a part near the eyes."""
+    """What the first-person copy must not have: a bright light, a distortion, a part near the eyes."""
+    def peak(node):
+        t, v = node
+        if t == T_NAMED:
+            return max([peak(c) for k, c in v] + [c[1][1] for k, c in v if k == 'position' and c[0] == 6] + [0.0])
+        if t == T_INDEXED:
+            return max([peak(c) for c in v] + [0.0])
+        return 0.0
+
     def walk(node):
         t, v = node
         if t == T_NAMED:
             d = dict(v)
             if 'particle_entity_type' in d:
                 kind = d['particle_entity_type'][1]
-                assert kind != LIGHT, 'a light'
+                if kind == LIGHT:
+                    intensity = peak(dict(d['properties'][1])['Intensity'])
+                    assert 0 < intensity <= LIGHT_PEAK + 1e-6, f'a light of intensity {intensity}'
                 if kind == DOMAIN:
                     props = dict(d['properties'][1])
                     for part in NEAR_EYES:
@@ -258,7 +269,7 @@ def check_particle(tree, kept):
             for c in v:
                 walk(c)
     walk(tree)
-    assert kept == sorted(['body', 'left_hend', 'left_leg', 'rays', 'right_hend', 'right_leg', 'up']), kept
+    assert kept == sorted(['body', 'left_hend', 'left_leg', 'rays', 'right_hend', 'right_leg', 'up', 'up_light']), kept
 
 
 def main():
@@ -302,7 +313,7 @@ def main():
         'target_build': '0.26g',
         'description': "the artefacts' glow seen by their carrier: each effect_artefact_<kind> a composite of the "
                        'stock third-person particle effect and a first-person one (view 0) playing '
-                       'fx/artifacts/human_<kind>_fp, a lighter copy on the arms, hands and legs only, no lights',
+                       'fx/artifacts/human_<kind>_fp, a copy on the arms, hands and legs only, its point lights dimmed, no haze',
         'operations': operations,
         'notes': ['made by srp-026g/scripts/artefact-glow/make_pack.py from the stock resources.db\'s '
                   'artefact effects and particle systems (docs/notes/artefacts.md)'],

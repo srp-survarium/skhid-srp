@@ -25,6 +25,13 @@ build must not change it):
   presenter has a player (+8h), and returns (0x2AC6B3) otherwise: the
   carrier's first-person presenter plays the twin, not the stock glow; any
   other player's third-person presenter plays the stock glow, not the twin;
+- the whole chain a match runs: each presenter built by its constructor,
+  given to a player by player::set_effect_presenter 0x1F3740 (as the
+  camera's attach gives the first-person one to the player one plays), and
+  an activation sent by the player's game_effect_player 0x2DE3A0 through
+  the effect's own accept (particle_game_effect 0x2AE2E0) reaches the
+  handler, which plays the twin for the carrier and the stock glow for
+  everyone else;
 - artefact_base::effect_calculator 0x313640 (vtable 0xA15A68 +0, the time
   calculator EFFECT 0x313350 gives the effect player): the effect is
   finished as soon as the artefact is not active (state 4), so both
@@ -51,6 +58,9 @@ PRESENT = 0x2AC400                                 # cdecl-ish: (presenter, effe
 PLAY, SKIP = 0x2AC686, 0x2AC6B3                    # its activation, its return without one
 CALCULATOR = 0x313640                              # thiscall (out, ...), `ret 10h`; out +8 = finished
 ACTIVATE = 0
+SET_PRESENTER = 0x1F3740                           # player::set_effect_presenter: esi = the player, edi = &presenter
+DISPATCH = 0x2DE3A0                                # game_effect_player's events: eax = it, esi = the item; (repeat), `ret 4`
+PARTICLE_EFFECT_VT = 0xA0D484                      # particle_game_effect (+3Ch: its accept 0x2AE2E0)
 
 MEMORY, STACK, STOP = 0x20000000, 0x21008000, 0x22000000
 
@@ -191,6 +201,45 @@ def run(data):
     expect(not presents(1, 0), "another player's third-person presenter skips the first-person twin")
     expect(presents(0, 2) and presents(1, 2), "view 2 would play in both")
     expect(not presents(0, 0, target=0), "a presenter with no player (the free camera) plays nothing")
+
+    # The whole chain as a match runs it: the presenters built by their
+    # constructors, given to a player by player::set_effect_presenter (as the
+    # camera's attach 0x242B90 gives the first-person one to the player one
+    # plays and player::initialize a third-person one to everyone else), and an
+    # activation sent by the player's game_effect_player (0x2DE3A0, its events
+    # through each effect's own vtable +3Ch, particle_game_effect 0x2AE2E0).
+    world = game.block(0x6000)
+    for kind, presenter_view in (("first", 0), ("third", 1)):
+        presenter = game.block(0x600)
+        if kind == "first":
+            game.call(FP_PRESENTER, (world, 0), edi=presenter)
+        else:
+            game.call(TP_PRESENTER, edx=world, eax=presenter)
+        holder = game.block(0x10)
+        game.word(holder, presenter)
+        body = game.block(0x500)
+        game.word(body + 0x390, body + 0x3A8)                      # its effects not yet given anywhere
+        game.call(SET_PRESENTER, esi=body, edi=holder)
+        expect(game.read(body + 0x390) == holder and game.read(body + 0x3A0) == holder,
+               f"set_effect_presenter gives the player's effects to the {kind}-person presenter")
+        target = presenter + (0x478 if kind == "first" else 0x10)
+        expect(game.read(target) == body, f"the {kind}-person particle presenter plays on that player")
+        for effect_view in (0, 1):
+            fx = game.block(0x60)
+            game.word(fx, PARTICLE_EFFECT_VT)
+            game.word(fx + 0x1C, 100)                              # references: never released here
+            game.word(fx + 0x34, effect_view)
+            item = game.block(0x60)
+            events = game.block(0x40)
+            game.word(item + 0x40, events)
+            game.word(events, events + 0x10)
+            game.word(events + 4, events + 0x28)
+            game.word(events + 0x10, fx)
+            game.word(events + 0x14, ACTIVATE)
+            game.call(DISPATCH, (0,), eax=body + 0x358, esi=item)
+            played = game.seen == PLAY
+            expect(played == (effect_view == presenter_view),
+                   f"the {kind}-person presenter {'plays' if played else 'skips'} a view-{effect_view} effect")
 
     # The effect's end: the artefact's calculator.
     for state, finished in ((4, 0), (3, 1), (1, 1)):
