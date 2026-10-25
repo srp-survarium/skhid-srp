@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 156960,
-  "sha256": "850c50149484a1a747b28476f63b0223704e82749d5827d94149ea7ecc8fa5f9",
+  "sha256": "77e14f0f27639bf1b7e4b5ff6d5c2130a30224c06c62cc8a91dee8152d4dc38c",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -27,12 +27,12 @@
     "match_keys.code": {
       "kind": "code",
       "va": "0xa433000",
-      "size": 264
+      "size": 304
     },
     "match_keys.state": {
       "kind": "state",
       "va": "0xa434000",
-      "size": 74
+      "size": 75
     },
     "hide_ui.code": {
       "kind": "code",
@@ -128,9 +128,11 @@
     "hide_ui_reset": "0xa4350f0",
     "kill_feed_event": "0xa438000",
     "kill_feed_row": "0xa43809f",
-    "match_keys_chat": "0xa4330c3",
-    "match_keys_hud": "0xa433080",
-    "match_keys_keyboard": "0xa433000",
+    "kit_keys": "0xa43404a",
+    "match_keys_chat": "0xa4330ec",
+    "match_keys_hud": "0xa4330a9",
+    "match_keys_keyboard": "0xa433020",
+    "match_keys_poll": "0xa433000",
     "memcpy": "0xa42ebbf",
     "memset": "0xa42e65c",
     "research_hud": "0xa42d005",

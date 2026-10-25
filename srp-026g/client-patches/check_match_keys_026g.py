@@ -5,18 +5,37 @@ in the default build on made-up game objects.
     python check_match_keys_026g.py <original survarium.exe>
 
 Requires Python `unicorn`. The exe's sections are loaded as they are, the
-arena with them; the patch's three entries run from the game's own sites:
+arena with them; the patch's four entries run from the game's own sites:
 
+- the poll: the game world's input handler's slot +14h (0x9FC59C), as the
+  input world's tick calls it (thiscall, the input world, `ret 4`), from
+  each state of kit_keys with the cursor shown and not: CLOSED -> OPENING ->
+  OPEN while shown, CLOSED when not; the input world popped, ebx esi edi ebp
+  kept. The original's slot is `ret 4` (0x75AF0);
 - the keys: the game world's on_keyboard_action (0x25CD00) is run from its
   kind's test (0x25CD41) with a made-up input handler in edi (the hud at +4:
   its cursor flag +2DCh, its movie's holder +8 -> +108h -> +4) and the
-  function's frame in ebp (the key, the kind), until it reaches 0x25CD4B (a
-  key down) or 0x25CF0D (any other). Scaleform's Invoke (0x511600) is a stub
-  that records its movie, name, result and argument. A case must invoke
-  `root.select_kit_key` with the kit (an unsigned int GFx value) exactly for
-  the keys 1, 2 and 3 going down while the cursor is shown and the movie is
-  there, and arrive where the original exe does with every register, the
-  frame and the stack as the original's;
+  function's frame in ebp (the key, the kind), in each state of kit_keys,
+  until it reaches 0x25CD4B (a key down) or 0x25CF0D (any other).
+  Scaleform's Invoke (0x511600) is a stub that records its movie, name,
+  result and argument. A case must invoke `root.select_kit_key` with the kit
+  (an unsigned int GFx value) exactly for the keys 1, 2 and 3 going down in
+  OPEN while the cursor is shown and the movie is there, and arrive where the
+  original exe does with every register, the frame and the stack as the
+  original's;
+- the input ticks: the game's own input world tick (0x3B7BD0) and keyboard
+  process (0x3B9AF0) run over a made-up input world whose keyboard holds the
+  poll's DirectInput events and keys down (its execute a `ret`), its one
+  handler the game world's (vtable 0x9FC588; on_keyboard_action goes on at
+  0x25CF0D from 0x25CD4B: the key's actions are not this patch's). Before
+  each tick the hud's cursor is what the game tick before it left (1: the
+  kits shown). For each of the keys 1, 2 and 3: held from play into the kits,
+  pressed or tapped in the frame they came, let go in play and pressed on
+  them, in play, and a respawn then a death: a kit is picked only by a press
+  made on the kits after their first tick, never by a key held or pressed
+  before; every tick hands on_keyboard_action the same keys and kinds as the
+  original exe's, which picks nothing (the kits are its movie's clicks), and
+  comes back with its argument popped and ebx esi edi ebp kept;
 - the variable: the game world's constructor's call of the hud's (0x1F6845)
   runs with the hud's constructor a stub that pops its argument and leaves
   made-up registers; the game's own cc_value<bool> constructor (0x1DDB0)
@@ -45,34 +64,48 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC
 import patch_026g as base
 
 KIND_TEST, BACKS = 0x25CD41, base.MATCH_KEYS_BACKS
+KEYBOARD_ACTION = 0x25CD00
 HUD_SITE, HUD_BACK, HUD_CONSTRUCTOR = 0x1F6845, 0x1F684A, 0x233810
 CHAT_SITE, CHAT_BACK, ADD_MESSAGE = 0x26B916, 0x26B91B, 0x208AD0
 INVOKE = 0x511600
 LOOKUP, EXECUTE = 0xEB7C0, 0xEB980
 COMMANDS = 0x1F1D66C                   # the console commands' list head
 OPTION_NAME, CC_BOOL = 0xA064FC, 0x9E7C4C
+POLL_SLOT, STOCK_SLOT = base.MATCH_KEYS_POLL_SLOT[0], 0x75AF0
+INPUT_TICK, PROCESS = 0x3B7BD0, 0x3B9AF0  # input_world's tick, the keyboard's process
+INPUT_VTABLE, KEYBOARD_VTABLE = 0xA252D4, 0xA25478
+HANDLER_VTABLE = 0x9FC588
+PLAIN_RET = 0x1AF330                   # a `ret`: the made-up keyboard's execute (the poll is the harness's)
 HANDLER, HOLDER, UI, MOVIE = 0x20000000, 0x20001000, 0x20002000, 0x20003000
 WORLD, STACK, SENTINEL, TEXT = 0x20004000, 0x21000000, 0x22000000, 0x23000000
+INPUT, KEYBOARD, KEYBOARD_VT, HANDLERS = 0x24000000, 0x24001000, 0x24003000, 0x24004000
 REGS = (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI,
         UC_X86_REG_EBP)
 GAME = dict(zip(REGS, (0x0A0A0A0A, HANDLER, 0x0D0D0D0D, 0x0B0B0B0B, 0x05050505, 0x0E0E0E0E, 0x0019FF00)))
-DOWN, HELD, UP = 1, 2, 3
+KEPT = (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP)
+DOWN, UP, HELD = 1, 2, 3               # the keyboard's process (0x3B9AF0): an event down, up; a key down
+CLOSED, OPENING, OPEN = 0, 1, 2        # kit_keys (match_keys_026g.asm)
+PHASES = {CLOSED: "CLOSED", OPENING: "OPENING", OPEN: "OPEN"}
 
 
 class Run:
-    def __init__(self, data):
+    def __init__(self, data, kit_keys=None):
         self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
         for _, rva, vsize, raw, rsize, _ in base.Headers(data).sections(data):
             start = base.IMAGE_BASE + rva
             emu.mem_map(start, (max(vsize, rsize) + 0xFFF) & ~0xFFF, UC_PROT_ALL)
             emu.mem_write(start, bytes(data[raw:raw + min(rsize, vsize or rsize)]))
-        for at in (HANDLER, STACK, SENTINEL, TEXT):
+        for at in (HANDLER, STACK, SENTINEL, TEXT, INPUT):
             emu.mem_map(at, 0x10000, UC_PROT_ALL)
+        self.kit_keys = kit_keys           # the state byte's address (the patched build's)
         self.calls = []
+        self.actions = []
+        self.ticking = False
         self.stub_regs = {}
         emu.hook_add(UC_HOOK_CODE, self.stub, begin=INVOKE, end=INVOKE)
         emu.hook_add(UC_HOOK_CODE, self.stub, begin=HUD_CONSTRUCTOR, end=HUD_CONSTRUCTOR)
         emu.hook_add(UC_HOOK_CODE, self.stub, begin=ADD_MESSAGE, end=ADD_MESSAGE)
+        emu.hook_add(UC_HOOK_CODE, self.action, begin=KEYBOARD_ACTION, end=KEYBOARD_ACTION)
         for back in BACKS:
             emu.hook_add(UC_HOOK_CODE, self.stop, begin=back, end=back)
 
@@ -112,14 +145,76 @@ class Run:
         self.emu.emu_start(start, until, count=500000)
         return {reg: self.emu.reg_read(reg) for reg in REGS}, self.emu.reg_read(UC_X86_REG_ESP)
 
-    # The keys: on_keyboard_action from its kind's test, edi the handler, ebp its frame.
-    def key(self, key, kind, cursor, movie=True):
+    def phase(self, value=None):
+        """kit_keys: set (a value) or read; None in the original."""
+        if self.kit_keys is None:
+            return None
+        if value is not None:
+            self.emu.mem_write(self.kit_keys, bytes([value]))
+        return self.read(self.kit_keys, 1)[0]
+
+    def handler(self, cursor, movie=True):
+        """The game world's input handler: its vtable, the hud's movie holder and cursor."""
         emu = self.emu
         emu.mem_write(HANDLER, bytes(0x4000))
+        self.word(HANDLER, HANDLER_VTABLE)
         self.word(HANDLER + 0xC, HOLDER if movie else 0)
         self.word(HOLDER + 0x108, UI)
         self.word(UI + 4, MOVIE)
         emu.mem_write(HANDLER + 0x2E0, bytes([cursor]))
+
+    # The poll: the handler's slot +14h as the input world's tick calls it.
+    def poll(self, cursor):
+        self.emu.mem_write(HANDLER + 0x2E0, bytes([cursor]))
+        slot = self.read(POLL_SLOT)
+        sp = STACK + 0x8000 - 8
+        self.word(sp, SENTINEL)
+        self.word(sp + 4, INPUT)
+        regs, esp = self.run(slot, SENTINEL, sp, {**GAME, UC_X86_REG_ECX: HANDLER})
+        return slot, regs, esp - sp
+
+    # A whole input tick: the game's input world tick and keyboard process over
+    # a made-up input world, its keyboard's poll `events` (key, down) and the
+    # keys down after them `held`, its one handler the game world's.
+    def tick(self, cursor, events, held):
+        emu = self.emu
+        emu.mem_write(INPUT, bytes(0x10000))
+        self.word(INPUT, INPUT_VTABLE)
+        self.word(INPUT + 0xC, HANDLERS)          # the handlers: begin, end
+        self.word(INPUT + 0x10, HANDLERS + 4)
+        self.word(INPUT + 0x24, KEYBOARD)         # the keyboard (+20h and +28h: none)
+        self.word(INPUT + 0x30, 2)                # activated
+        emu.mem_write(INPUT + 0x34, b"\1")        # active
+        self.word(HANDLERS, HANDLER)
+        emu.mem_write(KEYBOARD_VT, bytes(self.emu.mem_read(KEYBOARD_VTABLE, 0x28)))
+        self.word(KEYBOARD_VT + 0x20, PLAIN_RET)  # execute: the poll is below
+        self.word(KEYBOARD, KEYBOARD_VT)
+        self.word(KEYBOARD + 0x918, INPUT)
+        self.word(KEYBOARD + 0x404, len(events))
+        for i, (key, down) in enumerate(events):  # DIDEVICEOBJECTDATA: the key, its state
+            self.word(KEYBOARD + 0x408 + 0x14 * i, key)
+            self.word(KEYBOARD + 0x40C + 0x14 * i, 0x80 if down else 0)
+        for key in held:
+            self.word(KEYBOARD + 4 + 4 * key, 0x80)
+        emu.mem_write(HANDLER + 0x2E0, bytes([cursor]))
+        sp = STACK + 0x8000 - 8
+        self.word(sp, SENTINEL)
+        self.word(sp + 4, 1000)                   # the game's time
+        self.calls, self.actions, self.ticking = [], [], True
+        try:
+            regs, esp = self.run(INPUT_TICK, SENTINEL, sp, {**GAME, UC_X86_REG_ECX: INPUT})
+        finally:
+            self.ticking = False
+        return list(self.calls), list(self.actions), regs, esp - sp
+
+    def action(self, emu, address, size, _):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        self.actions.append((self.read(sp + 8), self.read(sp + 12)))   # the key, the kind
+
+    # The keys: on_keyboard_action from its kind's test, edi the handler, ebp its frame.
+    def key(self, key, kind, cursor, movie=True):
+        emu = self.emu
+        self.handler(cursor, movie)
         frame = STACK + 0x8000
         for i, value in enumerate((0x19FF00, SENTINEL, 0x30303030, key, kind)):
             self.word(frame + 4 * i, value)
@@ -133,6 +228,10 @@ class Run:
         return self.stopped, regs, esp, list(self.calls), bytes(emu.mem_read(HANDLER, 0x4000)), changed
 
     def stop(self, emu, address, size, _):
+        if self.ticking:                   # a key down not ours: the function's end, al 0
+            if address == BACKS[0]:
+                emu.reg_write(UC_X86_REG_EIP, BACKS[1])
+            return
         self.stopped = address
         emu.emu_stop()
 
@@ -187,7 +286,7 @@ def main():
     code = open(base.default_bin("section"), "rb").read()
     built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
     linked = base.arena()
-    stock, patched = Run(original), Run(bytes(built))
+    stock, patched = Run(original), Run(bytes(built), linked.symbols["kit_keys"])
     failed = 0
 
     def report(ok, text):
@@ -195,23 +294,75 @@ def main():
         failed += not ok
         print(f"  {'ok' if ok else 'FAIL'}  {text}")
 
+    def pick(kit):
+        value = struct.pack("<II", 0, 4) + struct.pack("<I", kit) + bytes(12)
+        return [("invoke", MOVIE, b"root.select_kit_key", 0, 1, value)]
+
+    print("the poll (the game world's input handler's slot +14h, 0x9FC59C)")
+    for phase in (CLOSED, OPENING, OPEN):
+        for cursor in (0, 1):
+            patched.handler(cursor)
+            patched.phase(phase)
+            slot, regs, popped = patched.poll(cursor)
+            want = CLOSED if not cursor else OPENING if phase == CLOSED else OPEN
+            ok = slot == linked.symbols["match_keys_poll"] and patched.phase() == want and popped == 8 \
+                and all(regs[reg] == GAME[reg] for reg in KEPT)
+            report(ok, f"{PHASES[phase]}, the kits {'shown' if cursor else 'not shown'}: {PHASES[patched.phase()]}, "
+                       "the input world popped, ebx esi edi ebp kept")
+    stock.handler(1)
+    slot, regs, popped = stock.poll(1)
+    report(slot == STOCK_SLOT and popped == 8 and all(regs[reg] == GAME[reg] for reg in KEPT),
+           f"the original's slot is {STOCK_SLOT:#x}, `ret 4`")
+
     print("the keys (on_keyboard_action from 0x25CD41 to 0x25CD4B or 0x25CF0D)")
-    cases = [(key, kind, cursor, movie) for key in (1, 2, 3, 4, 5, 0x1C) for kind in (DOWN, HELD, UP)
-             for cursor in (0, 1) for movie in (True, False)]
-    for key, kind, cursor, movie in cases:
+    cases = [(key, kind, cursor, movie, phase) for key in (1, 2, 3, 4, 5, 0x1C) for kind in (DOWN, UP, HELD)
+             for cursor in (0, 1) for movie in (True, False) for phase in (CLOSED, OPENING, OPEN)]
+    for key, kind, cursor, movie, phase in cases:
+        patched.phase(phase)
         a, b = stock.key(key, kind, cursor, movie), patched.key(key, kind, cursor, movie)
-        want = kind == DOWN and 2 <= key <= 4 and cursor and movie
+        want = kind == DOWN and 2 <= key <= 4 and cursor and movie and phase == OPEN
         invoked = b[3]
         ok = a[0] == b[0] == BACKS[kind != DOWN] and a[1:3] == b[1:3] and not a[3] and a[4] == b[4] \
-            and not a[5] and not b[5]
-        if want:
-            value = struct.pack("<II", 0, 4) + struct.pack("<I", key - 2) + bytes(12)
-            ok = ok and invoked == [("invoke", MOVIE, b"root.select_kit_key", 0, 1, value)]
-        else:
-            ok = ok and not invoked
-        report(ok, f"key {key:#x} kind {kind} cursor {cursor} movie {'yes' if movie else 'no'}: "
+            and not a[5] and not b[5] and patched.phase() == phase
+        ok = ok and invoked == (pick(key - 2) if want else [])
+        report(ok, f"key {key:#x} kind {kind} cursor {cursor} movie {'yes' if movie else 'no'} {PHASES[phase]}: "
                    + (f"root.select_kit_key({key - 2})" if invoked else "nothing invoked")
                    + f", at {b[0]:#x} with the registers, frame, stack and objects the original's")
+
+    print("the input ticks (input_world's tick 0x3B7BD0, the keyboard's process 0x3B9AF0, on_keyboard_action)")
+    for key in (2, 3, 4, 5):           # the keys 1, 2, 3 and 4 above the letters
+        kit = key - 2 if key <= 4 else None
+        down, up = (key, True), (key, False)
+        # (what, [(the kits shown at the tick, the poll's events)], the tick that picks or None)
+        scenarios = [
+            ("held from play into the kits, then let go and pressed",
+             [(0, []), (0, [down]), (1, []), (1, []), (1, []), (1, [up]), (1, [down])], 6),
+            ("pressed in the frame the kits came, held, then let go and pressed",
+             [(0, []), (1, [down]), (1, []), (1, [up]), (1, [down])], 4),
+            ("tapped in the frame the kits came, then pressed",
+             [(0, []), (1, [down, up]), (1, []), (1, [down])], 3),
+            ("let go in play, pressed on the kits",
+             [(0, []), (0, [down]), (0, [up]), (1, []), (1, [down])], 4),
+            ("in play", [(0, []), (0, [down]), (0, []), (0, [up]), (0, [down, up])], None),
+            ("on the kits, a respawn, a death and a press in its frame, then let go and pressed",
+             [(0, []), (1, []), (1, []), (0, []), (1, [down]), (1, [up]), (1, [down])], 6),
+        ]
+        for what, ticks, picks in scenarios:
+            held, seen, ok = set(), [], True
+            stock.handler(0)
+            patched.handler(0)
+            for at, (cursor, events) in enumerate(ticks):
+                for k, d in events:
+                    (held.add if d else held.discard)(k)
+                a = stock.tick(cursor, events, held)
+                b = patched.tick(cursor, events, held)
+                kinds = [(k, DOWN if d else UP) for k, d in events] + [(k, HELD) for k in sorted(held)]
+                want = pick(kit) if at == picks and kit is not None else []
+                ok = ok and a[1] == b[1] == kinds and a[0] == [] and b[0] == want \
+                    and a[3] == b[3] == 8 and all(a[2][reg] == b[2][reg] == GAME[reg] for reg in KEPT)
+                seen.append(f"{'kits' if cursor else 'play'} {PHASES[patched.phase()]}"
+                            + (f" picks kit {kit + 1}" if b[0] else ""))
+            report(ok, f"key {key - 1}, {what}: " + ", ".join(seen))
 
     print("the variable (the hud's constructor call, 0x1F6845)")
     option = linked.symbols["hide_chat"]

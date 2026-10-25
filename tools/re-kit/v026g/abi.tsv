@@ -1934,3 +1934,9 @@ va	name	source	ret_cleanup	result
 0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	manual	12	AL: 1 the file is used, 0 made again
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	manual	4	
 0x000e0210	vostok::render::render_model_instance::destroy	manual	0	
+0x003b7bd0	vostok::input::input_world::tick	manual	4	
+0x003b8cc0	vostok::input::platform::keyboard::on_activate	manual	0	
+0x003b8cf0	vostok::input::platform::keyboard::on_deactivate	manual	0	
+0x003b8d00	vostok::input::platform::keyboard::is_key_down	manual	4	EAX: 1 the key down (bit 7 of its state), else 0
+0x003b8d20	vostok::input::platform::keyboard::execute	manual	0	
+0x003b9af0	vostok::input::platform::keyboard::process	manual	4	

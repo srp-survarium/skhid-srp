@@ -3049,3 +3049,8 @@ va	status	ref_021d	name
 0x0012de30	inferred-medium		vostok::render::baked_texture_resource::baked_texture_resource
 0x000f0080	inferred-medium		vostok::resources::query_result_for_cook::set_unmanaged_resource
 0x001e8da0	inferred-high		survarium::delete_folder
+0x003b7bd0	inferred-medium		vostok::input::input_world::tick
+0x003b8cc0	inferred-medium		vostok::input::platform::keyboard::on_activate
+0x003b8cf0	inferred-medium		vostok::input::platform::keyboard::on_deactivate
+0x003b8d00	inferred-medium		vostok::input::platform::keyboard::is_key_down
+0x003b9af0	inferred-medium		vostok::input::platform::keyboard::process

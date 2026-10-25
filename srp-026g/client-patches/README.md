@@ -108,7 +108,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
-| `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
+| `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (a key pressed before they came, none), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
@@ -3191,20 +3191,35 @@ A player's asks (2026-10-21, board T29): "before respawn, add key shortcuts for 
 
 **The keys.** A key in a match reaches the game world's `on_keyboard_action` (0x25CD00,
 slot 0 of its input vtable 0x9FC588; the input world, the DirectInput key, the kind 1 down, 2
-held, 3 up) before the player's handler. The hud movie gets no key there (only the chat's
+up, 3 held) before the player's handler. The hud movie gets no key there (only the chat's
 handler hands keys to it, while the chat is typed in), so the movie cannot see 1, 2 and 3 by
 itself. The kits are shown by the hud (`root.show_profiles_selector`, 0x2383B0) together with
 the cursor (`show_cursor` 0x23A930, the hud's +2DCh, the handler's +2E0h): on the death screen
 and before the start (patch 31). After its Tab test the function asks the kind at 0x25CD41
 (`cmp dword [ebp+10h],1 / jnz near 0x25CF0D`, edi = the handler); the patch jumps there to
 `match_keys_keyboard`, which for a key 1, 2 or 3 (DIK 2..4) going down while the cursor is
-shown invokes the hud movie's `root.select_kit_key(0, 1 or 2)` (an unsigned int, as the hud's
+shown, and was at the input tick before (below), invokes the hud movie's `root.select_kit_key(0, 1 or 2)` (an unsigned int, as the hud's
 other calls on `[[[hud+8]+108h]+4]`), then goes on at 0x25CD4B (or 0x25CF0D for any other
 kind) as the original: the key is not taken, the player's handler gets it as before (a dead
 player sends no input, 0x1F7883). The movie (`HUD.select_kit_key`) does what a click on that
 kit's tab does (`ProfileSelector.pickByKey`: `tabPage.selectedIndex`, whose change calls
 `profile_changed` as a click's does), and nothing when the kits are not shown, the chat is
 being typed in (between `focus_chat(true)` and `focus_chat(false)`, or the focus on its input), the kit cannot be played (`enabled`, as its greyed tab) or is the one chosen.
+
+**A key pressed before the kits came picks nothing** (2026-10-25; the owner: "I often press 3
+mid-fight to heal with the medkit, I die, and I swap to my 3rd kit"). Every `game::tick` runs
+the input world's tick (0x3B7BD0) before the game world's update, which shows the kits when the
+player dies. The input tick polls the keyboard (DirectInput's buffered events since the poll
+before), calls every input handler's slot +14h, then hands the keys out: each event a kind 1
+(down) or 2 (up), then a kind 3 for every key held. So the first tick on the death screen
+handed out, with the cursor shown, a 3 pressed in play in the frame of the death, and the kit
+was picked and sent (0xDE) at once. The patch points the game world's handler's slot +14h
+(0x9FC59C, `ret 4` at 0x75AF0) at `match_keys_poll`, which after each poll sets the kits'
+screen's state `kit_keys` from the cursor: CLOSED (not shown), OPENING (shown, not at the poll
+before: a key of this poll may have gone down before the kits came), OPEN (shown at both).
+`match_keys_keyboard` picks only in OPEN. A key held from play into the kits makes no kind 1, and
+one pressed in their frame is OPENING's: either picks nothing until it is let go and pressed
+again on the kits.
 
 **The chat option.** The gameplay options' option 4 (`options_item_bool` named
 "g_private_messages_in_game", 0xA064FC; the checkbox `_no_in_batle` of `main_menu.swf`,
@@ -3229,9 +3244,10 @@ Kept: the server's lines (0, 2), the general and private channels (1, 4: in a ma
 add_message gives them to the lobby's movie), the player's own lines (the local echo, another
 call), and every line in the lobby.
 
-All three in the arena's blocks `match_keys.code` and `match_keys.state`
+All four in the arena's blocks `match_keys.code` and `match_keys.state`
 (`match_keys_026g.asm`), with the late join. No address and no base relocation under the sites
-(0x25CD41 ten bytes, 0x1F6845 and 0x26B916 a `call` each); nothing aims inside them.
+(0x25CD41 ten bytes, 0x1F6845 and 0x26B916 a `call` each); nothing aims inside them. The slot
+0x9FC59C is a vtable's pointer in `.rdata`, under its base relocation as before.
 
 Rendering and input only: a kit choice goes as a click's; no row in
 `../crates/session/src/v026g/simulation_changes.tsv`. `../docs/notes/client_patch.md` section
@@ -3239,12 +3255,19 @@ Rendering and input only: a kit choice goes as a click's; no row in
 
 Checked: `selftest_026g.py` check 58 (the three sites before and after, the code around them,
 the option's name used once, the block's code, exits, calls and data, the movies' and the
-manifest's parts) and the call shapes (0x1F6845 and 0x26B916 CALLEE, `ret 4` and `ret 14h` as
-their models; 0x25CD41 JUMP); `check_match_keys_026g.py` (Unicorn): the keys from 0x25CD41 for
-the keys 1 to 5 and Enter, each kind, with and without the cursor and the movie: Invoke with
-`root.select_kit_key` and the kit exactly for 1, 2 and 3 going down with the cursor and the
-movie, and every case at the original's 0x25CD4B or 0x25CF0D with its registers, frame and
-stack; the variable: the hud's constructor called with the game world and the hud, its
+manifest's parts, the input tick's order and the keyboard's kinds, the slot) and the call shapes
+(0x1F6845 and 0x26B916 CALLEE, `ret 4` and `ret 14h` as their models; 0x9FC59C SLOT, `ret 4`;
+0x25CD41 JUMP); `check_match_keys_026g.py` (Unicorn): the poll from each state, the kits shown
+and not (CLOSED, OPENING, OPEN; `ret 4`, ebx esi edi ebp kept); the keys from 0x25CD41 for
+the keys 1 to 5 and Enter, each kind, with and without the cursor and the movie, in each state:
+Invoke with `root.select_kit_key` and the kit exactly for 1, 2 and 3 going down in OPEN with the
+cursor and the movie, and every case at the original's 0x25CD4B or 0x25CF0D with its registers,
+frame and stack; the input ticks, the game's own tick (0x3B7BD0) and keyboard process
+(0x3B9AF0) over a made-up input world, for the keys 1 to 4: held from play into the kits, pressed
+or tapped in the frame they came, let go in play then pressed on them, in play, a respawn then a
+death: a kit only for a press on the kits after their first tick, the game's handler given the
+same keys and kinds as by the original exe (which picks nothing: main's build, run the same way,
+picks kit 3 for a 3 pressed or tapped in the frame of the death); the variable: the hud's constructor called with the game world and the hud, its
 registers back, one `cc_bool` "g_private_messages_in_game" at the list's head over two calls,
 found by the game's lookup (0xEB7C0) and set and cleared by the game's execute (0xEB980) as a
 `user.cfg` line; the chat: every channel with the option off and on, in and out of a match,
