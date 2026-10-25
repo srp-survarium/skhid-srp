@@ -28,10 +28,18 @@
 ; value's two halves as uint (the movie reads the dict ids the kit names,
 ; UpgradeWindow.as), then the two instructions and back at 0x2882E9 (the
 ; object's PushBack). Any other record's object is the original's.
+;
+; weapon_kit_attached_pair: setup_inventory_data (0x288520) maps each upgrade
+; record's item id to its host ({id, host} pairs, 0x2885B7..0x2885DC: the
+; push 0x28B0F0 at 0x2885C9, edi the pair, esi the pairs' vector, eax the
+; host's records, edx the record's index x 3), from which each item's
+; is_attached_to (0x288672 -> 0x287E30). Here the original's push, then
+; weapon_kit_attached: a kit's named dict ids as pairs of their own, so the
+; camouflage a scoped weapon's kit names shows worn on it.
 BITS 32
 
-global weapon_kit_query, weapon_kit_bridge
-extern weapon_kit_expand, weapon_kit_holds
+global weapon_kit_query, weapon_kit_bridge, weapon_kit_attached_pair
+extern weapon_kit_expand, weapon_kit_holds, weapon_kit_attached
 section .text
 
 %define GET_QUERY 0x2F2060          ; the query's {dict id, modifications*, upgrades*, dictionary} to [edi]: al
@@ -48,6 +56,7 @@ section .text
 %define KIT_SLOT 3
 %define KIT_MAGIC 0xA7
 %define GFX_UINT 4
+%define PAIR_PUSH 0x28B0F0          ; setup_inventory_data's pair push: edi the pair, esi the vector
 
 ; 0x2F1771: `call 0x2F2060` -> jmp here (esi the query's holder, edi
 ; ebp+38h, as for the call).
@@ -135,6 +144,27 @@ set_uint:
     add esp, 16
     pop eax
     ret 8
+
+; 0x2885C9: `call 0x28B0F0` -> call here. ebp setup_inventory_data's frame:
+; [ebp-14h] the inventory's vector (lc+1EA978h), [ebp-0Ch] its end, [ebp-18h]
+; the host's id. Every register as 0x28B0F0 leaves it but eax and edx (the
+; caller reloads both).
+weapon_kit_attached_pair:
+    pushad
+    call PAIR_PUSH                  ; the original's pair
+    mov ecx, [esp+28]               ; eax: the host's records
+    mov edx, [esp+20]               ; edx: the record's index x 3
+    lea ecx, [ecx+edx*8]
+    mov eax, [ebp-0x14]
+    push dword [ebp-0x0C]
+    push dword [eax]
+    push esi
+    push dword [ebp-0x18]
+    push ecx
+    call weapon_kit_attached
+    add esp, 20
+    popad
+    ret
 
 section .rodata
 name_low:   db "kit_lo", 0

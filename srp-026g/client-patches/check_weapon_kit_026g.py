@@ -36,6 +36,15 @@ are, the arena with them.
   wrote) on made-up records and queues: the records afterwards are those
   this file's model of the server's packing gives (decals in slots 0 and 1,
   the kit), at most three, the registers kept.
+- the inventory's is_attached_to: setup_inventory_data (0x288520) from its
+  entry to the end of its loop (0x2886C4) with the game's own pair map
+  (0x28B0F0) and lookup, on a made-up lobby client and inventory; the
+  item-to-Flash function (0x287E30) a stub that writes down each item and
+  the host it was given, Scaleform's CreateArray, CreateObject and PushBack
+  stubs. A scoped weapon whose kit names a camouflage: the camouflage (the
+  lowest item id of that dict id) is attached to the weapon (the original:
+  to nothing), its decal and scope as in the original, a second item of the
+  same camouflage and an unworn one to nothing.
 """
 import struct
 import sys
@@ -47,6 +56,8 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC
 import patch_026g as base
 
 CALL_SITE, QUERY_BACK, LOOP_END = 0x2F1771, 0x2F1776, 0x2F1960
+SETUP_INVENTORY, SETUP_LOOP_END, ITEM_TO_FLASH = 0x288520, 0x2886C4, 0x287E30
+CREATE_OBJECT, CREATE_ARRAY = 0x511700, 0x511710
 GET_QUERY, ITEM_BY_ID, CHILD = 0x2F2060, 0x1F0090, 0x0F6B10
 BRIDGE_SITE, BRIDGE_BACK = 0x2882E3, 0x2882E9
 KIT_MAGIC = 0xA7
@@ -55,6 +66,7 @@ FIELD_SHIFTS = (0, 16, 32)
 KIT_ORDER = (3, 2, 4, 5)               # the kit's own: the first of scope, camouflage, muzzle, grip
 
 STACK, STOP = 0x21000000, 0x21100000
+MENU, CLIENT = 0x32000000, 0x34000000
 DICTIONARY, ENTRIES, CONFIGS, ITEM, QUERY, GFX = 0x30000000, 0x30010000, 0x30020000, 0x30030000, 0x30040000, \
     0x30050000
 REGS = (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI,
@@ -158,11 +170,14 @@ class Run:
         for at in (DICTIONARY, ENTRIES, CONFIGS, ITEM, QUERY, GFX, STOP):
             emu.mem_map(at, 0x10000, UC_PROT_ALL)
         emu.mem_map(STACK - 0x20000, 0x40000, UC_PROT_ALL)
-        for at in (GET_QUERY, ITEM_BY_ID, CHILD, GFX + 0x100):
+        for at in (GET_QUERY, ITEM_BY_ID, CHILD, GFX + 0x100, ITEM_TO_FLASH, CREATE_OBJECT, CREATE_ARRAY,
+                   GFX + 0x110, GFX + 0x120, GFX + 0x130):
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=at, end=at)
         self.stops = ()
         emu.hook_add(UC_HOOK_CODE, self.stop)
-        self.children, self.items, self.refuse, self.set_members = {}, {}, False, []
+        self.children, self.items, self.refuse, self.set_members, self.attached = {}, {}, False, [], []
+        for at in (MENU, CLIENT):
+            emu.mem_map(at, 0x200000 if at == CLIENT else 0x10000, UC_PROT_ALL)
 
     def u32(self, at, value=None):
         if value is None:
@@ -191,6 +206,21 @@ class Run:
             if key not in self.children:
                 raise KeyError(f"CHILD {key[0]:#x} {key[1]!r}")
             self.ret(self.children[key], 0)
+        elif address == ITEM_TO_FLASH:      # eax the item, [esp+4] the menu, +8 the value, +0Ch the host; ret 0Ch
+            self.attached.append((self.u32(emu.reg_read(UC_X86_REG_EAX)), self.u32(sp + 12)))
+            self.ret(0, 12)
+        elif address == CREATE_OBJECT:      # thiscall (&value, ...): ret 10h
+            self.emu.mem_write(self.u32(sp + 4), struct.pack("<III", GFX, 8, 0x5150))
+            self.ret(0, 16)
+        elif address == CREATE_ARRAY:       # thiscall (&value): ret 4
+            self.emu.mem_write(self.u32(sp + 4), struct.pack("<III", GFX, 9, 0x5160))
+            self.ret(0, 4)
+        elif address == GFX + 0x110:        # PushBack(data, index, &value): ret 0Ch
+            self.ret(0, 12)
+        elif address == GFX + 0x120:        # the lobby client's getter (thiscall): the client
+            self.ret(CLIENT, 0)
+        elif address == GFX + 0x130:        # release: ret 8
+            self.ret(0, 8)
         else:                               # SetMember(data, name, &value, display): thiscall, ret 16
             data, name, value, display = (self.u32(sp + 4 * i) for i in range(1, 5))
             self.set_members.append((emu.reg_read(UC_X86_REG_ECX), data, self.text(name).decode(),
@@ -309,6 +339,39 @@ class Run:
                               UC_X86_REG_EBP: 0x22222222, UC_X86_REG_EAX: 0, UC_X86_REG_ECX: 0,
                               UC_X86_REG_EDX: 0x0D0D0D0D})
         return self.stopped, esp - sp, regs, bytes(emu.mem_read(sp, 0x100)) == before, list(self.set_members)
+
+    # setup_inventory_data: the menu's lobby client's inventory, each item's is_attached_to
+    def attached_to(self, inventory):
+        """`inventory`: [(item id, dict id, [records])]; {item id: the host
+        0x287E30 was given}."""
+        emu = self.emu
+        emu.mem_write(MENU, bytes(0x1000))
+        self.u32(MENU + 0x9C, MENU + 0x100)
+        self.u32(MENU + 0x100 + 0x53AC, MENU + 0x200)
+        self.u32(MENU + 0x200, MENU + 0x300)
+        self.u32(MENU + 0x300 + 0x3C, GFX + 0x120)
+        self.u32(MENU + 0x690, MENU + 0x400)
+        self.u32(MENU + 0x400 + 0x108, MENU + 0x500)
+        self.u32(MENU + 0x504, MENU + 0x600)
+        self.u32(GFX, GFX + 0x80)
+        self.u32(GFX + 0x80 + 0x34, GFX + 0x110)
+        self.u32(GFX + 0x80 + 0x08, GFX + 0x130)
+        items = CLIENT + 0x1EB000
+        for i, (item_id, dict_id, records) in enumerate(inventory):
+            at = items + 0xB4 * i
+            self.records(at, records)
+            self.u32(at, item_id)
+            self.emu.mem_write(at + 4, struct.pack("<H", dict_id))
+        self.u32(CLIENT + 0x1EA978, items)
+        self.u32(CLIENT + 0x1EA97C, items + 0xB4 * len(inventory))
+        sp = STACK - 0x3000
+        emu.mem_write(sp - 0x2000, bytes(0x2100))
+        self.u32(sp, STOP)
+        self.u32(sp + 4, MENU)
+        self.attached = []
+        self.run(SETUP_INVENTORY, (SETUP_LOOP_END,), sp, {UC_X86_REG_EBX: 0x11111111, UC_X86_REG_ESI: 0x33333333,
+                                                         UC_X86_REG_EDI: 0x44444444, UC_X86_REG_EBP: 0x22222222})
+        return self.stopped, dict(self.attached)
 
     # patch 48's apply: edi the item record, ebx its state
     def preview_apply(self, apply_va, state, records, changes):
@@ -464,6 +527,20 @@ def main():
         report(stopped == STOP and moved == 4 and kept and got == want == literal and len(got) <= 3,
                f"{name}: {len(got)} record(s) as the model and as written here, every register kept")
 
+    print("the inventory's is_attached_to (setup_inventory_data 0x288520 to 0x2886C4)")
+    WEAPON, DECAL, SCOPE_ITEM, CAMO_A, CAMO_A2, CAMO_B = 100, 1603, 1605, 1601, 1650, 1602
+    inventory = [(WEAPON, 501, [DECAL0, kit(SCOPE, 3, camo=601)]), (CAMO_A2, 601, []), (DECAL, 603, []),
+                 (SCOPE_ITEM, 2101, []), (CAMO_A, 601, []), (CAMO_B, 602, [])]
+    a, b = stock.attached_to(inventory), patched.attached_to(inventory)
+    want = {WEAPON: 0, DECAL: WEAPON, SCOPE_ITEM: WEAPON, CAMO_A: WEAPON, CAMO_A2: 0, CAMO_B: 0}
+    report(a[0] == b[0] == SETUP_LOOP_END and a[1] == {**want, CAMO_A: 0} and b[1] == want,
+           f"a scoped weapon whose kit names camouflage 601: its camouflage item {CAMO_A} (the lowest of the "
+           f"two of 601) attached to the weapon {WEAPON} (the original: to nothing), the decal and the scope "
+           f"to it as in the original, the other 601 and an unworn camouflage to nothing")
+    plain = [(WEAPON, 501, [DECAL0, (1601, 601, 0, 3)]), (DECAL, 603, []), (CAMO_A, 601, [])]
+    a, b = stock.attached_to(plain), patched.attached_to(plain)
+    report(a == b and a[1] == {WEAPON: 0, DECAL: WEAPON, CAMO_A: WEAPON},
+           "records without a kit: the original's marks")
     print(f"weapon kit: {'all passed' if not failed else f'{failed} FAILED'}")
     sys.exit(1 if failed else 0)
 

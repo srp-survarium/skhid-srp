@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 47390,
-  "sha256": "c554f3e89c0ef09c9bd3daec6a78ae2e38b705290c2b0b0425e5bb7704f4a93c",
+  "size": 47618,
+  "sha256": "5312ef6cac9c477844b39a2f89330a5de1df70b3a1edb05f1b2838517d7af741",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -47,7 +47,7 @@
     "weapon_kit.code": {
       "kind": "code",
       "va": "0xa438000",
-      "size": 2334
+      "size": 2562
     }
   },
   "symbols": {
@@ -143,10 +143,12 @@
     "rr_serialized_size": "0xa42d397",
     "rr_tick": "0xa42d5e5",
     "rr_write": "0xa42da9c",
+    "weapon_kit_attached": "0xa438929",
+    "weapon_kit_attached_pair": "0xa4380ec",
     "weapon_kit_bridge": "0xa438050",
-    "weapon_kit_expand": "0xa4381e4",
-    "weapon_kit_holds": "0xa43819f",
-    "weapon_kit_preview_apply": "0xa4383ae",
+    "weapon_kit_expand": "0xa43820c",
+    "weapon_kit_holds": "0xa4381c7",
+    "weapon_kit_preview_apply": "0xa4383d6",
     "weapon_kit_query": "0xa438000"
   },
   "built_with": {

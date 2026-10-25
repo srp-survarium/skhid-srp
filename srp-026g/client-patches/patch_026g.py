@@ -2020,13 +2020,19 @@ HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # - the lobby's upgrades to Flash (0x288180), `mov ecx,[esp+48h] / mov
 #   eax,[ecx]` at 0x2882E3 after the object's `param`: bridge gives a kit
 #   record's object kit_lo and kit_hi (its value), then the two instructions,
-#   back at 0x2882E9 (the PushBack).
+#   back at 0x2882E9 (the PushBack);
+# - setup_inventory_data's (0x288520) push of a record's {item id, host}
+#   pair, `call 0x28B0F0` at 0x2885C9 (the map each item's is_attached_to is
+#   read from): attached_pair pushes it, then for a kit a pair for each dict
+#   id it names (the inventory's item of that id, the lowest item id), so a
+#   camouflage a scoped weapon's kit names shows worn on it.
 # Patch 48's apply calls weapon_kit_preview_apply through the dword at
 # UPGRADE_PREVIEW_KIT_APPLY of its code, which the build writes.
 # No base relocation is under a site and no branch aims inside one.
 WEAPON_KIT_HOOKS = (
     (0x2F1771, bytes.fromhex("e8ea080000"), "weapon_kit_query", 0xE9),        # translate_query's call of 0x2F2060
     (0x2882E3, bytes.fromhex("8b4c24488b01"), "weapon_kit_bridge", 0xE9),     # the upgrades to Flash: after `param`
+    (0x2885C9, bytes.fromhex("e8222b0000"), "weapon_kit_attached_pair", 0xE8),  # setup_inventory_data's pair push
 )
 WEAPON_KIT_BACKS = (0x2F1776, 0x2882E9)
 WEAPON_KIT_PREVIEW_APPLY = "weapon_kit_preview_apply"
@@ -2197,6 +2203,8 @@ INSTALLS = {
                      "below; back at 0x2F1776", None, None),
     0x2882E3: (JUMP, "the lobby's upgrades to Flash 0x288180, `mov ecx,[esp+48h] / mov eax,[ecx]` after an "
                      "object's `param`: bridge, back at 0x2882E9", None, None),
+    0x2885C9: (CALLEE, "setup_inventory_data's push of a record's {item id, host} pair (0x28B0F0: edi the pair, "
+                       "esi the vector): attached_pair, which pushes it and a kit's named items' pairs", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}

@@ -73,6 +73,11 @@ So a weapon is sent at most three records whatever it wears. Armour is sent as b
   `param`; patch 68 (0x2882E3) gives a kit's object `kit_lo` and `kit_hi` (its value's halves).
   `UpgradeWindow.kitUpgrades` makes the window's slots of them: the kit's own item in its own slot,
   each dict id it names as the inventory's item of that id (`InventoryList.getInventoryItemOf`).
+- **What a cosmetic is attached to.** setup_inventory_data (0x288520) maps each record's item id
+  to its host ({id, host} pairs pushed at 0x2885C9, an alloca of 50h bytes an item) and gives each
+  item its `is_attached_to` from them. Patch 68 pushes, after a kit's own pair, one for each dict
+  id the kit names: the inventory's item of that id with the lowest item id (as the movie's
+  `getInventoryItemOf`). A scoped weapon's camouflage shows worn on it.
 - **The preview (patch 48).** Its `apply` calls `weapon_kit_preview_apply` through a dword the
   build writes: the queued change on the logical slots, packed again as the server packs.
 - **The client never writes a weapon's record itself**: srp answers a weapon's `46 01` and `46 02`
@@ -97,6 +102,6 @@ release's revision; the exe and server ship together).
 
 ## Not done
 
-- The inventory's "is attached to" mark (the exe's own, by the records' item ids) does not see a
-  camouflage the kit names: the camouflage item is not shown as worn in the inventory list.
+- A player holding two items of one camouflage sees the lower item id as the one worn (the kit
+  names the dict id, not the item).
 - Not run in a game.

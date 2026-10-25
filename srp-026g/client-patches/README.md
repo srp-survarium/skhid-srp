@@ -3362,8 +3362,8 @@ first of scope, camouflage, muzzle, grip (its own item and dict id), its value n
 by dict id (bits 0..15 the camouflage, 16..31 the muzzle device, 32..47 the grip, 48..55 its own
 slot, 56..63 0xA7).
 
-`weapon_kit_026g.asm` and `weapon_kit_026g.c`, the arena's block `weapon_kit.code`, two entries
-(`WEAPON_KIT_HOOKS`, both JUMP):
+`weapon_kit_026g.asm` and `weapon_kit_026g.c`, the arena's block `weapon_kit.code`, three entries
+(`WEAPON_KIT_HOOKS`):
 
 - **query** (0x2F1771, `call 0x2F2060` -> `jmp weapon_kit_query`): item_config_cook::translate_query
   (0x2F1750) reads the item's records only through [ebp+40h] (0x2F1799, 0x2F18D0); query calls
@@ -3378,6 +3378,10 @@ slot, 56..63 0xA7).
   after the upgrade object's `param` (0x2882E1), a kit record's object gets `kit_lo` and `kit_hi`
   (uint, the value's halves; SetMember as the bridge's own), then the two instructions; back at
   0x2882E9 (the PushBack). The movie's `UpgradeWindow.kitUpgrades` makes the window's slots of them.
+- **attached_pair** (0x2885C9, setup_inventory_data's `call 0x28B0F0` -> `call
+  weapon_kit_attached_pair`, CALLEE): the {item id, host} pair the item's `is_attached_to` is read
+  from, then for a kit one pair for each dict id it names (the inventory's item of that id, the
+  lowest item id), so a scoped weapon's camouflage shows worn on it.
 
 Patch 48 (`upgrade_preview_026g.asm`): a dword `kit_apply` after its seven entries (+23h, zeros in
 the file) that the build writes with `weapon_kit_preview_apply`'s address (`with_kit_apply`);
@@ -3400,7 +3404,9 @@ and stack, six with a kit the records and what it names (at most six; a dict id 
 lacks, one held already, a slot taken left out), the item's records unchanged; 0x2F2060's refusal
 the original's way; the bridge's six cases (kit_lo/kit_hi on the kit's object only, registers and
 stack the original's); patch 48's apply in nine cases against the packing model and literal
-records; `check_upgrade_preview_026g.py` with the kit's records. **Not run in a game.**
+records; setup_inventory_data's loop with the game's own pair map: a scoped weapon's camouflage
+attached to it (the original: to nothing); `check_upgrade_preview_026g.py` with the kit's records.
+**Not run in a game.**
 
 ## Not ported, not done
 

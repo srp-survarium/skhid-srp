@@ -4185,6 +4185,19 @@ def test_weapon_kit(original, image, before):
           "(its size at 0x2F1799, each record's dict id and value in its loop 0x2F18D0..0x2F193B; 0x2F1F1F "
           "writes the slot anew for its own use after the loop), which "
           "0x2F2060 copies from the query's +8..+17h (al 1); its epilogue takes esp from ebp (0x2F2041)")
+    check(rows(stock, 0x2885B7, 0x25)[:12] == ["lea edx,[eax+eax*2]", "mov eax,[ebx+0x60]", "mov ecx,[eax+edx*8]",
+                                          "lea edi,[ebp-0x1c]", "lea esi,[ebp-0x28]", "mov [ebp-0x1c],ecx",
+                                          "call 0x28b0f0", "mov al,[ebp-0x5]", "inc al", "mov [ebp-0x5],al",
+                                          "movzx eax,al", "cmp eax,[ebp-0x10]"]
+          and rows(stock, 0x288541, 0x0C) == ["mov ecx,[edi+0x1ea97c]", "mov ebx,[edi+0x1ea978]"]
+          and rows(stock, 0x288553, 3) == ["mov [ebp-0xc],ecx"] and rows(stock, 0x288573, 3) == ["mov [ebp-0x14],edi"]
+          and rows(stock, 0x2885AC, 3) == ["mov [ebp-0x18],ecx"]
+          and rows(stock, 0x28B0F0, 0x11)[:4] == ["push ecx", "mov eax,[esi+0x4]", "cmp eax,[esi+0x8]", "jc 0x28b14e"]
+          and rows(stock, 0x28856B, 6) == ["lea esi,[eax+eax*4]", "shl esi,byte 0x4"],
+          "setup_inventory_data (0x288520) pushes an {item id, host} pair for each upgrade record of each "
+          "inventory item (0x2885C9, 0x28B0F0: edi the pair, esi the vector, eax the host's records, edx the "
+          "index x 3), into an alloca of 50h bytes an item; [ebp-14h] the inventory's vector, [ebp-0Ch] its "
+          "end, [ebp-18h] the host's id")
     check(rows(stock, 0x2882D2, 0x11)[-2:] == ["push eax", "call edx"]
           and rows(stock, 0x2882E3, 0x09) == ["mov ecx,[esp+0x48]", "mov eax,[ecx]", "mov eax,[eax+0x3c]"]
           and rows(stock, 0x28820C, 0x0F)[:1] == ["mov eax,[esi+0x60]"]
@@ -4199,7 +4212,7 @@ def test_weapon_kit(original, image, before):
         check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
               and block.va <= target < block.va + block.size,
               f"{va:#x}: {old.hex()} in the original and the build without the late join, "
-              f"`jmp {target:#x}` ({symbol}, an entry of weapon_kit.code) here")
+              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}, an entry of weapon_kit.code) here")
     under = [v for kind, v in stock.relocations().values() if kind == 3
              and any(va - 4 < v < va + len(old) for va, old, _, _ in P.WEAPON_KIT_HOOKS)]
     hits = [h for va, old, _, _ in P.WEAPON_KIT_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
@@ -4211,16 +4224,18 @@ def test_weapon_kit(original, image, before):
           f"the code at {block.va:#x} is the link's weapon_kit.code ({len(code)} bytes)")
     entry = linked.symbols["weapon_kit_query"]
     asm_end = min(v for k, v in linked.symbols.items() if block.va <= v < block.va + block.size
-                  and k.startswith("weapon_kit_") and k not in ("weapon_kit_query", "weapon_kit_bridge")
+                  and k.startswith("weapon_kit_")
+                  and k not in ("weapon_kit_query", "weapon_kit_bridge", "weapon_kit_attached_pair")
                   and v > entry)
     texts = [t for _, _, t in ndisasm(image.read(entry, asm_end - entry), entry)]
     outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
                       and not block.va <= branch_target(t) < block.va + len(code)})
-    check(outside == sorted({0x2F2060} | set(P.WEAPON_KIT_BACKS))
+    check(outside == sorted({0x2F2060, 0x28B0F0} | set(P.WEAPON_KIT_BACKS))
           and "call [eax+0x14]" in texts and "weapon_kit.state" not in linked.blocks
           and linked.symbols[P.WEAPON_KIT_PREVIEW_APPLY] > asm_end,
-          "the two entries go on at 0x2F1776 and 0x2882E9, call 0x2F2060, the C code and the object's "
-          "SetMember and nothing else, and keep no state of their own (the list is on translate_query's stack)")
+          "the entries go on at 0x2F1776 and 0x2882E9 or return to setup_inventory_data, call 0x2F2060, "
+          "0x28B0F0 (the original's pair), the C code and the object's SetMember and nothing else, and keep no "
+          "state of their own (the list is on translate_query's stack)")
 
 
 def test_hide_ui(original, image, before):

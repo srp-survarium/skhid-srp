@@ -32,6 +32,12 @@
  *   weapon_kit_preview_apply   patch 48's queue of changes applied to the
  *                              window's weapon as the server applies them,
  *                              on the logical slots, packed again
+ *   weapon_kit_attached        setup_inventory_data's map of what each
+ *                              cosmetic is attached to: a dict id a kit
+ *                              names marks the inventory's item of that id
+ *                              (the lowest item id, as the lobby movie's
+ *                              InventoryList.getInventoryItemOf) as on the
+ *                              kit's weapon
  */
 #include "engine_026g.h"
 
@@ -301,4 +307,45 @@ void weapon_kit_preview_apply(unsigned char *item, const struct change *changes,
     for (unsigned int i = 0; i < packed; i++)
         records->begin[i] = wire[i];
     records->end = records->begin + packed;
+}
+
+/* setup_inventory_data's (0x288520) {item id, host id} pairs: begin, end,
+ * capacity end (its alloca of 50h bytes an inventory item). */
+struct pairs {
+    unsigned int *begin;
+    unsigned int *end;
+    unsigned int *capacity;
+};
+
+#define INVENTORY_ITEM 0xB4u
+
+/* After setup_inventory_data's pair of `record` (one of the item `host`'s
+ * records): for a kit, a pair {the inventory's item of that dict id, host}
+ * for each dict id it names, so the movie's is_attached_to marks a
+ * camouflage (muzzle device, grip) the kit names as worn on that weapon.
+ * The item: the inventory's (`begin`..`end`, B4h a record, +0 its id, +4
+ * its dict id) of the lowest item id. No room (the alloca holds ten pairs an
+ * item, a kit names three): nothing more. */
+void weapon_kit_attached(const struct record *record, unsigned int host, struct pairs *pairs,
+                         const unsigned char *begin, const unsigned char *end)
+{
+    if (!is_kit(record))
+        return;
+    unsigned int own = (record->high >> 16) & 0xFF;
+    for (unsigned int i = 0; i < 3; i++) {
+        unsigned int dict = field(record, i);
+        if (dict == 0 || field_slot[i] == own)
+            continue;
+        unsigned int found = 0;
+        for (const unsigned char *item = begin; item + INVENTORY_ITEM <= end; item += INVENTORY_ITEM) {
+            unsigned int id = *(const unsigned int *)item;
+            if (*(const unsigned short *)(item + 4) == dict && id != 0 && (found == 0 || id < found))
+                found = id;
+        }
+        if (found == 0 || pairs->end + 2 > pairs->capacity)
+            continue;
+        pairs->end[0] = found;
+        pairs->end[1] = host;
+        pairs->end += 2;
+    }
 }
