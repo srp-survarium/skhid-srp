@@ -93,7 +93,7 @@ package survarium.controls
          }
       }
       
-      // Places a code-made icon at x, centred on the names' line; the x after it.
+      // Places a code-made icon at x, centred on the weapon's icon (not above the row); the x after it.
       private function placeIcon(icon:DisplayObject, x:uint, dx:uint) : uint
       {
          if(icon.parent != this)
@@ -101,7 +101,7 @@ package survarium.controls
             return x;
          }
          icon.x = x;
-         icon.y = int(this.who_name.y + (this.who_name.height - icon.height) / 2);
+         icon.y = Math.max(0,int(this.object_icon.y + (this.object_icon.height - icon.height) / 2));
          return x + icon.width + dx;
       }
       

@@ -3373,7 +3373,7 @@ on_player_killed reads the first byte alone for extra_icon (0x2380EA). `kill_fee
 members, then does the site's two moves.
 
 **The movie.** `CombatLogItem` shows `CombatLogWallIcon` (0.69d0's `icon_penetration.png`) and
-`CombatLogPainIcon` (the Anesthetic's hud picture in white) after the weapon and before the
+`CombatLogPainIcon` (a white lightning bolt for pain shock, drawn) after the weapon and before the
 cause icon, for a kill or a suicide row, in 0.69d0's order; the build adds the two bitmaps
 (`../flash/hud/bitmaps/`, made by `../scripts/kill-feed-icons/make_icons.py`).
 

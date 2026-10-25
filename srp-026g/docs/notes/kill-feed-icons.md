@@ -22,8 +22,10 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
 - **The icons:**
   - wall: 0.69d0's kill log icon `flash_movies/textures/ui_icons/log/icon_penetration.png`
     (40x30), as it is;
-  - pain: the Anesthetic's own picture (its hud quick slot icon, the ampoule) in white, 23 px high,
-    shaded and shadowed as the hud's own cause icons;
+  - pain: a lightning bolt for pain shock (the owner's pick, 2026-10-25, of 15 candidates: neither
+    0.26g nor retail has a pain or shock icon; the Anesthetic's ampoule read as a bullet), drawn,
+    white, 23 px high, a dark shadow one pixel down and right as the hud's own cause icons;
+  - both sit 5 px apart in the row, centred on the weapon's icon (never above the row);
   - made by `scripts/kill-feed-icons/make_icons.py`; the build adds each `bitmaps/<class>.png`
     to the movie (`tools/actionscript/flash_tree.py`).
 - **Every game alike:** both flags come from the simulation's own state (the bullet, the pools) in
