@@ -707,6 +707,72 @@ take's hold-fire too (633fb535), the final tree. No tier plays as 4-5.
 - tdm: seeds 1-2 at 4-5, 9-10 and 13-15, both commits; every run's
   decisions digest equal to base's.
 
+## Bots: a hit carrier dropping the battery to fight, tried and shelved
+
+### What was tried
+
+The owner's idea, widened to every carrier under fire with no cover (#416,
+closed): a carrier cannot shoot (a fire press drops the battery in the
+game), so a hit carrier far from home was a free kill. In 919 human carries
+under fire (129 battery matches; `pvb-343-check/analysis/carriers-under-fire`),
+72 % of those hit alone past 30 m who kept running died, and a dropper won
+36 % of its fights against one attacker, 7-11 % against two or more.
+
+The rule (all GUESS): a carrier on Bring hit within 2 s, more than 30 m from
+our container, with exactly one enemy in sight within 40 m and no teammate
+within 15 m covering, drops it (one tick of the drop key) and fights within
+8 m of it with the fire gate open (`Intent::let_go`), then takes it again
+once the enemy is dead or out of sight 3 s, or leaves it to a nearer
+teammate. The dropper's Collect of the battery it dropped was kept hurt or
+among enemies, at the alarm band.
+
+### Bench
+
+Against 59c0b652, batt preset, 24 seeds over 12 maps, after − base per seed
+(SE); 4-5 / 9-10 / 13-15.
+
+- **Carriers killed fall:** −0.7 (0.52) / −1.7 (0.60) / −2.5 (0.58).
+- **But no battery is saved.** Our batteries the enemy took after our
+  carrier let them fall, before we took them back:
+  - after a carrier killed: −1.0 (0.51) / −0.7 (0.51) / −1.5 (0.47);
+  - after a drop to fight: +0.6 (0.20) / +0.9 (0.18) / +0.9 (0.21);
+  - all: −0.4 (0.56) / +0.2 (0.47) / −0.6 (0.48).
+  Delivered +0.3 (0.43) / −0.1 (0.37) / +0.2 (0.36); deaths, kills, K/D,
+  quick ends and team kills within noise. The drop moves the losses from
+  kill drops to fight drops.
+- **Guards it worsened** (the drop alone, without the slot change below):
+  flips at 9-10 +5.0 (1.75); s without a play at 13-15 +1.0 (0.50); guard
+  deaths at 13-15 +0.67 (0.30).
+- **Looser rules** (16 seeds at 13-15): dropping from 20 m of home, or with
+  two enemies in sight, cut carriers killed a little more and delivered no
+  more.
+- **The drop key works** (traced at 13-15, 24 seeds): every drop intent
+  reached the game input, and 91 of the 92 that came while the body carried
+  dropped it that tick; no hold of the key is needed. The bench counted a
+  few of them as drops by fire: the reflex, let fire by the same intent,
+  pressed fire in the drop's tick.
+- **A drop decided too late:** 27 more drop presses came to a body killed
+  50-1050 ms before, which the bot's view, up to 1.3 s behind the worlds,
+  still showed alive and carrying. Not a wrong carrier belief (the view
+  named the right carrier in all but 2 of 55,000 world-seconds): the hit
+  that made it drop was the one that killed it. A live view lags the same
+  way (worlds every 1 s, 0.3 s late), so a live drop would come too late in
+  as many cases; a drop rule kept should fire on the first hits, not the
+  last.
+
+### Also tried with it
+
+`guard_lead::start()` taking the holder's or the end-game rules from the
+slot the guard was given, not from the holder's need at its start. Alone
+(against the drop alone): no gain, carriers killed at 4-5 +0.42 (0.20).
+Left out.
+
+### If tried again
+
+The drop pays only if fewer dropped batteries go to the enemy (0.8-1.0 a
+seed now): a dropper that wins its fight more often (its health against
+the attacker's), or one that fights standing on the battery.
+
 ## Bots: a carrier trapped in a pocket is not given up on, and lets go of the battery once its escape gives up
 
 ### Why

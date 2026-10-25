@@ -428,6 +428,15 @@ kept, with a cost on them) is rebuilt on top of this rule: benched alone it
 raised falls on route on every cell, from route legs along the edges and
 from planned drops off them.
 
+### Route points with the players' height: benched, shelved (2026-10-25)
+
+Play 17's route points carry no height; on stacked floors the server puts a point on the lowest floor round it, often under the floor the players walked. The 3D table gave a point the players' feet height (an optional `heights` per row, no format change), and the server put it on the floor nearest that height (within 3 m; radius 2 m, then 5 m).
+- **Heights from real matches.** For each point, every human's positions within 5 m in all recorded matches on that map and day, any match size, the humans of bot matches included, and positions filled every 1 m between 5 s samples of one life on one level (15 m at most, feet within 0.5 m, a floor there). Levels split at 2 m gaps; the lives' majority picks, the lower level when within 60:40. 993 of 1,321 route points got a height; 121 of the 122 PvB points with none before were filled, the last has no positions. The table and the players' data stay in `E:\sur-res-pro\private\bot-routes\work-20261025-3d` (not in any repo).
+- **Walk check** (without → with heights, 231 routes, tip 1dee0543's tree): lost points 141 → 122, legs with no way 10 → 1, jumps 78 → 83, legs through a damage zone 162 → 114; every pick but 2 has a floor within 1.5 m of its height.
+- **Bench** (battery + Team Deathmatch × 3 tiers, 16 seeds, 96 pairs, the table against routes.json on 1dee0543): the target, legs with no way, +181 ± 180 (z +1.0, no gain); falls on route -11.4 ± 1.9 (z -6.0), zone entries -9.3 ± 1.6 (z -5.7), reversals -6.4 ± 2.7, idle -0.30 ± 0.14 points; but stood with a goal and no route +0.16 ± 0.06 points (z +2.9) and delivered -0.36 ± 0.17 (z -2.1), guards worse beyond 2 SE. Shelved: no choice of target ships it.
+- **What the benches found on the way**, fixed for every table: spot plays sent bots to spots with no way to them (#417: Cut, Crossfire and HoldExit keep only reachable spots), and Cut's point jumped a leg on when a route point moved 0.3 m across `cut_progress` (#421: the cut is where the leg crosses it). Before them the table's no-way rose +1,200 (z +3.8), then idle +0.37 points (z +3.0).
+- **Open:** with the table, Crossfire (Team Deathmatch, +9 %) and Collect (batteries, +4 %) stand more with a goal and no route, though neither reads the routes; where the fights move is the likely cause, not traced.
+
 ### Grid: edges and drops priced, a band at the lips (b4, 2026-10-25)
 
 **The rules.** On top of the shut-pocket rule (`GRID_ALGO` 11; 9 and 10 were
