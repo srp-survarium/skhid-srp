@@ -1240,7 +1240,6 @@ mod tests {
             node: 0,
             jump,
             low,
-            edge: false,
         };
         Route::new(vec![
             p(0.0, false, false),
@@ -1991,7 +1990,6 @@ mod tests {
             node: 0,
             jump,
             low,
-            edge: false,
         };
         for aiming in [false, true] {
             // The lip under a low floor (x 4-8).
