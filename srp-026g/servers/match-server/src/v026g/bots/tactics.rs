@@ -38,6 +38,13 @@ const HIGH_CREDIT_M: f32 = 2.0;
 const STOREY_BAND_M: f32 = 2.0;
 /// How far round a ring's probe a storey above is looked for, metres.
 const STOREY_RADIUS_M: f32 = 1.0;
+/// A spot higher than this over its anchor is on a storey above it, metres:
+/// the old search's reach.
+const STOREY_FROM_M: f32 = 2.0;
+/// How far past the ring's outer edge the walk up to a storey may go, and
+/// how many floors it may visit, metres and floors.
+const WALK_UP_MARGIN_M: f32 = 20.0;
+const WALK_UP_MAX_FLOORS: usize = 40_000;
 /// A use reaches this far from the eye, metres: the client's ray is
 /// `usable_objects_detection_distance`, 2.0 (PROVEN), and must hit the
 /// object's own shape; 0.2 is kept for the aim and the body's sway.
@@ -1388,9 +1395,19 @@ impl Tactics {
         found.sort_by(|a, b| b.score.total_cmp(&a.score));
         // Rays lazily, from the best down.
         let mut out = Vec::new();
+        let mut by_walk: Option<std::collections::HashSet<NodeId>> = None;
         for spot in found {
             if out.len() >= n {
                 break;
+            }
+            // A spot on a storey over the anchor is one a walk up gets to (stairs,
+            // a ramp), not one only a jump chain does ([`Self::walk_up_from`]).
+            if spot.at.y > query.around.y + STOREY_FROM_M
+                && !by_walk
+                    .get_or_insert_with(|| self.walk_up_from(query.around, query.max_m + WALK_UP_MARGIN_M))
+                    .contains(&spot.node)
+            {
+                continue;
             }
             let eye = spot.at + Vec3::new(0.0, EYE_CROUCHED, 0.0);
             if let Some(target) = query.sight_to {
@@ -1414,6 +1431,44 @@ impl Tactics {
             out.push(spot);
         }
         out
+    }
+
+    /// The floors within `radius` (on the ground plane) of `around` that a
+    /// body gets to from the floor at `around` by walking links only (no
+    /// jump, no drop): stairs and ramps count, a ledge only a jump gets up
+    /// does not.
+    ///
+    /// Root cause (`push-record.md` V-S2a smoke): the bots' jumps are wrong
+    /// 89 % of the time and fail 40 % (the bench's wrong-jump detector, tip
+    /// 9ae23278, 1,416 presses in 64 matches); a spot reached only by a jump
+    /// chain sent bots to climbs the motor does badly (stuck +21 %, jump
+    /// stand-turn +31 % in the smoke of the search without this rule). The
+    /// jumps are the grid's and the motor's to mend; until they are, the
+    /// storeys over the ring are the ones a walk reaches.
+    fn walk_up_from(&self, around: Vec3, radius: f32) -> std::collections::HashSet<NodeId> {
+        use mapdata::LinkKind;
+        let grid = &self.world.grid;
+        let mut seen = std::collections::HashSet::new();
+        let Some(start) = grid.locate(around, LOCATE_M) else {
+            return seen;
+        };
+        let mut queue = std::collections::VecDeque::from([start]);
+        seen.insert(start);
+        while let Some(u) = queue.pop_front() {
+            if seen.len() >= WALK_UP_MAX_FLOORS {
+                break;
+            }
+            for (v, kind) in grid.links(u) {
+                if kind == LinkKind::Walk
+                    && !seen.contains(&v)
+                    && grid.position(v).distance_xz(around) <= radius
+                {
+                    seen.insert(v);
+                    queue.push_back(v);
+                }
+            }
+        }
+        seen
     }
 
     /// Adds to `nodes` the floors over `probe` that the grid's `locate` does
@@ -1877,6 +1932,10 @@ pub(super) mod tests {
             Vec3::new(10.0, 0.0, 38.0),
         ));
         triangles.extend(floor(50.0, 28.0, 60.0, 38.0, 4.0));
+        // A step of 1.2 m (a jump up from the ground) and a second one
+        // 1.2 m over it (2.4 m up): a ledge only a jump chain gets onto.
+        triangles.extend(floor(42.0, 28.0, 47.0, 38.0, 1.2));
+        triangles.extend(floor(47.0, 28.0, 51.0, 38.0, 2.4));
         let grid = WalkGrid::build(
             &triangles,
             [0.0, 0.0, 80.0, 40.0],
@@ -1938,6 +1997,28 @@ pub(super) mod tests {
             .filter(|s| s.at.y > 3.0)
             .count();
         assert_eq!(on_roof, 0);
+    }
+
+    /// A storey only a jump chain gets onto is not offered over the ring:
+    /// the bots' jumps are the weak part of their climbing (V-S2a smoke).
+    #[test]
+    fn a_storey_only_jumps_get_onto_is_not_offered_over_the_ring() {
+        let tactics = Tactics::new(platform_world(), 1.0);
+        let anchor = Vec3::new(47.0, 0.0, 24.0);
+        let query = SpotQuery {
+            prefer_high: 1.0,
+            up_m: 8.0,
+            sight_to: Some(anchor),
+            side: Some(0),
+            ..SpotQuery::ring(anchor, 0.0, 14.0)
+        };
+        let ys: Vec<f32> = tactics
+            .spots(&query, 0, 60, &mut Rng::new(5))
+            .iter()
+            .map(|s| s.at.y)
+            .collect();
+        assert!(!ys.is_empty());
+        assert!(ys.iter().all(|&y| y <= 2.0), "{ys:?}");
     }
 
     /// Decisions with no storey over the ring are the old search's: the
