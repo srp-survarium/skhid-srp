@@ -47,6 +47,10 @@ struct Row {
     jumps_by_rise: [usize; 3],
     /// Jump links landing 3 or 4 cells along their direction.
     far_jumps: usize,
+    /// Sprint links ([`mapdata::LinkKind::SprintJump`]: not among the
+    /// links the rest of the table reads), and those from a reached floor.
+    sprint_links: usize,
+    sprint_reached: usize,
     /// Each pocket: its lowest floor, its floors, its surest way out.
     pocket_list: Vec<(Vec3, usize, &'static str)>,
     /// Pockets with no way out ([`WalkGrid::in_shut_pocket`]), and those a
@@ -160,6 +164,14 @@ fn table_row(map: &MapData, grid: &WalkGrid) -> Row {
                 if cells > 2.5 {
                     row.far_jumps += 1;
                 }
+            }
+        }
+    }
+    for a in 0..n as NodeId {
+        for (_, kind) in grid.links_for(a, mapdata::Mobility::SPRINT) {
+            if kind == mapdata::LinkKind::SprintJump {
+                row.sprint_links += 1;
+                row.sprint_reached += usize::from(grid.reached(a));
             }
         }
     }
@@ -355,6 +367,8 @@ fn the_grid_table() {
             "unplanned",
             "obj_in_shut",
             "obj_unplanned",
+            "sprint_links",
+            "sprint_reached",
         ]
         .join("\t"),
     ];
@@ -411,6 +425,8 @@ fn the_grid_table() {
             row.unplanned,
             row.objectives_in_shut,
             row.objectives_unplanned,
+            row.sprint_links,
+            row.sprint_reached,
         ];
         let line = std::iter::once(project.clone())
             .chain(numbers.iter().map(usize::to_string))
