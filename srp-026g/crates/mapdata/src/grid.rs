@@ -195,6 +195,13 @@ pub const FALL_EDGE_MARGIN_M: f32 = 0.25;
 /// the walk and keeps to the floors further in where there are any; on a
 /// walkway with falls both sides it is still the way.
 pub const FALL_EDGE_PENALTY: f32 = 0.5;
+/// The extra cost of a drop per metre it falls, so a drop costs about the
+/// walk down it replaces: a stair walks about two metres per metre down,
+/// and the link's length counts one. GUESS. Without it the cost of a way
+/// along an edge ([`FALL_EDGE_PENALTY`]) is dodged by dropping off it
+/// (the planned drops rose 27-56 a cell on the bots' bench), and players
+/// take few of the drops bots take (the fall-spot study, 2026-10-25).
+pub const DROP_DESCENT_PENALTY: f32 = 1.0;
 
 /// Jumps higher than this cost [`MARGINAL_JUMP_PENALTY`] more, metres: the
 /// client's jump tops at 0.998 m (PROVEN, the jump study), so a jump link
@@ -1879,7 +1886,17 @@ impl WalkGrid {
         } else {
             0.0
         };
-        (self.position(to) - self.position(from)).length() + kind.penalty() + lip + marginal + fall
+        let descent = if kind == LinkKind::Drop {
+            DROP_DESCENT_PENALTY * (self.height[from as usize] - self.height[to as usize]).max(0.0)
+        } else {
+            0.0
+        };
+        (self.position(to) - self.position(from)).length()
+            + kind.penalty()
+            + lip
+            + marginal
+            + fall
+            + descent
     }
 
     /// Whether a floor is a lip: the last floor before a ledge at least

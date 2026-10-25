@@ -453,12 +453,16 @@ fn pull_straight(
             .map_or(LinkKind::Walk, |(_, kind)| kind);
     }
     let low = |from: usize, to: usize| nodes[from..=to].iter().any(|&n| !grid.can_stand(n));
-    // A line pulled straight crosses no lip the search kept off
+    // A line pulled straight crosses no lip, and no floor near a fall
+    // ([`WalkGrid::near_fall`]), that the search kept off
     // ([`WalkGrid::is_lip`]): cutting a corner over a ledge's edge is how a
-    // bot strays off it (player_bots_stuck.md §8.5).
-    let mut lips: Vec<NodeId> = nodes.iter().copied().filter(|&n| grid.is_lip(n)).collect();
-    lips.sort_unstable();
-    let kept_back = |n: NodeId| allowed(n) && (!grid.is_lip(n) || lips.binary_search(&n).is_ok());
+    // bot strays off it (player_bots_stuck.md §8.5). Half the unplanned
+    // falls on a route's leg were off such a cut (the fall-class bench,
+    // 2026-10-25).
+    let edge = |n: NodeId| grid.is_lip(n) || grid.near_fall(n);
+    let mut edges: Vec<NodeId> = nodes.iter().copied().filter(|&n| edge(n)).collect();
+    edges.sort_unstable();
+    let kept_back = |n: NodeId| allowed(n) && (!edge(n) || edges.binary_search(&n).is_ok());
     let mut points = vec![Waypoint {
         at: grid.position(nodes[0]),
         node: nodes[0],
