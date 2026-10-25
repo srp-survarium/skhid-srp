@@ -107,3 +107,9 @@ extern engine_cc_bool
 ; unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
 ; 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX
 extern engine_binded_action
+; void engine_cc_string(void *object, const char *name, char *buffer, unsigned int size, unsigned int saved)
+; 0xec860 vostok::console_commands::cc_string::cc_string: object EAX, name ESP+4, buffer ESP+8, size ESP+12, saved ESP+16; pops 16
+extern engine_cc_string
+; void engine_translate(void *translator, const char *key, char *buffer)
+; 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, buffer ESP+8; pops 8
+extern engine_translate

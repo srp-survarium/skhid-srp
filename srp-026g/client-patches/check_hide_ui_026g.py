@@ -39,9 +39,10 @@ answers root.interface_hidden with a bool:
 - the options' controls: game_options' own functions on a made-up options
   object (its movie, the game, the binder above), GFx objects, the strings'
   look-up, buffer_string's printf and the CRT's sscanf_s stubbed: the rows
-  sent to the movie (0x2019E0) are the original's 40 and a 41st (19h,
-  st_hide_interface_action, group 2, type 1); the keys read from the binder
-  (0x201CF0) the original's 40 and (19h, kF11); a key kF9 set for 19h
+  sent to the movie (0x2019E0) are the original's 40, a 41st (19h,
+  st_hide_interface_action, group 2, type 1) and patch 66's 42nd (37h,
+  st_mute_last_speaker_action, group 1, type 0); the keys read from the binder
+  (0x201CF0) the original's 40, (19h, kF11) and (37h, none); a key kF9 set for 19h
   (0x2013A0) is kept in the 41st row and in no row of the original; the
   accept (0x201F20) runs `bind toggle_replay_ui kF9` through the console (the
   original nothing); the binder's own bind (0x207DC0) binds 19h to kF9, its
@@ -435,15 +436,19 @@ def main():
     a_rows, _ = s_opt.table()
     b_rows, b_calls = p_opt.table()
     new = {"action_id": 0x19, "group_id": 2, "type": 1, "label": "st_hide_interface_action"}
-    report(len(a_rows) == 40 and len(b_rows) == 41 and b_rows[:40] == a_rows and b_rows[40] == new
+    # patch 66's 42nd: mute_last_speaker, in the chat keys' group as ptt's row
+    mute = {"action_id": 0x37, "group_id": 1, "type": 0, "label": "st_mute_last_speaker_action"}
+    report(len(a_rows) == 40 and len(b_rows) == 42 and b_rows[:40] == a_rows and b_rows[40] == new
+           and b_rows[41] == mute
            and [c[2] for c in b_calls] == [b"root.set_keybindings"],
            f"the list sent to the movie (root.set_keybindings): the original's {len(a_rows)} rows, then "
-           f"{b_rows[40] if len(b_rows) > 40 else None}")
+           f"{b_rows[40:]}")
     s_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     p_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     a_keys, b_keys = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()
-    report(len(a_keys) == 40 and b_keys[:40] == a_keys and b_keys[40:] == [(0x19, "kF11", 1)],
-           f"the keys from the binder (root.set_keybind): the original's 40, then {b_keys[40:]}")
+    report(len(a_keys) == 40 and b_keys[:40] == a_keys and b_keys[40:] == [(0x19, "kF11", 1), (0x37, "", 1)],
+           f"the keys from the binder (root.set_keybind): the original's 40, then {b_keys[40:]} (patch 66's "
+           "mute_last_speaker: no key)")
     for run in (s_opt, p_opt):
         run.emu.mem_write(OUT, b"kF9\0")
         run.call(KEY_SET, [OPTIONS, 0x19], {UC_X86_REG_EAX: OUT})

@@ -409,6 +409,12 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     its remove_affects, artefact_base::action's entry, the player's
     stagger) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
+66. the same build: voice chat (patch 66, voice_026g.asm and voice_026g.c,
+    the arena's blocks voice.code, voice.data and voice.state): the
+    original's six sites and two slots and what is at them, the hooks and
+    slots in the build, the action table's entry 37h (mute_last_speaker,
+    kind 8, no default key), the code's exits and imports, the movies' and
+    the content's side. check_voice_026g.py runs it.
 The engine-function library (engine_026g.py, the arena's block engine.code;
 client_patch.md section 0.5): its files are what engine_026g.tsv and the
 re-kit's ABI rows give, and engine_026g.py refuses a spec row whose
@@ -1537,7 +1543,8 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
-        [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS]
+        [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
+        [(va, len(old)) for va, old, _, _ in P.VOICE_HOOKS]
 
 
 def pickup_sites():
@@ -4109,8 +4116,8 @@ def test_match_keys(original, image, before):
     check("public function select_kit_key(index:uint)" in here("flash", "hud", "src", "HUD.as")
           and "public function pickByKey(index:uint)" in here("flash", "hud", "src", "survarium", "player",
                                                                "ProfileSelector.as")
-          and 'this.settings_content["_no_in_batle"]' in here("flash", "main_menu", "src", "survarium", "menu",
-                                                                "Settings.as")
+          and 'var live:Array = ["_no_in_batle",' in here("flash", "main_menu", "src", "survarium", "menu",
+                                                            "Settings.as")
           and "this._no_in_batle.enabled = true;" in here("flash", "main_menu", "src", "main_menu_fla",
                                                           "settingsTabs_15.as")
           and "\nedit\tmatch-chat-off-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
@@ -4118,6 +4125,98 @@ def test_match_keys(original, image, before):
           "the hud movie has root.select_kit_key, the main menu enables the option's checkbox (_no_in_batle: its "
           "timeline and create_content), "
           "release/content.tsv labels it (match-chat-off-1.json)")
+
+
+def test_voice(original, image, before):
+    """Check 66: voice chat (patch 66, VOICE_HOOKS, VOICE_SLOTS,
+    VOICE_ACTION). check_voice_026g.py runs every entry from the game's
+    sites and slots on made-up objects, with the game's own console-variable
+    code and key binder, and a made-up DLL."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 40).split(b"\0")[0]
+    word = lambda source, va: struct.unpack("<I", source.read(va, 4))[0]
+    check(rows(stock, 0x1E90A3, 5) == ["call 0x1f67b0"]
+          and rows(stock, 0x27A1B0, 5) == ["push ebx", "push ebp", "push esi", "mov esi,ecx"]
+          and word(stock, 0xA08868) == 0x27A1B0 and stock.read(0x122350, 3) == bytes.fromhex("c21400")
+          and rows(stock, 0x1F96F0, 9) == ["push edi", "mov edi,eax", "mov eax,[edi+0x9c]"]
+          and rows(stock, 0x1F9520, 5) == ["push ebx", "push esi", "push edi", "mov edi,ecx"]
+          and rows(stock, 0x25CD2C, 0x0D) == ["mov ecx,[esp+0x14]", "lea esi,[edi+0x4]", "push ecx",
+                                              "call 0x2384c0"]
+          and rows(stock, 0x1EDBDC, 6) == ["call 0x200f50", "ret"]
+          and word(stock, 0x9FC4FC) == 0x1F77E0 and word(stock, 0x9FD47C) == 0x1FF5D0,
+          "the sites: game::game's call of game_world::game_world (0x1E90A3, `ret 8`); match_client::connect "
+          "(0x27A1B0, slot 1 of 0xA08864; a replay's 0x122350 is `ret 14h`); on_finish_match (0x1F96F0) and "
+          "on_deactivate (0x1F9520) at their entries; on_keyboard_action's call of show_player_list "
+          "(0x25CD34); activate_main_menu's tail call of game_options::activate (0x1EDBDC); the slots of "
+          "game_world::tick (0x9FC4FC) and game_options' callback (0x9FD47C)")
+    entry = struct.unpack("<5I", stock.read(P.VOICE_ACTION, 20))
+    check(stock.read(P.VOICE_ACTION, 20) == P.VOICE_ACTION_OLD == before.read(P.VOICE_ACTION, 20)
+          and cstr(entry[0]) == b"serialize_player_state" and entry[1:4] == (0x37, 5, 0) and cstr(entry[4]) == b"kO"
+          and [struct.unpack("<5I", stock.read(0xA74AF0 + 20 * i, 20))[1] for i in range(60)].count(0x37) == 1,
+          "0xA74E10 is the action table's one entry of 37h: serialize_player_state, kinds 5, kO (a debug "
+          "action: no console command of that name)")
+    linked = P.arena()
+    block = linked.blocks["voice.code"]
+    for va, old, symbol, opcode in P.VOICE_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}, voice.code) here")
+    for va, old, symbol in P.VOICE_SLOTS:
+        target = linked.symbols[symbol]
+        check(word(stock, va) == word(before, va) == old and word(image, va) == target
+              and block.va <= target < block.va + block.size,
+              f"the slot {va:#x}: {old:#x} in the original, {symbol} ({target:#x}) here")
+    name = linked.symbols["mute_action_name"]
+    data_block = linked.blocks["voice.data"]
+    check(struct.unpack("<5I", image.read(P.VOICE_ACTION, 20)) == (name, 0x37, 8, 0, 0)
+          and data_block.va <= name < data_block.va + data_block.size
+          and image.read(name, 18) == b"mute_last_speaker\0",
+          "the entry is mute_last_speaker (voice.data), 37h, kind 8 (the chat keys), no default key (M is "
+          "set_next_ammo_type's)")
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.VOICE_HOOKS)]
+    hits = [h for va, old, _, _ in P.VOICE_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the hook sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "voice.code")
+    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's voice.code ({len(code)} bytes)")
+    glue = linked.symbols["voice_cc_float"] + 0x40 - block.va
+    texts = [text for _, _, text in ndisasm(code[:glue], block.va)]
+    outside = {branch_target(t) for t in texts if branch_target(t) is not None
+               and not block.va <= branch_target(t) < block.va + len(code)}
+    library = {linked.symbols[f"engine_{name}"] for name in ("cc_bool", "cc_string", "binded_action",
+                                                               "movie_invoke", "translate")}
+    check(outside <= {0x1F67B0, 0x27A1B5, 0x1F96F9, 0x1F9525, 0x1F77E0, 0x2384C0, 0x200F50, 0x1FF5D0, 0x1DD40}
+          | library and {0x27A1B5, 0x1F96F9, 0x1F9525, 0x1F77E0, 0x2384C0, 0x1FF5D0, 0x1DD40} <= outside
+          and "voice.state" in linked.blocks,
+          "the glue goes on in the functions it entered (0x27A1B5, 0x1F96F9, 0x1F9525), tail-jumps to tick, "
+          "show_player_list and the callback, calls game_world::game_world, activate and cc_value<float> "
+          "(0x1DD40: its min in xmm0), and the library's functions")
+    here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
+    settings = here("flash", "main_menu", "src", "survarium", "menu", "Settings.as")
+    timeline = here("flash", "main_menu", "src", "main_menu_fla", "settingsTabs_15.as")
+    check("public function srp_voice_talking(... pairs)" in here("flash", "hud", "src", "HUD.as")
+          and "public function srp_voice_notice(text:String, name:String)" in here("flash", "hud", "src", "HUD.as")
+          and "public function srp_voice_panel(title:String, allLabel:String, ... rows)"
+          in here("flash", "main_menu", "src", "MainMenu.as")
+          and 'ExternalInterface.call("srp_voice_mute",' in here("flash", "main_menu", "src", "survarium", "menu",
+                                                                  "VoicePanel.as")
+          and 'var live:Array = ["_no_in_batle","_hide_spam","_use_mik"];' in settings
+          and "this._hide_spam.enabled = true;" in timeline and "this._use_mik.enabled = true;" in timeline
+          and "this._sound_сhat.slider.enabled = false;" not in timeline
+          and "this._mic_sens.slider.enabled = false;" not in timeline
+          and "this._ptt.enabled = false;" in timeline
+          and "\nedit\tvoice-chat-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
+                                                        encoding="utf-8").read(),
+          "the hud has root.srp_voice_talking and root.srp_voice_notice, the main menu root.srp_voice_panel and "
+          "its panel's calls; the options enable Disable voice chat (_hide_spam), Use microphone, the voice "
+          "volume and the microphone's sensitivity, the PTT checkbox stays off; release/content.tsv makes the "
+          "labels (voice-chat-1.json)")
 
 
 def test_hide_ui(original, image, before):
@@ -4229,27 +4328,33 @@ def test_hide_ui(original, image, before):
           "counts of 28h")
     controls = linked.symbols["controls"]
     data_block = linked.blocks["hide_ui.data"]
-    arena_rows = [image.read(controls + 0x68 * i, 0x68) for i in range(count + 1)]
-    new_row = arena_rows[count]
+    arena_rows = [image.read(controls + 0x68 * i, 0x68) for i in range(P.CONTROLS_ROWS)]
+    new_row, mute_row = arena_rows[count], arena_rows[count + 1]
     label = struct.unpack_from("<I", new_row, 4)[0]
-    check(data_block.va <= controls and controls + 0x68 * (count + 1) <= data_block.va + data_block.size
+    mute_label = struct.unpack_from("<I", mute_row, 4)[0]
+    check(P.CONTROLS_ROWS == count + 2
+          and data_block.va <= controls and controls + 0x68 * P.CONTROLS_ROWS <= data_block.va + data_block.size
           and all(arena_rows[i][:16] == original_rows[i][:16] and arena_rows[i][16:] == empty(controls + 0x68 * i)
                   for i in range(count))
           and struct.unpack_from("<4I", new_row) == (0x19, label, 2, 1)
           and new_row[16:] == empty(controls + 0x68 * count)
-          and image.read(label, 25) == b"st_hide_interface_action\0",
-          f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows, each pointing into itself, and a 41st: "
-          "19h, st_hide_interface_action, group 2, type 1")
+          and image.read(label, 25) == b"st_hide_interface_action\0"
+          and struct.unpack_from("<4I", mute_row) == (0x37, mute_label, 1, 0)
+          and mute_row[16:] == empty(controls + 0x68 * (count + 1))
+          and image.read(mute_label, 28) == b"st_mute_last_speaker_action\0",
+          f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows, each pointing into itself, a 41st: "
+          "19h, st_hide_interface_action, group 2, type 1, and patch 66's 42nd: 37h, st_mute_last_speaker_action, "
+          "group 1 (the chat keys), type 0 (as ptt's)")
     writes = P.hide_ui_table_writes(linked)
     check(all(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
               for va, old, new in writes)
           and [rows(image, va, len(new))[0] for va, _, new in writes[:6]]
           == [f"mov eax,{controls:#x}", f"mov esi,{controls + 4:#x}", f"add eax,{controls:#x}",
               f"mov esi,{controls + 0xC:#x}", f"mov dword [esp+0xc],{controls:#x}", f"mov esi,{controls + 0x10:#x}"]
-          and [rows(image, va, len(new))[0][-4:] for va, _, new in writes[6:]] == ["0x29"] * 6
+          and [rows(image, va, len(new))[0][-4:] for va, _, new in writes[6:]] == [f"{P.CONTROLS_ROWS:#x}"] * 6
           and {va + at for va, _, at, _ in P.HIDE_UI_TABLE_REFS}
           <= {v for kind, v in image.relocations().values() if kind == 3},
-          "the six readers read `controls`, their counts are 29h, their addresses keep their base relocations; "
+          "the six readers read `controls`, their counts are 2Ah, their addresses keep their base relocations; "
           "the build without the late join has them as the original")
     check("\nedit\thide-interface-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                        encoding="utf-8").read(),
@@ -5787,6 +5892,9 @@ def test_late_join(original, without, server, source):
     ranges = [(P.file_offset(va), size) for va, size in late_join_sites()]
     ranges.append((P.data_file_offset(P.CLOCK_FACTOR_VA), 4))
     ranges.append((image.offset(P.REPLAY_REATTACH_SLOT[0]), 4))
+    # patch 66's two vtable slots (.rdata) and its action's entry (.data)
+    ranges += [(image.offset(va), 4) for va, _, _ in P.VOICE_SLOTS]
+    ranges.append((image.offset(P.VOICE_ACTION), len(P.VOICE_ACTION_OLD)))
     ranges += [(P.file_offset(P.REVISION_VA) + 4, 1), (P.file_offset(P.LATE_JOIN_READY_VA) + 1, 4),
                (P.file_offset(P.DB_SIGNATURE_VA), len(P.DB_SIGNATURE[1])), (P.file_offset(P.STALE_DLL_VA), len(P.STALE_DLL[1])),
                (P.file_offset(P.MOUNT_QUERY_VA), len(P.MOUNT_QUERY[1])), (P.file_offset(P.MOUNTED_VA), len(P.MOUNTED[1])),
@@ -5799,7 +5907,7 @@ def test_late_join(original, without, server, source):
     # branch, uro_fov's least, the pickup's distance, the lobby camera's least,
     # the two constants of patch 40).
     disabled = {P.REMOVE_MODEL_VA + 2, P.FOV_MINIMUM_RELOC, P.PICKUP_RELOC, *P.WEAPON_PREVIEW_RELOCS,
-                *P.FOV_LOD_RELOCS}
+                *P.FOV_LOD_RELOCS, P.VOICE_ACTION + 16}
     ranges += [(at, 2) for at, (kind, va) in before.relocations().items()
                if kind == 3 and va in disabled]
     allowed = bytearray(raw)
@@ -5891,7 +5999,8 @@ def test_late_join(original, without, server, source):
           f"({', '.join(f'{va:#x}' for va in P.WEAPON_PREVIEW_RELOCS)}) and of patch 40's two constants "
           f"({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), which are disabled, "
           "and of the options' controls table's six readers (patch 62: their address is the arena's, kept "
-          "relocatable) "
+          "relocatable), of patch 66's two slots and its action's name (the same) and its action's default "
+          f"key ({P.VOICE_ACTION + 16:#x}, none now: disabled) "
           f"and of the field-of-view option's name "
           f"({option:#x}, an address for an address), which stays; the rest of the table is the build's without it")
 
@@ -5935,6 +6044,7 @@ def test_late_join(original, without, server, source):
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)
     test_hide_ui(original, image, before)
+    test_voice(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

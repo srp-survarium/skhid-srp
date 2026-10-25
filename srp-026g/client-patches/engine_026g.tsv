@@ -34,3 +34,5 @@ engine_mouse_ray	0x26d130	ESI:menu EDI:direction ESP+4:eye	void engine_mouse_ray
 engine_accept_decal_edit	0x263950	ESI:lobby_character ESP+4:host ESP+8:decal	void engine_accept_decal_edit(void *character, unsigned int host, unsigned int decal)
 engine_cc_bool	0x01ddb0	EAX:object ESP+4:name ESP+8:value ESP+12:saved ESP+16:kind	void engine_cc_bool(void *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)
 engine_binded_action	0x207d50	EAX:binder EDI:kinds ESI:key ESP+4:toggle	unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
+engine_cc_string	0x0ec860	EAX:object ESP+4:name ESP+8:buffer ESP+12:size ESP+16:saved	void engine_cc_string(void *object, const char *name, char *buffer, unsigned int size, unsigned int saved)
+engine_translate	0x1ff0f0	ECX:translator ESP+4:key ESP+8:buffer	void engine_translate(void *translator, const char *key, char *buffer)

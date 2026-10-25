@@ -38,6 +38,8 @@ global engine_mouse_ray
 global engine_accept_decal_edit
 global engine_cc_bool
 global engine_binded_action
+global engine_cc_string
+global engine_translate
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -636,6 +638,42 @@ engine_binded_action:
     mov edi, [esp + 28]   ; kinds
     mov esi, [esp + 32]   ; key
     call 0x207d50
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_cc_string:
+    ; 0xec860 vostok::console_commands::cc_string::cc_string: object EAX, name ESP+4, buffer ESP+8, size ESP+12, saved ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; saved -> 16
+    push dword [esp + 36]   ; size -> 12
+    push dword [esp + 36]   ; buffer -> 8
+    push dword [esp + 36]   ; name -> 4
+    mov eax, [esp + 36]   ; object
+    call 0xec860
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_translate:
+    ; 0x1ff0f0 survarium::text_translator::translate_text: translator ECX, key ESP+4, buffer ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; buffer -> 8
+    push dword [esp + 28]   ; key -> 4
+    mov ecx, [esp + 28]   ; translator
+    call 0x1ff0f0
     pop edi
     pop esi
     pop ebx

@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 41128,
-  "sha256": "2909918b87eb71a05c0d2492a4d3c7629261692e3454402fec0441bae375bf03",
+  "size": 59392,
+  "sha256": "244dc5400f8da38f6f7c7bda3f0954cb416faf7bbb748675eb59e2920d29ffe8",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,7 +22,7 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 1230
+      "size": 1306
     },
     "match_keys.code": {
       "kind": "code",
@@ -37,12 +37,27 @@
     "hide_ui.code": {
       "kind": "code",
       "va": "0xa435000",
-      "size": 573
+      "size": 601
     },
     "hide_ui.data": {
       "kind": "data",
       "va": "0xa436000",
-      "size": 4264
+      "size": 4368
+    },
+    "voice.code": {
+      "kind": "code",
+      "va": "0xa438000",
+      "size": 5456
+    },
+    "voice.data": {
+      "kind": "data",
+      "va": "0xa43a000",
+      "size": 18
+    },
+    "voice.state": {
+      "kind": "state",
+      "va": "0xa43b000",
+      "size": 2048
     }
   },
   "symbols": {
@@ -62,6 +77,7 @@
     "engine_camouflage_parameters": "0xa432360",
     "engine_camouflage_parameters_type": "0xa4323f0",
     "engine_cc_bool": "0xa432480",
+    "engine_cc_string": "0xa4324d0",
     "engine_cfg_child": "0xa432000",
     "engine_cfg_has": "0xa432020",
     "engine_decal_value": "0xa432420",
@@ -85,6 +101,7 @@
     "engine_show_message": "0xa432180",
     "engine_statistics_notify": "0xa432110",
     "engine_string_assign": "0xa432320",
+    "engine_translate": "0xa432500",
     "engine_unpack_decal_value": "0xa432400",
     "engine_write_u16": "0xa4320b0",
     "engine_write_u32": "0xa4320e0",
@@ -98,6 +115,7 @@
     "match_keys_keyboard": "0xa433000",
     "memcpy": "0xa42ebbf",
     "memset": "0xa42e65c",
+    "mute_action_name": "0xa43a000",
     "research_hud": "0xa42d005",
     "research_register": "0xa42d000",
     "research_welcome": "0xa42d00a",
@@ -135,7 +153,24 @@
     "rr_reset": "0xa42d470",
     "rr_serialized_size": "0xa42d397",
     "rr_tick": "0xa42d5e5",
-    "rr_write": "0xa42da9c"
+    "rr_write": "0xa42da9c",
+    "vc_connect": "0xa4387de",
+    "vc_frame": "0xa438a14",
+    "vc_key": "0xa438d48",
+    "vc_menu": "0xa438ec8",
+    "vc_menu_call": "0xa43919d",
+    "vc_register": "0xa4386d4",
+    "vc_stop": "0xa4389e4",
+    "voice": "0xa43b000",
+    "voice_cc_float": "0xa4380cb",
+    "voice_connect": "0xa438017",
+    "voice_deactivate": "0xa43804c",
+    "voice_finish": "0xa438037",
+    "voice_key": "0xa43806d",
+    "voice_menu": "0xa43808b",
+    "voice_menu_call": "0xa4380a8",
+    "voice_register": "0xa438000",
+    "voice_tick": "0xa43805d"
   },
   "built_with": {
     "cc": "gcc (GCC) 15.2.0",

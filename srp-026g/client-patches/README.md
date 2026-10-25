@@ -105,6 +105,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
+| `voice_026g.asm`, `voice_026g.c`, `check_voice_026g.py` | Patch 66: voice chat in a match through `skhid_voice.dll` (`../client-voice`): the voice's options, push-to-talk, the mute key, the radio distances, the hud's list of who talks, the Esc menu's voice panel (the arena's blocks `voice.code`, `voice.data` and `voice.state`); its check runs every entry from the game's sites and slots with the game's own console-variable code and key binder, a made-up DLL and made-up game objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
@@ -3318,6 +3319,69 @@ a key kF9 set for 19h kept in the 41st row (the original keeps it in none), the 
 `bind toggle_replay_ui kF9` (the original's nothing), the binder's own bind binds it, its save
 writes `bind toggle_replay_ui kF9`, and that line read back binds it again. The lobby movie builds from source
 (`tools/actionscript/flash_tree.py`). **Not run in a game.**
+
+### 66. Voice chat in a match (the next release's revision)
+
+The owner's ask (2026-10-23; the answers and the later asks of 2026-10-25). The rules and the
+wire: `../docs/notes/voice-chat.md`; the DLL: `../client-voice`; the relay: srp's
+`match-server/src/v026g/voice.rs`.
+
+**What 0.26g has.** The sound tab's four voice controls (`s_chat_volume`, `s_use_microphone`,
+`s_mic_sens`, `s_ptt_button`) are bound by name and no variable of those names is registered;
+the action `ptt` (47h, kind 8, the chat keys, default P) is listed in the options and saved and
+nothing reads it. No capture, no codec: `skhid_voice.dll` (C, libopus, waveIn/waveOut,
+Winsock) is loaded at the first match with `LoadLibraryA` (the exe's import), its version asked;
+without it, or of another version (unloaded), voice is off.
+
+**The sites** (all in the arena, `voice_026g.asm` the glue, `voice_026g.c` the logic):
+- 0x1E90A3, game::game's call of game_world::game_world (`ret 8`): after it the variables are
+  registered, before user.cfg runs and the options look them up: `s_chat_volume` and `s_mic_sens`
+  as cc_value<float> (0x1DD40, its min in xmm0: a hand-written call; 0..100, the float slider's
+  steps are 1.0), `s_use_microphone` and `g_hide_spam` (the gameplay tab's dead option 5, "Hide
+  spam", now "Disable voice chat") as cc_bool, `srp_voice_mutes` as cc_string (0xEC860); kind 2,
+  saved in user.cfg;
+- 0x27A1B0, match_client::connect at its entry (thiscall: the host, the port, the session; a
+  replay's match client has its own connect, 0x122350, `ret 14h`): `sv_start(host, port + 1,
+  session)`, then the function;
+- 0x1F96F0 (on_finish_match) and 0x1F9520 (on_deactivate) at their entries: `sv_stop`;
+- the game world's vtable slot 2, 0x9FC4FC (tick, every frame of a world): the options to the DLL
+  on a change, the muted slots, the far ones (a teammate beyond 25 m, or either of the two dead:
+  the radio filter) and the hud's `root.srp_voice_talking(name, flags, ...)` on a change; a
+  push-to-talk whose key is no longer held (the keyboard asked as on_keyboard_action asks for Tab)
+  or with the game out of focus is let go;
+- 0x25CD34, on_keyboard_action's call of show_player_list, which every key of every kind passes:
+  the binder's chat keys (kind 8): 47h down and up is push-to-talk, 37h down mutes or unmutes the
+  last speaker (`root.srp_voice_notice`);
+- 0x1EDBDC, activate_main_menu's call of game_options::activate: over the match's world (the
+  game's +18h) the Esc menu's voice panel gets the teammates (`root.srp_voice_panel(title, mute
+  all, slot, name, muted, ...)`), over anything else nothing;
+- game_options' Scaleform callback, slot 0x9FD47C: `srp_voice_mute(slot, muted)` and
+  `srp_voice_mute_all(muted)` are ours (`ret 10h`), any other call the game's.
+
+**The mute key.** The action table (0xA74AF0..0xA74FA0) is fixed; its entry 37h,
+`serialize_player_state` (kinds 5, kO; a debug action whose console command does not exist),
+becomes `mute_last_speaker`, kind 8, no default key (the owner's M is `set_next_ammo_type`'s, 0Ah,
+in the game's group: kept unbound until the owner picks a key; free in every group: B, H, J, U, Y,
+Z, 9, 0, F4, F7..F10, F12, Caps Lock). Patch 62's controls table gets a 42nd row (37h,
+`st_mute_last_speaker_action`, group 1 as ptt's), the six readers' counts 2Ah. Its default key's
+relocation is disabled (the pointer is 0 now).
+
+**The mutes** are srp's voice ids (ROSTER, type 90h: a hash of the account with a server key;
+names can change hands), kept in `srp_voice_mutes` as eight hex digits and `|` each (56 at most,
+the oldest go first).
+
+Checked: `selftest_026g.py` check 66 (the sites and slots in the original and the build, the
+action's entry, the block's exits and calls, the movies' and the content's side) and the call
+shapes (0x1E90A3, 0x25CD34, 0x1EDBDC CALLEE; 0x27A1B0, 0x1F96F0, 0x1F9520 ENTRY; 0x9FC4FC,
+0x9FD47C SLOT); `check_voice_026g.py` (Unicorn, 44 cases): the variables registered once with
+the game's own constructors, found by its lookup and set by its execute; the binder's lookup of
+37h in kind 8; the connect (the DLL loaded once, no DLL, another version); the frames (the
+options, the mutes, the far slots, the hud's list on a change only, the player first, the muted
+left out; Disable voice chat); the keys (ptt down, held, up, a lost up, out of focus, voice or the
+microphone off, the mute key and its notice, never the player); the menu (the teammates with a
+voice id, no enemy; the lobby's empty) and its calls (a slot as uint or Number, the enemy refused,
+mute all; another call the game's); the end. `check_hide_ui_026g.py` with the 42nd row. The hud and
+main menu movies build from source. **Not run in a game.**
 
 ## Not ported, not done
 

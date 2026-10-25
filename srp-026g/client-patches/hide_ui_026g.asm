@@ -54,15 +54,16 @@
 ; nowhere (0x2013A0 finds no row) and never applied. `controls` below is that
 ; table again, the same 40 rows (each row's pointers its own), and a 41st:
 ; toggle_replay_ui in the game group, labelled st_hide_interface_action
-; (content edit hide-interface-1.json); patch_026g.py points the six
-; functions at it and makes their counts 29h. The binding is the binder's
+; (content edit hide-interface-1.json), and patch 66's 42nd: its "mute the
+; last speaker" (37h, the chat group, as ptt's row; voice_026g.c); patch_026g.py
+; points the six functions at it and makes their counts 2Ah (CONTROLS_ROWS). The binding is the binder's
 ; as any other: applied with `bind toggle_replay_ui <key>`, saved and read
 ; back by the binder's own bind command (its save 0x207450 writes every bound
 ; action).
 BITS 32
 %include "engine_026g.inc"
 global hide_ui_match, hide_ui_lobby, hide_ui_reset
-global controls                    ; the options' controls, 41 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
+global controls                    ; the options' controls, 42 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
 section .text
 
 %define REPLAY_TOGGLE 0x25CEDB     ; the case 19h after its replay test: the replay's controls
@@ -286,6 +287,8 @@ hide_interface:
 
 hide_interface_label:
     db "st_hide_interface_action", 0
+mute_last_speaker_label:           ; patch 66 (content edit voice-chat-1.json)
+    db "st_mute_last_speaker_action", 0
 
 ; A row of the controls: the action, its label's key, the group, the type, and
 ; two empty buffer_strings (begin, end, the buffer's end; 32 bytes).
@@ -342,3 +345,4 @@ controls:                          ; the game's 40 rows (0xA9DB28), in their ord
     CONTROL 0x46, 0x9FC910, 1, 0   ; st_select_send_to_action
     CONTROL 0x47, 0x9FC900, 1, 0   ; st_ptt_action
     CONTROL TOGGLE_UI, hide_interface_label, 2, 1   ; st_hide_interface_action (F11)
+    CONTROL 0x37, mute_last_speaker_label, 1, 0     ; patch 66: mute_last_speaker (no default key)

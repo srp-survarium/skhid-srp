@@ -4460,3 +4460,40 @@ va	name	location	role	basis
 0x00208870	survarium::chat_handler::on_keyboard_action	entry ESP+4	the input world (vtable+24h: the keyboard)	observed
 0x00208870	survarium::chat_handler::on_keyboard_action	entry ESP+8	the key code, looked up in the chat keys (group 8: actions 45h, 46h; 47h ptt unused)	observed
 0x00208870	survarium::chat_handler::on_keyboard_action	entry ESP+12	the event kind; 1 key down	observed
+0x0027a1b0	survarium::match_client::connect	ECX	the match client (vtable 0xA08864, slot 1 at 0xA08868; network_client+1F1C48h)	observed
+0x0027a1b0	survarium::match_client::connect	entry ESP+4	the match server's host, NUL-terminated char* (logged with %s at 0x21BF85)	observed
+0x0027a1b0	survarium::match_client::connect	entry ESP+8	the match server's port (low 16 bits; the caller pushes the whole dword)	observed
+0x0027a1b0	survarium::match_client::connect	entry ESP+12	the match session, written into 0xD8 at 0x27A203	observed
+0x0027a1b0	survarium::match_client::connect	entry ESP+16	the game time	observed
+0x0027a1b0	survarium::match_client::connect	entry ESP+20	the connection functor, to 0x379090 in ECX	observed
+0x0021beb0	survarium::network_client::connect_to_match	ECX	network_client receiver	observed
+0x0021beb0	survarium::network_client::connect_to_match	entry ESP+4	host char*	observed
+0x0021beb0	survarium::network_client::connect_to_match	entry ESP+8	port (word)	observed
+0x0021beb0	survarium::network_client::connect_to_match	entry ESP+12	match id: returns at once when equal to static info +577BCh (0x21BED2)	observed
+0x0021beb0	survarium::network_client::connect_to_match	entry ESP+16	session	observed
+0x002384c0	survarium::game_world_ui::show_player_list	ESI	the hud (+0BAh the list shown, +8 its movie holder)	observed
+0x002384c0	survarium::game_world_ui::show_player_list	entry ESP+4	shown, a byte: root.show_player_list on a change	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	EAX	the object (4Ch: +0Ch next, +10h name, +14h kind, +1Dh saved, +40h value pointer, +44h min, +48h max); new list head 0x1F1D66C	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	XMM0	min	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	entry ESP+4	the name	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	entry ESP+8	the float's address	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	entry ESP+12	max, a float	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	entry ESP+16	saved, a byte	observed
+0x0001dd40	vostok::console_commands::cc_value<float>::cc_value	entry ESP+20	kind (2: user.cfg)	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	EAX	the object (48h; kind 2; vtable 0x9E7C2C; +40h buffer, +44h size)	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+4	the name	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+8	the char buffer	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+12	the size of the char buffer	observed
+0x000ec860	vostok::console_commands::cc_string::cc_string	entry ESP+16	saved, a byte	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	ECX	the main menu's flash external handler (+30h the game); slot pointer 0x9FD47C	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+8	the ExternalInterface call's name, char*	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+12	the arguments, GFx values of 18h bytes (+4 type, +8 value; a managed string's char* at [[+8]])	observed
+0x001ff5d0	survarium::game_options::scaleform_callback	entry ESP+16	the arguments' count	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	ECX	the hud (+18h the game world); slot pointer 0xA03C60	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+8	the call's name, char*	observed
+0x00233d30	survarium::game_world_ui::scaleform_callback	entry ESP+12	the GFx arguments	observed
+0x00200f50	survarium::game_options::activate	EAX	the options (game+57F4h; +0Ch movie holder, +30h the state under it, +34h the game, +44h active)	observed
+0x00200f50	survarium::game_options::activate	entry ESP+4	the state the menu opens over (game+539Ch; the game world game+18h in a match)	observed
+0x001f77e0	survarium::game_world::tick	ECX	the game world (vtable 0x9FC4F4 slot 2, pointer 0x9FC4FC; called every frame at 0x1ECBE1)	observed
+0x001f96f0	survarium::game_world::on_finish_match	EAX	the game world: unloads the world and switches to the lobby (from close_current_match 0x27A790's reasons 0, 1, 2, 3, 5 and the hud's finish_match_clicked 0x233D6C)	observed
+0x001f9520	survarium::game_world::on_deactivate	ECX	the game world (the world left: also network_client::disconnect 0x27B110's path, without on_finish_match)	observed
