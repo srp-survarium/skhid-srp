@@ -611,7 +611,15 @@ impl Core<'_> {
             .iter()
             .map(|entry| entry.map_id)
             .collect();
-        let default = self.settings.maps.clone();
+        // The whole pool but the experimental maps: the match pool and,
+        // offered, its Blackout twins (the owner's of 2026-10-25: Blackout
+        // is part of the standard pool).
+        let default: Vec<u8> = self
+            .room_entries()
+            .iter()
+            .filter(|entry| !entry.extra)
+            .map(|entry| entry.map_id)
+            .collect();
         // A room with a PIN asks for the one its maker gave just before.
         let pin = match spec.pin {
             false => None,
@@ -1084,9 +1092,6 @@ impl Core<'_> {
         let mine = i32::from(self.level_of(account_id, quests::now()).min);
         self.rooms
             .open_rooms(account_id, gear)
-            // Blackout is played by who chose it: Play never puts anyone
-            // into a room whose pool offers it.
-            .filter(|room| !room.pool.iter().any(|id| maps::blackout_played(*id).is_some()))
             .min_by_key(|room| {
                 (
                     (i32::from(self.room_level(room)) - mine).abs(),

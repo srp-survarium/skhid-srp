@@ -8,15 +8,18 @@
  *   patch 63's td_options reads; match_options::deserialize's end, 0x1F0F30)
  *   may hold tag 2, one byte 1: this match is a Blackout match. The options
  *   keep it in the last 16 bytes of their unused "Mode" string (+57870h, the
- *   magic BO_MAGIC or zeros), and the options last read are remembered: a
- *   match's (0xE4 at 0x27B928) or a replay's (its chunk 1 at 0x1F096C).
- * - bo_match: whether the options last read are a Blackout match's: patch
- *   62's reset of a match's interface (initialize_match, 0x234AE8) then
- *   hides it for the whole match and F11 cannot show it (hide_ui_026g.asm,
- *   hide_ui_force: the one place that forces the state).
+ *   magic BO_MAGIC or zeros) and bo_blackout says it for the match: one
+ *   flag, set when a match's options are read (0xE4 at 0x27B928, a replay's
+ *   chunk 1 at 0x1F096C), before any character of it is built.
+ * - bo_match: that flag: patch 62's reset of a match's interface
+ *   (initialize_match, 0x234AE8) then hides it for the whole match and F11
+ *   cannot show it (hide_ui_026g.asm, hide_ui_force: the one place that
+ *   forces the state).
  * - bo_visual: profile_skin_visual_cook::on_configs_loaded (0x204560), after
- *   its parts and the head (0x2056F0): for a profile of those options (a
- *   match's player; the lobby's profiles are the lobby's own), one more part
+ *   its parts and the head (0x2056F0): while the game world has a match
+ *   (its +4D4Ch; the lobby has none) and the flag is set, every character built,
+ *   whatever its profile's place (the options', a late joiner's own copy,
+ *   its context, late_join_runtime_026g.c), gets one more part
  *   record: the band of the visual's torso (its first record of the torso,
  *   part 2, one of BO_TORSOS) in the profile's team's colour,
  *   `ported/blackout/<the torso's base_model, '/' as '_'>_<blue|red>`, and
@@ -32,8 +35,14 @@ typedef unsigned int u32;
 
 enum {
     /* match_options (0x578A0 bytes; match_options::deserialize 0x1F0E70) */
-    PROFILES = 20,                 /* player_profile[20] at +0 */
-    PROFILE_SIZE = 0x45FC,         /* match.md: the player table's stride */
+    /* the game (survarium::game): the visual cook's +20h (its constructor's
+     * argument, game::game's call at 0x1E9988); its game_world at +18h
+     * (constructed there, 0x1E90A3), whose +4D4Ch is the match while one is
+     * loaded or played (game_world::set_match 0x1F9740), 0 in the lobby
+     * (on_finish_match's 0x1F8B40 lets it go) */
+    VISUAL_COOK_GAME = 0x9262320,
+    GAME_WORLD = 0x18,
+    WORLD_MATCH = 0x4D4C,
     PROFILE_TEAM = 0x45EC,         /* u32 the team (team_damage_026g.c) */
     OPTIONS_BLACKOUT = 0x57870,    /* the "Mode" string's (+57840h, 40h bytes) last 16: patch 65's */
     BO_MAGIC = 0x4F425253,         /* "SRBO" */
@@ -92,8 +101,11 @@ static const u8 *torso_of(u8 *visual, u32 count) {
     return 0;
 }
 
-/* The options last read (a match's or a replay's). */
-static u8 *bo_last;
+/* Whether the options last read (a match's or a replay's) are a Blackout
+ * match's: the one place the flag lives, set before any of that match's
+ * characters is built (the options name the map and the players its world is
+ * made of; a late joiner's place comes into a world made from them). */
+static u32 bo_blackout;
 
 /* Tab held (the Tab list the game asks for), and the blocked actions held
  * through it (a key held through Tab acts again only after it is let go). */
@@ -137,7 +149,6 @@ static void append(u8 **name, const char *text) {
 void bo_options(u8 *options, u8 **reader) {
     u8 *at = reader[1], *end = reader[0] + (u32)reader[2];
     u32 on = 0;
-    bo_last = options;
     if (at && end >= at && end - at >= 4 && at[0] == 'S' && at[1] == 'R' && at[2] == 'P' && at[3] == 'X') {
         for (at += 4; end - at >= 2;) {
             u32 tag = at[0], len = at[1];
@@ -150,6 +161,7 @@ void bo_options(u8 *options, u8 **reader) {
         }
     }
     AT(options, OPTIONS_BLACKOUT, u32) = on ? BO_MAGIC : 0;
+    bo_blackout = on;
     bo_tab_down = bo_held = 0;
 }
 
@@ -178,7 +190,7 @@ void bo_input(u32 *mask) {
 
 /* 1 when the options last read are a Blackout match's. */
 u32 bo_match(void) {
-    return bo_last && AT(bo_last, OPTIONS_BLACKOUT, u32) == BO_MAGIC;
+    return bo_blackout;
 }
 
 /* on_configs_loaded at 0x2056F0 (the parts and the head done): `visual` the
@@ -187,8 +199,9 @@ u32 bo_match(void) {
 void bo_visual(u8 *visual, u8 *profile, u8 **name) {
     if (!visual || !profile || !bo_match())
         return;
-    if (profile < bo_last || profile >= bo_last + PROFILES * PROFILE_SIZE ||
-        (u32)(profile - bo_last) % PROFILE_SIZE != 0)
+    /* A character of a match: the game has one. The lobby's never wear one. */
+    u8 *game = *(u8 **)VISUAL_COOK_GAME;
+    if (!game || !AT(game, GAME_WORLD + WORLD_MATCH, u8 *))
         return;
     u32 team = AT(profile, PROFILE_TEAM, u32), count = visual[VISUAL_COUNT];
     if (team > 1 || count >= RECORDS)

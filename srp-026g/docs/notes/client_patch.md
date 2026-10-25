@@ -1731,10 +1731,18 @@ A player's ask through the owner: a key that hides the whole interface, the lobb
   `resources/models/<base_model>.skinned_model/render/<part_name>/converted_model`,
   `.../export_properties` and `<base_model>.skinned_model/settings`: a part needs nothing but
   the two names. Nothing reads +C08h at that offset.
-- **A match's profiles** (LIKELY). The players' profiles are the match options' (player+6B8h,
-  section 3.54), 45FCh apart from +0; the lobby's are its own. The visual's profile is the one
-  its query was made with (0x2026E4, the cook's user data); that a match's character is queried
-  with the player's options profile is read from the data flow, not seen in a game.
+- **Which characters** (PROVEN in the code). The players' profiles are the match options'
+  (player+6B8h, section 3.54), but a late joiner's, on the games already in the match, is his
+  late-join context's own copy (late_join_runtime_026g.c); the first build tested the options'
+  range and gave a late joiner no band there. Now the band follows one source: the flag of the
+  match's options (read before the match's world and characters are made: the options name its
+  map and players; a late joiner's place comes into a world made from them) and whether the game
+  world has a match: the visual cook is constructed by game::game (0x1E9070, at 0x1E9988, its
+  +20h the game), the game world is the game's +18h (constructed at 0x1E90A3), its +4D4Ch the
+  match from game_world::set_match (0x1F9740) until on_finish_match lets it go (0x1F8B40); the
+  lobby has none. The decision is the character's when it is built: a kit built in the lobby has
+  another resource name than the same kit in a Blackout match (`srpbo<team>_`), so no cached model
+  is reused and nothing is rebuilt.
 - **The flag** (PROVEN). match_options' +57840h (40h bytes) is the "Mode" string, only emptied
   (0x3183E3) and logged (0x27BD08); patch 63 keeps its numbers at +57860h, patch 65 "SRBO" at
   +57870h. The reader (patch 63's entry at 0x1F0F30) runs for 0xE4 (0x27B928) and for a replay's

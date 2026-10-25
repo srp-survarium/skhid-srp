@@ -3601,9 +3601,11 @@ The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.
   update_player_icons (0x23B207, patch 53) runs neither it nor the units' markers in a Blackout
   match: the markers' movie gets no name, marker or icon of any player or object.
 - **The band.** profile_skin_visual_cook::on_configs_loaded (0x204560) at 0x2056F0, after the
-  parts and the head (`mov edx,[esp+58h] / mov esi,[ebp+0Ch]`, JUMP, back at 0x2056F7): for a
-  profile of the remembered options (a place's start, places 0 to 19; the lobby's profiles are
-  not there) in a Blackout match, one more of the visual's 20 part records (+234h, C0Ch each,
+  parts and the head (`mov edx,[esp+58h] / mov esi,[ebp+0Ch]`, JUMP, back at 0x2056F7): while
+  the game world has a match (the visual cook's game +18h, its +4D4Ch; none in the lobby) and the
+  flag of the match's options is set, for any character built (its profile the options' or a late
+  joiner's own copy; the flag is read before any character of the match is made), one more of
+  the visual's 20 part records (+234h, C0Ch each,
   +F324h in use): the band of its torso (its first record of part 2, if
   `blackout_torsos_026g.h` names it): base_model `ported/blackout/<the torso's base_model, '/'
   as '_'>_blue` (team 0) or `_red` (team 1), part_name `band`, part 2; `srpbo<team>_` after the

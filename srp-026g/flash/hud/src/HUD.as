@@ -904,6 +904,8 @@ package
       // root; it remembers its parent, its index there and its own matrix to go back.
       private function keep(parts:Array, kept:Boolean) : void
       {
+         // the layer is where the root is now (it may not have been resized since it was made)
+         this.placeKept();
          for each(var part:DisplayObject in parts)
          {
             if(part == null)
@@ -925,6 +927,7 @@ package
                };
                this._keptLayer.addChild(part);
                part.transform.matrix = place;
+               this.keepLaidOut(part);
             }
             else if(!kept && was != null)
             {
@@ -932,7 +935,20 @@ package
                parent.addChildAt(part,Math.min(int(was.index),parent.numChildren));
                part.transform.matrix = was.matrix as Matrix;
                delete this._keptAt[part];
+               this.keepLaidOut(part);
             }
+         }
+      }
+
+      // A part the hud's layout places (its layoutData: the countdown, the quick-use slots) stays
+      // its: placed by the same rule in the kept layer as in the root (the layer is placed as the
+      // root), at every resolution and interface scale, also when it was kept before the layout's
+      // first reflow (a match's start).
+      private function keepLaidOut(part:DisplayObject) : void
+      {
+         if(this.layout != null && part is Sprite && Sprite(part)["layoutData"] != null)
+         {
+            this.layout.manage(Sprite(part));
          }
       }
 

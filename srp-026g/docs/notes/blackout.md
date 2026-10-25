@@ -13,11 +13,12 @@ changes of 2026-10-25 are in. Nothing here ships until the owner says so.
   holds each plain battery map of the match pool once more as Blackout.
 - **Rules:** the plain battery mode (mode 2, "Protective device": batteries from the spawners,
   no chargers), on its maps; the battery rules unchanged. Not the chargers' mode (3).
-- **Chosen, never given:**
-  - out of the create window's defaults: a maker ticks it;
-  - Play never puts anyone into a room whose pool offers it, and a room Play makes has none;
-  - so only who made or joined such a room plays it; a room with Blackout and other modes plays
-    whichever its vote picks.
+- **Part of the standard pool** (the owner, 2026-10-25): in the create window's defaults, in every
+  room Play makes; Play puts players into rooms that offer it; a room's maker may untick it.
+- **How often:** each Blackout map is one more entry of the pool, as any map; the vote's three cards
+  are drawn from the pool's entries alike. With the live pool (100 entries, 25 of them plain
+  battery maps) Blackout adds 25 of 125: a card is Blackout 1 time in 5, and about half of the
+  votes (49 %) offer at least one Blackout card; the vote picks.
 - **Bots:** not offered (Play vs Bots lists its own maps).
 
 ## In the match
@@ -96,12 +97,18 @@ changes of 2026-10-25 are in. Nothing here ships until the owner says so.
     `root.hide_interface`) and locks F11;
   - Research's per-frame entry of `update_player_icons` runs neither it nor the units' markers in
     a Blackout match;
-  - `profile_skin_visual_cook::on_configs_loaded` adds the band of the player's torso and team;
+  - `profile_skin_visual_cook::on_configs_loaded` adds the band of the player's torso and team,
+    decided when the character is built from one source: the match's flag (read before any of its
+    characters is made) and the game world having a match (none in the lobby); so a late joiner
+    has it as seen by the others (his profile is his late-join context's copy) and by himself,
+    after a respawn too, and in replays;
   - the game world's Tab (its `show_player_list` call, 0x25CD34) is kept, and the input builder's
     end (`process_first_person_mode`, 0x2421B0) takes the moves and acts out of the actions mask
     while it is held.
 - **The hud movie:** `force_interface_hidden` hides the root as F11 does and keeps the countdown
-  (`pregameInfo`) in a layer over it, placed as the root; while forced, the game's Tab
+  (`pregameInfo`) in a layer over it, placed as the root (and still placed by the hud's own
+  layout there, `Layout.manage`: centred as in any match, at every resolution and interface
+  scale, also when kept before the layout's first pass at the match's start); while forced, the game's Tab
   (`show_player_list`) moves the ammo (`ammoInd`) and the quick-use slots into that layer and back
   instead of showing the list; the reset of the next match unforces it.
 - **The lobby movie:** `GameMode.BLACKOUT`, its names; the create window ticks the modes the pool
@@ -112,7 +119,7 @@ changes of 2026-10-25 are in. Nothing here ships until the owner says so.
 ## Open for the owner
 
 - The name; relative colours (own team blue, enemy red) instead of fixed ones.
-- A room's saved settings from before Blackout existed show it ticked (they cannot tell "chosen"
-  from "unknown"); a schema step fixes that before a release.
+- Saved room settings: a mode is in unless its maker left it out, so settings kept before Blackout
+  have it ticked, as the defaults do; no schema step is needed.
 - A game without patch 65 would show the interface and no bands: refuse it by revision before a
   release (`SRP_MIN_PATCH_REVISION`).

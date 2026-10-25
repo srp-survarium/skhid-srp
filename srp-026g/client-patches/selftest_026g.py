@@ -4498,6 +4498,9 @@ def test_blackout(original, image, before):
           and "public function force_interface_hidden(forced:Boolean) : void" in hud
           and "return [this.pregameInfo];" in hud and "this._keptLayer.addChild(part);" in hud
           and "return [this.ammoInd,this.quick_slots];" in hud and "this.keep(this.keptOnTab(),bool);" in hud
+          and "this.layout.manage(Sprite(part));" in hud and "this.placeKept();" in hud
+          and "public function manage(spr:Sprite) : void" in open(os.path.join(HERE, "..", "flash", "hud", "src",
+              "scaleform", "clik", "layout", "Layout.as"), encoding="utf-8").read()
           and "this._keptLayer.transform.matrix = this.transform.matrix;" in hud
           and "this.force_interface_hidden(false);" in hud,
           "Research's per-frame entry of update_player_icons asks bo_match (a Blackout match feeds the markers' "
