@@ -1,0 +1,22 @@
+# The late join's code after late_join_026g.asm's 4096 bytes in `.srp`
+# (patch 11): the crate late-join (the checks and the bookkeeping, tested on
+# the host) and the game's side of the install, built by late_join_026g.py
+# with link_026g.py's rustc (i686, fat LTO, one ELF32 object) and linked at 0:
+# no static storage, no constants, only calls relative to itself.
+# late_join_026g.py reads only the name, `[lib]` path and the `path`
+# dependencies here. Not a member of the workspace: built for the game only.
+[package]
+name = "late_join_payload"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+path = "src/lib.rs"
+
+[dependencies]
+late-join = { path = "../../crates/late-join" }
+arena_rt = { path = "../arena_rt" }
+
+[workspace]
