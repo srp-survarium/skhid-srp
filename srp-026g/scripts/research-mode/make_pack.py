@@ -23,7 +23,7 @@ Every input is checked against inputs.sha256. What the pack holds, per map and w
   project, and the units: mode.parameters.capture_zones[] = {cp_id, position, shapes[] {type,
   position, axis_x, axis_y, axis_z, half}} from the capturable_zone objects and the
   collision_geometry they name, in world space; capture_award 100 (0.27d's capture_the_point,
-  shared); capture_reach and capture_half_height (a player's capsule, research_rule_026g.h).
+  shared); capture_reach and capture_half_height (a player's capsule, crates/research-rule).
 - projects/level_0N/<w>_5/client_project: 0.26g's <w>_4 project with what 0.27d's <w>_5 changed
   against 0.27d's own <w>_4 (the units' props: render visuals, collision objects, sounds,
   particles; the cover it took away), its respawn points, and without its zones (the config
@@ -50,7 +50,7 @@ import bcw  # noqa: E402
 
 PACK_ID = 'research-mode'
 VERSION = '3'
-RULE_CLASS = 0x1E0           # client-patches/research_native_026g.c RN_CLASS (patch 53)
+RULE_CLASS = 0x1E0           # client-patches/research_arena CLASS (patch 53)
 RULES = [93, 91, RULE_CLASS, 94]
 # The lobby's mode icon (ui.icon: SrvGameModeIcons frame icon + 1, LobbyGameLoad.setMode). 0.26g's
 # movie has three frames: 0 the protective device (modes 2, 3), 1 a transmitter mast no mode uses,
@@ -232,7 +232,7 @@ def units_of(project, where):
     if [unit['cp_id'] for unit in units] != [0, 1, 2]:
         sys.exit(f'{where}: the units are not cp_id 0, 1, 2')
     if any(len(unit['shapes']) > 8 for unit in units):
-        sys.exit(f'{where}: a unit of more than 8 shapes (research_rule_026g.h RR_MAX_SHAPES)')
+        sys.exit(f'{where}: a unit of more than 8 shapes (crates/research-rule MAX_SHAPES)')
     return units
 
 

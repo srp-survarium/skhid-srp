@@ -91,7 +91,7 @@ with no UI for anyone; the teams told apart by coloured bands on the characters.
   `ui.mode_name`, the same projects (`level_0N/<w>_3`), new `maps_dict` rows after Research's
   184-203 (u8: 204-228 leaves 27 ids).
 - **The exe reads it once at load**, as patch 53 reads `mode.parameters` (the mode config's root
-  at +Ch of the rule's options, `research_native_026g.c`).
+  at +Ch of the rule's options, `research_arena`).
 - **Not show_ui(false):** `game_world::show_ui` (0x1F95F0) hides all of `hud.swf`, and the kits,
   the Tab list, chat and messages are in it (`HUD.as`: `_profilePanel`, `player_list`, chat).
   - `player_icons.swf` hidden all match (its `hide_interface`, as patch 62 hides it);

@@ -2036,7 +2036,7 @@ def test_research(original, image, before):
     games). Here: each site is the original's instructions before and the
     hook to its symbol after, with no relocation under it and no branch into
     it; the entries are jumps; the code's calls outside it are the game's
-    functions research_native_026g.c names. Each slot of ours
+    functions research_arena names. Each slot of ours
     popping what tdm's in the same place pops is test_call_shapes'
     (INSTALLED_VTABLES)."""
     source = Image(original)

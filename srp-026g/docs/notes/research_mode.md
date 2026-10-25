@@ -6,7 +6,7 @@ for its points' rate, 1.25 x 0.27d's ("let's make it 1.25x faster", 2026-10-22);
 though, and will go into the next one" and "we need to find everything associated with the
 release too" (2026-10-22). Not in revision 28.
 
-Code: exe patch 53 (`client-patches/research_rule_026g.c` the rules, `research_native_026g.c`
+Code: exe patch 53 (`crates/research-rule` the rules, `client-patches/research_arena` (Rust)
 the game's side, `research_026g.asm` the hooks; README "53."); the hud movie
 (`flash/hud`: `HUD.research_update`, `survarium.controls.ResearchUnits`,
 `ResearchMinimapPoint`, `Minimap.setResearchUnits`); the content (`scripts/research-mode`,
@@ -200,8 +200,8 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   game, `.srp`, `.srpd`, `.srpc`, `.srpw`). The twelfth, `.srpx` (0xA42D000, code, data and
   writable), is the arena of every later patch (client_patch.md 0.3): blocks declared in
   `patch_026g.py`'s `ARENA` with their sources, linked by `link_026g.py`. Research's are
-  `research.code` (research_026g.asm, research_rule_026g.c, research_native_026g.c; 0xA42D000
-  today) and `research.state` (`rn_state`, 0xA430000 today); its hooks take their targets from
+  `research.code` (research_026g.asm, the Rust crate research_arena with research-rule; 0xA42D000
+  today) and `research.state` (the crate's `STATE`, 0xA430000 today); its hooks take their targets from
   the link by symbol. Patch 58's kit keys have blocks of their own the same way,
   and no section (#225's dynamic anomalies had one too, taken out of revision 31).
 - **HUD:** update_ui (every frame): `root.research_update(own team, points 0, points 1, goal,
@@ -248,7 +248,7 @@ Left out, and why:
 
 ## Tests
 
-- `test_research_rule_026g.c` (the rules, the wire, the water-fill), `check_research_026g.py`
+- `cargo test -p research-rule` (the rules, the wire, the water-fill), `check_research_026g.py`
   (the built exe's hooks and slots under Unicorn on made-up worlds), `selftest_026g.py`.
 - srp: `match_msgs::rules` (decode), maps (mode 5 playable), rewards (weights, no battery caps).
 - In the game: see the PR's test plan.

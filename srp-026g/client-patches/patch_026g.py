@@ -2439,11 +2439,11 @@ ARENA_LIMIT = 0x100000
 ArenaBlock = linker.ArenaBlock
 
 ARENA = (
-    # Research, patch 53: the asm's three entries and stubs, then the C code
-    ArenaBlock("research.code", "code", 0x1000,
-               ("research_026g.asm", "research_rule_026g.c", "research_native_026g.c")),
-    # its rule's cook and the hud's cache (research_native_026g.c rn_state)
-    ArenaBlock("research.state", "state", 0x1000, ("research_rule_026g.c", "research_native_026g.c")),
+    # Research, patch 53: the asm's three entries and stubs, its slots' stubs,
+    # then the Rust crate (its logic: crates/research-rule)
+    ArenaBlock("research.code", "code", 0x1000, ("research_026g.asm", "research_arena/Cargo.toml")),
+    # its rule's cook and the hud's cache (research_arena's STATE)
+    ArenaBlock("research.state", "state", 0x1000, ("research_arena/Cargo.toml",)),
     ArenaBlock("artefacts.code", "code", 0x1000, ("artefacts_026g.asm",)),       # patch 54
     ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
@@ -2501,9 +2501,9 @@ def add_arena(data, linked):
 
 # Research, mode 5 (patch 53, README; client_patch.md section 3.50;
 # docs/notes/research_mode.md): research_026g.asm's three entries and stubs,
-# then the C code of research_rule_026g.c and research_native_026g.c and its
-# constant data, in the arena's block research.code; the C code's state (the
-# rule's cook, the hud's cache: rn_state) in research.state, zeroed.
+# then its slots' stubs and the Rust crate research_arena (with research-rule) and its
+# constant data, in the arena's block research.code; the crate's state (the
+# rule's cook, the hud's cache: STATE) in research.state, zeroed.
 # Three hooks, `call` or `jmp` to an entry:
 # - the game's constructor, `mov eax,ebx / call 0x1EC170` at 0x1E9B4C (after
 #   its own client rule cooks; ebx = the game): register, which registers the
@@ -2514,8 +2514,8 @@ def add_arena(data, linked):
 # - update_ui, `cmp eax,4 / jne 0x23B36A` at 0x23B351 (the match's first
 #   message by mode): welcome, mode 5's st_start_match_welcome_message_5.
 # No base relocation is under a site and no branch aims inside one.
-RESEARCH_ASM_SIZE = 0x100                      # research_026g.asm, int3 to 0x100: the C code after it
-RESEARCH_CLASS = 0x1E0                         # research_native_026g.c RN_CLASS: the mode configs' rules[2]
+RESEARCH_ASM_SIZE = 0x100                      # research_026g.asm's entries, int3 to 0x100: the slots' stubs and the Rust after it
+RESEARCH_CLASS = 0x1E0                         # research_arena CLASS: the mode configs' rules[2]
 RESEARCH_HOOKS = (
     (0x1E9B4C, bytes.fromhex("8bc3e81d260000"), "research_register", 0xE8),  # the game's constructor
     (0x23B3DE, bytes.fromhex("837f20047518"), "research_hud", 0xE8),         # update_ui after the teams' points

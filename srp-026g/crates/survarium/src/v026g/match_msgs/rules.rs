@@ -267,7 +267,7 @@ pub fn tdm_finished(tickets: [u16; 2], alive: [u32; 2]) -> bool {
 pub const RESEARCH_POINT: u32 = 1_000_000;
 
 /// Research ends (3 s later) when a team's points, in millionths, reach the
-/// mode config's `resources_count` (exe patch 53, `rr_tick`). The rule
+/// mode config's `resources_count` (exe patch 53, `research_rule::tick`). The rule
 /// writes that end into its own bytes (`snapshot::Research::end`), which
 /// is what the server goes by; the shown scores are rounded and can say
 /// 100 a little before.

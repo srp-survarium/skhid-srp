@@ -1990,9 +1990,9 @@ section table (0x210..0x400): 12 slots
   .srpx                                            (the arena, 12)
 
 .srpx  (VA 0xA42D000), as the link places ARENA today (the lock has it):
-  research.code   code   0x1000   research_026g.asm (0x100), research_rule_026g.c,
-                                  research_native_026g.c                -> 0xA42D000, 0x2BF0
-  research.state  state  0x1000   rn_state (research_native_026g.c)      -> 0xA430000, 0x38
+  research.code   code   0x1000   research_026g.asm (0x100 and its slots' stubs),
+                                  research_arena (Rust)                 -> 0xA42D000, 0x2FC4
+  research.state  state  0x1000   STATE (research_arena)                 -> 0xA430000, 0x38
   artefacts.code  code   0x1000   artefacts_026g.asm                     -> 0xA431000, 0x310
   engine.code     code   0x1000   engine_026g.asm (0.5)                  -> 0xA432000, 0x4A2
   match_keys.code code   0x1000   match_keys_026g.asm (patch 58)         -> 0xA433000, 0x108

@@ -102,8 +102,9 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `research_026g.asm`, `research_rule_026g.c`, `research_rule_026g.h`, `research_native_026g.c` | The source of patch 53 (Research, mode 5): the three hooks and their stubs in assembly, the rule's logic in C on integers (no pointer into the game), and its side in the game (the cook, the rule's twenty slots, the hud) in C |
+| `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | The source of patch 53 (Research, mode 5): the three hooks, their stubs and the stubs of the rule's and the cook's slots (the stack aligned for Rust) in assembly, the rule's side in the game (the cook, the rule's twenty slots, the hud) in Rust (`research_arena`, `no_std`), and the rule's logic on integers, no pointer into the game, in the `no_std` crate `research-rule` (C until it was ported) |
 | `link_026g.py`, `arena_026g.lock.json` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build; `--write` writes the lock (the linked arena's SHA-256, its blocks and symbols), `--check` compares. Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
+| `arena_rt/` | What the arena's Rust crates need and the game does not give them (a `no_std` rlib they name by path): weak `memcpy` and `memset` (`rep movsb` / `rep stosb`), the panic handler (`ud2`), and `c_u32`, a float made unsigned as gcc -m32 makes it (x87 `fistp` to 64 bits, the low 32: what the C patches did) |
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
@@ -112,7 +113,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `sync_core_026g.asm`, `sync_core_arena/`, `../crates/sync-core/`, `check_sync_core_026g.py` | Patch 74: rollback pacing, the sync core's first stage (`../docs/notes/sync_core.md`): game_world::tick's call of move (0x1F7C37) goes to `sc_render_move` (NASM, block `sync_core.code`) and the Rust crate `sync_core_arena` (`no_std`, built for i686 by `link_026g.py`), whose rule is `sync-core`'s `pacing` (shared with the server, `cargo test -p sync-core`); its check runs the game's own move, tick_events, insert_impl, erase_impl and history ring on a model world through nine scripted timelines, the stock call against the hook, and compares every event-horizon item and the ring (needs Unicorn) |
-| `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
+| `check_research_026g.py`, `cargo test -p research-rule` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules on the host |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
@@ -185,11 +186,24 @@ rustc version is in the lock's `built_with`.
 **Adding a block:** one `ARENA` row and its source file; `global` the labels
 a hook jumps to, `extern` what it uses of other patches; its hooks as
 (site, bytes, symbol, opcode) rows made in `build()`; each declared in
-`INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
-asm, its C, and its state `rn_state`), the artefacts (patch 54), the
-engine library, the kit keys with the match chat option (patch 58), the
-key that hides the interface (patch 62), the kill feed's flags (patch 67) and the sync core (patch 74: NASM and a Rust crate) are the arena's blocks today. The older fixed sections stay as they are
-(client_patch.md 0.3 says what moving one would take).
+`INSTALLS` (below); `python link_026g.py --write`. The arena's blocks today,
+and the language of each:
+
+| Block | Patch | Language | Sources |
+|---|---|---|---|
+| `research.code`, `research.state` | 53, Research | NASM entries and slot stubs, Rust | `research_026g.asm`, `research_arena/` (its logic `../crates/research-rule`) |
+| `artefacts.code` | 54, the artefacts | NASM | `artefacts_026g.asm` |
+| `engine.code` | the engine-function library | NASM (generated) | `engine_026g.asm` |
+| `match_keys.code`, `match_keys.state` | 58, the kit keys and the match chat option | NASM | `match_keys_026g.asm` |
+| `hide_ui.code`, `hide_ui.data` | 62, the key that hides the interface | NASM | `hide_ui_026g.asm` |
+| `kill_feed.code` | 67, the kill feed's flags | NASM | `kill_feed_026g.asm` |
+| `sync_core.code`, `sync_core.state` | 74, the sync core | NASM entry, Rust | `sync_core_026g.asm`, `sync_core_arena/` (its logic `../crates/sync-core`) |
+
+A Rust crate of the arena may name `arena_rt/` by path (the memory functions
+LLVM calls, the panic handler, C's float-to-unsigned conversion); its logic
+lives in a `no_std` crate of the workspace, tested with `cargo test`. The
+older fixed sections stay as they are (client_patch.md 0.3 says what moving
+one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
 a callback, a hook the game enters — declares in `patch_026g.py` the game's
@@ -3022,17 +3036,18 @@ full build the same). **Not run in a game.**
 Research as 0.27d shipped it (`../docs/notes/research_mode.md`: the rules, the data, the inventory
 of the builds; the owner, 2026-10-22: "will go into the next one", not revision 28). 0.26g has none
 of 0.27d's capture code and its rule and world-object layouts drifted (the rule base grew 78h, the
-world objects were reworked), so the rule is written again in C on 0.26g's interfaces, with 0.27d's
+world objects were reworked), so the rule is written again on 0.26g's interfaces (in C first, in
+Rust since the port of 2026-10-25, with the same behaviour), with 0.27d's
 disassembly as the spec, and the units are not world objects: the rule tests the players'
 positions against the units' shapes, which the mode config carries (`capture_zones`).
 
-- **The rule** (`research_native_026g.c`, `rn_rule`): game_match_rule_base (0x313900, type 5) and
+- **The rule** (`research_arena`, `Rule`): game_match_rule_base (0x313900, type 5) and
   0.26g's twenty slots: 7 events (`(type, data, time)`, as the world's dispatcher 0x2D1EA0 passes
   them; a kill, `{killer, victim}`: "kill invader"; the first build took `(type, time, data)`, fixed
   after #297's review), 8 and 9 a roster
   place entered or left, 11 the world (its tick a delegate at the end of the world's second tick
   list, numbered by the world's counter, as timelimit_rule_core's 0x318050), 12 the blackboard, 15
-  and 16 the state (21 + 96 bytes a unit, little-endian, `rr_write`'s layout; 15 writes it field
+  and 16 the state (21 + 96 bytes a unit, little-endian, `research_rule::write`'s layout; 15 writes it field
   by field through the game's writers, as tdm does, so the hash mismatch dump names each field;
   16 takes the reader and a dword it does not read and pops both, `ret 8`, as the game's rules
   do: the first build's `ret 4` crashed both clients at their first synchronization,
@@ -3046,7 +3061,7 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   0xF6C00). The mode configs list it: `rules [93, 91, 480, 94]`. Its vtable carries an RTTI
   locator of its own, `research_rule_cook`: a translate_query_cook, shaped as tdm_rule_core_cook's
   hierarchy (its base class descriptors reused), not tdm_rule_cook's (the first build's).
-- **The tick** (`research_rule_026g.c`): only in play (the time rule's state 3, world+18FE4h);
+- **The tick** (`research-rule`'s `tick`): only in play (the time rule's state 3, world+18FE4h);
   the players of the places entered, alive (+33Ch) and in the world (+33Fh), their team (+6B8h ->
   +45ECh), feet (+43Ch, the player's transform) and capsule (half its height from the character
   controller, `[[+494h]]` +1D0h/+1F0h, as get_transform 0x7F5C0 takes it; 0.38 m round): inside a
@@ -3056,7 +3071,7 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   0x31E920) counted in the statistics' events 6 and 18 (hundredths), a kill invader in event 10;
   the statistics' tail: `m_team_points` the scores, `m_winner_team` the leader.
 - **The hud**: `cmp dword [edi+20h],4 / jne 0x23B3FC` at 0x23B3DE of game_world_ui::update_ui
-  becomes a `call` of the hud stub: in mode 5 `rn_hud` sends `root.research_update` (numbers
+  becomes a `call` of the hud stub: in mode 5 `research_update_hud` sends `root.research_update` (numbers
   only) at each change and every 60 frames, and the units' messages through the hud's
   parameterised message (0x2375C0); then the compare and its branch. `cmp eax,4 / jne 0x23B36A` at
   0x23B351 (the match's first message by mode) becomes a `jmp` of the welcome stub: mode 5's is
@@ -3065,7 +3080,8 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   patches (the twelfth and last section table entry; "The arena" above, client_patch.md 0.3).
   Research has its first two blocks: `research.code` (the 256 bytes of `research_026g.asm`,
   three `jmp near`, the global symbols research_register, research_hud and research_welcome;
-  then the C code and its constants) and `research.state` (`rn_state`: the cook, the hud's
+  then, from +100h, the slots' stubs `rn_*`, which align the stack and call the crate, and the
+  Rust code and its constants) and `research.state` (`STATE`: the cook, the hud's
   cache; zeroed), linked from source (0xA42D000 and 0xA430000 today). The next blocks are patch
   54's, the engine library's and patch 58's.
 - **The register hook**: `mov eax,ebx / call 0x1EC170` at 0x1E9B4C of the game's constructor (after
@@ -3076,13 +3092,13 @@ A simulation change for mode 5 only: modes 2 to 4 compute what they did; no exe 
 loads a mode-5 config (the class has no cook there), so a server offers Research only to games
 with it. No base relocation is under a site and no branch aims inside one.
 
-Checked: `test_research_rule_026g.c` (the rules: captures by 1 and 2 players, contested, the fall
+Checked: `cargo test -p research-rule` (the rules: captures by 1 and 2 players, contested, the fall
 back, draining and taking, the owner refilling, the water-fill, the points and the end, kill
 invader, a place that left, the wire and its refusals); `check_research_026g.py` (Unicorn: the
 constructor's hook registers the cook once and goes on as the original, a taken class; the cook
 makes the rule from a mode config with the game's look-ups; set_game_world_core links the tick;
 a capture at 20 s and its event, nothing outside play, the points in the statistics' tail, kill
-invader, serialize (rr_write's bytes through the game's writers; with the hash mismatch dump on,
+invader, serialize (`research_rule::write`'s bytes through the game's writers; with the hash mismatch dump on,
 the 88 fields by name) and deserialize (two arguments, 8 bytes popped), the game's own serialize
 and deserialize loops over a world's rules with esp as before, the hud's points (the alive counts
 left), completed; update_ui in mode 5 and 4, the messages; the first message by mode);

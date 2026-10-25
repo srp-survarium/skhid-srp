@@ -1,0 +1,22 @@
+# Research, exe patch 53: the rule on 0.26g build 2777's own interfaces
+# (the cook, the rule's slots, the hud), linked into the exe's arena `.srpx`
+# by link_026g.py as sync_core_arena is (rustc alone, i686, fat LTO, one
+# ELF32 object). The rule's logic is the crate research-rule (tested on the
+# host: `cargo test -p research-rule`). link_026g.py reads only the name,
+# `[lib]` path and the `path` dependencies here. Not a member of the
+# workspace: it is built for the game, never for the host.
+[package]
+name = "research_arena"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+path = "src/lib.rs"
+
+[dependencies]
+research-rule = { path = "../../crates/research-rule" }
+arena_rt = { path = "../arena_rt" }
+
+[workspace]

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Run patch 53 (Research, mode 5: research_026g.asm, research_native_026g.c,
-research_rule_026g.c) in the default build on made-up games, worlds and huds.
+"""Run patch 53 (Research, mode 5: research_026g.asm, the Rust crates research_arena
+and research-rule) in the default build on made-up games, worlds and huds.
 
     python check_research_026g.py <original survarium.exe>
 
@@ -49,7 +49,7 @@ EVENTS_AT, LISTENER, NOTIFY = 0x8, 0x31A8, 0x2F5D40
 # from the records, for the places under +3240h, by the weights at
 # [+323Ch] + 577BCh
 RECALCULATE, SCORES, SCORE_COUNT, OPTIONS, WEIGHTS = 0x26DC30, 0x31F0, 0x3240, 0x323C, 0x577BC
-# rn_rule (research_native_026g.c's _Static_asserts)
+# the rule (research_arena's Rule: its const asserts)
 R_CORE, R_VALID, R_PARAMS, R_STATE, R_SIZE = 0x128, 0x134, 0x138, 0x7E0, 0x918
 P_ZONES, ZONE_DEF = 0x64, 0x214
 S_ZONES, ZONE = 0x18, 0x60
@@ -295,7 +295,7 @@ def driven(run, cook, query, check):
           a["owner"] == 0 and a["progress"] == FULL and run.emu.reg_read(UC_X86_REG_ESP) == STACK + 0x8000,
           str(a))
     # The tick's (dt, time) in their places: one tick that reaches the goal
-    # sets the end at the time it was given + 3000 (rr_tick clamps dt, so a
+    # sets the end at the time it was given + 3000 (the tick clamps dt, so a
     # count alone cannot tell the two apart); with the two swapped by a shim
     # in the delegate, the end is wrong.
     def goal_tick(function=None):
