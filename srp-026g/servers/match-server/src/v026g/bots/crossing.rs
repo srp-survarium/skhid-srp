@@ -352,9 +352,21 @@ thread_local! {
     static COUNTS: std::cell::Cell<[u64; 7]> = const { std::cell::Cell::new([0; 7]) };
 }
 
+#[cfg(test)]
+thread_local! {
+    static LAST: std::cell::Cell<Option<Count>> = const { std::cell::Cell::new(None) };
+}
+
+/// Whether the last count was a ring's walk out (the bench's `why`).
+#[cfg(test)]
+pub fn last_ring() -> bool {
+    LAST.with(|l| l.get()) == Some(Count::RingWalk)
+}
+
 /// A crossing's search counted ([`Count`]).
 #[cfg(test)]
 pub fn count(what: Count) {
+    LAST.with(|l| l.set(Some(what)));
     COUNTS.with(|c| {
         let mut n = c.get();
         n[what as usize] += 1;

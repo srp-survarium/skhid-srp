@@ -209,6 +209,15 @@ pub struct Bot {
     pub(crate) bench_legs: bool,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
+    /// The bench's zone stretches: this tick's motives ([`why`]), what its
+    /// route is, and whether the search that went on over polls ended in a
+    /// ring's walk out.
+    #[cfg(test)]
+    pub(crate) bench_why: u16,
+    #[cfg(test)]
+    bench_route: u16,
+    #[cfg(test)]
+    bench_found_ring: bool,
     /// Keys to press for one tick.
     press: u32,
     /// Keys held for a few ticks to get unstuck.
@@ -333,6 +342,12 @@ impl Bot {
             bench_legs: false,
             #[cfg(test)]
             bench_driven: 0,
+            #[cfg(test)]
+            bench_why: 0,
+            #[cfg(test)]
+            bench_route: 0,
+            #[cfg(test)]
+            bench_found_ring: false,
             press: 0,
             unstick: None,
             jump_hold: 0,
@@ -1593,6 +1608,10 @@ impl Bots {
             if kept {
                 bot.long_kept = Some((pending.goal, time + crossing::LONG_RETRY_MS));
             }
+            #[cfg(test)]
+            {
+                bot.bench_found_ring = crossed && crossing::last_ring();
+            }
             bot.found = Some((pending.goal, route, crossed));
         }
     }
@@ -2296,6 +2315,31 @@ impl Bots {
     }
 }
 
+/// The bench's motives of a bot's tick (`Bot::bench_why`), a mask: what
+/// moved it into a zone or kept it there (tests.rs `ZoneSpell`).
+#[cfg(test)]
+pub(crate) mod why {
+    /// Its route: a plain one, a zone's way out (`Tactics::escape`), a
+    /// crossing, a ring's walk out (`crossing.rs`); none.
+    pub const PLAIN: u16 = 1;
+    pub const ESCAPE: u16 = 2;
+    pub const CROSS: u16 = 4;
+    pub const RING: u16 = 8;
+    pub const NONE: u16 = 16;
+    /// A crossing walked on with its goal moved.
+    pub const WALK_ON: u16 = 32;
+    /// The reflex's legs (a fight).
+    pub const LEGS: u16 = 64;
+    /// No goal, out of a zone (`zone_way_out`).
+    pub const ZONE_OUT: u16 = 128;
+    /// The play's own leave to be in zones (`Intent::zone_ok`).
+    pub const ZONE_OK: u16 = 256;
+    /// Keys in a line, no route (`Intent::straight`).
+    pub const STRAIGHT: u16 = 512;
+    /// A pocket's way out (`escape.rs`).
+    pub const POCKET: u16 = 1024;
+}
+
 /// Whether a crossing's search for a long route to `goal` kept the plain
 /// one lately (`Bot::long_kept`, `crossing::LONG_RETRY_MS`).
 fn long_kept(kept: Option<(Vec3, u32)>, goal: Vec3, now: u32) -> bool {
@@ -2551,6 +2595,20 @@ fn drive_tick(
         intent.straight = false;
     }
     let goal = goal.or(zone_out);
+    #[cfg(test)]
+    {
+        bot.bench_why = 0;
+        for (on, bit) in [
+            (bot.bench_legs, why::LEGS),
+            (zone_out.is_some(), why::ZONE_OUT),
+            (intent.zone_ok, why::ZONE_OK),
+            (intent.straight, why::STRAIGHT),
+        ] {
+            if on {
+                bot.bench_why |= bit;
+            }
+        }
+    }
     // [pockets] On a pocket's floor with its goal out of the pocket (no
     // link of the grid leads out of one), its ways out are tried, each a
     // route with a jump onto the rim (`escape.rs`); the try's landing is its
@@ -2576,6 +2634,10 @@ fn drive_tick(
                 bot.traced.push(escape::trace(time, bot.place, grid, event));
             }
         }
+        #[cfg(test)]
+        if out.goal.is_some() {
+            bot.bench_why |= why::POCKET;
+        }
         out.goal.or(goal)
     };
     // The play's own exact spot (a goal within 0): its route is not arrived
@@ -2596,7 +2658,8 @@ fn drive_tick(
             bot.route = None;
             bot.motor.step_to(&pose, at, aim)
         }
-        Some(at) => {
+        Some(asked) => {
+            let at = asked;
             // Its goal moved while it walks a crossing's zone (a route leg's
             // next point, a play's new goal): the crossing is walked on till
             // it is off the zone's floors, then it plans to the new goal. An
@@ -2617,6 +2680,10 @@ fn drive_tick(
                 }
                 _ => at,
             };
+            #[cfg(test)]
+            if at != asked {
+                bot.bench_why |= why::WALK_ON;
+            }
             let replan = bot
                 .route
                 .as_ref()
@@ -2690,6 +2757,14 @@ fn drive_tick(
                         time < until && old.distance_xz(goal) > REPLAN_MOVED_M
                     });
                     bot.no_way_to.push((goal, time + NO_WAY_KEEP_MS));
+                }
+                #[cfg(test)]
+                {
+                    bot.bench_route = match (crossed, bot.bench_found_ring) {
+                        (true, true) => why::RING,
+                        (true, false) => why::CROSS,
+                        _ => why::PLAIN,
+                    };
                 }
                 bot.route = route.map(|route| (route, goal));
             } else if replan && no_way {
@@ -2868,6 +2943,10 @@ fn drive_tick(
                     // It goes on at the next polls; the plain route (a long
                     // one) meanwhile, else the old one.
                     if let Some(plain) = second.plain.clone() {
+                        #[cfg(test)]
+                        {
+                            bot.bench_route = why::PLAIN;
+                        }
                         bot.route = Some((plain, at));
                         bot.crossing = None;
                     }
@@ -2893,6 +2972,10 @@ fn drive_tick(
                     if let Some(partial) =
                         tactics.partial_route(&planning, ends.0, time, side, objective, open)
                     {
+                        #[cfg(test)]
+                        {
+                            bot.bench_route = why::PLAIN;
+                        }
                         bot.route = Some((partial, at));
                     }
                     no_route = path::NoRoute::Searching;
@@ -2919,9 +3002,29 @@ fn drive_tick(
                         });
                         bot.no_way_to.push((at, time + NO_WAY_KEEP_MS));
                     }
+                    #[cfg(test)]
+                    {
+                        bot.bench_route = if escaping {
+                            why::ESCAPE
+                        } else if crossed && crossing::last_ring() {
+                            why::RING
+                        } else if crossed {
+                            why::CROSS
+                        } else {
+                            why::PLAIN
+                        };
+                    }
                     bot.route = route.map(|route| (route, at));
                     bot.crossing = crossed.then_some(at);
                 }
+            }
+            #[cfg(test)]
+            {
+                bot.bench_why |= if bot.route.is_some() {
+                    bot.bench_route
+                } else {
+                    why::NONE
+                };
             }
             match bot.route.as_mut() {
                 Some((route, route_at)) => {

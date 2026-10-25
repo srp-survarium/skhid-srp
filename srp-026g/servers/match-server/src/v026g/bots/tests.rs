@@ -148,6 +148,8 @@ struct Body {
     spread: bench_spread::Spread,
     /// Its stretch of zone damage under way ([`ZoneSpell`]).
     zone_spell: Option<ZoneSpell>,
+    /// Its bot's motives at its last tick (`Bot::bench_why`).
+    why_now: u16,
 }
 
 /// A body's stretch of zone damage ([`Game::zone_tick`]): from its first
@@ -159,6 +161,8 @@ struct ZoneSpell {
     health: f32,
     lost: f32,
     last: u32,
+    /// Its bot's motives over it (`Bot::bench_why`), or'ed.
+    why: u16,
 }
 
 /// A zone spell ends after this long with no zone hit, ms.
@@ -170,9 +174,9 @@ const SPELL_FIGHT_MS: u32 = 3_000;
 
 impl ZoneSpell {
     /// The spell as kept when it ends on `body` ([`Game::zone_spells`]).
-    fn ended(&self, body: &Body) -> [f32; 4] {
+    fn ended(&self, body: &Body) -> [f32; 5] {
         let fight = body.last_hit != 0 && body.last_hit + SPELL_FIGHT_MS >= self.start;
-        [self.lost, body.health.max(0.0), self.health, f32::from(u8::from(fight))]
+        [self.lost, body.health.max(0.0), self.health, f32::from(u8::from(fight)), f32::from(self.why)]
     }
 }
 
@@ -464,7 +468,7 @@ struct Game {
     /// Zone spells ended ([`ZoneSpell::ended`]): the health the zones took,
     /// the body's health at the end (enemy fire counts; a death, 0) and at
     /// the start, and 1 if in a fight ([`SPELL_FIGHT_MS`]).
-    zone_spells: Vec<[f32; 4]>,
+    zone_spells: Vec<[f32; 5]>,
     took_from: Vec<Vec3>,
     /// Carriers' ground distance walked (m) and their living ticks: their
     /// mean speed.
@@ -622,6 +626,7 @@ impl Game {
             target: None,
             spread: bench_spread::Spread::default(),
             zone_spell: None,
+            why_now: 0,
         };
         let mut game = Self {
             kin: Kinematics::default(),
@@ -1167,7 +1172,9 @@ impl Game {
                 health: body.health,
                 lost: 0.0,
                 last: tick,
+                why: 0,
             });
+            spell.why |= body.why_now;
             spell.lost += hit;
             spell.last = tick;
             body.health -= hit;
@@ -5015,6 +5022,9 @@ fn real_bot_cost() {
                 clock += 5;
                 while game.tick + TICK_MS <= clock {
                     let stats_before = game.stats.clone();
+                    for bot in bots.bots.iter().flatten() {
+                        game.bodies[bot.place].why_now = bot.bench_why;
+                    }
                     game.step();
                     if let Some(tactics) = bots.tactics.as_ref() {
                         if zone_damage {
@@ -5679,6 +5689,19 @@ fn real_bot_cost() {
                         .filter(|s| s[1] < 0.6 && (s[2] < 0.7 || s[3] > 0.5))
                         .count(),
                     "bins": bins.to_vec(),
+                    // Stretches by their bot's motives (`Bot::bench_why`,
+                    // a mask): all, and those that left it under 0.6.
+                    "why": spells.iter().fold(std::collections::BTreeMap::<String, u32>::new(), |mut m, s| {
+                        *m.entry((s[4] as u16).to_string()).or_default() += 1;
+                        m
+                    }),
+                    "under_06_why": spells.iter().filter(|s| s[1] < 0.6).fold(
+                        std::collections::BTreeMap::<String, u32>::new(),
+                        |mut m, s| {
+                            *m.entry((s[4] as u16).to_string()).or_default() += 1;
+                            m
+                        },
+                    ),
                 })
             };
             eprintln!(
