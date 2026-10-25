@@ -550,36 +550,77 @@ base and seeds):
   motor does not see the grid.
 - Route points with a height: they are re-checked on `GRID_ALGO` 11.
 
-### Bots: the marginal jumps sprinted (sprint step 1, 2026-10-25)
+### Bots: sprint jumps (2026-10-25)
 
-The jump links of 0.95-1.05 m (`MARGINAL_JUMP_M` to `Body.max_jump`) are at the
-standing jump's limit (0.998 m), so a bot often missed them. The sprint jump
-gets up 1.28-1.35 m. What the game does is from the sprint-jump RE; its names
-and calling conventions are in `tools/re-kit/v026g/`. Nothing in the grid
-changes (no `GRID_ALGO` bump).
+The standing jump tops at 0.998 m; the sprint jump gets up 1.28-1.35 m. What the
+game does is from the sprint-jump RE; its names and calling conventions are in
+`tools/re-kit/v026g/`. Two kinds of jump are sprinted.
 
-- **Which jumps:** `pull_straight` marks a route jump (`Route::sprint_jump`)
-  whose rise is over `MARGINAL_JUMP_M` and whose landing has
-  `SPRINT_LANDING_ROOM_M` (3 m, GUESS) of walk floors past it, along the jump's
-  way. The sprint clip carries 4.42 m forward, so a short landing is jumped
-  standing.
+- **Sprint links** (`LinkKind::SprintJump`, `GRID_ALGO` 12): a ledge 1.05-1.25 m
+  high (`Body.max_jump` to `SPRINT_JUMP_M`), the first floor above a step along
+  a side with no link, within the erosion's reach. It needs room to stand on the
+  landing under both ceilings, 3 m of walk floor past the landing along the way
+  (`SPRINT_LANDING_M`: the clip carries 4.42 m) and 3.7 m of straight walk floor
+  behind the take-off (`SPRINT_RUN_UP_M`), within 0.5 m of their heights. The
+  landing must return (`returns`), so no sprint link leads where only a sprint
+  gets out.
+- **Who takes them:** the links are added after the pockets are marked. The
+  reach, the returns, the pockets, the shut pockets and the pieces are the jump's
+  alone, as before. `WalkGrid::links` and `incoming` leave them out; only a
+  search for a body that may sprint-jump (`Mobility::SPRINT`: `search_for`,
+  `path_where_for`, `Regions::start_route_search_for`) takes them. A bot plans
+  with `sprint_jump: !carrying` (the game never gives a carrier the sprint jump,
+  PROVEN). A carrier's route up one is planned again. So a carrier is planned
+  exactly as before.
+- **Their cost:** the link's length, the jump's 1.5 m and `SPRINT_JUMP_PENALTY`
+  (4 m, GUESS, as a marginal jump's). A way into the take-off that does not run up
+  to it (walks within 60° of the way, `SPRINT_RUN_UP_COS`, for 3.7 m counted
+  along it, or from the start) costs `SPRINT_LINE_UP_PENALTY` (7.4 m) more: the
+  walk back and forth to line up. This is a cost, not a refusal: an A* reaches
+  each floor once, by its cheapest way, and a refusal would lose the jump to a way
+  that came at its take-off from the side.
+- **Regions:** a region link only sprint links make is marked
+  (`sprint_only`, in the built file and the digest). Only a sprint search takes
+  it; the links in (`into`, the widening) leave it out, so a standing route
+  search is the same as before.
+- **Marginal jumps:** `pull_straight` also marks a jump link of 0.95-1.05 m
+  (over `MARGINAL_JUMP_M`) to be sprinted. It needs 3 m of walk past its landing
+  (`SPRINT_LANDING_ROOM_M`) and a route that comes at it along its way for the
+  5.5 m run-up (`run_up_on_route`, legs within 60°). On level_07 a route that came
+  at a jump from the far side sent the line-up past the take-off to turn round.
+  These are jumped standing when the sprint is refused.
 - **The game's gate** (the clip plays only with it): no battery; the weapon idle
   (one shot interval after the last shot, not reloading or switching, the aim key
   up for the weapon's aim time); standing (not crouched); no hit within 1.25 s.
   Pistols sprint too. `sprint_gate` in `mod.rs` sets `Pose::no_sprint`, a bit per
-  reason.
-- **The run:** a sprint jump is lined up from 7 m on its own line. Sprint is held
-  for at least 0.75 s at 3.7 m/s or more. The jump is pressed with the edge
+  reason; walking aimed is one more (the walk aims, no sprint).
+- **The run:** a sprint jump is lined up from 7 m on its own line, its run-up
+  5.5 m behind the take-off (a sprint link's: as much as is clear, down to the
+  grid's 3.7 m). Sprint is held for at least 0.75 s at 3.7 m/s or more, at any
+  pace (the sprint key is the jump's). The jump is pressed with the edge
   `min(2.25, far(h) − 0.5)` m ahead, where `far` is the RE's table (3.61 m at
   0.8 m, 3.06 m at 1.2 m). Forward and sprint are held in the air for 1.1 s.
-- **The fall-back:** a jump is done standing, as before, if any of these holds:
-  the gate is shut on its line (or within 2.5 m); its run-up is not clear; a
-  first try did not get up. The `JUMP_TRIES` count is shared. With the gate shut
-  farther off, the bot does not line up for a sprint.
+- **A marginal jump's fall-back:** it is jumped standing, as before, if any of
+  these holds: the gate is shut on its line (or within 2.5 m); its run-up is not
+  clear; a first try did not get up; within 2.5 m it is not run at on its line
+  with sprint held. The `JUMP_TRIES` count is shared. With the gate shut farther
+  off, the bot does not line up for a sprint.
+- **A sprint link's:** never jumped standing (`Route::must_sprint`). With the gate
+  shut near it the bot waits at the run-up, `SPRINT_WAIT_S` (4 s, GUESS) at most,
+  then gives it up (`Walked::JumpFailed`: the take-off is a stuck spot, the route
+  goes round). Found late, or with the press's window passed, it goes back to the
+  run-up; a passed window spends a try.
+- **The look on the run-up:** a bot walking to a play's look point (`Look::At`)
+  with the reflex looking at nothing lets the look go within 7 m of a sprint jump
+  (`RUN_UP_DROPS_LOOK`), so the walk is no aimed walk. Walking aimed was most of
+  the gate's refusals on the bench (16-18 a seed in batt, 4-6 in TDM).
 - **The stand-in** (tests.rs) plays the sprint clip on a press with F+SPRINT held
   above the walk cap, no back, fire, aim or crouch, and no battery.
 - **Check in the game:** `m_jump_type` 2/3/4 in the next world, on the trace's
   route-jump lines with `sprint`.
+- **Bench (the jump tally's line):** `sprint N up N missed N (…) late N (…)`,
+  `refused <gate> N …`, `must first N up N shut N waited out N failed N`,
+  `look dropped N pressed N`.
 
 ## 5. Measured (2026-10-14, release build, one thread)
 
