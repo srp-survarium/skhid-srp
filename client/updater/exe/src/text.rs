@@ -1,6 +1,7 @@
 //! Every sentence the updater shows a player. Each says what went wrong
 //! and, where there is one, what to do about it. English only (but the
-//! box of a file blocked or held, `updater_logic::file_error`); the
+//! box of a file blocked or held, `updater_logic::file_error`, and the box
+//! of a server not reached, `updater_logic::network`); the
 //! launcher's own states and its progress bar are in the launcher's
 //! language. A message goes to the launcher as at most 255 ASCII characters,
 //! so the sentences are short and name files by their last parts.
@@ -8,17 +9,17 @@
 use alloc::format;
 use alloc::string::String;
 
+use updater_logic::network::{self, Failure};
 use updater_logic::url::Url;
 use windows_sys::Win32::Foundation::{
     ERROR_ACCESS_DENIED, ERROR_DISK_FULL, ERROR_HANDLE_DISK_FULL, ERROR_LOCK_VIOLATION,
     ERROR_SHARING_VIOLATION, ERROR_WRITE_PROTECT,
 };
 use windows_sys::Win32::Networking::WinHttp::{
-    ERROR_WINHTTP_CANNOT_CONNECT, ERROR_WINHTTP_CONNECTION_ERROR, ERROR_WINHTTP_NAME_NOT_RESOLVED,
     ERROR_WINHTTP_SECURE_CERT_CN_INVALID, ERROR_WINHTTP_SECURE_CERT_DATE_INVALID,
     ERROR_WINHTTP_SECURE_CERT_REV_FAILED, ERROR_WINHTTP_SECURE_CERT_REVOKED,
     ERROR_WINHTTP_SECURE_CHANNEL_ERROR, ERROR_WINHTTP_SECURE_FAILURE,
-    ERROR_WINHTTP_SECURE_INVALID_CA, ERROR_WINHTTP_SECURE_INVALID_CERT, ERROR_WINHTTP_TIMEOUT,
+    ERROR_WINHTTP_SECURE_INVALID_CA, ERROR_WINHTTP_SECURE_INVALID_CERT,
 };
 
 use crate::http::HttpError;
@@ -157,23 +158,20 @@ pub fn repairing(name: &str) -> String {
     format!("repairing {name}")
 }
 
+/// After the first sentence of a server that could not be reached
+/// (`updater_logic::network`): the short form of the box's advice, for the
+/// launcher's line and the log.
+const BLOCKED: &str = "Your provider (common in Russia) or a firewall may block it: see VPN.txt.";
+
 pub fn http(server: &Url, path: &str, error: &HttpError) -> String {
     let host = &server.host;
+    if let HttpError::Network(_, code) = error
+        && let Some(failure) = Failure::of(*code)
+    {
+        return format!("{} {BLOCKED}", network::english(failure, host));
+    }
     match error {
         HttpError::Network(step, code) => match *code {
-            ERROR_WINHTTP_NAME_NOT_RESOLVED => format!(
-                "The address {host} was not found. Check the internet connection and try again."
-            ),
-            ERROR_WINHTTP_CANNOT_CONNECT => format!(
-                "Cannot connect to {host}. The server may be down, or a firewall blocks \
-                 updater_skhid.exe. Try again later."
-            ),
-            ERROR_WINHTTP_TIMEOUT => format!(
-                "{host} did not answer in time. Check the internet connection and try again."
-            ),
-            ERROR_WINHTTP_CONNECTION_ERROR => {
-                format!("The connection to {host} broke off. Try again.")
-            }
             ERROR_WINHTTP_SECURE_FAILURE
             | ERROR_WINHTTP_SECURE_CHANNEL_ERROR
             | ERROR_WINHTTP_SECURE_CERT_DATE_INVALID

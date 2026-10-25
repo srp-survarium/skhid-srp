@@ -92,6 +92,14 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
     <output>/Skhid.sh
         the same for Linux (Skhid.sh beside this script): `bash Skhid.sh`
         runs play_skhid.sh from wherever it is called, with its arguments.
+    <output>/VPN.txt
+        for a player whose provider blocks the server (Russia): which
+        programs to put in a VPN's split tunnelling, how in the usual VPN
+        programs, the hosts and ports (English and Russian; VPN.txt here).
+    <output>/Skhid-network-setup.cmd
+        Windows Firewall allow rules for the three programs and, asked, a
+        Microsoft Defender exclusion of the game folder; --undo removes
+        them, --dry-run prints the commands (Skhid-network-setup.cmd here).
     <output>/README.txt
         what to do with it, and where the original game is had.
 
@@ -153,6 +161,10 @@ CERT_REL = os.path.join("resources", "ssl", "survarium_login_server.crt")
 LINUX_LAUNCHER = os.path.join("game", EXE_DIR, "play_skhid.sh")
 # The same for Linux, run as `bash Skhid.sh` beside the `game` folder.
 LINUX_STARTER = "Skhid.sh"
+# For a player who cannot reach the server: what to put in a VPN's split
+# tunnelling, and the firewall rules (beside Skhid.bat).
+VPN_HELP = "VPN.txt"
+NETWORK_SETUP = "Skhid-network-setup.cmd"
 # What a Linux unpacker makes executable.
 SCRIPTS = (LINUX_LAUNCHER, LINUX_STARTER)
 # The localizations the client knows (login_chat.md: the language byte).
@@ -306,6 +318,25 @@ def starter():
     return "\r\n".join(lines).encode("ascii")
 
 
+def crlf(data):
+    """A text for Windows: CRLF line ends, whatever the checkout's."""
+    return data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+
+
+def vpn_help():
+    """`VPN.txt`: UTF-8 with a byte order mark, so that an old Notepad reads
+    its Russian half as UTF-8."""
+    return b"\xef\xbb\xbf" + crlf(Path(HERE, VPN_HELP).read_bytes().removeprefix(b"\xef\xbb\xbf"))
+
+
+def network_setup():
+    """`Skhid-network-setup.cmd`: plain ASCII (cmd reads a script in the
+    console's code page) with CRLF line ends."""
+    script = crlf(Path(HERE, NETWORK_SETUP).read_bytes())
+    script.decode("ascii")
+    return script
+
+
 def sh(server, localization, embedded=False):
     with open(os.path.join(HERE, "play_skhid.sh"), "rb") as source:
         # Windows checkouts may use CRLF; Bash and the substitutions need LF.
@@ -358,6 +389,10 @@ def readme(server, localization, description, files, embedded=False, site=None):
             "",
             "You download this archive once: each time the launcher starts, it looks",
             "for newer Skhid files and installs them by itself.",
+            "",
+            "CANNOT REACH THE SERVER?",
+            f"Allow the game in your firewall: run {NETWORK_SETUP} (Windows). In",
+            f"Russia, use a VPN and add the game's .exe files to it: see {VPN_HELP}.",
             "",
             "WHAT THE ARCHIVE ADDS",
             f"{STARTER} beside the `game` folder: it starts the launcher, nothing else.",
@@ -540,6 +575,8 @@ def main():
             (STARTER, starter()),
             # Windows checkouts may use CRLF; Bash needs LF.
             (LINUX_STARTER, Path(HERE, LINUX_STARTER).read_bytes().replace(b"\r\n", b"\n")),
+            (VPN_HELP, vpn_help()),
+            (NETWORK_SETUP, network_setup()),
         ]
         files += [(os.path.join("game", EXE_DIR, L.PAGES_DIR, name), data)
                   for name, data in sorted(launcher_pages.pages(site).items())]

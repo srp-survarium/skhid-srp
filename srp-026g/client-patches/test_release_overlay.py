@@ -15,6 +15,11 @@ import zipfile
 
 import make_client_026g as overlay
 
+# The programs that open connections to the Skhid hosts: the ones VPN.txt
+# and Skhid-network-setup.cmd name.
+PROGRAMS = ('launcher_skhid.exe', 'survarium_skhid.exe', 'updater_skhid.exe')
+WINE = shutil.which('wine')
+
 # A program that writes down how it was started (client/updater/tests).
 STAND_IN = Path(overlay.HERE, '..', '..', 'client', 'updater', 'tests', 'fake_exe', 'target',
                 'i686-win7-windows-msvc', 'release', 'fake-exe.exe').resolve()
@@ -56,6 +61,7 @@ class ReleaseTests(unittest.TestCase):
             'game/binaries/x86/launcher_skhid.exe', 'game/binaries/x86/updater_skhid.exe',
             'game/binaries/x86/7zr.exe',
             'game/binaries/x86/updater_skhid.url', 'Skhid.bat', 'Skhid.sh',
+            'VPN.txt', 'Skhid-network-setup.cmd',
         } | {f'game/binaries/x86/launcher_skhid/index-{blank}{code}.html'
              for blank in ('', 'blank-') for code in ('en', 'ru', 'ua', 'de', 'pl')}
 
@@ -284,6 +290,106 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.build(archive, '--pack-zip')
         self.assertEqual(archive.read_bytes(), b'existing release')
+
+    def test_the_network_help_names_the_three_programs(self):
+        folder = self.root / 'overlay'
+        self.build(folder)
+        vpn = (folder / 'VPN.txt').read_bytes()
+        self.assertTrue(vpn.startswith(b'\xef\xbb\xbf'))
+        self.assertEqual(vpn.count(b'\n'), vpn.count(b'\r\n'))
+        text = vpn.decode('utf-8')
+        english, russian = text.split('SKHID - НЕТ СВЯЗИ С СЕРВЕРОМ?')
+        for half in (english, russian):
+            for program in PROGRAMS:
+                self.assertIn('game\\binaries\\x86\\' + program, half)
+                # HAPP's example, the first one, by its full path.
+                self.assertIn('C:\\Games\\Survarium\\game\\binaries\\x86\\' + program, half)
+            self.assertLess(half.index('HAPP'), half.index('v2rayN'))
+            for host_or_port in ('skhid.link', 'TCP 443', 'TCP 8090', 'TCP 1234', 'UDP 1235', 'UDP 1236',
+                                 'https://skhid.link/patches', 'Skhid-network-setup.cmd', 'LINUX.txt'):
+                self.assertIn(host_or_port, half)
+        # Public names only: no address, no other host.
+        self.assertNotRegex(text, r'\d+\.\d+\.\d+\.\d+')
+        script = (folder / 'Skhid-network-setup.cmd').read_bytes()
+        script.decode('ascii')
+        self.assertEqual(script.count(b'\n'), script.count(b'\r\n'))
+        self.assertIn(b'set "PROGRAMS=' + b' '.join(p.encode() for p in PROGRAMS) + b'"', script)
+        # Nothing turned off: no firewall state, no Defender setting but the exclusion.
+        for word in (b'state off', b'opmode', b'Set-MpPreference', b'DisableRealtimeMonitoring'):
+            self.assertNotIn(word.lower(), script.lower())
+        readme = (folder / 'README.txt').read_text(encoding='utf-8')
+        self.assertIn('Skhid-network-setup.cmd', readme)
+        self.assertIn('VPN.txt', readme)
+        self.assertIn('VPN.txt', (folder / 'LINUX.txt').read_text(encoding='utf-8'))
+
+    def network_setup(self, top, *options):
+        """Skhid-network-setup.cmd of the overlay in `top`, run with
+        `options` (cmd.exe; elsewhere Wine's, in a prefix of its own): what it
+        printed, its lines."""
+        # By its name from its folder: cmd /c takes a quoted path with
+        # arguments apart. The script finds its folder itself (%~dp0).
+        if os.name == 'nt':
+            command, env = ['cmd.exe', '/d', '/c', 'Skhid-network-setup.cmd', *options], None
+        else:
+            prefix = self.root / 'wineprefix'
+            prefix.mkdir(exist_ok=True)
+            env = {k: v for k, v in os.environ.items() if k not in ('DISPLAY', 'WAYLAND_DISPLAY')}
+            env.update(WINEPREFIX=str(prefix), WINEDEBUG='-all')
+            command = [WINE, 'cmd', '/d', '/c', 'Skhid-network-setup.cmd', *options]
+        done = subprocess.run(command, cwd=top, env=env, stdin=subprocess.DEVNULL,
+                              capture_output=True, timeout=600)
+        if os.environ.get('SKHID_TEST_DEBUG'):
+            print(command, done.returncode, done.stdout, done.stderr)
+        return done.stdout.decode('ascii', 'replace').replace('\r\n', '\n').splitlines()
+
+    @unittest.skipUnless(os.name == 'nt' or WINE, 'Windows, or Wine for its cmd.exe')
+    def test_the_network_setup_adds_and_removes_exactly_its_rules(self):
+        # A folder with a space and brackets, as a player's may be.
+        top = self.root / 'My Games (x86)' / 'Survarium'
+        self.build(top)
+        x86 = str(top / 'game' / 'binaries' / 'x86')
+        if os.name != 'nt':
+            x86 = 'Z:' + x86.replace('/', '\\')
+        rules = [(program, protocol, direction) for program in PROGRAMS
+                 for direction in ('in', 'out') for protocol in ('TCP', 'UDP')]
+
+        def delete(program, protocol, direction):
+            return f'[dry-run] netsh advfirewall firewall delete rule name="Skhid {program} {protocol} {direction}"'
+
+        added = self.network_setup(top, '--dry-run', '--defender-yes')
+        commands = [line for line in added if line.startswith('[dry-run] ')]
+        expected = []
+        for program, protocol, direction in rules:
+            expected += [delete(program, protocol, direction),
+                         f'[dry-run] netsh advfirewall firewall add rule name="Skhid {program} {protocol} '
+                         f'{direction}" dir={direction} action=allow program="{x86}\\{program}" '
+                         f'protocol={protocol} enable=yes profile=any']
+        top_windows = x86.rsplit('\\game\\', 1)[0]
+        expected += ['[dry-run] look for firewall rules that block the three programs',
+                     f'[dry-run] powershell Add-MpPreference -ExclusionPath "{top_windows}"',
+                     f'[dry-run] write "{top_windows}\\Skhid-network-setup.defender"']
+        self.assertEqual(commands, expected, '\n'.join(added))
+        # Every rule is removed by its name before it is added: a second run
+        # adds none twice.
+        self.assertEqual(self.network_setup(top, '--dry-run', '--defender-yes'), added)
+        # No Defender exclusion asked for: none added.
+        refused = self.network_setup(top, '--dry-run', '--defender-no')
+        self.assertIn('Defender: no exclusion added.', refused)
+        self.assertFalse([line for line in refused if 'MpPreference' in line])
+        # --undo: the same twelve rules, and no exclusion this script did not add.
+        undone = self.network_setup(top, '--dry-run', '--undo')
+        self.assertEqual([line for line in undone if line.startswith('[dry-run] ')],
+                         [delete(*rule) for rule in rules], '\n'.join(undone))
+        self.assertIn('Defender: this script added no exclusion here: nothing to remove.', undone)
+        (top / 'Skhid-network-setup.defender').write_bytes(top_windows.encode() + b'\r\n')
+        undone = self.network_setup(top, '--dry-run', '--undo')
+        self.assertIn(f'[dry-run] powershell Remove-MpPreference -ExclusionPath "{top_windows}"', undone)
+        # Not beside the game: it says where it belongs and changes nothing.
+        (top / 'game' / 'binaries' / 'x86' / 'survarium_skhid.exe').unlink()
+        lost = self.network_setup(top, '--dry-run')
+        self.assertIn('survarium_skhid.exe was not found in', lost)
+        self.assertFalse([line for line in lost if line.startswith('[dry-run] ')])
+        self.assertIn('Unknown option: --firewall-off', self.network_setup(top, '--firewall-off'))
 
 
 if __name__ == '__main__':

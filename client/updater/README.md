@@ -209,6 +209,40 @@ place, read it (225 again). The updater took a file it could not read for
 one that was the same, said "up to date" and turned PLAY on, and the
 launcher crashed at PLAY a minute later.
 
+## A server not reached
+
+When the update server, or its list of patches, cannot be reached at all
+(WinHTTP's 12007 name not resolved, 12029 cannot connect, 12002 timeout,
+12030 connection cut off: `logic/src/network.rs`), after the usual tries,
+and the run ends in an error or in PLAY without an update check, the player
+is told in the updater's own box, in the launcher's language, with Retry
+and Cancel, as a stop above. Players in Russia meet it most: their
+providers block the server, and a VPN with the game's three programs in its
+split tunnelling gets them through (`VPN.txt` beside `Skhid.bat`). Three
+lines: what failed, by the error, why it may have, and what to do:
+
+```text
+skhid.link didn't answer.
+Your internet provider may be blocking it (common in Russia), or a firewall is blocking the game.
+Allow the game in your firewall (Skhid-network-setup.cmd); in Russia, use a VPN and add launcher_skhid.exe, survarium_skhid.exe and updater_skhid.exe to it (see VPN.txt). Then try again.
+```
+
+The first line is "Couldn't find skhid.link." (12007), "skhid.link refused
+the connection." (12029), "skhid.link didn't answer." (12002) or "The
+connection to skhid.link was cut off." (12030). Retry runs the update again
+from the start; Cancel ends the run as it came out (an error with PLAY off,
+or PLAY with what is installed), and the launcher is not told the English
+words again: the log has them ("No update check: skhid.link didn't answer.
+Your provider (common in Russia) or a firewall may block it: see VPN.txt.
+..."). `check quiet` shows no box. A patch file's download address that
+cannot be reached is not this box: the list was reached, and the patch
+step's error names the file.
+
+**Why.** On 2026-10-25 players in Russia saw "skhid.link did not answer in
+time. Check the internet connection and try again.", in English under a
+Russian launcher, and found the way out (the three programs in their VPN's
+split tunnelling) on Discord.
+
 ## Watch replay
 
 The lobby's History offers a replay of a match the player played. The

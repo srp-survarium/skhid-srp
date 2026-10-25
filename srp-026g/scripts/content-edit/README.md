@@ -456,3 +456,14 @@ Applied to the live files: 7 files edited, 0 unexpected differences. The simulat
 Applied to the live file (stock 0.26g with patches 12..=33, after weapon-balance-2): 1 file
 edited, 0 unexpected differences. The simulation changes (the `next` row of
 `simulation_changes.tsv`).
+
+## network-texts-1.json (2026-10-25)
+
+| change | why |
+|---|---|
+| `st_login_menu_status_error_connection` "Connection error." -> "Can't reach the Skhid server. Allow the game in your firewall (Skhid-network-setup.cmd). In Russia, use a VPN and add the game's .exe files to it (VPN.txt)." (Der Skhid-Server ist nicht erreichbar. ..., Brak połączenia z serwerem Skhid. ..., Нет связи с сервером Skhid. ..., Немає зв'язку з сервером Skhid. ...), in the six localization tables | players in Russia, whose providers block the server, read only "Connection error." (the owner, 2026-10-25). It is the login screen's status 0 (`set_status` table 0x21F2A4): a sign-in that gets no answer, and the login screen the game goes back to after its fifth failed try to reach the lobby again (`../../docs/notes/transport.md` 6.1, LIKELY). `st_disconnected_from_lobby` is left as it is: neither the exe nor a movie names it. The two files are beside `Skhid.bat` in the players' archive |
+
+Applied to the live tables (stock 0.26g with patches 12..=33): 6 files edited, 0 unexpected
+differences. Each text uses only characters its table already has. The login screen's status field
+(`login_menu`, 269 by 167 px at 1080 lines, 18 px, word wrap) holds the longest, German, in about
+six lines. Text only: no server data, no simulation change.
