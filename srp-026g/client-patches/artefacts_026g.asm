@@ -1,5 +1,6 @@
 ; Patch 54: the artefacts (build 2777): Spring's aim time and stopping power,
-; Lifebone's heal, one press fires every artefact of its kind. Its numbers
+; Lifebone's heal, one press fires every artefact of its kind, Onyx fired
+; together 1 s longer each and reducing a hit once (2026-10-25). Its numbers
 ; are in the artefacts' configs (release/content.tsv artefacts-1.json); this
 ; is what the stock code could not read or do.
 ; The arena's block artefacts.code (link_026g.py links it; patch_026g.py's
@@ -27,7 +28,7 @@
 ; sets) is the stagger's: a hit's slow is times max(0, 1 + its sum).
 BITS 32
 global artefacts_loader, artefacts_link, artefacts_unlink, artefacts_lifebone, artefacts_fire
-global artefacts_stagger
+global artefacts_stagger, artefacts_onyx, artefacts_popup
 section .text
 
 %define CONFIG_CHILD 0xF6B10       ; eax = a config value, edi = a key: eax = its child
@@ -44,6 +45,12 @@ section .text
 %define INCREASE_HEALTH 0x32A420   ; esi = a pool; (time, amount), `ret 8`
 %define ACTION_BACK 0x31330A       ; artefact_base::action after its state test: `jne 0x313344`
 %define EFFECT 0x313350            ; artefact_base's activation effect (the artefact, the time), `ret 8`
+%define ONYX_ENABLE 0x3128C0       ; Onyx's enable_active (vtable +80h): its active time +F14h, ms
+%define ONYX_TIME_LEFT 0xF14       ; an Onyx's active time left, ms (its tick 0x3127E0 counts it down)
+%define ONYX_EXTRA_MS 1000         ; each Onyx fired with others: 1 s more for all of them
+%define ONYX_HIT_BACK 0x312C0A     ; Onyx's hit callback after its state test: `mov eax,[esp+8]`
+%define POPUP_SHOW 0x25F9E8        ; Onyx's client update: `push 14h`, then set_parameterized_message
+%define POPUP_SKIP 0x25F9F8        ; ... after it: the state seen, the function's end
 %define AIM_TIME 0x31              ; the aim_time modifier's index (49)
 %define STOPPING 0x2A              ; list 42: the stagger's multiplier
 %define AIM_NODE 0x3B8             ; the active's aim_time node in a Spring
@@ -63,6 +70,10 @@ artefacts_fire:
     jmp near fire_kind             ; +20 from 0x313300
 artefacts_stagger:
     jmp near stagger               ; +25 from 0x2DBD89
+artefacts_onyx:
+    jmp near onyx_hit              ; +30 from 0x312C03
+artefacts_popup:
+    jmp near onyx_popup            ; +35 from 0x25F9DD
 
 ; The loader at 0x33AE13 `mov dword [esi+48h],13h` (the active's third
 ; node): ebx = `data`, esi = the config; eax, edi and xmm0 are the next
@@ -263,29 +274,52 @@ lifebone_active:
 ; class (vtable) and kind 1 in the inventory's artefact slots that is ready,
 ; each as action activates one, and returns: so a press of one cooling or
 ; active still fires the ready ones of its kind. A key-up goes on as the
-; original (it does nothing).
+; original (it does nothing). Onyx (its enable_active 0x3128C0): each Onyx
+; fired adds ONYX_EXTRA_MS to every fired one's active time (+F14h), so n
+; fired together are all active 3 s + (n - 1) s and end together.
 fire_kind:
     cmp byte [esp+4], 0
     je .original
     pushad
     mov esi, ecx                   ; the one pressed
     mov edi, [esp+0x28]            ; the time (pushad 20h, the return, pressed)
+    xor edx, edx                   ; how many are ready
+    mov ecx, esi
+    call ready
+    adc edx, 0
+    mov eax, [esi+0x250]           ; the inventory
+    test eax, eax
+    jz .counted
+    mov ebp, FIRST_SLOT
+.count:
+    mov ecx, [eax+0x10C+ebp*4]
+    call kin
+    jnc .count_next
+    call ready
+    adc edx, 0
+.count_next:
+    inc ebp
+    cmp ebp, LAST_SLOT
+    jbe .count
+.counted:
+    xor ebx, ebx                   ; the time each fired one gets on top
+    dec edx
+    jle .extra
+    mov eax, [esi]
+    cmp dword [eax+0x80], ONYX_ENABLE
+    jne .extra
+    imul ebx, edx, ONYX_EXTRA_MS
+.extra:
+    mov ecx, esi
     call activate
-    mov ebx, [esi+0x250]           ; the inventory
-    test ebx, ebx
-    jz .done
     mov ebp, FIRST_SLOT
 .slot:
-    mov ecx, [ebx+0x10C+ebp*4]
-    test ecx, ecx
-    jz .next
-    cmp ecx, esi
-    je .next
-    mov eax, [ecx]
-    cmp eax, [esi]
-    jne .next
-    cmp dword [ecx+0x24C], 1
-    jne .next
+    mov eax, [esi+0x250]
+    test eax, eax
+    jz .done
+    mov ecx, [eax+0x10C+ebp*4]
+    call kin
+    jnc .next
     call activate
 .next:
     inc ebp
@@ -300,15 +334,47 @@ fire_kind:
     cmp dword [esi+0x280], 3
     jmp ACTION_BACK
 
-; ecx = an artefact, edi = the time: if it is in its passive (state 3) with
-; no cooldown (+28Ch), activated as action does (0x31331C..0x313339): its
-; enable_active (vtable +80h), its effect, the time (+2A0h), state 4. Keeps
-; ebx, esi, edi and ebp.
-activate:
+; ecx = a slot's artefact (or 0), esi = the one pressed: CF = 1 when it is
+; another of its class (vtable) and kind 1. Keeps every register.
+kin:
+    test ecx, ecx
+    jz .no
+    cmp ecx, esi
+    je .no
+    push eax
+    mov eax, [ecx]
+    cmp eax, [esi]
+    pop eax
+    jne .no
+    cmp dword [ecx+0x24C], 1
+    jne .no
+    stc
+    ret
+.no:
+    clc
+    ret
+
+; ecx = an artefact: CF = 1 when it is ready, in its passive (state 3) with
+; no cooldown (+28Ch). Keeps every register.
+ready:
     cmp dword [ecx+0x280], 3
     jne .no
     cmp dword [ecx+0x28C], 0
     jne .no
+    stc
+    ret
+.no:
+    clc
+    ret
+
+; ecx = an artefact, edi = the time, ebx = the time on top (ms): if it is
+; ready, activated as action does (0x31331C..0x313339): its enable_active
+; (vtable +80h), its effect, the time (+2A0h), state 4; then ebx more on its
+; active time (+F14h, an Onyx's; ebx is 0 for any other kind). Keeps ebx,
+; esi, edi and ebp.
+activate:
+    call ready
+    jnc .no
     push esi
     mov esi, ecx
     mov eax, [esi]
@@ -319,9 +385,98 @@ activate:
     call EFFECT
     mov [esi+0x2A0], edi
     mov dword [esi+0x280], 4
+    test ebx, ebx
+    jz .own
+    add [esi+ONYX_TIME_LEFT], ebx
+.own:
     pop esi
 .no:
     ret
+
+; Onyx's hit callback 0x312BF0 (thiscall: the hit, &damage, &armour
+; piercing; `ret 0Ch`) at 0x312C03 `cmp dword [ecx+280h],3`, after its hit
+; type test: ecx = the Onyx. In its passive (state 3) it goes on as the
+; original. Otherwise (active) only the first active Onyx of the slots
+; (13..18, its class) takes its active's share of the hit; any other active
+; Onyx leaves the hit as it is, so n active Onyx reduce it once. An Onyx in
+; no slot goes on as the original. Keeps every register the original does.
+onyx_hit:
+    cmp dword [ecx+0x280], 3
+    je .back                       ; its passive
+    push esi
+    push ebx
+    mov eax, [ecx+0x250]           ; the inventory
+    test eax, eax
+    jz .apply
+    mov edx, FIRST_SLOT
+.slot:
+    mov esi, [eax+0x10C+edx*4]
+    test esi, esi
+    jz .next
+    cmp esi, ecx
+    je .apply                      ; it is the first active one
+    mov ebx, [esi]
+    cmp ebx, [ecx]
+    jne .next
+    cmp dword [esi+0x280], 4
+    je .skip                       ; an Onyx before it is active
+.next:
+    inc edx
+    cmp edx, LAST_SLOT
+    jbe .slot
+.apply:
+    pop ebx
+    pop esi
+    cmp dword [ecx+0x280], 3       ; the flags the original's jne reads
+.back:
+    jmp ONYX_HIT_BACK
+.skip:
+    pop ebx
+    pop esi
+    ret 0xC
+
+; Onyx's client update 0x25F640 (ecx = ebx = the Onyx +F20h) when it sees
+; the state turn 4 for the local player's Onyx, at 0x25F9DD `mov ecx,
+; [ebx-0C30h] / push 0BB8h`: the activation hint (+2F0h) shown by
+; set_parameterized_message 0x2375C0 (the text, 21h, 14h, 3000 ms). Now
+; its time on screen is the active's time left (+F14h, ms), which the hud
+; writes for the hint's %s in seconds; and of the Onyx one press fired
+; (state 4, the same activation time +2A0h) only the first of the slots
+; shows it, so a press shows it once. An Onyx in no slot shows its own.
+; esi (the game) is kept; eax, ecx, edx and edi are free there.
+onyx_popup:
+    push esi
+    lea edi, [ebx-0xF20]           ; the Onyx
+    mov eax, [edi+0x250]           ; the inventory
+    test eax, eax
+    jz .show
+    mov edx, FIRST_SLOT
+.slot:
+    mov ecx, [eax+0x10C+edx*4]
+    test ecx, ecx
+    jz .next
+    cmp ecx, edi
+    je .show                       ; it is the first of its press
+    mov esi, [ecx]
+    cmp esi, [edi]
+    jne .next
+    cmp dword [ecx+0x280], 4
+    jne .next
+    mov esi, [ecx+0x2A0]
+    cmp esi, [edi+0x2A0]
+    je .skip                       ; an Onyx before it, fired by the same press
+.next:
+    inc edx
+    cmp edx, LAST_SLOT
+    jbe .slot
+.show:
+    pop esi
+    mov ecx, [ebx-0xC30]           ; the activation hint
+    push dword [ebx-0xC]           ; its time on screen: the active's time left, ms
+    jmp POPUP_SHOW
+.skip:
+    pop esi
+    jmp POPUP_SKIP
 
 aim_key:
     db "aim_time_mod", 0

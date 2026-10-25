@@ -2917,11 +2917,19 @@ va	name	location	role	basis
 0x00312470	survarium::artefact_lifebone_core::serialize	stack+8	secondary_context	inferred
 0x003124b0	survarium::artefact_lifebone_core::deserialize	ECX	artefact	inferred
 0x003124b0	survarium::artefact_lifebone_core::deserialize	stack+4	reader	inferred
+0x003127e0	survarium::artefact_onyx_core::tick_impl	ECX	the Onyx (its active time left +F14h, ms, counted down to 0)	observed
+0x003127e0	survarium::artefact_onyx_core::tick_impl	stack+4	the elapsed ms	observed
+0x003128c0	survarium::artefact_onyx_core::enable_active_effects	ECX	the Onyx: +F14h = active/duration ms (+F10h) x M39 (artefact_duration), +F18h = absorb_total (+F0Ch)	observed
+0x003128c0	survarium::artefact_onyx_core::enable_active_effects	stack+4	the time	observed
 0x00312a80	survarium::artefact_onyx_core::serialize	ECX	artefact	inferred
 0x00312a80	survarium::artefact_onyx_core::serialize	stack+4	writer	inferred
 0x00312a80	survarium::artefact_onyx_core::serialize	stack+8	secondary_context	inferred
 0x00312af0	survarium::artefact_onyx_core::deserialize	ECX	artefact	inferred
 0x00312af0	survarium::artefact_onyx_core::deserialize	stack+4	reader	inferred
+0x00312bf0	survarium::artefact_onyx_core::protect	ECX	the Onyx (bound per protected part by its constructor at 0x312777): state 3 its passive (D + add) x mul, else its active D - min(+F18h, D - (D + add) x mul); piercing (P + add) x mul	observed
+0x00312bf0	survarium::artefact_onyx_core::protect	stack+4	the hit (+1Ch its hit type, compared with the Onyx's +EE8h)	observed
+0x00312bf0	survarium::artefact_onyx_core::protect	stack+8	&damage (float)	observed
+0x00312bf0	survarium::artefact_onyx_core::protect	stack+12	&armour piercing (float)	observed
 0x00313300	survarium::artefact_base::action	ECX	the artefact	observed
 0x00313300	survarium::artefact_base::action	stack+4	bool pressed	observed
 0x00313300	survarium::artefact_base::action	stack+8	the time	observed
@@ -3213,6 +3221,8 @@ va	name	location	role	basis
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	EDX	throw-grenade state	inferred
 0x0033acf0	survarium::artefact_spring_core::config::config	ESI	the config (Spring+340h): five modifier nodes and the duration ms	observed
 0x0033acf0	survarium::artefact_spring_core::config::config	stack+4	the item config's data value	observed
+0x0033b780	survarium::artefact_onyx_core::config::config	stack+4	the config (Onyx+C7Ch): +26Ch hit_type, +270h..+27Ch passive damage_add, damage_mul, armor_piercing_add, armor_piercing_mul, +280h..+28Ch the active's, +290h absorb_total, +294h active/duration ms; the protected parts at +14h	observed
+0x0033b780	survarium::artefact_onyx_core::config::config	stack+8	the item config's data value	observed
 0x0033bb50	survarium::generic_anomaly_core::on_player_action	ECX	player_actions_subscriber subobject (core+8)	observed
 0x0033bb50	survarium::generic_anomaly_core::on_player_action	stack+8	action: a jump table of handlers, each adds its energy_on_* x param and clamps to energy_maximum when above 0	observed
 0x0033bb50	survarium::generic_anomaly_core::on_player_action	stack+12	param (f32)	observed

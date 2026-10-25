@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 41128,
-  "sha256": "2909918b87eb71a05c0d2492a4d3c7629261692e3454402fec0441bae375bf03",
+  "sha256": "d1edfb7ec93928b0474d226e2381267eff2c13be5270fa1b9615c6520d2e6ddd",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -17,7 +17,7 @@
     "artefacts.code": {
       "kind": "code",
       "va": "0xa431000",
-      "size": 784
+      "size": 1088
     },
     "engine.code": {
       "kind": "code",
@@ -50,6 +50,8 @@
     "artefacts_lifebone": "0xa43100f",
     "artefacts_link": "0xa431005",
     "artefacts_loader": "0xa431000",
+    "artefacts_onyx": "0xa43101e",
+    "artefacts_popup": "0xa431023",
     "artefacts_stagger": "0xa431019",
     "artefacts_unlink": "0xa43100a",
     "chat_variable": "0xa434000",

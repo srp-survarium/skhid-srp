@@ -1259,8 +1259,12 @@ va	name	source	ret_cleanup	result
 0x00312250	survarium::artefact_lifebone_core::enable_active_effects	manual	4	
 0x00312470	survarium::artefact_lifebone_core::serialize	manual	8	
 0x003124b0	survarium::artefact_lifebone_core::deserialize	manual	12	
+0x003127e0	survarium::artefact_onyx_core::tick_impl	manual	8	
+0x003128c0	survarium::artefact_onyx_core::enable_active_effects	manual	4	
+0x00312a50	survarium::artefact_onyx_core::active_effect_ended	manual	0	AL: 1 when the active is over (time left +F14h 0, or nothing left to absorb +F18h 0)
 0x00312a80	survarium::artefact_onyx_core::serialize	manual	8	
 0x00312af0	survarium::artefact_onyx_core::deserialize	manual	12	
+0x00312bf0	survarium::artefact_onyx_core::protect	manual	12	
 0x00313300	survarium::artefact_base::action	manual	8	
 0x00313670	survarium::artefact_base::serialize	manual	8	
 0x00313760	survarium::artefact_base::deserialize	manual	12	
@@ -1385,6 +1389,7 @@ va	name	source	ret_cleanup	result
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	manual	20	
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	manual	0	
 0x0033acf0	survarium::artefact_spring_core::config::config	manual	4	EAX: the config (ESI)
+0x0033b780	survarium::artefact_onyx_core::config::config	manual	0	
 0x0033bb50	survarium::generic_anomaly_core::on_player_action	manual	12	
 0x0033bcd0	survarium::generic_anomaly_core::on_artefact_container_use	manual	8	
 0x0033bd50	survarium::generic_anomaly_core::load	manual	4	

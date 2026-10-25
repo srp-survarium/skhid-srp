@@ -11,8 +11,11 @@ release's artefact configs), the link and unlink of a Spring's passive and
 active nodes (0x311AD0, 0x311D10, 0x311BC0, 0x311DA0) into a made-up
 player's modifier lists, the modifier getter 0x2D5AE0 on those lists,
 Lifebone's enable_active 0x312250 with the pool lookup 0x2E58B0 and
-increase_health 0x32A420, and artefact_base::action 0x313300 over a
-made-up inventory's artefact slots. Stubs: the holder's two getters (the
+increase_health 0x32A420, artefact_base::action 0x313300 over a
+made-up inventory's artefact slots, and Onyx's enable_active 0x3128C0,
+countdown 0x3127E0, end test 0x312A50 and hit callback 0x312BF0 on 1, 2
+and 3 Onyx, and the end of Onyx's client update from 0x25F9DD (the
+activation hint's set_parameterized_message 0x2375C0, a stub here). Stubs: the holder's two getters (the
 inventory's +174h, slots 2 and 3), a pool's two notifications from
 increase_health (0x32B920, 0x32A9C0), and the artefacts' enable_active in
 the action cases (they count presses). Says nothing about the HUD, the
@@ -20,17 +23,24 @@ effects or a real match.
 
 The original must give the original's answers (a Spring's passive node 2
 max_carried_weight, no aim node; Lifebone heals no pool; one press fires one
-artefact), the build: aim time from the config in the passive and the
-active, the active's linked and unlinked with the others, pain, body and
-head full after Lifebone's active, no slow from hits while a Spring is active, and a press fires every ready artefact of its class.
+artefact; n active Onyx reduce a hit n times, each 3 s), the build: aim
+time from the config in the passive and the active, the active's linked and
+unlinked with the others, pain, body and head full after Lifebone's active,
+no slow from hits while a Spring is active, a press fires every ready
+artefact of its class, and n Onyx fired together are each active 3 s +
+(n - 1) s, reduce a hit once (x0.4) and show the activation hint once a
+press, for that time.
 """
+import json
+import math
+import os
 import struct
 import sys
 import zlib
 
 from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_PROT_ALL, UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESI, \
-    UC_X86_REG_EDI, UC_X86_REG_ESP, UC_X86_REG_EBX, UC_X86_REG_EIP, UC_X86_REG_XMM0
+    UC_X86_REG_EDI, UC_X86_REG_ESP, UC_X86_REG_EBX, UC_X86_REG_EBP, UC_X86_REG_EIP, UC_X86_REG_XMM0
 
 import patch_026g as base
 
@@ -46,8 +56,22 @@ INVENTORY_ACTION = 0x2FCAA0              # edi = the inventory; (slot, pressed, 
 SPRING_ENABLE, SPRING_DISABLE = 0x3118D0, 0x311970   # thiscall: (time) `ret 4`; () `ret`
 MOVEMENT, STAMINA_REGEN, MAX_WEIGHT, STAMINA_SPEND, AIM_TIME, STOPPING = 4, 3, 5, 19, 49, 42
 AIM_NODE, STOP_NODE = 0x3B8, 0x3C8
+ONYX_ENABLE = 0x3128C0                   # Onyx's enable_active, thiscall (time), `ret 4`
+ONYX_TICK = 0x3127E0                     # its active's countdown, thiscall (elapsed ms, time), `ret 8`
+ONYX_ENDED = 0x312A50                    # active_effect_ended, thiscall, al
+ONYX_HIT = 0x312BF0                      # its hit callback, thiscall (hit, &damage, &piercing), `ret 0Ch`
+ONYX_POPUP = 0x25F9DD                    # its client update's pop-up, state 4 seen (ebx = the Onyx +F20h)
+MESSAGE = 0x2375C0                       # set_parameterized_message (ecx = the text; hud, size, shift, ms), `ret 10h`
+LOCALIZE = 0x1FEF90                      # its text's last step: eax = the text, ecx = the output; (game), `ret 4`
+HINTS = [e["to"] for e in json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts",
+                                                       "content-edit", "artefact-texts-1.json"), encoding="utf-8"))
+         ["edit_text"] if e["path"] == "strings/st_onyx_activation_hint"]
+# The release's Onyx (artefacts-1.json): passive x0.95, active x0.4 for 3 s,
+# absorb_total 5; its loader's fields at +C7Ch (+26Ch.. of 0x33B780).
+ONYX = {0xEE8: 7, 0xEF0: 0.95, 0xEF8: 0.95, 0xF00: 0.4, 0xF08: 0.4, 0xF0C: 5.0, 0xF10: 3000}
 
 MEMORY, STACK, STOP, STUB = 0x20000000, 0x21008000, 0x22000000, 0x22000100
+HINT, GAME = 0x22000800, 0x22001000      # an activation hint's text, the game (its hud at +1FCh)
 HOLDER, HOLDER_VT, PLAYER, KITS, CONFIG, POOLS, DM, NAMES = (MEMORY + 0x10000 * i for i in range(1, 9))
 GET_PLAYER, GET_DM, ENABLE_ACTIVE, RET4, RET8 = (STUB + 0x10 * i for i in range(5))
 
@@ -417,6 +441,132 @@ def run(data, patched):
     g.call(INVENTORY_ACTION, (13, 0, 2100), edi=inventory)
     expect(g.read(one + 0x280) == 4 and g.read(one + 0xD0) == 1 and g.read(two + 0xD0) == 1,
            "a key-up through inventory::action: nothing, the reference given back")
+
+    # Onyx, the game's own enable_active 0x3128C0, countdown 0x3127E0, end
+    # test 0x312A50 and hit callback 0x312BF0 on made-up Onyx in the slots
+    # 13.. (`states`: (state, cooldown) each), the release's numbers. A hit
+    # (damage 1, piercing 0.5) goes through every Onyx's callback in turn, as
+    # the protected pool's list calls them.
+    def onyx_game(states):
+        g = Game(data)
+        inventory = g.inventory()
+        vt = g.block(0x100)
+        g.word(vt + 0x2C, ACTION)
+        g.word(vt + 0x80, ONYX_ENABLE)
+        stones = []
+        for slot, (state, cooldown) in enumerate(states, 13):
+            o = g.block(0xF40)
+            g.word(o, vt)
+            g.word(o + 0x24C, 1)
+            g.word(o + 0x250, inventory)
+            g.word(o + 0x280, state)
+            g.word(o + 0x28C, cooldown)
+            for at, value in ONYX.items():
+                g.emu.mem_write(o + at, struct.pack("<f" if isinstance(value, float) else "<I", value))
+            g.word(inventory + 0x10C + 4 * slot, o)
+            g.word(o + 0x2F0, HINT)
+            stones.append(o)
+        g.messages = []
+        g.emu.hook_add(UC_HOOK_CODE, message, g, begin=MESSAGE, end=MESSAGE)
+        return g, stones
+
+    def message(emu, address, size, g):
+        esp = emu.reg_read(UC_X86_REG_ESP)
+        g.messages.append((emu.reg_read(UC_X86_REG_ECX),) + struct.unpack("<4I", emu.mem_read(esp + 4, 16)))
+        emu.reg_write(UC_X86_REG_ESP, esp + 0x14)
+        emu.reg_write(UC_X86_REG_EIP, g.read(esp))
+
+    def popups(g, stones):
+        """Onyx's client update from 0x25F9DD for each Onyx in turn (its state
+        seen turn 4, the holder the local player): the messages it shows, as
+        (text, size, shift, ms)."""
+        g.messages = []
+        frame = STACK - 0x200
+        for o in stones:
+            for i, value in enumerate((0, 0, 0, 0, STOP)):   # edi, esi, ebx popped; ebp; the return
+                g.word(frame + 4 * i, value)
+            g.emu.reg_write(UC_X86_REG_ESP, frame)
+            g.emu.reg_write(UC_X86_REG_EBP, frame + 12)
+            g.emu.reg_write(UC_X86_REG_EBX, o + 0xF20)
+            g.emu.reg_write(UC_X86_REG_ESI, GAME)
+            g.emu.emu_start(ONYX_POPUP, STOP, count=100_000)
+            expect(g.read(o + 0xF30) == 4, "the client update keeps the state it saw")
+        return [(text, size, shift, ms) for text, hud, size, shift, ms in g.messages if hud == GAME + 0x1FC]
+
+    def hit(g, stones):
+        h = g.block(0x40)
+        g.word(h + 0x1C, ONYX[0xEE8])
+        values = g.block(8)
+        g.emu.mem_write(values, struct.pack("<ff", 1.0, 0.5))
+        for o in stones:
+            g.call(ONYX_HIT, (h, values, values + 4), ecx=o)
+        return round(g.float(values), 5), round(g.float(values + 4), 5)
+
+    for n in (1, 2, 3):
+        g, stones = onyx_game([(3, 0)] * n)
+        expect(hit(g, stones) == (round(0.95 ** n, 5), round(0.5 * 0.95 ** n, 5)),
+               f"{n} Onyx carried: their passives x0.95 each, as before")
+        g.call(ACTION, (1, 4000), ecx=stones[-1])
+        time = 3000 + (n - 1) * 1000 if patched else 3000
+        expect([g.read(o + 0x280) for o in stones] == ([4] * n if patched else [3] * (n - 1) + [4])
+               and all(g.read(o + 0xF14) == time for o in stones if g.read(o + 0x280) == 4)
+               and all(g.float(o + 0xF18) == 5.0 for o in stones if g.read(o + 0x280) == 4),
+               f"{n} Onyx, one press: " + (f"all {n} active {time} ms" if patched else "the pressed one, 3000 ms"))
+        if not patched:
+            for o in stones[:-1]:                # the original: each its own press
+                g.call(ACTION, (1, 4000), ecx=o)
+        want = (0.4, 0.2) if patched else (round(0.4 ** n, 5), round(0.5 * 0.4 ** n, 5))
+        expect(hit(g, stones) == want, f"{n} Onyx active: damage and piercing x{want[0]}"
+               + (", once" if patched else ", once for each"))
+        shown = popups(g, stones)
+        want = [(HINT, 0x21, 0x14, time)] if patched else [(HINT, 0x21, 0x14, 3000)] * n
+        expect(shown == want, f"{n} Onyx: the activation hint " + (f"once, {time} ms on screen" if patched
+                                                                  else "once for each, 3000 ms"))
+        for o in stones:
+            g.call(ONYX_TICK, (3000, 7000), ecx=o)
+        g.call(ONYX_ENDED, ecx=stones[0])
+        ended = g.emu.reg_read(UC_X86_REG_EAX) & 0xFF
+        expect(ended == (1 if n == 1 or not patched else 0)
+               and g.read(stones[0] + 0xF14) == (time - 3000),
+               f"{n} Onyx after 3 s: " + ("ended" if ended else f"{time - 3000} ms left"))
+    # An Onyx cooling beside a ready one: the press fires the ready one alone,
+    # 3 s; the cooling one's passive and the active one's share both count.
+    g, (cool, ready_one) = onyx_game([(3, 500), (3, 0)])
+    g.call(ACTION, (1, 4000), ecx=ready_one)
+    expect(g.read(cool + 0x280) == 3 and g.read(ready_one + 0x280) == 4 and g.read(ready_one + 0xF14) == 3000,
+           "a cooling Onyx beside: the ready one alone, 3 s")
+    expect(hit(g, (cool, ready_one)) == (0.38, 0.19), "the cooling one's passive x0.95, the active x0.4")
+    # Two Onyx active from two presses (the second once ready): one share.
+    g, (a1, a2) = onyx_game([(3, 0), (3, 500)])
+    g.call(ACTION, (1, 4000), ecx=a1)
+    g.word(a2 + 0x28C, 0)
+    g.call(ACTION, (1, 5000), ecx=a2)
+    expect([g.read(o + 0x280) for o in (a1, a2)] == [4, 4] and g.read(a2 + 0xF14) == 3000,
+           "two presses, two active Onyx of 3 s")
+    expect(hit(g, (a2, a1)) == ((0.4, 0.2) if patched else (0.16, 0.08)),
+           "two active Onyx from two presses: " + ("x0.4 once" if patched else "x0.4 each"))
+    expect(popups(g, (a1, a2)) == [(HINT, 0x21, 0x14, 3000)] * 2, "two presses: the hint for each, 3000 ms")
+
+    # The text set_parameterized_message shows: the game's localizer 0x1FEF90
+    # ({USE} the bound key, any other {...} nothing), then the hud's %s, the
+    # time on screen in seconds (HUD.as). Each of the six hints keeps its %s
+    # and says the time of 1, 2 and 3 Onyx; {s} would have been lost.
+    def localized(text):
+        source, out = g.block(len(text.encode()) + 1), g.block(0x400)
+        g.emu.mem_write(source, text.encode() + b"\0")
+        g.call(LOCALIZE, (0,), eax=source, ecx=out)
+        return bytes(g.emu.mem_read(out, 0x400)).split(b"\0")[0].decode()
+
+    expect(localized("for {s} s.") == "for  s." and localized("{{x") == "{x",
+           "the localizer drops {s} (the owner's first test: \"for  s.\")")
+    expect(len(HINTS) == 6 and all(localized(h) == h and h.count("%s") == 1 and "60" in h for h in HINTS),
+           "the six Onyx activation hints come through the localizer as they are, one %s each")
+    for n in (1, 2, 3):
+        ms = 3000 + (n - 1) * 1000 if patched else 3000
+        shown = [h.replace("%s", str(math.ceil(ms / 1000))) for h in HINTS]
+        expect(shown[0] == f"Onyx activated! Decreases the damage and armor-piercing of incoming bullets by 60% "
+                          f"for {ms // 1000} s." and all(f" {ms // 1000} " in s for s in shown),
+               f"{n} Onyx: the hud shows \"{shown[0]}\"")
     return checks
 
 
