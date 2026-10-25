@@ -44,6 +44,7 @@ use survarium::v026g::match_msgs::TICK_MS;
 
 use super::body::{Fix, jumped_to, slide};
 use super::guns::{Arms, Gun};
+use super::hazards::{Hazard, Hazards};
 use super::kin::{Blend, Kinematics, TICK_S, forward, to_world};
 use super::recoil::{Cadence, Recoil, kick_of};
 use super::rng::Rng;
@@ -427,6 +428,12 @@ struct Game {
     stolen: u32,
     /// Batteries carriers let go of alive: by a fire press, by the drop key.
     drops: [u32; 2],
+    /// The damage zones' toll ([`Game::zone_tick`]): deaths in them, health
+    /// lost in them; and where batteries were taken from this tick (the
+    /// run's loop counts those lying in zones on all match).
+    zone_deaths: u32,
+    zone_hp: f32,
+    took_from: Vec<Vec3>,
     /// Carriers' ground distance walked (m) and their living ticks: their
     /// mean speed.
     carry_m: f32,
@@ -614,6 +621,9 @@ impl Game {
             delivered: [0, 0],
             stolen: 0,
             drops: [0, 0],
+            zone_deaths: 0,
+            zone_hp: 0.0,
+            took_from: Vec::new(),
             carry_m: 0.0,
             carry_ticks: 0,
             thieves: Vec::new(),
@@ -1069,6 +1079,57 @@ impl Game {
         }
     }
 
+    /// The damage zones' hits on the living, the bench's model of the game's
+    /// (`mapdata::Damage`): a body on a floor inside a zone's own shape
+    /// (`inside`, marked with no margin) loses the zone's hit a second
+    /// ([`Hazard::hit_per_s`], full intensity, before armour) over the tick
+    /// while the zone is on (`on`: the bots' zones, their timing); at no
+    /// health it dies where it stands and its battery falls there.
+    fn zone_tick(&mut self, inside: &Hazards, on: &Hazards) {
+        let tick = self.tick;
+        for place in 0..self.bodies.len() {
+            let body = &self.bodies[place];
+            if !body.alive {
+                continue;
+            }
+            let Some(node) = self.world.grid.locate(body.feet, 1.0) else {
+                continue;
+            };
+            let per_s: f32 = inside
+                .zones_at(node)
+                .filter(|zone| {
+                    on.zones
+                        .iter()
+                        .find(|o| o.zone == zone.zone)
+                        .is_some_and(|o| o.activity.active(tick))
+                })
+                .map(Hazard::hit_per_s)
+                .sum();
+            if per_s <= 0.0 {
+                continue;
+            }
+            let body = &mut self.bodies[place];
+            let hit = (per_s * TICK_S).min(body.health.max(0.0));
+            body.health -= hit;
+            self.zone_hp += hit;
+            if body.health > 1e-3 {
+                continue;
+            }
+            body.alive = false;
+            body.dead_at = tick;
+            if let Some(battery) = body.carrying.take() {
+                self.batteries[battery] = Lying::Free(body.feet, 1 << body.team);
+            }
+            let team = usize::from(body.team);
+            self.zone_deaths += 1;
+            self.stats[place].1 += 1;
+            self.stats[place].2 = 0;
+            if let Some(tickets) = self.tickets.as_mut() {
+                tickets[team] = tickets[team].saturating_sub(1);
+            }
+        }
+    }
+
     /// Whether the view's ray from `body`'s eye (its base pitch) comes
     /// within `radius` of `point` no farther than the use's 2 m.
     fn uses(body: &Body, point: Vec3, radius: f32) -> bool {
@@ -1188,6 +1249,9 @@ impl Game {
                         *t != team && Self::uses(&body, *at + USE_BOX_UP, USE_BOX_M)
                     });
                     if let Some(battery) = free {
+                        if let Lying::Free(at, _) = self.batteries[battery] {
+                            self.took_from.push(at);
+                        }
                         self.batteries[battery] = Lying::Carried(place);
                         self.bodies[place].carrying = Some(battery);
                         self.taken += 1;
@@ -4693,11 +4757,31 @@ fn real_bot_cost() {
             bots.bench_human = human.as_ref().map(|h| h.place);
             let mut blocks = BlockTally::default();
             let mut hits = HitTally::default();
+            // The zones' own shapes, for their hits on the bodies; batteries
+            // taken from floors of zones on all match, and their spots.
+            let inside = Hazards::build(&world, 0.0);
+            let (mut zone_takes, mut zone_spots) = (0u32, Vec::<Vec3>::new());
             while clock < limit_ms {
                 clock += 5;
                 while game.tick + TICK_MS <= clock {
                     let stats_before = game.stats.clone();
                     game.step();
+                    if let Some(tactics) = bots.tactics.as_ref() {
+                        game.zone_tick(&inside, &tactics.hazards);
+                        for at in std::mem::take(&mut game.took_from) {
+                            let fixed = tactics
+                                .world
+                                .grid
+                                .locate(at, 1.5)
+                                .is_some_and(|node| tactics.hazards.fixed_at(node));
+                            if fixed {
+                                zone_takes += 1;
+                                if !zone_spots.iter().any(|s| (*s - at).length() < 1.0) {
+                                    zone_spots.push(at);
+                                }
+                            }
+                        }
+                    }
                     carry.deaths(&stats_before, &game, &bots);
                     BlockTally::gate_tally(&mut bots);
                     blocks.tick(&game, &bots, &mut events);
@@ -5308,6 +5392,10 @@ fn real_bot_cost() {
                     "raids": raid_sums,
                     "stolen": game.stolen,
                     "drops": game.drops,
+                    "zone_deaths": game.zone_deaths,
+                    "zone_hp": game.zone_hp,
+                    "zone_takes": zone_takes,
+                    "zone_spots": zone_spots.len(),
                     "carry_mps": if game.carry_ticks > 0 {
                         game.carry_m / (game.carry_ticks as f32 * TICK_S)
                     } else {
