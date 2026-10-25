@@ -19,9 +19,11 @@ so the files are never re-made: every edit changes the fewest bytes possible and
 table is re-sorted by CRC.
 
 Edits (edits.json):
-  "set":            [{"file", "path", "from", "to"}]   a number (float or int, its type kept); `from` must
-                                                       be the live value (a stale base is refused); the
-                                                       path's `name[i]` is item i of an indexed table
+  "set":            [{"file", "path", "from", "to"}]   a number (float or int, its type kept), or a bool
+                                                       with `from` and `to` true/false (a material's
+                                                       use_* switch); `from` must be the live value (a
+                                                       stale base is refused); the path's `name[i]` is
+                                                       item i of an indexed table
   "rename_key":     [{"files" (glob on the game path), "table", "from", "to"}]
                     renames a key of the named table in every matching file that has it; the new name
                     is appended after the file's last byte, the table's children re-sorted by CRC
@@ -161,6 +163,9 @@ def set_number(buf, path, frm, to, as_float=False):
     others), but a fraction is never silently cut to an int."""
     off = find(buf, path)
     data, idoff, crc, t, cnt = rec(buf, off)
+    if isinstance(frm, bool) or isinstance(to, bool):
+        set_bool(buf, off, path, frm, to)
+        return
     old = as_number(t, data & 0xffffffff)
     if abs(old - frm) > 1e-6:
         raise ValueError('%s is %r, not %r: the base is not the live data' % (path, old, frm))
@@ -170,6 +175,16 @@ def set_number(buf, path, frm, to, as_float=False):
         raise ValueError('%s is an int; %r needs "as_float": true' % (path, to))
     raw = struct.unpack('<I', struct.pack('<f' if t == T_FLOAT else '<i', to if t == T_FLOAT else int(to)))[0]
     REC.pack_into(buf, off, (data & ~0xffffffff) | raw, idoff, crc, t, cnt)
+
+
+def set_bool(buf, off, path, frm, to):
+    """A boolean (a material's switch): `from` and `to` are JSON true/false, the value a bool."""
+    data, idoff, crc, t, cnt = rec(buf, off)
+    if t != T_BOOL or not (isinstance(frm, bool) and isinstance(to, bool)):
+        raise ValueError('%s: a bool is set from true/false to true/false (type %d, %r -> %r)' % (path, t, frm, to))
+    if bool(data & 1) != frm:
+        raise ValueError('%s is %r, not %r: the base is not the live data' % (path, bool(data & 1), frm))
+    REC.pack_into(buf, off, (data & ~0xffffffff) | int(to), idoff, crc, t, cnt)
 
 
 def append(buf, blob):

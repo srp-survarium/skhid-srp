@@ -37,7 +37,9 @@ python3 -I weapon_camo.py guns.tsv game donor - --previews previews \
 The pack adds each `_aoac` (an `add_file`; a `replace_file` pinned by its sha256 for one the
 players' files already have) and prints pack.json's sha256 for the row. Version 1 (2026-10-21,
 the players' files of revision 26, 0.28a2's for the donors): 112 `_aoac` textures, 224 files,
-pack.json `8e93b030…a132e2`.
+pack.json `8e93b030…a132e2`. Version 2 (2026-10-25, the same inputs): 123 `_aoac` textures, 246
+files, pack.json `ddd3370b…adcdc`; the 224 files of version 1 byte for byte, and an `_aoac` for
+every other surface patch 44 bakes (../../docs/notes/missing-textures.md).
 
 Which parts are painted: `parts.tsv` (beside guns.tsv) names them per texture, a UV point on each;
 a texture with no line gets the suggestion, the large parts its premium painted. To choose:
@@ -86,6 +88,11 @@ body, not barrels, sights, rails, bolts or triggers). Before parts.tsv, the sugg
 | the other 20 | one each | 2–13 parts | 49–96 % (stocks, magazines and barrel covers: few parts, most painted) |
 | 65 with no premium (the rest, 0.29a3 ports and pistols included) | none | 3–16 parts | 40–100 % (the large parts; a barrel too on the TOZ-66) |
 
-Not in guns.tsv: textures of barrels, sights, suppressors and attachments of their own, the
-12-gauge shell, the SV-98's net, the premium-only `_camo` textures, the mp7's glow (no texture).
-The Vepr-12's magazine has no _aoac (its premium repainted under 1 % of it).
+Every texture of a surface patch 44 bakes has a row: the baker loads `<diffuse>_aoac` for each
+surface of a camouflaged (or decal-only) weapon, and a missing one is a failed load in the game's
+log on every bake. Barrels, sights, a suppressor, the 12-gauge shell and the SV-98's net are rows
+of the "Bare" section with a parts.tsv line of no parts: a neutral `_aoac` (G 1, B 0.5, R 1), the
+bake leaves them as they are. The premium AK-12's magazine and the premium Saiga-12's magazine and
+grip are premium copies of the plain weapon's texture on the same mesh (UVs equal, the same
+layout); the Vepr-12's magazine (vepr12_attach, its premium vepr_12_mag_camo) has its magazine
+painted, as the other weapons' magazines. Not in guns.tsv: the mp7's glow (no texture).

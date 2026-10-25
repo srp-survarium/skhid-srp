@@ -12,14 +12,14 @@ weapons/ak_74n/ak74_stock_wood	weapons/ak_74n/ak74_stock_wood_camo_st,28:weapons
 weapons/akmn/akm_stock_wood	weapons/akmn/akmn_stock_camo	weapons/akmn/akmn:akmn1sg1	weapons/akmn/akmn_stock_camo
 weapons/ak_12/ak_12	weapons/ak_12/ak_12_camo	weapons/ak_12/ak_12:ak_12_sg	weapons/ak_12/ak_12_camo
 weapons/ak_74u/aks74u	weapons/ak_74u/aks74u_camo	weapons/ak74u:lowfbxasc032poly002sg4	weapons/ak_74u/aks74u_camo
-weapons/ak_74n/ak74n	28:weapons/ak_74n/ak74n_camo	weapons/ak74n/ak_74n:lowfbxasc032poly002sg1		28:weapons/ak_74n/ak74n
+weapons/ak_74n/ak74n	28:weapons/ak_74n/ak74n_camo	weapons/ak74n/ak_74n:lowfbxasc032poly002sg1	weapons/saiga_12s/saiga_12_grip_camo	28:weapons/ak_74n/ak74n
 weapons/kiparis/kiparis	28:weapons/kiparis/kiparis_camo	weapons/kiparis:kiparis_kiparis_s	
 weapons/vityaz/vityaz	28:weapons/vityaz/vityaz_camo	weapons/vityaz/vityaz:box001sg3		28:weapons/vityaz/vityaz
 weapons/neostead/neostead	weapons/neostead/neostead_camo	weapons/neostead/neostead:blinn2sg	weapons/neostead/neostead_camo
 weapons/rem_700/rem700	weapons/rem_700/rem700_camo	weapons/rem_700:object011sg	weapons/rem_700/rem700_camo
 weapons/saiga_12s/saiga_12s	weapons/saiga_12s/saiga_12_camo	weapons/saiga_12s/saiga_12s:saiga_12s_receiver_sg,weapons/saiga_12s/saiga_12s:saiga_12s_blocker_sg	weapons/saiga_12s/saiga_12_camo
 weapons/ak74m/ak74_stock_plastic	weapons/saiga_12s/saiga_12_stock_camo	weapons/saiga_12s/saiga_12s:ak74m_stock_plastic_sg,weapons/ak74m/ak74m:ak74lpsg5	weapons/saiga_12s/saiga_12_stock_camo
-weapons/vepr12/vepr12	weapons/vepr12/vepr_12_camo	weapons/vepr_12/vepr_12_short:vepr_12_receiver_sg	weapons/vepr12/vepr_12_camo
+weapons/vepr12/vepr12	weapons/vepr12/vepr_12_camo	weapons/vepr_12/vepr_12_short:vepr_12_receiver_sg	weapons/vepr12/vepr_12_camo,weapons/saiga_12s/saiga_12_mag_camo
 weapons/vepr/vepr_main	weapons/vepr/vepr_main_camo	weapons/vepr:secondary002sg1	weapons/vepr/vepr_main_camo
 weapons/vepr/vepr_sec	weapons/vepr/vepr_sec_camo	weapons/vepr:secondary002sg	weapons/vepr/vepr_sec_camo
 weapons/vsk94/vsk_9a91	weapons/vsk94/vsk_9a91_camo	weapons/vsk_94/vsk_94:blinn1sg,weapons/a9_91/a9_91:blinn1sg	weapons/vsk94/vsk_9a91_camo
@@ -29,11 +29,12 @@ weapons/vss/vss	28:weapons/vss/vss_camo	weapons/vss/vss:vss_02_vss_receiversg1,w
 weapons/vss/vss_stock_wood	28:weapons/vss/vss_stock_camo	weapons/vss/vss:vss_02_vss_receiversg3	
 weapons/vss/sr3m	28:weapons/vss/sr3m_camo	weapons/sr3m/sr3m:sr3_lp002sg1	
 weapons/vss/sr3_mag	28:weapons/vss/sr3_mag_camo	weapons/sr3m/sr3m:sr3_lp002sg7,weapons/val/val:vss_receiversg5	
-weapons/vss/stock_val	28:weapons/vss/stock_sr3m_camo	weapons/sr3m/sr3m:sr3_lp002sg5,weapons/val/val:vss_receiversg3	
+weapons/vss/stock_val	28:weapons/vss/stock_sr3m_camo	weapons/sr3m/sr3m:sr3_lp002sg5,weapons/val/val:vss_receiversg3
+weapons/vepr12/vepr12_attach	weapons/vepr12/vepr_12_mag_camo	weapons/vepr_12/vepr_12_short:vepr_12_mag_sg	weapons/vepr12/vepr_12_mag_camo
 # No premium: the parts come from parts.tsv, else the suggestion (the large parts)
 weapons/a_545/a_545		weapons/a_545/a_545:a_545_sg1
 weapons/aek_919k/aek_919k		weapons/aek_919k/aek_919k:blinn3sg
-weapons/ak74m/ak74m		weapons/a_545/a_545:magazine_object006sg1,weapons/ak74m/ak74m:ak74lpsg4
+weapons/ak74m/ak74m		weapons/a_545/a_545:magazine_object006sg1,weapons/ak74m/ak74m:ak74lpsg4	weapons/ak_12/ak_12_mag_camo
 weapons/aps/aps		weapons/aps/aps:aps_s
 weapons/ash_12/ash-12		weapons/ash_12/ash_12:kolya_ash_12_sg
 weapons/benelli_m4_super90/benelli		weapons/benelli_m4/benelli_m4:benelli_s
@@ -96,3 +97,12 @@ weapons/vz58/vz58_mag		weapons/vz58/vz58:vz58_mag_s
 weapons/vz58/vz58_receiver		weapons/vz58/vz58:vz58_receiver_s
 weapons/vz58/vz58_stock		weapons/vz58/vz58:vz58_stock_s
 weapons/winchester_1894/winchester_1894		weapons/winchester_1894:winchester_1894_winchester_1894_s
+# Bare: textures of a camouflaged weapon's baked surfaces that take no paint (barrels, sights, a suppressor,
+# the 12-gauge shell, the SV-98's net): a neutral _aoac (parts.tsv: a line with no parts), so the baker
+# leaves them as they are and finds every texture it asks for (patch 44 asks for <diffuse>_aoac on each surface)
+weapons/ammo/12_cal		weapons/benelli_m4/benelli_m4:cal_s,weapons/izh_27_lancaster/izh_27_lancaster_:izh_27_lancastersg3,weapons/izh_27_lancaster_camo/izh_27_lancaster_camo_st:izh_27_lancastersg3,weapons/toz34/toz_34:cylinder005sg
+weapons/attach/mp7_zeiss_rsa/hk_mp7_attachment		weapons/hk_mp7/hk_mp7_silencer:hk_mp7_attachment_s
+weapons/hk416_a5/hk416_barrel		weapons/hk416_a5/hk416_a5:hk416_barrel_s
+weapons/hk416_a5/hk416_rear_sight		weapons/hk416_a5/hk416_a5:hk416_rear_sight_s
+weapons/kriss_vector/kriss_vector_suppressor		weapons/kriss_vector/kriss_vector:kriss_vector_suppressor_s
+weapons/sv98/mask_setka		weapons/sv98/sv_98:mask_setka_s1

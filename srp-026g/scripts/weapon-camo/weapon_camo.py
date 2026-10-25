@@ -25,7 +25,10 @@ usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out fo
                 them): the picker offers each item's camouflage (textures from the game folder)
 
 Which parts are painted: parts.tsv beside guns.tsv names them (a UV point on each part) for the
-textures it has a line for; for the others, the large parts the premium painted (suggest()).
+textures it has a line for; for the others, the large parts the premium painted (suggest()). A line
+with no points paints nothing: the texture still gets an _aoac, a neutral one, because patch 44 asks
+the baker for every surface of a camouflaged weapon and the baker loads <diffuse>_aoac for each
+(a texture without one is a failed load, logged, on every bake).
 
 The engine bakes a camouflage into a surface's textures (camouflage_decal_texture_type_baker_cook,
 bake_decal_composition.ps) only when `<diffuse>_aoac.dds` loads beside the diffuse:
@@ -548,9 +551,8 @@ def main():
             models = list(dict.fromkeys(s.split(':')[0] for s in surfaces))
             entries.append(picker_entry(texture, base, first, labels, island_points(labels), suggested, chosen,
                                         texture in parts, models))
-        if not mask.any():
-            print('  nothing painted: no _aoac')
-            continue
+        if not mask.any():                 # a bare row: the baker still asks for the _aoac
+            print('  nothing painted: a neutral _aoac (G 1, B 0.5, R 1: the bake leaves the texture as it is)')
         blob = dds_dxt1(a)
         for name in [texture] + premiums if out != '-' else []:
             dst = os.path.join(out, *(['files'] if pack else []), 'textures', *('%s_aoac' % name).split('/'))

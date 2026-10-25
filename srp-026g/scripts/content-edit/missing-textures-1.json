@@ -1,0 +1,16 @@
+{
+ "_about": "Missing textures 1 (the owner, 2026-10-25: \"we should fix those\"; docs/notes/missing-textures.md): material references to textures no archive of any Survarium build has, pointed at the texture of the same set the data does have, or the switch that samples them turned off. (1) The Vepr-12's magazine material (stock weapons/vepr12_attach, textures of base patch 19) names a normal map weapons/vepr12/vepr_attach_nmap; the set patch 19 shipped is vepr12_attach{,_fmap,_nmap,_smap} (\"Texture ... not found\" in game logs). (2) The supply boxes' alpha material (item/main_for_boxes_alpha, stock) names item/main_for_boxes_fresnel, 0.23h's name of the fresnel map that 0.26 renamed main_for_boxes_fmap (the boxes' other material uses _fmap). (3) The debris-stone trim (tiled/trash/debrisstone_s, stock, and its v0.21d port) has parallax on with a height map, terrain/debrisstone_bump, that no build from 0.20e to 0.69 ever had (logged \"not found\" on levels 5, 6, 7): parallax off, the surface as players see it without the failed lookup. (4) Level 5's uranium crystals (fx/level_5_anomaly/uran_crystals) sample a roughness map uran_smap that 0.26's art pass named but never shipped (0.20e-0.23h had diffuse_small_smap for the old diffuse_small): the roughness map off, the material's constant roughness. (5) The Black Market 5 jacket has no camouflage layer (its _camo, _camo_nmap, _camo_smap, which the baker asks for when the jacket wears a decal without a camouflage): the pants' layer of the same leather, copied (the normal maps: pack missing-textures@1, 0.31a2's).",
+ "copy": [
+  {"files": "textures/character/human/black_market_05/black_market_05_legs_camo.*", "from": "textures/character/human/black_market_05/black_market_05_legs_camo", "to": "textures/character/human/black_market_05/black_market_05_torso_camo"},
+  {"files": "textures/character/human/black_market_05/black_market_05_legs_camo_smap.*", "from": "textures/character/human/black_market_05/black_market_05_legs_camo_smap", "to": "textures/character/human/black_market_05/black_market_05_torso_camo_smap"}
+ ],
+ "replace_string": [
+  {"files": "material_instances/weapons/vepr12_attach.material", "from": "weapons/vepr12/vepr_attach_nmap", "to": "weapons/vepr12/vepr12_attach_nmap"},
+  {"files": "material_instances/item/main_for_boxes_alpha.material", "from": "item/main_for_boxes_fresnel", "to": "item/main_for_boxes_fmap"}
+ ],
+ "set": [
+  {"file": "material_instances/tiled/trash/debrisstone_s.material", "path": "material/g_stage/effect/use_parallax/value", "from": true, "to": false},
+  {"file": "material_instances/ported/v021d/tiled/trash/debrisstone_s.material", "path": "material/g_stage/effect/use_parallax/value", "from": true, "to": false},
+  {"file": "material_instances/fx/level_5_anomaly/uran_crystals.material", "path": "material/g_stage/effect/use_troughness/value", "from": true, "to": false}
+ ]
+}

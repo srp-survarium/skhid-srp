@@ -88,6 +88,15 @@ class Test(unittest.TestCase):
         with self.assertRaises(SystemExit):
             w.parts_islands([(0.5, 0.5)], labels, 't')           # the gap between the parts
 
+    def test_a_bare_texture_gets_a_neutral_aoac(self):
+        base = np.random.default_rng(1).random((64, 64, 3)).astype(np.float32)
+        uv, tris = w.mesh_uv(mesh([(0, 0, 1, 1)]))
+        labels = w.islands([(uv, tris)], (64, 64))
+        self.assertEqual(w.parts_islands([], labels, 't'), set())   # parts.tsv: a line with no parts
+        a = w.aoac(base, np.zeros((64, 64), bool), labels)
+        self.assertTrue(np.allclose(a[..., 0], 1) and np.allclose(a[..., 1], 1) and np.allclose(a[..., 2], 0.5))
+        self.assertLess(np.abs(w.bake(base, np.zeros_like(base), a, 4.0) - base).max(), 1e-5)
+
 
 if __name__ == '__main__':
     unittest.main()
