@@ -208,6 +208,10 @@ pub struct Bot {
     pub(crate) bench_legs: bool,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
+    /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): it holds its
+    /// spot, and the reflex never takes its legs.
+    #[cfg(test)]
+    pub(crate) bench_camper: bool,
     /// Keys to press for one tick.
     press: u32,
     /// Keys held for a few ticks to get unstuck.
@@ -323,6 +327,8 @@ impl Bot {
             bench_legs: false,
             #[cfg(test)]
             bench_driven: 0,
+            #[cfg(test)]
+            bench_camper: false,
             press: 0,
             unstick: None,
             jump_hold: 0,
@@ -598,6 +604,11 @@ pub struct Bots {
     /// Raid whenever Raid is a candidate.
     #[cfg(test)]
     pub bench_human: Option<Place>,
+    /// The real-map bench's stand-in camper (`SRP_BENCH_CAMPER`,
+    /// `campers.md` K1 §4): this bot holds one spot all match, and the
+    /// spot once found (with how many route points it sees), or none.
+    #[cfg(test)]
+    pub bench_camper: Option<(Place, Option<tests::CamperSpot>)>,
     tracker: Tracker,
     tactics: Option<Tactics>,
     /// The plays' kept answers about these tactics (`plays::memo`), made
@@ -669,6 +680,8 @@ impl Bots {
             side1_tuning: None,
             #[cfg(test)]
             bench_human: None,
+            #[cfg(test)]
+            bench_camper: None,
             routes: Vec::new(),
             weapons: Vec::new(),
             searching: Searching {
@@ -2046,6 +2059,27 @@ impl Bots {
             bot.intent = Intent::stay();
             return;
         }
+        // The bench's stand-in camper: to its spot and held there,
+        // standing, whatever its play; the reflex fires on sight.
+        #[cfg(test)]
+        if let Some((camper, spot)) = self.bench_camper.as_mut()
+            && *camper == bot.place
+        {
+            let side = bot.side;
+            let found = *spot.get_or_insert_with(|| side.and_then(|side| tests::camper_spot(tactics, side)));
+            if let Some((at, _)) = found {
+                bot.bench_camper = true;
+                bot.intent = Intent {
+                    go: Go::To {
+                        at,
+                        within_m: tests::CAMPER_WITHIN_M,
+                    },
+                    pace: Pace::Run,
+                    ..Intent::stay()
+                };
+                return;
+            }
+        }
         // The play's step.
         let state = &self.teams[team];
         let Some(mut running) = bot.running.take() else {
@@ -2426,7 +2460,12 @@ fn drive_tick(
     {
         bot.bench_legs = over.legs.is_some() && !using;
     }
-    if let Some(legs) = over.legs.filter(|_| !using) {
+    // The bench's stand-in camper keeps to its spot.
+    #[cfg(test)]
+    let held = bot.bench_camper;
+    #[cfg(not(test))]
+    let held = false;
+    if let Some(legs) = over.legs.filter(|_| !using && !held) {
         intent.go = Go::To {
             at: legs.at,
             within_m: legs.within_m,
