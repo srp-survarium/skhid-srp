@@ -71,6 +71,8 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
   in that state: no independent boolean flags, no sentinel values (`u32::MAX` or `-1` for "none" is an
   `Option`), no fields that mean nothing in some states. A machine's transitions are one function from
   (state, event) to the new state and its actions, total over the events.
+- Prefer state transitions, or a clear separation into objects (a type per thing, each owning its
+  data), to boolean flags. A flag that changes what other fields mean is a state the type should name.
 - Parse, don't validate. Turn raw input (packets, game memory, files, settings) into typed values once,
   at the boundary, and let the code inside take only those types and never check them again. Distinct
   units get newtypes (game time, ids, addresses), with their arithmetic (wrap-around) defined once.
