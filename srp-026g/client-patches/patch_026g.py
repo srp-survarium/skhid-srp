@@ -496,6 +496,19 @@ Patches:
   texture made (0x12F18F a bake, 0x12DDB4 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
   0xF0D00). Textures only;
+- the kill marker and the hit marker show only what every game agrees on
+  (patch 73, with the late join; docs/notes/confirmed-markers.md):
+  game_world::tick gives the kill marker's event player the event horizon
+  (now - 500 ms, as the kill feed's) instead of now (0x1F7FDA, in place);
+  the player's draw no longer draws its hit marker from the world of the
+  moment (0x247467, in place); confirmed_markers_026g.asm (the arena's
+  blocks confirmed_markers.code and .state): base_player's hit event
+  (0x2DA0B1) is kept and, at generate_hit_event's end (0x1F3D7B), gets the
+  shooter's collected damage after the hit (+8); the kill marker's event
+  handler (0x233771) draws the hit marker for such an event of the local
+  player's once it is confirmed. A kill or a hit a rollback takes back
+  shows nothing; one that stays shows once, 500 ms after the game first
+  showed it. Nothing a match computes changes;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2079,6 +2092,41 @@ KILL_FEED_HOOKS = (
 )
 KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb75704"))
 
+# The kill marker and the hit marker show only what every game agrees on
+# (patch 73, README; client_patch.md section 3.58; the rules:
+# ../docs/notes/confirmed-markers.md). game_world::tick plays the world's
+# events (kills, hits) to the hud (0x1FB660: the kill feed's rows) and to the
+# kill marker (0x1FB6C0), each from the time it played last; an event at or
+# before the time given is confirmed. The hud is given now - the event
+# horizon (-1); the kill marker was given now - [ui+364h], which nothing
+# writes: now. CONFIRMED_MARKERS_SITES, in place:
+# - game_world::tick's `mov edx,[eax+191BCh] / sub edx,[ebx+560h]` at
+#   0x1F7FDA (eax the core holder, kept for 0x1F7FF0): `or edx,-1`, so the
+#   kill marker's player takes now - the event horizon, as the hud's;
+# - the player's draw's `call draw_damage_collector` at 0x247467 (the
+#   shooter's collector of the world of the moment, +0F534h): nops.
+# confirmed_markers_026g.asm in the arena's blocks confirmed_markers.code and
+# .state (ARENA below):
+# - kill_marker_on_world_event 0x233770's type test at 0x233771 (`cmp dword
+#   [edi+18h],0 / push ebx / mov ebx,[esp+0Ch] / push esi / jnz 0x2337FA`):
+#   a jump to marker_event, which makes the pushes, goes on at 0x23377D for a
+#   kill and draws a confirmed hit of the local player's before 0x2337FA;
+# - base_player::generate_hit_event's `call push_world_event` at 0x2DA0B1:
+#   hit_event_push keeps the event, then tail-jumps to it;
+# - player::generate_hit_event's end at 0x1F3D7B (`pop edi / pop esi / pop
+#   ebp / pop ebx / ret 1Ch`): a jump to hit_event_amount, which gives this
+#   hit's event the collector's sum (+8) and does the five instructions.
+# No base relocation is under a site and no branch aims inside one.
+CONFIRMED_MARKERS_SITES = (
+    (0x1F7FDA, bytes.fromhex("8b90bc910100" "2b9360050000"), bytes.fromhex("83caff") + b"\x90" * 9),
+    (0x247467, bytes.fromhex("e8c40dffff"), b"\x90" * 5),
+)
+CONFIRMED_MARKERS_HOOKS = (
+    (0x233771, bytes.fromhex("837f1800" "53" "8b5c240c" "56" "757d"), "marker_event", 0xE9),
+    (0x2DA0B1, bytes.fromhex("e8aa69ffff"), "hit_event_push", 0xE8),
+    (0x1F3D7B, bytes.fromhex("5f5e5d5bc21c00"), "hit_event_amount", 0xE9),
+)
+
 # The baked camouflage and decal textures kept, and baked or loaded once while
 # asked for again (patch 70, README; client_patch.md section 3.57; the rules:
 # ../docs/notes/baked-textures.md): bake_cache_026g.asm and .c in the arena's
@@ -2291,6 +2339,13 @@ INSTALLS = {
                      "function (or the function, then the waiting queries made again)", None, None),
     0x42050: (ENTRY, "the CRC-32 step (eax &the CRC, edx the bytes, the count; `ret 4`): crc32, the same "
                      "value eight bytes a step", None, None),
+    # the kill marker and the hit marker confirmed, patch 73 (in `.srpx`)
+    0x233771: (JUMP, "kill_marker_on_world_event's type test (edi the event): marker_event, back at 0x23377D "
+                     "(a kill) or 0x2337FA after its pushes", None, None),
+    0x2DA0B1: (CALLEE, "base_player::generate_hit_event's push_world_event (0x2D0A60, eax the event, edx the "
+                       "core): hit_event_push, which keeps the event and tail-jumps to it", None, None),
+    0x1F3D7B: (JUMP, "player::generate_hit_event's `pop edi / pop esi / pop ebp / pop ebx / ret 1Ch`: "
+                     "hit_event_amount, which ends it with the same", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2486,6 +2541,8 @@ ARENA = (
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
     ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
+    ArenaBlock("confirmed_markers.code", "code", 0x1000, ("confirmed_markers_026g.asm",)),     # patch 73
+    ArenaBlock("confirmed_markers.state", "state", 0x1000, ("confirmed_markers_026g.asm",)),   # the hit's event
 )
 
 
@@ -3431,10 +3488,14 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS:
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + CONFIRMED_MARKERS_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                for va, expected, new in CONFIRMED_MARKERS_SITES:
+                    patch(data, va, expected, new)
+                    if neutralize_relocs(data, [(va, va + len(expected))]):
+                        sys.exit(f"{va:#x}: a base relocation under a confirmed-markers site")
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
                 patch(data, *KILL_FEED_ARGUMENT)
@@ -3501,6 +3562,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      "baked camouflage textures kept from game to game and made once while asked for again, "
+                     "the kill marker and the hit marker shown only for a kill or a hit every game agrees on, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")

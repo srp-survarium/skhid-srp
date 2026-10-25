@@ -4526,3 +4526,29 @@ va	name	location	role	basis
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	EDI	the record copied (124h: path buffer_string +0, '/' +110h, CRC +114h, size +118h, age +11Ch, loading +120h)	observed
 0x000e0210	vostok::render::render_model_instance::destroy	ECX	the model instance whose count (+0D0h) reached 0	observed
 0x000e0210	vostok::render::render_model_instance::destroy	EAX	&its count	observed
+0x001fb660	survarium::game_world::play_world_events_to_ui	ECX	the game_world_core (its events +12744h, now +18FC4h, the event horizon +18FB4h)	observed
+0x001fb660	survarium::game_world::play_world_events_to_ui	EDX	the time the hud played last (ui+2D8h): events after it are played	observed
+0x001fb660	survarium::game_world::play_world_events_to_ui	entry ESP+4	the game_world_ui: on_world_event (0x23B5F0) for each event confirmed (time <= now - horizon) or with +28h set	observed
+0x001fb6c0	survarium::game_world::play_world_events_to_kill_marker	ECX	the game_world_core	observed
+0x001fb6c0	survarium::game_world::play_world_events_to_kill_marker	EDX	the confirmed time, or -1 for now - the event horizon (game_world::tick gave now - [ui+364h], 0: every event played confirmed at once; patch 73 gives -1)	observed
+0x001fb6c0	survarium::game_world::play_world_events_to_kill_marker	entry ESP+4	the time the marker played last (ui+368h): events after it are played	observed
+0x001fb6c0	survarium::game_world::play_world_events_to_kill_marker	entry ESP+8	the owner (ui+368h: +0 that time, +4 the game world) for kill_marker_on_world_event (0x233770)	observed
+0x00233770	survarium::game_world_ui::kill_marker_on_world_event	EDI	the event (+18h type: 0 a kill, +0 the victim, +1 the killer; +24h its time)	observed
+0x00233770	survarium::game_world_ui::kill_marker_on_world_event	entry ESP+4	the owner (ui+368h: +0 the time played last, +4 the game world)	observed
+0x00233770	survarium::game_world_ui::kill_marker_on_world_event	entry ESP+8	the event is confirmed: the owner keeps its time	observed
+0x0023cf20	survarium::game_world_ui::show_enemy_killed_marker	entry ESP+4	the game_world_ui: root.crosshair_enemy_hit(1, delay, killed true, false)	observed
+0x00238230	survarium::game_world_ui::draw_damage_collector	EAX	the damage collector record (+0 the victim place byte, +4 the time, +8 the sum 0 to 1)	observed
+0x00238230	survarium::game_world_ui::draw_damage_collector	EDI	the game_world_ui (the hud; +34Ch what it drew last): root.crosshair_enemy_hit(sum, delay, false, false) for a victim or sum other than that, the sum not 0	observed
+0x002d0a60	survarium::game_world_core::push_world_event	EAX	the event (+24h its time): put after every event of its time or older; freed while +18FE0h (a world loading) is set	observed
+0x002d0a60	survarium::game_world_core::push_world_event	EDX	the game_world_core	observed
+0x002d3700	survarium::game_world_core::drop_world_events_after	EDX	the game_world_core	observed
+0x002d3700	survarium::game_world_core::drop_world_events_after	entry ESP+4	the time: every event after it back to the pool (move 0x2D2FFE, after a rollback loaded that world)	observed
+0x002d9f40	survarium::base_player::generate_hit_event	ECX	the victim	observed
+0x002d9f40	survarium::base_player::generate_hit_event	entry ESP+4	the time (a type 2 event at it: +0 the attacker place, +1 the victim place, +4 the bullet or -1, +0Ch the attacker position, +28h 1)	observed
+0x002d9f40	survarium::base_player::generate_hit_event	entry ESP+8	the attacker place (0FFh none: no event)	observed
+0x002d9f40	survarium::base_player::generate_hit_event	entry ESP+0Ch	the victim place	observed
+0x001f3c70	survarium::player::generate_hit_event	ECX	the victim	observed
+0x001f3c70	survarium::player::generate_hit_event	entry ESP+4	the time (the collector last_hit_time_in_ms)	observed
+0x001f3c70	survarium::player::generate_hit_event	entry ESP+8	the attacker place (its player +0F534h the inflicted_damage_collector: victim, time, sum)	observed
+0x001f3c70	survarium::player::generate_hit_event	entry ESP+0Ch	the victim place	observed
+0x001f3c70	survarium::player::generate_hit_event	entry ESP+18h	the bullet, or 0: no sum	observed

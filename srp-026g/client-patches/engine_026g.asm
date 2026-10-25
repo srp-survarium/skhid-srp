@@ -38,6 +38,7 @@ global engine_mouse_ray
 global engine_accept_decal_edit
 global engine_cc_bool
 global engine_binded_action
+global engine_draw_damage_collector
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -636,6 +637,22 @@ engine_binded_action:
     mov edi, [esp + 28]   ; kinds
     mov esi, [esp + 32]   ; key
     call 0x207d50
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_draw_damage_collector:
+    ; 0x238230 survarium::game_world_ui::draw_damage_collector: record EAX, hud EDI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; record
+    mov edi, [esp + 24]   ; hud
+    call 0x238230
     pop edi
     pop esi
     pop ebx

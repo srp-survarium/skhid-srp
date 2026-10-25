@@ -107,3 +107,6 @@ extern engine_cc_bool
 ; unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
 ; 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX
 extern engine_binded_action
+; void engine_draw_damage_collector(const void *record, void *hud)
+; 0x238230 survarium::game_world_ui::draw_damage_collector: record EAX, hud EDI; pops 0
+extern engine_draw_damage_collector

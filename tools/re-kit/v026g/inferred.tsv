@@ -3049,3 +3049,9 @@ va	status	ref_021d	name
 0x0012de30	inferred-medium		vostok::render::baked_texture_resource::baked_texture_resource
 0x000f0080	inferred-medium		vostok::resources::query_result_for_cook::set_unmanaged_resource
 0x001e8da0	inferred-high		survarium::delete_folder
+0x001fb660	inferred-medium		survarium::game_world::play_world_events_to_ui
+0x001fb6c0	inferred-medium		survarium::game_world::play_world_events_to_kill_marker
+0x00233770	inferred-medium		survarium::game_world_ui::kill_marker_on_world_event
+0x0023cf20	inferred-medium		survarium::game_world_ui::show_enemy_killed_marker
+0x002d3700	inferred-medium		survarium::game_world_core::drop_world_events_after
+0x00246f10	inferred-medium		survarium::player::tick_inflicted_damage_collector

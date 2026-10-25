@@ -113,6 +113,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `bake_cache_026g.asm`, `bake_cache_026g.c`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again (the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
+| `confirmed_markers_026g.asm`, `check_confirmed_markers_026g.py` | Patch 73: the kill marker and the hit marker only for what every game agrees on (the arena's blocks `confirmed_markers.code` and `.state`, and two sites rewritten in place): the kill marker's event player takes the event horizon as the kill feed's (0x1F7FDA), the draw of the moment's hit marker is gone (0x247467), each hit's event carries the shooter's sum (0x2DA0B1, 0x1F3D7B) and the kill marker's handler draws a confirmed hit of the local player's (0x233771); its check runs generate_hit_event whole and game_world::tick's two event players frame after frame on made-up worlds, kills and hits taken back by a rollback, made again and kept, next to the original (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -170,7 +171,7 @@ a hook jumps to, `extern` what it uses of other patches; its hooks as
 asm, its C, and its state `rn_state`), the artefacts (patch 54), the
 engine library, the kit keys with the match chat option (patch 58), the
 key that hides the interface (patch 62), the kill feed's flags (patch 67) and the baked textures'
-cache (patch 70) are the arena's blocks today. The older fixed sections stay as they are
+cache (patch 70) and the confirmed kill and hit markers (patch 73) are the arena's blocks today. The older fixed sections stay as they are
 (client_patch.md 0.3 says what moving one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
@@ -3482,6 +3483,75 @@ site from the game's code on the game's own static baker:
 - the CRC-32 step against the original on 24 buffers of 0 to 10 MB from unaligned starts with
   random CRCs: the CRC and every register the same; 3.25 instructions a byte against 11;
 - any other query's finish goes straight through.
+**Not run:** a game.
+
+### 73. The kill marker and the hit marker show only what every game agrees on (the next release's revision)
+
+The owner (2026-10-25, live revision 34): "I see the red cross and assume the person died, yet
+they didn't"; "red hit rerolls are the worst". The rules: `../docs/notes/confirmed-markers.md`;
+the evidence: `client_patch.md` 3.58.
+
+**Why.** A kill and a hit make world events in the simulation: generate_killed_event (0x2DA170,
+type 0) and base_player::generate_hit_event (0x2D9F40, type 2: [+0] the attacker's place, [+1]
+the victim's, +4 the bullet). They are kept by time in the core's list (+12740h; push_world_event
+0x2D0A60). A rollback drops every event after the world it loads (move 0x2D2E40 -> 0x2D3700), and
+the re-simulation makes them again. game_world::tick plays the list twice a frame, each player
+from the time it played last; an event at or before the time it is given is confirmed, and the
+player keeps that event's time:
+- the hud's player (0x1FB660, its handler 0x23B5F0: the kill feed's row) is given the event
+  horizon, now (+18FC4h) - 500 (+18FB4h). Its rows were always final;
+- the kill marker's player (0x1FB6C0, its handler 0x233770 and the marker 0x23CF20) was given
+  now - ui+364h, which only the hud's constructor writes (0). So it was given now, and every kill
+  showed its marker at the tick the game predicted it. A rollback that took the kill back left the
+  marker; a re-simulation that moved it to a later tick showed a second one.
+- the hit marker was not an event: the player's draw (0x247467 -> draw_damage_collector 0x238230,
+  root.crosshair_enemy_hit) drew the shooter's inflicted_damage_collector (player +0F534h: the
+  victim, the time, the damage summed on that victim, 0 to 1; generate_hit_event 0x1F3C70 sums it)
+  of the world of the moment, every frame it changed. A rollback put an older sum back, or a
+  re-simulation another, and it was drawn again.
+
+**The patch** (with the late join; confirmed_markers_026g.asm in the arena's blocks
+confirmed_markers.code and .state):
+- game_world::tick's `mov edx,[eax+191BCh] / sub edx,[ebx+560h]` (0x1F7FDA) is `or edx,-1` and
+  nops: the kill marker's player takes now - the event horizon, as the hud's (in place).
+- the player's draw's `call draw_damage_collector` (0x247467) is five nops (in place).
+- base_player::generate_hit_event's push (`call 0x2D0A60` at 0x2DA0B1) calls `hit_event_push`,
+  which keeps the event (unless a world is loading: the push frees it) and tail-jumps to the push.
+- player::generate_hit_event's end (0x1F3D7B, `pop edi / pop esi / pop ebp / pop ebx / ret 1Ch`)
+  jumps to `hit_event_amount`: for a bullet, the event kept, if it is this hit's (its victim and its
+  time), gets the collector's sum after the hit in its +8 (a field nothing else writes or reads).
+- the kill marker's handler's type test (0x233771) jumps to `marker_event`: the handler's pushes, a
+  kill to 0x23377D as before; a confirmed hit (type 2) of the local player's on someone else is drawn
+  by the game's draw_damage_collector with the event's victim, time and sum (the hud's last record's
+  victim set to none first, so each confirmed hit shows); then 0x2337FA as before.
+
+A kill or a hit that a rollback takes back shows nothing. One that stays shows once, at its tick
++ 500 ms (`max_ping_time_in_ms` 250 + 250): 500 ms after the game first showed it. The kill feed's
+row and the kill marker now come together. The indicator of being hit (on_hit_from_pos, played at
+once) is unchanged. Visual only; games with and without it play together. Sites: 0x1F7FDA, 0x247467
+(in place), 0x233771, 0x1F3D7B (JUMP), 0x2DA0B1 (CALLEE); no base relocation under them, no branch
+into them.
+
+**Checked:** `selftest_026g.py` check 73 (the sites' original code, the event players' confirmed
+time, the handler's kill path, the hit's event and the collector, the draw; the hooks and the
+rewrites; no relocation or branch inside; the link's code, which goes back to the handler,
+tail-jumps to the push, draws through the library's draw_damage_collector and writes only the
+hud's last record's victim, the event it keeps and that event's +8). `check_confirmed_markers_026g.py`
+(Unicorn) runs, next to the original:
+- generate_hit_event whole, with base_player's, the event's allocation, the push and the part
+  lookup: the event the original's but +8, the collector's sum after the hit (a first hit, a
+  second on the victim, another victim, a sum clamped at 1); 0 for no bullet; nothing kept while a
+  world loads; an event kept from another hit (another time) not written;
+- game_world::tick's two event players frame after frame (50 ms), the events pushed and dropped
+  by the game's own push and rollback drop, the movie's Invoke and the kill feed's row recorded. A
+  kill predicted and taken back: the build nothing, the original a marker. A kill that stays, one
+  made again by three re-simulations: one row and one marker at +500 ms (the original: the marker
+  at once). One a re-simulation moves 100 ms later: one of each at its new tick + 500 (the
+  original two markers). A hit taken back: nothing; a hit that stays: one marker with its sum at
+  +500; one made again with another sum: one marker with the new sum; two hits: two; the same sum
+  twice: two; someone else's hit and kill: the row only; the option off: no kill marker, the hit
+  marker; a hit and the kill at one tick: the row, the hit's marker, the kill's; a hit on the local
+  player: on_hit_from_pos as the original.
 **Not run:** a game.
 
 ## Not ported, not done

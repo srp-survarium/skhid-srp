@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 156960,
-  "sha256": "850c50149484a1a747b28476f63b0223704e82749d5827d94149ea7ecc8fa5f9",
+  "size": 163844,
+  "sha256": "00fc0243e883c33dd8997d0e9bb15b4073827a47497715b83f6ed5404972a0bf",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,7 +22,7 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 1230
+      "size": 1254
     },
     "match_keys.code": {
       "kind": "code",
@@ -58,6 +58,16 @@
       "kind": "state",
       "va": "0xa43b000",
       "size": 99616
+    },
+    "confirmed_markers.code": {
+      "kind": "code",
+      "va": "0xa454000",
+      "size": 193
+    },
+    "confirmed_markers.state": {
+      "kind": "state",
+      "va": "0xa455000",
+      "size": 4
     }
   },
   "symbols": {
@@ -98,6 +108,7 @@
     "engine_cfg_child": "0xa432000",
     "engine_cfg_has": "0xa432020",
     "engine_decal_value": "0xa432420",
+    "engine_draw_damage_collector": "0xa4324d0",
     "engine_find_item_by_id": "0xa432260",
     "engine_find_pool": "0xa4321b0",
     "engine_free": "0xa432340",
@@ -126,8 +137,12 @@
     "hide_ui_lobby": "0xa43511c",
     "hide_ui_match": "0xa435000",
     "hide_ui_reset": "0xa4350f0",
+    "hit_event": "0xa455000",
+    "hit_event_amount": "0xa45408b",
+    "hit_event_push": "0xa454078",
     "kill_feed_event": "0xa438000",
     "kill_feed_row": "0xa43809f",
+    "marker_event": "0xa454000",
     "match_keys_chat": "0xa4330c3",
     "match_keys_hud": "0xa433080",
     "match_keys_keyboard": "0xa433000",

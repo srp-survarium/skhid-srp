@@ -1542,7 +1542,9 @@ def late_join_sites():
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
-        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
+        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))] + \
+        [(va, len(old)) for va, old, _, _ in P.CONFIRMED_MARKERS_HOOKS] + \
+        [(va, len(old)) for va, old, _ in P.CONFIRMED_MARKERS_SITES]
 
 
 def pickup_sites():
@@ -4584,6 +4586,108 @@ def test_bake_cache(original, image, before):
           f"the code at {block.va:#x} is the link's bake_cache.code ({len(code)} bytes), its tables bake_cache.state")
 
 
+def test_confirmed_markers(original, image, before):
+    """Check 73: the kill marker and the hit marker only for what every game
+    agrees on (patch 73, CONFIRMED_MARKERS_SITES, CONFIRMED_MARKERS_HOOKS;
+    ../docs/notes/confirmed-markers.md). check_confirmed_markers_026g.py
+    runs generate_hit_event whole and game_world::tick's two event players
+    frame after frame on made-up worlds, kills and hits taken back by a
+    rollback and kept."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 40).split(b"\0")[0]
+    check(rows(stock, 0x1F7FB4, 0x47) == [
+              "mov esi,[ebx+0x4d4]", "mov ecx,[ebx+0x4d4c]", "lea edi,[ebx+0x1fc]", "push edi", "add ecx,0x1f8",
+              "mov edx,esi", "call 0x1fb660", "mov eax,[ebx+0x4d4c]", "mov edx,[eax+0x191bc]", "sub edx,[ebx+0x560]",
+              "lea ecx,[ebx+0x564]", "push ecx", "mov ecx,[ecx]", "push ecx", "lea ecx,[eax+0x1f8]", "call 0x1fb6c0"]
+          and stock.read(0x2338CD, 6) == bytes.fromhex("899d64030000") and stock.read(0x2338D3, 6) == bytes.fromhex("89bd6c030000"),
+          "game_world::tick plays the world's events to the hud (0x1FB660, from ui+2D8h) and to the kill marker "
+          "(0x1FB6C0, from ui+368h, its owner; +36Ch the game world), the latter confirmed up to now (core "
+          "+18FC4h, the holder's +191BCh) less ui+364h, which the hud's constructor zeroes")
+    check(rows(stock, 0x1FB6D5, 0x15) == ["cmp edx,byte -0x1", "jz 0x1fb6de", "mov esi,edx", "jmp short 0x1fb6f0",
+                                          "mov esi,[ecx+0x18fc4]", "sub esi,[ecx+0x18fb4]"]
+          and rows(stock, 0x1FB672, 0xC) == ["mov esi,[ecx+0x18fc4]", "sub esi,[ecx+0x18fb4]"]
+          and rows(stock, 0x1FB702, 0x1E) == ["cmp [edi+0x24],esi", "setna al", "mov [esp+0x14],al", "test al,al",
+                                              "jnz 0x1fb715", "cmp [edi+0x28],al", "jz 0x1fb720", "mov eax,[esp+0x14]",
+                                              "push eax", "push ebx", "call 0x233770"],
+          "the kill marker's player takes -1 for now - the event horizon (+18FB4h), as the hud's always does; an "
+          "event at or before the time is confirmed, one with +28h set is played every frame")
+    check(rows(stock, 0x233771, 0xC) == ["cmp dword [edi+0x18],byte +0x0", "push ebx", "mov ebx,[esp+0xc]", "push esi",
+                                         "jnz 0x2337fa"]
+          and rows(stock, 0x2337C2, 0x1C) == ["cmp byte [dword 0xa70ec6],0x0", "jz 0x2337de", "cmp al,cl", "jnz 0x2337de",
+                                              "mov ecx,[ebx+0x4]", "add ecx,0x1fc", "push ecx", "call 0x23cf20"]
+          and rows(stock, 0x2337FA, 0x12) == ["cmp byte [esp+0x14],0x0", "jz 0x233806", "mov edx,[edi+0x24]",
+                                              "mov [ebx],edx", "pop esi", "pop ebx", "pop ecx", "ret 0x8"]
+          and "push dword 0xa036e8" in rows(stock, 0x23CF20, 0x150) and cstr(0xA036E8) == b"root.crosshair_enemy_hit",
+          "the kill marker's handler (0x233770) takes a kill (type 0) of the local player's to the marker "
+          "(0x23CF20, root.crosshair_enemy_hit) when show_enemy_killed_marker (0xA70EC6) is on, and keeps a "
+          "confirmed event's time")
+    check(rows(stock, 0x2DA059, 0x1D)[:6] == ["mov ecx,[esp+0x20]", "mov dl,[esp+0x24]", "mov esi,eax",
+                                              "mov [esi+0x24],ecx", "mov byte [esi+0x28],0x1", "mov dword [esi+0x18],0x2"]
+          and rows(stock, 0x2DA0A5, 0x11) == ["mov eax,esi", "mov esi,[esp+0x10]", "mov edx,[esi+0x120]",
+                                              "call 0x2d0a60"]
+          and not [t for t in rows(stock, 0x2DA049, 0x68) if t.startswith("mov") and "+0x8]," in t]
+          and stock.read(0x2D0A60, 7) == bytes.fromhex("80bae08f010000") and stock.read(0x2D43F6, 8) == bytes.fromhex("8908" "894804" "894808"),
+          "base_player::generate_hit_event (0x2D9F40) makes a type 2 event (the time, the attacker's place, the "
+          "victim's, +28h 1) whose +8 nothing writes (the allocation zeroes it) and pushes it (0x2D0A60, which "
+          "frees it while +18FE0h, a world loading, is set)")
+    check(rows(stock, 0x1F3D4B, 0x37) == ["addss xmm0,dword [esi+0x8]", "mov ecx,[esp+0x14]", "xorps xmm1,xmm1",
+                                          "comiss xmm1,xmm0", "movss dword [esi+0x8],xmm0", "mov [esi+0x4],ecx", "mov [esi],bl",
+                                          "jnc 0x1f3d73", "movss xmm1,dword [dword 0xa70884]", "comiss xmm1,xmm0",
+                                          "jnc 0x1f3d76", "movaps xmm0,xmm1", "movss dword [esi+0x8],xmm0", "pop edi",
+                                          "pop esi", "pop ebp", "pop ebx", "ret 0x1c"]
+          and rows(stock, 0x1F3CA3, 0xD) == ["call 0x2d9f40", "test ebp,ebp", "jz near 0x1f3d7b"]
+          and rows(stock, 0x1F3CCF, 6) == ["add esi,0xf534"],
+          "player::generate_hit_event calls base_player's first, then for a bullet sums the hit into the "
+          "attacker's inflicted_damage_collector (+0F534h: the victim, the time, the sum 0 to 1) and ends at "
+          "0x1F3D7B")
+    check(rows(stock, 0x24745B, 0x11) == ["mov edi,[ebp+0xf480]", "lea eax,[ebp+0xf534]", "call 0x238230"]
+          and "push dword 0xa036e8" in rows(stock, 0x238230, 0x17A)
+          and rows(stock, 0x23823D, 0x8) == ["mov al,[edi+0x34c]", "cmp al,[esi]"],
+          "the player's draw draws the collector of the world of the moment (draw_damage_collector 0x238230: "
+          "root.crosshair_enemy_hit for a record other than the last, +34Ch)")
+    linked = P.arena()
+    block = linked.blocks["confirmed_markers.code"]
+    for va, old, symbol, opcode in P.CONFIRMED_MARKERS_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'call' if opcode == 0xE8 else 'jmp'} {target:#x}` ({symbol}, an entry of confirmed_markers.code) "
+              "and nops here")
+    for va, old, new in P.CONFIRMED_MARKERS_SITES:
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+              f"{va:#x}: the original's {len(old)} bytes in the original and the build without the late join, "
+              "patch 73's here")
+    check(rows(image, 0x1F7FDA, 0xC) == ["or edx,byte -0x1"] + ["nop"] * 9 and rows(image, 0x247467, 5) == ["nop"] * 5,
+          "the build: the kill marker's player takes -1 (now - the event horizon); the draw of the moment's "
+          "collector is gone")
+    sites = [(s, o) for s, o, _, _ in P.CONFIRMED_MARKERS_HOOKS] + [(s, o) for s, o, _ in P.CONFIRMED_MARKERS_SITES]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(s - 4 < v < s + len(o) for s, o in sites)]
+    hits = [h for s, o in sites for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "confirmed_markers.code")
+    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's confirmed_markers.code "
+          f"({len(code)} bytes)")
+    texts = [text for _, _, text in ndisasm(code, block.va)]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    state = linked.blocks["confirmed_markers.state"]
+    kept = linked.symbols["hit_event"]
+    stores = [t for t in texts if t.startswith("mov ") and "[" in t.split(",")[0] and "esp" not in t.split(",")[0]]
+    check(outside == sorted([0x23377D, 0x2337FA, 0x2D0A60, linked.symbols["engine_draw_damage_collector"]])
+          and state.va <= kept < state.va + state.size
+          and stores == ["mov byte [edx+0x34c],0xff", f"mov [{kept:#x}],eax", f"mov dword [dword {kept:#x}],0x0",
+                         "mov [eax+0x8],ecx"],
+          "it goes back to the handler (0x23377D a kill, 0x2337FA the rest), tail-jumps to push_world_event, "
+          "draws through the library's draw_damage_collector, and writes nothing but the hud's last record's "
+          "victim, the event it keeps (confirmed_markers.state) and that event's +8")
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -6179,6 +6283,7 @@ def test_late_join(original, without, server, source):
     test_kill_feed(original, image, before)
     test_fall_gravity(original, image, before)
     test_bake_cache(original, image, before)
+    test_confirmed_markers(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)
