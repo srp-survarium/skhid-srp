@@ -1512,7 +1512,7 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
   [[+9Ch]+53B0h]+108h; AL 1 when the projected z is below 1 and the pixel strictly inside the
   screen, else the out point clamped to the edges), hides it at AL 0 (0x23AB17), and sizes it by
   its distance from the camera director's position [[game+98h]+34h] (0x23AB63: 3 at 1 m to 1 at
-  100 m, alpha FFh to 80h). `rn_hud` sends `root.research_markers` from the same function
+  100 m, alpha FFh to 80h). `rn_markers` sends `root.research_markers` from the same function
   (`engine_point_to_screen`) and the same position, from a hook at update_ui's own call of
   update_player_icons (0x23B207, `call 0x23AA10`, `ret 4`: our stub calls it, then `rn_markers`),
   because the hook at 0x23B3DE runs behind update_ui's gates (0x23B249: under 28h ms since
