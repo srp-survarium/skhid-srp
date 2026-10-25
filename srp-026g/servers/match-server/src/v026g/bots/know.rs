@@ -539,6 +539,9 @@ pub struct TeamKnowledge {
     /// "Shot from there" callouts of the last 20 s.
     pub shots_from: Vec<ShotFrom>,
     pub thefts: Vec<Theft>,
+    /// Batteries of ours taken from home this match, by anyone (the
+    /// container holder's need, `guard_lead`; [`Self::thefts`] keeps 60 s).
+    pub thefts_match: u32,
     /// Each enemy human's lanes, thefts and kills, for the match (CG-12).
     pub humans: HumanLanes,
     /// By battery number.
