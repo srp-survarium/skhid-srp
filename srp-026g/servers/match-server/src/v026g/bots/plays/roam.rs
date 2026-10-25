@@ -32,6 +32,17 @@
 //! own: a waypoint off the straight way, drawn per run. The team spreads
 //! over the exits (`FriendsNearTarget` inverted).
 //!
+//! **A run joins a route ahead of the bot**, not behind it: it starts at the
+//! first point from the nearest on that is not farther back than
+//! `behind_tol` by the walk (`Tactics::progress_at`, 0 at the bot's home, 1 at
+//! the enemy's), and a route whose start is far off is drawn less (`join_m`,
+//! floored at `join_min`). Root cause (`push-record.md` R2): the start was the
+//! point nearest the bot whatever its progress, so on a map whose routes
+//! wind a bot could be sent back along a route toward its base (about 17 % of
+//! Mamayev Kurgan's draws started 0.15 or more behind a bot at 30 % or more
+//! of the way, PROVEN from the weights), and a route's far start counted
+//! the same as a near one.
+//!
 //! The leader of a pair whose follower is left behind it (farther from the
 //! route's end, [`BEHIND_M`]) eases to a walk for a few seconds on its way
 //! instead of standing (play 25); a follower ahead of it is not waited for.
@@ -73,6 +84,13 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("fighter_battery", 0.5),
     // A route's point counts as reached within this, metres.
     ("reach_m", 5.0),
+    // A run may start on a route's point this much behind the bot by the
+    // walk's progress (0-1), no farther back (a route may wind a little).
+    ("behind_tol", 0.05),
+    // A route whose start is `join_m` metres off counts `join_min` of one
+    // starting at the bot, between them in proportion.
+    ("join_m", 150.0),
+    ("join_min", 0.3),
     // On its way, not this much further in `headway_s`: the run ends,
     // metres and seconds. GUESS: past a pair's wait for its follower (6 s)
     // and a short fight, well short of the 90 s give-up; measured on the
@@ -332,7 +350,8 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
         .iter()
         .zip(&routes)
         .map(|(route, points)| {
-            let Some(first) = start_index(points, mine, num("reach_m")) else {
+            let Some(first) = start_index(cx, points, side, num("reach_m"), num("behind_tol"))
+            else {
                 return 0.0;
             };
             if turned_bad(cx, points[first]) {
@@ -367,6 +386,8 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
                 })
                 .count();
             w *= num("friend_factor").powi(friends as i32);
+            let off = points[first].distance_xz(mine);
+            w *= (1.0 - off / num("join_m")).max(num("join_min"));
             if sneaky {
                 w *= 1.0 + 0.5 * width(points) / widest;
             }
@@ -386,19 +407,31 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
         })
         .or_else(|| weights.iter().rposition(|&w| w > 0.0))?;
     let points = &routes[index];
-    let first = start_index(points, mine, num("reach_m"))?;
+    let first = start_index(cx, points, side, num("reach_m"), num("behind_tol"))?;
     Some(points[first..].to_vec())
 }
 
 /// Where a run on a route's `points` starts: the point nearest the bot, or
 /// the next one if it is there already. None when that is past the end.
-fn start_index(points: &[Vec3], mine: Vec3, reach: f32) -> Option<usize> {
+fn start_index(
+    cx: &Ctx,
+    points: &[Vec3],
+    side: i32,
+    reach: f32,
+    behind_tol: f32,
+) -> Option<usize> {
+    let mine = cx.me.feet;
     let nearest = (0..points.len())
         .min_by(|&a, &b| points[a].distance_xz(mine).total_cmp(&points[b].distance_xz(mine)))?;
-    let first = if points[nearest].distance_xz(mine) < reach * 3.0 {
-        nearest + 1
+    // Not back along the route: the first point from the nearest on that
+    // is not farther back than the bot, by the walk.
+    let floor = cx.tactics.progress_at(mine, side) - behind_tol;
+    let start = (nearest..points.len())
+        .find(|&i| cx.tactics.progress_at(points[i], side) >= floor)?;
+    let first = if points[start].distance_xz(mine) < reach * 3.0 {
+        start + 1
     } else {
-        nearest
+        start
     };
     (first < points.len()).then_some(first)
 }
@@ -652,6 +685,49 @@ mod tests {
         routes(&mut tdm);
         let (north, south) = draws(&tdm, 400);
         assert!(north < 120, "Team Deathmatch: {north} {south}");
+    }
+
+    /// A run starts ahead of the bot along the route, not on the point
+    /// nearest it when that lies back toward the bot's home.
+    #[test]
+    fn a_run_does_not_start_on_a_route_point_behind_the_bot() {
+        let mut s = Scenario::field(Mode::Batteries);
+        s.bot(0, 0, Vec3::new(50.0, 0.0, 33.0));
+        let cx = s.cx(0);
+        let points: Vec<Vec3> = [(40.0, 33.0), (30.0, 32.0), (62.0, 33.0), (70.0, 30.0)]
+            .iter()
+            .map(|&(x, z)| Vec3::new(x, 0.0, z))
+            .collect();
+        // The nearest point is 10 m back (the walk's progress says so):
+        // the run starts at the first one ahead, and then the next one
+        // when that is within reach of 3 steps (15 m).
+        assert!(cx.tactics.progress_at(points[0], 0) < cx.tactics.progress_at(cx.me.feet, 0) - 0.05);
+        assert_eq!(start_index(&cx, &points, 0, 5.0, 0.05), Some(3));
+        // With no tolerance for the walk's progress it would go back.
+        assert_eq!(start_index(&cx, &points, 0, 5.0, 1.0), Some(1));
+    }
+
+    #[test]
+    fn a_route_starting_far_off_is_drawn_less_than_one_starting_near() {
+        let mut s = Scenario::field(Mode::Batteries);
+        let route = |points: &[(f32, f32)]| HumanRoute {
+            team: 0,
+            lives: 20,
+            reward: 1.0,
+            fight: 1.0,
+            points: points.iter().map(|&(x, z)| Vec3::new(x, 0.0, z)).collect(),
+            ..Default::default()
+        };
+        s.tactics.set_routes(vec![
+            // North: starts 47 m from the bot; south: 17 m.
+            route(&[(50.0, 30.0), (52.0, 33.0), (54.0, 33.0)]),
+            route(&[(20.0, 8.0), (30.0, 5.0), (52.0, 5.0)]),
+        ]);
+        s.bot(0, 0, Vec3::new(5.0, 0.0, 15.0));
+        let (north, south) = draws(&s, 600);
+        // About 0.89 against 0.69 of a weight: 56 % south.
+        assert!(south > north + 30, "{north} {south}");
+        assert!(north > 100, "still drawn: {north} {south}");
     }
 
     #[test]
