@@ -422,6 +422,24 @@ impl Load {
         self.loading.is_some()
     }
 
+    /// When the sights or the trigger held end the loop at its `n`-th round
+    /// (or at the next one, when `n` have been put in already): the middle of
+    /// the span before that round-end, so a key pressed then is held at it
+    /// whatever the tick or the client's lag. `None`: no loop, or that round
+    /// is the last, where the loop ends anyway.
+    pub fn cut_from(&self, n: u32) -> Option<u32> {
+        let Reload::Rounds {
+            start_ms, round_ms, ..
+        } = self.gun.reload
+        else {
+            return None;
+        };
+        let loading = self.loading?;
+        let round = n.max(loading.loaded + 1);
+        (round < loading.target)
+            .then(|| loading.at + start_ms + round_ms * (round - 1) + round_ms / 2)
+    }
+
     /// The loop's round-ends up to `now`: each puts a round into the weapon
     /// (the ledger's `rounds` up, `spare` down), and ends the loop when the
     /// magazine is full or the ammo out, or when `held` (the trigger or the
@@ -843,6 +861,45 @@ mod tests {
         assert!(!load.loading());
         assert_eq!(load.advance(10_000, true), None);
         assert_eq!((load.rounds, load.spare), (8, 20));
+    }
+
+    #[test]
+    fn the_sights_cut_a_loop_from_the_middle_before_the_round_they_are_to_end_it_at() {
+        let mut load = spas(0, 30);
+        assert_eq!(load.cut_from(3), None);
+        load.reload(2_000);
+        // The third round ends at 1.0 + 3 x 0.375 s: from the middle of
+        // the 0.375 s before it.
+        assert_eq!(load.cut_from(3), Some(2_000 + 1_000 + 2 * 375 + 187));
+        // Held from there, the loop ends at that round with three rounds.
+        let from = load.cut_from(3).unwrap();
+        assert_eq!(load.advance(from, false), None);
+        assert_eq!(
+            load.advance(2_000 + 1_000 + 3 * 375, true)
+                .map(|e| e.loaded),
+            Some(3)
+        );
+        // The last round ends the loop anyway: nothing to cut. Nor with a
+        // load of three or less asked to stop at three.
+        let mut load = spas(0, 30);
+        load.reload(0);
+        assert_eq!(load.cut_from(8), None);
+        assert_eq!(load.cut_from(9), None);
+        let mut load = spas(6, 30);
+        load.reload(0);
+        assert_eq!(load.cut_from(3), None);
+        // Three put in already: the next round-end, not one past.
+        let mut load = spas(0, 30);
+        load.reload(0);
+        for k in 1..=3 {
+            load.advance(1_000 + 375 * k, false);
+        }
+        assert_eq!(load.cut_from(3), Some(1_000 + 3 * 375 + 187));
+        // A magazine has no loop.
+        let mut ak = Load::of(gun("ak_74u").unwrap(), 90);
+        ak.rounds = 0;
+        ak.reload(0);
+        assert_eq!(ak.cut_from(1), None);
     }
 
     #[test]
