@@ -18,7 +18,6 @@
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
 use crate::v026g::bots::tactics::{SpotQuery, Tactics};
-use crate::v026g::bots::view::Mode;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // The spot: this far from the exit, metres.
@@ -129,11 +128,7 @@ pub enum State {
 /// The candidate's score times the mode's weight (`weight_tdm`,
 /// `weight_batteries`): the players' research favours the play in one mode.
 fn weighed(cx: &Ctx, kind: PlayKind, mut c: Candidate) -> Option<Candidate> {
-    let weight = match cx.view.mode {
-        Mode::TeamDeathmatch => cx.num(kind, "weight_tdm"),
-        Mode::Batteries => cx.num(kind, "weight_batteries"),
-        Mode::TimedBatteries => cx.num(kind, "weight_timed"),
-    };
+    let weight = cx.num(kind, cx.view.mode.weight_key());
     c.score = Score::new(c.score.get() * weight);
     (!c.score.is_zero()).then_some(c)
 }
@@ -189,8 +184,7 @@ fn fine_spots(cx: &Ctx, exit: Vec3) -> Vec<Vec3> {
         .filter(|at| {
             cx.tactics.fine_goal(*at, cx.now, cx.bot.side)
                 && at.distance_xz(cx.me.feet) >= moved
-                && cx.reachable(*at, false)
-                && !cx.no_way_lately(*at)
+                && cx.can_go(*at)
         })
         .collect()
 }
@@ -219,11 +213,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
         State::Going { spot } => {
             // Its spot proved no way to: another of the fine ones (none:
             // kept, and the think leaves the play, `goal_shut`).
-            if cx.no_way_lately(*spot)
-                && let Some(new) = pick(cx, exit, rng)
-            {
-                *spot = new;
-            }
+            goals::repick_if_shut(cx, spot, || pick(cx, exit, rng));
             let spot = *spot;
             if let Some((_, _, started)) = cx.bot.current
                 && cx.now > started + (num("give_up_s") * 1000.0) as u32
@@ -232,7 +222,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             }
             let d = cx.me.feet.distance_xz(spot);
             if d <= num("reach_m") {
-                let (lo, hi) = if cx.view.mode == Mode::TeamDeathmatch {
+                let (lo, hi) = if cx.view.mode.is_deathmatch() {
                     (num("hold_tdm_min_s"), num("hold_tdm_max_s"))
                 } else {
                     (num("hold_batteries_min_s"), num("hold_batteries_max_s"))
@@ -276,6 +266,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
 mod tests {
     use super::super::tests::Scenario;
     use super::*;
+    use crate::v026g::bots::view::Mode;
 
     fn holds(s: &Scenario) -> Vec<Candidate> {
         let mut out = Vec::new();

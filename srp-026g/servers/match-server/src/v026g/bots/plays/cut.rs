@@ -39,7 +39,6 @@
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
 use crate::v026g::bots::tactics::{SpotQuery, Tactics};
-use crate::v026g::bots::view::Mode;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // The cut point: this share of the way from their base to ours.
@@ -211,11 +210,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if cx.me.carrying.is_some() {
         return;
     }
-    let weight = match cx.view.mode {
-        Mode::TeamDeathmatch => cx.num(PlayKind::Cut, "weight_tdm"),
-        Mode::Batteries => cx.num(PlayKind::Cut, "weight_batteries"),
-        Mode::TimedBatteries => cx.num(PlayKind::Cut, "weight_timed"),
-    };
+    let weight = cx.num(PlayKind::Cut, cx.view.mode.weight_key());
     let running = match cx.bot.current {
         Some((PlayKind::Cut, TargetRef::Point(p), _)) => Some(p),
         _ => None,
@@ -306,11 +301,7 @@ fn fine_spots(cx: &Ctx, at: Vec3, from: Vec3) -> Vec<Vec3> {
             spots_by(cx, at, from, try_)
                 .iter()
                 .copied()
-                .filter(|spot| {
-                    cx.tactics.fine_goal(*spot, cx.now, cx.bot.side)
-                        && cx.reachable(*spot, false)
-                        && !cx.no_way_lately(*spot)
-                })
+                .filter(|spot| cx.tactics.fine_goal(*spot, cx.now, cx.bot.side) && cx.can_go(*spot))
                 .collect::<Vec<_>>()
         })
         .find(|fine| !fine.is_empty())
@@ -348,11 +339,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
         State::Going { spot, from } => {
             // Its spot proved no way to: another of the fine ones (none:
             // kept, and the think leaves the play, `goal_shut`).
-            if cx.no_way_lately(*spot)
-                && let Some(new) = pick(cx, at, *from, rng)
-            {
-                *spot = new;
-            }
+            goals::repick_if_shut(cx, spot, || pick(cx, at, *from, rng));
             let (spot, from) = (*spot, *from);
             if let Some((_, _, started)) = cx.bot.current
                 && cx.now > started + (num("give_up_s") * 1000.0) as u32
@@ -361,7 +348,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             }
             let d = cx.me.feet.distance_xz(spot);
             if d <= num("reach_m") {
-                let (lo, hi) = if cx.view.mode == Mode::TeamDeathmatch {
+                let (lo, hi) = if cx.view.mode.is_deathmatch() {
                     (num("hold_tdm_min_s"), num("hold_tdm_max_s"))
                 } else {
                     (num("hold_batteries_min_s"), num("hold_batteries_max_s"))
@@ -408,6 +395,7 @@ mod tests {
     use super::super::super::routes::HumanRoute;
     use super::super::tests::Scenario;
     use super::*;
+    use crate::v026g::bots::view::Mode;
 
     /// The enemy side (1, spawns at x 75) has a busy, well paid way along
     /// z 30 and a poor one along z 5; bot 0 of side 0 at (20, 0, 20).

@@ -1,0 +1,112 @@
+//! The plays' shared rules for a goal a bot may go to (HOT-FILES "Shared or
+//! targeted": one home each, never written out again in a play):
+//!
+//! - [`no_way_near`]: whether a list of goals no search found a way to
+//!   (`Bot::no_way_to`, the team's) holds one near `at` yet. The one
+//!   distance test: [`Ctx::no_way_lately`] and the think's `goal_shut` both
+//!   use it.
+//! - [`Ctx::can_go`]: a goal the bot can go to: a way may be open
+//!   ([`Ctx::reachable`], checked before any search: Red Blob Games, A*
+//!   notes, "no path") and no search of its own proved none lately.
+//! - [`repick_if_shut`]: a play holding a spot swaps it for another pick
+//!   only on that proof, and asks for the pick only then (a pick draws
+//!   from the bot's random stream, so asking it earlier would change every
+//!   draw after it). The failed target is reported by the search and the
+//!   play chooses again (Detour's crowd), by the play's own score, not by
+//!   nearness to the old spot (benched worse, 2026-10-25).
+
+use mapdata::Vec3;
+
+use super::Ctx;
+
+/// Whether `list` (goals no way was found to, each with the time it is
+/// left until) has one near `at`, within the motor's replan distance
+/// ([`super::super::REPLAN_MOVED_M`]), still unexpired at `now`.
+pub fn no_way_near(list: &[(Vec3, u32)], at: Vec3, now: u32) -> bool {
+    list.iter()
+        .any(|&(goal, until)| now < until && goal.distance_xz(at) <= super::super::REPLAN_MOVED_M)
+}
+
+impl Ctx<'_> {
+    /// Whether the bot can go to `at`: a way may be open there
+    /// ([`Ctx::reachable`], not for the objective) and no search of its own
+    /// proved none lately ([`Ctx::no_way_lately`]).
+    pub fn can_go(&self, at: Vec3) -> bool {
+        self.reachable(at, false) && !self.no_way_lately(at)
+    }
+}
+
+/// A spot proved no way to is swapped for the pick `pick` makes. `pick` is
+/// asked only when the spot is shut, so a bot whose spot stands draws
+/// nothing. Returns whether the spot was swapped; with no pick (none
+/// left) the spot is kept, and the think leaves the play (`goal_shut`).
+pub fn repick_if_shut(cx: &Ctx, spot: &mut Vec3, pick: impl FnOnce() -> Option<Vec3>) -> bool {
+    if cx.no_way_lately(*spot)
+        && let Some(new) = pick()
+    {
+        *spot = new;
+        return true;
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::tests::Scenario;
+    use super::*;
+    use crate::v026g::bots::REPLAN_MOVED_M;
+    use crate::v026g::bots::view::Mode;
+
+    #[test]
+    fn a_no_way_proof_holds_within_the_replan_distance_until_it_expires() {
+        let goal = Vec3::new(10.0, 0.0, 10.0);
+        let list = [(goal, 5_000)];
+        let near = Vec3::new(10.0 + REPLAN_MOVED_M, 0.0, 10.0);
+        let far = Vec3::new(10.0 + REPLAN_MOVED_M + 0.1, 0.0, 10.0);
+        assert!(no_way_near(&list, goal, 4_999));
+        assert!(no_way_near(&list, near, 0));
+        assert!(!no_way_near(&list, far, 0));
+        assert!(!no_way_near(&list, goal, 5_000), "expired at `until`");
+        assert!(!no_way_near(&[], goal, 0));
+    }
+
+    #[test]
+    fn can_go_needs_a_way_and_no_proof_against_it() {
+        let mut s = Scenario::field(Mode::Batteries);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 30.0));
+        let there = Vec3::new(25.0, 0.0, 30.0);
+        assert!(s.cx(0).can_go(there));
+        // A proof against it, still unexpired.
+        s.no_way_to = vec![(there, s.view.clock + 1_000)];
+        assert!(!s.cx(0).can_go(there));
+        s.no_way_to = vec![(there, s.view.clock)];
+        assert!(s.cx(0).can_go(there));
+        // Off the map: no way may be open.
+        let off = Vec3::new(1_000.0, 0.0, 1_000.0);
+        assert!(!s.cx(0).can_go(off));
+    }
+
+    #[test]
+    fn a_spot_is_repicked_only_when_shut_and_only_to_a_pick() {
+        let mut s = Scenario::field(Mode::Batteries);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 30.0));
+        let spot = Vec3::new(25.0, 0.0, 30.0);
+        let other = Vec3::new(30.0, 0.0, 30.0);
+        // Not shut: the pick is not asked, the spot stands.
+        let mut kept = spot;
+        let mut asked = false;
+        let swapped = repick_if_shut(&s.cx(0), &mut kept, || {
+            asked = true;
+            Some(other)
+        });
+        assert!(!swapped && !asked && kept == spot);
+        // Shut, with a pick: swapped.
+        s.no_way_to = vec![(spot, s.view.clock + 1_000)];
+        let swapped = repick_if_shut(&s.cx(0), &mut kept, || Some(other));
+        assert!(swapped && kept == other);
+        // Shut, with none to pick: kept.
+        let mut kept = spot;
+        let swapped = repick_if_shut(&s.cx(0), &mut kept, || None);
+        assert!(!swapped && kept == spot);
+    }
+}

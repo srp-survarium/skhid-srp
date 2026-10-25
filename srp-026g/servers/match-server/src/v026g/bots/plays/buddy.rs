@@ -258,7 +258,7 @@ fn round_him(cx: &Ctx, feet: Vec3) -> Option<Vec3> {
                 along(feet, yaw, m)
             })
         })
-        .filter(|&p| cx.reachable(p, false) && !cx.no_way_lately(p))
+        .filter(|&p| cx.can_go(p))
         .min_by(|a, b| {
             a.distance_xz(cx.me.feet)
                 .total_cmp(&b.distance_xz(cx.me.feet))
