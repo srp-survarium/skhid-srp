@@ -261,8 +261,10 @@ fn use_from(cx: &Ctx, stand: TakeStand, aim: Vec3, max_m: f32, max_pitch: f32) -
 /// The stands round a battery lying at `at` (its point to use `aim`): a
 /// ring of eight ways at [`RING_M`], on floors a walk may get to, crouched
 /// and standing, from which the eye is within the use's reach in a clear
-/// line, with their look down.
-fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3) -> Vec<(TakeStand, f32)> {
+/// line, with their look down. On a crossing (`crossing`), a zone's
+/// floors are stands too, and no way need lead to them: they are walked to
+/// in a line.
+fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3, crossing: bool) -> Vec<(TakeStand, f32)> {
     let grid = &cx.tactics.world.grid;
     let mut out: Vec<(TakeStand, f32)> = Vec::new();
     for k in 0..8 {
@@ -276,7 +278,11 @@ fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3) -> Vec<(TakeStand, f32)> {
             if feet.distance_xz(p) > 0.3
                 || (feet.y - at.y).abs() > 2.5
                 || !cx.tactics.walkable(node)
-                || !cx.tactics.allowed(node, cx.now, cx.bot.side, false)
+                || !if crossing {
+                    cx.tactics.spawn_ok(node, cx.bot.side, false)
+                } else {
+                    cx.tactics.allowed(node, cx.now, cx.bot.side, false)
+                }
             {
                 continue;
             }
@@ -287,7 +293,7 @@ fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3) -> Vec<(TakeStand, f32)> {
                 let stand = TakeStand { feet, crouch };
                 if let UseFrom::Clear(pitch) =
                     use_from(cx, stand, aim, RING_USE_M, RING_PITCH_MAX_RAD)
-                    && cx.reachable(feet, false)
+                    && (crossing || cx.reachable(feet, false))
                 {
                     out.push((stand, pitch));
                 }
@@ -500,6 +506,28 @@ fn battery_candidate(cx: &Ctx, battery: usize) -> Option<Candidate> {
     let slot = Some(battery as u32);
     let on_it = matches!(cx.bot.current, Some((PlayKind::Collect, t, _)) if t == target);
     let near = cx.input(Input::EnemiesNearTarget, PlayKind::Collect, target);
+    // A crossing's damage weighs against it (`Crossing::cost`): a dry
+    // battery as good wins.
+    let dry = cx
+        .battery_lying(battery)
+        .and_then(|at| cx.crossing(at))
+        .map_or(1.0, |c| (1.0 - c.cost() / cx.me.health.max(1e-3)).max(0.0));
+    battery_candidate_given(cx, target, slot, on_it, near).map(|mut candidate| {
+        if dry < 1.0 {
+            candidate.score = Score::new(candidate.score.get() * dry);
+        }
+        candidate
+    })
+}
+
+/// [`battery_candidate`] before a crossing's cost.
+fn battery_candidate_given(
+    cx: &Ctx,
+    target: TargetRef,
+    slot: Option<u32>,
+    on_it: bool,
+    near: f32,
+) -> Option<Candidate> {
     if on_it && near >= ENEMIES_OUT && cx.memory.all_seen(cx.now).is_empty() {
         let read = near - COLLECT_ENEMY_MARGIN;
         cx.candidate_given(
@@ -510,6 +538,150 @@ fn battery_candidate(cx: &Ctx, battery: usize) -> Option<Candidate> {
         )
     } else {
         cx.candidate(PlayKind::Collect, target, slot)
+    }
+}
+
+/// A crossing's walk across a zone's floor, m/s: the walk is 3.5 m/s
+/// forward (`kin`, PROVEN); less for side steps, the 0.3 s blend and a
+/// carrier's load. GUESS.
+const CROSS_MPS: f32 = 2.5;
+/// A crossing's dry edge is looked for this far off what it crosses to at
+/// most, metres, along [`CROSS_WAYS`] ways; the line's damage is summed
+/// every [`CROSS_STEP_M`]. GUESS: of the real maps' batteries in zones on
+/// all match, those any dry floor sees in a walkable line lie within
+/// about 20 m of one (the survey in `docs/notes/player_bots_batteries.md`).
+const CROSS_MAX_M: f32 = 25.0;
+const CROSS_WAYS: usize = 16;
+const CROSS_STEP_M: f32 = 0.5;
+/// A take stands this long at the battery, s: the last metre, the aim, up
+/// to two uses `use_every_s` apart. GUESS (the bench's takes, 2-4 s).
+const CROSS_TAKE_S: f32 = 4.0;
+/// A crossing is made only if, in and out and the take, it costs at most
+/// this share of the bot's health...
+const CROSS_SHARE: f32 = 0.5;
+/// ... and leaves it at least this. GUESSES: never lethal, the damage is
+/// the zones' raw hit (before armour) and the marks' 1 m margin counts.
+const CROSS_LEFT: f32 = 0.4;
+/// In a zone, a take gives up once the walk back out would leave less
+/// than this. GUESS.
+const CROSS_ABORT_LEFT: f32 = 0.25;
+
+/// A walk in a line across zones on all match to a battery no way leads
+/// to (`Ctx::needs_crossing`), from a dry floor a way does lead to; or a
+/// carrier's walk back out. The zones' damage is the game data's
+/// (`Hazards::hit_per_s`, a zone with none counts as lethal).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Crossing {
+    /// The dry floor it starts from (or, out, ends at).
+    pub edge: Vec3,
+    /// Health lost on the walk one way, at [`CROSS_MPS`].
+    pub leg: f32,
+    /// Health lost each second standing where it crosses to.
+    pub at_per_s: f32,
+}
+
+impl Crossing {
+    /// Health it costs in and out and a take.
+    pub fn cost(&self) -> f32 {
+        2.0 * self.leg + CROSS_TAKE_S * self.at_per_s
+    }
+
+    /// Whether a bot of `health` makes it ([`CROSS_SHARE`], [`CROSS_LEFT`]).
+    pub fn fits(&self, health: f32) -> bool {
+        let cost = self.cost();
+        cost <= CROSS_SHARE * health && health - cost >= CROSS_LEFT
+    }
+}
+
+/// Health lost walking from `a` to `b` in a line, at [`CROSS_MPS`].
+fn line_hurt(tactics: &Tactics, a: Vec3, b: Vec3) -> f32 {
+    let grid = &tactics.world.grid;
+    let d = a.distance_xz(b);
+    let n = (d / CROSS_STEP_M).ceil().max(1.0) as usize;
+    let ds = d / n as f32;
+    (0..n)
+        .map(|i| {
+            let p = a + (b - a) * ((i as f32 + 0.5) / n as f32);
+            grid.locate(p, 1.5)
+                .map_or(0.0, |node| tactics.hazards.hit_per_s(node))
+                * ds
+                / CROSS_MPS
+        })
+        .sum()
+}
+
+/// The cheapest crossing to `to` for a body of map side `side`: of the
+/// dry floors a way leads to (past zones on all match, out of the zones'
+/// marks, not the other side's spawn) nearest `to` along each of
+/// [`CROSS_WAYS`] ways within [`CROSS_MAX_M`], in a line walked to it.
+pub fn crossing_to(tactics: &Tactics, to: Vec3, side: Option<i32>) -> Option<Crossing> {
+    let grid = &tactics.world.grid;
+    let at_per_s = tactics.hazards.hit_per_s(grid.locate(to, 1.5)?);
+    if !at_per_s.is_finite() {
+        return None;
+    }
+    let mut best: Option<Crossing> = None;
+    for k in 0..CROSS_WAYS {
+        let a = k as f32 * std::f32::consts::TAU / CROSS_WAYS as f32;
+        let (sin, cos) = a.sin_cos();
+        for r in 1..=CROSS_MAX_M as usize {
+            let p = Vec3::new(to.x + r as f32 * cos, to.y, to.z + r as f32 * sin);
+            let Some(node) = grid.locate(p, 2.0) else {
+                continue;
+            };
+            let edge = grid.position(node);
+            if (edge.y - to.y).abs() > 3.0
+                || !tactics.hazards.hazard_free(node)
+                || !tactics.past_fixed_zones(node)
+                || !tactics.spawn_ok(node, side, false)
+            {
+                continue;
+            }
+            // The nearest dry floor this way: past it, the line is longer.
+            if tactics.clear_line_through_zones(edge, to, side, false) {
+                let leg = line_hurt(tactics, edge, to);
+                if leg.is_finite() && best.is_none_or(|b| leg < b.leg) {
+                    best = Some(Crossing { edge, leg, at_per_s });
+                }
+            }
+            break;
+        }
+    }
+    best
+}
+
+impl Ctx<'_> {
+    /// Whether no way leads to the stand at `stand` all match, though a
+    /// walk gets there with the zones off: zones on all match lie on it or
+    /// round it (level_01's swamp, level_06's acid). Such a battery is
+    /// taken by a crossing ([`crossing_to`]) or not at all.
+    pub fn needs_crossing(&self, stand: Vec3) -> bool {
+        let grid = &self.tactics.world.grid;
+        let Some(goal) = grid.locate(stand, 3.0) else {
+            return false;
+        };
+        let past = |b| self.tactics.past_fixed_zones(b);
+        self.tactics.walkable(goal) && !(past(goal) || grid.entered_from(goal, past))
+    }
+
+    /// The crossing to take a battery lying at `at` by (its stand needs
+    /// one, [`Ctx::needs_crossing`]), if one is found.
+    pub fn crossing(&self, at: Vec3) -> Option<Crossing> {
+        let stand = self.tactics.stand_to_take(at)?;
+        if !self.needs_crossing(stand) {
+            return None;
+        }
+        crossing_to(self.tactics, stand, self.bot.side)
+    }
+
+    /// The bot's way out of zones on all match when no way leads from where
+    /// it stands ([`Ctx::needs_crossing`]): its cheapest crossing.
+    fn way_out(&self) -> Option<Crossing> {
+        let me = self.me.feet;
+        if !self.needs_crossing(me) {
+            return None;
+        }
+        crossing_to(self.tactics, me, self.bot.side)
     }
 }
 
@@ -547,6 +719,19 @@ impl Ctx<'_> {
                 return Some(POCKET_BLOCK);
             }
             return Some("no stand to take it from");
+        };
+        // Its stand in zones on all match: by a crossing's dry edge, if the
+        // bot's health bears it.
+        let stand = if self.needs_crossing(stand) {
+            let Some(crossing) = crossing_to(self.tactics, stand, self.bot.side) else {
+                return Some("no crossing to its zone");
+            };
+            if !crossing.fits(self.me.health) {
+                return Some("its zone hurts too much");
+            }
+            crossing.edge
+        } else {
+            stand
         };
         if !self.reachable(stand, false) {
             return Some("no way to its stand");
@@ -852,6 +1037,9 @@ pub enum State {
         from: Option<Vec3>,
         /// Stepping back out of a nook since (no straight line to a stand).
         backing: Option<u32>,
+        /// A crossing's dry edge (`Crossing`): the battery lies in zones on
+        /// all match, walked into in lines.
+        crossing: Option<Vec3>,
     },
     /// Home with the battery; `via`: the points of a safer way home along
     /// a human route (`way_home`), chosen at the first step.
@@ -953,6 +1141,17 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             let Some(stand) = cx.tactics.stand_to_take(at) else {
                 return Step::Failed("no way to it");
             };
+            // In zones on all match: to its crossing's dry edge first
+            // (`Crossing`), while the bot's health bears it.
+            let crossing = if cx.needs_crossing(stand) {
+                match crossing_to(cx.tactics, stand, cx.bot.side) {
+                    Some(crossing) if crossing.fits(cx.me.health) => Some(crossing.edge),
+                    _ => return Step::Failed("no way to it"),
+                }
+            } else {
+                None
+            };
+            let stand = crossing.unwrap_or(stand);
             // Or every way in crosses a hazard (a battery ringed by fire):
             // the search said so, and the bot does something else.
             if !cx.reachable(stand, false) || cx.no_way_lately(stand) {
@@ -971,6 +1170,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     tried: Vec::new(),
                     from: (cx.me.feet.distance_xz(at) >= FROM_M).then_some(cx.me.feet),
                     backing: None,
+                    crossing,
                 };
                 return Step::Continue(Intent::stay().looking(Look::At(at)));
             }
@@ -981,11 +1181,17 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             let within = if near { 0.0 } else { num("reach_m") * 0.6 };
             Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(within))
         }
-        State::Take { tried, .. } => {
+        State::Take {
+            tried, crossing, ..
+        } => {
+            // On a crossing, the zone's floor is the play's choice
+            // (`Intent::zone_ok`): no way out of it is walked meanwhile.
+            let crossing = crossing.is_some();
             // Under its floor (fallen, or under an overhang), a stand there
             // failed: up by the route, however near across (a goal within
             // reach across is no goal); the take goes on once up.
-            if !tried.is_empty()
+            if !crossing
+                && !tried.is_empty()
                 && let TargetRef::Battery(battery) = target
                 && let Some(stand) = cx
                     .battery_lying(battery)
@@ -994,7 +1200,10 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             {
                 return Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(0.0));
             }
-            let step = take(state, target, cx);
+            let step = match take(state, target, cx) {
+                Step::Continue(intent) if crossing => Step::Continue(intent.zone_ok()),
+                step => step,
+            };
             // A use lately: it may carry already without knowing it.
             match (step, &*state) {
                 (Step::Continue(intent), State::Take { last_use, .. })
@@ -1012,6 +1221,16 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             let Some(home) = home else {
                 return Step::Failed("no container of ours");
             };
+            // In zones on all match with no way out (a crossing's take):
+            // out first by the cheapest crossing, in a line.
+            if let Some(out) = cx.way_out() {
+                return Step::Continue(
+                    Intent::to(out.edge, Pace::Walk)
+                        .within(0.5)
+                        .straight()
+                        .zone_ok(),
+                );
+            }
             // Trapped for good: no way home with it. Let go, and fight
             // from here: a carrier cannot fire. A pocket some player got
             // out of leaves it takeable (`Ctx::take_block`).
@@ -1235,10 +1454,12 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
         tried,
         from,
         backing,
+        crossing,
     } = state
     else {
         unreachable!("a take's state");
     };
+    let crossing = *crossing;
     // Seen gone at last (it was taken since the team saw it), or taken.
     let TargetRef::Battery(battery) = target else {
         return Step::Failed("the battery is gone");
@@ -1251,6 +1472,14 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
         });
     };
     let me = cx.me.feet;
+    // On a crossing, out once the walk back to its edge would leave too
+    // little health ([`CROSS_ABORT_LEFT`]); the motor walks it out of the
+    // zone once the play ends.
+    if let Some(edge) = crossing
+        && cx.me.health - line_hurt(cx.tactics, me, edge) < CROSS_ABORT_LEFT
+    {
+        return Step::Failed("its zone hurts too much");
+    }
     // In an enemy's sight, the fight first (`Ctx::exposed_to`): the play
     // stays, its look gives way to the reflex's (no use within reach, so
     // it aims, moves and fires), and its timers wait.
@@ -1306,7 +1535,14 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                 *stand = Some(here);
                 *since = cx.now;
             }
-            UseFrom::Far if cx.now < *since + walk_ms => {
+            UseFrom::Far
+                if cx.now
+                    < *since
+                        + walk_ms
+                        + crossing.map_or(0, |edge| {
+                            (edge.distance_xz(at) / CROSS_MPS * 1000.0) as u32
+                        }) =>
+            {
                 // On the floor: stopped short of it, where the look down
                 // is easy; on a shelf: at the floor beside it.
                 let Some(to) = cx.tactics.stand_to_take(at) else {
@@ -1318,8 +1554,13 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                 } else {
                     0.25
                 };
-                let intent = Intent::to(to, Pace::Walk).within(within).crouched();
-                return Step::Continue(straight_if_clear(cx, intent, to).looking(Look::Use(aim)));
+                let mut intent = Intent::to(to, Pace::Walk).within(within);
+                // Across a zone, upright till near (a crouch walks slower).
+                if crossing.is_none() || me.distance_xz(to) <= STRAIGHT_M {
+                    intent = intent.crouched();
+                }
+                let intent = straight_if_clear(cx, intent, to, crossing.is_some());
+                return Step::Continue(intent.looking(Look::Use(aim)));
             }
             _ => {
                 // Steep, blocked, too far still, or given up before.
@@ -1356,7 +1597,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                         UseFrom::Clear(_)
                     )
                 {
-                    return Step::Continue(to_stand(cx, s, aim).within(0.05));
+                    return Step::Continue(to_stand(cx, s, aim, crossing.is_some()).within(0.05));
                 }
                 if settled(cx, s, aim_now) || cx.now >= arrived_at + SETTLE_MS {
                     *tries += 1;
@@ -1386,7 +1627,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
             tried.push(s);
             *stand = None;
         } else if cx.now < *since + walk_ms {
-            return Step::Continue(to_stand(cx, s, aim));
+            return Step::Continue(to_stand(cx, s, aim, crossing.is_some()));
         } else {
             // Not reached in time: another.
             tried.push(s);
@@ -1417,14 +1658,15 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
         ),
         UseFrom::Steep
     );
-    let intent = match next_stand(cx, at, aim, tried, steep, &gave_up) {
+    let through = crossing.is_some();
+    let intent = match next_stand(cx, at, aim, tried, steep, &gave_up, through) {
         Some(s) => {
             *stand = Some(s);
             *since = cx.now;
             *arrived = None;
             *tries = 0;
             *last_use = 0;
-            to_stand(cx, s, aim)
+            to_stand(cx, s, aim, through)
         }
         None if steep && backing.is_none() => {
             // Wedged right over it: a step back the way it came, with no
@@ -1453,19 +1695,17 @@ fn next_stand(
     tried: &[TakeStand],
     steep: bool,
     gave_up: &dyn Fn(TakeStand) -> bool,
+    crossing: bool,
 ) -> Option<TakeStand> {
     let me = cx.me.feet;
     let prefer_crouch = tried.last().is_none_or(|t| !t.crouch);
     let away = |feet: Vec3| (feet.z - at.z).atan2(feet.x - at.x);
-    ring_stands(cx, at, aim)
+    ring_stands(cx, at, aim, crossing)
         .into_iter()
         .filter(|(s, _)| !gave_up(*s) && !tried.iter().any(|t| t.same(s.feet, s.crouch)))
         .filter(|(s, _)| {
             !steep
-                || (me.distance_xz(s.feet) <= STRAIGHT_M
-                    && cx
-                        .tactics
-                        .clear_line_for(me, s.feet, cx.now, cx.bot.side, false))
+                || (me.distance_xz(s.feet) <= STRAIGHT_M && clear_line(cx, me, s.feet, crossing))
         })
         .map(|(s, pitch)| {
             let side_tried = tried.iter().any(|t| {
@@ -1483,26 +1723,33 @@ fn next_stand(
 }
 
 /// To a stand, looking at the battery: straight if near in a clear line.
-fn to_stand(cx: &Ctx, s: TakeStand, aim: Vec3) -> Intent {
+fn to_stand(cx: &Ctx, s: TakeStand, aim: Vec3, crossing: bool) -> Intent {
     let mut intent = Intent::to(s.feet, Pace::Walk).within(AT_STAND_M * 0.5);
     if s.crouch {
         intent = intent.crouched();
     }
-    straight_if_clear(cx, intent, s.feet).looking(Look::Use(aim))
+    straight_if_clear(cx, intent, s.feet, crossing).looking(Look::Use(aim))
 }
 
 /// The intent walked straight ([`Intent::straight`]) if `to` is within
-/// [`STRAIGHT_M`] in a line the walk grid clears.
-fn straight_if_clear(cx: &Ctx, intent: Intent, to: Vec3) -> Intent {
+/// [`STRAIGHT_M`] in a line the walk grid clears; on a crossing, however
+/// far, in a line over the zones' floors too.
+fn straight_if_clear(cx: &Ctx, intent: Intent, to: Vec3, crossing: bool) -> Intent {
     let me = cx.me.feet;
-    if me.distance_xz(to) <= STRAIGHT_M
-        && cx
-            .tactics
-            .clear_line_for(me, to, cx.now, cx.bot.side, false)
-    {
+    if (crossing || me.distance_xz(to) <= STRAIGHT_M) && clear_line(cx, me, to, crossing) {
         intent.straight()
     } else {
         intent
+    }
+}
+
+/// Whether a body walks from `a` to `b` in a line on allowed floors; on a
+/// crossing, over the zones' floors too.
+fn clear_line(cx: &Ctx, a: Vec3, b: Vec3, crossing: bool) -> bool {
+    if crossing {
+        cx.tactics.clear_line_through_zones(a, b, cx.bot.side, false)
+    } else {
+        cx.tactics.clear_line_for(a, b, cx.now, cx.bot.side, false)
     }
 }
 
@@ -1546,8 +1793,25 @@ mod tests {
     use crate::v026g::bots::view::{BatteryState, Mode};
 
     /// The field with a toxic zone (always on) of radius `r` round
-    /// (25, 0, 32).
+    /// (25, 0, 32), of no known damage (lethal to the bots' reckoning).
     fn with_toxic(r: f32) -> Scenario {
+        with_zone(r, None)
+    }
+
+    /// [`with_toxic`] hitting each of 2 parts `max_hit` a second.
+    fn with_hurting(r: f32, max_hit: f32) -> Scenario {
+        with_zone(
+            r,
+            Some(mapdata::Damage {
+                max_hit,
+                interval_ms: 1000,
+                parts: 2,
+                ..mapdata::Damage::default()
+            }),
+        )
+    }
+
+    fn with_zone(r: f32, damage: Option<mapdata::Damage>) -> Scenario {
         let mut s = Scenario::field(Mode::Batteries);
         let world = crate::v026g::bots::tactics::tests::field_with(|map| {
             map.zones.push(Zone {
@@ -1556,7 +1820,7 @@ mod tests {
                 team: -1,
                 position: Vec3::new(25.0, 0.0, 32.0),
                 damage_type: "toxic".into(),
-                damage: None,
+                damage,
                 shapes: vec![Shape {
                     kind: ShapeKind::Sphere,
                     center: Vec3::new(25.0, 1.0, 32.0),
@@ -1568,6 +1832,102 @@ mod tests {
         s.tactics = Tactics::new(world, 1.0);
         s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0));
         s
+    }
+
+    /// A battery in a zone on all match that hurts 0.02 a second (level_01's
+    /// swamp hurts 0.06): offered, fetched by walking to the crossing's dry
+    /// edge, then in by a line, the zone's floor the play's choice; given
+    /// up inside once the way back would leave too little health; not
+    /// offered to a bot too hurt to bear it, nor where it hurts more.
+    #[test]
+    fn a_battery_in_a_zone_on_all_match_is_taken_by_a_crossing_health_bears() {
+        let at = Vec3::new(25.0, 0.0, 32.0);
+        let target = TargetRef::Battery(0);
+        let mut s = with_hurting(4.0, 0.01);
+        s.battery(BatteryState::Free(at));
+        assert_eq!(collects(&s), vec![target]);
+        let crossing = s.cx(0).crossing(at).expect("a crossing");
+        let off = crossing.edge.distance_xz(at);
+        // The zone's 4 m and the marks' margin of 1 m; the nearest such floor.
+        assert!((5.0..7.0).contains(&off), "{crossing:?}");
+        assert!(crossing.fits(1.0) && !crossing.fits(0.3), "{crossing:?}");
+        // To the edge first.
+        s.current = Some((PlayKind::Collect, target, s.view.clock));
+        let mut rng = Rng::new(1);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(
+            matches!(intent.go, Go::To { at: to, .. } if to.distance_xz(crossing.edge) < 0.01),
+            "{intent:?}"
+        );
+        assert!(!intent.zone_ok);
+        // At it: a take by the crossing, walked in by a line.
+        s.bot(0, 0, crossing.edge);
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(
+            matches!(state, State::Take { crossing: Some(_), .. }),
+            "{state:?}"
+        );
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(intent.straight && intent.zone_ok, "{intent:?}");
+        assert!(matches!(intent.go, Go::To { at: to, .. } if to.distance_xz(at) < 0.01));
+        // Hurt inside: given up, the way back would leave under 0.25.
+        s.bot(0, 0, Vec3::new(26.0, 0.0, 32.0)).health = 0.27;
+        assert_eq!(
+            step(&mut state, target, &s.cx(0), &mut rng),
+            Step::Failed("its zone hurts too much")
+        );
+        // Too hurt to begin it.
+        s.bot(0, 0, Vec3::new(10.0, 0.0, 10.0)).health = 0.3;
+        assert_eq!(s.cx(0).take_block(at), Some("its zone hurts too much"));
+        assert!(collects(&s).is_empty());
+        // A zone ten times as harsh: not offered at full health.
+        let mut s = with_hurting(4.0, 0.1);
+        s.battery(BatteryState::Free(at));
+        assert_eq!(s.cx(0).take_block(at), Some("its zone hurts too much"));
+        // A dry battery as near scores above it.
+        let mut s = with_hurting(4.0, 0.01);
+        s.battery(BatteryState::Free(at));
+        let dry = Vec3::new(36.6, 0.0, 10.0);
+        s.battery(BatteryState::Free(dry));
+        let mut out = Vec::new();
+        candidates(&s.cx(0), &mut out);
+        let score = |t| {
+            out.iter()
+                .find(|c| c.target == t)
+                .map(|c| c.score.get())
+                .unwrap()
+        };
+        assert!(
+            score(TargetRef::Battery(1)) > score(TargetRef::Battery(0)),
+            "{out:?}"
+        );
+    }
+
+    /// A carrier in a zone on all match with no way out walks out by its
+    /// cheapest crossing, in a line, the zone's floor its choice.
+    #[test]
+    fn a_carrier_in_a_zone_on_all_match_walks_out_by_a_crossing() {
+        let mut s = with_hurting(4.0, 0.01);
+        s.battery(BatteryState::Carried(Some(0)));
+        s.bot(0, 0, Vec3::new(25.0, 0.0, 32.0)).carrying = Some(0);
+        let target = TargetRef::Battery(0);
+        s.current = Some((PlayKind::Collect, target, s.view.clock));
+        let mut rng = Rng::new(1);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::Bring { .. }));
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        let edge = s
+            .cx(0)
+            .way_out()
+            .map(|c| c.edge)
+            .expect("a crossing out");
+        assert!(intent.straight && intent.zone_ok, "{intent:?}");
+        assert!(matches!(intent.go, Go::To { at, .. } if at.distance_xz(edge) < 0.01));
+        // Out: home by the route as ever.
+        s.bot(0, 0, edge).carrying = Some(0);
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(!intent.zone_ok, "{intent:?}");
     }
 
     fn collects(s: &Scenario) -> Vec<TargetRef> {
@@ -2438,6 +2798,7 @@ mod tests {
             tried: Vec::new(),
             from,
             backing: None,
+            crossing: None,
         }
     }
 

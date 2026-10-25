@@ -292,6 +292,10 @@ pub struct Intent {
     /// take's stand round a battery, a step back out of a nook): walked to
     /// by keys each tick, no route (`Motor::step_to`).
     pub straight: bool,
+    /// Standing or stepping on a zone's floor is the play's own choice (a
+    /// battery's crossing, `collect`, which weighs the damage): no way out
+    /// of the zone is walked for it while it has no goal.
+    pub zone_ok: bool,
     /// A take's stand this step gave up at (`collect`): the bot keeps it,
     /// so its next take of that battery stands elsewhere.
     pub failed_stand: Option<collect::FailedStand>,
@@ -310,6 +314,7 @@ impl Intent {
             let_go: false,
             objective: false,
             straight: false,
+            zone_ok: false,
             failed_stand: None,
         }
     }
@@ -371,6 +376,14 @@ impl Intent {
     pub fn hold_fire(self) -> Self {
         Self {
             fire: false,
+            ..self
+        }
+    }
+
+    /// On a zone's floor by choice ([`Intent::zone_ok`]).
+    pub fn zone_ok(self) -> Self {
+        Self {
+            zone_ok: true,
             ..self
         }
     }
