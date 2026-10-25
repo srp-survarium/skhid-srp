@@ -27,8 +27,10 @@
 //!   second, 300 ms behind the clock, as the match gives the bots.
 //!
 //! The stand-in is much simpler than the game (no spread, no side kick, no
-//! armour, no stamina, a jump only up to the client's height
-//! ([`STAND_IN_AIR_MS`], [`stand_in_jump`]), none with a broken leg, a
+//! armour, no stamina; a jump that follows the client's jump clips from the
+//! keys held at its press, and a step no higher than the client's
+//! ([`Flight`], [`honest_stand_in`]; `SRP_BENCH_STAND_IN=old`: the old
+//! lift up any floor in reach, [`stand_in_jump`]); none with a broken leg, a
 //! hit's stagger as one slow ([`STAND_IN_LEG_SHARE`], [`STAND_IN_STAGGER`]);
 //! the rounds are not counted, the bots count their own): the runs check
 //! that bots of two teams find each other, fight, die, come back, take
@@ -42,7 +44,7 @@ use std::sync::Arc;
 use mapdata::{BatterySpawner, Container, NodeId, Vec3, World};
 use survarium::v026g::match_msgs::TICK_MS;
 
-use super::body::{Fix, jumped_to, slide};
+use super::body::{Fix, jumped_to, slide, slide_capped};
 use super::guns::{Arms, Gun};
 use super::hazards::{Hazard, Hazards};
 use super::kin::{Blend, Kinematics, TICK_S, forward, to_world};
@@ -58,6 +60,8 @@ use crate::v026g::drive::{half_value, key};
 mod fight_tally;
 #[path = "bench_spread.rs"]
 mod bench_spread;
+#[path = "owner_tally.rs"]
+mod owner_tally;
 
 /// The client's use: a ray from the eye this long (`usable_objects_detection_distance`).
 const USE_REACH_M: f32 = 2.0;
@@ -135,8 +139,12 @@ struct Body {
     drawn_at: u32,
     moved: f32,
     /// Until when a jump pressed keeps the body in the air, ms
-    /// ([`STAND_IN_AIR_MS`]).
+    /// ([`STAND_IN_AIR_MS`]; the old stand-in).
     air_until: u32,
+    /// The jump under way (the honest stand-in, [`Flight`]), and the
+    /// ground distance moved at the last tick, m.
+    flight: Option<Flight>,
+    step_m: f32,
     /// The leg pools (0.5 full), until when an empty one is broken, and
     /// the last hit's tick (0: none this life), [`STAND_IN_LEG_SHARE`].
     legs: [f32; 2],
@@ -146,6 +154,38 @@ struct Body {
     target: Option<Place>,
     /// Its shots' spread ([`bench_spread`]).
     spread: bench_spread::Spread,
+    /// Its stretch of zone damage under way ([`ZoneSpell`]).
+    zone_spell: Option<ZoneSpell>,
+    /// Its bot's motives at its last tick (`Bot::bench_why`).
+    why_now: u16,
+}
+
+/// A body's stretch of zone damage ([`Game::zone_tick`]): from its first
+/// zone hit to [`SPELL_GAP_MS`] with none (a crossing, or a stand in a
+/// zone): when it began, the health then, the health the zones took.
+#[derive(Clone, Copy, Debug)]
+struct ZoneSpell {
+    start: u32,
+    health: f32,
+    lost: f32,
+    last: u32,
+    /// Its bot's motives over it (`Bot::bench_why`), or'ed.
+    why: u16,
+}
+
+/// A zone spell ends after this long with no zone hit, ms.
+const SPELL_GAP_MS: u32 = 1_000;
+
+/// An enemy hit this long before a zone spell, or in it, marks the spell
+/// as in a fight, ms.
+const SPELL_FIGHT_MS: u32 = 3_000;
+
+impl ZoneSpell {
+    /// The spell as kept when it ends on `body` ([`Game::zone_spells`]).
+    fn ended(&self, body: &Body) -> [f32; 5] {
+        let fight = body.last_hit != 0 && body.last_hit + SPELL_FIGHT_MS >= self.start;
+        [self.lost, body.health.max(0.0), self.health, f32::from(u8::from(fight)), f32::from(self.why)]
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -378,6 +418,494 @@ fn a_stand_in_jump_gets_up_a_ledge_with_no_link_within_its_height() {
     );
 }
 
+/// Whether the stand-in moves bodies as the client does (the default): no
+/// step up over the client's 0.6 m, and a jump that follows the keys held
+/// at its press along the game's jump clip ([`Flight`]).
+/// `SRP_BENCH_STAND_IN=old` brings back the old stand-in (any step the
+/// grid walks, a jump that lifts the body up any floor in reach,
+/// [`stand_in_jump`]), only to compare with benches of older bases.
+fn honest_stand_in() -> bool {
+    static HONEST: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *HONEST.get_or_init(|| std::env::var("SRP_BENCH_STAND_IN").map_or(true, |v| v != "old"))
+}
+
+/// A jump clip's root over the floor it leaves, every 2 of its 24 frames
+/// (PROVEN: the stock clips' root curves, private sprint-jump-re
+/// `work/jumpcurves.txt` and FINDINGS §3-5): its length, when the body
+/// leaves the floor (the clip's `jump` event, frame 6), its rise and how
+/// far ahead it has gone, m.
+#[derive(Debug)]
+struct Clip {
+    ms: f32,
+    flag_ms: f32,
+    rise: [f32; 13],
+    ahead: [f32; 13],
+}
+
+impl Clip {
+    /// How far ahead and how high the root is `ms` into the clip (linear
+    /// between the samples).
+    fn at(&self, ms: f32) -> (f32, f32) {
+        let f = (ms / self.ms).clamp(0.0, 1.0) * 12.0;
+        let i = (f.floor() as usize).min(11);
+        let t = f - i as f32;
+        let lerp = |c: &[f32; 13]| c[i] + (c[i + 1] - c[i]) * t;
+        (lerp(&self.ahead), lerp(&self.rise))
+    }
+
+    /// When the root is at its highest, ms into the clip.
+    fn apex_ms(&self) -> f32 {
+        let top = (0..13)
+            .max_by(|&a, &b| self.rise[a].total_cmp(&self.rise[b]))
+            .unwrap_or(0);
+        self.ms * top as f32 / 12.0
+    }
+}
+
+/// The short jump (`on_site_fwd`, codes 5-12): 0.80 s, 1.0 m up at 1.78 m,
+/// 2.67 m forward, even from a standstill. With no movement key the
+/// body jumps in place (`on_site`, the same rise). The back and side clips
+/// were not measured: GUESS, the forward clip's travel along their way.
+static SHORT_CLIP: Clip = Clip {
+    ms: 800.0,
+    flag_ms: 200.0,
+    rise: [
+        0.0, 0.0, 0.0, 0.0, 0.36, 0.64, 0.84, 0.96, 1.00, 0.94, 0.77, 0.46, 0.0,
+    ],
+    ahead: [
+        0.0, 0.22, 0.44, 0.67, 0.89, 1.11, 1.33, 1.56, 1.78, 2.00, 2.22, 2.44, 2.67,
+    ],
+};
+
+/// The sprint jump (`sprint_from_left_leg`, codes 2-4), played at the
+/// sprint time scale (0.88 s): 1.28 m up, 4.42 m forward; the right leg's
+/// tops at 1.35 m (the left one taken: the bot cannot see the leg). Its
+/// diagonals carry 3.12 m on each axis, 4.41 m along the way.
+static SPRINT_CLIP: Clip = Clip {
+    ms: 880.0,
+    flag_ms: 220.0,
+    rise: [
+        0.0, 0.0, 0.0, 0.0, 0.57, 1.08, 1.24, 1.28, 1.23, 1.01, 0.70, 0.35, 0.0,
+    ],
+    ahead: [
+        0.0, 0.38, 0.76, 1.15, 1.54, 1.92, 2.29, 2.65, 3.01, 3.36, 3.71, 4.06, 4.42,
+    ],
+};
+
+/// Before the sprint clip, the prepare phase finishes the run's step: 0 to
+/// 0.15 s and 0 to 1.64 m, by the gait's phase at the press (PROVEN; the
+/// phase is drawn uniform, LIKELY).
+const SPRINT_PREPARE_MS: f32 = 150.0;
+const SPRINT_PREPARE_M: f32 = 1.64;
+
+/// The walk cap, m/s: the body's speed at the press must be at least this
+/// for a sprint jump, and a body on the ground in a jump moves at most
+/// this fast (the root runs ahead; the body takes the difference when it
+/// leaves the floor), PROVEN (FINDINGS §1.2, §3.2).
+const WALK_CAP: f32 = 3.5;
+
+/// A body falling after its clip, m/s².
+const GRAVITY: f32 = 9.81;
+
+/// The heights over the feet at which a face holds a body in the air
+/// (rays on the walker mesh), m: its feet (a little over, so a floor's
+/// own bumps do not), its middle and its head; a body clears an edge once
+/// its feet are over it (FINDINGS §5, the capsule rule). The body's
+/// radius is the grid's.
+const AIR_RAYS: [f32; 3] = [0.1, 0.9, 1.7];
+
+/// A jump under way in the honest stand-in ([`honest_stand_in`]): the
+/// body follows the clip's root from where it pressed, along the way of
+/// the keys held at the press; on the floor before the clip's jump event
+/// (at the walk cap), in the air after it, held by any face in its way
+/// (it rises with the clip and catches up once clear: the chase rule,
+/// FINDINGS §5). It lands on the highest floor under it once on the way
+/// down, or falls after the clip. No air control, no stamina (GUESS: the
+/// air control's scale was not read).
+#[derive(Clone, Copy, Debug)]
+struct Flight {
+    /// The press, ms; the feet then; the ground way (unit, or none).
+    at: u32,
+    from: Vec3,
+    dir: [f32; 2],
+    clip: &'static Clip,
+    /// The sprint jump's prepare phase: its length (ms) and travel (m).
+    prepare: (f32, f32),
+    /// The floor's height when the body left it.
+    base: Option<f32>,
+    /// After the clip, falling at this speed, m/s.
+    fall: Option<f32>,
+}
+
+impl Flight {
+    /// The root `ms` after the press: how far ahead, how high, whether
+    /// the body has left the floor, and whether the clip is over.
+    fn root(&self, ms: f32) -> (f32, f32, bool, bool) {
+        let (pm, pd) = self.prepare;
+        if ms < pm {
+            return (pd * ms / pm, 0.0, false, false);
+        }
+        let c = ms - pm;
+        let (ahead, rise) = self.clip.at(c);
+        (pd + ahead, rise, c >= self.clip.flag_ms, c >= self.clip.ms)
+    }
+
+    fn descending(&self, ms: f32) -> bool {
+        ms - self.prepare.0 >= self.clip.apex_ms()
+    }
+
+    fn sprint(&self) -> bool {
+        std::ptr::eq(self.clip, &SPRINT_CLIP)
+    }
+}
+
+/// The jump the keys held at a press make (FINDINGS §4, the codes): none,
+/// in place; forward, forward-right or forward-left the sprint jump when
+/// sprint is held with none of back, fire, crouch or aim, the body moves
+/// at the walk cap or more and may sprint (`can_sprint`: no battery, no
+/// stagger), else the short jump; any other way the short jump that way.
+/// The clip and the ground way, from the body's yaw.
+fn jump_of(keys: u32, yaw: f32, speed: f32, may_sprint: bool) -> (&'static Clip, [f32; 2]) {
+    let held = |bit| f32::from(u8::from(keys & bit != 0));
+    let ahead = held(key::FORWARD) - held(key::BACK);
+    let left = held(key::LEFT) - held(key::RIGHT);
+    if ahead == 0.0 && left == 0.0 {
+        return (&SHORT_CLIP, [0.0, 0.0]);
+    }
+    let len = ahead.hypot(left);
+    let dir = to_world([ahead / len, left / len], yaw);
+    let sprint = ahead > 0.0
+        && keys & key::SPRINT != 0
+        && keys & (key::BACK | key::FIRE | key::CROUCH | key::AIM) == 0
+        && speed >= WALK_CAP
+        && may_sprint;
+    (if sprint { &SPRINT_CLIP } else { &SHORT_CLIP }, dir)
+}
+
+/// The floor a body in the air at `at` comes down on: the highest whose
+/// cell holds it at or below `top`; else (its middle over the ground a
+/// wall's or an edge's erosion leaves out of the grid) the highest within
+/// the body's radius, the nearest of them. Its floor, and where the feet
+/// stand on it.
+fn air_floor(grid: &mapdata::WalkGrid, at: Vec3, top: f32) -> Option<(NodeId, Vec3)> {
+    let half = grid.cell_size() * 0.5 + 1e-4;
+    let box_of = |r: f32| [at.x - r, at.z - r, at.x + r, at.z + r];
+    let under = grid
+        .floors_in(box_of(half))
+        .filter(|&n| {
+            let p = grid.position(n);
+            (p.x - at.x).abs() <= half && (p.z - at.z).abs() <= half && p.y <= top
+        })
+        .max_by(|&a, &b| grid.position(a).y.total_cmp(&grid.position(b).y));
+    if let Some(n) = under {
+        return Some((n, Vec3::new(at.x, grid.position(n).y, at.z)));
+    }
+    let r = grid.body().radius;
+    grid.floors_in(box_of(r))
+        .filter(|&n| {
+            let p = grid.position(n);
+            p.distance_xz(at) <= r && p.y <= top
+        })
+        .max_by(|&a, &b| {
+            let (pa, pb) = (grid.position(a), grid.position(b));
+            pa.y.total_cmp(&pb.y)
+                .then(pb.distance_xz(at).total_cmp(&pa.distance_xz(at)))
+        })
+        .map(|n| (n, grid.position(n)))
+}
+
+/// Where a body in the air at `feet` (its feet at `y`) gets moving toward
+/// `(x, z)`: all the way, else along one axis (along a face), else
+/// nowhere; a move is held when a ray at one of [`AIR_RAYS`] meets the
+/// walker mesh within the move and the body's radius.
+fn air_move(walls: &mapdata::RayTree, radius: f32, feet: Vec3, to: (f32, f32), y: f32) -> (f32, f32) {
+    let held = |from: (f32, f32), to: (f32, f32)| {
+        let (dx, dz) = (to.0 - from.0, to.1 - from.1);
+        let len = dx.hypot(dz);
+        if len < 1e-6 {
+            return false;
+        }
+        let dir = Vec3::new(dx / len, 0.0, dz / len);
+        AIR_RAYS.iter().any(|&h| {
+            walls
+                .ray_cast(Vec3::new(from.0, y + h, from.1), dir, len + radius)
+                .is_some()
+        })
+    };
+    let from = (feet.x, feet.z);
+    [to, (to.0, from.1), (from.0, to.1)]
+        .into_iter()
+        .find(|&t| t != from && !held(from, t))
+        .unwrap_or(from)
+}
+
+/// How a jump ended: who pressed it and when, where the body came down,
+/// and whether it was a sprint jump.
+#[derive(Clone, Copy, Debug)]
+struct Landing {
+    place: Place,
+    at: u32,
+    to: Vec3,
+    sprint: bool,
+}
+
+/// One tick of `body`'s jump ([`Flight`]) at `tick`; the landing when it
+/// came down.
+fn fly(
+    grid: &mapdata::WalkGrid,
+    walls: &mapdata::RayTree,
+    body: &mut Body,
+    place: Place,
+    tick: u32,
+) -> Option<Landing> {
+    let mut f = body.flight?;
+    let Some(node) = body.node else {
+        body.flight = None;
+        return None;
+    };
+    let ms = tick.saturating_sub(f.at) as f32;
+    let landed = |body: &mut Body, f: &Flight, n: NodeId, feet: Vec3| {
+        body.node = Some(n);
+        body.feet = feet;
+        body.flight = None;
+        Some(Landing {
+            place,
+            at: f.at,
+            to: feet,
+            sprint: f.sprint(),
+        })
+    };
+    if let Some(v) = f.fall {
+        let v = v + GRAVITY * TICK_S;
+        let y = body.feet.y - v * TICK_S;
+        match air_floor(grid, body.feet, body.feet.y + 0.05) {
+            Some((n, feet)) if feet.y >= y => return landed(body, &f, n, feet),
+            Some(_) => {
+                body.feet.y = y;
+                f.fall = Some(v);
+                body.flight = Some(f);
+                return None;
+            }
+            // Nothing under it at all: back on the floor it left (not seen
+            // on a bench; kept from falling for ever).
+            None => {
+                let feet = grid.position(node);
+                return landed(body, &f, node, feet);
+            }
+        }
+    }
+    let (ahead, rise, airborne, over) = f.root(ms);
+    let target = (f.from.x + f.dir[0] * ahead, f.from.z + f.dir[1] * ahead);
+    if !airborne {
+        // On the floor before the jump event: toward the root at the walk
+        // cap at most, no step over the client's.
+        let (dx, dz) = (target.0 - body.feet.x, target.1 - body.feet.z);
+        let len = dx.hypot(dz);
+        if len > 1e-6 {
+            let k = (WALK_CAP * TICK_S / len).min(1.0);
+            let to = Vec3::new(body.feet.x + dx * k, body.feet.y, body.feet.z + dz * k);
+            let (n, feet, _) = super::body::slide_capped(grid, node, body.feet, to, grid.body().step);
+            body.node = Some(n);
+            body.feet = feet;
+        }
+        body.flight = Some(f);
+        return None;
+    }
+    let base = *f.base.get_or_insert(body.feet.y);
+    let y = base + rise;
+    let was = body.feet.y;
+    let (x, z) = air_move(walls, grid.body().radius, body.feet, target, y);
+    body.feet = Vec3::new(x, y, z);
+    if (f.descending(ms) || over)
+        && let Some((n, feet)) = air_floor(grid, body.feet, was.max(y) + 0.05)
+        && feet.y >= y - 1e-4
+    {
+        return landed(body, &f, n, feet);
+    }
+    if over {
+        f.fall = Some(0.0);
+    }
+    body.flight = Some(f);
+    None
+}
+
+/// A press's draw in [0, 1) (the sprint jump's prepare phase): a hash, so
+/// the game's draws are not moved.
+fn press_draw(tick: u32, place: Place) -> f32 {
+    let h = (tick ^ (place as u32).wrapping_mul(0x9E37_79B9)).wrapping_mul(0x85EB_CA6B);
+    let h = h ^ (h >> 15);
+    (h >> 8) as f32 / (1u32 << 24) as f32
+}
+
+/// The triangles of [`ledge_grid`]'s world (with `walker` on the ledge's
+/// top), for the walker mesh's rays.
+fn ledge_triangles(rise: f32, walker: mapdata::WalkerBehaviour) -> Vec<mapdata::Triangle> {
+    use super::body::tests::{floor, wall_x};
+    let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+    triangles.extend(floor(10.0, 0.0, 20.0, 10.0, rise).map(|mut t| {
+        t.walker = walker;
+        t
+    }));
+    triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+        t.v.iter_mut().for_each(|v| v.y = v.y.min(rise));
+        t.walker = walker;
+        t
+    }));
+    triangles
+}
+
+/// A stand-in body of the honest stand-in at `at` on `grid`, facing east.
+fn honest_body(grid: &mapdata::WalkGrid, at: Vec3) -> Body {
+    let game = Game::new(soak_world(), &[0], 1, None, None);
+    let mut body = game.bodies[0].clone();
+    let node = grid.locate(at, 0.5).expect("a floor there");
+    body.node = Some(node);
+    body.feet = Vec3::new(at.x, grid.position(node).y, at.z);
+    body.yaw = -std::f32::consts::FRAC_PI_2;
+    body
+}
+
+/// `body` jumps with `keys` held at `speed` (m/s, the last tick's): where
+/// it comes down, and the highest its feet got over the floor it left.
+fn honest_jump(
+    grid: &mapdata::WalkGrid,
+    walls: &mapdata::RayTree,
+    mut body: Body,
+    keys: u32,
+    speed: f32,
+) -> (Vec3, f32) {
+    let start = 1_000;
+    let (clip, dir) = jump_of(keys, body.yaw, speed, true);
+    let u = press_draw(start, 0);
+    let prepare = if std::ptr::eq(clip, &SPRINT_CLIP) {
+        (SPRINT_PREPARE_MS * u, SPRINT_PREPARE_M * u)
+    } else {
+        (0.0, 0.0)
+    };
+    let base = body.feet.y;
+    body.flight = Some(Flight {
+        at: start,
+        from: body.feet,
+        dir,
+        clip,
+        prepare,
+        base: None,
+        fall: None,
+    });
+    let mut top = 0.0f32;
+    for k in 1..=80 {
+        let landing = fly(grid, walls, &mut body, 0, start + k * TICK_MS);
+        top = top.max(body.feet.y - base);
+        if let Some(landing) = landing {
+            assert_eq!(landing.to, body.feet);
+            return (body.feet, top);
+        }
+    }
+    panic!("no landing: {:?}", body.feet);
+}
+
+/// The honest stand-in's jumps against the game's clips (sprint-jump-re
+/// `work/jumpcurves.txt`): forward from a standstill 2.67 m and 1.0 m
+/// up; in place 1.0 m up where it stood; forward with sprint at a run
+/// 4.42 m (and the prepare phase's 0-1.64 m) and 1.28 m up; forward with
+/// sprint too slow (under the walk cap) is the short jump.
+#[test]
+fn an_honest_jump_follows_the_games_clips() {
+    let triangles = ledge_triangles(0.9, mapdata::WalkerBehaviour::BySlope);
+    let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+    let walls = mapdata::RayTree::build(&triangles);
+    let from = Vec3::new(2.0, 0.0, 5.0);
+    let body = honest_body(&grid, from);
+    let (to, top) = honest_jump(&grid, &walls, body.clone(), key::FORWARD | key::JUMP, 0.0);
+    assert!((to.x - from.x - 2.67).abs() < 0.15 && to.y.abs() < 0.05, "{to:?}");
+    assert!((top - 1.0).abs() < 0.03, "{top}");
+    let (to, top) = honest_jump(&grid, &walls, body.clone(), key::JUMP, 0.0);
+    assert!(to.distance_xz(from) < 0.05 && (top - 1.0).abs() < 0.03, "{to:?} {top}");
+    let run = key::FORWARD | key::SPRINT | key::JUMP;
+    let (to, top) = honest_jump(&grid, &walls, body.clone(), run, 5.0);
+    let ahead = to.x - from.x;
+    assert!((4.3..=4.42 + 1.64 + 0.15).contains(&ahead), "{to:?}");
+    assert!((top - 1.28).abs() < 0.03, "{top}");
+    let (to, top) = honest_jump(&grid, &walls, body.clone(), run, 3.0);
+    assert!((to.x - from.x - 2.67).abs() < 0.15 && (top - 1.0).abs() < 0.03, "{to:?} {top}");
+    // Back and to the side: that way.
+    let (to, _) = honest_jump(&grid, &walls, body, key::LEFT | key::JUMP, 0.0);
+    assert!((to.z - from.z - 2.67).abs() < 0.15 || (from.z - to.z - 2.67).abs() < 0.15, "{to:?}");
+}
+
+/// From a standstill at its face, a forward jump gets up a 0.9 m ledge
+/// (held by the face, it rises with the clip and goes on once its feet are
+/// over the edge); not up a 1.2 m one, which the sprint jump at a run
+/// makes; never up one a press with no movement key meets.
+#[test]
+fn an_honest_jump_gets_up_what_its_clip_clears() {
+    for (rise, standing, sprint) in [(0.9, true, true), (1.2, false, true), (1.45, false, false)] {
+        let triangles = ledge_triangles(rise, mapdata::WalkerBehaviour::BySlope);
+        let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+        let walls = mapdata::RayTree::build(&triangles);
+        let at_face = honest_body(&grid, Vec3::new(9.5, 0.0, 5.0));
+        let (to, _) = honest_jump(&grid, &walls, at_face.clone(), key::FORWARD | key::JUMP, 0.0);
+        assert_eq!((to.y - rise).abs() < 0.05, standing, "{rise}: {to:?}");
+        assert!(standing || (to.y.abs() < 0.05 && to.x < 10.0), "{rise}: {to:?}");
+        let run_up = honest_body(&grid, Vec3::new(7.5, 0.0, 5.0));
+        let keys = key::FORWARD | key::SPRINT | key::JUMP;
+        let (to, _) = honest_jump(&grid, &walls, run_up, keys, 5.0);
+        assert_eq!((to.y - rise).abs() < 0.05, sprint, "{rise} sprint: {to:?}");
+        let (to, _) = honest_jump(&grid, &walls, at_face, key::JUMP, 0.0);
+        assert!(to.y.abs() < 0.05, "{rise} in place: {to:?}");
+    }
+}
+
+/// A jump off a ledge's edge comes down on the floor below (it falls
+/// after its clip).
+#[test]
+fn an_honest_jump_off_an_edge_falls_to_the_floor_below() {
+    let triangles = ledge_triangles(3.0, mapdata::WalkerBehaviour::BySlope);
+    let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+    let walls = mapdata::RayTree::build(&triangles);
+    let mut body = honest_body(&grid, Vec3::new(10.6, 3.0, 5.0));
+    body.yaw = std::f32::consts::FRAC_PI_2;
+    let (to, _) = honest_jump(&grid, &walls, body, key::FORWARD | key::JUMP, 0.0);
+    assert!(to.y.abs() < 0.05 && to.x < 9.0, "{to:?}");
+}
+
+/// The honest walk steps up to the client's 0.6 m, and not up the grid's
+/// "forced" stair links of up to 0.75 m (`walk` faces) that the old
+/// walk took.
+#[test]
+fn the_honest_walk_steps_no_higher_than_the_client() {
+    let walk_east = |grid: &mapdata::WalkGrid, capped: bool| {
+        let mut node = grid.locate(Vec3::new(8.0, 0.0, 5.0), 0.5).unwrap();
+        let mut feet = grid.position(node);
+        for _ in 0..40 {
+            let to = feet + Vec3::new(0.2, 0.0, 0.0);
+            (node, feet, _) = if capped {
+                slide_capped(grid, node, feet, to, grid.body().step)
+            } else {
+                slide(grid, node, feet, to)
+            };
+        }
+        feet
+    };
+    let forced = |rise: f32| {
+        let triangles = ledge_triangles(rise, mapdata::WalkerBehaviour::Walk);
+        let mut triangles = triangles;
+        // The floor before the step forced too: the grid's stair rule
+        // links two forced floors.
+        for t in triangles.iter_mut().take(2) {
+            t.walker = mapdata::WalkerBehaviour::Walk;
+        }
+        mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default())
+    };
+    let low = forced(0.5);
+    assert!((walk_east(&low, true).y - 0.5).abs() < 0.05);
+    let high = forced(0.7);
+    let old = walk_east(&high, false);
+    assert!((old.y - 0.7).abs() < 0.05, "the grid links a 0.7 m forced step: {old:?}");
+    let honest = walk_east(&high, true);
+    assert!(honest.y.abs() < 0.05 && honest.x < 10.0, "{honest:?}");
+}
+
 /// The stand-in game.
 struct Game {
     world: Arc<World>,
@@ -433,6 +961,10 @@ struct Game {
     /// run's loop counts those lying in zones on all match).
     zone_deaths: u32,
     zone_hp: f32,
+    /// Zone spells ended ([`ZoneSpell::ended`]): the health the zones took,
+    /// the body's health at the end (enemy fire counts; a death, 0) and at
+    /// the start, and 1 if in a fight ([`SPELL_FIGHT_MS`]).
+    zone_spells: Vec<[f32; 5]>,
     took_from: Vec<Vec3>,
     /// Carriers' ground distance walked (m) and their living ticks: their
     /// mean speed.
@@ -508,6 +1040,13 @@ struct Game {
     shot_facts: Vec<fight_tally::ShotFact>,
     /// Shots spread as the game's do ([`bench_spread`], `SRP_BENCH_SPREAD`).
     spread: bool,
+    /// Whether bodies move as the client's do ([`honest_stand_in`]); the
+    /// walker mesh a body in the air bumps into (built at the first jump;
+    /// the sight's when the map has none, as the tests' fields); every
+    /// jump's landing.
+    honest: bool,
+    walls: Option<Arc<mapdata::RayTree>>,
+    landings: Vec<Landing>,
 }
 
 /// The soak map: the 80 x 40 m field (a wall across its middle up to
@@ -584,11 +1123,15 @@ impl Game {
             drawn_at: 0,
             moved: 0.0,
             air_until: 0,
+            flight: None,
+            step_m: 0.0,
             legs: [0.5; 2],
             leg_broken_until: 0,
             last_hit: 0,
             target: None,
             spread: bench_spread::Spread::default(),
+            zone_spell: None,
+            why_now: 0,
         };
         let mut game = Self {
             kin: Kinematics::default(),
@@ -623,6 +1166,7 @@ impl Game {
             drops: [0, 0],
             zone_deaths: 0,
             zone_hp: 0.0,
+            zone_spells: Vec::new(),
             took_from: Vec::new(),
             carry_m: 0.0,
             carry_ticks: 0,
@@ -654,6 +1198,9 @@ impl Game {
             nudged: 0,
             shot_facts: Vec::new(),
             spread: false,
+            honest: honest_stand_in(),
+            walls: None,
+            landings: Vec::new(),
             world,
         };
         for place in 0..teams.len() {
@@ -672,9 +1219,17 @@ impl Game {
             .filter(|s| s.team == side)
             .map(|s| s.position)
             .collect();
-        let at = spawns[self.rng.below(spawns.len())]
-            + Vec3::new(self.rng.range(-2.0, 2.0), 0.0, self.rng.range(-2.0, 2.0));
-        let node = self.world.grid.locate(at, 3.0);
+        let point = spawns[self.rng.below(spawns.len())];
+        let at = point + Vec3::new(self.rng.range(-2.0, 2.0), 0.0, self.rng.range(-2.0, 2.0));
+        // Off by up to 2 m, but only onto a floor a walk from a spawn gets
+        // to and back from: the offset can land on a floor below or beside
+        // the spawn that no way leaves (Rudnya: 0.7 % of offsets, one spawn
+        // 12 %), where the game never puts a body (it spawns on the point).
+        let grid = &self.world.grid;
+        let node = grid
+            .locate(at, 3.0)
+            .filter(|&n| grid.reached(n) && grid.returns(n))
+            .or_else(|| grid.locate(point, 3.0));
         let feet = node.map_or(at, |n| self.world.grid.position(n));
         let tick = self.tick;
         let body = &mut self.bodies[place];
@@ -692,6 +1247,9 @@ impl Game {
         body.legs = [0.5; 2];
         body.leg_broken_until = 0;
         body.last_hit = 0;
+        body.flight = None;
+        body.step_m = 0.0;
+        body.zone_spell = None;
         body.alive = true;
         body.spawned = tick;
         body.carrying = None;
@@ -743,10 +1301,15 @@ impl Game {
                 queue.pop_front();
                 let body = &mut self.bodies[place];
                 pressed[place] = keys & !body.keys;
+                let mut jump = false;
                 if pressed[place] & key::JUMP != 0 {
                     self.jumps_pressed += 1;
                     if body.legs.iter().all(|&pool| pool > 0.0) {
-                        body.air_until = tick + STAND_IN_AIR_MS;
+                        if self.honest {
+                            jump = true;
+                        } else {
+                            body.air_until = tick + STAND_IN_AIR_MS;
+                        }
                     } else {
                         self.jumps_refused += 1;
                     }
@@ -766,7 +1329,38 @@ impl Game {
                 body.yaw += turn.0;
                 let taken = body.recoil.turn(turn.1);
                 body.pitch = (body.pitch + turn.1 + taken).clamp(-1.0, 1.0);
+                // The honest stand-in's jump: the keys and the facing at
+                // the press pick its clip and way; none in the air.
+                if jump && body.alive && body.node.is_some() && body.flight.is_none() {
+                    let staggered =
+                        body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS;
+                    let may_sprint = body.carrying.is_none() && !staggered;
+                    let (clip, dir) = jump_of(keys, body.yaw, body.step_m / TICK_S, may_sprint);
+                    let u = press_draw(tick, place);
+                    let prepare = if std::ptr::eq(clip, &SPRINT_CLIP) {
+                        (SPRINT_PREPARE_MS * u, SPRINT_PREPARE_M * u)
+                    } else {
+                        (0.0, 0.0)
+                    };
+                    body.flight = Some(Flight {
+                        at: tick,
+                        from: body.feet,
+                        dir,
+                        clip,
+                        prepare,
+                        base: None,
+                        fall: None,
+                    });
+                }
             }
+        }
+        if self.walls.is_none() && self.bodies.iter().any(|b| b.flight.is_some()) {
+            let walker = self.world.map.walker_triangles();
+            self.walls = Some(if walker.is_empty() {
+                self.world.sight.clone()
+            } else {
+                Arc::new(mapdata::RayTree::build(&walker))
+            });
         }
         for (body, &pressed) in self.bodies.iter_mut().zip(&pressed) {
             if body.alive {
@@ -820,24 +1414,38 @@ impl Game {
             );
             if let Some(node) = body.node {
                 let grid = &self.world.grid;
-                let (mut node, mut feet, _) = slide(grid, node, body.feet, to);
-                // In the air, walking into a floor the jump clears: up on
-                // it (once a jump).
-                if tick < body.air_until
-                    && feet.distance_xz(to) > 1e-3
-                    && let Some(up) = stand_in_jump(grid, node, feet, to, standing_jump())
-                {
-                    node = up;
-                    feet = grid.position(up);
-                    body.air_until = 0;
+                let before = body.feet;
+                if !self.honest {
+                    let (mut node, mut feet, _) = slide(grid, node, body.feet, to);
+                    // In the air, walking into a floor the jump clears: up
+                    // on it (once a jump).
+                    if tick < body.air_until
+                        && feet.distance_xz(to) > 1e-3
+                        && let Some(up) = stand_in_jump(grid, node, feet, to, standing_jump())
+                    {
+                        node = up;
+                        feet = grid.position(up);
+                        body.air_until = 0;
+                    }
+                    body.node = Some(node);
+                    body.feet = feet;
+                } else if body.flight.is_some() {
+                    // Keys held in the air do not steer it (no air control).
+                    let walls = self.walls.as_deref().expect("built at the press");
+                    if let Some(landing) = fly(grid, walls, body, place, tick) {
+                        self.landings.push(landing);
+                    }
+                } else {
+                    let (node, feet, _) = slide_capped(grid, node, body.feet, to, grid.body().step);
+                    body.node = Some(node);
+                    body.feet = feet;
                 }
-                body.moved += feet.distance_xz(body.feet);
+                body.step_m = body.feet.distance_xz(before);
+                body.moved += body.step_m;
                 if body.carrying.is_some() {
-                    self.carry_m += feet.distance_xz(body.feet);
+                    self.carry_m += body.step_m;
                     self.carry_ticks += 1;
                 }
-                body.node = Some(node);
-                body.feet = feet;
             }
         }
         self.shoot(tick);
@@ -1088,8 +1696,11 @@ impl Game {
     fn zone_tick(&mut self, inside: &Hazards, on: &Hazards) {
         let tick = self.tick;
         for place in 0..self.bodies.len() {
-            let body = &self.bodies[place];
+            let body = &mut self.bodies[place];
             if !body.alive {
+                if let Some(spell) = body.zone_spell.take() {
+                    self.zone_spells.push(spell.ended(body));
+                }
                 continue;
             }
             let Some(node) = self.world.grid.locate(body.feet, 1.0) else {
@@ -1105,16 +1716,49 @@ impl Game {
                 })
                 .map(Hazard::hit_per_s)
                 .sum();
+            let body = &mut self.bodies[place];
             if per_s <= 0.0 {
+                if let Some(spell) = body.zone_spell
+                    && tick >= spell.last + SPELL_GAP_MS
+                {
+                    self.zone_spells.push(spell.ended(body));
+                    body.zone_spell = None;
+                }
                 continue;
             }
-            let body = &mut self.bodies[place];
             let hit = (per_s * TICK_S).min(body.health.max(0.0));
+            let spell = body.zone_spell.get_or_insert(ZoneSpell {
+                start: tick,
+                health: body.health,
+                lost: 0.0,
+                last: tick,
+                why: 0,
+            });
+            spell.why |= body.why_now;
+            spell.lost += hit;
+            spell.last = tick;
             body.health -= hit;
             self.zone_hp += hit;
             if body.health > 1e-3 {
                 continue;
             }
+            // What took the rest: the spell, and the enemy hits in it.
+            let spell = body.zone_spell.take().expect("just set");
+            self.zone_spells.push(spell.ended(body));
+            eprintln!(
+                "  zone death: at {:.1} s, in zones {:.1} s at {:.2} a second, health {:.2} then, \
+                 the zones took {:.2}, last enemy hit {}",
+                f64::from(tick) / 1000.0,
+                f64::from(tick - spell.start) / 1000.0,
+                per_s,
+                spell.health,
+                spell.lost,
+                if body.last_hit == 0 {
+                    "none this life".to_string()
+                } else {
+                    format!("{:.1} s before", f64::from(tick - body.last_hit) / 1000.0)
+                }
+            );
             body.alive = false;
             body.dead_at = tick;
             if let Some(battery) = body.carrying.take() {
@@ -1332,7 +1976,9 @@ impl Game {
                 yaw: body.yaw,
                 pitch: body.pitch,
                 keys: body.keys,
-                speed: Some({
+                speed: Some(if body.flight.is_some() {
+                    body.step_m / TICK_S
+                } else {
                     let [a, l] = body.blend.now(self.kin.blend_ticks);
                     a.hypot(l)
                 }),
@@ -4642,7 +5288,9 @@ fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (Vec<Made>, V
 /// `SRP_MAPDATA_DIR=<mapdata-dump files>` (and `SRP_BOT_ROUTES` for the
 /// human routes): the stand-in game on a real map, polled every 5 ms as
 /// the match server's loop does with nobody sending, each part of the poll
-/// timed (the stand-in's own time not counted).
+/// timed (the stand-in's own time not counted). `SRP_BENCH_SECONDS` sets
+/// a match's length (240 s; 600 s is the owner's test, for the
+/// `owner-test` counts of [`owner_tally`]).
 ///
 /// ```text
 /// SRP_MAPDATA_DIR=<dir> SRP_BOT_ROUTES=<json> cargo test -p match-server --release real_bot_cost -- --ignored --nocapture
@@ -4848,6 +5496,7 @@ fn real_bot_cost() {
             let mut lying_unknown = [0u32; 2];
             super::path::reset_worst();
             let searches_before = super::path::searches();
+            let crossings_before = super::crossing::counts();
             let rays_before = super::aimpoint::rays_cast();
             let limit_ms = limit_s * 1000;
             let (mut clock, mut next_world) = (0, 1_000);
@@ -4925,6 +5574,12 @@ fn real_bot_cost() {
             bots.bench_human = human.as_ref().map(|h| h.place);
             let mut blocks = BlockTally::default();
             let mut hits = HitTally::default();
+            let mut owner = owner_tally::OwnerTally::new(game.bodies.len());
+            bots.bench_camper = std::env::var("SRP_BENCH_CAMPER")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .map(|place| (place, None));
+            owner.camper = bots.bench_camper.map(|(place, _)| place);
             // The zones' own shapes, for their hits on the bodies; batteries
             // taken from floors of zones on all match, and their spots.
             // The zones' damage to the stand-in's bodies, with
@@ -4937,6 +5592,9 @@ fn real_bot_cost() {
                 clock += 5;
                 while game.tick + TICK_MS <= clock {
                     let stats_before = game.stats.clone();
+                    for bot in bots.bots.iter().flatten() {
+                        game.bodies[bot.place].why_now = bot.bench_why;
+                    }
                     game.step();
                     if let Some(tactics) = bots.tactics.as_ref() {
                         if zone_damage {
@@ -4959,6 +5617,7 @@ fn real_bot_cost() {
                     carry.deaths(&stats_before, &game, &bots);
                     BlockTally::gate_tally(&mut bots);
                     blocks.tick(&game, &bots, &mut events);
+                    owner.tick(&mut game, &bots);
                     hits.tick(&mut game, &bots, &mut events);
                     let play_of = |place: Place| {
                         bots.bots[place]
@@ -5199,6 +5858,7 @@ fn real_bot_cost() {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             for note in bots.fixed(place, fix, Some(health)) {
                                 routes.note(&note);
+                                owner.note(&note, &game);
                                 decisions.note(&note);
                                 events.note(&note);
                                 carry.note(&note);
@@ -5257,6 +5917,7 @@ fn real_bot_cost() {
                 raids.polled(&bots, &notes, &made);
                 for note in notes {
                     decisions.note(&note);
+                    owner.note(&note, &game);
                     fight.note(&note);
                     events.note(&note);
                     carry.note(&note);
@@ -5539,9 +6200,16 @@ fn real_bot_cost() {
             eprintln!("  {}", fight.line(&game));
             eprintln!("  routes: {}", routes.line());
             eprintln!(
-                "  jumps: pressed {} refused {}",
-                game.jumps_pressed, game.jumps_refused
+                "  jumps: pressed {} refused {}; stand-in {}",
+                game.jumps_pressed,
+                game.jumps_refused,
+                if game.honest { "honest" } else { "old" }
             );
+            let (owner_line, owner_sums) = owner.finish(&game);
+            eprintln!("  {owner_line}");
+            if let Some((place, spot)) = bots.bench_camper {
+                eprintln!("  camper: place {place} spot {spot:?}");
+            }
             eprintln!("  push: {}", push.line(&bots));
             if let Some(human) = &human {
                 eprintln!("  human: {}", human.line());
@@ -5570,6 +6238,52 @@ fn real_bot_cost() {
                 .collect();
             let play_rows: std::collections::BTreeMap<&String, [u32; 5]> =
                 by_play.iter().map(|(k, r)| (k, *r)).collect();
+            let crossings: [u64; 7] = {
+                let now = super::crossing::counts();
+                std::array::from_fn(|k| now[k] - crossings_before[k])
+            };
+            // Zone spells (`ZoneSpell`): how many, the health they took in
+            // all and at most, how many left the body under 0.6, and how
+            // many took each 0.02 of health (the last bin, 0.98 or more).
+            let zone_spells = {
+                let mut spells = game.zone_spells.clone();
+                spells.extend(
+                    game.bodies
+                        .iter()
+                        .filter_map(|b| b.zone_spell.map(|z| z.ended(b))),
+                );
+                let mut bins = [0u32; 50];
+                for [lost, ..] in &spells {
+                    bins[((lost / 0.02) as usize).min(49)] += 1;
+                }
+                serde_json::json!({
+                    "n": spells.len(),
+                    "lost": spells.iter().map(|s| f64::from(s[0])).sum::<f64>(),
+                    "worst": spells.iter().map(|s| s[0]).fold(0.0f32, f32::max),
+                    "under_06": spells.iter().filter(|s| s[1] < 0.6).count(),
+                    // Of those: begun under 0.7 health, in a fight, either.
+                    "under_06_low": spells.iter().filter(|s| s[1] < 0.6 && s[2] < 0.7).count(),
+                    "under_06_fight": spells.iter().filter(|s| s[1] < 0.6 && s[3] > 0.5).count(),
+                    "under_06_either": spells
+                        .iter()
+                        .filter(|s| s[1] < 0.6 && (s[2] < 0.7 || s[3] > 0.5))
+                        .count(),
+                    "bins": bins.to_vec(),
+                    // Stretches by their bot's motives (`Bot::bench_why`,
+                    // a mask): all, and those that left it under 0.6.
+                    "why": spells.iter().fold(std::collections::BTreeMap::<String, u32>::new(), |mut m, s| {
+                        *m.entry((s[4] as u16).to_string()).or_default() += 1;
+                        m
+                    }),
+                    "under_06_why": spells.iter().filter(|s| s[1] < 0.6).fold(
+                        std::collections::BTreeMap::<String, u32>::new(),
+                        |mut m, s| {
+                            *m.entry((s[4] as u16).to_string()).or_default() += 1;
+                            m
+                        },
+                    ),
+                })
+            };
             eprintln!(
                 "  sums: {}",
                 serde_json::json!({
@@ -5606,6 +6320,11 @@ fn real_bot_cost() {
                     "drops": game.drops,
                     "zone_deaths": game.zone_deaths,
                     "zone_hp": game.zone_hp,
+                    "zone_spells": zone_spells,
+                    // Crossings' searches (`crossing.rs`): searched, taken,
+                    // ring walks, refused, floors expanded, wanted for a long
+                    // route, stopped on the way.
+                    "crossings": crossings,
                     "zone_takes": zone_takes,
                     "zone_spots": zone_spots.len(),
                     "carry_mps": if game.carry_ticks > 0 {
@@ -5613,6 +6332,8 @@ fn real_bot_cost() {
                     } else {
                         0.0
                     },
+                    "stand_in": if game.honest { "honest" } else { "old" },
+                    "owner": owner_sums,
                 })
             );
             eprintln!(
@@ -6089,6 +6810,30 @@ fn the_side_step_weaves_a_walk_along_the_view() {
     assert_eq!(weave(key::LEFT, key::RIGHT), None);
     assert_eq!(weave(0, key::LEFT), None);
     assert_eq!(weave(key::FORWARD, 0), None);
+}
+
+/// A carrier's line way out yields to its motor's crossing only while the
+/// motor walks it: a crossing left with no route (the route dropped by the
+/// unstick's back-off, or a search that found none) holds nothing back, so
+/// a carrier standing in the zone takes its line out (`collect.rs`).
+#[test]
+fn a_crossing_with_no_route_left_does_not_hold_a_carriers_way_out() {
+    use super::path::{Route, Waypoint};
+    let tuning = Tuning::default();
+    let mut bot = Bot::new(1, 0, 0, Some("support"), &tuning);
+    let home = Vec3::new(10.0, 0.0, 10.0);
+    bot.crossing = Some(home);
+    assert_eq!(walks_crossing(&bot), None);
+    let point = |x: f32| Waypoint {
+        at: Vec3::new(x, 0.0, 0.0),
+        node: 0,
+        jump: false,
+        low: false,
+    };
+    bot.route = Some((Route::new(vec![point(0.0), point(5.0)]), home));
+    assert_eq!(walks_crossing(&bot), Some(home));
+    bot.crossing = None;
+    assert_eq!(walks_crossing(&bot), None);
 }
 
 /// The commander moving a bot's Crossfire to another choke leaves the
@@ -7053,6 +7798,165 @@ const SUPPORT_M: f32 = 15.0;
 /// His death traded: his killer dies this soon after, ms.
 const TRADED_MS: u32 = 5_000;
 
+/// The stand-in camper (`SRP_BENCH_CAMPER=<place>`, `campers.md` K1 §4):
+/// that place's bot goes to [`camper_spot`] and holds it all match,
+/// standing, back to it after each respawn; its reflex fires on sight. Its
+/// spot: within this of it, m; the route points it is chosen by: kept this
+/// far apart, m, and seen within this, m.
+pub(super) const CAMPER_WITHIN_M: f32 = 0.7;
+/// The camper's spot and how many route points it sees, if any.
+pub(super) type CamperSpot = Option<(Vec3, u32)>;
+const CAMPER_THIN_M: f32 = 2.0;
+const CAMPER_SEES_M: f32 = 50.0;
+
+/// The stand-in camper's spot: of `side`'s human route points, the one
+/// whose standing eye sees the most of the other side's route points
+/// within [`CAMPER_SEES_M`] (any body part of a standing body there, the
+/// bots' own sight test); ties to the higher. Worked out once a map, from
+/// the map's routes only (no spot table), with the count it sees; none
+/// when it sees none.
+pub(super) fn camper_spot(tactics: &super::tactics::Tactics, side: i32) -> CamperSpot {
+    let points = |side: i32| {
+        let mut kept: Vec<Vec3> = Vec::new();
+        for p in tactics.routes_of(side).flat_map(|r| r.points.iter().copied()) {
+            if p.is_finite() && !kept.iter().any(|k| k.distance_xz(p) < CAMPER_THIN_M && (k.y - p.y).abs() < 1.0) {
+                kept.push(p);
+            }
+        }
+        kept
+    };
+    let (mine, theirs) = (points(side), points(1 - side));
+    let sight = &tactics.world.sight;
+    mine.iter()
+        .map(|&p| {
+            let eye = p + Vec3::new(0.0, 1.6, 0.0);
+            let seen = theirs
+                .iter()
+                .filter(|&&q| {
+                    q.distance_xz(p) <= CAMPER_SEES_M && super::aimpoint::shows(eye, q, false, sight, || true)
+                })
+                .count() as u32;
+            (p, seen)
+        })
+        .filter(|&(_, seen)| seen > 0)
+        .max_by(|a, b| a.1.cmp(&b.1).then(a.0.y.total_cmp(&b.0.y)))
+}
+
+/// Human routes on the soak field: side 0's north lane past the wall's
+/// end and its south lane behind the wall; side 1's the same at x 60-70.
+fn camper_routes() -> Vec<super::routes::HumanRoute> {
+    let route = |team: i32, points: &[(f32, f32)]| super::routes::HumanRoute {
+        team,
+        lives: 10,
+        points: points.iter().map(|&(x, z)| Vec3::new(x, 0.0, z)).collect(),
+        ..Default::default()
+    };
+    vec![
+        route(0, &[(10.0, 33.0), (35.0, 33.0)]),
+        route(0, &[(20.0, 8.0), (30.0, 5.0)]),
+        route(1, &[(60.0, 33.0), (70.0, 33.0)]),
+        route(1, &[(60.0, 5.0), (70.0, 5.0)]),
+    ]
+}
+
+/// The camper's spot is the route point that sees the most of the other
+/// side's: on the north lane at the wall's end, not behind the wall (which
+/// sees none of them), nor farther back.
+#[test]
+fn the_stand_in_campers_spot_sees_most_of_the_other_sides_routes() {
+    let mut tactics = super::tactics::Tactics::new(super::tactics::tests::field(), 1.0);
+    tactics.set_routes(camper_routes());
+    let (at, seen) = camper_spot(&tactics, 0).expect("a spot");
+    assert!(at.distance_xz(Vec3::new(35.0, 0.0, 33.0)) < 0.5, "{at:?} {seen}");
+    assert_eq!(seen, 4);
+    // Behind the wall alone: no spot.
+    let mut walled = super::tactics::Tactics::new(super::tactics::tests::field(), 1.0);
+    walled.set_routes(camper_routes().into_iter().filter(|r| r.team == 1 || r.points[0].z < 20.0).collect());
+    assert_eq!(camper_spot(&walled, 0), None);
+}
+
+/// In a Team Deathmatch on the soak field, the stand-in camper (bot 0)
+/// goes to its spot and holds it; its teammate (the near miss) roams.
+#[test]
+fn the_stand_in_camper_holds_its_spot_and_a_teammate_does_not() {
+    let world = soak_world();
+    let teams = [0u8, 0, 1, 1];
+    let mut bots = Bots::new(
+        0x50AC,
+        survarium::v026g::maps::mode::TEAM_DEATHMATCH,
+        0,
+        &teams,
+        &[true; 4],
+        &[None; 4],
+        Arc::new(Tuning::default()),
+        Trace::none(0),
+    );
+    bots.map_ready(world.clone());
+    if let Some(tactics) = bots.tactics.as_mut() {
+        tactics.set_routes(camper_routes());
+    }
+    bots.bench_camper = Some((0, None));
+    let mut game = Game::new(world, &teams, 1, Some(1_000), None);
+    for place in 0..teams.len() {
+        bots.entered(place, true, 0);
+    }
+    let spot = Vec3::new(35.0, 0.0, 33.0);
+    // By bot: in this life at the spot (within 1 m) yet; living ticks
+    // since, and of them those within 2 m of it; living ticks in all.
+    let mut there = [false; 2];
+    let mut held = [(0u32, 0u32, 0u32); 2];
+    let (limit_ms, mut clock, mut next_world) = (120_000, 0, 1_000);
+    while clock < limit_ms {
+        clock += 25;
+        while game.tick + TICK_MS <= clock {
+            game.step();
+            for (place, held) in held.iter_mut().enumerate() {
+                let body = &game.bodies[place];
+                let off = body.feet.distance_xz(spot);
+                there[place] = body.alive && (there[place] || off <= 1.0);
+                held.2 += u32::from(body.alive);
+                if there[place] {
+                    held.0 += 1;
+                    held.1 += u32::from(off <= 2.0);
+                }
+            }
+        }
+        if clock >= next_world {
+            next_world += 1_000;
+            if let Some((_, fixes, health, facts)) = game.world_at(clock / TICK_MS * TICK_MS - 300) {
+                for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                    bots.fixed(place, fix, Some(health));
+                }
+                bots.facts(facts);
+            }
+        }
+        let (made, _) = bots.poll(Clock {
+            clock,
+            time_left_s: (limit_ms - clock) as f32 / 1000.0,
+            total_s: (limit_ms / 1000) as f32,
+            playing: true,
+        });
+        for made in made {
+            let r = made.input.rotation;
+            let turn = (
+                half_value(u16::from_le_bytes([r[0], r[1]])),
+                half_value(u16::from_le_bytes([r[2], r[3]])),
+            );
+            let bot = bots.bots[made.place].as_ref();
+            let target = bot.and_then(|bot| bot.reflex.target());
+            let gun = bot.map_or(Arms::fallback().primary.0, |bot| bot.reflex.held_gun());
+            game.inputs[made.place].push_back((made.time, made.input.actions, turn, target, gun));
+        }
+    }
+    let found = bots.bench_camper.and_then(|(_, spot)| spot.flatten());
+    assert!(found.is_some_and(|(at, _)| at.distance_xz(spot) < 0.5), "{found:?}");
+    // The camper got there and held it while alive (the reflex never moves
+    // it off); its mate spent little of its life there.
+    let [camper, mate] = held;
+    assert!(camper.0 >= 100 && camper.1 == camper.0, "camper {camper:?}, mate {mate:?}");
+    assert!(f64::from(mate.1) <= 0.2 * f64::from(mate.2), "camper {camper:?}, mate {mate:?}");
+}
+
 /// The human stand-in (`SRP_BENCH_HUMAN=<place>`, CG-12): a bot the plays
 /// take for a human, whose commander gives it Raid on the enemy's container
 /// whenever it is a candidate. Read each tick: his takes from their
@@ -7771,7 +8675,9 @@ mod pocket_runs {
                 .grid
                 .locate(feet, 1.0)
                 .is_some_and(|node| world.grid.in_pocket(node));
-            if seen.out_ms.is_none() && !in_pocket {
+            // Out on the ground: a jump's top beside the rim (the honest
+            // stand-in's body in the air) is near a rim floor, not out.
+            if seen.out_ms.is_none() && !in_pocket && game.bodies[0].flight.is_none() {
                 seen.out_ms = Some(clock);
             }
             if seen.arrived_ms.is_none() && feet.distance_xz(goal) <= 1.5 {

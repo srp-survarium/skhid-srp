@@ -908,7 +908,9 @@ bot was deeper than its search.
 - **Getting out toward the goal.** The way out of a zone weighs the goal:
   exits within 6 m of the nearest are scored on the walk to them (× 3) plus
   their distance to the goal. An exit on the far side counts only when the
-  zone stays off for the walk at 3 m/s, or the zone is mild (5 hp/s or less).
+  zone stays off for the walk at 3 m/s, or the zone is mild (0.05 of health a
+  second or less; it was 5.0, read as health points, which made every zone of
+  the maps but one mild: fixed 2026-10-25, below).
   Escapes from spawn-area marks stay nearest.
 - **Deep in a zone.** When the search ends before an exit, the bot takes the
   match's exit field instead: a search from every unmarked floor back over
@@ -982,6 +984,131 @@ build is in the polls' worst times, which did not grow.
 - The arrival check assumes a healthy bot at sprint pace. A bot slowed by a
   broken leg, no stamina or a hit's stagger gets there later than that; the
   4 s pass and the held-route check every 500 ms cover only part of it.
+
+### Crossing weak zones on all match, and out of a ring of one (2026-10-25)
+
+**Why.** On Mamayev Kurgan TDM (3D route table, 4 v 4, seed 2), a bot
+holding the Cut spot slipped 1.9 m in one tick onto a patch of 92 floors
+(about 6 m²) below it. The grid has no drop link there. A fire's soft damage
+(`logic/anomaly_fire/fire_soft_damage`, 0.04 of health a second, on all
+match) rings the patch. The planner shuts every zone's floors
+(`Tactics::allowed_from`), so every search from there failed (NoWay at the
+start), for 100 s. The zone escape runs only for a bot standing on a zone's
+floor, and this one stood next to it. Players walk through a zone this weak.
+
+**The change** (`crossing.rs`; `Tactics::start_crossing`, `ringed`,
+`only_across_fixed`; `Hazards::only_fixed_at`; `collect::bears`; the motor's
+route search in `mod.rs`).
+
+- **When.** After the plain search: no way, where a walk over the regions
+  does not get there with the zones on all match shut but does with the ones
+  the bot may cross open (`only_across_fixed`). Or a way longer than 1.5 × the
+  line + 10 m (`stuck::may_be_long`) while the line crosses such a zone; not
+  again for 10 s to a goal within 10 m after one that kept the plain route
+  (`crossing::LONG_RETRY_MS`, `Bot::long_kept`).
+- **The search.** The same search again, over polls as ever, with the floors
+  of zones on all match open: those whose walk across at their thinnest (the
+  marks' margin each side) leaves the bot `CROSS_ABORT_LEFT` (`crossable`).
+  Zones of 1.2 a second stay shut.
+- **Taken** when `collect::bears` holds for the health the route costs at
+  `CROSS_MPS` (a battery's crossing's rule, #428: at most half the health,
+  leaving 0.4), and only begun at 0.7 health or more
+  (`crossing::START_HEALTH`). Over a long plain route, only when that route
+  is not worth it (`stuck::worth_round`).
+- **A ring.** Else, from a patch of at most 100 m² that zones on all match
+  wall (`Tactics::ringed`), the route is walked only to the first floor past
+  the ring, toward the goal, if that walk leaves `CROSS_ABORT_LEFT`. It plans
+  as ever from there.
+- **Walked.** A route taken is a crossing (`Bot::crossing`): the motor does
+  not escape off those zones' floors, nor drop the route for them ahead.
+  Once the rest of it would leave under `CROSS_ABORT_LEFT` (hurt in a fight,
+  held up in the zone), it is stopped and the escape walks the bot out
+  (`crossing::still_borne`), as a carrier's crossing.
+- **Goal moved mid-zone.** A crossing whose goal moves while the bot is on
+  its zone's floors (a route leg's next point) is walked on till off them,
+  then it plans to the new goal. Before, the escape took the nearest way
+  out: on Mamayev Kurgan's batteries (10 v 10, tier 9-10, seed 5) one led
+  down a 4 m drop into the 0.25 a second zone below, where the bot died.
+- **A carrier's own way out yields.** Collect's line way out of zones
+  (`Ctx::way_out`: to the nearest dry floor) is not asked while the motor
+  walks a crossing or a ring's walk out (`BotFacts::crossing`). On Mamayev
+  Kurgan's acid the two took turns a poll each, as the floor under the
+  carrier switched `needs_crossing`: the route 8 m on toward home, the line
+  to a floor 0.5 m up it never stepped onto. It stood 60 s there, 0.66 to
+  0.38 health. One way at a time, the running one kept (arbitration, not
+  blending; a behaviour tree's Running node): [steering](https://faculty.cc.gatech.edu/~surban6/2018sp-gameAI/lectures/2018_02_01_steering_continued.pdf),
+  [behavior trees](https://en.wikipedia.org/wiki/Behavior_tree_(artificial_intelligence,_robotics_and_control)).
+- **`MILD_HIT_PS`** (the escape's mild zone) is now 0.05 of health a second.
+  Health and the zones' hits are fractions (`BodyView::health`, `[0, 1]`).
+  At 5.0, every harmful zone of the maps but one (Mamayev Kurgan's 120 a
+  second) was mild, the 0.8-1.2 a second ones too (Vostok Radar Station,
+  Tarakanovsky Fort, Vector Laboratory, Cologne). Mild now: 0.015-0.04
+  (Mamayev Kurgan, School).
+- **Bench stand-in.** Its spawn put a body up to 2 m off a spawn point. On
+  Rudnya 0.7 % of those offsets (one spawn 12 %) land on a floor below with
+  no way to or from any spawn; a bot stood there all match. Now the offset is
+  kept only on a floor that is reached and returns, else the spawn point's
+  floor. Bad landings by map (a 21 × 21 lattice of the offsets): Rudnya 122
+  of 17-19k, Mamayev Kurgan batteries 24, Cologne 23-25, Chemical Plant 6,
+  Vector Laboratory 5, the rest 0.
+
+**Best practice.** The usual way is area costs in one search: Detour's
+[`dtQueryFilter`](https://recastnav.com/classdtQueryFilter.html) (exclude
+flags shut an area, area costs only make it dear) and Unity's
+[`NavMeshAgent.GetAreaCost`](https://docs.unity3d.com/ScriptReference/AI.NavMeshAgent.GetAreaCost.html)
+(a dear area is still used when it is the only way). A second search is used
+instead, for three reasons:
+
+- The regions' graph is built once from the geometry, as
+  [HPA*](https://papersdb.cs.ualberta.ca/~papersdb/view_publication.php?pub_id=585)'s
+  abstract graph. Prices that change with the zones' state would need a cost
+  hook at both levels and change every route.
+- Health is a hard budget, which a cost alone does not keep. A constrained
+  shortest path is NP-hard; the practice is to relax, then check the path
+  ([Carlyle, Royset and Wood](https://faculty.nps.edu/mcarlyle/docs/CarlyleRoysetWoodCSP.pdf);
+  [Lagrangian relaxation](https://linfo2266.readthedocs.io/en/latest/_static/slides/03-lagrangian-relaxation.pdf)).
+  The second search is that at its cheapest: the zones' price infinite
+  first (the search as before), then zero for the ones a bot may cross, the
+  route checked against the budget.
+- Every route a plain search finds stays the same.
+
+The price: a weak zone that would save a modest detour is not crossed. A
+bot moved off valid ground and replanned from where it is follows Detour's
+crowd ([`checkPathValidity`](https://github.com/recastnavigation/recastnavigation/blob/main/DetourCrowd/Source/DetourCrowd.cpp)).
+
+**Tests.** `crossing::tests`: the only way under a weak zone is crossed when
+health bears it, not when too hurt or the zone too strong; a plain route is
+kept with no second search where no zone is on all match; a ringed bot goes
+out by its crossing, or, too hurt for that, out of the ring only, or stays.
+`tactics::tests::a_mild_zone_takes_under_a_tenth_of_health_in_a_crossing_of_2_s`.
+
+**Bench** (seeds 1-8, batteries and TDM, tiers 4-5, 9-10, 13-15, 3D table;
+48 runs of 12 matches; base C = fbe66237 with the stand-in's spawn; the tip
+ba77c815; with `SRP_BENCH_ZONE_DAMAGE=1`):
+
+- Legs with no way: 766 → 569 a run (−198 ± 73). Kills, deliveries,
+  carriers killed, team kills: unchanged within noise.
+- Zone deaths a run 0.58 → 0.62 (+0.04 ± 0.07); by map, none beyond 2 SE
+  (Mamayev Kurgan batteries 1 → 1, TDM 1 → 0 in 48 matches). Health lost to
+  zones a run 0.54 → 1.28: crossings by design.
+- Crossings a run: 126 searched, 40 taken, 6 rings walked out of, 74
+  refused. Stretches in zones that left a body under 0.6 health: Mamayev
+  Kurgan batteries 10 → 94 (78 begun under 0.7 health, 18 in a fight),
+  TDM 25 → 43; the worst stretch took 0.72.
+- The carrier's way out (bf6526b0, against ba77c815): Mamayev Kurgan
+  batteries' stretches under 0.6 94 → 30 (ring walk-outs 37 → 0, Collect's
+  straight walk 27 → 0), zone deaths 1 → 1; every other map's decisions the
+  same; batteries 10 v 10 −0.47 ± 0.27 ms a second side by side.
+- CPU against C, same load (0c5d9a2d): batteries 10 v 10 +0.48 ± 0.29 ms
+  a second plain, +0.87 ± 0.34 with zone damage; TDM 10 v 10 +0.37 ± 0.31.
+- The stand-in's spawn alone (C against fbe66237) moves Rudnya (no way
+  8307 → 6244 batteries, 10536 → 4661 TDM), Mamayev Kurgan batteries
+  (delivered 346 → 341) and Cologne TDM (no way 2210 → 614): those maps'
+  earlier bench numbers were partly its artefact.
+
+Open: an escape's way out runs over any floors, so it may drop into a
+stronger zone below (`Tactics::escape`). Mamayev Kurgan batteries' 30
+stretches under 0.6 left: walk-on 17, escape 8, crossings 5.
 
 ### Bots out of pockets (2026-10-24)
 

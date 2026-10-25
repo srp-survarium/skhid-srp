@@ -547,7 +547,7 @@ fn battery_candidate_given(
 /// A crossing's walk across a zone's floor, m/s: the walk is 3.5 m/s
 /// forward (`kin`, PROVEN); less for side steps, the 0.3 s blend and a
 /// carrier's load. GUESS.
-const CROSS_MPS: f32 = 2.5;
+pub const CROSS_MPS: f32 = 2.5;
 /// A crossing's dry edge is looked for this far off what it crosses to at
 /// most, metres, along [`CROSS_WAYS`] ways; the line's damage is summed
 /// every [`CROSS_STEP_M`]. GUESS: of the real maps' batteries in zones on
@@ -555,7 +555,7 @@ const CROSS_MPS: f32 = 2.5;
 /// about 20 m of one (the survey in `docs/notes/player_bots_batteries.md`).
 const CROSS_MAX_M: f32 = 25.0;
 const CROSS_WAYS: usize = 16;
-const CROSS_STEP_M: f32 = 0.5;
+pub const CROSS_STEP_M: f32 = 0.5;
 /// A take's walk in stops this short of a battery on the floor, metres:
 /// it stops where the look down is [`TAKE_PITCH_RAD`], about 1.2 m off
 /// (`take_flat_m`), and uses from there; a little less, to be safe. GUESS.
@@ -571,7 +571,7 @@ const CROSS_SHARE: f32 = 0.5;
 const CROSS_LEFT: f32 = 0.4;
 /// In a zone, a take gives up once the walk back out would leave less
 /// than this. GUESS.
-const CROSS_ABORT_LEFT: f32 = 0.25;
+pub const CROSS_ABORT_LEFT: f32 = 0.25;
 
 /// A walk in a line across zones on all match to a battery no way leads
 /// to (`Ctx::needs_crossing`), from a dry floor a way does lead to; or a
@@ -594,11 +594,19 @@ impl Crossing {
         2.0 * self.leg + CROSS_TAKE_S * self.at_per_s
     }
 
-    /// Whether a bot of `health` makes it ([`CROSS_SHARE`], [`CROSS_LEFT`]).
+    /// Whether a bot of `health` makes it ([`bears`]).
     pub fn fits(&self, health: f32) -> bool {
-        let cost = self.cost();
-        cost <= CROSS_SHARE * health && health - cost >= CROSS_LEFT
+        bears(self.cost(), health)
     }
+}
+
+/// Whether a bot of `health` bears a walk across zones that costs it `cost`
+/// of its health: at most [`CROSS_SHARE`] of it, leaving at least
+/// [`CROSS_LEFT`]. The one rule for walks across zones on all match: a
+/// battery's crossing ([`Crossing::fits`]) and a route's
+/// (`crossing::choose`).
+pub fn bears(cost: f32, health: f32) -> bool {
+    cost <= CROSS_SHARE * health && health - cost >= CROSS_LEFT
 }
 
 /// How far short of its stand a take's walk in stops ([`CROSS_STOP_M`]):
@@ -1281,8 +1289,15 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 return Step::Failed("no container of ours");
             };
             // In zones on all match with no way out (a crossing's take):
-            // out first by the cheapest crossing, in a line.
-            if let Some(out) = cx.way_out() {
+            // out first by the cheapest crossing, in a line. Not while its
+            // motor walks a crossing or a ring's walk out home (`crossing.rs`):
+            // one way at a time. On Mamayev Kurgan's acid the two took turns,
+            // a poll each (the line to a floor 0.5 m up it never stepped
+            // onto, the route 8 m on toward home), and a carrier stood 60 s
+            // in it, from 0.66 health to 0.38.
+            if cx.bot.crossing.is_none()
+                && let Some(out) = cx.way_out()
+            {
                 return Step::Continue(Intent::to(out.edge, Pace::Walk).within(0.5).straight());
             }
             // Trapped for good: no way home with it. Let go, and fight
@@ -1991,6 +2006,12 @@ mod tests {
         // Walked straight: no way out of the zone is asked for.
         assert!(intent.straight && !intent.zone_ok, "{intent:?}");
         assert!(matches!(intent.go, Go::To { at, .. } if at.distance_xz(edge) < 0.01));
+        // Its motor walking a crossing home already: that way, not the line.
+        s.crossing = Some(Vec3::new(10.0, 0.0, 10.0));
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(!intent.straight, "{intent:?}");
+        assert!(matches!(intent.go, Go::To { at, .. } if at.distance_xz(edge) > 1.0), "{intent:?}");
+        s.crossing = None;
         // Out: home by the route as ever.
         s.bot(0, 0, edge).carrying = Some(0);
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));

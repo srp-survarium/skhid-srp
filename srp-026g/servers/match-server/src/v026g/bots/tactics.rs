@@ -49,10 +49,18 @@ const ESCAPE_IN_WEIGHT: f32 = 3.0;
 /// A body walks out of a zone at least this fast, m/s: a walk aiming
 /// forward (`kin`: 3.0).
 const ESCAPE_WALK_MPS: f32 = 3.0;
-/// A zone whose hit a second is at most this, health points, may be walked
-/// on through to a way out further on while on. GUESS: under a tenth of a
-/// body's health in a crossing of 2 s.
-const MILD_HIT_PS: f32 = 5.0;
+/// A zone whose hit a second is at most this, of a body's health (`[0, 1]`,
+/// as `BodyView::health` and the zones' hits), may be walked on through to a
+/// way out further on while on. GUESS: under a tenth of a body's health in a
+/// crossing of 2 s. It was 5.0, as if in health points: every zone of the
+/// maps but one (Mamayev Kurgan's 120 a second) was mild, those of 0.8-1.2
+/// a second too, a body's death in about a second.
+const MILD_HIT_PS: f32 = 0.05;
+
+/// Whether a zone that hits `hit_per_s` a second is mild ([`MILD_HIT_PS`]).
+fn mild(hit_per_s: f32) -> bool {
+    hit_per_s <= MILD_HIT_PS
+}
 /// A held route is looked over this far ahead for zones it would meet on,
 /// metres (GUESS: 3 s of a sprint, past the time a zone's prediction is
 /// sure).
@@ -580,6 +588,47 @@ impl Tactics {
         bits
     }
 
+    /// Whether a walk over the regions from `from`'s to `to`'s gets there
+    /// with the regions zones on all match mark shut ([`Hazards::fixed_at`],
+    /// as [`Self::past_fixed_zones`]) but those `open` gives open, off another
+    /// side's spawn area: a crossing of such zones is then the only way
+    /// (`crossing::wanted`). Not when it gets there with them shut too (the
+    /// plain search failed for something else), nor when it does not with
+    /// them open. A few thousand regions at most, twice.
+    pub fn only_across_fixed(
+        &self,
+        from: NodeId,
+        to: NodeId,
+        side: Option<i32>,
+        objective: bool,
+        open: impl Fn(NodeId) -> bool,
+    ) -> bool {
+        let regions = &self.base.regions;
+        let (start, goal) = (regions.of(from), regions.of(to));
+        let reach = |pass: &dyn Fn(NodeId) -> bool| {
+            let mut seen = vec![false; regions.len()];
+            seen[start as usize] = true;
+            let mut queue = vec![start];
+            while let Some(a) = queue.pop() {
+                if a == goal {
+                    return true;
+                }
+                for &(b, _) in regions.out(a) {
+                    let middle = regions.middle(b);
+                    if !seen[b as usize]
+                        && (b == goal || (self.spawn_ok(middle, side, objective) && pass(middle)))
+                    {
+                        seen[b as usize] = true;
+                        queue.push(b);
+                    }
+                }
+            }
+            false
+        };
+        !reach(&|middle| !self.hazards.fixed_at(middle))
+            && reach(&|middle| !self.hazards.fixed_at(middle) || open(middle))
+    }
+
     /// Whether `point` is in a spawn area of `side` (any side if `None`).
     pub fn in_spawn_area(&self, point: Vec3, side: Option<i32>) -> bool {
         self.base.in_spawn_area(point, side)
@@ -820,6 +869,115 @@ impl Tactics {
         )
     }
 
+    /// [`Self::start_route`] with the floors `crossable` gives open as well
+    /// (floors of zones on all match a bot may walk across,
+    /// `crossing::crossable`), off another side's spawn area all the same: a
+    /// crossing's search, after the plain one found no way or a long one
+    /// (`crossing.rs`). Regions are let through but for another side's spawn
+    /// area: the floors decide.
+    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::result_large_err)]
+    pub fn start_crossing(
+        &self,
+        start: NodeId,
+        goal: NodeId,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        crossable: impl Fn(NodeId) -> bool,
+        iters: &mut usize,
+    ) -> Result<Option<Route>, path::Planning> {
+        let at = self.world.grid.position(start);
+        path::plan_start(
+            &self.world.grid,
+            &self.base.regions,
+            start,
+            goal,
+            |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
+            |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
+            iters,
+        )
+    }
+
+    /// A [`Self::start_crossing`] search goes on, as
+    /// [`Self::resume_route`] (the same arguments, `crossable` too).
+    #[allow(clippy::too_many_arguments)]
+    pub fn resume_crossing(
+        &self,
+        planning: &mut path::Planning,
+        start: NodeId,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        crossable: impl Fn(NodeId) -> bool,
+        iters: &mut usize,
+    ) -> Option<Option<Route>> {
+        let at = self.world.grid.position(start);
+        planning.resume(
+            &self.world.grid,
+            &self.base.regions,
+            |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
+            |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
+            iters,
+        )
+    }
+
+    /// A crossing's floors: [`Self::allowed_from`]'s, and those `crossable`
+    /// gives off another side's spawn area.
+    fn crossing_allowed(
+        &self,
+        node: NodeId,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        from: Vec3,
+        crossable: &impl Fn(NodeId) -> bool,
+    ) -> bool {
+        self.allowed_from(node, time, side, objective, from)
+            || (crossable(node) && self.spawn_ok(node, side, objective))
+    }
+
+    /// Whether the floors a body on `from` may walk to
+    /// ([`Self::allowed_from`]) are at most `max` and walled by zones on all
+    /// match: every floor refused at their edge is one only such zones mark
+    /// ([`Hazards::only_fixed_at`]), none another side's spawn area or a zone
+    /// that switches. A bot that fell or was pushed into such a patch has no
+    /// route anywhere (Mamayev Kurgan's fire soft damage, 0.04 a second,
+    /// rings 92 floors below a Cut spot).
+    pub fn ringed(
+        &self,
+        from: NodeId,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        max: usize,
+    ) -> bool {
+        let grid = &self.world.grid;
+        let at = grid.position(from);
+        let mut seen = std::collections::HashSet::from([from]);
+        let mut queue = vec![from];
+        let mut walled = false;
+        while let Some(n) = queue.pop() {
+            for (b, _) in grid.links(n) {
+                if seen.contains(&b) {
+                    continue;
+                }
+                if self.allowed_from(b, time, side, objective, at) {
+                    if seen.len() >= max {
+                        return false;
+                    }
+                    seen.insert(b);
+                    queue.push(b);
+                } else if self.hazards.only_fixed_at(b) && self.spawn_ok(b, side, objective) {
+                    walled = true;
+                } else {
+                    return false;
+                }
+            }
+        }
+        walled
+    }
+
     /// The way out for a body on `from`, a floor it may not walk on now
     /// (inside a zone it was pushed or stepped into, or one about to come
     /// on): to a floor at least [`ESCAPE_MIN_M`] off that it may walk on
@@ -884,7 +1042,7 @@ impl Tactics {
         let goal = goal.filter(|_| self.hazards.zone_of(from).is_some());
         let out = match (goal, nearest) {
             (Some(goal), Some(nearest)) => {
-                let mild = self.hazards.hit_per_s(from) <= MILD_HIT_PS;
+                let mild = mild(self.hazards.hit_per_s(from));
                 let in_time = |d: f32| {
                     let walk_ms = (d / ESCAPE_WALK_MPS * 1000.0) as u32;
                     self.hazards.allowed_for(from, time, walk_ms)
@@ -968,7 +1126,16 @@ impl Tactics {
     /// planned for the zones as they were then; a zone that came on since,
     /// or one the body is late for, would be walked into (the Cologne
     /// anomaly bench, runs 1 and 3: 1.2 s on a zone's floors while on).
-    pub fn route_shut_ahead(&self, route: &mut Route, feet: Vec3, time: u32) -> bool {
+    ///
+    /// On a crossing (`crossing`, `crossing.rs`), the floors only zones on all
+    /// match mark do not shut it: the crossing was weighed when planned.
+    pub fn route_shut_ahead(
+        &self,
+        route: &mut Route,
+        feet: Vec3,
+        time: u32,
+        crossing: bool,
+    ) -> bool {
         if self.hazards.zones.is_empty() {
             return false;
         }
@@ -988,6 +1155,7 @@ impl Tactics {
             let point = route.floor_point((from + k as f32 * HELD_STEP_M).min(to));
             grid.locate(point, 0.6).is_some_and(|node| {
                 self.hazards.zone_of(node).is_some()
+                    && !(crossing && self.hazards.only_fixed_at(node))
                     && !self
                         .hazards
                         .allowed_arriving(node, time, point.distance_xz(feet))
@@ -1393,6 +1561,30 @@ pub(super) mod tests {
         edit(&mut map);
         let sight = RayTree::build(&triangles);
         Arc::new(World::assemble(map, grid.into(), sight.into()))
+    }
+
+    /// [`MILD_HIT_PS`] is of a body's health, `[0, 1]`: a zone that kills
+    /// a whole body within a crossing of 2 s (Vostok Radar Station's and
+    /// Cologne's 1.2 a second, Tarakanovsky Fort's 0.8) is not mild; one that
+    /// takes under a tenth of it (Mamayev Kurgan's fire soft damage, 0.04)
+    /// is.
+    #[test]
+    fn a_mild_zone_takes_under_a_tenth_of_health_in_a_crossing_of_2_s() {
+        let per_s = |max_hit: f32| {
+            mapdata::Damage {
+                max_hit,
+                parts: 2,
+                continuous: true,
+                ..mapdata::Damage::default()
+            }
+            .raw()
+        };
+        for deadly in [0.6, 0.4] {
+            assert!(2.0 * per_s(deadly) >= 1.0);
+            assert!(!mild(per_s(deadly)), "{}", per_s(deadly));
+        }
+        assert!(2.0 * per_s(0.02) <= 0.1);
+        assert!(mild(per_s(0.02)));
     }
 
     #[test]
