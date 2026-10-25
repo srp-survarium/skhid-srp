@@ -1925,3 +1925,12 @@ va	name	source	ret_cleanup	result
 0x0023dec0	survarium::base_game_scene::point_to_screen	manual	12	AL: on the screen: in front (the projected z below 1, so not behind the camera) and strictly inside 0..width, 0..height; the out position is then the pixel, else the point clamped to the screen's edges (projected above the top: the bottom edge, x mirrored). game_world_ui::update_player_icons (0x23AB12) hides a player's marker when AL is 0
 0x0023aa10	survarium::game_world_ui::update_player_icons	manual	4	
 0x0023b200	survarium::game_world_ui::update_ui	manual	12	
+0x001e8da0	survarium::delete_folder	manual	0	
+0x00131ed0	vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture	manual	4	AL: 1 when the path has a record (its first now marked loading +120h)
+0x0012d1d0	vostok::render::camouflage_decal_texture_type_baker_cook::translate_query	manual	4	
+0x000f0d00	vostok::resources::query_result_for_cook::finish_query_impl	manual	16	
+0x000f0080	vostok::resources::query_result_for_cook::set_unmanaged_resource	manual	12	
+0x0012de30	vostok::render::baked_texture_resource::baked_texture_resource	manual	0	EAX: the object (EAX on entry)
+0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	manual	12	AL: 1 the file is used, 0 made again
+0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	manual	4	
+0x000e0210	vostok::render::render_model_instance::destroy	manual	0	
