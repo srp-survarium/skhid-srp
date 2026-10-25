@@ -36,6 +36,7 @@ Contents:
 7. The staged plan
 8. The server's migration to enums
 9. Stage (a) as built
+10. Reusable places (a design)
 
 ---------------------------------------------------------------------------
 
@@ -561,6 +562,11 @@ Today a place's state is derived from `Game.events`, `stand_ins`,
                        any -> Failed -> Rejected (-> Empty, the ghost of C10 ends)
 ```
 
+With reusable places (section 10) GivenUp is not the end: it becomes
+`Vacant` once no game can roll back across the leave, and a Vacant place
+takes a new occupant through the same admission (`Vacant -> Entering ->
+InPlay`), the occupant counter carried by every variant.
+
 `Away{last_kit}` carries the kit the place last chose: a snapshot holds a
 place's next kit (+0Dh) only while it is in play (restore 0x2D2A24..0x2D2A37),
 so a game that started while the place was away has the lowest kit there.
@@ -886,7 +892,171 @@ The timelines are made up (every place changes its input every 50 ms, or
 at random off-grid times for the precise one); the live gain is to be read
 from patch 71's per-frame trace.
 
-**Not covered:** the local player's own off-grid input snapping
+**Not covered (stage (a)):** the local player's own off-grid input snapping
 (snap_inputs with a local place: its input lists are not modelled; it only
 lowers the point, which the postponement keeps as the least); a real
 world's load and step costs (the model counts them).
+
+---------------------------------------------------------------------------
+
+## 10. Reusable places (a design; the stage after the pacing and the server's enums)
+
+The owner, 2026-10-25: "I thought if you leave, others can join in your
+place ... can't the new Rust code be designed around that ... so people can
+rejoin."
+
+### 10.1 Why places are used up today
+
+A match's places are append-only. A late joiner, or a player who comes back
+as a new seat, always takes the next index; a place given up (0xE0 empty)
+is never taken again; the room left is 20 less the seats ever used. So a
+match runs out after enough leaves and joins (the "7 v 4" of a long match),
+and a full 10 v 10 can never take anyone back. The reasons are in the
+client:
+
+| What a place has | Where | Bound | Today's rule |
+|---|---|---|---|
+| the slot record, 30h bytes | core +18458h (begin), +1845Ch (end), +18460h (capacity); `+0/+4/+8` the three kits' players, `+0Ch` the kit in use, `+0Dh` the next kit, `+10h` itself, `+14h` its delegate (the slot callback), `+20h` -1, `+24h` FFh, `+2Ch` the place | late join install (`lj_native_install`, late_join_install_026g.c) | **appended**: install refuses unless `end == begin + 30h * place` |
+| the profile | match options `+ place * 45FCh`; the roster count at options `+577B5h`; the squad at `+5782Ch + place` | install decodes the wire profile into it | the count only grows |
+| callback ids | `(place + 1) << 16` through core +18FB0h | bind_slot_reserved (late_join_026g.asm) | a range per place: reusable as is |
+| weapon ids | core +18B4Ch + place * 24 (six a place: three kits, two weapons) | bind_slot_reserved | a range per place: reusable as is |
+| the slot's grenades and traps | nodes of the saved-objects list (core +18914h first, +18918h last; next +8, prev +4) | bind_slot_reserved puts a slot's nodes **in front**, newest slot first | the layout of every history item's game-objects bytes; `shift_saved_objects` prepends zero bytes to every item when a slot is bound |
+| tick delegates | the seven lists at core +18840h (the slot's delegate 0x321790 sets +0Dh from the newest kit choice each step) | 0x321820 (player_slot::initialize) | never removed |
+| animations | the match core +19238h table | install (`bind->animations`) | appended in roster and kit order |
+| statistics | twenty records (late join keeps twenty whatever the roster); the live count at statistics +8 +31E0h | install sets the count to place + 1 | in the world: snapshot, hash |
+| the input lists | core +2FCCh + place * 480h, core +E3E4h + place * 190h | the core's constructor (twenty, patch 11) | survive everything (match.md 17) |
+| in a snapshot | the active mask's places only: their player blocks, their `+0Dh` (0x2D2A24..0x2D2A37) | | an empty place's next kit is not carried (#448) |
+
+### 10.2 The place's lifecycle with reuse
+
+```
+                 roster (start / admission entered)              0xEA, not given up
+  Empty -------------------------------------------> InPlay -------------------------> Away{left_at, last_kit}
+    ^                                                  ^  ^                               |   |
+    |                                                  |  +---- 0xE9 back (same player) --+   |
+    |                                                  |                                      | 0xE0 empty (gave up), or
+    |                                    Entering{admission, occupant n+1}                    | away past the reuse wait
+    |                                                  ^                                      v
+    |                                                  |  admission (Prepare / installed)  GivenUp{left_at}
+    |                                                  |                                      |
+    |                                                  +---- Vacant{since, occupant n} <-------+
+    |                                                         (inactive in every world a game     ring + lead past left_at:
+    +---------- (never: an index is not unbound)               could load; reusable)                no world of the ring has it
+```
+
+**Occupant** is a counter per place (0 for the first player); every
+variant past Empty carries it, and the client keeps it too. A place is
+**Vacant** once it has been out of play for longer than any game can roll
+back across: `left_at + ring (1000 ms with stage (d), 550 today) + the
+roster lead (300 ms)` before the server's clock, so no history item of any
+game has it active, and no relay, drop or roster change for the old
+occupant can still arrive.
+
+### 10.3 What every client must do, alike, at the same tick
+
+The rule that makes it deterministic: **the recycling is two halves, one
+outside the simulation and one inside it**, as the late join already is
+(install outside, entry inside).
+
+1. **Uninstall (outside the simulation, at the server's Prepare for a
+   Vacant place):** only for a place that no history item has active (the
+   client checks: the masks list +12280h has the place's bit clear in
+   every node at or after the oldest item's time; else it answers "busy").
+   - the old occupant's three kit players: their tick-list nodes unlinked
+     from the seven delegate lists, their weapons and inventory objects
+     destroyed through the game's own destructors (the player's
+     destructor is already hooked: `player_destroyed_hook` 0x1F2013);
+   - the slot's grenade and trap nodes taken out of the saved-objects list,
+     and **their bytes taken out of every history item's game-objects
+     buffer** (item +BDF30h: +4 the bytes, +8 the room, +0Ch the size): the
+     inverse of `shift_saved_objects`. A node of an untouched grenade or trap
+     saves one zero byte; a place inactive across the ring has none touched
+     (to be proved per object kind: grenade_core::serialize 0x303DA0,
+     booby_trap_core::serialize 0x3052E0);
+   - its callback ids (`(place + 1) << 16`) and weapon ids released; its
+     animations left (they are presentation; ids keep growing: to check
+     that nothing a world holds names an animation id);
+   - the slot record's kit players cleared; the profile freed (references
+     counted, as install takes them).
+2. **Install (outside, as today) into the same index:** install takes a
+   place below the end (the `end == begin + 30h * place` test becomes "the
+   end, or a Vacant place"); the new profile is decoded over the old;
+   bind_slot_reserved binds into the same ranges.
+3. **The canonical layout.** "The newest slot first" stops being a
+   function of the index once indexes are reused, so the saved-objects
+   list's order becomes **by place, descending** (place 19's nodes first,
+   then 18, ... then the map's objects), whatever the order of binding:
+   bind_slot_reserved inserts a slot's nodes before the first node of a
+   lower place (not at the front), and the history items get the zero
+   bytes at the same offset (not at the front). A game that starts from a
+   snapshot binds its slots in index order and gets the same layout, by
+   construction. (This changes nothing for today's matches: places are
+   bound in ascending order, each in front, which is that same order.)
+4. **Reset (inside the simulation, at the entry tick T):** the new
+   occupant's 0xE9 carries "a new occupant" (the place byte's bit 7, under
+   a revision of its own; every game of the match runs it). In the step to
+   T, before the slot delegates (the change node is processed before the
+   step, 1.3), process_events resets the place's world state: its
+   statistics record (score, kills, deaths: what the scoreboard and the
+   results read), `+0Ch` and `+0Dh` to the new occupant's first kit (the
+   kit choice at T, as #448 does for a return), the rules' per-place
+   state (respawn timers, the battery carrier, Research's units: a list to
+   read per rule), the team (from the new profile). Because it is a world
+   change at a tick, a rollback across T undoes and redoes it like any
+   entry.
+5. **The hud:** the scoreboard row, the kill feed names and the tab list
+   read the profile; patch 39's row refresh and patch 16's counters must
+   see the occupant change (an entry of a place whose row exists).
+
+### 10.4 What the server and the snapshot must carry
+
+- The server's place machine (3.6) with `Vacant` and the occupant counter;
+  admission into a Vacant place is the late-join admission (Prepare to every
+  game, installed from all, a fresh world for the newcomer, its catch-up
+  checked, entry at a tick all are told) with "replace" in the Prepare.
+- A game that starts from a snapshot after the reuse binds the new profile
+  at load (0xE4 carries the current occupants' profiles, as it does for the
+  roster today); a snapshot taken before the entry tick must not start a
+  game that will see the entry (as today: `usable_snapshot` needs worlds
+  after the place's last roster change).
+- **Empty places' state:** a snapshot carries `+0Dh` and the player blocks
+  of active places only. For a Vacant place that is right (nothing of it may
+  be read); for an Away place the server keeps `last_kit` (#448's re-relay)
+  until the place is GivenUp.
+- The game-objects section of a snapshot is in the canonical layout (10.3,
+  3), so a joiner's own binding reads it.
+
+### 10.5 What patch 11 already does, and what is new
+
+| Part | Today (patch 11) | Reuse needs |
+|---|---|---|
+| Prepare / installed / failed / busy, outside the simulation | yes | the same, with "replace" |
+| profile decode, kit players, animations, physics | yes (append) | into a Vacant index |
+| id ranges per place (callbacks, weapons) | yes | reused as they are |
+| twenty input histories and statistics records | yes | the same |
+| saved-objects nodes and the history items' bytes | in front, zero bytes prepended (`shift_saved_objects`) | canonical layout, insertion at an offset, **removal** of the old occupant's |
+| destruction of a place's objects | only when the match ends (`player_destroyed_hook`) | at uninstall, while the match runs |
+| world reset of a place at a tick | none (a new index has a zero record) | the new-occupant entry |
+| server: a place's state | derived from events, `given_up` | the Place enum with Vacant and the occupant |
+
+### 10.6 Cost and risks
+
+- **Cost:** the largest stage after (e). RE: each object kind of a slot and
+  its serialized bytes in the history; the delegate lists' unlinking; each
+  rule's per-place state; the scoreboard's and the hud's per-place caches.
+  Code: uninstall in C or Rust next to install, the layout change in
+  bind_slot_reserved, the new-occupant event, the server's Vacant state and
+  admission. Tests: Unicorn on install/uninstall/reinstall against a fresh
+  binding of the same roster (the saved-objects list and every history
+  item's bytes equal), the differential check of 9 with a reuse in the
+  timeline, server tests with a place reused many times, and then a live
+  test with several games.
+- **Risks:** a desync the moment a place is reused if one game's layout or
+  reset differs (every game of the match is affected; the hash catches it
+  within a second, a resync puts it right); a crash from a pointer to the
+  old occupant left in the hud, the kill feed or a rule; memory of the old
+  profile. A revision of its own (the 0xE9 flag), so the server must offer
+  reuse only to games of that revision.
+- **Order:** after stage (a) and the server's enum refactor (the Place
+  machine is where Vacant lives); before or with (d) (the reuse wait is the
+  ring's length).
