@@ -1539,7 +1539,10 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
         [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
         [(va, len(old)) for va, old, _, _ in P.KILL_FEED_HOOKS] + \
-        [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))]
+        [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
+        [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
+        [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
+        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
 
 
 def pickup_sites():
@@ -4460,6 +4463,127 @@ def test_kill_feed(original, image, before):
           "CombatLogWallIcon, CombatLogRicochetIcon and CombatLogPainIcon)")
 
 
+def test_fall_gravity(original, image, before):
+    """Check 72: free fall takes gravity for the step's dt (patch 72,
+    FALL_GRAVITY; ../docs/notes/fall_damage.md "Split ticks").
+    check_fall_gravity_026g.py runs step_down's free fall on a made-up
+    controller: whole ticks bit for bit the original's, a split tick one
+    tick of gravity in all."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    check(rows(stock, 0x7E6E6, 0x76) == [
+              "movss xmm0,dword [ebx+0x2c708]", "movss xmm3,dword [ebx+0x2c704]", "movaps xmm1,xmm0",
+              "mulss xmm1,dword [dword 0xa7dc00]", "mulss xmm1,xmm3", "movaps xmm2,xmm0", "mulss xmm2,dword [dword 0xa7dc04]",
+              "mulss xmm0,dword [dword 0xa7dc08]", "mulss xmm2,xmm3", "mulss xmm0,xmm3",
+              "movss xmm3,dword [ebx+0x2c770]", "subss xmm3,xmm1", "movss xmm1,dword [ebx+0x2c774]", "subss xmm1,xmm2",
+              "movss dword [ebx+0x2c774],xmm1", "movss xmm1,dword [ebx+0x2c778]", "subss xmm1,xmm0",
+              "movss dword [ebx+0x2c770],xmm3", "movss dword [ebx+0x2c778],xmm1"]
+          and rows(stock, 0x7E75C, 0xB)[:2] == ["mov ecx,[ebx+0x1f0]", "lea eax,[ecx+0x2]"],
+          "the original's free fall (0x7E6E6..0x7E75C): velocity (+2C770h) -= gravity (+2C708h) x up x the tick "
+          "(+2C704h); then ecx and eax are written before any read")
+    check(stock.read(0x7E1B0, 3) == bytes.fromhex("558bec") and stock.read(0x7BDA0, 3) == bytes.fromhex("558bec")
+          and rows(stock, 0x7C13B, 0xD) == ["movss xmm0,dword [ebp+0x8]", "divss xmm0,dword [edi+0x2c704]"]
+          and rows(stock, 0x7B75B, 0xC) == ["movss xmm0,dword [ebp+0xc]", "ucomiss xmm0,dword [esi+0x2c704]"]
+          and stock.read(0x7B4A1, 8) == bytes.fromhex("f30f1185 04c70200".replace(" ", ""))
+          and stock.read(0x7B48D, 8) == bytes.fromhex("f30f1005 78c89c00".replace(" ", ""))
+          and stock.read(0x9CC878, 4) == struct.pack("<f", 0.05),
+          "step_down and player_step both start `push ebp / mov ebp,esp`; player_step's dt is its [ebp+8]; "
+          "updateAction steps it with dt compared to +2C704h, the 0.05 the constructor writes (0x7B4A1)")
+    text = original[P.TEXT_FILE:P.TEXT_FILE + P.TEXT_VSIZE]
+    callers = [P.TEXT_VA + i for i in range(len(text) - 5) if text[i] in (0xE8, 0xE9)
+               and P.TEXT_VA + i + 5 + struct.unpack_from("<i", text, i + 1)[0] == 0x7E1B0]
+    check(callers == [0x7C4F6] and struct.pack("<I", 0x7E1B0) not in original,
+          "step_down's one caller is player_step (0x7C4F6), and no pointer names it")
+    for va, old, new in P.FALL_GRAVITY:
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+              f"{va:#x}: the original's {len(old)} bytes in the original and the build without the late join, "
+              "patch 72's here")
+    check(rows(image, 0x7E6E6, 0x76) == [
+              "lea eax,[ebx+0x2c704]", "movss xmm0,dword [eax+0x4]", "jmp short 0x7e74c", "int3", "int3", "int3",
+              "movaps xmm1,xmm0", "mulss xmm1,dword [dword 0xa7dc00]", "mulss xmm1,xmm3", "movaps xmm2,xmm0",
+              "mulss xmm2,dword [dword 0xa7dc04]", "mulss xmm0,dword [dword 0xa7dc08]", "mulss xmm2,xmm3", "mulss xmm0,xmm3",
+              "movss xmm3,dword [eax+0x6c]", "subss xmm3,xmm1", "movss xmm1,dword [eax+0x70]", "subss xmm1,xmm2",
+              "movss dword [eax+0x70],xmm1", "movss xmm1,dword [eax+0x74]", "subss xmm1,xmm0",
+              "movss dword [eax+0x6c],xmm3", "movss dword [eax+0x74],xmm1", "jmp short 0x7e75c",
+              "mov ecx,[ebp+0x0]", "movss xmm3,dword [ecx+0x8]", "minss xmm3,dword [eax]", "jmp short 0x7e6f6",
+              "int3", "int3"],
+          "the build's free fall: xmm3 = min(player_step's dt, the tick), then the original's products and "
+          "the velocity -= them (eax = the controller +2C704h)")
+    relocated = sorted(v for kind, v in stock.relocations().values() if kind == 3 and 0x7E6E6 - 4 < v < 0x7E75C)
+    built_relocated = sorted(v for kind, v in image.relocations().values() if kind == 3 and 0x7E6E6 - 4 < v < 0x7E75C)
+    check(relocated == [0x7E6FD, 0x7E70C, 0x7E714] and built_relocated == relocated,
+          "the three base relocations in the free fall are the up axis's addresses, between the two sites, "
+          "and stay")
+    hits = [h for s, o, _ in P.FALL_GRAVITY for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not hits, "no branch aims inside the sites" + "".join(f", {h:#x}" for h in hits))
+
+
+def test_bake_cache(original, image, before):
+    """Check 70: the baked textures kept and made once (patch 70,
+    BAKE_CACHE_HOOKS, BAKE_CACHE_KEEP). check_bake_cache_026g.py runs the
+    sites from the game's code on a made-up baker, folder and queries."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 60).split(b"\0")[0]
+    check(rows(stock, 0x1E944E, 0xC) == ["lea eax,[esp+0x470]", "call 0x1e8da0"]
+          and rows(stock, 0x1EC82B, 0xC) == ["lea eax,[esp+0x358]", "call 0x1e8da0"]
+          and stock.read(0x1E8DCF, 7) == bytes.fromhex("c745e403000000") and stock.read(0x1E8DF4, 5) == bytes.fromhex("b814040000")
+          and stock.read(0x1E8E01, 6) == bytes.fromhex("ff1578feae00")
+          and cstr(0x9EE470) == b"user_data/streamed_textures",
+          "game::game (0x1E9455) and game::exit (0x1EC832) delete user_data/streamed_textures: 0x1E8DA0 is "
+          "SHFileOperationA (delay import 0xAEFE78) with FO_DELETE (3) and flags 414h")
+    check(rows(stock, 0x131C88, 0x14) == ["mov eax,[esp+0x18]", "mov [esp+0x44],edi", "cmp eax,[edi+0x114]",
+                                          "jz near 0x131dc2"]
+          and rows(stock, 0x12D4BE, 0x16) == ["mov eax,[esp+0x58]", "add esp,byte +0xc", "lea edx,[esp+0x1b8]",
+                                              "push edx", "call 0x131ed0", "test al,al"]
+          and rows(stock, 0x12D41E, 0x41)[5:] == ["call 0xf0d00", "mov eax,[esp+0xa8]", "mov [esp+0xac],eax",
+                                                  "test edi,edi", "jz near 0x12da56", "lea eax,[edi+0xd0]",
+                                                  "mov ecx,eax", "or edx,byte -0x1", "lock xadd [ecx],edx",
+                                                  "jnz near 0x12da56", "mov ecx,edi", "call 0xe0210"]
+          and rows(stock, 0x12D45F, 9) == ["pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0x4"]
+          and rows(stock, 0x12DA56, 9) == ["pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0x4"]
+          and rows(stock, 0x12D2F7, 0x14)[:2] == ["mov edi,eax", "mov [esp+0x48],edi"]
+          and rows(stock, 0x12F184, 0x10) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789"]
+          and rows(stock, 0x12DDA9, 0x10) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789"]
+          and stock.read(0x420789, 4) == bytes.fromhex("8d4108c3")
+          and rows(stock, 0x12F0E0, 0xD) == ["mov edx,[esp+0x610]", "mov ecx,eax", "mov eax,[edx]", "mov [edx],ecx"]
+          and stock.read(0xF0D00, 6) == bytes.fromhex("558bec83e4f8") and popped(stock, 0xF0D00, 0xF0F90) == 0x10,
+          "check_loaded's CRC compare (0x131C90), translate_query's look-up (0x12D4CD) and its end after a refused "
+          "query (0x12D42D: the surfaces emptied, edi's model instance released, `ret 4`), the texture's slot "
+          "set before `call 0x420789` (`lea eax,[ecx+8]`) in process_compression (0x12F18F) and "
+          "on_baked_texture_loaded (0x12DDB4), finish_query's entry (0xF0D00, `ret 10h`)")
+    check(stock.read(0x42050, 0x31) == bytes.fromhex("8b4c2404" "57" "8d3c0a" "3bd7" "7321" "56" "8d4900" "8a08" "320a"
+                                                     "c12808" "8b30" "0fb6c9" "8b0c8d68fd2502" "33ce" "42" "8908"
+                                                     "3bd7" "72e4" "5e" "5f" "c20400")
+          and stock.read(0x1C235, 5) == bytes.fromhex("35b71dc104") and stock.read(0x1C210, 7) == bytes.fromhex("803d64fd250200"),
+          "the CRC-32 step 0x42050 (eax &the CRC, edx the bytes, [esp+4] the count; `ret 4`): a byte a step, "
+          "crc = T[(crc ^ byte) & 0xFF] ^ (crc >> 8), T at 0x225FD68 made by 0x1C210 from the polynomial 04C11DB7h "
+          "reflected (EDB88320h, bake_cache_026g.c's tables)")
+    linked = P.arena()
+    block = linked.blocks["bake_cache.code"]
+    for va, old, symbol, opcode in P.BAKE_CACHE_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'call' if opcode == 0xE8 else 'jmp'} {target:#x}` ({symbol}, an entry of bake_cache.code) here")
+    va, old, new = P.BAKE_CACHE_KEEP
+    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+          f"{va:#x}: game::exit's delete is a 5-byte nop")
+    sites = [(s, o) for s, o, _, _ in P.BAKE_CACHE_HOOKS] + [(va, old)]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(s - 4 < v < s + len(o) for s, o in sites)]
+    hits = [h for s, o in sites for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "bake_cache.code")
+    check(image.read(block.va, len(code)) == code and "bake_cache.state" in linked.blocks,
+          f"the code at {block.va:#x} is the link's bake_cache.code ({len(code)} bytes), its tables bake_cache.state")
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -6053,6 +6177,8 @@ def test_late_join(original, without, server, source):
     test_match_keys(original, image, before)
     test_hide_ui(original, image, before)
     test_kill_feed(original, image, before)
+    test_fall_gravity(original, image, before)
+    test_bake_cache(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

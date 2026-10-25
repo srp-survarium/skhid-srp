@@ -2639,10 +2639,6 @@ va	name	location	role	basis
 0x002d2040		entry ESP+12		auto
 0x002d2180		entry ESP+8		auto
 0x002d2180		entry ESP+4		auto
-0x002d21e0		EAX		auto
-0x002d21e0		entry ESP+4		auto
-0x002d21e0		entry ESP+8		auto
-0x002d21e0		entry ESP+12		auto
 0x002d2570		entry ESP+4		auto
 0x002d2570		entry ESP+8		auto
 0x002d2770		entry ESP+8		auto
@@ -4497,6 +4493,35 @@ va	name	location	role	basis
 0x0025a730	survarium::particle_game_effect_emitter_cook::on_particle_system_loaded	stack+8	the effect's config: key_frames, view (an int, 1 when absent; the emitter +13Ch), time_to_finish, time_mode, length	observed
 0x00313640		ECX	the calculator: +8h the artefact	observed
 0x00313640		entry ESP+4	out: +0 0, +4 0.0f, +8 byte finished	observed
+0x0023dec0	survarium::base_game_scene::point_to_screen	entry ESP+4	the game ([game_world_ui+18h]): +0Ch the camera's transform (inverted by 0xEE040), +4Ch the projection (multiplied by 0xEEA10), [+9Ch]+53B0h -> +108h the viewport's width and height (u32)	observed
+0x0023dec0	survarium::base_game_scene::point_to_screen	entry ESP+8	the point, float3 in world space	observed
+0x0023dec0	survarium::base_game_scene::point_to_screen	entry ESP+12	the screen position out, float2 in pixels from the top left	observed
+0x0023aa10	survarium::game_world_ui::update_player_icons	entry ESP+4	the game_world_ui; called first thing by update_ui (0x23B207), every frame, before its gates	observed
+0x0023b200	survarium::game_world_ui::update_ui	EAX	the game_world_ui (kept in edi)	observed
+0x0023b200	survarium::game_world_ui::update_ui	entry ESP+4	the frame's ms (x 0.001 at 0x91A8F0: the movies' advance, vtable +5Ch)	observed
+0x0023b200	survarium::game_world_ui::update_ui	entry ESP+8	the time in ms: under 28h past [ui+33Ch] the rest of the hud waits (0x23B249..0x23B252); past that, the hud's part runs only when a checksum of the hud state [ui+24h..2D8h) differs from [ui+2E0h] (0x23B2CD..0x23B301)	observed
+0x0023b200	survarium::game_world_ui::update_ui	entry ESP+12 low byte	inside the 40 ms: nonzero advances the hud movie too, zero returns at once (0x23B254)	observed
+0x001e8da0	survarium::delete_folder	EAX	the folder's physical path, a buffer_string (begin +0, end +4); SHFileOperationA FO_DELETE, flags 414h	observed
+0x00131ed0	vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture	EAX	the baker cook (its list at +230h)	observed
+0x00131ed0	vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture	entry ESP+4	the path, a buffer_string	observed
+0x0012d1d0	vostok::render::camouflage_decal_texture_type_baker_cook::translate_query	ECX	the baker cook	observed
+0x0012d1d0	vostok::render::camouflage_decal_texture_type_baker_cook::translate_query	entry ESP+4	the query (query_result_for_cook)	observed
+0x000f0d00	vostok::resources::query_result_for_cook::finish_query_impl	entry ESP+4	the query	observed
+0x000f0d00	vostok::resources::query_result_for_cook::finish_query_impl	entry ESP+8	the result (cook_base::result_enum: 1 error, 2 postponed, 3 success, 4 requery, 5 out of memory)	observed
+0x000f0d00	vostok::resources::query_result_for_cook::finish_query_impl	entry ESP+12	assert on fail	observed
+0x000f0d00	vostok::resources::query_result_for_cook::finish_query_impl	entry ESP+16	the error type	observed
+0x000f0080	vostok::resources::query_result_for_cook::set_unmanaged_resource	EDX	the query	observed
+0x000f0080	vostok::resources::query_result_for_cook::set_unmanaged_resource	entry ESP+4	the resource pointer by value (intrusive, count +0D0h)	observed
+0x000f0080	vostok::resources::query_result_for_cook::set_unmanaged_resource	entry ESP+8	the allocator (0x21E76C8)	observed
+0x000f0080	vostok::resources::query_result_for_cook::set_unmanaged_resource	entry ESP+12	the size (108h)	observed
+0x0012de30	vostok::render::baked_texture_resource::baked_texture_resource	EAX	108h bytes (vtable 0x9EE648)	observed
+0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	entry ESP+4	the baker cook	observed
+0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	entry ESP+8	the loaded resource by value	observed
+0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	entry ESP+12	the path, a buffer_string	observed
+0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	entry ESP+4	the vector (begin, end, capacity end)	observed
+0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	EDI	the record copied (124h: path buffer_string +0, '/' +110h, CRC +114h, size +118h, age +11Ch, loading +120h)	observed
+0x000e0210	vostok::render::render_model_instance::destroy	ECX	the model instance whose count (+0D0h) reached 0	observed
+0x000e0210	vostok::render::render_model_instance::destroy	EAX	&its count	observed
 0x002dddf0	survarium::game_effect_player::deserialize	entry ESP+4	this (a player's +358h, or the world's +18FE8h)	observed
 0x002dddf0	survarium::game_effect_player::deserialize	entry ESP+8	the reader {start, cursor, end}: a dword, then the count of kind-1 effects	observed
 0x002dddf0	survarium::game_effect_player::deserialize	entry ESP+12	the client's reader (kind-2 effects) or 0	observed

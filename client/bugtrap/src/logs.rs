@@ -13,7 +13,7 @@ use windows_sys::Win32::{
 };
 
 pub const COUNT: usize = 32;
-pub const MAX_MEMBERS: usize = COUNT + 2; // whole sources, dump, summary
+pub const MAX_MEMBERS: usize = COUNT + 3; // whole sources, dump, crash.txt, summary
 pub const PACKED_BYTES: u64 = 16 * 1024 * 1024; // log local headers + data + central records
 pub const INPUT_BYTES: u64 = 256 * 1024 * 1024; // source bytes read, including failed attempts
 const AGE: u64 = 48 * 60 * 60 * 10_000_000;

@@ -3,13 +3,19 @@ package survarium.controls
    import flash.display.Bitmap;
    import flash.display.BitmapData;
    import flash.display.MovieClip;
+   import flash.events.Event;
    import flash.geom.Point;
    import flash.geom.Rectangle;
    import flash.utils.Dictionary;
    import scaleform.clik.layout.LayoutData;
    
+   // Whether a minimap shows is its owner's (the HUD: the setting's position, and the map): a
+   // Minimap never sets its own visible. It says whether it has a map (hasMap) and dispatches
+   // MAP_LOADED when setProps loads one.
    public class Minimap extends MovieClip
    {
+      
+      public static const MAP_LOADED:String = "minimapMapLoaded";
       
       public var minimap:MovieClip;
       
@@ -107,7 +113,6 @@ package survarium.controls
       public function Minimap()
       {
          super();
-         visible = false;
          mouseChildren = false;
          mouseEnabled = false;
          this.minimap.map_ground.addChild(this._mapBitmap);
@@ -465,7 +470,6 @@ package survarium.controls
       {
          var _obj:Object = null;
          var max_map_size:int = 0;
-         visible = true;
          trace("*************setProps::",value.map);
          if(!this._minimapProps[value.map])
          {
@@ -503,6 +507,13 @@ package survarium.controls
          }
          this._mapVisibleRectangle = _mapb.getColorBoundsRect(16777215,0,false);
          this._mapBitmap.bitmapData = _mapb;
+         dispatchEvent(new Event(MAP_LOADED));
+      }
+      
+      // No map until the first setProps (a match's map), the last one loaded after that.
+      public function get hasMap() : Boolean
+      {
+         return this._mapBitmap.bitmapData != null;
       }
       
       public function getMapSize() : Point
