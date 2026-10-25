@@ -602,11 +602,23 @@ impl Stack {
                 )
             }));
         }
-        if let (Some(socket), Some(voice_addr)) = (voice_socket, voice_addr) {
+        // Mutes are kept by the voice ids: the key outlives a restart, and
+        // without it there is no voice (never a key of the moment, which
+        // would lose every player's mutes).
+        let id_key = match voice_socket
+            .as_ref()
+            .map(|_| matches::voice::id_key_from_env())
+        {
+            Some(Err(error)) => {
+                log::error!("srp: voice chat is OFF: its voice ids' key: {error}");
+                None
+            }
+            Some(Ok(key)) => Some(key),
+            None => None,
+        };
+        if let (Some(socket), Some(voice_addr), Some(id_key)) = (voice_socket, voice_addr, id_key) {
             let (registry, flag) = (registry.clone(), stop.clone());
             let mut socket = Some(socket);
-            // Mutes are kept by these ids: the key outlives a restart.
-            let id_key = matches::voice::id_key_from_env();
             threads.push(supervise("voice", stop.clone(), move || {
                 let socket = match socket.take() {
                     Some(socket) => socket,

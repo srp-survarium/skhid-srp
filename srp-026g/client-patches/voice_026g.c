@@ -406,8 +406,12 @@ static void hud_list(void *world, const u8 *info, u32 talking, u32 radio, int se
  * (the low 16 bits) and the session of its 0xD8. */
 void vc_connect(const char *host, u32 port, u32 session) {
     if (!host || !load()) return;
-    voice.started = voice.dll.start(host, (port & 0xFFFF) + 1, session) == 0;
+    /* A session starts with push-to-talk released: a key held across the
+     * last match's end never gets its release to us (vc_key ignores keys
+     * while stopped). */
+    voice.dll.ptt(0);
     voice.ptt = 0;
+    voice.started = voice.dll.start(host, (port & 0xFFFF) + 1, session) == 0;
     voice.settings_sent = 0;
     voice.sent_mute = voice.sent_radio = 0;
     voice.mute_seen = voice.mute_version - 1;
@@ -418,6 +422,7 @@ void vc_connect(const char *host, u32 port, u32 session) {
 /* The world ended or left (voice_finish, voice_deactivate): nothing more of
  * this match. Twice is nothing. */
 void vc_stop(void) {
+    if (voice.loaded == 1) voice.dll.ptt(0);
     if (voice.loaded == 1 && voice.started) voice.dll.stop();
     voice.started = 0;
     voice.ptt = 0;

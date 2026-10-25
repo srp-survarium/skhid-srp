@@ -627,3 +627,47 @@ fn a_game_connected_to_its_match_is_a_voice_seat_from_its_ip() {
     assert_eq!(bench.registry.voice_seat(session_of(1)).unwrap().ip, None);
     assert_eq!(bench.registry.voice_seat(session_of(1)).unwrap().team, 1);
 }
+
+/// A folder of its own under the system's temporary folder.
+fn scratch(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("srp-voice-key-{}-{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    dir
+}
+
+#[test]
+fn the_voice_id_key_is_made_once_and_kept() {
+    let dir = scratch("made");
+    let key = id_key(&dir).unwrap();
+    let path = dir.join("voice-id.key");
+    assert_eq!(std::fs::read(&path).unwrap(), key);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+    }
+    // Read back, not made again.
+    assert_eq!(id_key(&dir).unwrap(), key);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_wrong_or_unreadable_voice_id_key_is_an_error_and_left_alone() {
+    let dir = scratch("wrong");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("voice-id.key");
+    std::fs::write(&path, [7; 31]).unwrap();
+    let error = id_key(&dir).unwrap_err();
+    assert!(error.contains("31 bytes"), "{error}");
+    assert_eq!(std::fs::read(&path).unwrap(), [7; 31]);
+    // A folder where the file should be: it cannot be read; nothing made.
+    std::fs::remove_file(&path).unwrap();
+    std::fs::create_dir(&path).unwrap();
+    let error = id_key(&dir).unwrap_err();
+    assert!(error.contains("can't read"), "{error}");
+    assert!(path.is_dir());
+    std::fs::remove_dir_all(&dir).unwrap();
+}

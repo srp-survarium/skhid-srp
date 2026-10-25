@@ -149,6 +149,9 @@ class Run:
         self.held = set()
         self.foreground = WINDOW
         self.activate_answer = 0x77
+        # the made-up DLL's push-to-talk as the last sv_ptt left it (a stop or a start does not
+        # change it: the case of a key held across a match's end)
+        self.dll_ptt = 0
         # the binder over the exe's action table: P ptt (and deserialize_player_state), O
         # (serialize_player_state; in the patch mute_last_speaker), W forward
         emu.mem_write(BINDER, bytes(0x360))
@@ -261,6 +264,8 @@ class Run:
                 self.calls.append((name, round(f32(args[0]), 3), args[1], round(f32(args[2]), 3)))
             elif name in ("sv_ptt", "sv_radio", "sv_mute"):
                 self.calls.append((name, args[0]))
+                if name == "sv_ptt":
+                    self.dll_ptt = args[0]
             elif name == "sv_stop":
                 self.calls.append((name,))
             elif name == "sv_talking":
@@ -432,11 +437,13 @@ def main():
     moved = lambda regs, esp, at: at == CONNECT_BACK and esp == -12 and regs[UC_X86_REG_ESI] == MATCH \
         and all(regs[reg] == MARKS[reg] for reg in (UC_X86_REG_EBX, UC_X86_REG_EDI, UC_X86_REG_EBP))
     report(moved(*a) and moved(*b) and stock.calls == []
-           and run.calls == [("LoadLibraryA", "skhid_voice.dll"), ("sv_start", "203.0.113.9", 2237, 0xBEEF)],
+           and run.calls == [("LoadLibraryA", "skhid_voice.dll"), ("sv_ptt", 0),
+                             ("sv_start", "203.0.113.9", 2237, 0xBEEF)],
            "the DLL loaded, sv_start(host, 2236 + 1, session); back at 0x27A1B5 with three pushes and esi the "
            "match client, as the original")
     connect(run, 3000, 0x1111)
-    report(run.calls == [("sv_start", "203.0.113.9", 3001, 0x1111)], "a second match: no second load")
+    report(run.calls == [("sv_ptt", 0), ("sv_start", "203.0.113.9", 3001, 0x1111)],
+           "a second match: no second load; push-to-talk released before the start")
     for dll, version, want in ((False, 1, [("LoadLibraryA", "skhid_voice.dll")]),
                                (True, 2, [("LoadLibraryA", "skhid_voice.dll"), ("FreeLibrary", MODULE)])):
         other = Run(bytes(built), linked)
@@ -619,15 +626,33 @@ def main():
         regs, esp = r.run(DEACTIVATE, (DEACTIVATE_BACK,), sp, {UC_X86_REG_ECX: WORLD})
         return r.stopped == DEACTIVATE_BACK and esp == sp - 12 and regs[UC_X86_REG_EDI] == WORLD, r.calls
     a, b, c = finish(stock), finish(run), finish(run)
-    report(a == (True, []) and b == (True, [("sv_stop",)]) and c == (True, []),
-           "on_finish_match: sv_stop once (again nothing), back at 0x1F96F9 with edi the world, eax the game and "
-           "edi pushed, as the original")
+    report(a == (True, []) and b == (True, [("sv_ptt", 0), ("sv_stop",)]) and c == (True, [("sv_ptt", 0)]),
+           "on_finish_match: push-to-talk released, sv_stop once (again only the release), back at 0x1F96F9 with "
+           "edi the world, eax the game and edi pushed, as the original")
     connect(run)
     a, b, c = deactivate(stock), deactivate(run), deactivate(run)
-    report(a == (True, []) and b == (True, [("sv_stop",)]) and c == (True, []),
-           "on_deactivate: sv_stop once, back at 0x1F9525 with three pushes and edi the world")
+    report(a == (True, []) and b == (True, [("sv_ptt", 0), ("sv_stop",)]) and c == (True, [("sv_ptt", 0)]),
+           "on_deactivate: push-to-talk released, sv_stop once, back at 0x1F9525 with three pushes and edi the "
+           "world")
     report(frame(run, 1)[2] == [] and key(run, DIK_P, 1)[1] == [],
            "stopped: no frame and no key reach the DLL")
+
+    # The review's case: P held when the match ends, its release while stopped (lost), the next match.
+    connect(run)
+    frame(run, 0)
+    run.held = {DIK_P}
+    down = key(run, DIK_P, 1)[1]
+    finished = finish(run)[1]
+    up = key(run, DIK_P, 3)[1]
+    connect(run, 2236, 0x2222)
+    again = list(run.calls)
+    run.held = set()
+    later = frame(run, 0)[2] + frame(run, 0)[2]
+    report(down == [("sv_ptt", 1)] and finished == [("sv_ptt", 0), ("sv_stop",)] and up == []
+           and again == [("sv_ptt", 0), ("sv_start", "203.0.113.9", 2237, 0x2222)]
+           and run.dll_ptt == 0 and not any(c[0] == "sv_ptt" and c[1] for c in later),
+           f"P down, the match ends, P up while stopped (lost), the next match: the DLL's push-to-talk is "
+           f"released at the end and again before the start, and nothing presses it; {finished} {again}")
 
     if failed:
         sys.exit(f"{failed} case(s) failed")

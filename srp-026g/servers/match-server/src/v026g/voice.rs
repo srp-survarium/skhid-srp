@@ -193,42 +193,54 @@ pub fn voice_id(key: &[u8; 32], account_id: u32) -> u32 {
     }
 }
 
-/// The voice ids' key: `<SRP_DATA_DIR>/voice-id.key` (default `data/`),
-/// 32 random bytes made the first time. Without it (an error, logged) a key
-/// for this run only: the players' mutes do not carry over a restart.
-pub fn id_key_from_env() -> [u8; 32] {
+/// The voice ids' key of srp: `<SRP_DATA_DIR>/voice-id.key` (default
+/// `data/`) through [`id_key`].
+pub fn id_key_from_env() -> Result<[u8; 32], String> {
     let dir =
         std::env::var_os("SRP_DATA_DIR").map_or_else(|| "data".into(), std::path::PathBuf::from);
+    id_key(&dir)
+}
+
+/// The voice ids' key in `dir` (`voice-id.key`): 32 random bytes made the
+/// first time, when there is no such file, readable by srp's user alone
+/// (mode 0600). Anything else that is wrong with it (it cannot be read, it
+/// is not 32 bytes) is an error and the file is left as it is: the players'
+/// mutes are kept by the ids it gives, so it is never made again over one.
+pub fn id_key(dir: &std::path::Path) -> Result<[u8; 32], String> {
     let path = dir.join("voice-id.key");
     match std::fs::read(&path) {
-        Ok(bytes) if bytes.len() == 32 => {
-            let mut key = [0; 32];
-            key.copy_from_slice(&bytes);
-            return key;
+        Ok(bytes) => {
+            return <[u8; 32]>::try_from(bytes.as_slice()).map_err(|_| {
+                format!(
+                    "{} has {} bytes, not 32 (the players' mutes are kept by it: put the right \
+                     file back, or delete it for a new key and lose them)",
+                    path.display(),
+                    bytes.len()
+                )
+            });
         }
-        Ok(bytes) => log::error!(
-            "Voice: {} has {} bytes, not 32: a key for this run only (mutes are kept by it)",
-            path.display(),
-            bytes.len()
-        ),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => log::error!("Voice: can't read {}: {error}", path.display()),
+        Err(error) => return Err(format!("can't read {}: {error}", path.display())),
     }
     let mut key = [0; 32];
-    if let Err(error) = openssl::rand::rand_bytes(&mut key) {
-        log::error!("Voice: no random key ({error}); the voice ids are the accounts' own");
-        return key;
+    openssl::rand::rand_bytes(&mut key).map_err(|error| format!("no random key: {error}"))?;
+    std::fs::create_dir_all(dir)
+        .map_err(|error| format!("can't make {}: {error}", dir.display()))?;
+    let mut options = std::fs::OpenOptions::new();
+    // A file that came meanwhile is not written over.
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let written = options.open(&path).and_then(|mut file| {
+        use std::io::Write;
+        file.write_all(&key)?;
+        file.sync_all()
+    });
+    if let Err(error) = written {
+        return Err(format!("can't make {}: {error}", path.display()));
     }
-    let written = std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&path, key));
-    match written {
-        Ok(()) => log::info!("Voice: made the voice ids' key {}", path.display()),
-        Err(error) => log::error!(
-            "Voice: can't write {}: {error}; a key for this run only (mutes do not carry over a \
-             restart)",
-            path.display()
-        ),
-    }
-    key
+    log::info!("Voice: made the voice ids' key {}", path.display());
+    Ok(key)
 }
 
 /// A client datagram, read.

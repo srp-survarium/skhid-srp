@@ -160,12 +160,23 @@ int main(int argc, char **argv)
     got = expect(0x01, buf, sizeof buf, 300);
     CHECK(got == 12 && buf[7] == 1, "enabled again: a HELLO at once, hears 1");
 
+    /* Push-to-talk held when the match ends, its release never given: the
+     * next session starts released (no microphone, no START). */
+    sv_ptt(1);
+    Sleep(50);
     sv_stop();
     CHECK(sv_slot() == -1 && sv_talking() == 0, "stopped");
     sv_stop();
     CHECK(sv_start("127.0.0.1", ntohs(at.sin_port), 0xCAFE0002u) == 0, "started again");
     got = expect(0x01, buf, sizeof buf, 1000);
     CHECK(got == 12 && buf[3] == 0x02, "HELLO of the new session");
+    {
+        unsigned char welcome[] = {0x56, 1, 0x81, 5};
+        reply(welcome, sizeof welcome);
+    }
+    Sleep(200);
+    CHECK(!(sv_talking() & ((1u << 5) | (1u << 31))), "a key held across the stop is released: not talking");
+    CHECK(expect(0x02, buf, sizeof buf, 400) < 0, "a key held across the stop is released: no START");
     sv_stop();
 
     printf(failures ? "%d FAILED\n" : "smoke test passed\n", failures);

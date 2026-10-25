@@ -14,7 +14,9 @@ SRP_PUBLIC_HOST=203.0.113.9
 SRP26_LOGIN_PORT=2234
 SRP26_LOBBY_PORT=2235
 SRP26_MATCH_PORT=2236
-# Voice chat: always the match port + 1 (the games send there).
+# Voice chat: always the match port + 1 (the games send there; srp binds it,
+# and release.sh's preflight stops on another value). Open it (UDP) in the
+# host's firewall too.
 SRP26_VOICE_PORT=2237
 # The web page, on 127.0.0.1 of the host (the 0.21d page has 8088).
 SRP26_WEB_PORT=8098

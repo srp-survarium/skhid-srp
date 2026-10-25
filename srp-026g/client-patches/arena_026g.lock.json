@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 59392,
-  "sha256": "244dc5400f8da38f6f7c7bda3f0954cb416faf7bbb748675eb59e2920d29ffe8",
+  "sha256": "1782d7f8478194c5e4031305f7a4641011375a58507ceb18a3741d09ddd2ae4b",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -47,7 +47,7 @@
     "voice.code": {
       "kind": "code",
       "va": "0xa438000",
-      "size": 5456
+      "size": 5512
     },
     "voice.data": {
       "kind": "data",
@@ -155,12 +155,12 @@
     "rr_tick": "0xa42d5e5",
     "rr_write": "0xa42da9c",
     "vc_connect": "0xa4387de",
-    "vc_frame": "0xa438a14",
-    "vc_key": "0xa438d48",
-    "vc_menu": "0xa438ec8",
-    "vc_menu_call": "0xa43919d",
+    "vc_frame": "0xa438a45",
+    "vc_key": "0xa438d79",
+    "vc_menu": "0xa438ef9",
+    "vc_menu_call": "0xa4391ce",
     "vc_register": "0xa4386d4",
-    "vc_stop": "0xa4389e4",
+    "vc_stop": "0xa4389ef",
     "voice": "0xa43b000",
     "voice_cc_float": "0xa4380cb",
     "voice_connect": "0xa438017",

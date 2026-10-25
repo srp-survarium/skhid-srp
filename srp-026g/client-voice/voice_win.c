@@ -482,6 +482,9 @@ static void stop_locked(void)
     HANDLE threads[2];
     DWORD count = 0;
     int stuck = 0;
+    /* A key held across the end is no key of the next session: its release
+     * may never come (the game hands no key to a stopped voice). */
+    InterlockedExchange(&g_ptt, 0);
     if (!g_running)
         return;
     InterlockedExchange(&g_started, 0);
@@ -551,6 +554,8 @@ static int start_locked(const char *host, unsigned port, uint32_t session)
 
     memset(&g_s, 0, sizeof g_s);
     g_s.sock = INVALID_SOCKET;
+    /* A session starts with push-to-talk released, whatever came before. */
+    InterlockedExchange(&g_ptt, 0);
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
         return 3;
     g_s.wsa = 1;

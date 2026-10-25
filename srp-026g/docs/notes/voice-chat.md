@@ -196,7 +196,11 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
   reads the seats from the match registry the lobby fills.
 - **Built** (`servers/match-server/src/v026g/voice.rs`, srp's thread `voice`):
   - the port is always the match port + 1 (`SRP_VOICE=off` turns it off); Docker publishes it
-    (`SRP26_VOICE_PORT`), and the host's firewall must let it in;
+    (`SRP26_VOICE_PORT`, which must be the match port + 1: release.sh's preflight stops
+    otherwise), and the host's firewall must let it in (UDP);
+  - the voice ids' key (`voice-id.key`) is made only when there is none, mode 0600; a file that
+    cannot be read or is not 32 bytes turns voice off with an error and is left alone (the
+    players' mutes are kept by it);
   - the registry keeps each place's match-connection IP (set at its 0xD8) and answers
     `voice_seat(session)`: match, place, team, IP; bots' places have none;
   - a released seat (left by 0xE0, the match's result) neither talks nor hears from the next
@@ -269,6 +273,9 @@ Where the build differs from or adds to the design above:
 - **The DLL:** libopus 1.6.1 in floating point (its fixed-point x86 build does not link), static;
   about 550 KB; imports kernel32, msvcrt, winmm and ws2_32 only. The microphone opens on PTT and
   closes 1 s after. One press transmits 30 s at most.
+- **Push-to-talk never outlives a match:** the exe releases it at every stop and before every
+  start, and the DLL starts and stops released (a key held when a match ended once opened the
+  microphone in the next: the review of 7b653ac9).
 
 ## Bandwidth
 
