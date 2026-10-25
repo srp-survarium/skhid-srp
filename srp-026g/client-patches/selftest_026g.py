@@ -1538,7 +1538,9 @@ def late_join_sites():
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
-        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
+        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))] + \
+        [(va, len(old)) for va, old, _, _ in P.CLIENT_VERIFY_HOOKS + (P.CLIENT_VERIFY_DISPATCH,)] + \
+        [(P.FSM_STATE_GUARD[0], len(P.FSM_STATE_GUARD[1]))]
 
 
 def pickup_sites():
@@ -2161,13 +2163,15 @@ def function_pops(image, entry, limit=20000):
             if op in ("int3", "ud2", "hlt"):
                 break
             target = branch_target(text)
+            if op == "jmp" and target in P.LEAVES:
+                break                                      # out through the caller's own epilogue
             if op == "jmp":
                 if target is None:
                     lost.append(f"{va:#x}: {text}")
                     break
                 va = target
                 continue
-            if (op.startswith("j") or op.startswith("loop")) and target is not None:
+            if (op.startswith("j") or op.startswith("loop")) and target is not None and target not in P.LEAVES:
                 todo.append(target)
             va += length
     if todo or len(seen) >= limit:
@@ -6042,7 +6046,7 @@ def test_late_join(original, without, server, source):
     # branch, uro_fov's least, the pickup's distance, the lobby camera's least,
     # the two constants of patch 40).
     disabled = {P.REMOVE_MODEL_VA + 2, P.FOV_MINIMUM_RELOC, P.PICKUP_RELOC, *P.WEAPON_PREVIEW_RELOCS,
-                *P.FOV_LOD_RELOCS}
+                *P.FOV_LOD_RELOCS, P.CLIENT_VERIFY_DISPATCH_RELOC}
     ranges += [(at, 2) for at, (kind, va) in before.relocations().items()
                if kind == 3 and va in disabled]
     allowed = bytearray(raw)
@@ -6112,7 +6116,7 @@ def test_late_join(original, without, server, source):
     # field-of-view setting's two in place, the pickup's distance and the
     # lobby camera's three loads of its least distance.
     fov_sites = {va for va, _, _ in P.FOV_PATCHES}
-    with_address = {P.REMOVE_MODEL_VA, P.PICKUP_HOOKS[0][0]} | fov_sites | \
+    with_address = {P.REMOVE_MODEL_VA, P.PICKUP_HOOKS[0][0], P.CLIENT_VERIFY_DISPATCH[0]} | fov_sites | \
         {va for va, old, _, _ in P.WEAPON_PREVIEW_HOOKS if old[:3] == b"\xf3\x0f\x10"} | \
         {va for va, _, _, _ in P.FOV_LOD_HOOKS} | \
         {va for va, _, _, _ in P.HIDE_UI_TABLE_REFS}   # the options' table, now the arena's (relocated alike)
@@ -6132,7 +6136,8 @@ def test_late_join(original, without, server, source):
           f"({P.REMOVE_MODEL_VA + 2:#x}), of uro_fov's least ({P.FOV_MINIMUM_RELOC:#x}) and of the pickup's "
           f"distance ({P.PICKUP_RELOC:#x}) and of the lobby camera's least "
           f"({', '.join(f'{va:#x}' for va in P.WEAPON_PREVIEW_RELOCS)}) and of patch 40's two constants "
-          f"({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), which are disabled, "
+          f"({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}) and of the match dispatch's table "
+          f"({P.CLIENT_VERIFY_DISPATCH_RELOC:#x}, patch 75), which are disabled, "
           "and of the options' controls table's six readers (patch 62: their address is the arena's, kept "
           "relocatable) "
           f"and of the field-of-view option's name "

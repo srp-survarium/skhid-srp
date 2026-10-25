@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 159879,
-  "sha256": "a64d3d04cba0e728b23611d40cce44f2a0597794dd2de2508dbce86949902d21",
+  "size": 165244,
+  "sha256": "d2312386a7b8e39ddc78540b28de52cb55b41daeee2f5d44c70926a7bb7f703b",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -63,9 +63,16 @@
       "kind": "code",
       "va": "0xa454000",
       "size": 135
+    },
+    "client_verify.code": {
+      "kind": "code",
+      "va": "0xa455000",
+      "size": 1404
     }
   },
   "symbols": {
+    "anomaly_hook": "0xa455064",
+    "artefact_hook": "0xa4550ac",
     "artefacts_fire": "0xa431014",
     "artefacts_lifebone": "0xa43100f",
     "artefacts_link": "0xa431005",
@@ -92,6 +99,9 @@
     "bc_take": "0xa439cf6",
     "chat_variable": "0xa434000",
     "controls": "0xa436000",
+    "cv_anomaly": "0xa455022",
+    "cv_artefact": "0xa455042",
+    "cv_message": "0xa455000",
     "engine_accept_decal_edit": "0xa432460",
     "engine_allocation_name": "0xa4322e0",
     "engine_apply_modifier": "0xa432210",
@@ -138,6 +148,7 @@
     "match_keys_keyboard": "0xa433000",
     "memcpy": "0xa42ebbf",
     "memset": "0xa42e65c",
+    "message_hook": "0xa4550f2",
     "research_hud": "0xa42d005",
     "research_register": "0xa42d000",
     "research_welcome": "0xa42d00a",

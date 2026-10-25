@@ -1,0 +1,18 @@
+[package]
+name = "client_verify"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["staticlib"]
+path = "src/lib.rs"
+
+[dependencies]
+patch-core = { path = "../patch-core" }
+# The checks themselves: the match server's crate (no_std), srp-026g's
+# workspace (`cargo test -p srp-validate` there).
+srp-validate = { path = "../../../crates/srp-validate" }
+
+[lints]
+workspace = true

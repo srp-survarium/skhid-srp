@@ -3,7 +3,19 @@
 version = 4
 
 [[package]]
+name = "client_verify"
+version = "0.1.0"
+dependencies = [
+ "patch-core",
+ "srp-validate",
+]
+
+[[package]]
 name = "patch-core"
+version = "0.1.0"
+
+[[package]]
+name = "srp-validate"
 version = "0.1.0"
 
 [[package]]

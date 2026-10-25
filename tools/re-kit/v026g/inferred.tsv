@@ -1039,6 +1039,7 @@ va	status	ref_021d	name
 0x001eef70	inferred-medium	0x00154fe2	vostok::detail::concrete_type_helper<vostok::render::engine::world *>::copy_helper
 0x001ef9c0	inferred-medium	0x00155280	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf0<void,vostok::render::scene_renderer>,boost::_bi::list1<boost::_bi::value<vostok::render::scene_renderer *> > > >::manager
 0x001f01b0	inferred-medium		survarium::open_file_impl
+0x001f0e70	inferred-medium		survarium::match_options::deserialize
 0x001f1070	inferred-medium	0x001f5c52	survarium::player_profile::deserialize_static
 0x001f1350	inferred-medium	0x001f5b53	survarium::inventory_item_descr::deserialize
 0x001f1990	inferred-medium	0x00156074	survarium::player_creation_params::load
@@ -2387,6 +2388,7 @@ va	status	ref_021d	name
 0x00357970	inferred-medium	0x0021c00b	vostok::memory::detail::call_destructor_predicate::operator()<vostok::physics::bt_ghost_object>
 0x00357aa0	inferred-medium	0x0021bed1	vostok::physics::create_ghost_object
 0x00357ba0	inferred-medium	0x0021bf98	vostok::physics::destroy_ghost_object
+0x00357eb0	inferred-medium		vostok::lzma2_decode
 0x00357f80	inferred-medium		vostok::configs::apply_add_modifiers
 0x00358010	inferred-medium		vostok::configs::apply_multiply_modifiers
 0x00358d90	inferred-medium	0x00225589	vostok::configs::process_string

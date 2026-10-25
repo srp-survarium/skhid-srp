@@ -2498,6 +2498,7 @@ va	name	location	role	basis
 0x0027a300	survarium::network_client::on_match_packet_received	stack+8	packet buffer_reader	observed
 0x0027a790	survarium::network_client::close_current_match	ECX	network_client receiver	observed
 0x0027a790	survarium::network_client::close_current_match	stack+4	match-close case selector; enum meanings unassigned	observed
+0x0027a790	survarium::network_client::close_current_match	stack+4	disconnect_event_types_enum: 1 connection_lost, 2 by_initiator (sends 0xE0), 3 match ended (results), 5 expired multipacket, 0 and 4 see abi.tsv	observed
 0x0027b1f0	survarium::network_client::tick	ECX	network_client receiver	observed
 0x0027b1f0	survarium::network_client::tick	stack+4	time/count value used in elapsed-threshold comparisons	observed
 0x0027b570	survarium::network_client::process_set_time_request	EAX	packet buffer_reader	observed
@@ -2623,6 +2624,10 @@ va	name	location	role	basis
 0x002d09c0		EAX		auto
 0x002d0b70		entry ESP+12		auto
 0x002d0b70		entry ESP+4		auto
+0x002d0b70	survarium::game_world_core::deserialize	entry ESP+4	the game_world_core (network_client [+1F1C40h] + 1F8h)	observed
+0x002d0b70	survarium::game_world_core::deserialize	entry ESP+8	buffer_reader {u8 *begin; u8 *pos; u32 size} at the world's first byte	observed
+0x002d0b70	survarium::game_world_core::deserialize	entry ESP+0Ch	history_on_deserialization mode: 1 for 0xE8, 0 or 2 for a replay key frame	observed
+0x002d0b70	survarium::game_world_core::deserialize	entry ESP+10h	8 from 0xE8, passed on to world apply 0x2D2770	observed
 0x002d1100		EAX		auto
 0x002d1100		entry ESP+4		auto
 0x002d1100		entry ESP+12		auto
@@ -2794,6 +2799,8 @@ va	name	location	role	basis
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+20	diagnostic value label	observed
 0x002f73f0	survarium::player_profile::player_profile	ECX	this (4634h bytes)	observed
 0x002f7c10	survarium::inventory_item_descr::inventory_item_descr	ECX	this (B4h bytes)	observed
+0x002f7d40		stack+4	the player profile: item count byte at +1564h	observed
+0x002f7d40		EDI	reader	observed
 0x002f81f0	survarium::usable_object::load	ECX	usable_receiver	inferred
 0x002f81f0	survarium::usable_object::load	stack+4	config	inferred
 0x002f8280	survarium::usable_object::resolve_links	ECX	link_resolver_receiver	inferred
@@ -2966,6 +2973,7 @@ va	name	location	role	basis
 0x00319470	survarium::damage_zone_core::deserialize	ECX	damage-zone serialization subobject at complete object+0x130	inferred
 0x00319470	survarium::damage_zone_core::deserialize	stack+4	primary reader	inferred
 0x00319470	survarium::damage_zone_core::deserialize	stack+8	optional auxiliary reader for20 records	inferred
+0x00319470	survarium::damage_zone_core::deserialize	reader B u8+u32	a game_effect_ptr_wrapper: u8 outer, then if set a u8 raw taken as a raw pointer or [0xAA2E48 + v*4] with no bound (world_validation.md 9)	observed
 0x00319500	survarium::damage_zone_core::load	ECX	damage-zone collision subobject at complete object+0x108	inferred
 0x00319500	survarium::damage_zone_core::load	stack+4	config value pointer	inferred
 0x0031ad70	survarium::generic_anomaly_core::~generic_anomaly_core	ECX	complete generic anomaly receiver	inferred
@@ -2982,6 +2990,7 @@ va	name	location	role	basis
 0x0031b0a0	survarium::generic_anomaly_core::deserialize	stack+4	primary reader	inferred
 0x0031b0a0	survarium::generic_anomaly_core::deserialize	stack+8	first forwarded child context; unresolved semantics	inferred
 0x0031b0a0	survarium::generic_anomaly_core::deserialize	stack+12	second forwarded child context; unresolved semantics	inferred
+0x0031b0a0	survarium::generic_anomaly_core::deserialize	reader A u8	the anomaly state index: FFh none, else [+68h + cl*4] with no bound (0x31B0FF) (world_validation.md 9)	observed
 0x0031b1d0	survarium::anomaly_state::serialize	ESI	anomaly_state	inferred
 0x0031b1d0	survarium::anomaly_state::serialize	EAX	writer	inferred
 0x0031b230	survarium::anomaly_state::deserialize	ECX	anomaly_state	inferred
@@ -3018,6 +3027,7 @@ va	name	location	role	basis
 0x0031c530	survarium::artefact_container_core::serialize	stack+4	writer	inferred
 0x0031c5b0	survarium::artefact_container_core::deserialize	ECX	container_secondary_receiver_full_object_plus_0x40	inferred
 0x0031c5b0	survarium::artefact_container_core::deserialize	stack+4	reader	inferred
+0x0031c5b0	survarium::artefact_container_core::deserialize	reader A u8	the artefact id: FFh none, else [[+14h]+18940h + id*4] with no bound (world_validation.md 9)	observed
 0x0031c6b0	survarium::artefact_container_core::can_use	ECX	container	inferred
 0x0031c6b0	survarium::artefact_container_core::can_use	stack+4	user_data	inferred
 0x0031c720	survarium::artefact_container_core::use_info	ECX	container	inferred
@@ -3045,6 +3055,7 @@ va	name	location	role	basis
 0x0031ce40	survarium::victory_items_container_core::serialize	EAX	writer	inferred
 0x0031cee0	survarium::victory_items_container_core::deserialize	stack+4	victory_container	inferred
 0x0031cee0	survarium::victory_items_container_core::deserialize	EAX	reader	inferred
+0x0031cee0	survarium::victory_items_container_core::deserialize	reader A u8	a container battery index into [[+160h]+110h + i*4] with no bound (world_validation.md 9)	observed
 0x0031da30	survarium::breath_vibration_calculator::serialize	ECX	breath_calculator	inferred
 0x0031da30	survarium::breath_vibration_calculator::serialize	EAX	writer	inferred
 0x0031db00	survarium::breath_vibration_calculator::deserialize	ECX	breath_calculator	inferred
@@ -3285,6 +3296,8 @@ va	name	location	role	basis
 0x0033fde0	survarium::player_history_item::serialize	EAX	writer	inferred
 0x0033fee0	survarium::player_history_item::deserialize	stack+4	player history record	inferred
 0x0033fee0	survarium::player_history_item::deserialize	EAX	reader	inferred
+0x003402c0	survarium::hit_player_game_effect_presenter::serialize	ECX	the presenter (hit-effect vector begin/end at +8/+0xC)	observed
+0x003402c0	survarium::hit_player_game_effect_presenter::serialize	entry ESP+4	network writer	observed
 0x00341030	survarium::short_jump_start_state::selected_animations	ECX	short jump state	inferred
 0x00341030	survarium::short_jump_start_state::selected_animations	stack+4	output expression	inferred
 0x00341030	survarium::short_jump_start_state::selected_animations	stack+8	main/animation context	inferred
