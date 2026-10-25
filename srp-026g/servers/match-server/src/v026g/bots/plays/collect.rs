@@ -118,6 +118,10 @@ const USE_SEEN_WAIT_MS: u32 = 3_000;
 /// (0x2D8E73..0x2D8EC8, PROVEN). In the bench's traces every fire drop
 /// left was 0.45-0.85 s after a take. GUESS: the worlds' 2 s.
 const TAKE_HOLD_FIRE_MS: u32 = 2_000;
+/// A carrier letting go of its battery presses again (fire, which drops it
+/// as the drop key does: 0x2D8E73..0x2D8EC8, PROVEN) if the view still
+/// shows it carried this long after: past the worlds' lag. GUESS.
+const LET_GO_AGAIN_MS: u32 = 2_500;
 /// A put-in takes this long before the battery is in, ms: the battery's put
 /// state lasts `states[2].put_time`, 0.6 s (`docs/notes/battery_pickup.md`;
 /// a take's battery is in hand at once). PROVEN that the state lasts it;
@@ -688,10 +692,15 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     // the game drops it. In 919 human carries under fire, those who kept
     // carrying did no worse than those who dropped.
     if let Some(battery) = cx.me.carrying {
+        // Its escape from a pocket given up, the commander gives it no
+        // slotted play (`team::assign_trapped`): no slot, so its Collect
+        // stays to let go of the battery (`State::LetGo`). Nobody else can
+        // take a battery in its hands anyway.
+        let gave_up = cx.trapped().is_some_and(|t| t.gave_up);
         if let Some(mut candidate) = cx.candidate_given(
             PlayKind::Collect,
             TargetRef::Battery(battery),
-            Some(battery as u32),
+            (!gave_up).then_some(battery as u32),
             &[(Input::Health, 1.0), (Input::EnemiesNearTarget, 0.0)],
         ) {
             candidate.rank = Rank::Alarm;
@@ -849,6 +858,12 @@ pub enum State {
     Bring {
         via: Option<Vec<Vec3>>,
     },
+    /// Trapped in a pocket, its escape given up (`escape.rs`): lets go of
+    /// the battery (pressed at `pressed`) so it may fight from where it
+    /// stands; then the play ends.
+    LetGo {
+        pressed: u32,
+    },
     PutIn {
         tries: u8,
         last_use: u32,
@@ -874,8 +889,13 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
     let num = |name| cx.num(PlayKind::Collect, name);
     let every = (num("use_every_s") * 1000.0) as u32;
     let tries = num("tries") as u8;
+    // A carrier trapped in a pocket is not given up on: the escape has its
+    // own clock (`escape::GIVE_UP_MS`), and then it lets go (`LetGo`).
+    let escaping = (cx.me.carrying.is_some() || matches!(state, State::LetGo { .. }))
+        && cx.trapped().is_some();
     if let Some((_, _, started)) = cx.bot.current
         && cx.now > started + (num("give_up_s") * 1000.0) as u32
+        && !escaping
     {
         return Step::Failed("took too long");
     }
@@ -992,6 +1012,13 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             let Some(home) = home else {
                 return Step::Failed("no container of ours");
             };
+            // Trapped for good: no way home with it. Let go, and fight
+            // from here: a carrier cannot fire. A pocket some player got
+            // out of leaves it takeable (`Ctx::take_block`).
+            if cx.trapped().is_some_and(|t| t.gave_up) {
+                *state = State::LetGo { pressed: cx.now };
+                return Step::Continue(Intent::stay().pressing(key::DROP).let_go());
+            }
             if cx.me.feet.distance_xz(home) <= num("reach_m") + 0.5 {
                 *state = State::PutIn {
                     tries: 0,
@@ -1026,6 +1053,19 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     .within(num("reach_m"))
                     .hold_fire(),
             )
+        }
+        State::LetGo { pressed } => {
+            if cx.me.carrying.is_none() {
+                return Step::Done("trapped: let go of it");
+            }
+            // The view's lag (up to 2 s), or a lost press: again, by fire,
+            // which drops it in the game as the drop key does.
+            let mut intent = Intent::stay().let_go();
+            if cx.now >= *pressed + LET_GO_AGAIN_MS {
+                *pressed = cx.now;
+                intent = intent.pressing(key::FIRE);
+            }
+            Step::Continue(intent)
         }
         State::PutIn {
             tries: n,
@@ -2850,5 +2890,66 @@ mod tests {
         // That one may have begun a put: the next waits for it.
         s.view.clock += 1_200;
         assert!(!used(&s, &mut state, &mut rng), "the put waited for");
+    }
+
+    /// A carrier trapped in a pocket, its escape given up: its Collect has
+    /// no slot (the commander gives a given-up bot none), it lets go of the
+    /// battery with the fire gate open (`let_go`), and once the view shows
+    /// it down the play ends and its next play may fire. While it still
+    /// escapes, Collect does not end as "took too long".
+    #[test]
+    fn a_carrier_whose_escape_gave_up_lets_go_and_may_fire() {
+        use crate::v026g::bots::escape::Trapped;
+        let mut s = Scenario::field(Mode::Batteries);
+        s.battery(BatteryState::Carried(Some(0)));
+        s.bot(0, 0, Vec3::new(50.0, 0.0, 32.0)).carrying = Some(0);
+        let target = TargetRef::Battery(0);
+        let mut rng = Rng::new(1);
+        let since = s.view.clock;
+        s.tactics.escapes.set_trapped_for_test(
+            0,
+            Some(Trapped {
+                since,
+                gave_up: false,
+            }),
+        );
+        s.current = Some((PlayKind::Collect, target, since));
+        s.view.clock += 130_000;
+        let mut state = start(target, &s.cx(0), &mut rng);
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_eq!(intent.press & key::DROP, 0, "escaping: on with it");
+        assert!(matches!(state, State::Bring { .. }), "{state:?}");
+        s.tactics.escapes.set_trapped_for_test(
+            0,
+            Some(Trapped {
+                since,
+                gave_up: true,
+            }),
+        );
+        let bring = s
+            .candidates(0)
+            .into_iter()
+            .find(|c| c.kind == PlayKind::Collect && c.target == target)
+            .expect("its Collect");
+        assert_eq!(bring.slot, None);
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_ne!(intent.press & key::DROP, 0, "{intent:?}");
+        assert!(intent.let_go && intent.fire);
+        assert!(matches!(state, State::LetGo { .. }), "{state:?}");
+        // The view still shows it carried (the worlds' lag): the gate stays
+        // open, no second press yet.
+        s.view.clock += 500;
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(
+            intent.let_go && intent.fire && intent.press == 0,
+            "{intent:?}"
+        );
+        s.view.batteries[0] = BatteryState::Free(Vec3::new(50.0, 0.0, 32.0));
+        s.view.places[0].carrying = None;
+        assert_eq!(
+            step(&mut state, target, &s.cx(0), &mut rng),
+            Step::Done("trapped: let go of it")
+        );
+        s.tactics.escapes.set_trapped_for_test(0, None);
     }
 }
