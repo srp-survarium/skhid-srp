@@ -366,7 +366,6 @@ va	status	ref_021d	name
 0x0007aa50	inferred-medium	0x0021c6d1	vostok::physics::normalized_safe
 0x0007ab10	inferred-high	0x0021c787	vostok::physics::bullet_character_controller::get_collision_group
 0x0007ab20	inferred-high	0x0021c78f	vostok::physics::bullet_character_controller::get_bt_collision_obect
-0x0007ab30	inferred-high		vostok::network_core::mutable_buffer::resize
 0x0007ac50	inferred-medium	0x0021c851	vostok::physics::get_wall_slide_vector
 0x0007af00	inferred-medium	0x0021ca4d	vostok::physics::get_slope_slide_vector
 0x0007b150	inferred-medium	0x0021cca5	vostok::physics::bullet_character_controller::bullet_character_controller
