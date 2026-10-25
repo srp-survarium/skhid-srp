@@ -5204,7 +5204,9 @@ fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (Vec<Made>, V
 /// `SRP_MAPDATA_DIR=<mapdata-dump files>` (and `SRP_BOT_ROUTES` for the
 /// human routes): the stand-in game on a real map, polled every 5 ms as
 /// the match server's loop does with nobody sending, each part of the poll
-/// timed (the stand-in's own time not counted).
+/// timed (the stand-in's own time not counted). `SRP_BENCH_SECONDS` sets
+/// a match's length (240 s; 600 s is the owner's test, for the
+/// `owner-test` counts of [`owner_tally`]).
 ///
 /// ```text
 /// SRP_MAPDATA_DIR=<dir> SRP_BOT_ROUTES=<json> cargo test -p match-server --release real_bot_cost -- --ignored --nocapture
@@ -8343,7 +8345,9 @@ mod pocket_runs {
                 .grid
                 .locate(feet, 1.0)
                 .is_some_and(|node| world.grid.in_pocket(node));
-            if seen.out_ms.is_none() && !in_pocket {
+            // Out on the ground: a jump's top beside the rim (the honest
+            // stand-in's body in the air) is near a rim floor, not out.
+            if seen.out_ms.is_none() && !in_pocket && game.bodies[0].flight.is_none() {
                 seen.out_ms = Some(clock);
             }
             if seen.arrived_ms.is_none() && feet.distance_xz(goal) <= 1.5 {

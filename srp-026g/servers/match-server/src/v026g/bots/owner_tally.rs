@@ -775,7 +775,7 @@ impl OwnerTally {
                     .filter_map(|b| {
                         let d = b.feet.distance_xz(body.feet);
                         let off = off_deg(body.yaw, body.feet, b.feet);
-                        (d >= FIRE_MIN_M && d <= FIRE_BANDS[4] && off <= FIRE_ON_DEG)
+                        ((FIRE_MIN_M..=FIRE_BANDS[4]).contains(&d) && off <= FIRE_ON_DEG)
                             .then_some((off, d))
                     })
                     .min_by(|a, b| a.0.total_cmp(&b.0));
@@ -1716,26 +1716,29 @@ impl OwnerTally {
             lives.push(cur);
         }
         let t_of = |k: usize| self.time_of(k) as f32 / 1000.0;
-        let share = |k0: usize, k1: usize, test: &dyn Fn(&Rec) -> bool| {
-            let n = (k1 - k0 + 1) as f32;
-            recs[k0..=k1].iter().filter(|r| test(r)).count() as f32 / n
-        };
-        let walking = |r: &Rec| r.keys & WALK_KEYS != 0;
-        let aiming = |r: &Rec| r.keys & (key::AIM | key::FIRE) != 0;
-        let opposing = |k0: usize, k1: usize| {
-            let (mut n, mut c) = (0u32, [0u32; 4]);
-            for r in &recs[k0..=k1] {
-                if r.keys & WALK_KEYS != 0 {
-                    n += 1;
-                    for (i, bit) in [key::FORWARD, key::BACK, key::LEFT, key::RIGHT].into_iter().enumerate() {
-                        c[i] += u32::from(r.keys & bit != 0);
-                    }
-                }
+        // Ticks so far with a walk key, with aim or fire, and walking with
+        // forward, back, left, right: a window's shares at once.
+        let (walking, aiming) = (0, 1);
+        let mut sums = vec![[0u32; 6]; recs.len() + 1];
+        for (k, r) in recs.iter().enumerate() {
+            let walk = r.keys & WALK_KEYS != 0;
+            let mut now = sums[k];
+            now[0] += u32::from(walk);
+            now[1] += u32::from(r.keys & (key::AIM | key::FIRE) != 0);
+            for (i, bit) in [key::FORWARD, key::BACK, key::LEFT, key::RIGHT].into_iter().enumerate() {
+                now[2 + i] += u32::from(walk && r.keys & bit != 0);
             }
+            sums[k + 1] = now;
+        }
+        let count = |k0: usize, k1: usize, i: usize| sums[k1 + 1][i] - sums[k0][i];
+        let share = |k0: usize, k1: usize, i: usize| count(k0, k1, i) as f32 / (k1 - k0 + 1) as f32;
+        let opposing = |k0: usize, k1: usize| {
+            let n = count(k0, k1, walking);
             if n == 0 {
                 0.0
             } else {
-                (c[0].min(c[1]) + c[2].min(c[3])) as f32 / n as f32
+                let c = |i: usize| count(k0, k1, 2 + i);
+                (c(0).min(c(1)) + c(2).min(c(3))) as f32 / n as f32
             }
         };
         let median_speed = |pts: &[usize]| {
@@ -1781,10 +1784,10 @@ impl OwnerTally {
                     let ok = |j: usize| -> bool {
                         let pts = &life[i..=j];
                         let (k0, k1) = (pts[0], pts[pts.len() - 1]);
-                        if radius(pts) > rmax || share(k0, k1, &walking) < wmin {
+                        if radius(pts) > rmax || share(k0, k1, walking) < wmin {
                             return false;
                         }
-                        if amax.is_some_and(|amax| share(k0, k1, &aiming) >= amax) {
+                        if amax.is_some_and(|amax| share(k0, k1, aiming) >= amax) {
                             return false;
                         }
                         let held = pts.iter().filter(|&&k| recs[k].hold).count() as f32 / pts.len() as f32;
@@ -1817,8 +1820,8 @@ impl OwnerTally {
                     let pts = &life[i..=j];
                     let (k0, k1) = (pts[0], pts[pts.len() - 1]);
                     radius(pts) <= STAND_R
-                        && share(k0, k1, &walking) <= STAND_WALK_MAX
-                        && share(k0, k1, &aiming) < STAND_AIM_MAX
+                        && share(k0, k1, walking) <= STAND_WALK_MAX
+                        && share(k0, k1, aiming) < STAND_AIM_MAX
                         && pts.iter().filter(|&&k| recs[k].travel).count() as f32
                             >= STAND_TRAVEL * pts.len() as f32
                 };
@@ -1839,7 +1842,7 @@ impl OwnerTally {
                 };
                 let p = recs[self.index(fired).min(recs.len() - 1)].feet;
                 let fits = |m: usize| recs[life[m]].feet.distance_xz(p) <= WATCH_M && !recs[life[m]].hold;
-                let walks = |a: usize, b: usize| share(life[a], life[b], &walking) >= WATCH_WALK;
+                let walks = |a: usize, b: usize| share(life[a], life[b], walking) >= WATCH_WALK;
                 if !fits(m) {
                     continue;
                 }
@@ -1854,7 +1857,7 @@ impl OwnerTally {
                 if t_of(k1) - t_of(k0) < WATCH_S || j - i + 1 < 3 {
                     continue;
                 }
-                let dance = share(k0, k1, &aiming) >= DANCE_AIM
+                let dance = share(k0, k1, aiming) >= DANCE_AIM
                     && median_speed(&life[i..=j]) > DANCE_MPS
                     && opposing(k0, k1) > DANCE_OPPOSING;
                 if !dance {
@@ -1879,7 +1882,7 @@ impl OwnerTally {
         }
         let mut eps = Vec::new();
         for (k0, k1, mut kinds) in merged {
-            kinds.sort_by_key(|k| order(*k));
+            kinds.sort_by_key(|k| order(k));
             let (t0, t1) = (t_of(k0), t_of(k1));
             let pts: Vec<usize> = (k0..=k1).step_by(TPS).collect();
             let within = |list: &[u32], a: f32, b: f32| {
@@ -1915,7 +1918,7 @@ impl OwnerTally {
                 "play_churn"
             } else if kinds[0] == "stand" {
                 "stand"
-            } else if share(k0, k1, &aiming) >= DANCE_AIM {
+            } else if share(k0, k1, aiming) >= DANCE_AIM {
                 "fight"
             } else if stuck_line(t0, t1 + 1.5) {
                 "wall"
