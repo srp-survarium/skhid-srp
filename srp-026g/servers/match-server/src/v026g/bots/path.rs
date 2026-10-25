@@ -597,12 +597,18 @@ fn sprint_room(grid: &WalkGrid, take_off: NodeId, landing: NodeId) -> bool {
     false
 }
 
+/// The run-up's legs into a sprint jump's take-off are within this cosine of
+/// the jump's way ([`run_up_on_route`]): 60°, GUESS.
+const RUN_UP_COS: f32 = 0.5;
+
 /// Whether the route walked so far (`points`, its last the take-off) comes
 /// to the take-off along the jump's way to `landing` for the sprint's
-/// run-up (`motor::SPRINT_RUN_UP_M`): legs within 26° of it, none a jump,
+/// run-up (`motor::SPRINT_RUN_UP_M`): legs within 60° of it
+/// ([`RUN_UP_COS`]: the line-up bends onto its line), none a jump,
 /// none up or down more than half a metre. The run-up is then the route's
 /// own: no line-up turns back for it (where a route came at a jump the
 /// other way, the line-up walked past the take-off and turned round).
+/// The run-up is counted along the jump's way.
 fn run_up_on_route(points: &[Waypoint], landing: Vec3) -> bool {
     let Some(last) = points.last() else {
         return false;
@@ -621,10 +627,11 @@ fn run_up_on_route(points: &[Waypoint], landing: Vec3) -> bool {
             return false;
         }
         if d >= 1e-3 {
-            if (dx * way.0 + dz * way.1) / d < 0.9 {
+            let along = dx * way.0 + dz * way.1;
+            if along / d < RUN_UP_COS {
                 return false;
             }
-            run += d;
+            run += along;
             if run >= crate::v026g::bots::motor::SPRINT_RUN_UP_M {
                 return true;
             }
