@@ -251,14 +251,21 @@ fn spots_by(cx: &Ctx, at: Vec3, from: Vec3, try_: u32) -> std::sync::Arc<Vec<Vec
 }
 
 /// The spots this bot may take now to cut the way through `at`, best
-/// first: those of the first of [`spots_by`]'s tries with a fine goal.
+/// first: those of the first of [`spots_by`]'s tries with a fine goal that
+/// this bot has a way to ([`Ctx::reachable`], no search lately proved none):
+/// the ring's high spots in sight of the cut point are often ledges no walk
+/// gets onto, and a bot sent there stood with no way.
 fn fine_spots(cx: &Ctx, at: Vec3, from: Vec3) -> Vec<Vec3> {
     (0..3)
         .map(|try_| {
             spots_by(cx, at, from, try_)
                 .iter()
                 .copied()
-                .filter(|spot| cx.tactics.fine_goal(*spot, cx.now, cx.bot.side))
+                .filter(|spot| {
+                    cx.tactics.fine_goal(*spot, cx.now, cx.bot.side)
+                        && cx.reachable(*spot, false)
+                        && !cx.no_way_lately(*spot)
+                })
                 .collect::<Vec<_>>()
         })
         .find(|fine| !fine.is_empty())

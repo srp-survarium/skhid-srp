@@ -178,7 +178,8 @@ fn spots_by(cx: &Ctx, exit: Vec3) -> std::sync::Arc<Vec<Vec3>> {
     })
 }
 
-/// Of [`spots_by`], those this bot may take now, best first: fine goals,
+/// Of [`spots_by`], those this bot may take now, best first: fine goals it
+/// has a way to ([`Ctx::reachable`], no search lately proved none),
 /// `moved_min_m` from where it stands.
 fn fine_spots(cx: &Ctx, exit: Vec3) -> Vec<Vec3> {
     let moved = cx.num(PlayKind::HoldExit, "moved_min_m");
@@ -186,7 +187,10 @@ fn fine_spots(cx: &Ctx, exit: Vec3) -> Vec<Vec3> {
         .iter()
         .copied()
         .filter(|at| {
-            cx.tactics.fine_goal(*at, cx.now, cx.bot.side) && at.distance_xz(cx.me.feet) >= moved
+            cx.tactics.fine_goal(*at, cx.now, cx.bot.side)
+                && at.distance_xz(cx.me.feet) >= moved
+                && cx.reachable(*at, false)
+                && !cx.no_way_lately(*at)
         })
         .collect()
 }
