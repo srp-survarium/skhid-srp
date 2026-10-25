@@ -660,6 +660,12 @@ every match.
   per project, until a restart).
 - `SRP_MAPDATA_KEEP=<n>` (default 1): built worlds kept besides those
   running matches hold.
+- `<dir>/bot-routes.json`: the human routes of play 17 (`bots/routes.rs`),
+  private data made from the players' worlds, copied by hand next to the
+  `.mapdata` files. Read when each match is made while `SRP_BOT_ROUTES` is
+  unset; `SRP_BOT_ROUTES=<file>` reads that file instead, and empty or
+  `off` reads none. No file: one info line until a restart, and the bots
+  roam to the exits; a file that fails to load: a warning per match.
 - `Maps::request(project)` at match creation starts the build on a thread
   of its own; `Maps::get(project)` is `Absent(reason)`, `Loading` or
   `Ready(Arc<World>)` and never waits. Builds run one at a time. A world
