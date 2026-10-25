@@ -6,7 +6,7 @@ package
    public dynamic class CombatLogRicochetIcon extends BitmapData
    {
       
-      public function CombatLogRicochetIcon(w:int = 40, h:int = 40)
+      public function CombatLogRicochetIcon(w:int = 40, h:int = 32)
       {
          super(w,h);
       }

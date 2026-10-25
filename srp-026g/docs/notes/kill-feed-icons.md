@@ -33,7 +33,9 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
 - **The icons:**
   - wall: 0.69d0's kill log icon `flash_movies/textures/ui_icons/log/icon_penetration.png`
     (40x30), as it is;
-  - ricochet: 0.69d0's `flash_movies/textures/ui_icons/log/icon_ricochet.png` (40x40), as it is;
+  - ricochet: 0.69d0's `flash_movies/textures/ui_icons/log/icon_ricochet.png` (40x40), its empty rows above and below
+    cropped, not scaled: 40x32, art and shadow whole (the owner: to fit the row; 2 px taller than
+    the wall icon);
   - pain: a lightning bolt for pain shock (the owner's pick, 2026-10-25, of 15 candidates: neither
     0.26g nor retail has a pain or shock icon; the Anesthetic's ampoule read as a bullet), drawn,
     white, 23 px high, a dark shadow one pixel down and right as the hud's own cause icons;
