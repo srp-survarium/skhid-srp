@@ -553,6 +553,10 @@ const CROSS_MPS: f32 = 2.5;
 const CROSS_MAX_M: f32 = 25.0;
 const CROSS_WAYS: usize = 16;
 const CROSS_STEP_M: f32 = 0.5;
+/// A take's walk in stops this short of a battery on the floor, metres:
+/// it stops where the look down is [`TAKE_PITCH_RAD`], about 1.2 m off
+/// (`take_flat_m`), and uses from there; a little less, to be safe. GUESS.
+const CROSS_STOP_M: f32 = 1.0;
 /// A take stands this long at the battery, s: the last metre, the aim, up
 /// to two uses `use_every_s` apart. GUESS (the bench's takes, 2-4 s).
 const CROSS_TAKE_S: f32 = 4.0;
@@ -576,7 +580,8 @@ pub struct Crossing {
     pub edge: Vec3,
     /// Health lost on the walk one way, at [`CROSS_MPS`].
     pub leg: f32,
-    /// Health lost each second standing where it crosses to.
+    /// Health lost each second standing where the walk in stops (short of
+    /// a battery, [`CROSS_STOP_M`]).
     pub at_per_s: f32,
 }
 
@@ -590,6 +595,16 @@ impl Crossing {
     pub fn fits(&self, health: f32) -> bool {
         let cost = self.cost();
         cost <= CROSS_SHARE * health && health - cost >= CROSS_LEFT
+    }
+}
+
+/// How far short of its stand a take's walk in stops ([`CROSS_STOP_M`]):
+/// on the floor by the battery; none for a stand beside a shelf.
+fn stop_short(stand: Vec3, at: Vec3) -> f32 {
+    if (stand - at).length() < 0.01 {
+        CROSS_STOP_M
+    } else {
+        0.0
     }
 }
 
@@ -610,16 +625,13 @@ fn line_hurt(tactics: &Tactics, a: Vec3, b: Vec3) -> f32 {
         .sum()
 }
 
-/// The cheapest crossing to `to` for a body of map side `side`: of the
-/// dry floors a way leads to (past zones on all match, out of the zones'
-/// marks, not the other side's spawn) nearest `to` along each of
-/// [`CROSS_WAYS`] ways within [`CROSS_MAX_M`], in a line walked to it.
-pub fn crossing_to(tactics: &Tactics, to: Vec3, side: Option<i32>) -> Option<Crossing> {
+/// The cheapest crossing to `to` for a body of map side `side`, its walk
+/// in stopping `stop_m` short of it: of the dry floors a way leads to (past
+/// zones on all match, out of the zones' marks, not the other side's
+/// spawn) nearest `to` along each of [`CROSS_WAYS`] ways within
+/// [`CROSS_MAX_M`], in a line walked to it.
+pub fn crossing_to(tactics: &Tactics, to: Vec3, side: Option<i32>, stop_m: f32) -> Option<Crossing> {
     let grid = &tactics.world.grid;
-    let at_per_s = tactics.hazards.hit_per_s(grid.locate(to, 1.5)?);
-    if !at_per_s.is_finite() {
-        return None;
-    }
     let mut best: Option<Crossing> = None;
     for k in 0..CROSS_WAYS {
         let a = k as f32 * std::f32::consts::TAU / CROSS_WAYS as f32;
@@ -639,9 +651,23 @@ pub fn crossing_to(tactics: &Tactics, to: Vec3, side: Option<i32>) -> Option<Cro
             }
             // The nearest dry floor this way: past it, the line is longer.
             if tactics.clear_line_through_zones(edge, to, side, false) {
-                let leg = line_hurt(tactics, edge, to);
-                if leg.is_finite() && best.is_none_or(|b| leg < b.leg) {
-                    best = Some(Crossing { edge, leg, at_per_s });
+                let d = edge.distance_xz(to);
+                let stop = if d > stop_m {
+                    to + (edge - to) * (stop_m / d)
+                } else {
+                    edge
+                };
+                let crossing = Crossing {
+                    edge,
+                    leg: line_hurt(tactics, edge, stop),
+                    at_per_s: grid
+                        .locate(stop, 1.5)
+                        .map_or(0.0, |node| tactics.hazards.hit_per_s(node)),
+                };
+                if crossing.cost().is_finite()
+                    && best.is_none_or(|b| crossing.cost() < b.cost())
+                {
+                    best = Some(crossing);
                 }
             }
             break;
@@ -671,7 +697,7 @@ impl Ctx<'_> {
         if !self.needs_crossing(stand) {
             return None;
         }
-        crossing_to(self.tactics, stand, self.bot.side)
+        crossing_to(self.tactics, stand, self.bot.side, stop_short(stand, at))
     }
 
     /// The bot's way out of zones on all match when no way leads from where
@@ -681,7 +707,7 @@ impl Ctx<'_> {
         if !self.needs_crossing(me) {
             return None;
         }
-        crossing_to(self.tactics, me, self.bot.side)
+        crossing_to(self.tactics, me, self.bot.side, 0.0)
     }
 }
 
@@ -723,7 +749,7 @@ impl Ctx<'_> {
         // Its stand in zones on all match: by a crossing's dry edge, if the
         // bot's health bears it.
         let stand = if self.needs_crossing(stand) {
-            let Some(crossing) = crossing_to(self.tactics, stand, self.bot.side) else {
+            let Some(crossing) = self.crossing(at) else {
                 return Some("no crossing to its zone");
             };
             if !crossing.fits(self.me.health) {
@@ -1144,7 +1170,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             // In zones on all match: to its crossing's dry edge first
             // (`Crossing`), while the bot's health bears it.
             let crossing = if cx.needs_crossing(stand) {
-                match crossing_to(cx.tactics, stand, cx.bot.side) {
+                match cx.crossing(at) {
                     Some(crossing) if crossing.fits(cx.me.health) => Some(crossing.edge),
                     _ => return Step::Failed("no way to it"),
                 }
@@ -2703,6 +2729,57 @@ mod tests {
     /// battery spawner's take stand, whether it is in a pocket and has a
     /// way out for a carrier or anyone, and the first reason a bot at side
     /// 0's spawn may not take it (CG-11). Prints only.
+    #[test]
+    #[ignore = "needs the private map files"]
+    fn zone_crossings_on_the_real_maps() {
+        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        let (mut zoned, mut found, mut fit) = (0, 0, 0);
+        for level in 1..=8u8 {
+            for mode in [2u8, 3] {
+                let path =
+                    std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
+                let Ok(map) = mapdata::MapData::read(&path) else {
+                    continue;
+                };
+                let world = std::sync::Arc::new(mapdata::World::build(
+                    map,
+                    mapdata::CELL,
+                    mapdata::Body::default(),
+                ));
+                let mut s = Scenario::field(Mode::Batteries);
+                s.tactics = Tactics::new(world.clone(), 1.0);
+                for team in [0u8, 1] {
+                    let Some(spawn) = world.map.spawns.iter().find(|p| p.team == i32::from(team))
+                    else {
+                        continue;
+                    };
+                    s.bot(0, team, spawn.position);
+                    for (i, spawner) in world.map.battery_spawners.iter().enumerate() {
+                        let cx = s.cx(0);
+                        let at = spawner.item;
+                        let Some(stand) = s.tactics.stand_to_take(at) else {
+                            continue;
+                        };
+                        if !cx.needs_crossing(stand) {
+                            continue;
+                        }
+                        zoned += 1;
+                        let crossing = cx.crossing(at);
+                        found += usize::from(crossing.is_some());
+                        fit += usize::from(crossing.is_some_and(|c| c.fits(1.0)));
+                        eprintln!(
+                            "level {level} mode {mode} team {team} spawner {i}: {:?} cost {:?} block {:?}",
+                            crossing.map(|c| (c.edge.distance_xz(stand), c.leg, c.at_per_s)),
+                            crossing.map(|c| c.cost()),
+                            cx.take_block(at),
+                        );
+                    }
+                }
+            }
+        }
+        eprintln!("zoned (per team) {zoned}, a crossing {found}, within budget {fit}");
+    }
+
     #[test]
     #[ignore = "needs the private map files"]
     fn pocket_stands_on_the_real_maps() {
