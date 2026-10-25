@@ -16,7 +16,7 @@ for the game folder (our patched files can be flagged by mistake). It turns
 nothing off. Skhid-network-setup.cmd --undo removes what it added.
 
 HAPP (Windows)
-  Settings > App proxy settings > mode "Proxy only for selected apps".
+  Settings > App proxy settings > "Proxy only for selected apps" > Add...
   Add the three programs, for example
     C:\Games\Survarium\game\binaries\x86\launcher_skhid.exe
     C:\Games\Survarium\game\binaries\x86\survarium_skhid.exe
@@ -71,12 +71,13 @@ SKHID - НЕТ СВЯЗИ С СЕРВЕРОМ?
 Skhid-network-setup.cmd --undo удаляет то, что он добавил.
 
 HAPP (Windows)
-  Настройки > Настройки прокси для приложений > режим «Проксировать только
-  выбранные приложения». Добавьте три программы, например
+  Настройки > «Настройки прокси для приложений» > «Режим маршрутизации
+  трафика»: «Прокси только для выбранных приложений». В списке «Выбранные
+  приложения» кнопкой «Добавить…» добавьте три программы, например
     C:\Games\Survarium\game\binaries\x86\launcher_skhid.exe
     C:\Games\Survarium\game\binaries\x86\survarium_skhid.exe
     C:\Games\Survarium\game\binaries\x86\updater_skhid.exe
-  («Сопоставление: по имени» тоже работает.) Подключитесь и запустите
+  («Сопоставление — По имени» тоже работает.) Подключитесь и запустите
   Skhid.bat.
 
 v2rayN
