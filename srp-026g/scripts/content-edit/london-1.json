@@ -1,5 +1,5 @@
 {
- "_about": "London (level_09) without anomalies, its spawns at the teams' bases (the owner, 2026-10-25: \"let's remove anomalies from London, move spawns closer to bases like in newer Londons\"). Every London project: day_2 (batteries, mode 2), day_3 (batteries with chargers, mode 3), day_4 (Team Deathmatch) and day_5 (Research, pack research-mode@3). Removed (remove_entry, by full_name and type): the 7 anomalies of patch 14 (terrain/random_anomaly*: 3 lifebone, 2 spring, 2 onyx), each its generic_anomaly_core, artefact_container, damage_zone (its idle particle and sound are the zone's own) and the two collision_geometry of its zone and artefact, 35 entries a project; in day_2 and day_3 the two inv_zone effect zones and their inv_collision boxes around the old outdoor spawns (0.46c2 and 0.69d0 have none; the points' own invulnerability_time 6 s stays). Moved (add_entry of a copy with the new position and rotation after each point, then remove_entry of the old one: the order and count, 10 a team, are kept): team 0 to 0.46c2/0.69d0's logic/bases/team_1/respawn, the ten points as retail has them, inside the west base by the team's resupply box (straight to its container 16.5-21.1 m, was 23.8-36.2; to its resupply box 2.7-7.4 m, was 28.6-35.9; walked to the container 21-27 m, was 37-44); team 1 to the east hall by the team's resupply box: retail's logic/bases/team_2/respawn is on an upper floor of the white building that 0.46 opened up and our London's walker mesh does not reach, so the same distance from the base on our floor: ten points 1.6 m apart on the hall's flat floor (5.73), out of sight of every floor west of x 58, retail's rotation (facing west) (straight to its container 16.8-21.8 m, was 43.3-50.5; to its resupply box 0.9-7.6 m, was 20.5-28.4; walked to the container 19-25 m, was 54-59). Changes the simulation (simulation_changes.tsv).",
+ "_about": "London (level_09) without anomalies, its spawns at the teams' bases (the owner, 2026-10-25: \"let's remove anomalies from London, move spawns closer to bases like in newer Londons\"). Every London project: day_2 (batteries, mode 2), day_3 (batteries with chargers, mode 3), day_4 (Team Deathmatch) and day_5 (Research, pack research-mode@3). Removed (remove_entry, by full_name and type): the 7 anomalies of patch 14 (terrain/random_anomaly*: 3 lifebone, 2 spring, 2 onyx), each its generic_anomaly_core, artefact_container, damage_zone (its idle particle and sound are the zone's own) and the two collision_geometry of its zone and artefact, 35 entries a project; in day_2 and day_3 the two inv_zone effect zones and their inv_collision boxes around the old outdoor spawns (0.46c2 and 0.69d0 have none; the points' own invulnerability_time 6 s stays). Moved (add_entry of a copy with the new position and rotation after each point, then remove_entry of the old one: the order and count, 10 a team, are kept), each team's ten just inside the door its base building opens toward the map (the owner, in the map editor: \"they are too far, I expect them to be closer to the exit of the building\"), beside the door, not in it, each facing it: team 0 in the room inside the west building's east door (about (-46.6, 12.3)), on its flat floor; team 1 inside the church's west door (about (72.8, -34.0)), along the wall north of it, on the rubble slope there. Every point: walkable floor with standing room (the walk grid), at least 1.3 m from the next and 2 m from the doorway, out of sight through its door from in front of it (3 to 40 m out, within 45 degrees of straight out). To the door 4.9-9.2 m (team 0) and 3.5-10.1 m (team 1); to the container 32.2-36.5 m and 7.9-10.8 m; to the resupply box 18.6-22.6 m and 13.5-17.3 m (scripts/content-edit/README.md). Changes the simulation (simulation_changes.tsv).",
  "add_entry": [
   {
    "files": "projects/level_09/day_2/client_project",
@@ -22,13 +22,13 @@
    },
    "values": {
     "position": [
-     81.5,
-     5.73,
-     -32.0
+     73.8,
+     6.48,
+     -30.6
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.286,
      -3.141
     ]
    }
@@ -54,13 +54,13 @@
    },
    "values": {
     "position": [
-     82.0,
-     5.73,
-     -30.25
+     74.6,
+     6.55,
+     -29.5
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.381,
      -3.141
     ]
    }
@@ -86,13 +86,13 @@
    },
    "values": {
     "position": [
-     82.75,
-     5.73,
-     -33.0
+     75.3,
+     6.34,
+     -28.3
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.413,
      -3.141
     ]
    }
@@ -118,13 +118,13 @@
    },
    "values": {
     "position": [
-     83.25,
-     5.74,
-     -34.75
+     73.8,
+     6.92,
+     -27.7
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.157,
      -3.141
     ]
    }
@@ -150,13 +150,13 @@
    },
    "values": {
     "position": [
-     83.25,
-     5.73,
-     -31.25
+     75.9,
+     6.28,
+     -26.9
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.412,
      -3.141
     ]
    }
@@ -182,13 +182,13 @@
    },
    "values": {
     "position": [
-     83.5,
-     5.73,
-     -29.5
+     74.7,
+     6.49,
+     -26.4
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.245,
      -3.141
     ]
    }
@@ -214,13 +214,13 @@
    },
    "values": {
     "position": [
-     84.5,
-     5.73,
-     -33.75
+     73.7,
+     6.64,
+     -25.4
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.104,
      -3.141
     ]
    }
@@ -246,13 +246,13 @@
    },
    "values": {
     "position": [
-     84.75,
-     5.73,
-     -32.0
+     76.6,
+     5.87,
+     -25.6
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.425,
      -3.141
     ]
    }
@@ -278,13 +278,13 @@
    },
    "values": {
     "position": [
-     85.0,
-     5.73,
-     -30.25
+     75.3,
+     6.21,
+     -25.0
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.271,
      -3.141
     ]
    }
@@ -310,13 +310,13 @@
    },
    "values": {
     "position": [
-     85.5,
-     5.73,
-     -35.0
+     74.1,
+     6.5,
+     -24.0
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.129,
      -3.141
     ]
    }
@@ -342,13 +342,13 @@
    },
    "values": {
     "position": [
-     -64.931,
-     5.705,
-     21.519
+     -51.5,
+     5.75,
+     12.35
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.561,
      -3.141
     ]
    }
@@ -374,13 +374,13 @@
    },
    "values": {
     "position": [
-     -64.603,
-     5.751,
-     19.34
+     -52.0,
+     5.72,
+     11.1
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.789,
      -3.141
     ]
    }
@@ -406,13 +406,13 @@
    },
    "values": {
     "position": [
-     -68.255,
-     5.705,
-     21.326
+     -53.0,
+     5.71,
+     12.1
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.602,
      -3.141
     ]
    }
@@ -438,13 +438,13 @@
    },
    "values": {
     "position": [
-     -67.179,
-     5.705,
-     23.164
+     -53.25,
+     5.71,
+     10.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.821,
      -3.141
     ]
    }
@@ -470,13 +470,13 @@
    },
    "values": {
     "position": [
-     -67.08,
-     5.705,
-     20.462
+     -52.25,
+     5.73,
+     9.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -2.017,
      -3.141
     ]
    }
@@ -502,13 +502,13 @@
    },
    "values": {
     "position": [
-     -66.153,
-     5.705,
-     22.202
+     -54.25,
+     5.71,
+     11.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.662,
      -3.141
     ]
    }
@@ -534,13 +534,13 @@
    },
    "values": {
     "position": [
-     -65.771,
-     5.708,
-     19.953
+     -53.0,
+     5.73,
+     8.35
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -2.124,
      -3.141
     ]
    }
@@ -566,13 +566,13 @@
    },
    "values": {
     "position": [
-     -69.258,
-     5.705,
-     19.991
+     -54.5,
+     5.71,
+     10.1
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.842,
      -3.141
     ]
    }
@@ -598,13 +598,13 @@
    },
    "values": {
     "position": [
-     -66.41,
-     5.705,
-     18.688
+     -54.5,
+     5.71,
+     8.35
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -2.034,
      -3.141
     ]
    }
@@ -630,13 +630,13 @@
    },
    "values": {
     "position": [
-     -67.706,
-     5.705,
-     19.27
+     -55.75,
+     5.71,
+     11.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.647,
      -3.141
     ]
    }
@@ -662,13 +662,13 @@
    },
    "values": {
     "position": [
-     81.5,
-     5.73,
-     -32.0
+     73.8,
+     6.48,
+     -30.6
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.286,
      -3.141
     ]
    }
@@ -694,13 +694,13 @@
    },
    "values": {
     "position": [
-     82.0,
-     5.73,
-     -30.25
+     74.6,
+     6.55,
+     -29.5
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.381,
      -3.141
     ]
    }
@@ -726,13 +726,13 @@
    },
    "values": {
     "position": [
-     82.75,
-     5.73,
-     -33.0
+     75.3,
+     6.34,
+     -28.3
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.413,
      -3.141
     ]
    }
@@ -758,13 +758,13 @@
    },
    "values": {
     "position": [
-     83.25,
-     5.74,
-     -34.75
+     73.8,
+     6.92,
+     -27.7
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.157,
      -3.141
     ]
    }
@@ -790,13 +790,13 @@
    },
    "values": {
     "position": [
-     83.25,
-     5.73,
-     -31.25
+     75.9,
+     6.28,
+     -26.9
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.412,
      -3.141
     ]
    }
@@ -822,13 +822,13 @@
    },
    "values": {
     "position": [
-     83.5,
-     5.73,
-     -29.5
+     74.7,
+     6.49,
+     -26.4
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.245,
      -3.141
     ]
    }
@@ -854,13 +854,13 @@
    },
    "values": {
     "position": [
-     84.5,
-     5.73,
-     -33.75
+     73.7,
+     6.64,
+     -25.4
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.104,
      -3.141
     ]
    }
@@ -886,13 +886,13 @@
    },
    "values": {
     "position": [
-     84.75,
-     5.73,
-     -32.0
+     76.6,
+     5.87,
+     -25.6
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.425,
      -3.141
     ]
    }
@@ -918,13 +918,13 @@
    },
    "values": {
     "position": [
-     85.0,
-     5.73,
-     -30.25
+     75.3,
+     6.21,
+     -25.0
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.271,
      -3.141
     ]
    }
@@ -950,13 +950,13 @@
    },
    "values": {
     "position": [
-     85.5,
-     5.73,
-     -35.0
+     74.1,
+     6.5,
+     -24.0
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.129,
      -3.141
     ]
    }
@@ -982,13 +982,13 @@
    },
    "values": {
     "position": [
-     -64.931,
-     5.705,
-     21.519
+     -51.5,
+     5.75,
+     12.35
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.561,
      -3.141
     ]
    }
@@ -1014,13 +1014,13 @@
    },
    "values": {
     "position": [
-     -64.603,
-     5.751,
-     19.34
+     -52.0,
+     5.72,
+     11.1
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.789,
      -3.141
     ]
    }
@@ -1046,13 +1046,13 @@
    },
    "values": {
     "position": [
-     -68.255,
-     5.705,
-     21.326
+     -53.0,
+     5.71,
+     12.1
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.602,
      -3.141
     ]
    }
@@ -1078,13 +1078,13 @@
    },
    "values": {
     "position": [
-     -67.179,
-     5.705,
-     23.164
+     -53.25,
+     5.71,
+     10.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.821,
      -3.141
     ]
    }
@@ -1110,13 +1110,13 @@
    },
    "values": {
     "position": [
-     -67.08,
-     5.705,
-     20.462
+     -52.25,
+     5.73,
+     9.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -2.017,
      -3.141
     ]
    }
@@ -1142,13 +1142,13 @@
    },
    "values": {
     "position": [
-     -66.153,
-     5.705,
-     22.202
+     -54.25,
+     5.71,
+     11.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.662,
      -3.141
     ]
    }
@@ -1174,13 +1174,13 @@
    },
    "values": {
     "position": [
-     -65.771,
-     5.708,
-     19.953
+     -53.0,
+     5.73,
+     8.35
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -2.124,
      -3.141
     ]
    }
@@ -1206,13 +1206,13 @@
    },
    "values": {
     "position": [
-     -69.258,
-     5.705,
-     19.991
+     -54.5,
+     5.71,
+     10.1
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.842,
      -3.141
     ]
    }
@@ -1238,13 +1238,13 @@
    },
    "values": {
     "position": [
-     -66.41,
-     5.705,
-     18.688
+     -54.5,
+     5.71,
+     8.35
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -2.034,
      -3.141
     ]
    }
@@ -1270,13 +1270,13 @@
    },
    "values": {
     "position": [
-     -67.706,
-     5.705,
-     19.27
+     -55.75,
+     5.71,
+     11.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.647,
      -3.141
     ]
    }
@@ -1302,13 +1302,13 @@
    },
    "values": {
     "position": [
-     -64.931,
-     5.705,
-     21.519
+     -51.5,
+     5.75,
+     12.35
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.561,
      -3.141
     ]
    }
@@ -1334,13 +1334,13 @@
    },
    "values": {
     "position": [
-     -64.603,
-     5.751,
-     19.34
+     -52.0,
+     5.72,
+     11.1
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.789,
      -3.141
     ]
    }
@@ -1366,13 +1366,13 @@
    },
    "values": {
     "position": [
-     -68.255,
-     5.705,
-     21.326
+     -53.0,
+     5.71,
+     12.1
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.602,
      -3.141
     ]
    }
@@ -1398,13 +1398,13 @@
    },
    "values": {
     "position": [
-     -67.179,
-     5.705,
-     23.164
+     -53.25,
+     5.71,
+     10.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.821,
      -3.141
     ]
    }
@@ -1430,13 +1430,13 @@
    },
    "values": {
     "position": [
-     -67.08,
-     5.705,
-     20.462
+     -52.25,
+     5.73,
+     9.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -2.017,
      -3.141
     ]
    }
@@ -1462,13 +1462,13 @@
    },
    "values": {
     "position": [
-     -66.153,
-     5.705,
-     22.202
+     -54.25,
+     5.71,
+     11.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.662,
      -3.141
     ]
    }
@@ -1494,13 +1494,13 @@
    },
    "values": {
     "position": [
-     -65.771,
-     5.708,
-     19.953
+     -53.0,
+     5.73,
+     8.35
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -2.124,
      -3.141
     ]
    }
@@ -1526,13 +1526,13 @@
    },
    "values": {
     "position": [
-     -69.258,
-     5.705,
-     19.991
+     -54.5,
+     5.71,
+     10.1
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.842,
      -3.141
     ]
    }
@@ -1558,13 +1558,13 @@
    },
    "values": {
     "position": [
-     -66.41,
-     5.705,
-     18.688
+     -54.5,
+     5.71,
+     8.35
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -2.034,
      -3.141
     ]
    }
@@ -1590,13 +1590,13 @@
    },
    "values": {
     "position": [
-     -67.706,
-     5.705,
-     19.27
+     -55.75,
+     5.71,
+     11.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.647,
      -3.141
     ]
    }
@@ -1622,13 +1622,13 @@
    },
    "values": {
     "position": [
-     81.5,
-     5.73,
-     -32.0
+     73.8,
+     6.48,
+     -30.6
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.286,
      -3.141
     ]
    }
@@ -1654,13 +1654,13 @@
    },
    "values": {
     "position": [
-     82.0,
-     5.73,
-     -30.25
+     74.6,
+     6.55,
+     -29.5
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.381,
      -3.141
     ]
    }
@@ -1686,13 +1686,13 @@
    },
    "values": {
     "position": [
-     82.75,
-     5.73,
-     -33.0
+     75.3,
+     6.34,
+     -28.3
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.413,
      -3.141
     ]
    }
@@ -1718,13 +1718,13 @@
    },
    "values": {
     "position": [
-     83.25,
-     5.74,
-     -34.75
+     73.8,
+     6.92,
+     -27.7
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.157,
      -3.141
     ]
    }
@@ -1750,13 +1750,13 @@
    },
    "values": {
     "position": [
-     83.25,
-     5.73,
-     -31.25
+     75.9,
+     6.28,
+     -26.9
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.412,
      -3.141
     ]
    }
@@ -1782,13 +1782,13 @@
    },
    "values": {
     "position": [
-     83.5,
-     5.73,
-     -29.5
+     74.7,
+     6.49,
+     -26.4
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.245,
      -3.141
     ]
    }
@@ -1814,13 +1814,13 @@
    },
    "values": {
     "position": [
-     84.5,
-     5.73,
-     -33.75
+     73.7,
+     6.64,
+     -25.4
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.104,
      -3.141
     ]
    }
@@ -1846,13 +1846,13 @@
    },
    "values": {
     "position": [
-     84.75,
-     5.73,
-     -32.0
+     76.6,
+     5.87,
+     -25.6
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.425,
      -3.141
     ]
    }
@@ -1878,13 +1878,13 @@
    },
    "values": {
     "position": [
-     85.0,
-     5.73,
-     -30.25
+     75.3,
+     6.21,
+     -25.0
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.271,
      -3.141
     ]
    }
@@ -1910,13 +1910,13 @@
    },
    "values": {
     "position": [
-     85.5,
-     5.73,
-     -35.0
+     74.1,
+     6.5,
+     -24.0
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.129,
      -3.141
     ]
    }
@@ -1942,13 +1942,13 @@
    },
    "values": {
     "position": [
-     81.5,
-     5.73,
-     -32.0
+     73.8,
+     6.48,
+     -30.6
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.286,
      -3.141
     ]
    }
@@ -1974,141 +1974,141 @@
    },
    "values": {
     "position": [
-     82.0,
-     5.73,
-     -30.25
-    ],
-    "rotation": [
-     -3.141,
-     1.537,
-     -3.141
-    ]
-   }
-  },
-  {
-   "files": "projects/level_09/day_5/client_project",
-   "list": "server_objects/respawn_points",
-   "after": {
-    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(4)",
-    "position": [
-     107.055,
-     7.043,
-     -53.057
-    ]
-   },
-   "like": {
-    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(4)",
-    "position": [
-     107.055,
-     7.043,
-     -53.057
-    ]
-   },
-   "values": {
-    "position": [
-     82.75,
-     5.73,
-     -33.0
-    ],
-    "rotation": [
-     -3.141,
-     1.537,
-     -3.141
-    ]
-   }
-  },
-  {
-   "files": "projects/level_09/day_5/client_project",
-   "list": "server_objects/respawn_points",
-   "after": {
-    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point",
-    "position": [
-     100.9,
-     5.992,
-     -56.759
-    ]
-   },
-   "like": {
-    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point",
-    "position": [
-     100.9,
-     5.992,
-     -56.759
-    ]
-   },
-   "values": {
-    "position": [
-     83.25,
-     5.74,
-     -34.75
-    ],
-    "rotation": [
-     -3.141,
-     1.537,
-     -3.141
-    ]
-   }
-  },
-  {
-   "files": "projects/level_09/day_5/client_project",
-   "list": "server_objects/respawn_points",
-   "after": {
-    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(12)",
-    "position": [
-     104.539,
-     6.52,
-     -55.653
-    ]
-   },
-   "like": {
-    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(12)",
-    "position": [
-     104.539,
-     6.52,
-     -55.653
-    ]
-   },
-   "values": {
-    "position": [
-     83.25,
-     5.73,
-     -31.25
-    ],
-    "rotation": [
-     -3.141,
-     1.537,
-     -3.141
-    ]
-   }
-  },
-  {
-   "files": "projects/level_09/day_5/client_project",
-   "list": "server_objects/respawn_points",
-   "after": {
-    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(11)",
-    "position": [
-     103.337,
-     6.136,
-     -57.305
-    ]
-   },
-   "like": {
-    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(11)",
-    "position": [
-     103.337,
-     6.136,
-     -57.305
-    ]
-   },
-   "values": {
-    "position": [
-     83.5,
-     5.73,
+     74.6,
+     6.55,
      -29.5
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.381,
+     -3.141
+    ]
+   }
+  },
+  {
+   "files": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(4)",
+    "position": [
+     107.055,
+     7.043,
+     -53.057
+    ]
+   },
+   "like": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(4)",
+    "position": [
+     107.055,
+     7.043,
+     -53.057
+    ]
+   },
+   "values": {
+    "position": [
+     75.3,
+     6.34,
+     -28.3
+    ],
+    "rotation": [
+     -3.141,
+     0.413,
+     -3.141
+    ]
+   }
+  },
+  {
+   "files": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point",
+    "position": [
+     100.9,
+     5.992,
+     -56.759
+    ]
+   },
+   "like": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point",
+    "position": [
+     100.9,
+     5.992,
+     -56.759
+    ]
+   },
+   "values": {
+    "position": [
+     73.8,
+     6.92,
+     -27.7
+    ],
+    "rotation": [
+     -3.141,
+     0.157,
+     -3.141
+    ]
+   }
+  },
+  {
+   "files": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(12)",
+    "position": [
+     104.539,
+     6.52,
+     -55.653
+    ]
+   },
+   "like": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(12)",
+    "position": [
+     104.539,
+     6.52,
+     -55.653
+    ]
+   },
+   "values": {
+    "position": [
+     75.9,
+     6.28,
+     -26.9
+    ],
+    "rotation": [
+     -3.141,
+     0.412,
+     -3.141
+    ]
+   }
+  },
+  {
+   "files": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(11)",
+    "position": [
+     103.337,
+     6.136,
+     -57.305
+    ]
+   },
+   "like": {
+    "full_name": "logic/modes/items_capture-points/team2/respawn/respawn_point(11)",
+    "position": [
+     103.337,
+     6.136,
+     -57.305
+    ]
+   },
+   "values": {
+    "position": [
+     74.7,
+     6.49,
+     -26.4
+    ],
+    "rotation": [
+     -3.141,
+     0.245,
      -3.141
     ]
    }
@@ -2134,13 +2134,13 @@
    },
    "values": {
     "position": [
-     84.5,
-     5.73,
-     -33.75
+     73.7,
+     6.64,
+     -25.4
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.104,
      -3.141
     ]
    }
@@ -2166,13 +2166,13 @@
    },
    "values": {
     "position": [
-     84.75,
-     5.73,
-     -32.0
+     76.6,
+     5.87,
+     -25.6
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.425,
      -3.141
     ]
    }
@@ -2198,13 +2198,13 @@
    },
    "values": {
     "position": [
-     85.0,
-     5.73,
-     -30.25
+     75.3,
+     6.21,
+     -25.0
     ],
     "rotation": [
      -3.141,
-     1.537,
+     0.271,
      -3.141
     ]
    }
@@ -2230,173 +2230,173 @@
    },
    "values": {
     "position": [
-     85.5,
+     74.1,
+     6.5,
+     -24.0
+    ],
+    "rotation": [
+     -3.141,
+     0.129,
+     -3.141
+    ]
+   }
+  },
+  {
+   "files": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(12)",
+    "position": [
+     -102.043,
+     6.115,
+     25.129
+    ]
+   },
+   "like": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(12)",
+    "position": [
+     -102.043,
+     6.115,
+     25.129
+    ]
+   },
+   "values": {
+    "position": [
+     -51.5,
+     5.75,
+     12.35
+    ],
+    "rotation": [
+     -3.141,
+     -1.561,
+     -3.141
+    ]
+   }
+  },
+  {
+   "files": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(11)",
+    "position": [
+     -103.044,
+     6.073,
+     29.268
+    ]
+   },
+   "like": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(11)",
+    "position": [
+     -103.044,
+     6.073,
+     29.268
+    ]
+   },
+   "values": {
+    "position": [
+     -52.0,
+     5.72,
+     11.1
+    ],
+    "rotation": [
+     -3.141,
+     -1.789,
+     -3.141
+    ]
+   }
+  },
+  {
+   "files": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(2)",
+    "position": [
+     -99.159,
+     5.989,
+     34.354
+    ]
+   },
+   "like": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(2)",
+    "position": [
+     -99.159,
+     5.989,
+     34.354
+    ]
+   },
+   "values": {
+    "position": [
+     -53.0,
+     5.71,
+     12.1
+    ],
+    "rotation": [
+     -3.141,
+     -1.602,
+     -3.141
+    ]
+   }
+  },
+  {
+   "files": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point",
+    "position": [
+     -99.511,
+     5.76,
+     31.457
+    ]
+   },
+   "like": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point",
+    "position": [
+     -99.511,
+     5.76,
+     31.457
+    ]
+   },
+   "values": {
+    "position": [
+     -53.25,
+     5.71,
+     10.6
+    ],
+    "rotation": [
+     -3.141,
+     -1.821,
+     -3.141
+    ]
+   }
+  },
+  {
+   "files": "projects/level_09/day_5/client_project",
+   "list": "server_objects/respawn_points",
+   "after": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(3)",
+    "position": [
+     -101.254,
+     6.017,
+     27.884
+    ]
+   },
+   "like": {
+    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(3)",
+    "position": [
+     -101.254,
+     6.017,
+     27.884
+    ]
+   },
+   "values": {
+    "position": [
+     -52.25,
      5.73,
-     -35.0
+     9.6
     ],
     "rotation": [
      -3.141,
-     1.537,
-     -3.141
-    ]
-   }
-  },
-  {
-   "files": "projects/level_09/day_5/client_project",
-   "list": "server_objects/respawn_points",
-   "after": {
-    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(12)",
-    "position": [
-     -102.043,
-     6.115,
-     25.129
-    ]
-   },
-   "like": {
-    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(12)",
-    "position": [
-     -102.043,
-     6.115,
-     25.129
-    ]
-   },
-   "values": {
-    "position": [
-     -64.931,
-     5.705,
-     21.519
-    ],
-    "rotation": [
-     -3.141,
-     -1.058,
-     -3.141
-    ]
-   }
-  },
-  {
-   "files": "projects/level_09/day_5/client_project",
-   "list": "server_objects/respawn_points",
-   "after": {
-    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(11)",
-    "position": [
-     -103.044,
-     6.073,
-     29.268
-    ]
-   },
-   "like": {
-    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(11)",
-    "position": [
-     -103.044,
-     6.073,
-     29.268
-    ]
-   },
-   "values": {
-    "position": [
-     -64.603,
-     5.751,
-     19.34
-    ],
-    "rotation": [
-     -3.141,
-     -1.058,
-     -3.141
-    ]
-   }
-  },
-  {
-   "files": "projects/level_09/day_5/client_project",
-   "list": "server_objects/respawn_points",
-   "after": {
-    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(2)",
-    "position": [
-     -99.159,
-     5.989,
-     34.354
-    ]
-   },
-   "like": {
-    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(2)",
-    "position": [
-     -99.159,
-     5.989,
-     34.354
-    ]
-   },
-   "values": {
-    "position": [
-     -68.255,
-     5.705,
-     21.326
-    ],
-    "rotation": [
-     -3.141,
-     -1.058,
-     -3.141
-    ]
-   }
-  },
-  {
-   "files": "projects/level_09/day_5/client_project",
-   "list": "server_objects/respawn_points",
-   "after": {
-    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point",
-    "position": [
-     -99.511,
-     5.76,
-     31.457
-    ]
-   },
-   "like": {
-    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point",
-    "position": [
-     -99.511,
-     5.76,
-     31.457
-    ]
-   },
-   "values": {
-    "position": [
-     -67.179,
-     5.705,
-     23.164
-    ],
-    "rotation": [
-     -3.141,
-     -1.058,
-     -3.141
-    ]
-   }
-  },
-  {
-   "files": "projects/level_09/day_5/client_project",
-   "list": "server_objects/respawn_points",
-   "after": {
-    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(3)",
-    "position": [
-     -101.254,
-     6.017,
-     27.884
-    ]
-   },
-   "like": {
-    "full_name": "logic/modes/items_capture-points/team1/respawn/respawn_point(3)",
-    "position": [
-     -101.254,
-     6.017,
-     27.884
-    ]
-   },
-   "values": {
-    "position": [
-     -67.08,
-     5.705,
-     20.462
-    ],
-    "rotation": [
-     -3.141,
-     -1.058,
+     -2.017,
      -3.141
     ]
    }
@@ -2422,13 +2422,13 @@
    },
    "values": {
     "position": [
-     -66.153,
-     5.705,
-     22.202
+     -54.25,
+     5.71,
+     11.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.662,
      -3.141
     ]
    }
@@ -2454,13 +2454,13 @@
    },
    "values": {
     "position": [
-     -65.771,
-     5.708,
-     19.953
+     -53.0,
+     5.73,
+     8.35
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -2.124,
      -3.141
     ]
    }
@@ -2486,13 +2486,13 @@
    },
    "values": {
     "position": [
-     -69.258,
-     5.705,
-     19.991
+     -54.5,
+     5.71,
+     10.1
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.842,
      -3.141
     ]
    }
@@ -2518,13 +2518,13 @@
    },
    "values": {
     "position": [
-     -66.41,
-     5.705,
-     18.688
+     -54.5,
+     5.71,
+     8.35
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -2.034,
      -3.141
     ]
    }
@@ -2550,13 +2550,13 @@
    },
    "values": {
     "position": [
-     -67.706,
-     5.705,
-     19.27
+     -55.75,
+     5.71,
+     11.6
     ],
     "rotation": [
      -3.141,
-     -1.058,
+     -1.647,
      -3.141
     ]
    }

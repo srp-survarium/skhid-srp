@@ -451,17 +451,23 @@ Applied to the live files: 7 files edited, 0 unexpected differences. The simulat
 | change | why |
 |---|---|
 | London's 7 anomalies out of its four projects (`projects/level_09/day_2` to `day_5`, every mode it is played in: batteries, batteries with chargers, Team Deathmatch, Research): per anomaly (`terrain/random_anomaly*`: 3 lifebone, 2 spring, 2 onyx) its `generic_anomaly_core`, `artefact_container`, `damage_zone` (whose idle particle and sound are the zone's own) and the two `collision_geometry` of its zone and artefact, `remove_entry` by `full_name` and `game_object_type`: 35 entries a project | the owner, 2026-10-25: "let's remove anomalies from London". Nothing else names them (the projects' other objects, `server_objects`, London's mode configs); no artefact spawns on London. The `level/09/anomaly_voroh` rock piles stay: level art, no damage, no artefact |
-| The spawns: `server_objects/respawn_points`, 10 a team, each moved (`add_entry` of a copy with the new `position` and `rotation` after it, then `remove_entry` of the old one: order, count and every other value kept). Team 0: 0.46c2's and 0.69d0's `logic/bases/team_1/respawn` (the same ten points in both), in the west building by its resupply box. Team 1: the east hall by its resupply box, ten points 1.6 m apart on its flat floor (5.73), retail's rotation | the owner: "move spawns closer to bases like in newer Londons". 0.31a2 (patch 14's source) spawns both teams outside the map's ends; 0.46c2 and 0.69d0 spawn them in the base buildings. Retail's team 1 points are on an upper floor of the white building that 0.46 opened up (walker steps our London lacks): our walk grid (`mapdata`) does not reach it, so team 1 gets the same distance from its base on our floor. Every new point: walkable floor, standing room, reached from the rest of the map, out of sight of every floor west of x 58 (team 1; team 0: east of x -58, a few floors of its own building aside) |
+| The spawns: `server_objects/respawn_points`, 10 a team, each moved (`add_entry` of a copy with the new `position` and `rotation` after it, then `remove_entry` of the old one: order, count and every other value kept). Team 0: the room just inside the west building's east door (in its south-east wall, about (-46.6, 12.3), 2.3 m wide), beside the door's line, on its flat floor (5.70-5.75). Team 1: inside the church's west door (about (72.8, -34.0), open from z -35.5 to -31.0), along the wall north of it, on the rubble slope there (5.75-6.92). Each point faces its door: rotation (-3.141, a, -3.141) | the owner: "move spawns closer to bases like in newer Londons", then, in the map editor: "they are too far, I expect them to be closer to the exit of the building". 0.31a2 (patch 14's source) spawns both teams outside the map's ends; 0.46c2 and 0.69d0 spawn them in the base buildings, deep inside (team 0 by its resupply box). Each door is its building's exit toward the map: every route walked on the bots' walk grid (`mapdata`) from the base to the centre or to the other base goes out through it. Every new point: walkable floor with standing room (walk grid), at least 1.3 m from the next and 2 m from the doorway, reaching its door, container and resupply box on foot, and out of sight through its door from in front of it (from 3 to 40 m out, within 45 degrees of straight out; bullet mesh, a spawn's head and chest from a standing eye) |
 | The battery modes' `inv_zone` effect zones and their `inv_collision` boxes (`logic/modes/items_random/` in day_2, `items_charger/` in day_3, one a team) | they covered the old outdoor spawns; 0.46c2 and 0.69d0 have none. The points' own `invulnerability_time` (6 s) stays |
 
-Distances on the ground (every project; walked on day_2's walk grid in brackets):
+Distances on the ground (every project; walked on the walk grid in brackets; before: 0.31a2's
+outdoor spawns):
 
-| team | to its container, before | after | to its resupply box, before | after |
-|---|---|---|---|---|
-| 0 (west) | 23.8-36.2 m (37-44) | 16.5-21.1 m (21-27) | 28.6-35.9 m (34-40) | 2.7-7.4 m (5-9) |
-| 1 (east) | 43.3-50.5 m (54-59) | 16.8-21.8 m (19-25) | 20.5-28.4 m (41-47) | 0.9-7.6 m (3-9) |
+| team | to its door, before | after | to its container, before | after | to its resupply box, before | after |
+|---|---|---|---|---|---|---|
+| 0 (west) | 55.2-62.1 m (63-71) | 4.9-9.2 m (6-11) | 23.8-36.3 m (35-44) | 32.2-36.5 m (37-42) | 28.6-35.9 m (34-41) | 18.6-22.6 m (21-26) |
+| 1 (east) | 32.7-39.8 m (41-50) | 3.5-10.1 m (4-11) | 43.3-50.6 m (53-62) | 7.9-10.8 m (13-20) | 20.5-28.1 m (41-49) | 13.5-17.3 m (14-17) |
 
-Applied to revision 33's live projects (London's from patch 14, day_5 from pack research-mode@3):
+Team 0's container and resupply box are deep in its building, by the closed courtyard behind it;
+the spawns are at the other end. The church is a ruin open in several places (two south doors, a
+north door, windows): from somewhere outside every team 1 point can be seen through one of those,
+not through the west door.
+
+Applied to revision 34's live projects (London's from patch 14, day_5 from pack research-mode@3):
 4 files edited, 0 unexpected differences. The simulation changes (the `next` row of
 `simulation_changes.tsv`); srp still counts 20 respawn points in each mode. The Maps tab shows
 the new spawns and no artefacts after its rebuild (`release/build-site`); the bots' map files of
