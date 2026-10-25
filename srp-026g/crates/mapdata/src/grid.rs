@@ -10,8 +10,8 @@
 //!    above leaves at least the crouched height. One cell can hold several
 //!    floors (bridges, buildings).
 //! 3. A floor links to the floor of each of its 8 neighbour cells within a
-//!    step (0.6 m) with headroom for a crouched body ([`LinkKind::Walk`]).
-//!    Two `walk` faces (stairs) may differ by up to 3 cells' width. Where no
+//!    step (0.6 m) with headroom for a crouched body ([`LinkKind::Walk`]),
+//!    whatever the faces: the client's step is 0.6 m. Where no
 //!    step exists, a floor links one way to a lower floor within the
 //!    harmless fall ([`LinkKind::Drop`]) or to a higher one within the jump
 //!    height ([`LinkKind::Jump`]). A walk up ground steeper than 50° is
@@ -550,7 +550,7 @@ impl WalkGrid {
             flags: Vec::new(),
             pockets: Vec::new(),
         };
-        let mut wide = grid.link(&forced);
+        let mut wide = grid.link();
         grid.drop_narrow_landings(&mut wide);
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face);
         grid.erode(&mut wide, &cut, &solids);
@@ -569,10 +569,9 @@ impl WalkGrid {
         (grid, stats)
     }
 
-    fn link(&self, forced: &[bool]) -> Wide {
+    fn link(&self) -> Wide {
         let n = self.height.len();
         let body = self.body;
-        let stair_rise = body.step.max(3.0 * self.cell);
         let mut links = vec![[NONE; 8]; n];
         let mut kinds = vec![[LinkKind::Walk; 8]; n];
         for a in 0..n {
@@ -589,11 +588,11 @@ impl WalkGrid {
                     let (hb, cb) = (self.height[b], self.ceiling[b]);
                     let rise = (hb - ha).abs();
                     let gap = ca.min(cb) - ha.max(hb);
-                    let limit = if forced[a] && forced[b] {
-                        stair_rise
-                    } else {
-                        body.step
-                    };
+                    // The client's step is 0.6 m whatever the face (the
+                    // controller lifts the capsule by `step_up`, no slope
+                    // test): a rise over it is a ledge, up and down, even
+                    // between two `walk` faces.
+                    let limit = body.step;
                     if rise <= limit && gap >= body.crouch_height && rise < best.1 {
                         best = (b as u32, rise, LinkKind::Walk);
                     }
@@ -3467,6 +3466,56 @@ pub(crate) mod tests {
         );
         let stairs = WalkGrid::build(&steep(WalkerBehaviour::Walk), AREA, 0.5, Body::default());
         assert!(!stairs.is_empty());
+    }
+
+    #[test]
+    fn a_walk_face_rise_over_the_step_is_a_ledge_both_ways() {
+        // Two walk-face decks, the second 0.7 m up (over the client's step
+        // 0.6 m): a jump up and a drop down, not walks; 0.5 m is a walk.
+        for (rise, up, down) in [
+            (0.7, LinkKind::Jump, LinkKind::Drop),
+            (0.5, LinkKind::Walk, LinkKind::Walk),
+        ] {
+            let mut tris =
+                quad(Vec3::new(0.0, 0.0, 0.0), 5.0, 10.0, WalkerBehaviour::Walk).to_vec();
+            tris.extend(quad(Vec3::new(5.0, rise, 0.0), 10.0, 10.0, WalkerBehaviour::Walk));
+            let grid = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+            let low = grid.locate(Vec3::new(4.0, 0.0, 5.125), 0.3).unwrap();
+            let high = grid.locate(Vec3::new(6.0, rise, 5.125), 0.3).unwrap();
+            let along_z = |from: NodeId, to: NodeId| {
+                let (a, b) = (grid.position(from), grid.position(to));
+                (b.x - a.x).abs() < 3.0 * 0.25 + 1e-3 && (a.z - b.z).abs() < 1e-3
+            };
+            // Walk the floors along z = 5.125 from the low deck to the edge and over.
+            let mut at = low;
+            let mut crossed = Vec::new();
+            for _ in 0..16 {
+                let next = grid
+                    .links(at)
+                    .find(|&(to, _)| grid.position(to).x > grid.position(at).x && along_z(at, to));
+                let Some((to, kind)) = next else { break };
+                if (grid.position(to).y - grid.position(at).y).abs() > 0.01 {
+                    crossed.push(kind);
+                }
+                at = to;
+            }
+            assert_eq!(crossed, vec![up], "rise {rise} up");
+            assert!(grid.distances_from(&[low]).reaches(high), "rise {rise}");
+            assert!(grid.distances_from(&[high]).reaches(low), "rise {rise}");
+            let mut at = high;
+            let mut crossed = Vec::new();
+            for _ in 0..16 {
+                let next = grid
+                    .links(at)
+                    .find(|&(to, _)| grid.position(to).x < grid.position(at).x && along_z(at, to));
+                let Some((to, kind)) = next else { break };
+                if (grid.position(to).y - grid.position(at).y).abs() > 0.01 {
+                    crossed.push(kind);
+                }
+                at = to;
+            }
+            assert_eq!(crossed, vec![down], "rise {rise} down");
+        }
     }
 
     #[test]

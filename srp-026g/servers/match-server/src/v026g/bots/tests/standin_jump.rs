@@ -659,8 +659,11 @@ pub(crate) fn the_honest_walk_steps_no_higher_than_the_client() {
     let low = forced(0.5);
     assert!((walk_east(&low, true).y - 0.5).abs() < 0.05);
     let high = forced(0.7);
-    let old = walk_east(&high, false);
-    assert!((old.y - 0.7).abs() < 0.05, "the grid links a 0.7 m forced step: {old:?}");
+    // The grid no longer links a forced step over the client's 0.6 m (it
+    // was a walk up to 0.75 m), so the plain slide stops at it as the
+    // capped one does: the cap is the stand-in's own check, kept.
+    let plain = walk_east(&high, false);
+    assert!(plain.y.abs() < 0.05 && plain.x < 10.0, "the grid links a 0.7 m forced step: {plain:?}");
     let honest = walk_east(&high, true);
     assert!(honest.y.abs() < 0.05 && honest.x < 10.0, "{honest:?}");
 }
