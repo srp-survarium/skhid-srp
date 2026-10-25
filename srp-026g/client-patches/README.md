@@ -114,6 +114,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `bake_cache_026g.asm`, `bake_cache_026g.c`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again (the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
 | `client_verify_026g.asm`, `rust/client_verify/`, `../crates/srp-validate/`, `check_client_verify_026g.py` | Patches 75..78: a game checks every world (0xE8) and match message (0xE3..0xF6) it is sent with the match server's own checks (`srp-validate`, `no_std`, `cargo test -p srp-validate`) and leaves the match on a refusal; three read sites bounded (weapon FSM, anomaly and artefact ids). Its check runs the entries on made-up objects, the drift test against the host build (`--drift`, from `cargo run --release -p srp-validate --example drift_dump -- DIR...`) and the instruction counts (`--counts`) (needs Unicorn; `../docs/notes/client_world_check.md`) |
+| `netcode_026g.asm`, `rust/netcode/`, `tick_sites_026g.py`, `check_netcode_026g.py` | Patch 79: the per-tick protocol (0.69's netcode; `../docs/notes/netcode_ticks.md`): with a server of `SRP_NETCODE=v069`, one update a tick each way (C->S 0xE2, S->C 0xF7, made into the stock messages for the game's own handlers), the server's outcomes of the own inputs, the game's own clock steering, and the match's tick stamped into the exe's 151 tick sites (`tick_sites_026g.py --write` makes `rust/netcode/src/sites.rs`, `--check <exe>` proves the table); with any other server the stock protocol. Its check runs the entries on made-up messages, senders and send passes, and the stamps at 50, 25 and 20 ms (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -3560,6 +3561,49 @@ kept worlds: every world and 16 mutated copies, the i686 payload against
 the host build: 70,350 checks, 0 differ); the cost (`--counts`): a
 message 68..169 instructions (the RUST_HOOK entry included), a world median 19,148, p99 24,187, 20
 players 97,172. `cargo test -p srp-validate`. **Not run in a game.**
+
+### 79. The per-tick protocol: 0.69's netcode (the next release's revision)
+
+The rules: `../docs/notes/netcode_ticks.md`; the plan: `netcode_port_069.md`
+(draft PR #472). With a server that plays it (`SRP_NETCODE=v069`), and
+only then, a game sends one update a tick and takes one a tick; with any
+other server it plays the stock protocol, byte for byte.
+
+- **The tables** know C->S 0xE2 and S->C 0xF7: the length getter's `sub
+  esi,0D8h` (0x279694), the sent and received infos' first instruction
+  (0x279A60, 0x279B10: JUMP to `netcode_length`, `netcode_send_info`,
+  `netcode_received_info`, `netcode_026g.asm`, the arena's block
+  `netcode.code`), and the four range bytes the two constructors write
+  (`NETCODE_RANGES`). 0xD8's capability byte gets bit 1 (send_connect's
+  `call 0x379090` at 0x27A247, CALLEE `netcode_connect`).
+- **The dispatch** (0x27A322, its `add eax,0FFFFFF1Dh` before the bound;
+  JUMP `netcode_dispatch`): 0xF7 to `netcode_update` (the crate
+  `rust/netcode`, a `RUST_HOOK`), which hands the game's own dispatch
+  0x27A300 the stock messages of its changes (outcomes, leaves, entries,
+  the others' inputs and kit choices, the clock's 0xE7) and returns at the
+  dispatch's end, unjournaled; 0xE4 to `netcode_static_info`, which takes
+  the trailer off and decides the match's protocol and tick; every other
+  id as it was (the client check of patch 75 sees what the handlers see).
+- **The own inputs**: the player-input and kit-choice senders' new_packet
+  (0x27EB21, 0x27ECAC; JUMP `netcode_own_input`, `netcode_own_profile`)
+  take the input and skip the stock packet (ZF) on a match of the
+  protocol, for the own place. The send pass's synchronize (0x27CD1F,
+  CALLEE `netcode_synchronize`) is followed by the updates due, one 0xE2
+  packet each, alone in its datagram (`engine_writer_write`, 0x7AC10).
+- **The tick** (phase 4): the static info stamps the match's tick into the
+  151 sites `tick_sites_026g.py` lists (its `--check` with the original
+  exe: every division by 50 of the code is in it), each write made
+  writable with VirtualProtect (IAT 0x870200) and put back; the build is
+  50 ms, so a 50 ms match writes nothing. A stock static info and a
+  replay's start (0x1EBF8C, CALLEE `netcode_replay`) put 50 back.
+
+**Checked:** `check_netcode_026g.py` (Unicorn, the linked arena): the
+tables against the original's, 0xD8, the routing of every id, an update
+made into the stock messages computed independently, the own inputs
+taken and sent, the outcomes, the clock, the stamps at 50, 25 and 20 ms
+and back, the stock protocol untouched, every Rust entry at a 16-byte
+stack; `cargo test -p netcode`; the self-test's check 79. **Not run in a
+game.**
 
 ## Not ported, not done
 

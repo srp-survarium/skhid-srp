@@ -1172,7 +1172,12 @@ SUICIDE_KEY_HOOK = (0x242196, bytes.fromhex("e8c5020000"), "suicide_key", 0xE8)
 #   0x27ECAC the kit choice's) to netcode_own_input / netcode_own_profile,
 #   which take the own input and skip the stock packet; synchronize's call
 #   in the send pass (0x27CD1F) to netcode_synchronize, which sends the
-#   updates due after it. No base relocation under any site.
+#   updates due after it.
+# - The tick (phase 4): the static info stamps the match's tick into the
+#   exe at run time (tick_sites_026g.py's sites, VirtualProtect); a replay's
+#   start (the call of its network client's constructor, 0x1EBF8C) the
+#   stock 50. The build is the stock 50: no site is written here.
+# No base relocation under any site.
 NETCODE_HOOKS = (
     (0x27A322, bytes.fromhex("051dffffff"), "netcode_dispatch", 0xE9),           # the dispatch, before its bound
     (0x279694, bytes.fromhex("81eed8000000"), "netcode_length", 0xE9),          # the length getter
@@ -1182,6 +1187,7 @@ NETCODE_HOOKS = (
     (0x27EB21, bytes.fromhex("8b421881c3dc000000"), "netcode_own_input", 0xE9), # the player-input sender
     (0x27ECAC, bytes.fromhex("8b421868de000000"), "netcode_own_profile", 0xE9), # the kit-choice sender
     (0x27CD1F, bytes.fromhex("e8ac190000"), "netcode_synchronize", 0xE8),       # the send pass's synchronize
+    (0x1EBF8C, bytes.fromhex("e8afca0200"), "netcode_replay", 0xE8),            # a replay's start: the stock tick
 )
 # The ranges' last ids, in the two constructors (`mov byte [esi+5],0F6h`,
 # `mov byte [esi+7],0E1h`: their immediates).
@@ -2300,6 +2306,8 @@ INSTALLS = {
                      "netcode_own_profile, taken (on to 0x27ECD2) or back at 0x27ECB4", None, None),
     0x27CD1F: (CALLEE, "send_match_messages's `call synchronize` 0x27E6D0 (`ret 0Ch`, EAX in, AL out, EBX the "
                        "client): netcode_synchronize, synchronize then the updates due", None, None),
+    0x1EBF8C: (CALLEE, "the replay's `call replay_network_client::replay_network_client` 0x218A40 (its only "
+                       "caller): netcode_replay, the stock protocol and tick, on to 0x218A40", None, None),
     0x265E73: (CALLEE, "start_item_upgrade's camera: the stash's start, then start_cam", None, None),
     0x265F44: (CALLEE, "exit_item_upgrade's camera: the stash's exit, then exit_cam", None, None),
     0x284B10: (ENTRY, "setup_profile: the stash's setup, then setup_hook", None, None),
@@ -2619,6 +2627,7 @@ ARENA = (
     # Rust crate (docs/notes/netcode_port_069.md); its machine's state
     ArenaBlock("netcode.code", "code", 0x1000, ("netcode_026g.asm", "rust/netcode/Cargo.toml")),
     ArenaBlock("netcode.state", "state", 0x1000, ("rust/netcode/Cargo.toml",)),
+    ArenaBlock("netcode.data", "data", 0x1000, ("rust/netcode/Cargo.toml",)),
 )
 
 
@@ -3636,6 +3645,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      "baked camouflage textures kept from game to game and made once while asked for again, "
+                     "the per-tick protocol (0xE2, 0xF7) with a server that plays it, on the tick its static "
+                     "info gives, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")

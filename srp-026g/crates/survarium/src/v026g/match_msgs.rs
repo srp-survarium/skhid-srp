@@ -195,7 +195,13 @@ pub fn sdiff8(a: u8, b: u8) -> i32 {
 /// The tick byte of a time: `time / 50`, low 8 bits
 /// (`serialize_local_fixed_time` 0x3185F0).
 pub fn tick_byte(time_ms: u32) -> u8 {
-    (time_ms / TICK_MS) as u8
+    tick_byte_in(Grid::STOCK, time_ms)
+}
+
+/// [`tick_byte`] on a match's grid: a match of another tick has the game's
+/// writer re-stamped to its tick (`netcode_port_069.md` 6.1, WIRE).
+pub fn tick_byte_in(grid: Grid, time_ms: u32) -> u8 {
+    grid.ticks(GameTime(time_ms)) as u8
 }
 
 /// The time a tick byte means to a receiver whose clock is at `clock_ms`
@@ -204,9 +210,16 @@ pub fn tick_byte(time_ms: u32) -> u8 {
 /// with no error. `None`: before time 0 (the client's unsigned arithmetic
 /// would wrap there).
 pub fn tick_time(byte: u8, clock_ms: u32) -> Option<u32> {
-    let current = i64::from(clock_ms / TICK_MS);
+    tick_time_in(Grid::STOCK, byte, clock_ms)
+}
+
+/// [`tick_time`] on a match's grid (the reach is 127 of its ticks: 2.54 s
+/// at 20 ms).
+pub fn tick_time_in(grid: Grid, byte: u8, clock_ms: u32) -> Option<u32> {
+    let tick_ms = i64::from(grid.tick_ms());
+    let current = i64::from(grid.ticks(GameTime(clock_ms)));
     let tick = current + i64::from(sdiff8(byte, current as u8));
-    u32::try_from(tick * i64::from(TICK_MS)).ok()
+    u32::try_from(tick * tick_ms).ok()
 }
 
 /// A time as a message carries it: the tick, and for the "precise" ids the

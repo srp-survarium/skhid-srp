@@ -27,7 +27,7 @@ use survarium::v026g::match_msgs::snapshot::{
     Respawn, Rules, Sections, Statistics, StatisticsTail, Tdm, Timed, Timelimit, VictoryItemStatus,
 };
 use survarium::v026g::match_msgs::{
-    PlayerInput, ServerMessage, TICK_MS, WireTime, id, tick_byte, upload,
+    GameTime, Grid, PlayerInput, ServerMessage, WireTime, id, tick_byte, tick_byte_in, upload,
 };
 use udp_transport::seq::{Recorded, Window};
 use udp_transport::wire::{self, low_level};
@@ -635,6 +635,11 @@ impl Client {
         self.send(id::LEAVE, &bytes, true);
     }
 
+    /// Its grid: the 0xE4 trailer's, or the game's own.
+    pub fn grid(&self) -> Grid {
+        self.model.ticks.unwrap_or(Grid::STOCK)
+    }
+
     pub fn clock(&self) -> u32 {
         self.model.clock.unwrap_or(0)
     }
@@ -643,10 +648,11 @@ impl Client {
     /// hash: none loaded from a snapshot, none younger than the horizon.
     pub fn horizon(&self) -> Option<u32> {
         let resync = self.model.last_resync?;
-        let time = self.clock().checked_sub(HORIZON_MS)? / TICK_MS * TICK_MS;
+        let grid = self.grid();
+        let time = grid.floor(GameTime(self.clock().checked_sub(HORIZON_MS)?)).0;
         let time = self
             .frozen_at
-            .map_or(time, |at| time.min(at / TICK_MS * TICK_MS));
+            .map_or(time, |at| time.min(grid.floor(GameTime(at)).0));
         (time > resync).then_some(time)
     }
 
@@ -742,7 +748,7 @@ impl Client {
     }
 
     pub fn report(&mut self, time: u32, crc: u32) {
-        let mut payload = vec![tick_byte(time)];
+        let mut payload = vec![tick_byte_in(self.grid(), time)];
         payload.extend(crc.to_le_bytes());
         self.send(id::HASH, &payload, false);
     }
@@ -806,8 +812,14 @@ impl Client {
             // 50 ms grid of its own clock, `last_sent + interval <= now`,
             // and the timer is armed again even with nothing to report.
             // With 100 ms it reports every second tick, on its own phase.
-            let grid = self.clock() / TICK_MS * TICK_MS;
-            if self.hash_last_sent + self.hash_interval_ms <= grid {
+            let grid = self.grid().floor(GameTime(self.clock())).0;
+            // A match of another tick: its patch re-stamps the interval to a tick.
+            let interval = if self.grid() == Grid::STOCK {
+                self.hash_interval_ms
+            } else {
+                self.grid().tick_ms()
+            };
+            if self.hash_last_sent + interval <= grid {
                 self.hash_last_sent = grid;
                 if let Some(time) = self.horizon().filter(|time| *time > self.last_hashed)
                     && !self.no_hashes

@@ -167,7 +167,20 @@ pub unsafe extern "C" fn netcode_static_info(regs: &mut Regs) {
         };
         (*reader).size -= strip;
         (*(&raw mut NETCODE)).static_info(grid);
+        // A refused stamp is in the log (restamp.rs).
+        let _ = crate::restamp::to(grid.unwrap_or(Grid::STOCK));
     }
+}
+
+/// A replay starts (its network client made, 0x1EBF8C): the stock
+/// protocol and the game's own 50 ms (the game's replays are of 50 ms).
+///
+/// # Safety
+/// On the logic thread.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn netcode_replay_hook(_regs: &mut Regs) {
+    unsafe { (*(&raw mut NETCODE)).static_info(None) };
+    let _ = crate::restamp::to(Grid::STOCK);
 }
 
 /// `synchronize`'s context of a sender (EBP in 0x27E9F0 and 0x27EB90): +0

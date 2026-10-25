@@ -518,7 +518,7 @@ impl Game {
                 if self.live() == 0 {
                     continue;
                 }
-                let at = grid_up(clock + ROSTER_LEAD_MS);
+                let at = self.grid_up(clock + ROSTER_LEAD_MS);
                 let at = self.roster_change(None, index, true, at, now);
                 if let Some(drive) = self.drives[index].as_mut() {
                     drive.entered(at);

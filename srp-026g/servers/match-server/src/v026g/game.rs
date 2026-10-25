@@ -109,9 +109,9 @@ use survarium::v026g::match_msgs::rules::{self, TimelimitParams, TimelimitRule, 
 use survarium::v026g::match_msgs::snapshot::{self, Rules, Sections, Standing, Statistics, event};
 use survarium::v026g::match_msgs::upload::{Pushed, Reassembler, Upload};
 use survarium::v026g::match_msgs::{
-    ClientMessage, ClientUpdate, FORCED_MISMATCH, Generation, OwnOutcome, Outcome, PlayerInput,
-    ServerMessage, TICK_MS, TimeReply, WireTime, clock as game_clock, id as msg_id, parse_client,
-    tick_byte, tick_time,
+    ClientMessage, ClientUpdate, FORCED_MISMATCH, Generation, Grid, OwnOutcome, Outcome,
+    PlayerInput, ServerMessage, TICK_MS, TimeReply, WireTime, clock as game_clock, id as msg_id,
+    parse_client, tick_byte, tick_byte_in, tick_time, tick_time_in,
 };
 use udp_transport::{Event, SendError, Transport};
 
@@ -375,7 +375,9 @@ const HASH_STARVED_LOG: Duration = Duration::from_secs(30);
 const STARVED_REFRESH: Duration = Duration::from_secs(3);
 /// A request is aimed at the middle of a tick of the client's clock, less
 /// half of how late the loop may send it (it polls every 5 ms).
-const AIM_MS: i64 = (TICK_MS / 2) as i64 - 3;
+fn aim_ms(tick_ms: u32) -> i64 {
+    i64::from(tick_ms / 2) - 3
+}
 /// An aimed request waits at most this long for its moment.
 const AIM_WAIT_MS: i64 = 1_000;
 /// A late input is moved at most this many ticks past the first open one.
@@ -404,9 +406,28 @@ const PING_LOG_MS: u32 = 30_000;
 /// over. A real client that loads its level is connected all the while.
 const BOTS_ALONE: Duration = Duration::from_secs(45);
 
-/// The next tick at or after `time`.
+/// The next tick at or after `time`, on the stock grid.
+#[cfg(test)]
 fn grid_up(time: u32) -> u32 {
-    sync_core::Grid::STOCK.ceil(sync_core::GameTime(time)).0
+    Grid::STOCK.ceil(sync_core::GameTime(time)).0
+}
+
+impl Game {
+    /// The match's grid: its tick (`SRP_NETCODE_TICK_MS` with the per-tick
+    /// protocol; the game's own 50 ms else).
+    fn grid(&self) -> Grid {
+        self.per_tick.as_ref().map_or(Grid::STOCK, |ticks| ticks.grid)
+    }
+
+    /// The next tick at or after `time`, on the match's grid.
+    fn grid_up(&self, time: u32) -> u32 {
+        self.grid().ceil(sync_core::GameTime(time)).0
+    }
+
+    /// The match's tick, ms.
+    fn tick_ms(&self) -> u32 {
+        self.grid().tick_ms()
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1021,6 +1042,10 @@ impl Game {
             "growing_roster": self.formed.growing_roster,
             "initial_players": self.formed.initial_players,
             "late_inputs": format!("{:?}", self.settings.late_inputs),
+            // The match's protocol and tick (missing: the stock relays at
+            // 50 ms, recordings made before them).
+            "netcode": if self.per_tick.is_some() { "v069" } else { "relays" },
+            "tick_ms": self.grid().tick_ms(),
             "places": self.places_note(0),
         });
         self.recording = Some(recorder.open(self.id, header, now));
@@ -1588,13 +1613,14 @@ impl Game {
             .as_ref()
             .is_some_and(|peer| peer.stage == Stage::Live);
         let clock = self.clock(now);
+        let grid = self.grid();
         if crc != FORCED_MISMATCH
             && let Some(peer) = self.peers[index].as_mut()
             && let Stage::Syncing { time: from, .. } = peer.stage
         {
             // Its world on the way: a report of a tick past its snapshot
             // may show that it has it (`load_proven`).
-            if let Some(time) = tick_time(tick, clock)
+            if let Some(time) = tick_time_in(grid, tick, clock)
                 && time > from
                 && peer.load_reports.len() < LOAD_REPORTS_KEPT
             {
@@ -1605,7 +1631,7 @@ impl Game {
         if crc == FORCED_MISMATCH || !live {
             return;
         }
-        let Some(time) = tick_time(tick, clock) else {
+        let Some(time) = tick_time_in(grid, tick, clock) else {
             return;
         };
         if let Some(peer) = self.peers[index].as_mut() {
@@ -2122,7 +2148,7 @@ impl Game {
             .map(|(at, _, _)| *at)
             .max()
             .unwrap_or(0);
-        let at = grid_up(self.clock(now).max(left + 1) + ROSTER_LEAD_MS);
+        let at = self.grid_up(self.clock(now).max(left + 1) + ROSTER_LEAD_MS);
         let at = self.roster_change(Some(index), index, true, at, now);
         if let Some(peer) = self.peers[index].as_mut() {
             peer.entered_early = Some(at);
@@ -2334,7 +2360,7 @@ impl Game {
             }
             _ => None,
         };
-        match aim_at(clock, &middles, phase) {
+        match aim_at(self.tick_ms(), clock, &middles, phase) {
             Some(times) => sources.iter().copied().zip(times).collect(),
             None => now,
         }
@@ -3343,7 +3369,7 @@ impl Game {
             // poll_roster schedules entry only after a matching catch-up
             // hash, independently of this snapshot's transport ACK.
         } else if entering {
-            let at = grid_up(clock.max(time + 1) + ROSTER_LEAD_MS);
+            let at = self.grid_up(clock.max(time + 1) + ROSTER_LEAD_MS);
             let at = self.roster_change(None, index, true, at, now);
             log::info!("Match {id:#x}: player {index} entered at {at} ms");
         } else if !self.send_held_answers(index, time, now) {
@@ -3756,6 +3782,7 @@ impl Game {
     /// A client's whole world came (its 0xE0 chunks).
     fn uploaded(&mut self, index: usize, upload: Upload, now: Instant) {
         let clock = self.clock(now);
+        let tick_ms = self.tick_ms();
         let initial = self.snapshot.is_none() && self.requested_at.is_none();
         let joiner = self.waiting_entry(index);
         let id = self.id;
@@ -3771,7 +3798,7 @@ impl Game {
         // client is at, could put a forged world or results in. (A client
         // sends its initial world on every join, also when not the first.)
         if !initial {
-            let in_window = snapshot.time.is_multiple_of(TICK_MS)
+            let in_window = snapshot.time.is_multiple_of(tick_ms)
                 && snapshot.time <= clock + UPLOAD_MAX_AHEAD_MS
                 && snapshot.time + UPLOAD_MAX_AGE_MS >= clock;
             if !peer.is_asked(now) || !in_window {
@@ -3801,7 +3828,7 @@ impl Game {
         // A world of the present: its game simulates.
         peer.simulating_at = Some(now);
         if !initial && let Some(asked) = peer.asked_clock.take() {
-            observe_upload(&mut peer.upload_offset, asked, snapshot.time);
+            observe_upload(tick_ms, &mut peer.upload_offset, asked, snapshot.time);
         }
         // The server needs no more of a world than its bytes; that it does
         // not split into its sections here says the reader is wrong (no
@@ -3865,13 +3892,13 @@ impl Game {
         }
         // The clock runs on the tick grid [LIKELY the initial world is on
         // it: 0.21d's was at 50 ms].
-        if !snapshot.time.is_multiple_of(TICK_MS) {
+        if !snapshot.time.is_multiple_of(self.tick_ms()) {
             log::warn!(
                 "Match {:#x}: the initial world is at {} ms, off the tick grid",
                 self.id,
                 snapshot.time
             );
-            snapshot.time = grid_up(snapshot.time);
+            snapshot.time = self.grid_up(snapshot.time);
         }
         log::info!(
             "Match {:#x}: player {index} gave the initial world ({} bytes at {} ms, CRC {:08x})",
@@ -4618,7 +4645,7 @@ impl Game {
             .rev()
             .find(|(_, who, _)| *who == index)
             .map_or(0, |(at, _, _)| *at);
-        let at = grid_up(self.clock(now).max(entered_at + 1) + ROSTER_LEAD_MS);
+        let at = self.grid_up(self.clock(now).max(entered_at + 1) + ROSTER_LEAD_MS);
         self.roster_change(Some(index), index, false, at, now);
     }
 
@@ -4758,6 +4785,7 @@ impl Game {
     /// (the ack's time less the way back, on the game's clock).
     fn check_in_flight(&mut self, index: usize, now: Instant) {
         let clock = self.clock(now);
+        let tick_ms = self.tick_ms();
         let Some(peer) = self.peers[index].as_mut() else {
             return;
         };
@@ -4796,7 +4824,7 @@ impl Game {
                     && earliest.is_some_and(|earliest| i64::from(each.time) + 500 <= earliest);
                 if moved_for_sure {
                     let moved = (game - 50).max(0) as u32;
-                    peer.resync_floor = peer.resync_floor.max(moved + TICK_MS);
+                    peer.resync_floor = peer.resync_floor.max(moved + tick_ms);
                     if peer.missed.len() == MISSED_KEPT {
                         peer.missed.pop_front();
                     }
@@ -4978,6 +5006,7 @@ impl Game {
         if self.finished_at.is_some() {
             return;
         }
+        let grid = self.grid();
         let end = self.called_off(end);
         let clock = self.clock(now);
         let present = self.present();
@@ -5013,7 +5042,7 @@ impl Game {
                 // (0x27A958: entry 4 is the function's return), and the
                 // game stays on the screen it waited on.
                 let message = ServerMessage::PlayerLeft {
-                    tick: farewell_tick(peer, clock),
+                    tick: farewell_tick(peer, grid, clock),
                     player: index as u8,
                 };
                 peer.farewell = send(peer, &message).map(|serial| (serial, message));
@@ -5033,6 +5062,7 @@ impl Game {
         self.poll_roster(now);
         let clock = self.clock(now);
         let mono16 = self.mono(now) as u16;
+        let grid = self.grid();
         let timing = self.settings.timing.clone();
         self.check_candidates(now);
         self.check_hashes(now);
@@ -5323,7 +5353,7 @@ impl Game {
                             // .. 0x27C76F, but the world would keep the
                             // player).
                             let message = ServerMessage::PlayerLeft {
-                                tick: farewell_tick(peer, clock),
+                                tick: farewell_tick(peer, grid, clock),
                                 player: index as u8,
                             };
                             peer.farewell = send(peer, &message).map(|serial| (serial, message));
@@ -5707,9 +5737,9 @@ fn forget_placed(placed: &mut VecDeque<(u32, u32)>, clock: u32) {
 /// `asked`: the client's upload offset is within `[time - asked, + 50)`.
 /// Bounds that agree with the ones known narrow them; bounds that do not
 /// (its clock or its link changed) replace them.
-fn observe_upload(bounds: &mut Option<(i64, i64)>, asked: u32, time: u32) {
+fn observe_upload(tick_ms: u32, bounds: &mut Option<(i64, i64)>, asked: u32, time: u32) {
     let low = i64::from(time) - i64::from(asked);
-    let high = low + i64::from(TICK_MS);
+    let high = low + i64::from(tick_ms);
     *bounds = match *bounds {
         Some((known_low, known_high)) if low.max(known_low) < high.min(known_high) => {
             Some((low.max(known_low), high.min(known_high)))
@@ -5723,12 +5753,13 @@ fn observe_upload(bounds: &mut Option<(i64, i64)>, asked: u32, time: u32) {
 /// bounds. The tick is the first all can still be asked for, and with
 /// `phase` (`(period, a tick)`) one of the ticks `tick + n * period`.
 /// A client asked at `tick + AIM_MS - middle` handles the request
-/// [`AIM_MS`] into `tick` on its own clock if its offset is the middle.
+/// [`aim`] into `tick` on its own clock if its offset is the middle.
 /// `None`: no such tick within [`AIM_WAIT_MS`].
-fn aim_at(clock: u32, middles: &[i64], phase: Option<(u32, u32)>) -> Option<Vec<u32>> {
-    let tick = i64::from(TICK_MS);
+fn aim_at(tick_ms: u32, clock: u32, middles: &[i64], phase: Option<(u32, u32)>) -> Option<Vec<u32>> {
+    let tick = i64::from(tick_ms);
+    let aim = aim_ms(tick_ms);
     let clock = i64::from(clock);
-    let earliest = middles.iter().map(|middle| clock + middle - AIM_MS).max()?;
+    let earliest = middles.iter().map(|middle| clock + middle - aim).max()?;
     let mut target = earliest.max(0).div_euclid(tick) * tick;
     if target < earliest {
         target += tick;
@@ -5744,7 +5775,7 @@ fn aim_at(clock: u32, middles: &[i64], phase: Option<(u32, u32)>) -> Option<Vec<
     }
     let times: Vec<i64> = middles
         .iter()
-        .map(|middle| (target + AIM_MS - middle).max(clock))
+        .map(|middle| (target + aim - middle).max(clock))
         .collect();
     times
         .iter()
@@ -5754,8 +5785,8 @@ fn aim_at(clock: u32, middles: &[i64], phase: Option<(u32, u32)>) -> Option<Vec<
 
 /// The tick of the 0xEA that ends the match for `peer`: the match
 /// clock's, or 0 for a game that was never given a time (`Game::finish`).
-fn farewell_tick(peer: &Peer, clock: u32) -> u8 {
-    if peer.clock_set { tick_byte(clock) } else { 0 }
+fn farewell_tick(peer: &Peer, grid: Grid, clock: u32) -> u8 {
+    if peer.clock_set { tick_byte_in(grid, clock) } else { 0 }
 }
 
 /// The relay of something of the player at `index`.
@@ -6656,35 +6687,35 @@ mod tests {
     fn uploads_bound_a_clients_tick_and_requests_are_aimed_into_it() {
         // Asked at 10 000 it uploaded 9 450: its offset is in [-550, -500).
         let mut bounds = None;
-        observe_upload(&mut bounds, 10_000, 9_450);
+        observe_upload(50, &mut bounds, 10_000, 9_450);
         assert_eq!(bounds, Some((-550, -500)));
         // Asked at 10 020 it uploaded 9 500: [-520, -470) narrows it.
-        observe_upload(&mut bounds, 10_020, 9_500);
+        observe_upload(50, &mut bounds, 10_020, 9_500);
         assert_eq!(bounds, Some((-520, -500)));
         // Bounds that cannot both hold: its clock moved; the new ones count.
-        observe_upload(&mut bounds, 20_000, 19_600);
+        observe_upload(50, &mut bounds, 20_000, 19_600);
         assert_eq!(bounds, Some((-400, -350)));
 
         // Two clients, offsets about -510 and -470: asked for one tick, the
         // first both can still be asked for, each by its own middle.
-        let times = aim_at(10_000, &[-510, -470], None).unwrap();
+        let times = aim_at(50, 10_000, &[-510, -470], None).unwrap();
         assert_eq!(times, [10_082, 10_042]);
         for (at, middle) in times.iter().zip([-510i64, -470]) {
             assert_eq!((i64::from(*at) + middle).div_euclid(50) * 50, 9_550);
-            assert_eq!((i64::from(*at) + middle).rem_euclid(50), AIM_MS);
+            assert_eq!((i64::from(*at) + middle).rem_euclid(50), aim_ms(50));
         }
         // One source, the other client hashing every 100 ms on the ticks
         // ending in 50: the tick asked for is one of those.
-        let times = aim_at(10_000, &[-510], Some((100, 8_950))).unwrap();
+        let times = aim_at(50, 10_000, &[-510], Some((100, 8_950))).unwrap();
         assert_eq!(times, [10_082]);
         assert_eq!(
-            aim_at(10_000, &[-510], Some((100, 8_900))).unwrap(),
+            aim_at(50, 10_000, &[-510], Some((100, 8_900))).unwrap(),
             [10_032]
         );
         // A client that reports every tick has no phase to aim at.
-        assert_eq!(aim_at(10_000, &[-510], Some((50, 8_900))), None);
+        assert_eq!(aim_at(50, 10_000, &[-510], Some((50, 8_900))), None);
         // Bounds that would mean a wait of seconds are not used.
-        assert_eq!(aim_at(10_000, &[-510, -3_000], None), None);
+        assert_eq!(aim_at(50, 10_000, &[-510, -3_000], None), None);
     }
 
     #[test]
@@ -6699,12 +6730,12 @@ mod tests {
                 let clock = 10_000 + round as u32 * 3_000;
                 let (low, high) = bounds.unwrap();
                 let middle = (low + high) / 2;
-                let planned = i64::from(aim_at(clock, &[middle], None).unwrap()[0]);
+                let planned = i64::from(aim_at(50, clock, &[middle], None).unwrap()[0]);
                 let wanted = (planned + middle).div_euclid(50) * 50;
                 let at = planned + late;
                 let uploaded = (at + truth).div_euclid(50) * 50;
                 misses += u32::from(uploaded != wanted);
-                observe_upload(&mut bounds, at as u32, uploaded as u32);
+                observe_upload(50, &mut bounds, at as u32, uploaded as u32);
                 let (low, high) = bounds.unwrap();
                 assert!(low <= truth && truth < high, "{truth}: {bounds:?}");
             }

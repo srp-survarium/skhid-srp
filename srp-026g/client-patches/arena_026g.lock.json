@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 200340,
-  "sha256": "0d249fd67c4aa4b1c05802e85ee7908568337445dbc98ca36e2eb405e11784d2",
+  "size": 204801,
+  "sha256": "e07d827bb398da61b6374a271d0b22650e7c81ddde3063758c48931205f3f444",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -72,12 +72,17 @@
     "netcode.code": {
       "kind": "code",
       "va": "0xa459000",
-      "size": 11224
+      "size": 13548
     },
     "netcode.state": {
       "kind": "state",
-      "va": "0xa45c000",
+      "va": "0xa45d000",
       "size": 7828
+    },
+    "netcode.data": {
+      "kind": "data",
+      "va": "0xa45f000",
+      "size": 1
     }
   },
   "symbols": {
@@ -165,15 +170,17 @@
     "netcode_dispatch": "0xa459000",
     "netcode_length": "0xa459049",
     "netcode_own_input": "0xa4590bf",
-    "netcode_own_input_hook": "0xa459881",
+    "netcode_own_input_hook": "0xa459b7e",
     "netcode_own_profile": "0xa4590e9",
-    "netcode_own_profile_hook": "0xa4598f9",
+    "netcode_own_profile_hook": "0xa459bf6",
     "netcode_received_info": "0xa459087",
-    "netcode_send": "0xa45994d",
+    "netcode_replay": "0xa45913b",
+    "netcode_replay_hook": "0xa459c4a",
+    "netcode_send": "0xa459c6e",
     "netcode_send_info": "0xa459063",
-    "netcode_static_info": "0xa459f46",
+    "netcode_static_info": "0xa45a267",
     "netcode_synchronize": "0xa459112",
-    "netcode_update": "0xa45a0a4",
+    "netcode_update": "0xa45a3da",
     "research_hud": "0xa42d005",
     "research_register": "0xa42d000",
     "research_welcome": "0xa42d00a",

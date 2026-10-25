@@ -42,7 +42,10 @@
 //!   clients' clocks steered by the clients themselves. Every game must
 //!   announce it (a patched exe of this protocol); one that does not is
 //!   refused. Off, everything is as before, and a game that announces it
-//!   plays the stock protocol;
+//!   plays the stock protocol. `SRP_NETCODE_TICK_MS=50|25|20` (default 50,
+//!   only with `v069`; phase 4): the matches' tick, which the games take
+//!   from the static info; 25 and 20 are for trials (they cost the games'
+//!   simulation CPU), and a replay is not made of such a match;
 //! - `SRP_LATE_INPUTS=discard|move` (default `discard`, what 0.21d does):
 //!   what becomes of an input that comes after its tick is final: dropped
 //!   (0xF1 / 0xF2), or moved to an open tick (0xEF / 0xF0, new in 0.26g);
@@ -311,7 +314,10 @@ impl Settings {
     pub fn from_env() -> Self {
         let var = |name: &str| std::env::var(name).ok();
         Self {
-            netcode: parse_netcode(var("SRP_NETCODE").as_deref()),
+            netcode: parse_netcode(
+                var("SRP_NETCODE").as_deref(),
+                var("SRP_NETCODE_TICK_MS").as_deref(),
+            ),
             late_inputs: parse_late_inputs(var("SRP_LATE_INPUTS").as_deref()),
             resync_world_only: parse_switch(
                 "SRP_RESYNC_WORLD_ONLY",
@@ -447,19 +453,44 @@ fn parse_late_inputs(value: Option<&str>) -> LateInputs {
     }
 }
 
-fn parse_netcode(value: Option<&str>) -> Netcode {
-    match value
+fn parse_netcode(value: Option<&str>, tick_ms: Option<&str>) -> Netcode {
+    let netcode = match value
         .map(|value| value.trim().to_ascii_lowercase())
         .as_deref()
     {
         None | Some("" | "off" | "relays" | "stock") => Netcode::Relays,
         Some("v069" | "ticks") => Netcode::Ticks {
-            grid: sync_core::Grid::STOCK,
+            grid: parse_tick(tick_ms),
         },
         Some(other) => {
             log::error!("SRP_NETCODE is `{other}`; it must be `v069` or `off`. Using off");
             Netcode::Relays
         }
+    };
+    if netcode == Netcode::Relays && tick_ms.is_some_and(|tick| !tick.trim().is_empty()) {
+        log::error!(
+            "SRP_NETCODE_TICK_MS is set without SRP_NETCODE=v069: the stock protocol is on the \
+             game's own 50 ms"
+        );
+    }
+    netcode
+}
+
+/// `SRP_NETCODE_TICK_MS`: the matches' tick with the per-tick protocol
+/// (phase 4): 50 (the default, the game's own), 25 or 20. Off by default:
+/// a shorter tick costs the games' simulation CPU (`netcode_port_069.md`
+/// section 4) and is for trials.
+fn parse_tick(value: Option<&str>) -> sync_core::Grid {
+    let stock = sync_core::Grid::STOCK;
+    match value.map(str::trim) {
+        None | Some("") => stock,
+        Some(value) => match value.parse().ok().and_then(sync_core::TickLen::from_ms) {
+            Some(tick) => sync_core::Grid::of(tick),
+            None => {
+                log::error!("SRP_NETCODE_TICK_MS is `{value}`; it must be 50, 25 or 20. Using 50");
+                stock
+            }
+        },
     }
 }
 

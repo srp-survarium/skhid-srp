@@ -147,10 +147,18 @@ impl Bench {
 
     /// A match of the per-tick protocol (`SRP_NETCODE=v069`), on the stock
     /// grid: growing rosters, every client announcing it.
-    pub fn ticks(players: usize, map_id: u8, mut settings: Settings) -> Self {
-        settings.netcode = Netcode::Ticks {
-            grid: sync_core::Grid::STOCK,
-        };
+    pub fn ticks(players: usize, map_id: u8, settings: Settings) -> Self {
+        Self::ticks_on(players, map_id, settings, sync_core::Grid::STOCK)
+    }
+
+    /// As [`Bench::ticks`], on `grid` (`SRP_NETCODE_TICK_MS`).
+    pub fn ticks_on(
+        players: usize,
+        map_id: u8,
+        mut settings: Settings,
+        grid: sync_core::Grid,
+    ) -> Self {
+        settings.netcode = Netcode::Ticks { grid };
         let mut bench = Self::growing(players, map_id, settings);
         for client in &mut bench.clients {
             client.announce_ticks = true;

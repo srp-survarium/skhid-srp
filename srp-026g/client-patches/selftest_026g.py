@@ -418,8 +418,13 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     the length getter and the two infos before their tables, the connect's
     send, the two senders' new_packet, the send pass's synchronize) and
     the four range bytes, the hooks and new ids in the build, no relocation
-    under a site and no branch into one, the code the link's.
-    check_netcode_026g.py runs the entries.
+    under a site and no branch into one, the code the link's. The tick's
+    sites (tick_sites_026g.py, stamped at run time): each the original's
+    instruction and value, every division by 50 of the code among them,
+    rust/netcode/src/sites.rs current, the build's bytes there the
+    original's (patch 3's hash interval 50); the replay's start (0x1EBF8C)
+    the only call of its network client's constructor.
+    check_netcode_026g.py runs the entries and the stamps.
 The engine-function library (engine_026g.py, the arena's block engine.code;
 client_patch.md section 0.5): its files are what engine_026g.tsv and the
 re-kit's ABI rows give, and engine_026g.py refuses a spec row whose
@@ -4657,6 +4662,18 @@ def test_netcode(original, image, before):
     check(image.read(block.va, len(code)) == code and "netcode.state" in linked.blocks,
           f"the code at {block.va:#x} is the link's netcode.code ({len(code)} bytes: the NASM entries and the Rust "
           "crate rust/netcode), its machine in netcode.state")
+    import tick_sites_026g as T
+    problems = T.check_exe(original)
+    built = [at for at, kind, _, _ in T.SITES
+             if image.read(at, T.WIDTH[kind]) != (bytes([50]) if kind == "Hash8" else stock.read(at, T.WIDTH[kind]))]
+    callers = branches_into(original, 0x218A40, 0x218A41)
+    check(not problems and not built and T.RUST.read_bytes() == T.rust()
+          and callers == ["0x1ebf8c rel32"],
+          f"the tick's {len(T.SITES)} sites (tick_sites_026g.py; rust/netcode/src/sites.rs current): each the "
+          "original's instruction and value, every division by 50 of the code among them; the build's bytes there "
+          "the original's (patch 3's hash interval 50); replay_network_client's constructor (0x218A40) called from "
+          "0x1EBF8C alone" + "".join(f"\n          {p}" for p in problems[:8] + [hex(b) for b in built[:8]]
+                                         + callers[:4]))
 
 
 def test_spot(original, image, before):

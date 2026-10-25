@@ -20,7 +20,10 @@
 ;   reads the message;
 ; - netcode_own_input, netcode_own_profile: the stock senders' own inputs
 ;   taken at their new_packet, the stock send skipped;
-; - netcode_synchronize: after the stock synchronize, the updates due.
+; - netcode_synchronize: after the stock synchronize, the updates due;
+; - the tick (phase 4): the static info stamps the match's tick into the exe
+;   (rust/netcode/src/restamp.rs, the sites of tick_sites_026g.py), a
+;   replay's start (netcode_replay) the stock 50.
 bits 32
 section .text
 
@@ -34,6 +37,7 @@ global netcode_connect
 global netcode_own_input
 global netcode_own_profile
 global netcode_synchronize
+global netcode_replay
 
 ; on_match_packet_received 0x27A300 at 0x27A322 (`add eax,0FFFFFF1Dh`,
 ; then `cmp eax,13h / ja / jmp [eax*4+27A738h]`): EAX the id (movzx), ESI
@@ -137,3 +141,10 @@ netcode_synchronize:
     call 0x27E6D0
     RUST_HOOK netcode_send
     ret 0x0C
+
+; The replay's start: its network client's constructor call (0x1EBF8C, `call
+; 0x218A40`): the stock protocol and the 50 ms tick, then the constructor
+; with the call's registers and stack.
+netcode_replay:
+    RUST_HOOK netcode_replay_hook
+    jmp 0x218A40

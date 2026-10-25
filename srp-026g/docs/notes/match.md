@@ -728,3 +728,21 @@ Mode 4. Found from the live logs and the saved worlds of 2026-10-14/15; tools: `
   - A game of a place that stands in, connecting meanwhile, waits for the stand-in's leave (`stands_in`), then enters after it, from a world after it: a lost player as one back in the match (`enter_early`), a place no player had as a new arrival. Never a second entry while the stand-in is in, nor taken out by its leave.
 - **A gap, not new:** any leave the server sends within its roster lead (300 ms) of that place's entry can come before a game played the entry and be dropped (a newcomer who leaves at once); the server does not hold those back yet.
 - **What a game does when a match is called off** (the same end as every match, §24): 0xEA of its own place → `close_current_match(3)`: the world ended, the lobby's victory screen opened (`show_match_statistic`; PROVEN 0x27A806..0x27A81A, 0x29AAF0). No 0x97 comes for it, so the screen shows its "receiving the statistics" spinner (`VictoryScreen.prepare`, no time-out in the movie) until the player closes it (×, Esc, a tab); a room's member has its room's window under it. LIKELY: not seen in a game. The quiet way (a 5 s silence ends the match link as `close_current_match(0)`, the world ended with no screen: jump table 0x27A958 entry 0 = 0x27A941) was not taken: the server would have to swallow the game's datagrams for as long as it loads, with no 0xFD, and that path is not exercised live.
+
+## 35. The per-tick protocol (added 2026-10-26)
+
+`SRP_NETCODE=v069` (default off) and patch 79: the rules are in
+`netcode_ticks.md`. In short, for this note's message lists (§1.1, §1.2):
+
+- A game announces it in 0xD8 (bit 1 of the capability byte); the
+  server refuses any other game while the switch is on, and puts a
+  trailer on 0xE4 (`[tick_ms, 1, 'S', 'R', 'P', 'T']`) for those it plays
+  the protocol with.
+- C->S 0xE2 replaces 0xDC, 0xDD and 0xDE: one a tick, empty or not. S->C
+  0xF7 replaces 0xE9..0xF5 and 0xE7: one a tick, with that tick's inputs,
+  kit choices, entries and leaves, and the outcomes of the receiver's own
+  updates (confirmed, moved to a tick, discarded). The game makes the
+  stock messages of 0xF7's changes itself and hands them to its own
+  handlers, so §5 (its input rules) holds as before.
+- Everything else (0xE3..0xE6, 0xE8, 0xF6, 0xDB, 0xDF, 0xE0, 0xE1, the
+  late join, the resyncs) is as in the stock protocol.

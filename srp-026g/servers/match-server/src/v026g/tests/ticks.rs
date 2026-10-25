@@ -3,7 +3,7 @@
 //! order, or not at all.
 
 use super::*;
-use survarium::v026g::match_msgs::{ServerMessage, rules::state};
+use survarium::v026g::match_msgs::{GameTime, ServerMessage, rules::state};
 
 /// Every input of every place, as each client's lists have it, over
 /// `(from, to]`: the same for every client.
@@ -462,6 +462,50 @@ fn a_game_steers_its_clock_ahead_so_its_updates_come_in_time() {
     bench.assert_no_faults();
 }
 
+/// Phase 4: a match on 25 or 20 ms (`SRP_NETCODE_TICK_MS`, off by
+/// default). The games learn the tick from their 0xE4, every tick closes
+/// with its update, their hash reports (one-byte ticks of the match's
+/// grid) agree, and every game has every input at the same time.
+#[test]
+fn a_match_on_a_shorter_tick_closes_each_of_its_ticks_and_agrees() {
+    use sync_core::{Grid, TickLen};
+    for tick in [TickLen::Ms25, TickLen::Ms20] {
+        let grid = Grid::of(tick);
+        let mut bench = Bench::ticks_on(3, MAP_BATTERIES, Settings::default(), grid);
+        bench.join_all();
+        for client in &bench.clients {
+            assert_eq!(client.model.ticks, Some(grid));
+        }
+        let from = bench.clock();
+        let taken = bench.clients[0].per_tick.as_ref().unwrap().updates;
+        play(&mut bench, 8_000, 40);
+        bench.run(1_000);
+        let to = bench.clock() - 600;
+        assert_same_inputs(&bench, from, to);
+        let client = bench.clients[0].per_tick.as_ref().unwrap();
+        // One update a tick of the grid.
+        let updates = client.updates - taken;
+        assert!(
+            updates >= 8_500 / tick.ms(),
+            "{} ms: {updates} updates",
+            tick.ms()
+        );
+        assert!(
+            client
+                .taken_at
+                .iter()
+                .all(|(at, _)| grid.on_grid(GameTime(*at)))
+        );
+        // No game went out of step: its hashes on the match's grid.
+        for place in 0..3 {
+            assert_eq!(bench.game().resyncs(place), 0, "{} ms", tick.ms());
+            assert!(bench.game().hash_reports_of(place) > 0);
+        }
+        assert!(!bench.game().hash_starved());
+        bench.assert_no_faults();
+    }
+}
+
 /// [`play`] for either protocol.
 fn play_any(bench: &mut Bench, ms: u64, every: u64) {
     for n in 0..(ms / every) as u32 {
@@ -504,4 +548,90 @@ fn the_near_game_rolls_back_by_its_own_round_trip_alone() {
     assert!(ticks_near.0 < relays_near.0, "{depths:?}");
     // About its own round trip and a tick.
     assert!(ticks_near.0 <= 20 + 50 + 10, "{depths:?}");
+}
+
+/// A line's impairment for the soak: up to `jitter_ms` more on each
+/// datagram and one in `1 / loss` lost (late by 30 s: past every resend's
+/// life, as a loss is to the transport). A fixed seed: the same run each
+/// time.
+fn impaired(jitter_ms: u64, loss: u64) -> Jitter {
+    let mut seed: u64 = 0x5EED_1234_ABCD_0001;
+    Box::new(move |_, _, _, _| {
+        seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        let roll = seed >> 33;
+        if roll.is_multiple_of(loss) {
+            30_000
+        } else {
+            (roll >> 8) % (jitter_ms + 1)
+        }
+    })
+}
+
+/// The soak (run on demand: `cargo test -p match-server soak -- --ignored
+/// --nocapture`): the stock relays against the per-tick protocol on the
+/// same lines (one-way 20, 60, 100 and 150 ms, 30 ms of jitter, 3 % lost),
+/// four players for a minute, then "Player vs Bots" (two players, four of
+/// the server's bots) for a minute. Prints each player's rollback depth
+/// (median, 90th percentile: how far back its game must go for the
+/// others' inputs) and, per tick, its moved and discarded updates; every
+/// game agrees on every world (no fault).
+#[test]
+#[ignore]
+fn soak_on_lossy_lines() {
+    let lines = vec![20, 60, 100, 150];
+    for vs_bots in [false, true] {
+        let mut rows = Vec::new();
+        for ticks in [false, true] {
+            let mut bench = match (vs_bots, ticks) {
+                (false, false) => Bench::growing(4, MAP_BATTERIES, Settings::default()),
+                (false, true) => Bench::ticks(4, MAP_BATTERIES, Settings::default()),
+                (true, false) => Bench::vs_bots(6, MAP_BATTERIES, Settings::default(), &[2, 3, 4, 5]),
+                (true, true) => Bench::ticks_vs_bots(6, MAP_BATTERIES, Settings::default(), &[2, 3, 4, 5]),
+            };
+            bench.one_way = lines.clone();
+            if vs_bots {
+                bench.join(0);
+                bench.join(1);
+            } else {
+                bench.join_all();
+            }
+            bench.jitter = Some(impaired(30, 33));
+            let players = if vs_bots { 2 } else { 4 };
+            let play = |bench: &mut Bench, ms: u64| {
+                for n in 0..(ms / 50) as u32 {
+                    for place in 0..players {
+                        if bench.clients[place].model.is_synced() && !bench.clients[place].closed {
+                            bench.clients[place].input(0, (place as u32) << 16 | n);
+                        }
+                    }
+                    bench.run(50);
+                }
+            };
+            play(&mut bench, 5_000);
+            for client in &mut bench.clients {
+                client.remote_depths.clear();
+            }
+            play(&mut bench, 60_000);
+            bench.jitter = None;
+            bench.run(2_000);
+            for place in 0..players {
+                let client = &bench.clients[place];
+                let (moved, discarded) = client
+                    .per_tick
+                    .as_ref()
+                    .map_or((0, 0), |per_tick| (per_tick.moved, per_tick.discarded));
+                rows.push((ticks, place, spread(&client.remote_depths), moved, discarded));
+            }
+            bench.assert_no_faults();
+        }
+        eprintln!("soak, {}:", if vs_bots { "2 players and 4 server bots" } else { "4 players" });
+        for (ticks, place, (median, p90), moved, discarded) in rows {
+            eprintln!(
+                "  {:9} player {place} ({:3} ms one way): rollback depth median {median:4} ms, 90th {p90:4} ms{}",
+                if ticks { "per tick" } else { "relays" },
+                lines[place],
+                if ticks { format!(", moved {moved}, discarded {discarded}") } else { String::new() }
+            );
+        }
+    }
 }

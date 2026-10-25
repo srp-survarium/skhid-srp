@@ -38,6 +38,13 @@ Checked:
   one 0xE2 a tick with the inputs taken (its bytes computed here), its
   packet not joined, AL 1 when one went; nothing with the stock protocol;
 - the clock: late updates make one 0xE7 of the steering's size;
+- the tick: a static info of 50 ms writes nothing; of 25 or 20 ms every
+  site of tick_sites_026g.py holds that tick's value (computed here from
+  the kinds; the two pointers' floats 1/T and T/3000), each write made
+  writable with VirtualProtect and put back; a stock static info and a
+  replay's start (0x1EBF8C, on to the constructor as the call left it)
+  put the build's bytes back; a 25 ms match's update gives its times on
+  the 25 ms grid;
 - every entry keeps EBX ESI EDI EBP (and the frame), and enters Rust with
   the stack aligned to 16.
 """
@@ -49,6 +56,7 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC
     UC_X86_REG_ESP, UC_X86_REG_EBP, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EIP, UC_X86_REG_EFLAGS
 
 import patch_026g as base
+from tick_sites_026g import SITES, WIDTH
 
 DISPATCH, TABLE_JUMP, DISPATCH_END = 0x27A300, 0x27A330, 0x27A6FC
 LENGTH, SEND_INFO, RECEIVED_INFO = 0x279670, 0x279A60, 0x279B10
@@ -57,7 +65,8 @@ INPUT_SITE, INPUT_ON, INPUT_SKIP = 0x27EB21, 0x27EB2A, 0x27EB4D
 PROFILE_SITE, PROFILE_ON, PROFILE_SKIP = 0x27ECAC, 0x27ECB4, 0x27ECD2
 SYNC_SITE, SYNCHRONIZE = 0x27CD1F, 0x27E6D0
 NEW_PACKET, WRITE, ENQUEUE = 0x279FE0, 0x07AC10, 0x27A2A0
-IAT = {0x870048: "CreateFileA", 0x870108: "WriteFile", 0x870040: "CloseHandle"}
+IAT = {0x870048: "CreateFileA", 0x870108: "WriteFile", 0x870040: "CloseHandle", 0x870200: "VirtualProtect"}
+REPLAY_SITE, REPLAY_CLIENT = 0x1EBF8C, 0x218A40
 JOURNAL = 0xA8394C                      # the journal's recorder (0: none)
 
 CLIENT, CORE, LINK, PACKET = 0x30000000, 0x30400000, 0x30500000, 0x30600000
@@ -105,6 +114,7 @@ class Game:
 
     def reset(self):
         self.handled, self.sent, self.log, self.connects, self.syncs = [], [], [], [], []
+        self.protects, self.protection = [], {}
         self.stopped = None
         self.packet_id, self.packet_bytes = None, bytearray()
 
@@ -188,6 +198,27 @@ class Game:
     def CloseHandle(self):
         self.ret(4, 1)
 
+    def VirtualProtect(self):
+        at, size, new, old = (self.arg(i) for i in range(1, 5))
+        self.protects.append((at, size, new))
+        self.w32(old, self.protection.get(at, 0x20))
+        self.protection[at] = new
+        self.ret(16, 1)
+
+    def sites(self):
+        """What each tick site holds: {va: value}."""
+        return {at: int.from_bytes(self.emu.mem_read(at, WIDTH[kind]), "little") for at, kind, _, _ in SITES}
+
+    def replay(self):
+        """The replay's start: the call at 0x1EBF8C, EAX = EDI the client,
+        its argument pushed; stopped at the constructor's entry."""
+        sp = STACK + 0x8000
+        self.w32(sp, 0xC0DE0005)
+        regs = {UC_X86_REG_EAX: 0x5000, UC_X86_REG_EDI: 0x5000}
+        self.run(REPLAY_SITE, sp, regs, stops={REPLAY_CLIENT})
+        kept = {**KEPT, **regs}
+        return self.stopped == REPLAY_CLIENT and self.reg(UC_X86_REG_ESP) == sp - 4 \
+            and self.r32(sp - 4) == REPLAY_SITE + 5 and all(self.reg(r) == v for r, v in kept.items())
 
     # the game's state
     def world(self, state=2, core=True, now=1200, resynced=0, owner=OWN, frozen=0):
@@ -353,6 +384,14 @@ def client_update(tick, inputs=(), profiles=()):
     return out + bytes(profiles)
 
 
+def stamp_value(kind, tick):
+    """A tick site's value at `tick` (tick_sites_026g.py's kinds; the
+    pointers' floats are checked by value)."""
+    return {"Magic": 0xCCCCCCCD if tick == 20 else 0x51EB851F, "Shift": 3 if tick == 25 else 4, "Tick8": tick,
+            "Back8": -tick & 0xFF, "Tick32": tick, "Hash8": 50 // tick * tick,
+            "Fraction": 0xA2DB34, "Physics": 0xA2DBB4}[kind]
+
+
 ROT, ROT2 = 0x3F803C00, 0x00003C00          # sane rotations (halves under 1024)
 INSANE = 0x7C003C00                         # a half's exponent at 1024 and over
 
@@ -365,7 +404,7 @@ def main():
     built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
     linked = base.arena()
     rust = {linked.symbols[s] for s in ("netcode_update", "netcode_static_info", "netcode_own_input_hook",
-                                        "netcode_own_profile_hook", "netcode_send")}
+                                        "netcode_own_profile_hook", "netcode_send", "netcode_replay_hook")}
     stock, game = Game(original), Game(bytes(built), rust)
     failed = 0
 
@@ -476,6 +515,48 @@ def main():
     check(orders == [(9, struct.pack("<h", 105))],
           "late updates (100 ms): the tenth makes one 0xE7 of 105 ms (5 - -100), none while it corrects")
 
+    # The tick (phase 4): stamped by the static info, back to 50 by a stock
+    # one and by a replay's start. The values here from the kinds alone.
+    ticked = Game(bytes(built), rust)
+    built_sites = ticked.sites()
+    check(built_sites == {at: (50 if kind == "Hash8" else stamp_value(kind, 50)) for at, kind, _, _ in SITES},
+          f"the build's {len(SITES)} tick sites are the original's (patch 3's hash interval 50)")
+    for t in (50, 25, 20):
+        ticked.protects = []
+        ticked.world(state=1)
+        seen, ok = ticked.receive(0xE4, info + bytes([t, 1]) + b"SRPT")
+        sites = ticked.sites()
+        floats = {at: struct.unpack("<f", ticked.emu.mem_read(v, 4))[0] for at, v in sites.items()
+                  if dict((a, k) for a, k, _, _ in SITES)[at] in ("Fraction", "Physics")}
+        want = {at: stamp_value(kind, t) for at, kind, _, _ in SITES if kind not in ("Fraction", "Physics")}
+        pointers = {at: (1 / t if kind == "Fraction" else t / 3000) for at, kind, _, _ in SITES
+                    if kind in ("Fraction", "Physics")}
+        right = all(sites[at] == v for at, v in want.items()) \
+            and all(abs(floats[at] - v) < 1e-7 for at, v in pointers.items())
+        protected = all(new in (0x40, 0x20) for _, _, new in ticked.protects) \
+            and len(ticked.protects) == (0 if t == 50 else 2 * len(SITES))
+        check(right and protected and seen == [(0xE4, info)] and ok,
+              f"a static info of {t} ms: every site on {t} ms" + (" (none written: the build's)" if t == 50 else
+                                                                  ", each made writable and put back"))
+    ticked.world(state=1)
+    ticked.receive(0xE4, info)
+    check(ticked.sites() == built_sites, "a stock static info after a 20 ms match: every site the build's again")
+    ticked.world(state=1)
+    ticked.receive(0xE4, info + bytes([25, 1]) + b"SRPT")
+    replayed = ticked.replay()
+    ticked.world()
+    seen, _ = ticked.receive(0xF7, update)
+    check(replayed and ticked.sites() == built_sites and seen == [],
+          "a replay's start after a 25 ms match: every site the build's, the stock protocol (0xF7 nothing), on to "
+          "the constructor with the call's registers and stack")
+    game25 = Game(bytes(built), rust)
+    game25.world(state=1)
+    game25.receive(0xE4, info + bytes([25, 1]) + b"SRPT")
+    game25.world(now=1200)
+    seen, _ = game25.receive(0xF7, server_update(1200, entered=[4], inputs=[(0, 5, ROT, 7)]))
+    check(seen == [(0xE9, bytes([48, 4])), (0xEC, bytes([47, 20, 0]) + u32(ROT) + u32(7))],
+          "a 25 ms match's update: its times on the 25 ms grid (1200 is tick 48; 1195 is 47 and 20 ms)")
+
     # The stock protocol: nothing taken, nothing sent, 0xF7 nothing.
     stockgame = Game(bytes(built), rust)
     stockgame.world(state=1)
@@ -491,7 +572,7 @@ def main():
           "a match of the stock protocol: the own input goes to the stock new_packet as in the original, no update, "
           "0xF7 nothing")
 
-    aligned = game.aligned + stockgame.aligned
+    aligned = game.aligned + ticked.aligned + game25.aligned + stockgame.aligned
     entries = sorted({address for address, _ in aligned})
     check(len(entries) == len(rust) and all(residue == 0 for _, residue in aligned),
           f"each of the {len(rust)} Rust entries ran, every time with the stack aligned to 16 at its call")

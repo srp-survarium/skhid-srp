@@ -187,6 +187,10 @@ pub enum ConvertError {
     NoHeader,
     NoOptions,
     NoWorlds,
+    /// A match on another tick than the game's 50 ms (the per-tick
+    /// protocol's `SRP_NETCODE_TICK_MS`): the game's replay player reads on
+    /// the 50 ms grid (`replay_sur.md`), so no replay is made of it.
+    Tick(u64),
     Sur(sur::SurError),
     /// The file made fails its own check: a bug.
     Verify(String),
@@ -199,6 +203,10 @@ impl std::fmt::Display for ConvertError {
             Self::NoHeader => write!(f, "no header note"),
             Self::NoOptions => write!(f, "no 0xE4 (static info) in the recording"),
             Self::NoWorlds => write!(f, "no complete uploaded world in the recording"),
+            Self::Tick(ms) => write!(
+                f,
+                "a match of a {ms} ms tick: the game's replay player is on 50 ms"
+            ),
             Self::Sur(error) => write!(f, "{error}"),
             Self::Verify(why) => write!(f, "the file made does not check out: {why}"),
         }
@@ -484,6 +492,11 @@ impl Gather {
     /// `notes`: the recording's notes, or all of its records.
     fn new(notes: &[Record]) -> Result<Self, ConvertError> {
         let head = header(notes).ok_or(ConvertError::NoHeader)?;
+        // A recording from before the key is of the game's own 50 ms.
+        let tick_ms = head["tick_ms"].as_u64().unwrap_or(u64::from(TICK_MS));
+        if tick_ms != u64::from(TICK_MS) {
+            return Err(ConvertError::Tick(tick_ms));
+        }
         let mut report = Report {
             match_id: head["match_id"].as_str().unwrap_or("?").to_string(),
             map: head["map"].as_str().unwrap_or("?").to_string(),
@@ -824,6 +837,10 @@ fn finish(
     }
     drop(copies);
     report.messages_lost = kept.iter().filter(|kept| !**kept).count();
+    // The 0xE4's tick, when the header has none.
+    if let Some(grid) = ticks.grid.filter(|grid| grid.tick_ms() != TICK_MS) {
+        return Err(ConvertError::Tick(grid.tick_ms().into()));
+    }
     // The per-tick protocol's events: the others' as the server sent them,
     // each place's own as its outcomes left them.
     let TickRecords {
@@ -1653,6 +1670,22 @@ mod tests {
             [(1000, 0, 0x10), (1147, 0, 0x11), (1150, 1, 0x20)]
         );
         assert!(report.roster_events.contains(&(1150, 'E', 1)));
+    }
+
+    /// Phase 4: a match on another tick has no replay (the game's replay
+    /// player is on 50 ms); the key's absence is the game's own 50.
+    #[test]
+    fn a_recording_of_another_tick_is_refused() {
+        let mut records = recording();
+        let head = String::from_utf8(records[0].bytes.clone()).unwrap();
+        records[0].bytes = head.replace("\"places\"", "\"tick_ms\":20,\"places\"").into_bytes();
+        assert!(matches!(
+            convert(&records, b"config", Settings::default()),
+            Err(ConvertError::Tick(20))
+        ));
+        let mut records = recording();
+        records[0].bytes = head.replace("\"places\"", "\"tick_ms\":50,\"places\"").into_bytes();
+        assert!(convert(&records, b"config", Settings::default()).is_ok());
     }
 
     #[test]
