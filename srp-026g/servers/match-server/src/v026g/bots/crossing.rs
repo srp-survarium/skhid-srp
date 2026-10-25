@@ -217,6 +217,15 @@ pub fn resume(
     route
 }
 
+/// A crossing to a goal is begun only at this health or more: the walk
+/// out of a ring is not held to it. The bench (seeds 1-8, zone damage on,
+/// with the abort): on Mamayev Kurgan's batteries 97 of the 115 stretches
+/// in zones that left a bot under 0.6 health began under 0.7 (C: 10 such
+/// stretches in all); 23 began within 3 s of an enemy's hit. GUESS: at
+/// 0.7 the dearest crossing borne (half the health) leaves 0.35, over the
+/// abort's `CROSS_ABORT_LEFT`.
+pub const START_HEALTH: f32 = 0.7;
+
 /// Whether a crossing walked `walked` m along `route` still leaves a bot
 /// of `health` [`CROSS_ABORT_LEFT`] over the rest of its zones at
 /// [`CROSS_MPS`], a carrier's crossing's abort (`collect`). Hurt in a fight
@@ -250,7 +259,7 @@ pub fn choose(
         return (plain, false, kept);
     };
     let cost = hurt(tactics, &crossed, 0.0, crossed.length());
-    let borne = bears(cost, health);
+    let borne = cost <= 0.0 || (health >= START_HEALTH && bears(cost, health));
     match plain {
         Some(plain) if stuck::worth_round(plain.length(), crossed.length()) || !borne => {
             count(Count::Refused);
@@ -458,6 +467,9 @@ mod tests {
         assert!(cost > 0.0 && cost < 0.2, "{cost}");
         // Too hurt to bear it: no way, as before.
         let (route, crossing) = plan(&weak, WEST, EAST, 0.42);
+        assert!(route.is_none() && !crossing);
+        // Hurt (under `START_HEALTH`), though it would bear it: not begun.
+        let (route, crossing) = plan(&weak, WEST, EAST, START_HEALTH - 0.05);
         assert!(route.is_none() && !crossing);
         // A zone that would take more than half its health: no way.
         let harsh = tactics(0.5, 0.0);
