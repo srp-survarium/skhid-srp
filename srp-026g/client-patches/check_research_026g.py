@@ -754,9 +754,9 @@ def main():
     marks = [i for i in sent if i[1] == "root.research_markers"]
     values = marks[-1][3] if marks else []
     check("update_ui, its gates closed: update_player_icons(ui) once, then research_markers: A on the screen at "
-          "(500, 400), 10 m away; B and C off it; B's 10 s left; research_update too (in play), B's 10 s",
+          "(500, 400), 10 m away, contested; B and C off it; B's 10 s left; research_update too (in play), B's 10 s",
           moved == 0xC and run.player_icons == [ui] and len(marks) == 1 and marks[0][0] == icons
-          and len(values) == 32 and values[:2] == [0, 3]
+          and len(values) == 35 and values[:2] == [0, 3] and values[32:] == [1, 0, 0]
           and values[2:7] == [0, 1, 500, 400, 10] and values[12:22] == [1, 0, 0, 0, 101, 2, 0, 50, 10000, 0]
           and values[22:24] == [2, 0] and values[26] == 200
           and sent[-1][1] == "root.research_update" and sent[-1][3][33] == 10000, f"{sent} esp {moved}")
@@ -771,6 +771,13 @@ def main():
     sent, _ = frame()
     check("B's capture 0.6 ms further (9999.4 ms left: 10 s in whole seconds, the same tenth of a per cent): "
           "nothing sent", sent == [], str(sent))
+    run.emu.mem_write(b + 7, bytes([1]))
+    sent, _ = frame()
+    marks = [i[3] for i in sent if i[1] == "root.research_markers"]
+    check("a player of each team in B: the markers say it is contested (retail's swords), no time left",
+          len(marks) == 1 and marks[0][32:] == [1, 1, 0] and marks[0][20] == 0, str(sent))
+    run.emu.mem_write(b + 7, bytes([0]))
+    frame()
     run.word(rule + R_STATE + 12, now + 3000)
     sent, _ = frame()
     check("the end (end_time set; the time rule stays in state 3): the markers hidden, once",

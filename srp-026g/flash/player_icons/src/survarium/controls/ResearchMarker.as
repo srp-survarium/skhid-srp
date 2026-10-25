@@ -1,21 +1,21 @@
 package survarium.controls
 {
+   import flash.display.Bitmap;
    import flash.display.Graphics;
    import flash.display.Shape;
    import flash.display.Sprite;
-   import flash.filters.GlowFilter;
-   import flash.text.TextField;
-   import flash.text.TextFieldAutoSize;
-   import flash.text.TextFormat;
+   import flash.events.Event;
 
    // Research (mode 5): a research unit's marker where the unit is on the
-   // screen, as 0.27d's player icon of kind 2 (RoundProgress): the unit's
-   // letter in a circle of its owner's colour (the game's own team blue, the
-   // other red, nobody grey, as the hud's units), a ring as far round as the
-   // capture of the team taking it, larger while the game's own player is
-   // inside. Smaller with distance; under it the time left of a capture or
-   // neutralisation while one runs, else the distance in metres. The layer
-   // (HUDIconLayer.research_markers) places it.
+   // screen, as retail's (0.27d's player icon of kind 2, RoundProgress /
+   // CapturePointMarker; research_mode.md "Markers in the retail game"): one
+   // size at any distance, SIZE px (SIZE_INSIDE and the corner brackets while
+   // the game's own player is inside), alpha C3h, raised LIFT px, no label.
+   // The unit's letter in a circle of its owner's colour (the game's own team
+   // blue, the other red, nobody grey, as the hud's units) and a ring as far
+   // round as the capture of the team taking it; blinking while a capture or
+   // neutralisation runs; retail's crossed swords, pulsing, while both teams
+   // are inside. The layer (HUDIconLayer.research_markers) places it.
    public class ResearchMarker extends Sprite
    {
 
@@ -27,44 +27,81 @@ package survarium.controls
 
       public static const NO_TEAM:uint = 2;
 
+      // ---- the look, in screen pixels ----
+
+      // The marker's width: retail's 24 px, 34 px while the game's own player
+      // is inside (0.27d CapturePointMarker: 24 / 46 and 34 / 46 of its art).
+      public static const SIZE:Number = 24;
+
+      public static const SIZE_INSIDE:Number = 34;
+
+      // Its alpha: retail's C3h (195 / 255), set by 0.27d's exe (0x234C16).
+      public static const ALPHA:Number = 0.76;
+
+      // Above the unit's point on the screen (retail's placer 0x234DA9: 5 px).
+      public static const LIFT:Number = 5;
+
+      // Smaller with distance: from SIZE at NEAR metres to SIZE x SMALLEST at
+      // FAR and beyond. SMALLEST 1: one size, as retail (0.8 would cap the
+      // shrink at a fifth).
+      public static const NEAR:Number = 15;
+
+      public static const FAR:Number = 150;
+
+      public static const SMALLEST:Number = 1;
+
+      // The blink of a unit being taken and the swords' pulse: retail's
+      // triangle over its clip's 50 frames (|-1 + frame / 50 x 2|).
+      public static const PULSE_FRAMES:int = 50;
+
+      // ---- the drawing (its own units: the circle RADIUS + RING) ----
+
       protected static const RADIUS:Number = 12;
 
       protected static const RING:Number = 3;
 
-      // From full size at NEAR metres to SMALLEST at FAR and beyond.
-      protected static const NEAR:Number = 15;
+      // retail's swords: 54 x 53 over its 46 px circle, at (-27, -26) x 1.016
+      protected static const ART:Number = (RADIUS + RING) / 23;
 
-      protected static const FAR:Number = 150;
-
-      protected static const SMALLEST:Number = 0.55;
-
-      // 0.27d's marker of the unit the player is in: 34 / 46 against 24 / 46.
-      protected static const INSIDE:Number = 1.4;
+      protected var _art:Sprite;
 
       protected var _icon:Shape;
 
-      protected var _label:TextField;
+      protected var _active:Shape;
+
+      protected var _swords:Sprite;
 
       protected var _drawn:String = "";
 
-      public function ResearchMarker(format:TextFormat)
+      protected var _blink:Boolean = false;
+
+      protected var _frame:int = 0;
+
+      public function ResearchMarker()
       {
+         var bitmap:Bitmap;
          super();
          mouseEnabled = false;
          mouseChildren = false;
+         alpha = ALPHA;
+         this._art = new Sprite();
+         addChild(this._art);
          this._icon = new Shape();
-         this._icon.alpha = 0.9;
-         addChild(this._icon);
-         this._label = new TextField();
-         this._label.defaultTextFormat = format;
-         this._label.embedFonts = true;
-         this._label.selectable = false;
-         this._label.mouseEnabled = false;
-         this._label.multiline = false;
-         this._label.wordWrap = false;
-         this._label.autoSize = TextFieldAutoSize.CENTER;
-         this._label.filters = [new GlowFilter(0,0.9,3,3,3)];
-         addChild(this._label);
+         this._art.addChild(this._icon);
+         this._active = new Shape();
+         drawActive(this._active.graphics,RADIUS + RING + 3);
+         this._active.visible = false;
+         this._art.addChild(this._active);
+         this._swords = new Sprite();
+         bitmap = new Bitmap(new ResearchSwords());
+         bitmap.smoothing = true;
+         bitmap.x = -27 * 1.016;
+         bitmap.y = -26 * 1.016;
+         bitmap.scaleX = bitmap.scaleY = 1.016;
+         this._swords.addChild(bitmap);
+         this._swords.scaleX = this._swords.scaleY = ART;
+         this._swords.visible = false;
+         this._art.addChild(this._swords);
       }
 
       public static function colourOf(team:uint, ownTeam:uint) : uint
@@ -76,13 +113,23 @@ package survarium.controls
          return team == ownTeam ? OWN : ENEMY;
       }
 
-      // "0:12": the seconds left, rounded up.
-      public static function timeText(ms:Number) : String
+      // Retail's `active` highlight: four white corners around the circle.
+      public static function drawActive(g:Graphics, half:Number) : void
       {
-         var seconds:int = Math.ceil(ms / 1000);
-         var minutes:int = int(seconds / 60);
-         seconds = seconds % 60;
-         return minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+         var arm:Number = half * 0.35;
+         var sx:int;
+         var sy:int;
+         g.lineStyle(2,0xFFFFFF,1);
+         for each(sx in [-1,1])
+         {
+            for each(sy in [-1,1])
+            {
+               g.moveTo(sx * half,sy * (half - arm));
+               g.lineTo(sx * half,sy * half);
+               g.lineTo(sx * (half - arm),sy * half);
+            }
+         }
+         g.lineStyle();
       }
 
       // A unit's letter by its cp_id: A, B, C as 0.27d named them.
@@ -158,21 +205,20 @@ package survarium.controls
       }
 
       // progress 0..100 of the team `capturing`'s capture; left: ms of the
-      // capture or neutralisation running, 0 none; metres from the camera.
-      public function update(cpId:uint, owner:uint, capturing:uint, progress:Number, left:Number, inside:Boolean, ownTeam:uint, metres:Number) : void
+      // capture or neutralisation running, 0 none; metres from the camera;
+      // contested: both teams inside.
+      public function update(cpId:uint, owner:uint, capturing:uint, progress:Number, left:Number, inside:Boolean, ownTeam:uint, metres:Number, contested:Boolean) : void
       {
          var near:Number = Math.max(0,Math.min(1,(metres - NEAR) / (FAR - NEAR)));
-         var drawn:String = [cpId,owner,capturing,progress,inside,ownTeam].join(",");
+         var drawn:String = [cpId,owner,capturing,progress,ownTeam].join(",");
          var g:Graphics;
-         var text:String = left > 0 ? timeText(left) : Math.round(metres) + " m";
-         var scale:Number = (1 - (1 - SMALLEST) * near) * (inside ? INSIDE : 1);
-         scaleX = scaleY = scale;
+         scaleX = scaleY = (1 - (1 - SMALLEST) * near) * (inside ? SIZE_INSIDE : SIZE) / (2 * (RADIUS + RING));
          if(drawn != this._drawn)
          {
             this._drawn = drawn;
             g = this._icon.graphics;
             g.clear();
-            g.beginFill(inside ? 0xFFFFFF : 0,inside ? 0.8 : 0.45);
+            g.beginFill(0,0.45);
             g.drawCircle(0,0,RADIUS + RING);
             g.endFill();
             g.beginFill(colourOf(owner,ownTeam),0.9);
@@ -184,15 +230,40 @@ package survarium.controls
             }
             drawLetter(g,cpId,RADIUS);
          }
-         if(this._label.text != text)
+         this._active.visible = inside;
+         this._swords.visible = contested;
+         this._blink = left > 0 && !contested;
+         if(this._blink || contested)
          {
-            this._label.text = text;
-            this._label.textColor = left > 0 ? 0xFFFFFF : 0xC8C8C8;
+            if(!hasEventListener(Event.ENTER_FRAME))
+            {
+               this._frame = 0;
+               addEventListener(Event.ENTER_FRAME,this.onFrame);
+            }
          }
-         // the text keeps its size at any distance
-         this._label.scaleX = this._label.scaleY = 1 / scale;
-         this._label.x = -this._label.width / 2;
-         this._label.y = RADIUS + RING;
+         else if(hasEventListener(Event.ENTER_FRAME))
+         {
+            removeEventListener(Event.ENTER_FRAME,this.onFrame);
+         }
+         if(!this._blink)
+         {
+            this._art.alpha = 1;
+         }
+      }
+
+      // retail's CapturePointMarker.onFrameRender: the frame of its 50-frame
+      // clip to an alpha, 1 down to 0 and back
+      protected function onFrame(e:Event) : void
+      {
+         var wave:Number;
+         this._frame = this._frame % PULSE_FRAMES + 1;
+         wave = Math.abs(-1 + this._frame / PULSE_FRAMES * 2);
+         if(this._blink)
+         {
+            this._art.alpha = wave;
+         }
+         // the swords' clip: 0 up to 1 and back
+         this._swords.alpha = 1 - wave;
       }
    }
 }

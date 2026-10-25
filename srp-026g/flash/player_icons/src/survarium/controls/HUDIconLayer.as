@@ -5,7 +5,6 @@ package survarium.controls
    import flash.geom.ColorTransform;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
-   import flash.text.TextFormat;
    import flash.utils.Dictionary;
    import flash.utils.getDefinitionByName;
    
@@ -27,8 +26,6 @@ package survarium.controls
       // Research's units on the screen (research_markers).
       protected var _research:Array = [];
 
-      protected var _researchFormat:TextFormat;
-
       public function HUDIconLayer()
       {
          super();
@@ -40,28 +37,19 @@ package survarium.controls
       // hidden, as 0.27d), x, y in pixels, its distance from the camera in
       // metres, owner, the team taking it, its capture 0..100, the ms left of
       // its capture or neutralisation (0 none), whether the game's own player
-      // is inside. Under the players' icons.
+      // is inside; then a number a unit: whether both teams are inside. Under
+      // the players' icons.
       public function research_markers(values:Array) : void
       {
          var ownTeam:uint = uint(values[0]);
          var count:uint = uint(values[1]);
          var i:uint = 0;
          var at:uint;
+         var contested:uint;
          var marker:ResearchMarker;
-         var probe:TextField;
-         if(this._researchFormat == null && count > 0)
-         {
-            // the markers' labels' font as the movie embeds it (MarkerLabel:
-            // Open Sans Condensed bold, the one bold face it has; the
-            // players' names are Open Sans regular), its face kept
-            probe = new MarkerLabel().textField;
-            this._researchFormat = probe.length > 0 ? probe.getTextFormat() : probe.defaultTextFormat;
-            this._researchFormat.size = 15;
-            this._researchFormat.color = 0xFFFFFF;
-         }
          while(this._research.length < count)
          {
-            marker = new ResearchMarker(this._researchFormat);
+            marker = new ResearchMarker();
             marker.visible = false;
             addChildAt(marker,0);
             this._research.push(marker);
@@ -70,6 +58,7 @@ package survarium.controls
          {
             marker = this._research[i];
             at = 2 + 10 * i;
+            contested = 2 + 10 * count + i;
             if(i >= count || at + 9 >= values.length || uint(values[at + 1]) == 0)
             {
                marker.visible = false;
@@ -77,8 +66,8 @@ package survarium.controls
             else
             {
                marker.x = Number(values[at + 2]);
-               marker.y = Number(values[at + 3]);
-               marker.update(uint(values[at]),uint(values[at + 5]),uint(values[at + 6]),Number(values[at + 7]),Number(values[at + 8]),uint(values[at + 9]) != 0,ownTeam,Number(values[at + 4]));
+               marker.y = Number(values[at + 3]) - ResearchMarker.LIFT;
+               marker.update(uint(values[at]),uint(values[at + 5]),uint(values[at + 6]),Number(values[at + 7]),Number(values[at + 8]),uint(values[at + 9]) != 0,ownTeam,Number(values[at + 4]),contested < values.length && uint(values[contested]) != 0);
                marker.visible = true;
             }
             i++;

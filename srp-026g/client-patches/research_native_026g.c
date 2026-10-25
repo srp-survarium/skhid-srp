@@ -759,7 +759,8 @@ static int inside(const struct rn_view *view, const struct rr_zone *zone) {
  * the icons' placer 0x234C20 and the same point_to_screen; off the screen or
  * behind the camera, hidden): root.research_markers(own team, units, then
  * per unit cp_id, on the screen, x, y (pixels), its distance from the camera
- * (m), owner, capturing, progress 0..100, ms left, own player inside). */
+ * (m), owner, capturing, progress 0..100, ms left, own player inside; then
+ * per unit whether both teams are inside it: retail's crossed swords). */
 static void markers(u8 *ui, const struct rn_view *view) {
     struct rn_hud *hud = &G->hud;
     u8 *icons = movie_of(ui, UI_ICONS);
@@ -790,6 +791,8 @@ static void markers(u8 *ui, const struct rn_view *view) {
         put(&call, (int)view->left[z]);
         put(&call, inside(view, zone));
     }
+    /* after the units' ten numbers each, as research_update's time left */
+    for (u32 z = 0; z < state->zone_count; ++z) put(&call, state->zones[z].count[0] && state->zones[z].count[1]);
     send(icons, RN_MARKERS, &call, &hud->icons_sum, &hud->icons_shown);
 }
 
