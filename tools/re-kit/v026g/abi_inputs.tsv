@@ -4526,3 +4526,8 @@ va	name	location	role	basis
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	EDI	the record copied (124h: path buffer_string +0, '/' +110h, CRC +114h, size +118h, age +11Ch, loading +120h)	observed
 0x000e0210	vostok::render::render_model_instance::destroy	ECX	the model instance whose count (+0D0h) reached 0	observed
 0x000e0210	vostok::render::render_model_instance::destroy	EAX	&its count	observed
+0x001fb6c0	survarium::game_world::process_kill_cross_events	ECX	the game_world_core (match core +1F8h)	observed
+0x001fb6c0	survarium::game_world::process_kill_cross_events	EDX	the sealed bound: events at or below it are shown; -1 = max ticked (+18FC4h) - event horizon (+18FB4h). game_world tick passes max ticked - [game_world+560h] (0 stock) at 0x1F7FE0	observed
+0x001fb6c0	survarium::game_world::process_kill_cross_events	entry ESP+4	the last shown time (value of game_world+564h); events after it are walked	observed
+0x001fb6c0	survarium::game_world::process_kill_cross_events	entry ESP+8	&game_world+564h, passed on to the handler	observed
+0x00233770	survarium::game_world_ui::on_kill_cross_event	EDI	the world event (+18h type: 0 a kill)	observed

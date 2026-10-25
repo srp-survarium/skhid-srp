@@ -33,6 +33,7 @@ given), LIKELY or GUESS.
 | [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage: ids 1824-1862, prices, icon cells, the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
+| [netcode_069.md](netcode_069.md) | Retail 0.69d0's netcode against 0.26g: still lockstep with rollback, per-tick client and server updates, input confirmations, clock steering, ping inputs and lag-compensated hits; hit markers predicted, kills shown once sealed; what to port (sealed kill crosses first) |
 | [static_info.md](static_info.md) | Match start (0xE4): match options, profiles with kits, byte layout |
 | [matchmaking.md](matchmaking.md) | The player's level as the client computes it, the search screen, srp's queue rules (sides of 8, level range, match level, least-played map) |
 | [modes_maps.md](modes_maps.md) | Maps, game modes, map ids, rule classes, match settings now in data |
