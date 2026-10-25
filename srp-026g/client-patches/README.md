@@ -113,6 +113,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `bake_cache_026g.asm`, `bake_cache_026g.c`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again (the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
+| `client_verify_026g.asm`, `rust/client_verify/`, `../crates/srp-validate/`, `check_client_verify_026g.py` | Patches 75..78: a game checks every world (0xE8) and match message (0xE3..0xF6) it is sent with the match server's own checks (`srp-validate`, `no_std`, `cargo test -p srp-validate`) and leaves the match on a refusal; three read sites bounded (weapon FSM, anomaly and artefact ids). Its check runs the entries on made-up objects, the drift test against the host build (`--drift`, from `cargo run --release -p srp-validate --example drift_dump -- DIR...`) and the instruction counts (`--counts`) (needs Unicorn; `../docs/notes/client_world_check.md`) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -197,6 +198,7 @@ link_026g.py --sizes` prints their bytes, pages and languages):
 | `kill_feed.code` | 67, the kill feed's flags | NASM |
 | `bake_cache.code`, `bake_cache.state` | 70, the baked textures' cache | NASM, C |
 | `suicide_key.code` | 34, the commit_suicide key (the Rust framework's example) | NASM entry, Rust |
+| `client_verify.code` | 75, 77, 78, the client check (`srp-validate`) | NASM entries, Rust |
 
 The older fixed sections stay as they are (client_patch.md 0.3 says what
 moving one would take).
@@ -3515,6 +3517,49 @@ site from the game's code on the game's own static baker:
   random CRCs: the CRC and every register the same; 3.25 instructions a byte against 11;
 - any other query's finish goes straight through.
 **Not run:** a game.
+
+### 75..78. A game checks what it is sent before it reads it (the next release's revision)
+
+The design and the numbers: `../docs/notes/client_world_check.md`.
+
+- **75, the world and the messages.** The 0xE8 handler's two calls of
+  game_world_core::deserialize (0x27C0D9 the unpacked world, 0x27C111 the
+  raw one; CALLEE, `ret 10h`) go to `cv_world_load`; the match dispatch's
+  `jmp [eax*4+27A738h]` (0x27A330, after the id's bound; JUMP) goes to
+  `cv_message` (`client_verify_026g.asm`, the arena's block
+  `client_verify.code`), each a `RUST_HOOK` of the crate
+  `rust/client_verify` (the framework, `../docs/notes/rust_patches.md`):
+  `world_hook` reads the match from the world core's rule list (the mode's
+  rule by its vtable, Research's by `rn_rule_vtable`, its batteries, the
+  respawn rule's points) and runs `srp_validate::world::validate` on the
+  world (its time, then the body; 20 places); `message_hook` runs
+  `srp_validate::messages::check` (each id's length, the place and player
+  bytes under 20, an input's rotation and action bits, the envelopes and
+  LZMA2 bounds of 0xE4 and 0xE8, the late join's 0xE4 proposal). A hook
+  answers with ZF: a read world goes on to 0x2D0B70 untouched, a read
+  message to its handler; a refused one is consumed, the match is left as
+  the leave button leaves it (`close_current_match(2)`, a thiscall
+  `GameFn`) and the entry takes the handler's (or the dispatch's) own
+  epilogue, which `LEAVES` names for the call-shape check. The dispatch's
+  jump held the table's address: its base relocation is taken out.
+- **76, a weapon FSM's state id** (ai::fsm::deserialize 0x38CCF0): an id no
+  state has left [esi+10h] zero and the tail called through it; the tail
+  (0x38CD22, 30 bytes with its int3 padding, `FSM_STATE_GUARD`) is
+  rewritten in place to `ret 8` without the call then.
+- **77, an anomaly's state id** (0x31B0FF, JUMP to `cv_anomaly`,
+  `anomaly_hook`): bounded by the anomaly's state vector; past it, the
+  game's own no-state path (0x31B0FB), as id 0xFF.
+- **78, an artefact-history id** (0x2FE65E, JUMP to `cv_artefact`,
+  `artefact_hook`): bounded by the artefact table's end; past it, the
+  no-artefact exit (0x2FE67A).
+
+Nothing a match computes changes. **Checked:** `check_client_verify_026g.py`
+(Unicorn, the linked arena): the four entries' paths at every stack
+alignment; the drift test (`--drift`, srp-validate's `drift_dump` on the
+kept worlds: every world and 16 mutated copies, the i686 payload against
+the host build: 70,350 checks, 0 differ); the cost (`--counts`): a
+message 68..169 instructions (the RUST_HOOK entry included), a world median 19,148, p99 24,187, 20
+players 97,172. `cargo test -p srp-validate`. **Not run in a game.**
 
 ## Not ported, not done
 
