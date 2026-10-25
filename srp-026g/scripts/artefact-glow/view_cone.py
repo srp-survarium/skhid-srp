@@ -2,7 +2,7 @@
 """view_cone.py: how close each emitter of an artefact glow comes to the middle of the
 first-person view (../../docs/notes/artefacts.md, "Your own glow").
 
-usage: python3 -I view_cone.py <particles/fx/artifacts/human_<kind>.particle> [--twin]
+usage: python3 -I view_cone.py <particles/fx/artifacts/human_<kind>[_fp].particle>
 
 For every emitter: its body parts (the animated domain's), its reach (the largest particle size,
 the domain's scale over a 5 cm part, and the drift: the initial velocity times the lifetime, plus

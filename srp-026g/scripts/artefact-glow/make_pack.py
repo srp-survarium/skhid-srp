@@ -36,7 +36,7 @@ import sys
 import zlib
 
 PACK_ID = 'artefact-glow'
-VERSION = '3'
+VERSION = '4'
 # kind -> (effect config, particle system); the stock files, by sha256.
 KINDS = {
     'lifebone': 'fx/artifacts/human_zhivokost',
@@ -53,13 +53,8 @@ STOCK = {
 }
 COMPOSITE, PARTICLE = 110, 114
 FIRST_PERSON = 0
-DROP = set()
-NEAR_EYES = ('Head', 'Face', 'Neck')
+NEAR_EYES = ('Head', 'Face', 'Neck')     # the body parts at the camera: off in the twin
 DOMAIN = 'particle_action_initial_animated_domain_type'
-LIGHT = 'particle_action_light_type'
-# emitter name -> {property: factor} on the y of its curves' keys
-SCALE = {}                                          # the stock sizes, rates and lights
-LIGHT_EMITTER = 'up_light'
 
 T_BOOL, T_INT, T_FLOAT, T_NAMED, T_INDEXED, T_STR = 0, 1, 2, 3, 4, 5
 REC = struct.Struct('<QQIHH')
@@ -160,62 +155,25 @@ def sort_key(tree):
     return (t, v)
 
 
-def f32(x):
-    return struct.unpack('<f', struct.pack('<f', x))[0]
-
-
-def scale_curves(tree, factor):
-    """Every curve key's position and tangents under `tree` (float2: time, value): value x factor."""
+def domains_off(tree):
+    """`tree` with Head, Face and Neck off in every animated domain (an action whose
+    particle_entity_type is DOMAIN), everything else as it is."""
     t, v = tree
     if t == T_NAMED:
-        return (t, [(k, (c[0], [c[1][0], f32(c[1][1] * factor)]) if k in ('position', 'left_tangent', 'right_tangent')
-                     and c[0] == 6 else scale_curves(c, factor)) for k, c in v])
+        kids = dict(v)
+        if kids.get('particle_entity_type') == (T_STR, DOMAIN):
+            return (t, [(k, (T_NAMED, [(n, (T_BOOL, 0) if n in NEAR_EYES else c) for n, c in c[1]])
+                         if k == 'properties' else c) for k, c in v])
+        return (t, [(k, domains_off(c)) for k, c in v])
     if t == T_INDEXED:
-        return (t, [scale_curves(c, factor) for c in v])
+        return (t, [domains_off(c) for c in v])
     return tree
 
 
 def first_person_particle(tree):
-    """The first-person copy of a human_<kind> particle system (the module's docstring)."""
-    tree = copy.deepcopy(tree)
-    lod = dict(tree[1])['LOD 0']
-    lod_kids = dict(lod[1])
-    emitters = dict(lod_kids['children'][1])
-    keep = []
-    for guid, emitter in lod_kids['children'][1]:
-        name = get(emitter, 'properties/Name')[1]
-        if name in DROP:
-            continue
-        actions = []
-        lit = False
-        for aguid, action in dict(emitter[1])['children'][1]:
-            kind = get(action, 'particle_entity_type')[1]
-            if kind == LIGHT and name != LIGHT_EMITTER:
-                raise SystemExit(f'{name}: a light action outside {LIGHT_EMITTER}')
-            if kind == DOMAIN:
-                props = [(k, (T_BOOL, 0) if k in NEAR_EYES else c) for k, c in get(action, 'properties')[1]]
-                lit = any(c == (T_BOOL, 1) for k, c in props)
-                action = (T_NAMED, [(k, (T_NAMED, props) if k == 'properties' else c) for k, c in action[1]])
-            for prop, factor in SCALE.get(name, {}).items():
-                if has(get(action, 'properties'), prop):
-                    props = [(k, scale_curves(c, factor) if k == prop else c) for k, c in get(action, 'properties')[1]]
-                    action = (T_NAMED, [(k, (T_NAMED, props) if k == 'properties' else c) for k, c in action[1]])
-            actions.append((aguid, action))
-        if not lit:
-            continue                          # nothing of its body parts is left
-        if 'Rate' in SCALE.get(name, {}):
-            props = [(k, scale_curves(c, SCALE[name]['Rate']) if k == 'Rate' else c)
-                     for k, c in get(emitter, 'properties')[1]]
-            emitter = (T_NAMED, [(k, (T_NAMED, props) if k == 'properties' else c) for k, c in emitter[1]])
-        emitter = (T_NAMED, [(k, (T_NAMED, actions) if k == 'children' else c) for k, c in emitter[1]])
-        keep.append((guid, emitter))
-    kept = {g for g, _ in keep}
-    order = [s for s in lod_kids['children_order'][1] if s[1] in kept]
-    assert len(order) == len(keep) and len(emitters) == len(lod_kids['children_order'][1])
-    lod = (T_NAMED, [(k, (T_NAMED, keep) if k == 'children' else (T_INDEXED, order) if k == 'children_order' else c)
-                     for k, c in lod[1]])
-    return (T_NAMED, [(k, lod if k == 'LOD 0' else c) for k, c in tree[1]]), sorted(
-        get(e, 'properties/Name')[1] for _, e in keep)
+    """The first-person copy of a human_<kind> particle system: the stock one with Head, Face and
+    Neck off in every emitter's animated domain."""
+    return domains_off(copy.deepcopy(tree))
 
 
 def composite_effect(tree, fp_system):
@@ -227,26 +185,89 @@ def composite_effect(tree, fp_system):
     return (T_NAMED, [(k, effect if k == 'effect' else c) for k, c in tree[1]])
 
 
-def check_particle(tree, stock):
-    """The first-person copy is the stock system value for value (its emitters, sizes, rates,
-    lights, colours, the haze), but for the head, face and neck off in every animated domain."""
-    def emitters(t):
-        lod = dict(t[1])['LOD 0']
-        return dict(dict(lod[1])['children'][1])
+def differences(a, b, path=''):
+    """The paths where two trees differ (named tables by name, regardless of order)."""
+    if a[0] != b[0]:
+        return [path]
+    if a[0] == T_NAMED:
+        x, y = dict(a[1]), dict(b[1])
+        if len(x) != len(a[1]) or len(y) != len(b[1]):
+            return [path + ' (a name twice)']
+        out = [path + '/' + k for k in set(x) ^ set(y)]
+        for k in set(x) & set(y):
+            out += differences(x[k], y[k], path + '/' + k)
+        return out
+    if a[0] == T_INDEXED:
+        if len(a[1]) != len(b[1]):
+            return [path]
+        return [d for i, (x, y) in enumerate(zip(a[1], b[1])) for d in differences(x, y, f'{path}[{i}]')]
+    return [] if a[1] == b[1] else [path]
 
-    mine, theirs = emitters(tree), emitters(stock)
-    assert set(mine) == set(theirs), 'an emitter added or left out'
-    for guid, emitter in theirs.items():
-        for aguid, action in dict(emitter[1])['children'][1]:
-            got = dict(dict(mine[guid][1])['children'][1])[aguid]
-            if get(action, 'particle_entity_type')[1] == DOMAIN:
-                props = dict(get(got, 'properties')[1])
-                for part in NEAR_EYES:
-                    assert props.get(part, (T_BOOL, 0)) == (T_BOOL, 0), part
-                want = [(k, (T_BOOL, 0) if k in NEAR_EYES else c) for k, c in get(action, 'properties')[1]]
-                assert sort_key((T_NAMED, want)) == sort_key(get(got, 'properties')), guid
-            else:
-                assert sort_key(got) == sort_key(action), (guid, aguid)
+
+def check_particle(tree, stock):
+    """The twin is the stock system exactly (emitters, sizes, rates, lights, colours, the haze),
+    but for Head, Face and Neck off in the emitters' animated domains: the whole tree compared."""
+    allowed = sorted(differences(domains_off(stock), stock))
+    assert all(d.rsplit('/', 1)[-1] in NEAR_EYES and '/properties/' in d for d in allowed), allowed
+    assert differences(tree, domains_off(stock)) == [], differences(tree, domains_off(stock))[:5]
+    for d in allowed:                    # each of those is off in the twin
+        node = tree
+        for part in d.strip('/').split('/'):
+            node = dict(node[1])[part]
+        assert node == (T_BOOL, 0), d
+
+
+def check_bites(stock):
+    """check_particle refuses a twin that differs from the stock system otherwise: a rate, a
+    body part, an emitter left out."""
+    def refused(tree, what):
+        try:
+            check_particle(tree, stock)
+        except AssertionError:
+            return
+        raise SystemExit(f'check_particle let {what} through')
+
+    twin = first_person_particle(stock)
+    lod = dict(twin[1])['LOD 0']
+    guid, emitter = dict(lod[1])['children'][1][0]
+
+    def with_emitter(new):
+        kids = [(g, new if g == guid else e) for g, e in dict(lod[1])['children'][1]]
+        new_lod = (T_NAMED, [(k, (T_NAMED, kids) if k == 'children' else c) for k, c in lod[1]])
+        return (T_NAMED, [(k, new_lod if k == 'LOD 0' else c) for k, c in twin[1]])
+
+    def bump(node):                       # the first curve key's value x2
+        t, v = node
+        if t == T_NAMED:
+            for i, (k, c) in enumerate(v):
+                if k == 'position' and c[0] == 6:
+                    return (t, v[:i] + [(k, (6, [c[1][0], c[1][1] * 2 + 1]))] + v[i + 1:]), True
+                new, done = bump(c)
+                if done:
+                    return (t, v[:i] + [(k, new)] + v[i + 1:]), True
+        return node, False
+
+    props = dict(emitter[1])['properties']
+    rate, done = bump(dict(props[1])['Rate'])
+    assert done
+    new_props = (T_NAMED, [(k, rate if k == 'Rate' else c) for k, c in props[1]])
+    refused(with_emitter((T_NAMED, [(k, new_props if k == 'properties' else c) for k, c in emitter[1]])), 'a rate')
+    left_out = (T_NAMED, [(k, (T_NAMED, dict(lod[1])['children'][1][1:]) if k == 'children' else c)
+                          for k, c in lod[1]])
+    refused((T_NAMED, [(k, left_out if k == 'LOD 0' else c) for k, c in twin[1]]), 'an emitter left out')
+    head_on = copy.deepcopy(twin)
+
+    def head(node):
+        t, v = node
+        if t == T_NAMED:
+            if dict(v).get('particle_entity_type') == (T_STR, DOMAIN):
+                return (t, [(k, (T_NAMED, [(n, (T_BOOL, 1) if n == 'Head' else c) for n, c in c[1]])
+                             if k == 'properties' else c) for k, c in v])
+            return (t, [(k, head(c)) for k, c in v])
+        if t == T_INDEXED:
+            return (t, [head(c) for c in v])
+        return node
+    refused(head(head_on), 'the head on')
 
 
 def main():
@@ -269,8 +290,9 @@ def main():
         particle_path = f'particles/{system}.particle'
         fp_system = system + '_fp'
         particle = parse(stock[particle_path])
-        fp_tree, kept = first_person_particle(particle)
+        fp_tree = first_person_particle(particle)
         check_particle(fp_tree, particle)
+        check_bites(particle)
         effect = composite_effect(parse(stock[effect_path]), fp_system)
         for path, tree in ((effect_path, effect), (f'particles/{fp_system}.particle', fp_tree)):
             data = serialize(tree)
@@ -290,7 +312,8 @@ def main():
         'target_build': '0.26g',
         'description': "the artefacts' glow seen by their carrier: each effect_artefact_<kind> a composite of the "
                        'stock third-person particle effect and a first-person one (view 0) playing '
-                       'fx/artifacts/human_<kind>_fp, a copy on the arms, hands and legs only, its point lights dimmed, no haze',
+                       'fx/artifacts/human_<kind>_fp: the stock particle system, its point lights and haze '
+                       'included, with Head, Face and Neck off in every emitter\'s animated domain',
         'operations': operations,
         'notes': ['made by srp-026g/scripts/artefact-glow/make_pack.py from the stock resources.db\'s '
                   'artefact effects and particle systems (docs/notes/artefacts.md)'],

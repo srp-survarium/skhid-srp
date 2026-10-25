@@ -76,45 +76,38 @@ down) when you use artifact? Note that your vision should still be clear")
   everyone else sees, without what sits on the head, face or neck (the camera is in the head).
 - It starts and ends with the active, as the third person's (no glow on the cooldown).
 - Visual only: no exe change, nothing in a match, nothing sent; no `simulation_changes` row.
-- How (content pack `artefact-glow@3`, `scripts/artefact-glow/make_pack.py`):
+- How (content pack `artefact-glow@4`, `scripts/artefact-glow/make_pack.py`):
   - A particle effect is shown by the presenters of its `view` (the cook 0x25A730, 1 when
     absent): 1 the third-person presenters (the other players' view of a player), 0 the
     first-person presenter (the player the camera is in), 2 both. The stock glow has none: only
     the others saw it.
   - `effect_artefact_<kind>` becomes a composite (type 110) of the stock particle effect and a
     first-person one (`view` 0) playing `fx/artifacts/human_<kind>_fp`.
+  - `human_<kind>_fp` is the stock particle system exactly (its ten emitters, sizes, rates, point
+    lights, colours and haze), with Head, Face and Neck off in every emitter's animated domain.
+    The pack maker compares the whole tree with the stock one and refuses any other difference (it
+    proves that on a changed rate, an emitter left out and the head left on).
   - The first-person presenter plays it on the carrier's own body model (the same model and
     skeleton the others see, posed with the first-person animations; the head's parts are
-    shadow-only there and parts 1 and 2 (LIKELY the torso and arms) drawn as foreground,
-    `player::set_head_visibility` 0x1F37A0). The foreground is drawn after the world with a depth
-    range of its own (`renderer::foreground_begin` 0x13E010), so a particle on the arms, drawn in
-    the world pass, is hidden behind them: only what stands out of the arms' outline, what lights
-    them, and the legs when one looks down can show (LIKELY: read from the code, not seen).
-  - Version 1 (tested by the owner, 2026-10-25: the carrier saw no glow at all) was a lighter
-    copy (no `up_light`, rays half as big and half as many, strokes 0.6 wide): little of it stood
-    out of the arms. The presenter path was right (the check below runs it whole).
-  - Version 2 (the owner: a tint on the weapon from the dimmed point lights; no particles on the
-    arms, hands or legs; the gloves not lit) put `up_light` back with its lights at x0.35.
-  - Version 3: the first-person particle system is the stock one value for value (emitters, sizes,
-    rates, point lights, colours, the haze), with Head, Face and Neck off in every emitter's
-    animated domain. `up_light`'s sprites are invisible by their material (`light_idle`:
-    transparency and emissive 0): it is the point lights. `scripts/artefact-glow/view_cone.py`
-    measures each emitter against the middle of the first-person view in two nominal poses (the
-    rifle at the hip and aimed): the strokes and rays on the forearms, the haze on the arms,
-    `rays_chest` and the lights come near it when aiming; kept, as the owner asked, to be judged
-    in the game.
-  - Not yet done: drawing the twin's particles with the foreground arms (no particle stage of
-    0.26g draws in the foreground; 0.21d's symbols name only models' foreground stages:
-    `stage_forward::execute_foreground`, `stage_lights::execute_foreground`,
-    `stage_foreground::execute`), and the glow's fade at the active's end.
+    shadow-only there and parts 1 and 2 drawn as foreground, `player::set_head_visibility`
+    0x1F37A0).
+  - `scripts/artefact-glow/view_cone.py` measures each emitter against the middle of the
+    first-person view in two nominal poses (the rifle at the hip and aimed): the strokes and rays
+    on the forearms, the haze on the arms, `rays_chest` and the lights come near it when aiming;
+    kept, as the owner asked.
   - The end: the effect's time calculator is the artefact's (`artefact_base::effect_calculator`
     0x313640): finished when the artefact leaves its active state (4); both children with it.
+- History: version 1 (a lighter copy) and version 2 (with `up_light`'s lights at x0.35) showed
+  too little in the first person; version 3, the stock glow without the head, was tested by the
+  owner and approved (2026-10-25: "this version is good"). Version 4 is the same files.
 - Checked: `client-patches/check_artefact_glow_026g.py` (Unicorn, the game's code): the cook,
   the presenters' constructors, the handler, the calculator, and the whole chain a match runs:
   each presenter built by its constructor, given to a player by `player::set_effect_presenter`,
   an activation sent by `game_effect_player` 0x2DE3A0 through the effect's own accept 0x2AE2E0.
-  Version 2 not run in a game yet.
-- The Sponge and the Rattle (PR #369) get theirs the same way once their effects are on main.
+- The Sponge (PR #369) has `data/effect` `artefact_spring`: it gets Spring's twin once both are
+  merged. The Rattle (`effect_artefact_rattle`, `human_rattle`) needs its own composite.
+- Later (the owner): the glow fades out at the active's end instead of stopping at once (board
+  T82; a debug build of the stop path is on the branch `debug/artefact-glow-stop`).
 
 ## Several kinds at once (the owner, 2026-10-25: "what happens with colours, do they mix? We
 should mix them just as retail does")
