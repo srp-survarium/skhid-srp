@@ -46,21 +46,22 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the edit l
   left (+28Ch).
 
 ## Onyx (the owner, 2026-10-25: "nerf onyx to 3 seconds 50% damage reduction and every single new
-onyx gives +1 second to activation time"; then 60 %, not 50 %)
+onyx gives +1 second to activation time"; then 60 %, not 50 %; then "let's buff Onyx to 75% when
+active")
 
 - Passive as before: -5 % damage and piercing, each carried Onyx's adding up (x0.95 each).
-- Active: -60 % damage and piercing (`active/damage_mul` and `armor_piercing_mul` 0.1 -> 0.4) for
+- Active: -75 % damage and piercing (`active/damage_mul` and `armor_piercing_mul` 0.1 -> 0.25) for
   3 s, cooldown 60 s as before.
 - Its key fires every ready Onyx; n fired together are each active 3 s + (n - 1) s (1 Onyx 3 s, 2
   Onyx 4 s, 3 Onyx 5 s) and end and cool down together. A cooling Onyx adds no time.
-- Several active Onyx reduce a hit once (-60 %): only the first active Onyx of the slots takes its
+- Several active Onyx reduce a hit once (-75 %): only the first active Onyx of the slots takes its
   share; the others leave the hit as it is (before: x0.1 per active Onyx, all 3 s).
 - An Onyx in its passive (on its cooldown) beside an active one still gives its -5 %.
 - "Activation time" read as the active's duration: 0.26g has no delay before an Onyx works (the
   press sets it active on the same tick). Owner to confirm.
 - The +1 s is patch 54's (`ONYX_EXTRA_MS`), not a config key; the 3 s is `active/duration`.
-- The pop-up at activation (its activation hint, the local player only) says 60 % and the real time:
-  "... by 60% for 4 s." for two Onyx. It shows once a press (not once for each Onyx fired) and stays
+- The pop-up at activation (its activation hint, the local player only) says 75 % and the real time:
+  "... by 75% for 4 s." for two Onyx. It shows once a press (not once for each Onyx fired) and stays
   on screen for that time. The text's `%s` is the pop-up's time on screen in seconds, which patch
   54 makes the active's time left; the hud writes it in. (%s, not `{s}`: the game's localizer (0x1FEF90, every text set_parameterized_message shows) makes `{NAME}` the key of the action NAME (`{USE}`) and any other name nothing, and drops a `}` after a character; the
   owner's first test showed "for  s.".)
@@ -131,7 +132,7 @@ should mix them just as retail does")
 
 - The only texts: each artefact's pickup hint (the passive) and activation hint (the active), fixed
   sentences in the six localization tables; no lobby card. `artefact-texts-1.json` makes them say
-  the numbers above (Onyx's stock 10 % and 95 % were wrong too; its active 60 % for `%s` s since
+  the numbers above (Onyx's stock 10 % and 95 % were wrong too; its active 75 % for `%s` s since
   2026-10-25).
 
 ## Release
