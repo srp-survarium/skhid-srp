@@ -17,6 +17,7 @@ use crate::skeleton::{
     RIGHT_FOOT, RIGHT_FORE_ARM, RIGHT_HAND, RIGHT_LEG, RIGHT_TOE, RIGHT_UP_LEG, ROOT, SPIN, WEAPON,
     adjacent,
 };
+use crate::tuning;
 
 /// The drawn skeleton: every bone's world pose, in [`crate::skeleton::BONES`]' order.
 pub type Skeleton = [Pose; BONE_COUNT];
@@ -52,6 +53,9 @@ const START_SPIN: f32 = 20.0;
 /// clip a substep; its relative damping s * 0.5.
 const DRIVE_RATE: f32 = 40.0;
 const DRIVE_DAMPING: f32 = 0.5;
+/// The stance's turn of a hip or a knee a substep at most, rad (a hard
+/// landing does not throw the legs back into the stance at once).
+const STANCE_TURN: f32 = 0.05;
 /// The bodies are at rest while no capsule end moves more than this, m,
 /// from where it was when the rest began (the solver's jitter turns a
 /// limb on the ground to and fro by nothing one sees: speeds would never
@@ -138,12 +142,14 @@ pub fn strength(cause: Cause, group: Group, age: f32) -> f32 {
     let (s0, s_dead, t0, length) = match cause {
         Cause::Head { .. } => (1.0, 0.0, 0.0, 0.06),
         Cause::Blast { .. } => (0.4, 0.03, 0.0, 0.15),
+        // a body shot: the legs hold longest (they try to carry the body,
+        // then give way), the trunk and the arms go first (tuning.rs)
         Cause::Body { .. } | Cause::Unknown => {
             let (t0, length) = match group {
-                Group::Legs => (0.0, 0.25),
-                Group::Waist => (0.05, 0.5),
-                Group::Neck => (0.1, 0.7),
-                Group::Arms => (0.0, 0.4),
+                Group::Legs => (tuning::LEG_HOLD, tuning::LEG_FADE),
+                Group::Waist => (0.0, tuning::TRUNK_FADE),
+                Group::Neck => (0.05, tuning::TRUNK_FADE),
+                Group::Arms => (0.0, tuning::ARM_FADE),
             };
             (1.0, 0.03, t0, length)
         }
@@ -315,6 +321,7 @@ struct Joint {
     anchor_parent: Vec3,
     anchor_child: Vec3,
     limit: Limit,
+    kind: JointKind,
     group: Group,
 }
 
@@ -351,6 +358,17 @@ enum Rest {
         since: f32,
         anchor: (PartPoses, Option<Pose>),
     },
+}
+
+/// Where a body shot's legs put their feet (Ragdoll::support).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Support {
+    /// The point on the feet's level under the centre of mass.
+    below_centre: Vec3,
+    /// The feet's middle.
+    feet: Vec3,
+    /// The body's left, level.
+    lateral: Vec3,
 }
 
 /// Whether a frame's step left the ragdoll moving.
@@ -634,9 +652,7 @@ impl Ragdoll {
                 body.integrate(h, gravity, LINEAR_DAMPING, ANGULAR_DAMPING);
             }
             self.solve_joints(alpha_h);
-            if let Some(targets) = targets.as_ref() {
-                self.solve_drive(targets, h);
-            }
+            self.solve_drive(targets.as_ref(), h);
             for j in 0..JOINTS {
                 let joint = self.joints[j];
                 let (parent, child) = pair(&mut self.bodies, joint.parent, joint.child);
@@ -816,7 +832,20 @@ impl Ragdoll {
 
     /// The drive: each joint turned toward the clip's relative pose by a
     /// fraction of the way, its strength fading per group.
-    fn solve_drive(&mut self, targets: &PartPoses, h: f32) {
+    fn solve_drive(&mut self, targets: Option<&PartPoses>, h: f32) {
+        // a body shot's legs drive toward a supporting stance, not the clip
+        let support = match self.cause {
+            // only while the legs carry it: after their fade the floor's weak drive
+            // follows the clip, as every other joint's (a body lying down would
+            // keep pushing toward a stance)
+            Cause::Body { .. } | Cause::Unknown
+                if self.age < tuning::LEG_HOLD + tuning::LEG_FADE =>
+            {
+                Some(self.support())
+            }
+            Cause::Body { .. } | Cause::Unknown => None,
+            Cause::Head { .. } | Cause::Blast { .. } => None,
+        };
         for j in 0..JOINTS {
             let joint = self.joints[j];
             let s = strength(self.cause, joint.group, self.age);
@@ -824,12 +853,116 @@ impl Ragdoll {
                 continue;
             }
             let k = 1.0 - exp_neg(h * DRIVE_RATE * s);
-            let tp = targets[joint.parent.index()].rotation;
-            let tc = targets[joint.child.index()].rotation;
+            let up = self.up;
             let (parent, child) = pair(&mut self.bodies, joint.parent, joint.child);
-            let wanted = (parent.pose.rotation * (tp.conjugate() * tc)).normalized();
-            let turn = wanted.rotation_from(child.pose.rotation) * k;
-            share_turn(child, parent, turn, 0.0);
+            match (support, joint.kind, joint.limit) {
+                (
+                    Some(_),
+                    JointKind::Knee,
+                    Limit::Hinge {
+                        hinge_parent,
+                        limb_parent,
+                        limb_child,
+                        ..
+                    },
+                ) => {
+                    // the knee toward the stance's bend
+                    let h_axis = parent.pose.rotation.rotate(hinge_parent);
+                    let p = parent
+                        .pose
+                        .rotation
+                        .rotate(limb_parent)
+                        .reject(h_axis)
+                        .direction();
+                    let c = child
+                        .pose
+                        .rotation
+                        .rotate(limb_child)
+                        .reject(h_axis)
+                        .direction();
+                    if let (Some(p), Some(c)) = (p, c) {
+                        let phi = crate::limits::signed_angle(p, c, h_axis);
+                        let turn = clamp((tuning::KNEE_BEND - phi) * k, -STANCE_TURN, STANCE_TURN);
+                        share_turn(child, parent, h_axis * turn, 0.0);
+                    }
+                }
+                (Some(support), JointKind::Hip, Limit::Swing { axis_child, .. }) => {
+                    // the thigh toward its foot's place: under the hip, moved
+                    // toward under the centre of mass (the balance assist)
+                    let hip = parent.pose.apply(joint.anchor_parent);
+                    let side = if (hip - parent.pose.position).dot(support.lateral) >= 0.0 {
+                        1.0
+                    } else {
+                        -1.0
+                    };
+                    let below_hip = hip - up * (hip - support.feet).dot(up);
+                    let under =
+                        support.below_centre + support.lateral * (side * tuning::STANCE_HALF_WIDTH);
+                    let foot = below_hip + (under - below_hip) * tuning::BALANCE_ASSIST;
+                    let current = child.pose.rotation.rotate(axis_child);
+                    if let Some(wanted) = (foot - hip).direction() {
+                        let angle = crate::limits::angle_between(current, wanted);
+                        if let Some(axis) = current.cross(wanted).direction() {
+                            share_turn(child, parent, axis * min(angle * k, STANCE_TURN), 0.0);
+                        }
+                    }
+                }
+                _ => {
+                    let Some(targets) = targets else { continue };
+                    let tp = targets[joint.parent.index()].rotation;
+                    let tc = targets[joint.child.index()].rotation;
+                    let wanted = (parent.pose.rotation * (tp.conjugate() * tc)).normalized();
+                    let turn = wanted.rotation_from(child.pose.rotation) * k;
+                    share_turn(child, parent, turn, 0.0);
+                }
+            }
+        }
+    }
+
+    /// Where the body's weight is over its feet: the point on the feet's
+    /// level under the centre of mass, the feet's middle, and the body's
+    /// left (the pelvis's axis, right hip to left).
+    fn support(&self) -> Support {
+        let mut mass = 0.0;
+        let mut centre = Vec3::ZERO;
+        for body in self.bodies.iter() {
+            let m = 1.0 / body.inverse_mass;
+            mass += m;
+            centre += body.pose.position * m;
+        }
+        let centre = centre * (1.0 / mass);
+        let mut feet = Vec3::ZERO;
+        for (thigh, shin) in [
+            (Part::LeftThigh, Part::LeftShin),
+            (Part::RightThigh, Part::RightShin),
+        ] {
+            let shin_body = &self.bodies[shin.index()];
+            let at_knee = self
+                .joints
+                .iter()
+                .find(|j| j.parent == thigh && j.child == shin)
+                .map(|j| j.anchor_child);
+            let toward_foot = match at_knee {
+                Some(a) if a.x > 0.0 => -1.0,
+                _ => 1.0,
+            };
+            feet += shin_body
+                .pose
+                .apply(Vec3::X * (toward_foot * shin_body.shape.half))
+                * 0.5;
+        }
+        let below_centre = centre - self.up * (centre - feet).dot(self.up);
+        let pelvis = &self.bodies[Part::Pelvis.index()];
+        let lateral = pelvis
+            .pose
+            .rotation
+            .rotate(Vec3::X)
+            .reject(self.up)
+            .direction_or(Vec3::X);
+        Support {
+            below_centre,
+            feet,
+            lateral,
         }
     }
 
@@ -1151,6 +1284,7 @@ fn make_joint(
         anchor_parent: into_p(at - p.pose.position),
         anchor_child: into_c(at - c.pose.position),
         limit,
+        kind,
         group: Group::of(kind),
     }
 }

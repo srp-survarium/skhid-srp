@@ -4,6 +4,7 @@ use super::*;
 extern crate std;
 use crate::limits::{angle_between, signed_angle};
 use crate::skeleton::{BONES, Bone};
+use crate::tuning;
 
 /// A plane at height `floor` (and, if set, a wall at z = `wall` facing -Z).
 pub(crate) struct Ground {
@@ -190,7 +191,7 @@ fn the_rig_draws_the_death_pose_back_and_parts_of_inverts_it() {
 }
 
 #[test]
-fn a_shot_body_falls_and_settles_within_two_seconds_of_landing_on_flat_ground() {
+fn a_shot_body_falls_and_settles_on_flat_ground() {
     let mut times = std::vec::Vec::new();
     for (turn, cause) in [
         (0.0, SHOT),
@@ -242,13 +243,13 @@ fn a_shot_body_falls_and_settles_within_two_seconds_of_landing_on_flat_ground() 
             joint_gaps(&ragdoll)
         );
     }
-    // (landed, settled): a body that stood dead still topples for most of a
-    // second before it lands (the game's clip drives that part); once down
-    // it is at rest within 2 s
+    // (landed, settled): a body shot stands on its legs for about a second
+    // before it is down (the owner's look, tuning.rs); once down it is at
+    // rest within 2.5 s, and within 3.5 s of the death
     assert!(
         times
             .iter()
-            .all(|&(landed, settled)| settled - landed < 2.0 && settled < 3.0),
+            .all(|&(landed, settled)| settled - landed < 2.5 && settled < 3.5),
         "{times:?} s"
     );
 }
@@ -358,35 +359,79 @@ fn joint_limits_hold_through_a_violent_fall() {
 
 #[test]
 fn the_drive_follows_the_clip_then_lets_go() {
-    // the clip falls back 30 cm in a frame: with the drive the body turns with it
+    // the clip bends the left elbow: with the arms' drive the forearm turns with it
     let now = standing(Quat::IDENTITY, Vec3::ZERO);
     let before = driver_bones(&now);
     let mut bent = before;
-    // the clip bends the knees fully
-    let knee = Quat::from_axis_angle(Vec3::X, 1.2);
-    for part in [Part::LeftShin, Part::RightShin] {
-        bent[part.index()].rotation = knee * bent[part.index()].rotation;
-    }
+    let fore = Part::LeftForearm.index();
+    bent[fore].rotation = Quat::from_axis_angle(Vec3::X, -1.2) * bent[fore].rotation;
     let mut ragdoll = Ragdoll::new(&start(&now, &before, Cause::Unknown, None)).unwrap();
     let mut ground = Ground::flat();
     let relative = |r: &Ragdoll| {
-        let thigh = r.bodies[Part::LeftThigh.index()].pose.rotation;
-        let shin = r.bodies[Part::LeftShin.index()].pose.rotation;
-        thigh.conjugate() * shin
+        let upper = r.bodies[Part::LeftUpperArm.index()].pose.rotation;
+        let fore = r.bodies[Part::LeftForearm.index()].pose.rotation;
+        upper.conjugate() * fore
     };
     let rest = relative(&ragdoll);
     for _ in 0..6 {
         ragdoll.step(1.0 / 60.0, Some(&bent), &mut ground);
     }
     let turned = relative(&ragdoll).rotation_from(rest).length();
-    assert!(turned > 0.3, "the knee followed the clip by {turned} rad");
-    assert!(strength(Cause::Unknown, Group::Legs, 0.3) <= 0.03 + 1e-6);
+    assert!(turned > 0.3, "the elbow followed the clip by {turned} rad");
+    // a body shot: the legs hold, then fade; the trunk and arms go first
+    let legs = |t| strength(Cause::Unknown, Group::Legs, t);
+    assert!(legs(0.0) == 1.0 && legs(tuning::LEG_HOLD) == 1.0);
+    assert!(legs(tuning::LEG_HOLD + tuning::LEG_FADE) <= 0.03 + 1e-6);
+    assert!(strength(Cause::Unknown, Group::Waist, tuning::TRUNK_FADE) <= 0.03 + 1e-6);
+    assert!(strength(Cause::Unknown, Group::Arms, tuning::ARM_FADE) <= 0.03 + 1e-6);
     assert!(strength(Cause::Unknown, Group::Neck, 0.0) == 1.0);
     assert_eq!(
-        strength(Cause::Head { direction: Vec3::X }, Group::Neck, 0.07),
+        strength(Cause::Head { direction: Vec3::X }, Group::Legs, 0.07),
         0.0
     );
     assert!((strength(Cause::Blast { centre: Vec3::ZERO }, Group::Arms, 0.0) - 0.4).abs() < 1e-6);
+}
+
+/// The owner's look (2026-10-25): a body shot stands on its legs and
+/// slumps at the trunk, then the knees buckle and fold; a headshot drops.
+#[test]
+fn a_body_shot_stands_on_its_legs_then_folds_and_a_headshot_drops() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let heights = |cause: Cause| {
+        let mut ragdoll = Ragdoll::new(&start(&now, &before, cause, None)).unwrap();
+        let mut ground = Ground::flat();
+        let mut out = std::vec::Vec::new();
+        for frame in 1..=120 {
+            ragdoll.step(1.0 / 60.0, None, &mut ground);
+            if frame % 6 == 0 {
+                out.push(ragdoll.bodies[Part::Pelvis.index()].pose.position.y);
+            }
+        }
+        out
+    };
+    let body = heights(SHOT);
+    let head = heights(Cause::Head {
+        direction: Vec3::new(0.0, 0.0, -1.0),
+    });
+    std::println!("pelvis every 0.1 s\n  body shot {body:.2?}\n  headshot  {head:.2?}");
+    // every 0.1 s: the body shot's pelvis held up while the legs hold, then down
+    assert!(
+        body[2] > 0.85,
+        "the legs hold the body up at 0.3 s: {body:?}"
+    );
+    assert!(
+        body[5] < body[2] && body[5] > 0.45,
+        "the knees give way by 0.6 s: {body:?}"
+    );
+    assert!(
+        body[19] < 0.45,
+        "the body has folded to the ground by 2 s: {body:?}"
+    );
+    assert!(
+        head[4] < body[4] - 0.1,
+        "a headshot drops at once: {head:?} against {body:?}"
+    );
 }
 
 #[test]
