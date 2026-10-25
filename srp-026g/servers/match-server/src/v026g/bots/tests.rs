@@ -7585,7 +7585,6 @@ mod arrival_height {
             node: 0,
             jump: false,
             low: false,
-            edge: false,
         }
     }
 
