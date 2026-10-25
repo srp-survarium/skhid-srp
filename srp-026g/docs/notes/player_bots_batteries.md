@@ -706,3 +706,64 @@ take's hold-fire too (633fb535), the final tree. No tier plays as 4-5.
   drops 0.7 → 0.1 (−3.1 SE), the rest within noise.
 - tdm: seeds 1-2 at 4-5, 9-10 and 13-15, both commits; every run's
   decisions digest equal to base's.
+
+## Bots: a carrier hit far from home by one enemy drops the battery, fights by it and takes it again
+
+### Why
+
+The owner's idea, widened to every carrier under fire with no cover: a
+carrier cannot shoot (a fire press drops the battery in the game), so a
+hit carrier far from home was a free kill. In 919 human carries under fire
+(129 battery matches; `pvb-343-check/analysis/carriers-under-fire`):
+
+- near home (under 15 m) those who kept running delivered 87 %;
+- hit, alone, past 30 m, 72 % of those who kept running died, a median
+  1-3 s after the first sign of the fight;
+- a dropper won 36 % of its fights against one attacker, 7-11 % against
+  two or more; humans who dropped did no better than keepers overall.
+
+A bot's duel odds beat a human's, so the drop is kept to the one case the
+players' numbers favour: hit, far, one attacker, nobody covering.
+
+### What changed
+
+- **`plays/collect.rs` `drop_to_fight`:** a carrier on Bring drops it when
+  all hold: hit within 2 s (`DROP_HIT_MS`, the worlds' `Hurt::last_hit_ms`);
+  more than 30 m from our container (`DROP_HOME_M`); exactly one enemy in
+  sight within 40 m with a line eye to eye and no other known within it
+  (`DROP_FIGHT_M`); no teammate within 15 m with a line to that enemy
+  (`DROP_MATE_M`); no drop by this play in the last 15 s
+  (`DROP_COOLDOWN_MS`). All GUESS.
+- **The drop** is one tick of the drop key: the input handler drops on any
+  input with bit 22 while carrying (0x2D8E73..0x2D8EC8, PROVEN in code; no
+  recording has a bot's drop key yet). If the view still shows it carried
+  2.5 s later, the play presses fire, the way the recordings show drops
+  (653 fire-press drops).
+- **`State::Fight`:** within 8 m of the battery (`FIGHT_LEASH_M`), the
+  reflex free to fire: `Intent::let_go` lets `drive_tick`'s gate (#412)
+  fire though the view, up to 2 s late, still shows the battery carried.
+  - Its enemy dead or out of sight 3 s (`FIGHT_CLEAR_MS`) and no hit for
+    2 s (`RETAKE_QUIET_MS`): `State::Fetch` again, through the take's gate
+    (no use under a free enemy's eyes), the drop's time kept for the
+    cooldown.
+  - A teammate nearer the battery, not carrying, out of the enemy's sight:
+    the play ends "handed off" and the slot goes to him.
+  - Someone else took it: the play fails.
+- **Re-take candidate** (`retake_candidate`): the running Collect of a
+  battery our team dropped (on our HUD: the game's mask shows a battery
+  that appeared on no HUD) lying within 12 m is kept hurt or among
+  enemies, at the alarm band, as a carrier's Bring is; else a dropper hit
+  under the health floor could never take it again.
+- **`plays/guard_lead.rs`:** `start()` picks the holder's rules from the
+  slot it was given (`BotFacts::slot`), not from the holder's need, so an
+  end-game guard started while the need is on keeps its old ends.
+- **`BotFacts`** has `last_hit_ms` and `slot`.
+- **Bench tallies:** after each drop alive, whether the dropper, a
+  teammate or an enemy took it, whether the dropper's team delivered it,
+  the re-take time, and drop-retake loops (two drops of a battery within
+  30 s).
+- Tests: the drop and each case that keeps it; the fight, the re-take and
+  the hand-off; the dropper's kept Collect; an end-game guard started after
+  a theft keeps its ends.
+
+### Bench
