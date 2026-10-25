@@ -936,8 +936,7 @@ impl Motor {
         // try did not get up, or once on its line (or near the take-off)
         // the gate refuses or the run-up is not clear.
         let on_sprint_line = side <= LINED_SIDE_M
-            && along <= LINED_PAST_M
-            && along >= -(SPRINT_RUN_UP_M + LINED_BEHIND_M);
+            && (-(SPRINT_RUN_UP_M + LINED_BEHIND_M)..=LINED_PAST_M).contains(&along);
         if sprint_jump && !jump.standing && !in_the_air {
             let near = before_route <= LINE_UP_FROM_M || on_sprint_line;
             let refused = if !may_sprint {
@@ -962,7 +961,8 @@ impl Motor {
                 }
             }
         }
-        let sprint = sprint_jump && !jump.standing;
+        // Shut farther off (a reload, an aim): no sprint line-up yet.
+        let sprint = sprint_jump && !jump.standing && (may_sprint || in_the_air);
         if !sprint && before_route > LINE_UP_FROM_M {
             self.jump_try = Some(jump);
             return None;
