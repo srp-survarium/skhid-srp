@@ -40,14 +40,19 @@ changes of 2026-10-25 are in. Nothing here ships until the owner says so.
 
 ## Bands
 
-- **Look:** a plain cloth armband on both upper arms, solid blue (team 0) or red (team 1); no
-  emblem, not self-lit. The same colours for every viewer.
+- **Look:** an armband on both upper arms of the game's own woven cloth (the Grey fabric
+  camouflage: its weave normal and roughness maps, the scavengers torso's cloth material, so it
+  lights as the sleeve does), tinted a worn navy (team 0, sRGB 38,64,122) or brick red (team 1,
+  146,50,36) with a little grain, fading and dust; no emblem, not self-lit. The same colours for
+  every viewer; red and blue stay apart in the dark (CIELAB distance 16 to 21 in a dark render,
+  56 to 59 in a neutral one). Of three looks made 2026-10-25, clean colours on the cloth (A), worn
+  colours on plain cloth (B) and this (C), C is in the build; the owner chooses.
 - **Fit:** one band per torso model, cut from that torso's own sleeve (0.45 to 0.67 of the way
   from shoulder to elbow, 60 mm wide, 4 mm out) and skinned with the sleeve's own weights, so it
   moves with the sleeve. Measured on the model data: never more than 4 mm off the sleeve in the
   bind pose and the AK and pistol idles and run; 3 to 13 % of a band's edge runs under straps or
   plates next to the sleeve. It goes 78 to 100 % round the arm (less where a sleeve is the chest's).
-- **Content:** pack `blackout-bands@2` (resource-porter `feat/blackout-bands`): 70 torsos x 2
+- **Content:** pack `blackout-bands@5` (resource-porter `feat/blackout-bands`): 70 torsos x 2
   colours, `models/ported/blackout/<torso base_model, '/' as '_'>_<blue|red>`, surface `band`; no
   item, no dictionary row. A torso the pack does not know gets no band.
 - **v1** (STALKER's multiplayer bands, one ring for all torsos) floated: one size outside every

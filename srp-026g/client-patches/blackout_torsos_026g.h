@@ -1,8 +1,8 @@
 /* The torsos Blackout's bands are made for (exe patch 65, blackout_026g.c): the
  * base_model of each torso part the game data has, as the torso items' configs and
- * gameplay/bodyparts/default write it. Copied from the content pack blackout-bands@2's
- * torsos.tsv (resource-porter feat/blackout-bands f330492, examples/build-blackout-bands.rs;
- * pack.json sha256 273a991e198ad55a9e79418656dee8ff80aec9a69e479c123db9afb0dc7e3073): a torso
+ * gameplay/bodyparts/default write it. Copied from the content pack blackout-bands's
+ * torsos.tsv (the same in versions 2 to 5; resource-porter feat/blackout-bands,
+ * examples/build-blackout-bands.rs): a torso
  * the pack has no band for gets none. Sorted. */
 static const char *const BO_TORSOS[] = {
     "character/human/base/base_character_torso_s1",

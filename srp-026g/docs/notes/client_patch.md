@@ -1750,7 +1750,7 @@ A player's ask through the owner: a key that hides the whole interface, the lobb
   call of `bo_options` in patch 63's options entry, `hide_ui_force` (the hud's
   root.force_interface_hidden, the markers' root.hide_interface) and the `hide_ui_forced` byte in
   patch 62, `bo_match` in Research's per-frame icons entry (patch 53, 0x23B207). Content: the pack
-  `blackout-bands@2`, a band per torso; the exe's table of its torsos is
+  `blackout-bands@5`, a band per torso; the exe's table of its torsos is
   `blackout_torsos_026g.h` (`blackout.md`).
 - **Checked:** selftest check 65; `check_blackout_026g.py`. **Not run in a game.** Not known: the
   band's look in a match (the pack's fit is offline), whether any part of the game reads a
