@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 45500,
-  "sha256": "8c0cddf0e42dea52f1ca344595f8b053e85f166c97aa2edde7ac820ed917c754",
+  "size": 156960,
+  "sha256": "b81fdaa58ea28ba26aec825ea90ad8f60815d53c538be86b86e5fe109fa199c2",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -48,6 +48,16 @@
       "kind": "code",
       "va": "0xa438000",
       "size": 444
+    },
+    "bake_cache.code": {
+      "kind": "code",
+      "va": "0xa439000",
+      "size": 4437
+    },
+    "bake_cache.state": {
+      "kind": "state",
+      "va": "0xa43b000",
+      "size": 99616
     }
   },
   "symbols": {
@@ -59,6 +69,22 @@
     "artefacts_popup": "0xa431023",
     "artefacts_stagger": "0xa431019",
     "artefacts_unlink": "0xa43100a",
+    "bake_cache_adopt": "0xa43902a",
+    "bake_cache_baked": "0xa43909f",
+    "bake_cache_crc32": "0xa4391d6",
+    "bake_cache_finish": "0xa439304",
+    "bake_cache_loaded": "0xa4390c8",
+    "bake_cache_lookup": "0xa439040",
+    "bake_cache_start": "0xa439000",
+    "bc_crc_build": "0xa43a072",
+    "bc_crc_ready": "0xa43b000",
+    "bc_crc_tables": "0xa43b020",
+    "bc_lookup": "0xa439a84",
+    "bc_open": "0xa4394f1",
+    "bc_owners": "0xa43d020",
+    "bc_release_texture": "0xa4392b4",
+    "bc_stamp": "0xa4398cd",
+    "bc_take": "0xa439cf6",
     "chat_variable": "0xa434000",
     "controls": "0xa436000",
     "engine_accept_decal_edit": "0xa432460",

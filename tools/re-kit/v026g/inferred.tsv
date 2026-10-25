@@ -3042,3 +3042,10 @@ va	status	ref_021d	name
 0x002d43b0	inferred-medium		survarium::game_world_core::new_world_event
 0x002d0a60	inferred-medium		survarium::game_world_core::push_world_event
 0x002e58b0	inferred-medium		survarium::damage_model::find_body_part
+0x00131ed0	inferred-high		vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture
+0x00132e40	inferred-high		vostok::buffer_vector<vostok::render::baked_texture_data>::erase
+0x00133120	inferred-high		vostok::render::baked_texture_data::baked_texture_data
+0x0012cce0	inferred-high		vostok::render::camouflage_decal_texture_type_baker_cook::`dynamic initializer for the static baker'
+0x0012de30	inferred-medium		vostok::render::baked_texture_resource::baked_texture_resource
+0x000f0080	inferred-medium		vostok::resources::query_result_for_cook::set_unmanaged_resource
+0x001e8da0	inferred-high		survarium::delete_folder

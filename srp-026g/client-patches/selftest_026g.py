@@ -1540,7 +1540,9 @@ def late_join_sites():
         [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
         [(va, len(old)) for va, old, _, _ in P.KILL_FEED_HOOKS] + \
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
-        [(va, len(old)) for va, old, _ in P.FALL_GRAVITY]
+        [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
+        [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
+        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
 
 
 def pickup_sites():
@@ -4519,6 +4521,71 @@ def test_fall_gravity(original, image, before):
     check(not hits, "no branch aims inside the sites" + "".join(f", {h:#x}" for h in hits))
 
 
+def test_bake_cache(original, image, before):
+    """Check 70: the baked textures kept and made once (patch 70,
+    BAKE_CACHE_HOOKS, BAKE_CACHE_KEEP). check_bake_cache_026g.py runs the
+    sites from the game's code on a made-up baker, folder and queries."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 60).split(b"\0")[0]
+    check(rows(stock, 0x1E944E, 0xC) == ["lea eax,[esp+0x470]", "call 0x1e8da0"]
+          and rows(stock, 0x1EC82B, 0xC) == ["lea eax,[esp+0x358]", "call 0x1e8da0"]
+          and stock.read(0x1E8DCF, 7) == bytes.fromhex("c745e403000000") and stock.read(0x1E8DF4, 5) == bytes.fromhex("b814040000")
+          and stock.read(0x1E8E01, 6) == bytes.fromhex("ff1578feae00")
+          and cstr(0x9EE470) == b"user_data/streamed_textures",
+          "game::game (0x1E9455) and game::exit (0x1EC832) delete user_data/streamed_textures: 0x1E8DA0 is "
+          "SHFileOperationA (delay import 0xAEFE78) with FO_DELETE (3) and flags 414h")
+    check(rows(stock, 0x131C88, 0x14) == ["mov eax,[esp+0x18]", "mov [esp+0x44],edi", "cmp eax,[edi+0x114]",
+                                          "jz near 0x131dc2"]
+          and rows(stock, 0x12D4BE, 0x16) == ["mov eax,[esp+0x58]", "add esp,byte +0xc", "lea edx,[esp+0x1b8]",
+                                              "push edx", "call 0x131ed0", "test al,al"]
+          and rows(stock, 0x12D41E, 0x41)[5:] == ["call 0xf0d00", "mov eax,[esp+0xa8]", "mov [esp+0xac],eax",
+                                                  "test edi,edi", "jz near 0x12da56", "lea eax,[edi+0xd0]",
+                                                  "mov ecx,eax", "or edx,byte -0x1", "lock xadd [ecx],edx",
+                                                  "jnz near 0x12da56", "mov ecx,edi", "call 0xe0210"]
+          and rows(stock, 0x12D45F, 9) == ["pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0x4"]
+          and rows(stock, 0x12DA56, 9) == ["pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0x4"]
+          and rows(stock, 0x12D2F7, 0x14)[:2] == ["mov edi,eax", "mov [esp+0x48],edi"]
+          and rows(stock, 0x12F184, 0x10) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789"]
+          and rows(stock, 0x12DDA9, 0x10) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789"]
+          and stock.read(0x420789, 4) == bytes.fromhex("8d4108c3")
+          and rows(stock, 0x12F0E0, 0xD) == ["mov edx,[esp+0x610]", "mov ecx,eax", "mov eax,[edx]", "mov [edx],ecx"]
+          and stock.read(0xF0D00, 6) == bytes.fromhex("558bec83e4f8") and popped(stock, 0xF0D00, 0xF0F90) == 0x10,
+          "check_loaded's CRC compare (0x131C90), translate_query's look-up (0x12D4CD) and its end after a refused "
+          "query (0x12D42D: the surfaces emptied, edi's model instance released, `ret 4`), the texture's slot "
+          "set before `call 0x420789` (`lea eax,[ecx+8]`) in process_compression (0x12F18F) and "
+          "on_baked_texture_loaded (0x12DDB4), finish_query's entry (0xF0D00, `ret 10h`)")
+    check(stock.read(0x42050, 0x31) == bytes.fromhex("8b4c2404" "57" "8d3c0a" "3bd7" "7321" "56" "8d4900" "8a08" "320a"
+                                                     "c12808" "8b30" "0fb6c9" "8b0c8d68fd2502" "33ce" "42" "8908"
+                                                     "3bd7" "72e4" "5e" "5f" "c20400")
+          and stock.read(0x1C235, 5) == bytes.fromhex("35b71dc104") and stock.read(0x1C210, 7) == bytes.fromhex("803d64fd250200"),
+          "the CRC-32 step 0x42050 (eax &the CRC, edx the bytes, [esp+4] the count; `ret 4`): a byte a step, "
+          "crc = T[(crc ^ byte) & 0xFF] ^ (crc >> 8), T at 0x225FD68 made by 0x1C210 from the polynomial 04C11DB7h "
+          "reflected (EDB88320h, bake_cache_026g.c's tables)")
+    linked = P.arena()
+    block = linked.blocks["bake_cache.code"]
+    for va, old, symbol, opcode in P.BAKE_CACHE_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'call' if opcode == 0xE8 else 'jmp'} {target:#x}` ({symbol}, an entry of bake_cache.code) here")
+    va, old, new = P.BAKE_CACHE_KEEP
+    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+          f"{va:#x}: game::exit's delete is a 5-byte nop")
+    sites = [(s, o) for s, o, _, _ in P.BAKE_CACHE_HOOKS] + [(va, old)]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(s - 4 < v < s + len(o) for s, o in sites)]
+    hits = [h for s, o in sites for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "bake_cache.code")
+    check(image.read(block.va, len(code)) == code and "bake_cache.state" in linked.blocks,
+          f"the code at {block.va:#x} is the link's bake_cache.code ({len(code)} bytes), its tables bake_cache.state")
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -6113,6 +6180,7 @@ def test_late_join(original, without, server, source):
     test_hide_ui(original, image, before)
     test_kill_feed(original, image, before)
     test_fall_gravity(original, image, before)
+    test_bake_cache(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)
