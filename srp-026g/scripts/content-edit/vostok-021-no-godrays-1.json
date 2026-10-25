@@ -1,7 +1,0 @@
-{
- "_about": "No god rays on Vostok Radar Station (v0.21) (the owner, 2026-10-25: \"Remove god rays on the 0.21 Vostok map\"): the environment's god_rays_intensity 1.02 -> 0 in both projects of v021d_level_03 (day_2, map 166, and day_4, map 152), as School's day projects have it. The port kept 0.21d's god-ray values (intensity 1.02, attenuation 1.92) as they were, but 0.26g's god_rays.ps fades the rays as (1 - d)^attenuation with the distance d from the sun on screen, where 0.21d's faded them as exp(-20 d^attenuation): at half a screen from the sun 0.264 of their strength, not 0.005, so the rays cover the screen whenever the low sun (26 degrees) is in view. Visual only: srp keeps only the projects' server_objects. Mamayev Kurgan (v0.21) has the same values and stays as it is.",
- "set": [
-  {"file": "projects/v021d_level_03/day_2/client_project", "path": "client_objects[0]/properties/god_rays_intensity", "from": 1.02, "to": 0.0},
-  {"file": "projects/v021d_level_03/day_4/client_project", "path": "client_objects[0]/properties/god_rays_intensity", "from": 1.02, "to": 0.0}
- ]
-}
