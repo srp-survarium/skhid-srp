@@ -487,3 +487,56 @@ plays as 4-5: `BotTier::default()`), after minus base per seed (SE):
   3 of them held: spread, not a spot (4-5: 6 -> 7; 9-10: 12 -> 15).
 - **tdm:** seeds 1-2 on tiers 4-5, 9-10 and 13-15, every run's decisions
   digest equal to base's (only Collect changed).
+
+## Bots: a container holder while our container holds batteries and a theft or an enemy by it says it needs holding
+
+### Why
+
+In Cologne (CG-1) the owner stole from the same container by the same lane
+again and again, and no bot was there: GuardLead, the only play that keeps
+a bot by our container, ran only in the last three minutes with the lead,
+and a theft ended it. Since #390 the team keeps a match-long memory of each
+human (CG-12: `HumanLanes`), with his lanes and his thefts; nothing read
+it yet.
+
+### What changed
+
+- **A holder slot** in `guard_lead.rs`, at any time, beside the two
+  end-game slots: `HOLDER_SLOT + container id`. `is_holder(candidate)` and
+  `is_holder_slot(slot)` name it, for the role budget (CG-13: "holder at
+  most 1").
+- **The need** (`holder_need`): our container holds batteries, and a
+  battery of ours was taken this match (`TeamKnowledge::thefts_match`, new:
+  every thief, bot or human), or one in the last 60 s, or an enemy is known
+  within 20 m of the container (GUESS).
+- **The score:** the guard's own considerations (distance, personality,
+  health), its time left and lead taken as met, times the need: the
+  batteries at stake (`HOLDER_STAKES`: 1, 2, 3+ -> 0.5, 0.75, 1) times the
+  thefts this match (`HOLDER_THEFTS`: 0, 1, 2+ -> 0.6, 0.85, 1). GUESS each.
+- **Its spot** is a guard's, but within 60 degrees (GUESS), seen from the
+  container, of the way a thief comes: the best of the thieves' lane cells
+  within 30 m (`HumanLanes::thief_lane`), else toward the enemy container.
+  It looks that way too between glances at the container. With a face it
+  asks the spot finder for three times the spots (a third face that way);
+  on a re-pick with none facing it keeps the spot it has.
+- **Its end:** a theft does not end it (the alarm sends others); the need
+  off for 20 s does (GUESS). An end-game guard keeps its old ends.
+- **The last two** of a team never hold while a battery lies loose (until
+  CG-13's role budget decides it).
+- **Rank:** the holder stays `Objective`. The plan had it raised to `Fight`
+  under a threat so that a Crossfire elsewhere would not take it, but the
+  bands run Roam < Fight < Objective < Alarm: an objective over the 0.10
+  floor already beats every fight-band play, and the raise would have done
+  nothing.
+- **Bench tallies** (bench code only): holder time, its time within 22 m of
+  our container, its deaths, thefts from a container with a holder alive,
+  and time of a need with no holder.
+
+### What is left for the next PR
+
+The owner's idea for a carrier stuck under fire: drop the battery, fight,
+re-take it and escape (with Bring's escape and CG-19). It comes in its own
+PR with its own file plan, after this one; the holder's slot is where the
+dropper's claim on the battery will live.
+
+### Bench

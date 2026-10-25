@@ -84,15 +84,19 @@ pub const HOLDER_STAKES: [f32; 4] = [0.0, 0.5, 0.75, 1.0];
 pub const HOLDER_THEFTS: [f32; 3] = [0.6, 0.85, 1.0];
 
 /// Whether a slot is the container holder's (not one of the end-game
-/// guards'): the commander's role budget counts holders (CG-13, at most
-/// one).
+/// guards').
 pub fn is_holder_slot(slot: SlotKey) -> bool {
     slot.kind == PlayKind::GuardLead && slot.key >= HOLDER_SLOT
 }
 
-/// Whether a candidate is the container holder's ([`is_holder_slot`]).
-pub fn is_holder(candidate: &Candidate) -> bool {
-    candidate.slot.is_some_and(is_holder_slot)
+/// Whether a play is the container holder's: GuardLead on a container in
+/// a [`HOLDER_SLOT`] key (the end-game guards' keys are below it). Pure,
+/// for the commander's role budget (CG-13, at most one holder), which sees
+/// only candidates and assignments.
+pub fn is_holder(kind: PlayKind, target: TargetRef, slot: Option<SlotKey>) -> bool {
+    kind == PlayKind::GuardLead
+        && matches!(target, TargetRef::Container(_))
+        && slot.is_some_and(is_holder_slot)
 }
 
 pub fn tuning() -> PlayTuning {
@@ -159,8 +163,8 @@ fn holder_need(cx: &Ctx, container: Vec3) -> Option<f32> {
 /// The container holder's candidate for our container `id` at `at`.
 fn holder_candidate(cx: &Ctx, id: u8, at: Vec3) -> Option<Candidate> {
     let need = holder_need(cx, at)?;
-    // Until the role budget (CG-13): the last two never hold while a
-    // battery lies loose.
+    // Temporary, until the role budget (CG-13) gives the same and a test
+    // pins it there: the last two never hold while a battery lies loose.
     let alive = cx.view.team(cx.me.team).count();
     let loose = (0..cx.view.batteries.len()).any(|b| cx.battery_lying(b).is_some());
     if alive <= 2 && loose {
@@ -626,7 +630,10 @@ mod tests {
     }
 
     fn holders(s: &Scenario, place: Place) -> Vec<Candidate> {
-        guards(s, place).into_iter().filter(is_holder).collect()
+        guards(s, place)
+            .into_iter()
+            .filter(|c| is_holder(c.kind, c.target, c.slot))
+            .collect()
     }
 
     #[test]
@@ -638,6 +645,11 @@ mod tests {
         assert_eq!(found.len(), 1, "{found:#?}");
         assert_eq!(found[0].target, TargetRef::Container(0));
         assert!(is_holder_slot(found[0].slot.unwrap()));
+        assert!(is_holder(
+            PlayKind::GuardLead,
+            TargetRef::Container(0),
+            found[0].slot
+        ));
         assert_eq!(found[0].rank, Rank::Objective);
         // Nothing at stake: no need.
         s.container_count(0, 0);
@@ -680,13 +692,19 @@ mod tests {
         let given = assign(asking, s.view.clock);
         let holding = given
             .iter()
-            .filter(|(_, a, _)| a.slot.is_some_and(is_holder_slot));
+            .filter(|(_, a, _)| is_holder(a.kind, a.target, a.slot));
         assert_eq!(holding.count(), 1, "{given:#?}");
         // Late and ahead: the two end-game guards and the holder.
         s.time_left(90.0).points(3, 2);
         let found = guards(&s, 0);
         assert_eq!(found.len(), 3, "{found:#?}");
-        assert_eq!(found.iter().filter(|c| is_holder(c)).count(), 1);
+        let holding = |c: &&Candidate| is_holder(c.kind, c.target, c.slot);
+        assert_eq!(found.iter().filter(holding).count(), 1);
+        // The end-game guards' slots are not the holder's.
+        for c in found.iter().filter(|c| !holding(c)) {
+            assert!(!is_holder(c.kind, c.target, c.slot), "{c:?}");
+            assert!(c.slot.is_some_and(|k| k.key < HOLDER_SLOT));
+        }
     }
 
     #[test]
