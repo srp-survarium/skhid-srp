@@ -186,8 +186,8 @@ for Windows Security, the way out, one line each:
 ```text
 Windows Security blocked survarium_skhid.exe: a false positive.
 1. Windows Security > Protection history > this item > Allow on device (or Restore).
-2. Add the game folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):
-E:\Survarium_SkhidSRP_0_26
+2. Add this folder as an exclusion (Virus & threat protection > Manage settings > Exclusions):
+E:\Survarium_SkhidSRP_0_26\game\binaries\x86
 Then try again. PLAY stays off until then.
 ```
 

@@ -949,7 +949,8 @@ fn run() -> u32 {
                     }
                 );
                 session.state(state::ERROR);
-                file_error::message(win::launcher_language(), *stop, file, &layout.top_dir)
+                let folder = file_error::exclusion_folder(name, &layout.exe_dir, &layout.game_dir);
+                file_error::message(win::launcher_language(), *stop, file, folder)
             }
             // The update server could not be reached: the box says why it
             // may not be and what to do (a VPN's split tunnelling, the

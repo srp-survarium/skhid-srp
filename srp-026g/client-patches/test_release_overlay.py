@@ -365,8 +365,9 @@ class ReleaseTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == 'nt' or WINE, 'Windows, or Wine for its cmd.exe')
     def test_the_network_setup_adds_and_removes_exactly_its_rules(self):
-        # Folders with a space and brackets, and with an &, as a player's may be.
-        for name in ('My Games (x86)', 'Tom & Jerry (x86)'):
+        # Folders with a space and brackets, with an &, with a !, as a
+        # player's may be.
+        for name in ('My Games (x86)', 'Tom & Jerry (x86)', 'Wow! Games (x86)'):
             with self.subTest(name):
                 self.network_setup_in(self.root / name / 'Survarium')
 
@@ -395,8 +396,11 @@ class ReleaseTests(unittest.TestCase):
         # The exclusion: game\binaries\x86 alone, never the folder above it.
         expected += ['[dry-run] look for firewall rules that block the three programs',
                      f'[dry-run] powershell Add-MpPreference -ExclusionPath "{x86}"',
-                     f'[dry-run] write "{top_windows}\\Skhid-network-setup.defender"']
+                     f'[dry-run] write "{top_windows}\\Skhid-network-setup.defender":']
         self.assertEqual(commands(added), expected, '\n'.join(added))
+        # What the marker would hold: the path as it is, by the line that
+        # writes it.
+        self.assertEqual(added[added.index(expected[-1]) + 1], x86, '\n'.join(added))
         self.assertNotIn(' dir=in ', '\n'.join(added))
         # The command line the elevation starts cmd.exe with, and that run.
         elevate = [line for line in added if 'elevate:' in line]

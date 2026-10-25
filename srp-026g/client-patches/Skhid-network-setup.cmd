@@ -159,7 +159,8 @@ if errorlevel 2 goto defender_skipped
 :defender_yes
 if defined DRY (
     echo [dry-run] powershell Add-MpPreference -ExclusionPath "%X86%"
-    echo [dry-run] write "%MARKER%"
+    echo [dry-run] write "%MARKER%":
+    call :marker_line
     exit /b 0
 )
 powershell -NoProfile -ExecutionPolicy Bypass -Command "try { if ((Get-MpPreference -ErrorAction Stop).ExclusionPath -contains $env:SKHID_EXCLUDED) { exit 3 }; Add-MpPreference -ExclusionPath $env:SKHID_EXCLUDED -ErrorAction Stop } catch { exit 1 }"
@@ -172,14 +173,18 @@ if errorlevel 1 (
     echo charge: add the folder to its exclusions yourself.
     exit /b 0
 )
-rem The path as it is, an & in it no command: delayed expansion.
-setlocal EnableDelayedExpansion
-> "%MARKER%" echo(!SKHID_EXCLUDED!
-endlocal
+call :marker_line > "%MARKER%"
 echo Defender: game\binaries\x86 is excluded from scans.
 exit /b 0
 :defender_skipped
 echo Defender: no exclusion added.
+exit /b 0
+
+rem The marker's one line: the path excluded, as it is. A FOR variable is not
+rem parsed again (an & in it is no command) and, without delayed expansion,
+rem a ! stays a !. (A Windows path has no * or ?, which FOR would match.)
+:marker_line
+for %%A in ("%SKHID_EXCLUDED%") do echo(%%~A
 exit /b 0
 
 :defender_remove
