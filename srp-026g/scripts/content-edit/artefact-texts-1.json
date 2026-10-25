@@ -1,5 +1,5 @@
 {
- "_about": "The artefacts' in-match hints as the artefacts now are (artefacts-1.json, client patch 54; docs/notes/artefacts.md). A pickup hint (data/pickup_hint) says the passive, an activation hint (data/activation_hint) the active; fixed sentences, nothing computed from the config, and the artefacts have no lobby card (ui_desc's name and description keys have no text, props_list is empty). Spring's pickup hint: movement speed 2 % -> 5 % and aiming speed 5 % (passive/aim_time_mod -0.05; the gloves' texts call aim time 'aiming speed'); German already said 5 %. Its activation hint: aiming with the movement speed (+10 %, German's total +15 %), and bullets do not slow you (active/stopping_power_mod -1). Lifebone's activation hint: health restored (patch 54 fills pain, body and head); its pickup hint ('increases health regeneration') stays. Onyx's numbers were stock mistakes: passive 10 % (German 'auf 15 %') -> 5 % (damage_mul 0.95), active 95 % (German 'auf 90 %') -> 75 % (damage_mul 0.25 since 2026-10-25, was 0.1; passive and active never both), and how long: '%s' (not '{s}': the game's localizer 0x1FEF90 makes '{NAME}' the key of action NAME, '{USE}', and any other name nothing) is the pop-up's time on screen in seconds, which exe patch 54 makes the active's time (3 s, +1 s for each other Onyx fired with it) and the hud movie writes in (set_parameterized_message); the English one's missing space after 'activated!' and double space before the number fixed. The pickup hints' 'Onyx artifact.' / 'Артефакт Онікс.' openings, which the maps tab and the damage calculator read the names from, stay. Six localization tables each.",
+ "_about": "The artefacts' in-match hints as the artefacts now are (artefacts-1.json, client patch 54; docs/notes/artefacts.md). A pickup hint (data/pickup_hint) says the passive, an activation hint (data/activation_hint) the active; fixed sentences, nothing computed from the config, and the artefacts have no lobby card (ui_desc's name and description keys have no text, props_list is empty). Spring's pickup hint: movement speed 2 % -> 5 % and aiming speed 5 % (passive/aim_time_mod -0.05; the gloves' texts call aim time 'aiming speed'); German already said 5 %. Its activation hint: aiming with the movement speed (+10 %, German's total +15 %), and bullets do not slow you (active/stopping_power_mod -1). Lifebone's activation hint: the stock one, 'All the critical wounds cured!' (patch 54 fills pain and the four limbs, not body or head, so revision 30's added 'Health restored!' was taken out on 2026-10-25); its pickup hint ('increases health regeneration') stays. Onyx's numbers were stock mistakes: passive 10 % (German 'auf 15 %') -> 5 % (damage_mul 0.95), active 95 % (German 'auf 90 %') -> 75 % (damage_mul 0.25 since 2026-10-25, was 0.1; passive and active never both), and how long: '%s' (not '{s}': the game's localizer 0x1FEF90 makes '{NAME}' the key of action NAME, '{USE}', and any other name nothing) is the pop-up's time on screen in seconds, which exe patch 54 makes the active's time (3 s, +1 s for each other Onyx fired with it) and the hud movie writes in (set_parameterized_message); the English one's missing space after 'activated!' and double space before the number fixed. The pickup hints' 'Onyx artifact.' / 'Артефакт Онікс.' openings, which the maps tab and the damage calculator read the names from, stay. Six localization tables each.",
  "edit_text": [
   {
    "file": "localization/english/localization",
@@ -72,42 +72,6 @@
    "path": "strings/st_spring_activation_hint",
    "from": "Пружину активовано! Швидкість руху +10%! Прискорено регенерацію енергії!",
    "to": "Пружину активовано! Швидкість руху і прицілювання +10%! Прискорено регенерацію енергії! Кулі не сповільнюють!"
-  },
-  {
-   "file": "localization/english/localization",
-   "path": "strings/st_lifebone_activation_hint",
-   "from": "Larkspur activated! All the critical wounds cured!",
-   "to": "Larkspur activated! All the critical wounds cured! Health restored!"
-  },
-  {
-   "file": "localization/german/localization",
-   "path": "strings/st_lifebone_activation_hint",
-   "from": "Lebensknochen ist aktiviert! Alle kritische Verlätzungen sind geheilt!",
-   "to": "Lebensknochen ist aktiviert! Alle kritische Verlätzungen sind geheilt! Gesundheit wiederhergestellt!"
-  },
-  {
-   "file": "localization/polish/localization",
-   "path": "strings/st_lifebone_activation_hint",
-   "from": "Żywokost aktywowany! Wszystkie rany krytyczne zostały wyleczone!",
-   "to": "Żywokost aktywowany! Wszystkie rany krytyczne zostały wyleczone! Zdrowie przywrócone!"
-  },
-  {
-   "file": "localization/russian/localization",
-   "path": "strings/st_lifebone_activation_hint",
-   "from": "Живокост активирован! Все критические повреждения вылечены!",
-   "to": "Живокост активирован! Все критические повреждения вылечены! Здоровье восстановлено!"
-  },
-  {
-   "file": "localization/original/localization",
-   "path": "strings/st_lifebone_activation_hint",
-   "from": "Живокост активирован! Все критические повреждения вылечены!",
-   "to": "Живокост активирован! Все критические повреждения вылечены! Здоровье восстановлено!"
-  },
-  {
-   "file": "localization/ukrainian/localization",
-   "path": "strings/st_lifebone_activation_hint",
-   "from": "Живокіст активовано! Всі критичні ушкодження вилікувано!",
-   "to": "Живокіст активовано! Всі критичні ушкодження вилікувано! Здоров'я відновлено!"
   },
   {
    "file": "localization/english/localization",

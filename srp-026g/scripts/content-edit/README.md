@@ -395,7 +395,7 @@ game data). No simulation change: a match applies only the modifications an item
 |---|---|
 | `st_spring_pickup_hint`: movement speed by 2 % -> "movement speed and aiming speed by 5 %" (German said 5 % already) | `artefacts-1.json`: passive movement speed +5 %, aim time -5 % (the gloves' texts call aim time "aiming speed") |
 | `st_spring_activation_hint`: "Speed of movement and aiming +10 %" (German's total +15 %), and "Bullets do not slow you!" | the active's aim time -10 % and `stopping_power_mod` -1 (client patch 54) |
-| `st_lifebone_activation_hint`: "Health restored!" after the cured wounds | patch 54 fills pain, body and head at the active; the pickup hint ("increases health regeneration") is still right |
+| `st_lifebone_activation_hint`: "Health restored!" after the cured wounds (taken out 2026-10-25: the stock text again) | patch 54 filled pain, body and head at the active; since 2026-10-25 pain and the four limbs, not body or head, which the stock "All the critical wounds cured!" says; the pickup hint ("increases health regeneration") is still right |
 | `st_onyx_pickup_hint` 10 % -> 5 % (German "auf 15 %" -> "um 5 %"), `st_onyx_activation_hint` 95 % -> 90 % (German "auf 90 %" -> "um 90 %") | stock mistakes: `damage_mul` and `armor_piercing_mul` are 0.95 passive, 0.1 active, never both |
 
 These hints are the artefacts' only texts: fixed sentences in the localization tables (`data/pickup_hint`,

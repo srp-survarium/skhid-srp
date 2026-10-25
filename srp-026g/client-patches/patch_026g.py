@@ -423,14 +423,17 @@ Patches:
   (0x33ACF0) reads a fixed set of keys into its character modifier nodes,
   none of them the aim time; artefacts_026g.asm (the arena's block artefacts.code) makes its
   passive's unused max_carried_weight node aim_time with
-  `passive/aim_time_mod` and adds two active nodes, aim_time with
-  `active/aim_time_mod` at +3B8h and list 42 with
-  `active/stopping_power_mod` at +3C8h (a Spring is 3D8h bytes, 0x25E7A8,
-  0x2EEA74), linked and unlinked with the active's (0x311BC0, 0x311DA0);
-  the player's stagger (0x2DBCD0, at 0x2DBD89) is times max(0, 1 + list
-  42), so bullets do not slow an active Spring's holder. A
+  `passive/aim_time_mod` and adds three active nodes, aim_time with
+  `active/aim_time_mod` at +3B8h, and list 42 at +3C8h and list 66
+  (stamina_loss_on_hit) at +3D8h with `active/stopping_power_mod` (a
+  Spring is 3E8h bytes, 0x25E7A8, 0x2EEA74), linked and unlinked with the
+  active's (0x311BC0, 0x311DA0); the player's stagger (0x2DBCD0, at
+  0x2DBD89) is times max(0, 1 + list 42), and a hit's stamina loss is times
+  max(0, 1 + list 66) by the game itself, so bullets neither slow an active
+  Spring's holder nor take his stamina. A
   Lifebone's active (0x312250) removed injuries only; after them it fills
-  the pain, body and head pools (0x3122AA, increase_health as a medkit). An artefact's
+  the pain and the four limbs' pools (0x3122AA, increase_health as a
+  medkit), not body and head. An artefact's
   press (artefact_base::action 0x313300, at its entry) activates every
   ready artefact of the pressed one's class in the artefact slots, so one
   key fires all of a kind that are ready, even when the pressed one is not.
@@ -1915,14 +1918,15 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 #   active's third node): loader. The passive's second node (+350h,
 #   max_carried_weight 0 in retail) becomes aim_time (49) with the value of
 #   `passive/aim_time_mod`; two more nodes are the active's: +3B8h aim_time
-#   with `active/aim_time_mod`, +3C8h list 42 with
+#   with `active/aim_time_mod`, +3C8h list 42 and +3D8h list 66
+#   (stamina_loss_on_hit, the stamina a hit takes) with
 #   `active/stopping_power_mod`;
 # - the link of Spring's active nodes, 0x311BC0 (`push ebx / push esi /
-#   mov esi,eax / mov eax,[esi+250h]`, the entry): link the two too;
+#   mov esi,eax / mov eax,[esi+250h]`, the entry): link the three too;
 # - their unlink, 0x311DA0 (`push ebx / mov ebx,[esp+8]`, the entry): unlink;
 # - Lifebone's enable_active after its remove_affects, `mov ecx,[edi+250h]`
-#   at 0x3122AA: the pain, body and head pools filled to their maximum
-#   (increase_health, as a medkit);
+#   at 0x3122AA: the pain pool and the four limbs' filled to their maximum
+#   (increase_health, as a medkit), body and head left as they are;
 # - artefact_base::action 0x313300 (`push esi / mov esi,ecx / cmp dword
 #   [esi+280h],3`, the entry): a key-down activates every ready artefact of
 #   the pressed one's class in the artefact slots, as action activates one,
@@ -1940,7 +1944,7 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 #   0x25F9DD (its activation hint's set_parameterized_message): the time on
 #   screen is the active's time left (the hud writes it for the hint's %s),
 #   and only the first Onyx of the slots fired by the same press shows it.
-# The two nodes are after a Spring's own fields: the two sizes of a Spring,
+# The three nodes are after a Spring's own fields: the two sizes of a Spring,
 # artefact<artefact_spring_core> (0x3B8, 0x25E7A8) and the bare core (0x398,
 # 0x2EEA74), become ARTEFACTS_SPRING_SIZE. No base relocation is under a
 # site and no branch aims inside one; the code holds the absolute addresses
@@ -1957,7 +1961,7 @@ ARTEFACTS_HOOKS = (
 )
 ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91, 0x312C0A,
                    0x25F9E8)                    # where each goes on (the pop-up's skip: 0x25F9F8)
-ARTEFACTS_SPRING_SIZE = 0x3D8                  # the active's two nodes at +3B8h and +3C8h
+ARTEFACTS_SPRING_SIZE = 0x3E8                  # the active's three nodes at +3B8h, +3C8h and +3D8h
 ARTEFACTS_SIZES = (
     (0x25E7A8, bytes.fromhex("b8b8030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
     (0x2EEA74, bytes.fromhex("b898030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
@@ -3492,8 +3496,9 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "a weapon wears the decals its item holds, placed on it above the workbench, "
                      "an upgrade dropped on a weapon in its window is shown at once, "
                      f"Research (mode 5: rule class {RESEARCH_CLASS:#x}, its hud and messages), "
-                     "a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills "
-                     "pain, body and head, and one press fires every artefact of its kind, "
+                     "a Spring's passive and active take aim time from its config and its active takes the bullets' slow and "
+                     "stamina loss away, a Lifebone's active fills pain and the four limbs, and one press fires every "
+                     "artefact of its kind, "
                      "Onyx fired together each 1 s longer per other one and reducing a hit once, "
                      "their activation hint shown once a press for their active time, "
                      "the keys 1, 2 and 3 pick a kit while the kits are shown, "

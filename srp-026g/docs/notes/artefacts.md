@@ -26,18 +26,32 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the edit l
 
 - Passive: movement speed +5 % (was +2 %), aim time -5 %.
 - Active (10 s, cooldown 40 s): movement speed +10 % and aim time -10 % on top of the passive
-  (+15 %, -15 % in all), stamina as before (no drain, regeneration x6), and bullets do not slow
-  you (their stopping power; their stamina damage as before).
+  (+15 %, -15 % in all), stamina as before (no drain, regeneration x6), and bullets do not stop
+  you (the owner, 2026-10-25: "bullet stopping force is not removed when Spring is active"):
+  - no slow from a hit (the stagger: a hit's stopping power, up to -50 % speed for 0.5 s, and no
+    sprint while it lasts);
+  - no stamina from a hit (each weapon's `stamina_damage`, 100 x its stopping power: 50 a
+    shotgun's, 80 the VSSK's). Until 2026-10-25 a hit still took it: a sprinting holder does not
+    regenerate, so two shotgun hits emptied the bar and ended the sprint.
+  - Both are `active/stopping_power_mod` (-1); every Spring active adds its own (they add up, at
+    no slow and no loss).
 - The speed applies while aiming too (aiming's own speed modifier, 20, is 0 in retail).
 - `max_carried_weight_mod` (0 in retail) is no longer read: its node is the passive's aim time.
 
-## Lifebone
+## Lifebone (in the game Larkspur, «Живокост»; `artefact_lifebone`)
 
 - Passive: each of its seven pools (body, head, both hands, both legs, pain) regenerates
   base + 0.1/s, up to 100 %, as before.
 - Regeneration starts after the pool's own 8 s without a hit (the artefact no longer adds 2 s).
-- Active (3 s, cooldown 45 s): hand and leg injuries removed as before, and pain, body and head full
-  at once.
+- Active (3 s, cooldown 45 s), the owner 2026-10-25 ("when activated it heals fully: pain to zero,
+  and both arms and both legs restored to full health; not the whole body"):
+  - pain to zero (the pain pool full);
+  - both arms and both legs: injuries removed as before, and their health full at once (no longer
+    red on the body diagram);
+  - body and head as they are.
+- Revisions 30 to 34 filled pain, body and head and left the limbs' health as it was.
+- Its activation hint is the stock one again ("All the critical wounds cured!"); revision 30's
+  added "Health restored!" is out, the body and head not being healed.
 - Cooldown 45 s, was 15 s (the owner, 2026-10-23): since its active is a full heal, 15 s was too
   often (Spring 40 s, Onyx 60 s). `data/cooldown_sec` 15 -> 45 in `artefacts-1.json`.
 - Nothing hard-codes it: artefact_base's constructor (0x312FD0) reads `cooldown_sec` x 1000 into

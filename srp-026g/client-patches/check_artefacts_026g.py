@@ -25,8 +25,9 @@ The original must give the original's answers (a Spring's passive node 2
 max_carried_weight, no aim node; Lifebone heals no pool; one press fires one
 artefact; n active Onyx reduce a hit n times, each 3 s), the build: aim
 time from the config in the passive and the active, the active's linked and
-unlinked with the others, pain, body and head full after Lifebone's active,
-no slow from hits while a Spring is active, a press fires every ready
+unlinked with the others, pain and the four limbs full after Lifebone's
+active (body and head as they were), no slow and no stamina loss from hits
+while a Spring is active, a press fires every ready
 artefact of its class, and n Onyx fired together are each active 3 s +
 (n - 1) s, reduce a hit once (x0.25) and show the activation hint once a
 press, for that time.
@@ -55,7 +56,8 @@ STAGGER = 0x2DBCD0                       # eax = the player; (time), `ret 4`
 INVENTORY_ACTION = 0x2FCAA0              # edi = the inventory; (slot, pressed, time), `ret 0Ch`
 SPRING_ENABLE, SPRING_DISABLE = 0x3118D0, 0x311970   # thiscall: (time) `ret 4`; () `ret`
 MOVEMENT, STAMINA_REGEN, MAX_WEIGHT, STAMINA_SPEND, AIM_TIME, STOPPING = 4, 3, 5, 19, 49, 42
-AIM_NODE, STOP_NODE = 0x3B8, 0x3C8
+STAMINA_LOSS = 66                        # stamina_loss_on_hit: hit_impl's getter for a hit's stamina damage
+AIM_NODE, STOP_NODE, STAMINA_NODE = 0x3B8, 0x3C8, 0x3D8
 ONYX_ENABLE = 0x3128C0                   # Onyx's enable_active, thiscall (time), `ret 4`
 ONYX_TICK = 0x3127E0                     # its active's countdown, thiscall (elapsed ms, time), `ret 8`
 ONYX_ENDED = 0x312A50                    # active_effect_ended, thiscall, al
@@ -249,6 +251,8 @@ def run(data, patched):
            f"the active's aim node {g.node(obj + AIM_NODE)}")
     expect(g.node(obj + STOP_NODE) == ((STOPPING, -1.0) if patched else (0, 0.0)),
            f"the active's stopping power node {g.node(obj + STOP_NODE)}")
+    expect(g.node(obj + STAMINA_NODE) == ((STAMINA_LOSS, -1.0) if patched else (0, 0.0)),
+           f"the active's stamina loss node {g.node(obj + STAMINA_NODE)}")
     # The retail config in the original: its numbers.
     if not patched:
         r = Game(data)
@@ -271,8 +275,18 @@ def run(data, patched):
     expect(g.modifier(MOVEMENT, 1.0) == 1.15, "speed x1.15 while active")
     expect(g.listed(STAMINA_REGEN) == [5.0] and g.listed(STAMINA_SPEND) == [-5.0], "the stamina nodes")
     expect(g.listed(STOPPING) == ([-1.0] if patched else []), "the active's stopping power node linked")
+    expect(g.listed(STAMINA_LOSS) == ([-1.0] if patched else []), "the active's stamina loss node linked")
+    # hit_impl's stamina damage (0x2D9D3B, 0x2D9DED): the getter on list 66
+    # with (the damage, 1); 50 a shotgun's, x0.75 with skill 211 at its top.
+    expect(g.modifier(STAMINA_LOSS, 50.0) == (0.0 if patched else 50.0),
+           "an active Spring: a hit takes no stamina" if patched else "a hit's stamina as ever")
+    g.emu.mem_write(KITS + 0xF4 + 4 * STAMINA_LOSS, struct.pack("<f", -0.25))
+    expect(g.modifier(STAMINA_LOSS, 50.0) == (0.0 if patched else 37.5), "the same with the skill")
     g.call(ACTIVE_UNLINK, (obj,))
+    expect(g.modifier(STAMINA_LOSS, 50.0) == 37.5, "after the active: the skill's x0.75 only")
+    g.emu.mem_write(KITS + 0xF4 + 4 * STAMINA_LOSS, struct.pack("<f", 0.0))
     expect(g.listed(STOPPING) == [] and g.count(STOPPING) == 0, "the stopping power node out at its end")
+    expect(g.listed(STAMINA_LOSS) == [] and g.count(STAMINA_LOSS) == 0, "the stamina loss node out at its end")
     expect(g.listed(AIM_TIME) == ([-0.05] if patched else []) and g.count(AIM_TIME) == (1 if patched else 0),
            "the active's aim node out at its end")
     expect(g.listed(MOVEMENT) == [0.05] and g.listed(STAMINA_REGEN) == [], "the active's other nodes out")
@@ -317,17 +331,20 @@ def run(data, patched):
            "an active Spring: no slow" if patched else "an active Spring: the slow as ever")
     expect(stagger([(100, 0.6), (200, 0.3)], True) == (0.0 if patched else -0.5), "an active Spring, big hits")
 
-    # Lifebone's active: pain, body and head full, the limbs left to their
-    # remove_affects; a pool that is full or not there is left alone.
+    # Lifebone's active: pain and the four limbs full (their injuries taken
+    # away by its remove_affects before), body and head left as they are; a
+    # pool that is full or not there is left alone.
     cases = (
         # {pool: (Hmax, H before)} -> H after in the build
         ({"pain": (1.0, 0.3), "body": (1.0, 0.3), "head": (0.4, 0.1), "left_leg": (0.5, 0.1)},
-         {"pain": 1.0, "body": 1.0, "head": 0.4, "left_leg": 0.1}),
+         {"pain": 1.0, "body": 0.3, "head": 0.1, "left_leg": 0.5}),
+        ({"head": (0.4, 0.2), "left_hand": (0.5, 0.1), "right_hand": (0.5, 0.0), "body": (1.0, 0.5),
+          "left_leg": (0.5, 0.25), "right_leg": (0.5, 0.5), "pain": (1.0, 0.6)},
+         {"head": 0.2, "left_hand": 0.5, "right_hand": 0.5, "body": 0.5, "left_leg": 0.5, "right_leg": 0.5,
+          "pain": 1.0}),
         ({"pain": (1.0, 1.0), "body": (1.0, 0.7), "head": (0.4, 0.35)},
-         {"pain": 1.0, "body": 1.0, "head": 0.4}),
-        ({"pain": (1.0, 1.0), "body": (1.0, 1.0), "head": (0.4, 0.4)},
-         {"pain": 1.0, "body": 1.0, "head": 0.4}),
-        ({"body": (1.0, 0.2)}, {"body": 1.0}),
+         {"pain": 1.0, "body": 0.7, "head": 0.35}),
+        ({"body": (1.0, 0.2), "right_leg": (0.5, 0.05)}, {"body": 0.2, "right_leg": 0.5}),
     )
     for before, after in cases:
         g = Game(data)
