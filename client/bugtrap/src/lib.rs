@@ -8,12 +8,18 @@ compile_error!(
 mod api;
 mod archive;
 mod crash_text;
+mod details;
 mod dump;
 mod modules;
 mod logs;
 mod notice;
 mod notice_text;
+mod report;
 mod sanitize;
+// The updater's SHA-256, for the game exe's hash in the crash report.
+#[allow(dead_code)]
+#[path = "../../updater/logic/src/sha256.rs"]
+mod sha256;
 mod text;
 mod ui;
 mod zip;

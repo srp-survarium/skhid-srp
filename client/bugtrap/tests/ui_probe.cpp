@@ -61,6 +61,30 @@ static HANDLE WINAPI RefuseCreate(LPCWSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, 
 static LANGID WINAPI WindowsLanguage() { return windowsLanguage; }
 static INT_PTR WINAPI RefuseDialog(HINSTANCE, LPCDLGTEMPLATEW, HWND, DLGPROC, LPARAM)
 { SetLastError(ERROR_NOT_ENOUGH_MEMORY); return -1; }
+// An antivirus refusing the capture: MiniDumpWriteDump fails as it was seen to,
+// HRESULT_FROM_WIN32(ERROR_GEN_FAILURE), after BugTrap made the file.
+static BOOL WINAPI RefuseCapture(HANDLE, DWORD, HANDLE, int, void*, void*, void*)
+{ SetLastError(0x8007001F); return FALSE; }
+static FARPROC WINAPI CaptureRefused(HMODULE module, LPCSTR name)
+{
+    if ((ULONG_PTR)name > 0xffff && !strcmp(name, "MiniDumpWriteDump")) return (FARPROC)RefuseCapture;
+    return GetProcAddress(module, name);
+}
+
+static void PrintClipboard()
+{
+    if (!OpenClipboard(NULL)) ExitProcess(79);
+    HANDLE data = GetClipboardData(CF_UNICODETEXT);
+    const WCHAR* text = data ? (const WCHAR*)GlobalLock(data) : NULL;
+    if (!text) ExitProcess(80);
+    static char utf8[65536];
+    int n = WideCharToMultiByte(CP_UTF8, 0, text, -1, utf8, sizeof(utf8), NULL, NULL);
+    GlobalUnlock(data);
+    CloseClipboard();
+    int out = 0; // one line: CR dropped, LF shown as |
+    for (int i = 0; i < n; ++i) if (utf8[i] != '\r') utf8[out++] = utf8[i] == '\n' ? '|' : utf8[i];
+    printf("CLIP %s\n", utf8);
+}
 
 static void ReplaceImport(const char* name, void* replacement)
 {
@@ -149,15 +173,19 @@ static BOOL CALLBACK Inspect(HWND window, LPARAM)
         // Wait until WM_INITDIALOG has populated the file/status fields.
         if (!GetWindowTextLengthW(GetDlgItem(window, 1031))) return TRUE;
         PrintText(0, window);
-        int ids[] = {1030, 1031, 1034, 1035, 1036, 1037, 1038, 1013, IDCANCEL};
-        for (int i = 0; i < 9; ++i) {
+        int ids[] = {1030, 1031, 1034, 1035, 1036, 1037, 1038, 1040, 1042, 1013, 1041, IDCANCEL};
+        for (int i = 0; i < 12; ++i) {
             HWND control = GetDlgItem(window, ids[i]);
             if (!IsWindowVisible(control)) continue;
             PrintText(ids[i], control);
             if (ids[i] != 1034 && ids[i] != 1035)
-                Fits(control, ids[i], ids[i] == 1030 || ids[i] == 1031 || ids[i] == 1036);
+                Fits(control, ids[i], ids[i] == 1030 || ids[i] == 1031 || ids[i] == 1036 || ids[i] == 1040 || ids[i] == 1042);
         }
         Screenshot(window);
+        // Copy: the details reach the clipboard and the button says so.
+        SendMessage(window, WM_COMMAND, 1041, 0);
+        PrintClipboard();
+        PrintText(-2, GetDlgItem(window, 1041));
         if (browserCalls) ExitProcess(76);
         clicked = true;
         PostMessage(window, WM_COMMAND, 1013, 0);
@@ -193,6 +221,7 @@ int main(int argc, char** argv)
     if (!strcmp(argv[1], "raw")) ReplaceImport("MoveFileExW", (void*)RefuseMove);
     if (!strcmp(argv[1], "partial")) ReplaceImport("FlushFileBuffers", (void*)RefuseFlush);
     if (!strcmp(argv[1], "failure")) ReplaceImport("CreateFileW", (void*)RefuseCreate);
+    if (!strcmp(argv[1], "blocked")) ReplaceImport("GetProcAddress", (void*)CaptureRefused);
     typedef void (WINAPI *SetValue)(DWORD);
     ((SetValue)GetProcAddress(bugtrap, "BT_SetActivityType"))(1);
     ((SetValue)GetProcAddress(bugtrap, "BT_SetExitMode"))(2);

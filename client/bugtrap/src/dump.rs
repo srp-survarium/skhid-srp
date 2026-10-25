@@ -110,7 +110,7 @@ pub unsafe fn capture(exception: *mut EXCEPTION_POINTERS, crash: bool) -> bool {
     if crash { true } else { saved }
 }
 
-unsafe fn folder() -> Wide<32768> {
+pub unsafe fn folder() -> Wide<32768> {
     let mut folder = Wide::new();
     let n =
         GetModuleFileNameW(null_mut(), folder.buf.as_mut_ptr(), folder.buf.len() as u32) as usize;
@@ -146,33 +146,48 @@ unsafe fn dbghelp(folder: &Wide<32768>) -> HMODULE {
     LoadLibraryW(path.ptr())
 }
 
+/// `folder` + `SRP-crash-YYYYMMDD-HHMMSS-mmm-pPID-tTID-N.<extension>` in
+/// `path`, N new at each call.
+pub unsafe fn name(
+    folder: &Wide<32768>,
+    path: &mut Wide<32768>,
+    thread: u32,
+    extension: &str,
+) -> core::fmt::Result {
+    let mut now: SYSTEMTIME = core::mem::zeroed();
+    GetLocalTime(&mut now);
+    path.truncate(0);
+    path.wide(&folder.buf[..folder.len])?;
+    write!(
+        path,
+        "SRP-crash-{:04}{:02}{:02}-{:02}{:02}{:02}-{:03}-p{}-t{}-{}.{extension}",
+        now.wYear,
+        now.wMonth,
+        now.wDay,
+        now.wHour,
+        now.wMinute,
+        now.wSecond,
+        now.wMilliseconds,
+        GetCurrentProcessId(),
+        thread,
+        SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    )
+}
+
+/// A failure: the Windows error, whether a dump was kept nonetheless, and
+/// whether it came from the capture itself (`MiniDumpWriteDump`), not from
+/// making the file (`details::failure`).
+type Failed = (u32, bool, bool);
+
 unsafe fn save(
     folder: &Wide<32768>,
     path: &mut Wide<32768>,
     request: &Request,
     write_dump: WriteDump,
-) -> Result<(), (u32, bool)> {
-    let mut now: SYSTEMTIME = core::mem::zeroed();
-    GetLocalTime(&mut now);
+) -> Result<(), Failed> {
     for _ in 0..16 {
-        path.truncate(0);
-        path.wide(&folder.buf[..folder.len])
-            .map_err(|_| (ERROR_FILENAME_EXCED_RANGE, false))?;
-        write!(
-            path,
-            "SRP-crash-{:04}{:02}{:02}-{:02}{:02}{:02}-{:03}-p{}-t{}-{}.dmp",
-            now.wYear,
-            now.wMonth,
-            now.wDay,
-            now.wHour,
-            now.wMinute,
-            now.wSecond,
-            now.wMilliseconds,
-            GetCurrentProcessId(),
-            request.exception.ThreadId,
-            SEQUENCE.fetch_add(1, Ordering::Relaxed)
-        )
-        .map_err(|_| (ERROR_FILENAME_EXCED_RANGE, false))?;
+        name(folder, path, request.exception.ThreadId, "dmp")
+            .map_err(|_| (ERROR_FILENAME_EXCED_RANGE, false, false))?;
         let file = CreateFileW(
             path.ptr(),
             GENERIC_READ | GENERIC_WRITE,
@@ -187,7 +202,7 @@ unsafe fn save(
             if e == ERROR_FILE_EXISTS || e == ERROR_ALREADY_EXISTS {
                 continue;
             }
-            return Err((e, false));
+            return Err((e, false, false));
         }
         let exception = if request.exception.ExceptionPointers.is_null() {
             null()
@@ -232,15 +247,15 @@ unsafe fn save(
         CloseHandle(file);
         if ok == 0 {
             DeleteFileW(path.ptr());
-            return Err((error, false));
+            return Err((error, false, true));
         }
         // Keep a successful primary dump even if supplemental module collection fails.
         if error != 0 {
-            return Err((error, true));
+            return Err((error, true, false));
         }
         return Ok(());
     }
-    Err((ERROR_FILE_EXISTS, false))
+    Err((ERROR_FILE_EXISTS, false, false))
 }
 
 unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
@@ -251,28 +266,36 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
     let mut path = Wide::<32768>::new();
     let mut error = ERROR_MOD_NOT_FOUND;
     let mut partial = false;
+    let mut capture = false;
+    // A crash's text report: made whatever becomes of the dump.
+    let mut report = crate::report::Report::new();
+    if request.crash {
+        crate::report::collect(
+            &mut report,
+            request.exception.ExceptionPointers,
+            request.exception.ThreadId,
+        );
+    }
     if !library.is_null() {
         if let Some(proc) = GetProcAddress(library, c"MiniDumpWriteDump".as_ptr().cast()) {
             let write_dump: WriteDump = core::mem::transmute(proc);
             let primary = if dir.len != 0 {
                 save(&dir, &mut path, request, write_dump)
             } else {
-                Err((ERROR_PATH_NOT_FOUND, false))
+                Err((ERROR_PATH_NOT_FOUND, false, false))
             };
             match primary {
                 Ok(()) => request.saved = true,
-                Err((e, retained)) => {
-                    error = e;
-                    partial = retained;
+                Err((e, retained, stage)) => {
+                    (error, partial, capture) = (e, retained, stage);
                     if !partial {
                         let n = GetTempPathW(dir.buf.len() as u32, dir.buf.as_mut_ptr()) as usize;
                         if n > 0 && n < dir.buf.len() {
                             dir.len = n;
                             match save(&dir, &mut path, request, write_dump) {
                                 Ok(()) => request.saved = true,
-                                Err((e, retained)) => {
-                                    error = e;
-                                    partial = retained;
+                                Err((e, retained, stage)) => {
+                                    (error, partial, capture) = (e, retained, stage);
                                 }
                             }
                         }
@@ -283,10 +306,16 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
             error = ERROR_PROC_NOT_FOUND;
         }
     }
+    let kept = request.saved || partial;
+    crate::report::finish(&mut report, request.saved, partial, error, capture);
+    // The text report beside the dump (or, with none, beside the exe or in
+    // the temporary folder, and the dialog names it in the dump's place);
+    // when neither takes it, the dialog still shows it.
+    crate::report::save(&report, kept, &mut path, request.exception.ThreadId);
     // Zip the dump only now that it is flushed and closed: on any failure, or
     // a crash or exit while zipping, the dump stays and the dialog names it.
-    if request.saved || partial {
-        let _ = crate::archive::zip(&mut path);
+    if kept {
+        let _ = crate::archive::zip(&mut path, &report.text.buf[..report.text.len]);
     }
     // Publish only after save() has flushed/closed its file and it is zipped
     // (or all attempts failed). Contending crashes need not wait for callbacks
@@ -305,7 +334,7 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
             // Both callbacks and UI occur only after the persistent dump is closed.
             api::callback(&api::PRE, &api::PRE_PARAM);
             if api::ACTIVITY.load(Ordering::Relaxed) == 1 {
-                crate::ui::show(&path, request.saved, partial, error);
+                crate::ui::show(&path, request.saved, partial, error, capture, &report);
             }
             api::callback(&api::POST, &api::POST_PARAM);
         }
