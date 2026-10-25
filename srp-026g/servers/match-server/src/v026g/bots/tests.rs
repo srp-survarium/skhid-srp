@@ -164,6 +164,18 @@ struct ZoneSpell {
 /// A zone spell ends after this long with no zone hit, ms.
 const SPELL_GAP_MS: u32 = 1_000;
 
+/// An enemy hit this long before a zone spell, or in it, marks the spell
+/// as in a fight, ms.
+const SPELL_FIGHT_MS: u32 = 3_000;
+
+impl ZoneSpell {
+    /// The spell as kept when it ends on `body` ([`Game::zone_spells`]).
+    fn ended(&self, body: &Body) -> [f32; 4] {
+        let fight = body.last_hit != 0 && body.last_hit + SPELL_FIGHT_MS >= self.start;
+        [self.lost, body.health.max(0.0), self.health, f32::from(u8::from(fight))]
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Lying {
     /// Where, and the HUD mask as the client keeps it
@@ -449,9 +461,10 @@ struct Game {
     /// run's loop counts those lying in zones on all match).
     zone_deaths: u32,
     zone_hp: f32,
-    /// Zone spells ended ([`ZoneSpell`]): the health the zones took, and
-    /// the body's health at the end (enemy fire counts; a death, 0).
-    zone_spells: Vec<[f32; 2]>,
+    /// Zone spells ended ([`ZoneSpell::ended`]): the health the zones took,
+    /// the body's health at the end (enemy fire counts; a death, 0) and at
+    /// the start, and 1 if in a fight ([`SPELL_FIGHT_MS`]).
+    zone_spells: Vec<[f32; 4]>,
     took_from: Vec<Vec3>,
     /// Carriers' ground distance walked (m) and their living ticks: their
     /// mean speed.
@@ -1121,7 +1134,7 @@ impl Game {
             let body = &mut self.bodies[place];
             if !body.alive {
                 if let Some(spell) = body.zone_spell.take() {
-                    self.zone_spells.push([spell.lost, 0.0]);
+                    self.zone_spells.push(spell.ended(body));
                 }
                 continue;
             }
@@ -1143,7 +1156,7 @@ impl Game {
                 if let Some(spell) = body.zone_spell
                     && tick >= spell.last + SPELL_GAP_MS
                 {
-                    self.zone_spells.push([spell.lost, body.health.max(0.0)]);
+                    self.zone_spells.push(spell.ended(body));
                     body.zone_spell = None;
                 }
                 continue;
@@ -1164,7 +1177,7 @@ impl Game {
             }
             // What took the rest: the spell, and the enemy hits in it.
             let spell = body.zone_spell.take().expect("just set");
-            self.zone_spells.push([spell.lost, 0.0]);
+            self.zone_spells.push(spell.ended(body));
             eprintln!(
                 "  zone death: at {:.1} s, in zones {:.1} s at {:.2} a second, health {:.2} then, \
                  the zones took {:.2}, last enemy hit {}",
@@ -5647,10 +5660,10 @@ fn real_bot_cost() {
                 spells.extend(
                     game.bodies
                         .iter()
-                        .filter_map(|b| b.zone_spell.map(|z| [z.lost, b.health.max(0.0)])),
+                        .filter_map(|b| b.zone_spell.map(|z| z.ended(b))),
                 );
                 let mut bins = [0u32; 50];
-                for [lost, _] in &spells {
+                for [lost, ..] in &spells {
                     bins[((lost / 0.02) as usize).min(49)] += 1;
                 }
                 serde_json::json!({
@@ -5658,6 +5671,13 @@ fn real_bot_cost() {
                     "lost": spells.iter().map(|s| f64::from(s[0])).sum::<f64>(),
                     "worst": spells.iter().map(|s| s[0]).fold(0.0f32, f32::max),
                     "under_06": spells.iter().filter(|s| s[1] < 0.6).count(),
+                    // Of those: begun under 0.7 health, in a fight, either.
+                    "under_06_low": spells.iter().filter(|s| s[1] < 0.6 && s[2] < 0.7).count(),
+                    "under_06_fight": spells.iter().filter(|s| s[1] < 0.6 && s[3] > 0.5).count(),
+                    "under_06_either": spells
+                        .iter()
+                        .filter(|s| s[1] < 0.6 && (s[2] < 0.7 || s[3] > 0.5))
+                        .count(),
                     "bins": bins.to_vec(),
                 })
             };
