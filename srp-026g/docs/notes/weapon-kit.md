@@ -128,7 +128,11 @@ Every 0.46c2 muzzle model but its silencers: 20 items, dict ids 2601..2620 (`dev
 - **The shop:** seller 0 at no rank, at the item's `base_cost` (`prices::sellers_of_in`): flash
   hiders 6,000, brakes 9,000 (-0.05) or 12,000 (-0.1), compensators 8,000 [srp's guess, the owner's
   to set]. Sold back for a quarter, as everything.
-- **Icons:** a shop scope's cell for now (`devices.tsv` icon row and column).
+- **Icons:** 0.46c2 drew the attachments' icons from their models at run time (`icon_renderer`),
+  so it has no pictures of them. `render_icons.py` renders each model as the atlas's scopes are
+  shown (three-quarters, from above, its diffuse texture, a key and a fill light, transparent
+  around), into a new column (5) of the lobby's consumables atlas, `LobbyMenu_AmmoIcons`, rows 1
+  to 20 (`devices.tsv`; the pack's `atlas_icons_add`).
 
 ### Where a device sits on each weapon (`offsets.tsv`)
 

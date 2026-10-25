@@ -23,7 +23,9 @@ What the pack holds, for each device of devices.tsv (flash hiders, brakes, compe
   locator in millimetres: patch 68 moves the shot's flash there), a brake's recoil
   (parameters/recoil_modifier added, type 1), a compensator's range (parameters/max_damage_distance
   multiplied, type 2), a flash hider's shot effect (particles/shoot set, type 0); the name and
-  description keys, the icon's cell (a shop scope's for now); read back, nothing else differs;
+  description keys, the icon's cell; read back, nothing else differs;
+- its icon (render_icons.py's picture of its model) in its cell of the lobby's consumables atlas
+  (LobbyMenu_AmmoIcons of flash_movies/lobby_menu.swf, atlas_icons_add: column 5, new);
 - the effects the flash hiders name (extras.tsv): particles, their materials and textures;
 - its dictionary row (category 22, the scopes': the lobby's attachments filter; its price as
   base_cost, sold by seller 0) and its texts in the six languages (texts.tsv).
@@ -40,6 +42,8 @@ import sys
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'content-edit'))
 import content_edit as ce  # noqa: E402
+sys.path.insert(0, str(HERE))
+import render_icons  # noqa: E402
 
 PACK_ID = 'weapon-attachments'
 VERSION = '3'
@@ -51,6 +55,7 @@ TEMPLATE_VALUES = {'type': 'stk_camo', 'modification': 100001, 'key': 'camouflag
                    'name': 'st_camo_black_leather_name', 'description': 'st_camo_generic_desc', 'icon': (1, 1)}
 ITEM_CONFIGS = 'gameplay/items/attachments/'
 CATEGORY = 22
+ICON_ATLAS = 'LobbyMenu_AmmoIcons'
 KINDS = {'flash_hider': {'type': 'srp_muzl', 'key': 'srp_muzzle_model', 'description': 'st_srp_flash_hider_desc'},
          'muzzle_brake': {'type': 'srp_muzl', 'key': 'srp_muzzle_model', 'description': 'st_srp_muzzle_brake_desc'},
          'compensator': {'type': 'srp_muzl', 'key': 'srp_muzzle_model', 'description': 'st_srp_compensator_desc'}}
@@ -246,11 +251,25 @@ def main():
         device['fire'] = fire_point(donor[device['model'] + '/render/export_properties'])
         files[device['config']] = item_config(stock[TEMPLATE], device)
 
+    icons = []
+    for device in devices:
+        row, col = device['icon']
+        source = f'icons/{ICON_ATLAS}/r{row:02}c{col:02}.png'
+        (args.out / source).parent.mkdir(parents=True, exist_ok=True)
+        parts = []
+        for mesh_file, material in render_icons.surfaces(args.donor, device['model']):
+            positions, uv, indices = render_icons.mesh(mesh_file.read_bytes())
+            parts.append((positions, uv, indices, render_icons.diffuse(args.donor, material)))
+        render_icons.render(parts).save(args.out / source)
+        icons.append({'row': row, 'col': col, 'source': source})
+
     operations = [{'op': 'add_file', 'path': path} for path in sorted(files)]
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': [
         {'base_cost': d['price'], 'cfg_name': d['config'], 'dict_id': d['dict_id'], 'is_premium': False, 'is_stack': False,
          'item_category': CATEGORY, 'name': d['name']} for d in devices]})
     keys = sorted({d['key'] for d in devices} | {KINDS[d['kind']]['description'] for d in devices})
+    operations.append({'op': 'atlas_icons_add', 'swf': 'flash_movies/lobby_menu.swf', 'symbol': ICON_ATLAS,
+                       'icons': icons})
     for language in LANGUAGES:
         operations.append({'op': 'localization_add', 'languages': [language],
                            'strings': {key: porter_text(texts[key][language]) for key in keys}})
