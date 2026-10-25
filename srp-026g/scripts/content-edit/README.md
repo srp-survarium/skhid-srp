@@ -61,6 +61,15 @@ Then run `weapon_balance_1_changes_only_its_values`
 `SRP_TEST_SKHID_PATCHES` and `SRP_TEST_PATCH_WEAPON_BALANCE_1`) when a change touches its files. The
 server game data carries no localization tables: the test reads the texts in the patches themselves.
 
+### Map edit lists
+
+The map editor (`~/Projects/survarium/map-editor`) saves one edit list per map: moves and turns
+of a project's entries (`set_entry` with vectors and nested keys such as `spawned_item/position`),
+copies (`add_entry`, with nested keys such as `collision_geometries[0]/name`), an anomaly's
+artefact containers (`add_item`, `remove_item`) and deletions (`remove_entry`). Its `map_editor`
+table is the editor's own; `content_edit.py` ignores it. The editor's tests apply its lists with
+this script and compare the projects with its own (`crates/map-core/tests/real_maps.rs`).
+
 ## weapon-balance-1.json (2026-10-18)
 
 Scored against the recorded live matches since revision 19 (about 10,000 gun kills):
