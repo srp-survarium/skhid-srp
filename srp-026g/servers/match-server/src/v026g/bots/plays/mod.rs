@@ -1011,8 +1011,16 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     cut::candidates(cx, out);
 }
 
-/// A play's start.
-pub fn start(kind: PlayKind, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Running {
+/// A play's start. `slot` is the assignment's: a play whose rules depend on
+/// the role it was given (the container holder against an end-game guard)
+/// reads it, not the state of the match at the start.
+pub fn start(
+    kind: PlayKind,
+    target: TargetRef,
+    slot: Option<SlotKey>,
+    cx: &Ctx,
+    rng: &mut Rng,
+) -> Running {
     match kind {
         PlayKind::Roam => Running::Roam(roam::start(target, cx, rng)),
         PlayKind::Collect => Running::Collect(collect::start(target, cx, rng)),
@@ -1027,7 +1035,7 @@ pub fn start(kind: PlayKind, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Runn
         PlayKind::PairUp => Running::PairUp(pair_up::start(target, cx, rng)),
         PlayKind::HoldExit => Running::HoldExit(hold_exit::start(target, cx, rng)),
         PlayKind::LateDenial => Running::LateDenial(late_denial::start(target, cx, rng)),
-        PlayKind::GuardLead => Running::GuardLead(guard_lead::start(target, cx, rng)),
+        PlayKind::GuardLead => Running::GuardLead(guard_lead::start(target, slot, cx, rng)),
         PlayKind::Trade => Running::Trade(trade::start(target, cx, rng)),
         PlayKind::Heal => Running::Heal(heal::start(target, cx, rng)),
         PlayKind::Hunt => Running::Hunt(hunt::start(target, cx, rng)),

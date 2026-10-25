@@ -38,6 +38,8 @@ pub struct Scenario {
     pub memo: super::memo::Memo,
     pub side: Option<i32>,
     pub current: Option<(PlayKind, TargetRef, u32)>,
+    /// The slot `run` starts the play with (the assignment's).
+    pub slot: Option<SlotKey>,
     pub last_ran: Vec<(PlayKind, u32)>,
     pub partner: Option<Place>,
     /// Whether the partner has it for partner too (`BotFacts::paired`).
@@ -103,6 +105,7 @@ impl Scenario {
             memo: Default::default(),
             side: Some(0),
             current: None,
+            slot: None,
             last_ran: Vec::new(),
             partner: None,
             paired: true,
@@ -294,7 +297,7 @@ impl Scenario {
     ) -> Vec<Step> {
         let mut rng = crate::v026g::bots::rng::Rng::new(11);
         self.current = Some((kind, target, self.view.clock));
-        let mut running = start(kind, target, &self.cx(place), &mut rng);
+        let mut running = start(kind, target, self.slot, &self.cx(place), &mut rng);
         let mut out = Vec::new();
         for _ in 0..steps {
             let s = step(&mut running, target, &self.cx(place), &mut rng);
