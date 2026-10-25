@@ -69,6 +69,10 @@ copies (`add_entry`, with nested keys such as `collision_geometries[0]/name`), a
 artefact containers (`add_item`, `remove_item`) and deletions (`remove_entry`). Its `map_editor`
 table is the editor's own; `content_edit.py` ignores it. The editor's tests apply its lists with
 this script and compare the projects with its own (`crates/map-core/tests/real_maps.rs`).
+A map's list may also edit its Research mode configs (`gameplay/game_modes/<level>_<weather>_5.options`,
+the capture units' `capture_zones`). Moving spawns or capture units, or changing what collision
+stops (`collision_objects` `cgroup`/`cmask`), changes the simulation: the release that ships such a
+list needs the `next` row of `crates/session/src/v026g/simulation_changes.tsv`.
 
 ## weapon-balance-1.json (2026-10-18)
 
