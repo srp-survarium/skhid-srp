@@ -470,16 +470,26 @@ const ENEMIES_OUT: f32 = 4.0;
 /// "enemies by it", a median 2.5 s out, 47% back within 2 s; the bot left
 /// its Collect each time. A bot that is not on the battery yet reads the
 /// count as it is.
+///
+/// Only while the bot has no enemy in sight (noticed): one in sight with the
+/// count at the cut-off is a fight by a crowded battery, not a track's spot
+/// moving. Held at all times, the deaths on a Collect with 4 or more enemies
+/// within 25 m doubled (batt 4-5/9-10/13-15 x 16 seeds: 19 -> 40, 31 -> 48,
+/// 23 -> 40); of the deaths the bot was held through (28, 34, 24), 25, 28
+/// and 23 had an enemy in sight. A hold only near the battery would have
+/// missed the flicker: of 1,267 drop-outs for the enemies, 898 came with the
+/// bot over 25 m off it and 70 within 10 m.
 pub const COLLECT_ENEMY_MARGIN: f32 = 1.0;
 
 /// Bot's Collect candidate for lying battery `battery` (`None`: scored out
-/// or set aside), with [`COLLECT_ENEMY_MARGIN`] for the one it is on.
+/// or set aside), with [`COLLECT_ENEMY_MARGIN`] for the one it is on while
+/// it has no enemy in sight.
 fn battery_candidate(cx: &Ctx, battery: usize) -> Option<Candidate> {
     let target = TargetRef::Battery(battery);
     let slot = Some(battery as u32);
     let on_it = matches!(cx.bot.current, Some((PlayKind::Collect, t, _)) if t == target);
     let near = cx.input(Input::EnemiesNearTarget, PlayKind::Collect, target);
-    if on_it && near >= ENEMIES_OUT {
+    if on_it && near >= ENEMIES_OUT && cx.memory.all_seen(cx.now).is_empty() {
         let read = near - COLLECT_ENEMY_MARGIN;
         cx.candidate_given(
             PlayKind::Collect,
@@ -1627,7 +1637,8 @@ mod tests {
 
     /// The enemies known by a battery hovering at the cut-off (4) do not
     /// flip a bot's Collect of it: on it, it stays a candidate at 4 and
-    /// leaves at 5; out, it comes back at 3, not at 4.
+    /// leaves at 5; out, it comes back at 3, not at 4. With an enemy in
+    /// sight there is no hold.
     #[test]
     fn enemies_hovering_at_the_cut_off_do_not_flip_a_collect() {
         use crate::v026g::bots::know::Source;
@@ -1660,6 +1671,12 @@ mod tests {
             out.iter().find(|c| c.target == target).map(|c| c.score)
         };
         assert_eq!(score(4, true), score(3, false));
+        // An enemy in sight (30 m off the battery, not one of the 4): no
+        // hold, out at 4 on it too.
+        let mut fight = scene(4, true);
+        fight.enemy(9, 1, at + Vec3::new(30.0, 0.0, 0.0), Some(Source::Seen));
+        assert!(!fight.cx(0).memory.all_seen(fight.view.clock).is_empty());
+        assert!(collects(&fight).is_empty());
         // The note agrees: out for the enemies only when not on it.
         let whys = |s: &Scenario| {
             take_blocks(&s.cx(0))
