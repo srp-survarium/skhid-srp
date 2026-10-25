@@ -3,7 +3,7 @@
 //! typed value; the code after it takes only that value.
 //!
 //! ```
-//! use patch_core::{Parse, Reader};
+//! use patches::vostok::parse::{Parse, Reader};
 //! struct Proposal { seed: u32, place: u8 }
 //! impl<'a> Parse<'a> for Proposal {
 //!     fn parse(r: &mut Reader<'a>) -> Option<Proposal> {

@@ -1,21 +1,22 @@
-# The Rust exe patches (docs/notes/rust_patches.md): one crate per patch,
-# each a staticlib that one ARENA block names (patch_026g.py), and
-# patch-core, what every patch uses (the hook ABI, the engine bindings, typed
-# game memory, the types, the panic handler and the log). No dependency from
-# crates.io.
+# The Rust exe patches (docs/notes/rust_patches.md): one crate, `patches`,
+# the staticlib the arena's block patches.code links (patch_026g.py's ARENA),
+# in three layers, its modules:
+# - raw: generated from engine_026g.tsv and fields_026g.tsv (the game's
+#   functions, kernel32's imports, the fields' addresses); unsafe, no logic;
+# - vostok: the engine's safe API over raw, and the runtime (the hook
+#   context, the log, the panic handler);
+# - the patches, a module each: `#![forbid(unsafe_code)]`, vostok only.
+# Logic shared beyond the client (with srp, the match server) would be a
+# library crate of its own here: pure Rust, no game bindings.
 #
-# Two builds:
-# - the game's: link_026g.py builds each patch crate with the dev shell's
-#   nightly rustc alone (no cargo), for i686-unknown-linux-gnu, opt-level s,
-#   panic=abort, fat LTO, no allocator (its RUSTFLAGS); nothing here is read
-#   but each crate's name, `[lib]` path and `path` dependencies;
-# - the host's: `cargo test` (and clippy) here, for the logic and the views;
-#   the code that only means something in the game (inline x86, the engine's
-#   functions) is `#[cfg(target_arch = "x86")]`.
+# Built for the game's i686 only, everywhere (.cargo/config.toml):
+# link_026g.py builds the game's (rustc alone, offline, its RUSTFLAGS);
+# `cargo test` and `cargo clippy --all-targets` here are the checks, their
+# test binaries linked against 32-bit glibc (the dev shell). No crates.io.
 #
 # Not a member of srp-026g's workspace: the server never links these.
 [workspace]
-members = ["patch-core", "suicide_key"]
+members = ["patches"]
 resolver = "3"
 
 [workspace.package]
@@ -25,3 +26,10 @@ publish = false
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
+
+# The game's build aborts on a panic (link_026g.py); cargo's tests unwind.
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

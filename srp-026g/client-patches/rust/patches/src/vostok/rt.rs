@@ -10,9 +10,9 @@
 //! never undefined behaviour; nothing goes on with a half-done change.
 //!
 //! **memcpy and memset**: LLVM calls them for a large copy or fill, and the
-//! game gives none to the arena. Weak, so that each patch crate (each its
-//! own object) may bring them and the link keeps one; `rep movsb` and `rep
-//! stosb`, which LLVM cannot turn back into a call of themselves.
+//! game gives none to the arena (one crate: one copy); `rep movsb` and `rep
+//! stosb`, which LLVM cannot turn back into a call of themselves. Not in
+//! `cargo test`'s binaries (std has its own).
 
 /// `(unsigned)value` as gcc -m32 compiles it (the C patches' flags): x87
 /// `fistp` to 64 bits, truncating, and the low 32 bits. A negative value
@@ -25,12 +25,11 @@ pub fn c_u32(value: f32) -> u32 {
     if value > -LIMIT && value < LIMIT { value as i64 as u32 } else { 0 }
 }
 
-#[cfg(target_arch = "x86")]
+#[cfg(not(test))]
 mod game {
     /// # Safety
     /// As C's: `to` and `from` valid for `size` bytes, not overlapping.
     #[unsafe(no_mangle)]
-    #[linkage = "weak"]
     pub unsafe extern "C" fn memcpy(to: *mut u8, from: *const u8, size: usize) -> *mut u8 {
         // ESI is LLVM's to keep (no operand may name it): swapped in and back.
         unsafe {
@@ -43,7 +42,6 @@ mod game {
     /// # Safety
     /// As C's: `to` valid for `size` bytes.
     #[unsafe(no_mangle)]
-    #[linkage = "weak"]
     pub unsafe extern "C" fn memset(to: *mut u8, value: i32, size: usize) -> *mut u8 {
         unsafe {
             core::arch::asm!("rep stosb", inout("ecx") size => _, inout("edi") to => _, in("al") value as u8,
@@ -52,10 +50,9 @@ mod game {
         to
     }
 
-    #[cfg(not(test))]
     #[panic_handler]
     fn panic(info: &core::panic::PanicInfo) -> ! {
-        use crate::log::{Piece::*, line};
+        use crate::vostok::log::{Piece::*, line};
         match info.location() {
             Some(at) => line(&[Text("a patch panicked at "), Text(at.file()), Text(":"), Dec(at.line())]),
             None => line(&[Text("a patch panicked")]),

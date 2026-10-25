@@ -4,11 +4,14 @@
 //! take kilobytes of the arena): a line is [`Piece`]s.
 //!
 //! ```
-//! use patch_core::log::{line, Piece::*};
+//! use crate::vostok::log::{line, Piece::*};
 //! line(&[Text("suicide_key: handler "), Hex(0x2000_0000)]);
 //! ```
 //!
-//! On the host (`cargo test`) a line goes nowhere.
+//! kernel32 writes it, through the exe's imports (`raw`); a test never
+//! calls it.
+
+use crate::raw;
 
 /// A part of a line.
 #[derive(Clone, Copy, Debug)]
@@ -80,25 +83,18 @@ pub fn line(pieces: &[Piece]) {
     write(&line.bytes[..line.len]);
 }
 
-#[cfg(target_arch = "x86")]
 fn write(bytes: &[u8]) {
-    use crate::{Import, Va};
     use core::ffi::c_void;
-    type Handle = *mut c_void;
-    // kernel32's, by the exe's IAT slots (bake_cache's too)
-    const CREATE_FILE: Import<
-        unsafe extern "stdcall" fn(*const u8, u32, u32, *mut c_void, u32, u32, Handle) -> Handle,
-    > = Import::at(Va(0x870048));
-    const WRITE_FILE: Import<unsafe extern "stdcall" fn(Handle, *const u8, u32, *mut u32, *mut c_void) -> i32> =
-        Import::at(Va(0x870108));
-    const CLOSE_HANDLE: Import<unsafe extern "stdcall" fn(Handle) -> i32> = Import::at(Va(0x870040));
     const FILE_APPEND_DATA: u32 = 4;
     const SHARE_READ_WRITE: u32 = 3;
     const OPEN_ALWAYS: u32 = 4;
     const NORMAL: u32 = 0x80;
-    let null = core::ptr::null_mut();
+    let null = core::ptr::null_mut::<c_void>();
+    // SAFETY: kernel32's CreateFileA, WriteFile and CloseHandle through the
+    // exe's import slots, which the loader filled before the game ran; the
+    // arguments are what each takes (a NUL-terminated name, our bytes).
     unsafe {
-        let file = CREATE_FILE.get()(
+        let file = (raw::engine_create_file_a)(
             c"srp_patches.log".as_ptr().cast(),
             FILE_APPEND_DATA,
             SHARE_READ_WRITE,
@@ -111,13 +107,10 @@ fn write(bytes: &[u8]) {
             return;
         }
         let mut written = 0;
-        WRITE_FILE.get()(file, bytes.as_ptr(), bytes.len() as u32, &mut written, null);
-        CLOSE_HANDLE.get()(file);
+        (raw::engine_write_file)(file, bytes.as_ptr().cast(), bytes.len() as u32, &mut written, null);
+        (raw::engine_close_handle)(file);
     }
 }
-
-#[cfg(not(target_arch = "x86"))]
-fn write(_: &[u8]) {}
 
 #[cfg(test)]
 mod tests {
