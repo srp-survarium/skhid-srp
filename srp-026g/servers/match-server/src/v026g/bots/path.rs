@@ -453,16 +453,24 @@ fn pull_straight(
             .map_or(LinkKind::Walk, |(_, kind)| kind);
     }
     let low = |from: usize, to: usize| nodes[from..=to].iter().any(|&n| !grid.can_stand(n));
-    // A line pulled straight crosses no lip, and no floor near a fall
-    // ([`WalkGrid::near_fall`]), that the search kept off
-    // ([`WalkGrid::is_lip`]): cutting a corner over a ledge's edge is how a
-    // bot strays off it (player_bots_stuck.md §8.5). Half the unplanned
-    // falls on a route's leg were off such a cut (the fall-class bench,
-    // 2026-10-25).
-    let edge = |n: NodeId| grid.is_lip(n) || grid.near_fall(n);
+    // A line pulled straight crosses no lip, and no floor near a fall or
+    // a lip ([`WalkGrid::near_fall`], [`WalkGrid::near_lip`]), that the
+    // search kept off ([`WalkGrid::is_lip`]): cutting a corner over a
+    // ledge's edge is how a bot strays off it (player_bots_stuck.md §8.5).
+    // Half the unplanned falls on a route's leg were off such a cut (the
+    // fall-class bench, 2026-10-25). A leg to a drop's take-off goes in
+    // across the band, as the drop asks.
+    let edge = |n: NodeId| grid.is_lip(n) || grid.near_fall(n) || grid.near_lip(n);
     let mut edges: Vec<NodeId> = nodes.iter().copied().filter(|&n| edge(n)).collect();
     edges.sort_unstable();
     let kept_back = |n: NodeId| allowed(n) && (!edge(n) || edges.binary_search(&n).is_ok());
+    // The edge floors a drop's take-off is walked to over (the take-off,
+    // and the edge floors before it to it).
+    let mut to_drop = vec![false; nodes.len()];
+    for k in (0..nodes.len().saturating_sub(1)).rev() {
+        to_drop[k] = edge(nodes[k])
+            && (into[k + 1] == LinkKind::Drop || (into[k + 1] == LinkKind::Walk && to_drop[k + 1]));
+    }
     let mut points = vec![Waypoint {
         at: grid.position(nodes[0]),
         node: nodes[0],
@@ -508,7 +516,11 @@ fn pull_straight(
         let mut j = i + 1;
         while j + 1 < nodes.len() && into[j + 1] == LinkKind::Walk && {
             checked();
-            straight_where(grid, nodes[i], nodes[j + 1], kept_back)
+            if to_drop[j + 1] {
+                straight_where(grid, nodes[i], nodes[j + 1], &allowed)
+            } else {
+                straight_where(grid, nodes[i], nodes[j + 1], kept_back)
+            }
         } {
             j += 1;
         }
