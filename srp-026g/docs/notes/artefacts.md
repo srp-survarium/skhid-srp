@@ -71,11 +71,12 @@ down) when you use artifact? Note that your vision should still be clear")
 - The carrier sees his own active artefact's glow: on his arms and hands, and on his legs and
   body when he looks down. Everyone else sees the glow as before.
 - Each kind its own colour, as in the third person: Lifebone green, Onyx orange, Spring blue.
-- Vision stays clear: nothing on the head, face, neck or chest (the camera is in the head), no
-  heat haze; the glow's point lights dimmed (x0.35, 0.86 m) so they tint the hands, not the view.
+- Vision (the owner, 2026-10-25: "use the original effects seen by other people, but with the
+  head cleaned somewhat"; "we will see, a bit of that is fine"): the carrier's glow is the one
+  everyone else sees, without what sits on the head, face or neck (the camera is in the head).
 - It starts and ends with the active, as the third person's (no glow on the cooldown).
 - Visual only: no exe change, nothing in a match, nothing sent; no `simulation_changes` row.
-- How (content pack `artefact-glow@2`, `scripts/artefact-glow/make_pack.py`):
+- How (content pack `artefact-glow@3`, `scripts/artefact-glow/make_pack.py`):
   - A particle effect is shown by the presenters of its `view` (the cook 0x25A730, 1 when
     absent): 1 the third-person presenters (the other players' view of a player), 0 the
     first-person presenter (the player the camera is in), 2 both. The stock glow has none: only
@@ -92,11 +93,20 @@ down) when you use artifact? Note that your vision should still be clear")
   - Version 1 (tested by the owner, 2026-10-25: the carrier saw no glow at all) was a lighter
     copy (no `up_light`, rays half as big and half as many, strokes 0.6 wide): little of it stood
     out of the arms. The presenter path was right (the check below runs it whole).
-  - Version 2: the first-person particle system is the stock one without `distortion` (the heat
-    haze) and `rays_chest`; every emitter's Head, Face, Neck, FrontChest and BackChest off; the
-    rest at the stock size and rate (the glow stands out of the arms' outline as on everyone
-    else); `up_light` kept, its soft glow around the arms, hands and legs, its point lights at
-    x0.35 intensity and x0.7 radius, which tint the carrier's own hands and weapon.
+  - Version 2 (the owner: a tint on the weapon from the dimmed point lights; no particles on the
+    arms, hands or legs; the gloves not lit) put `up_light` back with its lights at x0.35.
+  - Version 3: the first-person particle system is the stock one value for value (emitters, sizes,
+    rates, point lights, colours, the haze), with Head, Face and Neck off in every emitter's
+    animated domain. `up_light`'s sprites are invisible by their material (`light_idle`:
+    transparency and emissive 0): it is the point lights. `scripts/artefact-glow/view_cone.py`
+    measures each emitter against the middle of the first-person view in two nominal poses (the
+    rifle at the hip and aimed): the strokes and rays on the forearms, the haze on the arms,
+    `rays_chest` and the lights come near it when aiming; kept, as the owner asked, to be judged
+    in the game.
+  - Not yet done: drawing the twin's particles with the foreground arms (no particle stage of
+    0.26g draws in the foreground; 0.21d's symbols name only models' foreground stages:
+    `stage_forward::execute_foreground`, `stage_lights::execute_foreground`,
+    `stage_foreground::execute`), and the glow's fade at the active's end.
   - The end: the effect's time calculator is the artefact's (`artefact_base::effect_calculator`
     0x313640): finished when the artefact leaves its active state (4); both children with it.
 - Checked: `client-patches/check_artefact_glow_026g.py` (Unicorn, the game's code): the cook,

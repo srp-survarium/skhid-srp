@@ -19,21 +19,12 @@ effect_zone_radiation) of two particle children with the same time and the same 
 artefact's effect_calculator: the effect ends when the artefact leaves its active state):
 
 - the stock effect as it is (no `view`: the third person, what everyone else sees, unchanged);
-- `view` 0 with fx/artifacts/human_<kind>_fp, a first-person copy of the particle system.
-  In the first person the body's arms and torso are drawn in the foreground pass
-  (player::set_head_visibility 0x1F37A0: set_model_foreground on parts 1 and 2;
-  renderer::foreground_begin 0x13E010 gives them a depth range of their own), after the world:
-  a particle on the arms, drawn in the world pass, is hidden behind them. What shows is what
-  stands out of the arms' outline, what lights them, and the legs when one looks down. So:
-  - out: `distortion` (the heat haze, a screen-space warp) and `rays_chest` (the chest,
-    just under the camera);
-  - no particle on the head, face, neck or chest (Head, Face, Neck, FrontChest, BackChest off
-    in every emitter's animated domain); the arms, hands and legs keep theirs, at the stock size
-    and rate, so the glow stands out of the arms' outline as it does on everyone else;
-  - `up_light` kept (its soft glow around the arms, hands and legs) with its point lights
-    dimmed: intensity x0.35, radius x0.7 (0.86 m), enough to tint the carrier's own hands and
-    weapon in the artefact's colour without washing out the view;
-  - the same materials (additive), so the kinds' colours add up as they do in the third person.
+- `view` 0 with fx/artifacts/human_<kind>_fp, a first-person copy of the particle system: the
+  stock one, value for value (its emitters, sizes, rates, point lights, colours and haze; the
+  owner, 2026-10-25: "use the original effects seen by other people, but with the head cleaned
+  somewhat"), with Head, Face and Neck off in every emitter's animated domain, so nothing sits
+  on the camera. The same materials (additive), so kinds add up as in the third person.
+  view_cone.py measures each emitter against the middle of the first-person view.
 """
 import argparse
 import copy
@@ -45,7 +36,7 @@ import sys
 import zlib
 
 PACK_ID = 'artefact-glow'
-VERSION = '2'
+VERSION = '3'
 # kind -> (effect config, particle system); the stock files, by sha256.
 KINDS = {
     'lifebone': 'fx/artifacts/human_zhivokost',
@@ -62,15 +53,13 @@ STOCK = {
 }
 COMPOSITE, PARTICLE = 110, 114
 FIRST_PERSON = 0
-DROP = {'distortion', 'rays_chest'}
-NEAR_EYES = ('Head', 'Face', 'Neck', 'FrontChest', 'BackChest')
+DROP = set()
+NEAR_EYES = ('Head', 'Face', 'Neck')
 DOMAIN = 'particle_action_initial_animated_domain_type'
 LIGHT = 'particle_action_light_type'
 # emitter name -> {property: factor} on the y of its curves' keys
-SCALE = {
-    'up_light': {'Intensity': 0.35, 'Radius': 0.7},   # its Light action: dim point lights
-}
-LIGHT_EMITTER, LIGHT_PEAK = 'up_light', 0.35
+SCALE = {}                                          # the stock sizes, rates and lights
+LIGHT_EMITTER = 'up_light'
 
 T_BOOL, T_INT, T_FLOAT, T_NAMED, T_INDEXED, T_STR = 0, 1, 2, 3, 4, 5
 REC = struct.Struct('<QQIHH')
@@ -238,38 +227,26 @@ def composite_effect(tree, fp_system):
     return (T_NAMED, [(k, effect if k == 'effect' else c) for k, c in tree[1]])
 
 
-def check_particle(tree, kept):
-    """What the first-person copy must not have: a bright light, a distortion, a part near the eyes."""
-    def peak(node):
-        t, v = node
-        if t == T_NAMED:
-            return max([peak(c) for k, c in v] + [c[1][1] for k, c in v if k == 'position' and c[0] == 6] + [0.0])
-        if t == T_INDEXED:
-            return max([peak(c) for c in v] + [0.0])
-        return 0.0
+def check_particle(tree, stock):
+    """The first-person copy is the stock system value for value (its emitters, sizes, rates,
+    lights, colours, the haze), but for the head, face and neck off in every animated domain."""
+    def emitters(t):
+        lod = dict(t[1])['LOD 0']
+        return dict(dict(lod[1])['children'][1])
 
-    def walk(node):
-        t, v = node
-        if t == T_NAMED:
-            d = dict(v)
-            if 'particle_entity_type' in d:
-                kind = d['particle_entity_type'][1]
-                if kind == LIGHT:
-                    intensity = peak(dict(d['properties'][1])['Intensity'])
-                    assert 0 < intensity <= LIGHT_PEAK + 1e-6, f'a light of intensity {intensity}'
-                if kind == DOMAIN:
-                    props = dict(d['properties'][1])
-                    for part in NEAR_EYES:
-                        assert props.get(part, (T_BOOL, 0)) == (T_BOOL, 0), part
-            if 'Material' in d:
-                assert 'distortion' not in d['Material'][1], 'a distortion'
-            for _, c in v:
-                walk(c)
-        elif t == T_INDEXED:
-            for c in v:
-                walk(c)
-    walk(tree)
-    assert kept == sorted(['body', 'left_hend', 'left_leg', 'rays', 'right_hend', 'right_leg', 'up', 'up_light']), kept
+    mine, theirs = emitters(tree), emitters(stock)
+    assert set(mine) == set(theirs), 'an emitter added or left out'
+    for guid, emitter in theirs.items():
+        for aguid, action in dict(emitter[1])['children'][1]:
+            got = dict(dict(mine[guid][1])['children'][1])[aguid]
+            if get(action, 'particle_entity_type')[1] == DOMAIN:
+                props = dict(get(got, 'properties')[1])
+                for part in NEAR_EYES:
+                    assert props.get(part, (T_BOOL, 0)) == (T_BOOL, 0), part
+                want = [(k, (T_BOOL, 0) if k in NEAR_EYES else c) for k, c in get(action, 'properties')[1]]
+                assert sort_key((T_NAMED, want)) == sort_key(get(got, 'properties')), guid
+            else:
+                assert sort_key(got) == sort_key(action), (guid, aguid)
 
 
 def main():
@@ -293,7 +270,7 @@ def main():
         fp_system = system + '_fp'
         particle = parse(stock[particle_path])
         fp_tree, kept = first_person_particle(particle)
-        check_particle(fp_tree, kept)
+        check_particle(fp_tree, particle)
         effect = composite_effect(parse(stock[effect_path]), fp_system)
         for path, tree in ((effect_path, effect), (f'particles/{fp_system}.particle', fp_tree)):
             data = serialize(tree)
