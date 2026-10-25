@@ -1,7 +1,7 @@
 /* Blackout, exe patch 65 (prototype; the rules: ../docs/notes/blackout.md;
  * client_patch.md section 3.58): a battery match with no interface, the teams
  * told apart by a plain armband on every character's upper arms, blue (team
- * 0) or red (team 1): the content pack blackout-bands@5, a band for each
+ * 0) or red (team 1): the content pack blackout-bands@6, a band for each
  * torso model made of its own sleeve and skinned as the sleeve is.
  *
  * - bo_options: srp's block after the static info's squads (the entries
@@ -60,7 +60,7 @@ enum {
 
 #include "blackout_torsos_026g.h"
 
-/* The bands (pack blackout-bands@5): models/<BAND_DIR><torso>_<colour>.skinned_model, surface `band`. */
+/* The bands (pack blackout-bands@6): models/<BAND_DIR><torso>_<colour>.skinned_model, surface `band`. */
 static const char BAND_DIR[] = "ported/blackout/";
 static const char *const BAND_COLOUR[2] = {"_blue", "_red"};
 static const char BAND_PART[] = "band";

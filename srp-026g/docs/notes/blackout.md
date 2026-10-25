@@ -65,12 +65,15 @@ changes of 2026-10-25 are in. Nothing here ships until the owner says so.
   every viewer; red and blue stay apart in the dark (CIELAB distance 16 to 21 in a dark render,
   56 to 59 in a neutral one). Of three looks made 2026-10-25, clean colours on the cloth (A), worn
   colours on plain cloth (B) and this (C), C is in the build; the owner chooses.
-- **Fit:** one band per torso model, cut from that torso's own sleeve (0.45 to 0.67 of the way
-  from shoulder to elbow, 60 mm wide, 4 mm out) and skinned with the sleeve's own weights, so it
-  moves with the sleeve. Measured on the model data: never more than 4 mm off the sleeve in the
-  bind pose and the AK and pistol idles and run; 3 to 13 % of a band's edge runs under straps or
-  plates next to the sleeve. It goes 78 to 100 % round the arm (less where a sleeve is the chest's).
-- **Content:** pack `blackout-bands@5` (resource-porter `feat/blackout-bands`): 70 torsos x 2
+- **Fit:** one band per torso model, on that torso's own sleeve (its bind-pose surface between
+  0.55 and 0.77 of the way from shoulder to elbow, 6 mm out), its two edges planes square to the
+  upper arm bone; skinned to the upper arm's own bones only (the arm and its roll, the sleeve's
+  twist share), so it turns with the arm and stays square in every pose (worst lean 2.1 degrees
+  over all torsos in the idles, run and death clips). The owner saw a diagonal stripe (2026-10-25):
+  pack 5 copied the sleeve's weights, which lean it up to 32 degrees in poses. Where a
+  sleeve sags in a pose the band stands off it by 1 to 3 cm (heavy suits most); on the Duty and
+  Freedom exoskeletons it shows in pieces between the frame bars.
+- **Content:** pack `blackout-bands@6` (resource-porter `feat/blackout-bands`): 70 torsos x 2
   colours, `models/ported/blackout/<torso base_model, '/' as '_'>_<blue|red>`, surface `band`; no
   item, no dictionary row. A torso the pack does not know gets no band.
 - **v1** (STALKER's multiplayer bands, one ring for all torsos) floated: one size outside every

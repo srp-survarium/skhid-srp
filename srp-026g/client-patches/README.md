@@ -3608,7 +3608,7 @@ The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.
   `blackout_torsos_026g.h` names it): base_model `ported/blackout/<the torso's base_model, '/'
   as '_'>_blue` (team 0) or `_red` (team 1), part_name `band`, part 2; `srpbo<team>_` after the
   visual's name (the combined skin's cache key), so a band never shows on the same kit without
-  one. The models are the content pack `blackout-bands@5`.
+  one. The models are the content pack `blackout-bands@6`.
 - **Nothing a match computes:** no `simulation_changes.tsv` row.
 
 **Checked:** `selftest_026g.py` check 65 (the site and its neighbours, the records' layout and
