@@ -269,7 +269,7 @@ const UP_NEAR_M: f32 = 1.5;
 pub const JUMP_TRIES: u32 = 3;
 /// The tries at a jump count on over a route planned again to it within
 /// this, seconds.
-const TRY_KEPT_S: f32 = 10.0;
+pub(super) const TRY_KEPT_S: f32 = 10.0;
 /// A world that shows the body at most this far from the take-off of the
 /// jump it last pressed, on its floor, and not up, has it still under that
 /// jump: the route is looked at from that jump's leg again, metres.

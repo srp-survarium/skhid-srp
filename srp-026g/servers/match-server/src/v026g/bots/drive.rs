@@ -446,6 +446,10 @@ pub(super) fn drive_tick(
                 // through them (a second search only when there are any).
                 let spots: Vec<Vec3> = bot.stuck.avoided_for(time, at).collect();
                 let avoiding = !spots.is_empty();
+                // The landings of jumps it gave up: shut to all its searches
+                // (a fact about this body, not a preference like the spots).
+                let closed: Vec<Vec3> = bot.stuck.shut_landings(time).collect();
+                let through_open = |node: NodeId| !shut_landing(&closed, grid.position(node));
                 let ends = grid.locate(me.feet, 1.5).zip(path::goal_floor(grid, at));
                 // Already on the goal's floor (the nearest to a goal on none):
                 // as near as it gets, nothing to search.
@@ -488,7 +492,10 @@ pub(super) fn drive_tick(
                 } else if there {
                     None
                 } else if let Some((from, to)) = ends {
-                    let open = |node: NodeId| !(avoiding && near_any(&spots, grid.position(node)));
+                    let open = |node: NodeId| {
+                        !(avoiding && near_any(&spots, grid.position(node)))
+                            && through_open(node)
+                    };
                     match tactics.start_route(from, to, time, side, objective, open, floors) {
                         Ok(None) if avoiding => {
                             match tactics.start_route(
@@ -497,7 +504,7 @@ pub(super) fn drive_tick(
                                 time,
                                 side,
                                 objective,
-                                |_| true,
+                                through_open,
                                 floors,
                             ) {
                                 Ok(route) => route,
@@ -523,7 +530,7 @@ pub(super) fn drive_tick(
                                 time,
                                 side,
                                 objective,
-                                |_| true,
+                                through_open,
                                 floors,
                             );
                             match through {
@@ -613,6 +620,7 @@ pub(super) fn drive_tick(
                         objective,
                         ends,
                         spots: None,
+                        closed: closed.clone(),
                         hazards: tactics.hazards.version(),
                         planning,
                         health: me.health,
@@ -622,7 +630,9 @@ pub(super) fn drive_tick(
                     // It goes on at the next polls (`Bots::go_on_searching`).
                     // Meanwhile the way so far, as Detour's partial paths:
                     // toward the goal, not standing (else the old route).
-                    let open = |node: NodeId| !(round && near_any(&spots, grid.position(node)));
+                    let open = |node: NodeId| {
+                        !(round && near_any(&spots, grid.position(node))) && through_open(node)
+                    };
                     if let Some(partial) =
                         tactics.partial_route(&planning, ends.0, time, side, objective, open)
                     {
@@ -641,6 +651,7 @@ pub(super) fn drive_tick(
                         objective,
                         ends,
                         spots: round.then_some(spots),
+                        closed,
                         hazards: tactics.hazards.version(),
                         planning,
                         health: me.health,
@@ -713,7 +724,19 @@ pub(super) fn drive_tick(
                                 .as_ref()
                                 .is_some_and(escape::Escape::trying)
                         {
-                            bot.stuck.failed_jump(time, take_off);
+                            // The jump's landing, from the route: shut to its
+                            // searches (`Stuck::failed_jump`).
+                            let landing = route
+                                .points()
+                                .iter()
+                                .enumerate()
+                                .find(|&(k, point)| {
+                                    k >= 1
+                                        && point.jump
+                                        && route.points()[k - 1].at.distance_xz(take_off) < 0.3
+                                })
+                                .map(|(_, point)| point.at);
+                            bot.stuck.failed_jump(time, take_off, landing);
                         }
                         bot.end_route(
                             match walked {
