@@ -958,19 +958,32 @@ impl Motor {
             } else {
                 0
             };
-            if jump.tries > 0 || (near && (!may_sprint || refused != 0)) {
-                jump.standing = true;
-                jump.sprint_since = None;
+            // Within the standing line-up and not running at it on its line
+            // with sprint held: the sprint is late. Jumped standing from
+            // here, with the standing run-up still ahead (at the edge, it
+            // would back off for one).
+            let late = before_route <= LINE_UP_FROM_M
+                && !(on_sprint_line && jump.sprint_since.is_some());
+            if jump.tries > 0 || (near && (!may_sprint || refused != 0)) || late {
                 #[cfg(test)]
                 if jump.tries == 0 {
+                    let gated = !may_sprint || refused != 0;
+                    let why = [!on_sprint_line, jump.sprint_since.is_none()];
                     tally(|j| {
                         for bit in 0..8usize {
                             if refused & (1u8 << bit) != 0 {
                                 j.refused[bit] += 1;
                             }
                         }
+                        if late && !gated {
+                            j.late += 1;
+                            j.late_why[0] += u32::from(why[0]);
+                            j.late_why[1] += u32::from(why[1]);
+                        }
                     });
                 }
+                jump.standing = true;
+                jump.sprint_since = None;
             }
         }
         // Shut farther off (a reload, an aim): no sprint line-up yet.
@@ -1435,6 +1448,10 @@ pub struct JumpTally {
     /// facing, or not walking), sprint never held on the line, held too
     /// short, too slow.
     pub missed_why: [u32; 4],
+    /// Sprint jumps found late ([`LINE_UP_FROM_M`] off, the gate open): not
+    /// on the sprint line, and sprint not held (one count each).
+    pub late: u32,
+    pub late_why: [u32; 2],
 }
 
 #[cfg(test)]
@@ -1442,7 +1459,7 @@ impl JumpTally {
     /// The bench's line.
     pub fn line(&self) -> String {
         format!(
-            "marginal first {} up {} (any try {}, failed {}); other first {} up {}; sprint {} up {} missed {} (unready {} unheld {} short {} slow {}); refused carrying {} hurt {} fired {} aimed {} busy {} crouched {} run-up {} walk-aiming {}",
+            "marginal first {} up {} (any try {}, failed {}); other first {} up {}; sprint {} up {} missed {} (unready {} unheld {} short {} slow {}) late {} (off the line {} unheld {}); refused carrying {} hurt {} fired {} aimed {} busy {} crouched {} run-up {} walk-aiming {}",
             self.marginal_first,
             self.marginal_first_up,
             self.marginal_up,
@@ -1456,6 +1473,9 @@ impl JumpTally {
             self.missed_why[1],
             self.missed_why[2],
             self.missed_why[3],
+            self.late,
+            self.late_why[0],
+            self.late_why[1],
             self.refused[0],
             self.refused[1],
             self.refused[2],
@@ -1483,6 +1503,8 @@ thread_local! {
             refused: [0; 8],
             missed: 0,
             missed_why: [0; 4],
+            late: 0,
+            late_why: [0; 2],
         })
     };
 }
