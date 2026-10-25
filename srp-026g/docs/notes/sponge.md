@@ -1,28 +1,37 @@
 # The Sponge (the owner, 2026-10-22)
 
 Client patch 59 with the Rattle (README section 59, client_patch.md section 3.52;
-`rattle.md`): 0.28d0's `artefact_sponge_core` written again on 0.26g's interfaces. The
-content pack `sponge@2` (release/content.tsv; srp-026g/scripts/sponge/make_pack.py) and the
-owner's spots (edit list `artefact-spots-1`, below). 0.28a2 brought the Sponge; the reference is
-0.28d0's `artefact_sponge.options` and its code.
+`rattle.md`): 0.28d0's `artefact_sponge_core` written again on 0.26g's interfaces, thrown and
+exploding as retail's (2026-10-24). The content pack `sponge@3` (release/content.tsv;
+srp-026g/scripts/sponge/make_pack.py) and the owner's spots (edit list `artefact-spots-1`,
+below). 0.28a2 brought the Sponge; the object is 0.28d0's `artefact_sponge.options` and code,
+the throw, contact, numbers and particles retail's (0.69d0's: the owner's pick, 2026-10-24).
 
-## As in 0.28d0
+## As retail (0.31a2 on; 0.69d0's numbers)
 
 - An artefact (items_dict 758, `artefact_sponge`, category 12, data type 12, base_cost 0)
   picked up from an anomaly into an artefact slot.
 - Its key: the press starts the stock throw-grenade state and animation (the Sponge as the
-  grenade), the pin is pulled in it; the release starts the fuse `activation_timeout` (3 s) on
-  the 50 ms grid and the throw goes on with `throw_power` (15) x the thrower's throw modifier.
+  grenade; retail's own throw state has the same sounds and animations); the pin's pull starts
+  the fuse, 3 s (`ttl_ms` 3000) on the 50 ms grid; the release throws it with `throw_power`
+  (15) x the thrower's throw modifier.
+- Its first contact (thrown, or dropped from the hand) explodes it when less than 1.5 s
+  (`safe_time` 1500) of the fuse is left, at the next tick; a first contact earlier is spent and
+  the fuse decides (as 0.26g's grenades with `explode_on_contact` and retail's Sponge).
 - While it is in the air another press does not throw it again.
-- At the fuse's end: the splash (toxic, radius 10 m x the splash radius modifier, 1.5 down to
-  0.05 x the grenade damage modifier); its `splash_pierce` 0 makes it deal no damage, in
-  0.28d0 as here: only the zone hurts.
-- Then the config's `damage_zone` on at the explosion point for `duration` (10 s): 1.5 a
-  second on the face within a cylinder 3.5 m across, its `hit_curve` and `speed_curve`.
+- The explosion: the splash (toxic, radius 10 m x the splash radius modifier, 0.3 x the
+  grenade damage modifier at any distance, pierce 0.1).
+- Then the config's `damage_zone` on at the explosion point for 15 s: 0.2 a second on the
+  face within a cylinder 5.5 m across, its `hit_curve` and `speed_curve`; `weapons/f1` at its
+  start; its particle `mochalka_explosion` (0.69d0's) for its whole time.
+- At its spawn in the anomaly: 0.69d0's `pre_mochalka1`.
 - Consumed at the explosion (out of its slot); the anomaly spawns it again later, as any
   artefact.
 - A press throws one Sponge: patch 54's "one press fires every ready artefact of its kind"
   does not reach it (its key is its own).
+- Not taken from 0.69d0 (the owner's to decide): its passive (-20 % from radiation and
+  explosions, +1.5 threshold, for 180 s) instead of ours, the skill Sponge II's second charge,
+  the cloud's hit types `fire` and `health` (ours toxic and the face).
 
 ## The owner's rules
 
@@ -30,21 +39,22 @@ owner's spots (edit list `artefact-spots-1`, below). 0.28a2 brought the Sponge; 
   passive is 0.28d0's regeneration modifier on that pool with regen_add 1000 (0.28d0: 0) and
   timeout_mul 0 (0.28d0: 1): a toxic hit lands (its damage, the pool's thresholds and their HUD
   happen at the hit) and the pool is full again at the next regeneration tick. A single hit
-  that takes infection from full to 0 kills (the zone's 1.5 can).
+  that takes infection from full to 0 kills.
 - Owned: in an inventory with its holder alive, from the pickup until it explodes or leaves
   the inventory.
-- Everything else as 0.28d0's file: the pack ships it as it is but those two numbers and the
-  description's key (0.28d0's names Spring's text; the Sponge's is ours).
+- Everything else as 0.28d0's file with retail's fuse, contact and numbers: those two numbers
+  and the description's key are ours (0.28d0's names Spring's text; the Sponge's is ours).
 
 ## Ours (0.26g has no such code; 0.28d0's holes closed)
 
 - The thrower is credited with the zone's hits (0.26g's zones name no one); the thrower is who
-  armed it (the release), by his roster place, which no one else gets in that match.
+  armed it (the pull), by his roster place, which no one else gets in that match.
 - No credit (and no modifiers on the splash) while the thrower's place is out of the match.
-- A tap (the key let go before the pin is pulled) arms it at the pull; 0.28d0 threw it unarmed,
-  and it never exploded.
+- A tap (the key let go before the pin is pulled) is armed at the pull as any throw; 0.28d0,
+  armed at the release, threw it unarmed, and it never exploded.
 - Taken out of its inventory while armed in the hand, it drops from the hand and explodes where
-  it lands, its thrower's; 0.28d0 exploded it at the identity transform.
+  it lands (its first contact or its fuse), its thrower's; 0.28d0 exploded it at the identity
+  transform.
 - The passive is off when it leaves an inventory or explodes (0.28d0 left it in the holder's
   pool while armed).
 - A spent Sponge cannot be picked up while its zone runs, and the zone's end only resets a
@@ -57,10 +67,11 @@ owner's spots (edit list `artefact-spots-1`, below). 0.28a2 brought the Sponge; 
 
 ## Every game the same (lockstep, late join, rollback)
 
-- The press is an input; the pin, throw, explosion and zone ticks are on the world's 50 ms grid.
-- Serialized: the fuse, the pin, whether thrown, the body (transform, velocities), a tap
-  waiting for the pull, the thrower's place, and while the zone is on its state and the
-  explosion point.
+- The press is an input; the pin, throw, explosion and zone ticks are on the world's 50 ms grid;
+  a contact (the physics world's step, as every game steps it) is ruled at the next tick.
+- Serialized: the fuse, the pin, whether thrown, the body (transform, velocities), the first
+  contact's state (armed; a contact noted, not yet ruled), the thrower's place, and while the
+  zone is on its state and the explosion point.
 - A rollback's load sets the passive by the state loaded, so every game has the same pools.
 
 ## Spawns (the owner's spots, 2026-10-24)
@@ -96,14 +107,16 @@ owner's spots (edit list `artefact-spots-1`, below). 0.28a2 brought the Sponge; 
 - No timed anomalies: main has none since #345; #346 (their redesign) decides for its own
   cores.
 
-## Content (pack sponge@2)
+## Content (pack sponge@3)
 
-- items_dict 758, base_cost 0; `gameplay/items/artefacts/artefact_sponge.options` (0.28d0's, as
-  above); 0.28d0's model (also the hand's: the throw draws the item's own model), particles
-  (without `MarginMultiplier`, which 0.26g does not know), the materials and textures 0.26g
-  lacks.
+- items_dict 758, base_cost 0; `gameplay/items/artefacts/artefact_sponge.options` (0.28d0's with
+  retail's numbers, as above: `ttl_ms`, `safe_time` and `explode_on_contact` in data, 0.26g's
+  grenade keys); 0.28d0's model (also the hand's: the throw draws the item's own model);
+  0.69d0's `pre_mochalka1` and `mochalka_explosion` (written in 0.26g's config layout), 0.28d0's
+  other particles (all without `MarginMultiplier`, which 0.26g does not know); the materials and
+  textures 0.26g lacks; no `fx/test/idle_particle`.
 - Texts in the six languages: the name and pickup hint 0.28d0's, the description and the
-  activation hint ours, one line each.
+  activation hint ours, one line each ("bursts on impact (or after 3 s)", the cloud's 15 s).
 - The lobby icon: atlas cell [22,1] (already in 0.26g). The combat-log icon 17: 0.28d0's
   picture drawn by the hud movie's code (srp-026g/flash/hud, `SpongeLogIcon`).
 - The server needs nothing: it reads the item from the game data; artefacts are never sold.

@@ -205,7 +205,7 @@ pull:
     call PULL_SET
     jmp PULL_ON
 .sponge:
-    push eax                          ; the time: a tap's release already seen arms it
+    push eax                          ; the time: the fuse starts at the pull
     push ecx
     call sp_pull_pin                  ; cdecl (sponge, time): al = the index, 0
     add esp, 8

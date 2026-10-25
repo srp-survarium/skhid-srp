@@ -1987,3 +1987,14 @@ va	name	source	ret_cleanup	result
 0x001f6670		manual	0	EAX: the items dictionary, [[[this+20h]+9Ch]+53A4h] (generic_anomaly_core_cook's vtable 0x9FC6DC slot 9; query_for_artefacts calls it before item_by_id 0x1F0090)
 0x001f6680		manual	0	EAX: the match seed, [[[this+20h]+9Ch]+53ACh] vt+34h (the match options) +577B0h (generic_anomaly_core_cook's slot 10); the map id is the u8 at +577B4h of the same options
 0x0031ba00	survarium::generic_anomaly_core::artefact_respawn_delay	manual	0	EAX: the next spawn's delay in ms from +130h and its variation; one draw of the core's random (+1B8h)
+0x003041b0	survarium::grenade_core::on_contact	manual	4	nothing; with +156h and +155h set: (+14Ch - the holder's time [player+324h]) >= +150h clears +156h, else (none queued, +184h FFh) the explosion queued (0x2D2D70, kind 4: a tail jump)
+0x00303c10	survarium::grenade_core::throw_grenade	manual	8	the body into the physics world (vt+2Ch, 818h, 8), its velocities, +128h's function subscribed on the body (vt+70h)
+0x00303d50	survarium::grenade_core::remove_physics	manual	0	+128h's function unsubscribed (vt+74h), the body out (vt+38h, 1), +148h 0
+0x00304220	boost::function<void (vostok::physics::contact_point const &)>::function<grenade_core's bound on_contact>	manual	16	EAX: the function made, vtable 0xA13FAC|1 (manager 0x3042D0, invoker 0x202300), the bind in its buffer (+8)
+0x00078310	vostok::physics::bullet_physics_world::subscribe_on_contact	manual	8	{body, &function} into the multimap at +0Ch (the function kept by pointer: it must outlive the subscription; twice is twice)
+0x000783a0	vostok::physics::bullet_physics_world::unsubscribe_from_contact	manual	8	the entry {body, the same pointer} erased
+0x00202300	boost::detail::function::void_function_obj_invoker1<a bound member function>::invoke	manual	0	calls buffer[0] with ECX = buffer[2] + buffer[1] and the argument pushed (the member function pops it)
+0x002993f0	survarium::damage_zone::draw	manual	0	the state (0 off, 1 on, 2 on and hitting) against +10h's: leaving 0 play_activated then start_idle, leaving 2 stop_hitting; entering 0 stop_idle then play_deactivated, entering 2 start_hitting
+0x00298d80	survarium::damage_zone::play_activated	manual	0	the activated sounds (+424h at the sound zones' matrices +41Ch) and particles (+444h at the effect zones' +43Ch) once
+0x00298fe0	survarium::damage_zone::start_idle	manual	0	the looped sounds (+428h) and the idle particles (+448h, 0x22660) started at the zones' matrices
+0x002990d0	survarium::damage_zone::stop_idle	manual	4	the looped sounds stopped and released, the idle particles stopped (0x22860)
