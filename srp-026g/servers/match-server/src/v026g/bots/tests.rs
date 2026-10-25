@@ -146,6 +146,38 @@ struct Body {
     target: Option<Place>,
     /// Its shots' spread ([`bench_spread`]).
     spread: bench_spread::Spread,
+    /// Its stretch of zone damage under way ([`ZoneSpell`]).
+    zone_spell: Option<ZoneSpell>,
+    /// Its bot's motives at its last tick (`Bot::bench_why`).
+    why_now: u16,
+}
+
+/// A body's stretch of zone damage ([`Game::zone_tick`]): from its first
+/// zone hit to [`SPELL_GAP_MS`] with none (a crossing, or a stand in a
+/// zone): when it began, the health then, the health the zones took.
+#[derive(Clone, Copy, Debug)]
+struct ZoneSpell {
+    start: u32,
+    health: f32,
+    lost: f32,
+    last: u32,
+    /// Its bot's motives over it (`Bot::bench_why`), or'ed.
+    why: u16,
+}
+
+/// A zone spell ends after this long with no zone hit, ms.
+const SPELL_GAP_MS: u32 = 1_000;
+
+/// An enemy hit this long before a zone spell, or in it, marks the spell
+/// as in a fight, ms.
+const SPELL_FIGHT_MS: u32 = 3_000;
+
+impl ZoneSpell {
+    /// The spell as kept when it ends on `body` ([`Game::zone_spells`]).
+    fn ended(&self, body: &Body) -> [f32; 5] {
+        let fight = body.last_hit != 0 && body.last_hit + SPELL_FIGHT_MS >= self.start;
+        [self.lost, body.health.max(0.0), self.health, f32::from(u8::from(fight)), f32::from(self.why)]
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -433,6 +465,10 @@ struct Game {
     /// run's loop counts those lying in zones on all match).
     zone_deaths: u32,
     zone_hp: f32,
+    /// Zone spells ended ([`ZoneSpell::ended`]): the health the zones took,
+    /// the body's health at the end (enemy fire counts; a death, 0) and at
+    /// the start, and 1 if in a fight ([`SPELL_FIGHT_MS`]).
+    zone_spells: Vec<[f32; 5]>,
     took_from: Vec<Vec3>,
     /// Carriers' ground distance walked (m) and their living ticks: their
     /// mean speed.
@@ -589,6 +625,8 @@ impl Game {
             last_hit: 0,
             target: None,
             spread: bench_spread::Spread::default(),
+            zone_spell: None,
+            why_now: 0,
         };
         let mut game = Self {
             kin: Kinematics::default(),
@@ -623,6 +661,7 @@ impl Game {
             drops: [0, 0],
             zone_deaths: 0,
             zone_hp: 0.0,
+            zone_spells: Vec::new(),
             took_from: Vec::new(),
             carry_m: 0.0,
             carry_ticks: 0,
@@ -672,9 +711,17 @@ impl Game {
             .filter(|s| s.team == side)
             .map(|s| s.position)
             .collect();
-        let at = spawns[self.rng.below(spawns.len())]
-            + Vec3::new(self.rng.range(-2.0, 2.0), 0.0, self.rng.range(-2.0, 2.0));
-        let node = self.world.grid.locate(at, 3.0);
+        let point = spawns[self.rng.below(spawns.len())];
+        let at = point + Vec3::new(self.rng.range(-2.0, 2.0), 0.0, self.rng.range(-2.0, 2.0));
+        // Off by up to 2 m, but only onto a floor a walk from a spawn gets
+        // to and back from: the offset can land on a floor below or beside
+        // the spawn that no way leaves (Rudnya: 0.7 % of offsets, one spawn
+        // 12 %), where the game never puts a body (it spawns on the point).
+        let grid = &self.world.grid;
+        let node = grid
+            .locate(at, 3.0)
+            .filter(|&n| grid.reached(n) && grid.returns(n))
+            .or_else(|| grid.locate(point, 3.0));
         let feet = node.map_or(at, |n| self.world.grid.position(n));
         let tick = self.tick;
         let body = &mut self.bodies[place];
@@ -692,6 +739,7 @@ impl Game {
         body.legs = [0.5; 2];
         body.leg_broken_until = 0;
         body.last_hit = 0;
+        body.zone_spell = None;
         body.alive = true;
         body.spawned = tick;
         body.carrying = None;
@@ -1088,8 +1136,11 @@ impl Game {
     fn zone_tick(&mut self, inside: &Hazards, on: &Hazards) {
         let tick = self.tick;
         for place in 0..self.bodies.len() {
-            let body = &self.bodies[place];
+            let body = &mut self.bodies[place];
             if !body.alive {
+                if let Some(spell) = body.zone_spell.take() {
+                    self.zone_spells.push(spell.ended(body));
+                }
                 continue;
             }
             let Some(node) = self.world.grid.locate(body.feet, 1.0) else {
@@ -1105,16 +1156,49 @@ impl Game {
                 })
                 .map(Hazard::hit_per_s)
                 .sum();
+            let body = &mut self.bodies[place];
             if per_s <= 0.0 {
+                if let Some(spell) = body.zone_spell
+                    && tick >= spell.last + SPELL_GAP_MS
+                {
+                    self.zone_spells.push(spell.ended(body));
+                    body.zone_spell = None;
+                }
                 continue;
             }
-            let body = &mut self.bodies[place];
             let hit = (per_s * TICK_S).min(body.health.max(0.0));
+            let spell = body.zone_spell.get_or_insert(ZoneSpell {
+                start: tick,
+                health: body.health,
+                lost: 0.0,
+                last: tick,
+                why: 0,
+            });
+            spell.why |= body.why_now;
+            spell.lost += hit;
+            spell.last = tick;
             body.health -= hit;
             self.zone_hp += hit;
             if body.health > 1e-3 {
                 continue;
             }
+            // What took the rest: the spell, and the enemy hits in it.
+            let spell = body.zone_spell.take().expect("just set");
+            self.zone_spells.push(spell.ended(body));
+            eprintln!(
+                "  zone death: at {:.1} s, in zones {:.1} s at {:.2} a second, health {:.2} then, \
+                 the zones took {:.2}, last enemy hit {}",
+                f64::from(tick) / 1000.0,
+                f64::from(tick - spell.start) / 1000.0,
+                per_s,
+                spell.health,
+                spell.lost,
+                if body.last_hit == 0 {
+                    "none this life".to_string()
+                } else {
+                    format!("{:.1} s before", f64::from(tick - body.last_hit) / 1000.0)
+                }
+            );
             body.alive = false;
             body.dead_at = tick;
             if let Some(battery) = body.carrying.take() {
@@ -4848,6 +4932,7 @@ fn real_bot_cost() {
             let mut lying_unknown = [0u32; 2];
             super::path::reset_worst();
             let searches_before = super::path::searches();
+            let crossings_before = super::crossing::counts();
             let rays_before = super::aimpoint::rays_cast();
             let limit_ms = limit_s * 1000;
             let (mut clock, mut next_world) = (0, 1_000);
@@ -4937,6 +5022,9 @@ fn real_bot_cost() {
                 clock += 5;
                 while game.tick + TICK_MS <= clock {
                     let stats_before = game.stats.clone();
+                    for bot in bots.bots.iter().flatten() {
+                        game.bodies[bot.place].why_now = bot.bench_why;
+                    }
                     game.step();
                     if let Some(tactics) = bots.tactics.as_ref() {
                         if zone_damage {
@@ -5570,6 +5658,52 @@ fn real_bot_cost() {
                 .collect();
             let play_rows: std::collections::BTreeMap<&String, [u32; 5]> =
                 by_play.iter().map(|(k, r)| (k, *r)).collect();
+            let crossings: [u64; 7] = {
+                let now = super::crossing::counts();
+                std::array::from_fn(|k| now[k] - crossings_before[k])
+            };
+            // Zone spells (`ZoneSpell`): how many, the health they took in
+            // all and at most, how many left the body under 0.6, and how
+            // many took each 0.02 of health (the last bin, 0.98 or more).
+            let zone_spells = {
+                let mut spells = game.zone_spells.clone();
+                spells.extend(
+                    game.bodies
+                        .iter()
+                        .filter_map(|b| b.zone_spell.map(|z| z.ended(b))),
+                );
+                let mut bins = [0u32; 50];
+                for [lost, ..] in &spells {
+                    bins[((lost / 0.02) as usize).min(49)] += 1;
+                }
+                serde_json::json!({
+                    "n": spells.len(),
+                    "lost": spells.iter().map(|s| f64::from(s[0])).sum::<f64>(),
+                    "worst": spells.iter().map(|s| s[0]).fold(0.0f32, f32::max),
+                    "under_06": spells.iter().filter(|s| s[1] < 0.6).count(),
+                    // Of those: begun under 0.7 health, in a fight, either.
+                    "under_06_low": spells.iter().filter(|s| s[1] < 0.6 && s[2] < 0.7).count(),
+                    "under_06_fight": spells.iter().filter(|s| s[1] < 0.6 && s[3] > 0.5).count(),
+                    "under_06_either": spells
+                        .iter()
+                        .filter(|s| s[1] < 0.6 && (s[2] < 0.7 || s[3] > 0.5))
+                        .count(),
+                    "bins": bins.to_vec(),
+                    // Stretches by their bot's motives (`Bot::bench_why`,
+                    // a mask): all, and those that left it under 0.6.
+                    "why": spells.iter().fold(std::collections::BTreeMap::<String, u32>::new(), |mut m, s| {
+                        *m.entry((s[4] as u16).to_string()).or_default() += 1;
+                        m
+                    }),
+                    "under_06_why": spells.iter().filter(|s| s[1] < 0.6).fold(
+                        std::collections::BTreeMap::<String, u32>::new(),
+                        |mut m, s| {
+                            *m.entry((s[4] as u16).to_string()).or_default() += 1;
+                            m
+                        },
+                    ),
+                })
+            };
             eprintln!(
                 "  sums: {}",
                 serde_json::json!({
@@ -5606,6 +5740,11 @@ fn real_bot_cost() {
                     "drops": game.drops,
                     "zone_deaths": game.zone_deaths,
                     "zone_hp": game.zone_hp,
+                    "zone_spells": zone_spells,
+                    // Crossings' searches (`crossing.rs`): searched, taken,
+                    // ring walks, refused, floors expanded, wanted for a long
+                    // route, stopped on the way.
+                    "crossings": crossings,
                     "zone_takes": zone_takes,
                     "zone_spots": zone_spots.len(),
                     "carry_mps": if game.carry_ticks > 0 {
@@ -6089,6 +6228,30 @@ fn the_side_step_weaves_a_walk_along_the_view() {
     assert_eq!(weave(key::LEFT, key::RIGHT), None);
     assert_eq!(weave(0, key::LEFT), None);
     assert_eq!(weave(key::FORWARD, 0), None);
+}
+
+/// A carrier's line way out yields to its motor's crossing only while the
+/// motor walks it: a crossing left with no route (the route dropped by the
+/// unstick's back-off, or a search that found none) holds nothing back, so
+/// a carrier standing in the zone takes its line out (`collect.rs`).
+#[test]
+fn a_crossing_with_no_route_left_does_not_hold_a_carriers_way_out() {
+    use super::path::{Route, Waypoint};
+    let tuning = Tuning::default();
+    let mut bot = Bot::new(1, 0, 0, Some("support"), &tuning);
+    let home = Vec3::new(10.0, 0.0, 10.0);
+    bot.crossing = Some(home);
+    assert_eq!(walks_crossing(&bot), None);
+    let point = |x: f32| Waypoint {
+        at: Vec3::new(x, 0.0, 0.0),
+        node: 0,
+        jump: false,
+        low: false,
+    };
+    bot.route = Some((Route::new(vec![point(0.0), point(5.0)]), home));
+    assert_eq!(walks_crossing(&bot), Some(home));
+    bot.crossing = None;
+    assert_eq!(walks_crossing(&bot), None);
 }
 
 /// The commander moving a bot's Crossfire to another choke leaves the
