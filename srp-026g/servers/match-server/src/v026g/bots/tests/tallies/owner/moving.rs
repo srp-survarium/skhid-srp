@@ -1,3 +1,8 @@
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap};
+
+use mapdata::{LinkKind, NodeId};
+
 use super::*;
 
 /// The moving counts: counted as the match runs, kept for [`OwnerTally::finish`].
@@ -28,6 +33,65 @@ pub(crate) const IDLE_S: usize = 5;
 
 /// Drops (`drops.py`): the feet down this far between two worlds, m.
 pub(crate) const DROP_M: [f32; 2] = [2.5, 4.0];
+
+/// Verticality (`grid-record.md` section V: `drops_make_pairs.py`, `drops_analyse.py`,
+/// `height_share.py`): the bodies' samples 5 s apart, as the players' worlds are; a descent or a
+/// climb of this much between two samples of a body alive throughout, m.
+pub(crate) const VERT_M: f32 = 1.5;
+
+pub(crate) const VERT_SAMPLE_TICKS: usize = 5 * TPS;
+
+/// A "certain drop": no walk (Walk links only) from where the body was to where it is within what
+/// it could walk between the samples: this fast, m/s, and this much more, m.
+pub(crate) const VERT_WALK_MPS: f32 = 5.3;
+
+pub(crate) const VERT_WALK_SLACK_M: f32 = 2.0;
+
+/// The drops and climbs a kilometre of the players on a level.
+type PlayersRates = Option<(f32, f32)>;
+
+/// The players' values by level (live matches of 12+ places, 5 s worlds, 379 matches): the height
+/// of their feet at the 75th percentile, m, and their certain drops and climbs of 1.5 m or more a
+/// kilometre walked (none for Tarakanovsky Fort: no bot match was read). `high_time_pct` is the
+/// share of the bots' time above that height; the players' own is 25 %.
+pub(crate) const PLAYERS_VERT: [(&str, f32, PlayersRates); 8] = [
+    ("level_01", 22.34, Some((2.01, 7.94))),
+    ("level_02", 19.49, Some((3.53, 6.09))),
+    ("level_03", 5.62, Some((1.22, 10.11))),
+    ("level_04", 9.55, Some((4.23, 6.53))),
+    ("level_05", 8.34, None),
+    ("level_06", 36.80, Some((5.07, 17.78))),
+    ("level_07", 21.12, Some((4.63, 3.83))),
+    ("level_08", 35.03, Some((1.12, 11.67))),
+];
+
+/// Whether a body walks (Walk links only) from `from` to `to` within `budget` m of walking.
+fn walks_within(grid: &WalkGrid, from: NodeId, to: NodeId, budget: f32) -> bool {
+    let limit = (budget * 1000.0) as u32;
+    let mut best: HashMap<NodeId, u32> = HashMap::from([(from, 0)]);
+    let mut heap = BinaryHeap::from([(Reverse(0u32), from)]);
+    while let Some((Reverse(d), a)) = heap.pop() {
+        if a == to {
+            return true;
+        }
+        if best.get(&a).is_some_and(|&b| d > b) {
+            continue;
+        }
+        let at = grid.position(a);
+        for (b, kind) in grid.links(a) {
+            if kind != LinkKind::Walk {
+                continue;
+            }
+            let step = ((grid.position(b) - at).length() * 1000.0) as u32;
+            let nd = d + step;
+            if nd <= limit && best.get(&b).is_none_or(|&known| nd < known) {
+                best.insert(b, nd);
+                heap.push((Reverse(nd), b));
+            }
+        }
+    }
+    false
+}
 
 /// U-turns (`uturns.py`): the moves 2.2 s before and after a take, each
 /// at least 2 m, more than 120 degrees apart.
@@ -472,6 +536,65 @@ impl OwnerTally {
         (eps, blips)
     }
 
+    /// The verticality counts at the end: certain drops and climbs of 1.5 m or more a kilometre
+    /// walked by the bots (the players' in the line of text), and the share of the bots' time
+    /// above the players' 75th percentile height on the map.
+    pub(super) fn vertical_part(&self, game: &Game) -> Part {
+        let grid = &game.world.grid;
+        let level = PLAYERS_VERT
+            .iter()
+            .find(|(name, ..)| game.world.map.project.starts_with(name));
+        let (mut drops, mut climbs, mut km) = (0u32, 0u32, 0f64);
+        let (mut high, mut alive) = (0u64, 0u64);
+        let budget = VERT_WALK_MPS * VERT_SAMPLE_TICKS as f32 * TICK_S + VERT_WALK_SLACK_M;
+        for recs in self.recs.iter().enumerate().filter(|&(p, _)| self.is_bot[p]).map(|(_, r)| r) {
+            for r in recs.iter().filter(|r| r.alive) {
+                alive += 1;
+                high += u64::from(level.is_some_and(|&(_, p75, _)| r.feet.y >= p75));
+            }
+            let mut s = 0;
+            while s + VERT_SAMPLE_TICKS < recs.len() {
+                let (a, b) = (&recs[s], &recs[s + VERT_SAMPLE_TICKS]);
+                s += VERT_SAMPLE_TICKS;
+                if !recs[s - VERT_SAMPLE_TICKS..=s].iter().all(|r| r.alive) {
+                    continue;
+                }
+                km += f64::from((b.feet.x - a.feet.x).hypot(b.feet.z - a.feet.z)) / 1000.0;
+                let rise = b.feet.y - a.feet.y;
+                if rise >= VERT_M {
+                    climbs += 1;
+                } else if rise <= -VERT_M
+                    && let (Some(from), Some(to)) = (grid.locate(a.feet, 1.0), grid.locate(b.feet, 1.0))
+                    && !walks_within(grid, from, to, budget)
+                {
+                    drops += 1;
+                }
+            }
+        }
+        let per_km = |n: u32| if km > 0.0 { (100.0 * f64::from(n) / km).round() / 100.0 } else { 0.0 };
+        let high_pct = Scale::pct(high as f64, alive as f64);
+        let json = serde_json::json!({
+            "drops_certain": drops,
+            "climbs_1_5m": climbs,
+            "km_walked": (km * 100.0).round() / 100.0,
+            "drops_per_km": per_km(drops),
+            "climbs_per_km": per_km(climbs),
+            "high_time_pct": high_pct,
+        });
+        let players = level
+            .map(|&(name, p75, rates)| match rates {
+                Some((d, c)) => format!("players on {name}: {d:.2} drops, {c:.2} climbs a km, p75 {p75:.1} m"),
+                None => format!("players on {name}: p75 {p75:.1} m"),
+            })
+            .unwrap_or_else(|| "no players' values for this map".to_owned());
+        let text = format!(
+            "owner-test vertical: certain drops {drops} ({:.2} a km), climbs of 1.5 m+ {climbs} ({:.2} a km) over {km:.1} km walked; {high_pct:.1} % of the time above the players' p75 height ({players}; players 25 %)",
+            per_km(drops),
+            per_km(climbs),
+        );
+        Part::new(json, text)
+    }
+
     /// The moving counts at the end: their keys of the `owner` object and their lines of the owner-test text.
     pub(super) fn moving_part(&self, game: &Game, presses: &[Press], scale: &Scale) -> Part {
         let n = self.recs.len();
@@ -844,4 +967,59 @@ pub(crate) fn a_stuck_bot_with_an_enemy_against_it_is_stuck_on_the_enemy() {
     assert_eq!(json["stuck_by"]["push"][0], 2, "{json}");
     assert_eq!(json["stuck_by_cause"]["enemy"][0], 1, "{json}");
     assert_eq!(json["stuck_by_cause"]["wall_no_line"][0], 1, "{json}");
+}
+
+/// A 3 m plateau, walled on all four sides, in the soak field: no walk up or down.
+fn plateau() -> Vec<mapdata::Triangle> {
+    let walker = mapdata::WalkerBehaviour::BySlope;
+    let quad = |a: Vec3, b: Vec3, c: Vec3, d: Vec3| {
+        [
+            mapdata::Triangle { v: [a, b, c], walker },
+            mapdata::Triangle { v: [a, c, d], walker },
+        ]
+    };
+    let v = Vec3::new;
+    let mut tris = quad(v(10.0, 3.0, 10.0), v(20.0, 3.0, 10.0), v(20.0, 3.0, 20.0), v(10.0, 3.0, 20.0)).to_vec();
+    for x in [10.0, 20.0] {
+        tris.extend(quad(v(x, 0.0, 10.0), v(x, 0.0, 20.0), v(x, 3.0, 20.0), v(x, 3.0, 10.0)));
+    }
+    for z in [10.0, 20.0] {
+        tris.extend(quad(v(10.0, 0.0, z), v(20.0, 0.0, z), v(20.0, 3.0, z), v(10.0, 3.0, z)));
+    }
+    tris
+}
+
+#[test]
+pub(crate) fn a_drop_off_a_walled_plateau_and_a_climb_onto_it_are_counted_a_kilometre() {
+    let world = super::super::soak_world_with(&plateau());
+    let mut game = Game::new(world, &[0, 0], 1, None, None);
+    let mut tally = OwnerTally::new(2);
+    tally.is_bot = vec![true, true];
+    play(&mut game, &mut tally, 2 * VERT_SAMPLE_TICKS + 1, |k, game| {
+        let second = k / VERT_SAMPLE_TICKS;
+        // Bot 0 on the plateau, then dropped to the field beside it, walking east.
+        let (x0, y0) = if second == 0 { (15.0, 3.0) } else { (25.0 + 0.01 * k as f32, 0.0) };
+        put(game, 0, x0, 15.0, 0);
+        game.bodies[0].feet.y = y0;
+        // Bot 1 on the field, then on the plateau (a climb with no walk: counted).
+        let (x1, y1) = if second == 0 { (5.0, 0.0) } else { (15.0, 3.0) };
+        put(game, 1, x1, 30.0, 0);
+        game.bodies[1].feet.y = y1;
+        vec![bot_now(), bot_now()]
+    });
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["drops_certain"], 1, "{json}");
+    assert_eq!(json["climbs_1_5m"], 1, "{json}");
+    assert!(json["km_walked"].as_f64().unwrap() > 0.0, "{json}");
+    assert!(json["drops_per_km"].as_f64().unwrap() > 0.0);
+}
+
+#[test]
+pub(crate) fn a_walk_within_the_budget_is_a_walk_and_one_beyond_it_is_not() {
+    let world = super::super::soak_world();
+    let grid = &world.grid;
+    let a = grid.locate(Vec3::new(10.0, 0.0, 10.0), 1.0).unwrap();
+    let b = grid.locate(Vec3::new(14.0, 0.0, 10.0), 1.0).unwrap();
+    assert!(walks_within(grid, a, b, 5.0));
+    assert!(!walks_within(grid, a, b, 3.0));
 }
