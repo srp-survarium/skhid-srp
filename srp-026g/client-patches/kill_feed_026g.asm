@@ -19,7 +19,8 @@
 ;   node in eax): the cause icon, then +5 the flags, 0.69d0's rule for its
 ;   penetration_icon and ricochet_icon (its generate_killed_event 0x2003046B0,
 ;   from the hit's copies of the bullet's segments and reflections), for a
-;   bullet when someone else killed (the cause icon not 3): 4 when the bullet
+;   bullet when someone else killed (the cause icon not 3) and not by melee
+;   (generate_killed_event's own flag, [esp+14h]): 4 when the bullet
 ;   ricocheted before this hit (its reflections, the byte +88h, not 0), else
 ;   1 when it went through something (its trajectory's segments, +84h, one
 ;   more for each pierce and each reflection (0x32EE20), not 0); 2 when the
@@ -50,6 +51,9 @@ section .text
 %define REFLECTIONS 0x88           ; the bullet's reflections (byte)
 %define CAUSE 4                    ; the event's cause icon (byte)
 %define NO_KILLER 3                ; the cause icon of a death with no killer or by the victim himself
+%define EVENT 0x0C                 ; kill_feed_event's frame after its two pushes: the site's esp at [esp+EVENT]
+%define MELEE 0x14                 ; generate_killed_event's [esp+14h]: the bullet's damage is its weapon's melee
+                                   ; (`[ebp+40h]` the weapon's +53Ch, 0x2DA2D7; no headshot then)
 %define FLAGS 5                    ; the event's byte after it: ours
 %define WORLD 0x120                ; the player's game world
 %define WALL 1
@@ -77,6 +81,8 @@ kill_feed_event:
     jz .pain                       ; no bullet
     cmp ecx, NO_KILLER
     je .pain                       ; no killer, or the victim himself
+    cmp byte [esp+EVENT+MELEE], 0
+    jne .pain                      ; a melee hit
     cmp byte [ebp+REFLECTIONS], 0
     je .wall
     or bl, RICOCHET                ; a ricochet, before or after any pierce: no wall

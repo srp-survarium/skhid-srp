@@ -12,9 +12,10 @@ arena with them; the patch's three sites run from the game's own code:
   zeroes it) to its queueing call (0x2DA3DA), with a made-up victim (esi: its
   place +114h, its world +120h, its damage model +2E0h whose parts +108h are a
   list of named pools, health +0A0h) and bullet (ebp: its segments +84h, its
-  reflections +88h), the cause icon in bl. The game's own part lookup
-  (0x2E58B0) runs. The node must be the original's but for +5, for a bullet
-  and someone else the killer (the cause icon not 3): 4 when the bullet has
+  reflections +88h), the cause icon in bl, its frame's melee flag
+  ([esp+14h]). The game's own part lookup (0x2E58B0) runs. The node must be
+  the original's but for +5, for a bullet, someone else the killer (the
+  cause icon not 3) and no melee hit: 4 when the bullet has
   a reflection (0.69d0's ricochet_icon), else 1 when it has segments (its
   penetration_icon); 2 when the pain pool is empty and body and head are
   not; edx (the world), eax, ebx, esi, edi, ebp and esp
@@ -22,7 +23,8 @@ arena with them; the patch's three sites run from the game's own code:
   a bullet death, a pain death, both pools empty, the head empty, pain all
   but empty, a bullet through a wall, a ricochet, pierces and a reflection,
   through another player, through a wall with no killer, a headshot through
-  a wall, a ricochet to pain, a ricochet with no killer, a melee hit, no
+  a wall, a ricochet to pain, a ricochet with no killer, melee hits (their
+  bullet straight, and with segments and a reflection), no
   bullet, no damage model, the parts in another order;
 - the argument: the hud's event handler (0x23B5F0) from 0x23B6F0 to its call
   of on_player_killed (0x23B704), edi = that node: the original pushes the
@@ -108,7 +110,7 @@ class Run:
         self.emu.emu_start(start, until, count=100000)
         return {reg: self.emu.reg_read(reg) for reg in REGS}, self.emu.reg_read(UC_X86_REG_ESP)
 
-    def event(self, health, segments, reflections, cause, bullet=True, model=True, order=NAMES):
+    def event(self, health, segments, reflections, cause, bullet=True, model=True, order=NAMES, melee=0):
         """generate_killed_event from 0x2DA3AD to 0x2DA3DA. health: {pool: value}."""
         emu = self.emu
         emu.mem_write(OBJECTS, bytes(0x8000))
@@ -130,6 +132,7 @@ class Run:
         emu.mem_write(STACK, bytes(0x10000))
         for at, value in ((0x44, 12345), (0x48, 3), (0x4C, 17)):   # the time, the killer, the weapon's icon
             self.word(sp + at, value)
+        emu.mem_write(sp + 0x14, bytes([melee]))                   # the melee flag (0x2DA2D7)
         regs = {UC_X86_REG_EAX: NODE, UC_X86_REG_ECX: 0x0C0C0C0C, UC_X86_REG_EDX: 0x0D0D0D0D,
                 UC_X86_REG_EBX: 0x0B0B0B00 | cause, UC_X86_REG_ESI: VICTIM, UC_X86_REG_EDI: 0x0E0E0E0E,
                 UC_X86_REG_EBP: BULLET if bullet else 0}
@@ -203,7 +206,11 @@ def main():
         ("a ricochet, then a pierce: the ricochet, no wall", {"body": empty}, 2, 1, 0, {}, RICOCHET),
         ("a ricochet to pain", {"pain": empty, "body": bits(0.5)}, 2, 2, 0, {}, RICOCHET | PAIN),
         ("a ricochet, no killer or the victim himself", {"body": empty}, 1, 1, 3, {}, 0),
-        ("a melee hit (its bullet straight)", {"body": empty}, 0, 0, 0, {}, 0),
+        ("a melee hit (its bullet straight)", {"body": empty}, 0, 0, 0, {"melee": 1}, 0),
+        ("a melee hit whose bullet has segments: no wall (0.69d0)", {"body": empty}, 2, 0, 0, {"melee": 1}, 0),
+        ("a melee hit whose bullet has a reflection: no ricochet", {"body": empty}, 2, 1, 0, {"melee": 1}, 0),
+        ("a melee hit by pain: the pain icon alone", {"pain": empty, "body": bits(0.4)}, 1, 0, 0, {"melee": 1},
+         PAIN),
         ("through another player to the body", {"body": empty}, 1, 0, 0, {}, WALL),
         ("through a wall, no killer or the victim himself", {"body": empty}, 1, 0, 3, {}, 0),
         ("through a wall, a headshot", {"head": empty}, 1, 0, 1, {}, WALL),

@@ -21,7 +21,8 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
   - anything the bullet pierced counts for the wall: a wall, a prop, another player's body
     (0.69d0's try_pierce adds a segment after any object or geometry it goes through; no material
     check, no threshold);
-  - a kill with no bullet (a grenade, an anomaly, a fall) or a melee hit shows neither.
+  - a kill with no bullet (a grenade, an anomaly, a fall) or a melee hit shows neither (the melee
+    test is generate_killed_event's own flag, as 0.69d0's; not the bullet's counters).
 - **By pain:** at the death the victim's pain pool is empty and its body and head pools are not
   (the pain pool killed; when body or head is empty too, they killed).
   - The owner, 2026-10-25: "if someone dies from pain and damage at the same time, they die from
@@ -45,5 +46,7 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
 - **Every game alike:** the flags come from the simulation's own state (the bullet, the pools) in
   every game's lockstep run, in the kill event itself; a replay shows them too. Visual only:
   nothing a match computes changes, no `simulation_changes` row.
+- **Tested in game** by the owner, 2026-10-25 ("works nicely"); the explicit melee test came after
+  that test (Unicorn only).
 - **Release:** the exe patch (the default build) and the hud movie together; an older exe with
   the new movie shows rows without the three icons.

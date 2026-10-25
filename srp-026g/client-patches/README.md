@@ -3361,11 +3361,12 @@ the evidence: `client_patch.md` 3.55.
 ebp) writes the victim, the killer, the weapon's icon and the cause icon (+4: 1 headshot, 3 no
 killer) into an event node whose first 12 bytes its allocation zeroes. The patch
 (`kill_feed_event`, called at 0x2DA3D1 in place of `mov [eax+4],bl / mov edx,[esi+120h]`)
-writes the cause icon and, in the node's +5, the flags. For a bullet and someone else the
-killer (the cause icon not 3), retail 0.69d0's rules for its `ricochet_icon` and
+writes the cause icon and, in the node's +5, the flags. For a bullet, someone else the
+killer (the cause icon not 3) and no melee hit, retail 0.69d0's rules for its `ricochet_icon` and
 `penetration_icon` (its exe: the hit carries the bullet's segments and reflections,
 generate_killed_event sets ricochet for any reflection, else penetration for segments, neither
-for a melee hit or no other killer; any pierced object or player counts): 4 when the bullet
+for a melee hit or no other killer; any pierced object or player counts; the melee flag is
+generate_killed_event's own, `[esp+14h]`): 4 when the bullet
 reflected before this hit (its reflections, +88h, not 0), else 1 when it went through something
 (its trajectory's segments, +84h, which each pierce and each reflection adds one to, not 0).
 And 2 when the victim's pain pool is empty and its body and head pools are not (the damage
@@ -3389,15 +3390,16 @@ by `../scripts/kill-feed-icons/make_icons.py`).
 **Checked:** `selftest_026g.py` check 67 (the sites' original code, the hooks, no relocation under
 them and no branch into them, the code the link's, its one jump into the game the part lookup;
 the movie's row); `check_kill_feed_026g.py` (Unicorn): the event from 0x2DA3AD to its queueing
-in 23 cases (a bullet death, a pain death, one hit emptying pain and body or pain and head
+in 26 cases (a bullet death, a pain death, one hit emptying pain and body or pain and head
 together (damage, not pain), a headshot through pain, pain all but empty, a toxic death, through
 a wall, a ricochet, pierces and a ricochet (the ricochet only), a ricochet then a pierce, a
-ricochet to pain, a ricochet with no killer (none), a melee hit (none), through another player,
+ricochet to pain, a ricochet with no killer (none), melee hits with a straight bullet, with
+segments and with a reflection (none) and by pain (pain only), through another player,
 a wall with no killer, a headshot through a wall, a wall and pain, no bullet, no damage model,
 the parts in another order, no head pool) with the game's own part lookup: the node the
 original's but +5; the handler's five arguments; the row's members (penetration_icon,
 ricochet_icon, pain_icon, then mastery_icon) against the original's mastery_icon alone, with the
-registers and the frame as the original's. **Not run in a game.**
+registers and the frame as the original's. **Tested in game by the owner, 2026-10-25** ("works nicely"); the explicit melee test (the event's melee flag) came after that test and is checked with Unicorn only.
 
 ## Not ported, not done
 
