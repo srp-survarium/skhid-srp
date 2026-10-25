@@ -496,6 +496,19 @@ Patches:
   texture made (0x12F18F a bake, 0x12DDB4 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
   0xF0D00). Textures only;
+- a killed player falls as a ragdoll (patch 76, with the late join;
+  docs/notes/ragdoll.md): ragdoll_026g.asm and the Rust crate
+  ragdoll_arena (the arena's blocks ragdoll.code and .data), four
+  hooks (RAGDOLL_HOOKS): game_world::tick after the simulation's move
+  (0x1F7C3C) steps every place's corpse (alive, or dead with its life's
+  spawn time +328h as the death's key: a rollback that undoes the death
+  drops the ragdoll, the same death simulated again keeps it) and the
+  ragdolls (eleven capsules, XPBD, the level read by ray_test); mt_draw's
+  cull (0x24757C) draws a corpse of ours; mt_draw after the bones
+  (0x247716) captures the death clip and writes the ragdoll's bones over
+  its stack array; update_camera (0x1F3643) gives the local player's view
+  its ragdoll's eye, followed smoothly. Drawn only: nothing a match
+  computes, keeps or hashes changes;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2079,6 +2092,30 @@ KILL_FEED_HOOKS = (
 )
 KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb75704"))
 
+# The death ragdoll (patch 76, README; ../docs/notes/ragdoll.md sections 7
+# and 8): ragdoll_026g.asm's entries and the Rust crate ragdoll_arena in the
+# arena's blocks ragdoll.code and .data (ARENA below). Each site is a
+# `call` over one of the game's instructions, which the entry does itself:
+# - game_world::tick 0x1F77E0, `cmp byte [esp+0Fh],0` at 0x1F7C3C (the join
+#   after game_world_core::move, before the places are drawn): rg_step, the
+#   corpses and the ragdolls stepped;
+# - player::mt_draw 0x2474A0, `cmp byte [ebx+0F4E2h],0` at 0x24757C (the
+#   model not seen the last frame; `je 0x247592` draws): rg_cull, a corpse
+#   of ours always drawn (its bones move);
+# - mt_draw, `mov ecx,[ebx+0F290h]` at 0x247716 (the bones made, before the
+#   "Weapon" bone is read): rg_apply, the clip captured, a ragdoll's bones
+#   written over the stack array;
+# - player::update_camera 0x1F3480, `mov ecx,[ebx+0F470h]` at 0x1F3643 (EAX
+#   the eye transform the view gets, &player+44Ch in the first person):
+#   rg_eye, the local player's ragdoll's eye instead.
+# No base relocation is under a site and no branch aims inside one.
+RAGDOLL_HOOKS = (
+    (0x1F7C3C, bytes.fromhex("807c240f00"), "rg_step", 0xE8),          # the simulation moved
+    (0x24757C, bytes.fromhex("80bbe2f4000000"), "rg_cull", 0xE8),      # a corpse of ours drawn
+    (0x247716, bytes.fromhex("8b8b90f20000"), "rg_apply", 0xE8),       # the bones, before "Weapon"
+    (0x1F3643, bytes.fromhex("8b8b70f40000"), "rg_eye", 0xE8),         # the eye the view gets
+)
+
 # The baked camouflage and decal textures kept, and baked or loaded once while
 # asked for again (patch 70, README; client_patch.md section 3.57; the rules:
 # ../docs/notes/baked-textures.md): bake_cache_026g.asm and .c in the arena's
@@ -2291,6 +2328,15 @@ INSTALLS = {
                      "function (or the function, then the waiting queries made again)", None, None),
     0x42050: (ENTRY, "the CRC-32 step (eax &the CRC, edx the bytes, the count; `ret 4`): crc32, the same "
                      "value eight bytes a step", None, None),
+    # the death ragdoll, patch 76 (in `.srpx`)
+    0x1F7C3C: (INLINE, "game_world::tick's `cmp byte [esp+0Fh],0` after the simulation's move: rg_step, which "
+                       "steps the corpses and redoes the compare", None, None),
+    0x24757C: (INLINE, "mt_draw's `cmp byte [ebx+0F4E2h],0` (not seen the last frame): rg_cull, ZF for a "
+                       "corpse of ours, else the compare", None, None),
+    0x247716: (INLINE, "mt_draw's `mov ecx,[ebx+0F290h]` after the bones: rg_apply, which captures the clip, "
+                       "writes a ragdoll's bones and does the move", None, None),
+    0x1F3643: (INLINE, "update_camera's `mov ecx,[ebx+0F470h]` (eax the eye transform): rg_eye, the local "
+                       "player's ragdoll's eye in eax, then the move", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2486,6 +2532,9 @@ ARENA = (
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
     ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
+    # the death ragdoll, patch 76: the hooks' entries (NASM) and the Rust crate
+    ArenaBlock("ragdoll.code", "code", 0x1000, ("ragdoll_026g.asm", "ragdoll_arena/Cargo.toml")),
+    ArenaBlock("ragdoll.data", "data", 0x1000, ("ragdoll_arena/Cargo.toml",)),     # the corpses and the pool
 )
 
 
@@ -3431,7 +3480,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS:
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + RAGDOLL_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3485,6 +3534,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
                      "a fall gains speed for the time it fell, not for the steps of a split tick, "
+                     "a killed player falls as a ragdoll (drawn only), the death screen's camera on its head, "
                      "a model's LOD and screen factor at a wider field of view are the original's, "
                      "a drag turns the camera on the death screen and the wheel does nothing there, "
                      "a weapon wears the camouflage its item holds, "

@@ -65,6 +65,7 @@ fn at(name: &str) -> Vec3 {
         "Neck" => (0.0, 1.53, 0.0),
         "Head" => (0.0, 1.62, 0.0),
         "Weapon" => (-0.2, 1.0, 0.3),
+        "Item" => (0.0, 1.64, 0.08),
         _ => return Vec3::new(f32::NAN, 0.0, 0.0),
     };
     Vec3::new(x, y, z)
@@ -94,11 +95,11 @@ pub(crate) fn standing(turn: Quat, shift: Vec3) -> Skeleton {
 }
 
 fn start<'a>(now: &'a Skeleton, before: &'a DriverBones, cause: Cause, gun: Option<GunShape>) -> Start<'a> {
-    Start { now, before, dt: 1.0 / 60.0, up: Vec3::Y, cause, gun }
+    Start { now, before, dt: 1.0 / 60.0, up: Vec3::Y, cause, gun, stood_on: Some((Vec3::ZERO, Vec3::Y)) }
 }
 
 const SHOT: Cause = Cause::Body { part: Part::Torso, direction: Vec3::new(0.0, 0.0, -1.0), heavy: false };
-const GUN: GunShape = GunShape { centre: Vec3::ZERO, axis: Vec3::Z, half: 0.35, radius: 0.04 };
+const GUN: GunShape = GunShape::RIFLE;
 
 /// Runs at 60 frames a second until settled; the seconds it took.
 fn run(ragdoll: &mut Ragdoll, ground: &mut Ground, clip: Option<&DriverBones>, mut each: impl FnMut(&Ragdoll)) -> f32 {

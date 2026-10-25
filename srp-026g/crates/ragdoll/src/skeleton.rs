@@ -125,6 +125,9 @@ pub const LEFT_ARM: Bone = Bone(46);
 pub const LEFT_FORE_ARM: Bone = Bone(48);
 pub const LEFT_HAND: Bone = Bone(49);
 pub const WEAPON: Bone = Bone(66);
+/// The camera's bone: player+44Ch is it times the player's transform
+/// (`computed_head_transform` 0x2DA4B0).
+pub const ITEM: Bone = Bone(68);
 
 /// The ragdoll's eleven bodies. Hands go with the forearms, feet with the
 /// shins, the neck with the head.
@@ -263,6 +266,7 @@ mod tests {
             (LEFT_FORE_ARM, "LeftForeArm"),
             (LEFT_HAND, "LeftHand"),
             (WEAPON, "Weapon"),
+            (ITEM, "Item"),
         ] {
             assert_eq!(bone.name(), name);
             assert_eq!(Bone::named(name), Some(bone));

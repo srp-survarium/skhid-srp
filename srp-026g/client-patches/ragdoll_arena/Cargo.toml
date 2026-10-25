@@ -1,0 +1,20 @@
+# The death ragdoll's client side (patch 76): linked into the exe's arena
+# `.srpx` by link_026g.py, which builds it with rustc alone (no cargo): for
+# i686, against a `core` it builds from the toolchain's rust-src, a static
+# relocation model, fat LTO, one ELF32 object. link_026g.py reads only the
+# name, `[lib]` path and the `path` dependencies here. Not a member of the
+# workspace: it is built for the game, never for the host.
+[package]
+name = "ragdoll_arena"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+path = "src/lib.rs"
+
+[dependencies]
+ragdoll = { path = "../../crates/ragdoll" }
+
+[workspace]

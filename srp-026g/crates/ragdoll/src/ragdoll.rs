@@ -14,7 +14,7 @@ use crate::math::{Pose, Quat, Vec3, clamp, exp_neg, finite, max, min};
 use crate::skeleton::{
     BONE_COUNT, Bone, JOINT_TABLE, JOINTS, JointKind, LEFT_ARM, LEFT_FOOT, LEFT_FORE_ARM, LEFT_HAND, LEFT_LEG,
     LEFT_TOE, LEFT_UP_LEG, NECK, PARTS, Part, RIGHT_ARM, RIGHT_FOOT, RIGHT_FORE_ARM, RIGHT_HAND, RIGHT_LEG,
-    RIGHT_TOE, RIGHT_UP_LEG, ROOT, SPIN, WEAPON, HEAD, adjacent,
+    RIGHT_TOE, RIGHT_UP_LEG, ROOT, SPIN, WEAPON, HEAD, ITEM, adjacent,
 };
 
 /// The drawn skeleton: every bone's world pose, in [`crate::skeleton::BONES`]' order.
@@ -160,15 +160,76 @@ pub trait Level {
     fn sweep(&mut self, from: Vec3, to: Vec3, radius: f32) -> Sweep;
 }
 
-/// The gun's shape in the `Weapon` bone's frame: a capsule from its model's
-/// bounds.
+/// What one end's query found.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Probe {
+    /// A surface `distance` from the end.
+    Surface { distance: f32, point: Vec3, normal: Vec3 },
+    /// Nothing below or ahead of the end within reach.
+    Clear,
+    /// Not asked (the frame's budget is spent): what the body had stays.
+    Unknown,
+}
+
+impl Probe {
+    /// Two ends' answers as one: the nearer surface; clear only if both are.
+    fn or(self, other: Probe) -> Probe {
+        match (self, other) {
+            (Probe::Surface { distance: d1, .. }, Probe::Surface { distance: d2, .. }) => {
+                if d2 < d1 { other } else { self }
+            }
+            (Probe::Surface { .. }, _) => self,
+            (_, Probe::Surface { .. }) => other,
+            (Probe::Clear, Probe::Clear) => Probe::Clear,
+            _ => Probe::Unknown,
+        }
+    }
+}
+
+/// One end's query: along its motion of the frame with the ground below it
+/// added (an end that moves sideways still finds the floor it slides on),
+/// that long plus a margin.
+fn probe(level: &mut impl Level, (end, motion): (Vec3, Vec3), down: Vec3, radius: f32) -> Probe {
+    let reach = motion + down * (radius + SWEEP_MARGIN);
+    let dir = reach.direction_or(down);
+    let length = reach.length() + SWEEP_MARGIN;
+    match level.sweep(end, end + dir * length, radius) {
+        Sweep::Hit { point, normal } => match normal.direction() {
+            Some(normal) => Probe::Surface { distance: (point - end).length(), point, normal },
+            None => Probe::Unknown,
+        },
+        Sweep::Clear => Probe::Clear,
+        Sweep::Deferred => Probe::Unknown,
+    }
+}
+
+/// The dropped gun's capsule. Its axis is the `Weapon` bone's own axis
+/// nearest the body's forward at the death (the held gun points ahead).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GunShape {
-    pub centre: Vec3,
-    /// The capsule's axis (unit), the bounds' longest.
-    pub axis: Vec3,
+    /// The capsule's centre ahead of the bone along that axis, m.
+    pub ahead: f32,
     pub half: f32,
     pub radius: f32,
+}
+
+impl GunShape {
+    /// A rifle's size (the item's own bounds are not read yet).
+    pub const RIFLE: GunShape = GunShape { ahead: 0.15, half: 0.35, radius: 0.04 };
+}
+
+/// The unit axis of `frame` (one of its six) nearest `toward`.
+fn nearest_axis(frame: Quat, toward: Vec3) -> Vec3 {
+    let mut best = frame.rotate(Vec3::X);
+    for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
+        let world = frame.rotate(axis);
+        for candidate in [world, -world] {
+            if candidate.dot(toward) > best.dot(toward) {
+                best = candidate;
+            }
+        }
+    }
+    best
 }
 
 /// How each bone is drawn from the bodies, fixed at the death.
@@ -188,6 +249,8 @@ enum Link {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Rig {
     links: [Link; BONE_COUNT],
+    /// The camera's bone ("Item", +44Ch's) relative to the head at the death.
+    eye: Pose,
 }
 
 impl Rig {
@@ -204,6 +267,11 @@ impl Rig {
                 Link::Fixed { pose } => pose,
             };
         }
+    }
+
+    /// The camera's bone at a drawn head's pose.
+    pub fn eye(&self, head: Pose) -> Pose {
+        head.then(self.eye)
     }
 
     /// The parts' poses that their bones at `bones` give (the death clip's,
@@ -241,6 +309,9 @@ pub struct Start<'a> {
     pub cause: Cause,
     /// The held gun's shape, if a gun is held and drops.
     pub gun: Option<GunShape>,
+    /// The ground the player stood on (a point and its unit normal): every
+    /// body's plane until its first query finds its own.
+    pub stood_on: Option<(Vec3, Vec3)>,
 }
 
 /// Whether the bodies have stayed put: since when, and where they were then.
@@ -346,9 +417,9 @@ impl Ragdoll {
         // the gun
         let weapon = now[WEAPON.index()];
         let gun = start.gun.map(|shape| {
-            let x = weapon.rotation.rotate(shape.axis).direction_or(forward);
+            let x = nearest_axis(weapon.rotation, forward);
             let y = x.any_perpendicular();
-            let pose = Pose::new(Quat::from_basis(x, y, x.cross(y)), weapon.apply(shape.centre));
+            let pose = Pose::new(Quat::from_basis(x, y, x.cross(y)), weapon.position + x * shape.ahead);
             let capsule = Capsule { half: clamp(shape.half, 0.05, 0.7), radius: clamp(shape.radius, 0.02, 0.12) };
             links[WEAPON.index()] = Link::Gun { offset: pose.inverse().then(weapon) };
             Body::new(pose, capsule, GUN_MASS)
@@ -363,7 +434,7 @@ impl Ragdoll {
                 None => Link::Fixed { pose: now[i] },
             };
         }
-        let rig = Rig { links };
+        let rig = Rig { links, eye: now[HEAD.index()].inverse().then(now[ITEM.index()]) };
         // the motion the player had: the parts' poses a frame before
         let before = rig.parts_of(start.before);
         let dt = clamp(start.dt, 1.0 / 240.0, 0.25);
@@ -399,6 +470,13 @@ impl Ragdoll {
         if let Some(gun) = ragdoll.gun.as_mut() {
             let hand = &ragdoll.bodies[Part::RightForearm.index()];
             gun.velocity = hand.point_velocity(gun.pose.position - hand.pose.position);
+        }
+        if let Some((point, normal)) = start.stood_on.and_then(|(p, n)| Some((p, n.direction()?))) {
+            if point.is_finite() {
+                for body in ragdoll.bodies.iter_mut().chain(ragdoll.gun.iter_mut()) {
+                    body.contact = Contact::Plane { point, normal };
+                }
+            }
         }
         ragdoll.impulse();
         ragdoll.last_good = ragdoll.poses();
@@ -575,53 +653,22 @@ impl Ragdoll {
             let (a, b) = body.shape.ends(body.pose);
             let motion_of = |end: Vec3| body.point_velocity(end - body.pose.position) * dt + gravity * (dt * dt);
             let (ma, mb) = (motion_of(a), motion_of(b));
-            // the end ahead of the other along its motion; both ends of a fast
-            // body (a spinning one may land on the other first)
+            // the end ahead of the other along its motion first; both ends of a
+            // fast body (a spinning one may land on the other first)
             let a_leads = (a - b).dot(ma.direction_or(down)) >= (b - a).dot(mb.direction_or(down));
-            let ends: [Option<(Vec3, Vec3)>; 2] = if body.end_speed() >= FAST {
-                [Some((a, ma)), Some((b, mb))]
-            } else if a_leads {
-                [Some((a, ma)), None]
-            } else {
-                [Some((b, mb)), None]
-            };
-            // the nearest surface found
-            let mut found: Option<(f32, Vec3, Vec3)> = None;
-            let mut all_clear = true;
-            let mut asked = (Vec3::ZERO, 0.0f32);
-            for (end, motion) in ends.into_iter().flatten() {
-                // the motion with the ground below it: an end that moves
-                // sideways still finds the floor it slides on
-                let probe = motion + down * (body.shape.radius + SWEEP_MARGIN);
-                let dir = probe.direction_or(down);
-                let reach = probe.length() + SWEEP_MARGIN;
-                asked = (end, reach);
-                match level.sweep(end, end + dir * reach, body.shape.radius) {
-                    Sweep::Hit { point, normal } => {
-                        all_clear = false;
-                        if let Some(normal) = normal.direction() {
-                            let distance = (point - end).length();
-                            if found.is_none_or(|(d, ..)| distance < d) {
-                                found = Some((distance, point, normal));
-                            }
-                        }
-                    }
-                    Sweep::Clear => {}
-                    Sweep::Deferred => all_clear = false,
-                }
+            let (first, second) = if a_leads { ((a, ma), (b, mb)) } else { ((b, mb), (a, ma)) };
+            let radius = body.shape.radius;
+            let mut answer = probe(level, first, down, radius);
+            if body.end_speed() >= FAST || answer == Probe::Clear {
+                // the other end too: the nearer surface of two; a plane is
+                // dropped only when neither end has ground under it (a body
+                // half over a ledge still lies on it)
+                answer = answer.or(probe(level, second, down, radius));
             }
-            match found {
-                Some((_, point, normal)) => body.contact = Contact::Plane { point, normal },
-                None if all_clear => {
-                    // keep a plane the body still rests on; drop one it left
-                    if let Contact::Plane { point, normal } = body.contact {
-                        let (end, reach) = asked;
-                        if (end - point).dot(normal) - body.shape.radius > reach {
-                            body.contact = Contact::Free;
-                        }
-                    }
-                }
-                None => {}
+            match answer {
+                Probe::Surface { point, normal, .. } => body.contact = Contact::Plane { point, normal },
+                Probe::Clear => body.contact = Contact::Free,
+                Probe::Unknown => {}
             }
         }
     }

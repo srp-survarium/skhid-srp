@@ -80,6 +80,7 @@ va	name	source	ret_cleanup	result
 0x0002a0d0	vostok::render::environment_properties::environment_properties	manual	0	
 0x00033460	vostok::render::ui::renderer::draw_vertices	manual	20	
 0x000334e0	vostok::render::ui::renderer::draw_text	manual	40	
+0x00033870	vostok::render::update_skeleton_command::update_skeleton_command	manual	16	EAX in = the count; copies count * 40h bytes of the two matrix arrays to ESI+58h and ESI+1458h (1400h each: at most 80 bones, unchecked); EAX = ESI
 0x00037230	vostok::collision::triangle_mesh_geometry::get_custom_data	manual	4	
 0x00037820	vostok::collision::box_geometry_instance::set_matrix	manual	4	
 0x000378d0	vostok::collision::box_geometry_instance::accept	manual		
@@ -94,6 +95,7 @@ va	name	source	ret_cleanup	result
 0x00038ce0	vostok::collision::sphere_geometry_instance::get_surface_area	manual	0	
 0x00038d30	vostok::collision::sphere_geometry_instance::get_random_surface_point	manual	8	
 0x00038eb0	vostok::collision::sphere_geometry_instance::get_closest_point_to	manual	12	
+0x0003af60	vostok::animation::skeleton::get_non_root_bones_count	manual	0	EAX = [skeleton+108h] minus the root bones (([skeleton+118h] - (skeleton+110h)) / 1Ch); ECX, EDX clobbered
 0x0003b480	vostok::collision::animated_object::update	manual	8	none; each geometry's bone matrix set from bones[geometries_data[i]+68h] (stride 6Ch, +120h..+124h), the compound's AABB recomputed at the last
 0x0003b5f0	vostok::collision::triangle_mesh_geometry::triangle_mesh_geometry	manual	4	
 0x0003b6e0	vostok::collision::triangle_mesh_geometry::initialize	manual	16	
@@ -171,10 +173,13 @@ va	name	source	ret_cleanup	result
 0x0006f109		auto	0	
 0x0006f181		auto	0	
 0x0006f561		auto	0	
+0x00073da0	btCollisionWorld::ClosestConvexResultCallback::addSingleResult	manual	8	ST0: the hit fraction; writes +4 fraction, +30h normal (Bullet frame), +40h point, +50h object
 0x00075550	vostok::physics::bullet_physics_world::tick	manual	8	none; stepSimulation(0, 0, 1/60) then stepSimulation(elapsed ms * 0.001, 3, 1/60) (dynamics world vtable+2Ch), then overlapping character controllers pushed apart, contacts notified (0x77E50)
 0x00075b00	vostok::physics::bullet_physics_world::add	manual	4	none; the bt_constraint overload (world vtable 0x9E2EBC +24h): btDiscreteDynamicsWorld vtable+30h addConstraint([c+4], false). No caller in 0.26g: no constraint class exists
 0x00075b20	vostok::physics::bullet_physics_world::remove	manual		the bt_constraint overload (vtable +30h): tail jump to btDiscreteDynamicsWorld vtable+34h removeConstraint([c+4])
-0x00075e20	vostok::physics::bullet_physics_world::ray_test	manual	32	the result at entry ESP+4: +0 the hit point, +1Ch the object (0: no hit)
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	manual	32	the result at entry ESP+4 (also EAX), 28h bytes, game frame: +0 the hit point, +0Ch the hit fraction of direction x length (0 on a miss), +10h the hit normal, +1Ch the object (the collision object's +0F8h; 0: no hit, +0..+0Bh and +10h..+1Bh then not written), +20h the triangle index (-1 none), +24h byte: a compound child's
+0x00076920	vostok::physics::bullet_physics_world::object_query	manual	24	none; every hit (the callback 0x77320 never lowers the closest fraction) pushed by 0x78730 to the vector as a 28h record in ray_test's layout; a bare convex object's hit dereferences a null LocalShapeInfo (0x77403); inc [0x1F1D380]. Not for the ragdoll
+0x0007a390	vostok::physics::create_primitive_shape	manual	0	EAX: the bt_collision_shape (118h bytes, vtable 0x9E31EC; +108h the btCollisionShape, +110h the u16 material, +0D0h reference count), from the physics allocator [0x1F1D384]
 0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
 0x0007ac10	vostok::network_core::buffer_writer::w	manual	8	
 0x0007ef90	vostok::physics::bullet_character_controller::on_ground	manual	0	EAX low byte: 1 when |velocity.up| < 4.0 (0xA7AB10) and the last hit normal.up >= the walkable-slope dot (0x21E51D8); 0 if +0x203 is set
@@ -183,6 +188,7 @@ va	name	source	ret_cleanup	result
 0x000803d0	vostok::physics::bullet_character_controller::call_landing_callback	manual	4	calls the stored delegate with the speed
 0x000804e0	vostok::network_core::buffer_writer::w<float>	manual	20	
 0x00080fa0	vostok::network_core::buffer_writer::w<bool>	manual	20	
+0x000a36e0	btCollisionWorld::convexSweepTest	manual	20	none; allowed penetration 0; the hits go to the callback (vtable +4 needsCollision, +8 addSingleResult); allocates only btDbvt's ray stacks (0xB5CA0, [0xA7AAF0]/[0xA7AAF4])
 0x000e0420	vostok::resources::resource_children::link_parent_resource	manual	12	
 0x000e0500	vostok::resources::resource_children::link_child_resource	manual	8	
 0x000e05f0	vostok::resources::resource_children::unlink_parent_resource	manual	4	
@@ -219,6 +225,7 @@ va	name	source	ret_cleanup	result
 0x000f8480	vostok::resources::resources_manager::add_fs_task	manual	0	
 0x000fef60	vostok::render::renderer_cook::destroy_resource	manual		
 0x0010bcc0	vostok::resources::hdd_manager_sorting_predicate::operator()	manual	4	AL: the first query before the second
+0x0010d4e0	vostok::tasks::thread_pool::wait_for_all_children	manual	4	returns once every task the calling thread spawned has run (it runs children itself meanwhile); a user thread's current task is reset to its tls+90h
 0x001104b0	vostok::network::network_world::set_on_dispatch_callbacks	manual	32	
 0x00110620	vostok::network::network_world::network_world	manual	8	EAX: Constructed receiver pointer
 0x00110970	vostok::network::network_world::initialize	manual	0	
@@ -226,6 +233,8 @@ va	name	source	ret_cleanup	result
 0x00110b80	vostok::network::network_world::tick	manual	4	
 0x00110dd0	vostok::network::network_world::clear_resources	manual	0	
 0x00110e10	vostok::network::network_world::dispatch_callbacks	manual	0	
+0x001113a0	vostok::animation::skeleton::get_bone_index	manual	0	EAX = the bone's index (bones 1Ch each from skeleton+110h: +0 name, +4 parent bone*, +8/+0Ch children begin/end, +10h mask, +18h byte layer flags; the count [skeleton+108h] when no bone has the name); ECX, EDX clobbered, ESI kept
+0x001113f0	vostok::animation::find_bone_by_name	manual	0	EAX = the first bone (1Ch) in [begin, end) whose name (+0) equals the name, else end; caller pops 8
 0x00111860	vostok::logging::has_passed_filters	manual	0	AL = the line is written; the game asks it only while [0x1F1D60C] is set
 0x00111ed0	vostok::logging::log_message	manual	0	one line of Survarium_<user>.log: "<channel> <level>\t[time]\t<text>" (level 4: info)
 0x00113580	vostok::debug::terminate	manual		never returns (0x1134E0, then int3)
@@ -881,6 +890,7 @@ va	name	source	ret_cleanup	result
 0x001edbf0	survarium::game::play_ui_sound	manual	4	
 0x001f0090	survarium::items_dictionary::item_by_id	manual	4	
 0x001f0090	survarium::items_dictionary::item_by_id	manual	4	EAX = the entry: 3A0h bytes each from [dictionary+130h], +0 u16 the dict id (0x1F00D4), +228h u8 item_category
+0x001f17c0	survarium::player::collision_transform	manual	0	EAX = ECX+2F4h (player+40Ch, the world transform)
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	manual	0	
 0x001f28e0	survarium::player::on_player_death	manual	4	none; remove_alive(this, 1), then the inventory, +33Eh := 1, +33Dh := 0
 0x001f3480	survarium::player::update_camera	manual	4	
@@ -922,6 +932,7 @@ va	name	source	ret_cleanup	result
 0x00209f60	survarium::chat_handler::close_conversation	manual	0	
 0x00209ff0	survarium::chat_handler::add_squad_tab	manual	0	
 0x0020a070	survarium::chat_handler::remove_squad_tab	manual	0	
+0x00219990	survarium::network_client::match_options	manual	0	EAX = [client+1F1C48h]+0Ch, the match options (+577B5h the places' count, u8); the network client's vtable 0x9FFB14 +34h
 0x0021c970	survarium::lobby_menu::input_handler	manual	0	EAX: Null-preserving input-handler subobject pointer adjustment
 0x0021d2e0	survarium::lobby_menu::on_activate	manual	0	
 0x0021d4a0	survarium::lobby_menu::on_deactivate	manual	0	
@@ -998,7 +1009,7 @@ va	name	source	ret_cleanup	result
 0x00244c50	survarium::weapon::remove_aimed_rifle_scope_from_scene	manual	0	
 0x00244e10		auto	16	
 0x00245250		auto	0	
-0x002474a0	survarium::player::mt_draw	manual	0	the held item (+128h) drawn by its vtable+48h with [ebp-0A8h] (the hand) or [ebp-0E8h] (the decal pose, translate(0, -10, 0)) at 0x2477C8; [ebp-0F0h] = the caller's EBX
+0x002474a0	survarium::player::mt_draw	manual	0	the held item (+128h) drawn by its vtable+48h with [ebp-0A8h] (the hand) or [ebp-0E8h] (the decal pose, translate(0, -10, 0)) at 0x2477C8; [ebp-0F0h] = the caller's EBX; at 0x247716 (`mov ecx,[ebx+0F290h]`, the je target from 0x2476FF, no relocation): EBX = the player, ESI = [ebp-14h] = the bones' model-space matrices (count EDI = [ebp-1Ch], skeleton index - 1), ESP = [ebp-0Ch] = the held item's matrices (count [ebp-18h]); EAX, ECX, EDX, ESI, EDI dead; [ebp-1] = the world's own player. With mt_player_draw (byte 0x1F1D9D2) set, game_world::tick runs it as a task per place, waited for at 0x1F7D7F
 0x00248ad0	survarium::step_manager::on_step	manual	12	
 0x00256fa0	survarium::damage_zone_cook::delete_resource	manual	4	
 0x00257170	survarium::damage_zone_cook::calculate_max_requests_count	manual	4	
@@ -1056,6 +1067,7 @@ va	name	source	ret_cleanup	result
 0x00277aa0	survarium::lobby_client::find_item_by_id	manual	0	EAX = the matching inventory_item_descr, or end; caller pops the argument
 0x0027a300	survarium::network_client::on_match_packet_received	manual	8	
 0x0027a790	survarium::network_client::close_current_match	manual	4	
+0x0027a9c0	survarium::network_client::get_active_player	manual	8	EAX = the out pointer: the place's current player (reference added, +0D0h) or 0; the network client's vtable 0x9FFB14 +50h
 0x0027b1f0	survarium::network_client::tick	manual	8	
 0x0027b570	survarium::network_client::process_set_time_request	manual	4	
 0x0027bff0	survarium::network_client::process_dynamic_match_info	manual	0	
@@ -1118,6 +1130,7 @@ va	name	source	ret_cleanup	result
 0x002ca910		auto	12	
 0x002cea30	survarium::animation_analysis_result_cook::translate_query	manual	4	
 0x002d09c0		auto	0	
+0x002d0ab0	survarium::game_world_core::active_player_ptr	manual	0	EAX = EDI; [EDI] := [[core+18458h]+place*30h+4*[..+0Ch]] (reference added), 0 when the place is past the count or not in [core+18FD8h]
 0x002d0b70		auto	16	
 0x002d1100		auto	20	
 0x002d1470	survarium::game_world_core::enter_match	manual	8	
@@ -1137,12 +1150,15 @@ va	name	source	ret_cleanup	result
 0x002d7920	survarium::base_player::jump	manual	4	sets the controller's jump flag +0x2C70C
 0x002d8220	survarium::base_player::on_physical_controller_landing	manual	4	v > fatal speed +0x30C: hit fatal_damage +0x314 (modifier 30); v > harmless speed +0x310: fatal_damage x (v - harmless) / (fatal - harmless); else nothing
 0x002d84c0		auto	8	
+0x002d93a0	survarium::base_player::assign_physics_transform	manual	12	none; once per sim time (entry ESP+8 vs +328h): alive (+33Ch set) +40Ch := the controller's transform (0x7F5C0, 0x74620); dead +40Ch := the animation player's (+750h) object transform (0x39F360 of [+E850h]: the death clip's root motion), set back into +750h (0x391960); then computed_head_transform
 0x002d9930	survarium::base_player::activate_physics	manual	0	none; world vtable+2Ch add([[+498h]+12Ch], group 40h, mask 11h) and controller insert 0x7F4A0, unless already inserted
 0x002d9980	survarium::base_player::deactivate_physics	manual	0	none; world vtable+38h remove([[+498h]+12Ch]) and controller remove 0x7F520, if inserted
 0x002d99c0	survarium::base_player::remove_alive	manual	8	none; +33Ch := 0 (recompute_damage_collision_bones then does nothing), +32Ch, +330h := 0
 0x002d9a60	survarium::base_player::hit	manual	40	
 0x002d9ae0	survarium::base_player::hit	manual	32	
 0x002d9b90	survarium::base_player::hit_impl	manual	8	
+0x002da4b0	survarium::base_player::computed_head_transform	manual	0	none; player+44Ch := bone "Item" of the animation player +750h (skeleton [+408h]) x player+40Ch (world 4x4, translation at +47Ch); the camera's eye
+0x002da540	survarium::base_player::get_bone_transform	manual	8	EAX = the out matrix: the named bone's model-space 4x4 from the animation player +750h
 0x002da5b0	survarium::base_player::recompute_damage_collision_bones	manual	4	EAX: 2 nothing done (+33Ch clear: dead; or the time +324h already done), 0 skipped (the argument's place is this player's), 1 the hit model's bones set from the animation (0x3B480)
 0x002daf60	survarium::base_player::serialize	manual	16	
 0x002db490	survarium::base_player::deserialize	manual	28	
@@ -1231,10 +1247,14 @@ va	name	source	ret_cleanup	result
 0x002fd2d0	survarium::inventory::unload_to_profile	manual	8	
 0x002fe360	survarium::inventory::serialize	manual	4	
 0x002fe550	survarium::inventory::deserialize	manual	8	
+0x002ff600	survarium::portable_interactive_object_core::update_bones_matrices	manual	48	the user's matrices (entry ESP+8, count +0Ch) left in model space (bone-to-model, rows i j k c, v * M): compute_bones_local_matrices 0x39F7A0, the Weapon bone turned by pi (0x293AE0), IK, convert_to_object_matrices 0x39F7F0 (0x2FF906)
 0x002ffb80	survarium::inventory_item::inventory_item	manual	12	
 0x002ffdf0		auto	8	
 0x002fff10		auto	12	
 0x00300710		auto	4	
+0x003009b0	survarium::victory_item_core::set_transform	manual	4	none; +204h and +244h := the matrix; if physical (+2C8h), the body follows
+0x00300a20	survarium::victory_item_core::get_transform	manual	4	EAX = the out matrix: carried, the user's +40Ch; in a container, its vt+44h; else translate(-[+284h]) x +204h
+0x00300e50	survarium::victory_item_core::drop	manual	0	none; insert (vt+9Ch) at translate(+284h) x +204h: a battery drops at its last carried transform, the simulation's "Weapon" bone (0x344E40), not at the drawn bones
 0x00301c40	survarium::victory_item_core::set_spotted	manual	4	
 0x00301ca0	survarium::victory_item_core::can_be_spotted_by	manual	4	AL: always 1
 0x00303da0	survarium::grenade_core::serialize	manual	8	
@@ -1452,8 +1472,10 @@ va	name	source	ret_cleanup	result
 0x00344830	survarium::victory_item_core_animation_end_aware_state::on_animation_end	manual	4	
 0x00344870	survarium::victory_item_core_animation_end_aware_state::deserialize	manual	12	
 0x00344950	survarium::victory_item_core_animation_end_aware_state::serialize	manual	8	
+0x00344c90	survarium::victory_item_core_base_state::is_user_dead	manual	0	AL = 1 when [[state+1Ch]+8] exists and its +33Ch is 0
 0x00344cb0	survarium::victory_item_core_base_state::serialize	manual	8	
 0x00344d70	survarium::victory_item_core_base_state::deserialize	manual	12	
+0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	manual	12	none; ESP+8 out := bone "Weapon" x rot_y x "offset" x rot_y x user+40Ch (world); ESP+0Ch out := the same before user+40Ch
 0x0034be30	vostok::render::culling::portal_sector_structure::portal_sector_structure	manual	8	EAX (32 bits): owner storage pointer
 0x0034bfd0	vostok::render::culling::portal_sector_structure::~portal_sector_structure	manual		
 0x0034c100	vostok::render::culling::portal_sector_structure::get_sector_id	manual	4	EAX (32 bits): selected or fallback sector index
@@ -1499,7 +1521,12 @@ va	name	source	ret_cleanup	result
 0x0038caf0	vostok::ai::fsm::pop_state	manual	4	
 0x0038cc90	vostok::ai::fsm::serialize	manual	4	
 0x0038ccf0	vostok::ai::fsm::deserialize	manual	8	
+0x00391960	vostok::animation::animation_player::set_object_transform	manual	4	
+0x003919a0	vostok::animation::animation_player::get_object_transform	manual	0	EAX = EDI = the object's transform with the root motion (object_movement track) since the last set
 0x00396120		auto	0	
+0x0039f360	vostok::animation::mixing::n_ary_tree::get_object_transform	manual	12	
+0x003b2aa0	vostok::animation::bone_matrices_computer::convert_skeleton_branch	manual	16	*m = multiply_affine(EDX = *m, ECX = parent), then each child at m + 40h * (child - bone)
+0x003b2c90	vostok::animation::bone_matrices_computer::convert_to_object_matrices	manual	8	matrices local-to-parent -> model space in place: each root's children with the identity as parent, down the tree (0x3B2AA0); bones whose +18h byte has none of BL's bits skipped
 0x003b9f40	vostok::render::device::device	manual	12	EAX: constructed device receiver
 0x003b9fe0	vostok::render::device::on_device_removed	manual	4	
 0x003ba320	vostok::render::device::get_max_supported_resolution	manual	0	

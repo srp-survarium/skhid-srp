@@ -8,7 +8,7 @@ use crate::math::Quat;
 const UP: Vec3 = Vec3::Y;
 
 fn dead(key: u32) -> Seen {
-    Seen::Dead(Death { key: DeathKey(key), cause: Cause::Unknown, gun: None })
+    Seen::Dead(Death { key: DeathKey(key), cause: Cause::Unknown, gun: None, stood_on: Some((Vec3::ZERO, UP)) })
 }
 
 /// A frame: the step, then each place's draw of the given skeleton.

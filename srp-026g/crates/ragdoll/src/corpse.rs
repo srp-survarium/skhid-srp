@@ -21,7 +21,7 @@
 //! oldest settled corpse gives its slot up (it is drawn as the game draws it
 //! again); with none settled a new death keeps the game's clip.
 
-use crate::camera::HeadFollow;
+use crate::camera::EyeFollow;
 use crate::math::{Pose, Vec3};
 use crate::ragdoll::{
     Cause, DriverBones, GunShape, Level, Motion, PartPoses, Ragdoll, Rig, Skeleton, Start, driver_bones,
@@ -63,6 +63,8 @@ pub struct Death {
     pub cause: Cause,
     /// The gun the player held, if it drops.
     pub gun: Option<GunShape>,
+    /// The ground the player stood on (its transform's place, up).
+    pub stood_on: Option<(Vec3, Vec3)>,
 }
 
 /// A place's corpse.
@@ -155,19 +157,19 @@ impl Slot {
         }
     }
 
-    /// The drawn head's pose and the ground it rests on, while a ragdoll
-    /// draws the body.
-    fn head(&self) -> Option<(Pose, Option<(Vec3, Vec3)>)> {
+    /// The camera's bone on the drawn head (the eye, "Item") and the ground
+    /// the head rests on, while a ragdoll draws the body.
+    fn eye(&self) -> Option<(Pose, Option<(Vec3, Vec3)>)> {
         let mut skeleton = [Pose::IDENTITY; BONE_COUNT];
         match self {
             Slot::Ragdoll { ragdoll, .. } => {
                 let (parts, gun) = ragdoll.poses();
                 ragdoll.rig().draw(&parts, gun, &mut skeleton);
-                Some((skeleton[HEAD.index()], ragdoll.head_ground()))
+                Some((ragdoll.rig().eye(skeleton[HEAD.index()]), ragdoll.head_ground()))
             }
             Slot::Settled { rig, parts, gun, head_ground, .. } => {
                 rig.draw(parts, *gun, &mut skeleton);
-                Some((skeleton[HEAD.index()], *head_ground))
+                Some((rig.eye(skeleton[HEAD.index()]), *head_ground))
             }
             Slot::Free | Slot::Dying { .. } => None,
         }
@@ -178,7 +180,7 @@ impl Slot {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Eye {
     Off,
-    Following { place: usize, death: DeathKey, follow: HeadFollow, eye: Pose },
+    Following { place: usize, death: DeathKey, follow: EyeFollow, eye: Pose },
 }
 
 /// A frame as the step sees it.
@@ -219,9 +221,15 @@ impl Corpses {
         &mut self.pool[slot.index()]
     }
 
-    /// The pool's slots (the arena hands each place's draw its own).
-    pub fn pool_mut(&mut self) -> &mut [Slot; POOL] {
-        &mut self.pool
+    /// A slot of the corpses at `this`, as a pointer: the draws of several
+    /// places run at once on several threads, each with its own slot, so no
+    /// reference to the whole is made.
+    ///
+    /// # Safety
+    /// `this` points to a live `Corpses`; the caller is the slot's only user
+    /// while it holds the pointer.
+    pub unsafe fn slot_raw(this: *mut Corpses, slot: SlotId) -> *mut Slot {
+        unsafe { &raw mut (*this).pool[slot.index() % POOL] }
     }
 
     /// The local player's camera this frame, if it follows a ragdoll.
@@ -303,7 +311,15 @@ impl Corpses {
     fn advance(&mut self, place: usize, slot: SlotId, death: Death, frame: &Frame<'_>, level: &mut impl Level) {
         let next = match self.pool[slot.index()] {
             Slot::Dying { captured: Captured::Two { now, age, before, dt }, .. } => {
-                let start = Start { now: &now, before: &before, dt, up: frame.up, cause: death.cause, gun: death.gun };
+                let start = Start {
+                    now: &now,
+                    before: &before,
+                    dt,
+                    up: frame.up,
+                    cause: death.cause,
+                    gun: death.gun,
+                    stood_on: death.stood_on,
+                };
                 match Ragdoll::new(&start) {
                     Some(mut ragdoll) => {
                         // the time since that skeleton was drawn
@@ -329,18 +345,18 @@ impl Corpses {
     /// The local player's camera: on its own ragdoll's head.
     fn follow(&mut self, frame: &Frame<'_>) {
         let target = frame.local.and_then(|place| match self.place(place) {
-            Corpse::Body { death, slot } => self.pool[slot.index()].head().map(|head| (place, death, head)),
+            Corpse::Body { death, slot } => self.pool[slot.index()].eye().map(|eye| (place, death, eye)),
             Corpse::Alive | Corpse::Canned { .. } => None,
         });
         self.eye = match (self.eye, target) {
             (_, None) => Eye::Off,
-            (Eye::Following { place, death, mut follow, .. }, Some((p, d, (head, ground)))) if place == p && death == d => {
-                let eye = follow.follow(head, frame.up, ground, frame.dt);
+            (Eye::Following { place, death, mut follow, .. }, Some((p, d, (raw, ground)))) if place == p && death == d => {
+                let eye = follow.follow(raw, frame.up, ground, frame.dt);
                 Eye::Following { place, death, follow, eye }
             }
-            (_, Some((place, death, (head, ground)))) => {
-                let mut follow = HeadFollow::new(head, frame.up);
-                let eye = follow.follow(head, frame.up, ground, 0.0);
+            (_, Some((place, death, (raw, ground)))) => {
+                let mut follow = EyeFollow::new(raw, frame.up);
+                let eye = follow.follow(raw, frame.up, ground, 0.0);
                 Eye::Following { place, death, follow, eye }
             }
         };

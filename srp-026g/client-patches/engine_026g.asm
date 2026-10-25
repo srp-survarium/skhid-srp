@@ -38,6 +38,8 @@ global engine_mouse_ray
 global engine_accept_decal_edit
 global engine_cc_bool
 global engine_binded_action
+global engine_ray_test
+global engine_release_object
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -636,6 +638,45 @@ engine_binded_action:
     mov edi, [esp + 28]   ; kinds
     mov esi, [esp + 32]   ; key
     call 0x207d50
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_ray_test:
+    ; 0x75e20 vostok::physics::bullet_physics_world::ray_test: world ECX, result ESP+4, origin ESP+8, direction ESP+12, length ESP+16, group ESP+20, mask ESP+24, delegate ESP+28, unflipped ESP+32; pops 32
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 52]   ; unflipped -> 32
+    push dword [esp + 52]   ; delegate -> 28
+    push dword [esp + 52]   ; mask -> 24
+    push dword [esp + 52]   ; group -> 20
+    push dword [esp + 52]   ; length -> 16
+    push dword [esp + 52]   ; direction -> 12
+    push dword [esp + 52]   ; origin -> 8
+    push dword [esp + 52]   ; result -> 4
+    mov ecx, [esp + 52]   ; world
+    call 0x75e20
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_object:
+    ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; object
+    mov eax, [esp + 24]   ; count
+    call 0xe0210
     pop edi
     pop esi
     pop ebx
