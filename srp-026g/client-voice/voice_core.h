@@ -115,7 +115,7 @@ size_t sv_hello(uint32_t session, uint8_t flags, uint32_t muted, uint8_t *out, s
 /* ---- The receive side ------------------------------------------------ */
 
 /* Frames a speaker's jitter buffer holds: 320 ms. */
-#define SV_RING 16
+#define SV_RING 32
 /* Frames buffered before an utterance starts playing: 60 ms. */
 #define SV_TARGET_FRAMES 3
 /* An utterance with no audio for this long is closed. */
@@ -130,6 +130,8 @@ typedef struct {
     uint32_t underruns; /* ticks a playing speaker had nothing */
     uint32_t closed;    /* utterances closed */
     uint32_t timeouts;  /* of them, by silence */
+    uint32_t squelch_in;  /* far utterances begun with the radio's squelch */
+    uint32_t squelch_out; /* far utterances ended with it */
 } sv_stats;
 
 typedef struct sv_core sv_core;
@@ -139,7 +141,11 @@ void sv_core_free(sv_core *c);
 void sv_core_receive(sv_core *c, const sv_msg *m, uint32_t now_ms);
 /* The next 20 ms of every speaker mixed: SV_FRAME samples into `out`.
  * `volume` 0..1; a speaker whose bit is in `far_mask` goes through the
- * radio filter. */
+ * radio filter, over the radio's static. An utterance far when its playout
+ * begins opens with the retail squelch-in (its words held back until it has
+ * played: SV_SQUELCH_FRAMES); one far when it ends (its END, or closed by
+ * silence) closes with the squelch-out. A near one has neither; a switch
+ * mid-utterance adds none. */
 void sv_core_mix(sv_core *c, int16_t *out, float volume, uint32_t far_mask,
                  uint32_t now_ms);
 /* Bit n: slot n has an open utterance or was heard within SV_HEARD_MS. */
@@ -160,15 +166,33 @@ typedef struct {
     float b0, b1, b2, a1, a2, z1, z2;
 } sv_biquad;
 
+/* The radio filter, fitted to the retail quick commands' _radio takes
+ * against their plain takes (0.69d0, 32 pairs): an 8th-order high-pass at
+ * 405 Hz, five peaking sections, a low-pass at 6.3 kHz; then soft clipping
+ * and the retail static. */
+#define SV_RADIO_STAGES 10
+
 typedef struct {
-    sv_biquad stage[4]; /* high-pass 300 Hz twice, low-pass 3400 Hz twice */
-    uint32_t noise;     /* the noise's generator */
+    sv_biquad stage[SV_RADIO_STAGES];
+    sv_biquad post;     /* after the clipping: its low difference tones out */
+    uint32_t bed_at;    /* where in the static's loop */
 } sv_radio_state;
 
 void sv_radio_init(sv_radio_state *r, uint32_t seed);
-/* In place, samples in -1..1: band-pass, light clipping, and noise of
- * `noise` amplitude (rms) added. */
-void sv_radio_process(sv_radio_state *r, float *x, int n, float noise);
+/* In place, samples in -1..1: the filter, the clipping, and the static
+ * (sv_static_bed) at `bed` times its own level added (0: none). */
+void sv_radio_process(sv_radio_state *r, float *x, int n, float bed);
+
+/* The retail radio sounds, 16 kHz mono (radio_sounds.c, made by
+ * make_radio_sounds.py from 0.69d0's files). */
+extern const int16_t sv_squelch_in[];
+extern const unsigned sv_squelch_in_len;
+extern const int16_t sv_squelch_out[];
+extern const unsigned sv_squelch_out_len;
+extern const int16_t sv_static_bed[];
+extern const unsigned sv_static_bed_len;
+/* The frames a far utterance's words wait for its squelch-in. */
+#define SV_SQUELCH_FRAMES 8
 /* Sums to int16 with saturation. */
 void sv_mix_clamp(const float *acc, int16_t *out, int n);
 /* The capture gain of the options' sensitivity 0..1: 0.25..4. */

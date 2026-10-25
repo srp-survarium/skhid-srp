@@ -108,7 +108,7 @@
             -msse2 -mfpmath=sse -mstackrealign \
             -I${voiceOpusWin.dev}/include/opus \
             -shared -o skhid_voice.dll \
-            voice_win.c voice_core.c skhid_voice.def libopus-static.a \
+            voice_win.c voice_core.c radio_sounds.c skhid_voice.def libopus-static.a \
             -static -static-libgcc -Wl,--as-needed -Wl,--gc-sections \
             -lws2_32 -lwinmm -s
           # Nothing but Windows' own DLLs.
@@ -154,7 +154,11 @@
         dontConfigure = true;
         buildPhase = noCR ''
           $CC -std=c99 -D_DEFAULT_SOURCE -O2 -Wall -Wextra -Werror \
-            $(pkg-config --cflags opus) -o test_voice test_voice.c voice_core.c \
+            $(pkg-config --cflags opus) -o test_voice test_voice.c voice_core.c radio_sounds.c \
+            $(pkg-config --libs opus) -lm
+          # radio_demo: a WAV through the voice's path, for listening (built, not run)
+          $CC -std=c99 -D_DEFAULT_SOURCE -O2 -Wall -Wextra -Werror \
+            $(pkg-config --cflags opus) -o radio_demo radio_demo.c voice_core.c radio_sounds.c \
             $(pkg-config --libs opus) -lm
           ./test_voice >test_voice.log || { cat test_voice.log; exit 1; }
           cat test_voice.log

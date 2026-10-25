@@ -352,22 +352,36 @@ size_t sv_hello(uint32_t session, uint8_t flags, uint32_t muted, uint8_t *out, s
 
 /* ---- The radio filter and the mixer ------------------------------------ */
 
-static void biquad_set(sv_biquad *q, int high, float f, float quality)
+enum { BIQUAD_LOW, BIQUAD_HIGH, BIQUAD_PEAK };
+
+/* RBJ's audio-EQ cookbook: a low-pass, a high-pass, or a peaking section of
+ * `gain_db`. */
+static void biquad_set(sv_biquad *q, int kind, float f, float quality, float gain_db)
 {
     const float pi = 3.14159265358979f;
     float w0 = 2.0f * pi * f / (float)SV_RATE;
     float c = cosf(w0), alpha = sinf(w0) / (2.0f * quality);
     float a0 = 1.0f + alpha;
-    if (high) {
-        q->b0 = (1.0f + c) / 2.0f / a0;
-        q->b1 = -(1.0f + c) / a0;
+    if (kind == BIQUAD_PEAK) {
+        float a = powf(10.0f, gain_db / 40.0f);
+        a0 = 1.0f + alpha / a;
+        q->b0 = (1.0f + alpha * a) / a0;
+        q->b1 = -2.0f * c / a0;
+        q->b2 = (1.0f - alpha * a) / a0;
+        q->a1 = -2.0f * c / a0;
+        q->a2 = (1.0f - alpha / a) / a0;
     } else {
-        q->b0 = (1.0f - c) / 2.0f / a0;
-        q->b1 = (1.0f - c) / a0;
+        if (kind == BIQUAD_HIGH) {
+            q->b0 = (1.0f + c) / 2.0f / a0;
+            q->b1 = -(1.0f + c) / a0;
+        } else {
+            q->b0 = (1.0f - c) / 2.0f / a0;
+            q->b1 = (1.0f - c) / a0;
+        }
+        q->b2 = q->b0;
+        q->a1 = -2.0f * c / a0;
+        q->a2 = (1.0f - alpha) / a0;
     }
-    q->b2 = q->b0;
-    q->a1 = -2.0f * c / a0;
-    q->a2 = (1.0f - alpha) / a0;
     q->z1 = q->z2 = 0.0f;
 }
 
@@ -380,14 +394,39 @@ static float biquad_run(sv_biquad *q, float x)
     return y;
 }
 
+/* The retail radio's response, relative to its 500..3150 Hz average, by
+ * third octave (the _radio takes against the plain ones, 0.69d0 en head_00,
+ * 32 pairs, median): 250 Hz -33, 315 -17, 400 -2, 500 +7, 630 +6, 800 +1,
+ * 1 kHz -6.5, 1.25 -2, 1.6 0, 2 +3, 2.5 -2, 3.15 -6.6, 4 +7.7, 5 +9.7,
+ * 6.3 +3.7, 8 -8.5 dB. These sections (fitted by least squares, below
+ * 250 Hz weighed less: retail's floor there is its static) give it within
+ * 3.3 dB from 400 Hz up, 4.5 dB at 315. */
+static const struct {
+    int kind;
+    float f, q, gain;
+} radio_stages[SV_RADIO_STAGES] = {
+    /* 8th-order Butterworth high-pass */
+    {BIQUAD_HIGH, 405.0f, 0.5098f, 0.0f},
+    {BIQUAD_HIGH, 405.0f, 0.6013f, 0.0f},
+    {BIQUAD_HIGH, 405.0f, 0.9000f, 0.0f},
+    {BIQUAD_HIGH, 405.0f, 2.5629f, 0.0f},
+    {BIQUAD_PEAK, 575.0f, 3.0f, 12.0f},
+    {BIQUAD_PEAK, 790.0f, 0.5f, -12.0f},
+    {BIQUAD_PEAK, 1990.0f, 3.0f, 6.6f},
+    {BIQUAD_PEAK, 3120.0f, 1.0f, -12.0f},
+    {BIQUAD_PEAK, 4490.0f, 3.0f, 12.0f},
+    {BIQUAD_LOW, 6300.0f, 0.7071f, 0.0f},
+};
+
 void sv_radio_init(sv_radio_state *r, uint32_t seed)
 {
-    /* Fourth-order Butterworth each way: two sections, Q 0.5412 and 1.3066. */
-    biquad_set(&r->stage[0], 1, 300.0f, 0.5412f);
-    biquad_set(&r->stage[1], 1, 300.0f, 1.3066f);
-    biquad_set(&r->stage[2], 0, 3400.0f, 0.5412f);
-    biquad_set(&r->stage[3], 0, 3400.0f, 1.3066f);
-    r->noise = seed ? seed : 0x2545F491u;
+    int k;
+    for (k = 0; k < SV_RADIO_STAGES; k++)
+        biquad_set(&r->stage[k], radio_stages[k].kind, radio_stages[k].f, radio_stages[k].q,
+                   radio_stages[k].gain);
+    biquad_set(&r->post, BIQUAD_HIGH, 400.0f, 0.7071f, 0.0f);
+    /* Each speaker's static from its own place in the loop. */
+    r->bed_at = sv_static_bed_len ? seed % sv_static_bed_len : 0;
 }
 
 /* tanh-like, without libm's tanh: exact enough below 3, 1 beyond. */
@@ -402,23 +441,33 @@ static float soft_sat(float v)
     return v * (27.0f + v2) / (27.0f + 9.0f * v2);
 }
 
-#define RADIO_DRIVE 2.0f
-/* The band-pass takes the lows away: about as loud as the plain voice. */
-#define RADIO_MAKEUP 1.25f
+/* The clipping: retail's _radio takes have a crest factor 4.2 dB below the
+ * plain ones' (12.9 against 17.1 dB, the median of the 32 pairs). This drive
+ * takes 2.2 dB off the plain takes through our path (radio_demo); a harder
+ * one takes more, but its distortion fills the bands the filter empties
+ * (3.15 kHz, below 400 Hz) and the response no longer matches retail's.
+ * The high-pass after it (`post`) takes the clipping's low difference tones
+ * out: without it 125 Hz is at -29 dB, retail's -47. */
+#ifndef RADIO_DRIVE
+#define RADIO_DRIVE 5.0f
+#endif
+/* After the filter and the clipping: as loud as the plain voice. */
+#ifndef RADIO_MAKEUP
+#define RADIO_MAKEUP 2.5f
+#endif
 
-void sv_radio_process(sv_radio_state *r, float *x, int n, float noise)
+void sv_radio_process(sv_radio_state *r, float *x, int n, float bed)
 {
-    /* Uniform noise of rms `noise`: amplitude noise x sqrt(3). */
-    float amplitude = noise * 1.7320508f;
     int i, k;
     for (i = 0; i < n; i++) {
         float v = x[i];
-        for (k = 0; k < 4; k++)
+        for (k = 0; k < SV_RADIO_STAGES; k++)
             v = biquad_run(&r->stage[k], v);
-        v = soft_sat(RADIO_DRIVE * v) / RADIO_DRIVE * RADIO_MAKEUP;
-        if (amplitude > 0.0f) {
-            r->noise = r->noise * 1664525u + 1013904223u;
-            v += amplitude * ((float)(r->noise >> 8) / 8388608.0f - 1.0f);
+        v = biquad_run(&r->post, soft_sat(RADIO_DRIVE * v) / RADIO_DRIVE * RADIO_MAKEUP);
+        if (bed > 0.0f && sv_static_bed_len) {
+            v += bed * (float)sv_static_bed[r->bed_at] / 32768.0f;
+            if (++r->bed_at >= sv_static_bed_len)
+                r->bed_at = 0;
         }
         x[i] = v;
     }
@@ -448,8 +497,9 @@ float sv_mic_gain(float sensitivity)
 
 /* ---- The receive side ------------------------------------------------- */
 
-/* Noise under a far voice: about -40 dBFS. */
-#define RADIO_NOISE 0.01f
+/* The static under a far voice: the retail bed at its own level (-44 dBFS,
+ * the _radio takes' static between words). */
+#define RADIO_BED 1.0f
 
 typedef struct {
     int present;
@@ -472,6 +522,11 @@ typedef struct {
     sv_cell ring[SV_RING];
     OpusDecoder *dec;
     sv_radio_state radio;
+    int begun;          /* its playout has begun (its squelch-in decided) */
+    int hold;           /* frames its words still wait for the squelch-in */
+    int squelch_out;    /* closed after it had begun: the mixer decides */
+    const int16_t *fx;  /* a squelch playing, and where */
+    uint32_t fx_len, fx_at;
 } sv_speaker;
 
 struct sv_core {
@@ -497,6 +552,8 @@ static void speaker_open(sv_speaker *s, uint16_t utt, int slot)
     s->open = 1;
     s->playing = 0;
     s->ended = 0;
+    s->begun = 0;
+    s->hold = 0;
     s->utt = utt;
     s->next = 0;
     s->top = 0;
@@ -513,6 +570,9 @@ static void speaker_close(sv_core *c, sv_speaker *s)
         return;
     s->open = 0;
     s->playing = 0;
+    s->squelch_out = s->begun;
+    s->begun = 0;
+    s->hold = 0;
     s->have_closed = 1;
     s->closed_utt = s->utt;
     c->stats.closed++;
@@ -623,6 +683,9 @@ void sv_core_mute(sv_core *c, uint32_t mask)
             continue;
         speaker_close(c, s);
         s->heard = 0;
+        /* Cut at once: no squelch either. */
+        s->squelch_out = 0;
+        s->fx = NULL;
     }
 }
 
@@ -668,6 +731,31 @@ void sv_core_receive(sv_core *c, const sv_msg *m, uint32_t now_ms)
         break;
     default:
         break;
+    }
+}
+
+/* Whether the speaker's playout can begin: as speaker_play starts it. */
+static int speaker_ready(const sv_speaker *s)
+{
+    return s->top - s->next >= SV_TARGET_FRAMES || (s->ended && s->top > s->next);
+}
+
+static void speaker_fx(sv_speaker *s, const int16_t *fx, uint32_t len)
+{
+    s->fx = fx;
+    s->fx_len = len;
+    s->fx_at = 0;
+}
+
+/* An utterance that had begun has ended: far, the squelch-out. */
+static void squelch_out(sv_core *c, sv_speaker *s, int far)
+{
+    if (!s->squelch_out)
+        return;
+    s->squelch_out = 0;
+    if (far && sv_squelch_out_len) {
+        speaker_fx(s, sv_squelch_out, sv_squelch_out_len);
+        c->stats.squelch_out++;
     }
 }
 
@@ -735,12 +823,32 @@ void sv_core_mix(sv_core *c, int16_t *out, float volume, uint32_t far_mask,
     memset(acc, 0, sizeof acc);
     for (k = 0; k < SV_SLOTS; k++) {
         sv_speaker *s = &c->speaker[k];
-        if (!speaker_play(c, s, pcm, now_ms))
-            continue;
-        if (far_mask & (1u << k))
-            sv_radio_process(&s->radio, pcm, SV_FRAME, RADIO_NOISE);
-        for (i = 0; i < SV_FRAME; i++)
-            acc[i] += pcm[i] * volume;
+        int far = (far_mask & (1u << k)) != 0;
+        squelch_out(c, s, far); /* it ended in a receive since the last tick */
+        if (s->open && !s->begun && speaker_ready(s)) {
+            /* Its playout begins: far, the squelch-in first, the words after it. */
+            s->begun = 1;
+            if (far && sv_squelch_in_len) {
+                speaker_fx(s, sv_squelch_in, sv_squelch_in_len);
+                s->hold = SV_SQUELCH_FRAMES;
+                c->stats.squelch_in++;
+            }
+        }
+        if (s->hold > 0) {
+            s->hold--;
+        } else if (speaker_play(c, s, pcm, now_ms)) {
+            if (far)
+                sv_radio_process(&s->radio, pcm, SV_FRAME, RADIO_BED);
+            for (i = 0; i < SV_FRAME; i++)
+                acc[i] += pcm[i] * volume;
+        }
+        squelch_out(c, s, far); /* it ended in this tick's playout */
+        if (s->fx) {
+            for (i = 0; i < SV_FRAME && s->fx_at < s->fx_len; i++)
+                acc[i] += (float)s->fx[s->fx_at++] / 32768.0f * volume;
+            if (s->fx_at >= s->fx_len)
+                s->fx = NULL;
+        }
     }
     sv_mix_clamp(acc, out, SV_FRAME);
 }

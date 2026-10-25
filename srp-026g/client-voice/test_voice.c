@@ -456,13 +456,23 @@ static void test_loopback(void)
           st.timeouts);
     CHECK(st.decoded == FRAMES, "no END: %u decoded", st.decoded);
 
-    /* Through the radio filter: still the voice, as loud. */
+    /* Through the radio filter: still the voice. Its level against the
+     * plain voice is measured on retail speech (radio_demo: -0.2 dB); this
+     * synthetic voice has its fundamental below the radio's band. */
     for (int i = 0; i < count; i++)
         arrive[i] = 50 + 40 * (i > 0 ? i - 1 : 0);
     n = listen(d, count, arrive, lossy, TICKS, &st, 1u << 3);
     gain = 10 * log10(energy(lossy, n) / energy(clean, n));
-    printf("radio: level %+.1f dB against the plain voice\n", gain);
-    CHECK(fabs(gain) < 4.0, "radio: level %+.1f dB", gain);
+    printf("radio: level %+.1f dB against the plain voice; squelch in %u, out %u\n", gain,
+           st.squelch_in, st.squelch_out);
+    CHECK(fabs(gain) < 8.0, "radio: level %+.1f dB", gain);
+    CHECK(st.squelch_in == 1 && st.squelch_out == 1, "radio: squelch in %u, out %u",
+          st.squelch_in, st.squelch_out);
+    CHECK(st.decoded == FRAMES, "radio: %u decoded (the squelch-in holds the words back, "
+          "drops none)", st.decoded);
+    n = listen(d, count, arrive, lossy, TICKS, &st, 0);
+    CHECK(st.squelch_in == 0 && st.squelch_out == 0, "near: squelch in %u, out %u",
+          st.squelch_in, st.squelch_out);
 }
 
 /* ---- Utterances, timeouts, mutes ---------------------------------------- */
@@ -609,14 +619,33 @@ static double sine_gain_db(double f)
 
 static void test_radio(void)
 {
-    double g100 = sine_gain_db(100), g1k = sine_gain_db(1000), g6k = sine_gain_db(6000);
-    double g300 = sine_gain_db(300), g3400 = sine_gain_db(3400);
-    printf("radio: 100 Hz %+.1f dB, 300 Hz %+.1f, 1 kHz %+.1f, 3.4 kHz %+.1f, 6 kHz %+.1f\n",
-           g100, g300, g1k, g3400, g6k);
-    CHECK(g100 < -30, "100 Hz passes: %+.1f dB", g100);
-    CHECK(g6k < -25, "6 kHz passes: %+.1f dB", g6k);
-    CHECK(fabs(g1k) < 3, "1 kHz: %+.1f dB", g1k);
-    CHECK(g300 > -6 && g3400 > -6, "the band's edges: %+.1f, %+.1f dB", g300, g3400);
+    /* The filter's shape against retail's (the _radio takes against the
+     * plain ones, 0.69d0, median by third octave; voice_core.c), each
+     * relative to the 500..3150 Hz average. Our filter's sections are fitted
+     * to it; a sine at a band's centre is within 4.5 dB of retail's band. */
+    static const double centre[] = {400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150,
+                                    4000, 5000, 6300};
+    static const double retail[] = {-1.7, 7.2, 6.0, 1.1, -6.5, -2.1, 0.0, 3.0, -1.8, -6.6,
+                                    7.7, 9.7, 3.7};
+    enum { BANDS = sizeof centre / sizeof *centre };
+    double ours[BANDS], mid = 0;
+    int in_mid = 0;
+    for (int b = 0; b < BANDS; b++) {
+        ours[b] = sine_gain_db(centre[b]);
+        if (centre[b] >= 500 && centre[b] <= 3150)
+            mid += ours[b], in_mid++;
+    }
+    mid /= in_mid;
+    printf("radio vs retail (dB, 0 = the 500..3150 Hz average):");
+    for (int b = 0; b < BANDS; b++) {
+        printf(" %.0f:%+.1f/%+.1f", centre[b], ours[b] - mid, retail[b]);
+        CHECK(fabs(ours[b] - mid - retail[b]) < 4.5, "radio at %.0f Hz: %+.1f dB, retail %+.1f",
+              centre[b], ours[b] - mid, retail[b]);
+    }
+    printf("\n");
+    double g125 = sine_gain_db(125) - mid, g250 = sine_gain_db(250) - mid;
+    printf("radio: 125 Hz %+.1f dB, 250 Hz %+.1f (retail -47, -33)\n", g125, g250);
+    CHECK(g125 < -40 && g250 < -25, "the lows pass: 125 Hz %+.1f, 250 Hz %+.1f dB", g125, g250);
 
     /* Clipping: a loud tone stays within -1..1 and is squashed, not cut. */
     {
@@ -633,19 +662,21 @@ static void test_radio(void)
         printf("radio: a full-scale 1 kHz peaks at %.2f\n", peak);
         CHECK(peak < 0.75f && peak > 0.4f, "clipping: the peak is %.2f", peak);
     }
-    /* The noise: about -40 dBFS rms on silence. */
+    /* The static: the retail bed, -44 dBFS rms on silence, looped. */
     {
         float x[SV_RATE];
         sv_radio_state r;
         double e = 0;
         sv_radio_init(&r, 1);
         memset(x, 0, sizeof x);
-        sv_radio_process(&r, x, SV_RATE, 0.01f);
+        sv_radio_process(&r, x, SV_RATE, 1.0f);
         for (int i = 0; i < SV_RATE; i++)
             e += (double)x[i] * x[i];
         double db = 10 * log10(e / SV_RATE);
-        printf("radio: noise %.1f dBFS\n", db);
-        CHECK(db > -43 && db < -37, "noise %.1f dBFS", db);
+        printf("radio: static %.1f dBFS (a %u-sample loop)\n", db, sv_static_bed_len);
+        CHECK(db > -46 && db < -42, "static %.1f dBFS", db);
+        CHECK(sv_static_bed_len > SV_RATE / 2, "the static's loop is %u samples",
+              sv_static_bed_len);
     }
     /* The mixer saturates. */
     {
@@ -695,12 +726,104 @@ static void test_radio(void)
           "the microphone's gain");
 }
 
+/* ---- The squelch -------------------------------------------------------- */
+
+/* Slot 3 talks: START and 12 frames at t 0, END at `end_ms` (none: < 0),
+ * muted at `mute_at` (never: < 0); the mixer runs to 1.5 s with `far_at`
+ * giving the far mask by time. The stats; the frames from the begin to the
+ * words' first; the output's first SV_SQUELCH_FRAMES ticks from the begin. */
+static sv_stats squelch_case(int end_ms, uint32_t (*far_at)(uint32_t t), int mute_at,
+                             int *words_tick, int16_t *head)
+{
+    sv_encoder *enc = sv_encoder_new();
+    sv_core *c = sv_core_new();
+    int16_t pcm[SV_FRAME], out[SV_FRAME];
+    uint8_t frame[SV_MAX_FRAME_BYTES];
+    size_t len;
+    int begun = -1;
+    for (int i = 0; i < SV_FRAME; i++)
+        pcm[i] = (int16_t)(8000 * sin(2 * PI * 1000.0 * i / SV_RATE));
+    len = sv_encode(enc, pcm, frame, sizeof frame);
+    feed(c, SV_RELAY_START, 3, 1, 0, NULL, 0, 0);
+    for (uint16_t s = 0; s < 6; s++)
+        feed(c, SV_RELAY_AUDIO, 3, 1, s, frame, len, 0);
+    *words_tick = -1;
+    for (uint32_t t = 0, tick = 0; t < 1500; t += 20, tick++) {
+        uint32_t decoded = sv_core_stats(c).decoded;
+        if (end_ms >= 0 && t == (uint32_t)end_ms)
+            feed(c, SV_RELAY_END, 3, 1, 0, NULL, 0, t);
+        if (mute_at >= 0 && t == (uint32_t)mute_at)
+            sv_core_mute(c, 1u << 3);
+        sv_core_mix(c, out, 1.0f, far_at(t), t);
+        if (begun < 0 && (sv_core_stats(c).squelch_in || sv_core_stats(c).decoded))
+            begun = (int)tick;
+        if (begun >= 0 && tick - (uint32_t)begun < SV_SQUELCH_FRAMES && head)
+            memcpy(head + (tick - (uint32_t)begun) * SV_FRAME, out, sizeof out);
+        if (*words_tick < 0 && sv_core_stats(c).decoded > decoded)
+            *words_tick = (int)tick - begun;
+    }
+    sv_stats st = sv_core_stats(c);
+    sv_core_free(c);
+    sv_encoder_free(enc);
+    return st;
+}
+
+static uint32_t always_far(uint32_t t) { (void)t; return 1u << 3; }
+static uint32_t never_far(uint32_t t) { (void)t; return 0; }
+static uint32_t far_later(uint32_t t) { return t >= 100 ? 1u << 3 : 0; }
+static uint32_t near_later(uint32_t t) { return t >= 100 ? 0 : 1u << 3; }
+
+static void test_squelch(void)
+{
+    static int16_t head[SV_SQUELCH_FRAMES * SV_FRAME];
+    int words;
+    sv_stats st;
+    CHECK(sv_squelch_in_len == SV_SQUELCH_FRAMES * SV_FRAME,
+          "the squelch-in is %u samples, the words wait %d frames", sv_squelch_in_len,
+          SV_SQUELCH_FRAMES);
+    CHECK(sv_squelch_out_len > SV_RATE / 20 && sv_squelch_out_len < SV_RATE / 2,
+          "the squelch-out is %u samples", sv_squelch_out_len);
+
+    /* Far: the squelch-in alone, then the words; the squelch-out at the END. */
+    st = squelch_case(400, always_far, -1, &words, head);
+    printf("squelch: far: in %u, out %u, the words after %d frames\n", st.squelch_in,
+           st.squelch_out, words);
+    CHECK(st.squelch_in == 1 && st.squelch_out == 1, "far: in %u, out %u", st.squelch_in,
+          st.squelch_out);
+    CHECK(words == SV_SQUELCH_FRAMES, "far: the words after %d frames, not %d", words,
+          SV_SQUELCH_FRAMES);
+    CHECK(!memcmp(head, sv_squelch_in, sizeof head),
+          "far: the first %d frames are not the retail squelch-in", SV_SQUELCH_FRAMES);
+    /* Far, its END lost: the squelch-out when the silence closes it. */
+    st = squelch_case(-1, always_far, -1, &words, NULL);
+    CHECK(st.squelch_in == 1 && st.squelch_out == 1 && st.timeouts == 1,
+          "far, no END: in %u, out %u, timeouts %u", st.squelch_in, st.squelch_out,
+          st.timeouts);
+    /* Near: none, and the words at once. */
+    st = squelch_case(400, never_far, -1, &words, NULL);
+    CHECK(st.squelch_in == 0 && st.squelch_out == 0 && words == 0,
+          "near: in %u, out %u, the words after %d", st.squelch_in, st.squelch_out, words);
+    /* A switch mid-utterance adds none: in for far at the begin, out for far
+     * at the end. */
+    st = squelch_case(400, far_later, -1, &words, NULL);
+    CHECK(st.squelch_in == 0 && st.squelch_out == 1, "near then far: in %u, out %u",
+          st.squelch_in, st.squelch_out);
+    st = squelch_case(400, near_later, -1, &words, NULL);
+    CHECK(st.squelch_in == 1 && st.squelch_out == 0, "far then near: in %u, out %u",
+          st.squelch_in, st.squelch_out);
+    /* Muted while it talks: cut, no squelch-out. */
+    st = squelch_case(400, always_far, 200, &words, NULL);
+    CHECK(st.squelch_in == 1 && st.squelch_out == 0, "muted: in %u, out %u", st.squelch_in,
+          st.squelch_out);
+}
+
 int main(void)
 {
     test_wire();
     test_loopback();
     test_utterances();
     test_radio();
+    test_squelch();
     if (failures) {
         printf("%d checks FAILED\n", failures);
         return 1;
