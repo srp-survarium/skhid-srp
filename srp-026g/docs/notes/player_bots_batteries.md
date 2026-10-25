@@ -631,3 +631,78 @@ SE):
   fix is in the bots' code and comes in its own PR.
 - tdm: every run's decisions digest equal to before (no carrying, the
   respawn unchanged).
+
+## Bots: a carrier never fires, and a hurt or crowded carrier keeps bringing it home
+
+### Why
+
+With the bench's game made to carry as the game does (#410), bots dropped
+about 1.25 batteries a seed by a fire press (4-5, 12 maps). In the game a
+new fire press while carrying drops the battery (the input handler
+0x2D8E73..0x2D8EC8, PROVEN), so live bots do this. Traced on level_05
+day 2 10v10, two causes:
+
+- **The fire gate:** `drive_tick` let the reflex fire on the play's
+  `intent.fire` alone. Bring holds fire, but any other play lets it fire,
+  carrying or not.
+- **The carrier's play:** a carrier's Bring candidate went through
+  Collect's considerations for a battery to fetch: health above 25 % and
+  fewer than 4 enemies by the battery (the battery in hand: by the bot). A
+  hurt or crowded carrier scored 0, its running Collect had no candidate
+  ("the play ran out"), and the commander gave it Crossfire, PairUp or
+  Roam, which fire.
+
+### What changed
+
+- **`mod.rs` `drive_tick`:** the reflex may fire only when the play allows
+  it and the bot carries nothing (`may_fire`, for `outer_gates` and
+  `Reflex::tick`). `carrying` comes with the worlds, up to 2 s after a
+  take.
+- **`plays/collect.rs`, the take:** no fire for 2 s after a use pressed at
+  the battery (`TAKE_HOLD_FIRE_MS`, GUESS: the worlds' 2 s), since the use
+  may have taken it before the bot knows. With the gate alone, every fire
+  drop left in the traces (13-15, seeds 1-4: 3 of 3) came 0.45-0.85 s
+  after a take.
+- **`plays/collect.rs`:** a carrier's Bring is scored with health 1 and no
+  enemies near (`candidate_given`), so it keeps Bring (`Rank::Alarm`) until
+  it delivers. Dropping becomes Collect's own choice in the drop-fight PR.
+  The players agree: in 919 human carries under fire, those who kept
+  carrying did no worse than those who dropped.
+- Tests: `a_hurt_carrier_among_enemies_keeps_bringing_it_home` (fails
+  without the change); the take test asserts no fire as it uses and
+  within 2 s of the use.
+
+### Bench
+
+Against base-a6fac9de, batt preset, 16 seeds over 12 maps, after − base
+per seed (SE). 4-5 and 9-10: the gate and Bring (53658702); 13-15: with the
+take's hold-fire too (633fb535), the final tree. No tier plays as 4-5.
+
+| | 4-5 | 9-10 | 13-15 |
+|---|---|---|---|
+| drops by fire (base → after) | 1.8 → 0.1 | 2.1 → 0.2 | 3.2 → 0.1 |
+| delivered (base 75, 74, 71) | +1.6 (0.58) | +2.2 (0.63) | +1.6 (0.72) |
+| carriers killed (base 17, 21, 21) | 0.0 (0.74) | −1.5 (0.87) | +1.5 (0.81) |
+| deaths, all | −2.0 (1.8) | −0.1 (2.4) | +0.1 (1.6) |
+| Collect deaths | +3.8 (1.4) | +2.6 (1.9) | +4.9 (1.7) |
+| carriers' speed, m/s over 12 maps | +0.65 (0.15) | +0.74 (0.15) | +0.74 (0.18) |
+| s without a play | −12 (3.4) | −13 (5.1) | −20 (6.3) |
+| quick ends | −1.5 (4.0) | −8.2 (2.8) | −6.6 (6.2) |
+| flips | +0.5 (2.7) | −6.9 (2.9) | −2.9 (3.4) |
+| pocket s | −13 (7.4) | −5 (16) | −4 (9.4) |
+| Collect s (base ~13,600-14,000) | −30 (44) | −88 (54) | +73 (61) |
+
+- **Collect deaths are mostly a relabelling.** Traced at 13-15 (seeds
+  1-4, the gate and Bring only): of 23 carriers a seed dying on Collect,
+  17.5 would have kept Bring anyway, 4.3 were hurt (the old score would
+  have moved them to another play), 0.5 crowded, 0.25 both, 0.5 inside
+  the take's lag. In the base those hurt carriers died too, counted under
+  the play they were moved to: Collect deaths +4.9 with all deaths +0.1.
+- **Carriers killed at 13-15** is +1.5, 1.9 SE: the hurt carriers who keep
+  carrying home instead of fighting. A carrier moved to a fight play can't
+  shoot without dropping, so the old way is no better; the crowded or hit
+  carrier's own choice to drop and fight is the drop-fight PR.
+- The take's hold-fire on its own (13-15, 633fb535 against 53658702): fire
+  drops 0.7 → 0.1 (−3.1 SE), the rest within noise.
+- tdm: seeds 1-2 at 4-5, 9-10 and 13-15, both commits; every run's
+  decisions digest equal to base's.

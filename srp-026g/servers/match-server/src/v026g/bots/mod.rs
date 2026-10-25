@@ -2301,14 +2301,19 @@ fn drive_tick(
     };
     // [aimpoint] What of its target shows, before the reflex aims.
     bot.reflex.look(aiming_me, view, &tactics.world, time);
-    bot.reflex.outer_gates(time, !intent.fire, bot.jump_hold > 0);
+    // A carrier never fires: in the game a new fire press drops the battery
+    // (the input handler 0x2D8E73..0x2D8EC8, PROVEN), whatever its play.
+    // `carrying` comes with the worlds (up to 2 s after a take); the take
+    // itself uses and Bring holds fire meanwhile.
+    let may_fire = intent.fire && me.carrying.is_none();
+    bot.reflex.outer_gates(time, !may_fire, bot.jump_hold > 0);
     let over = bot.reflex.tick(
         aiming_me,
         view,
         &bot.memory,
         time,
         // No shot while a jump is held (`JUMP_HOLD_MS`).
-        intent.fire && bot.jump_hold == 0,
+        may_fire && bot.jump_hold == 0,
         &tuning.aim,
         bot.skill,
         &mut bot.rng,
