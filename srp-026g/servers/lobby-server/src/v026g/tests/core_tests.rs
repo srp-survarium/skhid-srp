@@ -2625,6 +2625,7 @@ fn the_operators_text_reaches_everyone_and_who_signs_in_later() {
 
 mod away_tests;
 mod balance_tests;
+mod chat_translate_tests;
 mod clan_tests;
 mod feedback_tests;
 mod gear_tests;

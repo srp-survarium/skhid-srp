@@ -1,0 +1,29 @@
+# The chat gate beside srp (docs/notes/chat-translation.md, "Where the gate
+# runs"), not deployed anywhere yet. Run with the main compose file:
+#   docker compose -f docker-compose.yml -f deploy/chat-moderation/docker-compose.gate.yml up -d
+# and in .env:
+#   SRP_CHAT_MODERATION_URL=http://chat-gate:8099/score
+#   SRP_CHAT_MODERATION_THRESHOLDS=<the benchmark's, per language>
+# The models: SRP26_GATE_MODELS, a folder of models.json and the exported
+# model folders (export.py). The service is reachable from srp only.
+services:
+  chat-gate:
+    build: ./deploy/chat-moderation
+    image: srp-chat-gate
+    restart: unless-stopped
+    volumes:
+      - ${SRP26_GATE_MODELS:-./gate-models}:/models:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${SRP26_GATE_MEMORY:-256m}
+    cpus: ${SRP26_GATE_CPUS:-0.5}
+    # No port published: srp reaches it by name on the compose network.
+    expose:
+      - "8099"
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"

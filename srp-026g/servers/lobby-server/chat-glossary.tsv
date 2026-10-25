@@ -1,0 +1,373 @@
+# The chat translation's glossary (docs/notes/chat-translation.md; read by
+# servers/lobby-server/src/v026g/translate/glossary.rs, built into srp).
+# One row a term: kind, en, ru, uk, de, pl, note. In a cell, | between the
+# ways players write it (the first is the one a translation uses); a way
+# ending in * matches every word it begins. Slang rows are added by hand from
+# real chat (srp-chat-glossary slang), never guessed.
+# Seeded 2026-10-23 with srp-chat-glossary seed: SRP_GAME_DATA =
+# resources/game-026g/server-game-data.db, the localizations of the players'
+# game (resources.db with patches 12, 14 and 17).
+# kind	en	ru	uk	de	pl	note
+faction	Black Market	Чёрный Рынок	Чорний Ринок	Schwarzer Markt	Czarny Rynek	st_black_market_faction
+faction	The Fringe Settlers	Поселение "Край"	Поселення "Край"	Siedlung "Rand"	Osadnicy Skraju	st_border_faction
+faction	The Renaissance Army	Армия Возрождения	Армія Відродження	Arme der Wiedergeburt	Armia Odrodzenia	st_renaissance_faction
+faction	Scavengers	Бродяги	Бродяги	Landschtreicher	Włóczędzy	st_scavengers_faction
+item	A-545	А-545	А-545	A-545	A-545	st_a545_name
+item	9A-91	9А-91	9А-91	9A-91	9A-91	st_a9_91_name
+item	Motherwort extract	Экстракт пустырника	Екстракт кропиви собачої	Extrakt des Herzgespanns	Ekstrakt z serdecznika	st_aiming_booster_name
+item	AK-12	АК-12	АК-12	AK-12	AK-12	st_ak12_name
+item	AK-74M	АК-74М	АК-74М	AK-74M	AK-74M	st_ak74m_name
+item	AK-74N	АК-74Н	АК-74Н	AK-74N	AK-74N	st_ak74n_name
+item	AKS-74U	АКC-74У	АКC-74У	AKS-74U	AKS-74U	st_ak74u_name
+item	AKM	АКМ	АКМ	AKM	AKM	st_akmn_name
+item	12.7x54 ПТ	12.7x54 ПТ	12.7x54 ПТ	12.7x54 PT	12.7x54 PT	st_ammo_127x54_pt_name
+item	12.7x54 VPS	12.7x54 ВПС	12.7x54 ВПС	12:7x54 VPS	12.7x54 WPS	st_ammo_127x54_vps_name
+item	12x70, smallshot	12x70, дробь	12x70, дріб	12x70, Schrotkugel	12x70, Śrutowa	st_ammo_12mm_buck_name
+item	12x70, slug	12x70, жакан	12х70, жакан	12x70, Jacques	12x70, breneka	st_ammo_12mm_slug_name
+item	.30-30 Winchester	.30-30 Винчестер	.30-30 Вінчестер	.30-30 Winchester	30-30 Winchester	st_ammo_30_name
+item	5.45x39 7N10	5.45x39 7Н10	5.45x39 7Н10	5.45x39 7N10	5.45x39 7N10	st_ammo_545x39_7n10_name
+item	5.45x39 7N22	5.45x39 7Н22	5.45x39 7Н22	5.45x39 7N22	5.45x39 7N22	st_ammo_545x39_7n22_name
+item	5.45x39 7N6M	5.45x39 7Н6М	5.45x39 7Н6М	5.45x39 7N6M	5.45x39 7N6M	st_ammo_545x39_7n6m_name
+item	7.62x39 7N23	7.62х39 7H23	7.62х39 7H23	7.62x39 7N23	7.62x39 7N23	st_ammo_762x39_7n23_name
+item	7.62х39 RPD	7.62х39 РПД	7.62х39 РПД	7.62x39 PRD	7.62х39 RPD	st_ammo_762x39_m_name
+item	7.62x39	7.62х39	7.62х39	7.62x39	7.62x39	st_ammo_762x39_name
+item	9x18 MP	9x18 ПМ	9x18	9x18 MP	9x18 PM	st_ammo_9x18_name
+item	9x18 PBM	9x18 ПБМ	9x18 ПБМ	9x18 PBM	9x18 PBM	st_ammo_9x18_pbm_name
+item	9x19 7N21	9x19 7H21	9x19 7H21	9x19 7N21	9x19 7N21	st_ammo_9x19p_7n21_name
+item	9x19 7N31	9x19 7H31	9x19 7H31	9x19 7N31	9x19 7H31	st_ammo_9x19p_7n31_name
+item	9x19 Parabellum	9х19 Парабеллум	9х19 Парабеллум	9x19 Parabellum	9x19 Parabellum	st_ammo_9x19p_para_name
+item	9x21 SP-10	9x21 СП-10	9x21 СП-10	9x21 SP-10	9x21 SP-10	st_ammo_9x21_name
+item	7.62х54 7N1	7.62х54 7Н1	7.62х54 7Н1	7.62x54 7N1	7.62х54 7N1	st_ammo_ammo_762x54_7n1_name
+item	9x39 PAB-9	9x39 ПАБ-9	9x39 ПАБ-9	9x39 PAB -9	9x39 PAB-9	st_ammo_pab9_name
+item	9x39 SP-5	9x39 СП-5	9x39 СП-5	9x39 SP-5	9x39 SP-5	st_ammo_sp5_name
+item	9x39 SP-6	9x39 СП-6	9x39 СП-6	9x39 SP-6	9x39 SP-6	st_ammo_sp6_name
+item	Antitoxin	Антитоксин	Антитоксин	Gegengift	Antytoksyny	st_antitoxin_name
+item	APS	АПС	АПС	APS	APS	st_aps_name
+item	Artifact-master	Артефакт-мастер	Артефакт-майстер	Artefakten-Master	Władca artefaktów	st_artefact_booster_name
+item	Ash-12	АШ-12	АШ-12	ASh-12	ASh-12	st_ash12_name
+item	Bandit balaclava	Бандитская балаклава	Бандитська балаклава	Banditen-Sturmhaube	Kominiarka bandyty	st_bandit_026_mask_name
+item	Pack of bandages	Перевязочный пакет	Перев'язувальний пакет	Verbandpackung	Opakowanie bandaży	st_base_bandages_name
+item	Medikit	Аптечка	Аптечка	Erste-Hilfe	Apteczka	st_base_medkit_name
+item	Anesthetic	Обезболивающее	Знеболювальне	Schmerzmittel	Środki przeciwbólowe	st_base_painkiller_name
+item	Trap	Ловушка	Пастка	Falle	Pułapka	st_base_trap_name
+item	Cossacks	Казаки	Козаки	Kosaken	Kozaki	st_bm_boots_1_name
+item	Ropers	Роперы	Ропери	Ropers	Kowbojki	st_bm_boots_2_name
+item	Choppers	Чопперы	Чопери	Choppers	Śmigłowce	st_bm_boots_3_name
+item	Biker gloves	Байкерские перчатки	Байкерські рукавички	Biker Handschuhe	Rękawice motocyklisty	st_bm_gloves_1_name
+item	Spiked gloves	Шипованые перчатки	Шиповані рукавички	Stachelhandschuhe	Ćwiekowane rękawice	st_bm_gloves_2_name
+item	Biker's helmet	Каска байкера	Каска байкера	Biker Helm	Czapka pilotka	st_bm_helmet_1_name
+item	"Marauder" helmet	Шлем "Мародер"	Шолом "Мародер"	"Marodeur" Helm	Hełm "Maruder"	st_bm_helmet_5_name
+item	Jeans	Джинсы	Джинси	Jeans	Jeans	st_bm_legs_1_name
+item	Reinforced jeans	Кожаные штаны	Шкіряні штани	Lederhosen	Wzmocnione dżinsy	st_bm_legs_2_name
+item	Bandit's pants	Штаны налетчика	Штани грабіжника	Räuber Hose	Spodnie bandyty	st_bm_legs_4_name
+item	"Marodeur" pants	Штаны "Мародер"	Штани "Мародер"	"Marodeur" Hosen	Spodnie "Maruder"	st_bm_legs_5_name
+item	"Corsair" mask	Маска "Корсар"	Маска "Корсар"	"Korsar" Maske	Maska "Korsarz"	st_bm_mask_1_name
+item	Leather sleeveless jacket	Кожаная безрукавка	Шкіряна безрукавка	Leder Weste	Skórzana kurtka bez rękawów	st_bm_torso_1_name
+item	Thug's jacket	Куртка "Громила"	Куртка "Громило"	Jacke "Rowdy"	Kurtka bandyty	st_bm_torso_2_name
+item	Corsair jacket	Куртка "Корсар"	Куртка "Корсар"	Jacke "Corsar"	Kurtka "Korsarz"	st_bm_torso_3_name
+item	Bandit's jacket	Куртка налетчика	Куртка грабіжника	Jacke des Räubers	Kurtka bandyty	st_bm_torso_4_name
+item	"Marodeur" jacket	Куртка "Мародер"	Куртка "Мародер"	Jacke "Marodeur"	Kurtka "Maruder"	st_bm_torso_5_name
+item	Raven	Ворон	Ворон	Rabe	Kruk	st_camo_black_leather_01_name
+item	Black death	Чёрная смерть	Чорна смерть	Schwarzer Tod	Czarna śmierć	st_camo_black_leather_name
+item	Breeze	Бриз	Бриз	Brise	Bryza	st_camo_blue_leather_name
+item	Leather 2	Кожа 2	Шкіра 2	Leder 2	Skóra 2	st_camo_brown_leather_01_name
+item	Leather 3	Кожа 3	Шкіра 3	Leder 3	Skóra 3	st_camo_brown_leather_02_name
+item	Leather 4	Кожа 4	Шкіра 4	Leder 4	Skóra 4	st_camo_brown_leather_03_name
+item	Leather 5	Кожа 5	Шкіра 5	Leder 5	Skóra 5	st_camo_brown_leather_04_name
+item	Ifrit	Ифрит	Іфрит	Ifrit	Ifryt	st_camo_brown_leather_05_name
+item	Leather	Кожа	Шкіра	Leder	Skóra	st_camo_brown_leather_name
+item	Huntsman	Егерь	Єгер	Jäger	Łowca	st_camo_camouflage_green_01_name
+item	Oakley	Дубок	Дубок	Eiche	Dąb	st_camo_camouflage_green_name
+item	Green NBC suit	Зеленый ОЗК	Зелений ЗЗК	Grüner UGZ	Zielony NBC	st_camo_chemical_fabric_01_name
+item	Green foliage	Зеленая листва	Зелене листя	Grünes Laub	Zielone listowie	st_camo_chemical_fabric_02_name
+item	Blue sky	Синее небо	Блакитне небо	Blauer Himmel	Niebieskie niebo	st_camo_chemical_fabric_03_name
+item	Panther	Барс	Барс	Leopard	Panterka	st_camo_city_camo_name
+item	Digital-N	Цифра-Н	Цифра-Н	Ziffer-N	Cyfra-N	st_camo_cyfra_01_camo_name
+item	Digital	Цифра	Цифра	Ziffer	Cyfrowy	st_camo_cyfra_02_camo_name
+item	Warrior	Ратник	Ратник	Krieger	Żołnierz	st_camo_cyfra_03_camo_name
+item	Dark Denim	Темный Джинс	Темний Джинс	Dunkle Jeans	Ciemny jeans	st_camo_denim_01_name
+item	Denim	Джинс	Джинс	Jeans	Jeans	st_camo_denim_name
+item	Desert	Пустыня	Пустеля	Wüste	Pustynia	st_camo_desert_camo_name
+item	Dry soil	Сухая земля	Суха земля	Festland	Sucha ziemia	st_camo_fabric_brown_01_name
+item	Desert storm	Песчаная буря	Піщана буря	Sandsturm	Burza piaskowa	st_camo_fabric_brown_02_name
+item	Scorpion	Скорпион	Скорпіон	Skorpion	Skorpion	st_camo_fabric_brown_03_name
+item	Brown fabric	Коричневая ткань	Коричнева тканина	Brauner Stoff	Brązowa tkanina	st_camo_fabric_brown_name
+item	Survivor	Выживший	Уцілілий	Überlebender	Ocalały	st_camo_fabric_camouflage_name
+item	Green fabric	Зелёная ткань	Зелена тканина	Grüner Stoff	Zielony materiał	st_camo_fabric_green_01_name
+item	White fabric	Белая ткань	Біла тканина	Weißer Stoff	Biała tkanina	st_camo_fabric_green_name
+item	Ghost	Призрак	Привид	Geist	Duch	st_camo_fabric_grey_name
+item	Flectarn	Флектарн	Флектарн	Camu	Flectarn	st_camo_flecktarn_01_camo_name
+item	Wood	Лес	Ліс	Wald	Leśny	st_camo_flecktarn_02_camo_name
+item	Green leather	Зелёная кожа	Зелена шкіра	Grüners Leder	Zielona skóra	st_camo_green_leather_name
+item	Break	Излом	Злам	Brechen	Załamanie	st_camo_izlom_name
+item	Hot sand	Горячий песок	Гарячий пісок	Heißer Sand	Gorący piasek	st_camo_khaki_fabric_01_name
+item	Hot sun	Жаркое солнце	Палюче сонце	Heiße Sonne	Gorące słońce	st_camo_khaki_fabric_02_name
+item	Dust	Пыль	Пил	Staub	Pył	st_camo_khaki_fabric_03_name
+item	Mirage	Мираж	Міраж	Fata Morgana	Miraż	st_camo_multicam_name
+item	Quilted fabric	Стеганая ткань	Стьобана тканина	Steppstoff	Pikowana tkanina	st_camo_quilted_fabric_name
+item	Legionary	Легионер	Легіонер	Ligionär	Legionista	st_camo_red_leather_name
+item	Seeker	Искатель	Шукач	Finder	Poszukiwacz	st_camo_rubber_green_01_name
+item	Yellow rubber	Жёлтая резина	Жовта гума	Gelbes Gummi	Żółta guma	st_camo_rubber_green_02_name
+item	Green rubber	Зелёная резина	Зелена гума	Grünes Gummi	Zielona guma	st_camo_rubber_green_name
+item	Spectre-Autumn	Спектр-осень	Спектр-осінь	Spector-Herbst	Spektrum – jesień	st_camo_spekrt_01_name
+item	Spectre-Spring	Спектр-весна	Спектр-весна	Spector-Frühling	Spektrum – wiosna	st_camo_spekrt_02_name
+item	Spectre-Summer	Спектр-лето	Спектр-літо	Spector-Sommer	Spektrum – lato	st_camo_spekrt_03_name
+item	Suede	Замш	Замша	Wildleder	Zamsz	st_camo_suede_leather_name
+item	MES	МЧС	МНС	Mkats	Ministerstwo Bezpieczeństwa	st_camo_vsr_name
+item	Yellow leather	Жёлтая кожа	Жовта шкіра	Gelbes Leder	Żółta skóra	st_camo_yellow_leather_name
+item	Literator	Литератор	Літератор	Literat	Literat	st_character_decals_1_1_name
+item	"Alpha" Squad	Отряд "Альфа"	Загін "Альфа"	Trupp "Alpha"	Brygada "Alfa"	st_character_decals_1_2_name
+item	Survivor	Выживший	Вцілілий	Überlebender	Ocalały	st_character_decals_1_3_name
+item	Explorer	Исследователь	Дослідник	Forscher	Odkrywca	st_character_decals_1_4_name
+item	Veteran	Ветеран	Ветеран	Veteran	Weteran	st_character_decals_1_5_name
+item	Master	Мастер	Майстер	Meister	Mistrz	st_character_decals_1_6_name
+item	Legend	Легенда	Легенда	Legende	Legenda	st_character_decals_1_7_name
+item	Flying Hussars	Летучие гусары	Летючі гусари	Flüchtigen Husaren	Latające Huzary	st_character_decals_1_8_name
+item	Scavengers rookie	Новичок бродяг	Новачок бродяг	Landstreicher Neuling	Nowicjusz włóczęgów	st_character_decals_2_1_name
+item	Scavengers veteran	Ветеран бродяг	Ветеран бродяг	Landstreicher Veteran	Weteran włóczęgów	st_character_decals_2_2_name
+item	Black Market Recruit	Рекрут Черного Рынка	Рекрут Чорного Ринку	Rekrut des schwarzen Marktes	Rekrut Czarnego Rynku	st_character_decals_2_3_name
+item	Black Market Elite	Элита Черного Рынка	Еліта Чорного Ринку	Elite des schwarzen Marktes	Elita Czarnego Rynku	st_character_decals_2_4_name
+item	The Renaissance Army Soldier	Солдат Армии Возрождения	Солдат Армії Відродження	Soldat der Armee der Wiederbelebung	Żołnierz Armii Odrodzenia	st_character_decals_2_5_name
+item	The Renaissance Army Colonel	Полковник Армии Возрождения	Полковник Армії Відродження	Oberst der Armee der Wiedergeburt	Pułkownik Armii Odrodzenia	st_character_decals_2_6_name
+item	"The Fringe Settlers" Hunter	Охотник поселения "Край"	Мисливець поселення "Край"	Eingeweiht zur Siedlung "Rand"	Myśliwy osadników Skraju	st_character_decals_2_7_name
+item	The Fringe Settlers Magister	Магистр поселения "Край"	Магістр поселення "Край"	Master-Siedlung "Rand"	Mistrz osadników Skraju	st_character_decals_2_8_name
+item	Deadly	Смертельно опасно	Смертельно небезпечно	Tödlich	Grozi śmiercią	st_character_decals_3_10_name
+item	Animal's skull	Череп животного	Череп тварини	Tier Schädel	Czaszka zwierzęcia	st_character_decals_3_11_name
+item	Bullet	Пуля	Куля	Kugel	Pocisk	st_character_decals_3_12_name
+item	Grenade	Граната	Граната	Granate	Granat	st_character_decals_3_13_name
+item	First aid	Первая помощь	Перша допомога	Erste-Hilfe	Pierwsza pomoc	st_character_decals_3_14_name
+item	Crosshair	Прицел	Приціл	Visier	Celownik	st_character_decals_3_15_name
+item	Spetsnaz	Спецназ	Спецназ	SWAT	Specnaz	st_character_decals_3_16_name
+item	"VDV'	ВДВ	ВДВ	VDV	Desant	st_character_decals_3_17_name
+item	Hundred	Сотня	Сотня	Hundert	Setka	st_character_decals_3_18_name
+item	Dirk	Кортик	Кортик	Dolch	Kordzik	st_character_decals_3_19_name
+item	Biohazard	Биоопасность	Біологічна загроза	Biogefahr	Zagrożenie biologiczne	st_character_decals_3_1_name
+item	Atom emblem	Знак атома	Знак атома	Atom Zeichen	Symbol atomu	st_character_decals_3_20_name
+item	DNA helix	Спираль ДНК	Спіраль ДНК	DNA-Helix	Łańcuch DNA	st_character_decals_3_21_name
+item	Weapon restriction	Запрет оружия	Заборона зброї	Waffenverbot	Ograniczenie broni	st_character_decals_3_2_name
+item	Anarchy	Анархия	Анархія	Anarchie	Anarchia	st_character_decals_3_3_name
+item	Pirate	Пират	Пірат	Pirat	Pirat	st_character_decals_3_4_name
+item	Radioactivity	Радиоактивность	Радіоактивність	Radioaktiv	Radioaktywność	st_character_decals_3_5_name
+item	Highly explosive	Взрывоопасно	Вибухонебезпечно	Explosionsgefahr	Grozi wybuchem	st_character_decals_3_6_name
+item	Forest restriction	Запрет леса	Заборона лісу	Wald Verbot	Lasowi wstęp wzbroniony	st_character_decals_3_7_name
+item	Tree of life	Древо жизни	Дерево життя	Baum des Lebens	Drzewo życia	st_character_decals_3_8_name
+item	Hourglass	Песочные часы	Пісочний годинник	Sanduhr	Klepsydra	st_character_decals_3_9_name
+item	Flag of Georgia	Флаг Грузии	Прапор Грузії	Flagge von Georgia	Flaga Gruzji	st_character_decals_4_10_name
+item	Flag of Uzbekistan	Флаг Узбекистана	Прапор Узбекистану	Flagge von Usbekistan	Flaga Uzbekistanu	st_character_decals_4_11_name
+item	Flag of Tajikistan	Флаг Таджикистана	Прапор Таджикистану	Flagge von Tadschikistan	Flaga Tadżykistanu	st_character_decals_4_12_name
+item	Flag of Kyrgyzstan	Флаг Кыргызстана	Прапор Киргизстану	Flagge von Kirgisistan	Flaga Kirgistanu	st_character_decals_4_13_name
+item	Flag of Turkmenistan	Флаг Туркменистана	Прапор Туркменістану	Flagge von Turkmenistan	Flaga Turkmenistanu	st_character_decals_4_14_name
+item	Flag of Azerbaijan	Флаг Азербайджана	Прапор Азербайджану	Flagge von Aserbaidschan	Flaga Azerbejdżanu	st_character_decals_4_15_name
+item	Flag of Armenia	Флаг Армении	Прапор Вірменії	Flagge von Armenien	Flaga Armenii	st_character_decals_4_16_name
+item	Flag Of Germany	Флаг Германии	Прапор Німеччини	Deutsche Flagge	Flaga Niemiec	st_character_decals_4_17_name
+item	Flag Of Great Britain	Флаг Великобритании	Прапор Великобританії	UK Flagge	Flaga Wielkiej Brytanii	st_character_decals_4_18_name
+item	Flag Of France	Флаг Франции	Прапор Франції	Frankreich Flagge	Flaga Francji	st_character_decals_4_19_name
+item	Flag of USSR	Флаг СССР	Прапор СРСР	Flagge von UDSSR	Flaga ZSSR	st_character_decals_4_1_name
+item	Flag Of Italy	Флаг Италии	Прапор Італії	Italenische Flagge	Flaga Włoch	st_character_decals_4_20_name
+item	Flag Of Spain	Флаг Испании	Прапор Іспанії	Spanische Flagge	Flaga Hiszpanii	st_character_decals_4_21_name
+item	Flag Of Poland	Флаг Польши	Прапор Польщі	Polnische Flagge	Flaga Polski	st_character_decals_4_22_name
+item	Flag Of Romania	Флаг Румынии	Прапор Румунії	Rumänische Flagge	Flaga Rumunii	st_character_decals_4_23_name
+item	Flag Of The Netherlands	Флаг Нидерландов	Прапор Нідерландів	Niderlandische Flagge	Flaga Holandii	st_character_decals_4_24_name
+item	Flag Of Greece	Флаг Греции	Прапор Греції	Griechensche Flagge	Flaga Grecji	st_character_decals_4_25_name
+item	Flag Portugal	Флаг Португалии	Прапор Португалії	Portugalische Flagge	Flaga Portugalii	st_character_decals_4_26_name
+item	Flag of The Czech Republic	Флаг Чехии	Прапор Чехії	Tschechische Flagge	Flaga Czech	st_character_decals_4_27_name
+item	Flag Of Belgium	Флаг Бельгии	Прапор Бельгії	Belgische Flagge	Flaga Belgii	st_character_decals_4_28_name
+item	Flag Of Hungary	Флаг Венгрии	Прапор Угорщини	Ungarische Flagge	Flaga Węgier	st_character_decals_4_29_name
+item	Flag of Russia	Флаг России	Прапор Росії	Flagge von Russland	Flaga Rosji	st_character_decals_4_2_name
+item	Flag of Sweden	Флаг Швеции	Прапор Швеції	Schwedische Flagge	Flaga Szwecji	st_character_decals_4_30_name
+item	Flag Of Austria	Флаг Австрии	Прапор Австрії	Österreich Flagge	Flaga Austrii	st_character_decals_4_31_name
+item	Flag Of Switzerland	Флаг Швейцарии	Прапор Швейцарії	Schweiz Flage	Flaga Szwajcarii	st_character_decals_4_32_name
+item	Flag Of Bulgaria	Флаг Болгарии	Прапор Болгарії	Bulgarische Flagge	Flaga Bułgarii	st_character_decals_4_33_name
+item	Flag Of Serbia	Флаг Сербии	Прапор Сербії	Serbische Flagge	Flaga Serbii	st_character_decals_4_34_name
+item	Flag Of Denmark	Флаг Дании	Прапор Данії	Dänemark Flagge	Flaga Danii	st_character_decals_4_35_name
+item	Flag Of Slovakia	Флаг Словакии	Прапор Словаччини	Slowakische Flagge	Flaga Słowacji	st_character_decals_4_36_name
+item	Flag Of Norway	Флаг Норвегии	Прапор Норвегії	Norwegische Flagge	Flaga Norwegii	st_character_decals_4_37_name
+item	Flag Of Ireland	Флаг Ирландии	Прапор Ірландії	Irlandische Flagge	Flaga Irlandii	st_character_decals_4_38_name
+item	Flag Of Croatia	Флаг Хорватии	Прапор Хорватії	Kroatien Flagge	Flaga Chorwacji	st_character_decals_4_39_name
+item	Flag of Ukraine	Флаг Украины	Прапор України	Flagge von Ukraine	Flaga Ukrainy	st_character_decals_4_3_name
+item	Flag of Bosnia and Herzegovina	Флаг Боснии и Герцеговины	Прапор Боснії і Герцеговини	Bosnien und Herzegowina Flagge	Flaga Bośni i Hercegowiny	st_character_decals_4_40_name
+item	Flag Of Turkey	Флаг Турции	Прапор Туреччини	Türkische Flagge	Flaga Turcji	st_character_decals_4_41_name
+item	Flag of Belarus	Флаг Беларуси	Прапор Білорусі	Flagge von Weißrussland	Flaga Białorusi	st_character_decals_4_4_name
+item	Flag of Kazakhstan	Флаг Казахстана	Прапор Казахстану	Flagge von Kasachstan	Flaga Kazachstanu	st_character_decals_4_5_name
+item	Flag of Latvia	Флаг Латвии	Прапор Латвії	Flagge von Lettland	Flaga Łotwy	st_character_decals_4_6_name
+item	Flag of Lithuania	Флаг Литвы	Прапор Литви	Flagge von Litauen	Flaga Litwy	st_character_decals_4_7_name
+item	Flag of Estonia	Флаг Эстонии	Прапор Естонії	Flagge von Estland	Flaga Estonii	st_character_decals_4_8_name
+item	Flag of Moldova	Флаг Молдовы	Прапор Молдови	Flagge von Moldawien	Flaga Mołdawii	st_character_decals_4_9_name
+item	Coat of arms of Georgia	Герб Грузии	Герб Грузії	Wappen von Georgia	Godło Gruzji	st_character_decals_5_10_name
+item	Coat of arms of Uzbekistan	Герб Узбекистана	Герб Узбекистану	Wappen von Usbekistan	Godło Uzbekistanu	st_character_decals_5_11_name
+item	Coat of arms of Tajikistan	Герб Таджикистана	Герб Таджикистану	Wappen von Tadschikistan	Godło Tadżykistanu	st_character_decals_5_12_name
+item	Coat of arms of Kyrgyzstan	Герб Кыргызстана	Герб Киргизстану	Wappen von Kirgisistan	Godło Kirgistanu	st_character_decals_5_13_name
+item	Coat of arms of Turkmenistan	Герб Туркменистана	Герб Туркменістану	Wappen von Turkmenistan	Godło Turkmenistanu	st_character_decals_5_14_name
+item	Coat of arms of Azerbaijan	Герб Азербайджана	Герб Азербайджану	Wappen von Aserbaidschan	Godło Azerbejdżanu	st_character_decals_5_15_name
+item	Coat of arms of Armenia	Герб Армении	Герб Вірменії	Wappen von Armenien	Godło Armenii	st_character_decals_5_16_name
+item	NATO emblem	Знак НАТО	Знак НАТО	NATO Zeichen	Emblemat NATO	st_character_decals_5_17_name
+item	UN emblem	Знак ООН	Знак ООН	UN Zeichen	Emblemat ONZ	st_character_decals_5_18_name
+item	Coat of arms of Germany	Герб Германии	Герб Німеччини	Deutscher Wappen	Godło Niemiec	st_character_decals_5_19_name
+item	Red star	Красная звезда	Червона зірка	Rotes Stern	Czerwona gwiazda	st_character_decals_5_1_name
+item	Coat of arms of Great Britain	Герб Великобритании	Герб Великобританії	Engländischer Wappen	Godło Anglii	st_character_decals_5_20_name
+item	Coat of arms of France	Герб Франции	Герб Франції	Französischer Wappen	Godło Francji	st_character_decals_5_21_name
+item	Coat of arms of Italy	Герб Италии	Герб Італії	Italenischer Wappen	Godło Włoszech	st_character_decals_5_22_name
+item	Coat of arms of Spain	Герб Испании	Герб Іспанії	Spanischer Wappen	Godło Hiszpanii	st_character_decals_5_23_name
+item	Coat of arms of Poland	Герб Польши	Герб Польщі	Polnischer Wappen	Godło Polski	st_character_decals_5_24_name
+item	Coat of arms of Romania	Герб Румынии	Герб Румунії	Rumänischer Weppen	Godło Rumunii	st_character_decals_5_25_name
+item	Coat of arms of Nerlands	Герб Нидерландов	Герб Нідерландів	Niderländischer Wappen	Godło Holandii	st_character_decals_5_26_name
+item	Coat of arms of Greece	Герб Греции	Герб Греції	Griechischer Wappen	Godło Grecji	st_character_decals_5_27_name
+item	Coat of arms of Portugal	Герб Португалии	Герб Португалії	Portugalischer Wappen	Godło Portugalii	st_character_decals_5_28_name
+item	Coat of arms of Czech Republic	Герб Чехии	Герб Чехії	Tschechiescher Wappen	Godło Czech	st_character_decals_5_29_name
+item	Coat of arms of Russia	Герб России	Герб Росії	Wappen von Russland	Godło Rosji	st_character_decals_5_2_name
+item	Coat of arms of Belgium	Герб Бельгии	Герб Бельгії	Belgischer Wappen	Godło Belgii	st_character_decals_5_30_name
+item	Coat of arms of Hungary	Герб Венгрии	Герб Угорщини	Ungarischer Wappen	Godło Węgier	st_character_decals_5_31_name
+item	Coat of arms of Sweden	Герб Швеции	Герб Швеції	Schwedischer Wappen	Godło Szwecji	st_character_decals_5_32_name
+item	Coat of arms of Austria	Герб Австрии	Герб Австрії	Österreichischer Wappen	Godło Austrii	st_character_decals_5_33_name
+item	Coat of arms of Switzerland	Герб Швейцарии	Герб Швейцарії	Schweizischer Wappen	Godło Szwajcarii	st_character_decals_5_34_name
+item	Coat of arms of Bulgaria	Герб Болгарии	Герб Болгарії	Bulgarischer Wappen	Godło Bułgarii	st_character_decals_5_35_name
+item	Coat of arms of Serbia	Герб Сербии	Герб Сербії	Serbischer Wappen	Godło Serbii	st_character_decals_5_36_name
+item	Coat of arms of Denmark	Герб Дании	Герб Данії	Dänemark Wappen	Godło Danii	st_character_decals_5_37_name
+item	Coat of arms of Slovakia	Герб Словакии	Герб Словаччини	Slowakeinischer Wappen	Godło Słowacji	st_character_decals_5_38_name
+item	Coat of arms of Norway	Герб Норвегии	Герб Норвегії	Norwegischer Wappen	Godło Norwegii	st_character_decals_5_39_name
+item	Coat of arms of Ukraine	Герб Украины	Герб України	Wappen von Ukraine	Godło Ukrainy	st_character_decals_5_3_name
+item	Coat of arms of Ireland	Герб Ирландии	Герб Ірландії	Irlandischer Wappen	Godło Irlandii	st_character_decals_5_40_name
+item	Coat of arms of Croatia	Герб Хорватии	Герб Хорватії	Kroatischer Wappen	Godło Chorwacji	st_character_decals_5_41_name
+item	Coat of arms of Bosnia and Herzegovina	Герб Боснии и Герцеговины	Герб Боснії і Герцеговини	Bosnischer und Herzegowinischer Wappen	Godło Bośni i Hercegowiny	st_character_decals_5_42_name
+item	Coat of arms of Belarus	Герб Беларуси	Герб Білорусі	Wappen von Weißrussland	Godło Białorusi	st_character_decals_5_4_name
+item	Coat of arms of Kazakhstan	Герб Казахстана	Герб Казахстану	Wappen von Kasachstan	Godło Kazachstanu	st_character_decals_5_5_name
+item	Coat of arms of Lithuania	Герб Латвии	Герб Латвії	Wappen von Lettland	Herb Łotwy	st_character_decals_5_6_name
+item	Coat of arms of Lithuania	Герб Литвы	Герб Литви	Wappen von Litauen	Godło Litwy	st_character_decals_5_7_name
+item	Coat of arms of Estonia	Герб Эстонии	Герб Естонії	Wappen von Estland	Godło Estonii	st_character_decals_5_8_name
+item	Coat of arms of Moldova	Герб Молдовы	Герб Молдови	Wappen von Moldova	Herb Mołdawii	st_character_decals_5_9_name
+item	Stash map	Карта схрона	Мапа схрону	Caches Karte	Mapa skrytek	st_drop_card_name
+item	Dar 2M container	Контейнер "Дар 2М"	Контейнер "Дар 2М"	Container "Dar 2M"	Pojemnik "Dar 2M"	st_edge_back_1_name
+item	"Breeze" respiratory system	Дыхательная система "Бриз"	Дихальна система "Бриз"	Atmungssystem "Brise"	Aparat oddechowy "Bryza"	st_edge_back_3_name
+item	"Wanderer" Container	Контейнер "Скиталец"	Контейнер "Блукач"	Container "Wandere"	Pojemnik "Podróżnik"	st_edge_back_5_name
+item	"Pilgrim" container	Контейнер "Пилигрим"	Контейнер "Пілігрим"	Behälter "Pilger"	Pojemnik "Pielgrzym"	st_edge_back_6_name
+item	Hunter's boots	Сапоги охотника	Чоботи мисливця	Jäger Stiefel	Buty myśliwego	st_edge_boots_1_name
+item	Stalker's boots	Сапоги сталкера	Чоботи сталкера	Stalkers Stiefel	Buty stalkera	st_edge_boots_2_name
+item	Explorer's boots	Сапоги исследователя	Чоботи дослідника	Forschers Stiefel	Buty odkrywcy	st_edge_boots_3_name
+item	Master's boots	Сапоги мастера	Чоботи майстра	Meisters Stiefeln	Buty mistrza	st_edge_boots_4_name
+item	Keeper's boots	Сапоги хранителя	Чоботи хранителя	Stiefel des Hüters	Buty strażnika	st_edge_boots_5_name
+item	"Pilgrim" boots	Сапоги "Пилигрим"	Чоботи "Пілігрим"	Schuhe "Pilger"	Buty "Pielgrzym"	st_edge_boots_6_name
+item	Stalker's gloves	Перчатки сталкера	Рукавички сталкера	Stalkers Handschuhe	Rękawice stalkera	st_edge_gloves_2_name
+item	Explorer's gloves	Перчатки исследователя	Рукавички дослідника	Forscher Hnadschuhe	Rękawice odkrywcy	st_edge_gloves_3_name
+item	Master's gloves	Перчатки мастера	Рукавички майстра	Master Handschuhe	Rękawice mistrza	st_edge_gloves_4_name
+item	Keeper's gloves	Перчатки хранителя	Рукавички хранителя	Hüters Handschuhe	Rękawice strażnika	st_edge_gloves_5_name
+item	"Pilgrim" gloves	Перчатки "Пилигрим"	Рукавички "Пілігрим"	Handschuhe "Pilger"	Rękawice "Pielgrzym"	st_edge_gloves_6_name
+item	Hunter's hood	Капюшон охотника	Капюшон мисливця	Jäger Kaputze	Kaptur myśliwego	st_edge_helmet_1_name
+item	Explorer's hat	Шапка исследователя	Шапка дослідника	Mütze des Forschers	Czapka odkrywcy	st_edge_helmet_3_name
+item	Master's hood	Капюшон мастера	Капюшон майстра	Meisters Kaputze	Kaptur mistrza	st_edge_helmet_4_name
+item	"Keeper" helmet	Шлем "Хранитель"	Шолом "Хранитель"	Helm "Hüter"	Hełm "Strażnik"	st_edge_helmet_5_name
+item	"Pilgrim" helmet	Шлем "Пилигрим"	Шолом "Пілігрим"	Helm "Pilger"	Hełm "Pielgrzym"	st_edge_helmet_6_name
+item	Hunter's pants	Штаны охотника	Штани мисливця	Jäger Hose	Spodnie myśliwego	st_edge_legs_1_name
+item	Stalker's pants	Штаны сталкера	Штани сталкера	Stalkers Hose	Spodnie stalkera	st_edge_legs_2_name
+item	Explorer's pants	Штаны исследователя	Штани дослідника	Forschers Hose	Spodnie odkrywcy	st_edge_legs_3_name
+item	"Leshy" pants	Штаны "Леший"	Штани "Лісовик"	Hose "Leshy"	Spodnie "Goblin"	st_edge_legs_4_name
+item	"Keeper" pants	Штаны "Хранитель"	Штани Хранителя	Hose "Hüter"	Spodnie "Strażnik"	st_edge_legs_5_name
+item	"Pilgrim" pants	Штаны "Пилигрим"	Штани "Пілігрим"	Hosen "Pilger"	Spodnie "Pielgrzym"	st_edge_legs_6_name
+item	"Keeper" mask	Маска "Хранитель"	Маска "Хранитель"	Maske "Hüter"	Maska przeciwgazowa "Strażnik"	st_edge_mask_5_name
+item	Malachite respirator	Респиратор "Малахит"	Респіратор "Малахіт"	Atemschutzmaske "Malachite"	Aparat oddechowy "Malachit"	st_edge_resp_1_name
+item	Gas mask "Smaragd"	Противогаз "Смарагд"	Протигаз "Смарагд"	Gasmaske "Smaragd"	Maska przeciwgazowa "Szmaragd"	st_edge_resp_3_name
+item	Hunter's jacket	Куртка охотника	Куртка мисливця	Jäger Jacke	Kurtka myśliwego	st_edge_torso_1_name
+item	Stalker's jacket	Куртка сталкера	Куртка сталкера	Stalkers Jacke	Kurtka stalkera	st_edge_torso_2_name
+item	Explorer's jacket	Куртка исследователя	Куртка дослідника	Forscher Jacke	Kurtka odkrywcy	st_edge_torso_3_name
+item	"Leshy" vest	Бронежилет "Леший"	Бронежилет "Лісовик"	Schutzweste "Leshy"	Kamizelka "Goblin"	st_edge_torso_4_name
+item	Bulletproof vest "Keeper"	Бронежилет "Хранитель"	Бронежилет "Хранитель"	Schutzweste "Hüter"	Kamizelka kuloodporna "Strażnik"	st_edge_torso_5_name
+item	"Pilgrim" bulletproof vest	Бронежилет "Пилигрим"	Бронежилет "Пілігрим"	Weste "Pilger"	Kamizelka kuloodporna "Pielgrzym"	st_edge_torso_6_name
+item	Fort 17	Форт 17	Форт 17	Fort 17	Fort 17	st_fort_17_name
+item	Rubles	Рубли	Рублі	Rubeln	Monety	st_generic_money_name
+item	MP-27M Lancaster	МР-27М "Ланкастер"	MP-27M "Ланкастер"	MP-27M "Lankaster"	MR-27M "Lancaster"	st_izh27_name
+item	OTs-02 Kiparis	ОЦ-02 Кипарис	ОЦ-02 Кипарис	OTS-02 Kiparis	OC-02 "Cyprys"	st_kiparis_name
+item	Colt Python	Кольт Питон	Кольт Пітон	Colt Phyton	Colt Python	st_magnum_name
+item	Mosin carbine	Карабин Мосина	Карабін Мосіна	Mosin Karabin	Karabin Mosin	st_mosin_name
+item	MP-153 Baikal	МР-153 "Байкал"	MP-153 "Байкал"	MP-153 "Baikal"	MP-153 "Bajkał"	st_mp153_name
+item	Oxygen tank	Кислородный баллон	Кисневий балон	Sauerstoffflasche	Butla tlenowa	st_oxygen_tank_name
+item	PM	ПМ	ПМ	PM	PM	st_pm_name
+item	PP-2000	ПП-2000	ПП-2000	PP-2000	PP-2000	st_pp2000_name
+item	PPSH-41	ППШ-41	ПКШ-41	PPSH-41	PPSz-41	st_ppsh_name
+item	Premium account	Премиум аккаунт	Преміум-акаунт	Premium Konto	Konto premium	st_premium_access_1d_voucher_name
+item	Gold	Золото	Золото	Gold	Złoto	st_premium_money_name
+item	Smoke grenade RDG-M	Дымовая граната РДГ-М	Димова граната РДГ-М	Rauchgranate RDG-M	Granat dymny RDG-M	st_rdgm_name
+item	Rations	Сухпаёк	Сухпайок	Ration	Racje	st_regen_booster_name
+item	Assault fighter's backpack	Рюкзак штурмовика	Рюкзак штурмовика	Rucksack des Jagdbombers	Plecak szturmowca	st_ren_back_1_name
+item	Cylinder "Zarya 4N"	Баллон "Заря 4Н"	Балон "Зоря 3Н"	Ballon "Zarya 4N"	Butla "Świt 4N"	st_ren_back_3_name
+item	"UKV-1" cylinder	Баллон "УКВ-1"	Балон "УКВ-1"	Ballon "VHF-1"	Butla "UKV-1"	st_ren_back_5_name
+item	Army boots	Армейские сапоги	Армійські чоботи	Militärische Stiefel	Buty wojskowe	st_ren_boots_1_name
+item	Scout's boots	Сапоги разведчика	Чоботи розвідника	Stiefel des Spions	Buty zwiadowcy	st_ren_boots_3_name
+item	Reinforced boots	Сапоги "Молот УМ-2"	Чоботи "Молот УМ-2"	Verstärkte Stiefel	Wzmocnione buty	st_ren_boots_4_name
+item	"OZK-18KB" Boots	Сапоги "ОЗК-18КБ"	Чоботи "ОЗК-18КБ"	Stiefel "OZK-18KB"	Buty "OZK-18KB"	st_ren_boots_5_name
+item	"Zubr UM-4" Boots	Сапоги "Зубр УМ-4"	Чоботи "Зубр УМ-4"	Schuhe "Zubr UM-4"	Buty "Żubr UM-4"	st_ren_boots_6_name
+item	Assault gloves	Штурмовые перчатки	Штурмові рукавички	Angriffs Handschuhe	Rękawice szturmowe	st_ren_gloves_1_name
+item	Reinforced gloves	Перчатки "Молот УМ-2"	Рукавички "Молот УМ-2"	Verstärkte Handschuhe	Wzmocnione rękawice	st_ren_gloves_4_name
+item	"OZK-18KB" Gloves	Перчатки "ОЗК-18КБ"	Рукавички "ОЗК-18КБ"	Handschuhe "OZK-18KB"	Rękawice "OZK-18KB"	st_ren_gloves_5_name
+item	"Zubr UM-4" Gloves	Перчатки "Зубр УМ-4"	Рукавички "Зубр УМ-4"	Handschuhe "Zubr UM-4"	Rękawice "Żubr UM-4"	st_ren_gloves_6_name
+item	Paratrooper's helmet	Десантный шлем	Десантний шолом	Landungshelm	Hełm spadochroniarza	st_ren_helmet_1_name
+item	Helmet "Vityaz-S"	Шлем "Витязь-С"	Шолом "Витязь-С"	Helm "Witez-S"	Hełm "Witiaź-S"	st_ren_helmet_2_name
+item	Scout's helmet	Шлем разведчика	Шолом розвідника	Spionen Helm	Hełm zwiadowcy	st_ren_helmet_3_name
+item	"Molot UM-2" helmet	Шлем "Молот УМ-2"	Шолом "Молот УМ-2"	Helm "Molot UM-2"	Hełm "Młot UM-2"	st_ren_helmet_4_name
+item	"OZK-18KB" Helmet	Шлем "ОЗК-18КБ"	Шолом "ОЗК-18КБ"	Helm "OZK-18KB"	Hełm "OZK-18KB"	st_ren_helmet_5_name
+item	"Zubr UM-4" helmet	Шлем "Зубр УМ-4"	Шолом "Зубр УМ-4"	Helm "Zubr UM-4"	Hełm "Żubr UM-4"	st_ren_helmet_6_name
+item	Army pants	Армейские штаны	Армійські штани	Militärische Hosen	Spodnie wojskowe	st_ren_legs_1_name
+item	"Shturm" pants	Штаны "Штурм"	Штани "Штурм"	Hosen "Sturm"	Spodnie "Szturm"	st_ren_legs_2_name
+item	Scout's pants	Штаны разведчика	Штани розвідника	Hosen des Spions	Spodnie zwiadowcy	st_ren_legs_3_name
+item	"Molot UM-2" pants	Штаны "Молот УМ-2"	Штани "Молот УМ-2"	Hose "Molot UM-2"	Spodnie "Młot UM-2"	st_ren_legs_4_name
+item	"OZK-18KB" Pants	Штаны "ОЗК-18КБ"	Штани "ОЗК-18КБ"	Hose "OZK-18KB"	Spodnie "OZK-18KB"	st_ren_legs_5_name
+item	"Zubr UM-4" pants	Штаны "Зубр УМ-4"	Штани "Зубр УМ-4"	Hosen "Zubr UM-4"	Spodnie "Żubr UM-4"	st_ren_legs_6_name
+item	Assault mask	Маска штурмовика	Маска штурмовика	Maske des Jagdbombers	Maska szturmowa	st_ren_mask_2_name
+item	Respirator "Zanaves"	Респиратор "Занавес"	Респіратор "Завіса"	Atemschutzmaske "Zanaves"	Automat oddechowy "Kurtyna"	st_ren_mask_3_name
+item	"PMK-7S" Gas mask	Противогаз "ПМК-7С"	Протигаз "ПМК-7С"	Maske "PMK-7S"	Maska przeciwgazowa "PMK-7S"	st_ren_mask_5_name
+item	Military armored vest	Армейский бронежилет	Армійський бронежилет	Armeepanzerweste	Wojskowa kamizelka kuloodporna	st_ren_torso_1_name
+item	Body Armor Vest "Shturm"	Бронежилет "Штурм"	Бронежилет "Штурм"	Schutzweste "Sturm"	Kamizelka kuloodporna "Szturm"	st_ren_torso_2_name
+item	"Sokol" bulletproof vest	Бронежилет "Сокол"	Бронежилет "Сокіл"	Schutzweste "Sokal"	Kamizelka kuloodporna "Sokół"	st_ren_torso_3_name
+item	"Molot UM-2" Vest	Бронежилет "Молот УМ-2"	Бронежилет "Молот УМ-2"	Panzerweste "Molot UM-2"	Kamizelka kuloodporna "Młot UM-2"	st_ren_torso_4_name
+item	"OZK-18KB" Vest	Бронежилет "ОЗК-18КБ"	Бронежилет "ОЗК-18КБ"	Weste "OZK-18KB"	Kamizelka kuloodporna "OZK-18KB"	st_ren_torso_5_name
+item	"Zubr UM-4" bulletproof vest	Бронежилет "Зубр УМ-4"	Бронежилет "Зубр УМ-4"	Schutzweste "Zubr UM-4"	Kamizelka kuloodporna "Żubr UM-4"	st_ren_torso_6_name
+item	Character rename voucher	Бланк для смены имени	Бланк для зміни імені	Formular für den Namen wechsel.	Kupon zmiany imienia bohatera	st_rename_account_voucher_name
+item	Repair kit	Ремонтный набор	Ремонтний набір	Reparierugns Ausrüstung	Zestaw naprawczy	st_repair_voucher_name
+item	Radio	Рация	Рація	Radio	Radio	st_respawn_booster_name
+item	RGD-5 grenade	Граната РГД-5	Граната РГД-5	Granate RGD-5	Granat RGD-5	st_rgd5_name
+item	RPD	РПД	РПД	RPD	RPD	st_rpd_name
+item	RPK-74M	РПК-74М	РПК-74М	RPK-74M	RPK-74M	st_rpk_name
+item	Backpack with container	Рюкзак с контейнером	Рюкзак із контейнером	Rücksack mit Container	Plecak z pojemnikiem	st_scav_back_1_name
+item	Leather boots	Кожаные ботинки	Шкіряні чоботи	Leder Schuhe	Skórzane buty	st_scav_boots_1_name
+item	Chemical protection boots	Сапоги химзащиты	Чоботи хімзахисту	Chemikalien schützende Stiefel	Buty przeciwchemiczne	st_scav_boots_2_name
+item	Military boots	Берцы	Військові черевики	Schienbein Stiefel	Buty wojskowe	st_scav_boots_3_name
+item	Cut gloves	Обрезанные перчатки	Обрізані рукавички	Fingerlose Handschuhe	Rękawice bez palców	st_scav_gloves_1_name
+item	Chemical protection gloves	Перчатки химзащиты	Рукавички хімзахисту	Chemikalien schützende Handschuhe	Rękawice przeciwchemiczne	st_scav_gloves_2_name
+item	Rough gloves	Грубые перчатки	Грубі рукавиці	Grobe Handschuhe	Prymitywne rękawice	st_scav_gloves_4_name
+item	Mounting helmet	Монтажный шлем	Монтажний шолом	Montagen Helm	Hełm montażowy	st_scav_helmet_1_name
+item	Linen pants	Холщевые штаны	Полотняні штани	Leinenhosen	Lniane spodnie	st_scav_legs_1_name
+item	Chemical protection pants	Штаны химзащиты	Штани хімзахисту	Chemikalien schützende Hosen	Spodnie przeciwchemiczne	st_scav_legs_2_name
+item	Field pants	Походные штаны	Похідні штани	Wanderhose	Spodnie polowe	st_scav_legs_3_name
+item	Survivor's pants	Штаны выжившего	Штани вцілілого	Hosen des Überlebenden	Spodnie ocalałego	st_scav_legs_4_name
+item	Reinforced pants	Укрепленные штаны	Укріплені штани	Verstärkte Hosen	Wzmocnione spodnie	st_scav_legs_5_name
+item	Amber respirator	Респиратор "Янтарь"	Респіратор "Янтар"	Atmungsschutzmaske "Jantar"	Aparat oddechowy "Bursztyn"	st_scav_resp_1_name
+item	Quilted jacket	Телогрейка	Тілогрійка	Wattierte Jacke	Pikowana kurtka	st_scav_torso_1_name
+item	Chemical protection jacket	Куртка химзащиты	Куртка хімзахисту	Chemie schützende Jacke	Przeciwchemiczny płaszcz ochronny	st_scav_torso_2_name
+item	Light armored vest	Легкий бронежилет	Легкий бронежилет	Leichte Schutzweste	Lekka kamizelka kuloodporna	st_scav_torso_3_name
+item	Survivor's jacket	Куртка выжившего	Куртка уцілілого	Jacke des Überlebenden	Kurtka ocalałego	st_scav_torso_4_name
+item	Reinforced padded jacket	Укрепленный ватник	Укріплений ватник	Verstärkte Kragen	Wzmocniona ocieplana kurtka	st_scav_torso_5_name
+item	SKS	СКС	СКС	SKS	SKS	st_sks_name
+item	Tornado Energy Drink	Энергетик "Торнадо"	Енергетик "Торнадо"	Tornado	Napój energetyczny "Tornado"	st_speed_booster_name
+item	SR-2M "Veresk"	СР-2М "Вереск"	СР-2М "Верес"	SR-2M "Veresk"	SR-2M "Wrzos"	st_sr2m_name
+item	SR-3M "Vikhr"	СР-3М "Вихрь"	СР-3М "Вихор"	SR-3M "Vikhr"	SR-3M "Wichr"	st_sr3m_name
+item	SV-98	СВ-98	СВ-98	SV-98	SW-98	st_sv_98_name
+item	SVD	СВД	СВД	SVD	SWD	st_svd_name
+item	TOZ-122	ТОЗ-122	ТОЗ-122	TOZ-122	TOZ-122	st_toz122_name
+item	TOZ-34	ТОЗ-34	ТОЗ-34	TOZ-34	TOZ-34	st_toz34_name
+item	TOZ-66	ТОЗ-66	ТОЗ-66	TOZ-66	TOZ-66	st_toz66_name
+item	TT-33	ТТ-33	TT-33	TT-33	TT-33	st_tt_name
+item	Uzi	Узи	Узі	Uzi	Uzi	st_uzi_name
+item	AS "Val"	АС "Вал"	АС "Вал"	AS "Wal"	AS "Wał"	st_val_name
+item	Vepr	Вепр	Вепр	Wildschwein	Wiepr	st_vepr_name
+item	PP-19-01 Vityaz	ПП-19-01 "Витязь"	ПП-19-01 "Витязь"	PP-19-01 Vityaz	PP-19-01 "Witiaź"	st_vityaz_name
+item	VSK-94	ВСК-94	ТСК-94	VSK-94	WSK-94	st_vsk94_name
+item	VSS "Vintorez"	ВСС "Винторез"	ВСС "Гвинторіз"	VSS "Vintorez"	WSS "Wintoriez"	st_vss_name
+item	VSSK "Vychlop"	ВССК "Выхлоп"	ВССК Вихлоп	VKS "Auspuff"	WSSK Wychłop	st_vssk_name
+item	Anomalous Force Protein	Протеин "Аномальная сила"	Протеїн "Аномальна сила"	Anomalie Starke	Odżywka "Anormalna Siła"	st_weight_booster_name
+item	Winchester Model 1894	Winchester 1894	Winchester 1894	Winchester 1894	Winchester 1894	st_winchester1894_name
+map	Rudnya	Рудня	Рудня	Rudnya	Rudnia	st_level_01_name
+map	School	Школа	Школа	Schule	Szkoła	st_level_02_name
+map	Vostok Radar Station	РЛС "Восток"	РЛС "Восток"	RS Vostok	Stacja Radarowa "Vostok"	st_level_03_name
+map	Chemical Plant	Химзавод	Хімзавод	Chemiebetrieb	Zakłady chemiczne	st_level_04_name
+map	Tarakanovsky Fort	Таракановский форт	Тараканівський форт	Tarakanowski Fort	Fort Tarakanów	st_level_05_name
+map	Mamayev Kurgan	Мамаев курган	Мамаїв курган	Mamaew kurgan	Kurhan Mamaja	st_level_06_name
+map	Vector Laboratory	Лаборатория "Вектор"	Лабораторія "Вектор"	Labor Vektor	Laboratorium "Wektor"	st_level_07_name
+map	Cologne	Кельн	Кельн	Köln	Most w Kolonii	st_level_08_name
