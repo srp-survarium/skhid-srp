@@ -20,6 +20,7 @@ st_srp_muzzle_brake_10fh_name	Muzzle brake 10	Mündungsbremse 10	Дульный 
 st_srp_compensator_09_name	Compensator 9	Kompensator 9	Компенсатор 9	Kompensator 9	Компенсатор 9	Компенсатор 9
 st_srp_compensator_10_name	Compensator 10	Kompensator 10	Компенсатор 10	Kompensator 10	Компенсатор 10	Компенсатор 10
 st_srp_compensator_11_name	Compensator 11	Kompensator 11	Компенсатор 11	Kompensator 11	Компенсатор 11	Компенсатор 11
-st_srp_flash_hider_desc	Reduces the muzzle flash.	Verringert das Mündungsfeuer.	Уменьшает дульную вспышку.	Zmniejsza błysk wystrzału.	Уменьшает дульную вспышку.	Зменшує дульний спалах.
-st_srp_muzzle_brake_desc	Reduces recoil.	Verringert den Rückstoß.	Уменьшает отдачу.	Zmniejsza odrzut.	Уменьшает отдачу.	Зменшує віддачу.
-st_srp_compensator_desc	Increases the effective range.	Erhöht die effektive Reichweite.	Увеличивает эффективную дальность.	Zwiększa zasięg skuteczny.	Увеличивает эффективную дальность.	Збільшує ефективну дальність.
+st_srp_flash_hider_desc	A smaller muzzle flash.	Kleineres Mündungsfeuer.	Меньше дульная вспышка.	Mniejszy błysk wystrzału.	Меньше дульная вспышка.	Менший дульний спалах.
+st_srp_muzzle_brake_5_desc	Recoil -5 %.	Rückstoß -5 %.	Отдача -5 %.	Odrzut -5 %.	Отдача -5 %.	Віддача -5 %.
+st_srp_muzzle_brake_10_desc	Recoil -10 %.	Rückstoß -10 %.	Отдача -10 %.	Odrzut -10 %.	Отдача -10 %.	Віддача -10 %.
+st_srp_compensator_5_desc	Full damage range +5 %.	Volle Schadensreichweite +5 %.	Дальность полного урона +5 %.	Zasięg pełnych obrażeń +5 %.	Дальность полного урона +5 %.	Дальність повної шкоди +5 %.

@@ -125,6 +125,8 @@ Every 0.46c2 muzzle model but its silencers: 20 items, dict ids 2601..2620 (`dev
   others are greyed, a device's card lists its weapons, a weapon's hover lights its devices, and
   a weapon no device fits has no muzzle slot. No device fits the VSS, Val, VSSK (their
   suppressors), the Mosin, PPSh, TT-33, TOZ-34, TOZ-66, Lancaster, Winchester, NeoStead.
+- **The card:** a device's description is its stat, one line ("Recoil -5 %.", "Recoil -10 %.",
+  "Full damage range +5 %.", "A smaller muzzle flash."; `texts.tsv`); the movie adds the weapons it fits.
 - **The shop:** seller 0 at no rank, at the item's `base_cost` (`prices::sellers_of_in`): flash
   hiders 6,000, brakes 9,000 (-0.05) or 12,000 (-0.1), compensators 8,000 [srp's guess, the owner's
   to set]. Sold back for a quarter, as everything.

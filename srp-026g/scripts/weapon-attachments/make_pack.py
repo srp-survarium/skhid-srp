@@ -118,6 +118,15 @@ def read_devices():
     return devices
 
 
+def description(device):
+    """The device's description key: its kind's, a stat's size in it (texts.tsv: a line a rule,
+    the number on the card)."""
+    key = KINDS[device['kind']]['description']
+    if device['stat'] is None:
+        return key
+    return key.removesuffix('_desc') + f'_{round(abs(device["stat"]) * 100)}_desc'
+
+
 def fire_point(export_properties):
     """The device's fire point: millimetres along its barrel (-Z) from its origin, its model's
     `fire_point` locator (0.46c2's shot flash of the device); an int, as 0.26g's type-3 values
@@ -165,7 +174,7 @@ def item_config(template, device):
     ce.set_number(buf, 'ui_desc/icon[0]', t['icon'][0], device['icon'][0])
     ce.set_number(buf, 'ui_desc/icon[1]', t['icon'][1], device['icon'][1])
     for frm, to in ((t['type'], kind['type']), (t['key'], kind['key']), (t['texture'], device['model_name']),
-                    (t['name'], device['key']), (t['description'], kind['description'])):
+                    (t['name'], device['key']), (t['description'], description(device))):
         if ce.replace_string(buf, frm, to) != 1:
             sys.exit(f'{TEMPLATE} does not hold {frm!r} once')
     added = modifiers(device)
@@ -182,7 +191,7 @@ def item_config(template, device):
         '/modifications[0]/modifiers[0]/value[0]': (ce.T_STR, kind['key'].encode()),
         '/modifications[0]/modifiers[0]/value[1]': (ce.T_STR, device['model_name'].encode()),
         '/ui_desc/text_descriptions/name': (ce.T_STR, device['key'].encode()),
-        '/ui_desc/text_descriptions/description': (ce.T_STR, kind['description'].encode()),
+        '/ui_desc/text_descriptions/description': (ce.T_STR, description(device).encode()),
     }
     want['/modifications[0]/modifiers'] = (ce.T_INDEXED, 1 + len(added))
     for n, modifier in enumerate(added, start=1):
@@ -267,7 +276,7 @@ def main():
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': [
         {'base_cost': d['price'], 'cfg_name': d['config'], 'dict_id': d['dict_id'], 'is_premium': False, 'is_stack': False,
          'item_category': CATEGORY, 'name': d['name']} for d in devices]})
-    keys = sorted({d['key'] for d in devices} | {KINDS[d['kind']]['description'] for d in devices})
+    keys = sorted({d['key'] for d in devices} | {description(d) for d in devices})
     operations.append({'op': 'atlas_icons_add', 'swf': 'flash_movies/lobby_menu.swf', 'symbol': ICON_ATLAS,
                        'icons': icons})
     for language in LANGUAGES:
