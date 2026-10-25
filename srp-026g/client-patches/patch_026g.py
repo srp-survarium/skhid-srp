@@ -497,10 +497,11 @@ Patches:
   that ends otherwise has its waiting queries made again (finish_query,
   0xF0D00). Textures only;
 - the client check (patches 75..78, with the late join;
-  docs/notes/client_world_check.md; CLIENT_VERIFY_HOOKS): the match
-  dispatch's jump (0x27A330) goes to cv_message
+  docs/notes/client_world_check.md; CLIENT_VERIFY_HOOKS): the 0xE8
+  handler's two world loads (0x27C0D9, 0x27C111) go to cv_world_load and
+  the match dispatch's jump (0x27A330) to cv_message
   (client_verify_026g.asm, the arena's block client_verify.code), which
-  runs srp-validate's message check (the Rust crate
+  run srp-validate's world and message checks (the Rust crate
   rust/client_verify) and leaves the match on a refusal (patch 75); a
   weapon FSM's state id no state has keeps the machine's state instead of
   calling through null (0x38CD22, in place, patch 76); an anomaly's state
@@ -2126,7 +2127,10 @@ BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440
 # 3.60; ../docs/notes/client_world_check.md): client_verify_026g.asm and the
 # Rust crate rust/client_verify (RUST_HOOKs; srp-validate's checks) in the
 # arena's block client_verify.code.
-# - Patch 75: the match dispatch's `jmp
+# - Patch 75: the 0xE8 handler's two calls of game_world_core::deserialize
+#   0x2D0B70 (0x27C0D9 the unpacked world, 0x27C111 the raw one) go to
+#   cv_world_load, which checks the world (world_hook) and goes on to
+#   0x2D0B70, or leaves the match; the match dispatch's `jmp
 #   [eax*4+27A738h]` (0x27A330, every message 0xE3..0xF6) goes to
 #   cv_message (message_hook), which jumps as the site did or leaves
 #   the match. The dispatch's site holds the table's address, under a base
@@ -2135,6 +2139,8 @@ BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440
 # - Patch 78: an artefact-history id's read (0x2FE65E) to cv_artefact,
 #   bounded.
 CLIENT_VERIFY_HOOKS = (
+    (0x27C0D9, bytes.fromhex("e8924a0500"), "cv_world_load", 0xE8),      # the unpacked world's load
+    (0x27C111, bytes.fromhex("e85a4a0500"), "cv_world_load", 0xE8),      # the raw world's load
     (0x31B0FF, bytes.fromhex("8b47680fb6d18b2c90"), "cv_anomaly", 0xE9),  # an anomaly's state index
     (0x2FE65E, bytes.fromhex("8d04828b00"), "cv_artefact", 0xE9),         # an artefact-history id's read
 )
@@ -2143,6 +2149,7 @@ CLIENT_VERIFY_DISPATCH = (0x27A330, bytes.fromhex("ff248538a72700"), "cv_message
 # (never returning to the call site): {VA: whose}. The self-test's call
 # shapes do not follow a jump there (its `ret` is the caller's caller's).
 LEAVES = {
+    0x27C1E0: "process_dynamic_match_info's (the 0xE8 handler): a refused world",
     0x27A72C: "on_match_packet_received's (the dispatch): a refused message",
 }
 CLIENT_VERIFY_DISPATCH_RELOC = 0x27A333         # the table's address in the jump
@@ -2340,6 +2347,9 @@ INSTALLS = {
     0x42050: (ENTRY, "the CRC-32 step (eax &the CRC, edx the bytes, the count; `ret 4`): crc32, the same "
                      "value eight bytes a step", None, None),
     # the client check, patches 75, 77 and 78 (in `.srpx`)
+    0x27C0D9: (CALLEE, "the 0xE8 handler's load of an unpacked world (game_world_core::deserialize, `ret 10h`): "
+                       "cv_world_load, which checks it and goes on to the load or leaves the match", None, None),
+    0x27C111: (CALLEE, "the 0xE8 handler's load of a raw world: cv_world_load, as the unpacked one's", None, None),
     0x27A330: (JUMP, "the match dispatch's `jmp [eax*4+27A738h]`: cv_message, which checks the message and jumps "
                      "as the site did, or leaves the match by the dispatch's epilogue", None, None),
     0x31B0FF: (JUMP, "an anomaly's state index `mov eax,[edi+68h] / movzx edx,cl / mov ebp,[eax+edx*4]`: "
@@ -3542,7 +3552,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
                      "a fall gains speed for the time it fell, not for the steps of a split tick, "
-                     "every received match message is checked before the game reads it and a refused "
+                     "every received world and match message is checked before the game reads it and a refused "
                      "one leaves the match, "
                      "a weapon FSM's, an anomaly's state id or an artefact id past its table no longer crashes, "
                      "a model's LOD and screen factor at a wider field of view are the original's, "

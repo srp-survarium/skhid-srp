@@ -8,12 +8,24 @@ bits 32
 section .text
 %include "rust_hook_026g.inc"
 
+%define WORLD_LOAD 0x2D0B70        ; game_world_core::deserialize, `ret 10h`
+%define WORLD_EPILOGUE 0x27C1E0    ; process_dynamic_match_info's epilogue (its frame in ebp)
 %define DISPATCH_TABLE 0x27A738    ; on_match_packet_received's jump table, 0xE3..0xF6
 %define DISPATCH_EPILOGUE 0x27A72C ; its epilogue (`lea esp,[ebp-70h]` ... `ret 8`)
 %define ANOMALY_BACK 0x31B108      ; after the anomaly's index
 %define ANOMALY_NO_STATE 0x31B0FB  ; its `xor ebp,ebp / jmp 31B108h` (id 0FFh)
 %define ARTEFACT_BACK 0x2FE663     ; after the artefact's read: the game's null test
 %define ARTEFACT_NONE 0x2FE67A     ; the no-artefact exit (ebp 0)
+
+; Patch 75: the 0xE8 handler's `call 0x2D0B70` (0x27C0D9, 0x27C111; the
+; core, the reader, 1, 8 pushed): read, the load with the same arguments
+; and return address; refused (the reader consumed, the match left), out by
+; the handler's epilogue, past the post-load steps.
+global cv_world_load
+cv_world_load:
+    RUST_HOOK world_hook
+    jnz WORLD_EPILOGUE
+    jmp WORLD_LOAD
 
 ; Patch 75: the dispatch's `jmp [eax*4+27A738h]` (0x27A330): read, that jump
 ; (EAX as the site had it); refused, out by the dispatch's epilogue.

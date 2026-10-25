@@ -1,11 +1,15 @@
 //! Patches 75, 77 and 78: a game checks what it is sent before it reads it
 //! (`docs/notes/client_world_check.md`). The checks are `srp_validate`'s,
-//! the match server's own code; this crate reads the game: a message reader
-//! into its bytes, an index's table into its bounds. Its NASM entries
+//! the match server's own code; this crate reads the game: the world core's
+//! rule list into a match ([`world`]), a reader into its bytes, an index's
+//! table into its bounds. Its NASM entries
 //! (client_verify_026g.asm) are `RUST_HOOK`s; each hook answers with ZF
 //! (set: the game goes on as before; clear: its own other path) and the
 //! entry jumps accordingly.
 //!
+//! - 75, the world: the 0xE8 handler's two calls of
+//!   game_world_core::deserialize (0x27C0D9, 0x27C111) -> `world_hook`
+//!   ([`world`]).
 //! - 75, the messages: the match dispatch's table jump (0x27A330) ->
 //!   `message_hook`; refused, the reader is consumed and the match left
 //!   (close_current_match(2), the leave button's), and the entry leaves the
@@ -17,6 +21,8 @@
 
 use patch_core::Field;
 use srp_validate::messages;
+
+pub mod world;
 
 /// The game's buffer reader `{begin, pos, size}`.
 pub enum BufferReader {}
