@@ -59,6 +59,10 @@ pub struct Waypoint {
     /// The leg to it from the waypoint before goes over a floor a standing
     /// body does not fit under (`WalkGrid::can_stand`): walked crouched.
     pub low: bool,
+    /// The leg to it goes over a lip or a floor near a fall
+    /// (`WalkGrid::is_lip`, `WalkGrid::near_fall`): the motor keeps to its
+    /// line there ([`super::motor::Motor::walk_aiming`]).
+    pub edge: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -463,11 +467,13 @@ fn pull_straight(
     let mut edges: Vec<NodeId> = nodes.iter().copied().filter(|&n| edge(n)).collect();
     edges.sort_unstable();
     let kept_back = |n: NodeId| allowed(n) && (!edge(n) || edges.binary_search(&n).is_ok());
+    let near_edge = |from: usize, to: usize| nodes[from..=to].iter().any(|&n| edge(n));
     let mut points = vec![Waypoint {
         at: grid.position(nodes[0]),
         node: nodes[0],
         jump: false,
         low: false,
+        edge: false,
     }];
     // The floors of the leg from node `from` to node `to`, by distance
     // along the route (`start` at `from`).
@@ -501,6 +507,7 @@ fn pull_straight(
                 node: nodes[i],
                 jump: into[i] == LinkKind::Jump,
                 low: low(i - 1, i),
+                edge: near_edge(i - 1, i),
             });
             leg(i - 1, i, &mut floors);
             continue;
@@ -519,6 +526,7 @@ fn pull_straight(
             node: nodes[i],
             jump: false,
             low: low(from, i),
+            edge: near_edge(from, i),
         });
         leg(from, i, &mut floors);
     }
@@ -624,6 +632,7 @@ impl Route {
             node,
             jump: true,
             low: false,
+            edge: false,
         });
         floors.push((along + last.at.distance_xz(to), to.y));
         Self::with_floors(points, floors)
@@ -804,6 +813,15 @@ impl Route {
             .map(|k| (k, self.along[k - 1] - s))
     }
 
+    /// Whether the route from `s` to `within` metres on goes over a lip or
+    /// a floor near a fall ([`Waypoint::edge`]).
+    pub fn edge_ahead(&self, s: f32, within: f32) -> bool {
+        let first = self.along.partition_point(|&a| a <= s).max(1);
+        (first..self.points.len())
+            .take_while(|&k| self.along[k - 1] <= s + within)
+            .any(|k| self.points[k].edge)
+    }
+
     /// Whether the route from `s` to `within` metres on goes over a floor
     /// a standing body does not fit under ([`Waypoint::low`]).
     pub fn low_ahead(&self, s: f32, within: f32) -> bool {
@@ -969,6 +987,7 @@ mod tests {
             node: 0,
             jump: false,
             low: false,
+            edge: false,
         };
         let mut route = Route::new(vec![p(0.0, 0.0), p(10.0, 0.0), p(10.0, 10.0)]);
         assert_eq!(route.length(), 20.0);
@@ -997,6 +1016,7 @@ mod tests {
             node: 0,
             jump: false,
             low: false,
+            edge: false,
         };
         // Up a ramp from x 20 to x 12, then along a walkway 3 m up to x 0.
         let route = Route::new(vec![p(20.0, 0.0, 0.0), p(12.0, 3.0, 0.0), p(0.0, 3.0, 0.0)]);
@@ -1030,6 +1050,7 @@ mod tests {
             node: 0,
             jump: false,
             low: false,
+            edge: false,
         };
         // Along a walkway 3 m up to x 10, down to the ground at x 10.5, on
         // to x 20.

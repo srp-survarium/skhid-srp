@@ -634,6 +634,7 @@ mod tests {
                         node: 0,
                         jump: false,
                         low: false,
+                        edge: false,
                     })
                     .collect(),
             )
@@ -667,6 +668,7 @@ mod tests {
                         node: 0,
                         jump: false,
                         low: false,
+                        edge: false,
                     })
                     .collect(),
             )

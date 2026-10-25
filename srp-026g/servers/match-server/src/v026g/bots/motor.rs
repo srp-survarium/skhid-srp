@@ -295,6 +295,10 @@ const ARRIVE_ON_LANDING_M: f32 = 0.15;
 const _: () = assert!(ARRIVE_ON_LANDING_M < mapdata::grid::POCKET_EXIT_LOW_M);
 /// A low leg this near ahead, metres, is walked crouched already.
 pub const LOW_AHEAD_M: f32 = 1.0;
+/// Strafing while aiming ([`Motor::walk_aiming`]) along a leg over a lip
+/// or a floor near a fall within this, metres, the legs keep to the way
+/// ([`keys_kept_to`]). GUESS: the look ahead's length.
+pub const EDGE_AHEAD_M: f32 = 1.6;
 /// The hop's trail keeps this many walking ticks (4 s: more than a
 /// world's period while a bot walks) …
 const HOP_TRAIL_TICKS: usize = 80;
@@ -352,6 +356,9 @@ pub struct Motor {
     hopped: Option<u32>,
     /// The jump this tick's decision pressed, if any.
     jump: Option<JumpBy>,
+    /// Strafing along an edge ([`keys_kept_to`]): how far, in eighths of
+    /// a turn summed over the ticks, the keys' ways were off the way to go.
+    strafe_off: f32,
 }
 
 /// A jump of the route being made: its take-off and landing (the
@@ -428,6 +435,7 @@ impl Motor {
             way: [0.0, 0.0],
             hopped: None,
             jump: None,
+            strafe_off: 0.0,
         }
     }
 
@@ -485,8 +493,8 @@ impl Motor {
         let turn_time = self.turn_time.unwrap_or(feel.turn_time_s).max(0.02);
         let share = (1.0 - TICK_S / turn_time).max(0.0);
         let ease = |rate: &mut f32, left: f32, feed: f32| {
-            let want = (left / turn_time + feed * share)
-                .clamp(-feel.max_turn_speed, feel.max_turn_speed);
+            let want =
+                (left / turn_time + feed * share).clamp(-feel.max_turn_speed, feel.max_turn_speed);
             let step = feel.max_turn_accel * TICK_S;
             *rate += (want - *rate).clamp(-step, step);
             let mut turn = *rate * TICK_S;
@@ -684,7 +692,20 @@ impl Motor {
             }
         };
         let (dx, dz) = (target.x - pose.feet.x, target.z - pose.feet.z);
-        let mut keys = keys_toward(wrap(yaw_of([dx, dz]) - (pose.yaw + turn.0)));
+        let relative = wrap(yaw_of([dx, dz]) - (pose.yaw + turn.0));
+        // The nearest of the eight ways is up to 22.5° off the way to go:
+        // steered at a point 1.6 m ahead, a body keeps up to 0.36 m to one
+        // side of the line, off a strip's edge where bots fell aiming
+        // (S10, S12 of the fall-spot study: 0.19 m from the lip at
+        // 0.6-1.0 m/s; players 0.47-0.89 m). Near an edge the keys take
+        // turns between the two nearest ways, so they go the way on the
+        // whole.
+        let mut keys = if route.edge_ahead(s, EDGE_AHEAD_M) {
+            keys_kept_to(relative, &mut self.strafe_off)
+        } else {
+            self.strafe_off = 0.0;
+            keys_toward(relative)
+        };
         self.walking = true;
         if let Some(jump) = lined {
             let still = wrap(yaw_of(jump.way) - (pose.yaw + turn.0)).abs();
@@ -1121,7 +1142,28 @@ fn unit(dx: f32, dz: f32) -> Option<[f32; 2]> {
 /// view's yaw; a positive angle is to the left, `kin`).
 pub fn keys_toward(relative: f32) -> u32 {
     use std::f32::consts::FRAC_PI_4;
-    let sector = (wrap(relative) / FRAC_PI_4).round() as i32;
+    keys_of_way((wrap(relative) / FRAC_PI_4).round() as i32)
+}
+
+/// The keys of one of the two ways either side of `relative`
+/// ([`keys_toward`]), the one that brings `off` (eighths of a turn the
+/// keys went off the way so far, kept) nearer naught: over the ticks the
+/// body goes the way to go.
+pub fn keys_kept_to(relative: f32, off: &mut f32) -> u32 {
+    use std::f32::consts::FRAC_PI_4;
+    let want = wrap(relative) / FRAC_PI_4;
+    let below = want.floor();
+    let way = if (*off + below - want).abs() <= (*off + below + 1.0 - want).abs() {
+        below
+    } else {
+        below + 1.0
+    };
+    *off = (*off + way - want).clamp(-1.0, 1.0);
+    keys_of_way(way as i32)
+}
+
+/// The keys of way `sector` of eight, counted to the left from forward.
+fn keys_of_way(sector: i32) -> u32 {
     match sector.rem_euclid(8) {
         0 => key::FORWARD,
         1 => key::FORWARD | key::LEFT,
@@ -1154,6 +1196,25 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn keys_kept_to_the_way_go_it_on_the_whole() {
+        let kin = Kinematics::default();
+        for relative in [0.0f32, 0.17, 0.3, -0.5, 1.0, 2.9, -3.1] {
+            let mut off = 0.0;
+            let (mut x, mut z) = (0.0, 0.0);
+            for _ in 0..80 {
+                let keys = keys_kept_to(relative, &mut off);
+                let [vx, vz] = kin.target_velocity(keys, 0.0, 1.0);
+                let length = vx.hypot(vz);
+                x += vx / length;
+                z += vz / length;
+            }
+            // Within a degree on the whole; one way alone is up to 22.5° off.
+            let went = yaw_of([x, z]);
+            assert!(wrap(went - relative).abs() < 0.02, "{relative} -> {went}");
+        }
+    }
     use crate::v026g::bots::path::Waypoint;
 
     fn route(points: &[(f32, f32)]) -> Route {
@@ -1165,6 +1226,7 @@ mod tests {
                     node: 0,
                     jump: false,
                     low: false,
+                    edge: false,
                 })
                 .collect(),
         )
@@ -1334,6 +1396,7 @@ mod tests {
             node: 0,
             jump,
             low: false,
+            edge: false,
         };
         let (points, way) = if turned {
             (
@@ -1378,6 +1441,7 @@ mod tests {
             node: 0,
             jump,
             low: false,
+            edge: false,
         };
         let ledge = Ledge {
             take_off: Vec3::ZERO,
@@ -1578,6 +1642,7 @@ mod tests {
             node: 0,
             jump,
             low: false,
+            edge: false,
         };
         let route = || {
             Route::new(vec![
