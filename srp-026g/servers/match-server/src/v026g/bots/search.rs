@@ -145,6 +145,7 @@ impl Bots {
                 side,
                 objective,
                 health,
+                &closed,
                 floors,
             )
         } else {
@@ -203,7 +204,9 @@ impl Bots {
             if !(route.is_some() && long_kept)
                 && crossing::wanted(tactics, route.as_ref(), from, to, side, objective, health)
             {
-                match crossing::start(tactics, from, to, time, side, objective, health, floors) {
+                match crossing::start(
+                    tactics, from, to, time, side, objective, health, &closed, floors,
+                ) {
                     Ok(crossing_route) => {
                         (route, crossed, kept) = crossing::choose(
                             tactics,

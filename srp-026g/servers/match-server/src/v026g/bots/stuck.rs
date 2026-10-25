@@ -367,7 +367,14 @@ impl Stuck {
         self.fell(time, at);
         if let Some(landing) = landing {
             self.shut_landings.retain(|&(_, until)| until > time);
-            self.shut_landings.push((landing, time + JUMP_SHUT_MS));
+            match self
+                .shut_landings
+                .iter_mut()
+                .find(|(shut, _)| on_landing(*shut, landing))
+            {
+                Some((_, until)) => *until = time + JUMP_SHUT_MS,
+                None => self.shut_landings.push((landing, time + JUMP_SHUT_MS)),
+            }
         }
     }
 

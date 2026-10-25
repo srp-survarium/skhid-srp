@@ -1007,6 +1007,10 @@ impl Tactics {
     ///   nearest way out alone went back the way it came, then in again.
     /// - None within [`ESCAPE_FLOORS`] (deep in a big zone): the way out
     ///   the zone's exit field gives ([`Self::exit_of`]).
+    ///
+    /// `closed`: the landings of jumps the body gave up
+    /// ([`super::stuck::Stuck::shut_landings`]): neither the search nor the
+    /// route to the way out goes over them.
     pub fn escape(
         &self,
         from: NodeId,
@@ -1014,8 +1018,15 @@ impl Tactics {
         time: u32,
         side: Option<i32>,
         objective: bool,
+        closed: &[Vec3],
     ) -> Option<Route> {
         let grid = &self.world.grid;
+        let shut = |n: NodeId| {
+            !closed.is_empty() && {
+                let at = grid.position(n);
+                closed.iter().any(|&landing| super::stuck::on_landing(landing, at))
+            }
+        };
         let mut seen = std::collections::HashSet::from([from]);
         let mut queue = std::collections::VecDeque::from([(from, 0.0f32)]);
         let start = grid.position(from);
@@ -1042,7 +1053,7 @@ impl Tactics {
                 break;
             }
             for (b, _) in grid.links(a) {
-                if grid.plans(a, b) && seen.insert(b) {
+                if grid.plans(a, b) && !shut(b) && seen.insert(b) {
                     queue.push_back((b, d + grid.position(b).distance_xz(at)));
                 }
             }
@@ -1071,7 +1082,7 @@ impl Tactics {
         #[cfg(test)]
         escapes::count(out.is_some(), out.is_some() && out != nearest.map(|n| n.0));
         let out = out.or_else(|| self.exit_of(from))?;
-        path::plan(grid, from, out)
+        path::plan_where(grid, from, out, |n| !shut(n))
     }
 
     /// The floor no zone marks that the exit field leads to from `from`, a
@@ -1831,6 +1842,10 @@ pub(super) mod tests {
         }
     }
 
+    fn end_node_y(tactics: &Tactics, node: NodeId) -> f32 {
+        tactics.world.grid.position(node).y
+    }
+
     /// A body inside a zone (always on) has no route to anywhere, but a
     /// way out: to the nearest floor it may walk on, a few metres off.
     #[test]
@@ -1863,12 +1878,25 @@ pub(super) mod tests {
                 .route_nodes(inside, to, 0, Some(0), false, |_| true)
                 .is_none()
         );
-        let out = tactics.escape(inside, None, 0, Some(0), false).unwrap();
+        let out = tactics.escape(inside, None, 0, Some(0), false, &[]).unwrap();
         let end = out.point_at(out.length());
         let end_node = grid.locate(end, 0.3).unwrap();
         assert!(tactics.allowed(end_node, 0, Some(0), false));
         // The zone and its margin are 4 m round its centre: out within 5 m.
         assert!(out.length() < 5.0, "{}", out.length());
+        // A landing the body gave up jumping to is kept off, by the search
+        // for the way out and by the route to it.
+        let shut = [Vec3::new(end.x, end_node_y(&tactics, end_node), end.z)];
+        let other = tactics
+            .escape(inside, None, 0, Some(0), false, &shut)
+            .unwrap();
+        let end2 = other.point_at(other.length());
+        assert!(end2.distance_xz(end) >= 0.35, "{end2:?} against {end:?}");
+        assert!(
+            other.points().iter().all(|p| p.at.distance_xz(end) >= 0.3),
+            "{:?}",
+            other.points()
+        );
         // From there the goal has a way.
         assert!(
             tactics

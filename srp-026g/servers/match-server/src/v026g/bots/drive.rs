@@ -58,7 +58,8 @@ pub(super) fn zone_way_out(
     {
         return Some(to);
     }
-    let out = tactics.escape(from, None, time, bot.side, objective)?;
+    let closed: Vec<Vec3> = bot.stuck.shut_landings(time).collect();
+    let out = tactics.escape(from, None, time, bot.side, objective, &closed)?;
     let to = out.point_at(out.length());
     bot.stuck.zone_out = Some((to, time + stuck::ZONE_OUT_KEPT_MS));
     Some(to)
@@ -470,7 +471,7 @@ pub(super) fn drive_tick(
                 let mut left = None;
                 let mut route = if escaping {
                     let route = ends.and_then(|(from, _)| {
-                        tactics.escape(from, Some(at), time, side, objective)
+                        tactics.escape(from, Some(at), time, side, objective, &closed)
                     });
                     // [zones] Out of the same zones toward the same goal
                     // twice lately: the way there keeps going into them;
@@ -570,7 +571,9 @@ pub(super) fn drive_tick(
                         me.health,
                     )
                 {
-                    match crossing::start(tactics, from, to, time, side, objective, me.health, floors)
+                    match crossing::start(
+                        tactics, from, to, time, side, objective, me.health, &closed, floors,
+                    )
                     {
                         Ok(crossing_route) => {
                             let kept;
