@@ -322,53 +322,89 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn('VPN.txt', readme)
         self.assertIn('VPN.txt', (folder / 'LINUX.txt').read_text(encoding='utf-8'))
 
-    def network_setup(self, top, *options):
-        """Skhid-network-setup.cmd of the overlay in `top`, run with
-        `options` (cmd.exe; elsewhere Wine's, in a prefix of its own): what it
-        printed, its lines."""
-        # By its name from its folder: cmd /c takes a quoted path with
-        # arguments apart. The script finds its folder itself (%~dp0).
+    def windows_env(self):
+        """The environment of a Windows program here: this one, or Wine's in a
+        prefix of its own (no window is opened)."""
         if os.name == 'nt':
-            command, env = ['cmd.exe', '/d', '/c', 'Skhid-network-setup.cmd', *options], None
-        else:
-            prefix = self.root / 'wineprefix'
-            prefix.mkdir(exist_ok=True)
-            env = {k: v for k, v in os.environ.items() if k not in ('DISPLAY', 'WAYLAND_DISPLAY')}
-            env.update(WINEPREFIX=str(prefix), WINEDEBUG='-all')
-            command = [WINE, 'cmd', '/d', '/c', 'Skhid-network-setup.cmd', *options]
-        done = subprocess.run(command, cwd=top, env=env, stdin=subprocess.DEVNULL,
+            return dict(os.environ)
+        prefix = self.root / 'wineprefix'
+        prefix.mkdir(exist_ok=True)
+        env = {k: v for k, v in os.environ.items() if k not in ('DISPLAY', 'WAYLAND_DISPLAY')}
+        env.update(WINEPREFIX=str(prefix), WINEDEBUG='-all')
+        return env
+
+    def cmd(self, folder, *arguments, env=None):
+        """cmd.exe (elsewhere Wine's) run in `folder` with `arguments`: what it
+        printed, its lines."""
+        command = (['cmd.exe'] if os.name == 'nt' else [WINE, 'cmd']) + ['/d', '/c', *arguments]
+        done = subprocess.run(command, cwd=folder, env=env or self.windows_env(), stdin=subprocess.DEVNULL,
                               capture_output=True, timeout=600)
         if os.environ.get('SKHID_TEST_DEBUG'):
             print(command, done.returncode, done.stdout, done.stderr)
         return done.stdout.decode('ascii', 'replace').replace('\r\n', '\n').splitlines()
 
+    def network_setup(self, top, *options):
+        """Skhid-network-setup.cmd of the overlay in `top`, run by its name
+        from its folder (it finds the folder itself, %~dp0)."""
+        return self.cmd(top, 'Skhid-network-setup.cmd', *options)
+
+    def elevated(self, line):
+        """The elevated run of a dry run's `elevate:` line, as Start-Process
+        starts it (cmd.exe and that command line), without asking for
+        administrator rights, from another folder (an elevated one starts in
+        System32). The line reaches cmd.exe as it is: a script of the test's
+        hands it over by delayed expansion, which nothing parses again."""
+        harness = self.root / 'elevate.cmd'
+        harness.write_bytes(b'@echo off\r\nsetlocal EnableDelayedExpansion\r\n'
+                            b'"%ComSpec%" !SKHID_TEST_CMDLINE!\r\n')
+        prefix = '[dry-run] elevate: cmd.exe '
+        self.assertTrue(line.startswith(prefix), line)
+        env = self.windows_env()
+        env['SKHID_TEST_CMDLINE'] = line[len(prefix):]
+        return self.cmd(self.root, 'elevate.cmd', env=env)
+
     @unittest.skipUnless(os.name == 'nt' or WINE, 'Windows, or Wine for its cmd.exe')
     def test_the_network_setup_adds_and_removes_exactly_its_rules(self):
-        # A folder with a space and brackets, as a player's may be.
-        top = self.root / 'My Games (x86)' / 'Survarium'
+        # Folders with a space and brackets, and with an &, as a player's may be.
+        for name in ('My Games (x86)', 'Tom & Jerry (x86)'):
+            with self.subTest(name):
+                self.network_setup_in(self.root / name / 'Survarium')
+
+    def network_setup_in(self, top):
         self.build(top)
         x86 = str(top / 'game' / 'binaries' / 'x86')
         if os.name != 'nt':
             x86 = 'Z:' + x86.replace('/', '\\')
-        rules = [(program, protocol, direction) for program in PROGRAMS
-                 for direction in ('in', 'out') for protocol in ('TCP', 'UDP')]
+        top_windows = x86.rsplit('\\game\\', 1)[0]
+        # Out only, TCP and UDP: nothing comes in.
+        rules = [(program, protocol) for program in PROGRAMS for protocol in ('TCP', 'UDP')]
 
-        def delete(program, protocol, direction):
-            return f'[dry-run] netsh advfirewall firewall delete rule name="Skhid {program} {protocol} {direction}"'
+        def delete(program, protocol):
+            return f'[dry-run] netsh advfirewall firewall delete rule name="Skhid {program} {protocol} out"'
+
+        def commands(lines):
+            return [line for line in lines if line.startswith('[dry-run] ') and 'elevate:' not in line]
 
         added = self.network_setup(top, '--dry-run', '--defender-yes')
-        commands = [line for line in added if line.startswith('[dry-run] ')]
         expected = []
-        for program, protocol, direction in rules:
-            expected += [delete(program, protocol, direction),
-                         f'[dry-run] netsh advfirewall firewall add rule name="Skhid {program} {protocol} '
-                         f'{direction}" dir={direction} action=allow program="{x86}\\{program}" '
-                         f'protocol={protocol} enable=yes profile=any']
-        top_windows = x86.rsplit('\\game\\', 1)[0]
+        for program, protocol in rules:
+            expected += [delete(program, protocol),
+                         f'[dry-run] netsh advfirewall firewall add rule name="Skhid {program} {protocol} out" '
+                         f'dir=out action=allow program="{x86}\\{program}" protocol={protocol} enable=yes '
+                         f'profile=any']
+        # The exclusion: game\binaries\x86 alone, never the folder above it.
         expected += ['[dry-run] look for firewall rules that block the three programs',
-                     f'[dry-run] powershell Add-MpPreference -ExclusionPath "{top_windows}"',
+                     f'[dry-run] powershell Add-MpPreference -ExclusionPath "{x86}"',
                      f'[dry-run] write "{top_windows}\\Skhid-network-setup.defender"']
-        self.assertEqual(commands, expected, '\n'.join(added))
+        self.assertEqual(commands(added), expected, '\n'.join(added))
+        self.assertNotIn(' dir=in ', '\n'.join(added))
+        # The command line the elevation starts cmd.exe with, and that run.
+        elevate = [line for line in added if 'elevate:' in line]
+        self.assertEqual(elevate, [f'[dry-run] elevate: cmd.exe /d /c ""{top_windows}\\Skhid-network-setup.cmd" '
+                                   '--elevated --defender-yes --dry-run"'], '\n'.join(added))
+        elevated = self.elevated(elevate[0])
+        self.assertEqual(commands(elevated), expected, '\n'.join(elevated))
+        self.assertFalse([line for line in elevated if 'elevate:' in line])
         # Every rule is removed by its name before it is added: a second run
         # adds none twice.
         self.assertEqual(self.network_setup(top, '--dry-run', '--defender-yes'), added)
@@ -376,21 +412,28 @@ class ReleaseTests(unittest.TestCase):
         refused = self.network_setup(top, '--dry-run', '--defender-no')
         self.assertIn('Defender: no exclusion added.', refused)
         self.assertFalse([line for line in refused if 'MpPreference' in line])
-        # --undo: the same twelve rules, and no exclusion this script did not add.
+        # --undo: the same six rules, and no exclusion this script did not add.
         undone = self.network_setup(top, '--dry-run', '--undo')
-        self.assertEqual([line for line in undone if line.startswith('[dry-run] ')],
-                         [delete(*rule) for rule in rules], '\n'.join(undone))
+        self.assertEqual(commands(undone), [delete(*rule) for rule in rules], '\n'.join(undone))
         self.assertIn('Defender: this script added no exclusion here: nothing to remove.', undone)
-        (top / 'Skhid-network-setup.defender').write_bytes(top_windows.encode() + b'\r\n')
+        self.assertIn('[dry-run] elevate: cmd.exe /d /c ""' + top_windows + '\\Skhid-network-setup.cmd" '
+                      '--elevated --undo --dry-run"', undone)
+        # The marker as the script writes it (the path, a line end): the
+        # exclusion it names is the one removed, an & in the path and all,
+        # in the elevated run too.
+        (top / 'Skhid-network-setup.defender').write_bytes(x86.encode() + b'\r\n')
         undone = self.network_setup(top, '--dry-run', '--undo')
-        self.assertIn(f'[dry-run] powershell Remove-MpPreference -ExclusionPath "{top_windows}"', undone)
+        removal = [f'[dry-run] powershell Remove-MpPreference -ExclusionPath "{x86}"',
+                   f'[dry-run] delete "{top_windows}\\Skhid-network-setup.defender"']
+        self.assertEqual(commands(undone)[-2:], removal, '\n'.join(undone))
+        elevated = self.elevated([line for line in undone if 'elevate:' in line][0])
+        self.assertEqual(commands(elevated), commands(undone), '\n'.join(elevated))
         # Not beside the game: it says where it belongs and changes nothing.
         (top / 'game' / 'binaries' / 'x86' / 'survarium_skhid.exe').unlink()
         lost = self.network_setup(top, '--dry-run')
         self.assertIn('survarium_skhid.exe was not found in', lost)
         self.assertFalse([line for line in lost if line.startswith('[dry-run] ')])
         self.assertIn('Unknown option: --firewall-off', self.network_setup(top, '--firewall-off'))
-
 
 if __name__ == '__main__':
     unittest.main()

@@ -97,8 +97,8 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         programs to put in a VPN's split tunnelling, how in the usual VPN
         programs, the hosts and ports (English and Russian; VPN.txt here).
     <output>/Skhid-network-setup.cmd
-        Windows Firewall allow rules for the three programs and, asked, a
-        Microsoft Defender exclusion of the game folder; --undo removes
+        Windows Firewall outbound allow rules for the three programs and,
+        asked, a Microsoft Defender exclusion of game\binaries\x86; --undo removes
         them, --dry-run prints the commands (Skhid-network-setup.cmd here).
     <output>/README.txt
         what to do with it, and where the original game is had.
