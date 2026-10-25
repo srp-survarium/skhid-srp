@@ -1021,6 +1021,18 @@ In Cologne the owner stole from the same container by the same lane again and ag
 - He steals rarely: a Raid is a candidate only when the enemy's container holds batteries, and in 3 minutes at 10 v 10 it seldom does.
 - For the holder's bench, `SRP_BENCH_START` (batteries in the containers from the start) or longer runs would give him more thefts.
 
+### A role budget by team size (Cologne CG-13; tried 2026-10-25, shelved)
+
+Tried in the commander: at most a third of the bots pair up, at most one holder (none for the last two with a battery loose), and with a battery loose the last bot served takes a battery play. Also tried and dropped: a raid cover for our human, and a second take after his take from their container. Nothing shipped.
+
+- **The stand-in bench:** 2v2-4v4, `SRP_BENCH_HUMAN=0`, 16 seeds, 288 pairs, each variant vs the budget off.
+  - The budget: idle −104 ± 31 s, but quick ends +3.7 ± 1.6 and his deaths +0.94 ± 0.46.
+  - Without the batteries minimum: the same as off (idle −3 ± 7). That rule is both the gain and the cost; the pair cap and the holder rules change almost nothing at these sizes.
+- **The plain bench** (4v4 and 10v10): no gain beyond 2 SE.
+- **The raid cover:** quick ends +40.5 ± 6.4 and no more support. A raiding human outruns the bot, so the cover ends at range.
+- **The second take:** never fired (about 5 takes from their container in 192 matches).
+- **Follow-up:** a battery minimum that sends the bot nearest the battery, never the human's escort; check the small-team lean on live PvB data.
+
 ## 4. Event reactions
 
 | Event | How bots learn it | Reaction |
