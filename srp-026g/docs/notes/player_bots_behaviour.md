@@ -1248,3 +1248,23 @@ The worlds the server already saves (one every ~5 s, `SRP_SNAPSHOT_DIR`) give a 
 - **Event delay:** events reach the server with the worlds, every ~5 s. In matches with bots: a world every 1 s (~8 KB each).
 - **Positions between worlds:** carried forward from keys and turning (drift on collisions). A bot's own position is carried forward the same way and corrected at each world.
 - **Path distances and visibility:** from a walk grid built from the walker mesh, and a ray tree on the bullet mesh (`player_bots.md` §5). Distance maps per target (enemy base, batteries, resupply) are cheaper than repeated path searches.
+
+### Bots split step 1: where the bench code lives now
+
+`bots/tests.rs` (and `fight_tally.rs`, `bench_spread.rs`, `owner_tally.rs` beside it) became the folder `bots/tests/`, a move of items with no change of
+behaviour (the decision digests and the whole bench output but its timings are the same). The notes above name the old file; read them by this table.
+
+| In the notes as | Now in `bots/tests/` |
+|---|---|
+| the stand-in game and body (`Game`, `Body`, the battery use model, respawns, zone damage) | `standin.rs`; its table of game-model switches is at the top |
+| `stand_in_jump`, `StandInJump`, the honest jump (`Clip`, `Flight`) | `standin_jump.rs` |
+| `real_bot_cost`, `bench_tuning_of`, `BenchEvents`, `Times` | `bench.rs` (the test itself stays `tests::real_bot_cost` in `mod.rs`; the bench scripts run it by that path) |
+| every `SRP_BENCH_*` setting, `SRP_MAPDATA_DIR`, `SRP_BOT_ROUTES` | `settings.rs`: the list, with what each is and what it is unset |
+| `Decisions` (the digest), `Outcome` | `tallies/decisions.rs` |
+| `CarryTally`, `RaidTally`, `BlockTally`, `HitTally`, `RouteTally`, `PushTally`, `HumanTally`, `ZoneSpell` | `tallies/carry.rs`, `raid.rs`, `block.rs`, `hit.rs`, `route.rs`, `push.rs`, `human.rs`, `zone_spell.rs` |
+| `fight_tally.rs` (`FightTally`, `GateTally`, `ReloadTally`) | `tallies/fight_tally.rs` |
+| `owner_tally.rs` (the owner-test counts) | `tallies/owner/`: `fight.rs`, `jumps.rs`, `moving.rs`, `grenades.rs`, `campers.rs`, and `mod.rs` (`OwnerTally`, `Rec`, `step`, `finish`) |
+| `bench_spread.rs` | `bench_spread.rs` |
+| the soaks and whole-match tests (`a_take_waits_for_the_fight_unless_covered`, ...) | `soak.rs`, `soaks.rs` |
+| the scenario tests | `batteries.rs`, `no_way.rs`, `kits.rs`, `world_facts.rs`, `driving.rs`, `walkway.rs`, `fights.rs`, `camper.rs` |
+| `zone_runs`, `pocket_runs`, `arrival_height` | `zone_runs.rs`, `pocket_runs.rs`, `arrival_height.rs` |
