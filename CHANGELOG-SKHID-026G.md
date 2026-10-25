@@ -597,3 +597,18 @@ kept and can be put back).
 - TODO: #350 Esc follow-up to #349: box over results, invite Esc hides, craft search, loading, dropdown order
 - TODO: #352 Research: count captures in the player's own kit cell
 - TODO: #353 Research HUD: units back at rev 30's height
+
+## 25 Oct, 12:14 — TODO: the owner's words (update required)
+
+<!-- Revision 32 (026g-rev32), released 2026-10-25 12:14 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #356 Upgrade window: loadout badges on the item and donor slots
+- TODO: #368 Patch 62: F11 hides the whole interface (match and lobby); no-UI battery mode spec
+- TODO: #397 Bandages: hands and legs full, pain, body and head 35 %
+- TODO: #400 New accounts start with a starter kit
+- TODO: #408 Onyx nerf: -60 % for 3 s, +1 s for each other Onyx
+- TODO: #414 Artefacts: the carrier sees his own glow in first person
+- TODO: #423 Onyx: -75 % when active
+- TODO: #422 Rooms: the create window opens with its saved settings, preloaded
+- TODO: #424 Lobby card: stats over their scale show their real value
+- TODO: #418 Kill feed: wall, ricochet and pain-shock icons after the weapon (patch 67)
