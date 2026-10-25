@@ -1,2 +1,5 @@
-# dict id	name	kind	the 0.46c2 model	English name	icon row	icon col
-2601	srp_flash_hider_04	flash_hider	models/weapons/attach/fire_arrestor/fire_arrestor_04.model	Flash hider	2	4
+# dict id	name	kind	the 0.46c2 model	English name	icon row	icon col	recoil	shot effect
+#   recoil: the weapon's parameters/recoil_modifier added (0.46c2's: horizontal brakes 502/0 -0.05, vertical 502/1 -0.1), - none
+#   shot effect: the weapon's particles/shoot (0.46c2's effects_override of the device), - the weapon's own
+2601	srp_flash_hider_04	flash_hider	models/weapons/attach/fire_arrestor/fire_arrestor_04.model	Flash hider	2	4	-	fx/weapons/attach/arrestor4
+2602	srp_muzzle_brake_04	muzzle_brake	models/weapons/attach/muzzle_brake/dtk_04.model	Muzzle brake	2	4	-0.05	-

@@ -3,7 +3,10 @@
  * the weapon kit's slot 4) loads it with the weapon and draws it at the
  * weapon's barrel_point, moved `data/srp_muzzle_offset` metres forward along
  * the barrel (each weapon's own: the stock muzzle brakes are part of the weapon
- * models). README patch 68; client_patch.md section 3.56;
+ * models). The shot's flash (barrel_point's matrix, which the shot effects
+ * take) moves to the device's fire point, `data/srp_muzzle_fire_mm`
+ * millimetres on from the device's origin (an int: the type-3 modifier that
+ * adds it puts ints and strings only, as 0.26g's own). README patch 68; client_patch.md section 3.56;
  * ../docs/notes/weapon-kit.md. weapon_muzzle_026g.asm holds the hooks; here
  * what they compute.
  *
@@ -21,7 +24,7 @@ struct muzzle {
     void *model;            /* the device's model instance (a resource, +0xD0 its count), or 0 */
     float offset;           /* metres along the barrel from barrel_point */
     unsigned int added;     /* in the scene (as the weapon's model) */
-    unsigned int pad;
+    float fire;             /* the device's fire point: metres along the barrel from its origin */
     float matrix[16];       /* where it is drawn: barrel_point's, moved */
 };
 
@@ -66,12 +69,13 @@ const char *weapon_muzzle_model(const void *root)
     return model != 0 && model->type == T_STRING ? model->value.s : 0;
 }
 
-static float offset_of(const void *root)
+/* A number of the config's data table (a float, or an int), 0 without it. */
+static float data_number(const void *root, const char *key)
 {
-    const struct node *offset = child(child(root, "data"), "srp_muzzle_offset");
-    if (offset == 0)
+    const struct node *number = child(child(root, "data"), key);
+    if (number == 0)
         return 0.0f;
-    return offset->type == T_FLOAT ? offset->value.f : (float)offset->value.i;
+    return number->type == T_FLOAT ? number->value.f : (float)number->value.i;
 }
 
 /* The weapon was made (weapon_cook 0x24A780, its arrays zeroed): its part
@@ -107,7 +111,8 @@ void weapon_muzzle_loaded(const unsigned char *results, const unsigned char *con
         return;
     __atomic_add_fetch((unsigned int *)(model + 0xD0), 1, __ATOMIC_SEQ_CST);
     part->model = model;
-    part->offset = offset_of(root);
+    part->offset = data_number(root, "srp_muzzle_offset");
+    part->fire = data_number(root, "srp_muzzle_fire_mm") / 1000.0f;
 }
 
 /* Where the device is drawn: barrel_point's matrix (+0x620, weapon::draw's
@@ -122,4 +127,19 @@ void weapon_muzzle_place(unsigned char *weapon)
         part->matrix[i] = barrel[i];
     for (unsigned int i = 0; i < 3; i++)
         part->matrix[12 + i] -= part->offset * barrel[8 + i];
+}
+
+/* The shot's flash at the device's fire point: barrel_point's point (+0x620,
+ * the fourth row; weapon::draw computes the matrix again each time before
+ * the weapon model's update, update_pfx_transform 0x244570 and the shot
+ * effects 0x244120 read it after) moved `offset + fire` forward. Only a
+ * weapon with a device: the draw's update hook calls it after placing the
+ * device. */
+void weapon_muzzle_fire(unsigned char *weapon)
+{
+    struct muzzle *part = weapon_muzzle_extension(weapon);
+    float *barrel = (float *)(weapon + 0x620);
+    float along = part->offset + part->fire;
+    for (unsigned int i = 0; i < 3; i++)
+        barrel[12 + i] -= along * barrel[8 + i];
 }

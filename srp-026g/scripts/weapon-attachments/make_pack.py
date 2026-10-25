@@ -19,8 +19,12 @@ What the pack holds, for each device of devices.tsv:
   type `srp_muzl` (the server's: slot 4, survarium::v026g::modifications), the modification id
   (260000 + its dict id's last three digits) whose modifier adds `srp_muzzle_model` = the model
   (where the camouflage's adds `camouflage` = its texture) to the weapon config's `data` (client
-  patch 68 reads it), the name and description keys, the icon's cell (a shop scope's for now);
-  read back, nothing else differs;
+  patch 68 reads it), then its own modifiers (devices.tsv): data/srp_muzzle_fire_mm, the model's
+  fire_point locator in millimetres (patch 68 moves the shot's flash there), a brake's recoil
+  (parameters/recoil_modifier added, type 1), a flash hider's shot effect (particles/shoot set,
+  type 0); the name and description keys, the icon's cell (a shop scope's for now); read back,
+  nothing else differs;
+- the effects the devices name (extras.tsv): particles, their materials and textures;
 - its dictionary row (category 22, the scopes': the lobby's attachments filter) and its texts in
   the six languages (texts.tsv).
 """
@@ -36,7 +40,7 @@ sys.path.insert(0, str(HERE.parent / 'content-edit'))
 import content_edit as ce  # noqa: E402
 
 PACK_ID = 'weapon-attachments'
-VERSION = '1'
+VERSION = '2'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 TEMPLATE = 'gameplay/items/upgrades/camouflages/black_market/camo_black_leather.options'
 STOCK = {TEMPLATE: '101a46acb6cb7e974777dbaeff20cb9f041aa0d02a00622f43f609d3c4762b74'}
@@ -45,7 +49,10 @@ TEMPLATE_VALUES = {'type': 'stk_camo', 'modification': 100001, 'key': 'camouflag
                    'name': 'st_camo_black_leather_name', 'description': 'st_camo_generic_desc', 'icon': (1, 1)}
 ITEM_CONFIGS = 'gameplay/items/attachments/'
 CATEGORY = 22
-KINDS = {'flash_hider': {'type': 'srp_muzl', 'key': 'srp_muzzle_model', 'description': 'st_srp_flash_hider_desc'}}
+KINDS = {'flash_hider': {'type': 'srp_muzl', 'key': 'srp_muzzle_model', 'description': 'st_srp_flash_hider_desc'},
+         'muzzle_brake': {'type': 'srp_muzl', 'key': 'srp_muzzle_model', 'description': 'st_srp_muzzle_brake_desc'}}
+# modifier types (vostok::configs, the modification's apply 0x358560): 0 the value set, 1 added
+SET, ADD, ADD_KEY = 0, 1, 3
 
 
 def sha256(data):
@@ -83,7 +90,7 @@ def rows(name):
 
 def read_devices():
     devices = []
-    for dict_id, name, kind, model, english, icon_row, icon_col in rows('devices.tsv'):
+    for dict_id, name, kind, model, english, icon_row, icon_col, recoil, shoot in rows('devices.tsv'):
         if kind not in KINDS:
             sys.exit(f'devices.tsv: {name}: no kind {kind}')
         stem = model.removeprefix('models/').removesuffix('.model')
@@ -91,8 +98,34 @@ def read_devices():
                         'model_name': stem, 'icon': (int(icon_row), int(icon_col)),
                         'config': ITEM_CONFIGS + name + '.options',
                         'modification': 260000 + int(dict_id) % 1000,
-                        'key': f'st_{name}_name'})
+                        'key': f'st_{name}_name',
+                        'recoil': None if recoil == '-' else float(recoil),
+                        'shoot': None if shoot == '-' else shoot})
     return devices
+
+
+def fire_point(export_properties):
+    """The device's fire point: millimetres along its barrel (-Z) from its origin, its model's
+    `fire_point` locator (0.46c2's shot flash of the device); an int, as 0.26g's type-3 values
+    are ints and strings."""
+    buf = bytearray(export_properties)
+    for i in range(len(ce.children(buf, ce.find(buf, 'locators')))):
+        if ce.value_of(buf, ce.find(buf, f'locators[{i}]/name')) == 'fire_point':
+            x, y, z = ce.value_of(buf, ce.find(buf, f'locators[{i}]/position'))
+            return round(-z * 1000)
+    sys.exit('the model has no fire_point locator')
+
+
+def modifiers(device):
+    """The modifiers after the model's: the fire point (data/srp_muzzle_fire_mm, client patch 68's
+    shot flash), the recoil (parameters/recoil_modifier added), the shot effect (particles/shoot
+    set)."""
+    extra = [{'path': ['data'], 'value': ['srp_muzzle_fire_mm', device['fire']], 'type': ADD_KEY}]
+    if device['recoil'] is not None:
+        extra.append({'path': ['parameters', 'recoil_modifier'], 'value': device['recoil'], 'type': ADD})
+    if device['shoot'] is not None:
+        extra.append({'path': ['particles', 'shoot'], 'value': device['shoot'], 'type': SET})
+    return extra
 
 
 def read_texts():
@@ -118,6 +151,9 @@ def item_config(template, device):
                     (t['name'], device['key']), (t['description'], kind['description'])):
         if ce.replace_string(buf, frm, to) != 1:
             sys.exit(f'{TEMPLATE} does not hold {frm!r} once')
+    added = modifiers(device)
+    for modifier in added:
+        ce.add_item(buf, 'modifications[0]/modifiers', modifier)
     old = {p: (ty, v) for p, ty, v in ce.walk(bytearray(template))}
     new = {p: (ty, v) for p, ty, v in ce.walk(buf)}
     want = {
@@ -131,13 +167,37 @@ def item_config(template, device):
         '/ui_desc/text_descriptions/name': (ce.T_STR, device['key'].encode()),
         '/ui_desc/text_descriptions/description': (ce.T_STR, kind['description'].encode()),
     }
-    if set(old) != set(new) or not set(want) <= set(new):
+    want['/modifications[0]/modifiers'] = (ce.T_INDEXED, 1 + len(added))
+    for n, modifier in enumerate(added, start=1):
+        at = f'/modifications[0]/modifiers[{n}]'
+        want[at] = (ce.T_NAMED, 3)
+        want[at + '/type'] = (ce.T_INT, modifier['type'])
+        want[at + '/path'] = (ce.T_INDEXED, len(modifier['path']))
+        for i, part in enumerate(modifier['path']):
+            want[f'{at}/path[{i}]'] = (ce.T_STR, part.encode())
+        values = modifier['value'] if isinstance(modifier['value'], list) else None
+        if values is None:
+            want[at + '/value'] = value_entry(modifier['value'])
+        else:
+            want[at + '/value'] = (ce.T_INDEXED, len(values))
+            for i, v in enumerate(values):
+                want[f'{at}/value[{i}]'] = value_entry(v)
+    if set(old) | set(want) != set(new):
         sys.exit(f'{device["name"]}: the item config lost or gained a value')
-    for path in old:
-        expected = want.get(path, old[path])
+    for path in new:
+        expected = want.get(path, old.get(path))
         if new[path] != expected:
             sys.exit(f'{device["name"]}: {path} is {new[path]}, not {expected}')
     return bytes(buf)
+
+
+def value_entry(value):
+    """A value as walk gives it: (type, value), a float as its bits."""
+    if isinstance(value, float):
+        return ce.T_FLOAT, ce.struct.unpack('<I', ce.struct.pack('<f', value))[0]
+    if isinstance(value, int):
+        return ce.T_INT, value & 0xffffffff
+    return ce.T_STR, value.encode()
 
 
 def model_settings(data, surfaces):
@@ -167,6 +227,7 @@ def main():
 
     files = {}
     for device in devices:
+        device['fire'] = fire_point(donor[device['model'] + '/render/export_properties'])
         files[device['config']] = item_config(stock[TEMPLATE], device)
         model = device['model']
         surface = Path(device['model_name']).name + '_s'
@@ -178,6 +239,8 @@ def main():
         for path, data in donor.items():
             if path == f'material_instances/{stem}.material' or path.startswith(f'textures/{stem}/'):
                 files[path] = data
+    for how, path, _ in rows('extras.tsv'):
+        files[path] = donor[path]
 
     operations = [{'op': 'add_file', 'path': path} for path in sorted(files)]
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': [

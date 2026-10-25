@@ -7,7 +7,8 @@
 # 0.26g's). For each device of devices.tsv: its model's four files, its material made again on a
 # 0.26g template (vostok-port build-material-patch; pp9_klin's, the template rank-material-templates
 # rates exact for every attach material), its textures (the .dds as they are); every config (the
-# model's, the textures' .options) written again in 0.26g's 24-byte layout (widen_config.rs).
+# model's, the textures' .options) written again in 0.26g's 24-byte layout (widen_config.rs). Then
+# each file of extras.tsv (the effects the devices name: particles, their materials, textures).
 # make_pack.py checks every file against donor.sha256.
 set -euo pipefail
 split=$1 target=$2 porter=$3 out=$4
@@ -56,5 +57,23 @@ grep -v '^#' "$here/devices.tsv" | while IFS=$'\t' read -r dict_id name kind mod
         --material "$material=material_instances/weapons/pp9_klin/pp9_klin.material" --output "$work/material" >/dev/null
     mkdir -p "$out/$(dirname "$material")"
     cp "$work/material/overlay/$material" "$out/$material"
+done
+grep -v '^#' "$here/extras.tsv" | while IFS=$'\t' read -r how path template; do
+    mkdir -p "$out/$(dirname "$path")"
+    case $how in
+        raw) "$port" extract --db "$split" --path "$path" --output "$out/$path" >/dev/null ;;
+        config)
+            "$port" extract --db "$split" --path "$path" --output "$work/raw" >/dev/null
+            "$widen" "$work/raw" "$out/$path" ;;
+        particle)
+            "$port" extract --db "$split" --path "$path" --output "$work/raw" >/dev/null
+            "$widen" --particle "$work/raw" "$out/$path" ;;
+        material)
+            rm -rf "$work/material"
+            "$port" build-material-patch --source-db "$split" --target-db "$target" \
+                --material "$path=$template" --output "$work/material" >/dev/null
+            cp "$work/material/overlay/$path" "$out/$path" ;;
+        *) echo "extras.tsv: $how: no such way" >&2; exit 1 ;;
+    esac
 done
 (cd "$out" && find . -type f | sed 's|^\./||' | sort | xargs sha256sum)

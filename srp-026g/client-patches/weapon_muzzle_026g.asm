@@ -24,8 +24,10 @@
 ;   that hides the weapon) and remove_aimed_rifle_scope_to_scene's add
 ;   (0x244CF5): the original's, then the same for the device's model with its
 ;   own matrix; draw's update (0x244F3A): the original's, then the device's
-;   matrix from barrel_point's (+0x620, computed earlier in draw) and its
-;   update;
+;   matrix from barrel_point's (+0x620, computed earlier in draw), its
+;   update, and barrel_point moved to the device's fire point (the shot's
+;   flash: update_pfx_transform 0x244570 right after, the shot effects
+;   0x244120);
 ; - released (0x24B23A, weapon_cook's delete_resource after the shot effects'
 ;   pointers): the device's model released.
 BITS 32
@@ -33,7 +35,7 @@ BITS 32
 global weapon_muzzle_request, weapon_muzzle_made_hook, weapon_muzzle_loaded_hook
 global weapon_muzzle_add, weapon_muzzle_remove, weapon_muzzle_update, weapon_muzzle_release
 extern weapon_muzzle_model, weapon_muzzle_made, weapon_muzzle_loaded, weapon_muzzle_place
-extern weapon_muzzle_extension
+extern weapon_muzzle_extension, weapon_muzzle_fire
 section .text
 
 %define REQUEST_PUSH 0x5FCB0        ; buffer_vector<request>::push_back: edi the request, esi the vector
@@ -184,6 +186,9 @@ weapon_muzzle_update:
     mov eax, [edi+PART_MODEL]
     add eax, RENDER
     call UPDATE_MODEL
+    push ebx
+    call weapon_muzzle_fire
+    add esp, 4
 .done:
     popad
     ret 16

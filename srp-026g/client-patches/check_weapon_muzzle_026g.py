@@ -23,7 +23,8 @@ scene's add_model, remove_model and update_model (0x21CD0, 0x21F40,
   the last result (after the scope's when the config names one, the model,
   the user animations, the shells and the shot effects) is kept in the
   weapon's part with its count up, the offset from data/srp_muzzle_offset
-  (a float or an int); without it nothing; the registers and stack as the
+  and the fire point from data/srp_muzzle_fire_mm (millimetres, an int
+  or a float, 0 without); without the model nothing; the registers and stack as the
   original's;
 - the weapon model's add (on_show 0x243F37, remove_aimed 0x244CF5), remove
   (on_hide 0x244012, add_aimed 0x244C08) and update (draw 0x244F3A): the
@@ -32,6 +33,9 @@ scene's add_model, remove_model and update_model (0x21CD0, 0x21F40,
   the point moved the offset forward, against the third row), each once
   (an add while added, a remove while removed: nothing more); without a
   device only the original's; back after the call with the original's pops;
+  after the update (only), barrel_point's point (+0x620) moved offset + fire
+  point forward (the shot's flash), the rest of its matrix kept; after the
+  others barrel_point as it was;
 - delete_resource (0x24B23A to 0x24B240): the device's model released (its
   count down; at zero the game's release), the part's pointer zero, ebx the
   user animations' count as the original's.
@@ -134,9 +138,18 @@ class Run:
     def node(self, at, value, kind, count=0):
         self.emu.mem_write(at, struct.pack("<I16xHH", value, kind, count))
 
-    def config(self, model=None, offset=None, scope=False, previews=2):
+    def number(self, table, key, at, value):
+        if value is None:
+            return
+        self.tables[(table, key)] = at
+        if isinstance(value, float):
+            self.node(at, struct.unpack("<I", struct.pack("<f", value))[0], T_FLOAT)
+        else:
+            self.node(at, value, T_INT)
+
+    def config(self, model=None, offset=None, scope=False, previews=2, fire=None):
         """A weapon config's root at CONFIG: data (srp_muzzle_model,
-        srp_muzzle_offset), addons (rifle_scope_dict_id), user_animations_in_place/
+        srp_muzzle_offset, srp_muzzle_fire_mm), addons (rifle_scope_dict_id), user_animations_in_place/
         preview of `previews`."""
         self.emu.mem_write(CONFIG, bytes(0x4000))
         self.emu.mem_write(STRINGS, bytes(0x1000))
@@ -151,12 +164,8 @@ class Run:
             self.emu.mem_write(STRINGS, model + b"\0")
             self.tables[(data, b"srp_muzzle_model")] = data + 0x40
             self.node(data + 0x40, STRINGS, T_STRING)
-        if offset is not None:
-            self.tables[(data, b"srp_muzzle_offset")] = data + 0x80
-            if isinstance(offset, float):
-                self.node(data + 0x80, struct.unpack("<I", struct.pack("<f", offset))[0], T_FLOAT)
-            else:
-                self.node(data + 0x80, offset, T_INT)
+        self.number(data, b"srp_muzzle_offset", data + 0x80, offset)
+        self.number(data, b"srp_muzzle_fire_mm", data + 0xC0, fire)
         return root
 
     def weapon(self, shells=2, shots=1, anims=3):
@@ -220,7 +229,7 @@ class Run:
                                                          UC_X86_REG_EBP: 0x22222222, UC_X86_REG_ESI: 0x33333333,
                                                          UC_X86_REG_EDI: 0x44444444})
         part = bytes(self.emu.mem_read(weapon_part, EXTENSION))
-        return self.stopped, esp - sp, regs, struct.unpack("<IfI", part[:12]), self.u32(MODEL + 0xD0)
+        return self.stopped, esp - sp, regs, struct.unpack("<IfIf", part[:16]), self.u32(MODEL + 0xD0)
 
     # a weapon model's call at `site` (args pushed): `who` the register of the weapon
     def model_call(self, site, pops, who, barrel):
@@ -235,7 +244,7 @@ class Run:
                                                      UC_X86_REG_EDI if who != UC_X86_REG_EDI else UC_X86_REG_ESI:
                                                          0x44444444,
                                                      UC_X86_REG_EBP: 0x22222222})
-        return self.stopped, esp - sp, list(self.calls)
+        return self.stopped, esp - sp, list(self.calls), floats(bytes(self.emu.mem_read(WEAPON + 0x620, 64)))
 
     def release(self, count):
         self.u32(MODEL + 0xD0, count)
@@ -283,11 +292,12 @@ def main():
                f"{a[1]:#x}), the arrays as the original's, the part after them zeroes")
 
     print("the query's callback entry (0x24ACF0 to 0x24ACF5)")
-    cases = [("the model named, a scope, two animations, shells 2, shots 1", dict(model=MODEL_PATH, scope=True), 1 + 1 + 2 + 2 + 1, 0.0),
-             ("the model named, no scope, the offset 0.04 (a float)", dict(model=MODEL_PATH, offset=0.04), 1 + 2 + 2 + 1, 0.04),
-             ("the offset an int (0)", dict(model=MODEL_PATH, offset=0), 6, 0.0),
-             ("no model named", dict(), None, 0.0)]
-    for name, kw, index, offset in cases:
+    cases = [("the model named, a scope, two animations, shells 2, shots 1", dict(model=MODEL_PATH, scope=True), 1 + 1 + 2 + 2 + 1, 0.0, 0.0),
+             ("the model named, no scope, the offset 0.04 (a float)", dict(model=MODEL_PATH, offset=0.04), 1 + 2 + 2 + 1, 0.04, 0.0),
+             ("the offset an int (0), the fire point 42 mm (an int)", dict(model=MODEL_PATH, offset=0, fire=42), 6, 0.0, 0.042),
+             ("the fire point 48.5 mm (a float)", dict(model=MODEL_PATH, fire=48.5), 6, 0.0, 0.0485),
+             ("no model named", dict(fire=42), None, 0.0, 0.0)]
+    for name, kw, index, offset, fire in cases:
         stock.weapon(), patched.weapon()
         part = patched.weapon()
         stock.weapon()
@@ -296,9 +306,9 @@ def main():
         want = (MODEL if index is not None else 0, offset, 0)
         same = a[0] == b[0] == 0x24ACF5 and a[1] == b[1] and all(a[2][r] == b[2][r] for r in REGS)
         ok = same and b[3][0] == want[0] and math.isclose(b[3][1], want[1], abs_tol=1e-6) and b[3][2] == 0 \
-            and b[4] == (2 if index is not None else 1) and a[4] == 1
+            and math.isclose(b[3][3], fire, abs_tol=1e-6) and b[4] == (2 if index is not None else 1) and a[4] == 1
         report(ok, f"{name}: {'result ' + str(index) + ' kept, its count 2' if index is not None else 'nothing kept'}"
-                   f", the offset {b[3][1]:.2f}; the registers and stack the original's")
+                   f", the offset {b[3][1]:.2f}, the fire point {b[3][3]:.3f}; the registers and stack the original's")
 
     print("the weapon model's calls (add, remove, update)")
     barrel = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0.1, 0.2, 0.3, 1]
@@ -307,17 +317,18 @@ def main():
              (0x244F3A, "update", 16, UC_X86_REG_EBX), (0x244012, "remove", 8, UC_X86_REG_ESI),
              (0x244C08, "remove", 8, UC_X86_REG_ESI))
     for device in (True, False):
-        tag = "with a device (offset 0.05)" if device else "without a device"
+        tag = "with a device (offset 0.05, fire point 0.04)" if device else "without a device"
         for matrix in (barrel, turned):
-            expected = list(matrix)
+            expected, flash = list(matrix), list(matrix)
             for i in range(3):
                 expected[12 + i] -= 0.05 * matrix[8 + i]
+                flash[12 + i] -= (0.05 + 0.04) * matrix[8 + i]
             for site, kind, pops, who in sites:
                 for added in (0, 1):
                     parts = []
                     for run in (stock, patched):
                         part = run.weapon()
-                        run.emu.mem_write(part, struct.pack("<IfI", MODEL if device else 0, 0.05, added))
+                        run.emu.mem_write(part, struct.pack("<IfIf", MODEL if device else 0, 0.05, added, 0.04))
                         parts.append(part)
                     a = stock.model_call(site, pops, who, matrix)
                     b = patched.model_call(site, pops, who, matrix)
@@ -325,8 +336,11 @@ def main():
                     first = b[2][:1] == a[2] and len(a[2]) == 1 and a[0] == b[0] == site + 5 and a[1] == b[1] == pops
                     acts = device and (added == 0 if kind == "add" else added == 1)
                     state = patched.u32(part + 8)
+                    kept = all(math.isclose(x, y, abs_tol=1e-6) for x, y in zip(b[3], matrix)) and a[3] == b[3] \
+                        if not acts or kind != "update" else \
+                        all(math.isclose(x, y, abs_tol=1e-6) for x, y in zip(b[3], flash))
                     if not acts:
-                        report(first and b[2] == a[2] and state == added,
+                        report(first and b[2] == a[2] and state == added and kept,
                                f"{site:#x} ({kind}) {tag}, the device {'in' if added else 'out of'} the scene: the "
                                f"original's call alone")
                         continue
@@ -338,10 +352,12 @@ def main():
                         good = len(more) == 1 and more[0][:4] == (kind, MODEL + 0x108, 0xC4A11E10, STACK - 0x280) \
                             and more[0][4] == more[0][5] == part + 0x10 and state == 1 \
                             and all(math.isclose(x, y, abs_tol=1e-6) for x, y in zip(part_m, expected))
-                    report(first and good,
+                    report(first and good and kept,
                            f"{site:#x} ({kind}) {tag}, the barrel {'turned' if matrix is turned else 'plain'}: the "
                            f"original's call, then the device's"
-                           + ("" if kind == "remove" else " (barrel_point's matrix, its point 0.05 forward)"))
+                           + ("" if kind == "remove" else " (barrel_point's matrix, its point 0.05 forward)")
+                           + ("; barrel_point then 0.09 forward (the flash)" if kind == "update" else
+                              "; barrel_point as it was"))
 
     print("delete_resource (0x24B23A to 0x24B240)")
     for count, gone in ((2, False), (1, True)):

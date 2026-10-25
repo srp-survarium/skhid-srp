@@ -356,8 +356,11 @@ def add_key(buf, table, key, text):
 
 def value_record(buf, name_off, key, value):
     """A 24-byte record of `value` named `key` (its name at `name_off`); a table's children and
-    texts are appended."""
+    texts are appended. A dict is a named table, a list an indexed one (its items unnamed)."""
     crc = zlib.crc32(key.encode()) & 0xffffffff
+    if isinstance(value, list):
+        items = [value_record(buf, 0, '', v) for v in value]
+        return REC.pack(append_array(buf, items) if items else 0, name_off, crc, T_INDEXED, len(items))
     if isinstance(value, dict):
         kids = sorted((value_record(buf, append(buf, k.encode() + b'\0'), k, v) for k, v in value.items()),
                       key=lambda r: REC.unpack(r)[2])
@@ -383,6 +386,18 @@ def add_value(buf, table, key, value):
     new = sorted(kids + [record], key=lambda r: REC.unpack(r)[2])
     d, i, c, ty, cnt = rec(buf, toff)
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
+
+
+def add_item(buf, path, value):
+    """`value` (a number, a text, a dict a named table, a list an indexed one) a new last item
+    of the indexed table `path`: the table's new array appended, the old one unreferenced."""
+    off = find(buf, path)
+    if rec(buf, off)[3] != T_INDEXED:
+        raise ValueError('%s is not an indexed table' % path)
+    old = [bytes(buf[c:c + 24]) for c in children(buf, off)]
+    new = old + [value_record(buf, 0, '', value)]
+    d, i, c, t, cnt = rec(buf, off)
+    REC.pack_into(buf, off, append_array(buf, new), i, c, t, cnt + 1)
 
 
 def items_of(buf, path):

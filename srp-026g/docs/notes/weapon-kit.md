@@ -92,7 +92,8 @@ whose `parameters/type` is `srp_muzl` (the server's, `modifications::MUZZLE_KIND
 weapon with a `data` table) and whose modification adds `srp_muzzle_model` = its model to the
 weapon config's `data` (type 3, as a camouflage adds `camouflage`). The pack
 `weapon-attachments` (`scripts/weapon-attachments`: 0.46c2's model, material and textures, the
-configs written again in 0.26g's layout) holds them; the first is 2601, flash hider 04.
+configs written again in 0.26g's layout) holds them: 2601 flash hider 04, 2602 muzzle brake 04
+(dtk_04).
 
 How the client draws it (patch 68, PROVEN in the code, run with Unicorn; not run in a game):
 
@@ -113,16 +114,47 @@ How the client draws it (patch 68, PROVEN in the code, run with Unicorn; not run
 - **The weapons' own muzzles.** 0.26g's weapon models have their stock muzzle brakes in the mesh;
   a device starts at barrel_point (the muzzle's end, where the shot's flash is) and runs forward.
   Per weapon, `data/srp_muzzle_offset` moves it (a later edit list: the table of offsets).
-- Visual only so far: no stats, the shot's flash at barrel_point as before.
+- **The shot's flash.** Each device's modification also adds `data/srp_muzzle_fire_mm`, the
+  device's `fire_point` locator in millimetres (its model's: 42 for flash hider 04, 48 for brake
+  04; an int, as every type-3 value of 0.26g's is an int or a string).
+  After the device's update in draw, barrel_point's point (+0x620) moves `offset + fire` forward:
+  update_pfx_transform (0x244570, right after) and the shot effects (0x244120) take the flash
+  from there, at the device's front as in 0.46c2. barrel_point is computed again at each draw
+  (0x244E68), so it never moves twice; a weapon hidden by its aimed scope keeps the stock point.
+
+## A muzzle device's stats and effect [srp, the owner's rules of 2026-10-25]
+
+A device's own modifiers, after the model's (`devices.tsv`, `make_pack.py`; modifier types from
+the modification's apply 0x358560: 0 sets the node's value, 1 adds, 2 multiplies, 3 adds a key):
+
+| kind | 0.46c2 | 0.26g modifier |
+|---|---|---|
+| brake (horizontal) | modification 502 grade 0: recoil -0.05 | `parameters/recoil_modifier` +(-0.05), type 1 |
+| brake (vertical) | 502 grade 1: recoil -0.1 | `parameters/recoil_modifier` +(-0.1), type 1 |
+| flash hider | no stats; `effects_override.particles.shoot` | `particles/shoot` = the effect, type 0 |
+
+- `recoil_modifier` is the stock weapon modifications' own (1150 "player recoil" -0.02, type 1
+  on `parameters/recoil_modifier`): the kick of a shot is times `max(0, 1 + recoil_modifier)`
+  (0x331C50, `bots/recoil.rs`). 2602 is a horizontal brake (dtk_04 is 0.46c2's model of 20
+  weapons' horizontal brake).
+- A flash hider's effect is 0.46c2's for that model (fire_arrestor_04: `arrestor4`), ported with
+  its materials (made again on 0.26g's `fx/weapons/ak_side`) and textures. 0.26g's particles lack
+  0.46c2's TargetColor action (construct_action 0x364F10 has no case for type index 14 and
+  leaves it out): each of arrestor4's seven gives one constant colour (white, alpha 0.23 to
+  0.24), so it becomes an InitColor property of that colour (`widen_config.rs --particle`).
+- A match computes a shot's kick from the weapon's config, so the brake changes the simulation
+  (`simulation_changes.tsv`, its `next` row). Every client builds the weapon from the same
+  records and pack: no server rule.
 
 ## What it changes
 
 - Two decals on a weapon (`WEAPON_DECAL_SLOTS` 0 and 1, the window's `WEAPON_DECALS` 2): visual
   only. Patch 47 bakes both.
 - The camouflage on a scoped weapon now travels in the kit: visual only.
-- Slots 4 and 5 have no item yet (later steps: flash hiders and brakes, grips).
-- No row in `simulation_changes.tsv` for this step: a camouflage, decals and a scope change
-  nothing a match computes. A muzzle device's or grip's modification will (its own row).
+- Slot 4: a flash hider (2601: its model and shot effect) and a brake (2602: its model and 5 %
+  less kick). Slot 5 has no item yet (a later step: grips).
+- A camouflage, decals and a scope change nothing a match computes; the brake's recoil does: the
+  `next` row of `simulation_changes.tsv`.
 
 ## Old clients
 
@@ -135,4 +167,6 @@ release's revision; the exe and server ship together).
 
 - A player holding two items of one camouflage sees the lower item id as the one worn (the kit
   names the dict id, not the item).
+- arrestor4's TargetColor actions are InitColor of their colour, set at a particle's birth; how
+  0.46c2's action reaches it over a particle's life is not known (to be seen in a game).
 - Not run in a game.
