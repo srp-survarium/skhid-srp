@@ -1539,7 +1539,8 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
         [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
         [(va, len(old)) for va, old, _, _ in P.KILL_FEED_HOOKS] + \
-        [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))]
+        [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
+        [(va, len(old)) for va, old, _ in P.FALL_GRAVITY]
 
 
 def pickup_sites():
@@ -4460,6 +4461,62 @@ def test_kill_feed(original, image, before):
           "CombatLogWallIcon, CombatLogRicochetIcon and CombatLogPainIcon)")
 
 
+def test_fall_gravity(original, image, before):
+    """Check 72: free fall takes gravity for the step's dt (patch 72,
+    FALL_GRAVITY; ../docs/notes/fall_damage.md "Split ticks").
+    check_fall_gravity_026g.py runs step_down's free fall on a made-up
+    controller: whole ticks bit for bit the original's, a split tick one
+    tick of gravity in all."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    check(rows(stock, 0x7E6E6, 0x76) == [
+              "movss xmm0,dword [ebx+0x2c708]", "movss xmm3,dword [ebx+0x2c704]", "movaps xmm1,xmm0",
+              "mulss xmm1,dword [dword 0xa7dc00]", "mulss xmm1,xmm3", "movaps xmm2,xmm0", "mulss xmm2,dword [dword 0xa7dc04]",
+              "mulss xmm0,dword [dword 0xa7dc08]", "mulss xmm2,xmm3", "mulss xmm0,xmm3",
+              "movss xmm3,dword [ebx+0x2c770]", "subss xmm3,xmm1", "movss xmm1,dword [ebx+0x2c774]", "subss xmm1,xmm2",
+              "movss dword [ebx+0x2c774],xmm1", "movss xmm1,dword [ebx+0x2c778]", "subss xmm1,xmm0",
+              "movss dword [ebx+0x2c770],xmm3", "movss dword [ebx+0x2c778],xmm1"]
+          and rows(stock, 0x7E75C, 0xB)[:2] == ["mov ecx,[ebx+0x1f0]", "lea eax,[ecx+0x2]"],
+          "the original's free fall (0x7E6E6..0x7E75C): velocity (+2C770h) -= gravity (+2C708h) x up x the tick "
+          "(+2C704h); then ecx and eax are written before any read")
+    check(stock.read(0x7E1B0, 3) == bytes.fromhex("558bec") and stock.read(0x7BDA0, 3) == bytes.fromhex("558bec")
+          and rows(stock, 0x7C13B, 0xD) == ["movss xmm0,dword [ebp+0x8]", "divss xmm0,dword [edi+0x2c704]"]
+          and rows(stock, 0x7B75B, 0xC) == ["movss xmm0,dword [ebp+0xc]", "ucomiss xmm0,dword [esi+0x2c704]"]
+          and stock.read(0x7B4A1, 8) == bytes.fromhex("f30f1185 04c70200".replace(" ", ""))
+          and stock.read(0x7B48D, 8) == bytes.fromhex("f30f1005 78c89c00".replace(" ", ""))
+          and stock.read(0x9CC878, 4) == struct.pack("<f", 0.05),
+          "step_down and player_step both start `push ebp / mov ebp,esp`; player_step's dt is its [ebp+8]; "
+          "updateAction steps it with dt compared to +2C704h, the 0.05 the constructor writes (0x7B4A1)")
+    text = original[P.TEXT_FILE:P.TEXT_FILE + P.TEXT_VSIZE]
+    callers = [P.TEXT_VA + i for i in range(len(text) - 5) if text[i] in (0xE8, 0xE9)
+               and P.TEXT_VA + i + 5 + struct.unpack_from("<i", text, i + 1)[0] == 0x7E1B0]
+    check(callers == [0x7C4F6] and struct.pack("<I", 0x7E1B0) not in original,
+          "step_down's one caller is player_step (0x7C4F6), and no pointer names it")
+    for va, old, new in P.FALL_GRAVITY:
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+              f"{va:#x}: the original's {len(old)} bytes in the original and the build without the late join, "
+              "patch 72's here")
+    check(rows(image, 0x7E6E6, 0x76) == [
+              "lea eax,[ebx+0x2c704]", "movss xmm0,dword [eax+0x4]", "jmp short 0x7e74c", "int3", "int3", "int3",
+              "movaps xmm1,xmm0", "mulss xmm1,dword [dword 0xa7dc00]", "mulss xmm1,xmm3", "movaps xmm2,xmm0",
+              "mulss xmm2,dword [dword 0xa7dc04]", "mulss xmm0,dword [dword 0xa7dc08]", "mulss xmm2,xmm3", "mulss xmm0,xmm3",
+              "movss xmm3,dword [eax+0x6c]", "subss xmm3,xmm1", "movss xmm1,dword [eax+0x70]", "subss xmm1,xmm2",
+              "movss dword [eax+0x70],xmm1", "movss xmm1,dword [eax+0x74]", "subss xmm1,xmm0",
+              "movss dword [eax+0x6c],xmm3", "movss dword [eax+0x74],xmm1", "jmp short 0x7e75c",
+              "mov ecx,[ebp+0x0]", "movss xmm3,dword [ecx+0x8]", "minss xmm3,dword [eax]", "jmp short 0x7e6f6",
+              "int3", "int3"],
+          "the build's free fall: xmm3 = min(player_step's dt, the tick), then the original's products and "
+          "the velocity -= them (eax = the controller +2C704h)")
+    relocated = sorted(v for kind, v in stock.relocations().values() if kind == 3 and 0x7E6E6 - 4 < v < 0x7E75C)
+    built_relocated = sorted(v for kind, v in image.relocations().values() if kind == 3 and 0x7E6E6 - 4 < v < 0x7E75C)
+    check(relocated == [0x7E6FD, 0x7E70C, 0x7E714] and built_relocated == relocated,
+          "the three base relocations in the free fall are the up axis's addresses, between the two sites, "
+          "and stay")
+    hits = [h for s, o, _ in P.FALL_GRAVITY for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not hits, "no branch aims inside the sites" + "".join(f", {h:#x}" for h in hits))
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -6053,6 +6110,7 @@ def test_late_join(original, without, server, source):
     test_match_keys(original, image, before)
     test_hide_ui(original, image, before)
     test_kill_feed(original, image, before)
+    test_fall_gravity(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)
