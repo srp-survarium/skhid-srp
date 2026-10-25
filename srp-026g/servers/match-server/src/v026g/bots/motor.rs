@@ -1085,12 +1085,25 @@ impl Motor {
         if sprint && jump.pressed.is_none() && ahead.edge < SPRINT_NEAR_M {
             // The sprint press's window passed unpressed (too slow, or the
             // run held too short): this try is jumped standing.
+            #[cfg(test)]
+            {
+                let why = [
+                    !ready,
+                    jump.sprint_since.is_none(),
+                    jump.sprint_since.is_some_and(|at| self.since(at) < SPRINT_RUN_UP_S),
+                    speed < SPRINT_SPEED_MIN,
+                ];
+                tally(|j| {
+                    j.missed += 1;
+                    for (n, w) in j.missed_why.iter_mut().zip(why) {
+                        *n += u32::from(w);
+                    }
+                });
+            }
             sprint = false;
             jump.standing = true;
             jump.sprint_since = None;
             self.jump_try = Some(jump);
-            #[cfg(test)]
-            tally(|j| j.missed += 1);
         }
         let press = if sprint && jump.pressed.is_some() {
             // In the sprint jump's air: no press again.
@@ -1406,6 +1419,10 @@ pub struct JumpTally {
     pub refused: [u32; 8],
     /// Sprint presses whose window passed unpressed ([`SPRINT_NEAR_M`]).
     pub missed: u32,
+    /// Why a window passed, one count each: not ready (off the line, not
+    /// facing, or not walking), sprint never held on the line, held too
+    /// short, too slow.
+    pub missed_why: [u32; 4],
 }
 
 #[cfg(test)]
@@ -1413,7 +1430,7 @@ impl JumpTally {
     /// The bench's line.
     pub fn line(&self) -> String {
         format!(
-            "marginal first {} up {} (any try {}, failed {}); other first {} up {}; sprint {} up {} missed {}; refused carrying {} hurt {} fired {} aimed {} busy {} crouched {} run-up {} walk-aiming {}",
+            "marginal first {} up {} (any try {}, failed {}); other first {} up {}; sprint {} up {} missed {} (unready {} unheld {} short {} slow {}); refused carrying {} hurt {} fired {} aimed {} busy {} crouched {} run-up {} walk-aiming {}",
             self.marginal_first,
             self.marginal_first_up,
             self.marginal_up,
@@ -1423,6 +1440,10 @@ impl JumpTally {
             self.sprint,
             self.sprint_up,
             self.missed,
+            self.missed_why[0],
+            self.missed_why[1],
+            self.missed_why[2],
+            self.missed_why[3],
             self.refused[0],
             self.refused[1],
             self.refused[2],
@@ -1449,6 +1470,7 @@ thread_local! {
             sprint_up: 0,
             refused: [0; 8],
             missed: 0,
+            missed_why: [0; 4],
         })
     };
 }
