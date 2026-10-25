@@ -608,6 +608,9 @@ impl Route {
             along,
             ..
         } = self;
+        // A planned walk has its start at least (an escape's walk to an
+        // exit's floor it stands on is that floor alone).
+        debug_assert!(!points.is_empty(), "a jump after an empty route");
         let Some(&last) = points.last() else {
             return Self::new(Vec::new());
         };
