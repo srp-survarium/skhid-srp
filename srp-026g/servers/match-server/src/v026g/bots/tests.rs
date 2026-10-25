@@ -672,9 +672,17 @@ impl Game {
             .filter(|s| s.team == side)
             .map(|s| s.position)
             .collect();
-        let at = spawns[self.rng.below(spawns.len())]
-            + Vec3::new(self.rng.range(-2.0, 2.0), 0.0, self.rng.range(-2.0, 2.0));
-        let node = self.world.grid.locate(at, 3.0);
+        let point = spawns[self.rng.below(spawns.len())];
+        let at = point + Vec3::new(self.rng.range(-2.0, 2.0), 0.0, self.rng.range(-2.0, 2.0));
+        // Off by up to 2 m, but only onto a floor a walk from a spawn gets
+        // to and back from: the offset can land on a floor below or beside
+        // the spawn that no way leaves (Rudnya: 0.7 % of offsets, one spawn
+        // 12 %), where the game never puts a body (it spawns on the point).
+        let grid = &self.world.grid;
+        let node = grid
+            .locate(at, 3.0)
+            .filter(|&n| grid.reached(n) && grid.returns(n))
+            .or_else(|| grid.locate(point, 3.0));
         let feet = node.map_or(at, |n| self.world.grid.position(n));
         let tick = self.tick;
         let body = &mut self.bodies[place];
