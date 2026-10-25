@@ -73,8 +73,8 @@ impl Mode {
 
     /// The key of a play's weight for this mode (`weight_tdm`,
     /// `weight_batteries`, `weight_timed`), for the plays that weigh the
-    /// timed batteries apart from the plain ones (Cut, HoldExit); Crossfire
-    /// and Flank weigh only Team Deathmatch apart ([`Self::is_deathmatch`]).
+    /// timed batteries apart from the plain ones (Cut, HoldExit, Crossfire,
+    /// Flank).
     pub fn weight_key(self) -> &'static str {
         match self {
             Self::TeamDeathmatch => "weight_tdm",
