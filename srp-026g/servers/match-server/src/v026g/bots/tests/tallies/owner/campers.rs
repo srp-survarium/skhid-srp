@@ -1,5 +1,24 @@
 use super::*;
 
+/// The campers counts: counted as the match runs, kept for [`OwnerTally::finish`].
+#[derive(Default)]
+pub(super) struct CamperCounts {
+    /// Enemy kills; the kill log read so far (the events take it).
+    pub(super) kills: Vec<Kill>,
+    pub(super) kills_seen: usize,
+    pub(super) last_kill: Option<(u32, Place, Place)>,
+    pub(super) spots: Vec<KillSpot>,
+    pub(super) entries: Vec<Entry>,
+    /// Trade takes: the trader, its team, when.
+    pub(super) trades: Vec<(Place, u8, u32)>,
+    /// Flank or Crossfire takes on a shooter holding his kill spot: all,
+    /// and Flank's.
+    pub(super) counter_runs: [u32; 2],
+    /// Shooters killed while holding their kill spot: who, and whether the
+    /// killer was [`OFF_LANE_DEG`] or more off every victim's bearing.
+    pub(super) held_kills: Vec<(Place, bool)>,
+}
+
 /// Campers (`campers.md` Q2, Q6 "How a bench would see it"): a shooter's
 /// kills within this of his run's first spot, m, each within this of the
 /// last, ms; a held line reaches the kill's distance and this more, and
@@ -75,7 +94,7 @@ impl OwnerTally {
     pub(crate) fn kill_spot(&mut self, game: &Game, kill: &Kill, sight: &mapdata::RayTree, rays: &mut u64) {
         let bearing = yaw_of([kill.at.x - kill.spot.x, kill.at.z - kill.spot.z]);
         let reach = ((kill.at - kill.spot).length() + REACH_PLUS_M).max(REACH_LEAST_M);
-        if let Some(held) = self.spots.iter_mut().find(|s| s.shooter == kill.shooter)
+        if let Some(held) = self.campers.spots.iter_mut().find(|s| s.shooter == kill.shooter)
             && held.spot.distance_xz(kill.spot) <= SPOT_HOLD_M
             && kill.t <= held.last + RUN_APART_MS
             && held.team == kill.team
@@ -85,14 +104,14 @@ impl OwnerTally {
             held.bearings.push(bearing);
             return;
         }
-        self.spots.retain(|s| s.shooter != kill.shooter);
+        self.campers.spots.retain(|s| s.shooter != kill.shooter);
         let me = &game.bodies[kill.shooter];
         let in_line = game
             .bodies
             .iter()
             .map(|b| b.alive && b.team == kill.team && in_sight(sight, me, b, reach, rays))
             .collect();
-        self.spots.push(KillSpot {
+        self.campers.spots.push(KillSpot {
             shooter: kill.shooter,
             spot: kill.spot,
             team: kill.team,
@@ -107,7 +126,7 @@ impl OwnerTally {
     /// bots coming into their lines.
     pub(crate) fn held_lines(&mut self, game: &Game, sight: &mapdata::RayTree, rays: &mut u64) {
         let tick = game.tick;
-        let mut spots = std::mem::take(&mut self.spots);
+        let mut spots = std::mem::take(&mut self.campers.spots);
         spots.retain_mut(|held| {
             let me = &game.bodies[held.shooter];
             if !me.alive || me.feet.distance_xz(held.spot) > SPOT_HOLD_M || tick > held.last + RUN_APART_MS {
@@ -124,7 +143,7 @@ impl OwnerTally {
                         .bearings
                         .iter()
                         .any(|&w| wrap(w - bearing).abs().to_degrees() <= LANE_DEG);
-                    self.entries.push(Entry {
+                    self.campers.entries.push(Entry {
                         t: tick,
                         shooter: held.shooter,
                         place,
@@ -135,7 +154,7 @@ impl OwnerTally {
             }
             true
         });
-        self.spots = spots;
+        self.campers.spots = spots;
     }
 }
 
@@ -268,4 +287,198 @@ pub(crate) fn a_counter_run_on_a_holder_and_a_holder_killed_off_his_lane_are_cou
     assert_eq!(camper["deaths"], 1);
     assert_eq!(camper["killed_holding"], 1);
     assert_eq!(camper["killed_off_lane"], 1);
+}
+
+impl OwnerTally {
+    /// The kills this tick, the shooters' held spots, and (once a second) the held lines.
+    pub(super) fn campers_kills(&mut self, game: &Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
+        // Kills of enemies, and the lines they make held.
+        if self.campers.kills_seen > 0 && game.kill_log.get(self.campers.kills_seen - 1) != self.campers.last_kill.as_ref() {
+            self.campers.kills_seen = 0;
+        }
+        let new_kills = game.kill_log[self.campers.kills_seen.min(game.kill_log.len())..].to_vec();
+        self.campers.kills_seen = game.kill_log.len();
+        self.campers.last_kill = game.kill_log.last().copied();
+        for (t, shooter, victim) in new_kills {
+            let (Some(s), Some(v)) = (game.bodies.get(shooter), game.bodies.get(victim)) else {
+                continue;
+            };
+            if s.team == v.team {
+                continue;
+            }
+            let kill = Kill {
+                t,
+                shooter,
+                victim,
+                spot: s.feet,
+                at: v.feet,
+                team: v.team,
+            };
+            // A shooter killed holding his spot by one of his victims'
+            // side: from off his killed lanes or not.
+            if let Some(held) = self.campers.spots.iter().find(|h| {
+                h.shooter == victim
+                    && h.team == s.team
+                    && v.feet.distance_xz(h.spot) <= SPOT_HOLD_M
+                    && t <= h.last + RUN_APART_MS
+            }) {
+                let bearing = yaw_of([s.feet.x - held.spot.x, s.feet.z - held.spot.z]);
+                let off = held
+                    .bearings
+                    .iter()
+                    .all(|&w| wrap(w - bearing).abs().to_degrees() >= OFF_LANE_DEG);
+                self.campers.held_kills.push((victim, off));
+            }
+            self.campers.kills.push(kill);
+            self.kill_spot(game, &kill, sight, rays);
+        }
+        if (((tick - self.first_tick) / TICK_MS) as usize).is_multiple_of(TPS) {
+            self.held_lines(game, sight, rays);
+        }
+    }
+
+    /// The campers counts at the end: their keys of the `owner` object and their lines of the owner-test text.
+    pub(super) fn campers_part(&self) -> Part {
+        // Campers: runs of kills from one spot, a team's deaths in a row to
+        // one shooter from one spot, entries into held lines.
+        // `only`: the runs of that shooter alone are counted.
+        let in_runs = |groups: &BTreeMap<Place, Vec<Kill>>, only: Option<Place>| {
+            let (mut runs, mut kills, mut longest) = (0u32, 0u32, 0u32);
+            for list in groups.values() {
+                let mut run: Option<(Place, Vec3, u32, u32)> = None;
+                let mut close = |run: Option<(Place, Vec3, u32, u32)>| {
+                    if let Some((shooter, .., len)) = run
+                        && only.is_none_or(|o| o == shooter)
+                    {
+                        longest = longest.max(len);
+                        if len >= CAMP_RUN {
+                            runs += 1;
+                            kills += len;
+                        }
+                    }
+                };
+                for k in list {
+                    run = match run {
+                        Some((shooter, spot, last, len))
+                            if shooter == k.shooter
+                                && k.spot.distance_xz(spot) <= SPOT_HOLD_M
+                                && k.t <= last + RUN_APART_MS =>
+                        {
+                            Some((shooter, spot, k.t, len + 1))
+                        }
+                        other => {
+                            close(other);
+                            Some((k.shooter, k.spot, k.t, 1))
+                        }
+                    };
+                }
+                close(run);
+            }
+            (runs, kills, longest)
+        };
+        let mut by_shooter: BTreeMap<Place, Vec<Kill>> = BTreeMap::new();
+        let mut by_team: BTreeMap<Place, Vec<Kill>> = BTreeMap::new();
+        for k in &self.campers.kills {
+            by_shooter.entry(k.shooter).or_default().push(*k);
+            by_team.entry(usize::from(k.team)).or_default().push(*k);
+        }
+        let (camp_runs, camp_run_kills, camp_longest) = in_runs(&by_shooter, None);
+        let (in_row, _, in_row_longest) = in_runs(&by_team, None);
+        let fatal = |e: &Entry| {
+            self.campers.kills
+                .iter()
+                .any(|k| k.shooter == e.shooter && k.victim == e.place && k.t >= e.t && k.t <= e.t + FATAL_MS)
+        };
+        let entries = self.campers.entries.len() as u32;
+        let entries_fatal = self.campers.entries.iter().filter(|e| fatal(e)).count() as u32;
+        let entries_lane = self.campers.entries.iter().filter(|e| e.lane).count() as u32;
+        let entries_lane_fatal = self.campers.entries.iter().filter(|e| e.lane && fatal(e)).count() as u32;
+        // Trades into the killer: of each Trade take, the partner's killer
+        // (the last kill of a teammate from 4 s before to 0.5 s after);
+        // the trader killed by him, or killing him, within 15 s.
+        let mut trades = [self.campers.trades.len() as u32, 0, 0];
+        for &(place, team, t) in &self.campers.trades {
+            let killer = self
+                .campers.kills
+                .iter()
+                .rfind(|k| {
+                    k.team == team && k.victim != place && k.t + TRADE_BEFORE_MS >= t && k.t <= t + TRADE_AFTER_MS
+                })
+                .map(|k| k.shooter);
+            let Some(killer) = killer else {
+                continue;
+            };
+            let within = |k: &Kill| k.t >= t && k.t <= t + FATAL_MS;
+            trades[1] += u32::from(self.campers.kills.iter().any(|k| within(k) && k.victim == place && k.shooter == killer));
+            trades[2] += u32::from(self.campers.kills.iter().any(|k| within(k) && k.shooter == place && k.victim == killer));
+        }
+        let held_killed = |who: Option<Place>| {
+            let mine = self.campers.held_kills.iter().filter(|(p, _)| who.is_none_or(|w| w == *p));
+            [mine.clone().count() as u32, mine.filter(|(_, off)| *off).count() as u32]
+        };
+        let held_all = held_killed(None);
+        // The stand-in camper's part of the counts (the rest is the bots').
+        let camper = self.camper.map(|c| {
+            let (runs, run_kills, longest) = in_runs(&by_shooter, Some(c));
+            let (row, _, row_longest) = in_runs(&by_team, Some(c));
+            let into: Vec<&Entry> = self.campers.entries.iter().filter(|e| e.shooter == c).collect();
+            let killed = held_killed(Some(c));
+            serde_json::json!({
+                "place": c,
+                "kills": self.campers.kills.iter().filter(|k| k.shooter == c).count(),
+                "deaths": self.campers.kills.iter().filter(|k| k.victim == c).count(),
+                "runs_3": runs,
+                "run_kills": run_kills,
+                "run_longest": longest,
+                "deaths_in_row_3": row,
+                "deaths_in_row_longest": row_longest,
+                "reentries": into.len(),
+                "reentries_fatal": into.iter().filter(|e| fatal(e)).count(),
+                "reentries_lane": into.iter().filter(|e| e.lane).count(),
+                "killed_holding": killed[0],
+                "killed_off_lane": killed[1],
+            })
+        });
+
+        let json = serde_json::json!({
+            "camper_runs_3": camp_runs,
+            "camper_run_kills": camp_run_kills,
+            "camper_run_longest": camp_longest,
+            "deaths_in_row_3": in_row,
+            "deaths_in_row_longest": in_row_longest,
+            "reentries": entries,
+            "reentries_fatal": entries_fatal,
+            "reentries_lane": entries_lane,
+            "reentries_lane_fatal": entries_lane_fatal,
+            "trades": trades[0],
+            "trades_died_to_killer": trades[1],
+            "trade_kills": trades[2],
+            "counter_runs": self.campers.counter_runs[0],
+            "counter_runs_flank": self.campers.counter_runs[1],
+            "camper_kills": held_all[0],
+            "camper_kills_off_lane": held_all[1],
+            "stand_in_camper": camper,
+        });
+        let text = format!(
+            "owner-test campers: runs of 3+ from one spot {} ({} kills, longest {}); a team's deaths in a row to one shooter's spot, 3+ {} (longest {}); entries into a held line {} fatal {}, in the killed lane {} fatal {}; Trade takes {} died to the partner's killer {} killed him {}; counter runs on a holder {} (Flank {}); holders killed {} from off their lanes {}; the stand-in camper {}",
+            camp_runs,
+            camp_run_kills,
+            camp_longest,
+            in_row,
+            in_row_longest,
+            entries,
+            entries_fatal,
+            entries_lane,
+            entries_lane_fatal,
+            trades[0],
+            trades[1],
+            trades[2],
+            self.campers.counter_runs[0],
+            self.campers.counter_runs[1],
+            held_all[0],
+            held_all[1],
+            json["stand_in_camper"],
+        );
+        Part::new(json, text)
+    }
 }

@@ -1,5 +1,51 @@
 use super::*;
 
+/// The fight counts: counted as the match runs, kept for [`OwnerTally::finish`].
+#[derive(Default)]
+pub(super) struct FightCounts {
+    /// Bot state of the last tick: dry, the last reload's (at, until).
+    pub(super) dry: Vec<bool>,
+    pub(super) last_reload: Vec<Option<(u32, u32)>>,
+    pub(super) reloads: Vec<Reload>,
+    pub(super) reloads_n: u32,
+    pub(super) reloads_in_line: u32,
+    pub(super) reloads_in_line_died: u32,
+    pub(super) dry_ticks: u64,
+    pub(super) reload_ticks: u64,
+    pub(super) deaths_dry: u32,
+    pub(super) deaths_reloading: u32,
+    /// Fire ticks by weapon class and band; hits by the same.
+    pub(super) fire: BTreeMap<&'static str, [u32; 5]>,
+    pub(super) hits_band: BTreeMap<&'static str, [u32; 5]>,
+    /// Fire ticks and hits by the shooter's movement ([`MOVES`]).
+    pub(super) fire_move: [u32; 5],
+    pub(super) hits_move: [u32; 5],
+    /// Fire ticks with an enemy target: of them, those with no line from
+    /// the eye to his chest or head; with none.
+    pub(super) fire_on_target: u32,
+    pub(super) fire_hidden: u32,
+    pub(super) fire_no_target: u32,
+    /// By place: the last tick's target, and the enemies who hit it (who,
+    /// when).
+    pub(super) last_target: Vec<Option<Place>>,
+    pub(super) hurt_by: Vec<Vec<(Place, u32)>>,
+    pub(super) switches: u32,
+    pub(super) switches_off_hurter: u32,
+    pub(super) hits: Vec<(u32, Place, Place)>,
+}
+
+impl FightCounts {
+    pub(super) fn new(n: usize) -> Self {
+        Self {
+            dry: vec![false; n],
+            last_reload: vec![None; n],
+            last_target: vec![None; n],
+            hurt_by: vec![Vec::new(); n],
+            ..Self::default()
+        }
+    }
+}
+
 /// Calm (`gait.py`): no aim or fire key held and no living enemy within
 /// this, m.
 pub(crate) const CALM_ENEMY_M: f32 = 30.0;
@@ -108,12 +154,12 @@ impl OwnerTally {
         if !r.in_line {
             return;
         }
-        self.reloads_in_line += 1;
+        self.fight.reloads_in_line += 1;
         let recs = &self.recs[r.place];
         let i0 = self.index(r.at);
         let i1 = self.index(r.at + RELOAD_DIED_MS).min(recs.len().saturating_sub(1));
         let died = (i0.max(1)..=i1).any(|i| recs[i - 1].alive && !recs[i].alive);
-        self.reloads_in_line_died += u32::from(died);
+        self.fight.reloads_in_line_died += u32::from(died);
     }
 }
 
@@ -279,4 +325,291 @@ pub(crate) fn fire_counts_by_the_range_of_the_enemy_in_view() {
     let class = game.bodies[0].gun.class();
     let (_, json) = tally.finish(&game);
     assert_eq!(json["fire_by_class"][class], serde_json::json!([0, 0, 10, 0, 0]), "{json}");
+}
+
+/// The living enemy of the body at `place` (of `team`) that `t` is, if it is one.
+fn enemy_of(game: &Game, place: Place, team: u8, t: Place) -> Option<&super::super::Body> {
+    game.bodies
+        .get(t)
+        .filter(|b| t != place && b.alive && b.team != team)
+}
+
+impl OwnerTally {
+    /// The game's hits this tick are kept, and the enemies who hurt each victim lately (for the target switches).
+    pub(super) fn fight_hits_taken(&mut self, game: &Game, tick: u32) {
+        self.fight.hits.extend(game.hit_log.iter().copied());
+        for &(t, shooter, victim) in &game.hit_log {
+            if let Some(hurt) = self.fight.hurt_by.get_mut(victim) {
+                hurt.retain(|&(who, _)| who != shooter);
+                hurt.push((shooter, t));
+            }
+        }
+        for hurt in &mut self.fight.hurt_by {
+            hurt.retain(|&(_, t)| tick <= t + HURT_MS);
+        }
+    }
+
+    /// A death: dry or reloading at it.
+    pub(super) fn fight_death(&mut self, place: Place, tick: u32, prev: &Rec, body: &super::super::Body) {
+        // A death: dry or reloading at it.
+        if prev.alive && !body.alive {
+            self.fight.deaths_dry += u32::from(self.fight.dry[place]);
+            self.fight.deaths_reloading += u32::from(self.fight.last_reload[place].is_some_and(
+                |(at, until)| at <= tick && tick <= until + RELOAD_AFTER_MS,
+            ));
+        }
+    }
+
+    /// The bot's ammunition and reloads.
+    pub(super) fn fight_ammo(&mut self, place: Place, tick: u32, body: &super::super::Body, now: &BotNow) {
+        // The bot's ammunition and reloads.
+        self.fight.dry[place] = body.alive && now.dry;
+        if self.fight.dry[place] {
+            self.fight.dry_ticks += 1;
+        }
+        if let Some((at, until)) = now.reload {
+            if self.fight.last_reload[place].is_none_or(|(was, _)| was != at) {
+                self.fight.reloads_n += 1;
+                self.fight.reloads.push(Reload {
+                    place,
+                    at,
+                    until,
+                    in_line: false,
+                });
+            }
+            self.fight.last_reload[place] = Some((at, until));
+            if body.alive && at <= tick && tick < until {
+                self.fight.reload_ticks += 1;
+            }
+        }
+    }
+
+    /// Fire this tick: by movement, at a target in line or not, by range.
+    pub(super) fn fight_fire(&mut self, game: &Game, place: Place, body: &super::super::Body, rec: &Rec, sight: &mapdata::RayTree, rays: &mut u64) {
+        if body.alive && body.keys & key::FIRE != 0 {
+            self.fight.fire_move[move_of(rec)] += 1;
+            // At the target: with a line to him or not.
+            match body.target.and_then(|t| enemy_of(game, place, body.team, t)) {
+                Some(him) => {
+                    self.fight.fire_on_target += 1;
+                    if !in_sight(sight, body, him, f32::INFINITY, rays) {
+                        self.fight.fire_hidden += 1;
+                    }
+                }
+                None => self.fight.fire_no_target += 1,
+            }
+            // By range: the enemy nearest the view.
+            let on = game
+                .bodies
+                .iter()
+                .filter(|b| b.alive && b.team != body.team)
+                .filter_map(|b| {
+                    let d = b.feet.distance_xz(body.feet);
+                    let off = off_deg(body.yaw, body.feet, b.feet);
+                    ((FIRE_MIN_M..=FIRE_BANDS[4]).contains(&d) && off <= FIRE_ON_DEG)
+                        .then_some((off, d))
+                })
+                .min_by(|a, b| a.0.total_cmp(&b.0));
+            if let Some((_, d)) = on {
+                self.fight.fire.entry(body.gun.class()).or_insert([0; 5])[band_of(d)] += 1;
+            }
+        }
+    }
+
+    /// A target switch while an enemy who hurt the bot is in its line, not the new target.
+    pub(super) fn fight_switch(&mut self, game: &Game, place: Place, body: &super::super::Body, sight: &mapdata::RayTree, rays: &mut u64) {
+        // A target switch while an enemy who hurt it is in its line,
+        // not the new target.
+        let target = body.target.filter(|_| body.alive);
+        if let (Some(was), Some(new)) = (self.fight.last_target[place], target)
+            && was != new
+        {
+            self.fight.switches += 1;
+            let hurter_in_line = self.fight.hurt_by[place].iter().any(|&(who, _)| {
+                who != new
+                    && enemy_of(game, place, body.team, who).is_some_and(|him| {
+                        in_sight(sight, him, body, f32::INFINITY, rays)
+                    })
+            });
+            self.fight.switches_off_hurter += u32::from(hurter_in_line);
+        }
+        self.fight.last_target[place] = target;
+    }
+
+    /// The game's hits this tick, by the shooter's movement, the range and his weapon class.
+    pub(super) fn fight_hits_scored(&mut self, game: &Game) {
+        // Hits by the shooter's movement, the range and his weapon class.
+        for &(_, shooter, victim) in &game.hit_log {
+            let (Some(s), Some(v)) = (game.bodies.get(shooter), game.bodies.get(victim)) else {
+                continue;
+            };
+            self.fight.hits_move[self.recs[shooter].last().map_or(0, move_of)] += 1;
+            let band = band_of(s.feet.distance_xz(v.feet));
+            self.fight.hits_band.entry(s.gun.class()).or_insert([0; 5])[band] += 1;
+        }
+    }
+
+    /// Reloads in an enemy's line (once a reload, every 4th tick), and the reloads that are over.
+    pub(super) fn fight_reloads(&mut self, game: &Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
+        // Reloads in an enemy's line: once a reload, every 4th tick.
+        if (tick / TICK_MS).is_multiple_of(4) {
+            for reload in &mut self.fight.reloads {
+                if reload.in_line || tick < reload.at || tick >= reload.until {
+                    continue;
+                }
+                let me = &game.bodies[reload.place];
+                if !me.alive {
+                    continue;
+                }
+                reload.in_line = game.bodies.iter().any(|him| {
+                    if !him.alive
+                        || him.team == me.team
+                        || him.feet.distance_xz(me.feet) > RELOAD_LINE_M
+                    {
+                        return false;
+                    }
+                    *rays += 2;
+                    sight.visible(Game::eye(me), Game::chest(him))
+                        || sight.visible(Game::eye(him), Game::chest(me))
+                });
+            }
+        }
+        let mut done = Vec::new();
+        self.fight.reloads.retain(|r| {
+            let over = tick > r.at.max(r.until) + RELOAD_DIED_MS;
+            if over {
+                done.push(*r);
+            }
+            !over
+        });
+        for r in done {
+            self.reload_done(&r);
+        }
+    }
+
+    /// The fight counts at the end: their keys of the `owner` object and their lines of the owner-test text.
+    pub(super) fn fight_part(&self, scale: &Scale) -> Part {
+        let n = self.recs.len();
+        let bot = |place: Place| place < n;
+        let tick_s = scale.tick_s;
+        let pct = Scale::pct;
+        let rate = Scale::rate;
+        // Turned on the shooter.
+        let (mut first_hits, mut hits_side, mut turned, mut died_unturned) = (0u32, 0u32, 0u32, 0u32);
+        let mut last_hit: BTreeMap<Place, u32> = BTreeMap::new();
+        for &(t, shooter, victim) in &self.fight.hits {
+            let apart = last_hit.get(&victim).is_none_or(|&l| t >= l + HIT_APART_MS);
+            last_hit.insert(victim, t);
+            if !apart || !bot(victim) {
+                continue;
+            }
+            let i = self.index(t);
+            let recs = &self.recs[victim];
+            let Some(at) = recs.get(i) else {
+                continue;
+            };
+            if !at.alive {
+                continue;
+            }
+            first_hits += 1;
+            let from = |k: usize| self.recs[shooter].get(k).map_or(Vec3::ZERO, |r| r.feet);
+            if off_deg(at.yaw, at.feet, from(i)) <= HIT_SIDE_DEG {
+                continue;
+            }
+            hits_side += 1;
+            let end = (i + (TURN_MS / TICK_MS) as usize).min(recs.len() - 1);
+            let mut outcome = None;
+            for k in i..=end {
+                if !recs[k].alive {
+                    outcome = Some(false);
+                    break;
+                }
+                if off_deg(recs[k].yaw, recs[k].feet, from(k)) <= TURNED_DEG {
+                    outcome = Some(true);
+                    break;
+                }
+            }
+            match outcome {
+                Some(true) => turned += 1,
+                Some(false) => died_unturned += 1,
+                None => {}
+            }
+        }
+
+        let fire_far: BTreeMap<&str, [u32; 2]> = self
+            .fight.fire
+            .iter()
+            .map(|(class, bands)| (*class, [bands.iter().sum(), bands[3] + bands[4]]))
+            .collect();
+        let fire_near_class: [u32; 2] = self
+            .fight.fire
+            .iter()
+            .filter(|(class, _)| matches!(**class, "shotgun" | "smg"))
+            .fold([0, 0], |acc, (_, b)| [acc[0] + b.iter().sum::<u32>(), acc[1] + b[3] + b[4]]);
+        let by_move = |v: &[u32; 5]| -> BTreeMap<&str, u32> { MOVES.iter().copied().zip(v.iter().copied()).collect() };
+        let hit_rate_move: BTreeMap<&str, f64> = MOVES
+            .iter()
+            .enumerate()
+            .map(|(i, m)| (*m, rate(self.fight.hits_move[i], self.fight.fire_move[i])))
+            .collect();
+        let hit_rate_class: BTreeMap<&str, Vec<f64>> = self
+            .fight.fire
+            .iter()
+            .map(|(class, fire)| {
+                let hits = self.fight.hits_band.get(class).copied().unwrap_or_default();
+                (*class, (0..5).map(|b| rate(hits[b], fire[b])).collect())
+            })
+            .collect();
+        let json = serde_json::json!({
+            "dry_s": (self.fight.dry_ticks as f64 * tick_s).round(),
+            "reload_s": (self.fight.reload_ticks as f64 * tick_s).round(),
+            "deaths_dry": self.fight.deaths_dry,
+            "deaths_reloading": self.fight.deaths_reloading,
+            "reloads": self.fight.reloads_n,
+            "reloads_in_line": self.fight.reloads_in_line,
+            "reloads_in_line_died": self.fight.reloads_in_line_died,
+            "fire_by_class": self.fight.fire,
+            "fire_far_by_class": fire_far,
+            "fire_far_close_class_pct": pct(fire_near_class[1].into(), fire_near_class[0].into()),
+            "hits_by_class": self.fight.hits_band,
+            "hit_rate_by_class": hit_rate_class,
+            "fire_by_move": by_move(&self.fight.fire_move),
+            "hits_by_move": by_move(&self.fight.hits_move),
+            "hit_rate_by_move": hit_rate_move,
+            "fire_on_target": self.fight.fire_on_target,
+            "fire_hidden": self.fight.fire_hidden,
+            "fire_hidden_pct": pct(self.fight.fire_hidden.into(), self.fight.fire_on_target.into()),
+            "fire_no_target": self.fight.fire_no_target,
+            "target_switches": self.fight.switches,
+            "switches_off_hurter": self.fight.switches_off_hurter,
+            "hits_first": first_hits,
+            "hits_side": hits_side,
+            "turned_3s": turned,
+            "turned_3s_pct": pct(turned.into(), hits_side.into()),
+            "died_unturned": died_unturned,
+        });
+        let text = format!(
+            "owner-test: dry {} s (deaths {}), reloading {} s (deaths {}), reloads {} in a line {} died {}; fire >=35 m by class {}; side hits {} turned in 3 s {} died unturned {}\n  owner-test fight: fire/hits by move {}; hits a fire tick by class and band {}; fire at a target {} out of line {} ({:.1} %), no target {}; target switches {} with the hurter in line {}",
+            json["dry_s"],
+            self.fight.deaths_dry,
+            json["reload_s"],
+            self.fight.deaths_reloading,
+            self.fight.reloads_n,
+            self.fight.reloads_in_line,
+            self.fight.reloads_in_line_died,
+            fire_far.iter().map(|(c, v)| format!("{c} {}/{}", v[1], v[0])).collect::<Vec<_>>().join(" "),
+            hits_side,
+            turned,
+            died_unturned,
+            MOVES.iter().enumerate().map(|(i, m)| format!("{m} {}/{}", self.fight.fire_move[i], self.fight.hits_move[i])).collect::<Vec<_>>().join(" "),
+            json["hit_rate_by_class"],
+            self.fight.fire_on_target,
+            self.fight.fire_hidden,
+            json["fire_hidden_pct"].as_f64().unwrap_or(0.0),
+            self.fight.fire_no_target,
+            self.fight.switches,
+            self.fight.switches_off_hurter,
+        );
+        Part::new(json, text)
+    }
 }

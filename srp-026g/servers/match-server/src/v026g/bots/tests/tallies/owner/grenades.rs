@@ -1,5 +1,19 @@
 use super::*;
 
+/// The grenades counts: counted as the match runs, kept for [`OwnerTally::finish`].
+#[derive(Default)]
+pub(super) struct GrenadeCounts {
+    pub(super) blasts: Vec<Blast>,
+    pub(super) grenades: u32,
+    /// Blast damage to the thrower, to his teammates, to enemies; the
+    /// bodies it would have killed of each; the bodies inside the radius
+    /// when it went off, and of them those outside at the throw.
+    pub(super) blast_dmg: [f32; 3],
+    pub(super) blast_kills: [u32; 3],
+    pub(super) blast_in: [u32; 3],
+    pub(super) walked_in: [u32; 3],
+}
+
 /// Grenades: the RGD-5's blast (`rgd-5.options`: `splash_radius` 10 m,
 /// `splash_max_damage` 1.3 to `splash_min_damage` 0.05; linear between:
 /// GUESS), on a body with a line from the landing.
@@ -94,4 +108,76 @@ pub(crate) fn the_blast_falls_off_to_its_minimum_at_ten_metres() {
     assert!((blast_damage(0.0) - BLAST_MAX).abs() < 1e-6);
     assert!((blast_damage(BLAST_M) - BLAST_MIN).abs() < 1e-6);
     assert_eq!(blast_damage(10.5), 0.0);
+}
+
+impl OwnerTally {
+    /// The grenades going off: who is inside, who walked in, the damage it would do (the stand-in has none).
+    pub(super) fn grenades_off(&mut self, game: &Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
+        // The grenades going off: who is inside, who walked in, the damage
+        // it would do (the stand-in has none).
+        let mut gone = Vec::new();
+        self.grenades.blasts.retain(|b| {
+            let off = tick >= b.time;
+            if off {
+                gone.push(b.clone());
+            }
+            !off
+        });
+        for blast in gone {
+            let Some(team) = game.bodies.get(blast.thrower).map(|b| b.team) else {
+                continue;
+            };
+            for (place, body) in game.bodies.iter().enumerate() {
+                let d = (Game::chest(body) - blast.at).length();
+                if !body.alive || d > BLAST_M {
+                    continue;
+                }
+                let who = if place == blast.thrower {
+                    0
+                } else if body.team == team {
+                    1
+                } else {
+                    2
+                };
+                self.grenades.blast_in[who] += 1;
+                self.grenades.walked_in[who] += u32::from(!blast.inside.get(place).copied().unwrap_or(false));
+                *rays += 1;
+                if !sight.visible(blast.at + Vec3::new(0.0, 0.3, 0.0), Game::chest(body)) {
+                    continue;
+                }
+                let dmg = blast_damage(d);
+                self.grenades.blast_dmg[who] += dmg;
+                self.grenades.blast_kills[who] += u32::from(dmg >= body.health);
+            }
+        }
+    }
+
+    /// The grenades counts at the end: their keys of the `owner` object and their lines of the owner-test text.
+    pub(super) fn grenades_part(&self, game: &Game) -> Part {
+        let json = serde_json::json!({
+            "grenades": self.grenades.grenades,
+            "grenade_damage_applied": false,
+            "grenade_self_dmg": (100.0 * self.grenades.blast_dmg[0]).round() / 100.0,
+            "grenade_mate_dmg": (100.0 * self.grenades.blast_dmg[1]).round() / 100.0,
+            "grenade_enemy_dmg": (100.0 * self.grenades.blast_dmg[2]).round() / 100.0,
+            "grenade_kills": self.grenades.blast_kills,
+            "grenade_in_radius": self.grenades.blast_in,
+            "grenade_walk_ins": self.grenades.walked_in,
+            "team_kills_gun": game.team_kills,
+            "team_hits": game.team_hits,
+        });
+        let text = format!(
+            "owner-test other: grenades {} (no damage in the stand-in) would damage self {:.2} mates {:.2} enemies {:.2}, would kill {:?}, inside at the blast {:?} walked in {:?}; team kills by gunfire {}, team hits {}",
+            self.grenades.grenades,
+            self.grenades.blast_dmg[0],
+            self.grenades.blast_dmg[1],
+            self.grenades.blast_dmg[2],
+            self.grenades.blast_kills,
+            self.grenades.blast_in,
+            self.grenades.walked_in,
+            game.team_kills,
+            game.team_hits,
+        );
+        Part::new(json, text)
+    }
 }

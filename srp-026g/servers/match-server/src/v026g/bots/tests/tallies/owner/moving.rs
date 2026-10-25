@@ -1,5 +1,23 @@
 use super::*;
 
+/// The moving counts: counted as the match runs, kept for [`OwnerTally::finish`].
+#[derive(Default)]
+pub(super) struct MoveCounts {
+    pub(super) takes: Vec<Vec<u32>>,
+    pub(super) stuck_notes: Vec<Vec<u32>>,
+    pub(super) no_way: Vec<Vec<u32>>,
+}
+
+impl MoveCounts {
+    pub(super) fn new(n: usize) -> Self {
+        Self {
+            takes: vec![Vec::new(); n],
+            stuck_notes: vec![Vec::new(); n],
+            no_way: vec![Vec::new(); n],
+        }
+    }
+}
+
 /// Idle (`idle.py`): seconds under 0.3 m moved, walk keys under 30 % of
 /// the ticks, calm; at least 5 of them in a row.
 pub(crate) const IDLE_M: f32 = 0.3;
@@ -146,14 +164,14 @@ impl OwnerTally {
             }
         };
         if let Some(rest) = note.text.strip_prefix("takes ") {
-            at(&mut self.takes);
+            at(&mut self.moving.takes);
             let mut words = rest.split_whitespace();
             let (kind, target) = (words.next().unwrap_or(""), words.next().unwrap_or(""));
             let team = game.bodies.get(note.place).map(|b| b.team);
             if kind == "Trade"
                 && let Some(team) = team
             {
-                self.trades.push((note.place, team, note.time));
+                self.campers.trades.push((note.place, team, note.time));
             }
             // A counter run: Flank or Crossfire on a shooter who holds his
             // kill spot against this bot's side.
@@ -163,26 +181,26 @@ impl OwnerTally {
                 .and_then(|t| t.parse::<Place>().ok());
             if matches!(kind, "Flank" | "Crossfire")
                 && let (Some(who), Some(team)) = (on, team)
-                && self.spots.iter().any(|h| h.shooter == who && h.team == team)
+                && self.campers.spots.iter().any(|h| h.shooter == who && h.team == team)
             {
-                self.counter_runs[0] += 1;
-                self.counter_runs[1] += u32::from(kind == "Flank");
+                self.campers.counter_runs[0] += 1;
+                self.campers.counter_runs[1] += u32::from(kind == "Flank");
             }
         } else if note.text.starts_with("is stuck at") {
-            at(&mut self.stuck_notes);
+            at(&mut self.moving.stuck_notes);
         } else if note.text.contains("no way to its goal") {
-            at(&mut self.no_way);
+            at(&mut self.moving.no_way);
         } else if let Some((aim, time)) = thrown_at(&note.text)
             && let Some(body) = game.bodies.get(note.place)
         {
-            self.grenades += 1;
+            self.grenades.grenades += 1;
             let at = grenade_lands(&game.world.sight, Game::eye(body), aim);
             let inside = game
                 .bodies
                 .iter()
                 .map(|b| b.alive && (Game::chest(b) - at).length() <= BLAST_M)
                 .collect();
-            self.blasts.push(Blast {
+            self.grenades.blasts.push(Blast {
                 thrower: note.place,
                 at,
                 time,
@@ -252,7 +270,7 @@ impl OwnerTally {
             (sp[(sp.len() - 1) / 2] + sp[sp.len() / 2]) / 2.0
         };
         let stuck_line = |t0: f32, t1: f32| {
-            self.stuck_notes[place]
+            self.moving.stuck_notes[place]
                 .iter()
                 .any(|&t| (t as f32) >= t0 * 1000.0 && (t as f32) <= t1 * 1000.0)
         };
@@ -337,7 +355,7 @@ impl OwnerTally {
             // The server's stuck watch: from each firing, both ways while
             // the body keeps near where it was then, walking, not holding.
             let (lt0, lt1) = (t_of(life[0]), t_of(life[n - 1]));
-            for &fired in &self.stuck_notes[place] {
+            for &fired in &self.moving.stuck_notes[place] {
                 let tf = fired as f32 / 1000.0;
                 if tf < lt0 || tf > lt1 {
                     continue;
@@ -413,7 +431,7 @@ impl OwnerTally {
             let route_jump = presses
                 .iter()
                 .any(|p| p.place == place && p.by == "route" && (p.t as f32) >= (t0 - 2.0) * 1000.0 && (p.t as f32) <= t1 * 1000.0);
-            let cause = if within(&self.no_way[place], t0 - 1.0, t1 + 3.0) > 0 {
+            let cause = if within(&self.moving.no_way[place], t0 - 1.0, t1 + 3.0) > 0 {
                 "no_route"
             } else if 2 * near(true) >= pts.len() {
                 "teammate"
@@ -423,7 +441,7 @@ impl OwnerTally {
                 "route_jump"
             } else if hi - lo >= UP_DOWN_M {
                 "ledge"
-            } else if kinds.contains(&"loop") && within(&self.takes[place], t0, t1) >= 2 {
+            } else if kinds.contains(&"loop") && within(&self.moving.takes[place], t0, t1) >= 2 {
                 "play_churn"
             } else if kinds[0] == "stand" {
                 "stand"
@@ -443,7 +461,7 @@ impl OwnerTally {
                 at,
             });
         }
-        let blips = self.stuck_notes[place]
+        let blips = self.moving.stuck_notes[place]
             .iter()
             .filter(|&&ms| {
                 let t = ms as f32 / 1000.0;
@@ -452,6 +470,209 @@ impl OwnerTally {
             })
             .count() as u32;
         (eps, blips)
+    }
+
+    /// The moving counts at the end: their keys of the `owner` object and their lines of the owner-test text.
+    pub(super) fn moving_part(&self, game: &Game, presses: &[Press], scale: &Scale) -> Part {
+        let n = self.recs.len();
+        let tick_s = scale.tick_s;
+        let per_min = |x: f64| scale.per_min(x);
+        let pct = Scale::pct;
+        // Calm walking and sprinting; idle; drops; U-turns.
+        let (mut calm_walk, mut calm_sprint, mut calm_m) = (0u64, 0u64, 0f64);
+        let mut idle: BTreeMap<String, f64> = BTreeMap::new();
+        let (mut idle_s, mut drops) = (0u32, [0u32; 2]);
+        let (mut uturns, mut takes_moving) = (0u32, 0u32);
+        for (place, recs) in self.recs.iter().enumerate() {
+            for r in recs.iter().filter(|r| r.alive && r.calm && !r.carrying) {
+                if r.keys & WALK_KEYS != 0 {
+                    calm_walk += 1;
+                    calm_sprint += u64::from(r.keys & key::SPRINT != 0);
+                    calm_m += f64::from(r.speed) * tick_s;
+                }
+            }
+            // Seconds: idle ones, and the drops between them.
+            let mut streak: Vec<u16> = Vec::new();
+            let mut flush = |streak: &mut Vec<u16>, idle: &mut BTreeMap<String, f64>| {
+                if streak.len() >= IDLE_S {
+                    idle_s += streak.len() as u32;
+                    for &p in streak.iter() {
+                        *idle.entry(self.plays[usize::from(p)].clone()).or_default() += 1.0;
+                    }
+                }
+                streak.clear();
+            };
+            for s in 0..recs.len() / TPS {
+                let sec = &recs[s * TPS..(s + 1) * TPS];
+                let whole = sec.iter().all(|r| r.alive);
+                let moved: f32 = sec.iter().map(|r| r.speed * TICK_S).sum();
+                let walk = sec.iter().filter(|r| r.keys & WALK_KEYS != 0).count() as f32 / TPS as f32;
+                let is_idle = whole && moved < IDLE_M && walk < IDLE_WALK && sec.iter().all(|r| r.calm);
+                if is_idle {
+                    streak.push(sec[TPS - 1].play);
+                } else {
+                    flush(&mut streak, &mut idle);
+                }
+                if whole && s > 0 && recs[s * TPS - 1].alive {
+                    let down = recs[s * TPS - 1].feet.y - sec[TPS - 1].feet.y;
+                    for (c, m) in drops.iter_mut().zip(DROP_M) {
+                        *c += u32::from(down >= m);
+                    }
+                }
+            }
+            flush(&mut streak, &mut idle);
+            for &t in &self.moving.takes[place] {
+                let i = self.index(t);
+                if i < UTURN_TICKS || i + UTURN_TICKS >= recs.len() {
+                    continue;
+                }
+                let (a, b, c) = (&recs[i - UTURN_TICKS], &recs[i], &recs[i + UTURN_TICKS]);
+                if !(a.alive && b.alive && c.alive) || recs[i - UTURN_TICKS..=i + UTURN_TICKS].iter().any(|r| !r.alive) {
+                    continue;
+                }
+                let (u, v) = (b.feet - a.feet, c.feet - b.feet);
+                let (lu, lv) = (u.x.hypot(u.z), v.x.hypot(v.z));
+                if lu < UTURN_M || lv < UTURN_M {
+                    continue;
+                }
+                takes_moving += 1;
+                let cos = ((u.x * v.x + u.z * v.z) / (lu * lv)).clamp(-1.0, 1.0);
+                uturns += u32::from(cos.acos().to_degrees() > UTURN_DEG);
+            }
+        }
+
+        // Close pairs (teammates, from the seconds) and one body (any two,
+        // every tick).
+        let (mut close_eps, mut close_s, mut one_eps, mut one_ticks) = (0u32, 0u32, 0u32, 0u32);
+        for a in 0..n {
+            for b in a + 1..n {
+                let (ra, rb) = (&self.recs[a], &self.recs[b]);
+                let len = ra.len().min(rb.len());
+                let same = game.bodies[a].team == game.bodies[b].team;
+                if same {
+                    let mut ep: Option<(u32, u32)> = None;
+                    let mut end = |ep: Option<(u32, u32)>| {
+                        if let Some((s0, s1)) = ep
+                            && s1 - s0 + 1 >= CLOSE_S
+                        {
+                            close_eps += 1;
+                            close_s += s1 - s0 + 1;
+                        }
+                    };
+                    for s in 0..(len / TPS) as u32 {
+                        let k = s as usize * TPS + TPS - 1;
+                        let near = ra[k].alive && rb[k].alive && ra[k].feet.distance_xz(rb[k].feet) <= CLOSE_M;
+                        if !near {
+                            continue;
+                        }
+                        ep = match ep {
+                            Some((s0, s1)) if s - s1 <= CLOSE_GAP_S + 1 => Some((s0, s)),
+                            other => {
+                                end(other);
+                                Some((s, s))
+                            }
+                        };
+                    }
+                    end(ep);
+                }
+                let mut last: Option<usize> = None;
+                for k in 0..len {
+                    let (x, y) = (&ra[k], &rb[k]);
+                    if x.alive
+                        && y.alive
+                        && x.feet.distance_xz(y.feet) <= ONE_BODY_M
+                        && (x.feet.y - y.feet.y).abs() <= ONE_BODY_M
+                    {
+                        one_ticks += 1;
+                        if last.is_none_or(|l| k > l + TPS / 2) {
+                            one_eps += 1;
+                        }
+                        last = Some(k);
+                    }
+                }
+            }
+        }
+
+        // Stuck (bots only).
+        let teams: Vec<u8> = game.bodies.iter().map(|b| b.team).collect();
+        let mut stuck: BTreeMap<&str, (u32, f32)> = BTreeMap::new();
+        let mut stuck_cause: BTreeMap<&str, (u32, f32)> = BTreeMap::new();
+        let mut spots: BTreeMap<(i32, i32, i32), u32> = BTreeMap::new();
+        let mut blips = 0u32;
+        for place in (0..n).filter(|&p| self.is_bot[p]) {
+            let (eps, b) = self.stuck_episodes(place, &teams, presses);
+            blips += b;
+            for e in eps {
+                for (map, name) in [(&mut stuck, e.kinds[0]), (&mut stuck_cause, e.cause)] {
+                    let c = map.entry(name).or_default();
+                    c.0 += 1;
+                    c.1 += e.t1 - e.t0;
+                }
+                let cell = (
+                    (e.at.x / SPOT_M[0]).floor() as i32,
+                    (e.at.z / SPOT_M[0]).floor() as i32,
+                    (e.at.y / SPOT_M[1]).floor() as i32,
+                );
+                *spots.entry(cell).or_default() += 1;
+            }
+        }
+        let stuck_n: u32 = stuck.values().map(|e| e.0).sum();
+        let stuck_s: f32 = stuck.values().map(|e| e.1).sum();
+        let stuck_spots = spots.values().filter(|&&c| c >= 2).count();
+        let round = |m: BTreeMap<&'static str, (u32, f32)>| -> BTreeMap<&'static str, (u32, f32)> {
+            m.into_iter().map(|(k, (c, s))| (k, (c, s.round()))).collect()
+        };
+
+        let json = serde_json::json!({
+            "stuck": stuck_n,
+            "stuck_s": stuck_s.round(),
+            "stuck_by": round(stuck),
+            "stuck_by_cause": round(stuck_cause),
+            "stuck_per_bot_min": per_min(stuck_n.into()),
+            "stuck_s_per_bot_min": per_min(stuck_s.into()),
+            "stuck_blips": blips,
+            "stuck_blips_per_bot_min": per_min(blips.into()),
+            "stuck_spots_2": stuck_spots,
+            "calm_walk_s": (calm_walk as f64 * tick_s).round(),
+            "calm_sprint_pct": pct(calm_sprint as f64, calm_walk as f64),
+            "calm_mps": if calm_walk > 0 { (100.0 * calm_m / (calm_walk as f64 * tick_s)).round() / 100.0 } else { 0.0 },
+            "idle_s": idle_s,
+            "idle_by_play": idle,
+            "drops_2_5m": drops[0] - drops[1],
+            "drops_4m": drops[1],
+            "uturns": uturns,
+            "takes_moving": takes_moving,
+            "uturns_per_bot_min": per_min(uturns.into()),
+            "close_pairs": close_eps,
+            "close_pair_s": close_s,
+            "one_body": one_eps,
+            "one_body_s": (f64::from(one_ticks) * tick_s).round(),
+        });
+        let text = format!(
+            "owner-test moves: stuck {} ({:.0} s, {:.3} a bot-minute) by kind {} by cause {}, blips {}, spots of 2+ {}; calm sprint {:.1} % of {:.0} s walking, {:.2} m/s; idle {} s {}; drops 2.5-4 m {} >=4 m {}; U-turns {} of {} takes moving ({:.3} a bot-minute); close pairs {} ({} s); one body {} ({:.0} s)",
+            stuck_n,
+            stuck_s,
+            json["stuck_per_bot_min"].as_f64().unwrap_or(0.0),
+            json["stuck_by"],
+            json["stuck_by_cause"],
+            blips,
+            stuck_spots,
+            json["calm_sprint_pct"].as_f64().unwrap_or(0.0),
+            calm_walk as f64 * tick_s,
+            json["calm_mps"].as_f64().unwrap_or(0.0),
+            idle_s,
+            json["idle_by_play"],
+            drops[0] - drops[1],
+            drops[1],
+            uturns,
+            takes_moving,
+            json["uturns_per_bot_min"].as_f64().unwrap_or(0.0),
+            close_eps,
+            close_s,
+            one_eps,
+            f64::from(one_ticks) * tick_s,
+        );
+        Part::new(json, text)
     }
 }
 
@@ -516,8 +737,8 @@ pub(crate) fn a_take_that_turns_a_walking_bot_back_is_a_u_turn() {
         vec![bot_now(), bot_now()]
     });
     let t = tally.first_tick + 50 * TICK_MS;
-    tally.takes[0].push(t);
-    tally.takes[1].push(t);
+    tally.moving.takes[0].push(t);
+    tally.moving.takes[1].push(t);
     let (_, json) = tally.finish(&game);
     assert_eq!(json["takes_moving"], 2);
     assert_eq!(json["uturns"], 1, "{json}");
@@ -584,10 +805,10 @@ pub(crate) fn the_stuck_detector_finds_a_push_a_stand_and_a_watch_and_their_caus
         nows
     });
     let fired = tally.time_of(150);
-    tally.stuck_notes[4].push(fired);
+    tally.moving.stuck_notes[4].push(fired);
     // Bot 1's watch fires in its 2 s push: a blip.
     let fired = tally.time_of(20);
-    tally.stuck_notes[1].push(fired);
+    tally.moving.stuck_notes[1].push(fired);
     let (_, json) = tally.finish(&game);
     assert_eq!(json["stuck_by"]["push"][0], 1, "{json}");
     assert_eq!(json["stuck_by"]["stand"][0], 1, "{json}");
