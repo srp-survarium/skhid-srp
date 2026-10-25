@@ -51,11 +51,11 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
             for message in messages:
                 assert message in manifest, (message, manifest)
             contribution = sum(30 + 46 + 2 * len(e.filename.encode("utf-8")) + e.compress_size
-                for e in archive.infolist() if e.filename not in (dump, "logs/collection.txt"))
+                for e in archive.infolist() if e.filename not in (dump, "crash.txt", "logs/collection.txt"))
             assert contribution <= 16 * 1024 * 1024, contribution
             assert f"compressed_log_zip_bytes={contribution}" in manifest, manifest
             logs = {n: archive.read(n) for n in archive.namelist()
-                    if n not in (dump, "logs/collection.txt")}
+                    if n not in (dump, "crash.txt", "logs/collection.txt")}
             assert all(re.fullmatch(r"logs/[a-z-]+/source-[0-9]{2}\.txt", n) for n in logs), list(logs)
             actual = Counter((n.split("/")[1], data) for n, data in logs.items())
             wanted = Counter((n.split("/")[1], data) for n, data in expected.items())
