@@ -972,7 +972,7 @@ impl Bots {
                 }
             }
         }
-        let mut rays = RayBudget(self.tuning.think.rays_per_poll);
+        let mut rays = RayBudget::new(self.tuning.think.rays_per_poll);
         self.searching.left = SEARCHES_PER_POLL;
         self.searching.floors = self.tuning.think.search_floors_per_poll as usize;
         self.go_on_searching();

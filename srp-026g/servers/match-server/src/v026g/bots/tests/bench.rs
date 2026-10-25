@@ -255,7 +255,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     }
     let commanded = Instant::now();
     let (mut think, mut ticks) = (0.0, 0.0);
-    let mut rays = RayBudget(bots.tuning.think.rays_per_poll);
+    let mut rays = RayBudget::new(bots.tuning.think.rays_per_poll);
     bots.searching.left = SEARCHES_PER_POLL;
     bots.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
     let a = Instant::now();
