@@ -49,10 +49,18 @@ const ESCAPE_IN_WEIGHT: f32 = 3.0;
 /// A body walks out of a zone at least this fast, m/s: a walk aiming
 /// forward (`kin`: 3.0).
 const ESCAPE_WALK_MPS: f32 = 3.0;
-/// A zone whose hit a second is at most this, health points, may be walked
-/// on through to a way out further on while on. GUESS: under a tenth of a
-/// body's health in a crossing of 2 s.
-const MILD_HIT_PS: f32 = 5.0;
+/// A zone whose hit a second is at most this, of a body's health (`[0, 1]`,
+/// as `BodyView::health` and the zones' hits), may be walked on through to a
+/// way out further on while on. GUESS: under a tenth of a body's health in a
+/// crossing of 2 s. It was 5.0, as if in health points: every zone of the
+/// maps but one (Mamayev Kurgan's 120 a second) was mild, those of 0.8-1.2
+/// a second too, a body's death in about a second.
+const MILD_HIT_PS: f32 = 0.05;
+
+/// Whether a zone that hits `hit_per_s` a second is mild ([`MILD_HIT_PS`]).
+fn mild(hit_per_s: f32) -> bool {
+    hit_per_s <= MILD_HIT_PS
+}
 /// A held route is looked over this far ahead for zones it would meet on,
 /// metres (GUESS: 3 s of a sprint, past the time a zone's prediction is
 /// sure).
@@ -884,7 +892,7 @@ impl Tactics {
         let goal = goal.filter(|_| self.hazards.zone_of(from).is_some());
         let out = match (goal, nearest) {
             (Some(goal), Some(nearest)) => {
-                let mild = self.hazards.hit_per_s(from) <= MILD_HIT_PS;
+                let mild = mild(self.hazards.hit_per_s(from));
                 let in_time = |d: f32| {
                     let walk_ms = (d / ESCAPE_WALK_MPS * 1000.0) as u32;
                     self.hazards.allowed_for(from, time, walk_ms)
@@ -1393,6 +1401,30 @@ pub(super) mod tests {
         edit(&mut map);
         let sight = RayTree::build(&triangles);
         Arc::new(World::assemble(map, grid.into(), sight.into()))
+    }
+
+    /// [`MILD_HIT_PS`] is of a body's health, `[0, 1]`: a zone that kills
+    /// a whole body within a crossing of 2 s (Vostok Radar Station's and
+    /// Cologne's 1.2 a second, Tarakanovsky Fort's 0.8) is not mild; one that
+    /// takes under a tenth of it (Mamayev Kurgan's fire soft damage, 0.04)
+    /// is.
+    #[test]
+    fn a_mild_zone_takes_under_a_tenth_of_health_in_a_crossing_of_2_s() {
+        let per_s = |max_hit: f32| {
+            mapdata::Damage {
+                max_hit,
+                parts: 2,
+                continuous: true,
+                ..mapdata::Damage::default()
+            }
+            .raw()
+        };
+        for deadly in [0.6, 0.4] {
+            assert!(2.0 * per_s(deadly) >= 1.0);
+            assert!(!mild(per_s(deadly)), "{}", per_s(deadly));
+        }
+        assert!(2.0 * per_s(0.02) <= 0.1);
+        assert!(mild(per_s(0.02)));
     }
 
     #[test]
