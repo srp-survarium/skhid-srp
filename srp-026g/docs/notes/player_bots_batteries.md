@@ -485,5 +485,5 @@ plays as 4-5: `BotTier::default()`), after minus base per seed (SE):
 - **level_04 day 2 10v10, 13-15:** crowded Collect deaths 9 -> 17 in 16
   seeds, in 11 cells of 5 m along one lane (x 10, z 40-95), from 11 seeds,
   3 of them held: spread, not a spot (4-5: 6 -> 7; 9-10: 12 -> 15).
-- **tdm:** seeds 1-2 on tiers none, 9-10 and 13-15, every run's decisions
+- **tdm:** seeds 1-2 on tiers 4-5, 9-10 and 13-15, every run's decisions
   digest equal to base's (only Collect changed).
