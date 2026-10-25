@@ -3,7 +3,7 @@
 in the default build on made-up cooks, inventories, players, weapons, sound
 proxies and propagators, beside the original exe where they differ.
 
-    python check_rattle_026g.py <original survarium.exe> [--pack <rattle-2 folder>]
+    python check_rattle_026g.py <original survarium.exe> [--pack <rattle-3 folder>]
 
 Requires Python `unicorn`. The built exe's sections are loaded as they are
 and its code (the arena's block rattle.code, linked by link_026g.py) runs as
@@ -54,8 +54,8 @@ ARENA = base.arena()
 SYMBOLS = {name: va for name, va in ARENA.symbols.items() if name.startswith(("rt_", "rattle_"))}
 SPONGE_SYMBOLS = {name: va for name, va in ARENA.symbols.items() if name.startswith("sp_")}
 STATE = SYMBOLS["rt_g"]
-# the content pack (release/content.tsv rattle@2), in the main checkout's private folder
-PACK = os.path.join(HERE, "..", "..", "..", "skhid-srp", "private", "content-packs", "rattle-2")
+# the content pack (release/content.tsv rattle@3), in the main checkout's private folder
+PACK = os.path.join(HERE, "..", "..", "..", "skhid-srp", "private", "content-packs", "rattle-3")
 # struct rattle (rattle_026g.c's _Static_asserts)
 R_DURATION, R_LEFT, R_PASSIVE_STEPS, R_ACTIVE_STEPS, R_ACTIVE_SHOTS, R_SIZE = 0x360, 0x364, 0x368, 0x36C, 0x370, 0x378
 STATE_AT, COOLDOWN, ACTIVATED = 0x280, 0x28C, 0x2A0
@@ -78,7 +78,7 @@ def rattle_options():
                  "active": {"duration": 10, "shots_sound_volume_3rd_person": 0.5,
                             "steps_sound_volume_3rd_person": 0},
                  "passive": {"steps_sound_volume_3rd_person": f32(0.7)},
-                 "amount": -1, "cooldown_sec": 40, "effect": "artefact_lifebone", "spawn_sec": 1, "type": 8}}
+                 "amount": -1, "cooldown_sec": 40, "effect": "artefact_rattle", "spawn_sec": 1, "type": 8}}
 
 
 def quiet_of(gain):
@@ -446,7 +446,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("original")
     parser.add_argument("--pack", default=os.environ.get("SRP_RATTLE_PACK", PACK),
-                        help="the content pack's folder (rattle@2: private/content-packs/rattle-2)")
+                        help="the content pack's folder (rattle@3: private/content-packs/rattle-3)")
     args = parser.parse_args()
     original = open(args.original, "rb").read()
     code = open(base.default_bin("section"), "rb").read()

@@ -3366,9 +3366,9 @@ active that ends at its first tick). The owner's rules (`../docs/notes/rattle.md
 pickup to its holder's death others hear his steps and movement noise at 70 % a Rattle; its key
 (patch 54's press fires every ready one) makes them silent for 10 s (cooldown 40 s) and his shots
 50 % a Rattle fired; he hears himself by the same factors (the owner, 2026-10-24: the feedback
-for the player). The content is pack `rattle@2`
+for the player). The content is pack `rattle@3`
 (`../scripts/rattle/make_pack.py`: item 759, 0.20e's config made 0.26g's with the owner's numbers,
-0.20e's model, texts in six languages).
+0.20e's model, texts in six languages, the active's glow: Lifebone's effect and particle in grey).
 
 - **The object** (`rattle_026g.c`, 0x378 bytes): Rattle's (artefact_base and the drawable at
   +340h, constructor 0x25FA10), then the duration in ms (`data/active/duration` x 1000), the time

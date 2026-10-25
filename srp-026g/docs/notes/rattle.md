@@ -181,16 +181,16 @@ Patch number
 - The site's /maps shows it at its spots, as the Sponge (scripts/maps-tab/build.py reads
   `mode/artefact_spots`); its icon `artefact_rattle.webp` comes from the calculator's icon
   export of cell [21,1].
-- The pack `rattle@2` is made by `scripts/rattle/make_pack.py` (its folder goes into
-  SKHID_PACKS_DIR as `rattle-2`). @1 had 0.20e's `data/spawn_sec` 0.5, a float where every
+- The pack `rattle@3` is made by `scripts/rattle/make_pack.py` (its folder goes into
+  SKHID_PACKS_DIR as `rattle-3`). @1 had 0.20e's `data/spawn_sec` 0.5, a float where every
   0.26g artefact has an int: release/build-content's value-type check refused it; @2 has
-  Spring's 1.
+  Spring's 1; @3 the grey glow (below).
 
 ## Built (2026-10-23)
 
 - Exe patch 59 (README section 59, client_patch.md section 3.54): `rattle_026g.asm`,
   `rattle_026g.c` in the arena's blocks `rattle.code` and `rattle.state`; seven hooks and the
-  cook's size; the game called through the engine library. Pack `rattle@2`
+  cook's size; the game called through the engine library. Pack `rattle@3`
   (`scripts/rattle/make_pack.py`).
 - The config (`data`): `active/duration` 10, `cooldown_sec` 40, `spawn_sec` 1,
   `passive/steps_sound_volume_3rd_person` 0.7, `active/steps_sound_volume_3rd_person` 0,
@@ -202,8 +202,8 @@ Patch number
 - What a gain does: the sound's voice volume and its HDR loudness for every listener, the
   carrier in first person too (his hud proxies, since 2026-10-24); gain 0 makes no voice.
 - Ours, beyond 0.20e's file: `amount` -1 (0.20e's 1 would use the Rattle up at its first active's
-  end); spawn particle and effect Lifebone's (0.20e's `fx/explosions/grenate` and
-  `effect_artefact_rattle` are not in 0.26g; 0.20e's effect was Lifebone's particle too); the
+  end); spawn particle Lifebone's (0.20e's `fx/explosions/grenate` is not in 0.26g); the effect
+  0.20e's name `artefact_rattle`, ours in grey (the glow, below); the
   model's LOD switching Spring's (0.20e's said default); `spawn_sec` Spring's 1 (0.20e's 0.5).
 - Texts: name and description new; the pickup hint 50 % -> 30 %; the activation hint names the
   shots.
@@ -242,3 +242,22 @@ Patch number
 - Decided (the owner, 2026-10-24): the carrier hears himself by the same factors (the rule
   above); his own game now marks the hud proxies of his steps (0x65803) and shots (0x297F5E) as
   the point proxies (`check_rattle_026g.py`'s own-game cases).
+
+## The glow: grey (the owner, 2026-10-25)
+
+- The rule: the active Rattle glows grey, not Lifebone's green; Lifebone stays green.
+- The glow is the effect `data/effect` names (`gameplay/effects/effect_<name>.options`): a
+  third-person particle on the carrier's body with a point light, started by `enable_active`
+  0x313350 through `game_effect_player::add` 0x2DE090. Until @3 the Rattle named
+  `artefact_lifebone` (0.26g has no `effect_artefact_rattle`; 0.20e's was Lifebone's particle).
+- PROVEN (data): `human_zhivokost`'s green is its materials' `constant_emissive`
+  (`fx/artifacts/up_green`, `stroke_scroll_green`, `rays_green`: 8 of its 10 emitters; 0.26g's
+  plain `up`, `stroke_scroll`, `rays` give the same textures an orange one) and its light's
+  `LightColor` (0.10, 0.77, 0); every emitter's ColorLife is white, `up_light`'s material
+  (`fx/anomaly/light_idle`) and `distortion`'s draw no colour.
+- Pack `rattle@3`: `effect_artefact_rattle.options` (Lifebone's effect, particle
+  `fx/artifacts/human_rattle`), `particles/fx/artifacts/human_rattle.particle` (human_zhivokost
+  with the grey materials and its light 0.5 grey, alpha kept) and
+  `material_instances/fx/artifacts/{up,stroke_scroll,rays}_grey.material` (the green ones with
+  `constant_emissive` 0.5 grey: about the green's brightness, light-to-mid, not white).
+- Not seen in a game yet.

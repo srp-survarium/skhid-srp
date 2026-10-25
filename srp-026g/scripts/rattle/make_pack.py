@@ -17,10 +17,18 @@ Every input is checked against inputs.sha256. What the pack holds (docs/notes/ra
   artefact_rattle_core) reads, made 0.26g's (CONFIG below): the duration under data/active, the
   owner's numbers for the sound factors in place of 0.20e's unread step volumes, cooldown 40 s,
   amount -1 (0.20e's 1 would use it up at its first active's end: artefact_base::decrement_amount
-  0x313530), 0.26g's lobby cell [21, 1], Lifebone's effect and spawn particle (0.20e's
-  effect_artefact_rattle and fx/explosions/grenate are not in 0.26g), spawn_sec 0.26g's Spring's
-  (1, an int as every 0.26g artefact's; 0.20e's 0.5 is a float, which release/build-content's
-  value-type check refuses at that path: @2);
+  0x313530), 0.26g's lobby cell [21, 1], Lifebone's spawn particle (0.20e's fx/explosions/grenate
+  is not in 0.26g), spawn_sec 0.26g's Spring's (1, an int as every 0.26g artefact's; 0.20e's 0.5
+  is a float, which release/build-content's value-type check refuses at that path: @2); its effect
+  0.20e's name artefact_rattle, made here (@3);
+- the active's glow, grey (@3; the owner, 2026-10-25): gameplay/effects/effect_artefact_rattle.options,
+  0.26g's effect_artefact_lifebone (0.20e's effect_artefact_rattle was Lifebone's particle too) with
+  the particle fx/artifacts/human_rattle: 0.26g's human_zhivokost with its materials' grey copies
+  (GLOW_MATERIALS: up_green, stroke_scroll_green and rays_green, their constant_emissive GREY in
+  place of green, alpha kept) and its point light's colour (LightColor and its data source) GREY.
+  The green is the materials' constant_emissive (the particles' ColorLife is white; 0.26g's plain
+  up, stroke_scroll and rays give the same textures an orange one): the copies change that colour
+  alone. Lifebone keeps its green;
 - the model item/artefacts/artefact_pogremushka: 0.20e's files (0.26g's model format: 0.20e's and
   0.26g's Spring are byte for byte the same), its settings' LOD switching Spring's in 0.26g
   (200, 300, 400; 0.20e said default). Its materials item/artefacts_02 and
@@ -33,6 +41,7 @@ import argparse
 import copy
 import hashlib
 import json
+import struct
 from pathlib import Path
 import sys
 
@@ -41,7 +50,7 @@ sys.path.insert(0, str(HERE.parent / 'research-mode'))
 import bcw  # noqa: E402
 
 PACK_ID = 'rattle'
-VERSION = '2'
+VERSION = '3'
 DICT_ID = 759
 CONFIG = 'gameplay/items/artefacts/artefact_rattle.options'
 MODEL = 'models/item/artefacts/artefact_pogremushka.model/'
@@ -55,10 +64,18 @@ PASSIVE = {'steps_sound_volume_3rd_person': 0.7}
 ACTIVE = {'duration': 10, 'steps_sound_volume_3rd_person': 0, 'shots_sound_volume_3rd_person': 0.5}
 COOLDOWN_SEC = 40
 ICON = [21, 1]
-# 0.20e's names 0.26g has not: the spawn particle and the effect (0.20e's effect_artefact_rattle is
-# Lifebone's particle human_zhivokost, as 0.26g's effect_artefact_lifebone)
+# 0.20e's spawn particle 0.26g has not
 SPAWN_PARTICLE = ('fx/explosions/grenate', 'fx/artifacts/emergence_zhivokost_single')
-EFFECT = ('artefact_rattle', 'artefact_lifebone')
+# The active's glow (@3): 0.20e's effect name, made of 0.26g's Lifebone's effect and particle in grey
+EFFECT = 'artefact_rattle'
+EFFECT_FILE = f'gameplay/effects/effect_{EFFECT}.options'
+LIFEBONE_EFFECT = 'gameplay/effects/effect_artefact_lifebone.options'
+GLOW_PARTICLE = ('fx/artifacts/human_zhivokost', 'fx/artifacts/human_rattle')
+GLOW_MATERIALS = {'fx/artifacts/up_green': 'fx/artifacts/up_grey',
+                  'fx/artifacts/stroke_scroll_green': 'fx/artifacts/stroke_scroll_grey',
+                  'fx/artifacts/rays_green': 'fx/artifacts/rays_grey'}
+# a light-to-mid grey, about the green's brightness (its luminance 0.57..0.59), not white
+GREY = (0.5, 0.5, 0.5)
 # 0.26g's Spring's LOD switching (its 0.20e settings said default_params true, as the Rattle's)
 LOD_SWITCHING = {'default_params': False, 'type': 0, 'param0': 200, 'param1': 300, 'param2': 400}
 
@@ -115,7 +132,7 @@ def load_localization(data):
 def rattle_config(donor, spring):
     """0.20e's artefact_rattle.options as exe patch 59 reads it, 0.26g's way (the docstring)."""
     data = donor['data']
-    want = {'type': 8, 'amount': 1, 'cooldown_sec': 0, 'duration': 10, 'effect': EFFECT[0],
+    want = {'type': 8, 'amount': 1, 'cooldown_sec': 0, 'duration': 10, 'effect': EFFECT,
             'pickup_hint': 'st_rattle_pickup_hint', 'activation_hint': 'st_rattle_activation_hint'}
     for key, value in want.items():
         if data.get(key) != value:
@@ -136,7 +153,6 @@ def rattle_config(donor, spring):
     out['active'] = dict(ACTIVE)
     out['cooldown_sec'] = COOLDOWN_SEC
     out['amount'] = -1
-    out['effect'] = EFFECT[1]
     out['spawn_sec'] = spring['data']['spawn_sec']
     # 0.26g's artefacts as Spring has them: the same keys of the same types (the passive and the
     # active are the Rattle's own, read by the exe's patch alone)
@@ -159,6 +175,96 @@ def model_settings(donor):
         sys.exit(f'donor {SETTINGS}: not the materials item/artefacts_02 and item/artefacts_pogremushka')
     settings['lod_switching'] = dict(LOD_SWITCHING)
     return settings
+
+
+def edit(node, path, change):
+    """The node tree with change(path, node) applied to every node (None: kept); path the keys."""
+    got = change(path, node)
+    if got is not None:
+        return got
+    kind = node[0]
+    if kind == bcw.NAMED:
+        return (kind, [(key, edit(child, path + (key.decode('cp1251'),), change)) for key, child in node[1]],
+                node[2])
+    if kind == bcw.INDEXED:
+        return (kind, [edit(child, path + (str(i),), change) for i, child in enumerate(node[1])], node[2])
+    return node
+
+
+def float4(node):
+    return struct.unpack('<4f', node[1]) if node[0] == 8 else None
+
+
+def greyed(node):
+    """A float4 colour node in GREY, its alpha kept."""
+    return (8, struct.pack('<4f', *GREY, float4(node)[3]), node[2])
+
+
+def is_green(rgba):
+    return rgba is not None and rgba[1] > 0.7 and rgba[0] < 0.15 and rgba[2] < 0.05
+
+
+def glow(stock, files, log):
+    """The active's glow in grey (the docstring): the effect, its particle and the materials."""
+    effect = bcw.read(stock.read(LIFEBONE_EFFECT))
+    seen = []
+
+    def particle_name(path, node):
+        if path == ('effect', 'particle_system'):
+            if node[1].decode('cp1251') != GLOW_PARTICLE[0]:
+                sys.exit(f'stock {LIFEBONE_EFFECT}: its particle is not {GLOW_PARTICLE[0]}')
+            seen.append(path)
+            return (bcw.STRING, GLOW_PARTICLE[1].encode('cp1251'), len(GLOW_PARTICLE[1]) + 1)
+        return None
+    files[EFFECT_FILE] = bcw.write(edit(effect, (), particle_name))
+    if len(seen) != 1:
+        sys.exit(f'stock {LIFEBONE_EFFECT}: no effect/particle_system')
+    log.append(f'{EFFECT_FILE}: 0.26g\'s {LIFEBONE_EFFECT}, its particle {GLOW_PARTICLE[0]} -> {GLOW_PARTICLE[1]}')
+
+    source = f'particles/{GLOW_PARTICLE[0]}.particle'
+    particle = bcw.read(stock.read(source))
+    materials, lights = [], []
+
+    def recolour(path, node):
+        if path and path[-1] == 'Material' and node[0] == bcw.STRING:
+            name = node[1].decode('cp1251')
+            if name in GLOW_MATERIALS:
+                materials.append(name)
+                new = GLOW_MATERIALS[name]
+                return (bcw.STRING, new.encode('cp1251'), len(new) + 1)
+            if name.endswith('_green'):
+                sys.exit(f'stock {source}: a green material {name} this pack has no grey of')
+            return None
+        # the point light's colour: the Light action's LightColor ramp and the data source it names
+        if path and path[-1] == 'value' and ('LightColor' in path or path[:3] == ('data_sources', 'color', 'color0')):
+            if not is_green(float4(node)):
+                sys.exit(f'stock {source}: {"/".join(path)} is not Lifebone\'s green {float4(node)}')
+            lights.append('/'.join(path))
+            return greyed(node)
+        return None
+    files[f'particles/{GLOW_PARTICLE[1]}.particle'] = bcw.write(edit(particle, (), recolour))
+    if set(materials) != set(GLOW_MATERIALS) or len(lights) != 2:
+        sys.exit(f'stock {source}: not the materials {sorted(GLOW_MATERIALS)} and one light '
+                 f'({sorted(set(materials))}, {lights})')
+    log.append(f'particle {GLOW_PARTICLE[1]}: 0.26g\'s {GLOW_PARTICLE[0]}, its {len(materials)} emitters\' materials '
+               f'the grey copies, its light\'s colour (LightColor, data source color0) green -> {GREY}')
+
+    for green, grey in GLOW_MATERIALS.items():
+        found = []
+
+        def emissive(path, node):
+            if path == ('material', 'forward', 'effect', 'constant_emissive', 'value'):
+                if not is_green(float4(node)):
+                    sys.exit(f'stock {green}: constant_emissive {float4(node)} is not green')
+                found.append(float4(node))
+                return greyed(node)
+            return None
+        data = edit(bcw.read(stock.read(f'material_instances/{green}.material')), (), emissive)
+        if len(found) != 1:
+            sys.exit(f'stock {green}: no forward constant_emissive')
+        files[f'material_instances/{grey}.material'] = bcw.write(data)
+        log.append(f'material {grey}: 0.26g\'s {green}, constant_emissive '
+                   f'{tuple(round(v, 4) for v in found[0][:3])} -> {GREY}')
 
 
 def rows(name):
@@ -188,7 +294,8 @@ def main():
     log.append(f'{CONFIG}: 0.20e\'s, data/duration into data/active, passive {PASSIVE}, active {ACTIVE}, '
                f'cooldown_sec 0 -> {COOLDOWN_SEC}, amount 1 -> -1, spawn_sec 0.5 -> {spring["data"]["spawn_sec"]} '
                f'(Spring\'s int), icon 19 -> {ICON}, '
-               f'particle_on_spawn {SPAWN_PARTICLE[0]} -> {SPAWN_PARTICLE[1]}, effect {EFFECT[0]} -> {EFFECT[1]}')
+               f'particle_on_spawn {SPAWN_PARTICLE[0]} -> {SPAWN_PARTICLE[1]}, effect {EFFECT} (0.20e\'s, made below)')
+    glow(stock, files, log)
     spring_settings = bcw.loads(stock.read('models/item/artefacts/artefact_spring.model/settings'))
     if spring_settings['lod_switching'] != LOD_SWITCHING:
         sys.exit(f'0.26g\'s Spring\'s LOD switching is not {LOD_SWITCHING}')
@@ -233,7 +340,8 @@ def main():
         'version': VERSION,
         'target_build': '0.26g',
         'description': 'the Rattle (items_dict 759, 0.20e\'s artefact_rattle): its config (the owner\'s sound '
-                       'factors, read by exe patch 59), 0.20e\'s model and texts',
+                       'factors, read by exe patch 59), 0.20e\'s model and texts, its active\'s glow '
+                       '(Lifebone\'s effect and particle in grey)',
         'operations': operations,
         'notes': ['made by srp-026g/scripts/rattle/make_pack.py from inputs.sha256 and texts.tsv',
                   'donor: Survarium 0.20e'] + log,
