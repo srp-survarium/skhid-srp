@@ -29,6 +29,10 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("partner_m", 35.0),
     // Higher ground: weight per metre above the choke.
     ("prefer_high", 0.3),
+    // Spots on the storeys over the anchor are looked at up to this many metres
+    // over it (0: only the floor the grid finds, at most 2 m over it). GUESS: 8 m,
+    // a storey or two (the players' heights span 9-18 m a map); V-S2a.
+    ("up_m", 8.0),
     // A known enemy's last place is a choke this near the bot, metres.
     ("enemy_choke_m", 60.0),
     ("reach_m", 2.0),
@@ -216,6 +220,7 @@ fn spots_by(cx: &Ctx, choke: Vec3) -> std::sync::Arc<Vec<Vec3>> {
         let query = SpotQuery {
             sight_to: Some(choke),
             prefer_high: num("prefer_high"),
+            up_m: num("up_m"),
             side: cx.bot.side,
             samples: num("samples") as usize,
             ..SpotQuery::ring(choke, num("spot_min_m"), num("spot_max_m"))

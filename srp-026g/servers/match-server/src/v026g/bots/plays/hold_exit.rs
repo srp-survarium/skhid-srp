@@ -25,6 +25,10 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("spot_max_m", 30.0),
     // Higher ground: weight per metre above the exit.
     ("prefer_high", 0.5),
+    // Spots on the storeys over the anchor are looked at up to this many metres
+    // over it (0: only the floor the grid finds, at most 2 m over it). GUESS: 8 m,
+    // a storey or two (the players' heights span 9-18 m a map); V-S2a.
+    ("up_m", 8.0),
     // At least this far from every enemy spawn point, metres.
     ("base_min_m", 30.0),
     // A new spot is at least this far from where the bot stands, metres.
@@ -154,6 +158,7 @@ fn spots_by(cx: &Ctx, exit: Vec3) -> std::sync::Arc<Vec<Vec3>> {
         let query = SpotQuery {
             sight_to: Some(exit),
             prefer_high: num("prefer_high"),
+            up_m: num("up_m"),
             side: cx.bot.side,
             samples: num("samples") as usize,
             ..SpotQuery::ring(exit, num("spot_min_m"), num("spot_max_m"))
