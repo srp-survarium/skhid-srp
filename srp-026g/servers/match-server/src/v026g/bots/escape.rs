@@ -35,7 +35,7 @@
 //! Every try is traced (`{"escape": …}`, then `{"escaped": …}`), so the
 //! owner's matches show which the client lands.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 use mapdata::{ExitJump, NodeId, PocketExit, PocketId, Vec3, WalkGrid};
@@ -242,11 +242,52 @@ fn exits(
     pocket: PocketId,
     from: NodeId,
 ) -> Vec<(PocketExit, u8)> {
-    let inside = |n: NodeId| grid.pocket_of(n) == Some(pocket);
-    let reached = |exit: &PocketExit| path::plan_where(grid, from, exit.from, inside).is_some();
-    let all: Vec<PocketExit> = grid.pocket_exits(from).into_iter().filter(reached).collect();
-    let worked = board.worked(team, pocket).into_iter().filter(reached).collect();
-    order(&all, worked)
+    let all = grid.pocket_exits(from);
+    let worked = board.worked(team, pocket);
+    let walked = walked_to(
+        grid,
+        pocket,
+        from,
+        all.iter().chain(&worked).map(|exit| exit.from).collect(),
+    );
+    let reached = |exit: &PocketExit| walked.contains(&exit.from);
+    let all: Vec<PocketExit> = all.into_iter().filter(reached).collect();
+    order(&all, worked.into_iter().filter(reached).collect())
+}
+
+/// Of the floors `wanted`, those `from` walks to inside `pocket`: those
+/// [`path::plan_where`] finds a way to over the pocket's floors, by the
+/// links a way is planned over, in one flood for all the exits, which ends
+/// once all are found (a way planned to each cost up to 16 ms in level_06
+/// day 4's 4,295-floor pocket).
+fn walked_to(
+    grid: &WalkGrid,
+    pocket: PocketId,
+    from: NodeId,
+    mut wanted: HashSet<NodeId>,
+) -> HashSet<NodeId> {
+    let mut found = HashSet::new();
+    if wanted.remove(&from) {
+        found.insert(from);
+    }
+    let mut seen = HashSet::from([from]);
+    let mut queue = vec![from];
+    while !wanted.is_empty()
+        && let Some(a) = queue.pop()
+    {
+        for (b, kind) in grid.links(a) {
+            if grid.pocket_of(b) == Some(pocket)
+                && grid.link_cost(a, b, kind).is_finite()
+                && seen.insert(b)
+            {
+                if wanted.remove(&b) {
+                    found.insert(b);
+                }
+                queue.push(b);
+            }
+        }
+    }
+    found
 }
 
 /// [`exits`] from the pocket's exits `all` and those the team got out by,
