@@ -38,6 +38,7 @@ global engine_mouse_ray
 global engine_accept_decal_edit
 global engine_cc_bool
 global engine_binded_action
+global engine_cc_u32
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -636,6 +637,27 @@ engine_binded_action:
     mov edi, [esp + 28]   ; kinds
     mov esi, [esp + 32]   ; key
     call 0x207d50
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_cc_u32:
+    ; 0x1dcd0 vostok::console_commands::cc_value<unsigned int>::cc_value: object EAX, name ESP+4, value ESP+8, least ESP+12, most ESP+16, saved ESP+20, kind ESP+24; pops 24
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 44]   ; kind -> 24
+    push dword [esp + 44]   ; saved -> 20
+    push dword [esp + 44]   ; most -> 16
+    push dword [esp + 44]   ; least -> 12
+    push dword [esp + 44]   ; value -> 8
+    push dword [esp + 44]   ; name -> 4
+    mov eax, [esp + 44]   ; object
+    call 0x1dcd0
     pop edi
     pop esi
     pop ebx

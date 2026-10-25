@@ -1922,3 +1922,18 @@ va	name	source	ret_cleanup	result
 0x00297750		manual	4	third_person_game_effects_presenter vtable +20h: its particle presenter's player (+10h) and its sound presenter's (+0C0h) = the argument
 0x002ac400		manual	8	particle_game_effect_presenter's handler of a particle effect (the presenters' vtable +2Ch, 0x297440 / 0x297670): nothing without a player (+8h) or when the effect's view (+34h) is neither the presenter's (+0A8h) nor 2; else event 0 plays it (0x2AC686: scene_renderer::play_particle_system on the player's transform, [player+498h] and its model [player+0F290h]), 1 stops it, other updates its time
 0x00313640		manual	16	artefact_base::effect_calculator (vtable 0A15A68h +0, the time calculator 0x313350 gives game_effect_player::add, at the artefact +268h): out {0, 0.0f, finished = the artefact's state (+280h) != 4}
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	manual	24	
+0x0001a030	vostok::engine::engine_world::logic_tick	manual	4	
+0x0012e510	vostok::render::camouflage_decal_texture_type_baker_cook::on_textures_loaded	manual	24	
+0x0012db40	vostok::render::camouflage_decal_texture_type_baker_cook::on_baked_texture_loaded	manual	16	
+0x000e5c20	vostok::resources::query_resources_and_wait	manual	0	
+0x001096c0	vostok::resources::query_result::do_create_resource	manual	4	
+0x000e5ab0	vostok::resources::dispatch_callbacks	manual	0	
+0x0051f1c0	Scaleform::GFx::MovieImpl::Advance	manual	12	
+0x003f3bb0	vostok::network_core::udp_match_connection::process_incoming_packet<vostok::network_core::process_packet_predicate>	manual	20	
+0x001f67b0	survarium::game_world::game_world	manual	8	
+0x00322830	survarium::bullet_manager::emit_bullet	manual	32	
+0x00321fa0	survarium::bullet_manager::add_decal	manual	32	
+0x003223e0	survarium::bullet_manager::play_particle	manual	20	
+0x0005aba0	vostok::sound::sound_instance_proxy_internal::play	manual	12	
+0x001ed870	survarium::game::is_loading	manual	0	AL: the game's byte +4E38h (set while a world loads)

@@ -115,4 +115,7 @@ void engine_cc_bool(void *object, const char *name, unsigned char *value, unsign
 /* 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX */
 unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle);
 
+/* 0x1dcd0 vostok::console_commands::cc_value<unsigned int>::cc_value: object EAX, name ESP+4, value ESP+8, least ESP+12, most ESP+16, saved ESP+20, kind ESP+24; pops 24 */
+void engine_cc_u32(void *object, const char *name, unsigned int *value, unsigned int least, unsigned int most, unsigned int saved, unsigned int kind);
+
 #endif

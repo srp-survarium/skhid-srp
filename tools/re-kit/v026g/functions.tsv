@@ -1809,3 +1809,7 @@ va	status	ref_021d	name
 0x00054e10	observed		survarium::replay_network_client::is_this_place_mine
 0x002971c0	observed		survarium::first_person_game_effects_presenter::first_person_game_effects_presenter
 0x00297570	observed		survarium::third_person_game_effects_presenter::third_person_game_effects_presenter
+0x0001dcd0	observed		vostok::console_commands::cc_value<unsigned int>::cc_value
+0x0001a030	observed		vostok::engine::engine_world::logic_tick
+0x0051f1c0	observed		Scaleform::GFx::MovieImpl::Advance
+0x001ed870	observed		survarium::game::is_loading

@@ -110,6 +110,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
+| `freeze_026g.asm`, `freeze_026g.c`, `check_freeze_026g.py` | Patch 71: the freeze detector (the arena's blocks `freeze.code`, `freeze.data` and `freeze.state`): 23 functions' entries counted, eight of them timed, a long frame (at least `srp_freeze_ms` and three times the median) one line of the game's log with what each counter grew by in it, a summary after a match; its check runs every entry against the original's first bytes and its return, the state, frames with a scripted clock, the summary and the variable with the game's own console code (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -166,7 +167,7 @@ a hook jumps to, `extern` what it uses of other patches; its hooks as
 `INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
 asm, its C, and its state `rn_state`), the artefacts (patch 54), the
 engine library, the kit keys with the match chat option (patch 58), the
-key that hides the interface (patch 62) and the kill feed's flags (patch 67) are the arena's blocks today. The older fixed sections stay as they are
+key that hides the interface (patch 62), the kill feed's flags (patch 67) and the freeze detector (patch 71) are the arena's blocks today. The older fixed sections stay as they are
 (client_patch.md 0.3 says what moving one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
@@ -3402,6 +3403,70 @@ the parts in another order, no head pool) with the game's own part lookup: the n
 original's but +5; the handler's five arguments; the row's members (penetration_icon,
 ricochet_icon, pain_icon, then mastery_icon) against the original's mastery_icon alone, with the
 registers and the frame as the original's. **Tested in game by the owner, 2026-10-25** ("works nicely"); the explicit melee test (the event's melee flag) came after that test and is checked with Unicorn only.
+
+### 71. The freeze detector (the next release's revision)
+
+The owner (2026-10-25): "we can patch it to detect freezes and stuff"; players report short
+freezes at ~100 fps, and "freezes happen when many people are shooting". The camouflage/decal
+bakes are one cause (patch 70); this tells us the rest, from the owner's and the players' games.
+The rules: `../docs/notes/freeze-detector.md`; the evidence: `client_patch.md` 3.58.
+
+**What it measures.** A frame ends when the main thread's `res_render_output::present`
+(0x3CF7F0) returns: the swap chain presented. Its length is QueryPerformanceCounter's. 23
+functions' first bytes (five to eight, whole instructions, no address and no branch) jump to an
+entry of `freeze.code` that counts the call, runs the same bytes and jumps back past them; for
+eight of them it also takes the caller's return address and the time stamp counter, and the
+function returns through a leave that adds the microseconds and goes back to the caller with the
+function's registers and flags. Timed: the logic tick (0x1A030), the present itself, the
+simulation's move (0x2D2E40), the baker's bakes (0x12E510) and loads of saved bakes (0x12DB40),
+synchronous resource loads (0xE5C20), the resources' callbacks (0xE5AB0), the movies' advance
+(0x51F1C0) and drawing (0x13CED0). Counted: ticks simulated (0x2D1E20) and of them those to a
+time not past the latest (simulated again after a rollback), world history loads (0x2D2770),
+bullets fired (0x322830) and of them those inside a tick simulated again, bullet hits
+(0x32EBD0), bullet decals (0x321FA0) and impact effects (0x3223E0), sounds started (0x5ABA0),
+kill events (0x2DA170) and kill feed rows (0x237C70) (patch 67's two hooks run once in each),
+match messages (0x27A300), datagrams (0x3F3BB0), cooks' resources (0x1096C0), particle systems
+(0x22660), ActionScript invokes (0x511600).
+
+**What it writes.** A frame of at least `srp_freeze_ms` (a console variable, 40, 0 to 100000,
+0 none; kept in `user.cfg`) and three times the median of the last 64 frames is one line of the
+game's log (`Documents\Survarium\Survarium_<user>.log`, channel `game`), here wrapped:
+
+    srp freeze: 83.4 ms in play (limit 40.0 ms): logic 1 in 71.2 ms, present 0.3 ms, sim 1 in 2.1 ms,
+    ticks 5 (resimulated 2), rollbacks 1, shots 11 (replayed 5), hits 6, decals 4, impacts 5,
+    sounds 9, kills 1, feed rows 1, messages 3, datagrams 4, bakes 1 in 65.0 ms, baked loads 0 in
+    0.0 ms, sync loads 0 in 0.0 ms, cooks 2, callbacks 1 in 6.1 ms, particles 4, invokes 12,
+    advance 2 in 1.2 ms, flash render 0.8 ms
+
+The state is menu, lobby, loading, waiting, countdown, play or replay, read on the logic thread
+from the game's own fields. From a match's loading or start to the lobby: at most 100 such lines
+(20 while loading); at the lobby a summary:
+
+    srp freeze summary: 412.3 s in the world, 39871 frames: p50 10.1 ms, p95 12.3 ms, p99 18.0 ms, max 140.2 ms
+    srp freeze summary: 12 long frames (srp_freeze_ms 40): loading 3, waiting 0, countdown 1, play 8, replay 0
+    srp freeze summary: worst 1: 140.2 ms in play (limit 40.0 ms): ...
+
+with the three longest frames in the world, each with its counters. Nothing a match computes
+changes, and the game reads none of it. The variable is registered at game::game's call of the
+game world's constructor (0x1E90A3), before the configs run, as the game's minimap_position
+cc_u32 is.
+
+**Getting the players' data.** The log only, for now. Not built (the owner decides): the summary
+lines could go to the server at a match's end and be logged there (the lobby connection is up
+then), or ride with the snapshot upload (patch 4) as a few more bytes.
+
+**Checked:** `selftest_026g.py` check 71 (the game's fields and functions the state and the
+counters are read from, each site's bytes in the original and the build, the jumps back after the
+same bytes, no relocation or branch into a site, the code the link's and its only calls: the
+logger, its filter, the game world's constructor, the library's cc_value<u32> and the two
+QueryPerformance imports); `check_freeze_026g.py` (Unicorn): every entry from its site against
+the original's first bytes (registers, flags, the stack the original writes) and its `ret n`
+back to the caller with the function's registers and flags and the time added; a timed function
+entered three times before it returns; the state from made-up games; frames with a scripted clock
+and counter: the long-frame line's text with the counters of that frame alone, shots replayed in
+ticks simulated again among them, frames under the limit, `srp_freeze_ms 0`, three times the
+median; a match's summary against a reference; the lines' limits; the variable through the
+game's own cc_value<u32>, lookup and execute. **Not run in a game.**
 
 ## Not ported, not done
 

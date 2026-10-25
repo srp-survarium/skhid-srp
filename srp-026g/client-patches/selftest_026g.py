@@ -1539,7 +1539,8 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
         [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
         [(va, len(old)) for va, old, _, _ in P.KILL_FEED_HOOKS] + \
-        [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))]
+        [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
+        [(va, len(old)) for va, old, _, _ in P.FREEZE_HOOKS]
 
 
 def pickup_sites():
@@ -4460,6 +4461,95 @@ def test_kill_feed(original, image, before):
           "CombatLogWallIcon, CombatLogRicochetIcon and CombatLogPainIcon)")
 
 
+def test_freeze(original, image, before):
+    """Check 71: the freeze detector (patch 71, FREEZE_HOOKS).
+    check_freeze_026g.py runs every entry against the original's first
+    bytes, the leaves, the state, the frames, the summary and the variable."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 64).split(b"\0")[0]
+    word = lambda va: struct.unpack("<I", stock.read(va, 4))[0]
+    # The game's own fields the state is read from (freeze_026g.c).
+    check(rows(stock, 0x1A038, 0x12) == ["mov ebx,[ebp+0x8]", "mov ecx,[ebx+0x2d0]", "mov eax,[ecx]",
+                                         "mov edx,[eax+0x18]", "push esi", "push edi", "call edx"]
+          and word(0x9FAC8C + 0x18) == 0x1ED870 and rows(stock, 0x1ED870, 7) == ["mov al,[ecx+0x4e38]", "ret"]
+          and stock.read(0x1E9089, 6) == bytes.fromhex("c7038cac9f00")
+          and rows(stock, 0x1E909E, 10) == ["push ebx", "lea eax,[ebx+0x18]", "push eax", "call 0x1f67b0"],
+          "logic_tick (0x1A030, stdcall: the engine world, `mov ebx,[ebp+8]`) asks its +2D0h, the game (vtable "
+          "0x9FAC8C, made by game::game 0x1E9070), whether it loads: its vtable +18h is game::is_loading (0x1ED870, "
+          "the game's byte +4E38h); game::game makes the game world at +18h (0x1E90A3)")
+    check(rows(stock, 0x1ED222, 0x21)[:2] == ["mov edi,[esi+0x5390]", "mov ecx,[esi+0x539c]"]
+          and rows(stock, 0x1ED23D, 6) == ["mov [esi+0x539c],edi"]
+          and rows(stock, 0x1ED1AA, 0x1E) == ["mov ecx,[esi+0x539c]", "lea edi,[esi+0x18]", "cmp ecx,edi",
+                                              "jz 0x1ed1d0", "test ecx,ecx", "jz 0x1ed1c2", "mov eax,[ecx]",
+                                              "mov edx,[eax+0x4]", "call edx", "mov [esi+0x539c],edi"]
+          and rows(stock, 0x1ED6EA, 6) == ["mov [edi+0x53ac],eax"]
+          and stock.read(0x2199C6, 7) == bytes.fromhex("c7450014fb9f00")
+          and rows(stock, 0x267AFB, 6) == ["mov [esi+0x1f1c60],edi"],
+          "the game's scene (+539Ch) is its lobby menu (+5390h) after switch_to_lobby (0x1ED1E0) and its game world "
+          "(+18h) after the switch to it (0x1ED170); +53ACh is its network client (set_network_client 0x1ED6E0), "
+          "whose vtable is 0x9FFB14 (0x2199C6) and whose +1F1C60h is the time rule's state the camera keeps "
+          "(client_timelimit_rule::tick, 0x267AFB)")
+    iat_name = lambda slot: cstr(P.IMAGE_BASE + word(slot) + 2)
+    check(iat_name(0x870158) == b"QueryPerformanceCounter" and iat_name(0x870150) == b"QueryPerformanceFrequency"
+          and stock.read(0x2338F5, 0x26) == bytes.fromhex("6a026a01" "6a02" "53" "56" "685c31a000" "b8a8e12a0a"
+                                                          "e8c4a3deff" "6860c98600" "c705a8e12a0acc7c9e00")
+          and cstr(0xA0315C) == b"minimap_position" and popped(stock, 0x1DCD0, 0x1DD40) == 0x18
+          and popped(stock, 0x1F67B0, 0x1F6BF0) == 8,
+          "the import slots 0x870158 and 0x870150 are QueryPerformanceCounter and QueryPerformanceFrequency; "
+          "game_world_ui registers minimap_position as a cc_u32 (cc_value<u32> 0x1DCD0, `ret 18h`: the name, "
+          "&value, least, most, saved, kind; then the vtable 0x9E7CCC); the game world's constructor pops 8")
+    linked = P.arena()
+    block = linked.blocks["freeze.code"]
+    code = P.linker.block_bytes(linked, "freeze.code")
+    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's freeze.code ({len(code)} bytes)")
+    texts = ndisasm(code[:code.index(b"srp_freeze_ms\0")], block.va)
+    at = {address: (i, text) for i, (address, _, text) in enumerate(texts)}
+    for va, old, symbol, opcode in P.FREEZE_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        first = rows(stock, va, len(old))
+        whole = sum(len(bytes.fromhex(h)) for _, h, _ in ndisasm(old, va)) == len(old)
+        plain = not any(t.split()[0].startswith(("j", "call", "ret", "loop")) for t in first) or opcode == 0xE8
+        if opcode == 0xE9:
+            # the entry's first jump out of the block: back past the site, after the site's bytes
+            i = at[target][0]
+            while branch_target(texts[i][2]) is None or block.va <= branch_target(texts[i][2]) < block.va + len(code) \
+                    or not texts[i][2].startswith("jmp"):
+                i += 1
+            jump = texts[i][0]
+            goes_on = branch_target(texts[i][2]) == va + len(old) and code[jump - block.va - len(old):jump - block.va] == old
+        else:
+            goes_on = first == ["call 0x1f67b0"]
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size and whole and plain and goes_on,
+              f"{va:#x}: {'; '.join(first)} in the original and the build without the late join (whole instructions, "
+              f"no branch); `{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}) here"
+              + (f", which runs the same bytes and jumps to {va + len(old):#x}" if opcode == 0xE9 else ""))
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.FREEZE_HOOKS)]
+    hits = [h for va, old, _, _ in P.FREEZE_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    outside = sorted({branch_target(t) for _, _, t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    indirect = sorted({t for _, _, t in texts if t.startswith(("call [", "jmp ["))})
+    check(outside == sorted({*P.FREEZE_BACKS, 0x111ED0, 0x111860, 0x1F67B0, linked.symbols["engine_cc_u32"]})
+          and indirect == ["call [dword 0x870150]", "call [dword 0x870158]"]
+          and P.FREEZE_BACKS == tuple(va + len(old) for va, old, _, opcode in P.FREEZE_HOOKS if opcode == 0xE9),
+          "it jumps back into the twenty-three functions past their bytes, calls the logger (0x111ED0) and its filter "
+          "(0x111860), the game world's constructor (0x1F67B0), the library's cc_value<u32> and, through their "
+          "import slots, QueryPerformanceCounter and QueryPerformanceFrequency, and nothing else of the game's")
+    state, data = linked.blocks["freeze.state"], linked.blocks["freeze.data"]
+    check(state.va <= linked.symbols["frz_totals"] < state.va + state.size
+          and state.va <= linked.symbols["frz_variable"] < state.va + state.size
+          and linked.symbols["frz_limit_ms"] == data.va and P.linker.block_bytes(linked, "freeze.data")[:4] == struct.pack("<I", 40),
+          "its counters and the variable in freeze.state, srp_freeze_ms's value (40) in freeze.data")
+    rule = open(os.path.join(HERE, "..", "docs", "notes", "freeze-detector.md"), encoding="utf-8").read()
+    check("srp_freeze_ms" in rule and "summary" in rule, "the rules: docs/notes/freeze-detector.md")
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -6053,6 +6143,7 @@ def test_late_join(original, without, server, source):
     test_match_keys(original, image, before)
     test_hide_ui(original, image, before)
     test_kill_feed(original, image, before)
+    test_freeze(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

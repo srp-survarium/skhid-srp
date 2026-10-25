@@ -478,6 +478,27 @@ Patches:
   ricochet_icon and pain_icon (0 or 1) for the hud movie's row. The
   simulation's own state, read alike in every game; nothing a match
   computes changes;
+- the freeze detector (patch 71, with the late join;
+  docs/notes/freeze-detector.md). freeze_026g.asm and freeze_026g.c (the
+  arena's blocks freeze.code, .data and .state): twenty-three functions'
+  first bytes jump to entries that count their calls and, for eight of
+  them, time them with the time stamp counter (the logic tick, the swap
+  chain's present, the simulation's move, the camouflage/decal baker's
+  bakes and loads of saved bakes, synchronous resource loads, the
+  resources' callbacks, the Scaleform movies' advance and drawing;
+  counted: ticks simulated and those simulated again after a rollback,
+  world history loads, bullets fired and those fired again in such ticks,
+  bullet hits, bullet decals and impact effects, sounds started, kill
+  events and kill feed rows, match messages, datagrams, cooks' resources,
+  particle systems started, ActionScript invokes), then run those bytes
+  and go on; after every present (the frame's end, measured
+  with QueryPerformanceCounter) a frame of at least srp_freeze_ms (a
+  console variable, 40, kept in user.cfg, registered at game::game's
+  game world constructor call 0x1E90A3) and three times the median of the
+  last 64 is one line of the game's log with the match's state and what
+  each counter grew by in it, and at the lobby after a match a summary
+  (long frames, the three worst, p50/p95/p99). Read only by itself:
+  nothing a match computes changes;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2032,6 +2053,44 @@ KILL_FEED_HOOKS = (
 )
 KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb75704"))
 
+# The freeze detector (patch 71, README; client_patch.md section 3.58; the
+# rules: ../docs/notes/freeze-detector.md): freeze_026g.asm and
+# freeze_026g.c in the arena's blocks freeze.code, freeze.data and
+# freeze.state (ARENA below). Twenty-three functions' first instructions (no
+# address and no branch in them, nothing aiming inside them) become `jmp` to
+# an entry of freeze.code (ENTRY), which counts the call (and times it,
+# taking the caller's return address for its own leave), runs the same bytes
+# and jumps back past them (FREEZE_BACKS); and one call (CALLEE) in
+# game::game makes the game world, then registers srp_freeze_ms.
+FREEZE_HOOKS = (
+    (0x01A030, bytes.fromhex("558bec83e4f8"), "freeze_logic", 0xE9),          # engine_world::logic_tick
+    (0x3CF7F0, bytes.fromhex("83ec0c568bf0"), "freeze_present", 0xE9),        # res_render_output::present
+    (0x2D2E40, bytes.fromhex("558bec83ec40"), "freeze_sim", 0xE9),            # game_world_core::move
+    (0x2D1E20, bytes.fromhex("51b81f85eb51"), "freeze_tick", 0xE9),           # game_world_core::atomic_tick
+    (0x2D2770, bytes.fromhex("83ec68538b5c2474"), "freeze_rollback", 0xE9),   # game_world_core::deserialize
+    (0x27A300, bytes.fromhex("558bec83ec64"), "freeze_message", 0xE9),        # on_match_packet_received
+    (0x3F3BB0, bytes.fromhex("558bec83e4f8"), "freeze_datagram", 0xE9),       # process_incoming_packet
+    (0x12E510, bytes.fromhex("558bec83e4f8"), "freeze_bake", 0xE9),           # the baker's on_textures_loaded
+    (0x12DB40, bytes.fromhex("558bec83e4f8"), "freeze_baked_load", 0xE9),     # the baker's on_baked_texture_loaded
+    (0x0E5C20, bytes.fromhex("81ecc0000000"), "freeze_sync_load", 0xE9),      # query_resources_and_wait
+    (0x1096C0, bytes.fromhex("51538b5c240c"), "freeze_cook", 0xE9),           # query_result::do_create_resource
+    (0x0E5AB0, bytes.fromhex("558bec83e4f8"), "freeze_callbacks", 0xE9),      # resources::dispatch_callbacks
+    (0x022660, bytes.fromhex("558bec83e4f8"), "freeze_particle", 0xE9),       # play_particle_system
+    (0x511600, bytes.fromhex("83ec105356"), "freeze_invoke", 0xE9),           # GFx Movie::Invoke
+    (0x51F1C0, bytes.fromhex("81ec90000000"), "freeze_advance", 0xE9),        # GFx MovieImpl::Advance
+    (0x13CED0, bytes.fromhex("558bec83ec0c"), "freeze_flash_render", 0xE9),   # renderer::render_flash_ui
+    (0x322830, bytes.fromhex("51538b5c240c"), "freeze_shot", 0xE9),           # bullet_manager::emit_bullet
+    (0x32EBD0, bytes.fromhex("83ec24538b5c2430"), "freeze_hit", 0xE9),        # bullet::process_collision
+    (0x321FA0, bytes.fromhex("83ec14538b5c2430"), "freeze_decal", 0xE9),      # bullet_manager::add_decal
+    (0x3223E0, bytes.fromhex("83ec205355"), "freeze_impact", 0xE9),           # bullet_manager::play_particle
+    (0x05ABA0, bytes.fromhex("8b4424048b54240c"), "freeze_sound", 0xE9),      # sound_instance_proxy_internal::play
+    (0x2DA170, bytes.fromhex("83ec34538a5c2440"), "freeze_kill", 0xE9),       # generate_killed_event
+    (0x237C70, bytes.fromhex("81ece0000000"), "freeze_kill_row", 0xE9),       # game_world_ui::on_player_killed
+    (0x1E90A3, bytes.fromhex("e808d70000"), "freeze_game_world", 0xE8),       # game::game's game_world call
+)
+# Where each entry goes on: past the site's bytes (the call's: back at 0x1E90A8).
+FREEZE_BACKS = tuple(va + len(old) for va, old, _, opcode in FREEZE_HOOKS if opcode == 0xE9)
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after `.srpc`, which is one page."""
@@ -2196,6 +2255,41 @@ INSTALLS = {
                        "victim, ebp the bullet): event, which writes the cause icon, the flags and edx", None, None),
     0x23814F: (INLINE, "on_player_killed's `mov edx,[esp+30h] / mov ecx,[esp+2Ch]` before mastery_icon: row, "
                        "which sets penetration_icon, ricochet_icon and pain_icon and does the two moves", None, None),
+    # the freeze detector, patch 71 (in `.srpx`): each entry counts (and times) the call, runs the
+    # function's own first bytes and goes on in it
+    0x01A030: (ENTRY, "engine_world::logic_tick (stdcall: the engine world): freeze_logic, timed, the state "
+                      "named after it", None, None),
+    0x3CF7F0: (ENTRY, "res_render_output::present (eax the output, the interval flag): freeze_present, timed, "
+                      "the frame's end after it", None, None),
+    0x2D2E40: (ENTRY, "game_world_core::move: freeze_sim, timed", None, None),
+    0x2D1E20: (ENTRY, "game_world_core::atomic_tick: freeze_tick, counted", None, None),
+    0x2D2770: (ENTRY, "game_world_core::deserialize: freeze_rollback, counted", None, None),
+    0x27A300: (JUMP, "network_client::on_match_packet_received's first bytes (a delegate network_client::"
+                     "network_client binds, 0x219C81): freeze_message, counted, back at 0x27A306 at the site's depth "
+                     "(an entry, declared a jump: the function's switch `jmp [eax*4+27A738h]` hides its `ret` from "
+                     "the self-test; check_freeze_026g.py runs it against the original's)", None, None),
+    0x3F3BB0: (ENTRY, "udp_match_connection::process_incoming_packet: freeze_datagram, counted", None, None),
+    0x12E510: (ENTRY, "the camouflage/decal baker's on_textures_loaded: freeze_bake, timed", None, None),
+    0x12DB40: (ENTRY, "the camouflage/decal baker's on_baked_texture_loaded: freeze_baked_load, timed", None, None),
+    0x0E5C20: (ENTRY, "resources::query_resources_and_wait: freeze_sync_load, timed", None, None),
+    0x1096C0: (ENTRY, "query_result::do_create_resource: freeze_cook, counted", None, None),
+    0x0E5AB0: (ENTRY, "resources::dispatch_callbacks: freeze_callbacks, timed", None, None),
+    0x022660: (ENTRY, "scene_renderer::play_particle_system: freeze_particle, counted", None, None),
+    0x511600: (ENTRY, "Scaleform::GFx::Movie::Invoke: freeze_invoke, counted", None, None),
+    0x51F1C0: (ENTRY, "Scaleform::GFx::MovieImpl::Advance: freeze_advance, timed", None, None),
+    0x13CED0: (ENTRY, "renderer::render_flash_ui: freeze_flash_render, timed", None, None),
+    0x322830: (ENTRY, "bullet_manager::emit_bullet: freeze_shot, counted (and as replayed inside a tick played "
+                      "again)", None, None),
+    0x32EBD0: (ENTRY, "bullet::process_collision: freeze_hit, counted", None, None),
+    0x321FA0: (ENTRY, "bullet_manager::add_decal: freeze_decal, counted", None, None),
+    0x3223E0: (ENTRY, "bullet_manager::play_particle: freeze_impact, counted", None, None),
+    0x05ABA0: (ENTRY, "sound_instance_proxy_internal::play: freeze_sound, counted", None, None),
+    0x2DA170: (ENTRY, "base_player::generate_killed_event (patch 67's kill_feed_event inside it): freeze_kill, "
+                      "counted", None, None),
+    0x237C70: (ENTRY, "game_world_ui::on_player_killed (patch 67's kill_feed_row inside it): freeze_kill_row, "
+                      "counted", None, None),
+    0x1E90A3: (CALLEE, "game::game's call of the game world's constructor (the world, the game; `ret 8`): "
+                       "game_world, which calls it and registers srp_freeze_ms", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2389,6 +2483,9 @@ ARENA = (
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
     ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
+    ArenaBlock("freeze.code", "code", 0x1000, ("freeze_026g.asm", "freeze_026g.c")),   # patch 71
+    ArenaBlock("freeze.data", "data", 0x10, ("freeze_026g.asm",)),                     # srp_freeze_ms's value
+    ArenaBlock("freeze.state", "state", 0x1000, ("freeze_026g.asm", "freeze_026g.c")),  # the counters, the frames
 )
 
 
@@ -3331,7 +3428,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS:
+                        + KILL_FEED_HOOKS + FREEZE_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3398,6 +3495,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "an option hides the other players' chat lines in a match, "
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
+                     "a frame of at least srp_freeze_ms logged with what it did, a summary after a match, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")

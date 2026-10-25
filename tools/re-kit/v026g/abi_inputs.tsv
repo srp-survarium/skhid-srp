@@ -4497,3 +4497,16 @@ va	name	location	role	basis
 0x0025a730	survarium::particle_game_effect_emitter_cook::on_particle_system_loaded	stack+8	the effect's config: key_frames, view (an int, 1 when absent; the emitter +13Ch), time_to_finish, time_mode, length	observed
 0x00313640		ECX	the calculator: +8h the artefact	observed
 0x00313640		entry ESP+4	out: +0 0, +4 0.0f, +8 byte finished	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	EAX	the console command object (4Ch bytes; vtable cc_value<u32> 0x9DC30C, which the callers make cc_u32 0x9E7CCC; linked at the head of the list 0x1F1D66C)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+4	the name (+10h)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+8	the value address of a u32 (+40h)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+12	the least it takes (+44h; 0 for minimap_position)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+16	the most it takes (+48h; 2 for minimap_position)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+20	saved to user.cfg, a byte (+1Dh; 1 for minimap_position)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+24	a command kind (+14h; 2 for minimap_position, game_world_ui 0x2338F5)	observed
+0x0001a030	vostok::engine::engine_world::logic_tick	entry ESP+4	the engine world (EBX in the body): +2D0h the game (survarium::game, vtable 0x9FAC8C: +8h tick, +18h is_loading)	observed
+0x001ed870	survarium::game::is_loading	ECX	the game: +18h its game world in place (game::game 0x1E909F), +4E38h the loading byte, +5390h the lobby menu, +5394h the login menu, +539Ch the scene shown (one of those three: switch_to_lobby 0x1ED23D, switch_to_login 0x1ED2CD, the switch to the world 0x1ED1C2), +53ACh the network client (set_network_client 0x1ED6EA; network_client vtable 0x9FFB14, its +1F1C60h the time rule state 1 waiting, 2 countdown, 3 play, client_timelimit_rule::tick 0x267AFB)	observed
+0x002d1e20	survarium::game_world_core::atomic_tick	EDI	the time the world ticks to (tick_events 0x2D22A1..0x2D22B7: the least of the next 50 ms boundary, the next event and the target); not past the last tick after a rollback	observed
+0x001f67b0	survarium::game_world::game_world	entry ESP+4	the game world (game+18h; EAX too at game::game 0x1E90A3)	observed
+0x001f67b0	survarium::game_world::game_world	entry ESP+8	the game	observed
+0x0051f1c0	Scaleform::GFx::MovieImpl::Advance	ECX	the movie (its profiler scope names MovieImpl::Advance, 0x8BE4BC; vtable slot at 0x8BE3B4)	observed
