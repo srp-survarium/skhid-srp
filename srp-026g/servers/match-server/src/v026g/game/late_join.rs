@@ -202,6 +202,7 @@ impl Game {
             self.peers.push(None);
             self.best_streaks.push(0);
             self.kit_changes.push(0);
+            self.kit_choices.push(None);
             self.load_waits.push(LoadWait::First);
             self.push_driven_place(formed.places[place].team);
             self.admissions.push(Some(Admission::new(now)));

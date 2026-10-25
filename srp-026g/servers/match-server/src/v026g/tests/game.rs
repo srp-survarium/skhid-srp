@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 use survarium::v026g::match_msgs::client_model::Skip;
 use survarium::v026g::match_msgs::players::PlayerState;
 use survarium::v026g::match_msgs::rules::state;
-use survarium::v026g::match_msgs::snapshot::event;
+use survarium::v026g::match_msgs::snapshot::{crc, event};
 use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, WireTime, id};
 use udp_transport::wire::{self, low_level};
 use udp_transport::{Direction, Table};
@@ -424,6 +424,187 @@ fn a_late_input_a_far_game_could_not_take_is_dropped() {
     assert_eq!(discards(&bench.clients[0]), [late.time]);
     assert!(bench.clients[1].relays_of(0).is_empty());
     assert!(bench.clients[2].relays_of(0).is_empty());
+    bench.assert_no_faults();
+}
+
+/// A drop order that reaches its game while the input's tick is still in
+/// the game's history is taken: the game is in step, nothing more is done.
+#[test]
+fn an_own_input_dropped_in_time_needs_no_resync() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.one_way = vec![0, 0, 150];
+    bench.join_all();
+    settle(&mut bench);
+    bench.run(3_000);
+    let late = bench.clients[0].input(-300, 0x1);
+    bench.run(5_000);
+    assert_eq!(discards(&bench.clients[0]), [late.time]);
+    assert_eq!(bench.game().resyncs(0), 0);
+    assert_eq!(generations(&bench.clients[0]), [0]);
+    bench.assert_no_faults();
+}
+
+/// Live, 2026-10-25: a game's inputs held 0.5 to 1 s on their way up (a
+/// hitch, a stalled line) were too late for the others and dropped, and
+/// the drop orders reached the game past its 500 ms history: it refused
+/// them ("cannot find game state") and kept inputs nobody else had. Its
+/// reports showed it 2 to 3 s later, and it was resynced after that. Now
+/// the order's way says it at once: resynced without waiting for its
+/// reports, from a world past the input.
+#[test]
+fn an_own_input_whose_drop_order_comes_past_its_history_has_its_game_resynced_at_once() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.one_way = vec![0, 0, 150];
+    bench.join_all();
+    settle(&mut bench);
+    bench.run(3_000);
+    let late = bench.clients[0].input(-700, 0x1);
+    // The hashes agree (the scripted worlds do not depend on inputs): only
+    // the order's way says that the game is out of step.
+    assert!(bench.until(1_000, |bench| bench.game().resyncs(0) == 1));
+    assert_eq!(discards(&bench.clients[0]), [late.time]);
+    assert!(bench.until(3_000, |bench| bench.stages() == "LLL"));
+    assert_eq!(generations(&bench.clients[0]), [0, 1]);
+    let resync_world = bench.clients[0]
+        .snapshots()
+        .last()
+        .map(|(_, time)| *time)
+        .unwrap();
+    let dropped = late.time.resolve(bench.clock()).unwrap();
+    assert!(resync_world >= dropped, "{resync_world} < {dropped}");
+    // Once is enough: the input is behind its new world.
+    bench.run_long(10_000);
+    assert_eq!(bench.game().resyncs(0), 1);
+    assert_eq!(bench.game().resyncs(1), 0);
+    bench.assert_no_faults();
+}
+
+/// Live, 2026-10-25: games disagreed with the majority for a moment and
+/// agreed again by themselves, mostly late joiners; one whose moment
+/// spanned 1000 ms of ticks was resynced from the reports 2.5 s old,
+/// though its newer reports agreed already (its world, asked for then, was
+/// the majority's byte for byte). The newer reports count now.
+#[test]
+fn a_disagreement_that_healed_by_itself_is_not_resynced() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    bench.run(3_000);
+    // Its reports by hand: wrong for 1100 ms of ticks, then right again.
+    bench.clients[2].no_hashes = true;
+    let from = bench.clients[2].horizon().unwrap() + 500;
+    let until = from + 1_100;
+    let mut last = 0;
+    for _ in 0..200 {
+        bench.run(25);
+        let Some(time) = bench.clients[2].horizon() else {
+            continue;
+        };
+        if time <= last {
+            continue;
+        }
+        last = time;
+        let right = crc(&bench.clients[2].sim.world(time));
+        let crc = if (from..=until).contains(&time) {
+            !right
+        } else {
+            right
+        };
+        bench.clients[2].report(time, crc);
+    }
+    assert!(last > until + 3_000);
+    assert_eq!(bench.game().resyncs(2), 0);
+    assert_eq!(generations(&bench.clients[2]), [0]);
+    bench.assert_no_faults();
+}
+
+/// ... while one that stays wrong is resynced as before.
+#[test]
+fn a_disagreement_that_lasts_is_resynced() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    bench.run(3_000);
+    bench.clients[2].no_hashes = true;
+    let from = bench.clients[2].horizon().unwrap() + 500;
+    let mut last = 0;
+    for _ in 0..200 {
+        bench.run(25);
+        if bench.game().resyncs(2) > 0 {
+            break;
+        }
+        let Some(time) = bench.clients[2].horizon() else {
+            continue;
+        };
+        if time <= last {
+            continue;
+        }
+        last = time;
+        let right = crc(&bench.clients[2].sim.world(time));
+        let crc = if time >= from { !right } else { right };
+        bench.clients[2].report(time, crc);
+    }
+    assert_eq!(bench.game().resyncs(2), 1);
+    bench.assert_no_faults();
+}
+
+/// Live, 2026-10-25: a player came back into a match, and the two games
+/// that had joined while it was out spawned it in its lowest kit, the
+/// others in the kit it had chosen before it left (2): out of step from its
+/// entry tick. A game keeps an empty place's next kit, and a snapshot
+/// carries only the places in play. Its choice goes to every game again,
+/// for the tick of its entry, where every game spawns it.
+#[test]
+fn a_player_back_in_has_its_last_kit_choice_sent_for_its_entry_tick() {
+    let mut bench = Bench::new(3, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    let profile_relays = |client: &Client| {
+        let mut relays = client.got(|message| match message {
+            ServerMessage::ProfileInputRelay {
+                tick,
+                player: 1,
+                value,
+            } => Some((*tick, *value)),
+            _ => None,
+        });
+        relays.dedup();
+        relays
+    };
+    let entries = |client: &Client| {
+        let mut ticks = client.got(|message| match message {
+            ServerMessage::PlayerEntered { tick, player: 1 } => Some(*tick),
+            _ => None,
+        });
+        ticks.dedup();
+        ticks
+    };
+    // Its first entry: no choice to send.
+    assert!(profile_relays(&bench.clients[0]).is_empty());
+    let chosen = bench.clients[1].profile_input(2);
+    bench.run(300);
+    assert_eq!(profile_relays(&bench.clients[0]), [(chosen, 2)]);
+
+    bench.clients[1].drop_link();
+    assert!(bench.until(500, |bench| bench.clients[0].left() == [1]));
+    bench.run(2_000);
+    bench.restart(1);
+    bench.clients[1].connect();
+    assert!(bench.until(1_000, |bench| bench.clients[1].model.options.is_some()));
+    bench.clients[1].ready();
+    assert!(bench.until(500, |bench| entries(&bench.clients[0]).len() == 2));
+    let back = entries(&bench.clients[0])[1];
+    bench.run(300);
+    for other in [0, 2] {
+        assert_eq!(
+            profile_relays(&bench.clients[other]),
+            [(chosen, 2), (back, 2)],
+            "player {other}"
+        );
+    }
+    // Its own game starts from a world past its entry, which has its kit.
+    assert!(bench.until(10_000, |bench| bench.stages() == "LLL"));
+    assert!(profile_relays(&bench.clients[1]).is_empty());
     bench.assert_no_faults();
 }
 

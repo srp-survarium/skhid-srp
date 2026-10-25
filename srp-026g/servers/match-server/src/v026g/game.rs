@@ -441,8 +441,9 @@ enum Stage {
 enum Flight {
     /// Another player's input (0xEB/0xEC, 0xF3).
     Relay,
-    /// Its own input dropped or moved (0xF1/0xF2, 0xEF/0xF0).
-    Discard,
+    /// Its own input dropped or moved (0xF1/0xF2, 0xEF/0xF0); `own` is
+    /// the time the game made that input for.
+    Discard { own: u32 },
     /// 0xE9 or 0xEA: sent once more if it was never acked.
     Roster(ServerMessage),
 }
@@ -532,6 +533,11 @@ const WORLD_LIFETIME: Duration = Duration::from_millis(1750);
 /// were all lost in 250 ms still had a few hundred ms of use (live,
 /// 2026-10-14).
 const RELAY_USEFUL_MS: u32 = 500;
+/// How far back a game's history reaches (11 items, match.md section 0):
+/// a relay older than this when it comes is moved by the game, and an
+/// order to drop or move an own input older than this is refused ("cannot
+/// find game state", section 5.2).
+const CLIENT_HISTORY_MS: u32 = 500;
 /// A late input is relayed at its tick (`LateInputs::Relay`) only when it
 /// reaches every other game this much before that game's history has
 /// passed its tick: room for a copy lost on the way.
@@ -756,6 +762,15 @@ struct Peer {
     late_share: f32,
     resync_deferred_since: Option<Instant>,
     diverged: Option<Divergence>,
+    /// The time of an own input its game still plays though the others
+    /// never got it: its drop (or move) order was lost, or reached the
+    /// game past its history, which refuses it ("cannot find game state",
+    /// match.md section 5.2). Out of step for sure from then on: resynced
+    /// without waiting for its hash reports (`Game::check_hashes`).
+    kept_own: Option<u32>,
+    /// The time of the snapshot it last started from: an own input at or
+    /// before it is never played again by its game.
+    loaded_from: u32,
     /// Its reports for ticks up to this are of the world it left.
     judge_from: u32,
     discard_run: Option<DiscardRun>,
@@ -887,6 +902,13 @@ pub(crate) struct Game {
     /// respawns a live player in the chosen kit where it stands. At most as
     /// many lives more than its deaths: [`PlayerResult::kit_changes`].
     kit_changes: Vec<u16>,
+    /// By place: the value of its latest kit choice relayed (0xF3). A game
+    /// keeps an empty place's next kit from that choice, while a snapshot
+    /// carries only the places in play: a game that started from one while
+    /// the place was empty has its lowest kit there. So when the place
+    /// comes back the choice goes to every game once more, for its entry
+    /// tick (`Game::roster_change`).
+    kit_choices: Vec<Option<u8>>,
     /// By place: whether a game of it loading long is left behind
     /// (`late_join::LOADING_GRACE`).
     load_waits: Vec<late_join::LoadWait>,
@@ -957,6 +979,7 @@ impl Game {
             state: None,
             best_streaks: vec![0; players],
             kit_changes: vec![0; players],
+            kit_choices: vec![None; players],
             load_waits: vec![late_join::LoadWait::First; players],
             ending: None,
             finished_at: None,
@@ -1318,6 +1341,8 @@ impl Game {
             late_share: 0.0,
             resync_deferred_since: None,
             diverged: None,
+            kept_own: None,
+            loaded_from: 0,
             judge_from: 0,
             discard_run: None,
             lag_ms: None,
@@ -1962,6 +1987,41 @@ impl Game {
             {
                 track(peer, serial, Flight::Roster(message.clone()), at);
             }
+        }
+        // Back after a leave: its latest kit choice once more, for the
+        // entry tick, where every game spawns it. A game that was there
+        // before the leave has that choice as its next kit; one that
+        // started from a snapshot while the place was empty has the lowest
+        // kit there (the snapshot holds the places in play only), and spawned
+        // the player in it (live, 2026-10-25: two late joiners out of step
+        // from a returning player's entry tick, its kit 0 against 2). The
+        // game's kit delegate runs before the respawn in the step to the
+        // entry tick (0x321790 before 0x316820, both in update list 0).
+        let returns = self
+            .events
+            .iter()
+            .any(|(_, who, was_entry)| *who == index && !*was_entry);
+        if entered
+            && !stand_in
+            && returns
+            && let Some(value) = self.kit_choices.get(index).copied().flatten()
+        {
+            let what = Relayed::Profile {
+                tick: tick_byte(at),
+                value,
+            };
+            self.relay_to_others(index, &what, at, now);
+            // Its own game too, when it plays from a world before the
+            // entry (where its place was empty). One that is started
+            // after the entry (`enter_early`) has its kit in that world.
+            // A game takes a relay for its own place as any other: into
+            // its kit list, not sent back (match.md section 16).
+            if let Some(peer) = self.peers[index].as_mut()
+                && peer.stage == Stage::Live
+            {
+                send_kept(peer, &relay(index, &what));
+            }
+            self.inputs.push((at, index, what));
         }
         self.events.push((at, index, entered));
         let bot = self.is_bot(index);
@@ -2883,6 +2943,8 @@ impl Game {
         peer.in_flight.clear();
         // Its reports up to now are of the world it leaves.
         peer.diverged = None;
+        peer.kept_own = None;
+        peer.loaded_from = snapshot.time;
         peer.judge_from = clock;
         // Its 0xE5 puts it at the match clock as it arrives: no lag but
         // what the newest of its own inputs put it ahead by.
@@ -3499,6 +3561,9 @@ impl Game {
         }
         peer.placed_profiles.push_back((time, relayed_time));
         self.note_kit_choice(index, relayed_time);
+        if let Some(choice) = self.kit_choices.get_mut(index) {
+            *choice = Some(value);
+        }
         let what = Relayed::Profile {
             tick: relayed_tick,
             value,
@@ -4024,6 +4089,27 @@ impl Game {
             .map(|(crc, _)| crc)
     }
 
+    /// The tick of the newest report of the client at `index` after
+    /// `after` (the end of a disagreement), if more than half of the
+    /// games in the simulation reported its very CRC for that tick: a CRC
+    /// of the whole world, so its world is theirs again (a difference
+    /// that healed by itself) and a resync would change nothing. Live,
+    /// 2026-10-25: three games resynced for disagreements of 1000 ms gave
+    /// worlds identical to the majority's 2 s later; the judged reports
+    /// are `hash_settle_ms` old, and the newer ones had agreed.
+    fn agrees_again(&self, index: usize, after: u32) -> Option<u32> {
+        let live = self.live();
+        if live < 2 {
+            return None;
+        }
+        let (time, crc) = self
+            .hashes
+            .range(after + 1..)
+            .rev()
+            .find_map(|(time, reports)| reports.get(&index).map(|crc| (*time, *crc)))?;
+        (self.vouchers(time, crc) * 2 > live).then_some(time)
+    }
+
     /// Check waiting uploads; a matching one becomes the snapshot.
     fn check_candidates(&mut self, now: Instant) {
         let candidates = std::mem::take(&mut self.candidates);
@@ -4311,6 +4397,44 @@ impl Game {
         self.hashes_checked_until = self.hashes_checked_until.max(settled);
         let keep_from = clock.saturating_sub(HASH_KEEP_MS);
         self.hashes = self.hashes.split_off(&keep_from);
+        let confirmed = |peer: &Peer| {
+            peer.diverged.as_ref().is_some_and(|divergence| {
+                divergence.last - divergence.first >= timing.divergence_confirm_ms
+                    || now.saturating_duration_since(divergence.since)
+                        >= timing.divergence_confirm_max
+            })
+        };
+        // A disagreement that has healed by the reports not yet judged
+        // (they wait `hash_settle_ms`) is no reason for a resync.
+        let healed: Vec<(usize, u32)> = self
+            .peers
+            .iter()
+            .enumerate()
+            .filter_map(|(index, peer)| {
+                let peer = peer.as_ref()?;
+                if installing || peer.stage != Stage::Live || !confirmed(peer) {
+                    return None;
+                }
+                let last = peer.diverged.as_ref()?.last;
+                self.agrees_again(index, last).map(|at| (index, at))
+            })
+            .collect();
+        for (index, at) in healed {
+            let id = self.id;
+            let Some(peer) = self.peers[index].as_mut() else {
+                continue;
+            };
+            if let Some(divergence) = peer.diverged.take() {
+                peer.restores_unagreed = 0;
+                log::info!(
+                    "Match {id:#x}: player {index} disagreed from {} to {} ms, and its report at \
+                     {at} ms has the CRC most games reported there: its world agrees again; not \
+                     resynced",
+                    divergence.first,
+                    divergence.last
+                );
+            }
+        }
         let desynced: Vec<usize> = self
             .peers
             .iter()
@@ -4319,11 +4443,7 @@ impl Game {
                 peer.as_ref().is_some_and(|peer| {
                     !installing
                         && peer.stage == Stage::Live
-                        && peer.diverged.as_ref().is_some_and(|divergence| {
-                            divergence.last - divergence.first >= timing.divergence_confirm_ms
-                                || now.saturating_duration_since(divergence.since)
-                                    >= timing.divergence_confirm_max
-                        })
+                        && (peer.kept_own.is_some() || confirmed(peer))
                 })
             })
             .map(|(index, _)| index)
@@ -4382,12 +4502,17 @@ impl Game {
                 }
             }
             peer.resync_deferred_since = None;
-            let wrong = peer.diverged.take().map_or(String::new(), |divergence| {
+            let mut wrong = peer.diverged.take().map_or(String::new(), |divergence| {
                 format!(
                     ", wrong from {} to {} ms",
                     divergence.first, divergence.last
                 )
             });
+            if let Some(own) = peer.kept_own {
+                wrong.push_str(&format!(
+                    ", its game keeping its own input at {own} ms that the others never got"
+                ));
+            }
             let limit = self.settings.restore_limit;
             if limit != 0 && peer.restores_unagreed >= limit {
                 // `SRP_RESTORE_LIMIT`: so many restores in a row never
@@ -4618,8 +4743,14 @@ impl Game {
                     peer.missed.pop_front();
                 }
                 peer.missed.push_back(each.time);
-                if let Flight::Roster(message) = &each.flight {
-                    send(peer, message);
+                match &each.flight {
+                    Flight::Roster(message) => {
+                        send(peer, message);
+                    }
+                    // Every copy of the order was lost: its game plays the
+                    // input still.
+                    Flight::Discard { own } => keeps_own(peer, *own, "lost", self.id, index),
+                    Flight::Relay => {}
                 }
             } else if peer.transport.is_delivered(each.serial) {
                 peer.relays_acked += 1;
@@ -4638,8 +4769,19 @@ impl Game {
                     let way = i64::from(shortest_round_trip(peer) / 2);
                     (i64::from(clock) - ago + way - lag).min(game)
                 });
+                // An order about an own input that even its first copy
+                // brought past the game's history: refused, and the input
+                // stays in that world alone.
+                if let Flight::Discard { own } = each.flight
+                    && earliest
+                        .is_some_and(|earliest| i64::from(own + CLIENT_HISTORY_MS) <= earliest)
+                {
+                    keeps_own(peer, own, "past its history", self.id, index);
+                }
                 let moved_for_sure = each.flight == Flight::Relay
-                    && earliest.is_some_and(|earliest| i64::from(each.time) + 500 <= earliest);
+                    && earliest.is_some_and(|earliest| {
+                        i64::from(each.time + CLIENT_HISTORY_MS) <= earliest
+                    });
                 if moved_for_sure {
                     let moved = (game - 50).max(0) as u32;
                     peer.resync_floor = peer.resync_floor.max(moved + TICK_MS);
@@ -5831,11 +5973,12 @@ fn answer_owner(peer: &mut Peer, mut answer: Answer, now: Instant) {
         return;
     };
     if answer.tracked {
-        track(
+        track_sent(
             peer,
             serial,
-            Flight::Discard,
+            Flight::Discard { own: answer.time },
             answer.moved_to.unwrap_or(answer.time),
+            Some(now),
         );
     }
     let transport = &peer.transport;
@@ -5898,6 +6041,26 @@ fn clear_gate(peer: &mut Peer, upto: Option<u32>, now: Instant) -> usize {
     peer.gate_since = None;
     peer.gate_checked = None;
     forgotten
+}
+
+/// Its game keeps its own input at `own`, which the others never got: its
+/// order about it was `how` (lost, or past its history). An input at or
+/// before the snapshot the game last started from is never played again
+/// and harms nothing.
+fn keeps_own(peer: &mut Peer, own: u32, how: &str, id: u32, index: usize) {
+    if own <= peer.loaded_from || peer.stage != Stage::Live {
+        return;
+    }
+    if peer.kept_own.is_none() {
+        log::info!(
+            "Match {id:#x}: player {index}'s game keeps its own input at {own} ms, which the \
+             others never got (the order to drop or move it was {how}): out of step from then on"
+        );
+    }
+    peer.kept_own = Some(peer.kept_own.map_or(own, |kept| kept.min(own)));
+    // Its resync starts past that input: there its game never plays it
+    // again.
+    peer.resync_floor = peer.resync_floor.max(own);
 }
 
 /// Remember a message sent to the client, to see what becomes of it.

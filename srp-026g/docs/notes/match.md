@@ -120,7 +120,7 @@ Same shape as 0.21d (match.md §2), with the new ids and the sync generation:
 ### 2.3 Client send loop (`try_send_all` equivalent 0x27CBF0, called from 0x27CFB0)
 
 - Game time is quantised to 50 ms (`/50*50`, 0x27CC21..0x27CC2E). PROVEN.
-- Inputs: `synchronize<packet_sender>` 0x27E6D0 → per-player senders 0x27E9F0 / 0x27EB90: a node is sent when a history item has exactly its time and the player's changed bit (as 0.21d 0x1A34ED). An input whose time is off the 50 ms grid is only sent if its node is flagged "precise" (+0x24), as 0xDD; otherwise its changed bit is cleared and it is not sent (0x27EAB5..0x27EACC). PROVEN.
+- Inputs: `synchronize<packet_sender>` 0x27E6D0 → per-player senders 0x27E9F0 / 0x27EB90: a node is sent when a change node (the list at core+4, time +0x1BC) has exactly its time and the player's changed bit (as 0.21d 0x1A34ED; corrected 2026-10-25: not a history item, §35). An input whose time is off the 50 ms grid is only sent if its node is flagged "precise" (+0x24), as 0xDD; otherwise its changed bit is cleared and it is not sent (0x27EAB5..0x27EACC). PROVEN.
 - Hash 0xDF: every 100 ms (static 0xA2B393C, lazily initialised from the object at 0xAA19F8 with default 0x64; LIKELY a command-line override exists, name not found), when `has_event_horizon_item` (0x2D1070) is true. That function returns false if the event-horizon item **was loaded from a snapshot** (item+0xC0BB9, set by the snapshot reader at 0x325134) or is newer than now − horizon. So no 0xDF is sent for a snapshot's own time. Same as 0.21d `pvp_match_core::is_there_event_horizon_item` 0x1DCBE6 (item+0xB9941). PROVEN, unchanged.
 - 0xE1 every 1000 ms (0x27CE02). PROVEN.
 - 0xDB after a 0xE6, on the next pass (flag +0x1F1C69, 0x27CE51). PROVEN.
@@ -728,3 +728,38 @@ Mode 4. Found from the live logs and the saved worlds of 2026-10-14/15; tools: `
   - A game of a place that stands in, connecting meanwhile, waits for the stand-in's leave (`stands_in`), then enters after it, from a world after it: a lost player as one back in the match (`enter_early`), a place no player had as a new arrival. Never a second entry while the stand-in is in, nor taken out by its leave.
 - **A gap, not new:** any leave the server sends within its roster lead (300 ms) of that place's entry can come before a game played the entry and be dropped (a newcomer who leaves at once); the server does not hold those back yet.
 - **What a game does when a match is called off** (the same end as every match, §24): 0xEA of its own place → `close_current_match(3)`: the world ended, the lobby's victory screen opened (`show_match_statistic`; PROVEN 0x27A806..0x27A81A, 0x29AAF0). No 0x97 comes for it, so the screen shows its "receiving the statistics" spinner (`VictoryScreen.prepare`, no time-out in the movie) until the player closes it (×, Esc, a tab); a room's member has its room's window under it. LIKELY: not seen in a game. The quiet way (a 5 s silence ends the match link as `close_current_match(0)`, the world ended with no screen: jump table 0x27A958 entry 0 = 0x27A941) was not taken: the server would have to swallow the game's datagrams for as long as it loads, with no 0xFD, and that path is not exercised live.
+
+## 35. Shooting desyncs: precise inputs are fine; refused drop orders, healed disagreements, a returning player's kit (added 2026-10-25)
+
+`game.rs`: `keeps_own`, `Peer::kept_own`, `Peer::loaded_from`, `check_in_flight`, `check_hashes`, `agrees_again`, `roster_change`, `Game::kit_choices`. Tests: `tests/game.rs` (`an_own_input_dropped_in_time_needs_no_resync`, `an_own_input_whose_drop_order_comes_past_its_history_has_its_game_resynced_at_once`, `a_disagreement_that_healed_by_itself_is_not_resynced`, `a_disagreement_that_lasts_is_resynced`, `a_player_back_in_has_its_last_kit_choice_sent_for_its_entry_tick`).
+
+The owner's report: "constant desyncs while shooting". Read in the original exe (PROVEN unless tagged), the owner's log and capture, the live log and 29 pairs of wrong/majority worlds.
+
+- **Precise inputs are handled the same way by every client and by the server.**
+  - History items are only on the 50 ms grid. The world steps to precise times, but it stores an item only at a grid point (step loop 0x2D21E0, `cmp edi,esi; jne` at 0x2D22EA).
+  - So the tick of a 0xDF names one grid item, and two reports for one tick are always of the same world time.
+  - Press and release inside one tick are two precise nodes and go out as two 0xDD. A receiver keeps them apart (network insert 0x1FB41B).
+  - The server keeps the ms in 0xEC, 0xF0 and 0xF2. It never sends 0xED or 0xEE.
+  - A receiver's duplicate test is by player and time alone, never by contents (0x1FAB77..0x1FAC4E for inputs, 0x1FB808..0x1FB82D for kit choices). The server's dedup of inputs is by time too.
+  - None of the 29 world pairs differ only in a fire timer or a shot.
+- **A drop order that comes past the game's history** is refused ("cannot find game state", §5.2), and the input stays in that world alone. This was the owner's log at 16:00:35: six inputs dropped at once, 0.5 to 0.75 s after their ticks.
+  - Live, every "N inputs too late to relay, the latest L ms" with L of about 410 ms or more was followed about 2 s later by "out of sync" for the same player. Lower L mostly was not.
+  - Those games' clocks were right: their inputs were held on the way up, by a hitch or a stalled line.
+  - Nothing the server sends then can put that game right. A relay would come past the others' histories too, and a move is refused like the drop.
+  - **What the server does:** an order whose every copy was lost, or whose first copy could only reach the game past its history (`own + 500 <= its earliest arrival` on the game's clock, as for moved relays), marks the game out of step for sure (`kept_own`). It is resynced at once, under the usual resync interval and clock-correction rules, from a world at or past that input (`resync_floor`).
+  - An input at or before the world the game last started from is never played again and counts for nothing (`loaded_from`).
+- **Disagreements that heal by themselves.**
+  - Live, many games (mostly late joiners, often two or three at the same ticks with one CRC) disagreed with the majority for 50 to 650 ms and then agreed again ("agrees again; not resynced").
+  - One whose run of wrong ticks spanned 1000 ms was resynced, judged on reports 2.5 s old (`hash_settle_ms`). Its world, asked for then, was the majority's byte for byte: 0x3fb35f05 at 120000 and 120050, 0x7b29ddf0 at 387550.
+  - **Now:** before such a resync, the game's newest report past the disagreement is checked. If more than half of the games in the simulation reported that very CRC for that tick, the disagreement is closed and no resync happens. A CRC of the whole world that matches means the worlds are identical.
+  - Why a joiner's world differs for a moment (state a snapshot does not carry that is rebuilt later) is the client's; not settled.
+- **A player back in, and the games that joined while it was out.**
+  - A place's next kit is the slot's +0xD. Every step the slot delegate 0x321790 sets it from the newest kit choice at or before the step.
+  - The slot is set to the lowest kit only once, when the core is built (0x321820 from 0x2D3820).
+  - A snapshot carries +0xD only for the places in play (head byte 1, restore 0x2D2A24..0x2D2A37).
+  - So a game that started from a snapshot while a place was empty keeps the lowest kit there, while the games that were in before the leave keep the place's last choice.
+  - On its return each spawns it in its own kit. The spawn 0x316DA0 copies +0xD into +0xC (0x316DDA..0x316DE3).
+  - Live: 0x27e8fbc0, place 1 back at 597600 ms; the two late joiners were out of step from that tick, kit 0,0 against 2,2.
+  - **Now:** the server keeps each place's latest relayed kit choice. When a place that left enters again (not a stand-in), that choice is relayed for its entry tick to every other game, kept in the inputs for later worlds, and sent to the player's own game when that game is live from a world before the entry.
+  - In the step to the entry tick the slot delegates run before the respawn rule's: one update list, sorted by an id handed out slots first, rules last (0x2D1D20, 0x2D4DD0, 0x2D3833..0x2D3B48). So a choice at that very tick is the one the spawn takes.
+- **Not done here:** one live resync took 60 s and 27 generations (0x27e8fbc0, place 1, 15:20:03 to 15:21:05 UTC; its replay was never acked, "no fresh snapshot … in 20 s"). Left for a follow-up.

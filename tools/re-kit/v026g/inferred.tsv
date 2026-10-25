@@ -3042,3 +3042,8 @@ va	status	ref_021d	name
 0x002d43b0	inferred-medium		survarium::game_world_core::new_world_event
 0x002d0a60	inferred-medium		survarium::game_world_core::push_world_event
 0x002e58b0	inferred-medium		survarium::damage_model::find_body_part
+0x00321740	inferred-medium		survarium::game_world_core_client::player_slot::register_profile_delegate
+0x00321820	inferred-medium		survarium::game_world_core_client::player_slot::initialize
+0x002d4e40	inferred-medium		survarium::game_world_core::snap_off_grid_local_input
+0x0027e9f0	inferred-medium		survarium::network_client::send_player_inputs
+0x0027eb90	inferred-medium		survarium::network_client::send_profile_inputs
