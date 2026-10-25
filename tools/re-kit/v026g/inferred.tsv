@@ -125,6 +125,7 @@ va	status	ref_021d	name
 0x0003ad50	inferred-medium	0x0002b4ec	vostok::collision::aabb_object::cuboid_test
 0x0003aee0	inferred-medium	0x0002b601	vostok::buffer_vector<vostok::collision::triangle_result>::push_back
 0x0003b3f0	inferred-medium	0x0002b879	vostok::collision::animated_object::~animated_object
+0x0003b480	inferred-high		vostok::collision::animated_object::update
 0x0003b5a0	inferred-medium	0x0002b9ad	vostok::detail::strcmp_s
 0x0003b690	inferred-medium	0x0002ba17	vostok::collision::triangle_mesh_geometry::`scalar deleting destructor'
 0x0003b890	inferred-high	0x0002bbda	vostok::collision::helper::predicate
@@ -1884,6 +1885,7 @@ va	status	ref_021d	name
 0x002d71f0	inferred-medium	0x001d3529	survarium::base_player::`scalar deleting destructor'
 0x002d7610	inferred-high	0x001d3740	survarium::base_player::on_broken_limb_affect
 0x002d7650	inferred-high	0x001d3773	survarium::base_player::tick_active_object
+0x002d77c0	inferred-medium		survarium::base_player::on_player_death
 0x002d7800	inferred-medium	0x001d3980	survarium::base_player::on_fire
 0x002d7920	inferred-medium		survarium::base_player::jump
 0x002d7b90	inferred-medium	0x001d3ca1	survarium::base_player::animation_id_resolver
@@ -2256,7 +2258,9 @@ va	status	ref_021d	name
 0x003341d0	inferred-medium		survarium::composite_game_effect::deactivate_effect
 0x00334310	inferred-medium		survarium::composite_game_effect::serialize
 0x00337480	inferred-medium		survarium::player_logic_stand_jump_state::serialize
+0x00338280	inferred-medium		survarium::player_logic_dead_state::get_death_animations
 0x00338330	inferred-medium		survarium::player_logic_dead_state::activate
+0x00338540	inferred-medium		survarium::player_logic_dead_state::selected_animations
 0x00338850	inferred-medium	0x002073c6	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::player_logic_dead_state,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::player_logic_dead_state *>,boost::arg<1> > > >::manager
 0x00339900	inferred-high	0x001f86b6	survarium::weapon_core_shotgun_reload_state::weapon_core_shotgun_reload_state
 0x00339b70	inferred-medium	0x001f8701	survarium::weapon_core_shotgun_reload_state::`scalar deleting destructor'
