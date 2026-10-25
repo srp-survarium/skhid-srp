@@ -400,3 +400,90 @@ pickup within 10 s; base has no exact walks, so 0 there):
 The remainder is only in the games an exact walk turned (one decision
 changed, the rest of the match played otherwise); per map none is over
 1.8 SE. Unplanned falls, stuck and pockets are not up, nor deliveries down.
+
+## Bots: a bot on a battery's Collect is not flipped off it by the enemies' count hovering at the cut-off
+
+### Why
+
+On level_02 day 2 10v10 most quick ends (a take within 1 s of the last)
+were Collect churn: a battery left a bot's candidates and came back
+seconds later, and the bot left its Collect each time. The notes (16 seeds,
+a182512a) named the cause: of the drop-outs, "enemies by it" 1,410, "no way
+to its stand" 700, "hurt" 443 (a median 8 s out: no flicker). The enemies'
+drop-outs lasted a median 2.5 s, 47% under 2 s. Collect scores a battery 0
+at 4 enemies within 25 m of it (`EnemiesNearTarget`), and that count is of
+the bot's remembered enemies (`Memory::tracks`), not of the ones in sight:
+a track's spot moves with sight, hearing and callouts, and the track drops
+when not sensed for a while. The 4th track's spot crossing 25 m, or that
+track dropping, flipped the battery.
+
+### What changed
+
+- **Hysteresis on the count** (`collect::battery_candidate`): a bot whose
+  running play is this battery's Collect, with no enemy in sight (noticed,
+  `Memory::all_seen`), reads `COLLECT_ENEMY_MARGIN` (1, GUESS) enemy fewer
+  by it while 4 or more are known there (`ENEMIES_OUT`, the consideration's
+  top): it keeps the battery at 4 and leaves at 5. A battery out comes back
+  only below 4; a bot not on it reads the count as it is. The candidacy
+  notes use the same rule.
+- **Notes:** "battery N is no Collect candidate: <why>" now names which
+  consideration scored it out ("scored out: enemies by it", "...: hurt",
+  "...: its way"), and both notes give the bot's distance to the battery and
+  how long it was a candidate (or out) before (`TeamKnowledge::take_blocked`
+  keeps each bot's state and since when). Notes only: with the candidacy
+  notes filtered out, the decision traces of batt seeds 1-2 are the same as
+  a182512a's line for line.
+- **Bench tallies** (the batt sums): deaths on a Collect with 4 or more
+  living enemies within 25 m of the battery (`collect_crowd_deaths`), those
+  the bot itself knew 4 or more tracks by (`collect_held_deaths`, the margin
+  holding it), their distance and sight, and each crowded death's spot.
+
+### What was tried and left out
+
+- **The margin at all times** (no sight rule): quick ends fell more, but
+  the deaths on a crowded Collect doubled (16 seeds, 4-5/9-10/13-15: 19 ->
+  40, 31 -> 48, 23 -> 40), and the deaths the bot was held through went
+  3 -> 28, 6 -> 34, 9 -> 24; 25, 28 and 23 of those had an enemy in sight.
+  Against it, the sight rule (both with the standing stand below): 4-5 quick
+  ends +4.3 (0.7 SE), crowded deaths -1.0 (2.2 SE); 13-15 quick ends +20.3
+  (2.6 SE), flips +7.6 (2.9 SE), held deaths -0.9 (2.5 SE). High tiers
+  notice more enemies, so there the hold is given up more often.
+- **A hold only near the battery:** of 1,267 drop-outs for the enemies in
+  the notes traces, 898 came with the bot over 25 m off the battery and 70
+  within 10 m; the hold would have missed the flicker.
+- **A debounce** (out only after N ms scored out): it also delays a real
+  retreat from a crowd; the margin holds only a committed bot.
+- **The standing take stand again** (`take_stand`, level_02 day 2 spawner
+  39, left out of #403): with it, level_02 day 2 10v10's crowded Collect
+  deaths went 2 -> 8 at 13-15 (2 -> 6 at 4-5) and the 13-15 guard failed
+  (+1.06 per seed, 2.7 SE); without it they are at base. It waits for its
+  own PR with a fix for that spot.
+- The bench's "enemy in sight" at a death counts sights not yet noticed;
+  the rule counts noticed ones only.
+
+### Bench
+
+Against base-a182512a (16 seeds; the base side run with the tallies only,
+its decisions digests equal to base's), the standard batt preset (no tier
+plays as 4-5: `BotTier::default()`), after minus base per seed (SE):
+
+| | 4-5 | 9-10 | 13-15 |
+|---|---|---|---|
+| quick ends (base 331, 344, 339) | -36.1 (6.9) | -27.4 (7.9) | -24.1 (9.9) |
+| flips | -20.5 (4.7) | -13.3 (5.0) | -5.9 (5.0) |
+| Collect play starts | -39.5 (13.1) | -18.7 (13.2) | -8.4 (15.0) |
+| pickups | +0.5 (1.4) | -0.1 (1.4) | +0.5 (1.0) |
+| delivered | +0.9 (0.7) | +0.1 (0.6) | -0.3 (0.7) |
+| carriers killed | -0.2 (1.4) | +0.5 (1.1) | +0.9 (1.1) |
+| kills | -0.1 (1.9) | +0.9 (2.8) | -1.1 (2.5) |
+| team kills | -0.25 (0.23) | -0.06 (0.06) | 0.00 (0.18) |
+| deaths on a crowded Collect (base 1.2, 1.9, 1.4) | 0.00 (0.38) | +0.38 (0.59) | +0.62 (0.34) |
+| deaths on Collect (base 78, 88, 98) | -3.7 (1.7) | +3.5 (2.1) | +0.3 (1.8) |
+
+- **level_02 day 2 10v10:** quick ends -7.4 (3.1), -3.9 (3.0), -7.8 (2.0);
+  delivered +0.3, +0.1, +0.1; crowded Collect deaths at base.
+- **level_04 day 2 10v10, 13-15:** crowded Collect deaths 9 -> 17 in 16
+  seeds, in 11 cells of 5 m along one lane (x 10, z 40-95), from 11 seeds,
+  3 of them held: spread, not a spot (4-5: 6 -> 7; 9-10: 12 -> 15).
+- **tdm:** seeds 1-2 on tiers 4-5, 9-10 and 13-15, every run's decisions
+  digest equal to base's (only Collect changed).

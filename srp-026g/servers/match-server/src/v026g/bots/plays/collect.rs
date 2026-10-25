@@ -446,9 +446,59 @@ pub fn tuning() -> PlayTuning {
             considerations::near(200.0),
             considerations::health_above(0.25),
             considerations::modifier(Input::ObjectiveUrgency, 0.6),
-            Consideration::new(Input::EnemiesNearTarget, 0.0, 4.0, Curve::Linear).inverted(),
+            Consideration::new(Input::EnemiesNearTarget, 0.0, ENEMIES_OUT, Curve::Linear)
+                .inverted(),
         ],
         numbers: Default::default(),
+    }
+}
+
+/// The enemies known by a battery (within 25 m, [`Input::EnemiesNearTarget`])
+/// at which it scores out of Collect: the consideration's top in [`tuning`].
+const ENEMIES_OUT: f32 = 4.0;
+
+/// How many enemies over [`ENEMIES_OUT`] a bot already on a battery's
+/// Collect stands before the battery scores out for it: while
+/// [`ENEMIES_OUT`] or more are known by it, the bot reads this many fewer. A
+/// battery out comes back only below [`ENEMIES_OUT`] (hysteresis).
+///
+/// GUESS (2026-10-25): one enemy. Why: the count is of the bot's remembered
+/// enemies (`Memory::tracks`), whose spots move with sight, hearing and
+/// callouts and which drop when not sensed for a while, so the 4th one's
+/// spot crossing 25 m, or his track dropping, flipped the battery in and
+/// out. level_02 day 2 10v10, 16 seeds (a182512a): 1,135 times out for
+/// "enemies by it", a median 2.5 s out, 47% back within 2 s; the bot left
+/// its Collect each time. A bot that is not on the battery yet reads the
+/// count as it is.
+///
+/// Only while the bot has no enemy in sight (noticed): one in sight with the
+/// count at the cut-off is a fight by a crowded battery, not a track's spot
+/// moving. Held at all times, the deaths on a Collect with 4 or more enemies
+/// within 25 m doubled (batt 4-5/9-10/13-15 x 16 seeds: 19 -> 40, 31 -> 48,
+/// 23 -> 40); of the deaths the bot was held through (28, 34, 24), 25, 28
+/// and 23 had an enemy in sight. A hold only near the battery would have
+/// missed the flicker: of 1,267 drop-outs for the enemies, 898 came with the
+/// bot over 25 m off it and 70 within 10 m.
+pub const COLLECT_ENEMY_MARGIN: f32 = 1.0;
+
+/// Bot's Collect candidate for lying battery `battery` (`None`: scored out
+/// or set aside), with [`COLLECT_ENEMY_MARGIN`] for the one it is on while
+/// it has no enemy in sight.
+fn battery_candidate(cx: &Ctx, battery: usize) -> Option<Candidate> {
+    let target = TargetRef::Battery(battery);
+    let slot = Some(battery as u32);
+    let on_it = matches!(cx.bot.current, Some((PlayKind::Collect, t, _)) if t == target);
+    let near = cx.input(Input::EnemiesNearTarget, PlayKind::Collect, target);
+    if on_it && near >= ENEMIES_OUT && cx.memory.all_seen(cx.now).is_empty() {
+        let read = near - COLLECT_ENEMY_MARGIN;
+        cx.candidate_given(
+            PlayKind::Collect,
+            target,
+            slot,
+            &[(Input::EnemiesNearTarget, read)],
+        )
+    } else {
+        cx.candidate(PlayKind::Collect, target, slot)
     }
 }
 
@@ -511,62 +561,113 @@ impl Ctx<'_> {
     }
 }
 
+/// A bot's known lying batteries and why each is no Collect candidate
+/// ([`take_blocks`]), for the notes.
+pub struct TakeBlocks {
+    now: u32,
+    /// Battery, why it is not offered (`None`: it is), the bot's ground
+    /// distance to it (m).
+    list: Vec<(usize, Option<&'static str>, f32)>,
+}
+
 /// Each battery the bot believes lies about, and why it is not offered a
 /// Collect of it (`None`: it is): [`Ctx::take_block`], else set aside or
 /// scored out. Empty while it carries one.
-pub fn take_blocks(cx: &Ctx) -> Vec<(usize, Option<&'static str>)> {
-    if !cx.view.mode.has_batteries() || cx.me.carrying.is_some() {
-        return Vec::new();
-    }
-    (0..cx.view.batteries.len())
-        .filter_map(|battery| {
-            let at = cx.battery_lying(battery)?;
+pub fn take_blocks(cx: &Ctx) -> TakeBlocks {
+    let mut list = Vec::new();
+    if cx.view.mode.has_batteries() && cx.me.carrying.is_none() {
+        for battery in 0..cx.view.batteries.len() {
+            let Some(at) = cx.battery_lying(battery) else {
+                continue;
+            };
             let target = TargetRef::Battery(battery);
             let why = cx.take_block(at).or_else(|| {
                 let aside =
                     cx.bot.set_aside.iter().any(|&(k, t, until)| {
                         k == PlayKind::Collect && t == target && cx.now < until
                     });
-                cx.candidate(PlayKind::Collect, target, Some(battery as u32))
-                    .is_none()
-                    .then_some(if aside { "set aside" } else { "scored out" })
+                battery_candidate(cx, battery).is_none().then(|| {
+                    if aside {
+                        "set aside"
+                    } else {
+                        scored_out(cx, target)
+                    }
+                })
             });
-            Some((battery, why))
-        })
-        .collect()
+            list.push((battery, why, cx.me.feet.distance_xz(at)));
+        }
+    }
+    TakeBlocks { now: cx.now, list }
+}
+
+/// Which of Collect's considerations scored `target` out (its first 0), for
+/// the note: the way's length, the bot's health, or the enemies by it.
+fn scored_out(cx: &Ctx, target: TargetRef) -> &'static str {
+    let play = cx.play(PlayKind::Collect);
+    let (_, why) = crate::v026g::bots::curve::score(&play.considerations, |input| {
+        cx.input(input, PlayKind::Collect, target)
+    });
+    match why.parts.last().map(|&(input, _, _)| input) {
+        Some(Input::PathDist) => "scored out: its way",
+        Some(Input::Health) => "scored out: hurt",
+        Some(Input::EnemiesNearTarget) => "scored out: enemies by it",
+        _ => "scored out",
+    }
 }
 
 /// The notes for bot `place`'s [`take_blocks`] where they changed since
 /// the last (kept in [`TeamKnowledge::take_blocked`]): a battery that left
-/// its candidates and why, or came back. A battery no longer believed to
-/// lie about is dropped without a note (the knowledge's own note says why).
+/// its candidates and why, or came back, with the bot's distance to it and
+/// how long it was a candidate (or out) before. A battery no longer believed
+/// to lie about is dropped without a note (the knowledge's own note says
+/// why).
 pub fn note_take_blocks(
     team: &mut TeamKnowledge,
     place: Place,
-    blocks: &[(usize, Option<&'static str>)],
+    blocks: &TakeBlocks,
 ) -> Vec<String> {
+    let now = blocks.now;
     let was = |battery: usize| {
         team.take_blocked
             .iter()
-            .find(|&&(p, b, _)| p == place && b == battery)
-            .map(|&(_, _, why)| why)
+            .find(|&&(p, b, _, _)| p == place && b == battery)
+            .map(|&(_, _, why, since)| (why, since))
     };
-    let notes = blocks
-        .iter()
-        .filter_map(|&(battery, why)| match (was(battery), why) {
-            (before, Some(why)) if before != Some(why) => {
-                Some(format!("battery {battery} is no Collect candidate: {why}"))
+    let held_s = |since: u32| now.saturating_sub(since) as f32 / 1000.0;
+    let mut notes = Vec::new();
+    let mut rows = Vec::new();
+    for &(battery, why, dist) in &blocks.list {
+        let before = was(battery);
+        let since = match (before, why) {
+            (Some((before, since)), why) if before == why => since,
+            (before, Some(why)) => {
+                let for_s = match before {
+                    Some((None, since)) => format!(", a candidate for {:.1} s", held_s(since)),
+                    Some((Some(_), since)) => format!(", out for {:.1} s", held_s(since)),
+                    None => String::new(),
+                };
+                notes.push(format!(
+                    "battery {battery} is no Collect candidate: {why} ({dist:.0} m off{for_s})"
+                ));
+                // Out for another reason: still out since then.
+                match before {
+                    Some((Some(_), since)) => since,
+                    _ => now,
+                }
             }
-            (Some(_), None) => Some(format!("battery {battery} is a Collect candidate again")),
-            _ => None,
-        })
-        .collect();
-    team.take_blocked.retain(|&(p, _, _)| p != place);
-    team.take_blocked.extend(
-        blocks
-            .iter()
-            .filter_map(|&(battery, why)| Some((place, battery, why?))),
-    );
+            (Some((Some(_), since)), None) => {
+                notes.push(format!(
+                    "battery {battery} is a Collect candidate again ({dist:.0} m off, out for {:.1} s)",
+                    held_s(since)
+                ));
+                now
+            }
+            (_, None) => now,
+        };
+        rows.push((place, battery, why, since));
+    }
+    team.take_blocked.retain(|&(p, _, _, _)| p != place);
+    team.take_blocked.extend(rows);
     notes
 }
 
@@ -588,11 +689,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     }
     for battery in 0..cx.view.batteries.len() {
         if cx.battery_lying(battery).is_some_and(|at| cx.can_take(at)) {
-            out.extend(cx.candidate(
-                PlayKind::Collect,
-                TargetRef::Battery(battery),
-                Some(battery as u32),
-            ));
+            out.extend(battery_candidate(cx, battery));
         }
     }
     if cx.tuning.cheats.batteries {
@@ -1538,6 +1635,60 @@ mod tests {
         );
     }
 
+    /// The enemies known by a battery hovering at the cut-off (4) do not
+    /// flip a bot's Collect of it: on it, it stays a candidate at 4 and
+    /// leaves at 5; out, it comes back at 3, not at 4. With an enemy in
+    /// sight there is no hold.
+    #[test]
+    fn enemies_hovering_at_the_cut_off_do_not_flip_a_collect() {
+        use crate::v026g::bots::know::Source;
+        let at = Vec3::new(25.0, 0.0, 15.0);
+        let target = TargetRef::Battery(0);
+        let scene = |enemies: usize, on_it: bool| {
+            let mut s = with_toxic(0.3);
+            s.battery(BatteryState::Free(at));
+            for e in 0..enemies {
+                let off = Vec3::new(4.0 + e as f32, 0.0, 6.0);
+                s.enemy(1 + e as Place, 1, at + off, Some(Source::Heard));
+            }
+            if on_it {
+                s.current = Some((PlayKind::Collect, target, s.view.clock));
+            }
+            s
+        };
+        let offered = |enemies, on_it| collects(&scene(enemies, on_it)) == vec![target];
+        // Not on it: out at the cut-off.
+        assert!(offered(3, false));
+        assert!(!offered(4, false));
+        // On it: 3, 4, 3 keep it; 5 is out.
+        assert!(offered(3, true));
+        assert!(offered(4, true));
+        assert!(!offered(5, true));
+        // The score on it at 4 is the score at 3: one enemy fewer read.
+        let score = |enemies, on_it| {
+            let mut out = Vec::new();
+            candidates(&scene(enemies, on_it).cx(0), &mut out);
+            out.iter().find(|c| c.target == target).map(|c| c.score)
+        };
+        assert_eq!(score(4, true), score(3, false));
+        // An enemy in sight (30 m off the battery, not one of the 4): no
+        // hold, out at 4 on it too.
+        let mut fight = scene(4, true);
+        fight.enemy(9, 1, at + Vec3::new(30.0, 0.0, 0.0), Some(Source::Seen));
+        assert!(!fight.cx(0).memory.all_seen(fight.view.clock).is_empty());
+        assert!(collects(&fight).is_empty());
+        // The note agrees: out for the enemies only when not on it.
+        let whys = |s: &Scenario| {
+            take_blocks(&s.cx(0))
+                .list
+                .iter()
+                .map(|&(_, why, _)| why)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(whys(&scene(4, true)), [None]);
+        assert_eq!(whys(&scene(4, false)), [Some("scored out: enemies by it")]);
+    }
+
     #[test]
     fn a_battery_no_way_was_found_to_lately_is_left_for_a_while() {
         let mut s = with_toxic(0.3);
@@ -1565,12 +1716,18 @@ mod tests {
         // Why it left the candidates is noted once.
         assert_eq!(
             noted(&mut s),
-            ["battery 0 is no Collect candidate: no way to its stand lately"]
+            [concat!(
+                "battery 0 is no Collect candidate: no way to its stand lately ",
+                "(41 m off, a candidate for 0.0 s)"
+            )]
         );
         assert!(noted(&mut s).is_empty());
         // Forgotten: fetched again.
         s.view.clock += 5_000;
-        assert_eq!(noted(&mut s), ["battery 0 is a Collect candidate again"]);
+        assert_eq!(
+            noted(&mut s),
+            ["battery 0 is a Collect candidate again (41 m off, out for 5.0 s)"]
+        );
         assert_eq!(collects(&s), vec![TargetRef::Battery(0)]);
     }
 
@@ -2040,7 +2197,9 @@ mod tests {
         assert!(!deep.cx(0).escape_known(at, true));
         assert_eq!(deep.cx(0).take_block(at), Some(POCKET_BLOCK));
         assert!(collects(&deep).is_empty());
-        assert_eq!(take_blocks(&deep.cx(0)), vec![(0, Some(POCKET_BLOCK))]);
+        let blocks = take_blocks(&deep.cx(0));
+        let whys: Vec<_> = blocks.list.iter().map(|&(b, why, _)| (b, why)).collect();
+        assert_eq!(whys, vec![(0, Some(POCKET_BLOCK))]);
         let rim = scene(0.9);
         let at = Vec3::new(32.0, -0.9, 20.0);
         let stand = rim.tactics.stand_to_take(at).expect("a stand");

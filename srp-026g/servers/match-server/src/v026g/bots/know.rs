@@ -561,9 +561,10 @@ pub struct TeamKnowledge {
     /// What changed in [`Self::batteries`] and why, for the log (taken by
     /// the bots' notes; [`Self::change_battery`]).
     pub battery_notes: Vec<String>,
-    /// The known lying batteries each bot of the team may not take now,
-    /// and why (`collect::take_blocks`): a note goes out when it changes.
-    pub take_blocked: Vec<(Place, usize, &'static str)>,
+    /// The known lying batteries of each bot of the team: why it may not
+    /// take one now (`None`: it may), and since when (match ms), for the
+    /// notes (`collect::take_blocks`): a note goes out when it changes.
+    pub take_blocked: Vec<(Place, usize, Option<&'static str>, u32)>,
 }
 
 impl TeamKnowledge {
