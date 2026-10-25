@@ -502,9 +502,9 @@ it yet.
 ### What changed
 
 - **A holder slot** in `guard_lead.rs`, at any time, beside the two
-  end-game slots: `HOLDER_SLOT + container id`. `is_holder(candidate)` and
-  `is_holder_slot(slot)` name it, for the role budget (CG-13: "holder at
-  most 1").
+  end-game slots: `HOLDER_SLOT + container id`. `is_holder(kind, target,
+  slot)`, a pure function, names it for the role budget (CG-13: "holder at
+  most 1"), which sees only candidates and assignments.
 - **The need** (`holder_need`): our container holds batteries, and a
   battery of ours was taken this match (`TeamKnowledge::thefts_match`, new:
   every thief, bot or human), or one in the last 60 s, or an enemy is known
@@ -521,8 +521,9 @@ it yet.
   on a re-pick with none facing it keeps the spot it has.
 - **Its end:** a theft does not end it (the alarm sends others); the need
   off for 20 s does (GUESS). An end-game guard keeps its old ends.
-- **The last two** of a team never hold while a battery lies loose (until
-  CG-13's role budget decides it).
+- **The last two** of a team never hold while a battery lies loose. The
+  line is temporary: CG-13's role budget gives the same, and its PR takes
+  the line out.
 - **Rank:** the holder stays `Objective`. The plan had it raised to `Fight`
   under a threat so that a Crossfire elsewhere would not take it, but the
   bands run Roam < Fight < Objective < Alarm: an objective over the 0.10
@@ -540,3 +541,50 @@ PR with its own file plan, after this one; the holder's slot is where the
 dropper's claim on the battery will live.
 
 ### Bench
+
+Against base-486a48e0, 16 seeds, after minus base per seed (SE). The
+binary was built from 6c27a63c; the later commit changed only
+`is_holder`'s signature and the tests.
+
+The standard batt preset (6 maps x 4v4 and 10v10, all bots; no tier plays
+as 4-5):
+
+| | 4-5 | 9-10 | 13-15 |
+|---|---|---|---|
+| holder bot-s a seed (on its post) | 59 (37) | 45 (32) | 44 (27) |
+| delivered (base 75, 73, 72) | -0.3 (0.4) | -1.9 (1.6) | -2.1 (1.9) |
+| Collect s (base ~13,950) | -4 (26) | -313 (335) | -489 (478) |
+| kills | +1.1 (0.7) | -6.6 (6.6) | -11.3 (9.3) |
+| carriers killed | -0.1 (0.4) | -0.1 (0.7) | -1.3 (1.2) |
+| quick ends | +2.4 (1.4) | -4.3 (8.4) | -9.0 (12.2) |
+| flips | -0.4 (1.3) | -1.9 (2.7) | +0.3 (2.2) |
+| holder deaths | 0.4 | 0.3 | 0.3 |
+
+- Bots seldom steal (about 1 theft a seed over 12 maps), so here the need
+  comes mostly from an enemy by the container, and the holder is about a
+  minute a seed. No guard is worse beyond 2 SE.
+
+The stand-in human (`SRP_BENCH_HUMAN=0`, 4v4, `SRP_BENCH_START=3,3`, the
+batt maps), both sides run here:
+
+| | 4-5 | 9-10 | 13-15 |
+|---|---|---|---|
+| holder bot-s a seed (on its post) | 122 (92) | 127 (96) | 92 (69) |
+| thefts, all (base 3.4, 3.9, 2.9) | -0.31 (0.28) | -0.56 (0.27) | -0.25 (0.31) |
+| the human's steals (base 0.9, 1.1, 1.1) | +0.06 (0.17) | -0.31 (0.22) | -0.31 (0.22) |
+| delivered (base 18.4, 18.8, 17.6) | +0.25 (0.38) | -0.19 (0.43) | +0.19 (0.25) |
+| Collect s (base ~3,800) | -64 (21) | -59 (19) | -59 (17) |
+| carriers killed | -0.38 (0.46) | -0.88 (0.49) | -1.12 (0.41) |
+| deaths | -0.3 (0.8) | -0.4 (0.9) | -1.3 (0.6) |
+| GuardLead deaths (holder's) | +1.12 (0.33) | +0.75 (0.38) | +1.19 (0.44) |
+| thefts with a holder alive | 0.8 | 1.4 | 0.7 |
+| need with no holder, s | 44 | 52 | 45 |
+
+- Thefts fall at every tier, beyond 2 SE at 9-10 only; the human's steals
+  fall 0.3 a seed at 9-10 and 13-15 (1.4 SE).
+- The cost: a bot off Collect for about a minute a seed, and about one
+  holder death a seed. Deliveries hold, and total deaths do not rise.
+- A need is left with no holder about 45 s a seed: the last-two rule, a
+  holder dead and not yet replaced, or a bot already on a higher play.
+- tdm: seeds 1-2 at 4-5, 9-10 and 13-15, every run's decisions digest equal
+  to base's.
