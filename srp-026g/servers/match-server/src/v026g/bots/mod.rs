@@ -2429,7 +2429,7 @@ fn drive_tick(
         .locate(me.feet, 1.5)
         .map_or(0, |node| tactics.hazards.set_of(node));
     bot.stuck.zone_on(zone_set);
-    let zone_out = if goal.is_none() {
+    let zone_out = if goal.is_none() && !intent.zone_ok {
         zone_way_out(bot, tactics, me.feet, time, intent.objective)
     } else {
         None
