@@ -743,3 +743,10 @@ not shoot from.
   lag, and the play ends once the battery shows down.
 
 ### Bench
+
+Against base-1dee0543, batt and tdm presets, 3 tiers × 16 seeds over 12
+maps each: every run's decisions digest equals base's (48 batt, 48 tdm), so
+every sum is equal. In those batt runs bots gave up 8 escapes of 366
+(`pocket_gave_up`), none while carrying, and no carrier stayed trapped past
+Collect's 120 s: the case is rare on these maps, and the test is what
+covers it.
