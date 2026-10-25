@@ -413,37 +413,46 @@ within 3 m of it, keeps the lowest-floor rule. Never a shut pocket. The table's 
 made privately (bot-routes `add_heights.py`) from the recorded positions of the lives grouped
 to each route: feet = y − 0.9 standing, − 0.55 crouched. Source, the first with 10+
 positions: the route's own lives within 2 m, within 5 m, the whole side's within 2 m, within
-5 m. Levels split at gaps of 2 m+ (each 15 %+ of the positions); the level most lives used,
-or when the top two are within 60:40 the one nearest the previous point's pick (with no
-previous pick, the lower). 2 m first: at 5 m a slope or a floor beside pulled the median off
-the point's own floor (36 points moved 1.5 m+ when 2 m came first). Mode 3 rows keep no
-heights (a follow-up).
+5 m, then every human's within 2 m, within 5 m. Levels split at gaps of 2 m+ (each 15 %+ of the
+positions); the level most lives used, or when the top two are within 60:40 the one nearest
+the previous point's pick (with no previous pick, the lower). 2 m first: at 5 m a slope or a
+floor beside pulled the median off the point's own floor (36 points moved 1.5 m+ when 2 m
+came first). Mode 3 rows keep no heights (a follow-up).
 
-- The table: 231 routes, 173 with heights, 872 of 1,321 points with a height.
-- Points off the players' height by 1.5 m+: 184 → 3. 203 points move 0.5 m+ (almost all
-  up): level_02 day 2 27, level_07 days 2/4 21/22, level_04 day 4 21, level_05 days 2/4 14/14.
+The route's own lives come from the human matches of 10+ players, Oct 12-23, bot matches left
+out (they made the routes). Where those give fewer than 10 positions (122 points: a route's
+mean way can pass where few of them walked), every human's positions count, for the height
+only: matches of any size and the humans of bot matches (a place is a bot when 15 %+ of its
+alive samples look exactly level, the bots' view), Oct 12-24. Positions are also filled every
+1 m between two samples of one life 5.5 s and 15 m apart or less whose feet heights differ by
+0.5 m or less (walked on one level), each kept only where the map has a floor at its height
+(98 % do). Of the 122 points (39 of them at a spot with floors 2 m+ apart within 1 m: stacked,
+or a ledge's top and foot), positions within 2 m / 5 m reach 10+ for:
+- more matches: 94 / 120 (stacked 34 / 39);
+- with the filled positions: 114 / 121 (38 / 39);
+- with Oct 22-24 too: the same, with more positions each.
+
+One point stays without a height (level_02 day 4, a route's last point, not stacked). A
+height from the neighbours (their mean when both have one within 1.5 m of each other, on a
+floor within 1 m of it) was the fallback for stacked points still without one; none is left.
+
+- The table: 231 routes, 173 with heights, 993 of 1,321 points with a height.
+- Points off the players' height by 1.5 m+: 196 → 3. 216 points move 0.5 m+ (almost all
+  up): level_02 day 2 27, level_07 days 2/4 21/22, level_04 day 4 21, level_05 day 4 16.
 - level_07 (−7, −2), (4.3, −1.6), (8.4, −2.5): 5.8-9.7 → 20.6 (players: about 21). The mode 3
   row there stays at 5.8. level_05 (−7.8, −21.3): days 2 and 4 on the walkway at 10.4-10.5.
-- Against grid's check (the median of all players' 20+ positions within 2 m): 173 points sat
-  1.5 m+ below the players before, none above. After, 103 picks still differ from that median
-  by 1.5 m+, looked at one by one: 74 are two-level spots where the route's own players use
-  the other level than most players (level_02 deck 20.7 against floor 16.3, level_04 2.2
-  against 10.2, level_07 15.3 against 20.9); 29 are on one level for the route's players, who
-  walk a lane beside the busier one.
-- The routes check (the walk check, without heights → with): points lost 141 → 124, legs with
-  no way 10 → 1 (the one left is mode 3), jumps 86 → 97 (level_02 day 2 12 → 22, level_04
-  day 4 1 → 12: the decks players stand on), length −0.3 %. Two routes lose one point more
-  (level_06 and level_08 day 4: the raised floor is not a fine goal). Legs through a damage
-  zone 163 → 117; routes with a point in an always-on zone 32 → 23.
-- Points with no height in Player vs Bots modes: 112 (fewer than 10 positions within 5 m: a
-  route's mean way can pass where nobody walked). 39 of them are at a spot with floors 2 m+
-  apart within 1 m (stacked, or a ledge's top and foot), most on level_04 day 2 (12) and
-  level_06 days 2/4 (8/8); they keep the lowest floor, as before. A height from the
-  neighbours (the mean of the previous and next points' when both have one within 1.5 m of
-  each other, kept only on a floor within 1 m of it) fits 2 of the 39: 35 have a neighbour
-  with no height (most are a route's last point), 2 have neighbours apart. Of the 2, one has
-  no floor within 1 m of the mean, and the other's raised floor is not a fine goal, so the
-  point is lost: not used. The 39 are a follow-up.
+- Against grid's check (the median of all players' 20+ positions within 2 m): 179 points sat
+  1.5 m+ below the players before, none above. After, 110 picks still differ from that median
+  by 1.5 m+, looked at one by one: 80 are two-level spots where the route's players (or most
+  lives there) use the other level than the median of positions (level_02 deck 20.7 against
+  floor 16.3, level_04 2.2 against 10.2, level_07 15.3 against 20.9); 30 are on one level for
+  the route's players, who walk a lane beside the busier one, or where the point itself has
+  one floor and the other level is beside it.
+- The routes check (the walk check, without heights → with): points lost 141 → 120, legs with
+  no way 10 → 1 (the one left is mode 3), jumps 86 → 101 (level_02 day 2, level_04 day 4: the
+  decks players stand on), length −0.1 %. Two routes lose one point more (level_06 and
+  level_08 day 4: the raised floor is not a fine goal). Legs through a damage zone 163 → 114;
+  routes with a point in an always-on zone 32 → 22.
 
 **Bench** (c8bd1281 against 54ececcf, the base before #398/#399/#401,
 batteries and team deathmatch, tiers 4-5, 9-10 and 13-15, seeds 1-16,
