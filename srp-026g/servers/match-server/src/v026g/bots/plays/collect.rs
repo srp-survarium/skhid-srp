@@ -111,6 +111,13 @@ const SETTLE_MS: u32 = 1_500;
 const USE_SEEN_MS: u32 = 300;
 /// ... unless no such world came for this long (the worlds stopped), ms.
 const USE_SEEN_WAIT_MS: u32 = 3_000;
+
+/// No fire this long after a use pressed at a battery: the take may have
+/// worked, and `PlaceView::carrying` comes with the worlds, up to 2 s
+/// after it; a fire press while carrying drops the battery in the game
+/// (0x2D8E73..0x2D8EC8, PROVEN). In the bench's traces every fire drop
+/// left was 0.45-0.85 s after a take. GUESS: the worlds' 2 s.
+const TAKE_HOLD_FIRE_MS: u32 = 2_000;
 /// A put-in takes this long before the battery is in, ms: the battery's put
 /// state lasts `states[2].put_time`, 0.6 s (`docs/notes/battery_pickup.md`;
 /// a take's battery is in hand at once). PROVEN that the state lasts it;
@@ -676,11 +683,16 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         return;
     }
     // Carrying already: bring it home, at the top of the objective band.
+    // Hurt or among enemies too: what scores a battery to fetch does not
+    // score one in hand, and a carrier given another play fires, which in
+    // the game drops it. In 919 human carries under fire, those who kept
+    // carrying did no worse than those who dropped.
     if let Some(battery) = cx.me.carrying {
-        if let Some(mut candidate) = cx.candidate(
+        if let Some(mut candidate) = cx.candidate_given(
             PlayKind::Collect,
             TargetRef::Battery(battery),
             Some(battery as u32),
+            &[(Input::Health, 1.0), (Input::EnemiesNearTarget, 0.0)],
         ) {
             candidate.rank = Rank::Alarm;
             out.push(candidate);
@@ -962,7 +974,16 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             {
                 return Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(0.0));
             }
-            take(state, target, cx)
+            let step = take(state, target, cx);
+            // A use lately: it may carry already without knowing it.
+            match (step, &*state) {
+                (Step::Continue(intent), State::Take { last_use, .. })
+                    if *last_use > 0 && cx.now < *last_use + TAKE_HOLD_FIRE_MS =>
+                {
+                    Step::Continue(intent.hold_fire())
+                }
+                (step, _) => step,
+            }
         }
         State::Bring { via } => {
             if cx.me.carrying.is_none() {
@@ -2448,11 +2469,13 @@ mod tests {
         stand_at(&mut s, first.feet, aim);
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_ne!(intent.press & key::USE, 0, "a use at the stand");
+        assert!(!intent.fire, "no fire as it uses: it may carry");
         s.view.clock += 1_200;
         stand_at(&mut s, first.feet, TAKE_AT);
         // No world since the use: it waits, the use may have taken it.
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_eq!(intent.press & key::USE, 0, "the first use not seen yet");
+        assert!(!intent.fire, "no fire within 2 s of the use");
         s.view.world_time = s.view.clock - 300;
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_ne!(intent.press & key::USE, 0, "the second use, aimed lower");
@@ -2628,6 +2651,52 @@ mod tests {
         assert!(
             straight.distance_xz(Vec3::new(12.0, 0.0, 30.0)) < 1.0,
             "{straight:?}"
+        );
+    }
+
+    /// A hurt carrier among 4 or more known enemies keeps bringing its
+    /// battery home: its Bring is not scored as a battery to fetch, so the
+    /// commander never gives it a fight play or Roam (which would fire and,
+    /// in the game, drop the battery).
+    #[test]
+    fn a_hurt_carrier_among_enemies_keeps_bringing_it_home() {
+        use crate::v026g::bots::know::Source;
+        use crate::v026g::bots::team::{Asking, assign};
+        let mut s = Scenario::field(Mode::Batteries);
+        s.battery(BatteryState::Carried(Some(0)));
+        let me = s.bot(0, 0, Vec3::new(40.0, 0.0, 25.0));
+        me.carrying = Some(0);
+        me.health = 0.1;
+        s.bot(2, 0, Vec3::new(36.0, 0.0, 22.0));
+        let around = [
+            (8.0, 3.0),
+            (10.0, -4.0),
+            (6.0, 8.0),
+            (12.0, 1.0),
+            (9.0, -9.0),
+        ];
+        for (i, (dx, dz)) in around.into_iter().enumerate() {
+            let at = Vec3::new(40.0 + dx, 0.0, 25.0 + dz);
+            s.enemy(1 + 2 * i, 1, at, Some(Source::Seen));
+        }
+        let found = s.candidates(0);
+        let bring = found
+            .iter()
+            .find(|c| c.kind == PlayKind::Collect && c.target == TargetRef::Battery(0))
+            .unwrap_or_else(|| panic!("no Bring: {found:#?}"));
+        assert_eq!(bring.rank, Rank::Alarm);
+        let given = assign(
+            vec![Asking {
+                place: 0,
+                candidates: found.clone(),
+                current: None,
+            }],
+            s.view.clock,
+        );
+        assert_eq!(
+            (given[0].1.kind, given[0].1.target),
+            (PlayKind::Collect, TargetRef::Battery(0)),
+            "{found:#?}"
         );
     }
 
