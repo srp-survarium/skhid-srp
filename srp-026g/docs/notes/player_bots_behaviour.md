@@ -1299,3 +1299,26 @@ name `tuning.rs`; read them by this table.
 | the `Feel` (hop) check of `validate`; `Kinematics` and `Feel` stay in `kin.rs` and `motor.rs` | `motion.rs` |
 
 `validate` calls the section checks in the order it always had, so the first wrong value of a file with several is the same (a test says so).
+
+### Bots split step 2d: where a bot's think and ticks live now
+
+`Bots::think` (267 lines) and `Bots::ticks` moved from `bots/mod.rs` to `bots/think.rs`, and `think` is cut into phases that run in this order
+(the RNG draws, the ray budget and the team's knowledge are touched in it, so the order is part of the behaviour). The notes above name `think`;
+read them by this table.
+
+| In the notes as | Now in `bots/think.rs` |
+|---|---|
+| `think`'s gate: is a think due and the next one drawn (`think_ms`) | `schedule` (the draw is the first use of the bot's generator in a think) |
+| the lookups (tactics, team, the bot alive) | `Bots::think` itself, which then calls the phases below |
+| senses: sight order, `sense::sense`, `heard_until` | `sense` (returns `Sensed`: the percepts and whether the bot is quiet) |
+| the callouts, an enemy seen carrying a battery, the cheat percepts, `carrier_at`, `fell_near`, the teammates' callouts (`heard_by`) | `share` |
+| the battery and spawner spots seen when the battery cheat is off | `sense_batteries` |
+| `Memory::update` with the notice time | `remember` |
+| `Reflex::think_with`, the throw notes, the hit-from-a-direction callout | `react` |
+| the bench's stand-in camper (`SRP_BENCH_CAMPER`) | `bench_camper` (tests only) |
+| the play's step, `goal_shut` (a play left on a proven no-way goal), `Done`, `Failed`, the quick-fail set-aside | `decide` (returns the step's name for the trace) |
+| the think trace line | `Bots::think` |
+| `ticks` (the motor drives the intent, the encoder makes the inputs) | `Bots::ticks`, as it was |
+
+`Due` is what the phases share (the clock, the view, the bot's place, the tactics, the team's tuning). A PR that changes how a bot senses edits `sense`
+or `share`; one that changes what a play's end does edits `decide`.
