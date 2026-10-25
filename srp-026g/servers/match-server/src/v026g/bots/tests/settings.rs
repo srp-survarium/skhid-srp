@@ -69,7 +69,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_SIDES", "4,8,10", "the sizes, bots a side: `n,...`"),
     s("SRP_BENCH_SECONDS", "240", "the length of a match, s"),
     s("SRP_BENCH_SEED", "0", "another match of the same map and size (0: the digests' runs)"),
-    s("SRP_BENCH_TIER", "unset: the lowest tier", "every bot's tier: `4-5`, `9-10` or `13-15`"),
+    s("SRP_BENCH_TIER", "unset: the lowest tier", "every bot's tier, `4-5`, `9-10` or `13-15`: each bot is the lobby's (its role from `bot_roles`, the tier's kits of `bot_profile`), read back as the match server does (`bench_roster`)"),
     s("SRP_DECISIONS_OUT", "unset", "a file the run's decisions line is appended to"),
     // What is printed or written.
     s("SRP_BENCH_EVENTS", "unset", "a folder for the run's events, one JSON line each"),

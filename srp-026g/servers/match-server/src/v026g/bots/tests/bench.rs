@@ -374,27 +374,24 @@ pub(crate) fn real_bot_cost() {
         for &per_team in &sizes {
             let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
             let driven = vec![true; teams.len()];
-            let roles: Vec<Option<&str>> = vec![None; teams.len()];
+            // The bots as the lobby gives them (`bench_roster`): each its
+            // role and the tier's kits, read back from its profile as the
+            // match server does.
+            let roster = bench_roster(&teams, bench_tier());
+            let roles = &roster.roles;
             let mut bots = Bots::new(
                 0xBE7C + per_team as u32 + seed * 1000,
                 mode,
                 level,
                 &teams,
                 &driven,
-                &roles,
+                roles,
                 Arc::new(bench_tuning()),
                 Trace::none(0),
             );
             // Every bot of one tier (`SRP_BENCH_TIER=4-5|9-10|13-15`): its
             // kits and its skill.
-            if let Ok(tier) = bench_settings().var("SRP_BENCH_TIER")
-                && !tier.is_empty()
-            {
-                let tier: survarium::v026g::loadouts::BotTier =
-                    serde_json::from_value(serde_json::Value::String(tier))
-                        .expect("SRP_BENCH_TIER: 4-5, 9-10 or 13-15");
-                bots = bots.with_tiers(&vec![Some(tier); teams.len()]);
-            }
+            bots = bots.with_tiers(&roster.tiers);
             // One-sided (`SRP_BENCH_ONE_SIDE`): team 1 by the
             // `SRP_BENCH_SIDE1_*` numbers, so a change given to team 0
             // alone shows in its K/D.
@@ -1413,6 +1410,93 @@ pub(crate) fn real_bot_cost() {
                 game.team_hits,
                 game.team_kills,
             );
+        }
+    }
+}
+
+/// The tier of the bench's bots (`SRP_BENCH_TIER`: 4-5, 9-10 or 13-15; the
+/// lowest when unset), as the lobby gives a match's bots the equipment of its
+/// players' gear level (`BotTier::of_gear`).
+pub(crate) fn bench_tier() -> survarium::v026g::loadouts::BotTier {
+    match bench_settings().var("SRP_BENCH_TIER") {
+        Ok(tier) if !tier.is_empty() => serde_json::from_value(serde_json::Value::String(tier))
+            .expect("SRP_BENCH_TIER: 4-5, 9-10 or 13-15"),
+        _ => survarium::v026g::loadouts::BotTier::default(),
+    }
+}
+
+/// The bench's bots on `teams` as the lobby and the match server have them:
+/// the lobby's roles for the roster (`loadouts::bot_roles`, each team's k-th
+/// bot `BotRole::nth(k)`), each bot's profile as the lobby builds it
+/// (`loadouts::bot_profile`, the role's three kits of `tier`), and the role
+/// and tier read back from the profile with `loadouts::bot_of`, as
+/// `game/driven.rs` does for a match's `Bots::new` and `with_tiers`. One
+/// home each, so the bench and a live match cannot drift: a bot carries what
+/// the lobby gives it, not a lowest-tier kit in every tier.
+pub(crate) struct BenchRoster {
+    pub(crate) roles: Vec<Option<&'static str>>,
+    pub(crate) tiers: Vec<Option<survarium::v026g::loadouts::BotTier>>,
+}
+
+pub(crate) fn bench_roster(teams: &[u8], tier: survarium::v026g::loadouts::BotTier) -> BenchRoster {
+    use survarium::v026g::loadouts::{bot_of, bot_profile, bot_roles};
+    let bots: Vec<_> = teams
+        .iter()
+        .zip(bot_roles(teams))
+        .enumerate()
+        .map(|(n, (&team, role))| bot_of(&bot_profile(n + 1, team, role, tier)))
+        .collect();
+    BenchRoster {
+        roles: bots.iter().map(|bot| bot.map(|(_, role)| role.name())).collect(),
+        tiers: bots.iter().map(|bot| bot.map(|(tier, _)| tier)).collect(),
+    }
+}
+
+/// The bench's bots are the lobby's: for each team size and tier, each team's
+/// k-th bot has the role `BotRole::nth(k)` and the tier, and carries the tier's
+/// kits of its role (not the lowest tier's in every tier, as when the bench
+/// gave no roles), the very `Arms` the match server's bots of that role and
+/// tier carry.
+#[test]
+fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
+    use survarium::v026g::loadouts::{BotRole, BotTier, bot_profile};
+    for per_team in [1usize, 4, 8, 10] {
+        let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
+        for tier in BotTier::ALL {
+            let roster = bench_roster(&teams, tier);
+            let mut bots = Bots::new(
+                0xBE7C,
+                survarium::v026g::maps::mode::BATTERIES,
+                6,
+                &teams,
+                &vec![true; teams.len()],
+                &roster.roles,
+                Arc::new(Tuning::default()),
+                Trace::none(0),
+            )
+            .with_tiers(&roster.tiers);
+            let mut on_team = [0usize; 2];
+            for (place, &team) in teams.iter().enumerate() {
+                let role = BotRole::nth(on_team[usize::from(team)]);
+                on_team[usize::from(team)] += 1;
+                assert_eq!(roster.roles[place], Some(role.name()), "{per_team} {tier} place {place}");
+                assert_eq!(roster.tiers[place], Some(tier), "{per_team} {tier} place {place}");
+                // The bot carries the tier's kits of its role: the very Arms.
+                let want = Arms::kits_of(tier, role);
+                let bot = bots.bots[place].as_mut().expect("a bot");
+                assert_eq!(bot.kits.len(), want.len(), "{tier} {role}");
+                for ((arms, _), want) in bot.kits.iter().zip(&want) {
+                    assert!(std::ptr::eq(*arms, *want), "{tier} {role}");
+                }
+                // Its first kit's weapon is the lobby profile's weapon in slot 7.
+                let profile = bot_profile(place + 1, team, role, tier);
+                let slot = profile.kits[0].slots[7].expect("a weapon in slot 7");
+                let weapon = survarium::v026g::dictionary::Dictionary::shared()
+                    .item_named(bot.reflex.held_gun().item)
+                    .expect("the weapon is an item")
+                    .dict_id;
+                assert_eq!(profile.items[usize::from(slot.0)].dict_id, weapon, "{tier} {role}");
+            }
         }
     }
 }
