@@ -1035,7 +1035,11 @@ impl Tactics {
     /// bot at `a` is not in already. A step off a rim into a pit it never
     /// gets out of costs the bot the match; in its own pocket it steps as
     /// it likes. Once bots sprint, a pocket with a sprint exit counts too,
-    /// for one not carrying.
+    /// for one not carrying. Nor onto a floor near an unwalled fall
+    /// (`WalkGrid::near_fall`): a stride's overshoot there goes over the
+    /// edge (a third of the falls off route that keeping such edges
+    /// added were side steps: `player_bots_mapdata.md`, "Grid: walls at
+    /// the body's height").
     pub fn clear_step_for(
         &self,
         a: Vec3,
@@ -1050,9 +1054,11 @@ impl Tactics {
         };
         let home = grid.pocket_of(from);
         let trap = |node: NodeId| {
-            grid.pocket_of(node).is_some_and(|pocket| {
-                Some(pocket) != home && !super::escape::standing_exit(grid, &self.escapes, pocket)
-            })
+            grid.near_fall(node)
+                || grid.pocket_of(node).is_some_and(|pocket| {
+                    Some(pocket) != home
+                        && !super::escape::standing_exit(grid, &self.escapes, pocket)
+                })
         };
         !trap(to)
             && path::straight_where(grid, from, to, |node| {
@@ -1415,7 +1421,7 @@ pub(super) mod tests {
         assert_eq!(TACTICS_ALGO, 3);
     }
 
-    const PINNED_FIELD: u64 = 736_835_410_510_453_169;
+    const PINNED_FIELD: u64 = 8_340_154_445_228_000_430;
 
     #[test]
     fn a_written_base_reads_back_the_same_and_a_damaged_one_is_refused() {
@@ -1462,6 +1468,23 @@ pub(super) mod tests {
         let alone = Tactics::new(base.world.clone(), 1.0);
         assert_eq!(alone.base().digest(), base.digest());
         assert_eq!(alone.exits(1), two.exits(1));
+    }
+
+    /// A slab 6 m over the field (deeper than the harmless drop), its edges
+    /// kept: the side step keeps off them, inside it steps.
+    #[test]
+    fn no_side_step_onto_an_edge_over_a_fall() {
+        let world = field_with_solids(&floor(50.0, 30.0, 56.0, 36.0, 6.0), |_| {});
+        let tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let middle = Vec3::new(53.0, 6.0, 33.0);
+        let edge = Vec3::new(55.9, 6.0, 33.0);
+        assert!(grid.near_fall(grid.locate(edge, 0.3).unwrap()));
+        assert!(!grid.near_fall(grid.locate(middle, 0.3).unwrap()));
+        assert!(!tactics.clear_step_for(middle, edge, 0, Some(0), false));
+        assert!(tactics.clear_step_for(middle, Vec3::new(54.0, 6.0, 33.0), 0, Some(0), false));
+        // The walk there is still a line on allowed floors.
+        assert!(tactics.clear_line_for(middle, edge, 0, Some(0), false));
     }
 
     #[test]
