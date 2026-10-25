@@ -2190,6 +2190,7 @@ INSTALLS = {
                        "as a tail jump with the return address moved past the nops)", None, None),
     0x23B3DE: (INLINE, "update_ui after the teams' points: hud", None, None),
     0x23B351: (JUMP, "update_ui's first message by mode: welcome", None, None),
+    0x23B207: (CALLEE, "update_ui's update_player_icons, then the units' markers: icons", None, None),
     # the artefacts, patch 54 (in `.srpx`)
     0x33AE13: (JUMP, "Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` (esi = the config, ebx = `data`): "
                      "loader", None, None),
@@ -2470,11 +2471,11 @@ def add_arena(data, linked):
 
 
 # Research, mode 5 (patch 53, README; client_patch.md section 3.50;
-# docs/notes/research_mode.md): research_026g.asm's three entries and stubs,
+# docs/notes/research_mode.md): research_026g.asm's four entries and stubs,
 # then the C code of research_rule_026g.c and research_native_026g.c and its
 # constant data, in the arena's block research.code; the C code's state (the
 # rule's cook, the hud's cache: rn_state) in research.state, zeroed.
-# Three hooks, `call` or `jmp` to an entry:
+# Four hooks, `call` or `jmp` to an entry:
 # - the game's constructor, `mov eax,ebx / call 0x1EC170` at 0x1E9B4C (after
 #   its own client rule cooks; ebx = the game): register, which registers the
 #   rule's cook (class RESEARCH_CLASS) and does the two instructions;
@@ -2482,7 +2483,10 @@ def add_arena(data, linked):
 #   0x23B3DE (after the teams' points went to the movie): hud, the units on
 #   the movie (root.research_update) and their messages, then the compare;
 # - update_ui, `cmp eax,4 / jne 0x23B36A` at 0x23B351 (the match's first
-#   message by mode): welcome, mode 5's st_start_match_welcome_message_5.
+#   message by mode): welcome, mode 5's st_start_match_welcome_message_5;
+# - update_ui, `call 0x23AA10` at 0x23B207 (update_player_icons, every frame
+#   before update_ui's 40 ms and hud-state gates): icons, the players' icons
+#   then the units' markers on the screen (root.research_markers).
 # No base relocation is under a site and no branch aims inside one.
 RESEARCH_ASM_SIZE = 0x100                      # research_026g.asm, int3 to 0x100: the C code after it
 RESEARCH_CLASS = 0x1E0                         # research_native_026g.c RN_CLASS: the mode configs' rules[2]
@@ -2490,6 +2494,7 @@ RESEARCH_HOOKS = (
     (0x1E9B4C, bytes.fromhex("8bc3e81d260000"), "research_register", 0xE8),  # the game's constructor
     (0x23B3DE, bytes.fromhex("837f20047518"), "research_hud", 0xE8),         # update_ui after the teams' points
     (0x23B351, bytes.fromhex("83f8047514"), "research_welcome", 0xE9),       # update_ui's first message
+    (0x23B207, bytes.fromhex("e804f8ffff"), "research_icons", 0xE8),         # update_ui's players' icons
 )
 # The engine-function library (engine_026g.py, client_patch.md section 0.5):
 # a cdecl thunk per engine function our code calls, each the global symbol

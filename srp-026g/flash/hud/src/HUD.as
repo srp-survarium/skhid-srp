@@ -2230,7 +2230,9 @@ package
       // points, the points to win, the number of units, then nine numbers a
       // unit: cp_id, x, -z (the minimap's pos_x, pos_y), owner, the team
       // taking it, its capture 0..100, the players of team 0 and 1 inside,
-      // whether the game's own player is inside. A team is 0, 1 or 2 (none).
+      // whether the game's own player is inside; then a number a unit: the
+      // ms left of its capture or neutralisation, 0 none. A team is 0, 1 or 2
+      // (none).
       public function research_update(... values) : void
       {
          var ownTeam:uint = uint(values[0]);
@@ -2239,9 +2241,11 @@ package
          var units:Array = [];
          var i:uint = 0;
          var at:uint;
+         var left:uint;
          while(i < count && 5 + 9 * i + 8 < values.length)
          {
             at = 5 + 9 * i;
+            left = 5 + 9 * count + i;
             units.push({
                "cp_id":uint(values[at]),
                "pos_x":Number(values[at + 1]),
@@ -2251,7 +2255,8 @@ package
                "progress":Number(values[at + 5]),
                "inside_0":uint(values[at + 6]),
                "inside_1":uint(values[at + 7]),
-               "local":uint(values[at + 8]) != 0
+               "local":uint(values[at + 8]) != 0,
+               "left":(left < values.length ? Number(values[left]) : 0)
             });
             i++;
          }
