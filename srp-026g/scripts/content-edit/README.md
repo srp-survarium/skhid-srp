@@ -467,3 +467,11 @@ Applied to the live tables (stock 0.26g with patches 12..=33): 6 files edited, 0
 differences. Each text uses only characters its table already has. The login screen's status field
 (`login_menu`, 269 by 167 px at 1080 lines, 18 px, word wrap) holds the longest, German, in about
 six lines. Text only: no server data, no simulation change.
+## svd-level-1.json (2026-10-25)
+
+| change | why |
+|---|---|
+| SVD (`wpn_svd`): `item_level` and `match_making_level` 12 -> 15 | the owner: "also move the SVD to level 15", as the SOCOM ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)). Its shop rank follows (Renaissance 7 -> 10), and its drops, matchmaking, craft and reroll prices; its damage stays |
+
+Applied to the live file (stock 0.26g with patches 12..=33): 1 file edited, 0 unexpected
+differences. Not a simulation change.

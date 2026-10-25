@@ -37,3 +37,16 @@
 - Craft and reroll prices go by item level, so they are level 15's.
 - srp reads all of these from the server game data built with the patch, so client and server agree.
   Owned SOCOMs stay and take the new values.
+
+## The SVD at level 15 (the owner, 2026-10-25)
+
+"also move the SVD to level 15". The SVD (`wpn_svd`, Renaissance) is the only SVD; it has no
+premium copy. The edit list is `scripts/content-edit/svd-level-1.json`.
+
+- `item_level` and `match_making_level` 12 -> 15. Damage, piercing and the rest stay.
+- Shop: srp sells it at Renaissance rank `item_level` - 5, so rank 7 -> 10 (the last). The
+  price list is built from the server game data, so the lobby's lock and the buy check agree.
+- Drops as a level-15 item; a kit carrying it is a level-15 kit.
+- Craft 14,000 -> 20,000 silver (70 -> 100 gold); a modification change 3,200 -> 5,000 silver
+  (16 -> 25 gold).
+- Owned SVDs stay. Not a simulation change: the level only picks who meets whom and what it costs.
