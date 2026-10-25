@@ -15,7 +15,7 @@
 use std::sync::Arc;
 
 use mapdata::regions::Regions;
-use mapdata::{NodeId, Shape, Vec3, World};
+use mapdata::{Mobility, NodeId, Shape, Vec3, World};
 
 use super::hazards::{HazardMarks, Hazards, PASS_MS};
 use super::path::{self, Route};
@@ -131,7 +131,7 @@ const SPAWN_BITS: u32 = 8;
 /// the spawn areas, the regions, the exits and the searches they come
 /// from), so a stored base of the old build is never read for the new.
 /// `the_base_and_its_digest_are_fixed` fails until then.
-pub const TACTICS_ALGO: u32 = 3;
+pub const TACTICS_ALGO: u32 = 4;
 
 /// What a spot is for.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -742,15 +742,25 @@ impl Tactics {
         open: impl Fn(NodeId) -> bool,
     ) -> Option<Route> {
         let mut iters = usize::MAX;
-        match self.start_route(start, goal, time, side, objective, open, &mut iters) {
+        match self.start_route(
+            start,
+            goal,
+            time,
+            side,
+            objective,
+            open,
+            Mobility::STANDING,
+            &mut iters,
+        ) {
             Ok(route) => route,
             Err(_) => unreachable!("an unbounded search ends"),
         }
     }
 
-    /// [`Self::route_nodes`] for at most `iters` floors expanded (taken off
-    /// it, [`path::plan_start`]): the route, or none, once the search ends
-    /// within them; else the search, to go on with in
+    /// [`Self::route_nodes`] for a body of `mobility` (one that may
+    /// sprint-jump goes up the sprint links too), for at most `iters` floors
+    /// expanded (taken off it, [`path::plan_start`]): the route, or none,
+    /// once the search ends within them; else the search, to go on with in
     /// [`Self::resume_route`] with the same arguments.
     #[allow(clippy::too_many_arguments)]
     // The Err is the search under way (`path::plan_start`).
@@ -763,6 +773,7 @@ impl Tactics {
         side: Option<i32>,
         objective: bool,
         open: impl Fn(NodeId) -> bool,
+        mobility: Mobility,
         iters: &mut usize,
     ) -> Result<Option<Route>, path::Planning> {
         let at = self.world.grid.position(start);
@@ -773,6 +784,7 @@ impl Tactics {
             goal,
             |node| self.allowed_from(node, time, side, objective, at) && open(node),
             |region| self.region_allowed_from(region, time, side, objective, at),
+            mobility,
             iters,
         )
     }
@@ -1418,10 +1430,10 @@ pub(super) mod tests {
     fn the_base_and_its_digest_are_fixed() {
         let base = TacticsBase::build(field(), 1.0);
         assert_eq!(base.digest(), PINNED_FIELD);
-        assert_eq!(TACTICS_ALGO, 3);
+        assert_eq!(TACTICS_ALGO, 4);
     }
 
-    const PINNED_FIELD: u64 = 8_340_154_445_228_000_430;
+    const PINNED_FIELD: u64 = 2_667_795_265_928_483_518;
 
     #[test]
     fn a_written_base_reads_back_the_same_and_a_damaged_one_is_refused() {

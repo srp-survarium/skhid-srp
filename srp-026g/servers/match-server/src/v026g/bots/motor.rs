@@ -322,8 +322,14 @@ pub const SPRINT_RUN_UP_S: f32 = 0.75;
 /// to [`sprint_far_m`]: `FINDINGS.md` §5, §7.7, LIKELY) …
 pub const SPRINT_PRESS_M: f32 = 2.25;
 /// … and this far at least: nearer, nothing must touch the body before
-/// the press (else the speed test fails), so the try is jumped standing.
+/// the press (else the speed test fails), so the try is jumped standing
+/// (a sprint link's, [`Route::must_sprint`], is run up to again).
 pub const SPRINT_NEAR_M: f32 = 0.5;
+/// A sprint link ([`Route::must_sprint`]) whose gate is shut near it (an
+/// aim, a reload, a hurt) is waited for at its run-up this long at most,
+/// seconds, then given up on ([`Walked::JumpFailed`]: the route is planned
+/// round it). GUESS: a reload's 2-3 s and the aim time after it.
+pub const SPRINT_WAIT_S: f32 = 4.0;
 /// The ground speed at the press at least, m/s: the game's test is the
 /// walk cap, 3.5 m/s × (1 + modifiers), 3.32-3.70 (`FINDINGS.md` §1.2).
 pub const SPRINT_SPEED_MIN: f32 = 3.7;
@@ -428,6 +434,10 @@ pub struct Motor {
     sprint_run: bool,
     /// The route jump this tick's decision pressed, if any.
     pressed: Option<RoutePress>,
+    /// [measure] This tick's caller dropped the play's look for a sprint
+    /// jump's run-up ([`Motor::dropped_look`]).
+    #[cfg(test)]
+    look_dropped: bool,
     /// The sway's phase and the time, seconds, for it.
     phase: f32,
     t: f32,
@@ -475,9 +485,18 @@ struct JumpTry {
     sprint_since: Option<u32>,
     /// The last press was a sprint jump's.
     sprinted: bool,
+    /// A sprint link's ([`Route::must_sprint`]): the tick its gate was
+    /// found shut near it, waited at the run-up since.
+    shut_since: Option<u32>,
     /// [measure] Counted up, or given up on, in the jump tally.
     #[cfg(test)]
     tallied: bool,
+    /// [measure] The play's look was dropped for its run-up, this try.
+    #[cfg(test)]
+    dropped: bool,
+    /// [measure] A sprint link's ([`Route::must_sprint`]).
+    #[cfg(test)]
+    must: bool,
 }
 
 /// A press of a route jump, for the trace: the jump's take-off and landing,
@@ -513,6 +532,8 @@ struct Ahead {
     failed: Option<Vec3>,
     /// Made sprinting ([`Route::sprint_jump`], [`Pose::sprint_jump`]).
     sprint: bool,
+    /// A sprint link's ([`Route::must_sprint`]): never jumped standing.
+    must: bool,
     /// How far the ledge's edge (half way to the landing) is ahead along
     /// the way, and how high the jump rises, metres.
     edge: f32,
@@ -540,6 +561,8 @@ impl Motor {
             lining_up: false,
             sprint_run: false,
             pressed: None,
+            #[cfg(test)]
+            look_dropped: false,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
             look: None,
@@ -569,6 +592,55 @@ impl Motor {
     /// one ([`Motor::jump_ahead`]): no crouch then.
     pub fn lining_up(&self) -> bool {
         self.lining_up
+    }
+
+    /// [measure] The jump last pressed, got up: counted in the jump tally
+    /// once, whatever the route's next jump is now (past its landing the
+    /// route's progress is past the jump: counted there, most went
+    /// uncounted).
+    #[cfg(test)]
+    fn tally_up(&mut self, feet: Vec3) {
+        let Some(t) = self.jump_try.as_mut() else {
+            return;
+        };
+        // A sprint jump comes down up to 4.4 m past its take-off: up anywhere
+        // within 6 m of the landing, past the jump's middle, on its height.
+        let (a, b) = (t.take_off, t.landing);
+        let (dx, dz) = (b.x - a.x, b.z - a.z);
+        let past = (feet.x - a.x) * dx + (feet.z - a.z) * dz >= 0.5 * (dx * dx + dz * dz);
+        let up = is_up(feet, a, b)
+            || (past
+                && feet.distance_xz(b) <= 6.0
+                && feet.y >= b.y - UP_M.min((0.5 * (b.y - a.y)).max(0.1)));
+        if t.tries == 0 || t.tallied || !up {
+            return;
+        }
+        t.tallied = true;
+        let (tries, marginal, sprinted, must) =
+            (t.tries, marginal(t.take_off, t.landing), t.sprinted, t.must);
+        tally(|j| {
+            if tries == 1 && marginal {
+                j.marginal_first_up += 1;
+            } else if tries == 1 {
+                j.other_first_up += 1;
+            }
+            if marginal {
+                j.marginal_up += 1;
+            }
+            if tries == 1 && sprinted {
+                j.sprint_up += 1;
+            }
+            if must {
+                j.must_up += 1;
+            }
+        });
+    }
+
+    /// [measure] The caller walks this tick unaimed: it dropped the play's
+    /// look for a sprint jump's run-up (the jump tally counts the tries).
+    #[cfg(test)]
+    pub fn dropped_look(&mut self) {
+        self.look_dropped = true;
     }
 
     /// Whether this tick's walk runs at a sprint jump or is in its air: the
@@ -873,8 +945,12 @@ impl Motor {
         may_sprint: bool,
         no_sprint: u8,
     ) -> Option<Ahead> {
+        #[cfg(test)]
+        self.tally_up(pose.feet);
         let (k, before_route) = route.next_jump(s)?;
         let sprint_jump = route.sprint_jump(k);
+        // A sprint link: never jumped standing (too high for it).
+        let must = route.must_sprint(k);
         let reach = if sprint_jump {
             SPRINT_LINE_UP_FROM_M
         } else {
@@ -888,29 +964,6 @@ impl Motor {
         let way = unit(landing.x - take_off.x, landing.z - take_off.z)?;
         let feet = pose.feet;
         if is_up(feet, take_off, landing) {
-            #[cfg(test)]
-            if let Some(t) = self.jump_try.as_mut()
-                && (t.take_off - take_off).length() < 0.3
-                && (t.landing - landing).length() < 0.3
-                && t.tries > 0
-                && !t.tallied
-            {
-                t.tallied = true;
-                let (tries, marginal, sprinted) = (t.tries, marginal(take_off, landing), t.sprinted);
-                tally(|j| {
-                    if tries == 1 && marginal {
-                        j.marginal_first_up += 1;
-                    } else if tries == 1 {
-                        j.other_first_up += 1;
-                    }
-                    if marginal {
-                        j.marginal_up += 1;
-                    }
-                    if tries == 1 && sprinted {
-                        j.sprint_up += 1;
-                    }
-                });
-            }
             return None;
         }
         // The tries at this jump, kept over a route planned again to it.
@@ -930,10 +983,20 @@ impl Motor {
                 standing: false,
                 sprint_since: None,
                 sprinted: false,
+                shut_since: None,
                 #[cfg(test)]
                 tallied: false,
+                #[cfg(test)]
+                dropped: false,
+                #[cfg(test)]
+                must,
             },
         };
+        #[cfg(test)]
+        if std::mem::take(&mut self.look_dropped) && !jump.dropped {
+            jump.dropped = true;
+            tally(|j| j.look_dropped += 1);
+        }
         let carry = if jump.sprinted {
             SPRINT_CARRY_S
         } else {
@@ -949,11 +1012,21 @@ impl Motor {
         // the gate refuses or the run-up is not clear.
         let on_sprint_line = side <= LINED_SIDE_M
             && (-(SPRINT_RUN_UP_M + LINED_BEHIND_M)..=LINED_PAST_M).contains(&along);
+        // A sprint link's run-up is the motor's where it is clear, else as
+        // much of it as is, down to the grid's (its floor is there).
+        let sprint_run_up = if must {
+            [SPRINT_RUN_UP_M, 0.5 * (SPRINT_RUN_UP_M + mapdata::grid::SPRINT_RUN_UP_M)]
+                .into_iter()
+                .find(|&m| clear(at(m)))
+                .unwrap_or(mapdata::grid::SPRINT_RUN_UP_M)
+        } else {
+            SPRINT_RUN_UP_M
+        };
         if sprint_jump && !jump.standing && !in_the_air {
             let near = before_route <= LINE_UP_FROM_M || on_sprint_line;
             let refused = if !may_sprint {
                 no_sprint
-            } else if near && !on_sprint_line && !clear(at(SPRINT_RUN_UP_M)) {
+            } else if near && !on_sprint_line && !clear(at(sprint_run_up)) {
                 no_sprint::RUN_UP
             } else {
                 0
@@ -964,7 +1037,52 @@ impl Motor {
             // would back off for one).
             let late = before_route <= LINE_UP_FROM_M
                 && !(on_sprint_line && jump.sprint_since.is_some());
-            if jump.tries > 0 || (near && (!may_sprint || refused != 0)) || late {
+            let shut = near && (!may_sprint || refused != 0);
+            if must {
+                // A sprint link's run-up spoiled: back to its start; its
+                // gate shut: waited for at the run-up, at most
+                // [`SPRINT_WAIT_S`].
+                if late && !shut {
+                    jump.back = true;
+                    jump.sprint_since = None;
+                }
+                if shut {
+                    #[cfg(test)]
+                    if jump.shut_since.is_none() && jump.tries == 0 {
+                        tally(|j| {
+                            j.must_shut += 1;
+                            for bit in 0..8usize {
+                                if refused & (1u8 << bit) != 0 {
+                                    j.refused[bit] += 1;
+                                }
+                            }
+                        });
+                    }
+                    let since = *jump.shut_since.get_or_insert(self.clock);
+                    jump.sprint_since = None;
+                    let failed = self.since(since) >= SPRINT_WAIT_S;
+                    #[cfg(test)]
+                    if failed && !jump.tallied {
+                        jump.tallied = true;
+                        tally(|j| j.must_waited_out += 1);
+                    }
+                    self.lining_up = true;
+                    self.jump_try = Some(jump);
+                    return Some(Ahead {
+                        aim: at(sprint_run_up),
+                        lined: false,
+                        way,
+                        before: -along,
+                        going: false,
+                        failed: failed.then_some(take_off),
+                        sprint: false,
+                        must,
+                        edge: 0.0,
+                        rise: 0.0,
+                    });
+                }
+                jump.shut_since = None;
+            } else if jump.tries > 0 || shut || late {
                 #[cfg(test)]
                 if jump.tries == 0 {
                     let gated = !may_sprint || refused != 0;
@@ -1000,6 +1118,9 @@ impl Motor {
                 if marginal(take_off, landing) {
                     tally(|j| j.marginal_failed += 1);
                 }
+                if must {
+                    tally(|j| j.must_failed += 1);
+                }
             }
             self.jump_try = Some(jump);
             return Some(Ahead {
@@ -1010,12 +1131,13 @@ impl Motor {
                 going: false,
                 failed: Some(take_off),
                 sprint: false,
+                must,
                 edge: 0.0,
                 rise: 0.0,
             });
         }
         let run_up = if sprint {
-            SPRINT_RUN_UP_M
+            sprint_run_up
         } else {
             [RUN_UP_M, 0.5 * RUN_UP_M]
                 .into_iter()
@@ -1075,6 +1197,7 @@ impl Motor {
             going,
             failed: None,
             sprint,
+            must,
             edge: 0.5 * take_off.distance_xz(landing) - along,
             rise: landing.y - take_off.y,
         })
@@ -1126,8 +1249,16 @@ impl Motor {
                 });
             }
             sprint = false;
-            jump.standing = true;
             jump.sprint_since = None;
+            if ahead.must {
+                // A sprint link's: no standing jump makes it. Back to the
+                // run-up, a try spent.
+                jump.tries += 1;
+                jump.back = true;
+                self.jump_try = Some(jump);
+                return 0;
+            }
+            jump.standing = true;
             self.jump_try = Some(jump);
         }
         let press = if sprint && jump.pressed.is_some() {
@@ -1155,6 +1286,7 @@ impl Motor {
         {
             let marginal = marginal(jump.take_off, jump.landing);
             let first = jump.tries == 1;
+            let dropped = jump.dropped;
             tally(|j| {
                 if first && marginal {
                     j.marginal_first += 1;
@@ -1163,6 +1295,12 @@ impl Motor {
                 }
                 if sprint {
                     j.sprint += 1;
+                }
+                if first && ahead.must {
+                    j.must_first += 1;
+                }
+                if first && sprint && dropped {
+                    j.look_dropped_pressed += 1;
                 }
             });
         }
@@ -1452,6 +1590,20 @@ pub struct JumpTally {
     /// on the sprint line, and sprint not held (one count each).
     pub late: u32,
     pub late_why: [u32; 2],
+    /// Sprint links ([`Route::must_sprint`]) pressed a first time, got up
+    /// by any press, found with the gate shut near them (first try),
+    /// waited out ([`SPRINT_WAIT_S`]), and given up on after
+    /// [`JUMP_TRIES`].
+    pub must_first: u32,
+    pub must_up: u32,
+    pub must_shut: u32,
+    pub must_waited_out: u32,
+    pub must_failed: u32,
+    /// Tries whose run-up had the play's look dropped (the reflex looking
+    /// at nothing: [`Motor::dropped_look`]), and those of them a first
+    /// sprint press made.
+    pub look_dropped: u32,
+    pub look_dropped_pressed: u32,
 }
 
 #[cfg(test)]
@@ -1459,7 +1611,7 @@ impl JumpTally {
     /// The bench's line.
     pub fn line(&self) -> String {
         format!(
-            "marginal first {} up {} (any try {}, failed {}); other first {} up {}; sprint {} up {} missed {} (unready {} unheld {} short {} slow {}) late {} (off the line {} unheld {}); refused carrying {} hurt {} fired {} aimed {} busy {} crouched {} run-up {} walk-aiming {}",
+            "marginal first {} up {} (any try {}, failed {}); other first {} up {}; sprint {} up {} missed {} (unready {} unheld {} short {} slow {}) late {} (off the line {} unheld {}); refused carrying {} hurt {} fired {} aimed {} busy {} crouched {} run-up {} walk-aiming {}; must first {} up {} shut {} waited out {} failed {}; look dropped {} pressed {}",
             self.marginal_first,
             self.marginal_first_up,
             self.marginal_up,
@@ -1484,6 +1636,13 @@ impl JumpTally {
             self.refused[5],
             self.refused[6],
             self.refused[7],
+            self.must_first,
+            self.must_up,
+            self.must_shut,
+            self.must_waited_out,
+            self.must_failed,
+            self.look_dropped,
+            self.look_dropped_pressed,
         )
     }
 }
@@ -1505,6 +1664,13 @@ thread_local! {
             missed_why: [0; 4],
             late: 0,
             late_why: [0; 2],
+            must_first: 0,
+            must_up: 0,
+            must_shut: 0,
+            must_waited_out: 0,
+            must_failed: 0,
+            look_dropped: 0,
+            look_dropped_pressed: 0,
         })
     };
 }

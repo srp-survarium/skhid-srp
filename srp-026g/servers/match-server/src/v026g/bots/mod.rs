@@ -58,7 +58,7 @@ pub mod view;
 
 use std::sync::Arc;
 
-use mapdata::{NodeId, Vec3, World};
+use mapdata::{Mobility, NodeId, Vec3, World};
 use survarium::v026g::loadouts::{BotRole, BotTier};
 use survarium::v026g::match_msgs::PlayerInput;
 
@@ -104,6 +104,10 @@ const STRAFE_CLEAR_M: f32 = 1.5;
 const JUMP_HOLD_MS: u32 = 300;
 /// What followed a jump is traced this long after it at most, ms.
 const JUMP_WATCH_MS: u32 = 3_000;
+/// Whether a sprint jump's run-up lets go of the play's look point when
+/// the reflex looks at nothing (`drive_tick`): a bench switch, measured by
+/// the jump tally's `look dropped` counts.
+const RUN_UP_DROPS_LOOK: bool = true;
 /// A play's use look (`Look::Use`) this near the eye wins over the
 /// reflex's aim (`decide`): the client's use reaches 2 m from the eye
 /// (`base_player::detect_usable_object`, PROVEN), and the half metre more
@@ -554,6 +558,8 @@ struct Pending {
     time: u32,
     side: Option<i32>,
     objective: bool,
+    /// What its jump makes (no sprint jump for a carrier).
+    mobility: Mobility,
     /// From and to.
     ends: (NodeId, NodeId),
     /// The spots it got stuck at, kept clear of: the first search of two
@@ -1461,7 +1467,8 @@ impl Bots {
         }
         self.searching.left -= 1;
         let floors = &mut self.searching.floors;
-        let (time, side, objective) = (pending.time, pending.side, pending.objective);
+        let (time, side, objective, mobility) =
+            (pending.time, pending.side, pending.objective, pending.mobility);
         let grid = &tactics.world.grid;
         let spots = pending.spots.take();
         let open = |node: NodeId| {
@@ -1487,7 +1494,7 @@ impl Bots {
         // None round the spots it got stuck at: through them.
         if route.is_none() && spots.is_some() {
             let (from, to) = pending.ends;
-            match tactics.start_route(from, to, time, side, objective, |_| true, floors) {
+            match tactics.start_route(from, to, time, side, objective, |_| true, mobility, floors) {
                 Ok(through) => route = through,
                 Err(planning) => {
                     pending.planning = planning;
@@ -2361,6 +2368,23 @@ fn drive_tick(
             Look::Use(p) => Some(aim_at(p)),
             _ => None,
         });
+    // [sprint] On a sprint jump's run-up ([`motor::SPRINT_LINE_UP_FROM_M`]
+    // off) with the reflex looking at nothing (no enemy in sight, no
+    // glance): the play's look point is let go, so the walk is no aimed
+    // walk, which gets no sprint jump (the gate's walking-aimed refusals,
+    // most of its refusals on the bench).
+    let run_up_unaimed = RUN_UP_DROPS_LOOK
+        && aim.is_some()
+        && over.look_at.is_none()
+        && matches!(intent.look, Look::At(_))
+        && bot.route.as_mut().is_some_and(|(route, _)| {
+            route.sprint_jump_near(me.feet, motor::SPRINT_LINE_UP_FROM_M)
+        });
+    #[cfg(test)]
+    if run_up_unaimed {
+        bot.motor.dropped_look();
+    }
+    let aim = aim.filter(|_| !run_up_unaimed);
     // The legs: the reflex's when it takes them (a push, breaking sight,
     // a re-peek, the weapon's range, in after a grenade), else the play's.
     let mut intent = intent;
@@ -2445,10 +2469,12 @@ fn drive_tick(
             bot.motor.step_to(&pose, at, aim)
         }
         Some(at) => {
-            let replan = bot
-                .route
-                .as_ref()
-                .is_none_or(|(_, planned)| planned.distance_xz(at) > REPLAN_MOVED_M);
+            // A carrier's route up a sprint link is planned again: the game
+            // gives it no sprint jump.
+            let replan = bot.route.as_ref().is_none_or(|(route, planned)| {
+                planned.distance_xz(at) > REPLAN_MOVED_M
+                    || (me.carrying.is_some() && route.needs_sprint())
+            });
             // [zones] A zone ahead on its route that is on when it gets
             // there (one that came on, or it is late): planned again.
             let shut = !replan && time >= bot.stuck.zone_checked + stuck::ZONE_CHECK_MS && {
@@ -2517,6 +2543,9 @@ fn drive_tick(
                 let grid = &tactics.world.grid;
                 let side = bot.side;
                 let objective = intent.objective;
+                let mobility = Mobility {
+                    sprint_jump: me.carrying.is_none(),
+                };
                 // Round the spots it got stuck at, if there is a way; else
                 // through them (a second search only when there are any).
                 let spots: Vec<Vec3> = bot.stuck.avoided_for(time, at).collect();
@@ -2561,7 +2590,9 @@ fn drive_tick(
                     None
                 } else if let Some((from, to)) = ends {
                     let open = |node: NodeId| !(avoiding && near_any(&spots, grid.position(node)));
-                    match tactics.start_route(from, to, time, side, objective, open, floors) {
+                    match tactics.start_route(
+                        from, to, time, side, objective, open, mobility, floors,
+                    ) {
                         Ok(None) if avoiding => {
                             match tactics.start_route(
                                 from,
@@ -2570,6 +2601,7 @@ fn drive_tick(
                                 side,
                                 objective,
                                 |_| true,
+                                mobility,
                                 floors,
                             ) {
                                 Ok(route) => route,
@@ -2596,6 +2628,7 @@ fn drive_tick(
                                 side,
                                 objective,
                                 |_| true,
+                                mobility,
                                 floors,
                             );
                             match through {
@@ -2633,6 +2666,7 @@ fn drive_tick(
                         time,
                         side,
                         objective,
+                        mobility,
                         ends,
                         spots: round.then_some(spots),
                         hazards: tactics.hazards.version(),

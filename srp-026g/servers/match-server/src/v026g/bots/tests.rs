@@ -7538,6 +7538,50 @@ mod pocket_runs {
         }
     }
 
+    /// A deck 1.15 m up (over the jump's 1.05 m links, within the sprint
+    /// jump's): its only way up is a sprint link, which a route for a body
+    /// that may sprint-jump takes and marks to be sprinted, and a carrier's
+    /// (no sprint jump: the game gives a carrier none) never does.
+    #[test]
+    fn only_a_body_that_may_sprint_jump_is_planned_up_a_sprint_link() {
+        let world = deck(1.15);
+        let grid = &world.grid;
+        let from = grid.locate(Vec3::new(25.0, 0.0, 20.0), 0.5).unwrap();
+        let to = grid.locate(Vec3::new(50.0, 1.15, 20.0), 0.5).unwrap();
+        assert!(path::plan_where_for(grid, from, to, |_| true, Mobility::STANDING).is_none());
+        let route = path::plan_where_for(grid, from, to, |_| true, Mobility::SPRINT).unwrap();
+        assert!(route.needs_sprint());
+        let jumps: Vec<usize> = (1..route.points().len())
+            .filter(|&k| route.points()[k].jump)
+            .collect();
+        assert_eq!(jumps.len(), 1, "{:?}", route.points());
+        assert!(route.must_sprint(jumps[0]) && route.sprint_jump(jumps[0]));
+        // Every carrier's plan between the yard's floors and the deck's,
+        // either way: none takes a sprint link.
+        for (a, b) in [(from, to), (to, from)] {
+            if let Some(route) = path::plan_where_for(grid, a, b, |_| true, Mobility::STANDING) {
+                assert!(!route.needs_sprint());
+            }
+        }
+    }
+
+    /// A deck 1.15 m up, its only way up a sprint link, through the whole
+    /// bot at a walking pace and running: the run-up is held sprinting and
+    /// the bot gets up, never jumping it standing (no standing jump makes it).
+    #[test]
+    fn a_sprint_link_is_sprinted_up_through_the_whole_bot() {
+        let goal = Vec3::new(50.0, 1.15, 20.0);
+        for pace in [Pace::Walk, Pace::Run] {
+            motor::take_jump_tally();
+            let (seen, sprints) =
+                drive_paced(deck(1.15), 0, Vec3::new(25.0, 0.0, 20.0), goal, 25_000, pace);
+            let jumps = motor::take_jump_tally();
+            assert!(sprints >= 1, "{pace:?}: {seen:?} {}", jumps.line());
+            assert!(seen.arrived_ms.is_some(), "{pace:?}: {seen:?} {}", jumps.line());
+            assert!(jumps.must_first >= 1 && jumps.must_up >= 1, "{}", jumps.line());
+        }
+    }
+
     /// A pit 0.9 m deep (a standing jump out): the bot in it jumps out
     /// onto its rim and walks on to its goal. Before, its searches found no
     /// way and it stood there.
@@ -7768,18 +7812,19 @@ mod pocket_runs {
         assert!(!grid.in_shut_pocket(node));
     }
 
-    /// A pit 1.2 m deep (sprint-only ways out; no bot sprints yet): one
-    /// standing try at each of its two lowest rims, then it gives up.
+    /// A pit 1.2 m deep (sprint-only ways out): its rims are sprint links
+    /// (`LinkKind::SprintJump`), and the bot's route sprints out and on to
+    /// its goal. Before the sprint links it tried one standing jump at each
+    /// of its two lowest rims, then gave up.
     #[test]
-    fn a_bot_in_a_pit_with_sprint_exits_tries_two_then_gives_up() {
+    fn a_bot_in_a_pit_with_sprint_exits_sprints_out() {
         let seen = drive(
             pit(1.2),
             Vec3::new(32.0, -1.2, 20.0),
             Vec3::new(55.0, 0.0, 32.0),
             35_000,
         );
-        assert_eq!(seen.out_ms, None, "{seen:?}");
-        assert!(seen.trapped.is_some_and(|t| t.gave_up), "{seen:?}");
+        assert!(seen.out_ms.is_some() && seen.arrived_ms.is_some(), "{seen:?}");
     }
 
     /// The fight's side step (`Tactics::clear_step_for`) does not step off

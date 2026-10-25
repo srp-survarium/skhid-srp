@@ -16,7 +16,7 @@
 use mapdata::regions::Stage;
 use mapdata::regions::{Regions, RouteSearch};
 use mapdata::grid::MARGINAL_JUMP_M;
-use mapdata::{LinkKind, NodeId, Search, Vec3, WalkGrid};
+use mapdata::{LinkKind, Mobility, NodeId, Search, Vec3, WalkGrid};
 
 /// A straight line is not tried farther than this (metres): the check
 /// walks every cell of it.
@@ -85,6 +85,9 @@ pub struct Route {
     /// The points reached by a jump that is made sprinting
     /// ([`Route::sprint_jump`]), in order.
     sprint: Vec<usize>,
+    /// Those of them that only a sprint jump makes
+    /// ([`Route::must_sprint`]), in order.
+    must: Vec<usize>,
 }
 
 /// The searches of this thread so far, for the tests' counts.
@@ -275,7 +278,19 @@ pub fn plan_where(
     to: NodeId,
     allowed: impl Fn(NodeId) -> bool,
 ) -> Option<Route> {
-    let path = grid.path_where(from, to, &allowed)?;
+    plan_where_for(grid, from, to, allowed, Mobility::STANDING)
+}
+
+/// [`plan_where`] for a body of `mobility`: one that may sprint-jump is
+/// planned over the sprint links too ([`WalkGrid::search_for`]).
+pub fn plan_where_for(
+    grid: &WalkGrid,
+    from: NodeId,
+    to: NodeId,
+    allowed: impl Fn(NodeId) -> bool,
+    mobility: Mobility,
+) -> Option<Route> {
+    let path = grid.path_where_for(from, to, &allowed, mobility)?;
     Some(pull(grid, path.nodes, allowed))
 }
 
@@ -292,7 +307,16 @@ pub fn plan_in(
     region_ok: impl Fn(u32) -> bool,
 ) -> Option<Route> {
     let mut iters = usize::MAX;
-    match plan_start(grid, regions, from, to, allowed, region_ok, &mut iters) {
+    match plan_start(
+        grid,
+        regions,
+        from,
+        to,
+        allowed,
+        region_ok,
+        Mobility::STANDING,
+        &mut iters,
+    ) {
         Ok(route) => route,
         Err(_) => unreachable!("an unbounded search ends"),
     }
@@ -308,12 +332,13 @@ pub struct Planning {
     slices: u64,
 }
 
-/// [`plan_in`] for at most `iters` floors expanded (taken off it): the
-/// route, or none, once the search ends within them; else the search,
-/// to go on with the same `allowed` and `region_ok`. A search that ends
-/// within them gives what [`plan_in`] gives.
+/// [`plan_in`] for a body of `mobility`, for at most `iters` floors
+/// expanded (taken off it): the route, or none, once the search ends
+/// within them; else the search, to go on with the same `allowed` and
+/// `region_ok`. A search that ends within them gives what [`plan_in`]
+/// gives.
 // The Err is the search under way, which the bot keeps: not an error to box.
-#[allow(clippy::result_large_err)]
+#[allow(clippy::result_large_err, clippy::too_many_arguments)]
 pub fn plan_start(
     grid: &WalkGrid,
     regions: &Regions,
@@ -321,11 +346,20 @@ pub fn plan_start(
     to: NodeId,
     allowed: impl Fn(NodeId) -> bool,
     region_ok: impl Fn(u32) -> bool,
+    mobility: Mobility,
     iters: &mut usize,
 ) -> Result<Option<Route>, Planning> {
     #[cfg(test)]
     let started = std::time::Instant::now();
-    match regions.start_route_search(grid, from, to, &allowed, &region_ok, usize::MAX) {
+    match regions.start_route_search_for(
+        grid,
+        from,
+        to,
+        &allowed,
+        &region_ok,
+        usize::MAX,
+        mobility,
+    ) {
         Err((found, _stage)) => {
             #[cfg(test)]
             count(&found, _stage, started.elapsed().as_secs_f64() * 1e6, 0, 1);
@@ -457,11 +491,12 @@ fn pull_straight(
     allowed: impl Fn(NodeId) -> bool,
     checked: &dyn Fn(),
 ) -> Route {
-    // The kind of the link into each node.
+    // The kind of the link into each node (a sprint link's only where the
+    // search took one: a standing search takes none).
     let mut into = vec![LinkKind::Walk; nodes.len()];
     for k in 1..nodes.len() {
         into[k] = grid
-            .links(nodes[k - 1])
+            .links_for(nodes[k - 1], Mobility::SPRINT)
             .find(|(next, _)| *next == nodes[k])
             .map_or(LinkKind::Walk, |(_, kind)| kind);
     }
@@ -513,12 +548,16 @@ fn pull_straight(
         start += length;
     };
     let mut sprint = Vec::new();
+    let mut must = Vec::new();
     let mut i = 0;
     while i + 1 < nodes.len() {
         // A jump or a drop is taken as it is, corner to corner.
         if into[i + 1] != LinkKind::Walk {
             i += 1;
-            if into[i] == LinkKind::Jump
+            if into[i] == LinkKind::SprintJump {
+                sprint.push(points.len());
+                must.push(points.len());
+            } else if into[i] == LinkKind::Jump
                 && sprint_room(grid, nodes[i - 1], nodes[i])
                 && run_up_on_route(&points, grid.position(nodes[i]))
             {
@@ -527,7 +566,7 @@ fn pull_straight(
             points.push(Waypoint {
                 at: grid.position(nodes[i]),
                 node: nodes[i],
-                jump: into[i] == LinkKind::Jump,
+                jump: matches!(into[i], LinkKind::Jump | LinkKind::SprintJump),
                 low: low(i - 1, i),
             });
             leg(i - 1, i, &mut floors);
@@ -556,6 +595,7 @@ fn pull_straight(
     }
     let mut route = Route::with_floors(points, floors);
     route.sprint = sprint;
+    route.must = must;
     route
 }
 
@@ -762,6 +802,7 @@ impl Route {
             floors,
             segment: 0,
             sprint: Vec::new(),
+            must: Vec::new(),
         }
     }
 
@@ -919,6 +960,27 @@ impl Route {
     /// then is the motor's and its caller's.
     pub fn sprint_jump(&self, k: usize) -> bool {
         self.sprint.binary_search(&k).is_ok()
+    }
+
+    /// Whether the jump to point `k` is a sprint link
+    /// ([`LinkKind::SprintJump`]): higher than the jump, so only the sprint
+    /// jump makes it; never jumped standing ([`Route::sprint_jump`] too).
+    pub fn must_sprint(&self, k: usize) -> bool {
+        self.must.binary_search(&k).is_ok()
+    }
+
+    /// Whether the route's next jump past feet at `feet` is made sprinting
+    /// and starts within `within` metres along it.
+    pub fn sprint_jump_near(&mut self, feet: Vec3, within: f32) -> bool {
+        let (s, _) = self.progress(feet);
+        self.next_jump(s)
+            .is_some_and(|(k, before)| before <= within && self.sprint_jump(k))
+    }
+
+    /// Whether some jump of the route only a sprint jump makes: a route a
+    /// carrier may not take.
+    pub fn needs_sprint(&self) -> bool {
+        !self.must.is_empty()
     }
 
     /// This route with the jumps to points `sprint` made sprinting (the
