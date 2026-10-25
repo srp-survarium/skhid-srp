@@ -15,6 +15,7 @@
 #[cfg(test)]
 use mapdata::regions::Stage;
 use mapdata::regions::{Regions, RouteSearch};
+use mapdata::grid::MARGINAL_JUMP_M;
 use mapdata::{LinkKind, NodeId, Search, Vec3, WalkGrid};
 
 /// A straight line is not tried farther than this (metres): the check
@@ -37,6 +38,15 @@ pub const OFF_ROUTE_HEIGHT_M: f32 = 1.5;
 /// about 2.6 m on; the bench's falls off the route went up 0.73 +- 0.16 a
 /// match when a planned drop was called off the route in the air.
 pub const FALL_BACK_M: f32 = 3.0;
+
+/// A marginal jump (higher than [`MARGINAL_JUMP_M`]: the standing jump's
+/// 0.998 m top fails it half the time) is made as a sprint jump only onto
+/// a landing with this much floor walked on past it along the jump's way,
+/// metres ([`Route::sprint_jump`]). GUESS: the sprint jump's clip carries
+/// the body 4.42 m from where it starts (PROVEN, the sprint-jump RE
+/// `FINDINGS.md` §5), so a landing on a narrow top is flown past; the
+/// 3 m is the grid plan's, to be measured from the client's traces.
+pub const SPRINT_LANDING_ROOM_M: f32 = 3.0;
 
 /// A body under its route's floor is taken to have fallen off it there
 /// ([`Route::fell_from`]) within this far of it across, metres. GUESS: a
@@ -72,6 +82,9 @@ pub struct Route {
     floors: Vec<(f32, f32)>,
     /// The segment the body was last found on.
     segment: usize,
+    /// The points reached by a jump that is made sprinting
+    /// ([`Route::sprint_jump`]), in order.
+    sprint: Vec<usize>,
 }
 
 /// The searches of this thread so far, for the tests' counts.
@@ -499,11 +512,15 @@ fn pull_straight(
         }
         start += length;
     };
+    let mut sprint = Vec::new();
     let mut i = 0;
     while i + 1 < nodes.len() {
         // A jump or a drop is taken as it is, corner to corner.
         if into[i + 1] != LinkKind::Walk {
             i += 1;
+            if into[i] == LinkKind::Jump && sprint_room(grid, nodes[i - 1], nodes[i]) {
+                sprint.push(points.len());
+            }
             points.push(Waypoint {
                 at: grid.position(nodes[i]),
                 node: nodes[i],
@@ -534,7 +551,47 @@ fn pull_straight(
         });
         leg(from, i, &mut floors);
     }
-    Route::with_floors(points, floors)
+    let mut route = Route::with_floors(points, floors);
+    route.sprint = sprint;
+    route
+}
+
+/// Whether the jump from `take_off` up to `landing` is made sprinting
+/// ([`Route::sprint_jump`]): higher than [`MARGINAL_JUMP_M`], and floor
+/// walked on from the landing along the jump's way for
+/// [`SPRINT_LANDING_ROOM_M`] (each walk within 26° of it, no drop: the
+/// sprint jump carries on past the landing).
+fn sprint_room(grid: &WalkGrid, take_off: NodeId, landing: NodeId) -> bool {
+    let (a, b) = (grid.position(take_off), grid.position(landing));
+    let across = a.distance_xz(b);
+    if b.y - a.y <= MARGINAL_JUMP_M || across < 1e-3 {
+        return false;
+    }
+    let way = ((b.x - a.x) / across, (b.z - a.z) / across);
+    let mut at = landing;
+    for _ in 0..64 {
+        let p = grid.position(at);
+        let gone = (p.x - b.x) * way.0 + (p.z - b.z) * way.1;
+        if gone >= SPRINT_LANDING_ROOM_M {
+            return true;
+        }
+        let next = grid
+            .links(at)
+            .filter(|&(_, kind)| kind == LinkKind::Walk)
+            .map(|(n, _)| (n, grid.position(n)))
+            .filter_map(|(n, q)| {
+                let (dx, dz) = (q.x - p.x, q.z - p.z);
+                let d = dx.hypot(dz);
+                let cos = (dx * way.0 + dz * way.1) / d.max(1e-6);
+                (cos >= 0.9).then_some((n, cos))
+            })
+            .max_by(|x, y| x.1.total_cmp(&y.1));
+        match next {
+            Some((n, _)) => at = n,
+            None => return false,
+        }
+    }
+    false
 }
 
 /// Whether a body walks from `a` to `b` in a straight line: every half
@@ -657,6 +714,7 @@ impl Route {
             along,
             floors,
             segment: 0,
+            sprint: Vec::new(),
         }
     }
 
@@ -805,6 +863,14 @@ impl Route {
     /// The segment the body was last found on ([`Route::progress`]).
     pub fn segment(&self) -> usize {
         self.segment
+    }
+
+    /// Whether the jump to point `k` is made as a sprint jump: a marginal
+    /// jump ([`MARGINAL_JUMP_M`]) with [`SPRINT_LANDING_ROOM_M`] of floor
+    /// past its landing ([`plan`] marks them). Whether the bot may sprint
+    /// then is the motor's and its caller's.
+    pub fn sprint_jump(&self, k: usize) -> bool {
+        self.sprint.binary_search(&k).is_ok()
     }
 
     /// The next waypoint after `s` that is reached by a jump: its index and

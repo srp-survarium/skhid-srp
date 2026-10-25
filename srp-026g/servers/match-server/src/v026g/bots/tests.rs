@@ -5246,6 +5246,7 @@ fn real_bot_cost() {
                 "  jumps: pressed {} refused {}",
                 game.jumps_pressed, game.jumps_refused
             );
+            eprintln!("  route jumps: {}", super::motor::take_jump_tally().line());
             eprintln!("  push: {}", push.line(&bots));
             if let Some(human) = &human {
                 eprintln!("  human: {}", human.line());

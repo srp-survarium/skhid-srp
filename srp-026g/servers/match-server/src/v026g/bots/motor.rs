@@ -364,6 +364,9 @@ struct JumpTry {
     tries: u32,
     pressed: Option<u32>,
     back: bool,
+    /// [measure] Counted up, or given up on, in the jump tally.
+    #[cfg(test)]
+    tallied: bool,
 }
 
 /// A press of a route jump, for the trace: the jump's take-off and landing,
@@ -736,6 +739,26 @@ impl Motor {
         let way = unit(landing.x - take_off.x, landing.z - take_off.z)?;
         let feet = pose.feet;
         if is_up(feet, take_off, landing) {
+            #[cfg(test)]
+            if let Some(t) = self.jump_try.as_mut()
+                && (t.take_off - take_off).length() < 0.3
+                && (t.landing - landing).length() < 0.3
+                && t.tries > 0
+                && !t.tallied
+            {
+                t.tallied = true;
+                let (tries, marginal) = (t.tries, marginal(take_off, landing));
+                tally(|j| {
+                    if tries == 1 && marginal {
+                        j.marginal_first_up += 1;
+                    } else if tries == 1 {
+                        j.other_first_up += 1;
+                    }
+                    if marginal {
+                        j.marginal_up += 1;
+                    }
+                });
+            }
             return None;
         }
         // The tries at this jump, kept over a route planned again to it.
@@ -752,11 +775,20 @@ impl Motor {
                 tries: 0,
                 pressed: None,
                 back: false,
+                #[cfg(test)]
+                tallied: false,
             },
         };
         let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < CARRY_S);
         self.lining_up = true;
         if jump.tries >= JUMP_TRIES && !in_the_air {
+            #[cfg(test)]
+            if !jump.tallied {
+                jump.tallied = true;
+                if marginal(take_off, landing) {
+                    tally(|j| j.marginal_failed += 1);
+                }
+            }
             self.jump_try = Some(jump);
             return Some(Ahead {
                 aim: take_off,
@@ -852,6 +884,17 @@ impl Motor {
         jump.tries += 1;
         jump.pressed = Some(self.clock);
         jump.back = true;
+        #[cfg(test)]
+        if jump.tries == 1 {
+            let marginal = marginal(jump.take_off, jump.landing);
+            tally(|j| {
+                if marginal {
+                    j.marginal_first += 1;
+                } else {
+                    j.other_first += 1;
+                }
+            });
+        }
         self.jump_try = Some(jump);
         self.pressed = Some(RoutePress {
             take_off: jump.take_off,
@@ -1096,6 +1139,76 @@ impl Motor {
         self.look = None;
         Decision::default()
     }
+}
+
+/// Whether a jump from `take_off` to `landing` is marginal: higher than
+/// [`mapdata::grid::MARGINAL_JUMP_M`], the standing jump's top (0.998 m)
+/// half fails it.
+#[cfg(test)]
+fn marginal(take_off: Vec3, landing: Vec3) -> bool {
+    landing.y - take_off.y > mapdata::grid::MARGINAL_JUMP_M
+}
+
+/// [measure] The route jumps of this thread, for the bench
+/// ([`take_jump_tally`]).
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct JumpTally {
+    /// Marginal jumps ([`marginal`]) pressed a first time, and got up by
+    /// that press …
+    pub marginal_first: u32,
+    pub marginal_first_up: u32,
+    /// … got up by any press, and given up on ([`JUMP_TRIES`]).
+    pub marginal_up: u32,
+    pub marginal_failed: u32,
+    /// The other jumps pressed a first time, and got up by that press.
+    pub other_first: u32,
+    pub other_first_up: u32,
+}
+
+#[cfg(test)]
+impl JumpTally {
+    /// The bench's line.
+    pub fn line(&self) -> String {
+        format!(
+            "marginal first {} up {} (any try {}, failed {}); other first {} up {}",
+            self.marginal_first,
+            self.marginal_first_up,
+            self.marginal_up,
+            self.marginal_failed,
+            self.other_first,
+            self.other_first_up,
+        )
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static JUMPS: std::cell::Cell<JumpTally> = const {
+        std::cell::Cell::new(JumpTally {
+            marginal_first: 0,
+            marginal_first_up: 0,
+            marginal_up: 0,
+            marginal_failed: 0,
+            other_first: 0,
+            other_first_up: 0,
+        })
+    };
+}
+
+#[cfg(test)]
+fn tally(f: impl FnOnce(&mut JumpTally)) {
+    JUMPS.with(|cell| {
+        let mut tally = cell.get();
+        f(&mut tally);
+        cell.set(tally);
+    });
+}
+
+/// [measure] This thread's jump tally so far, and a new one begun.
+#[cfg(test)]
+pub fn take_jump_tally() -> JumpTally {
+    JUMPS.with(|cell| cell.take())
 }
 
 /// Whether feet are up a jump from `take_off` to `landing`: within
