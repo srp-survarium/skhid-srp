@@ -1540,7 +1540,8 @@ def late_join_sites():
         [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
         [(va, len(old)) for va, old, _, _ in P.KILL_FEED_HOOKS] + \
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
-        [(va, len(old)) for va, old, _ in P.FALL_GRAVITY]
+        [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
+        [(va, len(old)) for va, old, _, _ in P.SYNC_CORE_HOOKS]
 
 
 def pickup_sites():
@@ -4517,6 +4518,75 @@ def test_fall_gravity(original, image, before):
     check(not hits, "no branch aims inside the sites" + "".join(f", {h:#x}" for h in hits))
 
 
+def test_sync_core(original, image, before):
+    """Check 74: the sync core's rollback pacing (patch 74, SYNC_CORE_HOOKS;
+    ../docs/notes/sync_core.md section 9). check_sync_core_026g.py runs the
+    game's move with the hook and without on scripted timelines and compares
+    every event-horizon item; sync-core's own tests (cargo test -p
+    sync-core) the rule."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    check(rows(stock, 0x1F7C17, 0x25) == ["mov eax,[ebx+0x4d4c]", "cmp dword [eax+0x31b4],byte +0x0",
+                                          "jz 0x1f7c3c", "cmp dword [eax+0x191b4],byte -0x1", "jz 0x1f7c3c",
+                                          "add eax,0x1f8", "push eax", "mov eax,esi", "call 0x2d2e40"]
+          and popped(stock, 0x2D2E40, 0x2D36AD) == 4
+          and stock.read(0x2D2E47, 3) == bytes.fromhex("8b5d08") and stock.read(0x2D2E53, 2) == bytes.fromhex("8bf8"),
+          "game_world::tick (0x1F77E0) moves the world core (the match core +1F8h) to the clock: `push eax / "
+          "mov eax,esi / call 0x2D2E40`; move takes the core at [esp+4], the time in eax, and pops 4")
+    check(stock.read(0x2D2E62, 0x35) == bytes.fromhex("39bbc08f0100750c39bbc88f01000f832b0800008bf3e893ffffff8b83c88f"
+                                                      "01003983c08f01000f86d80400003bc70f83d0040000")
+          and stock.read(0x2D225A, 10) == bytes.fromhex("c783c88f0100ffffffff")
+          and stock.read(0x2D1E84, 12) == bytes.fromhex("89b9c08f01008981c48f0100"),
+          "move's test of a rollback (the world's time +18FC0h against the rollback point +18FC8h, 0x2D2E62); "
+          "tick_events clears the point (0x2D225A), atomic_tick writes the time and the newest (0x2D1E84)")
+    linked = P.arena()
+    block = linked.blocks["sync_core.code"]
+    for va, old, symbol, opcode in P.SYNC_CORE_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and target == block.va,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, `call {target:#x}` "
+              f"({symbol}, the start of sync_core.code) here")
+    hits = [h for s, o, _, _ in P.SYNC_CORE_HOOKS for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(s - 4 < v < s + len(o) for s, o, _, _ in P.SYNC_CORE_HOOKS)]
+    check(not hits and not under, "no branch aims inside the site and no base relocation is under it")
+    code = P.linker.block_bytes(linked, "sync_core.code")
+    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's sync_core.code "
+          f"({len(code)} bytes: the entry and the Rust crate)")
+    texts = [text for _, _, text in ndisasm(code, block.va)]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    state = linked.blocks["sync_core.state"]
+    check(outside == [linked.symbols["engine_world_core_move"]]
+          and texts[:5] == ["push eax", "push dword [esp+0x8]", f"call {linked.symbols['sync_render_move']:#x}",
+                            "add esp,byte +0x8", "ret 0x4"]
+          and state.size <= 0x10,
+          "sc_render_move passes the time and the core to sync_render_move and pops 4; the code goes outside "
+          "only to the library's engine_world_core_move (the game's move), and keeps its pacing in "
+          f"sync_core.state ({state.size} bytes)")
+    # every store: to the core's rollback point, to its own state, or to its frame (a register last set by
+    # `lea r,[esp+..]`)
+    stores, framed = [], set()
+    for t in texts:
+        lea = re.match(r"lea (e[a-d]x|e[sd]i|ebp),\[esp", t)
+        written = re.match(r"(?:mov|xor|lea|pop|add|sub|imul|movzx|and|or|inc|dec|shr|shl) (e[a-d]x|e[sd]i|ebp)\b", t)
+        if re.match(r"mov (?:byte |word |dword )?\[", t) and "esp" not in t:
+            base = re.match(r"mov (?:byte |word |dword )?\[(e[a-d]x|e[sd]i|ebp)\]", t)
+            if not (base and base.group(1) in framed):
+                stores.append(t)
+        if lea:
+            framed.add(lea.group(1))
+        elif written:
+            framed.discard(written.group(1))
+    ours = lambda t: any(state.va <= int(h, 16) < state.va + state.size for h in re.findall(r"0x[0-9a-f]+", t))
+    check(stores and all("+0x18fc8]" in t or ours(t) for t in stores),
+          "it writes nothing of the game's but the rollback point (+18FC8h), and its own state" +
+          "".join(f"; {t}" for t in stores))
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -6111,6 +6181,7 @@ def test_late_join(original, without, server, source):
     test_hide_ui(original, image, before)
     test_kill_feed(original, image, before)
     test_fall_gravity(original, image, before)
+    test_sync_core(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

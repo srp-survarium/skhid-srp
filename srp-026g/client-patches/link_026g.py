@@ -105,6 +105,12 @@ def toolchain(**override):
             raise LinkError(f"the arena (`.srpx`) is built from its sources: {what[key]} is needed, and "
                             f"{tool!r} is not there ({key.upper()} names another; `nix develop ./srp-026g` "
                             "has gcc, GNU ld and NASM 2.16)")
+    # A Rust crate's source needs cargo and rustc (nightly: -Zbuild-std); found
+    # when there, asked for by compile_source when a block names a crate.
+    for key in ("cargo", "rustc"):
+        tool = override.get(key, os.environ.get(key.upper(), key))
+        if shutil.which(tool):
+            tools[key] = tool
     version = first_line([tools["nasm"], "-v"])
     if not re.match(rf"NASM version {re.escape(NASM_VERSION)}\b", version):
         raise LinkError(f"{tools['nasm']}: {version!r}; the arena needs NASM {NASM_VERSION} (NASM 3 assembles "
@@ -119,9 +125,12 @@ def first_line(command):
         return "unknown"
 
 
-def versions(tools):
-    return {"cc": first_line([tools["cc"], "--version"]), "ld": first_line([tools["ld"], "--version"]),
-            "nasm": first_line([tools["nasm"], "-v"])}
+def versions(tools, rust=False):
+    out = {"cc": first_line([tools["cc"], "--version"]), "ld": first_line([tools["ld"], "--version"]),
+           "nasm": first_line([tools["nasm"], "-v"])}
+    if rust:
+        out["rustc"] = first_line([tools["rustc"], "--version"])
+    return out
 
 
 def run(command, what, cwd=None):
@@ -206,8 +215,8 @@ def check_blocks(blocks):
             raise LinkError(f"block {name}: a kind of {', '.join(KINDS)} and an alignment a power of two from "
                             "16 to 0x1000")
         if not sources or len(set(sources)) != len(sources) \
-                or any(not str(s).endswith((".c", ".asm")) for s in sources):
-            raise LinkError(f"block {name}: its sources, each once, .c or .asm files")
+                or any(not (str(s).endswith((".c", ".asm")) or Path(s).name == "Cargo.toml") for s in sources):
+            raise LinkError(f"block {name}: its sources, each once, .c or .asm files or a Rust crate's Cargo.toml")
     for kind in KINDS:
         seen = [s for b in blocks if b.kind == kind for s in b.sources]
         twice = sorted({s for s in seen if seen.count(s) > 1})
@@ -231,17 +240,109 @@ def script_text(blocks, objects, va, limit):
 _objects = {}
 
 
+def crate_files(manifest):
+    """Every file a Rust crate's build reads: its manifest and sources, and
+    those of the crates it names by path, in a fixed order."""
+    out, todo, seen = [], [manifest.resolve()], set()
+    while todo:
+        cargo = todo.pop()
+        if cargo in seen:
+            continue
+        seen.add(cargo)
+        out.append(cargo)
+        out += sorted(p for p in (cargo.parent / "src").rglob("*.rs"))
+        for dep in re.findall(r'path\s*=\s*"([^"]+)"', cargo.read_text()):
+            target = (cargo.parent / dep).resolve()
+            if (target / "Cargo.toml").is_file():
+                todo.append(target / "Cargo.toml")
+    for included in re.findall(r'include!\("([^"]+)"\)', "".join(
+            p.read_text() for p in out if p.suffix == ".rs")):
+        for p in out:
+            candidate = (p.parent / included).resolve()
+            if p.suffix == ".rs" and candidate.is_file() and candidate not in out:
+                out.append(candidate)
+    return out
+
+
+def source_digest(path):
+    """The SHA-256 of a source as the build reads it (a crate: all its files)."""
+    if path.name == "Cargo.toml":
+        digest = hashlib.sha256()
+        for p in crate_files(path):
+            digest.update(str(p.relative_to(HERE.parent)).encode() + b"\0" + p.read_bytes())
+        return digest.hexdigest()
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+# What cargo gets for a Rust crate (`Cargo.toml` source): the game's i686,
+# no position-independent code, core built here with the same flags, the
+# paths in the bytes made relative (the lock does not depend on the folder).
+RUST_TARGET = "i686-unknown-linux-gnu"
+RUSTFLAGS = ["-C", "relocation-model=static", "-C", "target-cpu=pentium4", "-C", "debuginfo=0",
+             "-C", "force-frame-pointers=no"]
+RUST_ARCHIVE_SKIP = ("compiler_builtins-",)
+
+
+def ar_members(data, what):
+    """[(name, bytes)] of a System V `ar` archive."""
+    if data[:8] != b"!<arch>\n":
+        raise LinkError(f"{what}: not an ar archive")
+    out, at, names = [], 8, b""
+    while at + 60 <= len(data):
+        header = data[at:at + 60]
+        name, size = header[:16].decode().strip(), int(header[48:58].decode().strip())
+        body = data[at + 60:at + 60 + size]
+        if name == "//":
+            names = body
+        elif name.startswith("/") and name[1:].isdigit():
+            start = int(name[1:])
+            out.append((names[start:names.index(b"/\n", start)].decode(), body))
+        elif name not in ("/", "/SYM64/"):
+            out.append((name.rstrip("/"), body))
+        at += 60 + size + (size & 1)
+    return out
+
+
+def build_crate(manifest, tools, out):
+    """The crate's own object of the staticlib `manifest` builds (its
+    compiler_builtins member is left out: a symbol the crate needs from it
+    is an undefined symbol, which the link refuses)."""
+    target_dir = HERE.parent / "target-arena"
+    sysroot = first_line([tools["rustc"], "--print", "sysroot"])
+    flags = RUSTFLAGS + [f"--remap-path-prefix={HERE.parent}=srp-026g", f"--remap-path-prefix={sysroot}=rustc"]
+    env = {**os.environ, "CARGO_TARGET_DIR": str(target_dir), "CARGO_ENCODED_RUSTFLAGS": "\x1f".join(flags),
+           "RUSTC": tools["rustc"]}
+    env.pop("RUSTFLAGS", None)
+    done = subprocess.run([tools["cargo"], "build", "--release", "--quiet", "--manifest-path", str(manifest),
+                           "--target", RUST_TARGET, "-Zbuild-std=core,compiler_builtins",
+                           "-Zbuild-std-features=compiler-builtins-mem"],
+                          capture_output=True, text=True, env=env)
+    if done.returncode:
+        raise LinkError(f"cargo {manifest.parent.name} failed:\n{(done.stdout + done.stderr).strip()}")
+    name = re.search(r'^name\s*=\s*"([^"]+)"', manifest.read_text(), re.M).group(1).replace("-", "_")
+    archive = target_dir / RUST_TARGET / "release" / f"lib{name}.a"
+    own = [body for member, body in ar_members(archive.read_bytes(), archive.name)
+           if member.endswith(".o") and not member.startswith(RUST_ARCHIVE_SKIP)]
+    if len(own) != 1:
+        raise LinkError(f"{archive.name}: {len(own)} objects of the crate's own; one is needed (fat LTO, one "
+                        "codegen unit)")
+    out.write_bytes(own[0])
+
+
 def compile_source(source, tools, folder, name):
     """The object of `source` in `folder` (the same source and tools: built
     once per process)."""
     path = Path(source) if os.path.isabs(source) else HERE / source
     if not path.is_file():
         raise LinkError(f"{source}: no such source")
-    text = path.read_bytes()
-    key = (str(path), hashlib.sha256(text).hexdigest(), tuple(sorted(tools.items())))
+    key = (str(path), source_digest(path), tuple(sorted(tools.items())))
     if key not in _objects:
         out = Path(folder) / ("obj-" + name)
-        if path.suffix == ".asm":
+        if path.name == "Cargo.toml":
+            if "cargo" not in tools:
+                raise LinkError(f"{source}: a Rust crate, and no cargo (`nix develop ./srp-026g` has it)")
+            build_crate(path, tools, out)
+        elif path.suffix == ".asm":
             run([tools["nasm"], "-f", "elf32", "-I", str(path.parent) + os.sep, str(path), "-o", str(out)],
                 f"nasm {source}")
         else:
@@ -264,7 +365,7 @@ def link(blocks, va, limit, tools=None):
     tools = toolchain() if tools is None else tools
     sources = list(dict.fromkeys(s for b in blocks for s in b.sources))
     key = (blocks, va, limit, tuple(sorted(tools.items())),
-           tuple(hashlib.sha256((Path(s) if os.path.isabs(s) else HERE / s).read_bytes()).hexdigest()
+           tuple(source_digest(Path(s) if os.path.isabs(s) else HERE / s)
                  if (Path(s) if os.path.isabs(s) else HERE / s).is_file() else None for s in sources))
     if key in _links:
         return _links[key]
@@ -280,7 +381,7 @@ def link(blocks, va, limit, tools=None):
         run([tools["ld"], "-m", "elf_i386", "-T", "arena.ld", "-e", "0", "--orphan-handling=discard",
              "-z", "noexecstack", "--no-warn-rwx-segments", "-o", "arena.elf", *objects.values()], "ld", cwd=folder)
         out = elf((Path(folder) / "arena.elf").read_bytes(), "the linked arena")
-    linked = layout(blocks, out, va, limit, versions(tools))
+    linked = layout(blocks, out, va, limit, versions(tools, any(Path(s).name == "Cargo.toml" for s in sources)))
     _links[key] = linked
     return linked
 

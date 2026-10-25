@@ -4497,3 +4497,25 @@ va	name	location	role	basis
 0x0025a730	survarium::particle_game_effect_emitter_cook::on_particle_system_loaded	stack+8	the effect's config: key_frames, view (an int, 1 when absent; the emitter +13Ch), time_to_finish, time_mode, length	observed
 0x00313640		ECX	the calculator: +8h the artefact	observed
 0x00313640		entry ESP+4	out: +0 0, +4 0.0f, +8 byte finished	observed
+0x002d2e40	survarium::game_world_core::move	EAX	the target time, ms: game_world::tick passes the game clock (0x1F7C35, the render move), on_idle the event horizon on the grid (0x27D08A), 0x1F76B0 a grid point of the interpolated camera	observed
+0x002d2e40	survarium::game_world_core::move	entry ESP+4	the world core (EBX in the body; the match core +1F8h at every caller)	observed
+0x002d1100	survarium::game_world_core::insert_impl	EAX	the time, ms; refused (log line 257h, AL 0) when the ring has no item older than it	observed
+0x002d1100	survarium::game_world_core::insert_impl	entry ESP+4	the world core; its rollback point (+18FC8h) lowered to the grid point strictly before the time (0x2D1328)	observed
+0x002d1100	survarium::game_world_core::insert_impl	entry ESP+8	the place (a byte)	observed
+0x002d1100	survarium::game_world_core::insert_impl	entry ESP+12	the kind: the bit in the place's mask (0 entered, 1 left, as process_events 0x2D2180 reads them; 2 and 3 the input kinds) and the index of +194h/+1A4h	observed
+0x002d1100	survarium::game_world_core::insert_impl	entry ESP+16	the player is aware of it (a byte)	observed
+0x002d1100	survarium::game_world_core::insert_impl	entry ESP+20	the server is aware of it (a byte)	observed
+0x002d1340	survarium::game_world_core::erase_impl	EAX	the time, ms	observed
+0x002d1340	survarium::game_world_core::erase_impl	ECX	the kind (as insert_impl's)	observed
+0x002d1340	survarium::game_world_core::erase_impl	entry ESP+4	the world core	observed
+0x002d1340	survarium::game_world_core::erase_impl	entry ESP+8	the place (a byte)	observed
+0x002d1340	survarium::game_world_core::erase_impl	entry ESP+12	a byte: the server-aware mask (+194h) cleared too	observed
+0x002d3c20		EAX	the state history ring (the world core +2FB8h)	observed
+0x002d3c20		ECX	the time, ms	observed
+0x0027e870		EAX	the world core	observed
+0x0027e870		ECX	the time, ms	observed
+0x002d3700		EDX	the world core	observed
+0x002d3700		entry ESP+4	the time, ms (the item just loaded)	observed
+0x002d3f90		EAX	the state history ring (the world core +2FB8h)	observed
+0x002d4c30		ECX	the state history ring (the world core +2FB8h)	observed
+0x002d21e0	survarium::game_world_core::tick_events	world +18FC8h	the rollback point set to -1 at every step that starts from the ring's newest item (0x2D225A, inside the loop: the loop goes back to 0x2D224E); a rollback ends there	observed

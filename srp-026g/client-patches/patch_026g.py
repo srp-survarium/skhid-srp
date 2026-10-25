@@ -484,6 +484,17 @@ Patches:
   min(player_step's dt, 0.05), not x 0.05 at every step, so a tick the
   world steps in parts (each precise input) adds one tick of speed in all;
   whole ticks bit for bit as before. A simulation change;
+- rollbacks are paced (patch 74, with the late join; the sync core,
+  docs/notes/sync_core.md): game_world::tick's call of
+  game_world_core::move (0x1F7C37, SYNC_CORE_HOOKS) goes to sc_render_move
+  (sync_core_026g.asm, the arena's block sync_core.code) and the Rust
+  crate sync_core_arena (sync_core::pacing): a rollback a late input makes
+  due is postponed while the last rollback of a render move was less than
+  50 ms of game time ago and the rollback point is less than 300 ms
+  behind the target (the world steps on from its newest item, the point
+  kept); every grid item is still stepped from a grid item through every
+  input, and every one is right before it is the event-horizon item that
+  0xDF hashes and 0xF6 uploads. Nothing a match computes changes;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2067,6 +2078,19 @@ KILL_FEED_HOOKS = (
 )
 KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb75704"))
 
+# The sync core's rollback pacing (patch 74, README; client_patch.md section
+# 3.59; ../docs/notes/sync_core.md sections 7 (a) and 9): game_world::tick
+# 0x1F77E0 moves the world to the game clock, `push eax / mov eax,esi /
+# call 0x2D2E40` at 0x1F7C34; the call (CALLEE) goes to sc_render_move
+# (sync_core_026g.asm, block sync_core.code), which takes move's shape (EAX
+# the time, the core on the stack, `ret 4`) and calls the Rust crate
+# sync_core_arena's sync_render_move: sync_core::pacing decides, the game's
+# move (engine_world_core_move) moves. Not move's entry: patch 71 counts
+# there.
+SYNC_CORE_HOOKS = (
+    (0x1F7C37, bytes.fromhex("e804b20d00"), "sc_render_move", 0xE8),   # game_world::tick's render move
+)
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after `.srpc`, which is one page."""
@@ -2231,6 +2255,9 @@ INSTALLS = {
                        "victim, ebp the bullet): event, which writes the cause icon, the flags and edx", None, None),
     0x23814F: (INLINE, "on_player_killed's `mov edx,[esp+30h] / mov ecx,[esp+2Ch]` before mastery_icon: row, "
                        "which sets penetration_icon, ricochet_icon and pain_icon and does the two moves", None, None),
+    # the sync core's rollback pacing, patch 74 (in `.srpx`)
+    0x1F7C37: (CALLEE, "game_world::tick's `call game_world_core::move` (EAX the clock, the core pushed, "
+                       "`ret 4`): sc_render_move, which paces its rollbacks and calls the game's move", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2424,6 +2451,9 @@ ARENA = (
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
     ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
+    # the sync core, patch 74: the hook's entry (NASM) and the Rust crate
+    ArenaBlock("sync_core.code", "code", 0x1000, ("sync_core_026g.asm", "sync_core_arena/Cargo.toml")),
+    ArenaBlock("sync_core.state", "state", 0x1000, ("sync_core_arena/Cargo.toml",)),   # the pacing's state
 )
 
 
@@ -3369,7 +3399,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS:
+                        + KILL_FEED_HOOKS + SYNC_CORE_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3422,6 +3452,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
                      "a fall gains speed for the time it fell, not for the steps of a split tick, "
+                     "a render move's rollback waits for 50 ms of game time after the last (300 ms at most), "
                      "a model's LOD and screen factor at a wider field of view are the original's, "
                      "a drag turns the camera on the death screen and the wheel does nothing there, "
                      "a weapon wears the camouflage its item holds, "

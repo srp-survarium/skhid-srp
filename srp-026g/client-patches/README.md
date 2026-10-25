@@ -105,12 +105,13 @@ release's. The "Result" row is the build of the revision named in it.
 | `research_026g.asm`, `research_rule_026g.c`, `research_rule_026g.h`, `research_native_026g.c` | The source of patch 53 (Research, mode 5): the three hooks and their stubs in assembly, the rule's logic in C on integers (no pointer into the game), and its side in the game (the cook, the rule's twenty slots, the hud) in C |
 | `link_026g.py`, `arena_026g.lock.json` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build; `--write` writes the lock (the linked arena's SHA-256, its blocks and symbols), `--check` compares. Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
-| `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, and the thunks, the arena's block `engine.code` |
+| `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
+| `sync_core_026g.asm`, `sync_core_arena/`, `../crates/sync-core/`, `check_sync_core_026g.py` | Patch 74: rollback pacing, the sync core's first stage (`../docs/notes/sync_core.md`): game_world::tick's call of move (0x1F7C37) goes to `sc_render_move` (NASM, block `sync_core.code`) and the Rust crate `sync_core_arena` (`no_std`, built for i686 by `link_026g.py`), whose rule is `sync-core`'s `pacing` (shared with the server, `cargo test -p sync-core`); its check runs the game's own move, tick_events, insert_impl, erase_impl and history ring on a model world through nine scripted timelines, the stock call against the hook, and compares every event-horizon item and the ring (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -161,13 +162,27 @@ self-test's, the release's: `release/build-zip` builds in the dev shell)
 links from source and stops if the bytes are not the lock's. After changing
 an arena source: `python link_026g.py --write` and commit the lock with it.
 
+**A Rust crate as a source** (since patch 74; `../docs/notes/sync_core.md`
+section 6): a block may name a crate's `Cargo.toml`. The link builds it with
+the dev shell's nightly cargo for `i686-unknown-linux-gnu`,
+`-Zbuild-std=core,compiler_builtins`, `-C relocation-model=static -C
+target-cpu=pentium4`, the crate's own `panic = "abort"`, `lto = "fat"`,
+`codegen-units = 1` (into `srp-026g/target-arena/`, paths remapped), takes
+the crate's one object out of the staticlib (its `compiler_builtins` member
+is left out: a symbol the crate would need from it is an undefined symbol,
+which the link refuses) and checks it as any other object. The crate is
+`#![no_std]` with a panic handler of its own (`ud2`), calls the game through
+the engine library's `engine_026g.rs`, and its build's files (the crate,
+the crates it names by path, what it `include!`s) are the source's digest.
+The rustc version is in the lock's `built_with`.
+
 **Adding a block:** one `ARENA` row and its source file; `global` the labels
 a hook jumps to, `extern` what it uses of other patches; its hooks as
 (site, bytes, symbol, opcode) rows made in `build()`; each declared in
 `INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
 asm, its C, and its state `rn_state`), the artefacts (patch 54), the
 engine library, the kit keys with the match chat option (patch 58), the
-key that hides the interface (patch 62) and the kill feed's flags (patch 67) are the arena's blocks today. The older fixed sections stay as they are
+key that hides the interface (patch 62), the kill feed's flags (patch 67) and the sync core (patch 74: NASM and a Rust crate) are the arena's blocks today. The older fixed sections stay as they are
 (client_patch.md 0.3 says what moving one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
@@ -3403,6 +3418,70 @@ the parts in another order, no head pool) with the game's own part lookup: the n
 original's but +5; the handler's five arguments; the row's members (penetration_icon,
 ricochet_icon, pain_icon, then mastery_icon) against the original's mastery_icon alone, with the
 registers and the frame as the original's. **Tested in game by the owner, 2026-10-25** ("works nicely"); the explicit melee test (the event's melee flag) came after that test and is checked with Unicorn only.
+
+### 74. Rollbacks are paced: one a render frame no more, at most one per 50 ms of game time (the next release's revision)
+
+The owner (2026-10-25): "Can we start a worker to completely rewrite
+synchronization internals in C with our calling library?", then "if it makes
+sense, ... in Rust with proper enums, no_std". This is the first stage of
+that rewrite, the sync core (`../docs/notes/sync_core.md`: the map, the
+state machines, the stages; section 9 this patch; client_patch.md 3.59).
+
+**What it changes.** A late input or roster change puts the world core's
+rollback point (+18FC8h) before the world's time; the game's move then
+loads the history item at that point and steps again to the clock, at the
+very next frame. In a fight the inputs of the others come 100-300 ms late
+all the time, so nearly every frame re-simulates 4-5 ticks (patch 71's
+"resimulated"). Now game_world::tick's call of move (0x1F7C37, `call
+0x2D2E40`, CALLEE) goes to `sc_render_move` (`sync_core_026g.asm`, the
+arena's block `sync_core.code`), which calls the Rust crate
+`sync_core_arena`'s `sync_render_move`: the rule is `sync-core`'s
+`pacing::render_move`:
+- a rollback that is due loads the item a render move loads anyway (the grid
+  point at or before the world's time): stock (it costs nothing more);
+- a deeper one, for a target past the world's time, within 50 ms of game time
+  of the last one, with the rollback point less than 300 ms behind the
+  target: **postponed**: the game's move runs with the point hidden (the
+  world steps on from its newest item, as with no late input), then the point
+  is put back (the least of it and what the move left);
+- everything else is the game's move as it is (the first rollback, one 50 ms
+  after the last, one 300 ms behind, a frozen world, a target not past the
+  world's time).
+
+**Why the worlds stay the original's.** Every history item is still stepped
+from a history item through every change node; a postponed rollback only
+steps through the items after the point later, and before any of them is
+the event-horizon item (500 ms behind the newest time), the only item the
+outside sees (0xDF hashes it, 0xF6 uploads it): the point is never 300 ms
+behind when a render move postpones (`DEADLINE_MS`, checked against the
+horizon at compile time). The ring's times are the original's, so every
+input, entry and drop is taken or refused alike. What changes is what the
+frames in between show: a late input's effect up to 50 ms later; "first
+play" consumers (a step past +18FC4h: damage and equipment sounds, the time
+rule's status) act on the predicted world a little more often, as they do
+for every late input today. **Nothing a match computes changes:** a game
+with it plays with any game of the same release.
+
+**The model's gain** (`check_sync_core_026g.py`, re-simulated steps,
+stock -> paced): eight players 120-260 ms late at 100 fps 5079 -> 2197
+(-57%), at 60 fps -51%, at 30 fps -25%; twelve players 60-420 ms late -13%;
+bursts of thirty inputs -58%; a 700 ms stall caught up in 16 ms logic ticks
+-55%; precise inputs, two in a tick, -37%; late roster changes, refused and
+discarded inputs -34%; inputs on time 0%. The worst single frame is the
+same (a rollback that is due steps all of it).
+
+**Checked:** `selftest_026g.py` check 74 (the call site in the original
+and the build, move's shape and its test, the block the link's, its only
+way out the library's move, its only writes the rollback point and its own
+state); `check_sync_core_026g.py` (Unicorn): the game's own move,
+tick_events, insert_impl, erase_impl and ring with a model world (a hash
+chain of every step and every input in effect), nine timelines, each run on
+the original's move, the build's move and the hook: the event-horizon item
+of every frame and the whole ring at the end the same in all three, no
+horizon item ever changing after it was the horizon item, every input taken
+or refused alike, the hook popping 4 and keeping the registers;
+`cargo test -p sync-core` (the rule, and that a postponement never lets the
+point near the horizon). **Not run in a game.**
 
 ## Not ported, not done
 

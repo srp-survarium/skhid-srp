@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 45500,
-  "sha256": "077dcc007fc181d30b29d910677ebf7e65bde17ec9b63e2910962b072c27bd80",
+  "size": 53260,
+  "sha256": "66e60d495c156f5c9ce7fb6f96f3bc089bb31ddcd48e69f4c141048ac88ec6dc",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,7 +22,7 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 1230
+      "size": 1254
     },
     "match_keys.code": {
       "kind": "code",
@@ -48,6 +48,16 @@
       "kind": "code",
       "va": "0xa438000",
       "size": 444
+    },
+    "sync_core.code": {
+      "kind": "code",
+      "va": "0xa439000",
+      "size": 345
+    },
+    "sync_core.state": {
+      "kind": "state",
+      "va": "0xa43a000",
+      "size": 12
     }
   },
   "symbols": {
@@ -93,6 +103,7 @@
     "engine_statistics_notify": "0xa432110",
     "engine_string_assign": "0xa432320",
     "engine_unpack_decal_value": "0xa432400",
+    "engine_world_core_move": "0xa4324d0",
     "engine_write_u16": "0xa4320b0",
     "engine_write_u32": "0xa4320e0",
     "engine_write_u8": "0xa432080",
@@ -144,11 +155,14 @@
     "rr_reset": "0xa42d470",
     "rr_serialized_size": "0xa42d397",
     "rr_tick": "0xa42d5e5",
-    "rr_write": "0xa42da9c"
+    "rr_write": "0xa42da9c",
+    "sc_render_move": "0xa439000",
+    "sync_render_move": "0xa439010"
   },
   "built_with": {
     "cc": "gcc (GCC) 15.2.0",
     "ld": "GNU ld (GNU Binutils) 2.46",
-    "nasm": "NASM version 2.16.03 compiled on Apr 17 2024"
+    "nasm": "NASM version 2.16.03 compiled on Apr 17 2024",
+    "rustc": "rustc 1.98.0-nightly (6368fd52c 2026-05-29)"
   }
 }

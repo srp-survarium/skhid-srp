@@ -38,6 +38,7 @@ global engine_mouse_ray
 global engine_accept_decal_edit
 global engine_cc_bool
 global engine_binded_action
+global engine_world_core_move
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -636,6 +637,22 @@ engine_binded_action:
     mov edi, [esp + 28]   ; kinds
     mov esi, [esp + 32]   ; key
     call 0x207d50
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_world_core_move:
+    ; 0x2d2e40 survarium::game_world_core::move: world ESP+4, time EAX; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; world -> 4
+    mov eax, [esp + 28]   ; time
+    call 0x2d2e40
     pop edi
     pop esi
     pop ebx
