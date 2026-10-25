@@ -3049,3 +3049,37 @@ va	status	ref_021d	name
 0x0012de30	inferred-medium		vostok::render::baked_texture_resource::baked_texture_resource
 0x000f0080	inferred-medium		vostok::resources::query_result_for_cook::set_unmanaged_resource
 0x001e8da0	inferred-high		survarium::delete_folder
+0x0003b480	inferred-medium		vostok::collision::animated_object::update
+0x00075b40	inferred-medium		vostok::physics::closest_ray_result_callback::closest_ray_result_callback
+0x001edef0	inferred-medium		survarium::game::play_replay_to
+0x001f76b0	inferred-medium		survarium::game_world::interpolated_view_at
+0x001fdcc0	inferred-high		survarium::game_world_core::fixed_time_before
+0x001fdcf0	inferred-high		survarium::game_world_core::fixed_time_at_or_after
+0x0020ff90	inferred-medium		vostok::network_core::cyclic_difference<unsigned char>
+0x00218bf0	inferred-medium		survarium::replay_network_client::tick
+0x00248160	inferred-medium		survarium::booby_trap::explode
+0x00248720	inferred-medium		survarium::grenade::explode
+0x0027cbf0	inferred-medium		survarium::network_client::send_match_messages
+0x002cbc60	inferred-high		survarium::pvp_match_core_cook::on_resources_loaded
+0x002d1ce0	inferred-medium		survarium::game_world_core::tick_game_effect_player
+0x002d1d00	inferred-high		survarium::game_world_core::tick_physics_world
+0x002d4e40	inferred-high		survarium::game_world_core::snap_input<struct survarium::client_update<struct survarium::player_input,220,235,221,236>>
+0x002d4f80	inferred-high		survarium::game_world_core::snap_input<struct survarium::client_update<struct survarium::profile_input,222,243,222,243>>
+0x002da9a0	inferred-medium		survarium::base_player::tick_physics_animation
+0x002f6940	inferred-medium		survarium::network_client::read_message_time
+0x00303b60	inferred-medium		survarium::grenade_core::explode
+0x00303c10	inferred-medium		survarium::grenade_core::insert
+0x00304db0	inferred-medium		survarium::booby_trap_core::tick
+0x003056d0	inferred-medium		survarium::booby_trap_core::explode
+0x0030a120	inferred-medium		survarium::grenade_set_core::throw_grenade
+0x0030a4a0	inferred-medium		survarium::grenade_core::apply_explosion
+0x00318400	inferred-medium		survarium::deserialize_player_input
+0x003184a0	inferred-medium		survarium::serialize_player_input
+0x00318540	inferred-medium		survarium::deserialize_profile_input
+0x003185a0	inferred-medium		survarium::serialize_profile_input
+0x003185f0	inferred-high		survarium::serialize_local_fixed_time
+0x00318620	inferred-high		survarium::serialize_local_time
+0x00318690	inferred-high		survarium::deserialize_local_time
+0x0031bd90	inferred-medium		survarium::anomaly_state::tick_zones
+0x003393f0	inferred-medium		survarium::bullet_manager::explosion_occlusion
+0x00339630	inferred-medium		survarium::bullet_manager::process_explosion

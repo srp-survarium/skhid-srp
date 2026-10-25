@@ -4526,3 +4526,20 @@ va	name	location	role	basis
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	EDI	the record copied (124h: path buffer_string +0, '/' +110h, CRC +114h, size +118h, age +11Ch, loading +120h)	observed
 0x000e0210	vostok::render::render_model_instance::destroy	ECX	the model instance whose count (+0D0h) reached 0	observed
 0x000e0210	vostok::render::render_model_instance::destroy	EAX	&its count	observed
+0x00075550	vostok::physics::bullet_physics_world::tick	ECX	bullet_physics_world	observed
+0x00075550	vostok::physics::bullet_physics_world::tick	entry ESP+4	step dt in ms (stepSimulation dt x 0.001, 3, 1/60)	observed
+0x00075550	vostok::physics::bullet_physics_world::tick	entry ESP+8	time in ms (world +0ACh, global 0x1F1D3A8)	observed
+0x001fdcc0	survarium::game_world_core::fixed_time_before	EAX	time in ms	observed
+0x001fdcc0	survarium::game_world_core::fixed_time_before	ECX	grid origin (core +18FBCh)	observed
+0x001fdcf0	survarium::game_world_core::fixed_time_at_or_after	EAX	time in ms	observed
+0x001fdcf0	survarium::game_world_core::fixed_time_at_or_after	ECX	grid origin (core +18FBCh)	observed
+0x002d1d00	survarium::game_world_core::tick_physics_world	ECX	game_world_core	observed
+0x002d1d00	survarium::game_world_core::tick_physics_world	entry ESP+4	step dt in ms	observed
+0x002d1d00	survarium::game_world_core::tick_physics_world	entry ESP+8	time in ms	observed
+0x002d1d00	survarium::game_world_core::tick_physics_world	entry ESP+0Ch	on-grid flag (unused)	observed
+0x003185f0	survarium::serialize_local_fixed_time	entry ESP+4	time in ms	observed
+0x003185f0	survarium::serialize_local_fixed_time	entry ESP+8	buffer_writer	observed
+0x00318620	survarium::serialize_local_time	ECX	time in ms	observed
+0x00318620	survarium::serialize_local_time	ESI	buffer_writer	observed
+0x00318690	survarium::deserialize_local_time	entry ESP+4	reference time (core +18FC0h)	observed
+0x00318690	survarium::deserialize_local_time	EDI	buffer_reader (+4 cursor)	observed
