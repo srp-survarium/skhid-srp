@@ -1290,12 +1290,15 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 };
             } else {
                 let points = via.get_or_insert_with(|| way_home(cx, home));
-                // A point reached, or one a teammate was killed by since:
-                // on to the next (the straight way home when none is left).
+                // A point reached, one its search found no way to lately
+                // (`Ctx::no_way_lately`: else retried every replan), or one
+                // a teammate was killed by since: on to the next (the
+                // straight way home when none is left).
                 let reach = num("reach_m") * 3.0;
                 let near = num("home_danger_m") * 0.5;
                 while points.first().is_some_and(|&p| {
                     cx.me.feet.distance_xz(p) < reach
+                        || cx.no_way_lately(p)
                         || cx
                             .team
                             .danger_within(cx.now, 10_000)
@@ -1397,7 +1400,8 @@ fn carry_ended(cx: &Ctx, target: TargetRef, home: &'static str) -> &'static str 
 /// 20 s, within `home_danger_m`) and that way less, at most `home_detour`
 /// times as long; of those the least dangerous, then the shortest. None
 /// (the straight way) otherwise. Points out of bounds for the side (a
-/// hazard, the enemy's spawn area) are left out.
+/// hazard, the enemy's spawn area), and those no way leads to now or the
+/// bot's search found none to lately, are left out.
 fn way_home(cx: &Ctx, home: Vec3) -> Vec<Vec3> {
     let num = |name| cx.num(PlayKind::Collect, name);
     let Some(side) = cx.bot.side else {
@@ -1461,6 +1465,7 @@ fn way_home(cx: &Ctx, home: Vec3) -> Vec<Vec3> {
                 .copied()
                 .filter(|&p| p.distance_xz(home) < to_home)
                 .filter(|&p| cx.tactics.fine_goal(p, cx.now, Some(side)))
+                .filter(|&p| cx.reachable(p, false) && !cx.no_way_lately(p))
                 .collect();
             if back.is_empty() {
                 return None;
@@ -3105,6 +3110,9 @@ mod tests {
 
     /// A carrier with a known enemy on its straight way home goes by its
     /// side's human route that keeps clear of him; with none known, straight.
+    /// A point of the route its search found no way to lately is left out
+    /// (straight home here), and one chosen before the search failed is
+    /// dropped at the next step: it is not tried again every replan.
     #[test]
     fn a_carrier_goes_home_by_a_human_route_clear_of_known_danger() {
         use crate::v026g::bots::know::Source;
@@ -3154,6 +3162,26 @@ mod tests {
         assert!(
             straight.distance_xz(Vec3::new(12.0, 0.0, 30.0)) < 1.0,
             "{straight:?}"
+        );
+        let point = Vec3::new(20.0, 0.0, 8.0);
+        let mut s = setup(true);
+        s.no_way_to = vec![(point, s.view.clock + 5_000)];
+        let left = goal(&s);
+        assert!(
+            left.distance_xz(Vec3::new(12.0, 0.0, 30.0)) < 1.0,
+            "{left:?}"
+        );
+        let mut s = setup(true);
+        let target = TargetRef::Battery(0);
+        let mut rng = Rng::new(1);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        let first = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(matches!(first.go, Go::To { at, .. } if at.distance_xz(point) < 1.0));
+        s.no_way_to = vec![(point, s.view.clock + 5_000)];
+        let next = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(
+            matches!(next.go, Go::To { at, .. } if at.distance_xz(Vec3::new(12.0, 0.0, 30.0)) < 1.0),
+            "{next:?}"
         );
     }
 

@@ -1037,6 +1037,24 @@ Tried in the commander: at most a third of the bots pair up, at most one holder 
 - **The second take:** never fired (about 5 takes from their container in 192 matches).
 - **Follow-up:** a battery minimum that sends the bot nearest the battery, never the human's escort; check the small-team lean on live PvB data.
 
+### A spot proved no way to: another spot, else the play is left (built 2026-10-25)
+
+A bot stood at a goal with no route for 2.2 % of its ticks with a goal, not counting fights or a play just taken. A fifth of that was a goal its own search had proved no way to. The play kept the goal to its end (Crossfire up to 70 s, Buddy 90 s), and the motor searched it again every 500 ms (`NO_WAY_RETRY_MS`).
+
+- **Crossfire, HoldExit and Cut** take another of their fine spots when theirs is proved no way to (`Ctx::no_way_lately`). `fine_spots` already skips spots with no way lately, so a new spot is never a shut one. A spot changes only on a proof, so it is kept until its own; Crossfire's crowded re-pick waits `repick_every_s` (3 s) from it.
+- **Buddy:** the point beside the partner proved no way to (beyond a drop, on a ledge), it goes to the nearest of the points 1.5-2 m round him that it may have a way to, never his own cell. It keeps going round him 3 s past the proof (`ROUND_HOLD_MS`), so it does not flip back as the point beside him slides out of the proof.
+- **The last resort** (`goal_shut` in `think`): a play whose goal is still one the bot proved no way to, with no spot left, is left at the next think and set aside per kind and target while the proof holds (`NO_WAY_KEEP_MS`, 20 s). A carrier keeps its play: its way home is Collect's to change. That exception is about batteries.
+- **On its own** the last resort halved the stood ticks but added idle (+0.51 pp, z 3.9) and quick ends (+8.3, z 3.6): with its play set aside, a bot often had no other candidate and stood with none.
+- **Bench**, f9088f39 + the measure (A) against A + this (B), batt and tdm, tiers 4-5, 9-10, 13-15, seeds 1-16, 1,152 matches each. A's decisions are those of base-f9088f39 (1,152 of 1,152).
+  - Stood with no route, not fighting nor a play just taken: 2.15 → 1.09 % (−1.05 ± 0.08 pp).
+  - Searches that found no way: 1,622 → 946 a run (Buddy 228 → 78, Crossfire 208 → 26, HoldExit 31 → 14, Cut 46 → 14, Roam 37 → 6, Collect 17 → 18).
+  - Idle 5 s+: 13.67 → 13.27 % of alive time (−0.40 ± 0.12).
+  - Within 2 SE: kills, deaths, K/D, delivered, carriers killed, quick ends, flips, team kills, falls, zone entries, stuck notes.
+  - Reversals +8.4 ± 2.9 a run (of 480; tdm +18 a cell): a bot turning back from a shut spot to a reachable one, counted as a reversal since its last move.
+  - CPU, the bench's own lines, A and B run side by side: battery 10 v 10 bots −0.17 ± 0.39 ms a second (77 ms), poll p99.9 +41 ± 139 µs. Searches fewer at every preset and size (battery 10 v 10 −38 a match).
+- **Measures** (test-only): `Bot::bench_legs`, `Bot::bench_driven` and the stood line apart from fights and new plays; the bench's no way by play (searches that found no way, ticks stood at their goal).
+- **Best practice:** expensive tests (paths) run last, "from the highest scoring down, until a point passes" (Jack, *Tactical Position Selection*, Game AI Pro ch. 26 §26.7); keep a chosen position until a strong reason (hysteresis: Johnson, *Taming Spatial Queries*, Game AI Pro Online 2021 ch. 5 §2). Detour's crowd does not replan a failed target; picking a new one is the caller's. The 20 s memory of a proof follows the usual "ignore a failed target for a while"; no chapter that prescribes it was found.
+
 ## 4. Event reactions
 
 | Event | How bots learn it | Reaction |

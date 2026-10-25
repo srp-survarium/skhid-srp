@@ -200,6 +200,14 @@ pub struct Bot {
     /// ([`NO_WAY_KEEP_MS`]): a battery ringed by fire is not fetched again
     /// and again, standing.
     no_way_to: Vec<(Vec3, u32)>,
+    /// The bench's stood line (`real_bot_cost`): whether the reflex had the
+    /// legs at its last motor tick (a fight, not a route missing), and the
+    /// poll clock of that tick (a play taken after it has had no motor
+    /// tick yet to plan its route).
+    #[cfg(test)]
+    pub(crate) bench_legs: bool,
+    #[cfg(test)]
+    pub(crate) bench_driven: u32,
     /// Keys to press for one tick.
     press: u32,
     /// Keys held for a few ticks to get unstuck.
@@ -311,6 +319,10 @@ impl Bot {
             route: None,
             no_way: None,
             no_way_to: Vec::new(),
+            #[cfg(test)]
+            bench_legs: false,
+            #[cfg(test)]
+            bench_driven: 0,
             press: 0,
             unstick: None,
             jump_hold: 0,
@@ -2052,6 +2064,17 @@ impl Bots {
         let step_name = running.step_name();
         bot.running = Some(running);
         match step {
+            // Its goal one its own search proved no way to lately: the play
+            // is left, set aside while the proof holds, for the commander to
+            // choose again (not stood at the goal, searched every 500 ms).
+            Step::Continue(intent) if goal_shut(&intent, me, &bot.no_way_to, now) => {
+                if let Some(a) = bot.assignment.as_ref() {
+                    bot.set_aside.retain(|&(_, _, until)| until > now);
+                    bot.set_aside.push((a.kind, a.target, now + NO_WAY_KEEP_MS));
+                }
+                bot.end_play(now, "no way to its goal", notes);
+                self.teams[team].next_commander = now;
+            }
             Step::Continue(mut intent) => {
                 bot.press |= intent.press;
                 if let Some(failed) = intent.failed_stand.take() {
@@ -2110,6 +2133,10 @@ impl Bots {
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         let searching = &mut self.searching;
         for time in bot.encoder.ticks(clock.clock, entered + START_AFTER_MS) {
+            #[cfg(test)]
+            {
+                bot.bench_driven = clock.clock;
+            }
             let estimate = self
                 .tracker
                 .body(bot.place)
@@ -2179,6 +2206,21 @@ fn learn_no_way(team: &mut Vec<(Vec3, u32)>, own: &[(Vec3, u32)], now: u32) {
             None => team.push((goal, until)),
         }
     }
+}
+
+/// Whether a play's goal is one the bot's own search proved no way to
+/// lately (`Bot::no_way_to`, [`NO_WAY_KEEP_MS`] from the proof): the bench
+/// at 1dee0543 (288 matches) had a fifth of its stood-with-no-route ticks
+/// at such goals, Buddy's and Crossfire's most, each searched again every
+/// [`NO_WAY_RETRY_MS`] and kept up to the play's end. A carrier keeps
+/// its play: its way home is the play's to change (`collect::way_home`).
+fn goal_shut(intent: &Intent, me: &PlaceView, no_way_to: &[(Vec3, u32)], now: u32) -> bool {
+    me.carrying.is_none()
+        && matches!(intent.go, Go::To { at, within_m }
+        if me.feet.distance_xz(at) > within_m
+            && no_way_to.iter().any(|&(goal, until)| {
+                now < until && goal.distance_xz(at) <= REPLAN_MOVED_M
+            }))
 }
 
 /// A bot's goals with no way lately and its team's
@@ -2357,6 +2399,10 @@ fn drive_tick(
     // The legs: the reflex's when it takes them (a push, breaking sight,
     // a re-peek, the weapon's range, in after a grenade), else the play's.
     let mut intent = intent;
+    #[cfg(test)]
+    {
+        bot.bench_legs = over.legs.is_some() && !using;
+    }
     if let Some(legs) = over.legs.filter(|_| !using) {
         intent.go = Go::To {
             at: legs.at,
