@@ -60,6 +60,29 @@ pub(crate) const RESPAWN_BATTERIES_MS: u32 = 8_000;
 /// The same in Team Deathmatch: 8 s, less the radio's 20 %.
 pub(crate) const RESPAWN_TDM_MS: u32 = 6_400;
 
+/// The respawn delay of a death, ms, as the game gives it: the mode's
+/// `respawn_time` times `max(0, 1 + the radio's respawn_time_modifier)`
+/// (the respawn rule 0x316AA0 through the getter 0x2D5AE0, PROVEN), up to
+/// the 50 ms grid. The `- 1e-3` keeps an exact multiple of the grid on it
+/// (0.8 is not exact in f32: 8000.0001 would round up to 8050).
+pub(crate) fn respawn_ms_of(respawn_time_s: u32, radio_modifier: f32) -> u32 {
+    let ms = respawn_time_s as f32 * 1000.0 * (1.0 + radio_modifier).max(0.0);
+    (ms / 50.0 - 1e-3).ceil() as u32 * 50
+}
+
+/// The respawn delay in the map's mode, ms, read from the game data the
+/// process runs on (the mode's `respawn_time`, the radio's modifier): the
+/// live game's with `SRP_GAME_DATA`, so the constants above cannot go
+/// stale when a content edit changes the time.
+pub(crate) fn respawn_ms_from_data(level: u8, weather: u8, mode: u8) -> Option<u32> {
+    let row = survarium::v026g::maps::find(level, weather, mode)?;
+    let radio = survarium::v026g::dictionary::Dictionary::shared()
+        .item_named("respawn_booster")?
+        .dict_id;
+    let modifier = survarium::v026g::loadouts::default_modifier(radio, "respawn_time_modifier");
+    Some(respawn_ms_of(row.respawn_time, modifier))
+}
+
 /// How long after a carrier lets go of the battery his weapon fires again,
 /// ms: the weapon's show time follows the drop, about 0.8 s for rifles,
 /// SMGs and shotguns, 0.5 s for the TT-33 (LIKELY: private
@@ -284,6 +307,10 @@ pub(crate) struct Game {
     /// ([`BATTERY_M`]; `SRP_BENCH_TAKE_M` in the real-map runs makes takes
     /// fail as some do in the owner's matches, audit #7).
     pub(crate) take_m: f32,
+    /// The respawn delay after a death, ms, when the run is on the live
+    /// game data (`SRP_GAME_DATA`: [`respawn_ms_from_data`]); `None` keeps
+    /// [`RESPAWN_BATTERIES_MS`] and [`RESPAWN_TDM_MS`].
+    pub(crate) respawn_ms: Option<u32>,
     /// Batteries no use takes off the floor (`SRP_BENCH_UNTAKEABLE=<n>`:
     /// the first n; as the sunk ones of audit #7, which a use never took).
     pub(crate) untakeable: usize,
@@ -461,6 +488,7 @@ impl Game {
             taken_killed: 0,
             use_line: false,
             take_m: BATTERY_M,
+            respawn_ms: None,
             untakeable: 0,
             put_ms: bench_settings().number("SRP_BENCH_PUT_MS")
                 .unwrap_or(PUT_MS),
@@ -653,11 +681,11 @@ impl Game {
             if !self.bodies[place].alive {
                 let team = usize::from(self.bodies[place].team);
                 let may = self.tickets.is_none_or(|tickets| tickets[team] > 0);
-                let respawn = if self.tickets.is_some() {
+                let respawn = self.respawn_ms.unwrap_or(if self.tickets.is_some() {
                     RESPAWN_TDM_MS
                 } else {
                     RESPAWN_BATTERIES_MS
-                };
+                });
                 if may && tick >= self.bodies[place].dead_at + respawn {
                     self.spawn(place);
                 }
@@ -1319,4 +1347,61 @@ impl Game {
     pub(crate) fn world_at(&self, tick: u32) -> Option<Recorded> {
         self.history.iter().find(|(t, ..)| *t == tick).cloned()
     }
+}
+
+/// The respawn delay is the mode's time times the radio's `1 + modifier`
+/// (not below 0), up to the 50 ms grid: the live battery modes' 10 s and
+/// Team Deathmatch's 8 s, less 20 %, are the constants; a time that is not on
+/// the grid goes up to it; a modifier past -1 gives none.
+#[test]
+fn the_respawn_delay_is_the_modes_time_less_the_radio_on_the_50_ms_grid() {
+    assert_eq!(respawn_ms_of(10, -0.2), RESPAWN_BATTERIES_MS);
+    assert_eq!(respawn_ms_of(8, -0.2), RESPAWN_TDM_MS);
+    assert_eq!(respawn_ms_of(8, 0.0), 8_000, "no radio");
+    // 9 s less 17 % is 7.47 s: the next 50 ms is 7.5 s (not 7.47, not 7.55).
+    assert_eq!(respawn_ms_of(9, -0.17), 7_500);
+    assert_eq!(respawn_ms_of(8, -1.5), 0, "a modifier past -1 gives no delay");
+}
+
+/// The stand-in reads the respawn from the data it runs on: on the built-in
+/// test archive every playable mode has the stock 8 s (the maps test), so
+/// the radio's -20 % gives 6.4 s in the battery modes too, not the live 8 s
+/// the constant holds. That is why the live bench reads it from
+/// `SRP_GAME_DATA`, and the constants stay the default on the built-in one.
+#[test]
+fn the_respawn_is_read_from_the_data_the_run_is_on() {
+    use survarium::v026g::maps::{mode, weather};
+    let batteries = respawn_ms_from_data(1, weather::DAY, mode::BATTERIES);
+    let tdm = respawn_ms_from_data(1, weather::DAY, mode::TEAM_DEATHMATCH);
+    assert_eq!(batteries, Some(6_400), "the built-in archive's 8 s less the radio");
+    assert_eq!(tdm, Some(RESPAWN_TDM_MS));
+    assert_ne!(batteries, Some(RESPAWN_BATTERIES_MS));
+    // A map that does not exist has none.
+    assert_eq!(respawn_ms_from_data(99, weather::DAY, mode::BATTERIES), None);
+}
+
+/// The bench's weapons follow the data it runs on: on the live file
+/// (`SRP_GAME_DATA`) the PP-2000 fires 680 rounds a minute (not the stock 750),
+/// the SR-3M 800 (not 900), and the SVD holds 5 (not 10), the content edits of
+/// revisions 21 and 27 (`weapon-balance-1`). A measurement of the plumbing;
+/// needs the live file.
+#[test]
+#[ignore = "needs SRP_GAME_DATA, the server's game data"]
+fn the_bench_guns_follow_the_live_data() {
+    if bench_settings().var_os("SRP_GAME_DATA").is_none() {
+        eprintln!("skipping: SRP_GAME_DATA is not set");
+        return;
+    }
+    survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+    let gun = |item: &str| super::super::guns::gun(item).unwrap_or_else(|| panic!("{item}"));
+    eprintln!(
+        "pp2000 {} rpm, sr3m {} rpm, svd {} rounds, ak_74u {} rpm",
+        gun("pp2000").rpm,
+        gun("sr3m").rpm,
+        gun("svd").magazine,
+        gun("ak_74u").rpm
+    );
+    assert_eq!(gun("pp2000").rpm, 680);
+    assert_eq!(gun("sr3m").rpm, 800);
+    assert_eq!(gun("svd").magazine, 5);
 }
