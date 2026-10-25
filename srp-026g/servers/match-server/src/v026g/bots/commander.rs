@@ -283,7 +283,13 @@ impl Bots {
                 memo: &self.memo,
             };
             let mut rng = bot.rng.clone();
-            let running = plays::start(assignment.kind, assignment.target, &cx, &mut rng);
+            let running = plays::start(
+                assignment.kind,
+                assignment.target,
+                assignment.slot,
+                &cx,
+                &mut rng,
+            );
             bot.rng = rng;
             bot.note(
                 notes,

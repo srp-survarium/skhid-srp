@@ -295,11 +295,15 @@ fn draw_ms(cx: &Ctx, rng: &mut Rng, lo: &str, hi: &str) -> u32 {
     (rng.range(num(lo), num(hi)) * 1000.0) as u32
 }
 
-pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
+/// A guard's start. Its rules are the slot's: a holder's slot is a holder
+/// whatever the need is at this instant (its own end is the need off for
+/// `holder_off_s`), and an end-game guard's slot is never one (the need
+/// turning on after it was given the play does not change its end).
+pub fn start(target: TargetRef, slot: Option<SlotKey>, cx: &Ctx, rng: &mut Rng) -> State {
     let Some(container) = cx.point_of(target) else {
         return State::NoSpot;
     };
-    let hold = if holder_need(cx, container).is_some() {
+    let hold = if slot.is_some_and(is_holder_slot) {
         Hold::Holder { off_since: None }
     } else {
         Hold::EndGame
@@ -626,6 +630,10 @@ mod tests {
         let mut s = scene();
         s.time_left(500.0).points(2, 2);
         s.container_count(0, 2);
+        s.slot = Some(SlotKey {
+            kind: PlayKind::GuardLead,
+            key: HOLDER_SLOT,
+        });
         s
     }
 
@@ -788,7 +796,11 @@ mod tests {
         let mut rng = Rng::new(2);
         let target = TargetRef::Container(0);
         s.current = Some((PlayKind::GuardLead, target, s.view.clock));
-        let mut state = start(target, &s.cx(0), &mut rng);
+        let slot = Some(SlotKey {
+            kind: PlayKind::GuardLead,
+            key: HOLDER_SLOT,
+        });
+        let mut state = start(target, slot, &s.cx(0), &mut rng);
         assert!(matches!(
             state,
             State::Going {
@@ -828,11 +840,61 @@ mod tests {
     }
 
     #[test]
+    fn the_slot_not_the_need_at_the_start_gives_the_hold() {
+        let target = TargetRef::Container(0);
+        let hold_of = |state: &State| match state {
+            State::Going { hold, .. } | State::Holding { hold, .. } => *hold,
+            State::NoSpot => panic!("no spot"),
+        };
+        // An end-game guard's slot with the holder's need on is still an
+        // end-game guard: a theft after it started ends it.
+        let mut s = holder_scene();
+        s.team.thefts_match = 1;
+        let mut rng = Rng::new(2);
+        s.current = Some((PlayKind::GuardLead, target, s.view.clock));
+        let guard = Some(SlotKey {
+            kind: PlayKind::GuardLead,
+            key: 0,
+        });
+        let mut state = start(target, guard, &s.cx(0), &mut rng);
+        assert_eq!(hold_of(&state), Hold::EndGame);
+        s.team.thefts.push(Theft {
+            battery: 1,
+            at: OURS,
+            time: s.view.clock + 1,
+            thief: None,
+        });
+        s.view.clock += 300;
+        assert_eq!(
+            step(&mut state, target, &s.cx(0), &mut rng),
+            Step::Done("a theft: the alarm answers it")
+        );
+        // A holder's slot with the need off at the start is still a holder
+        // (its end is the need off for `holder_off_s`).
+        let mut s = holder_scene();
+        s.container_count(0, 0);
+        let holder = Some(SlotKey {
+            kind: PlayKind::GuardLead,
+            key: HOLDER_SLOT,
+        });
+        let state = start(target, holder, &s.cx(0), &mut rng);
+        assert!(matches!(hold_of(&state), Hold::Holder { .. }));
+    }
+
+    #[test]
     fn a_theft_or_a_lost_lead_ends_it() {
         let mut s = scene();
         let mut rng = Rng::new(2);
         s.current = Some((PlayKind::GuardLead, TargetRef::Container(0), s.view.clock));
-        let mut state = start(TargetRef::Container(0), &s.cx(0), &mut rng);
+        let mut state = start(
+            TargetRef::Container(0),
+            Some(SlotKey {
+                kind: PlayKind::GuardLead,
+                key: 0,
+            }),
+            &s.cx(0),
+            &mut rng,
+        );
         assert!(matches!(state, State::Going { .. }));
         assert!(matches!(
             step(&mut state, TargetRef::Container(0), &s.cx(0), &mut rng),
