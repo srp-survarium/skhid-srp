@@ -1282,3 +1282,20 @@ decisions and the whole bench output but its timings are the same). The notes ab
 | `Bots::facts`, `lost_carrier`, `last_sensed`, `theft_drop`, the `THEFT_*` and `LOOK_SENSED_MS` constants | `facts.rs` |
 | `Searching`, `SearchMemory`, `Pending`, `near_any`, `Bots::go_on_searching`, `long_kept`, `SEARCHES_PER_POLL`, the `NO_WAY_*` constants | `search.rs` |
 | `goal_shut` | `plays/goals.rs` (beside `no_way_near`) |
+
+### Bots split step 2c: where the tuning code lives now
+
+`bots/tuning.rs` became the folder `bots/tuning/`; every public name is re-exported from `tuning` (`tuning::SenseTuning` and the rest are unchanged),
+and so are the defaults, the serde attributes, the file format (`SRP_BOT_TUNING`) and the hash (`Tuning::default().hash()` is the same). The notes above
+name `tuning.rs`; read them by this table.
+
+| In the notes as | Now in `bots/tuning/` |
+|---|---|
+| `Tuning` (the sections, `Default`, `load`, `validate`, `hash`, `number`), the `BotTier` re-export | `mod.rs` |
+| `SenseTuning`, `CheatTuning` | `sense.rs` (with the sense checks of `validate`) |
+| `AimTuning`, `SkillTuning`, `TierSkill` | `aim.rs` (with the skill and aim checks) |
+| `ModTuning`, `ThinkTuning` (`SEARCH_FLOORS_PER_POLL`), `Personality` | `team.rs` (with the think checks) |
+| `PlayTuning` | `play.rs` |
+| the `Feel` (hop) check of `validate`; `Kinematics` and `Feel` stay in `kin.rs` and `motor.rs` | `motion.rs` |
+
+`validate` calls the section checks in the order it always had, so the first wrong value of a file with several is the same (a test says so).
