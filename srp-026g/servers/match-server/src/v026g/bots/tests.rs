@@ -7466,6 +7466,24 @@ mod pocket_runs {
         assert!(!escape::way_out(grid, &board, 0, pocket, true));
     }
 
+    /// A pocket with a steep climb out (a step up onto steep ground) has a
+    /// way out a bot's own jump takes, but not a carrier's: a jump onto
+    /// steep ground is not proven to hold (#406 keeps carriers to standing
+    /// exits).
+    #[test]
+    fn a_steep_exit_is_a_way_out_but_not_a_carriers() {
+        let world = pit(1.6);
+        let grid = &world.grid;
+        let bottom = grid.locate(Vec3::new(32.0, -1.6, 20.0), 0.3).unwrap();
+        let pocket = grid.pocket_of(bottom).unwrap();
+        let board = escape::Board::default();
+        assert!(!escape::way_out(grid, &board, 0, pocket, false));
+        board.set_jump_exits_for_test(pocket, false, true);
+        assert!(escape::standing_exit(grid, &board, pocket));
+        assert!(escape::way_out(grid, &board, 0, pocket, false));
+        assert!(!escape::way_out(grid, &board, 0, pocket, true));
+    }
+
     #[test]
     fn a_bot_in_a_pit_with_a_standing_exit_jumps_out_and_goes_on() {
         let world = pit(0.9);
