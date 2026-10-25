@@ -706,3 +706,215 @@ take's hold-fire too (633fb535), the final tree. No tier plays as 4-5.
   drops 0.7 → 0.1 (−3.1 SE), the rest within noise.
 - tdm: seeds 1-2 at 4-5, 9-10 and 13-15, both commits; every run's
   decisions digest equal to base's.
+
+## Bots: a hit carrier dropping the battery to fight, tried and shelved
+
+### What was tried
+
+The owner's idea, widened to every carrier under fire with no cover (#416,
+closed): a carrier cannot shoot (a fire press drops the battery in the
+game), so a hit carrier far from home was a free kill. In 919 human carries
+under fire (129 battery matches; `pvb-343-check/analysis/carriers-under-fire`),
+72 % of those hit alone past 30 m who kept running died, and a dropper won
+36 % of its fights against one attacker, 7-11 % against two or more.
+
+The rule (all GUESS): a carrier on Bring hit within 2 s, more than 30 m from
+our container, with exactly one enemy in sight within 40 m and no teammate
+within 15 m covering, drops it (one tick of the drop key) and fights within
+8 m of it with the fire gate open (`Intent::let_go`), then takes it again
+once the enemy is dead or out of sight 3 s, or leaves it to a nearer
+teammate. The dropper's Collect of the battery it dropped was kept hurt or
+among enemies, at the alarm band.
+
+### Bench
+
+Against 59c0b652, batt preset, 24 seeds over 12 maps, after − base per seed
+(SE); 4-5 / 9-10 / 13-15.
+
+- **Carriers killed fall:** −0.7 (0.52) / −1.7 (0.60) / −2.5 (0.58).
+- **But no battery is saved.** Our batteries the enemy took after our
+  carrier let them fall, before we took them back:
+  - after a carrier killed: −1.0 (0.51) / −0.7 (0.51) / −1.5 (0.47);
+  - after a drop to fight: +0.6 (0.20) / +0.9 (0.18) / +0.9 (0.21);
+  - all: −0.4 (0.56) / +0.2 (0.47) / −0.6 (0.48).
+  Delivered +0.3 (0.43) / −0.1 (0.37) / +0.2 (0.36); deaths, kills, K/D,
+  quick ends and team kills within noise. The drop moves the losses from
+  kill drops to fight drops.
+- **Guards it worsened** (the drop alone, without the slot change below):
+  flips at 9-10 +5.0 (1.75); s without a play at 13-15 +1.0 (0.50); guard
+  deaths at 13-15 +0.67 (0.30).
+- **Looser rules** (16 seeds at 13-15): dropping from 20 m of home, or with
+  two enemies in sight, cut carriers killed a little more and delivered no
+  more.
+- **The drop key works** (traced at 13-15, 24 seeds): every drop intent
+  reached the game input, and 91 of the 92 that came while the body carried
+  dropped it that tick; no hold of the key is needed. The bench counted a
+  few of them as drops by fire: the reflex, let fire by the same intent,
+  pressed fire in the drop's tick.
+- **A drop decided too late:** 27 more drop presses came to a body killed
+  50-1050 ms before, which the bot's view, up to 1.3 s behind the worlds,
+  still showed alive and carrying. Not a wrong carrier belief (the view
+  named the right carrier in all but 2 of 55,000 world-seconds): the hit
+  that made it drop was the one that killed it. A live view lags the same
+  way (worlds every 1 s, 0.3 s late), so a live drop would come too late in
+  as many cases; a drop rule kept should fire on the first hits, not the
+  last.
+
+### Also tried with it
+
+`guard_lead::start()` taking the holder's or the end-game rules from the
+slot the guard was given, not from the holder's need at its start. Alone
+(against the drop alone): no gain, carriers killed at 4-5 +0.42 (0.20).
+Left out.
+
+### If tried again
+
+The drop pays only if fewer dropped batteries go to the enemy (0.8-1.0 a
+seed now): a dropper that wins its fight more often (its health against
+the attacker's), or one that fights standing on the battery.
+
+## Bots: a carrier trapped in a pocket is not given up on, and lets go of the battery once its escape gives up
+
+### Why
+
+A carrier in a pocket (`escape.rs`) has two clocks. Collect's own
+`give_up_s` (120 s) ended its Bring as "took too long" while the escape
+(`escape::GIVE_UP_MS`, 40 s from being trapped) was still working it out,
+and the commander then gave it another play that could not fire (a fire
+press drops the battery). Once its escape gave up, the commander gives a
+trapped bot no slotted play (`team::assign_trapped`), but the carrier's
+Bring stayed: a bot that cannot get home kept the battery in hands it could
+not shoot from.
+
+### What changed
+
+- **`plays/collect.rs`, Collect's give-up:** no "took too long" while the
+  bot is trapped and carrying (or letting go): the escape has its own clock.
+- **Bring, its escape given up:** presses the drop key (one tick; the input
+  handler drops on any input with bit 22 while carrying, 0x2D8E73..0x2D8EC8,
+  PROVEN, and every press traced in #416's bench dropped it that tick) and
+  goes to `State::LetGo`, with the fire gate open.
+- **`State::LetGo`:** done once the view shows it not carrying; if the view
+  still shows it carried 2.5 s later (`LET_GO_AGAIN_MS`, GUESS: past the
+  worlds' lag), presses fire, which drops it the same way.
+- **The carrier's Collect candidate** has no slot once its escape gave up,
+  as `assign_trapped` gives a given-up bot no slotted play.
+- **`Intent::let_go`** (`plays/mod.rs`) and `drive_tick`'s fire gate: the
+  reflex may fire while the view, up to 2 s late, still shows the battery
+  carried.
+- **`escape::Board::set_trapped_for_test`** for the test.
+- **Test** `a_carrier_whose_escape_gave_up_lets_go_and_may_fire`: no drop
+  while it escapes past `give_up_s`; once given up, no slot, the drop key
+  pressed with the gate open and fire allowed, no second press within the
+  lag, and the play ends once the battery shows down.
+
+### Bench
+
+Against base-1dee0543, batt and tdm presets, 3 tiers × 16 seeds over 12
+maps each: every run's decisions digest equals base's (48 batt, 48 tdm), so
+every sum is equal. In those batt runs bots gave up 8 escapes of 366
+(`pocket_gave_up`), none while carrying, and no carrier stayed trapped past
+Collect's 120 s: the case is rare on these maps, and the test is what
+covers it.
+
+## Bots: a battery in a zone on all match is taken by a crossing the bot's health bears
+
+### Why
+
+A battery whose stand no route reaches because zones that never switch lie
+on it or round it (`Tactics::past_fixed_zones`: level_01's swamp, level_02's
+fruit cloud, level_06's acid) was never taken (Cologne CG-19): Collect
+blocked it as "no way to its stand", and a bot that walked in anyway was
+pulled out by `zone_way_out`. The route search is right to keep out: a
+zone's damage is a cost to weigh, not a wall.
+
+### What changed
+
+- **`plays/collect.rs`, `Crossing` and `crossing_to`:** for a stand that
+  needs one (`Ctx::needs_crossing`: walkable with the zones off, but not past
+  the zones on all match), the cheapest walk in a line from a dry floor a
+  route reaches (out of the zones' 1 m marks, not the other side's spawn,
+  past the zones on all match), found along 16 ways within 25 m: the
+  nearest such floor each way, in a line `Tactics::clear_line_through_zones`
+  walks. Its damage is the game data's (`Hazards::hit_per_s`, raw, before
+  armour, the marks' margin included; a zone of no known damage counts as
+  lethal), summed along the line at 2.5 m/s. The walk in stops 1 m short of
+  a battery on the floor (a take uses from about 1.2 m), and the take stands
+  there 4 s. A walk into a pit with no way out by a bot's own jump
+  (`escape::standing_exit`, the side step's rule) is no crossing. GUESSES:
+  the speed, the stop, the take's time, the 25 m.
+- **The budget, at the bot's current health:** in and out and the take cost
+  at most 0.5 of it and leave at least 0.4 (`CROSS_SHARE`, `CROSS_LEFT`).
+  GUESSES, never lethal by the zones alone.
+- **`take_block` / Fetch:** such a battery is offered when its crossing fits
+  and its dry edge is reachable; Fetch walks to the edge by the route, then
+  the take walks in by a line (`straight`), upright till near.
+- **Take, on a crossing:** the ring's stands may lie on the zone's floors
+  (no route need reach them; not into a pit), lines are over zones, and
+  each intent says the zone's floor is the play's choice (`Intent::zone_ok`,
+  set fresh each tick). Each tick, at the current health (enemy fire
+  counts), the take gives up once the way out would leave under 0.25
+  (`CROSS_ABORT_LEFT`): the crossing a carrier walks out by from there
+  (`Ctx::way_out`), else the line back to the edge. Given up, no
+  `zone_ok`, and `zone_way_out` walks it out as before.
+- **Bring:** a carrier with no way out of zones on all match walks out first
+  by its cheapest crossing, in a line (no `zone_ok`: a straight goal needs
+  none).
+- **The score:** a crossing's battery scores times (1 − its cost / health):
+  a dry one as good wins.
+- **`plays/mod.rs`:** `Intent::zone_ok`; **`mod.rs`:** `zone_way_out` only
+  for an intent without it. **`tactics.rs`:** `spawn_ok` public, and
+  `clear_line_through_zones` (zones that switch too: the caller weighs every
+  zone's damage; no pocket or fall checked).
+- **Tests:** a crossing taken within budget (to the edge, in by a line,
+  `zone_ok`; given up when hurt inside; not offered to a bot too hurt, nor
+  where it hurts ten times as much; a dry battery as near scores above it);
+  a carrier in a zone walks out by a crossing; a bot in a zone by choice
+  stays and walks out once its intent drops it (`tests.rs`); the real maps'
+  survey `zone_crossings_on_the_real_maps` (ignored, prints).
+
+### The real maps
+
+`zone_crossings_on_the_real_maps`, team 0, levels 1-7: of 82 spawners whose
+stand needs a crossing, 43 have one and 7 fit at full health. On the bench's
+6 maps: 47, 28 and 5. The rest cost too much: the swamp's (level_01, 0.062
+a second) and level_03's are 16-21 m of it, level_03 day 2's fire 1.2 a
+second, level_06's acid 0.25.
+
+**Follow-up:** 19 of the bench maps' 47 have no straight dry way within
+25 m (most of level_02's and level_03 day 2's): no crossing in a line
+reaches them. A crossing by a route over the zones' floors (`path.rs`)
+would; left for now.
+
+### The bench's zone damage (a GUESS)
+
+The stand-in game took no zone damage, so a crossing was free there. With
+`SRP_BENCH_ZONE_DAMAGE=1` (off by default) each living body in an active
+zone loses the zones' raw `hit_per_s` a tick (no margin, before armour), and
+dies at 0 (its battery falls where it stood). Off, the bench decides as
+before: 2c3b3818 + the gated model, batt and tdm, and CG-19 on tdm, seeds 1-2
+of each tier, give base-1dee0543's decisions digests in all 18 runs. How the
+game hurts in a zone is the owner's CG-20 test (stand in level_07's middle
+zone and level_06's acid, watch health); until then the model is a guess.
+The sums gain `zone_deaths`, `zone_hp` (health lost), `zone_takes` (takes
+from floors of zones on all match, marks included) and `zone_spots` (their
+distinct spots, per map).
+
+### Bench
+
+Both sides with the zone damage on: 2c3b3818 + the model against CG-19 +
+the model, batt preset, 3 tiers × 16 seeds over 12 maps; per seed summed
+over the maps, paired diff (SE).
+
+| tier | zone takes | zone deaths | zone hp | delivered | carriers killed | deaths | quick ends | flips |
+|---|---|---|---|---|---|---|---|---|
+| 13-15 | +1.06 (0.25) | 0 | +0.03 (0.01) | +0.12 (0.18) | +0.12 (0.36) | −1.12 (0.49) | +0.25 (1.16) | +0.12 (0.69) |
+| 9-10 | +0.94 (0.19) | 0 | +0.00 (0.00) | +0.75 (0.25) | +0.62 (0.36) | −0.44 (0.85) | +1.31 (1.01) | −1.00 (0.68) |
+| 4-5 | +0.88 (0.18) | 0 | +0.00 (0.00) | +0.56 (0.16) | −0.19 (0.29) | +0.56 (0.62) | −1.75 (1.02) | −0.06 (0.62) |
+
+Base takes 0.1-0.2 a seed from such floors (batteries on the marks' edge,
+taken from dry floor). No zone death on either side. K/D team 0 +0.001,
+−0.003, +0.004; guard deaths −0.25, −0.25, −0.12; idle and none_s no worse.
+A looser budget (0.75 of health, 0.2 left) took more (+1.31 to +1.75 a seed)
+for more zone damage (+0.10 to +0.19 a seed) and no more delivered, and its
+quick ends at 13-15 rose +5.0 (2.7): 0.5 stays.

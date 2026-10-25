@@ -630,7 +630,7 @@ impl Tactics {
 
     /// Not the other side's spawn area for a body of map side `side`,
     /// unless bound for their base (`objective`).
-    fn spawn_ok(&self, node: NodeId, side: Option<i32>, objective: bool) -> bool {
+    pub fn spawn_ok(&self, node: NodeId, side: Option<i32>, objective: bool) -> bool {
         let Some(side) = side.filter(|_| !objective) else {
             return true;
         };
@@ -1028,6 +1028,24 @@ impl Tactics {
         path::straight_where(grid, from, to, |node| {
             self.allowed(node, time, side, objective)
         })
+    }
+
+    /// [`Self::clear_line_for`] over zones' floors too, those that switch
+    /// as well as those on all match (the spawn rule still holds): the
+    /// caller weighs every zone's damage (a battery's crossing, `collect`).
+    /// No pocket or fall is checked either.
+    pub fn clear_line_through_zones(
+        &self,
+        a: Vec3,
+        b: Vec3,
+        side: Option<i32>,
+        objective: bool,
+    ) -> bool {
+        let grid = &self.world.grid;
+        let Some((from, to)) = line_ends(grid, a, b) else {
+            return false;
+        };
+        path::straight_where(grid, from, to, |node| self.spawn_ok(node, side, objective))
     }
 
     /// [`Self::clear_line_for`] for the fight's side step: nor into a

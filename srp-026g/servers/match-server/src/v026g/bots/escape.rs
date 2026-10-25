@@ -166,6 +166,12 @@ impl Board {
         self.learn(team, pocket, exit);
     }
 
+    /// [`Self::set_trapped`], for tests of a trapped bot's plays.
+    #[cfg(test)]
+    pub(super) fn set_trapped_for_test(&self, place: Place, trapped: Option<Trapped>) {
+        self.set_trapped(place, trapped);
+    }
+
     fn learn(&self, team: u8, pocket: PocketId, exit: PocketExit) {
         let mut shared = self.shared();
         shared
