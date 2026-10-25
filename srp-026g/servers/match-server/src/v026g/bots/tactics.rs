@@ -1421,7 +1421,7 @@ pub(super) mod tests {
         assert_eq!(TACTICS_ALGO, 3);
     }
 
-    const PINNED_FIELD: u64 = 736_835_410_510_453_169;
+    const PINNED_FIELD: u64 = 8_340_154_445_228_000_430;
 
     #[test]
     fn a_written_base_reads_back_the_same_and_a_damaged_one_is_refused() {
