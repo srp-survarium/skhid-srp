@@ -1937,3 +1937,6 @@ va	name	source	ret_cleanup	result
 0x003223e0	survarium::bullet_manager::play_particle	manual	20	
 0x0005aba0	vostok::sound::sound_instance_proxy_internal::play	manual	12	
 0x001ed870	survarium::game::is_loading	manual	0	AL: the game's byte +4E38h (set while a world loads)
+0x00018bd0	vostok::engine::engine_world::get_user_data_directory	manual	0	EAX: the folder (Documents\survarium, lower case, no last backslash; made once with SHGetFolderPathA through its delay-import slot 0xAEFE7C and kept at [0xA264568])
+0x00042050	vostok::crc32	manual	4	the CRC at [eax] updated: reflected CRC-32 without the final xor (zlib crc32 ^ 0xFFFFFFFF from 0xFFFFFFFF)
+0x0035eeb0	vostok::particle::particle_emitter_instance::tick	manual	12	

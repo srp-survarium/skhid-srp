@@ -1813,3 +1813,7 @@ va	status	ref_021d	name
 0x0001a030	observed		vostok::engine::engine_world::logic_tick
 0x0051f1c0	observed		Scaleform::GFx::MovieImpl::Advance
 0x001ed870	observed		survarium::game::is_loading
+0x00018bd0	observed		vostok::engine::engine_world::get_user_data_directory
+0x00042050	observed		vostok::crc32 (byte-wise CRC-32 update over a buffer; table 0x225FD68)
+0x0001c210	observed		vostok::crc32_table_initialize (polynomial 0x04C11DB7, reflected; flag 0x225FD64)
+0x0035eeb0	observed		vostok::particle::particle_emitter_instance::tick

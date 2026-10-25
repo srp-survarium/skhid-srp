@@ -55,15 +55,29 @@
 ; The console variable: game::game's call of the game world's constructor
 ; (0x1E90A3, before the configs run) makes it, then registers srp_freeze_ms, a
 ; cc_u32 (cc_value<u32> 0x1DCD0, as game_world_ui's minimap_position 0x2338F5)
-; on frz_limit_ms (40; 0 to 100000, 0 none), kept in user.cfg.
+; on frz_limit_ms (40; 0 to 100000, 0 none), kept in user.cfg; and
+; srp_trace on frz_trace_ms (1; 0 no trace file, 0 to 1), the same way.
+;
+; Patch 71's second part (indices 25 to 39): particle systems removed
+; (0x229D0; alive = started - removed), ticks split by a precise input (a
+; step to a time off the 50 ms grid), match messages by kind (relays, worlds,
+; moves, discards, worlds asked for), the CRC-32 step's calls and bytes from
+; five callers, tick_events (0x2D21E0), renderer::render (0x13D010), the
+; particle emitters' tick (0x35EEB0), their sprites (0x1669D0) and sort
+; (0x16A530, through its two calls), scene::update_streaming_data
+; (0x155980), all timed; deserialize (0x2D2770) timed too; refused discards
+; (40). freeze_026g.c writes every frame to Documents\Survarium\srp_frames.csv.
 BITS 32
 %include "engine_026g.inc"
 global freeze_present, freeze_logic, freeze_sim, freeze_tick, freeze_rollback, freeze_message, freeze_datagram
 global freeze_bake, freeze_baked_load, freeze_sync_load, freeze_cook, freeze_callbacks, freeze_particle
 global freeze_invoke, freeze_advance, freeze_flash_render, freeze_game_world
 global freeze_shot, freeze_hit, freeze_decal, freeze_impact, freeze_sound, freeze_kill, freeze_kill_row
+global freeze_particle_gone, freeze_crc, freeze_tick_events, freeze_render, freeze_particle_tick, freeze_sprites
+global freeze_sort, freeze_streaming, freeze_refused
 global frz_log
 global frz_totals, frz_state, frz_world, frz_tsc_mult, frz_limit_ms, frz_variable, frz_sim_time, frz_resim
+global frz_trace_ms, frz_trace_variable
 extern frz_frame, frz_logic_done
 section .text
 
@@ -87,7 +101,10 @@ section .text
 
 ; TIMED name, index, site, length, {bytes}: a timed entry at `name`, its two
 ; slots name_slots in .bss; `bytes` are the site's own `length` bytes. With a
-; sixth argument, a C function the leave calls after the time is added.
+; sixth argument, a C function the leave calls after the time is added. A
+; call's wrapper (a `call F` of the game made `call name`) is the same with no
+; bytes and length 0: it jumps to F with the caller's stack, and F's `ret n`
+; comes to the leave.
 %macro TIMED 5-6
 %1:
     pushfd
@@ -120,7 +137,9 @@ section .text
     pop ecx
     pop eax
     popfd
+%ifnempty %5
     db %5
+%endif
     jmp %3 + %4
 %%leave0:
     push dword [%1_slots + RET]
@@ -225,6 +244,18 @@ freeze_tick:
     mov [frz_sim_time], edi
     mov byte [frz_resim], 0
 .go:
+    push eax                        ; a step to a time off the 50 ms grid: a tick split by a
+    push edx                        ; precise input (tick_events steps to the next event's time)
+    mov eax, 0x51EB851F
+    mul edi
+    shr edx, 4
+    imul edx, edx, 50
+    cmp edx, edi
+    je .whole
+    lock inc dword [frz_totals + 8*26]
+.whole:
+    pop edx
+    pop eax
     popfd
     db 0x51, 0xB8, 0x1F, 0x85, 0xEB, 0x51
     jmp 0x2D1E26
@@ -248,8 +279,86 @@ freeze_shot:
     COUNTED freeze_sound, 20, 0x5ABA0, 8, {0x8B, 0x44, 0x24, 0x04, 0x8B, 0x54, 0x24, 0x0C}
     COUNTED freeze_kill, 23, 0x2DA170, 8, {0x83, 0xEC, 0x34, 0x53, 0x8A, 0x5C, 0x24, 0x40}
     COUNTED freeze_kill_row, 24, 0x237C70, 6, {0x81, 0xEC, 0xE0, 0x00, 0x00, 0x00}
-    COUNTED freeze_rollback, 4, 0x2D2770, 8, {0x83, 0xEC, 0x68, 0x53, 0x8B, 0x5C, 0x24, 0x74}
-    COUNTED freeze_message, 5, 0x27A300, 6, {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x64}
+    COUNTED freeze_particle_gone, 25, 0x229D0, 6, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8}
+
+; The CRC-32 step (0x42050: eax &the CRC, edx the bytes, [esp+4] their
+; count; `ret 4`) where whole files go through it: the camouflage/decal
+; baker's bake (0x12F340), the check of a baked texture loaded (0x3C0FF0), a
+; translated query's (0x10A10E), the resources' freeing (0x10FD36), a
+; texture's mips (0x3DD515): `call 0x42050` made `call freeze_crc`, the bytes
+; counted, the call timed. Patch 70's own entry at 0x42050 (a faster step)
+; runs as the game's would: this calls whatever is there.
+freeze_crc:
+    push eax
+    mov eax, [esp+8]
+    lock add [frz_totals + 8*33], eax
+    pop eax
+    TIMED freeze_crc_timed, 32, 0x42050, 0, {}
+
+    TIMED freeze_tick_events, 34, 0x2D21E0, 6, {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x40}
+    TIMED freeze_render, 35, 0x13D010, 6, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8}
+    TIMED freeze_particle_tick, 36, 0x35EEB0, 6, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8}
+    TIMED freeze_sprites, 37, 0x1669D0, 10, {0x8B, 0x44, 0x24, 0x24, 0x81, 0xEC, 0x38, 0x01, 0x00, 0x00}
+; render_particle_emitter_instance::sort_particles (0x16A530; its first bytes
+; call the stack probe): its two calls (0x178093, 0x1964D1) made calls of this.
+    TIMED freeze_sort, 38, 0x16A530, 0, {}
+    TIMED freeze_streaming, 39, 0x155980, 10, {0x83, 0xEC, 0x18, 0x53, 0x8B, 0x98, 0x5C, 0x61, 0x12, 0x00}
+
+; discard_input's "cannot discard local player input" lines (player input
+; 0x27D908, 0x27DA7F, 0x27DB54; profile input 0x27E2E8, 0x27E45F,
+; 0x27E534): its calls of the logger made calls of this, a refused discard
+; counted, then the logger as before (cdecl, `ret`).
+freeze_refused:
+    pushfd
+    lock inc dword [frz_totals + 8*40]
+    popfd
+    jmp LOG
+    TIMED freeze_rollback, 4, 0x2D2770, 8, {0x83, 0xEC, 0x68, 0x53, 0x8B, 0x5C, 0x24, 0x74}
+; network_client::on_match_packet_received (0x27A300; thiscall: [esp+4] the
+; message id, the reader; `ret 8`): timed, and the id sorted: relays 0xEB to
+; 0xEE and 0xF3, a world (sync or resync) 0xE8, the server's late-input moves
+; 0xEF, 0xF0, 0xF4 and discards 0xF1, 0xF5, a world asked for 0xF6.
+freeze_message:
+    pushfd
+    push eax
+    movzx eax, byte [esp+12]        ; the id (pushfd, eax, the return address)
+    cmp eax, 0xE8
+    je .sync
+    cmp eax, 0xF6
+    je .snapshot
+    cmp eax, 0xF3
+    je .relay
+    cmp eax, 0xF1
+    je .discard
+    cmp eax, 0xF5
+    je .discard
+    cmp eax, 0xEF
+    je .move
+    cmp eax, 0xF0
+    je .move
+    cmp eax, 0xF4
+    je .move
+    sub eax, 0xEB
+    cmp eax, 0xEE - 0xEB
+    ja .done
+.relay:
+    lock inc dword [frz_totals + 8*27]
+    jmp .done
+.snapshot:
+    lock inc dword [frz_totals + 8*28]
+    jmp .done
+.sync:
+    lock inc dword [frz_totals + 8*29]
+    jmp .done
+.move:
+    lock inc dword [frz_totals + 8*30]
+    jmp .done
+.discard:
+    lock inc dword [frz_totals + 8*31]
+.done:
+    pop eax
+    popfd
+    TIMED freeze_message_timed, 5, 0x27A300, 6, {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x64}
     COUNTED freeze_datagram, 6, 0x3F3BB0, 6, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8}
     TIMED freeze_bake, 7, 0x12E510, 6, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8}
     TIMED freeze_baked_load, 8, 0x12DB40, 6, {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8}
@@ -285,6 +394,17 @@ freeze_game_world:
     add esp, 28
     mov eax, CC_U32_VTABLE
     mov [frz_variable], eax         ; a cc_u32
+    push 2
+    push 1
+    push 1
+    push 0
+    push frz_trace_ms
+    push trace_name
+    push frz_trace_variable
+    call engine_cc_u32
+    add esp, 28
+    mov eax, CC_U32_VTABLE
+    mov [frz_trace_variable], eax
 .done:
     popfd
     popad
@@ -341,20 +461,23 @@ frz_log:
 
 section .rodata
 variable_name:  db "srp_freeze_ms", 0
+trace_name:     db "srp_trace", 0
 log_where:      db "srp", 0
 format:         db "%s", 0
 
 section .data
 alignb 4
 frz_limit_ms:   dd 40               ; srp_freeze_ms
+frz_trace_ms:   dd 1                ; srp_trace: 1 every frame to srp_frames.csv, 0 none
 
 section .bss
 alignb 16
-frz_totals:     resd 2*32           ; {calls, microseconds} per counter (25 used)
+frz_totals:     resd 2*64           ; {calls, microseconds} per counter (41 used)
 frz_state:      resd 1              ; freeze_026g.c's S_*
 frz_sim_time:   resd 1              ; the latest time a world ticked to
 frz_resim:      resb 4              ; 1 inside a tick played again
 frz_world:      resd 1              ; the engine world
 frz_tsc_mult:   resd 1              ; 2^32 / TSC ticks per microsecond (0: not known yet)
 frz_variable:   resb 0x4C           ; the cc_u32 (cc_value<u32>, 0x1DCD0)
+frz_trace_variable: resb 0x4C       ; srp_trace_ms's
 registered:     resb 1

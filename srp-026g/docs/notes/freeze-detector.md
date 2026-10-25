@@ -46,5 +46,19 @@ The rules the code and the tests follow. Code: `client-patches/freeze_026g.asm`,
   one QueryPerformanceCounter a frame; a line only for a long frame.
 - **What a match computes:** nothing changes; the game reads none of it. A game with the patch
   plays with any game of the same release.
-- **Getting the data:** the log only, for now (`Survarium_<user>.log`, the lines start with
-  `srp freeze`). Sending the summary to the server is not built.
+- **The owner, 2026-10-25, later:** "events, freezes, how much each frame takes": every frame goes
+  to a trace file, with its sections' times, the counters and event flags, and the match's id.
+- **Part 2 counters:** particle systems alive, ticks split by precise inputs, relays, worlds
+  (first sync, FULL RESYNC), late-input moves and discards, refused discards ("cannot discard"),
+  worlds asked (the snapshot upload), the CRC-32 step's calls, time and bytes (bakes, baked
+  loads, texture mips, file checks).
+- **Part 2 sections, timed:** tick_events, the match messages, deserialize, render, the particle
+  emitters' tick, sprites and sort, update_streaming_data (with v1's logic, sim, present,
+  Scaleform advance and render, bakes, sync loads, callbacks).
+- **The trace file:** `Documents\Survarium\srp_frames.csv`, appended, every frame a CSV line
+  (zeros empty), a header with the format's version, the exe's revision, the start's local time
+  and the columns at each game's start, a `# match` line when the match changes. Written once a
+  second, never more often unless the buffer fills. `srp_trace` (1; 0 none, kept in user.cfg).
+  The format: client-patches/README.md patch 71, "The trace file".
+- **Getting the data:** the log (`Survarium_<user>.log`, the lines start with `srp freeze`) and
+  the trace file, both on the player's machine. Sending them to the server is not built.

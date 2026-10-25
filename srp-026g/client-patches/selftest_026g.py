@@ -4491,6 +4491,18 @@ def test_freeze(original, image, before):
           "whose vtable is 0x9FFB14 (0x2199C6) and whose +1F1C60h is the time rule's state the camera keeps "
           "(client_timelimit_rule::tick, 0x267AFB)")
     iat_name = lambda slot: cstr(P.IMAGE_BASE + word(slot) + 2)
+    check(iat_name(0x870048) == b"CreateFileA" and iat_name(0x870108) == b"WriteFile"
+          and iat_name(0x870184) == b"GetLocalTime" and stock.read(0x380862, 4) == bytes.fromhex("8a0d9eae")
+          and image.read(0x380862, 4) == bytes.fromhex("c6442427")
+          and stock.read(0x21BEBC, 12) == bytes.fromhex("8b83481c1f00" "8b88bc770500")
+          and stock.read(0x18C2A, 6) == bytes.fromhex("ff157cfeae00") and word(0x9DB60C) != 0
+          and rows(stock, 0x2D22A1, 0x18)[-1] == "add edi,eax" and rows(stock, 0x2D22E2, 5) == ["call 0x2d1e20"]
+          and rows(stock, 0x42050, 0x31)[-1] == "ret 0x4" and cstr(0xA0F840) == b"--- FULL RESYNC --- %d.%03d"
+          and stock.read(0x219C81, 5) == bytes.fromhex("b800a32700"),
+          "CreateFileA and WriteFile's import slots; get_user_data_directory (0x18BD0) asks SHGetFolderPathA "
+          "through its delay-import slot; tick_events steps the world to edi, the least of the next 50 ms boundary, "
+          "the next event and the target, and calls atomic_tick (0x2D22E2); the CRC-32 step pops 4; the match "
+          "messages' dispatcher is a delegate (0x219C81)")
     check(iat_name(0x870158) == b"QueryPerformanceCounter" and iat_name(0x870150) == b"QueryPerformanceFrequency"
           and stock.read(0x2338F5, 0x26) == bytes.fromhex("6a026a01" "6a02" "53" "56" "685c31a000" "b8a8e12a0a"
                                                           "e8c4a3deff" "6860c98600" "c705a8e12a0acc7c9e00")
@@ -4520,7 +4532,7 @@ def test_freeze(original, image, before):
             jump = texts[i][0]
             goes_on = branch_target(texts[i][2]) == va + len(old) and code[jump - block.va - len(old):jump - block.va] == old
         else:
-            goes_on = first == ["call 0x1f67b0"]
+            goes_on = first in (["call 0x1f67b0"], ["call 0x42050"], ["call 0x16a530"], ["call 0x111ed0"])
         check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
               and block.va <= target < block.va + block.size and whole and plain and goes_on,
               f"{va:#x}: {'; '.join(first)} in the original and the build without the late join (whole instructions, "
@@ -4535,10 +4547,14 @@ def test_freeze(original, image, before):
     outside = sorted({branch_target(t) for _, _, t in texts if branch_target(t) is not None
                       and not block.va <= branch_target(t) < block.va + len(code)})
     indirect = sorted({t for _, _, t in texts if t.startswith(("call [", "jmp ["))})
-    check(outside == sorted({*P.FREEZE_BACKS, 0x111ED0, 0x111860, 0x1F67B0, linked.symbols["engine_cc_u32"]})
-          and indirect == ["call [dword 0x870150]", "call [dword 0x870158]"]
+    check(outside == sorted({*P.FREEZE_BACKS, 0x111ED0, 0x111860, 0x1F67B0, 0x42050, 0x16A530,
+                             linked.symbols["engine_cc_u32"], linked.symbols["engine_user_data_directory"]})
+          and indirect == ["call [dword 0x870048]", "call [dword 0x870108]", "call [dword 0x870150]",
+                           "call [dword 0x870158]", "call [dword 0x870184]"]
           and P.FREEZE_BACKS == tuple(va + len(old) for va, old, _, opcode in P.FREEZE_HOOKS if opcode == 0xE9),
-          "it jumps back into the twenty-three functions past their bytes, calls the logger (0x111ED0) and its filter "
+          "it jumps back into the 29 functions past their bytes and on to the CRC-32 step (0x42050) and "
+          "sort_particles (0x16A530) for their calls, calls the library's get_user_data_directory, "
+          "CreateFileA, WriteFile and GetLocalTime, the logger (0x111ED0) and its filter "
           "(0x111860), the game world's constructor (0x1F67B0), the library's cc_value<u32> and, through their "
           "import slots, QueryPerformanceCounter and QueryPerformanceFrequency, and nothing else of the game's")
     state, data = linked.blocks["freeze.state"], linked.blocks["freeze.data"]

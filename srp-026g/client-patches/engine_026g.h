@@ -118,4 +118,7 @@ unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsign
 /* 0x1dcd0 vostok::console_commands::cc_value<unsigned int>::cc_value: object EAX, name ESP+4, value ESP+8, least ESP+12, most ESP+16, saved ESP+20, kind ESP+24; pops 24 */
 void engine_cc_u32(void *object, const char *name, unsigned int *value, unsigned int least, unsigned int most, unsigned int saved, unsigned int kind);
 
+/* 0x18bd0 vostok::engine::engine_world::get_user_data_directory: no arguments; pops 0; EAX */
+const char *engine_user_data_directory(void);
+
 #endif

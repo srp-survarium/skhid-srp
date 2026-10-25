@@ -4510,3 +4510,6 @@ va	name	location	role	basis
 0x001f67b0	survarium::game_world::game_world	entry ESP+4	the game world (game+18h; EAX too at game::game 0x1E90A3)	observed
 0x001f67b0	survarium::game_world::game_world	entry ESP+8	the game	observed
 0x0051f1c0	Scaleform::GFx::MovieImpl::Advance	ECX	the movie (its profiler scope names MovieImpl::Advance, 0x8BE4BC; vtable slot at 0x8BE3B4)	observed
+0x00042050	vostok::crc32	EAX	&the CRC (a dword, updated in place)	observed
+0x00042050	vostok::crc32	EDX	the bytes	observed
+0x00042050	vostok::crc32	entry ESP+4	the byte count (process_compression 0x12F339: a baked DDS; texture_mip_cook 0x3DD515: a mip; 0x3C0FF0, 0x10A10E, 0x10FD36: loaded files)	observed

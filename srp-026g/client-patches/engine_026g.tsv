@@ -35,3 +35,4 @@ engine_accept_decal_edit	0x263950	ESI:lobby_character ESP+4:host ESP+8:decal	voi
 engine_cc_bool	0x01ddb0	EAX:object ESP+4:name ESP+8:value ESP+12:saved ESP+16:kind	void engine_cc_bool(void *object, const char *name, unsigned char *value, unsigned int saved, unsigned int kind)
 engine_binded_action	0x207d50	EAX:binder EDI:kinds ESI:key ESP+4:toggle	unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
 engine_cc_u32	0x01dcd0	EAX:object ESP+4:name ESP+8:value ESP+12:least ESP+16:most ESP+20:saved ESP+24:kind	void engine_cc_u32(void *object, const char *name, unsigned int *value, unsigned int least, unsigned int most, unsigned int saved, unsigned int kind)
+engine_user_data_directory	0x018bd0	-	const char *engine_user_data_directory(void)

@@ -3451,6 +3451,48 @@ changes, and the game reads none of it. The variable is registered at game::game
 game world's constructor (0x1E90A3), before the configs run, as the game's minimap_position
 cc_u32 is.
 
+**Sections, counters and the CRC (part 2).** Also timed: `tick_events` (0x2D21E0),
+`renderer::render` (0x13D010), the particle emitters' tick (0x35EEB0), their sprites
+(0x1669D0) and their sort (0x16A530, through its two calls 0x178093 and 0x1964D1),
+`scene::update_streaming_data` (0x155980), the match messages (0x27A300) and `deserialize`;
+and the CRC-32 step (0x42050) with its bytes, through five of its calls (the baker's
+0x12F340, a baked texture's check 0x3C0FF0, 0x10A10E, 0x10FD36, a texture's mips 0x3DD515):
+the call is made a call of the wrapper, which jumps to 0x42050 itself, so patch 70's faster
+step there runs as the game's. Counted too: particle systems removed (0x229D0; alive = started
+less removed), ticks split by a precise input (a step to a time off the 50 ms grid), the
+match messages by kind (relays 0xEB to 0xEE and 0xF3, worlds 0xE8, moves 0xEF, 0xF0, 0xF4,
+discards 0xF1, 0xF5, a world asked 0xF6), and refused discards (discard_input's six "cannot
+discard" log calls made calls of a counter that goes on to the logger). The long-frame line
+starts with the frame's number.
+
+**The trace file** (`Documents\Survarium\srp_frames.csv`, appended; `srp_trace` 1, 0 none):
+every frame, one CSV line, kept in memory (128 KiB) and written once a second (on the main
+thread, at a frame's end; sooner only when the buffer is nearly full). A game's first frame
+writes the header:
+
+    # srp_frames 1; revision 34; started 2026-10-25 17:03:12.345 local; qpc 10000000 Hz; srp_freeze_ms 40
+    # state: 0 menu, 1 lobby, 2 loading, 3 waiting, 4 countdown, 5 play, 6 replay
+    # flags: L long (srp_freeze_ms), R rollback, S world loaded (first sync or FULL RESYNC), D discard refused, M late input moved or discarded, B bake or baked load, C sync load or 10 cooks, U world asked (snapshot upload), K kill
+    # t: seconds since the first frame; _us: microseconds; an empty field is 0
+    frame,t,frame_us,state,flags,alive,logic_n,logic_us,present_n,present_us,...
+
+then a line a frame, and `# match <id> frame <n> t <s> at <local time>` when the match's id
+changes (the static info's id less its top bit, which is srp's match id; 0 out of a match):
+
+    # match 4660 frame 3209 t 44.575500 at 2026-10-25 17:03:12.345
+    3213,44.615500,45000,5,LRBUK,3,,,1,,,,2,1,2000,1,,,1,20000,...
+
+The columns after `alive` (particle systems started and not removed), `<name>_n` the calls
+and, for a timed one, `<name>_us` its microseconds in that frame: logic, present, sim,
+ticks, rollbacks (deserialize), messages, datagrams, bakes, baked_loads, sync_loads, cooks,
+callbacks, particles, invokes, advance, flash_render, shots, hits, decals, impacts, sounds,
+resimulated, replayed, kills, feed_rows, particles_gone, splits (ticks split by a precise
+input), relays, worlds_asked (0xF6), worlds (0xE8), moves, discards, crc (the CRC-32 step)
+and crc_bytes, tick_events, render, emitter_ticks, sprites, sorts, streaming, refused
+("cannot discard" lines). Timed: logic, present, sim, rollbacks, messages, bakes,
+baked_loads, sync_loads, callbacks, advance, flash_render, crc, tick_events, render,
+emitter_ticks, sprites, sorts, streaming. About 100 to 200 bytes a frame.
+
 **Getting the players' data.** The log only, for now. Not built (the owner decides): the summary
 lines could go to the server at a match's end and be logged there (the lobby connection is up
 then), or ride with the snapshot upload (patch 4) as a few more bytes.

@@ -45,7 +45,23 @@ typedef long long s64;
 enum {
     F_LOGIC, F_PRESENT, F_SIM, F_TICKS, F_ROLLBACKS, F_MESSAGES, F_DATAGRAMS, F_BAKES, F_LOADS, F_WAITS,
     F_COOKS, F_CALLBACKS, F_PARTICLES, F_INVOKES, F_ADVANCE, F_FLASH, F_SHOTS, F_HITS, F_DECALS, F_IMPACTS,
-    F_SOUNDS, F_RESIM_TICKS, F_RESIM_SHOTS, F_KILLS, F_KILL_ROWS, F_COUNT
+    F_SOUNDS, F_RESIM_TICKS, F_RESIM_SHOTS, F_KILLS, F_KILL_ROWS, F_PARTICLES_GONE, F_SPLITS, F_RELAYS,
+    F_SNAPSHOTS, F_SYNCS, F_MOVES, F_DISCARDS, F_CRC, F_CRC_BYTES, F_TICK_EVENTS, F_RENDER, F_PARTICLE_TICK,
+    F_SPRITES, F_SORT, F_STREAMING, F_REFUSED, F_COUNT
+};
+/* The trace file's column of each counter: its calls, and its time (0 when not timed). */
+static const char *const column[F_COUNT] = {
+    "logic", "present", "sim", "ticks", "rollbacks", "messages", "datagrams", "bakes", "baked_loads",
+    "sync_loads", "cooks", "callbacks", "particles", "invokes", "advance", "flash_render", "shots", "hits",
+    "decals", "impacts", "sounds", "resimulated", "replayed", "kills", "feed_rows", "particles_gone", "splits",
+    "relays", "worlds_asked", "worlds", "moves", "discards", "crc", "crc_bytes", "tick_events", "render",
+    "emitter_ticks", "sprites", "sorts", "streaming", "refused",
+};
+/* Which counters are timed: the trace has a _us column for them alone. */
+static const u8 timed[F_COUNT] = {
+    [F_LOGIC] = 1, [F_PRESENT] = 1, [F_SIM] = 1, [F_ROLLBACKS] = 1, [F_MESSAGES] = 1, [F_BAKES] = 1,
+    [F_LOADS] = 1, [F_WAITS] = 1, [F_CALLBACKS] = 1, [F_ADVANCE] = 1, [F_FLASH] = 1, [F_CRC] = 1,
+    [F_TICK_EVENTS] = 1, [F_RENDER] = 1, [F_PARTICLE_TICK] = 1, [F_SPRITES] = 1, [F_SORT] = 1, [F_STREAMING] = 1,
 };
 struct frz_total {
     u32 count;                     /* calls, ever */
@@ -57,7 +73,20 @@ extern volatile u32 frz_world;     /* the engine world, logic_tick's argument */
 extern volatile u32 frz_tsc_mult;  /* 2^32 / TSC ticks per microsecond: the hooks' clock */
 extern volatile u32 frz_limit_ms;  /* srp_freeze_ms */
 extern volatile u32 frz_sim_time;  /* the latest time a world ticked to (freeze_tick's) */
+extern volatile u32 frz_trace_ms;  /* srp_trace: 1 every frame to the trace file, 0 none */
+volatile u32 frz_match;            /* the match's id (its static info's, less the top bit), 0 out of one */
+
+#define GET_LOCAL_TIME 0x870184    /* [import] GetLocalTime */
+#define REVISION 0x380866          /* the patch revision byte (REVISION_SITE's `mov byte [esp+27h],NN`) */
+#define CLIENT_MATCH 0x1F1C48      /* network_client: its match client (connect_to_match 0x21BEBC) */
+#define MATCH_ID 0x577BC           /* match client: its static info's match id (0x21BEC2) */
 void frz_log(const char *text);    /* one line of the game's log, channel "game", info */
+const char *engine_user_data_directory(void);   /* engine_world::get_user_data_directory 0x18BD0 */
+
+#define CREATE_FILE 0x870048       /* [import] CreateFileA */
+#define WRITE_FILE 0x870108        /* [import] WriteFile */
+typedef void *(STDCALL *create_file_t)(const char *, u32, u32, void *, u32, u32, void *);
+typedef int (STDCALL *write_file_t)(void *, const void *, u32, u32 *, void *);
 
 enum { S_MENU, S_LOBBY, S_LOADING, S_WAITING, S_COUNTDOWN, S_PLAY, S_REPLAY, S_COUNT };
 
@@ -67,7 +96,7 @@ void frz_logic_done(void)
 {
     u8 *world = (u8 *)frz_world;
     u8 *game = world ? AT(world, ENGINE_GAME, u8 *) : 0;
-    u32 state = S_MENU;
+    u32 state = S_MENU, match = 0;
     if (game) {
         u8 *scene = AT(game, GAME_SCENE, u8 *);
         if (AT(game, GAME_LOADING, u8)) {
@@ -88,6 +117,13 @@ void frz_logic_done(void)
      * thread alone ticks a world, so no tick runs while this is written). */
     if (state < S_WAITING)
         frz_sim_time = 0;
+    if (state >= S_LOADING && state != S_REPLAY) {
+        u8 *client = AT(game, GAME_CLIENT, u8 *);
+        u8 *match_client = client && AT(client, 0, u32) == CLIENT_VTABLE ? AT(client, CLIENT_MATCH, u8 *) : 0;
+        u32 id = match_client ? AT(match_client, MATCH_ID, u32) : 0;
+        match = id == 0xFFFFFFFFu ? 0 : id & 0x7FFFFFFFu;
+    }
+    frz_match = match;
     frz_state = state;
 }
 
@@ -101,10 +137,13 @@ enum {
     WORST = 3,
     LINES = 100,                   /* long-frame lines from a match's start to the lobby, or in the lobby */
     LINES_LOADING = 20,            /* of them, while loading */
-    LINE = 1024,
+    LINE = 1536,
+    TRACE = 0x20000,               /* the trace file's buffer: written when a second passed or it is nearly full */
 };
 
 struct frame {
+    u32 number;                    /* frames since the game started */
+    u32 alive;                     /* particle systems started and not removed */
     u32 us;                        /* the frame, by QueryPerformanceCounter */
     u32 state;
     u32 limit;                     /* the limit it was over */
@@ -126,6 +165,12 @@ static struct {
     struct frame worst[WORST];
     u32 worsts;
     char line[LINE];
+    u32 number;                    /* frames so far */
+    u64 flushed;                   /* the trace's last write (QueryPerformanceCounter), 0 before the first */
+    void *file;                    /* the trace file, 0 before its first write */
+    u32 failed, used;              /* it could not be opened; bytes waiting in `trace` */
+    u32 match;                     /* the match the trace last named */
+    char trace[TRACE];
 } frz;
 
 static const char *state_name(u32 state)
@@ -194,6 +239,9 @@ static char *put_time(char *p, const char *name, const struct frame *f, u32 i)
  * they hit and left; then the rest. */
 static char *put_frame(char *p, const struct frame *f)
 {
+    *p++ = '#';
+    p = put_u(p, f->number);
+    *p++ = ' ';
     p = put_ms(p, f->us);
     p = put(p, " ms in ");
     p = put(p, state_name(f->state));
@@ -201,10 +249,13 @@ static char *put_frame(char *p, const struct frame *f)
     p = put_ms(p, f->limit);
     p = put(p, " ms): ");
     p = put_timed(p, "logic ", f, F_LOGIC);
+    p = put_timed(p, ", tick events ", f, F_TICK_EVENTS);
     p = put_time(p, ", present ", f, F_PRESENT);
+    p = put_timed(p, ", render ", f, F_RENDER);
     p = put_timed(p, ", sim ", f, F_SIM);
     p = put_count(p, ", ticks ", f, F_TICKS);
     p = put_count(p, " (resimulated ", f, F_RESIM_TICKS);
+    p = put_count(p, ", split ", f, F_SPLITS);
     p = put_count(p, "), rollbacks ", f, F_ROLLBACKS);
     p = put_count(p, ", shots ", f, F_SHOTS);
     p = put_count(p, " (replayed ", f, F_RESIM_SHOTS);
@@ -214,14 +265,27 @@ static char *put_frame(char *p, const struct frame *f)
     p = put_count(p, ", sounds ", f, F_SOUNDS);
     p = put_count(p, ", kills ", f, F_KILLS);
     p = put_count(p, ", feed rows ", f, F_KILL_ROWS);
-    p = put_count(p, ", messages ", f, F_MESSAGES);
-    p = put_count(p, ", datagrams ", f, F_DATAGRAMS);
+    p = put_timed(p, ", messages ", f, F_MESSAGES);
+    p = put_count(p, " (relays ", f, F_RELAYS);
+    p = put_count(p, ", worlds ", f, F_SYNCS);
+    p = put_count(p, ", moves ", f, F_MOVES);
+    p = put_count(p, ", discards ", f, F_DISCARDS);
+    p = put_count(p, ", refused ", f, F_REFUSED);
+    p = put_count(p, ", worlds asked ", f, F_SNAPSHOTS);
+    p = put_count(p, "), datagrams ", f, F_DATAGRAMS);
     p = put_timed(p, ", bakes ", f, F_BAKES);
     p = put_timed(p, ", baked loads ", f, F_LOADS);
-    p = put_timed(p, ", sync loads ", f, F_WAITS);
+    p = put_timed(p, ", crc ", f, F_CRC);
+    p = put_count(p, " (bytes ", f, F_CRC_BYTES);
+    p = put_timed(p, "), sync loads ", f, F_WAITS);
     p = put_count(p, ", cooks ", f, F_COOKS);
     p = put_timed(p, ", callbacks ", f, F_CALLBACKS);
+    p = put_timed(p, ", streaming ", f, F_STREAMING);
     p = put_count(p, ", particles ", f, F_PARTICLES);
+    p = put_u(put(p, " (alive "), f->alive);
+    p = put_timed(p, "), emitter ticks ", f, F_PARTICLE_TICK);
+    p = put_timed(p, ", sprites ", f, F_SPRITES);
+    p = put_timed(p, ", sorts ", f, F_SORT);
     p = put_count(p, ", invokes ", f, F_INVOKES);
     p = put_timed(p, ", advance ", f, F_ADVANCE);
     return put_time(p, ", flash render ", f, F_FLASH);
@@ -360,6 +424,179 @@ static void median_of_ring(void)
     frz.median = sorted[RING / 2];
 }
 
+/* ---- the trace file (main thread) -------------------------------------- */
+
+static void trace_write(void)
+{
+    if (!frz.used)
+        return;
+    if (!frz.file && !frz.failed) {
+        char path[320];
+        const char *folder = engine_user_data_directory();
+        char *p = path;
+        for (u32 n = 0; folder && folder[n] && n < 280; n++)
+            *p++ = folder[n];
+        p = put(p, "\\srp_frames.csv");
+        *p = 0;
+        void *file = folder ? ((create_file_t) * (u32 *)CREATE_FILE)(path, 4 /* FILE_APPEND_DATA */,
+                                                                       3 /* share read and write */, 0,
+                                                                       4 /* OPEN_ALWAYS */, 0x80, 0) : 0;
+        if (!file || file == (void *)-1) {
+            frz.failed = 1;
+            char text[400];        /* not frz.line: a line may be on its way through it */
+            *put(put(text, "srp freeze: the trace file cannot be opened: "), path) = 0;
+            frz_log(text);
+        } else {
+            frz.file = file;
+        }
+    }
+    if (frz.file) {
+        u32 written = 0;
+        ((write_file_t) * (u32 *)WRITE_FILE)(frz.file, frz.trace, frz.used, &written, 0);
+    }
+    frz.used = 0;
+}
+
+static void trace_put(const char *text, u32 n)
+{
+    if (frz.used + n > TRACE)
+        trace_write();
+    for (u32 i = 0; i < n && frz.used < TRACE; i++)
+        frz.trace[frz.used++] = text[i];
+}
+
+static char *put_z(char *p, u32 v)
+{
+    return v ? put_u(p, v) : p;
+}
+
+static char *put_2(char *p, u32 v)
+{
+    *p++ = (char)('0' + v / 10 % 10);
+    *p++ = (char)('0' + v % 10);
+    return p;
+}
+
+/* "2026-10-25 17:03:12.345", the local time. */
+static char *put_now(char *p)
+{
+    unsigned short t[8];
+    ((void (STDCALL *)(unsigned short *)) * (u32 *)GET_LOCAL_TIME)(t);
+    p = put_u(p, t[0]);
+    *p++ = '-';
+    p = put_2(p, t[1]);
+    *p++ = '-';
+    p = put_2(p, t[3]);
+    *p++ = ' ';
+    p = put_2(p, t[4]);
+    *p++ = ':';
+    p = put_2(p, t[5]);
+    *p++ = ':';
+    p = put_2(p, t[6]);
+    *p++ = '.';
+    *p++ = (char)('0' + t[7] / 100 % 10);
+    return put_2(p, t[7]);
+}
+
+/* Seconds since the game's first frame, to the microsecond: "123.456789". */
+static char *put_t(char *p, u64 now)
+{
+    double us = (double)(s64)(now - frz.qpc0) * frz.us_per_qpc;
+    u32 s = us < 2000000000e6 ? (u32)(int)(us / 1000000.0) : 0;
+    u32 micro = (u32)(int)(us - (double)s * 1000000.0);
+    if (micro > 999999)
+        micro = 999999;
+    p = put_u(p, s);
+    *p++ = '.';
+    for (u32 d = 100000; d; d /= 10)
+        *p++ = (char)('0' + micro / d % 10);
+    return p;
+}
+
+/* Once a game: what the file is, then the columns (README patch 71, "The trace file"). */
+static void trace_header(void)
+{
+    char *p = put(frz.line, "# srp_frames 1; revision ");
+    p = put_u(p, AT(REVISION, 0, u8));
+    p = put(p, "; started ");
+    p = put_now(p);
+    p = put(p, " local; qpc ");
+    p = put_u(p, frz.freq);
+    p = put(p, " Hz; srp_freeze_ms ");
+    p = put_u(p, frz_limit_ms);
+    p = put(p, "\r\n# state: 0 menu, 1 lobby, 2 loading, 3 waiting, 4 countdown, 5 play, 6 replay\r\n"
+               "# flags: L long (srp_freeze_ms), R rollback, S world loaded (first sync or FULL RESYNC), "
+               "D discard refused, M late input moved or discarded, B bake or baked load, C sync load or 10 cooks, "
+               "U world asked (snapshot upload), K kill\r\n"
+               "# t: seconds since the first frame; _us: microseconds; an empty field is 0\r\n"
+               "frame,t,frame_us,state,flags,alive");
+    for (u32 i = 0; i < F_COUNT; i++) {
+        *p++ = ',';
+        p = put(put(p, column[i]), "_n");
+        if (timed[i])
+            p = put(put(put(p, ","), column[i]), "_us");
+    }
+    p = put(p, "\r\n");
+    trace_put(frz.line, (u32)(p - frz.line));
+}
+
+/* "# match 123456 frame 5000 t 61.250000 at 2026-10-25 17:04:13.595", when it changes (0: out of one). */
+static void trace_match(u32 match, u32 number, u64 now)
+{
+    char *p = put(frz.line, "# match ");
+    p = put_u(p, match);
+    p = put(p, " frame ");
+    p = put_u(p, number);
+    p = put(p, " t ");
+    p = put_t(p, now);
+    p = put(p, " at ");
+    p = put_now(p);
+    p = put(p, "\r\n");
+    trace_put(frz.line, (u32)(p - frz.line));
+}
+
+static void trace_frame(const struct frame *f, u64 now, int long_frame)
+{
+    char *p = put_u(frz.line, f->number);
+    *p++ = ',';
+    p = put_t(p, now);
+    *p++ = ',';
+    p = put_u(p, f->us);
+    *p++ = ',';
+    p = put_u(p, f->state);
+    *p++ = ',';
+    if (long_frame)
+        *p++ = 'L';
+    if (f->count[F_ROLLBACKS])
+        *p++ = 'R';
+    if (f->count[F_SYNCS])
+        *p++ = 'S';
+    if (f->count[F_REFUSED])
+        *p++ = 'D';
+    if (f->count[F_MOVES] || f->count[F_DISCARDS])
+        *p++ = 'M';
+    if (f->count[F_BAKES] || f->count[F_LOADS])
+        *p++ = 'B';
+    if (f->count[F_WAITS] || f->count[F_COOKS] >= 10)
+        *p++ = 'C';
+    if (f->count[F_SNAPSHOTS])
+        *p++ = 'U';
+    if (f->count[F_KILLS])
+        *p++ = 'K';
+    *p++ = ',';
+    p = put_z(p, f->alive);
+    for (u32 i = 0; i < F_COUNT; i++) {
+        *p++ = ',';
+        p = put_z(p, f->count[i]);
+        if (timed[i]) {
+            *p++ = ',';
+            p = put_z(p, f->time[i]);
+        }
+    }
+    p = put(p, "\r\n");
+    trace_put(frz.line, (u32)(p - frz.line));
+}
+
 /* After the swap chain's present, on the main thread. */
 void frz_frame(void)
 {
@@ -388,6 +625,7 @@ void frz_frame(void)
             frz_tsc_mult = (u32)(int)(4294967296.0 * us / ticks + 0.5);
     }
     struct frame f;
+    f.number = ++frz.number;
     double span = (double)(s64)(now - frz.last) * frz.us_per_qpc;
     f.us = span < 2000000000.0 ? (u32)(int)span : 2000000000u;
     frz.last = now;
@@ -399,6 +637,7 @@ void frz_frame(void)
         frz.seen[i].count = count;
         frz.seen[i].us = us;
     }
+    f.alive = frz.seen[F_PARTICLES].count - frz.seen[F_PARTICLES_GONE].count;
     /* A match from its loading or start to the lobby. */
     if (f.state <= S_LOBBY) {
         if (frz.session) {
@@ -425,8 +664,27 @@ void frz_frame(void)
     if (limit < frz.median * 3)
         limit = frz.median * 3;
     f.limit = limit;
-    if (frz_limit_ms && f.us >= limit)
+    int is_long = frz_limit_ms && f.us >= limit;
+    if (is_long)
         long_frame(&f);
+    /* The trace: every frame, a line each, kept in memory and written to the
+     * file once a second; the match's id when it changes. */
+    if (frz_trace_ms) {
+        if (!frz.flushed) {
+            trace_header();
+            frz.flushed = now;
+        }
+        u32 match = frz_match;
+        if (match != frz.match) {
+            frz.match = match;
+            trace_match(match, f.number, now);
+        }
+        trace_frame(&f, now, is_long);
+        if (now - frz.flushed >= frz.freq || frz.used > TRACE - 2 * LINE) {
+            trace_write();
+            frz.flushed = now;
+        }
+    }
     frz.ring[frz.at++ % RING] = f.us;
     if (frz.at % RING == 0)
         median_of_ring();

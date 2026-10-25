@@ -2086,6 +2086,25 @@ FREEZE_HOOKS = (
     (0x05ABA0, bytes.fromhex("8b4424048b54240c"), "freeze_sound", 0xE9),      # sound_instance_proxy_internal::play
     (0x2DA170, bytes.fromhex("83ec34538a5c2440"), "freeze_kill", 0xE9),       # generate_killed_event
     (0x237C70, bytes.fromhex("81ece0000000"), "freeze_kill_row", 0xE9),       # game_world_ui::on_player_killed
+    (0x0229D0, bytes.fromhex("558bec83e4f8"), "freeze_particle_gone", 0xE9),  # remove_particle_system_instance
+    (0x2D21E0, bytes.fromhex("558bec83ec40"), "freeze_tick_events", 0xE9),    # game_world_core::tick_events
+    (0x13D010, bytes.fromhex("558bec83e4f8"), "freeze_render", 0xE9),         # renderer::render
+    (0x35EEB0, bytes.fromhex("558bec83e4f8"), "freeze_particle_tick", 0xE9),  # particle_emitter_instance::tick
+    (0x1669D0, bytes.fromhex("8b44242481ec38010000"), "freeze_sprites", 0xE9),  # render_sprites
+    (0x155980, bytes.fromhex("83ec18538b985c611200"), "freeze_streaming", 0xE9),  # scene::update_streaming_data
+    (0x12F340, bytes.fromhex("e80b2df1ff"), "freeze_crc", 0xE8),              # process_compression's CRC-32
+    (0x3C0FF0, bytes.fromhex("e85b10c8ff"), "freeze_crc", 0xE8),              # a baked texture's check's
+    (0x10A10E, bytes.fromhex("e83d7ff3ff"), "freeze_crc", 0xE8),              # finish_translated_query's
+    (0x10FD36, bytes.fromhex("e81523f3ff"), "freeze_crc", 0xE8),              # try_collect_to_free_resource's
+    (0x3DD515, bytes.fromhex("e8364bc6ff"), "freeze_crc", 0xE8),              # texture_mip_cook's
+    (0x178093, bytes.fromhex("e89824ffff"), "freeze_sort", 0xE8),             # stage_gbuffer's sort_particles
+    (0x1964D1, bytes.fromhex("e85a40fdff"), "freeze_sort", 0xE8),             # stage_lights' sort_particles
+    (0x27D908, bytes.fromhex("e8c345e9ff"), "freeze_refused", 0xE8),          # "cannot discard": older than a resync
+    (0x27DA7F, bytes.fromhex("e84c44e9ff"), "freeze_refused", 0xE8),          # "cannot discard": too new
+    (0x27DB54, bytes.fromhex("e87743e9ff"), "freeze_refused", 0xE8),          # "cannot discard": too new, empty
+    (0x27E2E8, bytes.fromhex("e8e33be9ff"), "freeze_refused", 0xE8),          # the profile input's three
+    (0x27E45F, bytes.fromhex("e86c3ae9ff"), "freeze_refused", 0xE8),
+    (0x27E534, bytes.fromhex("e89739e9ff"), "freeze_refused", 0xE8),
     (0x1E90A3, bytes.fromhex("e808d70000"), "freeze_game_world", 0xE8),       # game::game's game_world call
 )
 # Where each entry goes on: past the site's bytes (the call's: back at 0x1E90A8).
@@ -2263,9 +2282,10 @@ INSTALLS = {
                       "the frame's end after it", None, None),
     0x2D2E40: (ENTRY, "game_world_core::move: freeze_sim, timed", None, None),
     0x2D1E20: (ENTRY, "game_world_core::atomic_tick: freeze_tick, counted", None, None),
-    0x2D2770: (ENTRY, "game_world_core::deserialize: freeze_rollback, counted", None, None),
+    0x2D2770: (ENTRY, "game_world_core::deserialize: freeze_rollback, timed", None, None),
     0x27A300: (JUMP, "network_client::on_match_packet_received's first bytes (a delegate network_client::"
-                     "network_client binds, 0x219C81): freeze_message, counted, back at 0x27A306 at the site's depth "
+                     "network_client binds, 0x219C81): freeze_message, the id sorted and the call timed, back at "
+                     "0x27A306 at the site's depth "
                      "(an entry, declared a jump: the function's switch `jmp [eax*4+27A738h]` hides its `ret` from "
                      "the self-test; check_freeze_026g.py runs it against the original's)", None, None),
     0x3F3BB0: (ENTRY, "udp_match_connection::process_incoming_packet: freeze_datagram, counted", None, None),
@@ -2288,6 +2308,28 @@ INSTALLS = {
                       "counted", None, None),
     0x237C70: (ENTRY, "game_world_ui::on_player_killed (patch 67's kill_feed_row inside it): freeze_kill_row, "
                       "counted", None, None),
+    0x0229D0: (ENTRY, "scene_renderer::remove_particle_system_instance: freeze_particle_gone, counted", None, None),
+    0x2D21E0: (ENTRY, "game_world_core::tick_events: freeze_tick_events, timed", None, None),
+    0x13D010: (ENTRY, "renderer::render: freeze_render, timed", None, None),
+    0x35EEB0: (ENTRY, "particle_emitter_instance::tick: freeze_particle_tick, timed", None, None),
+    0x1669D0: (ENTRY, "render_particle_emitter_instance::render_sprites: freeze_sprites, timed", None, None),
+    0x155980: (ENTRY, "scene::update_streaming_data: freeze_streaming, timed", None, None),
+    0x12F340: (CALLEE, "process_compression's CRC-32 step (eax &the CRC, edx the bytes, the count; `ret 4`): crc, "
+                       "which counts the bytes and times the step (patch 70's at 0x42050 when it is there)", None, None),
+    0x3C0FF0: (CALLEE, "the check of a baked texture loaded's CRC-32 step: crc", None, None),
+    0x10A10E: (CALLEE, "finish_translated_query's CRC-32 step: crc", None, None),
+    0x10FD36: (CALLEE, "try_collect_to_free_resource's CRC-32 step: crc", None, None),
+    0x3DD515: (CALLEE, "texture_mip_cook::on_dds_body_ready's CRC-32 step: crc", None, None),
+    0x178093: (CALLEE, "stage_gbuffer::render_particles' sort_particles: sort, timed", None, None),
+    0x1964D1: (CALLEE, "stage_lights::accumulate_particle_lighting's sort_particles: sort, timed", None, None),
+    0x27D908: (CALLEE, "discard_input<player_input>'s log_message of \"cannot discard ...: older than last "
+                       "resync\": refused, which counts it and jumps to the logger", None, None),
+    0x27DA7F: (CALLEE, "discard_input<player_input>'s \"cannot discard ...: too new\" line: refused", None, None),
+    0x27DB54: (CALLEE, "discard_input<player_input>'s \"cannot discard ...: too new (empty)\" line: refused",
+               None, None),
+    0x27E2E8: (CALLEE, "discard_input<profile_input>'s \"older than last resync\" line: refused", None, None),
+    0x27E45F: (CALLEE, "discard_input<profile_input>'s \"too new\" line: refused", None, None),
+    0x27E534: (CALLEE, "discard_input<profile_input>'s \"too new (empty)\" line: refused", None, None),
     0x1E90A3: (CALLEE, "game::game's call of the game world's constructor (the world, the game; `ret 8`): "
                        "game_world, which calls it and registers srp_freeze_ms", None, None),
 }
