@@ -15,7 +15,9 @@ use survarium::v026g::golden;
 use survarium::v026g::item_params;
 use survarium::v026g::loadouts::{self, Loadout, POCKET_SLOTS};
 use survarium::v026g::lobby::{FULL_CONDITION, KIT_PREMIUM, KIT_READY, limits};
+use survarium::v026g::modifications::{Modifications, Modifier};
 use survarium::v026g::quests::FACTIONS;
+use survarium::v026g::skills::{SkillsTree, modifier_index};
 
 /// The kits an account has: the client's array holds three.
 pub const KITS: usize = limits::KITS;
@@ -224,6 +226,63 @@ pub fn doubled_pockets(
         }
     }
     doubled
+}
+
+/// Puts on kit `kit` (an index) a back item whose default 1171 makes its
+/// pockets take three units (and whose 1031 opens two more), for tests
+/// that fill pockets deeper than one.
+#[cfg(test)]
+pub(crate) fn wear_deep_pockets(account: &mut Account, kit: usize) {
+    let back = Dictionary::shared()
+        .item_named("ren_back_1")
+        .unwrap()
+        .dict_id;
+    assert!(Dictionary::shared().fits(back, 3));
+    let item_id = account.add_item(back, FULL_CONDITION);
+    account.kits[kit].slots[3] = Some(KitSlot { item_id, count: 1 });
+    assert_eq!(account.pocket_size(&account.kits[kit]), 3);
+}
+
+/// The kit slots whose items set the size of the kit's pockets, in the
+/// exe's order (the table at 0x92655C that the getter 0x2F7660 walks): the
+/// pockets, then the armour. The weapons give nothing.
+const POCKET_SIZE_SLOTS: [usize; 13] = [13, 14, 15, 16, 17, 18, 3, 0, 1, 2, 4, 5, 6];
+
+/// The modifier of a pocket's size (`static_info.md` §3.1, index 17).
+const POCKET_SIZE_MODIFIER: &str = "pocket_slot_size_modifier";
+
+/// What the modifiers of `item` add to a pocket's size: its dictionary
+/// item's default modifications and its own (a modification's row, or a
+/// defect's for state 1), as the exe's 0x2F7470 sums them. No item config
+/// has the modifier among its own parameters, so only 1170 and 1171
+/// ("pocket size +1 / +2", never rolled: drop weight 0) count today.
+fn pocket_size_of(item: &Item) -> f32 {
+    let modifications = Modifications::shared();
+    let path = format!("parameters/{POCKET_SIZE_MODIFIER}");
+    let of = |modifiers: &[Modifier]| -> f32 {
+        modifiers
+            .iter()
+            .filter(|modifier| modifier.path == path)
+            .map(|modifier| modifier.value)
+            .sum()
+    };
+    let defaults = item_params::item_params(item.dict_id)
+        .map_or(&[][..], |params| params.default_modifications)
+        .iter()
+        .filter_map(|&id| modifications.modification(id))
+        .map(|row| of(&row.modifiers));
+    let own = item.modifications.iter().map(|&(id, defect)| {
+        if defect {
+            modifications
+                .defect(id)
+                .map_or(0.0, |row| of(&row.modifiers))
+        } else {
+            modifications
+                .modification(id)
+                .map_or(0.0, |row| of(&row.modifiers))
+        }
+    });
+    defaults.chain(own).sum()
 }
 
 /// The level reached with `total` experience, where it starts and where
@@ -546,9 +605,9 @@ impl Account {
     /// others are emptied. A slot only names units of the inventory's stack,
     /// so nothing leaves the inventory: what the emptied pockets named is in
     /// the storage. (The most, not the sum: every pocket of a kit has one
-    /// size, which the server does not know, and each of them held what fit
-    /// it.) A kit that changed gets a new revision. How many pockets it
-    /// emptied.
+    /// size, and each of them held what fit it; [`Self::fit_pockets`] holds
+    /// it to that size.) A kit that changed gets a new revision. How many
+    /// pockets it emptied.
     pub fn merge_pockets(&mut self) -> usize {
         let mut emptied = 0;
         for index in 0..self.kits.len() {
@@ -584,6 +643,75 @@ impl Account {
         emptied
     }
 
+    /// How many units of an item one pocket of `kit` takes, as the exe
+    /// works it out for the lobby (`lobby_menu::on_profile_changed`
+    /// 0x222A9D, sent as `root.set_quick_slot_size`) and for a move
+    /// (`relocate_item` 0x288E79): the player's `pocket_slot_size` (1),
+    /// plus the skills', plus what the items in [`POCKET_SIZE_SLOTS`] add
+    /// ([`pocket_size_of`]), cut to a whole number. An item that
+    /// `fills_whole_pocket` takes a pocket alone: one unit.
+    pub fn pocket_size(&self, kit: &Kit) -> u32 {
+        let skills = modifier_index(POCKET_SIZE_MODIFIER).map_or(0.0, |index| {
+            SkillsTree::shared().modifiers(&self.skills)[index]
+        });
+        let items: f32 = POCKET_SIZE_SLOTS
+            .iter()
+            .filter_map(|&slot| kit.slots[slot].and_then(|held| self.item(held.item_id)))
+            .map(pocket_size_of)
+            .sum();
+        let size = item_params::player().pocket_slot_size as f32 + skills + items;
+        size.max(0.0) as u32
+    }
+
+    /// Makes every pocket of every kit hold at most what it takes
+    /// ([`Self::pocket_size`]; one unit of an item that
+    /// `fills_whole_pocket`). The exe trims the pockets itself only when
+    /// its own move takes gear off (`relocate_item` 0x289A12..0x289BF9:
+    /// beyond the size, a pocket is asked for the size); a kit changed
+    /// otherwise kept what its old gear let in, and a match takes a pocket's
+    /// units as they are (`inventory::setup_from_profile`, 0x2FCC5F: at most
+    /// what is owned). A pocket only names units of the inventory's stack,
+    /// so nothing is lost: the rest stays in the storage. A kit that changed
+    /// gets a new revision. How many pockets it trimmed.
+    pub fn fit_pockets(&mut self) -> usize {
+        let dictionary = Dictionary::shared();
+        let mut trimmed = 0;
+        for index in 0..self.kits.len() {
+            let size = self.pocket_size(&self.kits[index]);
+            let mut slots = self.kits[index].slots;
+            let mut changed = false;
+            for pocket in POCKET_SLOTS.map(usize::from) {
+                let Some(held) = slots[pocket].as_mut() else {
+                    continue;
+                };
+                let Some(item) = self.item(held.item_id) else {
+                    continue;
+                };
+                let whole = item_params::item_params(item.dict_id)
+                    .is_some_and(|params| params.fills_whole_pocket);
+                if !dictionary.is_stack(item.dict_id) {
+                    continue;
+                }
+                let most = if whole { 1 } else { size };
+                if held.count > most {
+                    if most == 0 {
+                        slots[pocket] = None;
+                    } else {
+                        held.count = most;
+                    }
+                    changed = true;
+                    trimmed += 1;
+                }
+            }
+            if changed {
+                let kit = &mut self.kits[index];
+                kit.slots = slots;
+                kit.revision = kit.revision.wrapping_add(1);
+            }
+        }
+        trimmed
+    }
+
     /// What a kit weighs, as the lobby counts it
     /// ([`item_params::carried_weight`]).
     pub fn kit_weight(&self, kit: &Kit) -> f32 {
@@ -597,8 +725,9 @@ impl Account {
 
     /// Bring the kits up to the inventory after it changed: a slot whose
     /// item is gone is emptied, and a stack's slot takes at most what is
-    /// owned (a stack down to nothing empties its slot). A kit whose slots
-    /// changed gets a new revision. Returns whether anything changed.
+    /// owned (a stack down to nothing empties its slot), and a pocket at
+    /// most its size ([`Self::fit_pockets`]). A kit whose slots changed gets
+    /// a new revision. Returns whether anything changed.
     pub fn sync_kits(&mut self) -> bool {
         let dictionary = Dictionary::shared();
         // An upgrade whose cosmetic is gone (sold) is no upgrade, and the
@@ -635,6 +764,8 @@ impl Account {
                 any = true;
             }
         }
+        // The gear may have changed too: no pocket beyond its size.
+        any |= self.fit_pockets() > 0;
         any
     }
 
@@ -976,6 +1107,8 @@ mod tests {
         let grenade = dictionary.item_named("rgd-5").unwrap().dict_id;
         let medkit = dictionary.item_named("medkit").unwrap().dict_id;
         let mut account = Account::new("Alice");
+        wear_deep_pockets(&mut account, 0);
+        wear_deep_pockets(&mut account, 1);
         let booster = account.add_item(speed, 3);
         let grenades = account.add_item(grenade, 3);
         let medkits = account.add_item(medkit, 5);
@@ -1032,6 +1165,7 @@ mod tests {
     fn two_stacks_of_one_type_are_one_type() {
         let grenade = Dictionary::shared().item_named("rgd-5").unwrap().dict_id;
         let mut account = Account::new("Alice");
+        wear_deep_pockets(&mut account, 2);
         let few = account.add_item(grenade, 1);
         let many = account.add_item(grenade, 4);
         in_pocket(&mut account, 2, 16, few, 1);
@@ -1063,6 +1197,110 @@ mod tests {
         assert_eq!(account.kits[2].slots[16], None);
         assert_eq!(account.inventory, inventory);
         units(&account);
+    }
+
+    /// Wears `(slot, item name, its own modifications)` on kit `kit`;
+    /// returns the item ids.
+    fn wear(account: &mut Account, kit: usize, gear: &[(usize, &str, &[u32])]) -> Vec<u32> {
+        let dictionary = Dictionary::shared();
+        gear.iter()
+            .map(|&(slot, name, modifications)| {
+                let dict_id = dictionary.item_named(name).unwrap().dict_id;
+                assert!(dictionary.fits(dict_id, slot as u8), "{name} in {slot}");
+                let item_id = account.add_item(dict_id, FULL_CONDITION);
+                account.item_mut(item_id).unwrap().modifications =
+                    modifications.iter().map(|&id| (id, false)).collect();
+                account.kits[kit].slots[slot] = Some(KitSlot { item_id, count: 1 });
+                item_id
+            })
+            .collect()
+    }
+
+    /// Chandrian's kits (live, 2026-10-25): the same seven armour instances
+    /// in two kits, none giving a pocket size, and a medkit x2 in one
+    /// kit's pocket and x1 in the other's. Both pockets take one medkit
+    /// (the exe's sum); the x2 was left over from gear that let two in,
+    /// and the lobby drew it as two units of a one-unit pocket.
+    #[test]
+    fn a_pocket_holds_at_most_its_size() {
+        let mut account = Account::new("Chandrian");
+        let gear: [(usize, &str, &[u32]); 7] = [
+            (0, "ren_helmet_3", &[1004, 1020]),
+            (1, "scav_resp_1", &[1183]),
+            (2, "ren_torso_1", &[1003]),
+            (3, "scav_back_1", &[1062]),
+            (4, "edge_legs_2", &[1022, 1002, 1101]),
+            (5, "bm_gloves_1", &[1083, 1133]),
+            (6, "bm_boots_1", &[1114, 1022]),
+        ];
+        let worn = wear(&mut account, 0, &gear);
+        for (&(slot, ..), &item_id) in gear.iter().zip(&worn) {
+            account.kits[1].slots[slot] = Some(KitSlot { item_id, count: 1 });
+        }
+        let medkit = Dictionary::shared().item_named("medkit").unwrap().dict_id;
+        let medkits = account.add_item(medkit, 50);
+        in_pocket(&mut account, 0, 13, medkits, 1);
+        in_pocket(&mut account, 1, 13, medkits, 2);
+        assert_eq!(account.pocket_size(&account.kits[0]), 1);
+        assert_eq!(account.pocket_size(&account.kits[1]), 1);
+        let before = account.clone();
+
+        assert!(account.sync_kits());
+        assert_eq!(account.kits[0], before.kits[0]);
+        assert_eq!(
+            account.kits[1].slots[13],
+            Some(KitSlot {
+                item_id: medkits,
+                count: 1
+            })
+        );
+        assert_eq!(account.kits[1].revision, before.kits[1].revision + 1);
+        assert_eq!(account.inventory, before.inventory);
+        assert!(!account.repair());
+    }
+
+    /// What sets a pocket's size: the player's 1, a worn item's default
+    /// 1170 (+1) or its own 1171 (+2), in an armour slot or a pocket, not
+    /// in a weapon slot; an item that fills a whole pocket takes it alone.
+    #[test]
+    fn the_pocket_size_is_the_exes() {
+        let dictionary = Dictionary::shared();
+        let mut account = Account::new("Alice");
+        for kit in 0..KITS {
+            account.kits[kit].slots = [None; KIT_SLOTS];
+        }
+        assert_eq!(account.pocket_size(&account.kits[0]), 1);
+        // The starter's Chemical protection pants: default 1170.
+        wear(&mut account, 0, &[(4, "scav_legs_2", &[])]);
+        assert_eq!(account.pocket_size(&account.kits[0]), 2);
+        // A helmet carrying 1171 of its own.
+        wear(&mut account, 0, &[(0, "ren_helmet_3", &[1171])]);
+        assert_eq!(account.pocket_size(&account.kits[0]), 4);
+        // A weapon's modifications are not counted.
+        let weapon = wear(&mut account, 1, &[(7, "ak_74u", &[])])[0];
+        account.item_mut(weapon).unwrap().modifications = vec![(1171, false)];
+        assert_eq!(account.pocket_size(&account.kits[1]), 1);
+
+        let medkit = dictionary.item_named("medkit").unwrap().dict_id;
+        let medkits = account.add_item(medkit, 50);
+        in_pocket(&mut account, 0, 13, medkits, 9);
+        let whole = dictionary
+            .items
+            .iter()
+            .find(|item| {
+                item.is_stack
+                    && dictionary.fits(item.dict_id, 14)
+                    && item_params::item_params(item.dict_id)
+                        .is_some_and(|params| params.fills_whole_pocket)
+            })
+            .expect("an item that fills a whole pocket")
+            .dict_id;
+        let whole = account.add_item(whole, 5);
+        in_pocket(&mut account, 0, 14, whole, 3);
+        assert_eq!(account.fit_pockets(), 2);
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 4);
+        assert_eq!(account.kits[0].slots[14].unwrap().count, 1);
+        assert_eq!(account.fit_pockets(), 0);
     }
 
     /// Ammo is no pocket item: one ammo in several ammo slots is the ammo

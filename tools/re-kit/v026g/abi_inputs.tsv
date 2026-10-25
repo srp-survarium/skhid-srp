@@ -2793,6 +2793,14 @@ va	name	location	role	basis
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+16	diagnostic caller function name	observed
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+20	diagnostic value label	observed
 0x002f73f0	survarium::player_profile::player_profile	ECX	this (4634h bytes)	observed
+0x002f7470	survarium::player_profile::item_parameter_modifier	stack+4	player_params_modifiers_enum index (14..17 read)	observed
+0x002f7470	survarium::player_profile::item_parameter_modifier	stack+8	the item instance (profile +1568h + i x B4h)	observed
+0x002f7470	survarium::player_profile::item_parameter_modifier	stack+0Ch	the items dictionary (item_by_id 0x1F0090)	observed
+0x002f7660	survarium::player_profile::kit_parameter	ECX	player_params_modifiers_enum index (10h ammo_bags, 11h pocket_slot_size, 0Fh pocket_slots, 0Eh artefact_slots)	observed
+0x002f7660	survarium::player_profile::kit_parameter	AL	the kit's index (profile +4632h for the lobby's)	observed
+0x002f7660	survarium::player_profile::kit_parameter	stack+4	float, the base (player config: ammo_bags_count, pocket_slot_size, pocket_slots_count; 0 for artefact slots)	observed
+0x002f7660	survarium::player_profile::kit_parameter	stack+8	the profile (kit = profile + 58h + index x 704h)	observed
+0x002f7660	survarium::player_profile::kit_parameter	stack+0Ch	the items dictionary	observed
 0x002f7c10	survarium::inventory_item_descr::inventory_item_descr	ECX	this (B4h bytes)	observed
 0x002f81f0	survarium::usable_object::load	ECX	usable_receiver	inferred
 0x002f81f0	survarium::usable_object::load	stack+4	config	inferred

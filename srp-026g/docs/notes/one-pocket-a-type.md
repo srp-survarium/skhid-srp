@@ -33,8 +33,23 @@ The owner's rule of 2026-10-21. Code: `session::v026g::account` (`doubled_pocket
   - the type's other pockets are emptied.
   - Nothing is lost or made: a pocket only names units of the inventory's stack, so the units of
     an emptied pocket stay in the storage.
-  - The most, not the sum: all pockets of a kit have one size, which the server does not know
-    (gear, modifications and skills set it in the exe). Each pocket held what fit it.
+  - The most, not the sum: all pockets of a kit have one size. Each pocket held what fit it.
+- **Pocket size** (`Account::pocket_size`, `fit_pockets`; the fix of 2026-10-25):
+  - The exe's sum (PROVEN, `kit_parameter` 0x2F7660 and `item_parameter_modifier` 0x2F7470): the
+    player's `pocket_slot_size` (1), plus the skills' `pocket_slot_size_modifier` (no skill has
+    one), plus the modifier in the default and own modifications of the items in the pockets and
+    the armour slots (0..6). Weapons give nothing. Only 1170 (+1) and 1171 (+2) carry it. They
+    are defaults only and never roll (drop weight 0): Chemical protection pants, some vests and
+    backpacks.
+  - An item that `fills_whole_pocket` takes one unit.
+  - The exe trims the pockets itself only in its own move (`relocate_item`: gear taken off, a
+    pocket beyond the new size is asked for the size). A purchase dropped onto the paperdoll
+    trims nothing, and a match takes a pocket's units as they are (at most those owned).
+  - Server: every kit change (`sync_kits`: moves, purchases, presets, the load) trims a pocket
+    to the kit's size. The rest stays in the storage.
+  - The bug it fixes (Chandrian, 2026-10-25): two kits with the same armour instances. One held
+    medkit x2 in a one-unit pocket, left over from gear that had let two in. The lobby drew it
+    as two units, so that pocket looked twice as deep.
 - **Lobby, dragging from the inventory or the shop:** only the pocket that holds the type lights
   up. Another pocket does not, and a drop there snaps back. Dropped on its own pocket, the drop
   adds one unit up to the pocket's size (one for an item that fills a whole pocket). A pocket of

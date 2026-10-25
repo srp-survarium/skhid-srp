@@ -1961,6 +1961,8 @@ va	status	ref_021d	name
 0x002f59e0	inferred-medium	0x001de057	survarium::shared_statistics::kill_event_arg
 0x002f6c10	inferred-medium		survarium::log_cast_loss_of_data_warning
 0x002f73f0	inferred-high		survarium::player_profile::player_profile
+0x002f7470	inferred-medium		survarium::player_profile::item_parameter_modifier
+0x002f7660	inferred-medium		survarium::player_profile::kit_parameter
 0x002f7c10	inferred-high		survarium::inventory_item_descr::inventory_item_descr
 0x002f7cc0	inferred-medium		survarium::player_profile::serialize_dynamic
 0x002f81d0	inferred-medium	0x001e8994	survarium::collision_geometry_subscriber::`scalar deleting destructor'

@@ -1199,6 +1199,8 @@ va	name	source	ret_cleanup	result
 0x002f5be0	survarium::shared_statistics::deserialize	manual	0	
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	manual	20	
 0x002f73f0	survarium::player_profile::player_profile	manual	0	EAX = this; keeps EBX, ESI, EDI, EBP
+0x002f7470	survarium::player_profile::item_parameter_modifier	manual	0	XMM0 low32: the dictionary item's own parameter (+260h + index x 4) plus a field of each of its default (+234h) and own (instance +14h, {id, state}: state 0 the modification table +140h, else the defect table +148h) modifications' rows: +14h artefact_slots (14), +18h pocket_slots (15), +1Ch ammo_bags (16), +20h pocket_slot_size (17)
+0x002f7660	survarium::player_profile::kit_parameter	manual	0	XMM0 low32: the base through the kit's skills (apply_modifier 0x2D5AE0) plus survarium::player_profile::item_parameter_modifier of the items in the 13 slots of table 0x92655C (pockets 13..18, then 3, 0, 1, 2, 4, 5, 6; no weapon); the lobby's pocket count and size (on_profile_changed 0x222A69..0x222AD1, process_default_relocate_item 0x288E4B..0x288EA7)
 0x002f7c10	survarium::inventory_item_descr::inventory_item_descr	manual	0	the two buffer_vectors point at their inline storage (+20h..+60h, +6Ch..+B4h)
 0x002f81f0	survarium::usable_object::load	manual	4	
 0x002f8280	survarium::usable_object::resolve_links	manual	28	

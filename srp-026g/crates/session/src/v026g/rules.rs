@@ -1649,6 +1649,8 @@ mod tests {
     #[test]
     fn an_item_type_goes_into_one_pocket() {
         let mut account = rich_and_known(10_000);
+        crate::v026g::account::wear_deep_pockets(&mut account, 0);
+        crate::v026g::account::wear_deep_pockets(&mut account, 1);
         let grenade_id = account.add_item(dict("rgd-5"), 3);
         let grenade = account.item(grenade_id).unwrap().clone();
         let medkit_id = account.add_item(dict("medkit"), 5);
@@ -1753,6 +1755,72 @@ mod tests {
             count: 1,
         });
         assert_eq!(check_play(&account, 1, NOW), Err(ActionError::PocketTaken));
+    }
+
+    /// Pants bought straight onto the paperdoll (the shop's drop, `47 00`
+    /// with a slot) take off a pocket size the old ones gave, and the exe
+    /// trims no pocket for a purchase (only `relocate_item` does,
+    /// 0x289A33): the server does. Chandrian's medkit x2 in a one-unit
+    /// pocket (2026-10-25). A move does it too.
+    #[test]
+    fn new_gear_trims_the_pockets_its_old_gear_let_fill() {
+        let mut account = rich_and_known(100_000);
+        // The starter's Chemical protection pants: pockets of two.
+        let pants = account.add_item(dict("scav_legs_2"), FULL_CONDITION);
+        account.kits[0].slots[4] = Some(KitSlot {
+            item_id: pants,
+            count: 1,
+        });
+        let medkit_id = account.add_item(dict("medkit"), 50);
+        let medkit = account.item(medkit_id).unwrap().clone();
+        move_items(
+            &mut account,
+            1,
+            &[relocation(&medkit, INVENTORY_SLOT, 13, 2)],
+            NOW,
+        )
+        .unwrap();
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 2);
+
+        // Stalker's pants, bought onto the legs: pockets of one.
+        let revision = account.kits[0].revision;
+        buy(&mut account, dict("edge_legs_2"), 1, 0, 4, 1, NOW).unwrap();
+        assert_ne!(account.kits[0].slots[4].unwrap().item_id, pants);
+        assert_eq!(account.pocket_size(&account.kits[0]), 1);
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 1);
+        assert!(account.kits[0].revision > revision);
+        assert_eq!(account.item(medkit_id).unwrap().condition_or_stack, 50);
+
+        // The old pants back on: two may go in again; off by a move: one.
+        let old = account.item(pants).unwrap().clone();
+        move_items(
+            &mut account,
+            1,
+            &[
+                relocation(&old, INVENTORY_SLOT, 4, 1),
+                relocation(&medkit, INVENTORY_SLOT, 13, 2),
+            ],
+            NOW,
+        )
+        .unwrap();
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 2);
+        move_items(
+            &mut account,
+            1,
+            &[relocation(&old, 4, INVENTORY_SLOT, 1)],
+            NOW,
+        )
+        .unwrap();
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 1);
+        // A request for more than the pocket takes gets what it takes.
+        move_items(
+            &mut account,
+            1,
+            &[relocation(&medkit, INVENTORY_SLOT, 13, 5)],
+            NOW,
+        )
+        .unwrap();
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 1);
     }
 
     #[test]
