@@ -8,6 +8,10 @@
 //! - [`Ctx::can_go`]: a goal the bot can go to: a way may be open
 //!   ([`Ctx::reachable`], checked before any search: Red Blob Games, A*
 //!   notes, "no path") and no search of its own proved none lately.
+//! - [`yields_to`], [`Ctx::spot_taken`]: the bots' claims on spots
+//!   (`know::Claim`, one a bot, made at every think): a spot choice drops a
+//!   spot within [`APART_M`] of a teammate's claim, and of two bots on one
+//!   spot the higher place gives way.
 //! - [`repick_if_shut`]: a play holding a spot swaps it for another pick
 //!   only on that proof, and asks for the pick only then (a pick draws
 //!   from the bot's random stream, so asking it earlier would change every
@@ -19,6 +23,20 @@ use mapdata::Vec3;
 
 use super::{Ctx, Go, Intent};
 use crate::v026g::bots::view::PlaceView;
+
+/// How near another bot's claim on a spot (`know::Claim`) a spot may be,
+/// metres: two capsule widths (2 x 0.76 m, `default.player`). Players do
+/// not collide in 0.26g, so it is a courtesy spacing, not a physical one.
+pub const APART_M: f32 = 1.5;
+
+/// Whether the bot of place `mine` gives way to the bot of place `theirs`
+/// when their spots coincide: the higher place yields, the lower keeps.
+/// The one rule of the plays' claims and of the motor's separation, so two
+/// bots never both dodge. A human mate is yielded to whatever the places
+/// (the caller decides that: this is the bot-against-bot rule).
+pub fn yields_to(mine: usize, theirs: usize) -> bool {
+    mine > theirs
+}
 
 /// Whether `list` (goals no way was found to, each with the time it is
 /// left until) has one near `at`, within the motor's replan distance
@@ -79,6 +97,13 @@ impl Ctx<'_> {
         })
     }
 
+    /// Whether a teammate's claim lies within `apart_m` of `at`: a spot
+    /// choice drops it. The bot's own claim does not count.
+    pub fn spot_taken(&self, at: Vec3, apart_m: f32) -> bool {
+        self.team
+            .claims_of_others(self.me.place, self.now)
+            .any(|c| c.at.distance_xz(at) < apart_m)
+    }
 
     /// Whether the bot can go to `at`: a way may be open there
     /// ([`Ctx::reachable`], not for the objective) and no search of its own
@@ -156,6 +181,48 @@ mod tests {
         assert!(!no_way_near(&list, far, 0));
         assert!(!no_way_near(&list, goal, 5_000), "expired at `until`");
         assert!(!no_way_near(&[], goal, 0));
+    }
+
+    #[test]
+    fn the_higher_place_yields_and_never_both() {
+        assert!(yields_to(5, 2));
+        assert!(!yields_to(2, 5));
+        assert!(!yields_to(3, 3), "never to itself");
+        for a in 0..6 {
+            for b in 0..6 {
+                assert!(!(yields_to(a, b) && yields_to(b, a)), "{a} and {b}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_spot_is_taken_by_a_teammates_fresh_claim_but_not_the_bots_own() {
+        let mut s = Scenario::field(Mode::Batteries);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 30.0));
+        let spot = Vec3::new(25.0, 0.0, 30.0);
+        let now = s.view.clock;
+        assert!(!s.cx(0).spot_taken(spot, APART_M));
+        s.team.claim(0, spot, now);
+        assert!(!s.cx(0).spot_taken(spot, APART_M), "own claim");
+        s.team.claim(3, Vec3::new(25.0 + APART_M - 0.1, 0.0, 30.0), now);
+        assert!(s.cx(0).spot_taken(spot, APART_M));
+        s.team.claim(3, Vec3::new(25.0 + APART_M + 0.1, 0.0, 30.0), now);
+        assert!(!s.cx(0).spot_taken(spot, APART_M), "renewed elsewhere");
+    }
+
+    #[test]
+    fn a_claim_not_renewed_expires_and_a_departure_drops_it() {
+        let mut s = Scenario::field(Mode::Batteries);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 30.0));
+        let spot = Vec3::new(25.0, 0.0, 30.0);
+        let now = s.view.clock;
+        s.team.claim(3, spot, now);
+        assert!(s.cx(0).spot_taken(spot, APART_M));
+        s.team.claim(3, spot, now.saturating_sub(crate::v026g::bots::know::CLAIM_KEEP_MS + 1));
+        assert!(!s.cx(0).spot_taken(spot, APART_M), "stale");
+        s.team.claim(3, spot, now);
+        s.team.forget(3);
+        assert!(!s.cx(0).spot_taken(spot, APART_M), "left the match");
     }
 
     #[test]

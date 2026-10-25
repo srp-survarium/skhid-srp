@@ -527,6 +527,26 @@ pub struct LookSpot {
 /// A look spot nobody has looked at is dropped after this, ms.
 pub const LOOK_KEEP_MS: u32 = 120_000;
 
+/// A bot's claim on a spot: where its play means it to be (its goal, or
+/// its feet when it holds), stamped when it was made. A bot makes it again
+/// at every think; one not renewed for [`CLAIM_KEEP_MS`] (the bot died or
+/// left) is dropped.
+///
+/// Root cause (`push-record.md` S1): two teammates chose the same spot in
+/// one pass, each seeing only the other's feet, and a standing body is not
+/// steered off another. A shared list of goals lets every spot choice skip
+/// a spot a teammate already means to take (Jack, GAP ch. 26.6.2, "Hidespot
+/// Contention").
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Claim {
+    pub who: Place,
+    pub at: Vec3,
+    pub time: u32,
+}
+
+/// A claim is dropped when not renewed for this long, ms.
+pub const CLAIM_KEEP_MS: u32 = 2_000;
+
 /// What a team's bots share: callouts (one bot's sense, the others' a
 /// moment later), danger spots, thefts, and with the battery cheat off
 /// what they know of the batteries and the spawners they have looked at.
@@ -568,6 +588,8 @@ pub struct TeamKnowledge {
     /// take one now (`None`: it may), and since when (match ms), for the
     /// notes (`collect::take_blocks`): a note goes out when it changes.
     pub take_blocked: Vec<(Place, usize, Option<&'static str>, u32)>,
+    /// The team's bots' claims on spots, one a bot ([`Self::claim`]).
+    claims: Vec<Claim>,
 }
 
 impl TeamKnowledge {
@@ -615,11 +637,27 @@ impl TeamKnowledge {
         self.danger.iter().filter(move |spot| spot.time + ms >= now)
     }
 
+    /// `who` means to be at `at` (made again at every think).
+    pub fn claim(&mut self, who: Place, at: Vec3, now: u32) {
+        match self.claims.iter_mut().find(|c| c.who == who) {
+            Some(c) => (c.at, c.time) = (at, now),
+            None => self.claims.push(Claim { who, at, time: now }),
+        }
+    }
+
+    /// The claims of bots other than `except` that are still kept at `now`.
+    pub fn claims_of_others(&self, except: Place, now: u32) -> impl Iterator<Item = &Claim> {
+        self.claims
+            .iter()
+            .filter(move |c| c.who != except && c.time + CLAIM_KEEP_MS >= now)
+    }
+
     /// The player at `who` left the match: no callout about it is heard,
     /// and no theft names it. The battery it took is still where it was
     /// last known.
     pub fn forget(&mut self, who: Place) {
         self.forget_callouts(who);
+        self.claims.retain(|c| c.who != who);
         for theft in &mut self.thefts {
             if theft.thief == Some(who) {
                 theft.thief = None;
@@ -832,6 +870,7 @@ impl TeamKnowledge {
         self.carrier_places
             .retain(|p| p.time + CARRIER_PLACES_KEEP_MS >= now);
         self.falls.retain(|f| f.time + FALLS_KEEP_MS >= now);
+        self.claims.retain(|c| c.time + CLAIM_KEEP_MS >= now);
     }
 
     /// `who`, going for a battery lying at `at`, fell near it (once in
