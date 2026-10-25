@@ -550,6 +550,37 @@ base and seeds):
   motor does not see the grid.
 - Route points with a height: they are re-checked on `GRID_ALGO` 11.
 
+### Bots: the marginal jumps sprinted (sprint step 1, 2026-10-25)
+
+The jump links of 0.95-1.05 m (`MARGINAL_JUMP_M` to `Body.max_jump`) are at the
+standing jump's limit (0.998 m), so a bot often missed them. The sprint jump
+gets up 1.28-1.35 m. What the game does is from the sprint-jump RE; its names
+and calling conventions are in `tools/re-kit/v026g/`. Nothing in the grid
+changes (no `GRID_ALGO` bump).
+
+- **Which jumps:** `pull_straight` marks a route jump (`Route::sprint_jump`)
+  whose rise is over `MARGINAL_JUMP_M` and whose landing has
+  `SPRINT_LANDING_ROOM_M` (3 m, GUESS) of walk floors past it, along the jump's
+  way. The sprint clip carries 4.42 m forward, so a short landing is jumped
+  standing.
+- **The game's gate** (the clip plays only with it): no battery; the weapon idle
+  (one shot interval after the last shot, not reloading or switching, the aim key
+  up for the weapon's aim time); standing (not crouched); no hit within 1.25 s.
+  Pistols sprint too. `sprint_gate` in `mod.rs` sets `Pose::no_sprint`, a bit per
+  reason.
+- **The run:** a sprint jump is lined up from 7 m on its own line. Sprint is held
+  for at least 0.75 s at 3.7 m/s or more. The jump is pressed with the edge
+  `min(2.25, far(h) − 0.5)` m ahead, where `far` is the RE's table (3.61 m at
+  0.8 m, 3.06 m at 1.2 m). Forward and sprint are held in the air for 1.1 s.
+- **The fall-back:** a jump is done standing, as before, if any of these holds:
+  the gate is shut on its line (or within 2.5 m); its run-up is not clear; a
+  first try did not get up. The `JUMP_TRIES` count is shared. With the gate shut
+  farther off, the bot does not line up for a sprint.
+- **The stand-in** (tests.rs) plays the sprint clip on a press with F+SPRINT held
+  above the walk cap, no back, fire, aim or crouch, and no battery.
+- **Check in the game:** `m_jump_type` 2/3/4 in the next world, on the trace's
+  route-jump lines with `sprint`.
+
 ## 5. Measured (2026-10-14, release build, one thread)
 
 0.25 m cells, all 72 projects; the day_4 project of each map, and one
