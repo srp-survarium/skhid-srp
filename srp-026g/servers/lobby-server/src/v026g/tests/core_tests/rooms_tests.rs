@@ -6,9 +6,9 @@
 use session::v026g::matchmaking;
 use session::v026g::rooms::Stage;
 use survarium::v026g::lobby::rooms::{
-    ROOM_CHAT, ROOM_FORM, ROOM_FRIENDS, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE,
-    ROOM_MEMBERS_BASE, ROOM_PIN_BASE, ROOM_PLAY, ROOM_QUEUE_BASE, ROOM_STATE, ROOM_UNQUEUE,
-    ROOM_VOTE_BASE, ROOMS_LIST, RoomSpec, bits_start, create_start, kick_start,
+    ROOM_FORM, ROOM_FRIENDS, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_MEMBERS_BASE,
+    ROOM_PIN_BASE, ROOM_PLAY, ROOM_QUEUE_BASE, ROOM_STATE, ROOM_UNQUEUE, ROOM_VOTE_BASE,
+    ROOMS_LIST, RoomSpec, bits_start, create_start, kick_start,
 };
 
 use super::pvb_tests::with_gear;
@@ -1621,41 +1621,24 @@ fn a_member_whose_late_join_fails_waits_in_its_room_again_and_goes_in_later() {
     );
 }
 
-/// The room chat lines among `decoded`: their bodies.
-fn room_chat_bodies(decoded: &[Decoded]) -> Vec<String> {
-    decoded
-        .iter()
-        .filter_map(|message| match message {
-            Decoded::ChatText {
-                channel: channel::ROOM,
-                body,
-                ..
-            } => Some(body.clone()),
-            _ => None,
-        })
-        .collect()
-}
-
 /// Live, 2026-10-25: a game that could not load its room's match went into
 /// it again every 15 s for minutes, each try a place of the match's 20 for
 /// good, the other joiners held out while it ran, until the match was full
-/// to everyone. After [`LATE_JOIN_TRIES`] failed tries the member plays the
-/// room's next match instead, is told so in its room's chat once, and is
-/// shown no seconds to go in; the match's end forgets the tries.
+/// to everyone. An account with [`PLACES_PER_ACCOUNT`] places in the
+/// match's roster is not put into it again: it plays the room's next
+/// match, and is shown no seconds to go in.
 ///
-/// [`LATE_JOIN_TRIES`]: crate::v026g::rooms::LATE_JOIN_TRIES
+/// [`PLACES_PER_ACCOUNT`]: crate::v026g::rooms::PLACES_PER_ACCOUNT
 #[test]
-fn a_member_whose_late_join_fails_twice_plays_the_next_match_and_is_told_why() {
-    use crate::v026g::rooms::{LATE_JOIN_GAVE_UP, LATE_JOIN_TRIES};
+fn an_account_with_three_places_in_the_match_is_not_put_into_it_again() {
+    use crate::v026g::rooms::PLACES_PER_ACCOUNT;
     let mut world = World::new();
     let (key, ticket, id, _) = room_match_of_four(&mut world);
     let erin = world.connect("Erin");
     let (erin_account, erin_session) = world.ids[erin];
     rows(&mut world, erin, ROOM_JOIN_BASE + key, 1);
-    // Her room chat tab is up.
-    world.ask(erin, request::ranking(ROOM_CHAT, 1));
-    assert_eq!(LATE_JOIN_TRIES, 2);
-    for place in [4, 5] {
+    assert_eq!(PLACES_PER_ACCOUNT, 3);
+    for place in [4, 5, 6] {
         world.host.admitting.locked().insert(ticket);
         world.take(erin);
         world.advance(Duration::from_secs(16));
@@ -1674,20 +1657,16 @@ fn a_member_whose_late_join_fails_twice_plays_the_next_match_and_is_told_why() {
         world.ask(erin, request::leave(1, true));
         world.advance(Duration::from_secs(2));
     }
-    // Told once, in her room's chat.
-    let decoded = world.take(erin);
-    assert_eq!(room_chat_bodies(&decoded), [LATE_JOIN_GAVE_UP]);
-    world.advance(Duration::from_secs(2));
-    assert!(room_chat_bodies(&world.take(erin)).is_empty());
     // No seconds to go in, and she does not, though the match takes
     // players: its places are the others'.
     world.host.admitting.locked().insert(ticket);
     let waiting = state(&mut world, erin);
     assert_eq!(join_row(&waiting), None, "{waiting:?}");
+    world.take(erin);
     world.advance(Duration::from_secs(60));
     assert!(sent_to_match(&world.take(erin)).is_none());
     assert_eq!(world.store.matchmaking().seat(erin_session), None);
-    assert_eq!(world.core.matches[&id].seats.len(), 6);
+    assert_eq!(world.core.matches[&id].seats.len(), 7);
     let room = world.core.rooms.get(key).unwrap();
     assert!(room.members.contains(&erin_account));
     // Another member still goes in.
@@ -1696,10 +1675,7 @@ fn a_member_whose_late_join_fails_twice_plays_the_next_match_and_is_told_why() {
     world.take(frank);
     world.advance(Duration::from_secs(16));
     assert!(sent_to_match(&world.take(frank)).is_some());
-    // The match over, the tries are forgotten: the next match is hers.
-    world.end_match(ticket, 0);
-    world.settle();
-    assert!(world.core.room_failed_tries.is_empty());
+    assert_eq!(world.core.matches[&id].seats.len(), 8);
 }
 
 /// Live, 2026-10-25: a member whose game hung loading the room's match (or

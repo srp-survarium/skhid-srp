@@ -56,12 +56,12 @@
 //!   and longer only while the match server has it in the match: its
 //!   session waits for the match, its room does not (`away`; live,
 //!   2026-10-25: a game hung loading kept its room "full" all match).
-//! - A member that goes into its room's match late and does not get in
-//!   ([`LATE_JOIN_TRIES`] times: its game never came, left, or did not
-//!   catch up) plays the room's next match instead, and is told so in its
-//!   room's chat ([`LATE_JOIN_GAVE_UP`]; live, 2026-10-25: a game that
-//!   could not load went in every 15 s for minutes, each try a place of
-//!   the match's 20 for good, until the match was full to everyone).
+//! - An account goes into a match being played while it has fewer than
+//!   [`PLACES_PER_ACCOUNT`] places in its roster (a late join that failed,
+//!   a leave of its own word and a come-back each took one); then it plays
+//!   the room's next match. Live, 2026-10-25: a game that could not load
+//!   went in every 15 s for minutes, each try a place of the match's 20 for
+//!   good, until the match was full to everyone.
 //! - A game started anew (a new session) is not seated in a match, nor
 //!   sent "match found", until it has been told its room (`room_unseen`:
 //!   its movie asks the state, Play, Join match); one not told within
@@ -110,16 +110,13 @@ const QUICK_WAIT: u8 = 30;
 /// room before it is put into the match, unless it asks first (the owner's
 /// of 2026-10-19).
 pub const LATE_JOIN_WAIT: Duration = Duration::from_secs(15);
-/// How many times a member goes into its room's match being played and
-/// does not get in (its game never came, left, or did not catch up) before
-/// it plays the room's next match instead. Live, 2026-10-25: a game that
-/// could not load the match went in again every 15 s for minutes; each try
-/// took a place of the match's 20 for good and held the other joiners out
-/// while it ran, until the match was full to everyone.
-pub const LATE_JOIN_TRIES: u8 = 2;
-/// The member's own line in its room's chat when it stops trying.
-pub const LATE_JOIN_GAVE_UP: &str =
-    "Your game could not join this match: you'll play the next one.";
+/// The most places an account has in the roster of one match: past them
+/// it is not put into that match again (it plays the room's next one).
+/// Each late join takes a place for good, failed or not, and a leave of
+/// its own word and a come-back too. Live, 2026-10-25: a game that could
+/// not load the match went in again every 15 s for minutes, each try a
+/// place of the match's 20, until the match was full to everyone.
+pub const PLACES_PER_ACCOUNT: usize = 3;
 
 /// The rooms' settings in the lobby.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1224,25 +1221,10 @@ impl Core<'_> {
             self.rooms.join_failed(key, account_id);
             // Its next turn: `LATE_JOIN_WAIT` from now.
             self.room_join_at.remove(&account_id);
-            let tries = self
-                .room_failed_tries
-                .entry((match_id, account_id))
-                .or_insert(0);
-            *tries = tries.saturating_add(1);
-            let tries = *tries;
-            let name = self.name_of(account_id).unwrap_or_default();
-            if tries >= LATE_JOIN_TRIES {
-                log::info!(
-                    "{name}: did not get into match {match_id:#x} {tries} times; it waits in \
-                     room {key} for the next match"
-                );
-                self.room_notices
-                    .insert(account_id, LATE_JOIN_GAVE_UP.to_owned());
-            } else {
-                log::info!(
-                    "{name}: did not get into match {match_id:#x}; it waits in room {key} again"
-                );
-            }
+            log::info!(
+                "{}: did not get into match {match_id:#x}; it waits in room {key} again",
+                self.name_of(account_id).unwrap_or_default()
+            );
         }
     }
 
@@ -1253,7 +1235,6 @@ impl Core<'_> {
     /// Play puts them into the room nearest their level.
     pub(super) fn room_match_over(&mut self, match_id: u32) {
         self.room_launching.remove(&match_id);
-        self.room_failed_tries.retain(|(id, _), _| *id != match_id);
         if let Some((key, left)) = self.rooms.match_over(match_id) {
             log::info!("Room {key}: its match {match_id:#x} is over; back in the room");
             for account_id in left {
@@ -1280,7 +1261,6 @@ impl Core<'_> {
     /// as for a match that could not be made, its vote and wait whole.
     pub(super) fn room_match_not_made(&mut self, match_id: u32) {
         self.room_launching.remove(&match_id);
-        self.room_failed_tries.retain(|(id, _), _| *id != match_id);
         if let Some(key) = self.rooms.match_not_made(match_id) {
             log::info!(
                 "Room {key}: its match {match_id:#x} was called off before its countdown; the \
@@ -1623,12 +1603,21 @@ impl Core<'_> {
         self.queue_status(addr, now);
     }
 
-    /// The member tried [`LATE_JOIN_TRIES`] times to get into the match and
-    /// did not: it plays the room's next match.
+    /// The account has [`PLACES_PER_ACCOUNT`] places in the match's roster
+    /// (`formed_match`): it is not put into it again, and plays the room's
+    /// next match.
     fn late_join_given_up(&self, match_id: u32, account_id: u32) -> bool {
-        self.room_failed_tries
-            .get(&(match_id, account_id))
-            .is_some_and(|&tries| tries >= LATE_JOIN_TRIES)
+        self.store
+            .matchmaking()
+            .formed_match(match_id)
+            .is_some_and(|formed| {
+                formed
+                    .seats
+                    .iter()
+                    .filter(|seat| seat.player.account_id == account_id)
+                    .count()
+                    >= PLACES_PER_ACCOUNT
+            })
     }
 
     /// The member goes into its room's match being played, if it is free

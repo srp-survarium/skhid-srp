@@ -143,11 +143,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   server lets it go, `Matchmaking::join_failed`): the member waits in its room again, with
   its `J` row, and goes in 15 s later as a new place (live, 2026-10-19, room 2168: it stayed
   marked in the match and waited out all of it).
-  - **Two failed tries** (`LATE_JOIN_TRIES`; live, 2026-10-25: a game that could not load
-    went in every 15 s for minutes, each try a place of the match's 20 for good and the other
-    joiners held out while it ran, until the match was full to everyone): the member plays
-    the room's next match instead, has no `J` row, and is told once in its room's chat:
-    "Your game could not join this match: you'll play the next one."
+  - **Three places at most** (`PLACES_PER_ACCOUNT`; live, 2026-10-25: a game that could not
+    load went in every 15 s for minutes, each try a place of the match's 20 for good and the
+    other joiners held out while it ran, until the match was full to everyone): an account
+    with 3 places in the match's roster (its first, failed late joins, a leave of its own
+    word and a come-back) is not put into it again; it plays the room's next match, with no
+    `J` row.
 - **Why it cannot go in now** (the owner's of 2026-10-20: players see why): the window's
   banner shows one line instead of the 15 s (`J;-1;<why>`, `lobby.md` §2.16.3); once the match
   takes players again the seconds are back, and one whose 15 s are over goes in at once.
