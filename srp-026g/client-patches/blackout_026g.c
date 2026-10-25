@@ -19,7 +19,9 @@
  *   its parts and the head (0x2056F0): the character's band is its own
  *   profile's (srp writes it in the profile's protection field, 11 blue, 12
  *   red, on every way a profile reaches a game; the lobby's and other
- *   matches' say 10, none): no flag, no world, no order; one more part
+ *   matches' say 10, none): no flag, no world, no order; not on the game's
+ *   own player (the profile's is_local: in first person it would be a
+ *   coloured patch at the camera); one more part
  *   record: the band of the visual's torso (its first record of the torso,
  *   part 2, one of BO_TORSOS) in that colour,
  *   `ported/blackout/<the torso's base_model, '/' as '_'>_<blue|red>`, and
@@ -41,6 +43,11 @@ enum {
      * on every way a profile comes (the static info, a late joiner's place,
      * a replay), and 10, the lobby's and any other match's, none */
     PROFILE_BAND = 0x45F4,
+    /* the profile's is_local byte: the game's own player (the static info's
+     * reader sets it by the local index, 0x27BE5F; a late joiner's place
+     * and the lobby's leave it 0): his own band is not drawn, as in first
+     * person it is a coloured patch at the camera (the owner, 2026-10-25) */
+    PROFILE_LOCAL = 0x45F0,
     BAND_BLUE = 11,
     BAND_RED = 12,
     PROFILE_TEAM = 0x45EC,         /* u32 the team (team_damage_026g.c) */
@@ -202,7 +209,7 @@ void bo_visual(u8 *visual, u8 *profile, u8 **name) {
     /* The character's own band, from its own profile alone (srp's field: the
      * protection, BAND_BLUE or BAND_RED; anything else none) */
     u32 field = AT(profile, PROFILE_BAND, u32), count = visual[VISUAL_COUNT];
-    if (field != BAND_BLUE && field != BAND_RED)
+    if ((field != BAND_BLUE && field != BAND_RED) || AT(profile, PROFILE_LOCAL, u8))
         return;
     u32 colour = field - BAND_BLUE;            /* 0 blue, 1 red */
     if (count >= RECORDS)

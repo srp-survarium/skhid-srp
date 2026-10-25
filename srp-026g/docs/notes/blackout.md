@@ -77,6 +77,9 @@ changes of 2026-10-25 are in. Nothing here ships until the owner says so.
 - **Content:** pack `blackout-bands@6` (resource-porter `feat/blackout-bands`): 70 torsos x 2
   colours, `models/ported/blackout/<torso base_model, '/' as '_'>_<blue|red>`, surface `band`; no
   item, no dictionary row. A torso the pack does not know gets no band.
+- **Not on oneself:** a player's own game draws no band on his own character (in first person it
+  was a coloured patch at the camera, the owner's 2026-10-25); the others see it. Not in his own
+  death camera either.
 - **v1** (STALKER's multiplayer bands, one ring for all torsos) floated: one size outside every
   sleeve, low on the arm, rigid on the upper arm. Dropped.
 

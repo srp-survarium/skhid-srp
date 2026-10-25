@@ -58,6 +58,7 @@ GAME, MATCH = 0x30400000, 0x30480000           # a made-up game (its game_world 
 VISUAL_COOK_GAME, WORLD_MATCH = 0x9262320, 0x18 + 0x4D4C
 LATE_PROFILE = LOBBY_PROFILE + 0x8000          # a late joiner's profile: its context's own copy
 PROFILE_BAND = 0x45F4                          # the profile's protection: srp's band (11 blue, 12 red)
+PROFILE_LOCAL = 0x45F0                         # the profile's is_local byte: the game's own player
 OPTIONS_BLACKOUT, MAGIC = 0x57870, b"SRBO"
 PROFILE_SIZE, PROFILE_TEAM = 0x45FC, 0x45EC
 RECORDS, RECORD_SIZE, COUNT = 0x234, 0xC0C, 0xF324
@@ -316,11 +317,15 @@ def main():
         ("a torso the bands pack has none for", on, 1, OPTIONS, blue, b"character/human/edge/unknown_torso_s1",
          None),
         ("no torso record", on, 1, OPTIONS, blue, None, None),
+        # the game's own player (is_local, set by the static info's reader): no band of his own, seen in
+        # first person it is a patch at the camera; the others' games draw it (their copy is not local)
+        ("the game's own player (is_local), blue", on, 1, OPTIONS + 3 * PROFILE_SIZE, blue, TORSO, None),
     )
     for name, block, match, profile, field, torso, want in paths:
         for run in (stock, patched):
             run.options(empty_options(block))
             run.word(profile + PROFILE_BAND, field)
+            run.emu.mem_write(profile + PROFILE_LOCAL, bytes([1 if "own player" in name else 0]))
             run.in_match(match)
         a, b = stock.configs_loaded(profile, torso=torso), patched.configs_loaded(profile, torso=torso)
         same = a["at"] == b["at"] == VISUAL_BACK and a["esp"] and b["esp"] and a["kept"] and b["kept"] \
