@@ -946,7 +946,7 @@ impl Motor {
             } else {
                 0
             };
-            if jump.tries > 0 || (near && refused != 0) {
+            if jump.tries > 0 || (near && (!may_sprint || refused != 0)) {
                 jump.standing = true;
                 jump.sprint_since = None;
                 #[cfg(test)]
