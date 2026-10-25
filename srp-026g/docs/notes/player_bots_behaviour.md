@@ -773,6 +773,7 @@ What decides the winner (52 matches of 6+ players with a result, 10 of them reco
 
 The audit of three real 7 v 7 matches (2026-10-22) found plays taken and ended within the second over and over (the churn), followers standing beside their leader doing nothing, and few trades. What changed:
 - **A spot play is offered only where it has a spot.** HoldExit, Crossfire and Cut looked for their spot after they were taken; with none they ended within the second, sat out the set-aside, and were taken again. Now each offers a target only where a spot is fine for the bot right now (`fine_spots`), unless it is already running there. Their spot lists are looked for once per side and point and kept `spots_keep_s` (15 s; `Tactics::spots_kept`, keyed by `Tactics::spot_key`), so the sight rays are cast once every 15 s per exit, choke or cut. A hazard on a spot is still checked at each poll.
+- **A spot play's spot is one the bot has a way to (built 2026-10-25).** `fine_spots` of Cut, Crossfire and HoldExit also keeps a spot only when `Ctx::reachable` (its floor is walkable and entered from a floor this bot may walk on) and no search of this bot lately proved no way to it (`no_way_lately`): Collect's rule for its stand. The rings' spots in sight of a choke or cut point, high ones preferred, were often ledges no walk gets onto; the bot sent there stood with no way, and its play failed and was taken again. With none left the play is not offered. Raising the route points to the players' floors (3D route points) brought out more of them: level_06 day 4's Cut failed 202 searches against 2. Bench against the tip's base (routes.json, battery + Team Deathmatch × 3 tiers, 16 seeds, 96 pairs, B - A ± SE): legs with no way -1,815 ± 169 (z -10.8, -25 %), failed searches -308 ± 39 (z -7.8), stood with a goal and no route -0.45 ± 0.05 points (6.47 to 6.02 %), idle 5 s+ -0.41 ± 0.07 points; better in every cell. Guards: kills +1.1 ± 0.5 (K/D unchanged, more fights), falls off route +0.94 ± 0.46, all in Team Deathmatch, and +1.7 % per moving second (z +1.6: bots stand idle less); none other beyond 2 SE. Cost: the filter takes 3-8 µs a pick at the median, 22-39 µs at p99 (a release build, 810,000 picks in one battery and one Team Deathmatch run), so no cap on the spots checked. In the bench the poll's p99 rose 2,015 to 2,130 µs (+114 ± 18); the worst think per match did not move beyond its noise (+274 ± 217 µs).
 - **Roam ends when it makes no headway.** A bot that has not got `headway_m` (3 m) further in `headway_s` (10 s) on its way ends the run, and the commander picks again. On level_06's Team Deathmatch whole teams stood at a point by their base, with an open way to the goal and no stuck note (it pushed nowhere). Only the spot plays failing at once had restarted them. Without that churn, kills there fell from 10.3 to 1.1 a run (10 v 10) until this end was added, then rose to 13.7.
 - **PairUp keeps its teammate.** It is kept while he lives and stays within `mate_max_m`, instead of asking each poll for a teammate nearer the top player. Asking again ended it as soon as the bot stood a step ahead of him.
 - **A Buddy near his leader covers him.** It watches where the leader does not: a known enemy off his facing (more than `front_deg`, within `threat_m`), else behind him or a side, drawn and turned now and then. It matches his stance.
@@ -1022,6 +1023,18 @@ In Cologne the owner stole from the same container by the same lane again and ag
 
 - He steals rarely: a Raid is a candidate only when the enemy's container holds batteries, and in 3 minutes at 10 v 10 it seldom does.
 - For the holder's bench, `SRP_BENCH_START` (batteries in the containers from the start) or longer runs would give him more thefts.
+
+### A role budget by team size (Cologne CG-13; tried 2026-10-25, shelved)
+
+Tried in the commander: at most a third of the bots pair up, at most one holder (none for the last two with a battery loose), and with a battery loose the last bot served takes a battery play. Also tried and dropped: a raid cover for our human, and a second take after his take from their container. Nothing shipped.
+
+- **The stand-in bench:** 2v2-4v4, `SRP_BENCH_HUMAN=0`, 16 seeds, 288 pairs, each variant vs the budget off.
+  - The budget: idle −104 ± 31 s, but quick ends +3.7 ± 1.6 and his deaths +0.94 ± 0.46.
+  - Without the batteries minimum: the same as off (idle −3 ± 7). That rule is both the gain and the cost; the pair cap and the holder rules change almost nothing at these sizes.
+- **The plain bench** (4v4 and 10v10): no gain beyond 2 SE.
+- **The raid cover:** quick ends +40.5 ± 6.4 and no more support. A raiding human outruns the bot, so the cover ends at range.
+- **The second take:** never fired (about 5 takes from their container in 192 matches).
+- **Follow-up:** a battery minimum that sends the bot nearest the battery, never the human's escort; check the small-team lean on live PvB data.
 
 ## 4. Event reactions
 
