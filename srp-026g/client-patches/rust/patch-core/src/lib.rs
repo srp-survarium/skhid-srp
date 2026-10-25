@@ -4,7 +4,9 @@
 //! - [`mem`]: the game's memory through typed views: an address ([`Va`]), a
 //!   field of an object kind ([`Field`]), an object ([`Obj`]), a global
 //!   ([`Global`]), a game function ([`GameFn`]) and an import ([`Import`]);
-//!   patch code names offsets once, as `const` fields, and never adds them up.
+//!   patch code names offsets once, as `const` fields, and never adds them up;
+//! - [`hook`]: the hook ABI, the Rust side of `rust_hook_026g.inc`: the
+//!   registers a hook entry saved ([`Regs`]).
 //!
 //! `no_std`, no allocator. The game's build is link_026g.py's (i686,
 //! opt-level s, panic=abort, fat LTO); the host's is `cargo test`, where what
@@ -15,6 +17,8 @@
 #[cfg(test)]
 extern crate std;
 
+pub mod hook;
 pub mod mem;
 
+pub use hook::Regs;
 pub use mem::{Field, GameFn, Global, Import, Obj, Va};
