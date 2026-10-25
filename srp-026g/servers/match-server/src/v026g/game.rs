@@ -3605,6 +3605,16 @@ impl Game {
     /// A client's whole world came (its 0xE0 chunks).
     fn uploaded(&mut self, index: usize, upload: Upload, now: Instant) {
         let clock = self.clock(now);
+        // TEST ONLY (`bots/jump_test.rs`): a world the jump test asked for is logged and goes no further.
+        #[cfg(feature = "jump-test")]
+        if self.jump_test_upload(upload.item_time, clock, upload.body.len(), &upload.body) {
+            if let Some(peer) = self.peers[index].as_mut() {
+                peer.asked = None;
+                peer.unanswered_since = None;
+                peer.simulating_at = Some(now);
+            }
+            return;
+        }
         let initial = self.snapshot.is_none() && self.requested_at.is_none();
         let joiner = self.waiting_entry(index);
         let id = self.id;
@@ -5202,6 +5212,8 @@ impl Game {
             self.request_upload(usize::MAX, now, SNAPSHOT_WAIT.min(every));
         }
         self.send_requests(now);
+        #[cfg(feature = "jump-test")]
+        self.jump_test_burst(now);
         if self.inputs.len() > 4096
             && self
                 .inputs
@@ -5258,6 +5270,11 @@ impl Game {
     /// it, or the time limit, as the server's copy of the clients' rule
     /// has it.
     fn check_end(&mut self, clock: u32, now: Instant) {
+        // TEST ONLY: the jump test keeps the match going while tries remain.
+        #[cfg(feature = "jump-test")]
+        if self.jump_test_holds_end() {
+            return;
+        }
         let timing = self.settings.timing.clone();
         if self.finished_at.is_some() || self.clock_start.is_none() {
             return;

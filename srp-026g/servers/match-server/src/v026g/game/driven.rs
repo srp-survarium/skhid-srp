@@ -651,6 +651,48 @@ fn route_table(
     }
 }
 
+/// TEST ONLY (`bots/jump_test.rs`, cargo feature `jump-test`): the jump test's reach into the match.
+#[cfg(feature = "jump-test")]
+impl Game {
+    /// Whether tries remain: the match does not end.
+    pub(super) fn jump_test_holds_end(&self) -> bool {
+        self.walkers
+            .as_ref()
+            .and_then(|walkers| walkers.bots.jump_test.as_ref())
+            .is_some_and(|test| test.holds_end())
+    }
+
+    /// A world for the test's burst, asked of the best-linked patched client when the test wants one.
+    pub(super) fn jump_test_burst(&mut self, now: Instant) {
+        let clock = self.clock(now);
+        let wants = self
+            .walkers
+            .as_mut()
+            .and_then(|walkers| walkers.bots.jump_test.as_mut())
+            .is_some_and(|test| test.wants_world(clock));
+        if !wants {
+            return;
+        }
+        let Some(&index) = self.sources(usize::MAX).first() else {
+            return;
+        };
+        if let Some(peer) = self.peers[index].as_mut() {
+            send(peer, &ServerMessage::UploadRequest);
+            peer.asked = Some(now);
+            peer.asked_clock = Some(clock);
+            peer.unanswered_since.get_or_insert(now);
+        }
+    }
+
+    /// An upload came: its rows are logged; true when it answered a burst request.
+    pub(super) fn jump_test_upload(&mut self, time: u32, clock: u32, bytes: usize, body: &[u8]) -> bool {
+        self.walkers
+            .as_mut()
+            .and_then(|walkers| walkers.bots.jump_test.as_mut())
+            .is_some_and(|test| test.upload(time, clock, bytes, body))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

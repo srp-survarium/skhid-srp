@@ -38,6 +38,8 @@ pub mod escape;
 pub mod friends;
 pub mod guns;
 pub mod hazards;
+#[cfg(feature = "jump-test")]
+pub mod jump_test;
 pub mod kin;
 pub mod know;
 pub mod maps;
@@ -509,6 +511,9 @@ pub struct Bots {
     #[cfg(test)]
     pub bench_camper: Option<(Place, Option<tests::CamperSpot>)>,
     tracker: Tracker,
+    /// TEST ONLY: the jump test for the real client (`jump_test.rs`).
+    #[cfg(feature = "jump-test")]
+    pub jump_test: Option<jump_test::JumpTest>,
     tactics: Option<Tactics>,
     /// The plays' kept answers about these tactics (`plays::memo`), made
     /// anew with them.
@@ -569,6 +574,8 @@ impl Bots {
             container_teams: None,
             static_seed: crate::v026g::registry::static_id(match_id),
             tracker: Tracker::new(mode, teams, driven, Vec::new()),
+            #[cfg(feature = "jump-test")]
+            jump_test: jump_test::JumpTest::from_env(match_id),
             tactics: None,
             memo: Default::default(),
             teams: [team_state(&tuning), team_state(&tuning)],
