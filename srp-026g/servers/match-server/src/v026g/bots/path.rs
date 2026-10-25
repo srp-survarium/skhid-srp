@@ -518,7 +518,10 @@ fn pull_straight(
         // A jump or a drop is taken as it is, corner to corner.
         if into[i + 1] != LinkKind::Walk {
             i += 1;
-            if into[i] == LinkKind::Jump && sprint_room(grid, nodes[i - 1], nodes[i]) {
+            if into[i] == LinkKind::Jump
+                && sprint_room(grid, nodes[i - 1], nodes[i])
+                && run_up_on_route(&points, grid.position(nodes[i]))
+            {
                 sprint.push(points.len());
             }
             points.push(Waypoint {
@@ -590,6 +593,43 @@ fn sprint_room(grid: &WalkGrid, take_off: NodeId, landing: NodeId) -> bool {
             Some((n, _)) => at = n,
             None => return false,
         }
+    }
+    false
+}
+
+/// Whether the route walked so far (`points`, its last the take-off) comes
+/// to the take-off along the jump's way to `landing` for the sprint's
+/// run-up (`motor::SPRINT_RUN_UP_M`): legs within 26° of it, none a jump,
+/// none up or down more than half a metre. The run-up is then the route's
+/// own: no line-up turns back for it (where a route came at a jump the
+/// other way, the line-up walked past the take-off and turned round).
+fn run_up_on_route(points: &[Waypoint], landing: Vec3) -> bool {
+    let Some(last) = points.last() else {
+        return false;
+    };
+    let a = last.at;
+    let across = a.distance_xz(landing);
+    if across < 1e-3 {
+        return false;
+    }
+    let way = ((landing.x - a.x) / across, (landing.z - a.z) / across);
+    let (mut run, mut to) = (0.0, last);
+    for from in points.iter().rev().skip(1) {
+        let (dx, dz) = (to.at.x - from.at.x, to.at.z - from.at.z);
+        let d = dx.hypot(dz);
+        if to.jump || (to.at.y - from.at.y).abs() > 0.5 {
+            return false;
+        }
+        if d >= 1e-3 {
+            if (dx * way.0 + dz * way.1) / d < 0.9 {
+                return false;
+            }
+            run += d;
+            if run >= crate::v026g::bots::motor::SPRINT_RUN_UP_M {
+                return true;
+            }
+        }
+        to = from;
     }
     false
 }
@@ -867,7 +907,8 @@ impl Route {
 
     /// Whether the jump to point `k` is made as a sprint jump: a marginal
     /// jump ([`MARGINAL_JUMP_M`]) with [`SPRINT_LANDING_ROOM_M`] of floor
-    /// past its landing ([`plan`] marks them). Whether the bot may sprint
+    /// past its landing, come at along its way for the sprint's run-up
+    /// ([`plan`] marks them). Whether the bot may sprint
     /// then is the motor's and its caller's.
     pub fn sprint_jump(&self, k: usize) -> bool {
         self.sprint.binary_search(&k).is_ok()
@@ -1190,12 +1231,13 @@ mod tests {
 
     /// A jump up a 1.0 m deck (marginal: the standing jump's 0.998 m top
     /// half clears it) is made sprinting when the deck goes on past the
-    /// landing ([`SPRINT_LANDING_ROOM_M`]); not onto a deck 1.5 m deep, nor
-    /// a 0.8 m jump.
+    /// landing ([`SPRINT_LANDING_ROOM_M`]) and the route comes at it along
+    /// its way for the run-up; not onto a deck 1.5 m deep, nor from 2 m
+    /// before it, nor a 0.8 m jump.
     #[test]
     fn a_marginal_jump_with_room_past_its_landing_is_sprinted() {
         use crate::v026g::bots::body::tests::floor;
-        let sprinted = |rise: f32, deck_to: f32| {
+        let sprinted_from = |rise: f32, deck_to: f32, start_x: f32| {
             let mut triangles = floor(0.0, 0.0, 30.0, 10.0, 0.0).to_vec();
             triangles.extend(floor(15.0, 0.0, deck_to, 10.0, rise));
             let grid = WalkGrid::build(
@@ -1204,7 +1246,7 @@ mod tests {
                 0.25,
                 mapdata::Body::default(),
             );
-            let from = grid.locate(Vec3::new(5.0, 0.0, 5.0), 1.0).unwrap();
+            let from = grid.locate(Vec3::new(start_x, 0.0, 5.0), 1.0).unwrap();
             let to = grid.locate(Vec3::new(15.6, rise, 5.0), 1.0).unwrap();
             let route = plan(&grid, from, to).unwrap();
             let k = (1..route.points().len())
@@ -1212,7 +1254,10 @@ mod tests {
                 .unwrap_or_else(|| panic!("no jump: {:?}", route.points()));
             route.sprint_jump(k)
         };
+        let sprinted = |rise: f32, deck_to: f32| sprinted_from(rise, deck_to, 5.0);
         assert!(sprinted(1.0, 30.0));
+        // Too short a run-up on the route: 2 m.
+        assert!(!sprinted_from(1.0, 30.0, 13.0));
         assert!(!sprinted(1.0, 16.5));
         assert!(!sprinted(0.8, 30.0));
     }
