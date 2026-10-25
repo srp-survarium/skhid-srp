@@ -1542,7 +1542,8 @@ def late_join_sites():
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
-        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
+        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))] + \
+        [(va, len(old)) for va, old, _, _ in P.RAGDOLL_HOOKS]
 
 
 def pickup_sites():
@@ -4584,6 +4585,95 @@ def test_bake_cache(original, image, before):
           f"the code at {block.va:#x} is the link's bake_cache.code ({len(code)} bytes), its tables bake_cache.state")
 
 
+def test_ragdoll(original, image, before):
+    """Check 76: the death ragdoll (patch 76, RAGDOLL_HOOKS; ../docs/notes/
+    ragdoll.md). Static, on the bytes: the four sites and what follows each
+    in the original, the calls into ragdoll.code in the build, no base
+    relocation under a site and no branch inside one, the block the link's,
+    its entries' shapes, the game's code it calls directly (the engine
+    library's ray_test and object release, the arena's memcpy and memset)
+    and its absolute stores (its own data alone). What it does runs
+    elsewhere: check_ragdoll_026g.py (Unicorn: the four hooks from their
+    sites, a death, a rollback, the same death again) and `cargo test -p
+    ragdoll` (the solver and the corpses' machine)."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    check(rows(stock, 0x1F7C37, 0xC) == ["call 0x2d2e40", "cmp byte [esp+0xf],0x0", "jz 0x1f7c6c"]
+          and rows(stock, 0x1F7C24, 2) == ["jz 0x1f7c3c"] and rows(stock, 0x1F7C2D, 2) == ["jz 0x1f7c3c"],
+          "game_world::tick: the join after game_world_core::move (0x1F7C3C, the target of 0x1F7C24 and "
+          "0x1F7C2D), then the je on [esp+0Fh]")
+    check(rows(stock, 0x247569, 0x2F) ==["cmp byte [ecx+0x10d],0x0", "jz near 0x247811", "cmp byte [ebp-0x1],0x0",
+                                          "jnz 0x247592", "cmp byte [ebx+0xf4e2],0x0", "jz 0x247592",
+                                          "cmp dword [ebx+0x12c],byte +0x0", "jnz near 0x247811",
+                                          "mov edi,[eax+0x10c]"],
+          "mt_draw's cull: a model not seen the last frame (+0F4E2h) and holding an item goes to 0x247811 (no "
+          "bones); 0x247592 draws (EAX the model's instance)")
+    check(rows(stock, 0x2476FF, 0x23)[0] == "jz 0x247716"
+          and rows(stock, 0x247716, 0x22) == ["mov ecx,[ebx+0xf290]", "mov eax,[ecx+0x10c]", "mov ecx,0x9de384",
+                                              "lea esi,[eax+0x110]", "lea edi,[ebx+0x40c]", "call 0x1113a0"],
+          "mt_draw: the bones made (0x2476AB) and the decal pose's bind pose (0x2476F8) both join at 0x247716, "
+          "then the \"Weapon\" bone's index (0x1113A0)")
+    check(rows(stock, 0x1F356E, 0xB) == ["lea eax,[ebx+0x44c]", "jmp 0x1f3643"]
+          and rows(stock, 0x1F35A5, 0xB) == ["lea eax,[ebx+0x44c]", "jmp 0x1f3643"]
+          and rows(stock, 0x1F363F, 0x11) == ["lea eax,[esp+0x10]", "mov ecx,[ebx+0xf470]", "push eax", "push ecx",
+                                              "call 0x2422b0"],
+          "update_camera: the first person's eye (&player+44Ch) and the third person's copy join at 0x1F3643, "
+          "EAX the transform the view's update (0x1F364B, patch 46's death_view in the build) gets")
+    linked = P.arena()
+    block = linked.blocks["ragdoll.code"]
+    data = linked.blocks["ragdoll.data"]
+    for va, old, symbol, opcode in P.RAGDOLL_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`call {target:#x}` ({symbol}, an entry of ragdoll.code) and nops here")
+    sites = [(s, o) for s, o, _, _ in P.RAGDOLL_HOOKS]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(s - 4 < v < s + len(o) for s, o in sites)]
+    hits = [h for s, o in sites for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "ragdoll.code")
+    check(image.read(block.va, len(code)) == code and data.size <= 0x20000,
+          f"the code at {block.va:#x} is the link's ragdoll.code ({len(code)} bytes: the entries and the Rust "
+          f"crate), its state ragdoll.data ({data.size} bytes)")
+    entry = lambda symbol, count: rows(image, linked.symbols[symbol], 0x40)[:count]
+    sym = linked.symbols
+    check(entry("rg_step", 10) == ["pusha", "mov esi,esp", "and esp,byte -0x10", "sub esp,byte +0xc", "push ebx",
+                                   f"call {sym['ragdoll_step']:#x}", "mov esp,esi", "popa",
+                                   "cmp byte [esp+0x13],0x0", "ret"]
+          and entry("rg_cull", 14) == ["pusha", "mov esi,esp", "and esp,byte -0x10", "sub esp,byte +0xc", "push ebx",
+                                       f"call {sym['ragdoll_draws']:#x}", "mov esp,esi", "test eax,eax", "popa",
+                                       f"jnz {sym['rg_cull'] + 0x1e:#x}", "cmp byte [ebx+0xf4e2],0x0", "ret",
+                                       "cmp eax,eax", "ret"]
+          and entry("rg_apply", 10) == ["mov esi,esp", "and esp,byte -0x10", "sub esp,byte +0x4",
+                                        "push dword [ebp-0x1c]", "push dword [ebp-0x14]", "push ebx",
+                                        f"call {sym['ragdoll_apply']:#x}", "mov esp,esi", "mov ecx,[ebx+0xf290]", "ret"]
+          and entry("rg_eye", 13) == ["push edx", "push esi", "mov esi,esp", "and esp,byte -0x10", "sub esp,byte +0x8",
+                                      "push eax", "push ebx", f"call {sym['ragdoll_eye']:#x}", "mov esp,esi", "pop esi",
+                                      "pop edx", "mov ecx,[ebx+0xf470]", "ret"],
+          "the entries align the stack to 16 for Rust, keep the registers the game reads after each site, and "
+          "do the instruction they stand over (the step's and the cull's compares for their je)")
+    # the block's .text alone: its .rodata (constants, tables) is not code
+    text_size = sym.get(P.linker.rodata_symbol("ragdoll.code"), block.va + len(code)) - block.va
+    texts = [text for _, _, text in ndisasm(code[:text_size], block.va)]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    allowed = {sym["engine_ray_test"], sym["engine_release_object"], sym["memcpy"], sym["memset"]}
+    check(outside and set(outside) <= allowed,
+          "its direct calls out of the block: the engine library's ray_test and object release, the arena's "
+          "memcpy and memset (the rest are the network client's vtable and the two imports, by pointer)"
+          + "".join(f"; {t:#x}" for t in sorted(set(outside) - allowed)))
+    stores = [t for t in texts if re.match(r"(mov|add|sub|and|or|xor|inc|dec)\w* (byte |word |dword |qword )?\[(dword )?0x", t)]
+    absolute = [int(m, 16) for t in stores for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", t)]
+    check(all(data.va <= a < data.va + data.size for a in absolute),
+          f"its stores to absolute addresses ({len(absolute)}) are all in ragdoll.data: nothing of the game's "
+          "is written by address" + "".join(f"; {a:#x}" for a in absolute if not data.va <= a < data.va + data.size))
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -6179,6 +6269,7 @@ def test_late_join(original, without, server, source):
     test_kill_feed(original, image, before)
     test_fall_gravity(original, image, before)
     test_bake_cache(original, image, before)
+    test_ragdoll(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

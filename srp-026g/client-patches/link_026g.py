@@ -224,11 +224,21 @@ def check_blocks(blocks):
             raise LinkError(f"{', '.join(map(str, twice))}: named by two {kind} blocks")
 
 
+def rodata_symbol(block):
+    """The symbol at the start of a code block's .rodata (its .text's end;
+    the block's end when it has no .rodata, then not in Linked.symbols)."""
+    return "__rodata_" + block.replace(".", "_")
+
+
 def script_text(blocks, objects, va, limit):
     """The linker script: one output section per block, at ARENA's order."""
     lines = ["SECTIONS", "{", f"  . = {va:#x};"]
     for block in blocks:
-        rules = [f'    "{objects[s]}"({" ".join(group)})' for group in TAKES[block.kind] for s in block.sources]
+        rules = []
+        for at, group in enumerate(TAKES[block.kind]):
+            if block.kind == "code" and at == 1:
+                rules.append(f"    {rodata_symbol(block.name)} = .;")       # where .text ends
+            rules += [f'    "{objects[s]}"({" ".join(group)})' for s in block.sources]
         noload = " (NOLOAD)" if block.kind == "state" else ""
         lines += [f"  .{block.name} ALIGN({block.align:#x}){noload} :", "  {"] + rules + ["  }"]
     lines += ["  __arena_end = .;",

@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 339344,
-  "sha256": "332657a763c02f4bebe591ea4af96b7bdcf40a4a336c4799d079cdfba064d0a1",
+  "size": 343520,
+  "sha256": "314f7a6802abd96902ef1a342b7b3bd997c2e5e8cc4bfdb29cacb213f691c24d",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -62,15 +62,21 @@
     "ragdoll.code": {
       "kind": "code",
       "va": "0xa454000",
-      "size": 54480
+      "size": 57480
     },
     "ragdoll.data": {
       "kind": "data",
-      "va": "0xa462000",
-      "size": 122256
+      "va": "0xa463000",
+      "size": 122336
     }
   },
   "symbols": {
+    "__rodata_bake_cache_code": "0xa43a0e9",
+    "__rodata_hide_ui_code": "0xa4351e2",
+    "__rodata_kill_feed_code": "0xa438178",
+    "__rodata_match_keys_code": "0xa4330f1",
+    "__rodata_ragdoll_code": "0xa4616d5",
+    "__rodata_research_code": "0xa42f2f9",
     "artefacts_fire": "0xa431014",
     "artefacts_lifebone": "0xa43100f",
     "artefacts_link": "0xa431005",
@@ -146,10 +152,10 @@
     "memcpy": "0xa42ebbf",
     "memmove": "0xa454072",
     "memset": "0xa42e65c",
-    "ragdoll_apply": "0xa458505",
-    "ragdoll_draws": "0xa458b6a",
-    "ragdoll_eye": "0xa458b84",
-    "ragdoll_step": "0xa458bca",
+    "ragdoll_apply": "0xa4593b0",
+    "ragdoll_draws": "0xa459a15",
+    "ragdoll_eye": "0xa459a2f",
+    "ragdoll_step": "0xa459a75",
     "research_hud": "0xa42d005",
     "research_register": "0xa42d000",
     "research_welcome": "0xa42d00a",
