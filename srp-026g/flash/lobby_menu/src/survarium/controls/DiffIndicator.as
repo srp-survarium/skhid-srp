@@ -7,8 +7,9 @@ package survarium.controls
    import survarium.constants.PropertyDirection;
    
    // A card's stat row: the bar runs over the property's min_value..max_value (ui_properties) and
-   // stops at its ends; value and compare keep what they were given, so the text, the difference
-   // and the upgrade preview read the real numbers (a VSSK's 175 damage over the scale's 150).
+   // stops at its ends; value and compare keep what they were given (the minimum at least: a defect
+   // never shows a negative armour), so the text, the difference and the upgrade preview read the
+   // real numbers (a VSSK's 175 damage over the scale's 150).
    public class DiffIndicator extends StatusIndicator
    {
       
@@ -24,7 +25,7 @@ package survarium.controls
       
       protected var _otherValue:Number = 0;
       
-      // value and compare as given; _value and _otherValue are them within the bar's range
+      // value and compare as given (not under the minimum); _value and _otherValue within the bar's range
       protected var _realValue:Number = 0;
       
       protected var _realOther:Number = 0;
@@ -86,18 +87,18 @@ package survarium.controls
       
       override public function set value(value:Number) : void
       {
-         if(this._realValue == value && _value == this.inRange(value))
+         if(this._realValue == Math.max(_minimum,value) && _value == this.inRange(value))
          {
             return;
          }
-         _realValue = value;
+         _realValue = Math.max(_minimum,value);
          _value = this.inRange(value);
          this.updatePosition();
       }
       
       public function set compare(value:Number) : void
       {
-         _realOther = value;
+         _realOther = Math.max(_minimum,value);
          _otherValue = this.inRange(value);
          invalidate(InvalidationType.DATA);
       }
@@ -263,4 +264,3 @@ package survarium.controls
       }
    }
 }
-      
