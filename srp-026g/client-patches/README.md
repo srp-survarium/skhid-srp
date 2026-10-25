@@ -3240,8 +3240,8 @@ gone. 0.26g has none of its code: the artefact cooks know types
 0.28d0's code again in C (artefact_sponge_core 0x5136E0..0x515270, its cook 0x46A740..0x46AEA6
 and the config reader 0x5439E0 of the decoded 0.28d0 exe) on 0.26g's interfaces, as Research is
 written, and it reads 0.28d0's `artefact_sponge.options` with retail's keys. The content is pack
-`sponge@3` (`../scripts/sponge/make_pack.py`: item 758, 0.28d0's config with 0.69d0's fuse,
-contact and numbers in 0.26g's keys and the owner's static toxin rule in its passive, regen_add
+`sponge@4` (`../scripts/sponge/make_pack.py`: item 758, 0.28d0's config with 0.69d0's fuse,
+contact, numbers and hit types in 0.26g's keys and the owner's static toxin rule in its passive, regen_add
 1000 and timeout_mul 0, 0.28d0's model, 0.69d0's spawn and cloud particles, 0.28d0's other
 particles, materials and textures, texts in six languages); the hud movie draws its combat-log icon (`SpongeLogIcon`). The rules:
 `../docs/notes/sponge.md`.
@@ -3340,7 +3340,9 @@ loaded zone and geometry, set_game_world, the passive on pickup and its regenera
 the press (the original crashes there), the pin and the fuse from it, the throw's velocity and
 its contact function subscribed, the fuse's ticks, a first contact early (spent) and late
 (exploding at the next tick) and across a save and load, the rule beside 0.26g's grenade_core
-0x3041B0 (and with `--v031a2` 0.31a2's 0x6011E0), the explosion's splash on six targets, the zone on, ticked and off, the zone hit's
+0x3041B0 (and with `--v031a2` 0.31a2's 0x6011E0), held past the fuse (the explosion in the
+hand, the grenade slot given back, weapon_core's way in and is_ready after it: the crash of
+2026-10-25), the explosion's splash on six targets, the zone on, ticked and off, the zone hit's
 arguments against the original, serialization round trips in every state, the draw, a death and
 revive, patch 54's press; a removal while armed, a load turning the passive out and in, a late
 joiner's zone and a thrower who left, a tap, the destructor in the air and with the zone on with

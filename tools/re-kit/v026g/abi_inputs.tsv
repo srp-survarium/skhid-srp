@@ -4641,3 +4641,9 @@ va	name	location	role	basis
 0x00245430		EAX	the sound event (its time and clip)	observed
 0x0005a840	vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal	ESI	the proxy's memory (a 90h block of the scene's pool)	observed
 0x0005c280	vostok::sound::sound_scene::notify_listener2	stack+4	the sound scene	observed
+0x002fc680	survarium::inventory::remove_item	ESI	inventory: the item's +34h (removed_from_inventory) first, then its +28h(0, 17h) (no inventory, slot 17h), the cell +10Ch[slot] 0, +184h dirty; the grenade slot +17Ch untouched	observed
+0x002e4090	survarium::weapon_core::can_start_throw_grenade	ECX	weapon_core: at 0x2E40B4 the inventory's grenade slot +17Ch, 17h none (je), else the slot's item (+10Ch[slot]) dereferenced at 0x2E40C6 with no check for an empty cell (weapon_core's tick 0x2E0BEF calls it every tick)	observed
+0x0033a650	survarium::weapon_core_throw_grenade_state::is_ready_for_transition	ECX	the throw state: +150h its substate (+13Ch, vt+18h), +17Ch the grenade set, +180h the grenade's index (FFh none): ready when that grenade (+268h[index]) has exploded (+154h)	observed
+0x0033a730	survarium::weapon_core_throw_grenade_state::is_grenade_slot_held	ECX	the throw state: +120h -> +8 the player (+10Ch the inventory), +17Ch its item	observed
+0x0033a730	survarium::weapon_core_throw_grenade_state::is_grenade_slot_held	entry ESP+4	the answer wanted (u8)	observed
+0x00364f10	vostok::particle::particle_system::construct_action<vostok::configs::binary_config_value>	entry ESP+10h	the action's config by value (24 bytes: type_index, properties)	observed

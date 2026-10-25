@@ -2010,3 +2010,5 @@ va	name	source	ret_cleanup	result
 0x00245430		manual	0	AL: 1 when the weapon's record (ECX+828h) already has the sound event (EAX): on_sound_event plays it no more; else 0, recorded (0x245B70)
 0x0005a840	vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal	manual	16	a hud proxy (0x65100's): as 0x5A6B0 (vtable 0x9E0EC0, +38h..+3Ch m_ext_params zeroed) but +80h 3, the point proxy's 0
 0x0005c280	vostok::sound::sound_scene::notify_listener2	manual	8	its emitters' propagators to calculate_hdr_audio_frame 0x5C7A0 (0x5C31D), hud proxies' too; a proxy of kind 3 (+80h, hud) not panned in 3D (0x5C37C); each voice's volume the amplitude x the description's (0x5C710..0x5C743)
+0x0033a730	survarium::weapon_core_throw_grenade_state::is_grenade_slot_held	manual	4	AL: (the inventory's grenade slot +17Ch == its item's slot +254h) == the argument
+0x00364f10	vostok::particle::particle_system::construct_action<vostok::configs::binary_config_value>	manual	44	an action by the config's type_index (0x29 without one): types 3..40 through the switch 0x3663C4 (14, 16, 19..22 none), 40 particle_action_distance_attenuation (vtable 0xA20C5C, 0x365A71)

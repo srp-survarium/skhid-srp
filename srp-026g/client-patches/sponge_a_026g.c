@@ -631,6 +631,18 @@ static void sync_passive(struct sponge *s) {
  * fuse and thrower kept; armed in the air or exploded, nothing else. */
 THISCALL void sp_removed(struct sponge *s) {
     u32 state = AT(s, A_STATE, u32);
+    /* Out of its slot (its explosion in the hand, cooked past the fuse; a
+     * drop; a death) while the inventory's grenade slot still names that
+     * slot (the key held): the grenade slot back to none (17h), as the
+     * release gives it back. Left there, weapon_core's way into the throw
+     * state (0x2E40BF, each tick) took the empty slot's item, 0, and the
+     * stub read through it (the crash of 2026-10-25 04:16:45: 0xA4350A5,
+     * sponge_predicate's `cmp [ecx]`, ecx 0, both games at the same tick).
+     * remove_item 0x2FC680 calls this before the item's inventory and slot
+     * are cleared (its +28h after), so both are still the sponge's here. */
+    u8 *inventory = AT(s, I_INVENTORY, u8 *);
+    if (inventory && AT(inventory, INV_GRENADE_SLOT, u32) == AT(s, I_SLOT, u32))
+        AT(inventory, INV_GRENADE_SLOT, u32) = NO_SLOT;
     ((THISCALL void (*)(void *))vt(s, V_DISABLE_PASSIVE))(s);
     if (state == ST_ARMED) {
         static const float still[3] = {0, 0, 0};

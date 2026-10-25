@@ -142,7 +142,10 @@ query:
     jmp QUERY_ON
 
 ; 0x2E40C6, ecx = the item in the grenade slot; esi the weapon core (kept).
+; An empty slot (ecx 0: none can be thrown) answers no, for any kind.
 predicate:
+    test ecx, ecx
+    jz .none
     cmp dword [ecx], SP_VTABLE
     je .sponge
     mov eax, [ecx]
@@ -154,6 +157,9 @@ predicate:
     push ecx
     call sp_can_throw
     add esp, 4
+    jmp PREDICATE_ON
+.none:
+    xor eax, eax
     jmp PREDICATE_ON
 
 ; 0x33A677, esi = the throw state, al = its grenade's index (not FFh).
