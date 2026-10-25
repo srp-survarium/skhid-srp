@@ -240,6 +240,13 @@ pub(super) struct Core<'a> {
     /// A member (or one queued) whose game started anew, until its new
     /// game is told the room: by then, or it loses the place (`rooms`).
     pub room_unseen: HashMap<u32, Instant>,
+    /// Late joins into a room's match that failed, by `(match, account)`:
+    /// at [`super::rooms::LATE_JOIN_TRIES`] the member plays the next match
+    /// instead (`rooms`).
+    pub room_failed_tries: HashMap<(u32, u32), u8>,
+    /// A line for the member alone in its room's chat, sent once it hears
+    /// the chat (`room_chat`).
+    pub room_notices: HashMap<u32, String>,
 }
 
 impl<'a> Core<'a> {
@@ -291,6 +298,8 @@ impl<'a> Core<'a> {
             room_join_at: HashMap::new(),
             room_seen: HashMap::new(),
             room_unseen: HashMap::new(),
+            room_failed_tries: HashMap::new(),
+            room_notices: HashMap::new(),
         }
     }
 

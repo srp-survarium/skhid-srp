@@ -187,5 +187,37 @@ impl Core<'_> {
             };
             self.room_line(key, line, 0);
         }
+        self.room_notices_tick();
+    }
+
+    /// The lines for one member alone (`room_notices`): sent once it hears
+    /// its room's chat (its tab up, not in a match), not kept in the room's
+    /// chat; dropped when it is in no room.
+    fn room_notices_tick(&mut self) {
+        let pending: Vec<u32> = self.room_notices.keys().copied().collect();
+        for account_id in pending {
+            let Some(key) = self.rooms.key_of(account_id) else {
+                self.room_notices.remove(&account_id);
+                continue;
+            };
+            let Some(addr) = self.by_account.get(&account_id).copied() else {
+                continue;
+            };
+            let hears = self
+                .player(addr)
+                .is_some_and(|player| player.room_chat == Some(key) && player.in_match.is_none());
+            if !hears {
+                continue;
+            }
+            if let Some(body) = self.room_notices.remove(&account_id) {
+                let line = ChatLine {
+                    from: 0,
+                    name: String::new(),
+                    tag: String::new(),
+                    body,
+                };
+                self.send(addr, message(&line));
+            }
+        }
     }
 }

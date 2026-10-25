@@ -78,6 +78,11 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   same seat, state kept (Play stays usable while their row says they play the match). After
   it the place is lost: they may join again as a new member. A game quit from its menu leaves
   the room at once.
+  - **Lost in a match** (two minutes of silence there: hung loading, crashed): the session
+    waits for the match to end, the room does not (live, 2026-10-25: a game hung loading kept
+    its room "full" all match, its side one short). The place is kept the session's 60 s after
+    the link went, longer only while the match server has the player in the match (playing,
+    or on its way in); then it is lost as above.
   - **Started anew** (the owner's of 2026-10-20: "i was in that weird state where the game was
     not in a room, but i got thrown into a match regardless (twice)"): a new sign-in keeps the
     place, but the room seats it in no match (nor sends it "match found"), and shows it grey,
@@ -138,6 +143,11 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   server lets it go, `Matchmaking::join_failed`): the member waits in its room again, with
   its `J` row, and goes in 15 s later as a new place (live, 2026-10-19, room 2168: it stayed
   marked in the match and waited out all of it).
+  - **Two failed tries** (`LATE_JOIN_TRIES`; live, 2026-10-25: a game that could not load
+    went in every 15 s for minutes, each try a place of the match's 20 for good and the other
+    joiners held out while it ran, until the match was full to everyone): the member plays
+    the room's next match instead, has no `J` row, and is told once in its room's chat:
+    "Your game could not join this match: you'll play the next one."
 - **Why it cannot go in now** (the owner's of 2026-10-20: players see why): the window's
   banner shows one line instead of the 15 s (`J;-1;<why>`, `lobby.md` §2.16.3); once the match
   takes players again the seconds are back, and one whose 15 s are over goes in at once.

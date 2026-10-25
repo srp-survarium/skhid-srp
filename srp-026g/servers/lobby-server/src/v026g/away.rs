@@ -26,6 +26,12 @@
 //!    comes back to the lobby after the match without signing in again.
 //!    (The store takes a player nothing was heard of for 30 s out of its
 //!    squad: `SessionStore::drop_gone_players`.)
+//!    Its room does not wait with it: the room keeps the place
+//!    [`Settings::session_grace`] after the link went, as for a player in
+//!    the lobby, and longer only while the match server has the player in
+//!    the match (playing, or on its way in). Live, 2026-10-25: a member
+//!    whose game hung loading a match stayed grey in its room for the
+//!    whole match, the room "full" to everyone else, its side one short.
 //! 3. **The session ends** when the wait is over, or at once when the
 //!    account signs in anew.
 //!
@@ -46,6 +52,8 @@ pub(super) struct Away {
     pub in_match: Option<u32>,
     /// When the wait began: when the link went, or the match ended.
     pub since: Instant,
+    /// When the link went (its room's wait, step 2).
+    pub went: Instant,
 }
 
 impl Core<'_> {
@@ -72,6 +80,7 @@ impl Core<'_> {
                     account_id,
                     in_match,
                     since: now,
+                    went: now,
                 },
             );
         }
@@ -100,14 +109,35 @@ impl Core<'_> {
     pub(super) fn collect_away(&mut self, now: Instant) {
         let grace = self.settings.session_grace;
         let mut ended = Vec::new();
+        // In a match that runs, past the room's wait: `(account, match)`.
+        let mut room_waited = Vec::new();
         let matches = &self.matches;
         for (session_id, away) in &mut self.away {
-            if away.in_match.is_some_and(|id| matches.contains_key(&id)) {
+            if let Some(id) = away.in_match.filter(|id| matches.contains_key(id)) {
                 // The wait starts when the match is over.
                 away.since = now;
+                if now.saturating_duration_since(away.went) >= grace {
+                    room_waited.push((away.account_id, id));
+                }
             } else if now.saturating_duration_since(away.since) >= grace {
                 ended.push(*session_id);
             }
+        }
+        for (account_id, match_id) in room_waited {
+            if self.by_account.contains_key(&account_id)
+                || (self.rooms.of(account_id).is_none()
+                    && self.rooms.queue_place(account_id).is_none())
+                || self.in_match_now(match_id, account_id, now)
+            {
+                continue;
+            }
+            log::info!(
+                "{}: its game went silent {} s ago and is not in match {match_id:#x}; out of its \
+                 room (its session waits for the match)",
+                self.name_of(account_id).unwrap_or_default(),
+                grace.as_secs()
+            );
+            self.room_gone(account_id);
         }
         for session_id in ended {
             // Its room loses it with its session (`rooms`), unless its
@@ -129,5 +159,27 @@ impl Core<'_> {
     /// Whether the lobby has the match as one that runs.
     fn runs(&self, match_id: u32) -> bool {
         self.matches.contains_key(&match_id)
+    }
+
+    /// Whether the match server has a place of the account in the match
+    /// now (playing, or on its way in: `LiveView::present`). A match that
+    /// has said nothing of itself yet keeps everyone.
+    fn in_match_now(&self, match_id: u32, account_id: u32, now: Instant) -> bool {
+        let Some(running) = self.matches.get(&match_id) else {
+            return false;
+        };
+        let Some(live) = self.host.live(running.ticket.match_id, now) else {
+            return true;
+        };
+        self.store
+            .matchmaking()
+            .formed_match(match_id)
+            .is_some_and(|formed| {
+                formed.seats.iter().enumerate().any(|(place, seat)| {
+                    seat.player.account_id == account_id
+                        && place < 32
+                        && live.present >> place & 1 == 1
+                })
+            })
     }
 }
