@@ -17,14 +17,15 @@
 
 use mapdata::Vec3;
 
-use super::Ctx;
+use super::{Ctx, Go, Intent};
+use crate::v026g::bots::view::PlaceView;
 
 /// Whether `list` (goals no way was found to, each with the time it is
 /// left until) has one near `at`, within the motor's replan distance
-/// ([`super::super::REPLAN_MOVED_M`]), still unexpired at `now`.
+/// ([`crate::v026g::bots::drive::REPLAN_MOVED_M`]), still unexpired at `now`.
 pub fn no_way_near(list: &[(Vec3, u32)], at: Vec3, now: u32) -> bool {
     list.iter()
-        .any(|&(goal, until)| now < until && goal.distance_xz(at) <= super::super::REPLAN_MOVED_M)
+        .any(|&(goal, until)| now < until && goal.distance_xz(at) <= crate::v026g::bots::drive::REPLAN_MOVED_M)
 }
 
 impl Ctx<'_> {
@@ -50,11 +51,24 @@ pub fn repick_if_shut(cx: &Ctx, spot: &mut Vec3, pick: impl FnOnce() -> Option<V
     false
 }
 
+/// Whether a play's goal is one the bot's own search proved no way to
+/// lately (`Bot::no_way_to`, [`NO_WAY_KEEP_MS`] from the proof): the bench
+/// at 1dee0543 (288 matches) had a fifth of its stood-with-no-route ticks
+/// at such goals, Buddy's and Crossfire's most, each searched again every
+/// [`NO_WAY_RETRY_MS`] and kept up to the play's end. A carrier keeps
+/// its play: its way home is the play's to change (`collect::way_home`).
+pub fn goal_shut(intent: &Intent, me: &PlaceView, no_way_to: &[(Vec3, u32)], now: u32) -> bool {
+    me.carrying.is_none()
+        && matches!(intent.go, Go::To { at, within_m }
+        if me.feet.distance_xz(at) > within_m
+            && no_way_near(no_way_to, at, now))
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::tests::Scenario;
     use super::*;
-    use crate::v026g::bots::REPLAN_MOVED_M;
+    use crate::v026g::bots::drive::REPLAN_MOVED_M;
     use crate::v026g::bots::view::Mode;
 
     #[test]
