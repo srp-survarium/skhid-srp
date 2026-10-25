@@ -534,11 +534,17 @@ pub(super) fn decide(
         }
         Step::Failed(why) => {
             if let Some(a) = bot.assignment.as_ref()
-                && now < a.since + plays::QUICK_FAIL_MS
+                && (now < a.since + plays::QUICK_FAIL_MS || plays::collect::fails_aside(why))
             {
                 bot.set_aside.retain(|&(_, _, until)| until > now);
-                bot.set_aside
-                    .push((a.kind, a.target, now + plays::SET_ASIDE_MS));
+                // A battery proved out of reach is left as long as a goal no
+                // way leads to.
+                let keep = if plays::collect::fails_aside(why) {
+                    NO_WAY_KEEP_MS
+                } else {
+                    plays::SET_ASIDE_MS
+                };
+                bot.set_aside.push((a.kind, a.target, now + keep));
             }
             bot.end_play(now, why, notes);
             state.next_commander = now;

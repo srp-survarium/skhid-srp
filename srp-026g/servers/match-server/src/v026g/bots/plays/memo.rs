@@ -201,6 +201,30 @@ impl Ctx<'_> {
     }
 }
 
+/// A storey, metres: floors this far apart are on different levels (the
+/// grid's `locate` window; a ramp or a ledge is under it).
+pub const STOREY_GAP_M: f32 = 2.5;
+
+impl Ctx<'_> {
+    /// The walk to `at` when the bot and `at` are a storey or more apart
+    /// ([`STOREY_GAP_M`]): the regions' way between the floors
+    /// ([`Tactics::walk_estimate`]) if longer than [`Ctx::path_dist`]'s
+    /// straight guess, which ignores the floor (a battery a storey up
+    /// looked near to everyone under it: 105 plays on School's battery 3,
+    /// 58 % of the Collect time in the match). `None` on one level, or
+    /// without a floor under either end: the straight guess stands.
+    pub fn storey_walk_dist(&self, at: Vec3) -> Option<f32> {
+        let grid = &self.tactics.world.grid;
+        let from = grid.locate(self.me.feet, 1.5)?;
+        let to = crate::v026g::bots::path::goal_floor(grid, at)?;
+        if (grid.position(from).y - grid.position(to).y).abs() < STOREY_GAP_M {
+            return None;
+        }
+        let walk = self.tactics.walk_estimate(from, to)?;
+        Some(walk.max(self.path_dist(at)))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use mapdata::{Rotation, Shape, ShapeKind, Vec3, Zone, ZoneKind};
@@ -435,5 +459,45 @@ mod tests {
         // Another stamp: all dropped.
         assert_eq!(get(8, MEMO_MOST + 1), 2 * (MEMO_MOST + 1));
         assert_eq!((memo.kept(), asked.get()), (1, MEMO_MOST + 5));
+    }
+
+    /// A platform a storey up (3.4 m) over the middle of the field, its
+    /// only way up a ramp at the far end (10 m wide): a battery on it, a bot on the
+    /// ground right under it is a long walk from it, and the straight
+    /// guess said ten metres (School's battery 3).
+    #[test]
+    fn a_battery_a_storey_up_is_as_far_as_the_way_up() {
+        use super::super::tests::Scenario;
+        use crate::v026g::bots::view::Mode;
+        use mapdata::{Triangle, WalkerBehaviour};
+        let tri = |v: [Vec3; 3]| Triangle {
+            v,
+            walker: WalkerBehaviour::BySlope,
+        };
+        let mut solids: Vec<Triangle> = crate::v026g::bots::body::tests::floor(40.0, 0.0, 60.0, 40.0, 3.4)
+            .into_iter()
+            .collect();
+        let (a, b, c, d) = (
+            Vec3::new(78.0, 0.0, 0.0),
+            Vec3::new(78.0, 0.0, 10.0),
+            Vec3::new(60.0, 3.4, 10.0),
+            Vec3::new(60.0, 3.4, 0.0),
+        );
+        solids.extend([tri([a, b, c]), tri([a, c, d])]);
+        let world = crate::v026g::bots::tactics::tests::field_with_solids(&solids, |_| {});
+        let mut s = Scenario::field(Mode::Batteries);
+        s.bot(0, 0, Vec3::new(45.0, 0.0, 30.0));
+        s.tactics = Tactics::new(world, 1.0);
+        let battery = Vec3::new(50.0, 3.4, 30.0);
+        let cx = s.cx(0);
+        let walk = cx.storey_walk_dist(battery).expect("a storey apart");
+        assert!(walk > 40.0, "the way up is the ramp's: {walk}");
+        assert!(cx.path_dist(battery) < 10.0);
+        // On the platform, one level: the straight guess stands.
+        s.view.places[0].feet = Vec3::new(45.0, 3.4, 30.0);
+        assert_eq!(s.cx(0).storey_walk_dist(battery), None);
+        // On the ground away from the platform, a battery on the ground.
+        s.view.places[0].feet = Vec3::new(10.0, 0.0, 10.0);
+        assert_eq!(s.cx(0).storey_walk_dist(Vec3::new(20.0, 0.0, 10.0)), None);
     }
 }
