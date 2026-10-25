@@ -146,7 +146,23 @@ struct Body {
     target: Option<Place>,
     /// Its shots' spread ([`bench_spread`]).
     spread: bench_spread::Spread,
+    /// Its stretch of zone damage under way ([`ZoneSpell`]).
+    zone_spell: Option<ZoneSpell>,
 }
+
+/// A body's stretch of zone damage ([`Game::zone_tick`]): from its first
+/// zone hit to [`SPELL_GAP_MS`] with none (a crossing, or a stand in a
+/// zone): when it began, the health then, the health the zones took.
+#[derive(Clone, Copy, Debug)]
+struct ZoneSpell {
+    start: u32,
+    health: f32,
+    lost: f32,
+    last: u32,
+}
+
+/// A zone spell ends after this long with no zone hit, ms.
+const SPELL_GAP_MS: u32 = 1_000;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Lying {
@@ -433,6 +449,9 @@ struct Game {
     /// run's loop counts those lying in zones on all match).
     zone_deaths: u32,
     zone_hp: f32,
+    /// Zone spells ended ([`ZoneSpell`]): the health the zones took, and
+    /// the body's health at the end (enemy fire counts; a death, 0).
+    zone_spells: Vec<[f32; 2]>,
     took_from: Vec<Vec3>,
     /// Carriers' ground distance walked (m) and their living ticks: their
     /// mean speed.
@@ -589,6 +608,7 @@ impl Game {
             last_hit: 0,
             target: None,
             spread: bench_spread::Spread::default(),
+            zone_spell: None,
         };
         let mut game = Self {
             kin: Kinematics::default(),
@@ -623,6 +643,7 @@ impl Game {
             drops: [0, 0],
             zone_deaths: 0,
             zone_hp: 0.0,
+            zone_spells: Vec::new(),
             took_from: Vec::new(),
             carry_m: 0.0,
             carry_ticks: 0,
@@ -700,6 +721,7 @@ impl Game {
         body.legs = [0.5; 2];
         body.leg_broken_until = 0;
         body.last_hit = 0;
+        body.zone_spell = None;
         body.alive = true;
         body.spawned = tick;
         body.carrying = None;
@@ -1096,8 +1118,11 @@ impl Game {
     fn zone_tick(&mut self, inside: &Hazards, on: &Hazards) {
         let tick = self.tick;
         for place in 0..self.bodies.len() {
-            let body = &self.bodies[place];
+            let body = &mut self.bodies[place];
             if !body.alive {
+                if let Some(spell) = body.zone_spell.take() {
+                    self.zone_spells.push([spell.lost, 0.0]);
+                }
                 continue;
             }
             let Some(node) = self.world.grid.locate(body.feet, 1.0) else {
@@ -1113,16 +1138,47 @@ impl Game {
                 })
                 .map(Hazard::hit_per_s)
                 .sum();
+            let body = &mut self.bodies[place];
             if per_s <= 0.0 {
+                if let Some(spell) = body.zone_spell
+                    && tick >= spell.last + SPELL_GAP_MS
+                {
+                    self.zone_spells.push([spell.lost, body.health.max(0.0)]);
+                    body.zone_spell = None;
+                }
                 continue;
             }
-            let body = &mut self.bodies[place];
             let hit = (per_s * TICK_S).min(body.health.max(0.0));
+            let spell = body.zone_spell.get_or_insert(ZoneSpell {
+                start: tick,
+                health: body.health,
+                lost: 0.0,
+                last: tick,
+            });
+            spell.lost += hit;
+            spell.last = tick;
             body.health -= hit;
             self.zone_hp += hit;
             if body.health > 1e-3 {
                 continue;
             }
+            // What took the rest: the spell, and the enemy hits in it.
+            let spell = body.zone_spell.take().expect("just set");
+            self.zone_spells.push([spell.lost, 0.0]);
+            eprintln!(
+                "  zone death: at {:.1} s, in zones {:.1} s at {:.2} a second, health {:.2} then, \
+                 the zones took {:.2}, last enemy hit {}",
+                f64::from(tick) / 1000.0,
+                f64::from(tick - spell.start) / 1000.0,
+                per_s,
+                spell.health,
+                spell.lost,
+                if body.last_hit == 0 {
+                    "none this life".to_string()
+                } else {
+                    format!("{:.1} s before", f64::from(tick - body.last_hit) / 1000.0)
+                }
+            );
             body.alive = false;
             body.dead_at = tick;
             if let Some(battery) = body.carrying.take() {
@@ -5583,6 +5639,28 @@ fn real_bot_cost() {
                 let now = super::crossing::counts();
                 std::array::from_fn(|k| now[k] - crossings_before[k])
             };
+            // Zone spells (`ZoneSpell`): how many, the health they took in
+            // all and at most, how many left the body under 0.6, and how
+            // many took each 0.02 of health (the last bin, 0.98 or more).
+            let zone_spells = {
+                let mut spells = game.zone_spells.clone();
+                spells.extend(
+                    game.bodies
+                        .iter()
+                        .filter_map(|b| b.zone_spell.map(|z| [z.lost, b.health.max(0.0)])),
+                );
+                let mut bins = [0u32; 50];
+                for [lost, _] in &spells {
+                    bins[((lost / 0.02) as usize).min(49)] += 1;
+                }
+                serde_json::json!({
+                    "n": spells.len(),
+                    "lost": spells.iter().map(|s| f64::from(s[0])).sum::<f64>(),
+                    "worst": spells.iter().map(|s| s[0]).fold(0.0f32, f32::max),
+                    "under_06": spells.iter().filter(|s| s[1] < 0.6).count(),
+                    "bins": bins.to_vec(),
+                })
+            };
             eprintln!(
                 "  sums: {}",
                 serde_json::json!({
@@ -5619,6 +5697,7 @@ fn real_bot_cost() {
                     "drops": game.drops,
                     "zone_deaths": game.zone_deaths,
                     "zone_hp": game.zone_hp,
+                    "zone_spells": zone_spells,
                     // Crossings' searches (`crossing.rs`): searched, taken,
                     // ring walks, refused, floors expanded, wanted for a long
                     // route.
