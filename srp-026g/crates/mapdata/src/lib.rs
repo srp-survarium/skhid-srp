@@ -49,7 +49,7 @@ pub mod resources;
 pub mod sight;
 
 pub use grid::{
-    Body, BuildStats, DistanceMap, ExitJump, LinkKind, NodeId, Path, PocketEntry, PocketExit,
+    Body, BuildStats, DistanceMap, ExitJump, LinkKind, Mobility, NodeId, Path, PocketEntry, PocketExit,
     PocketId, Search, SlicedSearch, WalkGrid,
 };
 pub use library::{Library, Materials, WalkerBehaviour};
@@ -106,7 +106,7 @@ pub const CELL: f32 = 0.25;
 /// with any change to the build that changes a grid (the pinned digest
 /// test in `grid.rs` fails until then), so a stored or shared grid of the
 /// old build is never taken for the new.
-pub const GRID_ALGO: u32 = 11;
+pub const GRID_ALGO: u32 = 12;
 /// The same for [`RayTree::build`], in [`sight_key`].
 pub const SIGHT_ALGO: u32 = 1;
 

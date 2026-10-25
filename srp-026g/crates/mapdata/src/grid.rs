@@ -149,6 +149,27 @@ pub enum LinkKind {
     Drop = 1,
     /// Up a ledge higher than a step; one way.
     Jump = 2,
+    /// Up a ledge higher than the jump ([`Body::max_jump`]) and up to
+    /// [`SPRINT_JUMP_M`]: only the sprint jump makes it, from a straight
+    /// run-up ([`SPRINT_RUN_UP_M`]). One way. Not among [`WalkGrid::links`]:
+    /// only a search for a body that may sprint-jump
+    /// ([`Mobility::sprint_jump`]) takes it.
+    SprintJump = 3,
+}
+
+/// What a body's jump makes, for a search ([`WalkGrid::search_for`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Mobility {
+    /// It may sprint-jump: the [`LinkKind::SprintJump`] links are taken
+    /// (no battery carried: the game never gives a carrier the sprint jump,
+    /// PROVEN, 0x337040).
+    pub sprint_jump: bool,
+}
+
+impl Mobility {
+    /// The jump alone: what every search took before the sprint links.
+    pub const STANDING: Self = Self { sprint_jump: false };
+    pub const SPRINT: Self = Self { sprint_jump: true };
 }
 
 impl LinkKind {
@@ -157,7 +178,8 @@ impl LinkKind {
         match bits & 3 {
             0 => Self::Walk,
             1 => Self::Drop,
-            _ => Self::Jump,
+            2 => Self::Jump,
+            _ => Self::SprintJump,
         }
     }
 
@@ -167,7 +189,7 @@ impl LinkKind {
         match self {
             Self::Walk => 0.0,
             Self::Drop => 0.5,
-            Self::Jump => 1.5,
+            Self::Jump | Self::SprintJump => 1.5,
         }
     }
 }
@@ -216,6 +238,36 @@ pub const MARGINAL_JUMP_M: f32 = 0.95;
 /// jump, and the jump where there is no way round (an objective only it
 /// reaches stays reachable).
 pub const MARGINAL_JUMP_PENALTY: f32 = 4.0;
+
+/// [`LinkKind::SprintJump`]: up to this high, metres. GUESS: the sprint
+/// jump's clip tops at 1.282-1.350 m (PROVEN, the jump study); a few
+/// centimetres under the lowest, as the jump's links stop at 1.05 against
+/// its 0.998 m by the ledge's edge.
+pub const SPRINT_JUMP_M: f32 = 1.25;
+/// A sprint link's take-off has this much straight floor behind it, walked
+/// along the jump's way, metres: the run at sprint before the press
+/// (0.75 s held, `FINDINGS.md` §3.1, at 3.7 m/s and more, §1.2) is the
+/// motor's 3.7 m at least, and the press comes up to 2.25 m before the
+/// ledge. Within half a metre of the take-off's height.
+pub const SPRINT_RUN_UP_M: f32 = 3.7;
+/// … and this much floor past its landing along the way: the clip carries
+/// the body 4.42 m from the press (PROVEN, the sprint-jump RE), so it comes
+/// down past the edge. GUESS, the match server's `SPRINT_LANDING_ROOM_M`.
+pub const SPRINT_LANDING_M: f32 = 3.0;
+/// A search's way into a sprint link's take-off runs up to it when it
+/// comes along the jump's way for the run-up, each link within this cosine
+/// of it (60°, GUESS: the route's own legs then are the run-up, and no
+/// line-up turns back for it; the match server's `RUN_UP_COS`) …
+pub const SPRINT_RUN_UP_COS: f32 = 0.5;
+/// … else the sprint link costs this much more, metres: the walk back
+/// along the run-up and forth again to line up (GUESS). A cost, not a
+/// refusal: a search reaches each floor once, by its cheapest way, and one
+/// that came at the take-off from the side would find no way at all.
+pub const SPRINT_LINE_UP_PENALTY: f32 = 2.0 * SPRINT_RUN_UP_M;
+/// GUESS: a route takes a walk of up to 4 m more round a sprint jump (its
+/// gate is shut while a bot aims or reloads, and it waits), as round a
+/// marginal jump ([`MARGINAL_JUMP_PENALTY`]).
+pub const SPRINT_JUMP_PENALTY: f32 = 4.0;
 
 /// A spawn's floor is found within this, metres (as the bots' tactics find
 /// it, `walkable_from_spawns`).
@@ -559,6 +611,7 @@ impl WalkGrid {
         grid.keep_reached(&mut wide, seeds);
         grid.pieces(&wide);
         grid.mark_pockets(&wide, spawns);
+        grid.add_sprint_jumps(&mut wide);
         let fall = std::mem::take(&mut wide.fall);
         grid.pack(wide);
         grid.mark_no_exit();
@@ -648,6 +701,84 @@ impl WalkGrid {
             }
         }
         best.map(|(b, _, kind)| (b, kind))
+    }
+
+    /// Adds the sprint links ([`LinkKind::SprintJump`]): on a side of a
+    /// floor with no link, the first cell along it within the erosion's
+    /// reach that holds a floor above a step, when that floor is
+    /// [`Body::max_jump`]-[`SPRINT_JUMP_M`] higher with room to stand over
+    /// it under both ceilings, returns ([`Self::returns`]: no sprint link
+    /// leads where only a sprint gets out), has [`SPRINT_LANDING_M`] of
+    /// floor walked along the way past it, and the take-off
+    /// [`SPRINT_RUN_UP_M`] of floor walked behind it.
+    ///
+    /// After the pockets are marked: the reach, the returns, the pockets
+    /// and the pieces are the jump's alone, as before the sprint links,
+    /// so a body that may not sprint (a carrier) is planned as it was.
+    fn add_sprint_jumps(&self, wide: &mut Wide) {
+        let body = self.body;
+        let furthest = (erosion_rounds(body.radius, self.cell) as i32 + 1).min(4);
+        let mut added = Vec::new();
+        for a in 0..self.len() {
+            let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+            let (ha, ca) = (self.height[a], self.ceiling[a]);
+            for (d, &(di, dk)) in DIRS.iter().enumerate() {
+                if wide.links[a][d] != NONE {
+                    continue;
+                }
+                for reach in 1..=furthest {
+                    let Some(cell) = self.cell_index(i + di * reach, k + dk * reach) else {
+                        break;
+                    };
+                    // The lowest floor above a step: the ledge's top.
+                    let top = (self.start[cell]..self.start[cell + 1])
+                        .map(|b| b as usize)
+                        .filter(|&b| self.height[b] - ha > body.step)
+                        .min_by(|&x, &y| self.height[x].total_cmp(&self.height[y]));
+                    let Some(b) = top else {
+                        continue;
+                    };
+                    let (hb, cb) = (self.height[b], self.ceiling[b]);
+                    let rise = hb - ha;
+                    if rise > body.max_jump
+                        && rise <= SPRINT_JUMP_M
+                        && ca - hb >= body.stand_height
+                        && cb - hb >= body.stand_height
+                        && self.flags[b] & RETURNS != 0
+                        && self.walked_along(wide, b, d, SPRINT_LANDING_M)
+                        && self.walked_along(wide, a, d ^ 1, SPRINT_RUN_UP_M)
+                    {
+                        added.push((a, d, b as u32));
+                    }
+                    break;
+                }
+            }
+        }
+        for (a, d, b) in added {
+            wide.links[a][d] = b;
+            wide.kinds[a][d] = LinkKind::SprintJump;
+        }
+    }
+
+    /// Whether walk links from `a` along `d` cover `length` metres, every
+    /// floor within half a metre of the height of `a`.
+    fn walked_along(&self, wide: &Wide, a: usize, d: usize, length: f32) -> bool {
+        let (di, dk) = DIRS[d];
+        let step = self.cell * ((di * di + dk * dk) as f32).sqrt();
+        let y = self.height[a];
+        let (mut at, mut gone) = (a, 0.0);
+        while gone < length {
+            let b = wide.links[at][d];
+            if b == NONE
+                || wide.kinds[at][d] != LinkKind::Walk
+                || (self.height[b as usize] - y).abs() > 0.5
+            {
+                return false;
+            }
+            at = b as usize;
+            gone += step;
+        }
+        true
     }
 
     /// Whether a jump in direction `d` that lands on `b` lands on ground
@@ -810,7 +941,7 @@ impl WalkGrid {
                             }
                             match wide.kinds[a][d] {
                                 LinkKind::Walk => !alive[b as usize],
-                                LinkKind::Jump => true,
+                                LinkKind::Jump | LinkKind::SprintJump => true,
                                 LinkKind::Drop => false,
                             }
                         })
@@ -1735,11 +1866,24 @@ impl WalkGrid {
         self.headroom(node) >= self.body.stand_height
     }
 
-    /// The links out of a floor.
+    /// The links out of a floor, but the sprint links
+    /// ([`Self::links_for`]).
     pub fn links(&self, node: NodeId) -> impl Iterator<Item = (NodeId, LinkKind)> + '_ {
+        self.links_for(node, Mobility::STANDING)
+    }
+
+    /// The links out of a floor that a body of `mobility` takes: the
+    /// sprint links ([`LinkKind::SprintJump`]) only when it may sprint-jump.
+    pub fn links_for(
+        &self,
+        node: NodeId,
+        mobility: Mobility,
+    ) -> impl Iterator<Item = (NodeId, LinkKind)> + '_ {
         let a = node as usize;
         let (i, k) = self.cell_xz(self.cell_of[a] as usize);
-        (0..8).filter_map(move |d| self.link_of(a, d, i, k))
+        (0..8)
+            .filter_map(move |d| self.link_of(a, d, i, k))
+            .filter(move |&(_, kind)| mobility.sprint_jump || kind != LinkKind::SprintJump)
     }
 
     /// Whether a body walks from `a` to `b` in a straight line no longer
@@ -1813,7 +1957,11 @@ impl WalkGrid {
     /// cell's floors (bits 0-10), the direction (11-13) and the reach less
     /// one (14-15).
     #[inline]
-    fn links_back(&self, node: NodeId) -> impl Iterator<Item = (NodeId, LinkKind, u16)> + '_ {
+    fn links_back(
+        &self,
+        node: NodeId,
+        mobility: Mobility,
+    ) -> impl Iterator<Item = (NodeId, LinkKind, u16)> + '_ {
         let a = node as usize;
         let cell = self.cell_of[a] as usize;
         let (i, k) = self.cell_xz(cell);
@@ -1821,6 +1969,9 @@ impl WalkGrid {
         debug_assert!(index < 1 << 11, "a cell of more than 2048 floors");
         (0..8).filter_map(move |d| {
             let (v, kind) = self.link_of(a, d, i, k)?;
+            if kind == LinkKind::SprintJump && !mobility.sprint_jump {
+                return None;
+            }
             let reach = (self.how[a] >> (4 * d + 2)) & 3;
             Some((v, kind, (index | (d as u32) << 11 | reach << 14) as u16))
         })
@@ -1837,7 +1988,7 @@ impl WalkGrid {
         self.start[cell] + u32::from(way & 0x7FF)
     }
 
-    /// The links into a floor.
+    /// The links into a floor, but the sprint links.
     pub fn incoming(&self, node: NodeId) -> impl Iterator<Item = (NodeId, LinkKind)> + '_ {
         let cell = self.cell_of[node as usize] as usize;
         let (i, k) = self.cell_xz(cell);
@@ -1849,7 +2000,9 @@ impl WalkGrid {
             let range = from.map_or(0..0, |c| self.start[c]..self.start[c + 1]);
             range.filter_map(move |b| {
                 let bits = self.how[b as usize] >> (4 * d);
-                (u32::from(self.to[b as usize][d]) == index && bits & 0b1100 == 0)
+                (u32::from(self.to[b as usize][d]) == index
+                    && bits & 0b1100 == 0
+                    && bits & 3 != LinkKind::SprintJump as u32)
                     .then(|| (b, LinkKind::from_bits(bits)))
             })
         })
@@ -1859,6 +2012,16 @@ impl WalkGrid {
     /// reach (a drop past an eroded floor lands up to 4 cells on): what a
     /// search needs to reach `node` at all.
     pub fn entered_from(&self, node: NodeId, enters: impl Fn(NodeId) -> bool) -> bool {
+        self.entered_from_for(node, Mobility::STANDING, enters)
+    }
+
+    /// [`Self::entered_from`] by the links a body of `mobility` takes.
+    pub fn entered_from_for(
+        &self,
+        node: NodeId,
+        mobility: Mobility,
+        enters: impl Fn(NodeId) -> bool,
+    ) -> bool {
         let cell = self.cell_of[node as usize] as usize;
         let (i, k) = self.cell_xz(cell);
         DIRS.iter().enumerate().any(|(d, &(di, dk))| {
@@ -1868,9 +2031,9 @@ impl WalkGrid {
                 };
                 (self.start[from]..self.start[from + 1]).any(|b| {
                     let (bi, bk) = (i - di * reach, k - dk * reach);
-                    self.link_of(b as usize, d, bi, bk)
-                        .is_some_and(|(to, _)| to == node)
-                        && enters(b)
+                    self.link_of(b as usize, d, bi, bk).is_some_and(|(to, kind)| {
+                        to == node && (mobility.sprint_jump || kind != LinkKind::SprintJump)
+                    }) && enters(b)
                 })
             })
         })
@@ -1880,8 +2043,9 @@ impl WalkGrid {
     /// [`LIP_PENALTY`] for walking onto a lip ([`Self::is_lip`]), so a
     /// way keeps a cell back from a ledge where it can, plus
     /// [`MARGINAL_JUMP_PENALTY`] for a jump higher than
-    /// [`MARGINAL_JUMP_M`], plus [`FALL_EDGE_PENALTY`] for walking onto a
-    /// floor near a fall ([`Self::near_fall`]).
+    /// [`MARGINAL_JUMP_M`] and [`SPRINT_JUMP_PENALTY`] for a sprint jump,
+    /// plus [`FALL_EDGE_PENALTY`] for walking onto a floor near a fall
+    /// ([`Self::near_fall`]).
     ///
     /// Infinite for a link no way is planned over ([`Self::plans`]).
     pub fn link_cost(&self, from: NodeId, to: NodeId, kind: LinkKind) -> f32 {
@@ -1893,7 +2057,9 @@ impl WalkGrid {
         } else {
             0.0
         };
-        let marginal = if kind == LinkKind::Jump
+        let marginal = if kind == LinkKind::SprintJump {
+            SPRINT_JUMP_PENALTY
+        } else if kind == LinkKind::Jump
             && self.height[to as usize] - self.height[from as usize] > MARGINAL_JUMP_M
         {
             MARGINAL_JUMP_PENALTY
@@ -2029,7 +2195,18 @@ impl WalkGrid {
         to: NodeId,
         allowed: impl Fn(NodeId) -> bool,
     ) -> Option<Path> {
-        match self.search(from, to, allowed, usize::MAX) {
+        self.path_where_for(from, to, allowed, Mobility::STANDING)
+    }
+
+    /// [`Self::path_where`] for a body of `mobility`.
+    pub fn path_where_for(
+        &self,
+        from: NodeId,
+        to: NodeId,
+        allowed: impl Fn(NodeId) -> bool,
+        mobility: Mobility,
+    ) -> Option<Path> {
+        match self.search_for(from, to, allowed, usize::MAX, mobility) {
             Search::Found(path) => Some(path),
             Search::NoWay | Search::TooFar => None,
         }
@@ -2050,7 +2227,22 @@ impl WalkGrid {
         allowed: impl Fn(NodeId) -> bool,
         budget: usize,
     ) -> Search {
-        match self.start_search(from, to, budget) {
+        self.search_for(from, to, allowed, budget, Mobility::STANDING)
+    }
+
+    /// [`Self::search`] for a body of `mobility`: one that may sprint-jump
+    /// takes the sprint links too ([`LinkKind::SprintJump`]), each for
+    /// [`SPRINT_LINE_UP_PENALTY`] more from a way into its take-off that
+    /// does not run up to it ([`SPRINT_RUN_UP_COS`]).
+    pub fn search_for(
+        &self,
+        from: NodeId,
+        to: NodeId,
+        allowed: impl Fn(NodeId) -> bool,
+        budget: usize,
+        mobility: Mobility,
+    ) -> Search {
+        match self.start_search_for(from, to, budget, mobility) {
             Ok(mut search) => {
                 let mut iters = usize::MAX;
                 search
@@ -2071,6 +2263,17 @@ impl WalkGrid {
         from: NodeId,
         to: NodeId,
         budget: usize,
+    ) -> Result<SlicedSearch, Search> {
+        self.start_search_for(from, to, budget, Mobility::STANDING)
+    }
+
+    /// [`Self::start_search`] for a body of `mobility` ([`Self::search_for`]).
+    pub fn start_search_for(
+        &self,
+        from: NodeId,
+        to: NodeId,
+        budget: usize,
+        mobility: Mobility,
     ) -> Result<SlicedSearch, Search> {
         let n = self.len();
         if from as usize >= n || to as usize >= n || !self.may_reach(from, to) {
@@ -2117,7 +2320,42 @@ impl WalkGrid {
             budget,
             best: from,
             best_h: f32::INFINITY,
+            mobility,
         })
+    }
+
+    /// Whether the way a search came into `take_off` (by `back`, from
+    /// `from`) runs up to a sprint link along `d`: walks within
+    /// [`SPRINT_RUN_UP_COS`] of the way, within half a metre of its height,
+    /// for [`SPRINT_RUN_UP_M`] counted along the way, or all the way from
+    /// the start (the take-off's own run-up is floor, [`Self::add_sprint_jumps`]).
+    fn runs_up(&self, take_off: NodeId, d: usize, back: &[u16], from: NodeId) -> bool {
+        let (di, dk) = DIRS[d];
+        let norm = ((di * di + dk * dk) as f32).sqrt();
+        let way = (di as f32 / norm, dk as f32 / norm);
+        let y = self.height[take_off as usize];
+        let (mut at, mut run) = (take_off, 0.0);
+        while run < SPRINT_RUN_UP_M {
+            if at == from {
+                return true;
+            }
+            let back_way = back[at as usize];
+            let dir = usize::from(back_way >> 11 & 7);
+            let reach = f32::from(back_way >> 14) + 1.0;
+            let prev = self.back(at, back_way);
+            let (ei, ek) = DIRS[dir];
+            let (ex, ez) = (ei as f32 * reach, ek as f32 * reach);
+            let along = ex * way.0 + ez * way.1;
+            if self.how[prev as usize] >> (4 * dir) & 3 != LinkKind::Walk as u32
+                || along < SPRINT_RUN_UP_COS * ex.hypot(ez)
+                || (self.height[prev as usize] - y).abs() > 0.5
+            {
+                return false;
+            }
+            run += along * self.cell;
+            at = prev;
+        }
+        true
     }
 
     /// The cost from every floor to the nearest of `targets` (a flood
@@ -2320,6 +2558,7 @@ pub struct SlicedSearch {
     /// heuristic), and how near: where [`Self::partial`] leads.
     best: NodeId,
     best_h: f32,
+    mobility: Mobility,
 }
 
 impl SlicedSearch {
@@ -2350,6 +2589,7 @@ impl SlicedSearch {
             budget,
             best,
             best_h,
+            mobility,
         } = self;
         let (from, to, goal, seen, closed) = (*from, *to, *goal, *seen, *closed);
         loop {
@@ -2382,12 +2622,19 @@ impl SlicedSearch {
             if f - cu < *best_h {
                 (*best, *best_h) = (u, f - cu);
             }
-            for (v, kind, way_back) in grid.links_back(u) {
+            for (v, kind, way_back) in grid.links_back(u, *mobility) {
                 let m = mark[v as usize];
                 if m == closed || (v != to && !allowed(v)) {
                     continue;
                 }
-                let c = cu + grid.link_cost(u, v, kind);
+                let line_up = if kind == LinkKind::SprintJump
+                    && !grid.runs_up(u, usize::from(way_back >> 11 & 7), back, from)
+                {
+                    SPRINT_LINE_UP_PENALTY
+                } else {
+                    0.0
+                };
+                let c = cu + grid.link_cost(u, v, kind) + line_up;
                 if !c.is_finite() {
                     continue;
                 }
@@ -2848,6 +3095,89 @@ pub(crate) mod tests {
         };
         assert_eq!(way(2.0), 0, "a short walk round");
         assert_eq!(way(7.0), 1, "a long walk round");
+    }
+
+    /// A deck `rise` m high over x 15-30 of a yard (0-30 by 0-10), with a
+    /// wall `behind` m before its face (none at 0) across the yard's middle.
+    pub(crate) fn deck_grid(rise: f32, behind: f32) -> WalkGrid {
+        let mut tris: Vec<Triangle> = floor(0.0, 0.0, 15.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(15.0, 0.0, 30.0, 10.0, rise));
+        tris.extend(wall_x(15.0, 0.0, 10.0, rise));
+        if behind > 0.0 {
+            tris.extend(wall_x(15.0 - behind, 3.0, 7.0, 2.0));
+        }
+        WalkGrid::build(&tris, [0.0, 0.0, 30.0, 10.0], 0.25, Body::default())
+    }
+
+    /// The sprint links in a path's steps.
+    fn sprint_steps(grid: &WalkGrid, path: &Path) -> usize {
+        path.nodes
+            .windows(2)
+            .filter(|w| {
+                grid.links_for(w[0], Mobility::SPRINT)
+                    .any(|(b, k)| b == w[1] && k == LinkKind::SprintJump)
+            })
+            .count()
+    }
+
+    /// A ledge higher than the jump and within the sprint jump's
+    /// ([`SPRINT_JUMP_M`]) is a sprint link where the run-up and the
+    /// landing have room: only a search that may sprint-jump takes it, and
+    /// the links of every other use ([`WalkGrid::links`], the pockets, the
+    /// returns) are the jump's alone.
+    #[test]
+    fn a_ledge_over_the_jump_is_a_sprint_link_only_a_sprinter_takes() {
+        let grid = deck_grid(1.15, 0.0);
+        let from = grid.locate(Vec3::new(5.0, 0.0, 5.0), 0.3).unwrap();
+        let to = grid.locate(Vec3::new(20.0, 1.15, 5.0), 0.3).unwrap();
+        assert_eq!(grid.path(from, to), None, "no way up but the sprint jump");
+        let sprinted = grid.path_where_for(from, to, |_| true, Mobility::SPRINT).unwrap();
+        assert_eq!(sprint_steps(&grid, &sprinted), 1);
+        let n = grid.len() as NodeId;
+        assert!((0..n).all(|a| grid.links(a).all(|(_, k)| k != LinkKind::SprintJump)));
+        assert!((0..n).all(|a| grid.incoming(a).all(|(_, k)| k != LinkKind::SprintJump)));
+        // Started on the take-off's line a metre back: the run-up is floor.
+        let near = grid.locate(Vec3::new(13.5, 0.0, 5.0), 0.3).unwrap();
+        let path = grid.path_where_for(near, to, |_| true, Mobility::SPRINT).unwrap();
+        assert_eq!(sprint_steps(&grid, &path), 1);
+        // Too high for the sprint jump, or within the jump: no sprint link.
+        for rise in [1.35, 0.9] {
+            let grid = deck_grid(rise, 0.0);
+            let n = grid.len() as NodeId;
+            assert!(
+                (0..n).all(|a| grid
+                    .links_for(a, Mobility::SPRINT)
+                    .all(|(_, k)| k != LinkKind::SprintJump)),
+                "rise {rise}"
+            );
+        }
+        // A wall 3 m before the face (x 12, z 3-7): the run-up behind a
+        // take-off goes clear of it (beside it, or slanting past its end).
+        let grid = deck_grid(1.15, 3.0);
+        let from = grid.locate(Vec3::new(13.0, 0.0, 5.0), 0.3).unwrap();
+        let to = grid.locate(Vec3::new(20.0, 1.15, 5.0), 0.3).unwrap();
+        let path = grid.path_where_for(from, to, |_| true, Mobility::SPRINT).unwrap();
+        let (take_off, landing) = path
+            .nodes
+            .windows(2)
+            .find(|w| {
+                grid.links_for(w[0], Mobility::SPRINT)
+                    .any(|(b, k)| b == w[1] && k == LinkKind::SprintJump)
+            })
+            .map(|w| (grid.position(w[0]), grid.position(w[1])))
+            .unwrap();
+        let across = take_off.distance_xz(landing);
+        let way = ((landing.x - take_off.x) / across, (landing.z - take_off.z) / across);
+        let t = (take_off.x - 12.0) / way.0;
+        let crossing = take_off.z - way.1 * t;
+        assert!(
+            t > SPRINT_RUN_UP_M || !(2.6..=7.4).contains(&crossing),
+            "the run-up from {take_off:?} crosses the wall at z {crossing}"
+        );
+        // No wall: the way up from straight before it runs up straight.
+        let grid = deck_grid(1.15, 0.0);
+        let path = grid.path_where_for(from, to, |_| true, Mobility::SPRINT).unwrap();
+        assert!(path.cost < 7.0 + 1.5 + SPRINT_JUMP_PENALTY + 1.0, "{}", path.cost);
     }
 
     /// A yard at 0 with a pit `depth` m deep (x 8-12, z 3-7) and a spawn

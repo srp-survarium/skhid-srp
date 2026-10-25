@@ -8,7 +8,9 @@
 //! filter of allowed floors that goes by the labels lets a region through
 //! whole or not at all. Region A links to
 //! region B when any floor of A links to a floor of B (a walk, drop or
-//! jump; one way when the floor link is). So a way between two floors
+//! jump; one way when the floor link is). A link made only by sprint links
+//! ([`LinkKind::SprintJump`]) is marked so, and only a search for a body
+//! that may sprint-jump takes it ([`Mobility`]). So a way between two floors
 //! exists exactly when one exists between their regions, and a search on
 //! the regions (a few thousand, against up to 2.3 million floors on the
 //! real maps) answers it in well under a millisecond.
@@ -26,7 +28,7 @@
 use std::cell::RefCell;
 use std::collections::BinaryHeap;
 
-use crate::grid::{Entry, LinkKind, NodeId, Search, SlicedSearch, WalkGrid};
+use crate::grid::{Entry, LinkKind, Mobility, NodeId, Search, SlicedSearch, WalkGrid};
 use crate::math::Vec3;
 
 /// A block's side, in cells (8 m at 0.25 m cells).
@@ -51,7 +53,10 @@ pub struct Regions {
     /// The links out: the region reached and the cost (between the
     /// regions' middles, plus the link kind's penalty).
     out: Vec<(u32, f32)>,
-    /// The links in, as `out_start` and `out` (the region linking).
+    /// Per link out, 1 when only sprint links make it.
+    sprint_only: Vec<u8>,
+    /// The links in, as `out_start` and `out` (the region linking), but
+    /// those only sprint links make.
     in_start: Vec<u32>,
     inn: Vec<u32>,
 }
@@ -122,11 +127,12 @@ impl Regions {
             }
         }
         let middle: Vec<NodeId> = middle.into_iter().map(|(a, _)| a).collect();
-        // The links between regions, the cheapest kind of each pair.
+        // The links between regions, the cheapest kind of each pair (a
+        // sprint link's last).
         let mut pairs: Vec<(u32, u32, u8)> = Vec::new();
         for a in 0..n as NodeId {
             let ra = of[a as usize];
-            for (b, kind) in grid.links(a) {
+            for (b, kind) in grid.links_for(a, Mobility::SPRINT) {
                 let rb = of[b as usize];
                 if ra != rb && grid.plans(a, b) {
                     pairs.push((ra, rb, kind as u8));
@@ -135,16 +141,16 @@ impl Regions {
         }
         pairs.sort_unstable();
         pairs.dedup_by(|later, first| later.0 == first.0 && later.1 == first.1);
-        let penalty = |kind: u8| {
-            match kind {
-                0 => LinkKind::Walk,
-                1 => LinkKind::Drop,
-                _ => LinkKind::Jump,
-            }
-            .penalty()
+        let sprint = LinkKind::SprintJump as u8;
+        let penalty = |kind: u8| match kind {
+            0 => LinkKind::Walk.penalty(),
+            1 => LinkKind::Drop.penalty(),
+            2 => LinkKind::Jump.penalty(),
+            _ => LinkKind::SprintJump.penalty() + crate::grid::SPRINT_JUMP_PENALTY,
         };
         let mut out_start = Vec::with_capacity(regions + 1);
         let mut out = Vec::with_capacity(pairs.len());
+        let mut sprint_only = Vec::with_capacity(pairs.len());
         let mut k = 0;
         for r in 0..regions as u32 {
             out_start.push(out.len() as u32);
@@ -154,24 +160,30 @@ impl Regions {
                     .length()
                     + penalty(kind);
                 out.push((to, cost));
+                sprint_only.push(u8::from(kind == sprint));
                 k += 1;
             }
         }
         out_start.push(out.len() as u32);
+        let walked = |i: usize| sprint_only[i] == 0;
         let mut in_count = vec![0u32; regions + 1];
-        for &(to, _) in &out {
-            in_count[to as usize + 1] += 1;
+        for (i, &(to, _)) in out.iter().enumerate() {
+            if walked(i) {
+                in_count[to as usize + 1] += 1;
+            }
         }
         for r in 0..regions {
             in_count[r + 1] += in_count[r];
         }
         let in_start = in_count.clone();
-        let mut inn = vec![0u32; out.len()];
+        let mut inn = vec![0u32; in_start[regions] as usize];
         for r in 0..regions as u32 {
-            for &(to, _) in &out[out_start[r as usize] as usize..out_start[r as usize + 1] as usize]
-            {
-                inn[in_count[to as usize] as usize] = r;
-                in_count[to as usize] += 1;
+            for i in out_start[r as usize] as usize..out_start[r as usize + 1] as usize {
+                if walked(i) {
+                    let to = out[i].0 as usize;
+                    inn[in_count[to] as usize] = r;
+                    in_count[to] += 1;
+                }
             }
         }
         Self {
@@ -181,6 +193,7 @@ impl Regions {
             middle,
             out_start,
             out,
+            sprint_only,
         }
     }
 
@@ -203,12 +216,21 @@ impl Regions {
         self.middle[r as usize]
     }
 
-    /// The links out of region `r`.
+    /// The links out of region `r`, those only sprint links make too
+    /// ([`Self::out_for`]).
     pub fn out(&self, r: u32) -> &[(u32, f32)] {
         &self.out[self.out_start[r as usize] as usize..self.out_start[r as usize + 1] as usize]
     }
 
-    /// The regions linking into region `r`.
+    /// The links out of region `r` that a body of `mobility` takes.
+    pub fn out_for(&self, r: u32, mobility: Mobility) -> impl Iterator<Item = (u32, f32)> + '_ {
+        let range = self.out_start[r as usize] as usize..self.out_start[r as usize + 1] as usize;
+        range
+            .filter(move |&i| mobility.sprint_jump || self.sprint_only[i] == 0)
+            .map(|i| self.out[i])
+    }
+
+    /// The regions linking into region `r`, but by sprint links only.
     pub fn into(&self, r: u32) -> &[u32] {
         &self.inn[self.in_start[r as usize] as usize..self.in_start[r as usize + 1] as usize]
     }
@@ -227,9 +249,10 @@ impl Regions {
             array.iter().for_each(|&value| digest.u32(value));
         }
         digest.len(self.out.len());
-        for &(region, cost) in &self.out {
+        for (&(region, cost), &sprint) in self.out.iter().zip(&self.sprint_only) {
             digest.u32(region);
             digest.f32(cost);
+            digest.u32(u32::from(sprint));
         }
     }
 
@@ -249,7 +272,8 @@ impl Regions {
             bytes[..4].copy_from_slice(&region.to_le_bytes());
             bytes[4..].copy_from_slice(&cost.to_bits().to_le_bytes());
             bytes
-        })
+        })?;
+        out.plain(&self.sprint_only, |&v| [v])
     }
 
     /// From a built file, for a grid of `floors` floors: every index
@@ -268,6 +292,7 @@ impl Regions {
                     f32::from_bits(u32::from_le_bytes(cost.try_into().expect("4 bytes"))),
                 )
             })?,
+            sprint_only: input.plain(|[v]: [u8; 1]| v)?,
         };
         let count = regions.middle.len();
         let starts = |start: &[u32], len: usize| {
@@ -280,6 +305,8 @@ impl Regions {
             && regions.of.iter().all(|&r| (r as usize) < count)
             && regions.middle.iter().all(|&node| (node as usize) < floors)
             && starts(&regions.out_start, regions.out.len())
+            && regions.sprint_only.len() == regions.out.len()
+            && regions.sprint_only.iter().all(|&v| v <= 1)
             && starts(&regions.in_start, regions.inn.len())
             && regions.out.iter().all(|&(r, _)| (r as usize) < count)
             && regions.inn.iter().all(|&r| (r as usize) < count);
@@ -294,17 +321,19 @@ impl Regions {
         self.of.len() * 4
             + self.middle.len() * 4
             + (self.out_start.len() + self.in_start.len()) * 4
-            + self.out.len() * 12
+            + self.out.len() * 13
     }
 
     /// The regions of the cheapest way from region `from` to `to` (both
-    /// included), by A* over the regions; `None` when there is no way.
+    /// included), by A* over the regions a body of `mobility` takes;
+    /// `None` when there is no way.
     fn corridor(
         &self,
         grid: &WalkGrid,
         from: u32,
         to: u32,
         region_ok: &impl Fn(u32) -> bool,
+        mobility: Mobility,
         marks: &mut Marks,
     ) -> Option<Vec<u32>> {
         let regions = self.len();
@@ -339,7 +368,7 @@ impl Regions {
                 return Some(way);
             }
             let cu = cost[u as usize];
-            for &(v, step) in self.out(u) {
+            for (v, step) in self.out_for(u, mobility) {
                 let m = mark[v as usize];
                 if m == closed || (v != to && !region_ok(v)) {
                     continue;
@@ -450,7 +479,23 @@ impl Regions {
         region_ok: impl Fn(u32) -> bool,
         budget: usize,
     ) -> (Search, Stage) {
-        match self.start_route_search(grid, from, to, &allowed, &region_ok, budget) {
+        self.route_search_for(grid, from, to, allowed, region_ok, budget, Mobility::STANDING)
+    }
+
+    /// [`Self::route_search`] for a body of `mobility`
+    /// ([`WalkGrid::search_for`]).
+    #[allow(clippy::too_many_arguments)]
+    pub fn route_search_for(
+        &self,
+        grid: &WalkGrid,
+        from: NodeId,
+        to: NodeId,
+        allowed: impl Fn(NodeId) -> bool,
+        region_ok: impl Fn(u32) -> bool,
+        budget: usize,
+        mobility: Mobility,
+    ) -> (Search, Stage) {
+        match self.start_route_search_for(grid, from, to, &allowed, &region_ok, budget, mobility) {
             Ok(mut search) => {
                 let mut iters = usize::MAX;
                 search
@@ -474,6 +519,21 @@ impl Regions {
         region_ok: impl Fn(u32) -> bool,
         budget: usize,
     ) -> Result<RouteSearch, (Search, Stage)> {
+        self.start_route_search_for(grid, from, to, allowed, region_ok, budget, Mobility::STANDING)
+    }
+
+    /// [`Self::start_route_search`] for a body of `mobility`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_route_search_for(
+        &self,
+        grid: &WalkGrid,
+        from: NodeId,
+        to: NodeId,
+        allowed: impl Fn(NodeId) -> bool,
+        region_ok: impl Fn(u32) -> bool,
+        budget: usize,
+        mobility: Mobility,
+    ) -> Result<RouteSearch, (Search, Stage)> {
         let n = grid.len();
         if from as usize >= n || to as usize >= n || !grid.may_reach(from, to) {
             return Err((Search::NoWay, Stage::NoWay));
@@ -482,13 +542,13 @@ impl Regions {
         // let through (or is the start): with none, there is no way, and a
         // search would only prove it the long way (a goal inside a zone the
         // body keeps out of: the whole grid flooded).
-        if from != to && !grid.entered_from(to, |b| b == from || allowed(b)) {
+        if from != to && !grid.entered_from_for(to, mobility, |b| b == from || allowed(b)) {
             return Err((Search::NoWay, Stage::NoWay));
         }
         let (rf, rt) = (self.of(from), self.of(to));
         let corridor = MARKS.with(|marks| {
             let mut marks = marks.borrow_mut();
-            self.corridor(grid, rf, rt, &region_ok, &mut marks)
+            self.corridor(grid, rf, rt, &region_ok, mobility, &mut marks)
         });
         let Some(way) = corridor else {
             return Err((Search::NoWay, Stage::NoWay));
@@ -502,6 +562,7 @@ impl Regions {
             inside: vec![0; self.len().div_ceil(64)],
             search: None,
             expanded: 0,
+            mobility,
         };
         search.widen(self, grid, CORRIDOR_RINGS, &region_ok)?;
         Ok(search)
@@ -524,6 +585,7 @@ pub struct RouteSearch {
     search: Option<SlicedSearch>,
     /// Floors expanded by the stages done.
     expanded: usize,
+    mobility: Mobility,
 }
 
 impl RouteSearch {
@@ -568,7 +630,7 @@ impl RouteSearch {
             } else {
                 self.stage = Stage::Whole;
                 self.search = None;
-                grid.start_search(self.from, self.to, self.budget)
+                grid.start_search_for(self.from, self.to, self.budget, self.mobility)
                     .map(|search| self.search = Some(search))
                     .map_err(|done| (done, Stage::Whole))
             };
@@ -614,9 +676,8 @@ impl RouteSearch {
             let mut next = Vec::new();
             for &r in &edge {
                 let near = regions
-                    .out(r)
-                    .iter()
-                    .map(|&(v, _)| v)
+                    .out_for(r, self.mobility)
+                    .map(|(v, _)| v)
                     .chain(regions.into(r).iter().copied());
                 for v in near {
                     if region_ok(v) && add(v) {
@@ -629,7 +690,7 @@ impl RouteSearch {
         }
         self.search = None;
         let search = grid
-            .start_search(self.from, self.to, usize::MAX)
+            .start_search_for(self.from, self.to, usize::MAX, self.mobility)
             .map_err(|done| (done, self.stage))?;
         self.search = Some(search);
         Ok(())
@@ -670,6 +731,35 @@ mod tests {
         // The start itself next to the goal: found.
         let (found, _) = regions.route_search(&grid, next, to, allowed, |_| true, usize::MAX);
         assert!(matches!(found, Search::Found(_)));
+    }
+
+    /// A way only a sprint link makes (up a deck higher than the jump) is
+    /// found by the regions for a body that may sprint-jump, as the whole
+    /// grid's search finds it, and is none for one that may not, answered
+    /// by the regions at once.
+    #[test]
+    fn a_way_up_only_a_sprint_makes_is_a_sprinters_alone() {
+        let grid = crate::grid::tests::deck_grid(1.15, 0.0);
+        let regions = Regions::build(&grid, None);
+        let from = grid.locate(Vec3::new(5.0, 0.0, 5.0), 0.3).unwrap();
+        let to = grid.locate(Vec3::new(25.0, 1.15, 5.0), 0.3).unwrap();
+        let (found, stage) = regions.route_search(&grid, from, to, |_| true, |_| true, usize::MAX);
+        assert_eq!((found, stage), (Search::NoWay, Stage::NoWay));
+        let (found, stage) = regions.route_search_for(
+            &grid,
+            from,
+            to,
+            |_| true,
+            |_| true,
+            usize::MAX,
+            Mobility::SPRINT,
+        );
+        let whole = grid.path_where_for(from, to, |_| true, Mobility::SPRINT).unwrap();
+        assert_eq!(stage, Stage::Corridor);
+        let Search::Found(path) = found else {
+            panic!("no way: {found:?}");
+        };
+        assert!((path.cost - whole.cost).abs() < 0.05 * whole.cost, "{} {}", path.cost, whole.cost);
     }
 
     /// `entered_from` is "some floor let through links into it", for every
