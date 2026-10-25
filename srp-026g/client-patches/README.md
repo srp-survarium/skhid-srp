@@ -106,7 +106,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `research_026g.asm`, `research_rule_026g.c`, `research_rule_026g.h`, `research_native_026g.c` | The source of patch 53 (Research, mode 5): the three hooks and their stubs in assembly, the rule's logic in C on integers (no pointer into the game), and its side in the game (the cook, the rule's twenty slots, the hud) in C |
 | `link_026g.py`, `arena_026g.lock.json` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build; `--write` writes the lock (the linked arena's SHA-256, its blocks and symbols), `--check` compares. Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
-| `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, and the thunks, the arena's block `engine.code` |
+| `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
@@ -162,6 +162,23 @@ linked arena's SHA-256, its blocks and its symbols; every build (the
 self-test's, the release's: `release/build-zip` builds in the dev shell)
 links from source and stops if the bytes are not the lock's. After changing
 an arena source: `python link_026g.py --write` and commit the lock with it.
+
+**A Rust crate as a source** (the framework: `../docs/notes/rust_patches.md`):
+a block may name a crate's `Cargo.toml` (its name, its `[lib]` path and the
+crates it names by `path`; nothing else of it is read). The link builds it
+with the dev shell's nightly **rustc alone, offline** (no cargo:
+`-Zbuild-std` resolves the standard library's whole workspace and needs
+crates.io): `core` from the toolchain's rust-src and an empty
+`compiler_builtins`, once a toolchain, into `srp-026g/target-arena/
+sysroot-<key>`; then the path crates as rlibs and the crate as a staticlib,
+all for `i686-unknown-linux-gnu` with `-C relocation-model=static -C
+target-cpu=pentium4 -C opt-level=s -C panic=abort -C codegen-units=1`, fat
+LTO, no debug information, paths remapped. It takes the crate's one object
+out of the archive (a symbol it would need from `compiler_builtins` is an
+undefined symbol, which the link refuses) and checks it as any other
+object. Its build's files (the crate, the crates it names by path, what it
+`include!`s) are the source's digest. The rustc version is in the lock's
+`built_with`.
 
 **Adding a block:** one `ARENA` row and its source file; `global` the labels
 a hook jumps to, `extern` what it uses of other patches; its hooks as

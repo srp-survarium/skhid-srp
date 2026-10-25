@@ -5,10 +5,11 @@ compiler (LTO) gave the real one.
 
     python engine_026g.py --write
         writes engine_026g.h (the C declarations), engine_026g.inc (their
-        externs for NASM patches) and engine_026g.asm (the thunks, the
-        arena's block engine.code: link_026g.py links it)
+        externs for NASM patches), engine_026g.rs (their declarations for
+        Rust patches) and engine_026g.asm (the thunks, the arena's block
+        engine.code: link_026g.py links it)
     python engine_026g.py --check
-        says whether those three files are what engine_026g.tsv and the
+        says whether those four files are what engine_026g.tsv and the
         re-kit rows give here (the self-test runs the same)
 
 The library's functions are engine_026g.tsv's rows (in any order: each is a
@@ -55,7 +56,7 @@ import link_026g as linker
 HERE = Path(__file__).resolve().parent
 REKIT = HERE / ".." / ".." / "tools" / "re-kit" / "v026g"
 SPEC = HERE / "engine_026g.tsv"
-HEADER, INCLUDE, ASM = (HERE / f"engine_026g{suffix}" for suffix in (".h", ".inc", ".asm"))
+HEADER, INCLUDE, ASM, RUST = (HERE / f"engine_026g{suffix}" for suffix in (".h", ".inc", ".asm", ".rs"))
 REGISTERS = ("EAX", "ECX", "EDX", "EBX", "ESI", "EDI", "EBP")
 SAVED = ("ebp", "ebx", "esi", "edi")             # pushed in this order; cdecl's callee-saved
 # "entry ESP+4", "stack+8", "ESP+0x10", "entry ESP+0Ch low byte", "low byte of entry ESP+8"
@@ -293,6 +294,54 @@ def include_text(fs):
     return "\n".join(lines) + "\n"
 
 
+RUST_BASES = {"void": "c_void", "char": "u8", "unsigned char": "u8", "unsigned int": "u32", "float": "f32",
+              "unsigned long long": "u64"}
+# C parameter names that are Rust keywords: written as raw identifiers.
+RUST_KEYWORDS = {"as", "async", "await", "box", "break", "const", "continue", "crate", "dyn", "else", "enum",
+                 "extern", "false", "fn", "for", "gen", "if", "impl", "in", "let", "loop", "match", "mod", "move",
+                 "mut", "pub", "ref", "return", "static", "struct", "trait", "true", "type", "unsafe", "use",
+                 "where", "while", "yield"}
+
+
+def rust_type(kind):
+    """The Rust type of a C type of the library's prototypes: the base
+    (a struct is c_void) with a `*const` or `*mut` for each `*`, by the
+    constness of what it points to."""
+    tokens = re.findall(r"\*|[A-Za-z_]\w*", kind)
+    stars = [i for i, t in enumerate(tokens) if t == "*"]
+    base_tokens = tokens[:stars[0]] if stars else tokens
+    const = "const" in base_tokens
+    words = [t for t in base_tokens if t != "const"]
+    base = "c_void" if words[:1] == ["struct"] else RUST_BASES.get(" ".join(words))
+    if base is None or (base == "c_void" and not stars):
+        raise Refused(f"type {kind!r}: no Rust type for it")
+    out = base
+    for i in stars:
+        out = ("*const " if const else "*mut ") + out
+        const = i + 1 < len(tokens) and tokens[i + 1] == "const"
+    return out
+
+
+def rust_text(fs):
+    lines = [f"// The engine-function library for Rust ({GENERATED}).",
+             "//",
+             "// The same cdecl thunks C and NASM call (block engine.code); the link gives",
+             "// each its address. Include it in a module: `mod engine { include!(...); }`.",
+             "",
+             "#[allow(unused_imports)]",
+             "use core::ffi::c_void;",
+             "",
+             "#[allow(dead_code)]",
+             'unsafe extern "C" {']
+    for f in fs:
+        params = ", ".join(f"{'r#' if name in RUST_KEYWORDS else ''}{name}: {rust_type(kind)}"
+                           for kind, name in f["params"])
+        ret = "" if return_kind(f["ret"]) is None else f" -> {rust_type(f['ret'])}"
+        lines += [f"    /// {describe(f)}", f"    pub fn {f['symbol']}({params}){ret};"]
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
 def assemble(text, va=0x10000000, tools=None):
     """The library of `text` (an engine_026g.asm) linked alone at `va`:
     (va, its bytes, {symbol: VA})."""
@@ -305,9 +354,10 @@ def assemble(text, va=0x10000000, tools=None):
 
 
 def outputs(spec=None, abi=None, inputs=None):
-    """{path: bytes} of the three files."""
+    """{path: bytes} of the four files."""
     fs = functions(spec, abi, inputs)
-    return {HEADER: header_text(fs).encode(), INCLUDE: include_text(fs).encode(), ASM: asm_text(fs).encode()}
+    return {HEADER: header_text(fs).encode(), INCLUDE: include_text(fs).encode(), ASM: asm_text(fs).encode(),
+            RUST: rust_text(fs).encode()}
 
 
 def stale():
