@@ -280,6 +280,9 @@ fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3, crossing: bool) -> Vec<(TakeStand,
                 || !cx.tactics.walkable(node)
                 || !if crossing {
                     cx.tactics.spawn_ok(node, cx.bot.side, false)
+                        && grid
+                            .locate(at, 1.5)
+                            .is_none_or(|home| !traps(cx.tactics, home, node))
                 } else {
                     cx.tactics.allowed(node, cx.now, cx.bot.side, false)
                 }
@@ -608,6 +611,18 @@ fn stop_short(stand: Vec3, at: Vec3) -> f32 {
     }
 }
 
+/// Whether a walk from floor `from` to floor `node` ends in a pocket of
+/// its own (not `from`'s) with no way out by a bot's own jump
+/// (`escape::standing_exit`): a pit inside a zone on all match, where a
+/// crossing would leave the bot to die.
+fn traps(tactics: &Tactics, from: mapdata::NodeId, node: mapdata::NodeId) -> bool {
+    let grid = &tactics.world.grid;
+    grid.pocket_of(node).is_some_and(|pocket| {
+        Some(pocket) != grid.pocket_of(from)
+            && !crate::v026g::bots::escape::standing_exit(grid, &tactics.escapes, pocket)
+    })
+}
+
 /// Health lost walking from `a` to `b` in a line, at [`CROSS_MPS`].
 fn line_hurt(tactics: &Tactics, a: Vec3, b: Vec3) -> f32 {
     let grid = &tactics.world.grid;
@@ -650,7 +665,11 @@ pub fn crossing_to(tactics: &Tactics, to: Vec3, side: Option<i32>, stop_m: f32) 
                 continue;
             }
             // The nearest dry floor this way: past it, the line is longer.
-            if tactics.clear_line_through_zones(edge, to, side, false) {
+            // Not into a pit it cannot jump out of.
+            let into_pit = grid
+                .locate(to, 1.5)
+                .is_some_and(|goal| traps(tactics, node, goal));
+            if !into_pit && tactics.clear_line_through_zones(edge, to, side, false) {
                 let d = edge.distance_xz(to);
                 let stop = if d > stop_m {
                     to + (edge - to) * (stop_m / d)
@@ -1250,12 +1269,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             // In zones on all match with no way out (a crossing's take):
             // out first by the cheapest crossing, in a line.
             if let Some(out) = cx.way_out() {
-                return Step::Continue(
-                    Intent::to(out.edge, Pace::Walk)
-                        .within(0.5)
-                        .straight()
-                        .zone_ok(),
-                );
+                return Step::Continue(Intent::to(out.edge, Pace::Walk).within(0.5).straight());
             }
             // Trapped for good: no way home with it. Let go, and fight
             // from here: a carrier cannot fire. A pocket some player got
@@ -1498,11 +1512,16 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
         });
     };
     let me = cx.me.feet;
-    // On a crossing, out once the walk back to its edge would leave too
-    // little health ([`CROSS_ABORT_LEFT`]); the motor walks it out of the
-    // zone once the play ends.
+    // On a crossing, out once the way out would leave too little health
+    // ([`CROSS_ABORT_LEFT`]), at the current health (enemy fire counts):
+    // the crossing a carrier walks out by from here (`Ctx::way_out`), else
+    // the line back to its edge. The motor walks it out of the zone once
+    // the play ends (no `Intent::zone_ok`).
     if let Some(edge) = crossing
-        && cx.me.health - line_hurt(cx.tactics, me, edge) < CROSS_ABORT_LEFT
+        && cx.me.health
+            - crossing_to(cx.tactics, me, cx.bot.side, 0.0)
+                .map_or_else(|| line_hurt(cx.tactics, me, edge), |out| out.leg)
+            < CROSS_ABORT_LEFT
     {
         return Step::Failed("its zone hurts too much");
     }
@@ -1931,7 +1950,7 @@ mod tests {
     }
 
     /// A carrier in a zone on all match with no way out walks out by its
-    /// cheapest crossing, in a line, the zone's floor its choice.
+    /// cheapest crossing, in a line.
     #[test]
     fn a_carrier_in_a_zone_on_all_match_walks_out_by_a_crossing() {
         let mut s = with_hurting(4.0, 0.01);
@@ -1948,12 +1967,13 @@ mod tests {
             .way_out()
             .map(|c| c.edge)
             .expect("a crossing out");
-        assert!(intent.straight && intent.zone_ok, "{intent:?}");
+        // Walked straight: no way out of the zone is asked for.
+        assert!(intent.straight && !intent.zone_ok, "{intent:?}");
         assert!(matches!(intent.go, Go::To { at, .. } if at.distance_xz(edge) < 0.01));
         // Out: home by the route as ever.
         s.bot(0, 0, edge).carrying = Some(0);
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
-        assert!(!intent.zone_ok, "{intent:?}");
+        assert!(!intent.straight, "{intent:?}");
     }
 
     fn collects(s: &Scenario) -> Vec<TargetRef> {

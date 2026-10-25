@@ -1030,9 +1030,10 @@ impl Tactics {
         })
     }
 
-    /// [`Self::clear_line_for`] over zones' floors too (the spawn rule
-    /// still holds): a battery's crossing into a zone on all match
-    /// (`collect`) weighs the zones' damage itself.
+    /// [`Self::clear_line_for`] over zones' floors too, those that switch
+    /// as well as those on all match (the spawn rule still holds): the
+    /// caller weighs every zone's damage (a battery's crossing, `collect`).
+    /// No pocket or fall is checked either.
     pub fn clear_line_through_zones(
         &self,
         a: Vec3,

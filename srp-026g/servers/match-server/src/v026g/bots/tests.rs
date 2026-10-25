@@ -4759,6 +4759,10 @@ fn real_bot_cost() {
             let mut hits = HitTally::default();
             // The zones' own shapes, for their hits on the bodies; batteries
             // taken from floors of zones on all match, and their spots.
+            // The zones' damage to the stand-in's bodies, with
+            // SRP_BENCH_ZONE_DAMAGE=1 only (a GUESS of the game's until the
+            // owner's CG-20 test): off, the bench decides as before.
+            let zone_damage = std::env::var("SRP_BENCH_ZONE_DAMAGE").is_ok_and(|v| v == "1");
             let inside = Hazards::build(&world, 0.0);
             let (mut zone_takes, mut zone_spots) = (0u32, Vec::<Vec3>::new());
             while clock < limit_ms {
@@ -4767,7 +4771,9 @@ fn real_bot_cost() {
                     let stats_before = game.stats.clone();
                     game.step();
                     if let Some(tactics) = bots.tactics.as_ref() {
-                        game.zone_tick(&inside, &tactics.hazards);
+                        if zone_damage {
+                            game.zone_tick(&inside, &tactics.hazards);
+                        }
                         for at in std::mem::take(&mut game.took_from) {
                             let fixed = tactics
                                 .world
@@ -7161,6 +7167,9 @@ mod zone_runs {
         push: Option<(u32, Vec3)>,
         /// Its route dropped this often, ms (a chase: the goal moves on).
         replan_every: Option<u32>,
+        /// Its intent says the zone's floor is its choice
+        /// (`Intent::zone_ok`, a battery's crossing) until this time, ms.
+        zone_ok_until: u32,
         until: u32,
     }
 
@@ -7172,6 +7181,7 @@ mod zone_runs {
             activity,
             push: None,
             replan_every: None,
+            zone_ok_until: 0,
             until: 60_000,
         }
     }
@@ -7252,6 +7262,9 @@ mod zone_runs {
                     Some(at) => Intent::to(at, Pace::Run).within(1.0),
                     None => Intent::stay(),
                 };
+                if clock < run.zone_ok_until {
+                    bot.intent = bot.intent.zone_ok();
+                }
                 if run.replan_every.is_some_and(|every| clock % every == 0) {
                     bot.route = None;
                 }
@@ -7353,6 +7366,39 @@ mod zone_runs {
         pushed.until = 30_000;
         let seen = drive(pushed);
         assert!(seen.on_ms <= 3_000, "{seen:?}");
+    }
+
+    /// A battery's crossing (`collect`): with no goal in a zone always on,
+    /// a bot whose intent says the zone is its choice (`Intent::zone_ok`)
+    /// is not walked out; once the intent drops it (the crossing's re-check
+    /// of its health failed, the take given up), out as any. Without it from
+    /// the start, out at once (the run above).
+    #[test]
+    fn a_bot_in_a_zone_by_choice_stays_and_walks_out_once_it_is_not() {
+        let small = zone(
+            "small",
+            Vec3::new(30.0, 1.0, 20.0),
+            Vec3::new(2.0, 1.0, 2.0),
+        );
+        let world = field(&[], vec![small]);
+        let pushed = |zone_ok_until: u32| {
+            let mut pushed = run(world.clone(), None);
+            pushed.start = Vec3::new(20.0, 0.0, 20.0);
+            pushed.goal = None;
+            pushed.push = Some((3_000, Vec3::new(30.0, 0.0, 20.0)));
+            pushed.zone_ok_until = zone_ok_until;
+            pushed.until = 30_000;
+            drive(pushed)
+        };
+        let by_choice = pushed(30_000);
+        assert!(by_choice.on_ms >= 25_000, "{by_choice:?}");
+        let dropped = pushed(12_000);
+        assert!(
+            (8_000..=12_000).contains(&dropped.on_ms),
+            "{dropped:?}"
+        );
+        let never = pushed(0);
+        assert!(never.on_ms <= 3_000, "{never:?}");
     }
 
     /// Run 5: pushed 25 m into a big zone always on, deeper than the way
