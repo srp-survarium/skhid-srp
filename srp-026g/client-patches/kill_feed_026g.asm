@@ -17,9 +17,12 @@
 ;
 ; - kill_feed_event, at 0x2DA3D1 (`mov [eax+4],bl / mov edx,[esi+120h]`, the
 ;   node in eax): the cause icon, then +5 the flags: 1 when the bullet went
-;   through something before this hit (its trajectory's segments, +84h, one
-;   more for each pierce and each reflection (0x32EE20), past its
-;   reflections, the byte +88h), 2 when the victim's pain pool is empty
+;   through something before this hit and never ricocheted, and someone
+;   else killed (its trajectory's segments, +84h, one more for each pierce
+;   and each reflection (0x32EE20), not 0, its reflections, the byte +88h,
+;   0, the cause icon not 3: 0.69d0's rule for its penetration_icon, its
+;   generate_killed_event 0x2003046B0 from the hit's copies of the bullet's
+;   segments and reflections), 2 when the victim's pain pool is empty
 ;   and the body and head pools are not (damage_model+108h's parts by name,
 ;   0x2E58B0; a part's health +0A0h, a float clamped at 0). Both are the
 ;   simulation's own state, the same in every game; nothing is written but
@@ -43,6 +46,7 @@ section .text
 %define SEGMENTS 0x84              ; the bullet's trajectory segments past the first (dword)
 %define REFLECTIONS 0x88           ; the bullet's reflections (byte)
 %define CAUSE 4                    ; the event's cause icon (byte)
+%define NO_KILLER 3                ; the cause icon of a death with no killer or by the victim himself
 %define FLAGS 5                    ; the event's byte after it: ours
 %define WORLD 0x120                ; the player's game world
 %define WALL 1
@@ -63,12 +67,16 @@ kill_feed_event:
     mov [eax+CAUSE], bl
     push eax
     push ebx
+    movzx ecx, bl                  ; the cause icon
     xor ebx, ebx
     test ebp, ebp
-    jz .pain
-    movzx edx, byte [ebp+REFLECTIONS]
-    cmp [ebp+SEGMENTS], edx
-    jbe .pain                      ; no segment but the reflections'
+    jz .pain                       ; no bullet
+    cmp ecx, NO_KILLER
+    je .pain                       ; no killer, or the victim himself
+    cmp byte [ebp+REFLECTIONS], 0
+    jne .pain                      ; a ricochet (0.69d0 shows its ricochet icon then, not the wall)
+    cmp dword [ebp+SEGMENTS], 0
+    je .pain                       ; straight from the muzzle
     or bl, WALL
 .pain:
     mov ecx, pain_name

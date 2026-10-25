@@ -468,9 +468,10 @@ Patches:
   with the late join; docs/notes/kill-feed-icons.md). kill_feed_026g.asm
   (the arena's block kill_feed.code): generate_killed_event (0x2DA170, at
   0x2DA3D1) writes after the event's cause icon a byte of flags: 1 when the
-  killing bullet went through something first (its segments +84h past its
-  reflections +88h), 2 when the victim's pain pool is empty and its body and
-  head pools are not; the hud's event handler (0x23B6F0) passes the word, so
+  killing bullet went through something first and never ricocheted and
+  someone else killed (its segments +84h not 0, its reflections +88h 0, the
+  cause icon not 3: 0.69d0's penetration_icon rule), 2 when the victim's
+  pain pool is empty and its body and head pools are not; the hud's event handler (0x23B6F0) passes the word, so
   on_player_killed's fifth argument carries them in its second byte, and
   at 0x23814F the description gets penetration_icon and pain_icon (0 or 1)
   for the hud movie's row. The simulation's own state, read alike in every

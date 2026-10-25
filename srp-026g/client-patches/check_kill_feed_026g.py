@@ -14,12 +14,14 @@ arena with them; the patch's three sites run from the game's own code:
   list of named pools, health +0A0h) and bullet (ebp: its segments +84h, its
   reflections +88h), the cause icon in bl. The game's own part lookup
   (0x2E58B0) runs. The node must be the original's but for +5: 1 when the
-  bullet has more segments than reflections, 2 when the pain pool is empty
+  bullet has segments and no reflection and someone else killed (the cause
+  icon not 3; 0.69d0's penetration_icon), 2 when the pain pool is empty
   and body and head are not; edx (the world), eax, ebx, esi, edi, ebp and esp
   as the original's; the victim, its pools and the bullet unchanged. Cases:
   a bullet death, a pain death, both pools empty, the head empty, pain all
   but empty, a bullet through a wall, a ricochet, pierces and a reflection,
-  no bullet, no damage model, the parts in another order;
+  through another player, through a wall with no killer, a headshot through
+  a wall, no bullet, no damage model, the parts in another order;
 - the argument: the hud's event handler (0x23B5F0) from 0x23B6F0 to its call
   of on_player_killed (0x23B704), edi = that node: the original pushes the
   cause icon as the fifth argument, the build the cause icon and the flags
@@ -185,17 +187,23 @@ def main():
         ("a bullet to the body: body empty, pain left", {"body": empty, "pain": bits(0.3)}, 0, 0, 0, {}, 0),
         ("a pain death: pain empty, body and head left", {"pain": empty, "body": bits(0.6), "head": bits(0.4)},
          0, 0, 0, {}, PAIN),
-        ("body and pain empty together", {"pain": empty, "body": empty}, 0, 0, 0, {}, 0),
+        ("one hit empties pain and body together: damage, not pain (the owner)", {"pain": empty, "body": empty},
+         0, 0, 0, {}, 0),
+        ("one hit empties pain and head together, not a headshot bone: damage, not pain",
+         {"pain": empty, "head": empty, "body": bits(0.7)}, 0, 0, 0, {}, 0),
         ("a headshot: head and pain empty", {"pain": empty, "head": empty}, 0, 0, 1, {}, 0),
         ("a headshot that left the head: pain empty", {"pain": empty, "head": bits(0.1)}, 0, 0, 1, {}, PAIN),
         ("pain all but empty", {"pain": bits(1e-7), "body": empty}, 0, 0, 0, {}, 0),
         ("a toxic death: infection empty", {"infection": empty}, 0, 0, 3, {}, 0),
         ("through a wall to the body", {"body": empty}, 1, 0, 0, {}, WALL),
         ("a ricochet to the body", {"body": empty}, 1, 1, 0, {}, 0),
-        ("two pierces and a ricochet", {"body": empty}, 3, 1, 0, {}, WALL),
+        ("two pierces and a ricochet (0.69d0: its ricochet, no wall)", {"body": empty}, 3, 1, 0, {}, 0),
+        ("through another player to the body", {"body": empty}, 1, 0, 0, {}, WALL),
+        ("through a wall, no killer or the victim himself", {"body": empty}, 1, 0, 3, {}, 0),
+        ("through a wall, a headshot", {"head": empty}, 1, 0, 1, {}, WALL),
         ("through a wall to pain", {"pain": empty, "body": bits(0.2)}, 2, 0, 0, {}, WALL | PAIN),
         ("no bullet (a grenade), pain empty", {"pain": empty}, 5, 0, 0, {"bullet": False}, PAIN),
-        ("no damage model", {"pain": empty}, 1, 0, 3, {"model": False}, WALL),
+        ("no damage model", {"pain": empty}, 1, 0, 0, {"model": False}, WALL),
         ("pain first in the list", {"pain": empty}, 0, 0, 0, {"order": ("pain", "head", "body")}, PAIN),
         ("no head pool", {"pain": empty}, 0, 0, 0, {"order": ("pain", "body")}, 0),
     )

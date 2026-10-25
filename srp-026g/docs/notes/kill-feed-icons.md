@@ -11,12 +11,21 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
 - **The row:** killer, weapon, then the wall icon, the pain icon, the cause icon (headshot,
   skull), victim. Each only when it applies; 0.69d0's order (its description icons, penetration
   among them, come before the cause icon).
-- **Through a wall:** the killing bullet went through something before the hit: a pierce of its
-  trajectory (bullet +84h, the segments past the first, less the reflections +88h). A wall, a
-  prop, or another player it passed through all count; a ricochet alone does not. A kill with no
-  bullet (a grenade, an anomaly, a fall) never shows it.
+- **Through a wall:** retail 0.69d0's rule for its `penetration_icon` (its exe, proven): the
+  killing bullet changed course before the hit (bullet +84h, its trajectory's segments past the
+  first: one for each pierce and each reflection), never by a reflection (+88h 0), and someone
+  else killed (not the skull row: no killer or the victim himself).
+  - Anything the bullet pierced counts: a wall, a prop, another player's body (0.69d0's
+    try_pierce adds a segment after any object or geometry it goes through; no material check,
+    no threshold).
+  - A bullet that ricocheted, before or after a pierce, never shows it (0.69d0 shows its
+    ricochet icon then; 0.26g has none, so the row shows neither).
+  - A kill with no bullet (a grenade, an anomaly, a fall) or a melee hit never shows it.
 - **By pain:** at the death the victim's pain pool is empty and its body and head pools are not
-  (the pain pool killed; when body or head is empty too, they killed). A headshot that killed
+  (the pain pool killed; when body or head is empty too, they killed).
+  - The owner, 2026-10-25: "if someone dies from pain and damage at the same time, they die from
+    damage, not pain": one hit that empties pain and body (or pain and head) together shows no
+    pain icon. A headshot that killed
   through pain shows both the pain and the headshot icons. Any killer, any weapon; a suicide
   row (no killer, a fall) shows it too.
 - **The icons:**

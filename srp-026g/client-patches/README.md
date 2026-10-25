@@ -3360,8 +3360,12 @@ ebp) writes the victim, the killer, the weapon's icon and the cause icon (+4: 1 
 killer) into an event node whose first 12 bytes its allocation zeroes. The patch
 (`kill_feed_event`, called at 0x2DA3D1 in place of `mov [eax+4],bl / mov edx,[esi+120h]`)
 writes the cause icon and, in the node's +5, the flags: 1 when the bullet went through something
-before this hit (its trajectory's segments, +84h, which each pierce and each reflection adds one
-to, past its reflections, +88h), 2 when the victim's pain pool is empty and its body and head
+before this hit and never ricocheted, and someone else killed (its trajectory's segments, +84h,
+which each pierce and each reflection adds one to, not 0; its reflections, +88h, 0; the cause
+icon not 3): retail 0.69d0's rule for its `penetration_icon` (its exe: the hit carries the
+bullet's segments and reflections, generate_killed_event sets penetration for segments without a
+reflection and ricochet for any reflection, neither for a melee hit or no other killer; any
+pierced object or player counts), 2 when the victim's pain pool is empty and its body and head
 pools are not (the damage model's parts by name, 0x2E58B0, health +0A0h). Both are the
 simulation's own state, alike in every game; nothing else is written.
 
@@ -3380,8 +3384,8 @@ cause icon, for a kill or a suicide row, in 0.69d0's order; the build adds the t
 **Checked:** `selftest_026g.py` check 67 (the sites' original code, the hooks, no relocation under
 them and no branch into them, the code the link's, its one jump into the game the part lookup;
 the movie's row); `check_kill_feed_026g.py` (Unicorn): the event from 0x2DA3AD to its queueing
-in 15 cases (a bullet death, a pain death, body or head emptied with pain, a headshot through
-pain, pain all but empty, a toxic death, through a wall, a ricochet, pierces and a ricochet, a
+in 19 cases (a bullet death, a pain death, one hit emptying pain and body or pain and head together (damage, not pain), a headshot through
+pain, pain all but empty, a toxic death, through a wall, a ricochet, pierces and a ricochet (no wall), through another player, a wall with no killer, a headshot through a wall, a
 wall and pain, no bullet, no damage model, the parts in another order, no head pool) with the
 game's own part lookup: the node the original's but +5; the handler's five arguments; the row's
 members (penetration_icon, pain_icon, then mastery_icon) against the original's mastery_icon
