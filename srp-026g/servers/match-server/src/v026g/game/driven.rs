@@ -31,9 +31,10 @@
 //!   on a thread of its own) they stand; if the map has no file they run
 //!   the stage 0 script instead. `SRP_BOT_TUNING` (a JSON file, read when
 //!   the match is made) changes their numbers; `SRP_BOT_TRACE_DIR` keeps
-//!   their decisions (`SRP_BOT_TRACE_MAX_MB` of them); `SRP_BOT_ROUTES` (a JSON file, private: made from
-//!   the players' saved worlds) gives them the routes humans took
-//!   (`bots/routes.rs`);
+//!   their decisions (`SRP_BOT_TRACE_MAX_MB` of them); `bot-routes.json` in
+//!   the mapdata folder, or the file `SRP_BOT_ROUTES` names (a JSON file,
+//!   private: made from the players' saved worlds; empty or `off`: none),
+//!   gives them the routes humans took (`bots/routes.rs`);
 //! - without it, the stage 0 script (`super::super::drive`).
 
 use std::sync::Arc;
@@ -49,7 +50,7 @@ use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::maps::{MapState, Maps};
 use crate::v026g::bots::motor::Hurt;
 use crate::v026g::bots::reflex::WeaponKind;
-use crate::v026g::bots::routes::RouteTable;
+use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::trace::Trace;
 use crate::v026g::bots::tuning::Tuning;
@@ -170,10 +171,25 @@ impl Walkers {
             walkers.bots.set_speed_levels(&speed_levels);
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
-            if let Some(path) = std::env::var_os("SRP_BOT_ROUTES").filter(|path| !path.is_empty()) {
-                match RouteTable::load(path.as_ref()) {
+            let var = std::env::var_os("SRP_BOT_ROUTES");
+            match routes::Source::choose(var.as_deref(), walkers.maps.dir()) {
+                routes::Source::Set(path) => match RouteTable::load(&path) {
                     Ok(table) => walkers.bots.set_routes(&table),
                     Err(why) => log::warn!("Match {id:#x}: SRP_BOT_ROUTES not used ({why})"),
+                },
+                routes::Source::Default(path) => match RouteTable::load(&path) {
+                    Ok(table) => walkers.bots.set_routes(&table),
+                    Err(why) => log::warn!("Match {id:#x}: bot routes not used ({why})"),
+                },
+                routes::Source::Off => {}
+                routes::Source::Missing => {
+                    static SAID: std::sync::Once = std::sync::Once::new();
+                    SAID.call_once(|| {
+                        log::info!(
+                            "No bot routes: SRP_BOT_ROUTES unset and no {} in the mapdata folder; the bots roam to the exits",
+                            routes::DEFAULT_FILE
+                        )
+                    });
                 }
             }
             walkers

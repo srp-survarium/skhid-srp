@@ -2,7 +2,9 @@
 //! (`player_bots_behaviour.md` §3 play 17).
 //!
 //! The table is private (it is made from the players' saved worlds), so it
-//! is a file the server reads, `SRP_BOT_ROUTES`, never part of the repo.
+//! is a file the server reads, never part of the repo: `bot-routes.json` in
+//! the mapdata folder (`SRP_MAPDATA_DIR`), or the file `SRP_BOT_ROUTES`
+//! names (empty or `off`: none).
 //! Each row is one group of human lives that went the same way out of
 //! their base: the group's median sideways offset at checkpoints 15-90 %
 //! of the way along the base-to-base line, turned into map points (x, z),
@@ -28,7 +30,8 @@
 //! Format 1 files (no `fight`, `battery`) are read too: their reward counts
 //! as fight.
 
-use std::path::Path;
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 
 use mapdata::{Vec3, WalkGrid};
 use serde::Deserialize;
@@ -161,9 +164,65 @@ impl HumanRoute {
     }
 }
 
+/// The table's name in the mapdata folder (`SRP_MAPDATA_DIR`), read when
+/// `SRP_BOT_ROUTES` is unset.
+pub const DEFAULT_FILE: &str = "bot-routes.json";
+
+/// Where a match's route table comes from.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Source {
+    /// `SRP_BOT_ROUTES` names a file.
+    Set(PathBuf),
+    /// `SRP_BOT_ROUTES` unset, and the mapdata folder has `bot-routes.json`.
+    Default(PathBuf),
+    /// `SRP_BOT_ROUTES` empty or `off`.
+    Off,
+    /// `SRP_BOT_ROUTES` unset, and no `bot-routes.json` (or no mapdata folder).
+    Missing,
+}
+
+impl Source {
+    /// `var` is `SRP_BOT_ROUTES`, `mapdata` the mapdata folder.
+    pub fn choose(var: Option<&OsStr>, mapdata: Option<&Path>) -> Self {
+        match var {
+            Some(var) if var.is_empty() || var == "off" => Self::Off,
+            Some(var) => Self::Set(PathBuf::from(var)),
+            None => match mapdata.map(|dir| dir.join(DEFAULT_FILE)) {
+                Some(path) if path.is_file() => Self::Default(path),
+                _ => Self::Missing,
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The table is read from the mapdata folder unless `SRP_BOT_ROUTES`
+    /// says otherwise: a path, or empty or `off` for none.
+    #[test]
+    fn the_table_is_the_mapdata_folders_unless_the_variable_says_otherwise() {
+        let with = std::env::temp_dir().join(format!("srp-routes-source-{}", std::process::id()));
+        let without = with.join("empty");
+        std::fs::create_dir_all(&without).unwrap();
+        let default = with.join(DEFAULT_FILE);
+        std::fs::write(&default, r#"{"format": 2, "routes": []}"#).unwrap();
+        assert_eq!(Source::choose(None, Some(&with)), Source::Default(default.clone()));
+        assert_eq!(Source::choose(None, Some(&without)), Source::Missing);
+        assert_eq!(Source::choose(None, None), Source::Missing);
+        for off in ["", "off"] {
+            assert_eq!(Source::choose(Some(OsStr::new(off)), Some(&with)), Source::Off);
+        }
+        assert_eq!(
+            Source::choose(Some(OsStr::new("/elsewhere/routes.json")), Some(&with)),
+            Source::Set(PathBuf::from("/elsewhere/routes.json"))
+        );
+        assert!(RouteTable::load(&default).is_ok_and(|table| table.len() == 0));
+        std::fs::remove_file(&default).unwrap();
+        std::fs::remove_dir(&without).unwrap();
+        std::fs::remove_dir(&with).unwrap();
+    }
 
     /// Format 2 says what a route is good for; format 1's reward counts as
     /// fight.
