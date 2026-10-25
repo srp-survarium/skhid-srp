@@ -10,7 +10,8 @@
 #      it; --test: any, from patch_026g.py's REVISION). Nothing is edited:
 #      the revision is passed to the build;
 #   3. bugtrap.dll and updater_skhid.exe (nix develop ./srp-026g,
-#      SKHID_REVISION=<n>: their version resource says it), then
+#      SKHID_REVISION=<n>: their version resource says it), skhid_voice.dll
+#      (nix build ./srp-026g#skhid-voice: voice chat, exe patch 66), then
 #      make_client_026g.py $SKHID_GAME ... --pack-zip --revision=<n>
 #      --required-patches=<the list's> --server=$SKHID_GAME_SERVER
 #      --site=$SKHID_SITE --localization=$SKHID_LOCALIZATION (no
@@ -124,6 +125,11 @@ if ! (cd "$work/src" && SKHID_REVISION=$revision nix develop ./srp-026g -c bash 
     tail -n 30 "$work/build.log" >&2
     die "the build failed (log: $work/build.log)"
 fi
+say "building skhid_voice.dll (log: $work/voice.log) ..."
+if ! (cd "$work/src" && nix build ./srp-026g#skhid-voice -o "$work/voice") >"$work/voice.log" 2>&1; then
+    tail -n 30 "$work/voice.log" >&2
+    die "the voice DLL's build failed (log: $work/voice.log)"
+fi
 for built in client/bugtrap/target/i686-win7-windows-msvc/release/BugTrap.dll \
     client/updater/exe/target/i686-win7-windows-msvc/release/updater_skhid.exe; do
     python - "$work/src/$built" "revision $revision" <<'PY' || die "$built does not say revision $revision in its version resource"
@@ -137,6 +143,7 @@ if [[ ! -f $original ]]; then original=$SKHID_GAME/game/binaries/x86/survarium.e
 # In the checkout's dev shell (client_patches_python): the exe's arena
 # (`.srpx`) is linked from its sources there, with the lock's tools.
 { client_patches_python "$work/src" make_client_026g.py "$SKHID_GAME" "$zip" --pack-zip \
+    --voice="$work/voice/skhid_voice.dll" \
     --revision="$revision" --required-patches="$required" --server="$server" --site="$site" \
     --localization="$SKHID_LOCALIZATION" &&
     client_patches_python "$work/src" patch_026g.py "$original" "$work/without-server.exe" \

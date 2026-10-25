@@ -10,3 +10,5 @@ target/
 target-*/
 **/__pycache__/
 *.pdb
+# skhid_voice.dll as make_client_026g.py takes it by default (nix build ./srp-026g#skhid-voice -o srp-026g/client-voice/result)
+srp-026g/client-voice/result
