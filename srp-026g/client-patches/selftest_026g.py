@@ -404,10 +404,10 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     pops: the call shapes' INSTALLED_VTABLES check, for every patch).
     check_research_026g.py runs the hooks, the cook and the rule.
 54. the same build: the artefacts (patch 54, artefacts_026g.asm, the
-    arena's block artefacts.code): the original's six sites (Spring's loader and
+    arena's block artefacts.code): the original's seven sites (Spring's loader and
     its keys, the active's link and unlink, Lifebone's enable_active after
     its remove_affects, artefact_base::action's entry, the player's
-    stagger) and the two sizes of a Spring, the hooks and sizes in the
+    stagger, Onyx's hit callback's state test) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
 The engine-function library (engine_026g.py, the arena's block engine.code;
 client_patch.md section 0.5): its files are what engine_026g.tsv and the
@@ -3993,7 +3993,7 @@ def test_artefacts(original, image, before):
         target = linked.symbols[symbol]
         hook = P.hook_bytes(target, va, old, 0, opcode)
         check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
-              and artefacts_va <= target < artefacts_va + 30,
+              and artefacts_va <= target < artefacts_va + 5 * len(P.ARTEFACTS_HOOKS),
               f"{va:#x}: {old.hex()} in the original and the build without the late join, "
               f"`jmp {target:#x}` ({symbol}, an entry of the block) here")
     under = [v for kind, v in stock.relocations().values() if kind == 3
@@ -4015,7 +4015,7 @@ def test_artefacts(original, image, before):
     check(P.artefacts_backs(linked) == list(P.ARTEFACTS_BACKS)
           and outside == sorted(set(P.ARTEFACTS_BACKS) | {0xF6B10, 0x2D5D00, 0x2D5AE0, 0x2E58B0, 0x32A420,
                                                           0x313350}),
-          "its six entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
+          "its seven entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
           + "); it calls the config lookup 0xF6B10, the unlink 0x2D5D00, the getter 0x2D5AE0, the pool "
           "lookup 0x2E58B0, increase_health 0x32A420 and the activation effect 0x313350, and nothing else "
           "outside")
@@ -4027,6 +4027,17 @@ def test_artefacts(original, image, before):
           and f"cmp ebx,{heals + 12:#x}" in texts and "mov edi,0xa1c1fc" in texts and "mov edi,0xa1c230" in texts,
           "its data: the keys aim_time_mod (in `passive` 0xA1C1FC and `active` 0xA1C230) and "
           "stopping_power_mod (in `active`), and the pools Lifebone's active fills (pain, body, head)")
+    check(rows(stock, 0x312BF0, 0x20) == [
+              "mov eax,[ecx+0xee8]", "mov edx,[esp+0x4]", "cmp eax,[edx+0x1c]", "jnz near 0x312cb9",
+              "cmp dword [ecx+0x280],byte +0x3", "mov eax,[esp+0x8]", "jnz 0x312c47"]
+          and stock.read(0x312777, 5) == b"\xB8" + struct.pack("<I", 0x312BF0)
+          and [struct.unpack("<I", stock.read(vt + 0x80, 4))[0] for vt in (0xA06084, 0xA157BC)] == [0x3128C0] * 2
+          and rows(stock, 0x312934, 18) == ["fstp dword [edi+0xf18]", "mov [edi+0xf14],eax", "pop edi", "pop esi",
+                                            "pop ecx", "ret 0x4"],
+          "Onyx's hit callback (0x312BF0, bound to each Onyx by its constructor at 0x312777; thiscall: the hit, "
+          "&damage, &piercing): its hit type test, then its state test at 0x312C03 (seven bytes, whole) before "
+          "`mov eax,[esp+8]` at 0x312C0A and the passive's way or the active's (0x312C47); Onyx's enable_active "
+          "0x3128C0 (vtable +80h of both its classes) sets the active time left, ms, at +F14h")
     check(rows(stock, 0x2DBD86, 0x1E) == ["xorps xmm1,xmm1", "movss xmm2,dword [esi+0x31c]", "comiss xmm2,xmm0",
                                           "lea eax,[esi+0x31c]", "jna 0x2dbda0", "lea eax,[esp+0x14]",
                                           "movss xmm0,dword [eax]"]

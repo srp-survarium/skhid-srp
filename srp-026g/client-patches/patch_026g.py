@@ -433,7 +433,10 @@ Patches:
   the pain, body and head pools (0x3122AA, increase_health as a medkit). An artefact's
   press (artefact_base::action 0x313300, at its entry) activates every
   ready artefact of the pressed one's class in the artefact slots, so one
-  key fires all of a kind that are ready, even when the pressed one is not;
+  key fires all of a kind that are ready, even when the pressed one is not.
+  Onyx: n fired together are each active 1 s longer per other one (3 s + (n
+  - 1) s), and only the first active Onyx of the slots reduces a hit (its
+  hit callback 0x312BF0, at 0x312C03), so n active Onyx reduce it once;
 - the keys 1, 2 and 3 pick kit 1, 2 and 3 while the kits are shown, and an
   option hides the other players' chat lines in a match (patch 58, with the
   late join; docs/notes/match-hud-options.md). match_keys_026g.asm (the
@@ -1844,7 +1847,7 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 # The artefacts (patch 54, README; client_patch.md section 3.51; the rules:
 # ../docs/notes/artefacts.md): artefacts_026g.asm in the arena's block
 # artefacts.code (ARENA below). Its numbers are the artefacts'
-# configs' (release/content.tsv, artefacts-1.json). It begins with six
+# configs' (release/content.tsv, artefacts-1.json). It begins with seven
 # `jmp near`, one for each site, each a global symbol the hook jumps to:
 # - Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` at 0x33AE13 (its
 #   active's third node): loader. The passive's second node (+350h,
@@ -1865,7 +1868,12 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 # - the player's stagger 0x2DBCD0, `movss xmm2,[esi+31Ch]` at 0x2DBD89 (the
 #   recent hits' stopping power summed): the sum times max(0, 1 + list 42),
 #   list 42 (artefact_synergy) being read by no code of 0.26g and set by no
-#   config, so an active Spring's -1 takes the slow away.
+#   config, so an active Spring's -1 takes the slow away;
+# - Onyx's hit callback 0x312BF0, `cmp dword [ecx+280h],3` at 0x312C03 (after
+#   its hit type test): an active Onyx that is not the first active one of
+#   the slots leaves the hit as it is (`ret 0Ch`), so n active Onyx reduce a
+#   hit once; the passive as before. With the action's entry: each Onyx
+#   fired with others adds 1 s to the active time (+F14h) of all of them.
 # The two nodes are after a Spring's own fields: the two sizes of a Spring,
 # artefact<artefact_spring_core> (0x3B8, 0x25E7A8) and the bare core (0x398,
 # 0x2EEA74), become ARTEFACTS_SPRING_SIZE. No base relocation is under a
@@ -1878,8 +1886,9 @@ ARTEFACTS_HOOKS = (
     (0x3122AA, bytes.fromhex("8b8f50020000"), "artefacts_lifebone", 0xE9),        # Lifebone's enable_active
     (0x313300, bytes.fromhex("568bf183be8002000003"), "artefacts_fire", 0xE9),    # artefact_base::action: its entry
     (0x2DBD89, bytes.fromhex("f30f10961c030000"), "artefacts_stagger", 0xE9),     # the player's stagger: its sum
+    (0x312C03, bytes.fromhex("83b98002000003"), "artefacts_onyx", 0xE9),          # Onyx's hit callback: its state test
 )
-ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91)  # where each goes on
+ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91, 0x312C0A)  # where each goes on
 ARTEFACTS_SPRING_SIZE = 0x3D8                  # the active's two nodes at +3B8h and +3C8h
 ARTEFACTS_SIZES = (
     (0x25E7A8, bytes.fromhex("b8b8030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
@@ -2116,6 +2125,9 @@ INSTALLS = {
                       "fire_kind, a key-up back in the function", None, None),
     0x2DBD89: (JUMP, "the player's stagger 0x2DBCD0, `movss xmm2,[esi+31Ch]` after the hits' sum: stagger",
                None, None),
+    0x312C03: (JUMP, "Onyx's hit callback 0x312BF0 (thiscall: the hit, &damage, &armour piercing; `ret 0Ch`), "
+                     "`cmp dword [ecx+280h],3` after its hit type test: onyx_hit, back at 0x312C0A with the "
+                     "flags of that test, or `ret 0Ch`", None, None),
     # the kit keys and the match chat option, patch 58 (in `.srpx`)
     0x25CD41: (JUMP, "the game world's on_keyboard_action 0x25CD00, `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` "
                      "(edi = its input handler): keyboard", None, None),
@@ -3326,6 +3338,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      f"Research (mode 5: rule class {RESEARCH_CLASS:#x}, its hud and messages), "
                      "a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills "
                      "pain, body and head, and one press fires every artefact of its kind, "
+                     "Onyx fired together each 1 s longer per other one and reducing a hit once, "
                      "the keys 1, 2 and 3 pick a kit while the kits are shown, "
                      "an option hides the other players' chat lines in a match, "
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
@@ -3504,7 +3517,7 @@ def upgrade_preview_bin():
 
 
 def artefacts_backs(linked):
-    """Where each of the artefacts' six entries (ARTEFACTS_HOOKS' symbols)
+    """Where each of the artefacts' seven entries (ARTEFACTS_HOOKS' symbols)
     goes on: the target of the first `jmp near` back into .text after the
     entry's own code, when the entry is a `jmp near`; else None."""
     block = linked.blocks["artefacts.code"]
