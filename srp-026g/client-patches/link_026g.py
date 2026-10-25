@@ -9,6 +9,9 @@
     python link_026g.py --check
         says whether the lock is what the sources give here (the self-test
         and every build compare the same)
+    python link_026g.py --sizes
+        each block's bytes, pages and languages, and the arena against its
+        limit (what a port reports before and after)
 
 Each block of ARENA names its sources. Every source becomes a relocatable
 ELF32 object, once: NASM (`-f elf32`) for `.asm`, gcc for `.c` (`-m32 -c`,
@@ -541,19 +544,39 @@ def read_lock(path=LOCK):
         return None
 
 
+def sizes_text(blocks, linked, limit):
+    """Each block's bytes, the pages it takes and its languages, and the
+    arena against its limit (the budget of every patch, Rust's too)."""
+    def language(source):
+        return "Rust" if Path(source).name == "Cargo.toml" else "C" if str(source).endswith(".c") else "NASM"
+    lines = [f"  {'block':<20} {'kind':<5} {'bytes':>7} {'pages':>5}  languages"]
+    for block in blocks:
+        placed = linked.blocks[block.name]
+        pages = (placed.size + 0xFFF) // 0x1000
+        languages = ", ".join(dict.fromkeys(language(s) for s in block.sources))
+        lines.append(f"  {block.name:<20} {block.kind:<5} {placed.size:>7} {pages:>5}  {languages}")
+    lines.append(f"the arena: {linked.size} bytes ({linked.size:#x}) of its limit {limit:#x}, "
+                 f"{100 * linked.size / limit:.1f}%")
+    return "\n".join(lines)
+
+
 def main():
     import argparse
     import patch_026g as base
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--sizes", action="store_true")
     args = parser.parse_args()
-    if args.write == args.check:
-        parser.error("--write or --check")
+    if args.write + args.check + args.sizes != 1:
+        parser.error("--write, --check or --sizes")
     try:
         linked = link(base.ARENA, base.ARENA_VA, base.ARENA_LIMIT)
     except LinkError as error:
         sys.exit(f"link_026g: {error}")
+    if args.sizes:
+        print(sizes_text(base.ARENA, linked, base.ARENA_LIMIT))
+        return
     for block in linked.blocks.values():
         print(f"  {block.name:<16} {block.kind:<5} {block.va:#x} {block.size:#7x} bytes")
     if args.write:
