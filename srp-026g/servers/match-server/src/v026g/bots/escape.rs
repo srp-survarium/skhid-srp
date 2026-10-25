@@ -14,10 +14,12 @@
 //!   pocket, or [`TRY_MS`] went by;
 //! - the team's exits that worked are tried first, then the grid's:
 //!   standing jumps ([`ExitJump::Standing`], [`STANDING_TRIES`] each, the
-//!   shortest across first), then
+//!   shortest across first), then climbs onto steep ground a step up
+//!   ([`ExitJump::Steep`], as many, the lowest first: a jump onto it is not
+//!   proven to hold, so after the standing ones), then
 //!   at most [`SPRINT_EXITS`] sprint-only ones, the lowest first, with one
 //!   standing try each (a rounded edge may let it through; no bot sprints
-//!   yet); climbs onto steep ground are not tried;
+//!   yet);
 //! - while it may not jump (a broken leg, a hit's stagger: `motor::Hurt`)
 //!   the clocks of the try and of the giving up stand still: the motor
 //!   presses no jump then, and the time is not the exit's fault;
@@ -33,7 +35,7 @@
 //! Every try is traced (`{"escape": …}`, then `{"escaped": …}`), so the
 //! owner's matches show which the client lands.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 use mapdata::{ExitJump, NodeId, PocketExit, PocketId, Vec3, WalkGrid};
@@ -129,8 +131,8 @@ struct Shared {
     /// Exits that got a bot of the team out of a pocket.
     worked: Vec<(u8, PocketId, PocketExit)>,
     trapped: HashMap<Place, Trapped>,
-    /// Whether a pocket has a standing exit, as asked.
-    standing: HashMap<PocketId, bool>,
+    /// Whether a pocket has a standing exit and a steep one, as asked.
+    standing: HashMap<PocketId, (bool, bool)>,
 }
 
 impl Board {
@@ -149,6 +151,13 @@ impl Board {
             .filter(|&&(t, p, _)| t == team && p == pocket)
             .map(|&(_, _, exit)| exit)
             .collect()
+    }
+
+    /// What [`jump_exits`] tells of `pocket`, for tests of a pocket whose
+    /// exits a test grid does not make (a steep climb a step up).
+    #[cfg(test)]
+    pub(super) fn set_jump_exits_for_test(&self, pocket: PocketId, standing: bool, steep: bool) {
+        self.shared().standing.insert(pocket, (standing, steep));
     }
 
     /// [`Self::learn`], for tests of a team that got out by itself.
@@ -184,31 +193,48 @@ impl Board {
 /// yet (no bot sprints); `carrying`: never for a carrier (it cannot sprint,
 /// PROVEN), and nor is an exit the team got out by that is not a standing
 /// one (a standing try gets out over a sprint rim now and then: 26 such
-/// were learned in 12 batt bench runs).
+/// were learned in 12 batt bench runs). A steep exit is not a carrier's
+/// either: a jump onto steep ground is not proven to hold, with a battery
+/// or without.
 pub fn way_out(grid: &WalkGrid, board: &Board, team: u8, pocket: PocketId, carrying: bool) -> bool {
+    let (standing, steep) = jump_exits(grid, board, pocket);
     board
         .worked(team, pocket)
         .iter()
         .any(|exit| !carrying || exit.jump == ExitJump::Standing)
-        || standing_exit(grid, board, pocket)
+        || standing
+        || (steep && !carrying)
 }
 
-/// Whether `pocket` has a standing-jump exit (asked once a match).
+/// Whether `pocket` has an exit a bot's own jump takes: a standing-jump
+/// one, or a steep one ([`ExitJump::Steep`]: a jump onto steep ground a
+/// step up).
 pub fn standing_exit(grid: &WalkGrid, board: &Board, pocket: PocketId) -> bool {
-    if let Some(&standing) = board.shared().standing.get(&pocket) {
-        return standing;
+    let (standing, steep) = jump_exits(grid, board, pocket);
+    standing || steep
+}
+
+/// Whether `pocket` has a standing-jump exit and a steep one (asked once a
+/// match).
+fn jump_exits(grid: &WalkGrid, board: &Board, pocket: PocketId) -> (bool, bool) {
+    if let Some(&known) = board.shared().standing.get(&pocket) {
+        return known;
     }
-    let standing = grid
-        .pocket_exits(pocket)
-        .iter()
-        .any(|exit| exit.jump == ExitJump::Standing);
-    board.shared().standing.insert(pocket, standing);
-    standing
+    let exits = grid.pocket_exits(pocket);
+    let has = |jump| exits.iter().any(|exit| exit.jump == jump);
+    let known = (has(ExitJump::Standing), has(ExitJump::Steep));
+    board.shared().standing.insert(pocket, known);
+    known
 }
 
 /// The exits to try out of the pocket of `from`, in order, with their
-/// tries: the team's that worked, the standing ones, the lowest
-/// [`SPRINT_EXITS`] sprint-only ones; [`EXITS_MOST`] at most.
+/// tries, of those whose take-off `from` walks to inside the pocket (the
+/// others' are reached only by drops from elsewhere; left in, they filled
+/// [`EXITS_MOST`] ahead of level_06 day 4 (63.85, 83.9)'s one way out): the
+/// team's that worked, the standing ones, the steep ones (a
+/// jump onto steep ground a step up: not proven to hold, so after the
+/// standing), the lowest [`SPRINT_EXITS`] sprint-only ones; [`EXITS_MOST`]
+/// at most.
 fn exits(
     grid: &WalkGrid,
     board: &Board,
@@ -217,17 +243,66 @@ fn exits(
     from: NodeId,
 ) -> Vec<(PocketExit, u8)> {
     let all = grid.pocket_exits(from);
+    let worked = board.worked(team, pocket);
+    let walked = walked_to(
+        grid,
+        pocket,
+        from,
+        all.iter().chain(&worked).map(|exit| exit.from).collect(),
+    );
+    let reached = |exit: &PocketExit| walked.contains(&exit.from);
+    let all: Vec<PocketExit> = all.into_iter().filter(reached).collect();
+    order(&all, worked.into_iter().filter(reached).collect())
+}
+
+/// Of the floors `wanted`, those `from` walks to inside `pocket`: those
+/// [`path::plan_where`] finds a way to over the pocket's floors, by the
+/// links a way is planned over, in one flood for all the exits, which ends
+/// once all are found (a way planned to each cost up to 16 ms in level_06
+/// day 4's 4,295-floor pocket).
+fn walked_to(
+    grid: &WalkGrid,
+    pocket: PocketId,
+    from: NodeId,
+    mut wanted: HashSet<NodeId>,
+) -> HashSet<NodeId> {
+    let mut found = HashSet::new();
+    if wanted.remove(&from) {
+        found.insert(from);
+    }
+    let mut seen = HashSet::from([from]);
+    let mut queue = vec![from];
+    while !wanted.is_empty()
+        && let Some(a) = queue.pop()
+    {
+        for (b, kind) in grid.links(a) {
+            if grid.pocket_of(b) == Some(pocket)
+                && grid.link_cost(a, b, kind).is_finite()
+                && seen.insert(b)
+            {
+                if wanted.remove(&b) {
+                    found.insert(b);
+                }
+                queue.push(b);
+            }
+        }
+    }
+    found
+}
+
+/// [`exits`] from the pocket's exits `all` and those the team got out by,
+/// `worked` (latest first).
+fn order(all: &[PocketExit], worked: Vec<PocketExit>) -> Vec<(PocketExit, u8)> {
     let mut sprint: Vec<PocketExit> = all
         .iter()
         .copied()
         .filter(|exit| exit.jump == ExitJump::Sprint)
         .collect();
     sprint.sort_by(|a, b| a.rise.total_cmp(&b.rise));
-    let mut out: Vec<(PocketExit, u8)> = board
-        .worked(team, pocket)
+    let mut out: Vec<(PocketExit, u8)> = worked
         .into_iter()
         .map(|exit| {
-            let tries = if exit.jump == ExitJump::Standing {
+            let tries = if exit.jump != ExitJump::Sprint {
                 STANDING_TRIES
             } else {
                 SPRINT_TRIES
@@ -248,7 +323,16 @@ fn exits(
             .partial_cmp(&(b.across, b.rise))
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    let standing = standing.into_iter().map(|exit| (exit, STANDING_TRIES));
+    let mut steep: Vec<PocketExit> = all
+        .iter()
+        .copied()
+        .filter(|exit| exit.jump == ExitJump::Steep)
+        .collect();
+    steep.sort_by(|a, b| a.rise.total_cmp(&b.rise));
+    let standing = standing
+        .into_iter()
+        .chain(steep)
+        .map(|exit| (exit, STANDING_TRIES));
     let sprint = sprint
         .into_iter()
         .take(SPRINT_EXITS)
@@ -451,8 +535,8 @@ fn step(
                     state.hurt.0 = false;
                 }
                 let tries = match exit.jump {
-                    ExitJump::Standing => STANDING_TRIES,
-                    _ => SPRINT_TRIES,
+                    ExitJump::Sprint => SPRINT_TRIES,
+                    _ => STANDING_TRIES,
                 };
                 events.push(Event::Try(exit, tries - left + 1));
                 board.set_trapped(place, Some(state.trapped()));
@@ -540,5 +624,54 @@ pub mod counts {
 
     pub fn counts() -> [u64; 7] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn exit(to: NodeId, jump: ExitJump, rise: f32, across: f32) -> PocketExit {
+        PocketExit {
+            from: 0,
+            to,
+            rise,
+            across,
+            jump,
+        }
+    }
+
+    /// A climb onto steep ground a step up is tried (level_06 day 4's
+    /// pocket at (63.85, 83.9), whose only exit it is, was given up with no
+    /// try), after the standing jumps and before the sprint rims, with the
+    /// standing jumps' tries; one the team got out by too.
+    #[test]
+    fn a_steep_exit_is_tried_after_the_standing_ones() {
+        let only = order(&[exit(1, ExitJump::Steep, 0.26, 0.25)], Vec::new());
+        assert_eq!(
+            only,
+            vec![(exit(1, ExitJump::Steep, 0.26, 0.25), STANDING_TRIES)]
+        );
+        let all = [
+            exit(1, ExitJump::Sprint, 1.1, 0.5),
+            exit(2, ExitJump::Steep, 0.3, 0.25),
+            exit(3, ExitJump::Standing, 0.8, 0.9),
+            exit(4, ExitJump::Steep, 0.26, 0.25),
+        ];
+        let tried: Vec<(NodeId, u8)> = order(&all, Vec::new())
+            .iter()
+            .map(|(e, n)| (e.to, *n))
+            .collect();
+        assert_eq!(
+            tried,
+            vec![
+                (3, STANDING_TRIES),
+                (4, STANDING_TRIES),
+                (2, STANDING_TRIES),
+                (1, SPRINT_TRIES)
+            ]
+        );
+        let worked = order(&[], vec![exit(2, ExitJump::Steep, 0.3, 0.25)]);
+        assert_eq!(worked[0].1, STANDING_TRIES);
     }
 }
