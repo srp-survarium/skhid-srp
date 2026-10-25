@@ -438,7 +438,12 @@ heights (a follow-up).
 - Points with no height in Player vs Bots modes: 112 (fewer than 10 positions within 5 m: a
   route's mean way can pass where nobody walked). 39 of them are at a spot with floors 2 m+
   apart within 1 m (stacked, or a ledge's top and foot), most on level_04 day 2 (12) and
-  level_06 days 2/4 (8/8); they keep the lowest floor, as before.
+  level_06 days 2/4 (8/8); they keep the lowest floor, as before. A height from the
+  neighbours (the mean of the previous and next points' when both have one within 1.5 m of
+  each other, kept only on a floor within 1 m of it) fits 2 of the 39: 35 have a neighbour
+  with no height (most are a route's last point), 2 have neighbours apart. Of the 2, one has
+  no floor within 1 m of the mean, and the other's raised floor is not a fine goal, so the
+  point is lost: not used. The 39 are a follow-up.
 
 **Bench** (c8bd1281 against 54ececcf, the base before #398/#399/#401,
 batteries and team deathmatch, tiers 4-5, 9-10 and 13-15, seeds 1-16,
