@@ -82,9 +82,9 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA425D40 -DSTATE=0xA428E20 -DLIMITS=0xA425A98 warmup_look_026g.asm -o warmup_look_026g.section.bin
         nasm -f bin -DCAVE=0xA425A98 warmup_limits_026g.asm -o warmup_limits_026g.section.bin
     (checked in; STATE is 0xE20 of the late join's state page, checked)
-    (checked in). The commit_suicide key comes from suicide_key_026g.asm:
-        nasm -f bin -DCAVE=0xA425980 suicide_key_026g.asm -o suicide_key_026g.section.bin
-    (checked in). A spot's hit on a battery's body comes from spot_026g.asm:
+    (checked in). The commit_suicide key is the arena's block suicide_key.code
+    (suicide_key_026g.asm and the Rust crate rust/suicide_key, linked by
+    link_026g.py). A spot's hit on a battery's body comes from spot_026g.asm:
         nasm -f bin -DCAVE=0xA4257C0 spot_026g.asm -o spot_026g.section.bin
     (checked in). The camera on the death screen comes from death_camera_026g.asm,
     a section of its own, `.srpc`, on the page after the late join's state page:
@@ -343,8 +343,8 @@ Patches:
   join, client_patch.md section 3.32): the input builder (0x241250) never
   asked for action 1Fh, so the action mask never had bit 24, which the match
   simulation still reads as a hit on one's own head (0x2D8BC1). Its last
-  action call (0x242196) calls suicide_key_026g.asm at 0x980 of `.srp`
-  first, which sets bit 24 on the key going down;
+  action call (0x242196) calls suicide_key (the arena's block
+  suicide_key.code, Rust) first, which sets bit 24 on the key going down;
 - a spot has no cooldown, and a hit on a battery's body spots it (patch 38,
   with the late join, client_patch.md section 3.35, docs/notes/spotting.md):
   base_player::apply_new_input (0x2D86E0) set the spotter's
@@ -1131,14 +1131,14 @@ WEAPON_DRAW_HOOK = (0x284A33, bytes.fromhex("88819cf40000"), 0, 0xE8)   # the pl
 # "brain" (vtable+20h = 0x2D9AE0 -> hit_impl 0x2D9B90), the attacker the
 # player; on_player_killed (0x2F4F38) counts a death and a suicide for it,
 # no kill. The builder's last call (spot, 0x242196, ebx = the handler) calls
-# suicide_key_026g.asm at SUICIDE_KEY_OFFSET of `.srp` (after the pickup
-# code, before the seek code): it asks 0x242460 for 1Fh, sets bit 24 when
+# suicide_key (suicide_key_026g.asm, the arena's block suicide_key.code, with
+# the Rust crate rust/suicide_key: the framework's example patch,
+# docs/notes/rust_patches.md): it asks 0x242460 for 1Fh, sets bit 24 when
 # the key went down (state 0, as spot does), and jumps to 0x242460 with the
 # original arguments and return address. No base relocation under the site.
-SUICIDE_KEY_OFFSET = 0x980
-SUICIDE_KEY_VA = SECTION_VA + SUICIDE_KEY_OFFSET
+# (Until the Rust port it was NASM at 0x980 of `.srp`, now int3.)
 ACTION_STATE_VA = 0x242460                    # player_input_handler: the state of a buffered action
-SUICIDE_KEY_HOOK = (0x242196, bytes.fromhex("e8c5020000"), 0, 0xE8)
+SUICIDE_KEY_HOOK = (0x242196, bytes.fromhex("e8c5020000"), "suicide_key", 0xE8)
 
 # The scoreboard (Tab) shows the places in the match and no place whose
 # player left (patch 39, README; client_patch.md section 3.36; the rules:
@@ -2486,6 +2486,9 @@ ARENA = (
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
     ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
+    # patch 34, the commit_suicide key: the NASM entry and the Rust crate (the
+    # Rust framework's example, docs/notes/rust_patches.md)
+    ArenaBlock("suicide_key.code", "code", 0x1000, ("suicide_key_026g.asm", "rust/suicide_key/Cargo.toml")),
 )
 
 
@@ -3217,19 +3220,9 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
         patch(data, va, expected, hook_bytes(WEAPON_DRAW_VA, va, expected, offset, opcode))
         if neutralize_relocs(data, [(va, va + len(expected))]):
             sys.exit("a base relocation under the weapon preview's draw site")
-        suicide_key = open(suicide_key_bin(), "rb").read()
-        if PICKUP_OFFSET + len(pickup) > SUICIDE_KEY_OFFSET \
-                or SUICIDE_KEY_OFFSET + len(suicide_key) > WARMUP_KEYS_OFFSET \
+        if PICKUP_OFFSET + len(pickup) > WARMUP_KEYS_OFFSET \
                 or WARMUP_KEYS_OFFSET + len(warmup_keys) > SEEK_CLEAR_OFFSET:
-            sys.exit("the pickup code, the suicide key, the warmup keys and the seek code do not fit")
-        # It begins `push dword [esp+0Ch]` and ends `jmp 0x242460`.
-        if suicide_key[:4] != bytes.fromhex("ff74240c") or suicide_key[-5:] != \
-                b"\xE9" + struct.pack("<i", ACTION_STATE_VA - (SUICIDE_KEY_VA + len(suicide_key))):
-            sys.exit(f"suicide_key_026g.section.bin was assembled for another address: -DCAVE={SUICIDE_KEY_VA:#x}")
-        va, expected, offset, opcode = SUICIDE_KEY_HOOK
-        patch(data, va, expected, hook_bytes(SUICIDE_KEY_VA, va, expected, offset, opcode))
-        if neutralize_relocs(data, [(va, va + len(expected))]):
-            sys.exit("a base relocation under the suicide key's hook")
+            sys.exit("the pickup code, the warmup keys and the seek code do not fit")
         if late_join[TAB_ROW_OFFSET:TAB_ROW_OFFSET + len(TAB_ROW_START)] != TAB_ROW_START \
                 or late_join[TAB_SHOWN_OFFSET:TAB_SHOWN_OFFSET + len(TAB_SHOWN_START)] != TAB_SHOWN_START:
             sys.exit("late_join_026g.section.bin: the scoreboard's entries (tab_row, tab_shown) or its state are "
@@ -3407,7 +3400,6 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             cave = cave + b"\xCC" * (SHARED_UPGRADES_OFFSET - len(cave)) + shared_upgrades
             cave = cave + b"\xCC" * (SPOT_OFFSET - len(cave)) + spot
             cave = cave + b"\xCC" * (PICKUP_OFFSET - len(cave)) + pickup
-            cave = cave + b"\xCC" * (SUICIDE_KEY_OFFSET - len(cave)) + suicide_key
             cave = cave + b"\xCC" * (WARMUP_KEYS_OFFSET - len(cave)) + warmup_keys
             cave = cave + b"\xCC" * (SEEK_CLEAR_OFFSET - len(cave)) + seek_clear
             cave = cave + b"\xCC" * (WARMUP_LIMITS_OFFSET - len(cave)) + warmup_limits
@@ -3431,7 +3423,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS:
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + (SUICIDE_KEY_HOOK,):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3591,8 +3583,6 @@ def seek_clear_bin():
 
 def read_order_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "read_order_026g.bin")
-def suicide_key_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "suicide_key_026g.section.bin")
 
 
 def kit_change_bin():

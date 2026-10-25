@@ -15,7 +15,7 @@
 #
 # Not a member of srp-026g's workspace: the server never links these.
 [workspace]
-members = ["patch-core"]
+members = ["patch-core", "suicide_key"]
 resolver = "3"
 
 [workspace.package]

@@ -281,17 +281,20 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     instruction, it holds no absolute address and int3 fills the rest.
     check_read_order_026g.py runs it.
 35. the same build: the commit_suicide key kills one's own player (patch
-    34, suicide_key_026g.asm at SUICIDE_KEY_OFFSET of `.srp`). The
+    34, the arena's block suicide_key.code: suicide_key_026g.asm's entry
+    and the Rust crate rust/suicide_key). The
     original: the action table's entry 0xA74D20 is commit_suicide, action
     1Fh, default key kK; the input builder 0x241250 asks 0x242460 for 35
     actions, 1Fh not among them, and sets no 1000000h in the action mask;
     base_player::process_quick_slots reads bit 24 at 0x2D8BC1 and is called
     from the input apply 0x2D86E0 alone (0x2D8777). The spot call at
     0x242196 is `call 0x242460` in the original and the build without the
-    late join, `call` the code here; the code is suicide_key_026g.section.bin,
-    calls and leaves only to 0x242460, holds no absolute address and every
-    branch inside lands on an instruction; no relocation under the site and
-    nothing aims inside it. check_suicide_key_026g.py runs it.
+    late join, `call` the block here; the block is the link's, its entry
+    RUST_HOOK and `jmp 0x242460`, it calls and leaves only to 0x242460,
+    never through memory, and every branch inside lands on an instruction;
+    no relocation under the site and nothing aims inside it.
+    check_suicide_key_026g.py runs it; equiv_026g.py suicide_key compares
+    it with the NASM it replaced.
 36. the same build: a baked texture no longer in the baker's list is made
     again (patch 35). check_loaded_baked_texture (0x131B40) has `jmp short
     0x131c73` at 0x131C1E where the original and the build without the late
@@ -627,13 +630,6 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.death_camera_bin(), "rb").read(),
           f"{os.path.basename(P.death_camera_bin())} is current ({len(fresh)} bytes)")
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.SUICIDE_KEY_VA:#x}",
-                        os.path.join(HERE, "suicide_key_026g.asm"), "-o", out], check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(fresh == open(P.suicide_key_bin(), "rb").read(),
-          f"{os.path.basename(P.suicide_key_bin())} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.SPOT_VA:#x}",
@@ -3860,23 +3856,33 @@ def test_suicide_key(original, image, before):
     check(stock.read(0x2D8BC1, 7) == bytes.fromhex("f7470400000001") and quick == [0x2D8777],
           "base_player::process_quick_slots tests bit 24 of the input (0x2D8BC1 `test dword [edi+4],1000000h`) and "
           "is called from the input apply 0x2D86E0 alone (0x2D8777)")
-    va, old, offset, opcode = P.SUICIDE_KEY_HOOK
-    new = P.hook_bytes(P.SUICIDE_KEY_VA, va, old, offset, opcode)
-    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+    va, old, symbol, opcode = P.SUICIDE_KEY_HOOK
+    linked = P.arena()
+    block = linked.blocks["suicide_key.code"]
+    target = linked.symbols[symbol]
+    new = P.hook_bytes(target, va, old, 0, opcode)
+    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+          and target == block.va,
           f"{va:#x}: `call 0x242460` (spot) in the original and the build without the late join, "
-          f"`call {P.SUICIDE_KEY_VA:#x}` here")
-    code = open(P.suicide_key_bin(), "rb").read()
-    check(image.read(P.SUICIDE_KEY_VA, len(code)) == code,
-          f"the code at {P.SUICIDE_KEY_VA:#x} is suicide_key_026g.section.bin ({len(code)} bytes)")
-    listing = ndisasm(code, P.SUICIDE_KEY_VA)
-    inside = lambda target: P.SUICIDE_KEY_VA <= target < P.SUICIDE_KEY_VA + len(code)
-    targets = {branch_target(text) for _, _, text in listing if branch_target(text) is not None}
+          f"`call {target:#x}` here ({symbol}, the start of the arena's block suicide_key.code)")
+    code = P.linker.block_bytes(linked, "suicide_key.code")
+    check(image.read(block.va, len(code)) == code,
+          f"the code at {block.va:#x} is the link's suicide_key.code ({len(code)} bytes: the NASM entry and the "
+          "Rust crate rust/suicide_key)")
+    listing = ndisasm(code, block.va)
+    texts = [text for _, _, text in listing]
+    inside = lambda t: block.va <= t < block.va + len(code)
+    targets = {branch_target(text) for text in texts if branch_target(text) is not None}
     starts = {address for address, _, _ in listing}
     check({t for t in targets if not inside(t)} == {P.ACTION_STATE_VA}
-          and all(t in starts for t in targets if inside(t)) and listing[-1][2] == "jmp 0x242460"
-          and not [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[|\[(?:dword )?0x", t)],
-          "the code calls and leaves only to 0x242460 (it ends `jmp 0x242460`), every branch inside lands on an "
-          "instruction, and it holds no absolute address")
+          and all(t in starts for t in targets if inside(t))
+          and texts[:12] == ["pushf", "pusha", "cld", "mov ebp,esp", "and esp,byte -0x10", "sub esp,byte +0xc",
+                             "push ebp", f"call {linked.symbols['suicide_key_hook']:#x}", "mov esp,ebp", "popa",
+                             "popf", "jmp 0x242460"]
+          and not [t for t in texts if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)],
+          "the entry is RUST_HOOK (the flags and registers saved, the stack aligned to 16, suicide_key_hook "
+          "called, all put back) and `jmp 0x242460`; the code calls and leaves only to 0x242460, never "
+          "through memory, and every branch inside lands on an instruction")
     hits = aimed_inside(original, va, len(old), 0x80)
     spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
     under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
@@ -5894,7 +5900,6 @@ def test_late_join(original, without, server, source):
     kit_change = open(P.kit_change_bin(), "rb").read()
     warmup_look = open(P.warmup_look_bin(), "rb").read()
     warmup_limits = open(P.warmup_limits_bin(), "rb").read()
-    suicide_key = open(P.suicide_key_bin(), "rb").read()
     warmup_keys = open(P.warmup_keys_bin(), "rb").read()
     # The first page's pieces, in order, none overlapping the next.
     link = open(P.replay_link_bin(), "rb").read()
@@ -5906,7 +5911,6 @@ def test_late_join(original, without, server, source):
               (P.SHARED_UPGRADES_OFFSET, len(shared), "the shared upgrades' code"),
               (P.SPOT_OFFSET, len(spot), "the spot code"),
               (P.PICKUP_OFFSET, len(pickup), "the pickup code"),
-              (P.SUICIDE_KEY_OFFSET, len(suicide_key), "the suicide key"),
               (P.WARMUP_KEYS_OFFSET, len(warmup_keys), "the warmup keys"),
               (P.SEEK_CLEAR_OFFSET, len(seek), "the seek code"),
               (P.WARMUP_LIMITS_OFFSET, len(warmup_limits), "the warmup camera's limits"),
@@ -5933,9 +5937,7 @@ def test_late_join(original, without, server, source):
           and body[P.SPOT_OFFSET:P.SPOT_OFFSET + len(spot)] == spot
           and set(body[P.SPOT_OFFSET + len(spot):P.PICKUP_OFFSET]) <= {0xCC}
           and body[P.PICKUP_OFFSET:P.PICKUP_OFFSET + len(pickup)] == pickup
-          and set(body[P.PICKUP_OFFSET + len(pickup):P.SUICIDE_KEY_OFFSET]) <= {0xCC}
-          and body[P.SUICIDE_KEY_OFFSET:P.SUICIDE_KEY_OFFSET + len(suicide_key)] == suicide_key
-          and set(body[P.SUICIDE_KEY_OFFSET + len(suicide_key):P.WARMUP_KEYS_OFFSET]) <= {0xCC}
+          and set(body[P.PICKUP_OFFSET + len(pickup):P.WARMUP_KEYS_OFFSET]) <= {0xCC}
           and body[P.WARMUP_KEYS_OFFSET:P.WARMUP_KEYS_OFFSET + len(warmup_keys)] == warmup_keys
           and set(body[P.WARMUP_KEYS_OFFSET + len(warmup_keys):P.SEEK_CLEAR_OFFSET]) <= {0xCC}
           and body[P.SEEK_CLEAR_OFFSET:P.SEEK_CLEAR_OFFSET + len(seek)] == seek
@@ -5960,7 +5962,7 @@ def test_late_join(original, without, server, source):
           f"replay link code at +{P.REPLAY_LINK_OFFSET:#x}, the patches' mount at +{P.MOUNT_PATCHES_OFFSET:#x}, "
           f"the shared upgrades' code at +{P.SHARED_UPGRADES_OFFSET:#x}, the spot code at +{P.SPOT_OFFSET:#x}, "
           f"the pickup code at +{P.PICKUP_OFFSET:#x}, "
-          f"the suicide key at +{P.SUICIDE_KEY_OFFSET:#x}, the warmup keys at +{P.WARMUP_KEYS_OFFSET:#x}, the seek "
+          f"the warmup keys at +{P.WARMUP_KEYS_OFFSET:#x}, the seek "
           f"code at +{P.SEEK_CLEAR_OFFSET:#x}, the warmup camera's limits at +{P.WARMUP_LIMITS_OFFSET:#x}, the forward effect's scrolling at +{P.FORWARD_SCROLL_OFFSET:#x}, "
           f"the weapon preview's draw at +{P.WEAPON_DRAW_OFFSET:#x}, the warmup look at +{P.WARMUP_LOOK_OFFSET:#x}, "
           f"the shell_32.dll check at +{P.STALE_DLL_OFFSET:#x} "

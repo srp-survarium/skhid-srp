@@ -93,7 +93,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `warmup_limits_026g.asm`, `warmup_limits_026g.section.bin` | The same camera's end of a drag and its limits (the lobby camera's: distance 1.5 to 4.6, pitch within 60 degrees) and that code assembled for 0xA98 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `read_order_026g.asm`, `read_order_026g.bin` | The source of patch 33 (the order of the archive reads is a strict weak ordering) and that code assembled at 0x10BCC0, the 0x1A0 bytes of `hdd_manager_sorting_predicate` it replaces, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_read_order_026g.py` | Runs the original's and patch 33's predicate, with the game's own path, string and offset helpers, and the game's own sort on made-up read queries over several archives (needs Unicorn) |
-| `suicide_key_026g.asm`, `suicide_key_026g.section.bin` | The source of patch 34's code (the commit_suicide key kills one's own player) and that code assembled for 0x980 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `suicide_key_026g.asm`, `rust/suicide_key/`, `equiv/suicide_key.py` | Patch 34 (the commit_suicide key kills one's own player), the Rust framework's example: the NASM entry (one `RUST_HOOK`, then the replaced call) and the Rust crate, the arena's block `suicide_key.code`; and its spec for the equivalence gate (`equiv_026g.py suicide_key`). Until the framework, NASM at 0x980 of `.srp` |
 | `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
 | `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
@@ -183,12 +183,23 @@ object. Its build's files (the crate, the crates it names by path, what it
 **Adding a block:** one `ARENA` row and its source file; `global` the labels
 a hook jumps to, `extern` what it uses of other patches; its hooks as
 (site, bytes, symbol, opcode) rows made in `build()`; each declared in
-`INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
-asm, its C, and its state `rn_state`), the artefacts (patch 54), the
-engine library, the kit keys with the match chat option (patch 58), the
-key that hides the interface (patch 62), the kill feed's flags (patch 67) and the baked textures'
-cache (patch 70) are the arena's blocks today. The older fixed sections stay as they are
-(client_patch.md 0.3 says what moving one would take).
+`INSTALLS` (below); `python link_026g.py --write`. A Rust patch:
+`../docs/notes/rust_patches.md`. The arena's blocks today (`python
+link_026g.py --sizes` prints their bytes, pages and languages):
+
+| Block | Patch | Language |
+|---|---|---|
+| `research.code`, `research.state` | 53, Research (its state `rn_state`) | NASM, C |
+| `artefacts.code` | 54, the artefacts | NASM |
+| `engine.code` | the engine-function library | NASM (generated) |
+| `match_keys.code`, `match_keys.state` | 58, the kit keys and the match chat option | NASM |
+| `hide_ui.code`, `hide_ui.data` | 62, the key that hides the interface | NASM |
+| `kill_feed.code` | 67, the kill feed's flags | NASM |
+| `bake_cache.code`, `bake_cache.state` | 70, the baked textures' cache | NASM, C |
+| `suicide_key.code` | 34, the commit_suicide key (the Rust framework's example) | NASM entry, Rust |
+
+The older fixed sections stay as they are (client_patch.md 0.3 says what
+moving one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
 a callback, a hook the game enters — declares in `patch_026g.py` the game's
@@ -2115,10 +2126,12 @@ player's own head bone "brain", the attacker the player). The input builder
 (`process_first_person_mode`, 0x241250) never asks for action 1Fh, so no
 input ever had bit 24.
 
-**The patch.** Only in the builds with the late join; `suicide_key_026g.asm`,
-40 bytes at `.srp`+980h (after the pickup code, before the seek code), one
-site: the builder's last action call (spot, `call 0x242460` at 0x242196)
-calls it first. It asks `action_present` for action 1Fh with the same
+**The patch.** Only in the builds with the late join; the arena's block
+`suicide_key.code` (since the Rust framework, its example patch:
+`suicide_key_026g.asm`'s entry, a `RUST_HOOK`, and the Rust crate
+`rust/suicide_key`; until then 40 bytes of NASM at `.srp`+980h), one site:
+the builder's last action call (spot, `call 0x242460` at 0x242196) calls it
+first. It asks `action_present` for action 1Fh with the same
 arguments and sets bit 24 when the key went down (one input, as spot), then
 goes on to the original call. K while alive in a match: the player dies at
 the input's tick, in every game.
@@ -2138,7 +2151,9 @@ time is a death's. No server rule is added. `../docs/notes/client_patch.md`
 section 3.32 has the proof.
 
 Checked: `selftest_026g.py` check 35 (and check 15's layout of `.srp`'s
-first page); `check_suicide_key_026g.py` runs the original's and the
+first page); `equiv_026g.py suicide_key` (the Rust against the NASM it
+replaced: 3000 cases, no difference, every block of the NASM covered);
+`cargo test` in `rust/`; `check_suicide_key_026g.py` runs the original's and the
 build's last action call with the game's own event buffer code on made-up
 handlers: K down sets bit 24 and nothing else, K repeated, released or held
 from before does not, spot answers as in the original, nothing else of the
