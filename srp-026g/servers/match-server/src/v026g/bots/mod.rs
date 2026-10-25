@@ -31,6 +31,7 @@ pub mod aimpoint;
 pub mod anomalies;
 pub mod body;
 pub mod cheats;
+pub mod crossing;
 pub mod curve;
 pub mod encode;
 pub mod escape;
@@ -238,9 +239,14 @@ pub struct Bot {
     /// Medkits used this life.
     medkits_used: u8,
     /// The answer of its route search that went on over several polls
-    /// ([`Pending`]): the goal and the route, or none. Taken at its next
-    /// tick, and used if it still heads there.
-    found: Option<(Vec3, Option<Route>)>,
+    /// ([`Pending`]): the goal, the route or none, and whether the route is
+    /// a crossing (`crossing.rs`). Taken at its next tick, and used if it
+    /// still heads there.
+    found: Option<(Vec3, Option<Route>, bool)>,
+    /// The goal its route crosses zones on all match to (`crossing.rs`):
+    /// while it heads there, those zones' floors are not escaped from nor
+    /// shut its route ahead.
+    crossing: Option<Vec3>,
     /// Its route searches dropped since it last noted them.
     dropped: path::Dropped,
     /// Its kits by index (the profile's, `survarium::v026g::loadouts::
@@ -340,6 +346,7 @@ impl Bot {
             paired: false,
             medkits_used: 0,
             found: None,
+            crossing: None,
             dropped: path::Dropped::default(),
             kits,
             life_carried,
@@ -474,6 +481,7 @@ impl Bot {
         self.assignment = None;
         self.route = None;
         self.found = None;
+        self.crossing = None;
         self.intent = Intent::stay();
         self.stuck.reset();
         self.unstick = None;
@@ -569,6 +577,10 @@ struct Pending {
     /// [`hazards::Hazards::version`] when it started.
     hazards: u64,
     planning: path::Planning,
+    /// The bot's health when it started, for a crossing's search.
+    health: f32,
+    /// A crossing's search, after the plain one (`crossing.rs`).
+    second: Option<crossing::Second>,
 }
 
 /// Whether `point` is near one of `spots` ([`Stuck::near_spot`]).
@@ -1482,34 +1494,89 @@ impl Bots {
                 .is_none_or(|spots| !near_any(spots, grid.position(node)))
         };
         let start = pending.ends.0;
-        let ended = tactics.resume_route(
-            &mut pending.planning,
-            start,
-            time,
-            side,
-            objective,
-            open,
-            floors,
-        );
+        let health = pending.health;
+        let ended = if pending.second.is_some() {
+            crossing::resume(
+                tactics,
+                &mut pending.planning,
+                start,
+                time,
+                side,
+                objective,
+                health,
+                floors,
+            )
+        } else {
+            tactics.resume_route(
+                &mut pending.planning,
+                start,
+                time,
+                side,
+                objective,
+                open,
+                floors,
+            )
+        };
         let Some(mut route) = ended else {
             pending.spots = spots;
             self.searching.pending = Some(pending);
             return;
         };
-        // None round the spots it got stuck at: through them.
-        if route.is_none() && spots.is_some() {
-            let (from, to) = pending.ends;
-            match tactics.start_route(from, to, time, side, objective, |_| true, floors) {
-                Ok(through) => route = through,
-                Err(planning) => {
-                    pending.planning = planning;
-                    self.searching.pending = Some(pending);
-                    return;
+        let mut crossed = false;
+        let (from, to) = pending.ends;
+        if let Some(second) = pending.second.take() {
+            (route, crossed) = crossing::choose(
+                tactics,
+                from,
+                second.plain,
+                route,
+                health,
+                time,
+                side,
+                objective,
+            );
+        } else {
+            // None round the spots it got stuck at: through them.
+            if route.is_none() && spots.is_some() {
+                match tactics.start_route(from, to, time, side, objective, |_| true, floors) {
+                    Ok(through) => route = through,
+                    Err(planning) => {
+                        pending.planning = planning;
+                        self.searching.pending = Some(pending);
+                        return;
+                    }
+                }
+            }
+            // No way, or a long one past zones on all match: a crossing's
+            // search (`crossing.rs`).
+            if crossing::wanted(tactics, route.as_ref(), from, to, health) {
+                match crossing::start(tactics, from, to, time, side, objective, health, floors) {
+                    Ok(crossing_route) => {
+                        (route, crossed) = crossing::choose(
+                            tactics,
+                            from,
+                            route,
+                            crossing_route,
+                            health,
+                            time,
+                            side,
+                            objective,
+                        );
+                    }
+                    Err(planning) => {
+                        pending.planning = planning;
+                        pending.second = Some(crossing::Second {
+                            plain: route,
+                            health,
+                        });
+                        self.searching.pending = Some(pending);
+                        return;
+                    }
                 }
             }
         }
         if let Some(Some(bot)) = self.bots.get_mut(pending.place) {
-            bot.found = Some((pending.goal, route));
+            bot.found = Some((pending.goal, route, crossed));
         }
     }
 
@@ -2513,11 +2580,16 @@ fn drive_tick(
                 .is_none_or(|(_, planned)| planned.distance_xz(at) > REPLAN_MOVED_M);
             // [zones] A zone ahead on its route that is on when it gets
             // there (one that came on, or it is late): planned again.
+            // On a crossing to this goal (`crossing.rs`): its zones' floors
+            // are walked.
+            let crossing = bot
+                .crossing
+                .is_some_and(|goal| goal.distance_xz(at) <= REPLAN_MOVED_M);
             let shut = !replan && time >= bot.stuck.zone_checked + stuck::ZONE_CHECK_MS && {
                 bot.stuck.zone_checked = time;
-                bot.route
-                    .as_mut()
-                    .is_some_and(|(route, _)| tactics.route_shut_ahead(route, me.feet, time))
+                bot.route.as_mut().is_some_and(|(route, _)| {
+                    tactics.route_shut_ahead(route, me.feet, time, crossing)
+                })
             };
             if shut {
                 bot.route = None;
@@ -2532,7 +2604,7 @@ fn drive_tick(
             let found = bot
                 .found
                 .take()
-                .filter(|(goal, _)| goal.distance_xz(at) <= REPLAN_MOVED_M);
+                .filter(|(goal, _, _)| goal.distance_xz(at) <= REPLAN_MOVED_M);
             // Its own search under way: for this goal, else no longer
             // wanted.
             let waiting = match searching.pending.as_ref() {
@@ -2548,8 +2620,9 @@ fn drive_tick(
             };
             // Why it has no route, if it has none after this.
             let mut no_route = path::NoRoute::Searched;
-            if let Some((goal, route)) = found {
+            if let Some((goal, route, crossed)) = found {
                 bot.no_way = route.is_none().then_some((goal, time + NO_WAY_RETRY_MS));
+                bot.crossing = crossed.then_some(goal);
                 // Both ends were on floors, from one it may walk on: proven.
                 if route.is_none() {
                     bot.no_way_to.retain(|&(old, until)| {
@@ -2592,13 +2665,16 @@ fn drive_tick(
                 // leads on to the goal when it is out in time
                 // (`Tactics::escape`); the goal is planned from there. Even
                 // on the goal's floor: no standing in a fire.
-                let escaping =
-                    ends.is_some_and(|(from, _)| !tactics.allowed(from, time, side, objective));
+                // Not off a floor of the zones its crossing walks.
+                let escaping = ends.is_some_and(|(from, _)| {
+                    !tactics.allowed(from, time, side, objective)
+                        && !(crossing && tactics.hazards.only_fixed_at(from))
+                });
                 let floors = &mut searching.floors;
                 // Left under way past this poll's floors: whether round the
                 // spots, and the search.
                 let mut left = None;
-                let route = if escaping {
+                let mut route = if escaping {
                     let route = ends.and_then(|(from, _)| {
                         tactics.escape(from, Some(at), time, side, objective)
                     });
@@ -2678,7 +2754,64 @@ fn drive_tick(
                 } else {
                     None
                 };
-                if let (Some((round, planning)), Some(ends)) = (left, ends) {
+                // No way, or a long one past zones on all match: a crossing's
+                // search (`crossing.rs`).
+                let mut crossed = false;
+                let mut second = None;
+                if left.is_none()
+                    && !escaping
+                    && !there
+                    && let Some((from, to)) = ends
+                    && crossing::wanted(tactics, route.as_ref(), from, to, me.health)
+                {
+                    match crossing::start(tactics, from, to, time, side, objective, me.health, floors)
+                    {
+                        Ok(crossing_route) => {
+                            (route, crossed) = crossing::choose(
+                                tactics,
+                                from,
+                                route,
+                                crossing_route,
+                                me.health,
+                                time,
+                                side,
+                                objective,
+                            );
+                        }
+                        Err(planning) => {
+                            let plain = route.take();
+                            second = Some((
+                                planning,
+                                crossing::Second {
+                                    plain,
+                                    health: me.health,
+                                },
+                            ));
+                        }
+                    }
+                }
+                if let (Some((planning, second)), Some(ends)) = (second, ends) {
+                    // It goes on at the next polls; the plain route (a long
+                    // one) meanwhile, else the old one.
+                    if let Some(plain) = second.plain.clone() {
+                        bot.route = Some((plain, at));
+                        bot.crossing = None;
+                    }
+                    no_route = path::NoRoute::Searching;
+                    searching.pending = Some(Pending {
+                        place: bot.place,
+                        goal: at,
+                        time,
+                        side,
+                        objective,
+                        ends,
+                        spots: None,
+                        hazards: tactics.hazards.version(),
+                        planning,
+                        health: me.health,
+                        second: Some(second),
+                    });
+                } else if let (Some((round, planning)), Some(ends)) = (left, ends) {
                     // It goes on at the next polls (`Bots::go_on_searching`).
                     // Meanwhile the way so far, as Detour's partial paths:
                     // toward the goal, not standing (else the old route).
@@ -2699,6 +2832,8 @@ fn drive_tick(
                         spots: round.then_some(spots),
                         hazards: tactics.hazards.version(),
                         planning,
+                        health: me.health,
+                        second: None,
                     });
                 } else {
                     bot.no_way = route.is_none().then_some((at, time + NO_WAY_RETRY_MS));
@@ -2711,6 +2846,7 @@ fn drive_tick(
                         bot.no_way_to.push((at, time + NO_WAY_KEEP_MS));
                     }
                     bot.route = route.map(|route| (route, at));
+                    bot.crossing = crossed.then_some(at);
                 }
             }
             match bot.route.as_mut() {

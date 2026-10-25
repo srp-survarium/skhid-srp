@@ -828,6 +828,115 @@ impl Tactics {
         )
     }
 
+    /// [`Self::start_route`] with the floors `crossable` gives open as well
+    /// (floors of zones on all match a bot may walk across,
+    /// `crossing::crossable`), off another side's spawn area all the same: a
+    /// crossing's search, after the plain one found no way or a long one
+    /// (`crossing.rs`). Regions are let through but for another side's spawn
+    /// area: the floors decide.
+    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::result_large_err)]
+    pub fn start_crossing(
+        &self,
+        start: NodeId,
+        goal: NodeId,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        crossable: impl Fn(NodeId) -> bool,
+        iters: &mut usize,
+    ) -> Result<Option<Route>, path::Planning> {
+        let at = self.world.grid.position(start);
+        path::plan_start(
+            &self.world.grid,
+            &self.base.regions,
+            start,
+            goal,
+            |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
+            |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
+            iters,
+        )
+    }
+
+    /// A [`Self::start_crossing`] search goes on, as
+    /// [`Self::resume_route`] (the same arguments, `crossable` too).
+    #[allow(clippy::too_many_arguments)]
+    pub fn resume_crossing(
+        &self,
+        planning: &mut path::Planning,
+        start: NodeId,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        crossable: impl Fn(NodeId) -> bool,
+        iters: &mut usize,
+    ) -> Option<Option<Route>> {
+        let at = self.world.grid.position(start);
+        planning.resume(
+            &self.world.grid,
+            &self.base.regions,
+            |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
+            |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
+            iters,
+        )
+    }
+
+    /// A crossing's floors: [`Self::allowed_from`]'s, and those `crossable`
+    /// gives off another side's spawn area.
+    fn crossing_allowed(
+        &self,
+        node: NodeId,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        from: Vec3,
+        crossable: &impl Fn(NodeId) -> bool,
+    ) -> bool {
+        self.allowed_from(node, time, side, objective, from)
+            || (crossable(node) && self.spawn_ok(node, side, objective))
+    }
+
+    /// Whether the floors a body on `from` may walk to
+    /// ([`Self::allowed_from`]) are at most `max` and walled by zones on all
+    /// match: every floor refused at their edge is one only such zones mark
+    /// ([`Hazards::only_fixed_at`]), none another side's spawn area or a zone
+    /// that switches. A bot that fell or was pushed into such a patch has no
+    /// route anywhere (Mamayev Kurgan's fire soft damage, 0.04 a second,
+    /// rings 92 floors below a Cut spot).
+    pub fn ringed(
+        &self,
+        from: NodeId,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        max: usize,
+    ) -> bool {
+        let grid = &self.world.grid;
+        let at = grid.position(from);
+        let mut seen = std::collections::HashSet::from([from]);
+        let mut queue = vec![from];
+        let mut walled = false;
+        while let Some(n) = queue.pop() {
+            for (b, _) in grid.links(n) {
+                if seen.contains(&b) {
+                    continue;
+                }
+                if self.allowed_from(b, time, side, objective, at) {
+                    if seen.len() >= max {
+                        return false;
+                    }
+                    seen.insert(b);
+                    queue.push(b);
+                } else if self.hazards.only_fixed_at(b) && self.spawn_ok(b, side, objective) {
+                    walled = true;
+                } else {
+                    return false;
+                }
+            }
+        }
+        walled
+    }
+
     /// The way out for a body on `from`, a floor it may not walk on now
     /// (inside a zone it was pushed or stepped into, or one about to come
     /// on): to a floor at least [`ESCAPE_MIN_M`] off that it may walk on
@@ -976,7 +1085,16 @@ impl Tactics {
     /// planned for the zones as they were then; a zone that came on since,
     /// or one the body is late for, would be walked into (the Cologne
     /// anomaly bench, runs 1 and 3: 1.2 s on a zone's floors while on).
-    pub fn route_shut_ahead(&self, route: &mut Route, feet: Vec3, time: u32) -> bool {
+    ///
+    /// On a crossing (`crossing`, `crossing.rs`), the floors only zones on all
+    /// match mark do not shut it: the crossing was weighed when planned.
+    pub fn route_shut_ahead(
+        &self,
+        route: &mut Route,
+        feet: Vec3,
+        time: u32,
+        crossing: bool,
+    ) -> bool {
         if self.hazards.zones.is_empty() {
             return false;
         }
@@ -996,6 +1114,7 @@ impl Tactics {
             let point = route.floor_point((from + k as f32 * HELD_STEP_M).min(to));
             grid.locate(point, 0.6).is_some_and(|node| {
                 self.hazards.zone_of(node).is_some()
+                    && !(crossing && self.hazards.only_fixed_at(node))
                     && !self
                         .hazards
                         .allowed_arriving(node, time, point.distance_xz(feet))

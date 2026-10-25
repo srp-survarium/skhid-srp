@@ -4856,6 +4856,7 @@ fn real_bot_cost() {
             let mut lying_unknown = [0u32; 2];
             super::path::reset_worst();
             let searches_before = super::path::searches();
+            let crossings_before = super::crossing::counts();
             let rays_before = super::aimpoint::rays_cast();
             let limit_ms = limit_s * 1000;
             let (mut clock, mut next_world) = (0, 1_000);
@@ -5578,6 +5579,10 @@ fn real_bot_cost() {
                 .collect();
             let play_rows: std::collections::BTreeMap<&String, [u32; 5]> =
                 by_play.iter().map(|(k, r)| (k, *r)).collect();
+            let crossings: [u64; 5] = {
+                let now = super::crossing::counts();
+                std::array::from_fn(|k| now[k] - crossings_before[k])
+            };
             eprintln!(
                 "  sums: {}",
                 serde_json::json!({
@@ -5614,6 +5619,9 @@ fn real_bot_cost() {
                     "drops": game.drops,
                     "zone_deaths": game.zone_deaths,
                     "zone_hp": game.zone_hp,
+                    // Crossings' searches (`crossing.rs`): searched, taken,
+                    // ring walks, refused, floors expanded.
+                    "crossings": crossings,
                     "zone_takes": zone_takes,
                     "zone_spots": zone_spots.len(),
                     "carry_mps": if game.carry_ticks > 0 {
