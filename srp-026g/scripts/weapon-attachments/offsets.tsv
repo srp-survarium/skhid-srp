@@ -1,0 +1,61 @@
+# weapon (dictionary name)	its config	data/srp_muzzle_offset (metres along the barrel from barrel_point; client patch 68)	why
+# made from each fitted weapon model's render/export_properties: barrel_point's z against the bounding box's front (measured
+# 2026-10-25); a weapon not here takes 0. Not seen in a game.
+a9_91	gameplay/items/weapons/wpn_a9_91.options	0.0	the mesh ends at barrel_point
+a_545	gameplay/items/weapons/wpn_a545.options	0.0	no bounding box in the model: as it is
+aek_919k	gameplay/items/weapons/wpn_aek_919k.options	0.0	the bounding box reaches 0.316 m past barrel_point, not the muzzle (CHECK in a game)
+ak_12	gameplay/items/weapons/wpn_ak_12.options	0.025	the mesh reaches 0.025 m past barrel_point (its stock muzzle device): the device starts there
+ak_12_premium	gameplay/items/weapons/wpn_ak_12_premium.options	0.025	the mesh reaches 0.025 m past barrel_point (its stock muzzle device): the device starts there
+ak_74m	gameplay/items/weapons/wpn_ak_74m.options	0.029	the mesh reaches 0.029 m past barrel_point (its stock muzzle device): the device starts there
+ak_74n	gameplay/items/weapons/wpn_ak_74n.options	0.029	the mesh reaches 0.029 m past barrel_point (its stock muzzle device): the device starts there
+ak_74n_premium	gameplay/items/weapons/wpn_ak_74n_premium.options	0.029	the mesh reaches 0.029 m past barrel_point (its stock muzzle device): the device starts there
+ak_74u	gameplay/items/weapons/wpn_ak_74u.options	0.0	no bounding box in the model: as it is
+ak_74u_premium	gameplay/items/weapons/wpn_ak_74u_premium.options	0.0	no bounding box in the model: as it is
+akmn	gameplay/items/weapons/wpn_akmn.options	0.0	no bounding box in the model: as it is
+akmn_premium	gameplay/items/weapons/wpn_akmn_premium.options	0.0	no bounding box in the model: as it is
+akmn_premium_2	gameplay/items/weapons/wpn_akmn_premium_2.options	0.0	no bounding box in the model: as it is
+aps	gameplay/items/weapons/wpn_aps.options	0.0	the mesh ends at barrel_point
+ash_12	gameplay/items/weapons/wpn_ash_12.options	0.057	the mesh reaches 0.057 m past barrel_point (its stock muzzle device): the device starts there
+fn_fnc	gameplay/items/weapons/wpn_fn_fnc.options	0.035	the mesh reaches 0.035 m past barrel_point (its stock muzzle device): the device starts there
+fn_p90	gameplay/items/weapons/wpn_fn_p90.options	0.0	the mesh ends at barrel_point
+fort_17	gameplay/items/weapons/wpn_fort_17.options	0.017	the mesh reaches 0.017 m past barrel_point (its stock muzzle device): the device starts there
+hk416	gameplay/items/weapons/wpn_hk416.options	0.021	the mesh reaches 0.021 m past barrel_point (its stock muzzle device): the device starts there
+kedr	gameplay/items/weapons/wpn_kedr.options	0.0	the mesh ends at barrel_point
+kiparis	gameplay/items/weapons/wpn_kiparis.options	0.0	the mesh ends at barrel_point
+kiparis_premium	gameplay/items/weapons/wpn_kiparis_premium.options	0.0	the mesh ends at barrel_point
+kriss_vector	gameplay/items/weapons/wpn_kriss_vector.options	0.041	the mesh reaches 0.041 m past barrel_point (its stock muzzle device): the device starts there
+m4a1	gameplay/items/weapons/wpn_m4a1.options	-0.017	the mesh ends 0.017 m short of barrel_point: the device starts there
+magnum	gameplay/items/weapons/wpn_magnum.options	0.0	the bounding box reaches 0.134 m past barrel_point, not the muzzle (CHECK in a game)
+mp7	gameplay/items/weapons/wpn_mp7.options	0.014	the mesh reaches 0.014 m past barrel_point (its stock muzzle device): the device starts there
+mp7_silencer	gameplay/items/weapons/wpn_mp7_silencer.options	0.013	the mesh reaches 0.013 m past barrel_point (its stock muzzle device): the device starts there
+msbs_carbine	gameplay/items/weapons/wpn_msbs_carbine.options	0.026	the mesh reaches 0.026 m past barrel_point (its stock muzzle device): the device starts there
+pkp_pecheneg	gameplay/items/weapons/wpn_pkp_pecheneg.options	0.005	the mesh reaches 0.005 m past barrel_point (its stock muzzle device): the device starts there
+pm	gameplay/items/weapons/wpn_pm.options	0.0	the mesh ends at barrel_point
+pp2000	gameplay/items/weapons/wpn_pp2000.options	0.032	the mesh reaches 0.032 m past barrel_point (its stock muzzle device): the device starts there
+rem_700	gameplay/items/weapons/wpn_rem_700.options	0.0	the mesh ends at barrel_point
+rem_700_premium	gameplay/items/weapons/wpn_rem_700_premium.options	0.0	the mesh ends at barrel_point
+rpd	gameplay/items/weapons/wpn_rpd.options	0.0	the mesh ends at barrel_point
+rpk	gameplay/items/weapons/wpn_rpk.options	0.0	the bounding box reaches 0.176 m past barrel_point, not the muzzle (CHECK in a game)
+sks	gameplay/items/weapons/wpn_sks.options	0.0	the mesh ends at barrel_point
+sks_premium	gameplay/items/weapons/wpn_sks_premium.options	0.0	the mesh ends at barrel_point
+sks_premium_2	gameplay/items/weapons/wpn_sks_premium_2.options	0.0	the mesh ends at barrel_point
+soc_vepr	gameplay/items/weapons/wpn_soc_vepr.options	0.0	the mesh ends at barrel_point
+socom16	gameplay/items/weapons/wpn_socom16.options	0.0	the mesh ends at barrel_point
+sr2m	gameplay/items/weapons/wpn_sr2m.options	0.0	the mesh ends at barrel_point
+sr3m	gameplay/items/weapons/wpn_sr3m.options	0.026	the mesh reaches 0.026 m past barrel_point (its stock muzzle device): the device starts there
+sr3m_premium	gameplay/items/weapons/wpn_sr3m_premium.options	0.026	the mesh reaches 0.026 m past barrel_point (its stock muzzle device): the device starts there
+sv_98	gameplay/items/weapons/wpn_sv_98.options	0.0	the mesh ends at barrel_point
+svd	gameplay/items/weapons/wpn_svd.options	0.074	the mesh reaches 0.074 m past barrel_point (its stock muzzle device): the device starts there
+toz_122	gameplay/items/weapons/wpn_toz_122.options	0.0	no bounding box in the model: as it is
+ump45	gameplay/items/weapons/wpn_ump45.options	0.0	the mesh ends at barrel_point
+uzi	gameplay/items/weapons/wpn_uzi.options	0.0	the mesh ends at barrel_point
+uzi_premium	gameplay/items/weapons/wpn_uzi_premium.options	0.0	the mesh ends at barrel_point
+uzi_premium_2	gameplay/items/weapons/wpn_uzi_premium_2.options	0.0	the mesh ends at barrel_point
+valmet	gameplay/items/weapons/wpn_valmet.options	0.046	the mesh reaches 0.046 m past barrel_point (its stock muzzle device): the device starts there
+vepr	gameplay/items/weapons/wpn_vepr.options	0.0	no bounding box in the model: as it is
+vepr_premium	gameplay/items/weapons/wpn_vepr_premium.options	0.0	no bounding box in the model: as it is
+vityaz	gameplay/items/weapons/wpn_vityaz.options	0.032	the mesh reaches 0.032 m past barrel_point (its stock muzzle device): the device starts there
+vityaz_premium	gameplay/items/weapons/wpn_vityaz_premium.options	0.032	the mesh reaches 0.032 m past barrel_point (its stock muzzle device): the device starts there
+vsk_94	gameplay/items/weapons/wpn_vsk_94.options	0.0	the mesh ends at barrel_point
+vsk_94_premium	gameplay/items/weapons/wpn_vsk_94_premium.options	0.0	the mesh ends at barrel_point
+vz58	gameplay/items/weapons/wpn_vz58.options	0.008	the mesh reaches 0.008 m past barrel_point (its stock muzzle device): the device starts there

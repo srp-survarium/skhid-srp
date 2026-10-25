@@ -593,6 +593,9 @@ pub fn upgrade_slots_in(
         return &[];
     }
     let host_kind = item_params(host_dict_id).map_or("", |params| params.kind);
+    if upgrade.kind == MUZZLE_KIND && !Dictionary::shared().compatible(host_dict_id, upgrade_dict_id) {
+        return &[];
+    }
     cosmetic_slots(host, host_kind, upgrade.kind)
 }
 
@@ -622,13 +625,16 @@ pub fn cosmetic_slots(host: &ItemMods, host_kind: &str, upgrade_kind: &str) -> &
     }
 }
 
-/// [srp] The `type` of a muzzle device (a flash hider, a brake: the pack
-/// weapon-attachments, `srp-026g/scripts/weapon-attachments`): it goes into
-/// a weapon's muzzle slot ([`super::weapon_kit::MUZZLE_SLOT`]), on a weapon
-/// whose config has its `data` table (the weapon camouflage's data patch,
-/// which every weapon that takes upgrades has); its modification adds
-/// `data/srp_muzzle_model`, the model client patch 68 draws at the weapon's
-/// barrel_point.
+/// [srp] The `type` of a muzzle device (a flash hider, a brake, a
+/// compensator: the pack weapon-attachments,
+/// `srp-026g/scripts/weapon-attachments`): it goes into a weapon's muzzle
+/// slot ([`super::weapon_kit::MUZZLE_SLOT`]), on a weapon whose config has
+/// its `data` table (the weapon camouflage's data patch, which every weapon
+/// that takes upgrades has) and that an `items_compatibility` row pairs with
+/// it ([`upgrade_slots_in`]: 0.46c2's fit, `weapon-muzzle-fit-1.json`); its
+/// modification adds `data/srp_muzzle_model`, the model client patch 68
+/// draws at the weapon's barrel_point. Sold by seller 0 at no rank, at its
+/// `base_cost` (`prices::sellers_of_in`).
 pub const MUZZLE_KIND: &str = "srp_muzl";
 
 /// The dict id an upgrade record of `upgrade_dict_id` on `host_dict_id`

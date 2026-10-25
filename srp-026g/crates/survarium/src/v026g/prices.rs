@@ -490,8 +490,10 @@ pub fn sellers_of(dictionary: &Dictionary, item: &Item, params: &ItemParams) -> 
     sellers_of_in(dictionary, ScopeFits::shared(), item, params)
 }
 
-/// [`sellers_of`] with `scopes`: a scope item of a pair with a price is
-/// sold by seller 0 at level 0; no other category-22 item is.
+/// [`sellers_of`] with `scopes`: a scope item of a pair with a price, and a
+/// muzzle device with a price ([`super::modifications::MUZZLE_KIND`], the
+/// weapon kit's), are sold by seller 0 at level 0; no other category-22 item
+/// is.
 pub fn sellers_of_in(
     dictionary: &Dictionary,
     scopes: &ScopeFits,
@@ -505,7 +507,8 @@ pub fn sellers_of_in(
         return camo_shop(&item.cfg_name).map_or_else(Vec::new, |faction| vec![(faction, 0)]);
     }
     if item.category == SCOPE_CATEGORY {
-        return if item.base_cost != 0 && scopes.is_scope(item.dict_id) {
+        let device = params.kind == super::modifications::MUZZLE_KIND;
+        return if item.base_cost != 0 && (scopes.is_scope(item.dict_id) || device) {
             vec![(0, 0)]
         } else {
             Vec::new()
@@ -1435,6 +1438,42 @@ mod tests {
     }
 
     #[test]
+    fn muzzle_devices_with_a_price_are_sold_to_everyone() {
+        use super::super::item_params::item_params;
+        use super::super::modifications::MUZZLE_KIND;
+        let dictionary = Dictionary::shared();
+        // a flash hider of the pack weapon-attachments, as its item and type
+        let camo = dictionary
+            .items
+            .iter()
+            .find(|item| item_params(item.dict_id).is_some_and(|p| p.kind.ends_with("_camo")))
+            .unwrap();
+        let params = ItemParams {
+            dict_id: 2601,
+            kind: MUZZLE_KIND,
+            ..*item_params(camo.dict_id).unwrap()
+        };
+        let mut device = Item {
+            dict_id: 2601,
+            name: "srp_flash_hider_04".to_owned(),
+            category: SCOPE_CATEGORY,
+            is_stack: false,
+            is_premium: false,
+            base_cost: 6_000,
+            cfg_name: "gameplay/items/attachments/srp_flash_hider_04.options".to_owned(),
+        };
+        let fits = ScopeFits::shared();
+        assert_eq!(sellers_of_in(dictionary, fits, &device, &params), [(0, 0)]);
+        assert_eq!(shop_cost(&device), 6_000);
+        // without a price, or of another type, not sold
+        device.base_cost = 0;
+        assert!(sellers_of_in(dictionary, fits, &device, &params).is_empty());
+        device.base_cost = 6_000;
+        let other = ItemParams { kind: "", ..params };
+        assert!(sellers_of_in(dictionary, fits, &device, &other).is_empty());
+    }
+
+    #[test]
     fn scope_items_with_variants_are_sold_to_everyone_at_their_cost() {
         use super::super::game_data;
         use super::super::scopes::fixtures::{
@@ -1556,5 +1595,61 @@ mod with_the_weapons_from_0_29a3 {
         assert_eq!(sold("vepr_12"), [(3, 7)]);
         assert_eq!(sold("pkp_pecheneg"), [(3, 10)]);
         assert!(sold("neostead_2").is_empty() && sold("eotech_552").is_empty());
+    }
+}
+
+/// The weapon kit's muzzle devices (pack weapon-attachments, edit list
+/// weapon-muzzle-fit-1): run on the server game data of a build with them,
+/// `SRP_TEST_WEAPON_KIT_DATA=<server-game-data.db> cargo test -p survarium
+/// --lib -- --ignored the_weapon_kits_muzzle_devices`.
+#[cfg(test)]
+mod with_the_weapon_kits_muzzle_devices {
+    use super::super::game_data::GameData;
+    use super::super::modifications::MUZZLE_KIND;
+    use super::super::{dictionary, item_params, tables};
+    use super::*;
+
+    #[test]
+    #[ignore = "needs the server game data of a build with the pack (SRP_TEST_WEAPON_KIT_DATA)"]
+    fn the_weapon_kits_muzzle_devices_are_sold_and_fit_their_weapons() {
+        let path = std::env::var_os("SRP_TEST_WEAPON_KIT_DATA").expect("the data's path");
+        let data = GameData::open(std::path::Path::new(&path)).unwrap();
+        // srp starts on it.
+        assert_eq!(tables::check(&data), Ok(()));
+        let dictionary = Dictionary::parse(data.file(dictionary::PATH).unwrap()).unwrap();
+        let params = item_params::derive(&data, &dictionary).unwrap();
+        let devices: Vec<&Item> = dictionary
+            .items
+            .iter()
+            .filter(|item| (2601..=2649).contains(&item.dict_id))
+            .collect();
+        assert_eq!(devices.len(), 20);
+        for item in devices {
+            let p = *params.iter().find(|p| p.dict_id == item.dict_id).unwrap();
+            assert_eq!(p.kind, MUZZLE_KIND, "{}", item.name);
+            assert_eq!(item.category, SCOPE_CATEGORY, "{}", item.name);
+            // seller 0, no rank, its price
+            assert!(item.base_cost > 0, "{}", item.name);
+            assert_eq!(sellers_of(&dictionary, item, &p), [(0, 0)], "{}", item.name);
+            // fits some weapons, each a weapon of the dictionary
+            let weapons: Vec<u16> = dictionary
+                .compatibility
+                .iter()
+                .filter(|&&(_, device)| device == item.dict_id)
+                .map(|&(weapon, _)| weapon)
+                .collect();
+            assert!(!weapons.is_empty(), "{}", item.name);
+            assert!(
+                weapons
+                    .iter()
+                    .all(|&w| (8..=17).contains(&dictionary.item(w).unwrap().category))
+            );
+        }
+        let rows = dictionary
+            .compatibility
+            .iter()
+            .filter(|&&(_, device)| (2601..=2649).contains(&device))
+            .count();
+        assert_eq!(rows, 111);
     }
 }

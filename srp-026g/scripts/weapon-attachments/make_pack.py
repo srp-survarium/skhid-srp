@@ -10,23 +10,25 @@ usage: python3 -I make_pack.py --stock <folder> --donor <folder> --out <packs fo
 --out    the pack's folder (a new one): pack.json and files/, for `vostok-port pack` and the
          manifest's `pack` row (release/content.tsv).
 
-What the pack holds, for each device of devices.tsv:
-- its model (0.46c2's: the static mesh as it is, 0.26g's own layout of 28-byte vertices; its
+What the pack holds, for each device of devices.tsv (flash hiders, brakes, compensators):
+- its model (0.46c2's: the static meshes as they are, 0.26g's own layout of 28-byte vertices; its
   configs in 0.26g's 24-byte layout, each material entry of its settings given 0.26g's
-  `used_in_portals` false), its material (made again on 0.26g's pp9_klin template) and its
-  textures (0.46c2's, their .options in 0.26g's layout);
+  `used_in_portals` false), the materials its settings name (made again on 0.26g's pp9_klin
+  template) and their textures 0.26g lacks (0.46c2's, their .options in 0.26g's layout);
 - its item config, made from 0.26g's camouflage camo_black_leather by content_edit.py's edits: the
   type `srp_muzl` (the server's: slot 4, survarium::v026g::modifications), the modification id
   (260000 + its dict id's last three digits) whose modifier adds `srp_muzzle_model` = the model
   (where the camouflage's adds `camouflage` = its texture) to the weapon config's `data` (client
-  patch 68 reads it), then its own modifiers (devices.tsv): data/srp_muzzle_fire_mm, the model's
-  fire_point locator in millimetres (patch 68 moves the shot's flash there), a brake's recoil
-  (parameters/recoil_modifier added, type 1), a flash hider's shot effect (particles/shoot set,
-  type 0); the name and description keys, the icon's cell (a shop scope's for now); read back,
-  nothing else differs;
-- the effects the devices name (extras.tsv): particles, their materials and textures;
-- its dictionary row (category 22, the scopes': the lobby's attachments filter) and its texts in
-  the six languages (texts.tsv).
+  patch 68 reads it), then its own modifiers: data/srp_muzzle_fire_mm (the model's fire_point
+  locator in millimetres: patch 68 moves the shot's flash there), a brake's recoil
+  (parameters/recoil_modifier added, type 1), a compensator's range (parameters/max_damage_distance
+  multiplied, type 2), a flash hider's shot effect (particles/shoot set, type 0); the name and
+  description keys, the icon's cell (a shop scope's for now); read back, nothing else differs;
+- the effects the flash hiders name (extras.tsv): particles, their materials and textures;
+- its dictionary row (category 22, the scopes': the lobby's attachments filter; its price as
+  base_cost, sold by seller 0) and its texts in the six languages (texts.tsv).
+Which weapons each device fits and the weapons' muzzle offsets are content-edit's
+weapon-muzzle-fit list (make_edit_list.py: fit.tsv, offsets.tsv).
 """
 import argparse
 import hashlib
@@ -40,7 +42,7 @@ sys.path.insert(0, str(HERE.parent / 'content-edit'))
 import content_edit as ce  # noqa: E402
 
 PACK_ID = 'weapon-attachments'
-VERSION = '2'
+VERSION = '3'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 TEMPLATE = 'gameplay/items/upgrades/camouflages/black_market/camo_black_leather.options'
 STOCK = {TEMPLATE: '101a46acb6cb7e974777dbaeff20cb9f041aa0d02a00622f43f609d3c4762b74'}
@@ -50,12 +52,13 @@ TEMPLATE_VALUES = {'type': 'stk_camo', 'modification': 100001, 'key': 'camouflag
 ITEM_CONFIGS = 'gameplay/items/attachments/'
 CATEGORY = 22
 KINDS = {'flash_hider': {'type': 'srp_muzl', 'key': 'srp_muzzle_model', 'description': 'st_srp_flash_hider_desc'},
-         'muzzle_brake': {'type': 'srp_muzl', 'key': 'srp_muzzle_model', 'description': 'st_srp_muzzle_brake_desc'}}
+         'muzzle_brake': {'type': 'srp_muzl', 'key': 'srp_muzzle_model', 'description': 'st_srp_muzzle_brake_desc'},
+         'compensator': {'type': 'srp_muzl', 'key': 'srp_muzzle_model', 'description': 'st_srp_compensator_desc'}}
 # each kind's dict ids: the lobby movie tells a muzzle device and a grip from a scope by them
 # (ItemDictId.MUZZLE_DEVICE_FIRST..LAST, GRIP_FIRST..LAST; patch 48's KIT_DEVICE_FIRST..LAST)
-DICT_RANGES = {'flash_hider': (2601, 2649), 'muzzle_brake': (2601, 2649)}
+DICT_RANGES = {'flash_hider': (2601, 2649), 'muzzle_brake': (2601, 2649), 'compensator': (2601, 2649)}
 # modifier types (vostok::configs, the modification's apply 0x358560): 0 the value set, 1 added
-SET, ADD, ADD_KEY = 0, 1, 3
+SET, ADD, MULTIPLY, ADD_KEY = 0, 1, 2, 3
 
 
 def sha256(data):
@@ -93,7 +96,7 @@ def rows(name):
 
 def read_devices():
     devices = []
-    for dict_id, name, kind, model, english, icon_row, icon_col, recoil, shoot in rows('devices.tsv'):
+    for dict_id, name, kind, model, english, icon_row, icon_col, stat, shoot, price in rows('devices.tsv'):
         if kind not in KINDS:
             sys.exit(f'devices.tsv: {name}: no kind {kind}')
         first, last = DICT_RANGES[kind]
@@ -105,8 +108,8 @@ def read_devices():
                         'config': ITEM_CONFIGS + name + '.options',
                         'modification': 260000 + int(dict_id) % 1000,
                         'key': f'st_{name}_name',
-                        'recoil': None if recoil == '-' else float(recoil),
-                        'shoot': None if shoot == '-' else shoot})
+                        'stat': None if stat == '-' else float(stat),
+                        'shoot': None if shoot == '-' else shoot, 'price': int(price)})
     return devices
 
 
@@ -124,11 +127,14 @@ def fire_point(export_properties):
 
 def modifiers(device):
     """The modifiers after the model's: the fire point (data/srp_muzzle_fire_mm, client patch 68's
-    shot flash), the recoil (parameters/recoil_modifier added), the shot effect (particles/shoot
-    set)."""
+    shot flash); a brake's recoil (parameters/recoil_modifier added), a compensator's range
+    (parameters/max_damage_distance times 1 + its stat: 0.26g's full-damage distance, 0.46c2's
+    effective_distance); the shot effect (particles/shoot set)."""
     extra = [{'path': ['data'], 'value': ['srp_muzzle_fire_mm', device['fire']], 'type': ADD_KEY}]
-    if device['recoil'] is not None:
-        extra.append({'path': ['parameters', 'recoil_modifier'], 'value': device['recoil'], 'type': ADD})
+    if device['stat'] is not None and device['kind'] == 'muzzle_brake':
+        extra.append({'path': ['parameters', 'recoil_modifier'], 'value': device['stat'], 'type': ADD})
+    if device['stat'] is not None and device['kind'] == 'compensator':
+        extra.append({'path': ['parameters', 'max_damage_distance'], 'value': device['stat'], 'type': MULTIPLY})
     if device['shoot'] is not None:
         extra.append({'path': ['particles', 'shoot'], 'value': device['shoot'], 'type': SET})
     return extra
@@ -206,10 +212,11 @@ def value_entry(value):
     return ce.T_STR, value.encode()
 
 
-def model_settings(data, surfaces):
+def model_settings(data):
     """The model's settings with 0.26g's `used_in_portals` (false) in each material entry."""
     buf = bytearray(data)
-    for surface in surfaces:
+    table = ce.find(buf, 'material_settings')
+    for surface in [ce.name_at(buf, ce.rec(buf, c)[1]).decode() for c in ce.children(buf, table)]:
         ce.add_value(buf, f'material_settings/{surface}', 'used_in_portals', False)
     return bytes(buf)
 
@@ -231,26 +238,17 @@ def main():
     stock = read_inputs(args.stock, STOCK, '--stock')
     donor = read_inputs(args.donor, donor_sums, '--donor')
 
-    files = {}
+    # every donor file: the models (their settings given used_in_portals), their materials and
+    # textures, the effects (extras.tsv)
+    settings = {device['model'] + '/settings' for device in devices}
+    files = {path: model_settings(data) if path in settings else data for path, data in donor.items()}
     for device in devices:
         device['fire'] = fire_point(donor[device['model'] + '/render/export_properties'])
         files[device['config']] = item_config(stock[TEMPLATE], device)
-        model = device['model']
-        surface = Path(device['model_name']).name + '_s'
-        prefix = model + '/'
-        for path, data in donor.items():
-            if path.startswith(prefix):
-                files[path] = model_settings(data, [surface]) if path == model + '/settings' else data
-        stem = device['model_name']
-        for path, data in donor.items():
-            if path == f'material_instances/{stem}.material' or path.startswith(f'textures/{stem}/'):
-                files[path] = data
-    for how, path, _ in rows('extras.tsv'):
-        files[path] = donor[path]
 
     operations = [{'op': 'add_file', 'path': path} for path in sorted(files)]
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': [
-        {'base_cost': 0, 'cfg_name': d['config'], 'dict_id': d['dict_id'], 'is_premium': False, 'is_stack': False,
+        {'base_cost': d['price'], 'cfg_name': d['config'], 'dict_id': d['dict_id'], 'is_premium': False, 'is_stack': False,
          'item_category': CATEGORY, 'name': d['name']} for d in devices]})
     keys = sorted({d['key'] for d in devices} | {KINDS[d['kind']]['description'] for d in devices})
     for language in LANGUAGES:

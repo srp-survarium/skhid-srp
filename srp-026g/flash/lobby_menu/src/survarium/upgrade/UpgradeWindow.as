@@ -154,7 +154,8 @@ package survarium.upgrade
       public static function addCompatibility(weaponDictId:int, scopeDictId:int) : Boolean
       {
          var scopes:Array = null;
-         if(scopeDictId >= ItemDictId.SHOP_SCOPE_FIRST && scopeDictId <= ItemDictId.SHOP_SCOPE_LAST)
+         // a shop scope, a muzzle device or a grip: the weapons it fits (items_compatibility rows)
+         if(scopeDictId >= ItemDictId.SHOP_SCOPE_FIRST && scopeDictId <= ItemDictId.SHOP_SCOPE_LAST || isMuzzleDevice(scopeDictId) || isGrip(scopeDictId))
          {
             scopes = scopePairs[weaponDictId] as Array;
             if(!scopes)
@@ -181,9 +182,36 @@ package survarium.upgrade
          return category == ItemCategory.ASSAULT_RIFLES || category == ItemCategory.SNIPER_RIFLES || category == ItemCategory.SHOTGUNS || category == ItemCategory.SUBMACHINE_GUNS || category == ItemCategory.MACHINE_GUNS || category == ItemCategory.PISTOLS;
       }
       
+      // The weapon takes a shop scope (its pairs also hold the muzzle devices and grips it fits).
       public static function hasScopes(weaponDictId:int) : Boolean
       {
-         return Boolean(scopePairs[weaponDictId]);
+         return fitsOne(weaponDictId,ItemDictId.SHOP_SCOPE_FIRST,ItemDictId.SHOP_SCOPE_LAST);
+      }
+
+      public static function hasMuzzleDevices(weaponDictId:int) : Boolean
+      {
+         return fitsOne(weaponDictId,ItemDictId.MUZZLE_DEVICE_FIRST,ItemDictId.MUZZLE_DEVICE_LAST);
+      }
+
+      public static function hasGrips(weaponDictId:int) : Boolean
+      {
+         return fitsOne(weaponDictId,ItemDictId.GRIP_FIRST,ItemDictId.GRIP_LAST);
+      }
+
+      // The weapon fits an item of dict ids first..last.
+      protected static function fitsOne(weaponDictId:int, first:int, last:int) : Boolean
+      {
+         var pairs:Array = scopePairs[weaponDictId] as Array;
+         var i:int = 0;
+         while(Boolean(pairs) && i < pairs.length)
+         {
+            if(int(pairs[i]) >= first && int(pairs[i]) <= last)
+            {
+               return true;
+            }
+            i++;
+         }
+         return false;
       }
 
       // A weapon the window opens for: one that takes scopes, a camouflage or decals.
@@ -219,10 +247,6 @@ package survarium.upgrade
          {
             return false;
          }
-         if(isMuzzleDevice(int(item.dictId)) || isGrip(int(item.dictId)))
-         {
-            return !instance.takesKit();
-         }
          return !fits(hostDictId,int(item.dictId));
       }
 
@@ -237,8 +261,9 @@ package survarium.upgrade
          return dictId >= ItemDictId.GRIP_FIRST && dictId <= ItemDictId.GRIP_LAST;
       }
 
-      // The window's weapon takes a muzzle device and a grip: one with a camouflage (its config's data
-      // table, which a device's modification adds to; the server's modifications::cosmetic_slots).
+      // The window's weapon takes muzzle devices and grips at all: one with a camouflage (its config's
+      // data table, which a device's modification adds to; the server's modifications::cosmetic_slots);
+      // which ones, its items_compatibility rows (fits).
       public function takesKit() : Boolean
       {
          return hostDictId >= 0 && Boolean(this._data) && this._data.camoAvailable > 0;
@@ -493,8 +518,9 @@ package survarium.upgrade
                this.decalSlot1.visible = this.weaponDecals() > 1;
                this.decalSlot2.visible = this._data.camoAvailable > 0;
                this.camoSlot.visible = hasScopes(hostDictId);
-               this.muzzleSlot.visible = this.gripSlot.visible = this.takesKit();
-               this._hasAttachments = this.camoSlot.visible || this.muzzleSlot.visible;
+               this.muzzleSlot.visible = this.takesKit() && hasMuzzleDevices(hostDictId);
+               this.gripSlot.visible = this.takesKit() && hasGrips(hostDictId);
+               this._hasAttachments = this.camoSlot.visible || this.muzzleSlot.visible || this.gripSlot.visible;
                this._hasAppearance = this.decalSlot.visible || this.decalSlot2.visible;
                // a new window opens on the attachments when the weapon takes scopes; the account's
                // update keeps the page
@@ -623,7 +649,8 @@ package survarium.upgrade
          var attachments:Boolean = page == PAGE_ATTACHMENTS;
          this._page = page;
          this.camoSlot.visible = attachments && hasScopes(hostDictId);
-         this.muzzleSlot.visible = this.gripSlot.visible = attachments && this.takesKit();
+         this.muzzleSlot.visible = attachments && this.takesKit() && hasMuzzleDevices(hostDictId);
+         this.gripSlot.visible = attachments && this.takesKit() && hasGrips(hostDictId);
          this.decalSlot.visible = !attachments && this.weaponDecals() > 0;
          this.decalSlot1.visible = !attachments && this.weaponDecals() > 1;
          this.decalSlot2.visible = !attachments && this._data.camoAvailable > 0;
@@ -733,8 +760,8 @@ package survarium.upgrade
             this.decalSlot1.highlighted = category == ItemCategory.DECALS && this.decalSlot1.visible && Boolean(this.decalSlot1.enabled);
             this.decalSlot2.highlighted = category == ItemCategory.CAMOUFLAGES && this.decalSlot2.visible && Boolean(this.decalSlot2.enabled);
             this.camoSlot.highlighted = category == ItemCategory.SCOPES && fits(hostDictId,dictId) && Boolean(this.camoSlot.enabled);
-            this.muzzleSlot.highlighted = category == ItemCategory.SCOPES && isMuzzleDevice(dictId) && this.muzzleSlot.visible && Boolean(this.muzzleSlot.enabled);
-            this.gripSlot.highlighted = category == ItemCategory.SCOPES && isGrip(dictId) && this.gripSlot.visible && Boolean(this.gripSlot.enabled);
+            this.muzzleSlot.highlighted = category == ItemCategory.SCOPES && isMuzzleDevice(dictId) && fits(hostDictId,dictId) && this.muzzleSlot.visible && Boolean(this.muzzleSlot.enabled);
+            this.gripSlot.highlighted = category == ItemCategory.SCOPES && isGrip(dictId) && fits(hostDictId,dictId) && this.gripSlot.visible && Boolean(this.gripSlot.enabled);
             return;
          }
          var i:int = 0;

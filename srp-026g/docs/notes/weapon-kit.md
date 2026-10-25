@@ -98,8 +98,57 @@ whose `parameters/type` is `srp_muzl` (the server's, `modifications::MUZZLE_KIND
 weapon with a `data` table) and whose modification adds `srp_muzzle_model` = its model to the
 weapon config's `data` (type 3, as a camouflage adds `camouflage`). The pack
 `weapon-attachments` (`scripts/weapon-attachments`: 0.46c2's model, material and textures, the
-configs written again in 0.26g's layout) holds them: 2601 flash hider 04, 2602 muzzle brake 04
-(dtk_04).
+configs written again in 0.26g's layout) holds them.
+
+### The devices (pack weapon-attachments@3, `scripts/weapon-attachments`)
+
+Every 0.46c2 muzzle model but its silencers: 20 items, dict ids 2601..2620 (`devices.tsv`).
+
+| items | 0.46c2 models | stat | shot effect |
+|---|---|---|---|
+| Flash hider 1..9 (2601, 2603..2610) | fire_arrestor_01..09 | none | the model's 0.46c2 effect: pp_arrest1, pp_arrest2_3, arrestor4, arrestor5_6_7_8, m4a1 |
+| Muzzle brake 1..7, 10 (2602, 2611..2617) | dtk_01..07, fire_arrestor_10 | recoil -0.05 (horizontal, 502/0) or -0.1 (vertical, 502/1: dtk_02, dtk_05) | the weapon's own |
+| Compensator 9..11 (2618..2620) | dtk_09..11 | full-damage distance x1.05 (0.46c2's 501/4, effective distance +5 %) | the weapon's own |
+
+- **The stat of a model** is the one most of its 0.46c2 weapons give it (0.46c2 set it per weapon
+  and kind: a horizontal, vertical or universal brake). `max_damage_distance` is 0.26g's
+  full-damage distance, 0.46c2's `effective_distance`.
+- **Not ported:** dtk_08 and dtk_12, the shotguns' "universal" brakes: their only stats are 0.46c2's
+  buckshot pattern scales (506, 514: vertical +10 %, horizontal -30 %), which 0.26g's shotguns
+  do not have. The silencers (the owner's rule).
+- **Which weapons** (`fit.tsv`, `survey_046.py`): a device fits each 0.26g weapon to which 0.46c2
+  gave its model in any muzzle kind (a premium copy as its plain weapon; 0.46c2's `a545` is
+  0.26g's `a_545`): 111 pairs, as `items_compatibility` rows of the dictionary
+  (content-edit `weapon-muzzle-fit-1`, `make_edit_list.py`). The server puts a device only on a
+  weapon of such a row (`modifications::upgrade_slots_in`); the lobby movie takes the rows into
+  its pairs (`UpgradeWindow.addCompatibility`): only a device that fits lights its slot, the
+  others are greyed, a device's card lists its weapons, a weapon's hover lights its devices, and
+  a weapon no device fits has no muzzle slot. No device fits the VSS, Val, VSSK (their
+  suppressors), the Mosin, PPSh, TT-33, TOZ-34, TOZ-66, Lancaster, Winchester, NeoStead.
+- **The shop:** seller 0 at no rank, at the item's `base_cost` (`prices::sellers_of_in`): flash
+  hiders 6,000, brakes 9,000 (-0.05) or 12,000 (-0.1), compensators 8,000 [srp's guess, the owner's
+  to set]. Sold back for a quarter, as everything.
+- **Icons:** a shop scope's cell for now (`devices.tsv` icon row and column).
+
+### Where a device sits on each weapon (`offsets.tsv`)
+
+0.26g's weapon models keep their stock muzzle devices in the mesh (0.46c2 made them separate
+parts, `ak_74m_muzzle_brake.model`, and took them off for an attachment). barrel_point is the bare
+barrel's end: on 23 weapons the mesh reaches past it. `data/srp_muzzle_offset` (content-edit
+`weapon-muzzle-fit-1`) starts the device at the mesh's front there: the stock brake stays and the
+device is in front of it. Measured from each model's bounding box (barrel_point's z against the
+box's front), not seen in a game:
+
+- **Offsets set:** AK-74M, AK-74N (and premium) 2.9 cm; AK-12 (and premium) 2.5; ASh-12 5.7;
+  FN FNC 3.5; Fort-17 1.7; HK416 2.1; KRISS Vector 4.1; M4A1 -1.7 (the mesh ends short of
+  barrel_point); MP7 1.4, MP7 with silencer 1.3; MSBS 2.6; Pecheneg 0.5; PP-2000 3.2; SR-3M (and
+  premium) 2.6; SVD 7.4; Valmet 4.6; Vityaz (and premium) 3.2; vz.58 0.8.
+- **Will look wrong (a device on a stock brake or flash hider):** the AK-74M/N, AK-12, ASh-12,
+  SVD, Valmet, Vityaz, KRISS, FNC, HK416, PP-2000, SR-3M; on the VSK-94 the device sits on its
+  integral suppressor.
+- **Not measured (no bounding box in the model):** A-545, AK-74U (and premium), AKMN (and premiums),
+  TOZ-122, Vepr (and premium): offset 0. **To check:** AEK-919K, Magnum and RPK, whose boxes reach
+  far past barrel_point (a stock, a bipod?): offset 0.
 
 How the client draws it (patch 68, PROVEN in the code, run with Unicorn; not run in a game):
 
@@ -118,8 +167,8 @@ How the client draws it (patch 68, PROVEN in the code, run with Unicorn; not run
   at barrel_point's matrix of the frame (+0x620) moved `data/srp_muzzle_offset` metres forward
   along the barrel (default 0).
 - **The weapons' own muzzles.** 0.26g's weapon models have their stock muzzle brakes in the mesh;
-  a device starts at barrel_point (the muzzle's end, where the shot's flash is) and runs forward.
-  Per weapon, `data/srp_muzzle_offset` moves it (a later edit list: the table of offsets).
+  a device starts at barrel_point (the muzzle's end, where the shot's flash is) and runs forward,
+  `data/srp_muzzle_offset` metres on (`offsets.tsv`, below).
 - **The shot's flash.** Each device's modification also adds `data/srp_muzzle_fire_mm`, the
   device's `fire_point` locator in millimetres (its model's: 42 for flash hider 04, 48 for brake
   04; an int, as every type-3 value of 0.26g's is an int or a string).
@@ -137,6 +186,7 @@ the modification's apply 0x358560: 0 sets the node's value, 1 adds, 2 multiplies
 |---|---|---|
 | brake (horizontal) | modification 502 grade 0: recoil -0.05 | `parameters/recoil_modifier` +(-0.05), type 1 |
 | brake (vertical) | 502 grade 1: recoil -0.1 | `parameters/recoil_modifier` +(-0.1), type 1 |
+| compensator | 501 grade 4: effective distance +0.05 | `parameters/max_damage_distance` x(1 + 0.05), type 2 |
 | flash hider | no stats; `effects_override.particles.shoot` | `particles/shoot` = the effect, type 0 |
 
 - `recoil_modifier` is the stock weapon modifications' own (1150 "player recoil" -0.02, type 1
@@ -157,8 +207,8 @@ the modification's apply 0x358560: 0 sets the node's value, 1 adds, 2 multiplies
 - Two decals on a weapon (`WEAPON_DECAL_SLOTS` 0 and 1, the window's `WEAPON_DECALS` 2): visual
   only. Patch 47 bakes both.
 - The camouflage on a scoped weapon now travels in the kit: visual only.
-- Slot 4: a flash hider (2601: its model and shot effect) and a brake (2602: its model and 5 %
-  less kick). Slot 5 has no item yet (a later step: grips).
+- Slot 4: 9 flash hiders (their shot effect), 8 brakes (less kick), 3 compensators (a longer
+  full-damage distance). Slot 5 has no item yet (a later step: grips).
 - A camouflage, decals and a scope change nothing a match computes; the brake's recoil does: the
   `next` row of `simulation_changes.tsv`.
 

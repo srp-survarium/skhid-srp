@@ -4,11 +4,12 @@
 # <0.46c2 split list>: the volumes of the 0.46c2 archive, one a line (the weapon survey's
 # work/builds/v046c2/v046.split); <resource-porter checkout>: one whose vostok-port reads split
 # 16-byte archives (82e2662 and later: its BinaryConfig reads 0.46c2's 16-byte configs and writes
-# 0.26g's). For each device of devices.tsv: its model's four files, its material made again on a
-# 0.26g template (vostok-port build-material-patch; pp9_klin's, the template rank-material-templates
-# rates exact for every attach material), its textures (the .dds as they are); every config (the
-# model's, the textures' .options) written again in 0.26g's 24-byte layout (widen_config.rs). Then
-# each file of extras.tsv (the effects the devices name: particles, their materials, textures).
+# 0.26g's). For each model of devices.tsv: its files (the meshes as they are), each material its
+# settings name made again on a 0.26g template (vostok-port build-material-patch; pp9_klin's, the
+# template rank-material-templates rates exact for every attach material), the textures those name
+# that the 0.26g archive lacks (the .dds as they are); every config (the model's, the textures'
+# .options) written again in 0.26g's 24-byte layout (widen_config.rs). Then each file of extras.tsv
+# (the effects the devices name: particles, their materials, textures).
 # make_pack.py checks every file against donor.sha256.
 set -euo pipefail
 split=$1 target=$2 porter=$3 out=$4
@@ -33,30 +34,39 @@ TOML
 (cd "$work/widen" && CARGO_TARGET_DIR=$work/widen/target nix-shell -p cargo rustc gcc zlib --run 'cargo build --release --quiet')
 widen=$work/widen/target/release/widen-config
 mkdir -p "$out"
-grep -v '^#' "$here/devices.tsv" | while IFS=$'\t' read -r dict_id name kind model rest; do
-    material=material_instances/${model#models/}
-    material=${material%.model}.material
-    texture=textures/${model#models/}
-    texture=${texture%.model}
-    for path in "$model/settings" "$model/render/export_properties" \
-                "$model/render/$(basename "${model%.model}")_s/export_properties" \
-                "$model/render/$(basename "${model%.model}")_s/converted_model" \
-                "$texture/$(basename "$texture").dds" "$texture/$(basename "$texture")_nmap.dds" \
-                "$texture/$(basename "$texture")_smap.dds" "$texture/$(basename "$texture")_fmap.dds" \
-                "$texture/$(basename "$texture").options" "$texture/$(basename "$texture")_nmap.options" \
-                "$texture/$(basename "$texture")_smap.options" "$texture/$(basename "$texture")_fmap.options"; do
+grep -v '^#' "$here/devices.tsv" | cut -f4 | sort -u | while read -r model; do
+    # the model's files: the meshes as they are, the configs widened
+    "$port" list --db "$split" --prefix "$model/" | while read -r path; do
         mkdir -p "$out/$(dirname "$path")"
         "$port" extract --db "$split" --path "$path" --output "$work/raw" >/dev/null
         case $path in
-            *.dds | */converted_model) cp "$work/raw" "$out/$path" ;;
+            */converted_model) cp "$work/raw" "$out/$path" ;;
             *) "$widen" "$work/raw" "$out/$path" ;;
         esac
     done
-    rm -rf "$work/material"
-    "$port" build-material-patch --source-db "$split" --target-db "$target" \
-        --material "$material=material_instances/weapons/pp9_klin/pp9_klin.material" --output "$work/material" >/dev/null
-    mkdir -p "$out/$(dirname "$material")"
-    cp "$work/material/overlay/$material" "$out/$material"
+    # its materials (settings: material_settings.<surface>.material_name), made again on
+    # pp9_klin's template, and the textures they name that 0.26g lacks
+    "$port" dump-config --file "$out/$model/settings" --leaves | grep '\.material_name	' | cut -f2 \
+        | sed 's/^string:"//; s/"$//' | while read -r name; do
+        material=material_instances/$name.material
+        [[ -e $out/$material ]] && continue
+        rm -rf "$work/material"
+        "$port" build-material-patch --source-db "$split" --target-db "$target" \
+            --material "$material=material_instances/weapons/pp9_klin/pp9_klin.material" --output "$work/material" >/dev/null
+        mkdir -p "$out/$(dirname "$material")"
+        cp "$work/material/overlay/$material" "$out/$material"
+        "$port" dump-config --file "$out/$material" --leaves | grep 'texture[a-z_]*\.value	string:"[^"]' | cut -f2 \
+            | sed 's/^string:"//; s/"$//' | sort -u | while read -r texture; do
+            [[ -e $out/textures/$texture.dds ]] && continue
+            "$port" list --db "$target" --prefix "textures/$texture.dds" | grep -q . && continue
+            # one neither has (the template's own editor/default_bump): named as 0.26g's own name it
+            "$port" list --db "$split" --prefix "textures/$texture.dds" | grep -q . || continue
+            mkdir -p "$out/textures/$(dirname "$texture")"
+            "$port" extract --db "$split" --path "textures/$texture.dds" --output "$out/textures/$texture.dds" >/dev/null
+            "$port" extract --db "$split" --path "textures/$texture.options" --output "$work/raw" >/dev/null
+            "$widen" "$work/raw" "$out/textures/$texture.options"
+        done
+    done
 done
 grep -v '^#' "$here/extras.tsv" | while IFS=$'\t' read -r how path template; do
     mkdir -p "$out/$(dirname "$path")"

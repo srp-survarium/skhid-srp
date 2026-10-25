@@ -1,6 +1,25 @@
 # the texts of the attachments, in 0.26g's six localization tables
 key	english	german	original	polish	russian	ukrainian
-st_srp_flash_hider_04_name	Flash hider	Mündungsfeuerdämpfer	Пламегаситель	Tłumik płomieni	Пламегаситель	Полум'ягасник
+st_srp_flash_hider_04_name	Flash hider 4	Mündungsfeuerdämpfer 4	Пламегаситель 4	Tłumik płomieni 4	Пламегаситель 4	Полум'ягасник 4
+st_srp_muzzle_brake_04_name	Muzzle brake 4	Mündungsbremse 4	Дульный тормоз 4	Hamulec wylotowy 4	Дульный тормоз 4	Дульне гальмо 4
+st_srp_flash_hider_01_name	Flash hider 1	Mündungsfeuerdämpfer 1	Пламегаситель 1	Tłumik płomieni 1	Пламегаситель 1	Полум'ягасник 1
+st_srp_flash_hider_02_name	Flash hider 2	Mündungsfeuerdämpfer 2	Пламегаситель 2	Tłumik płomieni 2	Пламегаситель 2	Полум'ягасник 2
+st_srp_flash_hider_03_name	Flash hider 3	Mündungsfeuerdämpfer 3	Пламегаситель 3	Tłumik płomieni 3	Пламегаситель 3	Полум'ягасник 3
+st_srp_flash_hider_05_name	Flash hider 5	Mündungsfeuerdämpfer 5	Пламегаситель 5	Tłumik płomieni 5	Пламегаситель 5	Полум'ягасник 5
+st_srp_flash_hider_06_name	Flash hider 6	Mündungsfeuerdämpfer 6	Пламегаситель 6	Tłumik płomieni 6	Пламегаситель 6	Полум'ягасник 6
+st_srp_flash_hider_07_name	Flash hider 7	Mündungsfeuerdämpfer 7	Пламегаситель 7	Tłumik płomieni 7	Пламегаситель 7	Полум'ягасник 7
+st_srp_flash_hider_08_name	Flash hider 8	Mündungsfeuerdämpfer 8	Пламегаситель 8	Tłumik płomieni 8	Пламегаситель 8	Полум'ягасник 8
+st_srp_flash_hider_09_name	Flash hider 9	Mündungsfeuerdämpfer 9	Пламегаситель 9	Tłumik płomieni 9	Пламегаситель 9	Полум'ягасник 9
+st_srp_muzzle_brake_01_name	Muzzle brake 1	Mündungsbremse 1	Дульный тормоз 1	Hamulec wylotowy 1	Дульный тормоз 1	Дульне гальмо 1
+st_srp_muzzle_brake_02_name	Muzzle brake 2	Mündungsbremse 2	Дульный тормоз 2	Hamulec wylotowy 2	Дульный тормоз 2	Дульне гальмо 2
+st_srp_muzzle_brake_03_name	Muzzle brake 3	Mündungsbremse 3	Дульный тормоз 3	Hamulec wylotowy 3	Дульный тормоз 3	Дульне гальмо 3
+st_srp_muzzle_brake_05_name	Muzzle brake 5	Mündungsbremse 5	Дульный тормоз 5	Hamulec wylotowy 5	Дульный тормоз 5	Дульне гальмо 5
+st_srp_muzzle_brake_06_name	Muzzle brake 6	Mündungsbremse 6	Дульный тормоз 6	Hamulec wylotowy 6	Дульный тормоз 6	Дульне гальмо 6
+st_srp_muzzle_brake_07_name	Muzzle brake 7	Mündungsbremse 7	Дульный тормоз 7	Hamulec wylotowy 7	Дульный тормоз 7	Дульне гальмо 7
+st_srp_muzzle_brake_10fh_name	Muzzle brake 10	Mündungsbremse 10	Дульный тормоз 10	Hamulec wylotowy 10	Дульный тормоз 10	Дульне гальмо 10
+st_srp_compensator_09_name	Compensator 9	Kompensator 9	Компенсатор 9	Kompensator 9	Компенсатор 9	Компенсатор 9
+st_srp_compensator_10_name	Compensator 10	Kompensator 10	Компенсатор 10	Kompensator 10	Компенсатор 10	Компенсатор 10
+st_srp_compensator_11_name	Compensator 11	Kompensator 11	Компенсатор 11	Kompensator 11	Компенсатор 11	Компенсатор 11
 st_srp_flash_hider_desc	Reduces the muzzle flash.	Verringert das Mündungsfeuer.	Уменьшает дульную вспышку.	Zmniejsza błysk wystrzału.	Уменьшает дульную вспышку.	Зменшує дульний спалах.
-st_srp_muzzle_brake_04_name	Muzzle brake	Mündungsbremse	Дульный тормоз	Hamulec wylotowy	Дульный тормоз	Дульне гальмо
 st_srp_muzzle_brake_desc	Reduces recoil.	Verringert den Rückstoß.	Уменьшает отдачу.	Zmniejsza odrzut.	Уменьшает отдачу.	Зменшує віддачу.
+st_srp_compensator_desc	Increases the effective range.	Erhöht die effektive Reichweite.	Увеличивает эффективную дальность.	Zwiększa zasięg skuteczny.	Увеличивает эффективную дальность.	Збільшує ефективну дальність.

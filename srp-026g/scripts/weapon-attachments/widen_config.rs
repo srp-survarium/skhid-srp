@@ -60,6 +60,23 @@ fn target_color_to_init_color(value: &mut ConfigValue) -> anyhow::Result<usize> 
     Ok(count)
 }
 
+/// The first `type_index` 0.26g's construct_action (0x364F10) has no case for: 14 (target
+/// colour), 16, 19..22; an action of it would be left out.
+fn missing_case(value: &ConfigValue) -> Option<i32> {
+    match value {
+        ConfigValue::Named(entries) => {
+            if let Some(ConfigValue::Integer(index)) = get(entries, "type_index") {
+                if matches!(index, 14 | 16 | 19..=22) {
+                    return Some(*index);
+                }
+            }
+            entries.iter().find_map(|e| missing_case(&e.value))
+        }
+        ConfigValue::Indexed(items) => items.iter().find_map(missing_case),
+        _ => None,
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
     let particle = args.first().is_some_and(|a| a == "--particle");
@@ -75,6 +92,9 @@ fn main() -> anyhow::Result<()> {
         if particle {
             let n = target_color_to_init_color(&mut config.root)?;
             eprintln!("{}: {n} TargetColor actions made InitColor", pair[1]);
+            if let Some(index) = missing_case(&config.root) {
+                anyhow::bail!("{}: an action of type index {index}, which 0.26g has no case for", pair[0]);
+            }
         }
         std::fs::write(&pair[1], config.to_bytes()?)?;
     }

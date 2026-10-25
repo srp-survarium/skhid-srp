@@ -1,5 +1,27 @@
-# dict id	name	kind	the 0.46c2 model	English name	icon row	icon col	recoil	shot effect
-#   recoil: the weapon's parameters/recoil_modifier added (0.46c2's: horizontal brakes 502/0 -0.05, vertical 502/1 -0.1), - none
-#   shot effect: the weapon's particles/shoot (0.46c2's effects_override of the device), - the weapon's own
-2601	srp_flash_hider_04	flash_hider	models/weapons/attach/fire_arrestor/fire_arrestor_04.model	Flash hider	2	4	-	fx/weapons/attach/arrestor4
-2602	srp_muzzle_brake_04	muzzle_brake	models/weapons/attach/muzzle_brake/dtk_04.model	Muzzle brake	2	4	-0.05	-
+# dict id	name	kind	the 0.46c2 model	English name	icon row	icon col	stat	shot effect	price
+#   kind: flash_hider (its shot effect), muzzle_brake (recoil), compensator (effective range)
+#   stat: a brake's parameters/recoil_modifier added (0.46c2's 502: grade 0 -0.05, the horizontal brakes; grade 1 -0.1, the
+#     vertical), a compensator's parameters/max_damage_distance multiplied by 1 + it (0.46c2's 501 grade 4, effective
+#     distance +0.05), - none; each model's the most of its 0.46c2 weapons give it (survey_046.py)
+#   shot effect: the weapon's particles/shoot (0.46c2's effects_override of the model, the most of its weapons'), - the weapon's own
+#   price: the shop's, silver (seller 0, no rank) [srp, the owner's to set]
+2601	srp_flash_hider_04	flash_hider	models/weapons/attach/fire_arrestor/fire_arrestor_04.model	Flash hider 4	2	4	-	fx/weapons/attach/arrestor4	6000
+2602	srp_muzzle_brake_04	muzzle_brake	models/weapons/attach/muzzle_brake/dtk_04.model	Muzzle brake 4	2	4	-0.05	-	9000
+2603	srp_flash_hider_01	flash_hider	models/weapons/attach/fire_arrestor/fire_arrestor_01.model	Flash hider 1	2	4	-	fx/weapons/attach/pp_arrest1	6000
+2604	srp_flash_hider_02	flash_hider	models/weapons/attach/fire_arrestor/fire_arrestor_02.model	Flash hider 2	2	4	-	fx/weapons/attach/pp_arrest2_3	6000
+2605	srp_flash_hider_03	flash_hider	models/weapons/attach/fire_arrestor/fire_arrestor_03.model	Flash hider 3	2	4	-	fx/weapons/attach/pp_arrest2_3	6000
+2606	srp_flash_hider_05	flash_hider	models/weapons/attach/fire_arrestor/fire_arrestor_05.model	Flash hider 5	2	4	-	fx/weapons/attach/arrestor5_6_7_8	6000
+2607	srp_flash_hider_06	flash_hider	models/weapons/attach/fire_arrestor/fire_arrestor_06.model	Flash hider 6	2	4	-	fx/weapons/attach/arrestor5_6_7_8	6000
+2608	srp_flash_hider_07	flash_hider	models/weapons/attach/fire_arrestor/fire_arrestor_07.model	Flash hider 7	2	4	-	fx/weapons/attach/arrestor5_6_7_8	6000
+2609	srp_flash_hider_08	flash_hider	models/weapons/attach/fire_arrestor/fire_arrestor_08.model	Flash hider 8	2	4	-	fx/weapons/attach/arrestor5_6_7_8	6000
+2610	srp_flash_hider_09	flash_hider	models/weapons/attach/fire_arrestor/fire_arrestor_09.model	Flash hider 9	2	4	-	fx/weapons/m4a1	6000
+2611	srp_muzzle_brake_01	muzzle_brake	models/weapons/attach/muzzle_brake/dtk_01.model	Muzzle brake 1	2	4	-0.05	-	9000
+2612	srp_muzzle_brake_02	muzzle_brake	models/weapons/attach/muzzle_brake/dtk_02.model	Muzzle brake 2	2	4	-0.1	-	12000
+2613	srp_muzzle_brake_03	muzzle_brake	models/weapons/attach/muzzle_brake/dtk_03.model	Muzzle brake 3	2	4	-0.05	-	9000
+2614	srp_muzzle_brake_05	muzzle_brake	models/weapons/attach/muzzle_brake/dtk_05.model	Muzzle brake 5	2	4	-0.1	-	12000
+2615	srp_muzzle_brake_06	muzzle_brake	models/weapons/attach/muzzle_brake/dtk_06.model	Muzzle brake 6	2	4	-0.05	-	9000
+2616	srp_muzzle_brake_07	muzzle_brake	models/weapons/attach/muzzle_brake/dtk_07.model	Muzzle brake 7	2	4	-0.05	-	9000
+2617	srp_muzzle_brake_10fh	muzzle_brake	models/weapons/attach/fire_arrestor/fire_arrestor_10.model	Muzzle brake 10	2	4	-0.05	-	9000
+2618	srp_compensator_09	compensator	models/weapons/attach/muzzle_brake/dtk_09.model	Compensator 9	2	4	0.05	-	8000
+2619	srp_compensator_10	compensator	models/weapons/attach/muzzle_brake/dtk_10.model	Compensator 10	2	4	0.05	-	8000
+2620	srp_compensator_11	compensator	models/weapons/attach/muzzle_brake/dtk_11.model	Compensator 11	2	4	0.05	-	8000
