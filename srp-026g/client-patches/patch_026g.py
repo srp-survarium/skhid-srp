@@ -496,6 +496,18 @@ Patches:
   texture made (0x12F18F a bake, 0x12DDB4 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
   0xF0D00). Textures only;
+- the client check (patches 75..78, with the late join;
+  docs/notes/client_world_check.md; CLIENT_VERIFY_HOOKS): the 0xE8
+  handler's two world loads (0x27C0D9, 0x27C111) go to cv_world_load and
+  the match dispatch's jump (0x27A330) to cv_message
+  (client_verify_026g.asm, the arena's block client_verify.code), which
+  run srp-validate's world and message checks (the Rust crate
+  rust/client_verify) and leaves the match on a refusal (patch 75); a
+  weapon FSM's state id no state has keeps the machine's state instead of
+  calling through null (0x38CD22, in place, patch 76); an anomaly's state
+  id (0x31B0FF, cv_anomaly, patch 77) and an artefact-history id
+  (0x2FE65E, cv_artefact, patch 78) past their tables take the game's own
+  none path. Nothing a match computes changes;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2111,6 +2123,49 @@ BAKE_CACHE_HOOKS = (
 )
 BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440000"))   # game::exit's delete
 
+# The client check (patches 75, 77 and 78, README; client_patch.md section
+# 3.60; ../docs/notes/client_world_check.md): client_verify_026g.asm and the
+# Rust crate rust/client_verify (RUST_HOOKs; srp-validate's checks) in the
+# arena's block client_verify.code.
+# - Patch 75: the 0xE8 handler's two calls of game_world_core::deserialize
+#   0x2D0B70 (0x27C0D9 the unpacked world, 0x27C111 the raw one) go to
+#   cv_world_load, which checks the world (world_hook) and goes on to
+#   0x2D0B70, or leaves the match; the match dispatch's `jmp
+#   [eax*4+27A738h]` (0x27A330, every message 0xE3..0xF6) goes to
+#   cv_message (message_hook), which jumps as the site did or leaves
+#   the match. The dispatch's site holds the table's address, under a base
+#   relocation (CLIENT_VERIFY_DISPATCH_RELOC) that is taken out.
+# - Patch 77: an anomaly's state index (0x31B0FF) to cv_anomaly, bounded.
+# - Patch 78: an artefact-history id's read (0x2FE65E) to cv_artefact,
+#   bounded.
+CLIENT_VERIFY_HOOKS = (
+    (0x27C0D9, bytes.fromhex("e8924a0500"), "cv_world_load", 0xE8),      # the unpacked world's load
+    (0x27C111, bytes.fromhex("e85a4a0500"), "cv_world_load", 0xE8),      # the raw world's load
+    (0x31B0FF, bytes.fromhex("8b47680fb6d18b2c90"), "cv_anomaly", 0xE9),  # an anomaly's state index
+    (0x2FE65E, bytes.fromhex("8d04828b00"), "cv_artefact", 0xE9),         # an artefact-history id's read
+)
+CLIENT_VERIFY_DISPATCH = (0x27A330, bytes.fromhex("ff248538a72700"), "cv_message", 0xE9)
+# The game's epilogues a function of ours may leave its caller's function by
+# (never returning to the call site): {VA: whose}. The self-test's call
+# shapes do not follow a jump there (its `ret` is the caller's caller's).
+LEAVES = {
+    0x27C1E0: "process_dynamic_match_info's (the 0xE8 handler): a refused world",
+    0x27A72C: "on_match_packet_received's (the dispatch): a refused message",
+}
+CLIENT_VERIFY_DISPATCH_RELOC = 0x27A333         # the table's address in the jump
+# Patch 76: ai::fsm::deserialize 0x38CCF0 reads a state id and walks the
+# machine's states for it into [esi+10h]; an id no state has leaves it zero,
+# and the tail (0x38CD22) calls through it: `mov eax,[ecx] / mov eax,[eax+14h]
+# / call eax` on null. The tail and the six int3 after it are rewritten in
+# place to test [esi+10h] and `ret 8` without the call when it is zero (the
+# machine keeps its state). The only branch into the bytes targets 0x38CD22,
+# still its first byte; no address, no relocation under them.
+FSM_STATE_GUARD = (
+    0x38CD22,
+    bytes.fromhex("8b5424088b4e108b018b4014528b5424085257ffd0c20800cccccccccccc"),
+    bytes.fromhex("8b5424088b4e1085c9740e8b018b4014528b5424085257ffd0c20800cccc"),
+)
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after `.srpc`, which is one page."""
@@ -2291,6 +2346,16 @@ INSTALLS = {
                      "function (or the function, then the waiting queries made again)", None, None),
     0x42050: (ENTRY, "the CRC-32 step (eax &the CRC, edx the bytes, the count; `ret 4`): crc32, the same "
                      "value eight bytes a step", None, None),
+    # the client check, patches 75, 77 and 78 (in `.srpx`)
+    0x27C0D9: (CALLEE, "the 0xE8 handler's load of an unpacked world (game_world_core::deserialize, `ret 10h`): "
+                       "cv_world_load, which checks it and goes on to the load or leaves the match", None, None),
+    0x27C111: (CALLEE, "the 0xE8 handler's load of a raw world: cv_world_load, as the unpacked one's", None, None),
+    0x27A330: (JUMP, "the match dispatch's `jmp [eax*4+27A738h]`: cv_message, which checks the message and jumps "
+                     "as the site did, or leaves the match by the dispatch's epilogue", None, None),
+    0x31B0FF: (JUMP, "an anomaly's state index `mov eax,[edi+68h] / movzx edx,cl / mov ebp,[eax+edx*4]`: "
+                     "cv_anomaly, back at 0x31B108 or the no-state path 0x31B0FB", None, None),
+    0x2FE65E: (JUMP, "an artefact-history id's `lea eax,[edx+eax*4] / mov eax,[eax]`: cv_artefact, back at "
+                     "0x2FE663 or the no-artefact exit 0x2FE67A", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2489,6 +2554,9 @@ ARENA = (
     # patch 34, the commit_suicide key: the NASM entry and the Rust crate (the
     # Rust framework's example, docs/notes/rust_patches.md)
     ArenaBlock("suicide_key.code", "code", 0x1000, ("suicide_key_026g.asm", "rust/suicide_key/Cargo.toml")),
+    # the client check, patches 75, 77 and 78: the entries (NASM) and the
+    # Rust crate (srp-validate's checks); no state
+    ArenaBlock("client_verify.code", "code", 0x1000, ("client_verify_026g.asm", "rust/client_verify/Cargo.toml")),
 )
 
 
@@ -3423,10 +3491,17 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + (SUICIDE_KEY_HOOK,):
+                        + KILL_FEED_HOOKS + BAKE_CACHE_HOOKS + (SUICIDE_KEY_HOOK,) + CLIENT_VERIFY_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                # The client check's dispatch hook (patch 75): its jump held
+                # the table's address, which the loader must no longer add to.
+                va, expected, symbol, opcode = CLIENT_VERIFY_DISPATCH
+                patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
+                if neutralize_relocs(data, [(va, va + len(expected))]) != [CLIENT_VERIFY_DISPATCH_RELOC]:
+                    sys.exit(f"{va:#x}: the base relocation under the match dispatch's jump is not where it was read")
+                patch(data, *FSM_STATE_GUARD)               # patch 76, in place
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
                 patch(data, *KILL_FEED_ARGUMENT)
@@ -3477,6 +3552,9 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
                      "a fall gains speed for the time it fell, not for the steps of a split tick, "
+                     "every received world and match message is checked before the game reads it and a refused "
+                     "one leaves the match, "
+                     "a weapon FSM's, an anomaly's state id or an artefact id past its table no longer crashes, "
                      "a model's LOD and screen factor at a wider field of view are the original's, "
                      "a drag turns the camera on the death screen and the wheel does nothing there, "
                      "a weapon wears the camouflage its item holds, "

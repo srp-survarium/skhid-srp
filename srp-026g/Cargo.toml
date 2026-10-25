@@ -4,6 +4,7 @@ members = [
   "crates/mapdata",
   "crates/resources-db",
   "crates/session",
+  "crates/srp-validate",
   "crates/survarium",
   "crates/udp-transport",
   "crates/vostok",
@@ -66,6 +67,8 @@ resources-db = { path = "crates/resources-db" }
 # kept beside the in-tree crate above under its own name.
 vostok-resources-db = { package = "resources-db", git = "https://github.com/srp-survarium/vostok-resources-db", rev = "9498aca14014ef74460429f51eb41a6af333522c" }
 session = { path = "crates/session" }
+# The checks of what a game reads, shared with the game's own payload (no_std).
+srp-validate = { path = "crates/srp-validate" }
 survarium = { path = "crates/survarium" }
 udp-transport = { path = "crates/udp-transport" }
 vostok = { path = "crates/vostok" }

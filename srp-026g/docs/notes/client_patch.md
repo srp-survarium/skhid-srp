@@ -1651,6 +1651,15 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   - finish_query: an owner's error makes its waiters again; a texture not in the slot shares nothing and makes the waiters again at the owner's end; an owner past 10 s is taken over; any other query goes straight through.
   **Not run:** a game. The checks use stubs for allocation, the resource, set_resource, the finish's body and Windows (a made-up folder).
 
+### 3.60 A game checks what it is sent (written 2026-10-25, README patches 75..78, the next release's revision; the design and the numbers: `client_world_check.md`) — PROVEN in the code, the entries and the i686 payload run with Unicorn (the drift test against the host build on every kept world); not run in a game
+
+The owner, 2026-10-22: "most of this should go to clients too, to make them less dependant on the server going wrong"; 2026-10-25: "move it onto the same port ... investigate its performance complications".
+
+- **The sites** (PROVEN, `client_world_check.md` 4, 10, 12): the 0xE8 handler's two calls of game_world_core::deserialize (0x27C0D9, 0x27C111), the only reader of a received world; the match dispatch's jump table jump (0x27A330), after the id's bound; three index reads no check reaches: a weapon FSM's state id (0x38CD22), an anomaly's state id (0x31B0FF), an artefact-history id (0x2FE65E).
+- **The patch** (`CLIENT_VERIFY_HOOKS`, `CLIENT_VERIFY_DISPATCH`, `FSM_STATE_GUARD`): `client_verify_026g.asm` and the Rust crate `rust/client_verify` (`RUST_HOOK`s of the Rust patches' framework) in the arena block `client_verify.code`; the checks are `srp-validate`'s (`no_std`, shared with the match server). A refusal leaves the match by close_current_match(2) and the caller's own epilogue (`LEAVES`).
+- **The cost:** a message 68..169 instructions; a world median 19,148, p99 24,187, 20 players 97,172 (well under 0.1 ms; `client_world_check.md` 14).
+- **What changes:** nothing a match computes; a world or message a game could not read safely sends that game to the lobby instead of crashing it. **Checked:** `check_client_verify_026g.py`, `cargo test -p srp-validate`. **Not run in a game.**
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]

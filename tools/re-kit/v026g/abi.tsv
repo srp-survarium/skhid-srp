@@ -875,6 +875,7 @@ va	name	source	ret_cleanup	result
 0x001ec250	survarium::game::on_config_loaded	manual	12	
 0x001ec510	survarium::game::load_config_query	manual	12	
 0x001edbf0	survarium::game::play_ui_sound	manual	4	
+0x001ee2e0		manual		a replay's seek (esi = game, edi = the target): loads a key frame with game_world_core::deserialize 0x2D0B70 (mode 0 or 2, call at 0x1EE377), the one caller of 0x2D0B70 that is not 0xE8; not a relay (client_world_check.md 4) [PROVEN]
 0x001f0090	survarium::items_dictionary::item_by_id	manual	4	
 0x001f0090	survarium::items_dictionary::item_by_id	manual	4	EAX = the entry: 3A0h bytes each from [dictionary+130h], +0 u16 the dict id (0x1F00D4), +228h u8 item_category
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	manual	0	
@@ -1042,6 +1043,7 @@ va	name	source	ret_cleanup	result
 0x00271540	survarium::lobby_client::read_price_items	manual	8	
 0x00271650	survarium::lobby_client::read_shop_items	manual	8	
 0x00271740	survarium::lobby_client::read_player_reputations	manual	4	
+0x002717e0	survarium::lobby_client::discard_playing_order	manual	8	sends lobby 31 {u32 [arg1+1E57A8h] order, u8 0 or FFh from the bool arg (neg/sbb at 0x27182F..0x271844)}; the client world check plans 02h for a refused world (client_world_check.md 6) [PROVEN]
 0x002718c0	survarium::lobby_client::read_match_stats	manual	4	
 0x00271d90	survarium::lobby_client::read_player_elo_rating	manual	4	
 0x00271df0	survarium::lobby_client::read_quest_list	manual	8	
@@ -1051,9 +1053,11 @@ va	name	source	ret_cleanup	result
 0x00277aa0	survarium::lobby_client::find_item_by_id	manual	0	EAX = the matching inventory_item_descr, or end; caller pops the argument
 0x0027a300	survarium::network_client::on_match_packet_received	manual	8	
 0x0027a790	survarium::network_client::close_current_match	manual	4	
+0x0027a790	survarium::network_client::close_current_match	manual	4	first [this+1F1C60h] = 0; reason by jump table 0x27A958: 0 world ended (0x1F96F0); 1, 5 log, lobby 31 FFh (0x2717E0), world ended; 2 0xE0 leave to the match server (0x27A828) then as 1; 3 world ended and results (0x29AAF0); 4 nothing. Reason 2 is the client world check's refusal (client_world_check.md 5) [PROVEN]
 0x0027b1f0	survarium::network_client::tick	manual	8	
 0x0027b570	survarium::network_client::process_set_time_request	manual	4	
 0x0027bff0	survarium::network_client::process_dynamic_match_info	manual	0	
+0x0027bff0	survarium::network_client::process_dynamic_match_info	manual	0	0xE8 (edi = this, esi = reader {begin, pos, size}, end = begin + size): gen test 0x27C006..0x27C03F (stale: pos = end at 0x27C02E, return), gen stored at 0x27C040 before the load; compressed: 8000h stack bytes, codec [this+4Ch] vtable +4 capped at 8000h, temporary reader [ebp-14h]; load = 0x2D0B70(core = [this+1F1C40h]+1F8h, reader, 1, 8) at 0x27C0D9 (compressed) and 0x27C111 (raw), both `call rel32`, the client world check's hook sites; post-load 0x27C116..0x27C1DF; epilogue 0x27C1E0 `lea esp,[ebp-30h]` [PROVEN]
 0x0027c1f0	survarium::network_client::register_message_in_stats	manual	4	
 0x0027c5f0	survarium::network_client::process_player_entered_match	manual	4	
 0x0027c690	survarium::network_client::process_player_left_match	manual	4	
@@ -1099,6 +1103,7 @@ va	name	source	ret_cleanup	result
 0x002c6f90		auto	0	
 0x002c7250		auto	4	
 0x002c75b0		auto	8	
+0x002c75b0	survarium::inventory_cook::on_subresources_loaded	manual	8	a kit's inventory: weapon slots (table 0x928778 = {7, 10}) get their item when the kit's slot index is not FFFFh, whatever the count (0x2C762E..0x2C7639); ammo slots (table 0x928780 = {8, 9, 11, 12, 19, 20, 21, 22}) when the index is not FFFFh and the count is over 0 (0x2C7739..0x2C77BA); each weapon's ammo list is the ammo slots in table order whose item items_compatibility pairs with it in either order ([[arg+8]+120h]..+124h, 0x2C78ED..0x2C7921), stored by 0x2E41D0 (world_validation.md 7) [PROVEN]
 0x002c83e0		auto	8	
 0x002c8850		auto	0	
 0x002c88d0		auto	4	
@@ -1114,6 +1119,7 @@ va	name	source	ret_cleanup	result
 0x002cea30	survarium::animation_analysis_result_cook::translate_query	manual	4	
 0x002d09c0		auto	0	
 0x002d0b70		auto	16	
+0x002d0b70	survarium::game_world_core::deserialize	manual	16	the only reader of a received world, with no check of the body: callers 0x27C0D9, 0x27C111 (0xE8, mode 1) and 0x1EE377 (replay key frame); frame 0x324D80 first (0x2D0B9C), history cleared 0x2D0550 (0x2D0BD1), world apply 0x2D2770 (0x2D0FB9) [PROVEN]
 0x002d1100		auto	20	
 0x002d1470	survarium::game_world_core::enter_match	manual	8	
 0x002d18a0	survarium::game_world_core::leave_match	manual	8	
@@ -1124,8 +1130,12 @@ va	name	source	ret_cleanup	result
 0x002d21e0		auto	12	
 0x002d2570		auto	8	
 0x002d2770		auto	12	
+0x002d2770	survarium::game_world_core::deserialize	manual	12	world apply: place k of the item's mask is [core+18458h]+k*30h with no bound against the table; kit object [entry+kit*4], vtable +3Ch with the block (0x2D2A85..0x2D2AA0); rules [core+18824h]..[core+18828h], each vtable +40h (0x2D2B20..0x2D2B5D), then the blackboard 0x323DC0; physics [core+18FA4h] vtable +44h [PROVEN]
+0x002d2770	survarium::game_world_core::deserialize	manual	12	effects part (0x2D2C1A..0x2D2C93): [core+19030h] vtable +20h (reader, 0), 4 bytes; game_effect_player 0x2DDDF0 on core+18FE8h (u32 time, u32 count, the effects); [[core+19034h]+4] vtable +0Ch (reader, 0, player), 8 bytes; in this order (0x2D2C44, 0x2D2C54, 0x2D2C73) (world_validation.md 8) [PROVEN]
+0x002d2770	survarium::game_world_core::deserialize	manual	12	objects part (0x2D2BB0..0x2D2BE6): walks the list at core+18914h by [node+8]; each node's deserialize is [node]->[+4], called with reader A (the objects section, item+0BDF3Ch), a conditional, and reader B (the shared aux arg at [esp+84h], also passed to statistics and physics); there is no count and no id per object in the blob (world_validation.md 9) [PROVEN]
 0x002d2e10		auto	0	
 0x002d2e40	survarium::game_world_core::move	manual	4	
+0x002d3820		manual		place count = ([core+1845Ch] - [core+18458h]) / 30h (0x2D3839..0x2D384F); each place's slot init 0x321820 (makes a player object for each usable kit) [PROVEN]
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	manual	8	XMM0 low32: B x max(0, 1 + k x S) for a multiplicative index, B + k x S for an additive one (index list 0x927E08); S = the kit's float plus its item nodes; EAX, ECX, EDX clobbered
 0x002d6230	survarium::character_breath_vibration_params::load	manual	8	
 0x002d7920	survarium::base_player::jump	manual	4	sets the controller's jump flag +0x2C70C
@@ -1135,9 +1145,10 @@ va	name	source	ret_cleanup	result
 0x002d9ae0	survarium::base_player::hit	manual	32	
 0x002d9b90	survarium::base_player::hit_impl	manual	8	
 0x002daf60	survarium::base_player::serialize	manual	16	
-0x002db490	survarium::base_player::deserialize	manual	28	
+0x002db490	survarium::base_player::deserialize	manual	28	PROVEN: after head reads E player effects (each 67B, 0x2DDDF0), u32 H + H hit effects, u8 current + u8 target active object (index into [[player+0x120]+0x18B4C], 255 entries, null-checked 0x2DB671), 29B stamina, inventory, items, jump, damage model, controller if alive, spotting, recent hits, u8 m_respawn_disabled
 0x002dc0b0	survarium::base_player::set_spotted	manual	4	
 0x002dc0c0	survarium::base_player::can_be_spotted_by	manual	4	AL: 1 when the spotter's team differs from this player's
+0x002dddf0	survarium::game_effect_player::deserialize	manual		u32 time, u32 count, then each effect (0x2DDE5D..0x2DE072): root emitter 0x2E5C30 (u8 raw, u32), u8 -> +44h, u32 -> +1Ch, two u8 for 0x2DE100, 7 u32, u8 bool, time calculator (u8 raw2, u32: raw2 set = a raw pointer, 0 with c = 0 = the effect's own +3Ch, else [0xAA2E74 + c*4] with no bound), then the emitter's vtable +20h and the instance's +28h; null entry crash at 0x2DDF60 `mov edx,[edi]` (world_validation.md 8) [PROVEN]
 0x002df0d0	survarium::weapon_core::weapon_core	manual	12	
 0x002df550	survarium::weapon_core::`scalar deleting destructor'	manual	4	
 0x002df570	survarium::weapon_core::~weapon_core	manual	4	
@@ -1158,6 +1169,7 @@ va	name	source	ret_cleanup	result
 0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	manual	12	
 0x002e2120	survarium::weapon_core::get_dispersed_buckshot_direction	manual	8	
 0x002e23a0	survarium::weapon_core::instant_fire	manual	8	
+0x002e2750		manual		a bullet's ammo params: ammo index == the weapon's count [w+5B0h] -> the weapon's melee params (+53Ch); else [[w+5ACh] + i*4] with no bound; given null-10h for an empty slot it reads +5B0h of it (0x2E2753) (world_validation.md 7) [PROVEN]
 0x002e2990		auto		
 0x002e2a30		auto	0	
 0x002e2cc0		auto	4	
@@ -1169,13 +1181,14 @@ va	name	source	ret_cleanup	result
 0x002e30a0	survarium::weapon_core::is_sprinting	manual	0	
 0x002e3130	survarium::weapon_core::serialize	manual	8	
 0x002e3390	survarium::weapon_core::on_player_death	manual	0	
-0x002e3490	survarium::weapon_core::deserialize	manual	12	
+0x002e3490	survarium::weapon_core::deserialize	manual	12	PROVEN: inventory_item header, u32 seed, u32 last_tick, bool, u8 ammo_in_magazine, u8 current_ammo_id (indexes [weap+0x5AC] ammo list, no bound 0x2E350A), [chambered bool], if active: recoil/dispersion/transition_helpers/breath/anim/FSM 0x38CCF0 (not length-walkable)
 0x002e3800	survarium::weapon_core::could_be_used	manual	4	
 0x002e3840	survarium::weapon_core::computed_backward_recoil_time	manual	24	
 0x002e3900	survarium::weapon_core::computed_horizontal_recoil_time	manual	24	
 0x002e3a10	survarium::weapon_core::can_sprint	manual	0	
 0x002e3a70		auto	0	
 0x002e3aa0		auto	0	
+0x002e41d0		manual		weapon_core: stores the ammo list built by 0x2C75B0, +5ACh the list of ammo slots, +5B0h the count (world_validation.md 7) [PROVEN]
 0x002e4280	survarium::weapon_core::time_calculator_id	manual	4	
 0x002e4300	survarium::weapon_core::time_calculator	manual	8	
 0x002e43a0	survarium::weapon_core::player_stance	manual	0	
@@ -1186,12 +1199,15 @@ va	name	source	ret_cleanup	result
 0x002e5290	survarium::damage_model::reset	manual	4	
 0x002e5370	survarium::damage_model::on_broken_limb_affect	manual	12	
 0x002e53b0	survarium::damage_model::serialize	manual	4	
-0x002e5480	survarium::damage_model::deserialize	manual	12	
+0x002e5480	survarium::damage_model::deserialize	manual	12	PROVEN: bool + 4 u32, then body parts over a linked list at [dm+0x108]/[+0x110] (count from the object not the stream), each 0x32AE00
 0x002e5550	survarium::damage_model::get_invulnerability	manual	0	x87 ST0: Zero, one, or one minus an unsigned time ratio is left on the x87 stack before each observed return.
+0x002e5bb0	survarium::game_effect_ptr_wrapper::serialize_root_emitter	manual		writes u8 raw and u32: the emitter's index, or its own address with raw set when its index +118h is -1 (world_validation.md 8) [PROVEN]
+0x002e5c30		manual		game_effect_ptr_wrapper reader of the root emitter: u8 raw, u32 v; raw 0: [0xAA2E48 + v*4] with no bound; raw set: v is taken as the pointer (world_validation.md 8) [PROVEN]
 0x002e9c70	survarium::generic_anomaly_core_cook::translate_query	manual	4	
 0x002e9d40	survarium::generic_anomaly_core_cook::query_for_artefacts	manual	16	
 0x002ea0e0	survarium::generic_anomaly_core_cook::on_artefacts_loaded	manual	8	
 0x002ea100	survarium::generic_anomaly_core_cook::proceed_to_create_resource	manual	16	
+0x002efd00	survarium::game_effect_time_calculators_registry::serialize_time_calculator	manual		writes u8 raw and u32: the calculator's index into 0xAA2E74, or its address with raw set when its +4 is -1 (world_validation.md 8) [PROVEN]
 0x002f0d30	survarium::character_dispersion_params::load	manual	8	
 0x002f1050	survarium::character_dispersion_skill_influence::load	manual	4	
 0x002f12a0	survarium::player_stealth::load	manual	4	
@@ -1200,6 +1216,7 @@ va	name	source	ret_cleanup	result
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	manual	20	
 0x002f73f0	survarium::player_profile::player_profile	manual	0	EAX = this; keeps EBX, ESI, EDI, EBP
 0x002f7c10	survarium::inventory_item_descr::inventory_item_descr	manual	0	the two buffer_vectors point at their inline storage (+20h..+60h, +6Ch..+B4h)
+0x002f7d40		manual	8	the head's item list: byte [profile+1564h] u32s, each into profile+1570h+i*0B4h; profile = base_player [this+6B8h] (0x2DB4C5) [PROVEN]
 0x002f81f0	survarium::usable_object::load	manual	4	
 0x002f8280	survarium::usable_object::resolve_links	manual	28	
 0x002f8300	survarium::usable_object::insert	manual	8	
@@ -1207,6 +1224,7 @@ va	name	source	ret_cleanup	result
 0x002f8440	survarium::usable_object::get_transform	manual	4	
 0x002f8460	survarium::usable_object::serialize_usable_object	manual	0	
 0x002f84c0	survarium::usable_object::deserialize_usable_object	manual	0	
+0x002f84c0	survarium::usable_object::deserialize_usable_object	manual	0	u8 N (the users), then N u8 ids, each push_back into a buffer_vector (no out-of-bounds write); the base class of the resupply objects and of the artefact and victory containers (world_validation.md 9) [PROVEN]
 0x002f8510	survarium::usable_object::post_deserialize_resolve	manual	0	
 0x002f8c30	survarium::collision_geometry::load	manual	8	
 0x002fc4b0	survarium::inventory::inventory	manual	0	
@@ -1220,10 +1238,10 @@ va	name	source	ret_cleanup	result
 0x002fcb70	survarium::inventory::setup_from_profile	manual	4	
 0x002fd2d0	survarium::inventory::unload_to_profile	manual	8	
 0x002fe360	survarium::inventory::serialize	manual	4	
-0x002fe550	survarium::inventory::deserialize	manual	8	
+0x002fe550	survarium::inventory::deserialize	manual	8	PROVEN: f32 weight, bool, u8 carried-item id (0xFF none, else index into [[inv+0x174]->+0x120+0x18B4C], null-checked 0x2FE5C8, then battery state untraced), u8 A artefacts, if A: u8 slots_begin + A u8 ids (0xFF or index into [[inv+0x108]+0x18940], reserve 128, no null check 0x2FE655), u8 active slot, u8 grenade slot, then items by slot 0..22 (0x2FE7A9)
 0x002ffb80	survarium::inventory_item::inventory_item	manual	12	
 0x002ffdf0		auto	8	
-0x002fff10		auto	12	
+0x002fff10		auto	12	PROVEN: u16 amount (is_stack [cfg+0x22A]) or f32 condition; u8 player_id (0xFF=no owner, header ends); else u8 player_profile_id + u8 slot_id. owner lookup [core+0x18458]+(profile_id+player_id*12)*4+0x10C, no bound (0x2FFF72)
 0x00300710		auto	4	
 0x00301c40	survarium::victory_item_core::set_spotted	manual	4	
 0x00301ca0	survarium::victory_item_core::can_be_spotted_by	manual	4	AL: always 1
@@ -1275,19 +1293,23 @@ va	name	source	ret_cleanup	result
 0x003180e0	survarium::timelimit_rule_core::on_player_left_match	manual		
 0x00318100	survarium::timelimit_rule_core::logic_tick	manual	8	
 0x00318360	survarium::timelimit_rule_core::rule_completed	manual	4	
+0x00318800	survarium::server_game_project::set_game_world_core	manual		builds the world serialize list (core+18914h head, +18918h tail) from the client project's objects in a fixed order: damage zones (project +14Ch..+150h, deserialize 0x319470), usable objects +174h..+178h (resupply; the artefact and victory containers derive from usable_object), collision sensors +158h (collision_sensor::insert 0x3080B0, no serialize), generic anomalies +164h..+168h (0x31B0A0); the function ends at 0x318C62. The object list is the client project's client_objects, which the server data does not keep (world_validation.md 9) [PROVEN the four groups and the list fields; LIKELY the containers ride the usable group]
 0x003190c0	survarium::damage_zone_core::damage_zone_core	manual	0	
 0x003193f0	survarium::damage_zone_core::serialize	manual	8	
 0x003193f0	survarium::damage_zone_core::serialize	manual	8	
 0x00319470	survarium::damage_zone_core::deserialize	manual	12	
 0x00319470	survarium::damage_zone_core::deserialize	manual	12	
+0x00319470	survarium::damage_zone_core::deserialize	manual	12	reads u32 -> +9Ch and a u8 bool -> +A1h from reader A (the objects section), 5 bytes; then 14h (20) game_effect_ptr_wrapper from reader B: each a u8 outer flag, and if set 0x2E5C30 (u8 raw taken as a raw pointer, else [0xAA2E48 + v*4] with no bound) plus a u32. The wrapper raw-pointer hole is in reader B, which is 0 bytes in all 2319 kept worlds (world_validation.md 9) [PROVEN the reads; OBSERVED reader B empty]
 0x00319500	survarium::damage_zone_core::load	manual	4	
 0x0031ad70	survarium::generic_anomaly_core::~generic_anomaly_core	manual		
 0x0031add0	survarium::generic_anomaly_core::`scalar deleting destructor'	manual	4	
 0x0031adf0	survarium::generic_anomaly_core::generic_anomaly_core	manual	12	
 0x0031af20	survarium::generic_anomaly_core::serialize	manual	8	
 0x0031b0a0	survarium::generic_anomaly_core::deserialize	manual	12	
+0x0031b0a0	survarium::generic_anomaly_core::deserialize	manual	12	from reader A (objects): if [+0Ch] a u8 bool -> +20h and (if set) a u32 -> +24h; a u32 f32 -> +38h; a u8 state index (0x31B0FF): FFh = none, else [+68h + cl*4] with NO bound used as the new state pointer (anomaly_state::initialize 0x31BC10); a u8 flags (bits 0,1 -> +78h,+79h); a u32 -> +A0h. anomaly_state 0x31B230 reads one u32 from reader A; the state's zone groups (+28h..+2Ch, vtable +40h->[+4]) and the sub-objects (+98h, count +9Ch, vtable +6Ch) read from reader B. The state index is a crash path, bounded by the anomaly's state count (client_objects) (world_validation.md 9) [PROVEN]
 0x0031b1d0	survarium::anomaly_state::serialize	manual	4	
 0x0031b230	survarium::anomaly_state::deserialize	manual	8	
+0x0031b230	survarium::anomaly_state::deserialize	manual	8	reads one u32 from reader A (the objects section) -> +2Ch; then walks the state's zone groups (callback 0x31B390 via the for_each 0x31C180) reading from reader B (the aux arg), not the objects section (world_validation.md 9) [PROVEN]
 0x0031b2a0		auto	8	
 0x0031b390		auto	12	
 0x0031b4b0	survarium::generic_anomaly_core::activate	manual	4	
@@ -1302,6 +1324,7 @@ va	name	source	ret_cleanup	result
 0x0031c480	survarium::artefact_container_core::load	manual	4	
 0x0031c530	survarium::artefact_container_core::serialize	manual	8	
 0x0031c5b0	survarium::artefact_container_core::deserialize	manual	12	
+0x0031c5b0	survarium::artefact_container_core::deserialize	manual	12	usable_object::deserialize (u8 N + N ids), then a u8 artefact id: if != FFh it indexes [[+14h]+18940h] + id*4 with no bound (a null entry is tolerated, 0x31C5FB), then a u32; the artefact id is a crash path (world_validation.md 9) [PROVEN]
 0x0031c6b0	survarium::artefact_container_core::can_use	manual	4	
 0x0031c720	survarium::artefact_container_core::use_info	manual	4	
 0x0031c780	survarium::artefact_container_core::use_execute	manual	12	
@@ -1314,12 +1337,16 @@ va	name	source	ret_cleanup	result
 0x0031cdf0	survarium::victory_items_container_core::take_item	manual	8	
 0x0031ce40	survarium::victory_items_container_core::serialize	manual	4	
 0x0031cee0	survarium::victory_items_container_core::deserialize	manual	4	
+0x0031cee0	survarium::victory_items_container_core::deserialize	manual	4	usable_object::deserialize (u8 N + N ids), post_deserialize_resolve 0x2F8510, a u32 count, then count u8 battery indices, each indexing [[+160h]+110h] + i*4 with no bound before vtable +48h adds it; the count and the indices are crash paths, bounded by the map's victory_items_count (world_validation.md 9) [PROVEN]
 0x0031da30	survarium::breath_vibration_calculator::serialize	manual	4	
 0x0031db00	survarium::breath_vibration_calculator::deserialize	manual	8	
 0x0031eb80	survarium::weapon_core_base_state::serialize	manual	8	
 0x0031ebb0	survarium::weapon_core_base_state::deserialize	manual	12	
 0x00321b90	survarium::bullet_manager::serialize	manual	4	
 0x00321c50	survarium::bullet_manager::deserialize	manual	4	
+0x00321c50	survarium::bullet_manager::deserialize	manual	4	header (0x321C5A..0x321C8E): u32 -> mgr+B4h (next bullet id), u32 -> mgr+0, u32 -> mgr+4, u32 N; 0x322920 frees the held bullets, then N records by bullet::bullet 0x32BBC0, each 68 bytes and a pellet byte when its ammo's buck_shot > 1; no length of its own (world_validation.md 7) [PROVEN]
+0x00322730	survarium::bullet_manager::construct_bullets_memory_allocator	manual		the pool: C0h bullets of 8Ch bytes (mgr+A0h = C0h); an empty pool throws (0x323200 -> 0x10E2A0) (world_validation.md 7) [PROVEN]
+0x00322920		manual		bullet_manager: frees the bullets it holds, before a world's records are read (world_validation.md 7) [LIKELY]
 0x003237e0	survarium::kd_stats_rule::on_event	manual	12	
 0x00323870	survarium::kd_stats_rule::serialize	manual	4	
 0x00323910	survarium::kd_stats_rule::deserialize	manual	8	
@@ -1334,11 +1361,12 @@ va	name	source	ret_cleanup	result
 0x00324ad0	survarium::game_state_history_item::clear_buffers	manual	4	
 0x00324be0	survarium::game_state_history_item::serialize	manual	12	
 0x00324d80	survarium::game_state_history_item::deserialize	manual	8	
+0x00324d80	survarium::game_state_history_item::deserialize	manual	8	u32 time -> item+0C0BB0h; u32 mask: each set bit k -> 0x33FEE0 into item + k*9054h with no bound (0x324DC0..0x324E15); then six u16-length sections copied into growing buffers [PROVEN]
 0x00325150	survarium::game_state_history_item::hash	manual	4	
 0x00325a60		auto	16	
 0x00329120	survarium::stamina_base_parameters::load	manual	4	
 0x00329310	survarium::player_stamina::serialize	manual	0	
-0x00329400	survarium::player_stamina::deserialize	manual	0	
+0x00329400	survarium::player_stamina::deserialize	manual	0	PROVEN: 29 bytes = f32 (+0x6C), 4 u32 raw times (+0x70/74/7C/80), u8 bool (+0x78), 2 f32 list inserts; no index
 0x00329790	survarium::player_stamina::tick	manual	12	
 0x003298c0	survarium::player_stamina::regenerate	manual	0	
 0x00329a20	survarium::player_stamina::spend	manual	4	
@@ -1349,7 +1377,9 @@ va	name	source	ret_cleanup	result
 0x0032ae00	survarium::body_part_parameters::serialize	manual	8	
 0x0032afe0	survarium::body_part_parameters::deserialize	manual	12	
 0x0032b9f0	survarium::hit_info::hit_info	manual	32	
+0x0032bbc0	survarium::bullet::bullet	manual		from a world's record: id +4, position +28h, direction +34h, f32 +78h +7Ch, u32 +5Ch, f32 +64h +68h +70h +74h, u8 +88h +84h, f32 +54h, i8 +58h; byte 63 the owner (looked up, [owner+10Ch] read at once, null at 0x32BDA1), 64 the second id (+50h), 65 the weapon slot ([[owner+10Ch] + slot*4 + 10Ch], no bound), 66 the ammo index (0x2E2750), 67 the material (a table with a default), 68 the pellet (+80h) when buck_shot > 1; null ammo params crash at 0x32BE15 (world_validation.md 7) [PROVEN]
 0x0032bec0		auto	4	
+0x0032bec0	survarium::bullet::serialize	manual	4	the record bullet::bullet reads; calls through the second id's object +50h with no check (0x32C07E) (world_validation.md 7) [PROVEN]
 0x0032c950	survarium::bullet::compute_parabolic_velocity	manual	8	
 0x0032ca60	survarium::bullet::compute_trajectory_velocity	manual	4	
 0x0032cb10	survarium::bullet::compute_parabolic_position	manual	8	
@@ -1366,8 +1396,9 @@ va	name	source	ret_cleanup	result
 0x0032ee90		auto	8	
 0x0032fcc0	survarium::usable_object_user_data::serialize	manual	0	
 0x0032fee0	survarium::transition_helper::serialize	manual	0	
-0x0032ff70	survarium::transition_helper::deserialize	manual	0	
+0x0032ff70	survarium::transition_helper::deserialize	manual	0	PROVEN: 20 bytes = 5 f32; no index
 0x003312f0	survarium::dispersion_calculator::serialize	manual	4	
+0x00332440		manual		ammo params: reads `buck_shot` (key 0xA19874) into +44h, called from 0x31F7F4; a weapon's `melee` section (key 0x9FDEC0, 0x2DF3C8) has its own; instant_fire 0x2E2467 loops pellets over it (world_validation.md 7) [PROVEN]
 0x00334ac0	survarium::victory_item_event_manager::on_event	manual	12	
 0x00334dc0	survarium::victory_item_event_manager::serialize	manual	4	
 0x00334fb0	survarium::victory_item_event_manager::deserialize	manual	4	
@@ -1420,6 +1451,7 @@ va	name	source	ret_cleanup	result
 0x0033f3a0	survarium::armor::add_modifiers	manual	0	
 0x0033fde0	survarium::player_history_item::serialize	manual	0	
 0x0033fee0	survarium::player_history_item::deserialize	manual	4	
+0x003402c0	survarium::hit_player_game_effect_presenter::serialize	manual	8	PROVEN: writes u32 count = hit-effect vector size (0x14B elements), then per element u8 is_exists (0x80FA0) + if set root emitter (flag u8 + u32, raw pointer when flag!=0) + u32 + 2 f32, else 2 f32; the reader is the vtable+0x0C of [player+0x3A8] (base_player 0x2DB624)
 0x00341030	survarium::short_jump_start_state::selected_animations	manual	20	
 0x00341610	survarium::short_jump_start_state::initialize	manual	0	
 0x00341730	survarium::short_jump_start_state::finalize	manual	0	
@@ -1488,7 +1520,7 @@ va	name	source	ret_cleanup	result
 0x0038ca20	vostok::ai::fsm::tick	manual	4	
 0x0038caf0	vostok::ai::fsm::pop_state	manual	4	
 0x0038cc90	vostok::ai::fsm::serialize	manual	4	
-0x0038ccf0	vostok::ai::fsm::deserialize	manual	8	
+0x0038ccf0	vostok::ai::fsm::deserialize	manual	8	PROVEN: u8 current state id (0x38CCF3), walks the fsm state list to it (null deref if past the end, 0x38CD26), then dispatches [state_vtable+0x14] (the state's own reader, variable, no length marker)
 0x00396120		auto	0	
 0x003b9f40	vostok::render::device::device	manual	12	EAX: constructed device receiver
 0x003b9fe0	vostok::render::device::on_device_removed	manual	4	

@@ -1,0 +1,14 @@
+[package]
+name = "srp-validate"
+version.workspace = true
+edition.workspace = true
+description = "The checks of what a 0.26g game reads from the match server, shared by the server and the game's own payload (no_std, no alloc)"
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+# The bench example unpacks the 0xE8 worlds of packet logs (LZMA2).
+survarium = { workspace = true }
