@@ -8,7 +8,7 @@ Sponge is still 0.28's (the throw, the passive's callback, the splash).
 
     python check_sponge_a_026g.py <original survarium.exe> [--v028d0 <0.28d0 survarium.exe>]
                                   [--v031a2 <0.31a2 survarium.exe>]
-                                  [--options <artefact_sponge.options>] [--pack <sponge-4 folder>]
+                                  [--options <artefact_sponge.options>] [--pack <sponge-5 folder>]
                                   [--project <a map's client_project>]... [--spots <artefact-spots-1.json>]
 
 Requires Python `unicorn`. The built exe's sections are loaded as they are
@@ -78,8 +78,8 @@ import bcw  # noqa: E402
 ARENA = base.arena()
 SYMBOLS = {name: va for name, va in ARENA.symbols.items() if name.startswith("sp_")}
 STATE = SYMBOLS["sp_g"]
-# the content pack (release/content.tsv sponge@4), in the main checkout's private folder
-PACK = os.path.join(HERE, "..", "..", "..", "skhid-srp", "private", "content-packs", "sponge-4")
+# the content pack (release/content.tsv sponge@5), in the main checkout's private folder
+PACK = os.path.join(HERE, "..", "..", "..", "skhid-srp", "private", "content-packs", "sponge-5")
 HEAP, STACK, FAKE, CORE, CONFIG = 0x30000000, 0x21000000, 0x22000000, 0x40000000, 0x50000000
 STOP = FAKE + 0x10
 NEVER = 0xFFFFFFFF
@@ -101,7 +101,7 @@ FIRE = 6                                               # retail's "fire" (0x9257
 
 
 def sponge_options():
-    """The Sponge's artefact_sponge.options as the pack (sponge@4) makes it,
+    """The Sponge's artefact_sponge.options as the pack (sponge@5) makes it,
     but the pack's passive and description (0.28d0's here): 0.28d0's file
     with retail's (0.69d0's) fuse, contact and numbers in 0.26g's keys
     (bcw: tuples are float vectors); --options compares it with the pack's."""
@@ -144,7 +144,7 @@ def sponge_options():
                     "game_object_type": "damage_zone", "layer": "default", "scale": (1.0, 1.0, 1.0)},
                 "stopping_power": 0, "throw_power": 15, "splash_max_damage": 0.30000001192092896,
                 "splash_min_damage": 0.30000001192092896, "duration_s": 15, "splash_damage_type": "fire",
-                "splash_affected_bodies": [], "stamina_damage": 0, "splash_radius": 10,
+                "splash_affected_bodies": [18], "stamina_damage": 0, "splash_radius": 10,
                 "splash_pierce": 0.10000000149011612},
             "cooldown_sec": 0, "ttl_ms": 3000, "safe_time": 1500, "explode_on_contact": True,
             "passive": {"regen_add": 0, "regen_mul": 1, "timeout_add": 0, "threshold_mul": 1, "timeout_mul": 1,
@@ -529,9 +529,10 @@ def main():
     parser.add_argument("original")
     parser.add_argument("--v028d0", help="0.28d0's binaries/x86/survarium.exe as shipped")
     parser.add_argument("--v031a2", help="0.31a2's binaries/x86/survarium.exe as shipped (its contact rule)")
+    parser.add_argument("--v046c2", help="0.46c2's binaries/x86/survarium.exe as shipped (retail's contact rule)")
     parser.add_argument("--options", help="the pack's gameplay/items/artefacts/artefact_sponge.options")
     parser.add_argument("--pack", default=os.environ.get("SRP_SPONGE_PACK", PACK),
-                        help="the content pack's folder (sponge@4: private/content-packs/sponge-4)")
+                        help="the content pack's folder (sponge@5: private/content-packs/sponge-5)")
     parser.add_argument("--project", action="append", default=[],
                         help="a map's projects/<map>/<weather>/client_project (srp-game-data get), each core's "
                              "kinds run through the cook's loop with its map's spots (--spots)")
@@ -586,10 +587,10 @@ def main():
           and r.read(sponge + S_ON_CONTACT, 1) == 1
           and r.readf(sponge + S_POWER) == 15.0 and passive == [0.0, 1.0, 0.0, 1.0, 1.5, 1.0], str(passive))
     check("the splash's parameters in 0.26g's layout (the grenade set's +278h): radius 10, damage 0.3 (0.69d0's "
-          "explosive min and max), pierce 0.1, fire, no body (retail's [18], 0.69d0's stamina part, which 0.26g "
-          "has not: all -1), stamina and stopping 0",
+          "explosive min and max), pierce 0.1, fire, retail's body list [18] (the hit target face on the Head bone) "
+          "then -1, stamina and stopping 0",
           hit["radius"] == 10.0 and hit["min"] == f32(0.3) and hit["max"] == f32(0.3) and hit["pierce"] == f32(0.1)
-          and hit["type"] == FIRE and hit["bodies"] == [-1] * 8
+          and hit["type"] == FIRE and hit["bodies"] == [18] + [-1] * 7
           and hit["stamina"] == 0.0 and hit["stopping"] == 0.0, str(hit))
     check("not armed (m_explode_time_ms -1), the pin in, no body, identity m_transform, its inflictor "
           "{FFFFh, the sponge}, its regeneration node Lifebone's (0xA1566C|1, 0x312590, the sponge, the passive)",
@@ -906,7 +907,7 @@ def main():
           len(splashes) == 1 and hit["inflictor"] == sponge + S_INFLICTOR and hit["radius"] == 15.0
           and hit["min"] == f32(f32(0.3) * f32(1.1)) and hit["max"] == f32(f32(0.3) * f32(1.1))
           and hit["pierce"] == f32(0.1)
-          and hit["type"] == FIRE and hit["bodies"] == [-1] * 8 and manager == game.hits
+          and hit["type"] == FIRE and hit["bodies"] == [18] + [-1] * 7 and manager == game.hits
           and at == [f32(5.2 + (armed_at - 100100) / 1000.0), 1.5, f32(7.1 + (armed_at - 100100) / 500.0)]
           and when == armed_at
           and instigator == game.player + 0x110, str(splashes))
@@ -1010,8 +1011,8 @@ def main():
             9: (lambda r, place=place: recorded.append((place, tuple(r.arg(i) for i in range(10)))), 0x28),
             10: (lambda r, m=world_matrix: m, 0)}))
         a, b_, c = srun.allocate(0x200), srun.allocate(0x40), srun.allocate(0x40)
-        bones = srun.allocate(0x50 * 16)
-        for i in range(16):
+        bones = srun.allocate(0x50 * 19)                   # the 19 hit targets' bones
+        for i in range(19):
             srun.floats(bones + 0x50 * i, [1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0, 0, 0, 1.0, 0, 1.0])
         srun.word(p + 0x498, a)
         srun.word(a + 0x12C, b_)
@@ -1041,10 +1042,13 @@ def main():
           "the pierce left after obstacles over the pierce: 0 here, 0/0 in 0.28, neither above 0); ret 0Ch",
           cleanup == 0xC and with_config == {}, str(with_config))
     retail = f32(f32(0.3) * f32(1.1))
-    cleanup, ours_now, _ = splash(f32(0.1), low=retail, high=retail, bodies=(-1,) * 8, kind=FIRE)
-    check("the config's splash (0.69d0's: fire, 0.3, pierce 0.1, its body list [18] the stamina part 0.26g has "
-          "not): no target hit, as retail's fire on a part that takes only stamina hits; ret 0Ch",
-          cleanup == 0xC and ours_now == {}, str(ours_now))
+    cleanup, ours_now, raw_now = splash(f32(0.1), low=retail, high=retail, bodies=(18,) + (-1,) * 7, kind=FIRE)
+    check("the config's splash (0.69d0's: fire, 0.3 at any distance within the radius (min = max: retail's has no "
+          "falloff), pierce 0.1, its body list [18]): every target within the radius 15 hit once, on hit target 18 "
+          "(the face: its bone the 19th of the hit targets), fire, 0.33, none outside; ret 0Ch",
+          cleanup == 0xC and set(ours_now) == {4 + i for i, d in enumerate(distances) if d <= 15.0}
+          and all(v == [(18, v[0][1])] and abs(v[0][1] - retail) <= 1e-6 for v in ours_now.values())
+          and all(h[1][3] == FIRE for h in raw_now), str({k: v for k, v in ours_now.items()}))
     cleanup, six_fire, _ = splash(f32(0.1), low=retail, high=retail, kind=FIRE)
     check("the same splash on six bodies: every target within the radius 15 hit with 0.33 fire (the splash itself "
           "works with these numbers)", cleanup == 0xC and set(six_fire) == {4 + i for i, d in enumerate(distances) if d <= 15.0}
@@ -1702,18 +1706,46 @@ def main():
         contact(obj)
         r.thiscall(vt(obj, 29), obj, 50, now)
         return r.read(obj + STATE_AT) == 7, r.read(obj + S_CONTACT, 1)
+    # ttl 3000 (the config's): retail's rule explodes when the fuse's end - now <= ttl - safe_time
     cases = [(due, now, safe) for safe in (1500, 2500, 0)
              for due, now in ((2403000, 2400050), (2403000, 2401450), (2403000, 2401500), (2403000, 2401550),
                               (2403000, 2402950))]
-    stock_rule = [grenade_core_rule(*c) for c in cases]
+    want = [due - now <= 3000 - safe for due, now, safe in cases]
     ours_rule = [our_rule(*c, slot=15 + i % 6) for i, c in enumerate(cases)]
-    check("the rule on 15 contacts before the fuse's end (safe_time 1500, 2500 and 0): explodes exactly where 0.26g's "
-          "grenade_core contact handler 0x3041B0 queues the explosion (fuse end - now < safe_time, unsigned), "
-          "and where it does not the first contact is spent in both (+156h 0); ret 4",
-          [x[0] for x in ours_rule] == [x[0] for x in stock_rule]
-          and all(o[1] == 0 for o in ours_rule) and all(sr[1] == 0 for sr in stock_rule if not sr[0])
-          and all(sr[2] == 4 for sr in stock_rule) and sum(x[0] for x in ours_rule) == 6,
-          f"ours {[x[0] for x in ours_rule]} 0.26g {[x[0] for x in stock_rule]}")
+    # 0.26g's grenade_core (and 0.31a2's) explode when the end - now < their safe_time: retail's
+    # rule is theirs with ttl - safe_time + 1 (whole ms)
+    stock_rule = [grenade_core_rule(due, now, 3000 - safe + 1) for due, now, safe in cases]
+    check("retail's first-contact rule on 15 contacts (ttl 3000; safe_time 1500, 2500 and 0): explodes where the "
+          "fuse's end - now <= ttl - safe_time (safe_time or more since the pull; 0.46c2's 0x7AD5E0), the first "
+          "contact spent either way; the same decisions as 0.26g's grenade_core contact handler 0x3041B0 with its "
+          "safe_time ttl - safe_time + 1 (ret 4)",
+          [x[0] for x in ours_rule] == want == [x[0] for x in stock_rule] and sum(want) == 9
+          and all(o[1] == 0 for o in ours_rule) and all(sr[2] == 4 for sr in stock_rule),
+          f"ours {[x[0] for x in ours_rule]} want {want} 0.26g {[x[0] for x in stock_rule]}")
+    if args.v046c2:
+        old46 = Run(raw_sections(unbcj(open(args.v046c2, "rb").read())))
+
+        def rule46(due, now, safe):
+            e = old46
+            tr, gr, world = e.allocate(0x40), e.allocate(0x400), e.allocate(0xBC100)
+            e.word(tr + 4, gr)
+            e.word(gr + 0x204, world)
+            e.word(world + 0xBC01C, now)
+            e.word(gr + 0x210, due)
+            e.word(tr + 0x38, 3000 - safe)                # the cook's delay: ttl_ms - safe_time (0x731061)
+            e.emu.mem_write(tr + 0x3C, b"\x01")
+            e.emu.mem_write(tr + 9, b"\x00")
+            _, cleanup = e.thiscall(0x7AD5E0, tr, e.allocate(0x40))
+            return e.read(tr + 9, 1) == 1, e.read(tr + 0x3C, 1), cleanup
+        old_rule = [rule46(*c) for c in cases]
+        check("0.46c2's own grenade_core_state_transition_by_contact 0x7AD5E0 (its exe decoded; its vtable "
+              "0xB4AF28 holds 0x7AD4E0, the state's enter setting the first contact +3Ch) on the same 15, its delay "
+              "+38h ttl_ms - safe_time as its cook makes it (0x731027..0x731065): the same explosions, the first "
+              "contact spent every time; ret 4",
+              old46.read(0xB4AF28 + 4) == 0x7AD4E0 and [x[0] for x in old_rule] == want
+              and all(x[1] == 0 and x[2] == 4 for x in old_rule), f"0.46c2 {[x[0] for x in old_rule]}")
+    else:
+        print("  --  0.46c2's contact rule not run (no --v046c2)")
     if args.v031a2:
         old31 = Run(raw_sections(unbcj(open(args.v031a2, "rb").read())))
         vtable31 = old31.read(0xA9A100)
@@ -1730,14 +1762,22 @@ def main():
             e.emu.mem_write(tr + 9, b"\x00")
             _, cleanup = e.thiscall(0x6011E0, tr, e.allocate(0x40))
             return e.read(tr + 9, 1) == 1, e.read(tr + 0x3C, 1), cleanup
-        old_rule = [rule31(*c) for c in cases]
-        check("0.31a2's (the first Sponge to explode on contact; its exe decoded) "
-              "grenade_core_state_transition_by_contact 0x6011E0 (its vtable 0xA9A100's destructor 0x59DF40 first) "
-              "on the same 15: the same explosions, its first contact spent every time; ret 4",
-              vtable31 == 0x59DF40 and [x[0] for x in old_rule] == [x[0] for x in ours_rule]
+        old_rule = [rule31(due, now, 3000 - safe + 1) for due, now, safe in cases]
+        check("0.31a2's grenade_core_state_transition_by_contact 0x6011E0 (its vtable 0xA9A100's destructor 0x59DF40 "
+              "first; it compares with safe_time itself, < ) on the same 15 with its safe_time ttl - safe_time + 1: "
+              "the same explosions, its first contact spent every time; ret 4",
+              vtable31 == 0x59DF40 and [x[0] for x in old_rule] == want
               and all(x[1] == 0 and x[2] == 4 for x in old_rule), f"0.31a2 {[x[0] for x in old_rule]}")
     else:
         print("  --  0.31a2's contact rule not run (no --v031a2)")
+    # the two timelines (0.69d0's numbers: ttl 3000 from the pull, safe_time 1500)
+    quick, _ = thrown_at(9, 2500000)                      # pulled and thrown at once
+    t, booms_quick = run_to(quick, 2500000, 2504000, contacts=(2501600,))
+    short_one, _ = thrown_at(10, 2600000)
+    t2, booms_short = run_to(short_one, 2600000, 2604000, contacts=(2600800, 2601800))
+    check("timelines: a quick throw landing 1.6 s after the pull explodes at that tick (2501600); a short one "
+          "landing at 0.8 s is spent there, rolls, and explodes at the fuse 3 s after the pull (2603000) whatever "
+          "it touches after", booms_quick == [2501600] and booms_short == [2603000], f"{booms_quick} {booms_short}")
 
     # 19. Cooked past the fuse: pulled and held (no release), it explodes in the hand at 3 s, as retail's
     #     grenade_core at its ttl; the crash of 2026-10-25 04:16:45 (both games, the same tick: 0xA4350A5,
@@ -2304,7 +2344,7 @@ def main():
     if args.project:
         print(f"  --  {totals[0]} projects: {totals[1]} anomaly cores, {totals[2]} of them with spots")
 
-    # 15. The content pack's own config (release/content.tsv sponge@4, SRP_SPONGE_PACK or --pack: its
+    # 15. The content pack's own config (release/content.tsv sponge@5, SRP_SPONGE_PACK or --pack: its
     #     folder), loaded as the game loads it: the cook reads it, and its passive keeps infection full.
     pack_config = os.path.join(args.pack, "files", "gameplay", "items", "artefacts", "artefact_sponge.options")
     if os.path.exists(pack_config):
@@ -2319,13 +2359,13 @@ def main():
         check("the pack's artefact_sponge.options (0.28d0's file with 0.69d0's fuse, contact and numbers, the "
               "passive's regen_add 1000 and timeout_mul 0): a sponge of 6B8h bytes; duration 15000, fuse 3000 from "
               "the pull, safe_time 1500, explode_on_contact, throw power 15, the passive {1000, 1, 0, 0, 1.5, 1}, the "
-              "splash 0.69d0's (radius 10, 0.3, pierce 0.1, fire, no body)",
+              "splash 0.69d0's (radius 10, 0.3, pierce 0.1, fire, on hit target 18)",
               made == psponge and size == S_SIZE and p.read(psponge + S_DURATION) == 15000
               and p.read(psponge + S_TTL) == 3000 and p.read(psponge + S_SAFE) == 1500
               and p.read(psponge + S_ON_CONTACT, 1) == 1 and p.readf(psponge + S_POWER) == 15.0
               and p.readf(psponge + S_PASSIVE + 0x1C, 6) == [1000.0, 1.0, 0.0, 0.0, 1.5, 1.0]
               and phit["radius"] == 10.0 and phit["min"] == f32(0.3) and phit["max"] == f32(0.3)
-              and phit["pierce"] == f32(0.1) and phit["type"] == FIRE and phit["bodies"] == [-1] * 8,
+              and phit["pierce"] == f32(0.1) and phit["type"] == FIRE and phit["bodies"] == [18] + [-1] * 7,
               f"{p.readf(psponge + S_PASSIVE + 0x1C, 6)} {phit}")
         # the infection pool as the regeneration tick (0x32A4B0) reads it: Hmax +9Ch, H +A0h, speed +A4h,
         # threshold +A8h, the timeout +ACh, the last hit +B0h, its modifiers +2E8h

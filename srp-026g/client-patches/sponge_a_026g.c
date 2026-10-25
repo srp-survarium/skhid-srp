@@ -693,13 +693,15 @@ THISCALL void sp_tick(struct sponge *s, u32 dt, u32 time) {
         place(s, &s->transform);
         physics_update(s->physics, s->body);
     }
-    /* The first contact since the pull (grenade_core's rule, 0x3041B0):
-     * with less than safe_time of the fuse left it explodes now, this tick;
-     * earlier, it is spent and the fuse decides. */
+    /* The first contact since the pull, retail's rule (0.46c2's
+     * grenade_core_state_transition_by_contact 0x7AD5E0, its delay ttl_ms -
+     * safe_time from the cook 0x731027..0x731065): with at most ttl_ms -
+     * safe_time of the fuse left (safe_time or more since the pull) it
+     * explodes now, this tick; earlier it is spent and the fuse decides. */
     if (s->contact & CONTACT_HIT) {
         s->contact = 0;
         if (AT(s, A_STATE, u32) == ST_ARMED && s->explode_time != NEVER
-            && (i32)(s->explode_time - time) < (i32)s->safe_time_ms)
+            && (i32)(s->explode_time - time) <= (i32)(s->ttl_ms - s->safe_time_ms))
             s->explode_time = time;
     }
     if (s->explode_time == NEVER) return;

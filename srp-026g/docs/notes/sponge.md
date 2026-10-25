@@ -3,7 +3,7 @@
 Client patch 59 with the Rattle (README section 59, client_patch.md section 3.52;
 `rattle.md`): 0.28d0's `artefact_sponge_core` written again on 0.26g's interfaces, thrown and
 exploding as retail's (2026-10-24; the owner, 2026-10-25: "exactly the same logic as in retail",
-0.69d0's in everything but our toxin passive). The content pack `sponge@4` (release/content.tsv;
+0.69d0's in everything but our toxin passive). The content pack `sponge@5` (release/content.tsv;
 srp-026g/scripts/sponge/make_pack.py) and the owner's spots (edit list `artefact-spots-1`,
 below). 0.28a2 brought the Sponge; the object is 0.28d0's `artefact_sponge.options` and code,
 the throw, contact, numbers and particles retail's (0.69d0's: the owner's pick, 2026-10-24).
@@ -19,23 +19,28 @@ the throw, contact, numbers and particles retail's (0.69d0's: the owner's pick, 
 - Held past the fuse (cooked, never thrown) it explodes in the hand, where the hand is: the cloud
   on its holder, the Sponge consumed, the grenade slot given back and the throw state left (its
   is_ready: exploded), as retail's grenade_core at its ttl.
-- Its first contact (thrown, or dropped from the hand) explodes it when less than 1.5 s
-  (`safe_time` 1500) of the fuse is left, at the next tick; a first contact earlier is spent and
-  the fuse decides (as 0.26g's grenades with `explode_on_contact` and retail's Sponge).
+- Its first contact (thrown, or dropped from the hand) explodes it at the next tick when it comes
+  1.5 s (`safe_time` 1500) or more after the pull, that is with at most `ttl_ms - safe_time` of
+  the fuse left (0.46c2's code, 0x7AD5E0 and its cook 0x731027..0x731065); a first contact
+  earlier is spent and the fuse decides. A quick throw landing 1.6 s after the pull bursts on
+  landing; one landing at 0.8 s rolls and bursts at 3 s; a throw cooked 1 s bursts on landing.
 - While it is in the air another press does not throw it again.
 - The explosion: the splash (fire, radius 10 m x the splash radius modifier, 0.3 x the grenade
-  damage modifier at any distance, pierce 0.1) on retail's body list [18]: 0.69d0's part 18 is
-  `stamina`, which takes only stamina hits, so retail's burst hurts no one; 0.26g has no such
-  part, the list is empty, the burst hurts no one here either. (0.31a2's [18] was its `health`.)
+  damage modifier at any distance: min = max, no falloff; pierce 0.1) on retail's body list
+  [18]: a hit target of the character, the same 19 in 0.26g, 0.46c2 and 0.69d0
+  (base_character_full's hit_targets: [18] the face on the Head bone), so each player within
+  10 m takes 0.3 fire on the face (0.26g's face: head and pain). It hurts and kills.
 - Then the config's `damage_zone` on at the explosion point for 15 s: fire, 0.2 a second on
   the `body` (0.26g's life pool; retail's `health`, which every part of 0.69d0 feeds) within a
   cylinder 5.5 m across, its `hit_curve` and `speed_curve`; its particle `mochalka_explosion`
   (0.69d0's) for its whole time.
-- Its sound at the cloud's start: `weapons/f1`, as retail's: 0.69d0's
+- Its sound at the cloud's start: `weapons/f1`, the only sound retail's chain names: 0.69d0's
   `ammo_grenades_etc/artefact_sponge/data/active/damage_zone/activated_sound` is "weapons/f1"
-  (resource 257, sounds/composite/weapons/f1.composite_sound: the F1's explosion, the same
-  five collections in 0.69d0 as in 0.26g, the RGD-5's and the mines' `sound_explosion`); its
-  config names no other sound, and 0.69d0 holds no sound file of the Sponge.
+  (resource 257, sounds/composite/weapons/f1.composite_sound: the F1's explosion, the same five
+  collections in 0.69d0 as in 0.26g); 0.46c2's grenade cook skips the model, particle_explosion
+  and sound_explosion of a `subtype` 2 grenade, the Sponge's (0x68941D -> 0x7313C0), its damage
+  zone cook reads activated_sound (0x67025D), its particles hold no sound event, and neither
+  0.46c2 nor 0.69d0 holds a sound file of the Sponge.
 - At its spawn in the anomaly: 0.69d0's `pre_mochalka1`.
 - Consumed at the explosion (out of its slot); the anomaly spawns it again later, as any
   artefact.
@@ -118,7 +123,7 @@ the throw, contact, numbers and particles retail's (0.69d0's: the owner's pick, 
 - No timed anomalies: main has none since #345; #346 (their redesign) decides for its own
   cores.
 
-## Content (pack sponge@4)
+## Content (pack sponge@5)
 
 - items_dict 758, base_cost 0; `gameplay/items/artefacts/artefact_sponge.options` (0.28d0's with
   retail's numbers, as above: `ttl_ms`, `safe_time` and `explode_on_contact` in data, 0.26g's
@@ -128,6 +133,10 @@ the throw, contact, numbers and particles retail's (0.69d0's: the owner's pick, 
   textures 0.26g lacks, 0.69d0's `fx/artifacts/magic_smoke` and `magic_smoke1` among them (0.26g's
   materials magic_smoke and magic_smoke2 name them, no archive of 0.26g holds them: the spawn's
   fluid emitters were drawn as plain squares, 2026-10-25); no `fx/test/idle_particle`.
+- Every texture every enabled emitter of the pack's particles draws is in players' files or the
+  pack: `release/texture_closure.py`, which `release/build-content` runs on every pack of the
+  manifest (allowed: `skin/skin_shadow`, which 0.26g's own light and distortion materials name
+  and its own emergence, lamp and grenade particles draw).
 - Texts in the six languages: the name and pickup hint 0.28d0's, the description and the
   activation hint ours, one line each ("bursts on impact (or after 3 s)", the cloud's 15 s).
 - The lobby icon: atlas cell [22,1] (already in 0.26g). The combat-log icon 17: 0.28d0's

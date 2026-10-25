@@ -98,6 +98,25 @@ fi
 
 say
 "$here/build-patch" "$work/build/patch" "$revision" --out "$out/$name" | grep -v "^next: "
+# Every texture the composed packs' particles draw is in players' files with the new patch
+# (texture_closure.py; the Sponge's spawn drew plain squares, 2026-10-25).
+packs=()
+while IFS=$'\t' read -r kind pname psource _; do
+    [[ $kind == pack && $psource =~ ^[0-9a-f]{64}$ ]] || continue
+    packs+=(--pack "$SKHID_PACKS_DIR/${pname%@*}-${pname#*@}")
+done <"$manifest"
+if ((${#packs[@]})); then
+    closure=(--db "$SKHID_STOCK_DB")
+    while read -r row _; do
+        [[ -n $row ]] && closure+=(--patch "$PATCH_CACHE/$row")
+    done <<<"$LIST"
+    say
+    if ! python -I "$here/texture_closure.py" --vostok-port "$SKHID_VOSTOK_PORT" "${closure[@]}" \
+        --patch "$out/$name" "${packs[@]}"; then
+        rm -f "$out/$name"
+        die "a pack's particle draws a texture players will not have (texture_closure.py)"
+    fi
+fi
 say
 patches=()
 layers=(--db "$SKHID_STOCK_DB")

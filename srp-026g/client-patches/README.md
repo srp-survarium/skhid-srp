@@ -3240,7 +3240,7 @@ gone. 0.26g has none of its code: the artefact cooks know types
 0.28d0's code again in C (artefact_sponge_core 0x5136E0..0x515270, its cook 0x46A740..0x46AEA6
 and the config reader 0x5439E0 of the decoded 0.28d0 exe) on 0.26g's interfaces, as Research is
 written, and it reads 0.28d0's `artefact_sponge.options` with retail's keys. The content is pack
-`sponge@4` (`../scripts/sponge/make_pack.py`: item 758, 0.28d0's config with 0.69d0's fuse,
+`sponge@5` (`../scripts/sponge/make_pack.py`: item 758, 0.28d0's config with 0.69d0's fuse,
 contact, numbers and hit types in 0.26g's keys and the owner's static toxin rule in its passive, regen_add
 1000 and timeout_mul 0, 0.28d0's model, 0.69d0's spawn and cloud particles, 0.28d0's other
 particles, materials and textures, texts in six languages); the hud movie draws its combat-log icon (`SpongeLogIcon`). The rules:
@@ -3284,8 +3284,9 @@ particles, materials and textures, texts in six languages); the hud movie draws 
   0x6011E0): thrown (or dropped from the hand), the sponge's own boost::function (grenade_core's
   kind, vtable 0xA13FAC, invoker 0x202300) is subscribed on its body with the physics world
   (vt+70h) and unsubscribed before the body leaves (vt+74h); a contact is only noted, and the
-  next tick rules it: the first contact with less than `safe_time` of the fuse left explodes it
-  there and then, an earlier one is spent and the fuse decides.
+  next tick rules it as 0.46c2's grenade_core does (0x7AD5E0): the first contact `safe_time` or
+  more after the pull (at most `ttl_ms - safe_time` of the fuse left) explodes it there and then,
+  an earlier one is spent and the fuse decides.
 - **The explosion** at the fuse's end (or that tick), in the sponge's tick: the splash (0x339630, the game's,
   with 0.28's parameters and modifiers 12 on the radius and 11 on the rest, as 0x30A350), the zone
   switched on where the sponge is (its geometry's transform, the collision sensor in the physics

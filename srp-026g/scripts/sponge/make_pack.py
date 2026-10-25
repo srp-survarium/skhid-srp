@@ -58,7 +58,7 @@ sys.path.insert(0, str(HERE.parent / 'research-mode'))
 import bcw  # noqa: E402
 
 PACK_ID = 'sponge'
-VERSION = '4'
+VERSION = '5'
 DICT_ID = 758
 CONFIG = 'gameplay/items/artefacts/artefact_sponge.options'
 # The owner's static toxin rule (2026-10-22): while a Sponge is owned its passive keeps infection
@@ -78,11 +78,14 @@ PASSIVE = {'regen_add': (0, 1000), 'timeout_mul': (1, 0)}
 # cloud's damage type "fire" (0.26g has it: 0x9257E0's seventh); the cloud on retail's "health",
 # the pool every part of 0.69d0's damage model feeds (its hit_params[16]), which is 0.26g's
 # "body" (hit_params[0], its life: nothing feeds it, it takes "fire" itself); the explosion on
-# retail's body list [18], 0.69d0's hit_params[18] "stamina", which takes only "stamina" hits
-# (0.31a2's [18] was its "health"; 0.46c2 dropped two parts and [18] became "stamina"): 0.26g
-# has no such part, so the list is empty and the explosion hits no one, as retail's fire on
-# stamina (its stamina damage 0) does nothing. The fuse starts at the pin's pull (0.69d0's
-# start_timer_on_throw false); 0.26g has no exploded_ttl_ms.
+# retail's body list [18] as it is: an entry is a hit target of the character
+# (models/character/human/base/base_character_full.skinned_model/hit_targets, the same 19 in
+# 0.26g, 0.46c2 and 0.69d0: [18] the face on the Head bone), not a hit_params index. The splash
+# 0x339630 takes each entry's bone (0x339790: [player+498h]..+18h, 50h each) for the ray and
+# hands the entry to base_player::hit 0x2D9A60, which takes the target's record ([player+380h]
+# +120h, 6Ch each) built from hit_targets (0x710B0 reads hit_param and animation_bone). Fire on
+# the face: 0.26g's face sends it to head and pain (0.69d0's to head, then health). The fuse
+# starts at the pin's pull (0.69d0's start_timer_on_throw false); 0.26g has no exploded_ttl_ms.
 RETAIL = {
     ('data', 'activation_timeout_s'): (3, None),           # 0.28's fuse from the release
     ('data', 'ttl_ms'): (None, 3000),                       # ttl_ms 3000
@@ -93,7 +96,7 @@ RETAIL = {
     ('data', 'active', 'splash_max_damage'): (1.5, 0.3),    # explosive.max_damage 0.3
     ('data', 'active', 'splash_pierce'): (0, 0.1),          # explosive.player_pierce 0.1
     ('data', 'active', 'splash_damage_type'): ('toxic', 'fire'),           # explosive.damage_type
-    ('data', 'active', 'splash_affected_bodies'): ([6, 0, 1, 7, 11, 12], []),  # explosive.affected_bodies [18]
+    ('data', 'active', 'splash_affected_bodies'): ([6, 0, 1, 7, 11, 12], [18]),  # explosive.affected_bodies
     ('data', 'active', 'damage_zone', 'damage_type'): ('toxic', 'fire'),
     ('data', 'active', 'damage_zone', 'hit_parts_filter'): (['face'], ['body']),  # retail's ["health"]
     ('data', 'active', 'damage_zone', 'max_hit'): (1.5, 0.2),
