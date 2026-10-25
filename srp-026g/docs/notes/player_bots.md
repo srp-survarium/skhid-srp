@@ -354,8 +354,9 @@ the archive's index: a loader must follow them.
    - Plays: roam toward the enemy base by the routes humans took (17;
      drawn by what a life on each gave, less where a teammate died or
      teammates already went, more for a fighter where enemies are known;
-     `SRP_BOT_ROUTES`, a private table from the players' worlds; without
-     it to the exits by a way of its own), collect a battery and bring it home, ambush (1), intercept a
+     a private table from the players' worlds, `bot-routes.json` in the
+     mapdata folder or the file `SRP_BOT_ROUTES` names; without it to the
+     exits by a way of its own), collect a battery and bring it home, ambush (1), intercept a
      carrier and answer a theft (2), escort (3), sneak and steal (4),
      flank a held angle (8), crossfire (9), retreat to resupply (10),
      cover a human (12), pair up against the top player (13), hold an exit
@@ -441,8 +442,8 @@ the archive's index: a loader must follow them.
      stand-in 17.5 %, 35 and 14 (before, with the old lift and the 150 ms
      rate: 19.9 %, 25 and 13 of 6,419).
    - A local test with one game and 7 bots: "Player vs Bots" 4 v 4
-     (`SRP_PVB=on`), `SRP_MAPDATA_DIR` set (and `SRP_BOT_ROUTES` for play
-     17's routes).
+     (`SRP_PVB=on`), `SRP_MAPDATA_DIR` set (and `bot-routes.json` in that
+     folder, or `SRP_BOT_ROUTES` naming the table, for play 17's routes).
    - Human routes on the real maps (a test run with the private files):
      174 routes over 8 maps and 3 modes, all 992 points on a floor, 891 of
      them open to the side (the rest in the enemy's spawn area), every
