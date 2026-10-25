@@ -16,6 +16,9 @@ numbers below are ours; 0.20e gives the model, the item's shape and the idea.
 - Quieted: footsteps (walk, run, sprint, crouch), the movement rustles, jump and landing.
 - Not quieted: reloads, weapon switches, equipment, hits.
 - On top of crouching: crouch (40 %) with one Rattle is 28 %.
+- The carrier hears his own steps, movement noise and shots by the same factors as the others
+  (the owner, 2026-10-24: "why not make it the same for you too? This gives a feedback for the
+  player"); 0.20e's own 65 % / 40 % are not used.
 
 ## Shots (the owner, 2026-10-23: "it should become silent if you dedicate your build to it,
 at least 4 rattles? 50 -> 75 -> 87 -> 94?")
@@ -32,7 +35,6 @@ at least 4 rattles? 50 -> 75 -> 87 -> 94?")
 - Others = every other player's game and the server's bots: a bot hears a carrier's movement
   and shots within its hearing range x the same factors (movement 0 and shots x 0.5 per Rattle
   while active).
-- The carrier hears his own steps as before (0.20e lowered them to 65 % / 40 %).
 - Owned: in an inventory with its holder alive, as the Sponge.
 
 ## Spawns
@@ -197,9 +199,8 @@ Patch number
 - How much quieter: each Rattle in its passive x 0.7 on the steps; each active one x 0 on the steps
   and x 0.5 on the shots. Two presses that overlap (a Rattle picked up while another is active)
   count every Rattle active at the time of the sound.
-- What a gain does: the sound's voice volume and its HDR loudness for every listener but the
-  carrier in first person; gain 0 makes no voice. The carrier, and a spectator watching him in
-  first person, hear him as before.
+- What a gain does: the sound's voice volume and its HDR loudness for every listener, the
+  carrier in first person too (his hud proxies, since 2026-10-24); gain 0 makes no voice.
 - Ours, beyond 0.20e's file: `amount` -1 (0.20e's 1 would use the Rattle up at its first active's
   end); spawn particle and effect Lifebone's (0.20e's `fx/explosions/grenate` and
   `effect_artefact_rattle` are not in 0.26g; 0.20e's effect was Lifebone's particle too); the
@@ -210,3 +211,34 @@ Patch number
   decision).
 - Verified statically and in Unicorn only (`selftest_026g.py` check 59, `check_rattle_026g.py`);
   not run in a game.
+
+## The first test in the game (the owner, 2026-10-24): "it doesn't dampen shots nor movements"
+
+- The test: two local games on one machine (CamoBob, CamoAlice; both at s_general_volume 100,
+  both playing to the same speakers), the owner the carrier: pickup and activation messages
+  shown, no quieter steps or shots, passive or active.
+- Why (PROVEN in the code, and run in Unicorn from the event to the voice): only the others'
+  games quiet a carrier. His own game plays his steps and shots as hud sounds in first person
+  (0x657C0's flag, play_sound_callback's first-person branch), then never marked; so the carrier's own
+  game played them at full beside the other game's quieted ones, and that is all that could be
+  heard. In the other game the same steps and shots take the hooked path: every footstep and
+  landing sound is on_step's (its only callers: on_foot_step and landing_step), every weapon sound
+  of another player is play_sound_callback's point proxy at 0x297F79; the proxy played is the one
+  marked, the sound thread's propagator holds it (+8, its constructor 0x5CB00), and the voice's
+  volume is the amplitude x the gain.
+- `check_rattle_026g.py` now drives that path from the carrier's foot event, landing and fire
+  state's sound through the game's own code to the voice's volume a listener's frame gives (0.2 at
+  8 m; 0.14 with a passive Rattle; none with an active one; a shot 0.05 with two active), the
+  carrier's own first-person step, landing and shot (hud proxies, the same volumes since the
+  decision below), and another player's own step and shot (not quieted).
+- To hear it: the carrier's game muted (pavucontrol: its Wine stream muted, or s_general_volume 0
+  in its user.cfg before starting it), the listener's game playing; the listener stands still
+  within about 10 m and watches the carrier walk, run, jump and shoot, with the Rattle in an
+  artefact slot (steps 70 %), then active (steps silent, shots 50 %, 10 s), then after it (70 %).
+  The listener's window is then unfocused: LIKELY it keeps its sound (game::on_application_deactivate
+  0x1EDDA0 calls one engine world, +5358h, not the sound world's holder +5350h); if it is silent,
+  a second person drives one of the two games. Since the decision below the carrier's own game
+  quiets him too.
+- Decided (the owner, 2026-10-24): the carrier hears himself by the same factors (the rule
+  above); his own game now marks the hud proxies of his steps (0x65803) and shots (0x297F5E) as
+  the point proxies (`check_rattle_026g.py`'s own-game cases).

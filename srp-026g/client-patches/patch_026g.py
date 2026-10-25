@@ -454,7 +454,8 @@ Patches:
   (0x25E72C; the object 378h, 0x25E7C9) with an active of its duration; the
   point proxies of another player's steps, rustles and landing (0x65874, run
   by on_player_sound_event 0x2A6470 and on_landing at 0x1F3BB6) and of his
-  fire states' sounds (0x297F79) carry the quiet his Rattles give, and the
+  fire states' sounds (0x297F79), and the hud proxies of one's own in first
+  person (0x65803, 0x297F5E), carry the quiet his Rattles give, and the
   sound thread scales a propagator's amplitude (0x5CA37) and HDR loudness
   (0x5C8BA) by it. Both spawn only at the owner's spots (each map's mode
   configs' `mode/artefact_spots`): the anomaly cook's look-up of a core's
@@ -2094,6 +2095,10 @@ INSTALLS = {
                        "new proxy marked with the pending quiet", None, None),
     0x297F79: (CALLEE, "play_sound_callback's `call 0x65670` (emit_point_sound, `ret 8`): rattle_shot, a fire "
                        "state's proxy marked with its user's shot quiet", None, None),
+    0x065803: (CALLEE, "0x657C0's `call 0x65100` (new_hud_sound_instance_proxy, eax the scene, `ret 10h`): "
+                       "rattle_hud, the new hud proxy marked with the pending quiet", None, None),
+    0x297F5E: (CALLEE, "play_sound_callback's `call 0x65100` (the user in first person, `ret 10h`): "
+                       "rattle_shot_hud, a fire state's hud proxy marked with its user's shot quiet", None, None),
     0x05CA37: (JUMP, "calculate_hdr_audio_frame's `movss [esi+4Ch],xmm0` (a propagator's amplitude, sound "
                      "thread): rattle_amplitude, x the proxy's gain", None, None),
     0x05C8BA: (JUMP, "calculate_hdr_audio_frame's `movss [esi+40h],xmm0` (its HDR loudness): rattle_loudness, + "
@@ -2333,7 +2338,7 @@ ARENA = (
     # the Sponge, patch 59: the asm's eight entries and stubs, then the C code
     ArenaBlock("sponge.code", "code", 0x1000, ("sponge_a_026g.asm", "sponge_a_026g.c")),
     ArenaBlock("sponge.state", "state", 0x10, ("sponge_a_026g.c",)),                # sp_g: the zone ticked now
-    # the Rattle, patch 59: the asm's seven entries and stubs, then the C code
+    # the Rattle, patch 59: the asm's nine entries and stubs, then the C code
     ArenaBlock("rattle.code", "code", 0x1000, ("rattle_026g.asm", "rattle_026g.c")),
     ArenaBlock("rattle.state", "state", 0x10, ("rattle_026g.c",)),                  # rt_g: the steps' quiet
 )
@@ -2455,13 +2460,13 @@ SPONGE_HOOKS = (
 # the slot keeps its base relocation).
 SPONGE_SLOT = (0xA16A10, struct.pack("<I", 0x33C440), "sponge_links")
 # The Rattle, artefact type 8 (patch 59 with the Sponge, README; client_patch.md
-# section 3.53; docs/notes/rattle.md): rattle_026g.asm's seven entries and
+# section 3.53; docs/notes/rattle.md): rattle_026g.asm's nine entries and
 # stubs, then the C code of rattle_026g.c and its constant data, in the
 # arena's block rattle.code; the C code's state (rt_g: the steps' pending
 # quiet) in rattle.state, zeroed. 0.20e left artefact_rattle_core's effect
 # as stubs (0.26g's vtable 0xA06124 too): the Rattle gets a vtable of its own
-# with an active of a duration, and quiets the sounds its carrier makes for
-# others. Seven hooks, `call` or `jmp` to an entry:
+# with an active of a duration, and quiets the sounds its carrier makes, for
+# others and for himself alike. Nine hooks, `call` or `jmp` to an entry:
 # - the artefact cook's case for type 8, `call 0x25FA10` at 0x25E72C:
 #   Rattle's constructor, then the Rattle's vtable and its config's numbers;
 # - on_player_sound_event 0x2A6470 (its entry, `mov eax,ecx / mov
@@ -2474,7 +2479,10 @@ SPONGE_SLOT = (0xA16A10, struct.pack("<I", 0x33C440), "sponge_links")
 #   state's marked with its weapon user's shot quiet;
 # - calculate_hdr_audio_frame (sound thread), its stores of a propagator's
 #   amplitude (`movss [esi+4Ch],xmm0` at 0x5CA37) and HDR loudness (`movss
-#   [esi+40h],xmm0` at 0x5C8BA): x the proxy's gain, + 20 log10 of it.
+#   [esi+40h],xmm0` at 0x5C8BA): x the proxy's gain, + 20 log10 of it;
+# - the hud proxies of the same two (`call 0x65100` at 0x65803 and
+#   0x297F5E: one's own steps and shots in first person): marked as the
+#   point proxies.
 # The object grows from Rattle's 360h to RATTLE_OBJECT_SIZE (the cook's size
 # 0x25E7C9). No base relocation is under a site and no branch aims inside one.
 RATTLE_HOOKS = (
@@ -2485,6 +2493,8 @@ RATTLE_HOOKS = (
     (0x297F79, bytes.fromhex("e8f2d6dcff"), "rattle_shot", 0xE8),            # play_sound_callback's point proxy
     (0x05CA37, bytes.fromhex("f30f11464c"), "rattle_amplitude", 0xE9),       # a propagator's amplitude
     (0x05C8BA, bytes.fromhex("f30f114640"), "rattle_loudness", 0xE9),        # its HDR loudness
+    (0x065803, bytes.fromhex("e8f8f8ffff"), "rattle_hud", 0xE8),             # 0x657C0's hud proxy
+    (0x297F5E, bytes.fromhex("e89dd1dcff"), "rattle_shot_hud", 0xE8),        # play_sound_callback's hud proxy
 )
 RATTLE_OBJECT_SIZE = 0x378                                                    # struct rattle (rattle_026g.c)
 RATTLE_SIZES = ((0x25E7C9, bytes.fromhex("b860030000"), b"\xB8" + struct.pack("<I", RATTLE_OBJECT_SIZE)),)

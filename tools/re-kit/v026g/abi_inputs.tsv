@@ -4622,3 +4622,22 @@ va	name	location	role	basis
 0x00298d80	survarium::damage_zone::play_activated	ESI	the client damage_zone (+41Ch/+420h the sound zones' matrices and count, +424h activated sounds, +43Ch/+440h the effect zones', +444h activated particles: data/active/damage_zone activated_particle)	observed
 0x00298fe0	survarium::damage_zone::start_idle	ESI	the client damage_zone (+428h looped sounds, +448h idle particles: idle_particle, played while the zone is on)	observed
 0x002990d0	survarium::damage_zone::stop_idle	entry ESP+4	the client damage_zone	observed
+0x0005cb00	vostok::sound::new_sound_propagator::new_sound_propagator	EAX	the proxy (+8h)	observed
+0x0005cb00	vostok::sound::new_sound_propagator::new_sound_propagator	ECX	the sound's propagator interface (+0Ch; vt+4 the envelope, vt+8 the description: +4 dB, +8 volume, +12h curve flag)	observed
+0x0005cb00	vostok::sound::new_sound_propagator::new_sound_propagator	ESI	the propagator's memory	observed
+0x0005aba0	vostok::sound::sound_instance_proxy_internal::play	ECX	the proxy	observed
+0x0005b200	vostok::sound::sound_instance_proxy_internal::set_position	ECX	the proxy	observed
+0x0005b200	vostok::sound::sound_instance_proxy_internal::set_position	stack+4	&the position (three floats)	observed
+0x0005cea0	vostok::sound::sound_scene::emit_sound_propagators	stack+4	the proxy's +68h	observed
+0x0005cea0	vostok::sound::sound_scene::emit_sound_propagators	stack+8	the proxy	observed
+0x00065450	vostok::memory::new_helper<vostok::sound::sound_instance_proxy_internal>::call<vostok::memory::single_size_buffer_allocator<144,vostok::threading::multi_threading_policy> >	ESI	the scene's pool ([scene+188h])	observed
+0x00065100	vostok::sound::sound_scene::new_hud_sound_instance_proxy	EAX	the sound scene	observed
+0x00065100	vostok::sound::sound_scene::new_hud_sound_instance_proxy	stack+4	&the new proxy's pointer	observed
+0x000633f0		EAX	the voice	observed
+0x000633f0		stack+4	the volume (float)	observed
+0x00306d50		ECX	the materials (the world's vt+1Ch)	observed
+0x00306d50		EDX	the foot's material type	observed
+0x00245430		ECX	the weapon core	observed
+0x00245430		EAX	the sound event (its time and clip)	observed
+0x0005a840	vostok::sound::sound_instance_proxy_internal::sound_instance_proxy_internal	ESI	the proxy's memory (a 90h block of the scene's pool)	observed
+0x0005c280	vostok::sound::sound_scene::notify_listener2	stack+4	the sound scene	observed

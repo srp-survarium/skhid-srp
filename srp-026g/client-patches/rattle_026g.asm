@@ -1,7 +1,7 @@
 ; The Rattle (exe patch 59): the hooks of artefact type 8 and of the sounds
 ; it quiets, in front of the C code of rattle_026g.c in the arena's block
 ; rattle.code (link_026g.py links it; patch_026g.py's RATTLE_HOOKS jump or
-; call to the seven entries by their names). README section 59,
+; call to the nine entries by their names). README section 59,
 ; client_patch.md section 3.53, docs/notes/rattle.md.
 ;
 ;   rattle_construct  the artefact cook's case for type 8, `call 0x25FA10`
@@ -21,16 +21,25 @@
 ;                     0x5CA37 (sound thread): the amplitude x the gain
 ;   rattle_loudness   the same, `movss [esi+40h],xmm0` at 0x5C8BA: the HDR
 ;                     loudness + 20 log10(gain)
+;   rattle_hud        0x657C0's hud proxy, `call 0x65100` at 0x65803: as
+;                     rattle_point (the carrier's own steps in first person)
+;   rattle_shot_hud   play_sound_callback's hud proxy, `call 0x65100` at
+;                     0x297F5E: as rattle_shot (his own shots in first person)
 ;
+; The carrier hears himself as the others hear him: his own game plays his
+; steps and shots as hud proxies (0x65100), marked as the point proxies
+; are; the sound thread's two stores are every propagator's, hud or point.
 ; The quiet is the u16 at proxy+3Ah, the y of the proxy's ext parameters
-; (zeroed by its constructor 0x5A6B0, read by no code): gain 1 - q/65535.
+; (zeroed by the constructors 0x5A6B0 and 0x5A840, read by no code): gain
+; 1 - q/65535.
 ; The stubs call only the game functions their sites called (the replaced
-; calls: 0x25FA10, 0x23FBE0, 0x64F80, 0x65670; 0x23FBE0 takes xmm0) and the
+; calls: 0x25FA10, 0x23FBE0, 0x64F80, 0x65670, 0x65100; 0x23FBE0 takes xmm0,
+; 0x65100 eax the scene) and the
 ; C code (rt_construct, rt_steps, rt_shot); rt_g is the C code's state (the
 ; steps' pending quiet, the block rattle.state).
 bits 32
 global rattle_construct, rattle_steps, rattle_landing, rattle_point, rattle_shot, rattle_amplitude
-global rattle_loudness
+global rattle_loudness, rattle_hud, rattle_shot_hud
 extern rt_construct, rt_steps, rt_shot, rt_g
 section .text
 
@@ -39,6 +48,7 @@ section .text
 %define LANDING_STEP     0x23FBE0  ; cl, edx, xmm0 and four stack args; ret 10h
 %define NEW_POINT        0x64F80   ; sound_scene::new_point_sound_instance_proxy, ret 10h
 %define EMIT_POINT       0x65670   ; sound_emitter::emit_point_sound: eax, ecx, two stack args; ret 8
+%define NEW_HUD          0x65100   ; sound_scene::new_hud_sound_instance_proxy: eax the scene, four stack args; ret 10h
 %define AMPLITUDE_ON     0x5CA3C
 %define LOUDNESS_ON      0x5C8BF
 %define G_PENDING        rt_g + 0x0
@@ -59,6 +69,10 @@ rattle_amplitude:
     jmp near amplitude
 rattle_loudness:
     jmp near loudness
+rattle_hud:
+    jmp near hud
+rattle_shot_hud:
+    jmp near shot_hud
 
 ; 0x25E72C, called: eax = &effect, ecx = the root; [esp+4] the memory,
 ; [esp+8] the scene (stdcall, ret 8 as the constructor).
@@ -118,6 +132,19 @@ point:
     push dword [esp + 0x10]
     push dword [esp + 0x10]
     call NEW_POINT
+    jmp mark
+
+; 0x65803, called with 0x657C0's four stack args (ret 10h), eax = the scene;
+; eax = &the new proxy's pointer.
+hud:
+    push dword [esp + 0x10]
+    push dword [esp + 0x10]
+    push dword [esp + 0x10]
+    push dword [esp + 0x10]
+    call NEW_HUD
+
+; the new proxy (eax = &its pointer) marked with the pending quiet
+mark:
     movzx ecx, word [G_PENDING]
     test ecx, ecx
     jz .done
@@ -140,6 +167,21 @@ shot:
     call rt_shot                      ; stdcall (effect, &proxy)
     pop eax
     ret 8
+
+; 0x297F5E, called: eax = the scene, four stack args (ret 10h); the effect at
+; [esp+34h] of the site, [esp+38h] here.
+shot_hud:
+    push dword [esp + 0x10]
+    push dword [esp + 0x10]
+    push dword [esp + 0x10]
+    push dword [esp + 0x10]
+    call NEW_HUD                      ; eax = &the proxy's pointer
+    push eax
+    push eax
+    push dword [esp + 0x40]           ; the effect
+    call rt_shot                      ; stdcall (effect, &proxy)
+    pop eax
+    ret 0x10
 
 ; 0x5CA37, esi = the propagator, xmm0 = its amplitude (eax free).
 amplitude:
