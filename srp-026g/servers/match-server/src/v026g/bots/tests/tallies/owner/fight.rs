@@ -486,4 +486,130 @@ impl OwnerTally {
             self.reload_done(&r);
         }
     }
+
+    /// The fight counts at the end: their keys of the `owner` object and their lines of the owner-test text.
+    pub(super) fn fight_part(&self, scale: &Scale) -> Part {
+        let n = self.recs.len();
+        let bot = |place: Place| place < n;
+        let tick_s = scale.tick_s;
+        let pct = Scale::pct;
+        let rate = Scale::rate;
+        // Turned on the shooter.
+        let (mut first_hits, mut hits_side, mut turned, mut died_unturned) = (0u32, 0u32, 0u32, 0u32);
+        let mut last_hit: BTreeMap<Place, u32> = BTreeMap::new();
+        for &(t, shooter, victim) in &self.fight.hits {
+            let apart = last_hit.get(&victim).is_none_or(|&l| t >= l + HIT_APART_MS);
+            last_hit.insert(victim, t);
+            if !apart || !bot(victim) {
+                continue;
+            }
+            let i = self.index(t);
+            let recs = &self.recs[victim];
+            let Some(at) = recs.get(i) else {
+                continue;
+            };
+            if !at.alive {
+                continue;
+            }
+            first_hits += 1;
+            let from = |k: usize| self.recs[shooter].get(k).map_or(Vec3::ZERO, |r| r.feet);
+            if off_deg(at.yaw, at.feet, from(i)) <= HIT_SIDE_DEG {
+                continue;
+            }
+            hits_side += 1;
+            let end = (i + (TURN_MS / TICK_MS) as usize).min(recs.len() - 1);
+            let mut outcome = None;
+            for k in i..=end {
+                if !recs[k].alive {
+                    outcome = Some(false);
+                    break;
+                }
+                if off_deg(recs[k].yaw, recs[k].feet, from(k)) <= TURNED_DEG {
+                    outcome = Some(true);
+                    break;
+                }
+            }
+            match outcome {
+                Some(true) => turned += 1,
+                Some(false) => died_unturned += 1,
+                None => {}
+            }
+        }
+
+        let fire_far: BTreeMap<&str, [u32; 2]> = self
+            .fight.fire
+            .iter()
+            .map(|(class, bands)| (*class, [bands.iter().sum(), bands[3] + bands[4]]))
+            .collect();
+        let fire_near_class: [u32; 2] = self
+            .fight.fire
+            .iter()
+            .filter(|(class, _)| matches!(**class, "shotgun" | "smg"))
+            .fold([0, 0], |acc, (_, b)| [acc[0] + b.iter().sum::<u32>(), acc[1] + b[3] + b[4]]);
+        let by_move = |v: &[u32; 5]| -> BTreeMap<&str, u32> { MOVES.iter().copied().zip(v.iter().copied()).collect() };
+        let hit_rate_move: BTreeMap<&str, f64> = MOVES
+            .iter()
+            .enumerate()
+            .map(|(i, m)| (*m, rate(self.fight.hits_move[i], self.fight.fire_move[i])))
+            .collect();
+        let hit_rate_class: BTreeMap<&str, Vec<f64>> = self
+            .fight.fire
+            .iter()
+            .map(|(class, fire)| {
+                let hits = self.fight.hits_band.get(class).copied().unwrap_or_default();
+                (*class, (0..5).map(|b| rate(hits[b], fire[b])).collect())
+            })
+            .collect();
+        let json = serde_json::json!({
+            "dry_s": (self.fight.dry_ticks as f64 * tick_s).round(),
+            "reload_s": (self.fight.reload_ticks as f64 * tick_s).round(),
+            "deaths_dry": self.fight.deaths_dry,
+            "deaths_reloading": self.fight.deaths_reloading,
+            "reloads": self.fight.reloads_n,
+            "reloads_in_line": self.fight.reloads_in_line,
+            "reloads_in_line_died": self.fight.reloads_in_line_died,
+            "fire_by_class": self.fight.fire,
+            "fire_far_by_class": fire_far,
+            "fire_far_close_class_pct": pct(fire_near_class[1].into(), fire_near_class[0].into()),
+            "hits_by_class": self.fight.hits_band,
+            "hit_rate_by_class": hit_rate_class,
+            "fire_by_move": by_move(&self.fight.fire_move),
+            "hits_by_move": by_move(&self.fight.hits_move),
+            "hit_rate_by_move": hit_rate_move,
+            "fire_on_target": self.fight.fire_on_target,
+            "fire_hidden": self.fight.fire_hidden,
+            "fire_hidden_pct": pct(self.fight.fire_hidden.into(), self.fight.fire_on_target.into()),
+            "fire_no_target": self.fight.fire_no_target,
+            "target_switches": self.fight.switches,
+            "switches_off_hurter": self.fight.switches_off_hurter,
+            "hits_first": first_hits,
+            "hits_side": hits_side,
+            "turned_3s": turned,
+            "turned_3s_pct": pct(turned.into(), hits_side.into()),
+            "died_unturned": died_unturned,
+        });
+        let text = format!(
+            "owner-test: dry {} s (deaths {}), reloading {} s (deaths {}), reloads {} in a line {} died {}; fire >=35 m by class {}; side hits {} turned in 3 s {} died unturned {}\n  owner-test fight: fire/hits by move {}; hits a fire tick by class and band {}; fire at a target {} out of line {} ({:.1} %), no target {}; target switches {} with the hurter in line {}",
+            json["dry_s"],
+            self.fight.deaths_dry,
+            json["reload_s"],
+            self.fight.deaths_reloading,
+            self.fight.reloads_n,
+            self.fight.reloads_in_line,
+            self.fight.reloads_in_line_died,
+            fire_far.iter().map(|(c, v)| format!("{c} {}/{}", v[1], v[0])).collect::<Vec<_>>().join(" "),
+            hits_side,
+            turned,
+            died_unturned,
+            MOVES.iter().enumerate().map(|(i, m)| format!("{m} {}/{}", self.fight.fire_move[i], self.fight.hits_move[i])).collect::<Vec<_>>().join(" "),
+            json["hit_rate_by_class"],
+            self.fight.fire_on_target,
+            self.fight.fire_hidden,
+            json["fire_hidden_pct"].as_f64().unwrap_or(0.0),
+            self.fight.fire_no_target,
+            self.fight.switches,
+            self.fight.switches_off_hurter,
+        );
+        Part::new(json, text)
+    }
 }

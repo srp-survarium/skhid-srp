@@ -151,4 +151,33 @@ impl OwnerTally {
             }
         }
     }
+
+    /// The grenades counts at the end: their keys of the `owner` object and their lines of the owner-test text.
+    pub(super) fn grenades_part(&self, game: &Game) -> Part {
+        let json = serde_json::json!({
+            "grenades": self.grenades.grenades,
+            "grenade_damage_applied": false,
+            "grenade_self_dmg": (100.0 * self.grenades.blast_dmg[0]).round() / 100.0,
+            "grenade_mate_dmg": (100.0 * self.grenades.blast_dmg[1]).round() / 100.0,
+            "grenade_enemy_dmg": (100.0 * self.grenades.blast_dmg[2]).round() / 100.0,
+            "grenade_kills": self.grenades.blast_kills,
+            "grenade_in_radius": self.grenades.blast_in,
+            "grenade_walk_ins": self.grenades.walked_in,
+            "team_kills_gun": game.team_kills,
+            "team_hits": game.team_hits,
+        });
+        let text = format!(
+            "owner-test other: grenades {} (no damage in the stand-in) would damage self {:.2} mates {:.2} enemies {:.2}, would kill {:?}, inside at the blast {:?} walked in {:?}; team kills by gunfire {}, team hits {}",
+            self.grenades.grenades,
+            self.grenades.blast_dmg[0],
+            self.grenades.blast_dmg[1],
+            self.grenades.blast_dmg[2],
+            self.grenades.blast_kills,
+            self.grenades.blast_in,
+            self.grenades.walked_in,
+            game.team_kills,
+            game.team_hits,
+        );
+        Part::new(json, text)
+    }
 }

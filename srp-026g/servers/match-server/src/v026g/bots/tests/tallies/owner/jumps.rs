@@ -574,4 +574,73 @@ impl OwnerTally {
             });
         }
     }
+
+    /// The jumps counts at the end: their keys of the `owner` object and their lines of the owner-test text.
+    pub(super) fn jumps_part(&self, game: &Game, presses: &[Press]) -> Part {
+        let n = self.recs.len();
+        // Jumps: the flags of every press, the stalls.
+        let mut flag_n: BTreeMap<&str, u32> = FLAGS.iter().map(|&f| (f, 0)).collect();
+        let (mut wrong, mut failed) = (0u32, 0u32);
+        let mut by_kind: BTreeMap<&str, [u32; 2]> = BTreeMap::new();
+        let mut route_landed = [0u32; 2];
+        for (i, p) in presses.iter().enumerate() {
+            let flags = self.press_flags(presses, i);
+            for &f in &flags {
+                *flag_n.entry(f).or_default() += 1;
+            }
+            let is_wrong = flags.iter().any(|f| !SECOND_NUMBERS.contains(f));
+            wrong += u32::from(is_wrong);
+            failed += u32::from(flags.iter().any(|f| OUTCOMES.contains(f) && !SECOND_NUMBERS.contains(f)));
+            let entry = by_kind.entry(p.by).or_default();
+            entry[0] += 1;
+            entry[1] += u32::from(is_wrong);
+            // The honest stand-in's own landing of a route jump: up or not.
+            if let Some((_, to)) = p.route
+                && let Some(l) = self.jumps.landings.iter().find(|l| l.place == p.place && l.at == p.t)
+            {
+                route_landed[usize::from(l.to.y < to.y - UP_SLACK_M)] += 1;
+            }
+        }
+        let sprint_jumps = self.jumps.landings.iter().filter(|l| l.sprint).count() as u32;
+        let mut stalls = [0u32; 3];
+        for place in (0..n).filter(|&p| self.is_bot[p]) {
+            for (c, s) in stalls.iter_mut().zip(self.stalls(place, &game.world.grid, presses)) {
+                *c += s;
+            }
+        }
+
+        let json = serde_json::json!({
+            "presses": presses.len(),
+            "presses_by": by_kind,
+            "jump_flags": flag_n,
+            "jumps_wrong": wrong,
+            "jumps_failed": failed,
+            "missed_jump": stalls[0],
+            "stall_at_step": stalls[1],
+            "stalls": stalls[2],
+            "route_landed_up": route_landed[0],
+            "route_landed_down": route_landed[1],
+            "sprint_jumps": sprint_jumps,
+        });
+        let flags_set: Vec<String> = flag_n
+            .iter()
+            .filter(|(_, c)| **c > 0)
+            .map(|(f, c)| format!("{f} {c}"))
+            .collect();
+        let text = format!(
+            "owner-test jumps: presses {} by [presses, wrong] {}; wrong {} failed {}; flags {}; missed jumps {} stalls at a step {} (stalls {}); route landings up {} down {}; sprint jumps {}",
+            presses.len(),
+            json["presses_by"],
+            wrong,
+            failed,
+            flags_set.join(", "),
+            stalls[0],
+            stalls[1],
+            stalls[2],
+            route_landed[0],
+            route_landed[1],
+            sprint_jumps,
+        );
+        Part::new(json, text)
+    }
 }
