@@ -27,16 +27,15 @@ is a stub that records each call and answers root.interface_hidden):
   (the parts and the head done) on a visual the game's own constructor
   (0x127C30) made, with four part records in use, a frame with the visual at
   [esp+1Ch], the name's buffer at [esp+348h] and the profile at [ebp+10h],
-  until 0x2056F7. While the game world has a match (the visual cook's game,
-  +18h +4D4Ch) and the flag is set, a character whose visual has a torso
-  the bands pack knows gets record 4: base_model ported/blackout/<the torso,
-  '/' as '_'>_blue (team 0) or _red (team 1), part_name band, the part 2,
-  the records 5, and the name `srpbo0_` or `srpbo1_` more, whatever its
-  profile's place (the options', a late joiner's context's copy); in the
-  lobby (no match), with team 2, an unknown torso or none, a visual of 20
-  records or a match without Blackout: nothing changed. The order: the same
-  kit built in the lobby has no band and its own name, built after the
-  match's options it has one. Always edx [esp+58h], esi [ebp+0Ch], ebx edi
+  until 0x2056F7. The band is the character's own profile's (its protection
+  field, srp's: 11 blue, 12 red): every way a character is built (a match's
+  start, before and after the world has its match; a late joiner's own copy
+  of his profile; a respawn; a replay, whose flag was never read) gives the
+  same record 4: base_model ported/blackout/<the torso, '/' as '_'>_blue or
+  _red, part_name band, the part 2, the records 5, and `srpbo0_` or
+  `srpbo1_` after the name; 10 (the lobby, a match without Blackout), 13,
+  an unknown torso or none, a visual of 20 records: nothing changed. Always
+  edx [esp+58h], esi [ebp+0Ch], ebx edi
   ebp and the stack kept; the original
   changes nothing.
 """
@@ -58,6 +57,7 @@ OPTIONS, WORK, VISUAL, LOBBY_PROFILE = 0x30000000, 0x30100000, 0x30200000, 0x303
 GAME, MATCH = 0x30400000, 0x30480000           # a made-up game (its game_world at +18h) and match
 VISUAL_COOK_GAME, WORLD_MATCH = 0x9262320, 0x18 + 0x4D4C
 LATE_PROFILE = LOBBY_PROFILE + 0x8000          # a late joiner's profile: its context's own copy
+PROFILE_BAND = 0x45F4                          # the profile's protection: srp's band (11 blue, 12 red)
 OPTIONS_BLACKOUT, MAGIC = 0x57870, b"SRBO"
 PROFILE_SIZE, PROFILE_TEAM = 0x45FC, 0x45EC
 RECORDS, RECORD_SIZE, COUNT = 0x234, 0xC0C, 0xF324
@@ -293,32 +293,34 @@ def main():
         report(m[0] == hide.REPLAY_BACK and m[2] == hide.HANDLER and not m[5],
                f"{name}, a replay: F11 toggles the replay's controls (0x25cedb), nothing invoked")
 
-    print("the character (on_configs_loaded at 0x2056F0)")
+    print("the character (on_configs_loaded at 0x2056F0): the band is the profile's own field")
     band = lambda colour: (b"ported/blackout/character_human_edge_edge_hunter_01_torso_s1_" + colour, True, True)
     exo = b"ported/duty_026/duty_03_torso_s1"
-    on = srpx((2, b"\x01"))
-    for name, block, match, place_team, profile, torso, want in (
-            ("place 0, team 0, Blackout", on, 1, (0, 0), OPTIONS, TORSO, (band(b"blue"), b"srpbo0_")),
-            ("place 7, team 1, Blackout", on, 1, (7, 1), OPTIONS + 7 * PROFILE_SIZE, TORSO,
-             (band(b"red"), b"srpbo1_")),
-            ("place 19, team 0, the Duty exoskeleton's torso", on, 1, (19, 0), OPTIONS + 19 * PROFILE_SIZE, exo,
-             ((b"ported/blackout/ported_duty_026_duty_03_torso_s1_blue", True, True), b"srpbo0_")),
-            # a late joiner seen by the others: his profile is his late-join context's own copy, not the
-            # options' (late_join_runtime_026g.c): the same band by his team
-            ("a late joiner's profile (his context's copy), team 1", on, 1, None, LATE_PROFILE, TORSO,
-             (band(b"red"), b"srpbo1_")),
-            ("a torso the bands pack has none for", on, 1, (0, 0), OPTIONS, b"character/human/edge/unknown_torso_s1",
-             None),
-            ("no torso record", on, 1, (0, 0), OPTIONS, None, None),
-            ("the lobby (the game world has no match), the flag left set", on, 0, (0, 0), LOBBY_PROFILE, TORSO,
-             None),
-            ("place 3, team 2, Blackout", on, 1, (3, 2), OPTIONS + 3 * PROFILE_SIZE, TORSO, None),
-            ("place 0, no Blackout", srpx(team_damage), 1, (0, 0), OPTIONS, TORSO, None)):
+    on, off = srpx((2, b"\x01")), b""
+    blue, red, none = 11, 12, 10
+    # (what, the static info read last, the game world's match, where the profile is, its field, the torso,
+    # the band and name wanted). Every way a character is built drives its own profile through the same
+    # hook, whatever the flag or the world: so they cannot differ.
+    paths = (
+        ("a match's start: an options' profile, blue", on, 1, OPTIONS, blue, TORSO, (band(b"blue"), b"srpbo0_")),
+        ("a match's start, before the world has its match (the owner's round 5 build failed here)", on, 0,
+         OPTIONS + 7 * PROFILE_SIZE, red, TORSO, (band(b"red"), b"srpbo1_")),
+        ("a late joiner seen by the others: his context's own copy of his profile, red", on, 1, LATE_PROFILE, red,
+         TORSO, (band(b"red"), b"srpbo1_")),
+        ("a respawn: the same profile built again", on, 1, LATE_PROFILE, red, TORSO, (band(b"red"), b"srpbo1_")),
+        ("a replay: its options' profile, the flag never read", off, 0, OPTIONS + 19 * PROFILE_SIZE, blue, exo,
+         ((b"ported/blackout/ported_duty_026_duty_03_torso_s1_blue", True, True), b"srpbo0_")),
+        ("the lobby: its profile says 10", on, 0, LOBBY_PROFILE, none, TORSO, None),
+        ("a match without Blackout: 10", off, 1, OPTIONS, none, TORSO, None),
+        ("another value (13)", on, 1, OPTIONS, 13, TORSO, None),
+        ("a torso the bands pack has none for", on, 1, OPTIONS, blue, b"character/human/edge/unknown_torso_s1",
+         None),
+        ("no torso record", on, 1, OPTIONS, blue, None, None),
+    )
+    for name, block, match, profile, field, torso, want in paths:
         for run in (stock, patched):
             run.options(empty_options(block))
-            if place_team is not None:
-                run.team(*place_team)
-            run.word(LATE_PROFILE + PROFILE_TEAM, 1)
+            run.word(profile + PROFILE_BAND, field)
             run.in_match(match)
         a, b = stock.configs_loaded(profile, torso=torso), patched.configs_loaded(profile, torso=torso)
         same = a["at"] == b["at"] == VISUAL_BACK and a["esp"] and b["esp"] and a["kept"] and b["kept"] \
@@ -333,27 +335,10 @@ def main():
             what = f"record 4 {b['model'][0].decode()} / band, part 2, the name {b['name'].decode()}"
         report(ok, f"{name}: {what}; edx esi as the two instructions leave them, ebx edi ebp and the frame kept; "
                    "the original changes nothing")
-    # The order the game keeps: a match's options (the flag) are read before its world and its
-    # characters are made; the decision is the character's when it is built, so the same kit built in
-    # the lobby before the match has no band and its own name (another resource), and built in the
-    # match it has one: no model of a match is built without it, nothing is rebuilt.
-    patched.options(empty_options(b""))
-    patched.in_match(0)
-    lobby = patched.configs_loaded(OPTIONS)
-    patched.options(empty_options(srpx((2, b"\x01"))))
-    patched.team(0, 0)
-    patched.in_match(1)
-    played = patched.configs_loaded(OPTIONS)
-    report(lobby["records"] == 4 and lobby["name"] == b"12_0_7_" and played["records"] == 5
-           and played["name"] == b"12_0_7_srpbo0_",
-           "the order: built in the lobby before the match, no band (name 12_0_7_); built after the match's "
-           "options, with it (name 12_0_7_srpbo0_, another resource)")
-    patched.options(empty_options(srpx((2, b"\x01"))))
-    patched.team(0, 1)
-    patched.in_match(1)
+    patched.word(OPTIONS + PROFILE_BAND, red)
     b = patched.configs_loaded(OPTIONS, count=20)
     report(b["at"] == VISUAL_BACK and b["records"] == 20 and b["name"] == b"12_0_7_",
-           "a visual of 20 records in a Blackout match: nothing added")
+           "a visual of 20 records with a band: nothing added")
 
     print("the markers' movie's feed (update_ui's update_player_icons, 0x23B207)")
     for name, block, fed in (("a Blackout match", on, 0), ("a match without", b"", 1)):

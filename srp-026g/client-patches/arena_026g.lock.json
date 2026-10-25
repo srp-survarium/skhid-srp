@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 78508,
-  "sha256": "a994b0df97bde581c5e88dea5315f8c0126c64afeb3e6e9d169e480fe91caf0e",
+  "size": 78476,
+  "sha256": "fcf492f71179e34707159195f88c81f06bcf69e04101cb597033c3696053eea7",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -72,11 +72,11 @@
     "blackout.code": {
       "kind": "code",
       "va": "0xa43f000",
-      "size": 4760
+      "size": 4728
     },
     "blackout.state": {
       "kind": "state",
-      "va": "0xa4402a0",
+      "va": "0xa440280",
       "size": 12
     }
   },

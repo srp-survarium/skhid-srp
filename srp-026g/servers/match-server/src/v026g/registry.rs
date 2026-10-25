@@ -482,18 +482,19 @@ impl MatchRegistry {
             .iter()
             .map(|player| (!player.driven).then_some(player.session_id))
             .collect();
+        let blackout = setup.blackout && maps::mode::WITH_BATTERIES.contains(&map.mode);
         let options = MatchOptions {
             players: setup
                 .players
                 .into_iter()
-                .map(|player| player.profile)
+                .map(|player| player.profile.with_band(blackout))
                 .collect(),
             map_id: setup.map_id,
             match_id: static_id(match_id),
             match_level: setup.match_level,
             score_weights,
             team_damage: self.team_damage,
-            blackout: setup.blackout && maps::mode::WITH_BATTERIES.contains(&map.mode),
+            blackout,
         };
         let info =
             StaticInfo::new(&options, Dictionary::shared()).map_err(CreateError::StaticInfo)?;
@@ -626,8 +627,14 @@ impl MatchRegistry {
         }
         let mut next = (**formed).clone();
         let first = next.places.len();
-        next.profiles
-            .extend(players.iter().map(|player| player.profile.clone()));
+        // A late joiner wears his team's band too: his own profile carries it
+        // to every game (the static info and the place the others are sent).
+        let blackout = next.blackout;
+        next.profiles.extend(
+            players
+                .iter()
+                .map(|player| player.profile.clone().with_band(blackout)),
+        );
         next.info = StaticInfo::new(
             &MatchOptions {
                 players: next.profiles.clone(),

@@ -16,12 +16,12 @@
  *   cannot show it (hide_ui_026g.asm, hide_ui_force: the one place that
  *   forces the state).
  * - bo_visual: profile_skin_visual_cook::on_configs_loaded (0x204560), after
- *   its parts and the head (0x2056F0): while the game world has a match
- *   (its +4D4Ch; the lobby has none) and the flag is set, every character built,
- *   whatever its profile's place (the options', a late joiner's own copy,
- *   its context, late_join_runtime_026g.c), gets one more part
+ *   its parts and the head (0x2056F0): the character's band is its own
+ *   profile's (srp writes it in the profile's protection field, 11 blue, 12
+ *   red, on every way a profile reaches a game; the lobby's and other
+ *   matches' say 10, none): no flag, no world, no order; one more part
  *   record: the band of the visual's torso (its first record of the torso,
- *   part 2, one of BO_TORSOS) in the profile's team's colour,
+ *   part 2, one of BO_TORSOS) in that colour,
  *   `ported/blackout/<the torso's base_model, '/' as '_'>_<blue|red>`, and
  *   the visual's name (its resource's, the cache's key) told apart by team.
  *
@@ -35,14 +35,14 @@ typedef unsigned int u32;
 
 enum {
     /* match_options (0x578A0 bytes; match_options::deserialize 0x1F0E70) */
-    /* the game (survarium::game): the visual cook's +20h (its constructor's
-     * argument, game::game's call at 0x1E9988); its game_world at +18h
-     * (constructed there, 0x1E90A3), whose +4D4Ch is the match while one is
-     * loaded or played (game_world::set_match 0x1F9740), 0 in the lobby
-     * (on_finish_match's 0x1F8B40 lets it go) */
-    VISUAL_COOK_GAME = 0x9262320,
-    GAME_WORLD = 0x18,
-    WORLD_MATCH = 0x4D4C,
+    /* player_profile's new-player protection (u32, 0x1F10CE; srp's band):
+     * every value from 10 up protects nothing (max(0, 1 - 0.1 v) at 0x332BAA
+     * and 0x332C4D; 0x2F4E2A tests 0), so 11 and 12 are srp's band colours,
+     * on every way a profile comes (the static info, a late joiner's place,
+     * a replay), and 10, the lobby's and any other match's, none */
+    PROFILE_BAND = 0x45F4,
+    BAND_BLUE = 11,
+    BAND_RED = 12,
     PROFILE_TEAM = 0x45EC,         /* u32 the team (team_damage_026g.c) */
     OPTIONS_BLACKOUT = 0x57870,    /* the "Mode" string's (+57840h, 40h bytes) last 16: patch 65's */
     BO_MAGIC = 0x4F425253,         /* "SRBO" */
@@ -197,14 +197,15 @@ u32 bo_match(void) {
  * cook data, `profile` its profile ([ebp+10h]), `name` its name's buffer
  * ([esp+348h]). */
 void bo_visual(u8 *visual, u8 *profile, u8 **name) {
-    if (!visual || !profile || !bo_match())
+    if (!visual || !profile)
         return;
-    /* A character of a match: the game has one. The lobby's never wear one. */
-    u8 *game = *(u8 **)VISUAL_COOK_GAME;
-    if (!game || !AT(game, GAME_WORLD + WORLD_MATCH, u8 *))
+    /* The character's own band, from its own profile alone (srp's field: the
+     * protection, BAND_BLUE or BAND_RED; anything else none) */
+    u32 field = AT(profile, PROFILE_BAND, u32), count = visual[VISUAL_COUNT];
+    if (field != BAND_BLUE && field != BAND_RED)
         return;
-    u32 team = AT(profile, PROFILE_TEAM, u32), count = visual[VISUAL_COUNT];
-    if (team > 1 || count >= RECORDS)
+    u32 colour = field - BAND_BLUE;            /* 0 blue, 1 red */
+    if (count >= RECORDS)
         return;
     const u8 *torso = torso_of(visual, count);
     if (!torso)
@@ -216,7 +217,7 @@ void bo_visual(u8 *visual, u8 *profile, u8 **name) {
         band[at++] = *c;
     for (const u8 *c = torso; *c && at < BAND_TEXT - 8; ++c)
         band[at++] = *c == '/' ? '_' : (char)*c;
-    for (const char *c = BAND_COLOUR[team]; *c; ++c)
+    for (const char *c = BAND_COLOUR[colour]; *c; ++c)
         band[at++] = *c;
     band[at] = 0;
     u8 *record = visual + VISUAL_RECORDS + count * RECORD_SIZE;
@@ -224,5 +225,5 @@ void bo_visual(u8 *visual, u8 *profile, u8 **name) {
     set_text((u8 **)(record + RECORD_PART), BAND_PART);
     AT(record, RECORD_KIND, u32) = KIND_TORSO;
     visual[VISUAL_COUNT] = (u8)(count + 1);
-    append(name, BAND_NAME[team]);
+    append(name, BAND_NAME[colour]);
 }

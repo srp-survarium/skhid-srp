@@ -88,6 +88,8 @@ changes of 2026-10-25 are in. Nothing here ships until the owner says so.
 - **Rewards (srp):** the match server's result carries `blackout`; the rewards' score and each
   line's pay are times `rewards::BLACKOUT_FACTOR` (2) before rounding; nothing in the match
   computes otherwise (the hud's score is hidden).
+- **Bands (srp):** in a Blackout match every player's profile, a late joiner's too, says its
+  team's band (`MatchProfile::with_band`: protection 11 team 0, 12 team 1).
 - **Static info:** the flag is tag 2 (one byte, 1) of srp's block after the squads, on battery
   maps only; a late joiner's static info keeps it.
 - **Exe, patch 65** (`blackout_026g.asm` and `.c`; `client_patch.md` 3.58):
@@ -97,11 +99,11 @@ changes of 2026-10-25 are in. Nothing here ships until the owner says so.
     `root.hide_interface`) and locks F11;
   - Research's per-frame entry of `update_player_icons` runs neither it nor the units' markers in
     a Blackout match;
-  - `profile_skin_visual_cook::on_configs_loaded` adds the band of the player's torso and team,
-    decided when the character is built from one source: the match's flag (read before any of its
-    characters is made) and the game world having a match (none in the lobby); so a late joiner
-    has it as seen by the others (his profile is his late-join context's copy) and by himself,
-    after a respawn too, and in replays;
+  - `profile_skin_visual_cook::on_configs_loaded` adds the band of the player's torso in the
+    colour his own profile says: srp writes it in each player's profile (its protection field, 11
+    blue, 12 red; 10 none, which every value from 10 up is the same as), so it travels with the
+    player on every path (match start, late join, respawn, replay) and the lobby's profiles have
+    none; no flag, world or order is read;
   - the game world's Tab (its `show_player_list` call, 0x25CD34) is kept, and the input builder's
     end (`process_first_person_mode`, 0x2421B0) takes the moves and acts out of the actions mask
     while it is held.
