@@ -21,19 +21,25 @@
 ; is an edge: a key held makes none. But the keys handed out in a tick are
 ; those polled at its start, so the first tick after the hud showed the kits
 ; hands out every key that went down in the frame before them, in play.
+; And a player still pressing 3 to heal in the moment after the death, before
+; seeing it, presses on the kits: the owner (2026-10-25) wants the keys
+; ignored for KIT_KEYS_DELAY (300 ms) after the kits appear too.
 ; kit_keys, set at slot +14h of the game world's handler (match_keys_poll,
 ; after the poll, before the keys are handed out) from the hud's cursor
-; (the kits, below), is one of three states; the transitions, total over
-; the poll's one event (the kits shown at it or not):
-;   CLOSED  -- shown -->  OPENING   (the kits came after the last poll: a key
-;                                    of this one may have gone down before)
-;   OPENING -- shown -->  OPEN      (the kits were up at the last poll: every
-;                                    key of this one went down on them)
-;   OPEN    -- shown -->  OPEN
-;   any     -- hidden --> CLOSED
-; A key going down picks a kit only in OPEN. So a key held or pressed before
-; the kits came picks nothing until it is let go and pressed again: held, it
-; makes no kind 1; pressed in the frame they came, its kind 1 is OPENING's.
+; (the kits, below) and GetTickCount, is one of three states; OPENING
+; carries the time of the poll that first saw the kits (kit_keys_since,
+; meaningful in OPENING alone). The transitions, total over the poll's one
+; event (the kits shown at it or not, at the time now):
+;   CLOSED  -- shown -->                          OPENING(now)
+;   OPENING(t) -- shown, now - t < KIT_KEYS_DELAY --> OPENING(t)
+;   OPENING(t) -- shown, now - t >= KIT_KEYS_DELAY --> OPEN
+;   OPEN    -- shown -->                          OPEN
+;   any     -- hidden -->                         CLOSED
+; A key going down picks a kit only in OPEN: OPEN comes at a later poll than
+; the one that saw the kits come, so every key OPEN hands out went down on
+; them, at least KIT_KEYS_DELAY (less a frame) after they came. A key held or
+; pressed before then picks nothing until it is let go and pressed again:
+; held, it makes no kind 1.
 ;
 ; The keys. A key reaches the game world's on_keyboard_action (0x25CD00,
 ; thiscall: ecx = its input handler, game_world+1F8h; the input world, the
@@ -72,7 +78,7 @@ BITS 32
 %include "engine_026g.inc"
 global match_keys_poll, match_keys_keyboard, match_keys_hud, match_keys_chat
 global chat_variable, hide_chat          ; the option's variable and its byte (check_match_keys_026g.py reads them)
-global kit_keys                          ; the kits' screen's state (check_match_keys_026g.py sets and reads it)
+global kit_keys, kit_keys_since          ; the kits' screen's state (check_match_keys_026g.py sets and reads it)
 section .text
 
 %define KEY_DOWN_BACK 0x25CD4B     ; on_keyboard_action's key down, after the site's `jnz`
@@ -94,22 +100,35 @@ section .text
 %define MATCH 5
 %define LAST_CHANNEL 9
 %define CLOSED 0                   ; kit_keys: the kits not shown at the last poll
-%define OPENING 1                  ; shown at this poll, not at the one before
-%define OPEN 2                     ; shown at this poll and the one before
+%define OPENING 1                  ; shown, for less than KIT_KEYS_DELAY since kit_keys_since
+%define OPEN 2                     ; shown, for KIT_KEYS_DELAY or more
+%define KIT_KEYS_DELAY 300         ; ms the kit keys pick nothing after the kits appear
+%define GET_TICK_COUNT 0x870090    ; GetTickCount's import (stdcall, ms, wraps)
 
 ; Slot +14h of the game world's handler (0x9FC59C; thiscall: ecx = the
 ; handler, the input world; `ret 4`): a poll taken, its keys not yet handed
 ; out. kit_keys' transition.
 match_keys_poll:
-    xor eax, eax                   ; CLOSED: hidden
     cmp byte [ecx+CURSOR], 0
-    je .set
-    mov al, OPENING                ; shown, after CLOSED
-    cmp byte [kit_keys], CLOSED
-    je .set
-    mov al, OPEN                   ; shown, after OPENING or OPEN
-.set:
-    mov [kit_keys], al
+    je .closed
+    cmp byte [kit_keys], OPENING
+    je .opening
+    ja .done                       ; OPEN stays
+    call [GET_TICK_COUNT]          ; CLOSED -> OPENING(now)
+    mov [kit_keys_since], eax
+    mov byte [kit_keys], OPENING
+    ret 4
+.opening:
+    call [GET_TICK_COUNT]
+    sub eax, [kit_keys_since]      ; unsigned: over GetTickCount's wrap too
+    cmp eax, KIT_KEYS_DELAY
+    jb .done                       ; OPENING(t) stays
+    mov byte [kit_keys], OPEN
+.done:
+    ret 4
+.closed:
+    mov byte [kit_keys], CLOSED
+    mov dword [kit_keys_since], 0
     ret 4
 
 ; The game world's on_keyboard_action at 0x25CD41, its kind's test (edi = the
@@ -123,7 +142,7 @@ match_keys_keyboard:
     cmp eax, DIK_3 - DIK_1
     ja .back                       ; not 1, 2 or 3
     cmp byte [kit_keys], OPEN
-    jne .back                      ; the kits not up since before this poll
+    jne .back                      ; the kits not up for KIT_KEYS_DELAY yet
     cmp byte [edi+CURSOR], 0
     je .back                       ; no kits shown
     mov edx, [edi+HUD_MOVIE]
@@ -210,3 +229,6 @@ registered:
     resb 1
 kit_keys:
     resb 1                         ; CLOSED, OPENING or OPEN (match_keys_poll)
+alignb 4
+kit_keys_since:
+    resd 1                         ; OPENING's: GetTickCount at the poll that first saw the kits

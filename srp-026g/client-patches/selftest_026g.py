@@ -4170,11 +4170,16 @@ def test_match_keys(original, image, before):
           and state.va <= linked.symbols["chat_variable"] < linked.symbols["hide_chat"] < state.va + state.size
           and state.va <= linked.symbols["kit_keys"] < state.va + state.size
           and f"cmp byte [dword {linked.symbols['kit_keys']:#x}],0x2" in texts
-          and f"mov [{linked.symbols['kit_keys']:#x}],al" in texts,
+          and f"mov byte [dword {linked.symbols['kit_keys']:#x}],0x2" in texts
+          and state.va <= linked.symbols["kit_keys_since"] < state.va + state.size
+          and texts.count("call [dword 0x870090]") == 2 and "cmp eax,0x12c" in texts
+          and f"sub eax,[dword {linked.symbols['kit_keys_since']:#x}]" in texts
+          and struct.unpack("<I", stock.read(0x870090, 4))[0] == struct.unpack("<I", before.read(0x870090, 4))[0]
+          and stock.read(P.IMAGE_BASE + struct.unpack("<I", stock.read(0x870090, 4))[0] + 2, 13) == b"GetTickCount\0",
           "it goes on in on_keyboard_action (0x25CD4B, 0x25CF0D), calls the hud's constructor (0x233810), the library's "
-          "Invoke and cc_value<bool> and nothing else, jumps to add_message (0x208AD0); it invokes "
+          "Invoke and cc_value<bool>, GetTickCount (its import) and nothing else, jumps to add_message (0x208AD0); it invokes "
           "root.select_kit_key, names its variable \"g_private_messages_in_game\" as a cc_bool, both in "
-          "match_keys.state; the kits' screen's state kit_keys there too, set by the poll and OPEN (2) asked "
+          "match_keys.state; the kits' screen's state kit_keys there too, set by the poll (OPEN once GetTickCount, import 0x870090, is 300 ms past OPENING's kit_keys_since) and OPEN (2) asked "
           "by the keys")
     here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
     check("public function select_kit_key(index:uint)" in here("flash", "hud", "src", "HUD.as")

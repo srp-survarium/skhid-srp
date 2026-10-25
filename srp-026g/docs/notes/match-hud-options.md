@@ -12,10 +12,12 @@ sometimes missclick".
   death, and before the match starts.
 - **A key is a click** on that kit's tab: the same kit choice, nothing new sent. A kit that
   cannot be played (greyed) or the one already chosen: nothing.
-- **Only a press made on the kits** picks (the owner, 2026-10-25: 3 pressed mid-fight to heal
-  must not pick kit 3 at the death). A key held, or pressed in play in the frame the kits came,
-  picks nothing until it is let go and pressed again on the kits. No timer: the kits must have
-  been up at the input poll before the press.
+- **Only a press made on the kits, 300 ms or more after they appear,** picks (the owner,
+  2026-10-25: 3 pressed mid-fight to heal must not pick kit 3 at the death; then "ignore kit keys
+  for 300 ms after the kits screen appears"). A key held into the kits, pressed in play in the
+  frame they came, or pressed in their first 300 ms picks nothing until it is let go and pressed
+  again after that.
+- **Before the start** the same: the keys work 300 ms after the kits are shown.
 - **Not while typing** in the chat: the keys are the text's.
 - **The keys keep their other uses:** the game gets them as before (a dead player's game sends no
   input); the numpad and rebinding do not pick kits.

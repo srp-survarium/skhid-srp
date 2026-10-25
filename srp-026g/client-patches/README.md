@@ -108,7 +108,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
-| `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (a key pressed before they came, none), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
+| `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before they came or in their first 300 ms), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
@@ -3219,7 +3219,12 @@ screen's state `kit_keys` from the cursor: CLOSED (not shown), OPENING (shown, n
 before: a key of this poll may have gone down before the kits came), OPEN (shown at both).
 `match_keys_keyboard` picks only in OPEN. A key held from play into the kits makes no kind 1, and
 one pressed in their frame is OPENING's: either picks nothing until it is let go and pressed
-again on the kits.
+again on the kits. And, the owner's rule after that: a player still pressing 3 to heal just
+after the death presses on the kits before seeing them, so the keys pick nothing for
+`KIT_KEYS_DELAY`, 300 ms, after the kits appear. OPENING carries the time of the poll that
+first saw the kits (`kit_keys_since`, GetTickCount through its import 0x870090), and a poll
+moves it to OPEN only 300 ms or more after it (unsigned, over the wrap); CLOSED clears it. A
+key pressed in those 300 ms and held into OPEN picks nothing until let go and pressed again.
 
 **The chat option.** The gameplay options' option 4 (`options_item_bool` named
 "g_private_messages_in_game", 0xA064FC; the checkbox `_no_in_batle` of `main_menu.swf`,
@@ -3258,14 +3263,17 @@ the option's name used once, the block's code, exits, calls and data, the movies
 manifest's parts, the input tick's order and the keyboard's kinds, the slot) and the call shapes
 (0x1F6845 and 0x26B916 CALLEE, `ret 4` and `ret 14h` as their models; 0x9FC59C SLOT, `ret 4`;
 0x25CD41 JUMP); `check_match_keys_026g.py` (Unicorn): the poll from each state, the kits shown
-and not (CLOSED, OPENING, OPEN; `ret 4`, ebx esi edi ebp kept); the keys from 0x25CD41 for
+and not, GetTickCount a stub (CLOSED, OPENING, OPEN at 300 ms and not at 299, over the wrap
+too; `ret 4`, ebx esi edi ebp kept); the keys from 0x25CD41 for
 the keys 1 to 5 and Enter, each kind, with and without the cursor and the movie, in each state:
 Invoke with `root.select_kit_key` and the kit exactly for 1, 2 and 3 going down in OPEN with the
 cursor and the movie, and every case at the original's 0x25CD4B or 0x25CF0D with its registers,
 frame and stack; the input ticks, the game's own tick (0x3B7BD0) and keyboard process
-(0x3B9AF0) over a made-up input world, for the keys 1 to 4: held from play into the kits, pressed
-or tapped in the frame they came, let go in play then pressed on them, in play, a respawn then a
-death: a kit only for a press on the kits after their first tick, the game's handler given the
+(0x3B9AF0) over a made-up input world, for the keys 1 to 4, GetTickCount from 1000 and from
+before its wrap: pressed 100 and 250 ms after the kits appear (none), 350 ms after (a pick),
+pressed at 100 ms and held into OPEN (none until let go and pressed again), held from play into
+the kits, pressed in the frame they came, in play, a respawn then a death: a kit only for a
+press handed out 300 ms or more after the kits came, the game's handler given the
 same keys and kinds as by the original exe (which picks nothing: main's build, run the same way,
 picks kit 3 for a 3 pressed or tapped in the frame of the death); the variable: the hud's constructor called with the game world and the hud, its
 registers back, one `cc_bool` "g_private_messages_in_game" at the list's head over two calls,
