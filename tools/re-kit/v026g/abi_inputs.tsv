@@ -4497,3 +4497,11 @@ va	name	location	role	basis
 0x0025a730	survarium::particle_game_effect_emitter_cook::on_particle_system_loaded	stack+8	the effect's config: key_frames, view (an int, 1 when absent; the emitter +13Ch), time_to_finish, time_mode, length	observed
 0x00313640		ECX	the calculator: +8h the artefact	observed
 0x00313640		entry ESP+4	out: +0 0, +4 0.0f, +8 byte finished	observed
+0x002dddf0	survarium::game_effect_player::deserialize	entry ESP+4	this (a player's +358h, or the world's +18FE8h)	observed
+0x002dddf0	survarium::game_effect_player::deserialize	entry ESP+8	the reader {start, cursor, end}: a dword, then the count of kind-1 effects	observed
+0x002dddf0	survarium::game_effect_player::deserialize	entry ESP+12	the client's reader (kind-2 effects) or 0	observed
+0x002d1e20	survarium::game_world_core::atomic_tick	world +18FC4h	set to the newest tick time played (the larger of itself and EDI); +18FC0h to EDI. A tick at or before +18FC4h is played again (a rollback); read by damage_sound_effect (0x23EEC4, 0x23F444), player_equipment_sound_effect (0x2A6488) and client_timelimit_rule::tick (0x267AD2)	observed
+0x002d21e0	survarium::game_world_core::tick_events	EAX	the history item the world was loaded from or is at (+0C0BACh its next, +0C0BB0h its time)	observed
+0x002d21e0	survarium::game_world_core::tick_events	entry ESP+4	the world core	observed
+0x002d21e0	survarium::game_world_core::tick_events	entry ESP+8	the first input node to apply (0x27E870 from move), or 0	observed
+0x002d21e0	survarium::game_world_core::tick_events	entry ESP+12	the target time, ms	observed
