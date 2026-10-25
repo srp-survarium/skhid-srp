@@ -18,6 +18,8 @@ use mapdata::grid::{MARGINAL_JUMP_M, STEP_UP_M};
 use mapdata::regions::Regions;
 use mapdata::{NodeId, Shape, Vec3, WalkGrid, World};
 
+mod progress;
+
 use super::hazards::{HazardMarks, Hazards, PASS_MS};
 use super::path::{self, Route};
 use super::route_filter::RouteFilter;
@@ -140,6 +142,8 @@ pub struct TacticsBase {
     /// zone off). A goal on any other floor (a roof one only drops from, a
     /// shelf's top past the jump) has no way from where bots are.
     walkable: Vec<u64>,
+    /// How far forward each region is, by the walk ([`progress`]).
+    progress: progress::Progress,
 }
 
 /// The past-fixed-zones regions and the zones they were made for
@@ -222,10 +226,10 @@ const SPAWN_BITS: u32 = 8;
 
 /// The version of what [`TacticsBase::build`] gives, in its key: raised
 /// with any change that changes the tactics of a map (the hazard marks,
-/// the spawn areas, the regions, the exits and the searches they come
-/// from), so a stored base of the old build is never read for the new.
+/// the spawn areas, the regions, the progress, the exits and the searches
+/// they come from), so a stored base of the old build is never read for the new.
 /// `the_base_and_its_digest_are_fixed` fails until then.
-pub const TACTICS_ALGO: u32 = 3;
+pub const TACTICS_ALGO: u32 = 4;
 
 /// How many goal regions' distances [`Tactics::walk_estimate`] keeps: each is
 /// one `f32` a region (823-4,477 on the offered maps, 3-18 KB), so at most
@@ -385,6 +389,7 @@ impl TacticsBase {
         let spawn_areas = labels.iter().map(|&label| label as u8).collect();
         drop(labels);
         let walkable = walkable_from_spawns(&world);
+        let progress = progress::Progress::build(grid, &regions, &world.map.spawns);
         let mut base = Self {
             world,
             hazards,
@@ -392,6 +397,7 @@ impl TacticsBase {
             spawn_areas,
             regions,
             walkable,
+            progress,
         };
         let sides: Vec<i32> = {
             let mut sides: Vec<i32> = base.world.map.spawns.iter().map(|s| s.team).collect();
@@ -440,6 +446,7 @@ impl TacticsBase {
                 out.plain(&self.spawn_areas, |&bits| [bits])?;
                 self.regions.write_body(out)?;
                 out.plain(&self.walkable, |&bits| bits.to_le_bytes())?;
+                out.plain(self.progress.values(), |v| v.to_bits().to_le_bytes())?;
                 out.plain(&self.exits, |(side, exits)| {
                     let mut bytes = [0u8; 8];
                     bytes[..4].copy_from_slice(&side.to_le_bytes());
@@ -478,6 +485,8 @@ impl TacticsBase {
                 let spawn_areas: Vec<u8> = input.plain(|[bits]: [u8; 1]| bits)?;
                 let regions = Regions::read_body(input, floors)?;
                 let walkable: Vec<u64> = input.plain(u64::from_le_bytes)?;
+                let progress: Vec<f32> =
+                    input.plain(|bytes: [u8; 4]| f32::from_bits(u32::from_le_bytes(bytes)))?;
                 let sides: Vec<(i32, u32)> = input.plain(|bytes: [u8; 8]| {
                     let (side, count) = bytes.split_at(4);
                     (
@@ -501,6 +510,9 @@ impl TacticsBase {
                 {
                     return Err("tactics out of range".into());
                 }
+                let progress =
+                    progress::Progress::from_parts(&world.map.spawns, progress, regions.len())
+                        .ok_or("tactics out of range")?;
                 let mut rest = points.as_slice();
                 let exits = sides
                     .into_iter()
@@ -517,6 +529,7 @@ impl TacticsBase {
                     spawn_areas,
                     regions,
                     walkable,
+                    progress,
                 })
             },
             Self::digest,
@@ -529,6 +542,7 @@ impl TacticsBase {
             + self.spawn_areas.len()
             + self.regions.memory_bytes()
             + self.walkable.len() * 8
+            + self.progress.memory_bytes()
             + self
                 .exits
                 .iter()
@@ -538,7 +552,7 @@ impl TacticsBase {
 
     /// What the tactics answer, as one number (`mapdata::digest`): the
     /// zones, their marks, the spawn areas, the regions, the walkable
-    /// floors and the exits.
+    /// floors, the progress of each region and the exits.
     /// Equal digests, equal answers.
     pub fn digest(&self) -> u64 {
         let mut digest = mapdata::digest::Digest::new();
@@ -559,6 +573,7 @@ impl TacticsBase {
         self.regions.digest_into(&mut digest);
         digest.len(self.walkable.len());
         self.walkable.iter().for_each(|&bits| digest.u64(bits));
+        self.progress.digest_into(&mut digest);
         digest.len(self.exits.len());
         for (side, exits) in &self.exits {
             digest.u32(*side as u32);
@@ -852,6 +867,14 @@ impl Tactics {
     /// Whether `point` is in a spawn area of `side` (any side if `None`).
     pub fn in_spawn_area(&self, point: Vec3, side: Option<i32>) -> bool {
         self.base.in_spawn_area(point, side)
+    }
+
+    /// How far forward `point` is for `side` by the walk: 0 at its own
+    /// spawns, 1 at the enemy's, 0.5 where unknown ([`progress`]).
+    pub fn progress_at(&self, point: Vec3, side: i32) -> f32 {
+        let base = &self.base;
+        base.progress
+            .at(&base.world.grid, &base.regions, point, side)
     }
 
     /// The map side whose spawn is nearest `point`.
@@ -2350,10 +2373,10 @@ pub(super) mod tests {
     fn the_base_and_its_digest_are_fixed() {
         let base = TacticsBase::build(field(), 1.0);
         assert_eq!(base.digest(), PINNED_FIELD);
-        assert_eq!(TACTICS_ALGO, 3);
+        assert_eq!(TACTICS_ALGO, 4);
     }
 
-    const PINNED_FIELD: u64 = 8_340_154_445_228_000_430;
+    const PINNED_FIELD: u64 = 18_272_090_014_271_229_028;
 
     #[test]
     fn a_written_base_reads_back_the_same_and_a_damaged_one_is_refused() {
