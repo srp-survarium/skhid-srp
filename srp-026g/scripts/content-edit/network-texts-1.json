@@ -1,0 +1,41 @@
+{
+ "_about": "What a player reads when the game cannot reach the server (the owner, 2026-10-25: players in Russia, whose providers block the server, saw only \"Connection error.\"). st_login_menu_status_error_connection is the login screen's status 0: a sign-in that gets no answer, and the login screen the game goes back to after five failed tries to reach the lobby again (transport.md 6.1). It says what failed and what to try: the firewall (Skhid-network-setup.cmd) and, in Russia, a VPN with the game's programs in its split tunnelling (VPN.txt), the two files beside Skhid.bat. Six localization tables.",
+ "edit_text": [
+  {
+   "file": "localization/english/localization",
+   "path": "strings/st_login_menu_status_error_connection",
+   "from": "Connection error.",
+   "to": "Can't reach the Skhid server. Allow the game in your firewall (Skhid-network-setup.cmd). In Russia, use a VPN and add the game's .exe files to it (VPN.txt)."
+  },
+  {
+   "file": "localization/german/localization",
+   "path": "strings/st_login_menu_status_error_connection",
+   "from": "Verbindung Fehler",
+   "to": "Der Skhid-Server ist nicht erreichbar. Erlaube das Spiel in deiner Firewall (Skhid-network-setup.cmd). In Russland nutze ein VPN und füge die .exe-Dateien des Spiels hinzu (VPN.txt)."
+  },
+  {
+   "file": "localization/polish/localization",
+   "path": "strings/st_login_menu_status_error_connection",
+   "from": "Błąd połączenia.",
+   "to": "Brak połączenia z serwerem Skhid. Zezwól na grę w zaporze (Skhid-network-setup.cmd). W Rosji użyj VPN i dodaj do niego pliki .exe gry (VPN.txt)."
+  },
+  {
+   "file": "localization/russian/localization",
+   "path": "strings/st_login_menu_status_error_connection",
+   "from": "Ошибка соединения",
+   "to": "Нет связи с сервером Skhid. Разрешите игру в брандмауэре (Skhid-network-setup.cmd). В России включите VPN и добавьте в него .exe-файлы игры (VPN.txt)."
+  },
+  {
+   "file": "localization/original/localization",
+   "path": "strings/st_login_menu_status_error_connection",
+   "from": "Ошибка соединения",
+   "to": "Нет связи с сервером Skhid. Разрешите игру в брандмауэре (Skhid-network-setup.cmd). В России включите VPN и добавьте в него .exe-файлы игры (VPN.txt)."
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_login_menu_status_error_connection",
+   "from": "Помилка з'єднання",
+   "to": "Немає зв'язку з сервером Skhid. Дозвольте гру в брандмауері (Skhid-network-setup.cmd). У Росії увімкніть VPN і додайте до нього .exe-файли гри (VPN.txt)."
+  }
+ ]
+}
