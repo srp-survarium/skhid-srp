@@ -238,6 +238,38 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 - **HUD movie:** `flash/hud/src/HUD.as` gets `srp_voice_talking(names:Array)`: a list of names
   with a speaker mark, under the minimap or above the chat, and nothing when empty.
 
+## As built (2026-10-25)
+
+Where the build differs from or adds to the design above:
+
+- **The exe patch is 66** (`client-patches/voice_026g.asm`, `voice_026g.c`; README patch 66,
+  client_patch.md 3.55). The sites: game::game (the variables), match_client::connect
+  (`sv_start(host, match port + 1, session)`), on_finish_match and on_deactivate (`sv_stop`),
+  game_world::tick (every frame), on_keyboard_action's Tab-test call (the keys), the Esc menu.
+- **Options:** `s_chat_volume` and `s_mic_sens` are 0..100 (the game's float slider steps by 1),
+  defaults 100 and 50; `s_use_microphone` default on. **"Disable voice chat"** is the gameplay
+  tab's dead option 5 (`g_hide_spam`, "Hide spam"), relabelled by `voice-chat-1.json`, next to
+  "Hide chat in match" (patch 58's dead option 4, the same way).
+- **Keys:** PTT is the stock `ptt` (P, the chat keys' group; relabelled "Push to talk"). **"Mute
+  the last speaker"** is the action table's dead entry 37h renamed `mute_last_speaker`, a 42nd
+  Controls row, **no default key**: M is `set_next_ammo_type` in 0.26g, so it waits for the owner's
+  pick (free in every group: B, H, J, U, Y, Z, 9, 0, F4, F7-F10, F12, Caps Lock).
+- **The Esc menu's "Voice" panel** (`main_menu`: `VoicePanel`, beside the menu's buttons): the
+  teammates whose voice id is known, a mute checkbox each, "Mute all". Empty and hidden in the
+  lobby. It works in Blackout (the Esc menu frees the cursor; the Tab list is not used).
+- **The HUD list** (`hud`: `VoiceSpeakers`, left of the screen above the middle): the player's own
+  name in gold while transmitting, then each teammate talking; a dimmed speaker mark for the radio.
+  Muted players are left out. The mute key shows "Muted: name" / "Unmuted: name" under it for 3 s.
+- **The radio** (the DLL): a teammate farther than 25 m, or either player dead, through a filter
+  fitted to 0.69's `_radio` quick-command recordings (high-pass 405 Hz, peaks and dips up to 6.3
+  kHz), retail static under it (`tutorial_interference_02`, -44 dBFS), and retail's squelch at the
+  start and end of a far utterance (the static lead-in and tail of 0.69's `_radio` phrases: 0.69 has
+  no separate squelch file). Near: plain, no squelch. The sounds are compiled into the DLL
+  (`client-voice/make_radio_sounds.py`).
+- **The DLL:** libopus 1.6.1 in floating point (its fixed-point x86 build does not link), static;
+  about 550 KB; imports kernel32, msvcrt, winmm and ws2_32 only. The microphone opens on PTT and
+  closes 1 s after. One press transmits 30 s at most.
+
 ## Bandwidth
 
 - Talking: Opus 16 kbps, 2 frames of 20 ms per datagram (about 80 bytes of audio + 10 header +

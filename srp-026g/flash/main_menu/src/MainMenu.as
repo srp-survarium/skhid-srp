@@ -108,6 +108,14 @@ package
          this.action_select.setData(value,promo);
       }
       
+      // Voice chat (exe patch 66, docs/notes/voice-chat.md): the Esc menu's mutes. The panel's
+      // title, the "mute all" label, then a slot, a name and a muted flag for each teammate; no
+      // teammate (the lobby): the panel is hidden.
+      public function srp_voice_panel(title:String, allLabel:String, ... rows) : void
+      {
+         this.action_select.setVoice(title,allLabel,rows);
+      }
+
       public function handle_promo_key_validation(value:Boolean, text:String) : void
       {
          this.action_select.handlePromoKeyValidation(value,text);

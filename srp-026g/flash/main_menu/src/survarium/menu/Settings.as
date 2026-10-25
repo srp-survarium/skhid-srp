@@ -548,13 +548,21 @@ package survarium.menu
             }
             i++;
          }
-         // "Hide chat in match" (option 4 of the gameplay tab; exe patch 58 gives it its
-         // variable, docs/notes/match-hud-options.md): the timeline enables it where it makes
-         // the checkbox (settingsTabs_15); again here, after the tab's settings are bound.
-         var hideChat:UIComponent = this.settings_content["_no_in_batle"] as UIComponent;
-         if(hideChat)
+         // The options the exe patches give a variable: "Hide chat in match" (option 4 of the
+         // gameplay tab, patch 58, docs/notes/match-hud-options.md), "Disable voice chat" (its
+         // option 5) and "Use microphone" (the sound tab's 4; patch 66, docs/notes/voice-chat.md).
+         // The timeline enables them where it makes the checkboxes (settingsTabs_15); again here,
+         // after the tab's settings are bound.
+         var live:Array = ["_no_in_batle","_hide_spam","_use_mik"];
+         var optionName:String;
+         var option:UIComponent;
+         for each(optionName in live)
          {
-            hideChat.enabled = true;
+            option = this.settings_content[optionName] as UIComponent;
+            if(option)
+            {
+               option.enabled = true;
+            }
          }
          SrpFovSlider.finish(this);
       }
