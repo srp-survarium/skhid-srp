@@ -15,7 +15,7 @@
 use std::sync::Arc;
 
 use mapdata::regions::Regions;
-use mapdata::{NodeId, Shape, Vec3, World};
+use mapdata::{NodeId, Shape, Vec3, WalkGrid, World};
 
 use super::hazards::{HazardMarks, Hazards, PASS_MS};
 use super::path::{self, Route};
@@ -1022,7 +1022,7 @@ impl Tactics {
         objective: bool,
     ) -> bool {
         let grid = &self.world.grid;
-        let (Some(from), Some(to)) = (grid.locate(a, 1.0), grid.locate(b, 0.6)) else {
+        let Some((from, to)) = line_ends(grid, a, b) else {
             return false;
         };
         path::straight_where(grid, from, to, |node| {
@@ -1284,6 +1284,24 @@ fn centroid(points: &[Vec3]) -> Option<Vec3> {
     Some(Vec3::new(sum.x / n, sum.y / n, sum.z / n))
 }
 
+/// The floors a line from `a` to `b` runs between ([`Tactics::clear_line_for`]):
+/// `a`'s, and the floor under `b`, in its cell
+/// (the nearest in height, in the window [`WalkGrid::locate`] takes). The
+/// nearest floor round `b` is not its end when none is under it: a jump's
+/// run-up 0.8 m behind its take-off at the end of a corridor one floor wide
+/// and on the diagonal was over no floor, `locate` found the bot's own floor
+/// 0.55 m from it, so the line to it was clear and the bot walked at it for
+/// every try (level_06 day 4's pocket at (92.1, 139.4)).
+fn line_ends(grid: &WalkGrid, a: Vec3, b: Vec3) -> Option<(NodeId, NodeId)> {
+    let from = grid.locate(a, 1.0)?;
+    let dy = |n: NodeId| grid.position(n).y - b.y;
+    let to = grid
+        .floors_in([b.x, b.z, b.x, b.z])
+        .filter(|&n| (-2.5..=1.0).contains(&dy(n)))
+        .min_by(|&m, &n| dy(m).abs().total_cmp(&dy(n).abs()))?;
+    Some((from, to))
+}
+
 /// The bench's counts of [`Tactics::escape`] (all matches of the run): the
 /// ways out it found, of them not the nearest (on toward the goal), and
 /// none found in its search.
@@ -1485,6 +1503,24 @@ pub(super) mod tests {
         assert!(tactics.clear_step_for(middle, Vec3::new(54.0, 6.0, 33.0), 0, Some(0), false));
         // The walk there is still a line on allowed floors.
         assert!(tactics.clear_line_for(middle, edge, 0, Some(0), false));
+    }
+
+    /// A line's end over no floor is not clear, though a floor is within
+    /// the 0.6 m `locate` looks: a jump's run-up off the floors was walked
+    /// at for every try (level_06 day 4's pocket at (92.1, 139.4)).
+    #[test]
+    fn a_line_to_a_point_over_no_floor_is_not_clear() {
+        let world = field_with_solids(&floor(50.0, 30.0, 56.0, 36.0, 6.0), |_| {});
+        let tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let middle = Vec3::new(53.0, 6.0, 33.0);
+        let past = Vec3::new(56.3, 6.0, 33.0);
+        let by = grid
+            .locate(past, 0.6)
+            .expect("the slab's edge is within reach");
+        assert!(grid.position(by).x < 56.0);
+        assert!(!tactics.clear_line_for(middle, past, 0, Some(0), false));
+        assert!(tactics.clear_line_for(middle, Vec3::new(55.9, 6.0, 33.0), 0, Some(0), false));
     }
 
     #[test]

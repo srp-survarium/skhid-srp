@@ -6259,6 +6259,7 @@ struct RouteTally {
     pocket_worlds: u32,
     pocket_deaths: u32,
     pocket_escapes: [u64; 7],
+    motor_counts: [u64; 6],
     /// [CG-17] Each body's walk at the last tick to an exact spot
     /// (`Motor::exact_end`), and when it last landed a planned drop on one;
     /// planned drops on an exact walk (this tick's or the last), and of
@@ -6284,6 +6285,7 @@ impl RouteTally {
             escapes: super::tactics::escapes::counts(),
             pocket_in: vec![false; bodies],
             pocket_escapes: super::escape::counts::counts(),
+            motor_counts: super::motor::counts::counts(),
             exact_was: vec![false; bodies],
             exact_drop: vec![None; bodies],
             ..Default::default()
@@ -6487,9 +6489,11 @@ impl RouteTally {
         let pocketed: Vec<u64> = (0..7)
             .map(|k| pockets[k] - self.pocket_escapes[k])
             .collect();
+        let motor = super::motor::counts::counts();
+        let moved: Vec<u64> = (0..6).map(|k| motor[k] - self.motor_counts[k]).collect();
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
-            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {} falls_exact {} falls_exact_taken {}",
+            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {} falls_exact {} falls_exact_taken {} jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {}",
             self.worlds,
             self.pushes.0,
             self.pushes.1,
@@ -6528,6 +6532,12 @@ impl RouteTally {
             pocketed[6],
             self.falls_exact.0,
             self.falls_exact.1,
+            moved[0],
+            moved[1],
+            moved[2],
+            moved[3],
+            moved[4],
+            moved[5],
         )
     }
 }

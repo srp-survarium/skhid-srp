@@ -16,9 +16,14 @@
 //!   cut, and ways whose cut points lie within `merge_m` of a better one's
 //!   are that one's cut: with the top players' routes in the table a side
 //!   has up to 10 ways, several through the same place.
-//! - The cut point: the route's first point at least `cut_progress` of
-//!   the way from their base to ours (past the middle: the owner's "never
-//!   in the middle"), out of every spawn area.
+//! - The cut point: where the route first comes `cut_progress` of the way
+//!   from their base to ours (past the middle: the owner's "never in the
+//!   middle"), on the floor there, out of every spawn area; the end of that
+//!   leg when no fine floor is there. A route point moved a little (a 3D
+//!   point onto the players' floor) moves the cut a little: taken at the
+//!   first point past `cut_progress`, a point at 0.600 moved 0.3 m sent the
+//!   cut a leg on, 25 m, by their base's (level_01 day 4: 2 kills in 64
+//!   holds there against 5 in 10).
 //! - The spot: `spot_min_m`-`spot_max_m` from it with a sight line to it,
 //!   off the route's line by at least `side_deg` (a side angle, not in
 //!   their face), not on their side of it, higher ground preferred; one of
@@ -111,6 +116,54 @@ fn progress(from: Vec3, to: Vec3, at: Vec3) -> f32 {
     ((at.x - from.x) * dx + (at.z - from.z) * dz) / l
 }
 
+/// Where `route` first comes `min` of the way from `theirs` to `ours`, and
+/// the point before it they come from: on the leg that crosses `min`, where
+/// it crosses, on the floor there; else that leg's end. None when that is
+/// in a spawn area or no fine goal for `side`.
+fn cut_on(
+    cx: &Ctx,
+    route: &super::super::routes::HumanRoute,
+    (theirs, ours): (Vec3, Vec3),
+    min: f32,
+    side: i32,
+) -> Option<(Vec3, Vec3)> {
+    let points = &route.points;
+    let i = points
+        .iter()
+        .position(|&p| progress(theirs, ours, p) >= min)?;
+    let before = |k: usize| if k > 0 { points[k - 1] } else { theirs };
+    let fine =
+        |p: Vec3| !cx.tactics.in_spawn_area(p, None) && cx.tactics.fine_goal(p, cx.now, Some(side));
+    if i > 0 {
+        let (a, b) = (points[i - 1], points[i]);
+        let (pa, pb) = (progress(theirs, ours, a), progress(theirs, ours, b));
+        let t = if pb > pa {
+            ((min - pa) / (pb - pa)).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        let grid = &cx.tactics.world.grid;
+        if let Some(at) = grid
+            .locate(a + (b - a) * t, ON_FLOOR_M)
+            .map(|n| grid.position(n))
+            && fine(at)
+        {
+            let from = if at.distance_xz(a) >= 1.0 {
+                a
+            } else {
+                before(i - 1)
+            };
+            return Some((at, from));
+        }
+    }
+    let at = points[i];
+    fine(at).then(|| (at, before(i)))
+}
+
+/// How far from a point on a route's leg its floor may lie (the bots'
+/// goals' reach, `Tactics::fine_goal`).
+const ON_FLOOR_M: f32 = 3.0;
+
 /// The enemy's best ways' cuts, best first: (route index, cut point, the
 /// point before it they come from, weight in (0, 1]); one a place
 /// (`merge_m`), `most_cuts` at most.
@@ -135,15 +188,7 @@ pub fn cuts(cx: &Ctx) -> Vec<(usize, Vec3, Vec3, f32)> {
         .iter()
         .enumerate()
         .filter_map(|(index, route)| {
-            let i = route
-                .points
-                .iter()
-                .position(|&p| progress(theirs, ours, p) >= min)?;
-            let at = route.points[i];
-            if cx.tactics.in_spawn_area(at, None) || !cx.tactics.fine_goal(at, cx.now, Some(side)) {
-                return None;
-            }
-            let from = if i > 0 { route.points[i - 1] } else { theirs };
+            let (at, from) = cut_on(cx, route, (theirs, ours), min, side)?;
             Some((index, at, from, worth(route) / best))
         })
         .collect::<Vec<_>>();
@@ -390,9 +435,9 @@ mod tests {
         let cx = s.cx(0);
         let cuts = cuts(&cx);
         assert_eq!(cuts.len(), 2, "{cuts:?}");
-        // x 25 is the first point 60 % of the way from x 75 to x 5.
-        // (Points sit on the grid's floors, within a cell.)
-        assert!(cuts[0].1.distance_xz(Vec3::new(25.0, 0.0, 30.0)) < 0.5);
+        // 60 % of the way from x 75 to x 5 is x 33, on the leg from x 35
+        // to x 25. (Points sit on the grid's floors, within a cell.)
+        assert!(cuts[0].1.distance_xz(Vec3::new(33.0, 0.0, 30.0)) < 0.5);
         assert!(cuts[0].2.distance_xz(Vec3::new(35.0, 0.0, 30.0)) < 0.5);
         let out = cut_candidates(&s);
         assert_eq!(out.len(), 2);
@@ -414,6 +459,34 @@ mod tests {
         let mut s = Scenario::field(Mode::TeamDeathmatch);
         s.bot(0, 0, Vec3::new(20.0, 0.0, 20.0));
         assert!(cut_candidates(&s).is_empty());
+    }
+
+    /// A route point moved a little across `cut_progress` (x 33 is 60 % of
+    /// the way from x 75 to x 5) moves the cut a little, not a leg on.
+    #[test]
+    fn a_point_moved_a_little_moves_the_cut_a_little() {
+        let cut_at = |x: f32| {
+            let mut s = Scenario::field(Mode::TeamDeathmatch);
+            s.bot(0, 0, Vec3::new(20.0, 0.0, 20.0));
+            s.tactics.set_routes(vec![HumanRoute {
+                team: 1,
+                lives: 10,
+                reward: 1.0,
+                fight: 1.0,
+                points: [65.0, 55.0, 45.0, x, 15.0]
+                    .iter()
+                    .map(|&x| Vec3::new(x, 0.0, 30.0))
+                    .collect(),
+                ..Default::default()
+            }]);
+            cuts(&s.cx(0))[0].1
+        };
+        let (short, past) = (cut_at(33.2), cut_at(32.8));
+        assert!(short.distance_xz(past) < 1.5, "{short:?} {past:?}");
+        assert!(
+            past.distance_xz(Vec3::new(33.0, 0.0, 30.0)) < 1.0,
+            "{past:?}"
+        );
     }
 
     /// Ways through one place are one cut (the better way's), and only the
