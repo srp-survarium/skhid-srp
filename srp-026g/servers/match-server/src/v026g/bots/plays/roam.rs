@@ -32,6 +32,10 @@
 //! own: a waypoint off the straight way, drawn per run. The team spreads
 //! over the exits (`FriendsNearTarget` inverted).
 //!
+//! The leader of a pair whose follower is left behind it (farther from the
+//! route's end, [`BEHIND_M`]) eases to a walk for a few seconds on its way
+//! instead of standing (play 25); a follower ahead of it is not waited for.
+//!
 //! It sprints only far from known danger ([`Ctx::pace_toward`]). At the
 //! end it looks about a few seconds, then the commander picks again.
 //!
@@ -259,6 +263,26 @@ impl Task {
     }
 }
 
+/// How much farther from the route's end than the leader the follower must
+/// be to count as behind it, metres.
+///
+/// Root cause (`push-record.md` N2): the wait stood a leader still for 6 s
+/// for any follower 25-90 m off, whichever side of it it was on (in the
+/// owner's matches 0.9 % of alive time, the most visible unreasonable stand
+/// of a bot), and a bot that stands is a bot that is easy to hit and to
+/// read. A follower farther from the end than the leader is the one left
+/// behind; one nearer it has gone ahead. Walking on at a walk lets the
+/// follower close up without the leader stopping.
+const BEHIND_M: f32 = 5.0;
+
+/// Whether `follower` is behind the bot on `points`: farther from the
+/// route's end by more than [`BEHIND_M`].
+fn follower_behind(cx: &Ctx, follower: &PlaceView, points: &[Vec3]) -> bool {
+    points.last().is_some_and(|&end| {
+        follower.feet.distance_xz(end) > cx.me.feet.distance_xz(end) + BEHIND_M
+    })
+}
+
 /// A human route of the bot's side, drawn by weight (the module's doc);
 /// its points from the first one ahead of the bot.
 fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
@@ -472,15 +496,18 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
             if turned_bad(cx, at) {
                 return Step::Done("the route turned bad");
             }
-            // The pair's follower left behind: wait a little, once a run
-            // (play 25).
-            if super::buddy::lagging(cx).is_some() {
+            // The pair's follower left behind, behind it on the way to the
+            // route's end: the leader eases to a walk a little, once a run
+            // (play 25), instead of standing in the open. A follower nearer
+            // the end than the leader is not waited for.
+            if let Some(follower) = super::buddy::lagging(cx)
+                && follower_behind(cx, follower, points)
+            {
                 if *wait_until == 0 {
                     *wait_until = cx.now + (cx.num(PlayKind::Buddy, "wait_s") * 1000.0) as u32;
                 }
                 if cx.now < *wait_until {
-                    *headway = Headway::new(cx);
-                    return Step::Continue(Intent::stay().looking(Look::Path));
+                    return Step::Continue(Intent::to(at, Pace::Walk).within(reach * 0.6));
                 }
             }
             if headway.none(cx) {
@@ -708,6 +735,60 @@ mod tests {
             let st = step(&mut state, TargetRef::Exit(0), &s.cx(0), &mut rng);
             assert!(matches!(st, Step::Continue(_)), "{st:?}");
         }
+    }
+
+    /// Bot 0 leads bot 2 (its partner) on the north route; `follower_x` is
+    /// where bot 2 stands (z 30), the leader at (0, 30): the route's end is
+    /// at (50, 33).
+    fn leader_on_route(follower_x: f32) -> (Scenario, State) {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(0.0, 0.0, 30.0));
+        s.bot(2, 0, Vec3::new(follower_x, 0.0, 30.0));
+        s.partner = Some(2);
+        let state = State::Route {
+            points: vec![
+                Vec3::new(20.0, 0.0, 30.0),
+                Vec3::new(35.0, 0.0, 33.0),
+                Vec3::new(50.0, 0.0, 33.0),
+            ],
+            next: 0,
+            wait_until: 0,
+            headway: Headway::new(&s.cx(0)),
+        };
+        (s, state)
+    }
+
+    #[test]
+    fn a_leader_walks_on_for_a_follower_left_behind_instead_of_standing() {
+        // The follower 40 m behind (farther from the end): the leader still
+        // goes to its next point, at a walk, for the wait.
+        let (s, mut state) = leader_on_route(-40.0);
+        let mut rng = Rng::new(3);
+        let st = step(&mut state, TargetRef::None, &s.cx(0), &mut rng);
+        let Step::Continue(Intent { go: Go::To { at, .. }, pace, .. }) = st else {
+            panic!("{st:?}")
+        };
+        assert_eq!(pace, Pace::Walk, "{st:?}");
+        assert!((at.x - 20.0).abs() < 0.1, "{at:?}");
+        // Once the wait is over it goes on at the pace of the rest.
+        let (mut s, mut state) = leader_on_route(-40.0);
+        step(&mut state, TargetRef::None, &s.cx(0), &mut rng);
+        s.view.clock += (s.cx(0).num(PlayKind::Buddy, "wait_s") * 1000.0) as u32 + 100;
+        let st = step(&mut state, TargetRef::None, &s.cx(0), &mut rng);
+        let Step::Continue(Intent { pace, .. }) = st else { panic!("{st:?}") };
+        assert_eq!(pace, Pace::Run, "{st:?}");
+    }
+
+    #[test]
+    fn a_leader_does_not_wait_for_a_follower_that_is_ahead_of_it() {
+        // The follower 40 m on, nearer the route's end than the leader.
+        let (s, mut state) = leader_on_route(40.0);
+        let mut rng = Rng::new(3);
+        let st = step(&mut state, TargetRef::None, &s.cx(0), &mut rng);
+        let Step::Continue(Intent { pace, .. }) = st else { panic!("{st:?}") };
+        assert_eq!(pace, Pace::Run, "{st:?}");
+        let State::Route { wait_until, .. } = state else { unreachable!() };
+        assert_eq!(wait_until, 0, "no wait was started");
     }
 
     #[test]
