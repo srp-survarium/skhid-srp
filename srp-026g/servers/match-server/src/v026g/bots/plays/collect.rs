@@ -1289,8 +1289,15 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 return Step::Failed("no container of ours");
             };
             // In zones on all match with no way out (a crossing's take):
-            // out first by the cheapest crossing, in a line.
-            if let Some(out) = cx.way_out() {
+            // out first by the cheapest crossing, in a line. Not while its
+            // motor walks a crossing or a ring's walk out home (`crossing.rs`):
+            // one way at a time. On Mamayev Kurgan's acid the two took turns,
+            // a poll each (the line to a floor 0.5 m up it never stepped
+            // onto, the route 8 m on toward home), and a carrier stood 60 s
+            // in it, from 0.66 health to 0.38.
+            if cx.bot.crossing.is_none()
+                && let Some(out) = cx.way_out()
+            {
                 return Step::Continue(Intent::to(out.edge, Pace::Walk).within(0.5).straight());
             }
             // Trapped for good: no way home with it. Let go, and fight
@@ -1999,6 +2006,12 @@ mod tests {
         // Walked straight: no way out of the zone is asked for.
         assert!(intent.straight && !intent.zone_ok, "{intent:?}");
         assert!(matches!(intent.go, Go::To { at, .. } if at.distance_xz(edge) < 0.01));
+        // Its motor walking a crossing home already: that way, not the line.
+        s.crossing = Some(Vec3::new(10.0, 0.0, 10.0));
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(!intent.straight, "{intent:?}");
+        assert!(matches!(intent.go, Go::To { at, .. } if at.distance_xz(edge) > 1.0), "{intent:?}");
+        s.crossing = None;
         // Out: home by the route as ever.
         s.bot(0, 0, edge).carrying = Some(0);
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));

@@ -48,6 +48,8 @@ pub struct Scenario {
     pub dry: bool,
     /// `BotFacts::failed_stands`.
     pub failed_stands: Vec<super::collect::FailedStand>,
+    /// `BotFacts::crossing`.
+    pub crossing: Option<Vec3>,
 }
 
 impl Scenario {
@@ -109,6 +111,7 @@ impl Scenario {
             no_way_to: Vec::new(),
             dry: false,
             failed_stands: Vec::new(),
+            crossing: None,
         };
         s.signals();
         s
@@ -253,6 +256,7 @@ impl Scenario {
                 set_aside: &[],
                 failed_stands: &self.failed_stands,
                 dry: self.dry,
+                crossing: self.crossing,
             },
             memory: &self.memory,
             team: &self.team,
