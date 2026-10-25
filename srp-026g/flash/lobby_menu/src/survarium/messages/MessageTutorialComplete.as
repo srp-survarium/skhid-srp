@@ -6,6 +6,7 @@ package survarium.messages
    import flash.text.TextField;
    import scaleform.clik.events.ButtonEvent;
    import survarium.constants.Events;
+   import survarium.controls.Message;
    import survarium.data.LocalizationData;
    
    public class MessageTutorialComplete extends MessageAccept
@@ -103,6 +104,12 @@ package survarium.messages
          LocalizationData.addButton(btnCancel,"btn_repeat_tutorial_label");
       }
       
+      // Cancel here repeats the tutorial (a match): Esc only closes the message.
+      override public function cancelByEsc() : void
+      {
+         Message.close(_id);
+      }
+
       override protected function onMessageCancel(event:ButtonEvent = null) : void
       {
          trace("repeat_tutorial");

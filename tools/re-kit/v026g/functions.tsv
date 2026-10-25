@@ -1819,3 +1819,11 @@ va	status	ref_021d	name
 0x0007de10	reviewed	0x0021eebb	vostok::physics::bullet_character_controller::impassable_slope
 0x0007e1b0	reviewed	0x0021f2f1	vostok::physics::bullet_character_controller::step_down
 0x0007f100	reviewed	0x0021fc66	vostok::physics::bullet_character_controller::setup_shape_dim
+0x002971c0	observed		survarium::first_person_game_effects_presenter::first_person_game_effects_presenter
+0x00297570	observed		survarium::third_person_game_effects_presenter::third_person_game_effects_presenter
+0x0012d1d0	observed		vostok::render::camouflage_decal_texture_type_baker_cook::translate_query
+0x0012db40	observed		vostok::render::camouflage_decal_texture_type_baker_cook::on_baked_texture_loaded
+0x0012ec40	observed		vostok::render::camouflage_decal_texture_type_baker_cook::process_compression
+0x00131b40	observed		vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture
+0x00131f90	observed		vostok::render::camouflage_decal_texture_type_baker_cook::remove_unwanted_files
+0x00132640	observed		vostok::buffer_vector<vostok::render::baked_texture_data>::push_back

@@ -36,6 +36,8 @@ global engine_unpack_decal_value
 global engine_decal_value
 global engine_mouse_ray
 global engine_accept_decal_edit
+global engine_cc_bool
+global engine_binded_action
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -597,6 +599,43 @@ engine_accept_decal_edit:
     push dword [esp + 28]   ; host -> 4
     mov esi, [esp + 28]   ; character
     call 0x263950
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_cc_bool:
+    ; 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; kind -> 16
+    push dword [esp + 36]   ; saved -> 12
+    push dword [esp + 36]   ; value -> 8
+    push dword [esp + 36]   ; name -> 4
+    mov eax, [esp + 36]   ; object
+    call 0x1ddb0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_binded_action:
+    ; 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; toggle -> 4
+    mov eax, [esp + 24]   ; binder
+    mov edi, [esp + 28]   ; kinds
+    mov esi, [esp + 32]   ; key
+    call 0x207d50
     pop edi
     pop esi
     pop ebx

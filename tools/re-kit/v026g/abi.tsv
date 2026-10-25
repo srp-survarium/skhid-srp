@@ -1259,8 +1259,12 @@ va	name	source	ret_cleanup	result
 0x00312250	survarium::artefact_lifebone_core::enable_active_effects	manual	4	
 0x00312470	survarium::artefact_lifebone_core::serialize	manual	8	
 0x003124b0	survarium::artefact_lifebone_core::deserialize	manual	12	
+0x003127e0	survarium::artefact_onyx_core::tick_impl	manual	8	
+0x003128c0	survarium::artefact_onyx_core::enable_active_effects	manual	4	
+0x00312a50	survarium::artefact_onyx_core::active_effect_ended	manual	0	AL: 1 when the active is over (time left +F14h 0, or nothing left to absorb +F18h 0)
 0x00312a80	survarium::artefact_onyx_core::serialize	manual	8	
 0x00312af0	survarium::artefact_onyx_core::deserialize	manual	12	
+0x00312bf0	survarium::artefact_onyx_core::protect	manual	12	
 0x00313300	survarium::artefact_base::action	manual	8	
 0x00313670	survarium::artefact_base::serialize	manual	8	
 0x00313760	survarium::artefact_base::deserialize	manual	12	
@@ -1385,6 +1389,7 @@ va	name	source	ret_cleanup	result
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	manual	20	
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	manual	0	
 0x0033acf0	survarium::artefact_spring_core::config::config	manual	4	EAX: the config (ESI)
+0x0033b780	survarium::artefact_onyx_core::config::config	manual	0	
 0x0033bb50	survarium::generic_anomaly_core::on_player_action	manual	12	
 0x0033bcd0	survarium::generic_anomaly_core::on_artefact_container_use	manual	8	
 0x0033bd50	survarium::generic_anomaly_core::load	manual	4	
@@ -1925,3 +1930,32 @@ va	name	source	ret_cleanup	result
 0x0007f100	vostok::physics::bullet_character_controller::setup_shape_dim	manual	0	writes dims +1D0h = {d/2, (h-d)/2, d/2, 0} (radius, half-cylinder, radius) and updates the Bullet shape at +70h
 0x0007d590	vostok::physics::bullet_character_controller::step_forward	manual	4	normalizes the move [ESI] and calls step_forward_impl; nothing when it is shorter than 1e-5 squared
 0x0007ea80	vostok::physics::bullet_character_controller::step_down_sweep_test_impl	manual	24	AL = hit; +40h := the start moved down to the contact (the sweep fraction)
+0x00207d50	survarium::key_binder::get_binded_action	manual	4	EAX: the bound action's id (game_action_id); 49h when the key is bound to no action of the kinds asked
+0x0023a930	survarium::game_world_ui::show_cursor	manual	4	
+0x002383b0	survarium::game_world_ui::show_profiles_selector	manual	4	
+0x002019e0	survarium::game_options::initialize_bindings	manual	4	sends the controls table's rows to the options movie (root.set_keybindings: action_id, group_id, type, label), then reset_bindings(1)
+0x00201cf0	survarium::game_options::reset_bindings	manual	8	each row's keys from the binder (+10h set and +3Ch kept), root.set_keybind for each
+0x002013a0	survarium::game_options::assign_binding	manual	8	AL: the row of the action kept the key
+0x00201f20	survarium::game_options::apply_key_bindings	manual	0	for each row whose key set (+10h) differs from the kept (+3Ch): the console's `bind <action> <key>`, or `unbind <action>` for none
+0x00207450	survarium::key_binder::bind_command_save	manual	8	pushes `<command> <action> <key>` for every bound action of the binder's 48h bindings onto the list
+0x002da170	survarium::base_player::generate_killed_event	manual	20	queues a kill event (type 0): +0 the victim's place, +1 the killer, +2 the weapon's icon, +4 the cause icon (1 headshot, 3 no killer or the victim; else 0); patch 67 adds +5, its flags
+0x00237c70	survarium::game_world_ui::on_player_killed	manual	20	root.add_log_message with action_id, who_name, who_team, victim_name, victim_team, object_icon, extra_icon, mastery_icon
+0x0023b5f0	survarium::game_world_ui::on_world_event	manual	8	
+0x002971c0	survarium::first_person_game_effects_presenter::first_person_game_effects_presenter	manual	8	EAX: this; vtable 0A0B5E4h; sub-presenters +8h (post process), +2A0h (hud), +30Ch (sound), +470h (particle_game_effect_presenter, its view +518h = 0: the first person)
+0x00297570	survarium::third_person_game_effects_presenter::third_person_game_effects_presenter	manual	0	EAX: this; vtable 0A0B620h; particle_game_effect_presenter at +8h (its view +0B0h = 1: the third person), sound +0B4h; game_world builds 20 (+22BCh, 220h apart), one a player slot
+0x002973c0		manual	4	first_person_game_effects_presenter vtable +20h: its particle presenter's player (+478h) = the argument
+0x00297750		manual	4	third_person_game_effects_presenter vtable +20h: its particle presenter's player (+10h) and its sound presenter's (+0C0h) = the argument
+0x002ac400		manual	8	particle_game_effect_presenter's handler of a particle effect (the presenters' vtable +2Ch, 0x297440 / 0x297670): nothing without a player (+8h) or when the effect's view (+34h) is neither the presenter's (+0A8h) nor 2; else event 0 plays it (0x2AC686: scene_renderer::play_particle_system on the player's transform, [player+498h] and its model [player+0F290h]), 1 stops it, other updates its time
+0x00313640		manual	16	artefact_base::effect_calculator (vtable 0A15A68h +0, the time calculator 0x313350 gives game_effect_player::add, at the artefact +268h): out {0, 0.0f, finished = the artefact's state (+280h) != 4}
+0x0023dec0	survarium::base_game_scene::point_to_screen	manual	12	AL: on the screen: in front (the projected z below 1, so not behind the camera) and strictly inside 0..width, 0..height; the out position is then the pixel, else the point clamped to the screen's edges (projected above the top: the bottom edge, x mirrored). game_world_ui::update_player_icons (0x23AB12) hides a player's marker when AL is 0
+0x0023aa10	survarium::game_world_ui::update_player_icons	manual	4	
+0x0023b200	survarium::game_world_ui::update_ui	manual	12	
+0x001e8da0	survarium::delete_folder	manual	0	
+0x00131ed0	vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture	manual	4	AL: 1 when the path has a record (its first now marked loading +120h)
+0x0012d1d0	vostok::render::camouflage_decal_texture_type_baker_cook::translate_query	manual	4	
+0x000f0d00	vostok::resources::query_result_for_cook::finish_query_impl	manual	16	
+0x000f0080	vostok::resources::query_result_for_cook::set_unmanaged_resource	manual	12	
+0x0012de30	vostok::render::baked_texture_resource::baked_texture_resource	manual	0	EAX: the object (EAX on entry)
+0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	manual	12	AL: 1 the file is used, 0 made again
+0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	manual	4	
+0x000e0210	vostok::render::render_model_instance::destroy	manual	0	

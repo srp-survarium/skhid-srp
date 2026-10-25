@@ -56,9 +56,10 @@
 //!   `reroll_time` stays 0 (one left from before is cleared,
 //!   [`finish_repairs`]). A damaged
 //!   item can not be changed (`st_reroll_message_broken_item`). The prices
-//!   are `reroll.options`' by item level, [GUESS] times
-//!   `reroll_modificator_multiplicator` for each change made
-//!   ([`Reroll::price`](survarium::v026g::modifications::Reroll::price)).
+//!   are `reroll.options`' by item level, [srp, the owner's rule of
+//!   2026-10-25] the same for every change: no growth with the changes
+//!   made (`docs/notes/flat-reroll.md`,
+//!   [`Reroll::price`](survarium::v026g::modifications::Reroll::price)).
 //!   [srp] The payment is taken when the three are offered, whatever is
 //!   chosen; until the choice the item keeps the old one, and an offer not
 //!   answered (the client went away, a restart: it is saved) is kept and
@@ -576,8 +577,8 @@ fn window_of(item: &Item) -> RerollWindow {
     let level = item_level(item.dict_id);
     RerollWindow {
         item_id: item.item_id,
-        regular_cost: reroll.price(level, false, item.reroll.count),
-        premium_cost: reroll.price(level, true, item.reroll.count),
+        regular_cost: reroll.price(level, false),
+        premium_cost: reroll.price(level, true),
         changed: (item.reroll.modification != 0).then_some((item.reroll.modification, 0)),
         offer: item.reroll.offer.map(|(_, choices)| choices),
     }
@@ -646,9 +647,7 @@ pub fn reroll(
         return Err(ItemError::Reroll("the item has no such modification"));
     }
     let table = Modifications::shared();
-    let price = table
-        .reroll
-        .price(item_level(item.dict_id), gold, item.reroll.count);
+    let price = table.reroll.price(item_level(item.dict_id), gold);
     let balance = if gold {
         account.premium_money
     } else {

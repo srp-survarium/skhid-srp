@@ -8,6 +8,7 @@ package
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.display.Sprite;
+   import flash.geom.Matrix;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.events.TimerEvent;
@@ -111,6 +112,10 @@ package
       private var _hudPlayerProfile:PlayerProfileBase = new HUDPlayerProfile();
       
       private var _profilePanel:MovieClip = new HUDProfileSelector();
+      
+      // Whether the player is typing in the chat: focus_chat(true) to focus_chat(false). Not the
+      // input's `visible`, which the chat's timeline starts true until the chat is first closed.
+      private var _chatTyping:Boolean = false;
       
       private var _itemFactory:IItemFactory = new ItemFactory();
       
@@ -223,6 +228,7 @@ package
          stage.visible = false;
          this.init();
          this.setlayout();
+         this.placeMinimap();
          this.onResize(null);
          addEventListener(Event.RENDER,this.onInitRender);
       }
@@ -382,7 +388,15 @@ package
          styleObject.color = "#8B8B8B";
          style.setStyle("gray_highlight",styleObject);
          MainScene.textStyleSheet = style;
-         addChild(this.effectContainer);
+         // The screen effects (add_effect: the pain's red edges, the blood drips, the grenade's flash)
+         // are the scene's, not the interface (the owner, 2026-10-24): on the stage below the hud's
+         // root, placed over the screen as the root is scaled (placeEffects), so hiding the
+         // interface (the root) leaves them.
+         this.effectContainer.mouseEnabled = this.effectContainer.mouseChildren = false;
+         stage.addChildAt(this.effectContainer,stage.getChildIndex(this));
+         _stageLayer = new Sprite();
+         this._stageLayer.name = "stageLayer";
+         super.addChild(this._stageLayer);
          addChild(this.hitmarkContainer);
          playerInfo = new HUDPlayerInfo() as MovieClip;
          hud_overlay = new SrvHudOverlay();
@@ -441,7 +455,7 @@ package
          player_list = new SrvPlayerList();
          addChild(this.player_list);
          gameInfo = new GameInfo();
-         stage.addChild(this.gameInfo);
+         this._stageLayer.addChild(this.gameInfo);
          this.gameInfo.x = 20;
          this.gameInfo.y = 8;
          addChild(this._profilePanel);
@@ -456,6 +470,8 @@ package
          this._hudPlayerProfile.visible = false;
          tabMinimap = this.player_list.minimap;
          this.tabMinimap.centerPlayer = false;
+         this.minimap.addEventListener(Minimap.MAP_LOADED,this.onMinimapLoaded);
+         this.tabMinimap.addEventListener(Minimap.MAP_LOADED,this.onMinimapLoaded);
          this.contextInfo3.visible = false;
          var _iconContainer:IconContainer = new IconContainer("inventoryitems",171,83,new hudItems(),true,0,0,0,false);
          this.quick_slots.registerIconContainer(_iconContainer);
@@ -808,7 +824,80 @@ package
       {
          this._profilePanel.profileSelector.selectProfile(value);
       }
+
+      // The keys 1, 2 and 3 (exe patch 58 calls this for each going down while the cursor is
+      // shown; docs/notes/match-hud-options.md): the kit of that tab, while the kits are shown
+      // and the chat takes no typing (opened with its key, or its input clicked into).
+      public function select_kit_key(index:uint) : void
+      {
+         var typing:Boolean = this._chatTyping
+            || this.chat && this.chat.text_inpput && stage.focus != null && stage.focus == this.chat.text_inpput.textField;
+         if(!this._profilePanel.visible || typing)
+         {
+            return;
+         }
+         this._profilePanel.profileSelector.pickByKey(index);
+      }
       
+      // The key that hides the interface (exe patch 62, F11; docs/notes/hide-ui-key.md). The interface
+      // is the root: the hud, the crosshair, the minimap, the kits, the death screen, the kill feed,
+      // the chat, the hit marks, and in _stageLayer (its last child, drawn at the stage's scale) the
+      // fps line the game put on the stage. Hidden in one step; the movie goes on running, so what
+      // happens meanwhile plays out unseen; the screen effects are not the root's and stay. The exe
+      // asks interface_hidden on the key and calls this with the other state; a death or a respawn
+      // keeps it.
+      private var _stageLayer:Sprite;
+
+      private var _interfaceHidden:Boolean;
+
+      public function hide_interface(hidden:Boolean) : void
+      {
+         _interfaceHidden = hidden;
+         visible = !hidden;
+      }
+
+      public function interface_hidden() : Boolean
+      {
+         return this._interfaceHidden;
+      }
+
+      // _stageLayer stays the root's last child, whatever is added or moved to the top later.
+      override public function addChild(child:DisplayObject) : DisplayObject
+      {
+         super.addChild(child);
+         this.keepStageLayerOnTop();
+         return child;
+      }
+
+      override public function addChildAt(child:DisplayObject, index:int) : DisplayObject
+      {
+         super.addChildAt(child,index);
+         this.keepStageLayerOnTop();
+         return child;
+      }
+
+      override public function setChildIndex(child:DisplayObject, index:int) : void
+      {
+         super.setChildIndex(child,index);
+         this.keepStageLayerOnTop();
+      }
+
+      private function keepStageLayerOnTop() : void
+      {
+         if(this._stageLayer != null && this._stageLayer.parent == this && getChildIndex(this._stageLayer) != numChildren - 1)
+         {
+            super.setChildIndex(this._stageLayer,numChildren - 1);
+         }
+      }
+
+      // The screen effects' place: the screen at 1280x720 in the hud's units, seen from the stage.
+      private function placeEffects() : void
+      {
+         var place:Matrix = new Matrix(this.stageWidth / 1280,0,0,this.stageHeight / 720,0,0);
+         place.concat(this.transform.matrix);
+         this.effectContainer.transform.matrix = place;
+      }
+
       public function setup_player_profiles(value:Array) : void
       {
          var i:uint;
@@ -1056,11 +1145,37 @@ package
          this.questList.alpha = value;
       }
       
+      // The minimap's position, the exe's setting (Settings, user.cfg's minimap_position): BOTTOM
+      // until the exe says. The exe may say before or after a match's map loads (setProps): the
+      // minimaps' visibility is the HUD's alone, from this and their maps (placeMinimap).
+      private var _minimapPosition:int = MinimapPosition.BOTTOM;
+
       public function set_minimap_position(value:uint) : void
       {
-         this.minimap.layoutData.alignV = value == MinimapPosition.TOP ? "top" : "bottom";
-         this.minimap.layoutData.offsetV = value == MinimapPosition.TOP ? 36 : -36;
-         this.minimap.visible = value != MinimapPosition.HIDDEN;
+         _minimapPosition = MinimapPosition.parse(value);
+         this.placeMinimap();
+      }
+
+      // Runs on every position and every map loaded. The minimap shows with a map, unless hidden;
+      // hidden keeps the last place. The Tab map shows with a map (its list shows it on Tab).
+      private function placeMinimap() : void
+      {
+         if(this._minimapPosition != MinimapPosition.HIDDEN)
+         {
+            this.minimap.layoutData.alignV = this._minimapPosition == MinimapPosition.TOP ? "top" : "bottom";
+            this.minimap.layoutData.offsetV = this._minimapPosition == MinimapPosition.TOP ? 36 : -36;
+            if(this.layout)
+            {
+               this.layout.reflow();
+            }
+         }
+         this.minimap.visible = this.minimap.hasMap && this._minimapPosition != MinimapPosition.HIDDEN;
+         this.tabMinimap.visible = this.tabMinimap.hasMap;
+      }
+
+      private function onMinimapLoaded(e:Event) : void
+      {
+         this.placeMinimap();
       }
       
       public function set_quests_progress(value:Array) : void
@@ -1173,10 +1288,9 @@ package
          this.progress_indicator.layoutData.alignH = "center";
          this.progress_indicator.layoutData.offsetV = 56;
          this.progress_indicator.layoutData.offsetH = 230;
+         // its alignV and offsetV are the position's (placeMinimap)
          this.minimap.layoutData = new LayoutData();
-         this.minimap.layoutData.alignV = "bottom";
          this.minimap.layoutData.alignH = "left";
-         this.minimap.layoutData.offsetV = -36;
          this.minimap.layoutData.offsetH = borderOffset + 22;
          this.container_icon.layoutData = new LayoutData();
          this.container_icon.layoutData.alignV = "center";
@@ -1327,6 +1441,7 @@ package
       
       public function focus_chat(bool:Boolean) : void
       {
+         this._chatTyping = bool;
          if(this.chat)
          {
             this.chat.ignoreFocus = true;
@@ -1757,6 +1872,9 @@ package
       public function reset() : void
       {
          trace("HUD::reset");
+         // a new match starts with the interface shown (the movie is the last match's; the exe's
+         // patch 62 shows the player icons' with it)
+         this.hide_interface(false);
          this.clear_minimap();
          this.chat.clear();
          this.show_ammo(false);
@@ -1883,6 +2001,8 @@ package
       
       public function set_parameterized_message(text:String, fonSize:uint, shift:uint, time:uint = 2500) : void
       {
+         // %s in a message is its time on screen, in seconds (Onyx's activation hint: its active's time, exe patch 54).
+         text = text.split("%s").join(String(Math.ceil(time / 1000)));
          if(!this.contextInfo3.visible)
          {
             this.contextInfo3.visible = true;
@@ -2178,17 +2298,15 @@ package
          this.tabMinimap.setResearchUnits(units,ownTeam);
       }
       
-      // The units centred under Team Deathmatch's bars and the timer, below
-      // the respawn countdown's line, measured in the indicator's own space
-      // (its origin is its centre). The countdown's line is kept free while it
-      // is empty too: the units do not jump when the player dies.
+      // The units centred under Team Deathmatch's bars and the timer, measured
+      // in the indicator's own space (its origin is its centre). The respawn
+      // countdown may overlap them (owner: less screen space).
       private function placeResearchUnits() : void
       {
          var space:DisplayObject = this.progress_indicator;
          var bars:Rectangle = null;
          var part:DisplayObject;
          var parts:Array = [this.progress_indicator.team_1_score,this.progress_indicator.team_2_score,this.progress_indicator.match_time_2_tdm];
-         var respawn:DisplayObject = this.progress_indicator.respawn_time;
          var top:Number = 0;
          for each(part in parts)
          {
@@ -2200,10 +2318,6 @@ package
          if(bars != null)
          {
             top = bars.bottom;
-         }
-         if(respawn != null)
-         {
-            top = Math.max(top,respawn.getBounds(space).bottom,respawn.y + ResearchUnits.RESPAWN_LINE);
          }
          _researchX = bars == null ? 0 : bars.x + bars.width / 2;
          _researchY = top + ResearchUnits.TOP;
@@ -2390,12 +2504,15 @@ package
          }
          scaleX = this.scaleFactor;
          scaleY = this.scaleFactor;
+         if(this._stageLayer)
+         {
+            this._stageLayer.scaleX = this._stageLayer.scaleY = 1 / this.scaleFactor;
+         }
          trace("HUD::finalScaleFactor::",this.scaleFactor);
          this.layout.setScaleFactor(this.scaleFactor);
          this.damageInd.scaleX = this.stageWidth / 1280;
          this.damageInd.scaleY = this.stageHeight / 720;
-         this.effectContainer.scaleX = this.stageWidth / 1280;
-         this.effectContainer.scaleY = this.stageHeight / 720;
+         this.placeEffects();
          // The middle of the centre pixel in screen pixels (the crosshair is
          // drawn at 1:1, below): at a scale of 2 the half pixel in HUD units
          // was a whole pixel off.

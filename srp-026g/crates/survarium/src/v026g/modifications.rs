@@ -8,7 +8,8 @@
 //!   `modifications`, 20 `defects` and 3 `defect_slots`;
 //! - `gameplay/items/craft/craft.options`: prices by item level and the
 //!   chances by the difference in modifications;
-//! - `gameplay/items/reroll/reroll.options`: prices by item level;
+//! - `gameplay/items/reroll/reroll.options`: prices by item level (its
+//!   multiplier is not used: every change costs the same);
 //!
 //! and, from every item's config, what each item may carry ([`ItemMods`]:
 //! `available_modifications_mask`, `available_defects_mask`,
@@ -314,32 +315,26 @@ impl Craft {
     }
 }
 
-/// `reroll.options`.
+/// `reroll.options`. Its `reroll_modificator_multiplicator` (1.1) is not
+/// read: [srp, the owner's rule of 2026-10-25] every change costs the same
+/// (`docs/notes/flat-reroll.md`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Reroll {
     pub price_general: [u16; PRICE_LEVELS],
     pub price_premium: [u16; PRICE_LEVELS],
-    /// `reroll_modificator_multiplicator` (1.1).
-    pub multiplicator: f32,
 }
 
 impl Reroll {
-    /// The price of the next change of a modification on an item of
-    /// `item_level` that had `times` changes already. [GUESS: each change
-    /// makes the next cost `reroll_modificator_multiplicator` times more.
-    /// What the number did is not in the client; that the server names the
-    /// two prices for each item, and again after each change (`83 46 06`,
-    /// `83 46 08`), while the craft prices are one table for all, says the
-    /// price was the item's own.]
-    pub fn price(&self, item_level: u8, gold: bool, times: u32) -> u32 {
+    /// The price of a change of a modification on an item of `item_level`:
+    /// the table's, however many changes the item had (the owner's rule of
+    /// 2026-10-25).
+    pub fn price(&self, item_level: u8, gold: bool) -> u32 {
         let table = if gold {
             &self.price_premium
         } else {
             &self.price_general
         };
-        let base = f64::from(table[usize::from(item_level).min(PRICE_LEVELS - 1)]);
-        let grown = base * f64::from(self.multiplicator).powi(times.min(200) as i32);
-        grown.round().min(f64::from(u32::MAX)) as u32
+        u32::from(table[usize::from(item_level).min(PRICE_LEVELS - 1)])
     }
 }
 
@@ -741,7 +736,6 @@ impl Modifications {
             reroll: Reroll {
                 price_general: prices(reroll, "reroll_price_general")?,
                 price_premium: prices(reroll, "reroll_price_premium")?,
-                multiplicator: reroll.f32_at("reroll_modificator_multiplicator")?,
             },
         })
     }

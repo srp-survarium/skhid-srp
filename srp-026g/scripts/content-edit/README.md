@@ -417,3 +417,61 @@ modifications are unchanged (`item_params::tests::the_protective_mask_of_the_bui
 on the built server game data). Its model is the pack's, fitted over the bare head: with a helmet
 it shows through most helmets (`docs/notes/masks-pack.md`). Applied to revision 30's live files: 1
 file edited, 0 unexpected differences. No simulation change: the slot rule is the lobby's.
+
+## match-chat-off-1.json (2026-10-23)
+
+| change | why |
+|---|---|
+| `st_private_messages_in_game_option` "Disable private messages at the time of battle" -> "Hide chat in match" (Chat im Kampf ausblenden, Ukryj czat na czas rozgrywki, Скрыть чат во время боя, Приховати чат під час бою), in the six localization tables | the gameplay options' checkbox of that label (option 4, `g_private_messages_in_game`) named no console variable and was greyed; exe patch 58 gives it one and the main menu enables it: checked, the other players' chat lines are not shown in a match (`../../docs/notes/match-hud-options.md`; a player's ask, board T29) |
+
+Applied to revision 30's live tables (from the stock db and patches 12 to 30): 6 files edited, 0
+unexpected differences. Text only: no server data, no simulation change.
+
+## hide-interface-1.json (2026-10-24)
+
+| change | why |
+|---|---|
+| a new `st_hide_interface_action` "Hide interface" (Oberfläche ausblenden, Ukryj interfejs, Скрыть интерфейс, Сховати інтерфейс), in the six localization tables | the label of the controls options' row exe patch 62 adds for `toggle_replay_ui` (F11), the key that hides the interface in a match and the lobby and the replay's controls in a replay (`../../docs/notes/hide-ui-key.md`; the owner, 2026-10-24: "there is no in settings option to switch it") |
+
+Text only: no server data, no simulation change.
+
+## bandages-1.json (2026-10-24)
+
+| change | why |
+|---|---|
+| `gameplay/items/drugs/bandages.options` `data/influences`: hands and legs `amount` 0.3 -> 1 (per second), and three new entries made like `right_leg`'s, after it: `body` 0.35, `head` 0.14, `pain` 0.35 | the owner: bandages heal legs and hands fully, and pain, body and head by 35 %. An influence is the pool's health added per second for `activity_time_sec` (1 s; `medkit::tick` 0x33D790). 1/s fills a 0.5 limb pool, as the medkit's 1/s does. 0.35, 0.14 and 0.35 are 35 % of the body (1.0), head (0.4) and pain (1.0) pools ([`../../docs/notes/bandages.md`](../../docs/notes/bandages.md)) |
+| `st_base_bandages_description` in the six localization tables: "Fully heals arms and legs. Restores 35% of body, head and pain." (Heilt Arme und Beine vollständig. Stellt 35% von Körper, Kopf und Schmerz wieder her. / W pełni leczy ręce i nogi. Przywraca 35% zdrowia tułowia, głowy i bólu. / Полностью лечит руки и ноги. Восстанавливает 35% здоровья тела, головы и боли. / Повністю лікує руки і ноги. Відновлює 35% здоров'я тіла, голови та болю.) | the owner, 2026-10-25: the description says what a bandage now heals. Each text uses only characters its table already has |
+| the card's "Heal amount" line taken out: `ui_desc/props_list` entry `prop_id` 12 ("30") | the owner, 2026-10-25: one number can't describe full and 35 %, so the line would contradict the text. The card keeps use time, active time and weight |
+
+Applied to the live files: 7 files edited, 0 unexpected differences. The simulation changes (the
+`next` row of `simulation_changes.tsv`).
+
+## socom-nerf-1.json (2026-10-25)
+
+| change | why |
+|---|---|
+| SOCOM 16 (`wpn_socom16`): `bullet_damage` 0.7 -> 0.6, `bullet_pierce` 0.45 -> 0.4 (f32 kept); the card's damage (prop 1) 70 -> 60 and armour piercing (prop 3) 45 -> 40 | the owner: "Nerf SOCOM: 10 damage, 5 penetration", read as 10 and 5 off in the card's units (x100). Set to 10 and 5 it would take 11 body shots at 10 m, unarmoured. Its falloff (`min_damage_amount` 0.6 from 30 m to 100 m) stays ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)) |
+| `item_level` and `match_making_level` 12 -> 15 | the owner: "move SOCOM to lvl 15". The card's "Equipment level" is `item_level`; the two are equal in every 0.26g item. The SOCOM is not sold (no faction), so no shop rank changes; drops, matchmaking and craft prices follow the level |
+
+Applied to the live file (stock 0.26g with patches 12..=33, after weapon-balance-2): 1 file
+edited, 0 unexpected differences. The simulation changes (the `next` row of
+`simulation_changes.tsv`).
+
+## network-texts-1.json (2026-10-25)
+
+| change | why |
+|---|---|
+| `st_login_menu_status_error_connection` "Connection error." -> "Can't reach the Skhid server. Allow the game in your firewall (Skhid-network-setup.cmd). In Russia, use a VPN and add the game's .exe files to it (VPN.txt)." (Der Skhid-Server ist nicht erreichbar. ..., Brak połączenia z serwerem Skhid. ..., Нет связи с сервером Skhid. ..., Немає зв'язку з сервером Skhid. ...), in the six localization tables | players in Russia, whose providers block the server, read only "Connection error." (the owner, 2026-10-25). It is the login screen's status 0 (`set_status` table 0x21F2A4): a sign-in that gets no answer, and the login screen the game goes back to after its fifth failed try to reach the lobby again (`../../docs/notes/transport.md` 6.1, LIKELY). `st_disconnected_from_lobby` is left as it is: neither the exe nor a movie names it. The two files are beside `Skhid.bat` in the players' archive |
+
+Applied to the live tables (stock 0.26g with patches 12..=33): 6 files edited, 0 unexpected
+differences. Each text uses only characters its table already has. The login screen's status field
+(`login_menu`, 269 by 167 px at 1080 lines, 18 px, word wrap) holds the longest, German, in about
+six lines. Text only: no server data, no simulation change.
+## svd-level-1.json (2026-10-25)
+
+| change | why |
+|---|---|
+| SVD (`wpn_svd`): `item_level` and `match_making_level` 12 -> 15 | the owner: "also move the SVD to level 15", as the SOCOM ([`../../docs/notes/socom_nerf.md`](../../docs/notes/socom_nerf.md)). Its shop rank follows (Renaissance 7 -> 10), and its drops, matchmaking, craft and reroll prices; its damage stays |
+
+Applied to the live file (stock 0.26g with patches 12..=33): 1 file edited, 0 unexpected
+differences. Not a simulation change.

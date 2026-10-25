@@ -9,6 +9,7 @@ package survarium.controls
    import survarium.core.Icon;
    import survarium.data.PropertiesDescriptor;
    import survarium.item.ItemFactory;
+   import survarium.item.ModificationRolls;
    import survarium.constants.ModifierType;
    import survarium.constants.SuperCategory;
    
@@ -251,23 +252,22 @@ package survarium.controls
                   }
                }
             }
+            // The exe sends a line's prop_value as the config's text ("175", ui_desc/props_list):
+            // a number before any sum, where "175" + 0 would be "1750".
+            var base:Number = ModificationRolls.value(baseProperty);
             if(modifierType == ModifierType.ADD)
             {
-               total = baseProperty.prop_value + modifier_value;
+               total = base + modifier_value;
             }
             else
             {
-               total = baseProperty.prop_value * (1 + modifier_value);
+               total = base * (1 + modifier_value);
             }
             if(modifierType == ModifierType.MULTIPLY)
             {
-               modifier_value = baseProperty.prop_value * modifier_value;
+               modifier_value = base * modifier_value;
             }
-            _value = Number(total);
-            if(_value != Number(total))
-            {
-               _value = Util.stringToNumber(String(total));
-            }
+            _value = total;
          }
          function initIndicatorValues(diffClip:MovieClip, propertyInfo:Object, compareValue:Number, currentValue:Number):void
          {
