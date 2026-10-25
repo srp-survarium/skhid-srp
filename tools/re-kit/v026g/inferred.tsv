@@ -3038,3 +3038,7 @@ va	status	ref_021d	name
 0x0026db60	inferred-high		survarium::base_game_statistics_handler::deserialize
 0x0026dc30	inferred-high		survarium::base_game_statistics_handler::recalculate_scores
 0x00207450	inferred-medium		survarium::key_binder::bind_command_save
+0x0023b5f0	inferred-medium		survarium::game_world_ui::on_world_event
+0x002d43b0	inferred-medium		survarium::game_world_core::new_world_event
+0x002d0a60	inferred-medium		survarium::game_world_core::push_world_event
+0x002e58b0	inferred-medium		survarium::damage_model::find_body_part

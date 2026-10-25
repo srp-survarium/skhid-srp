@@ -464,6 +464,20 @@ Patches:
   the key (back at 0x26CCAE, al 1); while the movie says its interface is
   hidden (root.interface_hidden) any other key goes straight to the movie
   (back at 0x26CDD2), no window key or F6's Play acting;
+- the kill feed shows a kill through a wall, by a ricochet and by pain (patch 67,
+  with the late join; docs/notes/kill-feed-icons.md). kill_feed_026g.asm
+  (the arena's block kill_feed.code): generate_killed_event (0x2DA170, at
+  0x2DA3D1) writes after the event's cause icon a byte of flags, for a
+  bullet and someone else the killer (the cause icon not 3), 0.69d0's
+  penetration_icon and ricochet_icon rules: 4 when it ricocheted (its
+  reflections +88h not 0), else 1 when it went through something first
+  (its segments +84h not 0); and 2 when the victim's pain pool is empty
+  and its body and head pools are not. The hud's event handler (0x23B6F0)
+  passes the word, so on_player_killed's fifth argument carries them in
+  its second byte, and at 0x23814F the description gets penetration_icon,
+  ricochet_icon and pain_icon (0 or 1) for the hud movie's row. The
+  simulation's own state, read alike in every game; nothing a match
+  computes changes;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1996,6 +2010,28 @@ def hide_ui_table_writes(linked):
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
 
+# The kill feed's wall, ricochet and pain icons (patch 67, README; client_patch.md
+# section 3.55; the rules: ../docs/notes/kill-feed-icons.md):
+# kill_feed_026g.asm in the arena's block kill_feed.code (ARENA below), two
+# entries called in place of the site's instructions (INLINE), and one load
+# widened:
+# - generate_killed_event 0x2DA170, `mov [eax+4],bl / mov edx,[esi+120h]` at
+#   0x2DA3D1 (eax = the event's node, esi = the victim, ebp = the bullet or
+#   0): kill_feed_event writes the cause icon and the flags byte (+5), and
+#   edx as the site did;
+# - the hud's event handler 0x23B5F0, `movzx edx,byte [edi+4]` at 0x23B6F0
+#   (the fifth argument of on_player_killed): the word, the flags its second
+#   byte (KILL_FEED_ARGUMENT);
+# - on_player_killed 0x237C70, `mov edx,[esp+30h] / mov ecx,[esp+2Ch]` at
+#   0x23814F (after extra_icon): kill_feed_row sets penetration_icon,
+#   ricochet_icon and pain_icon and does the two moves.
+# No base relocation is under a site and no branch aims inside one.
+KILL_FEED_HOOKS = (
+    (0x2DA3D1, bytes.fromhex("885804" "8b9620010000"), "kill_feed_event", 0xE8),   # the event's cause icon
+    (0x23814F, bytes.fromhex("8b542430" "8b4c242c"), "kill_feed_row", 0xE8),       # before mastery_icon
+)
+KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb75704"))
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after `.srpc`, which is one page."""
@@ -2155,6 +2191,11 @@ INSTALLS = {
     0x26CCD2: (CALLEE, "lobby_menu::on_keyboard_action's get_binded_action (eax the binder, edi 2, esi the key, "
                        "the toggle's place pushed; `ret 4`): lobby, which on toggle_replay_ui returns to 0x26CCAE "
                        "instead", None, None),
+    # the kill feed's wall, ricochet and pain icons, patch 67 (in `.srpx`)
+    0x2DA3D1: (INLINE, "generate_killed_event's `mov [eax+4],bl / mov edx,[esi+120h]` (eax the event, esi the "
+                       "victim, ebp the bullet): event, which writes the cause icon, the flags and edx", None, None),
+    0x23814F: (INLINE, "on_player_killed's `mov edx,[esp+30h] / mov ecx,[esp+2Ch]` before mastery_icon: row, "
+                       "which sets penetration_icon, ricochet_icon and pain_icon and does the two moves", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2347,6 +2388,7 @@ ARENA = (
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
     ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
+    ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
 )
 
 
@@ -3288,12 +3330,14 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             # its symbol.
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
-                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS:
+                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
+                        + KILL_FEED_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
+                patch(data, *KILL_FEED_ARGUMENT)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
                              "says")
@@ -3353,6 +3397,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "the keys 1, 2 and 3 pick a kit while the kits are shown, "
                      "an option hides the other players' chat lines in a match, "
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
+                     "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
