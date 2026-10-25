@@ -4466,3 +4466,20 @@ va	name	location	role	basis
 0x0033d790	survarium::medkit::tick	ECX	the medkit (any drug): influences at +280h (14h each: the pool name first, the per-second amount at +10h), their count byte +288h, healed so far per influence (floats) +284h, delay ms left +2ACh, activity ms left +2A8h	observed
 0x0033d790	survarium::medkit::tick	entry ESP+4	elapsed ms: the delay first; then min(it, activity left) x 0.001 s x apply_modifier(57 drug_amount, amount, 1.0) to each influence pool (by name, 0x2E58B0) through increase_health 0x32A420, skipped below 1e-6; at the first active tick remove_affects 0x33DA50; set_active(0) when the activity is spent	observed
 0x0033cac0	survarium::medkit::medkit	EAX	the item config: data/activity_time_sec (at least 0.001) x 1000 -> +29Ch ms; parameters/activity_time_skill_influence -> +2A0h, the k of the activity time through apply_modifier 34 drug_activity_time; data/influences -> +280h, count +288h	observed
+0x002971c0	survarium::first_person_game_effects_presenter::first_person_game_effects_presenter	EDI	this (game_world +1D98h; game_world +1D90h points to it)	observed
+0x002971c0	survarium::first_person_game_effects_presenter::first_person_game_effects_presenter	entry ESP+4	the game world (+0Ch, the sound presenter's +310h, the particle presenter's +474h)	observed
+0x002971c0	survarium::first_person_game_effects_presenter::first_person_game_effects_presenter	entry ESP+8	the hud presenter's +4h (+2A4h)	observed
+0x00297570	survarium::third_person_game_effects_presenter::third_person_game_effects_presenter	EAX	this	observed
+0x00297570	survarium::third_person_game_effects_presenter::third_person_game_effects_presenter	EDX	the game world	observed
+0x002973c0		ECX	the first-person presenter	observed
+0x002973c0		entry ESP+4	the player its effects play on (player::set_effect_presenter 0x1F3740), 0 from switch_to_free_fly_camera 0x1F8270	observed
+0x00297750		ECX	a third-person presenter	observed
+0x00297750		entry ESP+4	the player its effects play on	observed
+0x002ac400		entry ESP+4	the particle presenter: +4h the world, +8h the player (0: none), +0Ch..+10h its playing effects (18h each), +0A8h its view (0 first person, 1 third person)	observed
+0x002ac400		entry ESP+8	the particle_game_effect: +0Ch its emitter, +34h its view (the emitter's +13Ch)	observed
+0x002ac400		EDX	the event: +4h its kind (0 activate, 1 stop, other an update at the time +14h)	observed
+0x001f3740	survarium::player::set_effect_presenter	ESI	the player (+358h its game_effect_player, +3A0h its presenter's holder, +390h the presenter its effects were last given)	observed
+0x001f3740	survarium::player::set_effect_presenter	EDI	where the presenter is held (game_world +1D90h the first-person one, from a player camera 0x242C6C; +22B4h + slot x 220h a third-person one)	observed
+0x0025a730	survarium::particle_game_effect_emitter_cook::on_particle_system_loaded	stack+8	the effect's config: key_frames, view (an int, 1 when absent; the emitter +13Ch), time_to_finish, time_mode, length	observed
+0x00313640		ECX	the calculator: +8h the artefact	observed
+0x00313640		entry ESP+4	out: +0 0, +4 0.0f, +8 byte finished	observed
