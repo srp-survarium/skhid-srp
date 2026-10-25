@@ -2639,10 +2639,6 @@ va	name	location	role	basis
 0x002d2040		entry ESP+12		auto
 0x002d2180		entry ESP+8		auto
 0x002d2180		entry ESP+4		auto
-0x002d21e0		EAX		auto
-0x002d21e0		entry ESP+4		auto
-0x002d21e0		entry ESP+8		auto
-0x002d21e0		entry ESP+12		auto
 0x002d2570		entry ESP+4		auto
 0x002d2570		entry ESP+8		auto
 0x002d2770		entry ESP+8		auto
@@ -4526,3 +4522,11 @@ va	name	location	role	basis
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	EDI	the record copied (124h: path buffer_string +0, '/' +110h, CRC +114h, size +118h, age +11Ch, loading +120h)	observed
 0x000e0210	vostok::render::render_model_instance::destroy	ECX	the model instance whose count (+0D0h) reached 0	observed
 0x000e0210	vostok::render::render_model_instance::destroy	EAX	&its count	observed
+0x002dddf0	survarium::game_effect_player::deserialize	entry ESP+4	this (a player's +358h, or the world's +18FE8h)	observed
+0x002dddf0	survarium::game_effect_player::deserialize	entry ESP+8	the reader {start, cursor, end}: a dword, then the count of kind-1 effects	observed
+0x002dddf0	survarium::game_effect_player::deserialize	entry ESP+12	the client's reader (kind-2 effects) or 0	observed
+0x002d1e20	survarium::game_world_core::atomic_tick	world +18FC4h	set to the newest tick time played (the larger of itself and EDI); +18FC0h to EDI. A tick at or before +18FC4h is played again (a rollback); read by damage_sound_effect (0x23EEC4, 0x23F444), player_equipment_sound_effect (0x2A6488) and client_timelimit_rule::tick (0x267AD2)	observed
+0x002d21e0	survarium::game_world_core::tick_events	EAX	the history item the world was loaded from or is at (+0C0BACh its next, +0C0BB0h its time)	observed
+0x002d21e0	survarium::game_world_core::tick_events	entry ESP+4	the world core	observed
+0x002d21e0	survarium::game_world_core::tick_events	entry ESP+8	the first input node to apply (0x27E870 from move), or 0	observed
+0x002d21e0	survarium::game_world_core::tick_events	entry ESP+12	the target time, ms	observed

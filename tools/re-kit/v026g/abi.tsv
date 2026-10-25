@@ -1121,7 +1121,6 @@ va	name	source	ret_cleanup	result
 0x002d1ef0		auto	12	
 0x002d2040		auto	12	
 0x002d2180		auto	8	
-0x002d21e0		auto	12	
 0x002d2570		auto	8	
 0x002d2770		auto	12	
 0x002d2e10		auto	0	
@@ -1319,7 +1318,6 @@ va	name	source	ret_cleanup	result
 0x0031eb80	survarium::weapon_core_base_state::serialize	manual	8	
 0x0031ebb0	survarium::weapon_core_base_state::deserialize	manual	12	
 0x00321b90	survarium::bullet_manager::serialize	manual	4	
-0x00321c50	survarium::bullet_manager::deserialize	manual	4	
 0x003237e0	survarium::kd_stats_rule::on_event	manual	12	
 0x00323870	survarium::kd_stats_rule::serialize	manual	4	
 0x00323910	survarium::kd_stats_rule::deserialize	manual	8	
@@ -1934,3 +1932,16 @@ va	name	source	ret_cleanup	result
 0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	manual	12	AL: 1 the file is used, 0 made again
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	manual	4	
 0x000e0210	vostok::render::render_model_instance::destroy	manual	0	
+0x002ddad0	survarium::game_effect_player::serialize	manual	8	EAX: this (a player's +358h); its effects a list at +2Ch (next +4Ch), each of kind +2Ch: 1 written to the first writer, 2 to the second (the client's, may be 0), 0 never
+0x002dddf0	survarium::game_effect_player::deserialize	manual	12	at every world load (a rollback, a resync): removes every effect of kind 1 or 2 (0x2DE870) and makes each one read again (0x2DE100); no effect is kept across a load. Callers: base_player::deserialize 0x2DB57E (the player's +358h), game_world_core::deserialize 0x2D2C54 (the world's +18FE8h)
+0x002de870		manual	0	EDI: a game_effect_player +8h; removes each effect whose kind (+2Ch) is not 0 from the list (+24h, next +4Ch) under the lock at +8h, destroying it (0x2DD7F0); EAX the first removed or 0
+0x002de750		manual	0	EDI: a game_effect_player +8h; removes each effect whose state (+44h) is 2 and whose presenters' instances (+40h, a vector) are empty, destroying it (0x2DD7F0)
+0x002dd7f0		manual	0	EAX: an effect; releases its refs at +0Ch (+8h of them), its presenters' instances (+40h, 0x2DE710) and its +0h, then gives it back to the pool [1F1D9C4h]
+0x002de710		manual	0	EDI: a vector {begin, end} of 18h entries: releases each entry's +0h (count +1Ch; at 0 its +0Ch's vtable +1Ch destroys it) and empties the vector
+0x002de090	survarium::game_effect_player::add	manual	20	EDI: this; makes the effect (0x2DE100 with the five arguments), its vtable +4h (0) and +1Ch (it, 0), state (+44h) 1, its vtable +18h, then 0x2DE3A0 (0). Callers: player::insert, switch_to_free_fly_camera, the artefact's activation effect 0x31343B, damage zones (0x31A1E3), body_part::regenerate, player_stamina (0x32A38E), 0x2EA856..0x2EACB7; no weapon shot
+0x002d0a60	survarium::game_world_core::push_world_event	manual	0	EAX: the event node, EDX: the world; when the world's byte +18FE0h is set the node goes back to the pool (+12750h) unqueued, else it is put in the world's event list (+12744h, next +1Ch) by its time (+24h), 0x2D4910
+0x002d21e0	survarium::game_world_core::tick_events	manual	12	plays the world to the target time in steps: each ends at the earliest of the next 50 ms boundary (from +18FBCh), the next input node's time (+1BCh; next node +1B4h) and the target; a step that ends at the node's time applies it (process_events 0x2D2180) and goes on to the next node; each step is one atomic_tick 0x2D1E20 of its length (every tick delegate, the physics world among them); at a 50 ms boundary the world is saved in a history item (0x2D2570). So each distinct off-grid input time (a precise input, match.md 5.2) adds one whole atomic tick to its 50 ms tick, in a first play and in every re-simulation of it
+0x00075550	vostok::physics::bullet_physics_world::tick	manual		ECX: this; stack+4 the step (ms). A pass over the world's objects (+3Ch: count +0FCh, array +104h), then the dynamics world's stepSimulation (vtable +2Ch) twice: (0, 0, 1/60) and (ms x 0.001, 3, 1/60): fixed 60 Hz substeps accumulated across calls, at most 3 a call; a shorter step adds the per-call passes, not substeps
+0x00322830	survarium::bullet_manager::emit_bullet	manual	32	a new bullet's id is the manager's counter +4h, then +4h grows (0x322872); the counter is in the world (serialize 0x321B90 writes +0B4h, +0h, +4h, the bullets), so a rollback puts it back, but a late input that fires a bullet earlier in the re-simulated ticks gives every later bullet another id than in its first play; a bullet whose +40h +48h is set is handed to the visual presenter +90h (vtable +18h)
+0x00321c50	survarium::bullet_manager::deserialize	manual	4	EAX: the manager; reads +0B4h, +0h, +4h (the id counter) and the count; drops every bullet in flight (0x322920: the presenter +90h vtable +1Ch for each with +8Ah not 0FFFFh) and makes each one read again (0x32BBC0), handing it to the presenter (vtable +18h) as emit_bullet does: every rollback takes every tracer away and puts it back
+0x0032e4f0	survarium::bullet::process_front_face_piercing	manual	16	its decal (add_decal 0x321FA0), sound (0x3222F0) and impact (play_particle 0x3223E0) only when add_shootmark (0x32E460, the owner's ring at 0A2B22A0h + owner x 10Ch, the key the bullet id +4h and its segments +84h) says first (AL 1): a hit played again in a re-simulation does not make them again while its key is the same; back_face_piercing 0x32E7CF, process_reflection 0x32E9F5 and process_collision 0x32EC74 test it the same way
