@@ -285,6 +285,7 @@ computes (read in the exe and patch 20's `lobby_menu.swf`):
 | the movie keeps them in a dictionary by `prop_id` (`PropertiesDescriptor`); an unknown id is a stack trace and an empty line | `getPropertyDescription` |
 | the card (`InventoryItemHint`, sprite 1547) draws the `comparable` lines in its `itemCompare` (`SrvItemCompareHintG`, sprite 1538, a dynamic `ItemCompare`): one row each (`diff_1`..`diff_8`, sprite 1537, 22.6 px apart) in `props_list` order, and stops at the last row | `ItemCompare.updateData` |
 | the card's height follows `itemCompare.height` | `ItemInfoRenderer.set data` |
+| a row's bar runs over the line's `min_value`..`max_value` (the damage line 0 to 150); the number is the real value, the bar full above the top (until 2026-10-25 CLIK's `StatusIndicator.value` clamped the number too: the VSSK's 175 damage read 150) | `DiffIndicator` |
 
 Every 0.26g weapon has eight comparable lines (damage, armour piercing,
 aiming time, stopping power, dispersion, distance, rate of fire, weight),
