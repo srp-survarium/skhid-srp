@@ -321,15 +321,23 @@ pub struct CombatTuning {
     /// but 100 for the bolts, the SVD and the SKS) is under the players' use
     /// in every class, and its aimed-in cone keeps hitting past 200 m
     /// (`player_bots_weapons.md`, "Bots: the fire range by weapon").
+    /// On: with the floors at the all-runs p95 (84-105 m) the flag changed
+    /// only the bolt, while 11.6 % of the bots' fire ticks fell past the
+    /// players' hit-run p95 of their class, at 0.023 hits a tick against
+    /// 0.061 within. A bot hit in the last `hit_shot_ms` answers a shooter
+    /// past its range out to the ceiling (`Reflex::hit_at`).
     pub range_by_weapon: bool,
-    /// The players' range by weapon class, metres: no bot holds its fire
-    /// nearer than the best players shoot. MEASURED: the 95th percentile
-    /// of the distance of every trigger run of the 2 best players (by
-    /// kills, then K/D) of each of the 402 players' matches with 12 or
-    /// more people, to the enemy nearest their aim (within 5°)
-    /// (`player_bots_weapons.md`, "Bots: the fire range by weapon"). The
-    /// machine guns (17 runs) and the pistols (48) are too few for one:
-    /// none ([`NO_FLOOR_M`], the ceiling).
+    /// The players' range by weapon class, metres: no bot shoots farther
+    /// than the players land hits. MEASURED: the 95th percentile of the
+    /// distance of the trigger runs that hit one enemy, of the 2 best
+    /// players (by kills, then K/D) of each of the 402 players' matches
+    /// with 12 or more people (`player_bots_weapons.md`, "Bots: the fire
+    /// range by weapon", the hit-run column): rifles 65 m, SMGs 58,
+    /// shotguns 49, the automatic marksman rifles 74, the bolt actions
+    /// 105. The machine guns (17 runs) and the pistols (48) are too few for
+    /// one: none ([`NO_FLOOR_M`], the ceiling). The shotgun's bench
+    /// variant, 35 m (full damage to 10 m, 0.6 of it flat from 30 m):
+    /// `SRP_BENCH_COMBAT=range_floor_shotgun_m=35`.
     pub range_floor_rifle_m: f32,
     pub range_floor_smg_m: f32,
     pub range_floor_shotgun_m: f32,
@@ -468,7 +476,9 @@ pub struct CombatTuning {
     /// the direction to him is used, never his place or distance. OFF by
     /// default: the bots-only bench (no shooter past 80 m in it) lost 2-4
     /// deliveries a seed (of 124) with it on, kills +2-4; its worth
-    /// against a far human sniper is not measured.
+    /// against a far human sniper is not measured. `hit_shot_ms` is also how
+    /// long after a hit the trigger's range is the ceiling, not the weapon
+    /// class's ([`Self::range_by_weapon`]).
     pub hit_bearing: bool,
     /// ... also with a target seen (else it keeps on its target).
     pub hit_bearing_with_target: bool,
@@ -767,13 +777,13 @@ impl Default for CombatTuning {
             aim_carry: true,
             aim_carry_ms: LOST_MS,
             reacquire_keep: false,
-            range_by_weapon: false,
-            range_floor_rifle_m: 90.0,
-            range_floor_smg_m: 90.0,
-            range_floor_shotgun_m: 91.0,
+            range_by_weapon: true,
+            range_floor_rifle_m: 65.0,
+            range_floor_smg_m: 58.0,
+            range_floor_shotgun_m: 49.0,
             range_floor_pistol_m: NO_FLOOR_M,
             range_floor_mg_m: NO_FLOOR_M,
-            range_floor_marksman_m: 84.0,
+            range_floor_marksman_m: 74.0,
             range_floor_bolt_m: 105.0,
             body_half_m: 0.25,
             fire_body_share: 0.0,
@@ -1275,6 +1285,11 @@ pub struct Reflex {
     life: Option<u32>,
     /// Its health at the last think.
     health: Option<f32>,
+    /// The last think that saw its health drop ([`CombatTuning::hit_drop`]):
+    /// for `hit_shot_ms` after it the trigger's range is the ceiling, not
+    /// the weapon class's ([`CombatTuning::range_by_weapon`]), so a bot hit
+    /// from beyond its range may answer.
+    hit_at: Option<u32>,
     duel_until: u32,
     /// Reload and switch sounds up to this time were weighed.
     punished_until: u32,
@@ -1771,6 +1786,9 @@ impl Reflex {
             .health
             .is_some_and(|before| me.health <= before - c.hit_drop);
         self.health = Some(me.health);
+        if hit {
+            self.hit_at = Some(now);
+        }
         self.threats(me, sit.view, memory, now, hit, c, rng);
         self.choose(me, Some(sit.view), memory, now, aim, skill, rng);
         self.glances(me, sit, memory, now, c);
@@ -3142,14 +3160,17 @@ impl Reflex {
         let aimed_in = self
             .aim_since
             .is_some_and(|since| now >= since + gun.aim_ms + c.aim_in_margin_ms);
-        let range_m = c.fire_range_m(
-            gun,
-            if bolt {
-                c.fire.bolt_range_m.max(aim.range_m)
-            } else {
-                aim.range_m
-            },
-        );
+        let ceiling_m = if bolt {
+            c.fire.bolt_range_m.max(aim.range_m)
+        } else {
+            aim.range_m
+        };
+        // Hit lately: whoever shot it is answered out to the ceiling.
+        let range_m = if self.hit_at.is_some_and(|at| now < at + c.hit_shot_ms) {
+            ceiling_m
+        } else {
+            c.fire_range_m(gun, ceiling_m)
+        };
         // [friends] A teammate in the line of fire: no shot, a step aside.
         let lines = Self::fire_lines(me, view, (point, error, lift), now, &aim.friends);
         let friend = super::friends::blocking(
@@ -3747,30 +3768,146 @@ mod tests {
         assert_eq!(gate::names(gate::UNSTICK | gate::USING), ["unstick", "using"]);
     }
 
-    /// [PR C] With `range_by_weapon`, the trigger's range is the players'
-    /// of the class, under today's ceiling; without, the ceiling.
+    /// The players' hit-run p95 by class, metres (`player_bots_weapons.md`),
+    /// with a weapon of each: the defaults of `range_by_weapon`.
+    const CLASS_RANGES: [(&str, &str, f32); 5] = [
+        ("ak_74u", "rifle", 65.0),
+        ("vityaz", "smg", 58.0),
+        ("mp_153", "shotgun", 49.0),
+        ("vss", "marksman", 74.0),
+        ("mosin_nagant", "bolt", 105.0),
+    ];
+
+    /// [PR C] With `range_by_weapon` (on), the trigger's range is the
+    /// players' hit-run p95 of the class, under the ceiling; without, the
+    /// ceiling.
     #[test]
     fn the_fire_range_follows_the_weapon_in_hand() {
-        let off = CombatTuning::default();
-        let on = CombatTuning {
-            range_by_weapon: true,
+        let on = CombatTuning::default();
+        assert!(on.range_by_weapon);
+        let off = CombatTuning {
+            range_by_weapon: false,
             ..CombatTuning::default()
         };
         let gun = |item| guns::gun(item).unwrap();
-        assert_eq!(off.fire_range_m(gun("mosin_nagant"), 120.0), 120.0);
-        // The players fire a bolt action to 105 m.
-        assert_eq!(on.fire_range_m(gun("mosin_nagant"), 120.0), on.range_floor_bolt_m);
-        // Past today's ceiling for the rest, or no floor (the pistols).
-        for item in ["vityaz", "ak_74u", "mp_153", "vss", "tt_33"] {
-            assert_eq!(on.fire_range_m(gun(item), 80.0), 80.0, "{item}");
+        for (item, class, range) in CLASS_RANGES {
+            assert_eq!(gun(item).class(), class, "{item}");
+            let ceiling = if class == "bolt" { 120.0 } else { 80.0 };
+            assert_eq!(on.fire_range_m(gun(item), ceiling), range, "{item}");
+            assert_eq!(off.fire_range_m(gun(item), ceiling), ceiling, "{item}");
         }
-        // A floor under the ceiling shortens it.
+        // No players' range for the pistols: the ceiling.
+        assert_eq!(on.fire_range_m(gun("tt_33"), 80.0), 80.0);
+        // Under a ceiling that is lower, the ceiling.
+        assert_eq!(on.fire_range_m(gun("mosin_nagant"), 100.0), 100.0);
+        // The shotgun's bench variant is a row.
         let short = CombatTuning {
-            range_floor_smg_m: 50.0,
+            range_floor_shotgun_m: 35.0,
             ..on
         };
-        assert_eq!(short.fire_range_m(gun("vityaz"), 80.0), 50.0);
-        assert_eq!(short.fire_range_m(gun("ak_74u"), 80.0), 80.0);
+        assert_eq!(short.fire_range_m(gun("mp_153"), 80.0), 35.0);
+        assert_eq!(short.fire_range_m(gun("ak_74u"), 80.0), 65.0);
+    }
+
+    /// A bot with `item` in hand, an enemy `z` m ahead noticed, the ticks
+    /// from 1.3 s on every 50 ms for `ticks` of them (the thinks every
+    /// 250 ms): at tick `hit` its health drops. Per tick: whether it fired,
+    /// and the gates that failed.
+    fn fire_at_range(
+        item: &'static str,
+        z: f32,
+        hit: Option<u32>,
+        combat: CombatTuning,
+        ticks: u32,
+    ) -> Vec<(bool, u32)> {
+        let arms: &'static Arms = Box::leak(Box::new(Arms {
+            primary: (guns::gun(item).unwrap(), 300),
+            pistol: None,
+            reserve: 600,
+        }));
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, z), 0.0);
+        let aim = AimTuning {
+            combat,
+            ..AimTuning::default()
+        };
+        // Target choice sees farther than any range (a bolt action's 105 m).
+        let choose = AimTuning {
+            range_m: 150.0,
+            ..aim.clone()
+        };
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::armed(Some(arms));
+        let mut rng = Rng::new(9);
+        let mut out = Vec::new();
+        for k in 0..ticks {
+            let now = 1_000 + k * 50;
+            if hit == Some(k) {
+                me.health = 0.7;
+            }
+            let view = view_of(vec![me.clone(), enemy.clone()]);
+            sense(&mut memory, &[percept(1, enemy.feet, now, Source::Seen)], now);
+            if k % 5 == 0 {
+                reflex.think_with(&me, &Situation::of(&view), &memory, now, &choose, 1.0, &mut rng);
+            }
+            reflex.outer_gates(now, false, false);
+            let fire = reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng).fire;
+            out.push((fire, reflex.gates().bits));
+        }
+        out
+    }
+
+    /// X1: each class fires out to its range and not past it: a target 3 m
+    /// inside is fired at, one 3 m beyond is held back by the range alone;
+    /// the flag off keeps the 80 m (the bolt's 120 m) ceiling.
+    #[test]
+    fn each_class_stops_firing_at_its_range() {
+        let on = CombatTuning::default();
+        let off = CombatTuning {
+            range_by_weapon: false,
+            ..CombatTuning::default()
+        };
+        for (item, class, range) in CLASS_RANGES {
+            let inside = fire_at_range(item, range - 3.0, None, on.clone(), 100);
+            assert!(inside.iter().any(|t| t.0), "{class} at {} m", range - 3.0);
+            let past = fire_at_range(item, range + 3.0, None, on.clone(), 100);
+            assert!(past.iter().all(|t| !t.0), "{class} at {} m", range + 3.0);
+            assert!(
+                past[30..].iter().all(|t| t.1 & gate::RANGE != 0),
+                "{class}: {:?}",
+                gate::names(past[60].1)
+            );
+            // The same target with the flag off, where the ceiling reaches.
+            if range + 3.0 <= 80.0 {
+                let old = fire_at_range(item, range + 3.0, None, off.clone(), 100);
+                assert!(old.iter().any(|t| t.0), "{class} off");
+                assert!(old.iter().all(|t| t.1 & gate::RANGE == 0), "{class} off");
+            }
+        }
+    }
+
+    /// X1: a bot hit from beyond its range answers for `hit_shot_ms`, out to
+    /// the ceiling, and holds its fire again after; hit at the ceiling's
+    /// edge it is no farther; the same run twice is the same run.
+    #[test]
+    fn a_bot_hit_from_beyond_its_range_answers_for_a_while() {
+        let on = CombatTuning::default();
+        // A rifle at 72 m: 7 m past its 65, 8 m inside the 80 m ceiling.
+        let held = fire_at_range("ak_74u", 72.0, None, on.clone(), 160);
+        assert!(held.iter().all(|t| !t.0));
+        // Hit at tick 40 (3 s: tick 100): answered from then, then not.
+        let hit = fire_at_range("ak_74u", 72.0, Some(40), on.clone(), 160);
+        assert_eq!(hit[..40], held[..40]);
+        let answered: Vec<usize> = (0..160).filter(|&k| hit[k].0).collect();
+        assert!(!answered.is_empty(), "{:?}", hit.iter().map(|t| t.1).collect::<Vec<_>>());
+        let window = on.hit_shot_ms / 50;
+        assert!(answered.iter().all(|&k| (40..=40 + window as usize + 5).contains(&k)), "{answered:?}");
+        assert!(hit[40 + window as usize + 10..].iter().all(|t| !t.0));
+        // Past the ceiling too (90 m): no answer, the ceiling holds.
+        let far = fire_at_range("ak_74u", 90.0, Some(40), on.clone(), 160);
+        assert!(far.iter().all(|t| !t.0));
+        // Deterministic.
+        assert_eq!(hit, fire_at_range("ak_74u", 72.0, Some(40), on, 160));
     }
 
     /// [PR B] With `aim_carry`, the aim stays pressed while the target is

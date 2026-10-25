@@ -717,15 +717,39 @@ p95, m. Hit runs in brackets: runs that hit one enemy, at his distance.
   hit. So the upper tail mixes real long shots with fire at enemies out of view.
 - **The hit runs are a sure floor, but short:** they count no missed long shot.
 
-**In the code** (`CombatTuning::range_by_weapon`, off):
-- The trigger's range is the class's p95 (`range_floor_*_m`, MEASURED), never
-  past today's ceiling: 80 m, or 120 m for a bolt action.
+**In the code** (`CombatTuning::range_by_weapon`, on since X1):
+- The trigger's range is the class's p95 of the players' **hit runs**
+  (`range_floor_*_m`, MEASURED, the "hit runs, p95" column above): rifles 65 m,
+  SMGs 58, shotguns 49, the automatic marksman rifles 74, the bolt actions
+  105; never past today's ceiling (80 m, or 120 m for a bolt action).
+- The first version of the flag took the all-runs p95 (84-105 m, the column
+  before), which is past the 80 m ceiling in every class but the bolt: the
+  flag then changed only the bolt (120 → 105 m) and was left off. The hit
+  runs are what the players land; the bots' fire past them was 11.6 % of
+  their fire ticks (the owner's eight matches), at 0.023 hits a tick against
+  0.061 within.
 - The machine guns and the pistols have too few runs for a number; they keep
   the ceiling (`NO_FLOOR_M`).
-- **Only the bolt actions would change: 120 → 105 m.** Every other class's p95
-  is past 80 m. That is too small to bench, so the flag stays off.
-- **No change with it off:** at its defaults this PR's decision digests match
-  2841b08b's, 12 of 12 (batt and tdm, tiers 4-5/9-10/13-15, seeds 1-2).
+- **Return fire:** a bot whose health dropped (`hit_drop`, seen at a think)
+  in the last `hit_shot_ms` (3 s) shoots at the ceiling, not at its class's
+  range, so a bot hit from beyond its range may answer. Target choice
+  (`choose`) keeps the 80 m: it is not cut by the class.
+- **The shotgun at 35 m:** the damage is full to 10 m and 0.6 of it flat from
+  30 m; the hit runs' 49 m is generous. A bench row, not the default:
+  `SRP_BENCH_COMBAT=range_floor_shotgun_m=35`. The flag off:
+  `SRP_BENCH_COMBAT=range_by_weapon=false`.
+- **The SVD** (category 13, not a bolt) is the "marksman" class in the code but
+  has its own hit-run p95 (104 m) in the table above; no bot kit carries it.
+- **The bench's counts** (`owner` object, `tallies/owner/fight.rs`):
+  `fire_past_class_range` (fire ticks with an enemy in the view and those past
+  the class's range, by class; the yardstick is `CLASS_RANGE_M`, the same
+  numbers whatever the tuning), `hits_past_class_range`,
+  `hit_rate_in_class_range` / `hit_rate_past_class_range` (hits a fire tick
+  within and past it), and `fire_held_by_class_range` (ticks the range was the
+  only gate that failed: the rounds the cut saved, an upper bound unless
+  `SRP_BENCH_GATES` is on).
+- **Flag off** (`range_by_weapon=false`): the trigger is as before X1 (80 m, 120 m
+  for a bolt action); return fire changes nothing then.
 - **The Cologne report's 80-106 m fire with a Vityaz** cannot come from the
   trigger (80 m). It was fire at another target than the one measured.
 
