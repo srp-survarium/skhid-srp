@@ -719,7 +719,9 @@ impl Ctx<'_> {
         if !self.needs_crossing(stand) {
             return None;
         }
-        crossing_to(self.tactics, stand, self.bot.side, stop_short(stand, at))
+        // Kept for the match (`memo::Memo::crossing`): the same answer.
+        self.memo
+            .crossing(self.tactics, stand, self.bot.side, stop_short(stand, at))
     }
 
     /// The bot's way out of zones on all match when no way leads from where
@@ -816,8 +818,10 @@ pub struct TakeBlocks {
 
 /// Each battery the bot believes lies about, and why it is not offered a
 /// Collect of it (`None`: it is): [`Ctx::take_block`], else set aside or
-/// scored out. Empty while it carries one.
-pub fn take_blocks(cx: &Ctx) -> TakeBlocks {
+/// scored out. `offered`: the bot's candidates already made this pass; a
+/// battery with a Collect of it is read, not asked again (empty: all
+/// asked). Empty while it carries one.
+pub fn take_blocks(cx: &Ctx, offered: &[Candidate]) -> TakeBlocks {
     let mut list = Vec::new();
     if cx.view.mode.has_batteries() && cx.me.carrying.is_none() {
         for battery in 0..cx.view.batteries.len() {
@@ -825,19 +829,26 @@ pub fn take_blocks(cx: &Ctx) -> TakeBlocks {
                 continue;
             };
             let target = TargetRef::Battery(battery);
-            let why = cx.take_block(at).or_else(|| {
-                let aside =
-                    cx.bot.set_aside.iter().any(|&(k, t, until)| {
-                        k == PlayKind::Collect && t == target && cx.now < until
-                    });
-                battery_candidate(cx, battery).is_none().then(|| {
-                    if aside {
-                        "set aside"
-                    } else {
-                        scored_out(cx, target)
-                    }
+            // Offered already this pass (`candidates`): no block.
+            let offered = offered
+                .iter()
+                .any(|c| c.kind == PlayKind::Collect && c.target == target);
+            let why = (!offered)
+                .then(|| {
+                    cx.take_block(at).or_else(|| {
+                        let aside = cx.bot.set_aside.iter().any(|&(k, t, until)| {
+                            k == PlayKind::Collect && t == target && cx.now < until
+                        });
+                        battery_candidate(cx, battery).is_none().then(|| {
+                            if aside {
+                                "set aside"
+                            } else {
+                                scored_out(cx, target)
+                            }
+                        })
+                    })
                 })
-            });
+                .flatten();
             list.push((battery, why, cx.me.feet.distance_xz(at)));
         }
     }
@@ -2156,7 +2167,7 @@ mod tests {
         assert!(collects(&fight).is_empty());
         // The note agrees: out for the enemies only when not on it.
         let whys = |s: &Scenario| {
-            take_blocks(&s.cx(0))
+            take_blocks(&s.cx(0), &[])
                 .list
                 .iter()
                 .map(|&(_, why, _)| why)
@@ -2177,7 +2188,7 @@ mod tests {
         let mut rng = Rng::new(1);
         let mut state = start(target, &s.cx(0), &mut rng);
         let noted = |s: &mut Scenario| {
-            let blocks = take_blocks(&s.cx(0));
+            let blocks = take_blocks(&s.cx(0), &[]);
             note_take_blocks(&mut s.team, 0, &blocks)
         };
         assert!(
@@ -2674,7 +2685,7 @@ mod tests {
         assert!(!deep.cx(0).escape_known(at, true));
         assert_eq!(deep.cx(0).take_block(at), Some(POCKET_BLOCK));
         assert!(collects(&deep).is_empty());
-        let blocks = take_blocks(&deep.cx(0));
+        let blocks = take_blocks(&deep.cx(0), &[]);
         let whys: Vec<_> = blocks.list.iter().map(|&(b, why, _)| (b, why)).collect();
         assert_eq!(whys, vec![(0, Some(POCKET_BLOCK))]);
         let rim = scene(0.9);

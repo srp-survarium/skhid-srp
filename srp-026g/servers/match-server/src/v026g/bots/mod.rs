@@ -600,6 +600,9 @@ pub struct Bots {
     pub bench_human: Option<Place>,
     tracker: Tracker,
     tactics: Option<Tactics>,
+    /// The plays' kept answers about these tactics (`plays::memo`), made
+    /// anew with them.
+    memo: plays::memo::Memo,
     teams: [TeamState; 2],
     bots: Vec<Option<Bot>>,
     trace: Trace,
@@ -657,6 +660,7 @@ impl Bots {
             static_seed: crate::v026g::registry::static_id(match_id),
             tracker: Tracker::new(mode, teams, driven, Vec::new()),
             tactics: None,
+            memo: Default::default(),
             teams: [team_state(&tuning), team_state(&tuning)],
             bots,
             trace,
@@ -788,6 +792,7 @@ impl Bots {
                 .collect::<Vec<_>>()
         );
         self.tactics = Some(tactics);
+        self.memo = Default::default();
         summary
     }
 
@@ -1694,16 +1699,18 @@ impl Bots {
                 mods: &state.mods,
                 tactics,
                 tuning: &tuning,
+                memo: &self.memo,
             };
             let mut candidates = Vec::new();
             plays::candidates(&cx, &mut candidates);
+            // Collect's answers read, not asked again (`take_blocks`).
+            blocks.push((bot.place, plays::collect::take_blocks(&cx, &candidates)));
             #[cfg(test)]
             if self.bench_human == Some(bot.place)
                 && candidates.iter().any(|c| c.kind == plays::PlayKind::Raid)
             {
                 candidates.retain(|c| c.kind == plays::PlayKind::Raid);
             }
-            blocks.push((bot.place, plays::collect::take_blocks(&cx)));
             asked.push((bot.place, candidates, bot.assignment.clone()));
         }
         let asking = asked
@@ -1764,6 +1771,7 @@ impl Bots {
                 mods: &state.mods,
                 tactics,
                 tuning: &tuning,
+                memo: &self.memo,
             };
             let mut rng = bot.rng.clone();
             let running = plays::start(assignment.kind, assignment.target, &cx, &mut rng);
@@ -2057,6 +2065,7 @@ impl Bots {
             mods: &state.mods,
             tactics,
             tuning: &tuning,
+            memo: &self.memo,
         };
         let mut rng = bot.rng.clone();
         let step = plays::step(&mut running, target, &cx, &mut rng);

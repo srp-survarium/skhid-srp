@@ -33,6 +33,9 @@ pub struct Scenario {
     pub mods: Mods,
     pub tactics: Tactics,
     pub tuning: Tuning,
+    /// `Ctx::memo`: a test that changes `tactics` after a question asked
+    /// makes it anew.
+    pub memo: super::memo::Memo,
     pub side: Option<i32>,
     pub current: Option<(PlayKind, TargetRef, u32)>,
     pub last_ran: Vec<(PlayKind, u32)>,
@@ -95,6 +98,7 @@ impl Scenario {
             mods: Mods::default(),
             tactics,
             tuning,
+            memo: Default::default(),
             side: Some(0),
             current: None,
             last_ran: Vec::new(),
@@ -256,6 +260,7 @@ impl Scenario {
             mods: &self.mods,
             tactics: &self.tactics,
             tuning: &self.tuning,
+            memo: &self.memo,
         }
     }
 
