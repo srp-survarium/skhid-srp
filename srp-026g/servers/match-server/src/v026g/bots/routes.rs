@@ -29,6 +29,14 @@
 //! every-player scale by the side's average life); the bots do not read it.
 //! Format 1 files (no `fight`, `battery`) are read too: their reward counts
 //! as fight.
+//!
+//! A row may give its points' heights, `"heights": [20.6, null, ...]`, one a
+//! point: the feet height (m) the group's players stood at there, `null`
+//! where too few of them passed. A point with a height is put on the floor
+//! nearest it, so a route over a walkway, a bridge or an upper floor stays
+//! on it ([`HumanRoute::on_floors`]); one without keeps the lowest floor.
+//! The field is optional, so a server older than it reads such a table as
+//! before, without the heights.
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -60,6 +68,9 @@ struct Row {
     #[serde(default)]
     died: f32,
     points: Vec<[f32; 2]>,
+    /// The players' feet height at each point, `null` where unknown.
+    #[serde(default)]
+    heights: Option<Vec<Option<f32>>>,
 }
 
 /// Every map's human routes, as read.
@@ -85,8 +96,15 @@ pub struct HumanRoute {
     /// The share of its lives that ended in a death on the way.
     pub died: f32,
     /// From its base outward. A point with no floor near is left out.
+    /// Before [`Self::on_floors`] a point's y is the players' feet height
+    /// there, NaN where the table gives none.
     pub points: Vec<Vec3>,
 }
+
+/// A point with a height goes on the floor nearest it only when that floor
+/// is within this of it; farther, the height is of a floor the grid does
+/// not have there (a roof's edge, a prop), and the lowest floor is taken.
+const HEIGHT_OFF_M: f32 = 3.0;
 
 impl RouteTable {
     pub fn load(path: &Path) -> Result<Self, String> {
@@ -99,6 +117,20 @@ impl RouteTable {
         if !(1..=2).contains(&file.format) {
             return Err(format!("format {} (1 and 2 are known)", file.format));
         }
+        if let Some((index, row)) = file.routes.iter().enumerate().find(|(_, row)| {
+            row.heights
+                .as_ref()
+                .is_some_and(|h| h.len() != row.points.len())
+        }) {
+            return Err(format!(
+                "route {index} ({} mode {} team {}): {} heights for {} points",
+                row.level,
+                row.mode,
+                row.team,
+                row.heights.as_ref().map_or(0, Vec::len),
+                row.points.len()
+            ));
+        }
         Ok(Self { rows: file.routes })
     }
 
@@ -110,56 +142,105 @@ impl RouteTable {
         self.rows.is_empty()
     }
 
-    /// The routes of a map (`level` 1-8) in a mode, points still on the
-    /// ground plane (y 0) until [`HumanRoute::on_floors`].
+    /// The routes of a map (`level` 1-8) in a mode, each point's y the
+    /// players' feet height (NaN: none given) until
+    /// [`HumanRoute::on_floors`].
     pub fn for_map(&self, level: u8, mode: u8) -> Vec<HumanRoute> {
         let name = format!("level_{level:02}");
         self.rows
             .iter()
             .filter(|row| row.level == name && row.mode == mode && row.lives > 0)
-            .map(|row| HumanRoute {
-                team: row.team,
-                lives: row.lives,
-                reward: row.reward.max(0.0),
-                fight: row.fight.unwrap_or(row.reward).max(0.0),
-                battery: row.battery.unwrap_or(0.0).max(0.0),
-                died: row.died.clamp(0.0, 1.0),
-                points: row
-                    .points
-                    .iter()
-                    .filter(|p| p[0].is_finite() && p[1].is_finite())
-                    .map(|p| Vec3::new(p[0], 0.0, p[1]))
-                    .collect(),
-            })
+            .map(Row::route)
             .collect()
     }
 }
 
+impl Row {
+    fn route(&self) -> HumanRoute {
+        let height = |i: usize| {
+            self.heights
+                .as_ref()
+                .and_then(|h| h.get(i).copied().flatten())
+                .filter(|y| y.is_finite())
+                .unwrap_or(f32::NAN)
+        };
+        HumanRoute {
+            team: self.team,
+            lives: self.lives,
+            reward: self.reward.max(0.0),
+            fight: self.fight.unwrap_or(self.reward).max(0.0),
+            battery: self.battery.unwrap_or(0.0).max(0.0),
+            died: self.died.clamp(0.0, 1.0),
+            points: self
+                .points
+                .iter()
+                .enumerate()
+                .filter(|(_, p)| p[0].is_finite() && p[1].is_finite())
+                .map(|(i, p)| Vec3::new(p[0], height(i), p[1]))
+                .collect(),
+        }
+    }
+}
+
 impl HumanRoute {
-    /// Its points put on the grid's floors: of the floors within 2 m of
+    /// Its points put on the grid's floors, of the floors within 2 m of
     /// each (then 5 m) a body stands on and a way is planned to (none in a
-    /// pocket with no way out, [`WalkGrid::in_shut_pocket`]), the nearest of
-    /// the lowest (within 1 m of the lowest). A group's median path runs on
-    /// the ground, not on the roofs over it, nor in a pit under the floor it
-    /// walks (level_05's, under the walkway at (-7.8, -21.3)); a point with
-    /// no floor near (off the walkable map) is dropped.
+    /// pocket with no way out, [`WalkGrid::in_shut_pocket`]):
+    /// - a point with the players' height: the floor nearest that height
+    ///   (of those within 0.5 m of the nearest, the nearest in xz), so a
+    ///   route over a walkway, a bridge or an upper floor stays on it
+    ///   (level_07's middle deck, 20.6 m over the ground under it);
+    /// - one without, or whose height no floor within [`HEIGHT_OFF_M`] has:
+    ///   the nearest of the lowest (within 1 m of the lowest). A group's
+    ///   median path most often runs on the ground, not on the roofs over
+    ///   it, nor in a pit under the floor it walks (level_05's, under the
+    ///   walkway at (-7.8, -21.3)).
+    ///
+    /// A point with no floor near (off the walkable map) is dropped.
     pub fn on_floors(mut self, grid: &WalkGrid) -> Self {
-        let floor = |p: Vec3| {
+        let near = |p: Vec3, r: f32| -> Vec<Vec3> {
+            grid.floors_in([p.x - r, p.z - r, p.x + r, p.z + r])
+                .filter(|&node| grid.can_stand(node) && !grid.in_shut_pocket(node))
+                .map(|node| grid.position(node))
+                .filter(|at| at.distance_xz(p) <= r)
+                .collect()
+        };
+        let nearest_xz =
+            |p: Vec3| move |a: &Vec3, b: &Vec3| a.distance_xz(p).total_cmp(&b.distance_xz(p));
+        let by_height = |p: Vec3| {
             [2.0f32, 5.0].iter().find_map(|&r| {
-                let floors: Vec<Vec3> = grid
-                    .floors_in([p.x - r, p.z - r, p.x + r, p.z + r])
-                    .filter(|&node| grid.can_stand(node) && !grid.in_shut_pocket(node))
-                    .map(|node| grid.position(node))
-                    .filter(|at| at.distance_xz(p) <= r)
-                    .collect();
+                let floors = near(p, r);
+                let off = floors
+                    .iter()
+                    .map(|at| (at.y - p.y).abs())
+                    .fold(f32::INFINITY, f32::min);
+                (off <= HEIGHT_OFF_M).then_some(())?;
+                floors
+                    .into_iter()
+                    .filter(|at| (at.y - p.y).abs() <= off + 0.5)
+                    .min_by(nearest_xz(p))
+            })
+        };
+        let lowest = |p: Vec3| {
+            [2.0f32, 5.0].iter().find_map(|&r| {
+                let floors = near(p, r);
                 let lowest = floors.iter().map(|at| at.y).fold(f32::INFINITY, f32::min);
                 floors
                     .into_iter()
                     .filter(|at| at.y <= lowest + 1.0)
-                    .min_by(|a, b| a.distance_xz(p).total_cmp(&b.distance_xz(p)))
+                    .min_by(nearest_xz(p))
             })
         };
-        self.points = self.points.iter().filter_map(|&p| floor(p)).collect();
+        self.points = self
+            .points
+            .iter()
+            .filter_map(|&p| {
+                p.y.is_finite()
+                    .then(|| by_height(p))
+                    .flatten()
+                    .or_else(|| lowest(p))
+            })
+            .collect();
         self
     }
 }
@@ -263,9 +344,32 @@ mod tests {
         let routes = table.for_map(1, 2);
         assert_eq!(routes.len(), 1);
         assert_eq!(routes[0].team, 1);
-        assert_eq!(routes[0].points[1], Vec3::new(4.6, 0.0, -69.4));
+        let p = routes[0].points[1];
+        assert_eq!((p.x, p.z), (4.6, -69.4));
+        assert!(p.y.is_nan(), "no height given: {p:?}");
         assert!(table.for_map(3, 2).is_empty());
         assert!(RouteTable::parse(r#"{"format": 3, "routes": []}"#).is_err());
+    }
+
+    /// A row's `heights` give its points' y (NaN where `null`); a row
+    /// without them reads as before, and one with too few is refused.
+    #[test]
+    fn heights_give_the_points_y_and_a_wrong_count_is_refused() {
+        let row = |heights: &str| {
+            format!(
+                r#"{{"format": 2, "routes": [{{"level": "level_07", "mode": 2, "team": 0,
+                "lives": 12, "reward": 1.0, "points": [[1.0, 2.0], [3.0, 4.0]]{heights}}}]}}"#
+            )
+        };
+        let route = &RouteTable::parse(&row(r#", "heights": [20.6, null]"#))
+            .unwrap()
+            .for_map(7, 2)[0];
+        assert_eq!(route.points[0], Vec3::new(1.0, 20.6, 2.0));
+        assert!(route.points[1].y.is_nan());
+        let route = &RouteTable::parse(&row("")).unwrap().for_map(7, 2)[0];
+        assert!(route.points.iter().all(|p| p.y.is_nan()));
+        let why = RouteTable::parse(&row(r#", "heights": [20.6]"#)).unwrap_err();
+        assert!(why.contains("1 heights for 2 points"), "{why}");
     }
 
     /// How walkable each route of the real table is for a bot (private
@@ -274,7 +378,11 @@ mod tests {
     /// side's spawn area): the legs with no way, the jumps on the way, the
     /// way's length against the straight one, and the points lost (no
     /// floor near, or not allowed). With `SRP_ROUTES_REACH_OUT` a TSV of
-    /// it, a row a route in the file's order. Run in release.
+    /// it, a row a route in the file's order. With `SRP_ROUTES_POINTS_OUT`
+    /// a TSV a row a point: its height (if given), the floor it gets
+    /// without it (`y_lowest`) and with it (`y_3d`; "lost": none), and the
+    /// lowest and highest usable floors within 1 m, 2 m and 5 m (a stacked spot
+    /// spans more than a storey). Run in release.
     #[test]
     #[ignore = "needs the private map files and route table"]
     fn how_walkable_the_real_routes_are() {
@@ -290,6 +398,9 @@ mod tests {
             "row	level	mode	team	points	lost	legs	no_way	jumps	length_m	straight_m
 ",
         );
+        let mut points_out = String::from(
+            "row\tpoint\tx\tz\theight\ty_lowest\ty_3d\tlo_1m\thi_1m\tlo_2m\thi_2m\tlo_5m\thi_5m\n",
+        );
         let mut worlds = std::collections::HashMap::new();
         for (index, row) in table.rows.iter().enumerate() {
             let level: u8 = row.level.trim_start_matches("level_").parse().unwrap();
@@ -300,17 +411,60 @@ mod tests {
                 let world = mapdata::World::build(map, mapdata::CELL, mapdata::Body::default());
                 Tactics::new(std::sync::Arc::new(world), 1.0)
             });
-            let raw = HumanRoute {
-                team: row.team,
-                points: row
-                    .points
-                    .iter()
-                    .map(|p| Vec3::new(p[0], 0.0, p[1]))
-                    .collect(),
-                ..Default::default()
-            };
+            let raw = row.route();
             let total = raw.points.len();
-            let route = raw.on_floors(&tactics.world.grid);
+            let grid = &tactics.world.grid;
+            for (i, &p) in raw.points.iter().enumerate() {
+                let one = |y: f32| {
+                    HumanRoute {
+                        points: vec![Vec3::new(p.x, y, p.z)],
+                        ..Default::default()
+                    }
+                    .on_floors(grid)
+                    .points
+                    .first()
+                    .map_or(String::from("lost"), |at| format!("{:.2}", at.y))
+                };
+                let span = |r: f32| {
+                    let ys: Vec<f32> = grid
+                        .floors_in([p.x - r, p.z - r, p.x + r, p.z + r])
+                        .filter(|&node| grid.can_stand(node) && !grid.in_shut_pocket(node))
+                        .map(|node| grid.position(node))
+                        .filter(|at| at.distance_xz(p) <= r)
+                        .map(|at| at.y)
+                        .collect();
+                    let (lo, hi) = ys
+                        .iter()
+                        .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), &y| {
+                            (lo.min(y), hi.max(y))
+                        });
+                    if ys.is_empty() {
+                        String::from("\t")
+                    } else {
+                        format!("{lo:.2}\t{hi:.2}")
+                    }
+                };
+                points_out.push_str(&format!(
+                    "{index}\t{i}\t{:.2}\t{:.2}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                    p.x,
+                    p.z,
+                    if p.y.is_finite() {
+                        format!("{:.2}", p.y)
+                    } else {
+                        String::new()
+                    },
+                    one(f32::NAN),
+                    if p.y.is_finite() {
+                        one(p.y)
+                    } else {
+                        one(f32::NAN)
+                    },
+                    span(1.0),
+                    span(2.0),
+                    span(5.0),
+                ));
+            }
+            let route = raw.on_floors(grid);
             let points: Vec<Vec3> = route
                 .points
                 .iter()
@@ -358,6 +512,9 @@ mod tests {
         match std::env::var_os("SRP_ROUTES_REACH_OUT") {
             Some(file) => std::fs::write(file, out).unwrap(),
             None => eprint!("{out}"),
+        }
+        if let Some(file) = std::env::var_os("SRP_ROUTES_POINTS_OUT") {
+            std::fs::write(file, points_out).unwrap();
         }
     }
 
@@ -438,17 +595,7 @@ mod tests {
             });
             let grid = &tactics.world.grid;
             let hazards = &tactics.hazards;
-            let points = HumanRoute {
-                team: row.team,
-                points: row
-                    .points
-                    .iter()
-                    .map(|p| Vec3::new(p[0], 0.0, p[1]))
-                    .collect(),
-                ..Default::default()
-            }
-            .on_floors(grid)
-            .points;
+            let points = row.route().on_floors(grid).points;
             let (mut in_zone, mut in_fixed, mut clear_m) = (0, 0, 0.0f32);
             for &p in &points {
                 let Some(node) = grid.locate(p, 1.0) else {

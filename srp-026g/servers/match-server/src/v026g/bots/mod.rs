@@ -1666,6 +1666,9 @@ impl Bots {
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
         let mut blocks = Vec::new();
+        // Bots with no fresh hold on a slot (`team::HOLD_FRESH_MS`): a way
+        // to their goal or their play's target failed lately, or a carrier.
+        let mut shaky: Vec<Place> = Vec::new();
         for bot in self
             .bots
             .iter()
@@ -1711,6 +1714,17 @@ impl Bots {
             {
                 candidates.retain(|c| c.kind == plays::PlayKind::Raid);
             }
+            let goal = match bot.intent.go {
+                Go::To { at, .. } => Some(at),
+                _ => None,
+            };
+            let target = bot.assignment.as_ref().and_then(|a| cx.point_of(a.target));
+            if me.carrying.is_some()
+                || goal_shut(&bot.intent, me, &bot.no_way_to, now)
+                || goal.into_iter().chain(target).any(|at| cx.no_way_lately(at))
+            {
+                shaky.push(bot.place);
+            }
             asked.push((bot.place, candidates, bot.assignment.clone()));
         }
         let asking = asked
@@ -1728,7 +1742,7 @@ impl Bots {
             .map(|&(place, _, _)| place)
             .filter(|&place| tactics.escapes.trapped(place).is_some_and(|t| t.gave_up))
             .collect();
-        for (place, assignment, changed) in team::assign_trapped(asking, now, gap, &given_up) {
+        for (place, assignment, changed) in team::assign_trapped(asking, now, gap, &given_up, &shaky) {
             let Some(me) = view.place(place) else {
                 continue;
             };
