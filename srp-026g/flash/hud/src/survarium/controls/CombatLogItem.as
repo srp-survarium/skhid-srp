@@ -99,14 +99,17 @@ package survarium.controls
       }
       
       // Places a code-made icon at x, centred on the weapon's icon (not above the row); the x after it.
+      // A suicide row has no weapon icon (its frame removes object_icon, which is null there): the
+      // pain icon is centred on the cause icon instead.
       private function placeIcon(icon:DisplayObject, x:uint, dx:uint) : uint
       {
          if(icon.parent != this)
          {
             return x;
          }
+         var mark:DisplayObject = this.object_icon != null ? this.object_icon : this.extra_icon;
          icon.x = x;
-         icon.y = Math.max(0,int(this.object_icon.y + (this.object_icon.height - icon.height) / 2));
+         icon.y = mark == null ? 0 : Math.max(0,int(mark.y + (mark.height - icon.height) / 2));
          return x + icon.width + dx;
       }
       
