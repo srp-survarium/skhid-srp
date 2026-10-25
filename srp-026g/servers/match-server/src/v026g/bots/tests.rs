@@ -4608,6 +4608,10 @@ fn real_bot_cost() {
             // sight then (seen, not): which narrower hold would have let it go.
             let mut collect_held_dist = [0u32; 3];
             let mut collect_held_seen = [0u32; 2];
+            // Each crowded Collect death: the battery's spot (x, z, m), the
+            // bot's distance to it (m), held (1) or not, an enemy in sight
+            // (1) or not, and the team.
+            let mut collect_crowd_spots: Vec<[i32; 6]> = Vec::new();
             let mut takes_all = 0u32;
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
@@ -4704,6 +4708,20 @@ fn real_bot_cost() {
                                 if crowded {
                                     collect_held_crowd_deaths[team] += now.1 - before.1;
                                 }
+                            }
+                            if crowded && let Some(at) = lying {
+                                let seen = bots.bots[place].as_ref().is_some_and(|b| {
+                                    b.memory.tracks().iter().any(|t| t.sight_since.is_some())
+                                });
+                                let off = game.bodies[place].feet.distance_xz(at);
+                                collect_crowd_spots.push([
+                                    at.x.round() as i32,
+                                    at.z.round() as i32,
+                                    off.round() as i32,
+                                    i32::from(held),
+                                    i32::from(seen),
+                                    i32::from(teams[place]),
+                                ]);
                             }
                             if attacking(place) {
                                 side[4] += u64::from(now.1 - before.1);
@@ -5165,6 +5183,7 @@ fn real_bot_cost() {
                     "collect_held_crowd_deaths": collect_held_crowd_deaths,
                     "collect_held_dist": collect_held_dist,
                     "collect_held_seen": collect_held_seen,
+                    "collect_crowd_spots": collect_crowd_spots,
                     "play_s": play_s,
                     "by_play": play_rows,
                     "deaths_by": deaths_by,
