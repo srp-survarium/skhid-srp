@@ -158,38 +158,57 @@ fn stands_of(world: &World, container: &Container) -> Vec<UseStand> {
 /// the bullet mesh short of it. The aim (a point of the box) and its pitch.
 pub fn press(sight: &RayTree, eye: Vec3, shape: &Shape) -> Option<(Vec3, f32)> {
     let n = SAMPLES;
-    for ix in 0..=n {
-        for iy in 0..=n {
-            for iz in 0..=n {
-                let local = Vec3::new(
-                    shape.half.x * (ix as f32 / n as f32 * 2.0 - 1.0),
-                    shape.half.y * (iy as f32 / n as f32 * 2.0 - 1.0),
-                    shape.half.z * (iz as f32 / n as f32 * 2.0 - 1.0),
-                );
-                let aim = shape.center + shape.rotation.apply(local);
-                let v = aim - eye;
-                let len = v.length();
-                if len < 1e-3 {
-                    return Some((aim, 0.0));
-                }
-                let dir = v * (1.0 / len);
-                let pitch = dir.y.atan2(dir.x.hypot(dir.z));
-                if pitch.abs() > PITCH_MAX_RAD {
-                    continue;
-                }
-                let Some(t) = ray_box(eye, dir, shape.center, &shape.rotation, shape.half) else {
-                    continue;
-                };
-                if t > USE_RAY_M {
-                    continue;
-                }
-                if sight.ray_cast(eye, dir, (t - 0.02).max(0.0)).is_none() {
-                    return Some((aim, pitch));
-                }
-            }
+    for &(ix, iy, iz) in aim_order() {
+        let local = Vec3::new(
+            shape.half.x * (ix as f32 / n as f32 * 2.0 - 1.0),
+            shape.half.y * (iy as f32 / n as f32 * 2.0 - 1.0),
+            shape.half.z * (iz as f32 / n as f32 * 2.0 - 1.0),
+        );
+        let aim = shape.center + shape.rotation.apply(local);
+        let v = aim - eye;
+        let len = v.length();
+        if len < 1e-3 {
+            return Some((aim, 0.0));
+        }
+        let dir = v * (1.0 / len);
+        let pitch = dir.y.atan2(dir.x.hypot(dir.z));
+        if pitch.abs() > PITCH_MAX_RAD {
+            continue;
+        }
+        let Some(t) = ray_box(eye, dir, shape.center, &shape.rotation, shape.half) else {
+            continue;
+        };
+        if t > USE_RAY_M {
+            continue;
+        }
+        if sight.ray_cast(eye, dir, (t - 0.02).max(0.0)).is_none() {
+            return Some((aim, pitch));
         }
     }
     None
+}
+
+/// The aim samples' grid indices, the middle of the box first and then
+/// outward: the aim a press looks at is the most central one that works.
+fn aim_order() -> &'static [(usize, usize, usize)] {
+    static ORDER: std::sync::OnceLock<Vec<(usize, usize, usize)>> = std::sync::OnceLock::new();
+    ORDER.get_or_init(|| {
+        let n = SAMPLES;
+        let mut order: Vec<(usize, usize, usize)> = (0..=n)
+            .flat_map(|ix| (0..=n).flat_map(move |iy| (0..=n).map(move |iz| (ix, iy, iz))))
+            .collect();
+        let off = |i: usize| (i as i32 * 2 - n as i32).pow(2);
+        order.sort_by_key(|&(ix, iy, iz)| off(ix) + off(iy) + off(iz));
+        order
+    })
+}
+
+/// Whether a use ray from `eye` along `dir` (unit) meets `shape` by the
+/// game's rule: within [`USE_RAY_M`], nothing of the bullet mesh short of
+/// it.
+pub fn ray_meets(sight: &RayTree, eye: Vec3, dir: Vec3, shape: &Shape) -> bool {
+    ray_box(eye, dir, shape.center, &shape.rotation, shape.half)
+        .is_some_and(|t| t <= USE_RAY_M && sight.ray_cast(eye, dir, (t - 0.02).max(0.0)).is_none())
 }
 
 /// Where a ray from `origin` along `dir` (unit) enters the oriented box;

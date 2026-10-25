@@ -31,7 +31,7 @@ pub(crate) fn walkway_world() -> Arc<World> {
             position: at,
             team,
             id,
-            use_shapes: Vec::new(),
+            use_shapes: vec![super::standin::use_box(at)],
         };
         map.containers = vec![
             container(0, 0, Vec3::new(7.0, 3.0, 32.5)),

@@ -25,6 +25,7 @@
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::view;
+use mapdata::{UsePose, UseStand};
 use crate::v026g::drive::key;
 
 /// How far over a lying battery's position a bot aims to take it: inside
@@ -134,6 +135,10 @@ const PUT_TIME_MS: u32 = 600;
 /// the next use need not wait for one. GUESS: the box's size is not known
 /// (the bench's stand-in takes 0.6 m); 1 m is well outside it.
 const PUT_MISS_M: f32 = 1.0;
+/// The bot is at a stand within this of its floor, metres.
+const STAND_AT_M: f32 = 0.6;
+/// At a stand this long with no press possible, it tries the next stand.
+const STAND_STILL_MS: u32 = 3_000;
 /// The client's use ray, metres (`base_player::detect_usable_object`).
 const USE_RAY_M: f32 = 2.0;
 
@@ -1127,6 +1132,13 @@ pub enum State {
         /// Its last use's ray provably passed the box ([`PUT_MISS_M`]): no
         /// put began, so no put is waited for.
         missed: bool,
+        /// The stand it walks to: a floor from which the game's use ray
+        /// meets the box ([`Ctx::nearest_use_stand`]).
+        stand: Option<UseStand>,
+        /// Since when it has stood at the stand with no press possible.
+        still_since: Option<u32>,
+        /// Stands it stood on that long and could not press from.
+        passed: Vec<Vec3>,
     },
 }
 
@@ -1313,6 +1325,9 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     last_use: 0,
                     arrived: None,
                     missed: false,
+                    stand: None,
+                    still_since: None,
+                    passed: Vec::new(),
                 };
             } else {
                 let points = via.get_or_insert_with(|| way_home(cx, home));
@@ -1363,6 +1378,9 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             last_use,
             arrived,
             missed,
+            stand,
+            still_since,
+            passed,
         } => {
             if cx.me.carrying.is_none() {
                 return Step::Done(carry_ended(cx, target, "put it in"));
@@ -1373,31 +1391,53 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             if *n >= tries && seen {
                 return Step::Failed("could not put it in");
             }
+            let container = cx.view.container_of(cx.me.team).map(|c| c.id);
             let mut intent = Intent::stay().hold_fire();
-            let mut aimed = home.is_none();
-            if let Some(home) = home {
-                // Its use box's middle is a metre over `home`
-                // (`Container::use_point`).
-                let aim = home + Vec3::new(0.0, 1.0, 0.0);
-                let eye = cx.me.feet + Vec3::new(0.0, view::EYE_STANDING, 0.0);
-                if (aim - eye).length() > USE_NEAR_M {
-                    intent = Intent::to(home, Pace::Walk).within(0.5).hold_fire();
-                    *arrived = None;
-                } else {
+            let mut aimed = container.is_none();
+            let mut aim = None;
+            if let Some(container) = container {
+                // The game's rule decides: the use ray from the eye meets
+                // the box. Out of it, the bot walks to the nearest stand
+                // that meets it; at one with no press possible for
+                // `STAND_STILL_MS` (its eye is not where the list put it),
+                // the next.
+                aim = cx.use_press(cx.me.eye(), container);
+                if let Some(aim) = aim {
                     // Pressed once the view is on the box, as a take's
                     // (or after a while there anyway): a use pressed while
                     // still turning to it missed it.
+                    *still_since = None;
                     let since = *arrived.get_or_insert(cx.now);
                     aimed = aimed_at(cx, aim) || cx.now >= since + SETTLE_MS;
+                    intent = intent.looking(Look::Use(aim));
+                } else {
+                    *arrived = None;
+                    if stand.is_none() {
+                        *stand = cx.nearest_use_stand(container, UsePose::Standing, passed);
+                    }
+                    let Some(at) = *stand else {
+                        return Step::Failed("no stand to put it in from");
+                    };
+                    if cx.me.feet.distance_xz(at.feet) <= STAND_AT_M {
+                        let since = *still_since.get_or_insert(cx.now);
+                        if cx.now >= since + STAND_STILL_MS {
+                            passed.push(at.feet);
+                            *stand = None;
+                            *still_since = None;
+                        }
+                    } else {
+                        *still_since = None;
+                    }
+                    intent = Intent::to(at.feet, Pace::Walk)
+                        .within(0.4)
+                        .hold_fire()
+                        .looking(Look::Use(at.aim));
                 }
-                intent = intent.looking(Look::use_box(home));
             }
             if cx.now >= *last_use + every && seen && *n < tries && aimed {
                 *n += 1;
                 *last_use = cx.now;
-                *missed = home.is_some_and(|home| {
-                    use_ray_miss(cx, home + Vec3::new(0.0, 1.0, 0.0)) > PUT_MISS_M
-                });
+                *missed = aim.is_some_and(|aim| use_ray_miss(cx, aim) > PUT_MISS_M);
                 intent = intent.pressing(key::USE);
             }
             Step::Continue(intent)
@@ -3315,6 +3355,9 @@ mod tests {
                 last_use: s.view.clock,
                 arrived: None,
                 missed: false,
+                stand: None,
+                still_since: None,
+                passed: Vec::new(),
             };
             assert_eq!(
                 step(&mut state, target, &s.cx(0), &mut rng),
@@ -3413,6 +3456,93 @@ mod tests {
         // That one may have begun a put: the next waits for it.
         s.view.clock += 1_200;
         assert!(!used(&s, &mut state, &mut rng), "the put waited for");
+    }
+
+    /// A raised box (its middle 3 m over the floor, which the old 1.6 m
+    /// sphere to the middle never reached from the floor): the carrier
+    /// walks to the nearest stand of the game's use test, presses from it,
+    /// and a stand it stood on for [`STAND_STILL_MS`] with no press possible
+    /// is given up for the next.
+    #[test]
+    fn a_put_in_walks_to_a_stand_of_the_games_use_test_and_gives_one_up() {
+        let mut s = Scenario::field(Mode::Batteries);
+        let home = Vec3::new(12.0, 0.0, 30.0);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(
+            crate::v026g::bots::tactics::tests::field_with(|map| {
+                map.containers.push(mapdata::Container {
+                    position: home,
+                    team: 0,
+                    id: 0,
+                    use_shapes: vec![mapdata::Shape {
+                        kind: mapdata::ShapeKind::Box,
+                        center: home + Vec3::new(0.0, 3.0, 0.0),
+                        rotation: mapdata::Rotation::IDENTITY,
+                        half: Vec3::new(0.4, 0.5, 0.4),
+                    }],
+                });
+            }),
+            1.0,
+        );
+        s.battery(BatteryState::Carried(Some(0)));
+        s.bot(0, 0, home + Vec3::new(1.0, 0.0, 0.0)).carrying = Some(0);
+        let target = TargetRef::Battery(0);
+        s.current = Some((PlayKind::Collect, target, s.view.clock));
+        let mut rng = Rng::new(1);
+        let mut state = State::Bring { via: None };
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::PutIn { .. }), "{state:?}");
+        // Pushed back out of the box's reach.
+        s.view.places[0].feet = home + Vec3::new(3.0, 0.0, 0.0);
+        let used = |step: Step| intent_of(step).press & key::USE != 0;
+        // Beside the box, out of the use ray's reach: a stand to go to.
+        let step1 = step(&mut state, target, &s.cx(0), &mut rng);
+        let State::PutIn {
+            stand: Some(stand), ..
+        } = state.clone()
+        else {
+            panic!("a stand was chosen: {state:?}");
+        };
+        assert!(stand.feet.distance_xz(home) < 3.5, "{stand:?}");
+        assert!(
+            matches!(&step1, Step::Continue(i) if matches!(i.go, Go::To { at, .. } if at == stand.feet)),
+            "{step1:?}"
+        );
+        assert!(!used(step1), "no press out of the ray's reach");
+        // At the stand, its view on the box: the use goes.
+        s.view.places[0].feet = stand.feet;
+        let eye = s.view.places[0].eye();
+        let aim = s.cx(0).use_press(eye, 0).expect("the stand presses");
+        let (dx, dz) = (aim.x - eye.x, aim.z - eye.z);
+        s.view.places[0].yaw = crate::v026g::bots::kin::yaw_of([dx, dz]);
+        s.view.places[0].pitch = (aim.y - eye.y).atan2(dx.hypot(dz));
+        s.view.clock += 100;
+        assert!(
+            used(step(&mut state, target, &s.cx(0), &mut rng)),
+            "pressed from the stand"
+        );
+        // A stand with no press possible from it (a floor far from the
+        // box, the bot on it): after STAND_STILL_MS the next stand.
+        let far = Vec3::new(30.0, 0.0, 10.0);
+        s.view.places[0].feet = far;
+        s.view.clock += 5_000;
+        s.view.world_time = s.view.clock;
+        let mut state = State::PutIn {
+            tries: 0,
+            last_use: 0,
+            arrived: None,
+            missed: false,
+            stand: Some(UseStand { feet: far, ..stand }),
+            still_since: None,
+            passed: Vec::new(),
+        };
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(&state, State::PutIn { stand: Some(_), passed, .. } if passed.is_empty()));
+        s.view.clock += STAND_STILL_MS;
+        step(&mut state, target, &s.cx(0), &mut rng);
+        let State::PutIn { passed, .. } = &state else {
+            panic!("{state:?}");
+        };
+        assert_eq!(passed, &vec![far]);
     }
 
     /// A carrier trapped in a pocket, its escape given up: its Collect has

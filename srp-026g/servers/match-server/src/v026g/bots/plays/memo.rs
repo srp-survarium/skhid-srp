@@ -155,11 +155,17 @@ impl Ctx<'_> {
     }
 
     /// The stand of `container` in `pose` the bot reaches soonest
-    /// (`path_dist`), if there is one.
-    pub fn nearest_use_stand(&self, container: u8, pose: UsePose) -> Option<UseStand> {
+    /// (`path_dist`), if there is one, leaving out the floors in `passed`
+    /// (stands it stood on and could not press from).
+    pub fn nearest_use_stand(
+        &self,
+        container: u8,
+        pose: UsePose,
+        passed: &[Vec3],
+    ) -> Option<UseStand> {
         self.use_stands(container)
             .iter()
-            .filter(|stand| stand.fits(pose))
+            .filter(|stand| stand.fits(pose) && !passed.contains(&stand.feet))
             .min_by(|a, b| {
                 self.path_dist(a.feet)
                     .total_cmp(&self.path_dist(b.feet))
@@ -169,17 +175,29 @@ impl Ctx<'_> {
             .copied()
     }
 
-    /// Whether the game's use ray from `eye` meets the box of `container`
-    /// (the press test for the moment of the press).
-    pub fn use_press_ok(&self, eye: Vec3, container: u8) -> bool {
+    /// Where on the box of `container` a use ray from `eye` can meet it by
+    /// the game's rule (a point of the box), if one can: the press test for
+    /// the moment of the press. Out of reach of the box (its farthest
+    /// corner and the ray) no ray is cast.
+    pub fn use_press(&self, eye: Vec3, container: u8) -> Option<Vec3> {
         let world = &self.tactics.world;
-        world
+        let shape = world
             .map
             .containers
             .iter()
-            .find(|c| c.id == i32::from(container))
-            .and_then(|c| c.use_shapes.first())
-            .is_some_and(|shape| mapdata::stands::press(&world.sight, eye, shape).is_some())
+            .find(|c| c.id == i32::from(container))?
+            .use_shapes
+            .first()?;
+        if (shape.center - eye).length() > shape.half.length() + mapdata::stands::USE_RAY_M {
+            return None;
+        }
+        mapdata::stands::press(&world.sight, eye, shape).map(|(aim, _)| aim)
+    }
+
+    /// Whether the game's use ray from `eye` can meet the box of
+    /// `container` ([`Ctx::use_press`]).
+    pub fn use_press_ok(&self, eye: Vec3, container: u8) -> bool {
+        self.use_press(eye, container).is_some()
     }
 }
 
@@ -282,7 +300,7 @@ mod tests {
         let d: Vec<f32> = list.iter().map(|st| st.feet.distance_xz(middle)).collect();
         assert!(d.windows(2).all(|w| w[0] <= w[1]), "nearest first");
         let near = cx
-            .nearest_use_stand(0, UsePose::Standing)
+            .nearest_use_stand(0, UsePose::Standing, &[])
             .expect("a stand to walk to");
         assert!(near.standing);
         assert!(
