@@ -2071,10 +2071,19 @@ HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # (0x234AE8) calls bo_match and hide_ui_force (the interface forced hidden
 # and F11 locked for the match).
 # No base relocation is under the site and no branch aims inside it.
+# - game_world::on_keyboard_action's `call 0x2384C0` (show_player_list, Tab
+#   down or up) at 0x25CD34: bo_tab keeps the state, then the call;
+# - player_input_handler::process_first_person_mode 0x241250 at its
+#   epilogue 0x2421B0 (`pop edi / pop esi / pop ebx / mov esp,ebp`, ebx the
+#   handler): while Tab is held in a Blackout match the input's actions mask
+#   (+33Ch) has no move and no act, and an act held through Tab stays out
+#   until let go; then the four instructions and on at 0x2421B5.
 BLACKOUT_HOOKS = (
     (0x2056F0, bytes.fromhex("8b542458" "8b750c"), "bo_visual_entry", 0xE9),     # on_configs_loaded: the parts done
+    (0x25CD34, bytes.fromhex("e887b7fdff"), "bo_tab_entry", 0xE8),               # on_keyboard_action: show_player_list
+    (0x2421B0, bytes.fromhex("5f5e5b8be5"), "bo_input_entry", 0xE9),             # the input builder's epilogue
 )
-BLACKOUT_BACKS = (0x2056F7,)
+BLACKOUT_BACKS = (0x2056F7, 0x2421B5)
 
 
 def weapon_camo_va(late_join):
@@ -2286,6 +2295,11 @@ INSTALLS = {
     # Blackout, patch 65 (in `.srpx`)
     0x2056F0: (JUMP, "profile_skin_visual_cook::on_configs_loaded after the parts and the head, `mov edx,[esp+58h] "
                      "/ mov esi,[ebp+0Ch]`: bo_visual_entry, a Blackout match's band, back at 0x2056F7", None, None),
+    0x25CD34: (CALLEE, "game_world::on_keyboard_action's show_player_list (esi the hud, the byte pushed; `ret 4`): "
+                       "bo_tab_entry, Tab kept for Blackout's input, then the call", None, None),
+    0x2421B0: (JUMP, "process_first_person_mode's epilogue `pop edi / pop esi / pop ebx / mov esp,ebp` (ebx the "
+                     "handler): bo_input_entry, Blackout's Tab takes moves and acts out of the mask, back at "
+                     "0x2421B5", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}

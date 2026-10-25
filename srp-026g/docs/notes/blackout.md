@@ -31,6 +31,14 @@ changes of 2026-10-25 are in. Nothing here ships until the owner says so.
   rest when play starts.
 - **Tab held:** the ammo (in the weapon and carried) and the quick-use slots with their counts;
   hidden again when Tab is let go. Never the player list or the score (the owner, 2026-10-25).
+- **Tab held stops the player:** no walking, sprinting or jumping (a crouch stays, it does not
+  move); no fire, aim, reload, held breath, grenade, melee, use, drop or quick use. The mouse
+  look, the weapon keys, the fire mode, spot and the suicide key stay.
+- **On Tab's release:** the moves come back at once; an act whose key was held through Tab acts
+  again only after it is let go and pressed again (nothing fires on the release).
+- **In step for everyone:** the local input is filtered before it is sent, as if those keys were
+  not pressed; no rule of the match changes (every game, a late joiner and a replay play the
+  input sent).
 - **Kept:** the screen effects (pain edges, blood, grenade flash), the Esc menu, the kit screen's
   cursor; keys 1 to 3 pick a kit.
 - **F11 does nothing**; a replay's controls still toggle with it.
@@ -72,7 +80,10 @@ changes of 2026-10-25 are in. Nothing here ships until the owner says so.
     `root.hide_interface`) and locks F11;
   - Research's per-frame entry of `update_player_icons` runs neither it nor the units' markers in
     a Blackout match;
-  - `profile_skin_visual_cook::on_configs_loaded` adds the band of the player's torso and team.
+  - `profile_skin_visual_cook::on_configs_loaded` adds the band of the player's torso and team;
+  - the game world's Tab (its `show_player_list` call, 0x25CD34) is kept, and the input builder's
+    end (`process_first_person_mode`, 0x2421B0) takes the moves and acts out of the actions mask
+    while it is held.
 - **The hud movie:** `force_interface_hidden` hides the root as F11 does and keeps the countdown
   (`pregameInfo`) in a layer over it, placed as the root; while forced, the game's Tab
   (`show_player_list`) moves the ammo (`ammoInd`) and the quick-use slots into that layer and back

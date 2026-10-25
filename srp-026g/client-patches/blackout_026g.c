@@ -95,6 +95,23 @@ static const u8 *torso_of(u8 *visual, u32 count) {
 /* The options last read (a match's or a replay's). */
 static u8 *bo_last;
 
+/* Tab held (the Tab list the game asks for), and the blocked actions held
+ * through it (a key held through Tab acts again only after it is let go). */
+static u32 bo_tab_down, bo_held;
+
+u32 bo_match(void);
+
+/* The input's actions mask (process_first_person_mode, handler+33Ch; the
+ * bits: srp's drive.rs::key). While Tab is held in a Blackout match the
+ * player neither moves nor acts: these are taken out as if not pressed. */
+enum {
+    MOVES = 0x1 | 0x2 | 0x4 | 0x8 | 0x200,              /* forward, back, left, right, sprint */
+    ACTS = 0x10 | 0x20 | 0x40 | 0x80 | 0xFC000 |        /* jump, fire, reload, aim, quick use 1..6 */
+           0x100000 | 0x200000 | 0x400000 | 0x800000 |  /* hold breath, use, drop, grenade */
+           0x8000000,                                   /* melee */
+    BLOCKED = MOVES | ACTS,
+};
+
 /* A buffer_string {begin, end, the buffer's end} made `text` (as the game's
  * own copies: at most up to the buffer's end, then the terminator). */
 static void set_text(u8 **string, const char *text) {
@@ -133,6 +150,30 @@ void bo_options(u8 *options, u8 **reader) {
         }
     }
     AT(options, OPTIONS_BLACKOUT, u32) = on ? BO_MAGIC : 0;
+    bo_tab_down = bo_held = 0;
+}
+
+/* game_world::on_keyboard_action's show_player_list: Tab down or up. */
+void bo_tab(u32 down) {
+    bo_tab_down = (down & 0xFF) != 0;
+}
+
+/* The input's actions mask as built: in a Blackout match, while Tab is held,
+ * no move and no act (the look stays); after it, an act whose key was held
+ * through Tab stays out until the key is let go (nothing fires on Tab's
+ * release), a move comes back at once. */
+void bo_input(u32 *mask) {
+    if (!bo_match()) {
+        bo_held = 0;
+        return;
+    }
+    if (bo_tab_down) {
+        bo_held = *mask & ACTS;
+        *mask &= ~(u32)BLOCKED;
+        return;
+    }
+    bo_held &= *mask;
+    *mask &= ~bo_held;
 }
 
 /* 1 when the options last read are a Blackout match's. */

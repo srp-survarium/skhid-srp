@@ -57,6 +57,12 @@ RECORDS, RECORD_SIZE, COUNT = 0x234, 0xC0C, 0xF324
 FRAME = 0x500                          # on_configs_loaded's frame below ebp (its esp is ebp - 5A4h and more)
 TORSO = b"character/human/edge/edge_hunter_01_torso_s1"
 ICONS_SITE, ICONS_BACK, PLAYER_ICONS = 0x23B206, 0x23B20C, 0x23AA10
+TAB_SITE, TAB_BACK, SHOW_PLAYER_LIST = 0x25CD34, 0x25CD39, 0x2384C0
+INPUT_SITE, INPUT_MASK = 0x2421B0, 0x33C
+# the input's bits (srp's drive.rs::key)
+FORWARD, BACK, LEFT, RIGHT, JUMP, FIRE, RELOAD, AIM = 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80
+CROUCH, SPRINT, WEAPON_1, GRENADE, MELEE, SPOT = 0x100, 0x200, 0x1000, 0x800000, 0x8000000, 0x10000000
+QUICK_1, USE = 0x4000, 0x200000
 
 
 class Run(hide.Run):
@@ -121,6 +127,44 @@ class Run(hide.Run):
         kept = all(regs[r] == v for r, v in hide.GAME.items() if r != UC_X86_REG_EDI) and \
             regs[UC_X86_REG_EDI] == hide.HUD
         return self.fed, self.stopped == ICONS_BACK and esp == sp, kept
+
+    # game_world::on_keyboard_action's call of show_player_list (0x25CD34), the byte pushed:
+    # back at 0x25CD39 with it popped, show_player_list (a stub) given the byte.
+    def tab(self, down):
+        emu = self.emu
+        given = []
+        def stub(emu, address, size, _):
+            sp = emu.reg_read(UC_X86_REG_ESP)
+            given.append(self.read(sp + 4) & 0xFF)
+            emu.reg_write(UC_X86_REG_ESP, sp + 8)
+            emu.reg_write(hide.UC_X86_REG_EIP, self.read(sp))
+        handle = emu.hook_add(hide.UC_HOOK_CODE, stub, begin=SHOW_PLAYER_LIST, end=SHOW_PLAYER_LIST)
+        sp = hide.STACK + 0x8000 - 4
+        self.word(sp, 0xABCDEF00 | down)
+        regs, esp = self.run(TAB_SITE, (TAB_BACK,), sp, {**hide.GAME, UC_X86_REG_ESI: hide.HUD})
+        emu.hook_del(handle)
+        return self.stopped == TAB_BACK and esp == sp + 4 and given == [down] \
+            and all(regs[r] == v for r, v in hide.GAME.items() if r != UC_X86_REG_ESI)
+
+    # process_first_person_mode's epilogue (0x2421B0) on a handler whose mask is `mask`: the
+    # mask after it, and whether it returned as the function (`ret 8`, edi esi ebx ebp popped).
+    def input(self, mask):
+        emu = self.emu
+        handler = hide.HANDLER
+        emu.mem_write(handler, bytes(0x400))
+        self.word(handler + INPUT_MASK, mask)
+        ebp = hide.STACK + 0x9000
+        for i, value in enumerate((0x0BADEBB0, hide.SENTINEL, handler, 1)):
+            self.word(ebp + 4 * i, value)
+        sp = ebp - 0x100
+        for i, value in enumerate((0xED1ED1ED, 0xE51E51E5, 0xEB1EB1EB)):
+            self.word(sp + 4 * i, value)
+        regs, esp = self.run(INPUT_SITE, (hide.SENTINEL,), sp, {**hide.GAME, UC_X86_REG_EBX: handler,
+                                                                  UC_X86_REG_EBP: ebp})
+        back = self.stopped == hide.SENTINEL and esp == ebp + 16 and regs[UC_X86_REG_EDI] == 0xED1ED1ED \
+            and regs[UC_X86_REG_ESI] == 0xE51E51E5 and regs[UC_X86_REG_EBX] == 0xEB1EB1EB \
+            and regs[UC_X86_REG_EBP] == 0x0BADEBB0
+        return self.read(handler + INPUT_MASK), back
 
     def string(self, at):
         begin, end, cap = struct.unpack("<III", self.emu.mem_read(at, 12))
@@ -283,6 +327,37 @@ def main():
             report(back and kept and calls == want,
                    f"{name}, {'the build' if run is patched else 'the original'}: update_player_icons run "
                    f"{calls} time(s) (wanted {want}), back at 0x23b20c with the ui popped, the registers kept")
+
+    print("Tab in a Blackout match (show_player_list's call 0x25CD34, the input builder's end 0x2421B0)")
+    moving = FORWARD | SPRINT | FIRE | AIM | CROUCH | WEAPON_1
+    steps = [
+        ("Tab up: moving, sprinting, firing and aiming, crouched", 0, moving, moving),
+        ("Tab down: no move, no fire, no aim; the crouch and the weapon key stay", 1, moving,
+         CROUCH | WEAPON_1),
+        ("Tab held, fire still held: a grenade, melee, use, quick use 1, jump, reload pressed: none of them; "
+         "spot stays", 1, FIRE | GRENADE | MELEE | USE | QUICK_1 | JUMP | RELOAD | SPOT, SPOT),
+        ("Tab up, fire and the grenade still held: they stay out, the moves come back", 0,
+         FORWARD | LEFT | FIRE | GRENADE, FORWARD | LEFT),
+        ("fire let go, the grenade still held", 0, FORWARD | GRENADE, FORWARD),
+        ("fire pressed again: it fires; the grenade let go", 0, FORWARD | FIRE, FORWARD | FIRE),
+        ("the grenade pressed again", 0, GRENADE, GRENADE),
+    ]
+    for run in (stock, patched):
+        run.options(empty_options(srpx((2, b"\x01"))))
+    for name, down, mask, want in steps:
+        a_tab, b_tab = stock.tab(down), patched.tab(down)
+        a, b = stock.input(mask), patched.input(mask)
+        ok = a_tab and b_tab and a == (mask, True) and b == (want, True)
+        report(ok, f"{name}: {b[0]:#x} sent (pressed {mask:#x}); the original sends what is pressed; "
+                   "show_player_list given the byte, the builder returns as itself")
+    for run in (stock, patched):
+        run.options(empty_options(b""))
+    patched.tab(1)
+    b = patched.input(moving)
+    report(b == (moving, True), f"a match without Blackout, Tab down: {b[0]:#x} sent, all that is pressed")
+    patched.options(empty_options(srpx((2, b"\x01"))))
+    b = patched.input(moving)
+    report(b == (moving, True), "a new Blackout match's static info forgets a Tab of before: all that is pressed")
 
     if failed:
         sys.exit(f"{failed} case(s) failed")

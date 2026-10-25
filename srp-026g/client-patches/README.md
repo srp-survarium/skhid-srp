@@ -3590,6 +3590,13 @@ The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.
   and while Tab is held the ammo and the quick-use slots, never the list: HUD.as) and the icons `root.hide_interface(true)` for the match, and the case 19h (F11) goes
   on at 0x25CF0D with nothing invoked (a replay's controls still toggle); not forced, both are
   shown and F11 works.
+- **Tab stops the player.** game_world::on_keyboard_action's call of show_player_list
+  (0x25CD34, CALLEE) keeps whether Tab is down; process_first_person_mode's epilogue (0x2421B0,
+  JUMP, back at 0x2421B5) then takes the moves (forward, back, strafes, sprint) and the acts
+  (jump, fire, reload, aim, held breath, quick use, use, drop, grenade, melee) out of the input's
+  actions mask (+33Ch) while it is held in a Blackout match; an act held through Tab stays out
+  until its key is let go. The input is filtered before it is applied and sent: every game plays
+  what was sent, no rule changes.
 - **Nothing over the world.** Research's per-frame entry at update_ui's call of
   update_player_icons (0x23B207, patch 53) runs neither it nor the units' markers in a Blackout
   match: the markers' movie gets no name, marker or icon of any player or object.

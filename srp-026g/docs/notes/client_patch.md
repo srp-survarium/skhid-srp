@@ -1746,7 +1746,17 @@ A player's ask through the owner: a key that hides the whole interface, the lobb
   owner still saw a teammate's name and marker: LIKELY the movie's root does not exist yet then (a movie
   never advanced), so the Invoke does nothing. Plain F11 is a key in a running match (the root exists):
   not affected. Now a Blackout match does not feed the movie at all.
-- **The patch:** README patch 65. Exe code: the hook at 0x2056F0 (`bo_visual_entry`, JUMP), the
+- **Tab** (PROVEN in the code). game_world::on_keyboard_action (0x25CD00) asks the keyboard for DIK_TAB
+  (0x25CD22, push 0Fh) at every key and passes it to game_world_ui::show_player_list (0x2384C0, esi
+  the hud, its state +0BAh); Tab is no action of the binder. process_first_person_mode (0x241250,
+  ebx the handler) builds the input's actions mask at handler+33Ch from action_present (0x242460)
+  per action (bits 0..28: forward 0Bh 1, back 0Ch 2, rstrafe 0Eh 8, lstrafe 0Dh 4, jump 4 10h, fire
+  26h 20h, reload 27h 40h, aim 28h/29h 80h, crouch 5/6 100h, sprint 7/8 200h, fire mode 9 400h, ammo
+  type 0Ah 800h, wpn_1/2 1Dh/1Eh 1000h/2000h, quick use 39h..3Eh 4000h..80000h, breath 2Ah 100000h,
+  use 35h 200000h, drop 36h 400000h, wheel 24h/25h 2000000h/4000000h, grenade 20h 800000h, melee 21h
+  8000000h, spot 22h 10000000h) and returns through 0x2421B0 (its early exit at 0x241284 too).
+- **The patch:** README patch 65. Exe code: the hooks at 0x2056F0 (`bo_visual_entry`, JUMP), 0x25CD34
+  (`bo_tab_entry`, CALLEE) and 0x2421B0 (`bo_input_entry`, JUMP), the
   call of `bo_options` in patch 63's options entry, `hide_ui_force` (the hud's
   root.force_interface_hidden, the markers' root.hide_interface) and the `hide_ui_forced` byte in
   patch 62, `bo_match` in Research's per-frame icons entry (patch 53, 0x23B207). Content: the pack
