@@ -307,6 +307,33 @@ pub(crate) fn real_bot_cost() {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
+    // The game data the run is on. `SRP_GAME_DATA` is the server's own file,
+    // read as srp reads it (`game_data::init`, with every table check), before
+    // any table is used: a file that fails refuses the run, and the bench never
+    // falls back to the built-in archive without saying so. The built-in
+    // archive is the stock game with test patches 14-16, not the live game's
+    // items, weapons and modes (`resources/game-026g/README.md`).
+    let live_data = match bench_settings().var_os("SRP_GAME_DATA") {
+        Some(path) if !path.is_empty() => {
+            let data = survarium::v026g::game_data::init().unwrap_or_else(|cause| {
+                panic!("SRP_GAME_DATA {path:?}: {cause}: the bench does not run on other data")
+            });
+            eprintln!(
+                "game data: {} ({} files; made of {})",
+                data.origin,
+                data.len(),
+                data.made_of()
+            );
+            true
+        }
+        _ => {
+            eprintln!(
+                "game data: THE BUILT-IN TEST ARCHIVE, not the live game's (the stock 0.26g with test \
+                 patches 14-16); set SRP_GAME_DATA to the server's file. Respawn times stay the stand-in's constants."
+            );
+            false
+        }
+    };
     let table = bench_settings().var_os("SRP_BOT_ROUTES")
         .map(|path| super::routes::RouteTable::load(std::path::Path::new(&path)).unwrap());
     let limit_s: u32 = bench_settings().number("SRP_BENCH_SECONDS")
@@ -417,6 +444,12 @@ pub(crate) fn real_bot_cost() {
                 timed,
             );
             game.use_line = bench_settings().flag("SRP_BENCH_USE_LINE");
+            // The respawn delay from the live data's mode config and the radio.
+            if live_data {
+                game.respawn_ms =
+                    respawn_ms_from_data(level, survarium::v026g::maps::weather::DAY, mode);
+                eprintln!("  respawn from the game data: {:?} ms", game.respawn_ms);
+            }
             if let Some(m) = bench_settings().number("SRP_BENCH_TAKE_M")
             {
                 game.take_m = m;
