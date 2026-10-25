@@ -418,42 +418,6 @@ static void test_prepare(void) {
     CHECK(!rr_prepare(&p, 500));
 }
 
-static void test_ms_left(void) {
-    struct rr_params p = params_027d();
-    struct rr_state s;
-    rr_u32 time = 0;
-    fresh(&s, &p);
-    CHECK(rr_ms_left(&s, &p, 0) == 0); /* nobody inside */
-    place(3, 0, 0);
-    run(&s, &p, 50, &time, 0);
-    CHECK(rr_ms_left(&s, &p, 0) == 19950); /* one player: 20 s */
-    place(4, 0, 0);
-    run(&s, &p, 50, &time, 0);
-    /* two: 18 s for a whole capture; 2.5 + 2.78 % done */
-    CHECK(rr_ms_left(&s, &p, 0) == (RR_FULL - s.zones[0].progress + p.capture_rate[1] - 1) / p.capture_rate[1]);
-    place(5, 1, 0);
-    run(&s, &p, 50, &time, 0);
-    CHECK(rr_ms_left(&s, &p, 0) == 0); /* contested */
-    away(5);
-    away(4);
-    run(&s, &p, 20000, &time, 0);
-    CHECK(s.zones[0].owner == 0 && rr_ms_left(&s, &p, 0) == 0); /* owned and full */
-    away(3);
-    place(5, 1, 0);
-    run(&s, &p, 50, &time, 0);
-    CHECK(rr_ms_left(&s, &p, 0) == 19950); /* neutralising: the ownership drains */
-    run(&s, &p, 20000, &time, 0); /* drained at 20 s, neutral the tick after */
-    CHECK(s.zones[0].capturing == 1 && s.zones[0].owner == RR_NOBODY);
-    CHECK(rr_ms_left(&s, &p, 0) == (RR_FULL - s.zones[0].progress + p.capture_rate[0] - 1) / p.capture_rate[0]);
-    /* a unit nobody took yet: the whole capture, before the first tick moves it */
-    fresh(&s, &p);
-    s.zones[1].count[1] = 1;
-    CHECK(rr_ms_left(&s, &p, 1) == 20000);
-    s.end_time = 1000;
-    CHECK(rr_ms_left(&s, &p, 1) == 0); /* the end: nothing moves */
-    CHECK(rr_ms_left(&s, &p, 3) == 0);
-}
-
 int main(void) {
     test_inside();
     test_capture_alone();
@@ -471,7 +435,6 @@ int main(void) {
     test_left_and_dead();
     test_wire();
     test_prepare();
-    test_ms_left();
     if (failures) {
         fprintf(stderr, "%d failures\n", failures);
         return 1;

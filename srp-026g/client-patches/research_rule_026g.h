@@ -130,14 +130,6 @@ rr_u32 rr_tick(struct rr_state *, const struct rr_params *, const struct rr_play
 rr_u32 rr_kill(const struct rr_state *, rr_u8 killer, rr_u8 victim, rr_u8 killer_team, rr_u8 victim_team,
                struct rr_award *out);
 
-/* For the hud: the milliseconds left of what the players inside the unit
- * are doing at this speed (rr_tick's), rounded up: a capture (or its owner
- * filling a drained one back up) to full, or draining the other team's
- * capture or ownership to neutral; a unit nobody took yet, the whole
- * capture. 0 when nothing moves it: nobody inside, both teams inside, owned
- * and full, the end set. */
-rr_u32 rr_ms_left(const struct rr_state *, const struct rr_params *, rr_u32 zone);
-
 void rr_entered(struct rr_state *, rr_u8 place);
 void rr_left(struct rr_state *, rr_u8 place);
 
