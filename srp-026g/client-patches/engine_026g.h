@@ -115,7 +115,4 @@ void engine_cc_bool(void *object, const char *name, unsigned char *value, unsign
 /* 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX */
 unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle);
 
-/* 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL */
-unsigned int engine_point_to_screen(void *game, const float *point, float *out);
-
 #endif

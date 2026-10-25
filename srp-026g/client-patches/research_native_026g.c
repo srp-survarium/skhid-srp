@@ -5,11 +5,8 @@
  *   `register`), whose resources are `rn_rule`s: game_match_rule_base (type 5)
  *   with the twenty slots of 0.26g's rules, the tick a delegate of the
  *   world's second tick list, as timelimit_rule_core's;
- * - the hud (entry `hud`, game_world_ui::update_ui past its gates): the
- *   movie's root.research_update, the units' messages, the end's;
- * - the markers (entry `icons`, every frame of update_ui, at its call of
- *   update_player_icons): the units on the screen (the player-icons movie's
- *   root.research_markers) and, in play, research_update too.
+ * - the hud (entry `hud`, every frame of game_world_ui::update_ui): the
+ *   movie's root.research_update, the units' messages, the end's.
  *
  * Every address is a VA of the original exe (image base 0x10000; it is never
  * rebased). The proof of each is in docs/notes/client_patch.md section 3.50
@@ -46,8 +43,7 @@ enum {
 /* The game's functions (engine_026g.h): engine_register_cook 0x102D10,
  * engine_malloc 0xE4F90, engine_match_rule_base 0x313900, engine_cfg_child
  * 0xF6B10 and engine_cfg_has 0xF6C00, engine_movie_invoke 0x511600,
- * engine_show_message 0x2375C0, engine_point_to_screen 0x23DEC0,
- * engine_statistics_notify 0x2F5D40 and the
+ * engine_show_message 0x2375C0, engine_statistics_notify 0x2F5D40 and the
  * field writers buffer_writer::w<unsigned char/short/int> (tdm_rule_core::
  * serialize 0x316340): engine_write_u8 0x1F3DE0, engine_write_u16 0x2F5DA0
  * and engine_write_u32 0x1F48A0, which append the value to the writer's
@@ -101,18 +97,10 @@ enum {
 #define HUD_TEAM_POINTS 0x90
 /* game_world_ui */
 #define UI_GAME 0x18
-#define UI_HUD 0x8                 /* the hud movie's holder: [[ui+8]+108h]+4 */
-#define UI_ICONS 0x10              /* the player-icons movie's (update_player_icons 0x23ACC1, create_hud_icon 0x23BE31) */
+#define UI_HUD 0x8
 #define UI_MODE 0x20
 #define GAME_MATCH 0x4D4C          /* -> the match; its world at +1F8h */
 #define MATCH_WORLD 0x1F8
-/* -> the camera director, its position at +34h: update_player_icons sizes a
- * player's marker by its distance from there (0x23AAF2, 0x23AB63) */
-#define GAME_CAMERA 0x98
-#define CAMERA_POSITION 0x34
-/* A unit's marker stands this far over the unit's position (its object's,
- * where 0.27d's capturable_zone put its marker, 0x299D15), over the props. */
-#define MARKER_LIFT 2.0f
 
 /* the rules' default slots (game_match_rule_base and tdm_rule_core) */
 #define RULE_DELETE 0x266710
@@ -144,8 +132,6 @@ struct rn_hud {
     u8 completed;
     u32 shown;                     /* frames since the movie got its last update */
     u32 sum;                       /* a checksum of what it got */
-    u8 *icons;                     /* the player-icons movie showing the markers, 0 none */
-    u32 icons_shown, icons_sum;    /* as shown and sum, of the markers */
 };
 
 struct rn_globals {
@@ -229,12 +215,6 @@ static float number(const cfg *value) {
 }
 
 static u32 rounded(float value) { return value <= 0 ? 0 : (u32)(value + 0.5f); }
-
-static float root(float value) {
-    float out;
-    __asm__("sqrtss %1, %0" : "=x"(out) : "x"(value));
-    return out;
-}
 
 static void vector(const cfg *value, float out[3]) {
     const float *at = (const float *)value->data;
@@ -663,13 +643,6 @@ static struct rn_rule *find_rule(u8 *ui) {
     return 0;
 }
 
-/* A movie of the ui: [[ui+holder]+108h]+4, 0 while there is none. */
-static u8 *movie_of(u8 *ui, u32 holder) {
-    u8 *at = AT(ui, holder, u8 *);
-    at = at ? AT(at, 0x108, u8 *) : 0;
-    return at ? AT(at, 4, u8 *) : 0;
-}
-
 static void message(u8 *ui, const char *key) {
     engine_show_message(key, ui, 0x21, 0x14, 6000);
 }
@@ -679,195 +652,28 @@ static const char *const CAPTURED[RR_MAX_ZONES] = {"st_research_unit_a_captured"
 static const char *const LOST[RR_MAX_ZONES] = {"st_research_unit_a_lost", "st_research_unit_b_lost",
                                                  "st_research_unit_c_lost"};
 
-/* A movie call's numbers. Calls, not inlined: research.code stays in its
- * three pages. */
-struct rn_call {
-    u32 n;
-    gfx_value values[5 + 10 * RR_MAX_ZONES];
-};
-
-static __attribute__((noinline)) void put_number(struct rn_call *call, double value) {
-    gfx_value *at = &call->values[call->n++];
-    at->object = 0;
-    at->type = GFX_NUMBER;
-    at->value = value;
-    at->extra[0] = at->extra[1] = 0;
-}
-
-static __attribute__((noinline)) void put(struct rn_call *call, int value) { put_number(call, value); }
-
-/* Sends the call to `movie` when its numbers differ from the last ones
- * (`*sum`) or 60 frames went by since (`*frames`): a change at once, and
- * every second anyway. */
-static void send(u8 *movie, const char *method, struct rn_call *call, u32 *sum, u32 *frames) {
-    u32 hash = 0;
-    const u32 *word = (const u32 *)call->values;
-    for (u32 i = 0; i < call->n * sizeof(gfx_value) / 4; ++i) hash = hash * 31 + word[i];
-    if (hash == *sum && ++*frames < 60) return;
-    *sum = hash;
-    *frames = 0;
-    engine_movie_invoke(movie, method, 0, call->values, call->n);
-}
-
-static const char RN_MARKERS[] = "root.research_markers";
-
-/* The markers gone from the player-icons movie that showed them, when it is
- * still this ui's (a match of another mode, or none). */
-static void hide_markers(u8 *ui) {
-    struct rn_hud *hud = &G->hud;
-    if (!hud->icons) return;
-    if (movie_of(ui, UI_ICONS) == hud->icons) {
-        struct rn_call call = {0};
-        put(&call, 0);
-        put(&call, 0);
-        engine_movie_invoke(hud->icons, RN_MARKERS, 0, call.values, call.n);
-    }
-    hud->icons = 0;
-}
-
-static int whole(float value) { return (int)(value + 0.5f); }
-
-/* What the hud and the markers show of a unit's time left: whole seconds
- * (rounded up, as ms), so that the numbers change once a second. */
-struct rn_view {
-    struct rn_rule *rule;
-    u32 local, place;              /* the game's own team (RR_NOBODY none) and roster place */
-    u32 left[RR_MAX_ZONES];
-};
-
-static struct rn_rule *view_of(u8 *ui, struct rn_view *view) {
-    struct rn_rule *rule = AT(ui, UI_MODE, u32) == RN_MODE ? find_rule(ui) : 0;
-    if (!rule || !rule->valid || !rule->core) return 0;
-    const struct rr_state *state = &rule->state;
-    view->rule = rule;
-    view->place = AT(rule->core, CORE_LOCAL_PLACE, u8);
-    view->local = view->place < RR_PLAYERS ? team_of(player_of(rule, view->place)) : RR_NOBODY;
-    /* the rule moves the units only in play (rn_tick) */
-    for (u32 z = 0; z < RR_MAX_ZONES; ++z) {
-        u32 ms = z < state->zone_count && AT(rule->core, CORE_STATE, u32) == 3 ? rr_ms_left(state, &rule->params, z) : 0;
-        view->left[z] = (ms + 999) / 1000 * 1000;
-    }
-    return rule;
-}
-
-static int inside(const struct rn_view *view, const struct rr_zone *zone) {
-    return view->local <= 1 && view->place < RR_PLAYERS && (zone->present[view->local] >> view->place & 1);
-}
-
-/* The units on the screen, as 0.27d's player icons of kind 2 (its
- * capturable_zone's tick, 0x299D22 -> 0x234BE0: the zone's position through
- * the icons' placer 0x234C20 and the same point_to_screen; off the screen or
- * behind the camera, hidden): root.research_markers(own team, units, then
- * per unit cp_id, on the screen, x, y (pixels), its distance from the camera
- * (m), owner, capturing, progress 0..100, ms left, own player inside). */
-static void markers(u8 *ui, const struct rn_view *view) {
-    struct rn_hud *hud = &G->hud;
-    u8 *icons = movie_of(ui, UI_ICONS);
-    u8 *game = AT(ui, UI_GAME, u8 *);
-    u8 *camera = game ? AT(game, GAME_CAMERA, u8 *) : 0;
-    if (!icons || !camera) return;
-    if (icons != hud->icons) hud->icons_shown = 60;
-    hud->icons = icons;
-    const struct rn_rule *rule = view->rule;
-    const struct rr_state *state = &rule->state;
-    struct rn_call call = {0};
-    put(&call, view->local > 1 ? 0 : (int)view->local);
-    put(&call, (int)state->zone_count);
-    for (u32 z = 0; z < state->zone_count; ++z) {
-        const struct rr_zone *zone = &state->zones[z];
-        const struct rr_zone_def *def = &rule->params.zones[z];
-        float point[3] = {def->position[0], def->position[1] + MARKER_LIFT, def->position[2]}, at[2] = {0, 0}, d[3];
-        int shown = (int)(engine_point_to_screen(game, point, at) & 1);
-        for (int axis = 0; axis < 3; ++axis) d[axis] = point[axis] - AT(camera, CAMERA_POSITION + 4 * axis, float);
-        put(&call, (int)def->cp_id);
-        put(&call, shown);
-        put(&call, shown ? whole(at[0]) : 0);
-        put(&call, shown ? whole(at[1]) : 0);
-        put(&call, whole(root(d[0] * d[0] + d[1] * d[1] + d[2] * d[2])));
-        put(&call, zone->owner);
-        put(&call, zone->capturing);
-        put_number(&call, (int)(zone->progress / (RR_FULL / 1000)) / 10.0);
-        put(&call, (int)view->left[z]);
-        put(&call, inside(view, zone));
-    }
-    send(icons, RN_MARKERS, &call, &hud->icons_sum, &hud->icons_shown);
-}
-
-/* root.research_update(local team, points 0, 1, the goal, units, then per
- * unit cp_id, x, -z, owner, capturing, progress 0..100, inside 0, inside 1,
- * whether the game's own player is inside; then per unit the ms left of its
- * capture or neutralisation, whole seconds, 0 none), at a change and every
- * 60 frames of the caller's. */
-static void units(u8 *ui, const struct rn_view *view) {
-    struct rn_hud *hud = &G->hud;
-    const struct rn_rule *rule = view->rule;
-    const struct rr_state *state = &rule->state;
-    u8 *movie = movie_of(ui, UI_HUD);
-    if (!movie) return;
-    struct rn_call call = {0};
-    put(&call, view->local > 1 ? 0 : (int)view->local);
-    put(&call, state->score[0]);
-    put(&call, state->score[1]);
-    put(&call, (int)(rule->params.target / RR_MICRO));
-    put(&call, (int)state->zone_count);
-    for (u32 z = 0; z < state->zone_count; ++z) {
-        const struct rr_zone *zone = &state->zones[z];
-        const struct rr_zone_def *def = &rule->params.zones[z];
-        put(&call, (int)def->cp_id);
-        put_number(&call, def->position[0]);
-        put_number(&call, -def->position[2]);
-        put(&call, zone->owner);
-        put(&call, zone->capturing);
-        put_number(&call, (int)(zone->progress / (RR_FULL / 1000)) / 10.0);
-        put(&call, zone->count[0]);
-        put(&call, zone->count[1]);
-        put(&call, inside(view, zone));
-    }
-    /* after the units' nine numbers each, so that a movie reading nine a
-     * unit reads what it did */
-    for (u32 z = 0; z < state->zone_count; ++z) put(&call, (int)view->left[z]);
-    send(movie, "root.research_update", &call, &hud->sum, &hud->shown);
-}
-
-/* Every frame, from update_player_icons' call in update_ui (0x23B207, before
- * update_ui's 40 ms gate and its hud-state checksum, past which the rest of
- * the hud runs about once a second, at a change of the match's seconds):
- * the units' markers while the match is in play (the time rule's state 3,
- * no end set), none in another mode, without a rule, in the countdown or
- * after the end (end_time set: the time rule's state stays 3);
- * and in play the hud's units too, so that their rings and timers follow
- * the capture. */
-void rn_markers(u8 *ui) {
-    struct rn_view view;
-    /* the time rule stays in state 3 after the end: Research's end is its
-     * end_time (the final score still reaches the hud through rn_hud) */
-    if (!view_of(ui, &view) || AT(view.rule->core, CORE_STATE, u32) != 3 || view.rule->state.end_time != RR_NEVER) {
-        hide_markers(ui);
-        return;
-    }
-    markers(ui, &view);
-    units(ui, &view);
-}
-
-/* game_world_ui::update_ui after the teams' points (0x23B3DE, behind its
- * gates): the units on the hud (research_update), a message when a unit
- * changes hands or the match ends. */
+/* Every frame of the match's hud (game_world_ui::update_ui, after the teams'
+ * points): root.research_update(local team, points 0, 1, the goal, units,
+ * then per unit cp_id, x, -z, owner, capturing, progress 0..100, inside 0,
+ * inside 1, whether the game's own player is inside), and a message when a
+ * unit changes hands or the match ends. */
 void rn_hud(u8 *ui) {
-    struct rn_view view;
-    struct rn_hud *hud = &G->hud;
     if (AT(ui, UI_MODE, u32) != RN_MODE) return;
-    struct rn_rule *rule = view_of(ui, &view);
-    if (!rule) {
+    struct rn_rule *rule = find_rule(ui);
+    struct rn_hud *hud = &G->hud;
+    if (!rule || !rule->valid || !rule->core) {
         hud->rule = 0;
         return;
     }
     const struct rr_state *state = &rule->state;
-    u32 local = view.local;
+    u32 place = AT(rule->core, CORE_LOCAL_PLACE, u8);
+    u32 local = place < RR_PLAYERS ? team_of(player_of(rule, place)) : RR_NOBODY;
     if (hud->rule != rule) {
         hud->rule = rule;
         for (u32 z = 0; z < RR_MAX_ZONES; ++z) hud->owner[z] = z < state->zone_count ? state->zones[z].owner : 2;
         hud->completed = state->end_time != RR_NEVER;
-        hud->shown = 60;
+        hud->sum = 0;
+        hud->shown = 0;
     }
     if (local <= 1) {
         for (u32 z = 0; z < state->zone_count; ++z) {
@@ -886,5 +692,44 @@ void rn_hud(u8 *ui) {
         }
         hud->completed = completed;
     }
-    units(ui, &view);
+    gfx_value values[5 + 9 * RR_MAX_ZONES];
+    u32 n = 0, sum = 0;
+#define PUT(v)                                                                                                     \
+    do {                                                                                                           \
+        values[n].object = 0;                                                                                      \
+        values[n].type = GFX_NUMBER;                                                                               \
+        values[n].value = (v);                                                                                     \
+        values[n].extra[0] = values[n].extra[1] = 0;                                                               \
+        ++n;                                                                                                       \
+    } while (0)
+    PUT(local > 1 ? 0 : local);
+    PUT(state->score[0]);
+    PUT(state->score[1]);
+    PUT(rule->params.target / RR_MICRO);
+    PUT(state->zone_count);
+    for (u32 z = 0; z < state->zone_count; ++z) {
+        const struct rr_zone *zone = &state->zones[z];
+        const struct rr_zone_def *def = &rule->params.zones[z];
+        u32 progress = zone->progress / (RR_FULL / 1000);
+        PUT(def->cp_id);
+        PUT(def->position[0]);
+        PUT(-def->position[2]);
+        PUT(zone->owner);
+        PUT(zone->capturing);
+        PUT(progress / 10.0);
+        PUT(zone->count[0]);
+        PUT(zone->count[1]);
+        u32 inside = local <= 1 && place < RR_PLAYERS && (zone->present[local] >> place & 1);
+        PUT(inside);
+        sum = sum * 31 + progress * 7 + zone->owner * 3 + zone->capturing + zone->count[0] * 11 + zone->count[1] * 13 +
+              inside * 17;
+    }
+#undef PUT
+    sum = sum * 31 + state->score[0] * 1009 + state->score[1] * 17 + local;
+    /* the movie hears of a change at once, and every second (60 frames) anyway */
+    if (sum == hud->sum && ++hud->shown < 60) return;
+    hud->sum = sum;
+    hud->shown = 0;
+    u8 *movie = AT(AT(AT(ui, UI_HUD, u8 *), 0x108, u8 *), 4, u8 *);
+    engine_movie_invoke(movie, "root.research_update", 0, values, n);
 }

@@ -268,19 +268,6 @@ rr_u32 rr_kill(const struct rr_state *state, rr_u8 killer, rr_u8 victim, rr_u8 k
     return 0;
 }
 
-rr_u32 rr_ms_left(const struct rr_state *state, const struct rr_params *params, rr_u32 index) {
-    if (index >= state->zone_count || state->end_time != RR_NEVER || !params->capture_count) return 0;
-    const struct rr_zone *zone = &state->zones[index];
-    if (!zone->count[0] == !zone->count[1]) return 0;
-    rr_u8 team = zone->count[0] ? 0 : 1;
-    if (zone->owner == team && zone->progress == RR_FULL) return 0;
-    rr_u32 rate = params->capture_rate[LIMIT(zone->count[team], params->capture_count) - 1];
-    /* tick_zone: the team's own capture fills; another's, or the
-     * ownership, drains first; from nothing, the capture starts */
-    rr_u32 left = zone->capturing == team ? RR_FULL - zone->progress : zone->progress ? zone->progress : RR_FULL;
-    return rate ? left / rate + (left % rate != 0) : 0;
-}
-
 void rr_entered(struct rr_state *state, rr_u8 place) {
     if (place < RR_PLAYERS) state->entered |= 1u << place;
 }
