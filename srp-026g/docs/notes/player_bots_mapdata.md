@@ -450,6 +450,31 @@ unreleased variants, so stored grids rebuild):
   near-lip floor that the search kept off. The exception is the edge floors
   leading in to a drop's take-off.
 
+**The erosion changes floors, not just costs.** Every bench number below is
+from binaries that include it. The grid's hard limits, checked at the PR's
+commit against base a6fac9de on all 24 projects:
+- **No plan into a shut pocket:** 0 on every map. No objective is in one or
+  unplanned.
+- **Objectives unreached:** 19 → 15.
+- **Reached floors:** 5.80 M → 5.94 M.
+- **Pockets with no way out:** 79 → 86, none planned into:
+  - level_03 +1, level_04 +1 and level_07 +3 (each day);
+  - level_05 −2 (each day), level_06_day_4 −1 and level_08_day_3 −1.
+- **Surest exits:** one pocket's got worse, level_06 day 2 and 3 at (46, 30,
+  101). It went from 5 floors with a sprint exit to 1 floor with none.
+- **Human positions** (the servers' 5 s worlds):
+  - on planned floors +10,140;
+  - unreached −5,587;
+  - with no floor near −4,555;
+  - on reached but unplanned floors 308 → 310 (lives 14 → 15).
+- **The three small shut pockets first logged with the erosion,** at level_07
+  (82, −25), level_06_day_4 (13.6, 108.6) and level_03 (−16, −15): all still
+  shut and none planned into. Human positions on their reached floors: none on
+  level_07 or level_06_day_4; on level_03, 3 (one life) on day 2 and 2 (one
+  life) on day 4. They stay grid gaps (follow-ups). Whether a bot that falls
+  in gets out is for unstuck's sweep.
+- The erosion's commit subject still reads "(WIP)"; that is wording only.
+
 **Why the band.** Every unplanned fall of the bench is off a lip of 1-5 m:
 1,410 of 1,410 on #402's tip, and 3,095 of 3,097 with the drop rule. The
 `near_fall` band, at falls deeper than 5 m, meets almost none of them.
