@@ -546,7 +546,8 @@ const LATE_RELAY_MARGIN_MS: u32 = 75;
 /// it is queued. Its owner's world time is not known here (its inputs are
 /// late because its clock or its line is), and one that comes after the
 /// owner's history passed the tick is refused quietly (match.md section
-/// 5.2).
+/// 5.2). One not acked within it counts as lost (`Game::check_in_flight`):
+/// most likely never taken, though a copy may have come and its ack not.
 const DROP_ORDER_LIFE: Duration = Duration::from_millis(450);
 
 /// The last 0xE6 sent.
@@ -902,13 +903,6 @@ pub(crate) struct Game {
     /// respawns a live player in the chosen kit where it stands. At most as
     /// many lives more than its deaths: [`PlayerResult::kit_changes`].
     kit_changes: Vec<u16>,
-    /// By place: the value of its latest kit choice relayed (0xF3). A game
-    /// keeps an empty place's next kit from that choice, while a snapshot
-    /// carries only the places in play: a game that started from one while
-    /// the place was empty has its lowest kit there. So when the place
-    /// comes back the choice goes to every game once more, for its entry
-    /// tick (`Game::roster_change`).
-    kit_choices: Vec<Option<u8>>,
     /// By place: whether a game of it loading long is left behind
     /// (`late_join::LOADING_GRACE`).
     load_waits: Vec<late_join::LoadWait>,
@@ -979,7 +973,6 @@ impl Game {
             state: None,
             best_streaks: vec![0; players],
             kit_changes: vec![0; players],
-            kit_choices: vec![None; players],
             load_waits: vec![late_join::LoadWait::First; players],
             ending: None,
             finished_at: None,
@@ -1988,41 +1981,14 @@ impl Game {
                 track(peer, serial, Flight::Roster(message.clone()), at);
             }
         }
-        // Back after a leave: its latest kit choice once more, for the
-        // entry tick, where every game spawns it. A game that was there
-        // before the leave has that choice as its next kit; one that
-        // started from a snapshot while the place was empty has the lowest
-        // kit there (the snapshot holds the places in play only), and spawned
-        // the player in it (live, 2026-10-25: two late joiners out of step
-        // from a returning player's entry tick, its kit 0 against 2). The
-        // game's kit delegate runs before the respawn in the step to the
-        // entry tick (0x321790 before 0x316820, both in update list 0).
-        let returns = self
-            .events
-            .iter()
-            .any(|(_, who, was_entry)| *who == index && !*was_entry);
-        if entered
-            && !stand_in
-            && returns
-            && let Some(value) = self.kit_choices.get(index).copied().flatten()
-        {
-            let what = Relayed::Profile {
-                tick: tick_byte(at),
-                value,
-            };
-            self.relay_to_others(index, &what, at, now);
-            // Its own game too, when it plays from a world before the
-            // entry (where its place was empty). One that is started
-            // after the entry (`enter_early`) has its kit in that world.
-            // A game takes a relay for its own place as any other: into
-            // its kit list, not sent back (match.md section 16).
-            if let Some(peer) = self.peers[index].as_mut()
-                && peer.stage == Stage::Live
-            {
-                send_kept(peer, &relay(index, &what));
-            }
-            self.inputs.push((at, index, what));
-        }
+        // Known open issue (match.md section 35): a place back after a
+        // leave is spawned in its last kit choice by the games that were
+        // there before the leave, and in its lowest kit by those that
+        // started from a snapshot while it was empty (a snapshot holds the
+        // places in play only). A kit choice relayed for the entry tick does
+        // not help: the respawn runs before the place's kit delegate in that
+        // step (the late-join patch's slot ids), and the delegate is in the
+        // list only from the entry on.
         self.events.push((at, index, entered));
         let bot = self.is_bot(index);
         if let Some(recording) = self.recording.as_mut() {
@@ -3561,9 +3527,6 @@ impl Game {
         }
         peer.placed_profiles.push_back((time, relayed_time));
         self.note_kit_choice(index, relayed_time);
-        if let Some(choice) = self.kit_choices.get_mut(index) {
-            *choice = Some(value);
-        }
         let what = Relayed::Profile {
             tick: relayed_tick,
             value,
@@ -4747,9 +4710,13 @@ impl Game {
                     Flight::Roster(message) => {
                         send(peer, message);
                     }
-                    // Every copy of the order was lost: its game plays the
-                    // input still.
-                    Flight::Discard { own } => keeps_own(peer, *own, "lost", self.id, index),
+                    // "Lost": not acked within the order's lifetime
+                    // (`DROP_ORDER_LIFE`), so most likely never taken: its
+                    // game plays the input still. `each.time` is where the
+                    // others have it (moved, or its own time).
+                    Flight::Discard { own } => {
+                        keeps_own(peer, *own, each.time, "lost", self.id, index);
+                    }
                     Flight::Relay => {}
                 }
             } else if peer.transport.is_delivered(each.serial) {
@@ -4776,7 +4743,7 @@ impl Game {
                     && earliest
                         .is_some_and(|earliest| i64::from(own + CLIENT_HISTORY_MS) <= earliest)
                 {
-                    keeps_own(peer, own, "past its history", self.id, index);
+                    keeps_own(peer, own, each.time, "past its history", self.id, index);
                 }
                 let moved_for_sure = each.flight == Flight::Relay
                     && earliest.is_some_and(|earliest| {
@@ -6043,24 +6010,27 @@ fn clear_gate(peer: &mut Peer, upto: Option<u32>, now: Instant) -> usize {
     forgotten
 }
 
-/// Its game keeps its own input at `own`, which the others never got: its
-/// order about it was `how` (lost, or past its history). An input at or
-/// before the snapshot the game last started from is never played again
-/// and harms nothing.
-fn keeps_own(peer: &mut Peer, own: u32, how: &str, id: u32, index: usize) {
+/// Its game keeps its own input at `own`, which the others do not have
+/// there: its order about it was `how` (lost, or past its history). The
+/// others have it at `others_at` if it was moved (else that is `own`). An
+/// input at or before the snapshot the game last started from is never
+/// played again and harms nothing.
+fn keeps_own(peer: &mut Peer, own: u32, others_at: u32, how: &str, id: u32, index: usize) {
     if own <= peer.loaded_from || peer.stage != Stage::Live {
         return;
     }
     if peer.kept_own.is_none() {
         log::info!(
             "Match {id:#x}: player {index}'s game keeps its own input at {own} ms, which the \
-             others never got (the order to drop or move it was {how}): out of step from then on"
+             others do not have there (the order to drop or move it was {how}): out of step \
+             from then on"
         );
     }
     peer.kept_own = Some(peer.kept_own.map_or(own, |kept| kept.min(own)));
-    // Its resync starts past that input: there its game never plays it
-    // again.
-    peer.resync_floor = peer.resync_floor.max(own);
+    // Its resync starts from a world that has the input as the others
+    // have it: past its own time (its game never plays it again) and, if
+    // moved, past where the others have it (`send_held_answers` alike).
+    peer.resync_floor = peer.resync_floor.max(own.max(others_at));
 }
 
 /// Remember a message sent to the client, to see what becomes of it.
