@@ -30,6 +30,14 @@
 //!   there, knew of more enemies by the battery than a teammate behind,
 //!   so the slot went back and forth and nobody took it (Cologne
 //!   0x60aeff4f, battery 2: six hand-offs in 20 s).
+//!   A holder also keeps it against any claim of its rank or lower for
+//!   its first [`HOLD_FRESH_MS`] of running the play: commitment by time,
+//!   as [`COMMIT_M`] is by distance (Game AI Pro ch. 9 §9.7, inertia).
+//!   Taken by a teammate's better score a moment later, the holder went
+//!   back to its roam and took the play again within seconds (bench of the
+//!   3D routes, 2026-10-25: Roam, Crossfire, Roam). A holder whose way to
+//!   the play failed lately, or that carries a battery, has no such hold
+//!   (`shaky` of [`assign_trapped`]); a dead one is not asking at all.
 //! - The commander says why: each assignment carries the winner's score and
 //!   the runners-up for the trace.
 
@@ -48,6 +56,10 @@ pub const MARGIN_FAR: f32 = 0.30;
 /// slot against any other bot's claim.
 pub const COMMIT_M: f32 = 5.0;
 
+/// A holder keeps its slot against any claim of its rank or lower for this
+/// long after it took the play, ms (the module's doc).
+pub const HOLD_FRESH_MS: u32 = 3_000;
+
 /// The candidate's way to its target, metres, when it weighs one.
 fn path_m(c: &Candidate) -> Option<f32> {
     c.why
@@ -57,9 +69,25 @@ fn path_m(c: &Candidate) -> Option<f32> {
         .map(|&(_, value, _)| value)
 }
 
-/// Whether `c` (another bot's) may take a slot held at `score` by a holder
-/// `holder_m` from its target.
-fn takes_held(c: &Candidate, score: f32, holder_m: Option<f32>) -> bool {
+/// A slot held by a running play still asked for.
+struct Held {
+    slot: SlotKey,
+    holder: Place,
+    /// The holder's candidate for it: its score and rank.
+    score: f32,
+    rank: Rank,
+    /// The holder's way to the target, metres.
+    holder_m: Option<f32>,
+    /// Within [`HOLD_FRESH_MS`] of taking the play, and not `shaky`.
+    fresh: bool,
+}
+
+/// Whether `c` (another bot's) may take the slot `held`.
+fn takes_held(c: &Candidate, held: &Held) -> bool {
+    if held.fresh && c.rank <= held.rank {
+        return false;
+    }
+    let (score, holder_m) = (held.score, held.holder_m);
     let margin = match (holder_m, path_m(c)) {
         (Some(held), _) if held <= COMMIT_M => return false,
         (Some(held), Some(mine)) if mine > held => MARGIN_FAR,
@@ -235,14 +263,17 @@ fn on_container(c: &Candidate, given: &[(PlayKind, TargetRef)]) -> bool {
 
 /// [`assign_at`] for a team whose bots of `given_up` gave up in a pocket
 /// (`escape.rs`): a slot one holds goes to a teammate as a free one, even
-/// within [`COMMIT_M`] of its target, and none takes a slotted play.
+/// within [`COMMIT_M`] of its target, and none takes a slotted play. The
+/// bots of `shaky` (a way to their play failed lately, a carrier) have no
+/// [`HOLD_FRESH_MS`] hold on their slots.
 pub fn assign_trapped(
     asking: Vec<Asking>,
     now: u32,
     gap: f32,
     given_up: &[Place],
+    shaky: &[Place],
 ) -> Vec<(Place, Assignment, bool)> {
-    assign_given_up(asking, now, &Bands::used(), gap, given_up)
+    assign_given_up(asking, now, &Bands::used(), gap, given_up, shaky)
 }
 
 /// [`assign`] with the bands given.
@@ -252,7 +283,7 @@ pub fn assign_with(
     bands: &Bands,
     gap: f32,
 ) -> Vec<(Place, Assignment, bool)> {
-    assign_given_up(asking, now, bands, gap, &[])
+    assign_given_up(asking, now, bands, gap, &[], &[])
 }
 
 fn assign_given_up(
@@ -261,6 +292,7 @@ fn assign_given_up(
     bands: &Bands,
     gap: f32,
     given_up: &[Place],
+    shaky: &[Place],
 ) -> Vec<(Place, Assignment, bool)> {
     let behind = gap < 0.0;
     for bot in &mut asking {
@@ -277,9 +309,8 @@ fn assign_given_up(
         let (rb, sb) = best(b);
         rb.cmp(&ra).then(sb.total_cmp(&sa))
     });
-    // Slots held by running plays still asked for: (slot, holder, score,
-    // the holder's way to the target).
-    let held: Vec<(SlotKey, Place, f32, Option<f32>)> = asking
+    // Slots held by running plays still asked for.
+    let held: Vec<Held> = asking
         .iter()
         .filter(|bot| !given_up.contains(&bot.place))
         .filter_map(|bot| {
@@ -290,7 +321,15 @@ fn assign_given_up(
                 .find(|c| {
                     c.slot == Some(slot) && c.kind == current.kind && c.target == current.target
                 })
-                .map(|c| (slot, bot.place, c.score.get(), path_m(c)))
+                .map(|c| Held {
+                    slot,
+                    holder: bot.place,
+                    score: c.score.get(),
+                    rank: c.rank,
+                    holder_m: path_m(c),
+                    fresh: !shaky.contains(&bot.place)
+                        && now < current.since.saturating_add(HOLD_FRESH_MS),
+                })
         })
         .collect();
     let mut taken: Vec<SlotKey> = Vec::new();
@@ -303,9 +342,9 @@ fn assign_given_up(
             c.slot.is_none_or(|slot| {
                 !trapped
                     && !taken.contains(&slot)
-                    && held.iter().all(|&(s, holder, score, holder_m)| {
-                        s != slot || holder == bot.place || takes_held(c, score, holder_m)
-                    })
+                    && held
+                        .iter()
+                        .all(|h| h.slot != slot || h.holder == bot.place || takes_held(c, h))
             })
         };
         let is_running = |c: &Candidate| {
@@ -447,7 +486,7 @@ mod tests {
                     current: None,
                 },
             ];
-            let out = assign(asking, 1_000);
+            let out = assign(asking, 1_000 + HOLD_FRESH_MS);
             let of = |place| out.iter().find(|(p, _, _)| *p == place).unwrap().1.kind;
             (of(1), of(2))
         };
@@ -495,7 +534,7 @@ mod tests {
                     current: None,
                 },
             ];
-            let out = assign(asking, 1_000);
+            let out = assign(asking, 1_000 + HOLD_FRESH_MS);
             let of = |place| out.iter().find(|(p, _, _)| *p == place).unwrap().1.kind;
             (of(1), of(2))
         };
@@ -514,6 +553,63 @@ mod tests {
             run(at(0.36, 3.0), at(0.61, 12.0), true),
             (PlayKind::Trade, collect)
         );
+    }
+
+    /// A holder keeps its slot against a better teammate for its first
+    /// `HOLD_FRESH_MS` of running the play, but not against a claim of a
+    /// higher rank, nor when its way failed lately or it carries
+    /// (`shaky`), nor when it is dead (not asking); past the hold, the
+    /// margin rules again.
+    #[test]
+    fn a_fresh_holder_keeps_its_slot_unless_shaky_dead_or_outranked() {
+        let current = Assignment {
+            kind: PlayKind::Collect,
+            target: TargetRef::Battery(0),
+            slot: Some(SlotKey {
+                kind: PlayKind::Collect,
+                key: 0,
+            }),
+            score: 0.5,
+            since: 1_000,
+            reason: "the best play",
+        };
+        let run = |now: u32, rank: Rank, shaky: &[Place], holder_asks: bool| {
+            let mut asking = vec![Asking {
+                place: 2,
+                candidates: vec![
+                    c(PlayKind::Collect, rank, 0.9, Some(0), 0),
+                    c(PlayKind::Roam, Rank::Roam, 0.9, None, 8),
+                ],
+                current: None,
+            }];
+            if holder_asks {
+                asking.push(Asking {
+                    place: 1,
+                    candidates: vec![
+                        c(PlayKind::Collect, Rank::Objective, 0.5, Some(0), 0),
+                        c(PlayKind::Roam, Rank::Roam, 0.9, None, 9),
+                    ],
+                    current: Some(&current),
+                });
+            }
+            let out = assign_trapped(asking, now, 0.0, &[], shaky);
+            out.iter().find(|(p, _, _)| *p == 2).unwrap().1.kind
+        };
+        let (collect, roam) = (PlayKind::Collect, PlayKind::Roam);
+        let fresh = 1_000 + HOLD_FRESH_MS - 1;
+        // The plain hold: a far better teammate does not take it.
+        assert_eq!(run(fresh, Rank::Objective, &[], true), roam);
+        // Past the hold: the margin rules, and it goes over.
+        assert_eq!(
+            run(1_000 + HOLD_FRESH_MS, Rank::Objective, &[], true),
+            collect
+        );
+        // A claim of a higher rank takes it within the hold.
+        assert_eq!(run(fresh, Rank::Alarm, &[], true), collect);
+        // A holder whose way failed lately, or that carries: no hold.
+        assert_eq!(run(fresh, Rank::Objective, &[1], true), collect);
+        // A dead holder is not asking: the slot is free.
+        assert_eq!(run(fresh, Rank::Objective, &[], false), collect);
     }
 
     /// A holder by its target that gave up in a pocket (`escape.rs`) lets
@@ -550,7 +646,7 @@ mod tests {
                     current: None,
                 },
             ];
-            let out = assign_trapped(asking, 1_000, 0.0, given_up);
+            let out = assign_trapped(asking, 1_000, 0.0, given_up, &[]);
             let of = |place| out.iter().find(|(p, _, _)| *p == place).unwrap().1.kind;
             (of(1), of(2))
         };
