@@ -512,6 +512,15 @@ impl Matchmaking {
         inner.match_pools.get(&id).copied()
     }
 
+    /// The match the account has a seat in (a place not given up), under
+    /// any of its sessions.
+    pub fn match_of_account(&self, account_id: u32) -> Option<u32> {
+        let inner = self.inner.locked();
+        inner
+            .live_seat_of_account(account_id)
+            .map(|(match_id, _, _)| match_id)
+    }
+
     /// The match and roster index of a session's seat.
     pub fn seat(&self, session_id: u32) -> Option<(u32, usize)> {
         let inner = self.inner.locked();

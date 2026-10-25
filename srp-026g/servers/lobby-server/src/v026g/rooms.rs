@@ -56,6 +56,13 @@
 //!   and longer only while the match server has it in the match: its
 //!   session waits for the match, its room does not (`away`; live,
 //!   2026-10-25: a game hung loading kept its room "full" all match).
+//! - A seat in the room's match is kept for the whole match. Its player
+//!   may leave the room meanwhile. Joining it again from the room list
+//!   takes it back to that seat and makes it a member again, even past
+//!   the room's size; Play and Join match take it back to the seat
+//!   without that (a room it left stays left). Any other room refuses it
+//!   (code 5: "press Play to return to it, or wait for it to end"). Live,
+//!   2026-10-25 (riad5, room 4799).
 //! - An account goes into a match being played while it has fewer than
 //!   [`PLACES_PER_ACCOUNT`] places in its roster (a late join that failed,
 //!   a leave of its own word and a come-back each took one); then it plays
@@ -430,9 +437,17 @@ impl Core<'_> {
                 self.send_room_state(who, code, now);
             }
             RoomRequest::JoinMatch => {
-                // The member does not wait: into its room's match now.
-                self.room_join_at.insert(who.account_id, now);
-                self.room_late_join(who.account_id, now);
+                // The member does not wait: into its room's match now; back
+                // to its seat there if it has one.
+                let key = self.rooms.key_of(who.account_id);
+                let seated = matches!(
+                    self.held_seat(who.account_id),
+                    Some((_, Some(held))) if key == Some(held)
+                );
+                if !seated || !self.room_back_to_seat(who, now) {
+                    self.room_join_at.insert(who.account_id, now);
+                    self.room_late_join(who.account_id, now);
+                }
                 self.send_room_state(who, RoomCode::None, now);
             }
             // Who is in a room the asker looks at in the list: anyone may
@@ -471,25 +486,77 @@ impl Core<'_> {
     fn room_play_pressed(&mut self, who: &Who, now: Instant) {
         // A place in a match (closed early, or signed in again): back to it,
         // as the game's own Play does (`play`).
-        let player = session::Player {
-            session_id: who.session_id,
-            account_id: who.account_id,
-            profile_id: who.account.locked().active_kit,
-        };
-        if self.store.matchmaking().back_to_seat(player) {
+        if self.room_back_to_seat(who, now) {
             log::info!("{} pressed Play: back to its seat", who.name);
-            if let Some(state) = self.player_mut(who.addr) {
-                state.queued_since = Some(now);
-            }
-            self.queue_status(who.addr, now);
         } else {
             self.room_quick(who, now);
         }
         self.send_room_state(who, RoomCode::None, now);
     }
 
-    /// Join the room with that key; the state answers it.
+    /// The asker has a seat in a match being played (its game lost the
+    /// match, or closed it): it goes back to it. `false`: it has none.
+    fn room_back_to_seat(&mut self, who: &Who, now: Instant) -> bool {
+        let player = session::Player {
+            session_id: who.session_id,
+            account_id: who.account_id,
+            profile_id: who.account.locked().active_kit,
+        };
+        if !self.store.matchmaking().back_to_seat(player) {
+            return false;
+        }
+        if let Some(state) = self.player_mut(who.addr) {
+            state.queued_since = Some(now);
+        }
+        self.queue_status(who.addr, now);
+        true
+    }
+
+    /// The account's seat in a match being played (kept for the whole
+    /// match): the match (the queue's id) and the room it is the match of.
+    fn held_seat(&self, account_id: u32) -> Option<(u32, Option<u32>)> {
+        let match_id = self.store.matchmaking().match_of_account(account_id)?;
+        let key = self
+            .rooms
+            .all()
+            .find(
+                |room| matches!(room.stage, Stage::InMatch { match_id: id, .. } if id == match_id),
+            )
+            .map(|room| room.key);
+        Some((match_id, key))
+    }
+
+    /// Join the room with that key; the state answers it. With a seat in
+    /// a match being played: joining the room whose match it is goes back
+    /// to the seat, as Play does, a member of the room again; any other
+    /// room is refused (code 5: press Play or wait for the end). Live,
+    /// 2026-10-25 (riad5, room 4799): one that left its room after its
+    /// link broke could join no room, its own neither; Play alone took it
+    /// back.
     fn room_join(&mut self, who: &Who, key: u32, now: Instant) {
+        if let Some((match_id, room)) = self.held_seat(who.account_id) {
+            let code = if room == Some(key) && self.rooms.back_in(who.account_id, key) {
+                if self.room_back_to_seat(who, now) {
+                    log::info!(
+                        "{}: joined room {key}: back to its seat in its match {match_id:#x}",
+                        who.name
+                    );
+                }
+                RoomCode::None
+            } else if room == Some(key) {
+                RoomCode::Kicked
+            } else {
+                RoomCode::InMatch
+            };
+            if code != RoomCode::None {
+                log::info!(
+                    "{}: join room {key}: refused ({code:?}; its seat in match {match_id:#x} is kept)",
+                    who.name
+                );
+            }
+            self.send_room_state(who, code, now);
+            return;
+        }
         let code = match self.room_enter_fit(who) {
             Err(code) => code,
             Ok(()) => match self.rooms.join(

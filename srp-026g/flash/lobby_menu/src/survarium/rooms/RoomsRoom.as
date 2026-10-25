@@ -146,7 +146,9 @@ package survarium.rooms
             inner.x = 28;
             inner.y = y + 40;
             look._content.addChild(inner);
-            var slots:int = room.size * 2;
+            // A member back to its seat in the match may put the room over its
+            // size (the server's `back_in`): every member has a row.
+            var slots:int = Math.max(room.size * 2, room.members.length);
             var rowH:int = Math.min(34, int((look._h - RoomsLook.FOOT_H - y - 8 - 46) / Math.ceil(slots / 4)));
             var mid:int = int((rowH - 20) / 2);
             for (var m:int = 0; m < slots; m++)
