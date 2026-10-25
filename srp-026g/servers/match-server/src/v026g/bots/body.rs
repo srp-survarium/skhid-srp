@@ -470,7 +470,33 @@ fn advance(
 /// on, or along one axis only (a body slides along a wall), or not at all.
 /// Returns the floor, the feet, and whether the move was stopped before
 /// it got anywhere.
-pub fn slide(grid: &WalkGrid, mut node: NodeId, from: Vec3, to: Vec3) -> (NodeId, Vec3, bool) {
+pub fn slide(grid: &WalkGrid, node: NodeId, from: Vec3, to: Vec3) -> (NodeId, Vec3, bool) {
+    slide_up_to(grid, node, from, to, f32::INFINITY)
+}
+
+/// [`slide`] with no step up a walk link higher than `max_rise`: the
+/// tests' stand-in game walks a body at the client's step
+/// (`Body::step`), not up the grid's "forced" stair links of up to
+/// 0.75 m, which the client does not climb (owner-test analysis,
+/// Mamayev Kurgan). The bots' reckoning keeps [`slide`].
+#[cfg(test)]
+pub fn slide_capped(
+    grid: &WalkGrid,
+    node: NodeId,
+    from: Vec3,
+    to: Vec3,
+    max_rise: f32,
+) -> (NodeId, Vec3, bool) {
+    slide_up_to(grid, node, from, to, max_rise)
+}
+
+fn slide_up_to(
+    grid: &WalkGrid,
+    mut node: NodeId,
+    from: Vec3,
+    to: Vec3,
+    max_rise: f32,
+) -> (NodeId, Vec3, bool) {
     let half = grid.cell_size() * 0.5;
     let (dx, dz) = (to.x - from.x, to.z - from.z);
     let steps = ((dx.abs().max(dz.abs()) / half).ceil() as usize).max(1);
@@ -488,7 +514,7 @@ pub fn slide(grid: &WalkGrid, mut node: NodeId, from: Vec3, to: Vec3) -> (NodeId
                 return None;
             }
             let point = Vec3::new(at.x + mx, at.y, at.z + mz);
-            floor_under(grid, node, point)
+            floor_under(grid, node, point, max_rise)
                 .map(|next| (next, Vec3::new(point.x, grid.position(next).y, point.z)))
                 .or_else(|| {
                     dropped_to(grid, node, at, (mx, mz)).map(|next| (next, grid.position(next)))
@@ -567,8 +593,9 @@ pub fn jumped_to(grid: &WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<
 
 /// The floor whose cell holds `point`: `node` itself or one it walks or
 /// drops to.
-fn floor_under(grid: &WalkGrid, node: NodeId, point: Vec3) -> Option<NodeId> {
+fn floor_under(grid: &WalkGrid, node: NodeId, point: Vec3, max_rise: f32) -> Option<NodeId> {
     let half = grid.cell_size() * 0.5 + 1e-4;
+    let base = grid.position(node).y;
     let holds = |n: NodeId| {
         let p = grid.position(n);
         (p.x - point.x).abs() <= half && (p.z - point.z).abs() <= half
@@ -579,7 +606,7 @@ fn floor_under(grid: &WalkGrid, node: NodeId, point: Vec3) -> Option<NodeId> {
     grid.links(node)
         .filter(|(_, kind)| *kind != LinkKind::Jump)
         .map(|(next, _)| next)
-        .find(|&next| holds(next))
+        .find(|&next| holds(next) && grid.position(next).y - base <= max_rise)
 }
 
 #[cfg(test)]
