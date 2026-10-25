@@ -3,7 +3,8 @@
 The rules the code and the tests follow. Code: `client-patches/kill_feed_026g.asm` and
 `KILL_FEED_*` in `client-patches/patch_026g.py` (README patch 67, `client_patch.md` section 3.55),
 the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; the check:
-`client-patches/check_kill_feed_026g.py`.
+`client-patches/check_kill_feed_026g.py`; the hud's rows in Ruffle:
+`scripts/kill-feed-icons/check-combat-log/check.sh <hud.swf>`.
 
 - **The owner, 2026-10-25:** "when a character is killed from pain, the character should get
   <weapon> <white painkiller> icon"; "when through a wall: <weapon> <wall shot> icon (available in
@@ -41,6 +42,8 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
     0.26g nor retail has a pain or shock icon; the Anesthetic's ampoule read as a bullet), drawn,
     white, 23 px high, a dark shadow one pixel down and right as the hud's own cause icons;
   - each sits 5 px after the one before, centred on the weapon's icon (never above the row);
+    a suicide row has no weapon icon (its frame removes it): the pain icon is centred on the
+    cause icon;
   - made by `scripts/kill-feed-icons/make_icons.py`; the build adds each `bitmaps/<class>.png`
     to the movie (`tools/actionscript/flash_tree.py`).
 - **Every game alike:** the flags come from the simulation's own state (the bullet, the pools) in
@@ -48,5 +51,10 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
   nothing a match computes changes, no `simulation_changes` row.
 - **Tested in game** by the owner, 2026-10-25 ("works nicely"); the explicit melee test came after
   that test (Unicorn only).
+- **Rev 32's kill feed going blank:** a suicide row with the pain icon (a fall,
+  an anomaly, one's own grenade, the suicide key) threw in the icon's placement (no weapon icon on
+  that row). The row's renderer, left outside the list, deleted the list's first row on every frame
+  from its end on, so the feed stayed empty. A row whose data throws now never leaves a renderer
+  behind.
 - **Release:** the exe patch (the default build) and the hud movie together; an older exe with
   the new movie shows rows without the three icons.
