@@ -6,10 +6,11 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
 ## Rules
 
 - **Which weapons.** Every weapon (all 83 weapon configs, pistols and 0.29a3 ports included):
-  91 textures, 111 `_aoac` files with the premium copies (`scripts/weapon-camo/guns.tsv`,
-  `scripts/content-edit/weapon-camo-1.json`). Not their barrels, sights, suppressors and
-  attachments when those have textures of their own, nor the 12-gauge shell, the SV-98's net or
-  the premium-only `_camo` textures.
+  98 textures, 123 `_aoac` files with the premium copies (`scripts/weapon-camo/guns.tsv`,
+  `scripts/content-edit/weapon-camo-1.json`). Their barrels, sights, suppressors and
+  attachments when those have textures of their own, the 12-gauge shell and the SV-98's net take
+  no paint: a neutral `_aoac` (weapon-camo@2), so the baker finds every texture it asks for
+  (missing-textures.md).
 - **Where the paint goes.** On some parts of a weapon, never the whole: the parts (UV islands)
   `scripts/weapon-camo/parts.tsv` names, chosen by hand in the picker page (all 91 textures,
   2026-10-21: 22 by the owner, the rest after them): the body (receiver, covers, handguard,
@@ -147,8 +148,8 @@ three upgrades an item: "let's remove one decal instead for now". One decal a we
   weapon again and bakes the new place: the weapon shows its old decals for a moment.
 - **Cost.** One bake per weapon surface for each new combination of camouflage and decals (the
   same cache as the camouflage's, `srpw1_*` names with the decals' textures and places).
-- **On a camouflaged weapon** a surface without an `_aoac` texture (barrels, own sights) takes
-  neither; without a camouflage, decals go on any surface.
+- **On a camouflaged weapon** every surface patch 44 bakes has an `_aoac` (weapon-camo@2: the
+  bare parts' a neutral one), so decals go on any surface, with or without a camouflage.
 
 ## The engine (client 0.26g, PROVEN unless tagged)
 
