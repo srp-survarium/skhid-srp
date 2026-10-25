@@ -96,7 +96,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `suicide_key_026g.asm`, `suicide_key_026g.section.bin` | The source of patch 34's code (the commit_suicide key kills one's own player) and that code assembled for 0x980 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
-| `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
+| `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow and stamina loss away, a Lifebone's active fills pain and the four limbs, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_artefact_glow_026g.py` | No patch: the artefacts' first-person glow is the content pack `artefact-glow` (`../scripts/artefact-glow/make_pack.py`, `../docs/notes/artefacts.md`). Runs the game's own effect code, in the original and the build: the particle cook's `view` (0x25A86F) on the pack's composite, the first- and third-person presenters' constructors (their particle presenters' views 0 and 1), the particle presenter's handler 0x2AC400 (an activation plays an effect only in the presenters of its view), the whole chain from player::set_effect_presenter and game_effect_player's dispatch 0x2DE3A0 and the artefact's effect calculator 0x313640 (the effect ends when the artefact is no longer active) (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
@@ -3085,9 +3085,9 @@ does what no config of 0.26g could.
   speed, stamina regeneration and spending) and the duration; none is aim time. At 0x33AE13 (its
   active's third node) `artefacts_026g.asm` makes the passive's second node aim_time (49) with
   `passive/aim_time_mod`, and fills a sixth node at +3B8h, aim_time with `active/aim_time_mod`
-  (and a seventh at +3C8h, below). The two are after a Spring's own fields: its two sizes
-  (artefact<artefact_spring_core> 0x3B8 at 0x25E7A8, the bare core 0x398 at 0x2EEA74) become
-  0x3D8. The active's link (0x311BC0) and unlink (0x311DA0) take them in and out with the
+  (and a seventh at +3C8h and an eighth at +3D8h, below). The three are after a Spring's own
+  fields: its two sizes (artefact<artefact_spring_core> 0x3B8 at 0x25E7A8, the bare core 0x398 at
+  0x2EEA74) become 0x3E8. The active's link (0x311BC0) and unlink (0x311DA0) take them in and out with the
   three others, so they are linked
   exactly while they are (a deserialized active Spring links it through 0x311BC0 too). The
   getter (0x2D5AE0) sums a list's nodes: a stack of Springs adds up.
@@ -3097,11 +3097,23 @@ does what no config of 0.26g could.
   it. At 0x2DBD89 the sum becomes M42(sum), the getter on list 42 (artefact_synergy, read by no
   code of 0.26g and set by no config): times max(0, 1 + its nodes). A Spring's active has a
   seventh node there, +3C8h with `active/stopping_power_mod` (-1), linked and unlinked as the
-  aim node; the object is 0x3D8 bytes. A hit's stamina damage is not changed.
+  aim node.
+- **No stamina loss from bullets either (2026-10-25).** The owner: "bullet stopping force is not
+  removed when Spring is active". The slow was (the live worlds of 2026-10-25 show alive players
+  with hits 0.1 to 0.4 s old and no stagger), but a hit's other half was left: base_player::
+  hit_impl (0x2D9B90) takes the weapon's `stamina_damage` (100 x its stopping power: 50 a
+  shotgun's) times M66 (stamina_loss_on_hit, multiplicative; the getter at 0x2D9D3B and
+  0x2D9DED) from the stamina (player_stamina::spend 0x329A20). A sprinting player does not
+  regenerate (player_stamina::tick 0x329790), so with a Spring active two shotgun hits still
+  emptied the bar and ended the sprint. An eighth node, +3D8h, list 66 with the same
+  `active/stopping_power_mod`, is linked and unlinked with the other two: the hit takes
+  max(0, 1 + skill 211 + -1) = 0. The object is 0x3E8 bytes.
 - **Lifebone's heal.** Its enable_active (0x312250) removed the hand and leg injuries only. After
-  them (0x3122AA, where the time is still its argument) the pools `pain`, `body` and `head` are
-  found by name (0x2E58B0) and filled with increase_health (0x32A420, Hmax - H), as a medkit
-  heals a pool (0x33D9C3).
+  them (0x3122AA, where the time is still its argument) the pools `pain`, `left_hand`,
+  `right_hand`, `left_leg` and `right_leg` are found by name (0x2E58B0) and filled with
+  increase_health (0x32A420, Hmax - H), as a medkit heals a pool (0x33D9C3); `body` and `head`
+  are left as they are (the owner, 2026-10-25; revisions 30 to 34 filled pain, body and head and
+  left the limbs red).
 - **One press, every artefact of a kind.** artefact_base::action (0x313300) activated the
   artefact pressed only, when it was in its passive with no cooldown. At its entry a key-down
   now activates the pressed one and every other artefact of the same class (vtable) and kind 1
@@ -3162,8 +3174,9 @@ relocation or branch inside, the code, its exits and calls, its texts), the aren
 `check_artefacts_026g.py` (Unicorn, the game's own code: the loader with the config lookup on
 a binary config of the release's numbers, both Springs' links with the getter: aim time x0.95
 passive, x0.85 active, x0.7 for two active Springs, speed x1.05 / x1.15 / x1.3; Lifebone's
-enable_active with made-up pools: pain, body and head full, a limb, a full pool and a missing
-one left alone; an
+enable_active with made-up pools: pain and the four limbs full, body, head, a full pool and a
+missing one left alone; the stamina a hit takes (the getter on list 66 with 50): 0 with an active
+Spring in the build, also with skill 211's x0.75, 37.5 after it; an
 inventory of two Springs, an Onyx, a Spring cooling and one active: one press fires the ready
 Springs alone, the Onyx alone, a key-up nothing, a cooling Spring's key the ready one; the stagger with made-up hits: -0.45, -0.5 at
 most, an old hit out, and 0 with an active Spring in the build; through the game's own callers, a

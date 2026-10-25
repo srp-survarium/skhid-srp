@@ -1,6 +1,7 @@
 ; Patch 54: the artefacts (build 2777): Spring's aim time and stopping power,
-; Lifebone's heal, one press fires every artefact of its kind, Onyx fired
-; together 1 s longer each and reducing a hit once (2026-10-25). Its numbers
+; Lifebone's heal (pain and the limbs), one press fires every artefact of its
+; kind, Onyx fired together 1 s longer each and reducing a hit once
+; (2026-10-25). Its numbers
 ; are in the artefacts' configs (release/content.tsv artefacts-1.json); this
 ; is what the stock code could not read or do.
 ; The arena's block artefacts.code (link_026g.py links it; patch_026g.py's
@@ -20,12 +21,16 @@
 ; (eax = the artefact) and 0x311DA0 (stdcall, the artefact).
 ;
 ; The patch: the passive's +350h node becomes aim_time (49) with the value of
-; `passive/aim_time_mod`; two more nodes after the object's own fields (both
-; sizes, 0x25E7A8 and 0x2EEA74, grow to 3D8h) are the active's: +3B8h
-; aim_time with `active/aim_time_mod`, +3C8h list 42 with
-; `active/stopping_power_mod`, linked and unlinked with the active's three.
-; List 42 (artefact_synergy, which no code of 0.26g reads and no config
-; sets) is the stagger's: a hit's slow is times max(0, 1 + its sum).
+; `passive/aim_time_mod`; three more nodes after the object's own fields (both
+; sizes, 0x25E7A8 and 0x2EEA74, grow to 3E8h) are the active's: +3B8h
+; aim_time with `active/aim_time_mod`, +3C8h list 42 and +3D8h list 66
+; (stamina_loss_on_hit), both with `active/stopping_power_mod`, linked and
+; unlinked with the active's three. A bullet's stopping power is two things
+; (base_player::hit_impl 0x2D9B90): a slow and a loss of stamina. List 42
+; (artefact_synergy, which no code of 0.26g reads and no config sets) is the
+; stagger's: a hit's slow is times max(0, 1 + its sum). List 66 is the
+; game's own for the stamina a hit takes (the getter at 0x2D9D3B and
+; 0x2D9DED, multiplicative): times max(0, 1 + skills + its sum).
 BITS 32
 global artefacts_loader, artefacts_link, artefacts_unlink, artefacts_lifebone, artefacts_fire
 global artefacts_stagger, artefacts_onyx, artefacts_popup
@@ -53,8 +58,10 @@ section .text
 %define POPUP_SKIP 0x25F9F8        ; ... after it: the state seen, the function's end
 %define AIM_TIME 0x31              ; the aim_time modifier's index (49)
 %define STOPPING 0x2A              ; list 42: the stagger's multiplier
+%define STAMINA_LOSS 0x42          ; list 66, stamina_loss_on_hit: a hit's stamina damage
 %define AIM_NODE 0x3B8             ; the active's aim_time node in a Spring
-%define STOP_NODE 0x3C8            ; the active's stopping power node
+%define STOP_NODE 0x3C8            ; the active's stopping power node: the slow
+%define STAMINA_NODE 0x3D8         ; ... and its stamina loss
 %define FIRST_SLOT 13              ; the inventory's artefact slots, 13..18
 %define LAST_SLOT 18
 
@@ -98,6 +105,9 @@ loader:
     call value                     ; xmm0 = active/stopping_power_mod
     lea edx, [esi+STOP_NODE-0x340]
     mov ecx, STOPPING
+    call node
+    lea edx, [esi+STAMINA_NODE-0x340]
+    mov ecx, STAMINA_LOSS          ; the same value: the stamina a hit takes
     call node
     movups xmm0, [esp]
     add esp, 16
@@ -176,7 +186,7 @@ unlink:
     jmp UNLINK_NODE
 
 ; 0x311BC0 `push ebx; push esi; mov esi,eax; mov eax,[esi+250h]`, eax = the
-; Spring: its two nodes go in, then the function links its own three.
+; Spring: its three nodes go in, then the function links its own three.
 link_active:
     pushad
     mov ebx, eax
@@ -185,6 +195,8 @@ link_active:
     call link
     lea edx, [ebx+STOP_NODE]
     call link
+    lea edx, [ebx+STAMINA_NODE]
+    call link
     popad
     push ebx
     push esi
@@ -192,7 +204,7 @@ link_active:
     mov eax, [esi+0x250]
     jmp LINK_BACK
 
-; 0x311DA0 `push ebx; mov ebx,[esp+8]`, [esp+4] = the Spring: its two
+; 0x311DA0 `push ebx; mov ebx,[esp+8]`, [esp+4] = the Spring: its three
 ; nodes out before the original's three.
 unlink_active:
     pushad
@@ -202,6 +214,8 @@ unlink_active:
     lea eax, [ebx+AIM_NODE]
     call unlink
     lea eax, [ebx+STOP_NODE]
+    call unlink
+    lea eax, [ebx+STAMINA_NODE]
     call unlink
     popad
     push ebx
@@ -234,7 +248,10 @@ stagger:
 ; `mov ecx,[edi+250h]` (both ways there, the loop or none, have its four
 ; pushes): edi = the Lifebone, [esp+14h] = the time (later in the function
 ; that slot is scratch). Each pool of `heals` is filled to its maximum, as a
-; medkit heals a pool (0x33D9C3): increase_health(time, Hmax - H).
+; medkit heals a pool (0x33D9C3): increase_health(time, Hmax - H). The pools
+; are pain and the four limbs (the owner, 2026-10-25: a full heal of the
+; arms and legs, the torso and the head left as they are); remove_affects
+; before it took their injuries away, this their health.
 lifebone_active:
     pushad
     mov eax, [edi+0x250]
@@ -484,11 +501,15 @@ stopping_key:
     db "stopping_power_mod", 0
 pain_name:
     db "pain", 0
-body_name:
-    db "body", 0
-head_name:
-    db "head", 0
-; The pools Lifebone's active fills.
+left_hand_name:
+    db "left_hand", 0
+right_hand_name:
+    db "right_hand", 0
+left_leg_name:
+    db "left_leg", 0
+right_leg_name:
+    db "right_leg", 0
+; The pools Lifebone's active fills: pain and the limbs, not body or head.
 heals:
-    dd pain_name, body_name, head_name
+    dd pain_name, left_hand_name, right_hand_name, left_leg_name, right_leg_name
 heals_end:

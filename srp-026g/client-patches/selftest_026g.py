@@ -4024,14 +4024,23 @@ def test_artefacts(original, image, before):
           + "); it calls the config lookup 0xF6B10, the unlink 0x2D5D00, the getter 0x2D5AE0, the pool "
           "lookup 0x2E58B0, increase_health 0x32A420 and the activation effect 0x313350, and nothing else "
           "outside (and 0x25F9F8, the Onyx pop-up's way around set_parameterized_message)")
-    heals = artefacts_va + names + 47
-    check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0"
-          + struct.pack("<III", *(artefacts_va + names + at for at in (32, 37, 42)))
+    heals = artefacts_va + names + 77
+    check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0left_hand\0right_hand\0left_leg\0"
+          b"right_leg\0" + struct.pack("<5I", *(artefacts_va + names + at for at in (32, 37, 47, 58, 67)))
           and f"mov ebp,{artefacts_va + names + 13:#x}" in texts
           and f"mov ebp,{artefacts_va + names:#x}" in texts and f"mov ebx,{heals:#x}" in texts
-          and f"cmp ebx,{heals + 12:#x}" in texts and "mov edi,0xa1c1fc" in texts and "mov edi,0xa1c230" in texts,
+          and f"cmp ebx,{heals + 20:#x}" in texts and "mov edi,0xa1c1fc" in texts and "mov edi,0xa1c230" in texts,
           "its data: the keys aim_time_mod (in `passive` 0xA1C1FC and `active` 0xA1C230) and "
-          "stopping_power_mod (in `active`), and the pools Lifebone's active fills (pain, body, head)")
+          "stopping_power_mod (in `active`), and the pools Lifebone's active fills (pain and the four limbs, "
+          "not body or head)")
+    check(all(stock.read(at, 5) == b"\xBE\x42\0\0\0" for at in (0x2D9D2C, 0x2D9DE8))
+          and all(stock.read(at, 5) == b"\xE8" + struct.pack("<i", to - at - 5)
+                  for at, to in ((0x2D9D3B, 0x2D5AE0), (0x2D9DED, 0x2D5AE0), (0x2D9D4C, 0x329A20),
+                                 (0x2D9DFE, 0x329A20)))
+          and 0x42 not in struct.unpack("<22I", stock.read(0x927E08, 0x58)),
+          "base_player::hit_impl (0x2D9B90): a hit's stamina damage, both ways, goes through the getter on "
+          "list 66 (stamina_loss_on_hit, multiplicative: not in the additive table 0x927E08) into "
+          "player_stamina::spend 0x329A20, so the Spring's -1 node there takes it away")
     check(rows(stock, 0x312BF0, 0x20) == [
               "mov eax,[ecx+0xee8]", "mov edx,[esp+0x4]", "cmp eax,[edx+0x1c]", "jnz near 0x312cb9",
               "cmp dword [ecx+0x280],byte +0x3", "mov eax,[esp+0x8]", "jnz 0x312c47"]
