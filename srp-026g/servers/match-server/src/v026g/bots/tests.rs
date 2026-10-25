@@ -12,12 +12,15 @@
 //!   off the kick first, the kick comes back by the weapon's controller;
 //!   each shot's kick drawn in the config's range (the bots predict the
 //!   middle);
-//! - the dead respawn at their side's spawns after 6.4 s (the radio);
+//! - the dead respawn at their side's spawns after 8 s in the battery
+//!   modes and 6.4 s in Team Deathmatch (the radio's -20 % on 10 s and
+//!   8 s, [`RESPAWN_BATTERIES_MS`]);
 //! - a use takes a battery, puts it in at one's own container, or steals
 //!   from the other's, as the client's use does: only what the view's ray
 //!   from the eye meets within 2 m (`base_player::detect_usable_object`):
-//!   within 0.2 m of a battery's middle, 0.6 m of a use box's; a drop
-//!   drops it;
+//!   within 0.2 m of a battery's middle, 0.6 m of a use box's; the drop
+//!   key held, or a new fire press, drops it, and the weapon is up again
+//!   [`DRAW_MS`] later; a carrier cannot sprint;
 //! - Team Deathmatch: each death costs the team a ticket; a team out of
 //!   tickets no longer respawns, and loses when its last body dies;
 //! - a world of every body, the statistics and the batteries comes every
@@ -73,6 +76,24 @@ const USE_BOX_M: f32 = 0.6;
 /// another (0: in at the press, as before).
 const PUT_MS: u32 = 600;
 
+/// The respawn after a death in the battery modes, ms: `respawn_time` 10 s
+/// in every mode-2 and mode-3 config since revision 28 (content edit
+/// `battery-respawn-1`, `docs/notes/battery_respawn.md`), less the radio's
+/// 20 % (`respawn_booster`, the stand-in's bodies carry one), PROVEN from
+/// the client's code (the respawn rule 0x316700, the death 0x316AA0). The
+/// player's respawn, not a battery's: a battery never goes home.
+const RESPAWN_BATTERIES_MS: u32 = 8_000;
+
+/// The same in Team Deathmatch: 8 s, less the radio's 20 %.
+const RESPAWN_TDM_MS: u32 = 6_400;
+
+/// How long after a carrier lets go of the battery his weapon fires again,
+/// ms: the weapon's show time follows the drop, about 0.8 s for rifles,
+/// SMGs and shotguns, 0.5 s for the TT-33 (LIKELY: private
+/// sprint-jump-re FINDINGS section 9; the stand-in's bodies hold their
+/// primary).
+const DRAW_MS: u32 = 800;
+
 /// A carrier's use at his container in the stand-in: when, from where, how
 /// far its ray passed the use box's middle, whether it began a put, and
 /// whether one was going on already.
@@ -108,6 +129,9 @@ struct Body {
     dead_at: u32,
     spawned: u32,
     carrying: Option<usize>,
+    /// No shot before this tick: the weapon coming up after a drop
+    /// ([`DRAW_MS`]).
+    drawn_at: u32,
     moved: f32,
     /// Until when a jump pressed keeps the body in the air, ms
     /// ([`STAND_IN_AIR_MS`]).
@@ -401,6 +425,12 @@ struct Game {
     metric_rays: u64,
     delivered: [u32; 2],
     stolen: u32,
+    /// Batteries carriers let go of alive: by a fire press, by the drop key.
+    drops: [u32; 2],
+    /// Carriers' ground distance walked (m) and their living ticks: their
+    /// mean speed.
+    carry_m: f32,
+    carry_ticks: u32,
     /// The places that took a battery out of the enemy's container, in
     /// order (the bench reads them by the thief's play).
     thieves: Vec<Place>,
@@ -544,6 +574,7 @@ impl Game {
             dead_at: 0,
             spawned: 0,
             carrying: None,
+            drawn_at: 0,
             moved: 0.0,
             air_until: 0,
             legs: [0.5; 2],
@@ -582,6 +613,9 @@ impl Game {
             metric_rays: 0,
             delivered: [0, 0],
             stolen: 0,
+            drops: [0, 0],
+            carry_m: 0.0,
+            carry_ticks: 0,
             thieves: Vec::new(),
             carrier_kills: Vec::new(),
             kill_log: Vec::new(),
@@ -738,7 +772,12 @@ impl Game {
             if !self.bodies[place].alive {
                 let team = usize::from(self.bodies[place].team);
                 let may = self.tickets.is_none_or(|tickets| tickets[team] > 0);
-                if may && tick >= self.bodies[place].dead_at + 6_400 {
+                let respawn = if self.tickets.is_some() {
+                    RESPAWN_TDM_MS
+                } else {
+                    RESPAWN_BATTERIES_MS
+                };
+                if may && tick >= self.bodies[place].dead_at + respawn {
                     self.spawn(place);
                 }
                 continue;
@@ -752,10 +791,17 @@ impl Game {
             if body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS {
                 level *= STAND_IN_STAGGER;
             }
-            let local = body.blend.tick(
-                self.kin.target_local(body.keys, level),
-                self.kin.blend_ticks,
-            );
+            // A carrier cannot sprint: the sprint check asks the item in
+            // hand, and the battery's answer is no (0x397C20), PROVEN; seen
+            // in 0x60aeff4f, the owner held sprint carrying at 3.35 m/s.
+            let keys = if body.carrying.is_some() {
+                body.keys & !key::SPRINT
+            } else {
+                body.keys
+            };
+            let local = body
+                .blend
+                .tick(self.kin.target_local(keys, level), self.kin.blend_ticks);
             let v = to_world(local, body.yaw);
             let to = Vec3::new(
                 body.feet.x + v[0] * TICK_S,
@@ -776,6 +822,10 @@ impl Game {
                     body.air_until = 0;
                 }
                 body.moved += feet.distance_xz(body.feet);
+                if body.carrying.is_some() {
+                    self.carry_m += feet.distance_xz(body.feet);
+                    self.carry_ticks += 1;
+                }
                 body.node = Some(node);
                 body.feet = feet;
             }
@@ -869,7 +919,10 @@ impl Game {
     fn shoot(&mut self, tick: u32) {
         for shooter in 0..self.bodies.len() {
             let body = &mut self.bodies[shooter];
-            let held = body.alive && body.keys & key::FIRE != 0 && body.carrying.is_none();
+            let held = body.alive
+                && body.keys & key::FIRE != 0
+                && body.carrying.is_none()
+                && tick >= body.drawn_at;
             let (auto, interval_ms) = (body.gun.auto, body.gun.shot_ms());
             let mut times = Vec::new();
             body.cadence
@@ -1080,11 +1133,18 @@ impl Game {
             if !body.alive {
                 continue;
             }
-            if pressed[place] & key::DROP != 0
+            // The drop key held, or a new fire press, lets go of it: the
+            // input handler takes the same branch for both (0x2D8E73..
+            // 0x2D8EC8, `inventory::drop_carried_item` 0x2FC810), PROVEN;
+            // 653 fire-press drops in 129 public battery matches.
+            let by_fire = pressed[place] & key::FIRE != 0;
+            if (body.keys & key::DROP != 0 || by_fire)
                 && let Some(battery) = body.carrying
             {
                 self.batteries[battery] = Lying::Free(body.feet, 1 << body.team);
                 self.bodies[place].carrying = None;
+                self.bodies[place].drawn_at = self.tick + DRAW_MS;
+                self.drops[usize::from(!by_fire)] += 1;
                 self.stolen_fell(battery, self.tick, true);
             }
             if pressed[place] & key::USE == 0 {
@@ -4593,6 +4653,36 @@ fn real_bot_cost() {
             let mut play_ticks: std::collections::BTreeMap<String, u64> = Default::default();
             let mut deaths_by: std::collections::BTreeMap<String, u32> = Default::default();
             let mut carriers_killed = [0u32; 2];
+            // Deaths on a Collect of a lying battery with 4 or more living
+            // enemies within 25 m of it, by the team: what
+            // `collect::COLLECT_ENEMY_MARGIN` may cost.
+            let mut collect_crowd_deaths = [0u32; 2];
+            // Deaths on a Collect of a lying battery the bot itself knew 4 or
+            // more enemies by (its remembered tracks within 25 m: the count
+            // `COLLECT_ENEMY_MARGIN` holds it through), by the team; of
+            // those, the ones with 4 or more living enemies there too.
+            let mut collect_held_deaths = [0u32; 2];
+            let mut collect_held_crowd_deaths = [0u32; 2];
+            // Those held deaths by the bot's ground distance to the battery
+            // (up to 3 m, 10 m, farther), and by whether it had an enemy in
+            // sight then (seen, not): which narrower hold would have let it go.
+            let mut collect_held_dist = [0u32; 3];
+            let mut collect_held_seen = [0u32; 2];
+            // Each crowded Collect death: the battery's spot (x, z, m), the
+            // bot's distance to it (m), held (1) or not, an enemy in sight
+            // (1) or not, and the team.
+            let mut collect_crowd_spots: Vec<[i32; 6]> = Vec::new();
+            // The container holder (`guard_lead::is_holder_slot`), by team:
+            // living holder ticks, those within 22 m of the team's container
+            // (on its post: guard spots are 12-20 m out), its deaths, thefts
+            // from the team's container while it had a holder alive, and
+            // ticks of a need with none (a theft this match, a battery home,
+            // no holder alive).
+            let mut holder_ticks = [0u64; 2];
+            let mut holder_post_ticks = [0u64; 2];
+            let mut holder_deaths = [0u32; 2];
+            let mut holder_thefts = [0u32; 2];
+            let mut unheld_ticks = [0u64; 2];
             let mut takes_all = 0u32;
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
@@ -4624,6 +4714,13 @@ fn real_bot_cost() {
                             .and_then(|b| b.assignment.as_ref())
                             .is_some_and(|a| super::team::attack(a.kind))
                     };
+                    let holder = |place: Place| {
+                        bots.bots[place]
+                            .as_ref()
+                            .and_then(|b| b.assignment.as_ref())
+                            .and_then(|a| a.slot)
+                            .is_some_and(super::plays::guard_lead::is_holder_slot)
+                    };
                     for (place, (now, before)) in game.stats.iter().zip(&stats_before).enumerate() {
                         push.stats(place, teams[place], now.0 - before.0, now.1 - before.1);
                         let side = &mut by_team[usize::from(teams[place])];
@@ -4638,8 +4735,77 @@ fn real_bot_cost() {
                             *deaths_by
                                 .entry(format!("{}/{}", play_of(place), teams[place]))
                                 .or_default() += now.1 - before.1;
+                            let lying = bots.bots[place]
+                                .as_ref()
+                                .and_then(|b| b.assignment.as_ref())
+                                .and_then(|a| match (a.kind, a.target) {
+                                    (
+                                        super::plays::PlayKind::Collect,
+                                        super::plays::TargetRef::Battery(battery),
+                                    ) => match game.batteries.get(battery) {
+                                        Some(&Lying::Free(at, _)) => Some(at),
+                                        _ => None,
+                                    },
+                                    _ => None,
+                                });
+                            let crowded = lying.is_some_and(|at| {
+                                let team = game.bodies[place].team;
+                                game.bodies
+                                    .iter()
+                                    .filter(|b| {
+                                        b.alive && b.team != team && b.feet.distance_xz(at) < 25.0
+                                    })
+                                    .count()
+                                    >= 4
+                            });
+                            if crowded {
+                                collect_crowd_deaths[usize::from(teams[place])] +=
+                                    now.1 - before.1;
+                            }
+                            let held = lying.is_some_and(|at| {
+                                bots.bots[place].as_ref().is_some_and(|b| {
+                                    b.memory
+                                        .tracks()
+                                        .iter()
+                                        .filter(|t| t.at.distance_xz(at) < 25.0)
+                                        .count()
+                                        >= 4
+                                })
+                            });
+                            if held && let Some(at) = lying {
+                                let team = usize::from(teams[place]);
+                                let n = now.1 - before.1;
+                                let off = game.bodies[place].feet.distance_xz(at);
+                                collect_held_dist[usize::from(off > 3.0) + usize::from(off > 10.0)] +=
+                                    n;
+                                let seen = bots.bots[place].as_ref().is_some_and(|b| {
+                                    b.memory.tracks().iter().any(|t| t.sight_since.is_some())
+                                });
+                                collect_held_seen[usize::from(!seen)] += n;
+                                collect_held_deaths[team] += now.1 - before.1;
+                                if crowded {
+                                    collect_held_crowd_deaths[team] += now.1 - before.1;
+                                }
+                            }
+                            if crowded && let Some(at) = lying {
+                                let seen = bots.bots[place].as_ref().is_some_and(|b| {
+                                    b.memory.tracks().iter().any(|t| t.sight_since.is_some())
+                                });
+                                let off = game.bodies[place].feet.distance_xz(at);
+                                collect_crowd_spots.push([
+                                    at.x.round() as i32,
+                                    at.z.round() as i32,
+                                    off.round() as i32,
+                                    i32::from(held),
+                                    i32::from(seen),
+                                    i32::from(teams[place]),
+                                ]);
+                            }
                             if attacking(place) {
                                 side[4] += u64::from(now.1 - before.1);
+                            }
+                            if holder(place) {
+                                holder_deaths[usize::from(teams[place])] += now.1 - before.1;
                             }
                         }
                     }
@@ -4653,6 +4819,34 @@ fn real_bot_cost() {
                     push.tick(&bots);
                     if let Some(human) = &mut human {
                         human.tick(&game, &thieves);
+                    }
+                    let mut holding = [false; 2];
+                    for bot in bots.bots.iter().flatten() {
+                        let body = &game.bodies[bot.place];
+                        if !body.alive || !holder(bot.place) {
+                            continue;
+                        }
+                        let team = usize::from(bot.team);
+                        holding[team] = true;
+                        holder_ticks[team] += 1;
+                        let home = game.containers.iter().find(|c| usize::from(c.0) == team);
+                        if home.is_some_and(|c| body.feet.distance_xz(c.1) <= 22.0) {
+                            holder_post_ticks[team] += 1;
+                        }
+                    }
+                    for &place in &thieves {
+                        let robbed = 1 - usize::from(teams[place]);
+                        holder_thefts[robbed] += u32::from(holding[robbed]);
+                    }
+                    for (team, &held) in holding.iter().enumerate() {
+                        let home = game.batteries.iter().any(|b| {
+                            matches!(*b, Lying::Home(id)
+                                if game.containers.get(usize::from(id))
+                                    .is_some_and(|c| usize::from(c.0) == team))
+                        });
+                        if !held && home && bots.teams[team].knowledge.thefts_match > 0 {
+                            unheld_ticks[team] += 1;
+                        }
                     }
                     for place in thieves {
                         by_play.entry(play_of(place)).or_default()[4] += 1;
@@ -5073,6 +5267,7 @@ fn real_bot_cost() {
                 side[0] += stat.0;
                 side[1] += stat.1;
             }
+            let secs = |ticks: u64| (ticks as f64 * f64::from(TICK_MS) / 100.0).round() / 10.0;
             let play_s: std::collections::BTreeMap<&String, f64> = play_ticks
                 .iter()
                 .map(|(k, n)| (k, *n as f64 * f64::from(TICK_MS) / 1000.0))
@@ -5093,6 +5288,17 @@ fn real_bot_cost() {
                     "stands_given_up": stands_given_up,
                     "stands_stale": stands_stale,
                     "carriers_killed": carriers_killed,
+                    "collect_crowd_deaths": collect_crowd_deaths,
+                    "collect_held_deaths": collect_held_deaths,
+                    "collect_held_crowd_deaths": collect_held_crowd_deaths,
+                    "collect_held_dist": collect_held_dist,
+                    "collect_held_seen": collect_held_seen,
+                    "collect_crowd_spots": collect_crowd_spots,
+                    "holder_s": holder_ticks.map(secs),
+                    "holder_post_s": holder_post_ticks.map(secs),
+                    "holder_deaths": holder_deaths,
+                    "holder_thefts": holder_thefts,
+                    "unheld_s": unheld_ticks.map(secs),
                     "play_s": play_s,
                     "by_play": play_rows,
                     "deaths_by": deaths_by,
@@ -5101,6 +5307,12 @@ fn real_bot_cost() {
                     "nudged": game.nudged,
                     "raids": raid_sums,
                     "stolen": game.stolen,
+                    "drops": game.drops,
+                    "carry_mps": if game.carry_ticks > 0 {
+                        game.carry_m / (game.carry_ticks as f32 * TICK_S)
+                    } else {
+                        0.0
+                    },
                 })
             );
             eprintln!(

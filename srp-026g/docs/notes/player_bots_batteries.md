@@ -400,3 +400,234 @@ pickup within 10 s; base has no exact walks, so 0 there):
 The remainder is only in the games an exact walk turned (one decision
 changed, the rest of the match played otherwise); per map none is over
 1.8 SE. Unplanned falls, stuck and pockets are not up, nor deliveries down.
+
+## Bots: a bot on a battery's Collect is not flipped off it by the enemies' count hovering at the cut-off
+
+### Why
+
+On level_02 day 2 10v10 most quick ends (a take within 1 s of the last)
+were Collect churn: a battery left a bot's candidates and came back
+seconds later, and the bot left its Collect each time. The notes (16 seeds,
+a182512a) named the cause: of the drop-outs, "enemies by it" 1,410, "no way
+to its stand" 700, "hurt" 443 (a median 8 s out: no flicker). The enemies'
+drop-outs lasted a median 2.5 s, 47% under 2 s. Collect scores a battery 0
+at 4 enemies within 25 m of it (`EnemiesNearTarget`), and that count is of
+the bot's remembered enemies (`Memory::tracks`), not of the ones in sight:
+a track's spot moves with sight, hearing and callouts, and the track drops
+when not sensed for a while. The 4th track's spot crossing 25 m, or that
+track dropping, flipped the battery.
+
+### What changed
+
+- **Hysteresis on the count** (`collect::battery_candidate`): a bot whose
+  running play is this battery's Collect, with no enemy in sight (noticed,
+  `Memory::all_seen`), reads `COLLECT_ENEMY_MARGIN` (1, GUESS) enemy fewer
+  by it while 4 or more are known there (`ENEMIES_OUT`, the consideration's
+  top): it keeps the battery at 4 and leaves at 5. A battery out comes back
+  only below 4; a bot not on it reads the count as it is. The candidacy
+  notes use the same rule.
+- **Notes:** "battery N is no Collect candidate: <why>" now names which
+  consideration scored it out ("scored out: enemies by it", "...: hurt",
+  "...: its way"), and both notes give the bot's distance to the battery and
+  how long it was a candidate (or out) before (`TeamKnowledge::take_blocked`
+  keeps each bot's state and since when). Notes only: with the candidacy
+  notes filtered out, the decision traces of batt seeds 1-2 are the same as
+  a182512a's line for line.
+- **Bench tallies** (the batt sums): deaths on a Collect with 4 or more
+  living enemies within 25 m of the battery (`collect_crowd_deaths`), those
+  the bot itself knew 4 or more tracks by (`collect_held_deaths`, the margin
+  holding it), their distance and sight, and each crowded death's spot.
+
+### What was tried and left out
+
+- **The margin at all times** (no sight rule): quick ends fell more, but
+  the deaths on a crowded Collect doubled (16 seeds, 4-5/9-10/13-15: 19 ->
+  40, 31 -> 48, 23 -> 40), and the deaths the bot was held through went
+  3 -> 28, 6 -> 34, 9 -> 24; 25, 28 and 23 of those had an enemy in sight.
+  Against it, the sight rule (both with the standing stand below): 4-5 quick
+  ends +4.3 (0.7 SE), crowded deaths -1.0 (2.2 SE); 13-15 quick ends +20.3
+  (2.6 SE), flips +7.6 (2.9 SE), held deaths -0.9 (2.5 SE). High tiers
+  notice more enemies, so there the hold is given up more often.
+- **A hold only near the battery:** of 1,267 drop-outs for the enemies in
+  the notes traces, 898 came with the bot over 25 m off the battery and 70
+  within 10 m; the hold would have missed the flicker.
+- **A debounce** (out only after N ms scored out): it also delays a real
+  retreat from a crowd; the margin holds only a committed bot.
+- **The standing take stand again** (`take_stand`, level_02 day 2 spawner
+  39, left out of #403): with it, level_02 day 2 10v10's crowded Collect
+  deaths went 2 -> 8 at 13-15 (2 -> 6 at 4-5) and the 13-15 guard failed
+  (+1.06 per seed, 2.7 SE); without it they are at base. It waits for its
+  own PR with a fix for that spot.
+- The bench's "enemy in sight" at a death counts sights not yet noticed;
+  the rule counts noticed ones only.
+
+### Bench
+
+Against base-a182512a (16 seeds; the base side run with the tallies only,
+its decisions digests equal to base's), the standard batt preset (no tier
+plays as 4-5: `BotTier::default()`), after minus base per seed (SE):
+
+| | 4-5 | 9-10 | 13-15 |
+|---|---|---|---|
+| quick ends (base 331, 344, 339) | -36.1 (6.9) | -27.4 (7.9) | -24.1 (9.9) |
+| flips | -20.5 (4.7) | -13.3 (5.0) | -5.9 (5.0) |
+| Collect play starts | -39.5 (13.1) | -18.7 (13.2) | -8.4 (15.0) |
+| pickups | +0.5 (1.4) | -0.1 (1.4) | +0.5 (1.0) |
+| delivered | +0.9 (0.7) | +0.1 (0.6) | -0.3 (0.7) |
+| carriers killed | -0.2 (1.4) | +0.5 (1.1) | +0.9 (1.1) |
+| kills | -0.1 (1.9) | +0.9 (2.8) | -1.1 (2.5) |
+| team kills | -0.25 (0.23) | -0.06 (0.06) | 0.00 (0.18) |
+| deaths on a crowded Collect (base 1.2, 1.9, 1.4) | 0.00 (0.38) | +0.38 (0.59) | +0.62 (0.34) |
+| deaths on Collect (base 78, 88, 98) | -3.7 (1.7) | +3.5 (2.1) | +0.3 (1.8) |
+
+- **level_02 day 2 10v10:** quick ends -7.4 (3.1), -3.9 (3.0), -7.8 (2.0);
+  delivered +0.3, +0.1, +0.1; crowded Collect deaths at base.
+- **level_04 day 2 10v10, 13-15:** crowded Collect deaths 9 -> 17 in 16
+  seeds, in 11 cells of 5 m along one lane (x 10, z 40-95), from 11 seeds,
+  3 of them held: spread, not a spot (4-5: 6 -> 7; 9-10: 12 -> 15).
+- **tdm:** seeds 1-2 on tiers 4-5, 9-10 and 13-15, every run's decisions
+  digest equal to base's (only Collect changed).
+
+## Bots: a container holder while our container holds batteries and a theft or an enemy by it says it needs holding
+
+### Why
+
+In Cologne (CG-1) the owner stole from the same container by the same lane
+again and again, and no bot was there: GuardLead, the only play that keeps
+a bot by our container, ran only in the last three minutes with the lead,
+and a theft ended it. Since #390 the team keeps a match-long memory of each
+human (CG-12: `HumanLanes`), with his lanes and his thefts; nothing read
+it yet.
+
+### What changed
+
+- **A holder slot** in `guard_lead.rs`, at any time, beside the two
+  end-game slots: `HOLDER_SLOT + container id`. `is_holder(kind, target,
+  slot)`, a pure function, names it for the role budget (CG-13: "holder at
+  most 1"), which sees only candidates and assignments.
+- **The need** (`holder_need`): our container holds batteries, and a
+  battery of ours was taken this match (`TeamKnowledge::thefts_match`, new:
+  every thief, bot or human), or one in the last 60 s, or an enemy is known
+  within 20 m of the container (GUESS).
+- **The score:** the guard's own considerations (distance, personality,
+  health), its time left and lead taken as met, times the need: the
+  batteries at stake (`HOLDER_STAKES`: 1, 2, 3+ -> 0.5, 0.75, 1) times the
+  thefts this match (`HOLDER_THEFTS`: 0, 1, 2+ -> 0.6, 0.85, 1). GUESS each.
+- **Its spot** is a guard's, but within 60 degrees (GUESS), seen from the
+  container, of the way a thief comes: the best of the thieves' lane cells
+  within 30 m (`HumanLanes::thief_lane`), else toward the enemy container.
+  It looks that way too between glances at the container. With a face it
+  asks the spot finder for three times the spots (a third face that way);
+  on a re-pick with none facing it keeps the spot it has.
+- **Its end:** a theft does not end it (the alarm sends others); the need
+  off for 20 s does (GUESS). An end-game guard keeps its old ends.
+- **The last two** of a team never hold while a battery lies loose. The
+  line is temporary: CG-13's role budget gives the same, and its PR takes
+  the line out.
+- **Rank:** the holder stays `Objective`. The plan had it raised to `Fight`
+  under a threat so that a Crossfire elsewhere would not take it, but the
+  bands run Roam < Fight < Objective < Alarm: an objective over the 0.10
+  floor already beats every fight-band play, and the raise would have done
+  nothing.
+- **Bench tallies** (bench code only): holder time, its time within 22 m of
+  our container, its deaths, thefts from a container with a holder alive,
+  and time of a need with no holder.
+
+### What is left for the next PR
+
+The owner's idea for a carrier stuck under fire: drop the battery, fight,
+re-take it and escape (with Bring's escape and CG-19). It comes in its own
+PR with its own file plan, after this one; the holder's slot is where the
+dropper's claim on the battery will live.
+
+### Bench
+
+Against base-486a48e0, 16 seeds, after minus base per seed (SE). The
+binary was built from 6c27a63c; the later commit changed only
+`is_holder`'s signature and the tests.
+
+The standard batt preset (6 maps x 4v4 and 10v10, all bots; no tier plays
+as 4-5):
+
+| | 4-5 | 9-10 | 13-15 |
+|---|---|---|---|
+| holder bot-s a seed (on its post) | 59 (37) | 45 (32) | 44 (27) |
+| delivered (base 75, 73, 72) | -0.3 (0.4) | -1.9 (1.6) | -2.1 (1.9) |
+| Collect s (base ~13,950) | -4 (26) | -313 (335) | -489 (478) |
+| kills | +1.1 (0.7) | -6.6 (6.6) | -11.3 (9.3) |
+| carriers killed | -0.1 (0.4) | -0.1 (0.7) | -1.3 (1.2) |
+| quick ends | +2.4 (1.4) | -4.3 (8.4) | -9.0 (12.2) |
+| flips | -0.4 (1.3) | -1.9 (2.7) | +0.3 (2.2) |
+| holder deaths | 0.4 | 0.3 | 0.3 |
+
+- Bots seldom steal (about 1 theft a seed over 12 maps), so here the need
+  comes mostly from an enemy by the container, and the holder is about a
+  minute a seed. No guard is worse beyond 2 SE.
+
+The stand-in human (`SRP_BENCH_HUMAN=0`, 4v4, `SRP_BENCH_START=3,3`, the
+batt maps), both sides run here:
+
+| | 4-5 | 9-10 | 13-15 |
+|---|---|---|---|
+| holder bot-s a seed (on its post) | 122 (92) | 127 (96) | 92 (69) |
+| thefts, all (base 3.4, 3.9, 2.9) | -0.31 (0.28) | -0.56 (0.27) | -0.25 (0.31) |
+| the human's steals (base 0.9, 1.1, 1.1) | +0.06 (0.17) | -0.31 (0.22) | -0.31 (0.22) |
+| delivered (base 18.4, 18.8, 17.6) | +0.25 (0.38) | -0.19 (0.43) | +0.19 (0.25) |
+| Collect s (base ~3,800) | -64 (21) | -59 (19) | -59 (17) |
+| carriers killed | -0.38 (0.46) | -0.88 (0.49) | -1.12 (0.41) |
+| deaths | -0.3 (0.8) | -0.4 (0.9) | -1.3 (0.6) |
+| GuardLead deaths (holder's) | +1.12 (0.33) | +0.75 (0.38) | +1.19 (0.44) |
+| thefts with a holder alive | 0.8 | 1.4 | 0.7 |
+| need with no holder, s | 44 | 52 | 45 |
+
+- Thefts fall at every tier, beyond 2 SE at 9-10 only; the human's steals
+  fall 0.3 a seed at 9-10 and 13-15 (1.4 SE).
+- The cost: a bot off Collect for about a minute a seed, and about one
+  holder death a seed. Deliveries hold, and total deaths do not rise.
+- A need is left with no holder about 45 s a seed: the last-two rule, a
+  holder dead and not yet replaced, or a bot already on a higher play.
+- tdm: seeds 1-2 at 4-5, 9-10 and 13-15, every run's decisions digest equal
+  to base's.
+
+## Bots bench: the stand-in game carries as the game does
+
+The bench's game (`bots/tests.rs`) let a carrier sprint, ignored his fire
+press, dropped a battery only on the drop key's press and respawned the
+dead in 6.4 s in every mode. Each change cites its source in the code:
+
+- **No sprint while carrying** (the exe's sprint check asks the item in
+  hand and the battery says no, 0x397C20, PROVEN; the owner held sprint
+  carrying at 3.35 m/s in 0x60aeff4f).
+- **A new fire press drops the battery**, as the drop key held does (the
+  input handler's one branch, 0x2D8E73..0x2D8EC8, PROVEN; 653 fire-press
+  drops in 129 public battery matches). Before, a carrier's fire did
+  nothing.
+- **The weapon fires again 0.8 s after a drop** (`DRAW_MS`, the weapon's
+  show time, LIKELY).
+- **Respawn:** 8 s in the battery modes (10 s since revision 28,
+  `battery_respawn.md`, less the radio's 20 %), 6.4 s in Team Deathmatch
+  as before. This is the player's respawn; a battery never goes home.
+- **Counters:** drops by fire and by key, and carriers' mean speed, in the
+  bench sums.
+- Not modelled: the broken-arm rule for a use (the stand-in has no arms).
+
+**What it does on its own** (the same commit with only the model lines
+reverted, batt and tdm, tier 4-5, seeds 1-4, after minus before per seed,
+SE):
+
+| | before | after |
+|---|---|---|
+| carriers' speed, m/s | 2.60 | 2.64 (+0.05, 0.08) |
+| drops by fire / by key | 0 / 0.8 | 1.25 / 1.0 |
+| delivered | 75.0 | 73.5 (-1.5, 2.4) |
+| carriers killed | 17.5 | 16.8 (-0.8, 2.7) |
+| deaths | 240 | 243 (+3.0, 9.5) |
+| quick ends | 278 | 291 (+13.8, 12.4) |
+
+- Bots' carriers never sprinted (Bring walks), so speed is unchanged.
+- **Bots do press fire while carrying.** Of 3 cases traced (level_05 day 2
+  10v10), two carriers were on another play by then (PairUp, Roam) and one
+  was on its Collect. In the game each such press drops the battery. The
+  fix is in the bots' code and comes in its own PR.
+- tdm: every run's decisions digest equal to before (no carrying, the
+  respawn unchanged).
