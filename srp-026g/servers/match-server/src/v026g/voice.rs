@@ -15,6 +15,13 @@
 //! seam for subtitles and translation later. What a tap says goes back to the
 //! team through [`RelayOut`] as a TEXT datagram (type 85h).
 //!
+//! A mute is kept by the speaker's **voice id**, not its name (an account can
+//! be renamed, and another may take the old name): ROSTER gives each place
+//! of the listener's team the first four bytes of SHA-256 of a server key
+//! and the account id, stable for the account and opaque to the players
+//! ([`voice_id`]). The key is `<SRP_DATA_DIR>/voice-id.key`, made once
+//! ([`id_key_from_env`]).
+//!
 //! Muting is the listener's: its game plays nothing of a slot it mutes, and
 //! its HELLO says which slots (the `muted` mask), so the relay sends it
 //! nothing of them either. A game with voice turned off says it does not
@@ -33,6 +40,7 @@
 //! S->C 83 AUDIO  u8 slot, u16 utt, u16 seq, u8 n, frames
 //! S->C 84 END    u8 slot, u16 utt, u8 reason (0 released, 1 timeout, 2 too long)
 //! S->C 85 TEXT   u8 slot, u16 utt, u8 final, u8 lang[2], u8 len, utf8
+//! S->C 90 ROSTER u8 count, count x (u8 slot, u32 voice id)   (with each WELCOME)
 //! ```
 //!
 //! Settings: `SRP_VOICE=on|off` (default `on`): srp binds the match port + 1
@@ -60,6 +68,7 @@ pub mod kind {
     pub const RELAYED_AUDIO: u8 = 0x83;
     pub const RELAYED_END: u8 = 0x84;
     pub const TEXT: u8 = 0x85;
+    pub const ROSTER: u8 = 0x90;
 }
 
 /// A datagram larger than this is dropped (16 kbit/s Opus: about 90 bytes).
@@ -138,6 +147,9 @@ impl UtteranceTap for NoTap {}
 pub trait Seats {
     fn voice_seat(&self, session_id: u32) -> Option<VoiceSeat>;
     fn is_open(&self, match_id: u32) -> bool;
+    /// The places of a match's team that a game plays (no bot's): the place
+    /// and its account.
+    fn roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)>;
 }
 
 impl Seats for MatchRegistry {
@@ -147,6 +159,10 @@ impl Seats for MatchRegistry {
 
     fn is_open(&self, match_id: u32) -> bool {
         MatchRegistry::is_open(self, match_id)
+    }
+
+    fn roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)> {
+        self.voice_roster(match_id, team)
     }
 }
 
@@ -158,6 +174,61 @@ impl<T: Seats + ?Sized> Seats for std::sync::Arc<T> {
     fn is_open(&self, match_id: u32) -> bool {
         (**self).is_open(match_id)
     }
+
+    fn roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)> {
+        (**self).roster(match_id, team)
+    }
+}
+
+/// An account's voice id: the first four bytes of SHA-256(key, account id),
+/// never 0 (the games' "not known").
+pub fn voice_id(key: &[u8; 32], account_id: u32) -> u32 {
+    let mut hasher = openssl::sha::Sha256::new();
+    hasher.update(key);
+    hasher.update(&account_id.to_le_bytes());
+    let digest = hasher.finish();
+    match u32::from_le_bytes([digest[0], digest[1], digest[2], digest[3]]) {
+        0 => 1,
+        id => id,
+    }
+}
+
+/// The voice ids' key: `<SRP_DATA_DIR>/voice-id.key` (default `data/`),
+/// 32 random bytes made the first time. Without it (an error, logged) a key
+/// for this run only: the players' mutes do not carry over a restart.
+pub fn id_key_from_env() -> [u8; 32] {
+    let dir =
+        std::env::var_os("SRP_DATA_DIR").map_or_else(|| "data".into(), std::path::PathBuf::from);
+    let path = dir.join("voice-id.key");
+    match std::fs::read(&path) {
+        Ok(bytes) if bytes.len() == 32 => {
+            let mut key = [0; 32];
+            key.copy_from_slice(&bytes);
+            return key;
+        }
+        Ok(bytes) => log::error!(
+            "Voice: {} has {} bytes, not 32: a key for this run only (mutes are kept by it)",
+            path.display(),
+            bytes.len()
+        ),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => log::error!("Voice: can't read {}: {error}", path.display()),
+    }
+    let mut key = [0; 32];
+    if let Err(error) = openssl::rand::rand_bytes(&mut key) {
+        log::error!("Voice: no random key ({error}); the voice ids are the accounts' own");
+        return key;
+    }
+    let written = std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&path, key));
+    match written {
+        Ok(()) => log::info!("Voice: made the voice ids' key {}", path.display()),
+        Err(error) => log::error!(
+            "Voice: can't write {}: {error}; a key for this run only (mutes do not carry over a \
+             restart)",
+            path.display()
+        ),
+    }
+    key
 }
 
 /// A client datagram, read.
@@ -300,6 +371,8 @@ pub struct Relay<S: Seats> {
     counts: HashMap<u32, MatchCounts>,
     /// Datagrams dropped before a session was known (too large, malformed).
     pub dropped_unknown: u64,
+    /// The voice ids' key ([`voice_id`]).
+    id_key: [u8; 32],
     next_housekeeping: Instant,
 }
 
@@ -317,8 +390,15 @@ impl<S: Seats> Relay<S> {
             talkers: HashMap::new(),
             counts: HashMap::new(),
             dropped_unknown: 0,
+            id_key: [0; 32],
             next_housekeeping: now + HOUSEKEEPING,
         }
+    }
+
+    /// The relay with the voice ids' key `key` (all zeros otherwise).
+    pub fn with_id_key(mut self, key: [u8; 32]) -> Self {
+        self.id_key = key;
+        self
     }
 
     /// A match's counts so far (tests; the log has them at its end).
@@ -400,6 +480,14 @@ impl<S: Seats> Relay<S> {
                 let mut welcome = header(kind::WELCOME);
                 welcome.push(seat.place);
                 out.push((addr, welcome));
+                let places = self.seats.roster(seat.match_id, seat.team);
+                let mut roster = header(kind::ROSTER);
+                roster.push(places.len().min(20) as u8);
+                for (place, account) in places.into_iter().take(20) {
+                    roster.push(place);
+                    roster.extend_from_slice(&voice_id(&self.id_key, account).to_le_bytes());
+                }
+                out.push((addr, roster));
             }
             Datagram::Start { utt, .. } => self.start(session, seat, utt, now, &mut out),
             Datagram::Audio {
@@ -653,10 +741,15 @@ pub fn port_for(match_port: u16) -> Option<u16> {
 }
 
 /// The relay on `socket` until `stop` is set. Returns only on a socket error.
-pub fn run(socket: &UdpSocket, seats: impl Seats, stop: &AtomicBool) -> io::Result<()> {
+pub fn run(
+    socket: &UdpSocket,
+    seats: impl Seats,
+    id_key: [u8; 32],
+    stop: &AtomicBool,
+) -> io::Result<()> {
     socket.set_read_timeout(Some(RECEIVE_WAIT))?;
     log::info!("Voice relay on UDP {}", socket.local_addr()?);
-    let mut relay = Relay::new(seats, Instant::now());
+    let mut relay = Relay::new(seats, Instant::now()).with_id_key(id_key);
     let mut buffer = [0; 2048];
     while !stop.load(Ordering::Relaxed) {
         let sends = match socket.recv_from(&mut buffer) {

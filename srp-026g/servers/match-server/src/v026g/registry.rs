@@ -699,6 +699,22 @@ impl MatchRegistry {
         }
     }
 
+    /// The places of a match's team that a game plays (not a bot's): each
+    /// place and its account, for the voice relay's ROSTER.
+    pub fn voice_roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)> {
+        let inner = self.inner();
+        let Some(formed) = inner.matches.get(&match_id) else {
+            return Vec::new();
+        };
+        formed
+            .places
+            .iter()
+            .enumerate()
+            .filter(|(_, place)| place.team == team && !place.bot && !place.driven)
+            .map(|(index, place)| (index as u8, place.account_id))
+            .collect()
+    }
+
     /// The seat of a session with its team and its match connection's IP,
     /// for the voice relay. `None` for a session with no place, and for a
     /// bot's place (no game talks for it).

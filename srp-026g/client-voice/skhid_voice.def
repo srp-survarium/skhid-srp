@@ -10,3 +10,4 @@ EXPORTS
     sv_talking
     sv_slot
     sv_last_speaker
+    sv_voice_id

@@ -88,6 +88,30 @@ static void test_wire(void)
     m.type = SV_RELAY_END, m.slot = 4, m.utt = 77, m.reason = SV_END_TOO_LONG;
     roundtrip(&m, 7);
 
+    /* ROSTER: each slot's voice id; a count past SV_SLOTS or entries past
+     * the end are refused. */
+    {
+        uint8_t buf[SV_MAX_DATAGRAM];
+        sv_msg back;
+        memset(&m, 0, sizeof m);
+        m.type = SV_ROSTER, m.count = 3;
+        m.roster_slot[0] = 0, m.roster_id[0] = 0xDEADBEEF;
+        m.roster_slot[1] = 2, m.roster_id[1] = 1;
+        m.roster_slot[2] = 19, m.roster_id[2] = 0x80000000;
+        size_t len = sv_write(&m, buf, sizeof buf);
+        CHECK(len == 4 + 15 && sv_parse(buf, len, &back) && back.count == 3 &&
+                  back.roster_slot[2] == 19 && back.roster_id[0] == 0xDEADBEEF &&
+                  back.roster_id[2] == 0x80000000,
+              "ROSTER round trip");
+        CHECK(!sv_parse(buf, len - 1, &back), "a ROSTER cut short parses");
+        buf[3] = SV_SLOTS + 1;
+        CHECK(!sv_parse(buf, len, &back), "a ROSTER of 21 parses");
+        memset(&m, 0, sizeof m);
+        m.type = SV_ROSTER;
+        CHECK(sv_write(&m, buf, sizeof buf) == 4 && sv_parse(buf, 4, &back) && back.count == 0,
+              "an empty ROSTER");
+    }
+
     /* HELLO's first form (no mask) parses, the mask 0. */
     {
         uint8_t hello[8] = {0x56, 1, 1, 1, 2, 3, 4, 1};

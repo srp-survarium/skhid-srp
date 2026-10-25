@@ -157,6 +157,7 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 | 84 END | S->C | `u8 speaker_slot, u16 utt, u8 reason` (0 released, 1 timeout, 2 too long) | relayed |
 | 85 TEXT | S->C | reserved: `u8 speaker_slot, u16 utt, u8 final, u8 lang[2], u8 len, utf8` | later: subtitles |
 | 86-8F | S->C | reserved: an AUDIO-like stream with a language | later: translated audio |
+| 90 ROSTER | S->C | `u8 count, count x (u8 slot, u32 voice_id)` | with each WELCOME: the listener's team |
 
 - **speaker_slot** is the speaker's player index in the match: the order of the match-start
   player list (0xE4, static_info.md). The client gets the name and the team from it without new
@@ -282,7 +283,11 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 - **Muting**, without the Tab list (Tab frees no cursor; Blackout hides the list):
   - the Esc menu gets a "Voice" panel: the teammates, a mute toggle each, and "Mute all";
   - a key "mute the last speaker" in Controls (default M only if M is free in every group);
-  - mutes are per account, kept across matches; the HUD list marks or leaves out the muted;
+  - mutes are per account, kept across matches; the HUD list leaves the muted out;
+  - kept by a **voice id**, not the name (accounts can be renamed; the owner, 2026-10-25): srp's
+    ROSTER gives each teammate's slot the first four bytes of SHA-256(key, account id), the key
+    `<SRP_DATA_DIR>/voice-id.key` (32 random bytes made once). Stable, and no account id goes
+    to other players. The game keeps the muted ids in `user.cfg` (`srp_voice_mutes`);
   - client-side: a muted slot is not played; HELLO also carries the mask of muted slots, and
     the relay sends that listener nothing of them.
 - **"Disable voice chat"** in the options, beside "Hide chat in match": nothing played, no

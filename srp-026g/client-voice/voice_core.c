@@ -64,6 +64,16 @@ size_t sv_write(const sv_msg *m, uint8_t *out, size_t cap)
     case SV_WELCOME:
         buf[at++] = m->slot;
         break;
+    case SV_ROSTER:
+        if (m->count > SV_SLOTS)
+            return 0;
+        buf[at++] = m->count;
+        for (k = 0; k < m->count; k++) {
+            buf[at] = m->roster_slot[k];
+            put32(buf + at + 1, m->roster_id[k]);
+            at += 5;
+        }
+        break;
     case SV_RELAY_START:
         buf[at] = m->slot;
         put16(buf + at + 1, m->utt);
@@ -143,6 +153,15 @@ int sv_parse(const uint8_t *d, size_t len, sv_msg *m)
         if (len < at + 1)
             return 0;
         m->slot = d[at];
+        return 1;
+    case SV_ROSTER:
+        if (len < at + 1 || d[at] > SV_SLOTS || len < at + 1 + 5u * d[at])
+            return 0;
+        m->count = d[at++];
+        for (k = 0; k < m->count; k++, at += 5) {
+            m->roster_slot[k] = d[at];
+            m->roster_id[k] = get32(d + at + 1);
+        }
         return 1;
     case SV_RELAY_START:
         if (len < at + 7)

@@ -605,12 +605,14 @@ impl Stack {
         if let (Some(socket), Some(voice_addr)) = (voice_socket, voice_addr) {
             let (registry, flag) = (registry.clone(), stop.clone());
             let mut socket = Some(socket);
+            // Mutes are kept by these ids: the key outlives a restart.
+            let id_key = matches::voice::id_key_from_env();
             threads.push(supervise("voice", stop.clone(), move || {
                 let socket = match socket.take() {
                     Some(socket) => socket,
                     None => UdpSocket::bind(voice_addr)?,
                 };
-                matches::voice::run(&socket, registry.clone(), &flag)
+                matches::voice::run(&socket, registry.clone(), id_key, &flag)
             }));
         }
         {

@@ -54,6 +54,19 @@ impl Seats for Table {
             .values()
             .any(|seat| seat.match_id == match_id)
     }
+
+    /// Each seat's account is 100 + its session.
+    fn roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)> {
+        let mut places: Vec<(u8, u32)> = self
+            .0
+            .borrow()
+            .iter()
+            .filter(|(_, seat)| seat.match_id == match_id && seat.team == team)
+            .map(|(session, seat)| (seat.place, 100 + session))
+            .collect();
+        places.sort_unstable();
+        places
+    }
 }
 
 /// Each session's game: 10.0.0.<session>, port 5000 + session.
@@ -159,18 +172,48 @@ fn sent_to(out: &[(SocketAddr, Vec<u8>)]) -> Vec<(u32, u8)> {
     to
 }
 
+/// The WELCOMEs of `out` (the ROSTERs left out).
+fn welcomes(out: Vec<(SocketAddr, Vec<u8>)>) -> Vec<(SocketAddr, Vec<u8>)> {
+    out.into_iter()
+        .filter(|(_, datagram)| datagram[2] != kind::ROSTER)
+        .collect()
+}
+
 #[test]
 fn hello_is_welcomed_with_the_slot() {
     let mut bench = Bench::new();
     let out = bench.send(2, &hello(2, true));
-    assert_eq!(out, vec![(addr(2), vec![MAGIC, VERSION, kind::WELCOME, 2])]);
+    assert_eq!(
+        welcomes(out),
+        vec![(addr(2), vec![MAGIC, VERSION, kind::WELCOME, 2])]
+    );
     // The old HELLO without a mask is taken too.
     let mut short = hello(3, true);
     short.truncate(8);
     assert_eq!(
-        bench.send(3, &short),
+        welcomes(bench.send(3, &short)),
         vec![(addr(3), vec![MAGIC, VERSION, kind::WELCOME, 4])]
     );
+}
+
+#[test]
+fn each_welcome_comes_with_the_teams_voice_ids() {
+    let key = [9; 32];
+    let mut relay = Relay::new(Table::new(), Instant::now()).with_id_key(key);
+    let out = relay.receive(addr(2), &hello(2, true), Instant::now());
+    assert_eq!(out.len(), 2);
+    // Team 0: places 0, 2 and 4 (sessions 1, 2, 3: accounts 101, 102, 103).
+    let mut want = vec![MAGIC, VERSION, kind::ROSTER, 3];
+    for (place, account) in [(0u8, 101u32), (2, 102), (4, 103)] {
+        want.push(place);
+        want.extend_from_slice(&voice_id(&key, account).to_le_bytes());
+    }
+    assert_eq!(out[1], (addr(2), want));
+    // Stable for an account; another for another account or another key; never 0.
+    assert_eq!(voice_id(&key, 101), voice_id(&key, 101));
+    assert_ne!(voice_id(&key, 101), voice_id(&key, 102));
+    assert_ne!(voice_id(&key, 101), voice_id(&[8; 32], 101));
+    assert!((0..10_000).all(|account| voice_id(&key, account) != 0));
 }
 
 #[test]
@@ -514,7 +557,7 @@ fn the_relay_over_sockets_with_the_registry() {
     let stop = Arc::new(AtomicBool::new(false));
     let thread = {
         let (registry, stop) = (registry.clone(), stop.clone());
-        std::thread::spawn(move || run(&server, registry, &stop))
+        std::thread::spawn(move || run(&server, registry, [7; 32], &stop))
     };
     let games: Vec<UdpSocket> = (0..3)
         .map(|_| {
@@ -538,6 +581,10 @@ fn the_relay_over_sockets_with_the_registry() {
         assert_eq!(
             receive(game),
             Some(vec![MAGIC, VERSION, kind::WELCOME, place as u8])
+        );
+        assert_eq!(
+            receive(game).map(|datagram| datagram[2]),
+            Some(kind::ROSTER)
         );
     }
     games[0]

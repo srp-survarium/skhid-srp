@@ -44,6 +44,9 @@
  *   int      sv_slot(void)               The own slot (WELCOME), -1 before.
  *   int      sv_last_speaker(void)       The slot last heard (not muted),
  *            -1 for none since sv_start.
+ *   unsigned sv_voice_id(int slot)       The slot's voice id (ROSTER: srp's
+ *            stable, opaque id of its account, which a mute is kept by), 0
+ *            while not known.
  *
  * Nothing of the audio is kept or written anywhere. Errors (no microphone,
  * no output device) go to OutputDebugString and leave voice silent.
@@ -86,6 +89,7 @@ static volatile LONG g_muted;
 static volatile LONG g_slot = -1;
 static volatile LONG g_heard;         /* the mixer's talking mask */
 static volatile LONG g_last_speaker = -1;
+static volatile LONG g_ids[SV_SLOTS];  /* ROSTER: each slot's voice id, 0 unknown */
 static volatile LONG g_started;
 static volatile LONG g_capped;        /* talked past the limit: until released */
 static volatile LONG g_hello_now;     /* a HELLO at once (mute or hears changed) */
@@ -166,6 +170,10 @@ static DWORD WINAPI net_main(LPVOID unused)
                 if (m.type == SV_WELCOME) {
                     if (m.slot < SV_SLOTS)
                         InterlockedExchange(&g_slot, m.slot);
+                } else if (m.type == SV_ROSTER) {
+                    for (unsigned k = 0; k < m.count; k++)
+                        if (m.roster_slot[k] < SV_SLOTS)
+                            InterlockedExchange(&g_ids[m.roster_slot[k]], (LONG)m.roster_id[k]);
                 } else if (m.type == SV_RELAY_START || m.type == SV_RELAY_AUDIO ||
                            m.type == SV_RELAY_END) {
                     if (m.slot < SV_SLOTS && !((uint32_t)g_muted & (1u << m.slot)) &&
@@ -492,6 +500,8 @@ static void stop_locked(void)
     InterlockedExchange(&g_heard, 0);
     InterlockedExchange(&g_last_speaker, -1);
     InterlockedExchange(&g_capped, 0);
+    for (unsigned k = 0; k < SV_SLOTS; k++)
+        InterlockedExchange(&g_ids[k], 0);
     g_running = 0;
     if (stuck) {
         /* The threads read g_s: it stays as it is, and voice stays off
@@ -525,6 +535,8 @@ static void stop_locked(void)
     InterlockedExchange(&g_heard, 0);
     InterlockedExchange(&g_last_speaker, -1);
     InterlockedExchange(&g_capped, 0);
+    for (unsigned k = 0; k < SV_SLOTS; k++)
+        InterlockedExchange(&g_ids[k], 0);
 }
 
 static int start_locked(const char *host, unsigned port, uint32_t session)
@@ -699,6 +711,11 @@ unsigned SV_EXPORT sv_talking(void)
 int SV_EXPORT sv_slot(void)
 {
     return (int)g_slot;
+}
+
+unsigned SV_EXPORT sv_voice_id(int slot)
+{
+    return slot >= 0 && slot < SV_SLOTS ? (unsigned)g_ids[slot] : 0;
 }
 
 int SV_EXPORT sv_last_speaker(void)

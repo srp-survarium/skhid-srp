@@ -97,12 +97,15 @@
         dontConfigure = true;
         buildPhase = noCR ''
           runHook preBuild
+          # -mstackrealign: the game calls the exports, and Windows starts the
+          # threads, on stacks aligned to 4 bytes only; every function of ours
+          # aligns its frame to 16, so libopus's SSE code gets 16 too.
           # libopus's objects export its API (.drectve): only the DLL's own
           # names (skhid_voice.def) are exported.
           ${mingw32.stdenv.cc.targetPrefix}objcopy -R .drectve \
             ${voiceOpusWin}/lib/libopus.a libopus-static.a
           $CC -std=c99 -O2 -Wall -Wextra -Werror -D_WIN32_WINNT=0x0601 \
-            -msse2 -mfpmath=sse \
+            -msse2 -mfpmath=sse -mstackrealign \
             -I${voiceOpusWin.dev}/include/opus \
             -shared -o skhid_voice.dll \
             voice_win.c voice_core.c skhid_voice.def libopus-static.a \

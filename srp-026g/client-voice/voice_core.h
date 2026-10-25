@@ -34,6 +34,10 @@ enum {
     SV_RELAY_START = 0x82,
     SV_RELAY_AUDIO = 0x83,
     SV_RELAY_END = 0x84,
+    /* S->C, with each WELCOME: the listener's team, each place's voice id
+     * (`u8 count, count x (u8 slot, u32 id)`): a stable, opaque id per
+     * account (srp's keyed hash of it), what a mute is kept by. */
+    SV_ROSTER = 0x90,
 };
 
 /* END reasons (S->C). */
@@ -58,6 +62,9 @@ typedef struct {
     uint16_t frames;    /* C->S END: frames sent */
     uint8_t reason;     /* S->C END */
     uint8_t n;          /* AUDIO: frames in it */
+    uint8_t count;      /* ROSTER: places in it */
+    uint8_t roster_slot[SV_SLOTS];
+    uint32_t roster_id[SV_SLOTS];
     const uint8_t *frame[SV_MAX_FRAMES];
     uint8_t len[SV_MAX_FRAMES];
 } sv_msg;
