@@ -42,6 +42,16 @@ changes of 2026-10-25 are in. Nothing here ships until the owner says so.
 - **Kept:** the screen effects (pain edges, blood, grenade flash), the Esc menu, the kit screen's
   cursor; keys 1 to 3 pick a kit.
 - **F11 does nothing**; a replay's controls still toggle with it.
+- **Esc works as in any match** (the owner, 2026-10-25: "so people could leave"): the Esc menu is
+  the main menu movie (its leave_match, settings and exit_to_os callbacks, game_options
+  0x1FF5D0) and its cursor its own movie; the forced hiding touches the hud and the markers'
+  movies only, and Tab's filter only the input's move and act bits, so the countdown, being
+  alive, dead or holding Tab change nothing of it. After leaving, the next match is set again by
+  its own static info and reset (shown and free unless it is Blackout too).
+- **Points count twice** (the owner, 2026-10-25: "everything should give twice as much match
+  points"): the results screen's score and every line's silver, experience and reputation of a
+  Blackout match are twice a plain match's; the counts shown (kills, help) and the player's
+  statistics, quests and rating are as played; the team's points and the win are the match's.
 - **The end:** the lobby and its results screen as always.
 - **Replays and late joiners** see the match as it was (no interface, the bands).
 - **Not a simulation change:** what is drawn only; no `simulation_changes.tsv` row.
@@ -71,6 +81,9 @@ changes of 2026-10-25 are in. Nothing here ships until the owner says so.
 - **Lobby (srp):** Blackout's maps are named by ids of the lobby's own (`maps::blackout_pairs`:
   ids `maps_dict` does not use, from 255 down), mode 6 in the rooms' pool, cards and rows. A
   room's match on such a card is made on the battery map with `MatchSetup::blackout`.
+- **Rewards (srp):** the match server's result carries `blackout`; the rewards' score and each
+  line's pay are times `rewards::BLACKOUT_FACTOR` (2) before rounding; nothing in the match
+  computes otherwise (the hud's score is hidden).
 - **Static info:** the flag is tag 2 (one byte, 1) of srp's block after the squads, on battery
   maps only; a late joiner's static info keeps it.
 - **Exe, patch 65** (`blackout_026g.asm` and `.c`; `client_patch.md` 3.58):

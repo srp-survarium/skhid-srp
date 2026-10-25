@@ -350,6 +350,16 @@ def main():
         ok = a_tab and b_tab and a == (mask, True) and b == (want, True)
         report(ok, f"{name}: {b[0]:#x} sent (pressed {mask:#x}); the original sends what is pressed; "
                    "show_player_list given the byte, the builder returns as itself")
+    # Only the moves and acts: every other bit (crouch, the weapon keys, the wheel, fire mode, ammo type,
+    # spot, the suicide key, the unused ones) goes as pressed; the Esc menu is no input bit at all.
+    patched.tab(1)
+    blocked = FORWARD | BACK | LEFT | RIGHT | SPRINT | JUMP | FIRE | RELOAD | AIM | 0xFC000 | 0x100000 \
+        | USE | 0x400000 | GRENADE | MELEE
+    b = patched.input(0xFFFFFFFF)
+    report(b == (0xFFFFFFFF & ~blocked, True), f"Tab down, every bit pressed: {b[0]:#x} sent, all but the moves and "
+           "acts")
+    patched.tab(0)
+    patched.input(0)
     for run in (stock, patched):
         run.options(empty_options(b""))
     patched.tab(1)

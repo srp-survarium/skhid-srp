@@ -994,6 +994,8 @@ pub struct MatchResult {
     pub vs_bots: bool,
     /// [`MatchSetup::private`].
     pub private: bool,
+    /// A Blackout match ([`Formed::blackout`]): its scores pay twice.
+    pub blackout: bool,
 }
 
 /// Where finished matches go: the lobby's results and rewards code.

@@ -229,6 +229,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
         trusted_by: result.trusted_by,
         vs_bots: result.vs_bots,
         private: result.private,
+        blackout: result.blackout,
         players: result
             .players
             .into_iter()
