@@ -364,6 +364,9 @@ struct JumpTry {
     tries: u32,
     pressed: Option<u32>,
     back: bool,
+    /// Its outcome is in the bench's counts ([`counts`]).
+    #[cfg(test)]
+    counted: bool,
 }
 
 /// A press of a route jump, for the trace: the jump's take-off and landing,
@@ -547,6 +550,8 @@ impl Motor {
                     self.feel.look_ahead_m + self.feel.look_ahead_per_speed * pose.speed;
                 let mut target = route.point_at(s + ahead);
                 while ahead > MIN_AHEAD_M && !clear(target) {
+                    #[cfg(test)]
+                    counts::cut();
                     ahead *= 0.6;
                     target = route.point_at(s + ahead);
                 }
@@ -677,6 +682,8 @@ impl Motor {
                 let mut ahead = self.feel.look_ahead_m;
                 let mut target = route.point_at(s + ahead);
                 while ahead > MIN_AHEAD_M && !clear(target) {
+                    #[cfg(test)]
+                    counts::cut();
                     ahead *= 0.6;
                     target = route.point_at(s + ahead);
                 }
@@ -736,6 +743,16 @@ impl Motor {
         let way = unit(landing.x - take_off.x, landing.z - take_off.z)?;
         let feet = pose.feet;
         if is_up(feet, take_off, landing) {
+            #[cfg(test)]
+            if let Some(t) = self.jump_try.as_mut()
+                && t.tries > 0
+                && !t.counted
+                && (t.take_off - take_off).length() < 0.3
+                && (t.landing - landing).length() < 0.3
+            {
+                t.counted = true;
+                counts::up(t.tries);
+            }
             return None;
         }
         // The tries at this jump, kept over a route planned again to it.
@@ -752,11 +769,18 @@ impl Motor {
                 tries: 0,
                 pressed: None,
                 back: false,
+                #[cfg(test)]
+                counted: false,
             },
         };
         let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < CARRY_S);
         self.lining_up = true;
         if jump.tries >= JUMP_TRIES && !in_the_air {
+            #[cfg(test)]
+            if !jump.counted {
+                jump.counted = true;
+                counts::gave_up();
+            }
             self.jump_try = Some(jump);
             return Some(Ahead {
                 aim: take_off,
@@ -797,6 +821,8 @@ impl Motor {
             let mut ahead = self.feel.look_ahead_m.min(before_route.max(0.0));
             let mut target = route.point_at(s + ahead);
             while ahead > MIN_AHEAD_M && !clear(target) {
+                #[cfg(test)]
+                counts::cut();
                 ahead *= 0.6;
                 target = route.point_at(s + ahead);
             }
@@ -1131,6 +1157,43 @@ pub fn keys_toward(relative: f32) -> u32 {
         5 => key::BACK | key::RIGHT,
         6 => key::RIGHT,
         _ => key::FORWARD | key::RIGHT,
+    }
+}
+
+/// The bench's counts (all matches of the run): the route jumps got up at
+/// the first press and later, those given up ([`JUMP_TRIES`]), the cuts of
+/// a look-ahead to a point a line is not clear to, and the fight's side
+/// steps asked and refused (`Tactics::clear_step_for`).
+#[cfg(test)]
+pub mod counts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+
+    fn add(k: usize) {
+        COUNTS[k].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn up(presses: u32) {
+        add(usize::from(presses > 1));
+    }
+
+    pub fn gave_up() {
+        add(2);
+    }
+
+    pub fn cut() {
+        add(3);
+    }
+
+    pub fn side_step(clear: bool) {
+        add(if clear { 4 } else { 5 });
+    }
+
+    /// (up at the first press, up later, given up, look-ahead cuts, side
+    /// steps clear, side steps refused).
+    pub fn counts() -> [u64; 6] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
 
