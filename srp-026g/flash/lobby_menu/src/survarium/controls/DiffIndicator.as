@@ -11,7 +11,7 @@ package survarium.controls
    // and the upgrade preview read the real numbers (a VSSK's 175 damage over the scale's 150).
    public class DiffIndicator extends StatusIndicator
    {
-
+      
       public var mc_diff_negative:Sprite;
       
       public var mc_diff_positive:Sprite;
@@ -23,16 +23,16 @@ package survarium.controls
       public var mc_value:Sprite;
       
       protected var _otherValue:Number = 0;
-
+      
       // value and compare as given; _value and _otherValue are them within the bar's range
       protected var _realValue:Number = 0;
-
+      
       protected var _realOther:Number = 0;
-
+      
       protected var _upgrade:Number = 0;
-
+      
       protected var _valueDiff:Number = 0;
-
+      
       protected var _realDiff:Number = 0;
       
       protected var _extraValue:Number = 0;
@@ -83,26 +83,30 @@ package survarium.controls
       {
          return this._realValue;
       }
-
+      
       override public function set value(value:Number) : void
       {
+         if(this._realValue == value && _value == this.inRange(value))
+         {
+            return;
+         }
          _realValue = value;
          _value = this.inRange(value);
          this.updatePosition();
       }
-
+      
       public function set compare(value:Number) : void
       {
          _realOther = value;
          _otherValue = this.inRange(value);
          invalidate(InvalidationType.DATA);
       }
-
+      
       protected function inRange(value:Number) : Number
       {
          return Math.max(_minimum,Math.min(_maximum,value));
       }
-
+      
       // A difference bar starts where the value bar ends; it ends at the bar's end at most.
       protected function fitBar(bar:Sprite) : void
       {
@@ -259,4 +263,4 @@ package survarium.controls
       }
    }
 }
-
+      
