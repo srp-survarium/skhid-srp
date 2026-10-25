@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 47618,
-  "sha256": "5312ef6cac9c477844b39a2f89330a5de1df70b3a1edb05f1b2838517d7af741",
+  "size": 48670,
+  "sha256": "48cf2e52ff3cf0ab311926711308b606c7278650a1fe243028a507a7e348a3df",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -47,7 +47,7 @@
     "weapon_kit.code": {
       "kind": "code",
       "va": "0xa438000",
-      "size": 2562
+      "size": 3614
     }
   },
   "symbols": {
@@ -143,13 +143,25 @@
     "rr_serialized_size": "0xa42d397",
     "rr_tick": "0xa42d5e5",
     "rr_write": "0xa42da9c",
-    "weapon_kit_attached": "0xa438929",
+    "weapon_kit_attached": "0xa438aad",
     "weapon_kit_attached_pair": "0xa4380ec",
     "weapon_kit_bridge": "0xa438050",
-    "weapon_kit_expand": "0xa43820c",
-    "weapon_kit_holds": "0xa4381c7",
-    "weapon_kit_preview_apply": "0xa4383d6",
-    "weapon_kit_query": "0xa438000"
+    "weapon_kit_expand": "0xa438390",
+    "weapon_kit_holds": "0xa43834b",
+    "weapon_kit_preview_apply": "0xa43855a",
+    "weapon_kit_query": "0xa438000",
+    "weapon_muzzle_add": "0xa438183",
+    "weapon_muzzle_extension": "0xa438bb4",
+    "weapon_muzzle_loaded": "0xa438c20",
+    "weapon_muzzle_loaded_hook": "0xa438163",
+    "weapon_muzzle_made": "0xa438bfc",
+    "weapon_muzzle_made_hook": "0xa43814b",
+    "weapon_muzzle_model": "0xa438bcc",
+    "weapon_muzzle_place": "0xa438d22",
+    "weapon_muzzle_release": "0xa438273",
+    "weapon_muzzle_remove": "0xa4381dd",
+    "weapon_muzzle_request": "0xa438120",
+    "weapon_muzzle_update": "0xa438221"
   },
   "built_with": {
     "cc": "gcc (GCC) 15.2.0",

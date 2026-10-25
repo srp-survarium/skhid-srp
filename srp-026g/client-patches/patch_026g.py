@@ -2017,7 +2017,7 @@ HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 #   points [ebp+40h] (the upgrades' buffer_vector, read at 0x2F1799 and
 #   0x2F18D0 only) at a list on translate_query's stack: the records and one
 #   {0, dict id, 0, slot} for each dict id the kit names; back at 0x2F1776;
-# - the lobby's upgrades to Flash (0x288180), `mov ecx,[esp+48h] / mov
+# - the lobby's upgrades to Flash (0x287E30, its loop 0x2881E0), `mov ecx,[esp+48h] / mov
 #   eax,[ecx]` at 0x2882E3 after the object's `param`: bridge gives a kit
 #   record's object kit_lo and kit_hi (its value), then the two instructions,
 #   back at 0x2882E9 (the PushBack);
@@ -2035,6 +2035,42 @@ WEAPON_KIT_HOOKS = (
     (0x2885C9, bytes.fromhex("e8222b0000"), "weapon_kit_attached_pair", 0xE8),  # setup_inventory_data's pair push
 )
 WEAPON_KIT_BACKS = (0x2F1776, 0x2882E9)
+# The muzzle device (patch 68, ../docs/notes/weapon-kit.md):
+# weapon_muzzle_026g.asm and .c in the same block. A weapon config with
+# data/srp_muzzle_model (a muzzle device's modification) loads that model
+# with the weapon and draws it at barrel_point, data/srp_muzzle_offset
+# metres forward:
+# - the weapon cook's requests (0x24A920): one more place in their alloca
+#   (WEAPON_MUZZLE_SIZES, 0x24AA04 `lea eax,[ecx+eax+1]` -> +2), and request
+#   (0x24ABF9, after the last one) asks for the model (class 0Fh);
+# - weapon_cook 0x24A780: the weapon WEAPON_MUZZLE_EXTENSION bytes more
+#   (0x24A7A5's `lea eax,[eax*4+4710h]`), made (0x24A8F7) zeroes its own part
+#   after the last array;
+# - loaded (0x24ACF0, the query's callback entry): the model, the last
+#   result, kept with its count up;
+# - add (on_show 0x243F37, remove_aimed_rifle_scope_to_scene 0x244CF5),
+#   remove (on_hide 0x244012, add_aimed_rifle_scope_to_scene 0x244C08) and
+#   update (draw 0x244F3A): the weapon model's call, then the device's;
+# - release (0x24B23A, delete_resource): the model released.
+# No base relocation is under a site and no branch aims inside one.
+WEAPON_MUZZLE_EXTENSION = 0x50
+WEAPON_MUZZLE_HOOKS = (
+    (0x24ABF9, bytes.fromhex("8b4df00fb74916"), "weapon_muzzle_request", 0xE9),     # the cook's last request
+    (0x24A8F7, bytes.fromhex("8dbba00600008bf0"), "weapon_muzzle_made_hook", 0xE9), # weapon_cook 0x24A780's end
+    (0x24ACF0, bytes.fromhex("83ec245355"), "weapon_muzzle_loaded_hook", 0xE9),      # the query's callback
+    (0x243F37, bytes.fromhex("e894ddddff"), "weapon_muzzle_add", 0xE8),             # on_show's add_model
+    (0x244CF5, bytes.fromhex("e8d6cfddff"), "weapon_muzzle_add", 0xE8),             # remove_aimed's add_model
+    (0x244012, bytes.fromhex("e829dfddff"), "weapon_muzzle_remove", 0xE8),          # on_hide's remove_model
+    (0x244C08, bytes.fromhex("e833d3ddff"), "weapon_muzzle_remove", 0xE8),          # add_aimed's remove_model
+    (0x244F3A, bytes.fromhex("e841d3ddff"), "weapon_muzzle_update", 0xE8),          # draw's update_model
+    (0x24B23A, bytes.fromhex("8b9f18180000"), "weapon_muzzle_release", 0xE9),       # delete_resource
+)
+WEAPON_MUZZLE_SIZES = (
+    (0x24A7A5, bytes.fromhex("8d048510470000"),
+     bytes.fromhex("8d0485") + struct.pack("<I", 0x4710 + WEAPON_MUZZLE_EXTENSION)),  # the weapon's size
+    (0x24AA04, bytes.fromhex("8d440101"), bytes.fromhex("8d440102")),                # the requests' alloca
+)
+WEAPON_MUZZLE_BACKS = (0x24AC00, 0x24A8FF, 0x24ACF5, 0x24B240)
 WEAPON_KIT_PREVIEW_APPLY = "weapon_kit_preview_apply"
 # the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
 
@@ -2201,8 +2237,23 @@ INSTALLS = {
     0x2F1771: (JUMP, "item_config_cook::translate_query 0x2F1750, its `call 0x2F2060` (esi the query's holder, edi "
                      "ebp+38h): query, which calls it and, for a kit, points [ebp+40h] at a list on the stack "
                      "below; back at 0x2F1776", None, None),
-    0x2882E3: (JUMP, "the lobby's upgrades to Flash 0x288180, `mov ecx,[esp+48h] / mov eax,[ecx]` after an "
+    0x2882E3: (JUMP, "the lobby's upgrades to Flash (0x287E30's loop), `mov ecx,[esp+48h] / mov eax,[ecx]` after an "
                      "object's `param`: bridge, back at 0x2882E9", None, None),
+    # the muzzle device, patch 68 (in `.srpx`)
+    0x24ABF9: (JUMP, "the weapon cook 0x24A920 after its last request (ebx the config's root, [ebp-40h] the "
+                     "requests): request, back at 0x24AC00", None, None),
+    0x24A8F7: (JUMP, "weapon_cook 0x24A780's end (ebx the weapon, its arrays made): made, back at 0x24A8FF",
+               None, None),
+    0x24ACF0: (ENTRY, "the weapon cook's query callback 0x24ACF0 (thiscall: results, config, weapon; `ret 14h`): "
+                      "loaded, which goes on in it at 0x24ACF5", None, None),
+    0x243F37: (CALLEE, "on_show's add_model of the weapon's model (eax its render model; `ret 10h`): add", None,
+               None),
+    0x244CF5: (CALLEE, "remove_aimed_rifle_scope_to_scene's add_model of the weapon's model: add", None, None),
+    0x244012: (CALLEE, "on_hide's remove_model of the weapon's model (`ret 8`): remove", None, None),
+    0x244C08: (CALLEE, "add_aimed_rifle_scope_to_scene's remove_model of the weapon's model: remove", None, None),
+    0x244F3A: (CALLEE, "draw's update_model of the weapon's model (`ret 10h`): update", None, None),
+    0x24B23A: (JUMP, "the weapon cook's delete_resource 0x24B190 after the shot effects' pointers (edi the "
+                     "weapon): release, back at 0x24B240", None, None),
     0x2885C9: (CALLEE, "setup_inventory_data's push of a record's {item id, host} pair (0x28B0F0: edi the pair, "
                        "esi the vector): attached_pair, which pushes it and a kit's named items' pairs", None, None),
 }
@@ -2397,7 +2448,8 @@ ARENA = (
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
     ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
-    ArenaBlock("weapon_kit.code", "code", 0x1000, ("weapon_kit_026g.asm", "weapon_kit_026g.c")),  # patch 68
+    ArenaBlock("weapon_kit.code", "code", 0x1000, ("weapon_kit_026g.asm", "weapon_muzzle_026g.asm",
+                                                     "weapon_kit_026g.c", "weapon_muzzle_026g.c")),  # patch 68
 )
 
 
@@ -3343,11 +3395,13 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             # its symbol.
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + WEAPON_KIT_HOOKS:
+                        + WEAPON_KIT_HOOKS + WEAPON_MUZZLE_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
                 for va, old, new in hide_ui_table_writes(linked):
+                    patch(data, va, old, new)
+                for va, old, new in WEAPON_MUZZLE_SIZES:
                     patch(data, va, old, new)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "

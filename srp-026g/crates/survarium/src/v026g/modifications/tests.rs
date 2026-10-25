@@ -273,6 +273,11 @@ fn a_weapon_wears_two_decals_beside_its_camouflage_and_scope() {
             .iter()
             .all(|slot| crate::v026g::weapon_kit::WEAPON_SLOTS.contains(slot))
     );
+    // A muzzle device into the weapon's muzzle slot, on a weapon only.
+    assert_eq!(
+        cosmetic_slots(&rifle, "wpn_aslt", MUZZLE_KIND),
+        [crate::v026g::weapon_kit::MUZZLE_SLOT]
+    );
     // Armour as before; nothing without the config's flags.
     let vest = ItemMods {
         dict_id: 2,
@@ -280,6 +285,7 @@ fn a_weapon_wears_two_decals_beside_its_camouflage_and_scope() {
     };
     assert_eq!(cosmetic_slots(&vest, "arm_tors", "drp_decl"), DECAL_SLOTS);
     assert_eq!(cosmetic_slots(&vest, "arm_tors", "drp_camo"), [CAMO_SLOT]);
+    assert!(cosmetic_slots(&vest, "arm_tors", MUZZLE_KIND).is_empty());
     let plain = ItemMods {
         camo: false,
         decal: false,

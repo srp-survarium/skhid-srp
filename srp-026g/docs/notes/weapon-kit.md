@@ -69,7 +69,7 @@ So a weapon is sent at most three records whatever it wears. Armour is sent as b
   kits, a match's static info (its profiles, a late join's), a replay's recorded static info all
   carry the three records as they are. The config builder's cache key checksums the kit's value,
   so each combination is its own config.
-- **The lobby movie.** The upgrades to Flash (0x288180) give each record's object `id` and
+- **The lobby movie.** The upgrades to Flash (0x287E30, its loop 0x2881E0) give each record's object `id` and
   `param`; patch 68 (0x2882E3) gives a kit's object `kit_lo` and `kit_hi` (its value's halves).
   `UpgradeWindow.kitUpgrades` makes the window's slots of them: the kit's own item in its own slot,
   each dict id it names as the inventory's item of that id (`InventoryList.getInventoryItemOf`).
@@ -83,6 +83,37 @@ So a weapon is sent at most three records whatever it wears. Armour is sent as b
 - **The client never writes a weapon's record itself**: srp answers a weapon's `46 01` and `46 02`
   with the inventory and the account only (no `83 46 01` / `02`, whose own copy of the record would
   be a fourth, or take the kit off for its own).
+
+## The muzzle device (slot 4)
+
+[srp, the owner's rules of 2026-10-25] One slot takes any muzzle device: flash hiders and brakes
+from 0.46c2 (no silencers). A device is an item of category 22 (the lobby's attachments filter)
+whose `parameters/type` is `srp_muzl` (the server's, `modifications::MUZZLE_KIND`: slot 4 of a
+weapon with a `data` table) and whose modification adds `srp_muzzle_model` = its model to the
+weapon config's `data` (type 3, as a camouflage adds `camouflage`). The pack
+`weapon-attachments` (`scripts/weapon-attachments`: 0.46c2's model, material and textures, the
+configs written again in 0.26g's layout) holds them; the first is 2601, flash hider 04.
+
+How the client draws it (patch 68, PROVEN in the code, run with Unicorn; not run in a game):
+
+- **Loading.** The weapon cook (0x24A920) asks for a weapon's sub-resources in one query: the
+  scope's config when it names one (class 4Dh), the model (10h), each user animation (31h), the
+  bullet shells' and shot effects' particles (3Dh). With `data/srp_muzzle_model` it asks for
+  that model too (class 0Fh, a static model's instance, as the scope cook asks for its models),
+  last; the requests' alloca has one more place (0x24AA04). The query's callback (0x24ACF0)
+  finds it last among the results and keeps it.
+- **The weapon's own part.** The weapon (weapon_cook 0x24A780: 4710h bytes and a pointer for each
+  animation, shell and shot effect) is 50h bytes more; after its last array: the device's model,
+  its offset, whether it is in the scene, its matrix. Zeroed when the weapon is made, the model
+  released when the weapon is (delete_resource 0x24B190).
+- **Drawing.** Wherever the game adds, removes or moves the weapon's model (on_show, on_hide,
+  the aimed scope's add and remove that hide the weapon, draw), the device's model goes with it,
+  at barrel_point's matrix of the frame (+0x620) moved `data/srp_muzzle_offset` metres forward
+  along the barrel (default 0).
+- **The weapons' own muzzles.** 0.26g's weapon models have their stock muzzle brakes in the mesh;
+  a device starts at barrel_point (the muzzle's end, where the shot's flash is) and runs forward.
+  Per weapon, `data/srp_muzzle_offset` moves it (a later edit list: the table of offsets).
+- Visual only so far: no stats, the shot's flash at barrel_point as before.
 
 ## What it changes
 

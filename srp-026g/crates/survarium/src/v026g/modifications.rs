@@ -600,7 +600,8 @@ pub fn upgrade_slots_in(
 /// of type `host_kind`: a camouflage (`*_camo`) into [`CAMO_SLOT`] of one
 /// with `camo_available` ([`WEAPON_CAMO_SLOT`] on a weapon, [`camo_slot`]),
 /// a decal (`*_decl`) into the [`DECAL_SLOTS`] of one with
-/// `decal_available` ([`WEAPON_DECAL_SLOTS`] on a weapon).
+/// `decal_available` ([`WEAPON_DECAL_SLOTS`] on a weapon), a muzzle device
+/// ([`MUZZLE_KIND`]) into a weapon's muzzle slot.
 pub fn cosmetic_slots(host: &ItemMods, host_kind: &str, upgrade_kind: &str) -> &'static [u8] {
     if upgrade_kind.ends_with("_camo") && host.camo {
         if camo_slot(host_kind) == WEAPON_CAMO_SLOT {
@@ -614,10 +615,21 @@ pub fn cosmetic_slots(host: &ItemMods, host_kind: &str, upgrade_kind: &str) -> &
         } else {
             &DECAL_SLOTS
         }
+    } else if upgrade_kind == MUZZLE_KIND && host.camo && is_weapon_kind(host_kind) {
+        &[super::weapon_kit::MUZZLE_SLOT]
     } else {
         &[]
     }
 }
+
+/// [srp] The `type` of a muzzle device (a flash hider, a brake: the pack
+/// weapon-attachments, `srp-026g/scripts/weapon-attachments`): it goes into
+/// a weapon's muzzle slot ([`super::weapon_kit::MUZZLE_SLOT`]), on a weapon
+/// whose config has its `data` table (the weapon camouflage's data patch,
+/// which every weapon that takes upgrades has); its modification adds
+/// `data/srp_muzzle_model`, the model client patch 68 draws at the weapon's
+/// barrel_point.
+pub const MUZZLE_KIND: &str = "srp_muzl";
 
 /// The dict id an upgrade record of `upgrade_dict_id` on `host_dict_id`
 /// holds: for a scope item, the variant made for that weapon (the client

@@ -106,6 +106,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
+| `weapon_muzzle_026g.asm`, `weapon_muzzle_026g.c`, `check_weapon_muzzle_026g.py` | Patch 68's muzzle device: a weapon config with `data/srp_muzzle_model` loads that model with the weapon (one more request of the weapon cook) and draws it at barrel_point, `data/srp_muzzle_offset` metres forward, wherever the weapon's model is added, removed or moved; the weapon 50h bytes more for it; its check runs the cook's request, weapon_cook, the callback's entry, the model calls and delete_resource with the game's own code (needs Unicorn) |
 | `weapon_kit_026g.asm`, `weapon_kit_026g.c`, `check_weapon_kit_026g.py` | Patch 68: a weapon's upgrades (two decals, camouflage, scope, muzzle device, grip) in at most three records, the weapon kit (the arena's block `weapon_kit.code`): item_config_cook::translate_query builds a weapon from the records and each dict id a kit record names, the lobby's upgrades to Flash give a kit's object `kit_lo`/`kit_hi`, and patch 48's preview applies its queue through `weapon_kit_preview_apply`; its check runs translate_query from its call of 0x2F2060 to the end of its record loop with the game's own code, the bridge, and patch 48's apply (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
@@ -3388,6 +3389,22 @@ the file) that the build writes with `weapon_kit_preview_apply`'s address (`with
 `apply` calls it (cdecl: the record, the queue, its count): the queue applied on the logical slots
 as the server applies it, packed again. Without it (a build with no arena) the old `apply`.
 
+**The muzzle device** (`weapon_muzzle_026g.asm` and `.c`, the same block; `WEAPON_MUZZLE_HOOKS`,
+`WEAPON_MUZZLE_SIZES`): a weapon config with `data/srp_muzzle_model` (a muzzle device's
+modification) loads that model with the weapon and draws it at barrel_point,
+`data/srp_muzzle_offset` metres forward:
+
+- the weapon cook's requests: one more place in their alloca (0x24AA04, `lea eax,[ecx+eax+1]` ->
+  `+2`), and **request** (0x24ABF9, after the last one, JUMP) asks for the model (class 0Fh);
+- weapon_cook 0x24A780: the weapon 50h bytes more (0x24A7A5, `lea eax,[eax*4+4710h]` -> `+4760h`)
+  and **made** (0x24A8F7, its end, JUMP) zeroes its own part after the last array;
+- **loaded** (0x24ACF0, the query's callback, ENTRY): the model (the last result) kept, its count up;
+- **add** (on_show 0x243F37, remove_aimed 0x244CF5), **remove** (on_hide 0x244012, add_aimed
+  0x244C08) and **update** (draw 0x244F3A), each CALLEE in place of the weapon model's own call:
+  that call, then the device's with its own matrix (barrel_point's of the frame, the point moved
+  forward), once while the device is in the scene;
+- **release** (0x24B23A, delete_resource, JUMP): the model released.
+
 The server answers a weapon's `46 01` and `46 02` with the inventory and the account alone (the
 client's own copy of the record could be a fourth). The lobby only and the config of what a weapon
 wears (camouflage, decals, scope: what a match computes is unchanged): no row in
@@ -3407,6 +3424,15 @@ stack the original's); patch 48's apply in nine cases against the packing model 
 records; setup_inventory_data's loop with the game's own pair map: a scoped weapon's camouflage
 attached to it (the original: to nothing); `check_upgrade_preview_026g.py` with the kit's records.
 **Not run in a game.**
+
+The muzzle device, checked: `selftest_026g.py` check 68 (the sites, the sizes, the weapon's
+layout, the cook's requests and callback); `check_weapon_muzzle_026g.py` (Unicorn, 52 cases): the
+cook's request with the game's own push (a config naming a model: one more {path, 0Fh}; none:
+the original's), weapon_cook 0x24A780 from its entry with the game's own code (the size asked
+50h more, the part after the arrays zeroed), the callback's entry (the last result kept, after a
+scope's, the animations, shells and shots; the offset a float or an int), the five model calls
+(the original's call, then the device's at barrel_point's matrix moved forward, once in and once
+out of the scene) and delete_resource (released, the part's pointer zero). **Not run in a game.**
 
 ## Not ported, not done
 

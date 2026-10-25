@@ -21,7 +21,7 @@
 ; their own. A list without a kit, or 0x2F2060's refusal (al 0: the query
 ; is another thread's), goes on as the original.
 ;
-; weapon_kit_bridge: the lobby's item to Flash (0x288180, setup_inventory_data's
+; weapon_kit_bridge: the lobby's item to Flash (0x287E30, its loop 0x2881E0; setup_inventory_data's
 ; upgrades: one object {id, param} a record, 0x2881E0..0x28834D). After its
 ; `param` (SetMember at 0x2882E1), `mov ecx,[esp+48h] / mov eax,[ecx]` at
 ; 0x2882E3 jumps here: a kit record's object gets `kit_lo` and `kit_hi`, the

@@ -1,0 +1,4 @@
+# the texts of the attachments, in 0.26g's six localization tables
+key	english	german	original	polish	russian	ukrainian
+st_srp_flash_hider_04_name	Flash hider	Mündungsfeuerdämpfer	Пламегаситель	Tłumik płomieni	Пламегаситель	Полум'ягасник
+st_srp_flash_hider_desc	Reduces the muzzle flash.	Verringert das Mündungsfeuer.	Уменьшает дульную вспышку.	Zmniejsza błysk wystrzału.	Уменьшает дульную вспышку.	Зменшує дульний спалах.

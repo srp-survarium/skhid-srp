@@ -3043,4 +3043,4 @@ va	status	ref_021d	name
 0x001f13d0	inferred-medium		survarium::inventory_item_descr::deserialize_body
 0x001f1610	inferred-medium		vostok::buffer_vector<survarium::upgrade>::resize
 0x003584e0	inferred-medium		survarium::item_config_cook::substitute_upgrade_params
-0x00288180	inferred-medium		survarium::lobby_menu::fill_item_upgrades
+0x00287e30	inferred-medium		survarium::lobby_menu::fill_inventory_item

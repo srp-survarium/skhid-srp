@@ -27,7 +27,7 @@ are, the arena with them.
     list unchanged (the query builder 0x2F14C0 and every copy see the three
     the item holds), the list below the frame and above the entries' alloca;
   - 0x2F2060 refusing (al 0): the original's way, no list.
-- the lobby's upgrades to Flash (0x288180), from 0x2882E3 (after an object's
+- the lobby's upgrades to Flash (0x287E30, its loop 0x2881E0), from 0x2882E3 (after an object's
   `param`) to 0x2882E9 (its PushBack), on a made-up stack and GFx object
   (SetMember a stub): a kit record's object gets kit_lo and kit_hi (its
   value's halves, uint, the object's display flag as the bridge's own); any
