@@ -24,7 +24,8 @@
 use crate::camera::EyeFollow;
 use crate::math::{Pose, Vec3};
 use crate::ragdoll::{
-    Cause, DriverBones, GunShape, Level, Motion, PartPoses, Ragdoll, Rig, Skeleton, Start, driver_bones,
+    Cause, DriverBones, GunShape, Level, Motion, PartPoses, Ragdoll, Rig, Skeleton, Start,
+    driver_bones,
 };
 use crate::skeleton::{BONE_COUNT, HEAD, PARTS};
 
@@ -72,53 +73,92 @@ pub struct Death {
 pub enum Corpse {
     Alive,
     /// Dead with its body in a slot of the pool (its stage the slot's).
-    Body { death: DeathKey, slot: SlotId },
+    Body {
+        death: DeathKey,
+        slot: SlotId,
+    },
     /// Dead and drawn as the game draws it (no slot was free, or the pose
     /// could not be read).
-    Canned { death: DeathKey },
+    Canned {
+        death: DeathKey,
+    },
 }
 
 /// A slot's body: its stage.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "a fixed pool with no allocation (the arena has none): a stage holds its data inline"
+)]
 pub enum Slot {
     Free,
     /// The game's clip drawn; its skeletons captured (the last, and the
     /// driver bones of the one before), for the ragdoll's start.
-    Dying { clip_t: f32, captured: Captured },
+    Dying {
+        clip_t: f32,
+        captured: Captured,
+    },
     /// Moving: the ragdoll, and the clip's driver bones the last draw saw
     /// (the drive's target).
-    Ragdoll { ragdoll: Ragdoll, clip: Option<DriverBones> },
+    Ragdoll {
+        ragdoll: Ragdoll,
+        clip: Option<DriverBones>,
+    },
     /// At rest: the pose, frozen. `since` orders the settled ones (the
     /// oldest gives its slot up first).
-    Settled { rig: Rig, parts: PartPoses, gun: Option<Pose>, head_ground: Option<(Vec3, Vec3)>, since: u32 },
+    Settled {
+        rig: Rig,
+        parts: PartPoses,
+        gun: Option<Pose>,
+        head_ground: Option<(Vec3, Vec3)>,
+        since: u32,
+    },
 }
 
 /// What a dying body's draws captured.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "inline in its slot, no allocation"
+)]
 pub enum Captured {
     Nothing,
     /// One skeleton, `age` s ago.
-    One { now: Skeleton, age: f32 },
+    One {
+        now: Skeleton,
+        age: f32,
+    },
     /// Two: the last (`age` s ago) and the driver bones of the one before,
     /// `dt` s earlier.
-    Two { now: Skeleton, age: f32, before: DriverBones, dt: f32 },
+    Two {
+        now: Skeleton,
+        age: f32,
+        before: DriverBones,
+        dt: f32,
+    },
 }
 
 impl Captured {
     fn take(self, skeleton: &Skeleton) -> Captured {
         match self {
-            Captured::Nothing => Captured::One { now: *skeleton, age: 0.0 },
-            Captured::One { now, age } | Captured::Two { now, age, .. } => {
-                Captured::Two { now: *skeleton, age: 0.0, before: driver_bones(&now), dt: age }
-            }
+            Captured::Nothing => Captured::One {
+                now: *skeleton,
+                age: 0.0,
+            },
+            Captured::One { now, age } | Captured::Two { now, age, .. } => Captured::Two {
+                now: *skeleton,
+                age: 0.0,
+                before: driver_bones(&now),
+                dt: age,
+            },
         }
     }
 
-    fn older(self, dt: f32) -> Captured {
+    /// `dt` s more since the last skeleton was captured.
+    fn age_by(&mut self, dt: f32) {
         match self {
-            Captured::Nothing => Captured::Nothing,
-            Captured::One { now, age } => Captured::One { now, age: age + dt },
-            Captured::Two { now, age, before, dt: between } => Captured::Two { now, age: age + dt, before, dt: between },
+            Captured::Nothing => {}
+            Captured::One { age, .. } | Captured::Two { age, .. } => *age += dt,
         }
     }
 }
@@ -150,7 +190,9 @@ impl Slot {
                 ragdoll.rig().draw(&parts, gun, skeleton);
                 Drawn::Ragdoll
             }
-            Slot::Settled { rig, parts, gun, .. } => {
+            Slot::Settled {
+                rig, parts, gun, ..
+            } => {
                 rig.draw(parts, *gun, skeleton);
                 Drawn::Ragdoll
             }
@@ -165,9 +207,18 @@ impl Slot {
             Slot::Ragdoll { ragdoll, .. } => {
                 let (parts, gun) = ragdoll.poses();
                 ragdoll.rig().draw(&parts, gun, &mut skeleton);
-                Some((ragdoll.rig().eye(skeleton[HEAD.index()]), ragdoll.head_ground()))
+                Some((
+                    ragdoll.rig().eye(skeleton[HEAD.index()]),
+                    ragdoll.head_ground(),
+                ))
             }
-            Slot::Settled { rig, parts, gun, head_ground, .. } => {
+            Slot::Settled {
+                rig,
+                parts,
+                gun,
+                head_ground,
+                ..
+            } => {
                 rig.draw(parts, *gun, &mut skeleton);
                 Some((rig.eye(skeleton[HEAD.index()]), *head_ground))
             }
@@ -180,7 +231,12 @@ impl Slot {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Eye {
     Off,
-    Following { place: usize, death: DeathKey, follow: EyeFollow, eye: Pose },
+    Following {
+        place: usize,
+        death: DeathKey,
+        follow: EyeFollow,
+        eye: Pose,
+    },
 }
 
 /// A frame as the step sees it.
@@ -205,7 +261,12 @@ pub struct Corpses {
 
 impl Corpses {
     pub const fn new() -> Corpses {
-        Corpses { places: [Corpse::Alive; MAX_PLACES], pool: [Slot::Free; POOL], eye: Eye::Off, settles: 0 }
+        Corpses {
+            places: [Corpse::Alive; MAX_PLACES],
+            pool: [Slot::Free; POOL],
+            eye: Eye::Off,
+            settles: 0,
+        }
     }
 
     pub fn place(&self, place: usize) -> Corpse {
@@ -247,10 +308,16 @@ impl Corpses {
         // first every corpse the world no longer shows (its slot freed),
         // so the new deaths find them
         for place in 0..MAX_PLACES {
-            let seen = if place < count { frame.places[place] } else { Seen::Alive };
+            let seen = if place < count {
+                frame.places[place]
+            } else {
+                Seen::Alive
+            };
             let keep = match (self.places[place], seen) {
                 (Corpse::Alive, _) => true,
-                (Corpse::Body { death, .. } | Corpse::Canned { death }, Seen::Dead(d)) => death == d.key,
+                (Corpse::Body { death, .. } | Corpse::Canned { death }, Seen::Dead(d)) => {
+                    death == d.key
+                }
                 (_, Seen::Alive) => false,
             };
             if !keep {
@@ -261,13 +328,21 @@ impl Corpses {
             if let (Corpse::Alive, Seen::Dead(death)) = (self.places[place], frame.places[place]) {
                 self.places[place] = match self.take_slot() {
                     Some(slot) => {
-                        self.pool[slot.index()] = Slot::Dying { clip_t: 0.0, captured: Captured::Nothing };
-                        Corpse::Body { death: death.key, slot }
+                        self.pool[slot.index()] = Slot::Dying {
+                            clip_t: 0.0,
+                            captured: Captured::Nothing,
+                        };
+                        Corpse::Body {
+                            death: death.key,
+                            slot,
+                        }
                     }
                     None => Corpse::Canned { death: death.key },
                 };
             }
-            if let (Corpse::Body { slot, .. }, Seen::Dead(death)) = (self.places[place], frame.places[place]) {
+            if let (Corpse::Body { slot, .. }, Seen::Dead(death)) =
+                (self.places[place], frame.places[place])
+            {
                 self.advance(place, slot, death, frame, level);
             }
         }
@@ -308,69 +383,122 @@ impl Corpses {
         Some(slot)
     }
 
-    fn advance(&mut self, place: usize, slot: SlotId, death: Death, frame: &Frame<'_>, level: &mut impl Level) {
-        let next = match self.pool[slot.index()] {
-            Slot::Dying { captured: Captured::Two { now, age, before, dt }, .. } => {
+    fn advance(
+        &mut self,
+        place: usize,
+        slot: SlotId,
+        death: Death,
+        frame: &Frame<'_>,
+        level: &mut impl Level,
+    ) {
+        // in place: a slot is a few kB, copied only when its stage changes
+        let current = &mut self.pool[slot.index()];
+        let next = match current {
+            Slot::Dying {
+                captured:
+                    Captured::Two {
+                        now,
+                        age,
+                        before,
+                        dt,
+                    },
+                ..
+            } => {
                 let start = Start {
-                    now: &now,
-                    before: &before,
-                    dt,
+                    now,
+                    before,
+                    dt: *dt,
                     up: frame.up,
                     cause: death.cause,
                     gun: death.gun,
                     stood_on: death.stood_on,
                 };
-                match Ragdoll::new(&start) {
+                let since = *age + frame.dt;
+                Some(match Ragdoll::new(&start) {
                     Some(mut ragdoll) => {
                         // the time since that skeleton was drawn
-                        let motion = ragdoll.step(age + frame.dt, None, level);
-                        settle_or_move(ragdoll, motion, None, &mut self.settles)
+                        match ragdoll.step(since, None, level) {
+                            Motion::Moving => Slot::Ragdoll {
+                                ragdoll,
+                                clip: None,
+                            },
+                            Motion::Settled => settled(&ragdoll, &mut self.settles),
+                        }
                     }
                     None => {
                         self.places[place] = Corpse::Canned { death: death.key };
                         Slot::Free
                     }
-                }
+                })
             }
-            Slot::Dying { clip_t, captured } => Slot::Dying { clip_t: clip_t + frame.dt, captured: captured.older(frame.dt) },
-            Slot::Ragdoll { mut ragdoll, clip } => {
-                let motion = ragdoll.step(frame.dt, clip.as_ref(), level);
-                settle_or_move(ragdoll, motion, clip, &mut self.settles)
+            Slot::Dying { clip_t, captured } => {
+                *clip_t += frame.dt;
+                captured.age_by(frame.dt);
+                None
             }
-            settled @ (Slot::Settled { .. } | Slot::Free) => settled,
+            Slot::Ragdoll { ragdoll, clip } => match ragdoll.step(frame.dt, clip.as_ref(), level) {
+                Motion::Moving => None,
+                Motion::Settled => Some(settled(ragdoll, &mut self.settles)),
+            },
+            Slot::Settled { .. } | Slot::Free => None,
         };
-        self.pool[slot.index()] = next;
+        if let Some(next) = next {
+            self.pool[slot.index()] = next;
+        }
     }
 
     /// The local player's camera: on its own ragdoll's head.
     fn follow(&mut self, frame: &Frame<'_>) {
         let target = frame.local.and_then(|place| match self.place(place) {
-            Corpse::Body { death, slot } => self.pool[slot.index()].eye().map(|eye| (place, death, eye)),
+            Corpse::Body { death, slot } => {
+                self.pool[slot.index()].eye().map(|eye| (place, death, eye))
+            }
             Corpse::Alive | Corpse::Canned { .. } => None,
         });
         self.eye = match (self.eye, target) {
             (_, None) => Eye::Off,
-            (Eye::Following { place, death, mut follow, .. }, Some((p, d, (raw, ground)))) if place == p && death == d => {
+            (
+                Eye::Following {
+                    place,
+                    death,
+                    mut follow,
+                    ..
+                },
+                Some((p, d, (raw, ground))),
+            ) if place == p && death == d => {
                 let eye = follow.follow(raw, frame.up, ground, frame.dt);
-                Eye::Following { place, death, follow, eye }
+                Eye::Following {
+                    place,
+                    death,
+                    follow,
+                    eye,
+                }
             }
             (_, Some((place, death, (raw, ground)))) => {
                 let mut follow = EyeFollow::new(raw, frame.up);
                 let eye = follow.follow(raw, frame.up, ground, 0.0);
-                Eye::Following { place, death, follow, eye }
+                Eye::Following {
+                    place,
+                    death,
+                    follow,
+                    eye,
+                }
             }
         };
     }
 }
 
-fn settle_or_move(ragdoll: Ragdoll, motion: Motion, clip: Option<DriverBones>, settles: &mut u32) -> Slot {
-    match motion {
-        Motion::Moving => Slot::Ragdoll { ragdoll, clip },
-        Motion::Settled => {
-            *settles = settles.wrapping_add(1);
-            let (parts, gun) = ragdoll.poses();
-            Slot::Settled { rig: *ragdoll.rig(), parts, gun, head_ground: ragdoll.head_ground(), since: *settles }
-        }
+/// The settled slot of a ragdoll at rest: its pose frozen, numbered by the
+/// settles' count.
+fn settled(ragdoll: &Ragdoll, settles: &mut u32) -> Slot {
+    *settles = settles.wrapping_add(1);
+    let (parts, gun) = ragdoll.poses();
+    Slot::Settled {
+        rig: *ragdoll.rig(),
+        parts,
+        gun,
+        head_ground: ragdoll.head_ground(),
+        since: *settles,
     }
 }
 

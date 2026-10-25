@@ -67,7 +67,8 @@ impl EyeFollow {
                 target += normal * (EYE_CLEARANCE - height);
             }
         }
-        (self.position, self.velocity) = spring(self.position, self.velocity, target, FOLLOW_RATE, dt);
+        (self.position, self.velocity) =
+            spring(self.position, self.velocity, target, FOLLOW_RATE, dt);
         let wanted = level_forward(eye.rotation.rotate(Vec3::Z), up);
         let (forward, turning) = spring(self.forward, self.turning, wanted, TURN_RATE, dt);
         self.forward = level_forward(forward.direction_or(wanted), up);
@@ -111,7 +112,10 @@ mod tests {
     #[test]
     fn a_straight_down_eye_and_bad_input_stay_finite() {
         let up = Vec3::Y;
-        let down = Pose::new(Quat::from_axis_angle(Vec3::X, core::f32::consts::FRAC_PI_2), Vec3::ZERO);
+        let down = Pose::new(
+            Quat::from_axis_angle(Vec3::X, core::f32::consts::FRAC_PI_2),
+            Vec3::ZERO,
+        );
         let mut follow = EyeFollow::new(down, up);
         for dt in [0.0, 1.0 / 60.0, 5.0, f32::NAN] {
             assert!(follow.follow(down, up, None, dt).is_finite());

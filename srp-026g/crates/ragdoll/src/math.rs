@@ -12,7 +12,11 @@ pub const PI: f32 = core::f32::consts::PI;
 /// The square root (`sqrtss`); 0 for a negative or NaN argument.
 #[inline]
 pub fn sqrt(x: f32) -> f32 {
-    if x > 0.0 { core::f32::math::sqrt(x) } else { 0.0 }
+    if x > 0.0 {
+        core::f32::math::sqrt(x)
+    } else {
+        0.0
+    }
 }
 
 #[inline]
@@ -33,19 +37,24 @@ pub fn max(a: f32, b: f32) -> f32 {
 /// `x` within `[lo, hi]`; `lo` for NaN.
 #[inline]
 pub fn clamp(x: f32, lo: f32, hi: f32) -> f32 {
-    if x >= lo { if x > hi { hi } else { x } } else { lo }
+    if x >= lo {
+        if x > hi { hi } else { x }
+    } else {
+        lo
+    }
 }
 
 /// A finite float (not NaN, not infinite).
 #[inline]
 pub fn finite(x: f32) -> bool {
-    x - x == 0.0
+    x.is_finite()
 }
 
 /// e^-x for x >= 0 (a series on x / 16, squared four times; 0 past 80).
 pub fn exp_neg(x: f32) -> f32 {
     let y = clamp(x, 0.0, 80.0) * (1.0 / 16.0);
-    let mut e = 1.0 - y + y * y / 2.0 - y * y * y / 6.0 + y * y * y * y / 24.0 - y * y * y * y * y / 120.0;
+    let mut e =
+        1.0 - y + y * y / 2.0 - y * y * y / 6.0 + y * y * y * y / 24.0 - y * y * y * y * y / 120.0;
     for _ in 0..4 {
         e *= e;
     }
@@ -63,10 +72,10 @@ pub fn atan2(y: f32, x: f32) -> f32 {
     let t = lo / hi;
     let s = t * t;
     // atan(t) on [0, 1]
-    let mut r = ((((-0.013_480_470 * s + 0.057_477_314) * s - 0.121_239_071) * s + 0.195_635_925) * s
-        - 0.332_994_597)
+    let mut r = ((((-0.013_480_47 * s + 0.057_477_31) * s - 0.121_239_07) * s + 0.195_635_93) * s
+        - 0.332_994_6)
         * s
-        + 0.999_995_630;
+        + 0.999_995_6;
     r *= t;
     if ay > ax {
         r = PI / 2.0 - r;
@@ -97,9 +106,13 @@ pub fn sin_cos(a: f32) -> (f32, f32) {
         (a, false)
     };
     let s2 = b * b;
-    let sin = b * (1.0 + s2 * (-1.0 / 6.0 + s2 * (1.0 / 120.0 + s2 * (-1.0 / 5040.0 + s2 * (1.0 / 362_880.0)))));
+    let sin = b
+        * (1.0
+            + s2 * (-1.0 / 6.0
+                + s2 * (1.0 / 120.0 + s2 * (-1.0 / 5040.0 + s2 * (1.0 / 362_880.0)))));
     let cos = 1.0
-        + s2 * (-0.5 + s2 * (1.0 / 24.0 + s2 * (-1.0 / 720.0 + s2 * (1.0 / 40_320.0 - s2 / 3_628_800.0))));
+        + s2 * (-0.5
+            + s2 * (1.0 / 24.0 + s2 * (-1.0 / 720.0 + s2 * (1.0 / 40_320.0 - s2 / 3_628_800.0))));
     (sin, if flip { -cos } else { cos })
 }
 
@@ -125,7 +138,11 @@ impl Vec3 {
     }
 
     pub fn cross(self, o: Vec3) -> Vec3 {
-        Vec3::new(self.y * o.z - self.z * o.y, self.z * o.x - self.x * o.z, self.x * o.y - self.y * o.x)
+        Vec3::new(
+            self.y * o.z - self.z * o.y,
+            self.z * o.x - self.x * o.z,
+            self.x * o.y - self.y * o.x,
+        )
     }
 
     pub fn length_squared(self) -> f32 {
@@ -140,7 +157,11 @@ impl Vec3 {
     /// finite) to have a direction.
     pub fn direction(self) -> Option<Vec3> {
         let l = self.length();
-        if l > 1e-6 && finite(l) { Some(self * (1.0 / l)) } else { None }
+        if l > 1e-6 && finite(l) {
+            Some(self * (1.0 / l))
+        } else {
+            None
+        }
     }
 
     /// The unit vector along `self`, or `fallback` when it has none.
@@ -222,12 +243,22 @@ pub struct Quat {
 }
 
 impl Quat {
-    pub const IDENTITY: Quat = Quat { x: 0.0, y: 0.0, z: 0.0, w: 1.0 };
+    pub const IDENTITY: Quat = Quat {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+        w: 1.0,
+    };
 
     /// The rotation by `angle` about the unit `axis`.
     pub fn from_axis_angle(axis: Vec3, angle: f32) -> Quat {
         let (s, c) = sin_cos(angle * 0.5);
-        Quat { x: axis.x * s, y: axis.y * s, z: axis.z * s, w: c }
+        Quat {
+            x: axis.x * s,
+            y: axis.y * s,
+            z: axis.z * s,
+            w: c,
+        }
     }
 
     /// The rotation whose columns (the images of X, Y and Z) are the
@@ -237,22 +268,47 @@ impl Quat {
         let trace = m00 + m11 + m22;
         let q = if trace > 0.0 {
             let s = sqrt(trace + 1.0) * 2.0;
-            Quat { w: 0.25 * s, x: (y.z - z.y) / s, y: (z.x - x.z) / s, z: (x.y - y.x) / s }
+            Quat {
+                w: 0.25 * s,
+                x: (y.z - z.y) / s,
+                y: (z.x - x.z) / s,
+                z: (x.y - y.x) / s,
+            }
         } else if m00 > m11 && m00 > m22 {
             let s = sqrt(1.0 + m00 - m11 - m22) * 2.0;
-            Quat { w: (y.z - z.y) / s, x: 0.25 * s, y: (y.x + x.y) / s, z: (z.x + x.z) / s }
+            Quat {
+                w: (y.z - z.y) / s,
+                x: 0.25 * s,
+                y: (y.x + x.y) / s,
+                z: (z.x + x.z) / s,
+            }
         } else if m11 > m22 {
             let s = sqrt(1.0 + m11 - m00 - m22) * 2.0;
-            Quat { w: (z.x - x.z) / s, x: (y.x + x.y) / s, y: 0.25 * s, z: (z.y + y.z) / s }
+            Quat {
+                w: (z.x - x.z) / s,
+                x: (y.x + x.y) / s,
+                y: 0.25 * s,
+                z: (z.y + y.z) / s,
+            }
         } else {
             let s = sqrt(1.0 + m22 - m00 - m11) * 2.0;
-            Quat { w: (x.y - y.x) / s, x: (z.x + x.z) / s, y: (z.y + y.z) / s, z: 0.25 * s }
+            Quat {
+                w: (x.y - y.x) / s,
+                x: (z.x + x.z) / s,
+                y: (z.y + y.z) / s,
+                z: 0.25 * s,
+            }
         };
         q.normalized()
     }
 
     pub fn conjugate(self) -> Quat {
-        Quat { x: -self.x, y: -self.y, z: -self.z, w: self.w }
+        Quat {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+            w: self.w,
+        }
     }
 
     pub fn dot(self, o: Quat) -> f32 {
@@ -264,7 +320,12 @@ impl Quat {
         let l = sqrt(self.dot(self));
         if l > 1e-9 && finite(l) {
             let k = 1.0 / l;
-            Quat { x: self.x * k, y: self.y * k, z: self.z * k, w: self.w * k }
+            Quat {
+                x: self.x * k,
+                y: self.y * k,
+                z: self.z * k,
+                w: self.w * k,
+            }
         } else {
             Quat::IDENTITY
         }
@@ -284,7 +345,12 @@ impl Quat {
     /// `self` turned by the small rotation vector `omega` (a first-order
     /// step: q + 1/2 [omega, 0] q, normalized).
     pub fn integrate(self, omega: Vec3) -> Quat {
-        let dq = Quat { x: omega.x, y: omega.y, z: omega.z, w: 0.0 } * self;
+        let dq = Quat {
+            x: omega.x,
+            y: omega.y,
+            z: omega.z,
+            w: 0.0,
+        } * self;
         Quat {
             x: self.x + 0.5 * dq.x,
             y: self.y + 0.5 * dq.y,
@@ -299,7 +365,12 @@ impl Quat {
     pub fn rotation_from(self, from: Quat) -> Vec3 {
         let mut d = self * from.conjugate();
         if d.w < 0.0 {
-            d = Quat { x: -d.x, y: -d.y, z: -d.z, w: -d.w };
+            d = Quat {
+                x: -d.x,
+                y: -d.y,
+                z: -d.z,
+                w: -d.w,
+            };
         }
         let s = d.vector().length();
         if s < 1e-7 {
@@ -311,7 +382,16 @@ impl Quat {
 
     /// Normalized linear interpolation along the shorter arc.
     pub fn nlerp(self, o: Quat, t: f32) -> Quat {
-        let o = if self.dot(o) < 0.0 { Quat { x: -o.x, y: -o.y, z: -o.z, w: -o.w } } else { o };
+        let o = if self.dot(o) < 0.0 {
+            Quat {
+                x: -o.x,
+                y: -o.y,
+                z: -o.z,
+                w: -o.w,
+            }
+        } else {
+            o
+        };
         Quat {
             x: self.x + (o.x - self.x) * t,
             y: self.y + (o.y - self.y) * t,
@@ -346,7 +426,10 @@ pub struct Pose {
 }
 
 impl Pose {
-    pub const IDENTITY: Pose = Pose { rotation: Quat::IDENTITY, position: Vec3::ZERO };
+    pub const IDENTITY: Pose = Pose {
+        rotation: Quat::IDENTITY,
+        position: Vec3::ZERO,
+    };
 
     pub fn new(rotation: Quat, position: Vec3) -> Pose {
         Pose { rotation, position }
@@ -358,12 +441,18 @@ impl Pose {
 
     pub fn inverse(self) -> Pose {
         let r = self.rotation.conjugate();
-        Pose { rotation: r, position: -r.rotate(self.position) }
+        Pose {
+            rotation: r,
+            position: -r.rotate(self.position),
+        }
     }
 
     /// `self` after `inner`: (self * inner)(p) = self(inner(p)).
     pub fn then(self, inner: Pose) -> Pose {
-        Pose { rotation: (self.rotation * inner.rotation).normalized(), position: self.apply(inner.position) }
+        Pose {
+            rotation: (self.rotation * inner.rotation).normalized(),
+            position: self.apply(inner.position),
+        }
     }
 
     pub fn is_finite(self) -> bool {
@@ -388,7 +477,10 @@ mod tests {
             }
             let a = i as f32 * 0.21;
             let (s, c) = sin_cos(a);
-            assert!(close(s, a.sin(), 2e-5) && close(c, a.cos(), 2e-5), "sin_cos({a})");
+            assert!(
+                close(s, a.sin(), 2e-5) && close(c, a.cos(), 2e-5),
+                "sin_cos({a})"
+            );
         }
         assert_eq!(atan2(0.0, 0.0), 0.0);
         assert_eq!(sin_cos(f32::NAN), (0.0, 1.0));

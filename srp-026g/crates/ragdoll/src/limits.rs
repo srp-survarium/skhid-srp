@@ -49,7 +49,11 @@ impl Cone {
     pub fn reach(self, toward: Vec3, forward: Vec3) -> f32 {
         match self {
             Cone::Round(a) => a,
-            Cone::Shaped { forward: f, back, side } => {
+            Cone::Shaped {
+                forward: f,
+                back,
+                side,
+            } => {
                 let c = toward.dot(forward);
                 let along = if c >= 0.0 { f } else { back };
                 let s2 = 1.0 - c * c;
@@ -77,14 +81,29 @@ pub enum Limit {
     },
     /// A hinge about `hinge_*`: the child's limb axis turned from the
     /// parent's by `min..max` about it.
-    Hinge { hinge_parent: Vec3, hinge_child: Vec3, limb_parent: Vec3, limb_child: Vec3, min: f32, max: f32 },
+    Hinge {
+        hinge_parent: Vec3,
+        hinge_child: Vec3,
+        limb_parent: Vec3,
+        limb_child: Vec3,
+        min: f32,
+        max: f32,
+    },
 }
 
 impl Limit {
     /// One XPBD pass of the limit on the two bodies (compliance `alpha_h`).
     pub fn solve(&self, parent: &mut Body, child: &mut Body, alpha_h: f32) {
         match *self {
-            Limit::Swing { cone, axis_parent, forward_parent, axis_child, reference_parent, reference_child, twist } => {
+            Limit::Swing {
+                cone,
+                axis_parent,
+                forward_parent,
+                axis_child,
+                reference_parent,
+                reference_child,
+                twist,
+            } => {
                 // swing
                 let a = parent.pose.rotation.rotate(axis_parent);
                 let b = child.pose.rotation.rotate(axis_child);
@@ -101,7 +120,8 @@ impl Limit {
                 // twist
                 let a = parent.pose.rotation.rotate(axis_parent);
                 let b = child.pose.rotation.rotate(axis_child);
-                let carried = swing_carry(parent.pose.rotation.rotate(reference_parent), a, b).reject(b);
+                let carried =
+                    swing_carry(parent.pose.rotation.rotate(reference_parent), a, b).reject(b);
                 let own = child.pose.rotation.rotate(reference_child).reject(b);
                 if let (Some(carried), Some(own)) = (carried.direction(), own.direction()) {
                     let phi = signed_angle(carried, own, b);
@@ -111,14 +131,26 @@ impl Limit {
                     }
                 }
             }
-            Limit::Hinge { hinge_parent, hinge_child, limb_parent, limb_child, min, max } => {
+            Limit::Hinge {
+                hinge_parent,
+                hinge_child,
+                limb_parent,
+                limb_child,
+                min,
+                max,
+            } => {
                 // keep the hinge axes one
                 let h1 = parent.pose.rotation.rotate(hinge_parent);
                 let h2 = child.pose.rotation.rotate(hinge_child);
                 share_turn(child, parent, h2.cross(h1), alpha_h);
                 // the bend within min..max
                 let h = parent.pose.rotation.rotate(hinge_parent);
-                let p = parent.pose.rotation.rotate(limb_parent).reject(h).direction();
+                let p = parent
+                    .pose
+                    .rotation
+                    .rotate(limb_parent)
+                    .reject(h)
+                    .direction();
                 let c = child.pose.rotation.rotate(limb_child).reject(h).direction();
                 if let (Some(p), Some(c)) = (p, c) {
                     let phi = signed_angle(p, c, h);
@@ -144,7 +176,11 @@ mod tests {
         assert!((carried - Vec3::Z).length() < 1e-6);
         let carried = swing_carry(Vec3::Y, Vec3::X, Vec3::Y);
         assert!((carried + Vec3::X).length() < 1e-6);
-        let cone = Cone::Shaped { forward: 1.0, back: 0.5, side: 0.8 };
+        let cone = Cone::Shaped {
+            forward: 1.0,
+            back: 0.5,
+            side: 0.8,
+        };
         assert!((cone.reach(Vec3::X, Vec3::X) - 1.0).abs() < 1e-6);
         assert!((cone.reach(-Vec3::X, Vec3::X) - 0.5).abs() < 1e-6);
         assert!((cone.reach(Vec3::Y, Vec3::X) - 0.8).abs() < 1e-6);

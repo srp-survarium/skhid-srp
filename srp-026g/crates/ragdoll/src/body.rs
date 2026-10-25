@@ -183,10 +183,23 @@ mod tests {
 
     #[test]
     fn a_push_conserves_momentum_between_two_bodies() {
-        let shape = Capsule { half: 0.2, radius: 0.05 };
+        let shape = Capsule {
+            half: 0.2,
+            radius: 0.05,
+        };
         let mut a = Body::new(Pose::new(Quat::IDENTITY, Vec3::ZERO), shape, 2.0);
-        let mut b = Body::new(Pose::new(Quat::IDENTITY, Vec3::new(1.0, 0.0, 0.0)), shape, 6.0);
-        close_gap(Pair::Two(&mut a, &mut b), Vec3::ZERO, Vec3::ZERO, Vec3::new(0.4, 0.0, 0.0), 0.0);
+        let mut b = Body::new(
+            Pose::new(Quat::IDENTITY, Vec3::new(1.0, 0.0, 0.0)),
+            shape,
+            6.0,
+        );
+        close_gap(
+            Pair::Two(&mut a, &mut b),
+            Vec3::ZERO,
+            Vec3::ZERO,
+            Vec3::new(0.4, 0.0, 0.0),
+            0.0,
+        );
         // the gap closes, the centre of mass stays
         assert!(((b.pose.position - a.pose.position).x - 0.6).abs() < 1e-5);
         let centre = a.pose.position * 2.0 + b.pose.position * 6.0;

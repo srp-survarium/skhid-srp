@@ -12,9 +12,10 @@ use crate::body::{Body, Capsule, Contact, Pair, close_gap, share_turn};
 use crate::limits::{Cone, Limit, degrees};
 use crate::math::{Pose, Quat, Vec3, clamp, exp_neg, finite, max, min};
 use crate::skeleton::{
-    BONE_COUNT, Bone, JOINT_TABLE, JOINTS, JointKind, LEFT_ARM, LEFT_FOOT, LEFT_FORE_ARM, LEFT_HAND, LEFT_LEG,
-    LEFT_TOE, LEFT_UP_LEG, NECK, PARTS, Part, RIGHT_ARM, RIGHT_FOOT, RIGHT_FORE_ARM, RIGHT_HAND, RIGHT_LEG,
-    RIGHT_TOE, RIGHT_UP_LEG, ROOT, SPIN, WEAPON, HEAD, ITEM, adjacent,
+    BONE_COUNT, Bone, HEAD, ITEM, JOINT_TABLE, JOINTS, JointKind, LEFT_ARM, LEFT_FOOT,
+    LEFT_FORE_ARM, LEFT_HAND, LEFT_LEG, LEFT_TOE, LEFT_UP_LEG, NECK, PARTS, Part, RIGHT_ARM,
+    RIGHT_FOOT, RIGHT_FORE_ARM, RIGHT_HAND, RIGHT_LEG, RIGHT_TOE, RIGHT_UP_LEG, ROOT, SPIN, WEAPON,
+    adjacent,
 };
 
 /// The drawn skeleton: every bone's world pose, in [`crate::skeleton::BONES`]' order.
@@ -75,6 +76,10 @@ const NEAR_REST: f32 = 1.0;
 const REST_DAMPING: f32 = 8.0;
 /// At rest this long: settled; and settled at the latest after `MAX_AGE`.
 const STILL_TIME: f32 = 0.4;
+/// Every capsule end slower than SLOW (m/s) for SLOW_TIME: settled even if
+/// it still drifts.
+const SLOW: f32 = 0.35;
+const SLOW_TIME: f32 = 1.0;
 const MAX_AGE: f32 = 5.0;
 /// A sweep reaches this much past a body's motion of the frame.
 const SWEEP_MARGIN: f32 = 0.05;
@@ -89,7 +94,11 @@ const GUN_MASS: f32 = 3.5;
 pub enum Cause {
     /// A bullet in the body (or no hit known): `part` hit along `direction`
     /// (unit), `heavy` for shotguns and sniper rifles.
-    Body { part: Part, direction: Vec3, heavy: bool },
+    Body {
+        part: Part,
+        direction: Vec3,
+        heavy: bool,
+    },
     /// A bullet in the head along `direction`.
     Head { direction: Vec3 },
     /// A blast at `centre`.
@@ -164,7 +173,11 @@ pub trait Level {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Probe {
     /// A surface `distance` from the end.
-    Surface { distance: f32, point: Vec3, normal: Vec3 },
+    Surface {
+        distance: f32,
+        point: Vec3,
+        normal: Vec3,
+    },
     /// Nothing below or ahead of the end within reach.
     Clear,
     /// Not asked (the frame's budget is spent): what the body had stays.
@@ -195,7 +208,11 @@ fn probe(level: &mut impl Level, (end, motion): (Vec3, Vec3), down: Vec3, radius
     let length = reach.length() + SWEEP_MARGIN;
     match level.sweep(end, end + dir * length, radius) {
         Sweep::Hit { point, normal } => match normal.direction() {
-            Some(normal) => Probe::Surface { distance: (point - end).length(), point, normal },
+            Some(normal) => Probe::Surface {
+                distance: (point - end).length(),
+                point,
+                normal,
+            },
             None => Probe::Unknown,
         },
         Sweep::Clear => Probe::Clear,
@@ -215,7 +232,11 @@ pub struct GunShape {
 
 impl GunShape {
     /// A rifle's size (the item's own bounds are not read yet).
-    pub const RIFLE: GunShape = GunShape { ahead: 0.15, half: 0.35, radius: 0.04 };
+    pub const RIFLE: GunShape = GunShape {
+        ahead: 0.15,
+        half: 0.35,
+        radius: 0.04,
+    };
 }
 
 /// The unit axis of `frame` (one of its six) nearest `toward`.
@@ -316,9 +337,20 @@ pub struct Start<'a> {
 
 /// Whether the bodies have stayed put: since when, and where they were then.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "inline in its ragdoll, no allocation"
+)]
 enum Rest {
+    /// Some capsule end faster than SLOW.
     Moving,
-    Resting { since: f32, anchor: (PartPoses, Option<Pose>) },
+    /// Every end slower than SLOW since `slow`; the bodies within
+    /// STILL_REACH of `anchor` (or creeping) since `since`.
+    Slow {
+        slow: f32,
+        since: f32,
+        anchor: (PartPoses, Option<Pose>),
+    },
 }
 
 /// Whether a frame's step left the ragdoll moving.
@@ -353,10 +385,18 @@ pub struct Ragdoll {
 fn segment_pose(bone: Pose, from: Vec3, to: Vec3) -> (Pose, f32) {
     let bone_x = bone.rotation.rotate(Vec3::X);
     let x = (to - from).direction_or(bone_x);
-    let y = bone.rotation.rotate(Vec3::Y).reject(x).direction().unwrap_or_else(|| x.any_perpendicular());
+    let y = bone
+        .rotation
+        .rotate(Vec3::Y)
+        .reject(x)
+        .direction()
+        .unwrap_or_else(|| x.any_perpendicular());
     let z = x.cross(y);
     let length = (to - from).length();
-    (Pose::new(Quat::from_basis(x, y, z), (from + to) * 0.5), length)
+    (
+        Pose::new(Quat::from_basis(x, y, z), (from + to) * 0.5),
+        length,
+    )
 }
 
 fn finite_skeleton(s: &Skeleton) -> bool {
@@ -367,7 +407,10 @@ impl Ragdoll {
     /// The ragdoll of a death; `None` when the pose is not finite (the
     /// game's clip is drawn then).
     pub fn new(start: &Start<'_>) -> Option<Ragdoll> {
-        if !finite_skeleton(start.now) || !start.before.iter().all(|p| p.is_finite()) || !start.up.is_finite() {
+        if !finite_skeleton(start.now)
+            || !start.before.iter().all(|p| p.is_finite())
+            || !start.up.is_finite()
+        {
             return None;
         }
         let now = start.now;
@@ -403,8 +446,17 @@ impl Ragdoll {
             (at(RIGHT_ARM), at(RIGHT_FORE_ARM)),
             along(RIGHT_FORE_ARM, RIGHT_HAND, 0.1),
         ];
-        let mut bodies = [Body::new(Pose::IDENTITY, Capsule { half: 0.0, radius: 0.0 }, 1.0); PARTS];
-        let mut links = [Link::Fixed { pose: Pose::IDENTITY }; BONE_COUNT];
+        let mut bodies = [Body::new(
+            Pose::IDENTITY,
+            Capsule {
+                half: 0.0,
+                radius: 0.0,
+            },
+            1.0,
+        ); PARTS];
+        let mut links = [Link::Fixed {
+            pose: Pose::IDENTITY,
+        }; BONE_COUNT];
         for part in Part::ALL {
             let (from, to) = segments[part.index()];
             let bone = now[part.bone().index()];
@@ -412,16 +464,27 @@ impl Ragdoll {
             let radius = part.radius();
             let half = max(0.02, length * 0.5 - radius * 0.5);
             bodies[part.index()] = Body::new(pose, Capsule { half, radius }, part.mass());
-            links[part.bone().index()] = Link::Part { part, offset: pose.inverse().then(bone) };
+            links[part.bone().index()] = Link::Part {
+                part,
+                offset: pose.inverse().then(bone),
+            };
         }
         // the gun
         let weapon = now[WEAPON.index()];
         let gun = start.gun.map(|shape| {
             let x = nearest_axis(weapon.rotation, forward);
             let y = x.any_perpendicular();
-            let pose = Pose::new(Quat::from_basis(x, y, x.cross(y)), weapon.position + x * shape.ahead);
-            let capsule = Capsule { half: clamp(shape.half, 0.05, 0.7), radius: clamp(shape.radius, 0.02, 0.12) };
-            links[WEAPON.index()] = Link::Gun { offset: pose.inverse().then(weapon) };
+            let pose = Pose::new(
+                Quat::from_basis(x, y, x.cross(y)),
+                weapon.position + x * shape.ahead,
+            );
+            let capsule = Capsule {
+                half: clamp(shape.half, 0.05, 0.7),
+                radius: clamp(shape.radius, 0.02, 0.12),
+            };
+            links[WEAPON.index()] = Link::Gun {
+                offset: pose.inverse().then(weapon),
+            };
             Body::new(pose, capsule, GUN_MASS)
         });
         // every other bone keeps its place on its parent
@@ -430,18 +493,27 @@ impl Ragdoll {
                 continue;
             }
             links[i] = match Bone(i as u8).parent() {
-                Some(parent) => Link::Parent { parent, local: now[parent.index()].inverse().then(now[i]) },
+                Some(parent) => Link::Parent {
+                    parent,
+                    local: now[parent.index()].inverse().then(now[i]),
+                },
                 None => Link::Fixed { pose: now[i] },
             };
         }
-        let rig = Rig { links, eye: now[HEAD.index()].inverse().then(now[ITEM.index()]) };
+        let rig = Rig {
+            links,
+            eye: now[HEAD.index()].inverse().then(now[ITEM.index()]),
+        };
         // the motion the player had: the parts' poses a frame before
         let before = rig.parts_of(start.before);
         let dt = clamp(start.dt, 1.0 / 240.0, 0.25);
         for (body, was) in bodies.iter_mut().zip(before.iter()) {
             let v = (body.pose.position - was.position) * (1.0 / dt);
             body.velocity = limit_length(v, START_SPEED);
-            body.spin = limit_length(body.pose.rotation.rotation_from(was.rotation) * (1.0 / dt), START_SPIN);
+            body.spin = limit_length(
+                body.pose.rotation.rotation_from(was.rotation) * (1.0 / dt),
+                START_SPIN,
+            );
         }
         let joints = JOINT_TABLE.map(|(parent, child, bone, kind)| {
             make_joint(&bodies, parent, child, at(bone), kind, up, forward, left)
@@ -449,7 +521,9 @@ impl Ragdoll {
         let mut colliding = 0u64;
         for i in 0..PARTS {
             for k in (i + 1)..PARTS {
-                if !adjacent(Part::ALL[i], Part::ALL[k]) && separation(&bodies[i], &bodies[k]).is_none() {
+                if !adjacent(Part::ALL[i], Part::ALL[k])
+                    && separation(&bodies[i], &bodies[k]).is_none()
+                {
                     colliding |= pair_bit(i, k);
                 }
             }
@@ -471,11 +545,11 @@ impl Ragdoll {
             let hand = &ragdoll.bodies[Part::RightForearm.index()];
             gun.velocity = hand.point_velocity(gun.pose.position - hand.pose.position);
         }
-        if let Some((point, normal)) = start.stood_on.and_then(|(p, n)| Some((p, n.direction()?))) {
-            if point.is_finite() {
-                for body in ragdoll.bodies.iter_mut().chain(ragdoll.gun.iter_mut()) {
-                    body.contact = Contact::Plane { point, normal };
-                }
+        if let Some((point, normal)) = start.stood_on.and_then(|(p, n)| Some((p, n.direction()?)))
+            && point.is_finite()
+        {
+            for body in ragdoll.bodies.iter_mut().chain(ragdoll.gun.iter_mut()) {
+                body.contact = Contact::Plane { point, normal };
             }
         }
         ragdoll.impulse();
@@ -487,7 +561,11 @@ impl Ragdoll {
     fn impulse(&mut self) {
         let up = self.up;
         match self.cause {
-            Cause::Body { part, direction, heavy } => {
+            Cause::Body {
+                part,
+                direction,
+                heavy,
+            } => {
                 let kick = if heavy { 3.5 } else { 2.0 };
                 self.bodies[part.index()].velocity += direction * kick;
                 let level = direction.reject(up).direction_or(Vec3::ZERO) * 0.4;
@@ -543,7 +621,9 @@ impl Ragdoll {
         if dt <= 0.0 {
             return Motion::Moving;
         }
-        let targets = clip.filter(|c| c.iter().all(|p| p.is_finite())).map(|c| self.rig.parts_of(c));
+        let targets = clip
+            .filter(|c| c.iter().all(|p| p.is_finite()))
+            .map(|c| self.rig.parts_of(c));
         let gravity = self.up * -GRAVITY;
         self.query(dt, gravity, level);
         let h = dt / SUBSTEPS as f32;
@@ -564,13 +644,23 @@ impl Ragdoll {
             }
             self.solve_self_collision();
             self.solve_travel();
-            for (i, body) in self.bodies.iter_mut().chain(self.gun.iter_mut()).enumerate() {
+            for (i, body) in self
+                .bodies
+                .iter_mut()
+                .chain(self.gun.iter_mut())
+                .enumerate()
+            {
                 contacts[i] = solve_contact(body);
             }
             for body in self.bodies.iter_mut().chain(self.gun.iter_mut()) {
                 body.update_velocity(h);
             }
-            for (i, body) in self.bodies.iter_mut().chain(self.gun.iter_mut()).enumerate() {
+            for (i, body) in self
+                .bodies
+                .iter_mut()
+                .chain(self.gun.iter_mut())
+                .enumerate()
+            {
                 friction(body, contacts[i], h);
             }
             self.damp_drive(h);
@@ -585,8 +675,10 @@ impl Ragdoll {
         self.last_good = (poses, gun);
         // near rest on the ground, every body slowed toward rest (what is left
         // is the solver's creep, not a fall): it settles instead of crawling
-        let resting = |b: &Body| b.end_speed() < NEAR_REST && matches!(b.contact, Contact::Plane { .. });
-        if self.bodies.iter().all(|b| b.end_speed() < NEAR_REST) && self.bodies.iter().any(resting) {
+        let resting =
+            |b: &Body| b.end_speed() < NEAR_REST && matches!(b.contact, Contact::Plane { .. });
+        if self.bodies.iter().all(|b| b.end_speed() < NEAR_REST) && self.bodies.iter().any(resting)
+        {
             let keep = exp_neg(REST_DAMPING * dt);
             for body in self.bodies.iter_mut().chain(self.gun.iter_mut()) {
                 body.velocity = body.velocity * keep;
@@ -594,16 +686,40 @@ impl Ragdoll {
             }
         }
         let now = self.poses();
+        let slow = self
+            .bodies
+            .iter()
+            .chain(self.gun.iter())
+            .all(|b| b.end_speed() < SLOW);
         self.rest = match self.rest {
+            _ if !slow => Rest::Moving,
+            Rest::Moving => Rest::Slow {
+                slow: self.age,
+                since: self.age,
+                anchor: now,
+            },
             // put, or creeping slower than the recipe's 0.05 m/s (the solver's
             // pushes between a limb, the ground and the other leg)
-            Rest::Resting { since, anchor } if self.within(&anchor) || self.creeping() => {
-                Rest::Resting { since, anchor }
-            }
-            _ => Rest::Resting { since: self.age, anchor: now },
+            Rest::Slow {
+                slow,
+                since,
+                anchor,
+            } if self.within(&anchor) || self.creeping() => Rest::Slow {
+                slow,
+                since,
+                anchor,
+            },
+            Rest::Slow { slow, .. } => Rest::Slow {
+                slow,
+                since: self.age,
+                anchor: now,
+            },
         };
         match self.rest {
-            Rest::Resting { since, .. } if self.age - since >= STILL_TIME => Motion::Settled,
+            Rest::Slow { since, .. } if self.age - since >= STILL_TIME => Motion::Settled,
+            // slow for a second but still drifting: the solver's fight
+            // between constraints, not a fall
+            Rest::Slow { slow, .. } if self.age - slow >= SLOW_TIME => Motion::Settled,
             _ if self.age >= MAX_AGE => Motion::Settled,
             _ => Motion::Moving,
         }
@@ -611,7 +727,10 @@ impl Ragdoll {
 
     /// Whether every body's centre moves slower than CREEP.
     fn creeping(&self) -> bool {
-        self.bodies.iter().chain(self.gun.iter()).all(|b| b.velocity.length() < CREEP)
+        self.bodies
+            .iter()
+            .chain(self.gun.iter())
+            .all(|b| b.velocity.length() < CREEP)
     }
 
     /// Whether every capsule end (and the gun's) is within STILL_REACH of
@@ -622,7 +741,10 @@ impl Ragdoll {
             let (c, d) = body.shape.ends(then);
             (a - c).length() < STILL_REACH && (b - d).length() < STILL_REACH
         };
-        self.bodies.iter().zip(parts.iter()).all(|(b, p)| near(b, *p))
+        self.bodies
+            .iter()
+            .zip(parts.iter())
+            .all(|(b, p)| near(b, *p))
             && match (self.gun.as_ref(), gun) {
                 (Some(b), Some(p)) => near(b, *p),
                 _ => true,
@@ -651,12 +773,18 @@ impl Ragdoll {
                 continue;
             }
             let (a, b) = body.shape.ends(body.pose);
-            let motion_of = |end: Vec3| body.point_velocity(end - body.pose.position) * dt + gravity * (dt * dt);
+            let motion_of = |end: Vec3| {
+                body.point_velocity(end - body.pose.position) * dt + gravity * (dt * dt)
+            };
             let (ma, mb) = (motion_of(a), motion_of(b));
             // the end ahead of the other along its motion first; both ends of a
             // fast body (a spinning one may land on the other first)
             let a_leads = (a - b).dot(ma.direction_or(down)) >= (b - a).dot(mb.direction_or(down));
-            let (first, second) = if a_leads { ((a, ma), (b, mb)) } else { ((b, mb), (a, ma)) };
+            let (first, second) = if a_leads {
+                ((a, ma), (b, mb))
+            } else {
+                ((b, mb), (a, ma))
+            };
             let radius = body.shape.radius;
             let mut answer = probe(level, first, down, radius);
             if body.end_speed() >= FAST || answer == Probe::Clear {
@@ -666,7 +794,9 @@ impl Ragdoll {
                 answer = answer.or(probe(level, second, down, radius));
             }
             match answer {
-                Probe::Surface { point, normal, .. } => body.contact = Contact::Plane { point, normal },
+                Probe::Surface { point, normal, .. } => {
+                    body.contact = Contact::Plane { point, normal }
+                }
                 Probe::Clear => body.contact = Contact::Free,
                 Probe::Unknown => {}
             }
@@ -715,7 +845,9 @@ impl Ragdoll {
             }
             let (parent, child) = pair(&mut self.bodies, joint.parent, joint.child);
             let relative = child.spin - parent.spin;
-            let Some(n) = relative.direction() else { continue };
+            let Some(n) = relative.direction() else {
+                continue;
+            };
             let w = child.turn_weight(n) + parent.turn_weight(n);
             let l = relative.length() * f / w;
             child.spin -= child.inverse_inertia_times(n * l);
@@ -732,7 +864,9 @@ impl Ragdoll {
                 }
                 let up = self.up;
                 let (a, b) = pair(&mut self.bodies, Part::ALL[i], Part::ALL[k]);
-                let Some((pa, pb, distance)) = separation(a, b) else { continue };
+                let Some((pa, pb, distance)) = separation(a, b) else {
+                    continue;
+                };
                 let n = (pb - pa).direction_or(up);
                 let reach = a.shape.radius + b.shape.radius;
                 let ra = pa + n * a.shape.radius - a.pose.position;
@@ -785,7 +919,13 @@ fn separation(a: &Body, b: &Body) -> Option<(Vec3, Vec3, f32)> {
 
 fn limit_length(v: Vec3, most: f32) -> Vec3 {
     let l = v.length();
-    if l > most && finite(l) { v * (most / l) } else if finite(l) { v } else { Vec3::ZERO }
+    if l > most && finite(l) {
+        v * (most / l)
+    } else if finite(l) {
+        v
+    } else {
+        Vec3::ZERO
+    }
 }
 
 /// The closest points of the segments p0-p1 and q0-q1.
@@ -811,7 +951,11 @@ pub fn closest_points(p0: Vec3, p1: Vec3, q0: Vec3, q1: Vec3) -> (Vec3, Vec3) {
         } else {
             let b = d1.dot(d2);
             let denom = a * e - b * b;
-            let s0 = if denom > 1e-9 { clamp((b * f - c * e) / denom, 0.0, 1.0) } else { 0.0 };
+            let s0 = if denom > 1e-9 {
+                clamp((b * f - c * e) / denom, 0.0, 1.0)
+            } else {
+                0.0
+            };
             let t0 = (b * s0 + f) / e;
             if t0 < 0.0 {
                 t = 0.0;
@@ -832,7 +976,9 @@ pub fn closest_points(p0: Vec3, p1: Vec3, q0: Vec3, q1: Vec3) -> (Vec3, Vec3) {
 /// the end in the substep undone while static friction holds it. Returns the
 /// normal impulses (for the kinetic friction).
 fn solve_contact(body: &mut Body) -> [f32; 2] {
-    let Contact::Plane { point, normal } = body.contact else { return [0.0; 2] };
+    let Contact::Plane { point, normal } = body.contact else {
+        return [0.0; 2];
+    };
     let mut out = [0.0; 2];
     let ends = |pose: Pose| body.shape.ends(pose);
     let (a, b) = ends(body.pose);
@@ -864,7 +1010,9 @@ fn solve_contact(body: &mut Body) -> [f32; 2] {
 /// The kinetic friction and no bounce, at the ends that touched, and the
 /// rolling resistance of a body on the ground.
 fn friction(body: &mut Body, lambdas: [f32; 2], h: f32) {
-    let Contact::Plane { normal, .. } = body.contact else { return };
+    let Contact::Plane { normal, .. } = body.contact else {
+        return;
+    };
     if lambdas[0] > 0.0 || lambdas[1] > 0.0 {
         body.spin = body.spin * (1.0 - min(1.0, ROLLING_RESISTANCE * h));
     }
@@ -912,13 +1060,27 @@ fn make_joint(
     let into_c = |v: Vec3| c.pose.rotation.conjugate().rotate(v);
     // the limb directions: from the joint out along each body's capsule
     let child_axis = c.pose.rotation.rotate(Vec3::X);
-    let child_out = if (c.pose.position - at).dot(child_axis) >= 0.0 { child_axis } else { -child_axis };
+    let child_out = if (c.pose.position - at).dot(child_axis) >= 0.0 {
+        child_axis
+    } else {
+        -child_axis
+    };
     let parent_axis = p.pose.rotation.rotate(Vec3::X);
-    let parent_in = if (at - p.pose.position).dot(parent_axis) >= 0.0 { parent_axis } else { -parent_axis };
-    let side = if (c.pose.position - p.pose.position).dot(left) >= 0.0 { left } else { -left };
+    let parent_in = if (at - p.pose.position).dot(parent_axis) >= 0.0 {
+        parent_axis
+    } else {
+        -parent_axis
+    };
+    let side = if (c.pose.position - p.pose.position).dot(left) >= 0.0 {
+        left
+    } else {
+        -left
+    };
     let swing = |cone: Cone, centre: Vec3, twist: f32| {
         let centre = centre.direction_or(child_out);
-        let reference = forward.reject(centre).direction_or(centre.any_perpendicular());
+        let reference = forward
+            .reject(centre)
+            .direction_or(centre.any_perpendicular());
         let carried = crate::limits::swing_carry(reference, centre, child_out);
         Limit::Swing {
             cone,
@@ -926,7 +1088,11 @@ fn make_joint(
             forward_parent: into_p(forward.reject(centre).direction_or(reference)),
             axis_child: into_c(child_out),
             reference_parent: into_p(reference),
-            reference_child: into_c(carried.reject(child_out).direction_or(child_out.any_perpendicular())),
+            reference_child: into_c(
+                carried
+                    .reject(child_out)
+                    .direction_or(child_out.any_perpendicular()),
+            ),
             twist,
         }
     };
@@ -935,7 +1101,11 @@ fn make_joint(
         let axis = if bent.length() > 0.26 {
             let b = bent.direction_or(default);
             // a knee bent the wrong way at the death keeps the anatomical axis
-            if b.dot(default) >= 0.0 || kind == JointKind::Elbow { b } else { default }
+            if b.dot(default) >= 0.0 || kind == JointKind::Elbow {
+                b
+            } else {
+                default
+            }
         } else {
             default
         };
@@ -953,13 +1123,25 @@ fn make_joint(
         JointKind::Waist => swing(Cone::Round(degrees(35.0)), up, degrees(25.0)),
         JointKind::Neck => swing(Cone::Round(degrees(45.0)), parent_in, degrees(50.0)),
         JointKind::Hip => swing(
-            Cone::Shaped { forward: degrees(100.0), back: degrees(30.0), side: degrees(45.0) },
+            Cone::Shaped {
+                forward: degrees(100.0),
+                back: degrees(30.0),
+                side: degrees(45.0),
+            },
             -up,
             degrees(30.0),
         ),
         // the knee bends the shin back: about up x forward
-        JointKind::Knee => hinge(up.cross(forward).direction_or(left), degrees(-3.0), degrees(140.0)),
-        JointKind::Shoulder => swing(Cone::Round(degrees(110.0)), side * 0.7 - up * 0.7, degrees(70.0)),
+        JointKind::Knee => hinge(
+            up.cross(forward).direction_or(left),
+            degrees(-3.0),
+            degrees(140.0),
+        ),
+        JointKind::Shoulder => swing(
+            Cone::Round(degrees(110.0)),
+            side * 0.7 - up * 0.7,
+            degrees(70.0),
+        ),
         // the elbow bends the forearm forward: about forward x up
         JointKind::Elbow => hinge(forward.cross(up).direction_or(-left), 0.0, degrees(145.0)),
     };

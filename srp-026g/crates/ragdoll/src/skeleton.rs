@@ -100,7 +100,10 @@ impl Bone {
 
     /// The bone of this name.
     pub fn named(name: &str) -> Option<Bone> {
-        BONES.iter().position(|(n, _)| *n == name).map(|i| Bone(i as u8))
+        BONES
+            .iter()
+            .position(|(n, _)| *n == name)
+            .map(|i| Bone(i as u8))
     }
 }
 
@@ -233,16 +236,43 @@ pub const JOINT_TABLE: [(Part, Part, Bone, JointKind); JOINTS] = [
     (Part::Pelvis, Part::LeftThigh, LEFT_UP_LEG, JointKind::Hip),
     (Part::LeftThigh, Part::LeftShin, LEFT_LEG, JointKind::Knee),
     (Part::Pelvis, Part::RightThigh, RIGHT_UP_LEG, JointKind::Hip),
-    (Part::RightThigh, Part::RightShin, RIGHT_LEG, JointKind::Knee),
-    (Part::Torso, Part::LeftUpperArm, LEFT_ARM, JointKind::Shoulder),
-    (Part::LeftUpperArm, Part::LeftForearm, LEFT_FORE_ARM, JointKind::Elbow),
-    (Part::Torso, Part::RightUpperArm, RIGHT_ARM, JointKind::Shoulder),
-    (Part::RightUpperArm, Part::RightForearm, RIGHT_FORE_ARM, JointKind::Elbow),
+    (
+        Part::RightThigh,
+        Part::RightShin,
+        RIGHT_LEG,
+        JointKind::Knee,
+    ),
+    (
+        Part::Torso,
+        Part::LeftUpperArm,
+        LEFT_ARM,
+        JointKind::Shoulder,
+    ),
+    (
+        Part::LeftUpperArm,
+        Part::LeftForearm,
+        LEFT_FORE_ARM,
+        JointKind::Elbow,
+    ),
+    (
+        Part::Torso,
+        Part::RightUpperArm,
+        RIGHT_ARM,
+        JointKind::Shoulder,
+    ),
+    (
+        Part::RightUpperArm,
+        Part::RightForearm,
+        RIGHT_FORE_ARM,
+        JointKind::Elbow,
+    ),
 ];
 
 /// Whether two parts share a joint (they do not collide with each other).
 pub fn adjacent(a: Part, b: Part) -> bool {
-    JOINT_TABLE.iter().any(|&(p, c, _, _)| (p == a && c == b) || (p == b && c == a))
+    JOINT_TABLE
+        .iter()
+        .any(|&(p, c, _, _)| (p == a && c == b) || (p == b && c == a))
 }
 
 #[cfg(test)]
