@@ -547,7 +547,7 @@ fn battery_candidate_given(
 /// A crossing's walk across a zone's floor, m/s: the walk is 3.5 m/s
 /// forward (`kin`, PROVEN); less for side steps, the 0.3 s blend and a
 /// carrier's load. GUESS.
-const CROSS_MPS: f32 = 2.5;
+pub const CROSS_MPS: f32 = 2.5;
 /// A crossing's dry edge is looked for this far off what it crosses to at
 /// most, metres, along [`CROSS_WAYS`] ways; the line's damage is summed
 /// every [`CROSS_STEP_M`]. GUESS: of the real maps' batteries in zones on
@@ -555,7 +555,7 @@ const CROSS_MPS: f32 = 2.5;
 /// about 20 m of one (the survey in `docs/notes/player_bots_batteries.md`).
 const CROSS_MAX_M: f32 = 25.0;
 const CROSS_WAYS: usize = 16;
-const CROSS_STEP_M: f32 = 0.5;
+pub const CROSS_STEP_M: f32 = 0.5;
 /// A take's walk in stops this short of a battery on the floor, metres:
 /// it stops where the look down is [`TAKE_PITCH_RAD`], about 1.2 m off
 /// (`take_flat_m`), and uses from there; a little less, to be safe. GUESS.
@@ -571,7 +571,7 @@ const CROSS_SHARE: f32 = 0.5;
 const CROSS_LEFT: f32 = 0.4;
 /// In a zone, a take gives up once the walk back out would leave less
 /// than this. GUESS.
-const CROSS_ABORT_LEFT: f32 = 0.25;
+pub const CROSS_ABORT_LEFT: f32 = 0.25;
 
 /// A walk in a line across zones on all match to a battery no way leads
 /// to (`Ctx::needs_crossing`), from a dry floor a way does lead to; or a
@@ -594,11 +594,19 @@ impl Crossing {
         2.0 * self.leg + CROSS_TAKE_S * self.at_per_s
     }
 
-    /// Whether a bot of `health` makes it ([`CROSS_SHARE`], [`CROSS_LEFT`]).
+    /// Whether a bot of `health` makes it ([`bears`]).
     pub fn fits(&self, health: f32) -> bool {
-        let cost = self.cost();
-        cost <= CROSS_SHARE * health && health - cost >= CROSS_LEFT
+        bears(self.cost(), health)
     }
+}
+
+/// Whether a bot of `health` bears a walk across zones that costs it `cost`
+/// of its health: at most [`CROSS_SHARE`] of it, leaving at least
+/// [`CROSS_LEFT`]. The one rule for walks across zones on all match: a
+/// battery's crossing ([`Crossing::fits`]) and a route's
+/// (`crossing::choose`).
+pub fn bears(cost: f32, health: f32) -> bool {
+    cost <= CROSS_SHARE * health && health - cost >= CROSS_LEFT
 }
 
 /// How far short of its stand a take's walk in stops ([`CROSS_STOP_M`]):
