@@ -1,5 +1,24 @@
 use super::*;
 
+/// The campers counts: counted as the match runs, kept for [`OwnerTally::finish`].
+#[derive(Default)]
+pub(super) struct CamperCounts {
+    /// Enemy kills; the kill log read so far (the events take it).
+    pub(super) kills: Vec<Kill>,
+    pub(super) kills_seen: usize,
+    pub(super) last_kill: Option<(u32, Place, Place)>,
+    pub(super) spots: Vec<KillSpot>,
+    pub(super) entries: Vec<Entry>,
+    /// Trade takes: the trader, its team, when.
+    pub(super) trades: Vec<(Place, u8, u32)>,
+    /// Flank or Crossfire takes on a shooter holding his kill spot: all,
+    /// and Flank's.
+    pub(super) counter_runs: [u32; 2],
+    /// Shooters killed while holding their kill spot: who, and whether the
+    /// killer was [`OFF_LANE_DEG`] or more off every victim's bearing.
+    pub(super) held_kills: Vec<(Place, bool)>,
+}
+
 /// Campers (`campers.md` Q2, Q6 "How a bench would see it"): a shooter's
 /// kills within this of his run's first spot, m, each within this of the
 /// last, ms; a held line reaches the kill's distance and this more, and
@@ -75,7 +94,7 @@ impl OwnerTally {
     pub(crate) fn kill_spot(&mut self, game: &Game, kill: &Kill, sight: &mapdata::RayTree, rays: &mut u64) {
         let bearing = yaw_of([kill.at.x - kill.spot.x, kill.at.z - kill.spot.z]);
         let reach = ((kill.at - kill.spot).length() + REACH_PLUS_M).max(REACH_LEAST_M);
-        if let Some(held) = self.spots.iter_mut().find(|s| s.shooter == kill.shooter)
+        if let Some(held) = self.campers.spots.iter_mut().find(|s| s.shooter == kill.shooter)
             && held.spot.distance_xz(kill.spot) <= SPOT_HOLD_M
             && kill.t <= held.last + RUN_APART_MS
             && held.team == kill.team
@@ -85,14 +104,14 @@ impl OwnerTally {
             held.bearings.push(bearing);
             return;
         }
-        self.spots.retain(|s| s.shooter != kill.shooter);
+        self.campers.spots.retain(|s| s.shooter != kill.shooter);
         let me = &game.bodies[kill.shooter];
         let in_line = game
             .bodies
             .iter()
             .map(|b| b.alive && b.team == kill.team && in_sight(sight, me, b, reach, rays))
             .collect();
-        self.spots.push(KillSpot {
+        self.campers.spots.push(KillSpot {
             shooter: kill.shooter,
             spot: kill.spot,
             team: kill.team,
@@ -107,7 +126,7 @@ impl OwnerTally {
     /// bots coming into their lines.
     pub(crate) fn held_lines(&mut self, game: &Game, sight: &mapdata::RayTree, rays: &mut u64) {
         let tick = game.tick;
-        let mut spots = std::mem::take(&mut self.spots);
+        let mut spots = std::mem::take(&mut self.campers.spots);
         spots.retain_mut(|held| {
             let me = &game.bodies[held.shooter];
             if !me.alive || me.feet.distance_xz(held.spot) > SPOT_HOLD_M || tick > held.last + RUN_APART_MS {
@@ -124,7 +143,7 @@ impl OwnerTally {
                         .bearings
                         .iter()
                         .any(|&w| wrap(w - bearing).abs().to_degrees() <= LANE_DEG);
-                    self.entries.push(Entry {
+                    self.campers.entries.push(Entry {
                         t: tick,
                         shooter: held.shooter,
                         place,
@@ -135,7 +154,7 @@ impl OwnerTally {
             }
             true
         });
-        self.spots = spots;
+        self.campers.spots = spots;
     }
 }
 

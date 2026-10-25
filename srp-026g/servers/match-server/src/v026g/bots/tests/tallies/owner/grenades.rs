@@ -1,5 +1,19 @@
 use super::*;
 
+/// The grenades counts: counted as the match runs, kept for [`OwnerTally::finish`].
+#[derive(Default)]
+pub(super) struct GrenadeCounts {
+    pub(super) blasts: Vec<Blast>,
+    pub(super) grenades: u32,
+    /// Blast damage to the thrower, to his teammates, to enemies; the
+    /// bodies it would have killed of each; the bodies inside the radius
+    /// when it went off, and of them those outside at the throw.
+    pub(super) blast_dmg: [f32; 3],
+    pub(super) blast_kills: [u32; 3],
+    pub(super) blast_in: [u32; 3],
+    pub(super) walked_in: [u32; 3],
+}
+
 /// Grenades: the RGD-5's blast (`rgd-5.options`: `splash_radius` 10 m,
 /// `splash_max_damage` 1.3 to `splash_min_damage` 0.05; linear between:
 /// GUESS), on a body with a line from the landing.

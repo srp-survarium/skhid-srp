@@ -1,5 +1,12 @@
 use super::*;
 
+/// The jumps counts: counted as the match runs, kept for [`OwnerTally::finish`].
+#[derive(Default)]
+pub(super) struct JumpCounts {
+    pub(super) presses: Vec<Press>,
+    pub(super) landings: Vec<Landing>,
+}
+
 /// The wrong-jump detector (`jumps/detect.py`, `jumps.md` §9, final): its
 /// flags, the second numbers (counted, but alone they make no press
 /// wrong), and the outcome flags (a failed jump).
@@ -320,7 +327,7 @@ impl OwnerTally {
                     .map(|r| r.feet.distance_xz(p.feet))
             };
             let next = after.clone().next().map(|q| q.t).filter(|&t| t <= p.t + FREED_MS);
-            let stuck = self.stuck_notes[p.place]
+            let stuck = self.moving.stuck_notes[p.place]
                 .iter()
                 .copied()
                 .find(|&t| t > p.t && t <= p.t + FREED_MS);
@@ -539,7 +546,7 @@ pub(crate) fn a_stall_at_a_ledge_with_no_press_is_a_missed_jump() {
         }
         vec![bot_now(), bot_now()]
     });
-    let presses = tally.presses.clone();
+    let presses = tally.jumps.presses.clone();
     let high = grid(0.8);
     assert_eq!(tally.stalls(0, &high, &presses), [1, 0, 1]);
     assert_eq!(tally.stalls(1, &high, &presses), [0, 0, 1]);

@@ -96,67 +96,20 @@ pub(crate) struct OwnerTally {
     /// By place: in a designed hold, in a step with a goal (the last
     /// step read).
     status: Vec<(bool, bool)>,
-    /// Bot state of the last tick: dry, the last reload's (at, until).
-    dry: Vec<bool>,
-    last_reload: Vec<Option<(u32, u32)>>,
-    reloads: Vec<Reload>,
-    reloads_n: u32,
-    reloads_in_line: u32,
-    reloads_in_line_died: u32,
-    dry_ticks: u64,
-    reload_ticks: u64,
-    deaths_dry: u32,
-    deaths_reloading: u32,
-    /// Fire ticks by weapon class and band; hits by the same.
-    fire: BTreeMap<&'static str, [u32; 5]>,
-    hits_band: BTreeMap<&'static str, [u32; 5]>,
-    /// Fire ticks and hits by the shooter's movement ([`MOVES`]).
-    fire_move: [u32; 5],
-    hits_move: [u32; 5],
-    /// Fire ticks with an enemy target: of them, those with no line from
-    /// the eye to his chest or head; with none.
-    fire_on_target: u32,
-    fire_hidden: u32,
-    fire_no_target: u32,
-    /// By place: the last tick's target, and the enemies who hit it (who,
-    /// when).
-    last_target: Vec<Option<Place>>,
-    hurt_by: Vec<Vec<(Place, u32)>>,
-    switches: u32,
-    switches_off_hurter: u32,
-    hits: Vec<(u32, Place, Place)>,
-    presses: Vec<Press>,
-    landings: Vec<Landing>,
-    takes: Vec<Vec<u32>>,
-    stuck_notes: Vec<Vec<u32>>,
-    no_way: Vec<Vec<u32>>,
-    blasts: Vec<Blast>,
-    grenades: u32,
-    /// Blast damage to the thrower, to his teammates, to enemies; the
-    /// bodies it would have killed of each; the bodies inside the radius
-    /// when it went off, and of them those outside at the throw.
-    blast_dmg: [f32; 3],
-    blast_kills: [u32; 3],
-    blast_in: [u32; 3],
-    walked_in: [u32; 3],
-    /// Enemy kills; the kill log read so far (the events take it).
-    kills: Vec<Kill>,
-    kills_seen: usize,
-    last_kill: Option<(u32, Place, Place)>,
-    spots: Vec<KillSpot>,
-    entries: Vec<Entry>,
-    /// Trade takes: the trader, its team, when.
-    trades: Vec<(Place, u8, u32)>,
-    /// Flank or Crossfire takes on a shooter holding his kill spot: all,
-    /// and Flank's.
-    counter_runs: [u32; 2],
-    /// Shooters killed while holding their kill spot: who, and whether the
-    /// killer was [`OFF_LANE_DEG`] or more off every victim's bearing.
-    held_kills: Vec<(Place, bool)>,
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): its counts are
     /// also given apart.
     pub(crate) camper: Option<Place>,
     metric_rays: u64,
+    /// The fight counts ([`FightCounts`], `fight.rs`).
+    fight: FightCounts,
+    /// The jumps counts ([`JumpCounts`], `jumps.rs`).
+    jumps: JumpCounts,
+    /// The moving counts ([`MoveCounts`], `moving.rs`).
+    moving: MoveCounts,
+    /// The grenades counts ([`GrenadeCounts`], `grenades.rs`).
+    grenades: GrenadeCounts,
+    /// The campers counts ([`CamperCounts`], `campers.rs`).
+    campers: CamperCounts,
 }
 
 impl OwnerTally {
@@ -165,13 +118,11 @@ impl OwnerTally {
             recs: vec![Vec::new(); n],
             is_bot: vec![false; n],
             status: vec![(false, false); n],
-            dry: vec![false; n],
-            last_reload: vec![None; n],
-            last_target: vec![None; n],
-            hurt_by: vec![Vec::new(); n],
-            takes: vec![Vec::new(); n],
-            stuck_notes: vec![Vec::new(); n],
-            no_way: vec![Vec::new(); n],
+            fight: FightCounts::new(n),
+            jumps: JumpCounts::default(),
+            moving: MoveCounts::new(n),
+            grenades: GrenadeCounts::default(),
+            campers: CamperCounts::default(),
             ..Self::default()
         }
     }
@@ -239,17 +190,17 @@ impl OwnerTally {
             self.first_tick = tick;
         }
         let mut rays = 0u64;
-        self.hits.extend(game.hit_log.iter().copied());
+        self.fight.hits.extend(game.hit_log.iter().copied());
         for &(t, shooter, victim) in &game.hit_log {
-            if let Some(hurt) = self.hurt_by.get_mut(victim) {
+            if let Some(hurt) = self.fight.hurt_by.get_mut(victim) {
                 hurt.retain(|&(who, _)| who != shooter);
                 hurt.push((shooter, t));
             }
         }
-        for hurt in &mut self.hurt_by {
+        for hurt in &mut self.fight.hurt_by {
             hurt.retain(|&(_, t)| tick <= t + HURT_MS);
         }
-        self.landings.append(&mut game.landings);
+        self.jumps.landings.append(&mut game.landings);
         let sight = game.world.sight.clone();
         for place in 0..n {
             let body = &game.bodies[place];
@@ -263,8 +214,8 @@ impl OwnerTally {
             }
             // A death: dry or reloading at it.
             if prev.alive && !body.alive {
-                self.deaths_dry += u32::from(self.dry[place]);
-                self.deaths_reloading += u32::from(self.last_reload[place].is_some_and(
+                self.fight.deaths_dry += u32::from(self.fight.dry[place]);
+                self.fight.deaths_reloading += u32::from(self.fight.last_reload[place].is_some_and(
                     |(at, until)| at <= tick && tick <= until + RELOAD_AFTER_MS,
                 ));
             }
@@ -291,28 +242,28 @@ impl OwnerTally {
                 continue;
             };
             // The bot's ammunition and reloads.
-            self.dry[place] = body.alive && now.dry;
-            if self.dry[place] {
-                self.dry_ticks += 1;
+            self.fight.dry[place] = body.alive && now.dry;
+            if self.fight.dry[place] {
+                self.fight.dry_ticks += 1;
             }
             if let Some((at, until)) = now.reload {
-                if self.last_reload[place].is_none_or(|(was, _)| was != at) {
-                    self.reloads_n += 1;
-                    self.reloads.push(Reload {
+                if self.fight.last_reload[place].is_none_or(|(was, _)| was != at) {
+                    self.fight.reloads_n += 1;
+                    self.fight.reloads.push(Reload {
                         place,
                         at,
                         until,
                         in_line: false,
                     });
                 }
-                self.last_reload[place] = Some((at, until));
+                self.fight.last_reload[place] = Some((at, until));
                 if body.alive && at <= tick && tick < until {
-                    self.reload_ticks += 1;
+                    self.fight.reload_ticks += 1;
                 }
             }
             // A jump pressed: why, from the bot's watch of it.
             if body.alive && body.keys & key::JUMP != 0 && prev.keys & key::JUMP == 0 {
-                self.presses.push(Press {
+                self.jumps.presses.push(Press {
                     place,
                     t: tick,
                     feet: body.feet,
@@ -327,16 +278,16 @@ impl OwnerTally {
                     .filter(|b| t != place && b.alive && b.team != body.team)
             };
             if body.alive && body.keys & key::FIRE != 0 {
-                self.fire_move[move_of(&rec)] += 1;
+                self.fight.fire_move[move_of(&rec)] += 1;
                 // At the target: with a line to him or not.
                 match body.target.and_then(enemy) {
                     Some(him) => {
-                        self.fire_on_target += 1;
+                        self.fight.fire_on_target += 1;
                         if !in_sight(&sight, body, him, f32::INFINITY, &mut rays) {
-                            self.fire_hidden += 1;
+                            self.fight.fire_hidden += 1;
                         }
                     }
-                    None => self.fire_no_target += 1,
+                    None => self.fight.fire_no_target += 1,
                 }
                 // By range: the enemy nearest the view.
                 let on = game
@@ -351,42 +302,42 @@ impl OwnerTally {
                     })
                     .min_by(|a, b| a.0.total_cmp(&b.0));
                 if let Some((_, d)) = on {
-                    self.fire.entry(body.gun.class()).or_insert([0; 5])[band_of(d)] += 1;
+                    self.fight.fire.entry(body.gun.class()).or_insert([0; 5])[band_of(d)] += 1;
                 }
             }
             // A target switch while an enemy who hurt it is in its line,
             // not the new target.
             let target = body.target.filter(|_| body.alive);
-            if let (Some(was), Some(new)) = (self.last_target[place], target)
+            if let (Some(was), Some(new)) = (self.fight.last_target[place], target)
                 && was != new
             {
-                self.switches += 1;
-                let hurter_in_line = self.hurt_by[place].iter().any(|&(who, _)| {
+                self.fight.switches += 1;
+                let hurter_in_line = self.fight.hurt_by[place].iter().any(|&(who, _)| {
                     who != new
                         && enemy(who).is_some_and(|him| {
                             in_sight(&sight, him, body, f32::INFINITY, &mut rays)
                         })
                 });
-                self.switches_off_hurter += u32::from(hurter_in_line);
+                self.fight.switches_off_hurter += u32::from(hurter_in_line);
             }
-            self.last_target[place] = target;
+            self.fight.last_target[place] = target;
         }
         // Hits by the shooter's movement, the range and his weapon class.
         for &(_, shooter, victim) in &game.hit_log {
             let (Some(s), Some(v)) = (game.bodies.get(shooter), game.bodies.get(victim)) else {
                 continue;
             };
-            self.hits_move[self.recs[shooter].last().map_or(0, move_of)] += 1;
+            self.fight.hits_move[self.recs[shooter].last().map_or(0, move_of)] += 1;
             let band = band_of(s.feet.distance_xz(v.feet));
-            self.hits_band.entry(s.gun.class()).or_insert([0; 5])[band] += 1;
+            self.fight.hits_band.entry(s.gun.class()).or_insert([0; 5])[band] += 1;
         }
         // Kills of enemies, and the lines they make held.
-        if self.kills_seen > 0 && game.kill_log.get(self.kills_seen - 1) != self.last_kill.as_ref() {
-            self.kills_seen = 0;
+        if self.campers.kills_seen > 0 && game.kill_log.get(self.campers.kills_seen - 1) != self.campers.last_kill.as_ref() {
+            self.campers.kills_seen = 0;
         }
-        let new_kills = game.kill_log[self.kills_seen.min(game.kill_log.len())..].to_vec();
-        self.kills_seen = game.kill_log.len();
-        self.last_kill = game.kill_log.last().copied();
+        let new_kills = game.kill_log[self.campers.kills_seen.min(game.kill_log.len())..].to_vec();
+        self.campers.kills_seen = game.kill_log.len();
+        self.campers.last_kill = game.kill_log.last().copied();
         for (t, shooter, victim) in new_kills {
             let (Some(s), Some(v)) = (game.bodies.get(shooter), game.bodies.get(victim)) else {
                 continue;
@@ -404,7 +355,7 @@ impl OwnerTally {
             };
             // A shooter killed holding his spot by one of his victims'
             // side: from off his killed lanes or not.
-            if let Some(held) = self.spots.iter().find(|h| {
+            if let Some(held) = self.campers.spots.iter().find(|h| {
                 h.shooter == victim
                     && h.team == s.team
                     && v.feet.distance_xz(h.spot) <= SPOT_HOLD_M
@@ -415,9 +366,9 @@ impl OwnerTally {
                     .bearings
                     .iter()
                     .all(|&w| wrap(w - bearing).abs().to_degrees() >= OFF_LANE_DEG);
-                self.held_kills.push((victim, off));
+                self.campers.held_kills.push((victim, off));
             }
-            self.kills.push(kill);
+            self.campers.kills.push(kill);
             self.kill_spot(game, &kill, &sight, &mut rays);
         }
         if (((tick - self.first_tick) / TICK_MS) as usize).is_multiple_of(TPS) {
@@ -425,7 +376,7 @@ impl OwnerTally {
         }
         // Reloads in an enemy's line: once a reload, every 4th tick.
         if (tick / TICK_MS).is_multiple_of(4) {
-            for reload in &mut self.reloads {
+            for reload in &mut self.fight.reloads {
                 if reload.in_line || tick < reload.at || tick >= reload.until {
                     continue;
                 }
@@ -447,7 +398,7 @@ impl OwnerTally {
             }
         }
         let mut done = Vec::new();
-        self.reloads.retain(|r| {
+        self.fight.reloads.retain(|r| {
             let over = tick > r.at.max(r.until) + RELOAD_DIED_MS;
             if over {
                 done.push(*r);
@@ -460,7 +411,7 @@ impl OwnerTally {
         // The grenades going off: who is inside, who walked in, the damage
         // it would do (the stand-in has none).
         let mut gone = Vec::new();
-        self.blasts.retain(|b| {
+        self.grenades.blasts.retain(|b| {
             let off = tick >= b.time;
             if off {
                 gone.push(b.clone());
@@ -483,15 +434,15 @@ impl OwnerTally {
                 } else {
                     2
                 };
-                self.blast_in[who] += 1;
-                self.walked_in[who] += u32::from(!blast.inside.get(place).copied().unwrap_or(false));
+                self.grenades.blast_in[who] += 1;
+                self.grenades.walked_in[who] += u32::from(!blast.inside.get(place).copied().unwrap_or(false));
                 rays += 1;
                 if !sight.visible(blast.at + Vec3::new(0.0, 0.3, 0.0), Game::chest(body)) {
                     continue;
                 }
                 let dmg = blast_damage(d);
-                self.blast_dmg[who] += dmg;
-                self.blast_kills[who] += u32::from(dmg >= body.health);
+                self.grenades.blast_dmg[who] += dmg;
+                self.grenades.blast_kills[who] += u32::from(dmg >= body.health);
             }
         }
         game.metric_rays += std::mem::take(&mut self.metric_rays) + rays;
@@ -509,7 +460,7 @@ impl OwnerTally {
 
     /// The counts, as the `owner-test` lines and the sums' `owner` object.
     pub(crate) fn finish(&mut self, game: &Game) -> (String, serde_json::Value) {
-        for r in std::mem::take(&mut self.reloads) {
+        for r in std::mem::take(&mut self.fight.reloads) {
             self.reload_done(&r);
         }
         let n = self.recs.len();
@@ -528,7 +479,7 @@ impl OwnerTally {
         // Turned on the shooter.
         let (mut first_hits, mut hits_side, mut turned, mut died_unturned) = (0u32, 0u32, 0u32, 0u32);
         let mut last_hit: BTreeMap<Place, u32> = BTreeMap::new();
-        for &(t, shooter, victim) in &self.hits {
+        for &(t, shooter, victim) in &self.fight.hits {
             let apart = last_hit.get(&victim).is_none_or(|&l| t >= l + HIT_APART_MS);
             last_hit.insert(victim, t);
             if !apart || !bot(victim) {
@@ -568,7 +519,7 @@ impl OwnerTally {
         }
 
         // Jumps: the flags of every press, the stalls.
-        let mut presses = self.presses.clone();
+        let mut presses = self.jumps.presses.clone();
         presses.sort_by_key(|p| (p.place, p.t));
         let mut flag_n: BTreeMap<&str, u32> = FLAGS.iter().map(|&f| (f, 0)).collect();
         let (mut wrong, mut failed) = (0u32, 0u32);
@@ -587,12 +538,12 @@ impl OwnerTally {
             entry[1] += u32::from(is_wrong);
             // The honest stand-in's own landing of a route jump: up or not.
             if let Some((_, to)) = p.route
-                && let Some(l) = self.landings.iter().find(|l| l.place == p.place && l.at == p.t)
+                && let Some(l) = self.jumps.landings.iter().find(|l| l.place == p.place && l.at == p.t)
             {
                 route_landed[usize::from(l.to.y < to.y - UP_SLACK_M)] += 1;
             }
         }
-        let sprint_jumps = self.landings.iter().filter(|l| l.sprint).count() as u32;
+        let sprint_jumps = self.jumps.landings.iter().filter(|l| l.sprint).count() as u32;
         let mut stalls = [0u32; 3];
         for place in (0..n).filter(|&p| self.is_bot[p]) {
             for (c, s) in stalls.iter_mut().zip(self.stalls(place, &game.world.grid, &presses)) {
@@ -643,7 +594,7 @@ impl OwnerTally {
                 }
             }
             flush(&mut streak, &mut idle);
-            for &t in &self.takes[place] {
+            for &t in &self.moving.takes[place] {
                 let i = self.index(t);
                 if i < UTURN_TICKS || i + UTURN_TICKS >= recs.len() {
                     continue;
@@ -784,28 +735,28 @@ impl OwnerTally {
         };
         let mut by_shooter: BTreeMap<Place, Vec<Kill>> = BTreeMap::new();
         let mut by_team: BTreeMap<Place, Vec<Kill>> = BTreeMap::new();
-        for k in &self.kills {
+        for k in &self.campers.kills {
             by_shooter.entry(k.shooter).or_default().push(*k);
             by_team.entry(usize::from(k.team)).or_default().push(*k);
         }
         let (camp_runs, camp_run_kills, camp_longest) = in_runs(&by_shooter, None);
         let (in_row, _, in_row_longest) = in_runs(&by_team, None);
         let fatal = |e: &Entry| {
-            self.kills
+            self.campers.kills
                 .iter()
                 .any(|k| k.shooter == e.shooter && k.victim == e.place && k.t >= e.t && k.t <= e.t + FATAL_MS)
         };
-        let entries = self.entries.len() as u32;
-        let entries_fatal = self.entries.iter().filter(|e| fatal(e)).count() as u32;
-        let entries_lane = self.entries.iter().filter(|e| e.lane).count() as u32;
-        let entries_lane_fatal = self.entries.iter().filter(|e| e.lane && fatal(e)).count() as u32;
+        let entries = self.campers.entries.len() as u32;
+        let entries_fatal = self.campers.entries.iter().filter(|e| fatal(e)).count() as u32;
+        let entries_lane = self.campers.entries.iter().filter(|e| e.lane).count() as u32;
+        let entries_lane_fatal = self.campers.entries.iter().filter(|e| e.lane && fatal(e)).count() as u32;
         // Trades into the killer: of each Trade take, the partner's killer
         // (the last kill of a teammate from 4 s before to 0.5 s after);
         // the trader killed by him, or killing him, within 15 s.
-        let mut trades = [self.trades.len() as u32, 0, 0];
-        for &(place, team, t) in &self.trades {
+        let mut trades = [self.campers.trades.len() as u32, 0, 0];
+        for &(place, team, t) in &self.campers.trades {
             let killer = self
-                .kills
+                .campers.kills
                 .iter()
                 .rfind(|k| {
                     k.team == team && k.victim != place && k.t + TRADE_BEFORE_MS >= t && k.t <= t + TRADE_AFTER_MS
@@ -815,11 +766,11 @@ impl OwnerTally {
                 continue;
             };
             let within = |k: &Kill| k.t >= t && k.t <= t + FATAL_MS;
-            trades[1] += u32::from(self.kills.iter().any(|k| within(k) && k.victim == place && k.shooter == killer));
-            trades[2] += u32::from(self.kills.iter().any(|k| within(k) && k.shooter == place && k.victim == killer));
+            trades[1] += u32::from(self.campers.kills.iter().any(|k| within(k) && k.victim == place && k.shooter == killer));
+            trades[2] += u32::from(self.campers.kills.iter().any(|k| within(k) && k.shooter == place && k.victim == killer));
         }
         let held_killed = |who: Option<Place>| {
-            let mine = self.held_kills.iter().filter(|(p, _)| who.is_none_or(|w| w == *p));
+            let mine = self.campers.held_kills.iter().filter(|(p, _)| who.is_none_or(|w| w == *p));
             [mine.clone().count() as u32, mine.filter(|(_, off)| *off).count() as u32]
         };
         let held_all = held_killed(None);
@@ -827,12 +778,12 @@ impl OwnerTally {
         let camper = self.camper.map(|c| {
             let (runs, run_kills, longest) = in_runs(&by_shooter, Some(c));
             let (row, _, row_longest) = in_runs(&by_team, Some(c));
-            let into: Vec<&Entry> = self.entries.iter().filter(|e| e.shooter == c).collect();
+            let into: Vec<&Entry> = self.campers.entries.iter().filter(|e| e.shooter == c).collect();
             let killed = held_killed(Some(c));
             serde_json::json!({
                 "place": c,
-                "kills": self.kills.iter().filter(|k| k.shooter == c).count(),
-                "deaths": self.kills.iter().filter(|k| k.victim == c).count(),
+                "kills": self.campers.kills.iter().filter(|k| k.shooter == c).count(),
+                "deaths": self.campers.kills.iter().filter(|k| k.victim == c).count(),
                 "runs_3": runs,
                 "run_kills": run_kills,
                 "run_longest": longest,
@@ -847,12 +798,12 @@ impl OwnerTally {
         });
 
         let fire_far: BTreeMap<&str, [u32; 2]> = self
-            .fire
+            .fight.fire
             .iter()
             .map(|(class, bands)| (*class, [bands.iter().sum(), bands[3] + bands[4]]))
             .collect();
         let fire_near_class: [u32; 2] = self
-            .fire
+            .fight.fire
             .iter()
             .filter(|(class, _)| matches!(**class, "shotgun" | "smg"))
             .fold([0, 0], |acc, (_, b)| [acc[0] + b.iter().sum::<u32>(), acc[1] + b[3] + b[4]]);
@@ -860,40 +811,40 @@ impl OwnerTally {
         let hit_rate_move: BTreeMap<&str, f64> = MOVES
             .iter()
             .enumerate()
-            .map(|(i, m)| (*m, rate(self.hits_move[i], self.fire_move[i])))
+            .map(|(i, m)| (*m, rate(self.fight.hits_move[i], self.fight.fire_move[i])))
             .collect();
         let hit_rate_class: BTreeMap<&str, Vec<f64>> = self
-            .fire
+            .fight.fire
             .iter()
             .map(|(class, fire)| {
-                let hits = self.hits_band.get(class).copied().unwrap_or_default();
+                let hits = self.fight.hits_band.get(class).copied().unwrap_or_default();
                 (*class, (0..5).map(|b| rate(hits[b], fire[b])).collect())
             })
             .collect();
         // Three objects: one json! of all of them goes past the macro's
         // recursion limit.
         let mut json = serde_json::json!({
-            "dry_s": (self.dry_ticks as f64 * tick_s).round(),
-            "reload_s": (self.reload_ticks as f64 * tick_s).round(),
-            "deaths_dry": self.deaths_dry,
-            "deaths_reloading": self.deaths_reloading,
-            "reloads": self.reloads_n,
-            "reloads_in_line": self.reloads_in_line,
-            "reloads_in_line_died": self.reloads_in_line_died,
-            "fire_by_class": self.fire,
+            "dry_s": (self.fight.dry_ticks as f64 * tick_s).round(),
+            "reload_s": (self.fight.reload_ticks as f64 * tick_s).round(),
+            "deaths_dry": self.fight.deaths_dry,
+            "deaths_reloading": self.fight.deaths_reloading,
+            "reloads": self.fight.reloads_n,
+            "reloads_in_line": self.fight.reloads_in_line,
+            "reloads_in_line_died": self.fight.reloads_in_line_died,
+            "fire_by_class": self.fight.fire,
             "fire_far_by_class": fire_far,
             "fire_far_close_class_pct": pct(fire_near_class[1].into(), fire_near_class[0].into()),
-            "hits_by_class": self.hits_band,
+            "hits_by_class": self.fight.hits_band,
             "hit_rate_by_class": hit_rate_class,
-            "fire_by_move": by_move(&self.fire_move),
-            "hits_by_move": by_move(&self.hits_move),
+            "fire_by_move": by_move(&self.fight.fire_move),
+            "hits_by_move": by_move(&self.fight.hits_move),
             "hit_rate_by_move": hit_rate_move,
-            "fire_on_target": self.fire_on_target,
-            "fire_hidden": self.fire_hidden,
-            "fire_hidden_pct": pct(self.fire_hidden.into(), self.fire_on_target.into()),
-            "fire_no_target": self.fire_no_target,
-            "target_switches": self.switches,
-            "switches_off_hurter": self.switches_off_hurter,
+            "fire_on_target": self.fight.fire_on_target,
+            "fire_hidden": self.fight.fire_hidden,
+            "fire_hidden_pct": pct(self.fight.fire_hidden.into(), self.fight.fire_on_target.into()),
+            "fire_no_target": self.fight.fire_no_target,
+            "target_switches": self.fight.switches,
+            "switches_off_hurter": self.fight.switches_off_hurter,
             "hits_first": first_hits,
             "hits_side": hits_side,
             "turned_3s": turned,
@@ -938,14 +889,14 @@ impl OwnerTally {
             "close_pair_s": close_s,
             "one_body": one_eps,
             "one_body_s": (f64::from(one_ticks) * tick_s).round(),
-            "grenades": self.grenades,
+            "grenades": self.grenades.grenades,
             "grenade_damage_applied": false,
-            "grenade_self_dmg": (100.0 * self.blast_dmg[0]).round() / 100.0,
-            "grenade_mate_dmg": (100.0 * self.blast_dmg[1]).round() / 100.0,
-            "grenade_enemy_dmg": (100.0 * self.blast_dmg[2]).round() / 100.0,
-            "grenade_kills": self.blast_kills,
-            "grenade_in_radius": self.blast_in,
-            "grenade_walk_ins": self.walked_in,
+            "grenade_self_dmg": (100.0 * self.grenades.blast_dmg[0]).round() / 100.0,
+            "grenade_mate_dmg": (100.0 * self.grenades.blast_dmg[1]).round() / 100.0,
+            "grenade_enemy_dmg": (100.0 * self.grenades.blast_dmg[2]).round() / 100.0,
+            "grenade_kills": self.grenades.blast_kills,
+            "grenade_in_radius": self.grenades.blast_in,
+            "grenade_walk_ins": self.grenades.walked_in,
             "team_kills_gun": game.team_kills,
             "team_hits": game.team_hits,
             "camper_runs_3": camp_runs,
@@ -963,8 +914,8 @@ impl OwnerTally {
             "trades": trades[0],
             "trades_died_to_killer": trades[1],
             "trade_kills": trades[2],
-            "counter_runs": self.counter_runs[0],
-            "counter_runs_flank": self.counter_runs[1],
+            "counter_runs": self.campers.counter_runs[0],
+            "counter_runs_flank": self.campers.counter_runs[1],
             "camper_kills": held_all[0],
             "camper_kills_off_lane": held_all[1],
             "stand_in_camper": camper,
@@ -988,14 +939,14 @@ impl OwnerTally {
              owner-test moves: stuck {} ({:.0} s, {:.3} a bot-minute) by kind {} by cause {}, blips {}, spots of 2+ {}; calm sprint {:.1} % of {:.0} s walking, {:.2} m/s; idle {} s {}; drops 2.5-4 m {} >=4 m {}; U-turns {} of {} takes moving ({:.3} a bot-minute); close pairs {} ({} s); one body {} ({:.0} s)\n  \
              owner-test other: grenades {} (no damage in the stand-in) would damage self {:.2} mates {:.2} enemies {:.2}, would kill {:?}, inside at the blast {:?} walked in {:?}; team kills by gunfire {}, team hits {}\n  \
              owner-test campers: runs of 3+ from one spot {} ({} kills, longest {}); a team's deaths in a row to one shooter's spot, 3+ {} (longest {}); entries into a held line {} fatal {}, in the killed lane {} fatal {}; Trade takes {} died to the partner's killer {} killed him {}; counter runs on a holder {} (Flank {}); holders killed {} from off their lanes {}; the stand-in camper {}",
-            json["dry_s"], self.deaths_dry, json["reload_s"], self.deaths_reloading,
-            self.reloads_n, self.reloads_in_line, self.reloads_in_line_died,
+            json["dry_s"], self.fight.deaths_dry, json["reload_s"], self.fight.deaths_reloading,
+            self.fight.reloads_n, self.fight.reloads_in_line, self.fight.reloads_in_line_died,
             fire_far.iter().map(|(c, v)| format!("{c} {}/{}", v[1], v[0])).collect::<Vec<_>>().join(" "),
             hits_side, turned, died_unturned,
-            MOVES.iter().enumerate().map(|(i, m)| format!("{m} {}/{}", self.fire_move[i], self.hits_move[i])).collect::<Vec<_>>().join(" "),
-            json["hit_rate_by_class"], self.fire_on_target, self.fire_hidden,
-            json["fire_hidden_pct"].as_f64().unwrap_or(0.0), self.fire_no_target,
-            self.switches, self.switches_off_hurter,
+            MOVES.iter().enumerate().map(|(i, m)| format!("{m} {}/{}", self.fight.fire_move[i], self.fight.hits_move[i])).collect::<Vec<_>>().join(" "),
+            json["hit_rate_by_class"], self.fight.fire_on_target, self.fight.fire_hidden,
+            json["fire_hidden_pct"].as_f64().unwrap_or(0.0), self.fight.fire_no_target,
+            self.fight.switches, self.fight.switches_off_hurter,
             presses.len(), json["presses_by"], wrong, failed, flags_set.join(", "),
             stalls[0], stalls[1], stalls[2], route_landed[0], route_landed[1], sprint_jumps,
             stuck_n, stuck_s, json["stuck_per_bot_min"].as_f64().unwrap_or(0.0),
@@ -1004,12 +955,12 @@ impl OwnerTally {
             idle_s, json["idle_by_play"], drops[0] - drops[1], drops[1],
             uturns, takes_moving, json["uturns_per_bot_min"].as_f64().unwrap_or(0.0),
             close_eps, close_s, one_eps, f64::from(one_ticks) * tick_s,
-            self.grenades, self.blast_dmg[0], self.blast_dmg[1], self.blast_dmg[2], self.blast_kills,
-            self.blast_in, self.walked_in,
+            self.grenades.grenades, self.grenades.blast_dmg[0], self.grenades.blast_dmg[1], self.grenades.blast_dmg[2], self.grenades.blast_kills,
+            self.grenades.blast_in, self.grenades.walked_in,
             game.team_kills, game.team_hits,
             camp_runs, camp_run_kills, camp_longest, in_row, in_row_longest,
             entries, entries_fatal, entries_lane, entries_lane_fatal,
-            trades[0], trades[1], trades[2], self.counter_runs[0], self.counter_runs[1],
+            trades[0], trades[1], trades[2], self.campers.counter_runs[0], self.campers.counter_runs[1],
             held_all[0], held_all[1], json["stand_in_camper"],
         );
         (line, json)

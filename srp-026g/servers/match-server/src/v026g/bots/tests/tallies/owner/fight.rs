@@ -1,5 +1,51 @@
 use super::*;
 
+/// The fight counts: counted as the match runs, kept for [`OwnerTally::finish`].
+#[derive(Default)]
+pub(super) struct FightCounts {
+    /// Bot state of the last tick: dry, the last reload's (at, until).
+    pub(super) dry: Vec<bool>,
+    pub(super) last_reload: Vec<Option<(u32, u32)>>,
+    pub(super) reloads: Vec<Reload>,
+    pub(super) reloads_n: u32,
+    pub(super) reloads_in_line: u32,
+    pub(super) reloads_in_line_died: u32,
+    pub(super) dry_ticks: u64,
+    pub(super) reload_ticks: u64,
+    pub(super) deaths_dry: u32,
+    pub(super) deaths_reloading: u32,
+    /// Fire ticks by weapon class and band; hits by the same.
+    pub(super) fire: BTreeMap<&'static str, [u32; 5]>,
+    pub(super) hits_band: BTreeMap<&'static str, [u32; 5]>,
+    /// Fire ticks and hits by the shooter's movement ([`MOVES`]).
+    pub(super) fire_move: [u32; 5],
+    pub(super) hits_move: [u32; 5],
+    /// Fire ticks with an enemy target: of them, those with no line from
+    /// the eye to his chest or head; with none.
+    pub(super) fire_on_target: u32,
+    pub(super) fire_hidden: u32,
+    pub(super) fire_no_target: u32,
+    /// By place: the last tick's target, and the enemies who hit it (who,
+    /// when).
+    pub(super) last_target: Vec<Option<Place>>,
+    pub(super) hurt_by: Vec<Vec<(Place, u32)>>,
+    pub(super) switches: u32,
+    pub(super) switches_off_hurter: u32,
+    pub(super) hits: Vec<(u32, Place, Place)>,
+}
+
+impl FightCounts {
+    pub(super) fn new(n: usize) -> Self {
+        Self {
+            dry: vec![false; n],
+            last_reload: vec![None; n],
+            last_target: vec![None; n],
+            hurt_by: vec![Vec::new(); n],
+            ..Self::default()
+        }
+    }
+}
+
 /// Calm (`gait.py`): no aim or fire key held and no living enemy within
 /// this, m.
 pub(crate) const CALM_ENEMY_M: f32 = 30.0;
@@ -108,12 +154,12 @@ impl OwnerTally {
         if !r.in_line {
             return;
         }
-        self.reloads_in_line += 1;
+        self.fight.reloads_in_line += 1;
         let recs = &self.recs[r.place];
         let i0 = self.index(r.at);
         let i1 = self.index(r.at + RELOAD_DIED_MS).min(recs.len().saturating_sub(1));
         let died = (i0.max(1)..=i1).any(|i| recs[i - 1].alive && !recs[i].alive);
-        self.reloads_in_line_died += u32::from(died);
+        self.fight.reloads_in_line_died += u32::from(died);
     }
 }
 

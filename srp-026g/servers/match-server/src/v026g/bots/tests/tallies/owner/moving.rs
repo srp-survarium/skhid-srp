@@ -1,5 +1,23 @@
 use super::*;
 
+/// The moving counts: counted as the match runs, kept for [`OwnerTally::finish`].
+#[derive(Default)]
+pub(super) struct MoveCounts {
+    pub(super) takes: Vec<Vec<u32>>,
+    pub(super) stuck_notes: Vec<Vec<u32>>,
+    pub(super) no_way: Vec<Vec<u32>>,
+}
+
+impl MoveCounts {
+    pub(super) fn new(n: usize) -> Self {
+        Self {
+            takes: vec![Vec::new(); n],
+            stuck_notes: vec![Vec::new(); n],
+            no_way: vec![Vec::new(); n],
+        }
+    }
+}
+
 /// Idle (`idle.py`): seconds under 0.3 m moved, walk keys under 30 % of
 /// the ticks, calm; at least 5 of them in a row.
 pub(crate) const IDLE_M: f32 = 0.3;
@@ -146,14 +164,14 @@ impl OwnerTally {
             }
         };
         if let Some(rest) = note.text.strip_prefix("takes ") {
-            at(&mut self.takes);
+            at(&mut self.moving.takes);
             let mut words = rest.split_whitespace();
             let (kind, target) = (words.next().unwrap_or(""), words.next().unwrap_or(""));
             let team = game.bodies.get(note.place).map(|b| b.team);
             if kind == "Trade"
                 && let Some(team) = team
             {
-                self.trades.push((note.place, team, note.time));
+                self.campers.trades.push((note.place, team, note.time));
             }
             // A counter run: Flank or Crossfire on a shooter who holds his
             // kill spot against this bot's side.
@@ -163,26 +181,26 @@ impl OwnerTally {
                 .and_then(|t| t.parse::<Place>().ok());
             if matches!(kind, "Flank" | "Crossfire")
                 && let (Some(who), Some(team)) = (on, team)
-                && self.spots.iter().any(|h| h.shooter == who && h.team == team)
+                && self.campers.spots.iter().any(|h| h.shooter == who && h.team == team)
             {
-                self.counter_runs[0] += 1;
-                self.counter_runs[1] += u32::from(kind == "Flank");
+                self.campers.counter_runs[0] += 1;
+                self.campers.counter_runs[1] += u32::from(kind == "Flank");
             }
         } else if note.text.starts_with("is stuck at") {
-            at(&mut self.stuck_notes);
+            at(&mut self.moving.stuck_notes);
         } else if note.text.contains("no way to its goal") {
-            at(&mut self.no_way);
+            at(&mut self.moving.no_way);
         } else if let Some((aim, time)) = thrown_at(&note.text)
             && let Some(body) = game.bodies.get(note.place)
         {
-            self.grenades += 1;
+            self.grenades.grenades += 1;
             let at = grenade_lands(&game.world.sight, Game::eye(body), aim);
             let inside = game
                 .bodies
                 .iter()
                 .map(|b| b.alive && (Game::chest(b) - at).length() <= BLAST_M)
                 .collect();
-            self.blasts.push(Blast {
+            self.grenades.blasts.push(Blast {
                 thrower: note.place,
                 at,
                 time,
@@ -252,7 +270,7 @@ impl OwnerTally {
             (sp[(sp.len() - 1) / 2] + sp[sp.len() / 2]) / 2.0
         };
         let stuck_line = |t0: f32, t1: f32| {
-            self.stuck_notes[place]
+            self.moving.stuck_notes[place]
                 .iter()
                 .any(|&t| (t as f32) >= t0 * 1000.0 && (t as f32) <= t1 * 1000.0)
         };
@@ -337,7 +355,7 @@ impl OwnerTally {
             // The server's stuck watch: from each firing, both ways while
             // the body keeps near where it was then, walking, not holding.
             let (lt0, lt1) = (t_of(life[0]), t_of(life[n - 1]));
-            for &fired in &self.stuck_notes[place] {
+            for &fired in &self.moving.stuck_notes[place] {
                 let tf = fired as f32 / 1000.0;
                 if tf < lt0 || tf > lt1 {
                     continue;
@@ -413,7 +431,7 @@ impl OwnerTally {
             let route_jump = presses
                 .iter()
                 .any(|p| p.place == place && p.by == "route" && (p.t as f32) >= (t0 - 2.0) * 1000.0 && (p.t as f32) <= t1 * 1000.0);
-            let cause = if within(&self.no_way[place], t0 - 1.0, t1 + 3.0) > 0 {
+            let cause = if within(&self.moving.no_way[place], t0 - 1.0, t1 + 3.0) > 0 {
                 "no_route"
             } else if 2 * near(true) >= pts.len() {
                 "teammate"
@@ -423,7 +441,7 @@ impl OwnerTally {
                 "route_jump"
             } else if hi - lo >= UP_DOWN_M {
                 "ledge"
-            } else if kinds.contains(&"loop") && within(&self.takes[place], t0, t1) >= 2 {
+            } else if kinds.contains(&"loop") && within(&self.moving.takes[place], t0, t1) >= 2 {
                 "play_churn"
             } else if kinds[0] == "stand" {
                 "stand"
@@ -443,7 +461,7 @@ impl OwnerTally {
                 at,
             });
         }
-        let blips = self.stuck_notes[place]
+        let blips = self.moving.stuck_notes[place]
             .iter()
             .filter(|&&ms| {
                 let t = ms as f32 / 1000.0;
@@ -516,8 +534,8 @@ pub(crate) fn a_take_that_turns_a_walking_bot_back_is_a_u_turn() {
         vec![bot_now(), bot_now()]
     });
     let t = tally.first_tick + 50 * TICK_MS;
-    tally.takes[0].push(t);
-    tally.takes[1].push(t);
+    tally.moving.takes[0].push(t);
+    tally.moving.takes[1].push(t);
     let (_, json) = tally.finish(&game);
     assert_eq!(json["takes_moving"], 2);
     assert_eq!(json["uturns"], 1, "{json}");
@@ -584,10 +602,10 @@ pub(crate) fn the_stuck_detector_finds_a_push_a_stand_and_a_watch_and_their_caus
         nows
     });
     let fired = tally.time_of(150);
-    tally.stuck_notes[4].push(fired);
+    tally.moving.stuck_notes[4].push(fired);
     // Bot 1's watch fires in its 2 s push: a blip.
     let fired = tally.time_of(20);
-    tally.stuck_notes[1].push(fired);
+    tally.moving.stuck_notes[1].push(fired);
     let (_, json) = tally.finish(&game);
     assert_eq!(json["stuck_by"]["push"][0], 1, "{json}");
     assert_eq!(json["stuck_by"]["stand"][0], 1, "{json}");
