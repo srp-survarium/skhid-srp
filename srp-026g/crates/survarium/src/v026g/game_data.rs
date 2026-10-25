@@ -154,6 +154,12 @@ impl GameData {
         self.files.get(path).map(Vec::as_slice)
     }
 
+    /// The paths of every file there is ([`Self::file`]): of `gameplay/`,
+    /// and the localizations, in order.
+    pub fn paths(&self) -> impl Iterator<Item = &str> {
+        self.files.keys().map(String::as_str)
+    }
+
     /// Whether the archive has the project `project` (a game mode's
     /// `match_making_params.map_name`, e.g. `level_01/day_2`).
     pub fn has_project(&self, project: &str) -> bool {
