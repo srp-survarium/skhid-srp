@@ -1082,6 +1082,72 @@ A slow commander pass (over 20 ms: a quarter of battery passes late in a match) 
   tdm is unchanged, as expected: it has no batteries. Battery matches' tails now come from what remains (think, ticks, the two teams' commanders in one poll).
 - **Best practice:** compute a pure query once and reuse it across decision cycles until its inputs change, before slicing what is left. Time-slicing and budgets are the next step for remaining spikes: Allen Chou, [Timeslicing Batched Algorithms in Games](https://allenchou.net/2017/03/timeslicing-batched-algorithms-across-multiple-frames/); Ben Sunshine-Hill, GDC [Beyond Framerate: Taming Your Timeslice Through Asynchrony](https://gdcvault.com/play/1024202/Beyond-Framerate-Taming-Your-Timeslice); Detour's [sliced queries](https://recastnav.com/classdtNavMeshQuery.html). Don't score again what is already decided: Dave Mark on [early-out utility scoring](https://gamedev.net/forums/topic/697580-applying-utility-ai-to-different-situations-how-granular-canshould-i-go/5383323/), which is what `take_blocks` reading Collect's candidates does. Invalidation by the inputs' own values, not by a clock, follows `Tactics::past_fixed_zones`' cache.
 
+### A slot's holder keeps it for its first 3 s (built 2026-10-25)
+
+With the 3D route points, flips (A, B, A within 10 s) rose by 4.6 ± 1.4 a run, nearly all Roam, X, Roam. Split by the commander's reason and why X stopped being offered (a test-only note; seeds 1-8):
+- about 2.4 of them were a fight that ended: the enemy died or faded ("no point"), or X ended itself;
+- about 1.8 were dithering: X taken by a teammate's better score a moment after the bot took it (+1.1), and X's own offer rule (+0.7).
+
+A held slot went to a teammate scoring `MARGIN` (0.12) above its holder, even one second into the play.
+
+- **The hold** (`team.rs`, `HOLD_FRESH_MS`, 3 s): for the first 3 s of running a play, its holder keeps the slot against any claim of its rank or lower. This is commitment by time, as `COMMIT_M` is by distance.
+  - A claim of a higher rank still takes it.
+  - So does any claim when the holder is shaky (`assign_trapped`'s `shaky`, from the commander): its way to its goal or its play's target failed lately (`no_way_lately`, `goal_shut`), or it carries a battery.
+  - A dead holder is not asking, so it holds nothing.
+  - After 3 s, the margins rule as before.
+- **Left as it is:** a fight that ended on its own sends the bot back to Roam (the band's default). X's own offer rule (+0.7) is that play's.
+- **Bench:** A = the tip (7334911d) with flat routes; B1 = A + the 3D code + the hold, flat routes; B2 = B1's build with the 3D routes. All three ran side by side with the flip-cause note (uncommitted). Batteries and TDM, tiers 4-5, 9-10 and 13-15, seeds 1-16: 1,152 matches a side, all ok. B − A ± SE, * = beyond 2 SE:
+
+  | | B1 (flat) | B2 (3D) |
+  |---|---|---|
+  | quick ends (236 a run) | −12.4 ± 2.6* | −13.1 ± 2.5* |
+  | flips (103 a run) | −4.1 ± 1.8* | −5.6 ± 1.8* |
+  | slot hand-offs, flips not Roam, X, Roam | −2.7 ± 0.3* | −2.6 ± 0.4* |
+  | Roam, X, Roam | +0.7 ± 0.8 | +0.1 ± 0.9 (+4.6 without the hold) |
+  | K/D team 0 / team 1 | +0.01 / −0.01 (z +0.7 / −0.8) | −0.01 / +0.01 (z −0.7 / +0.5) |
+  | kills | +0.5 ± 1.2 | +2.6 ± 1.3 |
+  | delivered, carriers killed, team kills | within 1 SE | within 1 SE |
+  | idle 5 s+, % of alive time | −0.19 ± 0.12 | −0.44 ± 0.16* |
+  | falls off route | −0.8 ± 0.8 | +0.9 ± 0.8 |
+  | falls on route | −1.6 ± 1.6 | −9.0 ± 1.9* |
+  | reversals per 1000 moving s | −0.23 ± 0.20 | −0.59 ± 0.21* |
+  | zone entries | +1.2 ± 1.3 | −6.9 ± 1.7* |
+
+  - Quick ends and flips fall in batteries only (−19 to −30 quick ends per cell), where slots are contested. TDM is within noise.
+  - Worse beyond 2 SE with the 3D table (B2) only:
+    - Cut's and Crossfire's no-way ticks: +32 ± 10 and +32 ± 12;
+    - their failed searches: +8.7 ± 2.7 and +6.1 ± 2.8;
+    - stood with a goal and no route: +0.12 ± 0.04 points (4.93 to 5.05 %);
+    - jumps pressed: +9.4 ± 2.9.
+
+    The 3D bench without the hold showed the same (stood +0.16 ± 0.06, jumps +5.6 ± 2.6), so these come from the table: spots on the players' floors that a bot has no way onto.
+  - Collect's failed searches: +3.8 ± 1.7 (B1) and +4.3 ± 1.8 (B2).
+- **Where the hand-offs went** (slot-taken Roam, X, Roam by how long X ran, B1 / B2):
+  - under 1 s: −0.68 / −0.70;
+  - 1-3 s: −1.53 / −1.51;
+  - 3 s+: +1.50 / +1.52 (z 7.3 / 6.3);
+  - net: −0.71 ± 0.23 / −0.69 ± 0.28.
+
+  Inside the hold they are gone. About two thirds came back once it ended: commitment shifts where the oscillation lands (Lewis).
+- **Follow-up, not built:** a hand-over cost in `takes_held`. A claimant would have to beat the holder's score plus what the hand-over loses (the holder's progress, the claimant's extra travel), so the scores separate rather than the clock (Lewis, GAP3 ch. 13).
+- **Also possible later:** interrupt-and-resume, a play that pauses for a fight and resumes after it. Halo 2's behaviour trees were not resumable either (AIIDE 2009).
+- **CPU**, A and B run side by side:
+
+  | Preset, size (288 matches) | bots ms/s B1 − A | B2 − A | poll p99.9 µs B1 − A | B2 − A |
+  |---|---|---|---|---|
+  | batt 10 v 10 (34.1 ms/s) | +0.11 ± 0.43 | +0.73 ± 0.42 | −22 ± 62 | −5 ± 63 |
+  | batt 4 v 4 (9.1) | +0.07 ± 0.12 | +0.03 ± 0.12 | +40 ± 30 | +14 ± 32 |
+  | tdm 10 v 10 (25.1) | −0.46 ± 0.19* | +0.30 ± 0.26 | +1 ± 20 | +9 ± 26 |
+  | tdm 4 v 4 (6.0) | +0.06 ± 0.07 | +0.27 ± 0.12* | −10 ± 21 | +13 ± 26 |
+
+  B2's TDM 4 v 4 has 40 ± 15 more searches a match.
+- **Smoke** (a8b81f15 against the tip's smoke base 7334911d; 64 pairs each): PASS with the flat table and PASS with the 3D table.
+- **Best practice:**
+  - once an agent decides, a cooldown in which staying is weighted high (Graham, [An Introduction to Utility Theory](http://www.gameaipro.com/GameAIPro/GameAIPro_Chapter09_An_Introduction_to_Utility_Theory.pdf), Game AI Pro ch. 9 §9.7, "Inertia");
+  - a commitment bonus moves the oscillation rather than ending it, and a consideration that separates the scores ends it (Lewis, [Choosing Effective Utility-Based Considerations](http://www.gameaipro.com/GameAIPro3/GameAIPro3_Chapter13_Choosing_Effective_Utility-Based_Considerations.pdf), Game AI Pro 3 ch. 13).
+
+  The slot hand-over was the one place where a running play's commitment was bypassed.
+
 ## 4. Event reactions
 
 | Event | How bots learn it | Reaction |
