@@ -299,7 +299,9 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     let Some(container) = cx.point_of(target) else {
         return State::NoSpot;
     };
-    let hold = if holder_need(cx, container).is_some() {
+    // The slot it was given says which guard it is: an end-game guard
+    // keeps its old ends while a holder's need is on too.
+    let hold = if cx.bot.slot.is_some_and(is_holder_slot) {
         Hold::Holder { off_since: None }
     } else {
         Hold::EndGame
@@ -621,11 +623,16 @@ mod tests {
     }
 
     /// Level, mid-match, our container holding 2 batteries; bots 0, 2 and
-    /// 4 of team 0 out in the field.
+    /// 4 of team 0 out in the field; a play started is given the holder's
+    /// slot.
     fn holder_scene() -> Scenario {
         let mut s = scene();
         s.time_left(500.0).points(2, 2);
         s.container_count(0, 2);
+        s.slot = Some(SlotKey {
+            kind: PlayKind::GuardLead,
+            key: HOLDER_SLOT,
+        });
         s
     }
 
@@ -781,6 +788,44 @@ mod tests {
         );
     }
 
+    /// An end-game guard started while a holder's need is on (a theft
+    /// this match) is an end-game guard all the same: its slot says so,
+    /// and the next theft ends it, as before the holder.
+    #[test]
+    fn an_end_game_guard_started_after_a_theft_keeps_its_ends() {
+        let mut s = holder_scene();
+        s.team.thefts_match = 1;
+        s.slot = Some(SlotKey {
+            kind: PlayKind::GuardLead,
+            key: 0,
+        });
+        let mut rng = Rng::new(2);
+        let target = TargetRef::Container(0);
+        s.current = Some((PlayKind::GuardLead, target, s.view.clock));
+        let mut state = start(target, &s.cx(0), &mut rng);
+        assert!(
+            matches!(
+                state,
+                State::Going {
+                    hold: Hold::EndGame,
+                    ..
+                }
+            ),
+            "{state:?}"
+        );
+        s.team.thefts.push(Theft {
+            battery: 1,
+            at: OURS,
+            time: s.view.clock + 1,
+            thief: None,
+        });
+        s.view.clock += 300;
+        assert_eq!(
+            step(&mut state, target, &s.cx(0), &mut rng),
+            Step::Done("a theft: the alarm answers it")
+        );
+    }
+
     #[test]
     fn a_theft_does_not_end_the_holder_and_the_need_gone_does() {
         let mut s = holder_scene();
@@ -788,6 +833,22 @@ mod tests {
         let mut rng = Rng::new(2);
         let target = TargetRef::Container(0);
         s.current = Some((PlayKind::GuardLead, target, s.view.clock));
+        // Given an end-game guard's slot, the guard keeps its old ends.
+        s.slot = Some(SlotKey {
+            kind: PlayKind::GuardLead,
+            key: 0,
+        });
+        assert!(matches!(
+            start(target, &s.cx(0), &mut rng),
+            State::Going {
+                hold: Hold::EndGame,
+                ..
+            }
+        ));
+        s.slot = Some(SlotKey {
+            kind: PlayKind::GuardLead,
+            key: HOLDER_SLOT,
+        });
         let mut state = start(target, &s.cx(0), &mut rng);
         assert!(matches!(
             state,

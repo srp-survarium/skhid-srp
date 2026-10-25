@@ -118,6 +118,43 @@ const USE_SEEN_WAIT_MS: u32 = 3_000;
 /// (0x2D8E73..0x2D8EC8, PROVEN). In the bench's traces every fire drop
 /// left was 0.45-0.85 s after a take. GUESS: the worlds' 2 s.
 const TAKE_HOLD_FIRE_MS: u32 = 2_000;
+
+/// A carrier drops its battery to fight ([`drop_to_fight`]) only when hit
+/// this lately, ms: the bullet's hit as the worlds show it
+/// (`motor::Hurt::last_hit_ms`). Players: carriers died a median 1-3 s
+/// after the first sign of the fight; hit, not just seen, is what killed
+/// them (58 % against 14 %). GUESS.
+pub const DROP_HIT_MS: u32 = 2_000;
+/// ... farther than this from our container, m: near home, carriers who
+/// kept running delivered 87 % (under 15 m); hit, alone, past 30 m, 72 %
+/// of them died (919 human carries under fire). GUESS.
+pub const DROP_HOME_M: f32 = 30.0;
+/// ... with exactly one enemy in sight within this, m, and no other known
+/// within it: droppers won 36 % of their fights against one attacker,
+/// 7-11 % against two or more. The players' sight test reached 40 m.
+/// GUESS.
+pub const DROP_FIGHT_M: f32 = 40.0;
+/// ... and no teammate within this of the carrier with a line to that
+/// enemy (he trades for it), m. GUESS.
+pub const DROP_MATE_M: f32 = 15.0;
+/// A play drops its battery at most once in this, ms: no drop and re-take
+/// over and over. GUESS.
+pub const DROP_COOLDOWN_MS: u32 = 15_000;
+/// The drop pressed this long ago and the view still shows it carried:
+/// pressed again (the worlds come every second, 0.3 s late). GUESS.
+const DROP_AGAIN_MS: u32 = 2_500;
+/// The dropper fights within this of the battery, m. GUESS.
+const FIGHT_LEASH_M: f32 = 8.0;
+/// The fight is over when its enemy is dead or out of sight this long, ms
+/// ... GUESS.
+const FIGHT_CLEAR_MS: u32 = 3_000;
+/// ... and no hit for this long, ms: then the re-take. GUESS.
+const RETAKE_QUIET_MS: u32 = 2_000;
+/// A battery our team dropped (on our HUD) lying within this of a bot
+/// whose Collect runs on it keeps that Collect, hurt or among enemies, as
+/// a carrier's Bring does: the dropper fights by it and takes it again,
+/// m. GUESS: the leash and a few steps.
+const RETAKE_NEAR_M: f32 = 12.0;
 /// A put-in takes this long before the battery is in, ms: the battery's put
 /// state lasts `states[2].put_time`, 0.6 s (`docs/notes/battery_pickup.md`;
 /// a take's battery is in hand at once). PROVEN that the state lasts it;
@@ -509,6 +546,81 @@ fn battery_candidate(cx: &Ctx, battery: usize) -> Option<Candidate> {
     }
 }
 
+/// The running Collect of a battery our team dropped (on our HUD, the
+/// game's mask: a battery that appears is on no HUD), lying within
+/// [`RETAKE_NEAR_M`]: kept hurt or among enemies, at the alarm band, as a
+/// carrier's Bring is. The dropper fights by it and takes it again; the
+/// take itself still waits for the fight (`Ctx::exposed_to`). Without
+/// it, a dropper hit under the health floor could never take it again.
+fn retake_candidate(cx: &Ctx, battery: usize, at: Vec3) -> Option<Candidate> {
+    let target = TargetRef::Battery(battery);
+    let on_it = matches!(cx.bot.current, Some((PlayKind::Collect, t, _)) if t == target);
+    let ours = cx.team.battery(battery).is_some_and(|known| known.hud);
+    if !on_it || !ours || cx.me.feet.distance_xz(at) > RETAKE_NEAR_M {
+        return None;
+    }
+    let mut candidate = cx.candidate_given(
+        PlayKind::Collect,
+        target,
+        Some(battery as u32),
+        &[(Input::Health, 1.0), (Input::EnemiesNearTarget, 0.0)],
+    )?;
+    candidate.rank = Rank::Alarm;
+    Some(candidate)
+}
+
+/// The enemy a carrier drops its battery to fight, if the fight is one to
+/// take: hit within [`DROP_HIT_MS`], past [`DROP_HOME_M`] from `home`,
+/// exactly one enemy in sight within [`DROP_FIGHT_M`] with a line eye to
+/// eye and no other known within it, no teammate within [`DROP_MATE_M`]
+/// with a line to him, and no drop within [`DROP_COOLDOWN_MS`] (`dropped`:
+/// this play's last). A carrier cannot shoot: a fire press drops the
+/// battery in the game (0x2D8E73..0x2D8EC8, PROVEN). Players: hit, alone,
+/// past 30 m, 72 % of those who kept running died; a dropper won 36 % of
+/// its fights against one attacker and 7-11 % against more; near home
+/// those who kept running delivered 87 %. A bot's odds in a duel beat a
+/// human's, so the drop is kept to that one case.
+pub fn drop_to_fight(cx: &Ctx, home: Vec3, dropped: Option<u32>) -> Option<Place> {
+    let hit = cx
+        .bot
+        .last_hit_ms
+        .is_some_and(|at| cx.now <= at + DROP_HIT_MS);
+    if !hit
+        || dropped.is_some_and(|at| cx.now < at + DROP_COOLDOWN_MS)
+        || cx.me.feet.distance_xz(home) <= DROP_HOME_M
+    {
+        return None;
+    }
+    let eye = cx.me.eye();
+    let mut seen = cx
+        .memory
+        .tracks()
+        .iter()
+        .filter(|t| t.source == Source::Seen && cx.now <= t.time + SEEN_NOW_MS)
+        .filter_map(|t| cx.view.place(t.who))
+        .filter(|enemy| enemy.alive && enemy.present && enemy.team != cx.me.team)
+        .filter(|enemy| {
+            (enemy.eye() - eye).length() <= DROP_FIGHT_M && cx.tactics.sees(enemy.eye(), eye)
+        });
+    let attacker = seen.next()?;
+    if seen.next().is_some() {
+        return None;
+    }
+    let others = cx
+        .memory
+        .tracks()
+        .iter()
+        .any(|t| t.who != attacker.place && t.at.distance_xz(cx.me.feet) <= DROP_FIGHT_M);
+    let covered = cx.view.team(cx.me.team).any(|mate| {
+        mate.place != cx.me.place
+            && mate.alive
+            && mate.carrying.is_none()
+            && mate.feet.distance_xz(cx.me.feet) <= DROP_MATE_M
+            && cx.tactics.sees(mate.eye(), attacker.eye())
+    });
+    (!others && !covered).then_some(attacker.place)
+}
+
 /// Why a battery is no Collect candidate when its stand is in a pocket
 /// with no way out for a carrier (no standing jump, and no teammate got out
 /// by one): whoever took it could not bring it home.
@@ -700,8 +812,12 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         return;
     }
     for battery in 0..cx.view.batteries.len() {
-        if cx.battery_lying(battery).is_some_and(|at| cx.can_take(at)) {
-            out.extend(battery_candidate(cx, battery));
+        if let Some(at) = cx.battery_lying(battery)
+            && cx.can_take(at)
+        {
+            out.extend(
+                retake_candidate(cx, battery, at).or_else(|| battery_candidate(cx, battery)),
+            );
         }
     }
     if cx.tuning.cheats.batteries {
@@ -825,7 +941,10 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
 pub enum State {
     /// Going to look at a spawner's spot.
     Search,
-    Fetch,
+    Fetch {
+        /// When this play last dropped its battery to fight.
+        dropped: Option<u32>,
+    },
     Take {
         /// Uses pressed at this stand.
         tries: u8,
@@ -843,11 +962,24 @@ pub enum State {
         from: Option<Vec3>,
         /// Stepping back out of a nook since (no straight line to a stand).
         backing: Option<u32>,
+        /// When this play last dropped its battery to fight.
+        dropped: Option<u32>,
     },
     /// Home with the battery; `via`: the points of a safer way home along
     /// a human route (`way_home`), chosen at the first step.
     Bring {
         via: Option<Vec<Vec3>>,
+        /// When this play last dropped its battery to fight.
+        dropped: Option<u32>,
+    },
+    /// Dropped the battery to fight `attacker` by it ([`drop_to_fight`]),
+    /// at `dropped`: within [`FIGHT_LEASH_M`] of it until the fight is
+    /// over, then takes it again; a teammate nearer it and out of the
+    /// enemy's sight is left it.
+    Fight {
+        battery: usize,
+        dropped: u32,
+        attacker: Place,
     },
     PutIn {
         tries: u8,
@@ -862,11 +994,14 @@ pub enum State {
 
 pub fn start(target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> State {
     if cx.me.carrying.is_some() {
-        State::Bring { via: None }
+        State::Bring {
+            via: None,
+            dropped: None,
+        }
     } else if matches!(target, TargetRef::Spawner(_) | TargetRef::Point(_)) {
         State::Search
     } else {
-        State::Fetch
+        State::Fetch { dropped: None }
     }
 }
 
@@ -881,8 +1016,12 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
     }
     let home = cx.view.container_of(cx.me.team).map(|c| c.at);
     match state {
-        State::Search | State::Fetch | State::Take { .. } if cx.me.carrying.is_some() => {
-            *state = State::Bring { via: None };
+        State::Search | State::Fetch { .. } | State::Take { .. } if cx.me.carrying.is_some() => {
+            let dropped = match state {
+                State::Fetch { dropped } | State::Take { dropped, .. } => *dropped,
+                _ => None,
+            };
+            *state = State::Bring { via: None, dropped };
             step(state, target, cx, _rng)
         }
         State::Search => {
@@ -922,7 +1061,8 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             }
             Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(num("reach_m") * 0.6))
         }
-        State::Fetch => {
+        State::Fetch { dropped } => {
+            let dropped = *dropped;
             let Some(at) = cx.point_of(target) else {
                 return Step::Failed("the battery is gone");
             };
@@ -951,6 +1091,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     tried: Vec::new(),
                     from: (cx.me.feet.distance_xz(at) >= FROM_M).then_some(cx.me.feet),
                     backing: None,
+                    dropped,
                 };
                 return Step::Continue(Intent::stay().looking(Look::At(at)));
             }
@@ -985,13 +1126,27 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 (step, _) => step,
             }
         }
-        State::Bring { via } => {
+        State::Bring { via, dropped } => {
             if cx.me.carrying.is_none() {
                 return Step::Done(carry_ended(cx, target, "brought home"));
             }
             let Some(home) = home else {
                 return Step::Failed("no container of ours");
             };
+            // Hit far from home by one enemy nobody covers: drop it and
+            // fight. The drop key: the input handler drops on any input
+            // with it while carrying (bit 22 on the level, 0x2D8E73..
+            // 0x2D8EC8, PROVEN in code), the same call as a new fire press.
+            if let Some(battery) = cx.me.carrying
+                && let Some(attacker) = drop_to_fight(cx, home, *dropped)
+            {
+                *state = State::Fight {
+                    battery,
+                    dropped: cx.now,
+                    attacker,
+                };
+                return Step::Continue(Intent::stay().pressing(key::DROP).let_go());
+            }
             if cx.me.feet.distance_xz(home) <= num("reach_m") + 0.5 {
                 *state = State::PutIn {
                     tries: 0,
@@ -1026,6 +1181,64 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     .within(num("reach_m"))
                     .hold_fire(),
             )
+        }
+        State::Fight {
+            battery,
+            dropped,
+            attacker,
+        } => {
+            let Some(at) = cx.battery_lying(*battery) else {
+                if cx.me.carrying.is_none() {
+                    return Step::Failed("someone took it");
+                }
+                // The view shows it carried still: the worlds' lag, or
+                // the press was lost. Again by a fire press, the way the
+                // recordings show (653 fire-press drops); the drop key's
+                // is proven in the code only.
+                let mut intent = Intent::stay().let_go();
+                if cx.now >= *dropped + DROP_AGAIN_MS {
+                    *dropped = cx.now;
+                    intent = intent.pressing(key::FIRE);
+                }
+                return Step::Continue(intent);
+            };
+            let enemy = cx.view.place(*attacker);
+            // A teammate nearer it, not carrying, out of the enemy's
+            // sight: his to take (the slot goes to him once this ends).
+            let mine = cx.me.feet.distance_xz(at);
+            let handed = cx.view.team(cx.me.team).any(|mate| {
+                mate.place != cx.me.place
+                    && mate.alive
+                    && mate.carrying.is_none()
+                    && mate.feet.distance_xz(at) < mine
+                    && enemy.is_none_or(|e| !e.alive || !cx.tactics.sees(e.eye(), mate.eye()))
+            });
+            if handed {
+                return Step::Done("handed off");
+            }
+            let last_seen = cx
+                .memory
+                .tracks()
+                .iter()
+                .find(|t| t.who == *attacker && t.source == Source::Seen)
+                .map_or(*dropped, |t| t.time.max(*dropped));
+            let over = enemy.is_none_or(|e| !e.alive) || cx.now >= last_seen + FIGHT_CLEAR_MS;
+            let quiet = cx
+                .bot
+                .last_hit_ms
+                .is_none_or(|hit| cx.now >= hit + RETAKE_QUIET_MS);
+            if over && quiet {
+                *state = State::Fetch {
+                    dropped: Some(*dropped),
+                };
+                return step(state, target, cx, _rng);
+            }
+            let intent = if mine > FIGHT_LEASH_M {
+                Intent::to(at, cx.pace_toward(at)).within(FIGHT_LEASH_M * 0.5)
+            } else {
+                Intent::stay()
+            };
+            Step::Continue(intent.let_go())
         }
         State::PutIn {
             tries: n,
@@ -1195,6 +1408,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
         tried,
         from,
         backing,
+        ..
     } = state
     else {
         unreachable!("a take's state");
@@ -2398,6 +2612,7 @@ mod tests {
             tried: Vec::new(),
             from,
             backing: None,
+            dropped: None,
         }
     }
 
@@ -2712,7 +2927,13 @@ mod tests {
         let target = TargetRef::Battery(0);
         let mut rng = Rng::new(1);
         let mut state = start(target, &s.cx(0), &mut rng);
-        assert_eq!(state, State::Bring { via: None });
+        assert_eq!(
+            state,
+            State::Bring {
+                via: None,
+                dropped: None
+            }
+        );
         step(&mut state, target, &s.cx(0), &mut rng);
         assert!(matches!(state, State::PutIn { .. }), "{state:?}");
         let used = |s: &Scenario, state: &mut State, rng: &mut Rng| {
@@ -2773,12 +2994,12 @@ mod tests {
             let target = TargetRef::Battery(0);
             s.current = Some((PlayKind::Collect, target, s.view.clock));
             let mut rng = Rng::new(1);
-            let mut state = State::Fetch;
+            let mut state = State::Fetch { dropped: None };
             let step = step(&mut state, target, &s.cx(0), &mut rng);
             (state, step)
         };
         let (state, step) = run(Vec3::new(20.0, 1.5, 20.5));
-        assert_eq!(state, State::Fetch);
+        assert_eq!(state, State::Fetch { dropped: None });
         assert!(
             matches!(&step, Step::Continue(i) if matches!(i.go, Go::To { at: to, within_m } if to.distance_xz(at) < 0.01 && within_m == 0.0)),
             "{step:?}"
@@ -2850,5 +3071,164 @@ mod tests {
         // That one may have begun a put: the next waits for it.
         s.view.clock += 1_200;
         assert!(!used(&s, &mut state, &mut rng), "the put waited for");
+    }
+
+    /// A carrier 38 m from home, hit 0.5 s ago by the one enemy in sight,
+    /// with no teammate covering: the field for the drop's tests.
+    fn drop_field() -> Scenario {
+        use crate::v026g::bots::know::Source;
+        let mut s = Scenario::field(Mode::Batteries);
+        s.battery(BatteryState::Carried(Some(0)));
+        let me = s.bot(0, 0, Vec3::new(50.0, 0.0, 32.0));
+        me.carrying = Some(0);
+        me.health = 0.6;
+        s.enemy(1, 1, Vec3::new(60.0, 0.0, 32.0), Some(Source::Seen));
+        s.last_hit_ms = Some(s.view.clock - 500);
+        s
+    }
+
+    fn bring(dropped: Option<u32>) -> State {
+        State::Bring { via: None, dropped }
+    }
+
+    /// Hit far from home by one enemy nobody covers, the carrier drops it
+    /// (the drop key, one tick) and fights; the fire gate lets it fire
+    /// before the view shows the battery down (`let_go`).
+    #[test]
+    fn a_carrier_hit_far_from_home_by_one_enemy_drops_it_and_fights() {
+        let s = drop_field();
+        let target = TargetRef::Battery(0);
+        let mut rng = Rng::new(1);
+        let mut state = bring(None);
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_ne!(intent.press & key::DROP, 0, "{intent:?}");
+        assert!(intent.let_go && intent.fire);
+        assert!(
+            matches!(
+                state,
+                State::Fight {
+                    battery: 0,
+                    attacker: 1,
+                    ..
+                }
+            ),
+            "{state:?}"
+        );
+    }
+
+    /// No drop: not hit lately, within 30 m of home, two enemies in sight,
+    /// a teammate by it with a line to the enemy, or a drop of this play
+    /// within 15 s.
+    #[test]
+    fn a_carrier_keeps_it_near_home_unhit_outnumbered_covered_or_lately_dropped() {
+        use crate::v026g::bots::know::Source;
+        let target = TargetRef::Battery(0);
+        let keeps = |s: &Scenario, dropped: Option<u32>, why: &str| {
+            let mut state = bring(dropped);
+            let intent = intent_of(step(&mut state, target, &s.cx(0), &mut Rng::new(1)));
+            assert_eq!(intent.press & key::DROP, 0, "{why}: {intent:?}");
+            assert!(matches!(state, State::Bring { .. }), "{why}: {state:?}");
+        };
+        let s = drop_field();
+        let now = s.view.clock;
+        keeps(&s, Some(now - 5_000), "dropped 5 s ago");
+        let mut unhit = drop_field();
+        unhit.last_hit_ms = Some(now - 3_000);
+        keeps(&unhit, None, "hit 3 s ago");
+        let mut home = drop_field();
+        home.bot(0, 0, Vec3::new(30.0, 0.0, 32.0)).carrying = Some(0);
+        home.enemy(1, 1, Vec3::new(38.0, 0.0, 32.0), Some(Source::Seen));
+        keeps(&home, None, "18 m from home");
+        let mut two = drop_field();
+        two.enemy(3, 1, Vec3::new(58.0, 0.0, 37.0), Some(Source::Seen));
+        keeps(&two, None, "two in sight");
+        let mut covered = drop_field();
+        covered.bot(2, 0, Vec3::new(46.0, 0.0, 34.0));
+        keeps(&covered, None, "a teammate covers");
+    }
+
+    /// The fight: by the battery while its enemy is in sight; with him out
+    /// of sight 3 s and no hit for 2 s, the take again (the drop's time
+    /// kept for the cooldown); a teammate nearer it, out of the enemy's
+    /// sight (here he is dead), is left it.
+    #[test]
+    fn the_dropper_fights_by_it_then_takes_it_again_or_leaves_it_to_a_nearer_mate() {
+        let mut s = drop_field();
+        let target = TargetRef::Battery(0);
+        let mut rng = Rng::new(1);
+        let t0 = s.view.clock;
+        let at = Vec3::new(50.0, 0.0, 32.0);
+        s.view.batteries[0] = BatteryState::Free(at);
+        s.view.places[0].carrying = None;
+        let mut state = State::Fight {
+            battery: 0,
+            dropped: t0,
+            attacker: 1,
+        };
+        let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(
+            intent.let_go && intent.fire && intent.press == 0,
+            "{intent:?}"
+        );
+        assert!(matches!(state, State::Fight { .. }), "{state:?}");
+        // Out of sight 3.5 s, the last hit 4.5 s back: the take.
+        s.view.clock += 3_500;
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(
+            matches!(
+                state,
+                State::Fetch { dropped: Some(d) } | State::Take { dropped: Some(d), .. } if d == t0
+            ),
+            "{state:?}"
+        );
+        // Again, with a teammate nearer it and the enemy dead.
+        let mut s = drop_field();
+        s.view.batteries[0] = BatteryState::Free(at);
+        s.bot(0, 0, Vec3::new(56.0, 0.0, 32.0)).carrying = None;
+        s.bot(2, 0, Vec3::new(48.0, 0.0, 33.0));
+        s.view.places[1].alive = false;
+        let mut state = State::Fight {
+            battery: 0,
+            dropped: s.view.clock,
+            attacker: 1,
+        };
+        assert_eq!(
+            step(&mut state, target, &s.cx(0), &mut rng),
+            Step::Done("handed off")
+        );
+    }
+
+    /// The running Collect of a battery the team dropped (on its HUD),
+    /// lying near the bot: kept at the alarm band though the bot is under
+    /// the health floor, so the dropper takes it again. A battery that
+    /// appeared (on no HUD) gets no such keep.
+    #[test]
+    fn a_dropper_hurt_keeps_its_collect_of_the_battery_it_dropped() {
+        use crate::v026g::bots::know::KnownBattery;
+        let mut s = drop_field();
+        let at = Vec3::new(52.0, 0.0, 32.0);
+        s.view.batteries[0] = BatteryState::Free(at);
+        let me = s.bot(0, 0, Vec3::new(50.0, 0.0, 32.0));
+        me.carrying = None;
+        me.health = 0.1;
+        s.current = Some((
+            PlayKind::Collect,
+            TargetRef::Battery(0),
+            s.view.clock - 9_000,
+        ));
+        let collect = |s: &Scenario| {
+            s.candidates(0)
+                .into_iter()
+                .find(|c| c.kind == PlayKind::Collect && c.target == TargetRef::Battery(0))
+        };
+        assert!(collect(&s).is_none(), "on no HUD: the health floor");
+        let known = KnownBattery {
+            at,
+            time: s.view.clock,
+            hud: true,
+        };
+        s.team.set_battery(0, Some(known));
+        let kept = collect(&s).expect("ours, near: kept");
+        assert_eq!(kept.rank, Rank::Alarm);
     }
 }

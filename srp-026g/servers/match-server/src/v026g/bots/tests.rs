@@ -94,6 +94,10 @@ const RESPAWN_TDM_MS: u32 = 6_400;
 /// primary).
 const DRAW_MS: u32 = 800;
 
+/// Two drops alive of one battery this close make a drop-retake loop, ms
+/// (the bench's tally only).
+const DROP_LOOP_MS: u32 = 30_000;
+
 /// A carrier's use at his container in the stand-in: when, from where, how
 /// far its ray passed the use box's middle, whether it began a put, and
 /// whether one was going on already.
@@ -427,6 +431,19 @@ struct Game {
     stolen: u32,
     /// Batteries carriers let go of alive: by a fire press, by the drop key.
     drops: [u32; 2],
+    /// After a drop alive: the battery taken again by its dropper, by a
+    /// teammate, by an enemy; delivered by the dropper's team; a drop of a
+    /// battery dropped within [`DROP_LOOP_MS`] before (a loop).
+    after_drop: [u32; 5],
+    /// The re-takes' time from the drop, ms, summed (by the dropper's team).
+    retake_ms: u64,
+    /// Each battery's last drop alive: the dropper's team, the dropper, when.
+    drop_marks: Vec<Option<(u8, Place, u32)>>,
+    /// Each battery's last drop alive's tick, kept through the re-take.
+    last_drop: Vec<Option<u32>>,
+    /// Batteries carried by the dropper's team after its drop (to count a
+    /// delivery after it).
+    retaken_by: Vec<Option<u8>>,
     /// Carriers' ground distance walked (m) and their living ticks: their
     /// mean speed.
     carry_m: f32,
@@ -614,6 +631,11 @@ impl Game {
             delivered: [0, 0],
             stolen: 0,
             drops: [0, 0],
+            after_drop: [0; 5],
+            retake_ms: 0,
+            drop_marks: Vec::new(),
+            last_drop: Vec::new(),
+            retaken_by: Vec::new(),
             carry_m: 0.0,
             carry_ticks: 0,
             thieves: Vec::new(),
@@ -1146,6 +1168,7 @@ impl Game {
                 self.bodies[place].drawn_at = self.tick + DRAW_MS;
                 self.drops[usize::from(!by_fire)] += 1;
                 self.stolen_fell(battery, self.tick, true);
+                self.dropped_alive(battery, body.team, place);
             }
             if pressed[place] & key::USE == 0 {
                 continue;
@@ -1192,6 +1215,7 @@ impl Game {
                         self.bodies[place].carrying = Some(battery);
                         self.taken += 1;
                         self.took[place] = Some(self.tick);
+                        self.taken_after_drop(battery, team, place);
                     } else if let Some(id) = theirs
                         && let Some(battery) = self
                             .batteries
@@ -1221,8 +1245,45 @@ impl Game {
         self.stolen_home(battery, team);
         self.points[usize::from(team)] += 1;
         self.delivered[usize::from(team)] += 1;
+        if self.retaken_by.get(battery).copied().flatten() == Some(team) {
+            self.after_drop[3] += 1;
+        }
+        if let Some(by) = self.retaken_by.get_mut(battery) {
+            *by = None;
+        }
         self.put_in.push(place);
         self.put_in_log.push((place, self.tick));
+    }
+
+    /// `place` of `team` let go of `battery` alive: marked for what comes
+    /// of it (`after_drop`).
+    fn dropped_alive(&mut self, battery: usize, team: u8, place: Place) {
+        if self.drop_marks.len() <= battery {
+            self.drop_marks.resize(battery + 1, None);
+            self.last_drop.resize(battery + 1, None);
+            self.retaken_by.resize(battery + 1, None);
+        }
+        if self.last_drop[battery].is_some_and(|at| self.tick <= at + DROP_LOOP_MS) {
+            self.after_drop[4] += 1;
+        }
+        self.last_drop[battery] = Some(self.tick);
+        self.drop_marks[battery] = Some((team, place, self.tick));
+        self.retaken_by[battery] = None;
+    }
+
+    /// `place` of `team` took `battery`: if it lay dropped alive, who got it.
+    fn taken_after_drop(&mut self, battery: usize, team: u8, place: Place) {
+        let Some(Some((dropper_team, dropper, at))) = self.drop_marks.get(battery).copied() else {
+            return;
+        };
+        self.drop_marks[battery] = None;
+        if team == dropper_team {
+            self.after_drop[usize::from(place != dropper)] += 1;
+            self.retake_ms += u64::from(self.tick - at);
+            self.retaken_by[battery] = Some(team);
+        } else {
+            self.after_drop[2] += 1;
+        }
     }
 
     /// A stolen battery fell (its first fall since the theft counts).
@@ -5308,6 +5369,8 @@ fn real_bot_cost() {
                     "raids": raid_sums,
                     "stolen": game.stolen,
                     "drops": game.drops,
+                    "after_drop": game.after_drop,
+                    "retake_ms": game.retake_ms,
                     "carry_mps": if game.carry_ticks > 0 {
                         game.carry_m / (game.carry_ticks as f32 * TICK_S)
                     } else {

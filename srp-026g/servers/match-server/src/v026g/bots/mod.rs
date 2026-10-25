@@ -1675,6 +1675,8 @@ impl Bots {
                     set_aside: &bot.set_aside,
                     failed_stands: &bot.failed_stands,
                     dry: bot.reflex.dry(),
+                    last_hit_ms: bot.hurt.last_hit_ms,
+                    slot: bot.assignment.as_ref().and_then(|a| a.slot),
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,
@@ -1745,6 +1747,8 @@ impl Bots {
                     set_aside: &bot.set_aside,
                     failed_stands: &bot.failed_stands,
                     dry: bot.reflex.dry(),
+                    last_hit_ms: bot.hurt.last_hit_ms,
+                    slot: assignment.slot,
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,
@@ -2038,6 +2042,8 @@ impl Bots {
                 set_aside: &bot.set_aside,
                 failed_stands: &bot.failed_stands,
                 dry: bot.reflex.dry(),
+                last_hit_ms: bot.hurt.last_hit_ms,
+                slot: bot.assignment.as_ref().and_then(|a| a.slot),
             },
             memory: &bot.memory,
             team: &state.knowledge,
@@ -2304,8 +2310,10 @@ fn drive_tick(
     // A carrier never fires: in the game a new fire press drops the battery
     // (the input handler 0x2D8E73..0x2D8EC8, PROVEN), whatever its play.
     // `carrying` comes with the worlds (up to 2 s after a take); the take
-    // itself uses and Bring holds fire meanwhile.
-    let may_fire = intent.fire && me.carrying.is_none();
+    // itself uses and Bring holds fire meanwhile. A play that let go of it
+    // (`Intent::let_go`, Collect's drop to fight) fires before the view
+    // shows it down.
+    let may_fire = intent.fire && (me.carrying.is_none() || intent.let_go);
     bot.reflex.outer_gates(time, !may_fire, bot.jump_hold > 0);
     let over = bot.reflex.tick(
         aiming_me,

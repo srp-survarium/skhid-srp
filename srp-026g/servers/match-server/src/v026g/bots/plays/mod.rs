@@ -282,6 +282,9 @@ pub struct Intent {
     /// Whether the reflex may fire (a carrier cannot; a sneak holds fire
     /// till seen).
     pub fire: bool,
+    /// The play let go of its battery (`collect`'s drop to fight): the
+    /// reflex may fire though the view, up to 2 s late, shows it carried.
+    pub let_go: bool,
     /// The goal is in the enemy base (their container): their spawn area
     /// is open to the route (`Tactics::allowed`).
     pub objective: bool,
@@ -304,6 +307,7 @@ impl Intent {
             press: 0,
             hold: 0,
             fire: true,
+            let_go: false,
             objective: false,
             straight: false,
             failed_stand: None,
@@ -370,6 +374,14 @@ impl Intent {
             ..self
         }
     }
+
+    /// The battery let go of ([`Intent::let_go`]).
+    pub fn let_go(self) -> Self {
+        Self {
+            let_go: true,
+            ..self
+        }
+    }
 }
 
 /// What a step says.
@@ -409,6 +421,10 @@ pub struct BotFacts<'a> {
     /// Nothing left to fire ([`super::reflex::Reflex::dry`]): it takes no
     /// play that seeks a fight ([`PlayKind::seeks_fight`]).
     pub dry: bool,
+    /// Its last bullet hit as the worlds show it (`motor::Hurt`).
+    pub last_hit_ms: Option<u32>,
+    /// Its present play's slot, if it has one.
+    pub slot: Option<SlotKey>,
 }
 
 /// A play that fails this soon after it starts ...

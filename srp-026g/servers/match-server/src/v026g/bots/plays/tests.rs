@@ -45,6 +45,10 @@ pub struct Scenario {
     pub dry: bool,
     /// `BotFacts::failed_stands`.
     pub failed_stands: Vec<super::collect::FailedStand>,
+    /// `BotFacts::last_hit_ms`.
+    pub last_hit_ms: Option<u32>,
+    /// `BotFacts::slot`.
+    pub slot: Option<SlotKey>,
 }
 
 impl Scenario {
@@ -105,6 +109,8 @@ impl Scenario {
             no_way_to: Vec::new(),
             dry: false,
             failed_stands: Vec::new(),
+            last_hit_ms: None,
+            slot: None,
         };
         s.signals();
         s
@@ -249,6 +255,8 @@ impl Scenario {
                 set_aside: &[],
                 failed_stands: &self.failed_stands,
                 dry: self.dry,
+                last_hit_ms: self.last_hit_ms,
+                slot: self.slot,
             },
             memory: &self.memory,
             team: &self.team,
