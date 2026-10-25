@@ -747,7 +747,7 @@ players' numbers favour: hit, far, one attacker, nobody covering.
     (no use under a free enemy's eyes), the drop's time kept for the
     cooldown.
   - A teammate nearer the battery, not carrying, out of the enemy's sight:
-    the play ends "handed off" and the slot goes to him.
+    the play ends "handed off" and the slot goes to that teammate.
   - Someone else took it: the play fails.
 - **Re-take candidate** (`retake_candidate`): the running Collect of a
   battery our team dropped (on our HUD: the game's mask shows a battery
@@ -767,3 +767,39 @@ players' numbers favour: hit, far, one attacker, nobody covering.
   a theft keeps its ends.
 
 ### Bench
+
+Against base-59c0b652 (#412 merged), batt preset, 16 seeds over 12 maps,
+after − base per seed (SE).
+
+| | 4-5 | 9-10 | 13-15 |
+|---|---|---|---|
+| drops by key (base → after) | 0.5 → 3.8 | 0.5 → 4.0 | 0.4 → 4.0 |
+| after a drop: the dropper took it again | 2.2 | 2.2 | 2.1 |
+| a teammate took it | 0.7 | 0.9 | 0.8 |
+| an enemy took it | 0.9 | 0.8 | 1.1 |
+| delivered after a drop | 1.4 | 2.1 | 1.8 |
+| drop-retake loops | 0.1 | 0.06 | 0.2 |
+| **carriers killed** (base 19, 21, 24) | −0.8 (0.71) | −2.2 (0.75) | −2.6 (0.75) |
+| delivered (base 76, 76, 74) | +0.5 (0.54) | +0.2 (0.51) | +0.4 (0.40) |
+| deaths, all | −1.4 (1.5) | −1.1 (1.0) | +1.1 (2.0) |
+| Collect deaths | +2.8 (1.3) | +0.9 (1.6) | +3.1 (2.1) |
+| drops by fire (base 0.1) | +0.25 (0.14) | +0.19 (0.10) | +0.31 (0.12) |
+| guard deaths | −0.75 (0.25) | 0.0 (0.44) | +0.8 (0.38) |
+| flips | −2.1 (2.1) | +5.4 (2.3) | −2.4 (2.7) |
+| s without a play | −0.4 (0.5) | −0.1 (0.5) | +1.6 (0.6) |
+
+- A re-take takes ~14 s from the drop.
+- **The drops by fire are the drop's own second press:** traced at 13-15
+  (a debug copy, the 6 seeds with one), 5 of 6 were `State::Fight`'s fire
+  press 2.5 s after a drop key that had not dropped it (why the key
+  missed is not traced); the sixth a
+  Station bot 0.5 s after a take, the base's own case. The game drops the
+  same for both.
+- **Looser variants** (13-15, against this PR): drop from 20 m of home:
+  carriers killed −0.4 (0.35), delivered 0.0; drop with two enemies in
+  sight: carriers killed −0.75 (0.31), delivered +0.1 (0.12). Neither
+  delivers more; the 30 m, one-enemy rule is kept.
+- **The stand-in human** (4v4, `SRP_BENCH_HUMAN=0`, 8 seeds a tier, against
+  59c0b652): its deaths −1.0 (0.42) at 4-5, its takes +0.5 (0.19) at 9-10,
+  the rest within noise; nothing a player would feel worse.
+- **tdm:** seeds 1-2 at three tiers; every decisions digest equals base's.
