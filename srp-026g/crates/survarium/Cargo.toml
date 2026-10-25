@@ -16,6 +16,8 @@ lzma-rust2 = { workspace = true }
 # The lobby's results types are kept in srp's database as JSON
 # (`session::v026g::rewards`).
 serde = { workspace = true }
+# The grid of the match messages' ticks (`v026g::match_msgs::TICK_MS`).
+sync-core = { workspace = true }
 
 
 [features]

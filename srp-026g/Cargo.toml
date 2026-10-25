@@ -71,6 +71,9 @@ session = { path = "crates/session" }
 # The checks of what a game reads, shared with the game's own payload (no_std).
 srp-validate = { path = "crates/srp-validate" }
 survarium = { path = "crates/survarium" }
+# The sync core's shared types (`no_std`): the grid, and what the server and
+# the patched client both run.
+sync-core = { path = "crates/sync-core" }
 udp-transport = { path = "crates/udp-transport" }
 vostok = { path = "crates/vostok" }
 

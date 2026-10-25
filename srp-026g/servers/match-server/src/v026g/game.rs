@@ -403,7 +403,7 @@ const BOTS_ALONE: Duration = Duration::from_secs(45);
 
 /// The next tick at or after `time`.
 fn grid_up(time: u32) -> u32 {
-    time.div_ceil(TICK_MS) * TICK_MS
+    sync_core::Grid::STOCK.ceil(sync_core::GameTime(time)).0
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

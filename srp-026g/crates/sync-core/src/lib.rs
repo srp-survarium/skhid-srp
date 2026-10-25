@@ -12,10 +12,12 @@
 pub mod pacing;
 pub mod time;
 
-pub use time::GameTime;
+pub use time::{GameTime, Grid, TickLen};
 
-/// The simulation's step: every world in the history is on this grid.
-pub const TICK_MS: u32 = 50;
+/// The stock grid's step, the game's own 50 ms ([`Grid::STOCK`]): the
+/// server's, the bots' and the recordings' `TICK_MS` are this one. A match
+/// on another tick has its own [`Grid`].
+pub const TICK_MS: u32 = Grid::STOCK.tick_ms();
 
 /// The client's event horizon (`game_world_core` +18FB4h): the item this
 /// far behind the newest time ticked is the one 0xDF hashes and 0xF6

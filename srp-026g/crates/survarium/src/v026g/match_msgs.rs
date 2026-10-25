@@ -38,8 +38,9 @@ use upload::{Chunk, ChunkError};
 
 use super::lzma2;
 
-/// The simulation's tick: every time on the wire but 0xE5's is a tick.
-pub const TICK_MS: u32 = 50;
+/// The simulation's tick: every time on the wire but 0xE5's is a tick. The
+/// stock grid's ([`sync_core::Grid::STOCK`]).
+pub const TICK_MS: u32 = sync_core::TICK_MS;
 /// `player_profile[20]` in the match options.
 pub const MAX_PLAYERS: usize = 20;
 

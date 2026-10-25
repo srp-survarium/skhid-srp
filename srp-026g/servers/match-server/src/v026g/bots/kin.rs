@@ -37,8 +37,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::v026g::drive::key;
 
-/// The game's ticks, seconds.
-pub const TICK_S: f32 = 0.05;
+/// The game's ticks, seconds: the stock grid's ([`sync_core::Grid::STOCK`]).
+pub const TICK_S: f32 = sync_core::Grid::STOCK.tick().seconds();
 
 /// The desired speeds of a movement class: forward, side, back (m/s).
 pub type Speeds = [f32; 3];

@@ -52,8 +52,8 @@ pub const MAX_KEY_FRAMES: usize = 128;
 pub const MAX_DECODED: usize = 8 << 20;
 /// A key frame's data length is a u16.
 pub const MAX_KEY_FRAME_DATA: usize = 0xFFFF;
-/// A tick of the game's clock.
-pub const TICK_MS: u32 = 50;
+/// A tick of the game's clock: the stock grid's ([`sync_core::Grid::STOCK`]).
+pub const TICK_MS: u32 = sync_core::TICK_MS;
 /// Players a record can name.
 pub const MAX_PLAYERS: usize = 20;
 
