@@ -14,7 +14,15 @@ openssl = { workspace = true }
 session = { workspace = true }
 survarium = { workspace = true }
 vostok = { workspace = true }
+# The item configs the items workbook (`items_xlsx`) reads.
+binary-config-parser = { workspace = true }
+
+# The items workbook (`/items.xlsx`, `items_xlsx`): writes xlsx files. No
+# default feature: zip with deflate only.
+rust_xlsxwriter = "0.101"
 
 [dev-dependencies]
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).
 session = { workspace = true, features = ["test-support"] }
+# The items workbook read back, as a spreadsheet program opens it.
+zip = { version = "9", default-features = false, features = ["deflate"] }

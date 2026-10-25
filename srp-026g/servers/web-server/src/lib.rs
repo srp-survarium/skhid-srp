@@ -8,6 +8,9 @@
 //! - `/launcher/…` and `/api/client-files` (the 0.26g page only) are for the
 //!   patched game launcher and its updater ([`launcher`]): the page it shows
 //!   in its window, and which archive `/download` hands out now.
+//! - `/items.xlsx` (the 0.26g page only) is every item with every value of
+//!   its config and the game's shared tables, a workbook made from the game
+//!   data the server runs on ([`items_xlsx`]).
 //! - `/patches` (the 0.26g page only) is the list of `resources.db`'s patches
 //!   the updater keeps in the game folder: those the server's game data was
 //!   made of ([`patches`]).
@@ -41,6 +44,7 @@
 //! of every change, `-server=`). `srp` starts the 0.26g one.
 
 mod damage;
+mod items_xlsx;
 mod launcher;
 mod maps;
 mod moderation;
@@ -51,6 +55,15 @@ mod v026g;
 
 pub use patches::OfferedPatch;
 pub use v026g::{Game, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
+
+/// The items workbook of the game data this process runs on, as
+/// `/items.xlsx` serves it ([`items_xlsx`]; `examples/items-xlsx.rs`).
+pub fn items_workbook() -> Result<&'static [u8], &'static str> {
+    items_xlsx::workbook()
+        .as_ref()
+        .map(Vec::as_slice)
+        .map_err(String::as_str)
+}
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -434,6 +447,11 @@ pub fn run(store: Arc<SessionStore>) -> io::Result<()> {
 
 /// The 0.26g page, as the environment asks for it (the same settings).
 pub fn run_026g(store: Arc<SessionStore>, game: Game) -> io::Result<()> {
+    // The items workbook is made once, from the game data srp runs on: at
+    // start, so the first download has it ready.
+    thread::spawn(|| {
+        items_xlsx::workbook();
+    });
     run_from_env(store, Some(game))
 }
 
@@ -673,6 +691,13 @@ impl Web {
                 damage::send(&mut stream, request.method == "HEAD", content_type, bytes);
                 return;
             }
+        }
+        if self.game.is_some()
+            && request.path == items_xlsx::PATH
+            && matches!(request.method.as_str(), "GET" | "HEAD")
+        {
+            items_xlsx::send(&mut stream, request.method == "HEAD");
+            return;
         }
         let response = self.route(&request, &peer);
         let policy = if self.game.is_some() && launcher::serves(&request.path) {
@@ -1647,6 +1672,11 @@ fn site_header(
     let damage_link = if v026g {
         tab(damage::PATH, &lang.tr("Calculator", "Калькулятор"))
             + &tab(maps::PATH, &lang.tr("Maps", "Мапи"))
+            + &format!(
+                "<a href=\"{}\" download>{}</a>",
+                items_xlsx::PATH,
+                lang.tr("Items (.xlsx)", "Предмети (.xlsx)")
+            )
     } else {
         String::new()
     };
@@ -3016,6 +3046,34 @@ mod tests {
         let web = web(None);
         assert_eq!(web.route(&get("/maps"), "t").status, "404 Not Found");
         assert!(!web.route(&get("/"), "t").body.contains("href=\"/maps"));
+    }
+
+    #[test]
+    fn the_items_workbook_is_linked_and_sent_on_the_026g_site() {
+        let link = "<a href=\"/items.xlsx\" download>Items (.xlsx)</a>";
+        assert!(
+            site_header(Lang::En, true, false, None, "/")
+                .0
+                .contains(link)
+        );
+        assert!(
+            !site_header(Lang::En, false, false, None, "/")
+                .0
+                .contains("/items.xlsx")
+        );
+        assert!(!web(None).route(&get("/"), "t").body.contains("/items.xlsx"));
+        let bytes = items_workbook().unwrap();
+        let answer = answered(|stream| items_xlsx::send(stream, false));
+        let head = format!(
+            "HTTP/1.0 200 OK\r\nContent-Type: \
+             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\
+             Content-Length: {}\r\n",
+            bytes.len()
+        );
+        assert!(answer.starts_with(head.as_bytes()));
+        assert!(answer.ends_with(bytes));
+        let only_head = answered(|stream| items_xlsx::send(stream, true));
+        assert!(only_head.ends_with(b"Connection: close\r\n\r\n"));
     }
 
     #[test]

@@ -61,6 +61,7 @@ given), LIKELY or GUESS.
 | [damage_calculator.md](damage_calculator.md) | The site's damage calculator (`/damage`): the owner's rules for it, the data it is built from, how it is served and kept up to date |
 | [research_mode.md](research_mode.md) | Research (mode 5, capture points) as 0.27d shipped it: the rules, the data, the inventory of the builds (what is ported, what is left out and why), exe patch 53, the pack, the server's part |
 | [maps_tab.md](maps_tab.md) | The site's Maps tab (`/maps`): spawns, batteries, chargers, containers and artefacts on every map; the owner's rules, rebuilt per release |
+| [items_xlsx.md](items_xlsx.md) | The site's items workbook (`/items.xlsx`): every item with every value of its config, the shared tables and the hard-coded rules, made by the server from the data it runs on |
 | [spotting.md](spotting.md) | Spotting: no cooldown, a battery's body and its use box both spot it, the markers (the owner, 2026-10-19; exe patch 38) |
 | [kill-feed-icons.md](kill-feed-icons.md) | The kill feed's wall, ricochet and pain icons (the owner, 2026-10-25): weapon, wall or ricochet (0.69d0's icons and rules), pain (a white lightning bolt for pain shock), cause; when each shows (exe patch 67, the hud movie) |
 | [fov_lod.md](fov_lod.md) | Models at a high field of view: why they went out sooner (LOD and screen factor by size on the screen), the scale table, the fix (exe patch 40) |
