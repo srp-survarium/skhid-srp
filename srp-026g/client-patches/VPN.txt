@@ -1,0 +1,110 @@
+SKHID - CANNOT REACH THE SERVER? (Russian below / по-русски ниже)
+
+In Russia some internet providers block the Skhid server. A VPN gets
+through. Only the game has to go through it: put the game's three programs
+in your VPN's split tunnelling (per-app proxy). They are all in the folder
+game\binaries\x86\ of the game:
+
+    game\binaries\x86\launcher_skhid.exe    the launcher (and its page)
+    game\binaries\x86\updater_skhid.exe     the updater (files and patches)
+    game\binaries\x86\survarium_skhid.exe   the game (sign-in, lobby, matches)
+
+If nothing connects (in Russia too), allow the game in your firewall: run
+Skhid-network-setup.cmd (beside Skhid.bat). It adds Windows Firewall rules
+that let these three programs out and, if you say yes, a Microsoft Defender
+exclusion of their folder, game\binaries\x86 (our patched files can be
+flagged by mistake). It turns nothing off. Skhid-network-setup.cmd --undo removes what it added.
+
+HAPP (Windows)
+  Settings > App proxy settings > "Proxy only for selected apps" > Add...
+  Add the three programs, for example
+    C:\Games\Survarium\game\binaries\x86\launcher_skhid.exe
+    C:\Games\Survarium\game\binaries\x86\survarium_skhid.exe
+    C:\Games\Survarium\game\binaries\x86\updater_skhid.exe
+  ("Matching: by name" works too.) Connect, then start Skhid.bat.
+
+v2rayN
+  Turn TUN mode on (rules by program work only in TUN mode). Settings >
+  Routing settings: add a rule, outbound "proxy", Process:
+  launcher_skhid.exe, survarium_skhid.exe, updater_skhid.exe.
+
+NekoRay / NekoBox
+  Turn TUN mode on. In the TUN settings, list the three program names as
+  the processes that go through the proxy.
+
+AmneziaVPN
+  Settings > Split tunnelling > applications, "only these apps use the VPN":
+  add the three programs. A version without split tunnelling by app: turn
+  the VPN on for everything while you play.
+
+Hosts and ports (all outgoing; nothing comes in). Rules by program, above,
+are the better way: they need none of this.
+  skhid.link        TCP 443 (HTTPS)   launcher and updater: page, files, patch list
+  patch server      TCP 8090 (HTTP)   updater: patch downloads (Google Drive,
+                                      TCP 443, if it fails)
+  skhid.link        TCP 1234          game: sign-in
+  skhid.link        UDP 1235          game: lobby
+  skhid.link        UDP 1236          game: matches
+The patch server's address is in the launcher's patch list
+(https://skhid.link/patches). It is another server than skhid.link: a VPN
+routed for skhid.link alone may still fail the updates.
+
+Linux: the VPN's split tunnelling applies to the Wine process (see LINUX.txt).
+
+
+SKHID - НЕТ СВЯЗИ С СЕРВЕРОМ?
+
+В России некоторые провайдеры блокируют сервер Skhid. Через VPN он
+доступен. Через VPN должна идти только игра: добавьте три программы игры
+в раздельное туннелирование (split tunnelling, прокси для приложений)
+вашего VPN. Все они в папке game\binaries\x86\ игры:
+
+    game\binaries\x86\launcher_skhid.exe    лаунчер (и его страница)
+    game\binaries\x86\updater_skhid.exe     программа обновления (файлы и патчи)
+    game\binaries\x86\survarium_skhid.exe   игра (вход, лобби, бои)
+
+Если ничего не подключается (и в России тоже), разрешите игру в
+брандмауэре: запустите Skhid-network-setup.cmd (рядом со Skhid.bat). Он добавляет
+правила брандмауэра Windows, разрешающие этим трём программам исходящие
+соединения, и, если вы согласитесь, исключение Microsoft Defender для их
+папки, game\binaries\x86 (наши изменённые файлы могут ошибочно считаться
+угрозой). Он ничего не отключает.
+Skhid-network-setup.cmd --undo удаляет то, что он добавил.
+
+HAPP (Windows)
+  Настройки > «Настройки прокси для приложений» > «Режим маршрутизации
+  трафика»: «Прокси только для выбранных приложений». В списке «Выбранные
+  приложения» кнопкой «Добавить…» добавьте три программы, например
+    C:\Games\Survarium\game\binaries\x86\launcher_skhid.exe
+    C:\Games\Survarium\game\binaries\x86\survarium_skhid.exe
+    C:\Games\Survarium\game\binaries\x86\updater_skhid.exe
+  («Сопоставление — По имени» тоже работает.) Подключитесь и запустите
+  Skhid.bat.
+
+v2rayN
+  Включите режим TUN (правила по программам работают только в нём).
+  Настройки > Настройки маршрутизации: добавьте правило, outbound «proxy»,
+  Process: launcher_skhid.exe, survarium_skhid.exe, updater_skhid.exe.
+
+NekoRay / NekoBox
+  Включите режим TUN. В настройках TUN укажите три имени программ как
+  процессы, которые идут через прокси.
+
+AmneziaVPN
+  Настройки > Раздельное туннелирование > приложения, «только эти
+  приложения через VPN»: добавьте три программы. Если в вашей версии нет
+  туннелирования по приложениям, включайте VPN для всего на время игры.
+
+Адреса и порты (все исходящие, входящих нет). Правила по программам, выше,
+лучше: с ними это не нужно.
+  skhid.link        TCP 443 (HTTPS)   лаунчер и обновление: страница, файлы, список патчей
+  сервер патчей     TCP 8090 (HTTP)   обновление: загрузка патчей (если не вышло,
+                                      Google Drive, TCP 443)
+  skhid.link        TCP 1234          игра: вход
+  skhid.link        UDP 1235          игра: лобби
+  skhid.link        UDP 1236          игра: бои
+Адрес сервера патчей есть в списке патчей лаунчера
+(https://skhid.link/patches). Это другой сервер, не skhid.link: VPN,
+настроенный только для skhid.link, может не пропустить обновления.
+
+Linux: раздельное туннелирование VPN действует на процесс Wine (см. LINUX.txt).

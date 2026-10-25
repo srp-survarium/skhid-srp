@@ -45,6 +45,10 @@ package survarium.controls
       public static const MATCH_SETTINGS:String = "matchSettings";
       
       public static const SHOW_DAILY_MESSAGE:String = "showDailyMessage";
+
+      // dispatched when draw has laid the panel out (its exit and settings buttons placed): the
+      // lobby draws those buttons above every modal where the panel draws them (LobbyMenu._corner)
+      public static const LAID_OUT:String = "laidOut";
       
       private var _show_query:Boolean = true;
       
@@ -711,6 +715,7 @@ package survarium.controls
          if((this.labelInfo))
          {
          }
+         dispatchEvent(new Event(LAID_OUT));
       }
       
       override protected function preInitialize() : void

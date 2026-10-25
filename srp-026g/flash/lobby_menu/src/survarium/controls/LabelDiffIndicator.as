@@ -100,19 +100,19 @@ package survarium.controls
          {
             this.textFieldLabel.text = this._label;
          }
-         if(_valueDiff == 0)
+         if(_realDiff == 0)
          {
             diffText = "";
          }
          else
          {
-            diffText = (_valueDiff > 0 ? "+" : "") + Util.getNumberString(_valueDiff).toString();
+            diffText = (_realDiff > 0 ? "+" : "") + Util.getNumberString(_realDiff).toString();
          }
          this.textFieldValue.defaultTextFormat = this.textFieldValue.getTextFormat();
          this.textFieldDiff.defaultTextFormat = this.textFieldDiff.getTextFormat();
          this.textFieldValue.textColor = 15911311;
          this.textFieldDiff.text = "";
-         if(_valueDiff == 0)
+         if(_realDiff == 0)
          {
             this.textFieldDiff.textColor = 13356477;
             if(this._prefix == "-" && value != 0)
@@ -127,17 +127,17 @@ package survarium.controls
             worseColor = Colors.RED_DIFF;
             if(_direction == PropertyDirection.LOWER_IS_BETTER)
             {
-               this.textFieldValue.textColor = _valueDiff < 0 ? worseColor : betterColor;
+               this.textFieldValue.textColor = _realDiff < 0 ? worseColor : betterColor;
             }
             else
             {
-               this.textFieldValue.textColor = _valueDiff < 0 ? betterColor : worseColor;
+               this.textFieldValue.textColor = _realDiff < 0 ? betterColor : worseColor;
             }
-            if(this._prefix == "-" && _otherValue != 0)
+            if(this._prefix == "-" && _realOther != 0)
             {
                _prefix = "";
             }
-            this.textFieldValue.text = this._prefix + Util.getNumberString(_value) + this._postfix;
+            this.textFieldValue.text = this._prefix + Util.getNumberString(_realValue) + this._postfix;
          }
          if(this.textFieldDiff.text.length)
          {

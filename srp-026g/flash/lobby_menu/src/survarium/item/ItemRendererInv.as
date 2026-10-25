@@ -1,12 +1,8 @@
 package survarium.item
 {
    import flash.display.MovieClip;
-   import flash.display.Sprite;
    import flash.geom.ColorTransform;
    import flash.text.TextField;
-   import flash.text.TextFieldAutoSize;
-   import flash.text.TextFormat;
-   import flash.text.TextFormatAlign;
    import survarium.Util;
    import survarium.constants.Colors;
    import survarium.controls.FixedText;
@@ -14,7 +10,6 @@ package survarium.item
    import survarium.controls.LabelCost;
    import survarium.core.Icon;
    import survarium.data.ItemData;
-   import survarium.player.LocalPlayerProfile;
    import survarium.upgrade.UpgradeWindow;
    import survarium.constants.ItemCondition;
    import survarium.constants.ItemPlace;
@@ -53,23 +48,6 @@ package survarium.item
       public var equippedSprite:MovieClip;
       
       public var equippedBorder:MovieClip;
-      
-      // The loadouts that use an owned item (presets.md; the owner's of
-      // 2026-10-23), every one, the active one's too: their roman numerals
-      // ("II", "I IV", "I-V") in a small badge at the bottom-left corner,
-      // above the name, mirroring the stack count's corner: the count's
-      // font and size, the equipped green, on a dark backing so it reads
-      // over any icon. Drawn when the item is (the presets' list redraws the
-      // inventory when the uses change).
-      protected var _loadoutBadge:Sprite;
-      
-      protected var _loadoutText:TextField;
-      
-      private static const BADGE_X:Number = 6;
-      
-      private static const BADGE_BOTTOM:Number = 94;
-      
-      private static const BADGE_PAD:Number = 4;
       
       public function ItemRendererInv()
       {
@@ -136,52 +114,6 @@ package survarium.item
          {
             this._loadoutBadge.alpha = contentAlpha;
          }
-      }
-      
-      protected function updateLoadoutBadge(item:ItemData, owned:Boolean) : void
-      {
-         var mark:String = owned ? LocalPlayerProfile.loadoutMark(item.itemId) : "";
-         if(mark == "")
-         {
-            if(this._loadoutBadge)
-            {
-               this._loadoutBadge.visible = false;
-            }
-            return;
-         }
-         if(!this._loadoutBadge)
-         {
-            var count:TextField = this.textFieldCount;
-            var format:TextFormat = count.length > 0 ? count.getTextFormat() : count.defaultTextFormat;
-            format.align = TextFormatAlign.LEFT;
-            format.color = Colors.EQUIPPED;
-            this._loadoutText = new TextField();
-            this._loadoutText.defaultTextFormat = format;
-            this._loadoutText.embedFonts = true;
-            this._loadoutText.selectable = false;
-            this._loadoutText.mouseEnabled = false;
-            this._loadoutText.multiline = false;
-            this._loadoutText.wordWrap = false;
-            this._loadoutText.autoSize = TextFieldAutoSize.LEFT;
-            this._loadoutBadge = new Sprite();
-            this._loadoutBadge.mouseEnabled = false;
-            this._loadoutBadge.mouseChildren = false;
-            this._loadoutBadge.addChild(this._loadoutText);
-            addChild(this._loadoutBadge);
-         }
-         this._loadoutText.text = mark;
-         var w:Number = Math.ceil(this._loadoutText.textWidth) + 2 * BADGE_PAD;
-         var h:Number = Math.ceil(this._loadoutText.textHeight);
-         this._loadoutText.x = BADGE_PAD - 2;
-         this._loadoutText.y = -2;
-         this._loadoutBadge.graphics.clear();
-         this._loadoutBadge.graphics.beginFill(0,0.6);
-         this._loadoutBadge.graphics.drawRect(0,0,w,h);
-         this._loadoutBadge.graphics.endFill();
-         this._loadoutBadge.x = BADGE_X;
-         // Above the debug id (the same corner) when it shows.
-         this._loadoutBadge.y = (this.textFieldInfo.visible ? this.textFieldInfo.y : BADGE_BOTTOM) - h;
-         this._loadoutBadge.visible = true;
       }
       
       override protected function updateData() : void
@@ -252,7 +184,7 @@ package survarium.item
             }
             this.paintedIcon.visible = Boolean(item.upgrades) && item.upgrades.length > 0;
             this.updateScopeBadge(item,true);
-            this.updateLoadoutBadge(item,true);
+            this.updateLoadoutBadge(item.itemId,true,this.textFieldCount,this.textFieldInfo);
             this.damageIndicator.visible = isOwnedItem && item.value < ItemCondition.FULL;
             this.damageIndicator.track.scaleX = _data.value / ItemCondition.FULL;
             condition = _data.value / ItemCondition.FULL * 510;
@@ -270,7 +202,7 @@ package survarium.item
             this.brokenIcon.visible = false;
             this.paintedIcon.visible = false;
             this.updateScopeBadge(item,false);
-            this.updateLoadoutBadge(item,isStack && !isShopItem);
+            this.updateLoadoutBadge(item.itemId,isStack && !isShopItem,this.textFieldCount,this.textFieldInfo);
             this.damageIndicator.visible = false;
          }
          if(isShopItem)

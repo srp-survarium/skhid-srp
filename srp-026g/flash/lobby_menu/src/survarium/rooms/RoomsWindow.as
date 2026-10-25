@@ -16,6 +16,7 @@ package survarium.rooms
     import scaleform.gfx.MouseEventEx;
     import survarium.controls.BottomPanel;
     import survarium.controls.Modals;
+    import survarium.controls.PlayerInfo;
     import survarium.player.LocalPlayerProfile;
     import survarium.controls.TopMenu;
     import survarium.constants.JoinHold;
@@ -93,6 +94,21 @@ package survarium.rooms
         internal var _code:int = RoomCode.NONE;
         internal var _pool:Array = [];
         internal var _poolTotal:int = -1;
+        // The create window's start (RoomsCreate.formOf): the player's last
+        // room made by hand, or the defaults (`S1;F`), fitted by the server
+        // to the pool and the gear. Asked as the lobby comes up (the pool
+        // in), at each lobby sign-in and when the gear changes, so New room
+        // opens filled and nothing is applied after it is drawn (the
+        // owner's of 2026-10-25); every answer replaces it (the server
+        // answers in order: the last is the newest), and a room made from
+        // the window keeps it as the server does. Null until answered: the
+        // window opens with the defaults, and stays so while it is up.
+        internal var _form:Object = null;
+        // Asked for and not answered yet: asked again every 3 s.
+        private var _formWanted:Boolean = true;
+        private var _formAskedAt:int = -100000;
+        // The account whose lobby this is (its name, LobbyMenu.set_account_name).
+        private var _account:String = null;
         internal var _steps:Array = [];
         // The game's own Play enabled, as the lobby last set it.
         private var _nativePlay:Boolean = true;
@@ -207,6 +223,10 @@ package survarium.rooms
             // Tells the server this movie has rooms (its Play goes to one),
             // and finds a room the player is in already.
             ask(RoomsWire.STATE, 1);
+            // The account signed in before the window was made, if any: a
+            // sign-in to another one drops its form (`signedIn`).
+            var known:String = PlayerInfo.nickname;
+            _account = known != null && known != "" ? known : null;
             layout();
         }
 
@@ -231,7 +251,27 @@ package survarium.rooms
         // LobbyMenu.set_equipment_level: the player's own level.
         public function setGear(level:int):void
         {
+            if (level == _gear)
+                return;
             _gear = level;
+            // The form's max level is fitted to the gear: the server's again.
+            wantForm();
+        }
+
+        // LobbyMenu.set_account_name: the sign-in's account data (`8F`, every
+        // lobby sign-in; again when the ranked count changes). The form is
+        // asked anew; another account's (a sign-in to another account in
+        // the same game) is dropped at once: its window opens with the
+        // defaults until this one's form is in.
+        public function signedIn(account:String):void
+        {
+            if (_account != null && account != _account)
+            {
+                _form = null;
+                createView.notMade();
+            }
+            _account = account;
+            wantForm();
         }
 
         // TopMenu.fill_windows: the tabs are made anew; ours named again.
@@ -548,6 +588,7 @@ package survarium.rooms
         {
             _code = RoomCode.NONE;
             _steps = [];
+            createView.notMade();
             _openedByPlayAt = _shown ? 0 : Math.max(1, getTimer());
             if (!_shown)
                 show(true);
@@ -744,6 +785,12 @@ package survarium.rooms
                 ask(RoomsWire.POOL, RoomsWire.POOL_ASK_ROWS);
                 return;
             }
+            // The create window's start, once the pool is in, until answered.
+            if (_formWanted && poolIn() && _steps.length == 0 && _now - _formAskedAt >= 3000)
+            {
+                askForm();
+                return;
+            }
             if (_steps.length == 0)
             {
                 if (_room != null || fast || _queueKey != 0 || (_shown && _view == "room"))
@@ -771,6 +818,27 @@ package survarium.rooms
             tabLabel();
             if (_shown && _view == "room")
                 roomView.banner();
+        }
+
+        // Every page of the pool is in.
+        private function poolIn():Boolean
+        {
+            return _poolTotal >= 0 && _pool.length >= _poolTotal;
+        }
+
+        // The form is wanted anew: asked now if the pool is in (it names
+        // the form's tiles), else once it is.
+        private function wantForm():void
+        {
+            _formWanted = true;
+            if (poolIn() && _steps.length == 0)
+                askForm();
+        }
+
+        private function askForm():void
+        {
+            _formAskedAt = getTimer();
+            ask(RoomsWire.SETTINGS, 1);
         }
 
         internal function next():void
@@ -862,10 +930,12 @@ package survarium.rooms
                     ask(RoomsWire.POOL + page + 1, RoomsWire.POOL_ASK_ROWS);
                 else
                 {
+                    // A create window opened before the pool: its tiles as
+                    // the defaults have them (none were shown to choose).
                     createView.defaultPool();
-                    // Settings that came before the pool: now they can be read.
-                    if (createView._saved != null)
-                        createView.applySaved();
+                    // The pool names the form's tiles: the form now.
+                    if (_formWanted)
+                        askForm();
                 }
                 if (_view == "create" || _view == "room")
                     render();
@@ -881,12 +951,13 @@ package survarium.rooms
                     if (fe[0] == "E" && fe.length > 2)
                         bits[int(fe[1])] = uint(fe[2]);
                 }
-                createView._saved = {"size": int(head[3]), "min": int(head[4]), "max": int(head[5]), "wait": int(head[6]),
-                    "modesOff": head.length > 7 && head[7] != "" ? String(head[7]).split(",") : [], "bits": bits};
-                if (_poolTotal >= 0 && _pool.length >= _poolTotal)
-                    createView.applySaved();
-                if (_shown && _view == "create")
-                    render();
+                // Kept for the next New room; a window up now stays as it
+                // opened.
+                if (poolIn())
+                {
+                    _form = createView.formOf(head, bits);
+                    _formWanted = false;
+                }
             }
             else if (kind == "K" || kind == "B")
             {
@@ -917,6 +988,9 @@ package survarium.rooms
                 var newCode:Boolean = code != _code;
                 _code = code;
                 applyPlay();
+                // A create refused: no room made, nothing kept.
+                if (code > RoomCode.NONE)
+                    createView.notMade();
                 if (_openedByPlayAt != 0 && code == RoomCode.KIT_CANT_PLAY
                     && getTimer() - _openedByPlayAt < PLAY_OPEN_MS)
                 {
@@ -1007,6 +1081,10 @@ package survarium.rooms
                 // opens its window.
                 if (was == null || was.key != _room.key)
                 {
+                    // Ours: the room a create on its way made (Back pressed
+                    // meanwhile too), whose settings the server now keeps.
+                    if (_room.owner)
+                        createView.made();
                     _view = "room";
                     if (!_shown)
                         show(true);

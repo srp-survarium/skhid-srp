@@ -16,7 +16,7 @@ The code: `crates/survarium/src/v026g/modifications.rs` (data),
 |---|---|---|
 | `gameplay/items/modifications/modifications.options` | 158 `modifications`, 20 `defects`, 3 `defect_slots` | client: `id`, `modifiers`, `ui_desc`, `lobby_info`, a defect's `fix_cost_general` / `fix_cost_gold` / `fix_time_general` (loader 0x2C9E31.., strings at 0xA02264..). **Server only:** `drop_weight`, `type_mask`, `type_requirements_mask`, `required_modifications`, `defect_slots` (none of these strings is in the exe) |
 | `gameplay/items/craft/craft.options` | `craft_price_general[16]`, `craft_price_premium[16]`, `craft_probabilities_general[3][2]`, `craft_probabilities_premium[3][2]` | server only; the lobby gets them in 0x9B |
-| `gameplay/items/reroll/reroll.options` | `reroll_price_general[16]`, `reroll_price_premium[16]`, `reroll_modificator_multiplicator` 1.1 | server only; the lobby gets an item's two prices in `83 46 06` / `08` |
+| `gameplay/items/reroll/reroll.options` | `reroll_price_general[16]`, `reroll_price_premium[16]`, `reroll_modificator_multiplicator` 1.1 (not used: [flat-reroll.md](flat-reroll.md)) | server only; the lobby gets an item's two prices in `83 46 06` / `08` |
 | every item config | `available_modifications_mask` (40 characters), `available_defects_mask` (20), `default_modifications[]`, `camo_available`, `decal_available` | client: the last three (0x2C97B7, 0x287703, 0x28777D). The two masks are server only |
 
 PROVEN by the data:
@@ -63,13 +63,9 @@ PROVEN by the data:
   0.03/s (body, head, arms, legs; pain 0.1/s), with the same 8 s timeout and
   cap (body 50 %). Body 0 -> 50 %: 16.7 s, 15.9 s at +5 %, 14.5 s at +15 %,
   11.5 s with three +15 % pieces. It works as its card says; it is small.
-  **Pain too** (2026-10-23, static): base_player::tick 0x2DAA60 ->
-  damage_model::tick 0x2E5040 -> 0x32A4B0 for every pool of the list that
-  get_body_part 0x2E58B0 finds "pain" in. Pain: 0.1/s up to 100 %, 8 s
-  after its last hit; 0 -> 100 % in 10 s, 9.5 s at +5 %, 8.7 s at +15 %,
-  6.9 s with three +15 % pieces. Index 36 `pain_regeneration_speed_modifier`
-  is read once, in base_player::base_player (0x2D7043), into the pain pool's
-  speed (x max(0, 1 + sum)); no item or skill sets it.
+  Pain: 0.1/s up to 100 %, 8 s after its last hit, with this bonus (0 -> 100 %
+  in 10 s, 6.9 s with three +15 % pieces). Index 36 `pain_regeneration_speed`
+  is read once, in the ctor (0x2D7043); no item or skill sets it.
 - 47 items (every vest and every pair of trousers) have `camo_available`
   and `decal_available`; `items_compatibility` pairs no cosmetic with
   anything.
@@ -185,7 +181,7 @@ srp's reading of what only the server knew:
 | a dropped weapon or armour of rarity `n` gets `n` modifications | LIKELY (the rank shown is their count) |
 | a reroll offers three that fit in the replaced one's place (its own type too, another strength): of different types while the item has them, then other strengths of those, so an item of few types (a backpack, a balaclava) is offered three too | [srp] |
 | the payment is taken when the three are offered, whatever is chosen, the old one kept too; an offer not chosen is kept (saved) and shown again when the window opens | [srp] |
-| each change of an item makes the next cost `reroll_modificator_multiplicator` (1.1) times more | GUESS: the number's use is not in the client; the per-item prices in `83 46 06`/`08` suggest the price was the item's own |
+| every change of an item costs the same: the level's price, `reroll_modificator_multiplicator` (1.1) not used (until then each change made the next 1.1 times dearer, a GUESS) | the owner's rule of 2026-10-25 ([flat-reroll.md](flat-reroll.md)) |
 | the donor must be another of the same item | LIKELY (the result window shows the donor's dictionary entry as the upgraded item); a golden weapon and its plain weapon count as the same item ([srp], the owner's rule of 2026-10-21, [golden_weapons.md](golden_weapons.md)), and so do a premium armour piece and its plain piece (2026-10-22, [premium_armour.md](premium_armour.md)) |
 | the craft's chance row is `rank(item) - rank(donor)`; success, then failure, then nothing | PROVEN for the row (the UI indexes it so); the roll is the server's |
 | a gained modification is rolled as a drop's | [srp] |
@@ -292,6 +288,7 @@ computes (read in the exe and patch 20's `lobby_menu.swf`):
 | the movie keeps them in a dictionary by `prop_id` (`PropertiesDescriptor`); an unknown id is a stack trace and an empty line | `getPropertyDescription` |
 | the card (`InventoryItemHint`, sprite 1547) draws the `comparable` lines in its `itemCompare` (`SrvItemCompareHintG`, sprite 1538, a dynamic `ItemCompare`): one row each (`diff_1`..`diff_8`, sprite 1537, 22.6 px apart) in `props_list` order, and stops at the last row | `ItemCompare.updateData` |
 | the card's height follows `itemCompare.height` | `ItemInfoRenderer.set data` |
+| a row's bar runs over the line's `min_value`..`max_value` (the damage line 0 to 150); the number is the real value, the bar full above the top (until 2026-10-25 CLIK's `StatusIndicator.value` clamped the number too: the VSSK's 175 damage read 150); a line's text is made a number before its modifications are added | `DiffIndicator`, `ItemCompare.updateData` |
 
 Every 0.26g weapon has eight comparable lines (damage, armour piercing,
 aiming time, stopping power, dispersion, distance, rate of fire, weight),

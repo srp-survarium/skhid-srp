@@ -204,12 +204,31 @@ fn clock(text: &[u8]) -> bool {
     text.len() == 12
         && text[2] == b':'
         && text[5] == b':'
-        && text[8] == b'.'
+        // HH:MM:SS.mmm as the game writes it; HH:MM:SS:mmm is taken too.
+        && (text[8] == b'.' || text[8] == b':')
         && digits(&text[..2])
         && digits(&text[3..5])
         && digits(&text[6..8])
         && digits(&text[9..])
 }
+/// `text` from its first line that starts a record: a cut taken from the
+/// middle of a log (its tail) may begin inside a sensitive record's
+/// continuation lines, which a fresh [`Filter`] cannot know to remove.
+pub fn from_record(text: &[u8]) -> &[u8] {
+    let mut at = 0;
+    while at < text.len() {
+        let end = text[at..]
+            .iter()
+            .position(|&b| b == b'\n')
+            .map_or(text.len(), |n| at + n + 1);
+        if record_start(&text[at..end]) {
+            return &text[at..];
+        }
+        at = end;
+    }
+    &[]
+}
+
 fn record_start(line: &[u8]) -> bool {
     // Updater: YYYY-MM-DD HH:MM:SS + space.
     if line.len() >= 20
