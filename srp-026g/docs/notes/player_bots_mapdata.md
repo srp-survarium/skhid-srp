@@ -425,7 +425,8 @@ follow-up, with both keys optional):
 
 ```json
 "perches":    [{"level": "level_01", "x": -43.0, "y": 25.9, "z": 12.0, "rate": 24.8, "dwell": 10.0, "n": 166}],
-"perch_maps": [{"level": "level_01", "p75": 22.3, "share": 0.0575, "visits": 1462, "minutes": 6701.0}]
+"perch_maps": [{"level": "level_01", "p75": 22.3, "share": 0.0575, "share_batteries": 0.0521,
+                "share_tdm": 0.0651, "visits": 1462, "minutes": 6701.0}]
 ```
 
 A perch is where real players stand still on high ground: a run of one life's samples all above
@@ -436,8 +437,10 @@ a level were that. `x`, `y`, `z` are map metres, `y` the feet height like `heigh
 perch's visits per 1000 alive player-minutes of the level (all modes), `n` its visits, `dwell` its
 median dwell in seconds (the worlds are about 5 s apart: 5 s steps). `perch_maps`: `p75` the line,
 `share` the humans' share of alive time spent on a perch visit (0.040-0.082 a level; the stand-in
-bots' 0.003-0.016, the coordinator's count, is what this field is for), `visits` and `minutes` the
-totals behind `rate`. A level has 95 to 155 groups; the table keeps those seen in 3+ matches, most visits first, until they cover
+bots' 0.003-0.016, the coordinator's count, is what this field is for), `share_batteries` (modes 2
+and 3) and `share_tdm` (mode 4) the same from that mode's matches alone, with the level's p75 line
+and the same rules (the bench presets are split the same way; a field is left out where a level has no
+alive time in that mode), `visits` and `minutes` the totals behind `rate`. A level has 95 to 155 groups; the table keeps those seen in 3+ matches, most visits first, until they cover
 80 % of the level's visits (22-43 perches a level, 253 in all).
 
 Made privately from the live host's 12+ player human matches, all weather pooled (379 matches,
@@ -462,6 +465,24 @@ way back. The reader still puts a perch on the floor nearest it.
 | Mamayev Kurgan | 31 | 5053 | 36.8 | 1059 | 4.0 % | 95 | 28 | 81 % |
 | Vector Laboratory | 46 | 6736 | 21.1 | 1292 | 4.9 % | 120 | 27 | 81 % |
 | Cologne | 64 | 9645 | 35.0 | 3493 | 8.2 % | 109 | 22 | 80 % |
+
+Per mode (alive minutes and matches behind each share; a cell under 1000 alive minutes is thin, and
+none of these is; the thin one is a part of the batteries: Chemical Plant mode 2 alone, 863 min in 6
+matches, 3.3 % against mode 3's 5.5 %):
+
+| level | `share_batteries` | alive min | matches | `share_tdm` | alive min | matches |
+|---|---:|---:|---:|---:|---:|---:|
+| Rudnya | 5.2 % | 3885 | 24 | 6.5 % | 2816 | 17 |
+| School | 4.5 % | 5310 | 34 | 6.2 % | 3730 | 24 |
+| Vostok Radar Station | 3.5 % | 3411 | 20 | 5.0 % | 2823 | 18 |
+| Chemical Plant | 4.9 % | 3339 | 21 | 5.9 % | 2568 | 17 |
+| Tarakanovsky Fort | 4.5 % | 4127 | 29 | 6.1 % | 4709 | 34 |
+| Mamayev Kurgan | 3.6 % | 3721 | 22 | 4.9 % | 1333 | 9 |
+| Vector Laboratory | 4.3 % | 3448 | 24 | 5.5 % | 3288 | 22 |
+| Cologne | 7.5 % | 6282 | 42 | 9.4 % | 3363 | 22 |
+
+Team Deathmatch is higher than batteries on every level, by 1.0-1.9 points (1.2-1.4 times); timed
+batteries (mode 3) are within 0.2-0.8 points of mode 2 on the seven levels where both have 1000+ min.
 
 Limits (GUESS where not counted): the worlds' 5 s spacing makes every visit at least 5 s and
 hides stands shorter than that; 9-26 % of the perch time is runs of 60 s or more (camping or

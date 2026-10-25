@@ -7,7 +7,8 @@ Reads the routes tool's tables made from the live host's saved worlds (private; 
                  feet are y - 0.9; one row about every 5 s of a place; `spawned` is the life's start)
 and writes the two optional top-level keys of `bot-routes.json` (`docs/notes/player_bots_mapdata.md`, "Human perches"):
   "perches":    [{"level": "level_01", "x": .., "y": .., "z": .., "rate": .., "dwell": .., "n": ..}, ...]
-  "perch_maps": [{"level": "level_01", "p75": .., "share": .., "visits": .., "minutes": ..}, ...]
+  "perch_maps": [{"level": "level_01", "p75": .., "share": .., "share_batteries": .., "share_tdm": ..,
+                  "visits": .., "minutes": ..}, ...]
 
 A perch visit is a run of one life's samples that are all above the level's p75 feet height, within STILL_M of the run's first
 sample, no more than GAP_S apart, and lasting at least MIN_DWELL_S: a stay point (a distance and a time threshold, as in
@@ -16,8 +17,9 @@ Visits are grouped by peak cover (CLUSTER_M across, CLUSTER_DY_M up or down): th
 unassigned neighbours, then the next one. A perch is a group's mean x, z and median feet y; `rate` is its visits per 1000 alive
 player-minutes of the level, `dwell` the median dwell in seconds (the worlds are about 5 s apart, so it comes in 5 s steps),
 `n` its visits. The perches kept are the groups seen in MIN_MATCHES matches, most visits first, until they cover COVER of the
-level's visits. `perch_maps` holds per level the p75 line, the share of alive time spent on a perch visit, and the totals behind
-`rate`.
+level's visits. `perch_maps` holds per level the p75 line, the share of alive time spent on a perch visit (`share`: all modes;
+`share_batteries`: modes 2 and 3; `share_tdm`: mode 4, each from that mode's matches alone, with the level's p75 line and the same
+rules; a field is left out where the level has no alive time in that mode), and the totals behind `rate`.
 
 usage: perches.py <matches.json> <positions.csv> [--routes routes.json --out merged.json] [--min-players 12]
        [--weather all|day] [--print]
@@ -44,6 +46,7 @@ SPAWN_WAIT_M = 4.0
 HIGH_Q = 0.75
 LEVELS = range(1, 9)
 MODES = (2, 3, 4)
+THIN_MIN = 1000.0
 
 
 def weather_of(project):
@@ -156,8 +159,20 @@ def cluster(visits):
         groups.append([vs[q] for q in members])
 
 
-def build_level(level, lives):
-    """(perches, perch_maps row, stats) of one level."""
+BATTERIES = (2, 3)
+TDM = (4,)
+
+
+def share_of(lives, p75):
+    """(share of alive time on a perch visit, alive minutes) of these lives; share None without alive time."""
+    minutes = alive_minutes(lives)
+    if minutes <= 0:
+        return None, 0.0
+    return sum(v[3] for v in visits_of(lives, p75)) / 60.0 / minutes, minutes
+
+
+def build_level(level, lives, modes):
+    """(perches, perch_maps row, stats) of one level; `modes` maps a match to its mode."""
     p75 = p75_of(lives)
     minutes = alive_minutes(lives)
     visits = visits_of(lives, p75)
@@ -174,9 +189,16 @@ def build_level(level, lives):
         if covered >= COVER * len(visits):
             break
     share = sum(v[3] for v in visits) / 60.0 / minutes if minutes else 0.0
-    info = dict(level=name, p75=round(p75, 1), share=round(share, 4), visits=len(visits), minutes=round(minutes, 1))
+    info = dict(level=name, p75=round(p75, 1), share=round(share, 4))
     stats = dict(groups=len(groups), kept=len(kept), covered=covered / len(visits) if visits else 0.0,
                  matches=len({m for m, _, _ in lives}))
+    for key, wanted in (('share_batteries', BATTERIES), ('share_tdm', TDM)):
+        part = [life for life in lives if modes[life[0]] in wanted]
+        mode_share, mode_minutes = share_of(part, p75)
+        if mode_share is not None:
+            info[key] = round(mode_share, 4)
+        stats[key] = (mode_share, mode_minutes, len({m for m, _, _ in part}))
+    info.update(visits=len(visits), minutes=round(minutes, 1))
     return kept, info, stats
 
 
@@ -196,7 +218,7 @@ def main():
     for level in LEVELS:
         if level not in lives:
             continue
-        kept, info, stats = build_level(level, lives[level])
+        kept, info, stats = build_level(level, lives[level], {m: v['mode'] for m, v in matches.items()})
         perches += kept
         maps.append(info)
         if a.print:
@@ -204,6 +226,11 @@ def main():
                   f"{info['visits']} visits ({1000 * info['visits'] / info['minutes']:.0f} per 1000 min), "
                   f"{100 * info['share']:.1f} % of alive time on a perch; {stats['groups']} groups, kept {stats['kept']} "
                   f"covering {100 * stats['covered']:.0f} % of the visits", file=sys.stderr)
+            for key in ('share_batteries', 'share_tdm'):
+                mode_share, mode_minutes, mode_matches = stats[key]
+                text = 'none' if mode_share is None else f'{100 * mode_share:.1f} %'
+                thin = ' THIN' if mode_minutes < THIN_MIN else ''
+                print(f"    {key}: {text} of {mode_minutes:.0f} alive min in {mode_matches} matches{thin}", file=sys.stderr)
     if a.out:
         table = {'format': 2, 'routes': []}
         if a.routes:
