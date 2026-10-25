@@ -57,10 +57,12 @@
 //!   session waits for the match, its room does not (`away`; live,
 //!   2026-10-25: a game hung loading kept its room "full" all match).
 //! - A seat in the room's match is kept for the whole match. Its player
-//!   may leave the room meanwhile; joining it again (or Join match, or
-//!   Play) takes it back to that seat, a member again even past the room's
-//!   size; any other room refuses it (code 5: "press Play to return to it,
-//!   or wait for it to end"). Live, 2026-10-25 (riad5, room 4799).
+//!   may leave the room meanwhile. Joining it again from the room list
+//!   takes it back to that seat and makes it a member again, even past
+//!   the room's size; Play and Join match take it back to the seat
+//!   without that (a room it left stays left). Any other room refuses it
+//!   (code 5: "press Play to return to it, or wait for it to end"). Live,
+//!   2026-10-25 (riad5, room 4799).
 //! - An account goes into a match being played while it has fewer than
 //!   [`PLACES_PER_ACCOUNT`] places in its roster (a late join that failed,
 //!   a leave of its own word and a come-back each took one); then it plays

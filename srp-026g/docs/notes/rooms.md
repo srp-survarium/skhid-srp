@@ -145,11 +145,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   marked in the match and waited out all of it).
   - **Its seat in the match** is kept for the whole match (live, 2026-10-25: riad5 left room
     4799 after his link broke and could join no room; Play alone took him back). Leave works
-    as always; joining the room whose match keeps the seat, Join match or Play take it back
-    to that seat, a member again even past the room's size (the room then lets nobody else
-    in until it is under its size; a match seats at most its size a side). Any other room
-    refuses it with code 5: "You're still in a match: press Play to return to it, or wait
-    for it to end."
+    as always. Joining the room whose match keeps the seat from the room list takes it back
+    to that seat and makes it a member again, even past the room's size (the room then lets
+    nobody else in until it is under its size; a match seats at most its size a side). Play
+    and Join match take it back to the seat without re-adding it to a room it left. Any other
+    room refuses it with code 5: "You're still in a match: press Play to return to it, or
+    wait for it to end."
   - **Three places at most** (`PLACES_PER_ACCOUNT`; live, 2026-10-25: a game that could not
     load went in every 15 s for minutes, each try a place of the match's 20 for good and the
     other joiners held out while it ran, until the match was full to everyone): an account
