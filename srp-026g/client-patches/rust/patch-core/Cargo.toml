@@ -1,0 +1,11 @@
+[package]
+name = "patch-core"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[lints]
+workspace = true

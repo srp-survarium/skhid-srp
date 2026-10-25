@@ -1,0 +1,27 @@
+# The Rust exe patches (docs/notes/rust_patches.md): one crate per patch,
+# each a staticlib that one ARENA block names (patch_026g.py), and
+# patch-core, what every patch uses (the hook ABI, the engine bindings, typed
+# game memory, the types, the panic handler and the log). No dependency from
+# crates.io.
+#
+# Two builds:
+# - the game's: link_026g.py builds each patch crate with the dev shell's
+#   nightly rustc alone (no cargo), for i686-unknown-linux-gnu, opt-level s,
+#   panic=abort, fat LTO, no allocator (its RUSTFLAGS); nothing here is read
+#   but each crate's name, `[lib]` path and `path` dependencies;
+# - the host's: `cargo test` (and clippy) here, for the logic and the views;
+#   the code that only means something in the game (inline x86, the engine's
+#   functions) is `#[cfg(target_arch = "x86")]`.
+#
+# Not a member of srp-026g's workspace: the server never links these.
+[workspace]
+members = ["patch-core"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
