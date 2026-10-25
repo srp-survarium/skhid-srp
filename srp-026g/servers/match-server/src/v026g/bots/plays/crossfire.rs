@@ -231,7 +231,8 @@ fn spots_by(cx: &Ctx, choke: Vec3) -> std::sync::Arc<Vec<Vec3>> {
     })
 }
 
-/// Of [`spots_by`], those this bot may take now, best first: fine goals,
+/// Of [`spots_by`], those this bot may take now, best first: fine goals it
+/// has a way to ([`Ctx::reachable`], no search lately proved none),
 /// `apart_deg` round the choke from every teammate in its ring.
 fn fine_spots(cx: &Ctx, choke: Vec3) -> Vec<Vec3> {
     let apart = cx.num(PlayKind::Crossfire, "apart_deg");
@@ -242,6 +243,8 @@ fn fine_spots(cx: &Ctx, choke: Vec3) -> Vec<Vec3> {
         .filter(|at| {
             cx.tactics.fine_goal(*at, cx.now, cx.bot.side)
                 && others.iter().all(|(_, o)| round(choke, *at, *o) >= apart)
+                && cx.reachable(*at, false)
+                && !cx.no_way_lately(*at)
         })
         .collect()
 }
