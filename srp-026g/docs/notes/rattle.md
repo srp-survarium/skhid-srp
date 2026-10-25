@@ -8,24 +8,24 @@ numbers below are ours; 0.20e gives the model, the item's shape and the idea.
 
 ## The owner's rules
 
-- Passive (from pickup to death, as every artefact): others hear the carrier's steps and
-  movement noise at 70 % per Rattle. Copies multiply (patch 54: a stack adds up):
-  one 70 %, two 49 %, three 34 %.
-- Active (its key, patch 54's one press fires every ready Rattle): for 10 s others hear none
-  of the carrier's steps and movement noise. Cooldown 40 s.
+- Passive (from pickup to death, as every artefact): the carrier's steps and movement noise
+  at 50 % per Rattle, 0.20e's `passive/steps_sound_volume_3rd_person` (since 2026-10-25, @4;
+  70 % before). Copies multiply (patch 54: a stack adds up): one 50 %, two 25 %, three 12.5 %.
+- Active (its key, patch 54's one press fires every ready Rattle): for 10 s none of the carrier's
+  steps, movement noise and shots, 0.20e's `active/steps_sound_volume_3rd_person` 0 and silent
+  shots (the owner, 2026-10-25: an active Rattle dampens 100 %). Cooldown 40 s.
 - Quieted: footsteps (walk, run, sprint, crouch), the movement rustles, jump and landing.
 - Not quieted: reloads, weapon switches, equipment, hits.
-- On top of crouching: crouch (40 %) with one Rattle is 28 %.
+- On top of crouching: crouch (40 %) with one Rattle is 20 %.
 - The carrier hears his own steps, movement noise and shots by the same factors as the others
   (the owner, 2026-10-24: "why not make it the same for you too? This gives a feedback for the
   player"); 0.20e's own 65 % / 40 % are not used.
 
-## Shots (the owner, 2026-10-23: "it should become silent if you dedicate your build to it,
-at least 4 rattles? 50 -> 75 -> 87 -> 94?")
+## Shots (the owner, 2026-10-23: "shots are active ability")
 
-- Active only (the owner: "shots are active ability"): for its 10 s others hear the carrier's
-  shots at 50 % per Rattle fired, copies multiply: one 50 %, two 25 %, three 12.5 %, four
-  6.25 % (quieter by 50, 75, 87, 94 %). Four is a build given to it.
+- Active only: for its 10 s the carrier's shots are silent (since 2026-10-25; until then 50 % per
+  Rattle fired, 50 -> 75 -> 87 -> 94 % quieter for one to four, which the owner heard as about
+  20 % in the game). 0.20e's Rattle had no shot factor at all.
 - The passive leaves shots as they are.
 - A shot is the carrier's weapon firing (the sound others hear); the bullets' flight and
   impact sounds as before.
@@ -33,8 +33,7 @@ at least 4 rattles? 50 -> 75 -> 87 -> 94?")
 ## Ours (to confirm)
 
 - Others = every other player's game and the server's bots: a bot hears a carrier's movement
-  and shots within its hearing range x the same factors (movement 0 and shots x 0.5 per Rattle
-  while active).
+  and shots within its hearing range x the same factors (movement and shots 0 while active).
 - Owned: in an inventory with its holder alive, as the Sponge.
 
 ## Spawns
@@ -181,23 +180,24 @@ Patch number
 - The site's /maps shows it at its spots, as the Sponge (scripts/maps-tab/build.py reads
   `mode/artefact_spots`); its icon `artefact_rattle.webp` comes from the calculator's icon
   export of cell [21,1].
-- The pack `rattle@3` is made by `scripts/rattle/make_pack.py` (its folder goes into
-  SKHID_PACKS_DIR as `rattle-3`). @1 had 0.20e's `data/spawn_sec` 0.5, a float where every
+- The pack `rattle@4` is made by `scripts/rattle/make_pack.py` (its folder goes into
+  SKHID_PACKS_DIR as `rattle-4`). @1 had 0.20e's `data/spawn_sec` 0.5, a float where every
   0.26g artefact has an int: release/build-content's value-type check refused it; @2 has
-  Spring's 1; @3 the grey glow (below).
+  Spring's 1; @3 the grey glow (below); @4 0.20e's step factors and silent shots when active
+  (below, "The second test").
 
 ## Built (2026-10-23)
 
 - Exe patch 59 (README section 59, client_patch.md section 3.54): `rattle_026g.asm`,
   `rattle_026g.c` in the arena's blocks `rattle.code` and `rattle.state`; seven hooks and the
-  cook's size; the game called through the engine library. Pack `rattle@3`
+  cook's size; the game called through the engine library. Pack `rattle@4`
   (`scripts/rattle/make_pack.py`).
 - The config (`data`): `active/duration` 10, `cooldown_sec` 40, `spawn_sec` 1,
-  `passive/steps_sound_volume_3rd_person` 0.7, `active/steps_sound_volume_3rd_person` 0,
-  `active/shots_sound_volume_3rd_person` 0.5 (each Rattle's own: they multiply); 0.20e's
-  1st-person keys dropped.
-- How much quieter: each Rattle in its passive x 0.7 on the steps; each active one x 0 on the steps
-  and x 0.5 on the shots. Two presses that overlap (a Rattle picked up while another is active)
+  `passive/steps_sound_volume_3rd_person` 0.5, `active/steps_sound_volume_3rd_person` 0,
+  `active/shots_sound_volume_3rd_person` 0 (each Rattle's own: they multiply); 0.20e's
+  1st-person keys dropped (the carrier hears himself by the same factors).
+- How much quieter: each Rattle in its passive x 0.5 on the steps; each active one x 0 on the steps
+  and the shots. Two presses that overlap (a Rattle picked up while another is active)
   count every Rattle active at the time of the sound.
 - What a gain does: the sound's voice volume and its HDR loudness for every listener, the
   carrier in first person too (his hud proxies, since 2026-10-24); gain 0 makes no voice.
@@ -205,8 +205,8 @@ Patch number
   end); spawn particle Lifebone's (0.20e's `fx/explosions/grenate` is not in 0.26g); the effect
   0.20e's name `artefact_rattle`, ours in grey (the glow, below); the
   model's LOD switching Spring's (0.20e's said default); `spawn_sec` Spring's 1 (0.20e's 0.5).
-- Texts: name and description new; the pickup hint 50 % -> 30 %; the activation hint names the
-  shots.
+- Texts: name and description new; the pickup hint 0.26g's 50 % (30 % in @2 and @3); the
+  activation hint names the shots.
 - Not built: the server's bots (they hear no Rattle: the server knows no inventory; an owner
   decision).
 - Verified statically and in Unicorn only (`selftest_026g.py` check 59, `check_rattle_026g.py`);
@@ -228,13 +228,14 @@ Patch number
   volume is the amplitude x the gain.
 - `check_rattle_026g.py` now drives that path from the carrier's foot event, landing and fire
   state's sound through the game's own code to the voice's volume a listener's frame gives (0.2 at
-  8 m; 0.14 with a passive Rattle; none with an active one; a shot 0.05 with two active), the
+  8 m; with the factors of then, 0.14 with a passive Rattle; none with an active one; a shot 0.05
+  with two active), the
   carrier's own first-person step, landing and shot (hud proxies, the same volumes since the
   decision below), and another player's own step and shot (not quieted).
 - To hear it: the carrier's game muted (pavucontrol: its Wine stream muted, or s_general_volume 0
   in its user.cfg before starting it), the listener's game playing; the listener stands still
   within about 10 m and watches the carrier walk, run, jump and shoot, with the Rattle in an
-  artefact slot (steps 70 %), then active (steps silent, shots 50 %, 10 s), then after it (70 %).
+  artefact slot (steps 50 %), then active (steps and shots silent, 10 s), then after it (50 %).
   The listener's window is then unfocused: LIKELY it keeps its sound (game::on_application_deactivate
   0x1EDDA0 calls one engine world, +5358h, not the sound world's holder +5350h); if it is silent,
   a second person drives one of the two games. Since the decision below the carrier's own game
@@ -242,6 +243,37 @@ Patch number
 - Decided (the owner, 2026-10-24): the carrier hears himself by the same factors (the rule
   above); his own game now marks the hud proxies of his steps (0x65803) and shots (0x297F5E) as
   the point proxies (`check_rattle_026g.py`'s own-game cases).
+
+## The second test (the owner, 2026-10-25): "it doesn't dampen sounds to 100% when active. It is more like 20%"
+
+- The build: `feat/sponge-rattle` 00acc0d1 (pack rattle@3): carried steps x0.7, active steps x0
+  and shots x0.5 per Rattle, for others and the carrier alike.
+- Why about 20 % (PROVEN in the code, run in Unicorn to XAudio2's SetVolume): the factors reach
+  the speakers exactly. A voice's volume is the propagator's amplitude x its description's
+  volume (notify_listener2 0x5C710..0x5C743, 0x633F0), given to IXAudio2SourceVoice::SetVolume
+  (vt+30h) when the voice starts (0x5DB30) and when it changes (0x63486); the HDR window
+  (sound scene +300h) is computed in calculate_hdr_audio_frame and read nowhere else in the
+  sound code (0x50000..0x68000), so nothing normalises a quieter sound back up. Composite sounds (a weapon's fire, type 257: distance
+  layers, 0x63D60) emit every layer's propagator for the same proxy (the single sound's emit
+  0x64280 hands the proxy to 0x5CB00), and a layer's master (+14h, 0x5C1C0) is of that proxy too:
+  the mark covers them all. So what was heard was the factors themselves: a shot at x0.5 is
+  -6 dB, a carried step at x0.7 -3 dB, both heard as "a bit quieter"; the active's silent steps
+  are lost under the shots, and the bullets' impacts and flight, reloads and switches are not the
+  Rattle's.
+- 0.20e's real Rattle (`artefact_rattle.options` of 0.20e's resources.db): steps only,
+  `passive/steps_sound_volume_3rd_person` 0.5, `active/steps_sound_volume_3rd_person` 0,
+  `passive/steps_sound_volume_1st_person` 0.65, `active/steps_sound_volume_1st_person` 0.4; no
+  shot key; its code empty stubs (0.20e's PDB), so 0.20e itself quieted nothing. 0.27d .. 0.46c2
+  say the same in their hints: "Hushes the sound of steps by 50%", active "Your footsteps cannot
+  be heard by your enemy".
+- Fixed (pack rattle@4, no exe change): carried steps 0.5 (0.20e's), active steps 0 (0.20e's) and
+  active shots 0 (the owner's 100 %), for others and the carrier alike (2026-10-24's rule; 0.20e's
+  own 0.65 / 0.4 not used). `check_rattle_026g.py` asserts the volume XAudio2 gets: audible gain
+  1, 0.5 and 0 for a step with no Rattle, carried and active, 0.25 for a landing with two
+  carried, 1, 1 and 0 for a shot with no Rattle, carried and active, in another's game and in
+  his own; another player's own sounds 1.
+- Still the Rattle's to leave alone (the owner's rule above): reloads, weapon switches, melee,
+  grenades, the bullets' flight and impacts, damage and stamina sounds.
 
 ## The glow: grey (the owner, 2026-10-25)
 
@@ -255,7 +287,7 @@ Patch number
   plain `up`, `stroke_scroll`, `rays` give the same textures an orange one) and its light's
   `LightColor` (0.10, 0.77, 0); every emitter's ColorLife is white, `up_light`'s material
   (`fx/anomaly/light_idle`) and `distortion`'s draw no colour.
-- Pack `rattle@3`: `effect_artefact_rattle.options` (Lifebone's effect, particle
+- Pack `rattle@3` (and @4): `effect_artefact_rattle.options` (Lifebone's effect, particle
   `fx/artifacts/human_rattle`), `particles/fx/artifacts/human_rattle.particle` (human_zhivokost
   with the grey materials and its light 0.5 grey, alpha kept) and
   `material_instances/fx/artifacts/{up,stroke_scroll,rays}_grey.material` (the green ones with

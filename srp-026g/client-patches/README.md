@@ -3363,18 +3363,18 @@ The Rattle (`artefact_rattle`, data type 8, the item of dictionary 759) was cut 
 0.20e had its item, config and model, and every effect method of `artefact_rattle_core` an empty
 stub; 0.26g's exe still cooks it, with the same stubs (its vtable 0xA06124: no active effect, an
 active that ends at its first tick). The owner's rules (`../docs/notes/rattle.md`): from its
-pickup to its holder's death others hear his steps and movement noise at 70 % a Rattle; its key
-(patch 54's press fires every ready one) makes them silent for 10 s (cooldown 40 s) and his shots
-50 % a Rattle fired; he hears himself by the same factors (the owner, 2026-10-24: the feedback
-for the player). The content is pack `rattle@3`
-(`../scripts/rattle/make_pack.py`: item 759, 0.20e's config made 0.26g's with the owner's numbers,
+pickup to its holder's death his steps and movement noise at 50 % a Rattle (0.20e's factor); its
+key (patch 54's press fires every ready one) makes them and his shots silent for 10 s (cooldown
+40 s); he hears himself by the same factors (the owner, 2026-10-24: the feedback for the player).
+The content is pack `rattle@4`
+(`../scripts/rattle/make_pack.py`: item 759, 0.20e's config made 0.26g's with these numbers,
 0.20e's model, texts in six languages, the active's glow: Lifebone's effect and particle in grey).
 
 - **The object** (`rattle_026g.c`, 0x378 bytes): Rattle's (artefact_base and the drawable at
   +340h, constructor 0x25FA10), then the duration in ms (`data/active/duration` x 1000), the time
-  left, and the three factors `data/passive/steps_sound_volume_3rd_person` (0.7),
+  left, and the three factors `data/passive/steps_sound_volume_3rd_person` (0.5),
   `data/active/steps_sound_volume_3rd_person` (0) and `data/active/shots_sound_volume_3rd_person`
-  (0.5). The cook's case for type 8 calls the constructor at 0x25E72C: the hook calls it and then
+  (0). The cook's case for type 8 calls the constructor at 0x25E72C: the hook calls it and then
   gives the object a vtable of its own (Rattle's, its RTTI locator too, with seven slots of ours)
   and reads the numbers; the cook's size for type 8 (0x25E7C9 `mov eax,360h`) is 378h.
 - **The active**, as Spring's: enable_active (+80h) sets the time left to the duration through the
@@ -3436,8 +3436,9 @@ step getting every register and argument, the sound thread's amplitude and loudn
 and tick, decrement_amount, the anomaly's serialize and deserialize loops reaching its slots; with
 `--pack` the pack's own config; and the real path to the voice a listener hears, from the
 carrier's foot event, landing and fire state's sound through the game's own code to the proxy
-played, its propagator, the listener's frame and the voice's volume, beside the original's; the
-carrier's own game plays his step as a hud sound, not quieted). **Not run in a game** (the owner's
+played, its propagator, the listener's frame, the voice's volume and the volume XAudio2's
+SetVolume gets, beside the original's, in another's game and in the carrier's own (hud proxies),
+another player's own sounds untouched). **Not run in a game** (the owner's
 test of 2026-10-24 listened with the carrier's own game playing too: `docs/notes/rattle.md`).
 
 ## Not ported, not done

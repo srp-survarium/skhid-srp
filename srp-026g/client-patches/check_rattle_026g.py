@@ -3,7 +3,7 @@
 in the default build on made-up cooks, inventories, players, weapons, sound
 proxies and propagators, beside the original exe where they differ.
 
-    python check_rattle_026g.py <original survarium.exe> [--pack <rattle-3 folder>]
+    python check_rattle_026g.py <original survarium.exe> [--pack <rattle-4 folder>]
 
 Requires Python `unicorn`. The built exe's sections are loaded as they are
 and its code (the arena's block rattle.code, linked by link_026g.py) runs as
@@ -54,12 +54,15 @@ ARENA = base.arena()
 SYMBOLS = {name: va for name, va in ARENA.symbols.items() if name.startswith(("rt_", "rattle_"))}
 SPONGE_SYMBOLS = {name: va for name, va in ARENA.symbols.items() if name.startswith("sp_")}
 STATE = SYMBOLS["rt_g"]
-# the content pack (release/content.tsv rattle@3), in the main checkout's private folder
-PACK = os.path.join(HERE, "..", "..", "..", "skhid-srp", "private", "content-packs", "rattle-3")
+# the content pack (release/content.tsv rattle@4), in the main checkout's private folder
+PACK = os.path.join(HERE, "..", "..", "..", "skhid-srp", "private", "content-packs", "rattle-4")
 # struct rattle (rattle_026g.c's _Static_asserts)
 R_DURATION, R_LEFT, R_PASSIVE_STEPS, R_ACTIVE_STEPS, R_ACTIVE_SHOTS, R_SIZE = 0x360, 0x364, 0x368, 0x36C, 0x370, 0x378
 STATE_AT, COOLDOWN, ACTIVATED = 0x280, 0x28C, 0x2A0
 QUIET = 0x3A                                       # a proxy's quiet (u16)
+# the pack's factors (rattle@4): 0.20e's own third-person step volumes, carried 0.5 a Rattle and
+# active 0; the active's shots 0 (the owner, 2026-10-25: an active Rattle dampens 100 %)
+PASSIVE_STEPS, ACTIVE_STEPS, ACTIVE_SHOTS = 0.5, 0.0, 0.0
 HUD_KIND = 0x80                                    # a proxy's kind: 3 a hud proxy (0x5A840), 0 a point one (0x5A6B0)
 
 
@@ -75,9 +78,9 @@ def rattle_options():
                    "particle_on_spawn": "fx/artifacts/emergence_zhivokost_single",
                    "sound_on_spawn": [257, "artefacts/artefact_appear_default"]},
         "data": {"activation_hint": "st_rattle_activation_hint", "pickup_hint": "st_rattle_pickup_hint",
-                 "active": {"duration": 10, "shots_sound_volume_3rd_person": 0.5,
+                 "active": {"duration": 10, "shots_sound_volume_3rd_person": 0,
                             "steps_sound_volume_3rd_person": 0},
-                 "passive": {"steps_sound_volume_3rd_person": f32(0.7)},
+                 "passive": {"steps_sound_volume_3rd_person": 0.5},
                  "amount": -1, "cooldown_sec": 40, "effect": "artefact_rattle", "spawn_sec": 1, "type": 8}}
 
 
@@ -161,6 +164,12 @@ class SoundWorld:
         self.interface = r.allocate(0x10)
         r.word(self.interface, r.vtable({1: (lambda r: holder_, 4), 2: (lambda r: self.description, 0)}))
         r.stub(self.voice, 0xC, at=0x59E70, name="the voice maker")
+        # XAudio2's source voice (the mixer's +10h): SetOutputVoices (vt+4) and SetVolume (vt+30h,
+        # its volume what the speakers get), recorded
+        self.set_volume = []
+        self.xaudio = r.allocate(0x10)
+        r.word(self.xaudio, r.vtable({1: (lambda r: 0, 8), 12: (lambda r: self.set_volume.append(
+            struct.unpack("<f", struct.pack("<I", r.arg(1)))[0]), 0xC)}))
         r.stub(lambda r: 0, 0, at=0x245430, name="the weapon's played events")
 
     def person(self, inventory, place):
@@ -222,6 +231,7 @@ class SoundWorld:
     def voice(self, r):
         voice, mixer = r.allocate(0x40), r.allocate(0x40)
         r.word(voice + 0x14, mixer)
+        r.word(mixer + 0x10, self.xaudio)
         self.voices.append(mixer)
         return voice
 
@@ -270,8 +280,10 @@ class SoundWorld:
         return self.played[before:], cleanup
 
     def heard(self, proxy):
-        """a propagator of `proxy` (the game's 0x5CB00) at DISTANCE in a listener's frame (0x5C7A0):
-        (its proxy, amplitude, HDR loudness, the voice's volume or None for no voice)"""
+        """a propagator of `proxy` (the game's 0x5CB00) at DISTANCE in a listener's frame (0x5C7A0),
+        its voice's volume (notify_listener2 0x5C710..0x5C748) and the voice started (0x5DB30, as
+        0x63200 starts a new one), to its XAudio2 SetVolume: (its proxy, amplitude, HDR loudness, the
+        voice's volume or None for no voice, the volume XAudio2 gets: 0 for no voice)"""
         r = self.r
         propagator = r.allocate(0x60)
         r.call(0x5CB00, (0,), {UC_X86_REG_EAX: proxy, UC_X86_REG_ECX: self.interface, UC_X86_REG_ESI: propagator})
@@ -284,11 +296,14 @@ class SoundWorld:
         r.word(span + 4, array + 4)
         before = len(self.voices)
         r.call(0x5C7A0, (listener, span), {UC_X86_REG_EAX: 16})
-        volume = None
+        volume, audible = None, 0.0
         if len(self.voices) > before:
             r.span(0x5C710, 0x5C748, {UC_X86_REG_EDI: propagator}, [0] * 10 + [self.description] + [0] * 8)
             volume = r.readf(self.voices[-1] + 0x2C)
-        return r.read(propagator + 8), r.readf(propagator + 0x4C), r.readf(propagator + 0x40), volume
+            calls = len(self.set_volume)
+            r.call(0x5DB30, (), {UC_X86_REG_EAX: self.voices[-1]}, until=0x5DBA9)
+            audible = self.set_volume[-1] if len(self.set_volume) == calls + 1 else None
+        return r.read(propagator + 8), r.readf(propagator + 0x4C), r.readf(propagator + 0x40), volume, audible
 
 
 def hold(emu, game, states):
@@ -305,8 +320,9 @@ def hold(emu, game, states):
 
 
 def real_path(check, built, original, options):
-    """The sounds others hear of a carrier, from the game's own event to the
-    voice, in the build and the original (SoundWorld)."""
+    """The sounds of a carrier, from the game's own event to the volume
+    XAudio2 gets, in another player's game and in his own, in the build and
+    the original (SoundWorld)."""
     worlds = {}
     for name, data in (("build", built), ("original", original)):
         emu = Run(pe_sections(data))
@@ -320,113 +336,65 @@ def real_path(check, built, original, options):
     def one(world, played):
         """the one proxy played, made by the scene's pool, as a listener hears it: (the propagator's
         proxy is it, its quiet, amplitude, HDR loudness, the voice's volume, its kind +80h: 0 a point
-        proxy, 3 a hud one)"""
+        proxy, 3 a hud one, the volume XAudio2 gets)"""
         if len(played) != 1 or played[0] != world.made[-1]:
             return None
-        proxy, amplitude, loudness, volume = world.heard(played[0])
+        proxy, amplitude, loudness, volume, audible = world.heard(played[0])
         return (proxy == played[0], world.r.read(played[0] + QUIET, 2), amplitude, loudness, volume,
-                world.r.read(played[0] + HUD_KIND))
+                world.r.read(played[0] + HUD_KIND), audible)
 
-    heard = {}
-    for states in ((), (3,), (4,)):
-        hold(r, game, states)
-        played, (value, cleanup) = w.step()
-        heard[states] = one(w, played), value, cleanup, r.read(STATE)
-    none, passive, active = (heard[k][0] for k in ((), (3,), (4,)))
-    hold(stock, stock_game, (4,))
-    stock_step = one(s, s.step()[0])
-    check("a step others hear, from the carrier's animation event (on_player_sound_event 0x2A6470, a foot: "
-          "on_foot_step, the step manager's on_step 0x248AD0, play_sound 0x657C0, the pool's point proxy "
-          "0x64F80 and its constructor, its position and play) to the voice a listener's frame makes of it "
-          "(the propagator 0x5CB00 of the proxy played, calculate_hdr_audio_frame 0x5C7A0, the voice's volume "
-          "0x633F0) at 8 m: no Rattle 0.2 as the original's (an active Rattle changes nothing there), a "
-          "passive Rattle 0.14 (x0.7), an active one no voice (amplitude 0); eax 0, ret 4, nothing pending "
-          "after",
-          none and passive and active and stock_step and none[0] and passive[0] and active[0]
-          and [none[1], passive[1], active[1]] == [0, quiet_of(0.7), 0xFFFF]
-          and near(none[4], full) and near(stock_step[4], full) and stock_step[1] == 0
-          and near(passive[4], full * 0.7) and near(passive[2], 0.25 * 0.7)
-          and active[4] is None and active[2] == 0.0
-          and abs(passive[3] - (none[3] + 20 * math.log10(0.7))) < 1e-3
-          and all(v[1:] == (0, 4, 0) for v in heard.values()),
-          f"volumes {none and none[4]}, {passive and passive[4]}, {active and active[4]}; the original "
-          f"{stock_step and stock_step[4]}")
+    def gains(*heard):
+        """the audible gain of each: the volume XAudio2 gets over the unquieted 0.2"""
+        return [h and h[6] is not None and round(h[6] / full, 4) for h in heard]
 
-    hold(r, game, (3, 3))
-    played, cleanup = w.landing()
-    landing = one(w, played)
-    check("a landing others hear, from player::on_landing 0x1F3B30 (its step 0x23FBE0, on_step, 0x657C0) to "
-          "the voice: two passive Rattles 0.098 (x0.49); ret 4, nothing pending after",
-          landing and landing[0] and landing[1] == quiet_of(0.49) and near(landing[4], full * 0.49)
-          and cleanup == 4 and r.read(STATE) == 0, str(landing))
+    def sounds(make, kind, holds, label):
+        """`make()` with the Rattles of each of `holds`, beside the original's with the last: the cases'
+        heard, the original's, and whether each is one proxy of `kind` that the propagator holds"""
+        heard = {}
+        for states in holds:
+            hold(r, game, states)
+            heard[states] = one(w, make(w)[0])
+        hold(stock, stock_game, holds[-1])
+        original = one(s, make(s)[0])
+        whole = all(h and h[0] and h[5] == kind for h in list(heard.values()) + [original])
+        return [heard[k] for k in holds], original, whole
 
-    shots = {}
-    for states in ((), (3,), (4, 4)):
-        hold(r, game, states)
-        played, cleanup = w.fire()
-        shots[states] = one(w, played), cleanup
-    hold(stock, stock_game, (4, 4))
-    stock_shot = one(s, s.fire()[0])
-    bare, passive_shot, two_active = (shots[k][0] for k in ((), (3,), (4, 4)))
-    check("a shot others hear, from the fire state's sound as its timer runs it (play_sound_callback 0x297E20 "
-          "with the weapon_sound_effect at +168h of weapon_core_fire_state, emit_point_sound 0x65670, the "
-          "pool's proxy, its position and play) to the voice: no Rattle 0.2 as the original's, a passive one "
-          "0.2 (the passive leaves shots), two active 0.05 (x0.25); ret 10h",
-          bare and passive_shot and two_active and stock_shot and two_active[0]
-          and near(bare[4], full) and near(passive_shot[4], full) and near(stock_shot[4], full)
-          and two_active[1] == quiet_of(0.25) and near(two_active[4], full * 0.25)
-          and all(v[1] == 0x10 for v in shots.values()),
-          f"volumes {bare and bare[4]}, {passive_shot and passive_shot[4]}, {two_active and two_active[4]}; "
-          f"the original {stock_shot and stock_shot[4]}")
+    steps = lambda own: (lambda world: world.step(first_person=own)[0:1])
+    fires = lambda own: (lambda world: world.fire(first_person=own)[0:1])
+    p2 = PASSIVE_STEPS * PASSIVE_STEPS
+    for own, kind, where in ((False, 0, "others hear (a point proxy: 0x64F80 at 0x65874, 0x65670 at 0x297F79)"),
+                             (True, 3, "the carrier hears in his own game (in first person: a hud proxy, 0x65100 "
+                                       "at 0x65803 and 0x297F5E)")):
+        (none, passive, active), original, whole = sounds(steps(own), kind, ((), (3,), (4,)), "step")
+        check(f"a step {where}, from his animation's foot event (on_player_sound_event 0x2A6470, on_foot_step, "
+              "on_step 0x248AD0, play_sound 0x657C0, the proxy's constructor, position and play) to the volume "
+              "XAudio2 gets (the propagator 0x5CB00, calculate_hdr_audio_frame 0x5C7A0, the voice's volume "
+              "0x5C710..0x633F0, the voice started 0x5DB30, SetVolume): audible gain 1 with no Rattle (0.2 at 8 m, "
+              f"the original's too with an active one), {PASSIVE_STEPS:g} carried, {ACTIVE_STEPS:g} active (no voice)",
+              whole and gains(none, passive, active, original) == [1.0, PASSIVE_STEPS, ACTIVE_STEPS, 1.0]
+              and near(none[4], full) and near(none[6], full) and active[4] is None
+              and [none[1], passive[1], active[1], original[1]] == [0, quiet_of(PASSIVE_STEPS), 0xFFFF, 0]
+              and abs(passive[3] - (none[3] + 20 * math.log10(PASSIVE_STEPS))) < 1e-3,
+              f"audible {gains(none, passive, active, original)} (the last the original's)")
 
-    # The carrier's own game (its camera his, in first person): his steps and shots are hud proxies
-    # (0x65100, kind 3), quieted as the others hear him (the owner, 2026-10-24: the same for himself).
-    own = {}
-    for states in ((), (3,), (4,)):
-        hold(r, game, states)
-        played, (value, cleanup) = w.step(first_person=True)
-        own[states] = one(w, played), value, cleanup, r.read(STATE)
-    none, passive, active = (own[k][0] for k in ((), (3,), (4,)))
-    hold(stock, stock_game, (4,))
-    stock_own = one(s, s.step(first_person=True)[0])
-    check("the carrier's own step in his own game (in first person: on_step's play_sound 0x657C0, the hud "
-          "proxy 0x65100 at 0x65803, kind 3) to its voice: no Rattle 0.2 as the original's (an active Rattle "
-          "changes nothing there), a passive Rattle 0.14 (x0.7), an active one no voice: as the others hear "
-          "him; eax 0, ret 4, nothing pending after",
-          none and passive and active and stock_own and none[0] and passive[0] and active[0]
-          and [none[5], passive[5], active[5], stock_own[5]] == [3, 3, 3, 3]
-          and [none[1], passive[1], active[1], stock_own[1]] == [0, quiet_of(0.7), 0xFFFF, 0]
-          and near(none[4], full) and near(stock_own[4], full) and near(passive[4], full * 0.7)
-          and active[4] is None and all(v[1:] == (0, 4, 0) for v in own.values()),
-          f"volumes {none and none[4]}, {passive and passive[4]}, {active and active[4]}; the original "
-          f"{stock_own and stock_own[4]}")
+        hold(r, game, (3, 3))
+        played, cleanup = w.landing(first_person=own)
+        landing = one(w, played)
+        check(f"a landing {where}, from player::on_landing 0x1F3B30 (its step 0x23FBE0, on_step, 0x657C0): two "
+              f"carried Rattles, audible gain {p2:g}; ret 4, nothing pending after",
+              landing and landing[0] and landing[5] == kind and gains(landing) == [p2]
+              and landing[1] == quiet_of(p2) and cleanup == 4 and r.read(STATE) == 0, str(gains(landing)))
 
-    hold(r, game, (3, 3))
-    played, cleanup = w.landing(first_person=True)
-    landing = one(w, played)
-    check("the carrier's own landing in his own game (on_landing's step, on_step, the hud proxy): two passive "
-          "Rattles 0.098 (x0.49); ret 4, nothing pending after",
-          landing and landing[0] and landing[5] == 3 and landing[1] == quiet_of(0.49)
-          and near(landing[4], full * 0.49) and cleanup == 4 and r.read(STATE) == 0, str(landing))
-
-    shots = {}
-    for states in ((), (3,), (4, 4)):
-        hold(r, game, states)
-        played, cleanup = w.fire(first_person=True)
-        shots[states] = one(w, played), cleanup
-    hold(stock, stock_game, (4, 4))
-    stock_shot = one(s, s.fire(first_person=True)[0])
-    bare, passive_shot, two_active = (shots[k][0] for k in ((), (3,), (4, 4)))
-    check("the carrier's own shot in his own game (play_sound_callback's first person: the hud proxy 0x65100 "
-          "at 0x297F5E, kind 3) to its voice: no Rattle 0.2 as the original's, a passive one 0.2 (the passive "
-          "leaves shots), two active 0.05 (x0.25): as the others hear him; ret 10h",
-          bare and passive_shot and two_active and stock_shot and two_active[0]
-          and [bare[5], passive_shot[5], two_active[5], stock_shot[5]] == [3, 3, 3, 3]
-          and near(bare[4], full) and near(passive_shot[4], full) and near(stock_shot[4], full)
-          and two_active[1] == quiet_of(0.25) and near(two_active[4], full * 0.25)
-          and all(v[1] == 0x10 for v in shots.values()),
-          f"volumes {bare and bare[4]}, {passive_shot and passive_shot[4]}, {two_active and two_active[4]}; "
-          f"the original {stock_shot and stock_shot[4]}")
+        (bare, passive_shot, active_shot, two_active), original, whole = sounds(
+            fires(own), kind, ((), (3,), (4,), (4, 4)), "shot")
+        check(f"a shot {where}, from the fire state's sound as its timer runs it (play_sound_callback 0x297E20, "
+              "the weapon_sound_effect at +168h of weapon_core_fire_state) to the volume XAudio2 gets: audible "
+              f"gain 1 with no Rattle and carried (the original's 1 with two active), {ACTIVE_SHOTS:g} active, one "
+              "or two (no voice)",
+              whole and gains(bare, passive_shot, active_shot, two_active, original) == [1.0, 1.0, ACTIVE_SHOTS,
+                                                                                         ACTIVE_SHOTS, 1.0]
+              and active_shot[4] is None and two_active[4] is None and active_shot[1] == 0xFFFF,
+              f"audible {gains(bare, passive_shot, active_shot, two_active, original)}")
 
     # Another player's own game while the carrier's two Rattles are active: his own sounds as they were.
     hold(r, game, (4, 4))
@@ -435,18 +403,18 @@ def real_path(check, built, original, options):
     shot_played, shot_cleanup = w.fire(first_person=True, who=w.other)
     his_shot = one(w, shot_played)
     check("another player's own step and shot in his own game (hud proxies), the carrier's two Rattles "
-          "active: not marked, 0.2 each; eax 0, ret 4 and 10h, nothing pending after",
+          "active: not marked, audible gain 1 each; eax 0, ret 4 and 10h, nothing pending after",
           his_step and his_shot and his_step[0] and his_shot[0] and [his_step[5], his_shot[5]] == [3, 3]
-          and [his_step[1], his_shot[1]] == [0, 0] and near(his_step[4], full) and near(his_shot[4], full)
+          and [his_step[1], his_shot[1]] == [0, 0] and gains(his_step, his_shot) == [1.0, 1.0]
           and (value, cleanup, shot_cleanup, r.read(STATE)) == (0, 4, 0x10, 0),
-          f"volumes {his_step and his_step[4]}, {his_shot and his_shot[4]}")
+          f"audible {gains(his_step, his_shot)}")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("original")
     parser.add_argument("--pack", default=os.environ.get("SRP_RATTLE_PACK", PACK),
-                        help="the content pack's folder (rattle@3: private/content-packs/rattle-3)")
+                        help="the content pack's folder (rattle@4: private/content-packs/rattle-4)")
     args = parser.parse_args()
     original = open(args.original, "rb").read()
     code = open(base.default_bin("section"), "rb").read()
@@ -502,10 +470,10 @@ def main():
           and r.read(rattle + 0x274) == 40000 and r.read(rattle + 0x278) == 1000,
           f"vtable {r.read(rattle):#x}, amount {r.read(rattle + 0x27C, 2):#x}, cooldown {r.read(rattle + 0x274)}, "
           f"spawn {r.read(rattle + 0x278)}")
-    check("the config's numbers: duration 10000 ms (data/active), passive steps 0.7, active steps 0, active "
-          "shots 0.5, nothing left of an active",
-          r.read(rattle + R_DURATION) == 10000 and r.readf(rattle + R_PASSIVE_STEPS) == f32(0.7)
-          and r.readf(rattle + R_ACTIVE_STEPS) == 0.0 and r.readf(rattle + R_ACTIVE_SHOTS) == 0.5
+    check(f"the config's numbers: duration 10000 ms (data/active), passive steps {PASSIVE_STEPS:g}, active steps "
+          f"{ACTIVE_STEPS:g}, active shots {ACTIVE_SHOTS:g}, nothing left of an active",
+          r.read(rattle + R_DURATION) == 10000 and r.readf(rattle + R_PASSIVE_STEPS) == PASSIVE_STEPS
+          and r.readf(rattle + R_ACTIVE_STEPS) == ACTIVE_STEPS and r.readf(rattle + R_ACTIVE_SHOTS) == ACTIVE_SHOTS
           and r.read(rattle + R_LEFT) == 0)
     from check_sponge_a_026g import config_resource, sponge_options
     pointer = config_resource(r, CONFIG + 0x8000, sponge_options())
@@ -647,15 +615,16 @@ def main():
         return r.read(proxy + QUIET, 2), cleanup
 
     cases = []
-    for states, steps, shots in (((), 1.0, 1.0), ((3,), 0.7, 1.0), ((3, 3), 0.49, 1.0), ((3, 3, 3), 0.343, 1.0),
-                                 ((4,), 0.0, 0.5), ((4, 4), 0.0, 0.25), ((4, 4, 4, 4), 0.0, 0.0625),
-                                 ((4, 3), 0.0, 0.5), ((5, 5), 1.0, 1.0)):
+    P, A, S = PASSIVE_STEPS, ACTIVE_STEPS, ACTIVE_SHOTS
+    for states, steps, shots in (((), 1.0, 1.0), ((3,), P, 1.0), ((3, 3), P * P, 1.0), ((3, 3, 3), P ** 3, 1.0),
+                                 ((4,), A, S), ((4, 4), A * A, S * S), ((4, 4, 4, 4), A ** 4, S ** 4),
+                                 ((4, 3), A * P, S), ((5, 5), 1.0, 1.0)):
         holding(states)
         step_q, step_cleanup = steps_quiet(game.player)
         shot_q, shot_cleanup = shot_quiet(handler + 0x168)
         g_steps = 1.0
         for s in states:
-            g_steps *= {3: f32(0.7), 4: 0.0}.get(s, 1.0)
+            g_steps *= {3: f32(P), 4: f32(A)}.get(s, 1.0)
         cases.append((states, step_q, quiet_of(g_steps), shot_q, quiet_of(shots), step_cleanup, shot_cleanup))
         check(f"Rattles in states {states or 'none'}: steps x{steps:g} (quiet {step_q}), shots x{shots:g} "
               f"(quiet {shot_q}); stdcall, 4 and 8",
@@ -664,12 +633,14 @@ def main():
     holding((4,))
     check("a pistol's fire state (its effect at +170h, 0xA05248) is a shot too; another handler state's sound "
           "(reload, show, ...) and a weapon without a user are not quieted",
-          shot_quiet(pistol + 0x170)[0] == quiet_of(0.5) and shot_quiet(other + 0x168)[0] == 0
+          shot_quiet(pistol + 0x170)[0] == quiet_of(S) and shot_quiet(other + 0x168)[0] == 0
           and (r.word(weapon + 8, 0) or shot_quiet(handler + 0x168)[0] == 0))
     r.word(weapon + 8, game.player)
-    check("percent for others (gain, from the quiet): 70 / 49 / 34.3 % steps, 50 / 25 / 6.25 % shots",
-          [round(1 - c[1] / 65535, 4) for c in cases[1:4]] == [0.7, 0.49, 0.343]
-          and [round(1 - c[3] / 65535, 4) for c in cases[4:7]] == [0.5, 0.25, 0.0625])
+    check(f"percent (gain, from the quiet): carried steps {P * 100:g} / {P * P * 100:g} / {P ** 3 * 100:g} % for one, "
+          f"two, three; active steps and shots {A * 100:g} and {S * 100:g} %",
+          [round(1 - c[1] / 65535, 4) for c in cases[1:4]] == [round(P, 4), round(P * P, 4), round(P ** 3, 4)]
+          and [round(1 - c[1] / 65535, 4) for c in cases[4:7]] == [A] * 3
+          and [round(1 - c[3] / 65535, 4) for c in cases[4:7]] == [S] * 3)
 
     # 5. The hooks in the game's code.
     holding((3,))
@@ -682,9 +653,9 @@ def main():
     r.word(game.player + 0x120, 0)
     r.word(event, someone)
     value, cleanup = r.thiscall(0x2A6470, sound_effect, event)
-    check("on_player_sound_event (0x2A6470): runs with the player's steps' quiet pending (quiet of 70 %), its own "
+    check(f"on_player_sound_event (0x2A6470): runs with the player's steps' quiet pending (quiet of {P * 100:g} %), its own "
           "code after the entry's two instructions; nothing pending after it; eax 0, ret 4",
-          seen == [quiet_of(0.7)] and pending() == 0 and value == 0 and cleanup == 4, f"{seen}, {pending()}")
+          seen == [quiet_of(P)] and pending() == 0 and value == 0 and cleanup == 4, f"{seen}, {pending()}")
 
     # 0x657C0's point proxy, marked with what is pending
     made_proxies = []
@@ -765,9 +736,9 @@ def main():
     r.word(other + 0x168 + 0x30, weapon)
     reload = callback(other + 0x168)
     check("play_sound_callback (0x297E20) for another player's weapon: its point proxy (0x65670 at 0x297F79, the "
-          "effect at [esp+2Ch] there) marked with the user's shot quiet (two active: 25 %); another state's "
+          "effect at [esp+2Ch] there) marked with the user's shot quiet (two active: silent); another state's "
           "sound not; eax as 0x65670 left it (&the proxy)",
-          got == (True, quiet_of(0.25)) and reload == (True, 0),
+          got == (True, quiet_of(S * S)) and reload == (True, 0),
           f"{got}, {reload}")
 
     # on_landing's step: everything 0x23FBE0 takes passed on, the quiet pending only during it
@@ -783,8 +754,8 @@ def main():
     _, cleanup = r.call(SYMBOLS["rattle_landing"], (11, 22, 33, 44),
                         {UC_X86_REG_ECX: 0x1, UC_X86_REG_EDX: 123456, UC_X86_REG_EDI: game.player})
     check("on_landing's step (0x1F3BB6): 0x23FBE0 gets cl, edx, xmm0 and its four arguments as they were, with "
-          "the player's steps' quiet (49 %) pending; nothing pending after; ret 10h",
-          landing == [(1, 123456, struct.unpack("<I", struct.pack("<f", 7.5))[0], [11, 22, 33, 44], quiet_of(0.49))]
+          f"the player's steps' quiet ({P * P * 100:g} %) pending; nothing pending after; ret 10h",
+          landing == [(1, 123456, struct.unpack("<I", struct.pack("<f", 7.5))[0], [11, 22, 33, 44], quiet_of(P * P))]
           and pending() == 0 and cleanup == 0x10, str(landing))
 
     # 6. The sound thread: a propagator's amplitude and HDR loudness by its proxy's quiet.

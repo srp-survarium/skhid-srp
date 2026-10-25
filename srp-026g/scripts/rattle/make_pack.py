@@ -15,7 +15,8 @@ Every input is checked against inputs.sha256. What the pack holds (docs/notes/ra
 - items_dict row 759 (artefact_rattle, category 12, a stack, base cost 0, as Spring's 74);
 - gameplay/items/artefacts/artefact_rattle.options: 0.20e's file, which exe patch 59 (the Rattle's
   artefact_rattle_core) reads, made 0.26g's (CONFIG below): the duration under data/active, the
-  owner's numbers for the sound factors in place of 0.20e's unread step volumes, cooldown 40 s,
+  sound factors (@4: 0.20e's own third-person step volumes, 0.5 carried and 0 active, for the
+  carrier too, and the active's shots 0; 0.20e's first-person keys dropped), cooldown 40 s,
   amount -1 (0.20e's 1 would use it up at its first active's end: artefact_base::decrement_amount
   0x313530), 0.26g's lobby cell [21, 1], Lifebone's spawn particle (0.20e's fx/explosions/grenate
   is not in 0.26g), spawn_sec 0.26g's Spring's (1, an int as every 0.26g artefact's; 0.20e's 0.5
@@ -50,7 +51,7 @@ sys.path.insert(0, str(HERE.parent / 'research-mode'))
 import bcw  # noqa: E402
 
 PACK_ID = 'rattle'
-VERSION = '3'
+VERSION = '4'
 DICT_ID = 759
 CONFIG = 'gameplay/items/artefacts/artefact_rattle.options'
 MODEL = 'models/item/artefacts/artefact_pogremushka.model/'
@@ -58,10 +59,12 @@ SETTINGS = MODEL + 'settings'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 NEW_TEXTS = ('st_artefact_rattle_name', 'st_artefact_rattle_description')
 SET_TEXTS = ('st_rattle_pickup_hint', 'st_rattle_activation_hint')
-# The owner's rules (rattle.md, 2026-10-23): others hear the carrier's steps and movement noise at
-# 70 % a Rattle; active (10 s, cooldown 40 s) none, and his shots at 50 % a Rattle fired.
-PASSIVE = {'steps_sound_volume_3rd_person': 0.7}
-ACTIVE = {'duration': 10, 'steps_sound_volume_3rd_person': 0, 'shots_sound_volume_3rd_person': 0.5}
+# The factors (rattle.md, @4, 2026-10-25): 0.20e's own third-person step volumes (carried 0.5 a
+# Rattle, active 0), for the carrier himself too (the owner, 2026-10-24); active (10 s, cooldown
+# 40 s) his shots silent as well (the owner, 2026-10-25: an active Rattle dampens 100 %).
+RETAIL_STEPS = {'passive': 0.5, 'active': 0}
+PASSIVE = {'steps_sound_volume_3rd_person': RETAIL_STEPS['passive']}
+ACTIVE = {'duration': 10, 'steps_sound_volume_3rd_person': RETAIL_STEPS['active'], 'shots_sound_volume_3rd_person': 0}
 COOLDOWN_SEC = 40
 ICON = [21, 1]
 # 0.20e's spawn particle 0.26g has not
@@ -140,6 +143,9 @@ def rattle_config(donor, spring):
     if set(data['passive']) != {'steps_sound_volume_3rd_person', 'steps_sound_volume_1st_person'} \
             or set(data['active']) != {'steps_sound_volume_3rd_person', 'steps_sound_volume_1st_person'}:
         sys.exit(f'donor {CONFIG}: its passive and active are not the four step volumes')
+    for part, value in RETAIL_STEPS.items():
+        if data[part]['steps_sound_volume_3rd_person'] != value:
+            sys.exit(f'donor {CONFIG}: data/{part}/steps_sound_volume_3rd_person is not 0.20e\'s {value}')
     if donor['object']['model'] != 'item/artefacts/artefact_pogremushka' \
             or donor['object']['particle_on_spawn'] != SPAWN_PARTICLE[0] or donor['ui_desc']['icon'] != 19 \
             or donor['parameters'] != {'weight': bcw.loads(bcw.dump({'w': 0.2}))['w']}:
@@ -339,8 +345,8 @@ def main():
         'id': PACK_ID,
         'version': VERSION,
         'target_build': '0.26g',
-        'description': 'the Rattle (items_dict 759, 0.20e\'s artefact_rattle): its config (the owner\'s sound '
-                       'factors, read by exe patch 59), 0.20e\'s model and texts, its active\'s glow '
+        'description': 'the Rattle (items_dict 759, 0.20e\'s artefact_rattle): its config (0.20e\'s step '
+                       'factors, silent shots when active, read by exe patch 59), 0.20e\'s model and texts, its active\'s glow '
                        '(Lifebone\'s effect and particle in grey)',
         'operations': operations,
         'notes': ['made by srp-026g/scripts/rattle/make_pack.py from inputs.sha256 and texts.tsv',
