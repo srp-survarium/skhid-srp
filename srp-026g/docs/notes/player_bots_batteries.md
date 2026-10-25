@@ -588,3 +588,46 @@ batt maps), both sides run here:
   holder dead and not yet replaced, or a bot already on a higher play.
 - tdm: seeds 1-2 at 4-5, 9-10 and 13-15, every run's decisions digest equal
   to base's.
+
+## Bots bench: the stand-in game carries as the game does
+
+The bench's game (`bots/tests.rs`) let a carrier sprint, ignored his fire
+press, dropped a battery only on the drop key's press and respawned the
+dead in 6.4 s in every mode. Each change cites its source in the code:
+
+- **No sprint while carrying** (the exe's sprint check asks the item in
+  hand and the battery says no, 0x397C20, PROVEN; the owner held sprint
+  carrying at 3.35 m/s in 0x60aeff4f).
+- **A new fire press drops the battery**, as the drop key held does (the
+  input handler's one branch, 0x2D8E73..0x2D8EC8, PROVEN; 653 fire-press
+  drops in 129 public battery matches). Before, a carrier's fire did
+  nothing.
+- **The weapon fires again 0.8 s after a drop** (`DRAW_MS`, the weapon's
+  show time, LIKELY).
+- **Respawn:** 8 s in the battery modes (10 s since revision 28,
+  `battery_respawn.md`, less the radio's 20 %), 6.4 s in Team Deathmatch
+  as before. This is the player's respawn; a battery never goes home.
+- **Counters:** drops by fire and by key, and carriers' mean speed, in the
+  bench sums.
+- Not modelled: the broken-arm rule for a use (the stand-in has no arms).
+
+**What it does on its own** (the same commit with only the model lines
+reverted, batt and tdm, tier 4-5, seeds 1-4, after minus before per seed,
+SE):
+
+| | before | after |
+|---|---|---|
+| carriers' speed, m/s | 2.60 | 2.64 (+0.05, 0.08) |
+| drops by fire / by key | 0 / 0.8 | 1.25 / 1.0 |
+| delivered | 75.0 | 73.5 (-1.5, 2.4) |
+| carriers killed | 17.5 | 16.8 (-0.8, 2.7) |
+| deaths | 240 | 243 (+3.0, 9.5) |
+| quick ends | 278 | 291 (+13.8, 12.4) |
+
+- Bots' carriers never sprinted (Bring walks), so speed is unchanged.
+- **Bots do press fire while carrying.** Of 3 cases traced (level_05 day 2
+  10v10), two carriers were on another play by then (PairUp, Roam) and one
+  was on its Collect. In the game each such press drops the battery. The
+  fix is in the bots' code and comes in its own PR.
+- tdm: every run's decisions digest equal to before (no carrying, the
+  respawn unchanged).

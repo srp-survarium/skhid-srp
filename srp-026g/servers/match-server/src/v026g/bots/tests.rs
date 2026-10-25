@@ -12,12 +12,15 @@
 //!   off the kick first, the kick comes back by the weapon's controller;
 //!   each shot's kick drawn in the config's range (the bots predict the
 //!   middle);
-//! - the dead respawn at their side's spawns after 6.4 s (the radio);
+//! - the dead respawn at their side's spawns after 8 s in the battery
+//!   modes and 6.4 s in Team Deathmatch (the radio's -20 % on 10 s and
+//!   8 s, [`RESPAWN_BATTERIES_MS`]);
 //! - a use takes a battery, puts it in at one's own container, or steals
 //!   from the other's, as the client's use does: only what the view's ray
 //!   from the eye meets within 2 m (`base_player::detect_usable_object`):
-//!   within 0.2 m of a battery's middle, 0.6 m of a use box's; a drop
-//!   drops it;
+//!   within 0.2 m of a battery's middle, 0.6 m of a use box's; the drop
+//!   key held, or a new fire press, drops it, and the weapon is up again
+//!   [`DRAW_MS`] later; a carrier cannot sprint;
 //! - Team Deathmatch: each death costs the team a ticket; a team out of
 //!   tickets no longer respawns, and loses when its last body dies;
 //! - a world of every body, the statistics and the batteries comes every
@@ -73,6 +76,24 @@ const USE_BOX_M: f32 = 0.6;
 /// another (0: in at the press, as before).
 const PUT_MS: u32 = 600;
 
+/// The respawn after a death in the battery modes, ms: `respawn_time` 10 s
+/// in every mode-2 and mode-3 config since revision 28 (content edit
+/// `battery-respawn-1`, `docs/notes/battery_respawn.md`), less the radio's
+/// 20 % (`respawn_booster`, the stand-in's bodies carry one), PROVEN from
+/// the client's code (the respawn rule 0x316700, the death 0x316AA0). The
+/// player's respawn, not a battery's: a battery never goes home.
+const RESPAWN_BATTERIES_MS: u32 = 8_000;
+
+/// The same in Team Deathmatch: 8 s, less the radio's 20 %.
+const RESPAWN_TDM_MS: u32 = 6_400;
+
+/// How long after a carrier lets go of the battery his weapon fires again,
+/// ms: the weapon's show time follows the drop, about 0.8 s for rifles,
+/// SMGs and shotguns, 0.5 s for the TT-33 (LIKELY: private
+/// sprint-jump-re FINDINGS section 9; the stand-in's bodies hold their
+/// primary).
+const DRAW_MS: u32 = 800;
+
 /// A carrier's use at his container in the stand-in: when, from where, how
 /// far its ray passed the use box's middle, whether it began a put, and
 /// whether one was going on already.
@@ -108,6 +129,9 @@ struct Body {
     dead_at: u32,
     spawned: u32,
     carrying: Option<usize>,
+    /// No shot before this tick: the weapon coming up after a drop
+    /// ([`DRAW_MS`]).
+    drawn_at: u32,
     moved: f32,
     /// Until when a jump pressed keeps the body in the air, ms
     /// ([`STAND_IN_AIR_MS`]).
@@ -401,6 +425,12 @@ struct Game {
     metric_rays: u64,
     delivered: [u32; 2],
     stolen: u32,
+    /// Batteries carriers let go of alive: by a fire press, by the drop key.
+    drops: [u32; 2],
+    /// Carriers' ground distance walked (m) and their living ticks: their
+    /// mean speed.
+    carry_m: f32,
+    carry_ticks: u32,
     /// The places that took a battery out of the enemy's container, in
     /// order (the bench reads them by the thief's play).
     thieves: Vec<Place>,
@@ -544,6 +574,7 @@ impl Game {
             dead_at: 0,
             spawned: 0,
             carrying: None,
+            drawn_at: 0,
             moved: 0.0,
             air_until: 0,
             legs: [0.5; 2],
@@ -582,6 +613,9 @@ impl Game {
             metric_rays: 0,
             delivered: [0, 0],
             stolen: 0,
+            drops: [0, 0],
+            carry_m: 0.0,
+            carry_ticks: 0,
             thieves: Vec::new(),
             carrier_kills: Vec::new(),
             kill_log: Vec::new(),
@@ -738,7 +772,12 @@ impl Game {
             if !self.bodies[place].alive {
                 let team = usize::from(self.bodies[place].team);
                 let may = self.tickets.is_none_or(|tickets| tickets[team] > 0);
-                if may && tick >= self.bodies[place].dead_at + 6_400 {
+                let respawn = if self.tickets.is_some() {
+                    RESPAWN_TDM_MS
+                } else {
+                    RESPAWN_BATTERIES_MS
+                };
+                if may && tick >= self.bodies[place].dead_at + respawn {
                     self.spawn(place);
                 }
                 continue;
@@ -752,10 +791,17 @@ impl Game {
             if body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS {
                 level *= STAND_IN_STAGGER;
             }
-            let local = body.blend.tick(
-                self.kin.target_local(body.keys, level),
-                self.kin.blend_ticks,
-            );
+            // A carrier cannot sprint: the sprint check asks the item in
+            // hand, and the battery's answer is no (0x397C20), PROVEN; seen
+            // in 0x60aeff4f, the owner held sprint carrying at 3.35 m/s.
+            let keys = if body.carrying.is_some() {
+                body.keys & !key::SPRINT
+            } else {
+                body.keys
+            };
+            let local = body
+                .blend
+                .tick(self.kin.target_local(keys, level), self.kin.blend_ticks);
             let v = to_world(local, body.yaw);
             let to = Vec3::new(
                 body.feet.x + v[0] * TICK_S,
@@ -776,6 +822,10 @@ impl Game {
                     body.air_until = 0;
                 }
                 body.moved += feet.distance_xz(body.feet);
+                if body.carrying.is_some() {
+                    self.carry_m += feet.distance_xz(body.feet);
+                    self.carry_ticks += 1;
+                }
                 body.node = Some(node);
                 body.feet = feet;
             }
@@ -869,7 +919,10 @@ impl Game {
     fn shoot(&mut self, tick: u32) {
         for shooter in 0..self.bodies.len() {
             let body = &mut self.bodies[shooter];
-            let held = body.alive && body.keys & key::FIRE != 0 && body.carrying.is_none();
+            let held = body.alive
+                && body.keys & key::FIRE != 0
+                && body.carrying.is_none()
+                && tick >= body.drawn_at;
             let (auto, interval_ms) = (body.gun.auto, body.gun.shot_ms());
             let mut times = Vec::new();
             body.cadence
@@ -1080,11 +1133,18 @@ impl Game {
             if !body.alive {
                 continue;
             }
-            if pressed[place] & key::DROP != 0
+            // The drop key held, or a new fire press, lets go of it: the
+            // input handler takes the same branch for both (0x2D8E73..
+            // 0x2D8EC8, `inventory::drop_carried_item` 0x2FC810), PROVEN;
+            // 653 fire-press drops in 129 public battery matches.
+            let by_fire = pressed[place] & key::FIRE != 0;
+            if (body.keys & key::DROP != 0 || by_fire)
                 && let Some(battery) = body.carrying
             {
                 self.batteries[battery] = Lying::Free(body.feet, 1 << body.team);
                 self.bodies[place].carrying = None;
+                self.bodies[place].drawn_at = self.tick + DRAW_MS;
+                self.drops[usize::from(!by_fire)] += 1;
                 self.stolen_fell(battery, self.tick, true);
             }
             if pressed[place] & key::USE == 0 {
@@ -5247,6 +5307,12 @@ fn real_bot_cost() {
                     "nudged": game.nudged,
                     "raids": raid_sums,
                     "stolen": game.stolen,
+                    "drops": game.drops,
+                    "carry_mps": if game.carry_ticks > 0 {
+                        game.carry_m / (game.carry_ticks as f32 * TICK_S)
+                    } else {
+                        0.0
+                    },
                 })
             );
             eprintln!(
