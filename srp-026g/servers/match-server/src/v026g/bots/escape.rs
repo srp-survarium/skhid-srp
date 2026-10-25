@@ -228,7 +228,10 @@ fn jump_exits(grid: &WalkGrid, board: &Board, pocket: PocketId) -> (bool, bool) 
 }
 
 /// The exits to try out of the pocket of `from`, in order, with their
-/// tries: the team's that worked, the standing ones, the steep ones (a
+/// tries, of those whose take-off `from` walks to inside the pocket (the
+/// others' are reached only by drops from elsewhere; left in, they filled
+/// [`EXITS_MOST`] ahead of level_06 day 4 (63.85, 83.9)'s one way out): the
+/// team's that worked, the standing ones, the steep ones (a
 /// jump onto steep ground a step up: not proven to hold, so after the
 /// standing), the lowest [`SPRINT_EXITS`] sprint-only ones; [`EXITS_MOST`]
 /// at most.
@@ -239,7 +242,11 @@ fn exits(
     pocket: PocketId,
     from: NodeId,
 ) -> Vec<(PocketExit, u8)> {
-    order(&grid.pocket_exits(from), board.worked(team, pocket))
+    let inside = |n: NodeId| grid.pocket_of(n) == Some(pocket);
+    let reached = |exit: &PocketExit| path::plan_where(grid, from, exit.from, inside).is_some();
+    let all: Vec<PocketExit> = grid.pocket_exits(from).into_iter().filter(reached).collect();
+    let worked = board.worked(team, pocket).into_iter().filter(reached).collect();
+    order(&all, worked)
 }
 
 /// [`exits`] from the pocket's exits `all` and those the team got out by,
@@ -487,8 +494,8 @@ fn step(
                     state.hurt.0 = false;
                 }
                 let tries = match exit.jump {
-                    ExitJump::Standing => STANDING_TRIES,
-                    _ => SPRINT_TRIES,
+                    ExitJump::Sprint => SPRINT_TRIES,
+                    _ => STANDING_TRIES,
                 };
                 events.push(Event::Try(exit, tries - left + 1));
                 board.set_trapped(place, Some(state.trapped()));
