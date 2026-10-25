@@ -8,6 +8,11 @@
 ; pops 4 (`ret 4`), keeping EBX, ESI, EDI and EBP. sc_render_move is that
 ; call's target: the same shape, the decision and the stock move in
 ; sync_render_move (cdecl, which keeps the same registers).
+;
+; The game's frame here is aligned to 4 bytes only; Rust's i686 code assumes
+; 16 at a call (the C patches build with -mincoming-stack-boundary=2 for the
+; same reason). So the frame is aligned before the call: 16 at the call,
+; esp+4 aligned at sync_render_move's entry.
 bits 32
 section .text
 
@@ -15,8 +20,12 @@ global sc_render_move
 extern sync_render_move
 
 sc_render_move:
+    push ebp
+    mov ebp, esp
+    and esp, -16
+    sub esp, 8
     push eax                    ; the target time
-    push dword [esp + 8]        ; the world core
+    push dword [ebp + 8]        ; the world core
     call sync_render_move
-    add esp, 8
+    leave
     ret 4

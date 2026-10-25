@@ -4520,10 +4520,13 @@ def test_fall_gravity(original, image, before):
 
 def test_sync_core(original, image, before):
     """Check 74: the sync core's rollback pacing (patch 74, SYNC_CORE_HOOKS;
-    ../docs/notes/sync_core.md section 9). check_sync_core_026g.py runs the
-    game's move with the hook and without on scripted timelines and compares
-    every event-horizon item; sync-core's own tests (cargo test -p
-    sync-core) the rule."""
+    ../docs/notes/sync_core.md section 9). Static, on the bytes: the call
+    site in the original and the builds, move's shape and its rollback test,
+    the entry's stack alignment and argument shuffle, the block the link's,
+    its only way out the library's move, its only stores. What it does is
+    run elsewhere, not from here: check_sync_core_026g.py (Unicorn: the
+    game's move with the hook and without on nine timelines, every
+    event-horizon item compared) and `cargo test -p sync-core` (the rule)."""
     stock = Image(original)
     rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
     check(rows(stock, 0x1F7C17, 0x25) == ["mov eax,[ebx+0x4d4c]", "cmp dword [eax+0x31b4],byte +0x0",
@@ -4561,10 +4564,12 @@ def test_sync_core(original, image, before):
                       and not block.va <= branch_target(t) < block.va + len(code)})
     state = linked.blocks["sync_core.state"]
     check(outside == [linked.symbols["engine_world_core_move"]]
-          and texts[:5] == ["push eax", "push dword [esp+0x8]", f"call {linked.symbols['sync_render_move']:#x}",
-                            "add esp,byte +0x8", "ret 0x4"]
+          and texts[:9] == ["push ebp", "mov ebp,esp", "and esp,byte -0x10", "sub esp,byte +0x8", "push eax",
+                            "push dword [ebp+0x8]", f"call {linked.symbols['sync_render_move']:#x}", "leave",
+                            "ret 0x4"]
           and state.size <= 0x10,
-          "sc_render_move passes the time and the core to sync_render_move and pops 4; the code goes outside "
+          "sc_render_move aligns the stack to 16 (the game's frame is aligned to 4; Rust's i686 code assumes 16), "
+          "passes the time and the core to sync_render_move and pops 4; the code goes outside "
           "only to the library's engine_world_core_move (the game's move), and keeps its pacing in "
           f"sync_core.state ({state.size} bytes)")
     # every store: to the core's rollback point, to its own state, or to its frame (a register last set by

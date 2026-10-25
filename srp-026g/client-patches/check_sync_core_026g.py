@@ -89,6 +89,7 @@ class Game:
         emu.mem_map(SENTINEL, 0x1000, UC_PROT_ALL)
         emu.mem_write(SENTINEL, b"\xF4" * 16)
         self.top = HEAP
+        self.watch, self.entries, self.moves = None, [], 0
         self.world = {}                     # item -> its world's hash
         self.state = b"start"
         self.inputs = {}                    # place -> {time: value}
@@ -137,12 +138,14 @@ class Game:
         self.emu.reg_write(UC_X86_REG_ESP, sp + 4 + pops)
 
     def hook(self, emu, address, size, _):
+        if address == self.watch:
+            self.entries.append(self.reg(UC_X86_REG_ESP) % 16)
         stub = self.stubs.get(address)
         if stub:
             stub()
 
-    def call(self, function, stack, regs):
-        sp = STACK - 0x100
+    def call(self, function, stack, regs, misalign=0):
+        sp = STACK - 0x100 - misalign
         for value in reversed(stack):
             sp -= 4
             self.w32(sp, value)
@@ -209,7 +212,9 @@ class Game:
     # what a timeline does
     def move(self, target, function):
         self.log.clear()
-        sp, kept = self.call(function, [self.core], {UC_X86_REG_EAX: target})
+        # the game's frame is aligned to 4 only: every residue of 16 in turn
+        self.moves += 1
+        sp, kept = self.call(function, [self.core], {UC_X86_REG_EAX: target}, misalign=4 * (self.moves % 4))
         assert self.reg(UC_X86_REG_ESP) == sp + 8, f"{function:#x} did not pop 4"
         assert all(self.reg(r) == v for r, v in kept.items()), f"{function:#x} did not keep ebx, esi, edi, ebp"
         return list(self.log)
@@ -297,9 +302,11 @@ def timeline(seed, frames, frame_ms, places, late, precise=False, burst=None, st
     return out
 
 
-def play(data, render, frames):
-    """Run a timeline: per frame the horizon item, the work done, what was taken."""
+def play(data, render, frames, watch=None):
+    """Run a timeline: per frame the horizon item, the work done, what was taken
+    (and, with `watch`, the stack's residue of 16 at each entry of it)."""
     game = Game(data)
+    game.watch = watch
     seen, horizons, taken = {}, [], []
     work = {"loads": 0, "steps": 0, "again": 0, "rollbacks": 0}
     logs = []
@@ -321,7 +328,7 @@ def play(data, render, frames):
         if h is not None:
             assert seen.setdefault(h[0], h[1]) == h[1], f"the horizon item {h[0]} changed after it was hashed"
     end = (game.ring(), game.r32(game.core + NOW), game.r32(game.core + POINT), game.r32(game.core + NEWEST))
-    return {"horizons": horizons, "taken": taken, "end": end, "work": work, "logs": logs}
+    return {"horizons": horizons, "taken": taken, "end": end, "work": work, "logs": logs, "entries": game.entries}
 
 
 SCENARIOS = (
@@ -361,7 +368,7 @@ def main():
         frames = timeline(**kw)
         stock = play(original, MOVE, frames)
         moved = play(bytes(built), MOVE, frames)
-        paced = play(bytes(built), render, frames)
+        paced = play(bytes(built), render, frames, watch=linked.symbols["sync_render_move"])
         problems = []
         if stock["logs"] != moved["logs"] or stock["end"] != moved["end"]:
             problems.append("the build's move is not the original's")
@@ -370,6 +377,9 @@ def main():
         if stock["horizons"] != paced["horizons"]:
             first = next(i for i, (a, b) in enumerate(zip(stock["horizons"], paced["horizons"])) if a != b)
             problems.append(f"the event-horizon item differs at frame {first}")
+        if not paced["entries"] or set(paced["entries"]) != {12}:
+            problems.append(f"sync_render_move entered with esp % 16 in {sorted(set(paced['entries']))}, not 12 "
+                            "(aligned to 16 at the call)")
         if stock["end"] != paced["end"]:
             problems.append("the ring, the world's time or the rollback point differ at the end")
         refused = stock["taken"].count(False)
@@ -389,7 +399,8 @@ def main():
                   f"{p['rollbacks']}")
     if failed:
         sys.exit(f"patch 74: {failed} timeline(s) FAILED")
-    print("patch 74: the render move's call goes to sc_render_move (pops 4, keeps ebx, esi, edi, ebp); on "
+    print("patch 74: the render move's call goes to sc_render_move (pops 4, keeps ebx, esi, edi, ebp; entered "
+          "with the stack at every residue of 16, it calls sync_render_move with it aligned to 16); on "
           f"{len(SCENARIOS)} timelines the paced rollbacks give the original's event-horizon item every frame, the "
           "original's ring, world time and rollback point at the end, and take or refuse every input alike; the "
           "build's own move is the original's")

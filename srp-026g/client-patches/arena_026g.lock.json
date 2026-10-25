@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 53260,
-  "sha256": "66e60d495c156f5c9ce7fb6f96f3bc089bb31ddcd48e69f4c141048ac88ec6dc",
+  "sha256": "57fed98d66f3fa68a65f7b39a8df51ef5726a59f652c6e6b85b8c1e0217ebe2e",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -52,7 +52,7 @@
     "sync_core.code": {
       "kind": "code",
       "va": "0xa439000",
-      "size": 345
+      "size": 353
     },
     "sync_core.state": {
       "kind": "state",
@@ -157,7 +157,7 @@
     "rr_tick": "0xa42d5e5",
     "rr_write": "0xa42da9c",
     "sc_render_move": "0xa439000",
-    "sync_render_move": "0xa439010"
+    "sync_render_move": "0xa439018"
   },
   "built_with": {
     "cc": "gcc (GCC) 15.2.0",

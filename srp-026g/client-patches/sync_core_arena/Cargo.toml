@@ -1,6 +1,8 @@
 # The sync core's client side (patch 74): linked into the exe's arena `.srpx`
-# by link_026g.py, which builds it for i686 with -Zbuild-std=core, a static
-# relocation model and fat LTO (one ELF32 object). Not a member of the
+# by link_026g.py, which builds it with rustc alone (no cargo): for i686,
+# against a `core` it builds from the toolchain's rust-src, a static
+# relocation model, fat LTO, one ELF32 object. link_026g.py reads only the
+# name, `[lib]` path and the `path` dependencies here. Not a member of the
 # workspace: it is built for the game, never for the host.
 [package]
 name = "sync_core_arena"
@@ -14,15 +16,5 @@ path = "src/lib.rs"
 
 [dependencies]
 sync-core = { path = "../../crates/sync-core" }
-
-[profile.release]
-panic = "abort"
-opt-level = "s"
-lto = "fat"
-codegen-units = 1
-debug = false
-incremental = false
-overflow-checks = false
-debug-assertions = false
 
 [workspace]

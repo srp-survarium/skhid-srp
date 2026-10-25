@@ -658,13 +658,25 @@ Server -> client:
 
 **Verdict: feasible; the plan is Rust.** Stage (a) is built in Rust.
 
-What was tried (2026-10-25, the flake's own toolchain, offline):
+What was tried (2026-10-25, the flake's own toolchain):
 - `nix develop ./srp-026g` has rustc 1.98.0-nightly with `rust-src`. A
-  `#![no_std]` staticlib built with `cargo build --release --target
-  i686-unknown-linux-gnu -Zbuild-std=core,compiler_builtins` and
-  `-C relocation-model=static -C target-cpu=pentium4`, `panic = "abort"`,
-  `lto = "fat"`, `codegen-units = 1`, is one ELF32 object of our crate (plus
-  a `compiler_builtins` member, which is not linked) in about 11 s.
+  `#![no_std]` staticlib built for `i686-unknown-linux-gnu` with
+  `-C relocation-model=static -C target-cpu=pentium4`, `panic=abort`,
+  `lto=fat`, one codegen unit, is one ELF32 object of our crate.
+- **Not with cargo's `-Zbuild-std`:** that resolves the whole standard
+  library's workspace (`library/Cargo.lock`: `proc_macro` needs
+  `rustc-literal-escaper` from crates.io, among others), so it builds only
+  with the network or a warm cargo cache (it seemed offline the first time
+  because the cache here was warm; with an empty `CARGO_HOME` and
+  `--offline` it fails, even for `-Zbuild-std=core`). The link therefore
+  calls **rustc alone**: `core` from the toolchain's own rust-src
+  (`library/core/src/lib.rs`, `-Zforce-unstable-if-unmarked`, about 10 s,
+  once a toolchain, kept in `srp-026g/target-arena/sysroot-<key>`), an
+  empty `compiler_builtins` (rustc links every `no_std` crate against one;
+  the arena takes none of its code), then the crates the arena crate names
+  by path as rlibs and the arena crate as a fat-LTO staticlib, all with
+  `--sysroot` at that folder. No cargo, no crates.io, no network: checked
+  with `CARGO_HOME` pointing nowhere.
 - That object has only R_386_32 and R_386_PC32 relocations, its sections are
   `.text.*`, `.rodata.*`, `.bss.*` (which `link_026g.py`'s patterns already
   take) and `.eh_frame` (dropped). An `extern "thiscall"` call to a fixed
@@ -697,7 +709,13 @@ How it fits:
   that reaches the event horizon (what 0xDF hashes and 0xF6 uploads).
 
 Risks:
-- Nightly only (`-Zbuild-std`): the workspace already needs nightly.
+- Nightly only (`#![feature(compiler_builtins)]` in the stand-in, `core`
+  built from source): the workspace already needs nightly.
+- **Stack alignment:** the game's frames are aligned to 4 bytes; rustc's
+  i686 code assumes 16 at a call (the C patches build with
+  `-mincoming-stack-boundary=2` for the same reason). Every entry from the
+  game into Rust goes through a NASM stub that aligns the stack
+  (`push ebp / mov ebp,esp / and esp,-16 / ... / leave`).
 - A compiler update changes the bytes: the lock shows it, as with gcc.
 - Panics must not drag in formatting: the crate avoids indexing that can
   panic; the panic handler takes no `Location`.
@@ -731,9 +749,9 @@ names the states and transitions of 3.3 it takes over.
 - **Hook:** CALLEE at 0x1F7C37 (`call 0x2D2E40` in game_world::tick) ->
   `sc_render_move` (EAX target, stack core, `ret 4`, as move). Not move's
   entry: patch 71 takes that.
-- **Interface:** `sync_core::pacing::render_move(Pacing, WorldView{cur,
-  point, frozen}, target) -> (Pacing, Plan::{Stock, Postpone})`; the arena
-  calls `engine_world_core_move`.
+- **Interface:** `sync_core::pacing::render_move(Pacing, WorldView{core,
+  now, point, frozen}, target) -> (Pacing, Plan::{Stock, Postpone{keep}})`;
+  the arena calls `engine_world_core_move`.
 - **Unicorn:** `check_sync_core_026g.py`: the built exe, the game's own
   move, tick_events, insert_impl and the ring; a model world (atomic_tick,
   serialize, deserialize, process_events as a hash chain); scripted
@@ -850,7 +868,8 @@ README patch 74, client_patch.md 3.59.
 
 **The hook.** CALLEE at 0x1F7C37: game_world::tick's `call 0x2D2E40` ->
 `sc_render_move` (EAX the time, the core at [esp+4], `ret 4`, EBX ESI EDI
-EBP kept) -> `sync_render_move(core, time)` (cdecl) -> the rule -> the
+EBP kept; it aligns the stack to 16 for the call, the game's frame being
+aligned to 4) -> `sync_render_move(core, time)` (cdecl) -> the rule -> the
 game's move through `engine_world_core_move`.
 
 **The machine** (3.3, `Step`): `Pacing::{Free, Paced{core, at}}` is the
@@ -874,7 +893,8 @@ hook, with on_idle's horizon move where its test asks. Every frame's
 event-horizon item (time and world), the ring at the end, the world's time
 and rollback point, and every input's acceptance are the same in all three
 on all nine timelines; no horizon item changes after it was the horizon
-item. The work done (stock -> paced):
+item. The hook is entered with the stack at each residue of 16 in turn and
+must enter `sync_render_move` aligned (esp + 4 a multiple of 16) every time. The work done (stock -> paced):
 
 | Timeline | World loads | Steps | Re-simulated steps | Frames with a rollback |
 |---|---|---|---|---|

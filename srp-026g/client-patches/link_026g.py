@@ -105,9 +105,9 @@ def toolchain(**override):
             raise LinkError(f"the arena (`.srpx`) is built from its sources: {what[key]} is needed, and "
                             f"{tool!r} is not there ({key.upper()} names another; `nix develop ./srp-026g` "
                             "has gcc, GNU ld and NASM 2.16)")
-    # A Rust crate's source needs cargo and rustc (nightly: -Zbuild-std); found
-    # when there, asked for by compile_source when a block names a crate.
-    for key in ("cargo", "rustc"):
+    # A Rust crate's source needs rustc (nightly, with rust-src); found when
+    # there, asked for by compile_source when a block names a crate.
+    for key in ("rustc",):
         tool = override.get(key, os.environ.get(key.upper(), key))
         if shutil.which(tool):
             tools[key] = tool
@@ -274,13 +274,23 @@ def source_digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-# What cargo gets for a Rust crate (`Cargo.toml` source): the game's i686,
-# no position-independent code, core built here with the same flags, the
-# paths in the bytes made relative (the lock does not depend on the folder).
+# What rustc gets for a Rust crate (`Cargo.toml` source), and for the `core`
+# it is built against: the game's i686, no position-independent code, size
+# first, aborts, one codegen unit, no debug information, the paths in the
+# bytes made relative (the lock does not depend on the folder). No cargo:
+# `-Zbuild-std` resolves the whole standard library's workspace (proc_macro's
+# crates.io dependencies among them), which needs the network or a warm cache;
+# rustc alone builds `core` from the toolchain's rust-src, offline.
 RUST_TARGET = "i686-unknown-linux-gnu"
-RUSTFLAGS = ["-C", "relocation-model=static", "-C", "target-cpu=pentium4", "-C", "debuginfo=0",
-             "-C", "force-frame-pointers=no"]
-RUST_ARCHIVE_SKIP = ("compiler_builtins-",)
+RUST_EDITION = "2024"
+RUSTFLAGS = ["--target", RUST_TARGET, "-C", "relocation-model=static", "-C", "target-cpu=pentium4",
+             "-C", "opt-level=s", "-C", "panic=abort", "-C", "codegen-units=1", "-C", "debuginfo=0",
+             "-C", "force-frame-pointers=no", "-C", "embed-bitcode=yes"]
+# rustc links every `no_std` crate against a crate named compiler_builtins.
+# The arena takes none of its code (a call to an intrinsic is an undefined
+# symbol, which the link refuses), so an empty one stands in for it.
+COMPILER_BUILTINS_STUB = ("#![no_std]\n#![feature(compiler_builtins)]\n#![compiler_builtins]\n"
+                          "//! The arena's stand-in: no intrinsics (link_026g.py).\n")
 
 
 def ar_members(data, what):
@@ -303,30 +313,92 @@ def ar_members(data, what):
     return out
 
 
-def build_crate(manifest, tools, out):
-    """The crate's own object of the staticlib `manifest` builds (its
-    compiler_builtins member is left out: a symbol the crate needs from it
-    is an undefined symbol, which the link refuses)."""
-    target_dir = HERE.parent / "target-arena"
-    sysroot = first_line([tools["rustc"], "--print", "sysroot"])
-    flags = RUSTFLAGS + [f"--remap-path-prefix={HERE.parent}=srp-026g", f"--remap-path-prefix={sysroot}=rustc"]
-    env = {**os.environ, "CARGO_TARGET_DIR": str(target_dir), "CARGO_ENCODED_RUSTFLAGS": "\x1f".join(flags),
-           "RUSTC": tools["rustc"]}
-    env.pop("RUSTFLAGS", None)
-    done = subprocess.run([tools["cargo"], "build", "--release", "--quiet", "--manifest-path", str(manifest),
-                           "--target", RUST_TARGET, "-Zbuild-std=core,compiler_builtins",
-                           "-Zbuild-std-features=compiler-builtins-mem"],
-                          capture_output=True, text=True, env=env)
+def rustc(tools, args, what, env_extra=None):
+    env = {k: v for k, v in os.environ.items() if k not in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS")}
+    env.update(env_extra or {})
+    done = subprocess.run([tools["rustc"], *args], capture_output=True, text=True, env=env)
     if done.returncode:
-        raise LinkError(f"cargo {manifest.parent.name} failed:\n{(done.stdout + done.stderr).strip()}")
-    name = re.search(r'^name\s*=\s*"([^"]+)"', manifest.read_text(), re.M).group(1).replace("-", "_")
-    archive = target_dir / RUST_TARGET / "release" / f"lib{name}.a"
-    own = [body for member, body in ar_members(archive.read_bytes(), archive.name)
-           if member.endswith(".o") and not member.startswith(RUST_ARCHIVE_SKIP)]
-    if len(own) != 1:
-        raise LinkError(f"{archive.name}: {len(own)} objects of the crate's own; one is needed (fat LTO, one "
-                        "codegen unit)")
-    out.write_bytes(own[0])
+        raise LinkError(f"rustc {what} failed:\n{(done.stdout + done.stderr).strip()}")
+
+
+def rust_sysroot(tools):
+    """A sysroot of our own for i686 (built once a toolchain, in
+    srp-026g/target-arena): core from the toolchain's rust-src with RUSTFLAGS,
+    and the empty compiler_builtins."""
+    version = first_line([tools["rustc"], "--version"])
+    toolchain_root = first_line([tools["rustc"], "--print", "sysroot"])
+    key = hashlib.sha256(repr((version, toolchain_root, RUSTFLAGS, COMPILER_BUILTINS_STUB)).encode()).hexdigest()[:16]
+    root = HERE.parent / "target-arena" / f"sysroot-{key}"
+    lib = root / "lib" / "rustlib" / RUST_TARGET / "lib"
+    if (lib / "libcompiler_builtins.rlib").is_file():
+        return root
+    core = Path(toolchain_root) / "lib" / "rustlib" / "src" / "rust" / "library" / "core" / "src" / "lib.rs"
+    if not core.is_file():
+        raise LinkError(f"{core}: no rust-src in the toolchain (the dev shell's has it)")
+    building = root.with_name(root.name + ".building")
+    shutil.rmtree(building, ignore_errors=True)
+    blib = building / "lib" / "rustlib" / RUST_TARGET / "lib"
+    blib.mkdir(parents=True)
+    remap = [f"--remap-path-prefix={toolchain_root}=rustc"]
+    rustc(tools, ["--edition", RUST_EDITION, "--crate-name", "core", "--crate-type", "rlib", *RUSTFLAGS, *remap,
+                  "-Zforce-unstable-if-unmarked", str(core), "-o", str(blib / "libcore.rlib")], "core")
+    stub = building / "compiler_builtins.rs"
+    stub.write_text(COMPILER_BUILTINS_STUB)
+    rustc(tools, ["--edition", RUST_EDITION, "--crate-name", "compiler_builtins", "--crate-type", "rlib", *RUSTFLAGS,
+                  "--sysroot", str(building), str(stub), "-o", str(blib / "libcompiler_builtins.rlib")],
+          "compiler_builtins")
+    shutil.rmtree(root, ignore_errors=True)
+    building.rename(root)
+    return root
+
+
+def crate_of(manifest):
+    """(the crate's name, its root source, [the manifests it names by path])."""
+    text = manifest.read_text()
+    name = re.search(r'^name\s*=\s*"([^"]+)"', text, re.M).group(1).replace("-", "_")
+    lib = re.search(r'^\[lib\][^\[]*?^path\s*=\s*"([^"]+)"', text, re.M | re.S)
+    deps = [(manifest.parent / d).resolve() / "Cargo.toml" for d in re.findall(r'path\s*=\s*"([^"]+)"', text)
+            if (manifest.parent / d / "Cargo.toml").is_file()]
+    return name, manifest.parent / (lib.group(1) if lib else "src/lib.rs"), deps
+
+
+def build_crate(manifest, tools, out):
+    """The crate's own object of the staticlib `manifest` describes, built by
+    rustc against rust_sysroot(): the crates it names by path as rlibs, then
+    it with fat LTO (one object; the archive's core and compiler_builtins
+    members are left out: a symbol the crate would need from them is an
+    undefined symbol, which the link refuses)."""
+    sysroot = rust_sysroot(tools)
+    toolchain_root = first_line([tools["rustc"], "--print", "sysroot"])
+    remap = [f"--remap-path-prefix={HERE.parent}=srp-026g", f"--remap-path-prefix={toolchain_root}=rustc"]
+    with tempfile.TemporaryDirectory(prefix="srp-rust-") as folder:
+        built, externs = set(), []
+
+        def rlib(path):
+            name, root, deps = crate_of(path)
+            for dep in deps:
+                rlib(dep)
+            if name in built:
+                return
+            built.add(name)
+            target = Path(folder) / f"lib{name}.rlib"
+            rustc(tools, ["--edition", RUST_EDITION, "--crate-name", name, "--crate-type", "rlib", *RUSTFLAGS, *remap,
+                          "--sysroot", str(sysroot), "-L", folder, *externs, str(root), "-o", str(target)], name)
+            externs.extend(["--extern", f"{name}={target}"])
+
+        name, root, deps = crate_of(manifest)
+        for dep in deps:
+            rlib(dep)
+        archive = Path(folder) / f"lib{name}.a"
+        rustc(tools, ["--edition", RUST_EDITION, "--crate-name", name, "--crate-type", "staticlib", *RUSTFLAGS, *remap,
+                      "-C", "lto=fat", "--sysroot", str(sysroot), "-L", folder, *externs, str(root),
+                      "-o", str(archive)], name)
+        own = [body for member, body in ar_members(archive.read_bytes(), archive.name)
+               if member.endswith(".o") and f".{name}." in member]
+        if len(own) != 1:
+            raise LinkError(f"{archive.name}: {len(own)} objects of the crate's own; one is needed (fat LTO, one "
+                            "codegen unit)")
+        out.write_bytes(own[0])
 
 
 def compile_source(source, tools, folder, name):
@@ -339,8 +411,9 @@ def compile_source(source, tools, folder, name):
     if key not in _objects:
         out = Path(folder) / ("obj-" + name)
         if path.name == "Cargo.toml":
-            if "cargo" not in tools:
-                raise LinkError(f"{source}: a Rust crate, and no cargo (`nix develop ./srp-026g` has it)")
+            if "rustc" not in tools:
+                raise LinkError(f"{source}: a Rust crate, and no rustc (`nix develop ./srp-026g` has the "
+                                "nightly with rust-src it needs)")
             build_crate(path, tools, out)
         elif path.suffix == ".asm":
             run([tools["nasm"], "-f", "elf32", "-I", str(path.parent) + os.sep, str(path), "-o", str(out)],

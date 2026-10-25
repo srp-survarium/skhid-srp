@@ -163,18 +163,24 @@ links from source and stops if the bytes are not the lock's. After changing
 an arena source: `python link_026g.py --write` and commit the lock with it.
 
 **A Rust crate as a source** (since patch 74; `../docs/notes/sync_core.md`
-section 6): a block may name a crate's `Cargo.toml`. The link builds it with
-the dev shell's nightly cargo for `i686-unknown-linux-gnu`,
-`-Zbuild-std=core,compiler_builtins`, `-C relocation-model=static -C
-target-cpu=pentium4`, the crate's own `panic = "abort"`, `lto = "fat"`,
-`codegen-units = 1` (into `srp-026g/target-arena/`, paths remapped), takes
-the crate's one object out of the staticlib (its `compiler_builtins` member
-is left out: a symbol the crate would need from it is an undefined symbol,
-which the link refuses) and checks it as any other object. The crate is
-`#![no_std]` with a panic handler of its own (`ud2`), calls the game through
-the engine library's `engine_026g.rs`, and its build's files (the crate,
-the crates it names by path, what it `include!`s) are the source's digest.
-The rustc version is in the lock's `built_with`.
+section 6): a block may name a crate's `Cargo.toml` (its name, its `[lib]`
+path and the crates it names by `path`; nothing else of it is read). The
+link builds it with the dev shell's nightly **rustc alone, offline** (no
+cargo: `-Zbuild-std` resolves the standard library's whole workspace and
+needs crates.io): `core` from the toolchain's rust-src and an empty
+`compiler_builtins`, once a toolchain, into `srp-026g/target-arena/
+sysroot-<key>`; then the path crates as rlibs and the crate as a staticlib,
+all for `i686-unknown-linux-gnu` with `-C relocation-model=static -C
+target-cpu=pentium4 -C opt-level=s -C panic=abort -C codegen-units=1`, fat
+LTO, no debug information, paths remapped. It takes the crate's one object
+out of the archive (a symbol it would need from `compiler_builtins` is an
+undefined symbol, which the link refuses) and checks it as any other
+object. The crate is `#![no_std]` with a panic handler of its own (`ud2`),
+calls the game through the engine library's `engine_026g.rs`, and is
+entered from the game only through a NASM stub that aligns the stack to 16
+(the game's frames are aligned to 4). Its build's files (the crate, the
+crates it names by path, what it `include!`s) are the source's digest. The
+rustc version is in the lock's `built_with`.
 
 **Adding a block:** one `ARENA` row and its source file; `global` the labels
 a hook jumps to, `extern` what it uses of other patches; its hooks as
@@ -3479,7 +3485,9 @@ chain of every step and every input in effect), nine timelines, each run on
 the original's move, the build's move and the hook: the event-horizon item
 of every frame and the whole ring at the end the same in all three, no
 horizon item ever changing after it was the horizon item, every input taken
-or refused alike, the hook popping 4 and keeping the registers;
+or refused alike, the hook popping 4 and keeping the registers, entered
+with the stack at every residue of 16 and calling the Rust code with it
+aligned to 16 (the game's frame is aligned to 4: the NASM entry aligns it);
 `cargo test -p sync-core` (the rule, and that a postponement never lets the
 point near the horizon). **Not run in a game.**
 
