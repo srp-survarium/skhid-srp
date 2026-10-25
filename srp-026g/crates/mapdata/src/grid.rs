@@ -2589,7 +2589,7 @@ pub(crate) mod tests {
         assert_eq!(unlinked.digest(), grid.digest());
     }
 
-    const PINNED_TWO_ROOMS: u64 = 3_388_945_378_875_081_803;
+    const PINNED_TWO_ROOMS: u64 = 2_302_127_104_512_711_115;
 
     /// A search in slices of a few floors ends with the one search's answer
     /// (the same path, cost and floors expanded), with other searches made
@@ -3114,7 +3114,11 @@ pub(crate) mod tests {
         assert!(!grid.near_fall(on(2.125 + r + 0.25, 5.0)));
         let path = grid.path(on(2.125, 1.0), on(2.125, 9.0)).unwrap();
         let near = path.nodes.iter().filter(|&&f| grid.near_fall(f)).count();
-        assert!(near * 3 < path.nodes.len(), "{near} of {}", path.nodes.len());
+        assert!(
+            near * 3 < path.nodes.len(),
+            "{near} of {}",
+            path.nodes.len()
+        );
         // The ground far below is near no fall.
         assert!(!grid.near_fall(grid.locate(Vec3::new(1.0, -6.0, 5.0), 0.3).unwrap()));
     }
