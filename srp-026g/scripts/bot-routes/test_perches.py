@@ -71,6 +71,30 @@ class Clusters(unittest.TestCase):
         self.assertEqual(sum(sizes), 6)
 
 
+class Modes(unittest.TestCase):
+    def lives(self):
+        low = [(t, 0.0, 1.0, 0.0) for t in range(40, 105, 5)]                          # 60 s alive on the low floor
+        batt_perch = life('b', 0, [(60, 50.0, 20.0, 7.0), (65, 50.0, 20.0, 7.0), (70, 50.0, 20.0, 7.0)])
+        tdm_perch = life('t', 0, [(60, 50.0, 20.0, 7.0), (65, 50.0, 20.0, 7.0), (70, 50.0, 20.0, 7.0),
+                                  (100, 50.0, 20.0, 7.0), (105, 50.0, 20.0, 7.0), (110, 50.0, 20.0, 7.0)])
+        return [life('b', 0, low), batt_perch, life('t', 0, low), tdm_perch]
+
+    def test_the_share_is_split_by_mode_with_the_levels_line(self):
+        _, info, stats = P.build_level(1, self.lives(), {'b': 2, 't': 4})
+        # batteries: 10 s on a perch of 70 s alive; TDM: 20 s of 80 s (the 30 s gap is not alive time)
+        self.assertEqual(info['share_batteries'], round(10 / 70, 4))
+        self.assertEqual(info['share_tdm'], 0.25)
+        self.assertEqual(info['share'], round(30 / 150, 4))
+        self.assertEqual(stats['share_batteries'][2], 1)
+        self.assertEqual(list(info), ['level', 'p75', 'share', 'share_batteries', 'share_tdm', 'visits', 'minutes'])
+
+    def test_modes_2_and_3_are_batteries_and_a_mode_without_time_leaves_its_field_out(self):
+        lives = self.lives()
+        _, info, _ = P.build_level(1, lives, {'b': 3, 't': 2})
+        self.assertNotIn('share_tdm', info)
+        self.assertEqual(info['share_batteries'], round(30 / 150, 4))
+
+
 class Table(unittest.TestCase):
     def files(self, d):
         """Five matches of 12 places; every one has a place that stands at the perch (50, 21, 7) for 10 s, and one that walks."""
@@ -112,6 +136,7 @@ class Table(unittest.TestCase):
                          ('level_01', 50.0, 21.0, 7.0, 5, 10.0))
         (row,) = t['perch_maps']
         self.assertEqual((row['level'], row['visits']), ('level_01', 5))
+        self.assertEqual(sorted(row), ['level', 'minutes', 'p75', 'share', 'share_batteries', 'share_tdm', 'visits'])
         self.assertEqual(row['p75'], 0.1, 'the low floor, where most samples are')
         self.assertGreater(perch['rate'], 0.0)
 
