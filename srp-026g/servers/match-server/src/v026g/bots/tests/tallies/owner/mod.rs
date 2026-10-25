@@ -190,17 +190,8 @@ impl OwnerTally {
             self.first_tick = tick;
         }
         let mut rays = 0u64;
-        self.fight.hits.extend(game.hit_log.iter().copied());
-        for &(t, shooter, victim) in &game.hit_log {
-            if let Some(hurt) = self.fight.hurt_by.get_mut(victim) {
-                hurt.retain(|&(who, _)| who != shooter);
-                hurt.push((shooter, t));
-            }
-        }
-        for hurt in &mut self.fight.hurt_by {
-            hurt.retain(|&(_, t)| tick <= t + HURT_MS);
-        }
-        self.jumps.landings.append(&mut game.landings);
+        self.fight_hits_taken(game, tick);
+        self.jumps_landings(game);
         let sight = game.world.sight.clone();
         for place in 0..n {
             let body = &game.bodies[place];
@@ -212,13 +203,7 @@ impl OwnerTally {
                     self.status[place] = status_of(&now.play, step, now.goal_m);
                 }
             }
-            // A death: dry or reloading at it.
-            if prev.alive && !body.alive {
-                self.fight.deaths_dry += u32::from(self.fight.dry[place]);
-                self.fight.deaths_reloading += u32::from(self.fight.last_reload[place].is_some_and(
-                    |(at, until)| at <= tick && tick <= until + RELOAD_AFTER_MS,
-                ));
-            }
+            self.fight_death(place, tick, &prev, body);
             let enemy_near = game.bodies.iter().any(|b| {
                 b.alive && b.team != body.team && b.feet.distance_xz(body.feet) <= CALM_ENEMY_M
             });
@@ -241,210 +226,15 @@ impl OwnerTally {
             let Some(now) = now else {
                 continue;
             };
-            // The bot's ammunition and reloads.
-            self.fight.dry[place] = body.alive && now.dry;
-            if self.fight.dry[place] {
-                self.fight.dry_ticks += 1;
-            }
-            if let Some((at, until)) = now.reload {
-                if self.fight.last_reload[place].is_none_or(|(was, _)| was != at) {
-                    self.fight.reloads_n += 1;
-                    self.fight.reloads.push(Reload {
-                        place,
-                        at,
-                        until,
-                        in_line: false,
-                    });
-                }
-                self.fight.last_reload[place] = Some((at, until));
-                if body.alive && at <= tick && tick < until {
-                    self.fight.reload_ticks += 1;
-                }
-            }
-            // A jump pressed: why, from the bot's watch of it.
-            if body.alive && body.keys & key::JUMP != 0 && prev.keys & key::JUMP == 0 {
-                self.jumps.presses.push(Press {
-                    place,
-                    t: tick,
-                    feet: body.feet,
-                    by: now.jump.map_or("other", |(by, _)| by),
-                    route: now.jump.and_then(|(_, route)| route),
-                    carrying: rec.carrying,
-                });
-            }
-            let enemy = |t: Place| {
-                game.bodies
-                    .get(t)
-                    .filter(|b| t != place && b.alive && b.team != body.team)
-            };
-            if body.alive && body.keys & key::FIRE != 0 {
-                self.fight.fire_move[move_of(&rec)] += 1;
-                // At the target: with a line to him or not.
-                match body.target.and_then(enemy) {
-                    Some(him) => {
-                        self.fight.fire_on_target += 1;
-                        if !in_sight(&sight, body, him, f32::INFINITY, &mut rays) {
-                            self.fight.fire_hidden += 1;
-                        }
-                    }
-                    None => self.fight.fire_no_target += 1,
-                }
-                // By range: the enemy nearest the view.
-                let on = game
-                    .bodies
-                    .iter()
-                    .filter(|b| b.alive && b.team != body.team)
-                    .filter_map(|b| {
-                        let d = b.feet.distance_xz(body.feet);
-                        let off = off_deg(body.yaw, body.feet, b.feet);
-                        ((FIRE_MIN_M..=FIRE_BANDS[4]).contains(&d) && off <= FIRE_ON_DEG)
-                            .then_some((off, d))
-                    })
-                    .min_by(|a, b| a.0.total_cmp(&b.0));
-                if let Some((_, d)) = on {
-                    self.fight.fire.entry(body.gun.class()).or_insert([0; 5])[band_of(d)] += 1;
-                }
-            }
-            // A target switch while an enemy who hurt it is in its line,
-            // not the new target.
-            let target = body.target.filter(|_| body.alive);
-            if let (Some(was), Some(new)) = (self.fight.last_target[place], target)
-                && was != new
-            {
-                self.fight.switches += 1;
-                let hurter_in_line = self.fight.hurt_by[place].iter().any(|&(who, _)| {
-                    who != new
-                        && enemy(who).is_some_and(|him| {
-                            in_sight(&sight, him, body, f32::INFINITY, &mut rays)
-                        })
-                });
-                self.fight.switches_off_hurter += u32::from(hurter_in_line);
-            }
-            self.fight.last_target[place] = target;
+            self.fight_ammo(place, tick, body, now);
+            self.jumps_press(place, tick, body, &prev, now, &rec);
+            self.fight_fire(game, place, body, &rec, &sight, &mut rays);
+            self.fight_switch(game, place, body, &sight, &mut rays);
         }
-        // Hits by the shooter's movement, the range and his weapon class.
-        for &(_, shooter, victim) in &game.hit_log {
-            let (Some(s), Some(v)) = (game.bodies.get(shooter), game.bodies.get(victim)) else {
-                continue;
-            };
-            self.fight.hits_move[self.recs[shooter].last().map_or(0, move_of)] += 1;
-            let band = band_of(s.feet.distance_xz(v.feet));
-            self.fight.hits_band.entry(s.gun.class()).or_insert([0; 5])[band] += 1;
-        }
-        // Kills of enemies, and the lines they make held.
-        if self.campers.kills_seen > 0 && game.kill_log.get(self.campers.kills_seen - 1) != self.campers.last_kill.as_ref() {
-            self.campers.kills_seen = 0;
-        }
-        let new_kills = game.kill_log[self.campers.kills_seen.min(game.kill_log.len())..].to_vec();
-        self.campers.kills_seen = game.kill_log.len();
-        self.campers.last_kill = game.kill_log.last().copied();
-        for (t, shooter, victim) in new_kills {
-            let (Some(s), Some(v)) = (game.bodies.get(shooter), game.bodies.get(victim)) else {
-                continue;
-            };
-            if s.team == v.team {
-                continue;
-            }
-            let kill = Kill {
-                t,
-                shooter,
-                victim,
-                spot: s.feet,
-                at: v.feet,
-                team: v.team,
-            };
-            // A shooter killed holding his spot by one of his victims'
-            // side: from off his killed lanes or not.
-            if let Some(held) = self.campers.spots.iter().find(|h| {
-                h.shooter == victim
-                    && h.team == s.team
-                    && v.feet.distance_xz(h.spot) <= SPOT_HOLD_M
-                    && t <= h.last + RUN_APART_MS
-            }) {
-                let bearing = yaw_of([s.feet.x - held.spot.x, s.feet.z - held.spot.z]);
-                let off = held
-                    .bearings
-                    .iter()
-                    .all(|&w| wrap(w - bearing).abs().to_degrees() >= OFF_LANE_DEG);
-                self.campers.held_kills.push((victim, off));
-            }
-            self.campers.kills.push(kill);
-            self.kill_spot(game, &kill, &sight, &mut rays);
-        }
-        if (((tick - self.first_tick) / TICK_MS) as usize).is_multiple_of(TPS) {
-            self.held_lines(game, &sight, &mut rays);
-        }
-        // Reloads in an enemy's line: once a reload, every 4th tick.
-        if (tick / TICK_MS).is_multiple_of(4) {
-            for reload in &mut self.fight.reloads {
-                if reload.in_line || tick < reload.at || tick >= reload.until {
-                    continue;
-                }
-                let me = &game.bodies[reload.place];
-                if !me.alive {
-                    continue;
-                }
-                reload.in_line = game.bodies.iter().any(|him| {
-                    if !him.alive
-                        || him.team == me.team
-                        || him.feet.distance_xz(me.feet) > RELOAD_LINE_M
-                    {
-                        return false;
-                    }
-                    rays += 2;
-                    sight.visible(Game::eye(me), Game::chest(him))
-                        || sight.visible(Game::eye(him), Game::chest(me))
-                });
-            }
-        }
-        let mut done = Vec::new();
-        self.fight.reloads.retain(|r| {
-            let over = tick > r.at.max(r.until) + RELOAD_DIED_MS;
-            if over {
-                done.push(*r);
-            }
-            !over
-        });
-        for r in done {
-            self.reload_done(&r);
-        }
-        // The grenades going off: who is inside, who walked in, the damage
-        // it would do (the stand-in has none).
-        let mut gone = Vec::new();
-        self.grenades.blasts.retain(|b| {
-            let off = tick >= b.time;
-            if off {
-                gone.push(b.clone());
-            }
-            !off
-        });
-        for blast in gone {
-            let Some(team) = game.bodies.get(blast.thrower).map(|b| b.team) else {
-                continue;
-            };
-            for (place, body) in game.bodies.iter().enumerate() {
-                let d = (Game::chest(body) - blast.at).length();
-                if !body.alive || d > BLAST_M {
-                    continue;
-                }
-                let who = if place == blast.thrower {
-                    0
-                } else if body.team == team {
-                    1
-                } else {
-                    2
-                };
-                self.grenades.blast_in[who] += 1;
-                self.grenades.walked_in[who] += u32::from(!blast.inside.get(place).copied().unwrap_or(false));
-                rays += 1;
-                if !sight.visible(blast.at + Vec3::new(0.0, 0.3, 0.0), Game::chest(body)) {
-                    continue;
-                }
-                let dmg = blast_damage(d);
-                self.grenades.blast_dmg[who] += dmg;
-                self.grenades.blast_kills[who] += u32::from(dmg >= body.health);
-            }
-        }
+        self.fight_hits_scored(game);
+        self.campers_kills(game, &sight, &mut rays, tick);
+        self.fight_reloads(game, &sight, &mut rays, tick);
+        self.grenades_off(game, &sight, &mut rays, tick);
         game.metric_rays += std::mem::take(&mut self.metric_rays) + rays;
     }
 

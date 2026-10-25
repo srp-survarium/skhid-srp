@@ -553,3 +553,25 @@ pub(crate) fn a_stall_at_a_ledge_with_no_press_is_a_missed_jump() {
     assert_eq!(tally.stalls(0, &grid(0.45), &presses), [0, 1, 1]);
     assert_eq!(tally.stalls(0, &grid(1.5), &presses), [0, 0, 1]);
 }
+
+impl OwnerTally {
+    /// The game's landings this tick are taken.
+    pub(super) fn jumps_landings(&mut self, game: &mut Game) {
+        self.jumps.landings.append(&mut game.landings);
+    }
+
+    /// A jump pressed: why, from the bot's watch of it.
+    pub(super) fn jumps_press(&mut self, place: Place, tick: u32, body: &super::super::Body, prev: &Rec, now: &BotNow, rec: &Rec) {
+        // A jump pressed: why, from the bot's watch of it.
+        if body.alive && body.keys & key::JUMP != 0 && prev.keys & key::JUMP == 0 {
+            self.jumps.presses.push(Press {
+                place,
+                t: tick,
+                feet: body.feet,
+                by: now.jump.map_or("other", |(by, _)| by),
+                route: now.jump.and_then(|(_, route)| route),
+                carrying: rec.carrying,
+            });
+        }
+    }
+}

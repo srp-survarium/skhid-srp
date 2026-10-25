@@ -288,3 +288,52 @@ pub(crate) fn a_counter_run_on_a_holder_and_a_holder_killed_off_his_lane_are_cou
     assert_eq!(camper["killed_holding"], 1);
     assert_eq!(camper["killed_off_lane"], 1);
 }
+
+impl OwnerTally {
+    /// The kills this tick, the shooters' held spots, and (once a second) the held lines.
+    pub(super) fn campers_kills(&mut self, game: &Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
+        // Kills of enemies, and the lines they make held.
+        if self.campers.kills_seen > 0 && game.kill_log.get(self.campers.kills_seen - 1) != self.campers.last_kill.as_ref() {
+            self.campers.kills_seen = 0;
+        }
+        let new_kills = game.kill_log[self.campers.kills_seen.min(game.kill_log.len())..].to_vec();
+        self.campers.kills_seen = game.kill_log.len();
+        self.campers.last_kill = game.kill_log.last().copied();
+        for (t, shooter, victim) in new_kills {
+            let (Some(s), Some(v)) = (game.bodies.get(shooter), game.bodies.get(victim)) else {
+                continue;
+            };
+            if s.team == v.team {
+                continue;
+            }
+            let kill = Kill {
+                t,
+                shooter,
+                victim,
+                spot: s.feet,
+                at: v.feet,
+                team: v.team,
+            };
+            // A shooter killed holding his spot by one of his victims'
+            // side: from off his killed lanes or not.
+            if let Some(held) = self.campers.spots.iter().find(|h| {
+                h.shooter == victim
+                    && h.team == s.team
+                    && v.feet.distance_xz(h.spot) <= SPOT_HOLD_M
+                    && t <= h.last + RUN_APART_MS
+            }) {
+                let bearing = yaw_of([s.feet.x - held.spot.x, s.feet.z - held.spot.z]);
+                let off = held
+                    .bearings
+                    .iter()
+                    .all(|&w| wrap(w - bearing).abs().to_degrees() >= OFF_LANE_DEG);
+                self.campers.held_kills.push((victim, off));
+            }
+            self.campers.kills.push(kill);
+            self.kill_spot(game, &kill, sight, rays);
+        }
+        if (((tick - self.first_tick) / TICK_MS) as usize).is_multiple_of(TPS) {
+            self.held_lines(game, sight, rays);
+        }
+    }
+}

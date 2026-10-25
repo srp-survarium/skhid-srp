@@ -109,3 +109,46 @@ pub(crate) fn the_blast_falls_off_to_its_minimum_at_ten_metres() {
     assert!((blast_damage(BLAST_M) - BLAST_MIN).abs() < 1e-6);
     assert_eq!(blast_damage(10.5), 0.0);
 }
+
+impl OwnerTally {
+    /// The grenades going off: who is inside, who walked in, the damage it would do (the stand-in has none).
+    pub(super) fn grenades_off(&mut self, game: &Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
+        // The grenades going off: who is inside, who walked in, the damage
+        // it would do (the stand-in has none).
+        let mut gone = Vec::new();
+        self.grenades.blasts.retain(|b| {
+            let off = tick >= b.time;
+            if off {
+                gone.push(b.clone());
+            }
+            !off
+        });
+        for blast in gone {
+            let Some(team) = game.bodies.get(blast.thrower).map(|b| b.team) else {
+                continue;
+            };
+            for (place, body) in game.bodies.iter().enumerate() {
+                let d = (Game::chest(body) - blast.at).length();
+                if !body.alive || d > BLAST_M {
+                    continue;
+                }
+                let who = if place == blast.thrower {
+                    0
+                } else if body.team == team {
+                    1
+                } else {
+                    2
+                };
+                self.grenades.blast_in[who] += 1;
+                self.grenades.walked_in[who] += u32::from(!blast.inside.get(place).copied().unwrap_or(false));
+                *rays += 1;
+                if !sight.visible(blast.at + Vec3::new(0.0, 0.3, 0.0), Game::chest(body)) {
+                    continue;
+                }
+                let dmg = blast_damage(d);
+                self.grenades.blast_dmg[who] += dmg;
+                self.grenades.blast_kills[who] += u32::from(dmg >= body.health);
+            }
+        }
+    }
+}
