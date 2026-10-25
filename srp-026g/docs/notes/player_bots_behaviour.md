@@ -1263,8 +1263,22 @@ behaviour (the decision digests and the whole bench output but its timings are t
 | `Decisions` (the digest), `Outcome` | `tallies/decisions.rs` |
 | `CarryTally`, `RaidTally`, `BlockTally`, `HitTally`, `RouteTally`, `PushTally`, `HumanTally`, `ZoneSpell` | `tallies/carry.rs`, `raid.rs`, `block.rs`, `hit.rs`, `route.rs`, `push.rs`, `human.rs`, `zone_spell.rs` |
 | `fight_tally.rs` (`FightTally`, `GateTally`, `ReloadTally`) | `tallies/fight_tally.rs` |
-| `owner_tally.rs` (the owner-test counts) | `tallies/owner/`: `fight.rs`, `jumps.rs`, `moving.rs`, `grenades.rs`, `campers.rs`, and `mod.rs` (`OwnerTally`, `Rec`, `step`, `finish`) |
+| `owner_tally.rs` (the owner-test counts) | `tallies/owner/`: `fight.rs`, `jumps.rs`, `moving.rs`, `grenades.rs`, `campers.rs` (each: its counters, its `step` methods, its `*_part` of `finish`, its tests) and `mod.rs` (`OwnerTally`, `Rec`, `step`, `finish`, `Scale`) |
 | `bench_spread.rs` | `bench_spread.rs` |
 | the soaks and whole-match tests (`a_take_waits_for_the_fight_unless_covered`, ...) | `soak.rs`, `soaks.rs` |
 | the scenario tests | `batteries.rs`, `no_way.rs`, `kits.rs`, `world_facts.rs`, `driving.rs`, `walkway.rs`, `fights.rs`, `camper.rs` |
 | `zone_runs`, `pocket_runs`, `arrival_height` | `zone_runs.rs`, `pocket_runs.rs`, `arrival_height.rs` |
+
+### Bots split step 2: where the bot code lives now
+
+`bots/mod.rs` (3,315 lines) kept `Bot`, `Bots`, `new`, `poll`, `think`, `ticks`, `fixed`; the rest moved by name, with no change of behaviour (smoke
+decisions and the whole bench output but its timings are the same). The notes above name `mod.rs`; read them by this table.
+
+| In the notes as | Now in `bots/` |
+|---|---|
+| `drive_tick` (the reflex, the legs, the route walk, the keys), `unstick_step`, `zone_way_out`, `JumpWatch`, `Bot::jump_followed`/`jump_seen`, `jumping`, `weave`, `OFF_ROUTE_M`, `REPLAN_*_M`, `JUMP_HOLD_MS`, `JUMP_WATCH_MS`, `STRAFE_CLEAR_M`, `USE_LOOK_M` | `drive.rs` |
+| the fire gate (`me.carrying.is_none() \|\| intent.let_go`), the zone way-out gate (`!intent.zone_ok`), the straight flag, the exact arrival (`within 0`) in `drive_tick` | `drive.rs` `Gates` (`may_fire`, `wants_zone_way_out`, `straight`, `exact_spot`): one rule each; a new override of a default is one field on `Intent` and one rule there |
+| `Bots::commander`, `TeamState`, `learn_no_way`, `team_no_way` | `commander.rs` |
+| `Bots::facts`, `lost_carrier`, `last_sensed`, `theft_drop`, the `THEFT_*` and `LOOK_SENSED_MS` constants | `facts.rs` |
+| `Searching`, `SearchMemory`, `Pending`, `near_any`, `Bots::go_on_searching`, `long_kept`, `SEARCHES_PER_POLL`, the `NO_WAY_*` constants | `search.rs` |
+| `goal_shut` | `plays/goals.rs` (beside `no_way_near`) |
