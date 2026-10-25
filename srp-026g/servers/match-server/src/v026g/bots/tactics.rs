@@ -588,6 +588,47 @@ impl Tactics {
         bits
     }
 
+    /// Whether a walk over the regions from `from`'s to `to`'s gets there
+    /// with the regions zones on all match mark shut ([`Hazards::fixed_at`],
+    /// as [`Self::past_fixed_zones`]) but those `open` gives open, off another
+    /// side's spawn area: a crossing of such zones is then the only way
+    /// (`crossing::wanted`). Not when it gets there with them shut too (the
+    /// plain search failed for something else), nor when it does not with
+    /// them open. A few thousand regions at most, twice.
+    pub fn only_across_fixed(
+        &self,
+        from: NodeId,
+        to: NodeId,
+        side: Option<i32>,
+        objective: bool,
+        open: impl Fn(NodeId) -> bool,
+    ) -> bool {
+        let regions = &self.base.regions;
+        let (start, goal) = (regions.of(from), regions.of(to));
+        let reach = |pass: &dyn Fn(NodeId) -> bool| {
+            let mut seen = vec![false; regions.len()];
+            seen[start as usize] = true;
+            let mut queue = vec![start];
+            while let Some(a) = queue.pop() {
+                if a == goal {
+                    return true;
+                }
+                for &(b, _) in regions.out(a) {
+                    let middle = regions.middle(b);
+                    if !seen[b as usize]
+                        && (b == goal || (self.spawn_ok(middle, side, objective) && pass(middle)))
+                    {
+                        seen[b as usize] = true;
+                        queue.push(b);
+                    }
+                }
+            }
+            false
+        };
+        !reach(&|middle| !self.hazards.fixed_at(middle))
+            && reach(&|middle| !self.hazards.fixed_at(middle) || open(middle))
+    }
+
     /// Whether `point` is in a spawn area of `side` (any side if `None`).
     pub fn in_spawn_area(&self, point: Vec3, side: Option<i32>) -> bool {
         self.base.in_spawn_area(point, side)

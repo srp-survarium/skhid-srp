@@ -78,15 +78,23 @@ pub fn crossable(tactics: &Tactics, node: NodeId, health: f32) -> bool {
 }
 
 /// Whether the plain search's answer `plain`, from floor `from` to floor
-/// `to`, calls for a crossing's search: on a map with zones on all match,
-/// both ends in one piece of the grid, and no way, or a way much longer than
-/// the line (`stuck::may_be_long`) while the line crosses a floor a bot of
-/// `health` may cross.
+/// `to`, for a body of map side `side` (bound for their base if
+/// `objective`), calls for a crossing's search: on a map with zones on all
+/// match, both ends in one piece of the grid, and
+/// - no way, where the regions say only a crossing of such zones a bot of
+///   `health` may cross gets there (`Tactics::only_across_fixed`): a goal no
+///   way leads to for another reason (another side's spawn area, a zone that
+///   switches, a floor apart) is not searched again;
+/// - or a way much longer than the line (`stuck::may_be_long`) while the
+///   line crosses a floor a bot of `health` may cross.
+#[allow(clippy::too_many_arguments)]
 pub fn wanted(
     tactics: &Tactics,
     plain: Option<&Route>,
     from: NodeId,
     to: NodeId,
+    side: Option<i32>,
+    objective: bool,
     health: f32,
 ) -> bool {
     let grid = &tactics.world.grid;
@@ -95,9 +103,16 @@ pub fn wanted(
     }
     let (a, b) = (grid.position(from), grid.position(to));
     match plain {
-        None => true,
+        None => tactics.only_across_fixed(from, to, side, objective, |middle| {
+            crossable(tactics, middle, health)
+        }),
         Some(route) => {
-            stuck::may_be_long(route.length(), a, b) && line_crosses(tactics, a, b, health)
+            let long =
+                stuck::may_be_long(route.length(), a, b) && line_crosses(tactics, a, b, health);
+            if long {
+                count(Count::Long);
+            }
+            long
         }
     }
 }
@@ -291,11 +306,15 @@ pub enum Count {
     RingWalk,
     /// None, or one not borne or not worth it: the plain answer stands.
     Refused,
+    /// Floors the searches expanded ([`expanded`]).
+    Floors,
+    /// A search wanted for a long plain route (not for none).
+    Long,
 }
 
 #[cfg(test)]
 thread_local! {
-    static COUNTS: std::cell::Cell<[u64; 5]> = const { std::cell::Cell::new([0; 5]) };
+    static COUNTS: std::cell::Cell<[u64; 6]> = const { std::cell::Cell::new([0; 6]) };
 }
 
 /// A crossing's search counted ([`Count`]).
@@ -316,7 +335,7 @@ pub fn count(_: Count) {}
 pub fn expanded(floors: u64) {
     COUNTS.with(|c| {
         let mut n = c.get();
-        n[4] += floors;
+        n[Count::Floors as usize] += floors;
         c.set(n);
     });
 }
@@ -324,9 +343,10 @@ pub fn expanded(floors: u64) {
 #[cfg(not(test))]
 pub fn expanded(_: u64) {}
 
-/// The counts so far: searched, taken, ring walks, refused, floors expanded.
+/// The counts so far, by [`Count`]: searched, taken, ring walks, refused,
+/// floors expanded, wanted for a long route.
 #[cfg(test)]
-pub fn counts() -> [u64; 5] {
+pub fn counts() -> [u64; 6] {
     COUNTS.with(|c| c.get())
 }
 
@@ -385,7 +405,7 @@ mod tests {
         let grid = &tactics.world.grid;
         let (a, b) = (grid.locate(from, 1.5).unwrap(), grid.locate(to, 1.5).unwrap());
         let plain = tactics.route_nodes(a, b, 0, Some(0), false, |_| true);
-        if !wanted(tactics, plain.as_ref(), a, b, health) {
+        if !wanted(tactics, plain.as_ref(), a, b, Some(0), false, health) {
             return (plain, false);
         }
         let mut iters = usize::MAX;
@@ -430,7 +450,7 @@ mod tests {
         let (a, b) = (grid.locate(WEST, 1.5).unwrap(), grid.locate(EAST, 1.5).unwrap());
         let route = plain.route_nodes(a, b, 0, Some(0), false, |_| true);
         assert!(route.is_some());
-        assert!(!wanted(&plain, route.as_ref(), a, b, 1.0));
+        assert!(!wanted(&plain, route.as_ref(), a, b, Some(0), false, 1.0));
     }
 
     /// A bot in a patch ringed by a weak zone on all match (fallen in): out

@@ -1549,7 +1549,7 @@ impl Bots {
             }
             // No way, or a long one past zones on all match: a crossing's
             // search (`crossing.rs`).
-            if crossing::wanted(tactics, route.as_ref(), from, to, health) {
+            if crossing::wanted(tactics, route.as_ref(), from, to, side, objective, health) {
                 match crossing::start(tactics, from, to, time, side, objective, health, floors) {
                     Ok(crossing_route) => {
                         (route, crossed) = crossing::choose(
@@ -2762,7 +2762,15 @@ fn drive_tick(
                     && !escaping
                     && !there
                     && let Some((from, to)) = ends
-                    && crossing::wanted(tactics, route.as_ref(), from, to, me.health)
+                    && crossing::wanted(
+                        tactics,
+                        route.as_ref(),
+                        from,
+                        to,
+                        side,
+                        objective,
+                        me.health,
+                    )
                 {
                     match crossing::start(tactics, from, to, time, side, objective, me.health, floors)
                     {
