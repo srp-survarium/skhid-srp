@@ -6,7 +6,9 @@
 //!   ([`Global`]), a game function ([`GameFn`]) and an import ([`Import`]);
 //!   patch code names offsets once, as `const` fields, and never adds them up;
 //! - [`hook`]: the hook ABI, the Rust side of `rust_hook_026g.inc`: the
-//!   registers a hook entry saved ([`Regs`]).
+//!   registers a hook entry saved ([`Regs`]);
+//! - [`engine`]: the engine-function library's declarations
+//!   (`engine_026g.rs`, generated from `engine_026g.tsv`).
 //!
 //! `no_std`, no allocator. The game's build is link_026g.py's (i686,
 //! opt-level s, panic=abort, fat LTO); the host's is `cargo test`, where what
@@ -17,6 +19,7 @@
 #[cfg(test)]
 extern crate std;
 
+pub mod engine;
 pub mod hook;
 pub mod mem;
 
