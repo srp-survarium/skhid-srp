@@ -66,6 +66,21 @@ active")
   54 makes the active's time left; the hud writes it in. (%s, not `{s}`: the game's localizer (0x1FEF90, every text set_parameterized_message shows) makes `{NAME}` the key of the action NAME (`{USE}`) and any other name nothing, and drops a `}` after a character; the
   owner's first test showed "for  s.".)
 
+## The stock glow (0.26g, static reading)
+
+- The item config's `data/effect` names `gameplay/effects/effect_<name>.options` (the cook
+  0x2EC760): one particle effect, type 114, `time_to_finish` 5.
+- Particle systems and light colours (RGB): Lifebone `human_zhivokost` 0.10 0.77 0.00; Spring
+  `human_spring` 0.00 0.40 1.00; Onyx `human_onix` 1.00 0.48 0.00.
+- Each has 10 emitters on the body; `up_light` makes about 20 point lights a second, each about
+  1.7 s, radius about 1.2, no shadows.
+- The press: `artefact_base::action` 0x313300 (state 3 -> 4) -> 0x313350 ->
+  `game_effect_emitter::emit` 0x329050 / `game_effect_player::add` 0x2DE090 on the carrier.
+- It ends when the state leaves 4 (the calculator 0x313640); the living particles fade.
+- Load: `artefact_base::deserialize` 0x313760 links the effect again, or plays it again for an
+  artefact in state 4: late joiners see it.
+- Patch 54: each copy fired plays its own effect.
+
 ## Your own glow (the owner, 2026-10-25: "you see yourself shining (hands and body if you look
 down) when you use artifact? Note that your vision should still be clear")
 

@@ -4526,3 +4526,55 @@ va	name	location	role	basis
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	EDI	the record copied (124h: path buffer_string +0, '/' +110h, CRC +114h, size +118h, age +11Ch, loading +120h)	observed
 0x000e0210	vostok::render::render_model_instance::destroy	ECX	the model instance whose count (+0D0h) reached 0	observed
 0x000e0210	vostok::render::render_model_instance::destroy	EAX	&its count	observed
+0x0023c050	survarium::game_world_ui::set_player_icon_position	entry ESP+4	the game_world_ui (icon record at +18h * id + 374h: x, y, scale; dirty bit 1 at +389h)	observed
+0x0023c050	survarium::game_world_ui::set_player_icon_position	AL	the icon id	observed
+0x0023c050	survarium::game_world_ui::set_player_icon_position	EDX	float[3]: x, y (pixels), scale	observed
+0x00313200	survarium::artefact_base::tick	ECX	the artefact	observed
+0x00313200	survarium::artefact_base::tick	stack+4	dt ms (taken off the cooldown +28Ch and the spawn time +288h)	observed
+0x00313200	survarium::artefact_base::tick	stack+8	the time (passed to tick_impl, vtable +78h)	observed
+0x00313470	survarium::artefact_base::added_to_inventory	ECX	the artefact (vtable +7Ch enable_passive, state 3)	observed
+0x00313490	survarium::artefact_base::removed_from_inventory	ECX	the artefact (state 4: vtable +88h; then +84h; state 0)	observed
+0x00313530	survarium::artefact_base::end_active	EDI	the artefact (the active ends: amount, or +88h disable_active, cooldown +28Ch, state 3)	observed
+0x002de090	survarium::game_effect_player::add	EDI	the game_effect_player (player+358h)	observed
+0x002de090	survarium::game_effect_player::add	stack+4	the effect pointer (address)	observed
+0x002de090	survarium::game_effect_player::add	stack+8	the time	observed
+0x002de090	survarium::game_effect_player::add	stack+12	0 from 0x313350; role unknown	observed
+0x002de090	survarium::game_effect_player::add	stack+16	2 from 0x313350; role unknown	observed
+0x002de090	survarium::game_effect_player::add	stack+20	the time calculator (artefact+268h)	observed
+0x002dda80	survarium::game_effect_player::resolve_link	stack+4	the game_effect_player	observed
+0x002dda80	survarium::game_effect_player::resolve_link	stack+8	the game_effect_ptr_wrapper just read	observed
+0x00329050	survarium::game_effect_emitter::emit	ESI	the game_effect_emitter	observed
+0x00329050	survarium::game_effect_emitter::emit	EDI	where the effect pointer goes	observed
+0x002e5cf0	survarium::game_effect_ptr_wrapper::deserialize	ESI	the reader	observed
+0x002e5cf0	survarium::game_effect_ptr_wrapper::deserialize	stack+4	the game_effect_ptr_wrapper	observed
+0x002ac290	survarium::particle_game_effect_presenter::play_effect	EAX	the presented player (presenter+8)	observed
+0x002ac290	survarium::particle_game_effect_presenter::play_effect	stack+4	the particle presenter	observed
+0x002ac290	survarium::particle_game_effect_presenter::play_effect	stack+8	the effect entry (18h bytes; +0Ch the particle instance)	observed
+0x002ac310	survarium::particle_game_effect_presenter::update_effect	EAX	the particle presenter	observed
+0x002ac310	survarium::particle_game_effect_presenter::update_effect	stack+4	the effect entry	observed
+0x002ac310	survarium::particle_game_effect_presenter::update_effect	stack+8	the presented player	observed
+0x002ac360	survarium::particle_game_effect_presenter::clear	ECX	the particle presenter	observed
+0x002ac870	survarium::particle_game_effect_presenter::deserialize	ECX	the particle presenter	observed
+0x002ac870	survarium::particle_game_effect_presenter::deserialize	stack+8	the reader	observed
+0x002ac870	survarium::particle_game_effect_presenter::deserialize	stack+12	the game_effect_player	observed
+0x0029a0f0	survarium::particle_game_effect_emitter::particle_game_effect_emitter	ESI	this	observed
+0x0029a0f0	survarium::particle_game_effect_emitter::particle_game_effect_emitter	stack+16	the particle instances (the free pool)	observed
+0x0029a0f0	survarium::particle_game_effect_emitter::particle_game_effect_emitter	stack+20	their count	observed
+0x0029a0f0	survarium::particle_game_effect_emitter::particle_game_effect_emitter	stack+24	the view (+13Ch; config `view`, default 1)	observed
+0x0029a0f0	survarium::particle_game_effect_emitter::particle_game_effect_emitter	stack+28	time_to_finish, f32 (+138h)	observed
+0x0029a0f0	survarium::particle_game_effect_emitter::particle_game_effect_emitter	stack+32	the key frames (+140h)	observed
+0x0029a220	survarium::particle_game_effect_emitter::emit	ECX	the particle_game_effect_emitter	observed
+0x0029a220	survarium::particle_game_effect_emitter::emit	stack+4	the result pointer	observed
+0x002ae1e0	survarium::particle_game_effect::particle_game_effect	ESI	this	observed
+0x002ae1e0	survarium::particle_game_effect::particle_game_effect	stack+16	the particle instance (address; +30h)	observed
+0x002ae1e0	survarium::particle_game_effect::particle_game_effect	stack+20	the view (+34h)	observed
+0x002ae1e0	survarium::particle_game_effect::particle_game_effect	stack+24	time_to_finish, f32 (+38h)	observed
+0x002ae1e0	survarium::particle_game_effect::particle_game_effect	stack+28	the key frames (+3Ch)	observed
+0x0025a540	survarium::particle_game_effect_emitter_cook::translate_query	ECX	the cook	observed
+0x0025a540	survarium::particle_game_effect_emitter_cook::translate_query	stack+4	the query (user data: the config value and the instance count)	observed
+0x002ec760	survarium::game_effect_emitter_cook::translate_query	ECX	the cook	observed
+0x002ec760	survarium::game_effect_emitter_cook::translate_query	stack+4	the query (its name: `%s/effect_%s.options`; count 1 without user data)	observed
+0x002ee650	survarium::artefact_core_cook::on_config_loaded	ECX	the cook	observed
+0x002ee650	survarium::artefact_core_cook::on_config_loaded	stack+4	the query result (the item config; queries data/effect, class 6Dh)	observed
+0x002ee7c0	survarium::artefact_core_cook::on_effect_loaded	ECX	the cook	observed
+0x002ee7c0	survarium::artefact_core_cook::on_effect_loaded	stack+4	the query result (the game effect emitter)	observed
