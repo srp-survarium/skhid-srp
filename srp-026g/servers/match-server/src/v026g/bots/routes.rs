@@ -208,17 +208,23 @@ mod tests {
         std::fs::create_dir_all(&without).unwrap();
         let default = with.join(DEFAULT_FILE);
         std::fs::write(&default, r#"{"format": 2, "routes": []}"#).unwrap();
-        assert_eq!(Source::choose(None, Some(&with)), Source::Default(default.clone()));
+        assert_eq!(
+            Source::choose(None, Some(&with)),
+            Source::Default(default.clone())
+        );
         assert_eq!(Source::choose(None, Some(&without)), Source::Missing);
         assert_eq!(Source::choose(None, None), Source::Missing);
         for off in ["", "off"] {
-            assert_eq!(Source::choose(Some(OsStr::new(off)), Some(&with)), Source::Off);
+            assert_eq!(
+                Source::choose(Some(OsStr::new(off)), Some(&with)),
+                Source::Off
+            );
         }
         assert_eq!(
             Source::choose(Some(OsStr::new("/elsewhere/routes.json")), Some(&with)),
             Source::Set(PathBuf::from("/elsewhere/routes.json"))
         );
-        assert!(RouteTable::load(&default).is_ok_and(|table| table.len() == 0));
+        assert!(RouteTable::load(&default).is_ok_and(|table| table.is_empty()));
         std::fs::remove_file(&default).unwrap();
         std::fs::remove_dir(&without).unwrap();
         std::fs::remove_dir(&with).unwrap();

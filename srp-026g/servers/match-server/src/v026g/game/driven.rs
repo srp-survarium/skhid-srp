@@ -172,25 +172,8 @@ impl Walkers {
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
             let var = std::env::var_os("SRP_BOT_ROUTES");
-            match routes::Source::choose(var.as_deref(), walkers.maps.dir()) {
-                routes::Source::Set(path) => match RouteTable::load(&path) {
-                    Ok(table) => walkers.bots.set_routes(&table),
-                    Err(why) => log::warn!("Match {id:#x}: SRP_BOT_ROUTES not used ({why})"),
-                },
-                routes::Source::Default(path) => match RouteTable::load(&path) {
-                    Ok(table) => walkers.bots.set_routes(&table),
-                    Err(why) => log::warn!("Match {id:#x}: bot routes not used ({why})"),
-                },
-                routes::Source::Off => {}
-                routes::Source::Missing => {
-                    static SAID: std::sync::Once = std::sync::Once::new();
-                    SAID.call_once(|| {
-                        log::info!(
-                            "No bot routes: SRP_BOT_ROUTES unset and no {} in the mapdata folder; the bots roam to the exits",
-                            routes::DEFAULT_FILE
-                        )
-                    });
-                }
+            if let Some(table) = route_table(id, var.as_deref(), walkers.maps.dir()) {
+                walkers.bots.set_routes(&table);
             }
             walkers
         })
@@ -633,5 +616,69 @@ impl Game {
             self.relay_to_others(index, &what, time, now);
             self.inputs.push((time, index, what));
         }
+    }
+}
+
+/// The route table a match's bots get (play 17): `var` is `SRP_BOT_ROUTES`,
+/// `mapdata` the mapdata folder ([`routes::Source::choose`]). A file that
+/// fails to load: a warning; no file: one info line until a restart.
+fn route_table(
+    id: u32,
+    var: Option<&std::ffi::OsStr>,
+    mapdata: Option<&std::path::Path>,
+) -> Option<RouteTable> {
+    let (path, named) = match routes::Source::choose(var, mapdata) {
+        routes::Source::Set(path) => (path, "SRP_BOT_ROUTES"),
+        routes::Source::Default(path) => (path, "bot routes"),
+        routes::Source::Off => return None,
+        routes::Source::Missing => {
+            static SAID: std::sync::Once = std::sync::Once::new();
+            SAID.call_once(|| {
+                log::info!(
+                    "No bot routes: SRP_BOT_ROUTES unset and no {} in the mapdata folder; the bots roam to the exits",
+                    routes::DEFAULT_FILE
+                )
+            });
+            return None;
+        }
+    };
+    match RouteTable::load(&path) {
+        Ok(table) => Some(table),
+        Err(why) => {
+            log::warn!("Match {id:#x}: {named} not used ({why})");
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// With `SRP_BOT_ROUTES` unset a match's bots get the table in the
+    /// mapdata folder; empty or `off`, none; a path, that file.
+    #[test]
+    fn a_match_takes_the_route_table_in_the_mapdata_folder() {
+        let dir = std::env::temp_dir().join(format!("srp-driven-routes-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join(routes::DEFAULT_FILE);
+        std::fs::write(
+            &file,
+            r#"{"format": 2, "routes": [{"level": "level_03", "mode": 2, "team": 1,
+                "lives": 5, "reward": 1.0, "fight": 1.0, "battery": 0.0, "kd": 1.0,
+                "died": 0.2, "points": [[1.0, 2.0], [3.0, 4.0]]}]}"#,
+        )
+        .unwrap();
+        let table = route_table(1, None, Some(&dir)).expect("the mapdata folder's table");
+        let routes = table.for_map(3, 2);
+        assert_eq!(routes.len(), 1);
+        assert_eq!(routes[0].points.len(), 2);
+        assert!(route_table(1, Some("off".as_ref()), Some(&dir)).is_none());
+        assert!(route_table(1, Some("".as_ref()), Some(&dir)).is_none());
+        assert!(route_table(1, Some(file.as_os_str()), None).is_some_and(|t| t.len() == 1));
+        assert!(route_table(1, Some(dir.join("none.json").as_os_str()), Some(&dir)).is_none());
+        std::fs::remove_file(&file).unwrap();
+        assert!(route_table(1, None, Some(&dir)).is_none());
+        std::fs::remove_dir(&dir).unwrap();
     }
 }
