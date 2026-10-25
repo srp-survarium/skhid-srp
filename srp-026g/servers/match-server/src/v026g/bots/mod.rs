@@ -2597,6 +2597,26 @@ fn drive_tick(
             bot.motor.step_to(&pose, at, aim)
         }
         Some(at) => {
+            // Its goal moved while it walks a crossing's zone (a route leg's
+            // next point, a play's new goal): the crossing is walked on till
+            // it is off the zone's floors, then it plans to the new goal. An
+            // escape from inside took the nearest way out instead: on
+            // Mamayev Kurgan's batteries one led down a 4 m drop into a zone
+            // of 0.25 a second (`crossing.rs`).
+            let at = match bot.crossing {
+                Some(crossed)
+                    if crossed.distance_xz(at) > REPLAN_MOVED_M
+                        && bot.route.is_some()
+                        && tactics
+                            .world
+                            .grid
+                            .locate(me.feet, 1.5)
+                            .is_some_and(|node| tactics.hazards.only_fixed_at(node)) =>
+                {
+                    crossed
+                }
+                _ => at,
+            };
             let replan = bot
                 .route
                 .as_ref()
