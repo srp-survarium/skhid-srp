@@ -88,10 +88,14 @@ Game log:  last 20 lines of the newest Survarium*.log in Documents\Survarium
   folders themselves are not written.
 - Dump: saved, or why not, with the Windows error.
 - Game log: the last 20 lines of the newest `Survarium*.log` in
-  Documents\Survarium (its last 8 KiB), through the same credential filter as
-  the ZIP's logs; the file name is not written (it holds the account name).
+  Documents\Survarium (its last 8 KiB), from the first line that starts a
+  record (a cut inside a sensitive record's continuation lines would not be
+  caught), through the same credential filter as the ZIP's logs; the file
+  name is not written (it holds the account name).
 - Every read of the game's memory goes through `ReadProcessMemory`: a
-  damaged pointer gives no line, not a second crash.
+  damaged pointer gives no line, not a second crash. The stack scan reads
+  whole dwords only and stops at a short read. The report is made only after
+  the dump is closed, so nothing in it can cost the dump.
 
 Where it goes: `SRP-crash-…-N.txt` beside the dump (the same name), and into
 the ZIP as `crash.txt`; with no dump, as a new `SRP-crash-…-N.txt` beside the
@@ -210,7 +214,7 @@ A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
   authorization/bearer/basic-auth, token, secret, API/access/session-key, cookie,
   credential, command-line or URL-userinfo markers are replaced with a fixed
   removal notice. Following unframed lines are removed until the next native
-  `channel <level>\t[HH:MM:SS.mmm]\t` or updater `YYYY-MM-DD HH:MM:SS ` record.
+  `channel <level>\t[HH:MM:SS.mmm]\t` (or the game's `[HH:MM:SS:mmm]`) or updater `YYYY-MM-DD HH:MM:SS ` record.
   This deliberately favors omission over retaining ambiguous continuations.
   Unclosed quotes/trailing backslashes in sensitive lines, oversized lines,
   invalid UTF-8, UTF-16/32, NUL/binary/control bytes omit the entire source.
@@ -480,11 +484,12 @@ WINEPREFIX=/path/to/disposable-prefix python3 tests/check_report.py target/i686-
 ```
 
 It redirects that prefix's Documents to a folder with a game log, crashes
-with a null write two calls deep and with an uncaught MSVC-style
-`std::bad_alloc`, and checks the report beside the ZIP and in it: the
+with a null write two calls deep, with an uncaught MSVC-style
+`std::bad_alloc`, and with a null write 400 KB down the stack, ESP 4-aligned
+or not (the scan once hung there), and checks the report beside the ZIP and in it: the
 exception line, the address inside the faulting function as module+offset,
 the caller on the stack scan, the other lines, and the log tail with a
-password's record removed.
+password's record and its continuation removed and the records after it kept.
 
 Run on 2026-10-21 (Linux, Wine, Xvfb), the build with the standard library
 and the C runtime linked in, the C++ probes built with `clang-cl` against the
@@ -499,8 +504,8 @@ and ZIP (7) tests pass.
 
 Run on 2026-10-25 for the crash details (Linux, Wine Staging 11.8, Xvfb; the
 probes built with MinGW g++ 15.3): `check_abi.py`, `check_localization.py`
-(47 dialogs), `check_report.py` (2 crashes) and `check_logs.py` pass; the
-text tests (10) pass; `client/check-reproducible.sh` gives the same DLL
+(47 dialogs), `check_report.py` (4 crashes) and `check_logs.py` pass; the
+text (10) and sanitize (7) tests pass; `client/check-reproducible.sh` gives the same DLL
 twice. `check_dumps.py` was not run: its probe uses MSVC `__try`, which
 MinGW does not build.
 

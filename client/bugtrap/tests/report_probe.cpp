@@ -1,11 +1,13 @@
 // A real, unhandled crash for the text report (tests/check_report.py): a null
 // write two calls deep, or an MSVC-style C++ throw of std::bad_alloc that
-// nothing catches. It prints where its functions are, so the report's
+// nothing catches, or (from the review of PR 459) a null write with the
+// stack 400 KB deep, ESP 4-aligned or not ("deep", "misaligned"). It prints where its functions are, so the report's
 // module+offset and stack can be checked. Builds with MinGW (no __try).
 // Only for a disposable test profile: it redirects that profile's Documents.
 #include <windows.h>
 #include <stdio.h>
 #include <wchar.h>
+#include <malloc.h>
 
 #ifdef _MSC_VER
 #define NOINLINE __declspec(noinline)
@@ -74,5 +76,22 @@ int wmain(int argc, wchar_t** argv)
     Print("fault", (void*)Fault);
     Print("throw", (void*)Throw);
     Print("caller", (void*)Caller);
+    int misaligned = !wcscmp(argv[2], L"misaligned");
+    if (misaligned || !wcscmp(argv[2], L"deep")) {
+        // More than the scan's 256 KiB below the stack's top: with ESP not
+        // 4-aligned, the scan's bound is not either.
+        volatile char* deep = (volatile char*)_alloca(400 * 1024);
+        deep[0] = 1;
+#ifdef _MSC_VER
+        if (misaligned) __asm { sub esp, 2 }
+        __asm { xor eax, eax }
+        __asm { mov dword ptr [eax], 0x5A5A }
+#else
+        if (misaligned)
+            __asm__ volatile("subl $2, %%esp\n\tmovl $0, %%eax\n\tmovl $0x5A5A, (%%eax)" ::: "eax", "memory");
+        else
+            __asm__ volatile("movl $0, %%eax\n\tmovl $0x5A5A, (%%eax)" ::: "eax", "memory");
+#endif
+    }
     return Caller(!wcscmp(argv[2], L"cpp"), nowhere) ? 5 : 6;
 }

@@ -123,3 +123,38 @@ fn failure_after_sensitive_record_is_not_hidden_by_dropped_output() {
     assert!(filter.read(&mut out).unwrap() > 0);
     assert_eq!(filter.read(&mut out), Err(1234));
 }
+#[test]
+fn the_games_own_clock_frames_a_record() {
+    // The game writes [HH:MM:SS:mmm]: after a removed record, the next one
+    // of the game's is kept, its unframed continuation is not.
+    let text = b"game <INFO>\t[12:00:01:000]\tlogin password=SYNTHETIC\r\ncontinued-SYNTHETIC\r\ngame <INFO>\t[12:00:02:000]\tloading level\r\n";
+    let (out, removed) = filter(text, 5).unwrap();
+    let out = String::from_utf8(out).unwrap();
+    assert_eq!(removed, 2);
+    assert!(!out.contains("SYNTHETIC"), "{out}");
+    assert!(
+        out.ends_with("game <INFO>\t[12:00:02:000]\tloading level\r\n"),
+        "{out}"
+    );
+    // Not a clock: other separators, or not digits.
+    let fake = b"game <INFO>\t[12:00:01:000]\tpassword=SYNTHETIC\r\nx <INFO>\t[12:00:02,000]\tSYNTHETIC\r\n";
+    let (out, _) = filter(fake, 5).unwrap();
+    assert!(!out.windows(9).any(|b| b == b"SYNTHETIC"));
+}
+#[test]
+fn a_tail_starts_at_a_record_never_inside_a_continuation() {
+    // A tail cut inside a sensitive record's continuation lines.
+    let tail = b"continued-SYNTHETIC\r\nmore-SYNTHETIC\r\ngame <INFO>\t[12:00:02:000]\tloading level\r\nrender <ERROR>\t[12:00:03:000]\tmissing\r\n";
+    let from = sanitize::from_record(tail);
+    assert!(from.starts_with(b"game <INFO>"));
+    let (out, _) = filter(from, 7).unwrap();
+    assert!(!out.windows(9).any(|b| b == b"SYNTHETIC"));
+    assert!(out.ends_with(b"missing\r\n"));
+    // Updater records count too; nothing framed at all gives nothing.
+    assert!(sanitize::from_record(b"x\n2026-10-18 12:00:00 start\n").starts_with(b"2026-"));
+    assert!(sanitize::from_record(b"only\ncontinuation\n").is_empty());
+    assert_eq!(
+        sanitize::from_record(tail.as_slice()).len(),
+        tail.len() - 37
+    );
+}

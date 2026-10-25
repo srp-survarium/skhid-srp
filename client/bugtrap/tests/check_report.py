@@ -16,11 +16,10 @@ import zipfile
 build = Path(sys.argv[1]).resolve()
 assert os.environ.get("WINEPREFIX"), "set a disposable WINEPREFIX"
 
-# A game log as the game writes it: 30 records, one of them with a password.
-# (The filter frames records by [HH:MM:SS.mmm]; the game writes [HH:MM:SS:mmm],
-# so the records after a removed one go with it: omission, the safe side.)
+# A game log as the game writes it ([HH:MM:SS:mmm]): 30 records, one of them
+# with a password and an unframed continuation line.
 LOG = "".join(
-    f"game <INFO>\t[12:00:{n:02}:000]\t" + ("login password=hunter2" if n == 25 else f"record {n}") + "\r\n"
+    f"game <INFO>\t[12:00:{n:02}:000]\t" + ("login password=hunter2\r\nsecond-hunter2" if n == 25 else f"record {n}") + "\r\n"
     for n in range(1, 31)
 ).encode()
 
@@ -41,7 +40,9 @@ with tempfile.TemporaryDirectory(prefix="srp-report-test-") as temporary:
     docs = root / "Documents"
     (docs / "Survarium").mkdir(parents=True)
     (docs / "Survarium" / "Survarium_tester.log").write_bytes(LOG)
-    for mode in ("write", "cpp"):
+    # deep, misaligned: the review of PR 459, a stack 400 KB deep, ESP not
+    # 4-aligned; the scan once hung there, and the game with it, with no dump.
+    for mode in ("write", "cpp", "deep", "misaligned"):
         before = set(game.iterdir())
         result = subprocess.run(["wine", str(game / "report_probe.exe"), "Z:" + str(docs), mode],
                                 cwd=root, capture_output=True, timeout=60)
@@ -62,18 +63,25 @@ with tempfile.TemporaryDirectory(prefix="srp-report-test-") as temporary:
             assert "\r\nException: 0xC0000005 ACCESS_VIOLATION (write to 0x00000000)\r\n" in text, text
             module, at = offset(text, "Address:")
             assert module == "report_probe.exe" and rva["fault"] <= at < rva["fault"] + 0x40, (at, rva, text)
-        else:
+        elif mode == "cpp":
             assert "\r\nException: 0xE06D7363 C++ exception (.?AVbad_alloc@std@@)\r\n" in text, text
-        # The caller's return address is on the stack scan, as module+offset.
+        else:
+            assert "\r\nException: 0xC0000005 ACCESS_VIOLATION (write to 0x00000000)\r\n" in text, text
+            assert offset(text, "Address:")[0] == "report_probe.exe", text
+            esp = int(re.search(r" ESP=([0-9A-F]{8}) ", text)[1], 16)
+            assert (esp % 4 != 0) == (mode == "misaligned"), (mode, text)
         stack = re.findall(r"report_probe\.exe\+0x([0-9A-F]+)", text.split("Stack:", 1)[1].split("Game:", 1)[0])
-        assert any(rva["caller"] < int(at, 16) < rva["caller"] + 0x80 for at in stack), (stack, rva, text)
+        if mode in ("write", "cpp"):
+            # The caller's return address is on the stack scan, as module+offset.
+            assert any(rva["caller"] < int(at, 16) < rva["caller"] + 0x80 for at in stack), (stack, rva, text)
         assert re.search(r"\r\nThread:    \d+\r\nRegisters: EAX=[0-9A-F]{8} ", text), text
         assert "\r\nGame:      report_probe.exe, patch revision unknown, sha256 " in text, text
         assert re.search(r"\r\nWindows:   \d+\.\d+\.\d+ \(Wine [^)]+\)\r\n", text), text
         assert "\r\nDump:      saved\r\n" in text, text
         # The game log's last 20 lines, the password's record removed.
         tail = text.split("\r\nGame log:  ", 1)[1]
-        assert "record 11\r\n" in tail and "record 24\r\n" in tail and "record 10\r\n" not in tail, tail
+        assert "record 12\r\n" in tail and "record 24\r\n" in tail and "record 30\r\n" in tail, tail
+        assert "record 11\r\n" not in tail, tail  # 31 lines: the 20 last start at record 12
         assert "hunter2" not in text and "[SRP: sensitive log record removed]" in tail, tail
         print(f"PASS {mode}: {text.splitlines()[1]} at {offset(text, 'Address:')[0]}+..., "
               f"{len(stack)} probe frames on the stack, log tail filtered", flush=True)

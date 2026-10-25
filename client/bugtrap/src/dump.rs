@@ -267,15 +267,6 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
     let mut error = ERROR_MOD_NOT_FOUND;
     let mut partial = false;
     let mut capture = false;
-    // A crash's text report: made whatever becomes of the dump.
-    let mut report = crate::report::Report::new();
-    if request.crash {
-        crate::report::collect(
-            &mut report,
-            request.exception.ExceptionPointers,
-            request.exception.ThreadId,
-        );
-    }
     if !library.is_null() {
         if let Some(proc) = GetProcAddress(library, c"MiniDumpWriteDump".as_ptr().cast()) {
             let write_dump: WriteDump = core::mem::transmute(proc);
@@ -307,6 +298,16 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
         }
     }
     let kept = request.saved || partial;
+    // A crash's text report, whatever became of the dump: made only now that
+    // the dump is closed, so no fault or hang in it can cost the dump.
+    let mut report = crate::report::Report::new();
+    if request.crash {
+        crate::report::collect(
+            &mut report,
+            request.exception.ExceptionPointers,
+            request.exception.ThreadId,
+        );
+    }
     crate::report::finish(&mut report, request.saved, partial, error, capture);
     // The text report beside the dump (or, with none, beside the exe or in
     // the temporary folder, and the dialog names it in the dump's place);

@@ -145,6 +145,7 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
                 (EC_LEFTMARGIN | EC_RIGHTMARGIN) as usize,
                 0,
             );
+            tighten(window);
             if data.have_dump {
                 SetDlgItemTextW(window, 1034, data.filename);
                 SetDlgItemTextW(window, 1035, data.folder);
@@ -298,6 +299,93 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
         _ => 0,
     }
 }
+/// The status line has room for four lines; with fewer, everything below it
+/// moves up by what is left over and the dialog is that much shorter.
+unsafe fn tighten(window: HWND) {
+    let message = GetDlgItem(window, 1031);
+    let mut bounds: RECT = core::mem::zeroed();
+    GetWindowRect(message, &mut bounds);
+    MapWindowPoints(null_mut(), window, (&mut bounds as *mut RECT).cast(), 2);
+    let mut text = [0u16; 1024];
+    let n = GetWindowTextW(message, text.as_mut_ptr(), text.len() as i32);
+    let mut needed = RECT {
+        left: 0,
+        top: 0,
+        right: bounds.right - bounds.left,
+        bottom: 0,
+    };
+    let dc = GetDC(message);
+    let old = SelectObject(dc, SendMessageW(message, WM_GETFONT, 0, 0) as HGDIOBJ);
+    DrawTextW(
+        dc,
+        text.as_ptr(),
+        n,
+        &mut needed,
+        DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX,
+    );
+    SelectObject(dc, old);
+    ReleaseDC(message, dc);
+    // A gap of 4 dialog units stays between the status and the details.
+    let mut gap = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 4,
+    };
+    MapDialogRect(window, &mut gap);
+    let slack = bounds.bottom - bounds.top - needed.bottom - gap.bottom;
+    if n == 0 || slack <= 0 {
+        return;
+    }
+    let width = bounds.right - bounds.left;
+    SetWindowPos(
+        message,
+        null_mut(),
+        0,
+        0,
+        width,
+        needed.bottom + gap.bottom,
+        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+    );
+    for id in [
+        1039, 1040, 1042, 1037, 1034, 1038, 1035, 1036, 1033, 1013, 1041, IDCANCEL,
+    ] {
+        let control = GetDlgItem(window, id);
+        if control.is_null() {
+            continue;
+        }
+        let mut r: RECT = core::mem::zeroed();
+        GetWindowRect(control, &mut r);
+        MapWindowPoints(null_mut(), window, (&mut r as *mut RECT).cast(), 2);
+        // The white panel behind the text gets shorter; the rest moves up.
+        let (top, height) = if id == 1039 {
+            (r.top, r.bottom - r.top - slack)
+        } else {
+            (r.top - slack, r.bottom - r.top)
+        };
+        SetWindowPos(
+            control,
+            null_mut(),
+            r.left,
+            top,
+            r.right - r.left,
+            height,
+            SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+    }
+    let mut frame: RECT = core::mem::zeroed();
+    GetWindowRect(window, &mut frame);
+    SetWindowPos(
+        window,
+        null_mut(),
+        frame.left,
+        frame.top + slack / 2,
+        frame.right - frame.left,
+        frame.bottom - frame.top - slack,
+        SWP_NOZORDER | SWP_NOACTIVATE,
+    );
+}
+
 /// Puts `text` on the clipboard as Unicode text.
 unsafe fn copy(window: HWND, text: &[u16]) -> bool {
     const CF_UNICODETEXT: u32 = 13;

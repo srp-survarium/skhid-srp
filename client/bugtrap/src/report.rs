@@ -144,7 +144,10 @@ unsafe fn stack(w: &mut dyn Write, esp: usize) -> usize {
     {
         return 0;
     }
-    let end = (info.BaseAddress as usize + info.RegionSize).min(esp.saturating_add(STACK_BYTES));
+    // Whole dwords only: with an unaligned ESP the 256 KiB bound is unaligned,
+    // and a last read of 1-3 bytes would not move the scan on.
+    let end =
+        (info.BaseAddress as usize + info.RegionSize).min(esp.saturating_add(STACK_BYTES)) & !3;
     // The last region asked about: [start, end) and whether it is image code.
     let mut code = (0usize, 0usize, false);
     let mut found = 0;
@@ -162,7 +165,7 @@ unsafe fn stack(w: &mut dyn Write, esp: usize) -> usize {
             want,
             &mut n,
         ) == 0
-            || n == 0
+            || n < 4
         {
             break;
         }
@@ -540,7 +543,9 @@ unsafe fn log_tail(w: &mut dyn Write) {
             *b = b'?';
         }
     }
-    let lines = details::last_lines(tail, LOG_LINES, from == 0);
+    // From a record's first line: the cut may fall inside the continuation
+    // lines of a sensitive record, which a fresh filter would let through.
+    let lines = crate::sanitize::from_record(details::last_lines(tail, LOG_LINES, from == 0));
     let _ = write!(
         w,
         "Game log:  last {LOG_LINES} lines of the newest Survarium*.log in Documents\\Survarium\r\n"
