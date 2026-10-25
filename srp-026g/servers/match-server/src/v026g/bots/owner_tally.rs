@@ -1,22 +1,33 @@
 //! The bench's counts of what the owner saw in their local test of
-//! 2026-10-25 (private `pvb-343-check/owner-test-analysis`): bots dry or
-//! reloading in a fight, fire at ranges their weapon is poor at, no turn to
-//! a shooter, jumps pressed from a standstill, with forward let go, up
-//! more than a jump makes, again and again at one place; stuck, idle,
-//! drops, U-turns, bodies close or in one another; grenades on their own
-//! side. Each count copies the analysis's definition (its script named at
-//! the count), so a fix can be shown on the bench before a live test.
+//! 2026-10-25 (private `pvb-343-check/owner-test-analysis`):
+//! - fighting: bots dry or reloading in a fight, fire at ranges their
+//!   weapon is poor at, no turn to a shooter; and the misses' causes (fire
+//!   and hits by the shooter's movement, hits by range and weapon class,
+//!   fire at a target out of line, target switches while the one hurting
+//!   the bot is in line);
+//! - jumps: the wrong-jump detector of `jumps.md` §9 (form and outcome
+//!   flags, missed jumps at a ledge);
+//! - moving: the stuck detector of `navigation.md` §2d, idle, drops,
+//!   U-turns, bodies close or in one another;
+//! - grenades on their own side, and bots inside a blast that were outside
+//!   at the throw (the stand-in has no grenade damage: counted only);
+//! - campers (`campers.md`): kills in a run from one spot, a team's deaths
+//!   in a row to one shooter from one spot, bots entering a held line.
 //!
-//! Read from the stand-in game (bodies, keys, shots, hits, landings) and,
-//! where only the bot knows it (its ammunition, its reloads, why it
-//! jumped, its play and goal), from the bot's state; never fed back.
-//! Most counts are worked out at the match's end from a record of every
-//! body every tick ([`Rec`]); those that need rays or the bots' state at
-//! the moment are counted as the match runs.
+//! Each count copies the analysis's definition (its script named at the
+//! count), so a fix can be shown on the bench before a live test. What
+//! the bench cannot see as the game does is said at the count.
+//!
+//! Read from the stand-in game (bodies, keys, shots, hits, kills,
+//! landings) and, where only the bot knows it (its ammunition, its
+//! reloads, why it jumped, its play and step), from the bot's state;
+//! never fed back. Most counts are worked out at the match's end from a
+//! record of every body every tick ([`Rec`]); those that need rays or the
+//! bots' state at the moment are counted as the match runs.
 
 use std::collections::BTreeMap;
 
-use mapdata::Vec3;
+use mapdata::{Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::super::kin::{TICK_S, wrap, yaw_of};
@@ -49,19 +60,107 @@ const HIT_APART_MS: u32 = 3_000;
 const HIT_SIDE_DEG: f32 = 60.0;
 const TURNED_DEG: f32 = 15.0;
 const TURN_MS: u32 = 3_000;
-/// Jumps (`runup.py`, `classify.py`, `jumps.py`): a stand-turn press has a
-/// forward run of at most `STAND_RUN` ticks after at least `STAND_STILL`
-/// ticks with no walk key; forward let go when held at most `LET_GO`
-/// ticks from the press; a jump needs over 1 m (and 1.2 m) of rise; a
-/// series is presses by one bot each within 3 s and 2 m of the last.
-const STAND_RUN: usize = 6;
-const STAND_STILL: usize = 4;
-const LET_GO: usize = 5;
-const NEED_M: [f32; 2] = [1.0, 1.2];
-const SERIES_MS: u32 = 3_000;
-const SERIES_M: f32 = 2.0;
-/// A route jump made: its landing within this under the route's, m.
-const UP_SLACK_M: f32 = 0.3;
+/// The shooter's movement at a fire tick or a hit: in the air (a jump
+/// under way), still (under [`STILL_MPS`] or no walk key), sprinting
+/// (forward and sprint), strafing (a side key, no forward or back),
+/// walking.
+const MOVES: [&str; 5] = ["still", "walk", "sprint", "strafe", "air"];
+const STILL_MPS: f32 = 0.3;
+/// Target switches: an enemy who hit the bot this recently is hurting it,
+/// ms.
+const HURT_MS: u32 = 3_000;
+
+/// The wrong-jump detector (`jumps/detect.py`, `jumps.md` §9, final): its
+/// flags, the second numbers (counted, but alone they make no press
+/// wrong), and the outcome flags (a failed jump).
+const FLAGS: [&str; 16] = [
+    "TOO_LOW",
+    "NO_SPRINT",
+    "PRESSED_LOW",
+    "STAND_TURN",
+    "SHORT_RUNUP",
+    "FWD_RELEASED",
+    "FWD_RELEASED_085",
+    "BACK_SIDE",
+    "IN_PLACE",
+    "REPEAT",
+    "LINK_AGAIN",
+    "NOT_UP",
+    "UP_THEN_DOWN",
+    "PRESSED_UP",
+    "NOT_FREED",
+    "DROPPED",
+];
+const SECOND_NUMBERS: [&str; 2] = ["FWD_RELEASED_085", "LINK_AGAIN"];
+const OUTCOMES: [&str; 7] = [
+    "REPEAT",
+    "LINK_AGAIN",
+    "NOT_UP",
+    "UP_THEN_DOWN",
+    "PRESSED_UP",
+    "NOT_FREED",
+    "DROPPED",
+];
+/// A link's rise a jump makes, m: with sprint (not carrying), without.
+const REACH_M: f32 = 1.30;
+const SPRINTLESS_M: f32 = 1.00;
+/// Pressed this far under the take-off, m.
+const PRESSED_LOW_M: f32 = 0.30;
+/// The run-up: a forward run under this many ticks; with this many still
+/// ticks right before it; gaps of up to this many ticks with no walk key
+/// bridged; looked for this many ticks back.
+const RUN_TICKS: usize = 7;
+const STILL_TICKS: usize = 4;
+const RUN_GAP_TICKS: usize = 2;
+const RUN_LOOK_TICKS: usize = 30;
+/// Forward let go this many ticks after the press, at most (and the second
+/// number's `CARRY_S` 0.85 s).
+const RELEASED_TICKS: usize = 5;
+const CARRY_TICKS: usize = 17;
+/// A press again within this, ms, and this near the last, m.
+const REPEAT_MS: u32 = 3_000;
+const REPEAT_M: f32 = 2.0;
+/// A route link pressed again within this, ms (its take-off and landing
+/// both within [`LINK_M`]).
+const LINK_AGAIN_MS: u32 = 10_000;
+const LINK_M: f32 = 0.3;
+/// Up a link: the feet this close under the landing, m; looked for this
+/// many ticks after the press (0.2-2.2 s), and needing a record this long.
+const UP_SLACK_M: f32 = 0.35;
+const UP_FROM_TICKS: usize = 4;
+const UP_TO_TICKS: usize = 44;
+const UP_SEEN_TICKS: usize = 64;
+/// Up, then down: links rising more than this, m; back on the take-off
+/// within this many ticks, within this of it, m; or the link pressed
+/// again within this, ms.
+const RISE_MIN_M: f32 = 0.4;
+const DOWN_TICKS: usize = 50;
+const DOWN_FAR_M: f32 = 3.5;
+const AGAIN_MS: u32 = 6_000;
+/// Pressed while already up: within this of the landing, m.
+const PRESSED_UP_NEAR_M: f32 = 1.5;
+/// Not freed: the jump watch's 3 s; moved under this when it ended by a
+/// stuck watch or another press, or under [`WENT_ON_M`] when it went on;
+/// or stood at the press and every half second 1.0-3.2 s after.
+const FREED_MS: u32 = 3_000;
+const FREED_M: f32 = 1.0;
+const WENT_ON_M: f32 = 0.5;
+const STOOD_MPS: f32 = 0.6;
+const STOOD_TICKS: (usize, usize) = (20, 64);
+/// Stalls (§9.4): walking forward under this, m/s, moving under this
+/// between seconds, m, for this long, s; a ledge ahead this high (missed
+/// jump; step), this far ahead and at most this to the side, m; missed
+/// when no press came from this before it, ms, or the first came this
+/// late into it, ms.
+const STALL_MPS: f32 = 0.6;
+const STALL_MOVE_M: f32 = 0.5;
+const STALL_S: f32 = 1.8;
+const LEDGES: [(f32, f32); 2] = [(0.6, 1.0), (0.3, 0.6)];
+const LEDGE_AHEAD_M: (f32, f32) = (0.25, 1.1);
+const LEDGE_SIDE_M: f32 = 0.4;
+const MISSED_BEFORE_MS: u32 = 500;
+const MISSED_LATE_MS: u32 = 2_000;
+
 /// Idle (`idle.py`): seconds under 0.3 m moved, walk keys under 30 % of
 /// the ticks, calm; at least 5 of them in a row.
 const IDLE_M: f32 = 0.3;
@@ -88,26 +187,74 @@ const BLAST_M: f32 = 10.0;
 const BLAST_MAX: f32 = 1.3;
 const BLAST_MIN: f32 = 0.05;
 
-/// The stuck detector (`navigation/stuck.py`, the analysis's bench
-/// definition): kinds, the least seconds, the radius about the
-/// positions' middle (m), the least share of ticks with a walk key, the
-/// share of aim or fire under which it counts (none: any), and whether a
-/// hold (no goal to walk to) leaves it out.
-const STUCK_KINDS: [(&str, f32, f32, f32, Option<f32>, bool); 3] = [
-    ("push", 3.0, 0.6, 0.75, None, false),
-    ("nohead", 10.0, 2.5, 0.70, Some(0.35), true),
-    ("loop", 20.0, 8.0, 0.80, Some(0.35), true),
+/// The stuck detector (`navigation/stuck.py`, `navigation.md` §2d, final).
+/// A designed hold's steps (and the Heal play); the steps with a goal to
+/// walk to; the Follow-type steps, a goal only with the leader (the goal)
+/// farther than [`LEADER_FAR_M`].
+const HOLD_STEPS: [&str; 13] = [
+    "Hold", "Holding", "Wait", "Pair", "Pair)", "Staying", "Looking", "Peek", "Trade", "Take",
+    "PutIn", "LetGo", "NoSpot)",
 ];
+const TRAVEL_STEPS: [&str; 14] = [
+    "Going", "Route", "Via", "Fetch)", "Search)", "Search", "Bring", "Bring)", "Approach)",
+    "Approach", "Chase", "Round", "Seek)", "Cut",
+];
+const FOLLOW_STEPS: [&str; 4] = ["Follow", "Follow)", "Behind", "Ahead"];
+const LEADER_FAR_M: f32 = 20.0;
+/// Its window kinds: the least seconds, the radius about the positions'
+/// middle (m), the least share of ticks with a walk key, the share of aim
+/// or fire under which it counts (none: any).
+const STUCK_KINDS: [(&str, f32, f32, f32, Option<f32>); 3] = [
+    ("push", 3.0, 0.6, 0.75, None),
+    ("nohead", 10.0, 2.5, 0.70, Some(0.35)),
+    ("loop", 20.0, 8.0, 0.80, Some(0.35)),
+];
+/// An episode's kind: the first of these it holds.
+const STUCK_ORDER: [&str; 5] = ["push", "nohead", "loop", "stand", "watch"];
 const PUSH_STILL_SPEED: f32 = 0.5;
 const PUSH_OPPOSING_MAX: f32 = 0.25;
 const PUSH_SPEED: f32 = 1.2;
+const NOHEAD_HOLD_MAX: f32 = 0.5;
 const STAND_S: f32 = 10.0;
 const STAND_R: f32 = 0.6;
 const STAND_WALK_MAX: f32 = 0.25;
+const STAND_AIM_MAX: f32 = 0.5;
+const STAND_TRAVEL: f32 = 0.7;
 const LOOP_NET_M: f32 = 4.0;
 const LOOP_PATH_M: f32 = 12.0;
+const LOOP_RISE_M: f32 = 2.5;
+/// The server's stuck watch firing: the body within this of where it was
+/// then, m, with walk keys on this share between samples, for this long.
+const WATCH_M: f32 = 1.0;
+const WATCH_WALK: f32 = 0.5;
+const WATCH_S: f32 = 3.0;
+/// A fight dance (not stuck): aim or fire on this share, median speed
+/// over this, m/s, opposing keys over this share.
+const DANCE_AIM: f32 = 0.5;
+const DANCE_MPS: f32 = 1.2;
+const DANCE_OPPOSING: f32 = 0.25;
 const MERGE_GAP_S: f32 = 2.0;
 const SPAWN_GRACE_S: f32 = 3.0;
+/// Causes: a teammate this near, m; the feet up and down this much, m.
+const MATE_NEAR_M: f32 = 1.2;
+const UP_DOWN_M: f32 = 0.8;
+/// Spots with two or more cases: this across and this in height, m
+/// (`stucktable.py`).
+const SPOT_M: [f32; 2] = [4.0, 2.0];
+
+/// Campers (`campers.md` Q2, Q6 "How a bench would see it"): a shooter's
+/// kills within this of his run's first spot, m, each within this of the
+/// last, ms; a held line reaches the kill's distance and this more, and
+/// at least this, m; an entry is fatal when the shooter kills the bot
+/// within this, ms, and in the killed lane within this of a victim's
+/// bearing, degrees; runs and streaks of this many count.
+const SPOT_HOLD_M: f32 = 8.0;
+const RUN_APART_MS: u32 = 120_000;
+const REACH_PLUS_M: f32 = 15.0;
+const REACH_LEAST_M: f32 = 40.0;
+const FATAL_MS: u32 = 15_000;
+const LANE_DEG: f32 = 15.0;
+const CAMP_RUN: u32 = 3;
 
 /// One body at one tick.
 #[derive(Clone, Copy, Debug, Default)]
@@ -120,25 +267,27 @@ struct Rec {
     speed: f32,
     calm: bool,
     carrying: bool,
-    /// The bot's play (an index into the names), whether it has a goal
-    /// to walk to (not there yet), and none at all (a hold).
+    /// A jump under way.
+    air: bool,
+    /// The bot's play (an index into the names); in a designed hold; in a
+    /// step with a goal to walk to (§2d).
     play: u16,
-    travel: bool,
     hold: bool,
+    travel: bool,
 }
 
 /// What the bench reads of a bot at a tick: out of rounds with nothing
 /// to load, its last reload (start, end), the jump it pressed (why, and
-/// the route's landing for a route jump), its play, whether it has a goal
-/// to walk to (not there yet), and none at all (a hold).
+/// the route's take-off and landing for a route jump), its play, its
+/// play's step (once a second: none between), and how far its goal is.
 #[derive(Clone, Debug, Default)]
 struct BotNow {
     dry: bool,
     reload: Option<(u32, u32)>,
-    jump: Option<(&'static str, Option<Vec3>)>,
+    jump: Option<(&'static str, Option<(Vec3, Vec3)>)>,
     play: String,
-    travel: bool,
-    hold: bool,
+    step: Option<String>,
+    goal_m: Option<f32>,
 }
 
 /// A jump press.
@@ -148,8 +297,9 @@ struct Press {
     t: u32,
     feet: Vec3,
     by: &'static str,
-    /// The route's landing, for a route jump.
-    landing: Option<Vec3>,
+    /// The route's take-off and landing, for a route jump.
+    route: Option<(Vec3, Vec3)>,
+    carrying: bool,
 }
 
 /// A reload under way: its place, start and end, an enemy's line seen
@@ -162,20 +312,74 @@ struct Reload {
     in_line: bool,
 }
 
-/// A grenade let go: the thrower, where it lands, when it goes off.
-#[derive(Clone, Copy, Debug)]
+/// A grenade let go: the thrower, where it lands, when it goes off, and
+/// the bodies inside its radius at the throw.
+#[derive(Clone, Debug)]
 struct Blast {
     thrower: Place,
     at: Vec3,
     time: u32,
+    inside: Vec<bool>,
+}
+
+/// A kill of an enemy: when, by whom, of whom, the shooter's feet, the
+/// victim's, and the victim's team.
+#[derive(Clone, Copy, Debug)]
+struct Kill {
+    t: u32,
+    shooter: Place,
+    victim: Place,
+    spot: Vec3,
+    at: Vec3,
+    team: u8,
+}
+
+/// A shooter holding his kill spot (`zones.py`): from a kill until he
+/// leaves the spot by [`SPOT_HOLD_M`] or [`RUN_APART_MS`] after his last
+/// kill there. The victims' team, the line's reach, the victims'
+/// bearings, and who of the victims' team is in his line now.
+#[derive(Clone, Debug)]
+struct KillSpot {
+    shooter: Place,
+    spot: Vec3,
+    team: u8,
+    last: u32,
+    reach: f32,
+    bearings: Vec<f32>,
+    in_line: Vec<bool>,
+}
+
+/// A bot of the victims' team coming into a held line: when, whose,
+/// which bot, in the killed lane.
+#[derive(Clone, Copy, Debug)]
+struct Entry {
+    t: u32,
+    shooter: Place,
+    place: Place,
+    lane: bool,
+}
+
+/// A stuck episode: its start and end, s; its kinds (the first in
+/// [`STUCK_ORDER`] first); its cause; where.
+#[derive(Clone, Debug)]
+struct Episode {
+    t0: f32,
+    t1: f32,
+    kinds: Vec<&'static str>,
+    cause: &'static str,
+    at: Vec3,
 }
 
 #[derive(Default)]
 pub(super) struct OwnerTally {
     first_tick: u32,
     recs: Vec<Vec<Rec>>,
+    is_bot: Vec<bool>,
     plays: Vec<String>,
     play_index: BTreeMap<String, u16>,
+    /// By place: in a designed hold, in a step with a goal (the last
+    /// step read).
+    status: Vec<(bool, bool)>,
     /// Bot state of the last tick: dry, the last reload's (at, until).
     dry: Vec<bool>,
     last_reload: Vec<Option<(u32, u32)>>,
@@ -187,19 +391,44 @@ pub(super) struct OwnerTally {
     reload_ticks: u64,
     deaths_dry: u32,
     deaths_reloading: u32,
-    /// Fire ticks by weapon class and band.
+    /// Fire ticks by weapon class and band; hits by the same.
     fire: BTreeMap<&'static str, [u32; 5]>,
+    hits_band: BTreeMap<&'static str, [u32; 5]>,
+    /// Fire ticks and hits by the shooter's movement ([`MOVES`]).
+    fire_move: [u32; 5],
+    hits_move: [u32; 5],
+    /// Fire ticks with an enemy target: of them, those with no line from
+    /// the eye to his chest or head; with none.
+    fire_on_target: u32,
+    fire_hidden: u32,
+    fire_no_target: u32,
+    /// By place: the last tick's target, and the enemies who hit it (who,
+    /// when).
+    last_target: Vec<Option<Place>>,
+    hurt_by: Vec<Vec<(Place, u32)>>,
+    switches: u32,
+    switches_off_hurter: u32,
     hits: Vec<(u32, Place, Place)>,
     presses: Vec<Press>,
     landings: Vec<Landing>,
     takes: Vec<Vec<u32>>,
     stuck_notes: Vec<Vec<u32>>,
+    no_way: Vec<Vec<u32>>,
     blasts: Vec<Blast>,
     grenades: u32,
-    /// Blast damage to the thrower, to his teammates, to enemies; and the
-    /// bodies it would have killed of each.
+    /// Blast damage to the thrower, to his teammates, to enemies; the
+    /// bodies it would have killed of each; the bodies inside the radius
+    /// when it went off, and of them those outside at the throw.
     blast_dmg: [f32; 3],
     blast_kills: [u32; 3],
+    blast_in: [u32; 3],
+    walked_in: [u32; 3],
+    /// Enemy kills; the kill log read so far (the events take it).
+    kills: Vec<Kill>,
+    kills_seen: usize,
+    last_kill: Option<(u32, Place, Place)>,
+    spots: Vec<KillSpot>,
+    entries: Vec<Entry>,
     metric_rays: u64,
 }
 
@@ -249,14 +478,129 @@ fn blast_damage(d: f32) -> f32 {
     }
 }
 
+/// The range band of `d` m ([`FIRE_BANDS`]; past the last: the last).
+fn band_of(d: f32) -> usize {
+    FIRE_BANDS.iter().position(|&b| d <= b).unwrap_or(4)
+}
+
+/// The body's movement at a record ([`MOVES`]).
+fn move_of(r: &Rec) -> usize {
+    if r.air {
+        4
+    } else if r.speed < STILL_MPS || r.keys & WALK_KEYS == 0 {
+        0
+    } else if r.keys & key::SPRINT != 0 && r.keys & key::FORWARD != 0 {
+        2
+    } else if r.keys & (key::FORWARD | key::BACK) == 0 {
+        3
+    } else {
+        1
+    }
+}
+
+/// A bot's state by its play and step (§2d): in a designed hold; in a step
+/// with a goal to walk to (a Follow-type one with its goal `goal_m` over
+/// [`LEADER_FAR_M`] away).
+fn status_of(play: &str, step: &str, goal_m: Option<f32>) -> (bool, bool) {
+    let hold = play == "Heal" || HOLD_STEPS.contains(&step);
+    let travel = !hold
+        && (TRAVEL_STEPS.contains(&step)
+            || (FOLLOW_STEPS.contains(&step) && goal_m.is_some_and(|m| m > LEADER_FAR_M)));
+    (hold, travel)
+}
+
+/// Whether some of `him` shows from `me`'s eye within `reach` m (his chest
+/// or his head), the rays cast added to `rays`.
+fn in_sight(
+    sight: &mapdata::RayTree,
+    me: &super::Body,
+    him: &super::Body,
+    reach: f32,
+    rays: &mut u64,
+) -> bool {
+    let eye = Game::eye(me);
+    if (Game::chest(him) - eye).length() > reach {
+        return false;
+    }
+    *rays += 1;
+    if sight.visible(eye, Game::chest(him)) {
+        return true;
+    }
+    *rays += 1;
+    sight.visible(eye, Game::eye(him))
+}
+
+/// The run-up before a press at record `ri` (§9.2): the forward run's
+/// ticks (no back key; gaps of up to [`RUN_GAP_TICKS`] with no walk key
+/// bridged; a strafe or back key ends it), and the ticks with no walk key
+/// right before it, within [`RUN_LOOK_TICKS`] of the press.
+fn run_up(recs: &[Rec], ri: usize) -> (usize, usize) {
+    let lo = ri.saturating_sub(RUN_LOOK_TICKS);
+    let (mut k, mut start, mut gap) = (ri, ri, 0);
+    while k > lo {
+        let keys = recs[k - 1].keys;
+        if keys & key::FORWARD != 0 && keys & key::BACK == 0 {
+            k -= 1;
+            start = k;
+            gap = 0;
+        } else if keys & WALK_KEYS == 0 && gap < RUN_GAP_TICKS {
+            k -= 1;
+            gap += 1;
+        } else {
+            break;
+        }
+    }
+    let (mut k, mut still) = (start, 0);
+    while k > lo && recs[k - 1].keys & WALK_KEYS == 0 {
+        k -= 1;
+        still += 1;
+    }
+    (ri - start, still)
+}
+
+/// A floor `lo`-`hi` m above `feet`, [`LEDGE_AHEAD_M`] ahead along the
+/// facing `yaw` and at most [`LEDGE_SIDE_M`] to its side (`gridprobe`).
+fn ledge_ahead(grid: &WalkGrid, feet: Vec3, yaw: f32, lo: f32, hi: f32) -> bool {
+    let (dx, dz) = (-yaw.sin(), yaw.cos());
+    let r = LEDGE_AHEAD_M.1 + 0.1;
+    grid.floors_in([feet.x - r, feet.z - r, feet.x + r, feet.z + r])
+        .any(|node| {
+            let p = grid.position(node);
+            let (x, z) = (p.x - feet.x, p.z - feet.z);
+            let along = x * dx + z * dz;
+            let side = (x * dz - z * dx).abs();
+            let up = p.y - feet.y;
+            (LEDGE_AHEAD_M.0..=LEDGE_AHEAD_M.1).contains(&along)
+                && side <= LEDGE_SIDE_M
+                && (lo..=hi).contains(&up)
+        })
+}
+
+/// Up a link to `to` at a record `dt` s after the press (§9.3 `NOT_UP`):
+/// alive, the feet within [`UP_SLACK_M`] under the landing (at or over it
+/// in the air), near enough the landing for the time.
+fn is_up(r: &Rec, to: Vec3, dt: f32) -> bool {
+    let feet_up = if r.air {
+        r.feet.y >= to.y
+    } else {
+        r.feet.y >= to.y - UP_SLACK_M
+    };
+    r.alive && feet_up && r.feet.distance_xz(to) <= (1.5 + 3.5 * (dt - 0.6)).min(4.0)
+}
+
 impl OwnerTally {
     pub(super) fn new(n: usize) -> Self {
         Self {
             recs: vec![Vec::new(); n],
+            is_bot: vec![false; n],
+            status: vec![(false, false); n],
             dry: vec![false; n],
             last_reload: vec![None; n],
+            last_target: vec![None; n],
+            hurt_by: vec![Vec::new(); n],
             takes: vec![Vec::new(); n],
             stuck_notes: vec![Vec::new(); n],
+            no_way: vec![Vec::new(); n],
             ..Self::default()
         }
     }
@@ -275,6 +619,9 @@ impl OwnerTally {
     /// bots' state as [`BotNow`], then [`Self::step`].
     pub(super) fn tick(&mut self, game: &mut Game, bots: &Bots) {
         let tick = game.tick;
+        // The step once a second, at the stuck detector's samples.
+        let sample = self.first_tick == 0
+            || ((tick.saturating_sub(self.first_tick) / TICK_MS) as usize).is_multiple_of(TPS);
         let nows: Vec<Option<BotNow>> = bots
             .bots
             .iter()
@@ -282,9 +629,9 @@ impl OwnerTally {
             .map(|(place, bot)| {
                 let bot = bot.as_ref()?;
                 let feet = game.bodies[place].feet;
-                let (travel, hold) = match bot.intent.go {
-                    Go::To { at, within_m } => (feet.distance_xz(at) > within_m, false),
-                    _ => (false, true),
+                let goal_m = match bot.intent.go {
+                    Go::To { at, .. } => Some(feet.distance_xz(at)),
+                    Go::Stay => None,
                 };
                 let watch = bot
                     .jump_watch
@@ -292,13 +639,17 @@ impl OwnerTally {
                 Some(BotNow {
                     dry: bot.reflex.dry(),
                     reload: bot.reflex.reload_note().map(|r| (r.at, r.until)),
-                    jump: watch.map(|w| (w.by, w.route.map(|r| r.landing))),
+                    jump: watch.map(|w| (w.by, w.route.map(|r| (r.take_off, r.landing)))),
                     play: bot
                         .assignment
                         .as_ref()
                         .map_or("none".to_owned(), |a| format!("{:?}", a.kind)),
-                    travel,
-                    hold,
+                    step: sample.then(|| {
+                        bot.running
+                            .as_ref()
+                            .map_or_else(String::new, |r| r.step_name())
+                    }),
+                    goal_m,
                 })
             })
             .collect();
@@ -306,22 +657,39 @@ impl OwnerTally {
     }
 
     /// One tick of the counts with the bots' state `nows` (none: not a
-    /// bot): records the bodies; the bots' ammunition, reloads and jumps;
-    /// fire by range; reloads in a line; the grenades going off. Takes the
-    /// game's landings.
+    /// bot): records the bodies; the bots' ammunition, reloads, jumps and
+    /// targets; fire by range, movement and line; hits; kills and held
+    /// lines; reloads in a line; the grenades going off. Takes the game's
+    /// landings.
     fn step(&mut self, game: &mut Game, nows: &[Option<BotNow>]) {
         let tick = game.tick;
         let n = game.bodies.len();
         if self.first_tick == 0 {
             self.first_tick = tick;
         }
+        let mut rays = 0u64;
         self.hits.extend(game.hit_log.iter().copied());
+        for &(t, shooter, victim) in &game.hit_log {
+            if let Some(hurt) = self.hurt_by.get_mut(victim) {
+                hurt.retain(|&(who, _)| who != shooter);
+                hurt.push((shooter, t));
+            }
+        }
+        for hurt in &mut self.hurt_by {
+            hurt.retain(|&(_, t)| tick <= t + HURT_MS);
+        }
         self.landings.append(&mut game.landings);
         let sight = game.world.sight.clone();
         for place in 0..n {
             let body = &game.bodies[place];
             let now = nows.get(place).and_then(Option::as_ref);
             let prev = self.recs[place].last().copied().unwrap_or_default();
+            if let Some(now) = now {
+                self.is_bot[place] = true;
+                if let Some(step) = &now.step {
+                    self.status[place] = status_of(&now.play, step, now.goal_m);
+                }
+            }
             // A death: dry or reloading at it.
             if prev.alive && !body.alive {
                 self.deaths_dry += u32::from(self.dry[place]);
@@ -333,6 +701,7 @@ impl OwnerTally {
                 b.alive && b.team != body.team && b.feet.distance_xz(body.feet) <= CALM_ENEMY_M
             });
             let play = self.play_id(now.map_or("human".to_owned(), |b| b.play.clone()));
+            let (hold, travel) = self.status[place];
             let rec = Rec {
                 alive: body.alive,
                 keys: body.keys,
@@ -341,9 +710,10 @@ impl OwnerTally {
                 speed: body.step_m / TICK_S,
                 calm: body.keys & (key::AIM | key::FIRE) == 0 && !enemy_near,
                 carrying: body.carrying.is_some(),
+                air: body.flight.is_some() || body.air_until > tick,
                 play,
-                travel: now.is_some_and(|b| b.travel),
-                hold: now.is_none_or(|b| b.hold),
+                hold,
+                travel,
             };
             self.recs[place].push(rec);
             let Some(now) = now else {
@@ -376,11 +746,28 @@ impl OwnerTally {
                     t: tick,
                     feet: body.feet,
                     by: now.jump.map_or("other", |(by, _)| by),
-                    landing: now.jump.and_then(|(_, landing)| landing),
+                    route: now.jump.and_then(|(_, route)| route),
+                    carrying: rec.carrying,
                 });
             }
-            // Fire by range: the enemy nearest the view.
+            let enemy = |t: Place| {
+                game.bodies
+                    .get(t)
+                    .filter(|b| t != place && b.alive && b.team != body.team)
+            };
             if body.alive && body.keys & key::FIRE != 0 {
+                self.fire_move[move_of(&rec)] += 1;
+                // At the target: with a line to him or not.
+                match body.target.and_then(enemy) {
+                    Some(him) => {
+                        self.fire_on_target += 1;
+                        if !in_sight(&sight, body, him, f32::INFINITY, &mut rays) {
+                            self.fire_hidden += 1;
+                        }
+                    }
+                    None => self.fire_no_target += 1,
+                }
+                // By range: the enemy nearest the view.
                 let on = game
                     .bodies
                     .iter()
@@ -393,10 +780,62 @@ impl OwnerTally {
                     })
                     .min_by(|a, b| a.0.total_cmp(&b.0));
                 if let Some((_, d)) = on {
-                    let band = FIRE_BANDS.iter().position(|&b| d <= b).unwrap_or(4);
-                    self.fire.entry(body.gun.class()).or_insert([0; 5])[band] += 1;
+                    self.fire.entry(body.gun.class()).or_insert([0; 5])[band_of(d)] += 1;
                 }
             }
+            // A target switch while an enemy who hurt it is in its line,
+            // not the new target.
+            let target = body.target.filter(|_| body.alive);
+            if let (Some(was), Some(new)) = (self.last_target[place], target)
+                && was != new
+            {
+                self.switches += 1;
+                let hurter_in_line = self.hurt_by[place].iter().any(|&(who, _)| {
+                    who != new
+                        && enemy(who).is_some_and(|him| {
+                            in_sight(&sight, him, body, f32::INFINITY, &mut rays)
+                        })
+                });
+                self.switches_off_hurter += u32::from(hurter_in_line);
+            }
+            self.last_target[place] = target;
+        }
+        // Hits by the shooter's movement, the range and his weapon class.
+        for &(_, shooter, victim) in &game.hit_log {
+            let (Some(s), Some(v)) = (game.bodies.get(shooter), game.bodies.get(victim)) else {
+                continue;
+            };
+            self.hits_move[self.recs[shooter].last().map_or(0, move_of)] += 1;
+            let band = band_of(s.feet.distance_xz(v.feet));
+            self.hits_band.entry(s.gun.class()).or_insert([0; 5])[band] += 1;
+        }
+        // Kills of enemies, and the lines they make held.
+        if self.kills_seen > 0 && game.kill_log.get(self.kills_seen - 1) != self.last_kill.as_ref() {
+            self.kills_seen = 0;
+        }
+        let new_kills = game.kill_log[self.kills_seen.min(game.kill_log.len())..].to_vec();
+        self.kills_seen = game.kill_log.len();
+        self.last_kill = game.kill_log.last().copied();
+        for (t, shooter, victim) in new_kills {
+            let (Some(s), Some(v)) = (game.bodies.get(shooter), game.bodies.get(victim)) else {
+                continue;
+            };
+            if s.team == v.team {
+                continue;
+            }
+            let kill = Kill {
+                t,
+                shooter,
+                victim,
+                spot: s.feet,
+                at: v.feet,
+                team: v.team,
+            };
+            self.kills.push(kill);
+            self.kill_spot(game, &kill, &sight, &mut rays);
+        }
+        if (((tick - self.first_tick) / TICK_MS) as usize).is_multiple_of(TPS) {
+            self.held_lines(game, &sight, &mut rays);
         }
         // Reloads in an enemy's line: once a reload, every 4th tick.
         if (tick / TICK_MS).is_multiple_of(4) {
@@ -415,7 +854,7 @@ impl OwnerTally {
                     {
                         return false;
                     }
-                    self.metric_rays += 2;
+                    rays += 2;
                     sight.visible(Game::eye(me), Game::chest(him))
                         || sight.visible(Game::eye(him), Game::chest(me))
                 });
@@ -432,12 +871,13 @@ impl OwnerTally {
         for r in done {
             self.reload_done(&r);
         }
-        // The grenades going off.
+        // The grenades going off: who is inside, who walked in, the damage
+        // it would do (the stand-in has none).
         let mut gone = Vec::new();
         self.blasts.retain(|b| {
             let off = tick >= b.time;
             if off {
-                gone.push(*b);
+                gone.push(b.clone());
             }
             !off
         });
@@ -450,10 +890,6 @@ impl OwnerTally {
                 if !body.alive || d > BLAST_M {
                     continue;
                 }
-                self.metric_rays += 1;
-                if !sight.visible(blast.at + Vec3::new(0.0, 0.3, 0.0), Game::chest(body)) {
-                    continue;
-                }
                 let who = if place == blast.thrower {
                     0
                 } else if body.team == team {
@@ -461,12 +897,87 @@ impl OwnerTally {
                 } else {
                     2
                 };
+                self.blast_in[who] += 1;
+                self.walked_in[who] += u32::from(!blast.inside.get(place).copied().unwrap_or(false));
+                rays += 1;
+                if !sight.visible(blast.at + Vec3::new(0.0, 0.3, 0.0), Game::chest(body)) {
+                    continue;
+                }
                 let dmg = blast_damage(d);
                 self.blast_dmg[who] += dmg;
                 self.blast_kills[who] += u32::from(dmg >= body.health);
             }
         }
-        game.metric_rays += std::mem::take(&mut self.metric_rays);
+        game.metric_rays += std::mem::take(&mut self.metric_rays) + rays;
+    }
+
+    /// A kill: the shooter's held spot goes on (within [`SPOT_HOLD_M`] of
+    /// it and [`RUN_APART_MS`] of his last kill there), or a new one starts
+    /// with who of the victims' team is in his line now.
+    fn kill_spot(&mut self, game: &Game, kill: &Kill, sight: &mapdata::RayTree, rays: &mut u64) {
+        let bearing = yaw_of([kill.at.x - kill.spot.x, kill.at.z - kill.spot.z]);
+        let reach = ((kill.at - kill.spot).length() + REACH_PLUS_M).max(REACH_LEAST_M);
+        if let Some(held) = self.spots.iter_mut().find(|s| s.shooter == kill.shooter)
+            && held.spot.distance_xz(kill.spot) <= SPOT_HOLD_M
+            && kill.t <= held.last + RUN_APART_MS
+            && held.team == kill.team
+        {
+            held.last = kill.t;
+            held.reach = held.reach.max(reach);
+            held.bearings.push(bearing);
+            return;
+        }
+        self.spots.retain(|s| s.shooter != kill.shooter);
+        let me = &game.bodies[kill.shooter];
+        let in_line = game
+            .bodies
+            .iter()
+            .map(|b| b.alive && b.team == kill.team && in_sight(sight, me, b, reach, rays))
+            .collect();
+        self.spots.push(KillSpot {
+            shooter: kill.shooter,
+            spot: kill.spot,
+            team: kill.team,
+            last: kill.t,
+            reach,
+            bearings: vec![bearing],
+            in_line,
+        });
+    }
+
+    /// Once a second: the held spots still held, and the victims' team's
+    /// bots coming into their lines.
+    fn held_lines(&mut self, game: &Game, sight: &mapdata::RayTree, rays: &mut u64) {
+        let tick = game.tick;
+        let mut spots = std::mem::take(&mut self.spots);
+        spots.retain_mut(|held| {
+            let me = &game.bodies[held.shooter];
+            if !me.alive || me.feet.distance_xz(held.spot) > SPOT_HOLD_M || tick > held.last + RUN_APART_MS {
+                return false;
+            }
+            for (place, b) in game.bodies.iter().enumerate() {
+                if b.team != held.team {
+                    continue;
+                }
+                let seen = b.alive && in_sight(sight, me, b, held.reach, rays);
+                if seen && !held.in_line[place] {
+                    let bearing = yaw_of([b.feet.x - held.spot.x, b.feet.z - held.spot.z]);
+                    let lane = held
+                        .bearings
+                        .iter()
+                        .any(|&w| wrap(w - bearing).abs().to_degrees() <= LANE_DEG);
+                    self.entries.push(Entry {
+                        t: tick,
+                        shooter: held.shooter,
+                        place,
+                        lane,
+                    });
+                }
+                held.in_line[place] = seen;
+            }
+            true
+        });
+        self.spots = spots;
     }
 
     /// A reload over (and the 4 s after its start): in a line, died.
@@ -487,30 +998,248 @@ impl OwnerTally {
         (tick.saturating_sub(self.first_tick) / TICK_MS) as usize
     }
 
-    /// A bot's note: takes, stuck watches, grenades thrown.
+    /// The tick of record index `k`, ms.
+    fn time_of(&self, k: usize) -> u32 {
+        self.first_tick + k as u32 * TICK_MS
+    }
+
+    /// A bot's note: takes, stuck watches, plays ended for no way to the
+    /// goal, grenades thrown.
     pub(super) fn note(&mut self, note: &Note, game: &Game) {
+        let at = |list: &mut Vec<Vec<u32>>| {
+            if let Some(t) = list.get_mut(note.place) {
+                t.push(note.time);
+            }
+        };
         if note.text.starts_with("takes ") {
-            if let Some(t) = self.takes.get_mut(note.place) {
-                t.push(note.time);
-            }
+            at(&mut self.takes);
         } else if note.text.starts_with("is stuck at") {
-            if let Some(t) = self.stuck_notes.get_mut(note.place) {
-                t.push(note.time);
-            }
+            at(&mut self.stuck_notes);
+        } else if note.text.contains("no way to its goal") {
+            at(&mut self.no_way);
         } else if let Some((aim, time)) = thrown_at(&note.text)
             && let Some(body) = game.bodies.get(note.place)
         {
             self.grenades += 1;
             let at = grenade_lands(&game.world.sight, Game::eye(body), aim);
+            let inside = game
+                .bodies
+                .iter()
+                .map(|b| b.alive && (Game::chest(b) - at).length() <= BLAST_M)
+                .collect();
             self.blasts.push(Blast {
                 thrower: note.place,
                 at,
                 time,
+                inside,
             });
         }
     }
 
-    /// The counts, as the `owner-test:` line and the sums' `owner` object.
+    /// The flags of press `i` of `presses` (sorted by place and time),
+    /// `jumps.md` §9.2-9.3.
+    fn press_flags(&self, presses: &[Press], i: usize) -> Vec<&'static str> {
+        let p = &presses[i];
+        let recs = &self.recs[p.place];
+        let mut flags = Vec::new();
+        if recs.is_empty() {
+            return flags;
+        }
+        let ri = self.index(p.t).min(recs.len() - 1);
+        let keys = recs[ri].keys;
+        let forward = keys & key::FORWARD != 0;
+        let walk = keys & WALK_KEYS;
+        let sprint = forward && keys & key::SPRINT != 0;
+        // The same bot's presses before and after this one.
+        let first = presses[..i]
+            .iter()
+            .rposition(|q| q.place != p.place)
+            .map_or(0, |k| k + 1);
+        let before = &presses[first..i];
+        let after = presses[i + 1..].iter().take_while(|q| q.place == p.place);
+        let same_link = |q: &Press| match (p.route, q.route) {
+            (Some((a, b)), Some((c, d))) => (a - c).length() <= LINK_M && (b - d).length() <= LINK_M,
+            _ => false,
+        };
+
+        // Form.
+        if let Some((from, to)) = p.route {
+            let rise = to.y - from.y;
+            if rise > REACH_M || (rise > SPRINTLESS_M && (sprint || p.carrying)) {
+                flags.push("TOO_LOW");
+            } else if rise > SPRINTLESS_M {
+                flags.push("NO_SPRINT");
+            }
+            if from.y - p.feet.y > PRESSED_LOW_M {
+                flags.push("PRESSED_LOW");
+            }
+        }
+        if forward && matches!(p.by, "route" | "hop") {
+            let (run, still) = run_up(recs, ri);
+            if run < RUN_TICKS {
+                flags.push(if still >= STILL_TICKS {
+                    "STAND_TURN"
+                } else {
+                    "SHORT_RUNUP"
+                });
+            }
+        }
+        if forward && p.by == "route" {
+            let off = (ri + 1..recs.len())
+                .position(|k| recs[k].keys & key::FORWARD == 0)
+                .map(|o| o + 1);
+            match off {
+                Some(o) if o <= RELEASED_TICKS => flags.push("FWD_RELEASED"),
+                Some(o) if o <= CARRY_TICKS => flags.push("FWD_RELEASED_085"),
+                _ => {}
+            }
+        }
+        if !forward && walk & (key::BACK | key::LEFT | key::RIGHT) != 0 {
+            flags.push("BACK_SIDE");
+        }
+        if walk == 0 {
+            flags.push("IN_PLACE");
+        }
+
+        // Outcome.
+        if before
+            .last()
+            .is_some_and(|q| p.t <= q.t + REPEAT_MS && p.feet.distance_xz(q.feet) <= REPEAT_M)
+        {
+            flags.push("REPEAT");
+        }
+        if p.route.is_some() && before.iter().any(|q| p.t <= q.t + LINK_AGAIN_MS && same_link(q)) {
+            flags.push("LINK_AGAIN");
+        }
+        if let Some((from, to)) = p.route {
+            let rise = to.y - from.y;
+            let last = recs.len() - 1;
+            let died = (ri..=(ri + UP_TO_TICKS).min(last)).any(|k| !recs[k].alive);
+            let up_at = (ri + UP_FROM_TICKS..=(ri + UP_TO_TICKS).min(last))
+                .find(|&k| is_up(&recs[k], to, (k - ri) as f32 * TICK_S));
+            if up_at.is_none() && !died && ri + UP_SEEN_TICKS <= last {
+                flags.push("NOT_UP");
+            }
+            if rise > RISE_MIN_M {
+                if let Some(u) = up_at {
+                    let link = (to.x - from.x).hypot(to.z - from.z).max(1e-3);
+                    let on_take_off = |r: &Rec| {
+                        let along = ((r.feet.x - from.x) * (to.x - from.x)
+                            + (r.feet.z - from.z) * (to.z - from.z))
+                            / link;
+                        r.alive
+                            && !r.air
+                            && (r.feet.y - from.y).abs() <= UP_SLACK_M
+                            && r.feet.distance_xz(from) <= DOWN_FAR_M
+                            && along <= link
+                    };
+                    let back = (u + 1..=(ri + DOWN_TICKS).min(last)).any(|k| on_take_off(&recs[k]));
+                    let again = after.clone().any(|q| {
+                        q.t <= p.t + AGAIN_MS && same_link(q) && q.feet.y < to.y - UP_SLACK_M
+                    });
+                    if back || again {
+                        flags.push("UP_THEN_DOWN");
+                    }
+                }
+                let r = &recs[ri];
+                if !r.air
+                    && r.feet.y >= to.y - UP_SLACK_M.min(rise / 4.0)
+                    && r.feet.distance_xz(to) <= PRESSED_UP_NEAR_M
+                {
+                    flags.push("PRESSED_UP");
+                }
+            }
+        }
+        if matches!(p.by, "hop" | "unstick") {
+            let moved_at = |t: u32| {
+                recs.get(self.index(t))
+                    .filter(|r| r.alive)
+                    .map(|r| r.feet.distance_xz(p.feet))
+            };
+            let next = after.clone().next().map(|q| q.t).filter(|&t| t <= p.t + FREED_MS);
+            let stuck = self.stuck_notes[p.place]
+                .iter()
+                .copied()
+                .find(|&t| t > p.t && t <= p.t + FREED_MS);
+            let watched = match next.into_iter().chain(stuck).min() {
+                Some(t) => moved_at(t).is_some_and(|m| m < FREED_M),
+                None => moved_at(p.t + FREED_MS).is_some_and(|m| m < WENT_ON_M),
+            };
+            let stood = recs[ri].speed < STOOD_MPS
+                && ri + STOOD_TICKS.1 < recs.len()
+                && (ri + STOOD_TICKS.0..=ri + STOOD_TICKS.1).step_by(TPS / 2).all(|k| {
+                    let r = &recs[k];
+                    r.alive && r.feet.distance_xz(p.feet) <= FREED_M && r.speed < STOOD_MPS
+                });
+            if watched || stood {
+                flags.push("NOT_FREED");
+            }
+        }
+        // No jump came of it: not in the air 100-400 ms after, on the
+        // ground at 400 ms, alive a second on.
+        if ri + TPS < recs.len()
+            && !(ri + 2..ri + 8).any(|k| recs[k].air)
+            && recs[ri + 8].alive
+            && !recs[ri + 8].air
+            && recs[ri + TPS].alive
+        {
+            flags.push("DROPPED");
+        }
+        flags
+    }
+
+    /// One place's stalls at a ledge (§9.4): [missed jumps, stalls at a
+    /// step, stalls]. From a sample a second.
+    fn stalls(&self, place: Place, grid: &WalkGrid, presses: &[Press]) -> [u32; 3] {
+        let recs = &self.recs[place];
+        let samples: Vec<usize> = (0..recs.len() / TPS).map(|s| s * TPS).collect();
+        let ok = |k: usize| {
+            let r = &recs[k];
+            r.alive
+                && !r.air
+                && r.keys & key::FORWARD != 0
+                && r.keys & key::BACK == 0
+                && r.speed < STALL_MPS
+        };
+        let mut out = [0u32; 3];
+        let mut i = 0;
+        while i < samples.len() {
+            if !ok(samples[i]) {
+                i += 1;
+                continue;
+            }
+            let mut j = i;
+            while j + 1 < samples.len()
+                && ok(samples[j + 1])
+                && recs[samples[j]].feet.distance_xz(recs[samples[j + 1]].feet) < STALL_MOVE_M
+            {
+                j += 1;
+            }
+            let (k0, k1) = (samples[i], samples[j]);
+            if (k1 - k0) as f32 * TICK_S >= STALL_S {
+                out[2] += 1;
+                let (t0, t1) = (self.time_of(k0), self.time_of(k1));
+                let pressed = presses
+                    .iter()
+                    .filter(|p| p.place == place && p.t + MISSED_BEFORE_MS >= t0 && p.t <= t1)
+                    .map(|p| p.t)
+                    .min();
+                if pressed.is_none_or(|t| t > t0 + MISSED_LATE_MS) {
+                    let r = &recs[k0];
+                    if let Some(c) = LEDGES
+                        .iter()
+                        .position(|&(lo, hi)| ledge_ahead(grid, r.feet, r.yaw, lo, hi))
+                    {
+                        out[c] += 1;
+                    }
+                }
+            }
+            i = j + 1;
+        }
+        out
+    }
+
+    /// The counts, as the `owner-test` lines and the sums' `owner` object.
     pub(super) fn finish(&mut self, game: &Game) -> (String, serde_json::Value) {
         for r in std::mem::take(&mut self.reloads) {
             self.reload_done(&r);
@@ -519,12 +1248,14 @@ impl OwnerTally {
         let bot = |place: Place| place < n;
         let ticks = self.recs.first().map_or(0, Vec::len);
         let tick_s = TICK_S as f64;
-        let alive_ticks: u64 = self
-            .recs
-            .iter()
-            .map(|r| r.iter().filter(|r| r.alive).count() as u64)
+        let bot_alive_ticks: u64 = (0..n)
+            .filter(|&p| self.is_bot[p])
+            .map(|p| self.recs[p].iter().filter(|r| r.alive).count() as u64)
             .sum();
-        let bot_min = alive_ticks as f64 * tick_s / 60.0;
+        let bot_min = bot_alive_ticks as f64 * tick_s / 60.0;
+        let per_min = |x: f64| if bot_min > 0.0 { (1000.0 * x / bot_min).round() / 1000.0 } else { 0.0 };
+        let pct = |a: f64, b: f64| if b > 0.0 { (1000.0 * a / b).round() / 10.0 } else { 0.0 };
+        let rate = |a: u32, b: u32| if b > 0 { (1000.0 * f64::from(a) / f64::from(b)).round() / 1000.0 } else { 0.0 };
 
         // Turned on the shooter.
         let (mut first_hits, mut hits_side, mut turned, mut died_unturned) = (0u32, 0u32, 0u32, 0u32);
@@ -568,90 +1299,38 @@ impl OwnerTally {
             }
         }
 
-        // Jumps.
-        let mut by_kind: BTreeMap<&str, [u32; 2]> = BTreeMap::new();
-        let (mut need, mut stand_turn, mut still_ticks, mut let_go, mut forward_presses) =
-            ([0u32; 2], 0u32, 0u64, 0u32, 0u32);
-        let (mut route_up, mut route_failed, mut sprint_jumps) = (0u32, 0u32, 0u32);
+        // Jumps: the flags of every press, the stalls.
         let mut presses = self.presses.clone();
         presses.sort_by_key(|p| (p.place, p.t));
-        let (mut series, mut series3, mut in_series) = (0u32, 0u32, 0u32);
-        let mut run: Option<(Place, u32, Vec3, u32)> = None;
-        let mut close_series = |len: u32| {
-            if len >= 2 {
-                series += 1;
-                in_series += len;
+        let mut flag_n: BTreeMap<&str, u32> = FLAGS.iter().map(|&f| (f, 0)).collect();
+        let (mut wrong, mut failed) = (0u32, 0u32);
+        let mut by_kind: BTreeMap<&str, [u32; 2]> = BTreeMap::new();
+        let mut route_landed = [0u32; 2];
+        for (i, p) in presses.iter().enumerate() {
+            let flags = self.press_flags(&presses, i);
+            for &f in &flags {
+                *flag_n.entry(f).or_default() += 1;
             }
-            if len >= 3 {
-                series3 += 1;
-            }
-        };
-        for p in &presses {
-            let recs = &self.recs[p.place];
-            let i = self.index(p.t).min(recs.len().saturating_sub(1));
-            let keys = |k: usize| recs.get(k).map_or(0, |r| r.keys);
-            let forward = keys(i) & key::FORWARD != 0;
+            let is_wrong = flags.iter().any(|f| !SECOND_NUMBERS.contains(f));
+            wrong += u32::from(is_wrong);
+            failed += u32::from(flags.iter().any(|f| OUTCOMES.contains(f) && !SECOND_NUMBERS.contains(f)));
             let entry = by_kind.entry(p.by).or_default();
             entry[0] += 1;
-            entry[1] += u32::from(!forward);
-            // The run-up: forward (not back) ticks right before the press,
-            // and the ticks with no walk key before them.
-            let f = |k: usize| keys(k) & key::FORWARD != 0 && keys(k) & key::BACK == 0;
-            let mut k = i;
-            let mut f_run = 0;
-            while k > 0 && f(k - 1) && f_run < 200 {
-                k -= 1;
-                f_run += 1;
-            }
-            let mut still = 0;
-            while k > 0 && keys(k - 1) & WALK_KEYS == 0 && still < 200 {
-                k -= 1;
-                still += 1;
-            }
-            if p.by == "route" {
-                if f_run <= STAND_RUN && still >= STAND_STILL {
-                    stand_turn += 1;
-                    still_ticks += still as u64;
-                }
-                if let Some(landing) = p.landing {
-                    for (c, m) in need.iter_mut().zip(NEED_M) {
-                        *c += u32::from(landing.y - p.feet.y > m);
-                    }
-                    if let Some(l) = self.landings.iter().find(|l| l.place == p.place && l.at == p.t) {
-                        if l.to.y >= landing.y - UP_SLACK_M {
-                            route_up += 1;
-                        } else {
-                            route_failed += 1;
-                        }
-                    }
-                }
-            }
-            if forward {
-                forward_presses += 1;
-                let held = (i..recs.len()).take_while(|&k| keys(k) & key::FORWARD != 0).count();
-                let_go += u32::from(held <= LET_GO);
-            }
-            // Series.
-            match run {
-                Some((place, t, at, len))
-                    if place == p.place
-                        && p.t <= t + SERIES_MS
-                        && p.feet.distance_xz(at) <= SERIES_M =>
-                {
-                    run = Some((place, p.t, p.feet, len + 1));
-                }
-                _ => {
-                    if let Some((.., len)) = run {
-                        close_series(len);
-                    }
-                    run = Some((p.place, p.t, p.feet, 1));
-                }
+            entry[1] += u32::from(is_wrong);
+            // The honest stand-in's own landing of a route jump: up or not.
+            if let Some((_, to)) = p.route
+                && let Some(l) = self.landings.iter().find(|l| l.place == p.place && l.at == p.t)
+            {
+                route_landed[usize::from(l.to.y < to.y - UP_SLACK_M)] += 1;
             }
         }
-        if let Some((.., len)) = run {
-            close_series(len);
+        let sprint_jumps = self.landings.iter().filter(|l| l.sprint).count() as u32;
+        let mut stalls = [0u32; 3];
+        for place in (0..n).filter(|&p| self.is_bot[p]) {
+            for (c, s) in stalls.iter_mut().zip(self.stalls(place, &game.world.grid, &presses)) {
+                *c += s;
+            }
         }
-        sprint_jumps += self.landings.iter().filter(|l| l.sprint).count() as u32;
 
         // Calm walking and sprinting; idle; drops; U-turns.
         let (mut calm_walk, mut calm_sprint, mut calm_m) = (0u64, 0u64, 0f64);
@@ -768,17 +1447,87 @@ impl OwnerTally {
             }
         }
 
-        // Stuck.
+        // Stuck (bots only).
+        let teams: Vec<u8> = game.bodies.iter().map(|b| b.team).collect();
         let mut stuck: BTreeMap<&str, (u32, f32)> = BTreeMap::new();
-        for place in 0..n {
-            for (t0, t1, kind) in self.stuck_episodes(place) {
-                let e = stuck.entry(kind).or_default();
-                e.0 += 1;
-                e.1 += t1 - t0;
+        let mut stuck_cause: BTreeMap<&str, (u32, f32)> = BTreeMap::new();
+        let mut spots: BTreeMap<(i32, i32, i32), u32> = BTreeMap::new();
+        let mut blips = 0u32;
+        for place in (0..n).filter(|&p| self.is_bot[p]) {
+            let (eps, b) = self.stuck_episodes(place, &teams, &presses);
+            blips += b;
+            for e in eps {
+                for (map, name) in [(&mut stuck, e.kinds[0]), (&mut stuck_cause, e.cause)] {
+                    let c = map.entry(name).or_default();
+                    c.0 += 1;
+                    c.1 += e.t1 - e.t0;
+                }
+                let cell = (
+                    (e.at.x / SPOT_M[0]).floor() as i32,
+                    (e.at.z / SPOT_M[0]).floor() as i32,
+                    (e.at.y / SPOT_M[1]).floor() as i32,
+                );
+                *spots.entry(cell).or_default() += 1;
             }
         }
         let stuck_n: u32 = stuck.values().map(|e| e.0).sum();
         let stuck_s: f32 = stuck.values().map(|e| e.1).sum();
+        let stuck_spots = spots.values().filter(|&&c| c >= 2).count();
+        let round = |m: BTreeMap<&'static str, (u32, f32)>| -> BTreeMap<&'static str, (u32, f32)> {
+            m.into_iter().map(|(k, (c, s))| (k, (c, s.round()))).collect()
+        };
+
+        // Campers: runs of kills from one spot, a team's deaths in a row to
+        // one shooter from one spot, entries into held lines.
+        let in_runs = |groups: BTreeMap<Place, Vec<Kill>>| {
+            let (mut runs, mut kills, mut longest) = (0u32, 0u32, 0u32);
+            for list in groups.values() {
+                let mut run: Option<(Place, Vec3, u32, u32)> = None;
+                let mut close = |run: Option<(Place, Vec3, u32, u32)>| {
+                    if let Some((.., len)) = run {
+                        longest = longest.max(len);
+                        if len >= CAMP_RUN {
+                            runs += 1;
+                            kills += len;
+                        }
+                    }
+                };
+                for k in list {
+                    run = match run {
+                        Some((shooter, spot, last, len))
+                            if shooter == k.shooter
+                                && k.spot.distance_xz(spot) <= SPOT_HOLD_M
+                                && k.t <= last + RUN_APART_MS =>
+                        {
+                            Some((shooter, spot, k.t, len + 1))
+                        }
+                        other => {
+                            close(other);
+                            Some((k.shooter, k.spot, k.t, 1))
+                        }
+                    };
+                }
+                close(run);
+            }
+            (runs, kills, longest)
+        };
+        let mut by_shooter: BTreeMap<Place, Vec<Kill>> = BTreeMap::new();
+        let mut by_team: BTreeMap<Place, Vec<Kill>> = BTreeMap::new();
+        for k in &self.kills {
+            by_shooter.entry(k.shooter).or_default().push(*k);
+            by_team.entry(usize::from(k.team)).or_default().push(*k);
+        }
+        let (camp_runs, camp_run_kills, camp_longest) = in_runs(by_shooter);
+        let (in_row, _, in_row_longest) = in_runs(by_team);
+        let fatal = |e: &Entry| {
+            self.kills
+                .iter()
+                .any(|k| k.shooter == e.shooter && k.victim == e.place && k.t >= e.t && k.t <= e.t + FATAL_MS)
+        };
+        let entries = self.entries.len() as u32;
+        let entries_fatal = self.entries.iter().filter(|e| fatal(e)).count() as u32;
+        let entries_lane = self.entries.iter().filter(|e| e.lane).count() as u32;
+        let entries_lane_fatal = self.entries.iter().filter(|e| e.lane && fatal(e)).count() as u32;
 
         let fire_far: BTreeMap<&str, [u32; 2]> = self
             .fire
@@ -790,8 +1539,21 @@ impl OwnerTally {
             .iter()
             .filter(|(class, _)| matches!(**class, "shotgun" | "smg"))
             .fold([0, 0], |acc, (_, b)| [acc[0] + b.iter().sum::<u32>(), acc[1] + b[3] + b[4]]);
-        let pct = |a: f64, b: f64| if b > 0.0 { (1000.0 * a / b).round() / 10.0 } else { 0.0 };
-        // Two objects: one json! of all of them goes past the macro's
+        let by_move = |v: &[u32; 5]| -> BTreeMap<&str, u32> { MOVES.iter().copied().zip(v.iter().copied()).collect() };
+        let hit_rate_move: BTreeMap<&str, f64> = MOVES
+            .iter()
+            .enumerate()
+            .map(|(i, m)| (*m, rate(self.hits_move[i], self.fire_move[i])))
+            .collect();
+        let hit_rate_class: BTreeMap<&str, Vec<f64>> = self
+            .fire
+            .iter()
+            .map(|(class, fire)| {
+                let hits = self.hits_band.get(class).copied().unwrap_or_default();
+                (*class, (0..5).map(|b| rate(hits[b], fire[b])).collect())
+            })
+            .collect();
+        // Three objects: one json! of all of them goes past the macro's
         // recursion limit.
         let mut json = serde_json::json!({
             "dry_s": (self.dry_ticks as f64 * tick_s).round(),
@@ -804,31 +1566,47 @@ impl OwnerTally {
             "fire_by_class": self.fire,
             "fire_far_by_class": fire_far,
             "fire_far_close_class_pct": pct(fire_near_class[1].into(), fire_near_class[0].into()),
+            "hits_by_class": self.hits_band,
+            "hit_rate_by_class": hit_rate_class,
+            "fire_by_move": by_move(&self.fire_move),
+            "hits_by_move": by_move(&self.hits_move),
+            "hit_rate_by_move": hit_rate_move,
+            "fire_on_target": self.fire_on_target,
+            "fire_hidden": self.fire_hidden,
+            "fire_hidden_pct": pct(self.fire_hidden.into(), self.fire_on_target.into()),
+            "fire_no_target": self.fire_no_target,
+            "target_switches": self.switches,
+            "switches_off_hurter": self.switches_off_hurter,
             "hits_first": first_hits,
             "hits_side": hits_side,
             "turned_3s": turned,
             "turned_3s_pct": pct(turned.into(), hits_side.into()),
             "died_unturned": died_unturned,
-            "presses": self.presses.len(),
-            "presses_by": by_kind,
-            "presses_no_forward": by_kind.values().map(|v| v[1]).sum::<u32>(),
-            "route_need_1m": need[0],
-            "route_need_1_2m": need[1],
-            "route_stand_turn": stand_turn,
-            "route_still_ticks": still_ticks,
-            "f_let_go": let_go,
-            "f_presses": forward_presses,
-            "press_series": series,
-            "press_series_presses": in_series,
-            "press_series_3": series3,
-            "route_up": route_up,
-            "route_failed": route_failed,
-            "sprint_jumps": sprint_jumps,
         });
-        let more = serde_json::json!({
+        let jumps = serde_json::json!({
+            "presses": presses.len(),
+            "presses_by": by_kind,
+            "jump_flags": flag_n,
+            "jumps_wrong": wrong,
+            "jumps_failed": failed,
+            "missed_jump": stalls[0],
+            "stall_at_step": stalls[1],
+            "stalls": stalls[2],
+            "route_landed_up": route_landed[0],
+            "route_landed_down": route_landed[1],
+            "sprint_jumps": sprint_jumps,
             "stuck": stuck_n,
             "stuck_s": stuck_s.round(),
-            "stuck_by": stuck,
+            "stuck_by": round(stuck),
+            "stuck_by_cause": round(stuck_cause),
+            "stuck_per_bot_min": per_min(stuck_n.into()),
+            "stuck_s_per_bot_min": per_min(stuck_s.into()),
+            "stuck_blips": blips,
+            "stuck_blips_per_bot_min": per_min(blips.into()),
+            "stuck_spots_2": stuck_spots,
+            "bot_min": bot_min.round(),
+        });
+        let more = serde_json::json!({
             "calm_walk_s": (calm_walk as f64 * tick_s).round(),
             "calm_sprint_pct": pct(calm_sprint as f64, calm_walk as f64),
             "calm_mps": if calm_walk > 0 { (100.0 * calm_m / (calm_walk as f64 * tick_s)).round() / 100.0 } else { 0.0 },
@@ -838,52 +1616,85 @@ impl OwnerTally {
             "drops_4m": drops[1],
             "uturns": uturns,
             "takes_moving": takes_moving,
-            "uturns_per_bot_min": if bot_min > 0.0 { (1000.0 * f64::from(uturns) / bot_min).round() / 1000.0 } else { 0.0 },
+            "uturns_per_bot_min": per_min(uturns.into()),
             "close_pairs": close_eps,
             "close_pair_s": close_s,
             "one_body": one_eps,
             "one_body_s": (f64::from(one_ticks) * tick_s).round(),
             "grenades": self.grenades,
+            "grenade_damage_applied": false,
             "grenade_self_dmg": (100.0 * self.blast_dmg[0]).round() / 100.0,
             "grenade_mate_dmg": (100.0 * self.blast_dmg[1]).round() / 100.0,
             "grenade_enemy_dmg": (100.0 * self.blast_dmg[2]).round() / 100.0,
             "grenade_kills": self.blast_kills,
+            "grenade_in_radius": self.blast_in,
+            "grenade_walk_ins": self.walked_in,
             "team_kills_gun": game.team_kills,
             "team_hits": game.team_hits,
+            "camper_runs_3": camp_runs,
+            "camper_run_kills": camp_run_kills,
+            "camper_run_longest": camp_longest,
+            "deaths_in_row_3": in_row,
+            "deaths_in_row_longest": in_row_longest,
+            "reentries": entries,
+            "reentries_fatal": entries_fatal,
+            "reentries_lane": entries_lane,
+            "reentries_lane_fatal": entries_lane_fatal,
             "ticks": ticks,
         });
-        if let (Some(all), serde_json::Value::Object(more)) = (json.as_object_mut(), more) {
-            all.extend(more);
+        if let Some(all) = json.as_object_mut() {
+            for part in [jumps, more] {
+                if let serde_json::Value::Object(part) = part {
+                    all.extend(part);
+                }
+            }
         }
+        let flags_set: Vec<String> = flag_n
+            .iter()
+            .filter(|(_, c)| **c > 0)
+            .map(|(f, c)| format!("{f} {c}"))
+            .collect();
         let line = format!(
             "owner-test: dry {} s (deaths {}), reloading {} s (deaths {}), reloads {} in a line {} died {}; fire >=35 m by class {}; side hits {} turned in 3 s {} died unturned {}\n  \
-             owner-test jumps: presses {} by {:?}, no forward {}; route need >1 m {} >=1.2 m {}, stand-turn {} ({} still ticks), up {} failed {}; forward let go {} of {}; series {} ({} presses, {} of 3+); sprint jumps {}\n  \
-             owner-test moves: stuck {} ({:.0} s) {:?}; calm sprint {:.1} % of {:.0} s walking, {:.2} m/s; idle {} s {:?}; drops 2.5-4 m {} >=4 m {}; U-turns {} of {} takes moving ({:.3} a bot-minute); close pairs {} ({} s); one body {} ({:.0} s)\n  \
-             owner-test other: grenades {} damage self {:.2} mates {:.2} enemies {:.2}, would kill {:?}; team kills by gunfire {}, team hits {}",
+             owner-test fight: fire/hits by move {}; hits a fire tick by class and band {}; fire at a target {} out of line {} ({:.1} %), no target {}; target switches {} with the hurter in line {}\n  \
+             owner-test jumps: presses {} by [presses, wrong] {}; wrong {} failed {}; flags {}; missed jumps {} stalls at a step {} (stalls {}); route landings up {} down {}; sprint jumps {}\n  \
+             owner-test moves: stuck {} ({:.0} s, {:.3} a bot-minute) by kind {} by cause {}, blips {}, spots of 2+ {}; calm sprint {:.1} % of {:.0} s walking, {:.2} m/s; idle {} s {}; drops 2.5-4 m {} >=4 m {}; U-turns {} of {} takes moving ({:.3} a bot-minute); close pairs {} ({} s); one body {} ({:.0} s)\n  \
+             owner-test other: grenades {} (no damage in the stand-in) would damage self {:.2} mates {:.2} enemies {:.2}, would kill {:?}, inside at the blast {:?} walked in {:?}; team kills by gunfire {}, team hits {}\n  \
+             owner-test campers: runs of 3+ from one spot {} ({} kills, longest {}); a team's deaths in a row to one shooter's spot, 3+ {} (longest {}); entries into a held line {} fatal {}, in the killed lane {} fatal {}",
             json["dry_s"], self.deaths_dry, json["reload_s"], self.deaths_reloading,
             self.reloads_n, self.reloads_in_line, self.reloads_in_line_died,
             fire_far.iter().map(|(c, v)| format!("{c} {}/{}", v[1], v[0])).collect::<Vec<_>>().join(" "),
             hits_side, turned, died_unturned,
-            self.presses.len(), by_kind, json["presses_no_forward"], need[0], need[1], stand_turn, still_ticks,
-            route_up, route_failed, let_go, forward_presses, series, in_series, series3, sprint_jumps,
-            stuck_n, stuck_s, stuck,
+            MOVES.iter().enumerate().map(|(i, m)| format!("{m} {}/{}", self.fire_move[i], self.hits_move[i])).collect::<Vec<_>>().join(" "),
+            json["hit_rate_by_class"], self.fire_on_target, self.fire_hidden,
+            json["fire_hidden_pct"].as_f64().unwrap_or(0.0), self.fire_no_target,
+            self.switches, self.switches_off_hurter,
+            presses.len(), json["presses_by"], wrong, failed, flags_set.join(", "),
+            stalls[0], stalls[1], stalls[2], route_landed[0], route_landed[1], sprint_jumps,
+            stuck_n, stuck_s, json["stuck_per_bot_min"].as_f64().unwrap_or(0.0),
+            json["stuck_by"], json["stuck_by_cause"], blips, stuck_spots,
             json["calm_sprint_pct"].as_f64().unwrap_or(0.0), calm_walk as f64 * tick_s, json["calm_mps"].as_f64().unwrap_or(0.0),
             idle_s, json["idle_by_play"], drops[0] - drops[1], drops[1],
             uturns, takes_moving, json["uturns_per_bot_min"].as_f64().unwrap_or(0.0),
             close_eps, close_s, one_eps, f64::from(one_ticks) * tick_s,
             self.grenades, self.blast_dmg[0], self.blast_dmg[1], self.blast_dmg[2], self.blast_kills,
+            self.blast_in, self.walked_in,
             game.team_kills, game.team_hits,
+            camp_runs, camp_run_kills, camp_longest, in_row, in_row_longest,
+            entries, entries_fatal, entries_lane, entries_lane_fatal,
         );
         (line, json)
     }
 
-    /// One place's stuck episodes (`stuck.py` `detect` and `merge`): from
-    /// a sample a second of each life (broken where the body moves over
-    /// 25 m in one), the windows of each kind, merged when under 2 s apart.
-    /// Each episode's start and end, s, and its first kind.
-    fn stuck_episodes(&self, place: Place) -> Vec<(f32, f32, &'static str)> {
+    /// One bot's stuck episodes (`stuck.py`, `navigation.md` §2d) and its
+    /// blips (stuck watches in no episode). From a sample a second of each
+    /// life (a life breaks at a death, or where the body moves over 25 m
+    /// in a second: a new spawn), the windows of each kind, merged when at
+    /// most 2 s apart; each episode's cause. The bench has no start
+    /// countdown, so nothing is left out at the start.
+    fn stuck_episodes(&self, place: Place, teams: &[u8], presses: &[Press]) -> (Vec<Episode>, u32) {
         let recs = &self.recs[place];
-        let secs: Vec<usize> = (0..recs.len() / TPS).map(|s| s * TPS + TPS - 1).collect();
+        let secs: Vec<usize> = (0..recs.len() / TPS).map(|s| s * TPS).collect();
         // Lives: runs of living samples.
         let mut lives: Vec<Vec<usize>> = Vec::new();
         let mut cur: Vec<usize> = Vec::new();
@@ -904,11 +1715,13 @@ impl OwnerTally {
         if !cur.is_empty() {
             lives.push(cur);
         }
-        let t_of = |k: usize| (self.first_tick as f32 + k as f32 * TICK_MS as f32) / 1000.0;
+        let t_of = |k: usize| self.time_of(k) as f32 / 1000.0;
         let share = |k0: usize, k1: usize, test: &dyn Fn(&Rec) -> bool| {
             let n = (k1 - k0 + 1) as f32;
             recs[k0..=k1].iter().filter(|r| test(r)).count() as f32 / n
         };
+        let walking = |r: &Rec| r.keys & WALK_KEYS != 0;
+        let aiming = |r: &Rec| r.keys & (key::AIM | key::FIRE) != 0;
         let opposing = |k0: usize, k1: usize| {
             let (mut n, mut c) = (0u32, [0u32; 4]);
             for r in &recs[k0..=k1] {
@@ -925,9 +1738,15 @@ impl OwnerTally {
                 (c[0].min(c[1]) + c[2].min(c[3])) as f32 / n as f32
             }
         };
-        let stuck_line = |k0: usize, k1: usize| {
-            let (t0, t1) = (t_of(k0) * 1000.0, t_of(k1) * 1000.0 + 1500.0);
-            self.stuck_notes[place].iter().any(|&t| (t as f32) >= t0 && (t as f32) <= t1)
+        let median_speed = |pts: &[usize]| {
+            let mut sp: Vec<f32> = pts.iter().map(|&k| recs[k].speed).collect();
+            sp.sort_by(f32::total_cmp);
+            (sp[(sp.len() - 1) / 2] + sp[sp.len() / 2]) / 2.0
+        };
+        let stuck_line = |t0: f32, t1: f32| {
+            self.stuck_notes[place]
+                .iter()
+                .any(|&t| (t as f32) >= t0 * 1000.0 && (t as f32) <= t1 * 1000.0)
         };
         let radius = |pts: &[usize]| {
             let n = pts.len() as f32;
@@ -937,110 +1756,190 @@ impl OwnerTally {
                 .map(|&k| (recs[k].feet.x - cx).hypot(recs[k].feet.z - cz))
                 .fold(0.0, f32::max)
         };
-        let mut marks: Vec<(f32, f32, &'static str)> = Vec::new();
+        // Windows: start, end (record indexes), kind.
+        let mut marks: Vec<(usize, usize, &'static str)> = Vec::new();
         for life in &lives {
             let n = life.len();
             let t_spawn = t_of(life[0]);
+            // The smallest window from `i` of `secs` s, extended while
+            // `ok` holds.
+            let window = |i: usize, secs: f32, ok: &dyn Fn(usize) -> bool| -> Option<usize> {
+                let mut j = i;
+                while j < n && t_of(life[j]) - t_of(life[i]) < secs {
+                    j += 1;
+                }
+                if j >= n || j - i + 1 < 3 || !ok(j) {
+                    return None;
+                }
+                while j + 1 < n && ok(j + 1) {
+                    j += 1;
+                }
+                Some(j)
+            };
             for i in 0..n {
-                for &(name, dmin, rmax, wmin, amax, holdx) in &STUCK_KINDS {
+                for &(name, dmin, rmax, wmin, amax) in &STUCK_KINDS {
                     let ok = |j: usize| -> bool {
                         let pts = &life[i..=j];
-                        if radius(pts) > rmax {
-                            return false;
-                        }
-                        if name == "loop" {
-                            let (a, b) = (recs[pts[0]].feet, recs[pts[pts.len() - 1]].feet);
-                            let path: f32 = pts.windows(2).map(|w| recs[w[0]].feet.distance_xz(recs[w[1]].feet)).sum();
-                            if a.distance_xz(b) > LOOP_NET_M || path < LOOP_PATH_M {
-                                return false;
-                            }
-                        }
                         let (k0, k1) = (pts[0], pts[pts.len() - 1]);
-                        if share(k0, k1, &|r: &Rec| r.keys & WALK_KEYS != 0) < wmin {
+                        if radius(pts) > rmax || share(k0, k1, &walking) < wmin {
                             return false;
                         }
-                        if let Some(amax) = amax
-                            && share(k0, k1, &|r: &Rec| r.keys & (key::AIM | key::FIRE) != 0) >= amax
-                        {
+                        if amax.is_some_and(|amax| share(k0, k1, &aiming) >= amax) {
                             return false;
                         }
-                        if holdx {
-                            let held = pts.iter().filter(|&&k| recs[k].hold).count() as f32 / pts.len() as f32;
-                            if held >= if name == "nohead" { 0.5 } else { 1e-9 } {
-                                return false;
+                        let held = pts.iter().filter(|&&k| recs[k].hold).count() as f32 / pts.len() as f32;
+                        match name {
+                            "push" => {
+                                let med = median_speed(pts);
+                                med <= PUSH_STILL_SPEED
+                                    || (opposing(k0, k1) <= PUSH_OPPOSING_MAX
+                                        && (med <= PUSH_SPEED || stuck_line(t_of(k0), t_of(k1) + 1.5)))
+                            }
+                            "nohead" => held < NOHEAD_HOLD_MAX,
+                            _ => {
+                                let (a, b) = (recs[k0].feet, recs[k1].feet);
+                                let path: f32 = pts.windows(2).map(|w| recs[w[0]].feet.distance_xz(recs[w[1]].feet)).sum();
+                                held == 0.0
+                                    && a.distance_xz(b) <= LOOP_NET_M
+                                    && (b.y - a.y).abs() < LOOP_RISE_M
+                                    && path >= LOOP_PATH_M
                             }
                         }
-                        if name == "push" {
-                            let mut sp: Vec<f32> = pts.iter().map(|&k| recs[k].speed).collect();
-                            sp.sort_by(f32::total_cmp);
-                            let med = (sp[(sp.len() - 1) / 2] + sp[sp.len() / 2]) / 2.0;
-                            if med > PUSH_STILL_SPEED
-                                && (opposing(k0, k1) > PUSH_OPPOSING_MAX
-                                    || (med > PUSH_SPEED && !stuck_line(k0, k1)))
-                            {
-                                return false;
-                            }
-                        }
-                        true
                     };
-                    let mut j = i;
-                    while j < n && t_of(life[j]) - t_of(life[i]) < dmin {
-                        j += 1;
+                    if let Some(j) = window(i, dmin, &ok) {
+                        marks.push((life[i], life[j], name));
                     }
-                    if j >= n || j - i + 1 < 3 || !ok(j) {
-                        continue;
-                    }
-                    while j + 1 < n && ok(j + 1) {
-                        j += 1;
-                    }
-                    marks.push((t_of(life[i]), t_of(life[j]), name));
                 }
                 if t_of(life[i]) - t_spawn < SPAWN_GRACE_S {
                     continue;
                 }
                 let ok_stand = |j: usize| -> bool {
                     let pts = &life[i..=j];
-                    if radius(pts) > STAND_R {
-                        return false;
-                    }
                     let (k0, k1) = (pts[0], pts[pts.len() - 1]);
-                    if share(k0, k1, &|r: &Rec| r.keys & WALK_KEYS != 0) > STAND_WALK_MAX
-                        || share(k0, k1, &|r: &Rec| r.keys & (key::AIM | key::FIRE) != 0) >= 0.5
-                    {
-                        return false;
-                    }
-                    pts.iter().filter(|&&k| recs[k].travel).count() as f32 >= 0.7 * pts.len() as f32
+                    radius(pts) <= STAND_R
+                        && share(k0, k1, &walking) <= STAND_WALK_MAX
+                        && share(k0, k1, &aiming) < STAND_AIM_MAX
+                        && pts.iter().filter(|&&k| recs[k].travel).count() as f32
+                            >= STAND_TRAVEL * pts.len() as f32
                 };
-                let mut j = i;
-                while j < n && t_of(life[j]) - t_of(life[i]) < STAND_S {
-                    j += 1;
+                if let Some(j) = window(i, STAND_S, &ok_stand) {
+                    marks.push((life[i], life[j], "stand"));
                 }
-                if j >= n || j - i + 1 < 3 || !ok_stand(j) {
+            }
+            // The server's stuck watch: from each firing, both ways while
+            // the body keeps near where it was then, walking, not holding.
+            let (lt0, lt1) = (t_of(life[0]), t_of(life[n - 1]));
+            for &fired in &self.stuck_notes[place] {
+                let tf = fired as f32 / 1000.0;
+                if tf < lt0 || tf > lt1 {
                     continue;
                 }
-                while j + 1 < n && ok_stand(j + 1) {
+                let Some(m) = (0..n).find(|&m| t_of(life[m]) >= tf) else {
+                    continue;
+                };
+                let p = recs[self.index(fired).min(recs.len() - 1)].feet;
+                let fits = |m: usize| recs[life[m]].feet.distance_xz(p) <= WATCH_M && !recs[life[m]].hold;
+                let walks = |a: usize, b: usize| share(life[a], life[b], &walking) >= WATCH_WALK;
+                if !fits(m) {
+                    continue;
+                }
+                let (mut i, mut j) = (m, m);
+                while j + 1 < n && fits(j + 1) && walks(j, j + 1) {
                     j += 1;
                 }
-                marks.push((t_of(life[i]), t_of(life[j]), "stand"));
+                while i > 0 && fits(i - 1) && walks(i - 1, i) {
+                    i -= 1;
+                }
+                let (k0, k1) = (life[i], life[j]);
+                if t_of(k1) - t_of(k0) < WATCH_S || j - i + 1 < 3 {
+                    continue;
+                }
+                let dance = share(k0, k1, &aiming) >= DANCE_AIM
+                    && median_speed(&life[i..=j]) > DANCE_MPS
+                    && opposing(k0, k1) > DANCE_OPPOSING;
+                if !dance {
+                    marks.push((k0, k1, "watch"));
+                }
             }
         }
-        // Merged: an episode's kind is the first of push, nohead, loop,
-        // stand it holds.
-        let order = |k: &str| ["push", "nohead", "loop", "stand"].iter().position(|o| *o == k).unwrap_or(4);
-        marks.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
-        let mut eps: Vec<(f32, f32, &'static str)> = Vec::new();
-        for (t0, t1, k) in marks {
-            match eps.last_mut() {
-                Some(e) if t0 <= e.1 + MERGE_GAP_S => {
-                    e.1 = e.1.max(t1);
-                    if order(k) < order(e.2) {
-                        e.2 = k;
+        // Episodes: windows merged when at most 2 s apart.
+        let order = |k: &str| STUCK_ORDER.iter().position(|o| *o == k).unwrap_or(STUCK_ORDER.len());
+        marks.sort_by_key(|m| (m.0, m.1));
+        let mut merged: Vec<(usize, usize, Vec<&'static str>)> = Vec::new();
+        for (k0, k1, kind) in marks {
+            match merged.last_mut() {
+                Some(e) if t_of(k0) <= t_of(e.1) + MERGE_GAP_S => {
+                    e.1 = e.1.max(k1);
+                    if !e.2.contains(&kind) {
+                        e.2.push(kind);
                     }
                 }
-                _ => eps.push((t0, t1, k)),
+                _ => merged.push((k0, k1, vec![kind])),
             }
         }
-        eps
+        let mut eps = Vec::new();
+        for (k0, k1, mut kinds) in merged {
+            kinds.sort_by_key(|k| order(*k));
+            let (t0, t1) = (t_of(k0), t_of(k1));
+            let pts: Vec<usize> = (k0..=k1).step_by(TPS).collect();
+            let within = |list: &[u32], a: f32, b: f32| {
+                list.iter().filter(|&&t| (t as f32) >= a * 1000.0 && (t as f32) <= b * 1000.0).count()
+            };
+            let mates_near = pts
+                .iter()
+                .filter(|&&k| {
+                    (0..self.recs.len()).any(|q| {
+                        q != place
+                            && teams.get(q) == teams.get(place)
+                            && self.recs[q].get(k).is_some_and(|r| {
+                                r.alive && r.feet.distance_xz(recs[k].feet) <= MATE_NEAR_M
+                            })
+                    })
+                })
+                .count();
+            let (lo, hi) = pts.iter().fold((f32::MAX, f32::MIN), |(lo, hi), &k| {
+                (lo.min(recs[k].feet.y), hi.max(recs[k].feet.y))
+            });
+            let route_jump = presses
+                .iter()
+                .any(|p| p.place == place && p.by == "route" && (p.t as f32) >= (t0 - 2.0) * 1000.0 && (p.t as f32) <= t1 * 1000.0);
+            let cause = if within(&self.no_way[place], t0 - 1.0, t1 + 3.0) > 0 {
+                "no_route"
+            } else if 2 * mates_near >= pts.len() {
+                "teammate"
+            } else if route_jump {
+                "route_jump"
+            } else if hi - lo >= UP_DOWN_M {
+                "ledge"
+            } else if kinds.contains(&"loop") && within(&self.takes[place], t0, t1) >= 2 {
+                "play_churn"
+            } else if kinds[0] == "stand" {
+                "stand"
+            } else if share(k0, k1, &aiming) >= DANCE_AIM {
+                "fight"
+            } else if stuck_line(t0, t1 + 1.5) {
+                "wall"
+            } else {
+                "wall_no_line"
+            };
+            let at = pts.iter().fold(Vec3::ZERO, |a, &k| a + recs[k].feet) * (1.0 / pts.len() as f32);
+            eps.push(Episode {
+                t0,
+                t1,
+                kinds,
+                cause,
+                at,
+            });
+        }
+        let blips = self.stuck_notes[place]
+            .iter()
+            .filter(|&&ms| {
+                let t = ms as f32 / 1000.0;
+                let alive = recs.get(self.index(ms)).is_some_and(|r| r.alive);
+                alive && !eps.iter().any(|e| t >= e.t0 - 1.0 && t <= e.t1 + 1.0)
+            })
+            .count() as u32;
+        (eps, blips)
     }
 }
 
@@ -1083,12 +1982,18 @@ fn put(game: &mut Game, place: Place, x: f32, z: f32, keys: u32) {
     body.step_m = 0.0;
 }
 
+/// The bots' jumps' flags, by name.
+fn flags_of(json: &serde_json::Value, flag: &str) -> u64 {
+    json["jump_flags"][flag].as_u64().unwrap_or(0)
+}
+
 #[test]
-fn route_presses_from_a_standstill_with_forward_let_go_are_counted() {
+fn a_route_press_from_a_standstill_too_high_with_forward_let_go_is_flagged() {
     let (mut game, mut tally) = made_up(&[0, 0]);
-    play(&mut game, &mut tally, 160, |k, game| {
+    play(&mut game, &mut tally, 200, |k, game| {
         // Bot 0: walks, stands 7 ticks, 3 ticks of forward, presses at
-        // tick 100 for a 1.3 m rise, lets forward go 2 ticks on.
+        // tick 100 for a 1.4 m rise, lets forward go 3 ticks on; its body
+        // never gets up.
         let keys0 = match k {
             0..90 => key::FORWARD,
             90..97 => 0,
@@ -1097,51 +2002,128 @@ fn route_presses_from_a_standstill_with_forward_let_go_are_counted() {
             101..103 => key::FORWARD,
             _ => 0,
         };
-        // Bot 1 (the near miss): runs into its press for a 0.9 m rise and
-        // holds forward on.
+        // Bot 1 (the near miss): runs into its press for a 0.9 m rise,
+        // holds forward on, and is up half a second later.
         let keys1 = match k {
             100 => key::FORWARD | key::JUMP,
-            0..111 => key::FORWARD,
+            0..121 => key::FORWARD,
             _ => 0,
         };
         put(game, 0, 10.0, 10.0, keys0);
         put(game, 1, 10.0, 20.0, keys1);
+        if k >= 110 {
+            game.bodies[1].feet = Vec3::new(10.8, 0.9, 20.0);
+        }
+        for body in &mut game.bodies {
+            body.air_until = if (100..116).contains(&k) { game.tick + TICK_MS } else { 0 };
+        }
         let mut nows = vec![bot_now(), bot_now()];
         if k == 100 {
-            nows[0].as_mut().unwrap().jump = Some(("route", Some(Vec3::new(11.0, 1.3, 10.0))));
-            nows[1].as_mut().unwrap().jump = Some(("route", Some(Vec3::new(11.0, 0.9, 20.0))));
+            let low = Vec3::new(10.0, 0.0, 10.0);
+            nows[0].as_mut().unwrap().jump = Some(("route", Some((low, Vec3::new(11.0, 1.4, 10.0)))));
+            let low = Vec3::new(10.0, 0.0, 20.0);
+            nows[1].as_mut().unwrap().jump = Some(("route", Some((low, Vec3::new(11.0, 0.9, 20.0)))));
         }
         nows
     });
     let (_, json) = tally.finish(&game);
     assert_eq!(json["presses"], 2);
-    assert_eq!(json["route_stand_turn"], 1, "{json}");
-    assert_eq!(json["route_still_ticks"], 7);
-    assert_eq!(json["f_let_go"], 1);
-    assert_eq!(json["route_need_1m"], 1);
-    assert_eq!(json["route_need_1_2m"], 1);
-    assert_eq!(json["presses_no_forward"], 0);
-    assert_eq!(json["press_series"], 0);
+    for (flag, count) in [
+        ("TOO_LOW", 1),
+        ("NO_SPRINT", 0),
+        ("STAND_TURN", 1),
+        ("SHORT_RUNUP", 0),
+        ("FWD_RELEASED", 1),
+        ("FWD_RELEASED_085", 0),
+        ("NOT_UP", 1),
+        ("PRESSED_LOW", 0),
+        ("DROPPED", 0),
+        ("IN_PLACE", 0),
+    ] {
+        assert_eq!(flags_of(&json, flag), count, "{flag}: {json}");
+    }
+    assert_eq!(json["jumps_wrong"], 1);
+    assert_eq!(json["jumps_failed"], 1);
 }
 
 #[test]
-fn presses_again_and_again_at_one_place_are_a_series() {
+fn presses_again_at_one_place_repeat_and_one_that_never_leaves_the_ground_dropped() {
     let (mut game, mut tally) = made_up(&[0, 0]);
     play(&mut game, &mut tally, 120, |k, game| {
-        // Bot 0: three presses 1.5 s apart where it stands; bot 1: two
-        // presses 4 s apart (not a series), with no forward key.
+        // Bot 0: three presses 1.5 s apart where it stands, each in the
+        // air; bot 1: two presses 4 s apart (no repeat), with no key and
+        // never in the air.
         let k0 = if [10, 40, 70].contains(&k) { key::JUMP | key::FORWARD } else { 0 };
         let k1 = if [10, 90].contains(&k) { key::JUMP } else { 0 };
         put(game, 0, 10.0, 10.0, k0);
         put(game, 1, 10.0, 20.0, k1);
+        if [10, 40, 70].contains(&k) {
+            game.bodies[0].air_until = game.tick + 600;
+        }
         vec![bot_now(), bot_now()]
     });
     let (_, json) = tally.finish(&game);
     assert_eq!(json["presses"], 5);
-    assert_eq!(json["press_series"], 1, "{json}");
-    assert_eq!(json["press_series_presses"], 3);
-    assert_eq!(json["press_series_3"], 1);
-    assert_eq!(json["presses_no_forward"], 2);
+    assert_eq!(flags_of(&json, "REPEAT"), 2, "{json}");
+    assert_eq!(flags_of(&json, "IN_PLACE"), 2);
+    assert_eq!(flags_of(&json, "DROPPED"), 2);
+}
+
+#[test]
+fn a_route_link_pressed_again_and_a_hop_that_frees_nothing_are_flagged() {
+    let (mut game, mut tally) = made_up(&[0, 0, 0, 0]);
+    play(&mut game, &mut tally, 200, |k, game| {
+        let press = if [10, 110].contains(&k) { key::JUMP } else { 0 };
+        put(game, 0, 10.0, 10.0, press);
+        put(game, 1, 10.0, 20.0, press);
+        put(game, 2, 30.0, 10.0, if k == 10 { key::JUMP } else { 0 });
+        // Bot 3 (the near miss) walks off after its hop.
+        let x3 = if k <= 10 { 30.0 } else { 30.0 + 0.1 * (k - 10) as f32 };
+        put(game, 3, x3, 30.0, if k == 10 { key::JUMP } else { key::FORWARD });
+        game.bodies[3].step_m = if k > 10 { 0.1 } else { 0.0 };
+        let mut nows = vec![bot_now(); 4];
+        let link = |z: f32, dx: f32| Some((Vec3::new(11.0 + dx, 0.0, z), Vec3::new(12.0 + dx, 1.0, z)));
+        if k == 10 || k == 110 {
+            // Bot 0 the same link twice, 5 s apart; bot 1 another 1 m on.
+            nows[0].as_mut().unwrap().jump = Some(("route", link(10.0, 0.0)));
+            let dx = if k == 10 { 0.0 } else { 1.0 };
+            nows[1].as_mut().unwrap().jump = Some(("route", link(20.0, dx)));
+        }
+        if k == 10 {
+            nows[2].as_mut().unwrap().jump = Some(("hop", None));
+            nows[3].as_mut().unwrap().jump = Some(("hop", None));
+        }
+        nows
+    });
+    let (_, json) = tally.finish(&game);
+    assert_eq!(flags_of(&json, "LINK_AGAIN"), 1, "{json}");
+    assert_eq!(flags_of(&json, "REPEAT"), 0);
+    assert_eq!(flags_of(&json, "NOT_FREED"), 1);
+}
+
+#[test]
+fn a_stall_at_a_ledge_with_no_press_is_a_missed_jump() {
+    let grid = |rise: f32| {
+        let triangles = super::ledge_triangles(rise, mapdata::WalkerBehaviour::BySlope);
+        WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default())
+    };
+    let (mut game, mut tally) = made_up(&[0, 0]);
+    play(&mut game, &mut tally, 100, |k, game| {
+        // Both push forward east at the ledge's foot; bot 1 (the near
+        // miss) presses a jump 1.5 s in.
+        put(game, 0, 9.6, 3.0, key::FORWARD);
+        put(game, 1, 9.6, 7.0, if k == 30 { key::FORWARD | key::JUMP } else { key::FORWARD });
+        for body in &mut game.bodies {
+            body.yaw = -std::f32::consts::FRAC_PI_2;
+        }
+        vec![bot_now(), bot_now()]
+    });
+    let presses = tally.presses.clone();
+    let high = grid(0.8);
+    assert_eq!(tally.stalls(0, &high, &presses), [1, 0, 1]);
+    assert_eq!(tally.stalls(1, &high, &presses), [0, 0, 1]);
+    assert_eq!(tally.stalls(0, &grid(0.45), &presses), [0, 1, 1]);
+    assert_eq!(tally.stalls(0, &grid(1.5), &presses), [0, 0, 1]);
 }
 
 #[test]
@@ -1172,6 +2154,74 @@ fn a_bot_hit_from_behind_is_counted_turned_or_not() {
     assert_eq!(json["hits_first"], 3);
     assert_eq!(json["hits_side"], 2, "{json}");
     assert_eq!(json["turned_3s"], 1);
+}
+
+#[test]
+fn fire_and_hits_count_by_the_shooters_movement_and_range() {
+    let (mut game, mut tally) = made_up(&[0, 1, 0, 1]);
+    play(&mut game, &mut tally, 10, |k, game| {
+        // Bot 0 fires standing at an enemy 15 m ahead and hits him once;
+        // bot 2 (the near miss) fires sprinting and hits nothing.
+        put(game, 0, 10.0, 10.0, key::FIRE);
+        put(game, 1, 10.0, 25.0, 0);
+        put(game, 2, 20.0, 10.0, key::FIRE | key::FORWARD | key::SPRINT);
+        game.bodies[2].step_m = 0.3;
+        put(game, 3, 20.0, 25.0, 0);
+        game.bodies[0].yaw = 0.0;
+        game.bodies[2].yaw = 0.0;
+        if k == 5 {
+            game.hit_log.push((game.tick, 0, 1));
+        }
+        vec![bot_now(); 4]
+    });
+    let class = game.bodies[0].gun.class();
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["fire_by_move"]["still"], 10, "{json}");
+    assert_eq!(json["fire_by_move"]["sprint"], 10);
+    assert_eq!(json["hits_by_move"]["still"], 1);
+    assert_eq!(json["hits_by_move"]["sprint"], 0);
+    assert_eq!(json["hits_by_class"][class][1], 1);
+}
+
+#[test]
+fn fire_at_a_target_behind_a_wall_is_counted_and_in_line_is_not() {
+    // The soak field's wall stands at x = 40 for z < 25.
+    let (mut game, mut tally) = made_up(&[0, 1, 0, 1]);
+    play(&mut game, &mut tally, 10, |_, game| {
+        put(game, 0, 30.0, 10.0, key::FIRE);
+        put(game, 1, 50.0, 10.0, 0);
+        put(game, 2, 30.0, 32.0, key::FIRE);
+        put(game, 3, 50.0, 32.0, 0);
+        game.bodies[0].target = Some(1);
+        game.bodies[2].target = Some(3);
+        vec![bot_now(); 4]
+    });
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["fire_on_target"], 20, "{json}");
+    assert_eq!(json["fire_hidden"], 10);
+}
+
+#[test]
+fn a_target_switch_away_while_the_hurter_is_in_line_is_counted() {
+    let (mut game, mut tally) = made_up(&[0, 1, 1, 1, 0]);
+    play(&mut game, &mut tally, 30, |k, game| {
+        put(game, 0, 10.0, 30.0, 0);
+        put(game, 4, 10.0, 35.0, 0);
+        put(game, 1, 30.0, 30.0, 0);
+        put(game, 2, 30.0, 35.0, 0);
+        put(game, 3, 30.0, 38.0, 0);
+        if k == 5 {
+            game.hit_log.extend([(game.tick, 1, 0), (game.tick, 1, 4)]);
+        }
+        // Bot 0 goes from 2 to 3 while 1 hurts it; bot 4 (the near miss)
+        // from 2 to 1, the one hurting it.
+        game.bodies[0].target = Some(if k < 10 { 2 } else { 3 });
+        game.bodies[4].target = Some(if k < 10 { 2 } else { 1 });
+        vec![bot_now(); 5]
+    });
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["target_switches"], 2, "{json}");
+    assert_eq!(json["switches_off_hurter"], 1);
 }
 
 #[test]
@@ -1265,8 +2315,8 @@ fn teammates_close_five_seconds_and_bodies_in_one_another_are_counted() {
 }
 
 #[test]
-fn the_stuck_detector_finds_a_push_and_a_stand() {
-    let (mut game, mut tally) = made_up(&[0, 0, 0, 0]);
+fn the_stuck_detector_finds_a_push_a_stand_and_a_watch_and_their_causes() {
+    let (mut game, mut tally) = made_up(&[0, 0, 0, 0, 0]);
     play(&mut game, &mut tally, 400, |k, game| {
         let s = k / 20;
         // Bot 0 pushes forward without moving for 5 s, then walks off.
@@ -1283,19 +2333,39 @@ fn the_stuck_detector_finds_a_push_and_a_stand() {
             put(game, 1, 10.0 + 0.2 * (k - 40) as f32, 20.0, key::FORWARD);
             game.bodies[1].step_m = 0.2;
         }
-        // Bots 2 and 3 stand all along with no key, 2 with a goal to walk
-        // to, 3 (near miss) holding.
+        // Bots 2 and 3 stand all along with no key, 2 in a step with a
+        // goal, 3 (near miss) in a hold.
         put(game, 2, 10.0, 30.0, 0);
         put(game, 3, 20.0, 30.0, 0);
-        let mut nows = vec![bot_now(); 4];
-        nows[2].as_mut().unwrap().travel = true;
-        nows[3].as_mut().unwrap().hold = true;
+        // Bot 4 walks east, dances left and right on one spot for 6 s
+        // (the stuck watch fires), walks on.
+        let (x4, keys4) = match k {
+            0..100 => (10.0 + 0.2 * k as f32, key::FORWARD),
+            100..220 if k % 2 == 0 => (30.0, key::FORWARD | key::LEFT),
+            100..220 => (30.3, key::FORWARD | key::RIGHT),
+            _ => (30.0 + 0.2 * (k - 220) as f32, key::FORWARD),
+        };
+        put(game, 4, x4, 5.0, keys4);
+        game.bodies[4].step_m = 0.1;
+        let mut nows = vec![bot_now(); 5];
+        nows[2].as_mut().unwrap().step = Some("Going".to_owned());
+        nows[3].as_mut().unwrap().step = Some("Hold".to_owned());
         nows
     });
+    let fired = tally.time_of(150);
+    tally.stuck_notes[4].push(fired);
+    // Bot 1's watch fires in its 2 s push: a blip.
+    let fired = tally.time_of(20);
+    tally.stuck_notes[1].push(fired);
     let (_, json) = tally.finish(&game);
     assert_eq!(json["stuck_by"]["push"][0], 1, "{json}");
     assert_eq!(json["stuck_by"]["stand"][0], 1, "{json}");
-    assert_eq!(json["stuck"], 2);
+    assert_eq!(json["stuck_by"]["watch"][0], 1, "{json}");
+    assert_eq!(json["stuck"], 3);
+    assert_eq!(json["stuck_by_cause"]["wall_no_line"][0], 1);
+    assert_eq!(json["stuck_by_cause"]["stand"][0], 1);
+    assert_eq!(json["stuck_by_cause"]["wall"][0], 1);
+    assert_eq!(json["stuck_blips"], 1);
 }
 
 #[test]
@@ -1365,32 +2435,34 @@ fn fire_counts_by_the_range_of_the_enemy_in_view() {
 }
 
 #[test]
-fn a_grenade_at_ones_feet_hurts_the_thrower_and_a_mate_not_a_far_enemy() {
-    let (mut game, mut tally) = made_up(&[0, 0, 1]);
-    let note = |game: &mut Game, tally: &mut OwnerTally| {
-        let note = Note {
-            place: 0,
-            time: game.tick,
-            text: "throws a grenade at (11, 0, 10), blast at 1000".to_owned(),
-        };
-        tally.note(&note, game);
-    };
+fn a_grenade_at_ones_feet_hurts_the_thrower_and_mates_and_one_walked_in() {
+    let (mut game, mut tally) = made_up(&[0, 0, 1, 0]);
     play(&mut game, &mut tally, 30, |_, game| {
         put(game, 0, 10.0, 10.0, 0);
         put(game, 1, 12.0, 10.0, 0);
         put(game, 2, 30.0, 10.0, 0);
-        vec![bot_now(); 3]
+        put(game, 3, 30.0, 14.0, 0);
+        vec![bot_now(); 4]
     });
     // Thrown at tick 30, gone off at 1000 ms already: once more ticks run.
-    note(&mut game, &mut tally);
+    let note = Note {
+        place: 0,
+        time: game.tick,
+        text: "throws a grenade at (11, 0, 10), blast at 1000".to_owned(),
+    };
+    tally.note(&note, &game);
+    // Bot 3, a mate far off at the throw, walks in before the blast.
+    game.bodies[3].feet = Vec3::new(13.0, 0.0, 10.0);
     game.tick += TICK_MS;
-    tally.step(&mut game, &[bot_now(), bot_now(), bot_now()]);
+    tally.step(&mut game, &[bot_now(), bot_now(), bot_now(), bot_now()]);
     let (_, json) = tally.finish(&game);
     assert_eq!(json["grenades"], 1);
     assert!(json["grenade_self_dmg"].as_f64().unwrap() > 0.5, "{json}");
     assert!(json["grenade_mate_dmg"].as_f64().unwrap() > 0.3);
     assert_eq!(json["grenade_enemy_dmg"], 0.0);
     assert_eq!(json["grenade_kills"][0], 1);
+    assert_eq!(json["grenade_in_radius"], serde_json::json!([1, 2, 0]));
+    assert_eq!(json["grenade_walk_ins"], serde_json::json!([0, 1, 0]));
 }
 
 #[test]
@@ -1398,4 +2470,45 @@ fn the_blast_falls_off_to_its_minimum_at_ten_metres() {
     assert!((blast_damage(0.0) - BLAST_MAX).abs() < 1e-6);
     assert!((blast_damage(BLAST_M) - BLAST_MIN).abs() < 1e-6);
     assert_eq!(blast_damage(10.5), 0.0);
+}
+
+#[test]
+fn kills_from_one_spot_and_a_bot_walking_into_the_held_line_are_counted() {
+    // Shooter 1 holds (30, 30) and kills bots 0, 2 and 3 there 2 s apart;
+    // bot 4 comes out from behind the wall (x = 40, z < 25) into his line
+    // in the killed lane and dies to him. Bot 3 (the near miss) kills bot
+    // 5 twice: a run of two.
+    let (mut game, mut tally) = made_up(&[0, 1, 0, 0, 0, 1]);
+    play(&mut game, &mut tally, 200, |k, game| {
+        put(game, 1, 30.0, 30.0, 0);
+        put(game, 0, 20.0, 35.0, 0);
+        put(game, 2, 21.0, 35.0, 0);
+        put(game, 3, 22.0, 35.0, 0);
+        put(game, 5, 60.0, 35.0, 0);
+        if k >= 120 {
+            put(game, 4, 20.0, 36.0, 0);
+        } else {
+            put(game, 4, 50.0, 10.0, 0);
+        }
+        for (at, shooter, victim) in [(20, 1, 0), (30, 3, 5), (60, 1, 2), (70, 3, 5), (100, 1, 3), (160, 1, 4)] {
+            if k == at {
+                game.kill_log.push((game.tick, shooter, victim));
+            }
+        }
+        for (at, victim) in [(20, 0), (60, 2), (100, 3), (160, 4)] {
+            if k >= at {
+                game.bodies[victim].alive = false;
+            }
+        }
+        vec![bot_now(); 6]
+    });
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["camper_runs_3"], 1, "{json}");
+    assert_eq!(json["camper_run_kills"], 4);
+    assert_eq!(json["camper_run_longest"], 4);
+    assert_eq!(json["deaths_in_row_3"], 1);
+    assert_eq!(json["deaths_in_row_longest"], 4);
+    assert_eq!(json["reentries"], 1);
+    assert_eq!(json["reentries_fatal"], 1);
+    assert_eq!(json["reentries_lane"], 1);
 }
