@@ -151,6 +151,12 @@ impl Board {
             .collect()
     }
 
+    /// [`Self::learn`], for tests of a team that got out by itself.
+    #[cfg(test)]
+    pub(super) fn learn_for_test(&self, team: u8, pocket: PocketId, exit: PocketExit) {
+        self.learn(team, pocket, exit);
+    }
+
     fn learn(&self, team: u8, pocket: PocketId, exit: PocketExit) {
         let mut shared = self.shared();
         shared
@@ -176,15 +182,15 @@ impl Board {
 /// Whether a way out of `pocket` is known that a bot takes now: a standing
 /// exit, or one the team got out by. Sprint-only exits count for no one
 /// yet (no bot sprints); `carrying`: never for a carrier (it cannot sprint,
-/// PROVEN), so once sprint is in this argument keeps it out.
-pub fn way_out(
-    grid: &WalkGrid,
-    board: &Board,
-    team: u8,
-    pocket: PocketId,
-    _carrying: bool,
-) -> bool {
-    !board.worked(team, pocket).is_empty() || standing_exit(grid, board, pocket)
+/// PROVEN), and nor is an exit the team got out by that is not a standing
+/// one (a standing try gets out over a sprint rim now and then: 26 such
+/// were learned in 12 batt bench runs).
+pub fn way_out(grid: &WalkGrid, board: &Board, team: u8, pocket: PocketId, carrying: bool) -> bool {
+    board
+        .worked(team, pocket)
+        .iter()
+        .any(|exit| !carrying || exit.jump == ExitJump::Standing)
+        || standing_exit(grid, board, pocket)
 }
 
 /// Whether `pocket` has a standing-jump exit (asked once a match).

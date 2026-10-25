@@ -371,16 +371,38 @@ unreached 19, as before.
 
 **Players there.** Of the human positions in the server's 5 s worlds (the
 audit of the erosion work, non-bot matches), 308 stand on floors now
-unplanned, 14 lives. 245 of them (6 lives) are level_05_day_4's pocket of
-372 floors around (-10.4, 9.1, -22.8). Players get out of it, so it is a
-grid gap (an exit the grid does not see), not a pit: on the follow-up list.
-The rest are 2-38 a map (level_03, 04, 06, 08).
+unplanned, 14 lives. 243 of them (5 lives, 3 matches) are level_05_day_4's
+pocket of 372 floors around (-10.4, 9.1, -22.8), a pit 1.2-1.6 m below the
+ground west of it. In the recordings (the worlds' positions, every input)
+each of the 5 drops in from the west, crouches there (most ticks) and never
+leaves: 4 die in it, 1 is in it at the match's end. So the grid's "no way
+out" holds for players too; the pit is a firing spot, not a way. The rest
+are 2-38 a map (level_03, 04, 06, 08).
 
 **The routes check** (the stored human routes, walked by the planner):
 legs with no way 12 → 10, points lost 141 → 143, jumps 86 → 86, length
 +0.1 %. The two lost points are one point of level_05's day 2 and day 3
-routes at (-7.8, -21.3): it lies in the shut pocket, so it is now
-unwalkable and dropped; before, the leg out of it had no way.
+routes at (-7.8, -21.3). Route points are 2-D, and `HumanRoute::on_floors`
+puts one on the lowest floor near it: here the pit (8.5-9.0 m), under the
+floor players walk (10.3-10.6 m; of the players' positions within 2 m, 180
+of 181 on day 2, all 132 on day 3, 430 of 481 on day 4 stand on it). Before,
+bots were routed into the pit and the leg out had no way; now the point is
+unwalkable and dropped.
+
+**Route points on a planned floor (2026-10-25).** `on_floors` now takes the
+lowest floor a way is planned to (none in a shut pocket). The routes check,
+from #402's tip: points lost 143 → 141 (level_05's two points come back on
+the walkway at 10.5 m), legs with no way 10 → 10, jumps 86 → 86, length
++9 m. Three level_07 points (days 2, 3, 4, around (-7, -2) and (5, -2)) move
+from a shut pocket at 2.5 m to 5.8-9.7 m and stay dropped, as before;
+players there stand at about 21 m (139 of 154, 26 of 26 and 74 of 79
+positions), so "the lowest floor" is the wrong rule for those 2-D points
+(the routes' follow-up). Bench (seeds 1-16, after side, against #402's
+tip): every map but level_05 and every TDM match decision-identical; per
+seed run, batteries 4-5 falls on route 63.8 → 62.6 (z −2.2) and kills
+240.0 → 238.8 (z −2.2), 9-10 planned drops 329.2 → 328.4 (z −2.0), the rest
+within 2 SE. On level_05 (32 matches a cell) falls on route −19, 0, −4 and
+legs with no way +116, −382, −969 by tier; no time in pockets either side.
 
 **Bench** (c8bd1281 against 54ececcf, the base before #398/#399/#401,
 batteries and team deathmatch, tiers 4-5, 9-10 and 13-15, seeds 1-16,
@@ -398,7 +420,8 @@ drops, time and deaths in pockets (batt 13-15 pocket deaths −0.19, z −1.9),
 give-ups, deliveries, carriers killed, team kills and stuck. batt 4-5's quick
 ends are the one guard past 2 SE, of about 60.
 
-**Follow-ups (grid gaps).** level_05_day_4's pocket above; level_07
+**Follow-ups.** Route points with a height (level_07, above).
+Grid gaps: level_07
 (82, -25); level_06_day_4 (13.6, 108.6); level_03 (-16, -15); passages
 narrower than the body. The erosion by body height (floors beside a fall
 kept, with a cost on them) is rebuilt on top of this rule: benched alone it

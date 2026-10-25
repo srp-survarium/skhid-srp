@@ -134,16 +134,18 @@ impl RouteTable {
 
 impl HumanRoute {
     /// Its points put on the grid's floors: of the floors within 2 m of
-    /// each (then 5 m) a body stands on, the nearest of the lowest (within
-    /// 1 m of the lowest). A group's median path runs on the ground, not on
-    /// the roofs over it; a point with no floor near (off the walkable map)
-    /// is dropped.
+    /// each (then 5 m) a body stands on and a way is planned to (none in a
+    /// pocket with no way out, [`WalkGrid::in_shut_pocket`]), the nearest of
+    /// the lowest (within 1 m of the lowest). A group's median path runs on
+    /// the ground, not on the roofs over it, nor in a pit under the floor it
+    /// walks (level_05's, under the walkway at (-7.8, -21.3)); a point with
+    /// no floor near (off the walkable map) is dropped.
     pub fn on_floors(mut self, grid: &WalkGrid) -> Self {
         let floor = |p: Vec3| {
             [2.0f32, 5.0].iter().find_map(|&r| {
                 let floors: Vec<Vec3> = grid
                     .floors_in([p.x - r, p.z - r, p.x + r, p.z + r])
-                    .filter(|&node| grid.can_stand(node))
+                    .filter(|&node| grid.can_stand(node) && !grid.in_shut_pocket(node))
                     .map(|node| grid.position(node))
                     .filter(|at| at.distance_xz(p) <= r)
                     .collect();
