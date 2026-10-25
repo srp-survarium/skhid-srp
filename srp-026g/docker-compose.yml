@@ -167,6 +167,12 @@ services:
       - SRP_MAPDATA_BUILT
       - SRP_MAPDATA_KEEP
       - SRP_MAPDATA_AT_ONCE
+      # The routes humans took, for the bots' play 17 (bots/routes.rs):
+      # private data made from the players' worlds, copied by hand into the
+      # mapdata folder as bot-routes.json, read from there when this is
+      # unset. A path reads that file instead; empty or `off`: none. Without
+      # it the bots roam to the exits.
+      - SRP_BOT_ROUTES
     ports:
       # Login: TLS over TCP.
       - "${SRP26_LOGIN_PORT:-2234}:${SRP26_LOGIN_PORT:-2234}/tcp"

@@ -31,9 +31,10 @@
 //!   on a thread of its own) they stand; if the map has no file they run
 //!   the stage 0 script instead. `SRP_BOT_TUNING` (a JSON file, read when
 //!   the match is made) changes their numbers; `SRP_BOT_TRACE_DIR` keeps
-//!   their decisions (`SRP_BOT_TRACE_MAX_MB` of them); `SRP_BOT_ROUTES` (a JSON file, private: made from
-//!   the players' saved worlds) gives them the routes humans took
-//!   (`bots/routes.rs`);
+//!   their decisions (`SRP_BOT_TRACE_MAX_MB` of them); `bot-routes.json` in
+//!   the mapdata folder, or the file `SRP_BOT_ROUTES` names (a JSON file,
+//!   private: made from the players' saved worlds; empty or `off`: none),
+//!   gives them the routes humans took (`bots/routes.rs`);
 //! - without it, the stage 0 script (`super::super::drive`).
 
 use std::sync::Arc;
@@ -49,7 +50,7 @@ use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::maps::{MapState, Maps};
 use crate::v026g::bots::motor::Hurt;
 use crate::v026g::bots::reflex::WeaponKind;
-use crate::v026g::bots::routes::RouteTable;
+use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::trace::Trace;
 use crate::v026g::bots::tuning::Tuning;
@@ -170,11 +171,9 @@ impl Walkers {
             walkers.bots.set_speed_levels(&speed_levels);
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
-            if let Some(path) = std::env::var_os("SRP_BOT_ROUTES").filter(|path| !path.is_empty()) {
-                match RouteTable::load(path.as_ref()) {
-                    Ok(table) => walkers.bots.set_routes(&table),
-                    Err(why) => log::warn!("Match {id:#x}: SRP_BOT_ROUTES not used ({why})"),
-                }
+            let var = std::env::var_os("SRP_BOT_ROUTES");
+            if let Some(table) = route_table(id, var.as_deref(), walkers.maps.dir()) {
+                walkers.bots.set_routes(&table);
             }
             walkers
         })
@@ -617,5 +616,69 @@ impl Game {
             self.relay_to_others(index, &what, time, now);
             self.inputs.push((time, index, what));
         }
+    }
+}
+
+/// The route table a match's bots get (play 17): `var` is `SRP_BOT_ROUTES`,
+/// `mapdata` the mapdata folder ([`routes::Source::choose`]). A file that
+/// fails to load: a warning; no file: one info line until a restart.
+fn route_table(
+    id: u32,
+    var: Option<&std::ffi::OsStr>,
+    mapdata: Option<&std::path::Path>,
+) -> Option<RouteTable> {
+    let (path, named) = match routes::Source::choose(var, mapdata) {
+        routes::Source::Set(path) => (path, "SRP_BOT_ROUTES"),
+        routes::Source::Default(path) => (path, "bot routes"),
+        routes::Source::Off => return None,
+        routes::Source::Missing => {
+            static SAID: std::sync::Once = std::sync::Once::new();
+            SAID.call_once(|| {
+                log::info!(
+                    "No bot routes: SRP_BOT_ROUTES unset and no {} in the mapdata folder; the bots roam to the exits",
+                    routes::DEFAULT_FILE
+                )
+            });
+            return None;
+        }
+    };
+    match RouteTable::load(&path) {
+        Ok(table) => Some(table),
+        Err(why) => {
+            log::warn!("Match {id:#x}: {named} not used ({why})");
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// With `SRP_BOT_ROUTES` unset a match's bots get the table in the
+    /// mapdata folder; empty or `off`, none; a path, that file.
+    #[test]
+    fn a_match_takes_the_route_table_in_the_mapdata_folder() {
+        let dir = std::env::temp_dir().join(format!("srp-driven-routes-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join(routes::DEFAULT_FILE);
+        std::fs::write(
+            &file,
+            r#"{"format": 2, "routes": [{"level": "level_03", "mode": 2, "team": 1,
+                "lives": 5, "reward": 1.0, "fight": 1.0, "battery": 0.0, "kd": 1.0,
+                "died": 0.2, "points": [[1.0, 2.0], [3.0, 4.0]]}]}"#,
+        )
+        .unwrap();
+        let table = route_table(1, None, Some(&dir)).expect("the mapdata folder's table");
+        let routes = table.for_map(3, 2);
+        assert_eq!(routes.len(), 1);
+        assert_eq!(routes[0].points.len(), 2);
+        assert!(route_table(1, Some("off".as_ref()), Some(&dir)).is_none());
+        assert!(route_table(1, Some("".as_ref()), Some(&dir)).is_none());
+        assert!(route_table(1, Some(file.as_os_str()), None).is_some_and(|t| t.len() == 1));
+        assert!(route_table(1, Some(dir.join("none.json").as_os_str()), Some(&dir)).is_none());
+        std::fs::remove_file(&file).unwrap();
+        assert!(route_table(1, None, Some(&dir)).is_none());
+        std::fs::remove_dir(&dir).unwrap();
     }
 }
