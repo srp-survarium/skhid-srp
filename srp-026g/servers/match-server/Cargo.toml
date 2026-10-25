@@ -6,6 +6,10 @@ edition.workspace = true
 [lints]
 workspace = true
 
+[features]
+# TEST ONLY (grid-record.md J0): the jump test for the real client. Off by default, so normal and live builds do not compile it.
+jump-test = []
+
 [dependencies]
 crc32fast = { workspace = true }
 log = { workspace = true }

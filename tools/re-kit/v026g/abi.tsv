@@ -1959,3 +1959,9 @@ va	name	source	ret_cleanup	result
 0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	manual	12	AL: 1 the file is used, 0 made again
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	manual	4	
 0x000e0210	vostok::render::render_model_instance::destroy	manual	0	
+0x002d9060	survarium::base_player::set_physics_controller_walk_vector	manual		per tick: sets the root-motion displacement on the controller (0x356B00, +0x20) and, when the controller jump flag (+0x2C70C) is set and m_jump_type is not 0, the air control vector from get_air_control_vector (calls 0x2D92A0, 0x2D92C1) rotated by the body matrix, stored by 0x356B90 at controller +0x30; zeros when not jumping
+0x002d7990	survarium::base_player::get_air_control_vector	manual		vector in the body frame from the keys by a switch over get_move_direction (table 0x2D7B68) scaled by the speed argument (player +0x304 air_control_speed, 1.0 in default.player): forward alone = 0 in sprint jumps (codes 2-4), forward x speed in walking jumps; back -forward; left/right +-x; diagonals the normalised sum
+0x002d6510	survarium::base_player::get_move_direction	manual		the key combination as a move code used by the jump codes (walking jumps 1, 5-12; sprint jumps 2-4)
+0x00356b90	vostok::physics::bt_character_controller::set_air_control_vector	manual		stores the air control vector at controller +0x30; player_step adds it (0x7BFC5)
+0x00356b00	vostok::physics::bt_character_controller::set_desired_walk_vector	manual		stores the root-motion displacement at controller +0x20
+0x0007f1a0	vostok::physics::bullet_character_controller::setup_crouch_state	manual		called at the top of player_step (0x7BDDD) from the crouch flags +0x201/+0x202/+0x203; shortens the capsule and keeps its bottom point fixed (0x7F1FD..0x7F2B5): crouching in the air lifts nothing

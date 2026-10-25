@@ -20,6 +20,14 @@ impl Bots {
         let Some(bot) = self.bots[index].as_mut() else {
             return;
         };
+        // TEST ONLY: a bot in the jump test does not play (`jump_test.rs`).
+        #[cfg(feature = "jump-test")]
+        if bot.entered.is_some()
+            && let Some(test) = self.jump_test.as_mut()
+            && test.think(bot, view)
+        {
+            return;
+        }
         if !schedule(bot, &tuning, now) {
             return;
         }
@@ -99,8 +107,20 @@ impl Bots {
                 .body(bot.place)
                 .and_then(|body| body.estimate().copied());
             let me = view.place(bot.place).filter(|p| p.alive);
-            let decision = match (estimate, me, self.tactics.as_ref()) {
-                (Some(at), Some(me), Some(tactics)) if clock.playing => {
+            // TEST ONLY: the jump test's keys while it stands, runs and records.
+            #[cfg(feature = "jump-test")]
+            let scripted = self
+                .jump_test
+                .as_mut()
+                .and_then(|test| test.drive(bot, time, view));
+            #[cfg(not(feature = "jump-test"))]
+            let scripted: Option<Decision> = None;
+            let decision = match (scripted, estimate, me, self.tactics.as_ref()) {
+                (Some(scripted), ..) => {
+                    bot.motor.rest();
+                    scripted
+                }
+                (None, Some(at), Some(me), Some(tactics)) if clock.playing => {
                     // The base pitch: `drive_tick` adds the kick.
                     let me = PlaceView {
                         feet: at.feet,
@@ -114,6 +134,10 @@ impl Bots {
                 }
                 _ => bot.motor.rest(),
             };
+            #[cfg(feature = "jump-test")]
+            if let Some(test) = self.jump_test.as_mut() {
+                test.motor_seen(bot, time, decision.keys);
+            }
             if let Some(line) = bot.reflex.take_friend_note() {
                 bot.traced.push(line);
             }
