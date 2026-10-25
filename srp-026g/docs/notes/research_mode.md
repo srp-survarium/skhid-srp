@@ -261,5 +261,17 @@ Left out, and why:
   above), enter 0x324350 (mark = progress or 1 - progress), serialize 0x323E90 (96 bytes).
 - Its hud: `root.show_capture_info`, `set_capture_info` (`st_capture_info`),
   `set_capture_data`, `update_capture_progress`; minimap objects `capture_point` with `cp_id`.
+- The units' markers (0.27d0 to 0.46c2 exes; 0.27d0, 0.28a2, 0.46c2 `player_icons.swf`):
+  - one size at any distance: the zone's tick places its icon through 0x234BE0 -> 0x234C20
+    with distance flag 0 (players' icons pass 1), alpha C3h (0.76);
+  - made once: kind 2, base scale 1, ids 6Ah..6Ch;
+  - hidden off the screen or behind the camera, not clamped to its edge;
+  - 46 px art shown at 24 px, 34 px with `active` while the local player is inside the unit;
+  - blinks while being taken (capture modes 2 and 3); no label, timer or distance text.
+  - The players' curve the units skip: over 1..100 m, scale 3 -> 1 and alpha 255 -> 128
+    (0.26g `update_player_icons` 0x23AA10).
+  - 0.26g's icon record: `ui + 18h * id + 374h` (x, y, scale; alpha +384h, visible +386h,
+    dirty +389h); its x, y, scale setter is 0x23C050 (0.27d 0x234700).
+  - The distances: a unit is 51-137 m from a first spawn, 13-120 m from the next unit.
 - Source: `/mnt/hdd/Projects/Survarium Builds/v0.27d0-build2500` (Inno + `.sup`, unpacked into
   `/mnt/hdd/Projects/weapon-survey-20261016/work/builds/v027d0`); the exe is x86-BCJ filtered.

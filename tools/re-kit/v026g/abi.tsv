@@ -1934,3 +1934,22 @@ va	name	source	ret_cleanup	result
 0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	manual	12	AL: 1 the file is used, 0 made again
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	manual	4	
 0x000e0210	vostok::render::render_model_instance::destroy	manual	0	
+0x0023c050	survarium::game_world_ui::set_player_icon_position	manual	4	
+0x00313200	survarium::artefact_base::tick	manual	8	
+0x00313470	survarium::artefact_base::added_to_inventory	manual	0	
+0x00313490	survarium::artefact_base::removed_from_inventory	manual	0	
+0x00313530	survarium::artefact_base::end_active	manual	0	
+0x002dda80	survarium::game_effect_player::resolve_link	manual	8	
+0x00329050	survarium::game_effect_emitter::emit	manual	0	EAX: EDI, the effect pointer written
+0x002e5cf0	survarium::game_effect_ptr_wrapper::deserialize	manual	4	
+0x002ac290	survarium::particle_game_effect_presenter::play_effect	manual	8	
+0x002ac310	survarium::particle_game_effect_presenter::update_effect	manual	8	
+0x002ac360	survarium::particle_game_effect_presenter::clear	manual	0	
+0x002ac870	survarium::particle_game_effect_presenter::deserialize	manual	12	
+0x0029a0f0	survarium::particle_game_effect_emitter::particle_game_effect_emitter	manual	32	EAX: ESI
+0x0029a220	survarium::particle_game_effect_emitter::emit	manual	12	EAX: the result pointer (stack+4)
+0x002ae1e0	survarium::particle_game_effect::particle_game_effect	manual	28	EAX: ESI
+0x0025a540	survarium::particle_game_effect_emitter_cook::translate_query	manual	4	
+0x002ec760	survarium::game_effect_emitter_cook::translate_query	manual	4	
+0x002ee650	survarium::artefact_core_cook::on_config_loaded	manual	4	
+0x002ee7c0	survarium::artefact_core_cook::on_effect_loaded	manual	16	
