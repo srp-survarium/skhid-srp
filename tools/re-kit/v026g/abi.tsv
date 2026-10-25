@@ -1913,3 +1913,8 @@ va	name	source	ret_cleanup	result
 0x002013a0	survarium::game_options::assign_binding	manual	8	AL: the row of the action kept the key
 0x00201f20	survarium::game_options::apply_key_bindings	manual	0	for each row whose key set (+10h) differs from the kept (+3Ch): the console's `bind <action> <key>`, or `unbind <action>` for none
 0x00207450	survarium::key_binder::bind_command_save	manual	8	pushes `<command> <action> <key>` for every bound action of the binder's 48h bindings onto the list
+0x002f1750	survarium::item_config_cook::translate_query	manual	4	the modified config: one entry (the modification's row, the record's value as params) per default modification, modification and upgrade record; the records read only through [ebp+40h], at 0x2F1799 (the count, alloca of 10h a entry) and 0x2F18D0..0x2F195A; esp restored from ebp (0x2F2041)
+0x002f2060	survarium::item_config_query::get_item	manual	0	AL: 1 and the query's +8..+17h (dict id, modifications*, upgrades*, dictionary) at [edi]; 0 when the query is another thread's (+2Ch against 0x205D30), [edi] not written
+0x001f13d0	survarium::inventory_item_descr::deserialize_body	manual	12	reads u8 n1 x {u32 id, bool state} into +14h and u8 n2 x {u32 id, u32 dict id, u64 value, u8 slot} into +60h (resize 0x1F1610: more than three records is the fatal assert 0x1F1655/0x1F16C4)
+0x001f1610	vostok::buffer_vector<survarium::upgrade>::resize	manual	0	elements of 18h; past the inline capacity (three, +6Ch..+B4h of the item record) the fatal asserts at 0x1F1655 (line 9Bh) and 0x1F16C4 (line A2h)
+0x00288180	survarium::lobby_menu::fill_item_upgrades	manual		each upgrade record (+60h of the item record esi) an object {id, param} (SetMember 0x288278, 0x2882E1; PushBack at 0x2882F6); the index byte at [esp+80h]

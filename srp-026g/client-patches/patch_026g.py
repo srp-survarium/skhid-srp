@@ -464,6 +464,17 @@ Patches:
   the key (back at 0x26CCAE, al 1); while the movie says its interface is
   hidden (root.interface_hidden) any other key goes straight to the movie
   (back at 0x26CDD2), no window key or F6's Play acting;
+- a weapon's attachments in at most three upgrade records, the weapon kit
+  (patch 68, with the late join; docs/notes/weapon-kit.md):
+  weapon_kit_026g.asm and weapon_kit_026g.c (the arena's block
+  weapon_kit.code). The item config cook's translate_query (0x2F1750,
+  `call 0x2F2060` at 0x2F1771) builds a weapon whose records hold a kit from
+  a list of the records and one for each dict id the kit names (its own
+  stack, per call), so up to six (two decals, camouflage, scope, muzzle,
+  grip) go through the client's three-record item; the lobby's upgrades to
+  Flash (0x2882E3) give a kit's object its value as kit_lo and kit_hi; patch
+  48's preview applies its queue through weapon_kit_preview_apply (its
+  slot, written by the build);
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1796,6 +1807,7 @@ UPGRADE_PREVIEW_STATE_OFFSET = 0xD60
 UPGRADE_PREVIEW_STATE_SIZE = 0xA0
 UPGRADE_PREVIEW_FIND = 0x0F
 UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)  # relocate, drop, account, find, again, made, early
+UPGRADE_PREVIEW_KIT_APPLY = 0x23  # a dword after the entries: patch 68's weapon_kit_preview_apply, the build's (0: none)
 UPGRADE_PREVIEW_HOOKS = (
     (0x29A9B2, bytes.fromhex("8b9620460000"), 0x0, 0xE8),          # relocate_upgrade_item: relocate
     (0x29AACF, bytes.fromhex("8b8e20460000"), 0x5, 0xE8),          # drop_upgrade_item: drop
@@ -1994,6 +2006,30 @@ def hide_ui_table_writes(linked):
 
 
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
+
+# A weapon's attachments in at most three upgrade records, the weapon kit
+# (patch 68, README; client_patch.md section 3.56; the layout:
+# ../docs/notes/weapon-kit.md): weapon_kit_026g.asm and weapon_kit_026g.c in
+# the arena's block weapon_kit.code (ARENA below), two entries:
+# - item_config_cook::translate_query (0x2F1750), `call 0x2F2060` at 0x2F1771
+#   (the query's {dict id, modifications*, upgrades*, dictionary} to
+#   [ebp+38h]): query calls it, then, when the item's records hold a kit,
+#   points [ebp+40h] (the upgrades' buffer_vector, read at 0x2F1799 and
+#   0x2F18D0 only) at a list on translate_query's stack: the records and one
+#   {0, dict id, 0, slot} for each dict id the kit names; back at 0x2F1776;
+# - the lobby's upgrades to Flash (0x288180), `mov ecx,[esp+48h] / mov
+#   eax,[ecx]` at 0x2882E3 after the object's `param`: bridge gives a kit
+#   record's object kit_lo and kit_hi (its value), then the two instructions,
+#   back at 0x2882E9 (the PushBack).
+# Patch 48's apply calls weapon_kit_preview_apply through the dword at
+# UPGRADE_PREVIEW_KIT_APPLY of its code, which the build writes.
+# No base relocation is under a site and no branch aims inside one.
+WEAPON_KIT_HOOKS = (
+    (0x2F1771, bytes.fromhex("e8ea080000"), "weapon_kit_query", 0xE9),        # translate_query's call of 0x2F2060
+    (0x2882E3, bytes.fromhex("8b4c24488b01"), "weapon_kit_bridge", 0xE9),     # the upgrades to Flash: after `param`
+)
+WEAPON_KIT_BACKS = (0x2F1776, 0x2882E9)
+WEAPON_KIT_PREVIEW_APPLY = "weapon_kit_preview_apply"
 # the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
 
 
@@ -2155,6 +2191,12 @@ INSTALLS = {
     0x26CCD2: (CALLEE, "lobby_menu::on_keyboard_action's get_binded_action (eax the binder, edi 2, esi the key, "
                        "the toggle's place pushed; `ret 4`): lobby, which on toggle_replay_ui returns to 0x26CCAE "
                        "instead", None, None),
+    # the weapon kit, patch 68 (in `.srpx`)
+    0x2F1771: (JUMP, "item_config_cook::translate_query 0x2F1750, its `call 0x2F2060` (esi the query's holder, edi "
+                     "ebp+38h): query, which calls it and, for a kit, points [ebp+40h] at a list on the stack "
+                     "below; back at 0x2F1776", None, None),
+    0x2882E3: (JUMP, "the lobby's upgrades to Flash 0x288180, `mov ecx,[esp+48h] / mov eax,[ecx]` after an "
+                     "object's `param`: bridge, back at 0x2882E9", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2347,6 +2389,7 @@ ARENA = (
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
     ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
+    ArenaBlock("weapon_kit.code", "code", 0x1000, ("weapon_kit_026g.asm", "weapon_kit_026g.c")),  # patch 68
 )
 
 
@@ -3218,6 +3261,10 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             if neutralize_relocs(data, [(va, va + len(expected))]):
                 sys.exit(f"{va:#x}: a base relocation under a hook of the weapon decals")
         upgrade_preview = open(upgrade_preview_bin(), "rb").read()
+        # `.srpx`, the arena, linked here: patch 48's slot takes patch 68's
+        # weapon_kit_preview_apply (UPGRADE_PREVIEW_KIT_APPLY; 0 without it).
+        linked = arena(arena_blocks) if arena_blocks != () else None
+        upgrade_preview = with_kit_apply(upgrade_preview, linked)
         upgrade_preview_state = late_join_state_va(late_join) + UPGRADE_PREVIEW_STATE_OFFSET
         if WEAPON_DECALS_OFFSET + len(weapon_decals) > UPGRADE_PREVIEW_OFFSET \
                 or len(upgrade_preview) > 0x1000:
@@ -3286,9 +3333,9 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             # `.srpx`, the arena: its blocks linked from their sources
             # (link_026g.py), each hook's target taken from the link by
             # its symbol.
-            linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
-                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS:
+                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
+                        + WEAPON_KIT_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3353,6 +3400,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "the keys 1, 2 and 3 pick a kit while the kits are shown, "
                      "an option hides the other players' chat lines in a match, "
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
+                     "a weapon's upgrades (two decals, camouflage, scope, muzzle device, grip) in at most three "
+                     "records (the weapon kit), "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
@@ -3544,6 +3593,18 @@ def artefacts_backs(linked):
                       None)
         backs.append(target)
     return backs
+
+
+def with_kit_apply(code, linked):
+    """upgrade_preview_026g.section.bin (`code`) with its kit_apply slot
+    (UPGRADE_PREVIEW_KIT_APPLY, zeros in the file) holding patch 68's
+    weapon_kit_preview_apply of the arena `linked`; as it is without one."""
+    if code[UPGRADE_PREVIEW_KIT_APPLY:UPGRADE_PREVIEW_KIT_APPLY + 4] != bytes(4):
+        sys.exit("upgrade_preview_026g.section.bin: its kit_apply slot (+23h) is not the zeros the build fills")
+    if linked is None or WEAPON_KIT_PREVIEW_APPLY not in linked.symbols:
+        return code
+    target = struct.pack("<I", arena_target(linked, WEAPON_KIT_PREVIEW_APPLY))
+    return code[:UPGRADE_PREVIEW_KIT_APPLY] + target + code[UPGRADE_PREVIEW_KIT_APPLY + 4:]
 
 
 def upgrade_preview_targets(code, va):

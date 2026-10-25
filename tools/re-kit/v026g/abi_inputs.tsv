@@ -4466,3 +4466,7 @@ va	name	location	role	basis
 0x0033d790	survarium::medkit::tick	ECX	the medkit (any drug): influences at +280h (14h each: the pool name first, the per-second amount at +10h), their count byte +288h, healed so far per influence (floats) +284h, delay ms left +2ACh, activity ms left +2A8h	observed
 0x0033d790	survarium::medkit::tick	entry ESP+4	elapsed ms: the delay first; then min(it, activity left) x 0.001 s x apply_modifier(57 drug_amount, amount, 1.0) to each influence pool (by name, 0x2E58B0) through increase_health 0x32A420, skipped below 1e-6; at the first active tick remove_affects 0x33DA50; set_active(0) when the activity is spent	observed
 0x0033cac0	survarium::medkit::medkit	EAX	the item config: data/activity_time_sec (at least 0.001) x 1000 -> +29Ch ms; parameters/activity_time_skill_influence -> +2A0h, the k of the activity time through apply_modifier 34 drug_activity_time; data/influences -> +280h, count +288h	observed
+0x002f2060	survarium::item_config_query::get_item	ESI	the query's holder ([translate_query's [ebp+7Ch]]+108h): +8 dict id, +0Ch modifications*, +10h upgrades* (the item record's +14h and +60h buffer_vectors), +14h the items dictionary, +2Ch its thread	observed
+0x002f2060	survarium::item_config_query::get_item	EDI	where the four dwords go (translate_query's ebp+38h)	observed
+0x001f1610	vostok::buffer_vector<survarium::upgrade>::resize	EDI	the buffer_vector (begin, end, capacity end)	observed
+0x001f1610	vostok::buffer_vector<survarium::upgrade>::resize	ECX	the new count	observed

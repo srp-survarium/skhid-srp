@@ -106,6 +106,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
+| `weapon_kit_026g.asm`, `weapon_kit_026g.c`, `check_weapon_kit_026g.py` | Patch 68: a weapon's upgrades (two decals, camouflage, scope, muzzle device, grip) in at most three records, the weapon kit (the arena's block `weapon_kit.code`): item_config_cook::translate_query builds a weapon from the records and each dict id a kit record names, the lobby's upgrades to Flash give a kit's object `kit_lo`/`kit_hi`, and patch 48's preview applies its queue through `weapon_kit_preview_apply`; its check runs translate_query from its call of 0x2F2060 to the end of its record loop with the game's own code, the bridge, and patch 48's apply (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -114,7 +115,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, `-DFIND` the stash code's address and `-DCAMERA` patch 45's camera (weapon_table_026g.asm), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `weapon_stash_026g.asm`, `weapon_stash_026g.section.bin`, `check_weapon_stash_026g.py` | Patch 32's find_kit grown: a weapon no kit holds is shown in the chosen kit's hands from a scratch copy of the account's profile; assembled for 0x360 of `.srpw`; its check runs it with the game's own profile and record copies (needs Unicorn) |
 | `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench, turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x6B0 of `.srpw` (0x800 until round 5d), its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
-| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears a decal (the bake patch 44 asks for paints it; the code takes two, the server gives one slot) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1000 of `.srpw` (its second page), no state of its own; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
+| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears two decals (the bake patch 44 asks for paints them; the server's two slots since patch 68's weapon kit) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1000 of `.srpw` (its second page), no state of its own; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
 | `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 48: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xD60 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
@@ -3346,6 +3347,60 @@ a key kF9 set for 19h kept in the 41st row (the original keeps it in none), the 
 `bind toggle_replay_ui kF9` (the original's nothing), the binder's own bind binds it, its save
 writes `bind toggle_replay_ui kF9`, and that line read back binds it again. The lobby movie builds from source
 (`tools/actionscript/flash_tree.py`). **Not run in a game.**
+
+### 68. A weapon's upgrades in at most three records: the weapon kit (the next release's revision)
+
+The owner (2026-10-25): "at least 6 slots there for weapons only": two decals, camouflage, scope,
+a grip and a muzzle device. The client keeps three upgrade records an item (the item record's
+inline array, 0x2F7C10; a fourth is the fatal assert at 0x1F1655) and the config builder
+(0x2F14C0) checksums three values on its stack; weapons had no slots in the stock game, so theirs
+are srp's own. The rules and the record's layout: `../docs/notes/weapon-kit.md`.
+
+The server keeps a weapon's upgrades in logical slots (decals 0 and 1, camouflage 2, scope 3,
+muzzle 4, grip 5) and sends at most three records: the decals, then a **kit** in slot 3, the
+first of scope, camouflage, muzzle, grip (its own item and dict id), its value naming the others
+by dict id (bits 0..15 the camouflage, 16..31 the muzzle device, 32..47 the grip, 48..55 its own
+slot, 56..63 0xA7).
+
+`weapon_kit_026g.asm` and `weapon_kit_026g.c`, the arena's block `weapon_kit.code`, two entries
+(`WEAPON_KIT_HOOKS`, both JUMP):
+
+- **query** (0x2F1771, `call 0x2F2060` -> `jmp weapon_kit_query`): item_config_cook::translate_query
+  (0x2F1750) reads the item's records only through [ebp+40h] (0x2F1799, 0x2F18D0); query calls
+  0x2F2060, and when a record is a kit, lowers esp by B0h (translate_query's epilogue takes esp from
+  ebp, as after its own allocas) and puts there the records and one `{0, dict id, 0, slot}` for
+  each dict id the kit names (`weapon_kit_expand`: at most six; none the dictionary lacks, the list
+  holds, or a slot a record that is no kit is in), [ebp+40h] pointing at it; back at 0x2F1776.
+  Without a kit, or 0x2F2060 refusing (another thread's query), the original's way and stack. The
+  item record is never written: every copy (the inventory, the kits, a match's static info, a late
+  join's, a replay's) carries the three records as they are.
+- **bridge** (0x2882E3, `mov ecx,[esp+48h] / mov eax,[ecx]` -> `jmp weapon_kit_bridge` + nop):
+  after the upgrade object's `param` (0x2882E1), a kit record's object gets `kit_lo` and `kit_hi`
+  (uint, the value's halves; SetMember as the bridge's own), then the two instructions; back at
+  0x2882E9 (the PushBack). The movie's `UpgradeWindow.kitUpgrades` makes the window's slots of them.
+
+Patch 48 (`upgrade_preview_026g.asm`): a dword `kit_apply` after its seven entries (+23h, zeros in
+the file) that the build writes with `weapon_kit_preview_apply`'s address (`with_kit_apply`);
+`apply` calls it (cdecl: the record, the queue, its count): the queue applied on the logical slots
+as the server applies it, packed again. Without it (a build with no arena) the old `apply`.
+
+The server answers a weapon's `46 01` and `46 02` with the inventory and the account alone (the
+client's own copy of the record could be a fourth). The lobby only and the config of what a weapon
+wears (camouflage, decals, scope: what a match computes is unchanged): no row in
+`../crates/session/src/v026g/simulation_changes.tsv`. A muzzle device's or grip's modification
+will add one. A client without patch 68 shows the kit's own and the decals, not what the kit names.
+
+Checked: `selftest_026g.py` check 68 (the sites in the original and the builds, translate_query's
+two reads of [ebp+40h] and 0x2F2060's copy, the hooks into `weapon_kit.code`, no relocation or
+branch into them, the entries' calls) and check 48 (patch 48's slot holds `weapon_kit_preview_apply`,
+its one indirect call); `check_weapon_kit_026g.py` (Unicorn): translate_query from 0x2F1771 to the
+end of its record loop (0x2F1960) with the game's own alloca and entry push, the dictionary's
+item_by_id and the configs' lookup stubbed: five lists without a kit give the original's entries
+and stack, six with a kit the records and what it names (at most six; a dict id the dictionary
+lacks, one held already, a slot taken left out), the item's records unchanged; 0x2F2060's refusal
+the original's way; the bridge's six cases (kit_lo/kit_hi on the kit's object only, registers and
+stack the original's); patch 48's apply in nine cases against the packing model and literal
+records; `check_upgrade_preview_026g.py` with the kit's records. **Not run in a game.**
 
 ## Not ported, not done
 
