@@ -616,4 +616,42 @@ mod tests {
         );
         assert_eq!(tuning.aim.burst_ms, defaults.aim.burst_ms);
     }
+
+    #[test]
+    fn validate_names_the_first_wrong_value_in_the_order_of_the_sections() {
+        let wrong = |change: fn(&mut Tuning)| {
+            let mut tuning = Tuning::default();
+            change(&mut tuning);
+            tuning.validate().unwrap_err()
+        };
+        assert_eq!(wrong(|t| t.sense.view_deg = 0.0), "sense.view_deg");
+        assert_eq!(wrong(|t| t.sense.notice_near_ms = t.sense.notice_far_ms + 1), "sense.notice_*_ms");
+        assert_eq!(wrong(|t| t.think.think_ms = (0, 5)), "think.think_ms");
+        assert_eq!(wrong(|t| t.think.commander_ms = 10), "think.commander_ms");
+        assert_eq!(wrong(|t| t.feel.hop_every_s = 0.0), "feel.hop_*");
+        assert_eq!(wrong(|t| t.skill.start = t.skill.max + 1.0), "skill.start");
+        assert_eq!(wrong(|t| t.skill.kd_low = 9.0), "skill.kd_*");
+        assert_eq!(wrong(|t| t.aim.wander_s = 0.0), "aim.wander_s");
+        assert_eq!(wrong(|t| t.aim.combat.strafe_run_ms = (0, 5)), "aim.combat.strafe_run_ms");
+        assert_eq!(wrong(|t| t.aim.combat.recoil_pull = 2.0), "aim.combat.recoil_pull");
+        assert_eq!(wrong(|t| t.hazard_margin = -1.0), "hazard_margin");
+        assert_eq!(wrong(|t| t.personalities.clear()), "personalities: shares must sum to 1");
+        // Several wrong at once: the first section in the order says so.
+        assert_eq!(
+            wrong(|t| {
+                t.hazard_margin = -1.0;
+                t.aim.wander_s = 0.0;
+                t.sense.view_deg = 0.0;
+            }),
+            "sense.view_deg"
+        );
+        assert_eq!(
+            wrong(|t| {
+                t.aim.combat.recoil_pull = 2.0;
+                t.aim.burst_ms = (9, 1);
+                t.skill.kd_low = 9.0;
+            }),
+            "skill.kd_*"
+        );
+    }
 }
