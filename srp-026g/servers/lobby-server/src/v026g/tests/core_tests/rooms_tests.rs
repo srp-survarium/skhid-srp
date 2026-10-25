@@ -1187,6 +1187,10 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
     // Equipment over the max level now: the window offers its level.
     with_gear(&mut world, alice, 5);
     assert_eq!(form(&mut world, alice).0, ["1", "9", "2", "5", "45"]);
+    // Lowered again (the movie asks anew when the gear changes): the max
+    // level made.
+    with_gear(&mut world, alice, 2);
+    assert_eq!(form(&mut world, alice).0, ["1", "9", "2", "3", "45"]);
     // Play's room after it keeps what the hand made.
     rows(&mut world, alice, ROOM_LEAVE, 1);
     world.ask(alice, request::play(1));

@@ -55,7 +55,8 @@ package survarium.rooms
         internal var _sliders:Object = {};
         private var _drag:String = null;
         // What the create on its way makes (`kept`): the window's start
-        // once its room is made (`made`).
+        // once its room is made (`made`, Back pressed meanwhile too); none
+        // once it is refused or Play chosen instead (`notMade`).
         private var _making:Object = null;
         internal var _makePin:TextField;
         // What was typed in it, kept across redraws (a tile clicked, a mode).
@@ -78,7 +79,6 @@ package survarium.rooms
             win._code = RoomCode.NONE;
             look._scrollPx = 0;
             _makePinText = "";
-            _making = null;
             if (win._poolTotal < 0)
                 win.ask(RoomsWire.POOL, RoomsWire.POOL_ASK_ROWS);
             start(win._form);
@@ -189,8 +189,8 @@ package survarium.rooms
             return {"size": _size, "min": _minSide, "max": _max, "wait": _wait, "modesOff": modesOff, "off": off};
         }
 
-        // RoomsWindow: a room new to us, ours, came while this window was
-        // up. The server keeps the settings it was made with (room_remember):
+        // RoomsWindow: a room new to us, ours, came while a create was on
+        // its way. The server keeps the settings it was made with (room_remember):
         // the window's next start, kept with them.
         internal function made():void
         {
