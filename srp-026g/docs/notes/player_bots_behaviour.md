@@ -1053,6 +1053,33 @@ A bot stood at a goal with no route for 2.2 % of its ticks with a goal, not coun
 - **Measures** (test-only): `Bot::bench_legs`, `Bot::bench_driven` and the stood line apart from fights and new plays; the bench's no way by play (searches that found no way, ticks stood at their goal).
 - **Best practice:** expensive tests (paths) run last, "from the highest scoring down, until a point passes" (Jack, *Tactical Position Selection*, Game AI Pro ch. 26 §26.7); keep a chosen position until a strong reason (hysteresis: Johnson, *Taming Spatial Queries*, Game AI Pro Online 2021 ch. 5 §2). Detour's crowd does not replan a failed target; picking a new one is the caller's. The 20 s memory of a proof follows the usual "ignore a failed target for a while"; no chapter that prescribes it was found.
 
+### A battery's crossing worked out once a match (built 2026-10-25)
+
+A slow commander pass (over 20 ms: a quarter of battery passes late in a match) spent 93 % of its time in `collect::crossing_to`. That function finds the cheapest walk across zones on all match to a battery lying in them, about 0.47 ms a call. Each pass asked it about 70 times: for every bot and every such battery, by Collect's candidates, Ambush's `can_take`, the notes' `take_blocks`, and Collect's crossing cost. The answer never changes during a match. It depends only on the map and on each zone's control and hit, which are set when the anomalies attach.
+
+- **The memo** (`plays/memo.rs`, owned by `Bots`, reached as `Ctx::memo`). It's a generic match-long store for a costly question of the map, so other plays can add their own.
+  - `Ctx::crossing` reads it, keyed by the stand, the side and the stop.
+  - It drops every answer when any zone's control or hit changes, comparing the whole list by bits. `Bots` makes it anew with its tactics.
+  - It keeps at most 4,096 answers and starts afresh past them.
+  - A bot's own way out (keyed by its feet) still asks directly.
+- **`take_blocks`** reads the bot's Collect candidates of the same pass: a battery with a Collect of it has no block, without asking again. Batteries with no Collect are asked as before.
+- **Proof:** same decisions. B's digests equal base-974465c4's in 96 of 96 runs (batt and tdm; tiers 4-5, 9-10, 13-15; seeds 1-16). No RNG is drawn in either path. Tests: kept answers equal the uncached ones; a changed zone (hit, or control) drops them; a full memo starts afresh; `take_blocks` given the candidates writes the same notes as `take_blocks` asking afresh.
+- **`crossing_to` runs per commander pass** (counted builds, batt 9-10 seeds 1-2):
+  - 10 v 10: 25.9 → 0.003 on average, max 120 → 2.
+  - 4 v 4: 6.3 → 0.003, max 36 → 1.
+  - tdm has none.
+- **CPU**, A (974465c4) and B run side by side, tier 9-10, the bench's own lines:
+
+  | Preset, size (matches) | bots ms/s mean (p95) | poll p99 (p99.9) µs | poll max µs | commander worst µs, mean (max) |
+  |---|---|---|---|---|
+  | batt 10 v 10 (48) | 84.3 (195.9) → 44.4 (61.4) | 12,589 (22,137) → 4,135 (6,055) | 230,190 → 80,717 | 37,908 (230,181) → 13,856 (39,888) |
+  | batt 4 v 4 (48) | 22.9 (47.4) → 12.3 (24.2) | 3,912 (8,824) → 1,793 (4,533) | 106,638 → 25,293 | 19,299 (106,630) → 10,171 (25,291) |
+  | tdm 10 v 10 (24) | 30.4 (43.1) → 30.0 (43.9) | 3,328 (4,753) → 3,258 (4,682) | 9,086 → 9,439 | 5,628 (7,343) → 5,819 (7,809) |
+  | tdm 4 v 4 (24) | 6.8 (9.2) → 6.7 (8.7) | 797 (3,758) → 774 (3,656) | 12,725 → 8,673 | 5,768 (12,720) → 5,502 (8,670) |
+
+  tdm is unchanged, as expected: it has no batteries. Battery matches' tails now come from what remains (think, ticks, the two teams' commanders in one poll).
+- **Best practice:** compute a pure query once and reuse it across decision cycles until its inputs change, before slicing what is left. Time-slicing and budgets are the next step for remaining spikes: Allen Chou, [Timeslicing Batched Algorithms in Games](https://allenchou.net/2017/03/timeslicing-batched-algorithms-across-multiple-frames/); Ben Sunshine-Hill, GDC [Beyond Framerate: Taming Your Timeslice Through Asynchrony](https://gdcvault.com/play/1024202/Beyond-Framerate-Taming-Your-Timeslice); Detour's [sliced queries](https://recastnav.com/classdtNavMeshQuery.html). Don't score again what is already decided: Dave Mark on [early-out utility scoring](https://gamedev.net/forums/topic/697580-applying-utility-ai-to-different-situations-how-granular-canshould-i-go/5383323/), which is what `take_blocks` reading Collect's candidates does. Invalidation by the inputs' own values, not by a clock, follows `Tactics::past_fixed_zones`' cache.
+
 ## 4. Event reactions
 
 | Event | How bots learn it | Reaction |
