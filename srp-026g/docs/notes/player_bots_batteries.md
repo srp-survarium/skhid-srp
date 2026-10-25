@@ -706,3 +706,40 @@ take's hold-fire too (633fb535), the final tree. No tier plays as 4-5.
   drops 0.7 → 0.1 (−3.1 SE), the rest within noise.
 - tdm: seeds 1-2 at 4-5, 9-10 and 13-15, both commits; every run's
   decisions digest equal to base's.
+
+## Bots: a carrier trapped in a pocket is not given up on, and lets go of the battery once its escape gives up
+
+### Why
+
+A carrier in a pocket (`escape.rs`) has two clocks. Collect's own
+`give_up_s` (120 s) ended its Bring as "took too long" while the escape
+(`escape::GIVE_UP_MS`, 40 s from being trapped) was still working it out,
+and the commander then gave it another play that could not fire (a fire
+press drops the battery). Once its escape gave up, the commander gives a
+trapped bot no slotted play (`team::assign_trapped`), but the carrier's
+Bring stayed: a bot that cannot get home kept the battery in hands it could
+not shoot from.
+
+### What changed
+
+- **`plays/collect.rs`, Collect's give-up:** no "took too long" while the
+  bot is trapped and carrying (or letting go): the escape has its own clock.
+- **Bring, its escape given up:** presses the drop key (one tick; the input
+  handler drops on any input with bit 22 while carrying, 0x2D8E73..0x2D8EC8,
+  PROVEN, and every press traced in #416's bench dropped it that tick) and
+  goes to `State::LetGo`, with the fire gate open.
+- **`State::LetGo`:** done once the view shows it not carrying; if the view
+  still shows it carried 2.5 s later (`LET_GO_AGAIN_MS`, GUESS: past the
+  worlds' lag), presses fire, which drops it the same way.
+- **The carrier's Collect candidate** has no slot once its escape gave up,
+  as `assign_trapped` gives a given-up bot no slotted play.
+- **`Intent::let_go`** (`plays/mod.rs`) and `drive_tick`'s fire gate: the
+  reflex may fire while the view, up to 2 s late, still shows the battery
+  carried.
+- **`escape::Board::set_trapped_for_test`** for the test.
+- **Test** `a_carrier_whose_escape_gave_up_lets_go_and_may_fire`: no drop
+  while it escapes past `give_up_s`; once given up, no slot, the drop key
+  pressed with the gate open and fire allowed, no second press within the
+  lag, and the play ends once the battery shows down.
+
+### Bench
