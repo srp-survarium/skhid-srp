@@ -428,6 +428,103 @@ kept, with a cost on them) is rebuilt on top of this rule: benched alone it
 raised falls on route on every cell, from route legs along the edges and
 from planned drops off them.
 
+### Grid: edges and drops priced, a band at the lips (b4, 2026-10-25)
+
+**The rules.** On top of the shut-pocket rule (`GRID_ALGO` 11; 9 and 10 were
+unreleased variants, so stored grids rebuild):
+
+- **Erosion by body height:** walls are solid at the body's height. The floors
+  beside a fall deeper than the harmless drop (5 m) are kept, and those within
+  the body's radius + 0.25 m of one are `near_fall`; a walk onto one costs
+  `FALL_EDGE_PENALTY` (0.5 m) more.
+- **Drops:** a drop costs `DROP_DESCENT_PENALTY` (1 m) more per metre it falls,
+  about the walk down a stair it replaces. Without it, the edge cost is dodged
+  by dropping off the edge: planned drops rose 27-56 a cell.
+- **The band at the lips:** floors within the body's radius + 0.25 m of a lip
+  (a drop of 1 m or more) are `near_lip`. A walk onto one costs `LIP_PENALTY`
+  (0.25 m) more. That is a cost per floor entered, never a block: a narrow
+  walkway or an open-sided stair inside the band is still the way, and a drop
+  link never pays it, so a drop's take-off is walked to across the band for
+  about 0.75 m.
+- **pull_straight:** a line pulled straight crosses no lip, near-fall or
+  near-lip floor that the search kept off. The exception is the edge floors
+  leading in to a drop's take-off.
+
+**Why the band.** Every unplanned fall of the bench is off a lip of 1-5 m:
+1,410 of 1,410 on #402's tip, and 3,095 of 3,097 with the drop rule. The
+`near_fall` band, at falls deeper than 5 m, meets almost none of them.
+
+**Where the falls were** (#402's tip, an event per fall, batteries and team
+deathmatch, three tiers, seeds 1-4): 539 started on floors the A* chose, 498
+where pull_straight's line left them, 133 off the leg and 240 with no route.
+That is even in every cell, so both the search's cost and the line test
+matter.
+
+**Bench** (the tip a6fac9de merged; against base-a6fac9de, both presets, three
+tiers, seeds 1-16, 96 of 96 runs). Per seed run, base / without the band /
+with it:
+
+| cell | falls off the route | planned drops | time in pockets, s | delivered |
+|---|---|---|---|---|
+| batt 4-5 | 59.5 / 60.1 / 47.9 | 315 / 310 / 315 | 134 / 54 / 19 | 75.0 / 76.1 / 74.6 |
+| batt 9-10 | 61.9 / 61.6 / 45.1 | 322 / 314 / 314 | 165 / 19 / 25 | 73.6 / 74.0 / 74.4 |
+| batt 13-15 | 60.6 / 56.9 / 46.2 | 332 / 320 / 325 | 101 / 39 / 1 | 70.7 / 73.4 / 72.9 |
+| tdm 4-5 | 60.6 / 67.1 / 42.3 | 262 / 219 / 240 | 101 / 78 / 56 | |
+| tdm 9-10 | 56.9 / 63.4 / 40.2 | 269 / 225 / 240 | 72 / 109 / 46 | |
+| tdm 13-15 | 56.5 / 63.1 / 44.0 | 276 / 223 / 244 | 160 / 80 / 35 | |
+
+- **Falls with the band:** −11.6 to −18.3 a cell against base (z −4.4 to
+  −9.3).
+  - The A*'s falls drop most (batteries 21-25 → 14-15, TDM 28-30 → 17-18).
+  - The line's falls drop most in TDM (18-22 → 10-12).
+  - Falls within 2 m of a take-off drop too (18-22 → 9-15), so the band does
+    not trade planned drops for falls beside them.
+- **Without the band**, TDM's falls rose 6.5 a cell (z +1.7 to +3.1). The A*
+  walked down rough steps and along lips that cost 0.25 where drops cost more.
+  On level_06_day_4, (−2.5, 29, 105) and (47.5, 23, 60) went from 0.5-1.0 to
+  5-6 falls a seed; with the band they are at 4.4 and 3.5.
+- **Objectives:**
+  - deliveries are level or up (batt 13-15 +2.2, z +2.5);
+  - carry and put-in times are unchanged;
+  - legs with no way are down (z −2.0 to −2.3 in three cells);
+  - give-ups are down in every cell.
+- **Watch:**
+  - batt 13-15 carriers killed +2.4 (z +1.5), with the deliveries;
+  - batt 4-5 stuck +6.6 against the variant without the band (z +1.8).
+- **Planned drops against players** (a seed, three tiers, without the band →
+  with it):
+  - S21 30.8 → 30.8 and S22 23.8 → 23.8, where players go down most (4.5 and
+    7.4 % a sample);
+  - S18 44.6 → 7.4, a spot players hardly stand on;
+  - level_05's S01 49.6 → 80.4, S02 36.2 → 62.6 and S05 46.2 → 89.1, where
+    players walk (they go down 2.4-3.0 % a sample).
+  - The level_05 drops are safe. Drops are at most the harmless 5 m
+    (`fall_params.harmless_height`), so they do no damage. Bots killed within
+    5 s of landing: S01 0.9 %, S02 2.8 %, S05 0.1 %, against 3.4 % for all
+    other planned drops. Bots drop where players walk; safe.
+
+**Tried and dropped** (each against the rules above without the band, the same
+base and seeds):
+
+- **The drop at 0.5 m a metre:** planned drops came back (+21 to +42 a cell)
+  and the falls did not drop.
+- **`LIP_PENALTY` 0.5:** batteries' falls rose 11-14 a cell while its planned
+  drops fell 20-24. With the take-off floor dearer, routes walked the floors
+  beside it and bots fell there.
+- **A walk down steeper than walkable ground priced as a drop:** TDM's falls
+  did not move, and its planned drops rose 15-17.
+- **Strafing kept to the way:** while aiming on an edge leg, the keys took turns
+  between the two nearest of the eight ways, against the nearest way alone,
+  which is up to 22.5° off and leaves the body up to 0.36 m beside the line.
+  Its sign was mixed: falls +6 in batteries 9-10 and 13-15 (z +2.1 to +2.5),
+  −5 in TDM 4-5 (z −2.5). The slow strips it was for (the fall-spot study's
+  S10, S12) had 38 falls in 24 runs.
+
+**Follow-ups.**
+- A downward feeler in the motor, for the off-leg falls (4-6 a cell); the
+  motor does not see the grid.
+- Route points with a height: they are re-checked on `GRID_ALGO` 11.
+
 ## 5. Measured (2026-10-14, release build, one thread)
 
 0.25 m cells, all 72 projects; the day_4 project of each map, and one
