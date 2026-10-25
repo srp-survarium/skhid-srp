@@ -3102,7 +3102,7 @@ does what no config of 0.26g could.
   its effect 0x313350, the time, state 4), and returns: a press of one cooling or active still
   fires the ready ones. A key-up goes on in action. Different kinds keep their keys.
 - **Onyx: a stack is a longer burst, not a stronger one** (the owner, 2026-10-25; its numbers,
-  -60 % for 3 s, in `artefacts-1.json`). Its enable_active (0x3128C0) sets the active's time left
+  -75 % for 3 s, in `artefacts-1.json`). Its enable_active (0x3128C0) sets the active's time left
   (+F14h, ms) from `active/duration`; the press above, when the kind's enable_active is Onyx's,
   first counts the ready ones it fires (n) and adds (n - 1) x 1000 ms to each fired one's +F14h,
   so they are active 3 s + (n - 1) s and end and cool down together. Each Onyx protects its
@@ -3119,7 +3119,7 @@ does what no config of 0.26g could.
   [ebx-0C30h] / push 0BB8h`) the time on screen becomes the active's time left (+F14h), and of
   the Onyx fired by one press (state 4, the same activation time +2A0h) only the first of the
   slots shows it. The hud movie's set_parameterized_message writes a text's `%s` as that time in
-  seconds (rounded up); the six hints say "60% for %s s" (`artefact-texts-1.json`). Not `{s}`:
+  seconds (rounded up); the six hints say "75% for %s s" (`artefact-texts-1.json`). Not `{s}`:
   the game's localizer (0x1FEF90) makes `{NAME}` the key bound to action NAME (`{USE}`) and any
   other name nothing (the owner's test of `{s}`: "for  s.").
 
@@ -3166,7 +3166,7 @@ Onyx with the game's enable_active, countdown 0x3127E0, end test 0x312A50 and hi
 1, 2 and 3 Onyx pressed once are active 3, 4 and 5 s (the original: the pressed one, 3 s), a hit
 of damage 1 and piercing 0.5 is 0.4 and 0.2 through all their callbacks (the original 0.4^n),
 after 3 s one has ended and two or three have 1 or 2 s left; a cooling Onyx beside a ready one:
-the ready one alone, 3 s, x0.95 x0.4; two Onyx active from two presses: x0.4 once; the end of
+the ready one alone, 3 s, x0.95 x0.25; two Onyx active from two presses: x0.25 once; the end of
 Onyx's client update from 0x25F9DD with set_parameterized_message stubbed: the hint once, 3000,
 4000 and 5000 ms on screen (the original: once for each Onyx, 3000 ms), and once for each of two
 presses; 80 / 79 checks). The edited retail Spring config was read by
