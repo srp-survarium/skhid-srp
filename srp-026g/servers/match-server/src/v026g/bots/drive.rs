@@ -153,7 +153,7 @@ pub(super) fn drive_tick(
     // `carrying` comes with the worlds (up to 2 s after a take); the take
     // itself uses and Bring holds fire meanwhile. A play that let go of it
     // (`Intent::let_go`) may fire while the view still shows it carried.
-    let may_fire = intent.fire && (me.carrying.is_none() || intent.let_go);
+    let may_fire = Gates::may_fire(&intent, me.carrying.is_some());
     bot.reflex.outer_gates(time, !may_fire, bot.jump_hold > 0);
     let over = bot.reflex.tick(
         aiming_me,
@@ -239,14 +239,12 @@ pub(super) fn drive_tick(
         .locate(me.feet, 1.5)
         .map_or(0, |node| tactics.hazards.set_of(node));
     bot.stuck.zone_on(zone_set);
-    let zone_out = if goal.is_none() && !intent.zone_ok {
+    let zone_out = if Gates::wants_zone_way_out(&intent, goal) {
         zone_way_out(bot, tactics, me.feet, time, intent.objective)
     } else {
         None
     };
-    if zone_out.is_some() {
-        intent.straight = false;
-    }
+    intent.straight = Gates::straight(intent.straight, zone_out.is_some());
     let goal = goal.or(zone_out);
     #[cfg(test)]
     {
@@ -296,10 +294,7 @@ pub(super) fn drive_tick(
     // The play's own exact spot (a goal within 0): its route is not arrived
     // at from over its end (`Motor::exact_end`). A reflex's legs replaced
     // the play's goal above; an escape's or a zone's goal is not this one.
-    let exact_at = match intent.go {
-        Go::To { at, within_m: 0.0 } => Some(at),
-        _ => None,
-    };
+    let exact_at = Gates::exact_spot(&intent);
     // Standing to aim (no way to walk): the reflex's side step may move it;
     // walking a route while it aims, the step weaves the walk
     // ([`weave`], `strafe_walking`).
@@ -913,4 +908,85 @@ pub(super) fn weave(keys: u32, strafe: u32) -> Option<u32> {
     let along = keys & (key::FORWARD | key::BACK);
     let side = keys & (key::LEFT | key::RIGHT);
     (along != 0 && side == 0 && strafe != 0).then_some(keys | strafe)
+}
+
+/// What the flags of a play's [`Intent`] allow this tick, each as one rule in one place: `drive_tick` reads
+/// the answers, so a play's override of a default (fire while carrying, stand in a zone, walk by keys,
+/// arrive at an exact spot) is one field on `Intent` and one rule here.
+pub(super) struct Gates;
+
+impl Gates {
+    /// Whether the reflex may fire. A carrier never does (a new fire press drops the battery), unless the
+    /// play let go of it (`Intent::let_go`): the view shows it carried up to 2 s late.
+    pub(super) fn may_fire(intent: &Intent, carrying: bool) -> bool {
+        intent.fire && (!carrying || intent.let_go)
+    }
+
+    /// Whether a bot with `goal` (None: nothing to walk to) looks for the way out of a zone it stands in:
+    /// only with no goal, and not when standing there is the play's own choice (`Intent::zone_ok`).
+    pub(super) fn wants_zone_way_out(intent: &Intent, goal: Option<Vec3>) -> bool {
+        goal.is_none() && !intent.zone_ok
+    }
+
+    /// Whether the walk is by keys with no route (`Intent::straight`): not when a zone's way out is the goal.
+    pub(super) fn straight(straight: bool, zone_out: bool) -> bool {
+        straight && !zone_out
+    }
+
+    /// The play's own exact spot (a goal within 0), whose route is not arrived at from over its end.
+    pub(super) fn exact_spot(intent: &Intent) -> Option<Vec3> {
+        match intent.go {
+            Go::To { at, within_m: 0.0 } => Some(at),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn intent(fire: bool, let_go: bool, zone_ok: bool) -> Intent {
+        Intent { fire, let_go, zone_ok, ..Intent::stay() }
+    }
+
+    #[test]
+    fn a_carrier_fires_only_when_its_play_let_go_of_the_battery() {
+        for (fire, let_go, carrying, expect) in [
+            (true, false, false, true),
+            (true, false, true, false),
+            (true, true, true, true),
+            (true, true, false, true),
+            (false, true, false, false),
+            (false, false, true, false),
+        ] {
+            assert_eq!(Gates::may_fire(&intent(fire, let_go, false), carrying), expect, "{fire} {let_go} {carrying}");
+        }
+    }
+
+    #[test]
+    fn a_zone_way_out_is_wanted_with_no_goal_and_a_play_that_does_not_stand_there_on_purpose() {
+        let goal = Some(Vec3::new(1.0, 0.0, 2.0));
+        assert!(Gates::wants_zone_way_out(&intent(true, false, false), None));
+        assert!(!Gates::wants_zone_way_out(&intent(true, false, false), goal));
+        assert!(!Gates::wants_zone_way_out(&intent(true, false, true), None));
+        assert!(!Gates::wants_zone_way_out(&intent(true, false, true), goal));
+    }
+
+    #[test]
+    fn a_straight_walk_gives_way_to_a_zone_way_out() {
+        assert!(Gates::straight(true, false));
+        assert!(!Gates::straight(true, true));
+        assert!(!Gates::straight(false, false));
+        assert!(!Gates::straight(false, true));
+    }
+
+    #[test]
+    fn only_a_goal_within_nothing_is_an_exact_spot() {
+        let at = Vec3::new(3.0, 0.0, 4.0);
+        let go = |within_m| Intent { go: Go::To { at, within_m }, ..Intent::stay() };
+        assert_eq!(Gates::exact_spot(&go(0.0)), Some(at));
+        assert_eq!(Gates::exact_spot(&go(0.5)), None);
+        assert_eq!(Gates::exact_spot(&Intent::stay()), None);
+    }
 }
