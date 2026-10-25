@@ -217,6 +217,18 @@ pub fn resume(
     route
 }
 
+/// Whether a crossing walked `walked` m along `route` still leaves a bot
+/// of `health` [`CROSS_ABORT_LEFT`] over the rest of its zones at
+/// [`CROSS_MPS`], a carrier's crossing's abort (`collect`). Hurt in a fight
+/// or held up in the zone, it stops crossing (`mod.rs`), and the escape
+/// walks it out (`Tactics::escape`). The bench (seeds 1-8, zone damage on):
+/// without it, on Mamayev Kurgan's batteries, 116 stretches in zones left a
+/// bot under 0.6 health (10 before crossings), and bots died 10 s into a
+/// zone of 0.25 a second.
+pub fn still_borne(tactics: &Tactics, route: &Route, walked: f32, health: f32) -> bool {
+    health - hurt(tactics, route, walked, route.length()) >= CROSS_ABORT_LEFT
+}
+
 /// What the motor takes after a crossing's search from floor `from`: the
 /// route, whether it is a crossing, and whether it is the plain route kept
 /// (a long one: not searched again soon, [`LONG_RETRY_MS`]). `plain` is the
@@ -322,11 +334,13 @@ pub enum Count {
     Floors,
     /// A search wanted for a long plain route (not for none).
     Long,
+    /// A crossing stopped on the way ([`still_borne`]).
+    Aborted,
 }
 
 #[cfg(test)]
 thread_local! {
-    static COUNTS: std::cell::Cell<[u64; 6]> = const { std::cell::Cell::new([0; 6]) };
+    static COUNTS: std::cell::Cell<[u64; 7]> = const { std::cell::Cell::new([0; 7]) };
 }
 
 /// A crossing's search counted ([`Count`]).
@@ -356,9 +370,9 @@ pub fn expanded(floors: u64) {
 pub fn expanded(_: u64) {}
 
 /// The counts so far, by [`Count`]: searched, taken, ring walks, refused,
-/// floors expanded, wanted for a long route.
+/// floors expanded, wanted for a long route, stopped on the way.
 #[cfg(test)]
-pub fn counts() -> [u64; 6] {
+pub fn counts() -> [u64; 7] {
     COUNTS.with(|c| c.get())
 }
 
@@ -453,6 +467,19 @@ mod tests {
         let grid = &deadly.world.grid;
         let mid = grid.locate(Vec3::new(40.0, 0.0, 32.5), 1.5).unwrap();
         assert!(!crossable(&deadly, mid, 1.0));
+    }
+
+    /// A crossing hurt on the way is stopped once the rest of it would leave
+    /// the bot under `CROSS_ABORT_LEFT`; past the zone it is borne.
+    #[test]
+    fn a_crossing_is_stopped_once_its_rest_would_leave_too_little_health() {
+        let weak = tactics(0.04, 0.0);
+        let route = plan(&weak, WEST, EAST, 1.0).0.expect("a crossing");
+        let cost = hurt(&weak, &route, 0.0, route.length());
+        assert!(still_borne(&weak, &route, 0.0, 1.0));
+        let low = CROSS_ABORT_LEFT + cost / 2.0;
+        assert!(!still_borne(&weak, &route, 0.0, low));
+        assert!(still_borne(&weak, &route, route.length(), low));
     }
 
     /// With no zone, the plain route stands and no second search is made.

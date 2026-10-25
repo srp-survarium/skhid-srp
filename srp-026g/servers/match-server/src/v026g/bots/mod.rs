@@ -2605,9 +2605,27 @@ fn drive_tick(
             // there (one that came on, or it is late): planned again.
             // On a crossing to this goal (`crossing.rs`): its zones' floors
             // are walked.
-            let crossing = bot
+            let mut crossing = bot
                 .crossing
                 .is_some_and(|goal| goal.distance_xz(at) <= REPLAN_MOVED_M);
+            // One that would now leave too little health: stopped, and the
+            // escape walks it out (`crossing::still_borne`).
+            let mut aborted = false;
+            if crossing
+                && !replan
+                && time >= bot.stuck.zone_checked + stuck::ZONE_CHECK_MS
+                && let Some((route, _)) = bot.route.as_mut()
+            {
+                let (walked, _) = route.progress(me.feet);
+                if !crossing::still_borne(tactics, route, walked, me.health) {
+                    crossing::count(crossing::Count::Aborted);
+                    bot.crossing = None;
+                    bot.route = None;
+                    crossing = false;
+                    aborted = true;
+                }
+            }
+            let replan = replan || aborted;
             let shut = !replan && time >= bot.stuck.zone_checked + stuck::ZONE_CHECK_MS && {
                 bot.stuck.zone_checked = time;
                 bot.route.as_mut().is_some_and(|(route, _)| {

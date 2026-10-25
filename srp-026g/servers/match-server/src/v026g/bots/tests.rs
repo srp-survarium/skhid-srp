@@ -5635,7 +5635,7 @@ fn real_bot_cost() {
                 .collect();
             let play_rows: std::collections::BTreeMap<&String, [u32; 5]> =
                 by_play.iter().map(|(k, r)| (k, *r)).collect();
-            let crossings: [u64; 6] = {
+            let crossings: [u64; 7] = {
                 let now = super::crossing::counts();
                 std::array::from_fn(|k| now[k] - crossings_before[k])
             };
@@ -5700,7 +5700,7 @@ fn real_bot_cost() {
                     "zone_spells": zone_spells,
                     // Crossings' searches (`crossing.rs`): searched, taken,
                     // ring walks, refused, floors expanded, wanted for a long
-                    // route.
+                    // route, stopped on the way.
                     "crossings": crossings,
                     "zone_takes": zone_takes,
                     "zone_spots": zone_spots.len(),
