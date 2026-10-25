@@ -7388,6 +7388,18 @@ mod pocket_runs {
 
     /// [`drive`] on map `level`'s world.
     fn drive_on(world: Arc<World>, level: u8, start: Vec3, goal: Vec3, until: u32) -> Seen {
+        drive_paced(world, level, start, goal, until, Pace::Run).0
+    }
+
+    /// [`drive_on`] at `pace`, with the stand-in's sprint clips played.
+    fn drive_paced(
+        world: Arc<World>,
+        level: u8,
+        start: Vec3,
+        goal: Vec3,
+        until: u32,
+        pace: Pace,
+    ) -> (Seen, u32) {
         let teams = [0u8];
         let mut bots = Bots::new(
             0xB17,
@@ -7433,7 +7445,7 @@ mod pocket_runs {
             bots.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
             bots.go_on_searching();
             if let Some(bot) = bots.bots[0].as_mut() {
-                bot.intent = Intent::to(goal, Pace::Run).within(1.0);
+                bot.intent = Intent::to(goal, pace).within(1.0);
             }
             let mut made = Vec::new();
             bots.ticks(0, &now, &view, &mut made);
@@ -7461,7 +7473,69 @@ mod pocket_runs {
             seen.end = feet;
         }
         eprintln!("{seen:?}");
-        seen
+        (seen, game.sprint_jumps)
+    }
+
+    /// The yard with a deck `rise` m up over x 40-60 (a wall face at x 40),
+    /// for a route up a marginal jump with room past its landing.
+    fn deck(rise: f32) -> Arc<World> {
+        let mut tris: Vec<Triangle> = Vec::new();
+        tris.extend(floor(0.0, 0.0, 40.0, 40.0, 0.0));
+        tris.extend(floor(40.0, 0.0, 60.0, 40.0, rise));
+        tris.extend(floor(60.0, 0.0, 80.0, 40.0, 0.0));
+        let walker = WalkerBehaviour::BySlope;
+        for x in [40.0, 60.0] {
+            let (p, q) = (Vec3::new(x, 0.0, 0.0), Vec3::new(x, 0.0, 40.0));
+            let (r, t) = (Vec3::new(x, rise, 40.0), Vec3::new(x, rise, 0.0));
+            tris.push(Triangle {
+                v: [p, q, r],
+                walker,
+            });
+            tris.push(Triangle {
+                v: [p, r, t],
+                walker,
+            });
+        }
+        let spawns = [Vec3::new(5.0, 0.0, 10.0), Vec3::new(75.0, 0.0, 10.0)];
+        let grid = WalkGrid::build_kept(
+            &tris,
+            [0.0, 0.0, 80.0, 40.0],
+            0.25,
+            mapdata::Body::default(),
+            &spawns,
+            &spawns,
+        );
+        let spawn = |team: i32, at: Vec3| Spawn {
+            position: at,
+            rotation: Vec3::ZERO,
+            team,
+            priority: 0,
+            point_id: 0,
+            layer: "default".into(),
+        };
+        let map = MapData {
+            spawns: vec![spawn(0, spawns[0]), spawn(1, spawns[1])],
+            ..MapData::default()
+        };
+        let sight = RayTree::build(&tris);
+        Arc::new(World::assemble(map, grid.into(), sight.into()))
+    }
+
+    /// A marginal jump (1.0 m, over the standing jump's 0.998 m) on a route
+    /// walked at a walking pace, through the whole bot (`drive_tick`'s
+    /// stance and pace): sprint is kept through the run-up and the air, the
+    /// stand-in plays the sprint clip, and the bot gets up onto the deck.
+    /// Before, the line-up's no-sprint rule and the pace took sprint off,
+    /// and no bench match had a sprint jump.
+    #[test]
+    fn a_marginal_jump_at_a_walking_pace_is_sprinted_through_the_whole_bot() {
+        let goal = Vec3::new(50.0, 1.0, 20.0);
+        for pace in [Pace::Walk, Pace::Run] {
+            let (seen, sprints) =
+                drive_paced(deck(1.0), 0, Vec3::new(25.0, 0.0, 20.0), goal, 20_000, pace);
+            assert!(sprints >= 1, "{pace:?}: {seen:?}");
+            assert!(seen.arrived_ms.is_some(), "{pace:?}: {seen:?}");
+        }
     }
 
     /// A pit 0.9 m deep (a standing jump out): the bot in it jumps out
