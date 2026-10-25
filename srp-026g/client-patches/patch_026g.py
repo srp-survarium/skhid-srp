@@ -478,6 +478,12 @@ Patches:
   ricochet_icon and pain_icon (0 or 1) for the hud movie's row. The
   simulation's own state, read alike in every game; nothing a match
   computes changes;
+- a fall's speed counts the time it fell (patch 72, with the late join;
+  docs/notes/fall_damage.md "Split ticks"): step_down's free fall
+  (0x7E6E6..0x7E75C, rewritten in place, FALL_GRAVITY) takes gravity x
+  min(player_step's dt, 0.05), not x 0.05 at every step, so a tick the
+  world steps in parts (each precise input) adds one tick of speed in all;
+  whole ticks bit for bit as before. A simulation change;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1260,6 +1266,35 @@ SPOT_VA = SECTION_VA + SPOT_OFFSET
 SPOT_HOOK = (0x2D8A0F, bytes.fromhex("8b0e8b490c"), 0, 0xE9)
 SPOT_OWNER_VTABLE = 0xA13EEC                  # victory_item_core at +58h: its rigid body's owner
 SPOT_EXITS = (0x2D888F, 0x2D8A8F, 0x2D8A14)   # spotted; not spotted, the next hit; the original
+
+# Fall speed (patch 72, ../docs/notes/fall_damage.md "Split ticks"). The
+# world steps to each precise input (a change of the fire bit, 0xDD) inside
+# a tick (tick_events 0x2D21E0), and every step ticks the physics
+# (0x2D1D00 -> bullet_physics_world::tick 0x75550 -> updateActions 0x9B810,
+# dt = the step's ms / 1000). bullet_character_controller::updateAction
+# 0x7B730 runs player_step 0x7BDA0 for a step shorter than 0.05 s when the
+# body moved, as a falling one has; player_step moves it dt / 0.05 of a tick
+# (0x7C734), but step_down's free fall (0x7E6E6..0x7E75C) took a whole tick
+# of gravity, g x 0.05 (+2C708h x +2C704h, the constant): a tick cut in k
+# parts gave k ticks of speed, and the landing (0x2D8220) took that speed.
+# FALL_GRAVITY rewrites that free fall in place: g x min(dt, 0.05), dt read
+# from player_step's frame (step_down's ebp -> player_step's ebp, +8; step_down
+# has that one caller, 0x7C4F6, and both have `push ebp / mov ebp,esp`). A
+# whole tick's dt is 0.05 (the float updateAction compares with +2C704h) and
+# minss gives the constant back: unsplit ticks are bit-identical. The three
+# products by xmm3 between the two sites (0x7E6F6..0x7E720, which hold the
+# three relocated addresses of the up axis) are the original's; the first
+# site jumps to the dt load in the second and back. eax and ecx are free
+# there (written at 0x7E762 and 0x7E75C before any read). No base relocation
+# under either site; no branch lands inside them.
+FALL_GRAVITY = (
+    (0x7E6E6, bytes.fromhex("f30f108308c70200" "f30f109b04c70200"),
+     bytes.fromhex("8d8304c70200" "f30f104004" "eb59" "cccccc")),
+    (0x7E720, bytes.fromhex("f30f109b70c70200" "f30f5cd9" "f30f108b74c70200" "f30f5cca" "f30f118b74c70200"
+                            "f30f108b78c70200" "f30f5cc8" "f30f119b70c70200" "f30f118b78c70200"),
+     bytes.fromhex("f30f10586c" "f30f5cd9" "f30f104870" "f30f5cca" "f30f114870" "f30f104874" "f30f5cc8"
+                   "f30f11586c" "f30f114874" "eb10" "8b4d00" "f30f105908" "f30f5d18" "eb9c" "cccc")),
+)
 
 # "Watch replay" (patch revision 14, client_patch.md section 3.27). The
 # lobby movie's ExternalInterface call video_tutorial_link_clicked is the
@@ -2920,6 +2955,9 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *SPOT_COOLDOWN)
         sites.append((SPOT_COOLDOWN[0], SPOT_COOLDOWN[0] + len(SPOT_COOLDOWN[1])))
+        for site in FALL_GRAVITY:
+            patch(data, *site)
+            sites.append((site[0], site[0] + len(site[1])))
         for site in ARTEFACTS_SIZES:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
@@ -3383,6 +3421,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "the commit_suicide key (K) kills one's own player, "
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
+                     "a fall gains speed for the time it fell, not for the steps of a split tick, "
                      "a model's LOD and screen factor at a wider field of view are the original's, "
                      "a drag turns the camera on the death screen and the wheel does nothing there, "
                      "a weapon wears the camouflage its item holds, "
