@@ -210,14 +210,38 @@ pub fn score(
         }
         product *= result.get();
     }
-    let n = considerations.len() as f32;
-    if n > 0.0 {
-        // The make-up factor: each consideration's loss is partly given
-        // back, so the count of considerations does not decide alone.
-        let make_up = 1.0 - 1.0 / n;
+    (Score::new(made_up(product, considerations.len())), explain)
+}
+
+/// The product of `n` considerations' results with the make-up factor:
+/// each consideration's loss is partly given back, so the count of
+/// considerations does not decide alone.
+fn made_up(mut product: f32, n: usize) -> f32 {
+    if n > 0 {
+        let make_up = 1.0 - 1.0 / n as f32;
         product += (1.0 - product) * make_up * product;
     }
-    (Score::new(product), explain)
+    product
+}
+
+impl Explain {
+    /// By how much the score would change were some results others: the
+    /// made-up product with `with(input, result)` for each result, over the
+    /// one with the results as they are. 1 when the parts stop at a zero (the
+    /// score is 0 then) or come to 0.
+    pub fn rescaled(&self, mut with: impl FnMut(Input, f32) -> f32) -> f32 {
+        let n = self.parts.len();
+        let (mut now, mut then) = (1.0_f32, 1.0_f32);
+        for &(input, _, result) in &self.parts {
+            now *= result;
+            then *= with(input, result);
+        }
+        let now = made_up(now, n);
+        if now <= 0.0 || self.parts.iter().any(|p| p.2 <= 0.0) {
+            return 1.0;
+        }
+        made_up(then, n) / now
+    }
 }
 
 #[cfg(test)]

@@ -1148,6 +1148,56 @@ A held slot went to a teammate scoring `MARGIN` (0.12) above its holder, even on
 
   The slot hand-over was the one place where a running play's commitment was bypassed.
 
+### A held slot is compared without personalities and with the same friends near (built 2026-10-25)
+
+With the 3 s hold, about two thirds of the slot hand-offs came back after it ended. At each hand-over (a test-only note; batteries and TDM, tier 9-10, seeds 1-4; 980 hand-overs, 122 a run), the consideration that differed most between the claimant's and the holder's candidates was:
+- the personality in about 35% (Cut, Crossfire, HoldExit, Escort, GuardLead): two bots alike in place, one a camper, the other a rusher;
+- the way to the target in about 30% (the claimant nearer);
+- enemies near the target (Collect) in 15%;
+- friends near the target in about 12%, the claimant counting fewer.
+
+The median claimant led by 0.22 (the margin is 0.12). The personality is a bot's taste for a family of plays. It picks the bot's own plays, but it says nothing about which of two bots is better placed for a slot.
+
+- **The comparison** (`team.rs`, `fitness`, used in `takes_held` only): the claimant's and the holder's scores are rescaled from their curves' parts (`Explain::rescaled`, the same make-up product as `curve::score`, so the plays' weights after the curves stay):
+  - the personality's result is put as a weight of 1 (0.5) for both;
+  - friends near the target: both get the lower count of the two. A test (`friends_near_a_held_target_count_the_other_contender`) shows what `friends_near` counts: living teammates within 25 m, the bot itself, the dead, the absent and enemies not counted. So each of the two counts the other when the other is near the target. `friends_near` is right for a free bot (a friend at a spot is a crowd there) and is unchanged; only the comparison of the two contenders is.
+  - A free bot still picks its plays, and a free slot still goes, by the scores with the personality (tested). Default weights are 0.5 to 1.8, results 0.25 to 0.9; a result of 0 rescales by 1, never a division by 0 (tested).
+- **Bench:** B = fbe66237 + the comparison. All logs ok, none out of memory.
+  - Smoke (64 pairs against the smoke base at fbe66237): PASS, nothing beyond 2 SE.
+  - Guards: B through the bench cache against the base at fbe66237, batteries and TDM, tiers 4-5, 9-10 and 13-15, seeds 1-16, 3D table (96 a side). The hand-overs and CPU: A (fbe66237) and B run side by side, both with the flip-cause note (uncommitted), seeds 1-8 (48 runs, 576 matches a side). B − A ± SE, * = beyond 2 SE:
+
+  | | against the base (seeds 1-16) | side by side (seeds 1-8) |
+  |---|---|---|
+  | slot hand-overs a run | | 122.2 to 73.4 |
+  | slot-taken Roam, X, Roam, X ran 3-6 s | | −1.04 ± 0.31* (2.31 a run) |
+  | the same, X ran 6 s+ | | −0.29 ± 0.13* (0.42) |
+  | the same, under 3 s | | none either side (the hold) |
+  | flips (97 a run) | −2.1 ± 1.6 | −3.3 ± 2.4 |
+  | quick ends (223) | −4.7 ± 2.1* | −7.1 ± 3.1* |
+  | kills | +2.7 ± 1.2* | +3.3 ± 1.8 |
+  | K/D team 0 / team 1 | +0.00 / +0.00 | +0.01 / −0.00 |
+  | delivered | −0.04 ± 0.21 | +0.00 ± 0.35 |
+  | carriers killed (10.7) | +0.77 ± 0.40 | +0.90 ± 0.45 (z +2.0) |
+  | team kills, idle 5 s+, stuck, stood with no route | within 1.2 SE | within 1.1 SE |
+  | zone entries | −2.8 ± 1.4* | −3.8 ± 1.8* |
+
+  - The slot-taken flips fall in TDM (3-6 s −1.96 ± 0.48, 6 s+ −0.67 ± 0.21); in batteries they were few (0.79 a run) and stay so.
+  - Cut, Crossfire and HoldExit taken from a holder: −0.56, −0.48 and −0.33 a run.
+  - Kills rise in TDM 9-10 (+8.5 ± 2.8) and 13-15 (+7.3 ± 3.3), both teams alike.
+  - Carriers killed rise most in batteries 13-15 (+3.9 ± 1.5 of 23 against the base), delivered unchanged.
+- **CPU**, A and B side by side (144 matches each):
+
+  | Preset, size | bots ms/s B − A | poll p99.9 µs B − A |
+  |---|---|---|
+  | batt 10 v 10 (35.2 ms/s) | +0.01 ± 0.55 | +117 ± 137 |
+  | batt 4 v 4 (9.5) | −0.26 ± 0.17 | −42 ± 44 |
+  | tdm 10 v 10 (25.5) | −0.56 ± 0.31 | −8 ± 28 |
+  | tdm 4 v 4 (6.2) | −0.19 ± 0.14 | −47 ± 30 |
+- **Best practice:**
+  - utilities compared between robots for one task must be comparable estimates of how well each would do it (Gerkey & Matarić, [A formal analysis and taxonomy of task allocation in multi-robot systems](https://cse-robotics.engr.tamu.edu/dshell/cs689/papers/gerkey04formal.pdf), IJRR 2004, §3);
+  - a commitment bonus, weights and cooldowns move the oscillation; a consideration that separates the options ends it (Lewis, [Choosing Effective Utility-Based Considerations](http://www.gameaipro.com/GameAIPro3/GameAIPro3_Chapter13_Choosing_Effective_Utility-Based_Considerations.pdf), Game AI Pro 3 ch. 13 §13.5.3);
+  - per-agent weights give each agent its character in its own choices ([Utility builds character](https://gamedeveloper.com/programming/artificial-intelligence-utility-builds-character)), which is where they stay.
+
 ## 4. Event reactions
 
 | Event | How bots learn it | Reaction |

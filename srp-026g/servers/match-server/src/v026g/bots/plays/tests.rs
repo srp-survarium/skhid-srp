@@ -430,3 +430,43 @@ fn each_threat_needs_a_teammate_of_his_own() {
     assert_eq!(cover_each(&[vec![true, true], vec![true, false]]), None);
     assert_eq!(cover_each(&[vec![false, false], vec![true, true]]), Some(0));
 }
+
+/// What `FriendsNearTarget` counts for a slot's holder and for a teammate
+/// who would take it (a Cut at one point): living teammates within 25 m of
+/// the target, the bot itself not counted, the dead, the absent and the
+/// enemies not counted. So each of the two counts the other when the other
+/// is near the target: the holder standing at it makes the claimant's
+/// count one higher, and a claimant already near it makes the holder's one
+/// higher. Who is near the target, not how crowded it will be once the
+/// slot has changed hands, decides that difference (`team::takes_held`
+/// compares the two without it).
+#[test]
+fn friends_near_a_held_target_count_the_other_contender() {
+    let at = Vec3::new(20.0, 0.0, 10.0);
+    let target = TargetRef::Point(at);
+    let friends = |s: &Scenario, place| {
+        s.cx(place)
+            .input(Input::FriendsNearTarget, PlayKind::Cut, target)
+    };
+    let mut s = Scenario::field(Mode::Batteries);
+    // A third teammate near the target; a dead one and an absent one at it;
+    // an enemy at it.
+    s.bot(2, 0, Vec3::new(25.0, 0.0, 10.0));
+    s.bot(3, 0, at).alive = false;
+    s.bot(4, 0, at).present = false;
+    s.enemy(5, 1, at, None);
+    // The holder at the target, the claimant 40 m off.
+    s.bot(0, 0, at);
+    s.bot(1, 0, Vec3::new(60.0, 0.0, 10.0));
+    assert_eq!(friends(&s, 0), 1.0, "the holder: the third teammate");
+    assert_eq!(friends(&s, 1), 2.0, "the claimant: the holder, the third");
+    // The holder still on its way, the claimant near the target.
+    s.view.places[0].feet = Vec3::new(60.0, 0.0, 10.0);
+    s.view.places[1].feet = Vec3::new(22.0, 0.0, 10.0);
+    assert_eq!(friends(&s, 0), 2.0, "the holder: the claimant, the third");
+    assert_eq!(friends(&s, 1), 1.0, "the claimant: the third");
+    // Both near it: each counts the other.
+    s.view.places[0].feet = at;
+    assert_eq!(friends(&s, 0), 2.0);
+    assert_eq!(friends(&s, 1), 2.0);
+}
