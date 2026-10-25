@@ -235,7 +235,8 @@ const DANCE_MPS: f32 = 1.2;
 const DANCE_OPPOSING: f32 = 0.25;
 const MERGE_GAP_S: f32 = 2.0;
 const SPAWN_GRACE_S: f32 = 3.0;
-/// Causes: a teammate this near, m; the feet up and down this much, m.
+/// Causes: a teammate (or an enemy) this near, m; the feet up and down
+/// this much, m.
 const MATE_NEAR_M: f32 = 1.2;
 const UP_DOWN_M: f32 = 0.8;
 /// Spots with two or more cases: this across and this in height, m
@@ -1888,18 +1889,20 @@ impl OwnerTally {
             let within = |list: &[u32], a: f32, b: f32| {
                 list.iter().filter(|&&t| (t as f32) >= a * 1000.0 && (t as f32) <= b * 1000.0).count()
             };
-            let mates_near = pts
-                .iter()
-                .filter(|&&k| {
-                    (0..self.recs.len()).any(|q| {
-                        q != place
-                            && teams.get(q) == teams.get(place)
-                            && self.recs[q].get(k).is_some_and(|r| {
-                                r.alive && r.feet.distance_xz(recs[k].feet) <= MATE_NEAR_M
-                            })
+            // Samples with a body of one side (own or other) within reach.
+            let near = |own: bool| {
+                pts.iter()
+                    .filter(|&&k| {
+                        (0..self.recs.len()).any(|q| {
+                            q != place
+                                && (teams.get(q) == teams.get(place)) == own
+                                && self.recs[q].get(k).is_some_and(|r| {
+                                    r.alive && r.feet.distance_xz(recs[k].feet) <= MATE_NEAR_M
+                                })
+                        })
                     })
-                })
-                .count();
+                    .count()
+            };
             let (lo, hi) = pts.iter().fold((f32::MAX, f32::MIN), |(lo, hi), &k| {
                 (lo.min(recs[k].feet.y), hi.max(recs[k].feet.y))
             });
@@ -1908,8 +1911,10 @@ impl OwnerTally {
                 .any(|p| p.place == place && p.by == "route" && (p.t as f32) >= (t0 - 2.0) * 1000.0 && (p.t as f32) <= t1 * 1000.0);
             let cause = if within(&self.no_way[place], t0 - 1.0, t1 + 3.0) > 0 {
                 "no_route"
-            } else if 2 * mates_near >= pts.len() {
+            } else if 2 * near(true) >= pts.len() {
                 "teammate"
+            } else if 2 * near(false) >= pts.len() {
+                "enemy"
             } else if route_jump {
                 "route_jump"
             } else if hi - lo >= UP_DOWN_M {
@@ -2466,6 +2471,32 @@ fn a_grenade_at_ones_feet_hurts_the_thrower_and_mates_and_one_walked_in() {
     assert_eq!(json["grenade_kills"][0], 1);
     assert_eq!(json["grenade_in_radius"], serde_json::json!([1, 2, 0]));
     assert_eq!(json["grenade_walk_ins"], serde_json::json!([0, 1, 0]));
+}
+
+#[test]
+fn a_stuck_bot_with_an_enemy_against_it_is_stuck_on_the_enemy() {
+    // Bot 0 pushes for 5 s with enemy 2 at 1.0 m; bot 1 (near miss) pushes
+    // as long with enemy 3 at 1.5 m.
+    let (mut game, mut tally) = made_up(&[0, 0, 1, 1]);
+    play(&mut game, &mut tally, 200, |k, game| {
+        let s = k / 20;
+        if s < 5 {
+            put(game, 0, 10.0, 10.0, key::FORWARD);
+            put(game, 1, 10.0, 30.0, key::FORWARD);
+        } else {
+            for (place, z) in [(0, 10.0), (1, 30.0)] {
+                put(game, place, 10.0 + 0.2 * (k - 100) as f32, z, key::FORWARD);
+                game.bodies[place].step_m = 0.2;
+            }
+        }
+        put(game, 2, 11.0, 10.0, 0);
+        put(game, 3, 11.5, 30.0, 0);
+        vec![bot_now(); 4]
+    });
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["stuck_by"]["push"][0], 2, "{json}");
+    assert_eq!(json["stuck_by_cause"]["enemy"][0], 1, "{json}");
+    assert_eq!(json["stuck_by_cause"]["wall_no_line"][0], 1, "{json}");
 }
 
 #[test]
