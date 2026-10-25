@@ -618,3 +618,17 @@ kept and can be put back).
 <!-- Revision 33 (026g-rev33), released 2026-10-25 13:52 UTC. To be worded for players; what it shipped: -->
 
 - TODO: #436 Kill feed: a suicide row with the pain icon no longer empties the feed
+
+## 25 Oct, 18:43 — TODO: the owner's words (update required)
+
+<!-- Revision 34 (026g-rev34), released 2026-10-25 18:43 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #443 SOCOM 16 nerf: damage 70 -> 60, armour piercing 45 -> 40, equipment level 15
+- TODO: #444 Patch 72: falls gain speed for the time they fell, not per step of a split tick
+- TODO: #367 Research: capture timers and the units' markers on the screen
+- TODO: #450 Reroll: every modification change costs the same
+- TODO: #440 Patch 70: baked camouflage textures kept across games, made once, held for the game
+- TODO: #453 Network help: clearer "no connection" errors in every language, VPN.txt, firewall script
+- TODO: #456 SVD at equipment level 15
+- TODO: #457 AGENTS.md: types and states (illegal states unrepresentable, parse don't validate)
+- TODO: #458 Revert Research HUD markers (#367) for rev 34
