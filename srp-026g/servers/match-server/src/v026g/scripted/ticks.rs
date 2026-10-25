@@ -19,6 +19,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use survarium::v026g::match_msgs::{ClientUpdate, GameTime, Grid, Update, id};
+use sync_core::clock::{Order, Steering};
 use sync_core::confirm::{Action, OwnInputs, Resolved, Sent};
 use sync_core::wire::{CLIENT_UPDATE_MAX, Input, Outcome};
 
@@ -70,6 +71,9 @@ pub struct PerTick {
     /// Each update of the server taken: its tick, and the client's clock
     /// then (for the depth of the rollbacks it makes).
     pub taken_at: Vec<(u32, u32)>,
+    /// Its clock's steering (phase 3), and the orders it gave.
+    pub steering: Steering,
+    pub orders: Vec<Order>,
 }
 
 impl PerTick {
@@ -97,7 +101,19 @@ impl PerTick {
             inputs_past_history: 0,
             answers_past_history: 0,
             taken_at: Vec::new(),
+            steering: Steering::new(),
+            orders: Vec::new(),
         }
+    }
+
+    /// The steering's order for an update's arrival, its clock at `clock`
+    /// and its correction made up at `factor_permille`.
+    pub fn steer(&mut self, update: &Update, clock: u32, factor_permille: u32) -> Order {
+        let order = self.steering.sample(update.arrival, clock, factor_permille);
+        if order != Order::Keep {
+            self.orders.push(order);
+        }
+        order
     }
 
     /// An input of its own at `time`: in its lists from now (snapped to the

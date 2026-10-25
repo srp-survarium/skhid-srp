@@ -1,6 +1,6 @@
 //! The per-tick protocol's client (patch 79; `docs/notes/
-//! netcode_port_069.md` phase 2; the server's side is match-server's
-//! `game/ticks.rs`, the shared rules `sync_core::{wire, confirm}`).
+//! netcode_port_069.md` phases 2 and 3; the server's side is match-server's
+//! `game/ticks.rs`, the shared rules `sync_core::{wire, confirm, clock}`).
 //!
 //! With a server that plays it (0xE4's trailer, [`trailer`]):
 //! - the game's own inputs go to the server in one update a tick (0xE2),
@@ -10,7 +10,8 @@
 //! - the server's update of a tick (0xF7) is made into the stock messages
 //!   that do each of its changes ([`stock`]), handed to the game's own
 //!   dispatch: its outcomes of the own updates, the roster changes, the
-//!   others' inputs.
+//!   others' inputs; and the clock is steered from how early the updates
+//!   came (a 0xE7 of the game's own handler).
 //!
 //! With any other server (no trailer) the patch does nothing: the stock
 //! protocol, byte for byte. The game announces the protocol in its 0xD8

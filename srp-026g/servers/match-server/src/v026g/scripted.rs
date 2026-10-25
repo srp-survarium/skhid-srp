@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, VecDeque};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, mode};
 use survarium::v026g::match_msgs::client_model::{ClientModel, Skip, Taken};
+use sync_core::clock::Order;
 use survarium::v026g::match_msgs::late_join::{
     CONNECT_CAPABILITY, Prepare, Prepared, Status, TICKS_CAPABILITY,
 };
@@ -500,6 +501,12 @@ pub struct Client {
     pub announce_ticks: bool,
     /// The per-tick protocol, once its 0xE4 said the match plays it.
     pub per_tick: Option<ticks::PerTick>,
+    /// The per-tick protocol: it steers its own clock (phase 3; the
+    /// default). Off: its clock is as the server's 0xE5 left it.
+    pub steers: bool,
+    /// How far behind its clock each of the others' inputs came, in ms:
+    /// the depth of the rollback it makes its world do (either protocol).
+    pub remote_depths: Vec<u32>,
 }
 
 impl Client {
@@ -551,6 +558,8 @@ impl Client {
             next_keep_alive_ms: 0,
             announce_ticks: false,
             per_tick: None,
+            steers: true,
+            remote_depths: Vec::new(),
         }
     }
 
@@ -1025,6 +1034,14 @@ impl Client {
                     self.send(id::TIME_REPLY, &payload, false);
                 }
             }
+            // The stock protocol's relays: how far behind its clock they come.
+            ServerMessage::InputRelay { .. }
+            | ServerMessage::InputsRelay { .. }
+            | ServerMessage::ProfileInputRelay { .. } => {
+                if let Some(time) = taken.time {
+                    self.remote_depths.push(self.clock().saturating_sub(time));
+                }
+            }
             ServerMessage::Snapshot { time, body, .. } => {
                 if self.simulates {
                     self.sim.load(*time, body);
@@ -1057,6 +1074,28 @@ impl Client {
                     .per_tick
                     .as_mut()
                     .is_some_and(|per_tick| per_tick.take(update, generation, resynced, clock));
+                if new {
+                    for each in &update.inputs {
+                        let time = each.input.time(update.tick).0;
+                        if time > resynced {
+                            self.remote_depths.push(clock.saturating_sub(time));
+                        }
+                    }
+                }
+                // Its clock, steered from how early its updates came.
+                let factor = self
+                    .model
+                    .clock_factor
+                    .map_or(1000, |factor| (factor * 1000.0) as u32);
+                let order = match self.per_tick.as_mut() {
+                    Some(per_tick) if new && self.steers => per_tick.steer(update, clock, factor),
+                    _ => Order::Keep,
+                };
+                match order {
+                    Order::Keep => {}
+                    Order::Shift { ms } => self.model.shift_clock(ms),
+                    Order::Jump { ms } => self.model.jump_clock(ms),
+                }
                 if new {
                     let at = update.tick.0;
                     // Before its world, a roster change is kept (the

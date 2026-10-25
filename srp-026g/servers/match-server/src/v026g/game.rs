@@ -4637,7 +4637,10 @@ impl Game {
     /// 924 ms on a link of 196 (live, 2026-10-14), and its inputs came
     /// too late for the seconds that followed.
     fn correct_clock(&mut self, index: usize, now: Instant) {
-        if !self.settings.clock_correction {
+        // The per-tick protocol: each game steers its own clock from how
+        // early its updates come (phase 3, `sync_core::clock`); a 0xE7 of
+        // ours would undo its correction.
+        if !self.settings.clock_correction || self.per_tick.is_some() {
             return;
         }
         let id = self.id;

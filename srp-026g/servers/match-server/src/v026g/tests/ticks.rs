@@ -416,3 +416,92 @@ fn the_servers_own_bots_play_on_updates() {
     assert_eq!(client.pending(), 0);
     bench.assert_no_faults();
 }
+
+/// The median and the 90th percentile of `depths`.
+fn spread(depths: &[u32]) -> (u32, u32) {
+    let mut sorted = depths.to_vec();
+    sorted.sort_unstable();
+    if sorted.is_empty() {
+        return (0, 0);
+    }
+    (sorted[sorted.len() / 2], sorted[sorted.len() * 9 / 10])
+}
+
+#[test]
+fn a_game_steers_its_clock_ahead_so_its_updates_come_in_time() {
+    let mut bench = Bench::ticks(2, MAP_BATTERIES, Settings::default());
+    bench.one_way = vec![150, 10];
+    bench.join_all();
+    play(&mut bench, 6_000, 50);
+    let own = bench.clients[0].per_tick.as_ref().unwrap();
+    let (moved, discarded, seen) = (own.moved, own.discarded, own.arrivals.len());
+    let from = bench.clock();
+    play(&mut bench, 6_000, 50);
+    bench.run(1_000);
+    let to = bench.clock() - 800;
+    let own = bench.clients[0].per_tick.as_ref().unwrap();
+    // It went ahead of the match clock: none of its inputs is late since.
+    assert!(!own.orders.is_empty());
+    assert_eq!(
+        (own.moved, own.discarded),
+        (moved, discarded),
+        "{:?}",
+        own.orders
+    );
+    let late = own.arrivals[seen..].iter().filter(|early| **early < 0).count();
+    assert_eq!(late, 0, "{:?}", &own.arrivals[seen..]);
+    // Nobody got a 0xE7: the games steer themselves.
+    for client in &bench.clients {
+        assert!(
+            client
+                .got(|message| matches!(message, ServerMessage::ClockOffset(_)).then_some(()))
+                .is_empty()
+        );
+    }
+    assert_same_inputs(&bench, from, to);
+    bench.assert_no_faults();
+}
+
+/// [`play`] for either protocol.
+fn play_any(bench: &mut Bench, ms: u64, every: u64) {
+    for n in 0..(ms / every) as u32 {
+        for place in 0..bench.clients.len() {
+            if bench.clients[place].model.is_synced() && !bench.clients[place].closed {
+                bench.clients[place].input(0, (place as u32) << 16 | n);
+            }
+        }
+        bench.run(every);
+    }
+}
+
+/// The rollbacks each game makes for the others' inputs, on a line of 150
+/// ms and one of 10 ms each way: with relays the near game rolls back by
+/// both lines; with the per-tick protocol by its own round trip.
+#[test]
+fn the_near_game_rolls_back_by_its_own_round_trip_alone() {
+    let mut depths = Vec::new();
+    for ticks in [false, true] {
+        let mut bench = if ticks {
+            Bench::ticks(2, MAP_BATTERIES, Settings::default())
+        } else {
+            Bench::growing(2, MAP_BATTERIES, Settings::default())
+        };
+        bench.one_way = vec![150, 10];
+        bench.join_all();
+        play_any(&mut bench, 4_000, 50);
+        for client in &mut bench.clients {
+            client.remote_depths.clear();
+        }
+        play_any(&mut bench, 8_000, 50);
+        let of = |place: usize| spread(&bench.clients[place].remote_depths);
+        depths.push((of(0), of(1)));
+    }
+    eprintln!(
+        "rollback depth (median, 90th) far / near game: relays {:?} / {:?}, per tick {:?} / {:?}",
+        depths[0].0, depths[0].1, depths[1].0, depths[1].1
+    );
+    let (relays_near, ticks_near) = (depths[0].1, depths[1].1);
+    assert!(ticks_near.0 < relays_near.0, "{depths:?}");
+    // About its own round trip and a tick.
+    assert!(ticks_near.0 <= 20 + 50 + 10, "{depths:?}");
+}

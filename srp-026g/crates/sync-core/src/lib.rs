@@ -12,6 +12,7 @@
 #[cfg(test)]
 extern crate std;
 
+pub mod clock;
 pub mod confirm;
 pub mod land;
 pub mod pacing;

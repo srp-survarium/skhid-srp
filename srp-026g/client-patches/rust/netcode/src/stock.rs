@@ -12,6 +12,7 @@
 //! | an own input discarded | 0xF1, 0xF2 precise | 0x27C8D0 | `discard_input<player_input>` 0x27D820 |
 //! | an own kit choice moved / discarded | 0xF4 / 0xF5 | 0x27CA30 / 0x27CB50 | 0x27DCD0 / 0x27E200 |
 //! | an own input put back (lifted) | 0xEB, 0xEC with its own place | 0x27C280 | 0x1FAB50, as `move_input` does |
+//! | the clock steered | 0xE7 | 0x27B7F0 | `floating_timer::set_offset` 0x1EE9E0 |
 //!
 //! A time goes as the stock server sent it: its tick on the match's grid,
 //! low 8 bits, which the handler reads against the game's own clock (the
@@ -39,6 +40,8 @@ pub enum Stock {
     MoveProfile { from: GameTime, to: GameTime },
     /// The own kit choice at `time` goes (0xF5).
     DiscardProfile { time: GameTime },
+    /// The clock corrected by so many ms (0xE7).
+    ClockOffset(i16),
 }
 
 /// A stock message's bytes: its id, and its payload's.
@@ -151,6 +154,10 @@ impl Stock {
                 out.push(&[tick(grid, time)]);
                 out.done(0xF5)
             }
+            Stock::ClockOffset(ms) => {
+                out.push(&ms.to_le_bytes());
+                out.done(0xE7)
+            }
         }
     }
 }
@@ -178,7 +185,7 @@ mod tests {
     #[test]
     fn each_change_is_the_stock_message_of_the_stock_server() {
         let at = |ms| GameTime(ms);
-        let cases: [(Stock, u8, &[u8]); 11] = [
+        let cases: [(Stock, u8, &[u8]); 12] = [
             (
                 Stock::Relay { place: place(3), time: at(539_650), input: input() },
                 0xEB,
@@ -198,6 +205,7 @@ mod tests {
             (Stock::Discard { time: at(1000) }, 0xF1, &[20]),
             (Stock::Discard { time: at(1003) }, 0xF2, &[20, 3]),
             (Stock::MoveProfile { from: at(1000), to: at(1100) }, 0xF4, &[20, 22]),
+            (Stock::ClockOffset(-300), 0xE7, &(-300i16).to_le_bytes()),
         ];
         for (stock, id, payload) in cases {
             let encoded = stock.encode(GRID);

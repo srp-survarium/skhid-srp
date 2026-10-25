@@ -450,6 +450,24 @@ impl ClientModel {
         self.correction_left
     }
 
+    /// Its clock corrected by `ms` as `floating_timer::set_offset` does
+    /// (0xE7's handler; the per-tick protocol's client steering calls it
+    /// itself): over time at its factor, or at once without one.
+    pub fn shift_clock(&mut self, ms: i32) {
+        if self.clock_factor.is_some() {
+            self.correction_left = f64::from(ms);
+        } else if let Some(clock) = &mut self.clock {
+            *clock = clock.saturating_add_signed(ms);
+        }
+    }
+
+    /// Its clock set `ms` forward (or back) at once.
+    pub fn jump_clock(&mut self, ms: i32) {
+        if let Some(clock) = &mut self.clock {
+            *clock = clock.saturating_add_signed(ms);
+        }
+    }
+
     /// Whether its simulation runs: it has loaded a snapshot.
     pub fn is_synced(&self) -> bool {
         self.last_resync.is_some()

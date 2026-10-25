@@ -14,13 +14,19 @@
 //!   the outcomes of the own updates first (`sync_core::confirm`), the
 //!   leaves (kept until the world is loaded: the stock 0xEA handler reads
 //!   the match's view, which a game has only then), the entries, the
-//!   others' inputs and kit choices.
+//!   others' inputs and kit choices; then the clock's steering
+//!   (`sync_core::clock`, a 0xE7).
 
+use sync_core::clock::{Order, Steering};
 use sync_core::confirm::{Action, OwnInputs};
 use sync_core::wire::{ClientUpdate, Input, Place, ServerUpdateView};
 use sync_core::{GameTime, Grid};
 
 use crate::stock::Stock;
+
+/// The game's `time_floating_factor` with the client patch (0.3: patch 15,
+/// `match_msgs::clock::FAST_FACTOR`), per mille.
+pub const CLOCK_FACTOR_PERMILLE: u32 = 300;
 
 /// Own inputs captured and not yet in an update, at most.
 pub const MADE_KEPT: usize = 32;
@@ -65,6 +71,7 @@ impl Made {
 pub struct Session {
     pub grid: Grid,
     book: OwnInputs,
+    steering: Steering,
     made: [Option<Made>; MADE_KEPT],
     /// The last tick sent an update of.
     sent_to: Option<GameTime>,
@@ -115,6 +122,7 @@ impl Netcode {
             Some(grid) => Protocol::Ticks(Session {
                 grid,
                 book: OwnInputs::new(),
+                steering: Steering::new(),
                 made: [None; MADE_KEPT],
                 sent_to: None,
                 leaves: [None; sync_core::wire::MAX_PLACES],
@@ -298,6 +306,18 @@ impl Netcode {
                     time: tick,
                     value: each.value,
                 });
+            }
+        }
+        // The clock, from how early its updates came.
+        if let Some(now) = now {
+            match session
+                .steering
+                .sample(update.arrival, now.0, CLOCK_FACTOR_PERMILLE)
+            {
+                Order::Keep => {}
+                Order::Shift { ms } | Order::Jump { ms } => {
+                    out(Stock::ClockOffset(ms.clamp(i16::MIN.into(), i16::MAX.into()) as i16));
+                }
             }
         }
     }
@@ -526,5 +546,24 @@ mod tests {
             outcomes: &[],
         });
         assert!(stocks(&mut netcode, &bytes, running(1300)).is_empty());
+    }
+
+    #[test]
+    fn late_updates_steer_the_clock_forward() {
+        let mut netcode = ticks();
+        let mut orders = Vec::new();
+        for n in 0..20u32 {
+            let bytes = server_update(ServerUpdate {
+                tick: t(1000 + 50 * n),
+                entered: Places::EMPTY,
+                left: Places::EMPTY,
+                arrival: Some(-60),
+                inputs: &[],
+                profiles: &[],
+                outcomes: &[],
+            });
+            orders.extend(stocks(&mut netcode, &bytes, running(1000 + 50 * n)));
+        }
+        assert_eq!(orders, [Stock::ClockOffset(65)]);
     }
 }

@@ -37,6 +37,7 @@ Checked:
 - the send pass: synchronize called with the original's arguments, then
   one 0xE2 a tick with the inputs taken (its bytes computed here), its
   packet not joined, AL 1 when one went; nothing with the stock protocol;
+- the clock: late updates make one 0xE7 of the steering's size;
 - every entry keeps EBX ESI EDI EBP (and the frame), and enters Rust with
   the stack aligned to 16.
 """
@@ -465,6 +466,15 @@ def main():
     game.w32(LINK + POOL_IN_USE, 250)
     sent, _, al, _ = game.send_pass()
     check(sent == [] and al == 0, "no update while the packet pool is nearly full")
+
+    # The clock.
+    orders = []
+    for n in range(12):
+        game.world(now=1500 + 50 * n)
+        seen, _ = game.receive(0xF7, server_update(1500 + 50 * n, arrival=-100))
+        orders += [(n, p) for i, p in seen if i == 0xE7]
+    check(orders == [(9, struct.pack("<h", 105))],
+          "late updates (100 ms): the tenth makes one 0xE7 of 105 ms (5 - -100), none while it corrects")
 
     # The stock protocol: nothing taken, nothing sent, 0xF7 nothing.
     stockgame = Game(bytes(built), rust)
