@@ -18,7 +18,11 @@
 //! side of him (a second angle, not his back), runs while farther than
 //! `keep_m`, walks nearer. Fights, objectives and alarms outrank it (it is
 //! in the roam band), so it is the default of a follower and nothing more;
-//! when the leader is down the follower roams by itself.
+//! when the leader is down the follower roams by itself. It does the same
+//! when the leader has just come out at home and is far (`just_respawned`:
+//! in a spawn area or under `leader_settle_s` into his life, and more than
+//! `rejoin_m` away): the follower stands forward, and following him would
+//! walk it back across the map to the spawn.
 //!
 //! Near him it covers him, as a teammate a player would want: it watches
 //! where he does not (a known enemy off his facing, else behind him or a
@@ -45,6 +49,13 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("wait_max_m", 90.0),
     // The leader waits at most this long a run, seconds.
     ("wait_s", 6.0),
+    // The follower does not follow a leader in a spawn area, or less than
+    // `leader_settle_s` into a life, while it is farther than `rejoin_m`
+    // from him: metres, seconds (human yardstick: 90 % of lives are out of
+    // the 20 m area by 20 s, and a human's nearest mate is farther than 40 m
+    // 13 % of the time, `push-record.md` R1).
+    ("rejoin_m", 40.0),
+    ("leader_settle_s", 20.0),
     ("give_up_s", 90.0),
     // Near him: the direction it watches, off his facing, is drawn again
     // this often, seconds. GUESS, cover_human's.
@@ -89,6 +100,25 @@ pub fn leader<'a>(cx: &Ctx<'a>) -> Option<&'a PlaceView> {
     cx.view
         .place(partner)
         .filter(|p| p.present && p.alive && p.team == cx.me.team)
+        .filter(|p| !just_respawned(cx, p))
+}
+
+/// Whether `leader` has just come out at home, far from the follower: in a
+/// spawn area, or less than `leader_settle_s` into his life, and farther
+/// than `rejoin_m` from the bot. Following him there walks a follower
+/// that stands forward back across the map to the spawn (253 such moments
+/// in ten matches, 90 % with the leader 20 s old or less; they were 12 % of
+/// the bots' returns), so the follower roams until he is out and near, as
+/// `cover_human` does for a human in a spawn area.
+///
+/// Root cause (`push-record.md` R1): `leader()` had no place or life-age
+/// condition, and `roam::candidates` offers no Roam while a leader is alive,
+/// so the follower always followed.
+fn just_respawned(cx: &Ctx, leader: &PlaceView) -> bool {
+    let num = |name| cx.num(PlayKind::Buddy, name);
+    cx.me.feet.distance_xz(leader.feet) > num("rejoin_m")
+        && (cx.tactics.in_spawn_area(leader.feet, None)
+            || cx.now.saturating_sub(leader.spawned) < (num("leader_settle_s") * 1000.0) as u32)
 }
 
 /// The follower to wait for, when the bot leads its pair and the follower
@@ -213,6 +243,9 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     else {
         return Step::Done("the partner is down");
     };
+    if just_respawned(cx, him) {
+        return Step::Done("the partner just respawned at home");
+    }
     let d = cx.me.feet.distance_xz(him.feet);
     let close = num("close_m");
     if d <= close * 1.4 {
@@ -413,6 +446,47 @@ mod tests {
         s.view.places[0].keys |= key::CROUCH;
         let i = first(&s, 1);
         assert!(i.go == Go::Stay && i.crouch, "{i:?}");
+    }
+
+    /// The partner has just respawned at home and the follower stands forward:
+    /// no Buddy, and the follower roams (the returns record's 253 moments).
+    #[test]
+    fn a_follower_far_forward_does_not_follow_a_leader_who_just_respawned() {
+        // The field's spawns are at x = 5 and 75 (areas of 20 m): the
+        // leader stands mid-field, 63 m from the follower.
+        let mut s = Scenario::field(Mode::Batteries);
+        s.bot(0, 0, Vec3::new(50.0, 0.0, 38.0));
+        s.bot(2, 0, Vec3::new(6.0, 0.0, 4.0));
+        s.partner = Some(0);
+        let at_home = |s: &mut Scenario, spawned: u32| {
+            s.view.places[0].spawned = spawned;
+        };
+        // A leader 60 m off whose life began 2 s ago: not followed.
+        let now = s.view.clock;
+        at_home(&mut s, now.saturating_sub(2_000));
+        let mut out = Vec::new();
+        candidates(&s.cx(2), &mut out);
+        assert!(out.is_empty(), "{out:?}");
+        assert!(leader(&s.cx(2)).is_none());
+        // A step of a running Buddy ends at once.
+        let mut rng = Rng::new(5);
+        let mut state = start(TargetRef::Place(0), &s.cx(2), &mut rng);
+        assert_eq!(
+            step(&mut state, TargetRef::Place(0), &s.cx(2), &mut rng),
+            Step::Done("the partner just respawned at home")
+        );
+        // 21 s on, out of the area: followed again.
+        at_home(&mut s, now.saturating_sub(21_000));
+        assert!(leader(&s.cx(2)).is_some());
+    }
+
+    /// Two bots close together at home (the start of a match) still pair up.
+    #[test]
+    fn a_follower_near_a_fresh_leader_keeps_with_him() {
+        let mut s = pair(15.0);
+        let now = s.view.clock;
+        s.view.places[0].spawned = now.saturating_sub(1_000);
+        assert!(leader(&s.cx(2)).is_some());
     }
 
     #[test]
