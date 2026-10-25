@@ -195,7 +195,8 @@ package survarium.controls
             }
             item.sellerLevel = p[i].level;
             item.factionId = seller;
-            item.modifiers = item.modifiersDefault;
+            // A golden item's entry shows the bonuses it is bought with.
+            item.modifiers = ItemFactory.startingModifiers(item.dictId).concat(item.modifiersDefault);
             if(!this._items[seller])
             {
                this._items[seller] = [];
@@ -252,6 +253,11 @@ package survarium.controls
             }
             item.sellers = descrData.sellers;
          }
+         // The shop's list (`InventoryList.setupShopItems`) is filled in `draw`: without this it
+         // waited for the next reputations push, and a price list that came after the sign-in's
+         // reputations left the shop empty. A second price list (a reconnect in place) adds
+         // copies to `_items`; the list's `deleteDoubleItems` shows one of each.
+         invalidateData();
          function getSellerName(faction_id:int):String
          {
             if(!_sellers)

@@ -280,6 +280,7 @@ mod tests {
             missing,
             [
                 "loadouts::STARTER tt_33",
+                "prices::OWNER_PRICES tt_33",
                 "shop_offers::BUNDLES vss_premium"
             ]
         );
@@ -287,7 +288,7 @@ mod tests {
         assert!(
             error.contains(
                 "server-game-data.db lacks what srp's code names: loadouts::STARTER tt_33, \
-                 shop_offers::BUNDLES vss_premium."
+                 prices::OWNER_PRICES tt_33, shop_offers::BUNDLES vss_premium."
             ),
             "{error}"
         );

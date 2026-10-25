@@ -141,3 +141,49 @@ Read from the 0.26g exe (no game run); the labels are in `tools/re-kit/v026g`.
     recordings), so the most desync risk;
   - every exe option is a client patch and a simulation change: a `next` row
     of `simulation_changes.tsv`, earlier recordings no longer watchable.
+
+## Split ticks (patch 72)
+
+The owner (2026-10-25): "the fall damage problem is back… it seems to be
+something stacking up"; "you can now die from falling 1 meter"; "let's fix it".
+Read from the 0.26g exe; client_patch.md section 3.56 has the addresses.
+
+- **The cause (PROVEN):** the world steps to the time of each precise input
+  inside a tick: a press or a release of fire, by any player, off the 50 ms
+  grid (0xDD). Every game cuts the same ticks. Each part steps every moving
+  character controller: the body moves its share of the tick, but the free
+  fall took a whole tick of gravity (0.49 m/s) at every part. A tick in k
+  parts so gave k ticks of speed, and the landing hurt as from a fall k times
+  higher. More players clicking means more parts: a 10v10 fight of
+  semi-automatic weapons can cut most ticks in several.
+- **What it meant (the tick model, fatal_damage 1.0):**
+
+  | drop | every tick whole | a quarter of ticks in 2 | every tick in 2 | every tick in 6 |
+  |---|---|---|---|---|
+  | 1 m | 0 | 0 | 0 | 0.23 |
+  | 3 m | 0 | 0 | 0.14 | 1.0 |
+  | 5 m | 0 | 0.26 | 0.88 | 1.0 |
+  | 6 m | 0.21 | 0.51 | 1.0 | 1.0 |
+
+  About 0.6 kills a player at full health; less kills one already hurt (the
+  feet's blunt hit takes pain x 0.8).
+- **Not the cause (PROVEN):** the history (the controller's velocity and
+  flags are in each history item and restored on a re-simulation; a frame's
+  step past the newest item is redone from it), real time (gravity's dt is
+  the tick constant), revisions 32 and 33 (nothing of theirs touches the
+  physics).
+- **The rule (patch 72):** a fall gains speed for the time it fell. The free
+  fall takes gravity x the step's dt (at most the tick), so a tick adds
+  0.49 m/s however many parts it is stepped in. Whole ticks are bit for bit
+  as before: the "Walking or sprinting off" table above holds again in every
+  fight. A simulation change.
+- **Unchanged:** how the world cuts its ticks (also the cost of a big fight's
+  simulation: a separate decision), the landing handler, `fall_params`, the
+  jump's end speed and the steep slopes above.
+- **Follow-up, not done:** cap the landing speed at sqrt(2 · g · the height
+  fallen since the last ground), the start kept in the controller. The
+  controller has 12 bytes nothing writes (+2C784h..+2C78Fh of its 0x2C790);
+  the start must be in its serialize (rollback), so the world's controller
+  block grows from 67 to 71 bytes and srp's readers of the player blocks
+  (`match_msgs/motion.rs`) change with it. Only if low falls still hurt with
+  patch 72.

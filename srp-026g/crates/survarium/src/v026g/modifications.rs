@@ -8,7 +8,8 @@
 //!   `modifications`, 20 `defects` and 3 `defect_slots`;
 //! - `gameplay/items/craft/craft.options`: prices by item level and the
 //!   chances by the difference in modifications;
-//! - `gameplay/items/reroll/reroll.options`: prices by item level;
+//! - `gameplay/items/reroll/reroll.options`: prices by item level (its
+//!   multiplier is not used: every change costs the same);
 //!
 //! and, from every item's config, what each item may carry ([`ItemMods`]:
 //! `available_modifications_mask`, `available_defects_mask`,
@@ -50,7 +51,8 @@
 //!   `st_craft_message_modifers_count`).
 //! - A roll picks among the modifications of the allowed types the item
 //!   does not hold, by `drop_weight` [LIKELY: the name, and 0.21d's drops
-//!   used the same key so].
+//!   used the same key so], and [srp, the owner's rule of 2026-10-23]
+//!   never one that only changes wear (reliability: items wear nothing).
 //! - `type_requirements_mask` equals `type_mask` in every row; it is not
 //!   used.
 //! - A defect needs its type in the item's `available_defects_mask` and,
@@ -89,10 +91,6 @@ pub const MAX_RANK: usize = 3;
 pub const PRICE_LEVELS: usize = 16;
 /// The modifications a reroll offers (`83 46 07`).
 pub const REROLL_CHOICES: usize = 3;
-/// The wait after a reroll paid in silver: the game's own text,
-/// `st_modifier_reroll_timer_description` ("Only one attempt in 6 hours is
-/// available when paying with silver").
-pub const REROLL_WAIT_SECONDS: u32 = 6 * 3600;
 /// The upgrade slots of an item: decals in 0 and 1 (the lobby shows two
 /// for `decal_available`, 0x28779F; a weapon one, [`WEAPON_DECAL_SLOTS`]), the camouflage in 3
 /// (`DragRegion.as`: `relocate_upgrade_item(item, camo, 3)`).
@@ -166,6 +164,38 @@ pub struct Modification {
     pub lobby_info: Vec<(String, f32)>,
 }
 
+/// The item parameters of its wear: what a "reliability" modification
+/// changes, and nothing else does.
+pub const WEAR_PARAMETERS: [&str; 3] = [
+    "parameters/degrade_per_match",
+    "parameters/degrade_per_use",
+    "parameters/degrade_per_death",
+];
+
+impl Modification {
+    /// It changes nothing but the item's wear ([`WEAR_PARAMETERS`]): the
+    /// "reliability" ones ("Надежность", the lobby's property 123,
+    /// `st_multiplicative_reliability_modifier`), 1200..=1204 on gear and
+    /// 2090..=2094 on weapons in the game's data.
+    pub fn only_changes_wear(&self) -> bool {
+        !self.modifiers.is_empty()
+            && self
+                .modifiers
+                .iter()
+                .all(|modifier| WEAR_PARAMETERS.contains(&modifier.path.as_str()))
+    }
+
+    /// A roll may give it: it has a drop weight, and it is not one that
+    /// only changes wear ([srp, the owner's rule of 2026-10-23]: items wear
+    /// nothing since #35, so a reliability modification would be a roll
+    /// wasted; `docs/notes/no-reliability-roll.md`). Every roll (a drop, an
+    /// upgrade, a reroll's offer) picks from [`Modifications::candidates`],
+    /// which asks this.
+    pub fn rolls(&self) -> bool {
+        self.drop_weight > 0.0 && !self.only_changes_wear()
+    }
+}
+
 /// A row of `defects`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Defect {
@@ -226,7 +256,9 @@ pub enum CraftOutcome {
     Success,
     /// Nothing but the donor and the price are lost.
     Neutral,
-    /// One modification less.
+    /// One modification less, in the game's data; srp takes none away
+    /// (the owner's rule of 2026-10-23, `docs/notes/craft-menu.md`): the
+    /// session does what [`CraftOutcome::Neutral`] does.
     Failure,
 }
 
@@ -283,32 +315,26 @@ impl Craft {
     }
 }
 
-/// `reroll.options`.
+/// `reroll.options`. Its `reroll_modificator_multiplicator` (1.1) is not
+/// read: [srp, the owner's rule of 2026-10-25] every change costs the same
+/// (`docs/notes/flat-reroll.md`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Reroll {
     pub price_general: [u16; PRICE_LEVELS],
     pub price_premium: [u16; PRICE_LEVELS],
-    /// `reroll_modificator_multiplicator` (1.1).
-    pub multiplicator: f32,
 }
 
 impl Reroll {
-    /// The price of the next change of a modification on an item of
-    /// `item_level` that had `times` changes already. [GUESS: each change
-    /// makes the next cost `reroll_modificator_multiplicator` times more.
-    /// What the number did is not in the client; that the server names the
-    /// two prices for each item, and again after each change (`83 46 06`,
-    /// `83 46 08`), while the craft prices are one table for all, says the
-    /// price was the item's own.]
-    pub fn price(&self, item_level: u8, gold: bool, times: u32) -> u32 {
+    /// The price of a change of a modification on an item of `item_level`:
+    /// the table's, however many changes the item had (the owner's rule of
+    /// 2026-10-25).
+    pub fn price(&self, item_level: u8, gold: bool) -> u32 {
         let table = if gold {
             &self.price_premium
         } else {
             &self.price_general
         };
-        let base = f64::from(table[usize::from(item_level).min(PRICE_LEVELS - 1)]);
-        let grown = base * f64::from(self.multiplicator).powi(times.min(200) as i32);
-        grown.round().min(f64::from(u32::MAX)) as u32
+        u32::from(table[usize::from(item_level).min(PRICE_LEVELS - 1)])
     }
 }
 
@@ -710,7 +736,6 @@ impl Modifications {
             reroll: Reroll {
                 price_general: prices(reroll, "reroll_price_general")?,
                 price_premium: prices(reroll, "reroll_price_premium")?,
-                multiplicator: reroll.f32_at("reroll_modificator_multiplicator")?,
             },
         })
     }
@@ -762,7 +787,9 @@ impl Modifications {
 
     /// The modifications a roll for `dict_id` picks among: of the types
     /// the item takes and holds none of (`held` and its defaults), with a
-    /// drop weight.
+    /// drop weight, and none that only changes wear ([`Modification::rolls`]).
+    /// The one pool of every roll: [`Self::roll`] (drops, upgrades) and
+    /// [`Self::reroll_choices`].
     pub fn candidates(&self, dict_id: u16, held: &[u32]) -> Vec<&Modification> {
         let Some(item) = item_mods(dict_id) else {
             return Vec::new();
@@ -772,7 +799,7 @@ impl Modifications {
         self.modifications
             .iter()
             .filter(|row| {
-                row.drop_weight > 0.0
+                row.rolls()
                     && item.modifications & (1 << row.kind) != 0
                     && taken & (1 << row.kind) == 0
             })
@@ -812,9 +839,13 @@ impl Modifications {
     /// other modifications and its defaults leave free, the replaced one's
     /// own type included but not `replaced` itself; three different types
     /// while there are, then other strengths of the types offered (an item
-    /// that takes few types, as a backpack or a balaclava with two
-    /// modifications, has only two types left). `None` when the item has not
-    /// three modifications to offer [srp: the lobby's window shows three].
+    /// that takes few types, as a backpack or a balaclava with one
+    /// modification, has only two types left). `None` when the item has not
+    /// three modifications to offer [srp: the lobby's window shows three]:
+    /// an item whose types besides reliability are all held has none for its
+    /// reliability (reliability never rolls, [`Modification::rolls`]). On
+    /// live data every item rolls three types or more (`third-mod-1.json`),
+    /// so a full item always has one.
     pub fn reroll_choices(
         &self,
         dict_id: u16,
@@ -942,8 +973,9 @@ impl Modifications {
     }
 
     /// What the modifications of one item add to a match's pay: its own
-    /// and its defaults (the premium copies of weapons and armour carry
-    /// 1230..=1280 as defaults).
+    /// and its defaults (in the game's data the premium copies of weapons
+    /// and armour carried 1230..=1280 as defaults; srp makes them their own
+    /// modifications, `super::golden`).
     pub fn bonuses(&self, dict_id: u16, modifications: &[(u32, bool)]) -> Bonuses {
         let defaults = item_params(dict_id).map_or(&[][..], |params| params.default_modifications);
         let own = modifications

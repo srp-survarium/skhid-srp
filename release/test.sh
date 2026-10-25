@@ -14,7 +14,8 @@
 #   nix shell nixpkgs#python3 nixpkgs#shellcheck -c release/test.sh
 #
 # Needs python3 (the HTTP servers, a ZIP) and the release srp-game-data
-# (built if missing); shellcheck runs if there is one.
+# (built if missing); shellcheck runs if there is one. SRP_026G_EXE (the
+# original 0.26g survarium.exe) adds a real exe build in the dev shell.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(dirname "$here")
@@ -34,6 +35,9 @@ if [[ ! -x $bin ]]; then
         'cd srp-026g && cargo build --quiet --release -p resources-db --bin srp-game-data')
 fi
 export SRP_GAME_DATA_BIN=$bin
+# This machine's nix and dirname, before the stand-ins (build-zip's exe step
+# runs for real with them alone, below).
+real_nix=$(command -v nix) real_dirname=$(command -v dirname)
 
 T=$(mktemp -d)
 pids=()
@@ -450,10 +454,33 @@ changed_env() { # <sed expressions>: a copy of release.env changed so; prints it
     printf '%s\n' "$T/changed-$changed.env"
 }
 
+# build-zip's exe step for real, not its stand-in: client_patches_python
+# runs a client-patches script in the checkout's dev shell, here with nothing
+# on PATH but nix (and dirname, for lib.sh), so python3 and the arena's gcc,
+# ld and NASM must be the dev shell's. The exe itself too when SRP_026G_EXE
+# names the original 0.26g survarium.exe (the self-test's variable).
+mkdir -p "$T/nix-only"
+ln -s "$real_nix" "$T/nix-only/nix"
+ln -s "$real_dirname" "$T/nix-only/dirname"
+dev_shell() { # <script and arguments, quoted for bash>
+    env PATH="$T/nix-only" "$BASH" -c ". $(printf '%q' "$here/lib.sh") && client_patches_python $(printf '%q' "$root") $1" 2>&1
+}
+out=$(dev_shell "link_026g.py --check" || true)
+check "build-zip's client-patches step: python3 in the dev shell with only nix on PATH, the arena linked there is the lock's" \
+    has "$out" "arena_026g.lock.json: current"
+out=$(dev_shell "make_client_026g.py" || true)
+check "... make_client_026g.py starts there (its usage)" has "$out" "--pack-zip"
+if [[ -f ${SRP_026G_EXE:-} ]]; then
+    out=$(dev_shell "patch_026g.py $(printf '%q' "$SRP_026G_EXE") $(printf '%q' "$T/dev-shell.exe")" || true)
+    check "... patch_026g.py builds the exe there, its arena linked from source" has "$out" "Research (mode 5"
+else
+    echo "skip patch_026g.py in the dev shell (SRP_026G_EXE names no original survarium.exe)"
+fi
+
 # The stock db: an archive of a dictionary and a project.
 mkdir -p "$T/stock/gameplay/items" "$T/stock/projects/p/day"
 echo "dictionary" >"$T/stock/gameplay/db_static_dictionaries"
-echo "old item" >"$T/stock/gameplay/items/a.options"
+echo "old item" >"$T/stock/gameplay/items/a.txt"
 # A project of nothing: a binary config of an empty table (srp-game-data
 # keeps a project cut to its server objects, and refuses one that is not a
 # config).
@@ -462,8 +489,8 @@ printf '\x18\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x03\0\0\0' >"$T/stock/project
 
 # build-patch
 mkdir -p "$T/p3/gameplay/items"
-echo "new item" >"$T/p3/gameplay/items/a.options"
-echo "added" >"$T/p3/gameplay/items/b.options"
+echo "new item" >"$T/p3/gameplay/items/a.txt"
+echo "added" >"$T/p3/gameplay/items/b.txt"
 out=$(cd "$T/work" && "$here/build-patch" "$T/p3" 3 2>&1)
 check "build-patch packs a folder" test -f "$T/work/resources.db.patch_3"
 check "build-patch prints its sha256" has "$out" "sha256 $(sha256sum <"$T/work/resources.db.patch_3" | cut -d' ' -f1)"
@@ -492,7 +519,7 @@ check "upload-patch: no .tmp left" test ! -e "$T/patches/resources.db.patch_3.tm
 check "upload-patch checks the URL" has "$out" "published: $P/resources.db.patch_3 (200"
 check "upload-patch adds the row to the list" grep -qxF "$(printf 'resources.db.patch_3\t%s\t%s\t%s' "$sha3" "$(stat -c %s "$patch")" "$P/resources.db.patch_3")" "$T/patches.tsv"
 expect_refused "upload-patch: the same file again" "with these same bytes" "$here/upload-patch" "$patch"
-mkdir -p "$T/other" && echo other >"$T/p3/gameplay/items/c.options"
+mkdir -p "$T/other" && echo other >"$T/p3/gameplay/items/c.txt"
 "$bin" pack --dir "$T/p3" --out "$T/other/resources.db.patch_3" >/dev/null
 expect_refused "upload-patch never replaces a patch" "OTHER bytes" "$here/upload-patch" "$T/other/resources.db.patch_3"
 check "the published patch is the first one" cmp -s "$patch" "$T/patches/resources.db.patch_3"
@@ -1165,7 +1192,7 @@ commit "a change of what a match computes"
 expect_refused "release: a change of what a match computes needs the server built" \
     "simulation_changes.tsv has a \`next\` row, but the server code is not built (--server-code no)" "$here/release.sh" --server-code no
 mkdir -p "$T/p13/gameplay/items" "$T/r13"
-echo "item 13" >"$T/p13/gameplay/items/d.options"
+echo "item 13" >"$T/p13/gameplay/items/d.txt"
 "$bin" pack --dir "$T/p13" --out "$T/r13/resources.db.patch_13" >/dev/null
 # The site's pages on main, built from the list (patch_3, patch_12): the
 # release of new content rebuilds them (build-site's stand-in).
@@ -1252,7 +1279,7 @@ git -C "$T/repo" tag -d 026g-rev14 >/dev/null
 echo "crates 3" >"$src/crates/a/src/lib.rs"
 commit "server code again"
 mkdir -p "$T/p14/gameplay/items" "$T/r14"
-echo "item 14" >"$T/p14/gameplay/items/e.options"
+echo "item 14" >"$T/p14/gameplay/items/e.txt"
 "$bin" pack --dir "$T/p14" --out "$T/r14/resources.db.patch_14" >/dev/null
 mkdir -p "$T/r16" && cp "$T/r14/resources.db.patch_14" "$T/r16/resources.db.patch_16"
 expect_refused "release: a patch of another revision" "must be called resources.db.patch_14" \
@@ -1646,7 +1673,7 @@ check "rollback: ... its way back puts the release in place again" bash -c "cmp 
 # of srp.db to the jump host (it is there).
 # Its revision is the test exe's + 1 (here the same site: 15).
 mkdir -p "$T/p15/gameplay/items" "$T/r15"
-echo "item 15" >"$T/p15/gameplay/items/f.options"
+echo "item 15" >"$T/p15/gameplay/items/f.txt"
 "$bin" pack --dir "$T/p15" --out "$T/r15/resources.db.patch_15" >/dev/null
 run quiet --test --dry-run --resources "$T/r15/resources.db.patch_15" || true
 check "release --test: its revision is the test exe's + 1" has "$out" "the test exe is revision 14: this release is revision 15"
@@ -2050,7 +2077,24 @@ check "release: no other container was ever run" bash -c "! grep -q '^docker run
 C=$T/ctree
 mkdir -p "$C/srp-026g/flash/m/src" "$C/srp-026g/scripts/content-edit" "$T/b40/flash_movies" "$T/b40/gameplay/items" "$T/packs/hat-1/files/gameplay/items"
 echo "movie original" >"$T/b40/flash_movies/m.swf"
-echo "ported item" >"$T/b40/gameplay/items/c.options"
+echo "ported item" >"$T/b40/gameplay/items/c.txt"
+# A real binary config: `position`, a float3 (or, with "table", an indexed
+# table of three floats, as Research's first pack wrote vectors).
+cat >"$T/mkcfg.py" <<'EOF'
+import struct, sys, zlib
+REC = struct.Struct('<QQIHH')
+crc = zlib.crc32(b'position') & 0xffffffff
+buf = bytearray(REC.pack(24, 0, 0, 3, 1) + REC.pack(0, 48, crc, 4 if sys.argv[2] == 'table' else 7, 3) + b'position\0')
+while len(buf) % 8:
+    buf.append(0)
+struct.pack_into('<Q', buf, 24, len(buf))
+if sys.argv[2] == 'table':
+    buf += b''.join(REC.pack(struct.unpack('<I', struct.pack('<f', v))[0], 0, 0, 2, 4) for v in (1, 2, 3))
+else:
+    buf += struct.pack('<fff', 1, 2, 3)
+open(sys.argv[1], 'wb').write(buf)
+EOF
+python3 "$T/mkcfg.py" "$T/b40/gameplay/items/vec.options" vector
 quiet "$bin" pack --dir "$T/b40" --out "$T/patches/resources.db.patch_40"
 printf '{"schema": 2, "movie": "flash_movies/m.swf", "archive": "resources.db.patch_40", "movie_sha256": "%s"}\n' \
     "$(sha256sum <"$T/b40/flash_movies/m.swf" | cut -c1-64)" >"$C/srp-026g/flash/m/movie.json"
@@ -2071,7 +2115,7 @@ for e in json.load(open(edits)).get("set", []):
 print("1 files edited, 0 unexpected differences")
 EOF
 edit_list() { printf '{"set": [{"file": "gameplay/items/%s", "from": "%s", "to": "%s"}]}\n' "$2" "$3" "$4" >"$C/srp-026g/scripts/content-edit/$1"; }
-edit_list e1.json a.options "old item" "new item"
+edit_list e1.json a.txt "old item" "new item"
 cat >"$T/build-movie" <<'EOF'
 #!/usr/bin/env bash
 printf 'built %s %s over %s\n' "$1" "$(cat "$2/src/version")" "$(sha256sum <"$3" | cut -c1-64)" >"$4"
@@ -2087,7 +2131,7 @@ for p in "${packs[@]}"; do cp -r "$p/files/." "$out/"; done
 echo "pack patch: done"
 EOF
 chmod +x "$T/build-movie" "$T/vostok-port"
-echo "pack item" >"$T/packs/hat-1/files/gameplay/items/hat.options"
+echo "pack item" >"$T/packs/hat-1/files/gameplay/items/hat.txt"
 printf '{"id": "hat", "version": "1"}\n' >"$T/packs/hat-1/pack.json"
 hat_sha=$(sha256sum <"$T/packs/hat-1/pack.json" | cut -c1-64)
 sha40=$(sha256sum <"$T/patches/resources.db.patch_40" | cut -c1-64)
@@ -2106,7 +2150,7 @@ chmod +x "$T/bc"
 bc=$T/bc
 out=$(cd "$T/work" && "$bc" 41 2>&1) || fail "build-content: $out"
 check "build-content: the patch of what differs" test -f "$T/work/content-rev41/resources.db.patch_41"
-check "build-content: ... the edit's file, and why" has "$out" "CHANGED   gameplay/items/a.options: edit e1.json; live in resources.db\$"
+check "build-content: ... the edit's file, and why" has "$out" "CHANGED   gameplay/items/a.txt: edit e1.json; live in resources.db\$"
 check "build-content: ... the movie built from its tree, and why" has "$out" "CHANGED   flash_movies/m.swf: movie m (srp-026g/flash/m); live in resources.db.patch_40"
 check "build-content: ... only those two files" test "$(grep -c . "$T/work/content-rev41/files.tsv")" = 2
 quiet "$bin" get --db "$T/work/content-rev41/resources.db.patch_41" --out "$T/bc-get" flash_movies/m.swf
@@ -2123,23 +2167,23 @@ list_row_of "$T/patches/resources.db.patch_41" >>"$T/content-list.tsv"
 out=$("$bc" 42 --out "$T/work/c42" 2>&1) || fail "build-content after the release: $out"
 check "build-content: nothing to ship once it is live" has "$out" "nothing to ship: players have every file as the manifest makes it"
 check "build-content: ... every file unchanged, live in the patch that shipped it" \
-    bash -c "grep -q 'unchanged gameplay/items/a.options: edit e1.json; live in resources.db.patch_41' <<<\"\$1\" && test ! -e $T/work/c42/resources.db.patch_42" _ "$out"
+    bash -c "grep -q 'unchanged gameplay/items/a.txt: edit e1.json; live in resources.db.patch_41' <<<\"\$1\" && test ! -e $T/work/c42/resources.db.patch_42" _ "$out"
 expect_refused "build-content: a revision not above the list's" "the list has patches up to 41" "$bc" 41 --out "$T/work/c41b"
 
 # A retune of an edit list: its file only; a movie's source: the movie only.
-edit_list e1.json a.options "old item" "newer item"
+edit_list e1.json a.txt "old item" "newer item"
 echo 2 >"$C/srp-026g/flash/m/src/version"
 out=$("$bc" 42 --out "$T/work/c42b" 2>&1) || fail "build-content after a retune: $out"
 check "build-content: a retune and a movie change: both files, nothing else" \
-    bash -c "grep -q 'CHANGED   gameplay/items/a.options: edit e1.json; live in resources.db.patch_41' <<<\"\$1\" && grep -q 'CHANGED   flash_movies/m.swf' <<<\"\$1\" && grep -q 'the next patch: 2 file(s)' <<<\"\$1\"" _ "$out"
-edit_list e1.json a.options "old item" "new item"
+    bash -c "grep -q 'CHANGED   gameplay/items/a.txt: edit e1.json; live in resources.db.patch_41' <<<\"\$1\" && grep -q 'CHANGED   flash_movies/m.swf' <<<\"\$1\" && grep -q 'the next patch: 2 file(s)' <<<\"\$1\"" _ "$out"
+edit_list e1.json a.txt "old item" "new item"
 echo 1 >"$C/srp-026g/flash/m/src/version"
 
 # A pack composed over the base and the movies.
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "edit|e1.json|-"
 expect_refused "build-content: a pack needs vostok-port" "SKHID_VOSTOK_PORT must name" "$bc" 42 --out "$T/work/c42c"
 out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42d" 2>&1) || fail "build-content with a pack: $out"
-check "build-content: a pack's new file, and why" has "$out" "NEW       gameplay/items/hat.options: pack hat@1; not in players' files"
+check "build-content: a pack's new file, and why" has "$out" "NEW       gameplay/items/hat.txt: pack hat@1; not in players' files"
 check "build-content: ... over the base patches, the built movie in place of the base's" \
     bash -c "grep -q -- '--base-patch $T/cache/skhid-release/patches/resources.db.patch_40' $T/vostok-port.args && grep -q -- '--replace flash_movies/m.swf=' $T/vostok-port.args"
 printf '{"id": "hat", "version": "2"}\n' >"$T/packs/hat-1/pack.json"
@@ -2147,13 +2191,25 @@ expect_refused "build-content: a pack whose pack.json is not the row's" "not $ha
     env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42e"
 printf '{"id": "hat", "version": "1"}\n' >"$T/packs/hat-1/pack.json"
 
+# A pack that rewrites a base config's vector as an indexed table: the value-
+# type check refuses it, naming the file, the path and both types.
+mkdir -p "$T/packs/vec-1/files/gameplay/items"
+python3 "$T/mkcfg.py" "$T/packs/vec-1/files/gameplay/items/vec.options" table
+printf '{"id": "vec", "version": "1"}\n' >"$T/packs/vec-1/pack.json"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|vec@1|$(sha256sum <"$T/packs/vec-1/pack.json" | cut -c1-64)" "edit|e1.json|-"
+expect_refused "build-content: a pack writing a vector as an indexed table" \
+    "gameplay/items/vec.options: /position was float3, now indexed table" \
+    env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42t"
+check "build-content: ... and no patch" test ! -e "$T/work/c42t"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "edit|e1.json|-"
+
 # An edit list whose `files` is a list of paths (content_edit.py's add_value), not a glob.
-printf '{"add_value": [{"files": ["gameplay/items/c.options"], "table": "", "key": "k", "value": 1}]}\n' \
+printf '{"add_value": [{"files": ["gameplay/items/c.txt"], "table": "", "key": "k", "value": 1}]}\n' \
     >"$C/srp-026g/scripts/content-edit/e2.json"
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "edit|e1.json|-" "edit|e2.json|-"
 out=$("$bc" 42 --out "$T/work/c42v" 2>&1) || fail "build-content with an add_value list: $out"
 check "build-content: an add_value list's file, read from the base" \
-    has "$out" "CHANGED   gameplay/items/c.options: edit e2.json; live in resources.db.patch_40"
+    has "$out" "CHANGED   gameplay/items/c.txt: edit e2.json; live in resources.db.patch_40"
 rm "$C/srp-026g/scripts/content-edit/e2.json"
 
 # Loud: what the manifest cannot account for.
@@ -2161,10 +2217,10 @@ manifest "base|resources.db.patch_40|$sha40" "movie|m|-"
 expect_refused "build-content: an edit list without a row" "content-edit/e1.json has no edit row" "$bc" 42 --out "$T/work/c42f"
 mv "$C/srp-026g/scripts/content-edit/e1.json" "$T/e1.json"
 expect_refused "build-content: a live file no row makes (a row taken out)" \
-    "gameplay/items/a.options: live from resources.db.patch_41, which is no base row, and made by no row" "$bc" 42 --out "$T/work/c42g"
+    "gameplay/items/a.txt: live from resources.db.patch_41, which is no base row, and made by no row" "$bc" 42 --out "$T/work/c42g"
 check "build-content: ... and no patch" test ! -e "$T/work/c42g"
 mv "$T/e1.json" "$C/srp-026g/scripts/content-edit/e1.json"
-edit_list e2.json c.options "other item" "x"
+edit_list e2.json c.txt "other item" "x"
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "edit|e1.json|-" "edit|e2.json|-"
 expect_refused "build-content: an edit list made for other values" "edit e2.json (content_edit.py) failed" "$bc" 42 --out "$T/work/c42h"
 rm "$C/srp-026g/scripts/content-edit/e2.json"
@@ -2177,6 +2233,81 @@ expect_refused "build-content: a movie's original in no base archive" "neither t
 manifest "base|resources.db.patch_40|$sha40" "edit|e1.json|-"
 expect_refused "build-content: a Flash tree without a row" "srp-026g/flash/m has no movie row" "$bc" 42 --out "$T/work/c42l"
 check "--help is build-content's usage" has "$("$here/build-content" --help)" "usage: release/build-content"
+
+# The value-type check (content_type_check.py), on real binary configs, value
+# by value: a vector rewritten as an indexed table is refused in a changed
+# file and in a new file (also when only one entry of a list is wrong, and
+# where the previous version already mixed types at that path), a colour
+# ramp's new key of another type than its keys, an allowlist row lets a new
+# key through but never a changed one, and a config walk refuses is reported.
+python3 - "$here/content_type_check.py" "$here/../srp-026g/scripts/content-edit" "$T/tc.log" <<'EOF'
+import importlib.util, struct, sys, zlib
+ctc_path, ce_dir, logp = sys.argv[1:4]
+spec = importlib.util.spec_from_file_location('ctc', ctc_path)
+ctc = importlib.util.module_from_spec(spec); spec.loader.exec_module(ctc)
+walk = ctc.load_walk(ce_dir)
+REC = struct.Struct('<QQIHH')
+def build(root, sort=True):  # ('named', [(name, node)]) | ('indexed', [node]) | ('f3', xyz) | ('f', x)
+    buf = bytearray(24)
+    def children(kids):
+        if sort:
+            kids = sorted(kids, key=lambda k: zlib.crc32(k[0].encode()) if k[0] else 0)
+        while len(buf) % 8: buf.append(0)
+        at = len(buf); buf.extend(bytes(24 * len(kids)))
+        for i, (name, node) in enumerate(kids): write(at + 24 * i, name, node)
+        return at
+    def write(at, name, node):
+        off = crc = 0
+        if name:
+            off = len(buf); buf.extend(name.encode() + b'\0'); crc = zlib.crc32(name.encode()) & 0xffffffff
+        kind, v = node
+        if kind == 'named': REC.pack_into(buf, at, children(v), off, crc, 3, len(v))
+        elif kind == 'indexed': REC.pack_into(buf, at, children([(None, n) for n in v]), off, crc, 4, len(v))
+        elif kind == 'f3':
+            while len(buf) % 8: buf.append(0)
+            d = len(buf); buf.extend(struct.pack('<fff', *v)); REC.pack_into(buf, at, d, off, crc, 7, 3)
+        else: REC.pack_into(buf, at, struct.unpack('<I', struct.pack('<f', v))[0], off, crc, 2, 4)
+    write(0, None, root)
+    return bytes(buf)
+vec, tab = ('f3', (1, 2, 3)), ('indexed', [('f', 1), ('f', 2), ('f', 3)])
+lvl = lambda *ps: build(('named', [('objects', ('indexed', [('named', [('position', p)]) for p in ps]))]))
+ramp = lambda n, last: build(('named', [('ramp', ('named', [(f'key{i}', vec if i < n - 1 else last) for i in range(n)]))]))
+corp = ctc.corpus_with(walk, {'other': lvl(vec, vec)})
+cases = [('identity', ctc.violations(walk, lvl(vec), lvl(vec), 'a', corp, {})),
+         ('changed_vector_to_table', ctc.violations(walk, lvl(vec), lvl(tab), 'a', corp, {})),
+         ('new_file_vector_as_table', ctc.violations(walk, None, lvl(tab), 'b', corp, {})),
+         ('new_file_one_of_two', ctc.violations(walk, None, lvl(vec, tab), 'b', corp, {})),
+         ('changed_old_mixed', ctc.violations(walk, lvl(vec, tab, vec), lvl(tab, tab, vec), 'c', corp, {})),
+         ('ramp_new_key_table', ctc.violations(walk, ramp(3, vec), ramp(4, tab), 'r', {}, {})),
+         ('new_file_allowlisted', ctc.violations(walk, None, lvl(tab), 'b', corp, {('b', '/objects[]/position'): 'ok'})),
+         ('changed_allowlisted', ctc.violations(walk, lvl(vec), lvl(tab), 'a', corp, {('a', '/objects[]/position'): 'ok'}))]
+try:
+    ctc.parse(walk, build(('named', [('a', vec), ('b', vec)]), sort=False))  # crc32 a > b
+    unsorted = 'parsed'
+except ctc.NotAConfig as error:
+    unsorted = 'refused: ' + str(error)
+with open(logp, 'w') as f:
+    for name, v in cases:
+        f.write('%s\t%d\t%s\n' % (name, len(v), ' | '.join(v)))
+    f.write('unsorted\t%s\n' % unsorted)
+EOF
+tc() { grep -P "^$1\t" "$T/tc.log" | cut -f2-; }
+check "type check: a file unchanged has no violation" test "$(tc identity | cut -f1)" = 0
+check "type check: a vector rewritten as an indexed table in a changed file is refused (the Research bug)" \
+    bash -c "grep -P '^changed_vector_to_table\t1\t' '$T/tc.log' | grep -q 'float3, now indexed table'"
+check "type check: a new file's vector written as a table, where 0.26g has a vector, is refused" \
+    test "$(tc new_file_vector_as_table | cut -f1)" = 1
+check "type check: ... also when only one of two entries is a table (no pooling across entries)" \
+    bash -c "grep -P '^new_file_one_of_two\t1\t' '$T/tc.log' | grep -q 'objects\[1\]/position'"
+check "type check: ... and in a changed file whose previous version already mixed types there" \
+    bash -c "grep -P '^changed_old_mixed\t1\t' '$T/tc.log' | grep -q 'objects\[0\]/position was float3'"
+check "type check: a colour ramp's new key of another type than the ramp's keys is refused (key#)" \
+    test "$(tc ramp_new_key_table | cut -f1)" = 1
+check "type check: an allowlisted new key passes" test "$(tc new_file_allowlisted | cut -f1)" = 0
+check "type check: ... but an allowlist row never lets a key that exists change its type" \
+    test "$(tc changed_allowlisted | cut -f1)" = 1
+check "type check: a config whose table is not sorted by CRC is refused, not skipped" \
+    bash -c "grep -P '^unsorted\trefused: ' '$T/tc.log' | grep -q 'not sorted'"
 
 echo
 if ((failures)); then

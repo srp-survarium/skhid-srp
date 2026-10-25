@@ -44,15 +44,7 @@ package survarium.messages
                   event.handled = true;
                }
                break;
-            case Keyboard.ESCAPE:
-               if(details.value == InputValue.KEY_UP)
-               {
-                  if(stage.focus is TextField)
-                  {
-                     stage.focus = this;
-                  }
-               }
-               break;
+            // Esc: LobbyMenu.close_active_window (Modals), the one Esc handler
          }
       }
       

@@ -7,12 +7,14 @@
 The patches are exactly the rows of release/patches.tsv (each checked by its
 sha256), mounted over the stock resources.db in their order, as the game does.
 Nothing about a map is written here by hand: the maps are the playable ids of
-`maps_dict` (a config of mode 2, 3 or 4 whose project exists, as the server
+`maps_dict` (a config of mode 2 to 5 whose project exists, as the server
 plays them), and of each map
 
 - the name, the modes and their parameters: `gameplay/game_modes/`;
 - respawn points, battery spawners, charging stations ("chargers") and the
   teams' battery containers: the project's `server_objects`;
+- Research's three units (mode 5): the mode config's
+  `parameters.capture_zones` (`cp_id`, `position`);
 - artefact containers and what spawns there: the project's `client_objects`
   (`artefact_container`, grouped by their `generic_anomaly_core`);
 - the minimap and its frame: `flash_movies/hud.swf`, class
@@ -61,6 +63,9 @@ TYPES = {"js": "text/javascript; charset=utf-8", "webp": "image/webp", "svg": "i
 # project can hold objects no rule of its mode reads (level_05 has a station
 # in modes 2 and 4): those are not shown.
 GATHER, TIMED = 88, 89
+# Research's rule (480, exe patch 53; docs/notes/research_mode.md) reads its
+# units from the mode config (`parameters.capture_zones`), not the project.
+RESEARCH = 480
 SITE = "/maps"
 RENDERS = SRP / "servers" / "web-server" / "damage" / "maps"
 RENDER_TABLE = SRP / "scripts" / "damage-calc" / "assets" / "maps" / "maps.json"
@@ -274,6 +279,9 @@ def main():
                 else:
                     seen["stations"] = []
                 p = mm["parameters"]
+                # [x, z, y, cp_id], by cp_id (0, 1, 2: A, B, C).
+                seen["units"] = (sorted((xzy(zone) + [zone.get("cp_id", 0)] for zone in p.get("capture_zones") or []),
+                                        key=lambda unit: unit[3]) if RESEARCH in rules else [])
                 modes.append({"mode": mode_id, "ids": sorted(mm["ids"]), "name": text(mm["mode_name"]),
                               "stations_active": p.get("spawn_points_count"), "batteries": p.get("victory_items_count"),
                               **seen})
@@ -347,7 +355,7 @@ def main():
             f'    "{f}" => "{TYPES[f.rsplit(".", 1)[1]]}",\n' for f in served)
         + "}\n")
     write_built_from(out / "built-from.tsv", rows, "the Maps tab (srp-026g/scripts/maps-tab/build.py)")
-    points = sum(len(mo["respawn"]) + len(mo["spawners"]) + len(mo["stations"]) + len(mo["containers"])
+    points = sum(len(mo["respawn"]) + len(mo["spawners"]) + len(mo["stations"]) + len(mo["containers"]) + len(mo["units"])
                  for m in data_maps for mo in m["modes"]) + sum(len(m["artefacts"]) for m in data_maps)
     print(f"{out}: revision {revision}, {len(data_maps)} maps, {points} points, maps.js {len(script) / 1024:.0f} KB")
 

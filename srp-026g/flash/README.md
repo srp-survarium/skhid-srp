@@ -23,6 +23,8 @@ bytes):
   taken out is a deleted file.
 - `movie.json` names the original movie (its archive entry and sha256). Its graphics, fonts and
   sounds are not source: the build takes everything but the code from it.
+- `bitmaps/<class>.png` (the hud's kill feed icons): a bitmap the original lacks, which the build
+  adds bound to `<class>`, a `BitmapData` class of `src/`.
 
 ## Cleaned up over the export
 
@@ -56,6 +58,8 @@ ordinary source (the owner, 2026-10-21: no decompilation matching needed now).
   | `ItemFactory.getCategory`'s groups | `survarium.constants.SuperCategory` (the shop's tabs) |
   | `ItemData.descriptor` | `survarium.constants.ItemPlace` (inventory, shop, bundle; below 100 the profile slot) |
   | golden weapons and their plain weapons | `survarium.constants.ItemDictId.GOLDEN_WEAPONS` / `GOLDEN_PLAIN` (srp's `golden::GOLDEN_WEAPONS`; a Rust test keeps them the same) |
+  | premium armour, its plain pieces and premium bonuses | `survarium.constants.ItemDictId.PREMIUM_ARMOUR` / `PREMIUM_ARMOUR_PLAIN` / `PREMIUM_ARMOUR_BONUSES` (srp's `golden::PREMIUM_ARMOUR`; a Rust test keeps them the same) |
+  | the bonuses srp gives a new golden item, as a modification | `survarium.item.ItemFactory.BONUS_UI` (the modifications' `ui_desc`; a Rust test keeps them the same) |
   | gamepad buttons | `InputDelegate`'s `GAMEPAD_*` (the key codes Scaleform gives them) |
 
 ```sh

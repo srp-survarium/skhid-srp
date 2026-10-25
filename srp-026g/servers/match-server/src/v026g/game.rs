@@ -328,6 +328,9 @@ const MISSED_RECENT_MS: u32 = 1_000;
 const MIN_MS_PER_KILL: u32 = 2_000;
 /// Plausibility: batteries home at most one per this long, plus one.
 const MIN_MS_PER_BATTERY: u32 = 10_000;
+/// Plausibility: a team's Research points at most one per this long, plus
+/// one (three units owned give one each 2.86 s: `research_mode.md`).
+const MIN_MS_PER_RESEARCH_POINT: u32 = 2_000;
 /// Clock samples kept per client; the one taken over the shortest round
 /// trip counts (`best_sample`).
 const CLOCK_SAMPLES: usize = 4;
@@ -1085,12 +1088,13 @@ impl Game {
             .is_some_and(|place| place.bot || place.driven)
     }
 
-    /// The batteries of modes 2 and 3; none in Team Deathmatch.
+    /// The batteries of modes 2 and 3; none in Team Deathmatch and
+    /// Research.
     fn batteries(&self) -> usize {
-        if self.game_mode() == mode::TEAM_DEATHMATCH {
-            0
-        } else {
+        if mode::WITH_BATTERIES.contains(&self.game_mode()) {
             self.formed.map.victory_items_count as usize
+        } else {
+            0
         }
     }
 
@@ -3848,9 +3852,19 @@ impl Game {
             Some(read) => read.timelimit.state == rules::state::IN_PROCESS,
             None => self.rule.state == rules::state::IN_PROCESS,
         };
+        // Research writes its end into its own bytes: taken when its points
+        // say the same.
+        let research_end = decoded
+            .rules
+            .as_ref()
+            .and_then(|read| read.research.as_ref())
+            .filter(|research| {
+                rules::research_finished(research.points, self.formed.map.resources_count)
+            })
+            .and_then(|research| research.end);
         let over = playing
-            && if self.game_mode() == mode::TEAM_DEATHMATCH {
-                decoded
+            && match self.game_mode() {
+                mode::TEAM_DEATHMATCH => decoded
                     .rules
                     .as_ref()
                     .and_then(|read| read.tdm)
@@ -3859,11 +3873,11 @@ impl Game {
                             tdm.tickets,
                             rules::alive_by_team(tdm.alive_players_mask, &teams),
                         )
-                    })
-            } else {
-                standing.is_some_and(|standing| {
+                    }),
+                mode::RESEARCH => research_end.is_some(),
+                _ => standing.is_some_and(|standing| {
                     rules::gather_finished(standing.points, self.batteries() as u32)
-                })
+                }),
             };
         log::debug!(
             "Match {:#x}: at {} ms the standing is {standing:?}",
@@ -3871,7 +3885,10 @@ impl Game {
             snapshot.time
         );
         if over && self.mode_end_at.is_none() {
-            let at = snapshot.time + self.settings.timing.end_delay_ms;
+            // The rule's own end is at most the delay after the tick that
+            // reached the goal, which is this snapshot's or an earlier one.
+            let delayed = snapshot.time + self.settings.timing.end_delay_ms;
+            let at = research_end.map_or(delayed, |end| end.min(delayed));
             log::info!(
                 "Match {:#x}: the mode's rule has its end at {} ms (standing {standing:?}); the \
                  match is over at {at} ms",
@@ -3921,6 +3938,15 @@ impl Game {
                     .any(|team| u32::from(*team) > tickets)
                 {
                     return Err(format!("tickets {:?} of {tickets}", standing.points));
+                }
+            } else if self.game_mode() == mode::RESEARCH {
+                let goal = self.formed.map.resources_count;
+                let most = goal.min(1 + played / MIN_MS_PER_RESEARCH_POINT);
+                if standing.points.iter().any(|team| u32::from(*team) > most) {
+                    return Err(format!(
+                        "research points {:?} of {goal} after {played} ms",
+                        standing.points
+                    ));
                 }
             } else {
                 let batteries = self.batteries() as u32;

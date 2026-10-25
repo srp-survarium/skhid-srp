@@ -5,6 +5,7 @@ package
    import flash.text.StyleSheet;
    import flash.utils.Timer;
    import scaleform.clik.layout.Layout;
+   import survarium.controls.Modals;
    
    public class MainScene
    {
@@ -13,15 +14,62 @@ package
       
       public static var isShift:Boolean;
       
+      // whether a Ctrl key is down (LobbyMenu.onKeyDownStage; the item lists' Ctrl+F)
+      public static var isCtrl:Boolean;
+      
       public static var showDebugInfo:Boolean;
       
       public static var stage:DisplayObjectContainer;
       
-      public static var activeWindow:MovieClip;
-      
-      public static var activePop:MovieClip;
-      
+      private static var _activeWindow:MovieClip;
+
+      private static var _activePop:MovieClip;
+
       public static var activeComponent:MovieClip;
+
+      // The top menu's window open (or the results): a modal (Modals), Esc its closeWindow.
+      public static function get activeWindow() : MovieClip
+      {
+         return _activeWindow;
+      }
+
+      public static function set activeWindow(value:MovieClip) : void
+      {
+         _activeWindow = enter(_activeWindow,value,"closeWindow");
+      }
+
+      // A popup over the windows (the attachments window, the ammo box): a modal, Esc its closePopup.
+      public static function get activePop() : MovieClip
+      {
+         return _activePop;
+      }
+
+      public static function set activePop(value:MovieClip) : void
+      {
+         _activePop = enter(_activePop,value,"closePopup");
+      }
+
+      private static function enter(old:MovieClip, value:MovieClip, closeName:String) : MovieClip
+      {
+         if(old != null && old != value)
+         {
+            Modals.leave(old);
+         }
+         if(value != null)
+         {
+            Modals.open(value,Modals.LOBBY,function():void
+            {
+               if(value[closeName] is Function)
+               {
+                  value[closeName]();
+               }
+            },function():Boolean
+            {
+               return value.visible && value.stage != null;
+            });
+         }
+         return value;
+      }
       
       public static var layout:Layout;
       

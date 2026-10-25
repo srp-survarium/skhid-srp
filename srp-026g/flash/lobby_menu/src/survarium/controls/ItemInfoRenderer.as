@@ -7,7 +7,9 @@ package survarium.controls
    import flash.text.TextFieldAutoSize;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.interfaces.IDataRenderer;
+   import survarium.Util;
    import survarium.constants.Colors;
+   import survarium.item.ItemFactory;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.ItemData;
@@ -191,6 +193,10 @@ package survarium.controls
          }
          weaponIds = UpgradeWindow.weaponsFor(item.dictId);
          names = new Array();
+         // the chosen kit's weapons (slot 1 or 2) in gold (owner 2026-10-22: "it should in gold
+         // highlight your weapon, if it is in the list"; weapon_scopes.md)
+         var kit:Array = UpgradeWindow.kitWeapons();
+         var owned:Object = new Object();
          i = 0;
          while(i < weaponIds.length)
          {
@@ -199,6 +205,19 @@ package survarium.controls
             if(Boolean(weaponName) && names.indexOf(weaponName) == -1)
             {
                names.push(weaponName);
+            }
+            if(Boolean(weaponName) && kit.indexOf(weaponIds[i]) != -1)
+            {
+               owned[weaponName] = true;
+            }
+            i = ++i;
+         }
+         i = 0;
+         while(i < names.length)
+         {
+            if(owned[names[i]])
+            {
+               names[i] = Util.styledChar(names[i],"gold");
             }
             i = ++i;
          }
@@ -248,6 +267,11 @@ package survarium.controls
          else
          {
             nameColor = Colors.LIGHT_GRAY;
+         }
+         // Skhid: a golden item's name is gold, whatever its rank (golden_weapons.md, premium_armour.md)
+         if(ItemFactory.isGolden(item.dictId))
+         {
+            nameColor = Colors.GOLD;
          }
          this.itemName.textField.textColor = nameColor;
          this.itemName.text = item.name;

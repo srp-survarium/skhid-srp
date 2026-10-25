@@ -16,6 +16,9 @@ open a terminal in that folder and run
 It runs play_skhid.sh and nothing else; bash Skhid.sh launcher is
 bash play_skhid.sh launcher (below).
 
+A VPN's split tunnelling (VPN.txt) applies to the Wine process that runs the
+game and the launcher, not to their .exe files.
+
 Select an English keyboard layout before launching. In our Wine tests, starting
 with Russian selected could leave text input broken after switching to English.
 The game language is a separate setting: edit localization near the top of the

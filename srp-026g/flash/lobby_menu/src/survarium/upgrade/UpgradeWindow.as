@@ -220,6 +220,12 @@ package survarium.upgrade
          return instance._inventory.getInventoryItem(itemId);
       }
       
+      // The chosen kit's weapons (slots 1 and 2) by dictionary id, for a sight's card (weapon_scopes.md).
+      public static function kitWeapons() : Array
+      {
+         return Boolean(instance) && Boolean(instance._inventory) ? instance._inventory.kitWeaponDicts() : [];
+      }
+
       public static function wearers(item:Object) : Array
       {
          var wearer:Object = null;
@@ -1013,6 +1019,12 @@ package survarium.upgrade
             slot = event.target as UpgradeSlot;
             trace("updateData::");
             item = this.create_item(event.dragData.itemId);
+            // an item not owned (none should be listed): nothing to put, and no error that would
+            // leave the drag on the cursor
+            if(item == null)
+            {
+               return;
+            }
             slot.setData(item);
             trace("relocate_upgrade_item",this._data.itemId,uint(slot.data.itemId),uint(slot.index));
             ExternalInterface.call("relocate_upgrade_item",this._data.itemId,uint(slot.data.itemId),uint(slot.index));

@@ -614,6 +614,22 @@ mod tests {
         };
         assert_eq!(items.len(), 4);
         assert_eq!(account.premium_money, 0);
+        // The Survivor jacket and pants: their premium bonuses are their own
+        // first modifications (`golden::starting_modifications`).
+        for (gave, name) in items
+            .iter()
+            .zip(["scav_torso_4_premium", "scav_legs_4_premium"])
+        {
+            let piece = account.item(gave.item_id).unwrap();
+            assert_eq!(piece.dict_id, dict(name));
+            assert_eq!(
+                piece.modifications,
+                [
+                    (golden::EXPERIENCE_BONUS, false),
+                    (golden::SCAVENGER_REPUTATION_BONUS, false)
+                ]
+            );
+        }
         // The account as it is now goes out whole.
         let mut client = Client::signed_in();
         let push = super::super::wire::after_change(&account, NOW).unwrap();

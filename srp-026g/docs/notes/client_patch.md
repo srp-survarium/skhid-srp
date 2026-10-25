@@ -1040,7 +1040,7 @@ The owner's request (2026-10-21): "instead of focusing on players the camera wou
 - **Why the pivot was at the end** (PROVEN in the data and the code, emulated). A weapon's mesh (its `converted_model` vertices) is not in the frame of its render model's box (`render/export_properties` `bounding_box`, kept at render_model+108h by load_properties 0x1582C0): the box is rotY(π) of the mesh, the engine turns it back (skeleton_render_model_instance::update_render_matrices 0x15A590 copies the model's box to the instance's +62B8h and transforms it by rotY(π), 0x15A77F). The AK-12's mesh lies along +z (z −0.265..0.673), its box along −z (−0.673..0.265): the first round's CENTRE_Z −0.18, read from the box, was 0.38 m from the middle, by the stock's end. And a weapon is drawn posed: the bones mt_draw gives weapon::draw ([ebp−0Ch], [ebp−18h] of them; bone matrices in model space, rows, as update_render_matrices skins with the model's inverse binds +140h × each bone, 0x15A7DC..0x15A7EC) are its 3rd-view idle; bone 1 (`offset`, the body's, every weapon of the data) moves the PM's and the APS's body 20 cm along +z.
 - **The middle at the bench** (PROVEN in the code; the arithmetic emulated on the AK-12's and the PM's data). The held item (player+128h), when a weapon (vtable 0xA04174, its ctor's alone), has its skeleton model at +1810h (load_weapon 0x243A9A), its render instance at +108h (skeleton_render_model_instance, vtable 0x9F0F24), the model at +62B4h: the middle = (−cx, cy, −cz) of the model's box centre × bone 1's inverse bind × bone 1's pose of the frame; row 3 of the transform = BENCH − middle × the rotation, so the weapon turns about it. A box of ±1 (the exporter's default in the model's `render/export_properties`: 14 weapon models of the data, the A-545, AK-74U, AKMN, IZh-27, both Mosins, TOZ-122, TOZ-34 and Vepr with their camo copies), anything missing or not a weapon: (0, 0, 0.2) of the model. The middles along the length (z, the posed mesh's box, from the data): AK-12 0.204, SVD 0.326, PKP 0.256, Mosin 0.221 (box ±1: 0.2 used, 2 cm off), Remington 870 0.242, KRISS 0.161, Uzi 0.085, PM 0.246, APS 0.265, MP7 −0.050, PP-2000 −0.076, P90 −0.028, ASh-12 −0.005, Magnum −0.009; a constant would have been up to 0.28 m off.
 - **The weapon first, then the camera** (PROVEN in the code, emulated). A lobby character makes its player while +D2C4h holds the player's query (setup_profile 0x284CB7; −1 none: the ctor, on_player_ready 0x284F86) or +D2C8h is set (a setup_profile waiting for it, 0x284BB2). Until then the table's player's held item stays in its hand (the old player's weapon, the chosen kit's); after, it is drawn at the bench and READY is set. The window's start sets HOLD: the tick then holds the camera (the three steps' speeds +E0h, +E4h, +E8h 0, the flight not stepped) until READY, at most 2 s; then the speeds the setter gives (|target − now| · 1.111 a second) and the flight. A weapon its kit already shows needs no new player: READY at the next draw.
-- **The light** (data, `../../scripts/content-edit/lobby-bench-light-1.json`): the scene's ambient light under the workbench's end (`client_objects[49]`, ambient_light(3), (4.929, 0.006, 4.347), the only light by the bench; the room's ceiling point light is 4.7 m away) intensity 1 → 2.5, radius 3.1 → 3.6 m. In the content patch, not the exe; another session builds it.
+- **The light** (data, `../../scripts/content-edit/lobby-scene-2.json`, which replaced lobby-bench-light-1 on 2026-10-22): a point light of the bulb above the workbench (`point_light(7)` at (4.81, 3.02, 2.91), 1.81 m from BENCH, behind it seen from the camera: the ceiling lamp's `point_light` copied, its warm colour, intensity 3, range 5 m) and a second bulb made as the bench one (`level/lobby/bench_bulb`, the bench bulb's own socket and see-through glass cut out of `electric1` by the content pack lobby-bulb@1, tilted 50.7 degrees on a drop wire, a `wire_set`, from the `electric1` wire over the artefact table poster) with `point_light(8)` at its tip, (3.40, 3.17, 3.88), intensity 1.15, range 4 m, attenuation_power 2 (the poster behind it half as lit, BENCH as with 3, 5 m, 7.7), 2.22 m from BENCH on the camera's side; raising the ceiling lamp itself, the PR's first version, left the bench dark. The first version (lobby-bench-light-1, revision 27) raised the ambient fill light under the workbench's end (`client_objects[49]`, ambient_light(3)) intensity 1 → 2.5, radius 3.1 → 3.6 m; the owner saw it as a fake white light. In the content patch, not the exe.
 - **Checked:** `check_weapon_table_026g.py` 28 checks (as is and rebased): the hold and the speeds given back, the 2 s limit, the character making its player (the held item in the hand, READY 0), the middle of the AK-12 and the PM at the bench and the fallbacks (a default box, not a weapon, no item), the left button (52h as the original; the left button not, but at the bench with its press off the movie; blocked when on it until let go; is_mouse_over_ui asked once a press); the round 1 cases. Selftest check 45 adds the site and the facts above (on_mouse_move reads only al after it; the weapon's, the instance's and the character's fields). **Not run in a game.**
 - **Builds** (round 2): without a server sha256 `56ade5122f6438550e35222109597951104c2e6818aca474c1a8a3d263b668c6`, with `--server=skhid.link:1234` `3867f3ff8b7bdcf8f66ff2cb341d9549bc29f0934acd8c2ca642622e4775b84f` (12 910 712 bytes each).
 
@@ -1099,6 +1099,143 @@ The owner's request (2026-10-21): "instead of focusing on players the camera wou
 - worst z (length): round 3b 6.9 cm, now 0.1 cm
 
   The Vepr-12 (another model, the box's way) is within 0.9 cm in its idle (it has no preview). `check_weapon_table_026g.py` 42 checks (the Vepr in both poses from the data). Builds: without a server sha256 `91c233ddcffccc9b548ffd54e40e1943bf601f873b1c7dcdea8942d6dc77f801`, with `--server=skhid.link:1234` `5fd38b4895bb10583f9ee752830b0fe75bfcc6a1cb646d08f34d0cbe4543be47` (12 911 224 bytes each). **Not run in a game.**
+
+**Round 4** (2026-10-23, the owner's report on a local game of main with PR #312: "i can press attachments and then quickly esc, what happens is that the weapon I was trying to attach too, is now in my hands, even though in inventory I have a different weapon"; the screenshot: the chosen kit's weapon slot shows a Mosin carbine (its weapon 2, no weapon 1), the character holds a blue-camouflaged long rifle, the window's). PROVEN in the code, emulated:
+
+- **The Esc path is the close's.** The movie's Esc (`close_active_window`) calls the open popup's `UpgradeWindow.closePopup`, which dispatches CLOSE (or, with the decal editor open, only leaves the editor: the window stays open); `closeModifierWindow` calls `exit_item_upgrade` whenever `_upgradeShown`, which `openModifierWindow` sets for every window it tells the game of. The screenshot agrees: the camera is back at the character (patch 45's table off), so the close ran. READY is not read by the close.
+- **Why the window's weapon stayed.** `setup_profile` (0x284B10) returns early (0x284B83 → 0x284CF8) when the kit asked has the id (copy+76Ch) and revision (+4614h) of the **shown** copy (+D2B4h), the last asked id (+4) is that id and no call waits (+D2C8h); it does not look at a player being made (+D2C4h). The shown copy changes only when the player arrives (on_player_ready 0x284FAC). Patch 32's scratch (a weapon no kit holds, in the chosen kit's slot 7; armour the chosen kit does not wear) keeps the chosen kit's **id** with a revision of its own (`0x80000000 | n`). So: the window's start asks for the scratch (a new revision: a query, the copy after the shown one, +4 = the chosen kit's id); a close before that player arrives asks for the account's chosen kit, which is the shown copy's id and revision with +4 equal: the early return, nothing waits; the scratch's player arrives, is shown, and nothing makes the account's again (on_player_ready re-calls setup_profile only when +D2C8h is set, 0x285099). A weapon in another kit was not hit (+4 is that kit's id, so the close waited, as the original does for another kit). In the stock game a kit id comes back with an older revision while a newer one is being made only by such a scratch.
+- **On live too.** Revisions 28 and 29 (tags `026g-rev28`, `026g-rev29`) hold the same patch 32, stash, 45 and 48 code as main (no change to those files since): the same race.
+- **The fix** (patch 48's code, which already handles setup_profile while a player is being made, `again`): `early`, a seventh entry (+1Eh), at 0x284B7C `cmp byte [ebx+0D2C8h],0` (7 bytes, the early return's last test; `call 0xA42C01E` + 2 nops; only the `jz` after it reads the flags): ZF as the original's for a squad mate's character; for the lobby's own (lobby menu+694h) also only while no player is being made (+D2C4h −1). The close then goes on: `again` (the player being made is the scratch's revision, not the asked one) lets the original wait (the profile into the copy after the one being made, +D2C8h 1); the scratch's player arrives, on_player_ready's own re-call (0x2850C5) queries the account's, and the character holds the chosen kit's weapon (the scratch's player shows for the time one player takes to make). A call for what is being made still returns at `again`; once nothing is being made the early return is the original's. No base relocation under the site, nothing aims inside it (selftest check 48). Smallest: the game has no cancel of a query that shows something else after it (+D2C9h, set by 0x284AA0 and by the lobby menu letting its three characters' players go at 0x21D100.., comes with the shown player let go, and on_player_ready then shows nothing).
+- **Checked:** `check_upgrade_preview_026g.py` (Unicorn, the game's own setup_profile, profile copy, the movie's start and exit handlers 0x29A870/0x29A890 with the camera's setter and patch 45's camera, and on_player_ready 0x284F20 with its players' virtual calls stubbed): a rifle only in the stash with the chosen kit's weapon 2 the SVD (the owner's case): start, close before the player arrives, the window's player arrives, the account's is queried by on_player_ready, then arrives: the character holds the SVD; with 0x284B7C the original's bytes the same run ends with the stash rifle in the hands (the report); the same for armour the chosen kit does not wear; `early` itself for both characters, waiting or not, a player being made or not (the flag, every register). The other weapon checks pass; the self-test passes.
+- **Build** (local test, `--revision=30`): `survarium_skhid.esc-r30.exe` sha256 `c74062480cac6c06b9f8509ce24354b1d265a7c08a4342a890c95e0938451e5f` (12 934 776 bytes); against main's build with the same revision it differs in the PE checksum, `.srpw`'s virtual size, the site (7 bytes) and patch 48's code (+1Eh on). **Not run in a game.**
+
+**Round 5** (2026-10-23, after the owner's game run of round 4 (#313: "it works"): the camera waited about 200 ms at a window's start, for the window's player, before it flew to the bench; asked whether the flight should start at once and the weapon appear above the bench when its player is ready (round 2's "or happen at the same time"), the owner: "yes, let's"). PROVEN in the code, emulated:
+
+- **No wait.** The start no longer sets HOLD; the tick's hold block (the steps' speeds 0 until READY or 2 s, then the setter's speeds computed again) is gone, so the camera flies from the first tick (round 5b below: with eased speeds). `left` no longer tests HOLD: with the table on, a left-button drag off the movie turns the weapon, as before at the bench. State +2Ch and +30h (HOLD, the time held) are free (round 5b uses them); the interface (+48h, +50h) is where it was.
+- **Nothing in the wrong place.** Before, the table's player's held item stayed in the hand while the character made the window's player (the camera at the character, holding). Now the camera leaves at once, so the held item of the player being replaced is drawn with the decal pose's transform (`matrix` returns to 0x247794: translate(0, -10, 0), 10 m under the floor, as the stock decal editor puts the weapon away) until the new player is made; its first draw then is at the bench (READY). A refresh after the bench showed a weapon keeps the current one there, as round 3. A weapon its kit already shows needs no new player: at the bench from the first draw.
+- **What stays:** the close and the flight back, the drag and the left-button rules, the windows over windows, patch 48's preview and round 4's quick close (`check_upgrade_preview_026g.py`'s quick-Esc cases run patch 45's camera through the movie's handlers and pass).
+- **Checked:** `check_weapon_table_026g.py` 40 checks (as is and rebased): at the start the targets are the bench's and the steps' speeds the setter's, and the point, yaw, pitch, height and distance move at the first tick with READY 0; the point at the bench within 1 cm; while a player is being made before READY the held item takes the decal pose's way (registers kept), and the first draw after it is made puts it at the bench (READY 1); the left button with the table on. `check_weapon_decals_026g.py` (a ray before READY misses; the matrix entry now returns to the decal pose's way) and the other weapon checks pass; the self-test passes. 1 742 bytes (to `.srpw`+ECEh).
+- **Build** (local test, on #313, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `24735c9a873bd6ea0674ba71d71cd0b27ea2853a01823890a281b699de137a35` (12 934 776 bytes); against round 4's `esc-r30` it differs in the PE checksum and patch 45's code alone. **Not run in a game.**
+
+**Round 5b** (2026-10-23, the owner on round 5's build: "the camera jumps a bit at the end of the transition", and "i guess it is transition from camera move to the scene"). PROVEN, emulated tick by tick (`check_weapon_table_026g.py`'s Table: the window's start through the movie's handler, the camera's whole tick 0x283EF0, READY at the 12th tick, the eye and view from the matrix the tick gives the menu):
+
+- **The cause.** The flight had two motions. The point, yaw and pitch (this patch's) moved 5·dt of the way left each tick (an ease-out), and were snapped to their targets once all were within 0.001. The side angle, height and distance moved by the camera's own steps (0x283F62 height, 0x28412D side, 0x284222 distance) at the setter's constant speeds (|change|·1.111 a second, 0x2845C0), which reach their targets in 0.9 s and stop dead. Per 16 ms tick, the eye's and the view's move (|Δeye| + 1.2·|Δforward|) went 0.027 → 0.011 → 0.006 at 0.88 s (the distance's 0.84 m/s and the side angle's 23°/s stopping in one tick, the point still gliding). Then at 1.6 s it went 0.18 mm → 2.0 mm, the snap of the point, yaw and pitch, after creeping. No camera field changes at READY (nothing reads it there, nothing calls the setter again: its only callers are 0x265E73 and 0x265F44), and no dt is computed from the start. The hold had hidden none of this: it was there before too, just later.
+- **The fix** (`weapon_table_026g.asm`, 1 994 bytes, to `.srpw`+FCAh):
+  - **All seven ease out together.** While a flight eases (`camera` sets EASE +2Ch and its time +30h), the tick sets the camera's three steps' speeds to 5·|target − now| each tick, so they ease out with the point, yaw and pitch. EASE ends once those steps are within 0.001 (where they stop, 0x283FA0, 0x284253) and the point, yaw and pitch are there, or after 4 s.
+  - **The point, yaw and pitch land exactly, with no snap.** Each step is 5·dt of the way plus 0.01·dt (FLOOR, m or rad a second). The step that would pass the target lands on it, so the last moves are 0.15 mm and the "there" test is within 1e-6.
+  - **The bench and the wheel are unchanged.** At the bench (EASE over) the camera's steps keep their speeds (the wheel sets its own, 0x28409E). The close flies back the same way and ends exactly at the origin's point and the kept yaw and pitch.
+- **Residual:** the camera's own steps stop within 0.001 of their targets (the side angle 0.369 of 0.37, the distance 1.201 of 1.2), as the stock camera's do. The first tick is the flight's fastest (0.45 there, 0.74 back, an ease-out).
+- **Checked:** `check_weapon_table_026g.py` 42 checks (as is and rebased):
+  - the new flight case: there (READY mid-flight) and back, every tick's move is at most 1.01× the tick before (+0.2 mm) and at least 3/4 of it while above 2 mm; the last move is under 0.5 mm, and the easing is over at the bench;
+  - the start's speeds are 5× the way left;
+  - the bench within the steps' 0.001;
+  - run against round 5's bytes, the same measure fails at 0.88 s (two ticks) and at 1.6 s (the snap).
+
+  The other weapon checks and the self-test pass.
+- **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `5d4e83b863cbf48c2b671869ec77d859719afba30bcbeb8100bd477cdbf5de44` (12 934 776 bytes; round 5's was `24735c9a…7a35`). **Not run in a game.**
+
+**Round 5c** (2026-10-23, the owner on round 5b: "still the same problem", "same jump", "it is camera transition jump", "happens for every weapon"). PROVEN in the game's own log, then emulated.
+
+- **The debug build.** A local debug exe (branch `debug/camlog`, not for release) logged the camera each frame for 3 s after a window's start or close (`srp camlog` lines). The owner's run (01:35:10):
+  - frames 1–25 are the smooth flight, the distance's current value coming down 1.96 → 1.34 toward 1.2;
+  - the window's player is made between frames 25 and 26 ("made in 334 ms"; the player pointer changes);
+  - on frame 26 the current distance is **0.60**, the floor patch 32 gives the tick's last clamp, and the eye moves **0.80 m** in one frame: the jump;
+  - from frame 38 the distance creeps back, but only to **1.0924** of 1.2, and stays there.
+  - On the close (01:35:20) the second frame is cut to 0.60 again, and the cut stops once the camera has left the bench.
+- **The cause.** The tick casts a collision ray from its point back toward the eye (0x284309 → 0x2844D0, through the lobby's collision scene at menu+3104h). At a hit it overwrites the current distance (+C4h) with the hit's, and 0x284316 clamps that to the least (0.6). The Unicorn checks stub that ray, so they never saw it.
+- **What the ray hits.** Not identified by its object; what is known:
+  - it appears in the ray's way the frame the window's player is made and goes when that player is replaced;
+  - its hit points while the camera rests lie about 0.1 m in front of the bench's eye (the eye at (3.19, 1.57, 3.05) where (3.09, 1.60, 3.05) is meant);
+  - so it is something the window's player brings near the bench, not the room;
+  - no frame before that player had a hit.
+- **Why only now.** With round 2's hold the camera flew only after READY, so it came onto the bench with that object already there. The cut grew smoothly as it approached, and nobody noticed a 1.09 instead of 1.2. Flying at once (round 5), the object appears mid-flight, already within reach of the ray: the cut is one frame.
+- **The fix** (`weapon_table_026g.asm`, 1 870 bytes, to `.srpw`+F4Eh; a sixth entry `ray`, +19h):
+  - **No ray while the camera is the table's.** 0x284309's `call 2844D0h` is `call ray`, which returns at once (`ret 4`, as the ray) while FLY is set: flying there, at the bench, flying back. The bench's view is made with nothing between its eye and the bench. Every other time it jumps to the game's ray. Declared CALLEE in `INSTALLS`.
+  - **The steps are moved by the flight itself.** While a flight eases, the flight moves the camera's own side angle, height and distance the way it moves the point, yaw and pitch: 5·dt of the way plus 0.01·dt, landing exactly. The three steps' speeds are 0 meanwhile, as round 2's hold had them. So all seven end together and the bench's distance is exactly 1.2 (round 5b's per-tick speeds left them within the steps' 0.001).
+  - **Simpler code.** One routine (`glide`) for both tables. No snap threshold, no time cap.
+- **Checked:**
+  - **`check_weapon_table_026g.py`: 44 checks (as is and rebased).**
+    - New case: the ray stub reports a hit at 0.6 from READY on. No ray is cast while the camera is the table's, the flight is as smooth, and it rests at exactly 1.2, 1.3 and 0.37 with the eye 1.2 m from the bench.
+    - Once the stock camera is back, its ray is cast and cuts the distance as the original's.
+    - Round 5b's bytes under the same hit: an eye move of 0.77 m in one frame (the owner's log: 0.80 m) and a rest at 0.6.
+    - The flight case: speeds 0 meanwhile.
+  - The self-test, check 45, has the new site.
+  - The other weapon checks pass.
+- **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `ef9b3a2dd438c5677766f77338c5f3bb4396089e4a31e5a0b59a0fd9603b99a0` (12 934 776 bytes). **Not run in a game.**
+
+**Round 5d** (2026-10-23, the owner on 5c: "yes, it is smooth", then "the weapon is a bit too far, and is a bit off center to the right", "people go into that menu to interact with a weapon, so it should be front and center (also it seems we are centered from left to inventory, while there is still appearance tab)", "one problem is with fov", "i was on high fov (100) and that's why it was far too", "maybe we should not have fov affect weapon preview in lobby under bench?", "just like we did with scopes"). PROVEN in the code and the movie's source, emulated:
+
+- **The measured point.** The owner's screenshot (5c, uro_fov 100, 1280 x 720): the PPSh's middle at x ≈ 520, about 230 px long. The camera then looked at BENCH from 1.2 m with the stock side angle 0.37, which turns the view (rotY of the matrix): BENCH sits 20.5 degrees off the view's axis, to the left. At a vertical 100 degrees (patch 22: the lobby camera follows uro_fov, `fov_projection` on lobby_camera's vtable slot 0, its zoom at camera+94h) that projects to x = 640 − 640 tan 20.5° / (tan 50° · 16/9) = 527, and a 0.91 m model to 233 px. The maths agree with the picture. The appearance window's left edge is at 692 and the inventory at 820, so "to the right" is relative to the part left of the appearance window (centre ≈ 346), not the screen.
+- **The field of view, as a scope's.** A full scope's view is the original's whatever uro_fov because patch 22's angle `65 z + (uro_fov − 65) max(0, (z − 1/4) / (3/4))` drops the setting's term there. The bench uses the same projection and the same zoom field: `camera` sets TARGET_ZOOM (state +4Ch) to the z with that angle = 65, z = (uro_fov + 130) / (4 uro_fov − 65): 1.333 at 50, 1 at 65, 0.687 at 100. The flight glides camera+94h there with the rest (the field of view eases over the flight), and the close glides it back to 1, landing exactly: the player's field of view again. No second projection path. At uro_fov 65 nothing changes.
+- **Centre and size, once, at the original's 65 degrees.**
+  - **The free part's centre.** The lobby movie lays itself out on 1920 x 1080, scaled by the width below an aspect of 1.85 and by the height above (`LobbyMenu.onStageResize`). The inventory is right-aligned (`layoutData` −112, 580 wide), and the upgrade window's panel is 190 left of it (`UpgradeWindow` `container.x = inventory_list.x − x − 190`). So the free part ends 882 units from the right edge, and its middle is fx = 1/2 − 441 / (1080 a') of the width (a' the aspect from 1.85 on, else 16:9): 0.270 at 16:9 and 16:10, 0.329 at 21:9.
+  - **Centring.** The side angle is now 0 (`camera` passes 0 to the setter). The camera looks at a point k = (1 − 2 fx) d T along its right of BENCH (TARGET_Z = 3.05 − k), T = tan(65/2) · a. The weapon's middle (drawn at BENCH) lands at fx across and at the middle in height.
+  - **Distance.** An end at r = L/2 from the middle stays 2% in from the left edge at any spin while d ≥ L sqrt(1/T² + 0.96²) / (4 (fx − 0.02)), and that is d, at least 0.3 m. L is the window's weapon's render box along its length (`middle` measures it once; a default box counts as 1 m). Until the weapon is drawn the view is a 1 m weapon's; the frame it is, `tick` frames it for its own length and the flight eases there (EASE again).
+  - **Patch 32's NEAR_MIN** (its least distance while a weapon's window is open) is 0.3, was 0.6, so a pistol can come that near.
+- **What it gives** (check_weapon_table_026g.py, the same at uro_fov 50, 65 and 100), of the free part's width at rest:
+
+  | screen | AK-12 (0.94 m) | SVD (1.22 m) | PM (0.16 m) |
+  |---|---|---|---|
+  | 16:9 | 63% at 1.22 m | 63% at 1.59 m | 43% at 0.30 m |
+  | 16:10 | 66% at 1.29 m | 66% at 1.67 m | 48% at 0.30 m |
+  | 21:9 | 52% at 0.90 m | 52% at 1.17 m | 26% at 0.30 m |
+  | 32:9 | 30% at 0.90 m | 30% at 1.17 m | 15% at 0.30 m |
+
+  The rifles are below the asked 70% because their ends must stay on the screen at any spin: a turned rifle's near end swings left toward the screen's edge (the middle sits at 0.27 of the width).
+- **The review's two fixes** (5d's review, 2026-10-23):
+  - **A window over a weapon's window kept the first weapon's distance.** `camera` reset LENGTH but the bench kept the old weapon (READY) through the ~0.3 s rebuild. `middle` measured that old weapon, and the new one was never measured: a pistol over the SVD stayed at 1.59 m, and a rifle over a pistol at 0.3 m with its ends off the screen. Now `middle` measures only when the character makes no player (+D2C4h −1, +D2C8h 0). Patch 32's start calls setup_profile at once, which sets them when a new player is to be made. So the old weapon drawn through the rebuild is not measured, and the window's weapon is measured on its first frame.
+  - **Ultra-wide screens put the tilted ends off the top and bottom.** frame_view took only the width's distance, so at 32:9 (3840 x 1080, 5120 x 1440), with the tilt ±1.2 over a full spin, the AK-12's and the SVD's ends went from −0.24 to 1.09 of the height. Now d is also at least TILT_ROOM · L = 0.962 L: the ends stay 2% in from the top and the bottom at any spin and tilt at the original's 65 degrees (the pitch's −0.25 included, emulated). That binds beyond 16:10. At 21:9 the tilted ends had come within 0.8% of the edge, so 21:9 moves a little further too (0.88 → 0.90 m for the AK-12); 16:9 and 16:10 are unchanged.
+- **Room.** The code grew to 2 230 bytes (2 266 with the review's fixes) and moved from `.srpw`+800h to +6B0h (the stash ends at +6A5h), so patch 32's two `jmp CAMERA` are reassembled for 0xA42A6B0.
+- **Checked:**
+  - **`check_weapon_table_026g.py` 48 checks (as is and rebased).** For 1280 x 720, 1920 x 1200, 3440 x 1440, 3840 x 1080 and 5120 x 1440 (viewport set), uro_fov 50, 65 and 100, and the AK-12, an SVD box and the PM:
+    - the zoom gives 65 degrees;
+    - the middle projects to fx and the height's middle within 0.0002;
+    - the distance is the formula's for the measured length;
+    - over a full spin at tilts 0 and ±1.2 the ends stay within the 2% margin across and up and down (and in front of the near plane);
+    - the results do not depend on uro_fov;
+    - after the close the zoom is exactly 1.
+  - **A pistol's window over the SVD's**, the SVD drawn at the bench through the rebuild: the length is not measured then, and the pistol is framed for itself (1.59 m, then 0.30 m).
+  - The other cases now have their targets from frame() (the side angle 0, every value landing exactly).
+  - `check_weapon_preview_026g.py` (the side angle 0, the distance the 1 m weapon's, NEAR_MIN 0.3).
+  - The self-test and the other weapon checks pass.
+- **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `4eb7c0dfc13a0fb27212863282755974fd1f99137f12b08355247110a0fb935b` (12 934 776 bytes; with the review's fixes). **Not run in a game.**
+
+**Round 5e** (2026-10-23, the owner on 4c45c7a7 at 2560 x 1440: "a bit too much to the left", and "when scrolling the wheel to move the camera closer, it is not focused on the center of the weapon"). PROVEN in the code and the movie's layout, emulated:
+
+- **Where it sat.** In the owner's screenshot the Mosin spans 0.115..0.445 of the width (its middle 0.28; the model's middle, drawn at BENCH, at 5d's 0.270). The Squad strip ends at 0.046 and the Attachments window begins at 0.54, so the part a player sees free is 0.046..0.54 and 0.27 read as left-heavy.
+- **The new place.** The weapon's middle goes FRAME_SHIFT = 365 lobby-movie units left of the screen's middle: fx = 1/2 − 365 / (1080 a'). That is 0.310 at 16:9 and 16:10, 0.359 at 21:9 and 0.405 at 32:9. The free part's own middle, between the Squad strip's right edge (88 units, left-aligned) and the window's edge, is 397 units left; the 32 units more to the right are the owner's "a little more to the right". FRAME_SHIFT is the one constant to retune (`weapon_table_026g.asm`, `frame_shift`).
+- **Clear of the window too.** frame_view takes the largest of three distances:
+  - **the screen's left edge:** d ≥ L sqrt(1/T² + (1 − 2m)²) / (4 (1/2 − s − m));
+  - **the upgrade window's left edge:** d ≥ L sqrt(1/T² + (1 − 2m − 2p)²) / (4 (1/2 − p − m + s)), with p = 882 / (1080 a');
+  - **the height's:** 0.962 L, as in 5d.
+
+  With the middle at 0.31 the left edge binds at 16:9 and 16:10, the height beyond.
+- **The wheel zooms into the weapon.** 5d looked at a point beside the bench, so the stock wheel (the distance along the view, the point kept) slid the weapon across the screen.
+  - **Looking at the weapon.** The camera now looks at BENCH, the weapon's middle, and its side angle turns the view so that the middle is at fx: σ = atan(t cos P) + asin(t sin²P / (cos P sqrt(1 + t² cos²P))), with t = 2 s T and P = −0.25, the view's pitch. The asin's argument is below 0.03 and is taken as the angle (5e-6 rad).
+  - **Why the middle stays put.** The view's direction no longer depends on the distance, so the middle stays where it is on the screen at any distance. The distance becomes d sqrt(1 + t²): the middle is on the eye's line, not beside it.
+  - **Limits.** The wheel goes from NEAR_MIN (0.3) to the larger of 1.25 times the framed distance and the framed distance plus 0.5 m (a pistol framed at 0.3 m goes out to 0.8 m). `ray` clamps the target while the table is on, after the tick's wheel and step, and the distance itself only once the flight's easing is over. LENGTH holds the weapon's length negated until it is framed, then that farthest distance.
+  - **The close.** It flies back from wherever the wheel left the camera.
+- **The vertical.** The side angle turns the pitched view about the vertical, so the middle sits about 2% of the height below the middle (accepted; the owner found the height right).
+- **Room.** frame_view, the camera and the tick read their constants from a register (ebx or ebp, FC), and MIDDLES packs its x and y into bytes (6 bytes a weapon, all within 4 cm of the axis). The code is 2 378 bytes, ending at `.srpw`+FFAh of the page's 1000h.
+- **Checked:**
+  - **`check_weapon_table_026g.py` 50 checks (as is and rebased).** The bench's view at uro_fov 50/65/100 and 16:9, 16:10, 21:9, 32:9, for the AK-12, an SVD box and the PM:
+    - the middle within 0.0001 of fx;
+    - the distance and side angle frame()'s;
+    - over a full spin at tilts 0 and ±1.2 the ends 2% clear of the screen's left edge, the window's left edge, the top and the bottom.
+  - **The wheel at the bench:** in to 0.30 m, out to 1.25 of the framed distance and in again; the middle's projection moves at most 3e-7. The close then glides back to the stock camera, the zoom 1 and the yaw and pitch kept.
+  - The other cases as before (with the side angle frame()'s). `check_weapon_preview_026g.py` (the side angle at the start), the other weapon checks and the self-test pass.
+- **At rest**, of the part between the Squad strip and the window:
+
+  | screen | AK-12 | SVD | PM |
+  |---|---|---|---|
+  | 16:9 | 89% at 1.15 m | 89% at 1.50 m | 56% at 0.30 m |
+  | 16:10 | 92% at 1.19 m | 92% at 1.55 m | 60% at 0.30 m |
+  | 21:9 | 62% at 0.98 m | 62% at 1.28 m | 33% at 0.30 m |
+  | 32:9 | 35% at 0.98 m | 35% at 1.28 m | 19% at 0.30 m |
+
+  The spin margin (2% of the width) sets these; a larger FRAME_MARGIN gives a smaller resting weapon.
+- **The review's fix** (5e's review, 2026-10-23). `ray` clamped the current distance as well as its target to the wheel's farthest from the tick the weapon was framed, while the flight's glide was still bringing the distance in. A pistol framed on a settled view went 1.22 → 0.375 m in one frame (85 cm), a pistol over a rifle 1.27 → 0.375, a weapon drawn early in the flight 1.75 → 0.375. Now `ray` clamps the distance itself only once EASE is 0; while the flight eases, the glide brings it there. The farthest is now max(1.25 d, d + 0.5 m), set when framed (a pistol at 0.3 m could only reach 0.375 m). Checked with weapons drawn, not READY poked (`check_weapon_table_026g.py` 52 checks): a pistol and a rifle drawn at the flight's third frame, a pistol drawn after it settled, a pistol's window over a rifle's, and the wheel scrolled out before the framing. Every frame's distance step is within the glide's own (5 dt of the way left plus 0.01 dt) or the wheel's: 7.4 cm at most for the settled pistol, where 5e's bytes snap 85 cm. 2 382 bytes, to +FFEh.
+- **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `bbec605718fd1ffec45a2bf47132d581428dcda10de2d5021b46a1b55d935364`. **Not run in a game.**
 
 ### 3.43 On the death screen a drag turns the camera; the wheel does nothing (written 2026-10-21, README patch 46, the next release's revision; the rules: `death-camera.md`) — PROVEN in the code, the mouse moves and the view's update run with Unicorn; the first build run in a game
 
@@ -1178,6 +1315,7 @@ So of what the game logs, the dominant wait is the client's own send tick (a qua
 | patch 32's two `call FIND` | (stash +0Fh) | `call 0xA42C00F` | `find`: the stash's find_kit_or_show, then the queue applied (below) |
 | 0x284B89 (setup_profile past its early return) | `cmp dword [ebx+0D2C4h],-1` | `call 0xA42C014` + 2 nops | `again` (below); the original's comparison for its `je` |
 | 0x284F7F (on_player_ready) | `cmp byte [ebx+0D2C9h],0` | `call 0xA42C019` + 2 nops | `made`: the log line, then the original's comparison (read by the `jnz` after a `mov`) |
+| 0x284B7C (setup_profile's early return, added 2026-10-23) | `cmp byte [ebx+0D2C8h],0` | `call 0xA42C01E` + 2 nops | `early`: the flag for `jz 284CF8h`: the original's, but for the lobby's own character the early return only while no player is being made (section 3.42, round 4) |
 
 - **The preview.** For the window's weapon (patch 32's mode 1, its item the host, the menu's own character +D515h): the change is queued (five at most: {upgrade id, the record's dict id, slot 0..3 or FFh "take off"}), a line "srp: upgrade preview: item <host>, upgrade <id>, slot <n>" is logged (the game's logger 0x111ED0 on channel "game", info, as 0x27B326 calls it) and setup_profile(the account's profile, the character, the chosen kit) is called. setup_hook gives it the weapon's kit and `find` the profile: for the item a change was queued on and the account's profile given (its inventory behind it), the stash's scratch (allocated once, as the stash's make_scratch, if a kit weapon never needed it), the account's profile copied into it unless the stash just did, the queue applied to the weapon's record in order as `items_rules::attach_upgrade_in` / `detach_upgrade` do (a put of the same id, slot and dict id leaves it with its value; else the id and whatever is in the slot come off and {id, dict id, 0, slot} is added when the record has room; a take-off takes the id off), and the kit's revision: the last given (state +08h) while the kit and the record's upgrades (17 bytes each: id, dict id, value, slot) are those it was given for, else the next `0x80000000 | n` of patch 32's serial. Once a change was queued on the item, the character is built so (the queue empty or not) until another item's window queues one.
 - **A scope's record** holds the variant made for that weapon (srp's `ScopeFits`, `weapon_scopes.md`): the dictionary's entries (3A0h each from [dictionary+130h], their count +134h, by dict id) are read in order; the first of category 22 whose config ([entry+114h]+108h, a binary config: +0 the children, +16h their count, 18h each, sorted by the crc32 of their names at +10h; `value_exists` 0x0F6C00 and `operator[]` 0x0F6B10) has `srp_scope_fit` with `scope` naming the scope item and `weapons` naming the weapon (a string: the entry's name at +4; an integer: its dict id) is the record's dict id. None: nothing is queued (the server refuses such a scope).
@@ -1198,7 +1336,7 @@ So of what the game logs, the dominant wait is the client's own send tick (a qua
 
 ### 3.46 The game stops at its start without a patch its release requires (written 2026-10-21, README patch 49, the next release's revision; the rules: `required-patches.md`) — PROVEN in the code, the mount run with Unicorn; not run in a game
 
-**Why** (the crash analysis of 2026-10-21, `~/next-srp-steps.md` "Rev 28 guard"): players whose updater could not reach the patches server started the revision 27 exe without the launcher and without patch_26/27. Patch 27 (section 0.2) skips a missing number, so the game ran on older content than the server: a profile with an item id its data did not have (crash A, a buffer_vector assert at the match's start), and other animation ids than the other players' in the world snapshots (crash B).
+**Why** (the crash analysis of 2026-10-21): players whose updater could not reach the patches server started the revision 27 exe without the launcher and without patch_26/27. Patch 27 (section 0.2) skips a missing number, so the game ran on older content than the server: a profile with an item id its data did not have (crash A, a buffer_vector assert at the match's start), and other animation ids than the other players' in the world snapshots (crash B).
 
 **The patch** (`mount_patches_026g.asm`, 759 bytes at `.srp`+400h, from 707; no new site): the probe's missing case. Before, `cmp eax,2` / `je .probe` / `cmp eax,3` / `je .probe` / `push eax` (the fatal's). Now:
 
@@ -1220,6 +1358,298 @@ So of what the game logs, the dominant wait is the client's own send tick (a qua
 **The build:** the checked-in .bin's bitmap is zeros (`patch_026g.py` checks it, and the text before it), so a build without `--required-patches=` requires nothing. With it, `build()` writes `required_bitmap(numbers)` into its copy of the .bin; only those bytes and the PE checksum differ (selftest check 49). `required_patches_of(exe)` and `release/lib.sh`'s `exe_required_patches` read it back by finding the text (once in the exe) and the 32 bytes after it. A release: `release/build-zip --patches <list>` passes the numbers of every row of the offered-patch list (release.sh gives it its list after `upload-patch` added the new patch), checks both exes; `release.sh` and `release/deploy` refuse a ZIP whose exe requires other patches than the server data offers.
 
 **Builds** (this branch, on main 7f010cc1, no server): the default build `8f75d355eda63a17d7afc83dd99ecff7d368e07801771c1f5e72f7d62c84c27b`; with `--required-patches=12,14,17,19,20,21,22,23,24,25,26,27` (revision 27's list) `33c7cba9bb1e1558b97ef43be5296f45d963174f7597f21c6f5a6e76ac3c0cc6` (12 918 392 bytes each).
+
+### 3.49 `stage.focus` reads null for a focused object without its ActionScript object (written 2026-10-22, README patch 52, the next release's revision) — PROVEN in the code and Scaleform's source, the getter run with Unicorn; not run in a game
+
+**Why** (the owner's local game, 2026-10-22 04:44, `Survarium-#2777_261022-044410.dmp`, r28 of main): `ACCESS_VIOLATION` reading 0x14 at 0x77200B, in the lobby, about a second after an upgrade. The minidump holds the threads' stacks only (no modules, no heap); the crash report's "frames" are not a stack walk. From the crashed thread's stack:
+
+```
+0x767FF258  0x775125   the Stage focus getter's thunk (0x7750F0), after `call [0xAFF180]`
+0x767FF270  0x8F1E40   its ThunkInfo ("focus" at 0xA09EA8)
+...         0x78E271 .. 0x7C7E12   the AS3 VM (LobbyMenu.has_active_window)
+0x767FF698  0xA07404   "root.has_active_window"
+0x767FF8B8  0x511644   the movie's invoke (0x511600)
+            0x26CBFE   lobby_menu's key handler 0x26CB80 (0x26CBF9 `push 0xA07404` / `call 0x511600`)
+```
+
+`LobbyMenu.has_active_window` reads `stage.focus is DropdownMenu`; the exe invokes it on every key in the lobby.
+
+**The getter** (0x771FA0 = Scaleform's `Instances::fl_display::Stage::focusGet`, the Scaleform GFx 4 source outside the repo (`scaleform-gfx/Src/GFx/AS3/Obj/Display/AS3_Obj_Display_Stage.cpp`); the static initializer 0x865D10 puts it in 0xAFF180): `[this+14h]` +40h +1A8h +8 = MovieImpl; `lea ecx,[MovieImpl + 3B64h + 40h * byte [MovieImpl+3F54h]]` = `FocusGroups[FocusGroupIndexes[0]].LastFocused`, a weak pointer locked by 0x514370; `[obj+41h]` the AvmInteractiveObj interface's index, its vtable +4 minus 1Ch the AvmDisplayObj; `GetAS3Obj()` = `[avm+8]` (pAS3RawPtr) or `[avm+4]` (pAS3CollectiblePtr, bit 0 cleared, the collector's mark); `[as3+14h]` the traits, `+3Ch` the type: 12h or 17h and up an InteractiveObject (0x77201B, the result via 0x790E40), else null (0x772031). The source tests `focused` but not the object (`IsInteractiveObject(ido->GetTraitsType())`); `FocusManager.getFocus` tests both.
+
+**When the object is gone:** `~DisplayObject` (the AS3 side) calls `AvmDisplayObj::ReleaseAS3Obj` (both pointers 0); a display object then lives on while anything holds it (during a collection its release is delayed to the collection's end). AS3's `removeChild` (`AvmDisplayObjContainer::RemoveChildAt`) does not touch the focus; only `InteractiveObject::OnEventUnload` calls `MovieImpl::ResetFocusForChar`. Which object it was at 04:44 is not in a stack-only dump (esi 0x0D4386A0).
+
+**The patch** (`STAGE_FOCUS`, every full build: with and without the late join and over on_hash_mismatch), 46 bytes at 0x771FED:
+
+```
+00771FED  test eax,eax              ; the interface call gave none
+00771FEF  jz 0x772012
+00771FF1  mov ecx,[eax-0x14]        ; raw pointer (+8 of eax-1Ch)
+00771FF4  test ecx,ecx
+00771FF6  jnz 0x771ffb
+00771FF8  mov ecx,[eax-0x18]        ; collectible pointer (+4)
+00771FFB  and ecx,byte -0x2         ; bit 0 cleared, as the old `test al,1` / `dec eax`
+00771FFE  jz 0x772012               ; no ActionScript object
+00772000  mov eax,ecx
+00772002  mov ecx,[eax+0x14]
+00772005  mov ecx,[ecx+0x3c]
+00772008  cmp ecx,byte +0x12
+0077200B  jz 0x77201b
+0077200D  cmp ecx,byte +0x17
+00772010  jnl 0x77201b
+00772012  jmp short 0x772031        ; null
+00772014  7 x nop
+```
+
+The old bytes' jumps all landed inside them; nothing else aims inside; no base relocation under them. ecx only; eax at 0x77201B the object as before.
+
+**Checked:** `selftest_026g.py` check 52; `check_stage_focus_026g.py` (Unicorn 2.1.4): the original faults at 0x77200B with both pointers 0 (or the collectible 1) and at 0x771FF8 for an interface call that gives none; the build gives null; every other case the same in both.
+
+### 3.50 Research, mode 5 (written 2026-10-22, README patch 53, the next release's revision; the rules: `research_mode.md`) — PROVEN in the code, the hooks, the cook, the rule and the hud run with Unicorn with the game's own register_cook, rule constructor and config look-ups; not run in a game
+
+- **Rule cooks** (PROVEN): each is a static object `{+0 vtable, +8 class, +10h -1, +14h
+  GetCurrentThreadId(), +18h 8, +20h the game (client cooks)}`, made by its function (tdm's
+  0x2F41E0) and registered by `register_cook` 0x102D10 (`edi` = the cook): a vector at
+  [0xA86E00]..[0xA86E04] grown to 0x206 places on the first call, `cooks[class] = cook`. The
+  game's constructor makes the client ones and swaps their vtables (0x1E99C0..0x1E9B4C; tdm's
+  client vtable 0x9FD8AC; ebx = the game); the last registration is at 0x1E9B4C (`mov eax,ebx /
+  call 0x1EC170`). Classes in use found at the registrations: 0x0D..0x82, 0x12C..0x141, 0x200,
+  0x202, 0x203 (a few set elsewhere); 0x1E0 is in no registration and no query.
+- **A cook's create** (PROVEN, slot 9, thiscall, `ret 4`): client tdm 0x2063F0: `esi =
+  [0x1F1D9C4]`, `ecx = 0xACCC60`, 0x420789 (`lea eax,[ecx+8]`), `push eax`, `eax = size`, 0xE4F90
+  (allocate), the core constructor with the query (`[q]` the match options, `[q+0Ch]` the mode
+  config's root), +130h the game; slot 10 the size. Slot 7 (0x2F4290) is the shared translate:
+  it calls 9 with `[query+108h]` and 10.
+- **The cook's RTTI** (PROVEN): tdm_rule_cook's locator 0xA47134 (type descriptor 0xACCC38,
+  hierarchy 0xA47148: tdm_rule_cook, tdm_rule_core_cook, translate_query_cook, cook_base,
+  boost's noncopyable at +20h, attributes 1). No code of `.text` names any cook's type descriptor
+  (0xACCC38, tdm_rule_core_cook's 0xACCC0C, translate_query_cook's 0xAB8E58, cook_base's 0xAB8D2C)
+  or the locator: nothing casts a cook or asks its type, so a borrowed locator would only misname
+  it. The cook has its own all the same (`rn_cook_locator`): `.?AVresearch_rule_cook@srp@@`
+  (type_info's vftable 0x886A78, the first word of every type descriptor), its hierarchy shaped
+  as tdm_rule_core_cook's (locator 0xA524C0, hierarchy 0xA4718C: attributes 1, four bases) with
+  that hierarchy's base class descriptors of translate_query_cook 0xA38D74, cook_base 0xA38D24 and
+  noncopyable 0xA40010. The descriptor's second word (type_info's name cache) is written by
+  type_info::name: `.srpx` is writable.
+- **Rule vtables** (PROVEN, tdm 0xA15DA4, timelimit 0xA06E2C, kd 0xA177D4): 0 delete (0x266710:
+  the base vtables back, 0xF1850, free), 1..6 the resource's, 7 `on_event(type, data, time)`
+  `ret 0Ch` (a kill is type 1, `data = {killer, victim}`; 0 the match started; the world's
+  dispatcher 0x2D1EA0 pushes the time `[core+18FC0h]`, then its second argument, then its first,
+  and calls `[vtable+1Ch]`; the kill site 0x2D9EEE..0x2D9EF7 gives it `&{killer, victim}` and 1;
+  tdm 0x316090 and kd 0x3237E0 read the data at `[esp+8]`), 8 / 9
+  `entered` / `left(place, time)` `ret 8`, 10 register_animations, 11 `set_game_world_core(core)`,
+  12 the blackboard (core+188B0h, 0x2D58F0), 13 `on_match_ready(time)`, 14 finished, 15
+  `serialize(writer)` `ret 4`, 16 `deserialize(reader, ?)` `ret 8` (the snapshot's rules loop in
+  0x2D2770, 0x2D2B42..0x2D2B5D: `push [esp+84h]` (its third argument), `push` the reader,
+  `call [vtable+40h]`, no clean-up; tdm 0x3163D0, timelimit 0x317FD0 and kd 0x323910 each `ret 8`
+  and none reads the second), 17 `fill_match_hud_state(hud, ?)` `ret 8`
+  (tdm: +90h, +92h the tickets, +94h, +95h the alive counts; kd 0x323980 writes from +98h on,
+  timelimit's 0x15A4B0 nothing; the hud state's constructor 0x278D00 sets +90h 0FFFFh, +92h 0,
+  +94h and +95h 0FFh, and only mode 4's last players (0x23B3DE) read the alive counts: Research
+  writes the points and leaves the counts, as modes 2 and 3 do), 18 `rule_completed(time)` `ret 4`
+  (al), 19 the priority (0x8FE10: 3); then at +108h the link resolver's one slot (0x316540, `ret
+  1Ch`). Base constructor 0x313900 (eax = this, push the type: 0 respawn, 1 gather, 2 timelimit, 3
+  kd, 4 tdm; at +10Ch); the code compares the type with 0 and 1 only.
+- **Ticks** (PROVEN): timelimit's set_game_world_core 0x318050 puts a delegate `{object,
+  function, previous, next, order, enabled}` (rule+110h) at the end of the world's list at
+  core+18850h (count, head, tail; order from the counter at [core+18FB0h]); atomic_tick 0x2D1E20
+  runs the seven lists (core+18840h.., 10h each; 0x2D1D20 sorts by +10h) as `function(ecx =
+  object, dt, time, step)` `ret 0Ch`, dt the time since the last (50 ms).
+- **The world** (PROVEN): places at [core+18458h], 30h each, `[place + 4 * kit]` the player of
+  kit `place[0Ch]` (tdm 0x3161F0); a player's team `[[player+6B8h]+45ECh]`, alive +33Ch, in the
+  tick lists +33Fh, `m_transform` +40Ch (its translation +43Ch, read by the player's own code
+  0x2D9148 and restored by its deserialize 0x2DB8B9: the feet, below), pitch +48Ch; the time rule's state copied at
+  core+18FE4h (3 in play; written by its tick and deserialize); the game's own place
+  core+18FDCh (client tdm 0x267852); the statistics `[core+18FA8h]`: a player's record 1F8h,
+  `u16 events[28][3]` at +0Ch (the kill handler 0x2F4EB0), `m_team_points` +31D4h, the winner
+  +31E4h (tdm 0x316257).
+- **A player's transform is his feet** (PROVEN, 2026-10-22). A living player's tick takes his
+  transform from his character controller (`[[player+494h]]`, 0x2D942A): `get_transform`
+  0x7F5C0 copies the controller's matrix (+80h; its row 3 the capsule's centre) and moves its
+  translation down by `heights[(stance + 2) % 3] + heights[stance]` (+1D0h float[3], the stance
+  +1F0h) times up (0xA7DC00: 0, 1, 0), half the capsule's height; 0x74620 turns that into the map's
+  frame and `rep movs` puts it at +40Ch (0x2D9461). The server's worlds keep the controller's
+  centre, 0.9 m over the feet standing (player_bots.md §4), and `default.player` gives the capsule:
+  0.76 m wide, 1.8 m standing, 1.1 m crouched. The first build took +43Ch for the capsule's centre
+  and tested ±0.9 m round it: a player's feet up to 0.9 m over a unit's top counted, so at School
+  the floor above units A and C (20.25-20.5 m, the boxes' tops 20.04 m) took them (the owner's
+  test, 2026-10-22). 0.27d's units are physics triggers: `capturable_zone_core`'s enter 0x324350
+  and leave 0x324420 get the colliding objects (each's owner, slot 1, the player) from the zone's
+  trigger shapes (the collision geometries' meshes, half extents their scale, 0x7A1F0) overlapping
+  the player's collision: no point, no height of its own. Now the capsule stands on the feet,
+  2 x half its height tall (read from the controller as get_transform does; the config's
+  `capture_half_height` without one), `capture_reach` round (0.38 m, half the width), and it is
+  inside when the nearest it comes to a shape is at most its radius (the capsule's segment against
+  the shape, a ternary search: the distance along a segment to a convex shape is convex); Bullet's
+  collision margin is not counted.
+- **Saving** (PROVEN): a writer's buffer at [writer+14h] (data +4, size +0Ch), grown by 0x7AB30
+  (eax = buffer, push the size; `ret 4`); a reader's cursor at [reader+4] (tdm 0x3163D0). A rule
+  writes field by field (tdm 0x316340) through `buffer_writer::w<unsigned char/short/int>` 0x1F3DE0
+  / 0x2F5DA0 / 0x1F48A0: eax = the value's address, push the writer, the source file, the line, the
+  function, the field's name; `ret 14h`. Each appends the value; with [0x1F1D32C] and [0x1F1D32D]
+  set (the hash mismatch dump) it first records `{next, type name, name, function, file, line,
+  size, writer+10h}` (20h bytes from 0x80450) at the end of the writer's list (+0 count, +8 head,
+  +0Ch tail). Research's serialize does the same, 88 fields (`m_points[0]` .. `C.marks[19]`): the
+  bytes `rr_write` gives (snapshot_rules.md 2.8) and each named in the dump; the first build
+  appended `rr_write`'s bytes in one piece, which wrote the same bytes and nothing in the dump.
+- **Config** (PROVEN): 0xF6B10 (eax = a table, edi = the key) gives the child (CRC look-up, then
+  the names); 0xF6C00 (esi = the key) says whether there is one; a value is 24 bytes, its data a
+  pointer for tables, strings and vectors, +14h the type, +16h the count (the respawn point's
+  reader 0x2F4580).
+- **The hud** (PROVEN): game_world_ui::update_ui (0x23B300..) shows the match's first message by
+  mode at 0x23B336 (2, 3, 4: `st_start_match_welcome_message`, `_2`, `_3`; 0x2375C0, ecx = the
+  key, `(ui, 21h, 14h, 6000)`, `ret 10h`: localised by 0x1FF0F0 into root.set_parameterized_
+  message), then each frame the teams' points (0x2364C0 → `root.set_game_progress`) and, for mode
+  4 only, `set_last_players` (0x23B3DE: `cmp dword [edi+20h],4`). The movie: [[[ui+8]+108h]+4],
+  `Invoke` 0x511600 (thiscall: name, result, args, count; `ret 10h`), a GFx value 18h bytes (+4 the
+  type: 4 uint, 5 number; +8 the value). The world from the ui: [[ui+18h]+4D4Ch]+1F8h, its rules
+  at +18824h (the minimap's 0x23AA21). `root.set_game_type` gets `mode.mode` (0x234D66).
+- **The first local test's crash** (PROVEN, 2026-10-22, the owner's two clients on map 184, both
+  at their first synchronization: `PRIV_INSTRUCTION` at 0x9FB814): the first build's slot 16 was
+  `deserialize(reader)` `ret 4`. The rules loop above left esp 4 bytes low; 0x2D2770's epilogue
+  (`pop edi/esi/ebp/ebx; add esp,68h; ret 0Ch`) then popped each register one slot off and returned
+  through the dword below its return address, a stale argument of 0x2D0B70's log call at 0x2D0F3D
+  (`push 0x9FB814`, the "net_sync" channel's name), whose first byte is `outsb`. The dump agrees:
+  esp 0x767F7754 is 0x2D0B70's frame minus 4, `[esp]` = edi = 8 (the loop's pushed dword), ebp
+  clobbered, the last real return address 0x27C0DE (`network_client::process_dynamic_match_info`).
+  Slot 16 takes the dword and pops it now; selftest check 53 compares every slot's `ret` with
+  tdm's, and `check_research_026g.py` runs the rule through the game's own loops.
+- **The review of #297** (2026-10-22, after the merge; `fix/research-review`):
+  - **Slot 7's arguments** (PROVEN, CRITICAL): `rn_on_event` took `(type, time, data)`; the game
+    passes `(type, data, time)` (above). It read the time as the kill's bytes: before 65,536 ms of
+    game time a fault at the first death on every client, after it random killer and victim
+    places (up to 254 into the 20 places) and no kill invader. Now `(type, data, time)`, and a
+    kill's places out of 0..19 are refused. `check_research_026g.py` runs slot 7 through the
+    dispatcher 0x2D1EA0 with a kill and checks what it counted; with the first build's order
+    put back by a shim, the case fails. Every slot of ours, the tick and the cook are reached
+    the same way (client_patch.md §0.4, "through the game's own caller").
+  - **The scoreboard** (PROVEN): the game's event sites (the kill handler 0x2F4EB0, 0x2F4DE1)
+    add to the player's cell and then, when the statistics have an event listener (+31A0h, a
+    boost::function, not 0 once set), call it through 0x2F5D40 (eax = +31A0h; place, event,
+    amount; `ret 0Ch`); the listener is `base_game_statistics_handler::on_event` 0x26DB80 (vtable
+    0xA0755C slot +44h, §3.16), ecx the statistics object itself (`[core+18FA8h]`), which adds the
+    event's weight times the amount (x 0.01 for the hundredths events 6, 17, 18) to the player's
+    score (`m_scores`, +31F0h[place]). Research's counts did not call it: the Tab list's score grew at the
+    next world loaded only. `count()` calls it after each add, with what it added.
+  - **The leader at the goal**: both shown 100 (99.5 rounds up) was a draw. `rr_leader` takes
+    the millionths once a team reached the goal (the rule's end is set), and so does srp
+    (`rules::research_winner`).
+  - **A late joiner's first world**: the time rule's deserialize (0x31803E) sends event 0
+    before Research's deserialize runs, so slot 7's `publish()` wrote the fresh rule's 0 / 0
+    and a draw into the statistics' tail; `rn_deserialize` publishes the loaded state at its
+    end.
+  - **The hud's cache** is of a rule by its address; a new match's rule allocated where the
+    last one was found its owners there and could say "Unit A lost" at its first frame. The
+    cook's create forgets it.
+
+### 3.51 The artefacts: Spring's aim time and no slow from bullets, Lifebone's heal, one press for every artefact of a kind (written 2026-10-22, README patch 54, the next release's revision; the rules: `artefacts.md`) — PROVEN in the code, the loader, the links, the getter, Lifebone's active and the action run with Unicorn; not run in a game
+
+**A Spring's modifiers.** `artefact<artefact_spring_core>` is built in place by the artefact cook (vtable 0x9FC720: size 0x25E770, construct 0x25E660, both a switch on `data/type`: 3 Lifebone 0x4B8 / 0x25EF80, 6 Spring 0x3B8 / 0x25EA10, 7 Onyx 0xF40 / 0x25F4D0, 8 Rattle 0x360 / 0x25FA10); the base cook builds bare cores (sizes 0x2EEA30: 0x498, 0x398, 0xF20, 0x340; construct 0x2EE930, Spring 0x311840). Both Spring constructors call the loader 0x33ACF0 with esi = the object +340h and the item's `data`; it writes, from fixed keys (0xA1C1FC `passive`, 0xA1C230 `active`):
+
+```
++340h {0, 0, 4,    passive/movement_speed_mod}       +370h {0, 0, 3,   active/stamina_regen_mod}
++350h {0, 0, 5,    passive/max_carried_weight_mod}   +380h {0, 0, 13h, active/stamina_spend_mod}
++360h {0, 0, 4,    active/movement_speed_mod}        +390h trunc(active/duration x 1000) ms
+```
+
+A node is {prev, next, index, value}, linked at the tail of the holder's list holder+6B8h + kit (+115h) x 704h + index x 14h + 204h ({count, head, tail, ?, sorted +10h}): the passive's at 0x311AD0 (pickup, deserialize), unlinked at 0x311D10; the active's at 0x311BC0 (enable_active 0x3118D0, deserialize 0x3119E0 for state 4), unlinked at 0x311DA0 (disable_active 0x311970, from the active's end and death). The getter 0x2D5AE0 sums a list (`B x max(0, 1 + k S)` for index 49, aim_time, as for 4); a walk's speed (0x2DBB50) with its flag set (LIKELY aiming: the only reader of index 20, movement_speed_when_aiming) takes min(M4, M[4,20]) on that base, so a Spring counts there too.
+
+**The patch.** 0x33AE13 `mov dword [esi+48h],13h` -> `jmp loader`: it does that, then (pushad, xmm0 kept) `passive/aim_time_mod` into +350h as index 31h (the max_carried_weight node, 0 in retail, no longer read) and `active/aim_time_mod` into a sixth node at +3B8h, index 31h, and goes on at 0x33AE1A. With the stopping power node at +3C8h (below) the object grows to 3D8h (0x25E7A8 `mov eax,3B8h`, 0x2EEA74 `mov eax,398h`); the wrapped Spring's own fields end at +3B7h (0x25EA4F..0x25EA83). 0x311BC0's first ten bytes (`push ebx / push esi / mov esi,eax / mov eax,[esi+250h]`) -> `jmp link_active`: the sixth node linked as 0x311BC0 links the others, then those ten bytes, back at 0x311BCA. 0x311DA0's `push ebx / mov ebx,[esp+8]` -> `jmp unlink_active`: 0x2D5D00 on it, the two instructions, back at 0x311DA5. The node is in its list exactly while the three active ones are (0x2D5D00 must not be given a node that is not in the list: it takes a missing prev as the list's head).
+
+**A Lifebone's heal.** enable_active 0x312250 (thiscall, the time): `remove_affects` entries (+360h..+364h, stride 20h) each through 0x2E58B0 (eax = the damage model's pools, [the holder's slot 2]+108h; ecx = &name; strcmp with pool+80h) and 0x32A6A0; then the duration (M39) into +494h. Its argument slot [esp+14h] is scratch after 0x3122E2. 0x3122AA `mov ecx,[edi+250h]` (reached with four pushes, from the loop or around it) -> `jmp lifebone_active`: the pools named `pain`, `body` and `head` (its table `heals`), each with H < Hmax given increase_health 0x32A420 (esi = the pool; the time, Hmax - H; `ret 8`; it clamps, calls 0x32A9C0, and 0x32B920 when the pool is then full), as the medkit at 0x33D9C3; the instruction; back at 0x3122B0.
+
+**The slow from bullets.** base_player::hit_impl (0x2D9B90) queues (time, stopping_power x k_power) in m_recent_hits (player+2E8h) once per bullet; the stagger 0x2DBCD0 (eax = the player, the time; `ret 4`; from the tick at 0x2D8FE5) sums those younger than [+320h] (0.5 s) into xmm0 and its local [esp+14h], both ways (the loop's end, or none at 0x2DBCF9) reaching 0x2DBD89 `movss xmm2,[esi+31Ch]`; then -min(local, [+31Ch] 0.5) goes into the player's own node +2F4h (index [+2FCh] = 4, value +300h). 0x2DBD89 -> `jmp stagger`: the getter on list 42 with (the sum, 1.0), the result into xmm0 and the local, xmm1 0, the instruction; back at 0x2DBD91. List 42 is artefact_synergy: no getter call reads it (re-kit damage notes) and no retail config sets it, so without a Spring the factor is 1. The Spring's seventh node, +3C8h, index 2Ah, `active/stopping_power_mod`, is filled by the loader hook and linked and unlinked with the aim node (the object 3D8h bytes).
+
+**One press.** artefact_base::action 0x313300 (thiscall, pressed, time; `ret 8`): state 3, pressed, no cooldown (+28Ch) -> vtable +80h enable_active, the effect (0x313350), +2A0h = the time, state 4 at 0x313339. inventory::action (0x2FCAA0) calls an item of kind 1 (+24Ch) through vtable +2Ch with (pressed, time); the artefact slots are inventory+10Ch + 4 x 13..18; [artefact+250h] is the inventory. The entry's ten bytes (`push esi / mov esi,ecx / cmp dword [esi+280h],3`) -> `jmp fire_kind`: a key-down activates the pressed one, then each other slot's item with the same vtable and kind 1, each only in state 3 with no cooldown and as action does (vtable +80h with the time, 0x313350 (it, the time), +2A0h, state 4), and returns `ret 8`; nothing is pressed through action, so nothing recurses, and a press of a cooling or active one still fires the ready ones of its kind. A key-up runs the ten bytes and goes on at 0x31330A (the jne on their flags).
+
+**Onyx stacking (2026-10-25).** An Onyx (`artefact_onyx_core`, 0xF20 bytes, its wrapper 0xF40, vtable 0xA157BC / 0xA06084) is built by 0x3126E0: its loader 0x33B780 (cdecl: the config at +C7Ch, `data`) fills +EE8h hit_type, +EECh..+EF8h the passive's damage_add, damage_mul, armor_piercing_add, armor_piercing_mul, +EFCh..+F08h the active's, +F0Ch absorb_total, +F10h active/duration ms, and the protected parts at +C90h (1Ch each); then one damage protector (70h bytes, at +340h) per part, each bound to the hit callback 0x312BF0 with the Onyx (0x312777). enable_passive_effects 0x312810 (vtable +7Ch, at pickup) links each protector into its pool's list (pool+BCh, next at +68h), disable_passive_effects 0x312950 (+84h, at death and drop) unlinks them: they are in from pickup to death in both states. enable_active_effects 0x3128C0 (+80h): +F14h (time left, ms) = trunc(+F10h x M39 artefact_duration, set by nothing in 0.26g), +F18h = absorb_total; tick_impl 0x3127E0 counts +F14h down; active_effect_ended 0x312A50 is 1 when +F14h is 0 or +F18h is 0.0 (nothing writes +F18h during the active: absorb_total is a cap per hit, 5 in retail); disable_active_effects 0x312A30 zeroes both. The base's tick 0x313200 (+74h) ends a state-4 artefact through 0x313530 (cooldown_sec x 1000 x M38 into +28Ch, state 3). The callback (thiscall: the hit, &damage, &piercing; `ret 0Ch`): the hit's type (+1Ch) must be +EE8h; state 3: D = (D + add) x mul, P likewise (passive); else D -= min(+F18h, D - (D + add) x mul) and P = (P + add) x mul (active). So n active Onyx gave D x 0.1^n, each 3 s. The press (fire_kind) now counts the ready ones it fires first (`ready`, `kin`: state 3, no cooldown; same vtable and kind 1 in the slots) and, when the kind's enable_active (vtable +80h) is 0x3128C0, adds (n - 1) x 1000 ms (ONYX_EXTRA_MS) to each fired one's +F14h after its activation: all n end on the same tick and cool down together. 0x312C03 `cmp dword [ecx+280h],3` (seven bytes, after the hit type test; the next instruction `mov eax,[esp+8]` at 0x312C0A, then `jne 0x312C47`) -> `jmp onyx_hit` (JUMP): state 3 goes back at once (ZF set, the passive's way); otherwise the slots 13..18 are walked and the first item that is the Onyx itself, or of its vtable in state 4, decides: itself -> the compare again (ZF clear) and back at 0x312C0A (the active's way); another -> `ret 0Ch` with damage and piercing unchanged. An Onyx in no slot goes on as before. eax and edx are free there (eax is loaded at 0x312C0A, edx, the hit, is not read after 0x312BFA); esi and ebx are pushed and popped.
+
+**Onyx's pop-up.** The wrapper artefact<artefact_onyx_core> has a second vtable at +F20h (0xA06118); its slot 0, 0x25F640 (ecx = ebx = the Onyx +F20h), compares the state (+280h, ebx-0CA0h) with the one it saw last (+F30h, ebx+10h) and acts on a change; for state 4 (0x25F9A5) with the holder the local player (0x242A40 on the holder's +114h) it calls set_parameterized_message 0x2375C0 (ecx = the activation hint's text, +2F0h, a localization key that 0x1FF0F0 looks up; then the game +1FCh, 21h, 14h, BB8h; `ret 10h`), which invokes `root.set_parameterized_message` (0xA0360C) of the hud: once for each Onyx, the same fixed text (no number from the config), 3 s on screen. Spring (0x25EF63), Lifebone (0x25F4B3) and Rattle (0x25FF30) have the same code with their offsets. 0x25F9DD `mov ecx,[ebx-0C30h] / push 0BB8h` (eleven bytes; 0x25F9DB's `jz` goes to 0x25F9F8) -> `jmp onyx_popup` (JUMP): the slots 13..18 are walked; the first that is the Onyx itself, or of its vtable in state 4 with the same activation time (+2A0h), decides: itself -> ecx = the hint, `push dword [ebx-0Ch]` (+F14h, the active's time left in ms) and back at 0x25F9E8 (`push 14h`); another -> 0x25F9F8, past the call, where the function notes the state as it does after it. An Onyx in no slot shows its own. esi (the game) is pushed and kept; eax, ecx, edx and edi are free there (edi is popped at the end). The hud: set_parameterized_message replaces `%s` in the text with ceil(time / 1000) before it compares and shows it. The token is `%s`, not `{s}`: the game's localizer (0x1FEF90, every text set_parameterized_message shows) makes `{NAME}` the key of the action NAME (`{USE}`) and any other name nothing, and drops a `}` after a character: 0x2375C0 gets the text through 0x1FF0F0 (the localization lookup), which ends in 0x1FEF90 (eax = the text, ecx = the output, the game pushed; `ret 4`): `{{` is `{`, `{USE}` (0x9FC848) the bound key's name (0x207BF0, then the lookup again), any other `{...}` nothing. The first build used `{s}` and the owner's game showed "for  s." (2026-10-25).
+
+**Checked:** `selftest_026g.py` check 54 (with the Onyx callback's bytes, its constructor's binding at 0x312777 and enable_active in both vtables' +80h); `check_artefacts_026g.py` (Unicorn): Onyx's own enable_active, countdown, end test and hit callback for 1, 2 and 3 Onyx fired by one press (3, 4 and 5 s; damage x0.4 and piercing x0.4 once; the original 3 s each and 0.4^n), a cooling Onyx beside a ready one, two Onyx active from two presses, and the end of the client update from 0x25F9DD (the hint once a press for 3000, 4000 and 5000 ms; the original once for each Onyx for 3000 ms); the loader with the game's lookup (0xF6B10) on a binary config of the release's numbers (and the retail ones in the original), links and unlinks with the getter for one and two Springs, Lifebone's enable_active with made-up pools, the action over a made-up inventory, and through the game's own callers: a slot's key through inventory::action 0x2FCAA0 (edi = the inventory; slot, pressed, time; its vtable +2Ch call), the Springs' own enable_active 0x3118D0 linking and disable_active 0x311970 unlinking their nodes; the build's loader on the edited retail `artefact_spring.options` (content_edit.py output).
+
+**Where and how it is installed** (the merge with main's arena and call shapes, 2026-10-23). The code is the arena's block `artefacts.code`, a code page (0xA431000 as the link places it today, §0.3; the hooks jump to its six global entries by name), not `.srpw`+2700h where it was first written: it still fit there and nothing of main used that page, but new code goes on the arena. Its six sites are in `INSTALLS` (§0.4): 0x311BC0, 0x311DA0 and 0x313300 ENTRY, their models the functions at the sites (`ret` 0, 4 and 8, as `abi.tsv`; ours goes on in the function, or for a key-down returns `ret 8` itself), and 0x33AE13, 0x3122AA and 0x2DBD89 JUMP (from inside the game's code, back at the depth they left). It hands the game no pointer (no callback, no vtable). Each hook's arguments, read again against the game's code: the loader's ebx = `data`, eax and edi set by 0x33AE0B..0x33AE10 for the next lookup (kept by pushad), xmm0 the third node's value (kept); the link's eax = the Spring (0x311944, 0x311A4D); the unlink's Spring pushed (0x311973), [esp+24h] after pushad; Lifebone's time [esp+14h] with the function's four pushes on both ways to 0x3122AA (`push ebp` popped at 0x3122A9), [esp+38h] after pushad and the amount; the pool lookup 0x2E58B0's eax = the pools' holder, ecx = the address of the name's pointer, nothing on the stack (as 0x312291); increase_health (esi = the pool; time, amount; `ret 8`) pushed as the medkit pushes them (0x33D9A3..0x33D9C3); action's (pressed, time) as inventory::action pushes them (0x2FCB2D..0x2FCB31), enable_active's (time) and the effect 0x313350's (the artefact, the time) as action pushes them (0x313329, 0x31332C..0x31332E); the getter's (B, k) as enable_active 0x3118D0 passes them (B the value, k 1.0; ecx and edi kept, `ret 8`); the stagger's sum in xmm0 and its argument slot [esp+14h] on both ways to 0x2DBD89 (0x2DBCF9 and the loop's end, the memmove's three pushes taken back at 0x2DBD65). No argument count or order was wrong.
+
+### 3.53 The keys 1, 2 and 3 pick a kit; a match chat option (written 2026-10-23, README patch 58, the next release's revision; the rules: `match-hud-options.md`) — PROVEN in the code, the three entries run with Unicorn with the game's own cvar code; not run in a game
+
+A player's asks (board T29): number keys for the kit choice before a respawn (misclicks), and an option to turn the in-game chat off.
+
+- **The kit picker** (PROVEN). The kits before a respawn and before the start are the hud movie's `_profilePanel` (`HUDProfileSelector`, its `SrvProfileSelectorHUD`, a `ProfileSelector` whose `tabPage` is a CLIK ButtonBar of three tabs, `SrvPlayerProfileTabHUD`), shown by `root.show_profiles_selector` (0x2383B0, with `show_cursor` 0x23A930: the hud's +2DCh). A click changes `tabPage.selectedIndex`; its INDEX_CHANGE runs `onProfileSelected`, which calls `ExternalInterface.call("profile_changed", index)`: the exe's 0x233F06 -> 0x1F8070 queues the kit input (§3.29; patch 31 keeps the kits shown after it). A tab is greyed (`enabled` false, `setup_player_profiles`: a kit that is not complete) and does nothing; a click on the chosen tab changes nothing (`set selectedIndex` returns on the same index). No new message: a key does what a click does.
+- **Where the keys go** (PROVEN). `vostok::input` hands a key to the input handlers by priority; the game world's (`input_priority` 0x1F63D0: 7) comes before the player's (10). The game world's `on_keyboard_action` (0x25CD00, slot 0 of the vtable 0x9FC588 at game_world+1F8h; thiscall, the input world, the DirectInput key, the kind; `ret 0Ch`; re-kit abi rows) asks the input world whether Tab is held (0x2384C0, `root.show_player_list`), returns 0 for a held Tab, then at 0x25CD41 `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` (kind 1, a key down; 0x25CF0D `xor al,al` and the epilogue) and handles chat (0x3F, Enter, numpad Enter), L, Esc and its actions 11h..19h by bind; anything else returns 0 and goes on to the player's handler (`on_keyboard_action` 0x23FE00, kinds 1/2/3 pushed as states 0/1/2). The hud movie gets keys only from the chat handler (0x20899D, `0x1FDD70`, while the chat is typed in): `HUD.as` sees no 1, 2 or 3 on the kit screen.
+- **The patch, keys** (`MATCH_KEYS_HOOKS[0]`, JUMP at 0x25CD41, ten bytes -> `jmp match_keys_keyboard` + five nops): the kind's test again; for a key down with DIK 2..4 while the handler's +2E0h (the hud's cursor) is set and the movie is there, `engine_movie_invoke([[[edi+0Ch]+108h]+4], "root.select_kit_key", 0, {0, 4 uint, key-2}, 1)` (as the hud's own calls, 0x2384C0), all registers kept (pushad), then `jmp 0x25CD4B`; any other kind `jmp 0x25CF0D`. The key is not taken. `HUD.select_kit_key` returns unless `_profilePanel.visible` and the chat is not being typed in (a flag `focus_chat` sets and clears, or `stage.focus` on its input; not the input's `visible`, which `SrvGameChat`'s timeline starts true until the chat is first closed); `ProfileSelector.pickByKey` sets `tabPage.selectedIndex` for a kit that is enabled and not the chosen one.
+- **The option** (PROVEN). The gameplay options (`options_tab::options_tab` 0x262300, tab 0) make option 4 at 0x262454: `options_item_bool` (vtable 0xA06744) named "g_private_messages_in_game" (0xA064FC, in the exe there alone), labelled `st_private_messages_in_game_option`. `options_item_base::options_item_base` (0x260E90) looks its command up by name (0xEB7C0, the list 0x1F1D66C) and logs a warning when there is none: there is none, so the option has no value and nothing reads it; `main_menu.swf`'s timeline greys its checkbox (`_no_in_batle.enabled = false`, as the other social options, which are dead the same way: g_invite_from_friends, g_friends_signin_notification, g_messages_only_from_friends, g_hide_spam). The options are made by `game_options::on_resources_ready` (from `game_options::initialize` 0x1FFC10, called at 0x1EAC7C after the base resources).
+- **The patch, the option's variable** (`MATCH_KEYS_HOOKS[1]`, CALLEE at 0x1F6845, `call 0x233810` -> `call match_keys_hud`): `game::game` (0x1E9070) makes the game world (0x1F67B0 at 0x1E90A3) before `query_base_resources` (0x1E9B4C) queries `startup.cfg` and `user.cfg`, which `on_configs_loaded` (0x1EA210) runs: `load_cc_script` (0x1EC380) twice, `user.cfg` with filter 1 and mask 2 (`console_commands::execute` 0xEB980 runs a line for a command whose +18h is the filter, or any for filter 2, and whose +14h has a bit of the mask; `startup.cfg`'s mask is 1, so a kind-2 variable such as `minimap_position` cannot be set from it). `match_keys_hud` calls the hud's constructor with the game world (eax) and the hud as the site did, then once (a byte of its own) `engine_cc_bool(object, 0xA064FC, &hide_chat, 1, 2)`: `cc_value<bool>::cc_value` (0x1DDB0, eax the 48h-byte object: +0Ch the list's next, +10h the name, +14h the kind 2, +18h 1, +1Ch 1, +1Dh saved 1, +40h the value's address; the new list head), then the vtable cc_bool 0x9E7C4C, as the hud's own `show_quests_progress` (0x2339C9..0x2339F2, which also gives the dtor to atexit; ours is never destroyed, the arena's memory lasting the process). The options' lookup then finds it; `user.cfg` keeps it (`g_private_messages_in_game on|off`; an older game ignores the line). The main menu enables the checkbox where its timeline makes it (`settingsTabs_15`'s `__setProp__no_in_batle`, run for every new instance) and in `Settings.create_content`; the content edit `match-chat-off-1.json` labels it "Hide chat in match".
+- **The patch, the lines** (`MATCH_KEYS_HOOKS[2]`, CALLEE at 0x26B916, `call 0x208AD0` -> `call match_keys_chat`): `process_incoming_text_message` (0x26B6F0, message 0xA2) gives every line it shows to `chat_handler::add_message` (0x208AD0; stdcall: the handler, the channel, the body, the name, the tag; `ret 14h`). `chat_handler::set_mode` (0x209430) sets the handler's movie (+14h) and +0Dh: 1 with the hud (the game world's `on_activate`, 0x1F93C5), 0 with the lobby's (0x21D34F); add_message gives channels 1 and 4 to the lobby's movie while +0Dh is set. `match_keys_chat`: option on, +0Dh set and channel 3 or 5..9 -> `ret 14h` (eax not kept: add_message's own eax is garbage, the caller's next call `add_to_recent_list` 0x209330 takes the name and edi); else `jmp 0x208AD0`. The server relays a line to everyone but its sender (`relay`, `**id != from`), and the sender's own line is shown by the local echo (`messaging_client` 0x26ADF4, another call): it stays.
+- **What changes:** in a match, keys 1, 2 and 3 pick kit 1, 2 and 3 on the kit screen (the key also reaches the player's handler as before, which a dead player's game does not send); with "Hide chat in match" checked, no other player's line appears in the match chat. No simulation change.
+- **Checked:** `selftest_026g.py` check 58 and the call shapes; `check_match_keys_026g.py` (Unicorn): 72 key cases, the variable's four, 40 chat cases (README patch 58). **Not run:** a game: that `vostok::input` gives the game world's handler the keys on the death screen (the cursor's, LIKELY: the handler answers 0 and the mouse's handler 1 there), the movie's tab change in Scaleform, the checkbox in the menu and its value saved, the lines hidden.
+
+### 3.54 One key hides the interface, in a match and in the lobby (written 2026-10-23, README patch 62, the next release's revision; the rules: `hide-ui-key.md`) — PROVEN in the code, the three entries run with Unicorn with the game's own show_ui and get_binded_action; not run in a game
+
+A player's ask through the owner: a key that hides the whole interface, the lobby's too, for screenshots.
+
+- **What 0.26g has** (PROVEN). No console command or variable hides the hud (no `hud_draw`, `g_hud`, `ui_hidden`, `r_hud` or `hide_hud` string), and no screenshot key (no action, command or string). It has the action `toggle_replay_ui` (19h, kinds 5, F11; the action table 0xA74AF0, 20-byte entries `{name, id, kinds, toggle, default key}`, entry 0xA74CA8), which shows the replay viewer's controls and cursor (0x25CED1..0x25CF08) and does nothing without the replay's movie. It has `game_world::show_ui(bool)` (0x1F95F0, vtable 0x9FC4F4 slot 8; the activation's show_ui(1) at 0x1F8476, the deactivation's show_ui(0) at 0x1F96D1; state +0A0h, 0 at the construction 0x23DAF1) over the hud movie (+204h) and the player icons' (+20Ch), and `lobby_menu::show_ui` (0x21D570) over the lobby movie (+690h) and +68Ch: render only (base_game_scene show_movie 0x23DC00 / hide_movie 0x23DC70).
+- **Why no new action** (PROVEN). The key binder (the game's +5344h) is 48h bindings of 0Ch bytes indexed by the action id (`get_binded_action` 0x207D50: eax the binder, edi the kinds, esi the DIK key, out the toggle; `ret 4`; 49h for none); ids 0Fh, 10h, 14h and 2Bh..33h are free. But the action table ends where the key names begin (0xA74FA0, read by 15 sites; 0x4B0 bytes counted at others), and the options' controls list is its own 40 entries of 68h bytes at 0xA9DB28 (+0 id, +4 label, +8 group, +0Ch type, +10h a buffer pointer into the entry; counts 28h at 0x201159, 0x20124D, 0x20140B, 0x201A1E, 0x201D0D; refs 0x201151, 0x2013C0, 0x201249, 0x201A1A, 0x201D09), followed by other data. Adding a row to the action table means moving it; `toggle_replay_ui` already is the action "toggle the ui", bound and saved as any other.
+- **The controls options' row** (PROVEN; the owner, 2026-10-24: "there is no in settings option to switch it"). The options' table is static data: 28h rows, each `{action, label key, group, type, buffer_string set (+10h: begin, end, buffer end; 32 bytes at +1Ch), buffer_string kept (+3Ch; 32 bytes at +48h)}`, 240 pointers into itself, no initializer. Its six readers, game_options': 0x201150 (`mov eax,table`, count at 0x201159), 0x201248 (`mov esi,table+4`, 0x20124D), 0x2013BF (`add eax,table`, `cmp bl,28h` at 0x20140B), 0x201A19 (`mov esi,table+0Ch`, 0x201A1E), 0x201D05 (`mov [esp+0Ch],table`, 0x201D0D), 0x201F2B (`mov esi,table+10h`, 0x201F34). The movie names an action only (`start_bind_key`, BindKeyRender.as); the key it gets is kept by 0x2013A0 in the row of that action (none: kept nowhere) and accept (0x201F20) issues `bind <id_to_action_name> <key>` / `unbind` only for rows whose +10h changed. The binder's `bind` command (0x207390, cc with bind_key 0x207DC0) saves every bound action of the binder by name (0x207450: `bind <action> <key>`), whatever the table. The patch: `controls` (hide_ui.data) is the 40 rows and a 41st `{19h, "st_hide_interface_action", 2, 1}`, built by NASM with each row's pointers its own; HIDE_UI_TABLE_REFS / HIDE_UI_TABLE_COUNTS repoint the six readers and make the counts 29h. A pointer into an arena data or state block is data, not an install (`arena_data_ranges`, from the lock).
+- **The keys' groups** (PROVEN). The game world asks kind 1 (0x25CD5F); the lobby kind 2 (0x26CCCD); the options list groups 0 lobby, 1 chat, 2 game. Free of every default binding: B, H, J, U, Y, Z, 9, 0, F4, F7..F10, F12, Caps Lock (L is taken by the game world at 0x25CD89, DIK 26h). The lobby movie never gets F1..F12 (the DIK-to-Flash key map made at 0x1FDF20 has 71 keys, no F key, not 9 or Caps Lock).
+- **The patch, the match** (`HIDE_UI_HOOKS[0]`, JUMP at 0x25CED1, ten bytes -> `jmp hide_ui_match` + five nops): the replay test again (to 0x25CEDB with esi the handler); else, the hud the handler's +4, `engine_movie_invoke([[hud+8]+108h]+4, "root.interface_hidden", &answer, 0, 0)` (a bool at the answer's +8) and `root.hide_interface(not that)` (one GFx bool, type 2) to it and to [[hud+10h]+108h]+4, the player icons'; then 0x25CF0D. Whatever the cursor: the kits before the start are hidden too (the owner, 2026-10-24). The first build used the game world's `show_ui` (0x1F95F0): its `hide_movie` (0x23DC70, the renderer's 0x1FBB0) takes the movie out of the scene, which stops advancing it, and when shown it played the kill feed and messages of the whole time at once (the owner's test of 64ce3ce7); the movies hide their own root and keep running.
+- **A new match**: the movies are the last match's; `initialize_match` (0x234880) invokes the hud movie's `root.reset` at 0x234AE8 (ebp the hud). `HUD.reset` shows the hud, and the patch (`HIDE_UI_HOOKS[2]`, CALLEE at 0x234AE8, `call 0x511600` -> `call hide_ui_reset`: the invoke through the library, then `root.hide_interface(false)` to the hud and the icons, `ret 10h`) shows the player icons' too. (`set_enemy_icon_ids`, the icons' other per-match call, is also made by base_network_client at 0x242C86 when the camera's player changes: a respawn, which keeps the state.)
+- **The kits and the death screen**: hidden with the rest, and kept so by a death and a respawn (the owner, 2026-10-24); the first builds showed them again from show_profiles_selector's show_cursor call (0x23845B), which is the original's again. Keys 1 to 3 still pick a kit (patch 58: `select_kit_key` reads `_profilePanel.visible`, the panel's own flag). The hud's screen effects stay: `effectContainer` (add_effect 0x23C100: the blood, its drips, the grenade's flash) is on the stage below the root, placed as the root is scaled (`placeEffects`), so hiding the root (`HUD.hide_interface`: `visible`) leaves it; the fps line the game put on the stage is in the root's `_stageLayer`; the hit direction marks, the bleeding/toxic/radiation icons (criticalInd) and the corner frames (hud_overlay) are interface and hide.
+- **The patch, the lobby** (`HIDE_UI_HOOKS[1]`, CALLEE at 0x26CCD2, `call 0x207D50` -> `call hide_ui_lobby`): `engine_binded_action(binder, 2, key, the place)`; for 49h again with kind 1 and a place of its own; 19h with the movie [[ebx+690h]+108h]+4 -> `engine_movie_invoke(movie, "root.toggle_interface", 0, 0, 0)`, the return address 0x26CCAE (`lea ecx,[esp+28h] / call 0x2AFA70 / mov al,1 / ... ret 0Ch`, the path after 0x1FDD70, which pops its five arguments: the same esp), `ret 4`; else, with the movie, `root.interface_hidden` into a GFx value of ours (a bool at +8, as the function reads has_active_window's at 0x26CC06; nothing to release): true -> the return address 0x26CDD2 (the key to the movie through 0x1FDD70, al 0; past the window keys' actions and F6's Play, `cmp esi,40h` at 0x26CDA2); anything else returns the first answer.
+- **The lobby movie** (`LobbyMenu.toggle_interface`): the interface is the root, hidden in one step (`visible`). What the game put on the stage is in the root: `makeStageLayer` (before `init`) makes `_stageLayer`, the root's last child at the stage's scale (1/scaleFactor; kept last by `addChild`, `addChildAt` and `setChildIndex`), holding `_layers` (the front, top (messages) and top2 containers, the wheels, the loading screen, the fades; the right-click menu, `SrvContextMenu.registerStage(stage, _layers)`; CLIK's popup canvas, `PopUpManager.layer`) and over it `_overlay` (the tooltips' container and CLIK's drag canvas, `DragManager.init(stage, _overlay)`): no polling, nothing of the interface on the stage beside the root. First an open right-click menu is closed (only when open: `SrvContextMenu.hide` with none ever opened threw on `removeChild(null)` and nothing was hidden, the owner's test of 64ce3ce7) and the item cards (on Scaleform's topmost level, which is drawn whatever the parents' visibility, to be above the windows). `enable_element` does it structurally now: the exe's lobby state (`lobby_menu_state`, vtable 0xA0CBF4, slot 1 0x2A3EA0, at every entry of the lobby) calls it with `root.statusPanel.btn_off` and `btn_settings` and true (0x2A3F22), a match's loading (0x220400) with false; with true it put the two buttons on the topmost level (above every modal: a message's dim, the results, the wheels) and, through its RENDER handler, the tooltips, the drag canvas and the tutorial's highlights, and the corner buttons stayed on the screen with the root hidden (the owner's test of 335343b6). Now with true it moves the two buttons into `_overlay`'s `_corner`, placed as the status panel is (`placeOverlay`, again after each of the panel's layouts: `StatusPanel.LAID_OUT`), and with false back into the panel at their index; any other element (the tutorial's) is ignored. `_overlay` holds, bottom to top, `_corner`, `_cards` (the item cards, placed as the root is: no longer on the topmost level, so the tooltips are above them), the drag canvas and the tooltips: above every modal, inside the root. The tutorial's private test functions (testDragTutor, testPlayTutor, testAmmoTutor, testAmmoTutor2, testFactionPreTutor, testFactionTutor, testCloseSlide, showSlideOnVs, testTutorComplete) were never called and are gone; the functions the exe still names (show_slide, close_slide, highlight_element, clean_highlight, highlight_inventory_items, set_sybsystem_active, show_tutorial_complete_message) stay. Two KEY_DOWN listeners on the stage, priority 100, capture and target (the target is the stage when nothing has the focus), show it and stop the key, and two KEY_UP listeners stop that key's release once (a message box hidden with the interface keeps the focus and acts on Enter's release: MessageAcceptBase, MessageBox, MessageEnterName; SquadList on Backspace's); a new press of that key or a match found (the exe passes no key then, 0x26CBCE) clears a release never seen; `interface_hidden` answers the exe; `has_active_window` says true while hidden (the exe's Esc then calls `close_active_window`, which shows it); `get_mouse_over` false while hidden; a match found (`set_mm_sync_state`), the loading and the results show it.
+- **What changes:** F11 in a match hides the hud, crosshair, minimap and markers until F11 or the kits; F11 in the lobby hides the lobby's interface until a key. Rendering and input only, no simulation change.
+- **Checked:** `selftest_026g.py` check 62 and the call shapes; `check_hide_ui_026g.py` (Unicorn): 16 match cases, 28 lobby cases, 5 of the options (README patch 62). **Not run:** a game: that show_ui's hide leaves nothing of the hud (the hit marks and blood effects are the hud movie's, LIKELY), that the player icons' movie is +20Ch (LIKELY: initialize_resources' third movie, the exe's names in that order), that a stage child of the lobby keeps its own `visible`, and that Scaleform's capture listeners run as Flash's.
+
+### 3.55 The kill feed shows a kill through a wall, by a ricochet and by pain (written 2026-10-25, README patch 67, the next release's revision; the rules: `kill-feed-icons.md`) — PROVEN in the code, the three sites run with Unicorn with the game's own part lookup; tested in game by the owner, 2026-10-25 (before the explicit melee test)
+
+The owner: "when a character is killed from pain, the character should get <weapon> <white painkiller> icon"; "when through a wall: <weapon> <wall shot> icon (available in last patches)"; then yes to retail's ricochet icon.
+
+- **The kill event** (PROVEN). `base_player::hit_impl` (0x2D9B90) runs the kill path once the dying flag (+33Dh, set by `on_affect` 0x2DA480 for the death affect of an empty body, head, pain or infection pool) is up: `generate_killed_event` (0x2DA170; esi the victim; stdcall: the time, the killer's place, the hit's bone name, the hit's damage source, the bullet `[ebp-4]` of hit_impl, from `[hit+20h]`'s vtable 0, `ret 14h`; 0x2D9EFC..0x2D9F15). It takes a node of the world's events (`world+12740h`, 0x2D43B0: +0, +4, +8 zeroed), writes the victim (+0, place +114h), the killer (+1), the weapon's icon (+2: the bullet's damage parameters' +50h when not 0, else the damage source's +224h) and the cause icon (+4), type 0 (+18h), and queues it (0x2D0A60; eax the node, edx the world). The cause icon: 3 for no killer or the victim himself; else 1 when the bone is `brain` or `face` (0xA1067C, 0xA10714) and the damage is not the weapon's melee (`[bullet+40h]` the weapon's +53Ch); else 0. 2 (a drop) and 4 (a fist) have frames in the movie but are never sent.
+- **The hud** (PROVEN). The world's events are played by frame (0x1FB660, the list from +12744h); the hud's handler (0x23B5F0; edi the node) gives type 0 to `game_world_ui::on_player_killed` (0x237C70: the hud, victim, killer, weapon icon, cause icon, each a byte widened; `ret 14h`), which makes the description object (action_id 1, or 2 when the killer is the victim; who_name, who_team, victim_name, victim_team, object_icon, extra_icon as a GFx int from the fifth argument's first byte alone, `movzx eax,byte [esp+104h]` 0x2380EA, mastery_icon 0) and invokes `root.add_log_message` (0x2381A5). `CombatLogItem` shows extra_icon's frame (value + 1) after the weapon: 2 headshot, 3 a red drop, 4 a skull, 5 a fist; one cause, no other icon.
+- **The pools** (PROVEN). The damage model is the player's +2E0h; its parts a list at +108h (first node +110h; a node's next +0, name +80h, health +0A0h, max +9Ch), found by name with 0x2E58B0 (eax the list, ecx the address of the name's pointer; eax the part or 0; keeps ebx, esi, edi, ebp), as hit_impl finds `pain` (0x2D9C3D). Health is clamped at 0 (pain-limbs, re-kit damage notes), so an empty pool's bits are 0 and a live one's are above 0 as an int.
+- **The bullet** (PROVEN). +84h counts its trajectory's segments past the first: 0x32EE20 (`inc dword [esi+84h]`, then the new segment's start) is called by try_pierce (0x32D960, at 0x32DE2C, after the hit object's hit and the bullet's slowing) and by try_reflect (0x32DE40, at 0x32E335); +88h counts the reflections (`inc byte [ebx+88h]` 0x32E33A, at most 2). Both are zero at construction (0x32BB1B) and serialized (0x32BFFC). The killing hit happens inside try_pierce before its own increment, so at the kill +84h counts the pierces and reflections before it (a wall, a prop or another player pierced), +88h the reflections.
+- **0.69d0, the movie** (PROVEN, its hud.swf, resources.43.db of the 0.69d0 build; the base 0.69 volume's hud and every earlier build's, 0.27d to 0.46c2, have none of it). `CombatLogContainer` maps four flags of the description, `ricochet_icon`, `penetration_icon`, `hipfire_icon` and `blind_kill_icon` (1: shown), to `log/icon_<name>.png`; `CombatLogItemRenderer.makeLayout` places the weapon, then blind_kill, hipfire, penetration, ricochet, then extra_icon, then the victim. No pain icon.
+- **0.69d0, the exe** (PROVEN statically: `game/binaries/x64/survarium.exe` of the 0.69d0 Survarium.zip, image base 0x200000000, x64, unpacked; no earlier exe we have names the flags). The bullet keeps the 0.26g counters as bytes: +68h its segments, one more in `change_trajectory` (0x20039AA10, `inc byte [rcx+68h]`), called by try_pierce (0x200399F00, at 0x20039A546, after an object's or a player's hit and for static geometry alike: no material or character check) and by try_reflect (0x20039A590, at 0x20039A9BC, then `inc byte [rsi+69h]`); +69h its reflections (at most 2, `cmp byte [rdi+69h],2` 0x200399E15); +68h capped at 30 (0x200399EE9). try_pierce copies them into the hit (0x20039A17F: hit +0ADh = +68h, +0AEh = +69h; +0ACh the melee flag) before its own increment. hit_impl's caller of generate_killed_event (0x200303B19) passes penetration = segments and no reflection, ricochet = segments and a reflection; generate_killed_event (0x2003046B0) writes the event's +9 (1 penetration, 2 ricochet, ricochet first: `cmovne` at 0x200304B68) and clears both for a melee hit or when there is no other killer (0x200304A80..0x200304AC3); the hud's handler (0x2001A97E6) passes +9 to on_player_killed (0x2001A4BD0), which sets `penetration_icon` for 1 and `ricochet_icon` for 2 (0x2001A4E53, 0x2001A4E80). So 0.69d0's marks are, for a shot and someone else the killer: ricochet when the bullet reflected before the killing hit; else penetration when it pierced anything (a body included). INFERRED only: that 0.69d0's try_pierce is reached for a player's body as 0.26g's is (its object path, 0x200399F69, is the same shape).
+- **The patch** (`KILL_FEED_HOOKS`, `KILL_FEED_ARGUMENT`; kill_feed_026g.asm in the arena's kill_feed.code): at 0x2DA3D1 (`mov [eax+4],bl / mov edx,[esi+120h]`, INLINE) `call kill_feed_event` + four nops: +4 the cause icon, +5 the flags (0.69d0's rules, for ebp not 0, the cause icon not 3 and generate_killed_event's melee flag `[esp+14h]` 0 (0x2DA2D7; `[esp+20h]` in the hook): 4 for `byte [ebp+88h]` not 0, else 1 for `[ebp+84h]` not 0; 2: the pain part's health 0 or less as an int, the body's and the head's above 0), edx the world; at 0x23B6F0 `movzx edx,byte [edi+4]` -> `movzx edx,word [edi+4]` (the fifth argument carries the flags in its second byte, which on_player_killed never read); at 0x23814F (`mov edx,[esp+30h] / mov ecx,[esp+2Ch]`, INLINE, before mastery_icon) `call kill_feed_row` + three nops: SetMember (the description's interface vtable +14h, as the site's own calls) of `penetration_icon`, `ricochet_icon` and `pain_icon`, GFx ints 0 or 1, then the two moves. The hud movie's `CombatLogItem` shows `CombatLogWallIcon` (0.69d0's icon_penetration.png), `CombatLogRicochetIcon` (0.69d0's icon_ricochet.png) and `CombatLogPainIcon` (a white lightning bolt for pain shock, drawn by make_icons.py) after the weapon, before extra_icon, for a kill or a suicide row; the build adds the three bitmaps (`flash/hud/bitmaps/`, `tools/actionscript/flash_tree.py`).
+- **What changes:** the kill feed's row only. The flags are read from the simulation's state (the bullet, the pools) in every game's own run; the node's +5 was zero and is read by the hud alone; nothing a match computes changes (no `simulation_changes` row).
+- **Checked:** `selftest_026g.py` check 67; `check_kill_feed_026g.py` (Unicorn): the event in 26 cases (a bullet death, a pain death, one hit emptying pain and body or pain and head together (no pain icon: the owner, damage wins), a headshot through pain, pain all but empty, a toxic death, through a wall, a ricochet, pierces and a ricochet (the ricochet only, as 0.69d0), a ricochet then a pierce, a ricochet to pain, a ricochet with no killer (none), melee hits with a straight bullet, with segments and with a reflection (none) and by pain (pain only), through another player, a wall with no killer (no wall), a headshot through a wall, a wall and pain, no bullet, no damage model, the parts in another order, no head pool), the handler's argument and the row's members for each, against the original. **Tested in game by the owner, 2026-10-25** ("works nicely"); the explicit melee test (the event's melee flag) came after that test and is checked with Unicorn only.
+
+### 3.56 A fall's speed counts the time it fell, not the steps it took (written 2026-10-25, README patch 72, the next release's revision; the rules: `fall_damage.md` "Split ticks") — PROVEN in the code, step_down's free fall run with Unicorn; not run in a game
+
+The owner, 2026-10-25: "the fall damage problem is back… it seems to be something stacking up"; "you can now die from falling 1 meter".
+
+- **The cause** (PROVEN). `game_world_core::tick_events` (0x2D21E0) ends each step of the world at the next 50 ms boundary or at the next input's time (+1BCh of its node), whichever is first. A precise input (a change of the fire bit at an off-grid time, sent as 0xDD; `match.md` §5.2) is such a time, in every game alike, so the tick it falls in is stepped in two parts, and each further one cuts it again. Each step ticks the physics (the updater 0x2D1D00 -> `bullet_physics_world::tick` 0x75550: `stepSimulation(ms x 0.001, 3, 1/60)`, whose `updateActions` (0x9B810) runs once with the whole dt). `bullet_character_controller::updateAction` (0x7B730) runs `player_step` (0x7BDA0) for dt = 0.05 (+2C704h, the constant the constructor writes at 0x7B4A1), or for any other dt when the body moved since its last step (+0B0h against m_last_pos +50h), as a falling body has. player_step moves the body dt / 0.05 of the step it computes (0x7C734), but step_down's free fall (0x7E6E6..0x7E75C) took gravity x 0.05 off the velocity at every call. A tick in k parts so gave a falling player k ticks of speed: 0.49 m/s more a part, and a landing (on_physical_controller_landing 0x2D8220, the velocity's vertical part) as from a fall k times higher. Deterministic: every game cuts the same ticks, so nothing desyncs.
+- **Not the cause** (PROVEN). The history: the controller's velocity, flags and m_last_pos are in its serialize (0x7F7F0, `m_fall_and_slide_velocity`), inside base_player::serialize (0x2DAF60), which game_world_core::serialize (0x2D2570 -> 0x3218E0) writes into each history item; deserialize (0x7FB10) reads them back and base_player::deserialize then sets the body's transform (0x7F6D0). A frame's step past the newest item restores that item first (game_world_core::move 0x2D3568..0x2D357A), so a frame's partial step never stays. No real time: gravity's dt is the constant.
+- **The patch** (`FALL_GRAVITY`; in place, two sites): the free fall takes xmm3 = min(dt, +2C704h), dt read from player_step's frame (step_down's saved ebp, +8: step_down's only caller is player_step, 0x7C4F6; both start `push ebp / mov ebp,esp`), for the three products by xmm3 that were the tick's. 0x7E6E6: `lea eax,[ebx+2C704h] / movss xmm0,[eax+4] / jmp 0x7E74C`; 0x7E720: the velocity's three updates through eax, then the dt load (`mov ecx,[ebp] / movss xmm3,[ecx+8] / minss xmm3,[eax]`) and `jmp 0x7E6F6`. 0x7E6F6..0x7E720 (the three products, with the up axis's three relocated addresses) are the original's. eax and ecx are written at 0x7E762 and 0x7E75C before any read. No base relocation under a site; no branch aims inside one.
+- **What changes:** a tick stepped in parts adds one tick of gravity in all; a whole tick's dt is the constant itself (`50 x 0.001f` as a float), and minss gives the constant back, so whole ticks are the original's bit for bit. A simulation change (`simulation_changes.tsv` `next` row).
+- **Checked:** `selftest_026g.py` check 72; `check_fall_gravity_026g.py` (Unicorn): step_down from its entry on a made-up controller (the sweep finds nothing), 40 whole ticks bit for bit the original's, ticks of 20 + 30, 5 x 10 and 7 + 43 ms one tick of gravity in all (the original: 2, 5 and 2), a dt over the tick one tick, the velocity's other parts and the saved registers kept.
+
+### 3.57 The baked camouflage and decal textures are kept, and baked or loaded once while asked for again (written 2026-10-25, README patch 70, the next release's revision; the rules: `baked-textures.md`) — PROVEN in the code and in the owner's log; the sites run with Unicorn; not run in a game
+
+The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 fps. The owner's running game's log (`Survarium_sheep.log`, 14:55..15:11): bursts of "camouflage/decal cook [ bake …, compress … ]" in matches (14:56:30, 15:00:14, 15:01:17, 15:01:29, 15:01:42, 15:04:12, 15:05:42, 15:06:54, 15:07:12, 15:07:26), 6 to 51 bakes each, 0.06 to 0.4 s of them back to back. Each is a new file in `streamed_textures`, its mtime the burst's second. That log has no "remove file" line.
+
+- **The folder is deleted at every start and exit** (PROVEN). `survarium::game::game` (0x1E9070) at 0x1E9351..0x1E9455 and `game::exit` (0x1EC730) at 0x1EC74D..0x1EC832 convert `user_data/streamed_textures` to its physical path and call 0x1E8DA0: SHFileOperationA (delay import 0xAEFE78) with wFunc 3 (FO_DELETE) and flags 414h (silent, no confirmation, no error UI). The baker's list lives only in memory (the static 0xA264E80, set up by 0x12CCE0: list 0xA2650B0 begin, end, capacity end 0xA2AE0BC, storage 0xA2650BC). So each game bakes every item it sees once. The log agrees: all 141 files are from this game (14:55 on), and the first bake's "GetDiskFreeSpaceExW error: 2" is the folder not being there yet (remove_unwanted_files 0x131F90, at 0x13207A).
+- **Within a game the list works** (PROVEN). "%s, new id = %u" (0x131E53) is check_loaded_baked_texture's (0x131B40) good load, with the age renewed: a cache hit. The second match (15:10:48) loaded ~200 textures from the folder and baked none.
+- **Duplicate bakes** (PROVEN). translate_query (0x12D1D0) looks the path up (0x131ED0) and bakes when there is no record. process_compression (0x12EC40) pushes the record (0x132640, at 0x12F3F2) only once its bake is done, so every query of the path before then bakes it too. The log: 15:06:54 baked 18 textures into 6 files, 15:00:14 12 into 6, the minute 15:01 51 into 21; the first match 115 into 62. A place has a player object for each of its three kits (section 3.34). #400 (revision 32, server only) gives a new account three kits wearing the same seven items: a newcomer's three objects bake the same textures three times.
+- **The type queries** (PROVEN, the diagnostics' signatures). on_baked_texture_loaded(queries_result&, camouflage_decal_texture_type_cook_parameters*, render_surface_instance*, query_result_for_cook*) and process_compression(…, render_surface_instance* (stack arg 5), …, decal_texture_type (arg 9), …) put the texture into the surface's slot of its type (surface+4×type: 0x12C6D0..0x12C760, 0x12F0E0..0x12F168). They give the query a resource of 108h bytes (0x12DE30 on the allocator [1F1D960h], 0xE4F90) through 0xF0080 (edx the query; the pointer, 0x21E76C8, 108h; `ret 0Ch`) and finish it: finish_query_impl 0xF0D00 (stdcall: query, result, 1, 0; `ret 10h`; results 1 error, 2 postponed, 3 success, 4 requery, 5 out of memory). The "cook of '' [class 107] failed" lines are fresnel queries of surfaces with no `t_fresnel` (0x12DA01).
+- **The patch** (`BAKE_CACHE_HOOKS`, `BAKE_CACHE_KEEP`; bake_cache_026g.asm and .c in the arena's bake_cache.code and .state):
+  - 0x1E9455 `call 0x1E8DA0` (CALLEE) → bake_cache_start. bc_open reads the folder's `srp_baked_textures.txt`. If it says "Skhid baked textures, revision N" for this exe's revision byte (0x380866), each `*.dds` that is a whole DDS ("DDS ", header 124, DXT1 or DXT5, the file 128 + its linear size) goes into the list as a record (path `user_data/streamed_textures/<file>`, CRC 0, its size, an age; the list's bytes grow by it), at most 512 files and 512 MB; the rest are deleted. Otherwise: the stock delete, then bc_stamp makes the folder and writes the stamp.
+  - 0x1EC832 (game::exit's delete): a 5-byte nop.
+  - 0x131C90 `cmp eax,[edi+114h]` (INLINE) → bake_cache_adopt: a record of CRC 0 takes the CRC loaded, then the compare.
+  - 0x12D4CD `call 0x131ED0` (CALLEE) → bake_cache_lookup: bc_lookup registers the first query of a path as its owner (with its surface and type). A later query of the same path and type, while the owner is listed, becomes a waiter: it takes a reference to its model instance (parameters+790h, count +0D0h) and leaves translate_query at 0x12D42D, unfinished, with no look-up and no bake. 0x12D42D is translate_query's own end after a refused query: the surfaces' list emptied, its own reference released, `ret 4`.
+  - 0x12F18F and 0x12DDB4 `call 0x420789` (CALLEE) → bake_cache_baked / bake_cache_loaded, once the texture is in the owner's slot. bc_take takes the owner out of the table if the texture is in its surface's slot of its type. Then, for each waiter: its slot gets the texture (count +4 up, the old texture released through 0x3BEE00); its query gets a resource as on_baked_texture_loaded makes one (0x12DD53..0x12DE0E's sequence) and is finished with 3; its reference is released (0xE0210 at zero). Then `lea eax,[ecx+8]` as 0x420789.
+  - 0xF0D00 (ENTRY) → bake_cache_finish: with owners listed, a finished query that is an owner is taken out. If it has waiters: the function, then each waiter's query made again (translate_query, its cook), then its reference released. Every other query: the function at once (`push ebp / mov ebp,esp / and esp,-8`, then 0xF0D06).
+  - The tables: 64 owners, 192 waiters, 16 per owner, behind a spin lock (no game call is made while it is held). An owner still listed 10 s after its look-up (GetTickCount, import 0x870090) is taken over, waiters and all, by the next query of its path: a guard for an owner that never ends (none is known).
+  - The CRC (the owner's live game, 16:37:47: a 0.4 s stall in a 9-texture bake burst, almost all in 0x42050's loop): 0x42050 (eax &the CRC, edx the bytes, [esp+4] the count; `ret 4`; 43 callers, among them process_compression at 0x12F340 over every baked DDS and the loaded resource's CRC 0x3C0F70 at 0x3C0FF0 over every file read) is a byte a step, `crc = T[(crc ^ b) & 0xFF] ^ (crc >> 8)`, T at 0x225FD68 made by 0x1C210 from 04C11DB7h reflected (EDB88320h); the callers do the start and the end. Its entry jumps to bake_cache_crc32 (ENTRY): the bytes to a dword one at a time, then eight a step through eight tables made once from EDB88320h (bc_crc_build), the rest one at a time; [eax] the new CRC, ecx it, edx past the bytes, the others kept, as the original. Unicorn: 24 buffers of 0 to 10 MB from starts 0 to 3 past a dword with random CRCs give the original's CRC and registers; 3.25 instructions a byte against 11. Not done: check_loaded could trust a record's CRC and skip the read's; it would lose the check against a file another game (the replay viewer) rewrote or a damaged one, for what is now a third of the cost.
+  - The stamp after a delete (bc_stamp): every `.dds` left is deleted one by one, and with one left (held open by another game) the folder is not stamped, so the next start deletes it again.
+  - Held textures: a load's texture shared (bake_cache_loaded, bc_take's check 2) is also held for the game: its count +4 one up, its path's record size counted, at most 256 textures and 256 MB, the least used let go (bc_release_texture: the count down, 0x3BEE00 at zero, as 0x12C6D0). bc_lookup answers a held path with the texture: bake_cache_lookup completes the query at once (the waiter's sequence) and leaves translate_query at 0x12D42D. Why: the owner's log (15:39:59 match) reads one player's `renesanse_heavy_com_tank_01_torso_s1{d,n,s}` from disk again at 15:40:43, 15:40:57 and 15:43:59, once per respawn: the player's model is built again, and the old instance's textures went with it.
+- **Nothing a match computes:** textures only. No `simulation_changes` row.
+- **Builds:** without a server sha256 `d1c5510502230dda0e0362b30c588a81fe5c3928849d0687ef26cca292f97f94`, with `--server=skhid.link:1234` `f0538e3b2bf059e2248858f5a9e8dddcd5157c85a5ee1f495a558c5cc50dc7db` (the revision byte REVISION's, 33); the test build `--revision=34 --server=127.0.0.1:2234` `7144092fee48fdff7f3011693d284dbaaa769a156c8872d64b851a4241cfb03f`.
+- **Checked:** `selftest_026g.py` check 70 (the sites' instructions in the original; the hooks; no relocation under them; no branch into them; the link's code). `check_bake_cache_026g.py` (Unicorn 2.1.4) runs the sites from the game's code:
+  - game::game: a stamped folder of this revision is kept and goes into the list; a file cut short is deleted; past 512 files the rest are deleted. Another revision, no stamp, or no folder: deleted and stamped. The original deletes every time.
+  - The game's own check_loaded: a kept file's first load is used and takes the CRC; a second load of other bytes is erased.
+  - translate_query from 0x12D4C5: the original bakes for both queries of a path. In the build the second and third wait (out of translate_query by its own end, registers back); another path, another type and a 17th query go on.
+  - process_compression's and on_baked_texture_loaded's sites: the waiters' slots, references, resources and finishes.
+  - finish_query: an owner's error makes its waiters again; a texture not in the slot shares nothing and makes the waiters again at the owner's end; an owner past 10 s is taken over; any other query goes straight through.
+  **Not run:** a game. The checks use stubs for allocation, the resource, set_resource, the finish's body and Windows (a made-up folder).
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 
@@ -1492,3 +1922,371 @@ Please reinstall the application and try again" (string 0x9DEF00, pushed at
   Not known from the code alone: whether every small archive mounts as the
   retail one does (the mounter reads the 256 signature bytes after the
   file table, section 0.1).
+
+### 0.3 `.srpx`, the arena of the later patches (generic tooling, 2026-10-22; linked from source since 2026-10-23) — PROVEN bytes: the self-test's arena and link checks pass, check_research_026g.py's and check_artefacts_026g.py's output is main's, check_engine_026g.py passes; not run in a game
+
+The exe's section table has room for twelve entries: it begins at file 0x210
+and the headers end at 0x400, where the first section's bytes begin, so
+0x400 - 0x210 = 0x1F0 = 12 x 40 bytes. The game's seven sections and ours,
+`.srp`, `.srpd`, `.srpc` and `.srpw`, take eleven. The twelfth and last is
+`.srpx`, which Research (patch 53, #297) made first: code, initialized data
+and writable (0xE0000060), on the page after `.srpw`'s three pages
+(`ARENA_VA` = 0xA42D000). It is the arena every later patch's code, data
+and state goes in, so no patch needs a PE section of its own again (the
+table is full).
+
+**Each patch is plain C or NASM; the tooling links it.** A patch that wants
+room declares its blocks in `patch_026g.py`'s `ARENA`: an
+`ArenaBlock(name, kind, align, sources)` each (`kind` "code", "data" or
+"state"; `align` a power of two from 16, 0x1000 for a page of its own;
+`sources` its `.c` and `.asm` files). `link_026g.py` builds the arena from
+them at every build (the self-test's, the release's, every check script's):
+
+1. each source once to a relocatable ELF32 object: `nasm -f elf32` for
+   `.asm`, `gcc -m32 -c` with Research's flags (`-Os -ffreestanding
+   -fno-pic -fno-builtin -fno-stack-protector -msse2 -mfpmath=sse
+   -mincoming-stack-boundary=2 -fno-asynchronous-unwind-tables ...
+   -Werror`, Nix hardening off) for `.c`;
+2. a linker script made from `ARENA`: one output section per block, in
+   `ARENA`'s order, each at the next multiple of its alignment, holding of
+   each of its sources (in the order given) for a code block their `.text`
+   then their `.rodata`, for a data block their `.data`, for a state block
+   their `.bss` (zeros in the file, as every state was);
+3. GNU ld links all the objects together at `ARENA_VA`; each block's VA and
+   size are what the link gives it, and the file holds the whole arena (a
+   code block's gap to the next block int3, the rest zeros). Nothing is
+   reserved and no VA is written down: the exe is made whole for every
+   release and never rebased, and nothing outside it holds an arena
+   address.
+
+A patch reaches another's code by name: ordinary ELF symbols (the engine
+library's `engine_...`, 0.5; a C function the NASM part calls, `extern
+rn_register`). The game's functions and data stay absolute addresses in the
+sources. A hook site in the game takes its target from the link by symbol:
+`RESEARCH_HOOKS` and `ARTEFACTS_HOOKS` are (site, original bytes, symbol,
+opcode), and `arena_target` gives the symbol's VA (a global of a code block;
+else the build stops). `INSTALLED_VTABLES` names the block whose code holds
+each vtable, and `audit_vtables` reads every `*_vtable` symbol of the link,
+locals too (0.4).
+
+**Refused, loudly** (the build stops and says why): a missing tool (CC, LD,
+NASM or NASM_DIR name others than `cc`, `ld` and `nasm`); NASM other than
+2.16; a section with bytes no block of the source takes (a C file's `.data`
+in a code block only); a relocation other than R_386_32 and R_386_PC32 (GOT,
+PLT, 16- or 8-bit addresses: the code is not position-independent and the
+exe is never rebased); a symbol no source defines or one defined twice (ld);
+a block with nothing in it; an arena past `ARENA_LIMIT` (0x100000, a
+deliberate cap against a runaway state array).
+
+**NASM 2.16, not 3.** NASM 3.01 (nixpkgs' now) assembles `jmp near label`
+to a label as a two-byte short jump (`EB`): the five-byte entry tables of
+`research_026g.asm` and `artefacts_026g.asm` shrink and every entry after
+the first moves. `link_026g.py` refuses any NASM but 2.16;
+`nix develop ./srp-026g` has NASM 2.16.03 (built from its release tarball,
+`flake.nix`), Python 3, the shell's gcc 15.2.0 and GNU ld 2.46; the lock was
+written there. That gcc 15.2.0 also rebuilds main's last prebuilt Research
+`.bin` byte for byte (its `.json` named gcc 15.3.0, which gives the same
+bytes). `release/build-zip` runs `make_client_026g.py` and `patch_026g.py`
+in that shell (`client_patches_python`, release/lib.sh), and
+`release/test.sh` runs the same invocation for real with nothing but nix on
+PATH.
+
+**The lock, `arena_026g.lock.json`.** No prebuilt arena code is checked in;
+the lock is: the linked arena's VA, size and SHA-256, every block's kind, VA
+and size, every global symbol's VA (the map), and the tools that wrote it.
+`python link_026g.py --write` writes it after a change of an arena source
+(its diff in the PR shows what moved); `--check` compares. `arena()`, which
+`build()` and every check script call, links and compares the bytes, blocks
+and symbols with the lock, and stops when they differ: an unexpected change
+(another compiler or NASM, a source edited without `--write`) cannot ship.
+The self-test's made-up arenas are not compared (`build(...,
+arena_blocks=...)`).
+
+```
+section table (0x210..0x400): 12 slots
+  .text .rdata .data STLPORT_ .tls .rsrc .reloc   (the game's 7)
+  .srp .srpd .srpc .srpw                           (ours, 8..11)
+  .srpx                                            (the arena, 12)
+
+.srpx  (VA 0xA42D000), as the link places ARENA today (the lock has it):
+  research.code   code   0x1000   research_026g.asm (0x100), research_rule_026g.c,
+                                  research_native_026g.c                -> 0xA42D000, 0x2BF0
+  research.state  state  0x1000   rn_state (research_native_026g.c)      -> 0xA430000, 0x38
+  artefacts.code  code   0x1000   artefacts_026g.asm                     -> 0xA431000, 0x310
+  engine.code     code   0x1000   engine_026g.asm (0.5)                  -> 0xA432000, 0x4A2
+  match_keys.code code   0x1000   match_keys_026g.asm (patch 58)         -> 0xA433000, 0x108
+  match_keys.state state 0x1000   its option's variable                  -> 0xA434000, 0x4A
+  (a new block: wherever its row goes; the link places it and every block after it)
+```
+
+**What changed with the link (2026-10-23).** Before it each block's bytes
+were built for a VA written down by hand (`ARENA_PINNED`; NASM with
+`-DCAVE`, Research's C linked by its own script at a fixed address with its
+`.bin` and `.json` checked in, the engine library's entries at
+`ENGINE_PINNED` VAs that Research's `.bin` called directly), so two PRs adding
+a block collided and the second had to move and rebuild by hand. Now:
+`ARENA_PINNED`, `check_arena`, `arena_layout`, `ARENA_SYMBOLS`,
+`research_026g.py` and the checked-in `research_026g.section.bin` / `.json`,
+`artefacts_026g.section.bin` and `engine_026g.section.bin` are gone;
+Research's state is `rn_state` (its `.bss`) instead of `-DRN_STATE_VA`;
+the asm entries are global symbols (the tables stay, so Research's and the
+artefacts' bytes and their checks' output are unchanged); the reserved
+`anomalies.code` page is dropped, so the library moved from 0xA433000 to
+0xA432000. Research's C differs in one place: gcc unrolls a three-step copy
+into the state that it looped over a constant address before (`rn_hud`);
+check_research_026g.py prints exactly what it printed on main.
+
+**Adding a block (a PR).** One `ARENA` row and its source file(s):
+
+1. write the code as plain NASM (`bits 32`, `section .text`, `global` the
+   labels a hook or another patch uses, `extern` what it uses of others,
+   `%include "engine_026g.inc"` for the library) or C (`#include
+   "engine_026g.h"`; state as ordinary zeroed globals);
+2. add `ArenaBlock("<patch>.code", "code", <align>, ("<file>.asm",))` (and a
+   `"<patch>.state"` block naming the same sources if it keeps state);
+3. hook the game with rows of (site, original bytes, symbol, opcode), made in
+   `build()` with `arena_target` as Research's and the artefacts' are; declare
+   each in `INSTALLS` (and any vtable or callback in `INSTALLED_VTABLES` /
+   `CALLBACKS`, 0.4), or `build()` refuses it;
+4. `python link_026g.py --write`, commit the lock with the sources.
+
+Two PRs adding blocks no longer collide on addresses; they meet only in the
+lock (whichever merges second runs `--write` again on top of the first).
+
+**The dynamic anomalies (#225), taken out again (2026-10-23).** #225's
+block `anomalies.code` (`dynamic_anomalies_026g.asm`, 0x337 bytes, after
+`engine.code`) was the first block added this way. The owner took patch 42
+out of revision 31 (`dynamic_anomalies.md`): its row, its two hooks and
+INSTALLS rows and check 42 are gone, and `link_026g.py --write` moved
+`match_keys.code` and `match_keys.state` down one page (0xA434000 and
+0xA435000 before); no other block moved. The code stays on the branch
+`feat/dynamic-anomalies`.
+
+**The older fixed sections, later.** `.srp` (the upload code and the small
+caves at fixed offsets: `SPOT_OFFSET`, `KIT_CHANGE_OFFSET`, ...), `.srpd`
+(their state, at fixed offsets of one page), `.srpc` and `.srpw` (each
+`.bin` assembled with `-DCAVE`/`-DSTATE`/`-DPREVIEW`/... naming other
+patches' VAs) are out of this change. Moving one onto the link: its `.asm`
+made relocatable (no `org`, `-D` addresses of other patches replaced by
+`extern` symbols, its state a `.bss` in a state block), one `ARENA` row, its
+hooks as symbol rows, its `*_bin()` / `*_OFFSET` / `*_VA` constants and the
+self-test's "is current" and `-DCAVE` checks replaced by the link's symbols,
+and its check script reading VAs from `arena()`. The late join's C
+(`late_join_026g.py`, its checked-in `.bin`) would become sources of a block
+the same way Research's did. Each move changes the exe's layout (the
+sections shrink or go), so one patch at a time, each with its own Unicorn
+check run before and after.
+
+### 0.4 Call shapes: every installed function has a model (generic tooling, 2026-10-22) — PROVEN bytes, the self-test's shape checks pass
+
+A function the game calls through a pointer our code hands it (a vtable slot,
+a delegate, a callback) must pop off the stack exactly what the game's own
+function in its place pops (its `ret imm16`), or the game's caller is left
+with the stack off by the difference. Research's rule slot 16
+(`rn_deserialize`) popped 4 bytes where the game's rules end `ret 8`, from a
+wrong hand-written note, and the game died at the first sync (#297; fixed
+there, and check 53 compared Research's own vtables with tdm's). This makes
+that comparison the rule for every patch.
+
+Every function a patch installs declares, in `patch_026g.py`, the game's own
+function it stands in for (its **model**) or an explicit ABI:
+
+- `INSTALLS` names each site where the game calls or enters our code, by the
+  shape the site had in the original: **SLOT** (a pointer the game calls
+  through: the model is the function the original's pointer named), **ENTRY**
+  (a function's first bytes jump to ours, or its body is ours in place: the
+  model is that function), **CALLEE** (`[push ...] call F` calls ours: the
+  model is F), **INLINE** (a call of ours where the site was other
+  instructions), **ABI** (pops what the declaration says, with the reason),
+  **JUMP** (a jump into ours from the middle of the game's code).
+- `CALLBACKS` names the functions our code hands the game at run time (no
+  write of `build()` shows them), with the instruction that hands each over
+  and its model.
+- `INSTALLED_VTABLES` names each vtable our code builds and installs (a
+  rule's, a cook's): the `.section.json` symbol of its locator, the model
+  vtable (the game's own in the same role) and how many slots are ours.
+  Today: Research's rule (tdm_rule_core, 0xA15DA4, 9 of 20 slots ours), its
+  cook (tdm_rule_cook, 0x9FD8AC, 2 of 11) and its rule's link resolver (the
+  game's own function only).
+
+Each slot of ours and each callback also names a case of its patch's Unicorn
+check that reaches it **through the game's own caller** (the last field of
+`INSTALLED_VTABLES`' rows and `CALLBACKS`'): the `ret` comparison cannot see
+the order of the arguments, and Research's slot 7 took `(type, time, data)`
+where the game's dispatcher 0x2D1EA0 passes `(type, data, time)` (#297's
+review, §3.50). The self-test fails a slot of ours or a callback without such
+a case, or with a case its script does not have; a negative test shows both.
+Research's cases: slot 7 through the dispatcher 0x2D1EA0 (with the first
+build's order put back by a shim, the case fails), 8 and 9 through the
+world's entered/left loops (0x2D2010, 0x2D2130), 11 and 12 through the
+world's set-core and blackboard loops (0x2D3B40, 0x2D5906), 15 and 16 through
+game_world_core's serialize and deserialize loops (0x2D2661, 0x2D2B42), 17
+through the hud's loop (0x2D36D0), 18 through the completed loop (0x2D2730),
+the cook's 9 and 10 through translate's calls (0x2F42B8..0x2F42CF), the tick
+through the tick list's runner 0x2D1D20; the late join's query callback
+through the game's boost invoker 0x202300, weapon_camo's bake through
+0x127700.
+
+The checks:
+
+1. `build()` fails on any call (E8), jump (E9) or other 4 bytes naming our
+   code (a pointer, a `push imm32`, a `mov imm32`), at any offset of any write
+   into the game's sections (`installs_of`), that `INSTALLS` does not declare,
+   or whose kind does not fit the site (`audit_installs`); and on any
+   `*_vtable` symbol of the arena's link (`arena_symbols`, locals too) that
+   `INSTALLED_VTABLES` does not declare (`audit_vtables`). A new installed
+   function or vtable cannot ship undeclared.
+2. The self-test (`test_call_shapes`) reads what each of ours pops from the
+   built bytes, every `ret` reachable from its entry with its branches
+   followed (a body the compiler split, a tail jump into the game:
+   `function_pops`; an instruction cap reached is a failure, not a pass), and
+   the model's the same way from the original exe; where
+   `tools/re-kit/v026g/abi.tsv` has the model's row its `ret_cleanup` must say
+   the same. It fails on a mismatch for:
+   - every SLOT (model: the function the original's pointer named);
+   - every ENTRY (model: the function at the site; a body in place too);
+   - every CALLEE (model: the replaced call's target, less the bytes of the
+     pushes replaced with it: `kit_view` 4 - 4 = 0, `detach_first` 8 - 8 = 0);
+   - every ABI (its declared pops);
+   - every CALLBACK;
+   - every slot of ours of every INSTALLED_VTABLES vtable (check 53's
+     comparison, generalised).
+   Today that is 13 ENTRY (three of them the artefacts', patch 54), 18 CALLEE, 1 ABI and 1 SLOT site, 2 callbacks and
+   Research's 11 own vtable slots. Over the variants it builds it also flags
+   an `INSTALLS` row that none installs (a stale row).
+   `test_call_shapes_negative` builds a made-up rule vtable whose slot 16
+   pops 4 where tdm_rule_core's pops 8 and checks it is rejected (and the same
+   slot at 8 passes), and refuses an undeclared vtable, an undeclared install
+   and a `push imm32` of our code's address inside a write.
+
+On main the installed pointers are the replay camera's "is this place mine"
+slot (model `is_this_place_mine`, `ret 4`), the callbacks `query_completed`
+(model `on_match_ready`, `ret 4`) and `bake_done` (model `on_bake_finished`,
+`ret 0`), and Research's three vtables above (its rule slot 16 now `ret 8`).
+
+**Not covered.** INLINE sites (a call of ours over instructions that were not
+a call) and JUMP sites (a jump into ours from the middle of the game's code)
+are declared but not `ret`-checked: their stack balance at the return point
+stays covered by each patch's own Unicorn check and by the relocation and
+no-branch-into-a-hook checks. Nor are the in-place rewrites of the game's code
+(STAGE_FOCUS, the scoreboard's loop), which install nothing. Not yet either:
+that every slot of ours is reached through the game's own call site with its
+arguments in their order (the Research follow-up).
+
+### 0.5 The engine-function library: calling the game's functions (generic tooling, 2026-10-23; by symbol since the arena's link, 0.3) — PROVEN bytes and thunks: check_engine_026g.py passes on every function and rejects the wrong rows; Research's checks pass on the migrated code; not run in a game
+
+The game's compiler (LTO) moved arguments of many functions into arbitrary
+registers (the config's child 0xF6B10: EAX, EDI; its has 0xF6C00: EAX, ESI;
+the pool lookup 0x2E58B0: EAX, ECX), mixed registers and stack
+(increase_health 0x32A420: ESI and two slots; the field writers 0x1F3DE0,
+0x2F5DA0, 0x1F48A0: EAX and five slots), and made either side clean up
+(0x1F3DE0 pops 20, the decal decoder 0x263D00 nothing). Each patch wrote its
+own inline-asm stub per call, and Research crashed twice from exactly that
+(a wrong argument count, a wrong order). The library makes each such
+function an ordinary cdecl one; a patch calls that and never sees the ABI.
+
+**Where the ABI comes from.** `tools/re-kit/v026g/abi_inputs.tsv` (each
+argument's register or stack slot) and `abi.tsv` (the cleanup, the result),
+every row of the VA together. `engine_026g.tsv` (in `client-patches/`)
+lists the library's functions, one row each, in any order (each is a global
+symbol the link resolves for every caller): the C name, the VA, where each C
+parameter goes with a word of the re-kit's role there (`EAX:table
+EDI:key`), the C prototype. (Until the arena was linked, 0.3, each function
+was a `jmp near` entry at a VA pinned in `ENGINE_PINNED`, rows out of that
+order refused, because Research's prebuilt `.bin` called the entries by
+address. With calls by symbol a row's place moves nothing that is not
+linked again, so the entries, the pin and the order check are gone.) `engine_026g.py` refuses a row
+whose locations are not exactly the re-kit's for the VA, a parameter whose
+word is not in a role of its location (and no two parameters may have words
+that fit each other's locations, so a swap is always refused), stack slots
+with a gap, a cleanup that is no number or not one value of at most the
+slots' bytes, or a C return type that does not fit the rows' result (EAX; AL,
+widened; EDX:EAX for 64 bits; XMM0, moved to ST0 for a float). An XMM or
+x87 argument, varargs (log_message 0x111ED0, buffer_string::appendf
+0xE45B0) and tail jumps stay hand-written.
+
+**What it generates.** `engine_026g.asm`, the arena's block `engine.code`: a
+thunk per function, each the global symbol of its C name:
+
+```
+engine_x:   push ebp / ebx / esi / edi      ; cdecl's callee-saved: kept
+            push dword [esp+..]             ; the stack slots, highest first
+            mov  <reg>, [esp+..]            ; the register arguments
+            call <the real VA>
+            add  esp, <slots - cleanup>     ; what the real one leaves
+            [movzx eax,al | fld the XMM0 float]
+            pop  edi / esi / ebx / ebp
+            ret                             ; cdecl: the caller pops its own
+```
+
+`engine_026g.h` declares each function in C (gcc emits `call rel32` with a
+relocation the link fills); `engine_026g.inc` gives NASM an `extern` for
+each. The comments name the real function and its shape.
+
+**Why one block, not a copy in each patch.** The thunks are code shared by
+every patch, so they are one arena block, `engine.code` (0xA432000 as the
+link places it today), built once and checked once: the self-test runs the
+ABI check on exactly the bytes every patch calls (the block as linked), and
+a C patch only includes the header, an asm patch only `%include`s the
+externs. A copy in each patch's own block would need the same thunks
+checked per patch.
+
+**The check** (`check_engine_026g.py`; the self-test's `test_engine`, which
+fails without Unicorn): the original exe's sections and the library's bytes
+in Unicorn. Per function:
+- the exe's `ret`s (selftest's `function_pops`, the call-shape check's
+  reader, 0.4) pop what abi.tsv says;
+- the thunk, called as C calls it with a distinct marker per argument,
+  reaches the real VA once, with each marker in the register or slot the rows
+  give it and its return address in the library; there the return is played
+  with the exe's own cleanup, EBX ESI EDI EBP clobbered and result markers in
+  EAX, EDX and XMM0; back at the caller esp is the call's + 4, the four
+  registers are the caller's and the result is where C takes it;
+- the functions that run on made-up data run for real: the config's child
+  and has on a mode config, the three field writers on a writer (the value's
+  bytes appended), the statistics' listener (its invoker gets the functor,
+  place, event and amount), the pool lookup on two pools, the allocation's
+  name. A row with two arguments swapped makes a thunk the entry check agrees
+  with but the real function does not.
+Negative cases, each of which must be rejected: spec rows with two
+parameters in each other's places (the config child's table and key,
+malloc's allocator and size, the rule base's rule and type, the message's
+second and third parameters, Invoke's name and result, free's allocator and
+memory, profile assign's destination and source: the generator refuses
+each), a cleanup "0x10"; libraries made from wrong re-kit rows
+(0xF6B10's table and key registers exchanged, the spec following them: the
+real lookup finds nothing; w<unsigned char> popping 16: the exe pops 20;
+value_exists' key in EDI: the real one reads ESI); and the built library
+checked against rows with malloc's allocator and size exchanged. The
+self-test also fails when the three files are not what the rows give
+(`--write` not run), and runs the same check on the library linked at
+another VA (the arena with two blocks swapped, 0.3).
+
+What is caught and what is not. Caught by the self-test: a spec parameter in
+another's place (the generator), a wrong cleanup in
+abi.tsv (the exe's `ret`s), a thunk that does not follow its rows (the entry
+check), and a wrong re-kit location for the functions run for real (the
+config's child and has, the three writers, the statistics' listener, the
+pool lookup, the allocation's name). Not caught by it: a re-kit row whose
+location is itself wrong, role and all, for any other function: the thunk
+and the check both follow the row. For Research's other functions (malloc,
+the rule base's constructor, show_parametrized_message, Invoke,
+register_cook) check_research_026g.py runs the real ones or reads their
+arguments where the game does; for the asm patches' functions, their own
+Unicorn checks, once they call the library.
+
+**The first users.** The library has 33 functions: the 11 Research calls
+and the 22 the artefacts, weapon camouflage, weapon decals and upgrade
+preview patches call directly (weapon_table calls none: its one game
+transfer is the tail jump to set_target 0x2845C0, XMM arguments). Research's
+C calls the library for all 11 (its inline-asm stubs and thiscall casts are
+gone); its built code changed, its behaviour did not: check_research_026g.py
+passes every case as before (the hooks, the cook and rule through the game's
+own register_cook, constructor, config look-ups and field writers, the
+slots driven through the game's own callers, the invoke and the messages
+with their arguments where the game reads them). The rows this needed were
+appended: show_parametrized_message 0x2375C0's three message parameters,
+malloc_impl 0xE4F90's result, and the pool lookup 0x2E58B0, the artefact
+effect 0x313350, the allocation's name 0x420789 and query_resources 0xE5B60
+in full. The asm patches still call by hand; moving them is a follow-up
+(README, the library's section).

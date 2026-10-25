@@ -9,18 +9,22 @@ package survarium.rooms
     import flash.geom.Point;
     import flash.text.TextField;
     import flash.utils.getTimer;
+    import survarium.player.LocalPlayerProfile;
     import survarium.controls.PlayerInfo;
     import survarium.constants.GameMode;
     import survarium.constants.RoomCode;
 
     // Making a room: size, players to start, max level, wait, PIN, the
-    // modes, then the pool's tiles (a map and weather each). It starts as
+    // modes, then the pool's tiles (a map and weather each). It opens as
     // the player's last room made by hand, which the server keeps (`S1;F`,
-    // the owner's of 2026-10-20).
+    // the owner's of 2026-10-20) and the window has had since the lobby
+    // came up (RoomsWindow._form; the owner's of 2026-10-25: opened filled,
+    // nothing applied after it is drawn); the defaults until then.
     public class RoomsCreate
     {
         private static const FORM_W:Number = 420;
-        private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.TEAM_DEATHMATCH];
+        private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.TEAM_DEATHMATCH,
+            GameMode.RESEARCH];
         // A slider after the design: the label and the gold value on one
         // line, a thin track gold up to a round gold knob, its range small
         // under it, a line between one slider and the next. Dragged or clicked; while dragged only the
@@ -31,24 +35,29 @@ package survarium.rooms
         private static const SLIDER_H:Number = 64;
         // The wait index sent when the wait is none of WAITS: 30 s.
         private static const WAIT_INDEX_DEFAULT:int = 3;
+        // The window's defaults, the server's (room_settings::DEFAULT_*; a
+        // Rust test keeps them the same): 8 v 8, from 1 v 1, any max level,
+        // 30 s; every mode, the pool without the experimental maps.
+        public static const DEFAULT_SIZE:int = 8;
+        public static const DEFAULT_MIN_SIDE:int = 1;
+        public static const DEFAULT_WAIT:int = 30;
 
         private var win:RoomsWindow;
         private var look:RoomsLook;
-        private var _size:int = 8;
+        private var _size:int = DEFAULT_SIZE;
         // The players a side the room needs before its vote: 1 v 1 to 3 v 3.
-        private var _minSide:int = 1;
+        private var _minSide:int = DEFAULT_MIN_SIDE;
         private var _max:int = RoomsWire.LEVEL_ANY;
-        private var _wait:int = 30;
+        private var _wait:int = DEFAULT_WAIT;
         // The pool's tiles out (by "level_weather") and the modes out.
         private var _off:Object = {};
         private var _modesOff:Object = {};
         internal var _sliders:Object = {};
         private var _drag:String = null;
-        // The create window as the server says it starts (`_saved`, the
-        // player's last room made by hand, fitted to the pool and its
-        // equipment now): the sliders, the modes, and a tile out unless an
-        // entry of it is in. A value out of a slider's range leaves it as it is.
-        internal var _saved:Object = null;
+        // What the create on its way makes (`kept`): the window's start
+        // once its room is made (`made`, Back pressed meanwhile too); none
+        // once it is refused or Play chosen instead (`notMade`).
+        private var _making:Object = null;
         internal var _makePin:TextField;
         // What was typed in it, kept across redraws (a tile clicked, a mode).
         internal var _makePinText:String = "";
@@ -62,18 +71,139 @@ package survarium.rooms
 
         internal function onNew(e:Event):void
         {
+            // The maintenance rule: no room made (the server's; presets.md).
+            if (!LocalPlayerProfile.mayCreate())
+                return;
+            win._openedByPlayAt = 0;
             win._view = "create";
             win._code = RoomCode.NONE;
             look._scrollPx = 0;
-            _max = RoomsWire.LEVEL_ANY;
             _makePinText = "";
             if (win._poolTotal < 0)
                 win.ask(RoomsWire.POOL, RoomsWire.POOL_ASK_ROWS);
-            // The settings of the player's last room made by hand (the
-            // defaults with none): the window starts with them. Not the PIN.
-            _saved = null;
-            win.ask(RoomsWire.SETTINGS, 1);
+            start(win._form);
             win.render();
+        }
+
+        // The window's start: the settings of the player's last room made
+        // by hand (`form`, RoomsWindow._form), or the defaults while the
+        // window has none. Not the PIN. A max level under the player's
+        // equipment now is raised to it, as the server's form does.
+        private function start(form:Object):void
+        {
+            if (form == null)
+            {
+                _size = DEFAULT_SIZE;
+                _minSide = DEFAULT_MIN_SIDE;
+                _max = RoomsWire.LEVEL_ANY;
+                _wait = DEFAULT_WAIT;
+                _modesOff = {};
+                defaultPool();
+                return;
+            }
+            _size = form.size;
+            _minSide = form.min;
+            _wait = form.wait;
+            _max = form.max;
+            if (_max != RoomsWire.LEVEL_ANY && _max < win._gear)
+                _max = Math.min(win._gear, RoomsWire.LEVEL_MAX);
+            _off = copy(form.off);
+            _modesOff = copy(form.modesOff);
+        }
+
+        private static function copy(set:Object):Object
+        {
+            var out:Object = {};
+            for (var key:String in set)
+                out[key] = set[key];
+            return out;
+        }
+
+        // `S1;F` as the window keeps it (RoomsWindow._form), read against
+        // the pool: the sliders (a value out of a slider's range: its
+        // default), the modes out, and a tile out unless an entry of it is
+        // in (`bits`: entry `index` by bit `index % 20` of chunk `index / 20`).
+        internal function formOf(head:Array, bits:Array):Object
+        {
+            var size:int = int(head[3]);
+            var min:int = int(head[4]);
+            var max:int = int(head[5]);
+            var wait:int = int(head[6]);
+            var modesOff:Object = {};
+            if (head.length > 7 && head[7] != "")
+            {
+                var modes:Array = String(head[7]).split(",");
+                for (var m:int = 0; m < modes.length; m++)
+                    modesOff[String(int(modes[m]))] = true;
+            }
+            var on:Object = {};
+            var i:int;
+            for (i = 0; i < win._pool.length; i++)
+            {
+                var p:Object = win._pool[i];
+                var chunk:uint = uint(bits[int(p.index / RoomsWire.BITS_PER_CHUNK)]);
+                if ((chunk & (1 << (p.index % RoomsWire.BITS_PER_CHUNK))) != 0)
+                    on[p.level + "_" + p.weather] = true;
+            }
+            var off:Object = {};
+            for (i = 0; i < win._pool.length; i++)
+            {
+                var key:String = win._pool[i].level + "_" + win._pool[i].weather;
+                if (on[key] != true)
+                    off[key] = true;
+            }
+            return {"size": stops("size").indexOf(size) >= 0 ? size : DEFAULT_SIZE,
+                "min": stops("min").indexOf(min) >= 0 ? min : DEFAULT_MIN_SIDE,
+                "max": max >= 0 && max <= RoomsWire.LEVEL_MAX ? max : RoomsWire.LEVEL_ANY,
+                "wait": stops("wait").indexOf(wait) >= 0 ? wait : DEFAULT_WAIT,
+                "modesOff": modesOff, "off": off};
+        }
+
+        // What the server keeps of the room being made (room_settings::
+        // of_room), as `formOf` reads it back: a tile in when an entry of it
+        // is in the pool made, a mode in when an entry of it is.
+        private function kept():Object
+        {
+            var tileIn:Object = {};
+            var modeIn:Object = {};
+            var i:int;
+            for (i = 0; i < win._pool.length; i++)
+            {
+                var p:Object = win._pool[i];
+                if (!chosen(p))
+                    continue;
+                tileIn[p.level + "_" + p.weather] = true;
+                modeIn[String(p.mode)] = true;
+            }
+            var off:Object = {};
+            var modesOff:Object = {};
+            for (i = 0; i < win._pool.length; i++)
+            {
+                var e:Object = win._pool[i];
+                var key:String = e.level + "_" + e.weather;
+                if (tileIn[key] != true)
+                    off[key] = true;
+                if (modeIn[String(e.mode)] != true)
+                    modesOff[String(e.mode)] = true;
+            }
+            return {"size": _size, "min": _minSide, "max": _max, "wait": _wait, "modesOff": modesOff, "off": off};
+        }
+
+        // RoomsWindow: a room new to us, ours, came while a create was on
+        // its way. The server keeps the settings it was made with (room_remember):
+        // the window's next start, kept with them.
+        internal function made():void
+        {
+            if (_making != null)
+                win._form = _making;
+            _making = null;
+        }
+
+        // RoomsWindow: the create was refused (a code), or Play chosen
+        // instead: nothing was kept.
+        internal function notMade():void
+        {
+            _making = null;
         }
 
         private function onBack(e:Event):void
@@ -102,8 +232,9 @@ package survarium.rooms
             y += SLIDER_H;
             slider(y, win.say("wait"), "wait");
             y += SLIDER_H + 12;
-            // The modes: the two kinds of protective device apart, and team
-            // deathmatch; a mode out takes all its entries out of the pool.
+            // The modes: the two kinds of protective device apart, team
+            // deathmatch and Research; a mode out takes all its entries out of
+            // the pool. Rows of 24 px: four fit where three of 30 did.
             look.text(look._content, win.say("modes").toUpperCase(), 14, y, 260, 12, RoomsLook.DIM);
             y += 22;
             for (var mi:int = 0; mi < MODE_ORDER.length; mi++)
@@ -114,7 +245,7 @@ package survarium.rooms
                 toggle.y = y - 14;
                 var area:Shape = new Shape();
                 area.graphics.beginFill(0x000000, 0.01);
-                area.graphics.drawRect(0, 10, FORM_W - 28, 26);
+                area.graphics.drawRect(0, 10, FORM_W - 28, 22);
                 area.graphics.endFill();
                 toggle.addChild(area);
                 toggle.addChild(look.box(_modesOff[String(mode)] != true));
@@ -128,7 +259,7 @@ package survarium.rooms
                     flipMode(control.name);
                 });
                 look._content.addChild(toggle);
-                y += 30;
+                y += 24;
             }
             win.message(look._h - RoomsLook.FOOT_H - 30);
             var made:Array = look.footer([[win.say("back"), onBack, null], [win.say("create"), onCreate, null]]);
@@ -461,40 +592,7 @@ package survarium.rooms
             return tiles;
         }
 
-        internal function applySaved():void
-        {
-            var s:Object = _saved;
-            _saved = null;
-            if (stops("size").indexOf(s.size) >= 0)
-                _size = s.size;
-            if (stops("min").indexOf(s.min) >= 0)
-                _minSide = s.min;
-            if (stops("wait").indexOf(s.wait) >= 0)
-                _wait = s.wait;
-            if (s.max >= 0 && s.max <= RoomsWire.LEVEL_MAX)
-                _max = s.max;
-            _modesOff = {};
-            for (var m:int = 0; m < s.modesOff.length; m++)
-                _modesOff[String(s.modesOff[m])] = true;
-            var on:Object = {};
-            var i:int;
-            for (i = 0; i < win._pool.length; i++)
-            {
-                var p:Object = win._pool[i];
-                var chunk:uint = uint(s.bits[int(p.index / RoomsWire.BITS_PER_CHUNK)]);
-                if ((chunk & (1 << (p.index % RoomsWire.BITS_PER_CHUNK))) != 0)
-                    on[p.level + "_" + p.weather] = true;
-            }
-            _off = {};
-            for (i = 0; i < win._pool.length; i++)
-            {
-                var key:String = win._pool[i].level + "_" + win._pool[i].weather;
-                if (on[key] != true)
-                    _off[key] = true;
-            }
-        }
-
-        // A new creator starts with the server's pool, the experimental maps out.
+        // The default pool: the server's, the experimental maps out.
         internal function defaultPool():void
         {
             _off = {};
@@ -507,12 +605,16 @@ package survarium.rooms
         private function poolChosen():Boolean
         {
             for (var i:int = 0; i < win._pool.length; i++)
-            {
-                var p:Object = win._pool[i];
-                if (_off[p.level + "_" + p.weather] != true && _modesOff[String(p.mode)] != true && p.index < RoomsWire.POOL_BITS)
+                if (chosen(win._pool[i]))
                     return true;
-            }
             return false;
+        }
+
+        // Whether a pool entry is in the room made: its tile and its mode
+        // in, and a bit a create can name it by.
+        private function chosen(p:Object):Boolean
+        {
+            return _off[p.level + "_" + p.weather] != true && _modesOff[String(p.mode)] != true && p.index < RoomsWire.POOL_BITS;
         }
 
         private function onAll(e:Event):void
@@ -552,7 +654,7 @@ package survarium.rooms
             for (var i:int = 0; i < win._pool.length; i++)
             {
                 var p:Object = win._pool[i];
-                if (_off[p.level + "_" + p.weather] == true || _modesOff[String(p.mode)] == true || p.index >= RoomsWire.POOL_BITS)
+                if (!chosen(p))
                     continue;
                 chunks[int(p.index / RoomsWire.BITS_PER_CHUNK)] |= 1 << (p.index % RoomsWire.BITS_PER_CHUNK);
                 any = true;
@@ -576,6 +678,7 @@ package survarium.rooms
                 win.render();
                 return;
             }
+            _making = kept();
             win._fastUntil = getTimer() + 5000;
             win.next();
         }

@@ -155,7 +155,16 @@ fn a_sign_in_brings_the_craft_tables() {
     });
     let (chances, general, premium) = tables.expect("0x9B at sign-in");
     let craft = &Modifications::shared().craft;
-    assert_eq!((chances, general, premium), craft.tables());
+    let (data, data_general, data_premium) = craft.tables();
+    assert_eq!((general, premium), (data_general, data_premium));
+    // The successes are the data's; every failure ("-1 mod.") is 0: an
+    // upgrade never takes a modification away (the owner's rule of
+    // 2026-10-23), so the window shows no such chance.
+    for (index, (&sent, &data)) in chances.iter().zip(&data).enumerate() {
+        let failure = index % 2 == 1;
+        assert_eq!(sent, if failure { 0.0 } else { data }, "{index}");
+    }
+    assert!(data.iter().skip(1).step_by(2).any(|&chance| chance > 0.0));
     world.assert_clean();
 }
 
@@ -629,8 +638,8 @@ fn a_modification_is_rerolled_and_chosen() {
         panic!("{:?}", decoded[0]);
     };
     assert_eq!(item_id, rifle);
-    // Six hours, less the moment the answer took.
-    assert!((6 * 3600 - 5..=6 * 3600).contains(&reroll_time));
+    // No wait before the next silver reroll (the owner's rule of 2026-10-22).
+    assert_eq!(reroll_time, 0);
     assert_eq!(
         decoded[1],
         Decoded::Money {
@@ -683,9 +692,10 @@ fn a_modification_is_rerolled_and_chosen() {
         (item_id, old_modification, new_modification),
         (rifle, 2000, choices[2])
     );
-    // The next change costs a tenth more.
-    assert_eq!(rest[..2], [2640, 13]);
-    assert!(rest[2] > 6 * 3600 - 60);
+    // The next change costs the same (the owner's rule of 2026-10-25).
+    assert_eq!(rest[..2], [2400, 12]);
+    // No wait (the owner's rule of 2026-10-22).
+    assert_eq!(rest[2], 0);
     assert_eq!(decoded.len(), 1);
     // The client changed its copy itself, as the account was.
     assert_same_items(&mut world, alice);
@@ -694,29 +704,14 @@ fn a_modification_is_rerolled_and_chosen() {
         [choices[2], 2010]
     );
 
-    // Silver again within the six hours: refused, the window refilled.
+    // Silver again at once: no wait (the owner's rule of 2026-10-22).
     world.ask(alice, ask::reroll(rifle, choices[2], false));
-    let decoded = world.take(alice);
-    assert_eq!(
-        denial(&decoded, 0x46).as_deref(),
-        Some("st_cannot_select_rerolled_modification")
-    );
-    assert!(matches!(
-        decoded.last(),
-        Some(Decoded::Permitted(Permitted::RerollWindow {
-            a: 2640,
-            b: 13,
-            ..
-        }))
-    ));
-    // Gold pays at any time.
-    world.ask(alice, ask::reroll(rifle, choices[2], true));
     let decoded = world.take(alice);
     assert!(matches!(
         decoded[0],
-        Decoded::Permitted(Permitted::RerollResult { .. })
+        Decoded::Permitted(Permitted::RerollResult { reroll_time: 0, .. })
     ));
-    assert_eq!(world.account(alice).premium_money, 1000 - 13);
+    assert_eq!(world.account(alice).generic_money, 100_000 - 2 * 2400);
     // An item that is none.
     world.ask(alice, ask::open_reroll(999));
     assert_eq!(
@@ -726,7 +721,7 @@ fn a_modification_is_rerolled_and_chosen() {
     world.assert_clean();
 }
 
-/// `docs/notes/reroll-keep-old.md`: the window's "keep old", after the
+/// `docs/notes/reroll-keep-old.md`: the window's Cancel (keep old), after the
 /// game was started again.
 #[test]
 fn a_rerolled_modification_may_be_kept() {
@@ -770,8 +765,8 @@ fn a_rerolled_modification_may_be_kept() {
         (item_id, old_modification, new_modification),
         (rifle, 2000, 2000)
     );
-    // The change was made and paid: the next costs more.
-    assert_eq!(rest[..2], [2640, 13]);
+    // The change was made and paid: the next costs the same.
+    assert_eq!(rest[..2], [2400, 12]);
     assert_eq!(decoded.len(), 1);
     assert_same_items(&mut world, again);
     {
@@ -796,6 +791,123 @@ fn a_rerolled_modification_may_be_kept() {
             ..
         }))
     ));
+    world.assert_clean();
+}
+
+/// The owner's rule of 2026-10-22 (`docs/notes/reroll-keep-old.md`): after
+/// one modification was changed, another is changed too, at the next price;
+/// while an offer waits, asking for another shows that offer again, free.
+#[test]
+fn another_modification_is_rerolled_after_the_first() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    world.change(alice, |account| account.generic_money = 100_000);
+    let premium = world.account(alice).premium_money;
+    let rifle = give(&mut world, alice, "ak_74m", &[2000, 2010]);
+
+    // 2000: offered and paid.
+    world.ask(alice, ask::reroll(rifle, 2000, false));
+    let decoded = world.take(alice);
+    let Decoded::Permitted(Permitted::RerollResult { choices: first, .. }) = decoded[0] else {
+        panic!("{:?}", decoded[0]);
+    };
+    assert_eq!(world.account(alice).generic_money, 100_000 - 2400);
+
+    // 2010 asked for while 2000's offer waits: 2000's three again, nothing
+    // charged.
+    world.ask(alice, ask::reroll(rifle, 2010, false));
+    let decoded = world.take(alice);
+    assert_eq!(denial(&decoded, 0x46), None);
+    assert!(matches!(
+        decoded[0],
+        Decoded::Permitted(Permitted::RerollResult { item_id, choices, .. })
+            if item_id == rifle && choices == first
+    ));
+    assert_eq!(
+        decoded[1],
+        Decoded::Money {
+            generic: 100_000 - 2400,
+            premium
+        }
+    );
+    assert_eq!(world.account(alice).item(rifle).unwrap().reroll.count, 1);
+
+    world.ask(alice, ask::choose(rifle, 2000, 0));
+    let decoded = world.take(alice);
+    assert!(matches!(
+        decoded[0],
+        Decoded::Permitted(Permitted::ModifierChosen { new_modification, .. })
+            if new_modification == first[0]
+    ));
+
+    // 2010 now: not refused, at the same price.
+    world.ask(alice, ask::reroll(rifle, 2010, false));
+    let decoded = world.take(alice);
+    assert_eq!(denial(&decoded, 0x46), None);
+    let Decoded::Permitted(Permitted::RerollResult {
+        item_id,
+        choices: second,
+        ..
+    }) = decoded[0]
+    else {
+        panic!("{:?}", decoded[0]);
+    };
+    assert_eq!(item_id, rifle);
+    assert_eq!(
+        decoded[1],
+        Decoded::Money {
+            generic: 100_000 - 2 * 2400,
+            premium
+        }
+    );
+    assert_eq!(world.account(alice).generic_money, 100_000 - 2 * 2400);
+
+    // The window: 2010 is the one changed last, the next change costs
+    // the same, the offer waiting.
+    world.ask(alice, ask::open_reroll(rifle));
+    let decoded = world.take(alice);
+    assert_eq!(
+        decoded[0],
+        Decoded::Permitted(Permitted::RerollWindow {
+            item_id: rifle,
+            a: 2400,
+            b: 12,
+            more: Some((2010, 0))
+        })
+    );
+    assert!(matches!(
+        decoded[1],
+        Decoded::Permitted(Permitted::RerollResult { choices, .. }) if choices == second
+    ));
+
+    world.ask(alice, ask::choose(rifle, 2010, 1));
+    let decoded = world.take(alice);
+    let Decoded::Permitted(Permitted::ModifierChosen {
+        old_modification,
+        new_modification,
+        rest,
+        ..
+    }) = decoded[0]
+    else {
+        panic!("{:?}", decoded[0]);
+    };
+    assert_eq!((old_modification, new_modification), (2010, second[1]));
+    assert_eq!(rest, [2400, 12, 0]);
+    assert_same_items(&mut world, alice);
+    assert_eq!(
+        items_rules::own_modifications(world.account(alice).item(rifle).unwrap()),
+        [first[0], second[1]]
+    );
+    world.ask(alice, ask::open_reroll(rifle));
+    assert_eq!(
+        world.take(alice),
+        [Decoded::Permitted(Permitted::RerollWindow {
+            item_id: rifle,
+            a: 2400,
+            b: 12,
+            more: Some((second[1], 0))
+        })]
+    );
     world.assert_clean();
 }
 

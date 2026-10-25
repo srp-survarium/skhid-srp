@@ -878,6 +878,7 @@ va	status	ref_021d	name
 0x001feed0	reviewed	0x0015da18	survarium::text_translator::load_text_localization
 0x001ff0f0	reviewed	0x0015dac0	survarium::text_translator::translate_text
 0x001ff240	reviewed	0x0015dbbd	survarium::text_translator::on_texts_ready
+0x00206670	observed		survarium::timelimit_rule_cook::create_resource
 0x002079d0	reviewed	0x00155919	survarium::key_binder::id_to_action_name
 0x00207ad0	reviewed	0x001559ce	survarium::key_binder::action_name_to_ptr
 0x00207c30	reviewed	0x00155ae0	survarium::key_binder::keyname_to_ptr
@@ -969,6 +970,7 @@ va	status	ref_021d	name
 0x00258480	reviewed	0x0019163b	survarium::rifle_scope_cook::translate_query
 0x00258580	reviewed	0x00191705	survarium::rifle_scope_cook::on_config_loaded
 0x00260e90	reviewed	0x0019685a	survarium::options_item_base::options_item_base
+0x00267a40	observed		survarium::timelimit_rule::timelimit_rule
 0x0026b1b0	reviewed	0x0019b33b	survarium::messaging_client::read_important_message
 0x0026cff0	reviewed	0x001a55c0	survarium::lobby_menu::on_mouse_key_action
 0x0026d090	reviewed	0x001a5606	survarium::lobby_menu::on_mouse_move
@@ -1024,6 +1026,7 @@ va	status	ref_021d	name
 0x00294a90	reviewed	0x001a9c2d	survarium::object_sound::remove
 0x002989d0	reviewed	0x001b22d2	survarium::damage_zone::damage_zone
 0x0029ab20	reviewed	0x00177271	survarium::lobby_menu::fill_match_statistic
+0x002a6470	reviewed	0x001b3d18	survarium::player_equipment_sound_effect::on_player_sound_event
 0x002a6520	reviewed	0x001b3d8a	survarium::player_equipment_sound_effect::on_foot_step
 0x002aec40	reviewed	0x000f0dff	vostok::render::stage_particles::is_effects_ready
 0x002c6f90	reviewed	0x001c4d2c	survarium::query_inventory_item
@@ -1134,6 +1137,7 @@ va	status	ref_021d	name
 0x002f8460	reviewed	0x001e8b65	survarium::usable_object::serialize_usable_object
 0x002f84c0	reviewed	0x001e8bcb	survarium::usable_object::deserialize_usable_object
 0x002f8510	reviewed	0x001e8c2c	survarium::usable_object::post_deserialize_resolve
+0x002f8c30	reviewed	0x001deff5	survarium::collision_geometry::load
 0x002fa050	reviewed	0x001dffde	survarium::victory_item_core_cook::process_loading_victory_item_core
 0x002fc4b0	reviewed	0x001faa61	survarium::inventory::inventory
 0x002fc560	reviewed	0x001faacf	survarium::inventory::`scalar deleting destructor'
@@ -1216,7 +1220,15 @@ va	status	ref_021d	name
 0x0031b230	reviewed	0x001ed8b1	survarium::anomaly_state::deserialize
 0x0031b2a0	reviewed	0x001ed8fd	survarium::zone_group::serialize
 0x0031b390	reviewed	0x001ed9f8	survarium::zone_group::deserialize
+0x0031b4b0	reviewed	0x001edb0f	survarium::generic_anomaly_core::activate
+0x0031b530	reviewed	0x001edb84	survarium::generic_anomaly_core::deactivate
+0x0031b5b0	reviewed	0x001edc0b	survarium::generic_anomaly_core::tick
+0x0031b6c0	reviewed	0x001edd08	survarium::generic_anomaly_core::spawn_artefact
+0x0031b9a0	reviewed	0x001ee02b	survarium::generic_anomaly_core::activate_damage_zone
 0x0031ba90	reviewed	0x001ee048	survarium::generic_anomaly_core::select_state
+0x0031bc10	reviewed	0x001ee16f	survarium::anomaly_state::initialize
+0x0031bcb0	reviewed	0x001ee1f3	survarium::anomaly_state::execute
+0x0031bd50	reviewed	0x001ee2a0	survarium::anomaly_state::finalize
 0x0031c480	reviewed	0x001f75ee	survarium::artefact_container_core::load
 0x0031c530	reviewed	0x001f7636	survarium::artefact_container_core::serialize
 0x0031c5b0	reviewed	0x001f7687	survarium::artefact_container_core::deserialize
@@ -1313,6 +1325,10 @@ va	status	ref_021d	name
 0x0033a650	reviewed	0x002092b0	survarium::weapon_core_throw_grenade_state::is_ready_for_transition
 0x0033a6a0	reviewed	0x00208ffa	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression
 0x0033a7e0	reviewed	0x002091b6	survarium::weapon_core_throw_grenade_state::attach_grenade
+0x0033bb50	reviewed	0x001eeeeb	survarium::generic_anomaly_core::on_player_action
+0x0033bcd0	reviewed	0x001eefef	survarium::generic_anomaly_core::on_artefact_container_use
+0x0033bd50	reviewed	0x001ee5df	survarium::generic_anomaly_core::load
+0x0033c440	reviewed	0x001eeaa2	survarium::generic_anomaly_core::resolve_links
 0x0033cac0	reviewed	0x0020a476	survarium::medkit::medkit
 0x0033d2b0	reviewed	0x0020a8fe	survarium::medkit::`scalar deleting destructor'
 0x0033d2d0	reviewed	0x0020a91a	survarium::medkit::~medkit
@@ -1371,6 +1387,8 @@ va	status	ref_021d	name
 0x0034ce30	reviewed	0x002148e6	vostok::render::culling::portal_sector_structure::sort_portal_ids
 0x0034ce80	reviewed	0x002149aa	vostok::render::culling::portal_sector_structure::initialize_portals_geometry
 0x0034d040	reviewed	0x00214afc	vostok::render::culling::portal_sector_structure::update_portals_visability
+0x003578f0	reviewed	0x0021be7f	vostok::physics::bt_ghost_object::bt_ghost_object
+0x00357aa0	reviewed	0x0021bed1	vostok::physics::create_ghost_object
 0x00376280	reviewed	0x0023514e	vostok::network::login_client::create_client
 0x003762d0	reviewed	0x002351c8	vostok::network::login_client::login_client
 0x00376520	reviewed	0x00235345	vostok::network::login_client::~login_client
@@ -1747,6 +1765,7 @@ va	status	ref_021d	name
 0x0044635d	verified	0x002b2710	IsRootUNCName
 0x00446d42	verified	0x002e997b	strtok_s
 0x00447290	verified	0x002ea080	_aullrem
+0x00771fa0	observed		Scaleform::GFx::AS3::Instances::fl_display::Stage::focusGet
 0x00824910	verified	0x00664190	strncpy
 0x00824c68	verified	0x006642b4	feof
 0x00824c9c	verified	0x006642e8	ferror
@@ -1763,3 +1782,37 @@ va	status	ref_021d	name
 0x00845a40	verified	0x00681c80	_ripemd160_block_asm_data_order
 0x00846f40	verified	0x00683180	_md5_block_asm_data_order
 0x0084b1c0	verified	0x00684100	_bn_sqr_comba4
+0x00102d10	observed		vostok::resources::register_cook
+0x00313900	observed		survarium::game_match_rule_base::game_match_rule_base
+0x00266710	observed		survarium::game_match_rule_base::`scalar deleting destructor'
+0x00316540	observed		survarium::game_match_rule_base::resolve_links
+0x0008fe10	observed		survarium::tdm_rule_core::priority
+0x002f41e0	observed		survarium::tdm_rule_core_cook::tdm_rule_core_cook
+0x002f41d0	observed		survarium::tdm_rule_core_cook::resource_size
+0x002f4250	observed		survarium::tdm_rule_core_cook::create_resource
+0x002063e0	observed		survarium::tdm_rule_cook::resource_size
+0x002063f0	observed		survarium::tdm_rule_cook::create_resource
+0x00315ff0	observed		survarium::tdm_rule_core::tdm_rule_core
+0x00316090	observed		survarium::tdm_rule_core::on_event
+0x003161f0	observed		survarium::tdm_rule_core::update_statistics
+0x00316590	observed		survarium::tdm_rule_core::on_player_entered_match
+0x003165d0	observed		survarium::tdm_rule_core::on_player_left_match
+0x003163d0	observed		survarium::tdm_rule_core::deserialize
+0x00316430	observed		survarium::tdm_rule_core::fill_match_hud_state
+0x00316520	observed		survarium::tdm_rule_core::rule_completed
+0x00267830	observed		survarium::tdm_rule::on_event
+0x002d1d20	observed		survarium::game_world_core::tick_delegates
+0x002d36b0	observed		survarium::game_world_core::fill_match_hud_state
+0x002364c0	observed		survarium::game_world_ui::set_game_progress
+0x00236610	observed		survarium::game_world_ui::set_last_players
+0x00511600	observed		Scaleform::GFx::Movie::Invoke
+0x000725e0	observed		vostok::math::create_rotation
+0x00054e10	observed		survarium::replay_network_client::is_this_place_mine
+0x002971c0	observed		survarium::first_person_game_effects_presenter::first_person_game_effects_presenter
+0x00297570	observed		survarium::third_person_game_effects_presenter::third_person_game_effects_presenter
+0x0012d1d0	observed		vostok::render::camouflage_decal_texture_type_baker_cook::translate_query
+0x0012db40	observed		vostok::render::camouflage_decal_texture_type_baker_cook::on_baked_texture_loaded
+0x0012ec40	observed		vostok::render::camouflage_decal_texture_type_baker_cook::process_compression
+0x00131b40	observed		vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture
+0x00131f90	observed		vostok::render::camouflage_decal_texture_type_baker_cook::remove_unwanted_files
+0x00132640	observed		vostok::buffer_vector<vostok::render::baked_texture_data>::push_back

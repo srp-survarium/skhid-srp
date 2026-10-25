@@ -152,7 +152,6 @@ fn the_three_files_parse_to_what_the_dump_shows() {
         data.reroll.price_premium,
         [1, 1, 2, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 19, 22, 25]
     );
-    assert_eq!(data.reroll.multiplicator, 1.1);
 }
 
 #[test]
@@ -352,11 +351,11 @@ fn a_roll_gives_what_the_item_takes() {
         }
         seen.extend(kinds);
     }
-    // Types 1..=5, 7..=10 and 12: 11 has no drop weight, 6 is a bolt
-    // action's.
+    // Types 1..=5, 7..=9 and 12: 11 has no drop weight, 6 is a bolt
+    // action's, 10 (reliability) never rolls (2026-10-23).
     assert_eq!(
         seen.into_iter().collect::<Vec<u8>>(),
-        [1, 2, 3, 4, 5, 7, 8, 9, 10, 12]
+        [1, 2, 3, 4, 5, 7, 8, 9, 12]
     );
     assert!(data.roll_for_rarity(rifle, 0, &mut rng).is_empty());
     // An item that takes nothing gets nothing.
@@ -418,10 +417,12 @@ fn a_reroll_offers_three_other_modifications() {
 
 #[test]
 fn a_reroll_offers_three_on_an_item_of_few_types() {
-    // A backpack takes three types that roll (18, 24, 32; as Skhid's
-    // Marauder backpack and Bandit balaclava take three): with two of its
-    // own, the replaced one's type and the third are left, two types, so
-    // another strength fills the offer; full, only the replaced one's type.
+    // A backpack takes three types that roll in the data (18, 24, 32; as
+    // Skhid's Marauder backpack and Bandit balaclava take three), and 32 is
+    // reliability, which never rolls (the owner's rule of 2026-10-23): with
+    // one of its own, the replaced one's type and the other are left, two
+    // types, so another strength fills the offer; with two, only the
+    // replaced one's type.
     let data = Modifications::shared();
     let backpack = dict("scav_back_1");
     let mut rng = Rng::new(5);
@@ -429,28 +430,30 @@ fn a_reroll_offers_three_on_an_item_of_few_types() {
     let mut kinds_seen = std::collections::BTreeSet::new();
     for _ in 0..300 {
         let choices = data
-            .reroll_choices(backpack, &[1062, 1120], 1062, &mut rng)
+            .reroll_choices(backpack, &[1062], 1062, &mut rng)
             .expect("an offer");
         assert!(choices[0] != choices[1] && choices[1] != choices[2] && choices[0] != choices[2]);
         for &choice in &choices {
             assert_ne!(choice, 1062);
-            assert_ne!(kind(choice), kind(1120), "the type the item keeps");
-            assert!(data.fits(backpack, &[1120], choice));
+            assert_ne!(kind(choice), kind(1201), "reliability");
+            assert!(data.fits(backpack, &[], choice));
             kinds_seen.insert(kind(choice));
         }
         // Both types left are offered before a second strength of one.
         let kinds: std::collections::BTreeSet<u8> = choices.iter().map(|&id| kind(id)).collect();
         assert_eq!(kinds.len(), 2);
     }
-    assert_eq!(kinds_seen.len(), 2);
-    let choices = data
-        .reroll_choices(backpack, &[1062, 1120, 1201], 1201, &mut rng)
-        .expect("an offer");
-    assert!(
-        choices
-            .iter()
-            .all(|&id| kind(id) == kind(1201) && id != 1201)
-    );
+    assert_eq!(kinds_seen, [kind(1062), kind(1120)].into());
+    for held in [&[1062, 1120][..], &[1062, 1120, 1201]] {
+        let choices = data
+            .reroll_choices(backpack, held, 1062, &mut rng)
+            .expect("an offer");
+        assert!(
+            choices
+                .iter()
+                .all(|&id| kind(id) == kind(1062) && id != 1062)
+        );
+    }
 }
 
 #[test]
@@ -534,14 +537,16 @@ fn craft_and_reroll_go_by_the_tables() {
     );
     assert_eq!((general[2], premium[2]), (800, 4));
 
-    assert_eq!(data.reroll.price(0, false, 0), 200);
-    assert_eq!(data.reroll.price(10, false, 0), 2400);
-    assert_eq!(data.reroll.price(10, true, 0), 12);
-    assert_eq!(data.reroll.price(10, false, 1), 2640);
-    assert_eq!(data.reroll.price(10, false, 2), 2904);
-    assert_eq!(data.reroll.price(16, true, 0), 25);
-    // It does not run away.
-    assert!(data.reroll.price(15, false, 100_000) > 5000);
+    assert_eq!(data.reroll.price(0, false), 200);
+    assert_eq!(data.reroll.price(10, false), 2400);
+    assert_eq!(data.reroll.price(10, true), 12);
+    assert_eq!(data.reroll.price(16, true), 25);
+    // No level changes for nothing (the owner's rule of 2026-10-25: the
+    // same price every time, `docs/notes/flat-reroll.md`).
+    for level in 0..=u8::MAX {
+        assert!(data.reroll.price(level, false) > 0);
+        assert!(data.reroll.price(level, true) > 0);
+    }
 }
 
 #[test]
@@ -574,13 +579,572 @@ fn reliability_slows_wear_and_premium_gear_pays_more() {
     assert!((bonuses.money - 0.1).abs() < 1e-6);
     assert_eq!(bonuses.experience, 0.0);
     assert_eq!(data.bonuses(premium, &[]), Bonuses::default());
-    // Premium trousers: experience and the Black Market's reputation.
-    let bonuses = data.bonuses(dict("bm_legs_4_premium"), &[]);
+    // Premium trousers: experience and the Black Market's reputation, as
+    // modifications of their own (`super::super::golden`); without them,
+    // nothing.
+    let trousers = dict("bm_legs_4_premium");
+    assert_eq!(data.bonuses(trousers, &[]), Bonuses::default());
+    let bonuses = data.bonuses(trousers, &[(1240, false), (1260, false)]);
     assert!((bonuses.experience - 0.05).abs() < 1e-6);
     assert_eq!(bonuses.money, 0.0);
     assert!((bonuses.reputation[1] - 0.05).abs() < 1e-6);
     assert_eq!(bonuses.reputation[0], 0.0);
-    let bonuses = data.bonuses(dict("scav_torso_4_premium"), &[]);
+    let bonuses = data.bonuses(
+        dict("scav_torso_4_premium"),
+        &[(1240, false), (1250, false)],
+    );
     assert!((bonuses.reputation[0] - 0.05).abs() < 1e-6);
     assert_eq!(data.bonuses(rifle, &[(2000, false)]), Bonuses::default());
+}
+
+/// The lobby colours a bonus at the best value it rolls gold and shows its
+/// range in the reroll window (`ModificationRolls.ROLLS`,
+/// `docs/notes/max-bonus.md`): for each property the values the
+/// modifications that roll give it (a drop weight, a type some item takes),
+/// weakest first, as `ui_desc/props_list` has them. The movie gets no
+/// modification id, only `{prop_id, prop_value}`, so the table is by property;
+/// the types that share one (weight, aim time, reliability, recoil, reload,
+/// anomaly armour) roll the same values.
+#[test]
+fn the_lobby_knows_the_values_each_bonus_rolls() {
+    use std::collections::BTreeMap;
+
+    let data = Modifications::shared();
+    let taken = all_item_mods()
+        .iter()
+        .fold(0u64, |mask, item| mask | item.modifications);
+    let root = ConfigValue::parse(super::super::game_data::file(MODIFICATIONS_PATH)).unwrap();
+    // Property -> type -> (drop weight, value).
+    let mut by_type: BTreeMap<u32, BTreeMap<u8, Vec<(f32, f64)>>> = BTreeMap::new();
+    for row in root.req("modifications").unwrap().children() {
+        let id = number(row.req("id").unwrap()).unwrap();
+        let modification = data.modification(id).unwrap();
+        if modification.drop_weight <= 0.0 || taken & (1 << modification.kind) == 0 {
+            continue;
+        }
+        let props = row
+            .req("ui_desc")
+            .and_then(|desc| desc.req("props_list"))
+            .unwrap()
+            .children();
+        assert_eq!(props.len(), 1, "modification {id} shows one property");
+        let prop_id = u32::try_from(props[0].i32_at("prop_id").unwrap()).unwrap();
+        let value = props[0].req("prop_value").unwrap();
+        let value = value
+            .as_str()
+            .and_then(|text| text.parse::<f64>().ok())
+            .or_else(|| value.as_f32().map(f64::from))
+            .unwrap_or_else(|| panic!("modification {id}: a prop_value"));
+        by_type
+            .entry(prop_id)
+            .or_default()
+            .entry(modification.kind)
+            .or_default()
+            .push((modification.drop_weight, value));
+    }
+    let mut expected: BTreeMap<u32, Vec<f64>> = BTreeMap::new();
+    for (prop_id, kinds) in by_type {
+        for (kind, mut rows) in kinds {
+            // The most common first: the weakest.
+            rows.sort_by(|a, b| b.0.total_cmp(&a.0));
+            let values: Vec<f64> = rows.into_iter().map(|(_, value)| value).collect();
+            assert!(
+                values.windows(2).all(|pair| pair[0].abs() < pair[1].abs()),
+                "property {prop_id}, type {kind}: the rarer, the stronger: {values:?}"
+            );
+            match expected.get(&prop_id) {
+                Some(other) => assert_eq!(
+                    other, &values,
+                    "property {prop_id}: type {kind} rolls other values"
+                ),
+                None => {
+                    expected.insert(prop_id, values);
+                }
+            }
+        }
+    }
+    assert!(expected.len() > 10, "{expected:?}");
+    // The owner's example: +5 % damage is the best, +4 % is not.
+    assert_eq!(expected[&1], [0.01, 0.02, 0.03, 0.04, 0.05]);
+
+    let source =
+        include_str!("../../../../../flash/lobby_menu/src/survarium/item/ModificationRolls.as");
+    let start = source.find("ROLLS:Object = {").expect("the lobby's ROLLS");
+    let rows = &source[start + "ROLLS:Object = {".len()..];
+    let rows = &rows[..rows.find("};").expect("the end of ROLLS")];
+    // `<prop id>:[<values>], // <name>` a line.
+    let lobby: BTreeMap<u32, Vec<f64>> = rows
+        .lines()
+        .map(|line| line.split("//").next().unwrap().trim())
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            let (id, values) = line.split_once(':').expect("<prop id>:[values]");
+            let values = values.trim().trim_end_matches(',');
+            let values = values.trim_start_matches('[').trim_end_matches(']');
+            (
+                id.trim().parse().unwrap(),
+                values
+                    .split(',')
+                    .map(|v| v.trim().parse().unwrap())
+                    .collect(),
+            )
+        })
+        .collect();
+    let same = lobby.len() == expected.len()
+        && lobby.iter().zip(&expected).all(|((a, x), (b, y))| {
+            a == b && x.len() == y.len() && x.iter().zip(y).all(|(x, y)| (x - y).abs() < 1e-9)
+        });
+    // An object literal: no comma after the last row.
+    let table: Vec<String> = expected
+        .iter()
+        .map(|(id, values)| {
+            let values: Vec<String> = values.iter().map(f64::to_string).collect();
+            format!("         {id}:[{}]", values.join(","))
+        })
+        .collect();
+    let table = table.join(",\n");
+    assert!(
+        same,
+        "ModificationRolls.ROLLS should be, by this data:\n{table}"
+    );
+}
+
+/// The lobby shows the premium bonuses (the golden weapons' silver, the
+/// premium armour's experience and reputation) in gold as the most there
+/// is (`ModificationRolls.isPremium`, by `ItemFactory.BONUS_UI`'s property
+/// and value; docs/notes/max-bonus.md). True while no modification gives
+/// that property more, and none rolls it (`ROLLS` would decide then).
+#[test]
+fn the_premium_bonuses_are_the_most_their_property_gives() {
+    use std::collections::BTreeMap;
+
+    let source = include_str!("../../../../../flash/lobby_menu/src/survarium/item/ItemFactory.as");
+    let start = source
+        .find("BONUS_UI:Array = [")
+        .expect("the lobby's BONUS_UI");
+    let rows = &source[start..];
+    let rows = &rows[rows.find('\n').unwrap() + 1..rows.find("\n      ];").unwrap()];
+    // `[<id>,<icon>,<prop id>,"<value>"], // <name>` a line.
+    let premium: BTreeMap<u32, f64> = rows
+        .lines()
+        .map(|line| {
+            let row = line.split("//").next().unwrap().trim();
+            let row = row.trim_end_matches(',').trim_start_matches('[');
+            let fields: Vec<&str> = row.trim_end_matches(']').split(',').collect();
+            let [_, _, prop_id, value] = fields[..] else {
+                panic!("a BONUS_UI row: {line}")
+            };
+            (
+                prop_id.trim().parse().unwrap(),
+                value.trim().trim_matches('"').parse().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(premium.len(), 4, "{premium:?}");
+
+    let data = Modifications::shared();
+    let taken = all_item_mods()
+        .iter()
+        .fold(0u64, |mask, item| mask | item.modifications);
+    let root = ConfigValue::parse(super::super::game_data::file(MODIFICATIONS_PATH)).unwrap();
+    let mut seen = 0;
+    for row in root.req("modifications").unwrap().children() {
+        let id = number(row.req("id").unwrap()).unwrap();
+        let Some(props) = row
+            .req("ui_desc")
+            .and_then(|desc| desc.req("props_list"))
+            .ok()
+        else {
+            continue;
+        };
+        for prop in props.children() {
+            let prop_id = u32::try_from(prop.i32_at("prop_id").unwrap()).unwrap();
+            let Some(&best) = premium.get(&prop_id) else {
+                continue;
+            };
+            seen += 1;
+            let value = prop.req("prop_value").unwrap();
+            let value = value
+                .as_str()
+                .and_then(|text| text.parse::<f64>().ok())
+                .or_else(|| value.as_f32().map(f64::from))
+                .unwrap_or_else(|| panic!("modification {id}: a prop_value"));
+            assert!(
+                value.abs() <= best.abs() + 1e-9,
+                "modification {id} gives property {prop_id} {value}, more than the premium {best}"
+            );
+            let modification = data.modification(id).unwrap();
+            assert!(
+                modification.drop_weight <= 0.0 || taken & (1 << modification.kind) == 0,
+                "modification {id} rolls property {prop_id}: ModificationRolls.ROLLS decides it"
+            );
+        }
+    }
+    assert!(seen >= premium.len(), "{seen}");
+}
+
+/// The ids of the "reliability" modifications ("Надежность"): those that
+/// change nothing but wear.
+fn reliability_ids(data: &Modifications) -> Vec<u32> {
+    data.modifications
+        .iter()
+        .filter(|row| row.only_changes_wear())
+        .map(|row| row.id)
+        .collect()
+}
+
+/// The owner's rule of 2026-10-23 (docs/notes/no-reliability-roll.md):
+/// which modifications are reliability, by the data.
+#[test]
+fn reliability_is_the_ten_rows_that_only_change_wear() {
+    let data = Modifications::shared();
+    let ids = reliability_ids(data);
+    let expected: Vec<u32> = (1200..=1204).chain(2090..=2094).collect();
+    assert_eq!(ids, expected);
+    for &id in &ids {
+        let row = data.modification(id).unwrap();
+        assert_eq!(row.name, "st_modify_reliability");
+        assert!(row.drop_weight > 0.0 && !row.rolls(), "{id}");
+        assert_eq!(row.lobby_info.len(), 1);
+        assert_eq!(row.lobby_info[0].0, "reliability");
+    }
+    // The lobby names a modification by its property: reliability's (123,
+    // `st_multiplicative_reliability_modifier`, "Reliability" /
+    // "Надійність" / "Надежность") is shown by these ten and no other.
+    let root = ConfigValue::parse(super::super::game_data::file(MODIFICATIONS_PATH)).unwrap();
+    let mut showing = Vec::new();
+    for row in root.req("modifications").unwrap().children() {
+        let id = number(row.req("id").unwrap()).unwrap();
+        let props = row
+            .req("ui_desc")
+            .and_then(|desc| desc.req("props_list"))
+            .unwrap()
+            .children();
+        if props
+            .iter()
+            .any(|prop| prop.i32_at("prop_id").unwrap() == 123)
+        {
+            showing.push(id);
+        }
+    }
+    showing.sort_unstable();
+    assert_eq!(showing, expected);
+    // Only these change wear, and every other row with a drop weight rolls.
+    for row in &data.modifications {
+        let wear = row
+            .modifiers
+            .iter()
+            .any(|modifier| WEAR_PARAMETERS.contains(&modifier.path.as_str()));
+        assert_eq!(wear, ids.contains(&row.id), "{}", row.id);
+        if !ids.contains(&row.id) {
+            assert_eq!(row.rolls(), row.drop_weight > 0.0, "{}", row.id);
+        }
+    }
+}
+
+/// No roll of any item gives reliability: a drop's, an upgrade's (both
+/// [`Modifications::roll`]) and a reroll's offer, whatever the item holds,
+/// reliability included.
+#[test]
+fn no_roll_gives_reliability() {
+    let data = Modifications::shared();
+    let reliability = reliability_ids(data);
+    let mut rng = Rng::new(23);
+    let (mut weapons, mut gear) = (0, 0);
+    for item in all_item_mods() {
+        if item.modifications == 0 {
+            continue;
+        }
+        let dict_id = item.dict_id;
+        let kind = item_params(dict_id).map_or("", |params| params.kind);
+        if is_weapon_kind(kind) {
+            weapons += 1;
+        } else {
+            gear += 1;
+        }
+        // The reliability this item could hold, as one from before.
+        let own: Vec<u32> = reliability
+            .iter()
+            .copied()
+            .filter(|&id| data.fits(dict_id, &[], id))
+            .take(1)
+            .collect();
+        for held in [&[][..], &own] {
+            assert!(
+                data.candidates(dict_id, held)
+                    .iter()
+                    .all(|row| !reliability.contains(&row.id)),
+                "{dict_id}"
+            );
+        }
+        for _ in 0..20 {
+            let rolled = data.roll_for_rarity(dict_id, 3, &mut rng);
+            assert!(
+                rolled.iter().all(|id| !reliability.contains(id)),
+                "{dict_id}"
+            );
+            let mut held = own.clone();
+            if let Some(id) = data.roll(dict_id, &held, &mut rng) {
+                assert!(!reliability.contains(&id), "{dict_id}");
+                held.push(id);
+            }
+            for &replaced in &held {
+                if let Some(choices) = data.reroll_choices(dict_id, &held, replaced, &mut rng) {
+                    for choice in choices {
+                        assert!(!reliability.contains(&choice), "{dict_id}");
+                        assert_ne!(choice, replaced);
+                        let others: Vec<u32> =
+                            held.iter().copied().filter(|&id| id != replaced).collect();
+                        assert!(data.fits(dict_id, &others, choice), "{dict_id}");
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        weapons >= 50 && gear >= 100,
+        "{weapons} weapons, {gear} gear"
+    );
+
+    // A rifle's reliability rerolls into another, valid modification.
+    let rifle = dict("ak_74m");
+    for _ in 0..200 {
+        let choices = data
+            .reroll_choices(rifle, &[2090, 2000], 2090, &mut rng)
+            .expect("an offer");
+        for choice in choices {
+            assert!(!reliability.contains(&choice));
+            assert!(data.fits(rifle, &[2000], choice));
+        }
+    }
+}
+
+/// The stock data, before the edit lists of release/content.tsv: the items
+/// for which reliability was one of three types that roll (backpacks, masks
+/// and respirators, oxygen packs) have two left, so they reach two
+/// modifications of their own by rolls, and none is left to offer for the
+/// reliability of a full one. No item that took a roll before has none now.
+/// On live, `third-mod-1.json` gives them a third type
+/// ([`every_item_rolls_three_types_with_the_edit_lists`]).
+#[test]
+fn items_of_few_types_roll_two() {
+    let data = Modifications::shared();
+    let reliability = reliability_ids(data);
+    let mut rng = Rng::new(4);
+    let mut two = Vec::new();
+    for item in all_item_mods() {
+        let dict_id = item.dict_id;
+        let rolled_before = data
+            .modifications
+            .iter()
+            .any(|row| row.drop_weight > 0.0 && item.modifications & (1 << row.kind) != 0);
+        let pool = data.candidates(dict_id, &[]);
+        assert_eq!(rolled_before, !pool.is_empty(), "{dict_id}: an empty pool");
+        let kinds: std::collections::BTreeSet<u8> = pool.iter().map(|row| row.kind).collect();
+        if kinds.len() < MAX_RANK && !kinds.is_empty() {
+            assert_eq!(kinds.len(), 2, "{dict_id}");
+            two.push(dict_id);
+            assert_eq!(data.roll_for_rarity(dict_id, 3, &mut rng).len(), 2);
+        }
+    }
+    let names: Vec<&str> = two
+        .iter()
+        .map(|&dict_id| item_params(dict_id).unwrap().kind)
+        .collect();
+    assert_eq!(two.len(), 19, "{names:?}");
+    assert!(
+        names
+            .iter()
+            .all(|kind| ["arm_back", "arm_mask", "arm_oxy"].contains(kind)),
+        "{names:?}"
+    );
+    assert!(two.contains(&dict("bandit_026_mask")));
+
+    // A full backpack: its reliability has nothing to turn into, its
+    // others another strength of their own type.
+    let backpack = dict("scav_back_1");
+    let full = [1062, 1120, 1201];
+    assert_eq!(data.reroll_choices(backpack, &full, 1201, &mut rng), None);
+    assert!(data.candidates(backpack, &[1062, 1120]).is_empty());
+    assert_eq!(data.roll(backpack, &[1062, 1120], &mut rng), None);
+    let choices = data
+        .reroll_choices(backpack, &full, 1120, &mut rng)
+        .unwrap();
+    for choice in choices {
+        assert!(!reliability.contains(&choice));
+        assert_eq!(data.modification(choice).unwrap().kind, 24);
+    }
+}
+
+/// The types a roll may give an item with this `available_modifications_mask`
+/// (as bits) that holds nothing: those with a modification that rolls
+/// ([`Modification::rolls`]), less the types of its defaults.
+fn rollable_types(data: &Modifications, mask: u64, defaults: &[u32]) -> u32 {
+    let rolling = data
+        .modifications
+        .iter()
+        .filter(|row| row.rolls())
+        .fold(0_u64, |kinds, row| kinds | 1 << row.kind);
+    (mask & rolling & !data.kinds_of(defaults.iter().copied())).count_ones()
+}
+
+/// The masks the manifest's edit lists set, in its order: by config, the
+/// first `from` and the last `to` of each, and the configs of `third-mod-1.json`
+/// with their `from`.
+#[allow(clippy::type_complexity)]
+fn edited_masks() -> (
+    std::collections::BTreeMap<String, (String, String)>,
+    Vec<(String, String)>,
+) {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let manifest = std::fs::read_to_string(root.join("release/content.tsv")).unwrap();
+    let mut chain = std::collections::BTreeMap::<String, (String, String)>::new();
+    let mut third = Vec::new();
+    for line in manifest.lines().filter(|line| line.starts_with("edit\t")) {
+        let list = line.split('\t').nth(1).unwrap();
+        let path = root.join("srp-026g/scripts/content-edit").join(list);
+        let text = std::fs::read_to_string(&path).unwrap();
+        let edits: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let entries = edits.get("edit_text").and_then(|value| value.as_array());
+        for edit in entries.into_iter().flatten() {
+            if edit["path"] != "parameters/available_modifications_mask" {
+                continue;
+            }
+            let text = |key: &str| edit[key].as_str().unwrap().to_owned();
+            let (file, from, to) = (text("file"), text("from"), text("to"));
+            match chain.get_mut(&file) {
+                Some(link) => {
+                    assert_eq!(
+                        link.1, from,
+                        "{list}: {file} starts where the last edit left it"
+                    );
+                    link.1 = to;
+                }
+                None => {
+                    chain.insert(file.clone(), (from.clone(), to));
+                }
+            }
+            if list == "third-mod-1.json" {
+                third.push((file, from));
+            }
+        }
+    }
+    (chain, third)
+}
+
+/// The owner's rule of 2026-10-23 (docs/notes/no-reliability-roll.md): with
+/// reliability out, every item that rolls has at least three types once the
+/// manifest's edit lists are on (`third-mod-1.json`: masks Armor, oxygen
+/// packs Weight limit and Energy costs, the Pilgrim container Energy costs),
+/// so an upgrade is never refused for nothing to roll and a full item's
+/// reliability always has another type to turn into. The stock test archive
+/// with the edit lists' masks laid on in order (the live masks are that
+/// chain's end); the masks of items the packs add (1812-1816, 1823, not in
+/// the archive) are in it as their edit's `from`.
+#[test]
+fn every_item_rolls_three_types_with_the_edit_lists() {
+    let data = Modifications::shared();
+    let (chain, third) = edited_masks();
+    let bits = |mask: &str| mask_bits(mask, "available_modifications_mask").unwrap();
+    let dictionary = Dictionary::shared();
+    let defaults_of = |file: &str| {
+        dictionary
+            .items
+            .iter()
+            .find(|entry| entry.cfg_name == file)
+            .and_then(|entry| item_params(entry.dict_id))
+            .map_or(&[][..], |params| params.default_modifications)
+    };
+    let mut in_archive = std::collections::BTreeSet::new();
+    let mut rolling = 0;
+    for entry in &dictionary.items {
+        let Some(item) = item_mods(entry.dict_id) else {
+            continue;
+        };
+        let mask = match chain.get(&entry.cfg_name) {
+            Some((from, to)) => {
+                assert_eq!(
+                    item.modifications,
+                    bits(from),
+                    "{}: the chain's start",
+                    entry.name
+                );
+                in_archive.insert(entry.cfg_name.clone());
+                bits(to)
+            }
+            None => item.modifications,
+        };
+        let types = rollable_types(data, mask, defaults_of(&entry.cfg_name));
+        assert!(
+            types == 0 || types >= 3,
+            "{} rolls {types} types",
+            entry.name
+        );
+        rolling += usize::from(types > 0);
+    }
+    assert!(rolling > 150, "{rolling}");
+    for (file, (_, to)) in chain.iter().filter(|(file, _)| !in_archive.contains(*file)) {
+        assert!(file.starts_with("gameplay/items/armour/mask/"), "{file}");
+        assert!(rollable_types(data, bits(to), &[]) >= 3, "{file}");
+    }
+
+    // third-mod-1.json: the 20 that reliability left with two, each with
+    // three or more now.
+    let (mut masks, mut oxygen, mut pilgrim) = (0, 0, 0);
+    for (file, from) in &third {
+        let defaults = defaults_of(file);
+        assert_eq!(rollable_types(data, bits(from), defaults), 2, "{file}");
+        assert_ne!(bits(from) & (1 << 32), 0, "{file} took reliability");
+        let to = bits(&chain[file].1);
+        let added = to & !bits(from);
+        if file.starts_with("gameplay/items/armour/mask/") {
+            masks += 1;
+            assert_eq!(added, 1 << 13, "{file}: Armor");
+        } else if file.ends_with("/edge_back_6.options") {
+            pilgrim += 1;
+            assert_eq!(added, 1 << 28, "{file}: Energy costs");
+        } else {
+            oxygen += 1;
+            assert_eq!(
+                added,
+                1 << 24 | 1 << 28,
+                "{file}: Weight limit, Energy costs"
+            );
+        }
+    }
+    assert_eq!((masks, oxygen, pilgrim), (15, 4, 1));
+}
+
+/// [`every_item_rolls_three_types_with_the_edit_lists`] on a server game
+/// data file as `release/build-content` makes it (`SRP_TEST_GAME_DATA`):
+/// every item that rolls there has three types or more.
+#[test]
+#[ignore = "needs SRP_TEST_GAME_DATA: a server-game-data.db made by release/build-content"]
+fn every_item_of_the_built_game_data_rolls_three_types() {
+    use super::super::game_data::GameData;
+    let path = std::env::var_os("SRP_TEST_GAME_DATA").expect("SRP_TEST_GAME_DATA");
+    let data = GameData::open(std::path::Path::new(&path)).unwrap();
+    let file = |path: &str| data.file(path).unwrap_or_else(|| panic!("no {path}"));
+    let dictionary = Dictionary::parse(file(super::super::dictionary::PATH)).unwrap();
+    let table = Modifications::parse(
+        file(MODIFICATIONS_PATH),
+        file(CRAFT_PATH),
+        file(REROLL_PATH),
+    )
+    .unwrap();
+    let params = super::super::item_params::derive(&data, &dictionary).unwrap();
+    let mut short = Vec::new();
+    let mut rolling = 0;
+    for item in derive_item_mods(&data, &dictionary).unwrap() {
+        let params = params.iter().find(|row| row.dict_id == item.dict_id);
+        let defaults = params.map_or(&[][..], |params| params.default_modifications);
+        let types = rollable_types(&table, item.modifications, defaults);
+        rolling += usize::from(types > 0);
+        if types > 0 && types < 3 {
+            let name = &dictionary.item(item.dict_id).unwrap().name;
+            short.push(format!("{name}: {types}"));
+        }
+    }
+    assert!(rolling > 150, "{rolling}");
+    assert!(short.is_empty(), "fewer than three types: {short:?}");
 }

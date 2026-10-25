@@ -18,6 +18,9 @@ package survarium.controls
       private static var _pattern:BitmapData;
       
       private static var _stage:Stage;
+
+      // where the menu is drawn: the lobby's layers (LobbyMenu._layers), else the stage
+      private static var _layer:DisplayObjectContainer;
       
       private static var _id:SrvContextMenu;
       
@@ -65,7 +68,7 @@ package survarium.controls
          {
             _stage.addEventListener(MouseEvent.MOUSE_DOWN,hideMe);
          }
-         _stage.addChild(_id);
+         _layer.addChild(_id);
          _id.addListeners();
          var names:Array = [];
          var i:int = 0;
@@ -101,6 +104,17 @@ package survarium.controls
          list.x = Math.max(4,Math.min(list.x,screenWidth() - list.width - 4));
          list.y = Math.max(4,Math.min(list.y,screenHeight() - list.height - 4));
          setOwner(owner);
+         // a modal over the messages too: Esc hides it first
+         Modals.open(_id,Modals.MENU,function():void
+         {
+            if(visisble)
+            {
+               hide();
+            }
+         },function():Boolean
+         {
+            return visisble;
+         });
       }
       
       // The screen in the menu's units.
@@ -123,8 +137,9 @@ package survarium.controls
          _pattern = pattern;
       }
       
-      public static function registerStage(stageRef:Stage) : void
+      public static function registerStage(stageRef:Stage, layer:DisplayObjectContainer = null) : void
       {
+         _layer = layer ? layer : stageRef;
          if(_stage == stageRef)
          {
             return;
@@ -135,9 +150,10 @@ package survarium.controls
       
       public static function hide() : void
       {
+         Modals.leave(_id);
          setOwner(null);
          trace("hide",_stage.focus);
-         _stage.removeChild(_id);
+         _layer.removeChild(_id);
          _stage.removeEventListener(MouseEvent.MOUSE_DOWN,hideMe);
          if(_subMenu)
          {

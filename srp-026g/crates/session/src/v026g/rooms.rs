@@ -589,11 +589,19 @@ impl Rooms {
     /// The first of the room's queue, while it has a place free: out of the
     /// queue, for the lobby to put in (`admit`) if it still may come.
     pub fn next_in_queue(&mut self, key: u32) -> Option<u32> {
+        self.next_ready_in_queue(key, &|_| true)
+    }
+
+    /// [`next_in_queue`](Self::next_in_queue), the first that `ready` takes:
+    /// those before it stay in their places.
+    pub fn next_ready_in_queue(&mut self, key: u32, ready: &dyn Fn(u32) -> bool) -> Option<u32> {
         let room = self.rooms.get(&key)?;
         if room.is_full() {
             return None;
         }
-        let first = self.queues.get_mut(&key)?.pop_front()?;
+        let queue = self.queues.get_mut(&key)?;
+        let at = queue.iter().position(|&account_id| ready(account_id))?;
+        let first = queue.remove(at)?;
         self.queued.remove(&first);
         if self.queues.get(&key).is_some_and(VecDeque::is_empty) {
             self.queues.remove(&key);

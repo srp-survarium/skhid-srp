@@ -731,7 +731,8 @@ pub fn ranking_flush(top: &[Ranked]) -> Option<Result<ServerMessage, WireError>>
 /// players it was told (`PlayerRanking.request_players`), so a stock game
 /// never sends one. Only "Player vs Bots" ([`PVB_STATUS_START`],
 /// [`PVB_CHOOSE_BASE`]), the rooms (`rooms::ROOMS_FIRST` to
-/// `rooms::ROOMS_LAST`) and the replay poll ([`REPLAY_START`]) are
+/// `rooms::ROOMS_LAST`), the kit presets (`presets::PRESETS_FIRST` to
+/// `presets::PRESETS_LAST`) and the replay poll ([`REPLAY_START`]) are
 /// answered; every other one gets no answer (the "matches now" list and
 /// its JOIN, at 2 000 000 000 and from 2 100 000 000, went with the queue:
 /// the owner's of 2026-10-17).
@@ -1200,8 +1201,9 @@ pub fn permitted_item_used(item_id: u32) -> ServerMessage {
 
 /// `83 46 06`: the reroll window of an item: what the next change costs
 /// in silver (`a`) and in gold (`b`), and, once one of its modifications
-/// was changed, `more`: that modification's id (the only one the window
-/// lets be changed again, `was_rerolled_before`, 0x29FD13) and the item's
+/// was changed, `more`: that modification's id (`was_rerolled_before`,
+/// 0x29FD13: the game's window let only it be changed again; srp's marks
+/// it and locks nothing, `docs/notes/reroll-keep-old.md`) and the item's
 /// `reroll_time` in seconds (PROVEN, 0x2757CC -> 0x29F430: `regular_cost`,
 /// `premium_cost`, `reroll_time`). The item must be in the client's
 /// inventory.

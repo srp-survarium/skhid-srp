@@ -34,15 +34,7 @@ package survarium.messages
                   event.handled = true;
                }
                break;
-            case Keyboard.ESCAPE:
-               if(details.value == InputValue.KEY_UP)
-               {
-                  if(stage.focus is TextField)
-                  {
-                     stage.focus = this;
-                  }
-               }
-               break;
+            // Esc: LobbyMenu.close_active_window (Modals), the one Esc handler
             case Keyboard.BACKSPACE:
                if(details.value == InputValue.KEY_UP)
                {
@@ -60,6 +52,12 @@ package survarium.messages
       {
          trace("BASE:CANCEL");
          Message.onClick(_id);
+      }
+
+      // Esc is the message's Cancel (its X does the same).
+      override public function cancelByEsc() : void
+      {
+         this.onMessageCancel(null);
       }
    }
 }

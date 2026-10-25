@@ -659,9 +659,15 @@ impl Core<'_> {
     /// match against bots (`pvb`), a rooms' start (`lobby::rooms::ROOMS_FIRST`
     /// to `ROOMS_LAST`) with a room request (`rooms`),
     /// [`lobby::REPLAY_START`] with the asker's
-    /// own "Watch replay" answer (`replay`); any other gets no answer.
+    /// own "Watch replay" answer (`replay`), a presets start
+    /// (`lobby::presets::PRESETS_FIRST` to `PRESETS_LAST`) with the kit
+    /// presets (`presets`); any other gets no answer.
     /// Nothing of the ranking is read, sent or kept for them.
     fn reserved_ranking(&mut self, who: &Who, start: u32, count: u8, now: Instant) {
+        if let Some(request) = lobby::presets::preset_request(start) {
+            self.preset_request(who, request);
+            return;
+        }
         if let Some(request) = lobby::rooms::room_request(start, count) {
             self.room_request(who, request, now);
             return;

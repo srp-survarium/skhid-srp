@@ -2,11 +2,20 @@ package survarium.player
 {
    import fl.transitions.easing.Strong;
    import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
+   import flash.display.Graphics;
    import flash.display.MovieClip;
+   import flash.display.Shape;
+   import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.MouseEvent;
+   import flash.events.TimerEvent;
    import flash.external.*;
    import flash.text.TextField;
+   import flash.text.TextFormat;
    import flash.utils.getDefinitionByName;
+   import flash.utils.Timer;
+   import flash.utils.getTimer;
    import scaleform.clik.controls.Button;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ButtonEvent;
@@ -14,6 +23,8 @@ package survarium.player
    import scaleform.clik.events.IndexEvent;
    import scaleform.clik.motion.Tween;
    import survarium.Util;
+   import survarium.controls.Message;
+   import survarium.controls.Modals;
    import survarium.controls.PlayerProfileBase;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
@@ -26,6 +37,9 @@ package survarium.player
    import survarium.constants.MoneyType;
    import survarium.constants.SuperCategory;
    import survarium.constants.UiSound;
+   import survarium.rooms.RoomsLook;
+   import survarium.rooms.RoomsText;
+   import survarium.rooms.RoomsWindow;
    
    public class LocalPlayerProfile extends PlayerProfileBase implements ILocalPlayerProfile
    {
@@ -40,6 +54,9 @@ package survarium.player
       
       public var checkbox_autobuy:Button;
       
+      // The auto-repair box: wear is gone, so it did nothing (the owner's
+      // of 2026-10-23). The original movie's graphics place it beside
+      // Autobuy; init hides it and moves Autobuy into its place.
       public var checkbox_autorepair:Button;
       
       public var ammoContainer:MovieClip;
@@ -48,14 +65,11 @@ package survarium.player
       
       private var _weightC:Number = 0;
       
-      // autobuy_changed's state: which of the auto buy (ammo) and auto repair boxes are ticked
+      // autobuy_changed's state: whether the autobuy (ammo) box is ticked
+      // (bit 1 was the auto-repair box, gone).
       private static const AUTOBUY_NONE:uint = 0;
       
       private static const AUTOBUY_AMMO:uint = 1;
-      
-      private static const AUTOBUY_REPAIR:uint = 2;
-      
-      private static const AUTOBUY_BOTH:uint = 3;
       
       private var _weightM:Number = 0;
       
@@ -72,10 +86,189 @@ package survarium.player
       protected var _unresolvedItems:Array = new Array();
       
       protected var _convertedItems:Array;
+      // Kit presets (presets.md, the owner's of 2026-10-23): five sets of the
+      // three kits, one active. The panel's title is the switcher: it names
+      // the active preset ("Loadout 2 · Lvl. 15": players see "Loadout"),
+      // and a press on it opens the
+      // five under it; a press on one chooses it. The active one is the kits:
+      // choosing another puts it on, and every change of the kits is the
+      // active one's (the server's). srp's wire: the ranking request at
+      // PRESETS_FIRST and on (lobby.md 2.16.4), answered with the list,
+      // `P2;L;<done>;<preset>;<active>;<blocks>;<minutes>`, a row `<preset>;<saved>;<level>`
+      // each (level -1: none of its kits can play), then the items the
+      // presets use, `U;<item id>:<presets>,...` (bit n - 1: preset n), which
+      // a sale asks about (MessageAskSell).
+      public static var me:LocalPlayerProfile;
+      
+      private static const PRESETS_FIRST:int = 2090000000;
+      
+      private static const PRESETS_LAST:int = PRESETS_FIRST + 99;
+      
+      private static const PRESET_CHOOSE:int = PRESETS_FIRST + 10;
+      
+      private static const PRESET_COUNT:int = 5;
+      
+      // What the list's header says was done: chosen, refused.
+      private static const PRESET_CHOSEN:int = 1;
+      
+      private static const PRESET_REFUSED:int = 2;
+      
+      // The title bar (the timeline's header, 570 x 31 at 5, 5) and the
+      // caret drawn after the title's text.
+      private static const TITLE_X:Number = 5;
+      
+      private static const TITLE_Y:Number = 5;
+      
+      private static const TITLE_W:Number = 570;
+      
+      private static const TITLE_H:Number = 31;
+      
+      private static const CARET_W:Number = 12;
+      
+      private static const CARET_H:Number = 7;
+      
+      private static const CARET_GAP:Number = 10;
+      
+      // The title's text (the owner's of 2026-10-23: bigger): 24 px, the
+      // panel's stock title 22; still one line in the bar. Its field is
+      // the bar's width less the caret's room each side, so the longest
+      // title of the five languages ("Loadout 3 · nicht spielbar") fits,
+      // and set 1 px higher so the larger text stays centred in the bar.
+      private static const TITLE_SIZE:int = 24;
+      
+      private static const TITLE_TEXT_W:Number = TITLE_W - 2 * (CARET_GAP + CARET_W + 12);
+      
+      private static const TITLE_TEXT_Y:Number = 6;
+      
+      private static const TITLE_TEXT_H:Number = 34;
+      
+      // The open list under the title: five rows of ROW_H, their text
+      // ROW_SIZE px (the stock option rows': 24 and 14), in the look of the
+      // lobby's lists: the game's dropdown backdrop (near black, a faint
+      // frame), a line between rows, the active row as the rooms list's
+      // selected room (gold-tinted, a gold bar at its left), the name left
+      // and the level or state right. Hover and press lighten a row, and the
+      // title, alike.
+      private static const ROW_H:Number = 36;
+      
+      private static const ROW_SIZE:int = 19;
+      
+      private static const ROW_PAD:Number = 16;
+      
+      private static const HOVER_ALPHA:Number = 0.06;
+      
+      private static const PRESS_ALPHA:Number = 0.11;
+      
+      // A choice shown before the server's answer, at most this long (ms).
+      private static const PRESET_PENDING_MS:int = 5000;
+      
+      // The words, in the lobby's five languages (RoomsText.language: en, uk,
+      // ru, de, pl). Players see "Loadout", never "preset" (the owner's of
+      // 2026-10-23; presets.md has the table). The level's word is the kit
+      // tabs' own ("Lvl."), this one if it is missing. A sale's question:
+      // "one" for one loadout ({n}), "many" for more ({list}: each "item",
+      // the last after "and").
+      private static const PRESET_WORDS:Object = {
+         "preset":["Loadout","Комплект","Комплект","Loadout","Zestaw"],
+         "level":["Lvl.","Рів.","Ур.","Stufe","Poz."],
+         "empty":["empty","порожній","пустой","leer","pusty"],
+         "unfit":["can't play","не для бою","не для боя","nicht spielbar","nie do gry"],
+         "refused":["The loadout could not be chosen.","Не вдалося обрати комплект.","Не удалось выбрать комплект.","Das Loadout ließ sich nicht wählen.","Nie udało się wybrać zestawu."],
+         "sellOne":["Used in Loadout {n}. Sell anyway?","Використовується в комплекті {n}. Продати?","Используется в комплекте {n}. Продать?","Wird in Loadout {n} genutzt. Trotzdem verkaufen?","Używany w zestawie {n}. Sprzedać?"],
+         "sellMany":["Used in {list}. Sell anyway?","Використовується в комплектах {list}. Продати?","Используется в комплектах {list}. Продать?","Wird in Loadout {list} genutzt. Trotzdem verkaufen?","Używany w zestawach {list}. Sprzedać?"],
+         "sellItem":["Loadout {n}","{n}","{n}","{n}","{n}"],
+         "sellAnd":[" and "," і "," и "," und "," i "]
+      };
+      
+      // The title bar's press area and its hover / open look (below the
+      // title's text), the caret, and the open list (null: closed) with its
+      // rows, the row under the pointer and the one pressed (-1: none).
+      private var _presetTitle:Sprite;
+      
+      private var _presetGlow:Shape;
+      
+      private var _presetCaret:Shape;
+      
+      private var _presetList:Sprite;
+      
+      private var _presetRows:Array = [];
+      
+      private var _presetRowOver:int = -1;
+      
+      private var _presetRowDown:int = -1;
+      
+      private var _presetHover:Boolean = false;
+      
+      // The title's font (the timeline's), for the rows.
+      private var _presetFont:String = null;
+      
+      private var _presetBold:Object = null;
+      
+      // The title's text field as the timeline placed it: its x and centre.
+      private var _titleX:Number = 0;
+      
+      private var _titleCentre:Number = 0;
+      
+      // {known, saved, level} a preset, preset 1 first; the active one (0
+      // the first), as the server last said; whether it said it yet.
+      private var _presets:Array = [];
+      
+      private var _presetAt:int = 0;
+      
+      private var _presetsSeen:Boolean = false;
+      
+      // A preset chosen and not answered yet (-1: none): the title names it.
+      private var _presetPending:int = -1;
+      
+      private var _presetPendingAt:int = 0;
+      
+      private var _presetsAskedAt:int = -100000;
+      
+      // Item id -> the presets that use it (bit n - 1: preset n), as the
+      // server last said.
+      private var _presetUses:Object = {};
+      
+      // The U rows the uses came from, to tell a change.
+      private var _presetUsesRows:String = "";
+      
+      // Asks again every 2 s until the first list comes: the first asks go
+      // out while the movie loads, before the game takes them
+      // ("ExternalInterface.call - handler is not installed"), and are lost;
+      // the title is the panel's name until a list comes.
+      private var _presetsRetry:Timer;
+      
+      // The ask waiting for the end of the 2 s window (null: none).
+      private var _presetsLater:Timer;
+      
+      // Why no room may be entered now (the list's `<blocks>`, the server's
+      // rule for the rooms' entries; presets.md's table of the reasons):
+      // Play and Join greyed by it, its reasons in their tip. 0 (none) until
+      // a list says. The minutes to a planned maintenance (-1: none), and
+      // the list asked again every minute while one is planned.
+      private var _blocks:int = 0;
+      
+      // Whether the reasons are known: a list came, or none in
+      // REASONS_FALLBACK_MS (then the server's doors alone decide). Until
+      // then Play and the rooms' entries are greyed, with no tip (the
+      // owner's of 2026-10-23: a quick click at the start went through).
+      private static const REASONS_FALLBACK_MS:int = 10000;
+      
+      private var _reasonsKnown:Boolean = false;
+      
+      private var _reasonsFallback:Timer;
+      
+      private var _maintenanceMinutes:int = -1;
+      
+      private var _maintenanceWatch:Timer;
+      
+      // The kits locked (as the paper doll and the ammo button): no preset
+      // chosen.
+      private var _presetsLocked:Boolean = false;
       
       public function LocalPlayerProfile()
       {
          super();
+         me = this;
          var rendererPremium:Class = getDefinitionByName("ProfileBuyPremium") as Class;
          buyPremium = new rendererPremium();
          _playerPaperDoll = profileItems as ILocalPaperDoll;
@@ -164,6 +357,7 @@ package survarium.player
       {
          profileItems.enabled = value;
          this.btnShowAmmo.enabled = value;
+         this.lockPresets(!value);
          if(this.btnShowAmmo.selected && value == false)
          {
             this.onAmmoButton();
@@ -234,6 +428,7 @@ package survarium.player
          }
          this._ammo_share.enabled = !state;
          this.btnShowAmmo.enabled = !state;
+         this.lockPresets(state);
       }
       
       public function onDrag(e:DragEvent) : void
@@ -396,6 +591,8 @@ package survarium.player
          }
          this._unresolvedItems.length = 0;
          super.fillProfileItems(data);
+         // The presets' levels follow the inventory: asked again.
+         this.askPresets();
          trace("PP:invalidateItems");
          this._playerInventory.invalidateList();
       }
@@ -421,9 +618,8 @@ package survarium.player
          this.playerWeight.textFieldLabel.text = LocalizationData.getName("equipment_weight");
          this.ammoContainer.tx_total_label.text = LocalizationData.getName("equipment_cost");
          this.btnShowAmmo.label = LocalizationData.getName("show_ammo");
-         this.labelText.text = LocalizationData.getName("paperdoll_label");
+         this.showPresetTitle();
          this.checkbox_autobuy.tipData = {name:LocalizationData.getName("auto_button_hint")};
-         this.checkbox_autorepair.tipData = {name:LocalizationData.getName("auto_repair_hint")};
       }
       
       override protected function init(e:Event) : void
@@ -435,14 +631,13 @@ package survarium.player
          LocalizationData.addButton(this.ammoContainer.btn_cancel,"cancel");
          LocalizationData.addButton(this.ammoContainer.btn_apply,"refill_ammo_btn");
          LocalizationData.addButton(this.checkbox_autobuy,"autobuy_button_label");
-         LocalizationData.addButton(this.checkbox_autorepair,"auto_repair_button_label");
          this.checkbox_autobuy.tooltipRendererName = "SrvProfileTipRendererStyled";
-         this.checkbox_autorepair.tooltipRendererName = "SrvProfileTipRendererStyled";
          this.ammoContainer.labelCostP.moneyType = MoneyType.PREMIUM;
-         this.checkbox_autorepair.visible = true;
-         this.checkbox_autorepair.enabled = true;
-         this.checkbox_autorepair.addEventListener(ButtonEvent.CLICK,this.onAutoRepair);
-         this.checkbox_autobuy.addEventListener(ButtonEvent.CLICK,this.onAutoRepair);
+         // The auto-repair box is gone (see its declaration): Autobuy takes
+         // its place at the row's start, no gap left.
+         this.checkbox_autorepair.visible = false;
+         this.checkbox_autobuy.x = this.checkbox_autorepair.x;
+         this.checkbox_autobuy.addEventListener(ButtonEvent.CLICK,this.onAutoBuy);
          trace("PlayerProfileInit2",this._ammo_share,this.ammoContainer,this.ammoContainer.labelCostR,this.ammoContainer.labelCostP,this.btnShowAmmo);
          this._ammo_share.autoBuyCheckBox = this.checkbox_autobuy;
          this.ammoContainer.addChildAt(this._ammo_share as DisplayObject,4);
@@ -456,34 +651,12 @@ package survarium.player
          this.btnShowAmmo.addEventListener(ButtonEvent.CLICK,this.onAmmoButton);
          this.ammoContainer.shift = -575;
          this.ammoContainer.addEventListener(Event.CLOSE,this.onAmmoButtonSwitch);
+         this.makePresets();
       }
       
-      private function onAutoRepair(e:Event) : void
+      private function onAutoBuy(e:Event) : void
       {
-         trace("PP::updateAutoRepair",this.checkbox_autorepair.selected,this.getAutoBuyState());
-         ExternalInterface.call("autobuy_changed",this.getAutoBuyState());
-      }
-      
-      private function getAutoBuyState() : uint
-      {
-         if(this.checkbox_autorepair.selected == false && this.checkbox_autobuy.selected == false)
-         {
-            return AUTOBUY_NONE;
-         }
-         if(this.checkbox_autorepair.selected == true && this.checkbox_autobuy.selected == true)
-         {
-            return AUTOBUY_BOTH;
-         }
-         if(this.checkbox_autorepair.selected == true)
-         {
-            return AUTOBUY_REPAIR;
-         }
-         return AUTOBUY_AMMO;
-      }
-      
-      public function setAutoRepair(value:Boolean) : void
-      {
-         this.checkbox_autorepair.selected = value;
+         ExternalInterface.call("autobuy_changed",this.checkbox_autobuy.selected ? AUTOBUY_AMMO : AUTOBUY_NONE);
       }
       
       private function onAmmoButtonSwitch(e:Event) : void
@@ -550,6 +723,944 @@ package survarium.player
             this._playerPaperDoll.ammoControl.reflow(null,"playerProfile",-1);
          }
       }
+      
+      // PlayerRanking.fillPlayers, first: rows of the presets' range are
+      // the list (true: taken).
+      public static function presetsTake(rows:Array) : Boolean
+      {
+         if(rows == null || rows.length == 0 || rows[0] == null)
+         {
+            return false;
+         }
+         var place:Number = Number(rows[0].place);
+         if(place < PRESETS_FIRST || place > PRESETS_LAST)
+         {
+            return false;
+         }
+         if(me != null)
+         {
+            try
+            {
+               me.takePresets(rows);
+            }
+            catch(e:Error)
+            {
+            }
+         }
+         return true;
+      }
+      
+      // The reasons (presets.md's table): bits of the list's `<blocks>`,
+      // each with its text: the game's own key where it has one ("#key"
+      // when it is missing), else ours, in the lobby's five languages.
+      private static const BLOCK_MAINTENANCE:int = 32;
+      
+      private static const REASONS:Array = [
+         {"bit":1,"key":null,"words":["This profile is locked","Цей профіль закритий","Этот профиль закрыт","Dieses Profil ist gesperrt","Ten profil jest zablokowany"]},
+         {"bit":2,"key":null,"words":["Two items share a slot","Два предмети в одному слоті","Два предмета в одном слоте","Zwei Gegenstände in einem Platz","Dwa przedmioty w jednym miejscu"]},
+         {"bit":4,"key":null,"words":["One item type in two pockets","Один тип предмета у двох кишенях","Один тип предмета в двух карманах","Ein Gegenstandstyp in zwei Taschen","Ten sam przedmiot w dwóch kieszeniach"]},
+         {"bit":8,"key":"st_profile_check_failed_weapon_ammo","words":["Too little ammo for a weapon","Замало набоїв до зброї","Мало патронов к оружию","Zu wenig Munition für eine Waffe","Za mało amunicji do broni"]},
+         {"bit":16,"key":"st_profile_check_failed_weapon","words":["No weapon","Немає зброї","Нет оружия","Keine Waffe","Brak broni"]},
+         {"bit":BLOCK_MAINTENANCE,"key":null,"words":["Server maintenance soon: in {n} min","Скоро технічні роботи: за {n} хв","Скоро технические работы: через {n} мин","Bald Wartung: in {n} Min","Wkrótce przerwa techniczna: za {n} min"]}
+      ];
+      
+      // StatusPanel.showRoomsPlay: Play greyed while any reason holds, or
+      // while the reasons are not known yet.
+      public static function mayPlay() : Boolean
+      {
+         return me == null || me._reasonsKnown && me._blocks == 0;
+      }
+      
+      // Making a room: greyed under the maintenance rule only (a kit that
+      // can not play is warned in the room), and until the reasons are known.
+      public static function mayCreate() : Boolean
+      {
+         return me == null || me._reasonsKnown && (me._blocks & BLOCK_MAINTENANCE) == 0;
+      }
+      
+      // Every reason that holds, a line each (the greyed buttons' tip).
+      public static function reasons() : String
+      {
+         if(me == null)
+         {
+            return "";
+         }
+         var lines:Array = [];
+         for each(var reason:Object in REASONS)
+         {
+            if((me._blocks & int(reason.bit)) == 0)
+            {
+               continue;
+            }
+            var text:String = reason.key != null ? LocalizationData.getName(String(reason.key)) : "";
+            if(text == "" || text.charAt(0) == "#")
+            {
+               text = String(reason.words[RoomsText.language()]);
+            }
+            // A line each, no full stop at its end (the owner's of
+            // 2026-10-23), the game's own texts too.
+            text = text.split("{n}").join(String(Math.max(0,me._maintenanceMinutes)));
+            while(text.length > 0 && (text.charAt(text.length - 1) == "." || text.charAt(text.length - 1) == " "))
+            {
+               text = text.substr(0,text.length - 1);
+            }
+            lines.push(text);
+         }
+         return lines.join("\n");
+      }
+      
+      // A tip over a greyed button (a disabled one takes no hover): the
+      // game's tooltip (as Autobuy's), nested a Sprite deeper (a control
+      // straight in a content Sprite may lose its mouse events to it). The
+      // caller removes it with the holder.
+      public static function reasonTip(parent:DisplayObjectContainer, x:Number, y:Number, w:Number, h:Number) : Sprite
+      {
+         var holder:Sprite = new Sprite();
+         holder.x = x;
+         holder.y = y;
+         // Not known yet (or none): greyed, no tip.
+         if(reasons() == "")
+         {
+            parent.addChild(holder);
+            return holder;
+         }
+         var tip:ReasonsTip = new ReasonsTip();
+         tip.graphics.beginFill(0,0.01);
+         tip.graphics.drawRect(0,0,w,h);
+         tip.graphics.endFill();
+         holder.addChild(tip);
+         parent.addChild(holder);
+         tip.validateNow();
+         tip.tooltipRendererName = "SrvProfileTipRendererStyled";
+         tip.tipData = {"name":reasons()};
+         return holder;
+      }
+      
+      // The rooms' Join (a room of `maxLevel`; 0: any, -1: not known): no
+      // reason holds, or only the kit's and the join popup can offer another
+      // loadout that can play (the server's `presets::offer`): greyed
+      // otherwise.
+      public static function mayEnter(maxLevel:int) : Boolean
+      {
+         if(mayPlay())
+         {
+            return true;
+         }
+         if(!me._reasonsKnown || (me._blocks & BLOCK_MAINTENANCE) != 0)
+         {
+            return false;
+         }
+         var i:int = 0;
+         while(i < PRESET_COUNT)
+         {
+            var preset:Object = me._presets[i];
+            if(i != me._presetAt && preset.known && preset.level >= 0 && (maxLevel <= 0 || preset.level <= maxLevel))
+            {
+               return true;
+            }
+            i++;
+         }
+         return false;
+      }
+      
+      // MessageAskSell: the question a sale of `itemId` asks first, "" when
+      // no preset uses it (the owner's of 2026-10-23).
+      public static function sellWarning(itemId:uint) : String
+      {
+         if(me == null)
+         {
+            return "";
+         }
+         var mask:int = int(me._presetUses[String(itemId)]);
+         var numbers:Array = [];
+         var n:int = 1;
+         while(n <= PRESET_COUNT)
+         {
+            if((mask & 1 << n - 1) != 0)
+            {
+               numbers.push(n);
+            }
+            n++;
+         }
+         if(numbers.length == 0)
+         {
+            return "";
+         }
+         if(numbers.length == 1)
+         {
+            return presetWord("sellOne").split("{n}").join(String(numbers[0]));
+         }
+         var items:Array = [];
+         for each(var number:int in numbers)
+         {
+            items.push(presetWord("sellItem").split("{n}").join(String(number)));
+         }
+         var last:String = String(items.pop());
+         return presetWord("sellMany").split("{list}").join(items.join(", ") + presetWord("sellAnd") + last);
+      }
+      
+      // The roman numerals of the five loadouts (ItemRendererInv's badge).
+      private static const ROMAN:Array = ["I","II","III","IV","V"];
+      
+      // ItemRendererInv: the loadouts that use `itemId` (the list's U rows,
+      // as the sale's question; the active one's too), in roman numerals:
+      // "II", "I IV", a run of three or more joined ("I-V", "II-IV V").
+      // "" when none does.
+      public static function loadoutMark(itemId:uint) : String
+      {
+         if(me == null)
+         {
+            return "";
+         }
+         var mask:int = int(me._presetUses[String(itemId)]);
+         var parts:Array = [];
+         var n:int = 0;
+         while(n < PRESET_COUNT)
+         {
+            if((mask & 1 << n) == 0)
+            {
+               n++;
+               continue;
+            }
+            var last:int = n;
+            while(last + 1 < PRESET_COUNT && (mask & 1 << last + 1) != 0)
+            {
+               last++;
+            }
+            if(last - n >= 2)
+            {
+               parts.push(ROMAN[n] + "-" + ROMAN[last]);
+            }
+            else
+            {
+               var k:int = n;
+               while(k <= last)
+               {
+                  parts.push(ROMAN[k]);
+                  k++;
+               }
+            }
+            n = last + 1;
+         }
+         return parts.join(" ");
+      }
+      
+      private static function presetWord(key:String) : String
+      {
+         return String(PRESET_WORDS[key][RoomsText.language()]);
+      }
+      
+      // The title bar's press area over the panel, the title's text (which
+      // takes no press) above it, and the caret.
+      private function makePresets() : void
+      {
+         var i:int = 0;
+         while(i < PRESET_COUNT)
+         {
+            this._presets.push({
+               "known":false,
+               "saved":false,
+               "level":-1
+            });
+            i++;
+         }
+         this._titleCentre = this.labelText.x + this.labelText.width / 2;
+         var format:TextFormat = this.labelText.length > 0 ? this.labelText.getTextFormat() : this.labelText.defaultTextFormat;
+         this._presetFont = format.font;
+         this._presetBold = format.bold;
+         format.size = TITLE_SIZE;
+         this.labelText.defaultTextFormat = format;
+         this.labelText.setTextFormat(format);
+         this.labelText.width = TITLE_TEXT_W;
+         this.labelText.height = TITLE_TEXT_H;
+         this.labelText.y = TITLE_TEXT_Y;
+         this._titleX = this._titleCentre - TITLE_TEXT_W / 2;
+         this.labelText.mouseEnabled = false;
+         this._presetTitle = new Sprite();
+         this._presetTitle.x = TITLE_X;
+         this._presetTitle.y = TITLE_Y;
+         // Alpha 0 is not hit-tested in Scaleform: 0.01.
+         this._presetTitle.graphics.beginFill(0,0.01);
+         this._presetTitle.graphics.drawRect(0,0,TITLE_W,TITLE_H);
+         this._presetTitle.graphics.endFill();
+         this._presetTitle.mouseChildren = false;
+         this._presetGlow = new Shape();
+         this._presetTitle.addChild(this._presetGlow);
+         this._presetCaret = new Shape();
+         this._presetTitle.addChild(this._presetCaret);
+         // On top of the panel, the text above it.
+         addChild(this._presetTitle);
+         setChildIndex(this.labelText,numChildren - 1);
+         this._presetTitle.addEventListener(MouseEvent.ROLL_OVER,this.onPresetOver);
+         this._presetTitle.addEventListener(MouseEvent.ROLL_OUT,this.onPresetOut);
+         // On the panel, not the bar: a press Scaleform gives the panel
+         // itself (scaleform-movie-pitfalls) is found by its point.
+         addEventListener(MouseEvent.MOUSE_DOWN,this.onPanelPress);
+         addEventListener(Event.REMOVED_FROM_STAGE,this.onPresetsGone);
+         this.showPresetTitle();
+         this._presetsRetry = new Timer(2000,0);
+         this._presetsRetry.addEventListener(TimerEvent.TIMER,this.onPresetsRetry);
+         this._presetsRetry.start();
+         this.askPresets();
+      }
+      
+      // RoomsWindow.playEnabled: the game's first word on Play, the lobby
+      // live; the fallback counts from here (the asks while the movie loads
+      // are lost), and an ask goes now.
+      public static function lobbyLive() : void
+      {
+         if(me == null || me._reasonsFallback != null)
+         {
+            return;
+         }
+         me._reasonsFallback = new Timer(REASONS_FALLBACK_MS,1);
+         me._reasonsFallback.addEventListener(TimerEvent.TIMER_COMPLETE,me.onReasonsFallback);
+         me._reasonsFallback.start();
+         me.askPresets();
+      }
+      
+      // StatusPanel: Play greyed from its start until the reasons are known.
+      public static function reasonsKnown() : Boolean
+      {
+         return me != null && me._reasonsKnown;
+      }
+      
+      // No list in REASONS_FALLBACK_MS: the buttons lit (none greyed for
+      // ever); the server's doors still refuse what may not go in.
+      private function onReasonsFallback(e:TimerEvent) : void
+      {
+         if(this._reasonsKnown)
+         {
+            return;
+         }
+         this._reasonsKnown = true;
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.kitsChanged();
+         }
+      }
+      
+      private function onPresetsRetry(e:TimerEvent) : void
+      {
+         if(this._presetsSeen)
+         {
+            this._presetsRetry.stop();
+            return;
+         }
+         this._presetsAskedAt = getTimer();
+         this.sendPresets(PRESETS_FIRST);
+      }
+      
+      // "Loadout 2 · Lvl. 15": the name, then the detail.
+      private function presetLabel(i:int) : String
+      {
+         var detail:String = this.presetDetail(i);
+         return this.presetName(i) + (detail != "" ? " · " + detail : "");
+      }
+      
+      private function presetName(i:int) : String
+      {
+         return presetWord("preset") + " " + (i + 1);
+      }
+      
+      // The level, or why there is none ("": not known yet).
+      private function presetDetail(i:int) : String
+      {
+         var preset:Object = this._presets[i];
+         if(!preset.known)
+         {
+            return "";
+         }
+         if(!preset.saved)
+         {
+            return presetWord("empty");
+         }
+         if(preset.level < 0)
+         {
+            return presetWord("unfit");
+         }
+         var level:String = LocalizationData.getName("clan_players_level_label");
+         if(level == null || level == "" || level == "clan_players_level_label")
+         {
+            level = presetWord("level");
+         }
+         return level + " " + preset.level;
+      }
+      
+      // The preset the title names: the one chosen while unanswered.
+      private function presetShown() : int
+      {
+         return this._presetPending >= 0 ? this._presetPending : this._presetAt;
+      }
+      
+      // The title: the panel's name until the server's first list, then the
+      // active preset with a caret, the two centred in the bar together.
+      private function showPresetTitle() : void
+      {
+         if(this._presetTitle == null)
+         {
+            this.labelText.text = LocalizationData.getName("paperdoll_label");
+            return;
+         }
+         var ready:Boolean = this._presetsSeen;
+         this.labelText.text = ready ? this.presetLabel(this.presetShown()) : LocalizationData.getName("paperdoll_label");
+         var shift:Number = ready ? (CARET_GAP + CARET_W) / 2 : 0;
+         this.labelText.x = this._titleX - shift;
+         this._presetCaret.visible = ready;
+         this._presetCaret.x = this._titleCentre - shift + this.labelText.textWidth / 2 + CARET_GAP - TITLE_X;
+         this._presetCaret.y = Math.round(TITLE_H / 2 - CARET_H / 2 + 2);
+         this._presetTitle.buttonMode = ready && !this._presetsLocked;
+         this.drawPresetTitle();
+      }
+      
+      // Over, lightened as a row of the list; open, with a 1 px outline at
+      // 10 % (the lobby's selected option row).
+      private function drawPresetTitle() : void
+      {
+         if(this._presetTitle == null)
+         {
+            return;
+         }
+         var open:Boolean = this._presetList != null;
+         var live:Boolean = this._presetsSeen && !this._presetsLocked;
+         var g:Graphics = this._presetGlow.graphics;
+         g.clear();
+         if(live && (open || this._presetHover))
+         {
+            g.beginFill(16777215,HOVER_ALPHA);
+            g.drawRect(0,0,TITLE_W,TITLE_H);
+            g.endFill();
+         }
+         if(live && open)
+         {
+            g.beginFill(16777215,0.1);
+            g.drawRect(0,0,TITLE_W,1);
+            g.drawRect(0,TITLE_H - 1,TITLE_W,1);
+            g.drawRect(0,1,1,TITLE_H - 2);
+            g.drawRect(TITLE_W - 1,1,1,TITLE_H - 2);
+            g.endFill();
+         }
+         // The caret: down, up while the list is open; the title's colour.
+         var c:Graphics = this._presetCaret.graphics;
+         c.clear();
+         c.beginFill(this.labelText.textColor,live ? 1 : 0.35);
+         if(open)
+         {
+            c.moveTo(0,CARET_H);
+            c.lineTo(CARET_W,CARET_H);
+            c.lineTo(CARET_W / 2,0);
+            c.lineTo(0,CARET_H);
+         }
+         else
+         {
+            c.moveTo(0,0);
+            c.lineTo(CARET_W,0);
+            c.lineTo(CARET_W / 2,CARET_H);
+            c.lineTo(0,0);
+         }
+         c.endFill();
+      }
+      
+      private function onPresetOver(e:MouseEvent) : void
+      {
+         this._presetHover = true;
+         this.drawPresetTitle();
+      }
+      
+      private function onPresetOut(e:MouseEvent) : void
+      {
+         this._presetHover = false;
+         this.drawPresetTitle();
+      }
+      
+      // A press on the title opens or closes the list. A press on a row the
+      // list missed (given to the panel) chooses that row.
+      private function onPanelPress(e:MouseEvent) : void
+      {
+         if(this._presetTitle == null || e.target != this && e.target != this._presetTitle)
+         {
+            return;
+         }
+         if(this._presetTitle.hitTestPoint(e.stageX,e.stageY,false))
+         {
+            if(this._presetList != null)
+            {
+               this.closePresetList();
+            }
+            else
+            {
+               this.openPresetList();
+            }
+            return;
+         }
+         if(e.target != this || this._presetList == null)
+         {
+            return;
+         }
+         this.choosePresetAt(e.stageX,e.stageY);
+      }
+      
+      // The row under a stage point chosen (a press given to the panel or
+      // the list itself: scaleform-movie-pitfalls).
+      private function choosePresetAt(stageX:Number, stageY:Number) : void
+      {
+         var i:int = 0;
+         while(i < this._presetRows.length)
+         {
+            var row:DisplayObject = this._presetRows[i] as DisplayObject;
+            if(row.hitTestPoint(stageX,stageY,false))
+            {
+               this.choosePreset(i);
+               return;
+            }
+            i++;
+         }
+      }
+      
+      // The list under the title, its width, five rows, the active one
+      // marked (see ROW_H).
+      private function openPresetList() : void
+      {
+         if(this._presetList != null || !this._presetsSeen || this._presetsLocked || stage == null)
+         {
+            return;
+         }
+         var list:Sprite = new Sprite();
+         list.x = TITLE_X;
+         list.y = TITLE_Y + TITLE_H;
+         var g:Graphics = list.graphics;
+         g.beginFill(2039840,0.6);
+         g.drawRect(0,0,TITLE_W,PRESET_COUNT * ROW_H + 2);
+         g.endFill();
+         g.beginFill(197636,0.97);
+         g.drawRect(1,1,TITLE_W - 2,PRESET_COUNT * ROW_H);
+         g.endFill();
+         this._presetRows = [];
+         this._presetRowOver = -1;
+         this._presetRowDown = -1;
+         var i:int = 0;
+         while(i < PRESET_COUNT)
+         {
+            var row:Sprite = new Sprite();
+            row.x = 1;
+            row.y = 1 + i * ROW_H;
+            row.name = String(i);
+            row.buttonMode = true;
+            row.mouseChildren = false;
+            row.addChild(this.rowText());
+            row.addChild(this.rowText());
+            row.addEventListener(MouseEvent.ROLL_OVER,this.onPresetRowOver);
+            row.addEventListener(MouseEvent.ROLL_OUT,this.onPresetRowOut);
+            row.addEventListener(MouseEvent.MOUSE_DOWN,this.onPresetRowDown);
+            row.addEventListener(MouseEvent.MOUSE_UP,this.onPresetRowUp);
+            row.addEventListener(MouseEvent.CLICK,this.onPresetRow);
+            list.addChild(row);
+            this._presetRows.push(row);
+            i++;
+         }
+         list.addEventListener(MouseEvent.MOUSE_DOWN,this.onPresetListPress);
+         this._presetList = list;
+         this.fillPresetRows();
+         addChild(list);
+         stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onStagePress);
+         addEventListener(Event.ENTER_FRAME,this.watchPresetList);
+         this.drawPresetTitle();
+         // a modal (Modals): Esc closes the list with no change
+         Modals.open(list,Modals.LOBBY,this.closePresetList,function():Boolean
+         {
+            return _presetList == list && list.stage != null;
+         });
+      }
+      
+      private function rowText() : TextField
+      {
+         var field:TextField = new TextField();
+         field.defaultTextFormat = new TextFormat(this._presetFont,ROW_SIZE,16777215,this._presetBold);
+         field.embedFonts = true;
+         field.selectable = false;
+         field.mouseEnabled = false;
+         field.multiline = false;
+         field.wordWrap = false;
+         field.y = Math.round((ROW_H - ROW_SIZE * 1.22 - 4) / 2);
+         field.height = ROW_SIZE * 1.22 + 6;
+         return field;
+      }
+      
+      // The rows' texts and looks, as the presets now are.
+      private function fillPresetRows() : void
+      {
+         var i:int = 0;
+         while(i < this._presetRows.length)
+         {
+            var row:Sprite = this._presetRows[i] as Sprite;
+            var active:Boolean = i == this.presetShown();
+            var nameField:TextField = row.getChildAt(0) as TextField;
+            var detailField:TextField = row.getChildAt(1) as TextField;
+            nameField.text = this.presetName(i);
+            nameField.textColor = active ? 16777215 : RoomsLook.LIGHT;
+            nameField.x = ROW_PAD;
+            nameField.width = nameField.textWidth + 8;
+            detailField.text = this.presetDetail(i);
+            detailField.textColor = active ? RoomsLook.LIGHT : RoomsLook.GREY;
+            detailField.width = detailField.textWidth + 8;
+            detailField.x = TITLE_W - 2 - ROW_PAD - detailField.textWidth - 4;
+            this.drawPresetRow(i);
+            i++;
+         }
+      }
+      
+      private function drawPresetRow(i:int) : void
+      {
+         var row:Sprite = this._presetRows[i] as Sprite;
+         var w:Number = TITLE_W - 2;
+         var g:Graphics = row.graphics;
+         g.clear();
+         // Alpha 0 is not hit-tested in Scaleform: 0.01.
+         g.beginFill(0,0.01);
+         g.drawRect(0,0,w,ROW_H);
+         g.endFill();
+         if(i == this.presetShown())
+         {
+            g.beginFill(3943440,0.6);
+            g.drawRect(0,0,w,ROW_H);
+            g.endFill();
+            g.beginFill(RoomsLook.GOLD,1);
+            g.drawRect(0,0,3,ROW_H);
+            g.endFill();
+         }
+         if(i == this._presetRowDown || i == this._presetRowOver)
+         {
+            g.beginFill(16777215,i == this._presetRowDown ? PRESS_ALPHA : HOVER_ALPHA);
+            g.drawRect(0,0,w,ROW_H);
+            g.endFill();
+         }
+         if(i < PRESET_COUNT - 1)
+         {
+            g.beginFill(1976368,1);
+            g.drawRect(0,ROW_H - 1,w,1);
+            g.endFill();
+         }
+      }
+      
+      private function presetRowOf(e:MouseEvent) : int
+      {
+         var row:Sprite = e.currentTarget as Sprite;
+         return row != null ? int(row.name) : -1;
+      }
+      
+      private function onPresetRowOver(e:MouseEvent) : void
+      {
+         this._presetRowOver = this.presetRowOf(e);
+         this.redrawPresetRows();
+      }
+      
+      private function onPresetRowOut(e:MouseEvent) : void
+      {
+         var at:int = this.presetRowOf(e);
+         if(this._presetRowOver == at)
+         {
+            this._presetRowOver = -1;
+         }
+         if(this._presetRowDown == at)
+         {
+            this._presetRowDown = -1;
+         }
+         this.redrawPresetRows();
+      }
+      
+      private function onPresetRowDown(e:MouseEvent) : void
+      {
+         this._presetRowDown = this.presetRowOf(e);
+         this.redrawPresetRows();
+      }
+      
+      private function onPresetRowUp(e:MouseEvent) : void
+      {
+         this._presetRowDown = -1;
+         this.redrawPresetRows();
+      }
+      
+      private function redrawPresetRows() : void
+      {
+         var i:int = 0;
+         while(i < this._presetRows.length)
+         {
+            this.drawPresetRow(i);
+            i++;
+         }
+      }
+      
+      // A press Scaleform gives the list itself, not the row under it.
+      private function onPresetListPress(e:MouseEvent) : void
+      {
+         if(e.target == this._presetList)
+         {
+            this.choosePresetAt(e.stageX,e.stageY);
+         }
+      }
+      
+      private function closePresetList() : void
+      {
+         if(this._presetList == null)
+         {
+            return;
+         }
+         var list:Sprite = this._presetList;
+         this._presetList = null;
+         Modals.leave(list);
+         for each(var row:Sprite in this._presetRows)
+         {
+            row.removeEventListener(MouseEvent.ROLL_OVER,this.onPresetRowOver);
+            row.removeEventListener(MouseEvent.ROLL_OUT,this.onPresetRowOut);
+            row.removeEventListener(MouseEvent.MOUSE_DOWN,this.onPresetRowDown);
+            row.removeEventListener(MouseEvent.MOUSE_UP,this.onPresetRowUp);
+            row.removeEventListener(MouseEvent.CLICK,this.onPresetRow);
+         }
+         this._presetRows = [];
+         this._presetRowOver = -1;
+         this._presetRowDown = -1;
+         list.removeEventListener(MouseEvent.MOUSE_DOWN,this.onPresetListPress);
+         if(list.parent != null)
+         {
+            list.parent.removeChild(list);
+         }
+         if(stage != null)
+         {
+            stage.removeEventListener(MouseEvent.MOUSE_DOWN,this.onStagePress);
+         }
+         removeEventListener(Event.ENTER_FRAME,this.watchPresetList);
+         this.drawPresetTitle();
+      }
+      
+      // A press outside the title and the list closes it, no choice.
+      private function onStagePress(e:MouseEvent) : void
+      {
+         if(this._presetList == null)
+         {
+            return;
+         }
+         if(this._presetList.hitTestPoint(e.stageX,e.stageY,false) || this._presetTitle.hitTestPoint(e.stageX,e.stageY,false))
+         {
+            return;
+         }
+         this.closePresetList();
+      }
+      
+      // The panel hidden (closed, another window) closes the list.
+      private function watchPresetList(e:Event) : void
+      {
+         var at:DisplayObject = this;
+         while(at != null)
+         {
+            if(!at.visible)
+            {
+               this.closePresetList();
+               return;
+            }
+            at = at.parent;
+         }
+         if(stage == null)
+         {
+            this.closePresetList();
+         }
+      }
+      
+      private function onPresetsGone(e:Event) : void
+      {
+         this._presetHover = false;
+         this.closePresetList();
+      }
+      
+      private function onPresetRow(e:MouseEvent) : void
+      {
+         e.stopPropagation();
+         this.choosePreset(this.presetRowOf(e));
+      }
+      
+      // A preset picked: it becomes the active one (its kits put on). The
+      // title names it at once; the server's answer settles it.
+      private function choosePreset(at:int) : void
+      {
+         this.closePresetList();
+         if(this._presetsLocked || at < 0 || at >= PRESET_COUNT || at == this.presetShown())
+         {
+            return;
+         }
+         this._presetPending = at;
+         this._presetPendingAt = getTimer();
+         this.showPresetTitle();
+         this.sendPresets(PRESET_CHOOSE + at + 1);
+      }
+      
+      private function lockPresets(locked:Boolean) : void
+      {
+         this._presetsLocked = locked;
+         if(locked)
+         {
+            this.closePresetList();
+         }
+         if(this._presetTitle != null)
+         {
+            this.showPresetTitle();
+         }
+      }
+      
+      // The list now, at most every 2 s (an account pushed asks for it).
+      // An ask within the 2 s is not dropped: one ask goes at the window's
+      // end (one waiting at most), so the list follows the last change.
+      private function askPresets() : void
+      {
+         var since:int = getTimer() - this._presetsAskedAt;
+         if(since < 2000)
+         {
+            if(this._presetsLater == null)
+            {
+               this._presetsLater = new Timer(2000 - since,1);
+               this._presetsLater.addEventListener(TimerEvent.TIMER_COMPLETE,this.onPresetsLater);
+               this._presetsLater.start();
+            }
+            return;
+         }
+         this._presetsAskedAt = getTimer();
+         this.sendPresets(PRESETS_FIRST);
+      }
+      
+      // A maintenance planned: the list again every minute (its minutes, and
+      // its reason from 30 on).
+      private function watchMaintenance() : void
+      {
+         if(this._maintenanceMinutes < 0)
+         {
+            if(this._maintenanceWatch != null)
+            {
+               this._maintenanceWatch.stop();
+            }
+            return;
+         }
+         if(this._maintenanceWatch == null)
+         {
+            this._maintenanceWatch = new Timer(60000,0);
+            this._maintenanceWatch.addEventListener(TimerEvent.TIMER,this.onMaintenanceWatch);
+         }
+         if(!this._maintenanceWatch.running)
+         {
+            this._maintenanceWatch.start();
+         }
+      }
+      
+      private function onMaintenanceWatch(e:TimerEvent) : void
+      {
+         this.askPresets();
+      }
+      
+      private function onPresetsLater(e:TimerEvent) : void
+      {
+         this._presetsLater.removeEventListener(TimerEvent.TIMER_COMPLETE,this.onPresetsLater);
+         this._presetsLater = null;
+         this.askPresets();
+      }
+      
+      private function sendPresets(start:int) : void
+      {
+         try
+         {
+            ExternalInterface.call("request_players_range",start,1);
+         }
+         catch(e:Error)
+         {
+         }
+      }
+      
+      // `P2;L;<done>;<preset>;<active>;<blocks>;<minutes>`, then `<preset>;<saved>;<level>`
+      // each, then `U;<item id>:<presets>,...` rows.
+      private function takePresets(rows:Array) : void
+      {
+         var head:Array = String(rows[0].nickname).split(";");
+         if(head[0] != "P2" || head[1] != "L")
+         {
+            return;
+         }
+         var active:int = int(head[4]) - 1;
+         this._blocks = int(head[5]);
+         this._reasonsKnown = true;
+         this._maintenanceMinutes = head.length > 6 ? int(head[6]) : -1;
+         this.watchMaintenance();
+         if(active >= 0 && active < PRESET_COUNT)
+         {
+            this._presetAt = active;
+         }
+         var uses:Object = {};
+         var usesRows:String = "";
+         var i:int = 1;
+         while(i < rows.length)
+         {
+            var name:String = String(rows[i].nickname);
+            if(name.indexOf("U;") == 0)
+            {
+               usesRows += name + "\n";
+               var entries:Array = name.substr(2).split(",");
+               var k:int = 0;
+               while(k < entries.length)
+               {
+                  var pair:Array = String(entries[k]).split(":");
+                  if(pair.length == 2)
+                  {
+                     uses[String(uint(pair[0]))] = int(pair[1]);
+                  }
+                  k++;
+               }
+               i++;
+               continue;
+            }
+            var f:Array = name.split(";");
+            var at:int = int(f[0]) - 1;
+            if(at >= 0 && at < PRESET_COUNT && f.length >= 3)
+            {
+               this._presets[at] = {
+                  "known":true,
+                  "saved":f[1] == "1",
+                  "level":int(f[2])
+               };
+            }
+            i++;
+         }
+         this._presetUses = uses;
+         // The inventory's loadout badges follow (ItemRendererInv): drawn
+         // again when the uses changed.
+         if(usesRows != this._presetUsesRows)
+         {
+            this._presetUsesRows = usesRows;
+            if(this._playerInventory != null)
+            {
+               this._playerInventory.invalidateList();
+            }
+         }
+         this._presetsSeen = true;
+         if(this._presetsRetry != null)
+         {
+            this._presetsRetry.stop();
+         }
+         var done:int = int(head[2]);
+         // A choice's answer (or one never coming) ends the choice shown.
+         if(done == PRESET_CHOSEN || done == PRESET_REFUSED || getTimer() - this._presetPendingAt > PRESET_PENDING_MS)
+         {
+            this._presetPending = -1;
+         }
+         this.showPresetTitle();
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.kitsChanged();
+         }
+         if(this._presetList != null)
+         {
+            this.fillPresetRows();
+         }
+         // A slot whose item is gone is just empty: no word of it (the
+         // owner's of 2026-10-23).
+         if(done == PRESET_REFUSED)
+         {
+            Message.showMessage("ok",presetWord("refused"));
+         }
+      }
    }
 }
-

@@ -13,7 +13,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
 - **Making one:** team size 6 v 6 to 10 v 10; players to start 1 v 1 to 3 v 3; max level
   (equipment cap; 0 = any; never below the maker's own gear); the time to start, 30 s to
   1 min 15 s (the 15 s vote and a wait of 15 s to 1 min; shown as the whole); an optional 4-digit PIN; a pool of maps (with modes: Protective device,
-  Protective device: chargers, Team Deathmatch; experimental maps addable). Named after its
+  Protective device: chargers, Team Deathmatch, Research once its maps are in the data;
+  experimental maps addable). Named after its
   maker; never changed once made. No level is chosen: the room's level is its members'
   match level.
   - **Remembered** (the owner's of 2026-10-20: "when you set up your room with the specific
@@ -23,9 +24,17 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     map/weather tiles and the modes. Not the PIN: typed each time (the owner may change
     that). A room Play made keeps nothing. Nothing kept: the defaults (8 v 8, from 1 v 1,
     any max level, 30 s, every mode, the pool without the experimental maps).
-  - Fitted when the window opens: a map or mode no longer offered is dropped; one added
-    later is in (an experimental one out); the max level never below the maker's gear now;
-    other values within today's ranges; nothing of the pool left: the default pool.
+  - Fitted when asked: a map or mode no longer offered is dropped; one added later is in
+    (an experimental one out); the max level never below the maker's gear; other values
+    within today's ranges; nothing of the pool left: the default pool.
+  - **Preloaded** (the owner's of 2026-10-25: the window was drawn first and the settings
+    applied after; "slick and fast"): the movie asks for them as the lobby comes up (after
+    the pool), at every lobby sign-in and whenever the gear level changes, and keeps the
+    last answer; New room opens already filled and no answer redraws it. A room made from
+    the window (Back pressed meanwhile too) updates that copy as the server keeps it. A
+    sign-in to another account in the same game drops the copy at once. None yet (not
+    answered so far): the window opens with the defaults and stays so until it is opened
+    again.
   - No button puts the defaults back (the owner's of 2026-10-20: "no need for that").
   - **A PIN: no rewards** (the owner's of 2026-10-20: "let's remove rewards for private (pin)
     games"; players farmed silver in 1 v 1 PIN rooms): every match of a room with a PIN pays
@@ -157,6 +166,22 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
 - **Maintenance:** within 30 min of one, no vote or match starts and no room is made; a room
   not playing is disbanded at once, one playing after its match (code 9 to its members and
   queue).
+- **Browsing rooms from a room** (the owner's of 2026-10-22: "it should be possible to browse
+  rooms while being in the rooms yourself ... you still stay in the room, but you can look at
+  other rooms, if you exit rooms and enter them again you end up in your room, you cannot join
+  room you are already in, but you can join other rooms"):
+  - A member's window has two tabs at its top, in place of its title: My room (the room's
+    view, as before) and All rooms (the list). In no room: the list, no tabs, as before.
+  - All rooms is the list as anyone sees it; the member stays in its room meanwhile.
+  - Its own room is in the list, its name in the Rooms tab's yellow; Join is off for it.
+  - Join on another room: out of its own, as Leave, and into that one; the window shows My
+    room again, the new one's. A full room: Join is off (a queue is from no room only).
+  - A join refused (a wrong PIN, its gear over the max level, a full room, kicked) leaves it
+    in its room, said in the list as outside a room (the state's `code`, `lobby.md` §2.16.3).
+  - New room from it: made as from no room, out of the old one.
+  - The window, closed and opened again, shows My room.
+- **Kit presets** (the owner's of 2026-10-23): a join from the list or Play may first offer one of
+  the player's kit presets, "Enter anyway" / "Exit" or "Switch and enter" (it makes that preset active) ([presets.md](presets.md)).
 - **Joining from the list:** the Join button, a double-click on a room, or Enter with one chosen
   (Up and Down choose the room above or below)
   (Queue for a full room; the PIN typed first for a private one).
@@ -245,4 +270,27 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   gives nothing, so account ids cannot be walked for anyone's kits. A place of the room's
   window from an older list (a member came or went since) gives nothing. The window's title is
   the whole name (from the room's member rows), not the state's cut one.
-- **Deferred:** "Full · N in queue" and the list's header totals: after rooms are solid.
+- **Deferred:**
+  - **The list's counts** (the owner's of 2026-10-18: after rooms are solid): "Full · N in
+    queue" on a full room, and totals in the list's header ("12 rooms · 87 players · 9
+    waiting").
+  - **A countdown in the last 10 s before a room's match** (the owner's of 2026-10-20, waiting
+    for the owner's pick of a sound):
+    - "for the last 10 seconds, can we have some count down timer", rising in pitch; "we need
+      sounds from game, not something random". The candidate: 0.46's `ui_sounds/countdown_start`
+      (its UI sound 20, 4.25 s of ticks; the owner: "we can most likely use that"). Mixes of
+      game sounds were made to listen to (pips, rising pips or clicks, with or without
+      `countdown_start` and a chime).
+    - The owner: "if we don't have chime at the end, we should have it when match starts to
+      load". The game plays the chime (UI sound 15, `match_selection_complete`) in
+      `LobbyMenu.set_mm_sync_state`, from `lobby_menu::set_match_making_status` (0x2252D0) on
+      0x85 status 1 place 0 ("match found"). The lobby sends that to a room's players too when
+      their match is seated (`play.rs` `queue_status`, `waiting(0, 0, now)`), so it LIKELY
+      still plays with rooms (the owner: "it used to play on search, not sure this happens
+      still with rooms"): to check in the game.
+    - How: the new sounds into `gameplay/ui_sounds` (ids 19 and up) by a content edit; the rooms
+      window plays them by id (`sound_play`), driven from one end time each frame; a big 10...1
+      over the lobby; stopped at once when the vote stops.
+  - **Some of a match's chat in the Room Chat tab** (the owner's of 2026-10-21: "match messages
+    should be preserved and shown in room chat (not all, but some)"): which lines (for example
+    all-chat lines, not team or system lines) to decide with the owner.

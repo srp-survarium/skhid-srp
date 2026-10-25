@@ -881,14 +881,16 @@ pickup draws unseen): hence the sync.
 On real maps (`real_hazards`, 0.5 m margin): 1-11 harmful zones a map,
 4,700-46,000 floors marked (level_08's river 520,000), 1-98 ms.
 
-The match server must (not wired yet):
-- keep `static_id(match_id)` with the bots, and after `Tactics::new`
-  call `tactics.hazards.attach(Anomalies::new(&tactics.world.map,
-  static_seed))`;
-- on each poll, `tactics.hazards.advance(clock.clock)` (the match clock,
-  the worlds' time);
-- on each trusted world, `tactics.hazards.sync_from_world(
-  decoded.sections.objects, snapshot.time)`.
+The match server does (wired): `Bots::tactics_ready` attaches
+`Anomalies::new(&tactics.world.map, static_seed)` (`static_id(match_id)`),
+`Bots::poll` advances it on the match clock, and each trusted world
+(`Game::observe` -> `observe_driven` -> `anomalies_from_world`) syncs it.
+
+Timed anomalies (exe patch 42, `dynamic_anomalies.md`) are not on `main`:
+taken out of revision 31 (the owner, 2026-10-23), their simulation with
+them (branch `feat/dynamic-anomalies`).
+`mapdata-dump --patch <resources.db.patch_n>` (repeatable, mount order)
+dumps maps that only patches have (London) or change.
 
 Rules for bots (`hazards`): a zone of a timer group is active by the
 simulation, its on spans widened by 1 s on each side; a route may cross it

@@ -2,6 +2,7 @@ package survarium.controls
 {
    import com.greensock.TweenLite;
    import flash.display.MovieClip;
+   import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
@@ -30,6 +31,7 @@ package survarium.controls
    import survarium.messages.MessageEnterName;
    import survarium.messages.MessageMoneyExchange;
    import survarium.rooms.RoomsLook;
+   import survarium.player.LocalPlayerProfile;
    import survarium.rooms.RoomsWindow;
    import survarium.constants.ClanState;
    import survarium.constants.Faction;
@@ -43,6 +45,10 @@ package survarium.controls
       public static const MATCH_SETTINGS:String = "matchSettings";
       
       public static const SHOW_DAILY_MESSAGE:String = "showDailyMessage";
+
+      // dispatched when draw has laid the panel out (its exit and settings buttons placed): the
+      // lobby draws those buttons above every modal where the panel draws them (LobbyMenu._corner)
+      public static const LAID_OUT:String = "laidOut";
       
       private var _show_query:Boolean = true;
       
@@ -450,6 +456,13 @@ package survarium.controls
       override protected function configUI() : void
       {
          super.configUI();
+         // Play greyed from the start until the presets' reasons are known
+         // (presets.md): the game may show the lobby before its first word
+         // on Play, and a quick press went through.
+         if(!LocalPlayerProfile.reasonsKnown())
+         {
+            this.playBtn.enabled = false;
+         }
          var textBonus:* = (this.right_corner.btnShowDailyMessage.content as MovieClip).getChildByName("textBonus");
          if((textBonus))
          {
@@ -702,6 +715,7 @@ package survarium.controls
          if((this.labelInfo))
          {
          }
+         dispatchEvent(new Event(LAID_OUT));
       }
       
       override protected function preInitialize() : void
@@ -925,11 +939,16 @@ package survarium.controls
          var btn:* = this.playBtn;
          if(leaving || queued || !each)
          {
-            var on:Boolean = !asking && (leaving || queued || nativePlay);
+            // Play greyed while a reason holds (the kit a match would take
+            // can not play, the maintenance rule: the server's own rule,
+            // presets.md); Leave never. Never lit where the game keeps it off.
+            var blocked:Boolean = !leaving && !queued && !LocalPlayerProfile.mayPlay();
+            var on:Boolean = !asking && (leaving || queued || nativePlay && !blocked);
             if(btn.enabled != on)
             {
                btn.enabled = on;
             }
+            this.showPlayReasons(blocked);
          }
          // In the case of the game's own label (its Play is in capitals).
          var gameLabel:String = this._roomsPlayLabel != null ? this._roomsPlayLabel : String(btn.label);
@@ -965,6 +984,28 @@ package survarium.controls
          }
       }
 
+      // The greyed Play's tip: every reason, a line each (the game's
+      // tooltip; a disabled button takes no hover, so it lies over it).
+      private var _playReasons:Sprite;
+      
+      private function showPlayReasons(blocked:Boolean) : void
+      {
+         var btn:* = this.playBtn;
+         if(this._playReasons != null)
+         {
+            if(this._playReasons.parent != null)
+            {
+               this._playReasons.parent.removeChild(this._playReasons);
+            }
+            this._playReasons = null;
+         }
+         if(!blocked || btn.parent == null || LocalPlayerProfile.reasons() == "")
+         {
+            return;
+         }
+         this._playReasons = LocalPlayerProfile.reasonTip(btn.parent,btn.x,btn.y,btn.width,btn.height);
+      }
+      
       // Play's art tinted, its label not: the text stays white, as PLAY's
       // (the owner's of 2026-10-20). Every part of the button but the one
       // that holds its text field takes the tint (as the rooms window's

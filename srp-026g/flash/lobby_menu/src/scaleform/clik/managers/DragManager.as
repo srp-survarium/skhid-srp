@@ -1,6 +1,7 @@
 package scaleform.clik.managers
 {
    import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.display.Stage;
@@ -32,7 +33,8 @@ package scaleform.clik.managers
          super();
       }
       
-      public static function init(stage:Stage) : void
+      // `layer`: where the drag canvas goes (the lobby's overlay, LobbyMenu._overlay), else the stage
+      public static function init(stage:Stage, layer:DisplayObjectContainer = null) : void
       {
          if(_initialized)
          {
@@ -42,7 +44,7 @@ package scaleform.clik.managers
          DragManager._stage = stage;
          _dragCanvas = new Sprite();
          _dragCanvas.mouseEnabled = _dragCanvas.mouseChildren = false;
-         _stage.addChild(_dragCanvas);
+         (layer ? layer : _stage).addChild(_dragCanvas);
          _stage.addEventListener(DragEvent.DRAG_START,DragManager.handleStartDragEvent,false,0,true);
       }
       

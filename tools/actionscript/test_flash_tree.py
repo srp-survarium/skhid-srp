@@ -9,6 +9,7 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+import zlib
 
 import flash_tree
 import swf
@@ -66,6 +67,30 @@ def do_abc(name, *classes):
     return (swf.DO_ABC, tag(swf.DO_ABC, struct.pack('<I', 1) + name.encode() + b'\0' + abc(*classes)))
 
 
+def png(width, height, rgba, kind=0, colour=6):
+    """A PNG of the pixels, every row filtered by `kind` (0 none, 1 sub, 2 up, 3 average, 4 Paeth)."""
+    channels = 4 if colour == 6 else 3
+    stride = width * channels
+    raw, previous = b'', bytes(stride)
+    for y in range(height):
+        line = rgba[y * stride:(y + 1) * stride]
+        out = bytearray()
+        for x in range(stride):
+            left = line[x - channels] if x >= channels else 0
+            up, corner = previous[x], previous[x - channels] if x >= channels else 0
+            p = left + up - corner
+            paeth = left if abs(p - left) <= abs(p - up) and abs(p - left) <= abs(p - corner) \
+                else up if abs(p - up) <= abs(p - corner) else corner
+            out.append((line[x] - (0, left, up, (left + up) // 2, paeth)[kind]) & 0xff)
+        raw += bytes([kind]) + bytes(out)
+        previous = line
+
+    def chunk(name, body):
+        return struct.pack('>I', len(body)) + name + body + struct.pack('>I', zlib.crc32(name + body))
+    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, colour, 0, 0, 0)) \
+        + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+
+
 def symbols(*entries):
     body = struct.pack('<H', len(entries)) + b''.join(struct.pack('<H', cid) + name.encode() + b'\0'
                                                        for cid, name in entries)
@@ -92,6 +117,28 @@ class MovieTests(unittest.TestCase):
         self.assertEqual([swf.do_abc(raw)[1] for k, raw in tags if k == swf.DO_ABC], ['x', 'y'])
         self.assertEqual(swf.symbol_classes(tags), [(1, 'A'), (2, 'pkg.B')])
         self.assertEqual(flash_tree.check(built), 3)
+
+    def test_a_png_is_read_through_every_filter(self):
+        rgba = bytes(range(2 * 3 * 4))
+        for kind in range(5):
+            self.assertEqual(swf.png(png(2, 3, rgba, kind)), (2, 3, rgba))
+        self.assertEqual(swf.png(png(1, 1, b'\x01\x02\x03', 0, colour=2)), (1, 1, b'\x01\x02\x03\xff'))
+        with self.assertRaisesRegex(ValueError, 'bad CRC'):
+            swf.png(png(1, 1, b'abcd')[:-5] + b'\0' + png(1, 1, b'abcd')[-4:])
+
+    def test_a_bitmap_is_added_bound_to_its_class(self):
+        shape = (2, tag(2, struct.pack('<H', 7) + b'shape'))
+        original = movie([shape, do_abc('a', 'A'), symbols((7, 'A')), (1, tag(1, b''))])
+        built = flash_tree.assemble(original, [do_abc('x', 'A', 'Icon')], [('Icon', 1, 1, b'\x10\x20\x30\x80')])
+        _, tags = swf.split(built)
+        self.assertEqual([k for k, _ in tags], [2, 36, 82, 76, 76, 1, 0])
+        body = swf.payload(tags[1][1])
+        self.assertEqual(struct.unpack_from('<HBHH', body), (8, 5, 1, 1))
+        self.assertEqual(zlib.decompress(body[7:]), bytes((0x80, 0x08, 0x10, 0x18)))   # ARGB, premultiplied
+        self.assertEqual(swf.symbol_classes(tags), [(8, 'Icon'), (7, 'A')])
+        self.assertEqual(flash_tree.check(built), 2)
+        with self.assertRaisesRegex(ValueError, 'already binds'):
+            flash_tree.assemble(original, [], [('A', 1, 1, b'\0\0\0\0')])
 
     def test_every_bound_class_must_be_defined_once(self):
         original = movie([do_abc('a', 'A'), symbols((1, 'A'), (2, 'pkg.B'))])

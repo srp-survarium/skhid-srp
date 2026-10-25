@@ -32,6 +32,14 @@ package survarium.constants
       
       public static const KIT_UNFIT:int = 13;
       
+      // "Switch and enter": the preset could not be applied (presets.md).
+      public static const PRESET_REFUSED:int = 14;
+      
+      // The kit a match would take can not play: Play and Join refused at
+      // the door. Not shown: the buttons are greyed by the same rule
+      // (presets.md, the owner's of 2026-10-23).
+      public static const KIT_CANT_PLAY:int = 15;
+      
       public function RoomCode()
       {
          super();

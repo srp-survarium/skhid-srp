@@ -78,7 +78,9 @@ package scaleform.clik.controls
          super.initialize();
          _textFormat = this.textField.getTextFormat();
          defaultTextFormat = new TextFormat();
-         this.defaultTextFormat.italic = true;
+         // Skhid: upright, not italic: the game's embedded Calibri has no italic glyphs, so every
+         // empty box's hint (the friends search, the item search) showed as squares.
+         this.defaultTextFormat.italic = false;
          this.defaultTextFormat.color = 11184810;
       }
       

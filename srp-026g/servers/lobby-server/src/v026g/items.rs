@@ -125,7 +125,7 @@ impl Core<'_> {
     /// The window as it is, after a refusal: the client's is locked until
     /// it is filled again.
     fn refill_reroll_window(&mut self, who: &Who, item_id: u32) {
-        let window = items_rules::reroll_window(&who.account.locked(), item_id, quests::now());
+        let window = items_rules::reroll_window(&who.account.locked(), item_id);
         if let Ok(window) = window {
             self.send_reroll_window(who, &window);
         }
@@ -133,10 +133,15 @@ impl Core<'_> {
 
     /// `46 06 <item>`.
     pub(super) fn open_reroll(&mut self, who: &Who, item_id: u32) {
-        let window = items_rules::reroll_window(&who.account.locked(), item_id, quests::now());
+        let window = items_rules::reroll_window(&who.account.locked(), item_id);
         match window {
             Ok(window) => self.send_reroll_window(who, &window),
-            Err(error) => self.refuse_item(who, id::INVENTORY, "a reroll window", error),
+            Err(error) => self.refuse_item(
+                who,
+                id::INVENTORY,
+                &format!("a reroll window for item {item_id}"),
+                error,
+            ),
         }
     }
 
@@ -156,11 +161,20 @@ impl Core<'_> {
         };
         match rolled {
             Ok((rolled, money)) => {
-                log::info!(
-                    "{} changes modification {modification} of item {item_id} for {:?}",
-                    who.name,
-                    rolled.paid
-                );
+                if rolled.again {
+                    log::info!(
+                        "{} asks to change modification {modification} of item {item_id}: \
+                         the pending offer for {} is shown again, nothing charged",
+                        who.name,
+                        rolled.replaced
+                    );
+                } else {
+                    log::info!(
+                        "{} changes modification {modification} of item {item_id} for {:?}",
+                        who.name,
+                        rolled.paid
+                    );
+                }
                 self.accounts.mark_dirty(who.account_id);
                 self.send(
                     who.addr,
@@ -173,7 +187,12 @@ impl Core<'_> {
                 }
             }
             Err(error) => {
-                self.refuse_item(who, id::INVENTORY, "a reroll", error);
+                self.refuse_item(
+                    who,
+                    id::INVENTORY,
+                    &format!("a reroll of item {item_id}"),
+                    error,
+                );
                 self.refill_reroll_window(who, item_id);
             }
         }
@@ -188,7 +207,6 @@ impl Core<'_> {
             item_id,
             old,
             choice,
-            quests::now(),
         );
         match chosen {
             Ok(chosen) => {
@@ -258,7 +276,9 @@ impl Core<'_> {
                 self.send_made(who.addr, lobby::permitted_repaired(item_id, repaired));
                 self.item_changed(who);
             }
-            Err(error) => self.refuse_item(who, id::SHOP, "a repair", error),
+            Err(error) => {
+                self.refuse_item(who, id::SHOP, &format!("a repair of item {item_id}"), error)
+            }
         }
     }
 

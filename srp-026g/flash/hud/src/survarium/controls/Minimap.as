@@ -3,13 +3,19 @@ package survarium.controls
    import flash.display.Bitmap;
    import flash.display.BitmapData;
    import flash.display.MovieClip;
+   import flash.events.Event;
    import flash.geom.Point;
    import flash.geom.Rectangle;
    import flash.utils.Dictionary;
    import scaleform.clik.layout.LayoutData;
    
+   // Whether a minimap shows is its owner's (the HUD: the setting's position, and the map): a
+   // Minimap never sets its own visible. It says whether it has a map (hasMap) and dispatches
+   // MAP_LOADED when setProps loads one.
    public class Minimap extends MovieClip
    {
+      
+      public static const MAP_LOADED:String = "minimapMapLoaded";
       
       public var minimap:MovieClip;
       
@@ -55,7 +61,8 @@ package survarium.controls
          "player_carry_squad":PlayerSquadCarry,
          "player_local":PlayerLocal,
          "battery_spawn":SpawnIcon,
-         "resupply":ResupplyIcon
+         "resupply":ResupplyIcon,
+         "research_point":ResearchMinimapPoint
       };
       
       protected var _levels:Object = {
@@ -95,10 +102,17 @@ package survarium.controls
       
       protected var _mapVisibleRectangle:Rectangle = null;
       
+      // Research (mode 5): the units, kept among the exe's objects
+      // (setResearchUnits); the exe's last objects to add them to.
+      protected var _researchUnits:Array = [];
+      
+      protected var _exeObjects:Object = [];
+      
+      public static const RESEARCH_ID:int = 0x7000;
+      
       public function Minimap()
       {
          super();
-         visible = false;
          mouseChildren = false;
          mouseEnabled = false;
          this.minimap.map_ground.addChild(this._mapBitmap);
@@ -182,10 +196,49 @@ package survarium.controls
          this.setData(value);
       }
       
-      public function setObjectData(value:Object) : void
+      // Research's units (HUD.research_update): [{cp_id, pos_x, pos_y, owner,
+      // capturing, progress}], drawn with the exe's objects.
+      public function setResearchUnits(units:Array, ownTeam:uint) : void
+      {
+         var i:int = 0;
+         var point:ResearchMinimapPoint;
+         this._researchUnits = [];
+         while(i < units.length)
+         {
+            this._researchUnits.push({
+               "id":RESEARCH_ID + units[i].cp_id,
+               "type":"research_point",
+               "pos_x":units[i].pos_x,
+               "pos_y":units[i].pos_y
+            });
+            i++;
+         }
+         this.setObjectData(this._exeObjects);
+         i = 0;
+         while(i < units.length)
+         {
+            point = this._objects_static[RESEARCH_ID + units[i].cp_id] as ResearchMinimapPoint;
+            if(point)
+            {
+               point.setState(units[i].cp_id,units[i].owner,units[i].capturing,units[i].progress,ownTeam);
+            }
+            i++;
+         }
+      }
+      
+      public function setObjectData(exeObjects:Object) : void
       {
          var _obj:Object = null;
          var i:int = 0;
+         var value:Array = [];
+         this._exeObjects = exeObjects;
+         while(i < exeObjects.length)
+         {
+            value.push(exeObjects[i]);
+            i++;
+         }
+         value = value.concat(this._researchUnits);
+         i = 0;
          while(i < value.length)
          {
             _obj = value[i];
@@ -208,6 +261,8 @@ package survarium.controls
          var _inst:MinimapObject = null;
          this._objects = new Dictionary(true);
          this._objects_static = new Dictionary(true);
+         this._researchUnits = [];
+         this._exeObjects = [];
          var i:int = 0;
          while(i < this._renderers.length)
          {
@@ -415,7 +470,6 @@ package survarium.controls
       {
          var _obj:Object = null;
          var max_map_size:int = 0;
-         visible = true;
          trace("*************setProps::",value.map);
          if(!this._minimapProps[value.map])
          {
@@ -453,6 +507,13 @@ package survarium.controls
          }
          this._mapVisibleRectangle = _mapb.getColorBoundsRect(16777215,0,false);
          this._mapBitmap.bitmapData = _mapb;
+         dispatchEvent(new Event(MAP_LOADED));
+      }
+      
+      // No map until the first setProps (a match's map), the last one loaded after that.
+      public function get hasMap() : Boolean
+      {
+         return this._mapBitmap.bitmapData != null;
       }
       
       public function getMapSize() : Point

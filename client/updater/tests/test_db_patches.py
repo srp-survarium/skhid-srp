@@ -111,15 +111,16 @@ def frames(data):
 class Holder:
     """Another Windows program that holds a file of the game: the game its
     resources.db, an antivirus a file it scans. It may read and write the
-    file but not delete or rename it, as theirs."""
+    file but not delete or rename it, as theirs. `mode="lock"`: nobody else
+    may even read it, as some antivirus scans do."""
 
     counter = 0
 
-    def __init__(self, test, name, wait=True):
+    def __init__(self, test, name, wait=True, mode="hold"):
         Holder.counter += 1
         self.held = os.path.join(test.root, f"held-{Holder.counter}")
         self.let_go = os.path.join(test.root, f"release-{Holder.counter}")
-        command, env = windows([harness.FAKE_EXE, "hold", windows_path(test.path(name)),
+        command, env = windows([harness.FAKE_EXE, mode, windows_path(test.path(name)),
                                 windows_path(self.held), windows_path(self.let_go)])
         self.process = subprocess.Popen(command, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         test.addCleanup(self.release)
@@ -475,7 +476,7 @@ class PatchTest(WineTest):
         self.assertEqual(sorted(self.store_requests()), ["/store/patch_14", "/store/patch_20"])
         log = self.log()
         self.assertIn(f"patches: resources.db.patch_14: address 1 of 2, {dead}/store/patch_14 (try 1 of 2): "
-                      "Cannot connect to 127.0.0.1", log)
+                      "127.0.0.1 refused the connection.", log)
         self.assertIn(f"patches: resources.db.patch_14: downloaded {self.site.url}/store/patch_14 "
                       "(address 2 of 2), checksum right", log)
         # As srp writes it, the list kept has both, in their order.
@@ -525,7 +526,7 @@ class PatchTest(WineTest):
         self.assertEqual(self.run_updater(), 1)
         self.assertFalse(self.exists(self.patch_name(14)))
         self.assert_blocked("game\\resources.db.patch_14 could not be downloaded from any of its 3 addresses",
-                            "The first: Cannot connect to 127.0.0.1",
+                            "The first: 127.0.0.1 refused the connection.",
                             f"address 1 of 3, {dead}/store/patch_14 (try 1 of 2)",
                             f"address 1 of 3, {dead}/store/patch_14 (try 2 of 2)",
                             f"address 2 of 3, {drive.url}/store/patch_14 (try 1 of 2): ",
@@ -947,7 +948,7 @@ class PatchTest(WineTest):
         self.site.patch_base = dead
         self.assertEqual(self.run_updater(), 1)
         self.assertFalse(self.exists(self.patch_name(14)))
-        self.assert_blocked("game\\resources.db.patch_14 could not be downloaded. Cannot connect to 127.0.0.1")
+        self.assert_blocked("game\\resources.db.patch_14 could not be downloaded. 127.0.0.1 refused the connection.")
         self.site.patch_base = None
         self.assertEqual(self.run_updater(), 0, self.log())
         self.assert_patches(patches)
@@ -959,7 +960,7 @@ class PatchTest(WineTest):
         self.offer(archive)
         self.site.close()
         self.assertEqual(self.run_updater(), 1)
-        self.assertIn("The game's patches could not be checked: Cannot connect to 127.0.0.1", self.log())
+        self.assertIn("The game's patches could not be checked: 127.0.0.1 refused the connection.", self.log())
         self.assertEqual(self.run_ready(), 1)
         self.assertEqual(self.patch_files(), {})
         # Up again: installed and checked.

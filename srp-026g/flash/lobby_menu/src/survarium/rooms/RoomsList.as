@@ -16,6 +16,7 @@ package survarium.rooms
     import survarium.constants.RoomFit;
     import survarium.constants.RoomPhase;
     import survarium.constants.RoomSide;
+    import survarium.player.LocalPlayerProfile;
 
     // The list, after the design: the table of the rooms on the left, the
     // room chosen on the right with its map's render, its facts and its
@@ -91,7 +92,7 @@ package survarium.rooms
             var inner:Sprite = look.scrollBox(14, 108, tableW - 12, look._h - RoomsLook.FOOT_H - 108 - 8);
             var sel:Object = null;
             if (win._rooms.length == 0)
-                look.text(inner, win.say("none"), 0, 14, tableW - 20, 16, RoomsLook.GREY);
+                look.text(inner, win.say(win.playLit() ? "none" : LocalPlayerProfile.mayCreate() ? "noneNoPlay" : "noneQuiet"), 0, 14, tableW - 20, 16, RoomsLook.GREY);
             for (var i:int = 0; i < win._rooms.length; i++)
             {
                 var room:Object = win._rooms[i];
@@ -115,7 +116,11 @@ package survarium.rooms
                 row.graphics.drawRect(0, 41, tableW - 12, 1);
                 row.graphics.endFill();
                 var tw:Number = tableW - 12;
-                look.text(row, (room.pin ? "PIN · " : "") + room.name, 10, 10, tw * 0.33, 17, on ? 0xFFFFFF : RoomsLook.LIGHT);
+                // Our own room (the All rooms tab) in the yellow of a member's
+                // Rooms tab.
+                var mine:Boolean = win._room != null && room.key == win._room.key;
+                look.text(row, (room.pin ? "PIN · " : "") + room.name, 10, 10, tw * 0.33, 17,
+                    mine ? RoomsLook.YELLOW : on ? 0xFFFFFF : RoomsLook.LIGHT);
                 look.text(row, String(room.level), tw * cols[1], 10, tw * 0.09, 17, RoomsLook.LIGHT);
                 look.text(row, win.levelText(room.max), tw * cols[2], 10, tw * 0.09, 17, RoomsLook.LIGHT);
                 var e:Object = win.entry(room.map);
@@ -146,9 +151,25 @@ package survarium.rooms
             for (var j:int = 0; j < win._rooms.length; j++)
                 if (win._rooms[j].key == _selKey)
                     joinable = win._rooms[j];
-            var joinWord:String = joinable != null && joinable.players >= joinable.size * 2 ? win.say("queue") : win.say("join");
-            look.footer(joinable != null ? [[win.say("new"), win.createView.onNew, null], [joinWord, onJoin, joinable]]
+            // A member queues for no room (from no room only): Join, off for
+            // a full room and for its own.
+            var joinWord:String = joinable != null && joinable.players >= joinable.size * 2 && win._room == null
+                ? win.say("queue") : win.say("join");
+            var made:Array = look.footer(joinable != null ? [[win.say("new"), win.createView.onNew, null], [joinWord, onJoin, joinable]]
                 : [[win.say("new"), win.createView.onNew, null]]);
+            if (joinable != null && (!joins(joinable) || !mayGoIn(joinable)))
+            {
+                made[1].enabled = false;
+                // Greyed by a reason (presets.md): the reasons in its tip.
+                if (joins(joinable))
+                    LocalPlayerProfile.reasonTip(look._content, made[1].x, made[1].y, made[1].width, made[1].height);
+            }
+            // Making a room: greyed under the maintenance rule.
+            if (!LocalPlayerProfile.mayCreate())
+            {
+                made[0].enabled = false;
+                LocalPlayerProfile.reasonTip(look._content, made[0].x, made[0].y, made[0].width, made[0].height);
+            }
             renderSide(sel, tableW + 28);
         }
 
@@ -424,11 +445,34 @@ package survarium.rooms
             joinRoom(room);
         }
 
-        // Join (or Queue for a full room) as the button does; the PIN typed
-        // goes first.
-        private function joinRoom(room:Object):void
+        // Whether no reason greys Join (or Queue) for `room` (presets.md): a
+        // join asks the popup first, which may offer a loadout that can play
+        // (mayEnter); a full room's queue asks nothing, so its kits must
+        // play now (mayPlay).
+        private function mayGoIn(room:Object):Boolean
         {
-            if (room == null || win._steps.length > 0)
+            if (room.players >= room.size * 2)
+                return LocalPlayerProfile.mayPlay();
+            return LocalPlayerProfile.mayEnter(room.max);
+        }
+
+        // Whether Join takes us there: a member (the All rooms tab) not into
+        // its own room, nor a full one (its queue is from no room only).
+        private function joins(room:Object):Boolean
+        {
+            return win._room == null || (room.key != win._room.key && room.players < room.size * 2);
+        }
+
+        // Join (or Queue for a full room) as the button does; the PIN typed
+        // goes first. A member joining another room leaves its own (the
+        // server's, as Leave). A join asks first whether it offers one of our
+        // kit presets (presets.md; RoomsWindow.askOffer), then comes back
+        // with `preset`: 0 none, else put on before the join.
+        private function joinRoom(room:Object, preset:int = -1):void
+        {
+            // A Join of the player's own: no longer the window Play opened.
+            win._openedByPlayAt = 0;
+            if (room == null || win._steps.length > 0 || !joins(room) || !mayGoIn(room))
                 return;
             win._busyAt = getTimer();
             win._stepsAt = win._busyAt;
@@ -437,23 +481,36 @@ package survarium.rooms
             var start:int = room.players >= room.size * 2 ? RoomsWire.QUEUE : RoomsWire.JOIN;
             win._code = RoomCode.NONE;
             win._steps = [];
+            var typed:String = _joinPin != null ? _joinPin.text : _pinText;
+            if (room.pin && typed.length != RoomsWire.PIN_DIGITS)
+            {
+                win.pinRefused();
+                return;
+            }
+            if (start == RoomsWire.JOIN && preset < 0)
+            {
+                win.askOffer(room);
+                return;
+            }
+            var at:int = start + room.key;
+            if (start == RoomsWire.JOIN && preset > 0)
+                at = RoomsWire.PRESET + (preset - 1) * RoomsWire.PRESET_STEP + room.key;
             if (room.pin)
             {
-                var typed:String = _joinPin != null ? _joinPin.text : _pinText;
-                if (typed.length != RoomsWire.PIN_DIGITS)
-                {
-                    win.pinRefused();
-                    return;
-                }
-                var pin:int = int(typed);
-                win._steps.push(start + room.key);
-                win.ask(RoomsWire.PIN + pin, 1);
+                win._steps.push(at);
+                win.ask(RoomsWire.PIN + int(typed), 1);
             }
             else
             {
-                win.ask(start + room.key, 1);
+                win.ask(at, 1);
             }
             win._fastUntil = getTimer() + 5000;
+        }
+
+        // The join of `room` after its preset offer (RoomsWindow.takeOffer).
+        internal function joinWith(room:Object, preset:int):void
+        {
+            joinRoom(room, preset);
         }
 
         private function onUnqueue(e:Event):void

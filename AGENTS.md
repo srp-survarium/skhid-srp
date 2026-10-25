@@ -57,6 +57,28 @@ work identifies a function that is not there, or identifies one with more confid
 TSV (one line per name, no bulk JSON). The client patches' own addresses and reasoning are in
 `srp-026g/docs/notes/client_patch.md` and `srp-026g/client-patches/README.md`.
 
+- Add re-kit rows (names, `abi.tsv` / `abi_inputs.tsv`) as soon as a finding is made, in the same PR.
+- Client patches call engine functions through the engine-function library
+  (`srp-026g/client-patches/engine_026g.tsv`, `client_patch.md` §0.5): add a row there for a new
+  function instead of a hand-written call. Only varargs, XMM-argument calls and tail jumps stay hand-written.
+- New client-patch code goes in the `.srpx` arena as plain C or NASM, linked by
+  `srp-026g/client-patches/link_026g.py` (`client_patch.md` §0.3): one `ARENA` row and its sources, hooks
+  by symbol, no fixed addresses; run `python link_026g.py --write` and commit `arena_026g.lock.json`.
+
+## Types and states
+
+- Make illegal states unrepresentable. A state is one enum whose variants carry exactly the data valid
+  in that state: no independent boolean flags, no sentinel values (`u32::MAX` or `-1` for "none" is an
+  `Option`), no fields that mean nothing in some states. A machine's transitions are one function from
+  (state, event) to the new state and its actions, total over the events.
+- Prefer state transitions, or a clear separation into objects (a type per thing, each owning its
+  data), to boolean flags. A flag that changes what other fields mean is a state the type should name.
+- Parse, don't validate. Turn raw input (packets, game memory, files, settings) into typed values once,
+  at the boundary, and let the code inside take only those types and never check them again. Distinct
+  units get newtypes (game time, ids, addresses), with their arithmetic (wrap-around) defined once.
+- The same holds for new client-patch C code: a tagged union and one transition function, raw memory
+  read once into it.
+
 ## Rust changes
 
 - Before opening a PR, run `cargo clippy --workspace --all-targets` (in `srp-026g`, under `nix develop`)

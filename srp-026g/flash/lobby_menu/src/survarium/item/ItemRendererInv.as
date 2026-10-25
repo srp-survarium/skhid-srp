@@ -110,6 +110,10 @@ package survarium.item
          this.damageIndicator.alpha = contentAlpha;
          this.equippedSprite.alpha = contentAlpha;
          this.equippedBorder.alpha = contentAlpha;
+         if(this._loadoutBadge)
+         {
+            this._loadoutBadge.alpha = contentAlpha;
+         }
       }
       
       override protected function updateData() : void
@@ -145,6 +149,11 @@ package survarium.item
          {
             nameColor = Colors.LIGHT_GRAY;
          }
+         // Skhid: a golden item's name is gold, whatever its rank (golden_weapons.md, premium_armour.md)
+         if(ItemFactory.isGolden(item.dictId))
+         {
+            nameColor = Colors.GOLD;
+         }
          this.textName.textField.textColor = nameColor;
          this.textLevel.text = item.itemLevel.toString();
          this.textLevel.visible = item.itemLevel > 0 && item.superCategory != SuperCategory.UPGRADES;
@@ -175,6 +184,7 @@ package survarium.item
             }
             this.paintedIcon.visible = Boolean(item.upgrades) && item.upgrades.length > 0;
             this.updateScopeBadge(item,true);
+            this.updateLoadoutBadge(item.itemId,true,this.textFieldCount,this.textFieldInfo);
             this.damageIndicator.visible = isOwnedItem && item.value < ItemCondition.FULL;
             this.damageIndicator.track.scaleX = _data.value / ItemCondition.FULL;
             condition = _data.value / ItemCondition.FULL * 510;
@@ -192,6 +202,7 @@ package survarium.item
             this.brokenIcon.visible = false;
             this.paintedIcon.visible = false;
             this.updateScopeBadge(item,false);
+            this.updateLoadoutBadge(item.itemId,isStack && !isShopItem,this.textFieldCount,this.textFieldInfo);
             this.damageIndicator.visible = false;
          }
          if(isShopItem)

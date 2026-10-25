@@ -30,6 +30,7 @@ given), LIKELY or GUESS.
 | [items.md](items.md) | Modifications, defects, cosmetics, reroll, craft, repair: the data, the wire, the rules |
 | [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs |
 | [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
+| [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage: ids 1824-1862, prices, icon cells, the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
 | [relay_trust.md](relay_trust.md) | What one client's bytes can do to another: every match message both ways and every lobby message with a player's data, its bytes, srp's check, the client's handling, coverage (COVERED / PATCHED / OPEN), the open gaps ranked |
@@ -46,20 +47,36 @@ given), LIKELY or GUESS.
 | [fall_damage.md](fall_damage.md) | Fall damage: the formula, the values (fatal_damage 1.0 as in 0.27, the owner, 2026-10-19), the lethal heights stock and now; how speed counts (vertical only; what a jump or a steep slope adds) |
 | [battery_pickup.md](battery_pickup.md) | The battery pick-up 20 % faster: take_time 0.6 -> 0.5 (the owner, 2026-10-20), why the animation plays faster and is not cut, what the release needs |
 | [battery_respawn.md](battery_respawn.md) | Battery modes: respawn 10 s (the owner, 2026-10-21): respawn_time 8 -> 10 in the configs of modes 2 and 3 (Team Deathmatch keeps 8), where the exe reads it, the modifiers on top, the HUD countdown, the simulation change |
+| [bandages.md](bandages.md) | Bandages (the owner, 2026-10-24): hands and legs fully healed, pain, body and head 35 %; how a drug heals (influences per second over its activity time, medkit::tick 0x33D790), the values before and after; the lobby description and the card without "Heal amount" (2026-10-25) |
 | [v011e_spawn_protection.md](v011e_spawn_protection.md) | The v0.11 maps (Vostok Radar Station, Chemical Plant): spawn protection 6 s (the owner, 2026-10-21): invulnerability_time 2 -> 6 on their 174 respawn points, why it was 2 s, how protection works (respawn point, base zones), the simulation change |
 | [grenade_bounce.md](grenade_bounce.md) | Grenade bounces louder (the owner, 2026-10-21): where the bounce sound comes from (material pairs, three grenade-only collections), its reload-click distance curve, the `mid_range` curve it gets (retuned after the owner's test of revision 27), who hears it |
-| [crouch_steps.md](crouch_steps.md) | Crouched steps audible at 40 % of walking (the owner, 2026-10-21): why crouching was silent (the crouch foot materials' empty pairs), what 0.31a2 did, the copies, who hears them |
+| [crouch_steps.md](crouch_steps.md) | Crouched steps audible at 40 % of walking (the owner, 2026-10-21): why crouching was silent (the crouch foot materials' empty pairs, and, T27, no step events in the crouch clips), what 0.31a2 did, the copies, who hears them |
 | [weapon_balance_2.md](weapon_balance_2.md) | Weapon balance 2 (the owner, 2026-10-20): AK-12 and premium damage 0.55 -> 0.5, piercing 0.45 -> 0.35 ("50 35 for ak-12"), the premium gives silver only; Socom16 damage 0.8 -> 0.6; each weapon in the builds at hand |
+| [socom_nerf.md](socom_nerf.md) | SOCOM 16 nerf (the owner, 2026-10-25): damage 70 -> 60, armour piercing 45 -> 40 (bullet_damage 0.7 -> 0.6, bullet_pierce 0.45 -> 0.4, the card's texts), equipment level 12 -> 15 (item_level and match_making_level); what level 15 changes (drops, matchmaking, craft prices; no shop gate); the SVD at level 15 too (shop rank 7 -> 10) |
 | [golden_weapons.md](golden_weapons.md) | Golden weapons (the owner, 2026-10-21): only the silver bonus, as the weapon's own first modification; upgraded, rerolled and crafted as the plain weapon, with it as the donor; the owned ones given it once |
+| [premium_armour.md](premium_armour.md) | Premium armour (the owner, 2026-10-22): the golden weapons' treatment for the Bandit and Survivor jackets and trousers; their experience and reputation bonuses their own rerollable modifications (rank 2), the plain piece's default kept, the plain piece their donor; the owned ones given them once; the per-item table |
+| [tech-debt.md](tech-debt.md) | Known shortcuts and special cases to revisit, one bullet each |
 | [one-pocket-a-type.md](one-pocket-a-type.md) | One pocket an item type (the owner, 2026-10-21): a grenade, medkit or booster in at most one pocket of a kit (boosters added their bonus once a pocket); the server refuses a second, kits saved before are merged at load, the lobby lights up only the type's own pocket; the "4th grenade empties the slot" client bug |
-| [reroll-keep-old.md](reroll-keep-old.md) | Keeping the old modification after a reroll (the owner, 2026-10-21): the window's "Keep old" takes none of the three offered, the price stays paid; the offer kept until answered, one answer, no second roll meanwhile |
+| [presets.md](presets.md) | Kit presets (the owner, 2026-10-23): five sets of the three kits an account, one active (the kits themselves, so every kit change is its own), chosen from a dropdown in the Character panel through the kit rules (gone items leave slots empty, nothing bought or made); a room join offers the highest preset the room allows ("Enter anyway" / "Exit" or "Switch and enter") |
+| [reroll-keep-old.md](reroll-keep-old.md) | Keeping the old modification after a reroll (the owner, 2026-10-21): the window's Cancel (the game's own, 2026-10-23) takes none of the three offered, the price stays paid; the offer kept until answered, one answer, no second roll meanwhile. Any modification may be rerolled (the owner, 2026-10-22): no lock on the first one changed |
+| [flat-reroll.md](flat-reroll.md) | Flat modification change price (the owner, 2026-10-25): every change costs the item level's price, the first change's; no 1.1 growth per change; the window shows what is taken; old items' counts kept, no migration; server only |
 | [battery_credit.md](battery_credit.md) | A player's battery events (put in, found, delivery shares, quests) paid per match, per kind, at most as many times as the map has batteries: the owner's rule against farming (2026-10-20), its catch |
 | [damage_calculator.md](damage_calculator.md) | The site's damage calculator (`/damage`): the owner's rules for it, the data it is built from, how it is served and kept up to date |
+| [research_mode.md](research_mode.md) | Research (mode 5, capture points) as 0.27d shipped it: the rules, the data, the inventory of the builds (what is ported, what is left out and why), exe patch 53, the pack, the server's part |
 | [maps_tab.md](maps_tab.md) | The site's Maps tab (`/maps`): spawns, batteries, chargers, containers and artefacts on every map; the owner's rules, rebuilt per release |
 | [spotting.md](spotting.md) | Spotting: no cooldown, a battery's body and its use box both spot it, the markers (the owner, 2026-10-19; exe patch 38) |
+| [kill-feed-icons.md](kill-feed-icons.md) | The kill feed's wall, ricochet and pain icons (the owner, 2026-10-25): weapon, wall or ricochet (0.69d0's icons and rules), pain (a white lightning bolt for pain shock), cause; when each shows (exe patch 67, the hud movie) |
+| [baked-textures.md](baked-textures.md) | Freezes in a match from camouflage and decal bakes (2026-10-25): why every game baked again (the stock delete of `streamed_textures`) and each player object baked the same textures again; the rules of exe patch 70 (the folder kept per revision, one bake or load for many queries) |
 | [fov_lod.md](fov_lod.md) | Models at a high field of view: why they went out sooner (LOD and screen factor by size on the screen), the scale table, the fix (exe patch 40) |
+| [dynamic_anomalies.md](dynamic_anomalies.md) | **Not shipped** (taken out of revision 31, the owner, 2026-10-23: the pre-built cores overflow the saved world; redesign pending; the code is on `feat/dynamic-anomalies`). Dynamic anomalies as the release had them, on London and Cologne only (the owner, 2026-10-22; they charge, hurt, hold an artefact and go when it is taken; 27 places on London, 29 on Cologne; every other map static): the release's code, 0.26g's, the design, the rules, the maps, the server (exe patch 42 and a resources.db patch) |
 | [death-camera.md](death-camera.md) | The camera on the death screen: a held mouse button turns the view from the corpse's eyes, the wheel does nothing (the owner, 2026-10-21; exe patch 46) |
 | [required-patches.md](required-patches.md) | The game requires its release's patches (2026-10-21 crashes; exe patch 49): a release's exe stops at its start without a patch its server offers, built in from the offered-patch list by `release/build-zip`, checked by `release.sh` and `deploy` |
+| [item-search.md](item-search.md) | Item search (the owner, 2026-10-22): Ctrl+F over the shop, the inventory or the craft and upgrade windows' list opens a box above the item panel's buttons; the list follows each key, by the shown name, accents and Cyrillic folded, typos tolerated; Esc, Enter and the exe's window keys |
+| [esc.md](esc.md) | Esc in the lobby (the owner, 2026-10-23): Esc closes the topmost modal only; every modal (windows, popups, the Upgrade and rooms windows, messages, the right-click menu) registers on open and leaves on close (`Modals`); a message's Esc is its own close (Cancel, OK) |
+| [max-bonus.md](max-bonus.md) | The best bonus in gold (the owner, 2026-10-22): a bonus at the strongest of the five values its type rolls shows gold, not green, everywhere bonuses are listed; the premium bonuses (silver, experience, reputation) gold too; the reroll window shows a bonus's range on hover; the movie's table checked against the data |
+| [no-reliability-roll.md](no-reliability-roll.md) | No reliability rolls (the owner, 2026-10-23): upgrades, rerolls and drops never give the "Reliability" modification (wear is off since #35); owned ones stay and reroll into others; the 20 items it left with two types get a third (masks Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs; `third-mod-1.json`), so every live item rolls three or more |
+| [craft-menu.md](craft-menu.md) | The craft (Upgrade) window (the owner, 2026-10-20 and 22): Buy and Sell on its list, Continue and Exit after an upgrade, and the compare card shows the item being upgraded, not the equipped one |
+| [shop-character-menu.md](shop-character-menu.md) | The character menu (kits) shown on the left in the Shop tab too (the owner, 2026-10-22) |
 | [ui_scale.md](ui_scale.md) | The UI at high resolutions: how each Flash movie follows the screen size, what is drawn 1:1 at 4K and how small, the HUD centring fixes |
 | [launcher_updater.md](launcher_updater.md) | The game's own updater (`survarium_updater.exe`), which the Skhid launcher does not use: its arguments, what it said on the pipe, what it did on the network |
 | [../DEPLOY.md](../DEPLOY.md) | The Docker files for the 0.26g server beside the live 0.21d one (ports table), certificates, the players' overlay. Nothing is deployed |
@@ -131,8 +148,9 @@ Every setting has a default; none is needed on a dev PC.
   srp, and so does one under the newest patch of the game data): a game
   whose exe says an older patch revision is refused at its sign-in (0x22)
   and its sessions from before a restart in the lobby (client_patch.md §6).
-- `SRP_MATCH_MODES` (default `2,3,4`), `SRP_MATCH_MAPS` (default: every
-  playable map, 72 of them): a room's pool by default, and what a clan
+- `SRP_MATCH_MODES` (default `2,3,4,5`: 5 is Research, played on data with
+  its maps), `SRP_MATCH_MAPS` (default: every playable map, 72 of them on
+  0.26g's data): a room's pool by default, and what a clan
   team's match is drawn from, so for a first test name one, e.g.
   `SRP_MATCH_MAPS=117` (Team Deathmatch on level_01).
 - `SRP_BALANCE_PLAYER` (default 12), `SRP_BALANCE_PLAYER_LEVEL` (1.5),
@@ -140,7 +158,8 @@ Every setting has a default; none is needed on a dev PC.
   counts for when the sides of a match are made (`matchmaking.md` §8).
   `SRP_BALANCE_RATED_PLAYERS` (4): the fewest players a match must have
   had in it to move the balance rating (§8.3).
-  `SRP_BALANCE_BATTERY_LEAD` (0.55), `SRP_BALANCE_TICKET_LEAD` (0.2):
+  `SRP_BALANCE_BATTERY_LEAD` (0.55), `SRP_BALANCE_TICKET_LEAD` (0.2; a
+  point of Research's too):
   what a lead counts for when a player comes into a match being played
   (`matchmaking.md` §9).
   `SRP_SQUADS` (default on; `off`: no squads), `SRP_SQUADS_OFF_TEXT`
@@ -329,8 +348,8 @@ Known gaps a live session will meet:
 - Premium, the shop's bundles, the daily bonus, a nickname change,
   autobuy and auto-repair are there (`premium.md`). **There is no
   tutorial since 2026-10-19** (`premium.md` §5): a new account gets the
-  daily bonus window at its sign-in, and starts with 10 000 silver and
-  500 gold.
+  daily bonus window at its sign-in, and starts with 15 000 silver,
+  150 gold, a month of premium and three starter kits (`no-tutorial.md`).
 - **The lobby on a screen wider than 16:9** (seen 2026-10-12 at 3440x1440:
   the top bar's parts overlap). The lobby SWF is drawn for 1920x1080 and
   has two paths split at aspect 1.85 (`LobbyMenu.onStageResize`: scale by

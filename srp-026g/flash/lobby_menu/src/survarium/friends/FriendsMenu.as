@@ -379,16 +379,7 @@ package survarium.friends
          trace("KEY_STATE::",details.value,details.navEquivalent);
          switch(details.code)
          {
-            case Keyboard.ESCAPE:
-               if(details.value == InputValue.KEY_DOWN || details.value == InputValue.KEY_UP)
-               {
-                  if(stage.focus == this.text_inpput.textField || stage.focus == this.text_inpput.textField)
-                  {
-                     stage.focus = this;
-                     event.preventDefault();
-                  }
-               }
-               break;
+            // Esc: LobbyMenu.close_active_window (Modals), the one Esc handler
             case Keyboard.ENTER:
                if(details.value == InputValue.KEY_DOWN)
                {

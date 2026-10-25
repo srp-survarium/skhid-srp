@@ -16,9 +16,9 @@ package survarium.item
    import survarium.constants.ItemDefaults;
    import survarium.constants.ItemDictId;
    import survarium.constants.ItemPlace;
+   import survarium.constants.ItemRank;
    import survarium.constants.ModificationState;
    import survarium.constants.ModifierType;
-   import survarium.constants.PropertyDirection;
    import survarium.constants.QuickSlotSize;
    import survarium.constants.SuperCategory;
    import survarium.constants.VoucherType;
@@ -160,30 +160,101 @@ package survarium.item
          return category == ItemCategory.SCOPES ? SuperCategory.UPGRADES : getCategory(category);
       }
       
+      // A golden item: a golden weapon or a premium armour piece (golden::is_golden).
       public static function isGolden(dictId:int) : Boolean
       {
-         return ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1;
+         return ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1 || ItemDictId.PREMIUM_ARMOUR.indexOf(dictId) != -1;
       }
       
-      // A golden weapon's plain weapon; anything else itself.
+      // A golden item's plain item; anything else itself.
       public static function plainOf(dictId:int) : int
       {
          var index:int = ItemDictId.GOLDEN_WEAPONS.indexOf(dictId);
-         return index == -1 ? dictId : int(ItemDictId.GOLDEN_PLAIN[index]);
+         if(index != -1)
+         {
+            return int(ItemDictId.GOLDEN_PLAIN[index]);
+         }
+         index = ItemDictId.PREMIUM_ARMOUR.indexOf(dictId);
+         return index == -1 ? dictId : int(ItemDictId.PREMIUM_ARMOUR_PLAIN[index]);
+      }
+      
+      // The bonuses srp gives a new golden item as its own first modifications
+      // (golden::starting_modifications), as the exe gives the movie a modification ({state, icon,
+      // name, props} from its ui_desc; the name is unused for a modification): [id, icon, prop_id,
+      // prop_value] a line. A test holds these to the data (survarium::v026g::golden::tests).
+      public static const BONUS_UI:Array = [
+         [1230,66,126,"0.10"], // +10 % silver
+         [1240,65,127,"0.05"], // +5 % experience
+         [1250,67,128,"0.05"], // +5 % reputation with the Scavengers
+         [1260,68,129,"0.05"] // +5 % reputation with the Black Market
+      ];
+      
+      public static const SILVER_BONUS:int = 1230;
+      
+      // Modification id as the exe gives it to the movie, of BONUS_UI; null for another id.
+      public static function bonusModifier(id:int) : Object
+      {
+         var row:Array;
+         for each(row in BONUS_UI)
+         {
+            if(row[0] == id)
+            {
+               return {
+                  state:ModificationState.MODIFICATION,
+                  icon:row[1],
+                  props:[{
+                     prop_id:row[2],
+                     prop_value:row[3]
+                  }]
+               };
+            }
+         }
+         return null;
+      }
+      
+      // The modifications of its own a new item of dictId has, as srp gives them
+      // (golden::starting_modifications): the silver bonus for a golden weapon, its premium bonuses
+      // for a premium armour piece, none for anything else. For entries of items not owned (the
+      // shop's, a bundle's contents); an owned item has the server's.
+      public static function startingModifiers(dictId:int) : Array
+      {
+         var ids:Array;
+         if(ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1)
+         {
+            ids = [SILVER_BONUS];
+         }
+         else
+         {
+            var index:int = ItemDictId.PREMIUM_ARMOUR.indexOf(dictId);
+            if(index == -1)
+            {
+               return [];
+            }
+            ids = ItemDictId.PREMIUM_ARMOUR_BONUSES[index];
+         }
+         var modifiers:Array = [];
+         var id:int;
+         for each(id in ids)
+         {
+            modifiers.push(bonusModifier(id));
+         }
+         return modifiers;
       }
       
       // Whether an item of donorDictId may be used up to upgrade one of
       // itemDictId, as the server has it (golden::may_donate): the same
-      // item, or for a golden weapon its plain weapon and its other golden
-      // copies; never a golden weapon for a plain one.
+      // item, or any copy of the same plain item, both ways (a golden item
+      // for a plain one too: owner 2026-10-22).
       public static function isCraftDonor(donorDictId:int, itemDictId:int) : Boolean
       {
-         return donorDictId == itemDictId || isGolden(itemDictId) && plainOf(donorDictId) == plainOf(itemDictId);
+         return donorDictId == itemDictId || plainOf(donorDictId) == plainOf(itemDictId);
       }
       
+      // Skhid: not with three modifications (rank MAX; the server refuses its craft): the item
+      // panel's Upgrade and the right-click menu's entry are off then (owner 2026-10-22).
       public static function isItemCraftable(value:ItemData) : Boolean
       {
-         return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && !value.repairTime && (value.superCategory == SuperCategory.EQUIPMENT || value.superCategory == SuperCategory.WEAPONS || value.superCategory == SuperCategory.AMMO);
+         return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && !value.repairTime && value.rank < ItemRank.MAX && (value.superCategory == SuperCategory.EQUIPMENT || value.superCategory == SuperCategory.WEAPONS || value.superCategory == SuperCategory.AMMO);
       }
       
       public function registerItemDescriptor(link:ItemDescriptor) : void
@@ -281,7 +352,7 @@ package survarium.item
          item.modifiers = description.modifiers;
          item.modifiersDefault = description.modifiers;
          item.rank = description.rarity_level;
-         // A golden weapon keeps its gold background with no descriptor rarity.
+         // A golden item keeps its gold background with no descriptor rarity.
          item.fromBundle = item.rank > 0 || isGolden(dictId);
          var defaultCount:uint = item.modifiersDefault.length;
          var i:uint = 0;
@@ -449,7 +520,7 @@ package survarium.item
             {
                postfix = propDesc.modifier_type == ModifierType.ADD ? propDesc.postfix : "%";
                sign = prop.prop_value >= 0 ? "+" : "";
-               color = propDesc.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDesc.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
+               color = ModificationRolls.style(propDesc,prop.prop_id,ModificationRolls.value(prop));
                propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
                line = propDesc.prop_name + ": " + Util.styledChar(sign + propValue + (postfix ? postfix : ""),color);
                modifier.textValue += line + "\n";
@@ -506,7 +577,7 @@ package survarium.item
                {
                   postfix = propDesc.modifier_type == ModifierType.ADD ? propDesc.postfix : "%";
                   sign = prop.prop_value >= 0 ? "+" : "";
-                  color = propDesc.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDesc.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
+                  color = ModificationRolls.style(propDesc,prop.prop_id,ModificationRolls.value(prop));
                   propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
                   line = propDesc.prop_name + ": " + Util.styledChar(sign + propValue + (postfix ? postfix : ""),color);
                   modifiers[i].textValue += line + "\n";
@@ -532,7 +603,7 @@ package survarium.item
                }
                propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
                propValue = Math.round(propValue / 0.01) * 0.01;
-               color = propDesc.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDesc.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
+               color = ModificationRolls.style(propDesc,prop.prop_id,ModificationRolls.value(prop));
                totalLine = propDesc.prop_name + ": " + Util.styledChar(sign + propValue + postfix,color);
                if(!prop.modifier.textValue)
                {
@@ -664,7 +735,7 @@ package survarium.item
                   }
                   trace("propValue::",propDesc.direction,prop.direction);
                   propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
-                  color = propDesc.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDesc.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
+                  color = ModificationRolls.style(propDesc,prop.prop_id,ModificationRolls.value(prop));
                   propsText += propDesc.prop_name + ": " + Util.styledChar(sign + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + postfix,color) + "\n";
                }
             }

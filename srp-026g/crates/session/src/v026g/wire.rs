@@ -36,7 +36,8 @@ pub fn item_descr_at(item: &Item, now: u64) -> ItemDescr {
         dict_id: item.dict_id,
         condition_or_stack: item.condition_or_stack,
         repair_time: items_rules::seconds_left(item.repair_time, now),
-        reroll_time: items_rules::seconds_left(item.reroll_time, now),
+        // no wait between rerolls (items_rules: Reroll)
+        reroll_time: 0,
         modifications: item
             .modifications
             .iter()
@@ -235,8 +236,15 @@ pub fn player_elo(account: &Account, place: u32) -> ServerMessage {
 /// `9B`: the chances and prices of an item's upgrade ("craft"), from the
 /// game's `craft.options`. The lobby's upgrade window shows them and works
 /// its price out from them (`MessageCraftItem.updateCraftChance`).
+/// [srp, the owner's rule of 2026-10-23] An upgrade never takes a
+/// modification away ([`items_rules::craft`]): every failure ("-1 mod.")
+/// chance is sent as 0.
 pub fn craft_tables() -> ServerMessage {
-    let (chances, general, premium) = Modifications::shared().craft.tables();
+    let (mut chances, general, premium) = Modifications::shared().craft.tables();
+    // Each row: success and failure in silver, success and failure in gold.
+    for failure in chances.iter_mut().skip(1).step_by(2) {
+        *failure = 0.0;
+    }
     lobby::craft_tables(&chances, &general, &premium)
 }
 
@@ -302,6 +310,13 @@ pub fn sign_in_push(account: &Account, info: &SignInInfo) -> Result<Vec<ServerMe
         services(account, now),
         // The shop's list and the premium items sold for gold.
         lobby::prices(shop_offers::price_list())?,
+        // The reputations again. The movie's shop list is filled only when
+        // a reputations push redraws it (`GangShop.draw`), not when the
+        // price list comes; the `8A` is long (several parts), so on a lossy
+        // link the redraw of the first `8E` can come before it and leave the
+        // shop with no items until the next `8E`. The first `8E` stays
+        // before the `8A`: the "can buy" marks need the reputations.
+        reputations(account)?,
     ];
     let settings = premium::settings();
     if info.need_shop_items {
@@ -397,7 +412,7 @@ mod tests {
         expected.extend_from_slice(&[
             1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0,   // the kits' revisions
             1, 0, 0, 0,                             // the active kit
-            0,                                      // autobuy
+            1,                                      // autobuy: on for a new account
             0,                                      // level
             0, 0, 0, 0,  0, 0, 0, 0,  0xF4, 0x01, 0, 0,
         ]);
@@ -441,20 +456,21 @@ mod tests {
         assert_eq!(
             ids,
             [
-                0x80, 0x8F, 0x90, 0x8B, 0x96, 0x8E, 0x8D, 0x94, 0x8A, 0x95, 0x89, 0x87, 0x8C, 0x92,
-                0x9C, 0x9D, 0x9F, 0x9B, 0x85
+                0x80, 0x8F, 0x90, 0x8B, 0x96, 0x8E, 0x8D, 0x94, 0x8A, 0x8E, 0x95, 0x89, 0x87, 0x8C,
+                0x92, 0x9C, 0x9D, 0x9F, 0x9B, 0x85
             ]
         );
         // The craft tables, byte for byte: the twelve chances (for an
         // item with 0, 1 and 2 more modifications than its donor: success
-        // and failure in silver, then in gold), the sixteen prices in
-        // silver and the sixteen in gold.
+        // and failure in silver, then in gold; every failure 0, the owner's
+        // rule of 2026-10-23), the sixteen prices in silver and the sixteen
+        // in gold.
         #[rustfmt::skip]
         let mut tables: Vec<u8> = vec![
             0x9B,
-            0, 0, 0x48, 0x42,  0, 0, 0, 0,        0, 0, 0xC8, 0x42,  0, 0, 0, 0,
-            0, 0, 0xC8, 0x41,  0, 0, 0xC8, 0x41,  0, 0, 0x48, 0x42,  0, 0, 0, 0,
-            0, 0, 0x48, 0x41,  0, 0, 0x87, 0x42,  0, 0, 0xC8, 0x41,  0, 0, 0xC8, 0x41,
+            0, 0, 0x48, 0x42,  0, 0, 0, 0,  0, 0, 0xC8, 0x42,  0, 0, 0, 0,
+            0, 0, 0xC8, 0x41,  0, 0, 0, 0,  0, 0, 0x48, 0x42,  0, 0, 0, 0,
+            0, 0, 0x48, 0x41,  0, 0, 0, 0,  0, 0, 0xC8, 0x41,  0, 0, 0, 0,
         ];
         for price in [
             400_u16, 400, 800, 1600, 2400, 3400, 4400, 5400, 6600, 8000, 10000, 12000, 14000,
@@ -462,7 +478,7 @@ mod tests {
         ] {
             tables.extend(price.to_le_bytes());
         }
-        assert_eq!(bytes(&push[17]), tables);
+        assert_eq!(bytes(&push[18]), tables);
         assert_eq!(tables.len(), 1 + 112);
         assert_eq!(bytes(&push[0]), [0x80, 0, 0]);
         assert_eq!(bytes(push.last().unwrap()), [0x85, 0]);
@@ -471,6 +487,11 @@ mod tests {
         let at = |id: u8| ids.iter().position(|&other| other == id).unwrap();
         assert!(at(0x89) < at(0x87));
         assert!(at(0x96) < at(0x8E));
+        // The reputations once more after the price list: the movie fills
+        // its shop list only on a reputations push (`GangShop.draw`), so the
+        // last `8E` must follow the `8A`.
+        let last = |id: u8| ids.iter().rposition(|&other| other == id).unwrap();
+        assert!(at(0x8E) < at(0x8A) && at(0x8A) < last(0x8E));
         // The order holds on the wire only among the ordered ids: all but
         // the first and the online stats.
         for message in &push[1..] {
@@ -487,7 +508,7 @@ mod tests {
         assert_eq!(read.len(), push.len());
         assert_eq!(client.inventory().len(), 5);
         assert!(matches!(
-            &read[11],
+            &read[12],
             Decoded::Account(own) if own.body.kits.len() == 3 && own.active_kit == 1
         ));
         // Without the shop when the client has it.
@@ -501,7 +522,7 @@ mod tests {
         // The maintenance minutes leave Play enabled (over 30) with no
         // warning (60 or more).
         assert!(matches!(
-            read[16],
+            read[17],
             Decoded::OnlineStats {
                 minutes_to_maintenance: 1440,
                 ..

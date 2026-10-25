@@ -16,7 +16,8 @@ use super::*;
 use crate::v026g::LiveView;
 
 /// Fields of the state's header (`S1;R;<key>;<level>;<max level>;<size>;
-/// <wait>;<phase>;<secs>;<owner>;<pool>;<members>;<serial>;<pin>`).
+/// <wait>;<phase>;<secs>;<owner>;<pool>;<members>;<serial>;<pin>;<next map>;
+/// <min players>;<code>`).
 const KEY: usize = 2;
 const LEVEL: usize = 3;
 const PHASE: usize = 7;
@@ -24,6 +25,7 @@ const OWNER: usize = 9;
 const MEMBERS: usize = 11;
 const SERIAL: usize = 12;
 const NEXT: usize = 14;
+const CODE: usize = 16;
 /// From two players to the match: the vote's 15 s, the wait of [`spec`]
 /// (15 s), and a little more.
 const VOTE_AND_WAIT: Duration = Duration::from_secs(32);
@@ -104,7 +106,7 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(
         alone[0],
         format!(
-            "S1;R;{key};0;0;6;15;0;0;1;{};1;{serial};0;0;2",
+            "S1;R;{key};0;0;6;15;0;0;1;{};1;{serial};0;0;2;0",
             world.core.settings.maps.len()
         )
     );
@@ -431,6 +433,38 @@ fn a_member_is_offered_a_room_of_a_lower_max_level() {
     assert_eq!(switch_of(&state(&mut world, bob)), None);
 }
 
+/// A member browses the list from its room (the All rooms tab, the owner's
+/// of 2026-10-22): its own room is in it; a Join of another room takes it
+/// out of its own, as Leave does; a refused one leaves it where it was and
+/// says why, once.
+#[test]
+fn a_member_joins_another_room_from_the_list() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    let dave = world.connect("Dave");
+    let first = create(&mut world, alice, spec(8), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + first, 1);
+    let open = create(&mut world, carol, spec(8), None);
+    let private = create(&mut world, dave, spec(8), Some(1234));
+    // The list names Bob's room.
+    let list = rows(&mut world, bob, ROOMS_LIST, 32);
+    assert_eq!(list[0], format!("S1;L;3;{first}"));
+    // A wrong PIN: still in his room, told why once.
+    rows(&mut world, bob, ROOM_PIN_BASE + 4321, 1);
+    let refused = rows(&mut world, bob, ROOM_JOIN_BASE + private, 1);
+    assert_eq!(header(&refused)[KEY], first.to_string());
+    assert_eq!(header(&refused)[CODE], "3");
+    assert_eq!(header(&state(&mut world, bob))[CODE], "0", "said once");
+    // Into Carol's, out of Alice's.
+    let moved = rows(&mut world, bob, ROOM_JOIN_BASE + open, 1);
+    assert_eq!(header(&moved)[KEY], open.to_string());
+    assert_eq!(header(&moved)[MEMBERS], "2");
+    assert_eq!(header(&moved)[CODE], "0");
+    assert_eq!(header(&state(&mut world, alice))[MEMBERS], "1");
+}
+
 /// A PIN keeps a room closed until it is given; the owner takes a member
 /// out, who may not come back and is told why once.
 #[test]
@@ -700,7 +734,8 @@ fn equipment_over_the_max_level_keeps_a_member_out_of_the_match() {
 
 /// A member whose kit cannot play (no ammo) is marked in the room, counts
 /// for no start, and is taken out of the room when the match starts
-/// without it; it may come back.
+/// without it; it may come back once its kit can play (the door refuses a
+/// kit that can not, code 15).
 #[test]
 fn a_kit_without_ammo_counts_for_nothing_and_is_taken_out_at_the_start() {
     let mut world = World::new();
@@ -708,12 +743,14 @@ fn a_kit_without_ammo_counts_for_nothing_and_is_taken_out_at_the_start() {
     let dave = world.connect("Dave");
     let carol = world.connect("Carol");
     let key = create(&mut world, alice, spec(6), None);
+    let ammo = world.account(dave).kits[0].slots;
+    // In the room, then the ammo taken out of the kit.
+    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
     world.change(dave, |account| {
         for slot in [8, 9, 11, 12, 19, 20, 21, 22] {
             account.kits[0].slots[slot] = None;
         }
     });
-    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
     let marked = state(&mut world, alice);
     assert!(
         marked.iter().any(|row| row.ends_with(";1;0;Dave")),
@@ -728,7 +765,12 @@ fn a_kit_without_ammo_counts_for_nothing_and_is_taken_out_at_the_start() {
     assert!(sent_to_match(&world.take(carol)).is_some());
     assert!(sent_to_match(&world.take(dave)).is_none());
     assert_eq!(state(&mut world, dave), ["S1;N;13;0;0"]);
-    // Taken out, not turned out: Dave may come back.
+    // Taken out, not turned out: Dave may come back, once his kit plays.
+    assert_eq!(
+        rows(&mut world, dave, ROOM_JOIN_BASE + key, 1),
+        ["S1;N;15;0;0"]
+    );
+    world.change(dave, |account| account.kits[0].slots = ammo);
     let back = rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
     assert_eq!(header(&back)[1], "R", "{back:?}");
 }
@@ -1145,11 +1187,56 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
     // Equipment over the max level now: the window offers its level.
     with_gear(&mut world, alice, 5);
     assert_eq!(form(&mut world, alice).0, ["1", "9", "2", "5", "45"]);
+    // Lowered again (the movie asks anew when the gear changes): the max
+    // level made.
+    with_gear(&mut world, alice, 2);
+    assert_eq!(form(&mut world, alice).0, ["1", "9", "2", "3", "45"]);
     // Play's room after it keeps what the hand made.
     rows(&mut world, alice, ROOM_LEAVE, 1);
     world.ask(alice, request::play(1));
     world.advance(Duration::from_millis(100));
     assert_eq!(form(&mut world, alice).1, made);
+}
+
+/// The movie asks for its create window's start once, as its lobby comes
+/// up (the owner's of 2026-10-25: the window opens filled, nothing applied
+/// after it is drawn): the form is answered right after the sign-in,
+/// before any rooms window, and a room made by hand is in the answer to
+/// the next sign-in. Asking it tells no game its room (`room_unseen`).
+#[test]
+fn the_create_window_start_is_there_from_the_sign_in() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    // The lobby's first asks, before anything is opened: a new player's is
+    // the defaults.
+    let (fields, _) = form(&mut world, alice);
+    assert_eq!(fields, ["0", "8", "1", "0", "30"]);
+
+    // A room made by hand: what the movie keeps for its next window (the
+    // same game asking again gets the same).
+    rows(&mut world, alice, bits_start(0, 0b11), 1);
+    let made_spec = RoomSpec {
+        size: 7,
+        min_side: 3,
+        max_level: 0,
+        wait: 60,
+        pin: false,
+    };
+    let key = create(&mut world, alice, made_spec, None);
+    let made = (
+        ["1", "7", "3", "0", "60"].map(str::to_owned).to_vec(),
+        world.core.rooms.get(key).unwrap().pool.clone(),
+    );
+    assert_eq!(form(&mut world, alice), made);
+
+    // Her game started anew: its first ask has it, and she is still not
+    // told her room by it.
+    let (account_id, _) = world.ids[alice];
+    let session = world.new_session(account_id);
+    let again = world.connect_session((account_id, session));
+    world.take(again);
+    assert_eq!(form(&mut world, again), made);
+    assert!(world.core.room_unseen.contains_key(&account_id));
 }
 
 /// A full room's queue (the owner's of 2026-10-17): who is in no room waits
@@ -2004,4 +2091,65 @@ fn joining_a_friends_room_during_its_match_goes_the_late_join_path() {
     assert!(sent_to_match(&world.take(me)).is_none());
     let waiting = state(&mut world, me);
     assert!(waiting.iter().any(|row| row == "J;15"), "{waiting:?}");
+}
+
+/// A member whose kit can not play (an empty loadout) is offered no room to
+/// switch to: the switch is a Join, which the door would refuse (code 15).
+#[test]
+fn a_member_whose_kit_can_not_play_is_offered_no_switch() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let erin = world.connect("Erin");
+    let switch_of = |rows: &[String]| rows.iter().any(|row| row.starts_with("W;"));
+    let any = create(&mut world, alice, spec(8), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + any, 1);
+    create(
+        &mut world,
+        erin,
+        RoomSpec {
+            max_level: 4,
+            ..spec(6)
+        },
+        None,
+    );
+    assert!(switch_of(&state(&mut world, bob)));
+    let starter = world.account(bob).kits[0].slots;
+    world.change(bob, |account| account.kits[0].slots = [None; 23]);
+    assert!(!switch_of(&state(&mut world, bob)));
+    world.change(bob, |account| account.kits[0].slots = starter);
+    assert!(switch_of(&state(&mut world, bob)));
+}
+
+/// A queued player whose kit can not play when a place frees (it switched
+/// to an empty loadout while waiting) keeps its place, passed over: the next
+/// goes in; it goes in itself once its kit plays and a place frees.
+#[test]
+fn a_queued_player_whose_kit_can_not_play_keeps_its_place_and_the_next_goes_in() {
+    let mut world = World::new();
+    let owner = world.connect("Owner");
+    let key = create(&mut world, owner, spec(6), None);
+    let members: Vec<usize> = (1..12)
+        .map(|n| world.connect(&format!("Member{n}")))
+        .collect();
+    for &member in &members {
+        rows(&mut world, member, ROOM_JOIN_BASE + key, 1);
+    }
+    let first = world.connect("First");
+    let second = world.connect("Second");
+    rows(&mut world, first, ROOM_QUEUE_BASE + key, 1);
+    rows(&mut world, second, ROOM_QUEUE_BASE + key, 1);
+    let starter = world.account(first).kits[0].slots;
+    world.change(first, |account| account.kits[0].slots = [None; 23]);
+    rows(&mut world, members[0], ROOM_LEAVE, 1);
+    world.advance(Duration::from_secs(1));
+    let inside = state(&mut world, second);
+    assert_eq!(header(&inside)[KEY], key.to_string(), "{inside:?}");
+    assert_eq!(state(&mut world, first), [format!("S1;N;0;{key};1")]);
+    // Its kit plays again, a place frees: in.
+    world.change(first, |account| account.kits[0].slots = starter);
+    rows(&mut world, members[1], ROOM_LEAVE, 1);
+    world.advance(Duration::from_secs(1));
+    let inside = state(&mut world, first);
+    assert_eq!(header(&inside)[KEY], key.to_string(), "{inside:?}");
 }

@@ -18,7 +18,8 @@ package survarium.rooms
         public static const UNQUEUE:int = FIRST + 7;
         public static const JOIN_MATCH:int = FIRST + 8;
         // The create window's start: the player's last room made by hand,
-        // kept by the server (the owner's of 2026-10-20).
+        // kept by the server (the owner's of 2026-10-20); asked once as the
+        // lobby comes up (RoomsWindow._form).
         public static const SETTINGS:int = FIRST + 9;
         // The room's chat tab is up: its last lines, and its new ones from
         // now on (answered with the state; social.md 9.8).
@@ -33,6 +34,12 @@ package survarium.rooms
         public static const JOIN:int = FIRST + 100000;
         // Who is in a room, for anyone (`S1;G`; a room with a PIN too).
         public static const MEMBERS:int = FIRST + 300000;
+        // Whether a join offers a kit preset (`S1;O`; presets.md): + key, 0 for
+        // the room Play would take.
+        public static const OFFER:int = FIRST + 400000;
+        // "Switch and enter": PRESET + (preset - 1) * PRESET_STEP + key (0: Play).
+        public static const PRESET:int = FIRST + 500000;
+        public static const PRESET_STEP:int = 100000;
         public static const BITS:int = FIRST + 1000000;
         public static const CREATE:int = FIRST + 10000000;
         public static const LAST:int = FIRST + 19999999;

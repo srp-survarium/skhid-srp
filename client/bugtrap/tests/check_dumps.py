@@ -22,8 +22,8 @@ def unzip(path):
     with zipfile.ZipFile(path) as archive:
         assert archive.testzip() is None, path
         [entry] = [e for e in archive.infolist() if e.filename.endswith(".dmp")]
-        assert all(e.filename == entry.filename or e.filename.startswith("logs/") for e in archive.infolist())
-        assert len(archive.infolist()) <= 34
+        assert all(e.filename in (entry.filename, "crash.txt") or e.filename.startswith("logs/") for e in archive.infolist())
+        assert len(archive.infolist()) <= 35
         assert entry.filename == path.stem + ".dmp", entry.filename
         assert entry.compress_type == zipfile.ZIP_DEFLATED and not entry.flag_bits & 0x800
         return archive.read(entry)

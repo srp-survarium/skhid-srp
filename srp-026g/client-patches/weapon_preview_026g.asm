@@ -3,7 +3,7 @@
 ; (WEAPON_PREVIEW_* in patch_026g.py, which checks each hook's target). At
 ; .srp+2E50h, after the late-join code (which ends at +2E4Eh) and before
 ; `.srpd` (+3000h); its state at STATE, 0xE00 of `.srpd`.
-;   nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42C00F -DCAMERA=0xA42A800 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
+;   nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42C00F -DCAMERA=0xA42A6B0 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
 ; (FIND: weapon_stash_026g.asm's find_kit_or_show, which also shows a weapon no kit holds;
 ; its start, exit and setup_profile hooks reach start_cam, exit_cam and setup_hook through it;
 ; CAMERA: weapon_table_026g.asm's camera, which shows it above the workbench)
@@ -253,7 +253,7 @@ find_kit:
     ret
 
 least:            dd 1.5            ; the original's least distance (the float at 0xA7AFA4)
-near_min:         dd 0.6            ; NEAR_MIN: the least from a weapon's window
+near_min:         dd 0.3            ; NEAR_MIN: the least from a weapon's window (0.6 until patch 45 round 5d)
 back:             dd 1.49           ; at or past it the least is 1.5 again
 weapon_height:    dd 1.05           ; WEAPON_HEIGHT: the look-at height (chest 1.3, legs 0.8)
 weapon_distance:  dd 0.85           ; WEAPON_DISTANCE (the chest's 1.5)

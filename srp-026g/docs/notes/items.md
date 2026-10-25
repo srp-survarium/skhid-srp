@@ -16,7 +16,7 @@ The code: `crates/survarium/src/v026g/modifications.rs` (data),
 |---|---|---|
 | `gameplay/items/modifications/modifications.options` | 158 `modifications`, 20 `defects`, 3 `defect_slots` | client: `id`, `modifiers`, `ui_desc`, `lobby_info`, a defect's `fix_cost_general` / `fix_cost_gold` / `fix_time_general` (loader 0x2C9E31.., strings at 0xA02264..). **Server only:** `drop_weight`, `type_mask`, `type_requirements_mask`, `required_modifications`, `defect_slots` (none of these strings is in the exe) |
 | `gameplay/items/craft/craft.options` | `craft_price_general[16]`, `craft_price_premium[16]`, `craft_probabilities_general[3][2]`, `craft_probabilities_premium[3][2]` | server only; the lobby gets them in 0x9B |
-| `gameplay/items/reroll/reroll.options` | `reroll_price_general[16]`, `reroll_price_premium[16]`, `reroll_modificator_multiplicator` 1.1 | server only; the lobby gets an item's two prices in `83 46 06` / `08` |
+| `gameplay/items/reroll/reroll.options` | `reroll_price_general[16]`, `reroll_price_premium[16]`, `reroll_modificator_multiplicator` 1.1 (not used: [flat-reroll.md](flat-reroll.md)) | server only; the lobby gets an item's two prices in `83 46 06` / `08` |
 | every item config | `available_modifications_mask` (40 characters), `available_defects_mask` (20), `default_modifications[]`, `camo_available`, `decal_available` | client: the last three (0x2C97B7, 0x287703, 0x28777D). The two masks are server only |
 
 PROVEN by the data:
@@ -34,8 +34,9 @@ PROVEN by the data:
   16 artefact slots, 17 ammo bags, 29 pocket size, 33..40 (the boosters'
   effects and the premium items' silver, experience and reputation
   bonuses). They are only ever `default_modifications` in the data; srp gives
-  the golden weapons their silver one (1230) as a modification of their own
-  ([golden_weapons.md](golden_weapons.md)).
+  the golden weapons their silver one (1230) and the premium armour its
+  experience and reputation ones (1240, 1250, 1260) as modifications of their
+  own ([golden_weapons.md](golden_weapons.md), [premium_armour.md](premium_armour.md)).
 - Three defects have `required_modifications: [low, high]` (4030 pockets
   `[1030, 1039]`, 4040 artefact slots, 4050 ammo bags): the id range of the
   modifications that give what the defect takes.
@@ -46,6 +47,22 @@ PROVEN by the data:
 - A modifier is `{path[], value, type}`: type 1 with absolute steps
   (armour +0.02, a slot +1), type 2 with small fractions (damage +0.01,
   weight −0.05, wear −0.05). LIKELY 1 adds and 2 multiplies by `1 + value`.
+  PROVEN (2026-10-23): the match's item cook applies a path's summed
+  modifiers once, type 1 by 0x357F80 (an int value, as every item's
+  `*_modifier` 0, becomes a float first: +0.05 is kept), type 2 by 0x358010
+  (x max(0, 1 + sum)).
+- **A gear modification of a player modifier** (`parameters/<name>_modifier`
+  on a vest, trousers or backpack): the cooked config's 68 `_modifier`
+  floats (0x2C83E0 from the inventory_item ctor 0x2FFB80) -> armor::armor
+  0x33EAA0 makes a node of each nonzero one -> 0x33F3A0 links them into the
+  kit's lists -> the getter 0x2D5AE0. Run with Unicorn on the original exe
+  (T16, 2026-10-23) for type 21, Regeneration (1090..1094,
+  `health_regeneration_speed_modifier` +0.05..+0.15): index 2's only reader
+  is the pool update 0x32A4B0, speed = the pool's `regeneration_speed` x
+  (1 + sum) (index 2 is not in the additive table 0x927E08), so +5..+15 % of
+  0.03/s (body, head, arms, legs; pain 0.1/s), with the same 8 s timeout and
+  cap (body 50 %). Body 0 -> 50 %: 16.7 s, 15.9 s at +5 %, 14.5 s at +15 %,
+  11.5 s with three +15 % pieces. It works as its card says; it is small.
 - 47 items (every vest and every pair of trousers) have `camo_available`
   and `decal_available`; `items_compatibility` pairs no cosmetic with
   anything.
@@ -133,7 +150,11 @@ What the lobby checks or says itself (PROVEN, `lobby_menu.swf` and the
   number of times. When you change the modifier you will be prompted to
   choose one of three random modifiers." "Only one attempt in 6 hours is
   available when paying with silver." Silver is disabled while the item's
-  `reroll_time` runs; gold never. Not for a damaged item
+  `reroll_time` runs; gold never. [srp, the owner's rule of 2026-10-22] No
+  wait: srp sends `reroll_time` 0 and the window shows no six-hour line.
+  [srp, the owner's rule of 2026-10-22] Any modification, not only one:
+  the window locks none ([reroll-keep-old.md](reroll-keep-old.md)).
+  Not for a damaged item
   (`st_reroll_message_broken_item`). The window can not be closed between
   the offer and the choice. [srp, the owner's rule of 2026-10-21] Its Cancel button
   then keeps the old modification ([reroll-keep-old.md](reroll-keep-old.md)).
@@ -141,7 +162,9 @@ What the lobby checks or says itself (PROVEN, `lobby_menu.swf` and the
   three modifications; the item with no fewer than the donor
   (`st_craft_message_modifiers_difference`); not an equipped item while in
   the queue. Price = table[item level of the item]. Outcomes: "+1 mod.",
-  "-1 mod.", or "you failed to upgrade the item".
+  "-1 mod.", or "you failed to upgrade the item". [srp, the owner's rule of
+  2026-10-23] Never "-1 mod.": a failure leaves the item as it was
+  ([craft-menu.md](craft-menu.md), "A failed upgrade").
 - Repair: silver = `(1 - condition) * repair_cost_ratio * cost` + each
   defect's `fix_cost_general`, and takes the defects' `fix_time_general`
   together; gold ("quick repair") = the defects' `fix_cost_gold`; kits = one
@@ -155,10 +178,12 @@ srp's reading of what only the server knew:
 | a dropped weapon or armour of rarity `n` gets `n` modifications | LIKELY (the rank shown is their count) |
 | a reroll offers three that fit in the replaced one's place (its own type too, another strength): of different types while the item has them, then other strengths of those, so an item of few types (a backpack, a balaclava) is offered three too | [srp] |
 | the payment is taken when the three are offered, whatever is chosen, the old one kept too; an offer not chosen is kept (saved) and shown again when the window opens | [srp] |
-| each change of an item makes the next cost `reroll_modificator_multiplicator` (1.1) times more | GUESS: the number's use is not in the client; the per-item prices in `83 46 06`/`08` suggest the price was the item's own |
-| the donor must be another of the same item | LIKELY (the result window shows the donor's dictionary entry as the upgraded item); a golden weapon and its plain weapon count as the same item ([srp], the owner's rule of 2026-10-21, [golden_weapons.md](golden_weapons.md)) |
+| every change of an item costs the same: the level's price, `reroll_modificator_multiplicator` (1.1) not used (until then each change made the next 1.1 times dearer, a GUESS) | the owner's rule of 2026-10-25 ([flat-reroll.md](flat-reroll.md)) |
+| the donor must be another of the same item | LIKELY (the result window shows the donor's dictionary entry as the upgraded item); a golden weapon and its plain weapon count as the same item ([srp], the owner's rule of 2026-10-21, [golden_weapons.md](golden_weapons.md)), and so do a premium armour piece and its plain piece (2026-10-22, [premium_armour.md](premium_armour.md)) |
 | the craft's chance row is `rank(item) - rank(donor)`; success, then failure, then nothing | PROVEN for the row (the UI indexes it so); the roll is the server's |
-| a gained modification is rolled as a drop's; a lost one is any of the item's own | [srp] |
+| a gained modification is rolled as a drop's | [srp] |
+| a failure takes no modification: it does what "nothing" does (price and donor spent, the item as it was); 0x9B sends every failure chance as 0 and the window shows no failure row | the owner's rule of 2026-10-23 ([craft-menu.md](craft-menu.md)) |
+| no roll (a drop, an upgrade, a reroll's offer) gives a modification that only changes wear ("reliability"); owned ones stay; masks may roll Armor, oxygen packs Weight limit and Energy costs, the Pilgrim container Energy costs, so every item rolls three types or more | the owner's rule of 2026-10-23 ([no-reliability-roll.md](no-reliability-roll.md), `third-mod-1.json`) |
 | a repair takes the defects off at once; the wait only locks the item in the lobby | [srp] |
 | a defect slot opens under its first `condition`; its chance goes from the first `probability` there to the second at condition 0 | LIKELY |
 | one defect roll for each match that wore the item, for its first free slot | [srp] (`SRP_ITEM_DEFECTS=off` switches defects off). Since 2026-10-13 a match wears nothing unless `SRP_ITEM_WEAR=on` (the owner's choice, `results.md` §12), so only a found item has a defect |
@@ -260,6 +285,7 @@ computes (read in the exe and patch 20's `lobby_menu.swf`):
 | the movie keeps them in a dictionary by `prop_id` (`PropertiesDescriptor`); an unknown id is a stack trace and an empty line | `getPropertyDescription` |
 | the card (`InventoryItemHint`, sprite 1547) draws the `comparable` lines in its `itemCompare` (`SrvItemCompareHintG`, sprite 1538, a dynamic `ItemCompare`): one row each (`diff_1`..`diff_8`, sprite 1537, 22.6 px apart) in `props_list` order, and stops at the last row | `ItemCompare.updateData` |
 | the card's height follows `itemCompare.height` | `ItemInfoRenderer.set data` |
+| a row's bar runs over the line's `min_value`..`max_value` (the damage line 0 to 150); the number is the real value, the bar full above the top (until 2026-10-25 CLIK's `StatusIndicator.value` clamped the number too: the VSSK's 175 damage read 150); a line's text is made a number before its modifications are added | `DiffIndicator`, `ItemCompare.updateData` |
 
 Every 0.26g weapon has eight comparable lines (damage, armour piercing,
 aiming time, stopping power, dispersion, distance, rate of fire, weight),
