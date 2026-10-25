@@ -129,8 +129,11 @@ else in these items is still unverified**: the refusals' texts, 26-9,
        - The exact fix is one instruction of the client (take slot 0x17,
          "none", when the item in hands is neither weapon), which is what
          an unpatched client does whenever the stray dword is 0, so patched
-         and unpatched clients stay in step. **Not done: postponed by the
-         owner on 2026-10-12.** It needs a new exe for every player.
+         and unpatched clients stay in step. Postponed by the owner on
+         2026-10-12; **written on 2026-10-22 as exe patch 50**
+         (`srp-026g/client-patches/README.md` 50), with patch 51 for the
+         kit choice of match.md section 23. It ships with the next client
+         release; until every player has it the defect stays.
        - Open: which items count as "in hands" besides the two weapons
          (LIKELY a grenade or a medkit in use); which of the two keys is
          bit 26 (LIKELY previous weapon); a dump from a player.

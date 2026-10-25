@@ -1359,6 +1359,59 @@ So of what the game logs, the dominant wait is the client's own send tick (a qua
 
 **Builds** (this branch, on main 7f010cc1, no server): the default build `8f75d355eda63a17d7afc83dd99ecff7d368e07801771c1f5e72f7d62c84c27b`; with `--required-patches=12,14,17,19,20,21,22,23,24,25,26,27` (revision 27's list) `33c7cba9bb1e1558b97ef43be5296f45d963174f7597f21c6f5a6e76ac3c0cc6` (12 918 392 bytes each).
 
+### 3.47 "Previous weapon" from a hand that holds no weapon takes no slot (written 2026-10-22, README patch 50, the next release's revision) — PROVEN in the code, the mask's slot choice run with Unicorn; not run in a game
+
+**Why:** every game applies every player's relayed input, and nothing of it is checked (`match.md` section 20). `base_player::process_quick_slots` (0x2D8BB0, EAX the player, entry ESP+4 the input, `ret 0Ch`):
+
+```
+2D8C91  mov byte [esp+0x17],0xff      ; which: 0FFh, or 0 / 1 below
+2D8C96  mov ebp,0x17                  ; the slot: 17h, none
+2D8C9D  mov edx,0x927df0              ; {7, 10}, the two weapon slots
+...     which = i when the item in hands (+128h, vtable +70h) has slot (item+264h) table[i];
+        bits 12 / 13 put ebp = 7 / 10
+2D8CDF  test ecx,0x2000000            ; bit 25: slot 7, or 10 from slot 7
+2D8D02  test ecx,0x4000000            ; bit 26:
+2D8D0E  test al,al / jnz 0x2d8d19     ;   from slot 7: 10
+2D8D19  movzx eax,al
+2D8D1C  mov ebp,[eax*4+0x927dec]      ;   else table[which-1]: 7 for 1, [0x9281E8] = 2Fh for 0FFh
+2D8D23  cmp ebp,0x17 / jz 0x2d8d7d    ; none
+2D8D28  mov ecx,[esi+0x10c]           ; the inventory, 188h bytes
+2D8D2E  cmp dword [ecx+ebp*4+0x10c],0 ; slot 47: inventory+1C8h, past its end
+2D8D48  ... calls through it (vtable +50h, then +4)
+```
+
+**The patch** (`patch_026g.py` WEAPON_SWITCH, every full build): 0x2D8D19 `cmp al,1` / `jnz short 0x2d8d7d` / `mov ebp,7` / `nop` (ten bytes for ten). `which` is 0, 1 or 0FFh, and 0 never gets here, so 1 keeps slot 7 and 0FFh takes the way of no slot. From 0x2D8D7D to the `pop ebp` at 0x2D8ECC nothing reads ebp, so going there is the same as ebp = 17h. The table address's relocation (0x2D8D1F) is disabled. Whatever holds the stray dword, the original did the same when it was 0; a match computes otherwise only where it was not.
+
+### 3.48 A kit with no weapon is not picked (written 2026-10-22, README patch 51, the next release's revision) — PROVEN in the code, the place's tick run whole with Unicorn; the inventory of a kit never played LIKELY; not run in a game
+
+**Why:** `match.md` section 23. `player::initialize` (0x1F2540, the re-kit's name; the notes' "player::respawn") calls `base_player::initialize` (0x2DAC00), which puts slot 7 (`[inventory+128h]`) in hands, else slot 10 (`+134h`), else leaves `+12Ch` at 0; then with `+12Ch` 0 it takes `[player+0F47Ch]` (null in a match) for the hands and calls through it (0x1F25BF). The next kit comes from the place's tick `player_slot::apply_profile_input` (0x321790, ECX the place, `ret 0Ch`):
+
+```
+3217BF  mov al,[eax+0x8]               ; the choice
+3217C2  mov dl,[ecx+0xd]               ; the old next kit
+3217C5  mov [ecx+0xd],al
+3217C8  cmp al,0x3 / jnc 0x3217d5
+3217CC  movzx eax,al
+3217CF  cmp dword [ecx+eax*4],0 / jnz 0x3217d8   ; a player for that kit: taken
+3217D5  mov [ecx+0xd],dl               ; else the old one back
+3217D8  ret 0xc
+```
+
+**The patch** (`patch_026g.py` KIT_PICK_*, every full build): 0x3217CC `jmp 0x844dd0` and four int3 (nine bytes; the `jnc` aims at 0x3217D5, nothing inside). At 0x844DD0, in the 62 int3 between the CRYPTOGAMS text and the function at 0x844E00:
+
+```
+844DD0  movzx eax,al
+844DD3  mov eax,[ecx+eax*4]            ; the kit's player
+844DD6  test eax,eax / jz -> refuse
+844DDA  mov eax,[eax+0x10c]            ; its inventory
+844DE0  test eax,eax / jz -> refuse
+844DE4  cmp dword [eax+0x128],0 / jnz -> take   ; slot 7
+844DED  cmp dword [eax+0x134],0 / jnz -> take   ; slot 10
+844DF6  jmp 0x3217d5                   ; refuse: the old kit back
+844DFB  jmp 0x3217d8                   ; take
+```
+
+A kit's player holds its weapons in its inventory before its first spawn: patches 18 and 20 walk the new kit's inventory before the spawn's initialize and find them (`late_join_026g.asm`, weapon_random_hook and kit_state_hook), LIKELY for a kit never played as well. Not covered: a place's first kit (0x321820 takes the lowest with a player), which no choice sets. The null call is left as it is: the player would have nothing in hands, and 0x2D8C75 reads `[player+128h]` at its next input without a test.
 ### 3.49 `stage.focus` reads null for a focused object without its ActionScript object (written 2026-10-22, README patch 52, the next release's revision) — PROVEN in the code and Scaleform's source, the getter run with Unicorn; not run in a game
 
 **Why** (the owner's local game, 2026-10-22 04:44, `Survarium-#2777_261022-044410.dmp`, r28 of main): `ACCESS_VIOLATION` reading 0x14 at 0x77200B, in the lobby, about a second after an upgrade. The minidump holds the threads' stacks only (no modules, no heap); the crash report's "frames" are not a stack walk. From the crashed thread's stack:
