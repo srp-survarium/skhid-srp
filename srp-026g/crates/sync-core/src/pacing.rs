@@ -16,8 +16,11 @@
 //! 0xDF hashes it, 0xF6 uploads it). Every grid item is still stepped from
 //! a grid item through every change node, so the worlds are the stock
 //! ones; only the frames in between show the prediction a little longer.
+//!
+//! The world comes in parsed ([`World`]): the client's glue reads the three
+//! raw fields once and is the only code that knows their encodings.
 
-use crate::EVENT_HORIZON_MS;
+use crate::{EVENT_HORIZON_MS, GameTime, TICK_MS};
 
 /// The least game time between two rollbacks of render moves.
 pub const MIN_GAP_MS: u32 = 50;
@@ -25,25 +28,27 @@ pub const MIN_GAP_MS: u32 = 50;
 /// A rollback point this far behind the target is never postponed.
 pub const DEADLINE_MS: u32 = 300;
 
-/// The rollback point's "none" (`+18FC8h` = -1).
-pub const NO_POINT: u32 = u32::MAX;
-
 // A postponed rollback must happen before the first stale item (the one
 // after the point) is the event-horizon item: target - point < horizon - one
 // tick, with a frame's worth to spare.
-const _: () = assert!(DEADLINE_MS + 2 * crate::TICK_MS <= EVENT_HORIZON_MS);
+const _: () = assert!(DEADLINE_MS + 2 * TICK_MS <= EVENT_HORIZON_MS);
+
+/// A world core, by its address: a new match has a new core.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CoreId(pub u32);
 
 /// What the world core says before a render move.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct WorldView {
-    /// The core's address: a new match has a new core.
-    pub core: u32,
-    /// The world's time (+18FC0h).
-    pub now: u32,
-    /// The rollback point (+18FC8h), [`NO_POINT`] for none.
-    pub point: u32,
-    /// The world waits for its first world (+18FDFh): move does nothing.
-    pub frozen: bool,
+pub enum World {
+    /// It waits for its first world (+18FDFh): move does nothing.
+    Frozen { core: CoreId },
+    /// It runs: its time (+18FC0h), and the rollback point (+18FC8h) when an
+    /// input landed before the newest history item.
+    Running {
+        core: CoreId,
+        now: GameTime,
+        rollback: Option<GameTime>,
+    },
 }
 
 /// Whether a move to a target has a rollback due: the stock move's own
@@ -54,15 +59,15 @@ pub enum Step {
     Current,
     /// An input landed before the world's time: the world must be loaded
     /// from the item at or before `to` and stepped again.
-    Behind { to: u32 },
+    Behind { to: GameTime },
 }
 
 impl Step {
-    pub fn of(world: &WorldView, target: u32) -> Step {
-        if world.point == NO_POINT || world.now <= world.point || world.point >= target {
-            Step::Current
-        } else {
-            Step::Behind { to: world.point }
+    /// The step of a running world at `now` with `rollback`, moved to `target`.
+    pub fn of(now: GameTime, rollback: Option<GameTime>, target: GameTime) -> Step {
+        match rollback {
+            Some(to) if to < now && to < target => Step::Behind { to },
+            _ => Step::Current,
         }
     }
 }
@@ -73,7 +78,7 @@ pub enum Pacing {
     /// No rollback of a render move yet (or of this core).
     Free,
     /// The last rollback of a render move of `core` was for the target `at`.
-    Paced { core: u32, at: u32 },
+    Paced { core: CoreId, at: GameTime },
 }
 
 /// What to do with one render move.
@@ -82,38 +87,44 @@ pub enum Plan {
     /// The stock move, as it is.
     Stock,
     /// The stock move with the rollback point hidden (no rollback: the world
-    /// steps on from its newest item), then the point put back as the least
-    /// of `keep` and what the move left there.
-    Postpone { keep: u32 },
+    /// steps on from its newest item), then the point put back as
+    /// [`restored_point`] of `keep` and what the move left there.
+    Postpone { keep: GameTime },
 }
 
 /// The transition: a render move to `target` in `pacing`, the world as
 /// `world` says. Total: every (state, world, target) has its answer.
-pub fn render_move(pacing: Pacing, world: WorldView, target: u32) -> (Pacing, Plan) {
-    let to = match Step::of(&world, target) {
+pub fn render_move(pacing: Pacing, world: World, target: GameTime) -> (Pacing, Plan) {
+    let (core, now, rollback) = match world {
+        // move does nothing in a frozen world: no rollback happens.
+        World::Frozen { .. } => return (pacing, Plan::Stock),
+        World::Running {
+            core,
+            now,
+            rollback,
+        } => (core, now, rollback),
+    };
+    let to = match Step::of(now, rollback, target) {
         Step::Current => return (pacing, Plan::Stock),
         Step::Behind { to } => to,
     };
     // A shallow rollback loads the item a render move loads anyway (the
     // grid point at or before the world's time): it costs nothing more, so
     // it is stock and does not count as one.
-    if to >= world.now - world.now % crate::TICK_MS {
+    if to >= now.grid_floor() {
         return (pacing, Plan::Stock);
     }
-    let rolled = Pacing::Paced {
-        core: world.core,
-        at: target,
-    };
-    // Not a render advance (a frozen world, a target not past the world's
-    // time): stock, which rolls back.
-    if world.frozen || target <= world.now {
+    let rolled = Pacing::Paced { core, at: target };
+    // Not a render advance (a target not past the world's time): stock,
+    // which rolls back.
+    if target <= now {
         return (rolled, Plan::Stock);
     }
     let recent = match pacing {
-        Pacing::Paced { core, at } => core == world.core && target.wrapping_sub(at) < MIN_GAP_MS,
+        Pacing::Paced { core: last, at } => last == core && target.since(at) < MIN_GAP_MS,
         Pacing::Free => false,
     };
-    let due = target.wrapping_sub(to) >= DEADLINE_MS;
+    let due = target.since(to) >= DEADLINE_MS;
     if recent && !due {
         (pacing, Plan::Postpone { keep: to })
     } else {
@@ -121,150 +132,143 @@ pub fn render_move(pacing: Pacing, world: WorldView, target: u32) -> (Pacing, Pl
     }
 }
 
-/// The rollback point after a postponed move: the least of the kept one and
-/// whatever the move lowered it to (its own local input snapping).
-pub fn restored_point(keep: u32, after: u32) -> u32 {
-    keep.min(after)
+/// The rollback point after a postponed move: the earliest of the kept one
+/// and whatever the move lowered it to (its own local input snapping).
+pub fn restored_point(keep: GameTime, after: Option<GameTime>) -> GameTime {
+    after.map_or(keep, |after| keep.earliest(after))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn world(now: u32, point: u32) -> WorldView {
-        WorldView {
-            core: 0x1000,
-            now,
-            point,
-            frozen: false,
+    const CORE: CoreId = CoreId(0x1000);
+
+    fn t(ms: u32) -> GameTime {
+        GameTime(ms)
+    }
+
+    fn world(now: u32, rollback: Option<u32>) -> World {
+        World::Running {
+            core: CORE,
+            now: t(now),
+            rollback: rollback.map(t),
+        }
+    }
+
+    fn paced(at: u32) -> Pacing {
+        Pacing::Paced {
+            core: CORE,
+            at: t(at),
         }
     }
 
     #[test]
     fn a_world_with_no_rollback_due_moves_as_stock_and_keeps_the_state() {
-        let paced = Pacing::Paced {
-            core: 0x1000,
-            at: 990,
-        };
         for w in [
-            world(1000, NO_POINT),
-            world(1000, 1000),
-            world(1000, 1050),
-            world(1000, 1100),
+            world(1000, None),
+            world(1000, Some(1000)),
+            world(1000, Some(1050)),
+            world(1000, Some(1100)),
         ] {
-            assert_eq!(render_move(paced, w, 1010), (paced, Plan::Stock), "{w:?}");
+            assert_eq!(
+                render_move(paced(990), w, t(1010)),
+                (paced(990), Plan::Stock),
+                "{w:?}"
+            );
         }
     }
 
     #[test]
     fn the_first_rollback_is_stock_and_starts_the_pacing() {
-        let (next, plan) = render_move(Pacing::Free, world(1000, 850), 1010);
-        assert_eq!(plan, Plan::Stock);
         assert_eq!(
-            next,
-            Pacing::Paced {
-                core: 0x1000,
-                at: 1010
-            }
+            render_move(Pacing::Free, world(1000, Some(850)), t(1010)),
+            (paced(1010), Plan::Stock)
         );
     }
 
     #[test]
     fn a_shallow_rollback_is_stock_and_does_not_count() {
         // the point is the grid item a render move loads anyway
-        for pacing in [
-            Pacing::Free,
-            Pacing::Paced {
-                core: 0x1000,
-                at: 1025,
-            },
-        ] {
+        for pacing in [Pacing::Free, paced(1025)] {
             assert_eq!(
-                render_move(pacing, world(1030, 1000), 1040),
+                render_move(pacing, world(1030, Some(1000)), t(1040)),
                 (pacing, Plan::Stock)
             );
         }
         // one tick deeper is a rollback
-        let paced = Pacing::Paced {
-            core: 0x1000,
-            at: 1025,
-        };
         assert_eq!(
-            render_move(paced, world(1030, 950), 1040),
-            (paced, Plan::Postpone { keep: 950 })
+            render_move(paced(1025), world(1030, Some(950)), t(1040)),
+            (paced(1025), Plan::Postpone { keep: t(950) })
         );
     }
 
     #[test]
     fn a_rollback_within_50_ms_of_the_last_is_postponed() {
-        let paced = Pacing::Paced {
-            core: 0x1000,
-            at: 1010,
-        };
+        let postponed = (paced(1010), Plan::Postpone { keep: t(900) });
         assert_eq!(
-            render_move(paced, world(1010, 900), 1020),
-            (paced, Plan::Postpone { keep: 900 })
+            render_move(paced(1010), world(1010, Some(900)), t(1020)),
+            postponed
         );
         assert_eq!(
-            render_move(paced, world(1050, 900), 1059),
-            (paced, Plan::Postpone { keep: 900 })
+            render_move(paced(1010), world(1050, Some(900)), t(1059)),
+            postponed
         );
-        let (next, plan) = render_move(paced, world(1059, 900), 1060);
         assert_eq!(
-            (next, plan),
-            (
-                Pacing::Paced {
-                    core: 0x1000,
-                    at: 1060
-                },
-                Plan::Stock
-            )
+            render_move(paced(1010), world(1059, Some(900)), t(1060)),
+            (paced(1060), Plan::Stock)
         );
     }
 
     #[test]
     fn a_point_300_ms_behind_the_target_is_never_postponed() {
-        let paced = Pacing::Paced {
-            core: 0x1000,
-            at: 1010,
-        };
         assert_eq!(
-            render_move(paced, world(1010, 750), 1049).1,
-            Plan::Postpone { keep: 750 }
+            render_move(paced(1010), world(1010, Some(750)), t(1049)).1,
+            Plan::Postpone { keep: t(750) }
         );
-        assert_eq!(render_move(paced, world(1010, 750), 1050).1, Plan::Stock);
-        assert_eq!(render_move(paced, world(1010, 700), 1020).1, Plan::Stock);
+        assert_eq!(
+            render_move(paced(1010), world(1010, Some(750)), t(1050)).1,
+            Plan::Stock
+        );
+        assert_eq!(
+            render_move(paced(1010), world(1010, Some(700)), t(1020)).1,
+            Plan::Stock
+        );
     }
 
     #[test]
     fn moves_that_are_no_render_advance_are_stock() {
-        let paced = Pacing::Paced {
-            core: 0x1000,
-            at: 1010,
-        };
         // the target at or before the world's time (the horizon move, a camera)
-        assert_eq!(render_move(paced, world(1020, 900), 1020).1, Plan::Stock);
-        assert_eq!(render_move(paced, world(1020, 900), 950).1, Plan::Stock);
-        // a frozen world
-        let frozen = WorldView {
-            frozen: true,
-            ..world(1015, 900)
-        };
-        assert_eq!(render_move(paced, frozen, 1020).1, Plan::Stock);
+        assert_eq!(
+            render_move(paced(1010), world(1020, Some(900)), t(1020)).1,
+            Plan::Stock
+        );
+        assert_eq!(
+            render_move(paced(1010), world(1020, Some(900)), t(950)).1,
+            Plan::Stock
+        );
+        // a frozen world: nothing happens, nothing is counted
+        let frozen = World::Frozen { core: CORE };
+        assert_eq!(
+            render_move(paced(1010), frozen, t(1020)),
+            (paced(1010), Plan::Stock)
+        );
     }
 
     #[test]
     fn another_core_or_a_clock_put_back_starts_afresh() {
-        let paced = Pacing::Paced {
-            core: 0x2000,
-            at: 1010,
+        let other = Pacing::Paced {
+            core: CoreId(0x2000),
+            at: t(1010),
         };
-        assert_eq!(render_move(paced, world(1010, 900), 1020).1, Plan::Stock);
-        let later = Pacing::Paced {
-            core: 0x1000,
-            at: 90_000,
-        };
-        assert_eq!(render_move(later, world(1010, 900), 1020).1, Plan::Stock);
+        assert_eq!(
+            render_move(other, world(1010, Some(900)), t(1020)).1,
+            Plan::Stock
+        );
+        assert_eq!(
+            render_move(paced(90_000), world(1010, Some(900)), t(1020)).1,
+            Plan::Stock
+        );
     }
 
     #[test]
@@ -276,18 +280,14 @@ mod tests {
             for point in (0..1500).step_by(25) {
                 for now in (point..1500).step_by(11) {
                     for target in (now..now + 120).step_by(3) {
-                        let w = world(now, point);
                         if let (_, Plan::Postpone { keep }) =
-                            render_move(Pacing::Paced { core: 0x1000, at }, w, target)
+                            render_move(paced(at), world(now, Some(point)), t(target))
                         {
-                            assert_eq!(keep, point);
+                            assert_eq!(keep, t(point));
                             assert!(target - at < MIN_GAP_MS && target - point < DEADLINE_MS);
                             // the event horizon (target - 500) stays 100 ms short of
                             // the first stale item (point + 50)
-                            assert!(
-                                target + 2 * crate::TICK_MS
-                                    <= point + crate::TICK_MS + EVENT_HORIZON_MS
-                            );
+                            assert!(target + 2 * TICK_MS <= point + TICK_MS + EVENT_HORIZON_MS);
                         }
                     }
                 }
@@ -296,9 +296,9 @@ mod tests {
     }
 
     #[test]
-    fn the_point_after_a_postponed_move_is_the_least() {
-        assert_eq!(restored_point(900, NO_POINT), 900);
-        assert_eq!(restored_point(900, 850), 850);
-        assert_eq!(restored_point(900, 950), 900);
+    fn the_point_after_a_postponed_move_is_the_earliest() {
+        assert_eq!(restored_point(t(900), None), t(900));
+        assert_eq!(restored_point(t(900), Some(t(850))), t(850));
+        assert_eq!(restored_point(t(900), Some(t(950))), t(900));
     }
 }

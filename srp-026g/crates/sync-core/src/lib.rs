@@ -10,6 +10,9 @@
 #![no_std]
 
 pub mod pacing;
+pub mod time;
+
+pub use time::GameTime;
 
 /// The simulation's step: every world in the history is on this grid.
 pub const TICK_MS: u32 = 50;

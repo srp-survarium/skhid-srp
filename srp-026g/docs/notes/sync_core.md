@@ -749,9 +749,10 @@ names the states and transitions of 3.3 it takes over.
 - **Hook:** CALLEE at 0x1F7C37 (`call 0x2D2E40` in game_world::tick) ->
   `sc_render_move` (EAX target, stack core, `ret 4`, as move). Not move's
   entry: patch 71 takes that.
-- **Interface:** `sync_core::pacing::render_move(Pacing, WorldView{core,
-  now, point, frozen}, target) -> (Pacing, Plan::{Stock, Postpone{keep}})`;
-  the arena calls `engine_world_core_move`.
+- **Interface:** `sync_core::pacing::render_move(Pacing, World, GameTime)
+  -> (Pacing, Plan::{Stock, Postpone{keep}})`, `World::{Frozen{core},
+  Running{core, now, rollback: Option<GameTime>}}` parsed once by the
+  arena's glue (section 9); the arena calls `engine_world_core_move`.
 - **Unicorn:** `check_sync_core_026g.py`: the built exe, the game's own
   move, tick_events, insert_impl and the ring; a model world (atomic_tick,
   serialize, deserialize, process_events as a hash chain); scripted
@@ -872,18 +873,30 @@ EBP kept; it aligns the stack to 16 for the call, the game's frame being
 aligned to 4) -> `sync_render_move(core, time)` (cdecl) -> the rule -> the
 game's move through `engine_world_core_move`.
 
-**The machine** (3.3, `Step`): `Pacing::{Free, Paced{core, at}}` is the
-state between render moves; `render_move(Pacing, WorldView{core, now,
-point, frozen}, target) -> (Pacing, Plan::{Stock, Postpone{keep}})` is the
-transition, total over its inputs:
+**The machine** (3.3, `Step`): the types make the illegal states
+unrepresentable and the raw fields are parsed once. `GameTime(u32)` (its
+wrap-safe `since`, `grid_floor`, `earliest`) and `CoreId(u32)`; the world
+is `World::Frozen{core} | World::Running{core, now: GameTime, rollback:
+Option<GameTime>}`, made by the arena glue alone from +18FC0h, +18FC8h
+(-1: none) and +18FDFh, which also encodes the one value it writes back.
+`Pacing::{Free, Paced{core: CoreId, at: GameTime}}` is the state between
+render moves; `render_move(Pacing, World, target: GameTime) -> (Pacing,
+Plan::{Stock, Postpone{keep: GameTime}})` is the transition, total over its
+inputs; `Step::of(now, rollback, target)` is Behind exactly when `rollback
+< now && rollback < target`:
 
-| Step of the world | Guard | Plan | Next pacing |
+| World and step | Guard | Plan | Next pacing |
 |---|---|---|---|
-| Current | | Stock | unchanged |
-| Behind, shallow (point >= the grid point at or before now) | | Stock | unchanged |
-| Behind | frozen, or target <= now | Stock | Paced{core, target} |
-| Behind | Paced{same core, at}, target - at < 50, target - point < 300 | Postpone{point} | unchanged |
-| Behind | otherwise | Stock | Paced{core, target} |
+| Frozen | | Stock (move does nothing) | unchanged |
+| Running, Current | | Stock | unchanged |
+| Running, Behind, shallow (to >= the grid point at or before now) | | Stock | unchanged |
+| Running, Behind | target <= now | Stock | Paced{core, target} |
+| Running, Behind | Paced{same core, at}, target since at < 50, target since to < 300 | Postpone{to} | unchanged |
+| Running, Behind | otherwise | Stock | Paced{core, target} |
+
+After a postponed move the glue writes back `restored_point(keep, the
+point the move left)`: the earliest of the two, `keep` when the move left
+none.
 
 **The differential check** (`check_sync_core_026g.py`, Unicorn, the
 original exe and the build): one emulated game a run, the game's own move,

@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 53260,
-  "sha256": "57fed98d66f3fa68a65f7b39a8df51ef5726a59f652c6e6b85b8c1e0217ebe2e",
+  "sha256": "6ea28d0baaa21e8e0e314431cb91ceb96b9587c84c1ab30bdce439bdeb7f4055",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -52,7 +52,7 @@
     "sync_core.code": {
       "kind": "code",
       "va": "0xa439000",
-      "size": 353
+      "size": 377
     },
     "sync_core.state": {
       "kind": "state",
