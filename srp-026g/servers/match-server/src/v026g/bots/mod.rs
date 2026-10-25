@@ -1139,6 +1139,7 @@ impl Bots {
                 && let Some(container) = after.containers.iter().find(|c| c.id == *id)
             {
                 let team = usize::from(container.team & 1);
+                self.teams[team].knowledge.thefts_match += 1;
                 self.teams[team].knowledge.thefts.push(Theft {
                     battery,
                     at: container.at,

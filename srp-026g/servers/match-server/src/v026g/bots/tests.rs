@@ -4612,6 +4612,17 @@ fn real_bot_cost() {
             // bot's distance to it (m), held (1) or not, an enemy in sight
             // (1) or not, and the team.
             let mut collect_crowd_spots: Vec<[i32; 6]> = Vec::new();
+            // The container holder (`guard_lead::is_holder_slot`), by team:
+            // living holder ticks, those within 22 m of the team's container
+            // (on its post: guard spots are 12-20 m out), its deaths, thefts
+            // from the team's container while it had a holder alive, and
+            // ticks of a need with none (a theft this match, a battery home,
+            // no holder alive).
+            let mut holder_ticks = [0u64; 2];
+            let mut holder_post_ticks = [0u64; 2];
+            let mut holder_deaths = [0u32; 2];
+            let mut holder_thefts = [0u32; 2];
+            let mut unheld_ticks = [0u64; 2];
             let mut takes_all = 0u32;
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
@@ -4642,6 +4653,13 @@ fn real_bot_cost() {
                             .as_ref()
                             .and_then(|b| b.assignment.as_ref())
                             .is_some_and(|a| super::team::attack(a.kind))
+                    };
+                    let holder = |place: Place| {
+                        bots.bots[place]
+                            .as_ref()
+                            .and_then(|b| b.assignment.as_ref())
+                            .and_then(|a| a.slot)
+                            .is_some_and(super::plays::guard_lead::is_holder_slot)
                     };
                     for (place, (now, before)) in game.stats.iter().zip(&stats_before).enumerate() {
                         push.stats(place, teams[place], now.0 - before.0, now.1 - before.1);
@@ -4726,6 +4744,9 @@ fn real_bot_cost() {
                             if attacking(place) {
                                 side[4] += u64::from(now.1 - before.1);
                             }
+                            if holder(place) {
+                                holder_deaths[usize::from(teams[place])] += now.1 - before.1;
+                            }
                         }
                     }
                     for fact in std::mem::take(&mut game.shot_facts) {
@@ -4738,6 +4759,34 @@ fn real_bot_cost() {
                     push.tick(&bots);
                     if let Some(human) = &mut human {
                         human.tick(&game, &thieves);
+                    }
+                    let mut holding = [false; 2];
+                    for bot in bots.bots.iter().flatten() {
+                        let body = &game.bodies[bot.place];
+                        if !body.alive || !holder(bot.place) {
+                            continue;
+                        }
+                        let team = usize::from(bot.team);
+                        holding[team] = true;
+                        holder_ticks[team] += 1;
+                        let home = game.containers.iter().find(|c| usize::from(c.0) == team);
+                        if home.is_some_and(|c| body.feet.distance_xz(c.1) <= 22.0) {
+                            holder_post_ticks[team] += 1;
+                        }
+                    }
+                    for &place in &thieves {
+                        let robbed = 1 - usize::from(teams[place]);
+                        holder_thefts[robbed] += u32::from(holding[robbed]);
+                    }
+                    for (team, &held) in holding.iter().enumerate() {
+                        let home = game.batteries.iter().any(|b| {
+                            matches!(*b, Lying::Home(id)
+                                if game.containers.get(usize::from(id))
+                                    .is_some_and(|c| usize::from(c.0) == team))
+                        });
+                        if !held && home && bots.teams[team].knowledge.thefts_match > 0 {
+                            unheld_ticks[team] += 1;
+                        }
                     }
                     for place in thieves {
                         by_play.entry(play_of(place)).or_default()[4] += 1;
@@ -5158,6 +5207,7 @@ fn real_bot_cost() {
                 side[0] += stat.0;
                 side[1] += stat.1;
             }
+            let secs = |ticks: u64| (ticks as f64 * f64::from(TICK_MS) / 100.0).round() / 10.0;
             let play_s: std::collections::BTreeMap<&String, f64> = play_ticks
                 .iter()
                 .map(|(k, n)| (k, *n as f64 * f64::from(TICK_MS) / 1000.0))
@@ -5184,6 +5234,11 @@ fn real_bot_cost() {
                     "collect_held_dist": collect_held_dist,
                     "collect_held_seen": collect_held_seen,
                     "collect_crowd_spots": collect_crowd_spots,
+                    "holder_s": holder_ticks.map(secs),
+                    "holder_post_s": holder_post_ticks.map(secs),
+                    "holder_deaths": holder_deaths,
+                    "holder_thefts": holder_thefts,
+                    "unheld_s": unheld_ticks.map(secs),
                     "play_s": play_s,
                     "by_play": play_rows,
                     "deaths_by": deaths_by,
