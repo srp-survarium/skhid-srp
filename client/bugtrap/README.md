@@ -14,9 +14,10 @@ dialog. Closing the dialog keeps the file. Existing files are
 never overwritten. If the EXE folder is unwritable, it tries the Windows temporary
 folder; the dialog shows the filename and folder in separate labeled fields,
 or a failure message. Long folders use middle ellipsis. It uses static text
-without selection or scrollbars. The layout follows the original C++
+without scrollbars; only the crash details (see Crash details) can be
+selected. The layout follows the original C++
 `IDD_SIMPLE_DLG`: an explicit 8-point Tahoma font with smoothing, white message panel, thin divider,
-and gray footer with Open Discord and Close buttons. The panel is taller to fit
+and gray footer with Open Discord, Copy and Close buttons. The panel is taller to fit
 the dump details; the original Mail and More controls are omitted. The original
 green beetle icon (`vostok/sources/BugTrap/res/Bug.ico`) is embedded in the DLL
 and used in both the message panel and the localized Survarium window title.
@@ -38,9 +39,89 @@ unsupported languages fall back to English. The game's `-localization=` option
 does not override this. The startup notice uses the same automatic selection.
 The dialog and its buttons have room for the translated text.
 
-Dialog screenshots from Wine (client area): [English](crash-dialog.png),
-[Russian](crash-dialog-ru.png), [Polish](crash-dialog-pl.png),
-[Ukrainian](crash-dialog-uk.png).
+Dialog screenshots from Wine (client area, the probe's synthetic crash):
+[English](crash-dialog.png), [Russian](crash-dialog-ru.png),
+[Polish](crash-dialog-pl.png), [Ukrainian](crash-dialog-uk.png); a capture
+an antivirus refused, [English](crash-dialog-blocked.png) and
+[Russian](crash-dialog-blocked-ru.png); a game folder with Cyrillic
+letters, [Russian](crash-dialog-folder-ru.png).
+
+## Crash details
+
+Every crash also gets a short text report, made from the exception and
+context records whether or not the dump is saved:
+
+```
+Skhid crash report, 2026-10-25 18:44:17
+Exception: 0xC0000005 ACCESS_VIOLATION (write to 0x00000000)
+Address:   report_probe.exe+0x1444 (0x00401444)
+Thread:    284
+Registers: EAX=00000000 EBX=009F7F48 ECX=00000000 EDX=00000000 ESI=00000000 EDI=7BEBD4B4
+           EBP=0032FED0 ESP=0032FE6C EIP=00401444 EFL=00010246
+Stack:     report_probe.exe+0x14D4
+           msvcrt.dll+0x3F56D
+           ...
+Game:      report_probe.exe, patch revision unknown, sha256 6ac354ea1c2e
+Reporter:  local build
+Windows:   10.0.19045 (Wine 11.8)
+Dump:      saved
+Game log:  last 20 lines of the newest Survarium*.log in Documents\Survarium
+...
+```
+
+- Exception: the code, its Windows name, and for an access violation
+  whether it read, wrote or executed and the address; for an MSVC C++
+  exception the thrown type (`.?AVbad_alloc@std@@`).
+- Address and Stack: module+offset, the module's file name from Windows
+  (`survarium_skhid.exe+0x2D1E20`); names are resolved on our side with
+  `tools/re-kit/v026g/lookup.py`. The stack is a scan, not an unwind: up to
+  8 distinct values on the faulting stack that point just past a `call` in
+  a loaded module's code, the first usually the caller. Stale return
+  addresses can appear.
+- Game: the exe's name, the patch revision its sign-in sends (read from the
+  loaded image where `client/updater/logic/src/revision.rs` reads the file),
+  the first 12 hex digits of the exe file's SHA-256. Reporter: the
+  `SKHID_REVISION` this DLL was built for. Windows: `RtlGetVersion`, and
+  Wine's version under Wine.
+- Paths (only when it applies): non-ASCII letters in the game folder or the
+  temporary folder, and whether they are outside the ANSI code page. The
+  folders themselves are not written.
+- Dump: saved, or why not, with the Windows error.
+- Game log: the last 20 lines of the newest `Survarium*.log` in
+  Documents\Survarium (its last 8 KiB), from the first line that starts a
+  record (a cut inside a sensitive record's continuation lines would not be
+  caught), through the same credential filter as the ZIP's logs; the file
+  name is not written (it holds the account name).
+- Every read of the game's memory goes through `ReadProcessMemory`: a
+  damaged pointer gives no line, not a second crash. The stack scan reads
+  whole dwords only and stops at a short read. The report is made only after
+  the dump is closed, so nothing in it can cost the dump.
+
+Where it goes: `SRP-crash-…-N.txt` beside the dump (the same name), and into
+the ZIP as `crash.txt`; with no dump, as a new `SRP-crash-…-N.txt` beside the
+exe or else in the temporary folder, and the dialog names it in the dump's
+place; when neither takes it, it is only shown.
+
+The dialog shows the first two lines (code, name, module+offset) in a
+selectable field. **Copy** puts everything above the game log on the
+clipboard as a Discord code block (about 1 KB) and says "Copied"; without a
+clipboard it selects the field for Ctrl+C.
+
+The first line of the dialog tells why a dump is missing:
+
+- the file could not be made or written (folder, permission, a full disk):
+  "Could not save a crash dump beside the game or in the temporary folder.";
+- the file was made, but `MiniDumpWriteDump` could not read the game
+  (an HRESULT such as `0x8007001F` or `0x8007012B`, access denied on the
+  process: an antivirus, EDR or Windows' exploit protection): "An antivirus
+  or Windows security feature blocked the crash dump. The crash details below
+  are still useful: copy them to #bugreports."
+
+Windows errors of 0x10000 and above are shown in hex. A game folder with
+non-ASCII letters adds a line: "The game is in a folder with non-English
+letters (…). Move it to a simple path like C:\Games\Survarium and start it
+from there." (the folder shortened in the middle to 60 characters).
+All file and folder calls of this DLL are the Windows wide (W) calls.
 
 Nothing is uploaded automatically. Email/upload entry points fail with
 `ERROR_NOT_SUPPORTED`, and legacy support destinations are discarded. The DLL
@@ -111,7 +192,7 @@ A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
   worker, before callbacks and the dialog; for crashes and for
   `BT_SaveSnapshot[Ex]` alike, and also for a stack overflow (no dialog).
 - Files: `SRP-crash-…-N.zip` beside its `SRP-crash-…-N.dmp` (the same folder:
-  the EXE's or the temporary one), holding the dump under its own name and recent game logs under `logs/`
+  the EXE's or the temporary one), holding the dump under its own name, the text report as `crash.txt` (see Crash details) and recent game logs under `logs/`
   (DEFLATE; Unicode log names use the ZIP UTF-8 flag). It is written as
   `SRP-crash-…-N.zip.part`, never over an existing file, and renamed to `.zip`
   when complete.
@@ -133,7 +214,7 @@ A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
   authorization/bearer/basic-auth, token, secret, API/access/session-key, cookie,
   credential, command-line or URL-userinfo markers are replaced with a fixed
   removal notice. Following unframed lines are removed until the next native
-  `channel <level>\t[HH:MM:SS.mmm]\t` or updater `YYYY-MM-DD HH:MM:SS ` record.
+  `channel <level>\t[HH:MM:SS.mmm]\t` (also with a colon before the milliseconds, `[HH:MM:SS:mmm]`) or updater `YYYY-MM-DD HH:MM:SS ` record.
   This deliberately favors omission over retaining ambiguous continuations.
   Unclosed quotes/trailing backslashes in sensitive lines, oversized lines,
   invalid UTF-8, UTF-16/32, NUL/binary/control bytes omit the entire source.
@@ -311,7 +392,10 @@ rustc --edition 2024 -O --test src/zip.rs -o target/zip-test
 ```
 
 The text tests cover automatic Windows UI language selection, regional variants,
-English fallback and the startup notice.
+English fallback and the startup notice, and the crash details: exception
+names and parameters, module+offset, hex error codes, the dump-failure message
+by where the error came from, the stack scan's call test, the log tail and
+the non-ASCII folder line.
 For the dialog itself, `tests/build.cmd` also builds `ui_probe.exe`. On Linux
 it can be built with `i686-w64-mingw32-g++ -static -O2 tests/ui_probe.cpp
 -o target/i686-win7-windows-msvc/release/ui_probe.exe -luser32 -lgdi32` (with the
@@ -322,10 +406,14 @@ WINEPREFIX=/path/to/test-prefix python3 tests/check_localization.py target/i686-
 ```
 
 This checks all five languages on real Win32 dialogs: ZIP, raw-dump fallback,
-partial report, failed save, failed browser launch and failed dialog creation,
+partial report, failed save, a capture refused as an antivirus refuses it
+(`MiniDumpWriteDump` failing with 0x8007001F), the game in a folder of
+Cyrillic and Polish letters, failed browser launch and failed dialog creation,
 plus automatic locale selection with absent or conflicting game-language options.
 It measures text against control bounds, checks translated labels
 and buttons, and intercepts the browser call so no browser or network is used.
+In each, it presses Copy and reads the clipboard back (the code block, no
+log lines), and checks the text report beside the dump, or in its place.
 An optional second argument saves dialog screenshots as BMPs for inspection.
 
 The ZIP tests round-trip empty, tiny, zero, repetitive, random and dump-like
@@ -387,6 +475,22 @@ rustc --edition 2024 --test tests/sanitize_tests.rs -o /tmp/sanitize-tests
 ```
 Python `zipfile` checks every member and its CRC.
 
+The text report of a real, unhandled crash: build `tests/report_probe.cpp`
+(`i686-w64-mingw32-g++ -static -municode -O2 tests/report_probe.cpp -o
+target/i686-win7-windows-msvc/release/report_probe.exe -ladvapi32`), then
+
+```sh
+WINEPREFIX=/path/to/disposable-prefix python3 tests/check_report.py target/i686-win7-windows-msvc/release
+```
+
+It redirects that prefix's Documents to a folder with a game log, crashes
+with a null write two calls deep, with an uncaught MSVC-style
+`std::bad_alloc`, and with a null write 400 KB down the stack, ESP 4-aligned
+or not (the scan once hung there), and checks the report beside the ZIP and in it: the
+exception line, the address inside the faulting function as module+offset,
+the caller on the stack scan, the other lines, and the log tail with a
+password's record and its continuation removed and the records after it kept.
+
 Run on 2026-10-21 (Linux, Wine, Xvfb), the build with the standard library
 and the C runtime linked in, the C++ probes built with `clang-cl` against the
 same Microsoft libraries: `check_abi.py` passes (the 82 ordinals; `_fltused`,
@@ -397,6 +501,13 @@ its 20 cases pass, and the three that use the test DbgHelp (`concurrent`,
 problem of this Wine and these probes, not the DLL's);
 `check_localization.py` and `check_logs.py` pass; the text (4), sanitize (5)
 and ZIP (7) tests pass.
+
+Run on 2026-10-25 for the crash details (Linux, Wine Staging 11.8, Xvfb; the
+probes built with MinGW g++ 15.3): `check_abi.py`, `check_localization.py`
+(47 dialogs), `check_report.py` (4 crashes) and `check_logs.py` pass; the
+text (10) and sanitize (7) tests pass; `client/check-reproducible.sh` gives the same DLL
+twice. `check_dumps.py` was not run: its probe uses MSVC `__try`, which
+MinGW does not build.
 
 For an **idle, disposable installed 0.26g client** with `survarium_skhid.exe`:
 

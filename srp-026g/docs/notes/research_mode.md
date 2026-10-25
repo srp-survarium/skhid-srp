@@ -54,10 +54,9 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   #297 showed a 1v1 room can earn about 1,320 score per 15-minute match by trading units back
   and forth; the owner knows and chose no cap. Exploiters are handled by the take-back policy
   (only gains over 0.5M silver and gold are taken back). Do not add a cap without the owner.
-- **HUD:** the teams' points in Team Deathmatch's bars; the three units centred under them and
-  under the respawn countdown's line (beside the bars' indicator, following its position every
-  frame, so the indicator's centring never counts them; the line is kept free while empty too, no
-  jump on death) (letter,
+- **HUD:** the teams' points in Team Deathmatch's bars; the three units centred right under them, as in rev 30;
+  the respawn countdown may overlap them (owner: less screen space) (beside the bars' indicator,
+  following its position every frame, so the indicator's centring never counts them) (letter,
   owner's colour: own team blue, other red, nobody grey; a ring for the capture of the team
   taking it); "Capturing unit..." while one's own player is inside a unit his team is taking;
   the units on the minimap and the Tab map; messages: the start's "Find and capture research
@@ -164,6 +163,23 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   place (entered, alive `+33Ch`, in the world `+33Fh`, team `+6B8h -> +45ECh`, feet `+43Ch`,
   capsule half height from the controller `[[+494h]]`); then the statistics' tail: `m_team_points` = the scores, `m_winner_team` = the
   leader.
+- **Statistics:** `[core+18FA8h]` is the statistics handler (vtable 0xA0755C; a world's load
+  calls its slot +34h, 0x2D2B0F); the shared statistics are at +8 in it: a place's record at
+  +8 + 1F8h x place, u16 events[28][3] first (the handler's `recalculate_scores` 0x26DC30), the
+  listener at +8 + 31A0h; the tail (+31D4h, +31E4h) is the handler's (tdm's 0x316257).
+  - Revision 30 counted at +0Ch + 1F8h x place and told the listener at +31A0h: each award 4
+    bytes on, and nobody told (that dword is the shared statistics' batteries pointer, 0 in
+    Research). Kit 0's award went into kit 2's cell of the right event; kit 1's and kit 2's into
+    the next event: a capture into 7 (a teammate cured), a neutralisation into 19 (a battery
+    found), each 2.5 a one, so 250 points instead of 30, and a help's pay a one; a kill invader
+    into 11 (participating, 0). The Tab score moved only at the next world loaded.
+  - 7 and 19 are one byte on the wire: at every world loaded (a rollback, many a second) the
+    cell is cut to the hundredths modulo 256, so the score fell by 640 when one passed 255 (the
+    owner's "670, then 70"). The server read the same bytes: live match 0x31973a2 scored 993
+    and 1023 and paid 124k silver.
+  - Fixed in the next revision (`check_research_026g.py` runs the game's own
+    `recalculate_scores` on the cell, and a kit 1 kill invader). No server-side workaround: the
+    release raises the minimum patch revision, so revision 30's games are refused.
 - **Wire (rules blob, between the respawn rule and the kd rule; little-endian):**
 
   | at | size | what |
@@ -186,8 +202,8 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   `patch_026g.py`'s `ARENA` with their sources, linked by `link_026g.py`. Research's are
   `research.code` (research_026g.asm, research_rule_026g.c, research_native_026g.c; 0xA42D000
   today) and `research.state` (`rn_state`, 0xA430000 today); its hooks take their targets from
-  the link by symbol. The dynamic anomalies (patch 42, #225) add a block of their own the same
-  way, and no section.
+  the link by symbol. Patch 58's kit keys have blocks of their own the same way,
+  and no section (#225's dynamic anomalies had one too, taken out of revision 31).
 - **HUD:** update_ui (every frame): `root.research_update(own team, points 0, points 1, goal,
   Z, then cp_id, x, -z, owner, taking, progress %, inside 0, inside 1, own player inside)`, sent
   at a change and every 60 frames; the messages through the hud's parameterised message.

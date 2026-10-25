@@ -404,10 +404,10 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     pops: the call shapes' INSTALLED_VTABLES check, for every patch).
     check_research_026g.py runs the hooks, the cook and the rule.
 54. the same build: the artefacts (patch 54, artefacts_026g.asm, the
-    arena's block artefacts.code): the original's six sites (Spring's loader and
+    arena's block artefacts.code): the original's seven sites (Spring's loader and
     its keys, the active's link and unlink, Lifebone's enable_active after
     its remove_affects, artefact_base::action's entry, the player's
-    stagger) and the two sizes of a Spring, the hooks and sizes in the
+    stagger, Onyx's hit callback's state test) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
 The engine-function library (engine_026g.py, the arena's block engine.code;
 client_patch.md section 0.5): its files are what engine_026g.tsv and the
@@ -1534,7 +1534,15 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
-        [(va, len(old)) for va, old, _, _ in P.DYNAMIC_ANOMALIES_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
+        [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
+        [(va, len(old)) for va, old, _, _ in P.KILL_FEED_HOOKS] + \
+        [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
+        [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
+        [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
+        [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
 
 
 def pickup_sites():
@@ -2386,91 +2394,6 @@ def test_fov_lod(original, image, before):
                        and any(va + 4 > site and va < site + len(old) for site, old, _, _ in P.FOV_LOD_HOOKS))
     check(relocated == P.FOV_LOD_RELOCS, "the original has a base relocation under each site, at its constant's "
           f"address ({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), disabled in the build")
-
-
-def test_dynamic_anomalies(original, image, before):
-    """Check 42: dynamic anomalies (patch 42). check_dynamic_anomalies_026g.py
-    runs the hooks, the rule and the game's anomaly code on made-up worlds."""
-    source = Image(original)
-    plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
-    at = lambda start, size: {a: plain(t) for a, _, t in ndisasm(source.read(start, size), start)}
-    u32 = lambda va: struct.unpack("<I", source.read(va, 4))[0]
-    linked = P.arena()
-    block = linked.blocks["anomalies.code"]
-    code = P.linker.block_bytes(linked, "anomalies.code")
-    check(block.kind == "code" and block.va % 0x1000 == 0 and image.read(block.va, len(code)) == code,
-          f"the dynamic anomalies' code is the arena's block anomalies.code, a code page at {block.va:#x}, "
-          f"the link's {len(code)} bytes")
-    tick = at(0x2D1E20, 0x80)
-    check(tick.get(0x2D1E20) == "push ecx" and tick.get(0x2D1E21) == "mov eax,0x51eb851f"
-          and tick.get(0x2D1E26) == "mul edi" and tick.get(0x2D1E3A) == "mov ecx,[esp+0xc]"
-          and tick.get(0x2D1E3F) == "lea esi,[ecx+0x18840]" and tick.get(0x2D1E45) == "lea ebx,[ecx+0x188b0]"
-          and tick.get(0x2D1E5C) == "call 0x2d1d20" and source.read(0x2D1E92, 3) == bytes.fromhex("c20800"),
-          "the original's game_world_core::atomic_tick: the world at [esp+4], now in edi, its seven tick lists "
-          "(+18840h..+188B0h) run through 0x2D1D20, `ret 8`; it starts `push ecx; mov eax,51EB851Fh`")
-    pickup = at(0x33BCD0, 0x80)
-    check(pickup.get(0x33BCD0) == "push ecx" and pickup.get(0x33BCD1) == "push esi"
-          and pickup.get(0x33BCD2) == "mov esi,ecx" and pickup.get(0x33BCD4) == "mov eax,[esi+0x15c]"
-          and pickup.get(0x33BCDA) == "fild [esi+0x15c]" and pickup.get(0x33BCEA) == "cmp byte [esi+0x14c],0x0"
-          and pickup.get(0x33BD0C) == "addss xmm0,[esi+0x150]" and pickup.get(0x33BD2F) == "mov byte [esi+0x138],0x1"
-          and pickup.get(0x33BD47) == "ret 0x8" and u32(0xA169CC + 0x28) == 0x33BCD0
-          and source.read(0x31C832, 6) == bytes.fromhex("8b422857ffd0"),
-          "the original's on_artefact_container_use (generic_anomaly_core's slot 10): energy_af_container_use "
-          "(+15Ch) added to the energy (+150h) when energy_enabled (+14Ch), an artefact due (+138h), `ret 8`; "
-          "artefact_container_core::use_execute calls it through the owner's slot 10 (0x31C832)")
-    activate = at(0x318B26, 0x40)
-    check(source.read(0x31AECE, 10) == bytes.fromhex("c78798010000b0b53100")
-          and source.read(0x31AED8, 6) == bytes.fromhex("89bf94010000"),
-          "the core's tick delegate (+194h) has generic_anomaly_core::tick 0x31B5B0 as its function")
-    check(activate.get(0x318B26) == "lea eax,[edi+0x194]" and activate.get(0x318B2C) == "mov byte [eax+0x14],0x6"
-          and activate.get(0x318B30) == "inc [esi+0x188a0]" and activate.get(0x318B4A) == "mov [esi+0x188a4],eax",
-          "server_game_project::set_game_world_core puts each anomaly core's delegate into tick list 6 "
-          "(+188A0h count, +188A4h first), in the project's order")
-    check(source.read(0x2D00BB, 6) == bytes.fromhex("898bac8f0100") and source.read(0x2D01D7, 6) == bytes.fromhex("8b80b0770500")
-          and source.read(0x317DB4, 6) == bytes.fromhex("c7062c6ea000") and u32(0xA06E2C + 0x3C) == 0x317F30,
-          "the world keeps the static info at +18FACh (0x2D00BB), whose seed is at +577B0h (0x2D01D7); "
-          "timelimit_rule_core's vtable is 0xA06E2C (constructor 0x317DB4; serialize 0x317F30 at +3Ch)")
-    # A game's time rule is the client class: the game's constructor makes
-    # timelimit_rule_cook (0x1E9AEA, over the core cook 0x2F49F0 made at
-    # 0x1E9AE0), whose object's constructor 0x267A40 stores 0xA06E8C at
-    # 0x267A61 after the core's. The rule tells the time rule by the slot
-    # both share, serialize at +3Ch; no other vtable has it there.
-    serialize_at = []
-    for _, rva, vsize, raw, rsize, _ in source.sections:
-        blob = bytes(original[raw:raw + min(vsize, rsize)])
-        at = blob.find(struct.pack("<I", 0x317F30))
-        while at >= 0:
-            serialize_at.append(P.IMAGE_BASE + rva + at)
-            at = blob.find(struct.pack("<I", 0x317F30), at + 1)
-    check(source.read(0x1E9AE0, 5) == bytes.fromhex("e80baf1000")
-          and source.read(0x1E9AEA, 10) == bytes.fromhex("c705301b260244d99f00")
-          and source.read(0x267A4B, 5) == bytes.fromhex("e850030b00")
-          and source.read(0x267A61, 6) == bytes.fromhex("c7068c6ea000")
-          and u32(0xA06E8C + 0x3C) == 0x317F30 and u32(0xA06E8C - 4) != u32(0xA06E2C - 4)
-          and sorted(serialize_at) == [0xA06E2C + 0x3C, 0xA06E8C + 0x3C],
-          "a game's time rule is timelimit_rule (vtable 0xA06E8C, stored at 0x267A61 after the core's constructor "
-          "0x317DA0; its cook set at 0x1E9AEA): it and timelimit_rule_core (0xA06E2C) have serialize 0x317F30 at "
-          f"+3Ch, and no other place of the exe holds that address ({', '.join(f'{a:#x}' for a in serialize_at)})")
-    for (va, old, symbol, opcode), exit_ in zip(P.DYNAMIC_ANOMALIES_HOOKS, P.DYNAMIC_ANOMALIES_EXITS):
-        site = image.read(va, len(old))
-        entry = linked.symbols[symbol]
-        target = va + 5 + struct.unpack_from("<i", site, 1)[0]
-        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
-              and site == P.hook_bytes(entry, va, old, 0, opcode) and target == entry
-              and block.va <= entry < block.va + len(code),
-              f"{va:#x}: `{old.hex()}` becomes a jump to {entry:#x} ({symbol}, an entry of the block) and nops; "
-              "the build without the late join keeps it")
-        stub = ndisasm(image.read(entry, 0x40), entry)
-        texts = [plain(t) for _, _, t in stub]
-        jumps = [branch_target(t) for t in texts if t.startswith("jmp ")]
-        check(exit_ in jumps, f"{entry:#x}: the replaced instructions done, it goes on at {exit_:#x}")
-    hits = [hit for va, old, _, _ in P.DYNAMIC_ANOMALIES_HOOKS for hit in aimed_inside(original, va, len(old), 0x82)
-            if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
-    check(not hits, "no rel32 branch of .text, no rel8 branch near them and no 4-byte value aims inside the two sites"
-          + "".join(f"\n          {a:#x}" for a in hits))
-    relocated = [va for kind, va in source.relocations().values() if kind == 3
-                 and any(va + 4 > site and va < site + len(old) for site, old, _, _ in P.DYNAMIC_ANOMALIES_HOOKS)]
-    check(not relocated, "no base relocation under either site")
 
 
 # A battery's usable-object vtables: can_use at +30h, get_transform at +44h.
@@ -4075,7 +3998,7 @@ def test_artefacts(original, image, before):
         target = linked.symbols[symbol]
         hook = P.hook_bytes(target, va, old, 0, opcode)
         check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
-              and artefacts_va <= target < artefacts_va + 30,
+              and artefacts_va <= target < artefacts_va + 5 * len(P.ARTEFACTS_HOOKS),
               f"{va:#x}: {old.hex()} in the original and the build without the late join, "
               f"`jmp {target:#x}` ({symbol}, an entry of the block) here")
     under = [v for kind, v in stock.relocations().values() if kind == 3
@@ -4096,11 +4019,11 @@ def test_artefacts(original, image, before):
                       and not artefacts_va <= branch_target(t) < artefacts_va + len(code)})
     check(P.artefacts_backs(linked) == list(P.ARTEFACTS_BACKS)
           and outside == sorted(set(P.ARTEFACTS_BACKS) | {0xF6B10, 0x2D5D00, 0x2D5AE0, 0x2E58B0, 0x32A420,
-                                                          0x313350}),
-          "its six entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
+                                                          0x313350, 0x25F9F8}),
+          "its eight entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
           + "); it calls the config lookup 0xF6B10, the unlink 0x2D5D00, the getter 0x2D5AE0, the pool "
           "lookup 0x2E58B0, increase_health 0x32A420 and the activation effect 0x313350, and nothing else "
-          "outside")
+          "outside (and 0x25F9F8, the Onyx pop-up's way around set_parameterized_message)")
     heals = artefacts_va + names + 47
     check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0"
           + struct.pack("<III", *(artefacts_va + names + at for at in (32, 37, 42)))
@@ -4109,6 +4032,40 @@ def test_artefacts(original, image, before):
           and f"cmp ebx,{heals + 12:#x}" in texts and "mov edi,0xa1c1fc" in texts and "mov edi,0xa1c230" in texts,
           "its data: the keys aim_time_mod (in `passive` 0xA1C1FC and `active` 0xA1C230) and "
           "stopping_power_mod (in `active`), and the pools Lifebone's active fills (pain, body, head)")
+    check(rows(stock, 0x312BF0, 0x20) == [
+              "mov eax,[ecx+0xee8]", "mov edx,[esp+0x4]", "cmp eax,[edx+0x1c]", "jnz near 0x312cb9",
+              "cmp dword [ecx+0x280],byte +0x3", "mov eax,[esp+0x8]", "jnz 0x312c47"]
+          and stock.read(0x312777, 5) == b"\xB8" + struct.pack("<I", 0x312BF0)
+          and [struct.unpack("<I", stock.read(vt + 0x80, 4))[0] for vt in (0xA06084, 0xA157BC)] == [0x3128C0] * 2
+          and rows(stock, 0x312934, 18) == ["fstp dword [edi+0xf18]", "mov [edi+0xf14],eax", "pop edi", "pop esi",
+                                            "pop ecx", "ret 0x4"],
+          "Onyx's hit callback (0x312BF0, bound to each Onyx by its constructor at 0x312777; thiscall: the hit, "
+          "&damage, &piercing): its hit type test, then its state test at 0x312C03 (seven bytes, whole) before "
+          "`mov eax,[esp+8]` at 0x312C0A and the passive's way or the active's (0x312C47); Onyx's enable_active "
+          "0x3128C0 (vtable +80h of both its classes) sets the active time left, ms, at +F14h")
+    check(rows(stock, 0x25F9A5, 0x5C) == [
+              "cmp eax,byte +0x4", "jnz 0x25f9f8", "mov edx,[ebx-0xcd0]", "mov ecx,[edx+0x174]", "mov eax,[ecx]",
+              "mov edx,[eax+0xc]", "call edx", "movzx eax,byte [eax+0x114]", "mov esi,[ebx+0xc]",
+              "mov ecx,[esi+0x9c]", "push eax", "mov eax,[ecx+0x53ac]", "call 0x242a40", "test al,al",
+              "jz 0x25f9f8", "mov ecx,[ebx-0xc30]", "push dword 0xbb8", "push byte +0x14", "push byte +0x21",
+              "add esi,0x1fc", "push esi", "call 0x2375c0", "mov edx,[ebx-0xca0]", "mov [ebx+0x10],edx"]
+          and struct.unpack("<I", stock.read(0xA06118, 4))[0] == 0x25F640
+          and rows(stock, 0x25F640, 0x15)[:3] == ["push ebp", "mov ebp,esp", "and esp,byte -0x10"]
+          and stock.read(0x25F64D, 8) == bytes.fromhex("8bd98b8b60f3ffff")
+          and stock.read(0xA0360C, 31) == b"root.set_parameterized_message\0",
+          "Onyx's client update (0x25F640, slot 0 of its wrapper's vtable 0xA06118, ebx = the Onyx +F20h, its "
+          "state +280h at ebx-0CA0h): when it sees state 4 for the local player's Onyx it shows the activation hint "
+          "(+2F0h, at ebx-0C30h) with set_parameterized_message 0x2375C0 (the text, 21h, 14h, 3000 ms) once for "
+          "each Onyx; 0x25F9DD's eleven bytes are whole instructions before `push 14h` at 0x25F9E8")
+    hud_source = open(os.path.join(HERE, "..", "flash", "hud", "src", "HUD.as"), encoding="utf-8").read()
+    hints = [e["to"] for e in json.load(open(os.path.join(HERE, "..", "scripts", "content-edit",
+                                                          "artefact-texts-1.json"), encoding="utf-8"))["edit_text"]
+             if e["path"] == "strings/st_onyx_activation_hint"]
+    check('text = text.split("%s").join(String(Math.ceil(time / 1000)));' in hud_source.split(
+              "public function set_parameterized_message(")[1].split("public function")[0]
+          and len(hints) == 6 and all(h.count("%s") == 1 and "75" in h for h in hints),
+          "the hud's set_parameterized_message writes a message's %s as its time on screen in seconds, and the "
+          "six Onyx activation hints say 75 % for %s")
     check(rows(stock, 0x2DBD86, 0x1E) == ["xorps xmm1,xmm1", "movss xmm2,dword [esi+0x31c]", "comiss xmm2,xmm0",
                                           "lea eax,[esi+0x31c]", "jna 0x2dbda0", "lea eax,[esp+0x14]",
                                           "movss xmm0,dword [eax]"]
@@ -4116,6 +4073,515 @@ def test_artefacts(original, image, before):
           and stock.read(0x2D8FE3, 7) == bytes.fromhex("8bc7e8e62c0000"),
           "the player's stagger (0x2DBCD0, eax = the player, from its tick 0x2D8FE5): xmm0 the recent hits' "
           "stopping power, from the loop or none (0x2DBCF9) at 0x2DBD89, -min(it, [+31Ch]) the slow")
+
+
+def test_match_keys(original, image, before):
+    """Check 58: the kit keys and the match chat option (patch 58,
+    MATCH_KEYS_HOOKS). check_match_keys_026g.py runs the three entries from
+    the game's sites on made-up objects."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 40).split(b"\0")[0]
+    check(rows(stock, 0x25CD00, 14) == ["push ebp", "mov ebp,esp", "and esp,byte -0x8", "sub esp,byte +0xc",
+                                          "push ebx", "push esi", "push edi", "mov edi,ecx"]
+          and struct.unpack("<I", stock.read(0x9FC588, 4))[0] == 0x25CD00
+          and rows(stock, 0x25CD39, 0x1B) == ["test bl,bl", "jnz near 0x25cf0d", "cmp dword [ebp+0x10],byte +0x1",
+                                              "jnz near 0x25cf0d", "mov ebx,[edi-0x15c]", "mov esi,[ebp+0xc]"]
+          and rows(stock, 0x25CF0D, 11) == ["xor al,al", "pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp",
+                                           "ret 0xc"]
+          and rows(stock, 0x25CED1, 0x20)[-3:] == ["cmp byte [esi+0x2e0],0x0", "lea edi,[esi+0x4]", "setz cl"]
+          and stock.read(0x23A93A, 6) == bytes.fromhex("389fdc020000") and stock.read(0x23A9A1, 6) == bytes.fromhex("889fdc020000")
+          and stock.read(0x2384D0, 3) == bytes.fromhex("8b4e08") and stock.read(0x2384EE, 9) == bytes.fromhex("8b91080100008b4a04"),
+          "the game world's on_keyboard_action (0x25CD00, slot 0 of its input vtable 0x9FC588; edi = the handler "
+          "from 0x25CD0C): after the Tab test, the kind's test at 0x25CD41 (1, a key down, goes on at 0x25CD4B; any "
+          "other to 0x25CF0D, al 0); the handler's +2E0h is the hud's (handler+4) cursor flag +2DCh, which "
+          "show_cursor (0x23A930) keeps; the hud invokes its movie at [[[hud+8]+108h]+4] (0x2384D0)")
+    check(rows(stock, 0x1F6821, 0x29)[1:3] == ["push esi", "mov eax,ebp"] and rows(stock, 0x1F6845, 5) == ["call 0x233810"]
+          and rows(stock, 0x1E90A3, 5) == ["call 0x1f67b0"] and rows(stock, 0x1E9B4C, 7)[1] == "call 0x1ec170"
+          and popped(stock, 0x233810, 0x233BE0) == 4,
+          "0x1F6845 is the game world's (0x1F67B0, made by game::game at 0x1E90A3, before query_base_resources "
+          "0x1EC170 queries the configs) call of the hud's constructor, eax the game world, the hud pushed")
+    check(stock.read(0x262454, 10) == bytes.fromhex("6a00" "6a04" "53" "b8fc64a000") and cstr(0xA064FC) == b"g_private_messages_in_game"
+          and stock.read(0x26245E, 5) == b"\xE8" + struct.pack("<i", 0x260E90 - 0x262463)
+          and [m.start() for m in re.finditer(re.escape(struct.pack("<I", 0xA064FC)), original)] == [P.file_offset(0x26245A)]
+          and stock.read(0x2339C9, 0x29) == bytes.fromhex("6a026a01" "8d855c030000" "50" "687031a000" "b860e12a0a"
+                                                          "e8cda3deff" "6820c98600" "c70560e12a0a4c7c9e00"),
+          "the gameplay options' option 4 is an options_item_bool (0x260E90) named \"g_private_messages_in_game\", "
+          "used there alone (no command has the name); the hud registers its show_quests_progress as a cc_bool the "
+          "same way (0x1DDB0, then the vtable 0x9E7C4C)")
+    check(rows(stock, 0x26B90B, 0x13) == ["push eax", "lea ecx,[esp+0xc8]", "push ecx", "push edi", "push esi",
+                                          "call 0x208ad0", "mov edx,[ebx+0x8]"]
+          and popped(stock, 0x208AD0, 0x209224) == 0x14,
+          "0x26B916 is process_incoming_text_message's call of add_message (0x208AD0, five arguments, `ret 14h`)")
+    linked = P.arena()
+    block = linked.blocks["match_keys.code"]
+    for va, old, symbol, opcode in P.MATCH_KEYS_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}, an entry of match_keys.code) here")
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.MATCH_KEYS_HOOKS)]
+    hits = [h for va, old, _, _ in P.MATCH_KEYS_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside a hook"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "match_keys.code")
+    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's match_keys.code ({len(code)} bytes)")
+    names = code.index(b"root.select_kit_key\0")
+    texts = [text for va, _, text in ndisasm(code[:names], block.va)]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    state = linked.blocks["match_keys.state"]
+    library = {linked.symbols["engine_movie_invoke"], linked.symbols["engine_cc_bool"]}
+    check(outside == sorted({*P.MATCH_KEYS_BACKS, 0x233810, 0x208AD0} | library)
+          and f"push dword {block.va + names:#x}" in texts and "push dword 0xa064fc" in texts
+          and "mov eax,0x9e7c4c" in texts and f"mov [{linked.symbols['chat_variable']:#x}],eax" in texts
+          and state.va <= linked.symbols["chat_variable"] < linked.symbols["hide_chat"] < state.va + state.size,
+          "it goes on in on_keyboard_action (0x25CD4B, 0x25CF0D), calls the hud's constructor (0x233810), the library's "
+          "Invoke and cc_value<bool> and nothing else, jumps to add_message (0x208AD0); it invokes "
+          "root.select_kit_key, names its variable \"g_private_messages_in_game\" as a cc_bool, both in "
+          "match_keys.state")
+    here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
+    check("public function select_kit_key(index:uint)" in here("flash", "hud", "src", "HUD.as")
+          and "public function pickByKey(index:uint)" in here("flash", "hud", "src", "survarium", "player",
+                                                               "ProfileSelector.as")
+          and 'this.settings_content["_no_in_batle"]' in here("flash", "main_menu", "src", "survarium", "menu",
+                                                                "Settings.as")
+          and "this._no_in_batle.enabled = true;" in here("flash", "main_menu", "src", "main_menu_fla",
+                                                          "settingsTabs_15.as")
+          and "\nedit\tmatch-chat-off-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
+                                                            encoding="utf-8").read(),
+          "the hud movie has root.select_kit_key, the main menu enables the option's checkbox (_no_in_batle: its "
+          "timeline and create_content), "
+          "release/content.tsv labels it (match-chat-off-1.json)")
+
+
+def test_hide_ui(original, image, before):
+    """Check 62: the key that hides the interface (patch 62,
+    HIDE_UI_HOOKS). check_hide_ui_026g.py runs the three entries from the
+    game's sites on made-up objects, with the game's own show_ui and
+    get_binded_action."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 40).split(b"\0")[0]
+    entry = struct.unpack("<5I", stock.read(0xA74CA8, 20))
+    check(cstr(entry[0]) == b"toggle_replay_ui" and entry[1:4] == (0x19, 5, 0) and cstr(entry[4]) == b"kF11"
+          and rows(stock, 0x25CD5A, 0x11) == ["lea edx,[esp+0x14]", "push edx", "mov edi,0x1", "call 0x207d50",
+                                              "mov edi,eax"]
+          and rows(stock, 0x25CE10, 0x13) == ["lea ecx,[edi-0x11]", "cmp ecx,byte +0x8", "ja near 0x25cf0d",
+                                              "jmp [ecx*4+0x25cf30]"]
+          and struct.unpack("<I", stock.read(0x25CF30 + 8 * 4, 4))[0] == 0x25CED1
+          and rows(stock, 0x25CED1, 0x0A) == ["mov esi,[esp+0x10]", "cmp dword [esi+0x18],byte +0x0",
+                                              "jz 0x25cf0d"]
+          and rows(stock, 0x25CEE4, 0x29)[:5] == ["cmp byte [esi+0x2e0],0x0", "lea edi,[esi+0x4]", "setz cl",
+                                                 "movzx edx,cl", "push edx"]
+          and stock.read(0x25CD16, 4) == bytes.fromhex("897c2410"),
+          "toggle_replay_ui is action 19h (kinds 5, F11; the action table's entry 0xA74CA8); the game world's "
+          "on_keyboard_action asks the binder for kind 1 (0x25CD5F) and its case 19h (the table 0x25CF30 + 20h) "
+          "at 0x25CED1 takes the handler from [esp+10h] (0x25CD16) and does nothing without the replay's movie "
+          "(+18h); with it, the replay's controls and the cursor (0x25CEDB..)")
+    check(rows(stock, 0x1F95F0, 0x10)[6:9] == ["push esi", "push edi", "mov edi,ecx"]
+          and stock.read(0x1F95FF, 6) == bytes.fromhex("389fa0000000")
+          and stock.read(0x1F960B, 6) == bytes.fromhex("8db704020000") and stock.read(0x1F9618, 6) == bytes.fromhex("8db70c020000")
+          and stock.read(0x1F9634, 6) == bytes.fromhex("8d8704020000") and stock.read(0x1F9641, 6) == bytes.fromhex("8d870c020000")
+          and popped(stock, 0x1F95F0, 0x1F965B) == 4
+          and struct.unpack("<I", stock.read(0x9FC514, 4))[0] == 0x1F95F0
+          and rows(stock, 0x1F8966, 0x0F) == ["lea esi,[ebx+0x1fc]", "lea eax,[esp+0x30]", "call 0x233f40"]
+          and stock.read(0x23383C, 3) == bytes.fromhex("897d18"),
+          "game_world::show_ui (0x1F95F0, slot 8 of its vtable 0x9FC4F4, `ret 4`) shows or hides the hud movie "
+          "(+204h) and the player icons' (+20Ch), its state +0A0h; the hud is the game world's +1FCh (0x1F8966), "
+          "the game world its +18h (0x23383C)")
+    check(image.read(0x23845A, 6) == stock.read(0x23845A, 6) == bytes.fromhex("53e8d0240000"),
+          "the kits' show_cursor call (0x23845B) is the original's: a death or a respawn keeps the interface "
+          "hidden (the owner, 2026-10-24)")
+    check(rows(stock, 0x234AC1, 0x2F) == ["mov ecx,[ebp+0x8]", "add esp,byte +0xc", "push esi", "lea ebx,[ebp+0x8]",
+                                          "push esi", "mov [ebp+0x334],esi", "mov edx,[ecx+0x108]", "mov ecx,[edx+0x4]",
+                                          "push esi", "push dword 0xa03348", "mov [esp+0xa8],ebx", "call 0x511600",
+                                          "mov eax,[ebp+0x10]"]
+          and cstr(0xA03348) == b"root.reset",
+          "0x234AE8 is initialize_match's (0x234880, ebp the hud: [+8] its movie, [+10h] the player icons') Invoke "
+          "of root.reset on the hud movie, its four arguments pushed: a new match, the movies the last match's")
+    check(rows(stock, 0x26CCC2, 0x15) == ["mov eax,[eax+0x5344]", "lea edx,[esp+0x10]", "push edx",
+                                          "mov edi,0x2", "call 0x207d50"]
+          and rows(stock, 0x26CCAE, 0x14) == ["lea ecx,[esp+0x28]", "call 0x2afa70", "mov al,0x1", "pop edi",
+                                              "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0xc"]
+          and rows(stock, 0x26CCA9, 5) == ["call 0x1fdd70"] and popped(stock, 0x1FDD70, 0x1FDEC9) == 0x14
+          and rows(stock, 0x26CDA2, 7) == ["cmp esi,byte +0x40", "jnz 0x26ce11", "xor eax,eax"]
+          and rows(stock, 0x26CDD2, 0x30)[:3] == ["mov eax,[ebx+0x9c]", "mov ecx,[eax+0x5854]", "mov edx,[ebx+0x690]"]
+          and "call 0x1fdd70" in rows(stock, 0x26CDD2, 0x30) and "xor al,al" in rows(stock, 0x26CDD2, 0x3D)
+          and popped(stock, 0x207D50, 0x207DB3) == 4 and stock.read(0x26CBDB, 6) == bytes.fromhex("8b9390060000"),
+          "0x26CCD2 is lobby_menu::on_keyboard_action's (ebx the lobby menu, its movie [[+690h]+108h]+4) call of "
+          "get_binded_action (0x207D50, `ret 4`) for kind 2; 0x26CCAE is where it goes after a key the movie "
+          "typed (0x1FDD70 pops its five arguments): al 1, the key taken")
+    linked = P.arena()
+    block = linked.blocks["hide_ui.code"]
+    for va, old, symbol, opcode in P.HIDE_UI_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}, an entry of hide_ui.code) here")
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.HIDE_UI_HOOKS)]
+    hits = [h for va, old, _, _ in P.HIDE_UI_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside a hook"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "hide_ui.code")
+    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's hide_ui.code ({len(code)} bytes)")
+    names = code.index(b"root.toggle_interface\0")
+    texts = [text for va, _, text in ndisasm(code[:names], block.va)]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    library = {linked.symbols[name] for name in ("engine_binded_action", "engine_movie_invoke")}
+    pushed = lambda text: f"push dword {block.va + code.index(text + bytes(1)):#x}" in texts
+    check(outside == sorted(set(P.HIDE_UI_BACKS[:2]) | library)
+          and f"mov dword [esp],{P.HIDE_UI_BACKS[2]:#x}" in texts and f"mov dword [esp],{P.HIDE_UI_BACKS[3]:#x}" in texts
+          and all(pushed(t) for t in (b"root.toggle_interface", b"root.interface_hidden", b"root.hide_interface"))
+          and "hide_ui.state" not in linked.blocks,
+          "it goes on in on_keyboard_action (0x25CEDB, 0x25CF0D), returns to "
+          "0x26CCAE or 0x26CDD2, calls the library's get_binded_action and Invoke and nothing else (not the game "
+          "world's show_ui: its hidden movies stand still); it invokes root.toggle_interface, "
+          "root.interface_hidden and root.hide_interface, and keeps no state of its own")
+    here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
+    # the options' controls: the game's 40 rows, the six functions that read them, the arena's 41
+    table, count = P.HIDE_UI_TABLE, P.HIDE_UI_ROWS
+    empty = lambda at: struct.pack("<III", at + 0x1C, at + 0x1C, at + 0x3C) + bytes(32) + \
+        struct.pack("<III", at + 0x48, at + 0x48, at + 0x68) + bytes(32)
+    original_rows = [stock.read(table + 0x68 * i, 0x68) for i in range(count)]
+    check(all(row[16:] == empty(table + 0x68 * i) for i, row in enumerate(original_rows))
+          and 0x19 not in [struct.unpack_from("<I", row)[0] for row in original_rows]
+          and cstr(struct.unpack_from("<I", original_rows[-1], 4)[0]) == b"st_ptt_action",
+          f"the options' controls are {count} static rows of 68h bytes at {table:#x} (the action, its label's "
+          "key, the group, the type, two empty buffer_strings pointing into the row), the last ptt's; none is 19h")
+    check([rows(stock, va, len(old))[0] for va, old, _, _ in P.HIDE_UI_TABLE_REFS]
+          == ["mov eax,0xa9db28", "mov esi,0xa9db2c", "add eax,0xa9db28", "mov esi,0xa9db34",
+              "mov dword [esp+0xc],0xa9db28", "mov esi,0xa9db38"]
+          and [rows(stock, va, len(old))[0] for va, old, _ in P.HIDE_UI_TABLE_COUNTS]
+          == ["mov dword [esp+0x18],0x28", "mov ebx,0x28", "cmp bl,0x28", "mov dword [esp+0x44],0x28",
+              "mov dword [esp+0x10],0x28", "mov dword [ebp-0x8],0x28"],
+          "the table's six readers (0x201150, 0x201248, 0x2013BF, 0x201A19, 0x201D05, 0x201F2B) and their six "
+          "counts of 28h")
+    controls = linked.symbols["controls"]
+    data_block = linked.blocks["hide_ui.data"]
+    arena_rows = [image.read(controls + 0x68 * i, 0x68) for i in range(count + 1)]
+    new_row = arena_rows[count]
+    label = struct.unpack_from("<I", new_row, 4)[0]
+    check(data_block.va <= controls and controls + 0x68 * (count + 1) <= data_block.va + data_block.size
+          and all(arena_rows[i][:16] == original_rows[i][:16] and arena_rows[i][16:] == empty(controls + 0x68 * i)
+                  for i in range(count))
+          and struct.unpack_from("<4I", new_row) == (0x19, label, 2, 1)
+          and new_row[16:] == empty(controls + 0x68 * count)
+          and image.read(label, 25) == b"st_hide_interface_action\0",
+          f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows, each pointing into itself, and a 41st: "
+          "19h, st_hide_interface_action, group 2, type 1")
+    writes = P.hide_ui_table_writes(linked)
+    check(all(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              for va, old, new in writes)
+          and [rows(image, va, len(new))[0] for va, _, new in writes[:6]]
+          == [f"mov eax,{controls:#x}", f"mov esi,{controls + 4:#x}", f"add eax,{controls:#x}",
+              f"mov esi,{controls + 0xC:#x}", f"mov dword [esp+0xc],{controls:#x}", f"mov esi,{controls + 0x10:#x}"]
+          and [rows(image, va, len(new))[0][-4:] for va, _, new in writes[6:]] == ["0x29"] * 6
+          and {va + at for va, _, at, _ in P.HIDE_UI_TABLE_REFS}
+          <= {v for kind, v in image.relocations().values() if kind == 3},
+          "the six readers read `controls`, their counts are 29h, their addresses keep their base relocations; "
+          "the build without the late join has them as the original")
+    check("\nedit\thide-interface-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
+                                                       encoding="utf-8").read(),
+          "release/content.tsv makes the label (hide-interface-1.json)")
+    # the movies' side: each movie's interface is its root, hidden in one step; every layer the
+    # game put on the stage is in the root's _stageLayer (the lobby's: _layers and _overlay)
+    tree = lambda movie: {os.path.relpath(os.path.join(d, f), os.path.join(HERE, "..", "flash", movie, "src")):
+                          open(os.path.join(d, f), encoding="utf-8").read()
+                          for d, _, fs in os.walk(os.path.join(HERE, "..", "flash", movie, "src")) for f in fs
+                          if f.endswith(".as")}
+    stage_add = re.compile(r"((?:\w+\.)*\w*stage)\.addChild(?:At)?\(([^,)]+)")
+    lobby_tree = tree("lobby_menu")
+    lobby = lobby_tree["LobbyMenu.as"]
+    found = sorted((path, m.group(1), m.group(2)) for path, text in lobby_tree.items()
+                   for m in stage_add.finditer(text))
+    # Message's `_stage` is the messages' container (Message.initStage(this._top_container)), the
+    # name editor's `MainScene.stage` the root (MainScene.stage = this): both inside the root
+    allowed = {("survarium/controls/Message.as", "_stage"), ("survarium/char/CharWindow.as", "MainScene.stage")}
+    layered = sorted({m.group(1) for m in re.finditer(r"this\._(?:layers|overlay)\.addChild\(([\w.]+)\)", lobby)})
+    check(not [f for f in found if (f[0], f[1]) not in allowed]
+          and "Message.initStage(this._top_container);" in lobby and "MainScene.stage = this;" in lobby
+          and "SrvContextMenu.registerStage(stage,this._layers);" in lobby
+          and "DragManager.init(this.stage,this._overlay);" in lobby and "PopUpManager.layer = this._layers;" in lobby
+          and "_layer.addChild(_id);" in lobby_tree["survarium/controls/SrvContextMenu.as"]
+          and "(layer ? layer : _stage).addChild(_dragCanvas);" in lobby_tree["scaleform/clik/managers/DragManager.as"]
+          and "host.addChild(_defaultPopupCanvas);" in lobby_tree["scaleform/clik/managers/PopUpManager.as"]
+          and lobby.index("this.makeStageLayer();") < lobby.index("this.init();")
+          and "super.addChild(this._stageLayer);" in lobby
+          and all(f"override public function {f}" in lobby for f in ("addChild(", "addChildAt(", "setChildIndex("))
+          and "this._stageLayer.scaleX = this._stageLayer.scaleY = 1 / scaleFactor;" in lobby
+          and layered == ["this._cards", "this._corner", "this._front_container", "this._top2_container",
+                          "this._top_container", "this._wheelBack", "this._wheelsMC", "this.fadeBack",
+                          "this.lobbyGameLoad", "this.tipContainer"]
+          and lobby.index("this._overlay.addChild(this._corner);") < lobby.index("this._overlay.addChild(this._cards);")
+          and lobby.count("this._cards.addChild(this.itemHintRenderer") == 5
+          and "setTopmostLevel(this.itemHintRenderer" not in lobby
+          and "InterfaceHider" not in "".join(lobby_tree.values()),
+          "the lobby's interface is its root: nothing of it is added to the stage (Message's container and "
+          "MainScene.stage are inside the root); what the game put on the stage is in the root's last child, "
+          "_stageLayer, at the stage's scale, made before anything else and kept last (addChild, addChildAt, "
+          f"setChildIndex): {', '.join(layered)}, the right-click menu and CLIK's popup canvas in _layers; "
+          "_overlay, above every modal: _corner, _cards (the item cards, no longer topmost), the drag canvas, the "
+          "tooltips; no InterfaceHider, no timer")
+    toggle = lobby[lobby.index("public function toggle_interface() : void"):]
+    toggle = toggle[:toggle.index("public function interface_hidden()")]
+    check("if(SrvContextMenu.visisble)\n         {\n            SrvContextMenu.hide();" in toggle
+          and toggle.count("SrvContextMenu.hide()") == 1 and "this.hideItemHint(null);" in toggle
+          and "visible = false;" in toggle and "_hiddenUi" not in lobby,
+          "the lobby's toggle_interface closes a right-click menu only when one is open (none ever opened: "
+          "SrvContextMenu.hide's removeChild(null) threw, owner's test of 64ce3ce7) and the item cards (on "
+          "Scaleform's topmost level, drawn whatever their parents), then hides the root")
+    names = lambda text: [m.start() for m in re.finditer(re.escape(text + b"\0"), original)]
+    enable = lobby[lobby.index("public function enable_element(value:*, value2:Boolean = true) : void"):]
+    enable = enable[:enable.index("public function highlight_element(")]
+    check(names(b"root.enable_element") and names(b"root.statusPanel.btn_off") and names(b"root.statusPanel.btn_settings")
+          and stock.read(0x2A3F22, 0x1B) == bytes.fromhex("6a01" "68a011a000" "e8" + struct.pack("<i", 0x22A660 - 0x2A3F2E).hex()
+                                                          + "8b4720" "6a01" "68bc11a000" "e8"
+                                                          + struct.pack("<i", 0x22A660 - 0x2A3F3D).hex())
+          and struct.unpack("<I", stock.read(0xA0CBF8, 4))[0] == 0x2A3EA0
+          and "setTopmostLevel" not in enable and "this._corner.addChild(button);" in enable
+          and "this.statusPanel.addChildAt(button," in enable and "button != this.statusPanel.btn_off" in enable
+          and "_topmost" not in lobby and "dispatchEvent(new Event(LAID_OUT));" in lobby_tree["survarium/controls/StatusPanel.as"]
+          and "this.statusPanel.addEventListener(StatusPanel.LAID_OUT,this.onStatusPanelLaidOut);" in lobby
+          and not any(f"function {t}(" in lobby for t in ("testDragTutor", "testPlayTutor", "testAmmoTutor",
+                                                         "testAmmoTutor2", "testFactionPreTutor", "testFactionTutor",
+                                                         "testCloseSlide", "showSlideOnVs", "testTutorComplete")),
+          "the exe's lobby state (lobby_menu_state 0xA0CBF4, slot 1 0x2A3EA0, at every lobby entry) calls "
+          "root.enable_element(root.statusPanel.btn_off / btn_settings, true), which put the corner buttons on "
+          "Scaleform's topmost level (above every modal, and drawn whatever their parents: they stayed in the owner's "
+          "test of 335343b6); the lobby's enable_element puts them in _corner instead (above every modal, inside the "
+          "root, drawn where the status panel draws them after each of its layouts) and back with false; the "
+          "tutorial's private test functions are gone")
+    hud = here("flash", "hud", "src", "HUD.as")
+    icons = here("flash", "player_icons", "src", "player_icons_fla", "MainTimeline.as")
+    own = lambda movie: {p: t for p, t in tree(movie).items() if not p.startswith("scaleform")}
+    hud_adds = sorted((p, m.group(1), m.group(2)) for p, t in own("hud").items() for m in stage_add.finditer(t))
+    icon_adds = [(p, m.group(1)) for p, t in own("player_icons").items() for m in stage_add.finditer(t)]
+    check(all("public function hide_interface(hidden:Boolean) : void" in t and "visible = !hidden;" in t
+              for t in (hud, icons)) and "public function interface_hidden() : Boolean" in hud
+          and hud_adds == [("HUD.as", "stage", "this.effectContainer")] and not icon_adds
+          and "stage.addChildAt(this.effectContainer,stage.getChildIndex(this));" in hud
+          and "this._stageLayer.addChild(this.gameInfo);" in hud and "place.concat(this.transform.matrix);" in hud
+          and all(f"override public function {f}" in hud for f in ("addChild(", "addChildAt(", "setChildIndex("))
+          and "InterfaceHider" not in "".join(tree("hud").values()) + "".join(tree("player_icons").values())
+          and all(f"this.effects[this.{name}] = " in hud for name in ("BLOOD_EFFECT", "BLOOD_DRIP1", "GRENADE_EFFECT")),
+          "the hud's and the player icons' interface is their root, hidden in one step (root.hide_interface; the "
+          "hud's interface_hidden); the hud's fps line is in the root's _stageLayer; the one thing on the hud's "
+          "stage beside the root is the screen effects' container (add_effect's blood, its drips, the grenade's "
+          "flash), below the root, placed as the root is scaled: the scene's, so it stays (the owner, 2026-10-24)")
+    check("public function toggle_interface() : void" in lobby and "public function interface_hidden() : Boolean" in lobby,
+          "the lobby movie has root.toggle_interface and root.interface_hidden")
+
+
+def test_kill_feed(original, image, before):
+    """Check 67: the kill feed's wall and pain icons (patch 67,
+    KILL_FEED_HOOKS, KILL_FEED_ARGUMENT). check_kill_feed_026g.py runs the
+    three sites from the game's code on made-up victims, bullets and
+    descriptions, with the game's own part lookup."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 40).split(b"\0")[0]
+    check(rows(stock, 0x2DA3A8, 0x37) == ["call 0x2d43b0", "mov ecx,[esp+0x44]", "mov [eax+0x24],ecx",
+                                          "mov cl,[esp+0x48]", "xor edi,edi", "mov [eax+0x18],edi",
+                                          "movzx edx,byte [esi+0x114]", "mov [eax],dl", "movzx edx,byte [esp+0x4c]",
+                                          "mov [eax+0x1],cl", "mov [eax+0x2],dl", "mov [eax+0x4],bl",
+                                          "mov edx,[esi+0x120]", "call 0x2d0a60"]
+          and rows(stock, 0x2DA179, 4) == ["mov ebp,[esp+0x50]"]
+          and stock.read(0x2D9EFC, 0x1E) == bytes.fromhex("8b45fc50" "8b450c8b48408b1051" "0fb6484452" "8b503c5152" "8bf3e856020000")
+          and stock.read(0x2D43F6, 8) == bytes.fromhex("8908" "894804" "894808"),
+          "generate_killed_event (0x2DA170, esi the victim, ebp its fifth argument: hit_impl's bullet [ebp-4], "
+          "0x2D9EFC) writes the kill event's victim, killer, weapon icon and cause icon (+4) into a node whose "
+          "+0..+0Bh the allocation (0x2D43B0) zeroes, then queues it (0x2D0A60, eax the node, edx the world)")
+    check(rows(stock, 0x23B6F0, 0x19) == ["movzx edx,byte [edi+0x4]", "movzx eax,byte [edi+0x2]",
+                                          "movzx ecx,byte [edi+0x1]", "push edx", "movzx edx,byte [edi]", "push eax",
+                                          "push ecx", "push edx", "push ebx", "call 0x237c70"]
+          and popped(stock, 0x237C70, 0x238227) == 0x14
+          and [t for t in rows(stock, 0x237C70, 0x5B7) if "esp+0x104" in t] == ["movzx eax,byte [esp+0x104]"]
+          and "push dword 0xa036a4" in rows(stock, 0x23814F, 0x36)
+          and cstr(0xA03698) == b"extra_icon" and cstr(0xA036A4) == b"mastery_icon"
+          and cstr(0xA036B4) == b"root.add_log_message",
+          "the hud's event handler (0x23B5F0) gives on_player_killed (0x237C70, `ret 14h`) the node's bytes, the "
+          "cause icon fifth, which it reads as a byte alone (0x2380EA) for extra_icon; 0x23814F starts its "
+          "mastery_icon, before root.add_log_message")
+    check(rows(stock, 0x2D9C3D, 0x15)[:4] == ["mov eax,[ebx+0x2e0]", "add eax,0x108", "lea ecx,[ebp+0x8]",
+                                              "mov dword [ebp+0x8],0x9fb1ec"]
+          and cstr(0x9FB1EC) == b"pain" and stock.read(0x2D9C5E, 8) == bytes.fromhex("f30f1080a0000000")
+          and stock.read(0x32EE20, 6) == bytes.fromhex("ff8684000000") and stock.read(0x32E33A, 6) == bytes.fromhex("fe8388000000")
+          and stock.read(0x32BB1B, 12) == bytes.fromhex("899e84000000" "889e88000000"),
+          "the damage model's parts by name (0x2E58B0, hit_impl's lookup of \"pain\"; health +0A0h); a bullet's "
+          "segments +84h (one more for each pierce and reflection, 0x32EE20) and reflections +88h (0x32E33A), "
+          "zero at its construction")
+    linked = P.arena()
+    block = linked.blocks["kill_feed.code"]
+    for va, old, symbol, opcode in P.KILL_FEED_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`call {target:#x}` ({symbol}, an entry of kill_feed.code) and nops here")
+    va, old, new = P.KILL_FEED_ARGUMENT
+    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+          and rows(image, va, len(new)) == ["movzx edx,word [edi+0x4]"],
+          f"{va:#x}: the handler pushes the node's word +4 (the cause icon, the flags) here")
+    sites = list(P.KILL_FEED_HOOKS) + [(va, old, None, None)]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(s - 4 < v < s + len(o) for s, o, _, _ in sites)]
+    hits = [h for s, o, _, _ in sites for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "kill_feed.code")
+    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's kill_feed.code ({len(code)} bytes)")
+    names = code.index(struct.pack("<I", block.va + code.index(b"pain\0")))   # the names' pointers: the data
+    texts = [text for va, _, text in ndisasm(code[:names], block.va)]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    pushed = lambda text: f"push dword {block.va + code.index(text + bytes(1)):#x}" in texts
+    check(outside == [0x2E58B0] and pushed(b"penetration_icon") and pushed(b"ricochet_icon") and pushed(b"pain_icon")
+          and "kill_feed.state" not in linked.blocks
+          and [t for t in texts if t.startswith("mov [") and "esp" not in t] == ["mov [eax+0x4],bl", "mov [eax+0x5],dl"],
+          "it jumps to the part lookup (0x2E58B0) and calls nothing else of the game's (SetMember through the "
+          "description's interface), sets penetration_icon, ricochet_icon and pain_icon, writes the node's +4 and +5 and nothing "
+          "else outside its frame, and keeps no state")
+    here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
+    item = here("flash", "hud", "src", "survarium", "controls", "CombatLogItem.as")
+    check("data.penetration_icon == 1" in item and "data.ricochet_icon == 1" in item and "data.pain_icon == 1" in item
+          and all(f"new {n}()" in item for n in ("CombatLogWallIcon", "CombatLogRicochetIcon", "CombatLogPainIcon"))
+          and all(os.path.isfile(os.path.join(HERE, "..", "flash", "hud", "bitmaps", f"{n}.png"))
+                  for n in ("CombatLogWallIcon", "CombatLogRicochetIcon", "CombatLogPainIcon")),
+          "the hud movie's kill feed row shows penetration_icon, ricochet_icon and pain_icon (its bitmaps "
+          "CombatLogWallIcon, CombatLogRicochetIcon and CombatLogPainIcon)")
+
+
+def test_fall_gravity(original, image, before):
+    """Check 72: free fall takes gravity for the step's dt (patch 72,
+    FALL_GRAVITY; ../docs/notes/fall_damage.md "Split ticks").
+    check_fall_gravity_026g.py runs step_down's free fall on a made-up
+    controller: whole ticks bit for bit the original's, a split tick one
+    tick of gravity in all."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    check(rows(stock, 0x7E6E6, 0x76) == [
+              "movss xmm0,dword [ebx+0x2c708]", "movss xmm3,dword [ebx+0x2c704]", "movaps xmm1,xmm0",
+              "mulss xmm1,dword [dword 0xa7dc00]", "mulss xmm1,xmm3", "movaps xmm2,xmm0", "mulss xmm2,dword [dword 0xa7dc04]",
+              "mulss xmm0,dword [dword 0xa7dc08]", "mulss xmm2,xmm3", "mulss xmm0,xmm3",
+              "movss xmm3,dword [ebx+0x2c770]", "subss xmm3,xmm1", "movss xmm1,dword [ebx+0x2c774]", "subss xmm1,xmm2",
+              "movss dword [ebx+0x2c774],xmm1", "movss xmm1,dword [ebx+0x2c778]", "subss xmm1,xmm0",
+              "movss dword [ebx+0x2c770],xmm3", "movss dword [ebx+0x2c778],xmm1"]
+          and rows(stock, 0x7E75C, 0xB)[:2] == ["mov ecx,[ebx+0x1f0]", "lea eax,[ecx+0x2]"],
+          "the original's free fall (0x7E6E6..0x7E75C): velocity (+2C770h) -= gravity (+2C708h) x up x the tick "
+          "(+2C704h); then ecx and eax are written before any read")
+    check(stock.read(0x7E1B0, 3) == bytes.fromhex("558bec") and stock.read(0x7BDA0, 3) == bytes.fromhex("558bec")
+          and rows(stock, 0x7C13B, 0xD) == ["movss xmm0,dword [ebp+0x8]", "divss xmm0,dword [edi+0x2c704]"]
+          and rows(stock, 0x7B75B, 0xC) == ["movss xmm0,dword [ebp+0xc]", "ucomiss xmm0,dword [esi+0x2c704]"]
+          and stock.read(0x7B4A1, 8) == bytes.fromhex("f30f1185 04c70200".replace(" ", ""))
+          and stock.read(0x7B48D, 8) == bytes.fromhex("f30f1005 78c89c00".replace(" ", ""))
+          and stock.read(0x9CC878, 4) == struct.pack("<f", 0.05),
+          "step_down and player_step both start `push ebp / mov ebp,esp`; player_step's dt is its [ebp+8]; "
+          "updateAction steps it with dt compared to +2C704h, the 0.05 the constructor writes (0x7B4A1)")
+    text = original[P.TEXT_FILE:P.TEXT_FILE + P.TEXT_VSIZE]
+    callers = [P.TEXT_VA + i for i in range(len(text) - 5) if text[i] in (0xE8, 0xE9)
+               and P.TEXT_VA + i + 5 + struct.unpack_from("<i", text, i + 1)[0] == 0x7E1B0]
+    check(callers == [0x7C4F6] and struct.pack("<I", 0x7E1B0) not in original,
+          "step_down's one caller is player_step (0x7C4F6), and no pointer names it")
+    for va, old, new in P.FALL_GRAVITY:
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+              f"{va:#x}: the original's {len(old)} bytes in the original and the build without the late join, "
+              "patch 72's here")
+    check(rows(image, 0x7E6E6, 0x76) == [
+              "lea eax,[ebx+0x2c704]", "movss xmm0,dword [eax+0x4]", "jmp short 0x7e74c", "int3", "int3", "int3",
+              "movaps xmm1,xmm0", "mulss xmm1,dword [dword 0xa7dc00]", "mulss xmm1,xmm3", "movaps xmm2,xmm0",
+              "mulss xmm2,dword [dword 0xa7dc04]", "mulss xmm0,dword [dword 0xa7dc08]", "mulss xmm2,xmm3", "mulss xmm0,xmm3",
+              "movss xmm3,dword [eax+0x6c]", "subss xmm3,xmm1", "movss xmm1,dword [eax+0x70]", "subss xmm1,xmm2",
+              "movss dword [eax+0x70],xmm1", "movss xmm1,dword [eax+0x74]", "subss xmm1,xmm0",
+              "movss dword [eax+0x6c],xmm3", "movss dword [eax+0x74],xmm1", "jmp short 0x7e75c",
+              "mov ecx,[ebp+0x0]", "movss xmm3,dword [ecx+0x8]", "minss xmm3,dword [eax]", "jmp short 0x7e6f6",
+              "int3", "int3"],
+          "the build's free fall: xmm3 = min(player_step's dt, the tick), then the original's products and "
+          "the velocity -= them (eax = the controller +2C704h)")
+    relocated = sorted(v for kind, v in stock.relocations().values() if kind == 3 and 0x7E6E6 - 4 < v < 0x7E75C)
+    built_relocated = sorted(v for kind, v in image.relocations().values() if kind == 3 and 0x7E6E6 - 4 < v < 0x7E75C)
+    check(relocated == [0x7E6FD, 0x7E70C, 0x7E714] and built_relocated == relocated,
+          "the three base relocations in the free fall are the up axis's addresses, between the two sites, "
+          "and stay")
+    hits = [h for s, o, _ in P.FALL_GRAVITY for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not hits, "no branch aims inside the sites" + "".join(f", {h:#x}" for h in hits))
+
+
+def test_bake_cache(original, image, before):
+    """Check 70: the baked textures kept and made once (patch 70,
+    BAKE_CACHE_HOOKS, BAKE_CACHE_KEEP). check_bake_cache_026g.py runs the
+    sites from the game's code on a made-up baker, folder and queries."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 60).split(b"\0")[0]
+    check(rows(stock, 0x1E944E, 0xC) == ["lea eax,[esp+0x470]", "call 0x1e8da0"]
+          and rows(stock, 0x1EC82B, 0xC) == ["lea eax,[esp+0x358]", "call 0x1e8da0"]
+          and stock.read(0x1E8DCF, 7) == bytes.fromhex("c745e403000000") and stock.read(0x1E8DF4, 5) == bytes.fromhex("b814040000")
+          and stock.read(0x1E8E01, 6) == bytes.fromhex("ff1578feae00")
+          and cstr(0x9EE470) == b"user_data/streamed_textures",
+          "game::game (0x1E9455) and game::exit (0x1EC832) delete user_data/streamed_textures: 0x1E8DA0 is "
+          "SHFileOperationA (delay import 0xAEFE78) with FO_DELETE (3) and flags 414h")
+    check(rows(stock, 0x131C88, 0x14) == ["mov eax,[esp+0x18]", "mov [esp+0x44],edi", "cmp eax,[edi+0x114]",
+                                          "jz near 0x131dc2"]
+          and rows(stock, 0x12D4BE, 0x16) == ["mov eax,[esp+0x58]", "add esp,byte +0xc", "lea edx,[esp+0x1b8]",
+                                              "push edx", "call 0x131ed0", "test al,al"]
+          and rows(stock, 0x12D41E, 0x41)[5:] == ["call 0xf0d00", "mov eax,[esp+0xa8]", "mov [esp+0xac],eax",
+                                                  "test edi,edi", "jz near 0x12da56", "lea eax,[edi+0xd0]",
+                                                  "mov ecx,eax", "or edx,byte -0x1", "lock xadd [ecx],edx",
+                                                  "jnz near 0x12da56", "mov ecx,edi", "call 0xe0210"]
+          and rows(stock, 0x12D45F, 9) == ["pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0x4"]
+          and rows(stock, 0x12DA56, 9) == ["pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp", "ret 0x4"]
+          and rows(stock, 0x12D2F7, 0x14)[:2] == ["mov edi,eax", "mov [esp+0x48],edi"]
+          and rows(stock, 0x12F184, 0x10) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789"]
+          and rows(stock, 0x12DDA9, 0x10) == ["mov esi,[dword 0x1f1d960]", "mov ecx,0xac3334", "call 0x420789"]
+          and stock.read(0x420789, 4) == bytes.fromhex("8d4108c3")
+          and rows(stock, 0x12F0E0, 0xD) == ["mov edx,[esp+0x610]", "mov ecx,eax", "mov eax,[edx]", "mov [edx],ecx"]
+          and stock.read(0xF0D00, 6) == bytes.fromhex("558bec83e4f8") and popped(stock, 0xF0D00, 0xF0F90) == 0x10,
+          "check_loaded's CRC compare (0x131C90), translate_query's look-up (0x12D4CD) and its end after a refused "
+          "query (0x12D42D: the surfaces emptied, edi's model instance released, `ret 4`), the texture's slot "
+          "set before `call 0x420789` (`lea eax,[ecx+8]`) in process_compression (0x12F18F) and "
+          "on_baked_texture_loaded (0x12DDB4), finish_query's entry (0xF0D00, `ret 10h`)")
+    check(stock.read(0x42050, 0x31) == bytes.fromhex("8b4c2404" "57" "8d3c0a" "3bd7" "7321" "56" "8d4900" "8a08" "320a"
+                                                     "c12808" "8b30" "0fb6c9" "8b0c8d68fd2502" "33ce" "42" "8908"
+                                                     "3bd7" "72e4" "5e" "5f" "c20400")
+          and stock.read(0x1C235, 5) == bytes.fromhex("35b71dc104") and stock.read(0x1C210, 7) == bytes.fromhex("803d64fd250200"),
+          "the CRC-32 step 0x42050 (eax &the CRC, edx the bytes, [esp+4] the count; `ret 4`): a byte a step, "
+          "crc = T[(crc ^ byte) & 0xFF] ^ (crc >> 8), T at 0x225FD68 made by 0x1C210 from the polynomial 04C11DB7h "
+          "reflected (EDB88320h, bake_cache_026g.c's tables)")
+    linked = P.arena()
+    block = linked.blocks["bake_cache.code"]
+    for va, old, symbol, opcode in P.BAKE_CACHE_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'call' if opcode == 0xE8 else 'jmp'} {target:#x}` ({symbol}, an entry of bake_cache.code) here")
+    va, old, new = P.BAKE_CACHE_KEEP
+    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+          f"{va:#x}: game::exit's delete is a 5-byte nop")
+    sites = [(s, o) for s, o, _, _ in P.BAKE_CACHE_HOOKS] + [(va, old)]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(s - 4 < v < s + len(o) for s, o in sites)]
+    hits = [h for s, o in sites for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "bake_cache.code")
+    check(image.read(block.va, len(code)) == code and "bake_cache.state" in linked.blocks,
+          f"the code at {block.va:#x} is the link's bake_cache.code ({len(code)} bytes), its tables bake_cache.state")
 
 
 def test_spot(original, image, before):
@@ -5646,7 +6112,8 @@ def test_late_join(original, without, server, source):
     fov_sites = {va for va, _, _ in P.FOV_PATCHES}
     with_address = {P.REMOVE_MODEL_VA, P.PICKUP_HOOKS[0][0]} | fov_sites | \
         {va for va, old, _, _ in P.WEAPON_PREVIEW_HOOKS if old[:3] == b"\xf3\x0f\x10"} | \
-        {va for va, _, _, _ in P.FOV_LOD_HOOKS}
+        {va for va, _, _, _ in P.FOV_LOD_HOOKS} | \
+        {va for va, _, _, _ in P.HIDE_UI_TABLE_REFS}   # the options' table, now the arena's (relocated alike)
     kept = [(lo, hi) for lo, hi in sites if lo not in with_address]
     under_kept = [va for kind, va in Image(original).relocations().values()
                   if kind == 3 and any(va + 4 > lo and va < hi for lo, hi in kept)]
@@ -5664,6 +6131,8 @@ def test_late_join(original, without, server, source):
           f"distance ({P.PICKUP_RELOC:#x}) and of the lobby camera's least "
           f"({', '.join(f'{va:#x}' for va in P.WEAPON_PREVIEW_RELOCS)}) and of patch 40's two constants "
           f"({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), which are disabled, "
+          "and of the options' controls table's six readers (patch 62: their address is the arena's, kept "
+          "relocatable) "
           f"and of the field-of-view option's name "
           f"({option:#x}, an address for an address), which stays; the rest of the table is the build's without it")
 
@@ -5672,7 +6141,6 @@ def test_late_join(original, without, server, source):
     test_pregame_progress(original, image, before)
     test_fov(original, image, before)
     test_fov_lod(original, image, before)
-    test_dynamic_anomalies(original, image, before)
     test_weapon_camo(original, image, before)
     test_pickup(original, image, before)
     test_weapon_random(original, image, before)
@@ -5706,6 +6174,11 @@ def test_late_join(original, without, server, source):
     test_tab_self(original, image, before)
     test_spot(original, image, before)
     test_artefacts(original, image, before)
+    test_match_keys(original, image, before)
+    test_hide_ui(original, image, before)
+    test_kill_feed(original, image, before)
+    test_fall_gravity(original, image, before)
+    test_bake_cache(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

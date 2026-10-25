@@ -96,7 +96,7 @@ impl File {
 
 /// On success `path` names the ZIP and the dump is gone (or, if Windows
 /// refused to delete it, still there beside it).
-pub unsafe fn zip(path: &mut Wide<32768>) -> Result<(), u32> {
+pub unsafe fn zip(path: &mut Wide<32768>, report: &[u8]) -> Result<(), u32> {
     let deadline = GetTickCount64() + LIMIT_MS;
     let len = path.len;
     let split = path.buf[..len]
@@ -176,6 +176,7 @@ pub unsafe fn zip(path: &mut Wide<32768>) -> Result<(), u32> {
                     left: 0,
                 },
                 &name[..name_len],
+                report,
                 words,
             );
             CloseHandle(out);
@@ -314,6 +315,7 @@ unsafe fn write(
     dump: &mut File,
     out: &mut File,
     name: &[u8],
+    report: &[u8],
     words: &mut [u32],
 ) -> Result<(), u32> {
     let size = dump.size()?;
@@ -338,6 +340,26 @@ unsafe fn write(
     records[0].date = date;
     let mut offset = append(dump, Some(size), out, &mut records[0], 0, words, None)?;
     let mut count = 1;
+    // The crash's text report (report.rs), when there is one: what happened
+    // and where, readable without a debugger.
+    if !report.is_empty() {
+        let record = &mut records[1];
+        let name = b"crash.txt";
+        record.name[..name.len()].copy_from_slice(name);
+        record.len = name.len();
+        record.time = time;
+        record.date = date;
+        offset = append(
+            &mut Bytes(report),
+            Some(report.len() as u64),
+            out,
+            record,
+            offset,
+            words,
+            None,
+        )?;
+        count += 1;
+    }
     let mut sources = 0;
     let mut manifest = crate::logs::Manifest::new();
     let _ = writeln!(

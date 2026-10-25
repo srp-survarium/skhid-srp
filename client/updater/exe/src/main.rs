@@ -43,6 +43,7 @@ use updater_logic::manifest::{
     Found, Installed, InstalledFile, MAX_ARCHIVE_SIZE, Manifest, ManifestError, Reason, Verdict,
     damage, parse_installed, parse_manifest, verdict, write_installed,
 };
+use updater_logic::network::{self, Failure};
 use updater_logic::pipe::{FromLauncher, ToLauncher, state, step};
 use updater_logic::sha256::{digest, to_hex};
 use updater_logic::url::{self, Url};
@@ -119,9 +120,24 @@ struct Session {
     named_file: bool,
     /// What the server said that this run acted on, for [`gate::watch`].
     seen: Option<gate::Seen>,
+    /// The update server could not be reached at its last request, and
+    /// how (its host): the run's failure, if it ends in one, is said in the
+    /// box of `updater_logic::network`, in the launcher's language.
+    unreachable: Option<(Failure, String)>,
 }
 
 impl Session {
+    /// Notes how the update server answered a request: not reached
+    /// (`updater_logic::network`) or otherwise.
+    fn reached(&mut self, server: &Url, result: Result<(), &HttpError>) {
+        self.unreachable = match result {
+            Err(HttpError::Network(_, code)) => {
+                Failure::of(*code).map(|failure| (failure, server.host.clone()))
+            }
+            _ => None,
+        };
+    }
+
     fn send(&mut self, message: ToLauncher) {
         if let Some(pipe) = &mut self.pipe {
             pipe.send(message);
@@ -325,7 +341,9 @@ fn ask(session: &mut Session, server: &Url) -> Result<Manifest, Option<String>> 
     let mut last = String::new();
     for attempt in 1..=CHECK_TRIES {
         session.state(state::CHECKING);
-        match http::get(server, "/api/client-files", 4096, &mut |_, _| true) {
+        let result = http::get(server, "/api/client-files", 4096, &mut |_, _| true);
+        session.reached(server, result.as_ref().map(|_| ()));
+        match result {
             Ok(body) => match parse_manifest(&body) {
                 Ok(manifest) => {
                     log!(
@@ -376,6 +394,7 @@ fn download(
             MAX_ARCHIVE_SIZE as usize,
             &mut |done, total| session.progress(done, total.unwrap_or(size)),
         );
+        session.reached(server, result.as_ref().map(|_| ()));
         let mut pause = RETRY_PAUSE_MS;
         match result {
             Ok(body) => {
@@ -460,6 +479,7 @@ enum Done {
 /// restore of resources.db and the patch step, all under the installation
 /// lock.
 fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> Done {
+    session.unreachable = None;
     let _lock = match win::install_lock(&layout.exe_dir) {
         Ok(lock) => lock,
         Err(code) => {
@@ -892,6 +912,7 @@ fn run() -> u32 {
         started: 0,
         named_file: false,
         seen: None,
+        unreachable: None,
     };
 
     if options.copy {
@@ -910,23 +931,45 @@ fn run() -> u32 {
     // `watch`: PLAY's state stands on what the server said; while the
     // launcher stays open the server is watched (`gate::watch`).
     let mut done = update(&mut session, &layout, options.look);
-    // A file blocked by Windows Security or held by another program: PLAY
-    // stays off; the box says what to do, and Retry runs the update again.
-    while let Done::Stop(stop, name) = &done {
-        let file = name.rsplit(['/', '\\']).next().unwrap_or(name);
-        log!(
-            "STOPPED: {file} is {}: PLAY stays off until the player has seen to it",
-            match stop {
-                Stop::Virus => "blocked by Windows Security",
-                Stop::InUse => "held by another program",
+    // Said in a box of the updater's own, in the launcher's language: the
+    // launcher is not told it again.
+    let mut said = false;
+    loop {
+        let message = match (&done, session.unreachable.clone()) {
+            // A file blocked by Windows Security or held by another program:
+            // PLAY stays off; the box says what to do, and Retry runs the
+            // update again.
+            (Done::Stop(stop, name), _) => {
+                let file = name.rsplit(['/', '\\']).next().unwrap_or(name);
+                log!(
+                    "STOPPED: {file} is {}: PLAY stays off until the player has seen to it",
+                    match stop {
+                        Stop::Virus => "blocked by Windows Security",
+                        Stop::InUse => "held by another program",
+                    }
+                );
+                session.state(state::ERROR);
+                let folder = file_error::exclusion_folder(name, &layout.exe_dir, &layout.game_dir);
+                file_error::message(win::launcher_language(), *stop, file, folder)
             }
-        );
-        session.state(state::ERROR);
+            // The update server could not be reached: the box says why it
+            // may not be and what to do (a VPN's split tunnelling, the
+            // firewall); Retry runs the update again. Cancel: what the run
+            // came to (an error, or PLAY with the files installed).
+            (Done::Failed(_) | Done::Offline(..), Some((failure, host))) => {
+                log!("{host} could not be reached ({failure:?}): the player is told what to try");
+                if let Done::Failed(_) = done {
+                    session.state(state::ERROR);
+                }
+                network::message(win::launcher_language(), failure, &host)
+            }
+            _ => break,
+        };
         if session.quiet || session.stopped {
             break;
         }
-        let message = file_error::message(win::launcher_language(), *stop, file, &layout.top_dir);
         if !retry_box(&message) || !session.pump() {
+            said = true;
             break;
         }
         log!("the player asks to try again");
@@ -968,13 +1011,19 @@ fn run() -> u32 {
             if session.named_file {
                 session.state(state::CHECKING);
             }
-            session.tell(&message);
+            if !said {
+                session.tell(&message);
+            }
             session.state(state::LATEST);
             (exit::OK, true)
         }
         Done::Stopped => {
             log!("stopped");
             (exit::OK, false)
+        }
+        Done::Failed(message) if said => {
+            log!("FAILED: {message}");
+            (exit::FAILED, false)
         }
         Done::Failed(message) => {
             session.fail(&message);

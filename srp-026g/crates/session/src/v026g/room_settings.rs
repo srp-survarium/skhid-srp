@@ -352,4 +352,75 @@ mod tests {
         assert_eq!(fitted(kept(8, 1, 9, 30), 6).2, 9);
         assert_eq!(fitted(kept(8, 1, 3, 30), 20).2, 15);
     }
+
+    /// The lobby movie's create window opens with these defaults while it
+    /// has no form yet (and a first-time player's form is them): the same,
+    /// so nothing changes when the form is in. It asks for the form as the
+    /// lobby comes up (`RoomsWindow`), not as the window opens (the owner's
+    /// of 2026-10-25: no settings applied after the window is drawn).
+    #[test]
+    fn the_movie_opens_with_the_same_defaults_and_has_the_form_before() {
+        let create =
+            include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsCreate.as");
+        let window =
+            include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsWindow.as");
+        let wire = include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsWire.as");
+        for (name, value) in [
+            ("DEFAULT_SIZE", DEFAULT_SIZE),
+            ("DEFAULT_MIN_SIDE", DEFAULT_MIN_SIDE),
+            ("DEFAULT_WAIT", DEFAULT_WAIT),
+        ] {
+            assert!(
+                create.contains(&format!("const {name}:int = {value};")),
+                "{name}"
+            );
+        }
+        assert_eq!(DEFAULT_MAX_LEVEL, 0);
+        assert!(wire.contains("const LEVEL_ANY:int = 0;"));
+        // New room opens from the window's copy; `start` takes the copy, or
+        // with none every default.
+        let on_new = function(create, "internal function onNew(");
+        assert!(on_new.contains("start(win._form);"), "{on_new}");
+        let start = function(create, "private function start(form:Object)");
+        let (none, copy) = start
+            .split_once("return;")
+            .expect("start: the defaults, then the copy");
+        assert!(none.contains("if (form == null)"), "{start}");
+        for line in [
+            "_size = DEFAULT_SIZE;",
+            "_minSide = DEFAULT_MIN_SIDE;",
+            "_max = RoomsWire.LEVEL_ANY;",
+            "_wait = DEFAULT_WAIT;",
+            "_modesOff = {};",
+            "defaultPool();",
+        ] {
+            assert!(none.contains(line), "{line}: {start}");
+        }
+        for line in [
+            "_size = form.size;",
+            "_minSide = form.min;",
+            "_max = form.max;",
+            "_wait = form.wait;",
+            "_off = copy(form.off);",
+            "_modesOff = copy(form.modesOff);",
+        ] {
+            assert!(copy.contains(line), "{line}: {start}");
+        }
+        // The window asks; New room never does.
+        assert!(window.contains("ask(RoomsWire.SETTINGS, 1);"));
+        assert!(!create.contains("RoomsWire.SETTINGS"));
+    }
+
+    /// The body of the ActionScript function whose declaration starts with
+    /// `head`, up to its closing brace at its own indentation.
+    fn function<'a>(source: &'a str, head: &str) -> &'a str {
+        let start = source.find(head).unwrap_or_else(|| panic!("{head}"));
+        let line_start = source[..start].rfind('\n').map_or(0, |at| at + 1);
+        let indent = &source[line_start..start];
+        let close = format!("\n{indent}}}\n");
+        let end = source[start..]
+            .find(&close)
+            .unwrap_or_else(|| panic!("{head}: its end"));
+        &source[start..start + end]
+    }
 }

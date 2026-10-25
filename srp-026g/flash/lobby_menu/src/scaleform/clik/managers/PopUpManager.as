@@ -17,6 +17,15 @@ package scaleform.clik.managers
       protected static var _stage:Stage;
       
       protected static var _defaultPopupCanvas:MovieClip;
+
+      // Where the popup canvas goes, kept on top of: the lobby's layers (LobbyMenu._layers, set
+      // before any popup), else the stage.
+      public static var layer:DisplayObjectContainer;
+
+      protected static function get host() : DisplayObjectContainer
+      {
+         return layer ? layer : _stage;
+      }
       
       protected static var _modalMc:Sprite;
       
@@ -36,7 +45,7 @@ package scaleform.clik.managers
          PopUpManager._stage = stage;
          _defaultPopupCanvas = new MovieClip();
          _defaultPopupCanvas.addEventListener(Event.REMOVED,handleRemovePopup,false,0,true);
-         _stage.addChild(_defaultPopupCanvas);
+         host.addChild(_defaultPopupCanvas);
          initialized = true;
       }
       
@@ -68,8 +77,8 @@ package scaleform.clik.managers
          p = _defaultPopupCanvas.globalToLocal(scope.localToGlobal(p));
          mc.x = p.x;
          mc.y = p.y;
-         _stage.setChildIndex(_defaultPopupCanvas,_stage.numChildren - 1);
-         _stage.addEventListener(Event.ADDED,PopUpManager.handleStageAddedEvent,false,0,true);
+         host.setChildIndex(_defaultPopupCanvas,host.numChildren - 1);
+         host.addEventListener(Event.ADDED,PopUpManager.handleStageAddedEvent,false,0,true);
       }
       
       public static function showModal(mc:Sprite, mcX:Number = 0, mcY:Number = 0, bg:Sprite = null, controllerIdx:uint = 0, newFocus:Sprite = null) : void
@@ -104,12 +113,12 @@ package scaleform.clik.managers
          FocusHandler.getInstance().setFocus(newFocus,controllerIdx,false);
          FocusManager.setModalClip(_modalMc,controllerIdx);
          _modalMc.addEventListener(Event.REMOVED_FROM_STAGE,handleRemoveModalMc,false,0,true);
-         _stage.addEventListener(Event.ADDED,PopUpManager.handleStageAddedEvent,false,0,true);
+         host.addEventListener(Event.ADDED,PopUpManager.handleStageAddedEvent,false,0,true);
       }
       
       protected static function handleStageAddedEvent(e:Event) : void
       {
-         _stage.setChildIndex(_defaultPopupCanvas,_stage.numChildren - 1);
+         host.setChildIndex(_defaultPopupCanvas,host.numChildren - 1);
       }
       
       protected static function handleRemovePopup(e:Event) : void
@@ -133,7 +142,7 @@ package scaleform.clik.managers
       {
          if(_defaultPopupCanvas.numChildren == 0 && _modalMc == null)
          {
-            _stage.removeEventListener(Event.ADDED,PopUpManager.handleStageAddedEvent,false);
+            host.removeEventListener(Event.ADDED,PopUpManager.handleStageAddedEvent,false);
          }
       }
    }

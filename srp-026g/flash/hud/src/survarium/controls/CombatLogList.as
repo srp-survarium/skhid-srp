@@ -29,8 +29,19 @@ package survarium.controls
       
       public function addItem(item:Object) : void
       {
+         // A renderer plays from its construction and, at its end, deletes the list's first row on every
+         // frame until the list deletes it. One whose data throws never joins the list: its listener
+         // goes with it, or it would empty the kill feed for good.
          var itemRenderer:MovieClip = new SrvCombatLogRenderer();
-         itemRenderer.setData(item,this);
+         try
+         {
+            itemRenderer.setData(item,this);
+         }
+         catch(error:Error)
+         {
+            itemRenderer.clearEvents();
+            throw error;
+         }
          this._renderers.push(itemRenderer);
          addChild(itemRenderer);
          this.validateRenderers();

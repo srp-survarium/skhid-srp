@@ -41,8 +41,14 @@ COOKS, REGISTERED, THREAD_ID = 0xA86E00, STATE + 0x24, 0x870118
 ALLOCATE, CTOR_CALL, RESIZE, INVOKE, MESSAGE = 0xE4F90, 0x1EC170, 0x7AB30, 0x511600, 0x2375C0
 # the field writers' hash mismatch dump: its switches, its record's allocation, type_info::name
 DUMP_ON, DUMP_RECORD, TYPE_NAME = 0x1F1D32C, 0x80450, 0x420724
-# the statistics' listener: +31A0h, called through 0x2F5D40 (place, event, amount)
-LISTENER, NOTIFY = 0x31A0, 0x2F5D40
+# [core+18FA8h] is the statistics handler; the shared statistics at +8 in it:
+# the players' records (u16 events[28][3] first, 1F8h each) and the listener
+# (shared +31A0h), called through 0x2F5D40 (place, event, amount)
+EVENTS_AT, LISTENER, NOTIFY = 0x8, 0x31A8, 0x2F5D40
+# the handler's recalculate_scores (EDI the handler): m_scores (u16, +31F0h)
+# from the records, for the places under +3240h, by the weights at
+# [+323Ch] + 577BCh
+RECALCULATE, SCORES, SCORE_COUNT, OPTIONS, WEIGHTS = 0x26DC30, 0x31F0, 0x3240, 0x323C, 0x577BC
 # rn_rule (research_native_026g.c's _Static_asserts)
 R_CORE, R_VALID, R_PARAMS, R_STATE, R_SIZE = 0x128, 0x134, 0x138, 0x7E0, 0x918
 P_ZONES, ZONE_DEF = 0x64, 0x214
@@ -211,7 +217,7 @@ def vtable(run, obj, slot):
 def world(run):
     """A world of twenty places, kit 0 each, in play; its statistics."""
     run.emu.mem_write(CORE, bytes(0x20000))
-    places, statistics, counter = run.allocate(20 * 0x30), run.allocate(0x3200), run.allocate(4)
+    places, statistics, counter = run.allocate(20 * 0x30), run.allocate(0x3250), run.allocate(4)
     run.word(CORE + PLACES, places)
     run.word(CORE + STATISTICS, statistics)
     run.word(CORE + TICK_ORDER, counter)
@@ -328,13 +334,13 @@ def driven(run, cook, query, check):
     def kill(slot7=None):
         if slot7 is not None:
             run.emu.mem_write(rule, struct.pack("<I", slot7))
-        before = (run.read(statistics + 0xC + 6 * 10, 2), len(run.notified))
+        before = (run.read(statistics + EVENTS_AT + 6 * 10, 2), len(run.notified))
         try:
             run.call(0x2D1EA0, args=(1, data), regs={UC_X86_REG_EDI: CORE})
             fine = run.emu.reg_read(UC_X86_REG_ESP) == STACK + 0x8000
         except UcError:
             fine = False
-        return fine and run.read(statistics + 0xC + 6 * 10, 2) == before[0] + 1 \
+        return fine and run.read(statistics + EVENTS_AT + 6 * 10, 2) == before[0] + 1 \
             and run.notified[before[1]:] == [(statistics + LISTENER, 0, 10, 1)]
     good = kill()
     check("driven: slot 7, on_event(type, data, time), through the dispatcher 0x2D1EA0: kill invader for "
@@ -489,9 +495,21 @@ def main():
     time += 50
     run.thiscall(SYMBOLS["rn_tick"], rule, 50, time, 1)
     a = zone(run, rule, 0)
-    capture = run.read(statistics + 0xC + 6 * 6, 2)
+    capture = run.read(statistics + EVENTS_AT + 6 * 6, 2)
     check("at 20 s team 0 owns unit A; its player's capture event 6 is 100 (hundredths, kit 0)",
           a["owner"] == 0 and a["progress"] == FULL and capture == 100, f"{a}, event 6 {capture}")
+    # The game's own recalculate_scores reads the cell we wrote as event 6
+    # (srp's weights: 6 is 30, 7 and 19 are 2.5, the cells revision 30's
+    # build wrote for kits 1 and 2): 100 hundredths x 30 = 30.
+    weights = run.allocate(4 * 28)
+    for event, weight in ((6, 30.0), (7, 2.5), (10, 10.0), (18, 30.0), (19, 2.5)):
+        run.emu.mem_write(weights + 4 * event, struct.pack("<f", weight))
+    run.word(statistics + OPTIONS, weights - WEIGHTS)
+    run.emu.mem_write(statistics + SCORE_COUNT, bytes([20]))
+    run.call(RECALCULATE, regs={UC_X86_REG_EDI: statistics})
+    score = run.read(statistics + SCORES, 2)
+    check("the game's recalculate_scores 0x26DC30 counts the capture as event 6: score 30", score == 30,
+          f"score {score}")
     run.word(CORE + MATCH_STATE, 2)
     before = bytes(run.emu.mem_read(rule + R_STATE, 0x138))
     run.thiscall(SYMBOLS["rn_tick"], rule, 50, time + 50, 1)
@@ -510,12 +528,16 @@ def main():
     run.thiscall(SYMBOLS["rn_tick"], rule, 50, time, 1)
     data = run.allocate(4)
     run.emu.mem_write(data, bytes([0, 1]))
+    run.word(run.read(CORE + PLACES) + 4, players[0])              # the killer plays kit 1
+    run.emu.mem_write(run.read(CORE + PLACES) + 0xC, bytes([1]))
     _, cleanup = run.thiscall(vtable(run, rule, 7), rule, 1, data, time)
-    check("killing an enemy inside one's unit counts event 10 for the killer",
-          cleanup == 12 and run.read(statistics + 0xC + 6 * 10, 2) == 1)
+    check("killing an enemy inside one's unit counts event 10 for the killer, in its kit 1's cell",
+          cleanup == 12 and run.read(statistics + EVENTS_AT + 6 * 10 + 2, 2) == 1
+          and run.read(statistics + EVENTS_AT + 6 * 11, 2) == 0)
+    run.emu.mem_write(run.read(CORE + PLACES) + 0xC, bytes([0]))
     run.emu.mem_write(data, bytes([1, 0]))
     run.thiscall(vtable(run, rule, 7), rule, 1, data, time)
-    check("a kill in one's own unit counts nothing", run.read(statistics + 0x1F8 + 0xC + 6 * 10, 2) == 0)
+    check("a kill in one's own unit counts nothing", run.read(statistics + EVENTS_AT + 0x1F8 + 6 * 10, 2) == 0)
 
     # 6. The state saved and loaded.
     writer, buffer = run.allocate(0x20), run.allocate(0x10)

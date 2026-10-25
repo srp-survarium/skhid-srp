@@ -576,3 +576,59 @@ kept and can be put back).
 - TODO: #329 Craft window: Buy from its slots; the TT-33 in the shop at 500
 - TODO: #315 Patch 45: the camera flies to the bench at once
 - TODO: #330 Research HUD: "Capturing unit..." on one line, not "Captu"
+
+## 23 Oct, 13:10 — TODO: the owner's words (update required)
+
+<!-- Revision 31 (026g-rev31), released 2026-10-23 13:10 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #334 Modification window: hovering the item shows its stats tip
+- TODO: #332 Shop: a kit item's menu acts on that item (Modification refused on rev 30)
+- TODO: #336 T16: Regeneration modification works, it is just small (findings + re-kit rows)
+- TODO: #333 Research HUD: units under the timer from the first frame, below the respawn line
+- TODO: #339 Crouched steps fire: the moving crouch clips get the step event channel (T27)
+- TODO: #340 Larkspur (Lifebone): active cooldown 15 s -> 45 s
+- TODO: #338 Lobby: Autorepair box gone, Autobuy on by default, larger loadout switcher, inventory loadout badges
+- TODO: #337 Protective mask (1816) is just a mask: worn with a helmet (T28)
+- TODO: #341 Master set: its camouflage net drawn as a normal alpha-tested material, not a glass-like forward one (T31)
+- TODO: #225 Patch 42: dynamic anomalies as the release had them, on London and Cologne (exe, data, bots)
+- TODO: #342 Match HUD: keys 1/2/3 pick a kit and Hide chat in match (patch 58, T29)
+- TODO: #345 Take the dynamic anomalies (#225, patch 42) out of revision 31
+- TODO: #349 Lobby: Esc closes the topmost modal only, from one modal stack
+- TODO: #350 Esc follow-up to #349: box over results, invite Esc hides, craft search, loading, dropdown order
+- TODO: #352 Research: count captures in the player's own kit cell
+- TODO: #353 Research HUD: units back at rev 30's height
+
+## 25 Oct, 12:14 — TODO: the owner's words (update required)
+
+<!-- Revision 32 (026g-rev32), released 2026-10-25 12:14 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #356 Upgrade window: loadout badges on the item and donor slots
+- TODO: #368 Patch 62: F11 hides the whole interface (match and lobby); no-UI battery mode spec
+- TODO: #397 Bandages: hands and legs full, pain, body and head 35 %
+- TODO: #400 New accounts start with a starter kit
+- TODO: #408 Onyx nerf: -60 % for 3 s, +1 s for each other Onyx
+- TODO: #414 Artefacts: the carrier sees his own glow in first person
+- TODO: #423 Onyx: -75 % when active
+- TODO: #422 Rooms: the create window opens with its saved settings, preloaded
+- TODO: #424 Lobby card: stats over their scale show their real value
+- TODO: #418 Kill feed: wall, ricochet and pain-shock icons after the weapon (patch 67)
+
+## 25 Oct, 13:52 — TODO: the owner's words (update required)
+
+<!-- Revision 33 (026g-rev33), released 2026-10-25 13:52 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #436 Kill feed: a suicide row with the pain icon no longer empties the feed
+
+## 25 Oct, 18:43 — TODO: the owner's words (update required)
+
+<!-- Revision 34 (026g-rev34), released 2026-10-25 18:43 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #443 SOCOM 16 nerf: damage 70 -> 60, armour piercing 45 -> 40, equipment level 15
+- TODO: #444 Patch 72: falls gain speed for the time they fell, not per step of a split tick
+- TODO: #367 Research: capture timers and the units' markers on the screen
+- TODO: #450 Reroll: every modification change costs the same
+- TODO: #440 Patch 70: baked camouflage textures kept across games, made once, held for the game
+- TODO: #453 Network help: clearer "no connection" errors in every language, VPN.txt, firewall script
+- TODO: #456 SVD at equipment level 15
+- TODO: #457 AGENTS.md: types and states (illegal states unrepresentable, parse don't validate)
+- TODO: #458 Revert Research HUD markers (#367) for rev 34

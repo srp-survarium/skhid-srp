@@ -147,8 +147,12 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   The data is the sale's (the list's U rows); the inventory is drawn again when they change (a
   list after a move, a choice, a sale). The badge: the stack count's font and size (CalibriBold
   14), the equipped green, on a dark backing so it reads over any icon; it covers neither the
-  level (top-left) nor the count (bottom-right) (`ItemRendererInv.updateLoadoutBadge`,
-  `LocalPlayerProfile.loadoutMark`).
+  level (top-left) nor the count (bottom-right) (`ItemRendererBase.updateLoadoutBadge`,
+  `LocalPlayerProfile.loadoutMark`). The Upgrade window's item and donor slots show it too, at the
+  same corner of the same tile: their items leave the list while they are there (craft-menu.md,
+  "Items in the slots"), and the badge went with them (owner, rev 31) (`ItemRendererFull`'s
+  `showLoadouts`, set by `MessageCraftItem`). The upgraded result, the paper doll and the other
+  windows' tiles have none.
 - **Character panel:** its title is the switcher (the owner's, 2026-10-23: the dropdown left of
   the title was ugly). The title names the active preset in the title's own font and colour,
   centred, with a caret after it: "Loadout 2 · Lvl. 15" (the level's word is the kit tabs'

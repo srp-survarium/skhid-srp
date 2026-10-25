@@ -5,13 +5,16 @@ const RULES = (() => {
 
   // Onyx, 0x312bf0: one callback per carried Onyx, before armour, on the
   // locations it protects. Passive (state 3) and active (state 4) never both.
+  // Exe patch 54: one press fires every ready Onyx, each active 1 s longer
+  // per other one, and only the first active one reduces a hit.
+  const ONYX_EXTRA_S = 1;
   function onyxCallbacks(count, active) {
     const o = ART.onyx; if (!o || !count) return [];
     const mode = active ? o.active : o.passive;
     const out = [];
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < (active ? 1 : count); i++) {
       out.push({
-        name: `${nm(o)} ${active ? T("active", "активний") : T("passive", "пасивний")}${count > 1 ? ` #${i + 1}` : ""}`,
+        name: `${nm(o)} ${active ? T("active", "активний") : T("passive", "пасивний")}${count > 1 && !active ? ` #${i + 1}` : ""}`,
         parts: o.protected_locations, types: [o.hit_type],
         fn(D, P) {
           let nd;
@@ -206,6 +209,7 @@ const RULES = (() => {
           () => {
             state.fx.onyx = (state.fx.onyx || 0) === i ? i - 1 : i;
             slots.forEach((s, j) => s.setAttribute("aria-pressed", String(j < state.fx.onyx)));
+            act.textContent = activeText();
             update();
           }));
         const mode = state.fx.onyxMode || "passive";
@@ -218,9 +222,11 @@ const RULES = (() => {
           });
           return c;
         };
+        const activeText = () => `${T("active", "активний")} ×${ART.onyx.active.damage_mul}, `
+          + `${ART.onyx.active.duration_s + Math.max(0, (state.fx.onyx || 1) - 1) * ONYX_EXTRA_S} ${T("s", "с")}`;
+        const act = chip("active", activeText());
         row(nm(ART.onyx), ...slots, el("span", { class: "chips" },
-          chip("passive", `${T("passive", "пасивний")} ×${ART.onyx.passive.damage_mul}`),
-          chip("active", `${T("active", "активний")} ×${ART.onyx.active.damage_mul}, ${ART.onyx.active.duration_s} ${T("s", "с")}`)));
+          chip("passive", `${T("passive", "пасивний")} ×${ART.onyx.passive.damage_mul}`), act));
       }
       const shielding = Object.entries(DATA.drugs || {}).filter(([, d]) => d.damage_protection.some(p => p.hit_type === "ranged"));
       if (shielding.length) {

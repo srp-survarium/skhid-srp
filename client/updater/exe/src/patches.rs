@@ -466,6 +466,8 @@ impl Run<'_> {
             let result = http::get(self.server, "/patches", MAX_LIST, &mut |_, _| {
                 session.pump()
             });
+            self.session
+                .reached(self.server, result.as_ref().map(|_| ()));
             let error = match result {
                 Ok(body) => {
                     return parse_list(&body).map_err(|error| {

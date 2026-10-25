@@ -408,7 +408,7 @@ Requests: `request_players_range(start, count)` with `int` arguments (§2.16.1).
 | 2 060 000 007 | leave the queue the asker waits in | state |
 | 2 060 000 008 | go into the asker's room's match being played now, without waiting for its `J` seconds (a member who comes while the match is played sees the room first and goes in 15 s later, `LATE_JOIN_WAIT`) | state |
 | 2 060 000 003 + card | vote, card 0 to 2 | state |
-| 2 060 000 009 | the asker's create window's start: the settings of its last room made by hand (since 2026-10-20) | form |
+| 2 060 000 009 | the asker's create window's start: the settings of its last room made by hand (since 2026-10-20; since 2026-10-25 the movie asks as its lobby comes up, after the pool, at each sign-in (`8F`) and when the gear level changes, and keeps the last answer) | form |
 | 2 060 000 010 + page | the maps a pool may hold, page 0 to 15 | pool |
 | 2 060 000 030 | the movie's "Room Chat" tab is up (since 2026-10-20; a movie before it never asks): the asker hears its room's chat from now on, while it is a member of that room and not in a match, and is sent its last 20 lines first, each an `A2` chat line on srp's channel 10 (`social.md` §9.8); in a match, none (the movie asks again after it) | state |
 | 2 060 000 040 | the asker's friends who are members of a room (since 2026-10-20: a friend's right-click menu asks as it opens) | friends |

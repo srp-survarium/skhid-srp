@@ -89,14 +89,14 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
 - **Switching Shop ↔ Inventory clears the search.** The game closes the one list and opens it
   again. A clear box when the window changes is the less surprising of the two choices.
 - **Category tabs, filters and the sort keep the search.**
-- **Esc order** (the order of 2026-10-21: menus and messages close first):
+- **Esc order** (`esc.md`: Esc closes the topmost modal; a text box gives the keys back first):
   1. a right-click menu closes first;
   2. then Esc empties the box and leaves it;
   3. over a message or a popup, Esc only takes the keys from the box, and the message closes on
      the next Esc, as with the game's other text boxes.
 - **Esc while the box does not have the keys:** as before (it closes the window, and that clears
   the search).
-- **Esc and the friends list:** see `lobby-keys.md`.
+- **Esc and the friends list:** see `esc.md`.
 - **Ctrl+W in the box** (owner 2026-10-22) deletes the word before the caret; **Ctrl+U**
   everything before the caret.
 - **Enter in the box:** gives the keys back to the lobby. The results stay. Enter is only the box's

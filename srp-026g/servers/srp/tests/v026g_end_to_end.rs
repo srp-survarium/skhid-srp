@@ -447,8 +447,18 @@ fn two_new_players_sign_in_shop_play_a_match_and_are_paid() {
     for game in [&alice, &bob] {
         assert!(game.lobby.model.is_signed_in());
         assert_eq!(game.lobby.ids[0], 0x80, "{}", game.name);
-        // The starter: the three free weapons and their two kinds of ammo.
-        assert_eq!(game.lobby.model.inventory().len(), 5);
+        // The starter: the three free weapons, every ammo and the starter
+        // kit (`session::v026g::tutorial`), as the server holds it.
+        let owned = stack
+            .accounts
+            .get(account_id(&stack, game.name))
+            .expect("a 0.26g account")
+            .locked()
+            .inventory
+            .len();
+        let ammo = session::v026g::tutorial::starter_ammo(Dictionary::shared()).len();
+        assert!(owned > 3 + ammo, "{owned}");
+        assert_eq!(game.lobby.model.inventory().len(), owned);
         assert!(game.has(|message| matches!(
             message,
             Decoded::Account(own) if own.body.name == game.name && own.body.kits.len() == 3
@@ -1729,7 +1739,16 @@ fn a_player_against_the_servers_bots_plays_a_match_to_the_results() {
         reserved_rows(games[0], PVB_STATUS_START).is_some()
     });
     let rows = reserved_rows(&solo, PVB_STATUS_START).unwrap();
-    assert_eq!(rows[0].0, "B1;0;0;15;6.8.10;8;61;0;5");
+    // The starter kits' highest level (`tutorial`; 4, the third's MP-153):
+    // within the bots' 15.
+    let gear = {
+        let account = stack.accounts.get(account_id(&stack, "E2ePvb")).unwrap();
+        let account = account.locked();
+        let level = |kit| session::v026g::matchmaking::kit_level(&account, kit);
+        account.kits.iter().map(level).max().unwrap()
+    };
+    assert_eq!(gear, 4);
+    assert_eq!(rows[0].0, format!("B1;0;{gear};15;6.8.10;8;61;0;5"));
     assert_eq!(rows.len(), 17);
     assert!(rows.iter().any(|row| row.0 == "117;1;4;5"), "{rows:?}");
 

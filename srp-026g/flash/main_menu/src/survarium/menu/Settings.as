@@ -548,6 +548,14 @@ package survarium.menu
             }
             i++;
          }
+         // "Hide chat in match" (option 4 of the gameplay tab; exe patch 58 gives it its
+         // variable, docs/notes/match-hud-options.md): the timeline enables it where it makes
+         // the checkbox (settingsTabs_15); again here, after the tab's settings are bound.
+         var hideChat:UIComponent = this.settings_content["_no_in_batle"] as UIComponent;
+         if(hideChat)
+         {
+            hideChat.enabled = true;
+         }
          SrpFovSlider.finish(this);
       }
       
