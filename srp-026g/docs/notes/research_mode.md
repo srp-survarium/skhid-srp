@@ -60,7 +60,10 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   the respawn countdown may overlap them (owner: less screen space) (beside the bars' indicator,
   following its position every frame, so the indicator's centring never counts them) (letter,
   owner's colour: own team blue, other red, nobody grey; a ring for the capture of the team
-  taking it); "Capturing unit..." while one's own player is inside a unit his team is taking;
+  taking it); the unit one's own player is inside 34 / 24 larger (retail's active highlight;
+  players on Discord, 2026-10-25: hard to tell whether you are inside); "Capturing unit..."
+  (retail's only text, st_capture_info) while his team alone is inside a unit and changes it:
+  draining the other team's capture or ownership, or capturing;
   the units on the minimap and the Tab map; messages: the start's "Find and capture research
   units!", "Unit A captured" / "Unit A lost" for one's own team, the end's victory, defeat or
   draw.
@@ -74,10 +77,12 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   to Tab to see where they are at times is eh. (Farthest one has smaller icons, while the one
   closest to you is bigger.)"): each unit where it is on the screen, 2 m over its position, as
   0.27d's player icon of kind 2 in the player-icons movie: the letter in its owner's colour, the
-  capture ring, larger while one's own player is inside; hidden off the screen and behind the
-  camera, as 0.27d's (it never clamped them to the screen's edges). Full size to 15 m, smaller
-  down to 55 % at 150 m (0.27d's were one size); under it the time left while a capture or
-  neutralisation runs, else the distance in metres.
+  capture ring; hidden off the screen and behind the camera, as 0.27d's (it never clamped them
+  to the screen's edges). As retail (the owner, 2026-10-25: "they hide everyone behind them",
+  "just make it smaller in general, and like in retail"): 24 px at any distance, 34 px with
+  white corners while one's own player is inside, alpha C3h, 5 px over the point, no label;
+  blinking while a capture or neutralisation runs; retail's crossed swords, pulsing, while both
+  teams are inside. The timers are the top hud's.
 - **Late joiners, rollbacks, replays:** the rule's whole state is in the world (21 + 96 bytes a
   unit); a joiner, a resync or a replay computes the same.
 - **Bots (Player vs Bots):** not offered in Research (srp's bots play modes 2 to 4).
@@ -232,15 +237,16 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   of the hud state, past which the rest of the hud runs about once a second, when the match's
   seconds change), while the time rule is in play (state 3) and no end is set (hidden in the
   countdown, and once `end_time` is set: the time rule stays in state 3 after Research's end): `root.research_markers(own team, Z, then cp_id, on the screen, x,
-  y, metres, owner, taking, progress %, ms left, own player inside)` to the player-icons movie
+  y, metres, owner, taking, progress %, ms left, own player inside; then per unit both teams
+  inside)` to the player-icons movie
   ([[ui+10h]+108h]+4, as update_player_icons 0x23ACC1), at a change and every 60 frames: the
   unit's position + 2 m up through the game's `base_game_scene::point_to_screen` (0x23DEC0,
   `engine_point_to_screen`: the game, the point, the pixel out; AL on the screen, in front and
   inside it), the distance from the camera director's position ([game+98h]+34h, as
   update_player_icons sizes a player's marker, 0x23AB63). At a match of another mode on the same
-  ui, `research_markers(0, 0)` once. The movie's `HUDIconLayer.research_markers` sizes them
-  (`ResearchMarker`, its text in `MarkerLabel`'s font: Open Sans Condensed bold, the one bold
-  face the movie embeds). In play the same frame also sends `research_update` (at a change), so
+  ui, `research_markers(0, 0)` once. The movie's `HUDIconLayer.research_markers` places them
+  (`ResearchMarker`: its sizes, alpha, lift, pulse and an optional distance shrink are constants
+  at the top; the swords are `bitmaps/ResearchSwords.png`, 0.27d's character 20). In play the same frame also sends `research_update` (at a change), so
   the hud's rings and timers follow the capture; the ms left are whole seconds (rounded up), so
   the numbers change once a second.
 - **0.27d's markers:** its player-icons movie has a third icon kind, `RoundProgress` (the letter

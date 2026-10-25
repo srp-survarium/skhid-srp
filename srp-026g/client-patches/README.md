@@ -3050,7 +3050,8 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   in play `rn_markers` sends `root.research_markers` to the player-icons movie
   ([[ui+10h]+108h]+4): each unit where it is on the screen by the game's own point_to_screen
   (0x23DEC0, `engine_point_to_screen`), its distance from the camera director ([game+98h]+34h),
-  as update_player_icons places the players' markers (`research_mode.md`, "Markers"); and
+  as update_player_icons places the players' markers, and whether both teams are inside it
+  (retail's swords; `research_mode.md`, "Markers"); and
   `research_update` at a change, so the hud's rings and timers follow the capture. In the
   countdown, after the end (`end_time` set: the time rule stays in state 3) and in another
   mode, once, none.
