@@ -40,6 +40,16 @@
 //!   when it is sold ([`drop_gone_upgrades`]). After `83 46 01` the client's
 //!   own copy holds the scope item's dict id (0x275671) until the inventory
 //!   that follows every answer puts the variant's in its place.
+//! - **A weapon's upgrades: the weapon kit** ([`survarium::v026g::weapon_kit`],
+//!   `docs/notes/weapon-kit.md`, client patch 68). [srp, the owner's ask of
+//!   2026-10-25] A weapon holds up to six, one a logical slot: decals in 0
+//!   and 1, its camouflage in 2, its scope in 3, a muzzle device in 4 and a
+//!   grip in 5 ([`upgrade_capacity`]); the account keeps them so, and the
+//!   client gets them packed into at most three records
+//!   (`super::wire::item_descr_at`). The client never writes a weapon's
+//!   records itself: a change of one is answered with the inventory and the
+//!   account only (no `83 46 01` or `83 46 02`, whose own copy of the
+//!   record could be a fourth, the client's fatal assert).
 //! - **Reroll.** The game's: one modification of an item may be changed,
 //!   any number of times (`st_modifier_reroll_description`); the first
 //!   change picks which (the window locks the others,
@@ -127,6 +137,7 @@ use survarium::v026g::lobby::{Crafted, FULL_CONDITION, Repaired, limits};
 use survarium::v026g::modifications::{self, Bonuses, CraftOutcome, MAX_RANK, Modifications};
 use survarium::v026g::prices;
 use survarium::v026g::scopes::ScopeFits;
+use survarium::v026g::weapon_kit;
 
 use super::account::{Account, Item, Upgrade};
 use super::rules::shown_condition;
@@ -348,6 +359,24 @@ pub fn make_safe_in(item: &mut Item, scopes: &ScopeFits) {
     });
 }
 
+/// An item of `dict_id` is a weapon (`wpn_*`): its upgrades are the
+/// weapon kit's ([`upgrade_capacity`], [`survarium::v026g::weapon_kit`]).
+pub fn is_weapon(dict_id: u16) -> bool {
+    item_params(dict_id).is_some_and(|params| modifications::is_weapon_kind(params.kind))
+}
+
+/// The upgrades an item of `dict_id` may hold: a weapon's six logical
+/// slots, which go to the client packed into three records
+/// ([`survarium::v026g::weapon_kit::pack`]); any other item's three
+/// records ([`limits::UPGRADES`], the client's).
+pub fn upgrade_capacity(dict_id: u16) -> usize {
+    if is_weapon(dict_id) {
+        weapon_kit::WEAPON_SLOTS.len()
+    } else {
+        limits::UPGRADES
+    }
+}
+
 /// The kits wearing `item_id` show another item: new revisions.
 fn bump_kits_wearing(account: &mut Account, item_id: u32) {
     for kit in &mut account.kits {
@@ -432,7 +461,7 @@ pub fn attach_upgrade_in(
         .iter()
         .filter(|held| held.param != slot && held.id != upgrade_item_id)
         .count();
-    if kept >= limits::UPGRADES {
+    if kept >= upgrade_capacity(host.dict_id) {
         return Err(ItemError::Upgrade("the item holds no more"));
     }
     let host = account
@@ -547,9 +576,9 @@ pub fn place_upgrade(
         .ok_or(ItemError::Upgrade("the cosmetic is not on that item"))?;
     held.value = value;
     bump_kits_wearing(account, host_item_id);
-    let weapon = account.item(host_item_id).is_some_and(|host| {
-        item_params(host.dict_id).is_some_and(|params| modifications::is_weapon_kind(params.kind))
-    });
+    let weapon = account
+        .item(host_item_id)
+        .is_some_and(|host| is_weapon(host.dict_id));
     Ok(weapon)
 }
 
