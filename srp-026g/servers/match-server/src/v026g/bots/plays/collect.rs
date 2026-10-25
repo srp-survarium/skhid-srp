@@ -111,6 +111,13 @@ const SETTLE_MS: u32 = 1_500;
 const USE_SEEN_MS: u32 = 300;
 /// ... unless no such world came for this long (the worlds stopped), ms.
 const USE_SEEN_WAIT_MS: u32 = 3_000;
+
+/// No fire this long after a use pressed at a battery: the take may have
+/// worked, and `PlaceView::carrying` comes with the worlds, up to 2 s
+/// after it; a fire press while carrying drops the battery in the game
+/// (0x2D8E73..0x2D8EC8, PROVEN). In the bench's traces every fire drop
+/// left was 0.45-0.85 s after a take. GUESS: the worlds' 2 s.
+const TAKE_HOLD_FIRE_MS: u32 = 2_000;
 /// A put-in takes this long before the battery is in, ms: the battery's put
 /// state lasts `states[2].put_time`, 0.6 s (`docs/notes/battery_pickup.md`;
 /// a take's battery is in hand at once). PROVEN that the state lasts it;
@@ -967,7 +974,16 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             {
                 return Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(0.0));
             }
-            take(state, target, cx)
+            let step = take(state, target, cx);
+            // A use lately: it may carry already without knowing it.
+            match (step, &*state) {
+                (Step::Continue(intent), State::Take { last_use, .. })
+                    if *last_use > 0 && cx.now < *last_use + TAKE_HOLD_FIRE_MS =>
+                {
+                    Step::Continue(intent.hold_fire())
+                }
+                (step, _) => step,
+            }
         }
         State::Bring { via } => {
             if cx.me.carrying.is_none() {
@@ -2453,11 +2469,13 @@ mod tests {
         stand_at(&mut s, first.feet, aim);
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_ne!(intent.press & key::USE, 0, "a use at the stand");
+        assert!(!intent.fire, "no fire as it uses: it may carry");
         s.view.clock += 1_200;
         stand_at(&mut s, first.feet, TAKE_AT);
         // No world since the use: it waits, the use may have taken it.
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_eq!(intent.press & key::USE, 0, "the first use not seen yet");
+        assert!(!intent.fire, "no fire within 2 s of the use");
         s.view.world_time = s.view.clock - 300;
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_ne!(intent.press & key::USE, 0, "the second use, aimed lower");
