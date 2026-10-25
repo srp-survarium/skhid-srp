@@ -61,14 +61,15 @@ onyx gives +1 second to activation time"; then 60 %, not 50 %)
 - The +1 s is patch 54's (`ONYX_EXTRA_MS`), not a config key; the 3 s is `active/duration`.
 - The pop-up at activation (its activation hint, the local player only) says 60 % and the real time:
   "... by 60% for 4 s." for two Onyx. It shows once a press (not once for each Onyx fired) and stays
-  on screen for that time. The text's `{s}` is the pop-up's time on screen in seconds, which patch
-  54 makes the active's time left; the hud writes it in.
+  on screen for that time. The text's `%s` is the pop-up's time on screen in seconds, which patch
+  54 makes the active's time left; the hud writes it in. (%s, not `{s}`: the game's localizer (0x1FEF90, every text set_parameterized_message shows) makes `{NAME}` the key of the action NAME (`{USE}`) and any other name nothing, and drops a `}` after a character; the
+  owner's first test showed "for  s.".)
 
 ## Texts
 
 - The only texts: each artefact's pickup hint (the passive) and activation hint (the active), fixed
   sentences in the six localization tables; no lobby card. `artefact-texts-1.json` makes them say
-  the numbers above (Onyx's stock 10 % and 95 % were wrong too; its active 60 % for `{s}` s since
+  the numbers above (Onyx's stock 10 % and 95 % were wrong too; its active 60 % for `%s` s since
   2026-10-25).
 
 ## Release

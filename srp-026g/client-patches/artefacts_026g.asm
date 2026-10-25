@@ -440,7 +440,7 @@ onyx_hit:
 ; [ebx-0C30h] / push 0BB8h`: the activation hint (+2F0h) shown by
 ; set_parameterized_message 0x2375C0 (the text, 21h, 14h, 3000 ms). Now
 ; its time on screen is the active's time left (+F14h, ms), which the hud
-; writes for the hint's {s} in seconds; and of the Onyx one press fired
+; writes for the hint's %s in seconds; and of the Onyx one press fired
 ; (state 4, the same activation time +2A0h) only the first of the slots
 ; shows it, so a press shows it once. An Onyx in no slot shows its own.
 ; esi (the game) is kept; eax, ecx, edx and edi are free there.

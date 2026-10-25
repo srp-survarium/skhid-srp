@@ -4056,11 +4056,11 @@ def test_artefacts(original, image, before):
     hints = [e["to"] for e in json.load(open(os.path.join(HERE, "..", "scripts", "content-edit",
                                                           "artefact-texts-1.json"), encoding="utf-8"))["edit_text"]
              if e["path"] == "strings/st_onyx_activation_hint"]
-    check('text = text.split("{s}").join(String(Math.ceil(time / 1000)));' in hud_source.split(
+    check('text = text.split("%s").join(String(Math.ceil(time / 1000)));' in hud_source.split(
               "public function set_parameterized_message(")[1].split("public function")[0]
-          and len(hints) == 6 and all(h.count("{s}") == 1 and "60" in h for h in hints),
-          "the hud's set_parameterized_message writes a message's {s} as its time on screen in seconds, and the "
-          "six Onyx activation hints say 60 % for {s}")
+          and len(hints) == 6 and all(h.count("%s") == 1 and "60" in h for h in hints),
+          "the hud's set_parameterized_message writes a message's %s as its time on screen in seconds, and the "
+          "six Onyx activation hints say 60 % for %s")
     check(rows(stock, 0x2DBD86, 0x1E) == ["xorps xmm1,xmm1", "movss xmm2,dword [esi+0x31c]", "comiss xmm2,xmm0",
                                           "lea eax,[esi+0x31c]", "jna 0x2dbda0", "lea eax,[esp+0x14]",
                                           "movss xmm0,dword [eax]"]

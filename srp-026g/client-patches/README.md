@@ -3117,8 +3117,10 @@ does what no config of 0.26g could.
   4 for the local player's Onyx: once for each Onyx, all the same text. At 0x25F9DD (`mov ecx,
   [ebx-0C30h] / push 0BB8h`) the time on screen becomes the active's time left (+F14h), and of
   the Onyx fired by one press (state 4, the same activation time +2A0h) only the first of the
-  slots shows it. The hud movie's set_parameterized_message writes a text's `{s}` as that time in
-  seconds (rounded up); the six hints say "60% for {s} s" (`artefact-texts-1.json`).
+  slots shows it. The hud movie's set_parameterized_message writes a text's `%s` as that time in
+  seconds (rounded up); the six hints say "60% for %s s" (`artefact-texts-1.json`). Not `{s}`:
+  the game's localizer (0x1FEF90) makes `{NAME}` the key bound to action NAME (`{USE}`) and any
+  other name nothing (the owner's test of `{s}`: "for  s.").
 
 The code is `artefacts_026g.asm` in the arena (`.srpx`, "The arena" above): its block
 `artefacts.code`, a code page after Research's two (0xA431000 today, as linked): eight `jmp near`

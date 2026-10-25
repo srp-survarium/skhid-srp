@@ -1877,7 +1877,7 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 #   fired with others adds 1 s to the active time (+F14h) of all of them;
 # - Onyx's client update 0x25F640, `mov ecx,[ebx-0C30h] / push 0BB8h` at
 #   0x25F9DD (its activation hint's set_parameterized_message): the time on
-#   screen is the active's time left (the hud writes it for the hint's {s}),
+#   screen is the active's time left (the hud writes it for the hint's %s),
 #   and only the first Onyx of the slots fired by the same press shows it.
 # The two nodes are after a Spring's own fields: the two sizes of a Spring,
 # artefact<artefact_spring_core> (0x3B8, 0x25E7A8) and the bare core (0x398,

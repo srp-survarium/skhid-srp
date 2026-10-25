@@ -31,6 +31,9 @@ artefact of its class, and n Onyx fired together are each active 3 s +
 (n - 1) s, reduce a hit once (x0.4) and show the activation hint once a
 press, for that time.
 """
+import json
+import math
+import os
 import struct
 import sys
 import zlib
@@ -59,6 +62,10 @@ ONYX_ENDED = 0x312A50                    # active_effect_ended, thiscall, al
 ONYX_HIT = 0x312BF0                      # its hit callback, thiscall (hit, &damage, &piercing), `ret 0Ch`
 ONYX_POPUP = 0x25F9DD                    # its client update's pop-up, state 4 seen (ebx = the Onyx +F20h)
 MESSAGE = 0x2375C0                       # set_parameterized_message (ecx = the text; hud, size, shift, ms), `ret 10h`
+LOCALIZE = 0x1FEF90                      # its text's last step: eax = the text, ecx = the output; (game), `ret 4`
+HINTS = [e["to"] for e in json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts",
+                                                       "content-edit", "artefact-texts-1.json"), encoding="utf-8"))
+         ["edit_text"] if e["path"] == "strings/st_onyx_activation_hint"]
 # The release's Onyx (artefacts-1.json): passive x0.95, active x0.4 for 3 s,
 # absorb_total 5; its loader's fields at +C7Ch (+26Ch.. of 0x33B780).
 ONYX = {0xEE8: 7, 0xEF0: 0.95, 0xEF8: 0.95, 0xF00: 0.4, 0xF08: 0.4, 0xF0C: 5.0, 0xF10: 3000}
@@ -539,6 +546,27 @@ def run(data, patched):
     expect(hit(g, (a2, a1)) == ((0.4, 0.2) if patched else (0.16, 0.08)),
            "two active Onyx from two presses: " + ("x0.4 once" if patched else "x0.4 each"))
     expect(popups(g, (a1, a2)) == [(HINT, 0x21, 0x14, 3000)] * 2, "two presses: the hint for each, 3000 ms")
+
+    # The text set_parameterized_message shows: the game's localizer 0x1FEF90
+    # ({USE} the bound key, any other {...} nothing), then the hud's %s, the
+    # time on screen in seconds (HUD.as). Each of the six hints keeps its %s
+    # and says the time of 1, 2 and 3 Onyx; {s} would have been lost.
+    def localized(text):
+        source, out = g.block(len(text.encode()) + 1), g.block(0x400)
+        g.emu.mem_write(source, text.encode() + b"\0")
+        g.call(LOCALIZE, (0,), eax=source, ecx=out)
+        return bytes(g.emu.mem_read(out, 0x400)).split(b"\0")[0].decode()
+
+    expect(localized("for {s} s.") == "for  s." and localized("{{x") == "{x",
+           "the localizer drops {s} (the owner's first test: \"for  s.\")")
+    expect(len(HINTS) == 6 and all(localized(h) == h and h.count("%s") == 1 and "60" in h for h in HINTS),
+           "the six Onyx activation hints come through the localizer as they are, one %s each")
+    for n in (1, 2, 3):
+        ms = 3000 + (n - 1) * 1000 if patched else 3000
+        shown = [h.replace("%s", str(math.ceil(ms / 1000))) for h in HINTS]
+        expect(shown[0] == f"Onyx activated! Decreases the damage and armor-piercing of incoming bullets by 60% "
+                          f"for {ms // 1000} s." and all(f" {ms // 1000} " in s for s in shown),
+               f"{n} Onyx: the hud shows \"{shown[0]}\"")
     return checks
 
 
