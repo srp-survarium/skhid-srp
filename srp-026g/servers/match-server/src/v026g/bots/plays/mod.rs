@@ -38,6 +38,7 @@ pub mod hold_exit;
 pub mod hunt;
 pub mod intercept;
 pub mod late_denial;
+pub mod memo;
 pub mod pair_up;
 pub mod raid;
 pub mod retreat;
@@ -482,6 +483,8 @@ pub struct Ctx<'a> {
     pub mods: &'a Mods,
     pub tactics: &'a Tactics,
     pub tuning: &'a Tuning,
+    /// The match's kept answers to costly questions of the map (`memo`).
+    pub memo: &'a memo::Memo,
 }
 
 impl Ctx<'_> {
