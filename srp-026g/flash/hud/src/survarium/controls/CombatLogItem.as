@@ -20,14 +20,18 @@ package survarium.controls
       private var _colorCode:Array = [Colors.OTHER_PLAYER,Colors.ENEMY,Colors.PLAYER];
       
       private static const WALL:BitmapData = new CombatLogWallIcon();
-
+      
+      private static const RICOCHET:BitmapData = new CombatLogRicochetIcon();
+      
       private static const PAIN:BitmapData = new CombatLogPainIcon();
-
-      // How the victim died, after the weapon (the exe, patch 67: penetration_icon when the killing
-      // bullet went through something first, pain_icon when the pain pool killed); in 0.69's order,
-      // before the cause icon.
+      
+      // How the victim died, after the weapon (the exe, patch 67, 0.69d0's rules: penetration_icon when
+      // the killing bullet went through something first, ricochet_icon when it ricocheted; pain_icon
+      // when the pain pool killed); in 0.69d0's order, before the cause icon.
       private var _wallIcon:Bitmap = new Bitmap(WALL,PixelSnapping.ALWAYS);
-
+      
+      private var _ricochetIcon:Bitmap = new Bitmap(RICOCHET,PixelSnapping.ALWAYS);
+      
       private var _painIcon:Bitmap = new Bitmap(PAIN,PixelSnapping.ALWAYS);
       
       public var who_name:TextField;
@@ -77,6 +81,7 @@ package survarium.controls
             this.mastery_icon.gotoAndStop(data.mastery_icon);
          }
          this.showIcon(this._wallIcon,death && data.penetration_icon == 1);
+         this.showIcon(this._ricochetIcon,death && data.ricochet_icon == 1);
          this.showIcon(this._painIcon,death && data.pain_icon == 1);
          this.makeLayout();
       }
@@ -120,6 +125,7 @@ package survarium.controls
             x += this.object_icon.width + dx;
          }
          x = this.placeIcon(this._wallIcon,x,dx);
+         x = this.placeIcon(this._ricochetIcon,x,dx);
          x = this.placeIcon(this._painIcon,x,dx);
          if(this._data.extra_icon != 0 && this.extra_icon)
          {

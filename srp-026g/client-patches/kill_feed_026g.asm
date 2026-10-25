@@ -1,5 +1,5 @@
-; Patch 67 (build 2777): the kill feed shows a kill through a wall and a kill
-; by pain. The arena's block kill_feed.code (link_026g.py links it;
+; Patch 67 (build 2777): the kill feed shows a kill through a wall, a kill by
+; a ricochet and a kill by pain. The arena's block kill_feed.code (link_026g.py links it;
 ; patch_026g.py's KILL_FEED_HOOKS call the two entries by their names, and
 ; KILL_FEED_ARGUMENT widens one load). client_patch.md section 3.55; the
 ; rules: ../docs/notes/kill-feed-icons.md.
@@ -16,15 +16,17 @@
 ; who_name ... extra_icon, mastery_icon) and invokes root.add_log_message.
 ;
 ; - kill_feed_event, at 0x2DA3D1 (`mov [eax+4],bl / mov edx,[esi+120h]`, the
-;   node in eax): the cause icon, then +5 the flags: 1 when the bullet went
-;   through something before this hit and never ricocheted, and someone
-;   else killed (its trajectory's segments, +84h, one more for each pierce
-;   and each reflection (0x32EE20), not 0, its reflections, the byte +88h,
-;   0, the cause icon not 3: 0.69d0's rule for its penetration_icon, its
-;   generate_killed_event 0x2003046B0 from the hit's copies of the bullet's
-;   segments and reflections), 2 when the victim's pain pool is empty
-;   and the body and head pools are not (damage_model+108h's parts by name,
-;   0x2E58B0; a part's health +0A0h, a float clamped at 0). Both are the
+;   node in eax): the cause icon, then +5 the flags, 0.69d0's rule for its
+;   penetration_icon and ricochet_icon (its generate_killed_event 0x2003046B0,
+;   from the hit's copies of the bullet's segments and reflections), for a
+;   bullet when someone else killed (the cause icon not 3): 4 when the bullet
+;   ricocheted before this hit (its reflections, the byte +88h, not 0), else
+;   1 when it went through something (its trajectory's segments, +84h, one
+;   more for each pierce and each reflection (0x32EE20), not 0); 2 when the
+;   victim's pain pool is empty and the body and head pools are not
+;   (damage_model+108h's parts by name, 0x2E58B0; a part's health +0A0h, a
+;   float clamped at 0; one hit that empties pain and body or head together
+;   is a death by damage, the owner's rule). All are the
 ;   simulation's own state, the same in every game; nothing is written but
 ;   the node's byte, which only the hud reads;
 ; - KILL_FEED_ARGUMENT, at 0x23B6F0: the handler's `movzx edx,byte [edi+4]`
@@ -32,8 +34,9 @@
 ;   the flags in its second byte; on_player_killed reads its first alone
 ;   (0x2380EA);
 ; - kill_feed_row, at 0x23814F (`mov edx,[esp+30h] / mov ecx,[esp+2Ch]`, after
-;   extra_icon, before mastery_icon): the description's penetration_icon and
-;   pain_icon, 0 or 1 (GFx ints, set as extra_icon is), then the two moves.
+;   extra_icon, before mastery_icon): the description's penetration_icon,
+;   ricochet_icon and pain_icon, 0 or 1 (GFx ints, set as extra_icon is), then
+;   the two moves.
 BITS 32
 global kill_feed_event, kill_feed_row
 section .text
@@ -51,6 +54,7 @@ section .text
 %define WORLD 0x120                ; the player's game world
 %define WALL 1
 %define PAIN 2
+%define RICOCHET 4
 %define GFX_INT 3                  ; a GFx value's type: int (extra_icon's)
 %define SET_MEMBER 0x14            ; a GFx object interface's SetMember (thiscall: data, name, &value, is a
                                    ; display object; ret 10h)
@@ -74,7 +78,10 @@ kill_feed_event:
     cmp ecx, NO_KILLER
     je .pain                       ; no killer, or the victim himself
     cmp byte [ebp+REFLECTIONS], 0
-    jne .pain                      ; a ricochet (0.69d0 shows its ricochet icon then, not the wall)
+    je .wall
+    or bl, RICOCHET                ; a ricochet, before or after any pierce: no wall
+    jmp .pain
+.wall:
     cmp dword [ebp+SEGMENTS], 0
     je .pain                       ; straight from the muzzle
     or bl, WALL
@@ -116,8 +123,8 @@ part:
 .none:
     ret
 
-; on_player_killed at 0x23814F: the description gets penetration_icon and
-; pain_icon from the flags, as it got extra_icon; then the site's moves.
+; on_player_killed at 0x23814F: the description gets penetration_icon,
+; ricochet_icon and pain_icon from the flags, as it got extra_icon; then the site's moves.
 %macro SET_FLAG 2                  ; the name, the flag
     mov edx, [esp+ROW+OBJECT+4]
     mov ecx, [esp+ROW+OBJECT]
@@ -145,6 +152,7 @@ kill_feed_row:
     push ebx
     movzx ebx, byte [esp+ROW+ARGUMENT]
     SET_FLAG penetration_icon, WALL
+    SET_FLAG ricochet_icon, RICOCHET
     SET_FLAG pain_icon, PAIN
     pop ebx
     mov edx, [esp+4+OBJECT+4]
@@ -159,4 +167,5 @@ pain_text: db "pain", 0
 body_text: db "body", 0
 head_text: db "head", 0
 penetration_icon: db "penetration_icon", 0
+ricochet_icon: db "ricochet_icon", 0
 pain_icon: db "pain_icon", 0

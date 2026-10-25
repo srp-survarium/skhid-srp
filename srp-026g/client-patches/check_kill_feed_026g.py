@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 67 (kill_feed_026g.asm: the kill feed's wall and pain icons) in
+"""Run patch 67 (kill_feed_026g.asm: the kill feed's wall, ricochet and pain icons) in
 the default build on made-up game objects.
 
     python check_kill_feed_026g.py <original survarium.exe>
@@ -13,15 +13,17 @@ arena with them; the patch's three sites run from the game's own code:
   place +114h, its world +120h, its damage model +2E0h whose parts +108h are a
   list of named pools, health +0A0h) and bullet (ebp: its segments +84h, its
   reflections +88h), the cause icon in bl. The game's own part lookup
-  (0x2E58B0) runs. The node must be the original's but for +5: 1 when the
-  bullet has segments and no reflection and someone else killed (the cause
-  icon not 3; 0.69d0's penetration_icon), 2 when the pain pool is empty
-  and body and head are not; edx (the world), eax, ebx, esi, edi, ebp and esp
+  (0x2E58B0) runs. The node must be the original's but for +5, for a bullet
+  and someone else the killer (the cause icon not 3): 4 when the bullet has
+  a reflection (0.69d0's ricochet_icon), else 1 when it has segments (its
+  penetration_icon); 2 when the pain pool is empty and body and head are
+  not; edx (the world), eax, ebx, esi, edi, ebp and esp
   as the original's; the victim, its pools and the bullet unchanged. Cases:
   a bullet death, a pain death, both pools empty, the head empty, pain all
   but empty, a bullet through a wall, a ricochet, pierces and a reflection,
   through another player, through a wall with no killer, a headshot through
-  a wall, no bullet, no damage model, the parts in another order;
+  a wall, a ricochet to pain, a ricochet with no killer, a melee hit, no
+  bullet, no damage model, the parts in another order;
 - the argument: the hud's event handler (0x23B5F0) from 0x23B6F0 to its call
   of on_player_killed (0x23B704), edi = that node: the original pushes the
   cause icon as the fifth argument, the build the cause icon and the flags
@@ -30,8 +32,8 @@ arena with them; the patch's three sites run from the game's own code:
   its Invoke of root.add_log_message (0x2381A5), with that fifth argument, a
   made-up description object (its interface's SetMember a stub that records
   the member, the GFx value's type and data) and the hud: the original sets
-  mastery_icon; the build penetration_icon and pain_icon (ints, 0 or 1, the
-  flags) and then mastery_icon, and arrives with the registers, the frame and
+  mastery_icon; the build penetration_icon, ricochet_icon and pain_icon
+  (ints, 0 or 1, the flags) and then mastery_icon, and arrives with the registers, the frame and
   the value as the original's.
 """
 import struct
@@ -53,7 +55,7 @@ HUD, HOLDER, UI, MOVIE, DESCRIPTION = (OBJECTS + 0x8000 + 0x100 * i for i in ran
 REGS = (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI,
         UC_X86_REG_EBP)
 NAMES = ("infection", "body", "head", "pain", "left_leg")
-WALL, PAIN = 1, 2
+WALL, PAIN, RICOCHET = 1, 2, 4
 
 
 def bits(value):
@@ -196,8 +198,12 @@ def main():
         ("pain all but empty", {"pain": bits(1e-7), "body": empty}, 0, 0, 0, {}, 0),
         ("a toxic death: infection empty", {"infection": empty}, 0, 0, 3, {}, 0),
         ("through a wall to the body", {"body": empty}, 1, 0, 0, {}, WALL),
-        ("a ricochet to the body", {"body": empty}, 1, 1, 0, {}, 0),
-        ("two pierces and a ricochet (0.69d0: its ricochet, no wall)", {"body": empty}, 3, 1, 0, {}, 0),
+        ("a ricochet to the body", {"body": empty}, 1, 1, 0, {}, RICOCHET),
+        ("two pierces and a ricochet: the ricochet, no wall (0.69d0)", {"body": empty}, 3, 1, 0, {}, RICOCHET),
+        ("a ricochet, then a pierce: the ricochet, no wall", {"body": empty}, 2, 1, 0, {}, RICOCHET),
+        ("a ricochet to pain", {"pain": empty, "body": bits(0.5)}, 2, 2, 0, {}, RICOCHET | PAIN),
+        ("a ricochet, no killer or the victim himself", {"body": empty}, 1, 1, 3, {}, 0),
+        ("a melee hit (its bullet straight)", {"body": empty}, 0, 0, 0, {}, 0),
         ("through another player to the body", {"body": empty}, 1, 0, 0, {}, WALL),
         ("through a wall, no killer or the victim himself", {"body": empty}, 1, 0, 3, {}, 0),
         ("through a wall, a headshot", {"head": empty}, 1, 0, 1, {}, WALL),
@@ -235,6 +241,7 @@ def main():
         a, b = stock.row(cause), patched.row(fifth)
         mastery = (DESCRIPTION, 0x0DA7A, "mastery_icon", 3, 0, 1)
         want = [(DESCRIPTION, 0x0DA7A, "penetration_icon", 3, flags & WALL and 1, 1),
+                (DESCRIPTION, 0x0DA7A, "ricochet_icon", 3, flags & RICOCHET and 1, 1),
                 (DESCRIPTION, 0x0DA7A, "pain_icon", 3, flags & PAIN and 1, 1), mastery]
         ok = a[2] == [mastery] and b[2] == want and a[0] == b[0] and a[1] == b[1] \
             and a[3][:0x104] == b[3][:0x104]

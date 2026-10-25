@@ -4444,20 +4444,20 @@ def test_kill_feed(original, image, before):
     outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
                       and not block.va <= branch_target(t) < block.va + len(code)})
     pushed = lambda text: f"push dword {block.va + code.index(text + bytes(1)):#x}" in texts
-    check(outside == [0x2E58B0] and pushed(b"penetration_icon") and pushed(b"pain_icon")
+    check(outside == [0x2E58B0] and pushed(b"penetration_icon") and pushed(b"ricochet_icon") and pushed(b"pain_icon")
           and "kill_feed.state" not in linked.blocks
           and [t for t in texts if t.startswith("mov [") and "esp" not in t] == ["mov [eax+0x4],bl", "mov [eax+0x5],dl"],
           "it jumps to the part lookup (0x2E58B0) and calls nothing else of the game's (SetMember through the "
-          "description's interface), sets penetration_icon and pain_icon, writes the node's +4 and +5 and nothing "
+          "description's interface), sets penetration_icon, ricochet_icon and pain_icon, writes the node's +4 and +5 and nothing "
           "else outside its frame, and keeps no state")
     here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
     item = here("flash", "hud", "src", "survarium", "controls", "CombatLogItem.as")
-    check("data.penetration_icon == 1" in item and "data.pain_icon == 1" in item
-          and "new CombatLogWallIcon()" in item and "new CombatLogPainIcon()" in item
+    check("data.penetration_icon == 1" in item and "data.ricochet_icon == 1" in item and "data.pain_icon == 1" in item
+          and all(f"new {n}()" in item for n in ("CombatLogWallIcon", "CombatLogRicochetIcon", "CombatLogPainIcon"))
           and all(os.path.isfile(os.path.join(HERE, "..", "flash", "hud", "bitmaps", f"{n}.png"))
-                  for n in ("CombatLogWallIcon", "CombatLogPainIcon")),
-          "the hud movie's kill feed row shows penetration_icon and pain_icon (its bitmaps CombatLogWallIcon and "
-          "CombatLogPainIcon)")
+                  for n in ("CombatLogWallIcon", "CombatLogRicochetIcon", "CombatLogPainIcon")),
+          "the hud movie's kill feed row shows penetration_icon, ricochet_icon and pain_icon (its bitmaps "
+          "CombatLogWallIcon, CombatLogRicochetIcon and CombatLogPainIcon)")
 
 
 def test_spot(original, image, before):

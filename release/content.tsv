@@ -34,7 +34,7 @@ base	resources.db.patch_23	f504ed4ceba7642df009dede3405236a4774f728c500f736f5a49
 base	resources.db.patch_24	c87623b9f80238a6b9c21507bd194bfbce6622cfd26b3a6be66839c9046a21b4	revision 24: the exoskeleton bodies as armour without oxygen (pack below), the lobby movie with the rooms (the graphics srp-026g/flash/lobby_menu builds on)
 movie	cursor	-	the mouse cursor
 movie	debug_animations	-	the animation debug screen
-movie	hud	-	the match HUD (#264: hit marks and crosshair centred at any UI scale; the kill feed's wall and pain icons with exe patch 67)
+movie	hud	-	the match HUD (#264: hit marks and crosshair centred at any UI scale; the kill feed's wall, ricochet and pain icons with exe patch 67)
 movie	lobby_menu	-	the lobby: rooms, exchange, craft and upgrade windows, Optics, player kits, ...
 movie	login_menu	-	the login screen with the login hint
 movie	main_menu	-	the main menu with the FOV slider

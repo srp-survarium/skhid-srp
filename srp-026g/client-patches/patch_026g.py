@@ -464,18 +464,20 @@ Patches:
   the key (back at 0x26CCAE, al 1); while the movie says its interface is
   hidden (root.interface_hidden) any other key goes straight to the movie
   (back at 0x26CDD2), no window key or F6's Play acting;
-- the kill feed shows a kill through a wall and a kill by pain (patch 67,
+- the kill feed shows a kill through a wall, by a ricochet and by pain (patch 67,
   with the late join; docs/notes/kill-feed-icons.md). kill_feed_026g.asm
   (the arena's block kill_feed.code): generate_killed_event (0x2DA170, at
-  0x2DA3D1) writes after the event's cause icon a byte of flags: 1 when the
-  killing bullet went through something first and never ricocheted and
-  someone else killed (its segments +84h not 0, its reflections +88h 0, the
-  cause icon not 3: 0.69d0's penetration_icon rule), 2 when the victim's
-  pain pool is empty and its body and head pools are not; the hud's event handler (0x23B6F0) passes the word, so
-  on_player_killed's fifth argument carries them in its second byte, and
-  at 0x23814F the description gets penetration_icon and pain_icon (0 or 1)
-  for the hud movie's row. The simulation's own state, read alike in every
-  game; nothing a match computes changes;
+  0x2DA3D1) writes after the event's cause icon a byte of flags, for a
+  bullet and someone else the killer (the cause icon not 3), 0.69d0's
+  penetration_icon and ricochet_icon rules: 4 when it ricocheted (its
+  reflections +88h not 0), else 1 when it went through something first
+  (its segments +84h not 0); and 2 when the victim's pain pool is empty
+  and its body and head pools are not. The hud's event handler (0x23B6F0)
+  passes the word, so on_player_killed's fifth argument carries them in
+  its second byte, and at 0x23814F the description gets penetration_icon,
+  ricochet_icon and pain_icon (0 or 1) for the hud movie's row. The
+  simulation's own state, read alike in every game; nothing a match
+  computes changes;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2008,7 +2010,7 @@ def hide_ui_table_writes(linked):
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
 
-# The kill feed's wall and pain icons (patch 67, README; client_patch.md
+# The kill feed's wall, ricochet and pain icons (patch 67, README; client_patch.md
 # section 3.55; the rules: ../docs/notes/kill-feed-icons.md):
 # kill_feed_026g.asm in the arena's block kill_feed.code (ARENA below), two
 # entries called in place of the site's instructions (INLINE), and one load
@@ -2021,8 +2023,8 @@ HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 #   (the fifth argument of on_player_killed): the word, the flags its second
 #   byte (KILL_FEED_ARGUMENT);
 # - on_player_killed 0x237C70, `mov edx,[esp+30h] / mov ecx,[esp+2Ch]` at
-#   0x23814F (after extra_icon): kill_feed_row sets penetration_icon and
-#   pain_icon and does the two moves.
+#   0x23814F (after extra_icon): kill_feed_row sets penetration_icon,
+#   ricochet_icon and pain_icon and does the two moves.
 # No base relocation is under a site and no branch aims inside one.
 KILL_FEED_HOOKS = (
     (0x2DA3D1, bytes.fromhex("885804" "8b9620010000"), "kill_feed_event", 0xE8),   # the event's cause icon
@@ -2189,11 +2191,11 @@ INSTALLS = {
     0x26CCD2: (CALLEE, "lobby_menu::on_keyboard_action's get_binded_action (eax the binder, edi 2, esi the key, "
                        "the toggle's place pushed; `ret 4`): lobby, which on toggle_replay_ui returns to 0x26CCAE "
                        "instead", None, None),
-    # the kill feed's wall and pain icons, patch 67 (in `.srpx`)
+    # the kill feed's wall, ricochet and pain icons, patch 67 (in `.srpx`)
     0x2DA3D1: (INLINE, "generate_killed_event's `mov [eax+4],bl / mov edx,[esi+120h]` (eax the event, esi the "
                        "victim, ebp the bullet): event, which writes the cause icon, the flags and edx", None, None),
     0x23814F: (INLINE, "on_player_killed's `mov edx,[esp+30h] / mov ecx,[esp+2Ch]` before mastery_icon: row, "
-                       "which sets penetration_icon and pain_icon and does the two moves", None, None),
+                       "which sets penetration_icon, ricochet_icon and pain_icon and does the two moves", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -3395,7 +3397,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "the keys 1, 2 and 3 pick a kit while the kits are shown, "
                      "an option hides the other players' chat lines in a match, "
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
-                     "the kill feed tells a kill through a wall and a kill by pain, "
+                     "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
