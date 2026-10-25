@@ -290,6 +290,9 @@ pub(super) const ARRIVE_ABOVE_M: f32 = 0.6;
 /// floor's unevenness under the feet, well below the lowest jump (a
 /// pocket's rim 0.23 m up, 0.56 m off, was "walked" with no press).
 const ARRIVE_ON_LANDING_M: f32 = 0.15;
+// A landing counts as reached only below the lowest rim a pocket's exit
+// jumps to, or a low rim would be "walked" with no press.
+const _: () = assert!(ARRIVE_ON_LANDING_M < mapdata::grid::POCKET_EXIT_LOW_M);
 /// A low leg this near ahead, metres, is walked crouched already.
 pub const LOW_AHEAD_M: f32 = 1.0;
 /// The hop's trail keeps this many walking ticks (4 s: more than a

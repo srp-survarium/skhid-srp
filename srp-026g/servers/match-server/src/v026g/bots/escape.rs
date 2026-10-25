@@ -151,6 +151,12 @@ impl Board {
             .collect()
     }
 
+    /// [`Self::learn`], for tests of a team that got out by itself.
+    #[cfg(test)]
+    pub(super) fn learn_for_test(&self, team: u8, pocket: PocketId, exit: PocketExit) {
+        self.learn(team, pocket, exit);
+    }
+
     fn learn(&self, team: u8, pocket: PocketId, exit: PocketExit) {
         let mut shared = self.shared();
         shared

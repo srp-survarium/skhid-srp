@@ -7298,6 +7298,25 @@ mod pocket_runs {
         assert_eq!(gave_up, 1);
     }
 
+    /// A way out is known once the team got out by one (`Board::learn`):
+    /// the 1.2 m pit has only sprint exits (no bot sprints), so none is
+    /// known until a bot of the team gets out by one, and then for that
+    /// team only.
+    #[test]
+    fn a_way_out_is_known_once_the_team_got_out_by_it() {
+        let world = pit(1.2);
+        let grid = &world.grid;
+        let board = escape::Board::default();
+        let bottom = grid.locate(Vec3::new(32.0, -1.2, 20.0), 0.3).unwrap();
+        let pocket = grid.pocket_of(bottom).unwrap();
+        let exits = grid.pocket_exits(bottom);
+        assert!(!exits.is_empty() && exits.iter().all(|e| e.jump != mapdata::ExitJump::Standing));
+        assert!(!escape::way_out(grid, &board, 0, pocket, false));
+        board.learn_for_test(0, pocket, exits[0]);
+        assert!(escape::way_out(grid, &board, 0, pocket, false));
+        assert!(!escape::way_out(grid, &board, 1, pocket, false));
+    }
+
     #[test]
     fn a_bot_in_a_pit_with_a_standing_exit_jumps_out_and_goes_on() {
         let world = pit(0.9);
