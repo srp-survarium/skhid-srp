@@ -3031,3 +3031,46 @@ va	status	ref_021d	name
 0x003317c0	inferred-medium		survarium::dispersion_calculator::get_injury_penalty
 0x002fbc20	inferred-medium		survarium::weapon_user_animations_selector::move_predicate
 0x002fbc50	inferred-medium		survarium::weapon_user_animations_selector::not_move_predicate
+0x00336b70	inferred-high	0x00206909	survarium::player_logic_jump_state::player_logic_jump_state
+0x00337330	inferred-medium	0x00206d6a	survarium::player_logic_jump_state::is_ready_for_transition
+0x00336a10	inferred-high	0x002067ea	survarium::player_logic_sprint_state::initialize
+0x00336a50	inferred-high	0x00206817	survarium::player_logic_sprint_state::finalize
+0x00336a90	inferred-medium		survarium::player_logic_sprint_state::is_ready_for_transition
+0x003424d0	inferred-medium	0x0020d091	survarium::jump_logic_state_prepare::selected_animations
+0x00342540	inferred-medium	0x0020d183	survarium::jump_logic_state_prepare::initialize
+0x003425e0	inferred-medium	0x0020d271	survarium::jump_logic_state_prepare::finalize
+0x00342620	inferred-medium	0x0020d28e	survarium::jump_logic_state_prepare::is_ready_for_transition
+0x00342630	inferred-medium	0x0020d292	survarium::jump_logic_state_prepare::get_main_lexeme
+0x00342940	inferred-medium	0x0020d33b	survarium::jump_logic_state_prepare::get_look_lexeme
+0x003375a0	inferred-medium		survarium::player_logic_jump_state::get_prepare_time_factor
+0x00344440	inferred-medium		survarium::jump_prepare_interval_visitor::jump_prepare_interval_visitor
+0x00344640	inferred-medium		survarium::jump_prepare_interval_visitor::visit
+0x002fba50	inferred-high	0x001e0b9a	survarium::weapon_user_animations_selector::initialize
+0x002fba00	inferred-medium		survarium::supporting_leg_selector::visit
+0x002dc010	inferred-medium		survarium::base_player::get_max_movement_speed
+0x002d7990	inferred-high	0x001d3ab1	survarium::get_air_control_vector
+0x002d78b0	inferred-medium		survarium::base_player::visit_animations
+0x002f0b00	inferred-medium		survarium::movement_speed_params::load
+0x002d6420	inferred-medium		survarium::player_stamina::can_jump
+0x00329710	inferred-medium		survarium::player_stamina::spend_for_jump
+0x002d5cd0	inferred-medium		survarium::player_params_modifiers_container::is_positive
+0x00397c20	inferred-high	0x002081f7	survarium::victory_item_core::can_sprint
+0x00397c20	inferred-high	0x002081f7	survarium::victory_item_core::is_sprinting
+0x00372420	inferred-medium		survarium::empty_hands::can_sprint
+0x002dbcd0	inferred-medium		survarium::base_player::update_stagger
+0x002dc0f0	inferred-medium		survarium::base_player::recent_hits_push_back
+0x00300f40	inferred-high	0x001e77ad	survarium::victory_item_core::deactivate
+0x00300e50	inferred-high	0x001e7730	survarium::victory_item_core::drop
+0x00246630	inferred-high	0x00186263	survarium::victory_item::drop
+0x00300dc0	inferred-medium		survarium::victory_item_core::activate_physics
+0x00301140	inferred-medium		survarium::victory_item_core::sync_with_physics
+0x00344a70	inferred-medium		survarium::victory_item_core_carry_state::initialize
+0x00344b30	inferred-medium		survarium::victory_item_core_base_state::execute
+0x00344c30	inferred-medium		survarium::victory_item_core_carry_state::finalize
+0x00344c90	inferred-medium		survarium::victory_item_core_base_state::tracks_velocity
+0x00344e40	inferred-medium		survarium::victory_item_core_base_state::compute_item_world_transform
+0x00343c60	inferred-medium		survarium::jump_logic_state_start::get_main_lexeme
+0x0030e5c0	inferred-medium		survarium::weapon_core_fire_state::computed_fire_animation_time_scale (GUESS; (end - start) / 30 x the fire parameter +0xC)
+0x00332330	inferred-medium		survarium::load_bullet_damage_parameters
+0x0030a350	inferred-medium		survarium::grenade_set_core::get_hit_parameters
+0x00246ef0	inferred-medium		survarium::base_player::get_params_modifiers_container

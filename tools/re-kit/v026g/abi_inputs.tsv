@@ -4503,3 +4503,37 @@ va	name	location	role	basis
 0x0007d590	vostok::physics::bullet_character_controller::step_forward	entry ESP+4	bullet_character_controller (passed on in ECX)	observed
 0x0007ea80	vostok::physics::bullet_character_controller::step_down_sweep_test_impl	ESI	bullet_character_controller	observed
 0x0007ea80	vostok::physics::bullet_character_controller::step_down_sweep_test_impl	entry ESP+4	float signed down distance (negative = down)	observed
+0x00337040	survarium::player_logic_jump_state::initialize	ECX	player_logic_jump_state (+0x18 selector, +0x1C base_player)	observed
+0x00337660	survarium::get_jump_animation_index	EAX	base index	observed
+0x00337660	survarium::get_jump_animation_index	entry ESP+4	jump code 1-12	observed
+0x00337660	survarium::get_jump_animation_index	CL	from_right_leg	observed
+0x002d6510	survarium::get_move_direction	EAX	player_input (actions mask at +4; base_player+0x32C)	observed
+0x002f1220	survarium::player_input::is_sprinting	EAX	player_input (base_player+0x32C)	observed
+0x002dc010	survarium::base_player::get_max_movement_speed	EAX	base_player	observed
+0x002dbf40	survarium::base_player::can_sprint	entry ESP+4	base_player	observed
+0x003375a0	survarium::player_logic_jump_state::get_prepare_time_factor	EAX	player_logic_jump_state	observed
+0x002fba50	survarium::weapon_user_animations_selector::initialize	ESI	weapon_user_animations_selector (+0x44 base_player)	observed
+0x002d7990	survarium::get_air_control_vector	EAX	player_input (keys held now)	observed
+0x002d7990	survarium::get_air_control_vector	entry ESP+4	output vector	observed
+0x002d7990	survarium::get_air_control_vector	entry ESP+8	speed (float)	observed
+0x002d7990	survarium::get_air_control_vector	entry ESP+12	jump type (m_jump_type)	observed
+0x002d78b0	survarium::base_player::visit_animations	EAX	base_player (mixer at +0xE850)	observed
+0x002d78b0	survarium::base_player::visit_animations	entry ESP+4	visitor	observed
+0x002d6420	survarium::player_stamina::can_jump	EDI	player_stamina (base_player+0x6C0)	observed
+0x00336b70	survarium::player_logic_jump_state::player_logic_jump_state	EAX	this	observed
+0x00336b70	survarium::player_logic_jump_state::player_logic_jump_state	ECX	owner selector (stored at +0x18)	observed
+0x002dbcd0	survarium::base_player::update_stagger	EAX	base_player	observed
+0x002dbcd0	survarium::base_player::update_stagger	entry ESP+4	the time (ms)	observed
+0x002dc0f0	survarium::base_player::recent_hits_push_back	ECX	the vector (base_player+0x2E8)	observed
+0x002dc0f0	survarium::base_player::recent_hits_push_back	EAX	the entry {u32 time, f32 stopping speed}	observed
+0x00300f40	survarium::victory_item_core::deactivate	ECX	victory_item_core	observed
+0x00300f40	survarium::victory_item_core::deactivate	entry ESP+4	flag (1 from tick_active_object)	observed
+0x00300e50	survarium::victory_item_core::drop	ECX	victory_item_core	observed
+0x00300dc0	survarium::victory_item_core::activate_physics	ECX	victory_item_core	observed
+0x00301140	survarium::victory_item_core::sync_with_physics	ECX	victory_item_core	observed
+0x00344c90	survarium::victory_item_core_base_state::tracks_velocity	ECX	the state (+0x1C item)	observed
+0x0030e5c0	survarium::weapon_core_fire_state::computed_fire_animation_time_scale	EDI	the state animation resources (as 0x30D750)	inferred
+0x0030e5c0	survarium::weapon_core_fire_state::computed_fire_animation_time_scale	stack+4	float rate (fire parameter +0xC, LIKELY rounds_per_minute / 60)	inferred
+0x00332330	survarium::load_bullet_damage_parameters	ESI	the config node	observed
+0x00332330	survarium::load_bullet_damage_parameters	stack+4	output block (weapon +0x51C)	observed
+0x00246ef0	survarium::base_player::get_params_modifiers_container	EAX	the player	observed

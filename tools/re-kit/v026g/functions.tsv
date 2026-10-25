@@ -1819,3 +1819,7 @@ va	status	ref_021d	name
 0x0007de10	reviewed	0x0021eebb	vostok::physics::bullet_character_controller::impassable_slope
 0x0007e1b0	reviewed	0x0021f2f1	vostok::physics::bullet_character_controller::step_down
 0x0007f100	reviewed	0x0021fc66	vostok::physics::bullet_character_controller::setup_shape_dim
+0x00337040	reviewed	0x00206b2b	survarium::player_logic_jump_state::initialize
+0x00337660	reviewed	0x00206faa	survarium::get_jump_animation_index
+0x002d6510	reviewed	0x001d2791	survarium::get_move_direction
+0x002f1220	reviewed	0x001d2772	survarium::player_input::is_sprinting
