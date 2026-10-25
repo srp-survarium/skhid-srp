@@ -41,6 +41,19 @@ the throw, contact, numbers and particles retail's (0.69d0's: the owner's pick, 
   and sound_explosion of a `subtype` 2 grenade, the Sponge's (0x68941D -> 0x7313C0), its damage
   zone cook reads activated_sound (0x67025D), its particles hold no sound event, and neither
   0.46c2 nor 0.69d0 holds a sound file of the Sponge.
+- How retail plays it (0.46c2's code, traced 2026-10-25): the zone cook keeps the activated sounds
+  at the client zone's +590h (0x670262), one a sound point. The zone's update delegate 0x6F3E00
+  (its constructor stores it at +5C8h, 0x6F3378) reads the state each frame: off, on, or on and
+  hitting (+1A0h, +2A9h). Leaving off it calls 0x6F37E0, which plays each activated sound once
+  through 0x6F35D0 at its sound point's position (+588h + 40h x i, +30h; the sound world's
+  0x8C88E0, no volume of its own), then the activated particles (+5B4h, 0x8B47A0), then
+  starts the idle sounds and particles (0x6F3A10; the Sponge names none). Nothing on that path
+  reads the zone's kind or who switched it on, and no other sound is chosen there. So the F1
+  plays once at the cloud's start, at the explosion point, in retail as in ours (0.26g's
+  damage_zone::draw 0x2993F0 -> play_activated 0x298D80 -> survarium::play_sound 0x657C0).
+  Inferred, not traced: that 0.46c2's Sponge zone is that class (its config's
+  game_object_type and lib_name are "damage_zone", made by the damage zone cook that reads
+  activated_sound).
 - At its spawn in the anomaly: 0.69d0's `pre_mochalka1`.
 - Consumed at the explosion (out of its slot); the anomaly spawns it again later, as any
   artefact.
