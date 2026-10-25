@@ -76,7 +76,7 @@ mod world_facts;
 mod zone_runs;
 
 use tallies::*;
-use tallies::{fight_tally, owner_tally};
+use tallies::{fight_tally, owner};
 use bench::*;
 pub(crate) use camper::*;
 use soak::*;

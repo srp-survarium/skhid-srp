@@ -306,7 +306,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
 /// the match server's loop does with nobody sending, each part of the poll
 /// timed (the stand-in's own time not counted). `SRP_BENCH_SECONDS` sets
 /// a match's length (240 s; 600 s is the owner's test, for the
-/// `owner-test` counts of [`owner_tally`]).
+/// `owner-test` counts of [`owner`]).
 ///
 /// ```text
 /// SRP_MAPDATA_DIR=<dir> SRP_BOT_ROUTES=<json> cargo test -p match-server --release real_bot_cost -- --ignored --nocapture
@@ -588,7 +588,7 @@ pub(crate) fn real_bot_cost() {
             bots.bench_human = human.as_ref().map(|h| h.place);
             let mut blocks = BlockTally::default();
             let mut hits = HitTally::default();
-            let mut owner = owner_tally::OwnerTally::new(game.bodies.len());
+            let mut owner = owner::OwnerTally::new(game.bodies.len());
             bots.bench_camper = std::env::var("SRP_BENCH_CAMPER")
                 .ok()
                 .and_then(|v| v.parse().ok())

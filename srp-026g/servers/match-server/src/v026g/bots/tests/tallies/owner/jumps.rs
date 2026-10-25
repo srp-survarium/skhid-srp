@@ -1,0 +1,548 @@
+use super::*;
+
+/// The wrong-jump detector (`jumps/detect.py`, `jumps.md` §9, final): its
+/// flags, the second numbers (counted, but alone they make no press
+/// wrong), and the outcome flags (a failed jump).
+pub(crate) const FLAGS: [&str; 16] = [
+    "TOO_LOW",
+    "NO_SPRINT",
+    "PRESSED_LOW",
+    "STAND_TURN",
+    "SHORT_RUNUP",
+    "FWD_RELEASED",
+    "FWD_RELEASED_085",
+    "BACK_SIDE",
+    "IN_PLACE",
+    "REPEAT",
+    "LINK_AGAIN",
+    "NOT_UP",
+    "UP_THEN_DOWN",
+    "PRESSED_UP",
+    "NOT_FREED",
+    "DROPPED",
+];
+
+pub(crate) const SECOND_NUMBERS: [&str; 2] = ["FWD_RELEASED_085", "LINK_AGAIN"];
+
+pub(crate) const OUTCOMES: [&str; 7] = [
+    "REPEAT",
+    "LINK_AGAIN",
+    "NOT_UP",
+    "UP_THEN_DOWN",
+    "PRESSED_UP",
+    "NOT_FREED",
+    "DROPPED",
+];
+
+/// A link's rise a jump makes, m: with sprint (not carrying), without.
+pub(crate) const REACH_M: f32 = 1.30;
+
+pub(crate) const SPRINTLESS_M: f32 = 1.00;
+
+/// Pressed this far under the take-off, m.
+pub(crate) const PRESSED_LOW_M: f32 = 0.30;
+
+/// The run-up: a forward run under this many ticks; with this many still
+/// ticks right before it; gaps of up to this many ticks with no walk key
+/// bridged; looked for this many ticks back.
+pub(crate) const RUN_TICKS: usize = 7;
+
+pub(crate) const STILL_TICKS: usize = 4;
+
+pub(crate) const RUN_GAP_TICKS: usize = 2;
+
+pub(crate) const RUN_LOOK_TICKS: usize = 30;
+
+/// Forward let go this many ticks after the press, at most (and the second
+/// number's `CARRY_S` 0.85 s).
+pub(crate) const RELEASED_TICKS: usize = 5;
+
+pub(crate) const CARRY_TICKS: usize = 17;
+
+/// A press again within this, ms, and this near the last, m.
+pub(crate) const REPEAT_MS: u32 = 3_000;
+
+pub(crate) const REPEAT_M: f32 = 2.0;
+
+/// A route link pressed again within this, ms (its take-off and landing
+/// both within [`LINK_M`]).
+pub(crate) const LINK_AGAIN_MS: u32 = 10_000;
+
+pub(crate) const LINK_M: f32 = 0.3;
+
+/// Up a link: the feet this close under the landing, m; looked for this
+/// many ticks after the press (0.2-2.2 s), and needing a record this long.
+pub(crate) const UP_SLACK_M: f32 = 0.35;
+
+pub(crate) const UP_FROM_TICKS: usize = 4;
+
+pub(crate) const UP_TO_TICKS: usize = 44;
+
+pub(crate) const UP_SEEN_TICKS: usize = 64;
+
+/// Up, then down: links rising more than this, m; back on the take-off
+/// within this many ticks, within this of it, m; or the link pressed
+/// again within this, ms.
+pub(crate) const RISE_MIN_M: f32 = 0.4;
+
+pub(crate) const DOWN_TICKS: usize = 50;
+
+pub(crate) const DOWN_FAR_M: f32 = 3.5;
+
+pub(crate) const AGAIN_MS: u32 = 6_000;
+
+/// Pressed while already up: within this of the landing, m.
+pub(crate) const PRESSED_UP_NEAR_M: f32 = 1.5;
+
+/// Not freed: the jump watch's 3 s; moved under this when it ended by a
+/// stuck watch or another press, or under [`WENT_ON_M`] when it went on;
+/// or stood at the press and every half second 1.0-3.2 s after.
+pub(crate) const FREED_MS: u32 = 3_000;
+
+pub(crate) const FREED_M: f32 = 1.0;
+
+pub(crate) const WENT_ON_M: f32 = 0.5;
+
+pub(crate) const STOOD_MPS: f32 = 0.6;
+
+pub(crate) const STOOD_TICKS: (usize, usize) = (20, 64);
+
+/// Stalls (§9.4): walking forward under this, m/s, moving under this
+/// between seconds, m, for this long, s; a ledge ahead this high (missed
+/// jump; step), this far ahead and at most this to the side, m; missed
+/// when no press came from this before it, ms, or the first came this
+/// late into it, ms.
+pub(crate) const STALL_MPS: f32 = 0.6;
+
+pub(crate) const STALL_MOVE_M: f32 = 0.5;
+
+pub(crate) const STALL_S: f32 = 1.8;
+
+pub(crate) const LEDGES: [(f32, f32); 2] = [(0.6, 1.0), (0.3, 0.6)];
+
+pub(crate) const LEDGE_AHEAD_M: (f32, f32) = (0.25, 1.1);
+
+pub(crate) const LEDGE_SIDE_M: f32 = 0.4;
+
+pub(crate) const MISSED_BEFORE_MS: u32 = 500;
+
+pub(crate) const MISSED_LATE_MS: u32 = 2_000;
+
+/// A jump press.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Press {
+    pub(crate) place: Place,
+    pub(crate) t: u32,
+    pub(crate) feet: Vec3,
+    pub(crate) by: &'static str,
+    /// The route's take-off and landing, for a route jump.
+    pub(crate) route: Option<(Vec3, Vec3)>,
+    pub(crate) carrying: bool,
+}
+
+/// The run-up before a press at record `ri` (§9.2): the forward run's
+/// ticks (no back key; gaps of up to [`RUN_GAP_TICKS`] with no walk key
+/// bridged; a strafe or back key ends it), and the ticks with no walk key
+/// right before it, within [`RUN_LOOK_TICKS`] of the press.
+pub(crate) fn run_up(recs: &[Rec], ri: usize) -> (usize, usize) {
+    let lo = ri.saturating_sub(RUN_LOOK_TICKS);
+    let (mut k, mut start, mut gap) = (ri, ri, 0);
+    while k > lo {
+        let keys = recs[k - 1].keys;
+        if keys & key::FORWARD != 0 && keys & key::BACK == 0 {
+            k -= 1;
+            start = k;
+            gap = 0;
+        } else if keys & WALK_KEYS == 0 && gap < RUN_GAP_TICKS {
+            k -= 1;
+            gap += 1;
+        } else {
+            break;
+        }
+    }
+    let (mut k, mut still) = (start, 0);
+    while k > lo && recs[k - 1].keys & WALK_KEYS == 0 {
+        k -= 1;
+        still += 1;
+    }
+    (ri - start, still)
+}
+
+/// A floor `lo`-`hi` m above `feet`, [`LEDGE_AHEAD_M`] ahead along the
+/// facing `yaw` and at most [`LEDGE_SIDE_M`] to its side (`gridprobe`).
+pub(crate) fn ledge_ahead(grid: &WalkGrid, feet: Vec3, yaw: f32, lo: f32, hi: f32) -> bool {
+    let (dx, dz) = (-yaw.sin(), yaw.cos());
+    let r = LEDGE_AHEAD_M.1 + 0.1;
+    grid.floors_in([feet.x - r, feet.z - r, feet.x + r, feet.z + r])
+        .any(|node| {
+            let p = grid.position(node);
+            let (x, z) = (p.x - feet.x, p.z - feet.z);
+            let along = x * dx + z * dz;
+            let side = (x * dz - z * dx).abs();
+            let up = p.y - feet.y;
+            (LEDGE_AHEAD_M.0..=LEDGE_AHEAD_M.1).contains(&along)
+                && side <= LEDGE_SIDE_M
+                && (lo..=hi).contains(&up)
+        })
+}
+
+/// Up a link to `to` at a record `dt` s after the press (§9.3 `NOT_UP`):
+/// alive, the feet within [`UP_SLACK_M`] under the landing (at or over it
+/// in the air), near enough the landing for the time.
+pub(crate) fn is_up(r: &Rec, to: Vec3, dt: f32) -> bool {
+    let feet_up = if r.air {
+        r.feet.y >= to.y
+    } else {
+        r.feet.y >= to.y - UP_SLACK_M
+    };
+    r.alive && feet_up && r.feet.distance_xz(to) <= (1.5 + 3.5 * (dt - 0.6)).min(4.0)
+}
+
+impl OwnerTally {
+    /// The flags of press `i` of `presses` (sorted by place and time),
+    /// `jumps.md` §9.2-9.3.
+    pub(crate) fn press_flags(&self, presses: &[Press], i: usize) -> Vec<&'static str> {
+        let p = &presses[i];
+        let recs = &self.recs[p.place];
+        let mut flags = Vec::new();
+        if recs.is_empty() {
+            return flags;
+        }
+        let ri = self.index(p.t).min(recs.len() - 1);
+        let keys = recs[ri].keys;
+        let forward = keys & key::FORWARD != 0;
+        let walk = keys & WALK_KEYS;
+        let sprint = forward && keys & key::SPRINT != 0;
+        // The same bot's presses before and after this one.
+        let first = presses[..i]
+            .iter()
+            .rposition(|q| q.place != p.place)
+            .map_or(0, |k| k + 1);
+        let before = &presses[first..i];
+        let after = presses[i + 1..].iter().take_while(|q| q.place == p.place);
+        let same_link = |q: &Press| match (p.route, q.route) {
+            (Some((a, b)), Some((c, d))) => (a - c).length() <= LINK_M && (b - d).length() <= LINK_M,
+            _ => false,
+        };
+
+        // Form.
+        if let Some((from, to)) = p.route {
+            let rise = to.y - from.y;
+            if rise > REACH_M || (rise > SPRINTLESS_M && (sprint || p.carrying)) {
+                flags.push("TOO_LOW");
+            } else if rise > SPRINTLESS_M {
+                flags.push("NO_SPRINT");
+            }
+            if from.y - p.feet.y > PRESSED_LOW_M {
+                flags.push("PRESSED_LOW");
+            }
+        }
+        if forward && matches!(p.by, "route" | "hop") {
+            let (run, still) = run_up(recs, ri);
+            if run < RUN_TICKS {
+                flags.push(if still >= STILL_TICKS {
+                    "STAND_TURN"
+                } else {
+                    "SHORT_RUNUP"
+                });
+            }
+        }
+        if forward && p.by == "route" {
+            let off = (ri + 1..recs.len())
+                .position(|k| recs[k].keys & key::FORWARD == 0)
+                .map(|o| o + 1);
+            match off {
+                Some(o) if o <= RELEASED_TICKS => flags.push("FWD_RELEASED"),
+                Some(o) if o <= CARRY_TICKS => flags.push("FWD_RELEASED_085"),
+                _ => {}
+            }
+        }
+        if !forward && walk & (key::BACK | key::LEFT | key::RIGHT) != 0 {
+            flags.push("BACK_SIDE");
+        }
+        if walk == 0 {
+            flags.push("IN_PLACE");
+        }
+
+        // Outcome.
+        if before
+            .last()
+            .is_some_and(|q| p.t <= q.t + REPEAT_MS && p.feet.distance_xz(q.feet) <= REPEAT_M)
+        {
+            flags.push("REPEAT");
+        }
+        if p.route.is_some() && before.iter().any(|q| p.t <= q.t + LINK_AGAIN_MS && same_link(q)) {
+            flags.push("LINK_AGAIN");
+        }
+        if let Some((from, to)) = p.route {
+            let rise = to.y - from.y;
+            let last = recs.len() - 1;
+            let died = (ri..=(ri + UP_TO_TICKS).min(last)).any(|k| !recs[k].alive);
+            let up_at = (ri + UP_FROM_TICKS..=(ri + UP_TO_TICKS).min(last))
+                .find(|&k| is_up(&recs[k], to, (k - ri) as f32 * TICK_S));
+            if up_at.is_none() && !died && ri + UP_SEEN_TICKS <= last {
+                flags.push("NOT_UP");
+            }
+            if rise > RISE_MIN_M {
+                if let Some(u) = up_at {
+                    let link = (to.x - from.x).hypot(to.z - from.z).max(1e-3);
+                    let on_take_off = |r: &Rec| {
+                        let along = ((r.feet.x - from.x) * (to.x - from.x)
+                            + (r.feet.z - from.z) * (to.z - from.z))
+                            / link;
+                        r.alive
+                            && !r.air
+                            && (r.feet.y - from.y).abs() <= UP_SLACK_M
+                            && r.feet.distance_xz(from) <= DOWN_FAR_M
+                            && along <= link
+                    };
+                    let back = (u + 1..=(ri + DOWN_TICKS).min(last)).any(|k| on_take_off(&recs[k]));
+                    let again = after.clone().any(|q| {
+                        q.t <= p.t + AGAIN_MS && same_link(q) && q.feet.y < to.y - UP_SLACK_M
+                    });
+                    if back || again {
+                        flags.push("UP_THEN_DOWN");
+                    }
+                }
+                let r = &recs[ri];
+                if !r.air
+                    && r.feet.y >= to.y - UP_SLACK_M.min(rise / 4.0)
+                    && r.feet.distance_xz(to) <= PRESSED_UP_NEAR_M
+                {
+                    flags.push("PRESSED_UP");
+                }
+            }
+        }
+        if matches!(p.by, "hop" | "unstick") {
+            let moved_at = |t: u32| {
+                recs.get(self.index(t))
+                    .filter(|r| r.alive)
+                    .map(|r| r.feet.distance_xz(p.feet))
+            };
+            let next = after.clone().next().map(|q| q.t).filter(|&t| t <= p.t + FREED_MS);
+            let stuck = self.stuck_notes[p.place]
+                .iter()
+                .copied()
+                .find(|&t| t > p.t && t <= p.t + FREED_MS);
+            let watched = match next.into_iter().chain(stuck).min() {
+                Some(t) => moved_at(t).is_some_and(|m| m < FREED_M),
+                None => moved_at(p.t + FREED_MS).is_some_and(|m| m < WENT_ON_M),
+            };
+            let stood = recs[ri].speed < STOOD_MPS
+                && ri + STOOD_TICKS.1 < recs.len()
+                && (ri + STOOD_TICKS.0..=ri + STOOD_TICKS.1).step_by(TPS / 2).all(|k| {
+                    let r = &recs[k];
+                    r.alive && r.feet.distance_xz(p.feet) <= FREED_M && r.speed < STOOD_MPS
+                });
+            if watched || stood {
+                flags.push("NOT_FREED");
+            }
+        }
+        // No jump came of it: not in the air 100-400 ms after, on the
+        // ground at 400 ms, alive a second on.
+        if ri + TPS < recs.len()
+            && !(ri + 2..ri + 8).any(|k| recs[k].air)
+            && recs[ri + 8].alive
+            && !recs[ri + 8].air
+            && recs[ri + TPS].alive
+        {
+            flags.push("DROPPED");
+        }
+        flags
+    }
+
+    /// One place's stalls at a ledge (§9.4): [missed jumps, stalls at a
+    /// step, stalls]. From a sample a second.
+    pub(crate) fn stalls(&self, place: Place, grid: &WalkGrid, presses: &[Press]) -> [u32; 3] {
+        let recs = &self.recs[place];
+        let samples: Vec<usize> = (0..recs.len() / TPS).map(|s| s * TPS).collect();
+        let ok = |k: usize| {
+            let r = &recs[k];
+            r.alive
+                && !r.air
+                && r.keys & key::FORWARD != 0
+                && r.keys & key::BACK == 0
+                && r.speed < STALL_MPS
+        };
+        let mut out = [0u32; 3];
+        let mut i = 0;
+        while i < samples.len() {
+            if !ok(samples[i]) {
+                i += 1;
+                continue;
+            }
+            let mut j = i;
+            while j + 1 < samples.len()
+                && ok(samples[j + 1])
+                && recs[samples[j]].feet.distance_xz(recs[samples[j + 1]].feet) < STALL_MOVE_M
+            {
+                j += 1;
+            }
+            let (k0, k1) = (samples[i], samples[j]);
+            if (k1 - k0) as f32 * TICK_S >= STALL_S {
+                out[2] += 1;
+                let (t0, t1) = (self.time_of(k0), self.time_of(k1));
+                let pressed = presses
+                    .iter()
+                    .filter(|p| p.place == place && p.t + MISSED_BEFORE_MS >= t0 && p.t <= t1)
+                    .map(|p| p.t)
+                    .min();
+                if pressed.is_none_or(|t| t > t0 + MISSED_LATE_MS) {
+                    let r = &recs[k0];
+                    if let Some(c) = LEDGES
+                        .iter()
+                        .position(|&(lo, hi)| ledge_ahead(grid, r.feet, r.yaw, lo, hi))
+                    {
+                        out[c] += 1;
+                    }
+                }
+            }
+            i = j + 1;
+        }
+        out
+    }
+}
+
+/// The bots' jumps' flags, by name.
+pub(crate) fn flags_of(json: &serde_json::Value, flag: &str) -> u64 {
+    json["jump_flags"][flag].as_u64().unwrap_or(0)
+}
+
+#[test]
+pub(crate) fn a_route_press_from_a_standstill_too_high_with_forward_let_go_is_flagged() {
+    let (mut game, mut tally) = made_up(&[0, 0]);
+    play(&mut game, &mut tally, 200, |k, game| {
+        // Bot 0: walks, stands 7 ticks, 3 ticks of forward, presses at
+        // tick 100 for a 1.4 m rise, lets forward go 3 ticks on; its body
+        // never gets up.
+        let keys0 = match k {
+            0..90 => key::FORWARD,
+            90..97 => 0,
+            97..100 => key::FORWARD,
+            100 => key::FORWARD | key::JUMP,
+            101..103 => key::FORWARD,
+            _ => 0,
+        };
+        // Bot 1 (the near miss): runs into its press for a 0.9 m rise,
+        // holds forward on, and is up half a second later.
+        let keys1 = match k {
+            100 => key::FORWARD | key::JUMP,
+            0..121 => key::FORWARD,
+            _ => 0,
+        };
+        put(game, 0, 10.0, 10.0, keys0);
+        put(game, 1, 10.0, 20.0, keys1);
+        if k >= 110 {
+            game.bodies[1].feet = Vec3::new(10.8, 0.9, 20.0);
+        }
+        for body in &mut game.bodies {
+            body.air_until = if (100..116).contains(&k) { game.tick + TICK_MS } else { 0 };
+        }
+        let mut nows = vec![bot_now(), bot_now()];
+        if k == 100 {
+            let low = Vec3::new(10.0, 0.0, 10.0);
+            nows[0].as_mut().unwrap().jump = Some(("route", Some((low, Vec3::new(11.0, 1.4, 10.0)))));
+            let low = Vec3::new(10.0, 0.0, 20.0);
+            nows[1].as_mut().unwrap().jump = Some(("route", Some((low, Vec3::new(11.0, 0.9, 20.0)))));
+        }
+        nows
+    });
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["presses"], 2);
+    for (flag, count) in [
+        ("TOO_LOW", 1),
+        ("NO_SPRINT", 0),
+        ("STAND_TURN", 1),
+        ("SHORT_RUNUP", 0),
+        ("FWD_RELEASED", 1),
+        ("FWD_RELEASED_085", 0),
+        ("NOT_UP", 1),
+        ("PRESSED_LOW", 0),
+        ("DROPPED", 0),
+        ("IN_PLACE", 0),
+    ] {
+        assert_eq!(flags_of(&json, flag), count, "{flag}: {json}");
+    }
+    assert_eq!(json["jumps_wrong"], 1);
+    assert_eq!(json["jumps_failed"], 1);
+}
+
+#[test]
+pub(crate) fn presses_again_at_one_place_repeat_and_one_that_never_leaves_the_ground_dropped() {
+    let (mut game, mut tally) = made_up(&[0, 0]);
+    play(&mut game, &mut tally, 120, |k, game| {
+        // Bot 0: three presses 1.5 s apart where it stands, each in the
+        // air; bot 1: two presses 4 s apart (no repeat), with no key and
+        // never in the air.
+        let k0 = if [10, 40, 70].contains(&k) { key::JUMP | key::FORWARD } else { 0 };
+        let k1 = if [10, 90].contains(&k) { key::JUMP } else { 0 };
+        put(game, 0, 10.0, 10.0, k0);
+        put(game, 1, 10.0, 20.0, k1);
+        if [10, 40, 70].contains(&k) {
+            game.bodies[0].air_until = game.tick + 600;
+        }
+        vec![bot_now(), bot_now()]
+    });
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["presses"], 5);
+    assert_eq!(flags_of(&json, "REPEAT"), 2, "{json}");
+    assert_eq!(flags_of(&json, "IN_PLACE"), 2);
+    assert_eq!(flags_of(&json, "DROPPED"), 2);
+}
+
+#[test]
+pub(crate) fn a_route_link_pressed_again_and_a_hop_that_frees_nothing_are_flagged() {
+    let (mut game, mut tally) = made_up(&[0, 0, 0, 0]);
+    play(&mut game, &mut tally, 200, |k, game| {
+        let press = if [10, 110].contains(&k) { key::JUMP } else { 0 };
+        put(game, 0, 10.0, 10.0, press);
+        put(game, 1, 10.0, 20.0, press);
+        put(game, 2, 30.0, 10.0, if k == 10 { key::JUMP } else { 0 });
+        // Bot 3 (the near miss) walks off after its hop.
+        let x3 = if k <= 10 { 30.0 } else { 30.0 + 0.1 * (k - 10) as f32 };
+        put(game, 3, x3, 30.0, if k == 10 { key::JUMP } else { key::FORWARD });
+        game.bodies[3].step_m = if k > 10 { 0.1 } else { 0.0 };
+        let mut nows = vec![bot_now(); 4];
+        let link = |z: f32, dx: f32| Some((Vec3::new(11.0 + dx, 0.0, z), Vec3::new(12.0 + dx, 1.0, z)));
+        if k == 10 || k == 110 {
+            // Bot 0 the same link twice, 5 s apart; bot 1 another 1 m on.
+            nows[0].as_mut().unwrap().jump = Some(("route", link(10.0, 0.0)));
+            let dx = if k == 10 { 0.0 } else { 1.0 };
+            nows[1].as_mut().unwrap().jump = Some(("route", link(20.0, dx)));
+        }
+        if k == 10 {
+            nows[2].as_mut().unwrap().jump = Some(("hop", None));
+            nows[3].as_mut().unwrap().jump = Some(("hop", None));
+        }
+        nows
+    });
+    let (_, json) = tally.finish(&game);
+    assert_eq!(flags_of(&json, "LINK_AGAIN"), 1, "{json}");
+    assert_eq!(flags_of(&json, "REPEAT"), 0);
+    assert_eq!(flags_of(&json, "NOT_FREED"), 1);
+}
+
+#[test]
+pub(crate) fn a_stall_at_a_ledge_with_no_press_is_a_missed_jump() {
+    let grid = |rise: f32| {
+        let triangles = super::super::ledge_triangles(rise, mapdata::WalkerBehaviour::BySlope);
+        WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default())
+    };
+    let (mut game, mut tally) = made_up(&[0, 0]);
+    play(&mut game, &mut tally, 100, |k, game| {
+        // Both push forward east at the ledge's foot; bot 1 (the near
+        // miss) presses a jump 1.5 s in.
+        put(game, 0, 9.6, 3.0, key::FORWARD);
+        put(game, 1, 9.6, 7.0, if k == 30 { key::FORWARD | key::JUMP } else { key::FORWARD });
+        for body in &mut game.bodies {
+            body.yaw = -std::f32::consts::FRAC_PI_2;
+        }
+        vec![bot_now(), bot_now()]
+    });
+    let presses = tally.presses.clone();
+    let high = grid(0.8);
+    assert_eq!(tally.stalls(0, &high, &presses), [1, 0, 1]);
+    assert_eq!(tally.stalls(1, &high, &presses), [0, 0, 1]);
+    assert_eq!(tally.stalls(0, &grid(0.45), &presses), [0, 1, 1]);
+    assert_eq!(tally.stalls(0, &grid(1.5), &presses), [0, 0, 1]);
+}

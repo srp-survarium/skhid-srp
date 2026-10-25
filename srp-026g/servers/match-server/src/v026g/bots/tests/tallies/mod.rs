@@ -6,7 +6,7 @@ pub(crate) mod decisions;
 pub(crate) mod fight_tally;
 pub(crate) mod hit;
 pub(crate) mod human;
-pub(crate) mod owner_tally;
+pub(crate) mod owner;
 pub(crate) mod push;
 pub(crate) mod raid;
 pub(crate) mod route;
