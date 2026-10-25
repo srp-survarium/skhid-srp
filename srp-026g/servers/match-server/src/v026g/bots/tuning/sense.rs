@@ -58,6 +58,14 @@ pub struct SenseTuning {
     /// Timed batteries: a station's spawner seen this long ago is worth a
     /// look again, ms.
     pub spawner_recheck_ms: u32,
+    /// A sight no look has tested goes on this long, ms on the information
+    /// clock (`know::SIGHT_UNTESTED_MS`): the longest think gap and a tick.
+    pub sight_untested_ms: u32,
+    /// A sight whose look failed goes on this long, ms on the information
+    /// clock, from that look (`know::SIGHT_GRACE_MS`): not below 150, the
+    /// look gap and a tick. The human measurement, 250 (range 150 to
+    /// 400); the bench runs 150, 250 and 400.
+    pub sight_grace_ms: u32,
 }
 
 impl Default for SenseTuning {
@@ -85,6 +93,8 @@ impl Default for SenseTuning {
             battery_rays: 3,
             battery_moved_m: 0.2,
             spawner_recheck_ms: 45_000,
+            sight_untested_ms: crate::v026g::bots::know::SIGHT_UNTESTED_MS,
+            sight_grace_ms: crate::v026g::bots::know::SIGHT_GRACE_MS,
         }
     }
 }
@@ -135,6 +145,10 @@ pub(super) fn validate(sense: &SenseTuning) -> Result<(), String> {
     check(
         sense.notice_near_ms <= sense.notice_far_ms,
         "sense.notice_*_ms",
+    )?;
+    check(
+        sense.sight_grace_ms >= 150 && sense.sight_untested_ms >= sense.sight_grace_ms,
+        "sense.sight_grace_ms (150 or more: the look gap and a tick) and sight_untested_ms",
     )?;
     Ok(())
 }

@@ -58,7 +58,7 @@ fn num(cx: &Ctx, name: &str) -> f32 {
 /// Under fire: an enemy seen now, or seen or heard within `under_fire_s`.
 pub fn under_fire(cx: &Ctx) -> bool {
     let within = (num(cx, "under_fire_s") * 1000.0) as u32;
-    !cx.memory.all_seen(cx.now).is_empty()
+    !cx.memory.all_seen(cx.now, cx.view.clock).is_empty()
         || cx
             .memory
             .tracks()

@@ -69,6 +69,75 @@ impl Source {
 /// heard itself a moment ago; play 6's heard shot is as long).
 pub const FRESH_MS: u32 = 1_500;
 
+/// The sight windows' defaults (`SenseTuning::sight_untested_ms` and
+/// `sight_grace_ms`), ms, on the information clock. `MatchView::clock` is
+/// the server's clock: a player's ping changes only how accurate the
+/// estimate of his body is, never these.
+///
+/// A sight that no look has tested goes on this long, ms on the information
+/// clock (`MatchView::clock`, what every sight is stamped with): the
+/// longest think gap (`ThinkTuning::think_ms`, 400) and a tick (50). A
+/// look not made (a starved ray budget, a think not yet due) is no loss of
+/// sight, but only this long: after it the next think's test must have its
+/// rays, or a starved budget would be sight through a wall.
+pub const SIGHT_UNTESTED_MS: u32 = 450;
+
+/// A sight whose look failed (out of range, out of view, blocked) goes on
+/// this long, ms on the information clock, from that look: a look away
+/// from a corner, a body behind a post. A look that finds him again inside
+/// it takes the failure back. At least the target's look gap
+/// (`aimpoint::LOOK_AGAIN_MS`, 100) and a tick (50), or one look that
+/// found him again could not come in time. 250 ms is the human measurement
+/// (247 live recordings, 7,694 breaks of the line of sight on the mesh: a
+/// player keeps the trigger down with no change until about 200 ms after
+/// a break, and after an occlusion of 500 ms or less 75 % keep it held and
+/// fire again at 200 ms; the range is 150 to 400, resolution 100 to 150
+/// ms); `SenseTuning::sight_grace_ms` tunes it for the bench.
+pub const SIGHT_GRACE_MS: u32 = 250;
+
+// The default grace covers the look gap and a tick.
+const _: () = assert!(SIGHT_GRACE_MS >= super::aimpoint::LOOK_AGAIN_MS + 50);
+
+/// The two sight windows a [`Memory`] reads ([`SenseTuning`]'s numbers).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SightWindow {
+    pub grace_ms: u32,
+    pub untested_ms: u32,
+}
+
+impl Default for SightWindow {
+    fn default() -> Self {
+        Self {
+            grace_ms: SIGHT_GRACE_MS,
+            untested_ms: SIGHT_UNTESTED_MS,
+        }
+    }
+}
+
+/// Why a look at a live sight found nobody.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Miss {
+    /// Farther than `SenseTuning::sight_m`.
+    Range,
+    /// Outside the view's width (`SenseTuning::view_deg`) at the bot's yaw.
+    Cone,
+    /// No part of him shows on the bullet mesh.
+    Blocked,
+    /// Dead, gone, or another life than the one seen (`PlaceView::spawned`).
+    Dead,
+}
+
+/// What a look at one live sight came to (`sense::look`). A sight ends only
+/// by a failed look: one not made is not a negative.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LookOutcome {
+    Seen,
+    Failed(Miss),
+    /// Not tested: the rays ran out. The sight keeps its state, up to
+    /// [`SIGHT_UNTESTED_MS`].
+    Untested,
+}
+
 /// A sense's report: who, where (with its error), when.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Percept {
@@ -97,6 +166,29 @@ pub struct Track {
     /// The last place the bot's or its team's own senses gave (seen,
     /// heard, told) and when: a cheat's place does not count.
     pub own: Option<(Vec3, u32)>,
+    /// The first look since a sight that found him gone, when and why: the
+    /// sight goes on [`SIGHT_GRACE_MS`] from it (`Seen` only).
+    pub missed: Option<(u32, Miss)>,
+}
+
+impl Track {
+    /// Whether a sight begun and not failed longer ago than
+    /// [`SIGHT_GRACE_MS`] at `sight_now` (the information clock) can go on
+    /// from a look that finds him: however long since the last one (the
+    /// server stalled; a look that finds him is a test, which a stall does
+    /// not make a negative).
+    fn unbroken(&self, sight_now: u32, window: SightWindow) -> bool {
+        self.sight_since.is_some()
+            && self
+                .missed
+                .is_none_or(|(at, _)| at + window.grace_ms >= sight_now)
+    }
+
+    /// Whether the sight is up at `sight_now`: [`Self::unbroken`] and last
+    /// tested within [`SIGHT_UNTESTED_MS`]. What is read as a sight.
+    fn sighted(&self, sight_now: u32, window: SightWindow) -> bool {
+        self.unbroken(sight_now, window) && self.time + window.untested_ms >= sight_now
+    }
 }
 
 /// An enemy seen, and noticed: the only thing the motor may aim at. Made
@@ -124,9 +216,15 @@ impl SeenTrack {
 #[derive(Clone, Debug, Default)]
 pub struct Memory {
     tracks: Vec<Track>,
+    window: SightWindow,
 }
 
 impl Memory {
+    /// The sight windows to read from now on (the tuning's).
+    pub fn set_sight_window(&mut self, window: SightWindow) {
+        self.window = window;
+    }
+
     /// Takes in a think's percepts. `notice_ms(percept)` is the noticing
     /// delay for a new sight; `forget_ms` and `drop_ms` the fading.
     pub fn update(
@@ -137,6 +235,7 @@ impl Memory {
         forget_ms: u32,
         drop_ms: u32,
     ) {
+        let window = self.window;
         for percept in percepts {
             let notice = notice_ms(percept);
             match self.tracks.iter_mut().find(|t| t.who == percept.who) {
@@ -162,13 +261,16 @@ impl Memory {
                     }
                     if seen {
                         // A sight goes on if the last one was a moment ago.
-                        let continuing =
-                            track.sight_since.is_some() && track.time + 400 >= percept.time;
-                        if !continuing {
+                        if !track.unbroken(percept.time, window) {
                             track.sight_since = Some(percept.time);
                             track.notice_ms = notice;
+                            track.missed = None;
                         }
-                    } else if track.time + 400 < percept.time {
+                        // A test that found him takes a failed look back.
+                        if replaces {
+                            track.missed = None;
+                        }
+                    } else if !track.sighted(percept.time, window) {
                         track.sight_since = None;
                     }
                     // When it was last sensed by a report it took: a weaker
@@ -187,12 +289,13 @@ impl Memory {
                     sight_since: (percept.source == Source::Seen).then_some(percept.time),
                     notice_ms: notice,
                     own: percept.source.own().then_some((percept.at, percept.time)),
+                    missed: None,
                 }),
             }
         }
         for track in &mut self.tracks {
             // Out of sight now.
-            if track.sight_since.is_some() && track.time + 400 < now {
+            if !track.sighted(now, window) {
                 track.sight_since = None;
             }
             // Not sensed for a while: a last known position, fading.
@@ -203,32 +306,97 @@ impl Memory {
         self.tracks.retain(|track| track.time + drop_ms >= now);
     }
 
-    /// The enemy at `who` seen now and noticed.
-    pub fn seen(&self, who: Place, now: u32) -> Option<SeenTrack> {
+    /// The enemy at `who` seen now and noticed. `now` is the clock the
+    /// noticing delay and the shot run on (the tick's); `sight_now` the
+    /// information clock (`MatchView::clock`), which every sight is stamped
+    /// with and its age is read on.
+    ///
+    /// The two differ by the input lead: since 0a3a5589 a tick's input is
+    /// made 50 to 100 ms ahead of the match clock, and since 8e5b39db the
+    /// reflex read the sight's age on that tick time against a stamp of
+    /// the poll clock, so the 400 ms window was 300 ms in effect and a
+    /// think gap over 300 ms lost a target in plain view. The lead is the
+    /// time a decision takes effect, not the age of information.
+    pub fn seen(&self, who: Place, now: u32, sight_now: u32) -> Option<SeenTrack> {
         let track = self.tracks.iter().find(|t| t.who == who)?;
         let since = track.sight_since?;
-        (track.source == Source::Seen && now >= since + track.notice_ms && track.time + 400 >= now)
-            .then_some(SeenTrack(*track))
+        (track.source == Source::Seen
+            && now >= since + track.notice_ms
+            && track.sighted(sight_now, self.window))
+        .then_some(SeenTrack(*track))
     }
 
     /// The enemy at `who` in sight now, noticed or not: [`Self::seen`]
     /// without the noticing delay only, so still a live sight (seen,
-    /// `sight_since` set, sensed within 400 ms). Its one allowed use: the
-    /// reflex taking back its own last target, lost under
+    /// `sight_since` set, tested within [`SIGHT_UNTESTED_MS`], not failed
+    /// longer ago than [`SIGHT_GRACE_MS`] at `sight_now`). Its one allowed
+    /// use: the reflex taking back its own last target, lost under
     /// `CombatTuning::aim_carry_ms` ago (`CombatTuning::reacquire_keep`),
     /// which noticed him already.
-    pub(super) fn in_sight(&self, who: Place, now: u32) -> Option<SeenTrack> {
+    pub(super) fn in_sight(&self, who: Place, sight_now: u32) -> Option<SeenTrack> {
         let track = self.tracks.iter().find(|t| t.who == who)?;
-        track.sight_since?;
-        (track.source == Source::Seen && track.time + 400 >= now).then_some(SeenTrack(*track))
+        (track.source == Source::Seen && track.sighted(sight_now, self.window))
+            .then_some(SeenTrack(*track))
     }
 
     /// Every enemy seen now and noticed.
-    pub fn all_seen(&self, now: u32) -> Vec<SeenTrack> {
+    pub fn all_seen(&self, now: u32, sight_now: u32) -> Vec<SeenTrack> {
         self.tracks
             .iter()
-            .filter_map(|track| self.seen(track.who, now))
+            .filter_map(|track| self.seen(track.who, now, sight_now))
             .collect()
+    }
+
+    /// A look at the live sight of `who` found him at `at` at `sight_clock`
+    /// (`MatchView::clock`): the sight goes on from there. Not a sensing
+    /// ([`Self::update`]): it touches only the track's time, place and own
+    /// place, so nothing fades or is called out to the team, and a sight
+    /// not begun or ended, or a look older than the track, is left as it
+    /// is.
+    pub fn refresh_sight(&mut self, who: Place, at: Vec3, sight_clock: u32) {
+        let window = self.window;
+        let Some(track) = self.tracks.iter_mut().find(|t| t.who == who) else {
+            return;
+        };
+        if track.source != Source::Seen || !track.unbroken(sight_clock, window)
+            || sight_clock < track.time
+        {
+            return;
+        }
+        track.time = sight_clock;
+        track.at = at;
+        track.own = Some((at, sight_clock));
+        track.missed = None;
+    }
+
+    /// A look at the live sight of `who` at `sight_clock` found him gone,
+    /// for `miss`. The first failure starts the grace ([`SIGHT_GRACE_MS`]),
+    /// later ones do not extend it; his death ends the sight at once. The
+    /// track keeps its last place.
+    pub fn fail_sight(&mut self, who: Place, miss: Miss, sight_clock: u32) {
+        let window = self.window;
+        let Some(track) = self.tracks.iter_mut().find(|t| t.who == who) else {
+            return;
+        };
+        if track.source != Source::Seen || !track.unbroken(sight_clock, window) {
+            return;
+        }
+        if miss == Miss::Dead {
+            track.sight_since = None;
+            track.missed = None;
+        } else {
+            track.missed.get_or_insert((sight_clock, miss));
+        }
+    }
+
+    /// A look's outcome for the sight of `who`, whom it found at `at`: the
+    /// sight kept, ended by a failure, or (untested) left as it is.
+    pub fn looked(&mut self, who: Place, at: Vec3, outcome: LookOutcome, sight_clock: u32) {
+        match outcome {
+            LookOutcome::Seen => self.refresh_sight(who, at, sight_clock),
+            LookOutcome::Failed(miss) => self.fail_sight(who, miss, sight_clock),
+            LookOutcome::Untested => {}
+        }
     }
 
     /// Everything known, however it came and however old.
@@ -1034,13 +1202,13 @@ mod tests {
     }
 
     /// [`Memory::in_sight`] skips only the noticing delay: never a track
-    /// not seen, one only heard, or one out of sight over 400 ms.
+    /// not seen, one only heard, or one out of sight over 450 ms.
     #[test]
     fn in_sight_is_a_live_sight_before_its_noticing() {
         let mut memory = Memory::default();
         assert!(memory.in_sight(3, 1_000).is_none(), "never seen");
         memory.update(&[seen(3, 1_000)], 1_000, |_| 300, 3_000, 20_000);
-        assert!(memory.seen(3, 1_100).is_none());
+        assert!(memory.seen(3, 1_100, 1_100).is_none());
         assert_eq!(memory.in_sight(3, 1_100).map(|t| t.who()), Some(3));
         let heard = Percept {
             source: Source::Heard,
@@ -1049,31 +1217,31 @@ mod tests {
         memory.update(&[heard], 1_000, |_| 300, 3_000, 20_000);
         assert!(memory.in_sight(4, 1_100).is_none(), "only heard");
         memory.update(&[], 1_500, |_| 300, 3_000, 20_000);
-        assert!(memory.in_sight(3, 1_500).is_none(), "out of sight over 400 ms");
+        assert!(memory.in_sight(3, 1_500).is_none(), "out of sight over 450 ms");
     }
 
     #[test]
     fn a_sight_is_a_seen_track_only_after_the_noticing_delay() {
         let mut memory = Memory::default();
         memory.update(&[seen(3, 1_000)], 1_000, |_| 300, 3_000, 20_000);
-        assert!(memory.seen(3, 1_000).is_none());
-        assert!(memory.seen(3, 1_200).is_none());
+        assert!(memory.seen(3, 1_000, 1_000).is_none());
+        assert!(memory.seen(3, 1_200, 1_200).is_none());
         memory.update(&[seen(3, 1_300)], 1_300, |_| 300, 3_000, 20_000);
-        assert_eq!(memory.seen(3, 1_300).map(|t| t.who()), Some(3));
+        assert_eq!(memory.seen(3, 1_300, 1_300).map(|t| t.who()), Some(3));
         // Out of sight: no seen track, but it is still known.
         memory.update(&[], 2_000, |_| 300, 3_000, 20_000);
-        assert!(memory.seen(3, 2_000).is_none());
+        assert!(memory.seen(3, 2_000, 2_000).is_none());
         assert_eq!(memory.tracks().len(), 1);
         // Seen again: a new noticing delay.
         memory.update(&[seen(3, 2_500)], 2_500, |_| 300, 3_000, 20_000);
-        assert!(memory.seen(3, 2_600).is_none());
+        assert!(memory.seen(3, 2_600, 2_600).is_none());
         // A heard report does not make a seen track, and old ones go.
         let heard = Percept {
             source: Source::Heard,
             ..seen(4, 3_000)
         };
         memory.update(&[heard], 3_000, |_| 300, 3_000, 20_000);
-        assert!(memory.seen(4, 9_000).is_none());
+        assert!(memory.seen(4, 9_000, 9_000).is_none());
         memory.update(&[], 30_000, |_| 300, 3_000, 20_000);
         assert!(memory.tracks().is_empty());
     }
@@ -1333,10 +1501,10 @@ mod tests {
             (Source::Seen, 8.0, 7_800)
         );
         update(&mut memory, report(Source::Seen, 8.0, 8_100), 8_100);
-        assert!(memory.seen(7, 8_150).is_some());
+        assert!(memory.seen(7, 8_150, 8_150).is_some());
         let thief = Source::Cheat(CheatKind::Thief);
         update(&mut memory, report(thief, 9.0, 8_300), 8_300);
-        assert!(memory.seen(7, 8_550).is_none(), "no sight since 8.1 s");
+        assert!(memory.seen(7, 8_560, 8_560).is_none(), "no sight since 8.1 s");
     }
 
     #[test]
@@ -1399,6 +1567,7 @@ mod tests {
             sight_since: None,
             notice_ms: 0,
             own: None,
+            missed: None,
         };
         let mut team = TeamKnowledge::default();
         let tracks = [
@@ -1458,5 +1627,178 @@ mod tests {
         lanes.shown_kills(2, 1, Some(Vec3::new(5.0, 0.0, 5.0)), 9_000);
         lanes.shown_kills(2, 1, Some(Vec3::new(6.0, 0.0, 5.0)), 9_500);
         assert_eq!(lanes.get(2).unwrap().kills, vec![(Vec3::new(5.0, 0.0, 5.0), 9_000)]);
+    }
+
+    /// A memory with `who` seen at `time`, noticed at once.
+    fn sighted(who: Place, time: u32) -> Memory {
+        let mut memory = Memory::default();
+        memory.update(&[seen(who, time)], time, |_| 0, 3_000, 20_000);
+        memory
+    }
+
+    /// 8.13: a target in plain view is never lost to the think cadence:
+    /// thinks 200 to 400 ms apart, ticks read 50 or 100 ms ahead of the
+    /// information, with the ticks' looks and without.
+    #[test]
+    fn a_visible_target_never_lapses_with_think_gaps_of_200_to_400_ms() {
+        for lead in [50, 100] {
+            for gap in [200, 250, 300, 350, 400] {
+                for looks in [false, true] {
+                    let mut memory = sighted(3, 1_000);
+                    let mut next_think = 1_000 + gap;
+                    for clock in (1_000..6_000).step_by(50) {
+                        if clock >= next_think {
+                            memory.update(&[seen(3, clock)], clock, |_| 0, 3_000, 20_000);
+                            next_think += gap;
+                        } else if looks && clock % 100 == 0 {
+                            memory.refresh_sight(3, Vec3::new(10.0, 0.0, 0.0), clock);
+                        }
+                        assert!(
+                            memory.seen(3, clock + lead, clock).is_some(),
+                            "gap {gap}, lead {lead}, looks {looks}, clock {clock}"
+                        );
+                    }
+                    // The noticing delay ran once, at the first sight.
+                    assert_eq!(memory.tracks()[0].sight_since, Some(1_000));
+                }
+            }
+        }
+    }
+
+    /// A failed look ends the sight after exactly the grace on the
+    /// information clock; later failures do not extend it; a look that
+    /// finds him inside it takes the failure back.
+    #[test]
+    fn a_failed_look_ends_the_sight_after_the_grace() {
+        let at = Vec3::new(10.0, 0.0, 0.0);
+        let mut memory = sighted(3, 1_000);
+        memory.refresh_sight(3, at, 1_100);
+        memory.fail_sight(3, Miss::Blocked, 1_150);
+        memory.fail_sight(3, Miss::Cone, 1_200);
+        let last = 1_150 + SIGHT_GRACE_MS;
+        assert!(memory.seen(3, last, last).is_some());
+        assert!(memory.seen(3, last + 1, last + 1).is_none());
+        // The place stays known.
+        assert_eq!(memory.tracks()[0].at, at);
+        assert_eq!(memory.tracks()[0].missed, Some((1_150, Miss::Blocked)));
+        // Found again inside the grace: no failure, the sight goes on.
+        memory.refresh_sight(3, at, 1_250);
+        assert_eq!(memory.tracks()[0].missed, None);
+        assert!(memory.seen(3, 1_600, 1_600).is_some());
+        assert!(memory.seen(3, 1_701, 1_701).is_none(), "450 ms untested");
+        // Found again after the grace: a new sight, noticed anew.
+        let mut memory = sighted(3, 1_000);
+        memory.fail_sight(3, Miss::Range, 1_100);
+        memory.update(&[seen(3, 1_400)], 1_400, |_| 300, 3_000, 20_000);
+        assert_eq!(memory.tracks()[0].sight_since, Some(1_400));
+        assert!(memory.seen(3, 1_500, 1_500).is_none());
+        assert!(memory.seen(3, 1_700, 1_700).is_some());
+    }
+
+    /// A look not made keeps the sight up to the untested bound and no
+    /// longer; only a look that finds him takes the bound further.
+    #[test]
+    fn an_untested_sight_is_kept_to_the_bound_and_no_longer() {
+        let mut memory = sighted(3, 1_000);
+        let last = 1_000 + SIGHT_UNTESTED_MS;
+        assert!(memory.seen(3, last + 100, last).is_some());
+        assert!(memory.seen(3, last + 100, last + 1).is_none());
+        assert!(memory.in_sight(3, last + 1).is_none());
+        // A look that found him is a test, a stall of the server or not:
+        // the sight goes on (a second's stall, the target clear).
+        memory.refresh_sight(3, Vec3::new(10.0, 0.0, 0.0), 2_000);
+        assert!(memory.seen(3, 2_100, 2_000).is_some());
+        assert_eq!(memory.tracks()[0].sight_since, Some(1_000));
+        // A failed look at the same stall: the grace, not the bound.
+        let mut memory = sighted(3, 1_000);
+        memory.fail_sight(3, Miss::Blocked, 2_000);
+        assert!(memory.seen(3, 2_000, 2_000).is_none(), "past the bound already");
+    }
+
+    /// A think 50 ms after a tick's look still replaces the place: both
+    /// are stamped on the information clock.
+    #[test]
+    fn a_think_after_a_tick_look_still_replaces_the_place() {
+        let mut memory = sighted(3, 1_000);
+        memory.refresh_sight(3, Vec3::new(11.0, 0.0, 0.0), 1_100);
+        let moved = Percept {
+            at: Vec3::new(12.0, 0.0, 0.0),
+            ..seen(3, 1_150)
+        };
+        memory.update(&[moved], 1_150, |_| 0, 3_000, 20_000);
+        assert_eq!(memory.tracks()[0].at, Vec3::new(12.0, 0.0, 0.0));
+        // A look older than the track leaves it alone.
+        memory.refresh_sight(3, Vec3::new(13.0, 0.0, 0.0), 1_120);
+        assert_eq!(memory.tracks()[0].at, Vec3::new(12.0, 0.0, 0.0));
+        assert_eq!(memory.tracks()[0].time, 1_150);
+    }
+
+    /// A tick's look touches the time and places of its track, nothing
+    /// else: no fading of the others, no new track, no sight begun.
+    #[test]
+    fn a_look_touches_only_its_tracks_time_place_and_own() {
+        let mut memory = sighted(3, 1_000);
+        memory.update(&[seen(4, 1_000)], 1_000, |_| 0, 3_000, 20_000);
+        let before = memory.tracks().to_vec();
+        memory.refresh_sight(3, Vec3::new(11.0, 0.0, 0.0), 5_000);
+        memory.refresh_sight(9, Vec3::new(11.0, 0.0, 0.0), 5_000);
+        let after = memory.tracks();
+        assert_eq!(after.len(), 2);
+        assert_eq!(after[1], before[1], "the other track is as it was");
+        let track = after[0];
+        assert_eq!(
+            Track {
+                time: before[0].time,
+                at: before[0].at,
+                own: before[0].own,
+                ..track
+            },
+            before[0]
+        );
+        assert_eq!((track.time, track.own), (5_000, Some((track.at, 5_000))));
+        // A sight not begun (heard only) is not made by a look.
+        let heard = Percept {
+            source: Source::Heard,
+            ..seen(7, 1_000)
+        };
+        memory.update(&[heard], 1_000, |_| 0, 3_000, 20_000);
+        memory.refresh_sight(7, Vec3::ZERO, 1_100);
+        let heard = memory.tracks().iter().find(|t| t.who == 7).unwrap();
+        assert_eq!((heard.time, heard.sight_since), (1_000, None));
+    }
+
+    /// A dead enemy ends the sight at once, not after the grace; a new life
+    /// is noticed anew.
+    #[test]
+    fn a_dead_enemy_ends_the_sight_and_the_next_life_begins_another() {
+        let mut memory = sighted(3, 1_000);
+        memory.fail_sight(3, Miss::Dead, 1_050);
+        assert!(memory.seen(3, 1_050, 1_050).is_none());
+        assert!(memory.in_sight(3, 1_050).is_none());
+        memory.update(&[seen(3, 1_100)], 1_100, |_| 300, 3_000, 20_000);
+        assert_eq!(memory.tracks()[0].sight_since, Some(1_100));
+        assert!(memory.seen(3, 1_200, 1_200).is_none(), "noticed anew");
+    }
+
+    /// First sight is as it was: the sight begins at the sensing, and the
+    /// noticing delay runs on the tick clock (the clock the shot's reaction
+    /// runs on), whatever the lead of the tick over the information.
+    #[test]
+    fn first_sight_is_noticed_on_the_tick_clock_as_before() {
+        for lead in [50, 100] {
+            let memory = sighted_with(3, 1_000, 300);
+            let track = memory.tracks()[0];
+            assert_eq!((track.sight_since, track.notice_ms), (Some(1_000), 300));
+            let noticed = |tick: u32| memory.seen(3, tick, tick - lead).is_some();
+            assert!(!noticed(1_000 + 299));
+            assert!(noticed(1_000 + 300));
+            assert!(noticed(1_000 + 400));
+        }
+    }
+
+    fn sighted_with(who: Place, time: u32, notice: u32) -> Memory {
+        let mut memory = Memory::default();
+        memory.update(&[seen(who, time)], time, |_| notice, 3_000, 20_000);
+        memory
     }
 }

@@ -531,7 +531,7 @@ fn battery_candidate_given(
     on_it: bool,
     near: f32,
 ) -> Option<Candidate> {
-    if on_it && near >= ENEMIES_OUT && cx.memory.all_seen(cx.now).is_empty() {
+    if on_it && near >= ENEMIES_OUT && cx.memory.all_seen(cx.now, cx.view.clock).is_empty() {
         let read = near - COLLECT_ENEMY_MARGIN;
         cx.candidate_given(
             PlayKind::Collect,
@@ -2184,7 +2184,7 @@ mod tests {
         // hold, out at 4 on it too.
         let mut fight = scene(4, true);
         fight.enemy(9, 1, at + Vec3::new(30.0, 0.0, 0.0), Some(Source::Seen));
-        assert!(!fight.cx(0).memory.all_seen(fight.view.clock).is_empty());
+        assert!(!fight.cx(0).memory.all_seen(fight.view.clock, fight.view.clock).is_empty());
         assert!(collects(&fight).is_empty());
         // The note agrees: out for the enemies only when not on it.
         let whys = |s: &Scenario| {

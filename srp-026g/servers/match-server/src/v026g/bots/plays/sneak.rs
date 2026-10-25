@@ -226,7 +226,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     let me = cx.me.feet;
     if cx
         .memory
-        .all_seen(cx.now)
+        .all_seen(cx.now, cx.view.clock)
         .iter()
         .any(|t| t.at().distance_xz(me) < num("contact_m"))
     {

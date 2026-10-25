@@ -61,7 +61,7 @@ pub fn medkits_left(cx: &Ctx) -> u32 {
 /// Whether an enemy it knows of has a clear line to it (crouched), or is
 /// seen now.
 pub fn in_known_sight(cx: &Ctx) -> bool {
-    if !cx.memory.all_seen(cx.now).is_empty() {
+    if !cx.memory.all_seen(cx.now, cx.view.clock).is_empty() {
         return true;
     }
     let me = cx.me.feet + Vec3::new(0.0, EYE_CROUCHED, 0.0);
@@ -100,7 +100,7 @@ pub fn start(_target: TargetRef, _cx: &Ctx, _rng: &mut Rng) -> State {
 }
 
 pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
-    if !cx.memory.all_seen(cx.now).is_empty() {
+    if !cx.memory.all_seen(cx.now, cx.view.clock).is_empty() {
         return Step::Failed("an enemy is in sight");
     }
     let still = Intent::stay().crouched().hold_fire();

@@ -112,7 +112,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     let far = cx.num(PlayKind::Crossfire, "enemy_choke_m");
     for track in cx.memory.tracks() {
         // A last known place, not one seen now: the reflex has those.
-        if cx.memory.seen(track.who, cx.now).is_none()
+        if cx.memory.seen(track.who, cx.now, cx.view.clock).is_none()
             && track.at.distance_xz(cx.me.feet) <= far
             && !cx.tactics.in_spawn_area(track.at, None)
         {

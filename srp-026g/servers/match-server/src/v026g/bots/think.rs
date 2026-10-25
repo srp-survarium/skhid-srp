@@ -212,7 +212,7 @@ pub(super) fn sense(due: &Due, bot: &mut Bot, rays: &mut RayBudget) -> Sensed {
         &mut bot.rng,
     );
     bot.heard_until = now;
-    let quiet = percepts.is_empty() && bot.memory.all_seen(now).is_empty();
+    let quiet = percepts.is_empty() && bot.memory.all_seen(now, view.clock).is_empty();
     Sensed { percepts, quiet }
 }
 

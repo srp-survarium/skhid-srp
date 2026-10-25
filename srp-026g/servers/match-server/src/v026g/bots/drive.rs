@@ -146,6 +146,10 @@ pub(super) fn drive_tick(
     } else {
         me
     };
+    bot.memory.set_sight_window(know::SightWindow {
+        grace_ms: tuning.sense.sight_grace_ms,
+        untested_ms: tuning.sense.sight_untested_ms,
+    });
     // [aimpoint] What of its target shows, before the reflex aims.
     bot.reflex.look(aiming_me, view, &tactics.world, time);
     // A carrier never fires: in the game a new fire press drops the battery
