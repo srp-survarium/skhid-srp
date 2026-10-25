@@ -9,8 +9,8 @@
 use mapdata::Vec3;
 use survarium::v026g::weapons::{Stance, character_dispersion};
 
-use super::super::guns::Gun;
-use super::super::rng::Rng;
+use crate::v026g::bots::guns::Gun;
+use crate::v026g::bots::rng::Rng;
 use crate::v026g::drive::key;
 
 /// Where the aim was at a shot.

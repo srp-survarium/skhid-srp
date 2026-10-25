@@ -30,8 +30,8 @@ use std::collections::BTreeMap;
 use mapdata::{Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
-use super::super::kin::{TICK_S, wrap, yaw_of};
-use super::super::view::Place;
+use crate::v026g::bots::kin::{TICK_S, wrap, yaw_of};
+use crate::v026g::bots::view::Place;
 use super::{Bots, Game, Go, Landing, Note};
 use crate::v026g::drive::key;
 
@@ -380,7 +380,7 @@ struct Episode {
 }
 
 #[derive(Default)]
-pub(super) struct OwnerTally {
+pub(crate) struct OwnerTally {
     first_tick: u32,
     recs: Vec<Vec<Rec>>,
     is_bot: Vec<bool>,
@@ -448,7 +448,7 @@ pub(super) struct OwnerTally {
     held_kills: Vec<(Place, bool)>,
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): its counts are
     /// also given apart.
-    pub(super) camper: Option<Place>,
+    pub(crate) camper: Option<Place>,
     metric_rays: u64,
 }
 
@@ -609,7 +609,7 @@ fn is_up(r: &Rec, to: Vec3, dt: f32) -> bool {
 }
 
 impl OwnerTally {
-    pub(super) fn new(n: usize) -> Self {
+    pub(crate) fn new(n: usize) -> Self {
         Self {
             recs: vec![Vec::new(); n],
             is_bot: vec![false; n],
@@ -637,7 +637,7 @@ impl OwnerTally {
 
     /// After a game step, before the hit tally takes the game's hits: the
     /// bots' state as [`BotNow`], then [`Self::step`].
-    pub(super) fn tick(&mut self, game: &mut Game, bots: &Bots) {
+    pub(crate) fn tick(&mut self, game: &mut Game, bots: &Bots) {
         let tick = game.tick;
         // The step once a second, at the stuck detector's samples.
         let sample = self.first_tick == 0
@@ -1040,7 +1040,7 @@ impl OwnerTally {
 
     /// A bot's note: takes, stuck watches, plays ended for no way to the
     /// goal, grenades thrown.
-    pub(super) fn note(&mut self, note: &Note, game: &Game) {
+    pub(crate) fn note(&mut self, note: &Note, game: &Game) {
         let at = |list: &mut Vec<Vec<u32>>| {
             if let Some(t) = list.get_mut(note.place) {
                 t.push(note.time);
@@ -1296,7 +1296,7 @@ impl OwnerTally {
     }
 
     /// The counts, as the `owner-test` lines and the sums' `owner` object.
-    pub(super) fn finish(&mut self, game: &Game) -> (String, serde_json::Value) {
+    pub(crate) fn finish(&mut self, game: &Game) -> (String, serde_json::Value) {
         for r in std::mem::take(&mut self.reloads) {
             self.reload_done(&r);
         }

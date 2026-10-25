@@ -9,15 +9,15 @@ use std::collections::BTreeMap;
 
 use mapdata::Vec3;
 
-use super::super::sense::in_view;
-use super::super::view::Place;
+use crate::v026g::bots::sense::in_view;
+use crate::v026g::bots::view::Place;
 use super::bench_spread::AimState;
 use super::{Game, Note};
 use crate::v026g::drive::key;
 
 /// One shot as the stand-in fired it.
 #[derive(Clone, Copy, Debug)]
-pub(super) struct ShotFact {
+pub(crate) struct ShotFact {
     pub shooter: Place,
     pub tick: u32,
     /// The enemy it hit, if any.
@@ -46,7 +46,7 @@ const CLOSE_M: f32 = 8.0;
 const STANDOFF_M: f32 = 5.0;
 const STANDOFF_MS: u32 = 3_000;
 /// Sampled this often, ms.
-pub(super) const SAMPLE_MS: u32 = 200;
+pub(crate) const SAMPLE_MS: u32 = 200;
 /// The view counts as on an enemy within this, degrees.
 const ON_DEG: f32 = 15.0;
 /// [PR C] The range measure's bins, metres: each this wide, the last one
@@ -91,7 +91,7 @@ struct Contact {
 }
 
 #[derive(Default)]
-pub(super) struct FightTally {
+pub(crate) struct FightTally {
     band: [Count; 5],
     /// [moving][aimed]
     stance: [[Count; 2]; 2],
@@ -175,7 +175,7 @@ fn moving(keys: u32) -> bool {
 /// How far `body`'s view is off `point`, degrees (yaw and pitch, the
 /// larger).
 fn off_deg(eye: Vec3, yaw: f32, pitch: f32, point: Vec3) -> f32 {
-    use super::super::kin::{wrap, yaw_of};
+    use crate::v026g::bots::kin::{wrap, yaw_of};
     let (dx, dz) = (point.x - eye.x, point.z - eye.z);
     let want_yaw = yaw_of([dx, dz]);
     let want_pitch = (point.y - eye.y).atan2(dx.hypot(dz));
@@ -186,7 +186,7 @@ fn off_deg(eye: Vec3, yaw: f32, pitch: f32, point: Vec3) -> f32 {
 }
 
 impl FightTally {
-    pub(super) fn shot(&mut self, fact: ShotFact) {
+    pub(crate) fn shot(&mut self, fact: ShotFact) {
         let hit = fact.hit.is_some();
         if let Some(victim) = fact.hit {
             self.last_hit
@@ -229,7 +229,7 @@ impl FightTally {
         self.offs.push(off);
     }
 
-    pub(super) fn note(&mut self, note: &Note) {
+    pub(crate) fn note(&mut self, note: &Note) {
         if let Some((at, blast)) = thrown_at(&note.text) {
             self.grenades[0] += 1;
             self.blasts.push((note.place, at, blast));
@@ -263,7 +263,7 @@ impl FightTally {
     }
 
     /// After the game's steps up to `clock`.
-    pub(super) fn sample(&mut self, game: &Game, clock: u32) {
+    pub(crate) fn sample(&mut self, game: &Game, clock: u32) {
         // [PR C] Deaths by the last hit's distance; then the places.
         for (place, body) in game.bodies.iter().enumerate() {
             if let Some(&(_, team, _, true)) = self.places.get(place)
@@ -394,7 +394,7 @@ impl FightTally {
         }
     }
 
-    pub(super) fn line(&mut self, game: &Game) -> String {
+    pub(crate) fn line(&mut self, game: &Game) -> String {
         let (mut kills, mut deaths) = ([0u32; 2], [0u32; 2]);
         for (body, stats) in game.bodies.iter().zip(&game.stats) {
             let team = usize::from(body.team).min(1);
@@ -481,13 +481,13 @@ impl FightTally {
 }
 
 /// [`ShotFact`]'s keys part.
-pub(super) fn stance(keys: u32) -> (bool, bool, bool) {
+pub(crate) fn stance(keys: u32) -> (bool, bool, bool) {
     (moving(keys), keys & key::AIM != 0, keys & key::CROUCH != 0)
 }
 
 /// [`ShotFact`]'s target part: his distance and the shot line's off from
 /// his chest, degrees.
-pub(super) fn aim_off(eye: Vec3, dir: Vec3, chest: Vec3) -> (f32, f32) {
+pub(crate) fn aim_off(eye: Vec3, dir: Vec3, chest: Vec3) -> (f32, f32) {
     let to = chest - eye;
     let d = to.length().max(1e-3);
     let cos = (to.dot(dir) / d).clamp(-1.0, 1.0);
@@ -497,17 +497,17 @@ pub(super) fn aim_off(eye: Vec3, dir: Vec3, chest: Vec3) -> (f32, f32) {
 /// [measure] The gate tally: the ticks a bot had its view on an enemy
 /// (the on-view episodes, `tests.rs` `OnView`) and fired no shot, by the
 /// first fire gate that held it and by every gate that did
-/// ([`super::super::reflex::gate`]). The one part of the bench read from the
+/// ([`crate::v026g::bots::reflex::gate`]). The one part of the bench read from the
 /// bots' own state (the reflex's record of its tick); nothing decides by it.
 #[derive(Default)]
-pub(super) struct GateTally {
+pub(crate) struct GateTally {
     pub ticks: u32,
     /// By [`GATES`]' index.
     first: Vec<u32>,
     every: Vec<u32>,
 }
 
-/// The tally's gates: the reflex's ([`super::super::reflex::gate::NAMES`]),
+/// The tally's gates: the reflex's ([`crate::v026g::bots::reflex::gate::NAMES`]),
 /// with three of the bench's own in their place in the order: the bot's
 /// record is older than a tick (it did not run), it aimed at another
 /// enemy than the one in its view, and no gate failed.
@@ -516,7 +516,7 @@ const OTHER: &str = "other_target";
 const NONE: &str = "none";
 
 fn gates() -> Vec<(u32, &'static str)> {
-    use super::super::reflex::gate;
+    use crate::v026g::bots::reflex::gate;
     let mut all = vec![(0, STALE)];
     for &(bit, name) in &gate::NAMES {
         all.push((bit, name));
@@ -533,8 +533,8 @@ fn gates() -> Vec<(u32, &'static str)> {
 impl GateTally {
     /// A tick on view of `enemy` with no shot, the bot's gates `gates` as of
     /// `now`.
-    pub(super) fn tick(&mut self, gates: super::super::reflex::Gates, enemy: Place, now: u32) {
-        use super::super::reflex::gate;
+    pub(crate) fn tick(&mut self, gates: crate::v026g::bots::reflex::Gates, enemy: Place, now: u32) {
+        use crate::v026g::bots::reflex::gate;
         let names = gates_names();
         self.first.resize(names.len(), 0);
         self.every.resize(names.len(), 0);
@@ -564,7 +564,7 @@ impl GateTally {
     }
 
     /// One line: the ticks, then each gate's share as the first and as any.
-    pub(super) fn line(&self) -> String {
+    pub(crate) fn line(&self) -> String {
         let pct = |n: u32| 100.0 * f64::from(n) / f64::from(self.ticks.max(1));
         let names = gates_names();
         let part = |counts: &[u32]| {
@@ -591,13 +591,13 @@ fn gates_names() -> &'static [(u32, &'static str)] {
 }
 
 /// [measure] The bots' reloads (the reflex's own record of each,
-/// [`super::super::reflex::ReloadNote`]; nothing decides by it): by weapon
+/// [`crate::v026g::bots::reflex::ReloadNote`]; nothing decides by it): by weapon
 /// class, why each started, the share of the magazine left, an enemy on
 /// view (the on-view episodes' 4°) within 1 s before, the time to the next
 /// shot after it is done; deaths while reloading by team; and the on-view
 /// ticks with no shot that the reload held, by why.
 #[derive(Default)]
-pub(super) struct ReloadTally {
+pub(crate) struct ReloadTally {
     /// By place: the last reload counted (its start), the last tick with an
     /// enemy on view, and a reload done, waiting for its next shot.
     counted: Vec<Option<u32>>,
@@ -617,8 +617,8 @@ struct ClassReloads {
     next_shot_ms: Vec<u32>,
 }
 
-fn why_index(why: super::super::reflex::ReloadWhy) -> usize {
-    use super::super::reflex::ReloadWhy;
+fn why_index(why: crate::v026g::bots::reflex::ReloadWhy) -> usize {
+    use crate::v026g::bots::reflex::ReloadWhy;
     match why {
         ReloadWhy::EmptyInView => 0,
         ReloadWhy::Empty => 1,
@@ -630,7 +630,7 @@ impl ReloadTally {
     /// A bot's tick: its place, weapon class and team, alive, an enemy on
     /// view, a shot this tick, and its last reload.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn tick(
+    pub(crate) fn tick(
         &mut self,
         place: Place,
         class: &'static str,
@@ -638,7 +638,7 @@ impl ReloadTally {
         alive: bool,
         on_view: bool,
         fired: bool,
-        note: Option<super::super::reflex::ReloadNote>,
+        note: Option<crate::v026g::bots::reflex::ReloadNote>,
         now: u32,
     ) {
         let n = place + 1;
@@ -684,13 +684,13 @@ impl ReloadTally {
 
     /// An on-view tick with no shot of a bot of `team`, with its gates and
     /// last reload.
-    pub(super) fn held(
+    pub(crate) fn held(
         &mut self,
         team: u8,
-        gates: super::super::reflex::Gates,
-        note: Option<super::super::reflex::ReloadNote>,
+        gates: crate::v026g::bots::reflex::Gates,
+        note: Option<crate::v026g::bots::reflex::ReloadNote>,
     ) {
-        use super::super::reflex::gate;
+        use crate::v026g::bots::reflex::gate;
         if gates.bits & gate::RELOAD != 0
             && let Some(note) = note
         {
@@ -698,7 +698,7 @@ impl ReloadTally {
         }
     }
 
-    pub(super) fn line(&self) -> String {
+    pub(crate) fn line(&self) -> String {
         let q = |v: &[f32]| {
             let mut v = v.to_vec();
             v.sort_by(f32::total_cmp);
@@ -731,7 +731,7 @@ impl ReloadTally {
 
 #[test]
 fn the_reload_tally_counts_each_reload_once_and_what_came_of_it() {
-    use super::super::reflex::{ReloadNote, ReloadWhy};
+    use crate::v026g::bots::reflex::{ReloadNote, ReloadWhy};
     let mut t = ReloadTally::default();
     let note = |at: u32, why, left| ReloadNote { at, until: at + 2_000, why, left, magazine: 30 };
     // On view at 1000, empty at 1500: in view within 1 s; the next shot
