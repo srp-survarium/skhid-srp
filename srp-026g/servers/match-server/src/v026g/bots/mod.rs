@@ -200,6 +200,14 @@ pub struct Bot {
     /// ([`NO_WAY_KEEP_MS`]): a battery ringed by fire is not fetched again
     /// and again, standing.
     no_way_to: Vec<(Vec3, u32)>,
+    /// The bench's stood line (`real_bot_cost`): whether the reflex had the
+    /// legs at its last motor tick (a fight, not a route missing), and the
+    /// poll clock of that tick (a play taken after it has had no motor
+    /// tick yet to plan its route).
+    #[cfg(test)]
+    pub(crate) bench_legs: bool,
+    #[cfg(test)]
+    pub(crate) bench_driven: u32,
     /// Keys to press for one tick.
     press: u32,
     /// Keys held for a few ticks to get unstuck.
@@ -311,6 +319,10 @@ impl Bot {
             route: None,
             no_way: None,
             no_way_to: Vec::new(),
+            #[cfg(test)]
+            bench_legs: false,
+            #[cfg(test)]
+            bench_driven: 0,
             press: 0,
             unstick: None,
             jump_hold: 0,
@@ -2110,6 +2122,10 @@ impl Bots {
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         let searching = &mut self.searching;
         for time in bot.encoder.ticks(clock.clock, entered + START_AFTER_MS) {
+            #[cfg(test)]
+            {
+                bot.bench_driven = clock.clock;
+            }
             let estimate = self
                 .tracker
                 .body(bot.place)
@@ -2357,6 +2373,10 @@ fn drive_tick(
     // The legs: the reflex's when it takes them (a push, breaking sight,
     // a re-peek, the weapon's range, in after a grenade), else the play's.
     let mut intent = intent;
+    #[cfg(test)]
+    {
+        bot.bench_legs = over.legs.is_some() && !using;
+    }
     if let Some(legs) = over.legs.filter(|_| !using) {
         intent.go = Go::To {
             at: legs.at,

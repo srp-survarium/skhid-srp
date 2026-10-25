@@ -4631,6 +4631,10 @@ fn real_bot_cost() {
             // Living bots' ticks with a goal to walk to, and those of them
             // with no route: a bot standing where it means to walk. By team.
             let (mut goal_ticks, mut stood_ticks) = ([0u64; 2], [0u64; 2]);
+            // Of those, the ticks a route was missing: not while the reflex
+            // had the legs (a fight: it stands where the reflex wants it), not
+            // on a play taken since its last motor tick (no tick yet to plan).
+            let mut stood_routing = [0u64; 2];
             let mut stood_by: std::collections::BTreeMap<String, u64> = Default::default();
             // By the bot's play: takes (and those scoring under 0.05),
             // kills, deaths, steals (the objective plays' yield, F2).
@@ -4897,6 +4901,13 @@ fn real_bot_cost() {
                             // A step walked straight has no route.
                             if bot.route.is_none() && !bot.intent.straight {
                                 stood_ticks[team] += 1;
+                                let new_play = bot
+                                    .assignment
+                                    .as_ref()
+                                    .is_some_and(|a| a.since > bot.bench_driven);
+                                if !bot.bench_legs && !new_play {
+                                    stood_routing[team] += 1;
+                                }
                                 let play = bot
                                     .assignment
                                     .as_ref()
@@ -5144,6 +5155,13 @@ fn real_bot_cost() {
                 game.delivered,
                 game.points,
                 game.stolen
+            );
+            eprintln!(
+                "  stood with no route, not fighting nor a play just taken: {} of {} bot ticks ({:.2} %), by team {stood_routing:?}",
+                stood_routing.iter().sum::<u64>(),
+                goal_ticks.iter().sum::<u64>(),
+                100.0 * stood_routing.iter().sum::<u64>() as f64
+                    / goal_ticks.iter().sum::<u64>().max(1) as f64,
             );
             eprintln!(
                 "  takes: {} taken, {take_ends} could-not-take ends, {stands_given_up} stands given up ({stands_stale} at a belief the battery had left)",
