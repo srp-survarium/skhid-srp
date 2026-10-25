@@ -9,6 +9,8 @@
 //!   flags, missed jumps at a ledge);
 //! - moving: the stuck detector of `navigation.md` §2d, idle, drops,
 //!   U-turns, bodies close or in one another;
+//! - vertical: certain drops and climbs a kilometre walked, and the share
+//!   of the time above the players' p75 height (`grid-record.md` section V);
 //! - grenades on their own side, and bots inside a blast that were outside
 //!   at the throw (the stand-in has no grenade damage: counted only);
 //! - campers (`campers.md`): kills in a run from one spot, a team's deaths
@@ -269,6 +271,7 @@ impl OwnerTally {
             self.fight_part(&scale),
             self.jumps_part(game, &presses),
             self.moving_part(game, &presses, &scale),
+            self.vertical_part(game),
             self.grenades_part(game),
             self.campers_part(),
         ];
