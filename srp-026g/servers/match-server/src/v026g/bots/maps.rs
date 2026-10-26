@@ -435,7 +435,7 @@ fn build(
         MapData::from_bytes(&bytes).map_err(|error| format!("{}: {error}", path.display()))?;
     drop(bytes);
     let built = catch_unwind(AssertUnwindSafe(|| {
-        let (cell, body) = (mapdata::CELL, Body::default());
+        let (cell, body) = (mapdata::CELL, super::tuning::Tuning::default().grid_body());
         let walker = map.walker_triangles();
         let area = map.play_area(mapdata::AREA_MARGIN);
         let seeds = map.grid_seeds();

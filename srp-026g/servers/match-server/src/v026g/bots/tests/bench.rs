@@ -155,6 +155,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if settings.var("SRP_BENCH_CARRIER_JUMP").is_ok_and(|v| v == "on" || v == "1") {
         set(&mut tuning, "/feel/carrier_jump_m", mapdata::grid::STANDING_JUMP_M.into());
     }
+    // The maps' grids built with the numbers the clients run (`GridTuning::client_numbers`; off by default).
+    if settings.var("SRP_BENCH_CLIENT_NUMBERS").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/grid/client_numbers", true.into());
+    }
     // The battery cheat instead of the fair battery knowledge.
     if settings.flag("SRP_BENCH_CHEAT") {
         set(&mut tuning, "/cheats/batteries", true.into());
@@ -449,7 +453,7 @@ pub(crate) fn real_bot_cost() {
         // The grid with the gap links when this run's tuning has them
         // (`GridTuning::gap_links`, `SRP_BENCH_TUNING`).
         let links = bench_tuning().off_mesh_links();
-        let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
+        let world = Arc::new(World::build_with_links(map, mapdata::CELL, bench_tuning().grid_body(), links));
         let built_s = started.elapsed().as_secs_f32();
         // What the build freed handed back (glibc keeps it otherwise): the
         // memory of the world as the server holds it.
