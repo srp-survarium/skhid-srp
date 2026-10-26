@@ -2412,6 +2412,21 @@ impl WalkGrid {
         to: NodeId,
         budget: usize,
     ) -> Result<SlicedSearch, Search> {
+        self.start_search_reaching(from, to, budget, None)
+    }
+
+    /// [`Self::start_search`] for a body whose jumps rise at most
+    /// `max_rise` metres (`None`: as high as the grid's own links, the
+    /// grid body's [`Body::max_jump`]): a body that cannot sprint (a battery
+    /// carrier) clears [`STANDING_JUMP_M`] at most, and a jump link above
+    /// that is a link it cannot take.
+    pub fn start_search_reaching(
+        &self,
+        from: NodeId,
+        to: NodeId,
+        budget: usize,
+        max_rise: Option<f32>,
+    ) -> Result<SlicedSearch, Search> {
         let n = self.len();
         if from as usize >= n || to as usize >= n || !self.may_reach(from, to) {
             return Err(Search::NoWay);
@@ -2455,6 +2470,7 @@ impl WalkGrid {
             closed,
             expanded: 0,
             budget,
+            max_rise,
             best: from,
             best_h: f32::INFINITY,
         })
@@ -2656,6 +2672,8 @@ pub struct SlicedSearch {
     closed: u16,
     expanded: usize,
     budget: usize,
+    /// The highest jump link the body takes ([`WalkGrid::start_search_reaching`]).
+    max_rise: Option<f32>,
     /// The floor expanded so far that is nearest the goal (by the
     /// heuristic), and how near: where [`Self::partial`] leads.
     best: NodeId,
@@ -2688,9 +2706,11 @@ impl SlicedSearch {
             closed,
             expanded,
             budget,
+            max_rise,
             best,
             best_h,
         } = self;
+        let max_rise = *max_rise;
         let (from, to, goal, seen, closed) = (*from, *to, *goal, *seen, *closed);
         loop {
             if *iters == 0 {
@@ -2725,6 +2745,11 @@ impl SlicedSearch {
             for (v, kind, way_back) in grid.links_back(u) {
                 let m = mark[v as usize];
                 if m == closed || (v != to && !allowed(v)) {
+                    continue;
+                }
+                if kind == LinkKind::Jump
+                    && max_rise.is_some_and(|top| grid.height[v as usize] - grid.height[u as usize] > top)
+                {
                     continue;
                 }
                 let c = cu + grid.link_cost(u, v, kind);
@@ -3443,6 +3468,51 @@ pub(crate) mod tests {
         };
         assert_eq!(way(2.0), 0, "a short walk round");
         assert_eq!(way(7.0), 1, "a long walk round");
+    }
+
+    /// A body that cannot sprint (a battery carrier) takes no jump link
+    /// above the standing jump: a 1.0 m ledge is a jump for a walker (the
+    /// grid's own body takes up to 1.05 m) and no way for the carrier; a
+    /// ledge of 0.9 m is a way for both, and a ramp round a 1.0 m ledge
+    /// is the carrier's way however long.
+    #[test]
+    fn a_carrier_is_routed_over_no_jump_above_its_standing_jump() {
+        let ledge = |rise: f32, ramp: Option<f32>| {
+            let grid = ledge_yard(rise, ramp);
+            let from = grid.locate(Vec3::new(9.0, 0.0, 1.0), 0.3).unwrap();
+            let to = grid.locate(Vec3::new(11.5, rise, 1.0), 0.3).unwrap();
+            let jumps = |search: Search| match search {
+                Search::Found(path) => Some(
+                    path.nodes
+                        .windows(2)
+                        .filter(|w| grid.links(w[0]).any(|(b, k)| b == w[1] && k == LinkKind::Jump))
+                        .count(),
+                ),
+                _ => None,
+            };
+            let walker = grid.search(from, to, |_| true, usize::MAX);
+            let mut carrier = grid.start_search_reaching(from, to, usize::MAX, Some(STANDING_JUMP_M)).unwrap();
+            let mut iters = usize::MAX;
+            let carrier = carrier.step(&grid, |_| true, &mut iters).unwrap();
+            (jumps(walker), jumps(carrier))
+        };
+        assert_eq!(ledge(1.0, None), (Some(1), None), "a 1.0 m ledge: the walker jumps, the carrier has no way");
+        assert_eq!(ledge(0.9, None), (Some(1), Some(1)), "a 0.9 m ledge: both jump");
+        assert_eq!(ledge(1.0, Some(7.0)), (Some(1), Some(0)), "a long ramp round: the walker jumps, the carrier walks");
+    }
+
+    /// A yard x 0-20, z 0-10 with a ledge `rise` m high from x 10 on and, from z `ramp` on, steps up to it at x 8-10.
+    pub(crate) fn ledge_yard(rise: f32, ramp: Option<f32>) -> WalkGrid {
+        let mut tris: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(10.0, 0.0, 20.0, 10.0, rise));
+        tris.extend(wall_x(10.0, 0.0, 10.0, rise));
+        if let Some(round) = ramp {
+            for s in 0..5 {
+                let x0 = 8.0 + 0.4 * s as f32;
+                tris.extend(floor(x0, round, x0 + 0.4, 10.0, rise / 5.0 * (s + 1) as f32));
+            }
+        }
+        WalkGrid::build(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default())
     }
 
     /// A yard at 0 with a pit `depth` m deep (x 8-12, z 3-7) and a spawn

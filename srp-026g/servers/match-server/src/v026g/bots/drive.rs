@@ -279,9 +279,22 @@ pub(super) fn drive_tick(
     if let Some(trap) = trap {
         bot.press |= trap.key;
     }
+    // [trap_react] A noticed trap, shot: the view at its centre, the aim
+    // held and the fire key pressed a tick per shot, the legs still.
+    let react = trap_react::drive(bot, me, view, time, calm, &tuning.traps.react);
+    let aim = match react.and_then(|react| react.look) {
+        Some(point) => Some(aim_at(point)),
+        None => aim,
+    };
+    if let Some(react) = react {
+        bot.press |= react.keys;
+    }
     // The legs: the reflex's when it takes them (a push, breaking sight,
     // a re-peek, the weapon's range, in after a grenade), else the play's.
     let mut intent = intent;
+    if react.is_some() {
+        intent.go = Go::Stay;
+    }
     #[cfg(test)]
     {
         bot.bench_legs = over.legs.is_some() && !using;
@@ -541,6 +554,14 @@ pub(super) fn drive_tick(
                     from.is_some()
                         && from != path::goal_floor(grid, at).and_then(|g| grid.pocket_of(g))
                 };
+            // The bench's count of the given-up episodes: the tick a bot becomes shut in.
+            #[cfg(test)]
+            {
+                if shut_in && !bot.bench_shut_in {
+                    search::asks::count(search::asks::Ask::Episodes);
+                }
+                bot.bench_shut_in = shut_in;
+            }
             // Why it has no route, if it has none after this.
             let mut no_route = path::NoRoute::Searched;
             if let Some((goal, route, crossed)) = found {
@@ -564,11 +585,15 @@ pub(super) fn drive_tick(
                 bot.set_route(route.map(|route| (route, goal)), time);
             } else if replan && (no_way || shut_in) {
                 #[cfg(test)]
-                if !no_way {
+                if shut_in {
                     search::asks::count(search::asks::Ask::Skipped);
                 }
                 bot.end_route(RouteEnd::NoWay, time);
-                no_route = path::NoRoute::NoWay;
+                no_route = if shut_in {
+                    path::NoRoute::ShutIn
+                } else {
+                    path::NoRoute::NoWay
+                };
             } else if waiting
                 || (replan
                     && (searching.left == 0
@@ -599,7 +624,11 @@ pub(super) fn drive_tick(
                 // The landings of jumps it gave up: shut to all its searches
                 // (a fact about this body, not a preference like the spots).
                 let landings = bot.stuck.shut_landings(time).collect();
-                let hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
+                let mut hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
+                // A body that cannot sprint takes no jump link above its standing jump.
+                if let Some(rise) = bot.motor.feel.carrier_jump_m.map(f32::from).filter(|_| me.carrying.is_some()) {
+                    hard = hard.with_max_jump_rise(rise);
+                }
                 let filter = hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect());
                 let avoiding = filter.has_soft();
                 let ends = grid.locate(me.feet, 1.5).zip(path::goal_floor(grid, at));

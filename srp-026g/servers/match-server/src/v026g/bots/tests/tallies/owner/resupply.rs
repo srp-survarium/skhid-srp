@@ -61,8 +61,57 @@ pub(super) struct ResupplyCounts {
     open: Vec<Option<Event>>,
     holds: u32,
     events: Vec<Event>,
-    /// Every kill, as the match ran (the bench drains the game's log).
-    pub(super) kills: Vec<(u32, Place, Place)>,
+    /// By place: what its bot says at this tick's reading (none: not a bot), and whether it was dry the tick
+    /// before (a death's dryness is the last tick's).
+    now: Vec<Option<ResupplyNow>>,
+    dry_last: Vec<bool>,
+}
+
+/// What the resupply counts read of a bot at a tick.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct ResupplyNow {
+    resupplies: u32,
+    nearly: Nearly,
+    ammo: crate::v026g::bots::guns::Ammo,
+    dry: bool,
+}
+
+/// How near dry the bot is: its rounds at or under the resupply play's
+/// `dry_share` of the kit's count with something to refill, and then
+/// whether it is bound for an objective (its play's rank) and how much
+/// farther its goal is by its team's box.
+pub(super) fn nearly_dry(bots: &Bots, bot: &super::super::Bot, feet: Vec3) -> Nearly {
+    use crate::v026g::bots::plays::{PlayKind, Rank};
+    let ammo = bot.ammo();
+    if ammo.missing() == 0 || ammo.share() > bots.tuning.number(PlayKind::Resupply, "dry_share") {
+        return Nearly::Fine;
+    }
+    let bound = bot
+        .assignment
+        .as_ref()
+        .and_then(|a| bots.tuning.plays.get(&a.kind))
+        .is_some_and(|play| play.rank == Rank::Objective);
+    if !bound {
+        return Nearly::Other;
+    }
+    let goal = match bot.intent.go {
+        Go::To { at, .. } => at,
+        Go::Stay => feet,
+    };
+    let extra_m = bot.side.and_then(|side| {
+        let world = &bots.tactics.as_ref()?.world;
+        world
+            .map
+            .zones
+            .iter()
+            .filter(|z| z.kind == mapdata::ZoneKind::Resupply && z.team == side)
+            .filter_map(|z| z.shapes.first())
+            .map(|shape| {
+                feet.distance_xz(shape.center) + shape.center.distance_xz(goal) - feet.distance_xz(goal)
+            })
+            .min_by(f32::total_cmp)
+    });
+    Nearly::Objective { extra_m }
 }
 
 impl ResupplyCounts {
@@ -72,27 +121,61 @@ impl ResupplyCounts {
             life_done: vec![false; n],
             open: vec![None; n],
             life: vec![None; n],
+            now: vec![None; n],
+            dry_last: vec![false; n],
             ..Self::default()
         }
     }
 }
 
-impl OwnerTally {
+impl Topic for ResupplyCounts {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    /// The holds, the rounds and how near dry each bot is, from the bots and where the game has them.
+    fn bots(&mut self, bots: &Bots, game: &Game) {
+        for place in 0..self.now.len() {
+            self.now[place] = bots.bots.get(place).and_then(Option::as_ref).map(|bot| ResupplyNow {
+                resupplies: bot.resupplies,
+                nearly: nearly_dry(bots, bot, game.bodies[place].feet),
+                ammo: bot.ammo(),
+                dry: bot.reflex.dry(),
+            });
+        }
+    }
+
+    #[cfg(test)]
+    fn inject(&mut self, place: Place, now: Option<&BotNow>) {
+        self.now[place] = now.map(|n| ResupplyNow { resupplies: n.resupplies, nearly: n.nearly, ammo: n.ammo, dry: n.dry });
+    }
+
+    fn body(&mut self, _run: &Run, at: &BodyAt<'_>, _rays: &mut u64) {
+        if let Some(now) = self.now[at.place] {
+            self.resupply_step(at.place, at.tick, at.prev, &at.game.bodies[at.place], &now);
+        }
+    }
+
+    fn parts(&mut self, run: &Run, game: &Game, scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+        vec![("resupply", self.part(run, game, scale))]
+    }
+}
+
+impl ResupplyCounts {
     /// One bot's tick: its holds, and its first nearly dry moment of a life.
     /// Called after the death count, before the ammunition's (a death's
     /// dryness is the last tick's).
-    pub(super) fn resupply_step(&mut self, place: Place, tick: u32, prev: &Rec, body: &super::super::Body, now: &BotNow) {
-        let counts = &mut self.resupply;
+    fn resupply_step(&mut self, place: Place, tick: u32, prev: &Rec, body: &super::super::Body, now: &ResupplyNow) {
         if prev.alive
             && !body.alive
-            && let Some(mut life) = counts.life[place].take()
+            && let Some(mut life) = self.life[place].take()
         {
             life.end = tick;
             life.died = true;
-            counts.lives_done.push(life);
+            self.lives_done.push(life);
         }
         if body.alive {
-            let life = counts.life[place].get_or_insert(Life {
+            let life = self.life[place].get_or_insert(Life {
                 place,
                 at: tick,
                 end: tick,
@@ -104,20 +187,20 @@ impl OwnerTally {
             life.fired += life.have.saturating_sub(now.ammo.have);
             life.have = now.ammo.have;
         }
-        counts.holds += now.resupplies.saturating_sub(counts.holds_seen[place]);
-        counts.holds_seen[place] = now.resupplies;
+        self.holds += now.resupplies.saturating_sub(self.holds_seen[place]);
+        self.holds_seen[place] = now.resupplies;
         if prev.alive && !body.alive {
-            if let Some(mut event) = counts.open[place].take() {
+            if let Some(mut event) = self.open[place].take() {
                 event.end = tick;
                 event.died = true;
-                event.died_dry = self.fight.dry[place];
-                counts.events.push(event);
+                event.died_dry = self.dry_last[place];
+                self.events.push(event);
             }
-            counts.life_done[place] = false;
+            self.life_done[place] = false;
         }
-        if body.alive && !counts.life_done[place] && now.nearly != Nearly::Fine {
-            counts.life_done[place] = true;
-            counts.open[place] = Some(Event {
+        if body.alive && !self.life_done[place] && now.nearly != Nearly::Fine {
+            self.life_done[place] = true;
+            self.open[place] = Some(Event {
                 place,
                 at: tick,
                 nearly: now.nearly,
@@ -126,29 +209,30 @@ impl OwnerTally {
                 died_dry: false,
             });
         }
+        self.dry_last[place] = body.alive && now.dry;
     }
 
-    pub(super) fn resupply_part(&mut self, game: &Game, scale: &Scale) -> Part {
-        let ticks = self.recs.first().map_or(0, Vec::len);
-        let end = self.time_of(ticks);
-        let mut events = std::mem::take(&mut self.resupply.events);
-        for open in std::mem::take(&mut self.resupply.open).into_iter().flatten() {
+    fn part(&mut self, run: &Run, game: &Game, scale: &Scale) -> Part {
+        let ticks = run.recs.first().map_or(0, Vec::len);
+        let end = run.time_of(ticks);
+        let mut events = std::mem::take(&mut self.events);
+        for open in std::mem::take(&mut self.open).into_iter().flatten() {
             events.push(Event { end, ..open });
         }
         // Lives of the bots: each rise from dead (or the first tick) to alive.
-        let lives: u32 = (0..self.recs.len())
-            .filter(|&p| self.is_bot[p])
+        let lives: u32 = (0..run.recs.len())
+            .filter(|&p| run.is_bot[p])
             .map(|p| {
-                let r = &self.recs[p];
+                let r = &run.recs[p];
                 (0..r.len()).filter(|&k| r[k].alive && (k == 0 || !r[k - 1].alive)).count() as u32
             })
             .sum();
         // The play's own runs: each rise of the bot's play to Resupply, and the seconds in it.
-        let id = self.play_index.get("Resupply").copied();
+        let id = run.play_index.get("Resupply").copied();
         let (mut runs, mut run_ticks) = (0u32, 0u32);
         if let Some(id) = id {
-            for p in (0..self.recs.len()).filter(|&p| self.is_bot[p]) {
-                let r = &self.recs[p];
+            for p in (0..run.recs.len()).filter(|&p| run.is_bot[p]) {
+                let r = &run.recs[p];
                 for k in 0..r.len() {
                     if r[k].alive && r[k].play == id {
                         run_ticks += 1;
@@ -159,13 +243,12 @@ impl OwnerTally {
         }
         // The ammunition of the lives: as the humans' (`human_suicide.py`, D): life length, rounds fired,
         // rounds per kill, and what is left of the kit's count at a death.
-        let mut lives_v = std::mem::take(&mut self.resupply.lives_done);
-        for open in std::mem::take(&mut self.resupply.life).into_iter().flatten() {
+        let mut lives_v = std::mem::take(&mut self.lives_done);
+        for open in std::mem::take(&mut self.life).into_iter().flatten() {
             lives_v.push(Life { end, ..open });
         }
         let kills_in = |l: &Life| {
-            self.resupply
-                .kills
+            run.kills
                 .iter()
                 .filter(|&&(t, shooter, victim)| {
                     shooter == l.place
@@ -234,8 +317,7 @@ impl OwnerTally {
             left[3],
         );
         let kills_of = |e: &Event| {
-            self.resupply
-                .kills
+            run.kills
                 .iter()
                 .filter(|&&(t, shooter, victim)| {
                     shooter == e.place
@@ -263,7 +345,7 @@ impl OwnerTally {
         let obj = sum(&objective);
         let nr = sum(&near);
         let json = serde_json::json!({
-            "resupply_holds": self.resupply.holds,
+            "resupply_holds": self.holds,
             "resupply_lives": lives,
             "ammo_lives": lives_a.len(),
             "ammo_lives_died": died,
@@ -298,9 +380,9 @@ impl OwnerTally {
             "owner-test resupply: runs of the play {} ({:.0} s); box holds {} ({:.3} a bot-minute, {:.3} a life of {}); nearly dry (a life's first moment at or under dry_share, with something to refill) {} (life after {} s, kills {}, died {} dry {}); of them bound for an objective {} (life {} s, kills {}, died {} dry {}), and with the box within {} m of extra walk {} (life {} s, kills {}, died {} dry {})",
             runs,
             f64::from(run_ticks) * scale.tick_s,
-            self.resupply.holds,
-            scale.per_min(f64::from(self.resupply.holds)),
-            Scale::rate(self.resupply.holds, lives),
+            self.holds,
+            scale.per_min(f64::from(self.holds)),
+            Scale::rate(self.holds, lives),
             lives,
             all[0], all[1], all[2], all[3], all[4],
             obj[0], obj[1], obj[2], obj[3], obj[4],

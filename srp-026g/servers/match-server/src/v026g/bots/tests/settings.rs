@@ -74,6 +74,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_SECONDS", "240", "the length of a match, s"),
     s("SRP_BENCH_SEED", "0", "another match of the same map and size (0: the digests' runs)"),
     s("SRP_BENCH_TIER", "unset: the lowest tier", "every bot's tier, `4-5`, `9-10` or `13-15`: each bot is the lobby's (its role from `bot_roles`, the tier's kits of `bot_profile`), read back as the match server does (`bench_roster`)"),
+    s("SRP_BENCH_RUSHER", "control", "the kit the rusher bots of tiers 9-10 and 13-15 wear (`loadouts::RusherKits`, the lobby's `SRP_PVB_RUSHER_KIT`): `control` (the old kit: the SPAS-12 with buckshot; the default), `smg` (`sr2m` / `fn_p90`), `alt` (`ump45` / `kriss_vector`), `slug` or `helmet` (the SPAS-12 with slugs / buckshot and the SMG kit's helmet); one word for both tiers or `9-10=alt,13-15=smg`. A kit whose items the game data lacks is the old kit, said in a line (the built-in test archive has no `fn_p90` or `kriss_vector`: set SRP_GAME_DATA); the rusher's armour and ammo in the stand-in's hits follow it"),
     s("SRP_DECISIONS_OUT", "unset", "a file the run's decisions line is appended to"),
     // What is printed or written.
     s("SRP_BENCH_EVENTS", "unset", "a folder for the run's events, one JSON line each"),
@@ -83,6 +84,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_SHOW_STALE", "off", "print the stale-belief lines"),
     s("SRP_BENCH_SHOW_RAIDS", "off", "print the raid lines"),
     s("SRP_BENCH_WHY", "off", "print why each play ended"),
+    s("SRP_BENCH_CARRIER_JUMP", "off", "`on` (or `1`) plans a battery carrier's routes over the jump links up to the standing jump's 0.998 m only (`Feel::carrier_jump_m` Some); off by default: every jump link"),
     s("SRP_BENCH_LIP_GUARD", "off", "`on` (or `1`) turns the lip guard and the short look-ahead on lip floors on (`Feel::lip_guard_ticks` 2, `lip_look_ahead_m` 0.8); both are off by default"),
     s("SRP_BENCH_FALLS", "off", "print a line for every fall of a metre or more (FALL unplanned, PLANNED on the route), the bots' reckoning error and their distance off the route (`tallies/route.rs`)"),
     // The bots' side: tuning of the bench's bots.
