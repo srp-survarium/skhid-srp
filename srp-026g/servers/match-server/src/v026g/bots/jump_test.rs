@@ -85,7 +85,7 @@ const GO_MAX_MS: u32 = 60_000;
 const ARRIVED_M: f32 = 0.3;
 /// A walk that has gone on this long ([`NEAR_ACCEPT_AFTER_MS`]) is let off at this distance from its start, m.
 const NEAR_ACCEPT_M: f32 = 0.6;
-const NEAR_ACCEPT_AFTER_MS: u32 = 20_000;
+const NEAR_ACCEPT_AFTER_MS: u32 = 8_000;
 /// Worlds are recorded this long after the press, ms.
 const RECORD_AFTER_MS: u32 = 3_000;
 /// The keys are held until this long after the press, ms.
@@ -1546,9 +1546,10 @@ impl JumpTest {
 }
 
 /// Whether a walk has come to its start: within [`ARRIVED_M`] and still, or, once it has walked
-/// [`NEAR_ACCEPT_AFTER_MS`], within [`NEAR_ACCEPT_M`] and still (a start the body cannot be closer to than that: the
-/// J0 on Chemical Plant, two bodies 0.30-0.31 m off the pipes' start, struck two ledges). The Settle then judges the rest
-/// by the world, and a misfit aims the redo ([`shift_of`]).
+/// [`NEAR_ACCEPT_AFTER_MS`], within [`NEAR_ACCEPT_M`] and still. The motor ends the walk to an exact spot within
+/// `Feel::arrive_m` (0.6 m) of the route's end, so a body can stand 0.3-0.6 m short for ever (the J0 on Chemical Plant:
+/// five ledges struck at 0.28-0.31 m). The Settle then judges the rest by the world, and a misfit aims the redo
+/// ([`shift_of`]).
 fn arrived_at(distance_m: f32, speed: f32, walked_ms: u32) -> bool {
     speed < 0.6 && (distance_m <= ARRIVED_M || (distance_m <= NEAR_ACCEPT_M && walked_ms >= NEAR_ACCEPT_AFTER_MS))
 }
@@ -2326,10 +2327,10 @@ s100_3 14.2 16.32 138.72 1 0 1.009 0.25 0.50 7.01
     }
 
     #[test]
-    fn a_walk_that_cannot_get_closer_than_a_third_of_a_metre_is_let_off_after_twenty_seconds() {
+    fn a_walk_that_cannot_get_closer_than_a_third_of_a_metre_is_let_off_after_eight_seconds() {
         assert!(arrived_at(0.25, 0.0, 0), "within 0.3 m and still: at once");
         assert!(!arrived_at(0.31, 0.0, 5_000), "0.31 m: not yet");
-        assert!(arrived_at(0.31, 0.0, 20_000), "0.31 m after 20 s");
+        assert!(arrived_at(0.31, 0.0, 8_000), "0.31 m after 8 s");
         assert!(!arrived_at(0.7, 0.0, 60_000), "0.7 m is not near enough ever");
         assert!(!arrived_at(0.2, 1.5, 60_000), "moving is not arrived");
     }
