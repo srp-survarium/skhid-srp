@@ -22,6 +22,11 @@ pub(super) struct FightCounts {
     /// hits and those from past it; the ticks the range alone held the
     /// shot.
     pub(super) fire_range: BTreeMap<&'static str, [u32; 2]>,
+    /// The same by the distance of the bot's own target (what its range gate
+    /// cuts), where the enemy nearest the view may be another, farther one.
+    pub(super) fire_range_target: BTreeMap<&'static str, [u32; 2]>,
+    /// By place: the reflex tick whose held shot was counted last.
+    pub(super) held_at: Vec<u32>,
     pub(super) hits_range: BTreeMap<&'static str, [u32; 2]>,
     pub(super) range_held: BTreeMap<&'static str, u32>,
     /// Fire ticks and hits by the shooter's movement ([`MOVES`]).
@@ -47,6 +52,7 @@ impl FightCounts {
             dry: vec![false; n],
             last_reload: vec![None; n],
             last_target: vec![None; n],
+            held_at: vec![0; n],
             hurt_by: vec![Vec::new(); n],
             ..Self::default()
         }
@@ -376,15 +382,18 @@ pub(crate) fn fire_past_the_class_range_is_counted_with_its_hits_and_the_shots_t
         put(game, 3, 25.0, 5.0 + range + 5.0, 0);
         game.bodies[0].yaw = 0.0;
         game.bodies[2].yaw = 0.0;
+        game.bodies[0].target = Some(1);
+        game.bodies[2].target = Some(3);
         if k == 5 {
             game.hit_log.extend([(game.tick, 0, 1), (game.tick, 2, 3)]);
         }
         let mut nows = vec![bot_now(); 4];
-        nows[2].as_mut().unwrap().range_held = k < 3;
+        nows[2].as_mut().unwrap().range_held = (k < 3).then_some(game.tick);
         nows
     });
     let (_, json) = tally.finish(&game);
     assert_eq!(json["fire_past_class_range"][class], serde_json::json!([20, 10]), "{json}");
+    assert_eq!(json["fire_past_class_range_at_target"][class], serde_json::json!([20, 10]));
     assert_eq!(json["hits_past_class_range"][class], serde_json::json!([2, 1]));
     assert_eq!(json["fire_past_class_range_pct"], 50.0);
     assert_eq!(json["hit_rate_in_class_range"], 0.1);
@@ -500,12 +509,28 @@ impl OwnerTally {
                 count[0] += 1;
                 count[1] += u32::from(d > range);
             }
+            // ... and by the distance of its target.
+            let at_target = body
+                .target
+                .and_then(|t| enemy_of(game, place, body.team, t))
+                .map(|him| him.feet.distance_xz(body.feet))
+                .filter(|d| (FIRE_MIN_M..=FIRE_FAR_M).contains(d));
+            if let (Some(range), Some(d)) = (class_range_m(body.gun.class()), at_target) {
+                let count = self.fight.fire_range_target.entry(body.gun.class()).or_default();
+                count[0] += 1;
+                count[1] += u32::from(d > range);
+            }
         }
     }
 
     /// The shot the range alone held back this tick (fire key or not).
-    pub(super) fn fight_range_held(&mut self, body: &super::super::Body, now: &BotNow) {
-        if body.alive && now.range_held && class_range_m(body.gun.class()).is_some() {
+    pub(super) fn fight_range_held(&mut self, place: Place, body: &super::super::Body, now: &BotNow) {
+        // The reflex decides ticks ahead of the game's: each of its ticks once.
+        let Some(at) = now.range_held.filter(|&at| at != self.fight.held_at[place]) else {
+            return;
+        };
+        self.fight.held_at[place] = at;
+        if body.alive && class_range_m(body.gun.class()).is_some() {
             *self.fight.range_held.entry(body.gun.class()).or_default() += 1;
         }
     }
@@ -662,6 +687,7 @@ impl OwnerTally {
         // X1: hits a fire tick within the class's range and past it.
         let [fire_all, fire_past] = self.fight.fire_range.values().fold([0, 0], |a, v| [a[0] + v[0], a[1] + v[1]]);
         let [hits_all, hits_past] = self.fight.hits_range.values().fold([0, 0], |a, v| [a[0] + v[0], a[1] + v[1]]);
+        let [target_all, target_past] = self.fight.fire_range_target.values().fold([0, 0], |a, v| [a[0] + v[0], a[1] + v[1]]);
         let rate_in = rate(hits_all - hits_past, fire_all - fire_past);
         let rate_past = rate(hits_past, fire_past);
         let rate_range_class: BTreeMap<&str, [f64; 2]> = self
@@ -687,6 +713,8 @@ impl OwnerTally {
             "fire_far_close_class_pct": pct(fire_near_class[1].into(), fire_near_class[0].into()),
             "fire_past_class_range": self.fight.fire_range,
             "fire_past_class_range_pct": pct(fire_past.into(), fire_all.into()),
+            "fire_past_class_range_at_target": self.fight.fire_range_target,
+            "fire_past_class_range_at_target_pct": pct(target_past.into(), target_all.into()),
             "hits_past_class_range": self.fight.hits_range,
             "hit_rate_in_class_range": rate_in,
             "hit_rate_past_class_range": rate_past,
@@ -710,7 +738,7 @@ impl OwnerTally {
             "died_unturned": died_unturned,
         });
         let text = format!(
-            "owner-test: dry {} s (deaths {}), reloading {} s (deaths {}), reloads {} in a line {} died {}; fire >=35 m by class {}; side hits {} turned in 3 s {} died unturned {}\n  owner-test fight: fire/hits by move {}; hits a fire tick by class and band {}; fire past the class range {} of {} ({:.1} %), hits a tick within {} past {}, held by the range {}; fire at a target {} out of line {} ({:.1} %), no target {}; target switches {} with the hurter in line {}",
+            "owner-test: dry {} s (deaths {}), reloading {} s (deaths {}), reloads {} in a line {} died {}; fire >=35 m by class {}; side hits {} turned in 3 s {} died unturned {}\n  owner-test fight: fire/hits by move {}; hits a fire tick by class and band {}; fire past the class range {} of {} ({:.1} %), at its target {} of {} ({:.1} %), hits a tick within {} past {}, held by the range {}; fire at a target {} out of line {} ({:.1} %), no target {}; target switches {} with the hurter in line {}",
             json["dry_s"],
             self.fight.deaths_dry,
             json["reload_s"],
@@ -727,6 +755,9 @@ impl OwnerTally {
             fire_past,
             fire_all,
             json["fire_past_class_range_pct"].as_f64().unwrap_or(0.0),
+            target_past,
+            target_all,
+            json["fire_past_class_range_at_target_pct"].as_f64().unwrap_or(0.0),
             rate_in,
             rate_past,
             held,

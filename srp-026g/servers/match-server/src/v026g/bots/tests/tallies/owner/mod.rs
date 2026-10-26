@@ -83,7 +83,7 @@ struct Rec {
 /// to load, its last reload (start, end), the jump it pressed (why, and
 /// the route's take-off and landing for a route jump), its play, its
 /// play's step (once a second: none between), how far its goal is, and
-/// whether the weapon's range alone held its shot this tick.
+/// the reflex tick, if any, at which the weapon's range alone held its shot.
 #[derive(Clone, Debug, Default)]
 struct BotNow {
     dry: bool,
@@ -92,7 +92,7 @@ struct BotNow {
     play: String,
     step: Option<String>,
     goal_m: Option<f32>,
-    range_held: bool,
+    range_held: Option<u32>,
 }
 
 #[derive(Default)]
@@ -184,7 +184,7 @@ impl OwnerTally {
                     goal_m,
                     // The range was the only gate that failed (with the
                     // gate tally on, the wall test too was made).
-                    range_held: gates.at == tick && gates.bits == gate::RANGE,
+                    range_held: (gates.at.abs_diff(tick) <= 2 * TICK_MS && gates.bits == gate::RANGE).then_some(gates.at),
                 })
             })
             .collect();
@@ -244,7 +244,7 @@ impl OwnerTally {
             self.fight_ammo(place, tick, body, now);
             self.jumps_press(place, tick, body, &prev, now, &rec);
             self.fight_fire(game, place, body, &rec, &sight, &mut rays);
-            self.fight_range_held(body, now);
+            self.fight_range_held(place, body, now);
             self.fight_switch(game, place, body, &sight, &mut rays);
         }
         self.fight_hits_scored(game);
