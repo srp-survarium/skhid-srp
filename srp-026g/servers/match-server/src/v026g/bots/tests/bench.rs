@@ -187,6 +187,7 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
         ("HOLDEXIT", super::plays::PlayKind::HoldExit),
         ("CROSSFIRE", super::plays::PlayKind::Crossfire),
         ("PAIRUP", super::plays::PlayKind::PairUp),
+        ("RESUPPLY_PLAY", super::plays::PlayKind::Resupply),
     ] {
         let Ok(numbers) = var(name) else {
             continue;
