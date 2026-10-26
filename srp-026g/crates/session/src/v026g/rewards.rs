@@ -299,7 +299,16 @@ pub struct MatchResult {
     /// joiners too, and its screen takes no drop card (the owner's of
     /// 2026-10-20; `docs/notes/rooms.md`).
     pub private: bool,
+    /// A Blackout match (`docs/notes/blackout.md`): every point a player
+    /// earns in it counts twice, in its score and in what the score pays
+    /// ([`BLACKOUT_FACTOR`]); the counts (kills, batteries) are as played.
+    pub blackout: bool,
 }
+
+/// What a Blackout match's score and pay are worth: the owner's of
+/// 2026-10-25, "in blackout everything should give twice as much match
+/// points".
+pub const BLACKOUT_FACTOR: f64 = 2.0;
 
 impl MatchResult {
     /// The result with each account's latest place only: a player that
@@ -1483,11 +1492,22 @@ impl<'a> Shared<'a> {
             }
         };
         let base = if self.trusted { player.score } else { 0 };
-        base.saturating_add(bonus(
-            self.standing(player) == Standing::Finished,
-            event::PARTICIPATING,
-        ))
-        .saturating_add(bonus(self.won(player), event::WON))
+        let score = base
+            .saturating_add(bonus(
+                self.standing(player) == Standing::Finished,
+                event::PARTICIPATING,
+            ))
+            .saturating_add(bonus(self.won(player), event::WON));
+        (f64::from(score) * self.points_factor()).min(f64::from(u32::MAX)) as u32
+    }
+
+    /// What a point is worth: twice in a Blackout match.
+    fn points_factor(&self) -> f64 {
+        if self.result.blackout {
+            BLACKOUT_FACTOR
+        } else {
+            1.0
+        }
     }
 
     /// How the match moves each rating (0.21d's rule at 0.26g's scale,
@@ -1618,6 +1638,7 @@ impl<'a> Shared<'a> {
     fn lines(&self, player: &PlayerResult, main: usize) -> [[(f64, Pay); KITS]; 3] {
         let events = self.events(player);
         let weights = &self.weights;
+        let factor = self.points_factor();
         let mut lines = [[(0.0, Pay::NONE); KITS]; 3];
         for (event, counts) in events.iter().enumerate() {
             let line = EVENT_LINES[event];
@@ -1645,7 +1666,7 @@ impl<'a> Shared<'a> {
                 let cell = &mut lines[line][kit];
                 let units = f64::from(count) * unit;
                 cell.0 += units;
-                cell.1 = cell.1.plus(each.times(units));
+                cell.1 = cell.1.plus(each.times(units * factor));
             }
         }
         // The fixed part: for one who stayed to the end, in full when its
@@ -1655,7 +1676,7 @@ impl<'a> Shared<'a> {
             let won = self.won(player);
             cell.0 += if won { 2.0 } else { 1.0 };
             let share = if won { 1.0 } else { pay::ACTIVITY_NOT_WON };
-            cell.1 = cell.1.plus(pay::ACTIVITY_WON.times(share));
+            cell.1 = cell.1.plus(pay::ACTIVITY_WON.times(share * factor));
         }
         lines
     }

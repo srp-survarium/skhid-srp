@@ -3956,6 +3956,56 @@ def test_suicide_key(original, image, before):
           "relocation) and no base relocation is under it" + "".join(f", {h:#x}" for h in hits + under))
 
 
+def test_blackout(original, image, before):
+    """Check 65: Blackout (patch 65, the Rust patch `blackout`, five
+    lohooks of blackout.toml at sites of its own). check_blackout_026g.py
+    runs each from the game's code before its site on made-up objects."""
+    stock = Image(original)
+    rows = lambda va, size: [text for _, _, text in ndisasm(stock.read(va, size), va)]
+    check(rows(0x27B921, 12) == ["add esi,byte +0xc", "push esi", "lea eax,[ebp-0x2c]", "call 0x1f0e70"]
+          and rows(0x27B903, 6) == ["mov [ebp-0x2c],eax", "mov [ebp-0x28],eax"]
+          and rows(0x1F095C, 0x15)[:5] == ["mov ecx,[esp+0x40]", "push eax", "push ecx", "lea eax,[esp+0x1c]",
+                                          "mov [edi+0x680],edx"]
+          and rows(0x1F0971, 8) == ["pop esi", "pop ebx", "add esp,byte +0x34", "ret 0x8"]
+          and stock.read(0x1F0F35, 3) == bytes.fromhex("c20800"),
+          "match_options::deserialize (0x1F0E70, eax the reader, its first argument the options, `ret 8`) is "
+          "called with ESI the options and the reader at EBP-2Ch (0x27B928) and, for a replay's chunk 1, the "
+          "options from [esp+40h] and the reader at esp+14h (0x1F096C), back at 0x27B92D and 0x1F0971")
+    check(rows(0x25CD22, 0x1F) == ["push byte +0xf", "call eax", "mov bl,al", "mov [esp+0x14],bl",
+                                   "mov ecx,[esp+0x14]", "lea esi,[edi+0x4]", "push ecx", "call 0x2384c0",
+                                   "test bl,bl", "jnz near 0x25cf0d"]
+          and rows(0x23B206, 6) == ["push edi", "call 0x23aa10"],
+          "on_keyboard_action asks for Tab (0x25CD22), keeps it in bl and [esp+14h], gives show_player_list the "
+          "dword and sends every key to its end while bl is set (0x25CD39); update_ui calls update_player_icons "
+          "with the ui pushed (0x23B206)")
+    import hooks_026g
+    hooks = [h for h in hooks_026g.hooks() if h["patch"] == "blackout"]
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    state = linked.blocks.get("patches.state")
+    sites = {h["site_name"]: h for h in hooks}
+    check(sorted(sites) == ["input_builder.end", "keyboard.tab_state", "player_icons.update_start",
+                            "replay.options_read", "static_info.options_read"]
+          and all(h["kind"] == "lohook" for h in hooks) and state is not None,
+          "blackout.toml's five hooks are lohooks at the sites static_info.options_read, replay.options_read, "
+          "player_icons.update_start, keyboard.tab_state and input_builder.end; the crate's statics are the "
+          "block patches.state")
+    for h in hooks:
+        va, old = h["site"], h["original"]
+        entry = linked.symbols[h["entry"]]
+        new = P.hook_bytes(entry, va, old, 0, 0xE9)
+        # a branch into bytes 1.. of the span (a 4-byte value spelling an address there is no pointer
+        # without a relocation; a pattern inside another instruction is no branch)
+        spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+        branches = [x for x in aimed_inside(original, va, len(old), 0x82)
+                    if x not in spelled and starts_instruction(stock, x)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+              and block.va <= entry < block.va + block.size and not under and not branches,
+              f"{va:#x} ({h['site_name']}): {old.hex()} in the original and the build without the late join, "
+              f"`jmp {entry:#x}` ({h['entry']}, patches.code) here; no branch into it, no relocation under it")
+
+
 def test_stage_focus(original, image, before):
     """Check 52: Scaleform's Stage focus getter (0x771FA0) gives null for a
     focused object without its ActionScript object (patch 52, STAGE_FOCUS),
@@ -4439,16 +4489,20 @@ def test_hide_ui(original, image, before):
     icon_adds = [(p, m.group(1)) for p, t in own("player_icons").items() for m in stage_add.finditer(t)]
     check(all("public function hide_interface(hidden:Boolean) : void" in t and "visible = !hidden;" in t
               for t in (hud, icons)) and "public function interface_hidden() : Boolean" in hud
-          and hud_adds == [("HUD.as", "stage", "this.effectContainer")] and not icon_adds
+          and hud_adds == [("HUD.as", "stage", "this._keptLayer"), ("HUD.as", "stage", "this.deathEyes"),
+                           ("HUD.as", "stage", "this.effectContainer")]
+          and not icon_adds
           and "stage.addChildAt(this.effectContainer,stage.getChildIndex(this));" in hud
+          and "stage.addChildAt(this.deathEyes,stage.getChildIndex(this));" in hud
           and "this._stageLayer.addChild(this.gameInfo);" in hud and "place.concat(this.transform.matrix);" in hud
           and all(f"override public function {f}" in hud for f in ("addChild(", "addChildAt(", "setChildIndex("))
           and "InterfaceHider" not in "".join(tree("hud").values()) + "".join(tree("player_icons").values())
           and all(f"this.effects[this.{name}] = " in hud for name in ("BLOOD_EFFECT", "BLOOD_DRIP1", "GRENADE_EFFECT")),
           "the hud's and the player icons' interface is their root, hidden in one step (root.hide_interface; the "
-          "hud's interface_hidden); the hud's fps line is in the root's _stageLayer; the one thing on the hud's "
-          "stage beside the root is the screen effects' container (add_effect's blood, its drips, the grenade's "
-          "flash), below the root, placed as the root is scaled: the scene's, so it stays (the owner, 2026-10-24)")
+          "hud's interface_hidden); the hud's fps line is in the root's _stageLayer; the two things on the hud's "
+          "stage beside the root are the screen effects' container (add_effect's blood, its drips, the grenade's "
+          "flash), below the root, placed as the root is scaled: the scene's, so it stays (the owner, 2026-10-24), "
+          "and the death fade (DeathEyes, #529) between them, which F11 leaves too")
     check("public function toggle_interface() : void" in lobby and "public function interface_hidden() : Boolean" in lobby,
           "the lobby movie has root.toggle_interface and root.interface_hidden")
 
@@ -4653,6 +4707,120 @@ def test_bake_cache(original, image, before):
     code = P.linker.block_bytes(linked, "bake_cache.code")
     check(image.read(block.va, len(code)) == code and "bake_cache.state" in linked.blocks,
           f"the code at {block.va:#x} is the link's bake_cache.code ({len(code)} bytes), its tables bake_cache.state")
+
+
+def test_ragdoll(original, image, before):
+    """Check 76: the death ragdoll (patch 76, the Rust patch `ragdoll`;
+    ../docs/notes/ragdoll.md). Static, on the bytes: the six sites and what
+    follows each in the original, the jmps to the generated lohook entries in
+    patches.code in the build, no base relocation under a site and no
+    branch inside one, the block the link's, the entries' shapes, the
+    game's code the crate branches to directly (the engine library's
+    functions, the arena's memcpy, memmove and memset, the hooks' ways back)
+    and its absolute stores (its own statics alone). What it does runs elsewhere: check_ragdoll_026g.py
+    (Unicorn: the five hooks from their sites, a death, a rollback, the same
+    death again, bullets through a corpse, a body on batteries) and `cargo
+    test -p ragdoll` (the solver, the shots and the corpses' machine)."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    check(rows(stock, 0x1F7C37, 0xC) == ["call 0x2d2e40", "cmp byte [esp+0xf],0x0", "jz 0x1f7c6c"]
+          and rows(stock, 0x1F7C24, 2) == ["jz 0x1f7c3c"] and rows(stock, 0x1F7C2D, 2) == ["jz 0x1f7c3c"],
+          "game_world::tick: the join after game_world_core::move (0x1F7C3C, the target of 0x1F7C24 and "
+          "0x1F7C2D), then the je on [esp+0Fh]")
+    check(rows(stock, 0x247569, 0x2F) ==["cmp byte [ecx+0x10d],0x0", "jz near 0x247811", "cmp byte [ebp-0x1],0x0",
+                                          "jnz 0x247592", "cmp byte [ebx+0xf4e2],0x0", "jz 0x247592",
+                                          "cmp dword [ebx+0x12c],byte +0x0", "jnz near 0x247811",
+                                          "mov edi,[eax+0x10c]"],
+          "mt_draw's cull: a model not seen the last frame (+0F4E2h) and holding an item goes to 0x247811 (no "
+          "bones); 0x247592 draws (EAX the model's instance)")
+    check(rows(stock, 0x2476FF, 0x23)[0] == "jz 0x247716"
+          and rows(stock, 0x247716, 0x22) == ["mov ecx,[ebx+0xf290]", "mov eax,[ecx+0x10c]", "mov ecx,0x9de384",
+                                              "lea esi,[eax+0x110]", "lea edi,[ebx+0x40c]", "call 0x1113a0"],
+          "mt_draw: the bones made (0x2476AB) and the decal pose's bind pose (0x2476F8) both join at 0x247716, "
+          "then the \"Weapon\" bone's index (0x1113A0)")
+    check(rows(stock, 0x1F356E, 0xB) == ["lea eax,[ebx+0x44c]", "jmp 0x1f3643"]
+          and rows(stock, 0x1F35A5, 0xB) == ["lea eax,[ebx+0x44c]", "jmp 0x1f3643"]
+          and rows(stock, 0x1F363F, 0x11) == ["lea eax,[esp+0x10]", "mov ecx,[ebx+0xf470]", "push eax", "push ecx",
+                                              "call 0x2422b0"],
+          "update_camera: the first person's eye (&player+44Ch) and the third person's copy join at 0x1F3643, "
+          "EAX the transform the view's update (0x1F364B, patch 46's death_view in the build) gets")
+    check(rows(stock, 0x32D5E8, 0x3F)[:4] == ["mov edx,[ebp+0x0]", "mov edx,[edx+0x48]", "push byte +0x1",
+                                              "push edi"]
+          and rows(stock, 0x32D625, 0x17) == ["call edx", "movq xmm0,[eax]", "movq [esp+0x38],xmm0",
+                                              "movq xmm0,[eax+0x8]", "movq [esp+0x40],xmm0"]
+          and rows(stock, 0x32D5F3, 0x13) == ["push byte +0x10", "push ecx", "fstp dword [esp]",
+                                              "lea eax,[esp+0x34]", "push eax", "lea ecx,[esp+0xa8]", "push ecx"],
+          "check_collision: the bullet's ray through the world's vtable+48h (ray_test: the result, &[esp+90h] the "
+          "origin, &[esp+20h] the direction, the length, group 10h, mask 48h, the bullet, 1), then its result's "
+          "copy from EAX at 0x32D627")
+    check(rows(stock, 0x32BA8E, 0x12)[:4] == ["movq xmm0,[eax]", "movq [esi+0x1c],xmm0", "mov edx,[eax+0x8]",
+                                         "mov [esi+0x24],edx"]
+          and rows(stock, 0x32BAAC, 0x0D)[:3] == ["movq xmm0,[eax]", "mov ecx,[esp+0x28]", "movq [esi+0x34],xmm0"],
+          "the bullet's ctor writes its fire velocity (EAX) to +1Ch and +34h: the speed patch 76 reads for a push")
+    trace = P.arena().symbols["SRP_DIAGNOSTICS"]
+    check(image.read(trace, 4) == P.DIAGNOSTICS_OFF,
+          f"the build's diagnostics are off (SRP_DIAGNOSTICS at {trace:#x} \"OFF\": only --ragdoll-trace makes it "
+          "1, a local build)")
+    linked = P.arena()
+    block = linked.blocks["patches.code"]
+    data = [linked.blocks[name] for name in ("patches.data", "patches.state")]
+    sym = linked.symbols
+    hooks = [h for h in P.rust_hooks(original) if h[2].startswith("ragdoll_")]
+    check([h[0] for h in hooks] == [0x1F7C3C, 0x24757C, 0x247716, 0x1F3643, 0x32D627, 0x24754F],
+          "the Rust patch ragdoll's six lohooks (rust/patches/src/ragdoll.toml, sites_026g.tsv)")
+    check(rows(stock, 0x24754F, 0xE) == ["mov esi,[ebx+0x128]", "test esi,esi", "jz near 0x24781e"]
+          and rows(stock, 0x2477FE, 0x20)[:4] == ["mov edx,[ecx+0x5360]", "mov edi,[edx+0x200064]", "call 0x22490",
+                                                  "jmp short 0x24781e"],
+          "mt_draw: with no held item (+128h 0) the je at 0x247557 skips every bone update to 0x24781E, where the "
+          "draw with bones joins after update_skeleton (0x24780A, EDI the renderer's +200064h)")
+    for va, old, symbol, opcode in hooks:
+        target = sym[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(opcode == 0xE9 and stock.read(va, len(old)) == old == before.read(va, len(old))
+              and image.read(va, len(hook)) == hook and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`jmp {target:#x}` ({symbol}, a generated entry of patches.code) and nops here")
+    sites = [(s, o) for s, o, _, _ in hooks]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(s - 4 < v < s + len(o) for s, o in sites)]
+    hits = [h for s, o in sites for h in aimed_inside(original, s, len(o), 0x82)
+            if not s <= h < s + len(o) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "patches.code")
+    check(image.read(block.va, len(code)) == code and sum(d.size for d in data) <= 0x30000,
+          f"the code at {block.va:#x} is the link's patches.code ({len(code)} bytes: the Rust crate and the "
+          f"generated entries), its statics patches.data and .state ({sum(d.size for d in data)} bytes)")
+    # each entry: hooks_026g.lohook_entry's (the machine saved, the shim
+    # called, its Flow taken), its replay the site's own bytes, then back
+    for va, old, symbol, _ in hooks:
+        texts = [text for _, _, text in ndisasm(image.read(sym[symbol], 0x60), sym[symbol])]
+        shim = sym["hook_" + symbol]
+        check(texts[:5] == ["lea esp,[esp-0x4]", "pushf", "pusha", "cld", "mov ebp,esp"]
+              and f"call {shim:#x}" in texts,
+              f"{symbol}: the generated lohook entry (the flags, registers and fxsave kept, the shim {shim:#x} "
+              f"called, its Flow taken)")
+    # the block's .text alone: its .rodata (constants, tables) is not code
+    text_size = sym.get(P.linker.rodata_symbol("patches.code"), block.va + len(code)) - block.va
+    texts = [text for _, _, text in ndisasm(code[:text_size], block.va)]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    library = {sym[f["symbol"]] if f["call"] == "thunk" else f["va"] for f in engine_026g.every_function()
+               if f["call"] != "import" and (f["symbol"] in sym or f["call"] != "thunk")}
+    backs = {va + len(old) for va, old, _, _ in P.rust_hooks(original)} \
+        | {addr for site in P.hooks_026g.read_sites().values() for _, addr in site["exits"]}
+    allowed = library | backs | {sym[name] for name in ("memcpy", "memmove", "memset") if name in sym}
+    check(outside and set(outside) <= allowed,
+          "the crate's direct branches out of the block: the engine library's functions (raw), the arena's "
+          "memcpy, memmove and memset, and each hook's way back past its site or to its named exit (the imports "
+          "go by pointer)"
+          + "".join(f"; {t:#x}" for t in sorted(set(outside) - allowed)))
+    stores = [t for t in texts if re.match(r"(mov|add|sub|and|or|xor|inc|dec)\w* (byte |word |dword |qword )?\[(dword )?0x", t)]
+    absolute = [int(m, 16) for t in stores for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", t)]
+    inside = lambda a: any(d.va <= a < d.va + d.size for d in data)
+    check(all(inside(a) for a in absolute),
+          f"its stores to absolute addresses ({len(absolute)}) are all in patches.data and .state: nothing of the "
+          "game's is written by address" + "".join(f"; {a:#x}" for a in absolute if not inside(a)))
 
 
 def test_spot(original, image, before):
@@ -6254,6 +6422,7 @@ def test_late_join(original, without, server, source):
     test_upgrade_preview(original, image, before)
     test_research(original, image, before)
     test_suicide_key(original, image, before)
+    test_blackout(original, image, before)
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)
     test_spot(original, image, before)
@@ -6263,6 +6432,7 @@ def test_late_join(original, without, server, source):
     test_kill_feed(original, image, before)
     test_fall_gravity(original, image, before)
     test_bake_cache(original, image, before)
+    test_ragdoll(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

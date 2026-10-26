@@ -105,7 +105,8 @@ appears anywhere:
 
 Logic shared beyond the client (with srp, the match server) is a library
 crate of its own -- pure Rust, no game bindings, so it needs no `cfg` -- that
-`patches` depends on; none exists yet.
+`patches` depends on. The first is patch 76's solver, `srp-026g/crates/ragdoll`
+(a path dependency; tested with `cargo test -p ragdoll` in srp-026g).
 
 ## 3. The hook system
 
@@ -156,6 +157,11 @@ is the next; in a `lohook` chain the first non-`Continue` flow ends it.
 **Cross-patch**: a patch names another in `uses` and calls its `pub fn`s.
 State shared between hooks is a `vostok::GameCell<T>`, reachable only inside
 a hook (a `Thread` token), so patch code stays safe and single-threaded.
+State the game reaches from several of its threads (mt_draw's tasks, the
+bullet manager's) is a `vostok::Lock<T>` instead: a spin lock, its value
+`&mut` inside `with`, a lock taken again on its own thread a panic. A
+static that is not all zeros goes to `patches.data`, a zero one to
+`patches.state` (ARENA).
 
 The declaration is names only; the facts are in the tables:
 
@@ -229,10 +235,19 @@ kept, the right bytes cleaned):
 
 `write` is the design above; a register-ABI `call` still needs its reverse
 thunk (a lohook over the call, its replay the relocated call, covers those
-sites). `call` (the suicide-key example) and `lohook` (the ports, from
-patch 38's spot on) ship; the other kinds' generators are proven by
-check_hooks_026g.py and wait for their first patch to wire the install into
-patch_026g.py.
+sites). `call` (the suicide-key example) and `lohook` (patch 76, the
+ragdoll's; patch 65, Blackout's; the ports, from patch 38's spot on) ship;
+the other kinds' generators are proven by check_hooks_026g.py and wait for
+their first patch to wire the install into patch_026g.py. A span hook's
+bytes come from the original exe: patch_026g.py's `rust_hooks()` reads them
+from the exe it builds from (hooks_026g.py and the checks take
+`SRP_026G_EXE`), and INSTALLS declares every lohook a JUMP from its site row.
+Which register or frame slot a site holds is said once, in vostok's view of
+that site (`vostok::draw`, `vostok::bullet`, `vostok::spotting`, ...); the
+site row's `what` says it for the reader. A frame local is a
+`fields_026g.tsv` row with a negative offset (by EBP); a data VA the code
+compares with (a vtable) is a row of the kind `<...>::image`, generated as a
+constant.
 
 **fxsave on `lohook`/`splice`, not `call`/`pointer`/`callback` (the owner's
 rule, kept).** A `lohook` and a `splice` are true detours: the game does not

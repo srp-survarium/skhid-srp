@@ -9,7 +9,7 @@
 //!   newtypes; the only `unsafe` blocks, each with its invariant), the hook
 //!   system (the generated entries and shims, `Context`, `Original`,
 //!   `Flow`), and the runtime (the log, the panic handler, memcpy/memset).
-//! - The patches, a module each ([`suicide_key`]): `#![forbid(unsafe_code)]`,
+//! - The patches, a module each ([`suicide_key`], [`ragdoll`]): `#![forbid(unsafe_code)]`,
 //!   `vostok` alone. A patch's hooks are its `<patch>.toml`, from which
 //!   link_026g.py generates the entries (`hook_entries_026g.asm`) and the
 //!   shims (`hooks_026g.rs`, inside `vostok`).
@@ -32,4 +32,6 @@ mod raw {
 pub mod vostok;
 
 pub mod spot;
+pub mod ragdoll;
+pub mod blackout;
 pub mod suicide_key;

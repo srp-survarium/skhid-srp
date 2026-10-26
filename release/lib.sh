@@ -68,6 +68,18 @@ load_env() {
     done
 }
 
+# load_env when there is a release.env, else nothing (for the tools that
+# may run without one: release/bot-data).
+load_env_if_any() {
+    local env=${SKHID_RELEASE_ENV:-} common
+    if [[ -z $env ]]; then
+        common=$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 0
+        env=$(dirname "$common")/private/release/release.env
+    fi
+    [[ -f $env ]] || return 0
+    load_env
+}
+
 # A word quoted for a remote shell.
 q() { printf '%q' "$1"; }
 
@@ -721,7 +733,7 @@ stage_upload() {
 # log), state stopped.
 stage_abandon() {
     ((STAGED)) || return 0
-    if on_target "cd $REL_DIR && rm -rf $ZIP_NAME $DATA_NAME ./*.part src src.tar && echo stopped > state && rm -f ../download/.$ZIP_NAME.new ../download/.$DATA_NAME.new"; then
+    if on_target "cd $REL_DIR && rm -rf $ZIP_NAME $DATA_NAME ./*.part src src.tar bot-data bot-data.list bot-data.sh && echo stopped > state && rm -f ../download/.$ZIP_NAME.new ../download/.$DATA_NAME.new"; then
         say "staged files: removed ($TARGET_DIR/$REL stays, state stopped)"
     else
         say "staged files: NOT removed: $TARGET_DIR/$REL"
@@ -854,6 +866,126 @@ SWAP_STATE='' SWAP_SRC=0 SWAP_SRC_INPUTS='' SWAP_BEFORE_STOP=''
 OLD_MIN=none HAVE_ZIP=0 HAVE_DATA=0 OLD_PATCHES=''
 RUN_CONTAINER='' RUN_IMAGE='' RUN_VOLUME='' RUN_VOLUME_DIR='' LATEST_IMAGE=''
 
+# The bots' data files (the switch ledger's F2, F3 and F7): private files the
+# bots read from the data volume's folder (mapdata/<project>.mapdata, the
+# routes humans took as mapdata/bot-routes.json, later the foliage), which the
+# owner copied by hand, so what live had was nobody's record (on 2026-10-26
+# live had no routes table at all, and every bench had one). The committed list
+# release/bot-data.tsv names each file by its path under the volume, its
+# sha256 and size (what was benched), and, when it is another file in the
+# owner's folder, its name there; `release/bot-data` keeps it. The release
+# takes the files from $SKHID_BOT_DATA (a folder laid out as the volume, kept
+# out of git), checks each against the list (a missing or different file
+# stops the release), compares them with the volume's, stages the ones that
+# differ in the release folder, and puts them in place at the swap, with
+# srp26 stopped, keeping the old ones in the folder for the rollback.
+# `#` starts a comment; one file a line, tabs between:
+#   <path under the volume>  <sha256>  <size>  [<name in $SKHID_BOT_DATA>]
+# Sets BD_PATH BD_SHA BD_SIZE BD_SOURCE (arrays, one entry a file).
+BOT_DATA_LIST=$ROOT/release/bot-data.tsv   # $SKHID_BOT_DATA_LIST (release.env) names another
+BD_PATH=() BD_SHA=() BD_SIZE=() BD_SOURCE=()
+# The files to put in the volume (indexes of BD_*): those it lacks or has
+# otherwise. BOT_DATA is 1 when there are any (the rollback undoes them).
+BD_TODO=() BOT_DATA=0
+bot_data_name_ok() { [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$ ]]; }
+read_bot_data_list() {
+    local line path sha size source extra n=0 i
+    BOT_DATA_LIST=${SKHID_BOT_DATA_LIST:-$BOT_DATA_LIST}
+    [[ -f $BOT_DATA_LIST ]] || die "$BOT_DATA_LIST: no such file (the bots' data list)"
+    BD_PATH=() BD_SHA=() BD_SIZE=() BD_SOURCE=()
+    while IFS= read -r line || [[ -n $line ]]; do
+        n=$((n + 1))
+        line=${line%$'\r'}
+        [[ -n $line && $line != '#'* ]] || continue
+        IFS=$'\t' read -r path sha size source extra <<<"$line"
+        [[ -z $extra ]] || die "$BOT_DATA_LIST:$n: more than four columns"
+        bot_data_name_ok "$path" || die "$BOT_DATA_LIST:$n: $path is not a path under the volume (letters, digits, . _ -, and / between)"
+        [[ $sha =~ ^[0-9a-f]{64}$ ]] || die "$BOT_DATA_LIST:$n: $path: the sha256 is 64 lower-case hex digits"
+        [[ $size =~ ^[0-9]+$ ]] || die "$BOT_DATA_LIST:$n: $path: the size is a whole number of bytes"
+        source=${source:-$path}
+        bot_data_name_ok "$source" || die "$BOT_DATA_LIST:$n: $source is not a name in the owner's folder"
+        for i in "${!BD_PATH[@]}"; do
+            [[ ${BD_PATH[i]} != "$path" ]] || die "$BOT_DATA_LIST:$n: $path is listed twice"
+        done
+        BD_PATH+=("$path") BD_SHA+=("$sha") BD_SIZE+=("$size") BD_SOURCE+=("$source")
+    done <"$BOT_DATA_LIST"
+}
+
+# Every file of the list in <folder> (by its name there), its size and
+# sha256 as listed. Prints one line a problem; fails when there is one.
+bot_data_check_folder() {
+    local dir=$1 i f bad=0 size sha
+    for i in "${!BD_PATH[@]}"; do
+        f=$dir/${BD_SOURCE[i]}
+        if [[ ! -f $f ]]; then
+            say "${BD_SOURCE[i]}: not in $dir"
+            bad=1
+            continue
+        fi
+        size=$(size_of "$f")
+        if [[ $size != "${BD_SIZE[i]}" ]]; then
+            say "${BD_SOURCE[i]}: $size bytes, the list says ${BD_SIZE[i]}"
+            bad=1
+        elif sha=$(sha256_of "$f") && [[ $sha != "${BD_SHA[i]}" ]]; then
+            say "${BD_SOURCE[i]}: sha256 ${sha:0:12}…, the list says ${BD_SHA[i]:0:12}…"
+            bad=1
+        fi
+    done
+    return "$bad"
+}
+
+# The volume's own files against the list (a read: the target's volume
+# folder, RUN_VOLUME_DIR, set by inspect_target): fills BD_TODO and
+# BD_REPORT, one line a file to put in the volume (`missing` or `differs`).
+# A file that cannot be read counts as one to put.
+BD_REPORT=() BD_SAME=0
+bot_data_volume_state() {
+    local out i path there
+    BD_TODO=() BD_REPORT=() BD_SAME=0
+    # shellcheck disable=SC2016 # the host's shell expands it
+    out=$(on_target "cd $(q "$RUN_VOLUME_DIR") && for p in $(printf '%q ' "${BD_PATH[@]}"); do if test -f \"\$p\"; then echo \"\$p \$(nice -n 19 sha256sum < \"\$p\" | cut -d' ' -f1)\"; else echo \"\$p missing\"; fi; done" 2>/dev/null) || out=''
+    for i in "${!BD_PATH[@]}"; do
+        path=${BD_PATH[i]}
+        there=$(grep -m1 -- "^$path " <<<"$out" || true)
+        there=${there#"$path "}
+        if [[ $there == "${BD_SHA[i]}" ]]; then
+            BD_SAME=$((BD_SAME + 1))
+        else
+            BD_TODO+=("$i")
+            case $there in
+            missing) BD_REPORT+=("$path: not in the volume") ;;
+            '') BD_REPORT+=("$path: could not be read in the volume") ;;
+            *) BD_REPORT+=("$path: in the volume sha256 ${there:0:12}…, the list says ${BD_SHA[i]:0:12}…") ;;
+            esac
+        fi
+    done
+    BOT_DATA=$((${#BD_TODO[@]} > 0))
+}
+
+# The files to put, staged in the release folder as bot-data/<path> (sha256
+# checked there) with bot-data.list (their paths) and the script that puts
+# them in place (host-bot-data.sh, as bot-data.sh): as stage_upload does for
+# the ZIP. <folder> is $SKHID_BOT_DATA.
+stage_bot_data() {
+    local dir=$1 i path sha file list there
+    ((${#BD_TODO[@]})) || return 0
+    list=$(mktemp)
+    for i in "${BD_TODO[@]}"; do
+        path=${BD_PATH[i]} sha=${BD_SHA[i]} file=$dir/${BD_SOURCE[i]}
+        printf '%s\n' "$path" >>"$list"
+        write_on live "mkdir -p $REL_DIR/bot-data/$(q "$(dirname "$path")") && cat > $REL_DIR/bot-data/$(q "$path").part" "$file"
+        if ((!DRY_RUN)); then
+            there=$(on_target "sha256sum < $REL_DIR/bot-data/$(q "$path").part")
+            [[ ${there%% *} == "$sha" ]] || die "$REL/bot-data/$path.part has sha256 ${there%% *} on the host, not $sha"
+        fi
+        write_on live "cd $REL_DIR/bot-data && chmod 644 $(q "$path").part && mv $(q "$path").part $(q "$path") && echo '$sha  bot-data/$path' >> $REL_DIR/new.sha"
+    done
+    ((DRY_RUN)) || say "$REL/bot-data: ${#BD_TODO[@]} file(s), sha256 as listed"
+    write_on live "cat > $REL_DIR/bot-data.list" "$list"
+    rm -f "$list"
+    write_on live "cat > $REL_DIR/bot-data.sh" "$(dirname "${BASH_SOURCE[0]}")/host-bot-data.sh"
+}
+
 # The command that keeps the old files in the folder: their sha256sum,
 # hard links (same file system as download/), the image ID, the setting (and
 # the source the release replaces).
@@ -872,7 +1004,7 @@ archive_command() {
 rollback_env() {
     printf '%s=%q\n' TARGET_DIR "$TARGET_DIR" COMPOSE "$TARGET_COMPOSE" IMAGE "$IMAGE" \
         OLD_IMAGE "$RUN_IMAGE" VOLUME_DIR "$RUN_VOLUME_DIR" BACKUP_BEFORE "$BACKUP_BEFORE" OLD_MIN "$OLD_MIN" NEW_MIN "$1" \
-        HAVE_ZIP "$HAVE_ZIP" HAVE_DATA "$HAVE_DATA" SRC "$SWAP_SRC" ZIP_NAME "$ZIP_NAME" DATA_NAME "$DATA_NAME"
+        HAVE_ZIP "$HAVE_ZIP" HAVE_DATA "$HAVE_DATA" SRC "$SWAP_SRC" BOT_DATA "$BOT_DATA" ZIP_NAME "$ZIP_NAME" DATA_NAME "$DATA_NAME"
 }
 
 # The command that puts <name> of the folder into download/: a hard link
@@ -1050,6 +1182,10 @@ check_client_files() {
 # rollback (swap_failed), which puts the old ZIP back too.
 swap_server() {
     ((DRY_RUN)) || SWAP_STATE=moved
+    if ((${#BD_TODO[@]})); then
+        write_on live "sh $REL_DIR/bot-data.sh $REL_DIR $(q "$RUN_VOLUME_DIR")"
+        SWAP_DONE+=("bot data: ${#BD_TODO[@]} file(s) in the volume's folder (the old ones in $TARGET_DIR/$REL/old-bot-data)")
+    fi
     write_on live "$(put_command "$DATA_NAME")"
     SWAP_DONE+=("in place: download/$DATA_NAME")
     write_on live "$(put_command "$ZIP_NAME")"

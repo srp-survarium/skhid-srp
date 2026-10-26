@@ -35,8 +35,10 @@ Edits (edits.json):
                     card lines' `ui_properties`) after the entry whose keys match `after`, made like
                     the entry matching `like` with `values` set; a value "{a/b}" is that number of
                     the same file, a list of numbers a vector (a position), a list of vectors an
-                    indexed table of vectors (a wire's points) made anew; files without `only_if`,
-                    the table or those entries are left alone
+                    indexed table of vectors (a wire's points) made anew; a key of `values` may be a
+                    path in the entry (`spawned_item/position`): the tables on its way are copied
+                    anew, the like entry's own stay as they are; files without `only_if`, the table
+                    or those entries are left alone
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
   "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
                     a new key of the named table in each file, in its place by name CRC: a bool,
@@ -58,7 +60,13 @@ Edits (edits.json):
   "set_entry":      [{"file", "list", "where", "from", "to"}]
                     the one entry of the indexed table `list` whose keys match `where`: each key of
                     `from` must hold that value, then takes the value in `to` (a number keeps its type,
-                    a string is appended)
+                    a string or a vector, a list of 2-4 numbers, is appended); a key of `from` and `to`
+                    may be a path in the entry (`spawned_item/position`, `collision_geometries[0]/name`)
+  "add_item":       [{"file", "list", "where", "key", "value"}]
+                    the one entry of the indexed table `list` whose keys match `where`: its indexed
+                    table `key` (a path in the entry) of strings or numbers gets `value` after its
+                    items, made like its first item (an anomaly's `artefact_containers`); applied after
+                    add_entry, before remove_entry
   "remove_entry":   [{"file", "list", "where"}]        the one entry of the indexed table `list` whose keys
                                                        match `where` taken out (a scene's object, model or
                                                        collision); the later entries move down in place, the
@@ -102,17 +110,18 @@ def children(buf, off):
     return [data + 24 * i for i in range(cnt)]
 
 
-def find(buf, path):
-    """Offset of the value at a/b/c; `name[i]` is item i of an indexed table (states[0]/take_time)."""
-    off = 0
+def find(buf, path, off=0):
+    """Offset of the value at a/b/c; `name[i]` is item i of an indexed table (states[0]/take_time);
+    from the value at `off` (the root by default)."""
     for part in path.split('/'):
         name, *indices = part.split('[')
-        for c in children(buf, off):
-            if name_at(buf, rec(buf, c)[1]) == name.encode():
-                off = c
-                break
-        else:
-            raise KeyError(path)
+        if name or not indices:
+            for c in children(buf, off):
+                if name_at(buf, rec(buf, c)[1]) == name.encode():
+                    off = c
+                    break
+            else:
+                raise KeyError(path)
         for i in indices:
             items, i = children(buf, off), int(i.rstrip(']'))
             if rec(buf, off)[3] != T_INDEXED or i >= len(items):
@@ -297,12 +306,35 @@ def add_entry(buf, path, after, like, values):
     if not at or not model:
         return None
     assert len(at) == 1 and len(model) == 1, (path, after, like)
-    names = {name_at(buf, rec(buf, c)[1]).decode(): c for c in children(buf, model[0])}
-    assert set(values) <= set(names), ('keys the model entry lacks', set(values) - set(names))
+    for key in values:
+        try:
+            find(buf, key, model[0])
+        except KeyError:
+            raise AssertionError(('a key the model entry lacks', path, key))
+    d, i, crc, t, cnt = rec(buf, model[0])
+    entry = REC.pack(copied_table(buf, model[0], values, path), i, crc, t, cnt)
+    old = [bytes(buf[c:c + 24]) for c in kids]
+    new = old[:at[0] + 1] + [entry] + old[at[0] + 1:]
+    d, i, crc, t, cnt = rec(buf, lst)
+    REC.pack_into(buf, lst, append_array(buf, new), i, crc, t, cnt + 1)
+    return at[0] + 1
+
+
+def copied_table(buf, table, values, path):
+    """A new array of the records of the table at `table`, the keys of `values` set; a key `a/b` (or
+    `a[0]/b`) sets b in a copy of the table a. Returns the array's offset."""
     recs = []
-    for c in children(buf, model[0]):
+    named = rec(buf, table)[3] == T_NAMED
+    for k, c in enumerate(children(buf, table)):
         d, i, crc, t, cnt = rec(buf, c)
-        name = name_at(buf, i).decode()
+        name = name_at(buf, i).decode() if named else '[%d]' % k
+        subs = {key[len(name):].lstrip('/'): v for key, v in values.items()
+                if key.startswith(name + '/') or key.startswith(name + '[')}
+        if subs:
+            if name in values:
+                raise ValueError('%s: %s is set and has keys set' % (path, name))
+            recs.append(REC.pack(copied_table(buf, c, subs, path), i, crc, t, cnt))
+            continue
         if name in values:
             v = filled(buf, values[name])
             if t == T_INDEXED:
@@ -331,13 +363,7 @@ def add_entry(buf, path, after, like, values):
             else:
                 d = (d & ~0xffffffff) | (1 if v else 0)
         recs.append(REC.pack(d, i, crc, t, cnt))
-    d, i, crc, t, cnt = rec(buf, model[0])
-    entry = REC.pack(append_array(buf, recs), i, crc, t, cnt)
-    old = [bytes(buf[c:c + 24]) for c in kids]
-    new = old[:at[0] + 1] + [entry] + old[at[0] + 1:]
-    d, i, crc, t, cnt = rec(buf, lst)
-    REC.pack_into(buf, lst, append_array(buf, new), i, crc, t, cnt + 1)
-    return at[0] + 1
+    return append_array(buf, recs)
 
 
 def add_key(buf, table, key, text):
@@ -483,19 +509,28 @@ def set_entry(buf, path, where, frm, to):
         raise ValueError('%s: %d entries match %r, not 1' % (path, len(hit), where))
     at = hit[0]
     entry = children(buf, lst)[at]
+    def at_key(k):
+        try:
+            return find(buf, k, entry)
+        except KeyError:
+            return None
     for k, v in frm.items():
-        c = child(buf, entry, k)
+        c = at_key(k)
         if c is None or not same(value_of(buf, c), v):
             raise ValueError('%s[%d]/%s is %r, not %r: the base is not the live data'
                              % (path, at, k, None if c is None else value_of(buf, c), v))
     for k, v in to.items():
-        c = child(buf, entry, k)
+        c = at_key(k)
         if c is None:
             raise KeyError('%s[%d]/%s' % (path, at, k))
         d, i, crc, t, cnt = rec(buf, c)
         if t == T_STR:
             new = v.encode()
             REC.pack_into(buf, c, append(buf, new + b'\0'), i, crc, t, len(new) + 1)
+        elif t > T_STR:
+            if not isinstance(v, list) or len(v) != t - 4:
+                raise ValueError('%s[%d]/%s takes %d numbers' % (path, at, k, t - 4))
+            REC.pack_into(buf, c, append(buf, struct.pack('<%df' % len(v), *v)), i, crc, t, cnt)
         else:
             set_number(buf, '%s[%d]/%s' % (path, at, k), value_of(buf, c), v)
     return at
@@ -519,6 +554,33 @@ def remove_entry(buf, path, where):
     d, i, crc, t, cnt = rec(buf, lst)
     REC.pack_into(buf, lst, d, i, crc, t, cnt - 1)
     return at
+
+
+def add_item(buf, path, where, key, value):
+    """`value` after the items of the indexed table `key` of the one entry of `path` whose keys match
+    `where`, a record like its first item. Returns (the entry's index, the new item's index)."""
+    lst = find(buf, path)
+    hit = [i for i, e in enumerate(children(buf, lst)) if matches(buf, e, where)]
+    if len(hit) != 1:
+        raise ValueError('%s: %d entries match %r, not 1' % (path, len(hit), where))
+    table = find(buf, key, children(buf, lst)[hit[0]])
+    d, i, crc, t, cnt = rec(buf, table)
+    items = children(buf, table)
+    if t != T_INDEXED or not items:
+        raise ValueError('%s[%d]/%s is not an indexed table with items' % (path, hit[0], key))
+    _, ii, icrc, it, icnt = rec(buf, items[0])
+    if it == T_STR and isinstance(value, str):
+        text = value.encode()
+        new = REC.pack(append(buf, text + b'\0'), ii, icrc, it, len(text) + 1)
+    elif it == T_INT and isinstance(value, int) and not isinstance(value, bool):
+        new = REC.pack(value & 0xffffffff, ii, icrc, it, icnt)
+    elif it == T_FLOAT and isinstance(value, (int, float)) and not isinstance(value, bool):
+        new = REC.pack(struct.unpack('<I', struct.pack('<f', value))[0], ii, icrc, it, icnt)
+    else:
+        raise ValueError('%s[%d]/%s holds items of type %d, not %r' % (path, hit[0], key, it, value))
+    old = [bytes(buf[c:c + 24]) for c in items]
+    REC.pack_into(buf, table, append_array(buf, old + [new]), i, crc, t, cnt + 1)
+    return hit[0], cnt
 
 
 def unshifted(path, lst, at):
@@ -743,8 +805,18 @@ def main():
             grown.setdefault(p, {}).setdefault(table, 0)
             grown[p][table] += 1
         print('value %s/%s: %d files' % (e['table'], e['key'], len(e['files'])))
+    for e in edits.get('add_item', []):
+        at, k = add_item(buf(e['file']), e['list'], e['where'], e['key'], e['value'])
+        table = '/%s[%d]/%s' % (e['list'], at, e['key'])
+        added.setdefault(e['file'], []).append('%s[%d]' % (table, k))
+        grown.setdefault(e['file'], {}).setdefault(table, 0)
+        grown[e['file']][table] += 1
+        print('item %s += %s' % (table, json.dumps(e['value'], ensure_ascii=False)))
     removed = {}
+    before_removals = {}  # includes newly copied tables and appended items
     for e in edits.get('remove_item', []):
+        before_removals.setdefault(e['file'], {}).setdefault(
+            e['path'], items_of(buf(e['file']), e['path']))
         remove_item(buf(e['file']), e['path'], e['value'])
         removed.setdefault(e['file'], {}).setdefault(e['path'], []).append(e['value'])
     dropped = {}
@@ -753,7 +825,8 @@ def main():
         lst = '/' + e['list']
         print('remove %s[%d] %s' % (e['list'], at, json.dumps(e['where'], ensure_ascii=False)))
         dropped.setdefault(e['file'], []).append((lst, at))
-        grown.setdefault(e['file'], {}).setdefault(lst, 0)
+        grown[e['file']] = {(unshifted(q, lst, at) or q): n for q, n in grown.get(e['file'], {}).items()}
+        grown[e['file']].setdefault(lst, 0)
         grown[e['file']][lst] -= 1
         allowed[e['file']] = {q for q in (unshifted(q, lst, at) for q in allowed.get(e['file'], ())) if q is not None}
         if any(unshifted(a, lst, at) is None for a in added.get(e['file'], ())):
@@ -791,15 +864,24 @@ def main():
         for lst, at in dropped.get(p, ()):
             old = {unshifted(q, lst, at): v for q, v in old.items() if unshifted(q, lst, at) is not None}
         for lst, values in removed.get(p, {}).items():
-            was, now = items_of(source, lst), items_of(b, lst)
+            # A copied entry has no path in the original file. Compare with its
+            # table just before removals, then follow any removed parent entries.
+            end = '/' + lst
+            for l2, at in dropped.get(p, ()):
+                end = unshifted(end, l2, at)
+                if end is None:
+                    break
+            if end is None:
+                continue
+            was, now = before_removals[p][lst], items_of(b, end[1:])
             want = list(was)
             for v in values:
                 want.remove(v)
             ok = now == want
             bad += not ok
-            print('%s%s /%s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, lst, was, now))
+            print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, end, was, now))
             for d in (old, new):
-                for q in [q for q in d if q == '/' + lst or q.startswith('/%s[' % lst)]:
+                for q in [q for q in d if q == end or q.startswith(end + '[')]:
                     del d[q]
         for q in sorted(set(old) | set(new)):
             o, n = old.get(q), new.get(q)

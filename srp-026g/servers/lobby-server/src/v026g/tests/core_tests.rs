@@ -2068,6 +2068,7 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
+            blackout: setup.blackout,
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2137,6 +2138,7 @@ impl World {
             players,
             vs_bots: setup.vs_bots,
             private: setup.private,
+            blackout: setup.blackout,
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self

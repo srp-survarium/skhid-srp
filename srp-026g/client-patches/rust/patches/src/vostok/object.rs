@@ -19,9 +19,9 @@ impl Object {
         self.0.as_ptr()
     }
 
-    /// The address as the game's registers hold it.
-    #[allow(dead_code)] // the ports that follow
-    pub(in crate::vostok) fn addr(self) -> u32 {
+    /// The address as a value (as the game's registers hold it): an id a
+    /// patch may keep between hooks and compare, never read through.
+    pub(in crate::vostok) fn id(self) -> u32 {
         self.0.as_ptr() as usize as u32
     }
 }
@@ -50,6 +50,14 @@ pub(in crate::vostok) unsafe fn write<T: Copy>(at: *mut T, value: T) {
 /// As `read`.
 pub(in crate::vostok) unsafe fn pointer(at: *mut u32) -> Option<Object> {
     Object::at(unsafe { read(at) })
+}
+
+/// `N` f32 from a field on.
+///
+/// # Safety
+/// As `read`, for the whole run.
+pub(in crate::vostok) unsafe fn floats<const N: usize>(at: *mut f32) -> [f32; N] {
+    unsafe { at.cast::<[f32; N]>().read_unaligned() }
 }
 
 /// An object's vtable (its first dword), the address alone: compared with

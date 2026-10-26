@@ -8,6 +8,7 @@
 //!
 //! The site's stack is read and written by its ESP offsets ([`Context::stack`]),
 //! and an x87 result is pushed as an `fld` would ([`Context::push_st`]).
+//! Patch 76 (the ragdoll) is the first to ship lohooks (`ragdoll.toml`).
 
 use super::hook::{Regs, Thread};
 

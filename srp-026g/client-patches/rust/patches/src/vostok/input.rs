@@ -44,14 +44,54 @@ impl ActionState {
     }
 }
 
-/// Bits of an input's action mask (the simulation reads them).
+/// Bits of an input's action mask (the simulation reads them): the bits
+/// process_first_person_mode sets per action (client_patch.md section 3.58).
+/// A set of bits; the game's unmodelled ones pass through unchanged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ActionMask(u32);
 
 impl ActionMask {
+    pub const NONE: ActionMask = ActionMask(0);
+    pub const FORWARD: ActionMask = ActionMask(0x1);
+    pub const BACK: ActionMask = ActionMask(0x2);
+    pub const LEFT: ActionMask = ActionMask(0x4);
+    pub const RIGHT: ActionMask = ActionMask(0x8);
+    pub const JUMP: ActionMask = ActionMask(0x10);
+    pub const FIRE: ActionMask = ActionMask(0x20);
+    pub const RELOAD: ActionMask = ActionMask(0x40);
+    pub const AIM: ActionMask = ActionMask(0x80);
+    pub const CROUCH: ActionMask = ActionMask(0x100);
+    pub const SPRINT: ActionMask = ActionMask(0x200);
+    /// The six quick-use slots, 4000h..80000h.
+    pub const QUICK_USE: ActionMask = ActionMask(0x3F << 14);
+    pub const HOLD_BREATH: ActionMask = ActionMask(1 << 20);
+    pub const USE: ActionMask = ActionMask(1 << 21);
+    pub const DROP: ActionMask = ActionMask(1 << 22);
+    pub const GRENADE: ActionMask = ActionMask(1 << 23);
     /// The player kills themselves: base_player::process_quick_slots hits
     /// their own head.
     pub const SUICIDE: ActionMask = ActionMask(1 << 24);
+    pub const MELEE: ActionMask = ActionMask(1 << 27);
+
+    pub const fn union(self, other: ActionMask) -> ActionMask {
+        ActionMask(self.0 | other.0)
+    }
+
+    pub const fn intersection(self, other: ActionMask) -> ActionMask {
+        ActionMask(self.0 & other.0)
+    }
+
+    pub const fn without(self, other: ActionMask) -> ActionMask {
+        ActionMask(self.0 & !other.0)
+    }
+
+    pub const fn bits(self) -> u32 {
+        self.0
+    }
+
+    pub const fn from_bits(bits: u32) -> ActionMask {
+        ActionMask(bits)
+    }
 }
 
 /// The input handler, while it builds an input. A [`Handle`]: the generated
@@ -64,6 +104,14 @@ pub struct InputHandler<'t> {
 impl<'t> Handle<'t> for InputHandler<'t> {
     unsafe fn from_raw(_: &'t Thread, raw: u32) -> Option<Self> {
         NonNull::new(raw as usize as *mut c_void).map(|this| InputHandler { this, thread: PhantomData })
+    }
+}
+
+impl<'t> InputHandler<'t> {
+    /// At `input_builder.end` (process_first_person_mode's epilogue: EBX the
+    /// handler).
+    pub fn at_builder_end(ctx: &'t super::Context<'_>) -> Option<InputHandler<'t>> {
+        NonNull::new(ctx.reg(super::Reg::Ebx) as usize as *mut c_void).map(|this| InputHandler { this, thread: PhantomData })
     }
 }
 
@@ -87,6 +135,17 @@ impl InputHandler<'_> {
     }
 
     /// Adds `actions` to the mask of the input being built.
+    /// The action mask of the input being built.
+    pub fn actions(&self) -> ActionMask {
+        // SAFETY: the handle is a live player_input_handler on the hook's thread.
+        ActionMask(unsafe { *raw::player_input_handler::actions(self.ptr()) })
+    }
+
+    pub fn set_actions(&mut self, actions: ActionMask) {
+        // SAFETY: as actions.
+        unsafe { *raw::player_input_handler::actions(self.ptr()) = actions.0 }
+    }
+
     pub fn add_actions(&mut self, actions: ActionMask) {
         // SAFETY: as action_state; the mask is the handler's own field,
         // which the input builder goes on filling after the hook.
