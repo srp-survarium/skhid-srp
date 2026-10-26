@@ -50,6 +50,7 @@ use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::maps::{MapState, Maps};
 use crate::v026g::bots::motor::Hurt;
 use crate::v026g::bots::reflex::WeaponKind;
+use crate::v026g::bots::foliage::{self, Foliage};
 use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::trace::Trace;
@@ -174,6 +175,11 @@ impl Walkers {
             let var = std::env::var_os("SRP_BOT_ROUTES");
             if let Some(table) = route_table(id, var.as_deref(), walkers.maps.dir()) {
                 walkers.bots.set_routes(&table);
+            }
+            // The bushes a sight line crosses (a private file; without it no bush hides anyone).
+            let var = std::env::var_os("SRP_BOT_FOLIAGE");
+            if let Some(foliage) = foliage_of(id, project, var.as_deref(), walkers.maps.dir()) {
+                walkers.bots.set_foliage(foliage);
             }
             walkers
         })
@@ -654,6 +660,27 @@ fn route_table(
     }
 }
 
+/// The bushes of `project` a match's bots get ([`foliage::Source::choose`]): `var` is
+/// `SRP_BOT_FOLIAGE`, `mapdata` the mapdata folder. A file that fails to load: a warning.
+fn foliage_of(
+    id: u32,
+    project: &str,
+    var: Option<&std::ffi::OsStr>,
+    mapdata: Option<&std::path::Path>,
+) -> Option<Foliage> {
+    let path = match foliage::Source::choose(var, mapdata) {
+        foliage::Source::Set(path) | foliage::Source::Default(path) => path,
+        foliage::Source::None => return None,
+    };
+    match Foliage::load(&path, project) {
+        Ok(foliage) => Some(foliage),
+        Err(why) => {
+            log::warn!("Match {id:#x}: the bot foliage not used ({why})");
+            None
+        }
+    }
+}
+
 /// TEST ONLY (`bots/jump_test.rs`, cargo feature `jump-test`): the jump test's reach into the match.
 #[cfg(feature = "jump-test")]
 impl Game {
@@ -689,10 +716,15 @@ impl Game {
 
     /// An upload came: its rows are logged; true when it answered a burst request.
     pub(super) fn jump_test_upload(&mut self, time: u32, clock: u32, bytes: usize, body: &[u8]) -> bool {
-        self.walkers
-            .as_mut()
-            .and_then(|walkers| walkers.bots.jump_test.as_mut())
-            .is_some_and(|test| test.upload(time, clock, bytes, body))
+        let id = self.id;
+        let Some(walkers) = self.walkers.as_mut() else {
+            return false;
+        };
+        let asked = walkers.bots.jump_test.as_mut().is_some_and(|test| test.upload(time, clock, bytes, body));
+        if asked {
+            log_notes(id, walkers.bots.fix_from_burst());
+        }
+        asked
     }
 }
 

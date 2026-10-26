@@ -128,7 +128,8 @@ pub struct Memory {
 
 impl Memory {
     /// Takes in a think's percepts. `notice_ms(percept)` is the noticing
-    /// delay for a new sight; `forget_ms` and `drop_ms` the fading.
+    /// delay for a new sight, asked only when one begins (or a track is
+    /// made); `forget_ms` and `drop_ms` the fading.
     pub fn update(
         &mut self,
         percepts: &[Percept],
@@ -138,7 +139,6 @@ impl Memory {
         drop_ms: u32,
     ) {
         for percept in percepts {
-            let notice = notice_ms(percept);
             match self.tracks.iter_mut().find(|t| t.who == percept.who) {
                 Some(track) => {
                     let seen = percept.source == Source::Seen;
@@ -166,7 +166,7 @@ impl Memory {
                             track.sight_since.is_some() && track.time + 400 >= percept.time;
                         if !continuing {
                             track.sight_since = Some(percept.time);
-                            track.notice_ms = notice;
+                            track.notice_ms = notice_ms(percept);
                         }
                     } else if track.time + 400 < percept.time {
                         track.sight_since = None;
@@ -185,7 +185,7 @@ impl Memory {
                     time: percept.time,
                     source: percept.source,
                     sight_since: (percept.source == Source::Seen).then_some(percept.time),
-                    notice_ms: notice,
+                    notice_ms: notice_ms(percept),
                     own: percept.source.own().then_some((percept.at, percept.time)),
                 }),
             }
@@ -1091,6 +1091,26 @@ mod tests {
         assert!(memory.in_sight(4, 1_100).is_none(), "only heard");
         memory.update(&[], 1_500, |_| 300, 3_000, 20_000);
         assert!(memory.in_sight(3, 1_500).is_none(), "out of sight over 400 ms");
+    }
+
+    /// The noticing delay is asked when a sight begins, not at every report
+    /// of it (a delay that costs, [`crate::v026g::bots::foliage`], is worked out once).
+    #[test]
+    fn the_noticing_delay_is_asked_once_for_a_sight() {
+        let asked = std::cell::Cell::new(0);
+        let notice = |_: &Percept| {
+            asked.set(asked.get() + 1);
+            300
+        };
+        let mut memory = Memory::default();
+        memory.update(&[seen(3, 1_000)], 1_000, notice, 3_000, 20_000);
+        for k in 1..5u32 {
+            memory.update(&[seen(3, 1_000 + 200 * k)], 1_000 + 200 * k, notice, 3_000, 20_000);
+        }
+        assert_eq!(asked.get(), 1, "one sight, one question");
+        // Out of sight for a while, then seen again: a new sight asks again.
+        memory.update(&[seen(3, 3_000)], 3_000, notice, 3_000, 20_000);
+        assert_eq!(asked.get(), 2);
     }
 
     #[test]

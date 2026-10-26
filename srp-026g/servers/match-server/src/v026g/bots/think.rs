@@ -367,6 +367,8 @@ pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
     let Due {
         now, me, tuning, ..
     } = *due;
+    #[cfg(test)]
+    let tactics = due.tactics;
     let skill = bot.skill;
     let notice_factor = signals::mix(tuning.aim.notice, skill);
     let feet = me.feet;
@@ -374,6 +376,14 @@ pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
         percepts,
         now,
         |p: &Percept| {
+            #[cfg(test)]
+            if p.source == Source::Seen {
+                super::foliage::through::count(
+                    tactics
+                        .foliage
+                        .metres(me.eye(), p.at + Vec3::new(0.0, super::foliage::CHEST_M, 0.0)),
+                );
+            }
             sense::notice_ms(&tuning.sense, p.at.distance_xz(feet), p.busy, notice_factor)
         },
         tuning.cheats.forget_ms.max(tuning.sense.forget_ms),
@@ -430,13 +440,15 @@ pub(super) fn bench_camper(
     bot: &mut Bot,
     slot: &mut Option<(Place, Option<tests::CamperSpot>)>,
 ) -> bool {
-    let Due { tactics, .. } = *due;
+    let Due { tactics, me, .. } = *due;
     if let Some((camper, spot)) = slot.as_mut()
         && *camper == bot.place
     {
         let side = bot.side;
-        let found =
-            *spot.get_or_insert_with(|| side.and_then(|side| tests::camper_spot(tactics, side)));
+        let options = tests::CamperOptions::from_env();
+        let found = *spot.get_or_insert_with(|| {
+            side.and_then(|side| tests::camper_spot_by(tactics, side, options.rule, options.crouch))
+        });
         if let Some((at, _)) = found {
             bot.bench_camper = true;
             bot.intent = Intent {
@@ -445,6 +457,8 @@ pub(super) fn bench_camper(
                     within_m: tests::CAMPER_WITHIN_M,
                 },
                 pace: Pace::Run,
+                // Crouched once there, if it is to be.
+                crouch: options.crouch && me.feet.distance_xz(at) <= tests::CAMPER_WITHIN_M,
                 ..Intent::stay()
             };
             return true;
