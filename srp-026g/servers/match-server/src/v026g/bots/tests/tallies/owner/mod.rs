@@ -110,6 +110,10 @@ struct BotNow {
     range_held: Option<u32>,
     /// What its reflex's grenade logic has counted this life.
     grenades: GrenadeStats,
+    /// Its view is held for a throw now, and how long ago, ms, it let go of
+    /// its last grenade.
+    throw_held: bool,
+    thrown_ago_ms: Option<u32>,
 }
 
 #[derive(Default)]
@@ -212,6 +216,8 @@ impl OwnerTally {
                     // gate tally on, the wall test too was made).
                     range_held: (gates.at.abs_diff(tick) <= 2 * TICK_MS && gates.bits == gate::RANGE).then_some(gates.at),
                     grenades: bot.reflex.grenade_stats(),
+                    throw_held: bot.reflex.view_held(),
+                    thrown_ago_ms: bot.reflex.thrown_ago(tick),
                 })
             })
             .collect();
@@ -273,6 +279,7 @@ impl OwnerTally {
             };
             self.grenades_keys(place, tick, body, &prev);
             self.grenades_logic(place, &now.grenades);
+            self.fight.throw_state = (now.throw_held, now.thrown_ago_ms);
             self.fight_ammo(place, tick, body, now);
             self.jumps_press(place, tick, body, &prev, now, &rec);
             self.fight_fire(game, place, body, &rec, &sight, &mut rays);

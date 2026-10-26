@@ -36,6 +36,12 @@ pub(super) struct FightCounts {
     /// the eye to his chest or head; with none.
     pub(super) fire_on_target: u32,
     pub(super) fire_hidden: u32,
+    /// The bot's grenade state at the tick being counted: its view held for a
+    /// throw, and ms since its last throw (`fire_hidden_throw`).
+    pub(super) throw_state: (bool, Option<u32>),
+    /// Fire at a target out of sight, in a throw's hold, and within 3 s after
+    /// a throw (the grenade logic's own reading of the +5.9 % of look 2).
+    pub(super) fire_hidden_throw: [u32; 2],
     pub(super) fire_no_target: u32,
     /// By place: the last tick's target, and the enemies who hit it (who,
     /// when).
@@ -483,6 +489,12 @@ impl OwnerTally {
                     self.fight.fire_on_target += 1;
                     if !in_sight(sight, body, him, f32::INFINITY, rays) {
                         self.fight.fire_hidden += 1;
+                        let (held, ago) = self.fight.throw_state;
+                        if held {
+                            self.fight.fire_hidden_throw[0] += 1;
+                        } else if ago.is_some_and(|ago| ago <= 3_000) {
+                            self.fight.fire_hidden_throw[1] += 1;
+                        }
                     }
                 }
                 None => self.fight.fire_no_target += 1,

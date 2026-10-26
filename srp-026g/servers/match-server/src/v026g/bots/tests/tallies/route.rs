@@ -22,6 +22,10 @@ pub(crate) struct RouteTally {
     /// Moves of 1.5 m or more turning back over 135° from the one before,
     /// with no target.
     pub(crate) reversals: u32,
+    /// ... of them while the bot's legs were in the push after a grenade
+    /// (`Reflex::after_grenade`), and while a throw was under way (its view
+    /// held).
+    pub(crate) reversals_grenade: (u32, u32),
     /// Living bot-worlds.
     pub(crate) worlds: u32,
     /// Each body's pickup time, and the carries delivered (ms each) and
@@ -428,7 +432,12 @@ impl RouteTally {
             if moved >= 1.5 && !fight {
                 if let Some(back) = self.last_move[place] {
                     let cos = (step.0 * back.0 + step.1 * back.1) / (moved * back.0.hypot(back.1));
-                    self.reversals += u32::from(cos < (135f32).to_radians().cos());
+                    let back = cos < (135f32).to_radians().cos();
+                    self.reversals += u32::from(back);
+                    if let Some(bot) = bots.bots[place].as_ref() {
+                        self.reversals_grenade.0 += u32::from(back && bot.reflex.after_grenade(game.tick));
+                        self.reversals_grenade.1 += u32::from(back && bot.reflex.view_held());
+                    }
                 }
                 self.last_move[place] = Some(step);
             } else if moved >= 1.5 {
@@ -648,5 +657,9 @@ impl RouteTally {
             gap[4],
             gap[5],
         ) + &route_ends
+            + &format!(
+                " reversals_after_grenade {} reversals_throwing {}",
+                self.reversals_grenade.0, self.reversals_grenade.1
+            )
     }
 }
