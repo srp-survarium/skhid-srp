@@ -10,11 +10,16 @@ pub struct HazardTuning {
     pub margin_m: Metres,
     /// The way out of a zone the bot starts in ([`EscapeRule`]).
     pub escape: EscapeRule,
+    /// The bots know the artefact places of the map and what the cores say of them
+    /// (`artefact_know.rs`): where each container is and how long a take holds, and, from every
+    /// checked world, whether a core has an artefact due or lying. Knowledge only: nothing
+    /// decides by it (picking and using artefacts are later work). Off: none of it is built.
+    pub artefact_know: bool,
 }
 
 impl Default for HazardTuning {
     fn default() -> Self {
-        Self { margin_m: Metres::of(1.0), escape: EscapeRule::UnderStartZone }
+        Self { margin_m: Metres::of(1.0), escape: EscapeRule::UnderStartZone, artefact_know: false }
     }
 }
 

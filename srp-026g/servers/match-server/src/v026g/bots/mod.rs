@@ -30,6 +30,7 @@
 pub mod aimpoint;
 pub mod anomalies;
 pub mod arc;
+pub mod artefact_know;
 pub mod body;
 pub mod cheats;
 pub mod crossing;
@@ -731,6 +732,9 @@ pub struct Bots {
     searching: Searching,
     /// How the teams' own traps went off ([`trap_know::OwnTrapCounts`]).
     own_traps: trap_know::OwnTrapCounts,
+    /// The artefact places of the map and how well the cores' artefacts are known
+    /// (`tuning.hazard.artefact_know`; built with the tactics, none while it is off).
+    artefacts: Option<artefact_know::ArtefactKnow>,
     /// Kit choices made since they were last taken
     /// ([`Bots::take_kit_choices`]): the place and the kit's index.
     kit_choices: Vec<(Place, u8)>,
@@ -807,6 +811,7 @@ impl Bots {
                 pending: None,
             },
             own_traps: trap_know::OwnTrapCounts::default(),
+            artefacts: None,
             kit_choices: Vec::new(),
             _search_memory: SearchMemory::hold(),
         }
@@ -910,6 +915,11 @@ impl Bots {
         // cloud) run on the match clock from the seed.
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);
         tactics.hazards.attach(anomalies);
+        self.artefacts = self
+            .tuning
+            .hazard
+            .artefact_know
+            .then(|| artefact_know::ArtefactKnow::of(&tactics.world.map));
         let teams = self.container_teams;
         let mut containers: Vec<(u8, Vec3)> = Vec::new();
         for container in &tactics.world.map.containers {
@@ -936,6 +946,14 @@ impl Bots {
                 .map(|side| (*side, tactics.routes_of(*side).count()))
                 .collect::<Vec<_>>()
         );
+        let summary = match &self.artefacts {
+            Some(know) => format!(
+                "{summary}; {} artefact spots ({} names unlinked)",
+                know.spots().len(),
+                know.unlinked()
+            ),
+            None => summary,
+        };
         self.tactics = Some(tactics);
         self.memo = Default::default();
         summary
@@ -1257,10 +1275,32 @@ impl Bots {
     /// A trusted world's objects section: the anomalies' states put right.
     /// Returns (cores read, cores missed).
     pub fn anomalies_from_world(&mut self, objects: &[u8], time: u32) -> (usize, usize) {
-        self.tactics.as_mut().map_or((0, 0), |tactics| {
+        // What the simulation said of the cores' artefacts, to count against the world
+        // (`artefact_know`; none while it is off).
+        let predicted = self.artefacts.as_ref().and_then(|_| {
+            let anomalies = self.tactics.as_ref()?.hazards.anomalies()?;
+            Some(artefact_know::ArtefactKnow::predicted(anomalies))
+        });
+        let mut synced: Vec<usize> = Vec::new();
+        let read = self.tactics.as_mut().map_or((0, 0), |tactics| {
             let report = tactics.hazards.sync_from_world(objects, time);
+            synced = report.synced.iter().map(|s| s.core).collect();
             (report.synced.len(), report.missed.len())
-        })
+        });
+        if let (Some(predicted), Some(know), Some(anomalies)) = (
+            predicted,
+            self.artefacts.as_mut(),
+            self.tactics.as_ref().and_then(|t| t.hazards.anomalies()),
+        ) {
+            know.observe(&predicted, anomalies, &synced, time);
+        }
+        read
+    }
+
+    /// The artefact places of the map and how well the cores' artefacts are known
+    /// (`tuning.hazard.artefact_know`; none while it is off or before the map is ready).
+    pub fn artefact_know(&self) -> Option<&artefact_know::ArtefactKnow> {
+        self.artefacts.as_ref()
     }
 
     /// A trusted world's objects section: the bear traps the teams' bots
