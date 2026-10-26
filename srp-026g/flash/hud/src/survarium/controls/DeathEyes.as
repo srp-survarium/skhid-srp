@@ -160,8 +160,9 @@ package survarium.controls
          if(this._seconds == 0)
          {
             this._start = now;
-            addEventListener(Event.ENTER_FRAME,this.onFrame);
          }
+         // every frame until the next tick is late (update stops it then); again at each tick
+         addEventListener(Event.ENTER_FRAME,this.onFrame);
          if(seconds != this._seconds)
          {
             // a tick: the time left is the new seconds (rounded up, they change as it reaches them)
@@ -190,7 +191,12 @@ package survarium.controls
             visible = false;
             return;
          }
-         now = Math.min(now,this._changed + TICK_WAIT);
+         if(now >= this._changed + TICK_WAIT)
+         {
+            // the countdown is late: this picture until its next tick, drawn once
+            now = this._changed + TICK_WAIT;
+            removeEventListener(Event.ENTER_FRAME,this.onFrame);
+         }
          this._progress = Math.max(0,Math.min(1,(now - this._start) / (this._end - this._start)));
          this._openness = opennessAt(this._progress);
          this.draw();

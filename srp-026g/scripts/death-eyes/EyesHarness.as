@@ -337,6 +337,22 @@ package
          {
             fail("stopped countdown: progress " + e.progress + " at 9 s");
          }
+         // stalled: no frame listener after the wait (none before it ends), back with the next tick
+         var waiting:Boolean = e.hasEventListener(Event.ENTER_FRAME);
+         e = new Eyes();
+         run(e,10000,4000);
+         e.update(5000);
+         var early:Boolean = e.hasEventListener(Event.ENTER_FRAME);
+         e.update(5100);
+         var stalled:Boolean = e.hasEventListener(Event.ENTER_FRAME);
+         e.countdown(text(5),9000);
+         var resumed:Boolean = e.hasEventListener(Event.ENTER_FRAME);
+         e.update(9500);
+         trace("EYES stalled countdown: frame listener " + early + " before the wait, " + stalled + " after it (" + waiting + " at 9 s), " + resumed + " at the next tick, progress then " + Number(e.progress).toFixed(3));
+         if(!early || stalled || waiting || !resumed || !(e.progress > 0.51))
+         {
+            fail("stalled countdown: the frame listener " + early + "/" + stalled + "/" + waiting + "/" + resumed + ", progress " + e.progress);
+         }
          // the texts
          var texts:Object = {"Respawn in 00:05":5,"Відродження через 01:05":65,"Respawn in 10:00":600,"":0,"Respawn":0,"00:00":0,"Respawn in :05":0,"Respawn in 00:":0,"00:05 x":0};
          for(var t:String in texts)
