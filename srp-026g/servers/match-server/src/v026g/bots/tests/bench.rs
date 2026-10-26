@@ -714,6 +714,7 @@ pub(crate) fn real_bot_cost() {
             // ticks of a need with none (a theft this match, a battery home,
             // no holder alive).
             let mut holder_ticks = [0u64; 2];
+            let mut pair_apart = 0u64;
             let mut holder_post_ticks = [0u64; 2];
             let mut holder_deaths = [0u32; 2];
             let mut holder_thefts = [0u32; 2];
@@ -916,6 +917,13 @@ pub(crate) fn real_bot_cost() {
                     raids.bodies(&game, &thieves, game.tick);
                     routes.tick(&game, &bots, game.tick);
                     push.tick(&bots);
+                    // The harm count of the pair rules: ticks a pair's two bodies are alive more than 60 m apart.
+                    for bot in bots.bots.iter().flatten() {
+                        if let Some(mate) = bot.partner.filter(|&p| bot.place < p) {
+                            let (a, b) = (&game.bodies[bot.place], &game.bodies[mate]);
+                            pair_apart += u64::from(a.alive && b.alive && a.feet.distance_xz(b.feet) > 60.0);
+                        }
+                    }
                     if let Some(human) = &mut human {
                         human.tick(&game, &thieves);
                     }
@@ -1407,6 +1415,7 @@ pub(crate) fn real_bot_cost() {
                 );
             }
             eprintln!("  push: {}", push.line(&bots));
+            eprintln!("  pairs: {} apart_ticks {pair_apart}", super::pair_counts::line());
             eprintln!(
                 "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {}",
                 bot_ticks as f64 * f64::from(TICK_MS) / 1000.0,

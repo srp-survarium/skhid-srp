@@ -87,6 +87,11 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // A run may start on a route's point this much behind the bot by the
     // walk's progress (0-1), no farther back (a route may wind a little).
     ("behind_tol", 0.05),
+    // Switches (0 off, the tip's behaviour; 1 on): a pair's leader walks on at a walk for
+    // a follower behind it instead of standing (N2); a run joins its route ahead of the
+    // bot by the walk's progress and a far start is drawn less (R2).
+    ("leader_eases", 0.0),
+    ("join_ahead", 0.0),
     // A route whose start is `join_m` metres off counts `join_min` of one
     // starting at the bot, between them in proportion.
     ("join_m", 150.0),
@@ -306,6 +311,8 @@ fn follower_behind(cx: &Ctx, follower: &PlaceView, points: &[Vec3]) -> bool {
 fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
     let side = cx.bot.side?;
     let num = |name| cx.num(PlayKind::Roam, name);
+    // The first point of a run is not back along the route by more than this (infinite: the switch `join_ahead` is off).
+    let tol = if num("join_ahead") > 0.5 { num("behind_tol") } else { f32::INFINITY };
     let all: Vec<_> = cx.tactics.routes_of(side).collect();
     let lives: f32 = all.iter().map(|r| r.lives as f32).sum();
     if lives <= 0.0 {
@@ -350,7 +357,7 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
         .iter()
         .zip(&routes)
         .map(|(route, points)| {
-            let Some(first) = start_index(cx, points, side, num("reach_m"), num("behind_tol"))
+            let Some(first) = start_index(cx, points, side, num("reach_m"), tol)
             else {
                 return 0.0;
             };
@@ -386,8 +393,10 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
                 })
                 .count();
             w *= num("friend_factor").powi(friends as i32);
-            let off = points[first].distance_xz(mine);
-            w *= (1.0 - off / num("join_m")).max(num("join_min"));
+            if num("join_ahead") > 0.5 {
+                let off = points[first].distance_xz(mine);
+                w *= (1.0 - off / num("join_m")).max(num("join_min"));
+            }
             if sneaky {
                 w *= 1.0 + 0.5 * width(points) / widest;
             }
@@ -407,7 +416,11 @@ fn draw_route(cx: &Ctx, rng: &mut Rng) -> Option<Vec<Vec3>> {
         })
         .or_else(|| weights.iter().rposition(|&w| w > 0.0))?;
     let points = &routes[index];
-    let first = start_index(cx, points, side, num("reach_m"), num("behind_tol"))?;
+    let first = start_index(cx, points, side, num("reach_m"), tol)?;
+    #[cfg(test)]
+    if tol.is_finite() && start_index(cx, points, side, num("reach_m"), f32::INFINITY) != Some(first) {
+        super::super::pair_counts::joined_elsewhere();
+    }
     Some(points[first..].to_vec())
 }
 
@@ -425,9 +438,13 @@ fn start_index(
         .min_by(|&a, &b| points[a].distance_xz(mine).total_cmp(&points[b].distance_xz(mine)))?;
     // Not back along the route: the first point from the nearest on that
     // is not farther back than the bot, by the walk.
-    let floor = cx.tactics.progress_at(mine, side) - behind_tol;
-    let start = (nearest..points.len())
-        .find(|&i| cx.tactics.progress_at(points[i], side) >= floor)?;
+    // (`behind_tol` infinite: the switch `join_ahead` is off, the nearest point.)
+    let start = if behind_tol.is_finite() {
+        let floor = cx.tactics.progress_at(mine, side) - behind_tol;
+        (nearest..points.len()).find(|&i| cx.tactics.progress_at(points[i], side) >= floor)?
+    } else {
+        nearest
+    };
     let first = if points[start].distance_xz(mine) < reach * 3.0 {
         start + 1
     } else {
@@ -533,14 +550,21 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
             // route's end: the leader eases to a walk a little, once a run
             // (play 25), instead of standing in the open. A follower nearer
             // the end than the leader is not waited for.
+            let eases = cx.num(PlayKind::Roam, "leader_eases") > 0.5;
             if let Some(follower) = super::buddy::lagging(cx)
-                && follower_behind(cx, follower, points)
+                && (!eases || follower_behind(cx, follower, points))
             {
                 if *wait_until == 0 {
                     *wait_until = cx.now + (cx.num(PlayKind::Buddy, "wait_s") * 1000.0) as u32;
                 }
                 if cx.now < *wait_until {
-                    return Step::Continue(Intent::to(at, Pace::Walk).within(reach * 0.6));
+                    if eases {
+                        #[cfg(test)]
+                        super::super::pair_counts::eased();
+                        return Step::Continue(Intent::to(at, Pace::Walk).within(reach * 0.6));
+                    }
+                    *headway = Headway::new(cx);
+                    return Step::Continue(Intent::stay().looking(Look::Path));
                 }
             }
             if headway.none(cx) {
@@ -710,6 +734,7 @@ mod tests {
     #[test]
     fn a_route_starting_far_off_is_drawn_less_than_one_starting_near() {
         let mut s = Scenario::field(Mode::Batteries);
+        s.number(PlayKind::Roam, "join_ahead", 1.0);
         let route = |points: &[(f32, f32)]| HumanRoute {
             team: 0,
             lives: 20,
@@ -728,6 +753,10 @@ mod tests {
         // About 0.89 against 0.69 of a weight: 56 % south.
         assert!(south > north + 30, "{north} {south}");
         assert!(north > 100, "still drawn: {north} {south}");
+        // Switched off (the default), the start's distance weighs nothing.
+        s.number(PlayKind::Roam, "join_ahead", 0.0);
+        let (north, south) = draws(&s, 600);
+        assert!(south < north + 30, "{north} {south}");
     }
 
     #[test]
@@ -818,6 +847,7 @@ mod tests {
     /// at (50, 33).
     fn leader_on_route(follower_x: f32) -> (Scenario, State) {
         let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.number(PlayKind::Roam, "leader_eases", 1.0);
         s.bot(0, 0, Vec3::new(0.0, 0.0, 30.0));
         s.bot(2, 0, Vec3::new(follower_x, 0.0, 30.0));
         s.partner = Some(2);
@@ -853,6 +883,18 @@ mod tests {
         let st = step(&mut state, TargetRef::None, &s.cx(0), &mut rng);
         let Step::Continue(Intent { pace, .. }) = st else { panic!("{st:?}") };
         assert_eq!(pace, Pace::Run, "{st:?}");
+    }
+
+    #[test]
+    fn with_the_switch_off_a_leader_stands_for_a_follower_on_either_side_as_before() {
+        for follower_x in [-40.0, 40.0] {
+            let (mut s, mut state) = leader_on_route(follower_x);
+            s.number(PlayKind::Roam, "leader_eases", 0.0);
+            let mut rng = Rng::new(3);
+            let st = step(&mut state, TargetRef::None, &s.cx(0), &mut rng);
+            let Step::Continue(Intent { go, .. }) = st else { panic!("{st:?}") };
+            assert_eq!(go, Go::Stay, "{follower_x} {st:?}");
+        }
     }
 
     #[test]

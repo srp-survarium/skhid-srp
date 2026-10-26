@@ -80,6 +80,8 @@ mod drive;
 mod facts;
 mod features;
 mod layers;
+#[cfg(test)]
+pub mod pair_counts;
 mod search;
 mod think;
 

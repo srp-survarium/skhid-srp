@@ -56,6 +56,8 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // 13 % of the time, `push-record.md` R1).
     ("rejoin_m", 40.0),
     ("leader_settle_s", 20.0),
+    // The switch for that rule (0 off, the tip's behaviour; 1 on).
+    ("respawn_rule", 0.0),
     ("give_up_s", 90.0),
     // Near him: the direction it watches, off his facing, is drawn again
     // this often, seconds. GUESS, cover_human's.
@@ -116,9 +118,15 @@ pub fn leader<'a>(cx: &Ctx<'a>) -> Option<&'a PlaceView> {
 /// so the follower always followed.
 fn just_respawned(cx: &Ctx, leader: &PlaceView) -> bool {
     let num = |name| cx.num(PlayKind::Buddy, name);
-    cx.me.feet.distance_xz(leader.feet) > num("rejoin_m")
+    let just = num("respawn_rule") > 0.5
+        && cx.me.feet.distance_xz(leader.feet) > num("rejoin_m")
         && (cx.tactics.in_spawn_area(leader.feet, None)
-            || cx.now.saturating_sub(leader.spawned) < (num("leader_settle_s") * 1000.0) as u32)
+            || cx.now.saturating_sub(leader.spawned) < (num("leader_settle_s") * 1000.0) as u32);
+    #[cfg(test)]
+    if just {
+        super::super::pair_counts::respawned();
+    }
+    just
 }
 
 /// The follower to wait for, when the bot leads its pair and the follower
@@ -455,6 +463,7 @@ mod tests {
         // The field's spawns are at x = 5 and 75 (areas of 20 m): the
         // leader stands mid-field, 63 m from the follower.
         let mut s = Scenario::field(Mode::Batteries);
+        s.number(PlayKind::Buddy, "respawn_rule", 1.0);
         s.bot(0, 0, Vec3::new(50.0, 0.0, 38.0));
         s.bot(2, 0, Vec3::new(6.0, 0.0, 4.0));
         s.partner = Some(0);
@@ -477,6 +486,10 @@ mod tests {
         );
         // 21 s on, out of the area: followed again.
         at_home(&mut s, now.saturating_sub(21_000));
+        assert!(leader(&s.cx(2)).is_some());
+        // Switched off (the default): followed, as before.
+        at_home(&mut s, now.saturating_sub(2_000));
+        s.number(PlayKind::Buddy, "respawn_rule", 0.0);
         assert!(leader(&s.cx(2)).is_some());
     }
 

@@ -185,6 +185,16 @@ impl Scenario {
     }
 
     /// A bot at `place` of `team` standing at `feet`.
+    /// A number of a play's tuning (a switch is 1.0).
+    pub fn number(&mut self, kind: PlayKind, name: &str, value: f32) {
+        self.tuning
+            .plays
+            .entry(kind)
+            .or_insert_with(|| super::default_tuning(kind))
+            .numbers
+            .insert(name.into(), value);
+    }
+
     pub fn bot(&mut self, place: Place, team: u8, feet: Vec3) -> &mut PlaceView {
         self.place(place, team, feet, true)
     }
