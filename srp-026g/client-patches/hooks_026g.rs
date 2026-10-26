@@ -6,6 +6,141 @@
 // site's arguments. The shim builds the typed arguments and calls the
 // patch's function (rust_patches.md).
 
+// ---- artefacts (patch 54) ----
+
+/// The entry `artefacts_on_spring_loader` (0x33ae13, a Spring's loader 0x33ACF0, its active's third node's index (mov dword [esi+48h],13h; ESI the config, EBX the config's data)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefacts_on_spring_loader(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefacts_on_spring_loader` calls this, from the game's jump at 0x33ae13,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefacts::on_spring_loader(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefacts (patch 54) ----
+
+/// The entry `artefacts_on_spring_link` (0x311bc0, the link of a Spring's active nodes 0x311BC0, its start (push ebx; push esi; mov esi,eax; mov eax,[esi+250h]; EAX the Spring)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefacts_on_spring_link(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefacts_on_spring_link` calls this, from the game's jump at 0x311bc0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefacts::on_spring_link(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefacts (patch 54) ----
+
+/// The entry `artefacts_on_spring_unlink` (0x311da0, their unlink 0x311DA0, its start (push ebx; mov ebx,[esp+8]; [esp+4] the Spring)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefacts_on_spring_unlink(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefacts_on_spring_unlink` calls this, from the game's jump at 0x311da0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefacts::on_spring_unlink(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefacts (patch 54) ----
+
+/// The entry `artefacts_on_lifebone` (0x3122aa, Lifebone's enable_active 0x312250 after its remove_affects (mov ecx,[edi+250h]; EDI the Lifebone, [esp+14h] the time)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefacts_on_lifebone(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefacts_on_lifebone` calls this, from the game's jump at 0x3122aa,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefacts::on_lifebone(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefacts (patch 54) ----
+
+/// The named exits of artefacts::on_action (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactsOnActionExit { Fired }
+/// The entry `artefacts_on_action` (0x313300, artefact_base::action 0x313300, its start (push esi; mov esi,ecx; cmp dword [esi+280h],3; ECX the artefact, [esp+4] pressed, [esp+8] the time; thiscall); fired: its return, ret 8) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefacts_on_action(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefacts_on_action` calls this, from the game's jump at 0x313300,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefacts::on_action(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- artefacts (patch 54) ----
+
+/// The entry `artefacts_on_stagger` (0x2dbd89, the player's stagger 0x2DBCD0, movss xmm2,[esi+31Ch] (ESI the player, XMM0 and [esp+14h] the recent hits' stopping power summed, XMM1 0)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefacts_on_stagger(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefacts_on_stagger` calls this, from the game's jump at 0x2dbd89,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefacts::on_stagger(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefacts (patch 54) ----
+
+/// The named exits of artefacts::on_onyx_hit (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactsOnOnyxHitExit { Unchanged }
+/// The entry `artefacts_on_onyx_hit` (0x312c03, Onyx's hit callback 0x312BF0 after its hit type test (cmp dword [ecx+280h],3; ECX the Onyx; thiscall, three arguments); unchanged: its return, ret 0Ch, the hit as it is) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefacts_on_onyx_hit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefacts_on_onyx_hit` calls this, from the game's jump at 0x312c03,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefacts::on_onyx_hit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- artefacts (patch 54) ----
+
+/// The named exits of artefacts::on_onyx_hint (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactsOnOnyxHintExit { Skip }
+/// The entry `artefacts_on_onyx_hint` (0x25f9e8, Onyx's client update 0x25F640, its activation hint's push 14h; push 21h; add esi,1FCh (EBX the Onyx's +F20h, [esp] the hint's time on screen, 0BB8h, ECX the hint); skip: past the hint's call, its pushed time popped) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefacts_on_onyx_hint(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefacts_on_onyx_hint` calls this, from the game's jump at 0x25f9e8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefacts::on_onyx_hint(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.

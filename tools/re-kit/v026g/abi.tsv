@@ -2005,3 +2005,5 @@ va	name	source	ret_cleanup	result
 0x002da790	survarium::base_player::remove_from_world	manual	4	
 0x00316da0	survarium::player_respawn_rule_base::spawn	manual	12	
 0x0023a1a0	survarium::game_world_ui::show_stamina	manual	0	
+0x002d5d00	survarium::player_params_modifiers_list::remove	manual	0	
+0x001f17a0	survarium::base_player::get_player	manual	0	EAX: the player, this-108h (the interface at the player's +108h)

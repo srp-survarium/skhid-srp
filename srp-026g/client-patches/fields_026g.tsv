@@ -221,3 +221,38 @@ survarium::game_world_ui	world	0x18	u32	the game world (0x23B74F)
 survarium::world_input_handler	hud	0x4	u32	the hud (game_world_ui) itself, inline: its +8 the hud movie holder
 survarium::world_input_handler	replay_movie	0x18	u32	the hud's +14h: the replay's controls movie (0 in a match)
 survarium::lobby_menu	movie	0x690	u32	the lobby movie's holder ([[+690h]+108h]+4 the movie)
+vostok::configs::image	active_key	0xA1C230	u8	"active", the Spring loader's own key (0x33AE1F on)
+vostok::configs::image	passive_key	0xA1C1FC	u8	"passive"
+survarium::spring_config	passive_weight_index	0x18	u32	a Spring's config (+340h; its loader 0x33ACF0, ESI): the passive's second node's index (5 max_carried_weight)
+survarium::spring_config	passive_weight_value	0x1C	f32	its value
+survarium::spring_config	aim_node	0x78	u32	patch 54's active aim_time node, the Spring's +3B8h (after its own fields: its sizes grown to 3D8h)
+survarium::spring_config	stop_node	0x88	u32	patch 54's active stopping power node, the Spring's +3C8h
+survarium::artefact	inventory	0x250	u32	the artefact's inventory (0 none)
+survarium::artefact	kind	0x24C	u32	its kind (1: one its key fires)
+survarium::artefact	state	0x280	u32	its state: 3 passive, 4 active
+survarium::artefact	cooldown	0x28C	u32	its cooldown left (0: ready)
+survarium::artefact	activated	0x2A0	u32	the time it was activated (artefact_base::action 0x313333)
+survarium::artefact	onyx_time_left	0xF14	u32	an Onyx's active time left, ms (its tick 0x3127E0)
+survarium::artefact	onyx_hint	0x2F0	u32	an Onyx's activation hint (its client update's [ebx-0C30h])
+survarium::artefact	spring_aim_node	0x3B8	u32	a Spring's patch 54 aim_time node (spring_config's +78h)
+survarium::artefact	spring_stop_node	0x3C8	u32	and its stopping power node
+survarium::artefact	client_update	0xF20	u32	the Onyx's client part (its client update's EBX)
+survarium::inventory	holder	0x174	u32	the holder's interface, the player's +108h (vtable+8 &the damage model, +0Ch the player)
+survarium::base_player	modifiers_profile	0x6B8	u32	the profile of its modifiers: 704h a kit
+survarium::modifiers_kit	modifiers	0xF4	u32	the kit's 68 modifiers (apply_modifier's EAX)
+survarium::modifiers_kit	lists	0x204	u32	its lists, 14h each: {count, head, tail, ?, sorted +10h}
+survarium::modifiers_kit	next	0x704	u8	the next kit
+survarium::modifier_list	count	0x0	u32	its nodes' count
+survarium::modifier_list	head	0x4	u32	the first node
+survarium::modifier_list	tail	0x8	u32	the last node
+survarium::modifier_list	sorted	0x10	u8	sorted (by value, ascending)
+survarium::modifier_list	next	0x14	u8	the next index's list
+survarium::modifier_node	prev	0x0	u32	the node before
+survarium::modifier_node	next	0x4	u32	the node after
+survarium::modifier_node	index	0x8	u32	its modifier index
+survarium::modifier_node	value	0xC	f32	its value
+survarium::body_part	health_max	0x9C	f32	a pool's maximum health
+survarium::base_player	stagger_base	0x31C	f32	the stagger's own value (0x2DBD89's movss)
+survarium::image	onyx_enable_active	0x3128C0	u32	artefact_onyx_core::enable_active_effects, an Onyx's vtable+80h
+survarium::artefact_vtable	enable_active	0x80	u32	an artefact's enable_active (artefact_base::action calls it, 0x31331E)
+survarium::onyx_client	onyx	-0xF20	u32	the Onyx itself (its client part is its +F20h; the client update's EBX)

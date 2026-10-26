@@ -120,6 +120,8 @@ unsafe extern "C" {
     pub fn engine_show_stamina(shown: u32, ui: *mut c_void);
     /// 0x2383b0 survarium::game_world_ui::show_profiles_selector: hud EAX, shown ESP+4; pops 4
     pub fn engine_show_profiles_selector(hud: *mut c_void, shown: u32);
+    /// 0x2d5d00 survarium::player_params_modifiers_list::remove: list ESI, node EAX; pops 0
+    pub fn engine_modifier_unlink(list: *mut c_void, node: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -299,6 +301,34 @@ pub unsafe fn engine_respawn_spawn(rule: *mut c_void, place: u32, point: *const 
         let slot = (*(rule as *const *const u32)).byte_add(0x5c).read() as usize;
         let function: unsafe extern "thiscall" fn(*mut c_void, u32, *const c_void, u32) = core::mem::transmute(slot);
         function(rule, place, point, time)
+    }
+}
+
+/// 0x1f17a0 survarium::base_player::get_player: interface ECX; pops 0; EAX; through its vtable's slot +0xc (thiscall; this the model)
+///
+/// # Safety
+/// `interface` is an object whose vtable's slot +0xc is a function of the model's convention and arguments.
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_holder_player(interface: *mut c_void) -> *mut c_void {
+    unsafe {
+        let slot = (*(interface as *const *const u32)).byte_add(0xc).read() as usize;
+        let function: unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void = core::mem::transmute(slot);
+        function(interface)
+    }
+}
+
+/// 0x3128c0 survarium::artefact_onyx_core::enable_active_effects: artefact ECX, time ESP+4; pops 4; through its vtable's slot +0x80 (thiscall; this the model)
+///
+/// # Safety
+/// `artefact` is an object whose vtable's slot +0x80 is a function of the model's convention and arguments.
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_enable_active(artefact: *mut c_void, time: u32) {
+    unsafe {
+        let slot = (*(artefact as *const *const u32)).byte_add(0x80).read() as usize;
+        let function: unsafe extern "thiscall" fn(*mut c_void, u32) = core::mem::transmute(slot);
+        function(artefact, time)
     }
 }
 
@@ -524,6 +554,15 @@ pub mod image {
 
     /// 0x1f1d9d3 (u8): the option mouse_invertion, a byte (0x240226)
     pub const OPTION_MOUSE_INVERTION: u32 = 0x1f1d9d3;
+
+    /// 0xa1c230 (u8): "active", the Spring loader's own key (0x33AE1F on)
+    pub const ACTIVE_KEY: u32 = 0xa1c230;
+
+    /// 0xa1c1fc (u8): "passive"
+    pub const PASSIVE_KEY: u32 = 0xa1c1fc;
+
+    /// 0x3128c0 (u32): artefact_onyx_core::enable_active_effects, an Onyx's vtable+80h
+    pub const ONYX_ENABLE_ACTIVE: u32 = 0x3128c0;
 }
 
 /// survarium::game_world's fields (fields_026g.tsv).
@@ -949,6 +988,15 @@ pub mod inventory {
     #[inline(always)]
     pub unsafe fn slots_end(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x168).cast() }
+    }
+
+    /// +0x174 (u32): the holder's interface, the player's +108h (vtable+8 &the damage model, +0Ch the player)
+    ///
+    /// # Safety
+    /// `this` is a survarium::inventory.
+    #[inline(always)]
+    pub unsafe fn holder(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x174).cast() }
     }
 }
 
@@ -1580,6 +1628,24 @@ pub mod base_player {
     pub unsafe fn eye(this: *mut c_void) -> *mut f32 {
         unsafe { this.byte_add(0x47c).cast() }
     }
+
+    /// +0x6b8 (u32): the profile of its modifiers: 704h a kit
+    ///
+    /// # Safety
+    /// `this` is a survarium::base_player.
+    #[inline(always)]
+    pub unsafe fn modifiers_profile(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x6b8).cast() }
+    }
+
+    /// +0x31c (f32): the stagger's own value (0x2DBD89's movss)
+    ///
+    /// # Safety
+    /// `this` is a survarium::base_player.
+    #[inline(always)]
+    pub unsafe fn stagger_base(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x31c).cast() }
+    }
 }
 
 /// survarium::client_weapon_item's fields (fields_026g.tsv).
@@ -1738,6 +1804,15 @@ pub mod body_part {
     #[inline(always)]
     pub unsafe fn health(this: *mut c_void) -> *mut f32 {
         unsafe { this.byte_add(0xa0).cast() }
+    }
+
+    /// +0x9c (f32): a pool's maximum health
+    ///
+    /// # Safety
+    /// `this` is a survarium::body_part.
+    #[inline(always)]
+    pub unsafe fn health_max(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x9c).cast() }
     }
 }
 
@@ -2722,5 +2797,299 @@ pub mod lobby_menu {
     #[inline(always)]
     pub unsafe fn movie(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x690).cast() }
+    }
+}
+
+/// survarium::spring_config's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod spring_config {
+    use core::ffi::c_void;
+
+    /// +0x18 (u32): a Spring's config (+340h; its loader 0x33ACF0, ESI): the passive's second node's index (5 max_carried_weight)
+    ///
+    /// # Safety
+    /// `this` is a survarium::spring_config.
+    #[inline(always)]
+    pub unsafe fn passive_weight_index(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x18).cast() }
+    }
+
+    /// +0x1c (f32): its value
+    ///
+    /// # Safety
+    /// `this` is a survarium::spring_config.
+    #[inline(always)]
+    pub unsafe fn passive_weight_value(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x1c).cast() }
+    }
+
+    /// +0x78 (u32): patch 54's active aim_time node, the Spring's +3B8h (after its own fields: its sizes grown to 3D8h)
+    ///
+    /// # Safety
+    /// `this` is a survarium::spring_config.
+    #[inline(always)]
+    pub unsafe fn aim_node(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x78).cast() }
+    }
+
+    /// +0x88 (u32): patch 54's active stopping power node, the Spring's +3C8h
+    ///
+    /// # Safety
+    /// `this` is a survarium::spring_config.
+    #[inline(always)]
+    pub unsafe fn stop_node(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x88).cast() }
+    }
+}
+
+/// survarium::artefact's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod artefact {
+    use core::ffi::c_void;
+
+    /// +0x250 (u32): the artefact's inventory (0 none)
+    ///
+    /// # Safety
+    /// `this` is a survarium::artefact.
+    #[inline(always)]
+    pub unsafe fn inventory(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x250).cast() }
+    }
+
+    /// +0x24c (u32): its kind (1: one its key fires)
+    ///
+    /// # Safety
+    /// `this` is a survarium::artefact.
+    #[inline(always)]
+    pub unsafe fn kind(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x24c).cast() }
+    }
+
+    /// +0x280 (u32): its state: 3 passive, 4 active
+    ///
+    /// # Safety
+    /// `this` is a survarium::artefact.
+    #[inline(always)]
+    pub unsafe fn state(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x280).cast() }
+    }
+
+    /// +0x28c (u32): its cooldown left (0: ready)
+    ///
+    /// # Safety
+    /// `this` is a survarium::artefact.
+    #[inline(always)]
+    pub unsafe fn cooldown(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x28c).cast() }
+    }
+
+    /// +0x2a0 (u32): the time it was activated (artefact_base::action 0x313333)
+    ///
+    /// # Safety
+    /// `this` is a survarium::artefact.
+    #[inline(always)]
+    pub unsafe fn activated(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x2a0).cast() }
+    }
+
+    /// +0xf14 (u32): an Onyx's active time left, ms (its tick 0x3127E0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::artefact.
+    #[inline(always)]
+    pub unsafe fn onyx_time_left(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xf14).cast() }
+    }
+
+    /// +0x2f0 (u32): an Onyx's activation hint (its client update's [ebx-0C30h])
+    ///
+    /// # Safety
+    /// `this` is a survarium::artefact.
+    #[inline(always)]
+    pub unsafe fn onyx_hint(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x2f0).cast() }
+    }
+
+    /// +0x3b8 (u32): a Spring's patch 54 aim_time node (spring_config's +78h)
+    ///
+    /// # Safety
+    /// `this` is a survarium::artefact.
+    #[inline(always)]
+    pub unsafe fn spring_aim_node(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x3b8).cast() }
+    }
+
+    /// +0x3c8 (u32): and its stopping power node
+    ///
+    /// # Safety
+    /// `this` is a survarium::artefact.
+    #[inline(always)]
+    pub unsafe fn spring_stop_node(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x3c8).cast() }
+    }
+
+    /// +0xf20 (u32): the Onyx's client part (its client update's EBX)
+    ///
+    /// # Safety
+    /// `this` is a survarium::artefact.
+    #[inline(always)]
+    pub unsafe fn client_update(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xf20).cast() }
+    }
+}
+
+/// survarium::modifiers_kit's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod modifiers_kit {
+    use core::ffi::c_void;
+
+    /// +0xf4 (u32): the kit's 68 modifiers (apply_modifier's EAX)
+    ///
+    /// # Safety
+    /// `this` is a survarium::modifiers_kit.
+    #[inline(always)]
+    pub unsafe fn modifiers(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xf4).cast() }
+    }
+
+    /// +0x204 (u32): its lists, 14h each: {count, head, tail, ?, sorted +10h}
+    ///
+    /// # Safety
+    /// `this` is a survarium::modifiers_kit.
+    #[inline(always)]
+    pub unsafe fn lists(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x204).cast() }
+    }
+
+    /// +0x704 (u8): the next kit
+    ///
+    /// # Safety
+    /// `this` is a survarium::modifiers_kit.
+    #[inline(always)]
+    pub unsafe fn next(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x704).cast() }
+    }
+}
+
+/// survarium::modifier_list's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod modifier_list {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): its nodes' count
+    ///
+    /// # Safety
+    /// `this` is a survarium::modifier_list.
+    #[inline(always)]
+    pub unsafe fn count(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x4 (u32): the first node
+    ///
+    /// # Safety
+    /// `this` is a survarium::modifier_list.
+    #[inline(always)]
+    pub unsafe fn head(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0x8 (u32): the last node
+    ///
+    /// # Safety
+    /// `this` is a survarium::modifier_list.
+    #[inline(always)]
+    pub unsafe fn tail(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+
+    /// +0x10 (u8): sorted (by value, ascending)
+    ///
+    /// # Safety
+    /// `this` is a survarium::modifier_list.
+    #[inline(always)]
+    pub unsafe fn sorted(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x10).cast() }
+    }
+
+    /// +0x14 (u8): the next index's list
+    ///
+    /// # Safety
+    /// `this` is a survarium::modifier_list.
+    #[inline(always)]
+    pub unsafe fn next(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x14).cast() }
+    }
+}
+
+/// survarium::modifier_node's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod modifier_node {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): the node before
+    ///
+    /// # Safety
+    /// `this` is a survarium::modifier_node.
+    #[inline(always)]
+    pub unsafe fn prev(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x4 (u32): the node after
+    ///
+    /// # Safety
+    /// `this` is a survarium::modifier_node.
+    #[inline(always)]
+    pub unsafe fn next(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0x8 (u32): its modifier index
+    ///
+    /// # Safety
+    /// `this` is a survarium::modifier_node.
+    #[inline(always)]
+    pub unsafe fn index(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+
+    /// +0xc (f32): its value
+    ///
+    /// # Safety
+    /// `this` is a survarium::modifier_node.
+    #[inline(always)]
+    pub unsafe fn value(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+}
+
+/// survarium::artefact_vtable's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod artefact_vtable {
+    use core::ffi::c_void;
+
+    /// +0x80 (u32): an artefact's enable_active (artefact_base::action calls it, 0x31331E)
+    ///
+    /// # Safety
+    /// `this` is a survarium::artefact_vtable.
+    #[inline(always)]
+    pub unsafe fn enable_active(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x80).cast() }
+    }
+}
+
+/// survarium::onyx_client's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod onyx_client {
+    use core::ffi::c_void;
+
+    /// -0xf20 (u32): the Onyx itself (its client part is its +F20h; the client update's EBX)
+    ///
+    /// # Safety
+    /// `this` is a survarium::onyx_client.
+    #[inline(always)]
+    pub unsafe fn onyx(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_sub(0xf20).cast() }
     }
 }

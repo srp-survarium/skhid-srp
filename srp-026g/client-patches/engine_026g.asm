@@ -83,6 +83,7 @@ global engine_view_update
 global engine_switch_to_warmup_camera
 global engine_show_stamina
 global engine_show_profiles_selector
+global engine_modifier_unlink
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -1045,6 +1046,22 @@ engine_show_profiles_selector:
     push dword [esp + 24]   ; shown -> 4
     mov eax, [esp + 24]   ; hud
     call 0x2383b0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_modifier_unlink:
+    ; 0x2d5d00 survarium::player_params_modifiers_list::remove: list ESI, node EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; list
+    mov eax, [esp + 24]   ; node
+    call 0x2d5d00
     pop edi
     pop esi
     pop ebx

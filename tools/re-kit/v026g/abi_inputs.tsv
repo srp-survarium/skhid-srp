@@ -4703,3 +4703,7 @@ va	name	location	role	basis
 0x00316da0	survarium::player_respawn_rule_base::spawn	entry ESP+12	the time	observed
 0x0023a1a0	survarium::game_world_ui::show_stamina	EAX	AL: shown, a byte (0x23A1A5); the caller at 0x23B7D6 sets it 1	observed
 0x0023a1a0	survarium::game_world_ui::show_stamina	EDX	the ui (game_world_ui: +8 its hud movie, 0x23A1A9)	observed
+0x002d5d00	survarium::player_params_modifiers_list::remove	ESI	the list {count, head +4, tail +8, sorted +10h} the node is in (0x2D5D00)	observed
+0x002d5d00	survarium::player_params_modifiers_list::remove	EAX	the node {prev, next, index, value}, unlinked and zeroed (0x2D5D0B)	observed
+0x001f17a0	survarium::base_player::get_player	ECX	the interface at the player's +108h (an inventory's holder, +174h; vtable+0Ch)	observed
+0x003128c0	survarium::artefact_onyx_core::enable_active_effects	ECX	the artefact (artefact_base: its enable_active, vtable+80h, which artefact_base::action calls, 0x31331E)	observed

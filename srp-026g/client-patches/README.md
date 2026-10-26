@@ -98,7 +98,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/vostok/`, `engine_026g.tsv` + `fields_026g.tsv` -> `engine_026g.rs` (`engine_026g.py`) | The framework: `raw` (the generated bindings and field offsets), `vostok` (the safe typed API and the hook system), the patch modules. `docs/notes/rust_patches.md` |
 | `sites_026g.tsv` | The game sites the Rust patches hook, by name: each a VA, a kind (call/splice/...), the callee it uses and a short note. A patch names a site; the addresses live here, not in the patch (`docs/notes/rust_patches.md`, "The design principle") |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
-| `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
+| `rust/patches/src/artefacts.rs`, `artefacts.toml`, `rust/patches/src/vostok/artefact.rs`, `port/equiv/artefacts.py`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the Rust patch `artefacts` (eight lohooks), and its equivalence spec against the asm it replaced (until the Rust port `artefacts_026g.asm`, the arena's block `artefacts.code`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_artefact_glow_026g.py` | No patch: the artefacts' first-person glow is the content pack `artefact-glow` (`../scripts/artefact-glow/make_pack.py`, `../docs/notes/artefacts.md`). Runs the game's own effect code, in the original and the build: the particle cook's `view` (0x25A86F) on the pack's composite, the first- and third-person presenters' constructors (their particle presenters' views 0 and 1), the particle presenter's handler 0x2AC400 (an activation plays an effect only in the presenters of its view), the whole chain from player::set_effect_presenter and game_effect_player's dispatch 0x2DE3A0 and the artefact's effect calculator 0x313640 (the effect ends when the artefact is no longer active) (needs Unicorn) |
 | `rust/patches/src/blackout.rs`, `src/blackout.toml`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface, the players' markers on Tab: five `lohook`s at sites of its own (`sites_026g.tsv`); its check runs each from the game's code before the site on made-up objects, the original beside (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
@@ -193,7 +193,6 @@ link_026g.py --sizes` prints their bytes, pages and languages):
 | Block | Patch | Language |
 |---|---|---|
 | `research.code`, `research.state` | 53, Research (its state `rn_state`) | NASM, C |
-| `artefacts.code` | 54, the artefacts | NASM |
 | `engine.code` | the engine-function library | NASM (generated) |
 | `bake_cache.code`, `bake_cache.state` | 70, the baked textures' cache | NASM, C |
 | `patches.code`, `patches.state` | the Rust exe patches, one crate (the framework's example is 34, the commit_suicide key; 38, 58, 67), its zeroed statics | Rust, generated hook entries |
@@ -3154,7 +3153,7 @@ does what no config of 0.26g could.
 - **Spring's aim time.** Its loader 0x33ACF0 reads a fixed set of keys into five character
   modifier nodes (passive: movement speed, max_carried_weight, 0 in retail; active: movement
   speed, stamina regeneration and spending) and the duration; none is aim time. At 0x33AE13 (its
-  active's third node) `artefacts_026g.asm` makes the passive's second node aim_time (49) with
+  active's third node) the Rust patch `artefacts` (until the Rust port `artefacts_026g.asm`) makes the passive's second node aim_time (49) with
   `passive/aim_time_mod`, and fills a sixth node at +3B8h, aim_time with `active/aim_time_mod`
   (and a seventh at +3C8h, below). The two are after a Spring's own fields: its two sizes
   (artefact<artefact_spring_core> 0x3B8 at 0x25E7A8, the bare core 0x398 at 0x2EEA74) become
@@ -3201,9 +3200,13 @@ does what no config of 0.26g could.
   the game's localizer (0x1FEF90) makes `{NAME}` the key bound to action NAME (`{USE}`) and any
   other name nothing (the owner's test of `{s}`: "for  s.").
 
-The code is `artefacts_026g.asm` in the arena (`.srpx`, "The arena" above): its block
-`artefacts.code`, a code page after Research's two (0xA431000 today, as linked): eight `jmp near`
-entries, global symbols the hooks jump to (artefacts_loader ... artefacts_popup), 1088 bytes in
+The code is the Rust patch `artefacts` (`rust/patches/src/artefacts.rs`, `vostok::artefact`): eight
+lohooks (`sites_026g.tsv` `artefacts.*`; the pop-up's at 0x25F9E8, after the game's `push 0BB8h`,
+where it makes the pushed time the active's time left, its skip popping it); proven against the asm
+by `port/equiv/artefacts.py` (2000 cases, 0 differences) and by `check_artefacts_026g.py`. Until the
+Rust port `artefacts_026g.asm` in the arena (`.srpx`, "The arena" above): its block
+`artefacts.code`, a code page after Research's two (0xA431000, as linked): eight `jmp near`
+entries, global symbols the hooks jumped to (artefacts_loader ... artefacts_popup), 1088 bytes in
 all. No base relocation is under a site and nothing aims inside one. Only in the builds with the
 late join.
 

@@ -22,6 +22,7 @@
 //!
 //! It grows with what the patches need, and no further.
 
+pub mod artefact;
 pub mod bullet;
 pub mod camera;
 mod cell;

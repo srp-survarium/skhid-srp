@@ -404,12 +404,12 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     pops what tdm_rule_core's (0xA15DA4) and tdm_rule_cook's (0x9FD8AC)
     pops: the call shapes' INSTALLED_VTABLES check, for every patch).
     check_research_026g.py runs the hooks, the cook and the rule.
-54. the same build: the artefacts (patch 54, artefacts_026g.asm, the
-    arena's block artefacts.code): the original's seven sites (Spring's loader and
+54. the same build: the artefacts (patch 54, the Rust patch artefacts:
+    eight lohooks): the original's sites (Spring's loader and
     its keys, the active's link and unlink, Lifebone's enable_active after
     its remove_affects, artefact_base::action's entry, the player's
-    stagger, Onyx's hit callback's state test) and the two sizes of a Spring, the hooks and sizes in the
-    build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
+    stagger, Onyx's hit callback's state test, its pop-up) and the two sizes of a Spring, the hooks and
+    sizes in the build. check_artefacts_026g.py runs it.
 The engine-function library (engine_026g.py, the arena's block engine.code;
 client_patch.md section 0.5): its files are what engine_026g.tsv and the
 re-kit's ABI rows give, and engine_026g.py refuses a spec row whose
@@ -1437,7 +1437,6 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.WEAPON_DECALS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.UPGRADE_PREVIEW_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
-        [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
         [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
@@ -3646,7 +3645,8 @@ def test_stage_focus(original, image, before):
 
 
 def test_artefacts(original, image, before):
-    """Check 54: the artefacts (patch 54, ARTEFACTS_*). check_artefacts_026g.py
+    """Check 54: the artefacts (patch 54, the Rust patch artefacts, eight
+    lohooks; ARTEFACTS_SIZES). check_artefacts_026g.py
     runs Spring's loader and links, Lifebone's active and the action with
     the game's own code on made-up artefacts."""
     stock = Image(original)
@@ -3694,48 +3694,17 @@ def test_artefacts(original, image, before):
           and stock.read(0x25EA83, 6) == bytes.fromhex("8983b4030000"),
           "the size of artefact<artefact_spring_core> (0x25E770, type 6), whose constructor 0x25EA10 fills "
           "+398h..+3B7h; the bare core's (0x2EEA30) is 398h")
-    linked = P.arena()
-    artefacts_va = linked.blocks["artefacts.code"].va
-    check(linked.blocks["artefacts.code"].kind == "code" and artefacts_va % 0x1000 == 0,
-          f"the artefacts' code is the arena's block artefacts.code, a code page at {artefacts_va:#x}")
-    for va, old, symbol, opcode in P.ARTEFACTS_HOOKS:
-        target = linked.symbols[symbol]
-        hook = P.hook_bytes(target, va, old, 0, opcode)
-        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
-              and artefacts_va <= target < artefacts_va + 5 * len(P.ARTEFACTS_HOOKS),
-              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
-              f"`jmp {target:#x}` ({symbol}, an entry of the block) here")
+    sites = {0x33AE13: ["mov dword [esi+0x48],0x13"],
+             0x311BC0: ["push ebx", "push esi", "mov esi,eax", "mov eax,[esi+0x250]"],
+             0x311DA0: ["push ebx", "mov ebx,[esp+0x8]"], 0x3122AA: ["mov ecx,[edi+0x250]"],
+             0x313300: ["push esi", "mov esi,ecx", "cmp dword [esi+0x280],byte +0x3"],
+             0x2DBD89: ["movss xmm2,dword [esi+0x31c]"], 0x312C03: ["cmp dword [ecx+0x280],byte +0x3"],
+             0x25F9E8: ["push byte +0x14", "push byte +0x21", "add esi,0x1fc"]}
+    rust_lohooks(original, image, before, "artefacts", sites,
+                 exits={"ret 0x8", "ret 0xc", "lea esp,[esp+0x4] / jmp 0x25f9f8"})
     under = [v for kind, v in stock.relocations().values() if kind == 3
-             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.ARTEFACTS_HOOKS + tuple(
-                 (s, o, 0, 0) for s, o, _ in P.ARTEFACTS_SIZES))]
-    hits = [h for va, old, _, _ in P.ARTEFACTS_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
-            if not va <= h < va + len(old) and starts_instruction(stock, h)]
-    check(not under and not hits, "no base relocation under the sites, and no branch aims inside a hook"
-          + "".join(f", {h:#x}" for h in hits + under))
-    code = P.linker.block_bytes(linked, "artefacts.code")
-    check(image.read(artefacts_va, len(code)) == code,
-          f"the code at {artefacts_va:#x} is the link's artefacts.code ({len(code)} bytes)")
-    listing = ndisasm(code, artefacts_va)
-    names = code.index(b"aim_time_mod\0")
-    listing = [row for row in listing if row[0] < artefacts_va + names]
-    texts = [text for _, _, text in listing]
-    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
-                      and not artefacts_va <= branch_target(t) < artefacts_va + len(code)})
-    check(P.artefacts_backs(linked) == list(P.ARTEFACTS_BACKS)
-          and outside == sorted(set(P.ARTEFACTS_BACKS) | {0xF6B10, 0x2D5D00, 0x2D5AE0, 0x2E58B0, 0x32A420,
-                                                          0x313350, 0x25F9F8}),
-          "its eight entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
-          + "); it calls the config lookup 0xF6B10, the unlink 0x2D5D00, the getter 0x2D5AE0, the pool "
-          "lookup 0x2E58B0, increase_health 0x32A420 and the activation effect 0x313350, and nothing else "
-          "outside (and 0x25F9F8, the Onyx pop-up's way around set_parameterized_message)")
-    heals = artefacts_va + names + 47
-    check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0"
-          + struct.pack("<III", *(artefacts_va + names + at for at in (32, 37, 42)))
-          and f"mov ebp,{artefacts_va + names + 13:#x}" in texts
-          and f"mov ebp,{artefacts_va + names:#x}" in texts and f"mov ebx,{heals:#x}" in texts
-          and f"cmp ebx,{heals + 12:#x}" in texts and "mov edi,0xa1c1fc" in texts and "mov edi,0xa1c230" in texts,
-          "its data: the keys aim_time_mod (in `passive` 0xA1C1FC and `active` 0xA1C230) and "
-          "stopping_power_mod (in `active`), and the pools Lifebone's active fills (pain, body, head)")
+             and any(va - 4 < v < va + len(old) for va, old, _ in P.ARTEFACTS_SIZES)]
+    check(not under, "no base relocation under a Spring's two sizes" + "".join(f", {h:#x}" for h in under))
     check(rows(stock, 0x312BF0, 0x20) == [
               "mov eax,[ecx+0xee8]", "mov edx,[esp+0x4]", "cmp eax,[edx+0x1c]", "jnz near 0x312cb9",
               "cmp dword [ecx+0x280],byte +0x3", "mov eax,[esp+0x8]", "jnz 0x312c47"]
@@ -5472,33 +5441,32 @@ def test_arena(original):
           and security[0] == raw + rsize and security[0] + security[1] == len(one),
           "SizeOfImage ends past .srpx, its file bytes follow .srpw's, the certificate table stays last, "
           "the PE checksum is right")
-    # ARENA's blocks in another order (research.code and artefacts.code
+    # ARENA's blocks in another order (research.code and bake_cache.code
     # swapped): every block elsewhere, and still each hook at its symbol,
     # Research's calls at the library's thunks and the library's check passing.
     names = [b.name for b in P.ARENA]
     swapped = list(P.ARENA)
-    i, j = names.index("research.code"), names.index("artefacts.code")
+    i, j = names.index("research.code"), names.index("bake_cache.code")
     swapped[i], swapped[j] = swapped[j], swapped[i]
     data, _ = P.build(original, "section", code, None, late_join, arena_blocks=tuple(swapped))
     moved = P.arena(tuple(swapped))
     default = P.arena()
     built = Image(data)
     hooks = [(va, symbol, branch_target(ndisasm(built.read(va, 5), va)[0][2]))
-             for va, _, symbol, _ in P.RESEARCH_HOOKS + P.ARTEFACTS_HOOKS]
+             for va, _, symbol, _ in P.RESEARCH_HOOKS + P.BAKE_CACHE_HOOKS]
     research_va = moved.blocks["research.code"].va
     listing = [t for _, _, t in ndisasm(P.linker.block_bytes(moved, "research.code")[P.RESEARCH_ASM_SIZE:],
                                         research_va + P.RESEARCH_ASM_SIZE)]
     calls = {s for s in moved.symbols if s.startswith("engine_") and any(
         t == f"call {moved.symbols[s]:#x}" or t.endswith(f",{moved.symbols[s]:#x}") for t in listing)}
-    check(moved.blocks["artefacts.code"].va == P.ARENA_VA != default.blocks["artefacts.code"].va
+    check(moved.blocks["bake_cache.code"].va == P.ARENA_VA != default.blocks["bake_cache.code"].va
           and moved.blocks["research.code"].va != default.blocks["research.code"].va
           and all(target == moved.symbols[symbol] != default.symbols[symbol] for _, symbol, target in hooks)
-          and len(calls) >= 11 and P.artefacts_backs(moved) == list(P.ARTEFACTS_BACKS)
+          and len(calls) >= 11
           and built.read(moved.blocks["research.code"].va, 0x100) == P.linker.block_bytes(moved, "research.code")[:0x100],
-          f"ARENA with research.code and artefacts.code swapped links (artefacts.code at "
-          f"{moved.blocks['artefacts.code'].va:#x}, research.code at {research_va:#x}): the {len(hooks)} hooks "
-          f"reach their symbols there, Research's C calls {len(calls)} library functions at their new thunks, "
-          "the artefacts' entries go on where they came from")
+          f"ARENA with research.code and bake_cache.code swapped links (bake_cache.code at "
+          f"{moved.blocks['bake_cache.code'].va:#x}, research.code at {research_va:#x}): the {len(hooks)} hooks "
+          f"reach their symbols there, Research's C calls {len(calls)} library functions at their new thunks")
     try:
         import check_engine_026g as engine_check
         bad = [text for ok, text in engine_check.run_checks(original, (

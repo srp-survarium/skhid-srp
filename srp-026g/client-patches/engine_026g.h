@@ -247,4 +247,7 @@ void engine_show_stamina(unsigned int shown, void *ui);
 /* 0x2383b0 survarium::game_world_ui::show_profiles_selector: hud EAX, shown ESP+4; pops 4 */
 void engine_show_profiles_selector(void *hud, unsigned int shown);
 
+/* 0x2d5d00 survarium::player_params_modifiers_list::remove: list ESI, node EAX; pops 0 */
+void engine_modifier_unlink(void *list, void *node);
+
 #endif

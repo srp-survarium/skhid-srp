@@ -31,6 +31,7 @@ mod raw {
 
 pub mod vostok;
 
+pub mod artefacts;
 pub mod read_order;
 pub mod replay_link;
 pub mod replay_viewer;

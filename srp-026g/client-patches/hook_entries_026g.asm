@@ -6,6 +6,342 @@ bits 32
 section .text
 %include "rust_hook_026g.inc"
 
+; 0x33ae13 a Spring's loader 0x33ACF0, its active's third node's index (mov dword [esi+48h],13h; ESI the config, EBX the config's data): lohook -> artefacts_on_spring_loader
+global artefacts_on_spring_loader
+extern hook_artefacts_on_spring_loader
+artefacts_on_spring_loader:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefacts_on_spring_loader
+    mov edx, artefacts_on_spring_loader_replay
+    cmp eax, 0
+    je artefacts_on_spring_loader_go
+    mov edx, 0x33ae1a
+    cmp eax, 1
+    je artefacts_on_spring_loader_go
+    ud2
+artefacts_on_spring_loader_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefacts_on_spring_loader_replay:
+    db 0xc7, 0x46, 0x48, 0x13, 0x00, 0x00, 0x00
+    jmp 0x33ae1a
+
+; 0x311bc0 the link of a Spring's active nodes 0x311BC0, its start (push ebx; push esi; mov esi,eax; mov eax,[esi+250h]; EAX the Spring): lohook -> artefacts_on_spring_link
+global artefacts_on_spring_link
+extern hook_artefacts_on_spring_link
+artefacts_on_spring_link:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefacts_on_spring_link
+    mov edx, artefacts_on_spring_link_replay
+    cmp eax, 0
+    je artefacts_on_spring_link_go
+    mov edx, 0x311bca
+    cmp eax, 1
+    je artefacts_on_spring_link_go
+    ud2
+artefacts_on_spring_link_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefacts_on_spring_link_replay:
+    db 0x53
+    db 0x56
+    db 0x8b, 0xf0
+    db 0x8b, 0x86, 0x50, 0x02, 0x00, 0x00
+    jmp 0x311bca
+
+; 0x311da0 their unlink 0x311DA0, its start (push ebx; mov ebx,[esp+8]; [esp+4] the Spring): lohook -> artefacts_on_spring_unlink
+global artefacts_on_spring_unlink
+extern hook_artefacts_on_spring_unlink
+artefacts_on_spring_unlink:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefacts_on_spring_unlink
+    mov edx, artefacts_on_spring_unlink_replay
+    cmp eax, 0
+    je artefacts_on_spring_unlink_go
+    mov edx, 0x311da5
+    cmp eax, 1
+    je artefacts_on_spring_unlink_go
+    ud2
+artefacts_on_spring_unlink_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefacts_on_spring_unlink_replay:
+    db 0x53
+    db 0x8b, 0x5c, 0x24, 0x08
+    jmp 0x311da5
+
+; 0x3122aa Lifebone's enable_active 0x312250 after its remove_affects (mov ecx,[edi+250h]; EDI the Lifebone, [esp+14h] the time): lohook -> artefacts_on_lifebone
+global artefacts_on_lifebone
+extern hook_artefacts_on_lifebone
+artefacts_on_lifebone:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefacts_on_lifebone
+    mov edx, artefacts_on_lifebone_replay
+    cmp eax, 0
+    je artefacts_on_lifebone_go
+    mov edx, 0x3122b0
+    cmp eax, 1
+    je artefacts_on_lifebone_go
+    ud2
+artefacts_on_lifebone_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefacts_on_lifebone_replay:
+    db 0x8b, 0x8f, 0x50, 0x02, 0x00, 0x00
+    jmp 0x3122b0
+
+; 0x313300 artefact_base::action 0x313300, its start (push esi; mov esi,ecx; cmp dword [esi+280h],3; ECX the artefact, [esp+4] pressed, [esp+8] the time; thiscall); fired: its return, ret 8: lohook -> artefacts_on_action
+global artefacts_on_action
+extern hook_artefacts_on_action
+artefacts_on_action:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefacts_on_action
+    mov edx, artefacts_on_action_replay
+    cmp eax, 0
+    je artefacts_on_action_go
+    mov edx, 0x31330a
+    cmp eax, 1
+    je artefacts_on_action_go
+    mov edx, artefacts_on_action_fired
+    cmp eax, 2
+    je artefacts_on_action_go
+    ud2
+artefacts_on_action_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefacts_on_action_replay:
+    db 0x56
+    db 0x8b, 0xf1
+    db 0x83, 0xbe, 0x80, 0x02, 0x00, 0x00, 0x03
+    jmp 0x31330a
+artefacts_on_action_fired:
+    ret 0x8
+
+; 0x2dbd89 the player's stagger 0x2DBCD0, movss xmm2,[esi+31Ch] (ESI the player, XMM0 and [esp+14h] the recent hits' stopping power summed, XMM1 0): lohook -> artefacts_on_stagger
+global artefacts_on_stagger
+extern hook_artefacts_on_stagger
+artefacts_on_stagger:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefacts_on_stagger
+    mov edx, artefacts_on_stagger_replay
+    cmp eax, 0
+    je artefacts_on_stagger_go
+    mov edx, 0x2dbd91
+    cmp eax, 1
+    je artefacts_on_stagger_go
+    ud2
+artefacts_on_stagger_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefacts_on_stagger_replay:
+    db 0xf3, 0x0f, 0x10, 0x96, 0x1c, 0x03, 0x00, 0x00
+    jmp 0x2dbd91
+
+; 0x312c03 Onyx's hit callback 0x312BF0 after its hit type test (cmp dword [ecx+280h],3; ECX the Onyx; thiscall, three arguments); unchanged: its return, ret 0Ch, the hit as it is: lohook -> artefacts_on_onyx_hit
+global artefacts_on_onyx_hit
+extern hook_artefacts_on_onyx_hit
+artefacts_on_onyx_hit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefacts_on_onyx_hit
+    mov edx, artefacts_on_onyx_hit_replay
+    cmp eax, 0
+    je artefacts_on_onyx_hit_go
+    mov edx, 0x312c0a
+    cmp eax, 1
+    je artefacts_on_onyx_hit_go
+    mov edx, artefacts_on_onyx_hit_unchanged
+    cmp eax, 2
+    je artefacts_on_onyx_hit_go
+    ud2
+artefacts_on_onyx_hit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefacts_on_onyx_hit_replay:
+    db 0x83, 0xb9, 0x80, 0x02, 0x00, 0x00, 0x03
+    jmp 0x312c0a
+artefacts_on_onyx_hit_unchanged:
+    ret 0xc
+
+; 0x25f9e8 Onyx's client update 0x25F640, its activation hint's push 14h; push 21h; add esi,1FCh (EBX the Onyx's +F20h, [esp] the hint's time on screen, 0BB8h, ECX the hint); skip: past the hint's call, its pushed time popped: lohook -> artefacts_on_onyx_hint
+global artefacts_on_onyx_hint
+extern hook_artefacts_on_onyx_hint
+artefacts_on_onyx_hint:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefacts_on_onyx_hint
+    mov edx, artefacts_on_onyx_hint_replay
+    cmp eax, 0
+    je artefacts_on_onyx_hint_go
+    mov edx, 0x25f9f2
+    cmp eax, 1
+    je artefacts_on_onyx_hint_go
+    mov edx, artefacts_on_onyx_hint_skip
+    cmp eax, 2
+    je artefacts_on_onyx_hint_go
+    ud2
+artefacts_on_onyx_hint_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefacts_on_onyx_hint_replay:
+    db 0x6a, 0x14
+    db 0x6a, 0x21
+    db 0x81, 0xc6, 0xfc, 0x01, 0x00, 0x00
+    jmp 0x25f9f2
+artefacts_on_onyx_hint_skip:
+    lea esp, [esp + 0x4]
+    jmp 0x25f9f8
+
 ; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
 global blackout_on_static_info
 extern hook_blackout_on_static_info

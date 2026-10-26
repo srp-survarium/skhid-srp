@@ -27,6 +27,11 @@ impl ConfigKey {
     pub(in crate::vostok) const fn exe(va: u32) -> ConfigKey {
         ConfigKey(va as usize as *const u8)
     }
+
+    /// The key's text, for the game's lookups.
+    pub(in crate::vostok) fn raw(self) -> *const u8 {
+        self.0
+    }
 }
 
 /// "value": a key's node holds what it says in this child.

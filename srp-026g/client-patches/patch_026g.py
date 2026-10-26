@@ -450,7 +450,8 @@ Patches:
   client_patch.md section 3.51, docs/notes/artefacts.md; their numbers in
   the configs, release/content.tsv artefacts-1.json). A Spring's loader
   (0x33ACF0) reads a fixed set of keys into its character modifier nodes,
-  none of them the aim time; artefacts_026g.asm (the arena's block artefacts.code) makes its
+  none of them the aim time; the Rust patch artefacts (until the Rust port
+  artefacts_026g.asm, the arena's block artefacts.code) makes its
   passive's unused max_carried_weight node aim_time with
   `passive/aim_time_mod` and adds two active nodes, aim_time with
   `active/aim_time_mod` at +3B8h and list 42 with
@@ -1883,10 +1884,11 @@ WEAPON_DECALS_HOOKS = (
 WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries patch 44 calls
 
 # The artefacts (patch 54, README; client_patch.md section 3.51; the rules:
-# ../docs/notes/artefacts.md): artefacts_026g.asm in the arena's block
-# artefacts.code (ARENA below). Its numbers are the artefacts'
-# configs' (release/content.tsv, artefacts-1.json). It begins with eight
-# `jmp near`, one for each site, each a global symbol the hook jumps to:
+# ../docs/notes/artefacts.md): the Rust patch artefacts
+# (rust/patches/src/artefacts.toml), eight lohooks (until the Rust port
+# artefacts_026g.asm in the arena's block artefacts.code). Its numbers are
+# the artefacts' configs' (release/content.tsv, artefacts-1.json). The
+# sites:
 # - Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` at 0x33AE13 (its
 #   active's third node): loader. The passive's second node (+350h,
 #   max_carried_weight 0 in retail) becomes aim_time (49) with the value of
@@ -1919,20 +1921,9 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 # The two nodes are after a Spring's own fields: the two sizes of a Spring,
 # artefact<artefact_spring_core> (0x3B8, 0x25E7A8) and the bare core (0x398,
 # 0x2EEA74), become ARTEFACTS_SPRING_SIZE. No base relocation is under a
-# site and no branch aims inside one; the code holds the absolute addresses
-# of its two names (the exe is never rebased).
-ARTEFACTS_HOOKS = (
-    (0x33AE13, bytes.fromhex("c7464813000000"), "artefacts_loader", 0xE9),        # Spring's loader: its active's third node
-    (0x311BC0, bytes.fromhex("53568bf08b8650020000"), "artefacts_link", 0xE9),    # Spring's active link
-    (0x311DA0, bytes.fromhex("538b5c2408"), "artefacts_unlink", 0xE9),            # Spring's active unlink
-    (0x3122AA, bytes.fromhex("8b8f50020000"), "artefacts_lifebone", 0xE9),        # Lifebone's enable_active
-    (0x313300, bytes.fromhex("568bf183be8002000003"), "artefacts_fire", 0xE9),    # artefact_base::action: its entry
-    (0x2DBD89, bytes.fromhex("f30f10961c030000"), "artefacts_stagger", 0xE9),     # the player's stagger: its sum
-    (0x312C03, bytes.fromhex("83b98002000003"), "artefacts_onyx", 0xE9),          # Onyx's hit callback: its state test
-    (0x25F9DD, bytes.fromhex("8b8bd0f3ffff68b80b0000"), "artefacts_popup", 0xE9), # Onyx's client update: its pop-up
-)
-ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91, 0x312C0A,
-                   0x25F9E8)                    # where each goes on (the pop-up's skip: 0x25F9F8)
+# site and no branch aims inside one. The pop-up's lohook is at 0x25F9E8,
+# after `push 0BB8h` (artefacts.onyx_hint: the pushed time made the active's
+# time left; its skip pops it), where the asm's jump was at 0x25F9DD.
 ARTEFACTS_SPRING_SIZE = 0x3D8                  # the active's two nodes at +3B8h and +3C8h
 ARTEFACTS_SIZES = (
     (0x25E7A8, bytes.fromhex("b8b8030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
@@ -2187,25 +2178,6 @@ INSTALLS = {
                        "as a tail jump with the return address moved past the nops)", None, None),
     0x23B3DE: (INLINE, "update_ui after the teams' points: hud", None, None),
     0x23B351: (JUMP, "update_ui's first message by mode: welcome", None, None),
-    # the artefacts, patch 54 (in `.srpx`)
-    0x33AE13: (JUMP, "Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` (esi = the config, ebx = `data`): "
-                     "loader", None, None),
-    0x311BC0: (ENTRY, "add_active_modifiers, the link of Spring's active nodes (eax = the Spring): link_active, "
-                      "then the function", None, None),
-    0x311DA0: (ENTRY, "remove_active_modifiers, their unlink (stdcall, the Spring): unlink_active, then the "
-                      "function", None, None),
-    0x3122AA: (JUMP, "Lifebone's enable_active after its remove_affects, `mov ecx,[edi+250h]`: "
-                     "lifebone_active", None, None),
-    0x313300: (ENTRY, "artefact_base::action (thiscall: pressed, time; inventory::action's vtable +2Ch call): "
-                      "fire_kind, a key-up back in the function", None, None),
-    0x2DBD89: (JUMP, "the player's stagger 0x2DBCD0, `movss xmm2,[esi+31Ch]` after the hits' sum: stagger",
-               None, None),
-    0x25F9DD: (JUMP, "Onyx's client update 0x25F640 (ebx = the Onyx +F20h, esi the game), `mov ecx,[ebx-0C30h] / "
-                     "push 0BB8h` before set_parameterized_message: onyx_popup, back at 0x25F9E8 with the hint in "
-                     "ecx and the time pushed, or at 0x25F9F8 (not shown)", None, None),
-    0x312C03: (JUMP, "Onyx's hit callback 0x312BF0 (thiscall: the hit, &damage, &armour piercing; `ret 0Ch`), "
-                     "`cmp dword [ecx+280h],3` after its hit type test: onyx_hit, back at 0x312C0A with the "
-                     "flags of that test, or `ret 0Ch`", None, None),
     # the kit keys and the match chat option, patch 58: the Rust patch match_keys
     # (its lohooks 0x25CD41 and 0x1F684A are declared from its TOML, below)
     0x26B916: (CALLEE, "process_incoming_text_message's add_message (stdcall: the handler, the channel, the "
@@ -2430,7 +2402,6 @@ ARENA = (
                ("research_026g.asm", "research_rule_026g.c", "research_native_026g.c")),
     # its rule's cook and the hud's cache (research_native_026g.c rn_state)
     ArenaBlock("research.state", "state", 0x1000, ("research_rule_026g.c", "research_native_026g.c")),
-    ArenaBlock("artefacts.code", "code", 0x1000, ("artefacts_026g.asm",)),       # patch 54
     ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
     ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
     ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
@@ -3310,7 +3281,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             # its symbol.
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
-                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS \
+                for va, expected, symbol, opcode in RESEARCH_HOOKS \
                         + BAKE_CACHE_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     disabled = neutralize_relocs(data, [(va, va + len(expected))])
@@ -3324,9 +3295,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                     patch(data, va, old, new)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
-                if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
-                    sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
-                             "says")
             data = add_arena(data, linked, required_bitmap(required_patches or ()))
     if arena_blocks is not None and late_join is None:
         sys.exit("the arena (`.srpx`) is of the build with the late join")
@@ -3464,25 +3432,6 @@ def weapon_decals_bin():
 
 def upgrade_preview_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "upgrade_preview_026g.section.bin")
-
-
-def artefacts_backs(linked):
-    """Where each of the artefacts' eight entries (ARTEFACTS_HOOKS' symbols)
-    goes on: the target of the first `jmp near` back into .text after the
-    entry's own code, when the entry is a `jmp near`; else None."""
-    block = linked.blocks["artefacts.code"]
-    code, va = linker.block_bytes(linked, "artefacts.code"), block.va
-    entries = [linked.symbols.get(symbol, 0) - va for _, _, symbol, _ in ARTEFACTS_HOOKS]
-    if any(not 0 <= at < len(code) - 4 or code[at] != 0xE9 for at in entries):
-        return None
-    backs = []
-    for at in entries:
-        start = at + 5 + struct.unpack_from("<i", code, at + 1)[0]
-        target = next((va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] for i in range(start, len(code) - 4)
-                       if code[i] == 0xE9 and va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] < SECTION_VA),
-                      None)
-        backs.append(target)
-    return backs
 
 
 def upgrade_preview_targets(code, va):
