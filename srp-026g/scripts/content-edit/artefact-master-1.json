@@ -1,0 +1,9 @@
+{
+ "_about": "The artefact master buff (the owner, 2026-10-26: \"collection time -60%\", its own bonus changed; srp-026g/docs/notes/booster-buffs.md). Artifact-master (artefact_booster, a booster: it works carried) had one default modification, 1134: artefact_search_time_modifier (index 7) -0.25, the strongest roll of that type (drop_weight 4.096), which gear rolls too, so it is not changed. A new modification 1135, made like 1134 with -0.60 and drop_weight 0 (it never rolls), added at the end of the table (after protein-aim-1's 1085), replaces it as the booster's default. The card: \"Collection time: -60%\" (line 108, lower is better).",
+ "add_entry": [
+  {"files": "gameplay/items/modifications/modifications.options", "list": "modifications", "after": {"id": 1085}, "like": {"id": 1134}, "values": {"id": 1135, "drop_weight": 0, "modifiers[0]/value": -0.6, "lobby_info/artefact_search_time_modifier": -0.6, "ui_desc/props_list[0]/prop_value": "-0.60"}}
+ ],
+ "set": [
+  {"file": "gameplay/items/boosters/artefact_booster.options", "path": "default_modifications[0]", "from": 1134, "to": 1135}
+ ]
+}

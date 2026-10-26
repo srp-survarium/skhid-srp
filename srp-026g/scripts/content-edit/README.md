@@ -560,3 +560,12 @@ Applied to the live files: 2 files edited, 0 unexpected differences. The simulat
 | `gameplay/items/boosters/weight_booster.options` `default_modifications`: [1124] -> [1124, 1085] | the weight limit +5 kg stays |
 
 Applied to the live files: 2 files edited, 0 unexpected differences. The simulation changes.
+
+## artefact-master-1.json (2026-10-26)
+
+| change | why |
+|---|---|
+| a new modification 1135 at the end of `modifications` (after 1085), made like 1134 (`artefact_search_time_modifier`, card line 108 "Collection time") with -0.60 and `drop_weight` 0 | the owner: artefact master's collection time -60 %, its own bonus changed. A container's use finishes after ceil(`artefacts_search_time_sec` x 1000 x max(0, 1 + modifier 7)) ms (0x31C780): 5 s -> 2 s (was 3.75 s) |
+| `gameplay/items/boosters/artefact_booster.options` `default_modifications[0]` 1134 -> 1135 | 1134 (-0.25) is also the strongest roll of its type on gear, so it is not changed |
+
+Applied to the live files: 2 files edited, 0 unexpected differences. The simulation changes.
