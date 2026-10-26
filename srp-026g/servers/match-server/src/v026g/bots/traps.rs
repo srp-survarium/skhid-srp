@@ -51,6 +51,15 @@ pub const PRESS_PITCH: f32 = 0.96;
 /// a mate's: the sensor reaches 0.6 m from a foot point (PROVEN) and a body
 /// has a margin.
 pub const AVOID_M: f32 = 0.9;
+/// How far from a trap's centre a foot point catches it, metres: 565 of 566
+/// catches in the recordings had the foot within 0.6 m (PROVEN; the sensor
+/// is 0.25 m and a foot reaches the rest).
+pub const TRIGGER_M: f32 = 0.6;
+/// The metres round a standing own trap the team's bots keep off: the
+/// trigger reach and 0.15 m of the route's tolerance. Less than [`AVOID_M`]
+/// (which the placer keeps from its own steps): a field of 0.9 m and half a
+/// cell shut a floor 1.025 m off, which closed every corridor under 2 m.
+pub const FIELD_M: f32 = TRIGGER_M + 0.15;
 /// The yaws tried round the bot: eight, 45 degrees apart.
 const YAWS: usize = 8;
 /// A lane cell counts toward a spot this near, metres (the cell is 6 m).
