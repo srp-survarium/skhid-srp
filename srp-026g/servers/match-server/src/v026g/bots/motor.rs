@@ -1479,6 +1479,26 @@ mod tests {
         assert_eq!(decision.keys & key::JUMP, 0);
     }
 
+    /// A cap on the look-ahead (on a lip's floors) keeps the walk to the leg it is on: a corner 0.5 m on is
+    /// turned at, not cut by a heading to a point past it.
+    #[test]
+    fn a_capped_look_ahead_turns_at_the_corner_not_across_it() {
+        let p = |x, z| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: false, low: false };
+        let corner = || Route::new(vec![p(0.0, 0.0), p(3.0, 0.0), p(3.0, 4.0)]);
+        let pose = Pose { feet: Vec3::new(2.5, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), pitch: 0.0, speed: 3.0, ..Default::default() };
+        let heading = |cap: Option<f32>| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+            motor.ahead_cap = cap;
+            let (decision, walked) = motor.walk(&mut corner(), &pose, 5.0, |_| true);
+            assert_eq!(walked, Walked::OnTheWay);
+            decision.turn.0.abs()
+        };
+        // Uncapped it heads for a point round the corner (a turn to the side); capped at 0.5 m the point is
+        // the corner's, straight ahead.
+        assert!(heading(Some(0.5)) < heading(None) * 0.5, "{} {}", heading(Some(0.5)), heading(None));
+    }
+
     /// Hurt so it does not jump (a broken leg: about 8 s) as it comes to a
     /// jump of its route, the body presses nothing and spends no try; once
     /// it may jump it makes the jump at the first try, walking or aiming.
