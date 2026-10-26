@@ -185,19 +185,27 @@ def read_sites(path=None):
 
 def exit_of(site, text):
     """A lohook exit of sites_026g.tsv: `name@0xVA`, a jump to that address
-    (inside the host function, the stack as at the site), or `name@ret` /
-    `name@ret:N`, a return from the host function popping N bytes after the
-    return address (the stack at the site its entry's: the site is a
-    function's start), EAX what the handler left. (name, VA) or (name,
-    ("ret", N))."""
+    (inside the host function, the stack as at the site); `name@0xVA:N`, the
+    same after popping N bytes (a site at a `call` of a function that pops
+    its pushed arguments: the exit past the call is the stack as the callee
+    leaves it); or `name@ret` / `name@ret:N`, a return from the host
+    function popping N bytes after the return address (the stack at the
+    site its entry's: the site is a function's start), EAX what the handler
+    left. (name, VA), (name, ("pop", VA, N)) or (name, ("ret", N))."""
     name, _, where = text.strip().partition("@")
     if not re.fullmatch(r"[a-z][a-z0-9_]*", name) or not where:
-        raise Bad(f"sites_026g.tsv: {site}: {text!r} is no exit (name@0xVA, name@ret or name@ret:N)")
+        raise Bad(f"sites_026g.tsv: {site}: {text!r} is no exit (name@0xVA, name@0xVA:N, name@ret or name@ret:N)")
     if where == "ret" or where.startswith("ret:"):
         pop = engine_026g.number(where[4:]) if where != "ret" else 0
         if pop % 4 or not 0 <= pop < 0x100:
             raise Bad(f"sites_026g.tsv: {site}: {text!r} pops a multiple of 4 below 0x100")
         return name, ("ret", pop)
+    if ":" in where:
+        va, _, pop = where.partition(":")
+        pop = engine_026g.number(pop)
+        if pop % 4 or not 0 < pop < 0x100:
+            raise Bad(f"sites_026g.tsv: {site}: {text!r} pops a multiple of 4 from 4 below 0x100")
+        return name, ("pop", engine_026g.number(va), pop)
     return name, engine_026g.number(where)
 
 
@@ -453,8 +461,8 @@ def lohook_entry(h):
              "    cmp eax, 1", f"    je {e}_go"]
     returns = []
     for i, (name, addr) in enumerate(h["exits"]):       # 2 + i: the named exits
-        if isinstance(addr, tuple):                     # a return from the host: its stub below
-            returns.append((f"{e}_{name}", addr[1]))
+        if isinstance(addr, tuple):                     # a return from the host, or a pop: its stub below
+            returns.append((f"{e}_{name}", addr))
             addr = returns[-1][0]
         else:
             addr = f"{addr:#x}"
@@ -464,8 +472,11 @@ def lohook_entry(h):
               "    fxrstor [edi]", "    mov esp, ebp", "    popad", "    popfd", "    ret",
               f"{e}_replay:", *(h.get("replay") or ["    db " + ", ".join(f"0x{b:02x}" for b in h["original"])]),
               f"    jmp {past:#x}"]
-    for label, pop in returns:                          # the stack is the site's: its return address on top
-        lines += [f"{label}:", f"    ret {pop:#x}" if pop else "    ret"]
+    for label, how in returns:                          # the stack is the site's
+        if how[0] == "ret":                             # its return address on top
+            lines += [f"{label}:", f"    ret {how[1]:#x}" if how[1] else "    ret"]
+        else:                                           # the callee's pushed arguments popped (`lea`: the flags kept)
+            lines += [f"{label}:", f"    lea esp, [esp + {how[2]:#x}]", f"    jmp {how[1]:#x}"]
     return lines
 
 

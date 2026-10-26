@@ -60,6 +60,7 @@ pub mod types;
 pub mod world;
 mod ui;
 pub mod world_input;
+pub mod world_mouse;
 
 /// The generated hook glue (link_026g.py from the patches' TOML): each
 /// hook's `extern "C"` shim and its `Original`. Inside `vostok` so it reaches

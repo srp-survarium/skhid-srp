@@ -75,18 +75,13 @@ USAGE (this script never touches the source exe):
     draw from weapon_draw_026g.asm:
         nasm -f bin -DCAVE=0xA425D20 -DSTATE=0xA428E00 weapon_draw_026g.asm -o weapon_draw_026g.section.bin
     (checked in). The warmup camera turned by a drag and moved by the wheel while
-    the kits are shown before the start comes from warmup_look_026g.asm and
-    warmup_limits_026g.asm:
-        nasm -f bin -DCAVE=0xA425D40 -DSTATE=0xA428E20 -DLIMITS=0xA425A98 warmup_look_026g.asm -o warmup_look_026g.section.bin
-        nasm -f bin -DCAVE=0xA425A98 warmup_limits_026g.asm -o warmup_limits_026g.section.bin
-    (checked in; STATE is 0xE20 of the late join's state page, checked)
-    (checked in). The commit_suicide key is the Rust patch suicide_key, in
+    the kits are shown before the start is the Rust patch warmup_camera. The
+    commit_suicide key is the Rust patch suicide_key, in
     the arena's block patches.code (rust/patches, hooks_026g.py, link_026g.py;
     docs/notes/rust_patches.md). A spot's hit on a battery's body is the Rust
-    patch spot, in the same block. The camera on the death screen comes from death_camera_026g.asm,
-    a section of its own, `.srpc`, on the page after the late join's state page:
-        nasm -f bin -DCAVE=0xA429000 -DSTATE=0xA428E60 -DLOOK=0xA425D40 -DLOOK_STATE=0xA428E20 -DDRAG_END=0xA425A98 death_camera_026g.asm -o death_camera_026g.section.bin
-    (checked in; STATE is 0xE60 of the late join's state page, LOOK_STATE warmup_look's, checked).
+    patch spot, in the same block. The camera on the death screen is the Rust
+    patch death_camera; its section of before, `.srpc`, on the page after
+    the late join's state page, stays a page of int3 (`.srpw` follows it).
     A weapon's camouflage comes from weapon_camo_026g.asm, in a section of its
     own, `.srpw`, on the page after `.srpc`, and what it paints (the camouflage,
     the decals) and the decal editor on a weapon from weapon_decals_026g.asm, on
@@ -314,8 +309,8 @@ Patches:
   and the wheel moves it nearer or further, as the lobby's character view
   (0x25D0E0, the game world's input handler's mouse move), within the
   lobby's limits (0x24225E). The code is kit_change_026g.asm at 0xEC0 of
-  `.srp`, warmup_look_026g.asm at 0xD40 and warmup_limits_026g.asm at
-  0xA98;
+  `.srp` and the Rust patch warmup_camera (until the Rust port
+  warmup_look_026g.asm at 0xD40 and warmup_limits_026g.asm at 0xA98);
 - a weapon's upgrade window ("Optika", the scope slot) shows the weapon
   (patch 32, with the late join, client_patch.md section 3.30): the lobby's
   character shows the kit whose held weapon (slot 7, or 10 without a 7) is
@@ -440,17 +435,17 @@ Patches:
   death-camera.md). A death leaves the player's input handler in the first
   person mode: the camera is the corpse's eyes (player+44Ch), and with the
   kits shown the cursor takes every move. The game world's on_mouse_move
-  (0x25D0E0, WARMUP_LOOK_HOOK) jumps to death_look first: while the kits
+  (0x25D0E0) is the Rust patch death_camera's lohook: while the kits
   are shown, the handler is in the first person mode and the local player
   is dead, a drag as patch 31's (the lobby's buttons at once, the left one
   past a click) turns a yaw and a pitch of its own (within 70 degrees
   either side, 60 up, 40 down) and takes the move, and the wheel stays the
-  cursor's; any other move goes on to warmup_look. update_camera's call of
-  the view's update (0x1F364B) calls death_view, which turns the eyes' view
+  cursor's; any other move goes on to the warmup camera's. update_camera's
+  call of the view's update (0x1F364B), its other lohook, turns the eyes' view
   by them relative to the head's pose (the update's own third-person step
   on the identity, times the eyes' transform) while that player is dead; a
-  live one clears them. The code
-  is death_camera_026g.asm, the section `.srpc`; a dead player sends no
+  live one clears them. (Until the Rust port
+  death_camera_026g.asm, the section `.srpc`.) A dead player sends no
   input (0x1F7883), so nothing a match computes changes;
 - the artefacts as the owner set them (patch 54, with the late join,
   client_patch.md section 3.51, docs/notes/artefacts.md; their numbers in
@@ -970,12 +965,11 @@ KIT_CHANGE_HOOKS = (
     (0x23B7FC, bytes.fromhex("8d85d0000000"), 0x108, 0xE8),         # every update: ui_start
 )
 KIT_PICK = (0x233F28, bytes.fromhex("6a008bc3e87f440000"), b"\x90" * 9)   # a pick: the kits stay
-# The same patch's camera before the start: warmup_look_026g.asm at
-# WARMUP_LOOK_OFFSET of `.srp` (after the weapon preview's draw, before the
-# shell_32.dll check) and warmup_limits_026g.asm at WARMUP_LIMITS_OFFSET
-# (after the warmup keys, before the forward effect's scrolling); a state of
-# 12 bytes at WARMUP_LOOK_STATE_OFFSET of the late join's state page (after
-# the weapon preview's). The input world gives a mouse move to its handlers
+# The same patch's camera before the start: the Rust patch warmup_camera
+# (rust/patches/src/warmup_camera.toml; its mouse moves at patch 46's hook,
+# death_camera.toml; until the Rust port warmup_look_026g.asm at 0xD40 of
+# `.srp`, warmup_limits_026g.asm at 0xA98, a state of 12 bytes at 0xE20 of
+# the late join's state page). The input world gives a mouse move to its handlers
 # in their priority's order until one answers 1 (0x3B9F10): the game world's
 # (game world+1F8h, priority 7) before the player's input handler (game
 # world+4D58h, priority 10), whose warmup mode turns the warmup camera and
@@ -983,8 +977,8 @@ KIT_PICK = (0x233F28, bytes.fromhex("6a008bc3e87f440000"), b"\x90" * 9)   # a pi
 # on_mouse_move (0x25D0E0) moves the hud's cursor and answers whether the
 # cursor is shown; the kits show it (0x2383B0 -> 0x23A930), so with them
 # shown before the start the cursor took every move and the camera stood
-# still. Its first four instructions (ten bytes) are a jump to warmup_look
-# and five nops: while the kits are shown and the player's handler is in the
+# still. Its first four instructions (ten bytes) are the lohook
+# world_mouse.move: while the kits are shown and the player's handler is in the
 # warmup mode (+358h = 3, set by the warmup camera 0x1F8190 alone: before
 # play), a move with a button held is a drag as the lobby camera's
 # (0x283D30: its buttons 2, 5 and 7 at once; the left one past CLICK of
@@ -992,18 +986,9 @@ KIT_PICK = (0x233F28, bytes.fromhex("6a008bc3e87f440000"), b"\x90" * 9)   # a pi
 # hud's pointer kept off the screen, put back at the drag's end; a move of
 # the wheel goes on to it alone; any other move is the cursor's. process_
 # warmup_mode's store of the pitch (`movss [esi+350h],xmm0` at 0x24225E,
-# eight bytes) is a call of warmup_limits and three nops: the pitch within
+# eight bytes) is the lohook warmup_camera.pitch_store: the pitch within
 # the lobby camera's +-60 degrees, the distance within its 1.5 and 4.6
 # (0x283EF0). No base relocation under either site.
-WARMUP_LOOK_OFFSET = 0xD40
-WARMUP_LOOK_VA = SECTION_VA + WARMUP_LOOK_OFFSET
-WARMUP_LOOK_HOOK = (0x25D0E0, bytes.fromhex("5356" "8bf1" "8b8e704b0000"), 0, 0xE9)   # on_mouse_move: warmup_look
-WARMUP_LOOK_STATE_OFFSET = 0xE20
-WARMUP_LOOK_STATE_SIZE = 12
-WARMUP_LIMITS_OFFSET = 0xA98
-WARMUP_LIMITS_VA = SECTION_VA + WARMUP_LIMITS_OFFSET
-WARMUP_DRAG_END_OFFSET, WARMUP_LIMITS_ENTRY_OFFSET = 0, 0x20       # the .asm's two entries
-WARMUP_LIMITS_HOOK = (0x24225E, bytes.fromhex("f30f118650030000"), WARMUP_LIMITS_ENTRY_OFFSET, 0xE8)   # the pitch's store
 # And a mouse button held from before the start is not the player's until it
 # is let go: the Rust patch warmup_keys (rust/patches/src/warmup_keys.toml,
 # sites_026g.tsv warmup_keys.mouse_key; until the Rust port
@@ -1026,35 +1011,24 @@ WARMUP_LIMITS_HOOK = (0x24225E, bytes.fromhex("f30f118650030000"), WARMUP_LIMITS
 # mode): update_camera (0x1F3480) gives the view's update (0x2422B0) the
 # eyes' transform (player+44Ch), which it copies (modes 0 and 4); the kits
 # and the cursor are shown, so the game world's handler takes every move and
-# the wheel. death_camera_026g.asm, in a section of its own (`.srpc`, code,
-# the page after the late join's state page, death_camera_va), has two
-# entries: death_look (DEATH_LOOK_OFFSET), where WARMUP_LOOK_HOOK's jump goes
-# instead of warmup_look, which it goes on to for every move but a dead local
-# player's with the kits shown in the first person mode: a drag as patch 31's
-# (its state, its drag_end) turns a yaw and a pitch of its own (8 bytes at
-# DEATH_CAMERA_STATE_OFFSET of the late join's state page) and is taken (1),
-# a move without a button the cursor's; and death_view (DEATH_VIEW_OFFSET),
-# which update_camera's `call 0x2422B0` (0x1F364B) calls: while that player
-# is dead, in the first person mode, the kits shown and a turn kept, the
-# update's own third-person step (0x2422DE) on the identity with that yaw
-# and pitch and the distance 0 (the handler's warmup fields borrowed and put
-# back), the turn times the eyes' (the head's) transform; a live
-# player clears the turn. No base relocation under the site; a dead local
-# player sends no input (game_world::tick 0x1F7883).
+# the wheel. The Rust patch death_camera (rust/patches/src/death_camera.toml):
+# the game world's on_mouse_move (0x25D0E0, world_mouse.move) goes on to
+# the warmup camera's for every move but a dead local player's with the kits
+# shown in the first person mode: a drag as patch 31's turns a yaw and a
+# pitch of its own and is taken (1), a move without a button the cursor's;
+# and update_camera's `call 0x2422B0` (0x1F364B, camera.view_update): while
+# that player is dead, in the first person mode, the kits shown and a turn
+# kept, the update in its third-person step on the identity with that yaw
+# and pitch and the distance 0 (the handler's warmup fields and mode
+# borrowed and put back), the turn times the eyes' (the head's) transform; a
+# live player clears the turn. No base relocation under the sites; a dead
+# local player sends no input (game_world::tick 0x1F7883). Until the Rust
+# port death_camera_026g.asm in a section of its own, `.srpc` (code, the
+# page after the late join's state page, death_camera_va): it stays, a page
+# of int3, so that `.srpw` after it keeps its place.
 DEATH_CAMERA_NAME = b".srpc\0\0\0"
 DEATH_CAMERA_CHARACTERISTICS = 0x60000020     # code, execute, read (as .srp)
 DEATH_CAMERA_SIZE = 0x1000                     # .srpc's one page: `.srpw` follows it
-DEATH_LOOK_OFFSET, DEATH_VIEW_OFFSET = 0, 0x200   # the .asm's two entries
-DEATH_VIEW_HOOK = (0x1F364B, bytes.fromhex("e860ec0400"), DEATH_VIEW_OFFSET, 0xE8)   # update_camera: death_view
-DEATH_CAMERA_STATE_OFFSET = 0xE60             # after the FOV LOD scale's (FOV_LOD_STATE_OFFSET)
-DEATH_CAMERA_STATE_SIZE = 8
-DEATH_UPDATE_VA, DEATH_THIRD_VA = 0x2422B0, 0x2422DE   # the view's update and its third-person step
-# What the code leaves to: warmup_look (twice: not a death screen's move, a
-# move that is the cursor's), drag_end, the view's update and its step.
-DEATH_CAMERA_EXITS = (WARMUP_LOOK_VA, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET, DEATH_UPDATE_VA, DEATH_THIRD_VA)
-DEATH_CAMERA_EXITS_EXPECTED = sorted([(0xE9, WARMUP_LOOK_VA), (0xE9, WARMUP_LOOK_VA),
-                                      (0xE8, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET),
-                                      (0xE9, DEATH_UPDATE_VA), (0xE9, DEATH_THIRD_VA)])
 
 # The order of the archive reads (patch 33, README; client_patch.md section
 # 3.31). vostok::resources::hdd_manager_sorting_predicate::operator()
@@ -2172,9 +2146,6 @@ INSTALLS = {
     0x26794D: (CALLEE, "the view of a kit change: kit_view", None, None),
     0x23B7DA: (JUMP, "the local player alive: ui_alive", None, None),
     0x23B7FC: (INLINE, "the hud's update: ui_start", None, None),
-    0x25D0E0: (ENTRY, "the game world's on_mouse_move: death_look, then warmup_look", None, None),
-    0x24225E: (INLINE, "the warmup mode's pitch: warmup_limits", None, None),
-    0x1F364B: (CALLEE, "update_camera's view update: death_view", None, None),
     0x242196: (CALLEE, "the input builder's last action call: suicide_key (Rust `call` hook)", None, None),
     0x265E73: (CALLEE, "start_item_upgrade's camera: the stash's start, then start_cam", None, None),
     0x265F44: (CALLEE, "exit_item_upgrade's camera: the stash's exit, then exit_cam", None, None),
@@ -3164,50 +3135,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         patch(data, *KIT_PICK)
         if neutralize_relocs(data, [(KIT_PICK[0], KIT_PICK[0] + len(KIT_PICK[1]))]):
             sys.exit("a base relocation under the hiding of the kits after a pick")
-        warmup_look = open(warmup_look_bin(), "rb").read()
-        warmup_limits = open(warmup_limits_bin(), "rb").read()
-        # warmup_look begins `cmp byte [ecx+2E3h],0` and keeps its state where
-        # the late join's page has room for it; it calls warmup_limits'
-        # drag_end, which begins `mov ecx,[ebx]`; warmup_limits begins
-        # `movd eax,xmm0`.
-        if warmup_look[:7] != bytes.fromhex("80b9e302000000") \
-                or warmup_look_state(warmup_look) != late_join_state_va(late_join) + WARMUP_LOOK_STATE_OFFSET \
-                or warmup_look_calls(warmup_look) != [WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET] \
-                or warmup_limits[WARMUP_DRAG_END_OFFSET:WARMUP_DRAG_END_OFFSET + 2] != bytes.fromhex("8b0b") \
-                or warmup_limits[WARMUP_LIMITS_ENTRY_OFFSET:WARMUP_LIMITS_ENTRY_OFFSET + 4] != bytes.fromhex("660f7ec0"):
-            sys.exit(f"warmup_look_026g.section.bin or warmup_limits_026g.section.bin: their entries or the state "
-                     f"are not where patch_026g.py puts them (assembled with -DCAVE={WARMUP_LOOK_VA:#x} "
-                     f"-DSTATE={late_join_state_va(late_join) + WARMUP_LOOK_STATE_OFFSET:#x} "
-                     f"-DLIMITS={WARMUP_LIMITS_VA:#x} and -DCAVE={WARMUP_LIMITS_VA:#x}?)")
-        if WEAPON_PREVIEW_STATE_OFFSET + WEAPON_PREVIEW_STATE_SIZE > WARMUP_LOOK_STATE_OFFSET \
-                or WARMUP_LOOK_STATE_OFFSET + WARMUP_LOOK_STATE_SIZE > LATE_JOIN_STATE_SIZE:
-            sys.exit("the warmup look's state is not between the weapon preview's and the page's end")
-        # Patch 46: the mouse move's jump goes to death_look, which goes on
-        # to warmup_look; update_camera's call of the view's update calls
-        # death_view.
-        death_camera = open(death_camera_bin(), "rb").read()
-        death_va = death_camera_va(late_join)
-        death_state = late_join_state_va(late_join) + DEATH_CAMERA_STATE_OFFSET
-        look_state = late_join_state_va(late_join) + WARMUP_LOOK_STATE_OFFSET
-        if death_camera[DEATH_LOOK_OFFSET:DEATH_LOOK_OFFSET + 7] != bytes.fromhex("80b9e302000000") \
-                or death_camera[DEATH_VIEW_OFFSET:DEATH_VIEW_OFFSET + 4] != bytes.fromhex("8b442404") \
-                or death_camera_exits(death_camera, death_va, DEATH_CAMERA_EXITS) != DEATH_CAMERA_EXITS_EXPECTED \
-                or death_camera.count(b"\xBB" + struct.pack("<I", look_state)) != 1 \
-                or not death_camera.count(struct.pack("<I", death_state)) \
-                or not death_camera.count(struct.pack("<I", death_state + 4)):
-            sys.exit(f"death_camera_026g.section.bin: its entries, its exits or its states are not where "
-                     f"patch_026g.py puts them (assembled with -DCAVE={death_va:#x} -DSTATE={death_state:#x} "
-                     f"-DLOOK={WARMUP_LOOK_VA:#x} -DLOOK_STATE={look_state:#x} "
-                     f"-DDRAG_END={WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET:#x}?)")
-        if FOV_LOD_STATE_OFFSET + FOV_LOD_STATE_SIZE > DEATH_CAMERA_STATE_OFFSET \
-                or DEATH_CAMERA_STATE_OFFSET + DEATH_CAMERA_STATE_SIZE > LATE_JOIN_STATE_SIZE:
-            sys.exit("the death camera's state is not between the FOV LOD scale's and the page's end")
-        for (va, expected, offset, opcode), base in ((WARMUP_LOOK_HOOK, death_va + DEATH_LOOK_OFFSET),
-                                                     (WARMUP_LIMITS_HOOK, WARMUP_LIMITS_VA),
-                                                     (DEATH_VIEW_HOOK, death_va)):
-            patch(data, va, expected, hook_bytes(base, va, expected, offset, opcode))
-            if neutralize_relocs(data, [(va, va + len(expected))]):
-                sys.exit(f"{va:#x}: a base relocation under a hook of the warmup or the death camera")
         weapon_preview = open(weapon_preview_bin(), "rb").read()
         if LATE_JOIN_OFFSET + len(late_join) > WEAPON_PREVIEW_OFFSET \
                 or WEAPON_PREVIEW_VA + len(weapon_preview) > late_join_state_va(late_join):
@@ -3236,11 +3163,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 != WEAPON_PREVIEW_RELOCS:
             sys.exit("the base relocations under the weapon preview's sites are not where they were read")
         weapon_draw = open(weapon_draw_bin(), "rb").read()
-        if WARMUP_LIMITS_OFFSET + len(warmup_limits) > WEAPON_DRAW_OFFSET \
-                or WEAPON_DRAW_OFFSET + len(weapon_draw) > WARMUP_LOOK_OFFSET \
-                or WARMUP_LOOK_OFFSET + len(warmup_look) > KIT_CHANGE_OFFSET:
-            sys.exit("the weapon preview's draw and the warmup look do not fit between the warmup camera's "
-                     "limits and the kit change")
+        if WEAPON_DRAW_OFFSET + len(weapon_draw) > KIT_CHANGE_OFFSET:
+            sys.exit("the weapon preview's draw does not fit before the kit change")
         if weapon_draw_state(weapon_draw) != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET \
                 or weapon_draw[0] != 0x50:
             sys.exit(f"weapon_draw_026g.section.bin: its entry or its state is not where patch_026g.py puts "
@@ -3254,9 +3178,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 or late_join[TAB_SHOWN_OFFSET:TAB_SHOWN_OFFSET + len(TAB_SHOWN_START)] != TAB_SHOWN_START:
             sys.exit("late_join_026g.section.bin: the scoreboard's entries (tab_row, tab_shown) or its state are "
                      "not where patch_026g.py puts them")
-        if WARMUP_LOOK_STATE_OFFSET + WARMUP_LOOK_STATE_SIZE > TAB_LIST_STATE_OFFSET \
+        if WEAPON_PREVIEW_STATE_OFFSET + WEAPON_PREVIEW_STATE_SIZE > TAB_LIST_STATE_OFFSET \
                 or TAB_LIST_STATE_OFFSET + TAB_LIST_STATE_SIZE > LATE_JOIN_STATE_SIZE:
-            sys.exit("the scoreboard's state is not between the warmup look's and the page's end")
+            sys.exit("the scoreboard's state is not between the weapon preview's and the page's end")
         sites = []
         for va, expected, offset, opcode in TAB_LIST_HOOKS:
             patch(data, va, expected, late_join_hook(va, expected, offset, opcode))
@@ -3265,10 +3189,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         sites.append((TAB_LIST_LOOP_VA, TAB_LIST_LOOP_VA + len(TAB_LIST_LOOP[1])))
         if neutralize_relocs(data, sites):
             sys.exit("a base relocation under a site of the scoreboard's rows")
-        if WARMUP_LIMITS_OFFSET + len(warmup_limits) > WEAPON_DRAW_OFFSET:
-            sys.exit("the warmup camera's limits do not fit before the weapon preview's draw")
-        if len(cave) > WARMUP_LIMITS_OFFSET:
-            sys.exit("the upload code (and the default server) do not fit before the warmup camera's limits")
+        if len(cave) > WEAPON_DRAW_OFFSET:
+            sys.exit("the upload code (and the default server) do not fit before the weapon preview's draw")
         weapon_camo = open(weapon_camo_bin(), "rb").read()
         camo_va = weapon_camo_va(late_join)
         name_at = weapon_camo.find(WEAPON_CAMO_NAME_FORMAT)
@@ -3300,7 +3222,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if WEAPON_STASH_OFFSET + len(weapon_stash) > WEAPON_TABLE_OFFSET \
                 or WEAPON_TABLE_OFFSET + len(weapon_table) > 0x1000:
             sys.exit("the weapon stash's code and the weapon table's do not fit in .srpw's page")
-        if DEATH_CAMERA_STATE_OFFSET + DEATH_CAMERA_STATE_SIZE > WEAPON_TABLE_STATE_OFFSET \
+        if FOV_LOD_STATE_OFFSET + FOV_LOD_STATE_SIZE > WEAPON_TABLE_STATE_OFFSET \
                 or WEAPON_TABLE_STATE_OFFSET + WEAPON_TABLE_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the weapon table's state is not between the others' and the page's end")
         # Its state routine as patch 32's; its one read of patch 32's mode is
@@ -3376,17 +3298,15 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
 
     if mode == "section":
         if late_join is not None:
-            cave = cave + b"\xCC" * (WARMUP_LIMITS_OFFSET - len(cave)) + warmup_limits
             cave = cave + b"\xCC" * (WEAPON_DRAW_OFFSET - len(cave)) + weapon_draw
-            cave = cave + b"\xCC" * (WARMUP_LOOK_OFFSET - len(cave)) + warmup_look
             cave = cave + b"\xCC" * (KIT_CHANGE_OFFSET - len(cave)) + kit_change
             cave = cave + b"\xCC" * (LATE_JOIN_OFFSET - len(cave)) + late_join
             cave = cave + b"\xCC" * (WEAPON_PREVIEW_OFFSET - len(cave)) + weapon_preview
         data = add_section(data, cave)
         if late_join is not None:
             add_state_section(data, late_join_state_va(late_join))
-            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join), death_camera,
-                                    DEATH_CAMERA_CHARACTERISTICS)
+            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join),
+                                    b"\xCC" * DEATH_CAMERA_SIZE, DEATH_CAMERA_CHARACTERISTICS)
             data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
                                     WEAPON_CAMO_CHARACTERISTICS)
             # `.srpx`, the arena: its blocks linked from their sources
@@ -3534,54 +3454,6 @@ def weapon_camo_bin():
 
 def kit_change_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "kit_change_026g.section.bin")
-
-
-def warmup_look_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "warmup_look_026g.section.bin")
-
-
-def warmup_limits_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "warmup_limits_026g.section.bin")
-
-
-
-
-def warmup_look_state(code):
-    """The state address warmup_look_026g.asm was assembled for: its one
-    `call $+5` / `pop ebx` / `add ebx,imm32`; 0 when it is not there once."""
-    find = bytes.fromhex("e800000000" "5b" "81c3")
-    at = code.find(find)
-    if at < 0 or code.find(find, at + 1) >= 0:
-        return 0
-    return (WARMUP_LOOK_VA + at + 5 + struct.unpack_from("<i", code, at + 8)[0]) & 0xFFFFFFFF
-
-
-def warmup_look_calls(code):
-    """The target of warmup_look_026g.asm's call at the end of a drag:
-    `call rel32` / `xor eax,eax` / `cmp [edi+0Ch],eax`, once; [] when not."""
-    find = bytes.fromhex("31c039470c")
-    at = code.find(find)
-    if at < 5 or code.find(find, at + 1) >= 0 or code[at - 5] != 0xE8:
-        return []
-    return [(WARMUP_LOOK_VA + at + struct.unpack_from("<i", code, at - 4)[0]) & 0xFFFFFFFF]
-
-
-def death_camera_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "death_camera_026g.section.bin")
-
-
-def death_camera_exits(code, va, targets):
-    """[(opcode, target)] of each `jmp rel32` (E9) or `call rel32` (E8) in
-    death_camera_026g.section.bin, assembled for `va`, whose target is one of
-    `targets`: what the code leaves to (a .bin assembled for another place,
-    or with other addresses, has none of them)."""
-    out = []
-    for at in range(len(code) - 4):
-        if code[at] in (0xE8, 0xE9):
-            target = (va + at + 5 + struct.unpack_from("<i", code, at + 1)[0]) & 0xFFFFFFFF
-            if target in targets:
-                out.append((code[at], target))
-    return sorted(out)
 
 
 def weapon_stash_bin():

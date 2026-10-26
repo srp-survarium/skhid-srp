@@ -4689,3 +4689,8 @@ va	name	location	role	basis
 0x000dfe30	vostok::resources::intrusive_fs_task_unmount_base::destroy	EAX	a mount nobody holds (its count at +1Ch let go to 0): its unmount queued (mov esi,eax at 0xDFE38)	observed
 0x00113580	vostok::debug::terminate	entry ESP+8	the format's first argument, when it asks for one	observed
 0x00113580	vostok::debug::terminate	entry ESP+12	the format's second argument, when it asks for two	observed
+0x0025d160	survarium::game_world::set_pointer	entry ESP+8	y	observed
+0x0025d160	survarium::game_world::set_pointer	entry ESP+12	the wheel	observed
+0x0025d130	survarium::game_world::set_cursor_position	entry ESP+8	y	observed
+0x00018d60	vostok::engine::engine_world::get_render_output_window_size	ECX	engine_world's interface at its +4 (vtable 0x9DB680, RTTI engine_world at offset 4; the game keeps it at +5348h, game::game 0x1E91BC): +2E4h the window	observed
+0x00018d60	vostok::engine::engine_world::get_render_output_window_size	entry ESP+4	where the size goes: the client width, then the height, as floats (0x18D8F, 0x18D97)	observed

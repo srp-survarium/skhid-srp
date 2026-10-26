@@ -80,3 +80,7 @@ engine_unmount	0x0dfe30	EAX:mount	void engine_unmount(void *mount)	thunk
 engine_terminate	0x113580	ESP+4:format ESP+8:first ESP+12:second	void engine_terminate(const char *format, unsigned int first, unsigned int second)	cdecl	
 engine_on_mounted_resources	0x0147e0	ESP+4:holder ESP+8:bound ESP+12:result	void engine_on_mounted_resources(void *holder, void *bound, const void *result)	cdecl	
 engine_get_last_error	0x87005c	-	unsigned int engine_get_last_error(void)	import	
+engine_world_set_pointer	0x25d160	ECX:world ESP+4:x ESP+8:y ESP+12:wheel	void engine_world_set_pointer(void *world, unsigned int x, unsigned int y, unsigned int wheel)	virtual+0x30	
+engine_world_set_cursor	0x25d130	ECX:world ESP+4:x ESP+8:y	void engine_world_set_cursor(void *world, unsigned int x, unsigned int y)	virtual+0x3c	
+engine_window_size	0x018d60	ECX:window ESP+4:size	void *engine_window_size(void *window, float *size)	virtual+0x1c	
+engine_view_update	0x2422b0	ESP+4:handler ESP+8:transform	void engine_view_update(void *handler, const float *transform)	stdcall	

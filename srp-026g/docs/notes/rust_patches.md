@@ -143,9 +143,11 @@ locals (fields_026g.tsv rows with a negative offset). **`Flow`**:
 `Skip`, or `Exit(E)` -- a generated enum of the hook's named exits, so a
 continuation is never return-address arithmetic in Rust. An exit is a site
 row's `name@0xVA`, a jump inside the host function with the stack as at the
-site, or `name@ret` / `name@ret:N`, a return from the host function popping
-N bytes after the return address (the site is the function's start), EAX
-what the handler left.
+site; `name@0xVA:N`, the same after N bytes popped (a site at a `call` whose
+callee pops its pushed arguments: the stack as the callee leaves it); or
+`name@ret` / `name@ret:N`, a return from the host function popping N bytes
+after the return address (the site is the function's start), EAX what the
+handler left.
 
 Every `lohook`/`splice` entry saves and restores the full register, flag and
 FPU/SSE state (`fxsave`/`fxrstor`); the result register the row declares is

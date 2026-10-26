@@ -384,6 +384,14 @@ def test_lohook_relocated(base, noop_stub):
           and all(out[r] == SENTINELS[r] for r in SAVED),
           f"lohook Exit (host return): `ret 8` to the site's return address, EAX the handler's "
           f"(esp +{out['esp'] - STACK - 0x80000:#x})")
+    # a pop: the site a `call` whose callee pops its two pushed arguments
+    past = LOHOOK_PAST + 0x380
+    out = run_lohook(dict(base, original=b"\x90" * 5, exits=[("popped", ("pop", past, 8))]), ret_stub, past,
+                     stack=(1, 2, 3), code={past: b"\x90"})
+    check(out["eip"] == past and out["eax"] == 0x5EED and out["esp"] == STACK + 0x80000 + 8
+          and all(out[r] == SENTINELS[r] for r in SAVED),
+          f"lohook Exit (a pop): the two pushed arguments popped, then {past:#x}, EAX the handler's "
+          f"(esp +{out['esp'] - STACK - 0x80000:#x})")
 
 
 ORIGINAL = b""

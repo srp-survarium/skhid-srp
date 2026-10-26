@@ -250,3 +250,7 @@ extern engine_on_mounted_resources
 ; the IAT slot 0x87005c (kernel32, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_last_error
+; void engine_view_update(void *handler, const float *transform)
+; 0x2422b0 survarium::player_input_handler::update_inverted_view: handler ESP+4, transform ESP+8; pops 8; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_view_update

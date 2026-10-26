@@ -79,6 +79,7 @@ global engine_unmount
 global engine_terminate
 global engine_on_mounted_resources
 global engine_get_last_error
+global engine_view_update
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -102,6 +103,7 @@ engine_replay_place_mine equ 0x54e10   ; 0x54e10 survarium::replay_network_clien
 engine_terminate equ 0x113580   ; 0x113580 vostok::debug::terminate: format ESP+4, first ESP+8, second ESP+12; pops 0; cdecl, called directly
 engine_on_mounted_resources equ 0x147e0   ; 0x147e0 on_mounted_resources: holder ESP+4, bound ESP+8, result ESP+12; pops 0; cdecl, called directly
 engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (kernel32, stdcall)
+engine_view_update equ 0x2422b0   ; 0x2422b0 survarium::player_input_handler::update_inverted_view: handler ESP+4, transform ESP+8; pops 8; stdcall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX

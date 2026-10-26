@@ -81,6 +81,46 @@ pub extern "C" fn hook_blackout_on_input_end(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- death_camera (patch 46) ----
+
+/// The named exits of death_camera::on_mouse_move (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeathCameraOnMouseMoveExit { Answered }
+/// The entry `death_camera_on_mouse_move` (0x25d0e0, the game world's on_mouse_move 0x25D0E0's start (push ebx; push esi; mov esi,ecx; mov ecx,[esi+4B70h]; ECX the game world's input handler, [esp+4] the input world, then x, y, the wheel); answered: its return, ret 10h, AL the answer (1 taken, 0 on to the next handler)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_death_camera_on_mouse_move(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `death_camera_on_mouse_move` calls this, from the game's jump at 0x25d0e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::death_camera::on_mouse_move(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- death_camera (patch 46) ----
+
+/// The named exits of death_camera::on_view_update (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum DeathCameraOnViewUpdateExit { Turned }
+/// The entry `death_camera_on_view_update` (0x1f364b, update_camera's call of the view's update (call 2422B0h, which pops its two arguments; EBX the player, [esp] its input handler, [esp+4] the eyes' transform); turned: past the call, its arguments popped) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_death_camera_on_view_update(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `death_camera_on_view_update` calls this, from the game's jump at 0x1f364b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::death_camera::on_view_update(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- forward_scroll (patch 28) ----
 
 /// The entry `forward_scroll_on_switch` (0x1d90dc, effect_fstage_default_materials::compile, after use_angle_depended_attenuation's read, before compile_begin (mov dl,[esp+56h]; mov esi,[ebp+10h]; EBX the material's config, the shader configuration at [esp+50h], EBP compile's frame)) calls this with the saved machine.
@@ -648,6 +688,21 @@ pub extern "C" fn hook_suicide_key_on_spot(a0: u32, a1: u32, a2: u32) -> u32 {
     let mut state = unsafe { Out::<u32>::new(&thread, a2 as usize as *mut u32) };
     let orig = OrigActionPresent;
     u32::from(crate::suicide_key::on_spot(&orig, &mut handler, action, &mut state))
+}
+
+// ---- warmup_camera (patch 31) ----
+
+/// The entry `warmup_camera_on_pitch_store` (0x24225e, process_warmup_mode 0x242200's store of the new pitch (movss [esi+350h],xmm0; ESI the player's input handler, XMM0 the pitch, the distance at +354h with the frame's wheel added, 0x242219)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_warmup_camera_on_pitch_store(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `warmup_camera_on_pitch_store` calls this, from the game's jump at 0x24225e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::warmup_camera::on_pitch_store(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
 }
 
 // ---- warmup_keys (patch 31) ----

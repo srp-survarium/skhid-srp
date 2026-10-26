@@ -137,6 +137,13 @@ impl<'t> Context<'t> {
         unsafe { self.frame.fxsave.add(XMM0 + 16 * index) }
     }
 
+    /// The low 32 bits of xmm`index`, as they are (a float's bits, a
+    /// not-a-number's too).
+    pub fn xmm_u32(&self, index: usize) -> u32 {
+        // SAFETY: as xmm_f32.
+        unsafe { self.xmm(index).cast::<u32>().read_unaligned() }
+    }
+
     pub fn xmm_f32(&self, index: usize) -> f32 {
         // SAFETY: the fxsave area holds 16 bytes per xmm register.
         unsafe { self.xmm(index).cast::<f32>().read_unaligned() }

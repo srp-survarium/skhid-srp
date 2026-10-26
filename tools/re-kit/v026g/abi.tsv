@@ -2000,3 +2000,4 @@ va	name	source	ret_cleanup	result
 0x00018190	vostok::fs::native_path_string::assignf	manual	0	EAX: the path string (ESI), its text the formatted one (mov eax,esi at 0x181A6)
 0x000dfe30	vostok::resources::intrusive_fs_task_unmount_base::destroy	manual	0	
 0x00113580	vostok::debug::terminate	manual	0	never returns; cdecl, printf-like: the caller would take the arguments (on_mounted_resources 0x147F8 pushes one)
+0x00018d60	vostok::engine::engine_world::get_render_output_window_size	manual	4	EAX: the size's address; the window's client width and height (GetClientRect through [0xAEFED0]), 1.0 both when it fails (0xA2D75C)

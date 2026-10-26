@@ -235,4 +235,7 @@ void __attribute__((cdecl)) engine_on_mounted_resources(void *holder, void *boun
 /* the IAT slot 0x87005c (kernel32, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_get_last_error)(void);
 
+/* 0x2422b0 survarium::player_input_handler::update_inverted_view: handler ESP+4, transform ESP+8; pops 8; stdcall, called directly */
+void __attribute__((stdcall)) engine_view_update(void *handler, const float *transform);
+
 #endif

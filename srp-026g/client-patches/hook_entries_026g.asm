@@ -210,6 +210,98 @@ blackout_on_input_end_replay:
     db 0x8b, 0xe5
     jmp 0x2421b5
 
+; 0x25d0e0 the game world's on_mouse_move 0x25D0E0's start (push ebx; push esi; mov esi,ecx; mov ecx,[esi+4B70h]; ECX the game world's input handler, [esp+4] the input world, then x, y, the wheel); answered: its return, ret 10h, AL the answer (1 taken, 0 on to the next handler): lohook -> death_camera_on_mouse_move
+global death_camera_on_mouse_move
+extern hook_death_camera_on_mouse_move
+death_camera_on_mouse_move:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_death_camera_on_mouse_move
+    mov edx, death_camera_on_mouse_move_replay
+    cmp eax, 0
+    je death_camera_on_mouse_move_go
+    mov edx, 0x25d0ea
+    cmp eax, 1
+    je death_camera_on_mouse_move_go
+    mov edx, death_camera_on_mouse_move_answered
+    cmp eax, 2
+    je death_camera_on_mouse_move_go
+    ud2
+death_camera_on_mouse_move_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+death_camera_on_mouse_move_replay:
+    db 0x53
+    db 0x56
+    db 0x8b, 0xf1
+    db 0x8b, 0x8e, 0x70, 0x4b, 0x00, 0x00
+    jmp 0x25d0ea
+death_camera_on_mouse_move_answered:
+    ret 0x10
+
+; 0x1f364b update_camera's call of the view's update (call 2422B0h, which pops its two arguments; EBX the player, [esp] its input handler, [esp+4] the eyes' transform); turned: past the call, its arguments popped: lohook -> death_camera_on_view_update
+global death_camera_on_view_update
+extern hook_death_camera_on_view_update
+death_camera_on_view_update:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_death_camera_on_view_update
+    mov edx, death_camera_on_view_update_replay
+    cmp eax, 0
+    je death_camera_on_view_update_go
+    mov edx, 0x1f3650
+    cmp eax, 1
+    je death_camera_on_view_update_go
+    mov edx, death_camera_on_view_update_turned
+    cmp eax, 2
+    je death_camera_on_view_update_go
+    ud2
+death_camera_on_view_update_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+death_camera_on_view_update_replay:
+    call 0x2422b0
+    jmp 0x1f3650
+death_camera_on_view_update_turned:
+    lea esp, [esp + 0x8]
+    jmp 0x1f3650
+
 ; 0x1d90dc effect_fstage_default_materials::compile, after use_angle_depended_attenuation's read, before compile_begin (mov dl,[esp+56h]; mov esi,[ebp+10h]; EBX the material's config, the shader configuration at [esp+50h], EBP compile's frame): lohook -> forward_scroll_on_switch
 global forward_scroll_on_switch
 extern hook_forward_scroll_on_switch
@@ -1412,6 +1504,45 @@ stale_dll_on_version_tail_replay:
 global suicide_key_on_spot
 suicide_key_on_spot:
     RUST_CALL hook_suicide_key_on_spot, 3, 12
+
+; 0x24225e process_warmup_mode 0x242200's store of the new pitch (movss [esi+350h],xmm0; ESI the player's input handler, XMM0 the pitch, the distance at +354h with the frame's wheel added, 0x242219): lohook -> warmup_camera_on_pitch_store
+global warmup_camera_on_pitch_store
+extern hook_warmup_camera_on_pitch_store
+warmup_camera_on_pitch_store:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_warmup_camera_on_pitch_store
+    mov edx, warmup_camera_on_pitch_store_replay
+    cmp eax, 0
+    je warmup_camera_on_pitch_store_go
+    mov edx, 0x242266
+    cmp eax, 1
+    je warmup_camera_on_pitch_store_go
+    ud2
+warmup_camera_on_pitch_store_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+warmup_camera_on_pitch_store_replay:
+    db 0xf3, 0x0f, 0x11, 0x86, 0x50, 0x03, 0x00, 0x00
+    jmp 0x242266
 
 ; 0x25cf60 the game world's on_mouse_key_action 0x25CF60's start (push ebp; push esi; mov esi,ecx; mov ecx,[esp+0Ch]; mov eax,[ecx]; ECX the game world's input handler, [esp+4] the input world, [esp+8] the key's code, [esp+0Ch] its kind); taken: its return, ret 0Ch, EAX not 0 (no handler after it): lohook -> warmup_keys_on_mouse_key
 global warmup_keys_on_mouse_key

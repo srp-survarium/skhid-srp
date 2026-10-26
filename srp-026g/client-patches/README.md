@@ -89,10 +89,9 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_sound_queue_026g.py` | Runs the original's and the build's delayed sounds' add after its drain on queues up to and past their capacity: the build drops the new sound at it (needs Unicorn) |
 | `check_shared_upgrades_026g.py` | Runs the original's and patch 30's upgrade-window drop and the `83 46 01` / `02` answers on made-up inventories with one upgrade on several items (needs Unicorn) |
 | `kit_change_026g.asm`, `kit_change_026g.section.bin` | The source of patch 31's code (a kit chosen before the match starts is played at once) and that code assembled for 0xEC0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `warmup_look_026g.asm`, `warmup_look_026g.section.bin` | The source of patch 31's camera before the start (while the kits are shown, a drag turns the warmup camera and the wheel moves it, as the lobby's character view) and that code assembled for 0xD40 of `.srp`, its state at 0xE20 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `death_camera_026g.asm`, `death_camera_026g.section.bin` | The source of patch 46's camera on the death screen (a drag turns the view from the corpse's eyes; the wheel does nothing) and that code assembled for `.srpc` (0xA429000), its state at 0xE60 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/src/warmup_camera.rs`, `warmup_camera.toml` | Patch 31's camera before the start (while the kits are shown, a drag turns the warmup camera and the wheel moves it, as the lobby's character view; the end of a drag; the lobby camera's limits: distance 1.5 to 4.6, pitch within 60 degrees) as the Rust patch `warmup_camera` (a lohook, `warmup_camera.pitch_store`; its mouse moves at `death_camera`'s). Until the Rust port, `warmup_look_026g.asm` at 0xD40 of `.srp` (its state at 0xE20 of `.srpd`) and `warmup_limits_026g.asm` at 0xA98 |
+| `rust/patches/src/death_camera.rs`, `death_camera.toml`, `rust/patches/src/vostok/world_mouse.rs`, `port/equiv/cameras.py` | Patch 46's camera on the death screen (a drag turns the view from the corpse's eyes; the wheel does nothing) as the Rust patch `death_camera` (two lohooks, `world_mouse.move` and `camera.view_update`), and the equivalence spec of both cameras against the asm they replaced. Until the Rust port, `death_camera_026g.asm` in `.srpc` (0xA429000; a page of int3 since, so that `.srpw` keeps its place), its state at 0xE60 of `.srpd` |
 | `rust/patches/src/warmup_keys.rs`, `warmup_keys.toml`, `port/equiv/warmup_keys.py`, `check_warmup_keys_026g.py` | The same patch's buttons: one held from before the start (a drag of its camera) is not the player's until it is let go, as the Rust patch `warmup_keys` (a lohook, `sites_026g.tsv` `warmup_keys.mouse_key`), its equivalence spec against the asm it replaced, and a check that runs it on made-up mouse events (needs Unicorn). Until the Rust port, `warmup_keys_026g.asm` at 0x9A8 of `.srp`, its state at 0xE30 of `.srpd` |
-| `warmup_limits_026g.asm`, `warmup_limits_026g.section.bin` | The same camera's end of a drag and its limits (the lobby camera's: distance 1.5 to 4.6, pitch within 60 degrees) and that code assembled for 0xA98 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `rust/patches/src/read_order.rs`, `read_order.toml`, `port/equiv/read_order.py` | Patch 33 (the order of the archive reads is a strict weak ordering) as the Rust patch `read_order` (a lohook at the predicate's start that returns for it), and its equivalence spec against the asm it replaced |
 | `check_read_order_026g.py` | Runs the original's and patch 33's predicate, with the game's own path, string and offset helpers, and the game's own sort on made-up read queries over several archives (needs Unicorn) |
 | `rust/patches/` (`src/suicide_key.rs`, `src/suicide_key.toml`), `hooks_026g.py`, `port/equiv/suicide_key.py` | Patch 34 (the commit_suicide key kills one's own player), the Rust framework's example: the patch module and its hook TOML (a `[[hook]]` naming the site `input_builder.spot_query`), generated into the block `patches.code`; and its spec for the port-only equivalence gate. Until the framework, NASM at 0x980 of `.srp` |
@@ -1855,9 +1854,9 @@ each game must do it, at the same tick.
 
 **The patch.** Only in the builds with the late join; `kit_change_026g.asm`,
 319 bytes at `.srp`+EC0h (after the shell_32.dll check, before the late
-join), four sites, nine nops at a fifth, and `warmup_look_026g.asm` and
-`warmup_limits_026g.asm` at a sixth and a seventh (the camera before the
-start, below):
+join), four sites, nine nops at a fifth, and the Rust patch `warmup_camera`
+at a sixth and a seventh (the camera before the start, below; until the
+Rust port `warmup_look_026g.asm` and `warmup_limits_026g.asm`):
 
 - The respawn rule's tick (0x316820, its first three instructions) first
   goes over the places while the time rule's state is "waiting for players"
@@ -1901,9 +1900,10 @@ start, below):
   gets a mouse move before the player's input handler (priority 7 before
   10), moves the cursor and keeps the move while the cursor is shown
   (0x25D0E0), so the warmup camera, which the player's handler turns and
-  moves by the wheel, stood still. The first ten bytes of 0x25D0E0 jump to
-  `warmup_look_026g.asm` (184 bytes at `.srp`+D40h, after the weapon
-  preview's draw; 12 bytes of state at `.srpd`+E20h). While the kits are
+  moves by the wheel, stood still. The first ten bytes of 0x25D0E0 are
+  patch 46's lohook, which goes on to the Rust patch `warmup_camera` (until
+  the Rust port a jump to `warmup_look_026g.asm`, 184 bytes at `.srp`+D40h;
+  12 bytes of state at `.srpd`+E20h). While the kits are
   shown and the player's handler is in the warmup mode (3, before play), as
   the lobby's character view (`lobby_camera`, 0x283D30):
   - plain moves are the cursor's; a left press that moves no more than 8
@@ -1915,9 +1915,9 @@ start, below):
     the first move after the release, as the lobby does;
   - the wheel goes on to the player's handler alone (no turn): nearer
     forward, further back, 0.12 a notch, the lobby's step.
-  `warmup_limits_026g.asm` (101 bytes at `.srp`+A98h, after the seek code)
-  has the end of a drag and, called from the warmup mode's store of the
-  pitch (0x24225E, eight bytes), the lobby camera's limits: the pitch within
+  `warmup_camera` (until the Rust port `warmup_limits_026g.asm`, 101 bytes
+  at `.srp`+A98h) has the end of a drag and, at the warmup mode's store of
+  the pitch (0x24225E, eight bytes, its lohook), the lobby camera's limits: the pitch within
   60 degrees, the distance within 1.5 and 4.6 (the stock warmup had none,
   and starts at 1.0: it now starts at 1.5). On the death screen the cursor
   takes every move as before. The warmup mode gives the player's input no
@@ -2774,10 +2774,16 @@ third-person and warmup steps add it to the distance). The game builds and
 sends the local player's input only while it is alive (game_world::tick,
 `cmp byte [eax+33Ch],0` at 0x1F7883): a dead player sends nothing.
 
-**The patch** (builds with the late join; `death_camera_026g.asm`, 860
-bytes, in a section of its own, `.srpc`, on the page after the late join's
-state page, 0xA429000; its state, a yaw and a pitch, 8 bytes at the late
-join's state page +E60h):
+**The patch** (builds with the late join; the Rust patch `death_camera`,
+two lohooks, proven against the asm by `port/equiv/cameras.py`, 2000 cases,
+0 differences, and by `check_death_camera_026g.py`; its turn a static of
+the crate. Until the Rust port `death_camera_026g.asm`, 860 bytes, in a
+section of its own, `.srpc`, on the page after the late join's state page,
+0xA429000, which stays as a page of int3; its state, a yaw and a pitch, 8
+bytes at the late join's state page +E60h; below as it was written. The
+port's view update is the game's own update called with the mode borrowed,
+2, for its third-person step, where the asm ran the update's start and
+jumped to the step: the update reads the mode once, at 0x2422C6):
 
 - `WARMUP_LOOK_HOOK`'s jump (the first ten bytes of the game world's
   on_mouse_move, 0x25D0E0) goes to `death_look` (`.srpc`+0) instead of

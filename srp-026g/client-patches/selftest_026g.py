@@ -232,22 +232,20 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     client+1F1C60h), byte for byte. The code calls and leaves only to what
     it names, stores nothing but on its stack; no relocation under a site
     and nothing aims inside one. Its camera before the start
-    (warmup_look_026g.asm at WARMUP_LOOK_OFFSET, warmup_limits_026g.asm
-    at WARMUP_LIMITS_OFFSET, check 15's layout; the keys the Rust patch
-    warmup_keys): the game world's input
+    (the Rust patch warmup_camera, its moves at patch 46's lohook; the keys
+    the Rust patch warmup_keys): the game world's input
     handler's on_mouse_move (0x25D0E0, its vtable 0x9FC588's +0Ch,
-    priority 7) jumps to warmup_look with five nops where it began, and
-    process_warmup_mode's store of the pitch (0x24225E) calls
-    warmup_limits with three nops; the player's input handler (vtable
+    priority 7) is death_camera's lohook world_mouse.move, and
+    process_warmup_mode's store of the pitch (0x24225E) warmup_camera's
+    lohook warmup_camera.pitch_store; the player's input handler (vtable
     0xA04048) has priority 10; the input world gives a move to its
     handlers by priority, lowest first, until one answers 1, its mouse and
     the buttons held where the code reads them; the lobby camera's turn
     (buttons 52h), wheel step and limits (1.5, 4.6, +-60 degrees) as the
     code has them; the warmup camera (0x1F8190) sets mode 3, the warmup
     mode stores the distance and the pitch with no limit; the hud's
-    cursor and kits flags; the code holds no address and calls only the
-    game world's vtable+30h, +3Ch and the end of a drag; its state is in
-    the late join's page. check_kit_change_026g.py runs it.
+    cursor and kits flags; nothing aims inside the two sites.
+    check_kit_change_026g.py runs it.
 33. the same build: a weapon's upgrade window shows the weapon (patch 32,
     weapon_preview_026g.asm at WEAPON_PREVIEW_OFFSET of `.srp`, after the
     late join's code, its state at WEAPON_PREVIEW_STATE_OFFSET of `.srpd`).
@@ -347,20 +345,19 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     check_fov_lod_026g.py runs the projection, select_lod and the screen
     factor of the original and the build.
 46. the same build: on the death screen a drag turns the camera, the wheel
-    does nothing (patch 46, death_camera_026g.asm in `.srpc`, the section
-    after `.srpd`). update_camera's `call 0x2422b0` (0x1F364B,
-    ebx the player) calls death_view; the game world's on_mouse_move jump
-    (check 32) goes to death_look. In the original: the view's update copies
+    does nothing (patch 46, the Rust patch death_camera: two lohooks,
+    world_mouse.move and camera.view_update, its exit past the call popping
+    its two arguments). update_camera's `call 0x2422b0` (0x1F364B,
+    ebx the player) and the game world's on_mouse_move (check 32) are its
+    sites. In the original: the view's update copies
     the transform in modes 0 and 4 and its third-person step (0x2422DE)
     reads the yaw, pitch and distance and writes the view and +35Ch alone;
     a death sets no mode; a dead player's input is not sent (0x1F7883); the
     handler's game world, game, client and local player; the window's size
-    (vtable+1Ch) and the look's step. The code: its exits (warmup_look, the
-    update, its step on the identity, then the turn times the eyes' rows),
-    calls (the pointer, the window's size, drag_end), the turn's limits,
-    absolute operands (its state, the options, its two constants) and
-    returns; branches inside land on instructions; no relocation under the
-    site, nothing aims inside it. check_death_camera_026g.py runs it.
+    (vtable+1Ch) and the look's step; the update reads the mode once,
+    before its third-person step (the port borrows the mode for it). No
+    relocation under the sites, nothing aims inside them.
+    check_death_camera_026g.py runs it.
 44. the same build: a weapon wears the camouflage its item holds (patch
     44, weapon_camo_026g.asm at the start of `.srpw`, the last section,
     on the page after `.srpc`): its hook, its entry and name format, its
@@ -572,28 +569,6 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.kit_change_bin(), "rb").read(),
           f"{os.path.basename(P.kit_change_bin())} is current ({len(fresh)} bytes)")
-    state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WARMUP_LOOK_STATE_OFFSET
-    for source, defines, path in (
-            ("warmup_look_026g.asm", [f"-DCAVE={P.WARMUP_LOOK_VA:#x}", f"-DSTATE={state:#x}",
-                                      f"-DLIMITS={P.WARMUP_LIMITS_VA:#x}"], P.warmup_look_bin()),
-            ("warmup_limits_026g.asm", [f"-DCAVE={P.WARMUP_LIMITS_VA:#x}"], P.warmup_limits_bin())):
-        with tempfile.TemporaryDirectory() as tmp:
-            out = os.path.join(tmp, "out.bin")
-            subprocess.run([tool("nasm"), "-f", "bin", *defines, os.path.join(HERE, source), "-o", out],
-                           check=True, timeout=60)
-            fresh = open(out, "rb").read()
-        check(fresh == open(path, "rb").read(), f"{os.path.basename(path)} is current ({len(fresh)} bytes)")
-    late_join = open(P.late_join_bin(), "rb").read()
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.death_camera_va(late_join):#x}",
-                        f"-DSTATE={P.late_join_state_va(late_join) + P.DEATH_CAMERA_STATE_OFFSET:#x}",
-                        f"-DLOOK={P.WARMUP_LOOK_VA:#x}", f"-DLOOK_STATE={state:#x}",
-                        f"-DDRAG_END={P.WARMUP_LIMITS_VA + P.WARMUP_DRAG_END_OFFSET:#x}",
-                        os.path.join(HERE, "death_camera_026g.asm"), "-o", out], check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(fresh == open(P.death_camera_bin(), "rb").read(),
-          f"{os.path.basename(P.death_camera_bin())} is current ({len(fresh)} bytes)")
     state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_PREVIEW_STATE_OFFSET
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
@@ -1456,7 +1431,6 @@ def late_join_sites():
          ] + \
         [(va, len(old)) for va, old, _ in P.FOV_PATCHES] + pickup_sites() + \
         [(va, len(old)) for va, old, _, _ in P.KIT_CHANGE_HOOKS] + [(P.KIT_PICK[0], len(P.KIT_PICK[1]))] + \
-        [(P.WARMUP_LOOK_HOOK[0], len(P.WARMUP_LOOK_HOOK[1])), (P.WARMUP_LIMITS_HOOK[0], len(P.WARMUP_LIMITS_HOOK[1]))] + \
         [(P.READ_ORDER_VA, 6)] + \
         [(P.BAKED_TEXTURE_MISSING[0], len(P.BAKED_TEXTURE_MISSING[1]))] + \
         [(P.AI_ARENA_VA, len(P.AI_ARENA[1]))] + \
@@ -1466,7 +1440,6 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.TAB_LIST_HOOKS] + [(P.TAB_LIST_LOOP_VA, len(P.TAB_LIST_LOOP[1]))] + \
         [(P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS] + \
-        [(P.DEATH_VIEW_HOOK[0], len(P.DEATH_VIEW_HOOK[1]))] + \
         [(P.WEAPON_CAMO_HOOK[0], len(P.WEAPON_CAMO_HOOK[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.WEAPON_TABLE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEAPON_DECALS_HOOKS] + \
@@ -3239,27 +3212,18 @@ def test_kit_change(original, image, before):
 
 
 def test_warmup_look(original, image, before):
-    """Check 32, the warmup camera before the start (WARMUP_LOOK_*,
-    WARMUP_LIMITS_*)."""
+    """Check 32, the warmup camera before the start (the Rust patch
+    warmup_camera; its moves at death_camera's lohook, check 46)."""
     stock = Image(original)
     texts = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
     slot = lambda vt, at: struct.unpack("<I", stock.read(vt + at, 4))[0]
     floats = lambda va: struct.unpack("<f", stock.read(va, 4))[0]
-    sites = []
-    # The mouse move's jump goes to patch 46's death_look first, which goes
-    # on to warmup_look (check 46).
-    death_look = P.death_camera_va(open(P.late_join_bin(), "rb").read()) + P.DEATH_LOOK_OFFSET
-    for (va, old, offset, opcode), base, original_texts, built in (
-            (P.WARMUP_LOOK_HOOK, death_look, ["push ebx", "push esi", "mov esi,ecx", "mov ecx,[esi+0x4b70]"],
-             [f"jmp {death_look:#x}"] + ["nop"] * 5),
-            (P.WARMUP_LIMITS_HOOK, P.WARMUP_LIMITS_VA, ["movss dword [esi+0x350],xmm0"],
-             [f"call {P.WARMUP_LIMITS_VA + P.WARMUP_LIMITS_ENTRY_OFFSET:#x}"] + ["nop"] * 3)):
-        new = P.hook_bytes(base, va, old, offset, opcode)
-        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
-              and texts(stock, va, len(old)) == original_texts and texts(image, va, len(old)) == built,
-              f"{va:#x}: `{' / '.join(original_texts)}` in the original and the build without the late join, "
-              f"`{built[0]}` and {len(built) - 1} nops here")
-        sites.append((va, old))
+    sites = [(0x25D0E0, stock.read(0x25D0E0, 10)), (0x24225E, stock.read(0x24225E, 8))]
+    check(texts(stock, 0x25D0E0, 10) == ["push ebx", "push esi", "mov esi,ecx", "mov ecx,[esi+0x4b70]"]
+          and texts(stock, 0x24225E, 8) == ["movss dword [esi+0x350],xmm0"],
+          "0x25D0E0: `push ebx / push esi / mov esi,ecx / mov ecx,[esi+0x4b70]`, 0x24225E: `movss "
+          "[esi+0x350],xmm0` in the original")
+    rust_lohooks(original, image, before, "warmup_camera", {0x24225E: ["movss dword [esi+0x350],xmm0"]})
     move = texts(stock, 0x25D0E0, 0x25D128 - 0x25D0E0)
     check("mov edx,[eax]" in move and "lea ecx,[esi-0x1f8]" in move and "mov eax,[eax+0x30]" in move
           and move[-6:] == ["cmp byte [esi+0x2e0],0x0", "pop edi", "pop esi", "setnz al", "pop ebx", "ret 0x10"]
@@ -3335,31 +3299,6 @@ def test_warmup_look(original, image, before):
           "after the pitch's store before they are read (0xF65A0 too), xmm1 not used; show_cursor (0x23A930) "
           "keeps the cursor at hud+2DCh, the kits' show or hide (0x2383B0) the kits at hud+2DFh and the cursor "
           "with them")
-    look = open(P.warmup_look_bin(), "rb").read()
-    limits = open(P.warmup_limits_bin(), "rb").read()
-    state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WARMUP_LOOK_STATE_OFFSET
-    for code, base, calls, leaves, rets, name in (
-            (look, P.WARMUP_LOOK_VA, ["call [eax+0x30]", f"call {P.WARMUP_LIMITS_VA:#x}"], [0x25D0EA], ["ret 0x10"],
-             "warmup_look"),
-            (limits, P.WARMUP_LIMITS_VA, ["call [eax+0x3c]"], [], ["ret", "ret"], "warmup_limits")):
-        listing = ndisasm(code, base)
-        inside = lambda target: base <= target < base + len(code)
-        starts = {address for address, _, _ in listing}
-        targets = [t for _, _, text in listing if (t := branch_target(text)) is not None and not text.startswith("call")]
-        made = [text for address, _, text in listing if text.startswith("call")
-                and not (branch_target(text) == address + 5 and text.startswith("call 0x"))]
-        check(image.read(base, len(code)) == code
-              and all(t in starts for t in targets if inside(t)) and [t for t in targets if not inside(t)] == leaves
-              and made == calls and [text for _, _, text in listing if text.startswith("ret")] == rets
-              and not [t for _, _, t in listing if re.search(r"\[(?:dword |byte )?0x", t)],
-              f"the code at {base:#x} is {name}'s .bin ({len(code)} bytes): its branches land on its instructions"
-              + (f" or leave to {', '.join(hex(t) for t in leaves)}" if leaves else "")
-              + f", it calls {', '.join(calls)} alone and holds no address")
-    check(P.warmup_look_state(look) == state and P.warmup_look_calls(look) == [P.WARMUP_LIMITS_VA]
-          and P.WEAPON_PREVIEW_STATE_OFFSET + P.WEAPON_PREVIEW_STATE_SIZE <= P.WARMUP_LOOK_STATE_OFFSET
-          and P.WARMUP_LOOK_STATE_OFFSET + P.WARMUP_LOOK_STATE_SIZE <= P.LATE_JOIN_STATE_SIZE,
-          f"warmup_look keeps its state at {state:#x} (the late join's page +{P.WARMUP_LOOK_STATE_OFFSET:#x}, after "
-          "the weapon preview's) and calls the end of a drag at warmup_limits' start")
     found = []
     for va, old in sites:
         hits = [h for h in aimed_inside(original, va, len(old), 0x80) if not va <= h < va + len(old)]
@@ -3431,25 +3370,20 @@ def test_death_camera(original, image, before):
     stock = Image(original)
     texts = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
     at = lambda img, va, size: {address: text for address, _, text in ndisasm(img.read(va, size), va)}
-    late_join = open(P.late_join_bin(), "rb").read()
-    death_va = P.death_camera_va(late_join)
-    view_va = death_va + P.DEATH_VIEW_OFFSET
-    state = P.late_join_state_va(late_join) + P.DEATH_CAMERA_STATE_OFFSET
-    look_state = P.late_join_state_va(late_join) + P.WARMUP_LOOK_STATE_OFFSET
-    drag_end = P.WARMUP_LIMITS_VA + P.WARMUP_DRAG_END_OFFSET
-    # The site: update_camera's call of the view's update.
-    va, old, offset, opcode = P.DEATH_VIEW_HOOK
-    new = P.hook_bytes(death_va, va, old, offset, opcode)
+    # The sites: the game world's mouse move, update_camera's call of the
+    # view's update (its exit past the call, the two arguments popped).
+    va, old = 0x1F364B, stock.read(0x1F364B, 5)
+    rust_lohooks(original, image, before, "death_camera",
+                 {0x25D0E0: ["push ebx", "push esi", "mov esi,ecx", "mov ecx,[esi+0x4b70]"], va: ["call 0x2422b0"]},
+                 exits={"ret 0x10", "lea esp,[esp+0x8] / jmp 0x1f3650"})
     camera = texts(stock, 0x1F3480, va - 0x1F3480)
-    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
-          and texts(stock, va, len(old)) == ["call 0x2422b0"] and texts(image, va, len(old)) == [f"call {view_va:#x}"]
+    check(texts(stock, va, len(old)) == ["call 0x2422b0"]
           and camera[:6] == ["push ebp", "mov ebp,esp", "and esp,byte -0x8", "sub esp,byte +0x44", "push ebx",
                              "mov ebx,[ebp+0x8]"]
           and not [t for t in camera[6:] if re.match(r"(mov|lea|pop|xchg|add|sub|and|or|xor|inc|dec) ebx\b", t)]
           and at(stock, 0x1F3643, 8) == {0x1F3643: "mov ecx,[ebx+0xf470]", 0x1F3649: "push eax", 0x1F364A: "push ecx"},
           f"{va:#x}: update_camera's `call 0x2422b0` (the handler and the transform pushed, ebx the player from "
-          f"[ebp+8], never written before it) in the original and the build without the late join, "
-          f"`call {view_va:#x}` (death_view) here")
+          f"[ebp+8], never written before it)")
     hits = [h for h in aimed_inside(original, va, len(old), 0x80) if not va <= h < va + len(old)]
     spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
     found = hits[:len(hits) - len(spelled)]
@@ -3504,58 +3438,6 @@ def test_death_camera(original, image, before):
           "the render window (game+5348h) gives its width and height (floats) at the address on the stack and "
           "pops it (vtable+1Ch, 0x283E0C); the player's look turns by a unit x sensitivity (0xA74AEC) x 0.1 x "
           "pi/180, the pitch also x height / width x 0.9549 and inverted by mouse_invertion (0x1F1D9D3)")
-    # The code.
-    code = open(P.death_camera_bin(), "rb").read()
-    data_at = code.index(struct.pack("<f", math.pi / 180 * 0.1))
-    step_value, aspect, yaw_max, yaw_min, pitch_up, pitch_down = struct.unpack_from("<6f", code, data_at)
-    identity_at = (data_at + 24 + 15) // 16 * 16
-    identity = struct.pack("<16f", 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
-    limits = [round(math.degrees(a), 4) for a in (yaw_max, yaw_min, pitch_up, pitch_down)] == [70, -70, 60, -40]
-    parts = ((0, data_at, ["call [eax+0x30]", "call [eax+0x1c]", f"call {drag_end:#x}"], ["ret 0x10"],
-              {P.WARMUP_LOOK_VA}, {0xA74AEC, 0x1F1D9D3, state, state + 4}
-              | {death_va + data_at + 4 * i for i in range(6)}),
-             (P.DEATH_VIEW_OFFSET, len(code), None, ["ret 0x8"], {P.DEATH_UPDATE_VA, P.DEATH_THIRD_VA},
-              {state, state + 4}))
-    good = image.read(death_va, len(code)) == code and limits \
-        and code[identity_at:identity_at + 64] == identity \
-        and set(code[data_at + 24:identity_at] + code[identity_at + 64:P.DEATH_VIEW_OFFSET]) <= {0xCC}
-    for begin, end, calls, rets, exits, absolute in parts:
-        listing = ndisasm(code[begin:end], death_va + begin)
-        starts = {address for address, _, _ in listing}
-        targets = [t for _, _, text in listing if (t := branch_target(text)) is not None and not text.startswith("call")]
-        made = [text for _, _, text in listing if text.startswith("call")]
-        inside = lambda t: death_va + begin <= t < death_va + end
-        good &= all(t in starts for t in targets if inside(t)) and {t for t in targets if not inside(t)} == exits
-        good &= [t for _, _, t in listing if t.startswith("ret")] == rets
-        good &= {int(m, 16) for _, _, t in listing for m in re.findall(r"\[(?:dword |byte )?(0x[0-9a-f]+)\]", t)} \
-            == absolute
-        if calls is None:                          # the third-person step's start, then the jump to it
-            third = [branch_target(t) for _, _, t in listing if t.startswith("call")]
-            good &= len(third) == 1 and texts(image, third[0], 0x1D) == update[:5] + ["push esi", "push edi",
-                                                                                   f"jmp {P.DEATH_THIRD_VA:#x}"]
-        else:
-            good &= made == calls
-    first = texts(image, death_va, 0x60)
-    good &= first[:2] == ["cmp byte [ecx+0x2e3],0x0", f"jz {death_va + 0x40:#x}"] \
-        and f"mov ebx,{look_state:#x}" in texts(image, death_va, data_at) \
-        and texts(image, view_va, 4) == ["mov eax,[esp+0x4]"] \
-        and f"push dword {death_va + identity_at:#x}" in texts(image, view_va, len(code) - P.DEATH_VIEW_OFFSET) \
-        and [t for t in texts(image, view_va, len(code) - P.DEATH_VIEW_OFFSET) if t.startswith(("mulps", "addps"))] \
-        == ["mulps xmm1,xmm4", "mulps xmm2,xmm5", "addps xmm1,xmm2", "mulps xmm0,xmm6", "addps xmm1,xmm0"] * 3
-    check(good and P.FOV_LOD_STATE_OFFSET + P.FOV_LOD_STATE_SIZE <= P.DEATH_CAMERA_STATE_OFFSET
-          and P.DEATH_CAMERA_STATE_OFFSET + P.DEATH_CAMERA_STATE_SIZE <= P.LATE_JOIN_STATE_SIZE
-          and abs(step_value - math.pi / 180 * 0.1) < 1e-9 and abs(aspect - 0.95492965) < 1e-7,
-          f"the code at {death_va:#x} (.srpc) is death_camera_026g.section.bin ({len(code)} bytes): death_look "
-          f"begins with warmup_look's test of the kits, leaves to warmup_look ({P.WARMUP_LOOK_VA:#x}) alone, "
-          "calls the hud's pointer (vtable+30h), the window's size (vtable+1Ch) and the end of a drag, keeps the "
-          f"drag in warmup_look's state ({look_state:#x}) and the turn at {state:#x} (the late join's page "
-          f"+{P.DEATH_CAMERA_STATE_OFFSET:#x}), reads the options sensitivity, mouse_invertion and its two constants (pi/180 "
-          "x 0.1, 0.9549) and the turn's limits (70 degrees either side, 60 up, 40 down); death_view leaves to "
-          "the view's update or its third-person step after the update's own start, which it gives the "
-          "identity, then multiplies the turn by the eyes' three rows; every branch inside lands on an "
-          "instruction; `ret 10h` and `ret 8`")
-
-
 def rust_field(kind, field):
     """fields_026g.tsv's offset (or image VA) of `kind`'s `field`."""
     rows = [f for f in engine_026g.fields() if f["kind"] == kind and f["field"] == field]
@@ -3609,7 +3491,9 @@ def rust_lohooks(original, image, before, patch, sites, exits=(), relocs=()):
             continue
         for move in moves[2:]:                          # a host return's stub (in the block): its `ret`
             inside = block.va <= move < block.va + block.size
-            named.add(ndisasm(image.read(move, 3), move)[0][2] if inside else move)
+            stub = [text for _, _, text in ndisasm(image.read(move, 12), move)][:2] if inside else []
+            named.add(move if not inside else stub[0] if not stub[0].startswith("lea esp")
+                      else " / ".join(stub))       # a pop's: `lea esp,[esp+N]` / `jmp VA`
         plain = lambda text: re.sub(r" (?:near|short) ", " ", text)     # a relocated jcc is near
         played = [plain(text) for at, text in texts if at >= replay]
         spans = [plain(text) for _, _, text in ndisasm(old, va)]
@@ -5854,9 +5738,7 @@ def test_late_join(original, without, server, source):
     # the bytes of its .bin where patch_026g.py puts it, int3 between them.
     pieces = [(0, first_page, "the build without the late join's first page")] + [
         (offset, open(path(), "rb").read(), what) for offset, path, what in (
-            (P.WARMUP_LIMITS_OFFSET, P.warmup_limits_bin, "the warmup camera's limits"),
             (P.WEAPON_DRAW_OFFSET, P.weapon_draw_bin, "the weapon preview's draw"),
-            (P.WARMUP_LOOK_OFFSET, P.warmup_look_bin, "the warmup look"),
             (P.KIT_CHANGE_OFFSET, P.kit_change_bin, "the kit change"))] + [
         (P.LATE_JOIN_OFFSET, code, "the late-join code"),
         (P.WEAPON_PREVIEW_OFFSET, weapon_preview, "the weapon preview")]
@@ -5879,14 +5761,14 @@ def test_late_join(original, without, server, source):
           and P.IMAGE_BASE + state_rva == P.late_join_state_va(code),
           f".srpd at VA {P.IMAGE_BASE + state_rva:#x}: one page, uninitialized | read | write, no bytes in the "
           "file, on the page after the code (where the code looks for it)")
-    death = open(P.death_camera_bin(), "rb").read()
+    death = b"\xCC" * P.DEATH_CAMERA_SIZE           # emptied by the Rust port; `.srpw` keeps its place
     name_c, rva_c, vsize_c, raw_c, rsize_c, flags_c = sections[-3]
     check(name_c == P.DEATH_CAMERA_NAME and flags_c == P.DEATH_CAMERA_CHARACTERISTICS
           and rva_c == state_rva + state_size and P.IMAGE_BASE + rva_c == P.death_camera_va(code)
           and vsize_c == len(death) and raw_c == raw + rsize and rsize_c == align(vsize_c, headers.file_alignment)
           and bytes(data[raw_c:raw_c + vsize_c]) == death and set(data[raw_c + vsize_c:raw_c + rsize_c]) <= {0xCC},
-          f".srpc at VA {P.IMAGE_BASE + rva_c:#x}: death_camera_026g.section.bin ({len(death)} bytes) and int3 "
-          "padding, code | execute | read, on the page after .srpd, its file bytes right after .srp's")
+          f".srpc at VA {P.IMAGE_BASE + rva_c:#x}: a page of int3 (the death camera's before the Rust port), "
+          "code | execute | read, on the page after .srpd, its file bytes right after .srp's")
     camo = open(P.weapon_camo_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()

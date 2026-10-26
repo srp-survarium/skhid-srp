@@ -132,6 +132,8 @@ unsafe extern "stdcall" {
     pub fn engine_enqueue(client: *mut c_void, packet: *mut c_void);
     /// 0x275220 survarium::lobby_client::process_detach_upgrade: client ESP+4, upgrade ESP+8; pops 8; EAX; stdcall, called directly
     pub fn engine_process_detach_upgrade(client: *mut c_void, upgrade: u32) -> u32;
+    /// 0x2422b0 survarium::player_input_handler::update_inverted_view: handler ESP+4, transform ESP+8; pops 8; stdcall, called directly
+    pub fn engine_view_update(handler: *mut c_void, transform: *const f32);
 }
 
 #[allow(dead_code)]
@@ -207,6 +209,48 @@ pub unsafe fn engine_usable_get_transform(usable: *mut c_void, matrix: *mut f32)
         let slot = (*(usable as *const *const u32)).byte_add(0x44).read() as usize;
         let function: unsafe extern "thiscall" fn(*mut c_void, *mut f32) -> *mut c_void = core::mem::transmute(slot);
         function(usable, matrix)
+    }
+}
+
+/// 0x25d160 survarium::game_world::set_pointer: world ECX, x ESP+4, y ESP+8, wheel ESP+12; pops 12; through its vtable's slot +0x30 (thiscall; this the model)
+///
+/// # Safety
+/// `world` is an object whose vtable's slot +0x30 is a function of the model's convention and arguments.
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_world_set_pointer(world: *mut c_void, x: u32, y: u32, wheel: u32) {
+    unsafe {
+        let slot = (*(world as *const *const u32)).byte_add(0x30).read() as usize;
+        let function: unsafe extern "thiscall" fn(*mut c_void, u32, u32, u32) = core::mem::transmute(slot);
+        function(world, x, y, wheel)
+    }
+}
+
+/// 0x25d130 survarium::game_world::set_cursor_position: world ECX, x ESP+4, y ESP+8; pops 8; through its vtable's slot +0x3c (thiscall; this the model)
+///
+/// # Safety
+/// `world` is an object whose vtable's slot +0x3c is a function of the model's convention and arguments.
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_world_set_cursor(world: *mut c_void, x: u32, y: u32) {
+    unsafe {
+        let slot = (*(world as *const *const u32)).byte_add(0x3c).read() as usize;
+        let function: unsafe extern "thiscall" fn(*mut c_void, u32, u32) = core::mem::transmute(slot);
+        function(world, x, y)
+    }
+}
+
+/// 0x18d60 vostok::engine::engine_world::get_render_output_window_size: window ECX, size ESP+4; pops 4; EAX; through its vtable's slot +0x1c (thiscall; this the model)
+///
+/// # Safety
+/// `window` is an object whose vtable's slot +0x1c is a function of the model's convention and arguments.
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_window_size(window: *mut c_void, size: *mut f32) -> *mut c_void {
+    unsafe {
+        let slot = (*(window as *const *const u32)).byte_add(0x1c).read() as usize;
+        let function: unsafe extern "thiscall" fn(*mut c_void, *mut f32) -> *mut c_void = core::mem::transmute(slot);
+        function(window, size)
     }
 }
 
@@ -288,6 +332,60 @@ pub mod player_input_handler {
     #[inline(always)]
     pub unsafe fn actions(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x33c).cast() }
+    }
+
+    /// +0x358 (u32): its mode: 0 the first person, 3 the warmup (switch_to_warmup_camera 0x1F8190), 4 the input off
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_input_handler.
+    #[inline(always)]
+    pub unsafe fn mode(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x358).cast() }
+    }
+
+    /// +0x334 (u32): the game world (0x2410F8)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_input_handler.
+    #[inline(always)]
+    pub unsafe fn view_world(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x334).cast() }
+    }
+
+    /// +0x34c (u32): the warmup camera yaw (f32; process_warmup_mode 0x242200)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_input_handler.
+    #[inline(always)]
+    pub unsafe fn warmup_yaw(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x34c).cast() }
+    }
+
+    /// +0x350 (u32): its pitch (f32)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_input_handler.
+    #[inline(always)]
+    pub unsafe fn warmup_pitch(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x350).cast() }
+    }
+
+    /// +0x354 (u32): its distance (f32; 1.0 from the constructor, 0x23FDE7)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_input_handler.
+    #[inline(always)]
+    pub unsafe fn warmup_distance(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x354).cast() }
+    }
+
+    /// +0x48 (f32): the view update_inverted_view 0x2422B0 writes: four rows of four f32 (+78h its place)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_input_handler.
+    #[inline(always)]
+    pub unsafe fn view(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x48).cast() }
     }
 }
 
@@ -372,6 +470,12 @@ pub mod image {
 
     /// 0x300710 (u32): victory_item_core::can_use: +30h of victory_item_core's and victory_item's usable vtables and nowhere else (a battery)
     pub const VICTORY_ITEM_CAN_USE: u32 = 0x300710;
+
+    /// 0xa74aec (f32): the option sensitivity, an f32 (0x24026C)
+    pub const OPTION_SENSITIVITY: u32 = 0xa74aec;
+
+    /// 0x1f1d9d3 (u8): the option mouse_invertion, a byte (0x240226)
+    pub const OPTION_MOUSE_INVERTION: u32 = 0x1f1d9d3;
 }
 
 /// survarium::game_world's fields (fields_026g.tsv).
@@ -405,6 +509,15 @@ pub mod game_world {
     pub unsafe fn places_end(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x18654).cast() }
     }
+
+    /// +0x4db (u8): the kits shown (its hud's +2DFh)
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_world.
+    #[inline(always)]
+    pub unsafe fn kits(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x4db).cast() }
+    }
 }
 
 /// survarium::game's fields (fields_026g.tsv).
@@ -437,6 +550,15 @@ pub mod game {
     #[inline(always)]
     pub unsafe fn world(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x4d64).cast() }
+    }
+
+    /// +0x5348 (u32): engine_world's interface at its +4 (game::game 0x1E91BC): vtable+1Ch the window's client size
+    ///
+    /// # Safety
+    /// `this` is a survarium::game.
+    #[inline(always)]
+    pub unsafe fn window(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x5348).cast() }
     }
 }
 
@@ -1575,6 +1697,60 @@ pub mod world_input_handler {
     pub unsafe fn hud_movie(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0xc).cast() }
     }
+
+    /// +0x2e3 (u8): the kits shown: the hud's +2DFh (0x2383B0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::world_input_handler.
+    #[inline(always)]
+    pub unsafe fn kits(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x2e3).cast() }
+    }
+
+    /// +0x4b60 (u32): the player's input handler (game world+4D58h; priority 10, after this one's 7)
+    ///
+    /// # Safety
+    /// `this` is a survarium::world_input_handler.
+    #[inline(always)]
+    pub unsafe fn player_input(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4b60).cast() }
+    }
+
+    /// -0x15c (u32): the game (game world+9Ch)
+    ///
+    /// # Safety
+    /// `this` is a survarium::world_input_handler.
+    #[inline(always)]
+    pub unsafe fn game(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_sub(0x15c).cast() }
+    }
+
+    /// -0x1f8 (u32): the game world itself (this handler is its +1F8h): its vtable (+30h the hud pointer, +3Ch the system cursor)
+    ///
+    /// # Safety
+    /// `this` is a survarium::world_input_handler.
+    #[inline(always)]
+    pub unsafe fn world(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_sub(0x1f8).cast() }
+    }
+
+    /// -0x16c (u32): the hud's pointer, x (game world+8Ch; set_pointer 0x25D160 keeps it)
+    ///
+    /// # Safety
+    /// `this` is a survarium::world_input_handler.
+    #[inline(always)]
+    pub unsafe fn pointer_x(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_sub(0x16c).cast() }
+    }
+
+    /// -0x168 (u32): and y (game world+90h)
+    ///
+    /// # Safety
+    /// `this` is a survarium::world_input_handler.
+    #[inline(always)]
+    pub unsafe fn pointer_y(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_sub(0x168).cast() }
+    }
 }
 
 /// survarium::world_keyboard_frame's fields (fields_026g.tsv).
@@ -2183,5 +2359,101 @@ pub mod mouse_key_frame {
     #[inline(always)]
     pub unsafe fn kind(this: *mut c_void) -> *mut u8 {
         unsafe { this.byte_add(0xc).cast() }
+    }
+}
+
+/// survarium::mouse_move_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod mouse_move_frame {
+    use core::ffi::c_void;
+
+    /// +0x4 (u32): on_mouse_move's first argument (by the site's ESP at 0x25D0E0, the function's start): the input world
+    ///
+    /// # Safety
+    /// `this` is a survarium::mouse_move_frame.
+    #[inline(always)]
+    pub unsafe fn input_world(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+}
+
+/// vostok::input::world's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod world {
+    use core::ffi::c_void;
+
+    /// +0x28 (u32): its mouse (0x3B9F0A)
+    ///
+    /// # Safety
+    /// `this` is a vostok::input::world.
+    #[inline(always)]
+    pub unsafe fn mouse(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x28).cast() }
+    }
+}
+
+/// vostok::input::mouse's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod mouse {
+    use core::ffi::c_void;
+
+    /// +0x4 (i32): the frame's move, x (signed)
+    ///
+    /// # Safety
+    /// `this` is a vostok::input::mouse.
+    #[inline(always)]
+    pub unsafe fn x(this: *mut c_void) -> *mut i32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0x8 (i32): y (signed)
+    ///
+    /// # Safety
+    /// `this` is a vostok::input::mouse.
+    #[inline(always)]
+    pub unsafe fn y(this: *mut c_void) -> *mut i32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+
+    /// +0xc (i32): the wheel (signed)
+    ///
+    /// # Safety
+    /// `this` is a vostok::input::mouse.
+    #[inline(always)]
+    pub unsafe fn wheel(this: *mut c_void) -> *mut i32 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+
+    /// +0x10 (u8): the buttons held now (bit 0 the left; the frame before at +20h)
+    ///
+    /// # Safety
+    /// `this` is a vostok::input::mouse.
+    #[inline(always)]
+    pub unsafe fn buttons(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x10).cast() }
+    }
+}
+
+/// survarium::view_update_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod view_update_frame {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): update_camera's pushed arguments of the view's update (by the site's ESP at 0x1F364B): the player's input handler
+    ///
+    /// # Safety
+    /// `this` is a survarium::view_update_frame.
+    #[inline(always)]
+    pub unsafe fn handler(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x4 (u32): the transform: the player's eyes (+44Ch)
+    ///
+    /// # Safety
+    /// `this` is a survarium::view_update_frame.
+    #[inline(always)]
+    pub unsafe fn transform(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
     }
 }

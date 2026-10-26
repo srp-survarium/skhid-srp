@@ -46,5 +46,7 @@ pub mod ragdoll;
 pub mod blackout;
 pub mod stale_dll;
 pub mod warmup_keys;
+pub mod warmup_camera;
+pub mod death_camera;
 pub mod suicide_key;
 pub mod weapon_random;

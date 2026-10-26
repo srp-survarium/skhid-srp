@@ -945,6 +945,12 @@ def check_death(data, patched):
     return checks
 
 
+def warmup_drag():
+    """The Rust patch warmup_camera's drag (its static's first word, the
+    moves of the buttons held), by the arena's symbol."""
+    return next(va for name, va, _, _ in base.arena().every if "warmup_camera" in name and "DRAG" in name)
+
+
 def main():
     original = open(sys.argv[1], "rb").read()
     code = open(base.default_bin("section"), "rb").read()
@@ -968,9 +974,16 @@ def main():
                             (bytes.fromhex("3b865c84010073ee"), bytes.fromhex("3b865c8401009090"), check_tick),
                             (bytes.fromhex("29e8770489e8f7d0"), bytes.fromhex("29e8770431c09090"), check_tick),
                             (bytes.fromhex("83be601c1f000375"), bytes.fromhex("83be601c1f0003eb"), check_view),
-                            (bytes.fromhex("83b858030000037416"), bytes.fromhex("83b85803000003eb16"), check_look),
-                            (bytes.fromhex("890b83f90876b4"), bytes.fromhex("890b83f908eb00"), check_look),
-                            (bytes.fromhex("39d00f4cc2"), bytes.fromhex("39d0909090"), check_limits),
+                            # the warmup camera, the Rust patch warmup_camera in the
+                            # arena (its code as the lock links it): the warmup mode's
+                            # test gone (a drag in any mode); a left press's click test
+                            # gone (a drag at its first move); the nearest distance's
+                            # `cmovnl` an unconditional `mov`
+                            (bytes.fromhex("83f8030f85b6000000"), bytes.fromhex("83f803909090909090"), check_look),
+                            (bytes.fromhex("83fe098935") + struct.pack("<I", warmup_drag()) + bytes.fromhex("7241"),
+                             bytes.fromhex("83fe098935") + struct.pack("<I", warmup_drag()) + bytes.fromhex("9090"),
+                             check_look),
+                            (bytes.fromhex("3d0100c03f0f4dd0"), bytes.fromhex("3d0100c03f89c290"), check_limits),
                             # the keys, the Rust patch warmup_keys in the arena (its
                             # handler's code as the lock links it): the mark's `or`
                             # gone; the held and released buttons' `jnz` to the
