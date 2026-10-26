@@ -40,7 +40,7 @@ use mapdata::Vec3;
 
 use super::path::Route;
 use super::tactics::Tactics;
-use super::view::{EYE_STANDING, Place};
+use super::view::{Place, eye_height};
 
 /// A death adds to a spot within this of it, m.
 pub const MERGE_M: f32 = 8.0;
@@ -517,7 +517,7 @@ impl ThreatSpots {
             if s.strength_at(now) < GONE_STRENGTH {
                 return false;
             }
-            let at = s.at + Vec3::new(0.0, EYE_STANDING, 0.0);
+            let at = s.at + Vec3::new(0.0, eye_height(false, 0.0, 0.0), 0.0);
             let empty = !enemies.iter().any(|e| e.distance_xz(s.at) <= SEEN_ON_M) && {
                 // The nearest few teammates within reach look: a sight ray each.
                 let mut near: Vec<Vec3> = watchers
@@ -546,7 +546,7 @@ impl ThreatSpots {
                     .filter(|(_, p)| p.distance_xz(at) <= reach && in_lane(&bearings, at, *p))
                     .collect()
             });
-            let eye = s.at + Vec3::new(0.0, EYE_STANDING, 0.0);
+            let eye = s.at + Vec3::new(0.0, eye_height(false, 0.0, 0.0), 0.0);
             let take = todo.len().min(RAYS_PER_TICK);
             for (region, p) in todo.drain(..take) {
                 if eyes.sees(eye, p + Vec3::new(0.0, TARGET_HEIGHT_M, 0.0)) {

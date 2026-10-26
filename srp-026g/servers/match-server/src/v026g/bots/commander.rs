@@ -36,7 +36,7 @@ fn threat_tick(
     if state.threat.is_empty() && state.covered.is_none() {
         return;
     }
-    let eye = Vec3::new(0.0, view::EYE_STANDING, 0.0);
+    let eye = Vec3::new(0.0, view::eye_height(false, 0.0, 0.0), 0.0);
     let watchers: Vec<Vec3> = view.team(team).map(|p| p.feet + eye).collect();
     let mut enemies = Vec::new();
     for bot in bots.iter().flatten().filter(|b| b.team == team) {
