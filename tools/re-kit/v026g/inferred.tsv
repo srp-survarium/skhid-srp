@@ -3131,3 +3131,18 @@ va	status	ref_021d	name
 0x00086490	inferred-high		vostok::physics::character_controller_capsule_move_step_tester::convex_sweep_test
 0x000895f0	inferred-high		vostok::physics::character_move_sweep_callback::addSingleResult
 0x00084420	inferred-high		vostok::physics::character_step_down_sweep_test_callback::addSingleResult
+0x0084d4a0	inferred-high		`dynamic initializer for 'cc_step_height''
+0x0084d780	inferred-high		`dynamic initializer for 'cc_max_slope_angle_cos value''
+0x0084d7a0	inferred-high		`dynamic initializer for 'cc_max_slope_angle_cos''
+0x0084d800	inferred-high		`dynamic initializer for 'cc_idle_max_slope_angle_cos value''
+0x0084d820	inferred-high		`dynamic initializer for 'cc_idle_max_slope_angle_cos''
+0x0084d880	inferred-high		`dynamic initializer for 'cc_slope_slide_full_dot value''
+0x0084d8a0	inferred-high		`dynamic initializer for 'cc_slope_slide_full_dot''
+0x0084dd30	inferred-high		`dynamic initializer for 'cc_min_walk_speed''
+0x00854c80	inferred-high		`dynamic initializer for 'long_jump_speed_factor''
+0x00859a90	inferred-high		`dynamic initializer for 'jump_prepare_interval_length''
+0x00859b00	inferred-high		`dynamic initializer for 'short_jump_transition_time''
+0x000846e0	inferred-high	0x00220e19	vostok::physics::character_step_down_sweep_test_callback::is_side_contact
+0x00084810	inferred-high	0x00220f3c	vostok::physics::character_step_down_sweep_test_callback::get_normal_via_ray_test
+0x00336a10	inferred-high		survarium::player_logic_stand_sprint_state::initialize
+0x00336a50	inferred-high		survarium::player_logic_stand_sprint_state::finalize
