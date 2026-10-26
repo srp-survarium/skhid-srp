@@ -1232,8 +1232,13 @@ va	name	source	ret_cleanup	result
 0x00303c10	survarium::grenade_core::add_to_physics_world	manual	8	
 0x00303da0	survarium::grenade_core::serialize	manual	8	
 0x00303f80	survarium::grenade_core::deserialize	manual	12	
+0x00304bd0	survarium::booby_trap_core::on_enter	manual	8	
+0x00304f30	survarium::booby_trap_core::use_execute	manual	12	AL = still in use
 0x003052e0	survarium::booby_trap_core::serialize	manual	8	
 0x003053c0	survarium::booby_trap_core::deserialize	manual	12	
+0x00305ea0	survarium::booby_trap_set_core::try_to_place_trap	manual	4	AL = a trap was placed
+0x00306490	survarium::booby_trap_set_core::get_visible_place_transform	manual	20	AL = a place was found; the 64-byte transform is written through a stack pointer argument
+0x00306720	survarium::booby_trap_set_core::action	manual	8	
 0x00309f00	survarium::grenade_set_core::hand_transform	manual	4	EAX: the out pointer (the hand matrix written there)
 0x0030a120	survarium::grenade_set_core::start_throw	manual	8	AL: the slot; the explosion time goes to the grenade's vtable+0x10 (0x248460: time, id, owner node, 0)
 0x0030a250	survarium::grenade_set_core::launch_grenade	manual	12	
