@@ -1569,8 +1569,8 @@ fn say_the_rusher_kit() {
 }
 
 /// The kit the rusher bots of the bench wear (`SRP_BENCH_RUSHER`, as the
-/// lobby's `SRP_PVB_RUSHER_KIT`: one word or a kit a tier; the SMG kits when
-/// unset).
+/// lobby's `SRP_PVB_RUSHER_KIT`: one word or a kit a tier; the old table
+/// when unset).
 pub(crate) fn bench_rusher_kits() -> survarium::v026g::loadouts::RusherKits {
     use survarium::v026g::loadouts::RusherKits;
     match bench_settings().var("SRP_BENCH_RUSHER") {

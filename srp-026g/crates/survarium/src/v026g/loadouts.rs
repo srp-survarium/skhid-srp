@@ -369,10 +369,10 @@ impl RoleGear {
 
 /// A tier's [`RoleGear`] of each role.
 ///
-/// The rusher is a choice ([`RusherKit`]): `rusher` is the kit a bot wears
-/// unless the operator says otherwise ([`RusherKit::Smg`]), `rusher_options`
-/// the others of a tier that has them (the lowest has none: its one table is
-/// [`RusherKit::Control`]).
+/// The rusher is a choice ([`RusherKit`]): `rusher` is the table as it was
+/// ([`RusherKit::Control`], what a bot wears unless the operator says
+/// otherwise), `rusher_options` the other kits of a tier that has them (the
+/// lowest has none: its one table is [`RusherKit::Control`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TierGear {
     pub flanker: RoleGear,
@@ -383,7 +383,7 @@ pub struct TierGear {
 }
 
 impl TierGear {
-    /// The role's gear, the rusher's being its default kit.
+    /// The role's gear, the rusher's being the old table ([`RusherKit::Control`]).
     pub fn of(&self, role: BotRole) -> &RoleGear {
         match role {
             BotRole::Flanker => &self.flanker,
@@ -393,8 +393,8 @@ impl TierGear {
         }
     }
 
-    /// The gear of the tier's rusher when it wears `kit`; the default kit's
-    /// for one the tier has no table of.
+    /// The gear of the tier's rusher when it wears `kit`; the old table's
+    /// ([`RusherKit::Control`]) for one the tier has no table of.
     pub fn rusher_gear(&self, kit: RusherKit) -> &RoleGear {
         self.rusher_options
             .iter()
@@ -414,14 +414,14 @@ impl TierGear {
 /// What the rusher of the higher tiers wears. The bots' shotgun lost fights
 /// (a K/D of 0.52 at 13-15 and 0.55 at 9-10, against 1.08 to 1.48 for the
 /// other roles) and no player of kit level 9-10 carries one, so the rusher
-/// wears an SMG of its tier ([`TIER_9_10`], [`TIER_13_15`]); the other kits
-/// are the arms to bench it against, and the way to put the old table back.
+/// can wear an SMG of its tier ([`TIER_9_10`], [`TIER_13_15`]); the kits are
+/// the arms to bench it with. The default is the old table
+/// ([`RusherKit::Control`]) until a bench train turns another on.
 /// Chosen where the profiles are made ([`RusherKits`]), so what a bot
 /// carries is what the match server's bot fires.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum RusherKit {
     /// The tier's SMG with its helmet: `fn_p90` at 13-15, `sr2m` at 9-10.
-    #[default]
     Smg,
     /// The other SMG: `kriss_vector` at 13-15, `ump45` at 9-10.
     Alt,
@@ -430,7 +430,9 @@ pub enum RusherKit {
     /// The SPAS-12 with buckshot, with the SMG kit's helmet.
     Helmet,
     /// The table as it was: the SPAS-12 with buckshot and the old helmet
-    /// (`edge_helmet_3` at 9-10, none at 13-15).
+    /// (`edge_helmet_3` at 9-10, none at 13-15). The default: the other kits
+    /// are switched on by the setting once a bench train has chosen them.
+    #[default]
     Control,
 }
 
@@ -486,8 +488,8 @@ impl RusherKit {
 
 /// The rusher kit of each tier that has a choice: the setting of the lobby
 /// (`SRP_PVB_RUSHER_KIT`) and of the real-map bench (`SRP_BENCH_RUSHER`),
-/// `smg` for both tiers unless given. `control` is the old table, to switch
-/// the change off.
+/// `control` (the old table) for both tiers unless given: the switch is off
+/// by default.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RusherKits {
     pub mid: RusherKit,
@@ -665,15 +667,16 @@ const RUSHER_ARMOUR_13_15: &[(u8, &str)] = &[
 /// - Support: the AKMN (`akmn`, assault rifle, level 6; the top players'
 ///   pick at these levels) with `ammo_7.62x39_7n23` (level 9); Edge's `edge_torso_2` (level 9, 8 kg,
 ///   an ammo bag more) and Renaissance's helmet and gloves of level 9.
-/// - Rusher ([`RusherKit`]): the SR-2M (`sr2m`, SMG, level 8, the SMG real
-///   players of kit level 6-10 carry most; 20 rounds) with `ammo_9x21`
-///   (level 8, 150 rounds: three bags of 50), Renaissance's helmet
-///   `ren_helmet_2` (level 9, armour 0.4, the strongest that keeps the kit at
-///   level 9-10); the armour makes the kit level 9 (`edge_boots_2`). The
-///   other kits: `ump45` with `ammo_45acp`, the SPAS-12 (`spas_12`, level
-///   7) with slugs (`ammo_12mm_slug`) or buckshot (`ammo_12mm_buck`) and the
-///   same helmet, and the table as it was, the SPAS-12 with buckshot and
-///   `edge_helmet_3` ([`RusherKit::Control`]).
+/// - Rusher ([`RusherKit`]): the table as it was, the SPAS-12 (`spas_12`,
+///   level 7) with buckshot (`ammo_12mm_buck`) and `edge_helmet_3`
+///   ([`RusherKit::Control`], the default). The kits a bench train can turn
+///   on: the SR-2M (`sr2m`, SMG, level 8, the SMG real players of kit level
+///   6-10 carry most; 20 rounds) with `ammo_9x21` (level 8, 150 rounds: three
+///   bags of 50), Renaissance's helmet `ren_helmet_2` (level 9, armour 0.4,
+///   the strongest that keeps the kit at level 9-10; the armour makes the kit
+///   level 9: `edge_boots_2`); `ump45` with `ammo_45acp` (the sweep's pick at
+///   this tier); the SPAS-12 with slugs (`ammo_12mm_slug`) or buckshot and
+///   the same helmet.
 /// - Camper: the SV-98 (`sv_98`, bolt-action sniper rifle, level 9: the
 ///   only sniper weapon of level 9-10; 10 rounds) with `ammo_7.62x54_7n1`
 ///   (level 9); Renaissance's pieces of level 8-9.
@@ -703,11 +706,26 @@ pub const TIER_9_10: TierGear = TierGear {
         ],
     },
     rusher: RoleGear {
-        weapon: "sr2m",
-        ammo: "ammo_9x21",
-        armour: RUSHER_ARMOUR_9_10,
+        weapon: "spas_12",
+        ammo: "ammo_12mm_buck",
+        armour: &[
+            (0, "edge_helmet_3"),
+            (2, "edge_torso_3"),
+            (3, "bm_back_1"),
+            (4, "bm_legs_5"),
+            (5, "edge_gloves_2"),
+            (6, "edge_boots_2"),
+        ],
     },
     rusher_options: &[
+        (
+            RusherKit::Smg,
+            RoleGear {
+                weapon: "sr2m",
+                ammo: "ammo_9x21",
+                armour: RUSHER_ARMOUR_9_10,
+            },
+        ),
         (
             RusherKit::Alt,
             RoleGear {
@@ -730,21 +748,6 @@ pub const TIER_9_10: TierGear = TierGear {
                 weapon: "spas_12",
                 ammo: "ammo_12mm_buck",
                 armour: RUSHER_ARMOUR_9_10,
-            },
-        ),
-        (
-            RusherKit::Control,
-            RoleGear {
-                weapon: "spas_12",
-                ammo: "ammo_12mm_buck",
-                armour: &[
-                    (0, "edge_helmet_3"),
-                    (2, "edge_torso_3"),
-                    (3, "bm_back_1"),
-                    (4, "bm_legs_5"),
-                    (5, "edge_gloves_2"),
-                    (6, "edge_boots_2"),
-                ],
             },
         ),
     ],
@@ -773,13 +776,14 @@ pub const TIER_9_10: TierGear = TierGear {
 ///   (level 14, the only ammo it fires).
 /// - Support: the AK-12 (`ak_12`, assault rifle, level 15) with
 ///   `ammo_6.5x39` (level 15, the only ammo it fires).
-/// - Rusher ([`RusherKit`]): the P90 (`fn_p90`, SMG, level 14; 50 rounds)
-///   with `ammo_5.7x28` (level 9, the only 5.7x28; 200 rounds: four bags of
-///   50) and the helmet `edge_helmet_5` (level 14, armour 0.5), the lightest
-///   armour of the tier otherwise. The other kits: `kriss_vector` with
-///   `ammo_45acp`, the SPAS-12 (level 7) with slugs or buckshot and the
-///   same helmet, and the table as it was, the SPAS-12 with buckshot and no
-///   helmet ([`RusherKit::Control`]).
+/// - Rusher ([`RusherKit`]): the table as it was, the SPAS-12 (level 7)
+///   with buckshot and no helmet ([`RusherKit::Control`], the default). The
+///   kits a bench train can turn on: the P90 (`fn_p90`, SMG, level 14; 50
+///   rounds) with `ammo_5.7x28` (level 9, the only 5.7x28; 200 rounds: four
+///   bags of 50) and the helmet `edge_helmet_5` (level 14, armour 0.5), the
+///   lightest armour of the tier otherwise (the sweep's pick at this tier);
+///   `kriss_vector` with `ammo_45acp`; the SPAS-12 with slugs or buckshot
+///   and the same helmet.
 /// - Camper: the VSK-94 (`vsk_94`, the sniper category's marksman rifle,
 ///   level 14; 20 rounds) with `ammo_sp5` (level 12, the only ammo it
 ///   fires).
@@ -810,11 +814,25 @@ pub const TIER_13_15: TierGear = TierGear {
         ],
     },
     rusher: RoleGear {
-        weapon: "fn_p90",
-        ammo: "ammo_5.7x28",
-        armour: RUSHER_ARMOUR_13_15,
+        weapon: "spas_12",
+        ammo: "ammo_12mm_buck",
+        armour: &[
+            (2, "edge_torso_5"),
+            (3, "edge_back_5"),
+            (4, "ren_legs_5"),
+            (5, "edge_gloves_5"),
+            (6, "edge_boots_6"),
+        ],
     },
     rusher_options: &[
+        (
+            RusherKit::Smg,
+            RoleGear {
+                weapon: "fn_p90",
+                ammo: "ammo_5.7x28",
+                armour: RUSHER_ARMOUR_13_15,
+            },
+        ),
         (
             RusherKit::Alt,
             RoleGear {
@@ -837,20 +855,6 @@ pub const TIER_13_15: TierGear = TierGear {
                 weapon: "spas_12",
                 ammo: "ammo_12mm_buck",
                 armour: RUSHER_ARMOUR_13_15,
-            },
-        ),
-        (
-            RusherKit::Control,
-            RoleGear {
-                weapon: "spas_12",
-                ammo: "ammo_12mm_buck",
-                armour: &[
-                    (2, "edge_torso_5"),
-                    (3, "edge_back_5"),
-                    (4, "ren_legs_5"),
-                    (5, "edge_gloves_5"),
-                    (6, "edge_boots_6"),
-                ],
             },
         ),
     ],
@@ -1811,7 +1815,7 @@ mod tests {
             (BotTier::High, "fn_p90", "kriss_vector"),
         ] {
             assert_eq!(rusher(tier, RusherKit::Smg), smg, "{tier}");
-            assert_eq!(tier.gear().rusher.weapon, smg, "{tier}");
+            assert_eq!(tier.gear().rusher.weapon, "spas_12", "{tier}");
             assert_eq!(rusher(tier, RusherKit::Alt), alt, "{tier}");
             assert!(is(smg, &[15]) && is(alt, &[15]), "{tier}");
             for shotgun in [RusherKit::Slug, RusherKit::Helmet, RusherKit::Control] {
@@ -2128,11 +2132,16 @@ mod tests {
             let low = BotEquipment::of(BotTier::Low, RusherKits::both(asked));
             assert_eq!(bot_kit_items(low, BotRole::Rusher, 0)[0].name, "mp_153");
         }
-        // The default kit is the SMG's, and the table's `rusher` is it.
-        assert_eq!(RusherKit::default(), RusherKit::Smg);
+        // The default kit is the old table, and the table's `rusher` is it
+        // (so `TierGear::of` and a kit the tier has no table of are the old
+        // table too).
+        assert_eq!(RusherKit::default(), RusherKit::Control);
+        for tier in BotTier::ALL {
+            assert_eq!(tier.gear().rusher_gear(RusherKit::Control), &tier.gear().rusher);
+            assert_eq!(tier.gear().of(BotRole::Rusher), &tier.gear().rusher);
+        }
         for tier in [BotTier::Mid, BotTier::High] {
-            assert_eq!(tier.gear().rusher_gear(RusherKit::Smg), &tier.gear().rusher);
-            assert_ne!(tier.gear().rusher.weapon, "spas_12");
+            assert_eq!(tier.gear().rusher.weapon, "spas_12");
         }
     }
 
@@ -2161,7 +2170,7 @@ mod tests {
     }
 
     /// The settings' words: one kit for both tiers, or a kit a tier; the
-    /// default is the SMG's in both; a wrong word is an error that names it.
+    /// default is the old table in both; a wrong word is an error that names it.
     #[test]
     fn the_choice_is_read_from_a_setting() {
         let both = RusherKits::both(RusherKit::Control);
@@ -2180,11 +2189,20 @@ mod tests {
         assert_eq!(
             RusherKits::parse("13-15=helmet"),
             Ok(RusherKits {
-                mid: RusherKit::Smg,
+                mid: RusherKit::Control,
                 high: RusherKit::Helmet
             })
         );
-        assert_eq!(RusherKits::default(), RusherKits::both(RusherKit::Smg));
+        // The winning setting of the RK sweep, in the per-tier form.
+        assert_eq!(
+            RusherKits::parse("9-10=alt,13-15=smg"),
+            Ok(RusherKits {
+                mid: RusherKit::Alt,
+                high: RusherKit::Smg
+            })
+        );
+        // Off by default: the old table in both tiers.
+        assert_eq!(RusherKits::default(), RusherKits::both(RusherKit::Control));
         assert!(
             RusherKits::parse("shotgun")
                 .unwrap_err()

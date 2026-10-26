@@ -250,10 +250,11 @@ fn rusher_weapons(gear: u8, kits: RusherKits) -> Vec<String> {
         .collect()
 }
 
-/// The rusher bots wear the kit the lobby's setting says, the SMG's by
-/// default (`sr2m` at 9-10, `fn_p90` at 13-15 where the game data has it,
-/// else the old kit), and the old SPAS-12 kit when it says `control`; the
-/// lowest tier's rusher is the same whatever it says.
+/// The rusher bots wear the kit the lobby's setting says: the old SPAS-12
+/// kit by default (the switch is off until a bench train turns it on) and
+/// when it says `control`; `sr2m` / `fn_p90` (where the game data has it,
+/// else the old kit) for `smg`, `ump45` for `alt`, a kit a tier in the
+/// per-tier form; the lowest tier's rusher is the same whatever it says.
 #[test]
 fn the_rusher_bots_wear_the_kit_the_lobby_says() {
     let all = |weapon: &str, count: usize| vec![weapon.to_owned(); count];
@@ -261,43 +262,47 @@ fn the_rusher_bots_wear_the_kit_the_lobby_says() {
     assert!(rushers >= 3, "{rushers} rushers");
     assert_eq!(
         rusher_weapons(8, RusherKits::default()),
-        all("sr2m", rushers)
+        all("spas_12", rushers),
+        "off by default"
     );
     assert_eq!(
         rusher_weapons(8, RusherKits::both(RusherKit::Control)),
         all("spas_12", rushers)
     );
     assert_eq!(
+        rusher_weapons(8, RusherKits::both(RusherKit::Smg)),
+        all("sr2m", rushers)
+    );
+    assert_eq!(
         rusher_weapons(8, RusherKits::both(RusherKit::Alt)),
         all("ump45", rushers)
     );
     // A kit per tier: the other tier's is not touched.
-    let mid_only = RusherKits {
+    let high_only = RusherKits {
         mid: RusherKit::Control,
         high: RusherKit::Smg,
     };
-    assert_eq!(rusher_weapons(8, mid_only), all("spas_12", rushers));
+    assert_eq!(rusher_weapons(8, high_only), all("spas_12", rushers));
     let smg_at_13_15 = if Dictionary::shared().item_named("fn_p90").is_some() {
         "fn_p90"
     } else {
         "spas_12"
     };
     assert_eq!(
-        rusher_weapons(12, RusherKits::default()),
+        rusher_weapons(12, RusherKits::both(RusherKit::Smg)),
         all(smg_at_13_15, rushers)
     );
     assert_eq!(
-        rusher_weapons(12, RusherKits::both(RusherKit::Control)),
+        rusher_weapons(12, RusherKits::default()),
         all("spas_12", rushers)
     );
-    assert_eq!(
-        rusher_weapons(3, RusherKits::default()),
-        all("mp_153", rushers)
-    );
-    assert_eq!(
-        rusher_weapons(3, RusherKits::both(RusherKit::Control)),
-        all("mp_153", rushers)
-    );
+    // The bench's pick, in the setting's per-tier form.
+    let picked = RusherKits::parse("9-10=alt,13-15=smg").unwrap();
+    assert_eq!(rusher_weapons(8, picked), all("ump45", rushers));
+    assert_eq!(rusher_weapons(12, picked), all(smg_at_13_15, rushers));
+    for kits in [RusherKits::default(), RusherKits::both(RusherKit::Control), picked] {
+        assert_eq!(rusher_weapons(3, kits), all("mp_153", rushers));
+    }
 }
 
 /// On the live game data (`SRP_GAME_DATA`, the server's file: the repo's test
@@ -312,7 +317,7 @@ fn on_the_live_data_the_rusher_bots_wear_the_smg_kits() {
     survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
     the_rusher_bots_wear_the_kit_the_lobby_says();
     the_bots_wear_the_equipment_of_the_players_tier();
-    let rushers = rusher_weapons(12, RusherKits::default());
+    let rushers = rusher_weapons(12, RusherKits::both(RusherKit::Smg));
     assert!(rushers.len() >= 3);
     assert!(
         rushers.iter().all(|weapon| weapon == "fn_p90"),

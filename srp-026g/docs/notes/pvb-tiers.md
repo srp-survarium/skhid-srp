@@ -65,19 +65,20 @@ life's ammo. The carry limit is 30 kg with no skills (`default.player`); every k
 The shotgun rusher lost its fights (K/D 0.52 at 13-15 and 0.55 at 9-10 against 1.08 to 1.48 for every
 other role in the owner's eight matches); no player of kit level 9-10 carries a shotgun (14 of 10,339
 lives) and the SMG is what 12 and more players of both tiers carry most (41 % of the alive time at 9-10,
-22 % at 13-15). The rusher of the two higher tiers wears an SMG of its tier, the shotgun of the old
-table being one of the other kits (`RusherKit`, the lobby's `SRP_PVB_RUSHER_KIT`, the bench's
-`SRP_BENCH_RUSHER`):
+22 % at 13-15). The rusher of the two higher tiers can wear an SMG of its tier; the switch is **off by
+default** (`control`, the old table) until a bench train turns it on (`RusherKit`, the lobby's
+`SRP_PVB_RUSHER_KIT`, the bench's `SRP_BENCH_RUSHER`). The RK arm sweep (smoke preset, 16 maps, 10 a
+side, seeds 1-8) found `9-10=alt,13-15=smg` the best setting (`fighting-record/look-rk-sweep.md`):
 
 | `RusherKit` | 9-10 | 13-15 |
 |---|---|---|
-| `smg` (the default) | `sr2m` + `ammo_9x21` (150), `ren_helmet_2`: 19.6 kg | `fn_p90` + `ammo_5.7x28` (200), `edge_helmet_5`: 25.7 kg |
+| `smg` | `sr2m` + `ammo_9x21` (150), `ren_helmet_2`: 19.6 kg | `fn_p90` + `ammo_5.7x28` (200), `edge_helmet_5`: 25.7 kg |
 | `alt` | `ump45` + `ammo_45acp` (150): 21.5 kg | `kriss_vector` + `ammo_45acp` (200): 26.6 kg |
 | `slug` | `spas_12` + `ammo_12mm_slug` (45), `ren_helmet_2`: 23.4 kg | the same (60), `edge_helmet_5`: 28.3 kg |
 | `helmet` | `spas_12` + buckshot (45), `ren_helmet_2`: 23.1 kg | the same (60), `edge_helmet_5`: 27.9 kg |
-| `control` | the old kit: `spas_12` + buckshot (45), `edge_helmet_3`: 21.8 kg | the old kit: `spas_12` + buckshot (60), no helmet: 25.9 kg |
+| `control` (the default) | the old kit: `spas_12` + buckshot (45), `edge_helmet_3`: 21.8 kg | the old kit: `spas_12` + buckshot (60), no helmet: 25.9 kg |
 
-`control` is the old table exactly, to switch the change off; `helmet` changes the helmet alone,
+`control` is the old table exactly (what the switch gives when unset); `helmet` changes the helmet alone,
 `slug` the ammo on top of it, `smg` the weapon on top of that. The lowest tier has only its table.
 The flanker's third kit is the rusher's weapon with the flanker's armour (`BotRole::kit_roles`: P90 or
 SR-2M, 200 or 150 rounds at its bags). `fn_p90` and `kriss_vector` are 0.29a3 weapons that come with

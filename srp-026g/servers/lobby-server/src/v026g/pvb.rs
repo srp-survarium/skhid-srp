@@ -59,7 +59,7 @@
 //! | `SRP_PVB` | on | `off`: the mode is not offered | the lobby, the match server |
 //! | `SRP_PVB_MAX_GEAR` | 15 | the highest equipment level let in, 0 to 15 (15: every player, the owner's of 2026-10-23) | the lobby |
 //! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once, 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
-//! | `SRP_PVB_RUSHER_KIT` | smg | what the rusher bots of tiers 9-10 and 13-15 wear: `smg` (the tier's SMG: `sr2m`, `fn_p90`), `alt` (`ump45`, `kriss_vector`), `slug` / `helmet` (the SPAS-12 with slugs / buckshot and the SMG kit's helmet), `control` (the old kit: the SPAS-12 with buckshot); one word for both tiers or `9-10=control,13-15=smg`; a kit whose items the game data lacks is the old kit (`loadouts::RusherKit`) | the lobby |
+//! | `SRP_PVB_RUSHER_KIT` | control | what the rusher bots of tiers 9-10 and 13-15 wear: `control` (the old kit: the SPAS-12 with buckshot; the default), `smg` (the tier's SMG: `sr2m`, `fn_p90`), `alt` (`ump45`, `kriss_vector`), `slug` / `helmet` (the SPAS-12 with slugs / buckshot and the SMG kit's helmet); one word for both tiers or `9-10=alt,13-15=smg`; a kit whose items the game data lacks is the old kit (`loadouts::RusherKit`) | the lobby |
 //! | `SRP_PVB_PAY` | 0.25 | the share of a match's silver and experience it pays, 0 to 1; only a match played to its own end pays | the rewards (`session::v026g::pvb`) |
 //! | `SRP_PVB_STALL_S` | 60 | a match whose only player uploads no world it is asked for this long is over, 10 to 3600 | the match server |
 //!
@@ -117,8 +117,8 @@ pub struct Config {
     pub max_gear: u8,
     /// `SRP_PVB_MAX_MATCHES` (default 5).
     pub max_matches: usize,
-    /// `SRP_PVB_RUSHER_KIT` (default the SMG kits): the kit the rusher bots
-    /// of each tier wear.
+    /// `SRP_PVB_RUSHER_KIT` (default `control`, the old table): the kit the
+    /// rusher bots of each tier wear.
     pub rusher_kits: RusherKits,
 }
 
@@ -148,13 +148,11 @@ impl Config {
             Err(_) => DEFAULT_MAX_GEAR,
         };
         let rusher_kits = match std::env::var("SRP_PVB_RUSHER_KIT") {
-            Ok(value) if !value.trim().is_empty() => {
-                RusherKits::parse(&value).unwrap_or_else(|why| {
-                    log::error!("SRP_PVB_RUSHER_KIT is `{value}` ({why}). Using the SMG kits");
-                    RusherKits::default()
-                })
-            }
-            _ => RusherKits::default(),
+            Ok(value) => parse_rusher_kits(&value).unwrap_or_else(|why| {
+                log::error!("SRP_PVB_RUSHER_KIT is `{value}` ({why}). Using the old kit");
+                RusherKits::default()
+            }),
+            Err(_) => RusherKits::default(),
         };
         let config = Self {
             enabled: session::v026g::pvb::enabled(),
@@ -179,6 +177,16 @@ impl Config {
 /// `SRP_PVB_MAX_GEAR`: 0 to [`MOST_GEAR`].
 fn parse_max_gear(value: &str) -> Option<u8> {
     value.trim().parse().ok().filter(|gear| *gear <= MOST_GEAR)
+}
+
+/// `SRP_PVB_RUSHER_KIT`: empty is the default (the old table); else one kit
+/// for both tiers (`alt`) or a kit a tier (`9-10=alt,13-15=smg`; a tier left
+/// out keeps the default).
+fn parse_rusher_kits(value: &str) -> Result<RusherKits, String> {
+    if value.trim().is_empty() {
+        return Ok(RusherKits::default());
+    }
+    RusherKits::parse(value)
 }
 
 /// The offered maps as the dictionary has them.
@@ -512,5 +520,30 @@ mod tests {
         assert_eq!(parse_max_gear(" 4 "), Some(4));
         assert_eq!(parse_max_gear("16"), None);
         assert_eq!(parse_max_gear("x"), None);
+    }
+
+    /// The rusher kit setting: off (the old table) unless set, one word for
+    /// both tiers, or the per-tier form the RK sweep's pick is given in.
+    #[test]
+    fn the_rusher_kit_setting_is_off_unless_set_and_reads_a_kit_a_tier() {
+        use survarium::v026g::loadouts::{BotTier, RusherKit};
+        let off = RusherKits::both(RusherKit::Control);
+        assert_eq!(Config::default().rusher_kits, off);
+        assert_eq!(parse_rusher_kits(""), Ok(off));
+        assert_eq!(parse_rusher_kits("  "), Ok(off));
+        assert_eq!(parse_rusher_kits("control"), Ok(off));
+        let picked = parse_rusher_kits("9-10=alt,13-15=smg").unwrap();
+        assert_eq!(picked.of(BotTier::Mid), RusherKit::Alt);
+        assert_eq!(picked.of(BotTier::High), RusherKit::Smg);
+        assert_eq!(picked.of(BotTier::Low), RusherKit::Control);
+        assert_eq!(
+            parse_rusher_kits(" 9-10 = alt , 13-15 = smg "),
+            Ok(picked),
+            "spaces around the words are let"
+        );
+        let one_tier = parse_rusher_kits("13-15=smg").unwrap();
+        assert_eq!(one_tier.of(BotTier::Mid), RusherKit::Control);
+        assert_eq!(one_tier.of(BotTier::High), RusherKit::Smg);
+        assert!(parse_rusher_kits("9-10=nope").is_err());
     }
 }
