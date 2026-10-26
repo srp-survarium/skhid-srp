@@ -168,7 +168,7 @@ pub struct Tactics {
     pub escapes: super::escape::Board,
     /// Whether a way out stays under its start's zone strength
     /// (`Tuning::hazard.escape`, [`Self::escape`]).
-    pub escape_ceiling: bool,
+    pub escape: super::tuning::EscapeRule,
     /// The bushes a sight line crosses (`foliage.rs`); none without the file.
     pub foliage: Arc<super::foliage::Foliage>,
 }
@@ -626,7 +626,7 @@ impl Tactics {
             spot_lists: Default::default(),
             exit_field: Default::default(),
             escapes: Default::default(),
-            escape_ceiling: true,
+            escape: super::tuning::EscapeRule::UnderStartZone,
             foliage: Default::default(),
             base,
         }
@@ -1185,7 +1185,7 @@ impl Tactics {
     /// fire.
     ///
     /// The search never goes down into a zone stronger than the body's own
-    /// (`Tactics::escape_ceiling`): the floors open to it are those no zone
+    /// (`Tactics::escape`): the floors open to it are those no zone
     /// marks, those of the start's own zones, those it may walk on, and
     /// those whose hit a second is not above the start's. From a mild zone
     /// the nearest way out may be over a strong one beside it (the 0.90
@@ -1268,7 +1268,10 @@ impl Tactics {
             }
             outs
         };
-        let mut ceiling = if self.escape_ceiling { start_hit } else { f32::INFINITY };
+        let mut ceiling = match self.escape {
+            super::tuning::EscapeRule::UnderStartZone => start_hit,
+            super::tuning::EscapeRule::Nearest => f32::INFINITY,
+        };
         let mut outs = search(&open_under(ceiling));
         if outs.is_empty() && ceiling.is_finite() {
             ceiling = f32::INFINITY;
@@ -2361,7 +2364,7 @@ pub(super) mod tests {
         assert!(hits.iter().all(|&h| h <= 0.05 + 1e-4), "{hits:?}");
     }
 
-    /// With the ceiling off (`escape_ceiling` false) the way out is the old one:
+    /// With the ceiling off (`EscapeRule::Nearest`) the way out is the old one:
     /// the nearest, east through the strong zone.
     #[test]
     fn with_the_ceiling_off_the_way_out_is_the_nearest() {
@@ -2370,7 +2373,7 @@ pub(super) mod tests {
             map.zones.push(box_zone("strong", Vec3::new(22.0, 0.0, 10.0), Vec3::new(2.0, 3.0, 10.0), 0.8));
         });
         let mut tactics = Tactics::new(world.clone(), 1.0);
-        tactics.escape_ceiling = false;
+        tactics.escape = crate::v026g::bots::tuning::EscapeRule::Nearest;
         let inside = world.grid.locate(Vec3::new(17.0, 0.0, 10.0), 1.0).unwrap();
         let out = tactics
             .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
