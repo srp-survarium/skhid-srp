@@ -1020,7 +1020,7 @@ mod tests {
         let waypoint = |x: f32, z: f32| Waypoint {
             at: Vec3::new(x, 0.0, z),
             node: 0,
-            jump: false,
+            jump: None,
             low: false,
         };
         let mut list = TrapList::default();
