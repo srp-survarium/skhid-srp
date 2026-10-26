@@ -189,7 +189,8 @@ the archive's index: a loader must follow them.
      name `Bot-<n>`, clan tag `BOT`, the kit of its role, session and
      account 0, no seat. **Removed 2026-10-17** with the queue (the
      owner's): the server's bots play only "Player vs Bots" (§8).
-   - **The bots' kit** (`survarium::v026g::loadouts`; `BOT_KIT`:
+   - **The bots' fixed kit** (since 2026-10-26 worn only when no player
+     has a kit of the bot's role, §8; `survarium::v026g::loadouts`; `BOT_KIT`:
      item, slot, count, input bit, what every role wears; `BotRole`,
      `BotRole::gear()`, `bot_kit(role)`, `bot_kit_items(role)`,
      `pockets()`): the starter's TT-33 as weapon 2 (slot 10, bit 13, a
@@ -512,6 +513,38 @@ chosen in srp's changed lobby movie ("Player vs Bots"; the wire is
   10 a side, on one of 16 maps (the day of each level, batteries and Team
   Deathmatch). Its teams are fixed: no late joiner.
   `MatchSetup::vs_bots` marks it for the match server and the rewards.
+- **Every equipment level (the owner's, 2026-10-26).** Any equipment
+  level plays (`SRP_PVB_MAX_GEAR`, 15; 5 before), and the bots wear kits
+  of the player's (`matchmaking::gear_level`; a match of several players:
+  their mean), the top players' (`session::v026g::bot_kits`):
+  - whose: accounts put in a match 5 times or more, by rating; for each
+    level and role the 10 best with a kit of the role there;
+  - which: their three kits that can play and their presets' kits; a bot
+    takes of one its weapon of the role's category (SMGs; assault rifles
+    and machine guns; shotguns; sniper rifles), the ammo the kit holds
+    most of for it, and the armour; no weapon 2, no modification;
+  - its own ammo and pockets: the role's rounds in three ammo slots
+    (fewer to fit 40 kg: its kits carry skill 209's +10 kg), then a
+    medkit (bandages under level 3), grenades, the radio, as far as the
+    armour opens pockets and the kit's level lets in; the match server's
+    heal and grenade plays use what is there;
+  - the pick: the kits weighted by use (the kit an account plays 2, any
+    other or a preset's 1), the `k`-th bot of a role in the match takes
+    the `k`-th of a smooth weighted round robin: no randomness;
+  - too few players: the nearest level with a kit of the role (the lower
+    of two); none at all: the role's fixed kit (§6, stage 1);
+  - the second kit: the backup role's pick, its weapon and ammo with the
+    first kit's armour, of the first's level or lower;
+  - every bot kit passes the kit rules (`loadouts::bot_gear::kit_problems`:
+    the Play check's ammo minimum, covered slots and pockets, the weight)
+    and the match server reads each kit's weapon, rounds and pockets from
+    the profile (`Bots::wear`), the weapon's facts from its config
+    (`bots::guns::derived_guns`);
+  - the log: the table's players by level and role at each gathering (at
+    most every 5 minutes), and a line per bot with its level, where its
+    kit is from and its items (no account of it);
+  - in the sides' counts a bot counts for its gear level, as a player of
+    level 0 with no rating.
 - **One witness.** The player's game is the only one that simulates: its
   uploads are trusted on its word alone (one voucher, as with a test bot),
   and the bots see the world only through them. A game that stops
