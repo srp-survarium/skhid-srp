@@ -14,6 +14,7 @@
 
 use std::sync::Arc;
 
+use mapdata::grid::{MARGINAL_JUMP_M, STEP_UP_M};
 use mapdata::regions::Regions;
 use mapdata::{NodeId, Shape, Vec3, WalkGrid, World};
 
@@ -33,6 +34,15 @@ const LOCATE_M: f32 = 3.0;
 pub const USE_REACH_M: f32 = 1.8;
 /// A way out of a zone is looked for over at most this many floors.
 const ESCAPE_FLOORS: usize = 20_000;
+
+/// [`Tactics::ledge_ahead`]: a ledge to jump up is looked for from this far
+/// ahead of the stuck body …
+const LEDGE_NEAR_M: f32 = 0.2;
+/// … to this far (a stuck body stands at the ledge's face, a world is up to
+/// 0.7 s old at the press), metres …
+const LEDGE_FAR_M: f32 = 1.0;
+/// … and this far to either side of its facing, metres.
+const LEDGE_ASIDE_M: f32 = 0.4;
 /// A way out ends at least this far from where it starts, metres: past the
 /// motor's arrival distance, so the body really walks out.
 const ESCAPE_MIN_M: f32 = 1.5;
@@ -1175,6 +1185,40 @@ impl Tactics {
         })
     }
 
+    /// The rise of the lowest ledge a stuck body at `feet` facing `yaw` can
+    /// jump up, if there is one ahead: a floor to stand on more than the
+    /// client's step-up ([`STEP_UP_M`], which it walks up by itself) and at
+    /// most [`MARGINAL_JUMP_M`] above the feet (under the standing jump's top,
+    /// [`mapdata::grid::STANDING_JUMP_M`]), [`LEDGE_NEAR_M`]..[`LEDGE_FAR_M`]
+    /// ahead along `yaw` and within [`LEDGE_ASIDE_M`] to a side. The
+    /// unstick's forward jump (`Bots::fixed`): a body held by a ledge it
+    /// walks at gets up it, any other stop backs off with no jump.
+    pub fn ledge_ahead(&self, feet: Vec3, yaw: f32) -> Option<f32> {
+        let grid = &self.world.grid;
+        let [fx, fz] = super::kin::forward(yaw);
+        let reach = LEDGE_FAR_M + LEDGE_ASIDE_M;
+        grid.floors_in([
+            feet.x - reach,
+            feet.z - reach,
+            feet.x + reach,
+            feet.z + reach,
+        ])
+        .filter_map(|node| {
+            let at = grid.position(node);
+            let (ex, ez) = (at.x - feet.x, at.z - feet.z);
+            let ahead = ex * fx + ez * fz;
+            let across = (ex * fz - ez * fx).abs();
+            let rise = at.y - feet.y;
+            ((LEDGE_NEAR_M..=LEDGE_FAR_M).contains(&ahead)
+                && across <= LEDGE_ASIDE_M
+                && rise > STEP_UP_M
+                && rise <= MARGINAL_JUMP_M
+                && grid.can_stand(node))
+            .then_some(rise)
+        })
+        .min_by(f32::total_cmp)
+    }
+
     /// Whether a body walks from `a` to `b` in a line, on allowed floors.
     pub fn clear_line(&self, a: Vec3, b: Vec3, time: u32, side: Option<i32>) -> bool {
         self.clear_line_for(a, b, time, side, false)
@@ -1585,6 +1629,39 @@ pub(super) mod tests {
         }
         assert!(2.0 * per_s(0.02) <= 0.1);
         assert!(mild(per_s(0.02)));
+    }
+
+    /// F4: a stuck body finds the ledge it can jump up (more than the
+    /// client's step of 0.6 m, at most 0.95 m) a metre ahead of it along its
+    /// facing, and nothing else: not a step it walks up, not a ledge over
+    /// the standing jump, not one behind it or far to a side.
+    #[test]
+    fn ledge_ahead_finds_only_a_ledge_a_standing_jump_gets_up() {
+        let at_east = -std::f32::consts::FRAC_PI_2; // `kin::forward` = +x
+        let ledge = |rise: f32| {
+            let platform = floor(30.0, 0.0, 40.0, 40.0, rise);
+            Tactics::new(field_with_solids(&platform, |_| {}), 1.0)
+        };
+        let feet = Vec3::new(29.4, 0.0, 10.0);
+        let near = |rise: f32| ledge(rise).ledge_ahead(feet, at_east);
+        let got = near(0.8).expect("a ledge of 0.8 m");
+        assert!((got - 0.8).abs() < 0.05, "{got}");
+        assert!(near(0.5).is_none(), "a step the client walks up");
+        assert!(near(1.2).is_none(), "over the standing jump");
+        assert!(near(3.0).is_none(), "a wall");
+        let tactics = ledge(0.8);
+        let west = std::f32::consts::FRAC_PI_2;
+        assert!(tactics.ledge_ahead(feet, west).is_none(), "behind it");
+        assert!(
+            tactics
+                .ledge_ahead(Vec3::new(27.0, 0.0, 10.0), at_east)
+                .is_none(),
+            "2.6 m off"
+        );
+        assert!(
+            tactics.ledge_ahead(feet, std::f32::consts::PI).is_none(),
+            "to the side of its facing"
+        );
     }
 
     #[test]
