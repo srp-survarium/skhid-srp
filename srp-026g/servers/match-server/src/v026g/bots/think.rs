@@ -438,13 +438,15 @@ pub(super) fn bench_camper(
     bot: &mut Bot,
     slot: &mut Option<(Place, Option<tests::CamperSpot>)>,
 ) -> bool {
-    let Due { tactics, .. } = *due;
+    let Due { tactics, me, .. } = *due;
     if let Some((camper, spot)) = slot.as_mut()
         && *camper == bot.place
     {
         let side = bot.side;
-        let found =
-            *spot.get_or_insert_with(|| side.and_then(|side| tests::camper_spot(tactics, side)));
+        let options = tests::CamperOptions::from_env();
+        let found = *spot.get_or_insert_with(|| {
+            side.and_then(|side| tests::camper_spot_by(tactics, side, options.rule, options.crouch))
+        });
         if let Some((at, _)) = found {
             bot.bench_camper = true;
             bot.intent = Intent {
@@ -453,6 +455,8 @@ pub(super) fn bench_camper(
                     within_m: tests::CAMPER_WITHIN_M,
                 },
                 pace: Pace::Run,
+                // Crouched once there, if it is to be.
+                crouch: options.crouch && me.feet.distance_xz(at) <= tests::CAMPER_WITHIN_M,
                 ..Intent::stay()
             };
             return true;
