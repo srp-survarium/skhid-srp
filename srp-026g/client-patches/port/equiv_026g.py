@@ -412,7 +412,7 @@ def main():
         folder = Path(folder)
         print(f"building the old exe ({args.old}) and the new one (the working tree)", flush=True)
         old_exe, old_meta = build(old_tree(args.old, folder / "tree"), args.original, spec_path, folder / "old")
-        new_exe, new_meta = build(HERE, args.original, spec_path, folder / "new")
+        new_exe, new_meta = build(CLIENT, args.original, spec_path, folder / "new")
     old, new = Machine(old_exe, old_meta, spec), Machine(new_exe, new_meta, spec)
     cases = list(spec.cases(args.seed, args.cases))
     if args.states:

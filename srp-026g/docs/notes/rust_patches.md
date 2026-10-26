@@ -181,6 +181,12 @@ hook's `[[hook]]` also carries the author's `source`, `symbol` and `limit`
 named once in the callee's `vostok` column so every patch hooking it gets the
 same typed signature.
 
+Direct hooks of the same function share one generated `Original` type. A
+splice has its own `Orig<Function>For<Patch>_<Handler>` type because its
+`call` must enter that hook's trampoline. Replayable spans are decoded into
+complete instructions with ndisasm; relative branches and truncated
+instructions are refused, while opcode-looking bytes in operands are safe.
+
 Generated and tested (check_hooks_026g.py runs each kind's entry template
 beside the original exe and checks it is transparent -- the arguments and
 ECX delivered in order, the result passed back, the callee-saved registers
@@ -278,6 +284,13 @@ bit when the key went down.
   entry's shape, the blocks and the lock) plus the engine, hooks-staleness
   and layer checks.
 - **Not run in a game** until the owner plays it.
+
+The generator regressions can also run alone in the dev shell, from
+`client-patches`: `python -m unittest test_hooks_026g port.test_equiv_026g`.
+They check forward/backward/wrapping calls, span decoding, multiple generated
+Originals compiled and run on i686, and both equivalence-build subprocesses.
+The self-test runs them too; `check_hooks_026g.py` also checks incoming flags
+and Context flag edits through the generated lohook entries.
 
 ## 6. Porting an asm/C patch: the equivalence gate
 

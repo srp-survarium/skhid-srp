@@ -276,7 +276,7 @@ def test_code():
 LOHOOK_PAST = 0xB900000         # the lohook span's reconvergence (site + len), mapped
 
 
-def run_lohook(h, stub_src, until, regs=None):
+def run_lohook(h, stub_src, until, regs=None, flags=0x202):
     """Assemble a lohook entry (hooks_026g.lohook_entry) with a stub shim and
     run it from the entry to `until`, returning the machine state."""
     entry_src = "\n".join(hooks_026g.lohook_entry(h)) + "\n"
@@ -286,12 +286,12 @@ def run_lohook(h, stub_src, until, regs=None):
     uc = m.uc
     for name, reg in GP.items():
         uc.reg_write(reg, (regs or {}).get(name, SENTINELS.get(name, 0)))
-    uc.reg_write(UC_X86_REG_EFLAGS, 0x202)
+    uc.reg_write(UC_X86_REG_EFLAGS, flags)
     esp = STACK + 0x80000
     uc.reg_write(UC_X86_REG_ESP, esp)
     uc.emu_start(labels[h["entry"]], until, count=200000)
     return {**{r: uc.reg_read(GP[r]) for r in GP}, "esp": uc.reg_read(UC_X86_REG_ESP),
-            "eip": uc.reg_read(UC_X86_REG_EIP)}
+            "eip": uc.reg_read(UC_X86_REG_EIP), "eflags": uc.reg_read(UC_X86_REG_EFLAGS)}
 
 
 def test_lohook():
@@ -323,6 +323,19 @@ def test_lohook():
     out = run_lohook(dict(base, original=span, exits=[("there", exit_at)]), exit_stub, exit_at)
     check(out["eip"] == exit_at and out["eax"] != 0x1234,
           f"lohook Exit: control jumps to the named exit {exit_at:#x} without replaying")
+    # A no-op handler must preserve incoming arithmetic flags on every
+    # dispatch path, including when the replayed span does not set them.
+    for flow, stub, until, exits in (("Continue", noop_stub, LOHOOK_PAST, []),
+                                    ("Skip", skip_stub, LOHOOK_PAST, []),
+                                    ("Exit", exit_stub, exit_at, [("there", exit_at)])):
+        for flags in (0x202, 0x247, 0xA93):
+            out = run_lohook(dict(base, original=nop, exits=exits), stub, until, flags=flags)
+            check(out["eflags"] == flags and out["esp"] == STACK + 0x80000,
+                  f"lohook {flow}: preserves flags {flags:#x} and ESP")
+    set_flags = ("global hook_fix_h\nhook_fix_h:\n    mov eax, [esp+4]\n    mov eax, [eax]\n"
+                 "    or dword [eax+32], 1\n    and dword [eax+32], ~0x40\n    xor eax, eax\n    ret\n")
+    out = run_lohook(dict(base, original=nop), set_flags, LOHOOK_PAST, flags=0x246)
+    check(out["eflags"] == 0x207, "lohook: applies a Context flag edit (set CF, clear ZF)")
 
 
 ORIGINAL = b""

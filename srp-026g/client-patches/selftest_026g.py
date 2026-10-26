@@ -5949,6 +5949,13 @@ def test_hook_kinds(original):
     for ok, text in results:
         check(ok, text)
     check(bool(results), f"check_hooks_026g.py: {len(results)} entry-kind checks")
+    import io
+    import unittest
+    output = io.StringIO()
+    suite = unittest.defaultTestLoader.loadTestsFromNames(["test_hooks_026g", "port.test_equiv_026g"])
+    result = unittest.TextTestRunner(stream=output).run(suite)
+    check(result.wasSuccessful(), f"the hook generator and equivalence build paths: {result.testsRun} tests"
+          + ("" if result.wasSuccessful() else "\n" + output.getvalue()))
 
 
 def test_late_join(original, without, server, source):
