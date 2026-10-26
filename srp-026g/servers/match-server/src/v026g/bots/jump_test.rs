@@ -170,9 +170,39 @@ pub struct Site {
     pub face: f32,
     /// Half the ledge's width along the face, m: the lanes of parallel tries stay inside it.
     pub half: f32,
+    /// How deep the flat top is past the face, m, if known (`sites.tsv`'s tenth column, from the walker mesh): a try
+    /// whose jump travels past it ([`Site::kind`]) goes over the ledge instead of onto it.
+    pub depth: Option<f32>,
 }
 
+/// What a try on a site is: a jump onto a top, or over a thin obstacle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    /// The top is deep enough for the jump to land on it.
+    Climb,
+    /// The jump travels past the top: it clears the obstacle and lands behind it at the deck's height.
+    Over,
+    /// The site's depth is not known.
+    Unknown,
+}
+
+/// How far a jump travels from the press, m: the walking jump 2.67 m, the sprint jump 4.4 m (the clips' roots,
+/// `JUMP-FINDINGS.md`).
+const WALK_TRAVEL_M: f32 = 2.67;
+const SPRINT_TRAVEL_M: f32 = 4.4;
+
 impl Site {
+    /// Climb or over for a try that presses `edge` m before the face at `speed`: climb when the flat top is deep
+    /// enough for the jump to land on it (`depth >= edge + travel`).
+    pub fn kind(&self, edge: f32, speed: Speed) -> Kind {
+        let travel = if speed == Speed::Sprint { SPRINT_TRAVEL_M } else { WALK_TRAVEL_M };
+        match self.depth {
+            Some(depth) if depth >= edge.max(0.0) + travel => Kind::Climb,
+            Some(_) => Kind::Over,
+            None => Kind::Unknown,
+        }
+    }
+
     /// The point of the face the approach line aims at, ground plane.
     fn centre(&self) -> [f32; 2] {
         [
@@ -325,6 +355,7 @@ fn named_site(name: &str, extra: &HashMap<String, Site>) -> Option<Site> {
             rise,
             face,
             half,
+            depth: None,
         })
 }
 
@@ -350,6 +381,7 @@ fn parse_site(text: &str, extra: &HashMap<String, Site>) -> Result<Site, String>
         rise: v[5],
         face: v[6],
         half: 0.0,
+        depth: None,
     })
 }
 
@@ -440,11 +472,11 @@ fn parse_sites(text: &str) -> HashMap<String, Site> {
     for line in text.lines() {
         let line = line.split('#').next().unwrap_or("").trim();
         let f: Vec<&str> = line.split_whitespace().collect();
-        if f.len() != 8 && f.len() != 9 {
+        if !(8..=10).contains(&f.len()) {
             continue;
         }
         let v: Vec<f32> = f[1..].iter().filter_map(|s| s.parse().ok()).collect();
-        if v.len() != 7 && v.len() != 8 {
+        if !(7..=9).contains(&v.len()) {
             continue;
         }
         let length = v[3].hypot(v[4]);
@@ -460,6 +492,7 @@ fn parse_sites(text: &str) -> HashMap<String, Site> {
                 rise: v[5],
                 face: v[6],
                 half: v.get(7).copied().unwrap_or(0.0),
+                depth: v.get(8).copied(),
             },
         );
     }
@@ -986,6 +1019,7 @@ impl JumpTest {
 
     /// Whether a world was asked for within the last `ms` of the match clock `clock`: the game does not pass an
     /// asked world on to the bots' reckoning, so for these ms it gets none (the dry run models it).
+    #[cfg(test)]
     pub(crate) fn asked_within(&self, clock: u32, ms: u32) -> bool {
         self.last_request.is_some_and(|at| clock < at + ms)
     }
@@ -1867,6 +1901,7 @@ pub fn summarize(
     let press = plan.press;
     let mut v = serde_json::json!({
         "id": def.id, "n": n, "bot": place, "site": def.site.name, "lane": def.lane,
+        "top_depth": def.site.depth, "kind": format!("{:?}", def.site.kind(def.edge, def.speed)).to_lowercase(),
         "plan": {
             "edge": def.edge, "angle": def.angle, "face": format!("{:?}", def.face).to_lowercase(),
             "runup": def.runup, "speed": format!("{:?}", def.speed).to_lowercase(), "mid": format!("{:?}", def.mid),
@@ -2259,6 +2294,24 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
         jt.sides = HashMap::from([(site_key(&a), 0), (site_key(&b), 1)]);
         assert_eq!(jt.take_from_pool(1, 1).expect("a try").id, "b");
         assert_eq!(jt.take_from_pool(2, 0).expect("a try").id, "a");
+    }
+
+    #[test]
+    fn a_site_with_a_depth_is_a_climb_when_the_jump_lands_on_the_top_and_over_when_it_clears_it() {
+        let sites = parse_sites("c060_3 -38.38 1.96 30.12 0 -1 0.650 0.25 0.60 1.50  # a 1.5 m top
+c060_x -1 2 3 0 1 0.6 0.25 0.6
+s100_3 14.2 16.32 138.72 1 0 1.009 0.25 0.50 7.01
+");
+        assert_eq!(sites["c060_3"].depth, Some(1.5));
+        assert_eq!(sites["c060_x"].depth, None, "the column is optional");
+        // A 1.5 m top: the walking jump (2.67 m) from 0.3 m before the face lands past it; no walking edge is a climb.
+        assert_eq!(sites["c060_3"].kind(0.3, Speed::Walk), Kind::Over);
+        assert_eq!(sites["c060_3"].kind(1.3, Speed::Walk), Kind::Over);
+        // A 7 m top takes the walking jump from 1.3 m (1.3 + 2.67) and the sprint jump from 2.5 m (2.5 + 4.4).
+        assert_eq!(sites["s100_3"].kind(1.3, Speed::Walk), Kind::Climb);
+        assert_eq!(sites["s100_3"].kind(2.5, Speed::Sprint), Kind::Climb);
+        assert_eq!(sites["s100_3"].kind(3.0, Speed::Sprint), Kind::Over);
+        assert_eq!(sites["c060_x"].kind(0.3, Speed::Walk), Kind::Unknown);
     }
 
     #[test]
