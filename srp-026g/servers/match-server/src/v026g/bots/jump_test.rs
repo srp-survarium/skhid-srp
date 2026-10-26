@@ -74,6 +74,9 @@ const BURST_MS: u32 = 120;
 /// The settle: still, facing the heading, at least this long, ms (a sprint try rests
 /// [`REST_BEFORE_SPRINT_MS`]: the walk to the start was at a run).
 const SETTLE_MS: u32 = 1_200;
+/// A rest that misfits moves the aim of the walk by how far the reckoning stood off the body, if that is within
+/// this, m; further off, the reckoning was lost and the aim stays the start.
+const SHIFT_MAX_M: f32 = 1.0;
 /// The settle is given up after this long, ms (the try is redone from Go).
 const SETTLE_MAX_MS: u32 = 5_000;
 /// The walk to the start is given up after this long, ms.
@@ -136,6 +139,8 @@ pub struct Row {
     pub time: u32,
     pub place: Place,
     pub alive: bool,
+    /// When the body was spawned (another value is another life).
+    pub inserted: u32,
     /// The feet, map frame.
     pub feet: Vec3,
     pub jumping: bool,
@@ -165,9 +170,39 @@ pub struct Site {
     pub face: f32,
     /// Half the ledge's width along the face, m: the lanes of parallel tries stay inside it.
     pub half: f32,
+    /// How deep the flat top is past the face, m, if known (`sites.tsv`'s tenth column, from the walker mesh): a try
+    /// whose jump travels past it ([`Site::kind`]) goes over the ledge instead of onto it.
+    pub depth: Option<f32>,
 }
 
+/// What a try on a site is: a jump onto a top, or over a thin obstacle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    /// The top is deep enough for the jump to land on it.
+    Climb,
+    /// The jump travels past the top: it clears the obstacle and lands behind it at the deck's height.
+    Over,
+    /// The site's depth is not known.
+    Unknown,
+}
+
+/// How far a jump travels from the press, m: the walking jump 2.67 m, the sprint jump 4.4 m (the clips' roots,
+/// `JUMP-FINDINGS.md`).
+const WALK_TRAVEL_M: f32 = 2.67;
+const SPRINT_TRAVEL_M: f32 = 4.4;
+
 impl Site {
+    /// Climb or over for a try that presses `edge` m before the face at `speed`: climb when the flat top is deep
+    /// enough for the jump to land on it (`depth >= edge + travel`).
+    pub fn kind(&self, edge: f32, speed: Speed) -> Kind {
+        let travel = if speed == Speed::Sprint { SPRINT_TRAVEL_M } else { WALK_TRAVEL_M };
+        match self.depth {
+            Some(depth) if depth >= edge.max(0.0) + travel => Kind::Climb,
+            Some(_) => Kind::Over,
+            None => Kind::Unknown,
+        }
+    }
+
     /// The point of the face the approach line aims at, ground plane.
     fn centre(&self) -> [f32; 2] {
         [
@@ -227,6 +262,38 @@ impl Speed {
     }
 }
 
+/// The keys held from a landing on ([`Mid::Land`]): what, if anything, cancels the carry of the landing clip.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Landing {
+    /// Nothing held.
+    Nothing,
+    Back,
+    Crouch,
+    Left,
+    Right,
+    /// Forward alone.
+    Forward,
+    /// Forward and sprint, as the run-up.
+    Sprint,
+}
+
+impl Landing {
+    fn keys(self) -> u32 {
+        match self {
+            Self::Nothing => 0,
+            Self::Back => key::BACK,
+            Self::Crouch => key::CROUCH,
+            Self::Left => key::LEFT,
+            Self::Right => key::RIGHT,
+            Self::Forward => key::FORWARD,
+            Self::Sprint => key::FORWARD | key::SPRINT,
+        }
+    }
+}
+
+/// How long the keys of a [`Mid::Land`] try are played after they change, ms.
+const LAND_KEYS_MS: u32 = 1_500;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Mid {
     Hold,
@@ -242,6 +309,10 @@ pub enum Mid {
     CrouchPre,
     /// The yaw turned by this many degrees over 0.4 s from the take-off.
     Turn(f32),
+    /// Every key released 0.25 s after the press (the air gets no control), then `keys` from `after_ms` after the press
+    /// (about the landing: the clip ends 0.9-1.2 s after it): what carries the body after a sprint jump lands, and what
+    /// stops it (`land_back_1100`).
+    Land { keys: Landing, after_ms: u32 },
 }
 
 /// Who works a try: a named bot, or whichever bot of the match is free (the pool).
@@ -284,6 +355,7 @@ fn named_site(name: &str, extra: &HashMap<String, Site>) -> Option<Site> {
             rise,
             face,
             half,
+            depth: None,
         })
 }
 
@@ -309,6 +381,7 @@ fn parse_site(text: &str, extra: &HashMap<String, Site>) -> Result<Site, String>
         rise: v[5],
         face: v[6],
         half: 0.0,
+        depth: None,
     })
 }
 
@@ -323,6 +396,24 @@ fn parse_mid(text: &str) -> Result<Mid, String> {
         "crouch" => Mid::Crouch,
         "crouch_jump" => Mid::CrouchJump,
         "crouch_pre" => Mid::CrouchPre,
+        other if other.starts_with("land_") => {
+            let (keys, ms) = other["land_".len()..].split_once('_').ok_or_else(|| format!("mid {other:?}"))?;
+            let keys = match keys {
+                "nothing" | "none" => Landing::Nothing,
+                "back" => Landing::Back,
+                "crouch" => Landing::Crouch,
+                "left" => Landing::Left,
+                "right" => Landing::Right,
+                "forward" => Landing::Forward,
+                "sprint" => Landing::Sprint,
+                _ => return Err(format!("mid {other:?}: keys")),
+            };
+            let after_ms = ms.parse::<u32>().map_err(|e| format!("mid {other:?}: {e}"))?;
+            if !(300..=1_500).contains(&after_ms) {
+                return Err(format!("mid {other:?}: the keys change 300-1500 ms after the press"));
+            }
+            Mid::Land { keys, after_ms }
+        }
         other => match other.strip_prefix("turn") {
             Some(degrees) => Mid::Turn(degrees.parse::<f32>().map_err(|e| format!("mid {other:?}: {e}"))?),
             None => return Err(format!("mid {other:?}")),
@@ -381,11 +472,11 @@ fn parse_sites(text: &str) -> HashMap<String, Site> {
     for line in text.lines() {
         let line = line.split('#').next().unwrap_or("").trim();
         let f: Vec<&str> = line.split_whitespace().collect();
-        if f.len() != 8 && f.len() != 9 {
+        if !(8..=10).contains(&f.len()) {
             continue;
         }
         let v: Vec<f32> = f[1..].iter().filter_map(|s| s.parse().ok()).collect();
-        if v.len() != 7 && v.len() != 8 {
+        if !(7..=9).contains(&v.len()) {
             continue;
         }
         let length = v[3].hypot(v[4]);
@@ -401,6 +492,7 @@ fn parse_sites(text: &str) -> HashMap<String, Site> {
                 rise: v[5],
                 face: v[6],
                 half: v.get(7).copied().unwrap_or(0.0),
+                depth: v.get(8).copied(),
             },
         );
     }
@@ -563,7 +655,7 @@ pub fn plan_from(def: &TryDef, rest: Vec3, heading: f32, first: u32, table: &Run
     let ticks = table.ticks_for(def.speed, run);
     let press_at = first + ticks * TICK_MS;
     let end = match press {
-        Some(()) => press_at + KEYS_AFTER_MS,
+        Some(()) => press_at + if let Mid::Land { after_ms, .. } = def.mid { after_ms + LAND_KEYS_MS } else { KEYS_AFTER_MS },
         None => press_at + 600,
     };
     Some(Plan {
@@ -612,6 +704,9 @@ impl Plan {
                 Mid::Back => keys = (keys & !(key::FORWARD | key::SPRINT)) | key::BACK,
                 Mid::Crouch => keys |= key::CROUCH,
                 Mid::CrouchJump | Mid::CrouchPre => {}
+                Mid::Land { keys: land, after_ms } => {
+                    keys = if time >= press + after_ms { land.keys() } else { 0 };
+                }
                 Mid::Turn(degrees) => {
                     // Eight ticks (0.4 s).
                     if time < mid_from + 8 * TICK_MS {
@@ -689,6 +784,10 @@ struct Active {
     /// The team of the bot working it (enemies collide, teammates pass through each other: a ledge takes
     /// one team's tries at a time).
     team: u8,
+    /// How far the reckoning stood off the body (x, z, m) at the last rest that did not fit: the walk to the start
+    /// aims the reckoning there, so the body, not the reckoning, comes to the start. Zero until a rest misfit, and
+    /// when the reckoning was lost (more than [`SHIFT_MAX_M`] off: the next ordinary world puts it right).
+    shift: [f32; 2],
 }
 
 #[derive(Default)]
@@ -719,6 +818,9 @@ pub struct JumpTest {
     reach: Option<ReachSets>,
     /// Sites already checked: (the deck's x and z, in 0.1 m) and why refused.
     checked: HashMap<(i32, i32), Option<String>>,
+    /// The team that works each ledge of the file (by its site): the ledges nearer a team's spawns are its own, half
+    /// each, so the teams do not cross on the way (enemies collide). Empty with one ledge or a team without spawns.
+    sides: HashMap<(i32, i32), u8>,
     /// Ledges whose start no bot reached twice: no try is taken on them (their base, before any lane).
     bad_sites: Vec<Vec3>,
     /// Bots not in the test rest (no fire, no plays); `SRP_JUMP_TEST_IDLE_OTHERS=0` lets them play.
@@ -744,6 +846,10 @@ pub struct JumpTest {
     outstanding: Option<u32>,
     uploads: Vec<(u32, u32, usize)>,
     sent: u32,
+    /// The rows of the last asked world, until [`Self::take_fresh`] passes them to the bots' reckoning: an asked world
+    /// goes no further in the game, so without this the reckoning of every bot is starved while the test asks (the
+    /// J0 on Chemical Plant: rests 0.5-18 m off).
+    fresh: Vec<Row>,
     problem: Option<String>,
 }
 
@@ -780,6 +886,7 @@ impl JumpTest {
             pool: VecDeque::new(),
             bad_sites: Vec::new(),
             no_route: HashSet::new(),
+            sides: HashMap::new(),
             yielding: HashMap::new(),
             suicides: [0; 2],
             reach: None,
@@ -799,6 +906,7 @@ impl JumpTest {
             outstanding: None,
             uploads: Vec::new(),
             sent: 0,
+            fresh: Vec::new(),
             problem: None,
         }
     }
@@ -891,6 +999,9 @@ impl JumpTest {
                 }
                 pool.retain(|d| self.bad_sites.iter().all(|bad| base_of(d).distance_xz(*bad) > BAD_SITE_M));
                 self.pool = pool;
+                let spawns: Vec<(Vec3, u8)> = world.map.spawns.iter().map(|s| (s.position, u8::from(s.team != 0))).collect();
+                let sites: Vec<((i32, i32), Vec3)> = self.known.values().map(|d| (site_key(d), start_of(d))).collect();
+                self.sides = split_sites(&spawns, sites);
                 for (place, runner) in &mut self.runners {
                     runner.pending = by_bot.remove(place).unwrap_or_default();
                 }
@@ -904,6 +1015,13 @@ impl JumpTest {
                 }
             }
         }
+    }
+
+    /// Whether a world was asked for within the last `ms` of the match clock `clock`: the game does not pass an
+    /// asked world on to the bots' reckoning, so for these ms it gets none (the dry run models it).
+    #[cfg(test)]
+    pub(crate) fn asked_within(&self, clock: u32, ms: u32) -> bool {
+        self.last_request.is_some_and(|at| clock < at + ms)
     }
 
     /// Whether the match must not end: some try is under way or still to come.
@@ -970,6 +1088,8 @@ impl JumpTest {
             .iter()
             .enumerate()
             .filter(|(_, def)| !self.no_route.contains(&(place, site_key(def))))
+            // A ledge on the other team's side is not this team's to work.
+            .filter(|(_, def)| self.sides.get(&site_key(def)).is_none_or(|&side| side == team & 1))
             .find_map(|(i, def)| free_lane(def, &taken, team).map(|lane| (i, lane)))?;
         let mut def = self.pool[index].clone();
         self.pool[index].repeat -= 1;
@@ -1066,7 +1186,7 @@ impl JumpTest {
             };
             self.yielding.remove(&bot.place);
             let rest = if def.speed == Speed::MotorRun { Phase::Rest { until: now + REST_BEFORE_SPRINT_MS } } else { Phase::Go { since: now } };
-            runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None, team: bot.team });
+            runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None, team: bot.team, shift: [0.0, 0.0] });
         }
         let Some(active) = runner.active.as_mut() else {
             keep_clear(&zones, world, bot, me.feet);
@@ -1094,7 +1214,8 @@ impl JumpTest {
                     // Clear of enemy tries: the next encounter waits its own while.
                     self.yielding.remove(&bot.place);
                 }
-                if me.feet.distance_xz(start) <= ARRIVED_M && me.velocity[0].hypot(me.velocity[1]) < 0.6 {
+                let aim = Vec3::new(start.x + active.shift[0], start.y, start.z + active.shift[1]);
+                if me.feet.distance_xz(aim) <= ARRIVED_M && me.velocity[0].hypot(me.velocity[1]) < 0.6 {
                     active.phase = if active.def.speed.is_motor() {
                         let plan = Plan {
                             rest: me.feet,
@@ -1166,7 +1287,7 @@ impl JumpTest {
                     }
                 } else {
                     bot.intent = Intent {
-                        go: Go::To { at: start, within_m: 0.0 },
+                        go: Go::To { at: aim, within_m: 0.0 },
                         pace: if active.def.speed == Speed::MotorRun { Pace::Walk } else { Pace::Run },
                         fire: false,
                         ..Intent::stay()
@@ -1242,7 +1363,8 @@ impl JumpTest {
                         None => {
                             if active.redone < 3 {
                                 active.redone += 1;
-                                log::info!("jump test: {} from {:?}: the rest position does not fit; redone", active.def.id, row.feet);
+                                active.shift = shift_of(me.feet, row.feet);
+                                log::info!("jump test: {} from {:?}: the rest position does not fit; redone, aiming {:?} off", active.def.id, row.feet, active.shift);
                                 active.phase = Phase::Go { since: now };
                             } else {
                                 let line = serde_json::json!({
@@ -1391,6 +1513,7 @@ impl JumpTest {
                 .collect();
             Self::line(&mut self.bodies_log, &serde_json::json!({ "t": time, "b": alive }));
         }
+        self.fresh = rows.clone();
         let wanted: HashSet<Place> = self.runners.keys().copied().collect();
         for row in rows.into_iter().filter(|r| wanted.contains(&r.place)) {
             Self::line(&mut self.worlds_log, &row_json(&row, clock));
@@ -1403,6 +1526,11 @@ impl JumpTest {
         burst
     }
 
+    /// The rows of the last asked world, once ([`Self::fresh`]).
+    pub fn take_fresh(&mut self) -> Vec<Row> {
+        std::mem::take(&mut self.fresh)
+    }
+
     /// The log line of a finished try, from the rows of its place.
     fn summary(&self, place: Place, def: &TryDef, n: u32, plan: &Plan, began: u32, redone: u8) -> serde_json::Value {
         let rows: Vec<&Row> = self
@@ -1412,6 +1540,27 @@ impl JumpTest {
             .unwrap_or_default();
         summarize(def, n, place, plan, began, redone, &rows, &self.uploads)
     }
+}
+
+/// How far to aim the reckoning off the start after a rest that did not fit: the reckoning's lead over the body
+/// (`reckoned` against the `rest` row), if within [`SHIFT_MAX_M`]; else none (the reckoning was lost).
+fn shift_of(reckoned: Vec3, rest: Vec3) -> [f32; 2] {
+    let off = [reckoned.x - rest.x, reckoned.z - rest.z];
+    if off[0].hypot(off[1]) <= SHIFT_MAX_M { off } else { [0.0, 0.0] }
+}
+
+/// Which team works each ledge: `sites` (key, start) sorted by how much nearer team 0's spawns are than team 1's; the
+/// nearer half is team 0's, the rest team 1's. None (everyone takes any) with fewer than two ledges or a team with no
+/// spawn.
+fn split_sites(spawns: &[(Vec3, u8)], sites: Vec<((i32, i32), Vec3)>) -> HashMap<(i32, i32), u8> {
+    let nearest = |team: u8, at: Vec3| spawns.iter().filter(|s| s.1 == team).map(|s| s.0.distance_xz(at)).fold(f32::MAX, f32::min);
+    if sites.len() < 2 || nearest(0, Vec3::ZERO) == f32::MAX || nearest(1, Vec3::ZERO) == f32::MAX {
+        return HashMap::new();
+    }
+    let mut by_lean: Vec<((i32, i32), f32)> = sites.into_iter().map(|(key, at)| (key, nearest(0, at) - nearest(1, at))).collect();
+    by_lean.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
+    let own = by_lean.len() / 2;
+    by_lean.into_iter().enumerate().map(|(i, (key, _))| (key, u8::from(i >= own))).collect()
 }
 
 /// Gives a ledge up: its tries leave the pool and no later one is taken.
@@ -1671,6 +1820,7 @@ pub fn rows_of(body: &[u8], time: u32) -> Vec<Row> {
                 time,
                 place: usize::from(block.place),
                 alive: false,
+                inserted: motion.inserted_time_ms,
                 feet: Vec3::ZERO,
                 jumping: false,
                 jump_type: 0,
@@ -1690,6 +1840,7 @@ pub fn rows_of(body: &[u8], time: u32) -> Vec<Row> {
             time,
             place: usize::from(block.place),
             alive: motion.alive,
+            inserted: motion.inserted_time_ms,
             feet: Vec3::new(feet[0], feet[1], feet[2]),
             jumping: b.jumping,
             jump_type: motion.damage.as_ref().map_or(0, |d| d.jump_type),
@@ -1750,6 +1901,7 @@ pub fn summarize(
     let press = plan.press;
     let mut v = serde_json::json!({
         "id": def.id, "n": n, "bot": place, "site": def.site.name, "lane": def.lane,
+        "top_depth": def.site.depth, "kind": format!("{:?}", def.site.kind(def.edge, def.speed)).to_lowercase(),
         "plan": {
             "edge": def.edge, "angle": def.angle, "face": format!("{:?}", def.face).to_lowercase(),
             "runup": def.runup, "speed": format!("{:?}", def.speed).to_lowercase(), "mid": format!("{:?}", def.mid),
@@ -2063,7 +2215,7 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
         let first = jt.take_from_pool(3, 0).expect("a try");
         assert_eq!(first.lane, 0.0);
         assert_eq!(jt.pool[0].repeat, 2);
-        jt.runners.entry(3).or_default().active = Some(Active { def: first.clone(), n: 1, phase: Phase::Rest { until: 0 }, redone: 0, began: 0, presses: Vec::new(), reached: None, team: 0 });
+        jt.runners.entry(3).or_default().active = Some(Active { def: first.clone(), n: 1, phase: Phase::Rest { until: 0 }, redone: 0, began: 0, presses: Vec::new(), reached: None, team: 0, shift: [0.0, 0.0] });
         let second = jt.take_from_pool(4, 0).expect("a try");
         // An enemy bot finds the ledge locked.
         assert!(jt.take_from_pool(7, 1).is_none());
@@ -2079,6 +2231,87 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
         jt.no_route.insert((6, site_key(&second)));
         assert!(jt.take_from_pool(6, 0).is_none());
         assert!(jt.take_from_pool(5, 0).is_some());
+    }
+
+    #[test]
+    fn after_a_misfit_the_reckoning_is_aimed_off_the_start_by_its_lead_over_the_body() {
+        let start = Vec3::new(10.0, 2.0, 20.0);
+        // The reckoning stood at the aim, the body 0.4 m short (x): aim 0.4 m further (the reckoning's lead).
+        let (reckoned, body) = (Vec3::new(10.0, 2.0, 20.0), Vec3::new(9.6, 2.0, 20.1));
+        let shift = shift_of(reckoned, body);
+        assert!((shift[0] - 0.4).abs() < 1e-4 && (shift[1] + 0.1).abs() < 1e-4, "{shift:?}");
+        // Aimed there, a reckoning that stops on the aim puts the body (same lead) on the start.
+        let aim = (start.x + shift[0], start.z + shift[1]);
+        assert!(((aim.0 - shift[0]) - start.x).abs() < 1e-4);
+        // A reckoning 15 m off the body was lost: no shift (the next ordinary world puts it right).
+        assert_eq!(shift_of(Vec3::new(10.0, 2.0, 20.0), Vec3::new(-5.0, 2.0, 20.0)), [0.0, 0.0]);
+    }
+
+    #[test]
+    fn the_bodies_of_an_asked_world_go_once_to_the_reckoning() {
+        let mut jt = JumpTest::new(PathBuf::from("none"), std::env::temp_dir(), "t".into(), 120);
+        let rows = vec![row(1_000, 2.0, 5.0, false, 0), Row { place: 4, ..row(1_000, 2.0, 7.0, false, 0) }];
+        jt.take_rows(rows.clone(), 1_000, 1_050, 100);
+        assert_eq!(jt.take_fresh().len(), 2, "every body of the world, whoever works a try");
+        assert!(jt.take_fresh().is_empty(), "once");
+    }
+
+    #[test]
+    fn a_landing_try_releases_everything_in_the_air_and_holds_its_keys_from_the_landing() {
+        assert_eq!(parse_mid("land_back_1100"), Ok(Mid::Land { keys: Landing::Back, after_ms: 1_100 }));
+        assert_eq!(parse_mid("land_none_900"), Ok(Mid::Land { keys: Landing::Nothing, after_ms: 900 }));
+        assert!(parse_mid("land_back").is_err() && parse_mid("land_up_900").is_err() && parse_mid("land_back_100").is_err());
+        let d = def(1.0, 0.0, Face::Along, 5.5, Speed::Sprint, Mid::Land { keys: Landing::Back, after_ms: 1_100 });
+        let plan = plan_from(&d, site_start(), 0.0, 1_000, &RunTable::default()).expect("fits");
+        let press = plan.press.expect("a press");
+        assert_eq!(plan.end, press + 1_100 + LAND_KEYS_MS);
+        let before = plan.at(press + MID_AT_MS - TICK_MS);
+        assert!(before.keys & key::FORWARD != 0, "the run goes on to the take-off");
+        assert_eq!(plan.at(press + MID_AT_MS + TICK_MS).keys, 0, "all released in the air");
+        assert_eq!(plan.at(press + 1_100 - TICK_MS).keys, 0);
+        assert_eq!(plan.at(press + 1_100).keys, key::BACK);
+        assert_eq!(plan.at(plan.end).keys, 0, "and nothing after the keys");
+    }
+
+    #[test]
+    fn the_ledges_nearer_a_teams_spawns_are_that_teams_and_a_bot_takes_only_its_own() {
+        let spawns = [(Vec3::new(0.0, 0.0, 0.0), 0), (Vec3::new(100.0, 0.0, 0.0), 1)];
+        let site = |x: f32| ((x as i32 * 10, 0), Vec3::new(x, 0.0, 5.0));
+        let sides = split_sites(&spawns, vec![site(10.0), site(90.0), site(40.0), site(70.0)]);
+        assert_eq!(sides[&site(10.0).0], 0);
+        assert_eq!(sides[&site(40.0).0], 0);
+        assert_eq!(sides[&site(70.0).0], 1);
+        assert_eq!(sides[&site(90.0).0], 1);
+        // One ledge, or one team's spawns only: no split.
+        assert!(split_sites(&spawns, vec![site(10.0)]).is_empty());
+        assert!(split_sites(&spawns[..1], vec![site(10.0), site(90.0)]).is_empty());
+        // The pool: team 0 gets the ledge on its side, team 1 the other, whatever the file's order.
+        let mut jt = JumpTest::new(PathBuf::from("none"), PathBuf::from("none"), "t".into(), 120);
+        let a = TryDef { id: "a".into(), ..wide_def(0.0, 5.5) };
+        let mut b = TryDef { id: "b".into(), ..wide_def(0.0, 5.5) };
+        b.site.lower = Vec3::new(b.site.lower.x + 80.0, b.site.lower.y, b.site.lower.z);
+        jt.pool.extend([a.clone(), b.clone()]);
+        jt.sides = HashMap::from([(site_key(&a), 0), (site_key(&b), 1)]);
+        assert_eq!(jt.take_from_pool(1, 1).expect("a try").id, "b");
+        assert_eq!(jt.take_from_pool(2, 0).expect("a try").id, "a");
+    }
+
+    #[test]
+    fn a_site_with_a_depth_is_a_climb_when_the_jump_lands_on_the_top_and_over_when_it_clears_it() {
+        let sites = parse_sites("c060_3 -38.38 1.96 30.12 0 -1 0.650 0.25 0.60 1.50  # a 1.5 m top
+c060_x -1 2 3 0 1 0.6 0.25 0.6
+s100_3 14.2 16.32 138.72 1 0 1.009 0.25 0.50 7.01
+");
+        assert_eq!(sites["c060_3"].depth, Some(1.5));
+        assert_eq!(sites["c060_x"].depth, None, "the column is optional");
+        // A 1.5 m top: the walking jump (2.67 m) from 0.3 m before the face lands past it; no walking edge is a climb.
+        assert_eq!(sites["c060_3"].kind(0.3, Speed::Walk), Kind::Over);
+        assert_eq!(sites["c060_3"].kind(1.3, Speed::Walk), Kind::Over);
+        // A 7 m top takes the walking jump from 1.3 m (1.3 + 2.67) and the sprint jump from 2.5 m (2.5 + 4.4).
+        assert_eq!(sites["s100_3"].kind(1.3, Speed::Walk), Kind::Climb);
+        assert_eq!(sites["s100_3"].kind(2.5, Speed::Sprint), Kind::Climb);
+        assert_eq!(sites["s100_3"].kind(3.0, Speed::Sprint), Kind::Over);
+        assert_eq!(sites["c060_x"].kind(0.3, Speed::Walk), Kind::Unknown);
     }
 
     #[test]
@@ -2188,6 +2421,7 @@ m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
         Row {
             time,
             place: 3,
+            inserted: 0,
             alive: true,
             feet: Vec3::new(-78.9, y, z),
             jumping,
@@ -2253,7 +2487,7 @@ m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
         assert!(!jt.wants_world(1_000), "no try, no request");
         let d = def(0.8, 0.0, Face::Along, 3.5, Speed::Walk, Mid::Hold);
         let plan = plan_from(&d, Vec3::new(-78.9, 4.35, 51.15), heading_of(&d), 10_000, &RunTable::default()).unwrap();
-        jt.runners.entry(3).or_default().active = Some(Active { def: d, n: 1, phase: Phase::Run(plan), redone: 0, began: 0, presses: Vec::new(), reached: None, team: 0 });
+        jt.runners.entry(3).or_default().active = Some(Active { def: d, n: 1, phase: Phase::Run(plan), redone: 0, began: 0, presses: Vec::new(), reached: None, team: 0, shift: [0.0, 0.0] });
         assert!(jt.wants_world(9_500));
         // One at a time: not again until answered or forgotten.
         assert!(!jt.wants_world(9_700));

@@ -50,6 +50,10 @@ pub(crate) struct DryReport {
     pub dirs_read: u32,
     pub per_site: BTreeMap<String, u32>,
     pub requests: u32,
+    /// Ordinary worlds the reckoning did not get because the test was asking ([`dry_run`]'s starvation), and the ticks a
+    /// body was held while its bot walked to a start.
+    pub starved_worlds: u32,
+    pub held_ticks: u32,
     /// The seed the stand-in's spawns were drawn with, and the bodies it could not put on the grid.
     pub seed: u32,
     pub off_grid: u32,
@@ -58,7 +62,7 @@ pub(crate) struct DryReport {
 }
 
 /// The rows the client's world would hold, from the stand-in's bodies at `tick`.
-fn rows_of_game(game: &Game, tick: u32, before: &[Vec3]) -> Vec<Row> {
+fn rows_of_game(game: &Game, tick: u32, before: &[Vec3], inserted: &[u32]) -> Vec<Row> {
     game.bodies
         .iter()
         .enumerate()
@@ -69,6 +73,7 @@ fn rows_of_game(game: &Game, tick: u32, before: &[Vec3]) -> Vec<Row> {
                 time: tick,
                 place,
                 alive: body.alive,
+                inserted: inserted.get(place).copied().unwrap_or(0),
                 feet: body.feet,
                 jumping,
                 jump_type: if jumping { 5 } else { 0 },
@@ -111,6 +116,18 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
         bots.entered(place, true, 0);
     }
     let limit_ms = limit_s * 1000;
+    // `SRP_DRY_LAG_MS`: how late an asked world arrives (the owner's client: 40 to 500 ms in the logs).
+    let lag_ms: u32 = std::env::var("SRP_DRY_LAG_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(40);
+    let starve = std::env::var("SRP_DRY_STARVE").map_or(true, |v| v != "0");
+    // `SRP_DRY_HOLD=<period s>,<length s>`: a body walking to a start is held (its keys do nothing) for the length every
+    // period, bots staggered, as the game holds a body another stands in (enemies collide): the reckoning walks on.
+    let hold: Option<(u32, u32)> = std::env::var("SRP_DRY_HOLD").ok().and_then(|v| {
+        let (a, b) = v.split_once(',')?;
+        Some((a.parse().ok()?, b.parse().ok()?))
+    });
+    // `SRP_DRY_FEED_BURST=0`: asked worlds are not passed to the reckoning (the first build of the mode).
+    let feed_burst = std::env::var("SRP_DRY_FEED_BURST").map_or(true, |v| v != "0");
+    let mut inserted: Vec<u32> = vec![0; teams.len()];
     let (mut clock, mut next_world) = (0, 1_000);
     let mut before: Vec<Vec3> = game.bodies.iter().map(|b| b.feet).collect();
     // Uploads on their way: (due, tick, rows).
@@ -122,8 +139,16 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
         }
         if clock >= next_world {
             next_world += 1_000;
-            if let Some((_, fixes, health, facts)) = game.world_at(clock / TICK_MS * TICK_MS - 300) {
+            // The game passes an ordinary world on to the reckoning, not one the test asked for: while the test asks, the
+            // bots get none (`SRP_DRY_STARVE=0` gives them all, as the first dry runs did).
+            let starved = starve && bots.jump_test.as_ref().is_some_and(|test| test.asked_within(clock, 1_000));
+            if starved {
+                report.starved_worlds += 1;
+            } else if let Some((_, fixes, health, facts)) = game.world_at(clock / TICK_MS * TICK_MS - 300) {
                 for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                    if let Some(slot) = inserted.get_mut(place) {
+                        *slot = fix.inserted;
+                    }
                     bots.fixed(place, fix, Some(health));
                 }
                 bots.facts(facts);
@@ -140,11 +165,18 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
             if made.input.actions & !allowed != 0 {
                 report.forbidden_keys += 1;
             }
+            let held = hold.is_some_and(|(period, length)| {
+                (clock / 1000 + made.place as u32 * 3) % period < length && bots.jump_test.as_ref().is_some_and(|t| t.phase_name(made.place) == "go")
+            });
+            if held {
+                report.held_ticks += 1;
+            }
             let queue = &mut game.inputs[made.place];
             assert!(queue.back().is_none_or(|last| last.0 < made.time));
             let r = made.input.rotation;
             let turn = (half_value(u16::from_le_bytes([r[0], r[1]])), half_value(u16::from_le_bytes([r[2], r[3]])));
-            queue.push_back((made.time, made.input.actions, turn, None, Arms::fallback().primary.0));
+            let actions = if held { 0 } else { made.input.actions };
+            queue.push_back((made.time, actions, if held { (0.0, 0.0) } else { turn }, None, Arms::fallback().primary.0));
             // The stand-in has no suicide: the bit kills the body (a death, a ticket).
             if made.input.actions & key::SUICIDE != 0 && game.bodies[made.place].alive {
                 let tick = game.tick;
@@ -173,15 +205,17 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
                 }
             }
         }
+        let mut fed = false;
         if let Some(test) = bots.jump_test.as_mut() {
             while flying.front().is_some_and(|f| f.0 <= clock) {
                 let (_, tick, rows) = flying.pop_front().expect("one is due");
                 test.take_rows(rows, tick, clock, 30_000);
+                fed = feed_burst;
             }
             if test.wants_world(clock) {
                 report.requests += 1;
                 let tick = clock / TICK_MS * TICK_MS;
-                flying.push_back((clock + 40, tick, rows_of_game(&game, tick, &before)));
+                flying.push_back((clock + lag_ms, tick, rows_of_game(&game, tick, &before, &inserted)));
                 before = game.bodies.iter().map(|b| b.feet).collect();
             }
             // Bodies of the other team near a bot in a try.
@@ -200,6 +234,9 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
                     }
                 }
             }
+        }
+        if fed {
+            bots.fix_from_burst();
         }
     }
     report.minutes = limit_s as f32 / 60.0;
