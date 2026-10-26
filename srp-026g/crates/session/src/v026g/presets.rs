@@ -377,5 +377,75 @@ pub fn offer(
     }
 }
 
+/// Demo (branch `demo/bot-gear-levels`): the bots' 15 gear levels as the
+/// account's five presets, three kits each: preset `n`'s kit `k` (1 on)
+/// is gear level `3 (n - 1) + k` (`loadouts::player_gear_kit_items`: the
+/// support's rifle of the level, its rounds in one ammo slot, the level's
+/// armour and pockets). The account is given what the kits name that it
+/// lacks: one of each piece (one it owns already serves) and each stack
+/// up to the most a kit takes of it. Preset 1 is put on and active; the
+/// kits worn before are no preset any more (their items stay owned).
+/// What it gives: pieces and stack units.
+pub fn demo_gear_presets(account: &mut Account, now: u64) -> Result<(u32, u32), PresetError> {
+    use survarium::v026g::loadouts::{GEAR_LEVELS, player_gear_kit_items};
+    use survarium::v026g::lobby::FULL_CONDITION;
+
+    let dictionary = Dictionary::shared();
+    let mut changed = account.clone();
+    let (mut pieces, mut units) = (0, 0);
+    let mut presets = [Preset {
+        kits: [[None; KIT_SLOTS]; KITS],
+    }; PRESETS];
+    for level in 1..=GEAR_LEVELS {
+        let index = usize::from(level - 1);
+        let (number, kit) = (index / KITS, index % KITS);
+        let Some(items) = player_gear_kit_items(level) else {
+            continue;
+        };
+        for wanted in items {
+            let Some(entry) = dictionary.item_named(wanted.name) else {
+                continue;
+            };
+            let dict_id = entry.dict_id;
+            let owned = changed
+                .inventory
+                .iter()
+                .find(|item| item.dict_id == dict_id)
+                .map(|item| (item.item_id, item.condition_or_stack));
+            let item_id = match owned {
+                Some((item_id, stack)) if entry.is_stack => {
+                    if stack < wanted.count {
+                        changed.item_mut(item_id).expect("owned").condition_or_stack = wanted.count;
+                        units += wanted.count - stack;
+                    }
+                    item_id
+                }
+                Some((item_id, _)) => item_id,
+                None if entry.is_stack => {
+                    units += wanted.count;
+                    changed.add_item(dict_id, wanted.count)
+                }
+                None => {
+                    pieces += 1;
+                    changed.add_item(dict_id, FULL_CONDITION)
+                }
+            };
+            presets[number].kits[kit][usize::from(wanted.slot)] = Some(PresetSlot {
+                item_id,
+                dict_id,
+                count: wanted.count,
+            });
+        }
+    }
+    put_on(&mut changed, &presets[0], now)?;
+    changed.active_preset = FIRST_PRESET;
+    changed.presets = [None; PRESETS];
+    for (number, preset) in presets.iter().enumerate().skip(1) {
+        changed.presets[number] = (preset.slots() > 0).then_some(*preset);
+    }
+    *account = changed;
+    Ok((pieces, units))
+}
+
 #[cfg(test)]
 mod tests;

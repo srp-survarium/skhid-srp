@@ -138,18 +138,21 @@ fn server_bot_name(n: usize) -> String {
 
 /// The match server's own bot of `role` on `team`, number `n` of its match
 /// (1 on): a place with no account, its player with the role's two kits
-/// (`loadouts::bot_kits`): the role's weapon in slot 7 with the most ammo
-/// players carry, the role's armour, a backpack and trousers that open
-/// three pockets (four for a support), and in them medkits, the radio and
-/// two RGD-5 grenades; the second the same with another weapon and its
-/// ammo (`BotRole::backup`), for when the first kit's ammo is spent. The match server reads the
-/// role back from the profile (`loadouts::bot_role_of`).
+/// of its gear level (`loadouts::bot_level`: bot `n` wears level
+/// `1 + (n - 1) mod 15`; `loadouts::bot_kits`): the role's weapon of the
+/// level in slot 7 with its ammo, the level's armour, and in the pockets
+/// it opens medkits, the radio and two RGD-5 grenades; the second the
+/// same with another weapon and its ammo (`BotRole::backup`), for when the
+/// first kit's ammo is spent. Its kits carry 10 kg more
+/// (`loadouts::bot_modifiers`). The match server reads the role back from
+/// the profile (`loadouts::bot_role_of`).
 pub fn server_bot(n: usize, team: u8, role: BotRole) -> MatchPlayer {
+    let level = survarium::v026g::loadouts::bot_level(n);
     let mut profile = MatchProfile::from_loadouts(
         &server_bot_name(n),
         team,
-        &survarium::v026g::loadouts::bot_kits(role),
-        [0.0; survarium::v026g::skills::MODIFIERS],
+        &survarium::v026g::loadouts::bot_kits(role, level),
+        survarium::v026g::loadouts::bot_modifiers(),
         survarium::v026g::dictionary::Dictionary::shared(),
         1,
     );
@@ -1282,6 +1285,8 @@ mod tests {
         };
 
         let dictionary = Dictionary::shared();
+        let bot_n =
+            |bot: &MatchPlayer| -> usize { bot.profile.name["Bot-".len()..].parse().unwrap() };
         let bots: Vec<MatchPlayer> = BotRole::ALL
             .iter()
             .enumerate()
@@ -1304,10 +1309,12 @@ mod tests {
             for (k, kit) in profile.kits.iter().enumerate() {
                 assert_eq!(kit.id, k as u32 + 1);
                 assert_eq!(kit.state, KIT_USABLE);
+                // Bot n wears gear level n here (1 to 4).
+                let level = loadouts::bot_level(bot_n(bot));
                 let items: Vec<_> = if k == 0 {
-                    bot_kit_items(role).collect()
+                    bot_kit_items(role, level)
                 } else {
-                    bot_second_kit_items(role).collect()
+                    bot_second_kit_items(role, level)
                 };
                 // Every piece of the kit in its slot, the count as given;
                 // nothing else.
@@ -1328,14 +1335,16 @@ mod tests {
                     assert_eq!(u32::from(count), wanted.count, "{}", wanted.name);
                 }
             }
-            // The medkits, the radio and the grenades in the open pockets.
-            let (pockets, _) = loadouts::pockets(loadouts::bot_kit(role));
-            for item in [
-                loadouts::BOT_MEDKIT,
-                loadouts::BOT_RADIO,
-                loadouts::BOT_GRENADE,
-            ] {
-                assert!(loadouts::POCKET_SLOTS[..pockets as usize].contains(&item.slot));
+            // The kits pass the kit rules, with the 10 kg more they carry.
+            let level = loadouts::bot_level(bot_n(bot));
+            for kit in loadouts::bot_kits(role, level) {
+                assert_eq!(
+                    loadouts::kit_problems(kit, loadouts::bot_carry_limit()),
+                    Vec::<String>::new()
+                );
+            }
+            for kit in &profile.kits {
+                assert_eq!(kit.modifiers, loadouts::bot_modifiers());
             }
         }
         // The client's reader takes the profiles as they are, and the role

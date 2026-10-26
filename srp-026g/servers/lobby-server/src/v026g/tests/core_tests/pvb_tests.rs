@@ -12,13 +12,14 @@ use survarium::v026g::match_msgs::late_join::FIRST_REVISION;
 use super::*;
 use crate::v026g::pvb::{self, Config, MAPS, PLAY_REFUSED};
 
-/// A lobby with the mode on, at most `max_matches` matches against bots.
+/// A lobby with the mode on, at most `max_matches` matches against bots,
+/// equipment level 5 at most (main's default; the demo branch's is 15).
 fn world_with(max_matches: usize) -> World {
     let mut settings = Settings::local("127.0.0.1:0");
     settings.pvb = Config {
         enabled: true,
         max_matches,
-        ..Config::default()
+        max_gear: 5,
     };
     World::with_settings(settings)
 }

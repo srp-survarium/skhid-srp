@@ -50,7 +50,7 @@
 //! | Setting | Default | What | Read by |
 //! |---|---|---|---|
 //! | `SRP_PVB` | off | the mode is offered (`on`) | the lobby, the match server |
-//! | `SRP_PVB_MAX_GEAR` | 5 | the highest equipment level let in, 0 to 15 | the lobby |
+//! | `SRP_PVB_MAX_GEAR` | 15 (demo branch; main 5) | the highest equipment level let in, 0 to 15 | the lobby |
 //! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once, 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
 //! | `SRP_PVB_PAY` | 0.5 | the share of a match's silver and experience it pays, 0 to 1 | the rewards (`session::v026g::pvb`) |
 //! | `SRP_PVB_STALL_S` | 60 | a match whose only player uploads no world it is asked for this long is over, 10 to 3600 | the match server |
@@ -91,8 +91,10 @@ pub const HOLD: Duration = Duration::from_secs(10);
 /// A Play this long after its hold ran out is still taken as one meant for
 /// bots: refused, never into a room.
 pub const EXPIRED_REFUSED: Duration = Duration::from_secs(30);
-/// `SRP_PVB_MAX_GEAR` when unset: "5 or lower" (the owner's).
-pub const DEFAULT_MAX_GEAR: u8 = 5;
+/// `SRP_PVB_MAX_GEAR` when unset: every level on the demo branch
+/// `demo/bot-gear-levels`, whose bots wear gear levels 1 to 15 (main: "5
+/// or lower", the owner's).
+pub const DEFAULT_MAX_GEAR: u8 = 15;
 /// The highest equipment level there is (`items_levels_modifiers`).
 const MOST_GEAR: u8 = 15;
 
@@ -481,7 +483,7 @@ mod tests {
     fn the_settings_read_as_documented() {
         let config = Config::default();
         assert!(!config.enabled);
-        assert_eq!((config.max_gear, config.max_matches), (5, 5));
+        assert_eq!((config.max_gear, config.max_matches), (15, 5));
         assert_eq!(parse_max_gear(" 4 "), Some(4));
         assert_eq!(parse_max_gear("16"), None);
         assert_eq!(parse_max_gear("x"), None);

@@ -240,9 +240,72 @@ pub const GUNS: [Gun; 5] = [
     },
 ];
 
-/// The facts of the weapon item `item`.
+/// The facts of the weapon item `item`: [`GUNS`], else those of the
+/// bots' other weapons (the gear levels' of the demo branch,
+/// [`derived_guns`]).
 pub fn gun(item: &str) -> Option<&'static Gun> {
-    GUNS.iter().find(|gun| gun.item == item)
+    GUNS.iter()
+        .chain(derived_guns())
+        .find(|gun| gun.item == item)
+}
+
+/// The weapons of the bots' gear levels that [`GUNS`] has not
+/// (`survarium::v026g::loadouts::GEAR_KITS`), from their configs
+/// (`loadouts::weapon_facts`) as the module says, with what the clips
+/// would say taken from the weapons above [GUESS, the clips are not in
+/// the server's data]: a bolt or a pump is worked as the Mosin's (65 f), a
+/// round-by-round reload starts and ends as the Mosin's (50 f, 41 f), two
+/// barrels as the TOZ-34's (110 f to 80 f), and a reload from empty of a
+/// pistol-like reload (314) is a quarter longer.
+pub fn derived_guns() -> &'static [Gun] {
+    static DERIVED: std::sync::OnceLock<Vec<Gun>> = std::sync::OnceLock::new();
+    DERIVED.get_or_init(|| {
+        use survarium::v026g::dictionary::Dictionary;
+        use survarium::v026g::loadouts::{GEAR_KITS, weapon_facts};
+        let dictionary = Dictionary::shared();
+        let mut guns: Vec<Gun> = Vec::new();
+        for (name, _) in GEAR_KITS.iter().flat_map(|kit| kit.weapons) {
+            if GUNS.iter().chain(&guns).any(|gun| gun.item == name) {
+                continue;
+            }
+            let Some(facts) = dictionary
+                .item_named(name)
+                .and_then(|item| weapon_facts(item.dict_id))
+            else {
+                continue;
+            };
+            let ms = |s: f32| (s * 1000.0).round() as u32;
+            let reload_ms = ms(facts.reload_s);
+            let magazine = facts.magazine.max(1);
+            let reload = match facts.reload_state {
+                306 => Reload::Rounds {
+                    start_ms: frames_ms(50),
+                    round_ms: reload_ms / magazine,
+                    finish_ms: frames_ms(41),
+                },
+                311 => Reload::Barrels {
+                    one_ms: reload_ms,
+                    two_ms: scaled(110, 80, reload_ms),
+                },
+                314 => Reload::Pistol {
+                    ms: reload_ms,
+                    empty_ms: reload_ms * 5 / 4,
+                },
+                _ => Reload::Magazine { ms: reload_ms },
+            };
+            guns.push(Gun {
+                item: name,
+                magazine,
+                rpm: (facts.rounds_per_minute.round() as u32).max(1),
+                auto: facts.first_queue == -1,
+                chamber_ms: if facts.chamber { frames_ms(65) } else { 0 },
+                reload,
+                show_ms: ms(facts.show_s),
+                hide_ms: ms(facts.hide_s),
+            });
+        }
+        guns
+    })
 }
 
 /// A weapon in a life: its rounds in it and the rest of its ammo.
@@ -301,26 +364,28 @@ pub struct Arms {
 }
 
 impl Arms {
-    /// A role's (`BotRole::name`, the personality of that name): weapon 1
-    /// and every round of its ammo slots (`BOT_AMMO_SLOTS`): a life's
-    /// ammo, not a clip each. No pistol: the bots carry none.
+    /// A role's (`BotRole::name`, the personality of that name), as main's
+    /// fixed kits had it: weapon 1 and every round of its three ammo
+    /// slots, a life's ammo (the Uzi and the AK-74U 600, the TOZ-34 180,
+    /// the Mosin 120). No pistol: the bots carry none. What a bot starts
+    /// with; a bot of the lobby wears its gear level's kits instead
+    /// ([`Arms::of_kit`], `Bots::wear`).
     pub fn of_role(role: &str) -> Option<&'static Arms> {
         static ALL: std::sync::OnceLock<Vec<(&'static str, Arms)>> = std::sync::OnceLock::new();
+        const ROLES: [(&str, &str, u32); 4] = [
+            ("flanker", "uzi", 600),
+            ("support", "ak_74u", 600),
+            ("rusher", "toz_34", 180),
+            ("camper", "mosin_nagant", 120),
+        ];
         ALL.get_or_init(|| {
-            BotRole::ALL
-                .into_iter()
-                .filter_map(|role| {
-                    let gear = role.gear();
-                    let rounds = gear
-                        .iter()
-                        .filter(|item| BOT_AMMO_SLOTS.contains(&item.slot))
-                        .map(|item| item.count)
-                        .sum();
-                    let primary = (gun(gear[0].name)?, rounds);
+            ROLES
+                .iter()
+                .filter_map(|&(role, item, rounds)| {
                     Some((
-                        role.name(),
+                        role,
                         Arms {
-                            primary,
+                            primary: (gun(item)?, rounds),
                             pistol: None,
                         },
                     ))
@@ -332,11 +397,56 @@ impl Arms {
         .map(|(_, arms)| arms)
     }
 
+    /// The arms of a bot's kit with weapon 1 `item` and `rounds` in its
+    /// ammo slots: one of every role's two kits at every gear level
+    /// (`loadouts::bot_kits`). None for any other.
+    pub fn of_kit(item: &str, rounds: u32) -> Option<&'static Arms> {
+        static ALL: std::sync::OnceLock<Vec<Arms>> = std::sync::OnceLock::new();
+        ALL.get_or_init(|| {
+            let mut all: Vec<Arms> = Vec::new();
+            for role in BotRole::ALL {
+                for level in 1..=survarium::v026g::loadouts::GEAR_LEVELS {
+                    for kit in survarium::v026g::loadouts::bot_kits(role, level) {
+                        let Some((name, rounds)) = weapon_and_rounds(kit) else {
+                            continue;
+                        };
+                        let Some(gun) = gun(name) else {
+                            continue;
+                        };
+                        let arms = Arms {
+                            primary: (gun, rounds),
+                            pistol: None,
+                        };
+                        if !all.contains(&arms) {
+                            all.push(arms);
+                        }
+                    }
+                }
+            }
+            all
+        })
+        .iter()
+        .find(|arms| arms.primary.0.item == item && arms.primary.1 == rounds)
+    }
+
     /// For a bot whose personality is no role (a tuning's own): the
     /// support's, the middle of the four.
     pub fn fallback() -> &'static Arms {
         Self::of_role(BotRole::Support.name()).expect("the support's weapon is in GUNS")
     }
+}
+
+/// A bot kit's weapon 1 (its dictionary name) and the rounds of its ammo
+/// slots.
+fn weapon_and_rounds(kit: &survarium::v026g::loadouts::Loadout) -> Option<(&'static str, u32)> {
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+    let weapon = kit.slot(7)?;
+    let rounds = BOT_AMMO_SLOTS
+        .iter()
+        .filter_map(|&slot| kit.slot(slot))
+        .map(|item| item.count)
+        .sum();
+    Some((dictionary.item(weapon.dict_id)?.name.as_str(), rounds))
 }
 
 /// A life's weapons and which is in hand.
@@ -397,11 +507,28 @@ mod tests {
         }
         for role in BotRole::ALL {
             let arms = Arms::of_role(role.name()).unwrap();
-            assert_eq!(arms.primary.0.item, role.gear()[0].name);
             assert!(arms.pistol.is_none(), "the bots carry no weapon 2");
         }
         assert!(Arms::of_role("steady").is_none());
         assert_eq!(Arms::fallback().primary.0.item, "ak_74u");
+        // Every kit of every gear level has its arms, its magazine the
+        // game's (the derived ones from the weapon's config).
+        use survarium::v026g::loadouts::{GEAR_LEVELS, bot_kits};
+        for role in BotRole::ALL {
+            for level in 1..=GEAR_LEVELS {
+                for kit in bot_kits(role, level) {
+                    let (name, rounds) = weapon_and_rounds(kit).unwrap();
+                    let arms = Arms::of_kit(name, rounds).unwrap_or_else(|| panic!("{name}"));
+                    let params = item_params(kit.slot(7).unwrap().dict_id).unwrap();
+                    assert_eq!(arms.primary.0.magazine, params.magazine_capacity, "{name}");
+                    assert!(rounds >= arms.primary.0.magazine, "{name}");
+                }
+            }
+        }
+        // A derived weapon of a known kind: the PPSh's magazine reload.
+        let ppsh = gun("ppsh").unwrap();
+        assert_eq!((ppsh.magazine, ppsh.rpm, ppsh.auto), (35, 1000, true));
+        assert_eq!(ppsh.reload, Reload::Magazine { ms: 3_700 });
     }
 
     #[test]

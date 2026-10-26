@@ -1018,7 +1018,7 @@ impl Web {
         let g26 = self.game.is_some();
         let tab = match request.field("tab") {
             tab @ ("money" | "ban" | "unban" | "bans" | "maint" | "signups" | "password") => tab,
-            tab @ ("account" | "item" | "items" | "text") if g26 => tab,
+            tab @ ("account" | "item" | "items" | "text" | "levels") if g26 => tab,
             _ => "money",
         };
         let refused = |message: String| {
@@ -1063,6 +1063,7 @@ impl Web {
             "signups" => self.admin_signups(request, peer),
             "account" => self.admin_account_026g(request, peer),
             "item" => self.admin_item_026g(request, peer),
+            "levels" => self.admin_gear_levels_026g(request, peer),
             "text" => self.admin_text_026g(request, peer),
             _ if g26 => {
                 let (message, view) = self.admin_moderate_money(request, peer);
