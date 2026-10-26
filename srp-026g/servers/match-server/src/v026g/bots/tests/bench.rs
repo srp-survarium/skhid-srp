@@ -233,6 +233,11 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
     if let Ok(v) = bench_settings().var("SRP_BENCH_THREAT_SPRINT") {
         tuning.threat.sprint = v != "0";
     }
+    // A way out of a zone stays under its start's strength
+    // (`Tuning::escape_ceiling`): `0` off.
+    if let Ok(v) = bench_settings().var("SRP_BENCH_ESCAPE_CEILING") {
+        tuning.escape_ceiling = v != "0";
+    }
     if let Ok(floors) = bench_settings().var("SRP_BENCH_SEARCH_FLOORS") {
         tuning.think.search_floors_per_poll = if floors == "max" {
             u32::MAX
