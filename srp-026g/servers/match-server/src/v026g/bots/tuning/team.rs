@@ -64,6 +64,19 @@ pub struct ThreatTuning {
     pub search_floors: u32,
 }
 
+/// How a bot commits to a play it has started (the commander's keep rule,
+/// `team.rs`). Every switch is off until a bench turns it on.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+#[derive(Default)]
+pub struct CommitTuning {
+    /// A hold (Crossfire, HoldExit, Cut) still walking to its spot is kept
+    /// against any play of its own band, whatever the score; a higher band
+    /// (an objective, an alarm) still takes the bot, and so does the play's
+    /// own end.
+    pub hold_to_arrival: bool,
+}
+
 impl Default for ThreatTuning {
     fn default() -> Self {
         Self { spots: true, sprint: true, detour: true, search_floors: 3_000 }
