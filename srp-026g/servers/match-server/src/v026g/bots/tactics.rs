@@ -167,8 +167,8 @@ pub struct Tactics {
     /// (`escape.rs`), for the match.
     pub escapes: super::escape::Board,
     /// Whether a way out stays under its start's zone strength
-    /// (`Tuning::escape_ceiling`, [`Self::escape`]).
-    pub escape_ceiling: bool,
+    /// (`Tuning::hazard.escape`, [`Self::escape`]).
+    pub escape: super::tuning::EscapeRule,
     /// The bushes a sight line crosses (`foliage.rs`); none without the file.
     pub foliage: Arc<super::foliage::Foliage>,
 }
@@ -626,7 +626,7 @@ impl Tactics {
             spot_lists: Default::default(),
             exit_field: Default::default(),
             escapes: Default::default(),
-            escape_ceiling: true,
+            escape: super::tuning::EscapeRule::UnderStartZone,
             foliage: Default::default(),
             base,
         }
@@ -1014,6 +1014,7 @@ impl Tactics {
                 self.region_allowed_from(region, time, side, objective, at)
                     && filter.region_open(region)
             },
+            filter.max_jump_rise(),
             iters,
         )
     }
@@ -1092,6 +1093,7 @@ impl Tactics {
             goal,
             |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
+            None,
             iters,
         )
     }
@@ -1183,7 +1185,7 @@ impl Tactics {
     /// fire.
     ///
     /// The search never goes down into a zone stronger than the body's own
-    /// (`Tactics::escape_ceiling`): the floors open to it are those no zone
+    /// (`Tactics::escape`): the floors open to it are those no zone
     /// marks, those of the start's own zones, those it may walk on, and
     /// those whose hit a second is not above the start's. From a mild zone
     /// the nearest way out may be over a strong one beside it (the 0.90
@@ -1266,7 +1268,10 @@ impl Tactics {
             }
             outs
         };
-        let mut ceiling = if self.escape_ceiling { start_hit } else { f32::INFINITY };
+        let mut ceiling = match self.escape {
+            super::tuning::EscapeRule::UnderStartZone => start_hit,
+            super::tuning::EscapeRule::Nearest => f32::INFINITY,
+        };
         let mut outs = search(&open_under(ceiling));
         if outs.is_empty() && ceiling.is_finite() {
             ceiling = f32::INFINITY;
@@ -2359,7 +2364,7 @@ pub(super) mod tests {
         assert!(hits.iter().all(|&h| h <= 0.05 + 1e-4), "{hits:?}");
     }
 
-    /// With the ceiling off (`escape_ceiling` false) the way out is the old one:
+    /// With the ceiling off (`EscapeRule::Nearest`) the way out is the old one:
     /// the nearest, east through the strong zone.
     #[test]
     fn with_the_ceiling_off_the_way_out_is_the_nearest() {
@@ -2368,7 +2373,7 @@ pub(super) mod tests {
             map.zones.push(box_zone("strong", Vec3::new(22.0, 0.0, 10.0), Vec3::new(2.0, 3.0, 10.0), 0.8));
         });
         let mut tactics = Tactics::new(world.clone(), 1.0);
-        tactics.escape_ceiling = false;
+        tactics.escape = crate::v026g::bots::tuning::EscapeRule::Nearest;
         let inside = world.grid.locate(Vec3::new(17.0, 0.0, 10.0), 1.0).unwrap();
         let out = tactics
             .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
@@ -2463,6 +2468,27 @@ pub(super) mod tests {
                 .route_nodes(end_node, to, 0, Some(0), false, &RouteFilter::open())
                 .is_some()
         );
+    }
+
+    /// A route for a body that cannot sprint (a battery carrier) takes no jump
+    /// link above the standing jump (`RouteFilter::with_max_jump_rise`): a
+    /// 1.0 m platform is a jump away for the walker and no way for the
+    /// carrier, a 0.9 m one is a way for both.
+    #[test]
+    fn a_carriers_route_takes_no_jump_above_the_standing_jump() {
+        let route = |rise: f32, filter: &RouteFilter| {
+            let solids = floor(10.0, 5.0, 14.0, 9.0, rise).to_vec();
+            let world = field_with_solids(&solids, |_| {});
+            let tactics = Tactics::new(world.clone(), 1.0);
+            let grid = &world.grid;
+            let from = grid.locate(Vec3::new(7.0, 0.0, 7.0), 0.5).unwrap();
+            let to = grid.locate(Vec3::new(12.0, rise, 7.0), 0.3).unwrap();
+            tactics.route_nodes(from, to, 0, Some(0), false, filter)
+        };
+        let carrier = RouteFilter::open().with_max_jump_rise(mapdata::grid::STANDING_JUMP_M);
+        assert!(route(1.0, &RouteFilter::open()).is_some(), "the walker jumps onto 1.0 m");
+        assert!(route(1.0, &carrier).is_none(), "the carrier has no way onto 1.0 m");
+        assert!(route(0.9, &carrier).is_some(), "the carrier jumps onto 0.9 m");
     }
 
     /// A world with a platform 4 m up over x 20..32, z 28..38, a ramp to it

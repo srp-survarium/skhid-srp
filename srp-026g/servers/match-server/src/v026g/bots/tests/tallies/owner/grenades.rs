@@ -88,6 +88,9 @@ pub(super) struct GrenadeCounts {
     pub(super) live: Vec<LiveGrenade>,
     pub(super) listed: Option<ThrowCounts>,
     pub(super) live_blasts: LiveBlasts,
+    /// Bodies inside the radius at the launch, by [thrower, his teammates, enemies] (bench runs only): the
+    /// base of "left the radius by the blast" (`blast_in` less `walked_in` stayed in).
+    pub(super) in_launch: [u32; 3],
     /// By bot: what its avoidance of live grenades has counted this match (the last reading).
     pub(super) avoid: BTreeMap<Place, AvoidStats>,
 }
@@ -178,6 +181,43 @@ pub(crate) fn a_grenade_at_ones_feet_hurts_the_thrower_and_mates_and_one_walked_
     assert_eq!(json["grenade_enemy_dmg"], 0.0);
     assert_eq!(json["grenade_in_radius"], serde_json::json!([1, 2, 0]));
     assert_eq!(json["grenade_walk_ins"], serde_json::json!([0, 1, 0]));
+}
+
+/// The bodies inside the radius at the launch are counted by group (thrower, his teammates, enemies) for the share
+/// that left by the blast: here the thrower, one mate and one enemy are near, a second mate is far and walks in (not
+/// inside at the launch, inside at the blast). The key is only where a bench tick read the list.
+#[test]
+pub(crate) fn the_bodies_inside_the_radius_at_the_launch_are_counted_by_group() {
+    let run = |bench: bool| {
+        let (mut game, mut tally) = made_up(&[0, 0, 1, 0]);
+        if bench {
+            tally.topic::<GrenadeCounts>().listed = Some(ThrowCounts::default());
+        }
+        play(&mut game, &mut tally, 100, |_, game| {
+            put(game, 0, 10.0, 10.0, 0);
+            put(game, 1, 12.0, 10.0, 0);
+            put(game, 2, 14.0, 10.0, 0);
+            put(game, 3, 30.0, 14.0, 0);
+            game.bodies[0].pitch = -arc::PITCH_LIMIT;
+            vec![bot_now(); 4]
+        });
+        let note = Note {
+            place: 0,
+            time: game.tick,
+            text: "throws a grenade at (11, 0, 10), blast at 4000".to_owned(),
+        };
+        tally.note(&note, &game);
+        game.bodies[3].feet = Vec3::new(13.0, 0.0, 10.0);
+        game.tick += TICK_MS;
+        tally.step_with(&mut game, &[bot_now(), bot_now(), bot_now(), bot_now()]);
+        tally.finish(&game).1
+    };
+    let json = run(true);
+    assert_eq!(json["grenade_live"]["inside_at_launch"], serde_json::json!([1, 1, 1]), "{json}");
+    // At the blast the walked-in mate is inside too: the share that left is read against the launch's.
+    assert_eq!(json["grenade_in_radius"], serde_json::json!([1, 2, 1]), "{json}");
+    assert_eq!(json["grenade_walk_ins"], serde_json::json!([0, 1, 0]), "{json}");
+    assert!(run(false).get("grenade_live").is_none());
 }
 
 /// The bots' grenade logic counts are added up by the change since a bot's last reading, and a reflex
@@ -401,7 +441,7 @@ impl Topic for GrenadeCounts {
     fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
         self.read_stats(place, bot.map(|bot| bot.reflex.grenade_stats()));
         if let Some(bot) = bot {
-            self.avoid.insert(place, bot.avoid.stats);
+            self.avoid.insert(place, bot.features.avoid.stats);
         }
     }
 
@@ -612,6 +652,18 @@ impl GrenadeCounts {
             let Some(team) = game.bodies.get(blast.thrower).map(|b| b.team) else {
                 continue;
             };
+            for (place, &inside) in blast.inside.iter().enumerate() {
+                if let (true, Some(body)) = (inside, game.bodies.get(place)) {
+                    let who = if place == blast.thrower {
+                        0
+                    } else if body.team == team {
+                        1
+                    } else {
+                        2
+                    };
+                    self.in_launch[who] += 1;
+                }
+            }
             if game.damage.blasts_hurt() {
                 // The client's blast on the bodies ([`standin_grenade`]).
                 for hurt in standin_grenade::explode(game, blast.thrower, blast.at, tick) {
@@ -714,6 +766,7 @@ impl GrenadeCounts {
                 "blasts_pending": live.pending,
                 "blasts_unlisted": live.missing,
                 "rest_error_m": live.err,
+                "inside_at_launch": self.in_launch,
             });
             let mut avoid = AvoidStats::default();
             for stats in self.avoid.values() {
@@ -760,7 +813,7 @@ impl GrenadeCounts {
         if let Some(listed) = self.listed {
             let live = &self.live_blasts;
             text.push_str(&format!(
-                "; live grenade list: frags {} (smokes left out {}, human throw keys with no pockets {}), launched with a landing {}, unplaced {}, thrower dead at the launch {}; at the blasts: listed with a landing {}, still in the hand {}, not listed {}, rest point off the tally's by [<=1, <=2, <=4, more] m {:?}",
+                "; live grenade list: frags {} (smokes left out {}, human throw keys with no pockets {}), launched with a landing {}, unplaced {}, thrower dead at the launch {}; at the blasts: listed with a landing {}, still in the hand {}, not listed {}, rest point off the tally's by [<=1, <=2, <=4, more] m {:?}, inside the radius at the launch [thrower, mates, enemies] {:?}",
                 listed.frag,
                 listed.smoke,
                 listed.no_pockets,
@@ -771,6 +824,7 @@ impl GrenadeCounts {
                 live.pending,
                 live.missing,
                 live.err,
+                self.in_launch,
             ));
             let mut avoid = AvoidStats::default();
             for stats in self.avoid.values() {

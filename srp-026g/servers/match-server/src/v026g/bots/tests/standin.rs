@@ -653,6 +653,7 @@ impl Game {
             body.recoil.update(tick);
         }
         let tier = self.damage.tier;
+        let mut suicides = Vec::new();
         for (place, queue) in self.inputs.iter_mut().enumerate() {
             while let Some(&(at, keys, turn, target, gun)) = queue.front() {
                 if at > tick {
@@ -675,6 +676,10 @@ impl Game {
                     } else {
                         self.jumps_refused += 1;
                     }
+                }
+                // The suicide bit (24): the game's own hit on the player's own head, the first input that has it.
+                if pressed[place] & key::SUICIDE != 0 && body.alive {
+                    suicides.push(place);
                 }
                 body.keys = keys;
                 body.target = target;
@@ -717,6 +722,10 @@ impl Game {
                     });
                 }
             }
+        }
+        // A death, a ticket, the battery dropped, and the respawn of the mode: as the game's, no one's kill.
+        for place in suicides {
+            self.kill(place, place, Kill::Own, tick);
         }
         if self.walls.is_none() && self.bodies.iter().any(|b| b.flight.is_some()) {
             let walker = self.world.map.walker_triangles();

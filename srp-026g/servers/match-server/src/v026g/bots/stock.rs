@@ -397,7 +397,7 @@ pub(crate) mod live_kit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use survarium::v026g::loadouts::{BotRole, BotTier, bot_profile};
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_profile};
     use survarium::v026g::match_msgs::players::ItemLeft;
 
     /// A bot's block as the game shows it: each item of the profile in
@@ -432,7 +432,12 @@ mod tests {
     }
 
     fn profile() -> MatchProfile {
-        bot_profile(1, 0, BotRole::ALL[0], BotTier::Low)
+        bot_profile(
+            1,
+            0,
+            BotRole::ALL[0],
+            BotEquipment::of(BotTier::Low, RusherKits::default()),
+        )
     }
 
     #[test]
@@ -609,5 +614,24 @@ mod tests {
             18,
             "the store is for the next life"
         );
+    }
+}
+
+/// A bot's consumables state, by feature ([`super::features`]): the medkits it used this life, the drugs of its
+/// kits counted for the match, and its health pools as the last trusted world showed them.
+#[derive(Default)]
+pub struct BotState {
+    /// Medkits used this life (the tip's count, which the Heal play and Retreat go by while `HealTuning::on` is off).
+    pub medkits_used: u8,
+    /// The drugs of its kits, counted for the match ([`Pantry`]).
+    pub pantry: Pantry,
+    /// Its health pools as the last trusted world showed them (`Bots::pools`); none before the first.
+    pub pools: Option<super::pools::Pools>,
+}
+
+impl super::features::Feature for BotState {
+    fn new_life(&mut self, life: &super::features::Life) {
+        self.medkits_used = 0;
+        self.pantry.new_life(life.kit);
     }
 }

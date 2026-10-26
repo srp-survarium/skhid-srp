@@ -89,7 +89,7 @@ impl RouteTopic for Walking {
         for (place, body) in game.bodies.iter().enumerate() {
             if bots.bots[place].as_ref().is_some_and(|bot| {
                 matches!(
-                    bot.avoid.state,
+                    bot.features.avoid.state,
                     crate::v026g::bots::grenade_threat::GrenadeThreat::Stepping { .. }
                 )
             }) {
