@@ -308,6 +308,8 @@ struct PitRun {
     world: Arc<World>,
     /// The route searches the bot made.
     asked: u32,
+    /// Whether the bot ended the run counted as shut in (`think.shut_in_gate`).
+    shut_in: bool,
 }
 
 /// The bot of `pit(1.6)`, shut in it with a goal outside, run to `until` ms
@@ -403,6 +405,7 @@ fn run_pit(tuning: Tuning, until: u32) -> PitRun {
         end: game.bodies[0].feet,
         world,
         asked: bots.bots[0].as_ref().map_or(0, |bot| bot.bench_asked.total),
+        shut_in: bots.bots[0].as_ref().is_some_and(|bot| bot.bench_shut_in),
     }
 }
 
@@ -420,6 +423,8 @@ fn a_bot_given_up_in_a_pit_stops_asking_for_goals_outside_it() {
     eprintln!("gated {} ungated {}", gated.asked, ungated.asked);
     assert!(ungated.asked >= 100, "it asks every 0.5 s: {}", ungated.asked);
     assert!(gated.asked <= 10, "it gave up and asks no more: {}", gated.asked);
+    // Its skipped ticks carry their own no-route reason, and the episode is the bot's, once.
+    assert!(gated.shut_in && !ungated.shut_in, "{} {}", gated.shut_in, ungated.shut_in);
     assert_eq!(gated.end.y, ungated.end.y, "both stay in the pit");
 }
 

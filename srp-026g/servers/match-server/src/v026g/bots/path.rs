@@ -167,11 +167,14 @@ pub enum NoRoute {
     Searched,
     /// Its route ended this tick: arrived, or off it.
     Ended,
+    /// Given up in its pocket (`think.shut_in_gate`): no search is asked for a goal outside
+    /// it, and `NoWay` stays the count of failed searches.
+    ShutIn,
 }
 
 #[cfg(test)]
 thread_local! {
-    static NO_ROUTE: std::cell::Cell<[u64; 5]> = const { std::cell::Cell::new([0; 5]) };
+    static NO_ROUTE: std::cell::Cell<[u64; 6]> = const { std::cell::Cell::new([0; 6]) };
 }
 
 /// A tick of a bot with a goal and no route, counted by why.
@@ -189,7 +192,7 @@ pub fn no_route(_: NoRoute) {}
 
 /// The ticks counted by [`no_route`] so far, by [`NoRoute`] in order.
 #[cfg(test)]
-pub fn no_routes() -> [u64; 5] {
+pub fn no_routes() -> [u64; 6] {
     NO_ROUTE.with(|c| c.get())
 }
 

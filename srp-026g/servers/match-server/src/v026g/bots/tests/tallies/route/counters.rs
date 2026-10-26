@@ -24,7 +24,7 @@ impl RouteTopic for Delta {
     }
 }
 
-/// Route requests that found no way: no way, searching, starved, searched, ended.
+/// Route requests that found no way: no way, searching, starved, searched, ended; and the ticks of bots given up in their pocket (`think.shut_in_gate`).
 pub(super) fn no_route() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::path::no_routes().to_vec(),
@@ -33,6 +33,7 @@ pub(super) fn no_route() -> Box<dyn RouteTopic> {
                 "no_way {} searching {} starved {} searched {} ended {}",
                 d[0], d[1], d[2], d[3], d[4]
             ));
+            line.ends.push(format!("no_route_shut_in {}", d[5]));
         },
     )
 }
@@ -112,14 +113,14 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
 }
 
 /// Route searches: all, from a pocket's floor, within a second of the bot's last, and the ones a bot given up in
-/// its pocket was spared (`search::asks`).
+/// its pocket was spared (`search::asks`), and the episodes of bots shut in.
 pub(super) fn asks() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::search::asks::counts().to_vec(),
         |d, line| {
             line.ends.push(format!(
-                "asks {} asks_pocket {} asks_again_1s {} asks_skipped {}",
-                d[0], d[1], d[2], d[3]
+                "asks {} asks_pocket {} asks_again_1s {} asks_skipped {} shut_in_bots {}",
+                d[0], d[1], d[2], d[3], d[4]
             ));
         },
     )
