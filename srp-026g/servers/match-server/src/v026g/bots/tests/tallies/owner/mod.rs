@@ -14,7 +14,9 @@
 //! - grenades on their own side, and bots inside a blast that were outside
 //!   at the throw (the stand-in has no grenade damage: counted only);
 //! - campers (`campers.md`): kills in a run from one spot, a team's deaths
-//!   in a row to one shooter from one spot, bots entering a held line.
+//!   in a row to one shooter from one spot, bots entering a held line;
+//! - sight (`pr-sight.md`, the sight refresh's paired counts): fire runs and what ended them,
+//!   gaps between runs, fire to kill and presses a kill, the targets' sights lost by cause.
 //!
 //! Each count copies the analysis's definition (its script named at the
 //! count), so a fix can be shown on the bench before a live test. What
@@ -33,6 +35,7 @@ use mapdata::{Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use crate::v026g::bots::kin::{TICK_S, wrap, yaw_of};
+use crate::v026g::bots::reflex::Gates;
 use crate::v026g::bots::view::Place;
 use super::{Bots, Game, Go, Landing, Note};
 use crate::v026g::drive::key;
@@ -43,12 +46,14 @@ mod golden;
 mod grenades;
 mod jumps;
 mod moving;
+mod sight;
 
 use campers::*;
 use fight::*;
 use grenades::*;
 use jumps::*;
 use moving::*;
+use sight::SightCounts;
 
 const WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
 /// Ticks a second.
@@ -86,6 +91,8 @@ struct BotNow {
     play: String,
     step: Option<String>,
     goal_m: Option<f32>,
+    /// The fire gates of its last tick (`Reflex::gates`).
+    gates: Gates,
 }
 
 #[derive(Default)]
@@ -112,6 +119,8 @@ pub(crate) struct OwnerTally {
     grenades: GrenadeCounts,
     /// The campers counts ([`CamperCounts`], `campers.rs`).
     campers: CamperCounts,
+    /// The sight counts ([`SightCounts`], `sight.rs`).
+    sight: SightCounts,
 }
 
 impl OwnerTally {
@@ -125,6 +134,7 @@ impl OwnerTally {
             moving: MoveCounts::new(n),
             grenades: GrenadeCounts::default(),
             campers: CamperCounts::default(),
+            sight: SightCounts::new(n),
             ..Self::default()
         }
     }
@@ -174,9 +184,12 @@ impl OwnerTally {
                             .map_or_else(String::new, |r| r.step_name())
                     }),
                     goal_m,
+                    gates: bot.reflex.gates(),
                 })
             })
             .collect();
+        self.sight.range_m = bots.tuning.sense.sight_m;
+        self.sight.view_deg = bots.tuning.sense.view_deg;
         self.step(game, &nows);
     }
 
@@ -195,6 +208,7 @@ impl OwnerTally {
         self.fight_hits_taken(game, tick);
         self.jumps_landings(game);
         let sight = game.world.sight.clone();
+        let mut deaths = Vec::new();
         for place in 0..n {
             let body = &game.bodies[place];
             let now = nows.get(place).and_then(Option::as_ref);
@@ -206,6 +220,9 @@ impl OwnerTally {
                 }
             }
             self.fight_death(place, tick, &prev, body);
+            if prev.alive && !body.alive {
+                deaths.push(place);
+            }
             let enemy_near = game.bodies.iter().any(|b| {
                 b.alive && b.team != body.team && b.feet.distance_xz(body.feet) <= CALM_ENEMY_M
             });
@@ -231,9 +248,11 @@ impl OwnerTally {
             self.fight_ammo(place, tick, body, now);
             self.jumps_press(place, tick, body, &prev, now, &rec);
             self.fight_fire(game, place, body, &rec, &sight, &mut rays);
+            self.sight_tick(game, place, body, now, &sight, &mut rays);
             self.fight_switch(game, place, body, &sight, &mut rays);
         }
         self.fight_hits_scored(game);
+        self.sight_kills(game, &deaths);
         self.campers_kills(game, &sight, &mut rays, tick);
         self.fight_reloads(game, &sight, &mut rays, tick);
         self.grenades_off(game, &sight, &mut rays, tick);
@@ -274,6 +293,7 @@ impl OwnerTally {
             self.vertical_part(game),
             self.grenades_part(game),
             self.campers_part(),
+            self.sight_part(&scale),
         ];
         let mut json = serde_json::Map::new();
         json.insert("bot_min".to_owned(), serde_json::json!(bot_min.round()));

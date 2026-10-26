@@ -421,6 +421,7 @@ pub(crate) fn real_bot_cost() {
                 .unwrap_or(0);
             let pings = bench_pings(teams.len(), seed)
                 .or_else(|| (jitter > 0).then(|| vec![0; teams.len()]));
+            let ping_ms = pings.clone().unwrap_or_default();
             if let Some(pings) = pings {
                 // The relay discards an input later than 425 ms less the
                 // largest round trip of the other players (twice a ping
@@ -625,6 +626,7 @@ pub(crate) fn real_bot_cost() {
             let mut blocks = BlockTally::default();
             let mut hits = HitTally::default();
             let mut owner = owner::OwnerTally::new(game.bodies.len());
+            owner.set_pings(ping_ms);
             bots.bench_camper = bench_settings().number("SRP_BENCH_CAMPER")
                 .map(|place| (place, None));
             owner.camper = bots.bench_camper.map(|(place, _)| place);
@@ -1255,6 +1257,9 @@ pub(crate) fn real_bot_cost() {
             );
             let (owner_line, owner_sums) = owner.finish(&game);
             eprintln!("  {owner_line}");
+            // The refreshed sight's own counts: poll gaps, the ray budget's refusals, sights lost by
+            // ping band (the match-end line; the code before the refresh has none of them).
+            eprintln!("  sight polls: {}", bots.poll_report());
             if let Some((place, spot)) = bots.bench_camper {
                 eprintln!("  camper: place {place} spot {spot:?}");
             }
