@@ -9,27 +9,8 @@ pub(super) struct TeamState {
     pub(super) cheats: CheatClock,
     pub(super) signals: MatchSignals,
     pub(super) next_commander: u32,
-    /// Goals a bot of the team proved no way to, and until when the
-    /// team's plays leave them ([`TEAM_NO_WAY_KEEP_MS`]).
-    pub(super) no_way_to: Vec<(Vec3, u32)>,
-    /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
-    pub(super) spots: TeamSpots,
-    /// When its bots killed themselves in the last minute (`stuck::SelfKill`).
-    pub(super) self_kills: Vec<u32>,
-    /// The floors of the traps its bots put down, and the list's version it
-    /// was built for (`trap_know.rs`).
-    pub(super) trap_field: Arc<trap_know::TrapField>,
-    pub(super) trap_field_version: u64,
-    /// The armed traps the last world showed, for the bots' notice
-    /// (`trap_react.rs`); empty while the switch is off.
-    pub(super) world_traps: Arc<Vec<survarium::v026g::match_msgs::traps::PlacedTrap>>,
-    /// Bots that began shooting a trap lately: which, who, when
-    /// (`trap_react.rs`, the count of double shooters).
-    pub(super) shooters: Vec<(trap_react::TrapKey, Place, u32)>,
-    /// Where a shooter killed its bots from, and the regions his line
-    /// covers now ([`threat`]).
-    pub(super) threat: threat::ThreatSpots,
-    pub(super) covered: Option<Arc<threat::Covered>>,
+    /// What each feature keeps of the team ([`features`]).
+    pub(super) features: TeamFeatures,
 }
 
 /// A team's threat spots at its commander tick ([`threat`]): the
@@ -45,7 +26,7 @@ fn threat_tick(
     now: u32,
     notes: &mut Vec<Note>,
 ) {
-    if state.threat.is_empty() && state.covered.is_none() {
+    if state.features.threat.spots.is_empty() && state.features.threat.covered.is_none() {
         return;
     }
     let eye = Vec3::new(0.0, view::eye_height(false, 0.0, 0.0), 0.0);
@@ -57,15 +38,15 @@ fn threat_tick(
                 && now.saturating_sub(time) <= threat::NOW_MS
             {
                 enemies.push(at);
-                state.threat.shooter_sensed(track.who, at, time);
+                state.features.threat.spots.shooter_sensed(track.who, at, time);
             }
         }
     }
-    state.threat.tick(now, &watchers, &enemies, tactics);
-    let mut regions = state.threat.covered_regions(now);
+    state.features.threat.spots.tick(now, &watchers, &enemies, tactics);
+    let mut regions = state.features.threat.spots.covered_regions(now);
     regions.sort_unstable();
     regions.dedup();
-    let same = match &state.covered {
+    let same = match &state.features.threat.covered {
         Some(covered) => covered.regions() == &regions[..],
         None => regions.is_empty(),
     };
@@ -78,12 +59,12 @@ fn threat_tick(
         text: format!(
             "team {team}: threat spots keep {} regions out of the routes ({} held)",
             regions.len(),
-            state.threat.held(now).count()
+            state.features.threat.spots.held(now).count()
         ),
     });
-    state.covered = (!regions.is_empty())
+    state.features.threat.covered = (!regions.is_empty())
         .then(|| Arc::new(threat::Covered::build(regions, tactics.regions().len(), tactics.region_lookup())));
-    let shared = state.covered.clone().unwrap_or_default();
+    let shared = state.features.threat.covered.clone().unwrap_or_default();
     for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
         bot.threat = shared.clone();
     }
@@ -120,19 +101,19 @@ impl Bots {
         state.knowledge.forget_old(now);
         state.knowledge.settle_looks(team, view);
         state.refresh_traps(&tactics.world.grid);
-        let field = state.trap_field.clone();
+        let field = state.features.traps.field.clone();
         for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
-            bot.trap_field = field.clone();
+            bot.features.traps.field = field.clone();
         }
         // What a bot of the team proved no way to lately, the whole team
         // leaves for longer, from the proof on.
-        state.no_way_to.retain(|&(_, until)| now < until);
+        state.features.stuck.no_way_to.retain(|&(_, until)| now < until);
         for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
-            learn_no_way(&mut state.no_way_to, &bot.no_way_to, now);
-            state.spots.learn(now, &bot.stuck.tell());
+            learn_no_way(&mut state.features.stuck.no_way_to, &bot.no_way_to, now);
+            state.features.stuck.spots.learn(now, &bot.stuck.tell());
         }
         // Where its bots got stuck or fell, every bot keeps clear of.
-        let spots = state.spots.avoided();
+        let spots = state.features.stuck.spots.avoided();
         for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
             bot.stuck.share(spots.clone());
         }
@@ -245,6 +226,8 @@ impl Bots {
         // Bots with no fresh hold on a slot (`team::HOLD_FRESH_MS`): a way
         // to their goal or their play's target failed lately, or a carrier.
         let mut shaky: Vec<Place> = Vec::new();
+        // Bots whose hold walks to its spot (`commit.hold_to_arrival`).
+        let mut committed: Vec<Place> = Vec::new();
         for bot in self
             .bots
             .iter()
@@ -254,28 +237,29 @@ impl Bots {
             let Some(me) = view.place(bot.place).filter(|p| p.alive) else {
                 continue;
             };
-            let no_way = team_no_way(&bot.no_way_to, &state.no_way_to);
+            let no_way = team_no_way(&bot.no_way_to, &state.features.stuck.no_way_to);
             let cx = Ctx {
                 now,
                 view,
                 me,
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
-                    weapon: bot.weapon(&self.weapons, &tuning),
+                    weapon: bot.weapon(&self.features.weapons, &tuning),
                     side: bot.side,
                     current: bot.assignment.as_ref().map(|a| (a.kind, a.target, a.since)),
                     last_ran: &bot.last_ran,
                     partner: bot.partner,
                     paired: bot.paired,
-                    medkits_used: bot.medkits_used,
-                    pantry: &bot.pantry,
-                    pools: bot.pools,
+                    medkits_used: bot.features.stock.medkits_used,
+                    pantry: &bot.features.stock.pantry,
+                    pools: bot.features.stock.pools,
                     no_way_to: &no_way,
-                    set_aside: &bot.set_aside,
-                    failed_stands: &bot.failed_stands,
+                    set_aside: &bot.features.memory.set_aside,
+                    failed_stands: &bot.features.memory.failed_stands,
                     dry: bot.reflex.dry(),
                     ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
+                    held_choke: bot.held_choke,
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,
@@ -321,6 +305,11 @@ impl Bots {
                 || goal.into_iter().chain(target).any(|at| cx.no_way_lately(at))
             {
                 shaky.push(bot.place);
+            } else if tuning.commit.hold_to_arrival
+                && bot.running.as_ref().is_some_and(plays::Running::travelling)
+            {
+                // A hold still walking to its spot (no way lately: not).
+                committed.push(bot.place);
             }
             asked.push((bot.place, candidates, bot.assignment.clone()));
         }
@@ -330,6 +319,7 @@ impl Bots {
                 place: *place,
                 candidates: candidates.clone(),
                 current: current.as_ref(),
+                committed: committed.contains(place),
             })
             .collect();
         let gap = state.signals.score_gap;
@@ -387,28 +377,29 @@ impl Bots {
             }
             // The new play starts.
             bot.give_way(assignment.kind, now);
-            let no_way = team_no_way(&bot.no_way_to, &state.no_way_to);
+            let no_way = team_no_way(&bot.no_way_to, &state.features.stuck.no_way_to);
             let cx = Ctx {
                 now,
                 view,
                 me,
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
-                    weapon: bot.weapon(&self.weapons, &tuning),
+                    weapon: bot.weapon(&self.features.weapons, &tuning),
                     side: bot.side,
                     current: Some((assignment.kind, assignment.target, now)),
                     last_ran: &bot.last_ran,
                     partner: bot.partner,
                     paired: bot.paired,
-                    medkits_used: bot.medkits_used,
-                    pantry: &bot.pantry,
-                    pools: bot.pools,
+                    medkits_used: bot.features.stock.medkits_used,
+                    pantry: &bot.features.stock.pantry,
+                    pools: bot.features.stock.pools,
                     no_way_to: &no_way,
-                    set_aside: &bot.set_aside,
-                    failed_stands: &bot.failed_stands,
+                    set_aside: &bot.features.memory.set_aside,
+                    failed_stands: &bot.features.memory.failed_stands,
                     dry: bot.reflex.dry(),
                     ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
+                    held_choke: bot.held_choke,
                 },
                 memory: &bot.memory,
                 team: &state.knowledge,
@@ -426,6 +417,16 @@ impl Bots {
                 &cx,
                 &mut rng,
             );
+            // A Crossfire on an enemy's last known place keeps the place
+            // when the memory forgets him (`commit.crossfire_point`).
+            let held_choke = match (assignment.kind, assignment.target) {
+                (plays::PlayKind::Crossfire, plays::TargetRef::Place(who))
+                    if tuning.commit.crossfire_point =>
+                {
+                    cx.point_of(assignment.target).map(|at| (who, at, now))
+                }
+                _ => None,
+            };
             bot.rng = rng;
             bot.note(
                 notes,
@@ -479,6 +480,7 @@ impl Bots {
                     "skill": state.skill.skill,
                 }));
             }
+            bot.held_choke = held_choke;
             bot.running = Some(running);
             bot.end_route(RouteEnd::NewAssignment, now);
             bot.assignment = Some(assignment);

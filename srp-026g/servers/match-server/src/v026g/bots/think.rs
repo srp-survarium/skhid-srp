@@ -47,7 +47,7 @@ impl Bots {
         let percepts = share(&due, bot, state, &self.tracker, sensed);
         sense_batteries(&due, bot, state, rays, notes);
         remember(&due, bot, &percepts);
-        react(&due, bot, state, &self.weapons, notes);
+        react(&due, bot, state, &self.features.weapons, notes);
         self_kill(&due, bot, state, notes);
         if now < bot.pause_until {
             bot.intent = Intent::stay();
@@ -57,7 +57,7 @@ impl Bots {
         if bench_camper(&due, bot, &mut self.bench_camper) {
             return;
         }
-        let Some(step_name) = decide(&due, bot, state, &self.memo, &self.weapons, notes) else {
+        let Some(step_name) = decide(&due, bot, state, &self.memo, &self.features.weapons, notes) else {
             return;
         };
         // [traps] A bot that carries traps may start to put one down.
@@ -101,7 +101,7 @@ impl Bots {
         bot.tracing = self.trace.enabled();
         bot.reflex.tracing = bot.tracing;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
-        let searching = &mut self.searching;
+        let searching = &mut self.features.searching;
         for time in bot.encoder.ticks(clock.clock, entered + START_AFTER_MS) {
             #[cfg(test)]
             {
@@ -423,6 +423,10 @@ pub(super) fn react(
         partner: bot.partner,
         weapon: bot.weapon(weapons, tuning),
         weapons,
+        retreat: tuning.avoid.grenade_avoid.then_some(reflex::Retreat {
+            margin_m: tuning.avoid.margin_m,
+            told_ms: tuning.avoid.told_ms.1,
+        }),
     };
     bot.reflex
         .think_with(me, &sit, &bot.memory, now, &tuning.aim, skill, &mut bot.rng);
@@ -492,7 +496,7 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
     if tuning.unstick.suicide_after_ms.is_none() && bot.self_kill == stuck::SelfKill::default() {
         return;
     }
-    state.self_kills.retain(|&at| now < at.saturating_add(60_000));
+    state.features.stuck.self_kills.retain(|&at| now < at.saturating_add(60_000));
     // The last time an enemy was sensed by the bot's own senses (a cheat's place does not count), or a bullet hit it.
     let sensed = bot
         .memory
@@ -510,7 +514,7 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
         carrying: me.carrying.is_some(),
         tickets: view.mode.is_deathmatch().then(|| view.points[usize::from(bot.team & 1)]),
         since_last_ms: bot.self_killed_at.map(|at| now.saturating_sub(at)),
-        team_last_minute: state.self_kills.len() as u32,
+        team_last_minute: state.features.stuck.self_kills.len() as u32,
     };
     let (next, act) = stuck::self_kill_step(bot.self_kill, &facts, &tuning.unstick);
     #[cfg(test)]
@@ -526,7 +530,7 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
     bot.encoder.self_kill(tuning.unstick.suicide_ticks);
     if !again {
         bot.self_killed_at = Some(now);
-        state.self_kills.push(now);
+        state.features.stuck.self_kills.push(now);
     }
     #[cfg(test)]
     stuck::self_kills::count(usize::from(again));
@@ -584,15 +588,16 @@ pub(super) fn decide(
             last_ran: &bot.last_ran,
             partner: bot.partner,
             paired: bot.paired,
-            medkits_used: bot.medkits_used,
-            pantry: &bot.pantry,
-            pools: bot.pools,
+            medkits_used: bot.features.stock.medkits_used,
+            pantry: &bot.features.stock.pantry,
+            pools: bot.features.stock.pools,
             no_way_to: &bot.no_way_to,
-            set_aside: &bot.set_aside,
-            failed_stands: &bot.failed_stands,
+            set_aside: &bot.features.memory.set_aside,
+            failed_stands: &bot.features.memory.failed_stands,
             dry: bot.reflex.dry(),
             ammo: bot.ammo(),
             crossing: walks_crossing(bot),
+            held_choke: bot.held_choke,
         },
         memory: &bot.memory,
         team: &state.knowledge,
@@ -610,11 +615,11 @@ pub(super) fn decide(
     // (S1); the point it means to be at is its claim.
     let (step, claim) = match step {
         Step::Continue(intent) => {
-            let (intent, claim) = plays::goals::keep_apart(&cx, &mut bot.apart, running.kind(), intent);
+            let (intent, claim) = plays::goals::keep_apart(&cx, &mut bot.features.memory.apart, running.kind(), intent);
             (Step::Continue(intent), Some(claim))
         }
         other => {
-            bot.apart.reset();
+            bot.features.memory.apart.reset();
             (other, None)
         }
     };
@@ -630,8 +635,8 @@ pub(super) fn decide(
         // choose again (not stood at the goal, searched every 500 ms).
         Step::Continue(intent) if goal_shut(&intent, me, &bot.no_way_to, now) => {
             if let Some(a) = bot.assignment.as_ref() {
-                bot.set_aside.retain(|&(_, _, until)| until > now);
-                bot.set_aside.push((a.kind, a.target, now + NO_WAY_KEEP_MS));
+                bot.features.memory.set_aside.retain(|&(_, _, until)| until > now);
+                bot.features.memory.set_aside.push((a.kind, a.target, now + NO_WAY_KEEP_MS));
             }
             bot.end_play(now, "no way to its goal", notes);
             state.next_commander = now;
@@ -644,8 +649,8 @@ pub(super) fn decide(
                 bot.note(notes, now, format!("resupplied at zone {zone}: +{rounds} rounds"));
             }
             if let Some(failed) = intent.failed_stand.take() {
-                bot.failed_stands.retain(|f| f.until > now);
-                bot.failed_stands.push(failed);
+                bot.features.memory.failed_stands.retain(|f| f.until > now);
+                bot.features.memory.failed_stands.push(failed);
                 bot.note(notes, now, failed.note());
             }
             bot.intent = intent;
@@ -658,7 +663,7 @@ pub(super) fn decide(
             if let Some(a) = bot.assignment.as_ref()
                 && (now < a.since + plays::QUICK_FAIL_MS || plays::collect::fails_aside(why))
             {
-                bot.set_aside.retain(|&(_, _, until)| until > now);
+                bot.features.memory.set_aside.retain(|&(_, _, until)| until > now);
                 // A battery proved out of reach is left as long as a goal no
                 // way leads to.
                 let keep = if plays::collect::fails_aside(why) {
@@ -666,7 +671,7 @@ pub(super) fn decide(
                 } else {
                     plays::SET_ASIDE_MS
                 };
-                bot.set_aside.push((a.kind, a.target, now + keep));
+                bot.features.memory.set_aside.push((a.kind, a.target, now + keep));
             }
             bot.end_play(now, why, notes);
             state.next_commander = now;

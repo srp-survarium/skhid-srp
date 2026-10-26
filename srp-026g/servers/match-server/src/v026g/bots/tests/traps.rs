@@ -16,6 +16,17 @@ pub(super) fn run_with(
     seconds: u32,
     armed: Option<Vec3>,
 ) -> (Vec<(u32, u32, f32)>, Bots) {
+    run_on(kit, tuning, seconds, |_| armed)
+}
+
+/// [`run_with`], the trap's place asked of the bots at each world (a trap
+/// put on the bot's own route is found once it has one).
+pub(super) fn run_on(
+    kit: Option<TrapKit>,
+    tuning: Tuning,
+    seconds: u32,
+    mut armed: impl FnMut(&Bots) -> Option<Vec3>,
+) -> (Vec<(u32, u32, f32)>, Bots) {
     let world = soak_world();
     let teams = [0u8, 1];
     let mut bots = Bots::new(
@@ -39,7 +50,7 @@ pub(super) fn run_with(
     }
     bots.entered(0, true, 0);
     if let Some(kit) = kit {
-        bots.bots[0].as_mut().unwrap().traps = Habit::carry(kit);
+        bots.bots[0].as_mut().unwrap().features.traps.habit = Habit::carry(kit);
     }
     // The team has known enemy humans all over this half of the field for a
     // while (one human a lane cell, so none is throttled).
@@ -72,7 +83,7 @@ pub(super) fn run_with(
                 }
                 bots.facts(facts);
             }
-            if let Some(at) = armed {
+            if let Some(at) = armed(&bots) {
                 bots.traps_from_world(&objects_with(at, 1, 1_000), clock);
             }
         }
@@ -123,7 +134,7 @@ pub(crate) fn a_bot_that_carries_traps_puts_one_down_with_one_pulse_of_the_key()
         .fold(0.0_f32, f32::min);
     assert!(steepest <= -0.9, "pitch {steepest}");
     let bot = bots.bots[0].as_ref().unwrap();
-    assert_eq!(bot.traps.placed_this_life(), 1);
+    assert_eq!(bot.features.traps.habit.placed_this_life(), 1);
     assert_eq!(bots.teams[0].knowledge.traps.all().len(), 1);
     // None without the kit, and none with the habit switched off.
     let (sent, _) = run(None, Tuning::default(), 40);
@@ -174,13 +185,13 @@ pub(crate) fn a_world_confirms_the_promise_and_a_world_without_it_takes_it_away(
     let trap = bots.teams[0].knowledge.traps.all()[0];
     assert_eq!((trap.phase, trap.at), (Phase::Armed, exact));
     assert_eq!(bots.teams[0].knowledge.traps.confirmed, 1);
-    assert!(!bots.teams[0].trap_field.is_empty());
+    assert!(!bots.teams[0].features.traps.field.is_empty());
     // The other team's list stays empty: it is not their trap.
     assert!(bots.teams[1].knowledge.traps.all().is_empty());
     // Fired: spent, the floors are open again; the team's trap went off,
     // and nobody with a broken leg is near it.
     bots.traps_from_world(&objects_with(exact, 2, released + 200), 45_000);
-    assert!(bots.teams[0].trap_field.is_empty());
+    assert!(bots.teams[0].features.traps.field.is_empty());
     assert_eq!(bots.own_trap_counts().fired, 1);
     assert_eq!(bots.own_trap_counts().own_team_caught, 0);
     // A world without it: gone.

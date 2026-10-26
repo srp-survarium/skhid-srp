@@ -55,6 +55,14 @@ pub struct OwnTrapCounts {
     pub own_team_caught: u32,
 }
 
+/// What the snap sound keeps (`Bots::hear_snaps`): the armed traps the last world showed, and the snaps given to
+/// the ears.
+#[derive(Clone, Debug, Default)]
+pub struct Snaps {
+    pub armed: Vec<Vec3>,
+    pub heard: u32,
+}
+
 /// Where a team's trap is in its life.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
@@ -224,7 +232,11 @@ impl TrapField {
     /// within [`FIELD_M`] of a trap, at about its height; a leg between
     /// two open floors is tested by [`Self::hits`] against the same.
     pub fn of(list: &TrapList, grid: &WalkGrid) -> Self {
-        let discs: Vec<Vec3> = list.standing().map(|trap| trap.at).collect();
+        Self::round(list.standing().map(|trap| trap.at).collect(), grid)
+    }
+
+    /// The field of traps at `discs`.
+    pub fn round(discs: Vec<Vec3>, grid: &WalkGrid) -> Self {
         let reach = FIELD_M;
         let mut shut: Vec<NodeId> = discs
             .iter()
@@ -267,6 +279,18 @@ impl TrapField {
             .iter()
             .any(|disc| off_route_m(points, *disc) < FIELD_M - 0.05)
     }
+}
+
+/// A team's trap state, by feature ([`super::features`]).
+#[derive(Default)]
+pub struct TeamTraps {
+    /// The floors of the traps its bots put down, and the list's version it was built for.
+    pub field: std::sync::Arc<TrapField>,
+    pub field_version: u64,
+    /// The armed traps the last world showed, for the bots' notice (`trap_react.rs`); empty while the switch is off.
+    pub world_traps: std::sync::Arc<Vec<survarium::v026g::match_msgs::traps::PlacedTrap>>,
+    /// Bots that began shooting a trap lately: which, who, when (`trap_react.rs`, the count of double shooters).
+    pub shooters: Vec<(super::trap_react::TrapKey, Place, u32)>,
 }
 
 #[cfg(test)]

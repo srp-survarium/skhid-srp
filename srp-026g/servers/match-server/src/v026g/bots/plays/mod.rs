@@ -40,6 +40,7 @@ pub mod hunt;
 pub mod intercept;
 pub mod late_denial;
 pub mod memo;
+pub mod memory;
 pub mod pair_up;
 pub mod raid;
 pub mod resupply;
@@ -471,6 +472,9 @@ pub struct BotFacts<'a> {
     /// The goal its motor walks a crossing or a ring's walk out to, across
     /// zones on all match (`crossing.rs`), while it has a route there.
     pub crossing: Option<Vec3>,
+    /// Where its Crossfire's enemy was when the play began, and when
+    /// (`commit.crossfire_point`).
+    pub held_choke: Option<(Place, Vec3, u32)>,
 }
 
 /// A play that fails this soon after it starts ...
@@ -621,6 +625,15 @@ impl Ctx<'_> {
             .iter()
             .find(|t| t.who == place)
             .map(|t| t.at)
+            .or_else(|| {
+                // The memory forgot him; a Crossfire on his place goes on
+                // for `crossfire_point_s`.
+                let keep = (self.tuning.commit.crossfire_point_s * 1000.0) as u32;
+                self.bot
+                    .held_choke
+                    .filter(|&(who, _, since)| who == place && self.now < since.saturating_add(keep))
+                    .map(|(_, at, _)| at)
+            })
     }
 
     /// Where a battery lies as far as the bot may know: with the battery
@@ -1049,6 +1062,17 @@ pub enum Running {
 }
 
 impl Running {
+    /// Whether the play is a hold still walking to the spot it holds from
+    /// (`commit.hold_to_arrival`).
+    pub fn travelling(&self) -> bool {
+        matches!(
+            self,
+            Self::Crossfire(crossfire::State::Going { .. })
+                | Self::HoldExit(hold_exit::State::Going { .. })
+                | Self::Cut(cut::State::Going { .. })
+        )
+    }
+
     pub fn kind(&self) -> PlayKind {
         match self {
             Self::Roam(_) => PlayKind::Roam,

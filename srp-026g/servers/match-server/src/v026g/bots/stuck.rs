@@ -57,6 +57,7 @@
 
 use mapdata::Vec3;
 
+use super::hazards::ZoneSet;
 use super::path::Route;
 use super::tuning::UnstickTuning;
 use crate::v026g::drive::key;
@@ -190,7 +191,7 @@ pub struct Stuck {
     /// Its ways out of zones lately: the zones' set, the goal, the time,
     /// and whether it was off those zones' floors since
     /// ([`Self::zone_escape`], [`Self::zone_on`]).
-    zone_escapes: Vec<(u16, Vec3, u32, bool)>,
+    zone_escapes: Vec<(ZoneSet, Vec3, u32, bool)>,
     /// When its held route was last looked over for zones
     /// ([`ZONE_CHECK_MS`]).
     pub zone_checked: u32,
@@ -335,11 +336,11 @@ impl Stuck {
     /// zone the body left is not held as on meanwhile: the Cologne anomaly
     /// bench's 15 s memory shut the only way's open windows (run 8: 11
     /// back-outs, 79.5 s to the goal against 41.7 s).
-    pub fn zone_escape(&mut self, time: u32, set: u16, goal: Vec3) -> bool {
+    pub fn zone_escape(&mut self, time: u32, set: ZoneSet, goal: Vec3) -> bool {
         self.zone_escapes
             .retain(|&(_, _, at, _)| time < at.saturating_add(ZONE_AGAIN_MS));
         let same =
-            |&(s, g, _, _): &(u16, Vec3, u32, bool)| s == set && g.distance_xz(goal) <= ZONE_GOAL_M;
+            |&(s, g, _, _): &(ZoneSet, Vec3, u32, bool)| s == set && g.distance_xz(goal) <= ZONE_GOAL_M;
         let again = self.zone_escapes.iter().any(|e| same(e) && e.3);
         match self.zone_escapes.iter_mut().find(|e| same(e) && !e.3) {
             Some(stay) => stay.2 = time,
@@ -350,7 +351,7 @@ impl Stuck {
 
     /// The body is on a floor of the zones of set `set` (0: none): the
     /// ways out of other zones' floors are left ([`Self::zone_escape`]).
-    pub fn zone_on(&mut self, set: u16) {
+    pub fn zone_on(&mut self, set: ZoneSet) {
         for escape in self.zone_escapes.iter_mut().filter(|e| e.0 != set) {
             escape.3 = true;
         }
@@ -1219,4 +1220,16 @@ mod tests {
         let carrying = Facts { carrying: true, ..at(104_000) };
         assert_eq!(self_kill_step(sent, &carrying, &rule), (SelfKill::Ready, None));
     }
+}
+
+/// A team's stuck state, by feature ([`super::features`]).
+#[derive(Default)]
+pub struct TeamStuck {
+    /// Goals a bot of the team proved no way to, and until when the team's plays leave them
+    /// (`TEAM_NO_WAY_KEEP_MS`).
+    pub no_way_to: Vec<(mapdata::Vec3, u32)>,
+    /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
+    pub spots: TeamSpots,
+    /// When its bots killed themselves in the last minute (`SelfKill`).
+    pub self_kills: Vec<u32>,
 }

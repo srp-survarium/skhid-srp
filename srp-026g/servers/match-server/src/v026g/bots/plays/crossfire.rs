@@ -468,6 +468,34 @@ mod tests {
         assert!(out.iter().all(|c| c.target == exit), "{out:#?}");
     }
 
+    #[test]
+    fn a_crossfire_on_a_last_known_place_outlives_the_memory_of_him_only_when_the_switch_is_on() {
+        let place = TargetRef::Place(5);
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(30.0, 0.0, 35.0));
+        s.bot(2, 0, Vec3::new(20.0, 0.0, 35.0));
+        s.enemy(5, 1, Vec3::new(60.0, 0.0, 35.0), Some(Source::Heard));
+        let at = s.cx(0).point_of(place).expect("his place is known");
+        // Running on it; the memory then forgets him (no track).
+        s.current = Some((PlayKind::Crossfire, place, s.view.clock));
+        let now = s.view.clock;
+        s.memory = Default::default();
+        let offered = |s: &Scenario| crossfires(s, 0).iter().any(|c| c.target == place);
+        // Off: no point, no choke, the play is no longer offered.
+        assert!(s.cx(0).point_of(place).is_none());
+        assert!(!offered(&s));
+        // On, the choke is kept where the play began, for crossfire_point_s.
+        s.tuning.commit.crossfire_point = true;
+        s.held_choke = Some((5, at, now));
+        assert_eq!(s.cx(0).point_of(place), Some(at));
+        assert!(offered(&s));
+        // Another enemy's place is not that point.
+        assert!(s.cx(0).point_of(TargetRef::Place(6)).is_none());
+        // Past the cap it is gone again.
+        s.view.clock = now + (s.tuning.commit.crossfire_point_s * 1000.0) as u32 + 1;
+        assert!(s.cx(0).point_of(place).is_none());
+    }
+
     /// The offer asks whether a fine spot exists; it says what the list does,
     /// for every exit, with teammates near or far and with every spot proved
     /// no way to (the list then empty).
