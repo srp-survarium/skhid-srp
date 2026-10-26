@@ -171,6 +171,33 @@ fn a_roster_grows_across_both_mask_boundaries_and_stops_at_twenty() {
     );
 }
 
+/// A private room's 1 v 0 (a room minimum of one) takes a late joiner on
+/// its empty side, as any room's match.
+#[test]
+fn a_1_v_0_room_match_takes_a_late_joiner_on_its_empty_side() {
+    let mut bench = Bench::room(&[0], MAP_BATTERIES, Settings::default(), 1);
+    bench.join_all();
+    bench.run_long(25_000);
+    assert_eq!(bench.game().rule_state(), state::IN_PROCESS);
+    assert!(bench.game().admitting());
+    let place = reserve(&mut bench);
+    bench.join(place);
+    assert!(bench.until(8_000, |b| {
+        b.clients
+            .iter()
+            .all(|c| c.entered().contains(&(place as u8)))
+    }));
+    let formed = bench.registry.formed(bench.match_id).unwrap();
+    assert_eq!(
+        formed.places.iter().map(|p| p.team).collect::<Vec<_>>(),
+        [0, 1]
+    );
+    bench.run_long(5_000);
+    assert_eq!(bench.game().resyncs(0), 0);
+    assert_eq!(bench.game().resyncs(place), 0);
+    bench.assert_no_faults();
+}
+
 #[test]
 fn tdm_newcomer_reloads_its_reset_tickets_without_reloading_existing_players() {
     use survarium::v026g::match_msgs::snapshot::Tdm;

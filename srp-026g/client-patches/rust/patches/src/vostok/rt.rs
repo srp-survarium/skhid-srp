@@ -9,10 +9,11 @@
 //! in the log beside its dump. A loud stop, never a world computed wrong and
 //! never undefined behaviour; nothing goes on with a half-done change.
 //!
-//! **memcpy and memset**: LLVM calls them for a large copy or fill, and the
-//! game gives none to the arena (one crate: one copy); `rep movsb` and `rep
-//! stosb`, which LLVM cannot turn back into a call of themselves. Not in
-//! `cargo test`'s binaries (std has its own).
+//! **memcpy, memmove and memset**: LLVM calls them for a large copy, move
+//! or fill, and the game gives none to the arena (one crate: one copy); `rep
+//! movsb` (backward for a move onto its own tail) and `rep stosb`, which
+//! LLVM cannot turn back into a call of themselves. Not in `cargo test`'s
+//! binaries (std has its own).
 
 /// `(unsigned)value` as gcc -m32 compiles it (the C patches' flags): x87
 /// `fistp` to 64 bits, truncating, and the low 32 bits. A negative value
@@ -36,6 +37,26 @@ mod game {
         unsafe {
             core::arch::asm!("xchg esi, {from}", "rep movsb", "mov esi, {from}", from = inout(reg) from => _,
                              inout("ecx") size => _, inout("edi") to => _, options(nostack, preserves_flags));
+        }
+        to
+    }
+
+    /// # Safety
+    /// As C's: `to` and `from` valid for `size` bytes; they may overlap.
+    #[unsafe(no_mangle)]
+    #[linkage = "weak"]
+    pub unsafe extern "C" fn memmove(to: *mut u8, from: *const u8, size: usize) -> *mut u8 {
+        if (to as usize) <= (from as usize) || (to as usize) >= (from as usize).wrapping_add(size) {
+            // SAFETY: a forward copy is right when `to` is below `from` or
+            // past its end.
+            return unsafe { memcpy(to, from, size) };
+        }
+        // `to` inside `from`'s run: from the last byte down (the direction
+        // flag set for it, cleared after, as the ABI keeps it).
+        unsafe {
+            core::arch::asm!("xchg esi, {from}", "std", "rep movsb", "cld", "mov esi, {from}",
+                             from = inout(reg) from.add(size - 1) => _, inout("ecx") size => _,
+                             inout("edi") to.add(size - 1) => _, options(nostack));
         }
         to
     }

@@ -1696,7 +1696,7 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   0x25CF60: 0x2AF610 with the handler's +0Ch movie), Tab or not.
 - **The patch:** README patch 65: the Rust module `patches::blackout` (rust/patches/src/
   blackout.rs and blackout.toml; `rust_patches.md`), five `lohook`s at sites of its own
-  (`sites_026g.tsv`, their bytes checked against the exe at every build): `static_info.options_read`
+  (`sites_026g.tsv`; their bytes read from the original exe at every build): `static_info.options_read`
   0x27B92D, `replay.options_read` 0x1F0971, `player_icons.update_start` 0x23AA10,
   `keyboard.tab_state` 0x25CD2C, `input_builder.end` 0x2421B0. Its state is the crate's
   (`patches.state`). No other patch is touched: patch 63's 0x1F0F30, Research's 0x23B207 and patch

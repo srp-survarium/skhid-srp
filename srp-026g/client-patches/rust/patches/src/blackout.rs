@@ -27,8 +27,7 @@
 
 use crate::vostok::parse::Reader;
 use crate::vostok::{
-    ActionMask, BufferReader, Context, Flow, GameCell, GameWorldUi, InputHandler, Loc, MatchOptions, Movie, NoExit,
-    Reg, Thread,
+    ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Movie, NoExit, OptionsRead, TabTest, Thread,
 };
 
 /// srp's block after the options: its magic, then `{u8 tag, u8 len, bytes}`.
@@ -101,28 +100,26 @@ pub fn filtered(blackout: bool, tab_down: bool, held: ActionMask, built: ActionM
     (built.without(still), still)
 }
 
-fn options_read(ctx: &mut Context, options: Loc, reader: Loc) -> Flow<NoExit> {
-    let on = ctx.handle::<BufferReader>(reader).is_some_and(|reader| blackout_in(reader.rest()));
-    if let Some(mut options) = ctx.handle::<MatchOptions>(options) {
-        options.set_blackout_mark(on);
+fn options_read(thread: &Thread, read: Option<OptionsRead>) -> Flow<NoExit> {
+    let mut on = false;
+    if let Some(mut read) = read {
+        on = blackout_in(read.rest());
+        read.set_blackout_mark(on);
     }
-    let thread = ctx.thread();
     BLACKOUT.set(thread, on);
     TAB_DOWN.set(thread, false);
     HELD.set(thread, ActionMask::NONE);
     Flow::Continue
 }
 
-/// process_static_match_info after its deserialize (0x27B92D): esi the
-/// options, the reader the frame's local at ebp-2Ch.
+/// process_static_match_info after its deserialize (0x27B92D).
 pub fn on_static_info(ctx: &mut Context) -> Flow<NoExit> {
-    options_read(ctx, Loc::Reg(Reg::Esi), Loc::Local(Reg::Ebp, -0x2C))
+    options_read(ctx.thread(), OptionsRead::at_static_info(ctx))
 }
 
-/// A replay's chunk 1 after its deserialize (0x1F0971): the options at
-/// [esp+40h], the reader the local at esp+14h.
+/// A replay's chunk 1 after its deserialize (0x1F0971).
 pub fn on_replay_options(ctx: &mut Context) -> Flow<NoExit> {
-    options_read(ctx, Loc::Stack(0x40), Loc::Local(Reg::Esp, 0x14))
+    options_read(ctx.thread(), OptionsRead::at_replay(ctx))
 }
 
 /// `movie` told `state` (by `tell`, which says whether the movie took it)
@@ -137,7 +134,7 @@ fn tell(thread: &Thread, cell: &GameCell<Told>, movie: Option<Movie>, state: u8,
 
 /// update_player_icons' start (0x23AA10), every frame: [esp+4] the ui.
 pub fn on_update_icons(ctx: &mut Context) -> Flow<NoExit> {
-    let Some(ui) = ctx.handle::<GameWorldUi>(Loc::Stack(4)) else { return Flow::Continue };
+    let Some(ui) = GameWorldUi::at_update_icons(ctx) else { return Flow::Continue };
     let thread = ctx.thread();
     let forced = BLACKOUT.get(thread);
     let tab = TAB_DOWN.get(thread);
@@ -150,15 +147,19 @@ pub fn on_update_icons(ctx: &mut Context) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// on_keyboard_action after its Tab test (0x25CD2C): bl Tab down. In a
-/// Blackout match bl is cleared: the key goes on as with Tab up.
+/// on_keyboard_action after its ask of Tab (0x25CD2C). In a Blackout match
+/// the key goes on as with Tab up.
 pub fn on_tab(ctx: &mut Context) -> Flow<NoExit> {
-    let down = ctx.reg(Reg::Ebx) & 0xFF != 0;
     let blackout = BLACKOUT.get(ctx.thread());
+    let down = {
+        let mut key = TabTest::at(ctx);
+        let down = key.tab_down();
+        if blackout {
+            key.key_goes_on();
+        }
+        down
+    };
     TAB_DOWN.set(ctx.thread(), down);
-    if blackout {
-        ctx.set_reg8(Reg::Ebx, 0);
-    }
     Flow::Continue
 }
 
@@ -166,7 +167,7 @@ pub fn on_tab(ctx: &mut Context) -> Flow<NoExit> {
 pub fn on_input_end(ctx: &mut Context) -> Flow<NoExit> {
     let thread = ctx.thread();
     let (blackout, tab, held) = (BLACKOUT.get(thread), TAB_DOWN.get(thread), HELD.get(thread));
-    let Some(mut handler) = ctx.handle::<InputHandler>(Loc::Reg(Reg::Ebx)) else { return Flow::Continue };
+    let Some(mut handler) = InputHandler::at_builder_end(ctx) else { return Flow::Continue };
     let (sent, still) = filtered(blackout, tab, held, handler.actions());
     handler.set_actions(sent);
     HELD.set(ctx.thread(), still);

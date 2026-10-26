@@ -107,6 +107,14 @@ impl<'t> Handle<'t> for InputHandler<'t> {
     }
 }
 
+impl<'t> InputHandler<'t> {
+    /// At `input_builder.end` (process_first_person_mode's epilogue: EBX the
+    /// handler).
+    pub fn at_builder_end(ctx: &'t super::Context<'_>) -> Option<InputHandler<'t>> {
+        NonNull::new(ctx.reg(super::Reg::Ebx) as usize as *mut c_void).map(|this| InputHandler { this, thread: PhantomData })
+    }
+}
+
 impl InputHandler<'_> {
     pub(in crate::vostok) fn ptr(&self) -> *mut c_void {
         this_ptr(self.this)

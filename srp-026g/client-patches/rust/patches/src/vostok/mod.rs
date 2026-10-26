@@ -14,17 +14,31 @@
 //!   to call the game's own function; a `lohook` handler gets a [`Context`]
 //!   and returns a [`Flow`]; state shared between hooks is a [`GameCell`].
 //!
+//! - state shared between hooks on several of the game's threads (the
+//!   draws, the bullets) is a [`Lock`]; the ragdoll's world ([`world`]), the
+//!   draw's sites ([`draw`]), the camera's ([`camera`]), a bullet's ray
+//!   ([`bullet`]), the machine's clock ([`clock`]) and the opt-in
+//!   diagnostics ([`trace`]) are patch 76's.
+//!
 //! It grows with what the patches need, and no further.
 
+pub mod bullet;
+pub mod camera;
 mod cell;
+pub mod clock;
 mod context;
+pub mod draw;
 mod hook;
 mod input;
+mod keyboard;
 pub mod log;
 mod options;
 pub mod parse;
 mod rt;
+mod sync;
+pub mod trace;
 pub mod types;
+pub mod world;
 mod ui;
 
 /// The generated hook glue (link_026g.py from the patches' TOML): each
@@ -45,10 +59,12 @@ mod generated {
 }
 
 pub use cell::GameCell;
-pub use context::{Context, Exit, Flag, Flow, Loc, NoExit, Reg, Ret};
+pub use sync::Lock;
+pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
 pub use hook::{Handle, Out, Regs, Thread};
 pub use input::{Action, ActionMask, ActionState, InputHandler, UnknownActionState};
-pub use options::{BufferReader, MatchOptions};
+pub use keyboard::TabTest;
+pub use options::OptionsRead;
 pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie};

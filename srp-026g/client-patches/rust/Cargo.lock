@@ -5,3 +5,10 @@ version = 4
 [[package]]
 name = "patches"
 version = "0.1.0"
+dependencies = [
+ "ragdoll",
+]
+
+[[package]]
+name = "ragdoll"
+version = "0.1.0"

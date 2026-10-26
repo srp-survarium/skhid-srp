@@ -105,7 +105,8 @@ appears anywhere:
 
 Logic shared beyond the client (with srp, the match server) is a library
 crate of its own -- pure Rust, no game bindings, so it needs no `cfg` -- that
-`patches` depends on; none exists yet.
+`patches` depends on. The first is patch 76's solver, `srp-026g/crates/ragdoll`
+(a path dependency; tested with `cargo test -p ragdoll` in srp-026g).
 
 ## 3. The hook system
 
@@ -151,6 +152,11 @@ is the next; in a `lohook` chain the first non-`Continue` flow ends it.
 **Cross-patch**: a patch names another in `uses` and calls its `pub fn`s.
 State shared between hooks is a `vostok::GameCell<T>`, reachable only inside
 a hook (a `Thread` token), so patch code stays safe and single-threaded.
+State the game reaches from several of its threads (mt_draw's tasks, the
+bullet manager's) is a `vostok::Lock<T>` instead: a spin lock, its value
+`&mut` inside `with`, a lock taken again on its own thread a panic. A
+static that is not all zeros goes to `patches.data`, a zero one to
+`patches.state` (ARENA).
 
 The declaration is names only; the facts are in the tables:
 
@@ -212,23 +218,17 @@ kept, the right bytes cleaned):
   types.
 
 `write` is the design above; a register-ABI `call` still needs its reverse
-thunk. `call` (the suicide-key example) and `lohook` (patch 65, Blackout:
-five sites) ship; the other kinds' generators are proven by
-check_hooks_026g.py and wait for their first patch to wire the install into
-patch_026g.py.
-
-**A `lohook` as it ships.** Its site's `span` in sites_026g.tsv is the
-span's bytes as hex (`8b178b4240`): the build needs no exe to generate the
-entry, and patch_026g.py's apply() checks the bytes against the original
-at every build (a number there is the length, for a hook built with the exe
-at hand). Each lohook site has its call shape in patch_026g.py's `INSTALLS`
-(a `JUMP`). In the handler, `Context::reg(Reg::Esp)` is the game's ESP at
-the site (the entry's `pushad` saved it 8 bytes lower), `stack_u32(n)` the
-game's `[esp + n]`, and `handle::<H>(Loc)` the typed game object a site's
-row says is there (`Loc::Reg`, `Loc::Stack(n)`, `Loc::Local(reg, n)` for a
-frame's local itself). The crate's statics (`GameCell`s) are the arena's
-block `patches.state`. A field's offset may be up to `FIELD_LIMIT` (0x60000,
-match_options' size).
+thunk. `call` (the suicide-key example) and `lohook` (patch 76, the ragdoll's
+five; patch 65, Blackout's five) ship; the other kinds' generators are proven by check_hooks_026g.py and
+wait for their first patch to wire the install into patch_026g.py. A span
+hook's bytes come from the original exe: patch_026g.py's `rust_hooks()`
+reads them from the exe it builds from (hooks_026g.py and the checks take
+`SRP_026G_EXE`), and INSTALLS declares every lohook a JUMP from its site row.
+Which register or frame slot a site holds is said once, in vostok's view of
+that site (`vostok::draw`, `vostok::bullet`, ...); the site row's `what`
+says it for the reader. A frame local is a `fields_026g.tsv` row with a
+negative offset (by EBP); a data VA the code compares with (a vtable) is a
+row of the kind `<...>::image`, generated as a constant.
 
 **fxsave on `lohook`/`splice`, not `call`/`pointer`/`callback` (the owner's
 rule, kept).** A `lohook` and a `splice` are true detours: the game does not

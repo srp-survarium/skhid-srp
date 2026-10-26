@@ -46,6 +46,7 @@ package
    import survarium.constants.Team;
    import survarium.constants.TeamSide;
    import survarium.constants.UiSound;
+   import survarium.controls.DeathEyes;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.ForcedView;
@@ -133,6 +134,10 @@ package
       protected const effectsDict:Dictionary = new Dictionary();
       
       protected const effectContainer:Sprite = new Sprite();
+
+      // The view fading over the respawn countdown (DeathEyes, docs/notes/death-eyes.md): on the
+      // stage between the screen effects and the root, so the kits and the countdown are over it.
+      protected const deathEyes:DeathEyes = new DeathEyes();
       
       protected const BLOOD_EFFECT:uint = 0;
       
@@ -397,6 +402,7 @@ package
          // interface (the root) leaves them.
          this.effectContainer.mouseEnabled = this.effectContainer.mouseChildren = false;
          stage.addChildAt(this.effectContainer,stage.getChildIndex(this));
+         stage.addChildAt(this.deathEyes,stage.getChildIndex(this));
          _keptLayer = new KeptLayer(this,this.keepLaidOut);
          _forcedView = new ForcedView(this._keptLayer,this.keptWhenForced,this.keptOnTab,this.keptWhileTyping,
                                       this.holdChatHistory);
@@ -1995,6 +2001,7 @@ package
          this.connectionInfo.visible = false;
          this.show_pregame(false);
          this.set_match_time("");
+         this.deathEyes.countdown("");
          if(this.progress_indicator.respawn_time)
          {
             this.set_respawn_time("");
@@ -2467,6 +2474,7 @@ package
       
       public function set_respawn_time(time:String) : void
       {
+         this.deathEyes.countdown(time);
          this.progress_indicator.respawn_time.text = time;
       }
       
@@ -2619,6 +2627,7 @@ package
          this.damageInd.scaleY = this.stageHeight / 720;
          this.placeEffects();
          this._keptLayer.place();
+         this.deathEyes.place(stage.stageWidth,stage.stageHeight);
          // The middle of the centre pixel in screen pixels (the crosshair is
          // drawn at 1:1, below): at a scale of 2 the half pixel in HUD units
          // was a whole pixel off.

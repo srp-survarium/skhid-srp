@@ -123,3 +123,45 @@ extern engine_write_file
 ; the IAT slot 0x870040 (kernel32, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_close_handle
+; void engine_ray_test(void *world, void *result, const float *origin, const float *direction, float length, unsigned int group, unsigned int mask, const void *delegate, unsigned int unflipped)
+; 0x75e20 vostok::physics::bullet_physics_world::ray_test: world ECX, result ESP+4, origin ESP+8, direction ESP+12, length ESP+16, group ESP+20, mask ESP+24, delegate ESP+28, unflipped ESP+32; pops 32
+extern engine_ray_test
+; void engine_release_object(void *object, unsigned int *count)
+; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
+extern engine_release_object
+; const void *engine_material_pair(const void *manager, unsigned int first, unsigned int second)
+; 0x306d50 (unnamed): manager ECX, first EDX, second EDI; pops 0; EAX
+extern engine_material_pair
+; void engine_play_particle(const float *position, void *manager, const void *particle, const float *direction, const float *normal, unsigned int parameter)
+; 0x3223e0 survarium::bullet_manager::play_particle: position EAX, manager ESP+4, particle ESP+8, direction ESP+12, normal ESP+16, parameter ESP+20; pops 20
+extern engine_play_particle
+; void engine_play_sound(void *manager, const void *sound, const float *position)
+; 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_play_sound
+; const char *engine_user_data_directory(void)
+; 0x18bd0 vostok::engine::engine_world::get_user_data_directory: no arguments; pops 0; EAX
+extern engine_user_data_directory
+; void *engine_match_options(void *client)
+; 0x219990 survarium::network_client::match_options: client ECX; pops 0; EAX; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_match_options
+; unsigned int *engine_active_player(void *client, unsigned int *out, unsigned int place)
+; 0x27a9c0 survarium::network_client::get_active_player: client ECX, out ESP+4, place ESP+8; pops 8; EAX; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_active_player
+; unsigned int engine_query_performance_counter(unsigned int *count)
+; the IAT slot 0x870158 (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_query_performance_counter
+; unsigned int engine_query_performance_frequency(unsigned int *frequency)
+; the IAT slot 0x870150 (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_query_performance_frequency
+; unsigned int engine_get_current_thread_id(void)
+; the IAT slot 0x870118 (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_current_thread_id
+; void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count)
+; 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16
+extern engine_update_skeleton
