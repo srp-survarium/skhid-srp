@@ -66,7 +66,7 @@ pub struct ThreatTuning {
 
 /// How a bot commits to a play it has started (the commander's keep rule,
 /// `team.rs`). Every switch is off until a bench turns it on.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CommitTuning {
     /// A hold (Crossfire, HoldExit, Cut) still walking to its spot is kept
@@ -79,6 +79,28 @@ pub struct CommitTuning {
     /// start a Cut where friends already are, not to leave one the bot is
     /// walking to.
     pub cut_given_crowd: bool,
+    /// A Crossfire on an enemy's last known place keeps its choke where it
+    /// was when it began, after the bot's memory has forgotten the enemy,
+    /// for `crossfire_point_s` at most (the choke is a position; it ended
+    /// with the memory's timer).
+    pub crossfire_point: bool,
+    /// How long that frozen choke stays valid from the play's start, s: the
+    /// walk (about 15 s) plus how long players keep covering a spot after
+    /// the enemy left their line (live 12+ matches, 144 of them: of the
+    /// episodes that cover it at all, median 5 s, P75 9-10 s, P90 15-20 s;
+    /// `push-record/scripts/human_cover_lastseen.py`).
+    pub crossfire_point_s: f32,
+}
+
+impl Default for CommitTuning {
+    fn default() -> Self {
+        Self {
+            hold_to_arrival: false,
+            cut_given_crowd: false,
+            crossfire_point: false,
+            crossfire_point_s: 30.0,
+        }
+    }
 }
 
 impl Default for ThreatTuning {

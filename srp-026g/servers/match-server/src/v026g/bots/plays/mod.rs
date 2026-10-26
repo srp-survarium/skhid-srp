@@ -472,6 +472,9 @@ pub struct BotFacts<'a> {
     /// The goal its motor walks a crossing or a ring's walk out to, across
     /// zones on all match (`crossing.rs`), while it has a route there.
     pub crossing: Option<Vec3>,
+    /// Where its Crossfire's enemy was when the play began, and when
+    /// (`commit.crossfire_point`).
+    pub held_choke: Option<(Place, Vec3, u32)>,
 }
 
 /// A play that fails this soon after it starts ...
@@ -622,6 +625,15 @@ impl Ctx<'_> {
             .iter()
             .find(|t| t.who == place)
             .map(|t| t.at)
+            .or_else(|| {
+                // The memory forgot him; a Crossfire on his place goes on
+                // for `crossfire_point_s`.
+                let keep = (self.tuning.commit.crossfire_point_s * 1000.0) as u32;
+                self.bot
+                    .held_choke
+                    .filter(|&(who, _, since)| who == place && self.now < since.saturating_add(keep))
+                    .map(|(_, at, _)| at)
+            })
     }
 
     /// Where a battery lies as far as the bot may know: with the battery
