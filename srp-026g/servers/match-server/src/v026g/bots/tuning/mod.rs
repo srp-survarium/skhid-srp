@@ -37,6 +37,12 @@ pub struct Tuning {
     pub threat: ThreatTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
+    /// `Ctx::path_dist` is the regions' walk between floors when a target
+    /// is a storey off; off (the default: merged switched off), the straight
+    /// ground distance whatever the floor, with Collect's batteries a storey
+    /// off priced by the walk as before (the bench's switch,
+    /// `SRP_BENCH_FLOOR_PATHS=1` on).
+    pub floor_paths: bool,
     /// Whether a bot's way out of a zone stays under the strength of the
     /// zone it starts in (`Tactics::escape`); off: the nearest way over any
     /// zone, as it was.
@@ -70,6 +76,7 @@ impl Default for Tuning {
             heal: HealTuning::default(),
             threat: ThreatTuning::default(),
             hazard_margin: 1.0,
+            floor_paths: false,
             escape_ceiling: true,
             gap_links: false,
             plays: PlayKind::ALL
@@ -225,6 +232,7 @@ mod tests {
         };
         assert_eq!(wrong(|t| t.sense.view_deg = 0.0), "sense.view_deg");
         assert_eq!(wrong(|t| t.sense.notice_near_ms = t.sense.notice_far_ms + 1), "sense.notice_*_ms");
+        assert_eq!(wrong(|t| t.sense.sprint_body_mps = Some(0.0)), "sense.sprint_body_mps");
         assert_eq!(wrong(|t| t.think.think_ms = (0, 5)), "think.think_ms");
         assert_eq!(wrong(|t| t.think.commander_ms = 10), "think.commander_ms");
         assert_eq!(wrong(|t| t.feel.hop_every_s = 0.0), "feel.hop_*");

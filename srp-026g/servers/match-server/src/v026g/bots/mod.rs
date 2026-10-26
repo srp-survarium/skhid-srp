@@ -291,6 +291,8 @@ pub struct Bot {
     /// choice, 0xF3, takes effect at the spawn).
     kit: usize,
     kit_chosen: usize,
+    /// The resupply holds it finished this match (`Intent::resupplied`).
+    resupplies: u32,
 }
 
 impl Bot {
@@ -415,6 +417,7 @@ impl Bot {
             failed_stands: Vec::new(),
             kit: 0,
             kit_chosen: 0,
+            resupplies: 0,
         }
     }
 
@@ -442,6 +445,32 @@ impl Bot {
         let (arms, reserve) = self.kits[0];
         self.life_carried = reserve.min(arms.primary.1);
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
+    }
+
+    /// Its weapon 1's ammo and what a resupply could bring it to; none for
+    /// a bot of no role.
+    pub fn ammo(&self) -> guns::Ammo {
+        let Some(&(arms, _)) = self.kits.get(self.kit) else {
+            return guns::Ammo::default();
+        };
+        let have = self.reflex.left();
+        guns::Ammo {
+            have,
+            whole: arms.primary.1,
+            storage: self.kit_left(self.kit).saturating_sub(have),
+        }
+    }
+
+    /// A resupply zone's top-up came: the rounds go from the kit's storage
+    /// to the stack (what the kit has for the match is the same), and how
+    /// many.
+    fn top_up(&mut self) -> u32 {
+        let take = self.ammo().missing();
+        if take > 0 {
+            self.reflex.top_up(take);
+            self.life_carried += take;
+        }
+        take
     }
 
     /// The rounds kit `i` has left for the match: the present kit's
@@ -627,6 +656,8 @@ pub struct Bots {
     foliage: foliage::Foliage,
     /// This poll's route searches ([`Searching`]).
     searching: Searching,
+    /// How the teams' own traps went off ([`trap_know::OwnTrapCounts`]).
+    own_traps: trap_know::OwnTrapCounts,
     /// Kit choices made since they were last taken
     /// ([`Bots::take_kit_choices`]): the place and the kit's index.
     kit_choices: Vec<(Place, u8)>,
@@ -701,6 +732,7 @@ impl Bots {
                 floors: 0,
                 pending: None,
             },
+            own_traps: trap_know::OwnTrapCounts::default(),
             kit_choices: Vec::new(),
             _search_memory: SearchMemory::hold(),
         }
@@ -1161,16 +1193,54 @@ impl Bots {
         } else {
             Vec::new()
         });
-        for team in &mut self.teams {
+        let mut went_off: Vec<(u8, Vec3)> = Vec::new();
+        for (team, state) in self.teams.iter_mut().enumerate() {
             if own {
-                team.knowledge.traps.sync(time, &found);
+                let fired = state.knowledge.traps.sync(time, &found);
+                went_off.extend(fired.into_iter().map(|at| (team as u8, at)));
                 if let Some(tactics) = self.tactics.as_ref() {
-                    team.refresh_traps(&tactics.world.grid);
+                    state.refresh_traps(&tactics.world.grid);
                 }
             }
-            team.world_traps = armed.clone();
+            state.world_traps = armed.clone();
+        }
+        if !went_off.is_empty() {
+            self.count_own_traps(time, &went_off);
         }
         found.len()
+    }
+
+    /// A team's trap went off: counted, and whether a body of the team with
+    /// a broken leg (a catch's mark, PROVEN) stands within
+    /// [`trap_know::CAUGHT_NEAR_M`] of it as the world shows (a proxy: the
+    /// worlds are seconds apart, and a human ally's legs are not known).
+    fn count_own_traps(&mut self, time: u32, went_off: &[(u8, Vec3)]) {
+        let world = self.tactics.as_ref().map(|t| t.world.clone());
+        let clock = Clock {
+            clock: time,
+            time_left_s: 0.0,
+            total_s: 0.0,
+            playing: true,
+        };
+        let view = self
+            .tracker
+            .view(&clock, &self.tuning.kin, world.as_deref());
+        for &(team, at) in went_off {
+            self.own_traps.fired += 1;
+            let caught = self.bots.iter().flatten().any(|bot| {
+                bot.team == team
+                    && bot.hurt.leg_broken
+                    && view
+                        .place(bot.place)
+                        .is_some_and(|p| p.feet.distance_xz(at) <= trap_know::CAUGHT_NEAR_M)
+            });
+            self.own_traps.own_team_caught += u32::from(caught);
+        }
+    }
+
+    /// How the teams' own traps went off (`trap_know.rs`).
+    pub fn own_trap_counts(&self) -> trap_know::OwnTrapCounts {
+        self.own_traps
     }
 
     /// The counts of the bots' notice of traps and passes by them, over all
@@ -1189,7 +1259,7 @@ impl Bots {
         let (mut made, mut notes) = (Vec::new(), Vec::new());
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
-        self.tracker.held_sounds(now);
+        self.tracker.held_sounds(now, self.tuning.sense.sprint_body_mps);
         if let Some(tactics) = self.tactics.as_mut() {
             tactics.hazards.advance(now);
         }

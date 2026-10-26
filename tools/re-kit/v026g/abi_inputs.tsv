@@ -2677,6 +2677,7 @@ va	name	location	role	basis
 0x002daf60	survarium::base_player::serialize	stack+4	writer	inferred
 0x002db490	survarium::base_player::deserialize	ECX	player	inferred
 0x002db490	survarium::base_player::deserialize	stack+4	reader	inferred
+0x002dbf40	survarium::base_player::can_sprint	entry ESP+4	player object (+108h, +10Ch, +115h, +128h, +300h, +494h, +6B8h, +6C0h, +738h read)	observed
 0x002dc0b0	survarium::base_player::set_spotted	ECX	this player's spottable interface (player+11Ch)	observed
 0x002dc0b0	survarium::base_player::set_spotted	entry ESP+4	the spotter (base_player)	observed
 0x002dc0c0	survarium::base_player::can_be_spotted_by	ECX	this player's spottable interface (player+11Ch)	observed

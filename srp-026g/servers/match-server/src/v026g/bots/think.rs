@@ -521,6 +521,7 @@ pub(super) fn decide(
             set_aside: &bot.set_aside,
             failed_stands: &bot.failed_stands,
             dry: bot.reflex.dry(),
+            ammo: bot.ammo(),
             crossing: walks_crossing(bot),
         },
         memory: &bot.memory,
@@ -565,6 +566,11 @@ pub(super) fn decide(
         }
         Step::Continue(mut intent) => {
             bot.press |= intent.press;
+            if let Some(zone) = intent.resupplied.take() {
+                bot.resupplies += 1;
+                let rounds = bot.top_up();
+                bot.note(notes, now, format!("resupplied at zone {zone}: +{rounds} rounds"));
+            }
             if let Some(failed) = intent.failed_stand.take() {
                 bot.failed_stands.retain(|f| f.until > now);
                 bot.failed_stands.push(failed);

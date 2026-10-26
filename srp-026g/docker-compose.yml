@@ -173,6 +173,13 @@ services:
       # unset. A path reads that file instead; empty or `off`: none. Without
       # it the bots roam to the exits.
       - SRP_BOT_ROUTES
+      # The bots' kit of 2026-10-26 (docs/notes/pvb-tiers.md): bandages,
+      # traps, a fourth pocket and skill 109's ammo bag. Off unless `1`,
+      # `on` or `true`; the lobby reads it once.
+      - SRP_BOT_KIT
+      # The upgrades on the bots' armour (loadouts::BOT_UPGRADES): off unless
+      # `1`, `on` or `true`.
+      - SRP_BOT_UPGRADES
     ports:
       # Login: TLS over TCP.
       - "${SRP26_LOGIN_PORT:-2234}:${SRP26_LOGIN_PORT:-2234}/tcp"

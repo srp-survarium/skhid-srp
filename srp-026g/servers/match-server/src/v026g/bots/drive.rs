@@ -804,6 +804,16 @@ pub(super) fn drive_tick(
                         second: None,
                     });
                 } else {
+                    #[cfg(test)]
+                    if let Some((from, to)) = ends
+                        && !escaping
+                        && !there
+                    {
+                        path::request_gap(
+                            route.is_some(),
+                            path::Gap::of(grid.position(to).y - grid.position(from).y),
+                        );
+                    }
                     bot.no_way = route.is_none().then_some((at, time + NO_WAY_RETRY_MS));
                     // Both ends on floors, from one it may walk on, and no way:
                     // proven, for the plays.

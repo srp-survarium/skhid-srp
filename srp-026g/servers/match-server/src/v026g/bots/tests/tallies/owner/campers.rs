@@ -14,6 +14,9 @@ pub(super) struct CamperCounts {
     /// Flank or Crossfire takes on a shooter holding his kill spot: all,
     /// and Flank's.
     pub(super) counter_runs: [u32; 2],
+    /// Probe: each counter run's runner, holder, take time, the runner's
+    /// height over the holder and the distance across at the take.
+    pub(super) counter_detail: Vec<(Place, Place, u32, f32, f32)>,
     /// Shooters killed while holding their kill spot: who, and whether the
     /// killer was [`OFF_LANE_DEG`] or more off every victim's bearing.
     pub(super) held_kills: Vec<(Place, bool)>,
@@ -290,6 +293,39 @@ pub(crate) fn a_counter_run_on_a_holder_and_a_holder_killed_off_his_lane_are_cou
 }
 
 impl OwnerTally {
+    /// Probe: the counter runs by the runner's height over the holder
+    /// (flat under 1.5 m, a floor 1.5-2.5 m, a storey over 2.5 m, above or
+    /// below), whether the runner came within 10 m of the holder (same
+    /// level) in the next 30 s and whether the holder died in them.
+    fn counter_split(&self) -> String {
+        let mut split: BTreeMap<String, u32> = BTreeMap::new();
+        for &(runner, holder, time, dy, dist) in &self.campers.counter_detail {
+            let k0 = (time.saturating_sub(self.first_tick) / TICK_MS) as usize;
+            let k1 = k0 + TPS * 30;
+            let (Some(rr), Some(rh)) = (self.recs.get(runner), self.recs.get(holder)) else {
+                continue;
+            };
+            let len = rr.len().min(rh.len());
+            let reached = (k0..k1.min(len)).any(|k| {
+                rr[k].alive && rh[k].alive && rr[k].feet.distance_xz(rh[k].feet) <= 10.0 && (rr[k].feet.y - rh[k].feet.y).abs() <= 1.5
+            });
+            let killed = (k0..k1.min(len)).any(|k| !rh[k].alive);
+            let level = match dy.abs() {
+                d if d < 1.5 => "flat",
+                d if d < 2.5 => "floor",
+                _ if dy > 0.0 => "storey-over",
+                _ => "storey-under",
+            };
+            let range = if dist < 20.0 { "<20m" } else if dist < 40.0 { "20-40m" } else { "40m+" };
+            *split
+                .entry(format!("{level} {range} reached {} holder-died {}", u8::from(reached), u8::from(killed)))
+                .or_default() += 1;
+        }
+        format!("owner-test counter runs split: {split:?}")
+    }
+}
+
+impl OwnerTally {
     /// The kills this tick, the shooters' held spots, and (once a second) the held lines.
     pub(super) fn campers_kills(&mut self, game: &Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
         // Kills of enemies, and the lines they make held.
@@ -297,6 +333,7 @@ impl OwnerTally {
             self.campers.kills_seen = 0;
         }
         let new_kills = game.kill_log[self.campers.kills_seen.min(game.kill_log.len())..].to_vec();
+        self.resupply.kills.extend(new_kills.iter().copied());
         self.campers.kills_seen = game.kill_log.len();
         self.campers.last_kill = game.kill_log.last().copied();
         for (t, shooter, victim) in new_kills {
@@ -459,8 +496,10 @@ impl OwnerTally {
             "camper_kills_off_lane": held_all[1],
             "stand_in_camper": camper,
         });
+        let counter_split = self.counter_split();
         let text = format!(
-            "owner-test campers: runs of 3+ from one spot {} ({} kills, longest {}); a team's deaths in a row to one shooter's spot, 3+ {} (longest {}); entries into a held line {} fatal {}, in the killed lane {} fatal {}; Trade takes {} died to the partner's killer {} killed him {}; counter runs on a holder {} (Flank {}); holders killed {} from off their lanes {}; the stand-in camper {}",
+            "{counter_split}
+  owner-test campers: runs of 3+ from one spot {} ({} kills, longest {}); a team's deaths in a row to one shooter's spot, 3+ {} (longest {}); entries into a held line {} fatal {}, in the killed lane {} fatal {}; Trade takes {} died to the partner's killer {} killed him {}; counter runs on a holder {} (Flank {}); holders killed {} from off their lanes {}; the stand-in camper {}",
             camp_runs,
             camp_run_kills,
             camp_longest,
