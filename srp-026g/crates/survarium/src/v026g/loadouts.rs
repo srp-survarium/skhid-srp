@@ -2137,7 +2137,10 @@ mod tests {
         // table too).
         assert_eq!(RusherKit::default(), RusherKit::Control);
         for tier in BotTier::ALL {
-            assert_eq!(tier.gear().rusher_gear(RusherKit::Control), &tier.gear().rusher);
+            assert_eq!(
+                tier.gear().rusher_gear(RusherKit::Control),
+                &tier.gear().rusher
+            );
             assert_eq!(tier.gear().of(BotRole::Rusher), &tier.gear().rusher);
         }
         for tier in [BotTier::Mid, BotTier::High] {

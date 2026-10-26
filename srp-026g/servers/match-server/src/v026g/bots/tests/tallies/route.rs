@@ -440,9 +440,9 @@ impl RouteTally {
                     let cos = (step.0 * back.0 + step.1 * back.1) / (moved * back.0.hypot(back.1));
                     if cos < (135f32).to_radians().cos() {
                         self.reversals += 1;
-                        let rusher = bots.bots[place]
-                            .as_ref()
-                            .is_some_and(|bot| bot.role == Some(survarium::v026g::loadouts::BotRole::Rusher));
+                        let rusher = bots.bots[place].as_ref().is_some_and(|bot| {
+                            bot.role == Some(survarium::v026g::loadouts::BotRole::Rusher)
+                        });
                         reversed.push((usize::from(body.team.min(1)), rusher));
                     }
                 }
@@ -676,4 +676,46 @@ impl RouteTally {
             self.reversals_near_rusher,
         ) + &route_ends
     }
+}
+
+/// Reversals are split by the bot's role, and a teammate's of a rusher's
+/// within [`REVERSAL_NEAR_MS`] is counted as near it (counts only).
+#[test]
+fn reversals_are_split_by_role_and_counted_near_a_rushers() {
+    use std::sync::Arc;
+    use crate::v026g::bots::Bots;
+    let teams = [0u8, 0, 1];
+    let roles = [Some("rusher"), Some("flanker"), Some("flanker")];
+    let bots = Bots::new(
+        1,
+        survarium::v026g::maps::mode::BATTERIES,
+        6,
+        &teams,
+        &[true; 3],
+        &roles,
+        Arc::new(crate::v026g::bots::Tuning::default()),
+        crate::v026g::bots::Trace::none(0),
+    );
+    let mut game = Game::new(super::super::standin::soak_world(), &teams, 1, None, None);
+    let mut tally = RouteTally::start(3);
+    // x at each world (1 s apart). The rusher turns back at world 2, its
+    // teammate at the same world and again at world 10 (8 s on); the
+    // other team's flanker turns back at world 7, with no rusher on its team.
+    let x: [[f32; 13]; 3] = [
+        [0., 2., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+        [0., 2., 0., 0., 0., 0., 0., 0., 0., 0., 2., 2., 2.],
+        [0., 0., 0., 0., 0., 0., 2., 0., 0., 0., 0., 0., 0.],
+    ];
+    for world in 0..13 {
+        game.tick = (world as u32 + 1) * 1000;
+        for place in 0..3 {
+            let body = &mut game.bodies[place];
+            body.alive = true;
+            body.feet = Vec3::new(x[place][world], 0.0, 0.0);
+        }
+        tally.world(&game, &bots);
+    }
+    assert_eq!(tally.reversals, 4);
+    assert_eq!(tally.reversals_by_role, [1, 3], "the rusher's, the others'");
+    assert_eq!(tally.reversals_near_rusher, 1, "the teammate's of the same world");
 }
