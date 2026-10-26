@@ -51,6 +51,10 @@ The owner's rule and what it changes. Data: `gameplay/players/default.player`
   clients' numbers; a jump off the ledge adds up to about 0.8 m (4 m/s), so
   at most 10.7 m/s. A fall over 5 m is never planned; it is a push, a slide, a
   walk-off nobody planned, or a harness launch (the J0 runner refuses those).
+  With the gap links on (`OffMeshLinks::Gaps`, as the server builds them; main at c7e9d018): per map
+  (1-8) Drop links 46836 / 41554 / 43237 / 49957 / 18428 / 49132 / 45432 / 33782, GapDrop 224 / 353 / 289 / 605 /
+  408 / 568 / 827 / 312, GapJump 429 / 870 / 885 / 1204 / 140 / 565 / 501 / 477 (a fall of 0.6 m at most); the
+  highest Drop and GapDrop fall is 5.00 m on every map, none lands at 11.9 m/s or more.
 - **Release:** the resources.db patch, made by `scripts/content-edit/content_edit.py`
   from `scripts/content-edit/fall-damage-1.json` (with `default.player` from the
   live server game data) and `release/build-patch`; the server game data built
