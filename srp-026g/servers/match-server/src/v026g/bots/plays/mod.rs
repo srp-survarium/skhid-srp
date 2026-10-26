@@ -820,6 +820,30 @@ impl Ctx<'_> {
 
     /// A candidate of `kind` at `target`, scored by its tuning's
     /// considerations; `None` at 0.
+    /// Why `kind` on `target` is not offered by [`Ctx::candidate`] now (the
+    /// bench's trace of holds that stop being candidates).
+    #[cfg(test)]
+    pub fn drop_reason(&self, kind: PlayKind, target: TargetRef) -> String {
+        if self
+            .bot
+            .set_aside
+            .iter()
+            .any(|&(k, t, until)| k == kind && t == target && self.now < until)
+        {
+            return "set aside".to_string();
+        }
+        if self.bot.dry && kind.seeks_fight() {
+            return "dry".to_string();
+        }
+        let play = self.play(kind);
+        let (score, why) = curve::score(&play.considerations, |input| self.input(input, kind, target));
+        if score.is_zero() {
+            let zero = why.parts.iter().find(|(_, _, s)| *s <= 0.0);
+            return zero.map_or("zero score".to_string(), |(i, v, _)| format!("zero {i:?} ({v:.2})"));
+        }
+        "its candidates() left it out".to_string()
+    }
+
     pub fn candidate(
         &self,
         kind: PlayKind,

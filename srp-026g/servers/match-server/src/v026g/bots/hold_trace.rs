@@ -68,6 +68,13 @@ pub fn ended(kind: PlayKind, age_ms: u32, why: &str, dist: Option<f32>) {
     }
 }
 
+/// A running hold play was not among the bot's candidates at a commander pass.
+pub fn dropped(kind: PlayKind, age_ms: u32, why: &str, dist: Option<f32>) {
+    if held(kind) {
+        add(format!("drop {kind:?} {} {why} @{}", age_bucket(age_ms), dist_bucket(dist)), 0.0);
+    }
+}
+
 /// The commander handed a bot running a hold play another play.
 #[allow(clippy::too_many_arguments)]
 pub fn switched(

@@ -200,6 +200,21 @@ impl Bots {
             };
             let mut candidates = Vec::new();
             plays::candidates(&cx, &mut candidates);
+            #[cfg(test)]
+            if let Some(a) = bot.assignment.as_ref()
+                && !candidates.iter().any(|c| c.kind == a.kind && c.target == a.target)
+            {
+                let dist = match bot.intent.go {
+                    Go::To { at, .. } => Some(me.feet.distance_xz(at)),
+                    _ => None,
+                };
+                super::hold_trace::dropped(
+                    a.kind,
+                    now.saturating_sub(a.since),
+                    &cx.drop_reason(a.kind, a.target),
+                    dist,
+                );
+            }
             // Collect's answers read, not asked again (`take_blocks`).
             blocks.push((bot.place, plays::collect::take_blocks(&cx, &candidates)));
             #[cfg(test)]
