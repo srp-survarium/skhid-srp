@@ -785,6 +785,9 @@ pub struct JumpTest {
     reach: Option<ReachSets>,
     /// Sites already checked: (the deck's x and z, in 0.1 m) and why refused.
     checked: HashMap<(i32, i32), Option<String>>,
+    /// The team that works each ledge of the file (by its site): the ledges nearer a team's spawns are its own, half
+    /// each, so the teams do not cross on the way (enemies collide). Empty with one ledge or a team without spawns.
+    sides: HashMap<(i32, i32), u8>,
     /// Ledges whose start no bot reached twice: no try is taken on them (their base, before any lane).
     bad_sites: Vec<Vec3>,
     /// Bots not in the test rest (no fire, no plays); `SRP_JUMP_TEST_IDLE_OTHERS=0` lets them play.
@@ -850,6 +853,7 @@ impl JumpTest {
             pool: VecDeque::new(),
             bad_sites: Vec::new(),
             no_route: HashSet::new(),
+            sides: HashMap::new(),
             yielding: HashMap::new(),
             suicides: [0; 2],
             reach: None,
@@ -962,6 +966,9 @@ impl JumpTest {
                 }
                 pool.retain(|d| self.bad_sites.iter().all(|bad| base_of(d).distance_xz(*bad) > BAD_SITE_M));
                 self.pool = pool;
+                let spawns: Vec<(Vec3, u8)> = world.map.spawns.iter().map(|s| (s.position, u8::from(s.team != 0))).collect();
+                let sites: Vec<((i32, i32), Vec3)> = self.known.values().map(|d| (site_key(d), start_of(d))).collect();
+                self.sides = split_sites(&spawns, sites);
                 for (place, runner) in &mut self.runners {
                     runner.pending = by_bot.remove(place).unwrap_or_default();
                 }
@@ -1047,6 +1054,8 @@ impl JumpTest {
             .iter()
             .enumerate()
             .filter(|(_, def)| !self.no_route.contains(&(place, site_key(def))))
+            // A ledge on the other team's side is not this team's to work.
+            .filter(|(_, def)| self.sides.get(&site_key(def)).is_none_or(|&side| side == team & 1))
             .find_map(|(i, def)| free_lane(def, &taken, team).map(|lane| (i, lane)))?;
         let mut def = self.pool[index].clone();
         self.pool[index].repeat -= 1;
@@ -1504,6 +1513,20 @@ impl JumpTest {
 fn shift_of(reckoned: Vec3, rest: Vec3) -> [f32; 2] {
     let off = [reckoned.x - rest.x, reckoned.z - rest.z];
     if off[0].hypot(off[1]) <= SHIFT_MAX_M { off } else { [0.0, 0.0] }
+}
+
+/// Which team works each ledge: `sites` (key, start) sorted by how much nearer team 0's spawns are than team 1's; the
+/// nearer half is team 0's, the rest team 1's. None (everyone takes any) with fewer than two ledges or a team with no
+/// spawn.
+fn split_sites(spawns: &[(Vec3, u8)], sites: Vec<((i32, i32), Vec3)>) -> HashMap<(i32, i32), u8> {
+    let nearest = |team: u8, at: Vec3| spawns.iter().filter(|s| s.1 == team).map(|s| s.0.distance_xz(at)).fold(f32::MAX, f32::min);
+    if sites.len() < 2 || nearest(0, Vec3::ZERO) == f32::MAX || nearest(1, Vec3::ZERO) == f32::MAX {
+        return HashMap::new();
+    }
+    let mut by_lean: Vec<((i32, i32), f32)> = sites.into_iter().map(|(key, at)| (key, nearest(0, at) - nearest(1, at))).collect();
+    by_lean.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
+    let own = by_lean.len() / 2;
+    by_lean.into_iter().enumerate().map(|(i, (key, _))| (key, u8::from(i >= own))).collect()
 }
 
 /// Gives a ledge up: its tries leave the pool and no later one is taken.
@@ -2213,6 +2236,29 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
         assert_eq!(plan.at(press + 1_100 - TICK_MS).keys, 0);
         assert_eq!(plan.at(press + 1_100).keys, key::BACK);
         assert_eq!(plan.at(plan.end).keys, 0, "and nothing after the keys");
+    }
+
+    #[test]
+    fn the_ledges_nearer_a_teams_spawns_are_that_teams_and_a_bot_takes_only_its_own() {
+        let spawns = [(Vec3::new(0.0, 0.0, 0.0), 0), (Vec3::new(100.0, 0.0, 0.0), 1)];
+        let site = |x: f32| ((x as i32 * 10, 0), Vec3::new(x, 0.0, 5.0));
+        let sides = split_sites(&spawns, vec![site(10.0), site(90.0), site(40.0), site(70.0)]);
+        assert_eq!(sides[&site(10.0).0], 0);
+        assert_eq!(sides[&site(40.0).0], 0);
+        assert_eq!(sides[&site(70.0).0], 1);
+        assert_eq!(sides[&site(90.0).0], 1);
+        // One ledge, or one team's spawns only: no split.
+        assert!(split_sites(&spawns, vec![site(10.0)]).is_empty());
+        assert!(split_sites(&spawns[..1], vec![site(10.0), site(90.0)]).is_empty());
+        // The pool: team 0 gets the ledge on its side, team 1 the other, whatever the file's order.
+        let mut jt = JumpTest::new(PathBuf::from("none"), PathBuf::from("none"), "t".into(), 120);
+        let a = TryDef { id: "a".into(), ..wide_def(0.0, 5.5) };
+        let mut b = TryDef { id: "b".into(), ..wide_def(0.0, 5.5) };
+        b.site.lower = Vec3::new(b.site.lower.x + 80.0, b.site.lower.y, b.site.lower.z);
+        jt.pool.extend([a.clone(), b.clone()]);
+        jt.sides = HashMap::from([(site_key(&a), 0), (site_key(&b), 1)]);
+        assert_eq!(jt.take_from_pool(1, 1).expect("a try").id, "b");
+        assert_eq!(jt.take_from_pool(2, 0).expect("a try").id, "a");
     }
 
     #[test]
