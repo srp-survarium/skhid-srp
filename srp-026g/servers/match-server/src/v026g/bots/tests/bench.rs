@@ -133,7 +133,7 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
 ///   {"band_legs": false}}}`. The patch's result is checked by [`Tuning::validate`] as the file's is.
 /// - The settings below it are older names for the same changes, kept so that the bench scripts and
 ///   BENCH-GUIDE go on working (`SRP_BENCH_CHEAT`, `_BATTERY_SIGHT_M`, `_FRIEND_NEAR_M`, `_FF_*`,
-///   `_ESCAPE_CEILING`, `_SEARCH_FLOORS`, and the number lists `SRP_BENCH_<PLAY>`, `_COMBAT`, `_AIM`,
+///   `_ESCAPE_CEILING`, `_SEARCH_FLOORS`, and the number lists `SRP_BENCH_<PLAY>`, `_COMBAT`, `_HEAL`, `_AIM`,
 ///   `_SENSE`). They are applied first, in the order they always were, and the patch last, so it wins.
 ///   For `side1` only the lists (`SRP_BENCH_SIDE1_<name>`) and the patch read team 1's names.
 pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
@@ -143,6 +143,12 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     // The floor-aware path distance on (`1`) or off (`0`, the default): `Tuning::floor_paths`.
     if let Ok(v) = settings.var("SRP_BENCH_FLOOR_PATHS") {
         set(&mut tuning, "/floor_paths", (v != "0").into());
+    }
+    // The lip guard (2 ticks held) and the short look-ahead on lips (0.8 m) on: both are off by default
+    // (`Feel::lip_guard_ticks`, `lip_look_ahead_m`).
+    if settings.var("SRP_BENCH_LIP_GUARD").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/lip_guard_ticks", 2.into());
+        set(&mut tuning, "/feel/lip_look_ahead_m", 0.8.into());
     }
     // The battery cheat instead of the fair battery knowledge.
     if settings.flag("SRP_BENCH_CHEAT") {
@@ -199,6 +205,7 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     // aim's own (`AimTuning`: `range_m`, `fire_within_deg`, `pause_ms`, ...) and the senses' (`SenseTuning`) likewise.
     for (name, section, comma_or_semicolon) in [
         ("COMBAT", "/aim/combat", true),
+        ("HEAL", "/heal", true),
         ("AIM", "/aim", true),
         ("SENSE", "/sense", false),
     ] {
@@ -429,7 +436,10 @@ pub(crate) fn real_bot_cost() {
         let project = format!("level_{level:02}/day_{mode}");
         let started = Instant::now();
         let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(&project))).unwrap();
-        let world = Arc::new(World::build(map, mapdata::CELL, mapdata::Body::default()));
+        // The grid with the gap links when this run's tuning has them
+        // (`Tuning::gap_links`, `SRP_BENCH_TUNING`).
+        let links = bench_tuning().off_mesh_links();
+        let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
         let built_s = started.elapsed().as_secs_f32();
         // What the build freed handed back (glibc keeps it otherwise): the
         // memory of the world as the server holds it.
@@ -964,6 +974,7 @@ pub(crate) fn real_bot_cost() {
                     for (place, hurt) in hurts.into_iter().enumerate() {
                         bots.hurt(place, hurt);
                     }
+                    standin_heal::tell(&mut game, &mut bots, world_tick);
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             for note in bots.fixed(place, fix, Some(health)) {
