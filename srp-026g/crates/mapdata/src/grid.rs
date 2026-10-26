@@ -137,6 +137,27 @@ impl Body {
     }
 }
 
+impl Body {
+    /// The numbers the 0.26g clients run: `startup.cfg` of the game's `resources.db` sets `cc_step_height 0.80`
+    /// (the exe's default is the 0.6 of [`Body::default`]) and `cc_max_slope_angle_cos 0.57358`, 55° (the exe's
+    /// default 50° is read by `impassable_slope` 0x7de10; the cvar replaces it). PROVEN on the owner's barrel pile
+    /// (Chemical Plant): its +z plane at 53.1° is walked, its -z plane at 58.0° is not. Another key: its grids are
+    /// built apart from the default body's.
+    pub fn client() -> Self {
+        Self {
+            step: 0.8,
+            min_ground_normal_y: 0.573_58,
+            ..Self::default()
+        }
+    }
+
+    /// Whether the body walks ground as steep as the clients do (55°, not the exe's 50°): a jump then does not land
+    /// on steep ground, which the client slides off ([`WalkGrid::cut_steep_climbs`]).
+    fn client_slope(&self) -> bool {
+        self.min_ground_normal_y < Self::default().min_ground_normal_y
+    }
+}
+
 impl Default for Body {
     fn default() -> Self {
         Self {
@@ -897,6 +918,18 @@ impl WalkGrid {
                 {
                     wide.links[a][d] = NONE;
                     cut[a] |= 1 << d;
+                }
+            }
+        }
+        // With the clients' 55° a jump does not land on steep ground (58° planes: the pile's -z side): the
+        // client slides off it. A drop onto it stays (a body comes down a slope).
+        if self.body.client_slope() {
+            for a in 0..n {
+                for d in 0..8 {
+                    let b = wide.links[a][d];
+                    if b != NONE && wide.kinds[a][d] == LinkKind::Jump && steep_floor[b as usize] {
+                        wide.links[a][d] = NONE;
+                    }
                 }
             }
         }
@@ -4132,6 +4165,41 @@ pub(crate) mod tests {
         );
         let stairs = WalkGrid::build(&steep(WalkerBehaviour::Walk), AREA, 0.5, Body::default());
         assert!(!stairs.is_empty());
+    }
+
+    /// The clients walk ground up to 55° (`startup.cfg` `cc_max_slope_angle_cos 0.57358`), not the exe's 50°: a plane of
+    /// 53° up 1.4 m is a way for [`Body::client`] and none for [`Body::default`]; a plane of 58° is none for either, and no
+    /// jump lands on it (the barrel pile of Chemical Plant, PROVEN: the owner walks up its 53.1° side, not its 58.0° side).
+    #[test]
+    fn the_clients_slope_is_55_degrees_and_no_jump_lands_on_steeper_ground() {
+        let plane = |degrees: f32| {
+            let rise = 1.4;
+            let run = rise / degrees.to_radians().tan();
+            let mut tris = floor(0.0, 0.0, 5.0, 10.0, 0.0).to_vec();
+            let (a, b) = (Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0 + run, rise, 0.0));
+            let (c, d) = (Vec3::new(5.0 + run, rise, 10.0), Vec3::new(5.0, 0.0, 10.0));
+            let walker = WalkerBehaviour::BySlope;
+            tris.push(Triangle { v: [a, b, c], walker });
+            tris.push(Triangle { v: [a, c, d], walker });
+            tris.extend(floor(5.0 + run, 0.0, 14.0, 10.0, rise));
+            tris
+        };
+        let way = |tris: &[Triangle], body: Body| {
+            let grid = WalkGrid::build(tris, [0.0, 0.0, 14.0, 10.0], 0.25, body);
+            let a = grid.locate(Vec3::new(2.0, 0.0, 5.0), 1.0).unwrap();
+            let b = grid.locate(Vec3::new(12.0, 1.4, 5.0), 1.0).unwrap();
+            let path = grid.path(a, b);
+            // A way up the plane by walking only: no jump in it.
+            let walked = path.as_ref().is_some_and(|p| p.nodes.windows(2).all(|w| grid.links(w[0]).any(|l| l == (w[1], LinkKind::Walk))));
+            (path.is_some(), walked)
+        };
+        let (gentle, steep) = (plane(53.0), plane(58.0));
+        assert_eq!(way(&gentle, Body::default()), (false, false), "the exe's 50° cuts the climb");
+        assert_eq!(way(&gentle, Body::client()), (true, true), "the clients' 55° walks it");
+        assert_eq!(way(&steep, Body::client()), (false, false), "58° is no way: not walked, no jump lands on it");
+        assert_eq!(way(&steep, Body::default()), (false, false));
+        // The default body's grid is what it was: Body::default() is the exe's numbers.
+        assert_eq!((Body::default().step, Body::default().min_ground_normal_y), (0.6, 0.642_787_6));
     }
 
     #[test]

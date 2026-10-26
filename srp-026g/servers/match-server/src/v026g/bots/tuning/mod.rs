@@ -116,6 +116,11 @@ impl Tuning {
         self.grid.off_mesh_links()
     }
 
+    /// The body of the maps' grids ([`GridTuning::client_numbers`]).
+    pub fn grid_body(&self) -> mapdata::Body {
+        self.grid.body()
+    }
+
     /// The defaults with the file's changes.
     pub fn load(path: &Path) -> Result<Self, String> {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
