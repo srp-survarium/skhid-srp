@@ -48,6 +48,21 @@ use crate::v026g::drive::key;
 /// The look ahead is not shortened below this, metres.
 const MIN_AHEAD_M: f32 = 0.5;
 
+/// With [`Feel::unclear_aim`], how far back of the progress along the route the walk looks for a point it walks to in a
+/// line, metres (the doorway behind the leg it has been taken to be on).
+const BACK_AIM_M: f32 = 3.0;
+
+/// What the walk steers at ([`Motor::aim_point`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Aim {
+    /// A point the body walks to in a line.
+    Clear(Vec3),
+    /// The nearest the look-ahead came, not one (the rule is off).
+    Unclear(Vec3),
+    /// No point of the route is one.
+    None,
+}
+
 /// The motor's tuning.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -127,6 +142,11 @@ pub struct Feel {
     pub lip_guard_ticks: u32,
     /// The look-ahead of a walk on a lip's floors, metres; 0 is off (the default; the walk looks as far as anywhere).
     pub lip_look_ahead_m: Metres,
+    /// When no point of the route ahead is one the body walks to in a line (it is on the other side of a wall from the
+    /// route's next legs): `false` (the default; the bench's trains switch it on) steers at the unclear point all the
+    /// same, into the wall; `true` steers at the farthest route point it does walk to in a line, up to [`BACK_AIM_M`]
+    /// back, and plans again from where it stands with none (`Motor::aim_point`).
+    pub unclear_aim: bool,
     /// The highest jump link a route of a body that cannot sprint (a battery carrier) takes, metres: the
     /// client's standing jump (`STANDING_JUMP_M`, 0.998, PROVEN) and no sprint jump with a battery (PROVEN, 0x337040);
     /// `None` (the default; the bench's `SRP_BENCH_CARRIER_JUMP=on` sets the standing jump) plans it over every jump
@@ -164,6 +184,7 @@ impl Default for Feel {
             hop_after_jump_s: 2.0,
             lip_guard_ticks: 0,
             lip_look_ahead_m: Metres::of(0.0),
+            unclear_aim: false,
             carrier_jump_m: None,
         }
     }
@@ -622,6 +643,43 @@ impl Motor {
         self.feel.sway * (self.phase + self.t * 2.0 * PI / self.feel.sway_period_s).sin()
     }
 
+    /// The point of the route the walk steers at: `ahead` metres on from `s`, nearer by 0.6 while the body does not walk
+    /// to it in a line (`clear`), down to [`MIN_AHEAD_M`]. Where even that is not clear the body is on the wrong side of
+    /// something (a wall between it and the route's next legs): with [`Feel::unclear_aim`] off it steers at the unclear
+    /// point all the same (into the wall); on, at the farthest route point it does walk to in a line, within
+    /// [`BACK_AIM_M`] back of `s`, and with none the route is lost to it ([`Aim::None`]: off the route, planned again from
+    /// where it stands).
+    fn aim_point(&self, route: &Route, s: f32, mut ahead: f32, clear: &impl Fn(Vec3) -> bool) -> Aim {
+        let mut target = route.point_at(s + ahead);
+        while ahead > MIN_AHEAD_M && !clear(target) {
+            #[cfg(test)]
+            counts::cut();
+            ahead *= 0.6;
+            target = route.point_at(s + ahead);
+        }
+        if clear(target) {
+            return Aim::Clear(target);
+        }
+        #[cfg(test)]
+        counts::unclear();
+        if !self.feel.unclear_aim {
+            return Aim::Unclear(target);
+        }
+        let mut back = MIN_AHEAD_M;
+        while back > -BACK_AIM_M {
+            back -= 0.5;
+            let point = route.point_at((s + back).max(0.0));
+            if clear(point) {
+                #[cfg(test)]
+                counts::unclear_back();
+                return Aim::Clear(point);
+            }
+        }
+        #[cfg(test)]
+        counts::unclear_off();
+        Aim::None
+    }
+
     /// The decision of one tick that walks the route from `pose`. `off_m`:
     /// how far off the route the caller lets the body be before it plans
     /// again; `clear(point)`: whether the body walks to `point` in a line.
@@ -653,14 +711,11 @@ impl Motor {
                 let mut ahead =
                     self.feel.look_ahead_m + self.feel.look_ahead_per_speed * pose.speed;
                 ahead = ahead.min(self.ahead_cap.unwrap_or(f32::INFINITY));
-                let mut target = route.point_at(s + ahead);
-                while ahead > MIN_AHEAD_M && !clear(target) {
-                    #[cfg(test)]
-                    counts::cut();
-                    ahead *= 0.6;
-                    target = route.point_at(s + ahead);
+                match self.aim_point(route, s, ahead, &clear) {
+                    Aim::Clear(target) | Aim::Unclear(target) => target,
+                    // No point of the route is one the body walks to in a line: it is off it.
+                    Aim::None => return (Decision::default(), Walked::Off(off_m.max(off) + 0.01)),
                 }
-                target
             }
         };
         let (dx, dz) = (target.x - pose.feet.x, target.z - pose.feet.z);
@@ -809,15 +864,14 @@ impl Motor {
         let target = match jump {
             Some(jump) => jump.aim,
             None => {
-                let mut ahead = self.feel.look_ahead_m.min(self.ahead_cap.unwrap_or(f32::INFINITY));
-                let mut target = route.point_at(s + ahead);
-                while ahead > MIN_AHEAD_M && !clear(target) {
-                    #[cfg(test)]
-                    counts::cut();
-                    ahead *= 0.6;
-                    target = route.point_at(s + ahead);
+                let ahead = self.feel.look_ahead_m.min(self.ahead_cap.unwrap_or(f32::INFINITY));
+                match self.aim_point(route, s, ahead, &clear) {
+                    Aim::Clear(target) | Aim::Unclear(target) => target,
+                    Aim::None => {
+                        let turn = self.aim_toward(pose, aim.0, aim.1);
+                        return (Decision { keys: 0, turn }, Walked::Off(off_m.max(off) + 0.01));
+                    }
                 }
-                target
             }
         };
         let (dx, dz) = (target.x - pose.feet.x, target.z - pose.feet.z);
@@ -1382,7 +1436,7 @@ pub mod sprint_jumps {
 pub mod counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
+    static COUNTS: [AtomicU64; 11] = [const { AtomicU64::new(0) }; 11];
 
     fn add(k: usize) {
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
@@ -1409,6 +1463,21 @@ pub mod counts {
         add(if changed { 6 } else { 7 });
     }
 
+    /// A walk tick whose look-ahead ended on a point the body does not walk to in a line.
+    pub fn unclear() {
+        add(8);
+    }
+
+    /// Of those, ticks that steered at a clear route point back of the progress instead.
+    pub fn unclear_back() {
+        add(9);
+    }
+
+    /// Of those, ticks with no clear route point at all: reported off the route.
+    pub fn unclear_off() {
+        add(10);
+    }
+
     static KEYS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
 
     /// One tick of the walk keys: whether the plan goes on from a tick
@@ -1431,8 +1500,9 @@ pub mod counts {
     }
 
     /// (up at the first press, up later, given up, look-ahead cuts, side
-    /// steps clear, side steps refused, lip guard changed, lip guard none).
-    pub fn counts() -> [u64; 8] {
+    /// steps clear, side steps refused, lip guard changed, lip guard none, look-ahead ended unclear, of them steered back
+    /// to a clear point, of them off the route).
+    pub fn counts() -> [u64; 11] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -1810,6 +1880,89 @@ mod tests {
         // Uncapped it heads for a point round the corner (a turn to the side); capped at 0.5 m the point is
         // the corner's, straight ahead.
         assert!(heading(Some(0.5)) < heading(None) * 0.5, "{} {}", heading(Some(0.5)), heading(None));
+    }
+
+    /// A doorway in a thin wall (School's spawn room exit, x 24.04-25.91 in the wall strip z 182.62-183.07): the route goes
+    /// through it and turns west along the wall's far side. A body on the near side, level with the far leg, has no
+    /// route point ahead it walks to in a line: steering at the unclear one walks it into the wall; with
+    /// `Feel::unclear_aim` it steers back to the doorway's near point.
+    fn doorway() -> (Route, impl Fn(Vec3) -> bool + Copy) {
+        let p = |x, z| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
+        let route = Route::new(vec![
+            p(22.45, 179.72),
+            p(24.45, 182.72),
+            p(24.45, 182.97),
+            p(23.95, 183.47),
+            p(19.2, 183.72),
+            p(16.2, 180.47),
+        ]);
+        // A line from `a` to `b` crosses the wall strip unless it does so in the doorway.
+        let crosses = |a: Vec3, b: Vec3| {
+            let (lo, hi) = (182.62, 183.07);
+            if (a.z < lo) == (b.z < lo) && (a.z > hi) == (b.z > hi) && (a.z < lo || a.z > hi) {
+                return false;
+            }
+            if (a.z - b.z).abs() < 1e-4 {
+                return a.z > lo && a.z < hi;
+            }
+            [lo, hi].iter().any(|&z| {
+                let t = (z - a.z) / (b.z - a.z);
+                (0.0..=1.0).contains(&t) && {
+                    let x = a.x + (b.x - a.x) * t;
+                    !(24.04..=25.91).contains(&x)
+                }
+            })
+        };
+        (route, move |point: Vec3| !crosses(Vec3::new(21.5, 0.0, 182.3), point))
+    }
+
+    #[test]
+    fn with_no_clear_point_ahead_the_walk_steers_back_to_the_doorway_not_into_the_wall() {
+        let (mut route, clear) = doorway();
+        let feet = Vec3::new(21.5, 0.0, 182.3);
+        let (s, off) = route.progress(feet);
+        assert!(off < 2.0, "{off}");
+        let mut rng = Rng::new(3);
+        let motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+        // The body is on the far leg's nearest segment: past the doorway by the progress.
+        assert!(s > 5.0, "{s}");
+        // Off (the default): the point it steers at is one the wall is across.
+        match motor.aim_point(&route, s, 2.4, &clear) {
+            Aim::Unclear(point) => assert!(!clear(point), "{point:?}"),
+            other => panic!("{other:?}"),
+        }
+        // On: a clear point of the route, back of the progress.
+        let on = Motor::new(Feel { sway: 0.0, unclear_aim: true, ..Feel::default() }, &mut rng);
+        match on.aim_point(&route, s, 2.4, &clear) {
+            Aim::Clear(point) => assert!(clear(point) && point.z < 183.0, "{point:?}"),
+            Aim::None => {}
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// The walk reports the route lost (off it) when no route point back of the progress is clear either, so the drive
+    /// plans again from where the body stands; and the rule changes nothing where the look-ahead is clear.
+    #[test]
+    fn a_clear_look_ahead_is_the_same_with_the_rule_on_and_off() {
+        let p = |x, z| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
+        let pose = Pose { feet: Vec3::new(1.0, 0.0, 0.0), yaw: yaw_of([1.0, 0.0]), pitch: 0.0, speed: 3.0, ..Default::default() };
+        let decide = |unclear_aim: bool| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, unclear_aim, ..Feel::default() }, &mut rng);
+            let mut route = Route::new(vec![p(0.0, 0.0), p(10.0, 0.0), p(10.0, 10.0)]);
+            let (decision, walked) = motor.walk(&mut route, &pose, 5.0, |_| true);
+            (decision.keys, decision.turn.0.to_bits(), walked)
+        };
+        assert_eq!(decide(false), decide(true));
+        // Nothing clear at all, the rule on: off the route; off: it walks on.
+        let blocked = |unclear_aim: bool| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, unclear_aim, ..Feel::default() }, &mut rng);
+            let mut route = Route::new(vec![p(0.0, 0.0), p(10.0, 0.0), p(10.0, 10.0)]);
+            motor.walk(&mut route, &pose, 5.0, |_| false).1
+        };
+        assert_eq!(blocked(false), Walked::OnTheWay);
+        assert!(matches!(blocked(true), Walked::Off(_)));
     }
 
     /// Hurt so it does not jump (a broken leg: about 8 s) as it comes to a
