@@ -93,7 +93,7 @@ mod tests {
         survarium::v026g::game_data::init().expect("SRP_GAME_DATA");
         let silent: Vec<String> = survarium::v026g::weapons::all()
             .iter()
-            .filter(|w| reach_of(&w.name).is_none())
+            .filter(|w| reach_of(w.name).is_none())
             .map(|w| w.name.to_owned())
             .collect();
         assert!(silent.is_empty(), "no row in shot_reach.tsv for {silent:?}");
