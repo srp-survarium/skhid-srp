@@ -487,7 +487,7 @@ impl MatchRegistry {
             players: setup
                 .players
                 .into_iter()
-                .map(|player| player.profile.with_band(blackout))
+                .map(|player| player.profile)
                 .collect(),
             map_id: setup.map_id,
             match_id: static_id(match_id),
@@ -627,14 +627,8 @@ impl MatchRegistry {
         }
         let mut next = (**formed).clone();
         let first = next.places.len();
-        // A late joiner wears his team's band too: his own profile carries it
-        // to every game (the static info and the place the others are sent).
-        let blackout = next.blackout;
-        next.profiles.extend(
-            players
-                .iter()
-                .map(|player| player.profile.clone().with_band(blackout)),
-        );
+        next.profiles
+            .extend(players.iter().map(|player| player.profile.clone()));
         next.info = StaticInfo::new(
             &MatchOptions {
                 players: next.profiles.clone(),

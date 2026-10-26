@@ -13,6 +13,14 @@ package survarium.controls
    {
       
       protected static const to_dir:Number = 180 / Math.PI;
+
+      // The game's icon ids: 0 to 36 its players' (player::initialize_player_icon 0x1F29D0, the player's
+      // index), from 37 the match's objects' (game_world_ui::initialize_match 0x2357A9.., update_player_icons
+      // 0x23AA83: the batteries and the like).
+      public static const FIRST_OBJECT:uint = 37;
+
+      // The match's objects' icons hidden (the interface forced hidden: MainTimeline.force_interface_hidden).
+      protected var _objectsHidden:Boolean = false;
       
       protected var _markers:Dictionary = new Dictionary();
       
@@ -85,6 +93,33 @@ package survarium.controls
          }
       }
       
+      public function set objectsHidden(hidden:Boolean) : void
+      {
+         var id:*;
+         _objectsHidden = hidden;
+         if(hidden)
+         {
+            for(id in this._markers)
+            {
+               if(uint(id) >= FIRST_OBJECT)
+               {
+                  this._markers[id].visible = false;
+               }
+            }
+         }
+      }
+
+      // Whether the icon of this id may show: an enemy's player icon never (the game's own rule), an object's
+      // not while the objects are hidden.
+      protected function canShow(id:uint, renderer:HUDMarker) : Boolean
+      {
+         if(_objectsHidden && id >= FIRST_OBJECT)
+         {
+            return false;
+         }
+         return renderer.kind != 0 || this._enemyIds.indexOf(id) == -1;
+      }
+
       public function register_icon_renderer(kind:uint, renderer_class:Class) : void
       {
          this._class[kind] = renderer_class;
@@ -180,7 +215,7 @@ package survarium.controls
             if(bool)
             {
                trace("set_player_icon_visible:: kind:",this._markers[id].kind,"indexInEnemys:",this._enemyIds.indexOf(id));
-               canBeVisible = this._markers[id].kind != 0 || this._enemyIds.indexOf(id) == -1;
+               canBeVisible = this.canShow(id,this._markers[id]);
                if(canBeVisible)
                {
                   this._markers[id].visible = true;
@@ -211,7 +246,7 @@ package survarium.controls
          var filter:DropShadowFilter;
          if(iconVisible)
          {
-            canBeVisible = renderer.kind != 0 || this._enemyIds.indexOf(id) == -1;
+            canBeVisible = this.canShow(id,renderer);
             trace("canBeVisible",canBeVisible,renderer.kind,props.a);
             if(canBeVisible)
             {

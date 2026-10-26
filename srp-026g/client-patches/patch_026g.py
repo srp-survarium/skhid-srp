@@ -491,16 +491,15 @@ Patches:
   the key (back at 0x26CCAE, al 1); while the movie says its interface is
   hidden (root.interface_hidden) any other key goes straight to the movie
   (back at 0x26CDD2), no window key or F6's Play acting;
-- Blackout, a battery match with no interface and a team's band on every
-  character (patch 65, a prototype, with the late join;
-  docs/notes/blackout.md; SRP_BLACKOUT, srp's block's tag 2).
-  blackout_026g.asm and .c (the arena's blocks blackout.code and .state):
-  match_options::deserialize's end (patch 63's entry at 0x1F0F30) keeps the
-  tag in the options (+57870h); patch 62's reset of a match's interface
-  (0x234AE8) forces it hidden for such a match and F11 does nothing in it;
-  profile_skin_visual_cook::on_configs_loaded (0x2056F0) gives such a match's
-  player one more part, models/ported/blackout/band_<blue|green> (team 0,
-  team 1; content pack blackout-bands), and a name of its own;
+- Blackout, a battery match with no interface but the players' markers
+  (patch 65, a prototype, with the late join; docs/notes/blackout.md;
+  SRP_BLACKOUT, srp's block's tag 2). blackout_026g.asm and .c (the arena's
+  blocks blackout.code and .state): match_options::deserialize's end (patch
+  63's entry at 0x1F0F30) keeps the tag in the options (+57870h); patch 62's
+  reset of a match's interface (0x234AE8) forces it hidden for such a match
+  (the hud keeps the countdown, the player icons the players' markers) and
+  F11 does nothing in it; Tab held shows the ammo and the quick-use slots and
+  stops the player (0x25CD34, 0x2421B0);
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2060,17 +2059,12 @@ HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # Blackout (patch 65, a prototype; README; client_patch.md section 3.58; the
 # rules: ../docs/notes/blackout.md): blackout_026g.asm (the entry) and
 # blackout_026g.c (the logic) in the arena's block blackout.code, the options
-# last read in blackout.state. One hook of its own:
-# - profile_skin_visual_cook::on_configs_loaded 0x204560 at 0x2056F0 (`mov
-#   edx,[esp+58h] / mov esi,[ebp+0Ch]`, after the parts and the head; 0x205653
-#   jumps there too, to the first byte): for a player of a Blackout match one
-#   more part record, the band of his team, and the visual's name told apart;
-#   then the two instructions and on at 0x2056F7.
-# And two calls from other patches' entries: patch 63's td_options_entry
-# (0x1F0F30) calls bo_options (srp's block's tag 2), patch 62's hide_ui_reset
-# (0x234AE8) calls bo_match and hide_ui_force (the interface forced hidden
-# and F11 locked for the match).
-# No base relocation is under the site and no branch aims inside it.
+# last read in blackout.state. Two calls from other patches' entries: patch
+# 63's td_options_entry (0x1F0F30) calls bo_options (srp's block's tag 2),
+# patch 62's hide_ui_reset (0x234AE8) calls bo_match and hide_ui_force (the
+# interface forced hidden and F11 locked for the match; the player icons'
+# movie is told the forced state from Research's per-frame icons entry,
+# 0x23B207, hide_ui_icons). Two hooks of its own:
 # - game_world::on_keyboard_action's `call 0x2384C0` (show_player_list, Tab
 #   down or up) at 0x25CD34: bo_tab keeps the state, then the call;
 # - player_input_handler::process_first_person_mode 0x241250 at its
@@ -2079,11 +2073,10 @@ HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 #   (+33Ch) has no move and no act, and an act held through Tab stays out
 #   until let go; then the four instructions and on at 0x2421B5.
 BLACKOUT_HOOKS = (
-    (0x2056F0, bytes.fromhex("8b542458" "8b750c"), "bo_visual_entry", 0xE9),     # on_configs_loaded: the parts done
     (0x25CD34, bytes.fromhex("e887b7fdff"), "bo_tab_entry", 0xE8),               # on_keyboard_action: show_player_list
     (0x2421B0, bytes.fromhex("5f5e5b8be5"), "bo_input_entry", 0xE9),             # the input builder's epilogue
 )
-BLACKOUT_BACKS = (0x2056F7, 0x2421B5)
+BLACKOUT_BACKS = (0x2421B5,)
 
 
 def weapon_camo_va(late_join):
@@ -2288,13 +2281,11 @@ INSTALLS = {
                      "replay's controls, esi the handler) or 0x25CF0D", None, None),
     0x234AE8: (CALLEE, "initialize_match's Invoke of root.reset (thiscall: the hud movie, the name, the result, "
                        "the arguments, the count; `ret 10h`): reset, which invokes it and shows the hud and the "
-                       "icons (hides them for the match: Blackout, patch 65)", None, None),
+                       "icons (forces the interface for the match: Blackout, patch 65)", None, None),
     0x26CCD2: (CALLEE, "lobby_menu::on_keyboard_action's get_binded_action (eax the binder, edi 2, esi the key, "
                        "the toggle's place pushed; `ret 4`): lobby, which on toggle_replay_ui returns to 0x26CCAE "
                        "instead", None, None),
     # Blackout, patch 65 (in `.srpx`)
-    0x2056F0: (JUMP, "profile_skin_visual_cook::on_configs_loaded after the parts and the head, `mov edx,[esp+58h] "
-                     "/ mov esi,[ebp+0Ch]`: bo_visual_entry, a Blackout match's band, back at 0x2056F7", None, None),
     0x25CD34: (CALLEE, "game_world::on_keyboard_action's show_player_list (esi the hud, the byte pushed; `ret 4`): "
                        "bo_tab_entry, Tab kept for Blackout's input, then the call", None, None),
     0x2421B0: (JUMP, "process_first_person_mode's epilogue `pop edi / pop esi / pop ebx / mov esp,ebp` (ebx the "
@@ -2544,7 +2535,7 @@ ARENA = (
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
     ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
     ArenaBlock("blackout.code", "code", 0x1000, ("blackout_026g.asm", "blackout_026g.c")),  # patch 65
-    ArenaBlock("blackout.state", "state", 0x10, ("blackout_026g.c",)),              # bo_last: the options last read
+    ArenaBlock("blackout.state", "state", 0x10, ("blackout_026g.c",)),              # bo_blackout, Tab: the options last read
 )
 
 

@@ -60,27 +60,6 @@ pub const MAX_MESSAGE: usize = 255 * 483;
 /// factor is `max(0, 1 − 0.1 × value)`.
 pub const NO_PROTECTION: u32 = 10;
 
-/// Blackout's band (`docs/notes/blackout.md`, exe patch 65) is the player's
-/// own: the profile's protection field, which every way a profile reaches a
-/// game carries (the static info, a late joiner's place, a replay). Every
-/// value from [`NO_PROTECTION`] up protects nothing (`max(0, 1 − 0.1 × v)`:
-/// 0x332BAA, 0x332C4D; its other reader, 0x2F4E2A, tests 0), so the match
-/// computes the same; 10 is no band, these two a band of a colour.
-pub const BAND_BLUE: u32 = NO_PROTECTION + 1;
-pub const BAND_RED: u32 = NO_PROTECTION + 2;
-
-impl MatchProfile {
-    /// The profile wearing its team's band (team 0 blue, 1 red) in a
-    /// Blackout match, or none.
-    pub fn with_band(mut self, blackout: bool) -> Self {
-        self.protection = match (blackout, self.team) {
-            (true, 0) => BAND_BLUE,
-            (true, 1) => BAND_RED,
-            _ => NO_PROTECTION,
-        };
-        self
-    }
-}
 /// A kit the player may use in the match: the client loads a player
 /// resource only for these.
 pub const KIT_USABLE: u8 = 0;
@@ -339,8 +318,8 @@ pub struct MatchOptions {
     /// tag 1); `None`: off, the block not sent.
     pub team_damage: Option<TeamDamage>,
     /// A Blackout match (srp's block, tag 2; exe patch 65,
-    /// `docs/notes/blackout.md`): no interface for anyone, a team's band on
-    /// every character. `false`: the entry not sent.
+    /// `docs/notes/blackout.md`): no interface for anyone but the player
+    /// markers. `false`: the entry not sent.
     pub blackout: bool,
 }
 

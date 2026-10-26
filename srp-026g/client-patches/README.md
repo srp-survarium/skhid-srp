@@ -106,7 +106,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `team_damage_026g.asm`, `team_damage_026g.c`, `check_team_damage_026g.py` | Patch 63: team damage turned back on its dealer past a threshold, as 0.28a had it (the arena's block `team_damage.code`: the six entries in the asm, the logic in the C); its check runs the entries from the game's sites with the game's own options reader, kd_stats_rule constructor and field writers on made-up objects, beside the original (needs Unicorn) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
-| `blackout_026g.asm`, `blackout_026g.c`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface and a team's band on every character (the arena's blocks `blackout.code` and `blackout.state`); its check runs the options reader, a match's reset and F11, and the character's records from the game's sites on made-up objects (needs Unicorn) |
+| `blackout_026g.asm`, `blackout_026g.c`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface but the players' markers (the arena's blocks `blackout.code` and `blackout.state`); its check runs the options reader, a match's reset and F11, the markers' feed, Tab and the input from the game's sites on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `sponge_a_026g.asm`, `sponge_a_026g.c` | The source of patch 59's Sponge (artefact type 12): the ten hooks, the resolve_links slot and their stubs in assembly, and 0.28d0's artefact_sponge_core written again in C on 0.26g's interfaces (the object, its vtables, the cook's query, the throw, the explosion, the zone, the passive, the state), and the owner's spots (where the Sponge and the Rattle spawn: the pool, the links, the spawn) |
@@ -3574,7 +3574,7 @@ a key kF9 set for 19h kept in the 41st row (the original keeps it in none), the 
 writes `bind toggle_replay_ui kF9`, and that line read back binds it again. The lobby movie builds from source
 (`tools/actionscript/flash_tree.py`). **Not run in a game.**
 
-### 65. Blackout: a battery match with no interface, a team's band on every character (a prototype; the next release's revision)
+### 65. Blackout: a battery match with no interface but the players' markers (a prototype; the next release's revision)
 
 The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.md section 3.58.
 `blackout_026g.asm` and `blackout_026g.c` (the arena's blocks `blackout.code` and
@@ -3583,13 +3583,13 @@ The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.
 - **The flag.** srp's block after the static info's squads (patch 63's reader at 0x1F0F30, which
   now calls `bo_options` too) with tag 2, one byte 1 (`SRP_BLACKOUT=on`, battery maps): the
   options' +57870h (the unused "Mode" string's last 16 bytes) holds "SRBO", else zeros; the
-  options last read (a match's 0xE4 or a replay's chunk 1) are remembered (`bo_last`).
+  options last read (a match's 0xE4 or a replay's chunk 1) are remembered (`bo_blackout`).
 - **The interface.** Patch 62's reset of a match's interface (initialize_match's root.reset,
   0x234AE8) calls `hide_ui_force(bo_match())`: the one entry that forces the state. Forced, the
   hud gets `root.force_interface_hidden(true)` (its root hidden but for the pre-match countdown,
-  and while Tab is held the ammo and the quick-use slots, never the list: HUD.as) and the icons `root.hide_interface(true)` for the match, and the case 19h (F11) goes
-  on at 0x25CF0D with nothing invoked (a replay's controls still toggle); not forced, both are
-  shown and F11 works.
+  and while Tab is held the ammo and the quick-use slots, never the list: HUD.as) and the case
+  19h (F11) goes on at 0x25CF0D with nothing invoked (a replay's controls still toggle); not
+  forced, the hud is shown and F11 works. The icons are shown at the reset as in every match.
 - **Tab stops the player.** game_world::on_keyboard_action's call of show_player_list
   (0x25CD34, CALLEE) keeps whether Tab is down; process_first_person_mode's epilogue (0x2421B0,
   JUMP, back at 0x2421B5) then takes the moves (forward, back, strafes, sprint) and the acts
@@ -3597,34 +3597,27 @@ The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.
   actions mask (+33Ch) while it is held in a Blackout match; an act held through Tab stays out
   until its key is let go. The input is filtered before it is applied and sent: every game plays
   what was sent, no rule changes.
-- **Nothing over the world.** Research's per-frame entry at update_ui's call of
-  update_player_icons (0x23B207, patch 53) runs neither it nor the units' markers in a Blackout
-  match: the markers' movie gets no name, marker or icon of any player or object.
-- **The band.** profile_skin_visual_cook::on_configs_loaded (0x204560) at 0x2056F0, after the
-  parts and the head (`mov edx,[esp+58h] / mov esi,[ebp+0Ch]`, JUMP, back at 0x2056F7): the
-  character's own profile says its band (its protection +45F4h, which srp makes 11 blue or 12 red
-  in a Blackout match; 10, no band, everywhere else; every value from 10 up protects nothing), on
-  every way the profile comes (the static info, a late joiner's place, a replay); no flag, world or
-  order is read. One more of the visual's 20 part records (+234h, C0Ch each, +F324h in use): the
-  band of its torso (its first record of part 2, if `blackout_torsos_026g.h` names it): base_model
-  `ported/blackout/<the torso's base_model, '/' as '_'>_blue` or `_red`, part_name `band`, part 2;
-  `srpbo0_` or `srpbo1_` after the visual's name (the combined skin's cache key), so a band never
-  shows on the same kit without
-  one. The models are the content pack `blackout-bands@6`.
+- **The players' markers stay.** Research's per-frame entry at update_ui's call of
+  update_player_icons (0x23B207, patch 53) first calls patch 62's `hide_ui_icons`: the player
+  icons' movie the hud holds (the game world's own) gets `root.force_interface_hidden` with the
+  forced state when it is another movie or the state changed since it was last told (a movie that
+  does not take it yet is told at the next frame). Forced, the movie keeps the players' markers and
+  names as in any match (ids below 37: a player's is his index) and hides the match's objects'
+  (from 37: the batteries and the like); the feed runs as in any match.
 - **Nothing a match computes:** no `simulation_changes.tsv` row.
 
-**Checked:** `selftest_026g.py` check 65 (the site and its neighbours, the records' layout and
-their queries, no relocation under it, no branch into it, the block's bytes, the two calls from
-patch 63's and 62's entries; check 62's list of calls now names `bo_match` and its one state,
-`hide_ui_forced`); `check_blackout_026g.py` (Unicorn): the game's options reader on nine blocks
-(Blackout alone, after team damage, after an unknown tag; team damage alone, value 0, two bytes,
-a short block, another magic, none): "SRBO" exactly for the first three; the reset then F11
-after a Blackout, a plain and a Blackout static info: forced hidden and F11 doing nothing, then
-shown and F11 hiding, then forced again; a replay's F11 as before; on_configs_loaded's site on a
-visual of the game's own constructor: the blue or green record and the name for places 0, 7 and
-19, nothing for the lobby's profile, a profile inside the options off a place's start, team 2,
-a full visual or no Blackout, registers and frame as the original's. `check_hide_ui_026g.py` and
-`check_team_damage_026g.py` pass as before. **Not run in a game.**
+**Checked:** `selftest_026g.py` check 65 (the two sites, no relocation under them, no branch
+into them, the block's bytes, the calls from patch 63's, 62's and Research's entries, the icon ids'
+layout in the original, the movies' forced state in their sources; check 62's list of calls names
+`bo_match` and its one state, `hide_ui_forced`); `check_blackout_026g.py` (Unicorn): the game's
+options reader on nine blocks (Blackout alone, after team damage, after an unknown tag; team
+damage alone, value 0, two bytes, a short block, another magic, none): "SRBO" exactly for the
+first three; the reset then F11 after a Blackout, a plain and a Blackout static info: forced
+hidden and F11 doing nothing, then shown and F11 hiding, then forced again; a replay's F11 as
+before; the markers' feed over eleven frames (after a reset, another icons' movie, a movie that
+refuses, no movie): fed every frame, the icons told the state exactly at a change; Tab and the
+input. `check_hide_ui_026g.py` and `check_team_damage_026g.py` pass as before. **Not run in a
+game.**
 
 ## Not ported, not done
 

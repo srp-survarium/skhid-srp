@@ -159,7 +159,10 @@ class Run:
                                       for t, v in values))
             if args[1] and self.text(args[0]) == b"root.interface_hidden":
                 emu.mem_write(args[1] + 4, struct.pack("<II", 2, self.hidden))
-            emu.reg_write(UC_X86_REG_EAX, 1)
+            # al 1, the method taken; 0 for a movie made to refuse it (`refused`: a movie without a root yet)
+            refused = self.text(args[0]) in getattr(self, "refused", ()) and emu.reg_read(UC_X86_REG_ECX) \
+                in getattr(self, "refusing", ())
+            emu.reg_write(UC_X86_REG_EAX, 0 if refused else 1)
             pops = 16
         emu.reg_write(UC_X86_REG_ESP, sp + 4 + pops)
         emu.reg_write(UC_X86_REG_EIP, self.read(sp))

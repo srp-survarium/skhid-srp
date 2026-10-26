@@ -1715,44 +1715,27 @@ A player's ask through the owner: a key that hides the whole interface, the lobb
 - **What changes:** F11 in a match hides the hud, crosshair, minimap and markers until F11 or the kits; F11 in the lobby hides the lobby's interface until a key. Rendering and input only, no simulation change.
 - **Checked:** `selftest_026g.py` check 62 and the call shapes; `check_hide_ui_026g.py` (Unicorn): 16 match cases, 28 lobby cases, 5 of the options (README patch 62). **Not run:** a game: that show_ui's hide leaves nothing of the hud (the hit marks and blood effects are the hud movie's, LIKELY), that the player icons' movie is +20Ch (LIKELY: initialize_resources' third movie, the exe's names in that order), that a stage child of the lobby keeps its own `visible`, and that Scaleform's capture listeners run as Flash's.
 
-### 3.58 Blackout: a battery match with no interface, a team's band on every character (written 2026-10-24, README patch 65, a prototype; the rules: `blackout.md`) — PROVEN in the code, the options reader, the reset, F11 and the character's records run with Unicorn with the game's own code; not run in a game
+### 3.58 Blackout: a battery match with no interface but the players' markers (written 2026-10-24, README patch 65, a prototype; the rules: `blackout.md`) — PROVEN in the code, the options reader, the reset, F11, the markers' feed, Tab and the input run with Unicorn with the game's own code; not run in a game
 
-- **The visual** (PROVEN). profile_skin_visual_cook::on_configs_loaded (0x204560; entry ESP+12 the
-  profile, ESP+16 the kit) makes a skeleton_combined_cook_data (0xF328 bytes, constructor
-  0x127C30): +0 the bind pose's path, +118h the skeleton's, +234h 20 part records of C0Ch
-  (constructor 0x127CB0: +0 base_model, +114h part_name, +228h material, buffer_strings over
-  their own 104h bytes; +34Ch the camouflage parameters; +C08h the part), +F324h the records in
-  use. The parts loop over the slot table 0xA79870 (gloves, torso, boots, pants, helmet, mask,
-  back) from record 1 (0x204735), each item's `additional_models` a record more (0x205520); the
-  head is record 0, written last (0x205659) unless an item says `remove_head_model`. Both paths
-  meet at 0x2056F0, where every record is made; the query of the combined skin follows
-  (0x20579F, its name [esp+348h]: per part `%d_`, `%I64d` or `0_`, the cache's key).
-  skeleton_combined_model_cook::query_resources_by_data (0x128260) queries per record in use
-  `resources/models/<base_model>.skinned_model/render/<part_name>/converted_model`,
-  `.../export_properties` and `<base_model>.skinned_model/settings`: a part needs nothing but
-  the two names. Nothing reads +C08h at that offset.
-- **Which characters** (PROVEN in the code). The band is the character's own profile's, not a
-  state of the game: srp writes it in the profile's new-player protection (+45F4h, u32, read by
-  0x1F1070 at 0x1F10CE): 11 a blue band, 12 a red one, 10 none (the lobby's, any other match's).
-  Every value from 10 up protects nothing (`max(0, 1 - 0.1 v)` at 0x332BAA and 0x332C4D; 0x2F4E2A
-  only tests 0), so the match computes the same. The profile comes the same way on every path:
-  the static info (match start, a replay's chunk 1) and a late joiner's place (the others decode
-  it into their late-join context's own copy, late_join_runtime_026g.c). Round 5 tested the game
-  world's match instead (game::game 0x1E9070 makes the game world at +18h, its +4D4Ch the match
-  from game_world::set_match 0x1F9740, called at the match's ready, 0x27AB6E): the characters of a
-  match's start are built before it, so nobody had a band until a respawn. Nothing of the order
-  is read now.
+- **Bands** (parked, branch `feat/blackout-bands`, the owner 2026-10-26: the release goes without
+  them): a team colour painted into each torso's sleeve, carried in each player's profile; the
+  findings stay in `tools/re-kit/v026g` (profile_skin_visual_cook's records, a part's material).
 - **The flag** (PROVEN). match_options' +57840h (40h bytes) is the "Mode" string, only emptied
   (0x3183E3) and logged (0x27BD08); patch 63 keeps its numbers at +57860h, patch 65 "SRBO" at
   +57870h. The reader (patch 63's entry at 0x1F0F30) runs for 0xE4 (0x27B928) and for a replay's
   chunk 1 (0x1F096C).
-- **The markers** (PROVEN in the code; LIKELY the cause). The player icons' movie (`player_icons.swf`) is
-  loaded with each game world (game_world::load, 0x1F8F69) and fed every frame by update_player_icons
-  (0x23AA10, from update_ui at 0x23B207: create_player_icon 0x23BE57, the names 0x23C00D, the props
-  0x23B1C0). The first Blackout build hid it at initialize_match's reset with root.hide_interface; the
-  owner still saw a teammate's name and marker: LIKELY the movie's root does not exist yet then (a movie
-  never advanced), so the Invoke does nothing. Plain F11 is a key in a running match (the root exists):
-  not affected. Now a Blackout match does not feed the movie at all.
+- **The markers** (PROVEN in the code). The player icons' movie (`player_icons.swf`) is loaded with
+  each game world (game_world::load, 0x1F8F69) and fed every frame by update_player_icons (0x23AA10,
+  from update_ui at 0x23B207: create_player_icon 0x23BE57, the names 0x23C00D, the props 0x23B1C0).
+  Its ids: a player's is his index (player::initialize_player_icon 0x1F29D0, 0x1F29E8); the
+  match's objects' from 25h (initialize_match 0x235771.., update_player_icons 0x23AA83: their
+  own list, each visible by team). The first Blackout build hid the movie at initialize_match's
+  reset with root.hide_interface and the owner still saw a teammate's name and marker: LIKELY the
+  hud then still held a movie that did not take it (the game world's own comes with it). So the
+  forced state is told from the feed: patch 62's `hide_ui_icons` before each update_player_icons
+  tells the movie the hud holds `root.force_interface_hidden` at a change of movie or state, and
+  again while the Invoke answers 0. Forced, the movie hides its objects' icons (ids from 37) and
+  keeps the players' (the owner, 2026-10-26: the players' markers visible in Blackout).
 - **Tab** (PROVEN in the code). game_world::on_keyboard_action (0x25CD00) asks the keyboard for DIK_TAB
   (0x25CD22, push 0Fh) at every key and passes it to game_world_ui::show_player_list (0x2384C0, esi
   the hud, its state +0BAh); Tab is no action of the binder. process_first_person_mode (0x241250,
@@ -1762,16 +1745,13 @@ A player's ask through the owner: a key that hides the whole interface, the lobb
   type 0Ah 800h, wpn_1/2 1Dh/1Eh 1000h/2000h, quick use 39h..3Eh 4000h..80000h, breath 2Ah 100000h,
   use 35h 200000h, drop 36h 400000h, wheel 24h/25h 2000000h/4000000h, grenade 20h 800000h, melee 21h
   8000000h, spot 22h 10000000h) and returns through 0x2421B0 (its early exit at 0x241284 too).
-- **The patch:** README patch 65. Exe code: the hooks at 0x2056F0 (`bo_visual_entry`, JUMP), 0x25CD34
-  (`bo_tab_entry`, CALLEE) and 0x2421B0 (`bo_input_entry`, JUMP), the
-  call of `bo_options` in patch 63's options entry, `hide_ui_force` (the hud's
-  root.force_interface_hidden, the markers' root.hide_interface) and the `hide_ui_forced` byte in
-  patch 62, `bo_match` in Research's per-frame icons entry (patch 53, 0x23B207). Content: the pack
-  `blackout-bands@6`, a band per torso; the exe's table of its torsos is
-  `blackout_torsos_026g.h` (`blackout.md`).
-- **Checked:** selftest check 65; `check_blackout_026g.py`. **Not run in a game.** Not known: the
-  band's look in a match (the pack's fit is offline), whether any part of the game reads a
-  record's +C08h through another base.
+- **The patch:** README patch 65. Exe code: the hooks at 0x25CD34 (`bo_tab_entry`, CALLEE) and
+  0x2421B0 (`bo_input_entry`, JUMP), the call of `bo_options` in patch 63's options entry,
+  `hide_ui_force` (the hud's root.force_interface_hidden), `hide_ui_icons` (the icons'
+  root.force_interface_hidden) and the `hide_ui_forced` byte in patch 62, `hide_ui_icons` called
+  from Research's per-frame icons entry (patch 53, 0x23B207). Movies: the hud's and the player
+  icons' `force_interface_hidden`. No content of its own.
+- **Checked:** selftest check 65; `check_blackout_026g.py`. **Not run in a game.**
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 

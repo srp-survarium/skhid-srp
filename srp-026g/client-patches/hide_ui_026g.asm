@@ -29,12 +29,17 @@
 ; original.
 ;
 ; Forced (patch 65, Blackout; ../docs/notes/blackout.md): hide_ui_force is the
-; one place that forces the state: forced, both movies get
-; root.hide_interface(true) and F11 does nothing in the match (the case 19h
-; goes on to 0x25CF0D, the replay's controls still toggled); not forced, both
-; are shown and F11 works. The reset calls it with bo_match's answer (the
-; match's static info said Blackout), so a Blackout match is hidden from its
-; first frame to its end, and the next match starts as the server says.
+; one place that forces the state (hide_ui_forced): forced, each movie hides
+; its interface but for what a forced one keeps (root.force_interface_hidden:
+; the hud the pre-match countdown, the player icons the players' markers and
+; names) and F11 does nothing in the match (the case 19h goes on to 0x25CF0D,
+; the replay's controls still toggled); not forced, both are shown and F11
+; works. The reset calls it with bo_match's answer (the match's static info
+; said Blackout), so a Blackout match is forced from its first frame to its
+; end, and the next match starts as the server says. The player icons' movie
+; is the game world's own (loaded with it, 0x1F8F69): hide_ui_icons tells
+; the one the hud holds the state at the first frame it is fed after a change
+; of either (Research's per-frame icons entry, 0x23B207).
 ;
 ; The lobby. lobby_menu::on_keyboard_action (0x26CB80) asks the key binder for
 ; the lobby's actions (kind 2) at 0x26CCD2 (eax the binder, edi 2, esi the
@@ -70,6 +75,7 @@
 BITS 32
 %include "engine_026g.inc"
 global hide_ui_match, hide_ui_lobby, hide_ui_reset, hide_ui_force
+global hide_ui_icons
 global hide_ui_forced                ; the forced state (the self-test reads it)
 extern bo_match                    ; patch 65 (blackout_026g.c): 1 for a Blackout match
 global controls                    ; the options' controls, 41 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
@@ -217,25 +223,63 @@ hide_ui_reset:
     ret 16
 
 ; The interface forced hidden for the match ([esp+4] 1) or shown and free
-; ([esp+4] 0): edi the hud. The one entry that forces it: the hud movie's
-; root.force_interface_hidden (its root hidden but for the parts a forced
-; match keeps: the pre-match countdown, HUD.as), the player icons'
-; root.hide_interface, and F11 locked while forced. ebx, esi, edi and ebp
-; kept.
+; ([esp+4] 0): edi the hud. The one entry that forces it: hide_ui_forced (F11
+; locked while forced), the hud movie's root.force_interface_hidden (its root
+; hidden but for the parts a forced match keeps: the pre-match countdown,
+; HUD.as), the player icons shown (root.hide_interface(false), as every
+; match starts) and told the state again at their next frame (hide_ui_icons).
+; ebx, esi, edi and ebp kept.
 hide_ui_force:
     mov eax, [esp+4]
     test eax, eax
     setnz al
     movzx eax, al
     mov [hide_ui_forced], al
+    mov dword [icons_told], 0
     push ebx
     mov ebx, eax
     mov ecx, HUD_MOVIE
     mov edx, force_interface_hidden
     call invoke_bool
+    xor ebx, ebx
     mov ecx, ICONS_MOVIE
     mov edx, hide_interface
     call invoke_bool
+    pop ebx
+    ret
+
+; update_player_icons' frame ([esp+4] the hud, game_world_ui): the player
+; icons' movie the hud holds is told the forced state
+; (root.force_interface_hidden(hide_ui_forced): forced, its players' markers
+; and names stay and its objects' are hidden, player_icons' MainTimeline)
+; when it is another movie, or the state another, than the one last told; a
+; movie that does not take it yet (no root) is told at the next frame. Every
+; register but eax, ecx and edx kept.
+hide_ui_icons:
+    push ebx
+    push edi
+    mov edi, [esp+12]
+    mov ecx, ICONS_MOVIE
+    call movie_of
+    test eax, eax
+    jz .out
+    movzx ebx, byte [hide_ui_forced]
+    cmp eax, [icons_told]
+    jne .tell
+    cmp bl, [icons_told_state]
+    je .out
+.tell:
+    push eax
+    mov ecx, ICONS_MOVIE
+    mov edx, force_interface_hidden
+    call invoke_bool
+    pop ecx
+    test al, al
+    jz .out                        ; not taken: again at the next frame
+    mov [icons_told], ecx
+    mov [icons_told_state], bl
+.out:
+    pop edi
     pop ebx
     ret
 
@@ -347,6 +391,11 @@ hide_interface_label:
 section .data
 hide_ui_forced:                          ; 1 while hide_ui_force holds the interface hidden
     db 0
+icons_told_state:                        ; the state the player icons' movie was last told
+    db 0
+align 4
+icons_told:                              ; that movie (0: tell the one the hud holds)
+    dd 0
 align 4
 controls:                          ; the game's 40 rows (0xA9DB28), in their order
     CONTROL 0x04, 0x9FCC70, 2, 1   ; st_jump_action

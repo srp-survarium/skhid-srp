@@ -37,6 +37,9 @@ package player_icons_fla
       public var movingLeft:Boolean;
       
       public var lastPosY:Number;
+
+      // force_interface_hidden's state, for the layer frame 1 makes.
+      public var objectsForced:Boolean = false;
       
       public function MainTimeline()
       {
@@ -49,6 +52,18 @@ package player_icons_fla
       public function hide_interface(hidden:Boolean) : void
       {
          visible = !hidden;
+      }
+
+      // The interface forced hidden for a match (exe patch 62's hide_ui_force, Blackout; docs/notes/blackout.md):
+      // the players' markers and names stay as in any match, the match's objects' (HUDIconLayer.FIRST_OBJECT
+      // on: the batteries and the like) are hidden. Kept for frame 1's layer when told before it.
+      public function force_interface_hidden(forced:Boolean) : void
+      {
+         this.objectsForced = forced;
+         if(this.iconControl)
+         {
+            this.iconControl.objectsHidden = forced;
+         }
       }
 
       public function create_player_icon(id:uint, kind:uint = 0, baseScale:Number = 1) : void
@@ -187,6 +202,7 @@ package player_icons_fla
          this.iconControl.register_icon_renderer(0,PlayerNameRenderer);
          this.iconControl.register_icon_renderer(1,MarkerRenderer);
          HUDMarker.setLabelRendererClass(MarkerLabel);
+         this.iconControl.objectsHidden = this.objectsForced;
          addChildAt(this.iconControl,0);
          movingLeft = false;
          lastPosY = 0;

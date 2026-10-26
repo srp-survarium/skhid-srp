@@ -2099,8 +2099,8 @@ def test_research(original, image, before):
     texts = [plain(t) for _, _, t in ndisasm(stubs, research_va)]
     targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
     outside = {c for c in targets if not research_va <= c < research_va + len(code)}
-    # patch 65's bo_match (blackout.code): a Blackout match feeds the markers' movie nothing
-    outside.discard(linked.symbols["bo_match"])
+    # patch 62's hide_ui_icons (hide_ui.code): the markers' movie told the forced state (Blackout, patch 65)
+    outside.discard(linked.symbols["hide_ui_icons"])
     check(outside == {0x1EC170, 0x23B35B, 0x23B36A, 0x23AA10} and "mov [esp],0x23b3fc" in texts
           and "mov ecx,0xa03aac" in texts,
           "the stubs leave to the constructor's replaced call, update_ui's message (TDM's key or mode 5's) and its "
@@ -4437,32 +4437,19 @@ def test_team_damage(original, image, before):
 
 
 def test_blackout(original, image, before):
-    """Check 65: Blackout (patch 65, BLACKOUT_*): the site of the band, its
-    code, and the two calls from patch 63's and patch 62's entries.
-    check_blackout_026g.py runs them from the game's sites (the options
-    reader, initialize_match's reset and F11, the visual's records made by the
-    game's constructor) on made-up objects."""
+    """Check 65: Blackout (patch 65, BLACKOUT_*): its two sites (Tab, the
+    input), its code, the calls from patch 63's, patch 62's and Research's
+    entries, and the movies' forced state. check_blackout_026g.py runs them
+    from the game's sites (the options reader, initialize_match's reset and
+    F11, update_ui's icons call, Tab and the input builder) on made-up
+    objects."""
     stock = Image(original)
     rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
-    check(rows(stock, 0x2056E6, 0x16) == ["mov dword [esi+0xc08],0x0", "mov edx,[esp+0x58]", "mov esi,[ebp+0xc]",
-                                          "mov eax,0x205810"]
-          and rows(stock, 0x20564E, 0x0B) == ["cmp byte [esp+0x14],0x0", "jz near 0x2056f0"]
-          and rows(stock, 0x205703, 4) == ["mov eax,[esp+0x1c]"]
-          and rows(stock, 0x205766, 7) == ["mov ecx,[esp+0x348]"]
-          and rows(stock, 0x204646, 7) == ["mov [esp+0x348],ecx"]
-          and rows(stock, 0x204735, 7) == ["mov byte [esi+0xf324],0x1"]
-          and rows(stock, 0x2045B4, 4) == ["mov [esp+0x1c],eax"]
-          and stock.read(0x20457B, 3) == bytes.fromhex("8b4d10"),
-          "profile_skin_visual_cook::on_configs_loaded (0x204560; [ebp+10h] the profile) reaches 0x2056F0 after "
-          "the parts and the head (or past the head, 0x205653), its visual at [esp+1Ch] (records from 1, "
-          "0x204735), its name's buffer at [esp+348h]; `mov edx,[esp+58h] / mov esi,[ebp+0Ch]` there")
-    check(rows(stock, 0x127CB0, 0x30)[:3] == ["push esi", "mov esi,ecx", "lea eax,[esi+0xc]"]
-          and stock.read(0x127C65, 2) == bytes.fromhex("6a14") and stock.read(0x127C81, 5) == bytes.fromhex("680c0c0000")
-          and stock.read(0x127C86, 6) == bytes.fromhex("8d9634020000")
-          and rows(stock, 0x1282F3, 6) == ["mov eax,[edi+0x114]"]
-          and stock.read(0x128307, 5) == bytes.fromhex("b828d39e00"),
-          "the visual's 20 part records of C0Ch at +234h (0x127C30), each +0 base_model and +114h part_name; "
-          "skeleton_combined_model_cook queries resources/models/<base_model>.skinned_model/render/<part_name>")
+    check(rows(stock, 0x23AA83, 2) == ["mov bl,0x25"] and rows(stock, 0x235771, 2) == ["mov bl,0x25"]
+          and stock.read(0x1F29E8, 7) == bytes.fromhex("0fb68e14010000") and stock.read(0x2357A9, 5) == bytes.fromhex("e8b2650000"),
+          "the player icons' ids: a player's is his index (player::initialize_player_icon, 0x1F29E8), the match's "
+          "objects' from 25h (initialize_match 0x235771, update_player_icons 0x23AA83): the icons movie's "
+          "HUDIconLayer.FIRST_OBJECT 37")
     linked = P.arena()
     block = linked.blocks["blackout.code"]
     for va, old, symbol, opcode in P.BLACKOUT_HOOKS:
@@ -4483,7 +4470,7 @@ def test_blackout(original, image, before):
           f"the code at {block.va:#x} is the link's blackout.code ({len(code)} bytes)")
     texts = [text for _, _, text in ndisasm(code, block.va)]
     check(f"jmp {P.BLACKOUT_BACKS[0]:#x}" in texts and "blackout.state" in linked.blocks,
-          "bo_visual_entry goes on at 0x2056F7; the options last read are blackout.state's")
+          "bo_input_entry goes on at 0x2421B5; the options last read are blackout.state's")
     td = P.linker.block_bytes(linked, "team_damage.code")
     td_block = linked.blocks["team_damage.code"]
     td_texts = [text for _, _, text in ndisasm(td, td_block.va)]
@@ -4494,8 +4481,20 @@ def test_blackout(original, image, before):
     research_block = linked.blocks["research.code"]
     research_texts = [text for _, _, text in ndisasm(research[:0x100], research_block.va)]
     hud = open(os.path.join(HERE, "..", "flash", "hud", "src", "HUD.as"), encoding="utf-8").read()
-    check(f"call {linked.symbols['bo_match']:#x}" in research_texts
-          and "public function force_interface_hidden(forced:Boolean) : void" in hud
+    icons_src = os.path.join(HERE, "..", "flash", "player_icons", "src")
+    icons = open(os.path.join(icons_src, "player_icons_fla", "MainTimeline.as"), encoding="utf-8").read()
+    layer = open(os.path.join(icons_src, "survarium", "controls", "HUDIconLayer.as"), encoding="utf-8").read()
+    check(f"call {linked.symbols['hide_ui_icons']:#x}" in research_texts
+          and "bo_match" not in [name for name, va in linked.symbols.items()
+                                 if any(f"call {va:#x}" == t for t in research_texts)]
+          and "public function force_interface_hidden(forced:Boolean) : void" in icons
+          and "this.iconControl.objectsHidden = this.objectsForced;" in icons
+          and "public static const FIRST_OBJECT:uint = 37;" in layer
+          and layer.count("this.canShow(id,") == 2,
+          "Research's per-frame entry of update_player_icons feeds the markers' movie in every match and first "
+          "calls hide_ui_icons (the icons told the forced state); the icons movie's force_interface_hidden keeps "
+          "the players' markers (ids below 37) and hides the match's objects'")
+    check("public function force_interface_hidden(forced:Boolean) : void" in hud
           and "return [this.pregameInfo];" in hud and "this._keptLayer.addChild(part);" in hud
           and "return [this.ammoInd,this.quick_slots];" in hud and "this.keep(this.keptOnTab(),bool);" in hud
           and "this.layout.manage(Sprite(part));" in hud and "this.placeKept();" in hud
@@ -4503,8 +4502,7 @@ def test_blackout(original, image, before):
               "scaleform", "clik", "layout", "Layout.as"), encoding="utf-8").read()
           and "this._keptLayer.transform.matrix = this.transform.matrix;" in hud
           and "this.force_interface_hidden(false);" in hud,
-          "Research's per-frame entry of update_player_icons asks bo_match (a Blackout match feeds the markers' "
-          "movie nothing); the hud's force_interface_hidden keeps the pre-match countdown (pregameInfo) in a "
+          "the hud's force_interface_hidden keeps the pre-match countdown (pregameInfo) in a "
           "layer over the hidden root, placed as the root, and Tab (show_player_list) the ammo and the "
           "quick-use slots, never the list; a new match's reset unforces it")
     check(f"call {linked.symbols['bo_options']:#x}" in td_texts

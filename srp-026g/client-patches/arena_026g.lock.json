@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 78476,
-  "sha256": "aa6a3c42d02f6c847f057b354a34f63ef04ceb630df016401747031996746b90",
+  "size": 74060,
+  "sha256": "3af3eb666ed1e52ebc85238c07aa7bb27ef2bc796253abdcf3e6144a0cd72f1c",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -62,21 +62,21 @@
     "hide_ui.code": {
       "kind": "code",
       "va": "0xa43c000",
-      "size": 677
+      "size": 769
     },
     "hide_ui.data": {
       "kind": "data",
       "va": "0xa43d000",
-      "size": 4268
+      "size": 4272
     },
     "blackout.code": {
       "kind": "code",
       "va": "0xa43f000",
-      "size": 4728
+      "size": 309
     },
     "blackout.state": {
       "kind": "state",
-      "va": "0xa440280",
+      "va": "0xa43f140",
       "size": 12
     }
   },
@@ -87,16 +87,14 @@
     "artefacts_loader": "0xa431000",
     "artefacts_stagger": "0xa431019",
     "artefacts_unlink": "0xa43100a",
-    "bo_input": "0xa43f12b",
-    "bo_input_entry": "0xa43f03a",
-    "bo_match": "0xa43f177",
-    "bo_options": "0xa43f078",
-    "bo_tab": "0xa43f118",
-    "bo_tab_entry": "0xa43f025",
-    "bo_visual": "0xa43f17d",
-    "bo_visual_entry": "0xa43f000",
+    "bo_input": "0xa43f0e3",
+    "bo_input_entry": "0xa43f015",
+    "bo_match": "0xa43f12f",
+    "bo_options": "0xa43f030",
+    "bo_tab": "0xa43f0d0",
+    "bo_tab_entry": "0xa43f000",
     "chat_variable": "0xa434000",
-    "controls": "0xa43d004",
+    "controls": "0xa43d008",
     "engine_accept_decal_edit": "0xa432460",
     "engine_allocation_name": "0xa4322e0",
     "engine_apply_modifier": "0xa432210",
@@ -174,7 +172,8 @@
     "hide_chat": "0xa434048",
     "hide_ui_force": "0xa43c135",
     "hide_ui_forced": "0xa43d000",
-    "hide_ui_lobby": "0xa43c169",
+    "hide_ui_icons": "0xa43c175",
+    "hide_ui_lobby": "0xa43c1c4",
     "hide_ui_match": "0xa43c000",
     "hide_ui_reset": "0xa43c105",
     "match_keys_chat": "0xa4330c3",
