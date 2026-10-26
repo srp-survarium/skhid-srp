@@ -158,14 +158,14 @@ RUST_LOG=info
 # SRP_CLAN_MAX_MEMBERS=30
 
 # "Player vs Bots": one player against the server's own bots, chosen in
-# the changed lobby movie (servers/lobby-server/src/v026g/pvb.rs). On with
-# the compose default; `off` switches it off. The highest equipment level
+# the changed lobby movie (servers/lobby-server/src/v026g/pvb.rs). On by
+# default (in the code and the compose file); `off` switches it off. The highest equipment level
 # let in, the most such matches at once (the server keeps a bots' map in
 # memory for each, 35-150 MB: with 5, give SRP26_MEMORY about 750 MB
 # more), the share of silver, experience and drop chance they give (only
 # a match played to its own end pays at all), and the seconds after which
 # a match whose player uploads no world it is asked for is over.
-# SRP_PVB=on
+# SRP_PVB=off  (on when unset)
 # SRP_PVB_MAX_GEAR=15
 # SRP_PVB_MAX_MATCHES=5
 # SRP_PVB_PAY=0.25
