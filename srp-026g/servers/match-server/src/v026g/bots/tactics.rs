@@ -160,7 +160,7 @@ pub struct Tactics {
     /// (`escape.rs`), for the match.
     pub escapes: super::escape::Board,
     /// Whether a way out stays under its start's zone strength
-    /// (`Tuning::escape_ceiling`, [`Self::escape`]).
+    /// (`Tuning::hazard.escape`, [`Self::escape`]).
     pub escape_ceiling: bool,
     /// The bushes a sight line crosses (`foliage.rs`); none without the file.
     pub foliage: Arc<super::foliage::Foliage>,

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::check;
+use super::{check, Check};
 
 /// The consumable play (`plays/heal.rs`, play 22): one rule for the medkit,
 /// the bandages and the antitoxin, from the best players' numbers
@@ -91,24 +91,26 @@ impl Default for HealTuning {
     }
 }
 
-pub(super) fn validate(heal: &HealTuning) -> Result<(), String> {
-    let w = &heal.weights;
-    check(
-        (0.0..1.0).contains(&heal.start_need) && heal.start_need <= heal.urgent_need,
-        "heal.start_need",
-    )?;
-    check(heal.urgent_need <= 1.0, "heal.urgent_need")?;
-    check(
-        [w.body, w.head, w.legs, w.hands, w.pain, w.infection]
-            .iter()
-            .all(|w| (0.0..=1.0).contains(w)),
-        "heal.weights",
-    )?;
-    check(
-        heal.cover_m >= 0.0 && heal.enemy_m >= 0.0 && heal.cover_step_ms <= 5_000,
-        "heal.cover_*",
-    )?;
-    check((0.0..=10.0).contains(&heal.walk_mps), "heal.walk_mps")
+impl Check for HealTuning {
+    fn check(&self) -> Result<(), String> {
+        let w = &self.weights;
+        check(
+            (0.0..1.0).contains(&self.start_need) && self.start_need <= self.urgent_need,
+            "heal.start_need",
+        )?;
+        check(self.urgent_need <= 1.0, "heal.urgent_need")?;
+        check(
+            [w.body, w.head, w.legs, w.hands, w.pain, w.infection]
+                .iter()
+                .all(|w| (0.0..=1.0).contains(w)),
+            "heal.weights",
+        )?;
+        check(
+            self.cover_m >= 0.0 && self.enemy_m >= 0.0 && self.cover_step_ms <= 5_000,
+            "heal.cover_*",
+        )?;
+        check((0.0..=10.0).contains(&self.walk_mps), "heal.walk_mps")
+    }
 }
 
 #[cfg(test)]

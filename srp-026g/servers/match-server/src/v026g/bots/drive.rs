@@ -818,7 +818,7 @@ pub(super) fn drive_tick(
                     // corner it turns at over the rim.
                     bot.motor.ahead_cap = {
                         let grid = &tactics.world.grid;
-                        let cap = bot.motor.feel.lip_look_ahead_m;
+                        let cap = bot.motor.feel.lip_look_ahead_m.get();
                         (cap > 0.0 && grid.locate(me.feet, 1.5).is_some_and(|node| grid.near_lip(node) || grid.is_lip(node))).then_some(cap)
                     };
                     #[cfg(test)]

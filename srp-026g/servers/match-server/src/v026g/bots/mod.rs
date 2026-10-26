@@ -754,16 +754,16 @@ impl Bots {
     /// machine: the match server builds the tactics on a thread of its own
     /// ([`Self::tactics_ready`]). Returns a line for the log.
     pub fn map_ready(&mut self, world: Arc<World>) -> String {
-        let tactics = Tactics::new(world, self.tuning.hazard_margin);
+        let tactics = Tactics::new(world, self.tuning.hazard.margin_m.get());
         self.tactics_ready(tactics)
     }
 
     /// [`Self::map_ready`] with the tactics built ([`Tactics::new`] with
-    /// this match's `tuning.hazard_margin`): the routes, the anomalies'
+    /// this match's `tuning.hazard.margin_m`): the routes, the anomalies'
     /// clocks and the containers, a few ms.
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         tactics.set_routes(std::mem::take(&mut self.routes));
-        tactics.escape_ceiling = self.tuning.escape_ceiling;
+        tactics.escape_ceiling = self.tuning.hazard.escape == tuning::EscapeRule::UnderStartZone;
         tactics.foliage = Arc::new(std::mem::take(&mut self.foliage));
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.

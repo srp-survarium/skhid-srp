@@ -137,16 +137,18 @@ impl Default for CheatTuning {
     }
 }
 
-/// The sense's ranges in order.
-pub(super) fn validate(sense: &SenseTuning) -> Result<(), String> {
-    check(
-        sense.view_deg > 0.0 && sense.view_deg <= 360.0,
-        "sense.view_deg",
-    )?;
-    check(
-        sense.notice_near_ms <= sense.notice_far_ms,
-        "sense.notice_*_ms",
-    )?;
-    check(sense.bush_notice >= 0.0 && sense.foliage_cap >= 1.0, "sense.bush_notice, foliage_cap")?;
-    Ok(())
+impl Check for SenseTuning {
+    /// The sense's ranges in order.
+    fn check(&self) -> Result<(), String> {
+        check(
+            self.view_deg > 0.0 && self.view_deg <= 360.0,
+            "sense.view_deg",
+        )?;
+        check(
+            self.notice_near_ms <= self.notice_far_ms,
+            "sense.notice_*_ms",
+        )?;
+        check(self.bush_notice >= 0.0 && self.foliage_cap >= 1.0, "sense.bush_notice, foliage_cap")?;
+        Ok(())
+    }
 }

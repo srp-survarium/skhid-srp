@@ -168,12 +168,50 @@ impl Personality {
     }
 }
 
-/// The think rates' ranges in order.
-pub(super) fn validate_think(think: &ThinkTuning) -> Result<(), String> {
-    check(
-        think.think_ms.0 > 0 && think.think_ms.0 <= think.think_ms.1,
-        "think.think_ms",
-    )?;
-    check(think.commander_ms >= 50, "think.commander_ms")?;
-    Ok(())
+/// The personalities and their share of the bots (play 14). In a file, a list of them.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Personalities(pub Vec<Personality>);
+
+impl Default for Personalities {
+    fn default() -> Self {
+        Self(Personality::defaults())
+    }
+}
+
+impl std::ops::Deref for Personalities {
+    type Target = Vec<Personality>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Personalities {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Check for Personalities {
+    /// At least one, their shares summing to about 1.
+    fn check(&self) -> Result<(), String> {
+        let shares: f32 = self.0.iter().map(|p| p.share).sum();
+        check(
+            !self.0.is_empty() && (shares - 1.0).abs() < 0.05,
+            "personalities: shares must sum to 1",
+        )
+    }
+}
+
+impl Check for ThinkTuning {
+    /// The think rates' ranges in order.
+    fn check(&self) -> Result<(), String> {
+        check(
+            self.think_ms.0 > 0 && self.think_ms.0 <= self.think_ms.1,
+            "think.think_ms",
+        )?;
+        check(self.commander_ms >= 50, "think.commander_ms")?;
+        Ok(())
+    }
 }
