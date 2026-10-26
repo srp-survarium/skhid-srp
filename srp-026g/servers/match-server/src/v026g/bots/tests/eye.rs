@@ -319,6 +319,13 @@ pub(crate) fn the_bots_tuning_sets_the_eye_of_its_thread() {
 /// ONE line here and never touches the test; a switch merged OFF needs none** (the flip PR adds it). Keep it
 /// sorted by the switch's path, each line its own block with the PR named, so two PRs add at different places
 /// and git merges them without a conflict.
+///
+/// To add yours, one block in its sorted place (by `section.field`), the switch at its OFF value:
+///
+/// ```text
+/// // <PR>: <what the pinned counts predate>.
+/// tuning.<section>.<switch> = <the value that is the old behaviour>;
+/// ```
 fn pre_eye_pin_tuning() -> Tuning {
     let mut tuning = bench_tuning();
 
