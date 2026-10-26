@@ -61,6 +61,19 @@ Then run `weapon_balance_1_changes_only_its_values`
 `SRP_TEST_SKHID_PATCHES` and `SRP_TEST_PATCH_WEAPON_BALANCE_1`) when a change touches its files. The
 server game data carries no localization tables: the test reads the texts in the patches themselves.
 
+### Map edit lists
+
+The map editor (`~/Projects/survarium/map-editor`) saves one edit list per map: moves and turns
+of a project's entries (`set_entry` with vectors and nested keys such as `spawned_item/position`),
+copies (`add_entry`, with nested keys such as `collision_geometries[0]/name`), an anomaly's
+artefact containers (`add_item`, `remove_item`) and deletions (`remove_entry`). Its `map_editor`
+table is the editor's own; `content_edit.py` ignores it. The editor's tests apply its lists with
+this script and compare the projects with its own (`crates/map-core/tests/real_maps.rs`).
+A map's list may also edit its Research mode configs (`gameplay/game_modes/<level>_<weather>_5.options`,
+the capture units' `capture_zones`). Moving spawns or capture units, or changing what collision
+stops (`collision_objects` `cgroup`/`cmask`), changes the simulation: the release that ships such a
+list needs the `next` row of `crates/session/src/v026g/simulation_changes.tsv`.
+
 ## weapon-balance-1.json (2026-10-18)
 
 Scored against the recorded live matches since revision 19 (about 10,000 gun kills):
@@ -481,3 +494,41 @@ differences. Not a simulation change.
 | change | why |
 |---|---|
 | `ui_desc/combat_log_icon` of the 21 configs of base patch 19's weapons: Saiga-12K (and premium) 31 -> 53, SOK-94 29 -> 54, PKP 38 -> 55, Vepr-12 (and premium) 31 -> 56, AEK-919K 3 -> 57, Kedr 22 -> 58, Neostead (both) 12 -> 59, FNC 31 -> 60, MP7 1 -> 61, MP7 silenced and Special 1 -> 62, HK416 31 -> 63, P90 47 -> 64, KRISS 47 -> 65, MSBS 31 -> 66, Valmet 31 -> 67, vz. 58 29 -> 68, M4A1 31 -> 21 | the owner: "new weapons that were added have incorrect icons" in the kill feed. The icon is frame (icon + 1) of the hud's weapon clip; the port gave these weapons stand-ins of stock weapons' icons, the clip ending at 52. Their builds' own icons (0.27d0 to 0.31a2 alike) are now in the hud movie (`CombatLogWeapon53` to `68`, [`../../docs/notes/kill-feed-icons.md`](../../docs/notes/kill-feed-icons.md)); the M4A1's 21 is the clip's own M4 |
+
+## london-1.json (2026-10-26)
+
+London has no anomalies in any of its four modes (`projects/level_09/day_2` to `day_5`:
+batteries, batteries with chargers, Team Deathmatch and Research). Each of the seven anomalies
+loses its core, artefact container, damage zone and the two collision geometries: 35 entries per
+project. The damage zones own their idle sound and particles. The decorative rock piles stay.
+The battery modes also lose the two old outdoor spawn-protection zones and their boxes; each
+spawn point keeps its own 6 seconds of invulnerability.
+
+The 20 spawn points come from the owner's map-editor placement. `set_entry` changes only their
+positions and rotations, retaining their names, order, teams and other properties. All four
+projects use the same placements:
+
+| team in the project (server team) | placement | walking distance to its battery container |
+|---|---|---|
+| team1 (0, west) | building_06_1's first floor, y = 9.25; 10 points placed to match team2 | 44–65 m |
+| team2 (1, east) | building_10's first floor, y = 9.52–9.56; the owner's eight points plus two beside them | 68–74 m |
+
+Team1's points are 13–26.5 m on foot from the door with stairs to the street. A point moved
+without being turned keeps its original facing. These placements replace the earlier proposed
+spawns beside the ground-floor doors. The owner's accidental prop moves are excluded.
+
+Checks compare the built projects with the live projects and the editor's placements: 10 + 10
+points per mode, every position and rotation as placed, no remaining anomaly objects or old
+spawn zones, and every unrelated value unchanged. `release/build-content` also checks the
+complete manifest against the live patches. The simulation change is recorded by the `next`
+row in `simulation_changes.tsv`; the release resolves it to its revision.
+
+The server reads the updated spawn table from the generated `server-game-data.db`. For bots,
+regenerate all four `level_09_day_*.mapdata` files with `mapdata-dump` over the release's complete
+patch list and new content patch. These files then contain the same 20 points and no anomaly
+zones; they are generated game data, not repository sources. The Maps tab is rebuilt from the
+same content by `release/build-site`.
+
+`feat/dynamic-anomalies` (not shipped) removes the same seven anomalies for timed ones, and
+PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
+before they can ship on top of this list.
