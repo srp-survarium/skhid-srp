@@ -686,10 +686,15 @@ impl Game {
 
     /// An upload came: its rows are logged; true when it answered a burst request.
     pub(super) fn jump_test_upload(&mut self, time: u32, clock: u32, bytes: usize, body: &[u8]) -> bool {
-        self.walkers
-            .as_mut()
-            .and_then(|walkers| walkers.bots.jump_test.as_mut())
-            .is_some_and(|test| test.upload(time, clock, bytes, body))
+        let id = self.id;
+        let Some(walkers) = self.walkers.as_mut() else {
+            return false;
+        };
+        let asked = walkers.bots.jump_test.as_mut().is_some_and(|test| test.upload(time, clock, bytes, body));
+        if asked {
+            log_notes(id, walkers.bots.fix_from_burst());
+        }
+        asked
     }
 }
 

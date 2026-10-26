@@ -139,6 +139,8 @@ pub struct Row {
     pub time: u32,
     pub place: Place,
     pub alive: bool,
+    /// When the body was spawned (another value is another life).
+    pub inserted: u32,
     /// The feet, map frame.
     pub feet: Vec3,
     pub jumping: bool,
@@ -751,6 +753,10 @@ pub struct JumpTest {
     outstanding: Option<u32>,
     uploads: Vec<(u32, u32, usize)>,
     sent: u32,
+    /// The rows of the last asked world, until [`Self::take_fresh`] passes them to the bots' reckoning: an asked world
+    /// goes no further in the game, so without this the reckoning of every bot is starved while the test asks (the
+    /// J0 on Chemical Plant: rests 0.5-18 m off).
+    fresh: Vec<Row>,
     problem: Option<String>,
 }
 
@@ -806,6 +812,7 @@ impl JumpTest {
             outstanding: None,
             uploads: Vec::new(),
             sent: 0,
+            fresh: Vec::new(),
             problem: None,
         }
     }
@@ -1406,6 +1413,7 @@ impl JumpTest {
                 .collect();
             Self::line(&mut self.bodies_log, &serde_json::json!({ "t": time, "b": alive }));
         }
+        self.fresh = rows.clone();
         let wanted: HashSet<Place> = self.runners.keys().copied().collect();
         for row in rows.into_iter().filter(|r| wanted.contains(&r.place)) {
             Self::line(&mut self.worlds_log, &row_json(&row, clock));
@@ -1416,6 +1424,11 @@ impl JumpTest {
             }
         }
         burst
+    }
+
+    /// The rows of the last asked world, once ([`Self::fresh`]).
+    pub fn take_fresh(&mut self) -> Vec<Row> {
+        std::mem::take(&mut self.fresh)
     }
 
     /// The log line of a finished try, from the rows of its place.
@@ -1693,6 +1706,7 @@ pub fn rows_of(body: &[u8], time: u32) -> Vec<Row> {
                 time,
                 place: usize::from(block.place),
                 alive: false,
+                inserted: motion.inserted_time_ms,
                 feet: Vec3::ZERO,
                 jumping: false,
                 jump_type: 0,
@@ -1712,6 +1726,7 @@ pub fn rows_of(body: &[u8], time: u32) -> Vec<Row> {
             time,
             place: usize::from(block.place),
             alive: motion.alive,
+            inserted: motion.inserted_time_ms,
             feet: Vec3::new(feet[0], feet[1], feet[2]),
             jumping: b.jumping,
             jump_type: motion.damage.as_ref().map_or(0, |d| d.jump_type),
@@ -2118,6 +2133,15 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
     }
 
     #[test]
+    fn the_bodies_of_an_asked_world_go_once_to_the_reckoning() {
+        let mut jt = JumpTest::new(PathBuf::from("none"), std::env::temp_dir(), "t".into(), 120);
+        let rows = vec![row(1_000, 2.0, 5.0), Row { place: 4, ..row(1_000, 2.0, 7.0) }];
+        jt.take_rows(rows.clone(), 1_000, 1_050, 100);
+        assert_eq!(jt.take_fresh().len(), 2, "every body of the world, whoever works a try");
+        assert!(jt.take_fresh().is_empty(), "once");
+    }
+
+    #[test]
     fn the_motor_speeds_and_the_crouch_jumps_parse() {
         let text = "m1 3 chem060a 0.8 0 along 3.5 motor hold 3
 m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
@@ -2224,6 +2248,7 @@ m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
         Row {
             time,
             place: 3,
+            inserted: 0,
             alive: true,
             feet: Vec3::new(-78.9, y, z),
             jumping,

@@ -62,7 +62,7 @@ pub(crate) struct DryReport {
 }
 
 /// The rows the client's world would hold, from the stand-in's bodies at `tick`.
-fn rows_of_game(game: &Game, tick: u32, before: &[Vec3]) -> Vec<Row> {
+fn rows_of_game(game: &Game, tick: u32, before: &[Vec3], inserted: &[u32]) -> Vec<Row> {
     game.bodies
         .iter()
         .enumerate()
@@ -73,6 +73,7 @@ fn rows_of_game(game: &Game, tick: u32, before: &[Vec3]) -> Vec<Row> {
                 time: tick,
                 place,
                 alive: body.alive,
+                inserted: inserted.get(place).copied().unwrap_or(0),
                 feet: body.feet,
                 jumping,
                 jump_type: if jumping { 5 } else { 0 },
@@ -124,6 +125,9 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
         let (a, b) = v.split_once(',')?;
         Some((a.parse().ok()?, b.parse().ok()?))
     });
+    // `SRP_DRY_FEED_BURST=0`: asked worlds are not passed to the reckoning (the first build of the mode).
+    let feed_burst = std::env::var("SRP_DRY_FEED_BURST").map_or(true, |v| v != "0");
+    let mut inserted: Vec<u32> = vec![0; teams.len()];
     let (mut clock, mut next_world) = (0, 1_000);
     let mut before: Vec<Vec3> = game.bodies.iter().map(|b| b.feet).collect();
     // Uploads on their way: (due, tick, rows).
@@ -142,6 +146,9 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
                 report.starved_worlds += 1;
             } else if let Some((_, fixes, health, facts)) = game.world_at(clock / TICK_MS * TICK_MS - 300) {
                 for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                    if let Some(slot) = inserted.get_mut(place) {
+                        *slot = fix.inserted;
+                    }
                     bots.fixed(place, fix, Some(health));
                 }
                 bots.facts(facts);
@@ -198,15 +205,17 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
                 }
             }
         }
+        let mut fed = false;
         if let Some(test) = bots.jump_test.as_mut() {
             while flying.front().is_some_and(|f| f.0 <= clock) {
                 let (_, tick, rows) = flying.pop_front().expect("one is due");
                 test.take_rows(rows, tick, clock, 30_000);
+                fed = feed_burst;
             }
             if test.wants_world(clock) {
                 report.requests += 1;
                 let tick = clock / TICK_MS * TICK_MS;
-                flying.push_back((clock + lag_ms, tick, rows_of_game(&game, tick, &before)));
+                flying.push_back((clock + lag_ms, tick, rows_of_game(&game, tick, &before, &inserted)));
                 before = game.bodies.iter().map(|b| b.feet).collect();
             }
             // Bodies of the other team near a bot in a try.
@@ -225,6 +234,9 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
                     }
                 }
             }
+        }
+        if fed {
+            bots.fix_from_burst();
         }
     }
     report.minutes = limit_s as f32 / 60.0;
