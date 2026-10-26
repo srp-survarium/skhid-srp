@@ -85,7 +85,7 @@ their own space (scale suffix applied), the placements separately; placing
 all triangles at load takes about 10 ms.
 
 ```text
-magic "SRPMAPD\0", u32 version (2)
+magic "SRPMAPD\0", u32 version (3; 2 is still read, without the artefact cores)
 string project
 vec3 levelmap_min, vec3 levelmap_max          (zero when the project has none)
 list spawns:      vec3 position, vec3 rotation, i32 team, i32 priority,
@@ -98,6 +98,12 @@ list zones:       u8 kind (0 resupply, 1 damage, 2 effect, 3 artefact
                   string damage_type, u8 has_damage, [damage], list shapes
 list anomalies:   string name, vec3 position, list string zones,
                   energy, artefacts, list states
+list artefact_cores (version 3): string core (an anomaly's name),
+                  list (u32 dict_id, u32 count) pool, list (string name,
+                  f32 search_s, f32 cooldown_s) containers: what a core's
+                  `artefact_containers` and `artefacts` name, the times from
+                  the container objects (`artefacts_search_time_sec`,
+                  `artefacts_cooldown_time_sec`)
 list libraries:   string name, u32 primitives, list vec3 vertices,
                   list [u32; 3] triangles, then one u8 walker behaviour
                   per triangle

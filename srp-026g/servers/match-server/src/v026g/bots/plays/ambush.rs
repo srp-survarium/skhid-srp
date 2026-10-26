@@ -447,11 +447,13 @@ mod tests {
                 place: 0,
                 candidates: ambushes(&s, 0),
                 current: None,
+                committed: false,
             },
             Asking {
                 place: 2,
                 candidates: ambushes(&s, 2),
                 current: None,
+                committed: false,
             },
         ];
         assert_eq!(asking[0].candidates.len(), 1);
