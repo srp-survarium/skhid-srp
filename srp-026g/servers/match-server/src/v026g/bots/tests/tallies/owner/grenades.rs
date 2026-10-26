@@ -579,6 +579,8 @@ impl OwnerTally {
                 "rechecks": s.rechecks,
                 "thrown_from": s.thrown_from,
                 "pushes_skipped": s.pushes_skipped,
+                "goals": s.goals,
+                "fire_hidden_throw": self.fight.fire_hidden_throw,
             });
         }
         let mut text = format!(
@@ -603,8 +605,8 @@ impl OwnerTally {
         if logic.lives > 0 {
             let s = &logic.sum;
             text.push_str(&format!(
-                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}",
-                logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth, s.timeouts, s.rechecks, s.thrown_from, s.pushes_skipped,
+                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}, places dropped for a mate's goal {}, fire at a hidden target in a throw's hold / within 3 s after one {:?}",
+                logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth, s.timeouts, s.rechecks, s.thrown_from, s.pushes_skipped, s.goals, self.fight.fire_hidden_throw,
             ));
         }
         Part::new(json, text)
