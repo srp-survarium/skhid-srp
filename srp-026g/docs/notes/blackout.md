@@ -28,21 +28,24 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
 
 ## In the match
 
-- **The players' markers stay:** the markers and names over players as in a plain battery match
-  (teammates' as the game shows them; an enemy's name never, the game's own rule). The match's
-  objects' markers (the batteries and the like) are hidden; no Research markers.
+- **The players' markers on Tab** (the owner, 2026-10-26: shown only while Tab is held): the markers
+  and names over players as a plain battery match shows them (teammates' as the game shows them; an
+  enemy's name never, the game's own rule), alive or dead, while Tab is held; hidden otherwise. The
+  match's objects' markers (the batteries and the like) are always hidden; no Research markers.
 - **No interface:** the rest of what F11 hides (patch 62) for the whole match, from its first
   frame: ammo, health, score, crosshair, minimap, kill feed, chat, Tab list, the match clock (but on Tab), the
   kits and the death screen with its respawn timer.
 - **One exception, the pre-match countdown** ("… 00:15"): shown while it runs, hidden with the
   rest when play starts.
-- **Tab held:** the ammo (in the weapon and carried), the quick-use slots with their counts and the
-  time left until the match ends (the hud's own match timer, in its normal place at the top of the
+- **Tab held:** the ammo (in the weapon and carried), the quick-use slots with their counts, the
+  body's state (the doll: the body parts, bleeding, radiation, toxins; the owner, 2026-10-26), the
+  players' markers and the time left until the match ends (the hud's own match timer, in its normal place at the top of the
   screen, the rest of the bar hidden; the owner, 2026-10-26); hidden again when Tab is let go.
   Never the player list or the score (the owner, 2026-10-25).
 - **Tab held while dead** (the owner, 2026-10-26: "pressing tab when dying should show kits"): the
   kits, as a plain match shows them on the death screen and before the start, to pick by a click
-  or 1 to 3 (shown chosen as in a plain match), and the time left; hidden again when Tab is let go.
+  or 1 to 3 (shown chosen as in a plain match), the players' markers (a plain death screen shows
+  them) and the time left; hidden again when Tab is let go.
   Keys 1 to 3 pick a kit with or without Tab. A death or a respawn while Tab is held shows at the
   next Tab.
 - **Keys while Tab is held** go on as with Tab up (a plain match's Tab list takes every key while it
@@ -88,9 +91,10 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   - patch 62's reset of a match's interface calls `hide_ui_force(bo_match())`: the one entry that
     forces the interface hidden (the hud's `root.force_interface_hidden`; the player icons shown
     as at every reset) and locks F11;
-  - the player icons' movie is told the forced state from its feed (Research's per-frame entry of
-    `update_player_icons` calls patch 62's `hide_ui_icons` first): its
-    `root.force_interface_hidden` at a change of the movie (the game world's own) or of the state;
+  - the player icons' movie is told the forced state and Tab's from its feed (Research's per-frame
+    entry of `update_player_icons` calls patch 62's `hide_ui_icons` first): its
+    `root.force_interface_hidden` and `root.force_interface_tab` (Tab held: `bo_tab_held`) at a
+    change of the movie (the game world's own) or of either state;
   - the game world's Tab (its `show_player_list` call, 0x25CD34) is kept and the key goes on
     (the caller's bl, Tab down, cleared: 0x25CD3B no longer sends it to the function's end, so
     patch 58's kit keys at 0x25CD41 get it), and the input builder's end
@@ -108,10 +112,13 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   (`_profilePanel`) into that layer and back instead of showing the list (`keepOnTab`: what it
   kept is given back as it was); the reset of the next match unforces it and puts every kept
   part back.
-- **The player icons' movie:** `force_interface_hidden` hides the match's objects' icons (ids from
-  37, `HUDIconLayer.FIRST_OBJECT`: the game gives a player's icon his index and its objects' from
-  25h) and keeps the players'; told again after the next match's reset; F11's `hide_interface`
-  is apart.
+- **The player icons' movie:** forced (`force_interface_hidden`), it hides the match's objects'
+  icons (ids from 37, `HUDIconLayer.FIRST_OBJECT`: the game gives a player's icon his index and its
+  objects' from 25h) and shows the players' only while Tab is held (`force_interface_tab`: the icon
+  layer shown); told again after the next match's reset; F11's `hide_interface` is apart.
+- **Checks in Ruffle:** `scripts/blackout-kits/check.sh <hud.swf> <player_icons.swf>`: the hud's kit
+  panel and body doll in its `KeptLayer` (a kit key, a real click), the player icons movie told each
+  state.
 - **The lobby movie:** `GameMode.BLACKOUT`, its names; the create window ticks the modes the pool
   offers; a mode's colour on the vote card from one table.
 - **With the interface levels** (`feat/interface-level`, its own patch 64): the forcing call

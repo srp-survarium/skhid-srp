@@ -4489,16 +4489,19 @@ def test_blackout(original, image, before):
                                  if any(f"call {va:#x}" == t for t in research_texts)]
           and "public function force_interface_hidden(forced:Boolean) : void" in icons
           and "this.iconControl.objectsHidden = this.objectsForced;" in icons
+          and "public function force_interface_tab(held:Boolean) : void" in icons
+          and "this.iconControl.visible = !this.objectsForced || this.tabHeld;" in icons
+          and f"call {linked.symbols['bo_tab_held']:#x}" in hide_texts
           and "public static const FIRST_OBJECT:uint = 37;" in layer
           and layer.count("this.canShow(id,") == 2,
           "Research's per-frame entry of update_player_icons feeds the markers' movie in every match and first "
-          "calls hide_ui_icons (the icons told the forced state); the icons movie's force_interface_hidden keeps "
-          "the players' markers (ids below 37) and hides the match's objects'")
+          "calls hide_ui_icons (the icons told the forced state and Tab's, bo_tab_held); forced, the icons movie "
+          "hides the match's objects' markers (ids from 37) and shows the players' only while Tab is held")
     kept_src = open(os.path.join(HERE, "..", "flash", "hud", "src", "survarium", "controls", "KeptLayer.as"),
                     encoding="utf-8").read()
     check("public function force_interface_hidden(forced:Boolean) : void" in hud
           and "return [this.pregameInfo];" in hud and "_keptLayer = new KeptLayer(this,this.keepLaidOut);" in hud
-          and "return [this.ammoInd,this.quick_slots,this.matchTime()];" in hud and "this.keepOnTab(bool);" in hud
+          and "return [this.ammoInd,this.quick_slots,this.critInd,this.matchTime()];" in hud and "this.keepOnTab(bool);" in hud
           and "return [this._profilePanel,this.matchTime()];" in hud and "if(this._profilePanel.visible)" in hud
           and "this.matchTime().text = time;" in hud
           and "this._keptLayer.keep(this._keptLayer.kept(),false);" in hud

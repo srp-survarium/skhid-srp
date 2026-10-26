@@ -1735,7 +1735,8 @@ A player's ask through the owner: a key that hides the whole interface, the lobb
   forced state is told from the feed: patch 62's `hide_ui_icons` before each update_player_icons
   tells the movie the hud holds `root.force_interface_hidden` at a change of movie or state, and
   again while the Invoke answers 0. Forced, the movie hides its objects' icons (ids from 37) and
-  keeps the players' (the owner, 2026-10-26: the players' markers visible in Blackout).
+  shows the players' only while Tab is held (`root.force_interface_tab`, told with it; the owner,
+  2026-10-26).
 - **Tab** (PROVEN in the code). game_world::on_keyboard_action (0x25CD00) asks the keyboard for DIK_TAB
   (0x25CD22, push 0Fh) at every key and passes it to game_world_ui::show_player_list (0x2384C0, esi
   the hud, its state +0BAh); Tab is no action of the binder. process_first_person_mode (0x241250,

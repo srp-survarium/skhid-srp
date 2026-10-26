@@ -21,7 +21,9 @@ package
    //   (its tab selected, the glow under it where Ruffle draws it), the pick going to the exe
    //   (the tabs' index change, onProfileSelected's profile_changed);
    // - a real mouse click (check.sh's xdotool on the Ruffle window) on kit 3's tab picks it;
-   // - given back (Tab up), the panel is in the root where it was.
+   // - given back (Tab up), the panel is in the root where it was;
+   // - the body's state (HUDPlayerInfo's criticalInd, alive Tab's doll) kept the same way stays where it
+   //   was, shown, and takes the body parts' state (partHP) there.
    // Prints "KITS ..." lines (trace) and ends with "KITS RESULT pass" or "KITS RESULT fail: ...".
    public class KitsHarness extends Sprite
    {
@@ -43,6 +45,8 @@ package
       private var clicked:Point;
 
       private var target:Point;
+
+      private var doll:MovieClip;
 
       private var failures:Array = [];
 
@@ -82,6 +86,12 @@ package
          panel.x = 60;
          panel.y = 300;
          face.addChild(panel);
+         var Info:Class = domain.getDefinition("HUDPlayerInfo") as Class;
+         var info:MovieClip = new Info() as MovieClip;
+         info.x = 700;
+         info.y = 380;
+         face.addChild(info);
+         doll = info.criticalInd;
          selector = panel.profileSelector;
          // Ruffle: the selector's own setting of its tabs' renderer (in its constructor, the movie
          // still loading) finds no class by its name; once loaded it does
@@ -152,6 +162,23 @@ package
             {
                failures.push("kept: the panel from " + before + " to " + after + ", in the layer " + (panel.parent == kept));
             }
+            var dollAt:Point = doll.localToGlobal(new Point(0,0));
+            kept.keep([doll],true);
+            var dollNow:Point = doll.localToGlobal(new Point(0,0));
+            var hp:Boolean = true;
+            try
+            {
+               doll.partHP(1,0.2,0.5);
+            }
+            catch(err:Error)
+            {
+               hp = false;
+            }
+            trace("KITS the body's state kept: at " + dollAt + " in the root, " + dollNow + " kept, shown " + doll.visible + ", its parts set " + hp);
+            if(doll.parent != kept || Point.distance(dollAt,dollNow) > 0.5 || !doll.visible || !hp)
+            {
+               failures.push("the body's state kept: from " + dollAt + " to " + dollNow + ", parts set " + hp);
+            }
             call(function():void
             {
                selector.pickByKey(1);
@@ -189,8 +216,12 @@ package
       {
          call(function():void
          {
-            kept.keep([panel],false);
+            kept.keep([panel,doll],false);
          });
+         if(doll.parent == kept)
+         {
+            failures.push("given back: the body's state still kept");
+         }
          if(panel.parent != face || panel.x != 60 || panel.y != 300)
          {
             failures.push("given back: the panel at " + panel.x + "," + panel.y + ", in the root " + (panel.parent == face));

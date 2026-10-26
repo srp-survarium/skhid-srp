@@ -3601,13 +3601,14 @@ The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.
   caller's bl, Tab down, which at 0x25CD3B sends every key to the function's end while the Tab
   list is up): patch 58's kit keys 1 to 3 at 0x25CD41 reach the kits Tab shows on the death
   screen.
-- **The players' markers stay.** Research's per-frame entry at update_ui's call of
+- **The players' markers on Tab.** Research's per-frame entry at update_ui's call of
   update_player_icons (0x23B207, patch 53) first calls patch 62's `hide_ui_icons`: the player
   icons' movie the hud holds (the game world's own) gets `root.force_interface_hidden` with the
-  forced state when it is another movie or the state changed since it was last told (a movie that
-  does not take it yet is told at the next frame). Forced, the movie keeps the players' markers and
-  names as in any match (ids below 37: a player's is his index) and hides the match's objects'
-  (from 37: the batteries and the like); the feed runs as in any match.
+  forced state and `root.force_interface_tab` with Tab's (`bo_tab_held`) when it is another movie
+  or either state changed since it was last told (a movie that does not take them yet is told at
+  the next frame). Forced, the movie hides the match's objects' markers (from 37: the batteries
+  and the like) and shows the players' (ids below 37: a player's is his index) only while Tab is
+  held; the feed runs as in any match.
 - **Nothing a match computes:** no `simulation_changes.tsv` row.
 
 **Checked:** `selftest_026g.py` check 65 (the two sites, no relocation under them, no branch
