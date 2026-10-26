@@ -18,7 +18,8 @@
 //!   band comes, or one of the same band beats it by [`MARGIN`] (research
 //!   B9: no flapping between near-equal plays).
 //! - **Arrival:** a hold still walking to its spot (`Asking::committed`,
-//!   `commit.hold_to_arrival`) keeps its play against any of its band;
+//!   `commit.hold_to_arrival`) keeps its play against any of its band but a
+//!   heal or a retreat;
 //!   the bench showed 39 % of the commander's switches away from a hold to
 //!   be a same-band win by the margin, while the bot was 6 s into a 15 s walk.
 //! - **Slots:** a candidate with a slot (an ambush on a battery, a battery
@@ -284,6 +285,12 @@ pub struct Assignment {
     pub reason: &'static str,
 }
 
+/// A play that keeps the bot alive (`Asking::committed` never holds it back):
+/// healing, and a retreat.
+fn survival(c: &Candidate) -> bool {
+    matches!(c.kind, PlayKind::Heal | PlayKind::Retreat)
+}
+
 /// One bot's input to the commander.
 pub struct Asking<'a> {
     pub place: Place,
@@ -431,7 +438,8 @@ fn assign_given_up(
             Some((current, c))
                 if band(c) > band(best)
                     || (band(c) == band(best)
-                        && (bot.committed || best.score.get() < c.score.get() + MARGIN)) =>
+                        && ((bot.committed && !survival(best))
+                            || best.score.get() < c.score.get() + MARGIN)) =>
             {
                 (c, false, current.reason)
             }
@@ -964,6 +972,17 @@ mod tests {
         // Committed: kept, with its start time.
         let out = ask(true, fight());
         assert!(!out[0].2 && out[0].1.kind == PlayKind::Crossfire && out[0].1.since == 100);
+        // A play that keeps it alive still takes it: a heal, a retreat.
+        for kind in [PlayKind::Heal, PlayKind::Retreat] {
+            let out = ask(
+                true,
+                vec![
+                    c(PlayKind::Crossfire, Rank::Fight, 0.4, None, 1),
+                    c(kind, Rank::Fight, 0.9, None, 2),
+                ],
+            );
+            assert!(out[0].2 && out[0].1.kind == kind);
+        }
         // A higher band still takes it, however low its score.
         let out = ask(
             true,
