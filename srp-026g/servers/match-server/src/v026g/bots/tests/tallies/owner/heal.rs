@@ -443,7 +443,7 @@ impl HealCounts {
         // habit on, none (a take of a Heal play displaces the running play).
         let walks: u32 = self.recs.iter().filter_map(|r| r.last()).map(|r| r.walks).sum();
         let heal_index = run.play_index.get("Heal").copied();
-        let displaced: u32 = self
+        let displaced: u32 = run
             .recs
             .iter()
             .map(|recs| {
