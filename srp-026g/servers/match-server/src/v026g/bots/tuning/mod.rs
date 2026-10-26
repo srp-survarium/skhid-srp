@@ -19,12 +19,15 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::curve::Consideration;
 use super::kin::Kinematics;
 use super::motor::Feel;
-use super::plays::{self, PlayKind, Rank};
+use super::plays;
+use super::plays::PlayKind;
+use super::plays::Rank;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
