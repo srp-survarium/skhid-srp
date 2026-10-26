@@ -85,3 +85,13 @@ TSV (one line per name, no bulk JSON). The client patches' own addresses and rea
   and the tests of what you changed.
 - A PR adds no clippy or rustc warnings: fix the ones your change causes. A lint that is noise for this
   code is allowed once in `[workspace.lints.clippy]` (`srp-026g/Cargo.toml`) with a comment why.
+
+## Checks while iterating
+
+- While iterating on a change, run only the quick checks that touch it: the patch's own Unicorn check
+  (`check_<patch>_026g.py`, and the equivalence gate while porting), the self-test functions for that
+  patch called by name, `cargo test` and clippy for the crates you changed, and the movie's own Ruffle
+  harness.
+- Before pushing, run the full set once: the whole `selftest_026g.py` (every build variant), every
+  Unicorn check, `release/build-content` where content changed, clippy for the workspace. Never push
+  or open a PR without the full run passing.
