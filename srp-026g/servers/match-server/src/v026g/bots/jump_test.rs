@@ -107,6 +107,12 @@ const ROWS_KEPT: usize = 900;
 const OUTSTANDING_MS: u32 = 600;
 /// An upload that took longer than this (ms) makes the next request wait as long again.
 const SLOW_UPLOAD_MS: u32 = 250;
+/// One answer of a burst in this many goes down the ordinary path too ([`JumpTest::take_rows`]): the ordinary world
+/// carries what the burst rows do not (the legs, the carried item), and the bots' own fix must not be starved while the
+/// test asks all the time (the J0 reviews: 100-114 s of dead reckoning in 5dbc6cee and 4fdb062b).
+const NORMAL_EVERY: u32 = 4;
+/// The fixes of every place are counted over windows of this long, ms ([`JumpTest::fix_counts`]).
+const FIX_WINDOW_MS: u32 = 10_000;
 /// A motor-driven try is given up after this long on its way to the top, ms.
 const MOTOR_MAX_MS: u32 = 25_000;
 /// A ledge within this of one whose start was not reached is given up with it, m.
@@ -980,6 +986,11 @@ pub struct JumpTest {
     /// goes no further in the game, so without this the reckoning of every bot is starved while the test asks (the
     /// J0 on Chemical Plant: rests 0.5-18 m off).
     fresh: Vec<Row>,
+    /// The answers of the bursts so far, for [`NORMAL_EVERY`].
+    answered: u32,
+    /// The rows seen per place in the window that began at the second field (the match clock), and how many bursts
+    /// went the ordinary way in it: logged as `fixes_per_place_per_10s` at its end.
+    fix_counts: (HashMap<Place, u32>, u32, u32),
     problem: Option<String>,
 }
 
@@ -1043,6 +1054,8 @@ impl JumpTest {
             uploads: Vec::new(),
             sent: 0,
             fresh: Vec::new(),
+            answered: 0,
+            fix_counts: (HashMap::new(), 0, 0),
             problem: None,
         }
     }
@@ -1696,6 +1709,28 @@ impl JumpTest {
             Self::line(&mut self.bodies_log, &serde_json::json!({ "t": time, "b": alive }));
         }
         self.fresh = rows.clone();
+        // The fixes per place over 10 s windows: a place with few rows is on dead reckoning.
+        if clock.saturating_sub(self.fix_counts.1) >= FIX_WINDOW_MS {
+            if !self.fix_counts.0.is_empty() {
+                let mut per: Vec<(Place, u32)> = self.fix_counts.0.drain().collect();
+                per.sort_unstable();
+                let line = serde_json::json!({ "fixes_per_place_per_10s": per, "window_ms": clock.saturating_sub(self.fix_counts.1), "passed_normal": self.fix_counts.2 });
+                Self::line(&mut self.worlds_log, &line);
+            }
+            self.fix_counts = (HashMap::new(), clock, 0);
+        }
+        for row in rows.iter().filter(|r| r.alive) {
+            *self.fix_counts.0.entry(row.place).or_default() += 1;
+        }
+        // Every NORMAL_EVERY-th answer of a burst goes down the ordinary path too.
+        let burst = if burst {
+            self.answered += 1;
+            let ordinary = self.answered % NORMAL_EVERY == 0;
+            self.fix_counts.2 += u32::from(ordinary);
+            !ordinary
+        } else {
+            false
+        };
         let wanted: HashSet<Place> = self.runners.keys().copied().collect();
         for row in rows.into_iter().filter(|r| wanted.contains(&r.place)) {
             Self::line(&mut self.worlds_log, &row_json(&row, clock));
@@ -2569,6 +2604,23 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
         jt.take_rows(rows.clone(), 1_000, 1_050, 100);
         assert_eq!(jt.take_fresh().len(), 2, "every body of the world, whoever works a try");
         assert!(jt.take_fresh().is_empty(), "once");
+    }
+
+    /// While the test asks all the time, one answer of the burst in four goes down the ordinary path as well (the
+    /// ordinary world carries the legs and the carried item), and the fixes of every place are counted.
+    #[test]
+    fn one_answer_in_four_of_a_burst_goes_the_ordinary_way_too() {
+        let mut jt = JumpTest::new(PathBuf::from("none"), std::env::temp_dir(), "t".into(), 120);
+        let rows = vec![row(1_000, 2.0, 5.0, false, 0), Row { place: 4, ..row(1_000, 2.0, 7.0, false, 0) }];
+        let mut ordinary = 0;
+        for i in 0..8u32 {
+            jt.outstanding = Some(i);
+            if !jt.take_rows(rows.clone(), 1_000 + i * 125, 1_050 + i * 125, 100) {
+                ordinary += 1;
+            }
+        }
+        assert_eq!(ordinary, 8 / NORMAL_EVERY, "answers that went the ordinary way");
+        assert_eq!(jt.fix_counts.0.values().copied().collect::<Vec<_>>(), vec![8, 8]);
     }
 
     #[test]
