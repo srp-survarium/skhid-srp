@@ -542,3 +542,12 @@ before they can ship on top of this list.
 
 Applied to the live files: 8 files edited, 0 unexpected differences. The simulation changes (the
 `next` row of `simulation_changes.tsv`). See [`../../docs/notes/booster-buffs.md`](../../docs/notes/booster-buffs.md).
+
+## rations-stamina-1.json (2026-10-26)
+
+| change | why |
+|---|---|
+| a new modification 1165 at the end of `modifications`, made like 1164 (the rolled energy costs -10 %: `stamina_spending_speed_modifier`, card line 116 "Energy costs") with -0.30 (`modifiers[0]/value`, `lobby_info`, the card's "-0.30") and `drop_weight` 0 | the owner: rations get "energy costs -30%" on top of what they do. Index 19 multiplies the jump's cost (0x329710), the can-jump test (0x2D6420) and the sprint's drain (0x329A70) by max(0, 1 + the sum). Drop weight 0: it never rolls |
+| `gameplay/items/boosters/regeneration_booster.options` `default_modifications`: [1094] -> [1094, 1165] (`append_item`, new in `content_edit.py`) | the regeneration +15 % stays; a booster works carried, as the energy drink's two modifications do. The card shows both lines |
+
+Applied to the live files: 2 files edited, 0 unexpected differences. The simulation changes.

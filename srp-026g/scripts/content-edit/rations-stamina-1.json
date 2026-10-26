@@ -1,0 +1,9 @@
+{
+ "_about": "The rations buff (the owner, 2026-10-26: \"energy costs -30%\", on top of what they do; srp-026g/docs/notes/booster-buffs.md). Rations (regeneration_booster, a booster: it works carried, as every booster, no timed effect) keep their default modification 1094 (health regeneration +15 %) and get a second one, as the Tornado energy drink has two: a new modification 1165, stamina_spending_speed_modifier (index 19, the name the exe's table 0x928448 has) -0.30, made like 1164 (the rolled energy costs -10 %, the same path and card line 116 \"Energy costs\") with drop_weight 0, so it never rolls; added at the end of the table. The card shows both: \"Regeneration: +15%\" and \"Energy costs: -30%\".",
+ "add_entry": [
+  {"files": "gameplay/items/modifications/modifications.options", "list": "modifications", "after": {"id": 1280}, "like": {"id": 1164}, "values": {"id": 1165, "drop_weight": 0, "modifiers[0]/value": -0.3, "lobby_info/stamina_spending_speed_modifier": -0.3, "ui_desc/props_list[0]/prop_value": "-0.30"}}
+ ],
+ "append_item": [
+  {"file": "gameplay/items/boosters/regeneration_booster.options", "path": "default_modifications", "value": 1165}
+ ]
+}
