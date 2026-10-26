@@ -87,7 +87,8 @@ use survarium::v026g::loadouts::BotRole;
 use survarium::v026g::loadouts::BotTier;
 use survarium::v026g::loadouts::RusherKits;
 use survarium::v026g::match_msgs::PlayerInput;
-use survarium::v026g::match_msgs::traps::{PlacedTrap, TrapState};
+use survarium::v026g::match_msgs::traps::PlacedTrap;
+use survarium::v026g::match_msgs::traps::TrapState;
 
 use crate::v026g::drive::half_value;
 use crate::v026g::drive::key;
