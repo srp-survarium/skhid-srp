@@ -45,6 +45,10 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("spot_pick", 4.0),
     // Spots higher than the container weigh this much more per metre.
     ("prefer_high", 0.3),
+    // Spots on the storeys over the anchor are looked at up to this many metres
+    // over it (0: only the floor the grid finds, at most 2 m over it). GUESS: 8 m,
+    // a storey or two (the players' heights span 9-18 m a map); V-S2a.
+    ("up_m", 8.0),
     // Not within this of a teammate.
     ("apart_m", 5.0),
     // The approach watched: this far from the container toward theirs.
@@ -223,6 +227,7 @@ impl Ctx<'_> {
             // to it ends on its faces.
             sight_body: self.tactics.container_body(container),
             prefer_high: num("prefer_high"),
+            up_m: num("up_m"),
             side: self.bot.side,
             samples: num("spot_samples") as usize,
             ..SpotQuery::ring(container, num("spot_min_m"), num("spot_max_m"))

@@ -24,9 +24,8 @@
 //! to it, and last the whole grid is searched.
 
 use std::cell::RefCell;
-use std::collections::BinaryHeap;
 
-use crate::grid::{Entry, LinkKind, NodeId, Search, SlicedSearch, WalkGrid};
+use crate::grid::{Entry, LinkKind, NodeId, Open, Search, SlicedSearch, WalkGrid};
 use crate::math::Vec3;
 
 /// A block's side, in cells (8 m at 0.25 m cells).
@@ -374,7 +373,7 @@ struct Marks {
     cost: Vec<f32>,
     parent: Vec<u32>,
     search: u32,
-    open: BinaryHeap<Entry>,
+    open: Open,
 }
 
 impl Marks {
@@ -414,7 +413,7 @@ pub(crate) fn marks_bytes() -> usize {
             m.mark.capacity() * 4
                 + m.cost.capacity() * 4
                 + m.parent.capacity() * 4
-                + m.open.capacity() * std::mem::size_of::<Entry>()
+                + m.open.capacity() * std::mem::size_of::<u64>()
         })
         .unwrap_or(0)
 }

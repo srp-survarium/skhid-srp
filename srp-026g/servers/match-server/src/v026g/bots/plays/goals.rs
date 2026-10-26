@@ -28,7 +28,58 @@ pub fn no_way_near(list: &[(Vec3, u32)], at: Vec3, now: u32) -> bool {
         .any(|&(goal, until)| now < until && goal.distance_xz(at) <= crate::v026g::bots::drive::REPLAN_MOVED_M)
 }
 
+/// A track of an enemy counts for the climb's exposure while its own sense
+/// (sight, hearing, a teammate's word) is this fresh, ms.
+pub const CLIMB_FRESH_MS: u32 = 5_000;
+/// The climb is looked at every this many metres, and by the nearest this
+/// many tracks.
+const CLIMB_STEP_M: f32 = 3.0;
+const CLIMB_TRACKS: usize = 3;
+/// A spot higher than this over its anchor is on a storey over it, metres
+/// (`tactics::STOREY_FROM_M`).
+const STOREY_OVER_M: f32 = 2.0;
+
 impl Ctx<'_> {
+    /// Whether the way up to `to`, a spot on a storey over its `anchor`, lies
+    /// in sight of an enemy the bot knows of just now: the straight line from
+    /// where it stands, looked at every 3 m from the eyes of the nearest three
+    /// tracks (no new information: only what its senses and its team's gave in
+    /// the last 5 s, and a ray each).
+    ///
+    /// Root cause (`push-record.md` V-S2a, held-line entries): in the
+    /// deathmatch bench the extra bots that came into a held line were
+    /// those bound for a spot more than 2 m up (158 to 243 of 1,404 to 1,510
+    /// entries in the killed lane; 99 % knew the shooter), under a shooter
+    /// over them: the choice of a storey spot never weighed the enemy it
+    /// knew of in the way.
+    pub fn exposed_climb(&self, to: Vec3, anchor: Vec3) -> bool {
+        if to.y <= anchor.y + STOREY_OVER_M {
+            return false;
+        }
+        let eye = Vec3::new(0.0, crate::v026g::bots::view::EYE_STANDING, 0.0);
+        let mut seen: Vec<Vec3> = self
+            .memory
+            .tracks()
+            .iter()
+            .filter_map(|t| t.own.filter(|&(_, time)| self.now.saturating_sub(time) < CLIMB_FRESH_MS))
+            .map(|(at, _)| at)
+            .collect();
+        seen.sort_by(|a, b| {
+            a.distance_xz(self.me.feet)
+                .total_cmp(&b.distance_xz(self.me.feet))
+        });
+        seen.truncate(CLIMB_TRACKS);
+        let length = self.me.feet.distance_xz(to);
+        let steps = (length / CLIMB_STEP_M).ceil().max(1.0) as usize;
+        seen.iter().any(|&enemy| {
+            (1..=steps).any(|k| {
+                let p = self.me.feet + (to - self.me.feet) * (k as f32 / steps as f32);
+                self.tactics.sees(enemy + eye, p + eye)
+            })
+        })
+    }
+
+
     /// Whether the bot can go to `at`: a way may be open there
     /// ([`Ctx::reachable`], not for the objective) and no search of its own
     /// proved none lately ([`Ctx::no_way_lately`]).
@@ -70,6 +121,29 @@ mod tests {
     use super::*;
     use crate::v026g::bots::drive::REPLAN_MOVED_M;
     use crate::v026g::bots::view::Mode;
+
+    /// The way up to a spot on a storey over its anchor is out of the question
+    /// when it lies in sight of an enemy known of just now, and for a spot that
+    /// is not up there, or an enemy not known (or only stale), it never is.
+    #[test]
+    fn a_climb_in_sight_of_a_known_enemy_is_exposed_only_for_a_storey_spot() {
+        use crate::v026g::bots::know::Source;
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(crate::v026g::bots::tactics::tests::platform_world(), 1.0);
+        s.bot(0, 0, Vec3::new(14.0, 0.0, 24.0));
+        let anchor = Vec3::new(26.0, 0.0, 24.0);
+        let up = Vec3::new(26.0, 4.0, 33.0);
+        // No enemy known: nothing is exposed.
+        assert!(!s.cx(0).exposed_climb(up, anchor));
+        // An enemy on the ground in the open, seen just now.
+        s.enemy(5, 1, Vec3::new(20.0, 0.0, 20.0), Some(Source::Seen));
+        assert!(s.cx(0).exposed_climb(up, anchor));
+        // The same climb to a spot on the anchor's own level is not looked at.
+        assert!(!s.cx(0).exposed_climb(Vec3::new(30.0, 0.5, 24.0), anchor));
+        // Stale: known 10 s ago.
+        s.view.clock += 10_000;
+        assert!(!s.cx(0).exposed_climb(up, anchor));
+    }
 
     #[test]
     fn a_no_way_proof_holds_within_the_replan_distance_until_it_expires() {

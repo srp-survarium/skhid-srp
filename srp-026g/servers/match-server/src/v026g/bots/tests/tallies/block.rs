@@ -271,6 +271,7 @@ impl BlockTally {
         }
         self.onview[place] = ep;
         self.reloads.tick(place, me.gun.class(), me.team, me.alive, seen.is_some(), fired, bot.reflex.reload_note(), now);
+        self.reloads.looped(place, me.gun.class(), me.team, bot.reflex.loop_end());
     }
 
     pub(crate) fn end_onview(place: Place, e: OnView, events: &mut BenchEvents) {

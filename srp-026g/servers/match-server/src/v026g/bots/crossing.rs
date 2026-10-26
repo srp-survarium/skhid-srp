@@ -170,6 +170,7 @@ pub fn start(
     side: Option<i32>,
     objective: bool,
     health: f32,
+    closed: &[Vec3],
     floors: &mut usize,
 ) -> Result<Option<Route>, path::Planning> {
     count(Count::Searched);
@@ -181,12 +182,20 @@ pub fn start(
         time,
         side,
         objective,
-        |n| crossable(tactics, n, health),
+        |n| crossable(tactics, n, health) && !shut(tactics, closed, n),
         floors,
     );
     #[cfg(test)]
     expanded(path::searches().expanded - before);
     route
+}
+
+/// Whether floor `n` is on a landing the body gave up jumping to
+/// ([`stuck::Stuck::shut_landings`]): shut to a crossing's search as to the
+/// plain one.
+fn shut(tactics: &Tactics, closed: &[Vec3], n: NodeId) -> bool {
+    let at = tactics.world.grid.position(n);
+    closed.iter().any(|&landing| stuck::on_landing(landing, at))
 }
 
 /// A crossing's search ([`start`]) goes on.
@@ -199,6 +208,7 @@ pub fn resume(
     side: Option<i32>,
     objective: bool,
     health: f32,
+    closed: &[Vec3],
     floors: &mut usize,
 ) -> Option<Option<Route>> {
     #[cfg(test)]
@@ -209,7 +219,7 @@ pub fn resume(
         time,
         side,
         objective,
-        |n| crossable(tactics, n, health),
+        |n| crossable(tactics, n, health) && !shut(tactics, closed, n),
         floors,
     );
     #[cfg(test)]
@@ -322,7 +332,7 @@ fn out_of_ring(
     }
     // A few metres: searched to its end at once.
     let mut iters = usize::MAX;
-    start(tactics, from, exit, time, side, objective, health, &mut iters)
+    start(tactics, from, exit, time, side, objective, health, &[], &mut iters)
         .ok()
         .flatten()
         .or_else(|| path::plan(grid, from, exit))
@@ -456,7 +466,7 @@ mod tests {
             return (plain, false);
         }
         let mut iters = usize::MAX;
-        let Ok(crossed) = start(tactics, a, b, 0, Some(0), false, health, &mut iters) else {
+        let Ok(crossed) = start(tactics, a, b, 0, Some(0), false, health, &[], &mut iters) else {
             panic!("an unbounded search ends");
         };
         let (route, crossing, _) = choose(tactics, a, plain, crossed, health, 0, Some(0), false);

@@ -80,7 +80,7 @@ use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 
 use super::arc;
-use super::guns::{Arms, AutoClass, Gun, Handling, Hands};
+use super::guns::{Arms, AutoClass, Gun, Handling, Hands, LoopEnd};
 use super::kin::{forward, wrap, yaw_of};
 use super::know::{Memory, SeenTrack, Source, TeamKnowledge};
 use super::recoil::{Cadence, Recoil, kick_of};
@@ -326,6 +326,27 @@ pub struct CombatTuning {
     /// 1.6 reloads a minute against 1.0 of the others).
     pub reload_idle_ms: u32,
     pub reload_some_share: f32,
+    /// A round-by-round reload (the SPAS-12, the pumps, the bolt rifles that
+    /// load by the round) is loaded with the sights down: the client ends
+    /// the loop at the first round-end with them or the trigger held and a
+    /// round in the weapon (0x339EE0, 0x339EA0; PROVEN in the exe), and the
+    /// reflex's own AIM did that to 38 % of the SPAS-12's reloads (PROVEN by
+    /// counts, eight matches). Off: the sights go as the branches ask.
+    pub reload_aim_control: bool,
+    /// ... except that with a target seen or a threat on, the sights can be
+    /// pressed to end the loop at this many rounds put in (the rounds that
+    /// load are counted by the client's own clock, [`super::guns::Load`]):
+    /// the weapon is ready `finish` after that round (2.4 s for one, 2.75 s
+    /// for two, against 5.0 s for eight), the aim-in running in that clip.
+    /// 0: always the whole load, **the default**: the design's 3
+    /// (`fighting-record.md` 3.1) failed the smoke on the bench's real kits
+    /// (tier 9-10, 64 matches, 120 s): the shotgun bots reloaded 40 % more
+    /// often (3 rounds a load instead of 4-8) and reloads in an enemy's line
+    /// rose 16.6 % (z 4.6); with 0 they fell 1.9 % (z -0.7). The players do
+    /// not cut either: 1 of 99 reloads held AIM (0 of 15 in matches of 12 or
+    /// more) and they load fully (6.3 rounds at the next world). Left as a
+    /// row for a bench variant (2-4), GUESS.
+    pub reload_rounds_in_view: u32,
     /// A weapon that fires one round a press: the trigger held this long,
     /// ms, and never past half its shot (so it is up before the fire state
     /// is over, [`super::guns`]); the next press after the weapon's cycle
@@ -839,6 +860,8 @@ impl Default for CombatTuning {
             trade_m: 40.0,
             reload_idle_ms: 400,
             reload_some_share: 0.4,
+            reload_aim_control: true,
+            reload_rounds_in_view: 0,
             press_ms: 100,
             press_gap_ms: 50,
             recoil_pull: 1.0,
@@ -1639,6 +1662,13 @@ pub struct Reflex {
     /// No shot before this (a reload or the switch to the pistol under
     /// way).
     busy_until: u32,
+    /// The trigger or the sights were in the keys of the last tick: what the
+    /// client's reload loop meets at its round-ends
+    /// ([`Self::count_rounds`]).
+    held_keys: bool,
+    /// [measure] The end of the last round-by-round reload's loop
+    /// ([`Reflex::loop_end`]).
+    loop_end: Option<LoopEnd>,
     /// The aim's slow wander about the target, radians (yaw, pitch).
     wander: (f32, f32),
     /// Drawn per target: it aims down the sights nearer than `ads_near_m`;
@@ -1896,6 +1926,12 @@ impl Reflex {
     /// [measure] The last reload started, if any.
     pub fn reload_note(&self) -> Option<ReloadNote> {
         self.reload_note
+    }
+
+    /// [measure] The end of the last round-by-round reload's loop, if any: the
+    /// rounds the client put in, of those it was to.
+    pub fn loop_end(&self) -> Option<LoopEnd> {
+        self.loop_end
     }
 
     /// [measure] The gate trace note made since the last call (with
@@ -3109,7 +3145,7 @@ impl Reflex {
             return 0;
         }
         let (left, magazine) = (load.rounds, load.gun.magazine);
-        let ms = load.reload();
+        let ms = load.reload(now);
         self.reload_note = Some(ReloadNote {
             at: now,
             until: now + ms,
@@ -3274,7 +3310,9 @@ impl Reflex {
     }
 
     /// One tick: where to look, whether to fire, the keys and the legs.
-    /// `fire_allowed`: the play's word (a carrier cannot shoot).
+    /// `fire_allowed`: the play's word (a carrier cannot shoot). The sights
+    /// are let down while a round-by-round reload loads
+    /// ([`Self::keep_loop_going`]).
     #[allow(clippy::too_many_arguments)]
     pub fn tick(
         &mut self,
@@ -3287,8 +3325,82 @@ impl Reflex {
         skill: f32,
         rng: &mut Rng,
     ) -> Override {
+        let mut over = self.combat_tick(me, view, memory, now, fire_allowed, aim, skill, rng);
+        self.keep_loop_going(&mut over, now, &aim.combat);
+        over
+    }
+
+    /// The rounds the client has put in by `now` ([`super::guns::Load::advance`]), under
+    /// the keys of the last tick. A loop that ended before the magazine was
+    /// full frees the weapon at its own time, not the whole load's.
+    fn count_rounds(&mut self, now: u32) {
+        let held = self.held_keys;
+        let Some(end) = self.hands().held_mut().advance(now, held) else {
+            return;
+        };
+        self.loop_end = Some(end);
+        if self.busy_why == gate::RELOAD && end.ready < self.busy_until {
+            self.busy_until = end.ready.max(now);
+            if let Some(note) = self.reload_note.as_mut() {
+                note.until = self.busy_until;
+            }
+        }
+    }
+
+    /// A round-by-round reload's loop goes on to its finish clip at the first
+    /// round-end with the sights or the trigger held and a round in the
+    /// weapon (the shotgun sub-FSM's predicates 0x339EE0 and 0x339EA0). Four
+    /// branches of [`Self::combat_tick`] ask for the sights (a threat's look, a
+    /// target just lost, the partner's death spot, a seen target) and none
+    /// let them go, so 38 % of the SPAS-12's reloads in the recordings loaded
+    /// one round and none reached six. While the loop runs the sights are
+    /// down, and their aim-in counts afresh from its end; the finish clip is
+    /// long enough for it. With a target seen or a threat on, the sights go
+    /// down on purpose from the middle of the span before the round-end that
+    /// is to end the loop ([`CombatTuning::reload_rounds_in_view`],
+    /// [`super::guns::Load::cut_from`]). A magazine's reload takes no key but a weapon
+    /// switch, and is left alone.
+    fn keep_loop_going(&mut self, over: &mut Override, now: u32, c: &CombatTuning) {
+        let in_view = self.last_seen == now || self.threat.is_some_and(|t| now < t.until);
+        // A grenade throw under way has the hands (play 20, `Self::throwing`):
+        // its keys are the grenade key alone, and the sights are not pressed
+        // into them for a loop's early cut.
+        let cut = self.throw.is_none()
+            && in_view
+            && c.reload_rounds_in_view > 0
+            && self
+                .hands()
+                .held()
+                .cut_from(c.reload_rounds_in_view)
+                .is_some_and(|from| now >= from);
+        if c.reload_aim_control && self.hands().held().loading() {
+            if cut {
+                over.keys |= key::AIM;
+                self.aim_since = Some(self.aim_since.unwrap_or(now));
+            } else {
+                over.keys &= !key::AIM;
+                self.aim_since = None;
+            }
+        }
+        self.held_keys = over.keys & key::AIM != 0 || over.fire;
+    }
+
+    /// [`Self::tick`] with the sights as the branches below ask for them.
+    #[allow(clippy::too_many_arguments)]
+    fn combat_tick(
+        &mut self,
+        me: &PlaceView,
+        view: &MatchView,
+        memory: &Memory,
+        now: u32,
+        fire_allowed: bool,
+        aim: &AimTuning,
+        skill: f32,
+        rng: &mut Rng,
+    ) -> Override {
         let c = &aim.combat;
         self.new_life(me);
+        self.count_rounds(now);
         // Ticks skipped (getting unstuck has the keys) had the trigger up.
         if self
             .last_tick
@@ -4738,9 +4850,14 @@ mod tests {
         // bring the sights back on him: 0.6 / 1.1 / 1.9 s past the config's
         // cycle, never sooner than 0.4 s past it ("you can't just hold FIRE
         // on sniper weapons"). The bot: a press of at most `press_ms`, the
-        // next after the cycle, `press_gap_ms` and `bolt_reaim_ms`.
+        // next after the cycle, `press_gap_ms` and `bolt_reaim_ms`. The
+        // reload between is the whole load: the early cut is another test's.
         let aim = AimTuning {
             fire_within_deg: 180.0,
+            combat: CombatTuning {
+                reload_rounds_in_view: 0,
+                ..CombatTuning::default()
+            },
             ..AimTuning::default()
         };
         let mosin = guns::gun("mosin_nagant").unwrap();
@@ -6419,6 +6536,37 @@ mod tests {
         until: u32,
         seen_until: u32,
     ) -> Vec<(u32, bool, u32, Option<LegsWhy>)> {
+        duel_reflex(
+            role,
+            sit,
+            me,
+            enemy_at,
+            aim,
+            from,
+            until,
+            seen_until,
+            |_, _, _| {},
+        )
+        .0
+    }
+
+    /// A duel's ticks: the time, the trigger, the keys and the legs' why.
+    type Ticks = Vec<(u32, bool, u32, Option<LegsWhy>)>;
+
+    /// [`duel`] with its reflex, and `after` run on it after every tick (its
+    /// time and what it made).
+    #[allow(clippy::too_many_arguments)]
+    fn duel_reflex(
+        role: &str,
+        sit: &Situation,
+        me: &mut PlaceView,
+        enemy_at: Vec3,
+        aim: &AimTuning,
+        from: u32,
+        until: u32,
+        seen_until: u32,
+        mut after: impl FnMut(&mut Reflex, u32, &Override),
+    ) -> (Ticks, Reflex) {
         let mut memory = Memory::default();
         // The role's guns with the test's ammo: a magazine and a little
         // more (the kits carry a life's worth, too long a duel to test).
@@ -6454,9 +6602,10 @@ mod tests {
             facing(me, chest);
             let o = reflex.tick(me, sit.view, &memory, now, true, aim, 0.5, &mut rng);
             out.push((now, o.fire, o.keys, o.legs.map(|l| l.why)));
+            after(&mut reflex, now, &o);
             now += 50;
         }
-        out
+        (out, reflex)
     }
 
     /// The trigger's runs in a duel: (first tick, ticks held), and the
@@ -6555,8 +6704,13 @@ mod tests {
         let enemy_at = Vec3::new(0.0, 0.0, 40.0);
         let mut me = body(0, 0, Vec3::ZERO, 0.0);
         let view = view_of(vec![me.clone(), body(1, 1, enemy_at, 0.0)]);
+        // The whole load of five: the early cut is another test's.
         let aim = AimTuning {
             fire_within_deg: 180.0,
+            combat: CombatTuning {
+                reload_rounds_in_view: 0,
+                ..CombatTuning::default()
+            },
             ..AimTuning::default()
         };
         let mosin = guns::gun("mosin_nagant").unwrap();
@@ -6659,6 +6813,248 @@ mod tests {
             reloads[0] >= 4_500 + aim.combat.reload_idle_ms - 500,
             "{reloads:?}"
         );
+    }
+
+    /// The first reload key of `ticks` (a duel's), and the reflex of the same
+    /// duel stopped `ms` after it, with the enemy seen until `seen_until`.
+    /// The held-through-the-loop rule is off in tests that look at the whole
+    /// load.
+    fn first_reload(
+        role: &str,
+        ms: u32,
+        held_at: Option<u32>,
+        combat: CombatTuning,
+        seen_until: u32,
+    ) -> (Ticks, u32, Reflex) {
+        let enemy_at = Vec3::new(0.0, 0.0, 20.0);
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        let view = view_of(vec![me.clone(), body(1, 1, enemy_at, 0.0)]);
+        let aim = AimTuning {
+            fire_within_deg: 180.0,
+            combat,
+            ..AimTuning::default()
+        };
+        let sit = Situation::of(&view);
+        let ticks = duel(
+            role, &sit, &mut me, enemy_at, &aim, 1_000, 30_000, seen_until,
+        );
+        let press = pressed(&ticks, key::RELOAD)[0];
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        let (ticks, reflex) = duel_reflex(
+            role,
+            &sit,
+            &mut me,
+            enemy_at,
+            &aim,
+            1_000,
+            press + ms,
+            seen_until,
+            |reflex, now, _| {
+                // Something else holds the sights or the trigger at this tick.
+                if Some(now) == held_at.map(|after| press + after) {
+                    reflex.held_keys = true;
+                }
+            },
+        );
+        (ticks, press, reflex)
+    }
+
+    #[test]
+    fn a_round_by_round_reload_is_loaded_with_the_sights_down_to_the_full_magazine() {
+        // The SPAS-12: 8 in it, 32 more; 1.0 s, 8 rounds of 0.375 s, 1.0 s.
+        let loop_ms = 1_000 + 8 * 375;
+        let (ticks, press, mut reflex) = first_reload(
+            "shotgunner",
+            loop_ms + 100,
+            None,
+            CombatTuning {
+                reload_rounds_in_view: 0,
+                ..CombatTuning::default()
+            },
+            u32::MAX,
+        );
+        // It fought down the sights before the reload ...
+        assert!(
+            ticks.iter().any(|t| t.0 < press && t.2 & key::AIM != 0),
+            "{press}"
+        );
+        // ... and has them down from the key to the last round, whatever the
+        // branch (a seen target here) would ask for.
+        assert!(
+            ticks
+                .iter()
+                .filter(|t| t.0 >= press && t.0 < press + loop_ms)
+                .all(|t| t.2 & key::AIM == 0),
+            "{press}"
+        );
+        // The loop went to the full magazine, the ledger with it.
+        let end = reflex.loop_end().expect("the loop ended");
+        assert_eq!((end.at, end.loaded, end.target), (press, 8, 8));
+        assert!(!end.cut());
+        let load = *reflex.hands().held();
+        assert_eq!((load.rounds, load.spare), (8, 24));
+        // The sights come back for the finish clip, and the bot waits the
+        // whole load for its first shot.
+        assert!(
+            ticks
+                .iter()
+                .any(|t| t.0 >= press + loop_ms && t.2 & key::AIM != 0)
+        );
+        assert!(
+            ticks
+                .iter()
+                .all(|t| !(t.1 && t.0 >= press && t.0 < press + loop_ms + 1_000))
+        );
+    }
+
+    #[test]
+    fn a_loop_cut_by_a_held_key_is_counted_as_the_client_ran_it() {
+        // Something other than the reflex holds a key at the loop's first end
+        // (0.375 s after the 1.0 s start): the client has one round and goes
+        // on to its finish clip; the ledger has the one, the weapon is free
+        // when that clip is over, not at the whole load's time.
+        let (ticks, press, reflex) = first_reload(
+            "shotgunner",
+            4_000,
+            Some(1_000 + 350),
+            CombatTuning::default(),
+            u32::MAX,
+        );
+        let end = reflex.loop_end().expect("the loop ended");
+        assert_eq!((end.at, end.loaded, end.target), (press, 1, 8));
+        assert!(end.cut());
+        assert_eq!(end.ended, press + 1_000 + 375);
+        // The weapon is free at the finish clip's end.
+        let ready = press + 1_000 + 375 + 1_000 + guns::CLIENT_LAG_MS;
+        assert_eq!(end.ready, ready);
+        let fired: Vec<u32> = ticks
+            .iter()
+            .filter(|t| t.1 && t.0 > press)
+            .map(|t| t.0)
+            .collect();
+        assert!(!fired.is_empty());
+        assert!(
+            fired[0] >= ready && fired[0] < ready + 1_000,
+            "{fired:?} {ready}"
+        );
+        // One round in it, not eight: one shot, and the next reload press.
+        let reloads = pressed(&ticks, key::RELOAD);
+        assert!(reloads.len() >= 2, "{reloads:?}");
+        let shots = runs(&ticks)
+            .into_iter()
+            .filter(|(at, _)| *at > press && *at < reloads[1])
+            .count();
+        assert_eq!(shots, 1, "{reloads:?} {fired:?}");
+    }
+
+    /// The design's early cut, off by default.
+    fn cutting() -> CombatTuning {
+        CombatTuning {
+            reload_rounds_in_view: 3,
+            ..CombatTuning::default()
+        }
+    }
+
+    #[test]
+    fn with_a_target_in_view_the_sights_end_the_loop_at_the_third_round() {
+        // Seen all the while: the sights are pressed in the middle of the
+        // span before the third round-end (1.0 s + 3 x 0.375 s), the client
+        // goes on to its finish clip with three rounds, and the weapon is
+        // free at the clip's end, not at the whole load's 5.0 s.
+        let (ticks, press, mut reflex) =
+            first_reload("shotgunner", 4_500, None, cutting(), u32::MAX);
+        let end = reflex.loop_end().expect("the loop ended");
+        assert_eq!((end.at, end.loaded, end.target), (press, 3, 8));
+        assert!(end.cut());
+        assert_eq!(end.ended, press + 1_000 + 3 * 375);
+        let ready = end.ended + 1_000 + guns::CLIENT_LAG_MS;
+        assert_eq!(end.ready, ready);
+        // Down until the middle of the span, up from it.
+        let from = press + 1_000 + 2 * 375 + 187;
+        assert!(
+            ticks
+                .iter()
+                .filter(|t| t.0 >= press && t.0 < from)
+                .all(|t| t.2 & key::AIM == 0)
+        );
+        assert!(
+            ticks
+                .iter()
+                .filter(|t| t.0 >= from && t.0 <= end.ended)
+                .all(|t| t.2 & key::AIM != 0)
+        );
+        // The first shot comes when the weapon is free, not before.
+        let fired: Vec<u32> = ticks
+            .iter()
+            .filter(|t| t.1 && t.0 > press)
+            .map(|t| t.0)
+            .collect();
+        assert!(
+            fired[0] >= ready && fired[0] < ready + 1_000,
+            "{fired:?} {ready}"
+        );
+        // Three rounds in it: the shots it fires are of them.
+        let shots = runs(&ticks).iter().filter(|(at, _)| *at > press).count() as u32;
+        assert_eq!(reflex.hands().held().rounds + shots, 3);
+    }
+
+    #[test]
+    fn with_nothing_in_view_or_the_rule_off_the_whole_load_goes_in() {
+        let loop_of = |combat: CombatTuning, seen_until: u32| {
+            let (_, press, reflex) = first_reload("shotgunner", 6_500, None, combat, seen_until);
+            let end = reflex.loop_end().expect("the loop ended");
+            assert_eq!(end.at, press);
+            end
+        };
+        // A tactical reload with nothing seen for a while: more rounds to
+        // load than the three, all of them.
+        let end = loop_of(cutting(), 4_500);
+        assert!(end.target > 3 && !end.cut(), "{end:?}");
+        // In view, with the rule at 0 (the default: the cut failed the
+        // smoke) the whole load; at 8 or more, which is the last round-end
+        // anyway, likewise.
+        assert_eq!(CombatTuning::default().reload_rounds_in_view, 0);
+        for rule in [0, 8, 20] {
+            let combat = CombatTuning {
+                reload_rounds_in_view: rule,
+                ..CombatTuning::default()
+            };
+            let end = loop_of(combat, u32::MAX);
+            assert_eq!((end.loaded, end.target), (8, 8), "{rule}");
+        }
+    }
+
+    #[test]
+    fn with_the_aim_control_off_the_sights_cut_the_loop_to_one_round_as_before() {
+        let combat = CombatTuning {
+            reload_aim_control: false,
+            ..CombatTuning::default()
+        };
+        let (ticks, press, reflex) = first_reload("shotgunner", 4_000, None, combat, u32::MAX);
+        let end = reflex.loop_end().expect("the loop ended");
+        assert_eq!((end.loaded, end.target), (1, 8));
+        assert!(
+            ticks
+                .iter()
+                .any(|t| t.0 >= press && t.0 < press + 1_375 && t.2 & key::AIM != 0)
+        );
+    }
+
+    #[test]
+    fn a_magazine_reload_keeps_the_sights_as_the_branches_ask() {
+        // The AK-74U's 30: no key of a bot shortens its reload, so nothing is
+        // changed in what it presses, and it has no loop.
+        let (ticks, press, mut reflex) =
+            first_reload("support", 3_000, None, CombatTuning::default(), u32::MAX);
+        assert!(
+            ticks
+                .iter()
+                .any(|t| t.0 >= press && t.0 < press + 3_000 && t.2 & key::AIM != 0),
+            "{press}"
+        );
+        assert!(reflex.loop_end().is_none());
+        // Counted in at once, as before.
+        assert_eq!(reflex.hands().held().rounds, 30);
     }
 
     #[test]

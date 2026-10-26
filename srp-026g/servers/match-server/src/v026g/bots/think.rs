@@ -24,7 +24,7 @@ impl Bots {
         #[cfg(feature = "jump-test")]
         if bot.entered.is_some()
             && let Some(test) = self.jump_test.as_mut()
-            && test.think(bot, view)
+            && test.think(bot, view, &tactics.world)
         {
             return;
         }
@@ -115,7 +115,8 @@ impl Bots {
                 .and_then(|test| test.drive(bot, time, view));
             #[cfg(not(feature = "jump-test"))]
             let scripted: Option<Decision> = None;
-            let decision = match (scripted, estimate, me, self.tactics.as_ref()) {
+            #[cfg_attr(not(feature = "jump-test"), allow(unused_mut))]
+            let mut decision = match (scripted, estimate, me, self.tactics.as_ref()) {
                 (Some(scripted), ..) => {
                     bot.motor.rest();
                     scripted
@@ -136,6 +137,7 @@ impl Bots {
             };
             #[cfg(feature = "jump-test")]
             if let Some(test) = self.jump_test.as_mut() {
+                test.quiet(bot.place, &mut decision);
                 test.motor_seen(bot, time, decision.keys);
             }
             if let Some(line) = bot.reflex.take_friend_note() {
@@ -532,11 +534,17 @@ pub(super) fn decide(
         }
         Step::Failed(why) => {
             if let Some(a) = bot.assignment.as_ref()
-                && now < a.since + plays::QUICK_FAIL_MS
+                && (now < a.since + plays::QUICK_FAIL_MS || plays::collect::fails_aside(why))
             {
                 bot.set_aside.retain(|&(_, _, until)| until > now);
-                bot.set_aside
-                    .push((a.kind, a.target, now + plays::SET_ASIDE_MS));
+                // A battery proved out of reach is left as long as a goal no
+                // way leads to.
+                let keep = if plays::collect::fails_aside(why) {
+                    NO_WAY_KEEP_MS
+                } else {
+                    plays::SET_ASIDE_MS
+                };
+                bot.set_aside.push((a.kind, a.target, now + keep));
             }
             bot.end_play(now, why, notes);
             state.next_commander = now;

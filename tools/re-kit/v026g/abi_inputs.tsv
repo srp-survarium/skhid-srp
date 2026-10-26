@@ -4618,3 +4618,30 @@ va	name	location	role	basis
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	EDI	the record copied (124h: path buffer_string +0, '/' +110h, CRC +114h, size +118h, age +11Ch, loading +120h)	observed
 0x000e0210	vostok::render::render_model_instance::destroy	ECX	the model instance whose count (+0D0h) reached 0	observed
 0x000e0210	vostok::render::render_model_instance::destroy	EAX	&its count	observed
+0x002df780	survarium::weapon_core_cook::add_weapon_state_transitions	entry ESP+4	this (the weapon_core, LIKELY: the transitions' predicates take it in ECX), then eight state handles at ESP+8.. in the order show, hide, idle, reload, fire, chamber, throw_grenade, melee	observed
+0x002e3b00	survarium::weapon_core::state_ended_pred	ECX	the weapon_core (its current state at +330h)	observed
+0x002e3b10	survarium::weapon_core::switch_pending	ECX	the weapon_core (its current state at +330h)	observed
+0x002e3b40	survarium::weapon_core::hide_to_show_pred	ECX	the weapon_core (its current state at +330h)	observed
+0x002e3b80	survarium::weapon_core::hide_wanted_pred	ECX	the weapon_core (its current state at +330h)	observed
+0x002e3be0	survarium::weapon_core::hide_wanted_and_ended_pred	ECX	the weapon_core (its current state at +330h)	observed
+0x002e3c80	survarium::weapon_core::chamber_pred_and_ended	ECX	the weapon_core (its current state at +330h)	observed
+0x002e3d30	survarium::weapon_core::fire_pred_and_ended	ECX	the weapon_core (its current state at +330h)	observed
+0x002e3d60	survarium::weapon_core::reload_wanted	ECX	the weapon_core (its current state at +330h)	observed
+0x002e3da0	survarium::weapon_core::can_reload	ECX	the weapon_core (its current state at +330h)	observed
+0x002e3ef0	survarium::weapon_core::reload_pred	ECX	the weapon_core (its current state at +330h)	observed
+0x002e3f40	survarium::weapon_core::reload_pred_and_ended	ECX	the weapon_core (its current state at +330h)	observed
+0x002e3f70	survarium::weapon_core::reload_or_empty_pred_and_ended	ECX	the weapon_core (its current state at +330h)	observed
+0x002e3fc0	survarium::weapon_core::user_not_alive_pred	ECX	the weapon_core (its current state at +330h)	observed
+0x002e3fe0	survarium::weapon_core::show_to_idle_pred	ECX	the weapon_core (its current state at +330h)	observed
+0x002e4010	survarium::weapon_core::reload_to_idle_pred	ECX	the weapon_core (its current state at +330h)	observed
+0x002e4090	survarium::weapon_core::throw_grenade_pred	ECX	the weapon_core (its current state at +330h)	observed
+0x002e4100	survarium::weapon_core::melee_pred	ECX	the weapon_core (its current state at +330h)	observed
+0x002e4140	survarium::weapon_core::jump_blocks_reload	EAX	the weapon_core	observed
+0x002e4170	survarium::weapon_core::sprint_blocks_reload	EAX	the weapon_core	observed
+0x0030ef80	survarium::weapon_core_shotgun_reload_one_round_substate::on_animation_end_impl	ECX	the substate (its weapon_core at +120h)	observed
+0x0030ef80	survarium::weapon_core_shotgun_reload_one_round_substate::on_animation_end_impl	entry ESP+4	a byte set to 1 (the substate's animation-ended flag)	observed
+0x0030f070	survarium::weapon_core_shotgun_reload_finish_substate::on_animation_end_impl	ECX	the substate (its weapon_core at +120h)	observed
+0x0030f070	survarium::weapon_core_shotgun_reload_finish_substate::on_animation_end_impl	entry ESP+4	a byte set to 1 (the substate's animation-ended flag)	observed
+0x00339de0	survarium::weapon_core_shotgun_reload_state::finish_reload_pred	ECX	the shotgun reload state (its weapon_core at +120h)	observed
+0x00339ea0	survarium::weapon_core_shotgun_reload_state::round_and_fire_held_pred	ECX	the shotgun reload state (its weapon_core at +120h)	observed
+0x00339ee0	survarium::weapon_core_shotgun_reload_state::round_and_aim_held_pred	ECX	the shotgun reload state (its weapon_core at +120h)	observed

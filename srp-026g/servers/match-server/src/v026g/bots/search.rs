@@ -80,6 +80,9 @@ pub(super) struct Pending {
     /// The spots it got stuck at, kept clear of: the first search of two
     /// (the second goes through them).
     pub(super) spots: Option<Vec<Vec3>>,
+    /// The landings of jumps the body gave up, shut to this search and the
+    /// second ([`Stuck::shut_landings`]).
+    pub(super) closed: Vec<Vec3>,
     /// [`hazards::Hazards::version`] when it started.
     pub(super) hazards: u64,
     pub(super) planning: path::Planning,
@@ -87,6 +90,11 @@ pub(super) struct Pending {
     pub(super) health: f32,
     /// A crossing's search, after the plain one (`crossing.rs`).
     pub(super) second: Option<crossing::Second>,
+}
+
+/// Whether `point` is on one of the shut `landings` ([`Stuck::shut_landings`]).
+pub(super) fn shut_landing(landings: &[Vec3], point: Vec3) -> bool {
+    landings.iter().any(|&landing| stuck::on_landing(landing, point))
 }
 
 /// Whether `point` is near one of `spots` ([`Stuck::near_spot`]).
@@ -119,10 +127,12 @@ impl Bots {
         let (time, side, objective) = (pending.time, pending.side, pending.objective);
         let grid = &tactics.world.grid;
         let spots = pending.spots.take();
+        let closed = std::mem::take(&mut pending.closed);
         let open = |node: NodeId| {
             spots
                 .as_deref()
                 .is_none_or(|spots| !near_any(spots, grid.position(node)))
+                && !shut_landing(&closed, grid.position(node))
         };
         let start = pending.ends.0;
         let health = pending.health;
@@ -135,6 +145,7 @@ impl Bots {
                 side,
                 objective,
                 health,
+                &closed,
                 floors,
             )
         } else {
@@ -150,6 +161,7 @@ impl Bots {
         };
         let Some(mut route) = ended else {
             pending.spots = spots;
+            pending.closed = closed;
             self.searching.pending = Some(pending);
             return;
         };
@@ -175,10 +187,13 @@ impl Bots {
         } else {
             // None round the spots it got stuck at: through them.
             if route.is_none() && spots.is_some() {
-                match tactics.start_route(from, to, time, side, objective, |_| true, floors) {
+                let through_open =
+                    |node: NodeId| !shut_landing(&closed, grid.position(node));
+                match tactics.start_route(from, to, time, side, objective, through_open, floors) {
                     Ok(through) => route = through,
                     Err(planning) => {
                         pending.planning = planning;
+                        pending.closed = closed;
                         self.searching.pending = Some(pending);
                         return;
                     }
@@ -189,7 +204,9 @@ impl Bots {
             if !(route.is_some() && long_kept)
                 && crossing::wanted(tactics, route.as_ref(), from, to, side, objective, health)
             {
-                match crossing::start(tactics, from, to, time, side, objective, health, floors) {
+                match crossing::start(
+                    tactics, from, to, time, side, objective, health, &closed, floors,
+                ) {
                     Ok(crossing_route) => {
                         (route, crossed, kept) = crossing::choose(
                             tactics,

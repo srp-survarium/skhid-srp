@@ -344,7 +344,7 @@ impl Bots {
                 }));
             }
             bot.running = Some(running);
-            bot.route = None;
+            bot.end_route(RouteEnd::NewAssignment, now);
             bot.assignment = Some(assignment);
         }
         // Why known batteries left a bot's Collect candidates, when it

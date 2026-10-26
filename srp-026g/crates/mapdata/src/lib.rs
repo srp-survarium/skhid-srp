@@ -47,6 +47,7 @@ pub mod project;
 pub mod regions;
 pub mod resources;
 pub mod sight;
+pub mod stands;
 
 pub use grid::{
     Body, BuildStats, DistanceMap, ExitJump, LinkKind, NodeId, Path, PocketEntry, PocketExit,
@@ -94,6 +95,7 @@ pub use project::{
 };
 pub use resources::{Error, Resources};
 pub use sight::{RayHit, RayTree};
+pub use stands::{UsePose, UseStand, UseStands};
 
 /// A play area margin around the `levelmap` box, metres.
 pub const AREA_MARGIN: f32 = 5.0;
