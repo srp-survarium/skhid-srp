@@ -4,7 +4,8 @@
 //! - bodies move by the bots' inputs at their ticks with the movement
 //!   model (`kin`), kept on the walk grid;
 //! - a shot hits the first enemy whose chest lies within 0.45 m of the
-//!   view's ray, with a clear line on the bullet mesh; five hits kill;
+//!   view's ray, with a clear line on the bullet mesh; what it takes off is
+//!   the weapon's damage against the target's kit ([`standin_damage`]);
 //! - the weapon each bot holds fires as the client fires it: an automatic
 //!   one at its rate while the trigger is held, any other once a press;
 //!   and kicks as the client kicks ([`super::recoil`]): the shots lift the
@@ -27,7 +28,7 @@
 //!   second, 300 ms behind the clock, as the match gives the bots.
 //!
 //! The stand-in is much simpler than the game (no spread, no side kick, no
-//! armour, no stamina; a jump that follows the client's jump clips from the
+//! stamina; a jump that follows the client's jump clips from the
 //! keys held at its press, and a step no higher than the client's
 //! ([`Flight`], [`honest_stand_in`]; `SRP_BENCH_STAND_IN=old`: the old
 //! lift up any floor in reach, [`stand_in_jump`]); none with a broken leg, a
@@ -73,6 +74,7 @@ mod settings;
 mod soak;
 mod soaks;
 mod standin;
+mod standin_damage;
 mod standin_jump;
 mod walkway;
 mod world_facts;

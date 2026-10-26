@@ -3095,3 +3095,7 @@ va	status	ref_021d	name
 0x002d6510	inferred-high		survarium::base_player::get_move_direction
 0x00337040	inferred-high		survarium::jump_state::initialize
 0x00075550	inferred-medium		vostok::physics::bullet_physics_world::resolve_character_pairs
+0x00329ff0	inferred-high		survarium::body_part_parameters::hit_by_type
+0x00332330	inferred-high		survarium::weapon_damage_params::weapon_damage_params
+0x00332440	inferred-high		survarium::weapon_ammunition::weapon_ammunition
+0x0033fa80	inferred-high		survarium::hit_type_parameters::apply_damage
