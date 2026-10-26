@@ -36,6 +36,7 @@ use mapdata::{Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use crate::v026g::bots::kin::{TICK_S, wrap, yaw_of};
+use crate::v026g::bots::reflex::GrenadeStats;
 use crate::v026g::bots::view::Place;
 use super::{Bots, Game, Go, Landing, Note};
 use crate::v026g::drive::key;
@@ -96,6 +97,8 @@ struct BotNow {
     play: String,
     step: Option<String>,
     goal_m: Option<f32>,
+    /// What its reflex's grenade logic has counted this life.
+    grenades: GrenadeStats,
 }
 
 #[derive(Default)]
@@ -184,6 +187,7 @@ impl OwnerTally {
                             .map_or_else(String::new, |r| r.step_name())
                     }),
                     goal_m,
+                    grenades: bot.reflex.grenade_stats(),
                 })
             })
             .collect();
@@ -241,6 +245,7 @@ impl OwnerTally {
                 continue;
             };
             self.grenades_keys(place, tick, body, &prev);
+            self.grenades_logic(place, &now.grenades);
             self.fight_ammo(place, tick, body, now);
             self.jumps_press(place, tick, body, &prev, now, &rec);
             self.fight_fire(game, place, body, &rec, &sight, &mut rays);

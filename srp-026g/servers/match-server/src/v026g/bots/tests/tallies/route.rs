@@ -127,7 +127,7 @@ impl RouteTally {
                 if planned {
                     self.falls.1 += 1;
                     let exact = self.exact_was[place]
-                        || bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end);
+                        || bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end.is_some());
                     if exact {
                         self.falls_exact.0 += 1;
                         self.exact_drop[place] = Some(time);
@@ -137,7 +137,7 @@ impl RouteTally {
                     self.repeats.1 += u32::from(self.mark(place, from));
                 }
             }
-            self.exact_was[place] = bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end);
+            self.exact_was[place] = bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end.is_some());
             match (self.carry_from[place], body.carrying) {
                 (None, Some(battery)) => {
                     if let Some(at) = self.exact_drop[place].take()

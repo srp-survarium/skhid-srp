@@ -301,6 +301,9 @@ pub struct Intent {
     /// A take's stand this step gave up at (`collect`): the bot keeps it,
     /// so its next take of that battery stands elsewhere.
     pub failed_stand: Option<collect::FailedStand>,
+    /// How near an exact spot (a goal within 0) the walk goes on to, metres: `None` ends it where every walk ends
+    /// ([`Feel::arrive_m`]). The jump test's walk to a start asks for a body within 0.3 m of it.
+    pub exact_arrive_m: Option<f32>,
 }
 
 impl Intent {
@@ -318,6 +321,7 @@ impl Intent {
             straight: false,
             zone_ok: false,
             failed_stand: None,
+            exact_arrive_m: None,
         }
     }
 
