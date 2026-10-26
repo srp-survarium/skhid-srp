@@ -92,7 +92,8 @@ fn rows_of_game(game: &Game, tick: u32, before: &[Vec3], inserted: &[u32]) -> Ve
 
 pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tries: &std::path::Path, out: &std::path::Path, limit_s: u32, seed: u32) -> DryReport {
     use survarium::v026g::maps::mode;
-    let mode = mode::TEAM_DEATHMATCH;
+    // `SRP_DRY_MODE=<n>`: the mode's number (Team Deathmatch 4 by default; the Mamayev Kurgan slope sites are of day_2).
+    let mode = std::env::var("SRP_DRY_MODE").ok().and_then(|v| v.parse().ok()).unwrap_or(mode::TEAM_DEATHMATCH);
     let project = format!("level_{level:02}/day_{mode}");
     let map = mapdata::MapData::read(&map_dir.join(mapdata::format::file_name(&project))).unwrap();
     let world = Arc::new(World::build(map, mapdata::CELL, mapdata::Body::default()));
