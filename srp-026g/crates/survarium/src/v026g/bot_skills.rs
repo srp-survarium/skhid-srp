@@ -238,8 +238,16 @@ pub fn bot_modifiers(kits: &[&Loadout]) -> [f32; MODIFIERS] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::v026g::loadouts::{BotRole, BotTier, bot_kits};
+    use crate::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKit, bot_kits};
     use crate::v026g::skills::SkillError;
+
+    /// The rusher kits of `tier` the game data in use can make.
+    fn made_kits(tier: BotTier) -> impl Iterator<Item = RusherKit> {
+        tier.rusher_kits()
+            .iter()
+            .copied()
+            .filter(move |&kit| kit.worn_in(tier) == kit)
+    }
 
     fn index(name: &str) -> usize {
         modifier_index(name).unwrap()
@@ -308,21 +316,24 @@ mod tests {
     fn no_bot_kit_is_over_its_capacity() {
         assert_eq!(item_params::player().max_carried_weight, 30.0);
         for tier in BotTier::ALL {
-            for role in BotRole::ALL {
-                let kits = bot_kits(tier, role);
-                let gear = gear_level(&kits);
-                assert!(tier.levels().contains(&gear), "{tier} {role}: {gear}");
-                let skills = BotSkillTier::for_kits(&kits);
-                assert_eq!(
-                    skills.up_to_gear_level,
-                    *tier.levels().end(),
-                    "{tier} {role}"
-                );
-                let modifiers = bot_modifiers(&kits);
-                for kit in kits {
-                    let capacity = carry_capacity(kit, &modifiers);
-                    assert_eq!(capacity, 40.0, "{tier} {role}");
-                    assert!(kit.weight() < capacity, "{tier} {role}: {}", kit.weight());
+            for rusher in made_kits(tier) {
+                let equipment = BotEquipment { tier, rusher };
+                for role in BotRole::ALL {
+                    let kits = bot_kits(equipment, role);
+                    let gear = gear_level(&kits);
+                    assert!(tier.levels().contains(&gear), "{tier} {role}: {gear}");
+                    let skills = BotSkillTier::for_kits(&kits);
+                    assert_eq!(
+                        skills.up_to_gear_level,
+                        *tier.levels().end(),
+                        "{tier} {role}"
+                    );
+                    let modifiers = bot_modifiers(&kits);
+                    for kit in kits {
+                        let capacity = carry_capacity(kit, &modifiers);
+                        assert_eq!(capacity, 40.0, "{tier} {role}");
+                        assert!(kit.weight() < capacity, "{tier} {role}: {}", kit.weight());
+                    }
                 }
             }
         }
@@ -359,42 +370,97 @@ mod tests {
         );
     }
 
+    /// The rusher's SMG kit slows a bot no more than the SPAS-12 kit it
+    /// replaces did: lighter in both tiers (the SMG, its ammo and the
+    /// helmet weigh less than the shotgun and its shells, or the helmet is
+    /// all it adds at 13-15), so no more of the weight's cost.
+    #[test]
+    fn the_rushers_smg_kit_is_no_slower_than_the_old_one() {
+        use crate::v026g::match_msgs::static_info::MatchProfile;
+        let level = |equipment: BotEquipment| {
+            let kits = bot_kits(equipment, BotRole::Rusher);
+            let profile = MatchProfile::from_loadouts(
+                "bot",
+                0,
+                &kits,
+                bot_modifiers(&kits),
+                Dictionary::shared(),
+                1,
+            );
+            profile_movement_level(&profile, 0).unwrap()
+        };
+        for tier in [BotTier::Mid, BotTier::High] {
+            let smg = RusherKit::Smg.worn_in(tier);
+            if smg == RusherKit::Control {
+                continue;
+            }
+            let (new, old) = (
+                level(BotEquipment { tier, rusher: smg }),
+                level(BotEquipment {
+                    tier,
+                    rusher: RusherKit::Control,
+                }),
+            );
+            assert!(new >= old - 1e-6, "{tier}: {new} against {old}");
+        }
+    }
+
+    /// On the live game data (`SRP_GAME_DATA`, the server's file) the same
+    /// holds for every rusher kit of both higher tiers, the SMGs of the
+    /// 0.29a3 weapons among them. Run alone:
+    /// `SRP_GAME_DATA=<server-game-data.db> cargo test -p survarium --lib
+    /// -- --ignored on_the_live_data_no_rusher_kit`
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the server's game data"]
+    fn on_the_live_data_no_rusher_kit_is_over_its_capacity() {
+        crate::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        no_bot_kit_is_over_its_capacity();
+        the_rushers_smg_kit_is_no_slower_than_the_old_one();
+        a_bots_profile_gives_its_speed_level();
+        for tier in [BotTier::Mid, BotTier::High] {
+            assert_eq!(made_kits(tier).count(), RusherKit::ALL.len(), "{tier}");
+        }
+    }
+
     #[test]
     fn a_bots_profile_gives_its_speed_level() {
         use crate::v026g::match_msgs::static_info::MatchProfile;
         for tier in BotTier::ALL {
-            for role in BotRole::ALL {
-                let kits = bot_kits(tier, role);
-                let modifiers = bot_modifiers(&kits);
-                let profile = MatchProfile::from_loadouts(
-                    "bot",
-                    0,
-                    &kits,
-                    modifiers,
-                    Dictionary::shared(),
-                    1,
-                );
-                for (k, kit) in kits.iter().enumerate() {
-                    let capacity = carry_capacity(kit, &modifiers);
-                    // The items' own movement speed (their default
-                    // modifications; a bot's items have no others).
-                    let items: f32 = kit
-                        .items
-                        .iter()
-                        .map(|item| item_added(item.dict_id, &[], "movement_speed_modifier"))
-                        .sum();
-                    let expected = movement_level(kit.weight(), capacity, &modifiers, items);
-                    let level = profile_movement_level(&profile, k).unwrap();
-                    assert!(
-                        (level - expected).abs() < 1e-5,
-                        "{tier} {role}: {level} {expected}"
+            for rusher in made_kits(tier) {
+                let equipment = BotEquipment { tier, rusher };
+                for role in BotRole::ALL {
+                    let kits = bot_kits(equipment, role);
+                    let modifiers = bot_modifiers(&kits);
+                    let profile = MatchProfile::from_loadouts(
+                        "bot",
+                        0,
+                        &kits,
+                        modifiers,
+                        Dictionary::shared(),
+                        1,
                     );
-                    // The tiers' kits: under 30 kg of 40, so a few percent
-                    // slower at most; the skills' and the armour's speed
-                    // above.
-                    assert!((0.95..=1.15).contains(&level), "{tier} {role}: {level}");
+                    for (k, kit) in kits.iter().enumerate() {
+                        let capacity = carry_capacity(kit, &modifiers);
+                        // The items' own movement speed (their default
+                        // modifications; a bot's items have no others).
+                        let items: f32 = kit
+                            .items
+                            .iter()
+                            .map(|item| item_added(item.dict_id, &[], "movement_speed_modifier"))
+                            .sum();
+                        let expected = movement_level(kit.weight(), capacity, &modifiers, items);
+                        let level = profile_movement_level(&profile, k).unwrap();
+                        assert!(
+                            (level - expected).abs() < 1e-5,
+                            "{tier} {role}: {level} {expected}"
+                        );
+                        // The tiers' kits: under 30 kg of 40, so a few percent
+                        // slower at most; the skills' and the armour's speed
+                        // above.
+                        assert!((0.95..=1.15).contains(&level), "{tier} {role}: {level}");
+                    }
+                    assert_eq!(profile_movement_level(&profile, kits.len()), None);
                 }
-                assert_eq!(profile_movement_level(&profile, kits.len()), None);
             }
         }
     }

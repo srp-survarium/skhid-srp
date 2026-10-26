@@ -71,7 +71,9 @@
 //! answer is.
 
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::loadouts::{BOT_AMMO_SLOTS, BotRole, BotTier, Loadout, bot_kits};
+use survarium::v026g::loadouts::{
+    BOT_AMMO_SLOTS, BotEquipment, BotRole, BotTier, Loadout, RusherKit, RusherKits, bot_kits,
+};
 use survarium::v026g::weapons::Dispersion;
 
 /// How a weapon reloads, ms (see the module's notes for where each comes
@@ -508,34 +510,43 @@ fn arms_of(kit: &Loadout) -> Option<Arms> {
     })
 }
 
-type ArmsTable = Vec<((BotTier, BotRole, usize), Option<Arms>)>;
+type ArmsTable = Vec<((BotTier, RusherKit, BotRole, usize), Option<Arms>)>;
 
 impl Arms {
-    /// The `k`-th kit (0 on) of a bot of `role` in `tier`
+    /// The `k`-th kit (0 on) of a bot of `role` with `equipment`
     /// (`loadouts::bot_kits`). No pistol: the bots carry none. `None` for
     /// a kit that is not there or a weapon not in the game data ([`guns`]).
-    pub fn of_kit(tier: BotTier, role: BotRole, k: usize) -> Option<&'static Arms> {
+    pub fn of_kit(equipment: BotEquipment, role: BotRole, k: usize) -> Option<&'static Arms> {
         static ALL: std::sync::OnceLock<ArmsTable> = std::sync::OnceLock::new();
+        let rusher = equipment.rusher.worn_in(equipment.tier);
         ALL.get_or_init(|| {
             let mut table = Vec::new();
             for tier in BotTier::ALL {
-                for role in BotRole::ALL {
-                    for (k, kit) in bot_kits(tier, role).into_iter().enumerate() {
-                        table.push(((tier, role, k), arms_of(kit)));
+                // The rusher kits the game data can make: the others are
+                // the old table (`RusherKit::worn_in`).
+                for rusher in tier.rusher_kits().iter().copied() {
+                    if rusher.worn_in(tier) != rusher {
+                        continue;
+                    }
+                    for role in BotRole::ALL {
+                        let equipment = BotEquipment { tier, rusher };
+                        for (k, kit) in bot_kits(equipment, role).into_iter().enumerate() {
+                            table.push(((tier, rusher, role, k), arms_of(kit)));
+                        }
                     }
                 }
             }
             table
         })
         .iter()
-        .find(|(key, _)| *key == (tier, role, k))
+        .find(|(key, _)| *key == (equipment.tier, rusher, role, k))
         .and_then(|(_, arms)| arms.as_ref())
     }
 
-    /// Every kit of a bot of `role` in `tier`, in its order.
-    pub fn kits_of(tier: BotTier, role: BotRole) -> Vec<&'static Arms> {
+    /// Every kit of a bot of `role` with `equipment`, in its order.
+    pub fn kits_of(equipment: BotEquipment, role: BotRole) -> Vec<&'static Arms> {
         (0..role.kit_roles().len())
-            .filter_map(|k| Self::of_kit(tier, role, k))
+            .filter_map(|k| Self::of_kit(equipment, role, k))
             .collect()
     }
 
@@ -543,7 +554,11 @@ impl Arms {
     /// in the lowest tier.
     pub fn of_role(role: &str) -> Option<&'static Arms> {
         let role = BotRole::ALL.into_iter().find(|each| each.name() == role)?;
-        Self::of_kit(BotTier::Low, role, 0)
+        Self::of_kit(
+            BotEquipment::of(BotTier::Low, RusherKits::default()),
+            role,
+            0,
+        )
     }
 
     /// For the tests of how a kind of weapon is fired, reloaded and switched
@@ -632,29 +647,77 @@ mod tests {
             let params = item_params(item.dict_id).unwrap();
             assert_eq!(gun.magazine, params.magazine_capacity, "{}", gun.item);
         }
-        // Every kit of every tier: its weapon is known, a life's rounds
-        // are the kit's slot, its storage the lives' worth.
-        for tier in BotTier::ALL {
-            for role in BotRole::ALL {
-                let kits = Arms::kits_of(tier, role);
-                assert_eq!(kits.len(), 3, "{tier} {role}");
-                for (arms, kit_role) in kits.iter().zip(role.kit_roles()) {
-                    assert_eq!(arms.primary.0.item, tier.gear().of(kit_role).weapon);
-                    assert!(arms.pistol.is_none(), "the bots carry no weapon 2");
-                    assert!(arms.primary.1 >= arms.primary.0.magazine, "{tier} {role}");
-                    assert_eq!(
-                        arms.reserve,
-                        arms.primary.1 * survarium::v026g::loadouts::BOT_AMMO_LIVES
-                    );
-                }
-            }
-        }
+        every_kit_of_every_tier_is_known();
         for role in BotRole::ALL {
             let arms = Arms::of_role(role.name()).unwrap();
             assert_eq!(arms.primary.0.item, BotTier::Low.gear().of(role).weapon);
         }
         assert!(Arms::of_role("steady").is_none());
         assert_eq!(Arms::fallback().primary.0.item, "ak_74u");
+    }
+
+    /// Every kit of every tier and each rusher kit the game data can make:
+    /// its weapon is known, a life's rounds are the kit's slot, its storage
+    /// the lives' worth.
+    fn every_kit_of_every_tier_is_known() {
+        for tier in BotTier::ALL {
+            let made = tier
+                .rusher_kits()
+                .iter()
+                .copied()
+                .filter(|&kit| kit.worn_in(tier) == kit);
+            for rusher in made {
+                let equipment = BotEquipment { tier, rusher };
+                for role in BotRole::ALL {
+                    let kits = Arms::kits_of(equipment, role);
+                    assert_eq!(kits.len(), 3, "{tier} {} {role}", rusher.name());
+                    for (arms, kit_role) in kits.iter().zip(role.kit_roles()) {
+                        assert_eq!(
+                            arms.primary.0.item,
+                            tier.gear().of_kit(kit_role, rusher).weapon
+                        );
+                        assert!(arms.pistol.is_none(), "the bots carry no weapon 2");
+                        assert!(
+                            arms.primary.1 >= arms.primary.0.magazine,
+                            "{tier} {} {role}",
+                            rusher.name()
+                        );
+                        assert_eq!(
+                            arms.reserve,
+                            arms.primary.1 * survarium::v026g::loadouts::BOT_AMMO_LIVES
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// On the live game data (`SRP_GAME_DATA`, the server's file: the repo's
+    /// test data lacks the 0.29a3 weapons): every rusher kit of both tiers
+    /// has its arms, the SMGs with a life of 150 or 200 rounds. Run alone:
+    /// `SRP_GAME_DATA=<server-game-data.db> cargo test -p match-server --lib
+    /// -- --ignored on_the_live_data_every_rusher_kit_has_its_arms`
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the server's game data"]
+    fn on_the_live_data_every_rusher_kit_has_its_arms() {
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        every_kit_of_every_tier_is_known();
+        for (tier, kit, item, rounds, magazine) in [
+            (BotTier::Mid, RusherKit::Smg, "sr2m", 150, 20),
+            (BotTier::Mid, RusherKit::Alt, "ump45", 150, 25),
+            (BotTier::High, RusherKit::Smg, "fn_p90", 200, 50),
+            (BotTier::High, RusherKit::Alt, "kriss_vector", 200, 30),
+        ] {
+            assert_eq!(kit.worn_in(tier), kit, "{tier} {}", kit.name());
+            let rusher = BotEquipment { tier, rusher: kit };
+            let arms = Arms::of_kit(rusher, BotRole::Rusher, 0).expect("the arms");
+            assert_eq!(arms.primary.0.item, item);
+            assert_eq!(arms.primary.0.magazine, magazine, "{item}");
+            assert_eq!(arms.primary.1, rounds, "{item}");
+            // The flanker's third kit is the same gun.
+            let third = Arms::of_kit(rusher, BotRole::Flanker, 2).expect("the arms");
+            assert_eq!(third.primary.0.item, item);
+        }
     }
 
     #[test]

@@ -59,6 +59,7 @@
 //! | `SRP_PVB` | off | the mode is offered (`on`) | the lobby, the match server |
 //! | `SRP_PVB_MAX_GEAR` | 15 | the highest equipment level let in, 0 to 15 (15: every player, the owner's of 2026-10-23) | the lobby |
 //! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once, 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
+//! | `SRP_PVB_RUSHER_KIT` | smg | what the rusher bots of tiers 9-10 and 13-15 wear: `smg` (the tier's SMG: `sr2m`, `fn_p90`), `alt` (`ump45`, `kriss_vector`), `slug` / `helmet` (the SPAS-12 with slugs / buckshot and the SMG kit's helmet), `control` (the old kit: the SPAS-12 with buckshot); one word for both tiers or `9-10=control,13-15=smg`; a kit whose items the game data lacks is the old kit (`loadouts::RusherKit`) | the lobby |
 //! | `SRP_PVB_PAY` | 0.25 | the share of a match's silver and experience it pays, 0 to 1; only a match played to its own end pays | the rewards (`session::v026g::pvb`) |
 //! | `SRP_PVB_STALL_S` | 60 | a match whose only player uploads no world it is asked for this long is over, 10 to 3600 | the match server |
 //!
@@ -68,6 +69,7 @@ use std::time::{Duration, Instant};
 
 use session::v026g::{matchmaking, quests};
 use session::{LockExt, QueuePool};
+use survarium::v026g::loadouts::RusherKits;
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, PvbCode, PvbMap, PvbNumbers, PvbStatus};
 use survarium::v026g::maps::{self, MapMode};
@@ -115,6 +117,9 @@ pub struct Config {
     pub max_gear: u8,
     /// `SRP_PVB_MAX_MATCHES` (default 5).
     pub max_matches: usize,
+    /// `SRP_PVB_RUSHER_KIT` (default the SMG kits): the kit the rusher bots
+    /// of each tier wear.
+    pub rusher_kits: RusherKits,
 }
 
 impl Default for Config {
@@ -124,6 +129,7 @@ impl Default for Config {
             enabled: false,
             max_gear: DEFAULT_MAX_GEAR,
             max_matches: session::v026g::pvb::DEFAULT_MAX_MATCHES,
+            rusher_kits: RusherKits::default(),
         }
     }
 }
@@ -141,18 +147,29 @@ impl Config {
             }),
             Err(_) => DEFAULT_MAX_GEAR,
         };
+        let rusher_kits = match std::env::var("SRP_PVB_RUSHER_KIT") {
+            Ok(value) if !value.trim().is_empty() => {
+                RusherKits::parse(&value).unwrap_or_else(|why| {
+                    log::error!("SRP_PVB_RUSHER_KIT is `{value}` ({why}). Using the SMG kits");
+                    RusherKits::default()
+                })
+            }
+            _ => RusherKits::default(),
+        };
         let config = Self {
             enabled: session::v026g::pvb::enabled(),
             max_gear,
             max_matches: session::v026g::pvb::max_matches(),
+            rusher_kits,
         };
         if config.enabled {
             log::info!(
                 "Player vs Bots is on: equipment level {} at most, {} matches at once, pay {} of \
-                 silver and experience",
+                 silver and experience, rusher kits {:?}",
                 config.max_gear,
                 config.max_matches,
-                session::v026g::pvb::pay()
+                session::v026g::pvb::pay(),
+                config.rusher_kits
             );
         }
         config

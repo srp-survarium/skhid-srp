@@ -334,6 +334,7 @@ pub(crate) fn real_bot_cost() {
             false
         }
     };
+    say_the_rusher_kit();
     let table = bench_settings().var_os("SRP_BOT_ROUTES")
         .map(|path| super::routes::RouteTable::load(std::path::Path::new(&path)).unwrap());
     let limit_s: u32 = bench_settings().number("SRP_BENCH_SECONDS")
@@ -377,7 +378,7 @@ pub(crate) fn real_bot_cost() {
             // The bots as the lobby gives them (`bench_roster`): each its
             // role and the tier's kits, read back from its profile as the
             // match server does.
-            let roster = bench_roster(&teams, bench_tier());
+            let roster = bench_roster(&teams, bench_equipment());
             let roles = &roster.roles;
             let mut bots = Bots::new(
                 0xBE7C + per_team as u32 + seed * 1000,
@@ -391,7 +392,7 @@ pub(crate) fn real_bot_cost() {
             );
             // Every bot of one tier (`SRP_BENCH_TIER=4-5|9-10|13-15`): its
             // kits and its skill.
-            bots = bots.with_tiers(&roster.tiers);
+            bots = bots.with_tiers(&roster.equipments);
             // One-sided (`SRP_BENCH_ONE_SIDE`): team 1 by the
             // `SRP_BENCH_SIDE1_*` numbers, so a change given to team 0
             // alone shows in its K/D.
@@ -1425,30 +1426,79 @@ pub(crate) fn bench_tier() -> survarium::v026g::loadouts::BotTier {
     }
 }
 
+/// The bots' rusher kit as the run has it, in a line (like the game data's):
+/// the setting and what the data lets the tier's rusher wear.
+fn say_the_rusher_kit() {
+    let tier = bench_tier();
+    let asked = bench_rusher_kits().of(tier);
+    let worn = bench_equipment().rusher;
+    if tier == survarium::v026g::loadouts::BotTier::Low {
+        eprintln!("rusher kit: tier {tier} has the one kit (mp_153)");
+    } else if asked == worn {
+        eprintln!("rusher kit: tier {tier} `{}`", worn.name());
+    } else {
+        eprintln!(
+            "rusher kit: tier {tier} asked `{}`, THE GAME DATA LACKS ITS ITEMS: the old kit `{}`",
+            asked.name(),
+            worn.name()
+        );
+    }
+}
+
+/// The kit the rusher bots of the bench wear (`SRP_BENCH_RUSHER`, as the
+/// lobby's `SRP_PVB_RUSHER_KIT`: one word or a kit a tier; the SMG kits when
+/// unset).
+pub(crate) fn bench_rusher_kits() -> survarium::v026g::loadouts::RusherKits {
+    use survarium::v026g::loadouts::RusherKits;
+    match bench_settings().var("SRP_BENCH_RUSHER") {
+        Ok(text) if !text.is_empty() => {
+            RusherKits::parse(&text).unwrap_or_else(|why| panic!("SRP_BENCH_RUSHER: {why}"))
+        }
+        _ => RusherKits::default(),
+    }
+}
+
+/// The equipment of the bench's bots: their tier (`SRP_BENCH_TIER`) and the
+/// kit that tier's rusher wears (`SRP_BENCH_RUSHER`) in the game data the
+/// run is on.
+pub(crate) fn bench_equipment() -> survarium::v026g::loadouts::BotEquipment {
+    survarium::v026g::loadouts::BotEquipment::of(bench_tier(), bench_rusher_kits())
+}
+
 /// The bench's bots on `teams` as the lobby and the match server have them:
 /// the lobby's roles for the roster (`loadouts::bot_roles`, each team's k-th
 /// bot `BotRole::nth(k)`), each bot's profile as the lobby builds it
-/// (`loadouts::bot_profile`, the role's three kits of `tier`), and the role
-/// and tier read back from the profile with `loadouts::bot_of`, as
-/// `game/driven.rs` does for a match's `Bots::new` and `with_tiers`. One
-/// home each, so the bench and a live match cannot drift: a bot carries what
-/// the lobby gives it, not a lowest-tier kit in every tier.
+/// (`loadouts::bot_profile`, the role's three kits of `equipment`), and the
+/// role and equipment read back from the profile with
+/// `loadouts::bot_equipment_of`, as `game/driven.rs` does for a match's
+/// `Bots::new` and `with_tiers`. One home each, so the bench and a live
+/// match cannot drift: a bot carries what the lobby gives it, not a
+/// lowest-tier kit in every tier.
 pub(crate) struct BenchRoster {
     pub(crate) roles: Vec<Option<&'static str>>,
-    pub(crate) tiers: Vec<Option<survarium::v026g::loadouts::BotTier>>,
+    pub(crate) equipments: Vec<Option<survarium::v026g::loadouts::BotEquipment>>,
 }
 
-pub(crate) fn bench_roster(teams: &[u8], tier: survarium::v026g::loadouts::BotTier) -> BenchRoster {
-    use survarium::v026g::loadouts::{bot_of, bot_profile, bot_roles};
+pub(crate) fn bench_roster(
+    teams: &[u8],
+    equipment: survarium::v026g::loadouts::BotEquipment,
+) -> BenchRoster {
+    use survarium::v026g::loadouts::{bot_equipment_of, bot_profile, bot_roles};
     let bots: Vec<_> = teams
         .iter()
         .zip(bot_roles(teams))
         .enumerate()
-        .map(|(n, (&team, role))| bot_of(&bot_profile(n + 1, team, role, tier)))
+        .map(|(n, (&team, role))| bot_equipment_of(&bot_profile(n + 1, team, role, equipment)))
         .collect();
     BenchRoster {
-        roles: bots.iter().map(|bot| bot.map(|(_, role)| role.name())).collect(),
-        tiers: bots.iter().map(|bot| bot.map(|(tier, _)| tier)).collect(),
+        roles: bots
+            .iter()
+            .map(|bot| bot.map(|(_, role)| role.name()))
+            .collect(),
+        equipments: bots
+            .iter()
+            .map(|bot| bot.map(|(equipment, _)| equipment))
+            .collect(),
     }
 }
 
@@ -1458,12 +1508,13 @@ pub(crate) fn bench_roster(teams: &[u8], tier: survarium::v026g::loadouts::BotTi
 /// gave no roles), the very `Arms` the match server's bots of that role and
 /// tier carry.
 #[test]
-fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
-    use survarium::v026g::loadouts::{BotRole, BotTier, bot_profile};
+pub(crate) fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_profile};
     for per_team in [1usize, 4, 8, 10] {
         let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
         for tier in BotTier::ALL {
-            let roster = bench_roster(&teams, tier);
+            let equipment = BotEquipment::of(tier, RusherKits::default());
+            let roster = bench_roster(&teams, equipment);
             let mut bots = Bots::new(
                 0xBE7C,
                 survarium::v026g::maps::mode::BATTERIES,
@@ -1474,22 +1525,33 @@ fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
                 Arc::new(Tuning::default()),
                 Trace::none(0),
             )
-            .with_tiers(&roster.tiers);
+            .with_tiers(&roster.equipments);
             let mut on_team = [0usize; 2];
             for (place, &team) in teams.iter().enumerate() {
                 let role = BotRole::nth(on_team[usize::from(team)]);
                 on_team[usize::from(team)] += 1;
                 assert_eq!(roster.roles[place], Some(role.name()), "{per_team} {tier} place {place}");
-                assert_eq!(roster.tiers[place], Some(tier), "{per_team} {tier} place {place}");
-                // The bot carries the tier's kits of its role: the very Arms.
-                let want = Arms::kits_of(tier, role);
+                assert_eq!(
+                    roster.equipments[place].map(|equipment| equipment.tier),
+                    Some(tier),
+                    "{per_team} {tier} place {place}"
+                );
+                // The bot carries the tier's kits of its role: the very Arms
+                // (the rusher's kit is read back as the lobby gave it; the
+                // flanker's, where another kit makes the same bot, may not
+                // be).
+                let read = roster.equipments[place].expect("a bot of an equipment");
+                if role == BotRole::Rusher {
+                    assert_eq!(read, equipment, "{per_team} {tier} place {place}");
+                }
+                let want = Arms::kits_of(read, role);
                 let bot = bots.bots[place].as_mut().expect("a bot");
                 assert_eq!(bot.kits.len(), want.len(), "{tier} {role}");
                 for ((arms, _), want) in bot.kits.iter().zip(&want) {
                     assert!(std::ptr::eq(*arms, *want), "{tier} {role}");
                 }
                 // Its first kit's weapon is the lobby profile's weapon in slot 7.
-                let profile = bot_profile(place + 1, team, role, tier);
+                let profile = bot_profile(place + 1, team, role, equipment);
                 let slot = profile.kits[0].slots[7].expect("a weapon in slot 7");
                 let weapon = survarium::v026g::dictionary::Dictionary::shared()
                     .item_named(bot.reflex.held_gun().item)

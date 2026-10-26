@@ -145,7 +145,8 @@ pub(crate) fn every_kit_low_the_bot_picks_the_fullest_once() {
 /// profile): three kits, each with a life's rounds of its own ammo.
 #[test]
 pub(crate) fn a_bot_of_a_higher_tier_carries_that_tiers_kits() {
-    use survarium::v026g::loadouts::{BotRole, BotTier};
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits};
+    let equipment = |tier| BotEquipment::of(tier, RusherKits::default());
     let bots = Bots::new(
         0x41A,
         survarium::v026g::maps::mode::BATTERIES,
@@ -156,7 +157,11 @@ pub(crate) fn a_bot_of_a_higher_tier_carries_that_tiers_kits() {
         Arc::new(Tuning::default()),
         Trace::none(0),
     )
-    .with_tiers(&[Some(BotTier::High), Some(BotTier::Mid), Some(BotTier::High)]);
+    .with_tiers(&[
+        Some(equipment(BotTier::High)),
+        Some(equipment(BotTier::Mid)),
+        Some(equipment(BotTier::High)),
+    ]);
     let items = |place: usize| -> Vec<&str> {
         bots.bots[place]
             .as_ref()
@@ -174,4 +179,96 @@ pub(crate) fn a_bot_of_a_higher_tier_carries_that_tiers_kits() {
     assert_eq!(support.reflex.held_gun().item, "ak_12");
     assert_eq!(support.reflex.left(), support.kits[0].0.primary.1);
     assert_eq!(support.role, Some(BotRole::Support));
+}
+
+/// The rusher and the flanker carry the kit their equipment says: the
+/// rusher's own first, and the flanker's third (`BotRole::kit_roles`), each
+/// with a life's rounds of its ammo; the others carry none of the rusher's.
+#[test]
+pub(crate) fn a_rusher_carries_the_kit_its_equipment_says() {
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier};
+    for tier in BotTier::ALL {
+        for rusher in tier
+            .rusher_kits()
+            .iter()
+            .copied()
+            .filter(|&kit| kit.worn_in(tier) == kit)
+        {
+            let equipment = BotEquipment { tier, rusher };
+            let bots = Bots::new(
+                0x41B,
+                survarium::v026g::maps::mode::BATTERIES,
+                0,
+                &[0, 0, 1, 1],
+                &[true; 4],
+                &[
+                    Some("rusher"),
+                    Some("flanker"),
+                    Some("support"),
+                    Some("camper"),
+                ],
+                Arc::new(Tuning::default()),
+                Trace::none(0),
+            )
+            .with_tiers(&[Some(equipment); 4]);
+            let items = |place: usize| -> Vec<&str> {
+                bots.bots[place]
+                    .as_ref()
+                    .unwrap()
+                    .kits
+                    .iter()
+                    .map(|(arms, _)| arms.primary.0.item)
+                    .collect()
+            };
+            let weapon = |role| tier.gear().of_kit(role, rusher).weapon;
+            let at = format!("{tier} {}", rusher.name());
+            assert_eq!(
+                items(0),
+                [
+                    weapon(BotRole::Rusher),
+                    weapon(BotRole::Flanker),
+                    weapon(BotRole::Support)
+                ],
+                "{at}"
+            );
+            assert_eq!(
+                items(1),
+                [
+                    weapon(BotRole::Flanker),
+                    weapon(BotRole::Support),
+                    weapon(BotRole::Rusher)
+                ],
+                "{at}"
+            );
+            for place in [2, 3] {
+                assert!(!items(place).contains(&weapon(BotRole::Rusher)), "{at}");
+            }
+            // The rusher starts with its kit's weapon and a life of its ammo.
+            let rusher_bot = bots.bots[0].as_ref().unwrap();
+            assert_eq!(
+                rusher_bot.reflex.held_gun().item,
+                weapon(BotRole::Rusher),
+                "{at}"
+            );
+            assert_eq!(
+                rusher_bot.reflex.left(),
+                rusher_bot.kits[0].0.primary.1,
+                "{at}"
+            );
+        }
+    }
+}
+
+/// On the live game data (`SRP_GAME_DATA`, the server's file: the repo's test
+/// data lacks `fn_p90` and `kriss_vector`) the bots carry every rusher kit of
+/// both higher tiers. Run alone:
+/// `SRP_GAME_DATA=<server-game-data.db> cargo test -p match-server --lib
+/// -- --ignored on_the_live_data_the_rusher_kits_reach_the_bots`
+#[test]
+#[ignore = "needs SRP_GAME_DATA, the server's game data"]
+pub(crate) fn on_the_live_data_the_rusher_kits_reach_the_bots() {
+    survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+    a_bot_of_a_higher_tier_carries_that_tiers_kits();
+    a_rusher_carries_the_kit_its_equipment_says();
+    super::bench::the_bench_bots_are_the_lobbys_by_role_and_tier();
 }
