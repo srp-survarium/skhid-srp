@@ -23,6 +23,9 @@ use std::path::PathBuf;
 use super::*;
 use crate::v026g::bots::jump_test::{JumpTest, Row};
 
+/// A tick with a body of the other team near a bot in a try: the clock, the bot, the other, their feet, the distance.
+pub(crate) type Crowd = (u32, Place, Place, [f32; 3], [f32; 3], f32);
+
 /// What the run found.
 #[derive(Debug, Default)]
 pub(crate) struct DryReport {
@@ -32,9 +35,11 @@ pub(crate) struct DryReport {
     pub refused: Vec<String>,
     pub suicides: u32,
     pub suicide_failed: u32,
+    /// Tries given back to the pool by a bot whose planner had no way to the start.
+    pub released: u32,
     /// Ticks (25 ms) a bot in a try had an enemy body within 1.5 m, and the first few.
     pub crowded_ticks: u32,
-    pub crowded_first: Vec<(u32, Place, Place)>,
+    pub crowded_first: Vec<Crowd>,
     /// By what the near enemy was doing, and what the bot in the try was.
     pub crowded_by: BTreeMap<String, u32>,
     pub forbidden_keys: u32,
@@ -45,6 +50,11 @@ pub(crate) struct DryReport {
     pub dirs_read: u32,
     pub per_site: BTreeMap<String, u32>,
     pub requests: u32,
+    /// The seed the stand-in's spawns were drawn with, and the bodies it could not put on the grid.
+    pub seed: u32,
+    pub off_grid: u32,
+    /// Every 30 s: what each bot is doing, and where.
+    pub roll: Vec<String>,
 }
 
 /// The rows the client's world would hold, from the stand-in's bodies at `tick`.
@@ -81,17 +91,25 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
     let project = format!("level_{level:02}/day_{mode}");
     let map = mapdata::MapData::read(&map_dir.join(mapdata::format::file_name(&project))).unwrap();
     let world = Arc::new(World::build(map, mapdata::CELL, mapdata::Body::default()));
+    let mut report = DryReport::default();
     let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
     let driven = vec![true; teams.len()];
     let roles: Vec<Option<&str>> = vec![None; teams.len()];
     let mut bots = Bots::new(0xD27 + seed, mode, level, &teams, &driven, &roles, Arc::new(bench_tuning()), Trace::none(0));
     bots.jump_test = Some(JumpTest::new(tries.to_path_buf(), out.to_path_buf(), "dry".into(), 120));
     bots.map_ready(world.clone());
-    let mut game = Game::new(world, &teams, u64::from(seed), Some(100_000), None);
+    // The stand-in moves a body only from a floor of the grid: a seed whose spawns are all on one.
+    let mut game = Game::new(world.clone(), &teams, u64::from(seed), Some(100_000), None);
+    let mut drawn = seed;
+    while game.bodies.iter().any(|b| b.node.is_none()) && drawn < seed + 40 {
+        drawn += 1;
+        game = Game::new(world.clone(), &teams, u64::from(drawn), Some(100_000), None);
+    }
+    report.seed = drawn;
+    report.off_grid = game.bodies.iter().filter(|b| b.node.is_none()).count() as u32;
     for place in 0..teams.len() {
         bots.entered(place, true, 0);
     }
-    let mut report = DryReport::default();
     let limit_ms = limit_s * 1000;
     let (mut clock, mut next_world) = (0, 1_000);
     let mut before: Vec<Vec3> = game.bodies.iter().map(|b| b.feet).collect();
@@ -111,7 +129,12 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
                 bots.facts(facts);
             }
         }
-        let (made, _notes) = bots.poll(Clock { clock, time_left_s: (limit_ms - clock) as f32 / 1000.0, total_s: limit_s as f32, playing: true });
+        let (made, notes) = bots.poll(Clock { clock, time_left_s: (limit_ms - clock) as f32 / 1000.0, total_s: limit_s as f32, playing: true });
+        if let Some(places) = std::env::var("SRP_DRY_NOTES").ok().map(|v| v.split(',').filter_map(|p| p.parse::<i64>().ok()).collect::<Vec<_>>()) {
+            for note in notes.iter().filter(|n| places.contains(&(n.place as i64))) {
+                eprintln!("{:>7} ms  bot {:>2}: {}", note.time, note.place as i64, note.text);
+            }
+        }
         for made in made {
             let allowed = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::JUMP | key::CROUCH | key::SPRINT | key::SUICIDE;
             if made.input.actions & !allowed != 0 {
@@ -132,6 +155,24 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
             }
         }
         // The world requests of the test, answered 40 ms later with every body.
+        if clock % 30_000 == 0
+            && let Some(test) = bots.jump_test.as_ref()
+        {
+            let line: Vec<String> = game
+                .bodies
+                .iter()
+                .enumerate()
+                .map(|(p, b)| format!("{p}:{}{}@({:.0},{:.0})", test.phase_name(p), if b.alive { "" } else { "+dead" }, b.feet.x, b.feet.z))
+                .collect();
+            report.roll.push(format!("{:>4} s  {}", clock / 1000, line.join("  ")));
+            if let Some(places) = std::env::var("SRP_DRY_NOTES").ok().map(|v| v.split(',').filter_map(|p| p.parse::<usize>().ok()).collect::<Vec<_>>()) {
+                for p in places {
+                    if let Some(bot) = bots.bots[p].as_ref() {
+                        report.roll.push(format!("      bot {p}: intent {:?} pace {:?} no_way {:?}", bot.intent.go, bot.intent.pace, bot.no_way));
+                    }
+                }
+            }
+        }
         if let Some(test) = bots.jump_test.as_mut() {
             while flying.front().is_some_and(|f| f.0 <= clock) {
                 let (_, tick, rows) = flying.pop_front().expect("one is due");
@@ -154,7 +195,7 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
                         report.crowded_ticks += 1;
                         *report.crowded_by.entry(format!("try {} / enemy {}", test.phase_name(place), test.phase_name(other))).or_default() += 1;
                         if report.crowded_first.len() < 5 {
-                            report.crowded_first.push((clock, place, other));
+                            report.crowded_first.push((clock, place, other, me.feet.to_array(), body.feet.to_array(), body.feet.distance_xz(me.feet)));
                         }
                     }
                 }
@@ -171,6 +212,8 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
             *report.voids.entry(why.to_owned()).or_default() += 1;
         } else if let Some(site) = v.get("refused").and_then(|x| x.as_str()) {
             report.refused.push(format!("{site}: {}", v["why"]));
+        } else if v.get("released").is_some() {
+            report.released += 1;
         } else if v.get("suicide").is_some() {
             report.suicides += 1;
         } else if v.get("suicide_failed").is_some() {
@@ -218,12 +261,13 @@ fn jump_pool_dry_run() {
     );
     eprintln!("{report:#?}");
     eprintln!(
-        "tries {} in {:.1} min = {:.1} a minute; voids {:?}; refused {}; suicides {} (failed {}); bodies of the other team near a bot in a try: {} ticks; forbidden keys {}; \
+        "tries {} in {:.1} min = {:.1} a minute; voids {:?}; released {}; refused {}; suicides {} (failed {}); bodies of the other team near a bot in a try: {} ticks; forbidden keys {}; \
          worst rest fit {:?} (m, m, degrees); worst run direction off the plan {:.1} degrees over {} runs; world requests {}",
         report.tries,
         report.minutes,
         report.tries as f32 / report.minutes,
         report.voids,
+        report.released,
         report.refused.len(),
         report.suicides,
         report.suicide_failed,

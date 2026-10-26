@@ -79,7 +79,7 @@ const SETTLE_MAX_MS: u32 = 5_000;
 /// The walk to the start is given up after this long, ms.
 const GO_MAX_MS: u32 = 60_000;
 /// A body this close to its start (m) has arrived.
-const ARRIVED_M: f32 = 0.2;
+const ARRIVED_M: f32 = 0.3;
 /// Worlds are recorded this long after the press, ms.
 const RECORD_AFTER_MS: u32 = 3_000;
 /// The keys are held until this long after the press, ms.
@@ -110,6 +110,9 @@ const SPRINT_MPS: f32 = 5.0;
 const BUDGET_SLACK: f32 = 1.3;
 /// The suicide bit is sent this many ticks.
 const SUICIDE_TICKS: u32 = 3;
+/// A team kills itself at most this often in a match: a death costs the team a ticket (100, 150 on two
+/// maps), and a team with none left no longer respawns.
+const SUICIDE_CAP: u32 = 25;
 /// A bot still alive this long after the suicide bit goes on walking, ms.
 const SUICIDE_WAIT_MS: u32 = 1_500;
 /// A rest position fits its start within this (xz, y), m, and this facing (rad, 10 degrees); two worlds
@@ -121,6 +124,8 @@ const STILL_M: f32 = 0.05;
 /// A bot with no try stays at least this far from the start, the run-up and the top of every try under
 /// way, m (and moves off to a spot 0.5 m further).
 const CLEAR_M: f32 = 5.0;
+/// A try takes the ground this far past the face as well: the landing and the steps on after it, m.
+const BEYOND_M: f32 = 4.0;
 /// The keys a bot of the test may press: walking, sprinting, crouching and jumping.
 const MOVING_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::JUMP | key::CROUCH | key::SPRINT | key::SUICIDE;
 
@@ -626,6 +631,12 @@ fn budget_ms(spawn_to_start_m: f32) -> u32 {
     (RESPAWN_MS + spawn_to_start_m / SPRINT_MPS * BUDGET_SLACK * 1_000.0) as u32
 }
 
+/// How long the walk still to go takes at the budget's speed and slack, ms, from `distance_m` (straight): a
+/// bot kills itself only when this alone is longer than the budget (dying and walking from a spawn).
+fn remaining_ms(distance_m: f32) -> u32 {
+    (distance_m / SPRINT_MPS * BUDGET_SLACK * 1_000.0) as u32
+}
+
 /// [`budget_ms`] for a team's bot and the start of `def`.
 fn suicide_budget_ms(world: &World, team: u8, def: &TryDef) -> u32 {
     let start = start_of(def);
@@ -697,6 +708,13 @@ pub struct JumpTest {
     runners: HashMap<Place, Runner>,
     /// The tries of any bot, with repeats left, in file order.
     pool: VecDeque<TryDef>,
+    /// Bots whose own planner found no way to a site from where they stand (they spawn in an area the other
+    /// side's spawn areas shut off), by place and site: they take no try there.
+    no_route: HashSet<(Place, (i32, i32))>,
+    /// When a bot first waited short of an enemy's try on its way to a start (it waits [`YIELD_MAX_MS`] at most).
+    yielding: HashMap<Place, u32>,
+    /// Suicides so far, by team.
+    suicides: [u32; 2],
     /// The reach of both teams' spawns, made at the first try file read.
     reach: Option<ReachSets>,
     /// Sites already checked: (the deck's x and z, in 0.1 m) and why refused.
@@ -761,6 +779,9 @@ impl JumpTest {
             runners: HashMap::new(),
             pool: VecDeque::new(),
             bad_sites: Vec::new(),
+            no_route: HashSet::new(),
+            yielding: HashMap::new(),
+            suicides: [0; 2],
             reach: None,
             checked: HashMap::new(),
             idle_others: true,
@@ -937,17 +958,18 @@ impl JumpTest {
 
     /// The next pool try a free bot can take: the first with a free lane on its face (the lane is set
     /// and the site shifted along the face); a try whose faces are all taken waits.
-    fn take_from_pool(&mut self, team: u8) -> Option<TryDef> {
-        let taken: Vec<(Vec3, f32, u8)> = self
+    fn take_from_pool(&mut self, place: Place, team: u8) -> Option<TryDef> {
+        let taken: Vec<Taken> = self
             .runners
             .values()
             .filter_map(|r| r.active.as_ref())
-            .map(|a| (base_of(&a.def), a.def.lane, a.team))
+            .map(|a| (base_of(&a.def), a.def.lane, a.team, Zone::of(&a.def, a.team, true)))
             .collect();
         let (index, lane) = self
             .pool
             .iter()
             .enumerate()
+            .filter(|(_, def)| !self.no_route.contains(&(place, site_key(def))))
             .find_map(|(i, def)| free_lane(def, &taken, team).map(|lane| (i, lane)))?;
         let mut def = self.pool[index].clone();
         self.pool[index].repeat -= 1;
@@ -998,7 +1020,7 @@ impl JumpTest {
         if free
             && alive
             && self.active_count() < self.max_active
-            && let Some(def) = self.take_from_pool(bot.team)
+            && let Some(def) = self.take_from_pool(bot.place, bot.team)
             && let Some(runner) = self.runners.get_mut(&bot.place)
         {
             runner.pending.push_back(def);
@@ -1042,6 +1064,7 @@ impl JumpTest {
                 *started += 1;
                 *started
             };
+            self.yielding.remove(&bot.place);
             let rest = if def.speed == Speed::MotorRun { Phase::Rest { until: now + REST_BEFORE_SPRINT_MS } } else { Phase::Go { since: now } };
             runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None, team: bot.team });
         }
@@ -1067,6 +1090,10 @@ impl JumpTest {
                 }
             }
             Phase::Go { since } => {
+                if !yield_to(&zones, bot.team, me.feet) {
+                    // Clear of enemy tries: the next encounter waits its own while.
+                    self.yielding.remove(&bot.place);
+                }
                 if me.feet.distance_xz(start) <= ARRIVED_M && me.velocity[0].hypot(me.velocity[1]) < 0.6 {
                     active.phase = if active.def.speed.is_motor() {
                         let plan = Plan {
@@ -1084,15 +1111,35 @@ impl JumpTest {
                     } else {
                         Phase::Settle { since: now, asked: false }
                     };
-                } else if yield_to(&zones, bot.team, me.feet) {
+                } else if me.feet.distance_xz(start) > 3.0 && bot.no_way.is_some_and(|(goal, at)| goal.distance_xz(start) < 0.5 && now.saturating_sub(at) < 5_000) {
+                    // The bot's own planner finds no way from here (it spawned in a part the other side's spawn
+                    // areas cut off): the try goes to another bot, and this one takes none on that site.
+                    let line = serde_json::json!({
+                        "id": active.def.id, "n": active.n, "bot": bot.place, "team": active.team, "released": "no way from here",
+                        "start": start.to_array(), "from": me.feet.to_array(),
+                    });
+                    Self::line(&mut self.tries_log, &line);
+                    self.no_route.insert((bot.place, site_key(&active.def)));
+                    let def = TryDef { repeat: 1, ..active.def.clone() };
+                    if def.who == Who::Pool {
+                        back_to_pool(&mut self.pool, def);
+                    }
+                    runner.active = None;
+                } else if yield_to(&zones, bot.team, me.feet) && now.saturating_sub(*self.yielding.entry(bot.place).or_insert(now)) < YIELD_MAX_MS {
                     // An enemy's try is on the way: wait short of it (the walk's clock does not run meanwhile).
                     bot.intent = Intent::stay();
                     bot.intent.fire = false;
                     *since = (*since).max(now.saturating_sub(GO_MAX_MS - 5_000));
-                } else if active.def.suicides == 0 && now - *since > 8_000 && now - *since > suicide_budget_ms(world, bot.team, &active.def) {
+                } else if active.def.suicides == 0
+                    && self.suicides[usize::from(bot.team & 1)] < SUICIDE_CAP
+                    && now - *since > 8_000
+                    && now - *since > suicide_budget_ms(world, bot.team, &active.def)
+                    && remaining_ms(me.feet.distance_xz(start)) > suicide_budget_ms(world, bot.team, &active.def)
+                {
                     // The walk takes longer than dying and walking from a spawn: once.
                     let (walked_ms, budget_ms) = (now - *since, suicide_budget_ms(world, bot.team, &active.def));
                     active.def.suicides += 1;
+                    self.suicides[usize::from(bot.team & 1)] += 1;
                     active.phase = Phase::Suicide { since: now, walked_ms, budget_ms };
                 } else if now > *since + GO_MAX_MS {
                     log::warn!("jump test: bot {} could not walk to the start of {}", bot.place, active.def.id);
@@ -1379,7 +1426,8 @@ pub fn rest_fits(rest: Vec3, yaw: f32, start: Vec3, heading: f32) -> bool {
 struct Zone {
     start: Vec3,
     centre: [f32; 2],
-    top: Vec3,
+    /// The far end of the ground past the face a try takes ([`BEYOND_M`] on).
+    beyond: [f32; 2],
     /// The team of the bot working it, and whether it is in the part another body near spoils.
     team: u8,
     live: bool,
@@ -1387,25 +1435,42 @@ struct Zone {
 
 impl Zone {
     fn of(def: &TryDef, team: u8, live: bool) -> Self {
-        Self { start: start_of(def), centre: def.site.centre(), top: top_of(def), team, live }
+        let centre = def.site.centre();
+        let t = def.site.toward;
+        Self { start: start_of(def), centre, beyond: [centre[0] + t[0] * BEYOND_M, centre[1] + t[1] * BEYOND_M], team, live }
     }
 
-    /// The nearest point of the zone to `p` on the ground plane, and its distance.
+    /// The least distance between this ground and another's (sampled along both lines).
+    fn apart_from(&self, other: &Zone) -> f32 {
+        let samples = |z: &Zone| {
+            let (s, c, b) = ([z.start.x, z.start.z], z.centre, z.beyond);
+            let mid = |a: [f32; 2], b: [f32; 2]| [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0];
+            [s, mid(s, c), c, mid(c, b), b]
+        };
+        let near = |from: &Zone, to: &Zone| samples(from).iter().map(|p| to.nearest(Vec3::new(p[0], 0.0, p[1])).1).fold(f32::MAX, f32::min);
+        near(self, other).min(near(other, self))
+    }
+
+    /// The nearest point of the zone to `p` on the ground plane, and its distance: the zone is the line
+    /// from the start to the face and on over the top.
     fn nearest(&self, p: Vec3) -> ([f32; 2], f32) {
-        let (a, b) = ([self.start.x, self.start.z], self.centre);
-        let ab = [b[0] - a[0], b[1] - a[1]];
-        let len2 = (ab[0] * ab[0] + ab[1] * ab[1]).max(1e-6);
-        let k = (((p.x - a[0]) * ab[0] + (p.z - a[1]) * ab[1]) / len2).clamp(0.0, 1.0);
-        let on_line = [a[0] + ab[0] * k, a[1] + ab[1] * k];
-        let at_top = [self.top.x, self.top.z];
-        let d = |q: [f32; 2]| (p.x - q[0]).hypot(p.z - q[1]);
-        if d(on_line) <= d(at_top) { (on_line, d(on_line)) } else { (at_top, d(at_top)) }
+        let on = |a: [f32; 2], b: [f32; 2]| {
+            let ab = [b[0] - a[0], b[1] - a[1]];
+            let len2 = (ab[0] * ab[0] + ab[1] * ab[1]).max(1e-6);
+            let k = (((p.x - a[0]) * ab[0] + (p.z - a[1]) * ab[1]) / len2).clamp(0.0, 1.0);
+            let q = [a[0] + ab[0] * k, a[1] + ab[1] * k];
+            (q, (p.x - q[0]).hypot(p.z - q[1]))
+        };
+        let (a, b) = (on([self.start.x, self.start.z], self.centre), on(self.centre, self.beyond));
+        if a.1 <= b.1 { a } else { b }
     }
 }
 
 /// A bot on its way to a start stops short of the ground of an enemy's try in its sensitive part: enemies
 /// collide, and the run is lost when one comes near.
-const YIELD_M: f32 = 3.0;
+const YIELD_M: f32 = 4.0;
+/// A bot waits this long at most for enemy tries on its way, ms, from the first wait.
+const YIELD_MAX_MS: u32 = 12_000;
 
 fn yield_to(zones: &[Zone], team: u8, feet: Vec3) -> bool {
     zones.iter().any(|z| z.live && z.team != team && z.nearest(feet).1 < YIELD_M)
@@ -1519,6 +1584,12 @@ fn rest_off(def: &TryDef, plan: &Plan) -> serde_json::Value {
     ])
 }
 
+/// A site by its deck (0.1 m), the key of the checks and of the bots' no-way lists.
+fn site_key(def: &TryDef) -> (i32, i32) {
+    let base = base_of(def);
+    ((base.x * 10.0).round() as i32, (base.z * 10.0).round() as i32)
+}
+
 /// A pool try lost with a life goes back to the pool (as one more repeat of its row, on its own face and
 /// lane again), not to its bot: the lanes and the team lock are the pool's.
 fn back_to_pool(pool: &mut VecDeque<TryDef>, mut def: TryDef) {
@@ -1546,22 +1617,37 @@ fn base_of(def: &TryDef) -> Vec3 {
 /// team at a time). Lanes: 0,
 /// then 2.5 m either side, and so on, as far as the ledge is wide minus what the approach drifts
 /// sideways; none when every lane of the face within reach is taken.
-fn free_lane(def: &TryDef, taken: &[(Vec3, f32, u8)], team: u8) -> Option<f32> {
+fn free_lane(def: &TryDef, taken: &[Taken], team: u8) -> Option<f32> {
     let drift = (def.runup + def.edge.max(0.0)) * def.angle.to_radians().sin().abs();
     let reach = def.site.half - 1.0 - drift;
     let base = base_of(def);
-    if taken.iter().any(|(b, _, other)| *other != team && b.distance_xz(base) < 0.5) {
+    if taken.iter().any(|(b, _, other, _)| *other != team && b.distance_xz(base) < 0.5) {
         return None;
     }
-    let busy = |lane: f32| taken.iter().any(|(b, l, _)| b.distance_xz(base) < 0.5 && (l - lane).abs() < LANE_GAP_M);
+    let busy = |lane: f32| taken.iter().any(|(b, l, _, _)| b.distance_xz(base) < 0.5 && (l - lane).abs() < LANE_GAP_M);
+    // The ground of this try at the lane against that of every enemy try: other sites, other faces, the same
+    // wall from its other side.
+    let enemy_near = |lane: f32| {
+        let perp = [-def.site.toward[1], def.site.toward[0]];
+        let mut shifted = def.clone();
+        shifted.site.lower = Vec3::new(def.site.lower.x + perp[0] * lane, def.site.lower.y, def.site.lower.z + perp[1] * lane);
+        let mine = Zone::of(&shifted, team, true);
+        taken.iter().any(|(_, _, other, zone)| *other != team && mine.apart_from(zone) < LOCK_M)
+    };
     (0..)
         .map(|k| {
             let step = 2.5 * ((k + 1) / 2) as f32;
             if k % 2 == 1 { step } else { 0.0 - step }
         })
         .take_while(|lane| lane.abs() <= reach.max(0.0))
-        .find(|&lane| !busy(lane))
+        .find(|&lane| !busy(lane) && !enemy_near(lane))
 }
+
+/// The tries under way as the pool sees them: the base of the site, the lane, the team, the ground.
+type Taken = (Vec3, f32, u8, Zone);
+
+/// Another team's try this near (m), ground to ground, locks a ledge: enemies collide.
+const LOCK_M: f32 = 4.0;
 
 /// The bodies of a world as rows.
 pub fn rows_of(body: &[u8], time: u32) -> Vec<Row> {
@@ -1797,6 +1883,10 @@ mod tests {
         assert!(short.unwrap_err().contains("10"));
     }
 
+    fn t4(d: &TryDef, lane: f32, team: u8) -> Taken {
+        (base_of(d), lane, team, Zone::of(d, team, true))
+    }
+
     fn wide_def(angle: f32, runup: f32) -> TryDef {
         let site = named_site("chem125c", &HashMap::new()).expect("a site");
         TryDef { id: "p".into(), who: Who::Pool, lane: 0.0, site, edge: 1.0, angle, face: Face::Along, runup, speed: Speed::Sprint, mid: Mid::Hold, repeat: 3, suicides: 0 }
@@ -1822,6 +1912,15 @@ mod tests {
         assert_eq!(free.keys, noisy);
         jt.quiet(3, &mut free);
         assert_eq!(free.keys, key::FORWARD | key::SPRINT);
+    }
+
+    #[test]
+    fn a_bot_near_its_start_does_not_kill_itself_however_long_it_walked() {
+        // The walk still to go (straight 10 m: 2.6 s at the slack sprint) is far under the budget of 8 s and more.
+        assert!(remaining_ms(10.0) < budget_ms(0.0));
+        // 80 m to go against a spawn 20 m from the start: the respawn and the walk from the spawn are quicker.
+        assert!(remaining_ms(80.0) > budget_ms(20.0));
+        assert!(remaining_ms(30.0) < budget_ms(20.0));
     }
 
     #[test]
@@ -1875,7 +1974,9 @@ mod tests {
         assert!(zone.nearest(mid).1 < 0.01);
         assert!(zone.nearest(Vec3::new(mid.x + 3.0, mid.y, mid.z)).1 > 2.9);
         // The top is in it as well; a point behind the start is measured from the start.
-        assert!(zone.nearest(Vec3::new(zone.top.x, zone.top.y, zone.top.z + 1.0)).1 < 1.01);
+        assert!(zone.nearest(Vec3::new(zone.beyond[0], zone.start.y, zone.beyond[1] + 1.0)).1 < 1.01);
+        // The ground past the face is in it up to BEYOND_M.
+        assert!(zone.nearest(Vec3::new(zone.beyond[0], zone.start.y, zone.beyond[1] - 0.5)).1 < 0.51);
         let behind = Vec3::new(zone.start.x, zone.start.y, zone.start.z + 6.0);
         assert!(zone.nearest(behind).1 >= CLEAR_M);
     }
@@ -1923,40 +2024,54 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
         let d = wide_def(0.0, 5.5);
         let base = base_of(&d);
         assert_eq!(free_lane(&d, &[], 0), Some(0.0));
-        assert_eq!(free_lane(&d, &[(base, 0.0, 0)], 0), Some(2.5));
-        assert_eq!(free_lane(&d, &[(base, 0.0, 0), (base, 2.5, 0)], 0), Some(-2.5));
+        assert_eq!(free_lane(&d, &[t4(&d, 0.0, 0)], 0), Some(2.5));
+        assert_eq!(free_lane(&d, &[t4(&d, 0.0, 0), t4(&d, 2.5, 0)], 0), Some(-2.5));
         // The other team on the face locks it, whatever the lane.
-        assert_eq!(free_lane(&d, &[(base, 5.0, 1)], 0), None);
-        assert_eq!(free_lane(&d, &[(base, 5.0, 1)], 1), Some(0.0));
+        assert_eq!(free_lane(&d, &[t4(&d, 5.0, 1)], 0), None);
+        assert_eq!(free_lane(&d, &[t4(&d, 5.0, 1)], 1), Some(0.0));
+        // So does an enemy try on another face 1 m off (the two sides of one wall), not one 40 m off.
+        let mut next_door = d.clone();
+        next_door.site.lower = Vec3::new(d.site.lower.x, d.site.lower.y, d.site.lower.z + 1.0);
+        assert!(base_of(&next_door).distance_xz(base) > 0.5);
+        // Its lanes within 4 m of the enemy's ground are shut; one further along the wall is free.
+        assert!(free_lane(&d, &[t4(&next_door, 0.0, 1)], 0).is_some_and(|lane| lane.abs() >= 5.0));
+        assert_eq!(free_lane(&d, &[t4(&next_door, 0.0, 0)], 0), Some(0.0));
         // Another face is not in the way.
-        let far = Vec3::new(base.x + 40.0, base.y, base.z);
-        assert_eq!(free_lane(&d, &[(far, 0.0, 1)], 0), Some(0.0));
+        let mut far = d.clone();
+        far.site.lower = Vec3::new(d.site.lower.x + 40.0, d.site.lower.y, d.site.lower.z);
+        assert_eq!(free_lane(&d, &[t4(&far, 0.0, 1)], 0), Some(0.0));
         // A 60 degree run-up drifts 4.8 m sideways: the lanes of a 12 m wall are one.
         let wall = TryDef { site: named_site("chem125a", &HashMap::new()).expect("a site"), ..wide_def(60.0, 5.5) };
         assert_eq!(free_lane(&wall, &[], 0), Some(0.0));
-        assert_eq!(free_lane(&wall, &[(base_of(&wall), 0.0, 0)], 0), None);
+        assert_eq!(free_lane(&wall, &[t4(&wall, 0.0, 0)], 0), None);
         // A 1.2 m ledge has no lane but the middle.
         let narrow = TryDef { site: named_site("chem060a", &HashMap::new()).expect("a site"), ..wide_def(0.0, 3.5) };
-        assert_eq!(free_lane(&narrow, &[(base_of(&narrow), 0.0, 0)], 0), None);
+        assert_eq!(free_lane(&narrow, &[t4(&narrow, 0.0, 0)], 0), None);
     }
 
     #[test]
     fn a_free_bot_takes_the_next_pool_try_on_a_free_lane_and_the_site_moves_along_the_face() {
         let mut jt = JumpTest::new(PathBuf::from("none"), PathBuf::from("none"), "t".into(), 120);
         jt.pool.push_back(wide_def(0.0, 5.5));
-        let first = jt.take_from_pool(0).expect("a try");
+        let first = jt.take_from_pool(3, 0).expect("a try");
         assert_eq!(first.lane, 0.0);
         assert_eq!(jt.pool[0].repeat, 2);
         jt.runners.entry(3).or_default().active = Some(Active { def: first.clone(), n: 1, phase: Phase::Rest { until: 0 }, redone: 0, began: 0, presses: Vec::new(), reached: None, team: 0 });
-        let second = jt.take_from_pool(0).expect("a try");
+        let second = jt.take_from_pool(4, 0).expect("a try");
         // An enemy bot finds the ledge locked.
-        assert!(jt.take_from_pool(1).is_none());
+        assert!(jt.take_from_pool(7, 1).is_none());
         assert_eq!(second.lane, 2.5);
         // The shift is along the face: chem125c faces -x, so the lane moves z.
         assert!((second.site.lower.x - first.site.lower.x).abs() < 1e-4);
         assert!((second.site.lower.z - first.site.lower.z).abs() > 2.4);
         assert_eq!(base_of(&second), base_of(&first));
         assert!(jt.holds_end());
+        // A bot that has no way to the site takes no try there.
+        jt.pool.push_back(wide_def(0.0, 5.5));
+        jt.runners.clear();
+        jt.no_route.insert((6, site_key(&second)));
+        assert!(jt.take_from_pool(6, 0).is_none());
+        assert!(jt.take_from_pool(5, 0).is_some());
     }
 
     #[test]
