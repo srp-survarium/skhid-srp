@@ -52,6 +52,7 @@ pub mod spotting;
 mod rt;
 mod sync;
 pub mod trace;
+pub mod use_scan;
 pub mod types;
 pub mod world;
 mod ui;

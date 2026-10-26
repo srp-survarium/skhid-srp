@@ -164,6 +164,20 @@ pub unsafe fn engine_gfx_set_member(interface: *mut c_void, data: *mut c_void, n
     }
 }
 
+/// 0x300a20 survarium::victory_item_core::get_transform: usable ECX, matrix ESP+4; pops 4; EAX; through its vtable's slot +0x44 (thiscall; this the model)
+///
+/// # Safety
+/// `usable` is an object whose vtable's slot +0x44 is a function of the model's convention and arguments.
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_usable_get_transform(usable: *mut c_void, matrix: *mut f32) -> *mut c_void {
+    unsafe {
+        let slot = (*(usable as *const *const u32)).byte_add(0x44).read() as usize;
+        let function: unsafe extern "thiscall" fn(*mut c_void, *mut f32) -> *mut c_void = core::mem::transmute(slot);
+        function(usable, matrix)
+    }
+}
+
 /// A kernel32 export the exe does not import: the module and the export's name, for
 /// GetModuleHandleA and GetProcAddress (vostok asks them at run time).
 #[allow(dead_code)]
@@ -318,6 +332,12 @@ pub mod image {
 
     /// 0x2e30f0 (u32): weapon_core's bind, +70h of the item vtables 0xA0422C and 0xA1114C (weapon, weapon_core) and in the file nowhere else
     pub const WEAPON_CORE_BIND: u32 = 0x2e30f0;
+
+    /// 0xa710d8 (f32): the console variable usable_objects_detection_distance (2.0): the use scan's ray is fld of it (0x2D84E9)
+    pub const USABLE_OBJECTS_DETECTION_DISTANCE: u32 = 0xa710d8;
+
+    /// 0x300710 (u32): victory_item_core::can_use: +30h of victory_item_core's and victory_item's usable vtables and nowhere else (a battery)
+    pub const VICTORY_ITEM_CAN_USE: u32 = 0x300710;
 }
 
 /// survarium::game_world's fields (fields_026g.tsv).
@@ -1266,6 +1286,24 @@ pub mod base_player {
     pub unsafe fn kit(this: *mut c_void) -> *mut u8 {
         unsafe { this.byte_add(0x115).cast() }
     }
+
+    /// +0x43c (f32): the player's feet: x, y, z (+43Ch..+444h), what a battery under the floor is measured from (patch 23)
+    ///
+    /// # Safety
+    /// `this` is a survarium::base_player.
+    #[inline(always)]
+    pub unsafe fn feet(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x43c).cast() }
+    }
+
+    /// +0x47c (f32): the player's eye: x, y, z (+47Ch..+484h), the use scan's ray start (0x2D84FF lea esi,[eax+46Ch] the direction, +47Ch the origin)
+    ///
+    /// # Safety
+    /// `this` is a survarium::base_player.
+    #[inline(always)]
+    pub unsafe fn eye(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x47c).cast() }
+    }
 }
 
 /// survarium::client_weapon_item's fields (fields_026g.tsv).
@@ -1709,5 +1747,44 @@ pub mod lobby_client {
     #[inline(always)]
     pub unsafe fn replay_link(this: *mut c_void) -> *mut u8 {
         unsafe { this.byte_add(0x1e6144).cast() }
+    }
+}
+
+/// survarium::use_scan_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod use_scan_frame {
+    use core::ffi::c_void;
+
+    /// +0xc (u32): base_player's use scan 0x2D84C0 by its ESP at the hits' walk: the collision groups of the hits so far (and dword [esp+0Ch],0FF7Fh at 0x2D85D4)
+    ///
+    /// # Safety
+    /// `this` is a survarium::use_scan_frame.
+    #[inline(always)]
+    pub unsafe fn groups(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+
+    /// +0x40 (u8): patch 23's byte in the use scan's frame (grown by 8 at 0x2D84C9, sub esp,3Ch): a wall or a floor was crossed
+    ///
+    /// # Safety
+    /// `this` is a survarium::use_scan_frame.
+    #[inline(always)]
+    pub unsafe fn crossed(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x40).cast() }
+    }
+}
+
+/// survarium::usable_vtable's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod usable_vtable {
+    use core::ffi::c_void;
+
+    /// +0x30 (u32): a usable object's vtable: +30h its can_use (the use scan calls it at 0x2D85CE)
+    ///
+    /// # Safety
+    /// `this` is a survarium::usable_vtable.
+    #[inline(always)]
+    pub unsafe fn can_use(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x30).cast() }
     }
 }

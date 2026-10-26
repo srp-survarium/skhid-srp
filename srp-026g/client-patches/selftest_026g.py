@@ -558,13 +558,6 @@ def test_bins():
                                check=True, timeout=60)
                 fresh = open(out, "rb").read()
             check(fresh == open(path, "rb").read(), f"{os.path.basename(path)} is current ({len(fresh)} bytes)")
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.PICKUP_VA:#x}",
-                        os.path.join(HERE, "pickup_below_026g.asm"), "-o", out], check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(fresh == open(P.pickup_bin(), "rb").read(),
-          f"{os.path.basename(P.pickup_bin())} is current ({len(fresh)} bytes)")
     path = P.mount_patches_bin()
     state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.MOUNT_STATE_OFFSET
     with tempfile.TemporaryDirectory() as tmp:
@@ -1514,7 +1507,7 @@ def late_join_sites():
 
 def pickup_sites():
     """[(address, length)] of patch 23's sites: the frame and the three hooks."""
-    return [(P.PICKUP_FRAME[0], len(P.PICKUP_FRAME[1]))] + [(va, len(old)) for va, old, _, _ in P.PICKUP_HOOKS]
+    return [(P.PICKUP_FRAME[0], len(P.PICKUP_FRAME[1]))] + [(0x2D84E9, 6), (0x2D861C, 6), (0x2D85BE, 8)]
 
 
 def test_late_join_bin():
@@ -2374,23 +2367,17 @@ def test_pickup(original, image, before):
     va, old, new = P.PICKUP_FRAME
     check(source.read(va, len(old)) == old and before.read(va, len(old)) == old and image.read(va, len(new)) == new,
           f"{va:#x}: the scan's frame grows by 8 (sub esp,34h -> 3Ch); the build without the late join keeps it")
-    for va, old, offset, opcode in P.PICKUP_HOOKS:
-        rows = [text for _, _, text in ndisasm(image.read(va, len(old)), va)]
-        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
-              and rows[0].split()[0] == ("call" if opcode == 0xE8 else "jmp")
-              and branch_target(rows[0]) == P.PICKUP_VA + offset and set(rows[1:]) <= {"nop"},
-              f"{va:#x}: {rows[0]} (+{offset}) and nops; the original and the build without the late join keep it")
-    code = open(P.pickup_bin(), "rb").read()
-    rows = ndisasm(image.read(P.PICKUP_VA, len(code)), P.PICKUP_VA)
-    outside = sorted({branch_target(text) for _, _, text in rows
-                      if branch_target(text) is not None
-                      and not P.PICKUP_VA <= branch_target(text) < P.PICKUP_VA + len(code)})
-    check(image.read(P.PICKUP_VA, len(code)) == code and outside == [0x2D85C6, 0x2D85FC, 0x2D8622]
-          and [text for _, _, text in rows if text.startswith("call")] == ["call [edx+0x44]"]
-          and struct.unpack("<f", source.read(0xA710D8, 4))[0] == 2.0
-          and code[-4:] == struct.pack("<f", P.PICKUP_ACROSS ** 2),
-          f"the code at {P.PICKUP_VA:#x} is the .bin; it leaves only to the scan (0x2D85C6, 0x2D85FC, 0x2D8622), "
-          f"calls only get_transform (vtable+44h); the distance (0xA710D8) is 2.0; across, {P.PICKUP_ACROSS:g} m")
+    rust_lohooks(original, image, before, "pickup_below", {
+        0x2D84E9: ["fld dword [dword 0xa710d8]"],
+        0x2D861C: ["and al,0xa", "cmp al,0xa", "jz 0x2d866d"],
+        0x2D85BE: ["mov eax,[ebp+0x8]", "mov edx,[esi]", "mov edx,[edx+0x30]"]}, exits={0x2D8622, 0x2D85FC})
+    check(struct.unpack("<f", source.read(P.engine_026g.field("survarium::image", "usable_objects_detection_distance"),
+                                          4))[0] == 2.0
+          and P.RUST_HOOK_RELOCS == (0x2D84EB,)
+          and sorted(v for kind, v in source.relocations().values() if kind == 3 and 0x2D84E9 <= v < 0x2D84EF)
+          == [0x2D84EB],
+          "the distance (usable_objects_detection_distance, 0xA710D8) is 2.0; the one base relocation under "
+          "the sites is the reach site's distance (0x2D84EB, RUST_HOOK_RELOCS)")
     string = lambda at: source.read(at, 64).split(b"\0")[0]
     klass = lambda vtable: string(word(source, word(source, vtable - 4) + 12) + 8)
     can_use = struct.pack("<I", 0x300710)
@@ -4648,7 +4635,9 @@ def test_ragdoll(original, image, before):
     library = {sym[f["symbol"]] if f["call"] == "thunk" else f["va"] for f in engine_026g.every_function()
                if f["call"] != "import" and (f["symbol"] in sym or f["call"] != "thunk")}
     backs = {va + len(old) for va, old, _, _ in P.rust_hooks(original)} \
-        | {addr for site in P.hooks_026g.read_sites().values() for _, addr in site["exits"]}
+        | {addr for site in P.hooks_026g.read_sites().values() for _, addr in site["exits"] if isinstance(addr, int)} \
+        | {branch_target(text) for va, old, _, _ in P.rust_hooks(original) for _, _, text in ndisasm(old, va)
+           if branch_target(text) is not None}       # a replay's relocated call or jcc: the span's own targets
     allowed = library | backs | {sym[name] for name in ("memcpy", "memmove", "memset") if name in sym}
     check(outside and set(outside) <= allowed,
           "the crate's direct branches out of the block: the engine library's functions (raw), the arena's "
@@ -6018,7 +6007,6 @@ def test_late_join(original, without, server, source):
         (offset, open(path(), "rb").read(), what) for offset, path, what in (
             (P.MOUNT_PATCHES_OFFSET, P.mount_patches_bin, "the patches' mount"),
             (P.SHARED_UPGRADES_OFFSET, P.shared_upgrades_bin, "the shared upgrades' code"),
-            (P.PICKUP_OFFSET, P.pickup_bin, "the pickup code"),
             (P.WARMUP_KEYS_OFFSET, P.warmup_keys_bin, "the warmup keys"),
             (P.WARMUP_LIMITS_OFFSET, P.warmup_limits_bin, "the warmup camera's limits"),
             (P.WEAPON_DRAW_OFFSET, P.weapon_draw_bin, "the weapon preview's draw"),
@@ -6110,7 +6098,7 @@ def test_late_join(original, without, server, source):
     # The entries of the relocation table that are disabled (scene::remove_model's
     # branch, uro_fov's least, the pickup's distance, the lobby camera's least,
     # the two constants of patch 40).
-    disabled = {P.REMOVE_MODEL_VA + 2, P.FOV_MINIMUM_RELOC, P.PICKUP_RELOC, *P.WEAPON_PREVIEW_RELOCS,
+    disabled = {P.REMOVE_MODEL_VA + 2, P.FOV_MINIMUM_RELOC, *P.RUST_HOOK_RELOCS, *P.WEAPON_PREVIEW_RELOCS,
                 *P.FOV_LOD_RELOCS}
     ranges += [(at, 2) for at, (kind, va) in before.relocations().items()
                if kind == 3 and va in disabled]
@@ -6181,7 +6169,7 @@ def test_late_join(original, without, server, source):
     # field-of-view setting's two in place, the pickup's distance and the
     # lobby camera's three loads of its least distance.
     fov_sites = {va for va, _, _ in P.FOV_PATCHES}
-    with_address = {P.REMOVE_MODEL_VA, P.PICKUP_HOOKS[0][0]} | fov_sites | \
+    with_address = {P.REMOVE_MODEL_VA, 0x2D84E9} | fov_sites | \
         {va for va, old, _, _ in P.WEAPON_PREVIEW_HOOKS if old[:3] == b"\xf3\x0f\x10"} | \
         {va for va, _, _, _ in P.FOV_LOD_HOOKS} | \
         {va for va, _, _, _ in P.HIDE_UI_TABLE_REFS}   # the options' table, now the arena's (relocated alike)
@@ -6199,7 +6187,7 @@ def test_late_join(original, without, server, source):
           and any(kind == 3 and va == option for kind, va in now.values()),
           "no base relocation is under a late-join site but those of scene::remove_model's branch "
           f"({P.REMOVE_MODEL_VA + 2:#x}), of uro_fov's least ({P.FOV_MINIMUM_RELOC:#x}) and of the pickup's "
-          f"distance ({P.PICKUP_RELOC:#x}) and of the lobby camera's least "
+          f"distance ({P.RUST_HOOK_RELOCS[0]:#x}) and of the lobby camera's least "
           f"({', '.join(f'{va:#x}' for va in P.WEAPON_PREVIEW_RELOCS)}) and of patch 40's two constants "
           f"({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), which are disabled, "
           "and of the options' controls table's six readers (patch 62: their address is the arena's, kept "

@@ -132,10 +132,13 @@ class Hook:
     compare at the first instruction both reach."""
 
     def __init__(self, name, site, live=("ebx", "esi", "edi", "ebp"), externals=None, aliases=None, tails=(),
-                 until=None):
+                 until=None, live_at=None):
         self.name, self.site, self.live, self.externals = name, site, tuple(live), externals
         self.aliases, self.tails = dict(aliases or {}), frozenset(tails)
         self.until = until
+        # {exit VA: the registers live there} where an exit reads fewer than
+        # `live` (each with its proof in the spec)
+        self.live_at = dict(live_at or {})
 
 
 class Case:
@@ -366,7 +369,8 @@ class Machine:
             self.inside = False                            # the game's code, up to `until`
             return
         # left the patch: a jump or a return into the game
-        self.exit = (f"{self.hook.aliases.get(address, address):#x}", {r: self.live(r) for r in self.hook.live},
+        at = self.hook.aliases.get(address, address)
+        self.exit = (f"{at:#x}", {r: self.live(r) for r in self.hook.live_at.get(at, self.hook.live)},
                      (esp - self.entry_esp) & 0xFFFFFFFF)
         self.stopped = True
         uc.emu_stop()

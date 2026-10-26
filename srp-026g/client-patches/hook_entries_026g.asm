@@ -534,6 +534,133 @@ global match_keys_on_add_message
 match_keys_on_add_message:
     RUST_CALL hook_match_keys_on_add_message, 5, 20
 
+; 0x2d84e9 base_player's use scan 0x2D84C0: the ray's length, fld dword [usable_objects_detection_distance] (EAX the player): lohook -> pickup_below_on_reach
+global pickup_below_on_reach
+extern hook_pickup_below_on_reach
+pickup_below_on_reach:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_pickup_below_on_reach
+    mov edx, pickup_below_on_reach_replay
+    cmp eax, 0
+    je pickup_below_on_reach_go
+    mov edx, 0x2d84ef
+    cmp eax, 1
+    je pickup_below_on_reach_go
+    ud2
+pickup_below_on_reach_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+pickup_below_on_reach_replay:
+    db 0xd9, 0x05, 0xd8, 0x10, 0xa7, 0x00
+    jmp 0x2d84ef
+
+; 0x2d861c the use scan's hit walk, a wall or a floor (and al,0Ah / cmp al,0Ah / jz 0x2D866D ends the walk); next: the next hit: lohook -> pickup_below_on_solid
+global pickup_below_on_solid
+extern hook_pickup_below_on_solid
+pickup_below_on_solid:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_pickup_below_on_solid
+    mov edx, pickup_below_on_solid_replay
+    cmp eax, 0
+    je pickup_below_on_solid_go
+    mov edx, 0x2d8622
+    cmp eax, 1
+    je pickup_below_on_solid_go
+    mov edx, 0x2d8622
+    cmp eax, 2
+    je pickup_below_on_solid_go
+    ud2
+pickup_below_on_solid_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+pickup_below_on_solid_replay:
+    db 0x24, 0x0a
+    db 0x3c, 0x0a
+    jz near 0x2d866d
+    jmp 0x2d8622
+
+; 0x2d85be the use scan's usable object (ESI) at EDI, before can_use (mov eax,[ebp+8]; mov edx,[esi]; mov edx,[edx+30h]; [ebp+8] the player); reject: 80h out of the groups, the next object: lohook -> pickup_below_on_candidate
+global pickup_below_on_candidate
+extern hook_pickup_below_on_candidate
+pickup_below_on_candidate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_pickup_below_on_candidate
+    mov edx, pickup_below_on_candidate_replay
+    cmp eax, 0
+    je pickup_below_on_candidate_go
+    mov edx, 0x2d85c6
+    cmp eax, 1
+    je pickup_below_on_candidate_go
+    mov edx, 0x2d85fc
+    cmp eax, 2
+    je pickup_below_on_candidate_go
+    ud2
+pickup_below_on_candidate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+pickup_below_on_candidate_replay:
+    db 0x8b, 0x45, 0x08
+    db 0x8b, 0x16
+    db 0x8b, 0x52, 0x30
+    jmp 0x2d85c6
+
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
 extern hook_ragdoll_on_step

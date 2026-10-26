@@ -38,6 +38,7 @@ pub mod kill_feed;
 pub mod match_keys;
 pub mod kit_state;
 pub mod spot;
+pub mod pickup_below;
 pub mod ragdoll;
 pub mod blackout;
 pub mod stale_dll;

@@ -138,3 +138,10 @@ survarium::weapon_core	recoil	0x5FC	f32	the first of four floats +5FCh..+608h (t
 survarium::weapon_core	unnamed_60c	0x60C	u32	unnamed; the constructor's and the activation's -1
 survarium::image	weapon_core_bind	0x2E30F0	u32	weapon_core's bind, +70h of the item vtables 0xA0422C and 0xA1114C (weapon, weapon_core) and in the file nowhere else
 survarium::lobby_client	replay_link	0x1E6144	u8	the link the server's 9E sent for the lobby's video tutorial link, UTF-8 with its zero (0x271426..0x271444); video_tutorial_link_clicked 0x28CDA0 opened it (ShellExecuteA)
+survarium::base_player	feet	0x43C	f32	the player's feet: x, y, z (+43Ch..+444h), what a battery under the floor is measured from (patch 23)
+survarium::base_player	eye	0x47C	f32	the player's eye: x, y, z (+47Ch..+484h), the use scan's ray start (0x2D84FF lea esi,[eax+46Ch] the direction, +47Ch the origin)
+survarium::use_scan_frame	groups	0xC	u32	base_player's use scan 0x2D84C0 by its ESP at the hits' walk: the collision groups of the hits so far (and dword [esp+0Ch],0FF7Fh at 0x2D85D4)
+survarium::use_scan_frame	crossed	0x40	u8	patch 23's byte in the use scan's frame (grown by 8 at 0x2D84C9, sub esp,3Ch): a wall or a floor was crossed
+survarium::image	usable_objects_detection_distance	0xA710D8	f32	the console variable usable_objects_detection_distance (2.0): the use scan's ray is fld of it (0x2D84E9)
+survarium::image	victory_item_can_use	0x300710	u32	victory_item_core::can_use: +30h of victory_item_core's and victory_item's usable vtables and nowhere else (a battery)
+survarium::usable_vtable	can_use	0x30	u32	a usable object's vtable: +30h its can_use (the use scan calls it at 0x2D85CE)

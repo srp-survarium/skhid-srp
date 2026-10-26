@@ -196,8 +196,10 @@ impl<'t> Context<'t> {
     /// Pushes `value` on the x87 stack, as an `fld` would (the code after the
     /// detour finds it in ST0): the saved state's TOP one lower, ST1.. the
     /// old ST0.., ST0 `value` exactly (an f64 is exact in 80 bits), its tag
-    /// valid, C1 clear. The x87 stack must have room (ST7 empty), as it must
-    /// for the `fld` this stands for.
+    /// valid, C1 clear. The `fld` this stands for has room at its sites (the
+    /// game's x87 stack is empty there); a full stack's old ST7 is dropped,
+    /// as an emulator's `fld` drops it (a CPU's would fault: masked, the
+    /// indefinite NaN), never at the patches' sites.
     pub fn push_st(&mut self, value: f64) {
         let fx = self.frame.fxsave;
         // SAFETY: new's contract: `fxsave` is the entry's 512-byte area;
@@ -207,7 +209,6 @@ impl<'t> Context<'t> {
             let top = ((fsw >> 11) & 7) as u8;
             let new_top = top.wrapping_sub(1) & 7;
             let tags = fx.add(4).read();
-            assert!(tags & (1 << new_top) == 0, "push_st: the x87 stack is full");
             for i in (0..7).rev() {
                 core::ptr::copy_nonoverlapping(fx.add(32 + 16 * i), fx.add(32 + 16 * (i + 1)), 10);
             }

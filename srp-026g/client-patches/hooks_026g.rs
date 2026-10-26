@@ -234,6 +234,61 @@ pub extern "C" fn hook_match_keys_on_add_message(a0: u32, a1: u32, a2: u32, a3: 
     { crate::match_keys::on_add_message(&orig, &mut handler, channel, body, name, tag); 0 }
 }
 
+// ---- pickup_below (patch 23) ----
+
+/// The entry `pickup_below_on_reach` (0x2d84e9, base_player's use scan 0x2D84C0: the ray's length, fld dword [usable_objects_detection_distance] (EAX the player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_pickup_below_on_reach(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `pickup_below_on_reach` calls this, from the game's jump at 0x2d84e9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::pickup_below::on_reach(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- pickup_below (patch 23) ----
+
+/// The named exits of pickup_below::on_solid (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum PickupBelowOnSolidExit { Next }
+/// The entry `pickup_below_on_solid` (0x2d861c, the use scan's hit walk, a wall or a floor (and al,0Ah / cmp al,0Ah / jz 0x2D866D ends the walk); next: the next hit) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_pickup_below_on_solid(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `pickup_below_on_solid` calls this, from the game's jump at 0x2d861c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::pickup_below::on_solid(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- pickup_below (patch 23) ----
+
+/// The named exits of pickup_below::on_candidate (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum PickupBelowOnCandidateExit { Reject }
+/// The entry `pickup_below_on_candidate` (0x2d85be, the use scan's usable object (ESI) at EDI, before can_use (mov eax,[ebp+8]; mov edx,[esi]; mov edx,[edx+30h]; [ebp+8] the player); reject: 80h out of the groups, the next object) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_pickup_below_on_candidate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `pickup_below_on_candidate` calls this, from the game's jump at 0x2d85be,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::pickup_below::on_candidate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.

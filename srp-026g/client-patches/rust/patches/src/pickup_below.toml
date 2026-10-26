@@ -1,0 +1,22 @@
+# Patch 23: a battery under the floor one stands on is taken. Only the
+# decisions: which sites, and the handlers. The sites (their VAs, spans and
+# exits) are sites_026g.tsv's; the scan's frame, the player and the object
+# are vostok's (vostok::use_scan); the logic is pickup_below.rs. The scan's
+# frame grows by 8 for the `crossed` byte (patch_026g.py PICKUP_FRAME).
+name = "pickup_below"
+patch = 23
+
+# the ray's length: twice the distance, nothing crossed yet
+[[hook]]
+site = "use_scan.reach"
+handler = "on_reach"
+
+# a wall or a floor marks the walk crossed instead of ending it
+[[hook]]
+site = "use_scan.solid"
+handler = "on_solid"
+
+# a usable object: as the original, or a battery under the feet, or refused
+[[hook]]
+site = "use_scan.candidate"
+handler = "on_candidate"

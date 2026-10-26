@@ -25,3 +25,6 @@ spawn.kit_state	0x316E57	lohook	-	5	-	the respawn rule's spawn 0x316DA0, the loa
 spawn.weapon_random	0x316EA0	lohook	-	5	-	the respawn rule's spawn 0x316DA0, the load of the call that puts the new kit's player into the world (mov edx,[esi]; mov eax,[edx+20h]; ESI the player, EBP the spawn's time)
 sign_in.version_tail	0x380889	lohook	-	6	-	sign_in_on_connected 0x380800, the 12-byte version field's last writes (mov [edi+8],eax; mov [edi+0Ch],dl; EDI the field, EAX 0 for its bytes 8..11, DL the EULA byte; 0x38088F loads EAX again)
 lobby.replay_link_clicked	0x28CDB6	lohook	-	6	done@0x28CDDD	video_tutorial_link_clicked 0x28CDA0 after its owner gave the lobby client (EAX), push 1/0/0 before ShellExecuteA of client+1E6144h; done: the function's mov al,1 / pop esi / ret 4
+use_scan.reach	0x2D84E9	lohook	-	6	-	base_player's use scan 0x2D84C0: the ray's length, fld dword [usable_objects_detection_distance] (EAX the player)
+use_scan.solid	0x2D861C	lohook	-	6	next@0x2D8622	the use scan's hit walk, a wall or a floor (and al,0Ah / cmp al,0Ah / jz 0x2D866D ends the walk); next: the next hit
+use_scan.candidate	0x2D85BE	lohook	-	8	reject@0x2D85FC	the use scan's usable object (ESI) at EDI, before can_use (mov eax,[ebp+8]; mov edx,[esi]; mov edx,[edx+30h]; [ebp+8] the player); reject: 80h out of the groups, the next object

@@ -1181,7 +1181,9 @@ RUST_PATCHES = tuple(patch["name"] for patch in hooks_026g.read_tomls())
 # (an absolute operand there is the exe's, which is never rebased; a lohook
 # replays it at its own address or skips it). Any other relocation under a
 # hook stops the build.
-RUST_HOOK_RELOCS = ()
+RUST_HOOK_RELOCS = (
+    0x2D84EB,       # use_scan.reach: fld dword [usable_objects_detection_distance] (patch 23 skips it)
+)
 
 
 def rust_hooks(original):
@@ -1773,19 +1775,13 @@ FOV_LOD_RELOCS = [0x1590B1, 0x16F2A8]
 FOV_LOD_STATE_OFFSET = 0xE50                  # after the scoreboard's (TAB_LIST_STATE_OFFSET)
 FOV_LOD_STATE_SIZE = 4
 
-# A battery under the floor (patch 23, pickup_below_026g.asm at
-# PICKUP_VA): client_patch.md section 3.23.
-PICKUP_OFFSET = 0x800
-PICKUP_VA = SECTION_VA + PICKUP_OFFSET
-PICKUP_ACROSS = 1.0
+# A battery under the floor (patch 23, client_patch.md section 3.23): the
+# Rust patch pickup_below (rust/patches/src/pickup_below.rs, three lohooks:
+# use_scan.reach, .solid and .candidate of sites_026g.tsv; until the Rust
+# port pickup_below_026g.asm at .srp+800h), and the scan's frame grown by 8
+# for its `crossed` byte. The one address under the sites, the distance's in
+# the reach site, is in RUST_HOOK_RELOCS.
 PICKUP_FRAME = (0x2D84C9, bytes.fromhex("83ec34"), bytes.fromhex("83ec3c"))
-PICKUP_HOOKS = (
-    (0x2D84E9, bytes.fromhex("d905d810a700"), 0, 0xE8),          # the ray's length: reach
-    (0x2D861C, bytes.fromhex("240a3c0a744b"), 32, 0xE9),         # a wall or a floor: solid
-    (0x2D85BE, bytes.fromhex("8b45088b168b5230"), 64, 0xE9),     # a usable object: candidate
-)
-# The one address in what is replaced: the distance's, in the reach hook.
-PICKUP_RELOC = 0x2D84EB
 
 RUN_UNFOCUSED_VA = 0x1A0E1
 RUN_UNFOCUSED_BRANCH_VA = 0x1A0EE
@@ -2204,9 +2200,6 @@ INSTALLS = {
                "`ret 0Ch`: no stack effect, as tab_row's PushBack (vtable+3Ch) or SetElement"),
     0x23B421: (INLINE, "the scoreboard's refresh: tab_shown", None, None),
     # patch 23, 26, 25, 31, 34, 32, 46
-    0x2D84E9: (INLINE, "the use scan's ray length: reach", None, None),
-    0x2D861C: (JUMP, "the use scan's wall or floor: solid", None, None),
-    0x2D85BE: (JUMP, "the use scan's usable object: candidate", None, None),
     0x316820: (ENTRY, "the respawn rule's tick: kit_change", None, None),
     0x26794D: (CALLEE, "the view of a kit change: kit_view", None, None),
     0x23B7DA: (JUMP, "the local player alive: ui_alive", None, None),
@@ -3188,16 +3181,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if sorted(neutralize_relocs(data, [(va, va + len(expected)) for va, expected, _, _ in FOV_LOD_HOOKS])) \
                 != FOV_LOD_RELOCS:
             sys.exit("the base relocations under the FOV LOD sites are not where they were read")
-        pickup = open(pickup_bin(), "rb").read()
-        if len(cave) > PICKUP_OFFSET or PICKUP_OFFSET + len(pickup) > LATE_JOIN_OFFSET:
-            sys.exit("the upload code and the pickup code do not fit before the late join")
         patch(data, *PICKUP_FRAME)
-        sites = [(PICKUP_FRAME[0], PICKUP_FRAME[0] + len(PICKUP_FRAME[1]))]
-        for va, expected, offset, opcode in PICKUP_HOOKS:
-            patch(data, va, expected, hook_bytes(PICKUP_VA, va, expected, offset, opcode))
-            sites.append((va, va + len(expected)))
-        if neutralize_relocs(data, sites) != [PICKUP_RELOC]:
-            sys.exit("the base relocations under the pickup sites are not where they were read")
+        if neutralize_relocs(data, [(PICKUP_FRAME[0], PICKUP_FRAME[0] + len(PICKUP_FRAME[1]))]):
+            sys.exit("a base relocation under the use scan's frame")
         patch(data, *DB_SIGNATURE)
         if neutralize_relocs(data, [(DB_SIGNATURE_VA, DB_SIGNATURE_VA + len(DB_SIGNATURE[1]))]):
             sys.exit("a base relocation under verify_sign's call")
@@ -3331,9 +3317,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         patch(data, va, expected, hook_bytes(WEAPON_DRAW_VA, va, expected, offset, opcode))
         if neutralize_relocs(data, [(va, va + len(expected))]):
             sys.exit("a base relocation under the weapon preview's draw site")
-        if PICKUP_OFFSET + len(pickup) > WARMUP_KEYS_OFFSET \
-                or WARMUP_KEYS_OFFSET + len(warmup_keys) > WARMUP_LIMITS_OFFSET:
-            sys.exit("the pickup code, the warmup keys and the warmup camera's limits do not fit")
+        if WARMUP_KEYS_OFFSET + len(warmup_keys) > WARMUP_LIMITS_OFFSET:
+            sys.exit("the warmup keys and the warmup camera's limits do not fit")
         if late_join[TAB_ROW_OFFSET:TAB_ROW_OFFSET + len(TAB_ROW_START)] != TAB_ROW_START \
                 or late_join[TAB_SHOWN_OFFSET:TAB_SHOWN_OFFSET + len(TAB_SHOWN_START)] != TAB_SHOWN_START:
             sys.exit("late_join_026g.section.bin: the scoreboard's entries (tab_row, tab_shown) or its state are "
@@ -3355,14 +3340,15 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 sys.exit(f"{site[0]:#x}: a base relocation under a hook of the patches' mount")
         if WARMUP_LIMITS_OFFSET + len(warmup_limits) > WEAPON_DRAW_OFFSET:
             sys.exit("the warmup camera's limits do not fit before the weapon preview's draw")
-        if len(cave) > MOUNT_PATCHES_OFFSET or MOUNT_PATCHES_OFFSET + len(mount_patches) > PICKUP_OFFSET:
-            sys.exit("the upload code (and the default server) and the patches' mount do not fit before the pickup code")
+        if len(cave) > MOUNT_PATCHES_OFFSET or MOUNT_PATCHES_OFFSET + len(mount_patches) > SHARED_UPGRADES_OFFSET:
+            sys.exit("the upload code (and the default server) and the patches' mount do not fit before the "
+                     "shared upgrades' code")
         if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the patches' mount keeps more state than the late join's page has")
         shared_upgrades = open(shared_upgrades_bin(), "rb").read()
         if MOUNT_PATCHES_OFFSET + len(mount_patches) > SHARED_UPGRADES_OFFSET \
-                or SHARED_UPGRADES_OFFSET + len(shared_upgrades) > PICKUP_OFFSET:
-            sys.exit("the patches' mount, the shared upgrades' code and the pickup code do not fit")
+                or SHARED_UPGRADES_OFFSET + len(shared_upgrades) > WARMUP_KEYS_OFFSET:
+            sys.exit("the patches' mount, the shared upgrades' code and the warmup keys do not fit")
         if any(shared_upgrades[at:at + len(first)] != first for at, first in SHARED_UPGRADES_ENTRIES.items()):
             sys.exit("shared_upgrades_026g.section.bin: its entries are not where patch_026g.py calls them")
         for va, expected, offset, opcode in SHARED_UPGRADES_HOOKS:
@@ -3479,7 +3465,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if late_join is not None:
             cave = cave + b"\xCC" * (MOUNT_PATCHES_OFFSET - len(cave)) + mount_patches
             cave = cave + b"\xCC" * (SHARED_UPGRADES_OFFSET - len(cave)) + shared_upgrades
-            cave = cave + b"\xCC" * (PICKUP_OFFSET - len(cave)) + pickup
             cave = cave + b"\xCC" * (WARMUP_KEYS_OFFSET - len(cave)) + warmup_keys
             cave = cave + b"\xCC" * (WARMUP_LIMITS_OFFSET - len(cave)) + warmup_limits
             cave = cave + b"\xCC" * (WEAPON_DRAW_OFFSET - len(cave)) + weapon_draw
@@ -3536,7 +3521,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "a first world's kit choices are the world's and in time order, "
                      "a Team Deathmatch rule counts a death after its own end, "
                      f"a field-of-view setting (uro_fov, {FOV_MIN:g} to 100) the camera follows, a scope's view the original's, "
-                     f"a battery under the floor one stands on taken (within {PICKUP_ACROSS:g} m across), "
+                     f"a battery under the floor one stands on taken (within 1 m across), "
                      "a replay's camera follows its player into another kit, "
                      "a weapon with a full sound queue drops the new sound, "
                      "a replay's seek empties the weapons' sound queues, "
@@ -3635,10 +3620,6 @@ def mount_patches_bin():
 
 def weapon_camo_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_camo_026g.section.bin")
-
-
-def pickup_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "pickup_below_026g.section.bin")
 
 
 

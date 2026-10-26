@@ -72,7 +72,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_late_join_026g.py`, `test_late_join_runtime_026g.c` | Checks of the late-join code: the first runs the patched machine code on made-up objects (needs Unicorn 2.1.4), the second the C bookkeeping under the sanitizers |
 | `check_fov_026g.py` | Runs the original and patch 22's camera projection, the game's matrix builder included, and compares the matrices (needs Unicorn) |
 | `check_fov_lod_026g.py` | Runs patch 40 (a model's LOD and screen factor at a wider field of view are the original's): the projection's k at several settings and zooms, the game's select_lod and screen factor of the original and the build on made-up models (needs Unicorn) |
-| `pickup_below_026g.asm`, `pickup_below_026g.section.bin` | The source of patch 23's code and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/src/pickup_below.rs`, `pickup_below.toml`, `port/equiv/pickup_below.py` | Patch 23 (a battery under the floor one stands on) as the Rust patch `pickup_below` (lohooks at `use_scan.reach`, `.solid`, `.candidate`), and its equivalence spec against the asm it replaced |
 | `check_pickup_below_026g.py` | Runs the original and patch 23's use scan on made-up ray hits (needs Unicorn) |
 | `default_server_026g.asm`, `.section.bin`, `.hash-mismatch.bin` | Optional default-login-address stub, appended to the snapshot cave; source and assembled code for both placements |
 | `make_client_026g.py` | Makes the players' overlay folder or ZIP: patched exe, Rust BugTrap DLL, certificate, start file and README |
@@ -1523,8 +1523,12 @@ or beyond 2 m is taken only if it is a battery whose centre is below the
 player's feet and at most 1 m from them across: down to about 2.3 m,
 through more than one floor too. Look down at the battery and press use. A battery in plain view within 2 m is taken as before; one
 seen through a wall at one's own height is not, nor is anything else
-behind a wall (containers, traps). The code (`pickup_below_026g.asm`) is
-at `.srp`+800h; `../docs/notes/client_patch.md` section 3.23 has the details.
+behind a wall (containers, traps). The code is the Rust patch
+`pickup_below` (`rust/patches/src/pickup_below.rs`, lohooks at the sites
+`use_scan.reach`, `.solid` and `.candidate`; ported from
+`pickup_below_026g.asm` with no change of behaviour, proven by
+`port/equiv/pickup_below.py`); `../docs/notes/client_patch.md` section 3.23
+has the details.
 
 **Revisions.** Every game runs every player's use: a game of 11 takes a
 battery an older game leaves, so they part there; a server asks for 11
