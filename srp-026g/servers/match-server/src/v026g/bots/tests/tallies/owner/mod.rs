@@ -46,6 +46,7 @@ mod campers;
 mod fight;
 mod golden;
 mod grenades;
+mod heal;
 mod jumps;
 mod moving;
 mod resupply;
@@ -55,6 +56,7 @@ mod stock;
 use campers::*;
 use fight::*;
 use grenades::*;
+use heal::*;
 use jumps::*;
 use moving::*;
 use resupply::*;
@@ -107,6 +109,12 @@ struct BotNow {
     nearly: Nearly,
     /// Its weapon 1's rounds and the kit's count for a life.
     ammo: crate::v026g::bots::guns::Ammo,
+    /// The reflex has a target; a heal cover walk begun in the last 1.6 s; the walks begun so far in the match.
+    target: bool,
+    heal_walking: bool,
+    heal_walks: u32,
+    /// Why the last heal press's cover walk was or was not made.
+    heal_note: Option<crate::v026g::bots::reflex::HealNote>,
     range_held: Option<u32>,
     /// What its reflex's grenade logic has counted this life.
     grenades: GrenadeStats,
@@ -138,6 +146,8 @@ pub(crate) struct OwnerTally {
     campers: CamperCounts,
     /// The resupply counts ([`ResupplyCounts`], `resupply.rs`).
     resupply: ResupplyCounts,
+    /// The consumable counts ([`HealCounts`], `heal.rs`).
+    heal: HealCounts,
 }
 
 impl OwnerTally {
@@ -152,6 +162,7 @@ impl OwnerTally {
             grenades: GrenadeCounts::default(),
             campers: CamperCounts::default(),
             resupply: ResupplyCounts::new(n),
+            heal: HealCounts::new(n),
             ..Self::default()
         }
     }
@@ -205,6 +216,10 @@ impl OwnerTally {
                     resupplies: bot.resupplies,
                     ammo: bot.ammo(),
                     nearly: nearly_dry(bots, bot, game.bodies[place].feet),
+                    target: bot.reflex.target().is_some(),
+                    heal_walking: bot.reflex.heal_walking(),
+                    heal_walks: bot.reflex.heal_walks,
+                    heal_note: bot.reflex.heal_note(),
                     // The range was the only gate that failed (with the
                     // gate tally on, the wall test too was made).
                     range_held: (gates.at.abs_diff(tick) <= 2 * TICK_MS && gates.bits == gate::RANGE).then_some(gates.at),
@@ -277,6 +292,7 @@ impl OwnerTally {
             self.fight_switch(game, place, body, &sight, &mut rays);
         }
         self.fight_hits_scored(game);
+        self.heal_tick(game, nows, &sight);
         self.campers_kills(game, &sight, &mut rays, tick);
         self.fight_reloads(game, &sight, &mut rays, tick);
         self.grenades_off(game, &sight, &mut rays, tick);
@@ -332,6 +348,7 @@ impl OwnerTally {
             ("stock", self.stock_part(game)),
             ("campers", self.campers_part()),
             ("resupply", self.resupply_part(game, &scale)),
+            ("heal", self.heal_part(game, &scale)),
         ];
         let mut core = serde_json::Map::new();
         core.insert("bot_min".to_owned(), serde_json::json!(bot_min.round()));

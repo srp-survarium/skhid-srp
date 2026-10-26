@@ -539,5 +539,23 @@ mod tests {
             .filter(|s| matches!(s, Step::Continue(i) if i.resupplied == Some(0)))
             .count();
         assert_eq!(given, 1);
+    /// The rework on: the kit's medkits counted for the match (`stock.rs`) take the place of the tip's count a life.
+    #[test]
+    fn with_the_rework_on_it_falls_back_when_the_kit_has_no_medkit_left() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        with_zones(&mut s);
+        s.tuning.heal.on = true;
+        s.bot(0, 0, Vec3::new(45.0, 0.0, 32.0)).health = 0.3;
+        assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Retreat));
+        s.pantry.pressed(0, 0);
+        s.pantry.pressed(0, 0);
+        assert!(s.candidates(0).iter().any(|c| c.kind == PlayKind::Retreat));
+        // The tip's count a life is not looked at then: a bot that "used" two this life but whose kit still has them.
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        with_zones(&mut s);
+        s.tuning.heal.on = true;
+        s.bot(0, 0, Vec3::new(45.0, 0.0, 32.0)).health = 0.3;
+        s.medkits_used = 2;
+        assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Retreat));
     }
 }

@@ -114,6 +114,9 @@ pub enum Input {
     Health,
     /// The share of its kit's rounds for a life that it holds, `[0, 1]`.
     Ammo,
+    /// How much of the pools a consumable treats is missing, weighted by
+    /// what the loss costs, `[0, 1]` (`plays/heal.rs`).
+    Need,
     /// Enemies known within 25 m of the target.
     EnemiesNearTarget,
     /// Teammates (bots and humans) within 25 m of the target.
