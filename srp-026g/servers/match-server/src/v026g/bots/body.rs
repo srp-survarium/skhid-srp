@@ -87,6 +87,85 @@ impl Estimate {
     }
 }
 
+/// How far off its reckoned place the body may be (m): the median of the bench is 0.17, the 90th percentile 0.33.
+const RECKONING_M: f32 = 0.3;
+/// A fall within this of a landing of the route's own drops (m) is planned.
+const PLANNED_LANDING_M: f32 = 1.0;
+
+/// The keys that move the body on the ground.
+const MOVE_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
+
+impl Estimate {
+    /// The body as the view has it now (`me`), on the floor `node`, its velocity already blended in: what
+    /// [`stays_up`] plays forward from.
+    pub fn of_view(me: &super::view::PlaceView, node: Option<NodeId>) -> Self {
+        let [fx, fz] = super::kin::forward(me.yaw);
+        let local = [
+            me.velocity[0] * fx + me.velocity[1] * fz,
+            -me.velocity[0] * fz + me.velocity[1] * fx,
+        ];
+        Self {
+            time: me.known_at,
+            feet: me.feet,
+            velocity: me.velocity,
+            blend: Blend::at(local),
+            yaw: wrap(me.yaw),
+            pitch: me.pitch,
+            kick: 0.0,
+            keys: me.keys,
+            node,
+            air_until: 0,
+        }
+    }
+}
+
+/// What the stop check [`stays_up`] plays the body over: its movement model and speed level, the grid, the
+/// landings of the route's own drops, and the ticks the keys count held.
+#[derive(Clone, Copy)]
+pub struct Stop<'a> {
+    pub kin: &'a Kinematics,
+    pub level: f32,
+    pub grid: &'a WalkGrid,
+    pub planned: &'a [Vec3],
+    pub hold: u32,
+}
+
+/// Whether the body `at` that holds `keys` for the next tick (turning `turn` radians) and then lets go keeps up: no
+/// step of its slide, over the blend to a stop, goes down a ledge of a lip's height ([`mapdata::grid::LIP_DROP_M`]) off
+/// the floor it stands on. A body does not stop at once (the blend of [`Kinematics::blend_ticks`]): a key
+/// pressed at a rim carries it a stride on, so the check plays the stop, not the step.
+pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
+    let Stop { kin, level, grid, planned, hold } = *stop;
+    let top = at.feet.y;
+    let mut at = *at;
+    for k in 0..kin.blend_ticks + hold + 2 {
+        // The keys count a tick more than the model's one-tick lag (the game may take them at once).
+        let (held, turn) = if k < hold { (keys, if k == 0 { turn } else { 0.0 }) } else { (keys & !MOVE_KEYS, 0.0) };
+        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0 }, kin, level, Some(grid));
+        // A fall that lands where the route drops is the route's.
+        let falls = |feet: Vec3| top - feet.y >= mapdata::grid::LIP_DROP_M && !planned.iter().any(|landing| landing.distance_xz(feet) <= PLANNED_LANDING_M);
+        if falls(at.feet) {
+            return false;
+        }
+        // The body is not exactly where it is reckoned (a world's lateness, a ping's jitter): the same stop
+        // from [`RECKONING_M`] further on along its way must not fall either.
+        let speed = at.velocity[0].hypot(at.velocity[1]);
+        if speed > 0.3
+            && let Some(node) = at.node
+        {
+            let to = Vec3::new(
+                at.feet.x + at.velocity[0] / speed * RECKONING_M,
+                at.feet.y,
+                at.feet.z + at.velocity[1] / speed * RECKONING_M,
+            );
+            if falls(slide(grid, node, at.feet, to).1) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
 /// A decided tick: the keys held, the turn made to the base pitch, and the
 /// kick after it.
 #[derive(Clone, Copy, Debug)]
@@ -572,7 +651,7 @@ pub fn jumped_to(grid: &WalkGrid, node: NodeId, feet: Vec3, to: Vec3) -> Option<
     let from = grid.position(node);
     let (sx, sz) = (to.x - feet.x, to.z - feet.z);
     grid.links(node)
-        .filter(|(_, kind)| *kind == LinkKind::Jump)
+        .filter(|(_, kind)| kind.is_leap())
         .map(|(next, _)| next)
         .filter(|&next| {
             let at = grid.position(next);
@@ -604,7 +683,7 @@ fn floor_under(grid: &WalkGrid, node: NodeId, point: Vec3, max_rise: f32) -> Opt
         return Some(node);
     }
     grid.links(node)
-        .filter(|(_, kind)| *kind != LinkKind::Jump)
+        .filter(|(_, kind)| !kind.is_leap())
         .map(|(next, _)| next)
         .find(|&next| holds(next) && grid.position(next).y - base <= max_rise)
 }

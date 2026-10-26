@@ -7,7 +7,7 @@ fn p(x: f32, y: f32) -> Waypoint {
     Waypoint {
         at: Vec3::new(x, y, 0.0),
         node: 0,
-        jump: false,
+        jump: None,
         low: false,
     }
 }

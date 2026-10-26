@@ -197,6 +197,10 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     let TargetRef::Place(place) = target else {
         return Step::Failed("no partner");
     };
+    // Given up in its pocket: it cannot follow anyone (as Collect and Escort).
+    if cx.tuning.think.shut_in_gate && cx.trapped().is_some_and(|t| t.gave_up) {
+        return Step::Done("shut in its pocket");
+    }
     let Some(him) = cx
         .view
         .place(place)
