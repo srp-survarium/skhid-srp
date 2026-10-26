@@ -132,6 +132,10 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
         tuning.feel.lip_guard_ticks = 0;
         tuning.feel.lip_look_ahead_m = 0.0;
     }
+    // Routes of a carrier over every jump link of the grid (`Feel::carrier_jump_m`).
+    if bench_settings().var("SRP_BENCH_CARRIER_JUMP").is_ok_and(|v| v == "off" || v == "0") {
+        tuning.feel.carrier_jump_m = None;
+    }
     // The battery cheat instead of the fair battery knowledge.
     if bench_settings().flag("SRP_BENCH_CHEAT") {
         tuning.cheats.batteries = true;
