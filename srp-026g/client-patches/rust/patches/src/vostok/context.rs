@@ -38,17 +38,18 @@ pub enum Flag {
     Of = 1 << 11,
 }
 
-/// What the entry saved, laid out for it to read back. The generated entry
-/// owns it; a handler reaches it only through [`Context`].
+/// The two pointers the generated `lohook` entry hands its shim: the
+/// registers it saved (`pushfd`/`pushad`, as [`Regs`]) and its 512-byte
+/// `fxsave` area (the FPU/SSE state; xmm0 at offset 160, 16 bytes each). The
+/// entry reloads both (`fxrstor`, `popad`/`popfd`), so what the handler
+/// writes through [`Context`] is what the game's code after the detour gets.
 #[repr(C)]
 pub struct Frame {
-    pub regs: Regs,
-    /// xmm0..=xmm7, as the entry's `fxsave` holds them (low 8 bytes each).
-    pub xmm: [u64; 8],
-    /// The x87 top to load on the way out, when `st0_set` is non-zero.
-    pub st0: f64,
-    pub st0_set: u32,
+    pub regs: *mut Regs,
+    pub fxsave: *mut u8,
 }
+
+const XMM0: usize = 160;        // xmm0's offset in the fxsave area; 16 bytes each
 
 /// The machine at a `lohook`, borrowing the hook's [`Thread`].
 pub struct Context<'t> {
@@ -58,8 +59,8 @@ pub struct Context<'t> {
 
 impl<'t> Context<'t> {
     /// # Safety
-    /// Called by a generated `lohook` shim: `frame` is its entry's, on the
-    /// game's thread.
+    /// Called by a generated `lohook` shim: `frame`'s pointers are its
+    /// entry's saved registers and fxsave area, on the game's thread.
     pub unsafe fn new(frame: &'t mut Frame) -> Context<'t> {
         // SAFETY: the shim's contract is this function's.
         Context { frame, thread: unsafe { Thread::new() } }
@@ -70,8 +71,18 @@ impl<'t> Context<'t> {
         &self.thread
     }
 
+    fn regs(&self) -> &Regs {
+        // SAFETY: new's contract: `regs` is the entry's saved-register block.
+        unsafe { &*self.frame.regs }
+    }
+
+    fn regs_mut(&mut self) -> &mut Regs {
+        // SAFETY: as regs.
+        unsafe { &mut *self.frame.regs }
+    }
+
     fn reg_mut(&mut self, reg: Reg) -> &mut u32 {
-        let r = &mut self.frame.regs;
+        let r = self.regs_mut();
         match reg {
             Reg::Eax => &mut r.eax,
             Reg::Ecx => &mut r.ecx,
@@ -85,7 +96,7 @@ impl<'t> Context<'t> {
     }
 
     pub fn reg(&self, reg: Reg) -> u32 {
-        let r = &self.frame.regs;
+        let r = self.regs();
         match reg {
             Reg::Eax => r.eax,
             Reg::Ecx => r.ecx,
@@ -109,38 +120,41 @@ impl<'t> Context<'t> {
     }
 
     pub fn flag(&self, flag: Flag) -> bool {
-        self.frame.regs.eflags & flag as u32 != 0
+        self.regs().eflags & flag as u32 != 0
     }
 
     pub fn set_flag(&mut self, flag: Flag, on: bool) {
         if on {
-            self.frame.regs.eflags |= flag as u32;
+            self.regs_mut().eflags |= flag as u32;
         } else {
-            self.frame.regs.eflags &= !(flag as u32);
+            self.regs_mut().eflags &= !(flag as u32);
         }
     }
 
+    fn xmm(&self, index: usize) -> *mut u8 {
+        assert!(index < 8, "xmm0..7");
+        // SAFETY: new's contract: `fxsave` is the entry's 512-byte area.
+        unsafe { self.frame.fxsave.add(XMM0 + 16 * index) }
+    }
+
     pub fn xmm_f32(&self, index: usize) -> f32 {
-        f32::from_bits(self.frame.xmm[index] as u32)
+        // SAFETY: the fxsave area holds 16 bytes per xmm register.
+        unsafe { self.xmm(index).cast::<f32>().read_unaligned() }
     }
 
     pub fn set_xmm_f32(&mut self, index: usize, value: f32) {
-        self.frame.xmm[index] = u64::from(value.to_bits());
+        // SAFETY: as xmm_f32.
+        unsafe { self.xmm(index).cast::<f32>().write_unaligned(value) }
     }
 
     pub fn xmm_f64(&self, index: usize) -> f64 {
-        f64::from_bits(self.frame.xmm[index])
+        // SAFETY: as xmm_f32.
+        unsafe { self.xmm(index).cast::<f64>().read_unaligned() }
     }
 
     pub fn set_xmm_f64(&mut self, index: usize, value: f64) {
-        self.frame.xmm[index] = value.to_bits();
-    }
-
-    /// Loads the x87 top with `value` on the way out (a float the
-    /// overwritten instructions would have left in st0).
-    pub fn set_st0(&mut self, value: f64) {
-        self.frame.st0 = value;
-        self.frame.st0_set = 1;
+        // SAFETY: as xmm_f32.
+        unsafe { self.xmm(index).cast::<f64>().write_unaligned(value) }
     }
 }
 
@@ -180,16 +194,14 @@ pub enum Exit {
 mod tests {
     use super::*;
 
-    fn frame() -> Frame {
-        Frame { regs: Regs { edi: 0, esi: 0, ebp: 0, esp: 0, ebx: 0, edx: 0, ecx: 0, eax: 0, eflags: 0 },
-                xmm: [0; 8], st0: 0.0, st0_set: 0 }
-    }
-
     #[test]
     fn registers_flags_and_xmm() {
-        let mut f = frame();
-        // SAFETY: the test owns the frame and stands in for the thread.
-        let mut ctx = unsafe { Context::new(&mut f) };
+        let mut regs = Regs { edi: 0, esi: 0, ebp: 0, esp: 0, ebx: 0, edx: 0, ecx: 0, eax: 0, eflags: 0 };
+        let mut fxsave = [0u8; 512];
+        let mut frame = Frame { regs: &mut regs, fxsave: fxsave.as_mut_ptr() };
+        // SAFETY: the test owns the registers and the fxsave area, and stands
+        // in for the thread.
+        let mut ctx = unsafe { Context::new(&mut frame) };
         ctx.set_reg(Reg::Eax, 0x1234_56FF);
         ctx.set_reg8(Reg::Eax, 0x01);
         assert_eq!(ctx.reg(Reg::Eax), 0x1234_5601);
@@ -199,7 +211,8 @@ mod tests {
         assert!(!ctx.flag(Flag::Zf));
         ctx.set_xmm_f32(3, 1.5);
         assert_eq!(ctx.xmm_f32(3), 1.5);
-        ctx.set_st0(2.5);
-        assert_eq!((f.st0, f.st0_set), (2.5, 1));
+        assert_eq!(regs.eax, 0x1234_5601);
+        // xmm3 lives at fxsave + 160 + 48
+        assert_eq!(f32::from_le_bytes(fxsave[208..212].try_into().unwrap()), 1.5);
     }
 }

@@ -214,6 +214,57 @@ def splice_hook(patch, row, functions):
     return h
 
 
+def lohook_hook(patch, row):
+    """A `[[lohook]]`: a detour at a mid-code span (`original`, >= 5 bytes,
+    branch-free so Continue can replay it). The entry saves the flags, the
+    registers and the FPU/SSE state, calls the handler with a Context, and
+    takes its Flow: Continue (replay the span, go on), Skip, or an exit the
+    row named (`exits`: name -> address)."""
+    name = patch["name"]
+    for key in ("at", "original", "handler", "what"):
+        if key not in row:
+            raise Bad(f"{name}: a [[lohook]] needs `{key}`")
+    span = bytes.fromhex(row["original"])
+    if len(span) < 5:
+        raise Bad(f"{name} at {row['at']:#x}: the span is {len(span)} bytes; a jump needs 5")
+    if any(b in BRANCH for b in span):
+        raise Bad(f"{name} at {row['at']:#x}: the span has a relative branch; Continue cannot replay it")
+    exits = list(row.get("exits", {}).items())
+    for _, addr in exits:
+        if not isinstance(addr, int):
+            raise Bad(f"{name}: a [[lohook]] exit is name = address")
+    return {"patch": name, "patch_no": patch["patch"], "kind": "lohook", "site": row["at"], "original": span,
+            "handler": row["handler"], "what": row["what"], "exits": exits, "install": ("lohook", 0xE9),
+            "entry": f"{name}_{row['handler']}", "shim": f"hook_{name}_{row['handler']}"}
+
+
+def lohook_entry(h):
+    """The NASM of a lohook entry: save, call the shim, take its Flow code,
+    restore, and jump where it says (the replay stub, past the span, or an
+    exit). Reached by a jump from the site; leaves esp as it was."""
+    e, past = h["entry"], h["site"] + len(h["original"])
+    lines = [f"global {e}", f"extern {h['shim']}", f"{e}:",
+             "    sub esp, 4",                          # the dispatch slot (ret jumps here)
+             "    pushfd", "    pushad", "    cld",
+             "    mov ebp, esp",                        # ebp -> Regs; [ebp+36] the slot
+             "    sub esp, 512", "    and esp, -16", "    fxsave [esp]", "    mov edi, esp",
+             "    sub esp, 8", "    and esp, -16",      # the Context Frame {regs, fxsave}
+             "    mov [esp], ebp", "    mov [esp+4], edi",
+             "    mov eax, esp", "    sub esp, 12", "    push eax",
+             f"    call {h['shim']}",                   # eax = the Flow code
+             f"    mov edx, {e}_replay",                # 0: Continue
+             "    cmp eax, 0", f"    je {e}_go",
+             f"    mov edx, {past:#x}",                 # 1: Skip
+             "    cmp eax, 1", f"    je {e}_go"]
+    for i, (_, addr) in enumerate(h["exits"]):          # 2 + i: the named exits
+        lines += [f"    mov edx, {addr:#x}", f"    cmp eax, {2 + i}", f"    je {e}_go"]
+    lines += ["    ud2",                                # an undeclared Flow: a bug
+              f"{e}_go:", "    mov [ebp + 36], edx",
+              "    fxrstor [edi]", "    mov esp, ebp", "    popad", "    popfd", "    ret",
+              f"{e}_replay:", "    db " + ", ".join(f"0x{b:02x}" for b in h["original"]), f"    jmp {past:#x}"]
+    return lines
+
+
 def code_hook(patch, row):
     """A `[[code]]`: hand-written NASM (the escape hatch), linked into
     patches.code and installed by a jump or call (opcode) from `at`, with a
@@ -246,9 +297,8 @@ def hooks(tomls=None, functions=None):
             out.append(splice_hook(patch, row, functions))
         for row in patch.get("code", ()):
             out.append(code_hook(patch, row))
-        if patch.get("lohook"):
-            raise Bad(f"{patch['name']}: `lohook` hooks are the design's but not generated yet "
-                      "(rust_patches.md); the first patch that needs one adds the Context entry")
+        for row in patch.get("lohook", ()):
+            out.append(lohook_hook(patch, row))
     entries = [h["entry"] for h in out]
     if len(set(entries)) != len(entries):
         raise Bad("two hooks with the same entry symbol")
@@ -273,6 +323,31 @@ def rs_text(hs):
     for h in hs:
         if h["kind"] == "code":
             continue                                   # raw NASM, no shim or Original
+        if h["kind"] == "lohook":
+            lines += ["", f"// ---- {h['patch']} (patch {h['patch_no']}) ----", ""]
+            arms = ["        Flow::Continue => 0,", "        Flow::Skip => 1,"]
+            if h["exits"]:
+                camel = lambda s: "".join(w.title() for w in s.split("_"))
+                enum = camel(h["patch"]) + camel(h["handler"]) + "Exit"
+                lines += [f"/// The named exits of {h['patch']}::{h['handler']} (the order the shim's Flow code",
+                          "/// follows, 2 upward).", "#[repr(u32)]", "#[allow(dead_code)]",
+                          f"pub enum {enum} {{ " + ", ".join(camel(n) for n, _ in h["exits"]) + " }"]
+                arms.append("        Flow::Exit(e) => 2 + e as u32,")
+            else:
+                arms.append("        Flow::Exit(e) => match e {},")
+            lines += [
+                f"/// The entry `{h['entry']}` ({h['site']:#x}, {h['what']}) calls this with the saved machine.",
+                "#[unsafe(no_mangle)]",
+                f"pub extern \"C\" fn {h['shim']}(frame: &mut Frame) -> u32 {{",
+                f"    // SAFETY: only the entry `{h['entry']}` calls this, from the game's jump at {h['site']:#x},",
+                "    // on the game's thread; `frame` is its saved registers and fxsave area.",
+                "    let mut ctx = unsafe { Context::new(frame) };",
+                f"    match crate::{h['patch']}::{h['handler']}(&mut ctx) {{",
+                *arms,
+                "    }",
+                "}",
+            ]
+            continue
         result = RESULTS[h["returns"]]
         # the function to call: itself (`call`, convention entries) or the
         # splice trampoline (its start now jumps to us, so calling it would
@@ -350,6 +425,9 @@ def asm_text(hs):
     for h in hs:
         if h["kind"] == "code":
             continue                                   # its own .asm source, not generated here
+        if h["kind"] == "lohook":
+            lines += ["", f"; {h['site']:#x} {h['what']}: lohook -> {h['entry']}"] + lohook_entry(h)
+            continue
         macro = h["entry_macro"]
         lines += ["", f"; {h['site']:#x} {h['what']}: {h['kind']} -> {h['entry']} (wraps {h['function']} "
                   f"{h['target']:#x})"]

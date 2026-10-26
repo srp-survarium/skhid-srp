@@ -24,7 +24,7 @@ from pathlib import Path
 
 from unicorn import Uc, UC_ARCH_X86, UC_MODE_32, UC_PROT_ALL
 from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EBX, UC_X86_REG_ESP,
-                               UC_X86_REG_EBP, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EFLAGS)
+                               UC_X86_REG_EBP, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EFLAGS, UC_X86_REG_EIP)
 
 import patch_026g as base
 import hooks_026g
@@ -58,7 +58,7 @@ def run_checks(original):
     ORIGINAL = original
     QUIET = True
     RESULTS.clear()
-    for fn in (test_pointer, test_callback, test_vtable, test_splice, test_code):
+    for fn in (test_pointer, test_callback, test_vtable, test_splice, test_code, test_lohook):
         fn()
     return list(RESULTS)
 
@@ -266,6 +266,58 @@ def test_code():
     check(ok, "code: the generator installs a jump to the cave and links its .asm source")
 
 
+LOHOOK_PAST = 0xB900000         # the lohook span's reconvergence (site + len), mapped
+
+
+def run_lohook(h, stub_src, until, regs=None):
+    """Assemble a lohook entry (hooks_026g.lohook_entry) with a stub shim and
+    run it from the entry to `until`, returning the machine state."""
+    entry_src = "\n".join(hooks_026g.lohook_entry(h)) + "\n"
+    blob, labels = assemble(entry_src, stub_src)
+    m = Machine(bytes(ORIGINAL), blob, TEST_VA)
+    m.uc.mem_map(LOHOOK_PAST & ~0xFFF, 0x1000, UC_PROT_ALL)
+    uc = m.uc
+    for name, reg in GP.items():
+        uc.reg_write(reg, (regs or {}).get(name, SENTINELS.get(name, 0)))
+    uc.reg_write(UC_X86_REG_EFLAGS, 0x202)
+    esp = STACK + 0x80000
+    uc.reg_write(UC_X86_REG_ESP, esp)
+    uc.emu_start(labels[h["entry"]], until, count=200000)
+    return {**{r: uc.reg_read(GP[r]) for r in GP}, "esp": uc.reg_read(UC_X86_REG_ESP),
+            "eip": uc.reg_read(UC_X86_REG_EIP)}
+
+
+def test_lohook():
+    span = bytes.fromhex("b834120000")                 # mov eax, 0x1234 (5 bytes, branch-free)
+    site = LOHOOK_PAST - len(span)
+    nop = b"\x90" * 5
+    base = dict(patch="fix", patch_no=0, kind="lohook", site=site, handler="h",
+                entry="fix_h", shim="hook_fix_h", what="x", exits=[], install=("lohook", 0xE9))
+    noop_stub = "global hook_fix_h\nhook_fix_h:\n    xor eax, eax\n    ret\n"      # Continue, nothing changed
+    # Continue replays the span: eax becomes 0x1234, the callee-saved kept
+    out = run_lohook(dict(base, original=span), noop_stub, LOHOOK_PAST)
+    check(out["eip"] == LOHOOK_PAST and out["eax"] == 0x1234 and all(out[r] == SENTINELS[r] for r in SAVED),
+          f"lohook Continue: the span replays (eax {out['eax']:#x}) and reaches the span's end, callee-saved kept")
+    # a handler's register write (ecx, offset 24 in Regs) is applied; a nop
+    # span so the replay does not overwrite it
+    set_ecx = ("global hook_fix_h\nhook_fix_h:\n    mov eax, [esp+4]\n    mov eax, [eax]\n"
+               "    mov dword [eax+24], 0xc0ffee\n    xor eax, eax\n    ret\n")
+    out = run_lohook(dict(base, original=nop), set_ecx, LOHOOK_PAST)
+    check(out["eip"] == LOHOOK_PAST and out["ecx"] == 0xC0FFEE and all(out[r] == SENTINELS[r] for r in SAVED),
+          f"lohook Continue: a Context register write is applied (ecx {out['ecx']:#x})")
+    # Skip does not replay: eax stays as it was
+    skip_stub = "global hook_fix_h\nhook_fix_h:\n    mov eax, 1\n    ret\n"
+    out = run_lohook(dict(base, original=span), skip_stub, LOHOOK_PAST, regs={"eax": 0x999})
+    check(out["eip"] == LOHOOK_PAST and out["eax"] == 0x999,
+          f"lohook Skip: the span is not replayed (eax {out['eax']:#x} unchanged)")
+    # Exit jumps to the named address
+    exit_at = LOHOOK_PAST + 0x40
+    exit_stub = "global hook_fix_h\nhook_fix_h:\n    mov eax, 2\n    ret\n"
+    out = run_lohook(dict(base, original=span, exits=[("there", exit_at)]), exit_stub, exit_at)
+    check(out["eip"] == exit_at and out["eax"] != 0x1234,
+          f"lohook Exit: control jumps to the named exit {exit_at:#x} without replaying")
+
+
 ORIGINAL = b""
 
 
@@ -273,7 +325,7 @@ def main():
     global ORIGINAL
     ORIGINAL = open(sys.argv[1], "rb").read()
     print("hook entry kinds against the original exe")
-    for fn in (test_pointer, test_callback, test_vtable, test_splice, test_code):
+    for fn in (test_pointer, test_callback, test_vtable, test_splice, test_code, test_lohook):
         fn()
     print(f"\n{passed} ok, {failed} failed")
     raise SystemExit(1 if failed else 0)

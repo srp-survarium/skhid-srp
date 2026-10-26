@@ -29,8 +29,15 @@ pub mod types;
 /// hook's `extern "C"` shim and its `Original`. Inside `vostok` so it reaches
 /// the typed primitives the handles and `Original`s are built from.
 mod generated {
+    // which of these each hook uses depends on its kind; the shipped set is
+    // one `call`, so some are unused until another kind ships.
+    #[allow(unused_imports)]
+    use super::context::{Context, Flow, Frame};
+    #[allow(unused_imports)]
     use super::hook::{Handle, Out, Thread};
+    #[allow(unused_imports)]
     use super::input::{Action, InputHandler};
+    #[allow(unused_imports)]
     use crate::raw;
     include!("../../../../hooks_026g.rs");
 }

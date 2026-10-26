@@ -131,14 +131,31 @@ kept, the right bytes cleaned):
   prologue, checked branch-free, then a jump past the start our jump
   replaced), which the handler's `Original` calls;
 - `code`: a hand-written cave the site jumps to, linked into `patches.code`
-  with a byte limit (the escape hatch for what no typed kind fits).
+  with a byte limit (the escape hatch for what no typed kind fits);
+- `lohook`: a detour jumped to from a span (>= 5 bytes, branch-free so
+  Continue can replay it). The entry saves the flags, the registers and the
+  whole FPU/SSE state (`fxsave`), hands the handler a `Context` over them,
+  and takes its `Flow`: Continue (replay the span, go on), Skip, or a named
+  `Exit` (a generated `enum`, the entry jumps there). It reloads everything
+  (`fxrstor`, `popad`/`popfd`), so what the handler wrote is what the game's
+  code gets. check_hooks_026g.py checks Continue replays and is transparent,
+  a Context register write applies, Skip does not replay, and Exit jumps to
+  the named address; the generated shim compiles against the `Context`/`Flow`
+  types.
 
-`lohook` and `write` are the design above and the `Context`/`Flow`/`Exit`
-API in `vostok`; hooks_026g.py refuses `lohook` until its first patch adds
-the register/FPU save-restore entry. A register-ABI `call` still needs its
-reverse thunk. Only `call` ships today (the suicide-key example); the other
-kinds' generators are proven by check_hooks_026g.py and wait for their first
-patch to wire the install into patch_026g.py.
+`write` is the design above; a register-ABI `call` still needs its reverse
+thunk. Only `call` ships today (the suicide-key example); the other kinds'
+generators are proven by check_hooks_026g.py and wait for their first patch
+to wire the install into patch_026g.py.
+
+**fxsave on `lohook`/`splice`, not `call`/`pointer`/`callback` (the owner's
+rule, kept).** A `lohook` and a `splice` are true detours: the game does not
+expect any register or FPU/SSE state to change across them, so their entries
+save and restore all of it. A `call`, `pointer`, `vtable` or `callback`
+entry wraps a call boundary, where the host already treats EAX/ECX/EDX and
+the XMM registers as clobbered and the callee-saved ones as kept; its entry
+only aligns the stack, passes the arguments and cleans up as the function
+did, so it adds no `fxsave`.
 
 ## 4. Writing a patch, by the example
 
