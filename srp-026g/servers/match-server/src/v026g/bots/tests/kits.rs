@@ -272,3 +272,46 @@ pub(crate) fn on_the_live_data_the_rusher_kits_reach_the_bots() {
     a_rusher_carries_the_kit_its_equipment_says();
     super::bench::the_bench_bots_are_the_lobbys_by_role_and_tier();
 }
+
+/// A resupply zone's top-up moves rounds from the kit's storage into the
+/// stack: what the bot holds rises to the life's count (or what the storage
+/// has), what the kit has for the match is unchanged, and the next life
+/// starts from the same storage.
+#[test]
+pub(crate) fn a_top_up_moves_the_kits_storage_into_the_stack_and_nowhere_else() {
+    let mut bots = Bots::new(
+        0x418,
+        survarium::v026g::maps::mode::BATTERIES,
+        0,
+        &[0],
+        &[true],
+        &[Some("flanker")],
+        Arc::new(Tuning::default()),
+        Trace::none(0),
+    );
+    let bot = bots.bots[0].as_mut().unwrap();
+    assert_eq!(bot.ammo().missing(), 0, "a full kit has nothing to refill");
+    // A life that fired 160 of its 200: 40 in the bags and the magazine.
+    let hands = bot.reflex.hands();
+    (hands.primary.rounds, hands.primary.spare) = (32, 8);
+    let kit_total = bot.kit_left(0);
+    assert_eq!(kit_total, 1_200 - 160);
+    let ammo = bot.ammo();
+    assert_eq!((ammo.have, ammo.whole), (40, 200));
+    assert_eq!(ammo.missing(), 160);
+    assert_eq!(bot.top_up(), 160);
+    assert_eq!(bot.reflex.left(), 200);
+    assert_eq!(bot.reflex.hands().primary.rounds, 32, "the magazine is not touched");
+    assert_eq!(bot.kit_left(0), kit_total, "the kit's rounds only moved");
+    assert_eq!(bot.ammo().missing(), 0);
+    // The storage short: only what it has. The kit's last 70 rounds, 10 in
+    // hand: 60 more, not the 190 the life's count would allow.
+    bot.kits[0].1 = 70;
+    let hands = bot.reflex.hands();
+    (hands.primary.rounds, hands.primary.spare) = (0, 10);
+    bot.life_carried = 80;
+    assert_eq!(bot.kit_left(0), 70 - (80 - 10));
+    let ammo = bot.ammo();
+    assert_eq!(ammo.storage, 0);
+    assert_eq!(bot.top_up(), 0, "nothing in the storage to give");
+}

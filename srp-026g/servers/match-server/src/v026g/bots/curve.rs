@@ -112,6 +112,8 @@ pub enum Input {
     PathDist,
     /// The bot's health, `[0, 1]`.
     Health,
+    /// The share of its kit's rounds for a life that it holds, `[0, 1]`.
+    Ammo,
     /// How much of the pools a consumable treats is missing, weighted by
     /// what the loss costs, `[0, 1]` (`plays/heal.rs`).
     Need,

@@ -142,8 +142,10 @@ fn server_bot_name(n: usize) -> String {
 /// tier (`loadouts::bot_kits`):
 /// each another weapon in slot 7 with its own ammo, as much as the kit's
 /// ammo bags hold and six lives of it in storage (`BOT_AMMO_LIVES`); the
-/// role's armour, which opens three pockets of two, and in them two
-/// medkits, the radio and two RGD-5 grenades. Its kits carry the skills of
+/// role's armour, which opens three or four pockets of two, and in them
+/// two medkits, two bandages, two bear traps (a grenade and no traps for the
+/// support) and the radio where a pocket is left
+/// (`loadouts::bot_pockets`). Its kits carry the skills of
 /// its kits' gear level (`bot_skills::BOT_SKILL_TIERS`), as a player's
 /// carry the player's. The match server reads the equipment and the role
 /// back from the profile (`loadouts::bot_equipment_of`). The profile is
@@ -1342,10 +1344,16 @@ mod tests {
                         }
                     }
                 }
-                // The medkits, the radio and the grenades in the open
-                // pockets.
+                // The pockets' things (medkits, the radio and the grenades,
+                // or with the owner's kit bandages, traps or a grenade and
+                // the radio) in the open pockets, whichever kit is on.
                 let (pockets, _) = loadouts::pockets(loadouts::bot_kit(equipment, role));
-                for item in loadouts::BOT_POCKETS {
+                let held = if loadouts::new_kit() {
+                    loadouts::bot_pockets(role, pockets)
+                } else {
+                    loadouts::BOT_POCKETS.to_vec()
+                };
+                for item in held {
                     assert!(loadouts::POCKET_SLOTS[..pockets as usize].contains(&item.slot));
                 }
             }

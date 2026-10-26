@@ -60,9 +60,11 @@ pub struct BotSkillTier {
 /// they put in, each taken to five, at about their level. The carry path
 /// (a row-1 skill at five, then 209 at five: 40 kg) is in every tier: the
 /// owner's ask, and what all ten of the 11-15 players have. Left out, with
-/// the reason in the note: 102 (no speed in the client's aiming speed,
-/// LIKELY), 103 (the bots time a bolt's chambering by the clip), 213 (two
-/// of ten).
+/// the reason in the note: 103 (the bots time a bolt's chambering by the
+/// clip), 213 (two of ten). 102 (no speed in the client's aiming speed,
+/// LIKELY) and 108 (the bots time a reload by the clip) are left out of
+/// these rows and given only by the owner's kit ([`AMMO_POUCH`]), where
+/// they are the way to skill 109.
 #[rustfmt::skip]
 pub const BOT_SKILL_TIERS: [BotSkillTier; 3] = [
     // Gear 1 to 5 (the starting roles): aim time, stamina regeneration,
@@ -80,7 +82,45 @@ pub const BOT_SKILL_TIERS: [BotSkillTier; 3] = [
     ] },
 ];
 
+/// What the owner's kit ([`new_kit`](super::loadouts::new_kit)) adds to
+/// every tier's skills, 11 points, for **skill 109**, the extra ammo bag
+/// (`ammo_bags` +1): a pouch of ammo more, one more magazine of rounds.
+/// 109 is in row 4 of the aim branch and needs 15 points in its rows 1 to
+/// 3, which the tiers already have 5 of (101); the other ten are the least
+/// that carry no aim, damage or protection skill (the rest of the rows
+/// are 103 bolt cocking speed, 105 breath hold, 106 and 107 dispersion):
+/// - 102 moving while aiming, 5: no speed (LIKELY, §5 of
+///   `player_bots_skills.md`);
+/// - 104 weapon swap speed, 2: the bots carry one weapon;
+/// - 108 reload speed, 3: the client reloads 12 % faster; the bots time a
+///   reload by the clip (`Gun::reload_ms`), so they wait a little longer
+///   than needed until the gun learns the factor.
+pub const AMMO_POUCH: &[(u16, u8)] = &[(102, 5), (104, 2), (108, 3), (109, 1)];
+
+/// The points of [`AMMO_POUCH`].
+pub const AMMO_POUCH_POINTS: u8 = 11;
+
 impl BotSkillTier {
+    /// Its skills with the owner's kit `pouch` ([`AMMO_POUCH`]) or without.
+    pub fn skills_with(&self, pouch: bool) -> Vec<(u16, u8)> {
+        let mut skills = self.skills.to_vec();
+        if pouch {
+            skills.extend_from_slice(AMMO_POUCH);
+        }
+        skills
+    }
+
+    /// Its account level with the owner's kit `pouch` or without.
+    pub fn level_with(&self, pouch: bool) -> u8 {
+        self.level + if pouch { AMMO_POUCH_POINTS } else { 0 }
+    }
+
+    /// The player modifiers its skills give with the owner's kit `pouch`
+    /// or without.
+    pub fn modifiers_with(&self, pouch: bool) -> [f32; MODIFIERS] {
+        SkillsTree::shared().modifiers(&self.skills_with(pouch))
+    }
+
     /// The tier of kits whose gear level is `gear_level`.
     pub fn for_gear_level(gear_level: u8) -> &'static BotSkillTier {
         BOT_SKILL_TIERS
@@ -94,9 +134,10 @@ impl BotSkillTier {
         Self::for_gear_level(gear_level(kits))
     }
 
-    /// The player modifiers its skills give.
+    /// The player modifiers its skills give ([`Self::modifiers_with`],
+    /// the owner's kit unless it is off).
     pub fn modifiers(&self) -> [f32; MODIFIERS] {
-        SkillsTree::shared().modifiers(self.skills)
+        self.modifiers_with(super::loadouts::new_kit())
     }
 }
 
@@ -164,14 +205,43 @@ pub fn item_added(dict_id: u16, modifications: &[(u32, bool)], parameter: &str) 
     default_modifier(dict_id, parameter) + carried
 }
 
+/// What `item_weight` multiplies an item's weight by: `1 +` the sum of the
+/// type 2 (multiplying) `weight` changes of its `modifications` (the
+/// weight upgrades, -5 % to -15 %; LIKELY the client's reading, as
+/// [`Modifier::kind`]).
+pub fn item_weight(dict_id: u16, count: u32, modifications: &[(u32, bool)]) -> f32 {
+    let table = Modifications::shared();
+    let change: f32 = modifications
+        .iter()
+        .filter(|&&(_, defect)| !defect)
+        .filter_map(|&(id, _)| table.modification(id))
+        .flat_map(|row| &row.modifiers)
+        .filter(|modifier| modifier.kind == 2 && modifier.path == "weight")
+        .map(|modifier| modifier.value)
+        .sum();
+    item_params::carried_weight(dict_id, count) * (1.0 + change).max(0.0)
+}
+
+/// A slot item's modifications as the wire gives them, `(id, defect)`.
+pub fn wire_mods(mods: &[u32]) -> Vec<(u32, bool)> {
+    mods.iter().map(|&id| (id, false)).collect()
+}
+
 /// What a player with `modifiers` (a kit's skills) carries in `kit` before
 /// being overburdened: `max_carried_weight` plus the skills' and the worn
-/// items' default modifications' `max_carried_weight` (see the module).
+/// items' default modifications' `max_carried_weight` and the carry
+/// upgrades they wear (see the module).
 pub fn carry_capacity(kit: &Loadout, modifiers: &[f32; MODIFIERS]) -> f32 {
     let items: f32 = kit
         .items
         .iter()
-        .map(|item| default_modifier(item.dict_id, "max_carried_weight_modifier"))
+        .map(|item| {
+            item_added(
+                item.dict_id,
+                &wire_mods(item.mods),
+                "max_carried_weight_modifier",
+            )
+        })
         .sum();
     item_params::player().max_carried_weight + modifiers[MAX_CARRIED_WEIGHT] + items
 }
@@ -216,7 +286,7 @@ pub fn profile_movement_level(profile: &MatchProfile, kit: usize) -> Option<f32>
         let Some(item) = profile.items.get(usize::from(index)) else {
             continue;
         };
-        weight += item_params::carried_weight(item.dict_id, u32::from(count));
+        weight += item_weight(item.dict_id, u32::from(count), &item.modifications);
         capacity_added += item_added(
             item.dict_id,
             &item.modifications,
@@ -238,7 +308,7 @@ pub fn bot_modifiers(kits: &[&Loadout]) -> [f32; MODIFIERS] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKit, bot_kits};
+    use crate::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKit, bot_kits, bot_kits_in};
     use crate::v026g::skills::SkillError;
 
     /// The rusher kits of `tier` the game data in use can make.
@@ -253,25 +323,45 @@ mod tests {
         modifier_index(name).unwrap()
     }
 
+    /// Every tier and role, with each rusher kit the data can make, the
+    /// owner's kit and the upgrades off and on.
+    fn every_bot() -> Vec<(BotEquipment, BotRole, bool, bool)> {
+        let mut all = Vec::new();
+        for new in [false, true] {
+            for upgrades in [false, true] {
+                for tier in BotTier::ALL {
+                    for rusher in made_kits(tier) {
+                        let equipment = BotEquipment { tier, rusher };
+                        for role in BotRole::ALL {
+                            all.push((equipment, role, new, upgrades));
+                        }
+                    }
+                }
+            }
+        }
+        all
+    }
+
     #[test]
     fn every_tier_is_a_set_a_player_could_have() {
         let tree = SkillsTree::shared();
         let mut last = None;
         for tier in &BOT_SKILL_TIERS {
-            let spent: u32 = tier
-                .skills
-                .iter()
-                .map(|&(_, points)| u32::from(points))
-                .sum();
-            assert_eq!(spent, u32::from(tier.level), "{tier:?}");
-            assert_eq!(tree.validate(tier.level, tier.skills), Ok(()), "{tier:?}");
-            assert_eq!(
-                tree.validate(tier.level - 1, tier.skills),
-                Err(SkillError::OverLevel {
-                    spent,
-                    level: tier.level - 1
-                })
-            );
+            // The rows, and the rows with the owner's kit's pouch skills.
+            for pouch in [false, true] {
+                let skills = tier.skills_with(pouch);
+                let level = tier.level_with(pouch);
+                let spent: u32 = skills.iter().map(|&(_, points)| u32::from(points)).sum();
+                assert_eq!(spent, u32::from(level), "{tier:?} {pouch}");
+                assert_eq!(tree.validate(level, &skills), Ok(()), "{tier:?} {pouch}");
+                assert_eq!(
+                    tree.validate(level - 1, &skills),
+                    Err(SkillError::OverLevel {
+                        spent,
+                        level: level - 1
+                    })
+                );
+            }
             // Higher tiers are more levelled and keep what the lower had.
             if let Some(lower) = last {
                 let lower: &BotSkillTier = lower;
@@ -286,18 +376,48 @@ mod tests {
             // The carry path at its most in every tier: 40 kg.
             assert!(tier.skills.contains(&(209, 5)), "{tier:?}");
             assert_eq!(tier.modifiers()[MAX_CARRIED_WEIGHT], 10.0);
-            // None of the skills left out (see the table).
+            // None of the skills left out (see the table); 102 and 108 only
+            // with the pouch.
             for left_out in [102, 103, 108, 213, 214] {
                 assert!(
                     tier.skills.iter().all(|&(id, _)| id != left_out),
                     "{left_out}"
                 );
             }
+            let with = tier.skills_with(true);
+            for left_out in [103, 213, 214] {
+                assert!(with.iter().all(|&(id, _)| id != left_out), "{left_out}");
+            }
+            assert!(tier.skills_with(false) == tier.skills);
         }
         // The tiers by the kits' gear level.
-        let level = |gear| BotSkillTier::for_gear_level(gear).level;
+        let level = |gear| BotSkillTier::for_gear_level(gear).level_with(false);
         assert_eq!([level(0), level(5), level(6), level(10)], [15, 15, 20, 20]);
         assert_eq!([level(11), level(15), level(16)], [30, 30, 30]);
+        let level = |gear| BotSkillTier::for_gear_level(gear).level_with(true);
+        assert_eq!([level(0), level(5), level(6), level(10)], [26, 26, 31, 31]);
+        assert_eq!([level(11), level(15), level(16)], [41, 41, 41]);
+        // The pouch skills give the extra bag (109), 12 % faster reloads
+        // (108), 15 % faster weapon swaps (104), 5 % more speed while
+        // aiming (102), and nothing else: no aim, damage or protection.
+        for tier in &BOT_SKILL_TIERS {
+            let (off, on) = (tier.modifiers_with(false), tier.modifiers_with(true));
+            let changed: Vec<usize> = (0..MODIFIERS)
+                .filter(|&i| (off[i] - on[i]).abs() > 1e-6)
+                .collect();
+            let wanted = [
+                index("ammo_bags"),
+                index("reload_speed"),
+                index("change_weapon_speed"),
+                index("movement_speed_when_aiming"),
+            ];
+            assert!(changed.iter().all(|i| wanted.contains(i)), "{changed:?}");
+            assert_eq!(on[index("ammo_bags")], 1.0);
+            assert!((on[index("reload_speed")] - 0.12).abs() < 1e-6);
+            assert!((on[index("change_weapon_speed")] - 0.15).abs() < 1e-6);
+            assert!((on[index("movement_speed_when_aiming")] - 0.05).abs() < 1e-6);
+            assert_eq!(off[index("ammo_bags")], 0.0);
+        }
         // What the top tier's skills give.
         let top = BOT_SKILL_TIERS[2].modifiers();
         assert!((top[index("aim_time")] + 0.1).abs() < 1e-6);
@@ -315,26 +435,25 @@ mod tests {
     #[test]
     fn no_bot_kit_is_over_its_capacity() {
         assert_eq!(item_params::player().max_carried_weight, 30.0);
-        for tier in BotTier::ALL {
-            for rusher in made_kits(tier) {
-                let equipment = BotEquipment { tier, rusher };
-                for role in BotRole::ALL {
-                    let kits = bot_kits(equipment, role);
-                    let gear = gear_level(&kits);
-                    assert!(tier.levels().contains(&gear), "{tier} {role}: {gear}");
-                    let skills = BotSkillTier::for_kits(&kits);
-                    assert_eq!(
-                        skills.up_to_gear_level,
-                        *tier.levels().end(),
-                        "{tier} {role}"
-                    );
-                    let modifiers = bot_modifiers(&kits);
-                    for kit in kits {
-                        let capacity = carry_capacity(kit, &modifiers);
-                        assert_eq!(capacity, 40.0, "{tier} {role}");
-                        assert!(kit.weight() < capacity, "{tier} {role}: {}", kit.weight());
-                    }
-                }
+        for (equipment, role, new, upgrades) in every_bot() {
+            let tier = equipment.tier;
+            let owned = bot_kits_in(equipment, role, new, upgrades);
+            let kits: Vec<&Loadout> = owned.iter().collect();
+            let gear = gear_level(&kits);
+            assert!(tier.levels().contains(&gear), "{tier} {role}: {gear}");
+            let skills = BotSkillTier::for_kits(&kits);
+            assert_eq!(
+                skills.up_to_gear_level,
+                *tier.levels().end(),
+                "{tier} {role}"
+            );
+            let modifiers = skills.modifiers_with(new);
+            for kit in kits {
+                let capacity = carry_capacity(kit, &modifiers);
+                // 40 kg, and the kilograms of the carry upgrades.
+                assert!(capacity >= 40.0, "{tier} {role}");
+                assert!(capacity <= 45.0, "{tier} {role}: {capacity}");
+                assert!(kit.weight() < capacity, "{tier} {role}: {}", kit.weight());
             }
         }
     }
@@ -425,43 +544,45 @@ mod tests {
     #[test]
     fn a_bots_profile_gives_its_speed_level() {
         use crate::v026g::match_msgs::static_info::MatchProfile;
-        for tier in BotTier::ALL {
-            for rusher in made_kits(tier) {
-                let equipment = BotEquipment { tier, rusher };
-                for role in BotRole::ALL {
-                    let kits = bot_kits(equipment, role);
-                    let modifiers = bot_modifiers(&kits);
-                    let profile = MatchProfile::from_loadouts(
-                        "bot",
-                        0,
-                        &kits,
-                        modifiers,
-                        Dictionary::shared(),
-                        1,
-                    );
-                    for (k, kit) in kits.iter().enumerate() {
-                        let capacity = carry_capacity(kit, &modifiers);
-                        // The items' own movement speed (their default
-                        // modifications; a bot's items have no others).
-                        let items: f32 = kit
-                            .items
-                            .iter()
-                            .map(|item| item_added(item.dict_id, &[], "movement_speed_modifier"))
-                            .sum();
-                        let expected = movement_level(kit.weight(), capacity, &modifiers, items);
-                        let level = profile_movement_level(&profile, k).unwrap();
-                        assert!(
-                            (level - expected).abs() < 1e-5,
-                            "{tier} {role}: {level} {expected}"
-                        );
-                        // The tiers' kits: under 30 kg of 40, so a few percent
-                        // slower at most; the skills' and the armour's speed
-                        // above.
-                        assert!((0.95..=1.15).contains(&level), "{tier} {role}: {level}");
-                    }
-                    assert_eq!(profile_movement_level(&profile, kits.len()), None);
-                }
+        for (equipment, role, new, upgrades) in every_bot() {
+            let tier = equipment.tier;
+            let owned = bot_kits_in(equipment, role, new, upgrades);
+            let kits: Vec<&Loadout> = owned.iter().collect();
+            let modifiers = BotSkillTier::for_kits(&kits).modifiers_with(new);
+            let profile =
+                MatchProfile::from_loadouts("bot", 0, &kits, modifiers, Dictionary::shared(), 1);
+            for (k, kit) in kits.iter().enumerate() {
+                let capacity = carry_capacity(kit, &modifiers);
+                // The items' own movement speed (their default
+                // modifications and the upgrades they wear) and weight.
+                let items: f32 = kit
+                    .items
+                    .iter()
+                    .map(|item| {
+                        item_added(
+                            item.dict_id,
+                            &wire_mods(item.mods),
+                            "movement_speed_modifier",
+                        )
+                    })
+                    .sum();
+                let weight: f32 = kit
+                    .items
+                    .iter()
+                    .map(|item| item_weight(item.dict_id, item.count, &wire_mods(item.mods)))
+                    .sum();
+                let expected = movement_level(weight, capacity, &modifiers, items);
+                let level = profile_movement_level(&profile, k).unwrap();
+                assert!(
+                    (level - expected).abs() < 1e-5,
+                    "{tier} {role}: {level} {expected}"
+                );
+                // The tiers' kits: under 31 kg of 40, so a few percent
+                // slower at most (the owner's kit is 1.5 to 2.5 kg
+                // heavier); the skills' and the armour's speed above.
+                assert!((0.93..=1.15).contains(&level), "{tier} {role}: {level}");
             }
+            assert_eq!(profile_movement_level(&profile, kits.len()), None);
         }
     }
 }

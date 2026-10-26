@@ -266,6 +266,8 @@ pub(crate) struct Game {
     /// killed so.
     pub(crate) team_hits: u32,
     pub(crate) team_kills: u32,
+    /// By team hit: the victim's pain pool before it, and whether it killed (the bandage habit's counts).
+    pub(crate) team_hit_pains: Vec<(f32, bool)>,
     /// Jumps pressed, and of them those a broken leg refused.
     pub(crate) jumps_pressed: u32,
     pub(crate) jumps_refused: u32,
@@ -507,6 +509,7 @@ impl Game {
             jumps_pressed: 0,
             jumps_refused: 0,
             team_kills: 0,
+            team_hit_pains: Vec::new(),
             walled: 0,
             walled_by: [0; 2],
             hidden_by: [0; 2],
@@ -1023,6 +1026,7 @@ impl Game {
             self.shots_hits[shooter].1 += 1;
             self.hit_log.push((tick, shooter, target));
         }
+        let pain_before = self.bodies[target].pools.pain;
         let other = &mut self.bodies[target];
         standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
         other.last_hit = tick;
@@ -1032,7 +1036,11 @@ impl Game {
                 other.leg_broken_until = tick + STAND_IN_LEG_BROKEN_MS;
             }
         }
-        if other.health <= 1e-3 {
+        let lethal = other.health <= 1e-3;
+        if team_hit {
+            self.team_hit_pains.push((pain_before, lethal));
+        }
+        if lethal {
             let kind = if team_hit { Kill::Mate } else { Kill::Enemy };
             self.kill(target, shooter, kind, tick);
         }

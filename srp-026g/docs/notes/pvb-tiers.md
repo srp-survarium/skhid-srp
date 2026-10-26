@@ -36,29 +36,29 @@ the other notes: PROVEN (code or data read), LIKELY, GUESS.
 ## 3. The tables
 
 One `RoleGear` a role in each tier (`weapon`, `ammo`, `armour` by slot): the one place to change a
-bot's weapon or armour. Every kit also has `BOT_POCKETS` (two medkits, the radio, two RGD-5). The
+bot's weapon or armour. Every kit also has its pockets (`loadouts::bot_pockets`: two medkits, two bandages, two bear traps, the radio where a pocket is left; the support has one RGD-5 in place of the traps where a fourth pocket is open). The
 tests check every kit made of them: the slots, the tier's levels (the kit's level is its highest
 item's `match_making_level`, `matchmaking::kit_level`), the ammo fits the weapon, the pockets, the
 carry limit, four different ammo types in a tier, and the ammo at the most.
 
 Item levels and masses from the server's game data (`items_dict`, the item configs; PROVEN). A kit's
 mass is what the lobby counts (`Loadout::weight`: ammo `rounds / clip_size × clip_weight`), with a
-life's ammo. The carry limit is 30 kg with no skills (`default.player`); every kit is under it.
+life's ammo. The carry limit is 30 kg with no skills (`default.player`) and 40 kg with the bots' skills (209 at five). Of the owner's kit (2026-10-26) one kit, the 13-15 camper's second, is over 30 (30.2 kg): the bots' skills carry it, and none is near 40.
 
 | Tier | Role | Weapon 1 (level) | Ammo (level), a life | Armour (level) | Kits: mass (kg) |
 |---|---|---|---|---|---|
-| 4-5 | flanker | `vityaz` (4) | `ammo_9x19p_para` (2), 200 | `bm_torso_1` (1), `bm_back_1` (3), `bm_legs_5` (4), `bm_boots_1` (1) | 16.5, 15.2, 17.4 |
-| 4-5 | support | `ak_74u` (5) | `ammo_5.45x39_7n6m` (5), 90 | `bm_helmet_1` (3), `bm_torso_4` (3), `bm_back_1`, `bm_legs_5` | 18.35, 19.4, 19.25 |
-| 4-5 | rusher | `mp_153` (4) | `ammo_12mm_buck` (1), 60 | `scav_torso_1` (1), `bm_back_1`, `bm_legs_5`, `scav_boots_1` (1) | 17.3, 16.4, 15.1 |
-| 4-5 | camper | `rem_700` (5) | `ammo_7.62x51_ap` (5), 30 | `bm_helmet_1`, `scav_torso_2` (3), `bm_back_1`, `bm_legs_5` | 19.25, 18.35, 19.4 |
-| 9-10 | flanker | `pp2000` (9) | `ammo_9x19p_7n31` (9), 150 | `edge_helmet_3` (8), `ren_torso_3` (8), `bm_back_1` (3), `edge_legs_2` (9), `edge_gloves_2` (9), `edge_boots_2` (9) | 19.2, 21.4, 22.5 |
-| 9-10 | support | `akmn` (6) | `ammo_7.62x39_7n23` (9), 120 | `ren_helmet_2` (9), `edge_torso_2` (9), `bm_back_1`, `bm_legs_5` (4), `ren_gloves_1` (9), `edge_boots_2` | 24.55, 22.35, 25.95 |
-| 9-10 | rusher | `sr2m` (8) | `ammo_9x21` (8), 150 | `ren_helmet_2` (9), `edge_torso_3` (8), `bm_back_1`, `bm_legs_5`, `edge_gloves_2`, `edge_boots_2` | 19.6, 19.8, 22.0 |
-| 9-10 | camper | `sv_98` (9) | `ammo_7.62x54_7n1` (9), 30 | `ren_helmet_2`, `ren_mask_2` (9), `ren_torso_3`, `bm_back_1`, `ren_legs_2` (9), `ren_gloves_1`, `edge_boots_2` | 26.65, 24.95, 22.75 |
-| 13-15 | flanker | `sr3m` (14) | `ammo_sp6` (14), 120 | `edge_helmet_4` (12), `edge_torso_5` (14), `edge_back_5` (14), `ren_legs_5` (14), `edge_gloves_5` (14), `edge_boots_6` (15) | 23.45, 24.25, 26.05 |
-| 13-15 | support | `ak_12` (15) | `ammo_6.5x39` (15), 120 | `edge_helmet_5` (14), `ren_mask_5` (14), `edge_torso_5`, `edge_back_5`, `ren_legs_5`, `edge_gloves_5`, `edge_boots_5` (14) | 27.6, 26.8, 26.6 |
-| 13-15 | rusher | `fn_p90` (14) | `ammo_5.7x28` (9), 200 | `edge_helmet_5` (14), `edge_torso_5`, `edge_back_5`, `ren_legs_5`, `edge_gloves_5`, `edge_boots_6` | 25.7, 25.3, 26.1 |
-| 13-15 | camper | `vsk_94` (14) | `ammo_sp5` (12), 80 | as the support's | 26.6, 27.6, 26.8 |
+| 4-5 | flanker | `vityaz` (4) | `ammo_9x19p_para` (2), 250 | `bm_torso_1` (1), `bm_back_1` (3), `bm_legs_5` (4), `bm_boots_1` (1) | 18.1, 16.55, 19.1 |
+| 4-5 | support | `ak_74u` (5) | `ammo_5.45x39_7n6m` (5), 120 | `bm_helmet_1` (3), `bm_torso_4` (3), `bm_back_1`, `bm_legs_5` | 18.5, 19.8, 19.4 |
+| 4-5 | rusher | `mp_153` (4) | `ammo_12mm_buck` (1), 75 | `scav_torso_1` (1), `bm_back_1`, `bm_legs_5`, `scav_boots_1` (1) | 19, 18, 16.45 |
+| 4-5 | camper | `rem_700` (5) | `ammo_7.62x51_ap` (5), 40 | `bm_helmet_1`, `scav_torso_2` (3), `bm_back_1`, `bm_legs_5` | 20.6, 19.7, 21 |
+| 9-10 | flanker | `pp2000` (9) | `ammo_9x19p_7n31` (9), 200 | `edge_helmet_3` (8), `ren_torso_3` (8), `bm_back_1` (3), `edge_legs_2` (9), `edge_gloves_2` (9), `edge_boots_2` (9) | 20.8, 23, 24.2 |
+| 9-10 | support | `akmn` (6) | `ammo_7.62x39_7n23` (9), 120 | `ren_helmet_2` (9), `ren_torso_3` (8), `bm_back_1`, `bm_legs_5` (4), `ren_gloves_1` (9), `edge_boots_2` | 22.95, 20.75, 24.35 |
+| 9-10 | rusher | `spas_12` (7) | `ammo_12mm_buck` (1), 60 | `edge_helmet_3`, `edge_hunter_torso_1` (6), `bm_back_1`, `bm_legs_5`, `edge_gloves_2`, `edge_boots_2` | 23.6, 20.2, 22.4 |
+| 9-10 | camper | `sv_98` (9) | `ammo_7.62x54_7n1` (9), 40 | `ren_helmet_2`, `ren_mask_2` (9), `ren_torso_3`, `bm_back_1`, `ren_legs_2` (9), `ren_gloves_1`, `edge_boots_2` | 27.95, 26.55, 24.35 |
+| 13-15 | flanker | `sr3m` (14) | `ammo_sp6` (14), 150 | `edge_helmet_4` (12), `edge_torso_5` (14), `bm_back_1` (3), `ren_legs_5` (14), `edge_gloves_5` (14), `edge_boots_6` (15) | 26.15, 26.85, 28.85 |
+| 13-15 | support | `ak_12` (15) | `ammo_6.5x39` (15), 150 | `edge_helmet_5` (14), `ren_mask_5` (14), `edge_torso_5`, `bm_back_1`, `ren_legs_5`, `edge_gloves_5`, `edge_boots_5` (14) | 28.9, 28.2, 27.8 |
+| 13-15 | rusher | `spas_12` (7) | `ammo_12mm_buck` (1), 75 | `edge_torso_5`, `bm_back_1`, `ren_legs_5`, `edge_gloves_5`, `edge_boots_6` | 28.7, 26, 26.7 |
+| 13-15 | camper | `vsk_94` (14) | `ammo_sp5` (12), 100 | as the support's | 29.1, 30.2, 29.5 |
 
 ### 3.1 The rusher's kit
 
@@ -93,12 +93,28 @@ the SMG). The SMG kits are lighter than the old one: 19.6 against 21.8 kg at 9-1
 at 13-15 (the 2 kg helmet included).
 
 Why these:
-- **Pockets.** A player has one pocket of one unit (`default.player`); the bots need three of two
-  (medkits, the radio, grenades; one pocket a type, `one-pocket-a-type.md`). 4-5 and 9-10: `bm_back_1`
-  (+1 pocket, +1 size) and one more pocket (`bm_legs_5`, `ren_torso_3` or `bm_torso_4`). 13-15:
-  `edge_back_5` (+1 size), `edge_torso_5` and `ren_legs_5` (+1 pocket each). `ren_back_1` (+2 and
-  +2, 8 kg) would give pockets of three, but the match server's medkit and grenade plays count two a
-  life (`plays::heal`, `reflex` `grenades`), so it is not used.
+- **Pockets.** A player has one pocket of one unit (`default.player`); the bots need three or four of
+  two (medkits, bandages, traps or a grenade, the radio; one pocket a type, `one-pocket-a-type.md`).
+  `bm_back_1` (+1 pocket, +1 size) in every tier, and `bm_legs_5`, `ren_torso_3`, `bm_torso_4` or
+  `edge_hunter_torso_1` (+1 pocket each); 13-15: `edge_torso_5` and `ren_legs_5` (+1 pocket each),
+  with `bm_back_1` and not `edge_back_5` (+1 size only), which makes a fourth pocket. Four pockets in
+  13-15 for every role, and in 9-10 for the rusher (`edge_hunter_torso_1`) and the support
+  (`ren_torso_3`); 4-5 and the other 9-10 roles have three, and 4-5's support four. `ren_back_1` (+2 and
+  +2, 8 kg) would give pockets of three, but the match server's medkit plays count two a life
+  (`plays::heal`), so it is not used. The owner's choice of 2026-10-26 (`SRP_BOT_KIT=1` turns it on; off
+  unless set, the kit is that of before it): bandages for the pain pool, traps for the placing habit, one grenade for the
+  support where a pocket is free, the radio only where a pocket is left, and skill 109's extra ammo
+  bag (`bot_skills::AMMO_POUCH`: 102, 104 and 108 on the way, none of them aim, damage or protection).
+- **Upgrades** (`loadouts::BOT_UPGRADES`, the owner's of 2026-10-26; on with `SRP_BOT_UPGRADES=1`, off
+  unless set). The safe set only: gear weight, carry capacity, movement speed and stamina spent; never an aim
+  time, a range or a bolt's chamber time. One upgrade a bot at 4-5, two at 9-10 and 13-15, at the
+  strengths the players of the tier have (live matches: speed 4 / 6 / 12 % of pieces at 1.8 / 2.7 / 2.7,
+  weight 6 / 10 / 15 % at 0.8 / 1.6 / 1.8, carry 4 / 3 / 6 % at 1.9 / 1.5 / 2.2). Flanker and rusher:
+  movement speed on the torso (+3 % at 4-5, +4 % above) and, at 9-10 and 13-15, stamina spent on the
+  boots (-6 %); support and camper: carry on the legs (+2 kg at 9-10, +3 kg at 13-15) and gear weight
+  on the torso (-8 % at 4-5, -10 % above). The clients apply them (the profile's item carries the
+  ids); the match server's speed prior reads the speed, the carry and the weight
+  (`bot_skills::profile_movement_level`). Reload upgrades wait until `Gun` takes the factor.
 - **Weapons.** What the top players used in matches of 6 players or more (the live server's match
   logs, 2026-10), where it is a stock item that fits the tier; else the strongest common pick of the
   kind. 4-5: the Vityaz (SMG, 4), the MP-153 (semi-automatic shotgun, 4), the Remington 700 (bolt

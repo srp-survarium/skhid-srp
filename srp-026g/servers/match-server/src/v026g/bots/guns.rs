@@ -510,6 +510,36 @@ fn arms_of(kit: &Loadout) -> Option<Arms> {
     })
 }
 
+/// What a bot has of weapon 1's ammo, and what a resupply zone's top-up could
+/// bring it to (`inventory::resupply` 0x2FDC10: each ammo slot to its count,
+/// the magazine and the chamber counted in, `min(count - held, storage)`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Ammo {
+    /// The rounds in the magazine and the stack.
+    pub have: u32,
+    /// The kit's count for a life ([`Arms::primary`]'s rounds).
+    pub whole: u32,
+    /// The rounds its kit has for the match beyond `have`: what the
+    /// profile's storage could give.
+    pub storage: u32,
+}
+
+impl Ammo {
+    /// What a top-up would add now.
+    pub fn missing(&self) -> u32 {
+        self.whole.saturating_sub(self.have).min(self.storage)
+    }
+
+    /// The share of the kit's count it holds, `[0, 1]` (1 with no kit).
+    pub fn share(&self) -> f32 {
+        if self.whole == 0 {
+            1.0
+        } else {
+            (self.have as f32 / self.whole as f32).min(1.0)
+        }
+    }
+}
+
 type ArmsTable = Vec<((BotTier, RusherKit, BotRole, usize), Option<Arms>)>;
 
 impl Arms {

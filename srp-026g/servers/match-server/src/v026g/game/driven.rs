@@ -529,6 +529,9 @@ impl Game {
         }
         let notes = walkers.bots.facts(world_facts(snapshot.time, decoded));
         log_notes(id, notes);
+        walkers
+            .bots
+            .traps_from_world(decoded.sections.objects, snapshot.time);
         let (read, missed) = walkers
             .bots
             .anomalies_from_world(decoded.sections.objects, snapshot.time);
