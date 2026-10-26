@@ -79,6 +79,10 @@ pub const HELD_AFTER_MS: u32 = 3_000;
 /// metres. GUESS: a walk of 3 s is 10 m, a crouched one 5 m; a body
 /// nudged by a wall it slides along moves more.
 pub const HELD_MOVED_M: f32 = 0.5;
+/// A world this long after the one before it, ms, is noted with the gap: a note after it (a stuck body, a body off
+/// its reckoning) may come of the worlds that did not reach the bot, not of the bot. The longest gap between two
+/// uploads of the J0 matches' healthy streams was 2.85 s; one missed regular world is 4 s.
+pub const FIX_GAP_MS: u32 = 3_000;
 /// A stuck spot this near an earlier one is the same spot, metres.
 pub const SPOT_M: f32 = 2.0;
 /// … if the earlier one was within this, ms.
@@ -702,6 +706,29 @@ pub fn self_kill_step(
         // since: it may be asked again later.
         SelfKill::Sent { tries: 1, .. } => (SelfKill::Ready, None),
         SelfKill::Sent { .. } => (SelfKill::Barred, None),
+    }
+}
+
+/// The note for a world that came `gap` ms after the one before it (none when the gap is not one).
+pub fn gap_note(gap: Option<u32>) -> String {
+    gap.filter(|&gap| gap >= FIX_GAP_MS)
+        .map_or_else(String::new, |gap| format!(" [fix gap {gap} ms]"))
+}
+
+/// The bench's counts of the worlds that came [`FIX_GAP_MS`] or more after the one before: all, the stuck notes
+/// after one, the off-reckoning notes after one, and the stuck checks a tuned gap ended.
+#[cfg(test)]
+pub mod fix_gaps {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+
+    pub fn count(kind: usize) {
+        COUNTS[kind].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> [u64; 4] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
 

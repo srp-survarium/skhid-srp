@@ -65,6 +65,7 @@ mod camper;
 mod driving;
 mod eye;
 mod fights;
+mod fix_gap;
 #[cfg(feature = "jump-test")]
 mod jump_pool;
 mod kits;

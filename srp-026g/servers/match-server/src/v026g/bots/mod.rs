@@ -1057,6 +1057,19 @@ impl Bots {
         };
         let goal = *goal;
         let meant = self.tracker.body(place).and_then(|body| body.last_meant());
+        // The time since the world before: a long one is noted with the notes that follow it, counted, and (tuned)
+        // ends the stuck check, as the bot was not shown the body for that long.
+        let gap = self.tracker.body(place).and_then(|body| body.gap_of(time));
+        let after_gap = gap.is_some_and(|gap| gap >= stuck::FIX_GAP_MS);
+        #[cfg(test)]
+        if after_gap {
+            stuck::fix_gaps::count(0);
+        }
+        let ends_check = self
+            .tuning
+            .unstick
+            .fix_gap_ms
+            .is_some_and(|ms| gap.is_some_and(|gap| gap > ms));
         // [pockets] A try at a pocket's exit runs up to its rim and jumps:
         // not stuck, and the try has its own clock (`escape::TRY_MS`). No
         // note, no spot for the team, no recovery fighting the try.
@@ -1067,19 +1080,28 @@ impl Bots {
             .is_some_and(escape::Escape::trying);
         if trying {
             bot.stuck.reset();
+        } else if ends_check {
+            #[cfg(test)]
+            stuck::fix_gaps::count(3);
+            bot.stuck.reset();
         } else if let Some((recovery, by_keys)) = bot.stuck.walking(time, feet, meant, keys) {
             bot.jump_followed(time, Some(feet), &format!("stuck: {recovery:?}"));
+            #[cfg(test)]
+            if after_gap {
+                stuck::fix_gaps::count(1);
+            }
             bot.note(
                 &mut notes,
                 time,
                 format!(
-                    "is stuck at {:?}: {recovery:?}{}",
+                    "is stuck at {:?}: {recovery:?}{}{}",
                     feet.to_array(),
                     if by_keys {
                         " (walk keys held, the body still)"
                     } else {
                         ""
-                    }
+                    },
+                    stuck::gap_note(gap)
                 ),
             );
             let (side, other) = if bot.rng.unit() < 0.5 {
@@ -1167,12 +1189,17 @@ impl Bots {
             .and_then(|body| body.last_error())
             .unwrap_or(0.0);
         if error > REPLAN_ERROR_M {
+            #[cfg(test)]
+            if after_gap {
+                stuck::fix_gaps::count(2);
+            }
             bot.note(
                 &mut notes,
                 time,
                 format!(
-                    "was {error:.1} m off its reckoning; plans again to {:?}",
-                    goal.to_array()
+                    "was {error:.1} m off its reckoning; plans again to {:?}{}",
+                    goal.to_array(),
+                    stuck::gap_note(gap)
                 ),
             );
             bot.end_route(RouteEnd::ReckoningError, time);
