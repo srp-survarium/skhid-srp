@@ -441,11 +441,24 @@ impl Game {
         }
     }
 
-    /// A human's input as relayed: the bots hear it and track the body.
-    pub(super) fn observe_input(&mut self, index: usize, time: u32, input: &PlayerInput) {
+    /// A human's input as relayed, which reached the server `late_ms` after
+    /// its tick: the bots hear it and track the body.
+    pub(super) fn observe_input(
+        &mut self,
+        index: usize,
+        time: u32,
+        late_ms: u32,
+        input: &PlayerInput,
+    ) {
         if let Some(walkers) = self.walkers.as_mut() {
-            walkers.bots.input(index, time, input);
+            walkers.bots.input(index, time, late_ms, input);
         }
+    }
+
+    /// TEST ONLY: the server's bots.
+    #[cfg(test)]
+    pub(crate) fn driven_bots(&self) -> Option<&Bots> {
+        self.walkers.as_ref().map(|walkers| &walkers.bots)
     }
 
     /// A trusted world: every player's body, and the statistics and

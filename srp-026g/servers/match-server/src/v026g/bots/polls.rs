@@ -22,17 +22,23 @@ pub const PING_BANDS: usize = 4;
 const PING_BAND_EDGES_MS: [u32; PING_BANDS - 1] = [20, 60, 150];
 const PING_BAND_NAMES: [&str; PING_BANDS] = ["<20", "20-60", "60-150", "150+"];
 
-/// The band of a body's ping: how late his last input (`PlaceView::seen_at`)
-/// is on the clock, for a player; a bot, known to its own decided ticks,
-/// has none (band 0).
-pub fn ping_band(body: &PlaceView, clock: u32) -> usize {
+/// How late a player's input reaches the server against the ping the match
+/// server logs for him: about 0.45 of it (LIKELY; in the live recordings the
+/// input arrives p50 27 ms after its tick where the logged ping is p50 58
+/// ms: the one way upstream and the client's send lead). The bands' edges in
+/// lateness are 9, 27 and 68 ms.
+pub const LATENESS_PER_PING: f32 = 0.45;
+
+/// The band of a body's ping, from how late his inputs come
+/// (`PlaceView::late_ms`, [`LATENESS_PER_PING`]); a bot, known to its own
+/// decided ticks, has none (band 0).
+pub fn ping_band(body: &PlaceView) -> usize {
     if body.bot {
         return 0;
     }
-    let late = clock.saturating_sub(body.seen_at);
     PING_BAND_EDGES_MS
         .iter()
-        .take_while(|&&edge| late >= edge)
+        .take_while(|&&edge| body.late_ms as f32 >= edge as f32 * LATENESS_PER_PING)
         .count()
 }
 
@@ -141,6 +147,28 @@ impl Bots {
         sum
     }
 
+    /// TEST ONLY: `place` as the view has it at `clock`, the tick of the
+    /// last input taken for it, and its ping band.
+    #[cfg(test)]
+    pub(crate) fn player_view(
+        &self,
+        place: super::Place,
+        clock: u32,
+    ) -> Option<(PlaceView, Option<u32>, usize)> {
+        let clock = super::view::Clock {
+            clock,
+            time_left_s: 600.0,
+            total_s: 900.0,
+            playing: true,
+        };
+        let world = self.tactics.as_ref().map(|t| t.world.clone());
+        let view = self.tracker.view(&clock, &self.tuning.kin, world.as_deref());
+        view.place(place).cloned().map(|body| {
+            let band = ping_band(&body);
+            (body, self.tracker.last_input(place), band)
+        })
+    }
+
     /// The match-end log line's text.
     pub fn poll_report(&self) -> String {
         let polls = &self.polls;
@@ -208,8 +236,11 @@ mod tests {
         );
     }
 
+    /// The band is read from the lateness of his inputs, at the edges of the
+    /// logged ping times 0.45; a bot is under 20. (The lateness itself comes
+    /// from the intake: `tests/sight.rs`.)
     #[test]
-    fn a_players_ping_band_is_how_late_his_last_input_is() {
+    fn a_players_ping_band_is_how_late_his_inputs_come() {
         let mut body = PlaceView {
             place: 1,
             team: 1,
@@ -228,15 +259,21 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            late_ms: 0,
             known_at: 0,
         };
         let mut band = |late: u32| {
-            body.seen_at = 1_000 - late;
-            ping_band(&body, 1_000)
+            body.late_ms = late;
+            ping_band(&body)
         };
-        assert_eq!([band(0), band(19), band(20), band(59)], [0, 0, 1, 1]);
-        assert_eq!([band(60), band(149), band(150), band(900)], [2, 2, 3, 3]);
+        assert_eq!([band(0), band(8), band(9), band(26)], [0, 0, 1, 1]);
+        assert_eq!([band(27), band(67), band(68), band(900)], [2, 2, 3, 3]);
+        // The world's age is not his ping: a body whose last world is old.
+        body.seen_at = 0;
+        body.late_ms = 20;
+        assert_eq!(ping_band(&body), 1);
         body.bot = true;
-        assert_eq!(ping_band(&body, 1_000), 0);
+        body.late_ms = 500;
+        assert_eq!(ping_band(&body), 0);
     }
 }

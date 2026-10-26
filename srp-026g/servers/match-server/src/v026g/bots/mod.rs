@@ -802,11 +802,13 @@ impl Bots {
         })
     }
 
-    /// A human's input as relayed.
-    pub fn input(&mut self, place: Place, time: u32, input: &PlayerInput) {
+    /// A human's input as relayed, which reached the server `late_ms` after
+    /// its tick.
+    pub fn input(&mut self, place: Place, time: u32, late_ms: u32, input: &PlayerInput) {
         if self.is_bot(place) {
             return;
         }
+        self.tracker.lateness(place, late_ms);
         let r = input.rotation;
         let turn = (
             half_value(u16::from_le_bytes([r[0], r[1]])),

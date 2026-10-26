@@ -458,6 +458,7 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            late_ms: 0,
             known_at: 0,
         }
     }
@@ -1060,8 +1061,10 @@ mod tests {
             let f = overshoot(ms);
             assert_eq!(f.lost_at(3_000), None, "{ms} ms");
         }
-        // 300 ms (a ping of 300 and a stop behind the corner): lost.
-        // The live pings of 150 ms and over are in this band.
+        // 300 ms of false-blocked picture: lost. Here the picture is moved by
+        // hand; what a late input does to it, and the discard of one past the
+        // relay's reach, is `a_players_late_stop_input_...` (a lateness of 300
+        // ms is a ping of about 670: the live server shows no such snap).
         let f = overshoot(300);
         assert!(f.lost_at(3_000).is_some());
         assert_eq!(f.lapses.len(), 1);
@@ -1156,5 +1159,107 @@ mod tests {
         );
         let (_, clock) = hidden.lost_at(3_000).expect("lost");
         assert_eq!(clock, 4_000, "at the first tick after the stall");
+    }
+
+    /// A player walking at +z along x = 4 from `z = 6` at 1.05 s, who lets go
+    /// of the key at the tick `stop`: the real [`Tracker`] is given his
+    /// inputs `late` ms after their ticks and reckons him on as the bots'
+    /// view does. Returns his place at the information clock, and the
+    /// tracker's place count's feet where the stop puts him at rest.
+    fn walker_through_the_tracker(
+        world: &Arc<World>,
+        stop: u32,
+        late: u32,
+    ) -> impl Fn(u32) -> Enemy {
+        use crate::v026g::bots::body::Fix;
+        use crate::v026g::bots::kin::Kinematics;
+        use crate::v026g::bots::view::{Clock, Tracker};
+        let kin = Kinematics::default();
+        let mut tracker = Tracker::new(2, &[0, 1], &[true, false], vec![]);
+        tracker.entered(1, true);
+        let start = Fix {
+            time: 1_000,
+            alive: true,
+            inserted: 10,
+            feet: Some(Vec3::new(4.0, 0.0, 6.0)),
+            yaw: 0.0,
+            pitch: 0.0,
+            keys: 0,
+            speed: Some(0.0),
+        };
+        tracker.fixed(1, start, None, &kin, Some(world));
+        // (arrival, tick, keys): a client sends an input at every tick; he
+        // walks from 1.05 s and lets go of the key at `stop`.
+        let mut sent: Vec<(u32, u32, u32)> = (1_050..stop)
+            .step_by(50)
+            .map(|tick| (tick + late, tick, key::FORWARD))
+            .collect();
+        sent.push((stop + late, stop, 0));
+        let inputs = std::cell::RefCell::new(sent);
+        let tracker = std::cell::RefCell::new(tracker);
+        let world = world.clone();
+        move |clock| {
+            let mut tracker = tracker.borrow_mut();
+            let mut inputs = inputs.borrow_mut();
+            while let Some(&(arrival, tick, keys)) = inputs.first() {
+                if arrival > clock {
+                    break;
+                }
+                inputs.remove(0);
+                tracker.input(1, tick, keys, (0.0, 0.0), 0.0, &kin, Some(&world));
+            }
+            let clock = Clock {
+                clock,
+                time_left_s: 600.0,
+                total_s: 900.0,
+                playing: true,
+            };
+            let view = tracker.view(&clock, &kin, Some(&world));
+            let body = view.place(1).unwrap();
+            Enemy {
+                feet: body.feet,
+                alive: body.alive,
+                spawned: body.spawned,
+            }
+        }
+    }
+
+    /// Where a walker who stops at the tick 4 s rests, with his input on
+    /// time.
+    fn rest_z(stop: u32) -> f32 {
+        let world = world_of(&[]);
+        let at = walker_through_the_tracker(&world, stop, 0);
+        at(8_000).feet.z
+    }
+
+    /// A player stops at the edge of cover, his stop input `late` ms late
+    /// (the real [`Tracker`] reckons him on past the edge until it comes),
+    /// at two phases of the 100 ms looks: the target stays seen through
+    /// 300 ms (the false-blocked run is `late` less 100 ms, and three failed
+    /// looks are needed to lose a sight past the 250 ms grace), is lost at
+    /// 400 by phase, and at 1000 always. The relay discards an input later
+    /// than its reach, 425 ms less the largest round trip of the other
+    /// players: the longer rows are what the live server never shows
+    /// (`tests/sight.rs` takes the intake).
+    #[test]
+    fn a_players_late_stop_input_keeps_the_target_to_300_ms_and_loses_him_by_400() {
+        let lost = |stop: u32, late: u32| {
+            let rest = rest_z(stop);
+            // The wall's face is where he rests: any run-on is behind it.
+            let world = world_of(&[wall(rest + 0.001, 3.0, 8.0, 0.0, 3.0)]);
+            let enemy = walker_through_the_tracker(&world, stop, late);
+            let f = fight(&world, 300, 100, 9_000, None, &enemy, &|_| 0.0);
+            // He was taken long before the stop, and at rest is seen.
+            let taken = f.ticks.iter().position(|t| t.2.is_some()).expect("taken");
+            assert!(f.ticks[taken].0 < stop, "taken at {}", f.ticks[taken].0);
+            f.lost_at(stop - 100)
+        };
+        for late in [0, 50, 100, 150, 200, 250, 300] {
+            for stop in [4_000, 4_050] {
+                assert_eq!(lost(stop, late), None, "late {late}, stop {stop}");
+            }
+        }
+        assert!(lost(4_000, 400).is_some() || lost(4_050, 400).is_some());
+        assert!(lost(4_000, 1_000).is_some() && lost(4_050, 1_000).is_some());
     }
 }

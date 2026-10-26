@@ -3426,7 +3426,7 @@ impl Game {
             }
         }
         peer.placed.push_back((time, relayed_time));
-        self.observe_input(index, relayed_time, &relayed);
+        self.observe_input(index, relayed_time, clock.saturating_sub(time), &relayed);
         let what = Relayed::Input(relayed);
         self.relay_to_others(index, &what, relayed_time, now);
         self.inputs.push((relayed_time, index, what));

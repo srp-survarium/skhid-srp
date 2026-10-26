@@ -3094,7 +3094,7 @@ impl Reflex {
                 .and_then(|target| view.place(target))
                 .filter(|enemy| enemy.alive && enemy.present)
                 .map(|enemy| Lapse {
-                    band: super::polls::ping_band(enemy, view.clock),
+                    band: super::polls::ping_band(enemy),
                     cut: self.held_ms > 0,
                 });
             self.lose_target(now);
@@ -3626,6 +3626,7 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            late_ms: 0,
             known_at: 0,
         }
     }

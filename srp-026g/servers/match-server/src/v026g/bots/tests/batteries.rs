@@ -306,7 +306,7 @@ pub(crate) fn fight_by_a_battery(busy: Busy) -> (Option<u32>, bool, u32) {
                     rotation: [0; 4],
                     actions: if reload { key::RELOAD } else { 0 },
                 };
-                bots.input(1, game.tick, &input);
+                bots.input(1, game.tick, 0, &input);
             }
         }
         if clock >= next_world {

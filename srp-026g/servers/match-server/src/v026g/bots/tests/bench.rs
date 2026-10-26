@@ -414,6 +414,17 @@ pub(crate) fn real_bot_cost() {
             let pings = bench_pings(teams.len(), seed)
                 .or_else(|| (jitter > 0).then(|| vec![0; teams.len()]));
             if let Some(pings) = pings {
+                // The relay discards an input later than 425 ms less the
+                // largest round trip of the other players (twice a ping
+                // here, which is taken as the lateness itself:
+                // `Game::late_relay_reach`); a body so late is shown with
+                // no error, for the input never came.
+                bots.tracker.seen_reach = (0..pings.len())
+                    .map(|place| {
+                        let others = pings.iter().enumerate().filter(|&(p, _)| p != place);
+                        425u32.saturating_sub(2 * others.map(|(_, &ping)| ping).max().unwrap_or(0))
+                    })
+                    .collect();
                 bots.tracker.seen_late = Some(pings);
                 bots.tracker.seen_jitter = (jitter, seed);
             }
