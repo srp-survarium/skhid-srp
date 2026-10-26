@@ -410,6 +410,46 @@ kill_feed_on_mastery_icon_replay:
     db 0x8b, 0x4c, 0x24, 0x2c
     jmp 0x238157
 
+; 0x316e57 the respawn rule's spawn 0x316DA0, the load of the call that initialises the new kit's player (mov edx,[esi]; mov edx,[edx+1Ch]; ESI the player, [esp+10h] the kit before and [esp+18h] the new one as 0x316E02/0x316E06 put them; an fldz is live on the x87 stack): lohook -> kit_state_on_spawn
+global kit_state_on_spawn
+extern hook_kit_state_on_spawn
+kit_state_on_spawn:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_kit_state_on_spawn
+    mov edx, kit_state_on_spawn_replay
+    cmp eax, 0
+    je kit_state_on_spawn_go
+    mov edx, 0x316e5c
+    cmp eax, 1
+    je kit_state_on_spawn_go
+    ud2
+kit_state_on_spawn_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+kit_state_on_spawn_replay:
+    db 0x8b, 0x16
+    db 0x8b, 0x52, 0x1c
+    jmp 0x316e5c
+
 ; 0x25cd41 game_world's on_keyboard_action (0x25CD00, thiscall, ebp its frame) after its Tab test, the key's kind (cmp dword [ebp+10h],1; jnz near 0x25CF0D): EDI the game world's input handler, [ebp+0Ch] the DirectInput key, [ebp+10h] the kind: lohook -> match_keys_on_kind_test
 global match_keys_on_kind_test
 extern hook_match_keys_on_kind_test

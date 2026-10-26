@@ -99,4 +99,38 @@ impl Weapon<'_> {
         // SAFETY: a live weapon_core (Weapons found it by its item's bind).
         unsafe { write(raw::weapon_core::random_state(self.core.ptr()), state) }
     }
+
+    /// Forgets the time of its last tick (the constructor's -1): its
+    /// activation sets it again before it is ticked.
+    pub fn forget_last_tick(&self) {
+        // SAFETY: as set_random_state.
+        unsafe { write(raw::weapon_core::last_tick_time(self.core.ptr()), u32::MAX) }
+    }
+
+    /// Gives the fields a weapon keeps through deaths and spawns and that
+    /// neither the player's initialize nor the weapon's activation set
+    /// again (or only for the weapon put in hand) the constructor's values
+    /// (0x2DF0D0): the ammunition switch's time, the ammunition kind, the
+    /// magazine, the fire mode, the aim, +5ECh, the chamber, the auto
+    /// reload, the recoil and +60Ch.
+    pub fn reset_as_constructed(&self) {
+        let core = self.core.ptr();
+        // SAFETY: as set_random_state; each field is the weapon_core's.
+        unsafe {
+            write(raw::weapon_core::ammo_switch_time(core), u32::MAX);
+            write(raw::weapon_core::current_ammo(core), 0);
+            write(raw::weapon_core::next_ammo(core), 0);
+            write(raw::weapon_core::ammo_in_magazine(core), 0);
+            write(raw::weapon_core::fire_queue_type(core), 0);
+            write(raw::weapon_core::aimed(core), 0);
+            write(raw::weapon_core::unnamed_5ec(core), 6);
+            write(raw::weapon_core::round_chambered(core), 0);
+            write(raw::weapon_core::need_to_auto_reload(core), 0);
+            let recoil = raw::weapon_core::recoil(core);
+            for i in 0..4 {
+                write(recoil.add(i), 0.0);
+            }
+            write(raw::weapon_core::unnamed_60c(core), u32::MAX);
+        }
+    }
 }

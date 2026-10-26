@@ -1489,7 +1489,6 @@ STATISTICS_COUNT = (0x26D8F3, bytes.fromhex("8a82b5770500"), b"\xb0\x14" + b"\x9
 # weapon_core's bind 0x2E30F0 (fields_026g.tsv weapon_core_bind), which only
 # the vtables of weapon_core and the client's weapon hold.
 WEAPON_SPAWN_VA = 0x316DA0                    # the respawn rule's spawn
-WEAPON_BIND_VA = 0x2E30F0                     # weapon_core's bind, vtable+70h of its item
 WEAPON_RANDOM_MODULUS = 0x7FFFFFFF
 
 
@@ -1504,8 +1503,8 @@ def weapon_random_state(place, kit, slot, time):
 # The same spawn, before the initialize: at 0x316E57 (`mov edx,[esi]` /
 # `mov edx,[edx+1Ch]`, the load of the initialize's call; esi = the new
 # kit's player, [esp+10h] the kit before, [esp+18h] the new kit, as
-# 0x316E02/0x316E06 put them) a call into kit_state_hook
-# (late_join_026g.asm). Each weapon of the inventory gets -1 (the
+# 0x316E02/0x316E06 put them) the Rust patch kit_state's lohook
+# (rust/patches/src/kit_state.rs, the site spawn.kit_state). Each weapon of the inventory gets -1 (the
 # constructor's) as m_last_tick_time_in_ms (+5A4h): only the weapon in hand
 # is ticked, and the activation (0x2E2A30) the initialize runs for the
 # weapon it puts in hand sets the field to the spawn's time before any tick.
@@ -1514,8 +1513,6 @@ def weapon_random_state(place, kit, slot, time):
 # again, or set only for the weapon in hand, get the constructor's values
 # (0x2DF0D0): KIT_STATE_FIELDS. A respawn into the same kit keeps them: that
 # kit's player is in every world.
-KIT_STATE_VA, KIT_STATE_OFFSET = 0x316E57, 3168
-KIT_STATE_HOOK = (KIT_STATE_VA, bytes.fromhex("8b168b521c"), KIT_STATE_OFFSET, 0xE8)
 KIT_STATE_TICK_FIELD = 0x5A4                  # m_last_tick_time_in_ms, -1 at every spawn
 # (weapon offset, size, the constructor's value) set at a spawn into another kit
 KIT_STATE_FIELDS = (
@@ -1624,7 +1621,6 @@ LATE_JOIN_HOOKS = (
     (0x219E60, bytes.fromhex("558bec83e4f8"), 2432, 0xE9),       # network_client's destructor: client_destroyed_hook
     (0x23572B, bytes.fromhex("8b8c2498000000"), 3456, 0xE9),     # the hud's lists of players, made again: lists_hook
     (0x39E52, bytes.fromhex("f30f7e00660fd64704"), 3520, 0xE9),  # a box that is no box, in the tree: box_hook
-    KIT_STATE_HOOK,                                              # a spawn's weapons' kept state: kit_state_hook
     FIRST_LOAD_INPUT_HOOK,                                       # a first world's inputs, in time order: first_load_input
     FIRST_LOAD_KIT_HOOK,                                         # a first world's kit choices: first_load_kit
     FOV_PROJECTION_HOOK,                                         # the camera's angle: fov_projection
@@ -2203,7 +2199,6 @@ INSTALLS = {
     0x219E60: (ENTRY, "network_client's destructor: client_destroyed_hook", None, None),
     0x23572B: (JUMP, "the hud's lists made again: lists_hook", None, None),
     0x39E52: (JUMP, "a box that is no box: box_hook", None, None),
-    0x316E57: (INLINE, "a spawn's weapons' kept state: kit_state_hook", None, None),
     0x2D1050: (CALLEE, "a first world's inputs: first_load_input", None, None),
     0x2D1055: (CALLEE, "a first world's kit choices: first_load_kit", None, None),
     0x242900: (ENTRY, "the camera's projection: fov_projection", None, None),

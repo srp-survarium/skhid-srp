@@ -1370,8 +1370,10 @@ player before a spawn already puts each magazine and chambered round back
 into the ammunition stack, 0x2E18E0.)
 
 **The patch.** At 0x316E57 in the respawn rule's spawn, the load of the
-initialize's call (`8B 16 8B 52 1C`) becomes a call into `kit_state_hook`
-(`late_join_026g.asm`, offset 3168, 129 bytes). Before the initialize, each
+initialize's call (`8B 16 8B 52 1C`) is the Rust patch kit_state's lohook
+(`rust/patches/src/kit_state.rs`, the site `spawn.kit_state`; ported from
+`late_join_026g.asm`'s kit_state_hook with no change of behaviour, proven
+by `port/equiv/kit_state.py`). Before the initialize, each
 weapon of the new kit gets -1 as the time of its last tick (the
 constructor's) at every spawn, and at a spawn into another kit than the one
 before also the constructor's fire mode and ammunition kind, and as a safety

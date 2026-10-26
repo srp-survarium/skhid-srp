@@ -2548,7 +2548,7 @@ def test_weapon_random(original, image, before):
         ("survarium::base_player", "inventory"), ("survarium::base_player", "place"),
         ("survarium::base_player", "kit"), ("survarium::inventory", "slots"),
         ("survarium::item_vtable", "bind"), ("survarium::weapon_item", "core"))}
-    check(list(fields.values()) == [0x10C, 0x114, 0x115, 0x10C, 0x70, -0x10] and bind == P.WEAPON_BIND_VA
+    check(list(fields.values()) == [0x10C, 0x114, 0x115, 0x10C, 0x70, -0x10]
           and random_field == 0x5BC,
           "fields_026g.tsv as the original has them: the player's inventory +10Ch, place +114h and kit +115h "
           "(0x316DDD, 0x316DFC), the inventory's slots +10Ch, an item's bind vtable+70h, a weapon_core's item at "
@@ -2577,15 +2577,10 @@ def test_kit_state(original, image, before):
     """Check 21: a spawn gives the new kit's weapons the state a weapon
     every game has alike."""
     source = Image(original)
-    va, old, offset, _ = P.KIT_STATE_HOOK
-    entry = P.LATE_JOIN_VA + offset
+    va, size = 0x316E57, 5
     rows = lambda blob, at, size: ndisasm(blob.read(at, size), at)
     texts = lambda blob, at, size: [text for _, _, text in rows(blob, at, size)]
-    check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
-          and texts(source, va, len(old)) == ["mov edx,[esi]", "mov edx,[edx+0x1c]"]
-          and texts(image, va, len(old)) == [f"call 0x{entry:x}"],
-          f"{va:#x}: `mov edx,[esi]` / `mov edx,[edx+0x1c]` is `call 0x{entry:x}`; the original and the build "
-          "without the late join keep them")
+    rust_lohooks(original, image, before, "kit_state", {va: ["mov edx,[esi]", "mov edx,[edx+0x1c]"]})
     spawn = rows(source, P.WEAPON_SPAWN_VA, 0x316EB3 - P.WEAPON_SPAWN_VA)
     at = {address: text for address, _, text in spawn}
     order = [address for address, _, _ in spawn]
@@ -2654,52 +2649,16 @@ def test_kit_state(original, image, before):
           and all(texts(source, site, 8)[0] == want for site, want in fire_mode.items()),
           "the fire mode (+5E6h) is written by the constructor, the player's input (0x2E0CA0) and the deserialize "
           "alone: it is kept through deaths and spawns")
-    hook = rows(image, entry, 0xA0)
-    hook = hook[:next(i for i, (_, _, text) in enumerate(hook) if text == "ret") + 1]
-    hook_texts = [text for _, _, text in hook]
-    pc = next(i for i, (_, _, text) in enumerate(hook) if text.startswith("call"))
-    add = re.match(r"add ebx,0x([0-9a-f]+)$", hook_texts[pc + 2])
-    base = 0x594 + 0x10
-    stores = {}
-    for text in hook_texts:
-        match = re.match(r"(or|mov) (byte |dword )?\[edx(?:\+0x([0-9a-f]+))?\],(.*)$", text)
-        if not match:
-            continue
-        field = base + int(match.group(3) or "0", 16)
-        operand = match.group(4)
-        if operand == "byte -0x1":
-            stores[field] = (4, 0xFFFFFFFF)
-        elif operand == "bp":
-            stores[field], stores[field + 1] = (1, 0), (1, 0)
-        elif operand == "ebp":
-            stores[field] = (4, 0)
-        elif match.group(2) == "byte " and operand == "0x0":
-            stores[field] = (1, 0)
-        elif match.group(2) == "dword ":
-            stores[field] = (4, int(operand, 16))
-        else:
-            stores[field] = None
-    wanted = {offset: (size, value) for offset, size, value in P.KIT_STATE_FIELDS}
-    wanted[P.KIT_STATE_TICK_FIELD] = (4, 0xFFFFFFFF)
-    tick_store = hook_texts.index("or dword [edx],byte -0x1")
-    inside = all(entry <= branch_target(text) < hook[-1][0] + 1 for text in hook_texts
-                 if branch_target(text) is not None)
-    other_writes = [text for text in hook_texts if re.match(r"(mov|or|and|add|sub|xor|inc|dec) [a-z ]*\[", text)
-                    and "[edx" not in text]
-    check(hook_texts[0] == "pusha" and hook_texts[-4:] == ["popa", "mov edx,[esi]", "mov edx,[edx+0x1c]", "ret"]
-          and hook_texts[pc + 1] == "pop ebx" and branch_target(hook_texts[pc]) == hook[pc + 1][0]
-          and add is not None and (hook[pc + 1][0] + int(add.group(1), 16)) & 0xFFFFFFFF == P.WEAPON_BIND_VA
-          and "cmp [ebp+0x70],ebx" in hook_texts and "mov ecx,[esi+0x10c]" in hook_texts
-          and "mov al,[esp+0x34]" in hook_texts and "cmp al,[esp+0x3c]" in hook_texts and "setnz al" in hook_texts
-          and "add edx,0x594" in hook_texts and "cmp edi,byte +0x17" in hook_texts
-          and hook_texts[tick_store + 1:tick_store + 3] == ["test al,al", f"jz 0x{hook[-7][0]:x}"]
-          and hook_texts[-7:-4] == ["inc edi", "cmp edi,byte +0x17", f"jc 0x{hook[hook_texts.index('mov edx,[ecx+edi*4+0x10c]')][0]:x}"]
-          and stores == wanted and not other_writes and inside,
-          f"kit_state_hook ({entry:#x}): pushad; for the 23 slots of the player's inventory, an item whose "
-          f"vtable+70h is {P.WEAPON_BIND_VA:#x} gets -1 at weapon+5A4h and, when the kit before (the spawn's "
-          "[esp+10h]) is not the new one ([esp+18h]), KIT_STATE_FIELDS; nothing else is written; popad, the two "
-          "instructions, ret; no branch leaves it")
-    found = aimed_inside(original, va, len(old), 0x82)
+    fields = {offset: rust_field("survarium::weapon_core", name) for offset, name in (
+        (0x5A4, "last_tick_time"), (0x5A8, "ammo_switch_time"), (0x5B1, "current_ammo"), (0x5B2, "next_ammo"),
+        (0x5E5, "ammo_in_magazine"), (0x5E6, "fire_queue_type"), (0x5E8, "aimed"), (0x5EC, "unnamed_5ec"),
+        (0x5F1, "round_chambered"), (0x5F5, "need_to_auto_reload"), (0x5FC, "recoil"), (0x60C, "unnamed_60c"))}
+    wanted = {offset for offset, _, _ in P.KIT_STATE_FIELDS} | {P.KIT_STATE_TICK_FIELD}
+    check(all(offset == field for offset, field in fields.items())
+          and wanted == set(fields) | {0x600, 0x604, 0x608},
+          "fields_026g.tsv's weapon_core fields the Rust patch kit_state writes are KIT_STATE_FIELDS' and the "
+          "last tick's (+5A4h), as the constructor above has them (+5FCh the first of the four recoil floats)")
+    found = aimed_inside(original, va, size, 0x82)
     check(not found, "no rel32 branch of .text, no rel8 branch byte near it and no 4-byte value aims inside the five "
           "bytes" + "".join(f"\n          {a:#x}" for a in found))
 

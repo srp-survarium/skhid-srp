@@ -1539,4 +1539,112 @@ pub mod weapon_core {
     pub unsafe fn random_state(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x5bc).cast() }
     }
+
+    /// +0x5a4 (u32): m_last_tick_time_in_ms: the constructor's -1 (0x2DF405), the time of the weapon's last tick (0x2E09F5), its activation's time (0x2E2C2B)
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_core.
+    #[inline(always)]
+    pub unsafe fn last_tick_time(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x5a4).cast() }
+    }
+
+    /// +0x5a8 (u32): m_ammo_switch_time_in_ms (the constructor's -1)
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_core.
+    #[inline(always)]
+    pub unsafe fn ammo_switch_time(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x5a8).cast() }
+    }
+
+    /// +0x5b1 (u8): m_current_ammo_id (the constructor's 0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_core.
+    #[inline(always)]
+    pub unsafe fn current_ammo(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x5b1).cast() }
+    }
+
+    /// +0x5b2 (u8): m_next_ammo_id (the constructor's 0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_core.
+    #[inline(always)]
+    pub unsafe fn next_ammo(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x5b2).cast() }
+    }
+
+    /// +0x5e5 (u8): m_ammo_in_magazine (the constructor's 0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_core.
+    #[inline(always)]
+    pub unsafe fn ammo_in_magazine(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x5e5).cast() }
+    }
+
+    /// +0x5e6 (u8): m_fire_queue_type, the fire mode: written by the constructor (0), the player's input (0x2E0CE1) and the deserialize alone
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_core.
+    #[inline(always)]
+    pub unsafe fn fire_queue_type(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x5e6).cast() }
+    }
+
+    /// +0x5e8 (u8): m_aimed (the constructor's 0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_core.
+    #[inline(always)]
+    pub unsafe fn aimed(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x5e8).cast() }
+    }
+
+    /// +0x5ec (u32): unnamed; the constructor's and the activation's 6
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_core.
+    #[inline(always)]
+    pub unsafe fn unnamed_5ec(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x5ec).cast() }
+    }
+
+    /// +0x5f1 (u8): m_is_round_chambered (the constructor's 0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_core.
+    #[inline(always)]
+    pub unsafe fn round_chambered(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x5f1).cast() }
+    }
+
+    /// +0x5f5 (u8): m_need_to_auto_reload (the constructor's 0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_core.
+    #[inline(always)]
+    pub unsafe fn need_to_auto_reload(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x5f5).cast() }
+    }
+
+    /// +0x5fc (f32): the first of four floats +5FCh..+608h (the recoil; the constructor's 0.0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_core.
+    #[inline(always)]
+    pub unsafe fn recoil(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0x5fc).cast() }
+    }
+
+    /// +0x60c (u32): unnamed; the constructor's and the activation's -1
+    ///
+    /// # Safety
+    /// `this` is a survarium::weapon_core.
+    #[inline(always)]
+    pub unsafe fn unnamed_60c(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x60c).cast() }
+    }
 }

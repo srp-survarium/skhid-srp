@@ -156,6 +156,21 @@ pub extern "C" fn hook_kill_feed_on_mastery_icon(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- kit_state (patch 20) ----
+
+/// The entry `kit_state_on_spawn` (0x316e57, the respawn rule's spawn 0x316DA0, the load of the call that initialises the new kit's player (mov edx,[esi]; mov edx,[edx+1Ch]; ESI the player, [esp+10h] the kit before and [esp+18h] the new one as 0x316E02/0x316E06 put them; an fldz is live on the x87 stack)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_kit_state_on_spawn(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `kit_state_on_spawn` calls this, from the game's jump at 0x316e57,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::kit_state::on_spawn(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- match_keys (patch 58) ----
 
 /// The entry `match_keys_on_kind_test` (0x25cd41, game_world's on_keyboard_action (0x25CD00, thiscall, ebp its frame) after its Tab test, the key's kind (cmp dword [ebp+10h],1; jnz near 0x25CF0D): EDI the game world's input handler, [ebp+0Ch] the DirectInput key, [ebp+10h] the kind) calls this with the saved machine.

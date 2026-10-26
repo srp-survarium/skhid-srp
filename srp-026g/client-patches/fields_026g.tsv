@@ -124,4 +124,16 @@ survarium::base_player	kit	0x115	u8	the player's kit of its place (0x316DDD, 0x3
 survarium::item_vtable	bind	0x70	u32	an item's bind (vtable+70h): weapon_core's 0x2E30F0 in the item vtables of weapon_core and the client's weapon alone
 survarium::weapon_item	core	-0x10	u32	the weapon_core whose item this is (weapon_core's constructor 0x2DF0D0, `lea edi,[ebp+10h]`)
 survarium::weapon_core	random_state	0x5BC	u32	the spread's minstd_rand state: the constructor's 1 (0x2DF429), drawn from by 0x2E1D50 and 0x2E2120 alone
+survarium::weapon_core	last_tick_time	0x5A4	u32	m_last_tick_time_in_ms: the constructor's -1 (0x2DF405), the time of the weapon's last tick (0x2E09F5), its activation's time (0x2E2C2B)
+survarium::weapon_core	ammo_switch_time	0x5A8	u32	m_ammo_switch_time_in_ms (the constructor's -1)
+survarium::weapon_core	current_ammo	0x5B1	u8	m_current_ammo_id (the constructor's 0)
+survarium::weapon_core	next_ammo	0x5B2	u8	m_next_ammo_id (the constructor's 0)
+survarium::weapon_core	ammo_in_magazine	0x5E5	u8	m_ammo_in_magazine (the constructor's 0)
+survarium::weapon_core	fire_queue_type	0x5E6	u8	m_fire_queue_type, the fire mode: written by the constructor (0), the player's input (0x2E0CE1) and the deserialize alone
+survarium::weapon_core	aimed	0x5E8	u8	m_aimed (the constructor's 0)
+survarium::weapon_core	unnamed_5ec	0x5EC	u32	unnamed; the constructor's and the activation's 6
+survarium::weapon_core	round_chambered	0x5F1	u8	m_is_round_chambered (the constructor's 0)
+survarium::weapon_core	need_to_auto_reload	0x5F5	u8	m_need_to_auto_reload (the constructor's 0)
+survarium::weapon_core	recoil	0x5FC	f32	the first of four floats +5FCh..+608h (the recoil; the constructor's 0.0)
+survarium::weapon_core	unnamed_60c	0x60C	u32	unnamed; the constructor's and the activation's -1
 survarium::image	weapon_core_bind	0x2E30F0	u32	weapon_core's bind, +70h of the item vtables 0xA0422C and 0xA1114C (weapon, weapon_core) and in the file nowhere else

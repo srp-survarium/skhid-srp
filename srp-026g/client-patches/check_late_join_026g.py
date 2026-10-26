@@ -1429,9 +1429,9 @@ def weapon_random(original, changed):
 
 def rust_function(data, symbol):
     """(file offset, bytes) of a Rust patch's function in the build `data`:
-    from its symbol in the arena's link to the next symbol."""
+    from its symbol (or VA) in the arena's link to the next symbol."""
     linked = patch.base.arena()
-    start = linked.symbols[symbol]
+    start = linked.symbols[symbol] if isinstance(symbol, str) else symbol
     end = min(va for _, va, _, _ in linked.every if va > start)
     for _, rva, size, raw, raw_size, _ in patch.base.Headers(data).sections(data):
         if patch.base.IMAGE_BASE + rva <= start < patch.base.IMAGE_BASE + rva + raw_size:
@@ -1440,17 +1440,48 @@ def rust_function(data, symbol):
     raise AssertionError(f"{symbol} is in no section of the build")
 
 
-def broken_rust(data, symbol, pattern, new):
-    """A copy of the build with each match of `pattern` (a regex of bytes)
-    in a Rust function made `new` (a function of the match's bytes): one
-    thing broken. The pattern must be there."""
+def rust_callee(data, symbol):
+    """The VA the first `call rel32` of a Rust function calls (a function the
+    compiler did not inline, such as an iterator's next)."""
     at, code = rust_function(data, symbol)
-    found = list(re.finditer(pattern, code, re.S))
-    assert found, f"{pattern!r} is not in {symbol}"
-    copy = bytearray(data)
-    for m in found:
-        copy[at + m.start():at + m.end()] = new(m.group(0))
+    start = patch.base.arena().symbols[symbol]
+    m = re.search(rb"\xe8(.{4})", code, re.S)
+    assert m, f"{symbol} calls nothing"
+    return (start + m.end() + struct.unpack("<i", m.group(1))[0]) & 0xFFFFFFFF
+
+
+def broken_rust(data, symbols, pattern, new):
+    """A copy of the build with each match of `pattern` (a regex of bytes)
+    in Rust functions (a symbol or VA, or a list of them) made `new` (a
+    function of the match's bytes): one thing broken. The pattern must be
+    there."""
+    copy, found = bytearray(data), 0
+    for symbol in symbols if isinstance(symbols, list) else [symbols]:
+        at, code = rust_function(data, symbol)
+        for m in re.finditer(pattern, code, re.S):
+            copy[at + m.start():at + m.end()] = new(m.group(0))
+            found += 1
+    assert found, f"{pattern!r} is not in {symbols}"
     return bytes(copy)
+
+
+def rust_code(data, symbol):
+    """A Rust shim and the function it calls first, if it calls one (what
+    the compiler did not inline into it: the inventory's walk)."""
+    try:
+        return [symbol, rust_callee(data, symbol)]
+    except AssertionError:
+        return [symbol]
+
+
+# The slots' bound in a Rust walk of an inventory: cmp reg,16h (the last
+# slot) or cmp reg,17h (one past it).
+SLOT_BOUND = rb"\x83[\xf8-\xff][\x16\x17]"
+
+
+def slots_to_ten(b):
+    """The bound made 9 (or 10): the walk ends after slot 9."""
+    return b[:2] + bytes([b[2] - 0x16 + 0x09])
 
 
 def weapon_random_fails(original, changed):
@@ -1461,15 +1492,17 @@ def weapon_random_fails(original, changed):
     shim = "hook_weapon_random_on_spawn"
     copies = {
         "the original": original,
-        # cmp reg,16h (the last slot, 22) -> 9: the walk ends after slot 9
         "slot 10 left out (the slots end at 10)": broken_rust(
-            changed, shim, rb"\x83[\xf8-\xff]\x16", lambda b: b[:2] + b"\x09"),
-        # imul r,r,9E3779B1h: the time's register replaced by another
+            changed, rust_code(changed, shim), SLOT_BOUND, slots_to_ten),
+        # imul r,r/m,9E3779B1h: the time (a register, or EBP's saved dword)
+        # replaced by another
         "the time left out": broken_rust(
-            changed, shim, rb"\x69[\xc0-\xff]\xb1\x79\x37\x9e", lambda b: bytes([b[0], b[1] ^ 1]) + b[2:]),
-        # cmp ...,2E30F0h then jnz: never skipped
+            changed, shim, rb"\x69(?:[\xc0-\xff]|[\x40-\x7f].)\xb1\x79\x37\x9e",
+            lambda b: bytes([b[0], b[1] ^ 1]) + b[2:] if b[1] >= 0xC0 else b[:2] + bytes([b[2] ^ 4]) + b[3:]),
+        # cmp ...,2E30F0h then the branch on it: every item a weapon
         "every item taken for a weapon": broken_rust(
-            changed, shim, rb"(?:\x3d|\x81[\xf8-\xff])\xf0\x30\x2e\x00\x75.", lambda b: b[:-2] + b"\x90\x90"),
+            changed, rust_code(changed, shim), rb"(?:\x3d|\x81[\xf8-\xff])\xf0\x30\x2e\x00[\x74\x75].",
+            lambda b: b[:-2] + (b"\x90\x90" if b[-2] == 0x75 else b"\xeb" + b[-1:])),
     }
     for name, data in copies.items():
         try:
@@ -1556,25 +1589,27 @@ def kit_state(original, changed):
 
 def kit_state_fails(original, changed):
     """kit_state given the original as the build, and copies of the build
-    with one thing broken each, must fail."""
-    image = patch.base.Headers(changed)
-    _, rva, _, raw, _, _ = srp_section(changed)
-    cave = raw + patch.base.LATE_JOIN_OFFSET + patch.base.KIT_STATE_OFFSET
-    code = bytes(changed[cave:cave + 0x90])
-
-    def broken(old, new):
-        at = code.index(old)
-        copy = bytearray(changed)
-        copy[cave + at:cave + at + len(old)] = new
-        return bytes(copy)
-
+    with one thing broken each, must fail. The build's code is the Rust
+    patch kit_state's (its shim, and the inventory's walk it calls): the
+    slots' bound, the new kit's byte, the fire mode's store, the test of a
+    change of kit and the last tick's store each changed in its
+    instructions."""
+    shim = "hook_kit_state_on_spawn"
+    tick = rb"\xc7[\x80-\xbf]\xa4\x05\x00\x00\xff\xff\xff\xff"
     copies = {
         "the original": original,
-        "slot 10 left out (the slots end at 10)": broken(bytes.fromhex("83ff17"), bytes.fromhex("83ff0a")),
-        "the change of kit read from the wrong place": broken(bytes.fromhex("3a44243c"), bytes.fromhex("3a442438")),
-        "the fire mode left out": broken(bytes.fromhex("66896a41"), bytes.fromhex("90909090")),
-        "every spawn taken for a change of kit": broken(bytes.fromhex("0f95c0"), bytes.fromhex("b00190")),
-        "the time of the last tick left out": broken(bytes.fromhex("830aff"), bytes.fromhex("909090")),
+        "slot 10 left out (the slots end at 10)": broken_rust(
+            changed, rust_code(changed, shim), SLOT_BOUND, slots_to_ten),
+        # the new kit's byte, the site's [esp+18h] (the saved ESP +20h): [esp+14h]
+        "the change of kit read from the wrong place": broken_rust(
+            changed, shim, rb"\x8a[\x40-\x7f]\x20", lambda b: b[:2] + b"\x1c"),
+        "the fire mode left out": broken_rust(
+            changed, shim, rb"\x88[\x80-\xbf]\xe6\x05\x00\x00", lambda b: b"\x90" * len(b)),
+        # the jz past the reset after the tick's store: never taken
+        "every spawn taken for a change of kit": broken_rust(
+            changed, shim, tick + rb"\x74.", lambda b: b[:-2] + b"\x90\x90"),
+        "the time of the last tick left out": broken_rust(
+            changed, shim, tick, lambda b: b"\x90" * len(b)),
     }
     for name, data in copies.items():
         try:
