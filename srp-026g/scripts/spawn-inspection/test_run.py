@@ -68,7 +68,8 @@ class SpawnInspection(unittest.TestCase):
                     writer = csv.writer(f)
                     writer.writerow(['match', 'time', 'place', 'alive', 'x', 'y', 'z'])
                     for i, point in enumerate(points):
-                        writer.writerow(['abc', 1000, i, 1, *(points[0] if duplicate and i == 19 else point)])
+                        x, y, z = points[0] if duplicate and i == 19 else point
+                        writer.writerow(['abc', 1000, i, 1, x, y + 0.9, z])
                 with contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(run.coverage(positions, edits), not duplicate)
 

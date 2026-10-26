@@ -48,7 +48,11 @@ def coverage(csv_path, edit_path, match_id=None):
     samples = {}
     for row in rows:
         if row["match"] == match_id and row["alive"] == "1" and row["x"]:
-            samples.setdefault(int(row["time"]), {})[int(row["place"])] = tuple(float(row[k]) for k in ("x", "y", "z"))
+            # srp-worlds writes the physics capsule centre in map coordinates.
+            # Compare feet to authoring points (Motion::Body::feet in Rust).
+            centre = 0.55 if row.get("crouch") == "1" else 0.9
+            feet = (float(row["x"]), float(row["y"]) - centre, float(row["z"]))
+            samples.setdefault(int(row["time"]), {})[int(row["place"])] = feet
     full = [(at, players) for at, players in sorted(samples.items()) if len(players) == 20]
     if not full:
         raise ValueError("No snapshot has 20 alive players; keep the game running through the start")
