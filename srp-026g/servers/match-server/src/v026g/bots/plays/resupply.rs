@@ -35,8 +35,11 @@ use crate::v026g::drive::key;
 use mapdata::{UseStand, ZoneKind};
 
 pub const NUMBERS: &[(&str, f32)] = &[
-    // 0 turns the play off (the bench's switch).
-    ("on", 1.0),
+    // The play's switch, **off by default** (merged switched off; a train
+    // turns it on): 1 on, 0 off. Off, nothing of the play is offered and
+    // Retreat's wounded fallback walks and holds as it did before the play
+    // (the zone's pivot, USE held with the chest inside the box).
+    ("on", 0.0),
     // Offered at or under this share of the kit's count for a life; a dry
     // bot always. GUESS (no human number: recordings have no ammo); swept
     // 0.25 / 0.40 / 0.60 on the bench.
@@ -359,6 +362,17 @@ mod tests {
             });
         }
         s.tactics = Tactics::new(Arc::new(world), 1.0);
+        switch_on(s);
+    }
+
+    /// The play on (it ships off).
+    pub(super) fn switch_on(s: &mut Scenario) {
+        s.tuning
+            .plays
+            .entry(PlayKind::Resupply)
+            .or_insert_with(|| crate::v026g::bots::plays::default_tuning(PlayKind::Resupply))
+            .numbers
+            .insert("on".into(), 1.0);
     }
 
     fn ammo(have: u32) -> Ammo {
