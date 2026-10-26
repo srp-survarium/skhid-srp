@@ -665,10 +665,10 @@ impl Facts {
     /// (a second try in the life) is not counted against the bot's and the
     /// team's caps a second time.
     fn allowed(&self, rule: &UnstickTuning, again: bool) -> bool {
-        rule.suicide_after_ms > 0
-            && self
-                .hopeless
-                .is_some_and(|h| self.now.saturating_sub(h.since) >= rule.suicide_after_ms)
+        rule.suicide_after_ms.is_some_and(|after| {
+            self.hopeless
+                .is_some_and(|h| self.now.saturating_sub(h.since) >= after)
+        })
             && self.quiet_ms >= rule.suicide_quiet_ms
             && !self.carrying
             && self.life_ms >= rule.suicide_life_ms
@@ -1129,7 +1129,7 @@ mod tests {
 
     /// The owner's rule: the defaults with the 60 s on.
     fn rule() -> UnstickTuning {
-        UnstickTuning { suicide_after_ms: crate::v026g::bots::tuning::SUICIDE_AFTER_OWNER_MS, ..UnstickTuning::default() }
+        UnstickTuning { suicide_after_ms: Some(crate::v026g::bots::tuning::SUICIDE_AFTER_OWNER_MS), ..UnstickTuning::default() }
     }
 
     fn facts() -> Facts {
@@ -1191,7 +1191,7 @@ mod tests {
             assert!(sends(SelfKill::Ready, &facts), "{what}");
         }
         // The setting at 0 is never.
-        let off = UnstickTuning { suicide_after_ms: 0, ..rule() };
+        let off = UnstickTuning { suicide_after_ms: None, ..rule() };
         assert_eq!(self_kill_step(SelfKill::Ready, &ok, &off), (SelfKill::Ready, None));
     }
 

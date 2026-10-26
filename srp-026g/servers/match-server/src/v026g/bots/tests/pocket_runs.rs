@@ -413,7 +413,7 @@ fn a_bot_given_up_in_a_pit_stops_asking_for_goals_outside_it() {
     let asks = |gate: bool| {
         let mut tuning = Tuning::default();
         tuning.think.shut_in_gate = gate;
-        tuning.unstick.suicide_after_ms = 0;
+        tuning.unstick.suicide_after_ms = None;
         run_pit(tuning, 100_000)
     };
     let (gated, ungated) = (asks(true), asks(false));
@@ -431,7 +431,7 @@ fn a_bot_given_up_in_a_pit_stops_asking_for_goals_outside_it() {
 #[test]
 fn a_bot_shut_in_a_pit_kills_itself_after_the_minute_and_comes_back() {
     let mut tuning = Tuning::default();
-    tuning.unstick.suicide_after_ms = 60_000;
+    tuning.unstick.suicide_after_ms = Some(60_000);
     let PitRun { died, back, said, end, world, .. } = run_pit(tuning, 100_000);
     eprintln!("died {died:?} back {back:?} said {said:?}");
     assert_eq!(died.len(), 1, "once: {died:?}");

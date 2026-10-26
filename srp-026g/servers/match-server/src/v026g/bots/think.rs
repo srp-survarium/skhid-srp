@@ -485,7 +485,7 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
         tuning,
         ..
     } = *due;
-    if tuning.unstick.suicide_after_ms == 0 && bot.self_kill == stuck::SelfKill::default() {
+    if tuning.unstick.suicide_after_ms.is_none() && bot.self_kill == stuck::SelfKill::default() {
         return;
     }
     state.self_kills.retain(|&at| now < at.saturating_add(60_000));
