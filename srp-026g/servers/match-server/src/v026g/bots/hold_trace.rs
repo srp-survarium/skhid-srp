@@ -75,6 +75,7 @@ pub fn switched(
     age_ms: u32,
     incumbent: Option<(Rank, f32)>,
     new_kind: PlayKind,
+    new_rank: Option<Rank>,
     new_score: f32,
     reason: &str,
     dist: Option<f32>,
@@ -87,7 +88,7 @@ pub fn switched(
         None => ("no candidate".to_string(), 0.0),
     };
     add(
-        format!("sw {kind:?} {} [{reason}] {inc} -> {new_kind:?} @{}", age_bucket(age_ms), dist_bucket(dist)),
+        format!("sw {kind:?} {} [{reason}] {inc} -> {new_kind:?} {} @{}", age_bucket(age_ms), new_rank.map_or(String::new(), |r| format!("{r:?}")), dist_bucket(dist)),
         delta,
     );
 }

@@ -269,6 +269,13 @@ impl Bots {
                     now.saturating_sub(old.since),
                     incumbent,
                     assignment.kind,
+                    asked
+                        .iter()
+                        .find(|(p, _, _)| *p == place)
+                        .and_then(|(_, c, _)| {
+                            c.iter().find(|c| c.kind == assignment.kind && c.target == assignment.target)
+                        })
+                        .map(|c| c.rank),
                     assignment.score,
                     assignment.reason,
                     dist,
