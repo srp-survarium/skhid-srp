@@ -985,6 +985,7 @@ pub(crate) fn real_bot_cost() {
                         bots.hurt(place, hurt);
                     }
                     standin_heal::tell(&mut game, &mut bots, world_tick);
+                    standin_traps::tell(&mut game, &mut bots, world_tick);
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             for note in bots.fixed(place, fix, Some(health)) {
@@ -1343,6 +1344,13 @@ pub(crate) fn real_bot_cost() {
             eprintln!("  {owner_line}");
             if let Some((place, spot)) = bots.bench_camper {
                 eprintln!("  camper: place {place} spot {spot:?}");
+            }
+            // The stand-in's bear traps (none carried: no line, the log as it was).
+            if !game.traps.events.is_empty() {
+                let [placed, enemy, mate, own, shot, hand] = game.traps.counts();
+                eprintln!(
+                    "  traps (stand-in): placed {placed}, caught enemy {enemy} mate {mate} own {own}, shot off {shot}, defused by hand {hand}"
+                );
             }
             eprintln!("  push: {}", push.line(&bots));
             eprintln!(
