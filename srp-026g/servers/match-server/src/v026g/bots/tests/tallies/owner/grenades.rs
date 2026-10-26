@@ -441,7 +441,7 @@ impl Topic for GrenadeCounts {
     fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
         self.read_stats(place, bot.map(|bot| bot.reflex.grenade_stats()));
         if let Some(bot) = bot {
-            self.avoid.insert(place, bot.avoid.stats);
+            self.avoid.insert(place, bot.features.avoid.stats);
         }
     }
 

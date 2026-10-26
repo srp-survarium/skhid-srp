@@ -209,11 +209,11 @@ pub(super) fn drive_tick(
     // key goes out at once whatever the play, which is neither taken nor
     // displaced (`plays::heal::wish`, `HealTuning::interrupt`).
     bot.reflex.set_heal(super::plays::heal::wish(
-        bot.pools,
+        bot.features.stock.pools,
         me.health,
         view.world_time,
         me.carrying.is_some(),
-        &bot.pantry,
+        &bot.features.stock.pantry,
         &tuning.heal,
         time,
     ));
@@ -322,7 +322,7 @@ pub(super) fn drive_tick(
     // grenade is listed or it is not unaware of the last one.
     if tuning.avoid.grenade_avoid
         && (!view.grenades.is_empty()
-            || !matches!(bot.avoid.state, grenade_threat::GrenadeThreat::Unaware { .. }))
+            || !matches!(bot.features.avoid.state, grenade_threat::GrenadeThreat::Unaware { .. }))
     {
         let around = BlastAround {
             tactics,
@@ -337,7 +337,7 @@ pub(super) fn drive_tick(
             grenades: &view.grenades,
         };
         if let grenade_threat::Action::Go(to) =
-            bot.avoid.tick(tick, &tuning.avoid, &mut bot.rng, &around)
+            bot.features.avoid.tick(tick, &tuning.avoid, &mut bot.rng, &around)
         {
             intent.go = Go::To {
                 at: to,
@@ -460,7 +460,7 @@ pub(super) fn drive_tick(
             // escape from inside took the nearest way out instead: on
             // Mamayev Kurgan's batteries one led down a 4 m drop into a zone
             // of 0.25 a second (`crossing.rs`).
-            let at = match bot.crossing {
+            let at = match bot.features.crossing.goal {
                 Some(crossed)
                     if crossed.distance_xz(at) > REPLAN_MOVED_M
                         && bot.route.is_some()
@@ -487,7 +487,7 @@ pub(super) fn drive_tick(
             // On a crossing to this goal (`crossing.rs`): its zones' floors
             // are walked.
             let mut crossing = bot
-                .crossing
+                .features.crossing.goal
                 .is_some_and(|goal| goal.distance_xz(at) <= REPLAN_MOVED_M);
             // One that would now leave too little health: stopped, and the
             // escape walks it out (`crossing::still_borne`).
@@ -500,7 +500,7 @@ pub(super) fn drive_tick(
                 let (walked, _) = route.progress(me.feet);
                 if !crossing::still_borne(tactics, route, walked, me.health) {
                     crossing::count(crossing::Count::Aborted);
-                    bot.crossing = None;
+                    bot.features.crossing.goal = None;
                     bot.end_route(RouteEnd::CrossingAborted, time);
                     crossing = false;
                     aborted = true;
@@ -524,7 +524,7 @@ pub(super) fn drive_tick(
             // The answer of its search that went on over several polls, if
             // it is for this goal (it walks the way so far meanwhile).
             let found = bot
-                .found
+                .features.crossing.found
                 .take()
                 .filter(|(goal, _, _)| goal.distance_xz(at) <= REPLAN_MOVED_M);
             // Its own search under way: for this goal, else no longer
@@ -567,7 +567,7 @@ pub(super) fn drive_tick(
             let mut no_route = path::NoRoute::Searched;
             if let Some((goal, route, crossed)) = found {
                 bot.no_way = route.is_none().then_some((goal, time + NO_WAY_RETRY_MS));
-                bot.crossing = crossed.then_some(goal);
+                bot.features.crossing.goal = crossed.then_some(goal);
                 // Both ends were on floors, from one it may walk on: proven.
                 if route.is_none() {
                     bot.no_way_to.retain(|&(old, until)| {
@@ -627,7 +627,7 @@ pub(super) fn drive_tick(
                 let landings = bot.stuck.shut_landings(time).collect();
                 let mut hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
                 // A body that cannot sprint takes no jump link above its standing jump.
-                if let Some(rise) = bot.motor.feel.carrier_jump_m.filter(|_| me.carrying.is_some()) {
+                if let Some(rise) = bot.motor.feel.carrier_jump_m.map(f32::from).filter(|_| me.carrying.is_some()) {
                     hard = hard.with_max_jump_rise(rise);
                 }
                 let filter = hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect());
@@ -795,7 +795,7 @@ pub(super) fn drive_tick(
                 if left.is_none()
                     && !escaping
                     && !there
-                    && !(route.is_some() && long_kept(bot.long_kept, at, time))
+                    && !(route.is_some() && long_kept(bot.features.crossing.long_kept, at, time))
                     && let Some((from, to)) = ends
                     && crossing::wanted(
                         tactics,
@@ -824,7 +824,7 @@ pub(super) fn drive_tick(
                                 objective,
                             );
                             if kept {
-                                bot.long_kept = Some((at, time + crossing::LONG_RETRY_MS));
+                                bot.features.crossing.long_kept = Some((at, time + crossing::LONG_RETRY_MS));
                             }
                         }
                         Err(planning) => {
@@ -848,7 +848,7 @@ pub(super) fn drive_tick(
                             bot.bench_route = why::PLAIN;
                         }
                         bot.set_route(Some((plain, at)), time);
-                        bot.crossing = None;
+                        bot.features.crossing.goal = None;
                     }
                     no_route = path::NoRoute::Searching;
                     searching.pending = Some(Pending {
@@ -925,7 +925,7 @@ pub(super) fn drive_tick(
                         };
                     }
                     bot.set_route(route.map(|route| (route, at)), time);
-                    bot.crossing = crossed.then_some(at);
+                    bot.features.crossing.goal = crossed.then_some(at);
                 }
             }
             #[cfg(test)]
@@ -949,7 +949,7 @@ pub(super) fn drive_tick(
                     // corner it turns at over the rim.
                     bot.motor.ahead_cap = {
                         let grid = &tactics.world.grid;
-                        let cap = bot.motor.feel.lip_look_ahead_m;
+                        let cap = bot.motor.feel.lip_look_ahead_m.get();
                         (cap > 0.0 && grid.locate(me.feet, 1.5).is_some_and(|node| grid.near_lip(node) || grid.is_lip(node))).then_some(cap)
                     };
                     #[cfg(test)]
@@ -1096,11 +1096,11 @@ pub(super) fn drive_tick(
         decision.keys &= !(key::CROUCH | key::SPRINT);
     }
     if decision.keys & key::QUICK[0] != 0 {
-        bot.medkits_used = bot.medkits_used.saturating_add(1);
+        bot.features.stock.medkits_used = bot.features.stock.medkits_used.saturating_add(1);
     }
     for (quick, bit) in key::QUICK.into_iter().enumerate() {
         if decision.keys & bit != 0 {
-            bot.pantry.pressed(quick, time);
+            bot.features.stock.pantry.pressed(quick, time);
         }
     }
     let by = bot.motor.jumped().map(|by| match by {

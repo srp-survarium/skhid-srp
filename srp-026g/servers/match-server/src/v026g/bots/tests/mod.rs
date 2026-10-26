@@ -75,6 +75,7 @@ mod settings;
 mod soak;
 mod soaks;
 mod sorted;
+mod sorted_use;
 mod standin;
 mod standin_damage;
 mod standin_fields;
