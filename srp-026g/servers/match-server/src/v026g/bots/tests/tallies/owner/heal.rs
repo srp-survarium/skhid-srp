@@ -47,6 +47,8 @@ pub(super) struct HealRec {
 
 /// An enemy this near with a clear line is "in an enemy's line", m (the situations).
 const LINE_M: f32 = 40.0;
+/// A heal cover walk begun this many ticks after a press (0.8 s) belongs to it.
+const WALK_AFTER_TICKS: usize = 16;
 /// A hurt body: under this (the record's 0.995).
 const HURT: f32 = 0.995;
 /// Healed: from this (the record's 0.99).
@@ -302,7 +304,7 @@ impl OwnerTally {
         };
         // The situation of every press on a hurt body, to be read with the deaths soon after
         // it: bits target 1, a loss in the last 2 s 2, an enemy's line 4, a heal cover walk
-        // in the last 1.6 s 8; each key [presses, of them dead within 5 s].
+        // on at the press or begun within 0.8 s after it 8; each key [presses, of them dead within 5 s].
         let mut situations: BTreeMap<u32, [u32; 2]> = BTreeMap::new();
         for p in used.iter().filter(|p| p.3 < HURT) {
             let k = self.index(p.0);
@@ -310,10 +312,13 @@ impl OwnerTally {
             let Some(rec) = recs.get(k) else { continue };
             let lost = (k.saturating_sub(40) + 1..=k.min(recs.len() - 1))
                 .any(|i| i > 0 && recs[i].alive && recs[i - 1].alive && recs[i].body < recs[i - 1].body);
+            // The walk is begun at the think after the press, so a walk counts when it is on at the
+            // press or begins within `WALK_AFTER_TICKS` after it.
+            let walk = rec.walking || recs[(k + WALK_AFTER_TICKS).min(recs.len() - 1)].walks > rec.walks;
             let bits = u32::from(rec.target)
                 | u32::from(lost) << 1
                 | u32::from(rec.line) << 2
-                | u32::from(rec.walking) << 3;
+                | u32::from(walk) << 3;
             let died = deaths
                 .iter()
                 .any(|&(place, dk)| place == p.1 && dk >= k && self.time_of(dk) - p.0 <= DEAD_AFTER_MS);
@@ -460,5 +465,39 @@ mod tests {
         // The life had a medkit at its start and died with it unused and
         // one press (the first life: no death before 20 s).
         assert_eq!(json["heal_deaths_with_stock"], 1);
+    }
+
+    /// A cover walk begun after the press (the reflex begins it at its next think) belongs to the press.
+    #[test]
+    fn a_walk_begun_just_after_a_press_is_in_its_situation() {
+        let (mut game, mut tally) = made_up(&[0, 1]);
+        for k in 0..400usize {
+            game.tick = (k as u32 + 1) * TICK_MS;
+            let ms = game.tick;
+            for place in 0..2 {
+                game.bodies[place].alive = true;
+                game.bodies[place].step_m = 0.0;
+            }
+            game.hit_log.clear();
+            game.bodies[0].health = if ms <= 1_000 { 1.0 } else { 0.6 };
+            if ms == 3_000 {
+                game.drug_log.push((ms, 0, Pressed::Used(Drug::Medkit), 0.6));
+            }
+            // The walk begins at 3.3 s: the count of walks goes up and the bot walks.
+            let begun = ms >= 3_300;
+            let now = Some(BotNow {
+                play: "Roam".to_owned(),
+                target: true,
+                heal_walking: begun && ms < 3_300 + 1_600,
+                heal_walks: u32::from(begun),
+                ..BotNow::default()
+            });
+            tally.step(&mut game, &[now, bot_now()]);
+        }
+        let (_, json) = tally.finish(&game);
+        let situations = json["heal_situations"].as_object().expect("situations");
+        // Target (1) and a cover walk (8); no loss in the last 2 s? the loss came at 1.05 s, 2 s before the press.
+        assert!(situations.keys().any(|k| k.parse::<u32>().unwrap() & 9 == 9), "{situations:?}");
+        assert_eq!(json["heal_cover_walks"], 1);
     }
 }
