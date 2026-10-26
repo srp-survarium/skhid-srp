@@ -79,9 +79,9 @@ mod commander;
 mod drive;
 mod facts;
 mod features;
-mod layers;
 #[cfg(test)]
 pub mod hold_trace;
+mod layers;
 mod search;
 mod think;
 
