@@ -47,19 +47,19 @@ package survarium.controls
       public function set forced(value:Boolean) : void
       {
          this._forced = value;
-         this.update();
+         this.refresh();
       }
 
       public function set tab(value:Boolean) : void
       {
          this._tab = value;
-         this.update();
+         this.refresh();
       }
 
       public function set typing(value:Boolean) : void
       {
          this._typing = value;
-         this.update();
+         this.refresh();
       }
 
       // The parts kept now: none when not forced.
@@ -84,9 +84,10 @@ package survarium.controls
          });
       }
 
-      // At every change of a state: what parts() says kept, what was kept and is not now given back,
+      // At every change of a state or of the parts available (death/respawn): what parts() says kept,
+      // what was kept and is not now given back,
       // the chat's history held on for Tab (while typed in, the chat holds its lines itself).
-      private function update() : void
+      public function refresh() : void
       {
          var now:Array = this.parts();
          this._layer.keep(this._kept.filter(function(part:*, i:int, all:Array):Boolean

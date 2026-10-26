@@ -1186,6 +1186,9 @@ package
       public function show_profiles_selector(value:Boolean) : void
       {
          this._profilePanel.visible = value;
+         // A death/respawn switches the Tab view even while Tab stays held.
+         // The game's show_player_list only invokes the movie when Tab changes.
+         this._forcedView.refresh();
       }
       
       public function set_game_stats(state:uint, fps:uint, latency:uint, lowFps:Boolean = false, lowLatenxy:Boolean = false) : void

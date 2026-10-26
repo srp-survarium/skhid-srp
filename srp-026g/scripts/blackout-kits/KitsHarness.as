@@ -27,7 +27,8 @@ package
    // - a real mouse click (check.sh's xdotool on the Ruffle window) on kit 3's tab picks it;
    // - given back (Tab up), the panel is in the root where it was;
    // - the body's state (HUDPlayerInfo's criticalInd, alive Tab's doll) kept the same way stays where it
-   //   was, shown, and takes the body parts' state (partHP) there.
+   //   was, shown, and takes the body parts' state (partHP) there;
+   // - death and respawn with Tab held switch between the kits and body without another Tab event.
    // Prints "KITS ..." lines (trace) and ends with "KITS RESULT pass" or "KITS RESULT fail: ...".
    public class KitsHarness extends Sprite
    {
@@ -95,6 +96,7 @@ package
          panel = new Panel() as MovieClip;
          panel.x = 60;
          panel.y = 300;
+         panel.visible = false;         // alive at first
          face.addChild(panel);
          var Info:Class = domain.getDefinition("HUDPlayerInfo") as Class;
          var info:MovieClip = new Info() as MovieClip;
@@ -108,13 +110,13 @@ package
          chat.y = 0;
          face.addChild(chat);
          var View:Class = domain.getDefinition("survarium.controls.ForcedView") as Class;
-         // the hud's lists (HUD.keptWhenForced, keptOnTab while the kits are shown, keptWhileTyping)
+         // The hud's lists (HUD.keptWhenForced, keptOnTab, keptWhileTyping).
          view = new View(kept,function():Array
          {
             return [];
          },function():Array
          {
-            return [panel,doll,chat];
+            return panel.visible ? [panel,chat] : [doll,chat];
          },function():Array
          {
             return [chat];
@@ -209,12 +211,6 @@ package
             {
                failures.push("Tab held: the history held " + history.join());
             }
-            var after:Point = panel.localToGlobal(new Point(0,0));
-            trace("KITS kept: the panel at " + before + " in the root, " + after + " in the kept layer");
-            if(panel.parent != kept || Point.distance(before,after) > 0.5)
-            {
-               failures.push("kept: the panel from " + before + " to " + after + ", in the layer " + (panel.parent == kept));
-            }
             var dollNow:Point = doll.localToGlobal(new Point(0,0));
             var hp:Boolean = true;
             try
@@ -229,6 +225,38 @@ package
             if(doll.parent != kept || Point.distance(dollAt,dollNow) > 0.5 || !doll.visible || !hp)
             {
                failures.push("the body's state kept: from " + dollAt + " to " + dollNow + ", parts set " + hp);
+            }
+            // show_profiles_selector changes visibility, then refreshes the view. Tab is held
+            // throughout these changes: no setter of forced/tab/typing is called again.
+            if("refresh" in view)
+            {
+               panel.visible = true;
+               view.refresh();
+               if(!shown(panel) || shown(doll) || panel.parent != kept || doll.parent == kept)
+               {
+                  failures.push("death while Tab held: the kits must replace the body");
+               }
+               panel.visible = false;
+               view.refresh();
+               if(shown(panel) || !shown(doll) || panel.parent != face || doll.parent != kept)
+               {
+                  failures.push("respawn while Tab held: the body must replace the kits");
+               }
+               panel.visible = true;
+               view.refresh();
+               trace("KITS death and respawn while Tab held: refreshed without another Tab event");
+            }
+            else
+            {
+               failures.push("death/respawn with Tab held: ForcedView has no refresh");
+               panel.visible = true;
+               view.tab = true;        // let the remaining key/click checks run on an old movie
+            }
+            var after:Point = panel.localToGlobal(new Point(0,0));
+            trace("KITS kept: the panel at " + before + " in the root, " + after + " in the kept layer");
+            if(panel.parent != kept || Point.distance(before,after) > 0.5)
+            {
+               failures.push("kept: the panel from " + before + " to " + after + ", in the layer " + (panel.parent == kept));
             }
             call(function():void
             {

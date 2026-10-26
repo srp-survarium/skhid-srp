@@ -53,8 +53,8 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   kits, as a plain match shows them on the death screen and before the start, to pick by a click
   or 1 to 3 (shown chosen as in a plain match), the players' markers (a plain death screen shows
   them) and the time left; hidden again when Tab is let go.
-  Keys 1 to 3 pick a kit with or without Tab. A death or a respawn while Tab is held shows at the
-  next Tab.
+  Keys 1 to 3 pick a kit with or without Tab. A death or a respawn while Tab is held switches
+  between the kits and the alive player's view immediately.
 - **Keys while Tab is held** go on as with Tab up (a plain match's Tab list takes every key while it
   is up; Blackout has no list): the kits' 1 to 3, the replay's keys; the moves and acts stay
   stopped by the input's filter.
