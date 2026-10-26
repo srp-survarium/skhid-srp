@@ -348,6 +348,7 @@ impl Bot {
             bench_guard_at: ([0.0; 2], Vec3::ZERO),
             #[cfg(test)]
             bench_est: std::collections::VecDeque::new(),
+            #[cfg(test)]
             bench_asked: Default::default(),
             #[cfg(test)]
             bench_driven: 0,
