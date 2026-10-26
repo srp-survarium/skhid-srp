@@ -120,6 +120,13 @@ pub struct ReactTuning {
     /// (a GUESS: the body clears 0.22 m for about 0.6 m beyond the trap at a
     /// run).
     pub jump_before_m: f32,
+    /// Whether a trap that goes off is heard by the enemies of the body that
+    /// set it off, as a sound of the loudness of footsteps (`sense.step_m`).
+    /// Independent of `on`. A disarm makes no sound.
+    pub hear: bool,
+    /// The body nearest a trap that went off, within this, is the one that
+    /// set it off, metres (the worlds show no name).
+    pub snap_near_m: f32,
 }
 
 impl Default for ReactTuning {
@@ -147,6 +154,8 @@ impl Default for ReactTuning {
             pass: false,
             jump: false,
             jump_before_m: 1.1,
+            hear: false,
+            snap_near_m: 3.0,
         }
     }
 }
@@ -213,7 +222,8 @@ pub(super) fn validate(t: &TrapTuning) -> Result<(), String> {
             && r.max_shoot_s > 0.0
             && r.claim_m >= 0.0
             && r.claim_yaw_deg > 0.0
-            && r.jump_before_m > 0.4,
+            && r.jump_before_m > 0.4
+            && r.snap_near_m > 0.0,
         "traps.react",
     )?;
     Ok(())

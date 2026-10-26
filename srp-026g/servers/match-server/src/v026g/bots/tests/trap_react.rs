@@ -625,3 +625,60 @@ pub(crate) fn a_noticed_trap_that_goes_off_at_the_pass_is_counted_as_caught() {
     far.prune(&[]);
     assert_eq!(far.counts().trap_caught_after_notice, 0);
 }
+
+/// A trap the last world showed armed and this one shows fired went off under
+/// the body nearest it, and that body's enemies are given a sound (heard at the
+/// loudness of steps); a trap that was disarmed, one that was never seen armed,
+/// a fired world seen twice, a trap with nobody near it and the switch off
+/// make none.
+#[test]
+pub(crate) fn a_trap_that_goes_off_under_a_body_is_given_to_the_ears() {
+    use super::traps::{objects_with, run_with};
+    use crate::v026g::bots::view::SoundKind;
+    let mut hear = Tuning::default();
+    hear.traps.react.hear = true;
+    let (_, mut bots) = run_with(None, hear, 5, None);
+    bots.entered(1, true, 0);
+    let human = Vec3::new(70.0, 0.0, 12.0);
+    assert_eq!(bots.tracker.nearest_body(human, 3.0), Some(1));
+    let under = Vec3::new(71.0, 0.0, 12.0);
+    let snaps = |bots: &mut Bots, at: u32| {
+        let clock = Clock {
+            clock: at,
+            time_left_s: 0.0,
+            total_s: 0.0,
+            playing: true,
+        };
+        let view = bots.tracker.view(&clock, &bots.tuning.kin, None);
+        view.sounds
+            .iter()
+            .filter(|s| s.kind == SoundKind::Trap)
+            .map(|s| (s.from, s.at))
+            .collect::<Vec<_>>()
+    };
+    // Never seen armed: no sound.
+    bots.traps_from_world(&objects_with(under, 2, 1_000), 5_500);
+    assert_eq!(bots.snaps_heard(), 0);
+    // Armed, then fired: one, the body's, at the trap.
+    bots.traps_from_world(&objects_with(under, 1, 1_000), 6_000);
+    assert_eq!(bots.snaps_heard(), 0);
+    bots.traps_from_world(&objects_with(under, 2, 1_000), 7_000);
+    assert_eq!(bots.snaps_heard(), 1);
+    assert_eq!(snaps(&mut bots, 7_100), vec![(1, under)]);
+    // The same fired world again: not twice.
+    bots.traps_from_world(&objects_with(under, 2, 1_000), 8_000);
+    assert_eq!(bots.snaps_heard(), 1);
+    // Armed, then disarmed: silent. Armed, fired with nobody near: silent.
+    let (hand, empty) = (Vec3::new(71.5, 0.0, 12.0), Vec3::new(40.0, 0.0, 30.0));
+    bots.traps_from_world(&objects_with(hand, 1, 2_000), 9_000);
+    bots.traps_from_world(&objects_with(hand, 3, 2_000), 10_000);
+    bots.traps_from_world(&objects_with(empty, 1, 3_000), 11_000);
+    bots.traps_from_world(&objects_with(empty, 2, 3_000), 12_000);
+    assert_eq!(bots.snaps_heard(), 1);
+    // Off: armed then fired makes none.
+    let (_, mut off) = run_with(None, Tuning::default(), 5, None);
+    off.traps_from_world(&objects_with(under, 1, 1_000), 6_000);
+    off.traps_from_world(&objects_with(under, 2, 1_000), 7_000);
+    assert_eq!(off.snaps_heard(), 0);
+    assert!(snaps(&mut off, 7_100).is_empty());
+}
