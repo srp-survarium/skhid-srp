@@ -64,11 +64,16 @@ pub struct ThreatTuning {
     pub search_floors: u32,
 }
 
-/// How a bot commits to a play it has started. Every switch is off until a
-/// bench turns it on.
+/// How a bot commits to a play it has started (the commander's keep rule,
+/// `team.rs`). Every switch is off until a bench turns it on.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CommitTuning {
+    /// A hold (Crossfire, HoldExit, Cut) still walking to its spot is kept
+    /// against any play of its own band, whatever the score; a higher band
+    /// (an objective, an alarm) still takes the bot, and so does the play's
+    /// own end.
+    pub hold_to_arrival: bool,
     /// A running Cut is scored without the crowd at its cut point
     /// (`Input::FriendsNearTarget` taken as 0): the crowd is a reason not to
     /// start a Cut where friends already are, not to leave one the bot is
