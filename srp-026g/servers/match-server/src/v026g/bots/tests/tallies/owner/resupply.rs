@@ -103,6 +103,20 @@ impl OwnerTally {
                 (0..r.len()).filter(|&k| r[k].alive && (k == 0 || !r[k - 1].alive)).count() as u32
             })
             .sum();
+        // The play's own runs: each rise of the bot's play to Resupply, and the seconds in it.
+        let id = self.play_index.get("Resupply").copied();
+        let (mut runs, mut run_ticks) = (0u32, 0u32);
+        if let Some(id) = id {
+            for p in (0..self.recs.len()).filter(|&p| self.is_bot[p]) {
+                let r = &self.recs[p];
+                for k in 0..r.len() {
+                    if r[k].alive && r[k].play == id {
+                        run_ticks += 1;
+                        runs += u32::from(k == 0 || r[k - 1].play != id || !r[k - 1].alive);
+                    }
+                }
+            }
+        }
         let kills_of = |e: &Event| {
             game.kill_log
                 .iter()
@@ -134,6 +148,8 @@ impl OwnerTally {
         let json = serde_json::json!({
             "resupply_holds": self.resupply.holds,
             "resupply_lives": lives,
+            "resupply_runs": runs,
+            "resupply_run_s": (f64::from(run_ticks) * scale.tick_s).round(),
             "nearly_dry": all[0],
             "nearly_dry_life_s": all[1],
             "nearly_dry_kills": all[2],
@@ -151,7 +167,9 @@ impl OwnerTally {
             "nearly_dry_objective_near_died_dry": nr[4],
         });
         let text = format!(
-            "owner-test resupply: box holds {} ({:.3} a bot-minute, {:.3} a life of {}); nearly dry (a life's first moment at or under dry_share, with something to refill) {} (life after {} s, kills {}, died {} dry {}); of them bound for an objective {} (life {} s, kills {}, died {} dry {}), and with the box within {} m of extra walk {} (life {} s, kills {}, died {} dry {})",
+            "owner-test resupply: runs of the play {} ({:.0} s); box holds {} ({:.3} a bot-minute, {:.3} a life of {}); nearly dry (a life's first moment at or under dry_share, with something to refill) {} (life after {} s, kills {}, died {} dry {}); of them bound for an objective {} (life {} s, kills {}, died {} dry {}), and with the box within {} m of extra walk {} (life {} s, kills {}, died {} dry {})",
+            runs,
+            f64::from(run_ticks) * scale.tick_s,
             self.resupply.holds,
             scale.per_min(f64::from(self.resupply.holds)),
             Scale::rate(self.resupply.holds, lives),
@@ -202,5 +220,5 @@ pub(crate) fn holds_and_the_nearly_dry_lives_are_counted() {
     assert_eq!(json["nearly_dry_objective_near_died"], 1);
     assert_eq!(json["nearly_dry_objective_near_died_dry"], 1, "{json}");
     assert_eq!(json["nearly_dry_died"], 1, "bot 2 lives on");
-    assert!(text.contains("owner-test resupply: box holds 1"), "{text}");
+    assert!(text.contains("box holds 1 ("), "{text}");
 }
