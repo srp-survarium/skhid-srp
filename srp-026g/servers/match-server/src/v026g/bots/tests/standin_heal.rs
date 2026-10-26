@@ -47,14 +47,30 @@ use survarium::v026g::loadouts::{BOT_POCKETS, QUICK_USE_FIRST_BIT};
 use super::*;
 use crate::v026g::bots::stock::{Drug, Reading, Readings};
 
-/// Whether the stand-in has the drugs (`SRP_BENCH_HEAL_MODEL`,
-/// anything but `off`).
+thread_local! {
+    /// A test's word on the model, for its own thread (the tests run one to a thread).
+    static FORCED: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+}
+
+/// A test puts the model on or off for its own thread (`None`: as the run says).
+pub(crate) fn force_model(on: Option<bool>) {
+    FORCED.with(|f| f.set(on));
+}
+
+/// Whether the stand-in has the drugs. `SRP_BENCH_HEAL_MODEL=off|on` says; else it follows the tuning of the
+/// run, **the rework's switch** (`HealTuning::on`, default off): merged switched off, the stand-in is the
+/// tip's too (a press of a quick key does nothing), so a run is decision-identical to the tip's; the one
+/// bench alias `SRP_BENCH_TUNING='{"heal":{"on":true}}'` (or `SRP_BENCH_HEAL=on=true`) turns the bots'
+/// rework and the stand-in's drugs on together.
 pub(crate) fn model_on() -> bool {
+    if let Some(on) = FORCED.with(std::cell::Cell::get) {
+        return on;
+    }
     static ON: OnceLock<bool> = OnceLock::new();
-    *ON.get_or_init(|| {
-        !bench_settings()
-            .var("SRP_BENCH_HEAL_MODEL")
-            .is_ok_and(|v| v == "off")
+    *ON.get_or_init(|| match bench_settings().var("SRP_BENCH_HEAL_MODEL").as_deref() {
+        Ok("off") => false,
+        Ok(_) => true,
+        Err(_) => super::bench::bench_tuning().heal.on,
     })
 }
 
@@ -709,6 +725,7 @@ mod tests {
     /// shows the slot as the press left it.
     #[test]
     fn a_pressed_medkit_heals_a_hurt_body_in_the_stand_in_game_and_the_third_press_does_nothing() {
+        force_model(Some(true));
         let mut game = Game::new(soak_world(), &[0, 1], 1, None, None);
         let gun = game.bodies[0].gun;
         game.bodies[0].health = 0.4;
@@ -803,6 +820,13 @@ mod tests {
     /// each world shows: they hurt one another, press the medkit and are
     /// healed by it, and no press goes into an empty slot or into an
     /// active medkit (the stock is the game's), in every life of the run.
+    /// The tuning with the rework switched on (the default is off: the tip's bots and stand-in).
+    fn rework_on() -> Tuning {
+        let mut tuning = Tuning::default();
+        tuning.heal.on = true;
+        tuning
+    }
+
     /// A short run of eight bots (batteries) against the stand-in game for
     /// `ms`. `each` is called around every poll: first `(bots, game, clock,
     /// None)` before it, then `(bots, game, clock, Some(made))` after it with
@@ -812,6 +836,8 @@ mod tests {
         tuning: Tuning,
         mut each: impl FnMut(&mut Bots, &mut Game, u32, Option<&[crate::v026g::bots::Made]>),
     ) -> Game {
+        // The stand-in has the drugs with the rework on, as a bench run's does.
+        force_model(Some(tuning.heal.on));
         let world = soak_world();
         let teams: Vec<u8> = (0..8).map(|p| u8::from(p >= 4)).collect();
         let mut bots = Bots::new(
@@ -872,7 +898,7 @@ mod tests {
 
     #[test]
     fn a_short_run_heals_its_bots_and_presses_no_empty_slot() {
-        let game = short_run(120_000, Tuning::default(), |_, _, _, _| {});
+        let game = short_run(120_000, rework_on(), |_, _, _, _| {});
         let used = game
             .drug_log
             .iter()
@@ -905,7 +931,7 @@ mod tests {
         type Before = (Option<crate::v026g::bots::team::Assignment>, Vec<(PlayKind, u32)>, bool);
         let mut before: Vec<Option<Before>> = Vec::new();
         let (mut pressed, mut unchanged) = (0, 0);
-        let game = short_run(120_000, Tuning::default(), |bots, game, _, made| {
+        let game = short_run(120_000, rework_on(), |bots, game, _, made| {
             match made {
                 None => {
                     // Hurt bot 0 and bot 5 hard once a minute so the fights do not decide whether the key goes out.
@@ -948,7 +974,7 @@ mod tests {
         assert!(unchanged >= 1, "{unchanged} of {pressed} presses left the assignment as it was");
         assert!(game.drug_log.iter().all(|p| matches!(p.2, Pressed::Used(_))));
         // The test has teeth: with the play (the habit off) the same run does assign a Heal play.
-        let mut off = Tuning::default();
+        let mut off = rework_on();
         off.heal.interrupt = false;
         let mut assigned = 0;
         short_run(120_000, off, |bots, game, _, made| {
@@ -966,5 +992,24 @@ mod tests {
             }
         });
         assert!(assigned > 0, "the play is assigned with the habit off");
+        // The rework off (the default: the tip's bots and the stand-in without drugs): the tip's Heal play is
+        // assigned, the kit's pantry is not looked at, and a press heals nobody.
+        let mut assigned_tip = 0;
+        let game = short_run(120_000, Tuning::default(), |bots, game, _, made| {
+            if made.is_none() && game.tick % 30_000 == 0 && game.tick > 0 {
+                game.bodies[0].health = game.bodies[0].health.min(0.5);
+                game.bodies[5].health = game.bodies[5].health.min(0.5);
+            }
+            if made.is_some() {
+                assigned_tip += bots
+                    .bots
+                    .iter()
+                    .flatten()
+                    .filter(|b| b.assignment.as_ref().is_some_and(|a| a.kind == PlayKind::Heal))
+                    .count();
+            }
+        });
+        assert!(assigned_tip > 0, "the tip's play is assigned with the rework off");
+        assert!(game.drug_log.is_empty(), "the stand-in has no drugs with it off");
     }
 }

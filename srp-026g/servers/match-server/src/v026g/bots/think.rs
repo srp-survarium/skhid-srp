@@ -501,6 +501,7 @@ pub(super) fn decide(
             last_ran: &bot.last_ran,
             partner: bot.partner,
             paired: bot.paired,
+            medkits_used: bot.medkits_used,
             pantry: &bot.pantry,
             pools: bot.pools,
             no_way_to: &bot.no_way_to,

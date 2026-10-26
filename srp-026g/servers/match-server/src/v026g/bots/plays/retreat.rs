@@ -301,16 +301,8 @@ mod tests {
     fn under_fire_and_badly_hurt_it_falls_back_to_its_resupply_and_holds_use() {
         let mut s = Scenario::field(Mode::TeamDeathmatch);
         with_zones(&mut s);
-        // The Heal play (the habit off): with the habit the press is the reflex's and the play is not a candidate.
-        s.tuning.heal.interrupt = false;
         s.bot(0, 0, Vec3::new(45.0, 0.0, 32.0)).health = 0.3;
         s.enemy(1, 1, Vec3::new(65.0, 0.0, 33.0), Some(Source::Seen));
-        // With a medkit it heals first, in the alarm band, under fire too.
-        let best = s.candidates(0);
-        assert_eq!(best[0].kind, PlayKind::Heal, "{best:#?}");
-        // Both medkits of the kit used: nothing to heal with, so it falls back.
-        s.pantry.pressed(0, 0);
-        s.pantry.pressed(0, 0);
         let best = s.candidates(0);
         assert_eq!(best[0].kind, PlayKind::Retreat, "{best:#?}");
         assert!(best.iter().all(|c| c.kind != PlayKind::Heal));
@@ -354,9 +346,8 @@ mod tests {
         with_zones(&mut s);
         s.bot(0, 0, Vec3::new(45.0, 0.0, 32.0)).health = 0.3;
         assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Retreat));
-        // Both medkits of the kit used: it falls back.
-        s.pantry.pressed(0, 0);
-        s.pantry.pressed(0, 0);
+        // Both medkits used this life: it falls back.
+        s.medkits_used = 2;
         assert!(s.candidates(0).iter().any(|c| c.kind == PlayKind::Retreat));
         // Healthy enough: not.
         s.view.places[0].health = 0.5;
@@ -387,5 +378,25 @@ mod tests {
         let enemy = Vec3::new(45.0, 0.0, 30.0);
         assert!(via.distance_xz(enemy) >= 7.0, "{via:?}");
         assert!(via.z > enemy.z, "{via:?}");
+    }
+
+    /// The rework on: the kit's medkits counted for the match (`stock.rs`) take the place of the tip's count a life.
+    #[test]
+    fn with_the_rework_on_it_falls_back_when_the_kit_has_no_medkit_left() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        with_zones(&mut s);
+        s.tuning.heal.on = true;
+        s.bot(0, 0, Vec3::new(45.0, 0.0, 32.0)).health = 0.3;
+        assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Retreat));
+        s.pantry.pressed(0, 0);
+        s.pantry.pressed(0, 0);
+        assert!(s.candidates(0).iter().any(|c| c.kind == PlayKind::Retreat));
+        // The tip's count a life is not looked at then: a bot that "used" two this life but whose kit still has them.
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        with_zones(&mut s);
+        s.tuning.heal.on = true;
+        s.bot(0, 0, Vec3::new(45.0, 0.0, 32.0)).health = 0.3;
+        s.medkits_used = 2;
+        assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Retreat));
     }
 }

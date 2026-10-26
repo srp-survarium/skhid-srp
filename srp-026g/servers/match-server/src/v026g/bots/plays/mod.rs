@@ -426,7 +426,10 @@ pub struct BotFacts<'a> {
     /// Whether the partner has it for partner too (a pair, play 25); a
     /// team's odd bot partners one way, for its trades only.
     pub paired: bool,
-    /// The drugs of its kits (`stock.rs`).
+    /// Medkits it used this life (quick use 1 pressed): the tip's count, which the Heal play and Retreat go by
+    /// while `HealTuning::on` is off.
+    pub medkits_used: u8,
+    /// The drugs of its kits (`stock.rs`), which they go by with it on.
     pub pantry: &'a Pantry,
     /// Its health pools as the last world showed them (`pools.rs`); none
     /// before the first.
@@ -843,6 +846,19 @@ impl Ctx<'_> {
         slot: Option<u32>,
         given: &[(Input, f32)],
     ) -> Option<Candidate> {
+        self.candidate_with(kind, target, slot, &self.play(kind).considerations, given)
+    }
+
+    /// [`Self::candidate_given`] scored by `considerations` instead of the play's own (the Heal play's
+    /// graded rule has its curve in `HealTuning`).
+    pub fn candidate_with(
+        &self,
+        kind: PlayKind,
+        target: TargetRef,
+        slot: Option<u32>,
+        considerations: &[curve::Consideration],
+        given: &[(Input, f32)],
+    ) -> Option<Candidate> {
         if self
             .bot
             .set_aside
@@ -853,7 +869,7 @@ impl Ctx<'_> {
             return None;
         }
         let play = self.play(kind);
-        let (score, why) = curve::score(&play.considerations, |input| {
+        let (score, why) = curve::score(considerations, |input| {
             given
                 .iter()
                 .find(|(i, _)| *i == input)

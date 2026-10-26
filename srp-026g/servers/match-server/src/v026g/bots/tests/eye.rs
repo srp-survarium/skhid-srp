@@ -314,25 +314,35 @@ pub(crate) fn the_bots_tuning_sets_the_eye_of_its_thread() {
     super::view::set_live_eye(true);
 }
 
+/// The tuning the pin below was taken with: the bench's defaults with every behaviour switch that is newer
+/// than the pin (and ON by default) turned OFF. **The single list: a behaviour PR whose default is ON adds
+/// ONE line here and never touches the test; a switch merged OFF needs none** (the flip PR adds it). Keep it
+/// sorted by the switch's path, each line its own block with the PR named, so two PRs add at different places
+/// and git merges them without a conflict.
+fn pre_eye_pin_tuning() -> Tuning {
+    let mut tuning = bench_tuning();
+
+    // #534: the eye is where the game's bullet starts.
+    tuning.aim.combat.live_eye = false;
+
+    tuning
+}
+
 /// With the switch off (`SRP_BENCH_COMBAT=live_eye=false`) the soak is the base's to the shot: the
-/// counts of seeds 3, 7 and 12 of the 120 s 4 against 4 soak, before the fix (shots, hits,
+/// counts of seeds 3, 7 and 12 of the 120 s 4 against 4 soak at 2174f9e6, before the fix (shots, hits,
 /// kills of each team, shots into a wall, at a hidden target, batteries delivered, sight and aim rays
-/// a bot second). Pinned at 2174f9e6 as (365, 69, ...), (505, 82, ...), (769, 126, ...); **re-pinned when
-/// #520 put the drugs into every soak** (the stand-in's medkits and the bots' heal habit change a
-/// soak's course, not the eye's path): the counts below are this tree's with the switch off. The old heights, the old stand ranges, the shots after the move and a look every 100 ms
+/// a bot second). The old heights, the old stand ranges, the shots after the move and a look every 100 ms
 /// alone.
 #[test]
 pub(crate) fn with_the_switch_off_a_soak_is_the_old_one() {
     let _off = EyeOff::new();
     let base = [
-        (3, (415, 60, [15, 8], 6, 0, [1, 1]), 50.33),
-        (7, (527, 71, [11, 13], 2, 0, [1, 2]), 54.33),
-        (12, (715, 124, [17, 18], 1, 1, [1, 1]), 42.94),
+        (3, (365, 69, [16, 14], 2, 0, [1, 1]), 48.04),
+        (7, (505, 82, [14, 13], 2, 0, [1, 2]), 49.71),
+        (12, (769, 126, [17, 20], 2, 2, [1, 1]), 44.16),
     ];
     for (seed, want, rays) in base {
-        let mut tuning = bench_tuning();
-        tuning.aim.combat.live_eye = false;
-        let out = soak_tuned(4, 3, 0, None, 120, seed, tuning);
+        let out = soak_tuned(4, 3, 0, None, 120, seed, pre_eye_pin_tuning());
         let got = (
             out.shots,
             out.hits,

@@ -10,10 +10,12 @@ use super::check;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct HealTuning {
-    /// The graded rule. Off: the old one, a medkit under `below` out of
-    /// every known enemy's line of sight, then still and crouched for
-    /// `wait_s` (`wait_s.0` to `wait_s.1`), fire held.
-    pub graded: bool,
+    /// The consumable rework as a whole (#520), **off by default: with it off the bots are the tip's** (the old
+    /// Heal play: a medkit under the play's `below` number out of every known enemy's line of sight, then still
+    /// and crouched, fire held; Retreat's medkit count per life). On: the graded need rule over the pools, the
+    /// drugs of the kit counted for the match from the worlds (`stock.rs`), and, with `interrupt`, the reflex's
+    /// habit. The bench's stand-in has the drugs only with it on (`standin_heal::model_on`).
+    pub on: bool,
     /// A need under this scores nothing: a body at 0.85 is not hurt enough
     /// for a unit of the kit (the humans' 79 % under 0.8 is need 0.2).
     pub start_need: f32,
@@ -47,9 +49,6 @@ pub struct HealTuning {
     /// `cover_step_ms`. Otherwise it presses at once.
     pub cover_m: f32,
     pub cover_step_ms: u32,
-    /// The old rule's numbers (`graded` off).
-    pub below: f32,
-    pub wait_s: (f32, f32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -79,7 +78,7 @@ impl Default for NeedWeights {
 impl Default for HealTuning {
     fn default() -> Self {
         Self {
-            graded: true,
+            on: false,
             start_need: 0.15,
             urgent_need: 0.2,
             weights: NeedWeights::default(),
@@ -88,8 +87,6 @@ impl Default for HealTuning {
             enemy_m: 10.0,
             cover_m: 4.0,
             cover_step_ms: 1_500,
-            below: 0.6,
-            wait_s: (1.5, 3.0),
         }
     }
 }
@@ -111,12 +108,7 @@ pub(super) fn validate(heal: &HealTuning) -> Result<(), String> {
         heal.cover_m >= 0.0 && heal.enemy_m >= 0.0 && heal.cover_step_ms <= 5_000,
         "heal.cover_*",
     )?;
-    check((0.0..=10.0).contains(&heal.walk_mps), "heal.walk_mps")?;
-    check(heal.below > 0.0 && heal.below <= 1.0, "heal.below")?;
-    check(
-        0.0 < heal.wait_s.0 && heal.wait_s.0 <= heal.wait_s.1,
-        "heal.wait_s",
-    )
+    check((0.0..=10.0).contains(&heal.walk_mps), "heal.walk_mps")
 }
 
 #[cfg(test)]
@@ -124,15 +116,16 @@ mod tests {
     use super::super::Tuning;
 
     #[test]
-    fn the_rule_is_on_by_default_and_a_file_changes_only_what_it_names() {
+    fn the_rework_is_off_by_default_and_a_file_changes_only_what_it_names() {
         let defaults = Tuning::default();
-        assert!(defaults.heal.graded);
+        assert!(!defaults.heal.on, "merged switched off: the bots are the tip's");
+        assert!(defaults.heal.interrupt, "the habit is on once the rework is");
         let dir = std::env::temp_dir().join(format!("srp-heal-tuning-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("bots.json");
-        std::fs::write(&path, r#"{"heal":{"graded":false,"weights":{"legs":0.2}}}"#).unwrap();
+        std::fs::write(&path, r#"{"heal":{"on":true,"weights":{"legs":0.2}}}"#).unwrap();
         let tuning = Tuning::load(&path).unwrap();
-        assert!(!tuning.heal.graded);
+        assert!(tuning.heal.on);
         assert_eq!(tuning.heal.weights.legs, 0.2);
         assert_eq!(tuning.heal.weights.body, defaults.heal.weights.body);
         assert_eq!(tuning.heal.start_need, defaults.heal.start_need);

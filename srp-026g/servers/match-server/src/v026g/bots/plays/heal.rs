@@ -2,6 +2,14 @@
 //! §8.8): the medkit, the bandages and the antitoxin of the bot's own kit,
 //! by one rule.
 //!
+//! **Merged switched off (`HealTuning::on`, default off): then none of what
+//! follows runs, and the bots are the tip's** — [`old_candidates`] and
+//! [`old_step`] below are the tip's play verbatim (a medkit with the body
+//! under the play's `below` number, out of every known enemy's line of sight,
+//! then still and crouched for the waiting numbers, fire held; Retreat and it
+//! count medkits per life, `BotFacts::medkits_used`). The graded rule, the
+//! kit's stock counted for the match, and the habit are the switch's.
+//!
 //! - **What it knows:** its own health pools (`pools.rs`, the HUD's), the
 //!   drugs of its kit and what it pressed lately (`stock.rs`). Nothing of
 //!   the enemy's.
@@ -45,9 +53,7 @@
 //! 1.5 s cover steps ended on the timeout 2.7 m short of the spot). The play
 //! below is kept for the switch.
 //!
-//! `graded: false` (the tuning) is the old rule: a medkit with the body
-//! under `below`, out of every known enemy's line of sight, then still and
-//! crouched for `wait_s`, fire held; an enemy seen meanwhile ends it.
+//! With the switch off the old rule runs: an enemy seen meanwhile ends it.
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
@@ -58,7 +64,13 @@ use crate::v026g::bots::tuning::{HealTuning, NeedWeights};
 use crate::v026g::bots::view::still_eye;
 use crate::v026g::drive::key;
 
-pub const NUMBERS: &[(&str, f32)] = &[];
+/// The old rule's numbers (the tip's): the body under `below`, `medkits` a life, the wait.
+pub const NUMBERS: &[(&str, f32)] = &[
+    ("below", 0.6),
+    ("medkits", 2.0),
+    ("wait_min_s", 1.5),
+    ("wait_max_s", 3.0),
+];
 
 /// What a consumable does, the client's (PROVEN, `fact-health-recovery.md`
 /// §2; the bandages of revision 32): nothing for `delay_s` after the press,
@@ -117,17 +129,17 @@ impl Item {
     }
 }
 
+/// The play's considerations as the tip had them (the old rule's): the more wounded, the sooner; never 0.
 pub fn tuning() -> PlayTuning {
     PlayTuning {
         rank: Rank::Fight,
         considerations: vec![
-            // The deeper the need, the sooner; the start is the tuning's.
             Consideration::new(
-                Input::Need,
+                Input::Health,
                 0.0,
                 1.0,
                 Curve::Piecewise {
-                    points: vec![(0.0, 0.3), (0.2, 0.6), (0.4, 0.85), (0.6, 1.0)],
+                    points: vec![(0.0, 1.0), (1.0, 0.3)],
                 },
             ),
             considerations::cooldown(5.0),
@@ -136,9 +148,30 @@ pub fn tuning() -> PlayTuning {
     }
 }
 
-/// Medkits in the slots of its kit now.
+/// The graded rule's considerations (the switch on): the deeper the need, the sooner; the start is the tuning's.
+fn graded_considerations() -> Vec<Consideration> {
+    vec![
+        Consideration::new(
+            Input::Need,
+            0.0,
+            1.0,
+            Curve::Piecewise {
+                points: vec![(0.0, 0.3), (0.2, 0.6), (0.4, 0.85), (0.6, 1.0)],
+            },
+        ),
+        considerations::cooldown(5.0),
+    ]
+}
+
+/// Medkits it may still use: the kit's in its slots with the switch on, the tip's count (the play's
+/// `medkits` number less those used this life) with it off.
 pub fn medkits_left(cx: &Ctx) -> u32 {
-    u32::from(cx.bot.pantry.in_hand(Drug::Medkit))
+    if cx.tuning.heal.on {
+        u32::from(cx.bot.pantry.in_hand(Drug::Medkit))
+    } else {
+        (cx.num(PlayKind::Heal, "medkits").max(0.0) as u32)
+            .saturating_sub(u32::from(cx.bot.medkits_used))
+    }
 }
 
 /// Whether `held` was pressed and its effect is not over.
@@ -273,7 +306,7 @@ pub fn wish(
     heal: &HealTuning,
     now: u32,
 ) -> Option<Wish> {
-    if !heal.interrupt || !heal.graded || carrying {
+    if !heal.on || !heal.interrupt || carrying {
         return None;
     }
     let pools = projected_of(
@@ -303,23 +336,21 @@ pub fn in_known_sight(cx: &Ctx) -> bool {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
-    // The habit presses (`wish`); the play is the old paths' (`interrupt` off).
-    if cx.tuning.heal.interrupt && cx.tuning.heal.graded {
-        return;
+    if !cx.tuning.heal.on {
+        return old_candidates(cx, out);
     }
-    if !cx.tuning.heal.graded {
-        return legacy_candidates(cx, out);
-    }
-    if cx.me.carrying.is_some() {
+    // The habit presses (`wish`); the play is the switch `interrupt` off.
+    if cx.tuning.heal.interrupt || cx.me.carrying.is_some() {
         return;
     }
     let Some((_, need)) = choose(cx) else {
         return;
     };
-    if let Some(mut candidate) = cx.candidate_given(
+    if let Some(mut candidate) = cx.candidate_with(
         PlayKind::Heal,
         TargetRef::None,
         None,
+        &graded_considerations(),
         &[(Input::Need, need)],
     ) {
         if need >= cx.tuning.heal.urgent_need {
@@ -329,12 +360,12 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     }
 }
 
-/// The old rule's candidate: the body under `below`, no enemy seen or with
-/// a line to it, a medkit in the slot.
-fn legacy_candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
+/// The tip's candidate, verbatim: the body under `below`, no enemy seen or with a line to it, a medkit left
+/// this life.
+fn old_candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     let running = matches!(cx.bot.current, Some((PlayKind::Heal, _, _)));
     if !running
-        && (cx.me.health >= cx.tuning.heal.below
+        && (cx.me.health >= cx.num(PlayKind::Heal, "below")
             || cx.me.carrying.is_some()
             || medkits_left(cx) == 0)
     {
@@ -344,13 +375,7 @@ fn legacy_candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if in_known_sight(cx) {
         return;
     }
-    let need = 1.0 - cx.me.health;
-    out.extend(cx.candidate_given(
-        PlayKind::Heal,
-        TargetRef::None,
-        None,
-        &[(Input::Need, need)],
-    ));
+    out.extend(cx.candidate(PlayKind::Heal, TargetRef::None, None));
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -409,7 +434,7 @@ fn cover_spot(cx: &Ctx, rng: &mut Rng) -> Option<Vec3> {
 }
 
 pub fn start(_target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
-    if !cx.tuning.heal.graded {
+    if !cx.tuning.heal.on {
         return State::Use;
     }
     match cover_spot(cx, rng) {
@@ -422,8 +447,8 @@ pub fn start(_target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
 }
 
 pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
-    if !cx.tuning.heal.graded {
-        return legacy_step(state, cx, rng);
+    if !cx.tuning.heal.on {
+        return old_step(state, cx, rng);
     }
     if let State::Cover { to, until } = *state {
         let there = cx.me.feet.distance_xz(to) <= 0.6;
@@ -446,7 +471,8 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
     }
 }
 
-fn legacy_step(state: &mut State, cx: &Ctx, rng: &mut Rng) -> Step {
+/// The tip's step, verbatim.
+fn old_step(state: &mut State, cx: &Ctx, rng: &mut Rng) -> Step {
     if !cx.memory.all_seen(cx.now).is_empty() {
         return Step::Failed("an enemy is in sight");
     }
@@ -459,15 +485,17 @@ fn legacy_step(state: &mut State, cx: &Ctx, rng: &mut Rng) -> Step {
             Step::Continue(still)
         }
         _ => {
-            let Some(held) = cx.bot.pantry.first(Drug::Medkit) else {
+            if medkits_left(cx) == 0 {
                 return Step::Failed("no medkit left");
-            };
-            let (low, high) = cx.tuning.heal.wait_s;
-            let wait = rng.range(low, high);
+            }
+            let wait = rng.range(
+                cx.num(PlayKind::Heal, "wait_min_s"),
+                cx.num(PlayKind::Heal, "wait_max_s"),
+            );
             *state = State::Wait {
                 until: cx.now + (wait * 1000.0) as u32,
             };
-            Step::Continue(still.pressing(key::QUICK[held.quick]))
+            Step::Continue(still.pressing(key::QUICK[0]))
         }
     }
 }
@@ -493,7 +521,8 @@ mod tests {
     /// A bot of the field at `at` with its body at `health`.
     fn hurt_bot(health: f32, at: Vec3) -> Scenario {
         let mut s = Scenario::field(Mode::TeamDeathmatch);
-        // These tests are the play's; the habit has its own below.
+        // These tests are the graded play's (the switch on, the habit off); the habit has its own below.
+        s.tuning.heal.on = true;
         s.tuning.heal.interrupt = false;
         s.bot(0, 0, at).health = health;
         s
@@ -766,20 +795,29 @@ mod tests {
         assert_eq!(run(), run());
     }
 
-    // ---- the old rule, `graded: false` ----
+    // ---- the switch off: the tip's play, its tests verbatim ----
 
     #[test]
-    fn the_old_rule_a_wounded_bot_out_of_sight_heals_once_and_never_in_sight() {
+    fn off_the_tips_play_a_wounded_bot_out_of_sight_heals_once_and_never_in_sight() {
         // The field's wall across x = 40 (z 0 to 25) between the bot and
         // an enemy it heard.
         let mut s = Scenario::field(Mode::TeamDeathmatch);
-        s.tuning.heal.graded = false;
         s.bot(0, 0, Vec3::new(30.0, 0.0, 10.0)).health = 0.5;
         s.enemy(1, 1, Vec3::new(60.0, 0.0, 10.0), Some(Source::Heard));
         let best = s.candidates(0);
         assert_eq!(best[0].kind, PlayKind::Heal, "{best:#?}");
         let steps = s.run(0, PlayKind::Heal, TargetRef::None, 20, 300, 3.5);
-        assert_eq!(presses(&steps), [key::QUICK[0]]);
+        let presses: Vec<u32> = steps
+            .iter()
+            .filter_map(|s| match s {
+                Step::Continue(i) => Some(i.press),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            presses.iter().filter(|p| **p & key::QUICK[0] != 0).count(),
+            1
+        );
         assert!(steps.iter().all(|s| match s {
             Step::Continue(i) => i.crouch && !i.fire && i.go == Go::Stay,
             _ => true,
@@ -787,40 +825,30 @@ mod tests {
         assert_eq!(steps.last(), Some(&Step::Done("healed")));
         // 1.5 to 3 s of waiting.
         assert!((6..=12).contains(&steps.len()), "{}", steps.len());
-        // The cooldown holds it back for a while, then the kit's second
-        // medkit is offered; with both gone it never is, in any life.
+        // Healed once this life: not again; a new life: again.
         s.last_ran.push((PlayKind::Heal, s.view.clock));
         s.current = None;
-        s.pantry.pressed(0, s.view.clock);
         assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Heal));
+        s.view.places[0].spawned = s.view.clock + 1;
         s.view.clock += 6_000;
         s.enemy(1, 1, Vec3::new(60.0, 0.0, 10.0), Some(Source::Heard));
         assert!(s.candidates(0).iter().any(|c| c.kind == PlayKind::Heal));
-        s.pantry.pressed(0, s.view.clock);
-        s.view.clock += 6_000;
-        s.enemy(1, 1, Vec3::new(60.0, 0.0, 10.0), Some(Source::Heard));
-        assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Heal));
-        s.pantry.new_life(0);
-        assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Heal));
     }
 
     #[test]
-    fn the_old_rule_no_heal_in_a_known_line_of_sight_or_when_healthy() {
+    fn off_the_tips_play_no_heal_in_a_known_line_of_sight_or_when_healthy() {
         // Past the wall's end: the heard enemy has a clear line.
         let mut s = Scenario::field(Mode::TeamDeathmatch);
-        s.tuning.heal.graded = false;
         s.bot(0, 0, Vec3::new(30.0, 0.0, 35.0)).health = 0.5;
         s.enemy(1, 1, Vec3::new(60.0, 0.0, 35.0), Some(Source::Heard));
         assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Heal));
         // Seen: not either.
         let mut s = Scenario::field(Mode::TeamDeathmatch);
-        s.tuning.heal.graded = false;
         s.bot(0, 0, Vec3::new(30.0, 0.0, 10.0)).health = 0.5;
         s.enemy(1, 1, Vec3::new(60.0, 0.0, 10.0), Some(Source::Seen));
         assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Heal));
         // Healthy: not either.
         let mut s = Scenario::field(Mode::TeamDeathmatch);
-        s.tuning.heal.graded = false;
         s.bot(0, 0, Vec3::new(30.0, 0.0, 10.0)).health = 0.9;
         assert!(s.candidates(0).iter().all(|c| c.kind != PlayKind::Heal));
     }
@@ -833,9 +861,17 @@ mod tests {
             10_000,
             carrying,
             pantry,
-            &HealTuning::default(),
+            &on(),
             10_000,
         )
+    }
+
+    /// The rework on (the default is off).
+    fn on() -> HealTuning {
+        HealTuning {
+            on: true,
+            ..HealTuning::default()
+        }
     }
 
     #[test]
@@ -865,7 +901,7 @@ mod tests {
         assert_eq!(wish_for(0.5, false, &pantry), None, "the first medkit is active");
         // ... and the pools it will have given are not asked again; a second medkit only after the first is over.
         let later = |pantry: &Pantry, now: u32| {
-            wish(None, 0.5, now, false, pantry, &HealTuning::default(), now)
+            wish(None, 0.5, now, false, pantry, &on(), now)
         };
         assert!(later(&pantry, 15_500).is_some());
         // Both medkits used: an empty slot is never wished.
@@ -874,23 +910,24 @@ mod tests {
         // The switches.
         let mut fresh = Pantry::standard();
         fresh.new_life(0);
-        let off = HealTuning {
+        let no_habit = HealTuning {
             interrupt: false,
-            ..HealTuning::default()
+            ..on()
         };
-        assert_eq!(wish(None, 0.5, 10_000, false, &fresh, &off, 10_000), None);
-        let old_rule = HealTuning {
-            graded: false,
-            ..HealTuning::default()
-        };
-        assert_eq!(wish(None, 0.5, 10_000, false, &fresh, &old_rule, 10_000), None);
+        assert_eq!(wish(None, 0.5, 10_000, false, &fresh, &no_habit, 10_000), None);
+        // The rework off (the default): the tip's bots, nothing wished.
+        assert_eq!(
+            wish(None, 0.5, 10_000, false, &fresh, &HealTuning::default(), 10_000),
+            None
+        );
     }
 
     #[test]
     fn with_the_habit_on_no_play_is_a_candidate_and_off_it_is() {
         let mut s = Scenario::field(Mode::TeamDeathmatch);
         s.bot(0, 0, Vec3::new(30.0, 0.0, 10.0)).health = 0.4;
-        assert!(s.tuning.heal.interrupt, "on by default");
+        s.tuning.heal.on = true;
+        assert!(s.tuning.heal.interrupt, "on with the switch");
         assert!(heals(&s).is_none(), "the reflex presses, no play is taken");
         s.tuning.heal.interrupt = false;
         assert!(heals(&s).is_some());

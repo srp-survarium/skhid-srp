@@ -204,6 +204,8 @@ pub struct Bot {
     /// Whether its partner has it for partner too (a pair); a team's odd
     /// bot has a partner one way, for its trades only.
     paired: bool,
+    /// Medkits used this life (the tip's count, which the Heal play and Retreat go by while `HealTuning::on` is off).
+    medkits_used: u8,
     /// The drugs of its kits, counted for the match ([`stock::Pantry`]).
     pantry: stock::Pantry,
     /// Its health pools as the last trusted world showed them
@@ -334,6 +336,7 @@ impl Bot {
             last_trace: 0,
             partner: None,
             paired: false,
+            medkits_used: 0,
             pantry: stock::Pantry::standard(),
             pools: None,
             found: None,
@@ -498,6 +501,7 @@ impl Bot {
         };
         self.memory = Memory::default();
         self.skill = skill;
+        self.medkits_used = 0;
         self.pantry.new_life(self.kit);
         if self.side.is_none() {
             self.side = tactics.and_then(|tactics| tactics.side_at(feet));

@@ -45,6 +45,7 @@ pub struct Scenario {
     /// Whether the partner has it for partner too (`BotFacts::paired`).
     pub paired: bool,
     pub personality: usize,
+    pub medkits_used: u8,
     pub pantry: Pantry,
     pub pools: Option<Pools>,
     pub no_way_to: Vec<(Vec3, u32)>,
@@ -129,6 +130,7 @@ impl Scenario {
             partner: None,
             paired: true,
             personality: 0,
+            medkits_used: 0,
             pantry: Pantry::standard(),
             pools: None,
             no_way_to: Vec::new(),
@@ -274,6 +276,7 @@ impl Scenario {
                 last_ran: &self.last_ran,
                 partner: self.partner,
                 paired: self.paired,
+                medkits_used: self.medkits_used,
                 pantry: &self.pantry,
                 pools: self.pools,
                 no_way_to: &self.no_way_to,
