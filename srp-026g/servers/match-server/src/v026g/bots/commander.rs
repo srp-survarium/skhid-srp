@@ -18,6 +18,9 @@ pub(super) struct TeamState {
     /// was built for (`trap_know.rs`).
     pub(super) trap_field: Arc<trap_know::TrapField>,
     pub(super) trap_field_version: u64,
+    /// The armed traps the last world showed, for the bots' notice
+    /// (`trap_react.rs`); empty while the switch is off.
+    pub(super) world_traps: Arc<Vec<survarium::v026g::match_msgs::traps::PlacedTrap>>,
     /// Where a shooter killed its bots from, and the regions his line
     /// covers now ([`threat`]).
     pub(super) threat: threat::ThreatSpots,

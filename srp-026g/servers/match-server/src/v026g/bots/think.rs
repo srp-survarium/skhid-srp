@@ -61,6 +61,8 @@ impl Bots {
         };
         // [traps] A bot that carries traps may start to put one down.
         traps::think(bot, &due, state);
+        // [trap_react] A trap that is not the team's: a chance to notice it.
+        trap_react::think(bot, &due, state);
         if self.trace.enabled() && now >= bot.last_trace + tuning.think.trace_every_ms {
             bot.last_trace = now;
             let line = serde_json::json!({

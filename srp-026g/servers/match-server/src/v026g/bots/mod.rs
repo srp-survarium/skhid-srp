@@ -64,6 +64,7 @@ pub mod team;
 pub mod threat;
 pub mod trace;
 pub mod trap_know;
+pub mod trap_react;
 pub mod traps;
 pub mod tuning;
 pub mod view;
@@ -241,6 +242,9 @@ pub struct Bot {
     /// of since the last think.
     traps: traps::Habit,
     trap_placed: Option<(Vec3, u32)>,
+    /// Its notice of the traps of others, and the counts of its passes
+    /// (`trap_react.rs`).
+    react: trap_react::React,
     /// The floors of its team's traps it keeps off (`trap_know.rs`), shared
     /// at each commander tick.
     trap_field: Arc<trap_know::TrapField>,
@@ -395,6 +399,7 @@ impl Bot {
             medkits_used: 0,
             traps: traps::Habit::none(),
             trap_placed: None,
+            react: trap_react::React::default(),
             trap_field: Arc::new(trap_know::TrapField::default()),
             pantry: stock::Pantry::standard(),
             pools: None,
@@ -562,6 +567,7 @@ impl Bot {
         self.skill = skill;
         self.medkits_used = 0;
         self.traps.new_life();
+        self.react.new_life();
         self.pantry.new_life(self.kit);
         if self.side.is_none() {
             self.side = tactics.and_then(|tactics| tactics.side_at(feet));
@@ -653,6 +659,7 @@ impl Bots {
             spots: TeamSpots::default(),
             trap_field: Arc::new(trap_know::TrapField::default()),
             trap_field_version: 0,
+            world_traps: Arc::new(Vec::new()),
             threat: threat::ThreatSpots::default(),
             covered: None,
         };
@@ -1141,17 +1148,38 @@ impl Bots {
     /// promised confirmed, followed and dropped (`trap_know.rs`). Returns
     /// the traps the world shows (0 while no bot has put one down).
     pub fn traps_from_world(&mut self, objects: &[u8], time: u32) -> usize {
-        if self.teams.iter().all(|team| team.knowledge.traps.all().is_empty()) {
+        let react = self.tuning.traps.react.on;
+        let own = self.teams.iter().any(|team| !team.knowledge.traps.all().is_empty());
+        if !own && !react {
             return 0;
         }
         let found = survarium::v026g::match_msgs::traps::find(objects, time);
+        // The armed traps of the world, for the bots' notice (off: none).
+        let armed = Arc::new(if react {
+            trap_react::armed_of(&found)
+        } else {
+            Vec::new()
+        });
         for team in &mut self.teams {
-            team.knowledge.traps.sync(time, &found);
-            if let Some(tactics) = self.tactics.as_ref() {
-                team.refresh_traps(&tactics.world.grid);
+            if own {
+                team.knowledge.traps.sync(time, &found);
+                if let Some(tactics) = self.tactics.as_ref() {
+                    team.refresh_traps(&tactics.world.grid);
+                }
             }
+            team.world_traps = armed.clone();
         }
         found.len()
+    }
+
+    /// The counts of the bots' notice of traps and passes by them, over all
+    /// the bots (`trap_react.rs`).
+    pub fn react_counts(&self) -> trap_react::ReactCounts {
+        let mut sum = trap_react::ReactCounts::default();
+        for bot in self.bots.iter().flatten() {
+            sum.add(&bot.react.counts());
+        }
+        sum
     }
 
     /// The inputs due with the clock at `clock`.
