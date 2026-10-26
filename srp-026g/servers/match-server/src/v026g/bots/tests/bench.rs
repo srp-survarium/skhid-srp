@@ -140,9 +140,9 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     let prefix = if side1 { "SRP_BENCH_SIDE1_" } else { "SRP_BENCH_" };
     let var = |name: &str| settings.var(&format!("{prefix}{name}"));
     let mut tuning = serde_json::to_value(Tuning::default()).expect("the tuning is JSON");
-    // The floor-aware path distance on (`1`) or off (`0`, the default): `Tuning::floor_paths`.
+    // The floor-aware path distance on (`1`) or off (`0`, the default): `GridTuning::floor_paths`.
     if let Ok(v) = settings.var("SRP_BENCH_FLOOR_PATHS") {
-        set(&mut tuning, "/floor_paths", (v != "0").into());
+        set(&mut tuning, "/grid/floor_paths", (v != "0").into());
     }
     // The lip guard (2 ticks held) and the short look-ahead on lips (0.8 m) on: both are off by default
     // (`Feel::lip_guard_ticks`, `lip_look_ahead_m`).
@@ -246,13 +246,13 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     if let Some(n) = settings.number::<u32>("SRP_BENCH_THREAT_FLOORS") {
         set(&mut tuning, "/threat/search_floors", n.into());
     }
-    // A way out of a zone stays under its start's strength (`Tuning::escape_ceiling`): `0` off.
+    // A way out of a zone stays under its start's strength (`HazardTuning::escape`; the flag reads as the old key did): `0` off.
     if let Ok(v) = settings.var("SRP_BENCH_ESCAPE_CEILING") {
-        set(&mut tuning, "/escape_ceiling", (v != "0").into());
+        set(&mut tuning, "/hazard/escape", (v != "0").into());
     }
     // The anomaly fields of the worlds are the bots' live zones (`Tuning::live_zones`): `0` off.
     if let Ok(v) = settings.var("SRP_BENCH_LIVE_ZONES") {
-        set(&mut tuning, "/live_zones", (v != "0").into());
+        set(&mut tuning, "/hazard/live_zones", (v != "0").into());
     }
     if let Ok(floors) = settings.var("SRP_BENCH_SEARCH_FLOORS") {
         let floors = if floors == "max" {
@@ -266,8 +266,10 @@ pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
     }
     let patch = var("TUNING").ok().filter(|text| !text.trim().is_empty());
     if let Some(text) = &patch {
-        let patch: serde_json::Value = serde_json::from_str(text)
+        let mut patch: serde_json::Value = serde_json::from_str(text)
             .unwrap_or_else(|cause| panic!("{prefix}TUNING is not JSON: {cause}"));
+        // The keys of a field that moved into a section still work in a patch.
+        Tuning::upgrade_keys(&mut patch).unwrap_or_else(|cause| panic!("{prefix}TUNING: {cause}"));
         merge_patch(&mut tuning, patch);
     }
     let tuning: Tuning = serde_json::from_value(tuning)
@@ -338,8 +340,8 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let commanded = Instant::now();
     let (mut think, mut ticks) = (0.0, 0.0);
     let mut rays = RayBudget(bots.tuning.think.rays_per_poll);
-    bots.searching.left = SEARCHES_PER_POLL;
-    bots.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+    bots.features.searching.left = SEARCHES_PER_POLL;
+    bots.features.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
     let a = Instant::now();
     bots.go_on_searching();
     ticks += a.elapsed().as_secs_f64();
@@ -449,7 +451,7 @@ pub(crate) fn real_bot_cost() {
         let started = Instant::now();
         let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(&project))).unwrap();
         // The grid with the gap links when this run's tuning has them
-        // (`Tuning::gap_links`, `SRP_BENCH_TUNING`).
+        // (`GridTuning::gap_links`, `SRP_BENCH_TUNING`).
         let links = bench_tuning().off_mesh_links();
         let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
         let built_s = started.elapsed().as_secs_f32();
@@ -1807,9 +1809,10 @@ mod tuning_tests {
             tuning.sense = serde_json::from_value(sense).expect("SRP_BENCH_SENSE: known names");
         }
         // A way out of a zone stays under its start's strength
-        // (`Tuning::escape_ceiling`): `0` off.
+        // (`HazardTuning::escape`): `0` off.
         if let Ok(v) = settings.var("SRP_BENCH_ESCAPE_CEILING") {
-            tuning.escape_ceiling = v != "0";
+            tuning.hazard.escape =
+                if v != "0" { super::tuning::EscapeRule::UnderStartZone } else { super::tuning::EscapeRule::Nearest };
         }
         if let Ok(floors) = settings.var("SRP_BENCH_SEARCH_FLOORS") {
             tuning.think.search_floors_per_poll = if floors == "max" {
@@ -1880,6 +1883,21 @@ mod tuning_tests {
         );
         assert_eq!(by_patch, by_switches);
         assert_ne!(by_patch, Tuning::default());
+        // The keys of the fields that moved into a section (`tuning/legacy.rs`) still work in a patch, and are the new ones.
+        let old = tuning_from(
+            &settings(&[("SRP_BENCH_TUNING", r#"{"hazard_margin": 2.5, "escape_ceiling": false, "gap_links": true}"#)]),
+            false,
+        );
+        let new = tuning_from(
+            &settings(&[(
+                "SRP_BENCH_TUNING",
+                r#"{"hazard": {"margin_m": 2.5, "escape": "nearest"}, "grid": {"gap_links": true}}"#,
+            )]),
+            false,
+        );
+        assert_eq!(old, new);
+        assert_eq!(old.hazard.margin_m.get(), 2.5);
+        assert!(old.grid.gap_links);
         // Team 1 reads its own patch only.
         let side1 = tuning_from(&settings(&[("SRP_BENCH_SIDE1_TUNING", patch)]), true);
         assert_eq!(side1, by_patch);

@@ -170,24 +170,26 @@ impl Default for CheatTuning {
     }
 }
 
-/// The sense's ranges in order.
-pub(super) fn validate(sense: &SenseTuning) -> Result<(), String> {
-    check(
-        sense.view_deg > 0.0 && sense.view_deg <= 360.0,
-        "sense.view_deg",
-    )?;
-    check(
-        sense.notice_near_ms <= sense.notice_far_ms,
-        "sense.notice_*_ms",
-    )?;
-    check(sense.bush_notice >= 0.0 && sense.foliage_cap >= 1.0, "sense.bush_notice, foliage_cap")?;
-    check(sense.sprint_body_mps.is_none_or(|v| v > 0.0), "sense.sprint_body_mps")?;
-    check(
-        match sense.ranges {
-            HearingRanges::Flat => true,
-            HearingRanges::Game { crouch_step_m } => crouch_step_m > 0.0 && crouch_step_m <= sense.step_m,
-        },
-        "sense.ranges.game.crouch_step_m",
-    )?;
-    Ok(())
+impl Check for SenseTuning {
+    /// The sense's ranges in order.
+    fn check(&self) -> Result<(), String> {
+        check(
+            self.view_deg > 0.0 && self.view_deg <= 360.0,
+            "sense.view_deg",
+        )?;
+        check(
+            self.notice_near_ms <= self.notice_far_ms,
+            "sense.notice_*_ms",
+        )?;
+        check(self.bush_notice >= 0.0 && self.foliage_cap >= 1.0, "sense.bush_notice, foliage_cap")?;
+        check(self.sprint_body_mps.is_none_or(|v| v > 0.0), "sense.sprint_body_mps")?;
+        check(
+            match self.ranges {
+                HearingRanges::Flat => true,
+                HearingRanges::Game { crouch_step_m } => crouch_step_m > 0.0 && crouch_step_m <= self.step_m,
+            },
+            "sense.ranges.game.crouch_step_m",
+        )?;
+        Ok(())
+    }
 }

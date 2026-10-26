@@ -232,7 +232,7 @@ impl Walkers {
                         );
                     }
                     let world = base.world.clone();
-                    let margin = self.bots.tuning.hazard_margin;
+                    let margin = self.bots.tuning.hazard.margin_m.get();
                     if margin.to_bits() == base.margin().to_bits() {
                         // The map's own tactics, shared by every match on it.
                         let floors = world.grid.len();

@@ -1221,3 +1221,15 @@ mod tests {
         assert_eq!(self_kill_step(sent, &carrying, &rule), (SelfKill::Ready, None));
     }
 }
+
+/// A team's stuck state, by feature ([`super::features`]).
+#[derive(Default)]
+pub struct TeamStuck {
+    /// Goals a bot of the team proved no way to, and until when the team's plays leave them
+    /// (`TEAM_NO_WAY_KEEP_MS`).
+    pub no_way_to: Vec<(mapdata::Vec3, u32)>,
+    /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
+    pub spots: TeamSpots,
+    /// When its bots killed themselves in the last minute (`SelfKill`).
+    pub self_kills: Vec<u32>,
+}
