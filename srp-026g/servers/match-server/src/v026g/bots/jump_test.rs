@@ -74,6 +74,9 @@ const BURST_MS: u32 = 120;
 /// The settle: still, facing the heading, at least this long, ms (a sprint try rests
 /// [`REST_BEFORE_SPRINT_MS`]: the walk to the start was at a run).
 const SETTLE_MS: u32 = 1_200;
+/// A rest that misfits moves the aim of the walk by how far the reckoning stood off the body, if that is within
+/// this, m; further off, the reckoning was lost and the aim stays the start.
+const SHIFT_MAX_M: f32 = 1.0;
 /// The settle is given up after this long, ms (the try is redone from Go).
 const SETTLE_MAX_MS: u32 = 5_000;
 /// The walk to the start is given up after this long, ms.
@@ -689,6 +692,10 @@ struct Active {
     /// The team of the bot working it (enemies collide, teammates pass through each other: a ledge takes
     /// one team's tries at a time).
     team: u8,
+    /// How far the reckoning stood off the body (x, z, m) at the last rest that did not fit: the walk to the start
+    /// aims the reckoning there, so the body, not the reckoning, comes to the start. Zero until a rest misfit, and
+    /// when the reckoning was lost (more than [`SHIFT_MAX_M`] off: the next ordinary world puts it right).
+    shift: [f32; 2],
 }
 
 #[derive(Default)]
@@ -906,6 +913,12 @@ impl JumpTest {
         }
     }
 
+    /// Whether a world was asked for within the last `ms` of the match clock `clock`: the game does not pass an
+    /// asked world on to the bots' reckoning, so for these ms it gets none (the dry run models it).
+    pub(crate) fn asked_within(&self, clock: u32, ms: u32) -> bool {
+        self.last_request.is_some_and(|at| clock < at + ms)
+    }
+
     /// Whether the match must not end: some try is under way or still to come.
     pub fn holds_end(&self) -> bool {
         !self.pool.is_empty()
@@ -1066,7 +1079,7 @@ impl JumpTest {
             };
             self.yielding.remove(&bot.place);
             let rest = if def.speed == Speed::MotorRun { Phase::Rest { until: now + REST_BEFORE_SPRINT_MS } } else { Phase::Go { since: now } };
-            runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None, team: bot.team });
+            runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None, team: bot.team, shift: [0.0, 0.0] });
         }
         let Some(active) = runner.active.as_mut() else {
             keep_clear(&zones, world, bot, me.feet);
@@ -1094,7 +1107,8 @@ impl JumpTest {
                     // Clear of enemy tries: the next encounter waits its own while.
                     self.yielding.remove(&bot.place);
                 }
-                if me.feet.distance_xz(start) <= ARRIVED_M && me.velocity[0].hypot(me.velocity[1]) < 0.6 {
+                let aim = Vec3::new(start.x + active.shift[0], start.y, start.z + active.shift[1]);
+                if me.feet.distance_xz(aim) <= ARRIVED_M && me.velocity[0].hypot(me.velocity[1]) < 0.6 {
                     active.phase = if active.def.speed.is_motor() {
                         let plan = Plan {
                             rest: me.feet,
@@ -1166,7 +1180,7 @@ impl JumpTest {
                     }
                 } else {
                     bot.intent = Intent {
-                        go: Go::To { at: start, within_m: 0.0 },
+                        go: Go::To { at: aim, within_m: 0.0 },
                         pace: if active.def.speed == Speed::MotorRun { Pace::Walk } else { Pace::Run },
                         fire: false,
                         ..Intent::stay()
@@ -1242,7 +1256,8 @@ impl JumpTest {
                         None => {
                             if active.redone < 3 {
                                 active.redone += 1;
-                                log::info!("jump test: {} from {:?}: the rest position does not fit; redone", active.def.id, row.feet);
+                                active.shift = shift_of(me.feet, row.feet);
+                                log::info!("jump test: {} from {:?}: the rest position does not fit; redone, aiming {:?} off", active.def.id, row.feet, active.shift);
                                 active.phase = Phase::Go { since: now };
                             } else {
                                 let line = serde_json::json!({
@@ -1412,6 +1427,13 @@ impl JumpTest {
             .unwrap_or_default();
         summarize(def, n, place, plan, began, redone, &rows, &self.uploads)
     }
+}
+
+/// How far to aim the reckoning off the start after a rest that did not fit: the reckoning's lead over the body
+/// (`reckoned` against the `rest` row), if within [`SHIFT_MAX_M`]; else none (the reckoning was lost).
+fn shift_of(reckoned: Vec3, rest: Vec3) -> [f32; 2] {
+    let off = [reckoned.x - rest.x, reckoned.z - rest.z];
+    if off[0].hypot(off[1]) <= SHIFT_MAX_M { off } else { [0.0, 0.0] }
 }
 
 /// Gives a ledge up: its tries leave the pool and no later one is taken.
@@ -2063,7 +2085,7 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
         let first = jt.take_from_pool(3, 0).expect("a try");
         assert_eq!(first.lane, 0.0);
         assert_eq!(jt.pool[0].repeat, 2);
-        jt.runners.entry(3).or_default().active = Some(Active { def: first.clone(), n: 1, phase: Phase::Rest { until: 0 }, redone: 0, began: 0, presses: Vec::new(), reached: None, team: 0 });
+        jt.runners.entry(3).or_default().active = Some(Active { def: first.clone(), n: 1, phase: Phase::Rest { until: 0 }, redone: 0, began: 0, presses: Vec::new(), reached: None, team: 0, shift: [0.0, 0.0] });
         let second = jt.take_from_pool(4, 0).expect("a try");
         // An enemy bot finds the ledge locked.
         assert!(jt.take_from_pool(7, 1).is_none());
@@ -2079,6 +2101,20 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
         jt.no_route.insert((6, site_key(&second)));
         assert!(jt.take_from_pool(6, 0).is_none());
         assert!(jt.take_from_pool(5, 0).is_some());
+    }
+
+    #[test]
+    fn after_a_misfit_the_reckoning_is_aimed_off_the_start_by_its_lead_over_the_body() {
+        let start = Vec3::new(10.0, 2.0, 20.0);
+        // The reckoning stood at the aim, the body 0.4 m short (x): aim 0.4 m further (the reckoning's lead).
+        let (reckoned, body) = (Vec3::new(10.0, 2.0, 20.0), Vec3::new(9.6, 2.0, 20.1));
+        let shift = shift_of(reckoned, body);
+        assert!((shift[0] - 0.4).abs() < 1e-4 && (shift[1] + 0.1).abs() < 1e-4, "{shift:?}");
+        // Aimed there, a reckoning that stops on the aim puts the body (same lead) on the start.
+        let aim = (start.x + shift[0], start.z + shift[1]);
+        assert!(((aim.0 - shift[0]) - start.x).abs() < 1e-4);
+        // A reckoning 15 m off the body was lost: no shift (the next ordinary world puts it right).
+        assert_eq!(shift_of(Vec3::new(10.0, 2.0, 20.0), Vec3::new(-5.0, 2.0, 20.0)), [0.0, 0.0]);
     }
 
     #[test]
@@ -2253,7 +2289,7 @@ m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
         assert!(!jt.wants_world(1_000), "no try, no request");
         let d = def(0.8, 0.0, Face::Along, 3.5, Speed::Walk, Mid::Hold);
         let plan = plan_from(&d, Vec3::new(-78.9, 4.35, 51.15), heading_of(&d), 10_000, &RunTable::default()).unwrap();
-        jt.runners.entry(3).or_default().active = Some(Active { def: d, n: 1, phase: Phase::Run(plan), redone: 0, began: 0, presses: Vec::new(), reached: None, team: 0 });
+        jt.runners.entry(3).or_default().active = Some(Active { def: d, n: 1, phase: Phase::Run(plan), redone: 0, began: 0, presses: Vec::new(), reached: None, team: 0, shift: [0.0, 0.0] });
         assert!(jt.wants_world(9_500));
         // One at a time: not again until answered or forgotten.
         assert!(!jt.wants_world(9_700));
