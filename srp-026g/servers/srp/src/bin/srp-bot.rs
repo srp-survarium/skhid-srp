@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use srp::bot::{self, Config};
+use srp::bot::{self, Config, RoomTarget};
 
 const DEFAULT_SERVER: &str = "127.0.0.1:1234";
 const DEFAULT_NAME: &str = "bot-1";
@@ -25,6 +25,7 @@ and presses Play again.
 
   srp-bot [--server HOST:PORT] [--name NAME] [--password PASSWORD]
           [--count N] [--once] [--kit ID] [--drive] [--revision N]
+          [--room KEY] [--pin PIN]
 
   --server    the login server, as the game's -server= (default
               127.0.0.1:1234; or SRP_BOT_SERVER)
@@ -33,6 +34,9 @@ and presses Play again.
               local tests when neither is given). Never printed.
   --count N   N bots: bot-1 .. bot-N (default 1). The first waits in a
               room; the others join once somebody else is in it.
+  --room KEY  join this existing room instead of Play (all bots join at once)
+  --pin PIN   the room PIN, with --room; never printed
+  --check-data  validate SRP_GAME_DATA and its dictionary, then exit without connecting
   --once      stop after one match
   --revision N  the patch revision the sign-in says (default: the newest,
               the late join's); only 5 or later plays in rooms
@@ -74,6 +78,9 @@ fn main() {
     let mut once = false;
     let mut kit = None;
     let mut drive = false;
+    let mut check_data = false;
+    let mut room_key = None;
+    let mut room_pin = None;
     let mut revision = survarium::v026g::match_msgs::late_join::PATCH_REVISION;
 
     let mut args = std::env::args().skip(1);
@@ -112,6 +119,21 @@ fn main() {
                     .parse()
                     .unwrap_or_else(|_| fail("--revision must be 0 to 255"));
             }
+            "--room" => {
+                room_key = Some(
+                    value("a room key")
+                        .parse::<u32>()
+                        .unwrap_or_else(|_| fail("--room must be 1 to 99999")),
+                )
+            }
+            "--pin" => {
+                room_pin = Some(
+                    value("a PIN")
+                        .parse::<u16>()
+                        .unwrap_or_else(|_| fail("--pin must be 0 to 9999")),
+                )
+            }
+            "--check-data" => check_data = true,
             "--once" => once = true,
             "--drive" => drive = true,
             "--help" | "-h" => {
@@ -126,6 +148,26 @@ fn main() {
     }
     let password = password.unwrap_or_else(|| DEFAULT_PASSWORD.to_owned());
 
+    // Tools otherwise silently use the embedded test archive. Live local
+    // accounts contain ported items that only the server's current DB knows.
+    if std::env::var_os(survarium::v026g::game_data::GAME_DATA_ENV).is_some() {
+        survarium::v026g::game_data::init().unwrap_or_else(|error| fail(&error.to_string()));
+    } else if check_data {
+        fail("--check-data needs SRP_GAME_DATA");
+    }
+    if check_data {
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        println!("game data loaded: {} items, {} maps", dictionary.items.len(), dictionary.maps.len());
+        return;
+    }
+    let room = match (room_key, room_pin) {
+        (Some(key), pin) => Some(
+            RoomTarget::new(key, pin)
+                .unwrap_or_else(|| fail("--room must be 1 to 99999 and --pin 0 to 9999")),
+        ),
+        (None, Some(_)) => fail("--pin requires --room"),
+        (None, None) => None,
+    };
     let names = bot::names(&name, count);
     println!(
         "{} srp-bot: {} at {server}{}. The server must have SRP_BOT_ACCOUNTS={}. Ctrl+C stops.",
@@ -144,6 +186,7 @@ fn main() {
             kit,
             drive,
             revision,
+            room,
         })
         .collect();
     let print: bot::Print = Arc::new(|line| println!("{} {line}", clock()));
