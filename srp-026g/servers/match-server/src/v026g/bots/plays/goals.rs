@@ -298,35 +298,57 @@ impl Ctx<'_> {
 /// off: `fine` as it was and no draw from `rng` (a bot's stream is unchanged).
 pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Vec<Vec3> {
     let tuning = &cx.tuning.perch;
+    perch_count(0);
     let Some(share) = cx.tactics.perch_share.filter(|_| tuning.on && !cx.tactics.perches.is_empty()) else {
         return fine;
     };
+    perch_count(1);
     let grid = &cx.tactics.world.grid;
     let eye = Vec3::new(0.0, EYE_STANDING, 0.0);
     let target = anchor + Vec3::new(0.0, 1.0, 0.0);
-    let candidates: Vec<(Vec3, f32)> = cx
+    let in_range: Vec<&crate::v026g::bots::routes::Perch> = cx
         .tactics
         .perches
         .iter()
         .filter(|p| (tuning.min_m..=tuning.max_m).contains(&p.at.distance_xz(anchor)))
-        .filter(|p| {
-            cx.tactics.fine_goal(p.at, cx.now, cx.bot.side)
-                && !cx.tactics.in_spawn_area(p.at, None)
-                && grid.locate(p.at, 0.5).is_some_and(|n| !grid.near_fall(n) && !grid.near_lip(n))
-                && cx.tactics.sees(p.at + eye, target)
-                && !cx.spot_taken(p.at, APART_M)
-                && cx.can_go(p.at)
-                && !cx.exposed_climb(p.at, anchor)
-        })
-        .map(|p| (p.at, p.rate))
         .collect();
+    perch_count_n(2, in_range.len());
+    let mut candidates: Vec<(Vec3, f32)> = Vec::new();
+    for p in in_range {
+        if !(cx.tactics.fine_goal(p.at, cx.now, cx.bot.side)
+            && !cx.tactics.in_spawn_area(p.at, None)
+            && grid.locate(p.at, 0.5).is_some_and(|n| !grid.near_fall(n) && !grid.near_lip(n)))
+        {
+            perch_count(3);
+            continue;
+        }
+        if !cx.tactics.sees(p.at + eye, target) {
+            perch_count(4);
+            continue;
+        }
+        if cx.spot_taken(p.at, APART_M) {
+            perch_count(5);
+            continue;
+        }
+        if !cx.can_go(p.at) {
+            perch_count(6);
+            continue;
+        }
+        if cx.exposed_climb(p.at, anchor) {
+            perch_count(7);
+            continue;
+        }
+        candidates.push((p.at, p.rate));
+    }
     if candidates.is_empty() {
         return fine;
     }
+    perch_count(8);
     let p = (share.share / tuning.hold_share * tuning.p_scale).clamp(0.0, tuning.p_max);
     if rng.unit() >= p {
         return fine;
     }
+    perch_count(9);
     let mut keyed: Vec<(f32, Vec3)> = candidates
         .into_iter()
         .map(|(at, rate)| (rng.unit().max(1e-6).powf(1.0 / rate.max(0.1)), at))
@@ -335,6 +357,40 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
     let mut out: Vec<Vec3> = keyed.into_iter().map(|(_, at)| at).collect();
     out.extend(fine);
     out
+}
+
+// The bench's counts of what `perch_first` did: calls, with a table, perches
+// in range (summed), dropped for the fine goal/edge, the sight, a claim, no
+// way, an exposed climb, calls with a candidate, calls that took a perch.
+#[cfg(test)]
+thread_local! {
+    static PERCHED: std::cell::Cell<[u64; 10]> = const { std::cell::Cell::new([0; 10]) };
+}
+
+#[cfg(test)]
+fn perch_count_n(k: usize, n: usize) {
+    PERCHED.with(|c| {
+        let mut v = c.get();
+        v[k] += n as u64;
+        c.set(v);
+    });
+}
+
+#[cfg(test)]
+fn perch_count(k: usize) {
+    perch_count_n(k, 1);
+}
+
+#[cfg(not(test))]
+fn perch_count_n(_: usize, _: usize) {}
+
+#[cfg(not(test))]
+fn perch_count(_: usize) {}
+
+/// The counts of `perch_first` so far ([`perch_count`]).
+#[cfg(test)]
+pub fn perch_counts() -> [u64; 10] {
+    PERCHED.with(|c| c.get())
 }
 
 /// A spot proved no way to is swapped for the pick `pick` makes. `pick` is

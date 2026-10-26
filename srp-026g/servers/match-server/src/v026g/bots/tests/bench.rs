@@ -602,6 +602,7 @@ pub(crate) fn real_bot_cost() {
             let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
             let mut routes = RouteTally::start(game.bodies.len());
             let mut push = PushTally::start(&world, game.bodies.len());
+            let perch_before = super::plays::goals::perch_counts();
             let mut human = HumanTally::start();
             bots.bench_human = human.as_ref().map(|h| h.place);
             let mut blocks = BlockTally::default();
@@ -1241,6 +1242,14 @@ pub(crate) fn real_bot_cost() {
                 eprintln!("  camper: place {place} spot {spot:?}");
             }
             eprintln!("  push: {}", push.line(&bots));
+            let perched = super::plays::goals::perch_counts();
+            eprintln!(
+                "  perch: calls {} table {} in_range {} dropped_fine {} dropped_sight {} dropped_claim {} dropped_no_way {} dropped_climb {} with_candidate {} took {}",
+                perched[0] - perch_before[0], perched[1] - perch_before[1], perched[2] - perch_before[2],
+                perched[3] - perch_before[3], perched[4] - perch_before[4], perched[5] - perch_before[5],
+                perched[6] - perch_before[6], perched[7] - perch_before[7], perched[8] - perch_before[8],
+                perched[9] - perch_before[9]
+            );
             if let Some(human) = &human {
                 eprintln!("  human: {}", human.line());
             }
