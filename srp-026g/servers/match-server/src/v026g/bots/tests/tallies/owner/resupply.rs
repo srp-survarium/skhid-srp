@@ -205,7 +205,7 @@ impl OwnerTally {
         let per_kill = if kills_all > 0 { f64::from(fired_all) / f64::from(kills_all) } else { 0.0 };
         let pct = |n: u32| if died > 0 { (1000.0 * f64::from(n) / f64::from(died)).round() / 10.0 } else { 0.0 };
         let ammo_text = format!(
-            "owner-test ammo lives (bots, lives of 5 s or more): {} (ended by death {}); life s median {}; rounds fired per life median {} (kit count median {}); rounds per kill {:.1}; kills per bot-minute {:.2}; rounds per bot-minute {:.1}; rounds left of the kit's count at death: over 50 % {} %, 10-50 % {} %, under 10 % {} %, none {} %",
+            "owner-test ammo lives (bots, lives of 5 s or more): {} (ended by death {}); life s median {}; rounds fired per life median {} (kit count median {}); rounds per kill {:.1}; kills per bot-minute {:.2}; rounds per bot-minute {:.1}; rounds left of the kit's count at death: over 50 % {} %, 10-50 % {} %, under 10 % {} %, none {} % (totals: rounds {}, kills {}, minutes {:.2}, died over 50 {}, 10-50 {}, under 10 {}, none {})",
             lives_a.len(),
             died,
             life_s,
@@ -221,6 +221,13 @@ impl OwnerTally {
             pct(left[1]),
             pct(left[2]),
             pct(left[3]),
+            fired_all,
+            kills_all,
+            min_all,
+            left[0],
+            left[1],
+            left[2],
+            left[3],
         );
         let kills_of = |e: &Event| {
             game.kill_log
