@@ -14,20 +14,34 @@
 //! The test is a little stricter than the game's scan (which stops once the
 //! walkable and hittable groups were both hit), and a stand holds only when
 //! the ray passes at **both** eye heights of a pose ([`EYE_STANDING`],
-//! [`EYE_CROUCHED`]): the eye's exact height is not read from the client
-//! (LIKELY 1.6 and 0.95 m, bounded by the capsule), so a stand has a margin.
+//! [`EYE_CROUCHED`]). The ray starts at the player's head matrix, an
+//! animated bone (PROVEN, 0x2D84C0); its height over the feet was measured
+//! on live bullets, which start at the same matrix: standing 1.47 m (sd
+//! 0.03, 1.42-1.51 for the 10th to 90th percentile), crouched 1.04 m still
+//! and 1.14 m (sd 0.06) on the move, and it moves 0.16-0.22 m with the sine
+//! of the view's pitch. The two heights of a pose bound that, so a stand
+//! has a margin (`bots::view::eye_height` gives the bots' own).
 
-use crate::{Container, RayTree, Rotation, Shape, Vec3, World};
+use crate::{RayTree, Rotation, Shape, Vec3, World, ZoneKind};
 
 /// The use ray's length, metres (`usable_objects_detection_distance`,
 /// PROVEN, 0xA710D8).
 pub const USE_RAY_M: f32 = 2.0;
 /// The view's pitch limit, radians (LIKELY; `kin.rs`).
 pub const PITCH_MAX_RAD: f32 = 1.0;
-/// The two eye heights over the feet a standing stand must pass at, metres.
-pub const EYE_STANDING: [f32; 2] = [1.5, 1.7];
-/// The two eye heights over the feet a crouched stand must pass at, metres.
-pub const EYE_CROUCHED: [f32; 2] = [0.9, 1.0];
+/// The two eye heights over the feet a standing stand must pass at, metres:
+/// the bullet's 1.46 m with the view's pitch within a quarter radian
+/// (1.42-1.50) and the spread of live bullets (sd 0.03) round it.
+pub const EYE_STANDING: [f32; 2] = [1.40, 1.52];
+/// The two eye heights over the feet a crouched stand must pass at, metres:
+/// 1.04 m still and 1.14 m moving, the same pitch round them (0.99-1.19)
+/// and the spread (sd 0.06).
+pub const EYE_CROUCHED: [f32; 2] = [0.97, 1.25];
+/// The ranges before the measurement (the eye's height was not read from the
+/// client), for [`UseStands::build_with`]: the bench's off switch of the
+/// fix.
+pub const GUESSED_EYE_STANDING: [f32; 2] = [1.5, 1.7];
+pub const GUESSED_EYE_CROUCHED: [f32; 2] = [0.9, 1.0];
 /// How far from the box's bounds a floor is looked at, metres.
 pub const SEARCH_M: f32 = 3.5;
 /// The floors looked at lie from this far under the box's middle...
@@ -71,11 +85,15 @@ impl UseStand {
 }
 
 /// The stands of every container of a map, by the container's index in
-/// `MapData::containers`, nearest the box's middle (across) first.
+/// `MapData::containers`, nearest the box's middle (across) first; and of
+/// every resupply zone's box, by the zone's index in `MapData::zones` (the
+/// zone is a `usable_object` of the same kind, `resupply_zone_core`, found by
+/// the same ray: 0x2D84C0, 0x2F8080).
 #[derive(Clone, Debug, Default)]
 pub struct UseStands {
     lists: Vec<Vec<UseStand>>,
     ids: Vec<i32>,
+    zones: Vec<Vec<UseStand>>,
 }
 
 impl UseStands {
@@ -83,14 +101,34 @@ impl UseStands {
     /// asked [`SAMPLES`]^3 aims at four eye heights; a few milliseconds a
     /// map, once.
     pub fn build(world: &World) -> Self {
+        Self::build_with(world, EYE_STANDING, EYE_CROUCHED)
+    }
+
+    /// [`Self::build`] with other pairs of eye heights.
+    pub fn build_with(world: &World, standing: [f32; 2], crouched: [f32; 2]) -> Self {
         let lists = world
             .map
             .containers
             .iter()
-            .map(|c| stands_of(world, c))
+            .map(|c| stands_of(world, c.use_shapes.first(), standing, crouched))
             .collect();
         let ids = world.map.containers.iter().map(|c| c.id).collect();
-        Self { lists, ids }
+        let zones = world
+            .map
+            .zones
+            .iter()
+            .map(|z| match z.kind {
+                ZoneKind::Resupply => stands_of(world, z.shapes.first(), standing, crouched),
+                _ => Vec::new(),
+            })
+            .collect();
+        Self { lists, ids, zones }
+    }
+
+    /// The stands of the resupply zone at `index` of `MapData::zones` (empty
+    /// for any other zone or an unknown one).
+    pub fn of_zone(&self, index: usize) -> &[UseStand] {
+        self.zones.get(index).map_or(&[], |list| list)
     }
 
     /// The stands of the container with this `id` (empty for an unknown
@@ -104,8 +142,13 @@ impl UseStands {
     }
 }
 
-fn stands_of(world: &World, container: &Container) -> Vec<UseStand> {
-    let Some(shape) = container.use_shapes.first() else {
+fn stands_of(
+    world: &World,
+    shape: Option<&Shape>,
+    eye_standing: [f32; 2],
+    eye_crouched: [f32; 2],
+) -> Vec<UseStand> {
+    let Some(shape) = shape else {
         return Vec::new();
     };
     let grid = &world.grid;
@@ -130,8 +173,8 @@ fn stands_of(world: &World, container: &Container) -> Vec<UseStand> {
             press(&world.sight, feet + Vec3::new(0.0, heights[1], 0.0), shape)?;
             Some(first)
         };
-        let standing = at(EYE_STANDING);
-        let crouched = at(EYE_CROUCHED);
+        let standing = at(eye_standing);
+        let crouched = at(eye_crouched);
         if let Some((aim, pitch)) = standing.or(crouched) {
             out.push(UseStand {
                 feet,
@@ -211,6 +254,14 @@ pub fn ray_meets(sight: &RayTree, eye: Vec3, dir: Vec3, shape: &Shape) -> bool {
         .is_some_and(|t| t <= USE_RAY_M && sight.ray_cast(eye, dir, (t - 0.02).max(0.0)).is_none())
 }
 
+/// How far along a ray from `eye` along `dir` (unit) the oriented `shape`
+/// is entered, if the ray meets it at all (whatever its length): the length
+/// of the use ray that reaches the box, to set against the client's
+/// `usable_objects_detection_distance`.
+pub fn ray_distance(eye: Vec3, dir: Vec3, shape: &Shape) -> Option<f32> {
+    ray_box(eye, dir, shape.center, &shape.rotation, shape.half)
+}
+
 /// Where a ray from `origin` along `dir` (unit) enters the oriented box;
 /// `None` if it misses.
 fn ray_box(origin: Vec3, dir: Vec3, centre: Vec3, rotation: &Rotation, half: Vec3) -> Option<f32> {
@@ -250,7 +301,7 @@ pub fn is_stand(stands: &[UseStand], feet: Vec3) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Body, MapData, ShapeKind, Triangle, WalkGrid, WalkerBehaviour};
+    use crate::{Body, Container, MapData, ShapeKind, Triangle, WalkGrid, WalkerBehaviour, Zone};
 
     fn quad(x0: f32, z0: f32, x1: f32, z1: f32, y: f32) -> [Triangle; 2] {
         let v = |x, z| Vec3::new(x, y, z);
@@ -364,6 +415,26 @@ mod tests {
         };
         assert!(behind(&open) > 0, "stands east of x 2.7 on an open floor");
         assert_eq!(behind(&walled), 0, "none behind the wall");
+    }
+
+    #[test]
+    fn a_resupply_zones_box_has_stands_by_the_zones_index_and_other_zones_none() {
+        let (mut world, shape) = world(false);
+        let zone = |kind| Zone {
+            kind,
+            name: String::new(),
+            team: 0,
+            position: shape.center,
+            damage_type: String::new(),
+            damage: None,
+            shapes: vec![shape],
+        };
+        world.map.zones = vec![zone(ZoneKind::Damage), zone(ZoneKind::Resupply)];
+        let stands = UseStands::build(&world);
+        assert!(stands.of_zone(0).is_empty(), "a damage zone is not used");
+        assert_eq!(stands.of_zone(1), stands.of(0u8), "the same box, the same list");
+        assert!(!stands.of_zone(1).is_empty());
+        assert!(stands.of_zone(5).is_empty(), "no such zone");
     }
 
     #[test]

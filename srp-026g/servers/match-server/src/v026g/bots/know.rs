@@ -128,7 +128,8 @@ pub struct Memory {
 
 impl Memory {
     /// Takes in a think's percepts. `notice_ms(percept)` is the noticing
-    /// delay for a new sight; `forget_ms` and `drop_ms` the fading.
+    /// delay for a new sight, asked only when one begins (or a track is
+    /// made); `forget_ms` and `drop_ms` the fading.
     pub fn update(
         &mut self,
         percepts: &[Percept],
@@ -138,7 +139,6 @@ impl Memory {
         drop_ms: u32,
     ) {
         for percept in percepts {
-            let notice = notice_ms(percept);
             match self.tracks.iter_mut().find(|t| t.who == percept.who) {
                 Some(track) => {
                     let seen = percept.source == Source::Seen;
@@ -166,7 +166,7 @@ impl Memory {
                             track.sight_since.is_some() && track.time + 400 >= percept.time;
                         if !continuing {
                             track.sight_since = Some(percept.time);
-                            track.notice_ms = notice;
+                            track.notice_ms = notice_ms(percept);
                         }
                     } else if track.time + 400 < percept.time {
                         track.sight_since = None;
@@ -185,7 +185,7 @@ impl Memory {
                     time: percept.time,
                     source: percept.source,
                     sight_since: (percept.source == Source::Seen).then_some(percept.time),
-                    notice_ms: notice,
+                    notice_ms: notice_ms(percept),
                     own: percept.source.own().then_some((percept.at, percept.time)),
                 }),
             }
@@ -547,6 +547,28 @@ pub struct Claim {
 /// A claim is dropped when not renewed for this long, ms.
 pub const CLAIM_KEEP_MS: u32 = 2_000;
 
+/// A bot's claim on a throw spot: the place it decided to throw a grenade
+/// at, stamped when it decided. A teammate's roll skips places within
+/// `CombatTuning::grenade_claim_m` of one for `grenade_claim_ms`.
+///
+/// Root cause (`grenades-record.md` 2.4): two bots of a team throwing at
+/// one spot waste the second grenade (the blast is 10 m; humans' same-team
+/// throws land within 8 m of a teammate's during the next 5 s in 1.7 % of
+/// throws, twice the chance level, so they do not avoid it by design). The
+/// owner: do not make several bots throw at the same spots. A spot claim
+/// is a place where a bot stands, 1.5 m apart ([`Claim`]); a throw claim
+/// a blast, metres apart, kept for the fuse and what follows.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ThrowClaim {
+    pub who: Place,
+    pub at: Vec3,
+    pub time: u32,
+}
+
+/// A throw claim is dropped after this, ms, whatever the roll's own window
+/// asks (the fuse is 4 s; `grenade_claim_ms` is 6 s).
+pub const THROW_CLAIM_KEEP_MS: u32 = 30_000;
+
 /// What a team's bots share: callouts (one bot's sense, the others' a
 /// moment later), danger spots, thefts, and with the battery cheat off
 /// what they know of the batteries and the spawners they have looked at.
@@ -564,6 +586,8 @@ pub struct TeamKnowledge {
     pub thefts_match: u32,
     /// Each enemy human's lanes, thefts and kills, for the match (CG-12).
     pub humans: HumanLanes,
+    /// The bear traps the team's bots put down (`trap_know.rs`).
+    pub traps: super::trap_know::TrapList,
     /// By battery number.
     pub batteries: Vec<Option<KnownBattery>>,
     /// By battery spawner: when a bot of the team last saw its spot.
@@ -590,6 +614,9 @@ pub struct TeamKnowledge {
     pub take_blocked: Vec<(Place, usize, Option<&'static str>, u32)>,
     /// The team's bots' claims on spots, one a bot ([`Self::claim`]).
     claims: Vec<Claim>,
+    /// The places the team's bots decided to throw at, each throw a claim
+    /// ([`Self::claim_throw`]).
+    throws: Vec<ThrowClaim>,
 }
 
 impl TeamKnowledge {
@@ -650,6 +677,25 @@ impl TeamKnowledge {
         self.claims
             .iter()
             .filter(move |c| c.who != except && c.time + CLAIM_KEEP_MS >= now)
+    }
+
+    /// `who` decided to throw a grenade at `at` (one claim a throw: a bot's
+    /// own volley is not held against it, [`Self::throws_of_others`]).
+    pub fn claim_throw(&mut self, who: Place, at: Vec3, now: u32) {
+        self.throws.push(ThrowClaim { who, at, time: now });
+    }
+
+    /// The throw claims of bots other than `except` made within `ms` of
+    /// `now`.
+    pub fn throws_of_others(
+        &self,
+        except: Place,
+        now: u32,
+        ms: u32,
+    ) -> impl Iterator<Item = &ThrowClaim> {
+        self.throws
+            .iter()
+            .filter(move |c| c.who != except && c.time + ms >= now)
     }
 
     /// The player at `who` left the match: no callout about it is heard,
@@ -871,6 +917,7 @@ impl TeamKnowledge {
             .retain(|p| p.time + CARRIER_PLACES_KEEP_MS >= now);
         self.falls.retain(|f| f.time + FALLS_KEEP_MS >= now);
         self.claims.retain(|c| c.time + CLAIM_KEEP_MS >= now);
+        self.throws.retain(|c| c.time + THROW_CLAIM_KEEP_MS >= now);
     }
 
     /// `who`, going for a battery lying at `at`, fell near it (once in
@@ -1031,6 +1078,20 @@ impl TeamKnowledge {
 mod tests {
     use super::*;
 
+    /// A throw claim holds against the teammates' rolls, not the thrower's
+    /// own, for the window the roll asks, and is dropped much later.
+    #[test]
+    fn a_throw_claim_holds_against_others_for_its_window() {
+        let mut team = TeamKnowledge::default();
+        let at = Vec3::new(10.0, 0.0, 20.0);
+        team.claim_throw(3, at, 1_000);
+        assert_eq!(team.throws_of_others(4, 5_000, 6_000).count(), 1);
+        assert_eq!(team.throws_of_others(3, 5_000, 6_000).count(), 0, "his own volley");
+        assert_eq!(team.throws_of_others(4, 7_001, 6_000).count(), 0, "after the window");
+        team.forget_old(31_001);
+        assert_eq!(team.throws_of_others(4, 31_001, 60_000).count(), 0, "dropped");
+    }
+
     fn seen(who: Place, time: u32) -> Percept {
         Percept {
             who,
@@ -1089,6 +1150,26 @@ mod tests {
         assert!(memory.in_sight(4, 1_100).is_none(), "only heard");
         memory.update(&[], 1_500, |_| 300, 3_000, 20_000);
         assert!(memory.in_sight(3, 1_500).is_none(), "out of sight over 400 ms");
+    }
+
+    /// The noticing delay is asked when a sight begins, not at every report
+    /// of it (a delay that costs, [`crate::v026g::bots::foliage`], is worked out once).
+    #[test]
+    fn the_noticing_delay_is_asked_once_for_a_sight() {
+        let asked = std::cell::Cell::new(0);
+        let notice = |_: &Percept| {
+            asked.set(asked.get() + 1);
+            300
+        };
+        let mut memory = Memory::default();
+        memory.update(&[seen(3, 1_000)], 1_000, notice, 3_000, 20_000);
+        for k in 1..5u32 {
+            memory.update(&[seen(3, 1_000 + 200 * k)], 1_000 + 200 * k, notice, 3_000, 20_000);
+        }
+        assert_eq!(asked.get(), 1, "one sight, one question");
+        // Out of sight for a while, then seen again: a new sight asks again.
+        memory.update(&[seen(3, 3_000)], 3_000, notice, 3_000, 20_000);
+        assert_eq!(asked.get(), 2);
     }
 
     #[test]
@@ -1154,6 +1235,7 @@ mod tests {
             world_time: 10_000,
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
         }
     }
 

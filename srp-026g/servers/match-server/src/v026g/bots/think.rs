@@ -47,7 +47,8 @@ impl Bots {
         let percepts = share(&due, bot, state, &self.tracker, sensed);
         sense_batteries(&due, bot, state, rays, notes);
         remember(&due, bot, &percepts);
-        react(&due, bot, state, &self.weapons, notes);
+        react(&due, bot, state, &self.features.weapons, notes);
+        self_kill(&due, bot, state, notes);
         if now < bot.pause_until {
             bot.intent = Intent::stay();
             return;
@@ -56,9 +57,13 @@ impl Bots {
         if bench_camper(&due, bot, &mut self.bench_camper) {
             return;
         }
-        let Some(step_name) = decide(&due, bot, state, &self.memo, notes) else {
+        let Some(step_name) = decide(&due, bot, state, &self.memo, &self.features.weapons, notes) else {
             return;
         };
+        // [traps] A bot that carries traps may start to put one down.
+        traps::think(bot, &due, state);
+        // [trap_react] A trap that is not the team's: a chance to notice it.
+        trap_react::think(bot, &due, state);
         if self.trace.enabled() && now >= bot.last_trace + tuning.think.trace_every_ms {
             bot.last_trace = now;
             let line = serde_json::json!({
@@ -96,7 +101,7 @@ impl Bots {
         bot.tracing = self.trace.enabled();
         bot.reflex.tracing = bot.tracing;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
-        let searching = &mut self.searching;
+        let searching = &mut self.features.searching;
         for time in bot.encoder.ticks(clock.clock, entered + START_AFTER_MS) {
             #[cfg(test)]
             {
@@ -363,7 +368,11 @@ pub(super) fn sense_batteries(
 /// The memory takes the percepts, each after its notice time.
 pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
     let Due {
-        now, me, tuning, ..
+        now,
+        me,
+        tuning,
+        tactics,
+        ..
     } = *due;
     let skill = bot.skill;
     let notice_factor = signals::mix(tuning.aim.notice, skill);
@@ -372,7 +381,18 @@ pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
         percepts,
         now,
         |p: &Percept| {
-            sense::notice_ms(&tuning.sense, p.at.distance_xz(feet), p.busy, notice_factor)
+            let base = sense::notice_ms(&tuning.sense, p.at.distance_xz(feet), p.busy, notice_factor);
+            if p.source != Source::Seen {
+                return base;
+            }
+            // A sight that begins through bushes (`foliage.rs`) is noticed later.
+            let metres = tactics
+                .foliage
+                .metres(me.eye(), p.at + Vec3::new(0.0, super::foliage::CHEST_M, 0.0));
+            let delayed = super::foliage::noticing_ms(base, metres, tuning.sense.bush_notice, tuning.sense.foliage_cap);
+            #[cfg(test)]
+            super::foliage::through::count(metres, delayed - base);
+            delayed
         },
         tuning.cheats.forget_ms.max(tuning.sense.forget_ms),
         tuning.sense.drop_ms,
@@ -401,13 +421,21 @@ pub(super) fn react(
         team: Some(&state.knowledge),
         side: bot.side,
         partner: bot.partner,
-        weapon: reflex::WeaponKind::of_role(&bot.personality(tuning).name),
+        weapon: bot.weapon(weapons, tuning),
         weapons,
+        retreat: tuning.avoid.grenade_avoid.then_some(reflex::Retreat {
+            margin_m: tuning.avoid.margin_m,
+            told_ms: tuning.avoid.told_ms.1,
+        }),
     };
     bot.reflex
         .think_with(me, &sit, &bot.memory, now, &tuning.aim, skill, &mut bot.rng);
     for text in bot.reflex.take_throw_notes() {
         bot.note(notes, now, text);
+    }
+    // A grenade decided on: its place is the team's to skip for a while.
+    if let Some(at) = bot.reflex.take_throw_claim() {
+        state.knowledge.claim_throw(bot.place, at, now);
     }
     // Hit from a direction alone (the HUD's marker): its callout.
     if let Some((at, bearing)) = bot.reflex.take_hit_note() {
@@ -428,13 +456,15 @@ pub(super) fn bench_camper(
     bot: &mut Bot,
     slot: &mut Option<(Place, Option<tests::CamperSpot>)>,
 ) -> bool {
-    let Due { tactics, .. } = *due;
+    let Due { tactics, me, .. } = *due;
     if let Some((camper, spot)) = slot.as_mut()
         && *camper == bot.place
     {
         let side = bot.side;
-        let found =
-            *spot.get_or_insert_with(|| side.and_then(|side| tests::camper_spot(tactics, side)));
+        let options = tests::CamperOptions::from_env();
+        let found = *spot.get_or_insert_with(|| {
+            side.and_then(|side| tests::camper_spot_by(tactics, side, options.rule, options.crouch))
+        });
         if let Some((at, _)) = found {
             bot.bench_camper = true;
             bot.intent = Intent {
@@ -443,12 +473,81 @@ pub(super) fn bench_camper(
                     within_m: tests::CAMPER_WITHIN_M,
                 },
                 pace: Pace::Run,
+                // Crouched once there, if it is to be.
+                crouch: options.crouch && me.feet.distance_xz(at) <= tests::CAMPER_WITHIN_M,
                 ..Intent::stay()
             };
             return true;
         }
     }
     false
+}
+
+/// The last resort ([`stuck::SelfKill`]): a bot with nothing left to try, 60 s on, in no fight and carrying nothing, kills itself
+/// (`Encoder::self_kill`), as the owner decided; the facts are read here once, the rules are `stuck::self_kill_step`'s.
+pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: &mut Vec<Note>) {
+    let Due {
+        now,
+        view,
+        me,
+        tuning,
+        ..
+    } = *due;
+    if tuning.unstick.suicide_after_ms.is_none() && bot.self_kill == stuck::SelfKill::default() {
+        return;
+    }
+    state.features.stuck.self_kills.retain(|&at| now < at.saturating_add(60_000));
+    // The last time an enemy was sensed by the bot's own senses (a cheat's place does not count), or a bullet hit it.
+    let sensed = bot
+        .memory
+        .tracks()
+        .iter()
+        .filter_map(|track| track.own.map(|(_, at)| at))
+        .chain(bot.hurt.last_hit_ms)
+        .max();
+    let facts = stuck::Facts {
+        now,
+        hopeless: bot.stuck.hopeless(now, me.spawned),
+        quiet_ms: sensed.map_or(u32::MAX, |at| now.saturating_sub(at)),
+        life_ms: now.saturating_sub(me.spawned),
+        match_ms: ((view.total_s - view.time_left_s).max(0.0) * 1_000.0) as u32,
+        carrying: me.carrying.is_some(),
+        tickets: view.mode.is_deathmatch().then(|| view.points[usize::from(bot.team & 1)]),
+        since_last_ms: bot.self_killed_at.map(|at| now.saturating_sub(at)),
+        team_last_minute: state.features.stuck.self_kills.len() as u32,
+    };
+    let (next, act) = stuck::self_kill_step(bot.self_kill, &facts, &tuning.unstick);
+    #[cfg(test)]
+    {
+        if matches!((bot.self_kill, next), (stuck::SelfKill::Sent { .. }, stuck::SelfKill::Barred)) {
+            stuck::self_kills::count(2);
+        }
+    }
+    bot.self_kill = next;
+    let Some(stuck::SelfKillAct::Send { again }) = act else {
+        return;
+    };
+    bot.encoder.self_kill(tuning.unstick.suicide_ticks);
+    if !again {
+        bot.self_killed_at = Some(now);
+        state.features.stuck.self_kills.push(now);
+    }
+    #[cfg(test)]
+    stuck::self_kills::count(usize::from(again));
+    let (since, why) = facts.hopeless.map_or((now, String::new()), |h| (h.since, format!("{:?}", h.why)));
+    bot.note(
+        notes,
+        now,
+        format!(
+            "self_kill{}: nothing left to try for {} s ({why}) at {:?}, life {} s, match {} s, no enemy or hit for {}",
+            if again { " again" } else { "" },
+            now.saturating_sub(since) / 1_000,
+            me.feet.to_array(),
+            facts.life_ms / 1_000,
+            facts.match_ms / 1_000,
+            if facts.quiet_ms == u32::MAX { "the life".to_owned() } else { format!("{} s", facts.quiet_ms / 1_000) },
+        ),
+    );
 }
 
 /// The play's step: its intent, or the end of the play (a goal its own search proved no way to, done, failed) for the commander to
@@ -458,6 +557,7 @@ pub(super) fn decide(
     bot: &mut Bot,
     state: &mut TeamState,
     memo: &plays::memo::Memo,
+    weapons: &[Option<reflex::WeaponKind>],
     notes: &mut Vec<Note>,
 ) -> Option<String> {
     let Due {
@@ -482,16 +582,20 @@ pub(super) fn decide(
         me,
         bot: BotFacts {
             personality: bot.personality(tuning),
+            weapon: bot.weapon(weapons, tuning),
             side: bot.side,
             current: bot.assignment.as_ref().map(|a| (a.kind, a.target, a.since)),
             last_ran: &bot.last_ran,
             partner: bot.partner,
             paired: bot.paired,
-            medkits_used: bot.medkits_used,
+            medkits_used: bot.features.stock.medkits_used,
+            pantry: &bot.features.stock.pantry,
+            pools: bot.features.stock.pools,
             no_way_to: &bot.no_way_to,
-            set_aside: &bot.set_aside,
-            failed_stands: &bot.failed_stands,
+            set_aside: &bot.features.memory.set_aside,
+            failed_stands: &bot.features.memory.failed_stands,
             dry: bot.reflex.dry(),
+            ammo: bot.ammo(),
             crossing: walks_crossing(bot),
         },
         memory: &bot.memory,
@@ -508,11 +612,11 @@ pub(super) fn decide(
     // (S1); the point it means to be at is its claim.
     let (step, claim) = match step {
         Step::Continue(intent) => {
-            let (intent, claim) = plays::goals::keep_apart(&cx, &mut bot.apart, running.kind(), intent);
+            let (intent, claim) = plays::goals::keep_apart(&cx, &mut bot.features.memory.apart, running.kind(), intent);
             (Step::Continue(intent), Some(claim))
         }
         other => {
-            bot.apart.reset();
+            bot.features.memory.apart.reset();
             (other, None)
         }
     };
@@ -528,17 +632,22 @@ pub(super) fn decide(
         // choose again (not stood at the goal, searched every 500 ms).
         Step::Continue(intent) if goal_shut(&intent, me, &bot.no_way_to, now) => {
             if let Some(a) = bot.assignment.as_ref() {
-                bot.set_aside.retain(|&(_, _, until)| until > now);
-                bot.set_aside.push((a.kind, a.target, now + NO_WAY_KEEP_MS));
+                bot.features.memory.set_aside.retain(|&(_, _, until)| until > now);
+                bot.features.memory.set_aside.push((a.kind, a.target, now + NO_WAY_KEEP_MS));
             }
             bot.end_play(now, "no way to its goal", notes);
             state.next_commander = now;
         }
         Step::Continue(mut intent) => {
             bot.press |= intent.press;
+            if let Some(zone) = intent.resupplied.take() {
+                bot.resupplies += 1;
+                let rounds = bot.top_up();
+                bot.note(notes, now, format!("resupplied at zone {zone}: +{rounds} rounds"));
+            }
             if let Some(failed) = intent.failed_stand.take() {
-                bot.failed_stands.retain(|f| f.until > now);
-                bot.failed_stands.push(failed);
+                bot.features.memory.failed_stands.retain(|f| f.until > now);
+                bot.features.memory.failed_stands.push(failed);
                 bot.note(notes, now, failed.note());
             }
             bot.intent = intent;
@@ -551,7 +660,7 @@ pub(super) fn decide(
             if let Some(a) = bot.assignment.as_ref()
                 && (now < a.since + plays::QUICK_FAIL_MS || plays::collect::fails_aside(why))
             {
-                bot.set_aside.retain(|&(_, _, until)| until > now);
+                bot.features.memory.set_aside.retain(|&(_, _, until)| until > now);
                 // A battery proved out of reach is left as long as a goal no
                 // way leads to.
                 let keep = if plays::collect::fails_aside(why) {
@@ -559,7 +668,7 @@ pub(super) fn decide(
                 } else {
                     plays::SET_ASIDE_MS
                 };
-                bot.set_aside.push((a.kind, a.target, now + keep));
+                bot.features.memory.set_aside.push((a.kind, a.target, now + keep));
             }
             bot.end_play(now, why, notes);
             state.next_commander = now;
@@ -578,6 +687,29 @@ mod phase_tests {
         bot.entered = entered;
         bot.next_think = next_think;
         (bot, tuning)
+    }
+
+    /// The kind of a bot's weapon 1 is the one its place was given (the kit it
+    /// wears), not its role's name: an SMG rusher plays the SMG band
+    /// ([`reflex::Situation::weapon`] feeds `preferred_band`); a place with
+    /// none known falls back to the role's.
+    #[test]
+    fn an_smg_rusher_is_an_smg_whatever_its_role_is_called() {
+        let tuning = Tuning::default();
+        let rusher = Bot::new(1, 3, 0, Some("rusher"), &tuning);
+        assert_eq!(tuning.personalities[rusher.personality].name, "rusher");
+        let mut weapons = vec![None; 4];
+        assert_eq!(
+            rusher.weapon(&weapons, &tuning),
+            Some(reflex::WeaponKind::Shotgun),
+            "unknown: the role's"
+        );
+        weapons[3] = Some(reflex::WeaponKind::Smg);
+        let kind = rusher.weapon(&weapons, &tuning);
+        assert_eq!(kind, Some(reflex::WeaponKind::Smg));
+        let c = &tuning.aim.combat;
+        assert_eq!(c.band(kind.unwrap()), c.band(reflex::WeaponKind::Smg));
+        assert_ne!(c.band(kind.unwrap()), c.band(reflex::WeaponKind::Shotgun));
     }
 
     #[test]

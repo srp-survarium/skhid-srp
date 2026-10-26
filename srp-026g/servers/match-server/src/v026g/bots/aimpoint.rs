@@ -39,8 +39,9 @@
 //!   was not read: everything in it counts as solid.
 //! - **Grenades** are not aimed here: they go over cover on purpose.
 //!
-//! The cost: a target's parts are looked at again every [`LOOK_AGAIN_MS`]
-//! or when the target changes, in order, stopping at the first that shows
+//! The cost: a target's parts are looked at again every [`LOOK_AGAIN_MS`],
+//! when the target changes or when the bot's eye has moved
+//! [`LOOK_EYE_MOVED_M`] from where it looked, in order, stopping at the first that shows
 //! (at most 8 rays, 16 for one on the move; 1 or 2 for an enemy in the
 //! open); the view's lines are two rays, only at a tick it would fire.
 
@@ -49,10 +50,15 @@ use std::sync::Arc;
 use mapdata::{RayTree, Vec3, World};
 
 use super::kin::{forward, yaw_of};
-use super::view::{MatchView, Place, PlaceView};
+use super::view::{MatchView, Place, PlaceView, live_eye};
 
 /// A target's parts are looked at again after this, ms.
 pub const LOOK_AGAIN_MS: u32 = 100;
+/// ... or sooner, when the bot's eye is this far from where it looked
+/// from, metres: a look is of the line from that eye (GUESS: a walker's
+/// 3 m/s is 0.15 m a tick, and the view's rays run from the eye now; the
+/// bots' own error at a shot was 0.15-0.3 m, `fact-own-eye.md` 5).
+pub const LOOK_EYE_MOVED_M: f32 = 0.15;
 /// The last part seen is looked at this long after the target is out of
 /// sight, ms.
 pub const PRE_AIM_MS: u32 = 1_500;
@@ -220,6 +226,8 @@ fn aim_part_moving(eye: Vec3, body: &PlaceView, then: Vec3, sight: &RayTree) -> 
 struct Looked {
     who: Place,
     at: u32,
+    /// The bot's eye it looked from.
+    eye: Vec3,
     crouched: bool,
     part: Option<Part>,
 }
@@ -301,12 +309,16 @@ impl Sight {
             (now.saturating_sub(view.clock) + LOOK_AGAIN_MS).min(AHEAD_MAX_MS) as f32 / 1000.0;
         let then = body.feet + Vec3::new(body.velocity[0], 0.0, body.velocity[1]) * ahead_s;
         let due = self.looked.is_none_or(|l| {
-            l.who != who || l.crouched != body.crouched() || now >= l.at + LOOK_AGAIN_MS
+            l.who != who
+                || l.crouched != body.crouched()
+                || now >= l.at + LOOK_AGAIN_MS
+                || (live_eye() && (l.eye - eye).length() > LOOK_EYE_MOVED_M)
         });
         if due {
             self.looked = Some(Looked {
                 who,
                 at: now,
+                eye,
                 crouched: body.crouched(),
                 part: aim_part_moving(eye, body, then, sight),
             });
@@ -454,6 +466,7 @@ mod tests {
             world_time: 0,
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
         }
     }
 
@@ -536,6 +549,44 @@ mod tests {
             points.iter().all(|p| (p.y - 1.26).abs() < 1e-3),
             "{points:?}"
         );
+    }
+
+    /// The parts are looked at from the eye of the moment, so a look stands only while the eye
+    /// is near where it looked from: a step of the bot (the tick's 0.15 m and more) or a
+    /// crouch looks again within the 100 ms, the view's pitch (0.13 m at most) does not.
+    #[test]
+    fn the_parts_are_looked_at_again_when_the_eye_has_moved() {
+        let world = world_of(&[]);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), false);
+        let me = body(0, 0, Vec3::ZERO, false);
+        let view = view_of(vec![me.clone(), enemy]);
+        let mut sight = Sight::default();
+        sight.update(&me, Some(1), &view, &world, 1_000);
+        assert_eq!(sight.looked_ms(1_000), Some(0));
+        // 50 ms on, the eye 0.1 m along: the look stands.
+        let mut then = me.clone();
+        then.feet = Vec3::new(0.1, 0.0, 0.0);
+        sight.update(&then, Some(1), &view, &world, 1_050);
+        assert_eq!(sight.looked_ms(1_050), Some(50));
+        // The view up a radian (feet back) lifts the eye 0.13 m: still.
+        then.feet = Vec3::ZERO;
+        then.pitch = 1.0;
+        sight.update(&then, Some(1), &view, &world, 1_050);
+        assert_eq!(sight.looked_ms(1_050), Some(50));
+        // 0.3 m along: looked at again, from there.
+        then.pitch = 0.0;
+        then.feet = Vec3::new(0.3, 0.0, 0.0);
+        sight.update(&then, Some(1), &view, &world, 1_050);
+        assert_eq!(sight.looked_ms(1_050), Some(0));
+        // A crouch drops the eye 0.3 m (idle 1.04 against 1.46 m): looked at again.
+        then.keys = key::CROUCH;
+        sight.update(&then, Some(1), &view, &world, 1_100);
+        assert_eq!(sight.looked_ms(1_100), Some(0));
+        // And the look is as old as ever when nothing moved: 100 ms on, again.
+        sight.update(&then, Some(1), &view, &world, 1_150);
+        assert_eq!(sight.looked_ms(1_150), Some(50));
+        sight.update(&then, Some(1), &view, &world, 1_200);
+        assert_eq!(sight.looked_ms(1_200), Some(0));
     }
 
     #[test]

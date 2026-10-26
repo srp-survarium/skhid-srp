@@ -22,7 +22,7 @@ use super::hazards::{HazardMarks, Hazards, PASS_MS};
 use super::path::{self, Route};
 use super::route_filter::RouteFilter;
 use super::rng::Rng;
-use super::view::{EYE_CROUCHED, EYE_STANDING};
+use super::view::still_eye;
 
 /// A spawn area: this far round a side's spawn points, metres (GUESS from
 /// the maps: spawn points of a side lie in a few clusters 10-20 m across).
@@ -53,6 +53,13 @@ const WALK_UP_MAX_FLOORS: usize = 40_000;
 pub const USE_REACH_M: f32 = 1.8;
 /// A way out of a zone is looked for over at most this many floors.
 const ESCAPE_FLOORS: usize = 20_000;
+/// A step out of a grenade's blast ([`Tactics::step_out`]) looks over at most
+/// this many floors: its reach is a few seconds' walk, about 14 m, a disc of
+/// some 10,000 floors at the grid's 0.25 m.
+const STEP_OUT_FLOORS: usize = 12_000;
+/// With no floor outside the blast in reach, the one as far as it gets is
+/// taken only if it is this much farther than where the body stands, metres.
+const STEP_OUT_GAIN_M: f32 = 0.5;
 
 /// [`Tactics::ledge_ahead`]: a ledge to jump up is looked for from this far
 /// ahead of the stuck body …
@@ -149,21 +156,26 @@ pub struct Tactics {
     /// ([`Hazards::fixed_zones`]): made again only when they change (at
     /// the anomalies' attach).
     past_fixed: std::sync::Mutex<Option<PastFixed>>,
-    /// [`Self::walk_estimate`]'s distances by goal region, once made: they
-    /// depend on the map alone.
-    walks: std::sync::Mutex<std::collections::HashMap<u32, Arc<Vec<f32>>>>,
+    /// [`Self::walk_estimate`]'s distances by goal region: they depend on
+    /// the map alone; the most recent [`WALKS_MOST`] are kept.
+    walks: std::sync::Mutex<WalkCache>,
     /// [`Self::spots_kept`]'s lists.
     spot_lists: std::sync::Mutex<Vec<KeptSpots>>,
+    /// [`Self::walk_up_set`]'s sets, the latest [`WALK_UP_KEPT`]: they depend
+    /// on the map alone and the point asked.
+    walk_ups: std::sync::Mutex<Vec<(WalkUpKey, Arc<WalkUp>)>>,
     /// [`Self::exit_of`]'s field, once made.
     exit_field: std::sync::Mutex<Option<ExitField>>,
     /// The teams' escapes from pockets that worked, and their trapped bots
     /// (`escape.rs`), for the match.
     pub escapes: super::escape::Board,
     /// Whether a way out stays under its start's zone strength
-    /// (`Tuning::escape_ceiling`, [`Self::escape`]).
-    pub escape_ceiling: bool,
+    /// (`Tuning::hazard.escape`, [`Self::escape`]).
+    pub escape: super::tuning::EscapeRule,
+    /// The bushes a sight line crosses (`foliage.rs`); none without the file.
+    pub foliage: Arc<super::foliage::Foliage>,
     /// Whether the fight's side step is refused onto the band of a lip
-    /// (`Tuning::clear_step_sees_lip`, [`Self::clear_step_for`]).
+    /// (`Tuning::aim.combat.clear_step_sees_lip`, [`Self::clear_step_for`]).
     pub clear_step_sees_lip: bool,
 }
 
@@ -172,6 +184,38 @@ type ExitField = Arc<std::collections::HashMap<NodeId, NodeId>>;
 
 /// A list of [`Tactics::spots_kept`]: (key, kept until, the spots).
 type KeptSpots = (u64, u32, Arc<Vec<Vec3>>);
+
+/// How many of [`Tactics::walk_up_set`]'s sets are kept (each is a bit a floor of the
+/// grid, a few hundred KB on the biggest map).
+const WALK_UP_KEPT: usize = 32;
+
+/// The point and radius a [`WalkUp`] was made for, as bits.
+type WalkUpKey = [u32; 4];
+
+/// The floors a walk up from a point gets to ([`Tactics::walk_up_from`]): a bit
+/// a floor of the grid, in place of a hash set (the profile of the spot
+/// lists: 92 % of a build was this search, 6 ms of 5.2-5.7).
+pub(super) struct WalkUp(Vec<u64>);
+
+impl WalkUp {
+    fn new(floors: usize) -> Self {
+        Self(vec![0; floors.div_ceil(64)])
+    }
+
+    /// Adds `node`; whether it was not in.
+    fn insert(&mut self, node: NodeId) -> bool {
+        let (word, bit) = (node as usize >> 6, 1u64 << (node & 63));
+        let was = self.0[word] & bit != 0;
+        self.0[word] |= bit;
+        !was
+    }
+
+    pub(super) fn contains(&self, node: NodeId) -> bool {
+        self.0
+            .get(node as usize >> 6)
+            .is_some_and(|word| word >> (node & 63) & 1 == 1)
+    }
+}
 
 /// The label's bits for the sides' spawn areas.
 const SPAWN_BITS: u32 = 8;
@@ -182,6 +226,45 @@ const SPAWN_BITS: u32 = 8;
 /// from), so a stored base of the old build is never read for the new.
 /// `the_base_and_its_digest_are_fixed` fails until then.
 pub const TACTICS_ALGO: u32 = 3;
+
+/// How many goal regions' distances [`Tactics::walk_estimate`] keeps: each is
+/// one `f32` a region (823-4,477 on the offered maps, 3-18 KB), so at most
+/// 2.3 MB a match, against 80 MB for all of them.
+pub const WALKS_MOST: usize = 128;
+
+/// The kept distances to goal regions, oldest first out, and how often
+/// they served ([`Tactics::walk_stats`]).
+#[derive(Default)]
+struct WalkCache {
+    kept: std::collections::HashMap<u32, Arc<Vec<f32>>>,
+    order: std::collections::VecDeque<u32>,
+    hits: u64,
+    misses: u64,
+}
+
+impl WalkCache {
+    /// Keeps `walks` for `goal`, the oldest of more than `most` going out.
+    fn keep(&mut self, goal: u32, walks: Arc<Vec<f32>>, most: usize) {
+        if self.kept.insert(goal, walks).is_none() {
+            self.order.push_back(goal);
+            while self.order.len() > most {
+                if let Some(old) = self.order.pop_front() {
+                    self.kept.remove(&old);
+                }
+            }
+        }
+    }
+}
+
+/// What the walk cache has done: hits and misses, goals kept now, and the
+/// bytes they hold.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct WalkStats {
+    pub hits: u64,
+    pub misses: u64,
+    pub kept: usize,
+    pub bytes: usize,
+}
 
 /// The grid's own A* over the regions' costs, in metres: the mean of its
 /// length over the regions' sum, measured on School's walks to a battery a
@@ -579,10 +662,12 @@ impl Tactics {
             past_fixed: Default::default(),
             walks: Default::default(),
             spot_lists: Default::default(),
+            walk_ups: Default::default(),
             exit_field: Default::default(),
             escapes: Default::default(),
-            escape_ceiling: true,
-            clear_step_sees_lip: true,
+            escape: super::tuning::EscapeRule::UnderStartZone,
+            foliage: Default::default(),
+            clear_step_sees_lip: false,
             base,
         }
     }
@@ -675,6 +760,20 @@ impl Tactics {
         bits
     }
 
+    /// What the walk cache has done so far.
+    pub fn walk_stats(&self) -> WalkStats {
+        let cache = self
+            .walks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        WalkStats {
+            hits: cache.hits,
+            misses: cache.misses,
+            kept: cache.kept.len(),
+            bytes: cache.kept.values().map(|w| w.len() * 4).sum(),
+        }
+    }
+
     /// The walk from floor `from` to floor `to` in metres, over the
     /// regions' directed links (a drop is short one way and long the
     /// other), times [`REGION_WALK_FACTOR`]: coarse (a region is a block of
@@ -683,15 +782,29 @@ impl Tactics {
     pub fn walk_estimate(&self, from: NodeId, to: NodeId) -> Option<f32> {
         let regions = &self.base.regions;
         let goal = regions.of(to);
-        let walks = {
-            let mut kept = self
+        let known = {
+            let mut cache = self
                 .walks
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            kept.entry(goal)
-                .or_insert_with(|| Arc::new(region_walks_to(regions, goal)))
-                .clone()
+            let known = cache.kept.get(&goal).cloned();
+            if known.is_some() {
+                cache.hits += 1;
+            } else {
+                cache.misses += 1;
+            }
+            known
         };
+        // Worked out with nothing locked, then kept.
+        let walks = known.unwrap_or_else(|| {
+            let made = Arc::new(region_walks_to(regions, goal));
+            let mut cache = self
+                .walks
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            cache.keep(goal, made.clone(), WALKS_MOST);
+            made
+        });
         let d = walks[regions.of(from) as usize];
         d.is_finite().then_some(d * REGION_WALK_FACTOR)
     }
@@ -861,6 +974,12 @@ impl Tactics {
         (dx.hypot(dz), fx.hypot(fz))
     }
 
+    /// The regions of the floors as a shared lookup (the threat spots').
+    pub fn region_lookup(&self) -> super::threat::RegionOf {
+        let base = self.base.clone();
+        std::sync::Arc::new(move |node| base.regions.of(node))
+    }
+
     /// The regions the routes go by.
     pub fn regions(&self) -> &Regions {
         &self.base.regions
@@ -935,6 +1054,7 @@ impl Tactics {
                 self.region_allowed_from(region, time, side, objective, at)
                     && filter.region_open(region)
             },
+            filter.max_jump_rise(),
             iters,
         )
     }
@@ -1013,6 +1133,7 @@ impl Tactics {
             goal,
             |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
+            None,
             iters,
         )
     }
@@ -1104,7 +1225,7 @@ impl Tactics {
     /// fire.
     ///
     /// The search never goes down into a zone stronger than the body's own
-    /// (`Tactics::escape_ceiling`): the floors open to it are those no zone
+    /// (`Tactics::escape`): the floors open to it are those no zone
     /// marks, those of the start's own zones, those it may walk on, and
     /// those whose hit a second is not above the start's. From a mild zone
     /// the nearest way out may be over a strong one beside it (the 0.90
@@ -1187,7 +1308,10 @@ impl Tactics {
             }
             outs
         };
-        let mut ceiling = if self.escape_ceiling { start_hit } else { f32::INFINITY };
+        let mut ceiling = match self.escape {
+            super::tuning::EscapeRule::UnderStartZone => start_hit,
+            super::tuning::EscapeRule::Nearest => f32::INFINITY,
+        };
         let mut outs = search(&open_under(ceiling));
         if outs.is_empty() && ceiling.is_finite() {
             ceiling = f32::INFINITY;
@@ -1225,6 +1349,67 @@ impl Tactics {
             self.count_escape_route(route, from, time, side, objective);
         }
         route
+    }
+
+    /// [`grenade_avoid`](super::tuning::AvoidTuning) The floor a body at
+    /// `from` steps to, to be out of the blast of a grenade at `rest`: the
+    /// nearest floor it may stand on whose chest is `radius` or more from
+    /// `rest`, by the way over the floors it may walk (what
+    /// [`Self::allowed`] and `filter` let through; a link the planner does
+    /// not use is not walked), within `reach_m` of walking. With none in
+    /// reach, the floor in reach farthest from `rest`, if that is
+    /// [`STEP_OUT_GAIN_M`] farther than where the body stands (it goes as far
+    /// as it gets, and stays when it is at the best of it). From a floor
+    /// already outside, the nearest floor outside is its own: it stays.
+    ///
+    /// One breadth-first search like [`Self::escape`]'s, over the floors
+    /// within the reach only: about 10,000 at most, once for each body that
+    /// steps out of each grenade.
+    #[allow(clippy::too_many_arguments)]
+    pub fn step_out(
+        &self,
+        from: NodeId,
+        rest: Vec3,
+        radius: f32,
+        reach_m: f32,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        filter: &RouteFilter,
+    ) -> Option<Vec3> {
+        use super::view::CHEST;
+        let grid = &self.world.grid;
+        let up = Vec3::new(0.0, CHEST, 0.0);
+        let far = |n: NodeId| (grid.position(n) + up - rest).length();
+        let open = |n: NodeId| self.allowed(n, time, side, objective);
+        let mut seen = std::collections::HashSet::from([from]);
+        let mut queue = std::collections::VecDeque::from([(from, 0.0f32)]);
+        let mut farthest: Option<(NodeId, f32)> = None;
+        while let Some((a, d)) = queue.pop_front() {
+            let (here, ok) = (far(a), open(a));
+            if ok && here >= radius {
+                return Some(grid.position(a));
+            }
+            if ok && farthest.is_none_or(|(_, best)| here > best) {
+                farthest = Some((a, here));
+            }
+            if seen.len() > STEP_OUT_FLOORS {
+                break;
+            }
+            let at = grid.position(a);
+            for (b, _) in grid.links(a) {
+                if !grid.plans(a, b) || !filter.hard_open(grid, b) || seen.contains(&b) {
+                    continue;
+                }
+                let next = d + grid.position(b).distance_xz(at);
+                if next <= reach_m {
+                    seen.insert(b);
+                    queue.push_back((b, next));
+                }
+            }
+        }
+        let (best, best_far) = farthest?;
+        (best_far > far(from) + STEP_OUT_GAIN_M).then(|| grid.position(best))
     }
 
     /// The bench's counts of what a way out passes ([`escapes::counts`]): a
@@ -1528,7 +1713,7 @@ impl Tactics {
                 continue;
             }
             let feet = grid.position(node);
-            let eye = feet + Vec3::new(0.0, EYE_CROUCHED, 0.0);
+            let eye = still_eye(feet, true);
             let d = (at - eye).length();
             if d <= r && best.is_none_or(|(b, _)| d < b) && self.sees(eye, at) {
                 best = Some((d, feet));
@@ -1616,7 +1801,7 @@ impl Tactics {
         found.sort_by(|a, b| b.score.total_cmp(&a.score));
         // Rays lazily, from the best down.
         let mut out = Vec::new();
-        let mut by_walk: Option<std::collections::HashSet<NodeId>> = None;
+        let mut by_walk: Option<Arc<WalkUp>> = None;
         for spot in found {
             if out.len() >= n {
                 break;
@@ -1625,12 +1810,12 @@ impl Tactics {
             // a ramp), not one only a jump chain does ([`Self::walk_up_from`]).
             if spot.at.y > query.around.y + STOREY_FROM_M
                 && !by_walk
-                    .get_or_insert_with(|| self.walk_up_from(query.around, query.max_m + WALK_UP_MARGIN_M))
-                    .contains(&spot.node)
+                    .get_or_insert_with(|| self.walk_up_set(query.around, query.max_m + WALK_UP_MARGIN_M))
+                    .contains(spot.node)
             {
                 continue;
             }
-            let eye = spot.at + Vec3::new(0.0, EYE_CROUCHED, 0.0);
+            let eye = still_eye(spot.at, true);
             if let Some(target) = query.sight_to {
                 let target = target + Vec3::new(0.0, 1.0, 0.0);
                 let seen = match &query.sight_body {
@@ -1642,10 +1827,7 @@ impl Tactics {
                 }
             }
             if let Some(from) = query.hidden_from
-                && self.sees(
-                    from + Vec3::new(0.0, EYE_STANDING, 0.0),
-                    spot.at + Vec3::new(0.0, EYE_STANDING, 0.0),
-                )
+                && self.sees(still_eye(from, false), still_eye(spot.at, false))
             {
                 continue;
             }
@@ -1666,7 +1848,61 @@ impl Tactics {
     /// stand-turn +31 % in the smoke of the search without this rule). The
     /// jumps are the grid's and the motor's to mend; until they are, the
     /// storeys over the ring are the ones a walk reaches.
-    fn walk_up_from(&self, around: Vec3, radius: f32) -> std::collections::HashSet<NodeId> {
+    ///
+    /// The search is a breadth-first one in the order of the links, and its cap
+    /// ([`WALK_UP_MAX_FLOORS`]) cuts it at the same floor whatever holds the
+    /// set; the set is kept for the same point and radius (the grid does
+    /// not change), so a list made again 15 s later does not search again.
+    fn walk_up_set(&self, around: Vec3, radius: f32) -> Arc<WalkUp> {
+        let key = [around.x.to_bits(), around.y.to_bits(), around.z.to_bits(), radius.to_bits()];
+        let mut kept = self.walk_ups.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((_, set)) = kept.iter().find(|(k, _)| *k == key) {
+            return set.clone();
+        }
+        let set = Arc::new(self.walk_up_from(around, radius));
+        if kept.len() >= WALK_UP_KEPT {
+            kept.remove(0);
+        }
+        kept.push((key, set.clone()));
+        set
+    }
+
+    /// The search [`Self::walk_up_set`] keeps.
+    fn walk_up_from(&self, around: Vec3, radius: f32) -> WalkUp {
+        use mapdata::LinkKind;
+        let grid = &self.world.grid;
+        let mut seen = WalkUp::new(grid.len());
+        let Some(start) = grid.locate(around, LOCATE_M) else {
+            return seen;
+        };
+        let mut queue = vec![start];
+        let mut count = 1usize;
+        seen.insert(start);
+        let mut head = 0;
+        while head < queue.len() {
+            let u = queue[head];
+            head += 1;
+            if count >= WALK_UP_MAX_FLOORS {
+                break;
+            }
+            for (v, kind) in grid.links(u) {
+                if kind == LinkKind::Walk
+                    && !seen.contains(v)
+                    && grid.position(v).distance_xz(around) <= radius
+                {
+                    seen.insert(v);
+                    count += 1;
+                    queue.push(v);
+                }
+            }
+        }
+        seen
+    }
+
+    /// The set [`Self::walk_up_from`] was before the bit set and the kept
+    /// sets: the reference the test holds the new one to.
+    #[cfg(test)]
+    pub(super) fn walk_up_reference(&self, around: Vec3, radius: f32) -> std::collections::HashSet<NodeId> {
         use mapdata::LinkKind;
         let grid = &self.world.grid;
         let mut seen = std::collections::HashSet::new();
@@ -1936,6 +2172,80 @@ pub(super) mod tests {
         assert!(mild(per_s(0.02)));
     }
 
+    /// The set of floors a walk up gets to is the hash set's, floor for
+    /// floor, for points across the grid and radii (the spot lists made
+    /// from it are then the same), and the kept set is the one made.
+    #[test]
+    fn the_walk_up_set_is_the_reference_set_floor_for_floor() {
+        let t = Tactics::new(tests::platform_world(), 1.0);
+        let grid = &t.world.grid;
+        let mut rng = Rng::new(7);
+        let mut nonempty = 0;
+        for i in 0..300 {
+            let around = Vec3::new(rng.range(0.0, 70.0), rng.range(-1.0, 6.0), rng.range(0.0, 45.0));
+            let radius = [4.0, 12.0, 30.0, 80.0][i % 4];
+            let reference = t.walk_up_reference(around, radius);
+            let set = t.walk_up_set(around, radius);
+            nonempty += usize::from(!reference.is_empty());
+            for node in 0..grid.len() as NodeId {
+                assert_eq!(set.contains(node), reference.contains(&node), "{around:?} {radius} {node}");
+            }
+            assert!(Arc::ptr_eq(&set, &t.walk_up_set(around, radius)));
+        }
+        assert!(nonempty > 20, "{nonempty}");
+    }
+
+    /// The same on the real maps, where the search is cut by its cap too.
+    /// Run with `SRP_MAPDATA_DIR` set, in release.
+    #[test]
+    #[ignore = "needs the private map files"]
+    fn the_walk_up_set_is_the_reference_set_on_the_real_maps() {
+        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR") else {
+            panic!("set SRP_MAPDATA_DIR");
+        };
+        let (mut cut, mut checked) = (0, 0);
+        let (mut old_t, mut new_t, mut kept_t) = (std::time::Duration::ZERO, std::time::Duration::ZERO, std::time::Duration::ZERO);
+        for level in 1..=8u8 {
+            for mode in [2u8, 4] {
+                let path = std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
+                let map = mapdata::MapData::read(&path).unwrap();
+                let world = Arc::new(World::build(map, mapdata::CELL, mapdata::Body::default()));
+                let t = Tactics::new(world, 1.0);
+                let grid = &t.world.grid;
+                let mut rng = Rng::new(u64::from(level) * 10 + u64::from(mode));
+                for i in 0..25 {
+                    let Some(spawn) = t.world.map.spawns.get(i % t.world.map.spawns.len().max(1)) else {
+                        break;
+                    };
+                    let around = spawn.position
+                        + Vec3::new(rng.range(-60.0, 60.0), 0.0, rng.range(-60.0, 60.0));
+                    let radius = [30.0, 45.0, 65.0][i % 3];
+                    let start = std::time::Instant::now();
+                    let reference = t.walk_up_reference(around, radius);
+                    old_t += start.elapsed();
+                    let start = std::time::Instant::now();
+                    let set = t.walk_up_set(around, radius);
+                    new_t += start.elapsed();
+                    let start = std::time::Instant::now();
+                    let _ = t.walk_up_set(around, radius);
+                    kept_t += start.elapsed();
+                    cut += usize::from(reference.len() >= WALK_UP_MAX_FLOORS);
+                    checked += 1;
+                    let in_set = (0..grid.len() as NodeId).filter(|&n| set.contains(n)).count();
+                    assert_eq!(in_set, reference.len(), "{level} {mode} {around:?} {radius}");
+                    assert!(reference.iter().all(|&n| set.contains(n)));
+                }
+            }
+        }
+        eprintln!("walk-up sets checked {checked}, cut by the cap {cut}");
+        eprintln!(
+            "per set: old {:?}, new (made) {:?}, kept {:?}",
+            old_t / checked as u32,
+            new_t / checked as u32,
+            kept_t / checked as u32
+        );
+    }
+
     /// F4: a stuck body finds the ledge it can jump up (more than the
     /// client's step of 0.6 m, at most 0.95 m) a metre ahead of it along its
     /// facing, and nothing else: not a step it walks up, not a ledge over
@@ -2122,7 +2432,9 @@ pub(super) mod tests {
         assert!(!grid.near_fall(band), "a lip, not a fall");
         let step =
             |tactics: &Tactics, a: Vec3, b: Vec3| tactics.clear_step_for(a, b, 0, Some(0), false);
-        assert!(tactics.clear_step_sees_lip);
+        // OFF by default (the merge switched off): the old step.
+        assert!(!tactics.clear_step_sees_lip);
+        tactics.clear_step_sees_lip = true;
         // Toward the lip: the end is in the band; away from it: clear.
         assert!(!step(&tactics, at(54.2, 33.0), at(55.7, 33.0)));
         assert!(step(&tactics, at(54.2, 33.0), at(52.7, 33.0)));
@@ -2145,9 +2457,9 @@ pub(super) mod tests {
     fn the_lip_switch_off_is_the_old_step_and_on_refuses_more() {
         let world = lip_slab();
         let grid = &world.grid;
-        let on = Tactics::new(world.clone(), 1.0);
-        let mut off = Tactics::new(world.clone(), 1.0);
-        off.clear_step_sees_lip = false;
+        let mut on = Tactics::new(world.clone(), 1.0);
+        on.clear_step_sees_lip = true;
+        let off = Tactics::new(world.clone(), 1.0);
         let old = |a: Vec3, b: Vec3| {
             let (Some(from), Some(to)) = (grid.locate(a, 1.0), grid.locate(b, 0.6)) else {
                 return false;
@@ -2276,6 +2588,40 @@ pub(super) mod tests {
         hits
     }
 
+    /// A step out of a grenade's blast: the nearest floor whose chest is 10.5 m from the
+    /// rest point; the floor as far as it gets when none is in reach (and none when it already
+    /// stands at the best of it); its own floor from outside.
+    #[test]
+    fn a_step_out_of_a_blast_goes_to_the_nearest_floor_outside_or_as_far_as_it_gets() {
+        let world = field_with(|_| {});
+        let tactics = Tactics::new(world.clone(), 1.0);
+        let grid = &world.grid;
+        let rest = Vec3::new(20.0, 0.0, 20.0);
+        let open = RouteFilter::open();
+        let from = grid.locate(Vec3::new(23.0, 0.0, 20.0), 1.0).unwrap();
+        let out = tactics
+            .step_out(from, rest, 10.5, 20.0, 0, Some(0), false, &open)
+            .expect("a floor outside");
+        let chest = Vec3::new(0.0, 1.3, 0.0);
+        let reach = (out + chest - rest).length();
+        assert!((10.5..12.0).contains(&reach), "the nearest outside, not far past: {out:?} {reach}");
+        // A walk of 3 m only: no floor outside; the farthest in reach, about 3 m on from 3 m.
+        let near = tactics
+            .step_out(from, rest, 10.5, 3.0, 0, Some(0), false, &open)
+            .expect("as far as it gets");
+        let went = near.distance_xz(grid.position(from));
+        assert!((2.0..3.2).contains(&went), "{near:?} {went}");
+        assert!((near + chest - rest).length() > 3.0 + 1.5);
+        // With no reach at all it stays where it is: none.
+        assert_eq!(tactics.step_out(from, rest, 10.5, 0.0, 0, Some(0), false, &open), None);
+        // Standing outside already, its own floor.
+        let outside = grid.locate(Vec3::new(33.0, 0.0, 20.0), 1.0).unwrap();
+        let stay = tactics
+            .step_out(outside, rest, 10.5, 20.0, 0, Some(0), false, &open)
+            .unwrap();
+        assert_eq!(stay, grid.position(outside));
+    }
+
     /// From a mild zone the way out costs what it takes: not the nearest
     /// way, over a strong zone beside it, but the longer way out round it
     /// (the 0.90 stretch: a way out of a mild zone led down into a strong
@@ -2302,7 +2648,7 @@ pub(super) mod tests {
         assert!(hits.iter().all(|&h| h <= 0.05 + 1e-4), "{hits:?}");
     }
 
-    /// With the ceiling off (`escape_ceiling` false) the way out is the old one:
+    /// With the ceiling off (`EscapeRule::Nearest`) the way out is the old one:
     /// the nearest, east through the strong zone.
     #[test]
     fn with_the_ceiling_off_the_way_out_is_the_nearest() {
@@ -2311,7 +2657,7 @@ pub(super) mod tests {
             map.zones.push(box_zone("strong", Vec3::new(22.0, 0.0, 10.0), Vec3::new(2.0, 3.0, 10.0), 0.8));
         });
         let mut tactics = Tactics::new(world.clone(), 1.0);
-        tactics.escape_ceiling = false;
+        tactics.escape = crate::v026g::bots::tuning::EscapeRule::Nearest;
         let inside = world.grid.locate(Vec3::new(17.0, 0.0, 10.0), 1.0).unwrap();
         let out = tactics
             .escape(inside, None, 0, Some(0), false, &RouteFilter::open())
@@ -2406,6 +2752,27 @@ pub(super) mod tests {
                 .route_nodes(end_node, to, 0, Some(0), false, &RouteFilter::open())
                 .is_some()
         );
+    }
+
+    /// A route for a body that cannot sprint (a battery carrier) takes no jump
+    /// link above the standing jump (`RouteFilter::with_max_jump_rise`): a
+    /// 1.0 m platform is a jump away for the walker and no way for the
+    /// carrier, a 0.9 m one is a way for both.
+    #[test]
+    fn a_carriers_route_takes_no_jump_above_the_standing_jump() {
+        let route = |rise: f32, filter: &RouteFilter| {
+            let solids = floor(10.0, 5.0, 14.0, 9.0, rise).to_vec();
+            let world = field_with_solids(&solids, |_| {});
+            let tactics = Tactics::new(world.clone(), 1.0);
+            let grid = &world.grid;
+            let from = grid.locate(Vec3::new(7.0, 0.0, 7.0), 0.5).unwrap();
+            let to = grid.locate(Vec3::new(12.0, rise, 7.0), 0.3).unwrap();
+            tactics.route_nodes(from, to, 0, Some(0), false, filter)
+        };
+        let carrier = RouteFilter::open().with_max_jump_rise(mapdata::grid::STANDING_JUMP_M);
+        assert!(route(1.0, &RouteFilter::open()).is_some(), "the walker jumps onto 1.0 m");
+        assert!(route(1.0, &carrier).is_none(), "the carrier has no way onto 1.0 m");
+        assert!(route(0.9, &carrier).is_some(), "the carrier jumps onto 0.9 m");
     }
 
     /// A world with a platform 4 m up over x 20..32, z 28..38, a ramp to it
@@ -2581,4 +2948,20 @@ pub(super) mod tests {
         assert!(!spots.is_empty());
         assert!(spots.iter().all(|spot| spot.at.y < 1.0), "{spots:?}");
     }
+
+    /// The walk cache keeps the most recent goals only: the oldest goes out
+    /// at the limit, and a goal asked again is not made twice.
+    #[test]
+    fn the_walk_cache_keeps_a_bounded_number_of_goals() {
+        let mut cache = WalkCache::default();
+        for goal in 0..5u32 {
+            cache.keep(goal, Arc::new(vec![0.0; 10]), 3);
+        }
+        assert_eq!(cache.kept.len(), 3);
+        assert!(cache.kept.contains_key(&4) && cache.kept.contains_key(&2));
+        assert!(!cache.kept.contains_key(&0) && !cache.kept.contains_key(&1));
+        cache.keep(4, Arc::new(vec![0.0; 10]), 3);
+        assert_eq!(cache.order.len(), 3, "a goal kept again is not queued twice");
+    }
+
 }

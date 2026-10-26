@@ -1,0 +1,93 @@
+owner-test moves: stuck 15 (565 s, 1.270 a bot-minute) by kind {"nohead":[8,204.0],"push":[7,361.0]} by cause {"no_route":[3,165.0],"route_jump":[8,286.0],"wall":[1,62.0],"wall_no_line":[3,52.0]}, blips 1, spots of 2+ 3; calm sprint 0.0 % of 0 s walking, 0.00 m/s; idle 15 s {"Heal":5.0,"Trade":10.0}; drops 2.5-4 m 1 >=4 m 0; U-turns 0 of 0 takes moving (0.000 a bot-minute); close pairs 1 (15 s); one body 4 (7 s); the 5 s before a stuck episode: 15 (fired 3, target past the band 0, standing 0)
+{
+  "calm_mps": 0.0,
+  "calm_sprint_pct": 0.0,
+  "calm_walk_s": 0.0,
+  "close_pair_s": 15,
+  "close_pairs": 1,
+  "drops_2_5m": 1,
+  "drops_4m": 0,
+  "idle_by_play": {
+    "Heal": 5.0,
+    "Trade": 10.0
+  },
+  "idle_s": 15,
+  "one_body": 4,
+  "one_body_s": 7.0,
+  "one_body_still": 2,
+  "one_body_still_plays": 2,
+  "one_body_still_plays_s": 5.0,
+  "one_body_still_s": 5.0,
+  "stuck": 15,
+  "stuck_blips": 1,
+  "stuck_blips_per_bot_min": 0.085,
+  "stuck_by": {
+    "nohead": [
+      8,
+      204.0
+    ],
+    "push": [
+      7,
+      361.0
+    ]
+  },
+  "stuck_by_cause": {
+    "no_route": [
+      3,
+      165.0
+    ],
+    "route_jump": [
+      8,
+      286.0
+    ],
+    "wall": [
+      1,
+      62.0
+    ],
+    "wall_no_line": [
+      3,
+      52.0
+    ]
+  },
+  "stuck_per_bot_min": 1.27,
+  "stuck_play": {
+    "Collect": 2,
+    "Crossfire": 2,
+    "Cut": 1,
+    "Heal": 2,
+    "Roam": 2,
+    "Trade": 6
+  },
+  "stuck_pre_5s": {
+    "no_route": [
+      3,
+      1,
+      0,
+      0
+    ],
+    "route_jump": [
+      8,
+      1,
+      0,
+      0
+    ],
+    "wall": [
+      1,
+      0,
+      0,
+      0
+    ],
+    "wall_no_line": [
+      3,
+      1,
+      0,
+      0
+    ]
+  },
+  "stuck_s": 565.0,
+  "stuck_s_per_bot_min": 47.841,
+  "stuck_spots_2": 3,
+  "takes_moving": 0,
+  "uturns": 0,
+  "uturns_per_bot_min": 0.0
+}

@@ -165,7 +165,7 @@ impl Maps {
     /// The hazard margin the shared tactics are built for: the tuning's
     /// default. A match tuned otherwise builds its own.
     pub fn margin() -> f32 {
-        Tuning::default().hazard_margin
+        Tuning::default().hazard.margin_m.get()
     }
 
     /// Starts building `project`'s map (`level_01/day_4`) unless it is
@@ -440,7 +440,10 @@ fn build(
         let area = map.play_area(mapdata::AREA_MARGIN);
         let seeds = map.grid_seeds();
         let spawns: Vec<mapdata::Vec3> = map.spawns.iter().map(|s| s.position).collect();
-        let grid_key = mapdata::grid_key(&walker, area, cell, body, &seeds);
+        // With the gap links when the code default has them
+        // (`GridTuning::gap_links`; the live server's tuning is the default).
+        let links = super::tuning::Tuning::default().off_mesh_links();
+        let grid_key = mapdata::grid_key_with_links(&walker, area, cell, body, &seeds, links);
         let shared = lock(cache).grids.get(&grid_key).and_then(Weak::upgrade);
         let (grid, grid_source) = match shared {
             Some(grid) => (grid, Source::Shared),
@@ -449,7 +452,7 @@ fn build(
                     built,
                     mapdata::built::grid_file_name(grid_key),
                     |path| WalkGrid::read(path, grid_key),
-                    || WalkGrid::build_kept(&walker, area, cell, body, &seeds, &spawns),
+                    || WalkGrid::build_kept_with_links(&walker, area, cell, body, &seeds, &spawns, links).0,
                     |grid, path| grid.write(path, grid_key),
                 );
                 let grid = Arc::new(grid);

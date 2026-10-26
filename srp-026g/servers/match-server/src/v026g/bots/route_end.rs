@@ -42,11 +42,13 @@ pub enum RouteEnd {
     EscapeStep,
     /// A search put another route in its place (or none).
     Replanned,
+    /// It ran over a bear trap's disc (`traps::keep_off`).
+    TrapAhead,
 }
 
 impl RouteEnd {
     /// Every ending, in the order of the bench's counts.
-    pub const ALL: [RouteEnd; 14] = [
+    pub const ALL: [RouteEnd; 15] = [
         RouteEnd::Arrived,
         RouteEnd::Off,
         RouteEnd::JumpFailed,
@@ -61,6 +63,7 @@ impl RouteEnd {
         RouteEnd::ReckoningError,
         RouteEnd::EscapeStep,
         RouteEnd::Replanned,
+        RouteEnd::TrapAhead,
     ];
 
     /// The name the bench prints.
@@ -80,6 +83,7 @@ impl RouteEnd {
             RouteEnd::ReckoningError => "reckoning_error",
             RouteEnd::EscapeStep => "escape_step",
             RouteEnd::Replanned => "replanned",
+            RouteEnd::TrapAhead => "trap_ahead",
         }
     }
 }

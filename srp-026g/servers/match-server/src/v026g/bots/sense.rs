@@ -19,8 +19,59 @@ use mapdata::{RayTree, Vec3};
 use super::kin::{forward, wrap};
 use super::know::{KnownBattery, Percept, Source, TeamKnowledge};
 use super::rng::Rng;
-use super::tuning::{CheatTuning, SenseTuning};
+use super::tuning::{CheatTuning, HearingRanges, SenseTuning, ShotRanges};
 use super::view::{MatchView, Place, PlaceView, SoundKind};
+
+/// A step's and a sprint's cull in the data, metres (`steps.spl`, where its
+/// gain reaches 0: PROVEN, the file).
+pub const STEP_CULL_M: f32 = 17.0;
+/// A reload's cull, metres (`weapons_reloading.spl`: PROVEN, the file).
+pub const RELOAD_CULL_M: f32 = 9.0;
+
+#[cfg(test)]
+thread_local! {
+    static SHOTS_HEARD: std::cell::Cell<[u64; 3]> = const { std::cell::Cell::new([0; 3]) };
+}
+
+/// A bot's hearing of a shot, for the tests' counts: by the weapon's reach
+/// from the table, at the fallback range of an unknown weapon, and from
+/// farther than the flat range (`SenseTuning::shot_m`).
+#[cfg(test)]
+pub fn shot_heard(table: bool, unknown: bool, far: bool) {
+    SHOTS_HEARD.with(|c| {
+        let mut n = c.get();
+        n[0] += u64::from(table);
+        n[1] += u64::from(unknown);
+        n[2] += u64::from(far);
+        c.set(n);
+    });
+}
+
+/// The shots heard so far: by the table, at the fallback, from over the flat range.
+#[cfg(test)]
+pub fn shots_heard() -> [u64; 3] {
+    SHOTS_HEARD.with(|c| c.get())
+}
+
+/// How far from `from` a sound at `at` is, by the ranges in force.
+fn hearing_distance(ranges: HearingRanges, from: Vec3, at: Vec3) -> f32 {
+    match ranges {
+        HearingRanges::Flat => from.distance_xz(at),
+        HearingRanges::Game { .. } => (from - at).length(),
+    }
+}
+
+/// The range a sound of `kind` carries: `base` times the hearing cheat,
+/// and under the game's ranges never past the sound's cull.
+fn sound_range(ranges: HearingRanges, kind: SoundKind, base: f32, hearing: f32) -> f32 {
+    let range = hearing * base;
+    match (ranges, kind) {
+        (HearingRanges::Flat, _) => range,
+        (HearingRanges::Game { .. }, SoundKind::Sprint | SoundKind::Jump) => range.min(STEP_CULL_M),
+        (HearingRanges::Game { .. }, SoundKind::Reload) => range.min(RELOAD_CULL_M),
+        (HearingRanges::Game { .. }, _) => range,
+    }
+}
 
 /// The rays a poll may still cast.
 #[derive(Clone, Copy, Debug)]
@@ -103,20 +154,34 @@ pub fn sense(
         if enemy.team == me.team {
             continue;
         }
-        let range = hearing
-            * match sound.kind {
-                SoundKind::Shot => tuning.shot_m,
-                SoundKind::Sprint | SoundKind::Jump => tuning.sprint_m,
-                SoundKind::Reload | SoundKind::Switch => tuning.reload_m,
-                SoundKind::Use => tuning.use_m,
-            };
-        let distance = sound.at.distance_xz(me.feet);
+        let base = match sound.kind {
+            SoundKind::Shot => tuning.shot_m,
+            SoundKind::Sprint | SoundKind::Jump => tuning.sprint_m,
+            SoundKind::Reload | SoundKind::Switch => tuning.reload_m,
+            SoundKind::Use => tuning.use_m,
+        };
+        // A shot by its weapon's reach (never farther: the cheat adds none
+        // past the game's), else by the flat range.
+        let range = match (sound.kind, tuning.shots) {
+            (SoundKind::Shot, ShotRanges::ByWeapon { unknown_m }) => sound.reach_m.unwrap_or(unknown_m),
+            _ => sound_range(tuning.ranges, sound.kind, base, hearing),
+        };
+        let distance = hearing_distance(tuning.ranges, me.feet, sound.at);
         if distance > range
             || out
                 .iter()
                 .any(|p| p.who == sound.from && p.source == Source::Seen)
         {
             continue;
+        }
+        #[cfg(test)]
+        if sound.kind == SoundKind::Shot {
+            let by_weapon = matches!(tuning.shots, ShotRanges::ByWeapon { .. });
+            shot_heard(
+                by_weapon && sound.reach_m.is_some(),
+                by_weapon && sound.reach_m.is_none(),
+                distance > tuning.shot_m,
+            );
         }
         let error = distance * tuning.heard_error;
         let (dx, dz) = (rng.range(-error, error), rng.range(-error, error));
@@ -133,13 +198,23 @@ pub fn sense(
     // not seen and not heard otherwise at this think.
     if tuning.step_m > 0.0 {
         for enemy in &view.places {
-            let distance = enemy.feet.distance_xz(me.feet);
+            let distance = hearing_distance(tuning.ranges, me.feet, enemy.feet);
+            // A crouched mover is heard only under the game's ranges, within
+            // the crouched step's; one upright within `step_m`.
+            let crouched = enemy.keys & crate::v026g::drive::key::CROUCH != 0;
+            let step_m = match (tuning.ranges, crouched) {
+                (_, false) => Some(tuning.step_m),
+                (HearingRanges::Flat, true) => None,
+                (HearingRanges::Game { crouch_step_m }, true) => Some(crouch_step_m),
+            };
+            let Some(step_m) = step_m else {
+                continue;
+            };
             if !enemy.alive
                 || !enemy.present
                 || enemy.team == me.team
-                || distance > tuning.step_m * hearing
+                || distance > sound_range(tuning.ranges, SoundKind::Sprint, step_m, hearing)
                 || enemy.speed() <= tuning.step_speed
-                || enemy.keys & crate::v026g::drive::key::CROUCH != 0
                 || out.iter().any(|p| p.who == enemy.place)
             {
                 continue;
@@ -378,6 +453,7 @@ mod tests {
             world_time: 0,
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
         }
     }
 
@@ -392,6 +468,7 @@ mod tests {
             kind: SoundKind::Shot,
             at: behind.feet,
             time: 900,
+            reach_m: None,
         };
         let view = view(vec![me.clone(), ahead, behind], vec![shot]);
         let sight = RayTree::build(&[]);
@@ -531,6 +608,129 @@ mod tests {
             &mut Rng::new(1),
         );
         assert!(percepts.is_empty(), "{percepts:?}");
+    }
+
+    /// The places heard (not seen) by bot 0 at the origin, by `ranges`, with
+    /// the hearing cheat at `hearing`.
+    fn heard_by(ranges: HearingRanges, hearing: f32, view: &MatchView, who: &[Place]) -> Vec<Place> {
+        let me = place(0, 0, Vec3::ZERO, 0.0);
+        let tuning = SenseTuning {
+            ranges,
+            ..SenseTuning::default()
+        };
+        let cheats = CheatTuning {
+            hearing,
+            ..CheatTuning::default()
+        };
+        sense(
+            &me,
+            view,
+            &RayTree::build(&[]),
+            &tuning,
+            &cheats,
+            500,
+            who,
+            &mut RayBudget(10),
+            &mut Rng::new(1),
+        )
+        .iter()
+        .filter(|p| p.source == Source::Heard)
+        .map(|p| p.who)
+        .collect()
+    }
+
+    /// H1b: under the game's ranges a crouched mover is heard within the
+    /// crouched step's range, by the distance in 3D; flat, never.
+    #[test]
+    fn a_crouched_mover_is_heard_within_the_crouched_steps_range_in_3d_only_under_the_game_ranges() {
+        let crouch = crate::v026g::drive::key::CROUCH;
+        let mover = |p: Place, at: Vec3, keys: u32| PlaceView {
+            velocity: [2.5, 0.0],
+            keys,
+            ..place(p, 1, at, 0.0)
+        };
+        let game = HearingRanges::Game { crouch_step_m: 4.5 };
+        let view = view(
+            vec![
+                place(0, 0, Vec3::ZERO, 0.0),
+                mover(1, Vec3::new(0.5, 0.0, -4.0), crouch),
+                mover(2, Vec3::new(0.5, 0.0, -6.0), crouch),
+                // 4 m across and 3.4 m under: 5.2 m in 3D.
+                mover(3, Vec3::new(0.5, -3.4, -4.0), crouch),
+                mover(4, Vec3::new(0.5, 0.0, -7.0), 0),
+                mover(5, Vec3::new(0.5, 0.0, -9.0), 0),
+            ],
+            vec![],
+        );
+        let all = [1, 2, 3, 4, 5];
+        assert_eq!(heard_by(game, 1.0, &view, &all), vec![1, 4]);
+        // Flat: the crouched are never heard, the upright within 8 m by the ground distance.
+        assert_eq!(heard_by(HearingRanges::Flat, 1.0, &view, &all), vec![4]);
+    }
+
+    /// H1b: the cheat's 1.25 never takes a sound past its cull under the
+    /// game's ranges (a sprint 17 m, a reload 9 m); flat, it does.
+    #[test]
+    fn the_hearing_cheat_stops_at_the_cull_under_the_game_ranges() {
+        let sound = |kind: SoundKind, z: f32| Sound {
+            from: 1,
+            kind,
+            at: Vec3::new(0.0, 0.0, z),
+            time: 600,
+            reach_m: None,
+        };
+        let view = |sounds: Vec<Sound>| view(vec![place(0, 0, Vec3::ZERO, 0.0), place(1, 1, Vec3::new(0.0, 0.0, -50.0), 0.0)], sounds);
+        let game = HearingRanges::Game { crouch_step_m: 4.5 };
+        let heard = |ranges, kind, z| !heard_by(ranges, 1.25, &view(vec![sound(kind, z)]), &[1]).is_empty();
+        // A sprint at 16.5 m is heard (15 x 1.25 = 18.75 flat, 17 under the game's), one at 17.5 only flat.
+        assert!(heard(game, SoundKind::Sprint, 16.5));
+        assert!(!heard(game, SoundKind::Sprint, 17.5));
+        assert!(heard(HearingRanges::Flat, SoundKind::Sprint, 17.5));
+        // A reload at 8.5 m is heard, at 9.5 m only flat (10 x 1.25 = 12.5).
+        assert!(heard(game, SoundKind::Reload, 8.5));
+        assert!(!heard(game, SoundKind::Reload, 9.5));
+        assert!(heard(HearingRanges::Flat, SoundKind::Reload, 9.5));
+    }
+
+    /// H1c: a shot is heard as far as its weapon's reach (the cheat adds
+    /// none past it), an unknown weapon's at the fallback; flat, the flat
+    /// range times the cheat.
+    #[test]
+    fn a_shot_is_heard_as_far_as_its_weapons_reach_when_asked() {
+        let shot = |reach_m: Option<f32>, z: f32| Sound {
+            from: 1,
+            kind: SoundKind::Shot,
+            at: Vec3::new(0.0, 0.0, z),
+            time: 600,
+            reach_m,
+        };
+        let heard = |shots: ShotRanges, reach_m: Option<f32>, z: f32| {
+            let view = view(
+                vec![place(0, 0, Vec3::ZERO, 0.0), place(1, 1, Vec3::new(0.0, 0.0, -300.0), 0.0)],
+                vec![shot(reach_m, z)],
+            );
+            let me = place(0, 0, Vec3::ZERO, 0.0);
+            let tuning = SenseTuning {
+                shots,
+                ..SenseTuning::default()
+            };
+            let cheats = CheatTuning {
+                hearing: 1.25,
+                ..CheatTuning::default()
+            };
+            !sense(&me, &view, &RayTree::build(&[]), &tuning, &cheats, 500, &[1], &mut RayBudget(10), &mut Rng::new(1))
+                .is_empty()
+        };
+        let by_weapon = ShotRanges::ByWeapon { unknown_m: 150.0 };
+        assert!(heard(by_weapon, Some(150.0), 140.0));
+        assert!(!heard(by_weapon, Some(150.0), 160.0), "the cheat adds none past the reach");
+        assert!(!heard(by_weapon, Some(55.0), 70.0), "a suppressed weapon");
+        assert!(heard(by_weapon, Some(200.0), 190.0), "a bolt rifle");
+        assert!(heard(by_weapon, None, 140.0), "an unknown weapon at the fallback");
+        assert!(!heard(by_weapon, None, 160.0));
+        // Flat: 60 m x 1.25 = 75 m for every shot, whatever its reach.
+        assert!(heard(ShotRanges::Flat, Some(200.0), 70.0));
+        assert!(!heard(ShotRanges::Flat, Some(200.0), 80.0));
     }
 
     fn spawner(x: f32, z: f32) -> mapdata::BatterySpawner {

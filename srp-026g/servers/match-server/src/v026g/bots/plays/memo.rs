@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::{Mutex, OnceLock, PoisonError};
 
+use mapdata::stands::{GUESSED_EYE_CROUCHED, GUESSED_EYE_STANDING};
 use mapdata::{UsePose, UseStand, UseStands, Vec3};
 
 use super::Ctx;
@@ -137,7 +138,13 @@ impl Memo {
     /// ask ([`UseStands::build`]: the game's use test, a few milliseconds a
     /// map).
     pub fn use_stands(&self, tactics: &Tactics) -> &UseStands {
-        self.stands.get_or_init(|| UseStands::build(&tactics.world))
+        self.stands.get_or_init(|| {
+            if crate::v026g::bots::view::live_eye() {
+                UseStands::build(&tactics.world)
+            } else {
+                UseStands::build_with(&tactics.world, GUESSED_EYE_STANDING, GUESSED_EYE_CROUCHED)
+            }
+        })
     }
 
     /// Crossings kept.
@@ -180,18 +187,51 @@ impl Ctx<'_> {
     /// the moment of the press. Out of reach of the box (its farthest
     /// corner and the ray) no ray is cast.
     pub fn use_press(&self, eye: Vec3, container: u8) -> Option<Vec3> {
-        let world = &self.tactics.world;
-        let shape = world
+        let shape = self
+            .tactics
+            .world
             .map
             .containers
             .iter()
             .find(|c| c.id == i32::from(container))?
             .use_shapes
             .first()?;
+        self.press_on(eye, shape)
+    }
+
+    /// [`Ctx::use_press`] against the box of the resupply zone at `zone`
+    /// (an index of `MapData::zones`).
+    pub fn zone_press(&self, eye: Vec3, zone: usize) -> Option<Vec3> {
+        let shape = self.tactics.world.map.zones.get(zone)?.shapes.first()?;
+        self.press_on(eye, shape)
+    }
+
+    fn press_on(&self, eye: Vec3, shape: &mapdata::Shape) -> Option<Vec3> {
         if (shape.center - eye).length() > shape.half.length() + mapdata::stands::USE_RAY_M {
             return None;
         }
-        mapdata::stands::press(&world.sight, eye, shape).map(|(aim, _)| aim)
+        mapdata::stands::press(&self.tactics.world.sight, eye, shape).map(|(aim, _)| aim)
+    }
+
+    /// The stands of the resupply zone at `zone`: floors from which the
+    /// game's use ray meets its box, nearest the box first.
+    pub fn zone_stands(&self, zone: usize) -> &[UseStand] {
+        self.memo.use_stands(self.tactics).of_zone(zone)
+    }
+
+    /// The stand of the resupply zone at `zone` the bot reaches soonest
+    /// (`path_dist`), standing, leaving out the floors in `passed`.
+    pub fn nearest_zone_stand(&self, zone: usize, passed: &[Vec3]) -> Option<UseStand> {
+        self.zone_stands(zone)
+            .iter()
+            .filter(|stand| stand.fits(UsePose::Standing) && !passed.contains(&stand.feet))
+            .min_by(|a, b| {
+                self.path_dist(a.feet)
+                    .total_cmp(&self.path_dist(b.feet))
+                    .then(a.feet.x.total_cmp(&b.feet.x))
+                    .then(a.feet.z.total_cmp(&b.feet.z))
+            })
+            .copied()
     }
 
     /// Whether the game's use ray from `eye` can meet the box of
@@ -208,8 +248,8 @@ pub const STOREY_GAP_M: f32 = 2.5;
 impl Ctx<'_> {
     /// The walk to `at` when the bot and `at` are a storey or more apart
     /// ([`STOREY_GAP_M`]): the regions' way between the floors
-    /// ([`Tactics::walk_estimate`]) if longer than [`Ctx::path_dist`]'s
-    /// straight guess, which ignores the floor (a battery a storey up
+    /// ([`Tactics::walk_estimate`]) if longer than [`Ctx::straight_dist`]'s
+    /// guess, which ignores the floor (a battery a storey up
     /// looked near to everyone under it: 105 plays on School's battery 3,
     /// 58 % of the Collect time in the match). `None` on one level, or
     /// without a floor under either end: the straight guess stands.
@@ -221,7 +261,7 @@ impl Ctx<'_> {
             return None;
         }
         let walk = self.tactics.walk_estimate(from, to)?;
-        Some(walk.max(self.path_dist(at)))
+        Some(walk.max(self.straight_dist(at)))
     }
 }
 
@@ -488,11 +528,19 @@ mod tests {
         let mut s = Scenario::field(Mode::Batteries);
         s.bot(0, 0, Vec3::new(45.0, 0.0, 30.0));
         s.tactics = Tactics::new(world, 1.0);
+        // It ships off; this is the switch on.
+        assert!(!crate::v026g::bots::tuning::Tuning::default().grid.floor_paths);
+        s.tuning.grid.floor_paths = true;
         let battery = Vec3::new(50.0, 3.4, 30.0);
         let cx = s.cx(0);
         let walk = cx.storey_walk_dist(battery).expect("a storey apart");
         assert!(walk > 40.0, "the way up is the ramp's: {walk}");
-        assert!(cx.path_dist(battery) < 10.0);
+        assert!(cx.straight_dist(battery) < 10.0);
+        assert_eq!(cx.path_dist(battery), walk, "path_dist is the floor-aware walk");
+        // The bench's switch off: the straight ground distance.
+        s.tuning.grid.floor_paths = false;
+        assert_eq!(s.cx(0).path_dist(battery), s.cx(0).straight_dist(battery));
+        s.tuning.grid.floor_paths = true;
         // On the platform, one level: the straight guess stands.
         s.view.places[0].feet = Vec3::new(45.0, 3.4, 30.0);
         assert_eq!(s.cx(0).storey_walk_dist(battery), None);

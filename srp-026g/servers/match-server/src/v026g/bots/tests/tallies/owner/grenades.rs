@@ -1,6 +1,9 @@
 use crate::v026g::bots::arc;
+use crate::v026g::bots::grenade_threat::AvoidStats;
+use crate::v026g::bots::live_grenades::{LiveGrenade, Phase, ThrowCounts};
+use crate::v026g::bots::reflex::GrenadeStats;
 use crate::v026g::bots::tests::standin_grenade;
-use crate::v026g::bots::view::{EYE_CROUCHED, EYE_STANDING};
+use crate::v026g::bots::view::{eye_height, still_eye};
 
 use super::*;
 
@@ -20,6 +23,11 @@ const FUSE_MS: u32 = (arc::FUSE_S * 1000.0) as u32;
 /// `CombatTuning::grenade_land_m`).
 const SHORT_M: f32 = 12.0;
 
+/// Two throws of one team at one spot: within these radii (metres, counted in the nearest) and this long
+/// apart, ms (`CombatTuning::grenade_claim_m` and `_ms`; the humans' figures: `grenades-record.md` 9).
+const SAME_SPOT_M: [f32; 3] = [3.0, 5.0, 8.0];
+const SAME_SPOT_MS: u32 = 6_000;
+
 /// A grenade pressed: the thrower, the place it was aimed at, the press.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Throw {
@@ -28,9 +36,27 @@ pub(crate) struct Throw {
     pub(crate) press: u32,
 }
 
+/// What the bots' grenade logic counted (`reflex::GrenadeStats`, one reflex a life), added up over the
+/// match: the readings are taken as the bots think, the change from the last reading of the same reflex
+/// is added, a younger reflex is a new life.
+#[derive(Default)]
+pub(super) struct GrenadeLogic {
+    last: BTreeMap<Place, GrenadeStats>,
+    sum: GrenadeStats,
+    /// Lives of bots whose reflex thought at least once.
+    lives: u32,
+}
+
 /// The grenades counts: counted as the match runs, kept for [`OwnerTally::finish`].
 #[derive(Default)]
 pub(super) struct GrenadeCounts {
+    /// By place: what the bot's grenade logic counted at this tick's reading (none: not a bot).
+    pub(super) reading: Vec<Option<GrenadeStats>>,
+    pub(super) logic: GrenadeLogic,
+    /// Throws as (thrower, team, the place, press) for [`SAME_SPOT_M`], and the pairs found: another bot
+    /// of the team threw at a place within 3, 3-5, 5-8 m of this one within [`SAME_SPOT_MS`] before.
+    pub(super) same_spot_log: Vec<(Place, u8, Vec3, u32)>,
+    pub(super) same_spot: [u32; 3],
     pub(super) blasts: Vec<Blast>,
     /// The throws noted, not yet at their launch ([`LAUNCH_MS`] after the
     /// press): the blast is where the thrower's view then sends it.
@@ -57,6 +83,27 @@ pub(super) struct GrenadeCounts {
     pub(super) blast_kills: [u32; 3],
     pub(super) blast_in: [u32; 3],
     pub(super) walked_in: [u32; 3],
+    /// The server's list of live grenades at this tick (`Tracker::live_grenades`) and what its throw keys
+    /// came to; `None` until a bench tick has read them (the made-up matches never do).
+    pub(super) live: Vec<LiveGrenade>,
+    pub(super) listed: Option<ThrowCounts>,
+    pub(super) live_blasts: LiveBlasts,
+    /// Bodies inside the radius at the launch, by [thrower, his teammates, enemies] (bench runs only): the
+    /// base of "left the radius by the blast" (`blast_in` less `walked_in` stayed in).
+    pub(super) in_launch: [u32; 3],
+    /// By bot: what its avoidance of live grenades has counted this match (the last reading).
+    pub(super) avoid: BTreeMap<Place, AvoidStats>,
+}
+
+/// The tally's blasts against the list's entries for the same throw: found with a landing, found still in the
+/// hand (not launched by then), not found; and for those with a landing how far its rest point is from the
+/// tally's own, by `<= 1 m`, `<= 2 m`, `<= 4 m` and more.
+#[derive(Default)]
+pub(super) struct LiveBlasts {
+    pub(super) matched: u32,
+    pub(super) pending: u32,
+    pub(super) missing: u32,
+    pub(super) err: [u32; 4],
 }
 
 /// Grenades: the RGD-5's blast (`rgd-5.options`: `splash_radius` 10 m,
@@ -124,7 +171,7 @@ pub(crate) fn a_grenade_at_ones_feet_hurts_the_thrower_and_mates_and_one_walked_
     // Bot 3, a mate far off at the throw, walks in before the blast.
     game.bodies[3].feet = Vec3::new(13.0, 0.0, 10.0);
     game.tick += TICK_MS;
-    tally.step(&mut game, &[bot_now(), bot_now(), bot_now(), bot_now()]);
+    tally.step_with(&mut game, &[bot_now(), bot_now(), bot_now(), bot_now()]);
     let (_, json) = tally.finish(&game);
     assert_eq!(json["grenades"], 1);
     // The blast is at the rest point, 2 m on from the first contact a metre ahead: the thrower is near
@@ -134,6 +181,112 @@ pub(crate) fn a_grenade_at_ones_feet_hurts_the_thrower_and_mates_and_one_walked_
     assert_eq!(json["grenade_enemy_dmg"], 0.0);
     assert_eq!(json["grenade_in_radius"], serde_json::json!([1, 2, 0]));
     assert_eq!(json["grenade_walk_ins"], serde_json::json!([0, 1, 0]));
+}
+
+/// The bodies inside the radius at the launch are counted by group (thrower, his teammates, enemies) for the share
+/// that left by the blast: here the thrower, one mate and one enemy are near, a second mate is far and walks in (not
+/// inside at the launch, inside at the blast). The key is only where a bench tick read the list.
+#[test]
+pub(crate) fn the_bodies_inside_the_radius_at_the_launch_are_counted_by_group() {
+    let run = |bench: bool| {
+        let (mut game, mut tally) = made_up(&[0, 0, 1, 0]);
+        if bench {
+            tally.topic::<GrenadeCounts>().listed = Some(ThrowCounts::default());
+        }
+        play(&mut game, &mut tally, 100, |_, game| {
+            put(game, 0, 10.0, 10.0, 0);
+            put(game, 1, 12.0, 10.0, 0);
+            put(game, 2, 14.0, 10.0, 0);
+            put(game, 3, 30.0, 14.0, 0);
+            game.bodies[0].pitch = -arc::PITCH_LIMIT;
+            vec![bot_now(); 4]
+        });
+        let note = Note {
+            place: 0,
+            time: game.tick,
+            text: "throws a grenade at (11, 0, 10), blast at 4000".to_owned(),
+        };
+        tally.note(&note, &game);
+        game.bodies[3].feet = Vec3::new(13.0, 0.0, 10.0);
+        game.tick += TICK_MS;
+        tally.step_with(&mut game, &[bot_now(), bot_now(), bot_now(), bot_now()]);
+        tally.finish(&game).1
+    };
+    let json = run(true);
+    assert_eq!(json["grenade_live"]["inside_at_launch"], serde_json::json!([1, 1, 1]), "{json}");
+    // At the blast the walked-in mate is inside too: the share that left is read against the launch's.
+    assert_eq!(json["grenade_in_radius"], serde_json::json!([1, 2, 1]), "{json}");
+    assert_eq!(json["grenade_walk_ins"], serde_json::json!([0, 1, 0]), "{json}");
+    assert!(run(false).get("grenade_live").is_none());
+}
+
+/// The bots' grenade logic counts are added up by the change since a bot's last reading, and a reflex
+/// younger than the last reading is a new life; nothing is said where no bot thought.
+#[test]
+pub(crate) fn the_bots_grenade_logic_is_added_up_by_reading_and_by_life() {
+    let (mut game, mut tally) = made_up(&[0, 1]);
+    let reading = |thinks: u32, rolls: u32, first_throws: u32| {
+        let mut g = GrenadeStats {
+            thinks,
+            rolls,
+            ..GrenadeStats::default()
+        };
+        g.places[0] = rolls;
+        g.nth[0] = first_throws;
+        Some(BotNow {
+            play: "Roam".to_owned(),
+            grenades: g,
+            ..BotNow::default()
+        })
+    };
+    // One bot: a life read at 5 and 9 thinks, a second life read at 2 and 6.
+    for (k, (thinks, rolls, throws)) in [(5, 1, 0), (9, 2, 1), (2, 1, 0), (6, 1, 0)].into_iter().enumerate() {
+        game.tick = (k as u32 + 1) * TICK_MS;
+        tally.step_with(&mut game, &[reading(thinks, rolls, throws), None]);
+    }
+    let (_, json) = tally.finish(&game);
+    let logic = &json["grenade_logic"];
+    assert_eq!(logic["bot_lives"], 2, "{json}");
+    assert_eq!(logic["rolls"], 3, "{json}");
+    assert_eq!(logic["places"], serde_json::json!([3, 0, 0, 0]), "{json}");
+    assert_eq!(logic["nth"], serde_json::json!([1, 0, 0]), "{json}");
+    assert_eq!(logic["volley"], serde_json::json!([0, 0, 0, 0]), "{json}");
+    assert_eq!(logic["near"], serde_json::json!([0, 0, 0]), "{json}");
+    // No bot thought: no key.
+    let (mut game, mut tally) = made_up(&[0, 1]);
+    game.tick = TICK_MS;
+    tally.step_with(&mut game, &[bot_now(), bot_now()]);
+    let (_, json) = tally.finish(&game);
+    assert!(json.get("grenade_logic").is_none(), "{json}");
+}
+
+/// Throws of one team at one spot: counted by radius for each earlier throw of another bot of the team
+/// within the window; the bot's own volley and the other team's are not.
+#[test]
+pub(crate) fn throws_of_one_team_at_one_spot_are_counted_by_radius() {
+    let (mut game, mut tally) = made_up(&[0, 0, 1]);
+    let note = |place: Place, text: &str| Note {
+        place,
+        time: 0,
+        text: text.to_owned(),
+    };
+    tally.note(&note(0, "throws a grenade at (10.0, 0.0, 20.0), blast at 8000"), &game);
+    tally.note(&note(1, "throws a grenade at (12.0, 0.0, 20.0), blast at 9000"), &game);
+    tally.note(&note(1, "throws a grenade at (16.0, 0.0, 20.0), blast at 11000"), &game);
+    tally.note(&note(2, "throws a grenade at (10.0, 0.0, 20.0), blast at 9000"), &game);
+    tally.note(&note(0, "throws a grenade at (10.0, 0.0, 20.0), blast at 30000"), &game);
+    game.tick = TICK_MS;
+    let thinking = Some(BotNow {
+        play: "Roam".to_owned(),
+        grenades: GrenadeStats {
+            thinks: 1,
+            ..GrenadeStats::default()
+        },
+        ..BotNow::default()
+    });
+    tally.step_with(&mut game, &[thinking, None, None]);
+    let (_, json) = tally.finish(&game);
+    assert_eq!(json["grenade_team_same_spot"], serde_json::json!([1, 0, 1]), "{json}");
 }
 
 #[test]
@@ -162,7 +315,7 @@ fn thrown_with_pitch(pitch: f32) -> serde_json::Value {
     };
     tally.note(&note, &game);
     game.tick += TICK_MS;
-    tally.step(&mut game, &[bot_now(), bot_now(), bot_now()]);
+    tally.step_with(&mut game, &[bot_now(), bot_now(), bot_now()]);
     tally.finish(&game).1
 }
 
@@ -172,7 +325,7 @@ pub(crate) fn a_throw_that_lands_near_the_thrower_though_aimed_far_is_short() {
     let level = thrown_with_pitch(0.0);
     assert_eq!(level["grenade_short"], 1, "{level}");
     // The pitch that lands it at 20 m: not short.
-    let pitch = arc::pitch_for(20.0, EYE_STANDING - arc::HAND_DOWN_M).unwrap();
+    let pitch = arc::pitch_for(20.0, still_eye(Vec3::ZERO, false).y - arc::HAND_DOWN_M).unwrap();
     let aimed = thrown_with_pitch(pitch);
     assert_eq!(aimed["grenade_short"], 0, "{aimed}");
 }
@@ -225,7 +378,7 @@ pub(crate) fn a_shot_after_the_throw_was_given_up_is_not_a_shot_in_the_hold() {
             let fire = if k == fire_at { key::FIRE } else { 0 };
             put(&mut game, 0, 10.0, 10.0, grenade | fire);
             put(&mut game, 1, 40.0, 40.0, 0);
-            tally.step(&mut game, &[bot_now(), bot_now()]);
+            tally.step_with(&mut game, &[bot_now(), bot_now()]);
             game.hit_log.clear();
         }
         tally.finish(&game).1
@@ -268,12 +421,98 @@ pub(crate) fn the_launch_constants_are_the_arcs() {
     assert_eq!(HELD_MS, 1400);
 }
 
-impl OwnerTally {
+impl GrenadeCounts {
+    fn read_stats(&mut self, place: Place, stats: Option<GrenadeStats>) {
+        if self.reading.len() <= place {
+            self.reading.resize(place + 1, None);
+        }
+        self.reading[place] = stats;
+    }
+}
+
+impl Topic for GrenadeCounts {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn bots(&mut self, bots: &Bots, _game: &Game) {
+        self.listed = Some(bots.tracker.throw_counts());
+        self.live = bots.tracker.live_grenades().to_vec();
+    }
+
+    fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+        self.read_stats(place, bot.map(|bot| bot.reflex.grenade_stats()));
+        if let Some(bot) = bot {
+            self.avoid.insert(place, bot.features.avoid.stats);
+        }
+    }
+
+    #[cfg(test)]
+    fn inject(&mut self, place: Place, now: Option<&BotNow>) {
+        self.read_stats(place, now.map(|now| now.grenades));
+        if let Some(now) = now {
+            self.avoid.insert(place, now.avoid);
+        }
+    }
+
+    /// A throw noted at its let-go, or one the bot weighed and did not make (and the throw it gave up).
+    fn note(&mut self, _run: &Run, note: &Note, kind: &NoteKind<'_>, game: &Game) {
+        match *kind {
+            NoteKind::Thrown { aim, blast } => {
+                let team = game.bodies.get(note.place).map_or(0, |b| b.team);
+                self.grenade_thrown(note.place, team, aim, blast);
+            }
+            NoteKind::HeldBack(why) => {
+                self.grenade_refused(why);
+                // A throw given up in its hold (a mate walked in) is over: the shots after it are the bot's own.
+                self.grenade_given_up(note.place);
+            }
+            _ => {}
+        }
+    }
+
+    fn body(&mut self, _run: &Run, at: &BodyAt<'_>, _rays: &mut u64) {
+        let Some(stats) = self.reading.get(at.place).copied().flatten() else {
+            return;
+        };
+        self.grenades_keys(at.place, at.tick, &at.game.bodies[at.place], at.prev);
+        self.grenades_logic(at.place, &stats);
+    }
+
+    fn end(&mut self, run: &Run, game: &mut Game, sight: &mapdata::RayTree, rays: &mut u64) {
+        let tick = game.tick;
+        self.grenades_off(run, game, sight, rays, tick);
+    }
+
+    fn parts(&mut self, _run: &Run, game: &Game, _scale: &Scale, shared: &Shared) -> Vec<(&'static str, Part)> {
+        vec![("grenades", self.part(game, shared))]
+    }
+}
+
+impl GrenadeCounts {
     /// A throw noted at its let-go: the blast is [`FUSE_MS`] after the press; where it lands is worked out at
     /// the launch ([`Self::grenade_launches`]).
-    pub(super) fn grenade_thrown(&mut self, thrower: Place, aim: Vec3, blast: u32) {
-        self.grenades.grenades += 1;
-        self.grenades.throws.push(Throw {
+    pub(super) fn grenade_thrown(&mut self, thrower: Place, team: u8, aim: Vec3, blast: u32) {
+        let press = blast.saturating_sub(FUSE_MS);
+        // Teammates' throws at one spot, a throw counted once for each radius it lands within of an
+        // earlier throw of another bot of its team in the last SAME_SPOT_MS (the bot's own volley is not).
+        for earlier in &self.same_spot_log {
+            if earlier.0 != thrower
+                && earlier.1 == team
+                && press.abs_diff(earlier.3) <= SAME_SPOT_MS
+            {
+                let d = earlier.2.distance_xz(aim);
+                for (k, radius) in SAME_SPOT_M.iter().enumerate() {
+                    if d < *radius {
+                        self.same_spot[k] += 1;
+                        break;
+                    }
+                }
+            }
+        }
+        self.same_spot_log.push((thrower, team, aim, press));
+        self.grenades += 1;
+        self.throws.push(Throw {
             thrower,
             aim,
             press: blast.saturating_sub(FUSE_MS),
@@ -291,18 +530,31 @@ impl OwnerTally {
         } else {
             3
         };
-        self.grenades.refused[at] += 1;
+        self.refused[at] += 1;
+    }
+
+    /// A bot's grenade logic counts at this tick (`Reflex::grenade_stats`): the change since its last reading
+    /// is added; a reflex that has not thought yet is not read.
+    pub(super) fn grenades_logic(&mut self, place: Place, now: &GrenadeStats) {
+        if now.thinks == 0 {
+            return;
+        }
+        let logic = &mut self.logic;
+        let (change, new_life) = now.since(logic.last.get(&place));
+        logic.last.insert(place, *now);
+        logic.lives += u32::from(new_life);
+        logic.sum.add(&change);
     }
 
     /// The bot let go of the key and gave the throw up: no hold is open for it.
     pub(super) fn grenade_given_up(&mut self, thrower: Place) {
-        self.grenades.holds.remove(&thrower);
+        self.holds.remove(&thrower);
     }
 
     /// A bot's grenade key at this tick: a press opens a hold of [`HELD_MS`]; in it, the thrower dying before
     /// the launch and a fire press are counted. From the stand-in's keys, not the bot's word.
     pub(super) fn grenades_keys(&mut self, place: Place, tick: u32, body: &super::super::Body, prev: &Rec) {
-        let g = &mut self.grenades;
+        let g = &mut *self;
         if body.keys & key::GRENADE != 0 && prev.keys & key::GRENADE == 0 {
             g.holds.entry(place).or_insert(tick);
         }
@@ -322,18 +574,18 @@ impl OwnerTally {
     /// The throws at their launch: the grenade leaves [`LAUNCH_MS`] after the press along the thrower's view
     /// then (his record), and comes down on the bullet mesh where `arc` says; the blast is there, at the rest
     /// point, [`FUSE_MS`] after the press. Who is inside is by the bodies' places at the launch.
-    fn grenade_launches(&mut self, game: &Game, tick: u32) {
-        let (due, later): (Vec<Throw>, Vec<Throw>) = std::mem::take(&mut self.grenades.throws)
+    fn grenade_launches(&mut self, run: &Run, game: &Game, tick: u32) {
+        let (due, later): (Vec<Throw>, Vec<Throw>) = std::mem::take(&mut self.throws)
             .into_iter()
             .partition(|t| tick >= t.press + LAUNCH_MS);
-        self.grenades.throws = later;
+        self.throws = later;
         for throw in due {
-            let k = self.index(throw.press + LAUNCH_MS);
-            let bodies: Vec<Option<Rec>> = self.recs.iter().map(|r| r.get(k).or(r.last()).copied()).collect();
+            let k = run.index(throw.press + LAUNCH_MS);
+            let bodies: Vec<Option<Rec>> = run.recs.iter().map(|r| r.get(k).or(r.last()).copied()).collect();
             let Some(rec) = bodies.get(throw.thrower).copied().flatten().filter(|r| r.alive) else {
                 continue;
             };
-            let up = if rec.keys & key::CROUCH != 0 { EYE_CROUCHED } else { EYE_STANDING };
+            let up = eye_height(rec.keys & key::CROUCH != 0, rec.speed, rec.pitch);
             let eye = rec.feet + Vec3::new(0.0, up, 0.0);
             let Some(landing) =
                 arc::Flight::thrown(eye, rec.yaw, rec.pitch).landing(&arc::Mesh(&game.world.sight))
@@ -341,7 +593,7 @@ impl OwnerTally {
                 continue;
             };
             if throw.aim.distance_xz(rec.feet) >= SHORT_M && landing.contact.point.distance_xz(rec.feet) < SHORT_M {
-                self.grenades.short += 1;
+                self.short += 1;
             }
             let inside = bodies
                 .iter()
@@ -352,7 +604,7 @@ impl OwnerTally {
                     })
                 })
                 .collect();
-            self.grenades.blasts.push(Blast {
+            self.blasts.push(Blast {
                 thrower: throw.thrower,
                 at: landing.rest,
                 time: throw.press + FUSE_MS,
@@ -361,13 +613,36 @@ impl OwnerTally {
         }
     }
 
+    /// A blast against the server's list: the entry of the same thrower and press, and where it put the rest
+    /// point (only in a bench run, which reads the list).
+    fn live_blast(&mut self, blast: &Blast) {
+        if self.listed.is_none() {
+            return;
+        }
+        let press = blast.time.saturating_sub(FUSE_MS);
+        let found = self
+            .live
+            .iter()
+            .find(|g| g.by == blast.thrower && g.press.abs_diff(press) <= 100);
+        let live = &mut self.live_blasts;
+        match found.map(|g| g.phase) {
+            None => live.missing += 1,
+            Some(Phase::Pressed) => live.pending += 1,
+            Some(Phase::Flying { rest, .. }) => {
+                live.matched += 1;
+                let d = rest.distance_xz(blast.at);
+                live.err[usize::from(d > 1.0) + usize::from(d > 2.0) + usize::from(d > 4.0)] += 1;
+            }
+        }
+    }
+
     /// The grenades going off: who is inside, who walked in, the damage it would do (the stand-in has none).
-    pub(super) fn grenades_off(&mut self, game: &mut Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
-        self.grenade_launches(game, tick);
+    pub(super) fn grenades_off(&mut self, run: &Run, game: &mut Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
+        self.grenade_launches(run, game, tick);
         // The grenades going off: who is inside, who walked in, the damage
         // it would do (the stand-in has none).
         let mut gone = Vec::new();
-        self.grenades.blasts.retain(|b| {
+        self.blasts.retain(|b| {
             let off = tick >= b.time;
             if off {
                 gone.push(b.clone());
@@ -375,9 +650,22 @@ impl OwnerTally {
             !off
         });
         for blast in gone {
+            self.live_blast(&blast);
             let Some(team) = game.bodies.get(blast.thrower).map(|b| b.team) else {
                 continue;
             };
+            for (place, &inside) in blast.inside.iter().enumerate() {
+                if let (true, Some(body)) = (inside, game.bodies.get(place)) {
+                    let who = if place == blast.thrower {
+                        0
+                    } else if body.team == team {
+                        1
+                    } else {
+                        2
+                    };
+                    self.in_launch[who] += 1;
+                }
+            }
             if game.damage.blasts_hurt() {
                 // The client's blast on the bodies ([`standin_grenade`]).
                 for hurt in standin_grenade::explode(game, blast.thrower, blast.at, tick) {
@@ -388,11 +676,11 @@ impl OwnerTally {
                     } else {
                         2
                     };
-                    self.grenades.blast_in[who] += 1;
-                    self.grenades.walked_in[who] +=
+                    self.blast_in[who] += 1;
+                    self.walked_in[who] +=
                         u32::from(!blast.inside.get(hurt.place).copied().unwrap_or(false));
-                    self.grenades.blast_dmg[who] += hurt.body;
-                    self.grenades.blast_kills[who] += u32::from(hurt.killed);
+                    self.blast_dmg[who] += hurt.body;
+                    self.blast_kills[who] += u32::from(hurt.killed);
                 }
                 continue;
             }
@@ -408,56 +696,157 @@ impl OwnerTally {
                 } else {
                     2
                 };
-                self.grenades.blast_in[who] += 1;
-                self.grenades.walked_in[who] += u32::from(!blast.inside.get(place).copied().unwrap_or(false));
+                self.blast_in[who] += 1;
+                self.walked_in[who] += u32::from(!blast.inside.get(place).copied().unwrap_or(false));
                 *rays += 1;
                 if !sight.visible(blast.at + Vec3::new(0.0, 0.3, 0.0), Game::chest(body)) {
                     continue;
                 }
                 let dmg = blast_damage(d);
-                self.grenades.blast_dmg[who] += dmg;
-                self.grenades.blast_kills[who] += u32::from(dmg >= body.health);
+                self.blast_dmg[who] += dmg;
+                self.blast_kills[who] += u32::from(dmg >= body.health);
             }
         }
     }
 
     /// The grenades counts at the end: their keys of the `owner` object and their lines of the owner-test text.
-    pub(super) fn grenades_part(&self, game: &Game) -> Part {
-        let json = serde_json::json!({
-            "grenades": self.grenades.grenades,
+    fn part(&self, game: &Game, shared: &Shared) -> Part {
+        // The fight topic's count of fire at a hidden target in a throw's hold and after one.
+        let hidden_throw: [u32; 2] = shared
+            .get("fire_hidden_throw")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default();
+        let mut json = serde_json::json!({
+            "grenades": self.grenades,
             "grenade_damage_applied": game.damage.blasts_hurt(),
-            "grenade_self_dmg": (100.0 * self.grenades.blast_dmg[0]).round() / 100.0,
-            "grenade_mate_dmg": (100.0 * self.grenades.blast_dmg[1]).round() / 100.0,
-            "grenade_enemy_dmg": (100.0 * self.grenades.blast_dmg[2]).round() / 100.0,
-            "grenade_kills": self.grenades.blast_kills,
-            "grenade_in_radius": self.grenades.blast_in,
-            "grenade_walk_ins": self.grenades.walked_in,
-            "grenade_short": self.grenades.short,
-            "grenade_died_throwing": self.grenades.died_throwing,
-            "grenade_fired_after_held": self.grenades.fired_after_held,
-            "grenade_refused": self.grenades.refused,
+            "grenade_self_dmg": (100.0 * self.blast_dmg[0]).round() / 100.0,
+            "grenade_mate_dmg": (100.0 * self.blast_dmg[1]).round() / 100.0,
+            "grenade_enemy_dmg": (100.0 * self.blast_dmg[2]).round() / 100.0,
+            "grenade_kills": self.blast_kills,
+            "grenade_in_radius": self.blast_in,
+            "grenade_walk_ins": self.walked_in,
+            "grenade_short": self.short,
+            "grenade_died_throwing": self.died_throwing,
+            "grenade_fired_after_held": self.fired_after_held,
+            "grenade_refused": self.refused,
             "team_kills_gun": game.team_kills,
             "team_hits": game.team_hits,
         });
-        let text = format!(
+        let logic = &self.logic;
+        // Only where bots thought: the made-up match has none, and its golden stays as it was.
+        if logic.lives > 0 {
+            let s = &logic.sum;
+            json["grenade_team_same_spot"] = serde_json::json!(self.same_spot);
+            json["grenade_logic"] = serde_json::json!({
+                "bot_lives": logic.lives,
+                "claimed": s.claimed,
+                "rolls": s.rolls,
+                "chance_no": s.chance_no,
+                "places": s.places,
+                "weighed": s.weighed,
+                "refused": s.refused,
+                "passed": s.passed,
+                "given_up": s.given_up,
+                "nth": s.nth,
+                "timeouts": s.timeouts,
+                "rechecks": s.rechecks,
+                "thrown_from": s.thrown_from,
+                "pushes_skipped": s.pushes_skipped,
+                "volley": s.volley,
+                "near": s.near,
+                "fire_hidden_throw": hidden_throw,
+            });
+        }
+        if let Some(listed) = self.listed {
+            let live = &self.live_blasts;
+            json["grenade_live"] = serde_json::json!({
+                "frag": listed.frag,
+                "smoke": listed.smoke,
+                "no_pockets": listed.no_pockets,
+                "launched": listed.launched,
+                "unplaced": listed.unplaced,
+                "died_throwing": listed.died_throwing,
+                "blasts_matched": live.matched,
+                "blasts_pending": live.pending,
+                "blasts_unlisted": live.missing,
+                "rest_error_m": live.err,
+                "inside_at_launch": self.in_launch,
+            });
+            let mut avoid = AvoidStats::default();
+            for stats in self.avoid.values() {
+                avoid.add(stats);
+            }
+            json["grenade_avoid"] = serde_json::json!({
+                "noticed": avoid.noticed,
+                "stepped": avoid.stepped,
+                "held": avoid.held,
+                "out_at_act": avoid.out_at_act,
+                "no_way": avoid.no_way,
+                "retried": avoid.retried,
+                "escaped": avoid.escaped,
+                "caught": avoid.caught,
+                "react_ms": avoid.react,
+            });
+        }
+        let mut text = format!(
             "owner-test other: grenades {} ({}) {} self {:.2} mates {:.2} enemies {:.2}, {} {:?}, inside at the blast {:?} walked in {:?}; short {} (aimed beyond {SHORT_M} m, first contact within), thrower died in the press to launch {}, fire pressed in the hold {}, refused (thrower's blast, wall, teammate, other) {:?}; team kills by gunfire {}, team hits {}",
-            self.grenades.grenades,
+            self.grenades,
             if !game.damage.blasts_hurt() { "no damage in the stand-in" } else { "the client's blast" },
             if !game.damage.blasts_hurt() { "would damage" } else { "damaged" },
-            self.grenades.blast_dmg[0],
-            self.grenades.blast_dmg[1],
-            self.grenades.blast_dmg[2],
+            self.blast_dmg[0],
+            self.blast_dmg[1],
+            self.blast_dmg[2],
             if !game.damage.blasts_hurt() { "would kill" } else { "killed" },
-            self.grenades.blast_kills,
-            self.grenades.blast_in,
-            self.grenades.walked_in,
-            self.grenades.short,
-            self.grenades.died_throwing,
-            self.grenades.fired_after_held,
-            self.grenades.refused,
+            self.blast_kills,
+            self.blast_in,
+            self.walked_in,
+            self.short,
+            self.died_throwing,
+            self.fired_after_held,
+            self.refused,
             game.team_kills,
             game.team_hits,
         );
+        if logic.lives > 0 {
+            let s = &logic.sum;
+            text.push_str(&format!(
+                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp, lost, heard] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc [flat, pitch, yaw] {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}, view timeouts [no target, target] x [flat, pitch, yaw] {:?}, rechecks searched again [found, none] {:?}, thrown by source {:?}, pushes left out {}, volley [windows, rolls, chance said no, second grenades] {:?}, near floor [weighed again, way out found, thrown] {:?}, fire at a hidden target in a throw's hold / within 3 s after one {:?}",
+                logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth, s.timeouts, s.rechecks, s.thrown_from, s.pushes_skipped, s.volley, s.near, hidden_throw,
+            ));
+        }
+        if let Some(listed) = self.listed {
+            let live = &self.live_blasts;
+            text.push_str(&format!(
+                "; live grenade list: frags {} (smokes left out {}, human throw keys with no pockets {}), launched with a landing {}, unplaced {}, thrower dead at the launch {}; at the blasts: listed with a landing {}, still in the hand {}, not listed {}, rest point off the tally's by [<=1, <=2, <=4, more] m {:?}, inside the radius at the launch [thrower, mates, enemies] {:?}",
+                listed.frag,
+                listed.smoke,
+                listed.no_pockets,
+                listed.launched,
+                listed.unplaced,
+                listed.died_throwing,
+                live.matched,
+                live.pending,
+                live.missing,
+                live.err,
+                self.in_launch,
+            ));
+            let mut avoid = AvoidStats::default();
+            for stats in self.avoid.values() {
+                avoid.add(stats);
+            }
+            text.push_str(&format!(
+                "; avoiding live grenades by [told, saw, heard]: noticed {:?}, stepped out {:?}, held at the edge {:?}, already out at the act {:?}, no floor in reach {:?}, started again {:?}, at the blast out {:?} caught {:?}, reaction to the step (<=0.5, 1, 1.5, 2 s, more) {:?}",
+                avoid.noticed,
+                avoid.stepped,
+                avoid.held,
+                avoid.out_at_act,
+                avoid.no_way,
+                avoid.retried,
+                avoid.escaped,
+                avoid.caught,
+                avoid.react,
+            ));
+        }
         Part::new(json, text)
     }
 }

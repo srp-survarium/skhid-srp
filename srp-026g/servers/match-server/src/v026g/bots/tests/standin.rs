@@ -20,6 +20,8 @@
 //! | `SRP_BENCH_PUT_MS` | [`PUT_MS`], 600 ms |
 //! | `SRP_BENCH_JUMP_AHEAD_M` ([`standin_jump`](super::standin_jump)) | `STANDING_JUMP.ahead_m` |
 //! | `SRP_BENCH_STAND_IN` | the honest jump (the client's clips); `old`: the lift up any floor |
+//! | `SRP_BENCH_HEAL_MODEL` ([`standin_heal`](super::standin_heal)) | on: the drugs and their stock; `off`: none |
+//! | `SRP_BENCH_TRAPS_MODEL` ([`standin_traps`](super::standin_traps)) | on: the bear traps; `off`: none |
 //!
 //! The model's constants stay here: `RESPAWN_BATTERIES_MS`, `RESPAWN_TDM_MS`, `DRAW_MS`,
 //! `PUT_MS`, `USE_REACH_M`, `STAND_IN_LEG_*`, `STAND_IN_STAGGER*`.
@@ -106,6 +108,10 @@ pub(crate) struct PutPress {
     pub(crate) miss: f32,
     pub(crate) began: bool,
     pub(crate) putting: bool,
+    /// How far along the use ray the container's box is entered, if it is
+    /// ([`mapdata::stands::ray_distance`]): the length of use the press
+    /// needed.
+    pub(crate) reach: Option<f32>,
 }
 
 /// Whose body a kill is: an enemy's, a teammate's (the game has friendly
@@ -167,6 +173,11 @@ pub(crate) struct Body {
     pub(crate) zone_spell: Option<ZoneSpell>,
     /// Its bot's motives at its last tick (`Bot::bench_why`).
     pub(crate) why_now: u16,
+    /// Its drugs, and the pools the fields above lack ([`standin_heal`]).
+    pub(crate) heal: standin_heal::Heal,
+    pub(crate) rest: standin_heal::Rest,
+    /// Its traps and the catch's slowing ([`standin_traps`]).
+    pub(crate) trap: standin_traps::Rig,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -262,6 +273,8 @@ pub(crate) struct Game {
     /// killed so.
     pub(crate) team_hits: u32,
     pub(crate) team_kills: u32,
+    /// By team hit: the victim's pain pool before it, and whether it killed (the bandage habit's counts).
+    pub(crate) team_hit_pains: Vec<(f32, bool)>,
     /// Jumps pressed, and of them those a broken leg refused.
     pub(crate) jumps_pressed: u32,
     pub(crate) jumps_refused: u32,
@@ -288,6 +301,9 @@ pub(crate) struct Game {
     /// the start, and 1 if in a fight ([`SPELL_FIGHT_MS`]).
     pub(crate) zone_spells: Vec<[f32; 5]>,
     pub(crate) took_from: Vec<Vec3>,
+    /// For each take of a lying battery, how far along the use ray its
+    /// middle lay (m): the length of use the take needed.
+    pub(crate) take_alongs: Vec<f32>,
     /// Carriers' ground distance walked (m) and their living ticks: their
     /// mean speed.
     pub(crate) carry_m: f32,
@@ -373,6 +389,13 @@ pub(crate) struct Game {
     pub(crate) honest: bool,
     pub(crate) walls: Option<Arc<mapdata::RayTree>>,
     pub(crate) landings: Vec<Landing>,
+    /// Every press of a quick-use key ([`standin_heal::press_keys`]), and the
+    /// bodies' pools and drugs in the worlds of the last two seconds
+    /// ([`Game::seen_at`]).
+    pub(crate) drug_log: Vec<standin_heal::DrugPress>,
+    pub(crate) seen: VecDeque<(u32, Vec<standin_heal::Seen>)>,
+    /// The bear traps placed, and what befell them ([`standin_traps`]).
+    pub(crate) traps: standin_traps::Traps,
 }
 
 /// The soak map: the 80 x 40 m field (a wall across its middle up to
@@ -471,6 +494,9 @@ impl Game {
             spread: bench_spread::Spread::default(),
             zone_spell: None,
             why_now: 0,
+            heal: standin_heal::Heal::new(),
+            rest: standin_heal::Rest::FULL,
+            trap: standin_traps::Rig::default(),
         };
         let mut game = Self {
             kin: Kinematics::default(),
@@ -496,6 +522,7 @@ impl Game {
             jumps_pressed: 0,
             jumps_refused: 0,
             team_kills: 0,
+            team_hit_pains: Vec::new(),
             walled: 0,
             walled_by: [0; 2],
             hidden_by: [0; 2],
@@ -508,6 +535,7 @@ impl Game {
             zone_hp: 0.0,
             zone_spells: Vec::new(),
             took_from: Vec::new(),
+            take_alongs: Vec::new(),
             carry_m: 0.0,
             carry_ticks: 0,
             thieves: Vec::new(),
@@ -540,6 +568,9 @@ impl Game {
             honest: honest_stand_in(),
             walls: None,
             landings: Vec::new(),
+            drug_log: Vec::new(),
+            seen: VecDeque::new(),
+            traps: standin_traps::Traps::default(),
             world,
         };
         for place in 0..teams.len() {
@@ -594,6 +625,8 @@ impl Game {
         body.alive = true;
         body.spawned = tick;
         body.carrying = None;
+        body.heal.spawn();
+        body.rest = standin_heal::Rest::FULL;
         // Weapon 1 in hand afresh.
         body.gun = Arms::fallback().primary.0;
         body.recoil = Recoil::new(kick_of(body.gun.item));
@@ -602,12 +635,12 @@ impl Game {
         body.stock.spawn(tier, body.gun);
     }
 
+    /// Where the game's bullet starts, from the bots' own function
+    /// ([`super::view::eye_height`]) at the body's pace and view.
     pub(crate) fn eye(body: &Body) -> Vec3 {
-        let up = if body.keys & key::CROUCH != 0 {
-            0.95
-        } else {
-            1.6
-        };
+        let speed = body.step_m / TICK_S;
+        let pitch = body.recoil.view(body.pitch);
+        let up = super::view::eye_height(body.keys & key::CROUCH != 0, speed, pitch);
         body.feet + Vec3::new(0.0, up, 0.0)
     }
 
@@ -631,10 +664,12 @@ impl Game {
         self.team_hit_shots.clear();
         let n = self.bodies.len();
         let mut pressed = vec![0u32; n];
+        let mut released = vec![0u32; n];
         for body in &mut self.bodies {
             body.recoil.update(tick);
         }
         let tier = self.damage.tier;
+        let mut suicides = Vec::new();
         for (place, queue) in self.inputs.iter_mut().enumerate() {
             while let Some(&(at, keys, turn, target, gun)) = queue.front() {
                 if at > tick {
@@ -644,6 +679,7 @@ impl Game {
                 queue.pop_front();
                 let body = &mut self.bodies[place];
                 pressed[place] = keys & !body.keys;
+                standin_heal::press_keys(body, place, pressed[place], tick, &mut self.drug_log);
                 let mut jump = false;
                 if pressed[place] & key::JUMP != 0 {
                     self.jumps_pressed += 1;
@@ -656,6 +692,11 @@ impl Game {
                     } else {
                         self.jumps_refused += 1;
                     }
+                }
+                released[place] = body.keys & !keys;
+                // The suicide bit (24): the game's own hit on the player's own head, the first input that has it.
+                if pressed[place] & key::SUICIDE != 0 && body.alive {
+                    suicides.push(place);
                 }
                 body.keys = keys;
                 body.target = target;
@@ -699,6 +740,10 @@ impl Game {
                 }
             }
         }
+        // A death, a ticket, the battery dropped, and the respawn of the mode: as the game's, no one's kill.
+        for place in suicides {
+            self.kill(place, place, Kill::Own, tick);
+        }
         if self.walls.is_none() && self.bodies.iter().any(|b| b.flight.is_some()) {
             let walker = self.world.map.walker_triangles();
             self.walls = Some(if walker.is_empty() {
@@ -713,7 +758,16 @@ impl Game {
             }
         }
         self.record();
+        self.trap_place(&released, tick);
+        self.trap_tick(tick);
         self.camp(tick, &mut pressed);
+        // The shots of the tick leave from where the world of the tick
+        // shows the bodies, before this tick's move (a bullet starts at
+        // the world's position of its own tick, PROVEN live: 0.08 +-0.03
+        // tick of travel, `fact-own-eye.md` 4), as `lead_own` reckons.
+        if super::view::live_eye() {
+            self.shoot(tick);
+        }
         for place in 0..n {
             if self.camper.is_some_and(|(p, _)| p == place) {
                 continue;
@@ -736,14 +790,21 @@ impl Game {
                 body.legs = body.legs.map(|pool| if pool > 0.0 { pool } else { 0.5 });
                 body.leg_broken_until = 0;
             }
+            standin_heal::advance(body, tick);
             let mut level = if body.carrying.is_some() { 0.95 } else { 1.0 };
             if body.last_hit != 0 && tick < body.last_hit + STAND_IN_STAGGER_MS {
                 level *= STAND_IN_STAGGER;
             }
+            // A body whose legs a trap took does not sprint and walks slower
+            // ([`standin_traps`]).
+            let caught = body.trap.slowed(tick);
+            if caught {
+                level *= standin_traps::SLOW;
+            }
             // A carrier cannot sprint: the sprint check asks the item in
             // hand, and the battery's answer is no (0x397C20), PROVEN; seen
             // in 0x60aeff4f, the owner held sprint carrying at 3.35 m/s.
-            let keys = if body.carrying.is_some() {
+            let keys = if body.carrying.is_some() || caught {
                 body.keys & !key::SPRINT
             } else {
                 body.keys
@@ -793,7 +854,9 @@ impl Game {
                 }
             }
         }
-        self.shoot(tick);
+        if !super::view::live_eye() {
+            self.shoot(tick);
+        }
         standin_damage::regenerate(&self.damage, &mut self.bodies, tick);
         self.use_and_drop(&pressed);
         self.resupply(&pressed);
@@ -963,6 +1026,9 @@ impl Game {
                 best = Some((target, along));
             }
         }
+        // The bullet meets a bear trap's cylinder before any body: it is disarmed.
+        self.trap_shot(shooter, eye, dir, best.map(|b| b.1), tick);
+        let body = &self.bodies[shooter];
         let shooter_body = &self.bodies[shooter];
         let (moving, aimed, crouched) = fight_tally::stance(shooter_body.keys);
         let aimed_at = shooter_body
@@ -972,6 +1038,18 @@ impl Game {
                 let (d, off) = fight_tally::aim_off(eye, dir, Self::chest(&self.bodies[t]));
                 (t, d, off)
             });
+        // [counts only] Where the shot line passed the target's chest, for the owner counts' `shot_offsets`.
+        let offset = aimed_at.map(|(t, distance, _)| {
+            let target = &self.bodies[t];
+            super::tallies::shot_offset::ShotOffset::of(
+                eye,
+                dir,
+                Self::chest(target),
+                distance,
+                super::tallies::shot_offset::ShotClass::of(gun.class()),
+                target.keys & key::CROUCH != 0,
+            )
+        });
         self.shot_facts.push(fight_tally::ShotFact {
             shooter,
             tick,
@@ -984,6 +1062,7 @@ impl Game {
             crouched,
             aim_state,
             cone,
+            offset,
         });
         let Some((target, along)) = best else {
             return;
@@ -997,6 +1076,7 @@ impl Game {
             self.shots_hits[shooter].1 += 1;
             self.hit_log.push((tick, shooter, target));
         }
+        let pain_before = self.bodies[target].pools.pain;
         let other = &mut self.bodies[target];
         standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
         other.last_hit = tick;
@@ -1006,7 +1086,11 @@ impl Game {
                 other.leg_broken_until = tick + STAND_IN_LEG_BROKEN_MS;
             }
         }
-        if other.health <= 1e-3 {
+        let lethal = other.health <= 1e-3;
+        if team_hit {
+            self.team_hit_pains.push((pain_before, lethal));
+        }
+        if lethal {
             let kind = if team_hit { Kill::Mate } else { Kill::Enemy };
             self.kill(target, shooter, kind, tick);
         }
@@ -1084,6 +1168,7 @@ impl Game {
                 .map(Hazard::hit_per_s)
                 .sum();
             let body = &mut self.bodies[place];
+            let per_s = per_s * body.heal.toxic_factor(tick);
             if per_s <= 0.0 {
                 if let Some(spell) = body.zone_spell
                     && tick >= spell.last + SPELL_GAP_MS
@@ -1161,6 +1246,14 @@ impl Game {
         (to - dir * along).length() <= radius
     }
 
+    /// How far along `body`'s view ray from the eye `point` lies (m).
+    pub(crate) fn ray_along(body: &Body, point: Vec3) -> f32 {
+        let eye = Self::eye(body);
+        let [fx, fz] = forward(body.yaw);
+        let (c, s) = (body.pitch.cos(), body.pitch.sin());
+        (point - eye).dot(Vec3::new(fx * c, s, fz * c))
+    }
+
     /// How far `body`'s use ray (from the eye, [`USE_REACH_M`] long)
     /// passes `point`.
     pub(crate) fn ray_miss(body: &Body, point: Vec3) -> f32 {
@@ -1170,6 +1263,22 @@ impl Game {
         let dir = Vec3::new(fx * c, s, fz * c);
         let along = (point - eye).dot(dir).clamp(0.0, USE_REACH_M);
         (eye + dir * along - point).length()
+    }
+
+    /// How far along the view's ray from `body`'s eye container `id`'s use
+    /// box is entered, if it is.
+    pub(crate) fn container_box_reach(&self, body: &Body, id: usize) -> Option<f32> {
+        let shape = self
+            .world
+            .map
+            .containers
+            .iter()
+            .find(|c| c.id == id as i32)
+            .and_then(|c| c.use_shapes.first())?;
+        let eye = Self::eye(body);
+        let [fx, fz] = forward(body.yaw);
+        let (c, s) = (body.pitch.cos(), body.pitch.sin());
+        mapdata::stands::ray_distance(eye, Vec3::new(fx * c, s, fz * c), shape)
     }
 
     /// Whether the view's ray from `body`'s eye meets container `id`'s use
@@ -1293,6 +1402,7 @@ impl Game {
                             miss: Self::ray_miss(&body, self.containers[id].1 + USE_BOX_UP),
                             began,
                             putting: was_putting,
+                            reach: self.container_box_reach(&body, id),
                         });
                     }
                 }
@@ -1307,6 +1417,7 @@ impl Game {
                     if let Some(battery) = free {
                         if let Lying::Free(at, _) = self.batteries[battery] {
                             self.took_from.push(at);
+                            self.take_alongs.push(Self::ray_along(&body, at + BATTERY_MIDDLE));
                         }
                         self.batteries[battery] = Lying::Carried(place);
                         self.bodies[place].carrying = Some(battery);
@@ -1463,6 +1574,12 @@ impl Game {
         self.hurts.push_back((tick, hurts));
         while self.hurts.len() > 40 {
             self.hurts.pop_front();
+        }
+        self.trap_record();
+        self.seen
+            .push_back((tick, self.bodies.iter().map(standin_heal::seen).collect()));
+        while self.seen.len() > 40 {
+            self.seen.pop_front();
         }
     }
 

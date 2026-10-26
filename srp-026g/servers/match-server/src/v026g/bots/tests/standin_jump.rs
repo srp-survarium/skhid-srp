@@ -250,6 +250,14 @@ pub(crate) static SPRINT_CLIP: Clip = Clip {
     ],
 };
 
+/// The grid builds its gap links (`mapdata::grid::gap`) by flying the same
+/// clip: the numbers must be the same.
+#[test]
+pub(crate) fn the_grids_gap_links_fly_this_short_clip() {
+    assert_eq!(SHORT_CLIP.ahead, mapdata::grid::gap::SHORT_JUMP_AHEAD);
+    assert_eq!(SHORT_CLIP.rise, mapdata::grid::gap::SHORT_JUMP_RISE);
+}
+
 /// Before the sprint clip, the prepare phase finishes the run's step: 0 to
 /// 0.15 s and 0 to 1.64 m, by the gait's phase at the press (PROVEN; the
 /// phase is drawn uniform, LIKELY).
@@ -663,4 +671,81 @@ pub(crate) fn the_honest_walk_steps_no_higher_than_the_client() {
     assert!((old.y - 0.7).abs() < 0.05, "the grid links a 0.7 m forced step: {old:?}");
     let honest = walk_east(&high, true);
     assert!(honest.y.abs() < 0.05 && honest.x < 10.0, "{honest:?}");
+}
+
+/// Two blocks (z 0-10) with tops `a` and `b` high, the gap between them
+/// from x 6 to `6 + gap`, over ground at `ground`: the triangles.
+pub(crate) fn gap_triangles(a: f32, b: f32, gap: f32, ground: f32) -> Vec<mapdata::Triangle> {
+    let walker = mapdata::WalkerBehaviour::BySlope;
+    let quad = |p: [Vec3; 4]| {
+        [
+            mapdata::Triangle { v: [p[0], p[1], p[2]], walker },
+            mapdata::Triangle { v: [p[0], p[2], p[3]], walker },
+        ]
+    };
+    let top = |x0: f32, x1: f32, y: f32| {
+        quad([
+            Vec3::new(x0, y, 0.0),
+            Vec3::new(x1, y, 0.0),
+            Vec3::new(x1, y, 10.0),
+            Vec3::new(x0, y, 10.0),
+        ])
+    };
+    let face = |x: f32, y0: f32, y1: f32| {
+        quad([
+            Vec3::new(x, y0, 0.0),
+            Vec3::new(x, y0, 10.0),
+            Vec3::new(x, y1, 10.0),
+            Vec3::new(x, y1, 0.0),
+        ])
+    };
+    let mut t = top(0.0, 14.0, ground).to_vec();
+    t.extend(top(0.0, 6.0, a));
+    t.extend(face(6.0, ground, a));
+    t.extend(top(6.0 + gap, 14.0, b));
+    t.extend(face(6.0 + gap, ground, b));
+    t
+}
+
+/// The grid's gap links (`mapdata::grid::gap`) east across a gap are
+/// made by the honest stand-in's jump: walking at the walk cap, pressed
+/// at the link's own point (and the spread earlier or later), with
+/// forward held, it comes down on the link's landing level.
+#[test]
+pub(crate) fn the_grids_gap_links_are_made_by_the_honest_jump() {
+    use mapdata::grid::gap::GAP_PRESS_SPREAD_M;
+    for (a, b, gap, ground) in [(2.0, 2.0, 1.0, 0.0), (2.0, 2.6, 0.75, 0.0), (2.0, 0.5, 1.5, -3.0)] {
+        let triangles = gap_triangles(a, b, gap, ground);
+        let grid = mapdata::WalkGrid::build_with_links(
+            &triangles,
+            [0.0, 0.0, 14.0, 10.0],
+            0.25,
+            mapdata::Body::default(),
+            mapdata::OffMeshLinks::Gaps,
+        );
+        let walls = mapdata::RayTree::build(&triangles);
+        let east: Vec<_> = grid
+            .off_links()
+            .iter()
+            .filter(|l| {
+                let (p, q) = (grid.position(l.from), grid.position(l.to));
+                p.x < 6.0 && (q.z - p.z).abs() < 0.01 && (3.0..7.0).contains(&p.z)
+            })
+            .copied()
+            .collect();
+        assert!(!east.is_empty(), "{a} {b} {gap}: no gap link east");
+        for l in east {
+            let (from, to) = (grid.position(l.from), grid.position(l.to));
+            // A walk-off has no press to fly (its own test: `gap.rs`).
+            let mapdata::grid::gap::Takeoff::Press(press) = l.press else {
+                continue;
+            };
+            let press = press.metres();
+            for lead in [press - GAP_PRESS_SPREAD_M, press, press + GAP_PRESS_SPREAD_M] {
+                let body = honest_body(&grid, Vec3::new(from.x - lead, from.y, from.z));
+                let (down, _) = honest_jump(&grid, &walls, body, key::FORWARD | key::JUMP, WALK_CAP);
+                assert!((down.y - to.y).abs() < 0.1, "{a} {b} {gap} lead {lead}: {from:?} -> {to:?} came down at {down:?}");
+            }
+        }
+    }
 }

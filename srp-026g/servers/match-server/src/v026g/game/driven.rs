@@ -49,7 +49,10 @@ use super::*;
 use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::maps::{MapState, Maps};
 use crate::v026g::bots::motor::Hurt;
+use crate::v026g::bots::pools::Pools;
 use crate::v026g::bots::reflex::WeaponKind;
+use crate::v026g::bots::foliage::{self, Foliage};
+use crate::v026g::bots::live_grenades::{Pocketed, Pockets};
 use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::trace::Trace;
@@ -123,21 +126,28 @@ impl Walkers {
         let bots: Vec<_> = formed
             .profiles
             .iter()
-            .map(survarium::v026g::loadouts::bot_of)
+            .map(survarium::v026g::loadouts::bot_equipment_of)
             .collect();
         let roles: Vec<Option<&str>> = bots
             .iter()
             .map(|bot| bot.map(|(_, role)| role.name()))
             .collect();
-        let tiers: Vec<_> = bots.iter().map(|bot| bot.map(|(tier, _)| tier)).collect();
+        let equipments: Vec<_> = bots
+            .iter()
+            .map(|bot| bot.map(|(equipment, _)| equipment))
+            .collect();
         log::info!(
             "Match {id:#x}: the bots' roles by place {roles:?}, equipment {:?}",
-            tiers
+            equipments
                 .iter()
-                .map(|tier| tier.map(|tier| tier.name()))
+                .map(|equipment| equipment.map(|equipment| {
+                    format!("{} {}", equipment.tier.name(), equipment.rusher.name())
+                }))
                 .collect::<Vec<_>>()
         );
         let weapons = formed.profiles.iter().map(weapon_of).collect();
+        let pockets = formed.profiles.iter().map(pockets_of).collect();
+        let reach: Vec<Option<f32>> = formed.profiles.iter().map(shot_reach_of).collect();
         // The bodies' speed by their first kit's skills and weight, until a
         // world shows a life's own.
         let speed_levels: Vec<Option<f32>> = formed
@@ -157,7 +167,7 @@ impl Walkers {
                 trace,
             )
             .with_container_teams(formed.map.container_teams)
-            .with_tiers(&tiers),
+            .with_tiers(&equipments),
             maps,
             project,
             world: None,
@@ -168,12 +178,19 @@ impl Walkers {
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
+            walkers.bots.set_pockets(pockets);
+            walkers.bots.set_shot_reach(reach);
             walkers.bots.set_speed_levels(&speed_levels);
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
             let var = std::env::var_os("SRP_BOT_ROUTES");
             if let Some(table) = route_table(id, var.as_deref(), walkers.maps.dir()) {
                 walkers.bots.set_routes(&table);
+            }
+            // The bushes a sight line crosses (a private file; without it no bush hides anyone).
+            let var = std::env::var_os("SRP_BOT_FOLIAGE");
+            if let Some(foliage) = foliage_of(id, project, var.as_deref(), walkers.maps.dir()) {
+                walkers.bots.set_foliage(foliage);
             }
             walkers
         })
@@ -217,7 +234,7 @@ impl Walkers {
                         );
                     }
                     let world = base.world.clone();
-                    let margin = self.bots.tuning.hazard_margin;
+                    let margin = self.bots.tuning.hazard.margin_m.get();
                     if margin.to_bits() == base.margin().to_bits() {
                         // The map's own tactics, shared by every match on it.
                         let floors = world.grid.len();
@@ -279,14 +296,25 @@ impl Walkers {
     }
 }
 
-/// A place's weapon 1 kind from its profile: a bot's by its role, a
-/// player's by the item in slot 7 (its dictionary category and kind).
+/// A place's weapon 1 kind from its profile: a bot's by its role, but the
+/// rusher's, whose weapon is whatever kit it wears
+/// (`loadouts::RusherKit`: an SMG or the SPAS-12), and a player's, by the
+/// item in slot 7 (its dictionary category and kind).
 fn weapon_of(
     profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
 ) -> Option<WeaponKind> {
-    if let Some(role) = survarium::v026g::loadouts::bot_role_of(profile) {
+    use survarium::v026g::loadouts::BotRole;
+    let role = survarium::v026g::loadouts::bot_role_of(profile);
+    if let Some(role) = role.filter(|role| *role != BotRole::Rusher) {
         return WeaponKind::of_role(role.name());
     }
+    weapon_in_slot_7(profile).or_else(|| role.and_then(|role| WeaponKind::of_role(role.name())))
+}
+
+/// The kind of the item in slot 7 of the profile's first kit.
+fn weapon_in_slot_7(
+    profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+) -> Option<WeaponKind> {
     let kit = profile.kits.first()?;
     let (index, _) = kit.slots[7]?;
     let item = profile.items.get(usize::from(index))?;
@@ -295,6 +323,47 @@ fn weapon_of(
         .item(item.dict_id)?
         .category;
     WeaponKind::of_item(kind, category)
+}
+
+/// A player's pockets (profile slots 13..=18 of its first kit) for the
+/// throw keys: what each holds, a frag (`rgd-5`), a smoke (`rdg-m`) or
+/// something else the quick-use keys count, and the units. A server bot's
+/// throw key is a frag, so it has none. The first kit is the one the
+/// player spawns in unless it picked another (LIKELY: `kit_changes`
+/// counts the picks; the picked kit is not tracked here).
+fn pockets_of(
+    profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+) -> Option<Pockets> {
+    if survarium::v026g::loadouts::bot_role_of(profile).is_some() {
+        return None;
+    }
+    let kit = profile.kits.first()?;
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+    let slots = std::array::from_fn(|i| {
+        let slot = usize::from(survarium::v026g::loadouts::POCKET_SLOTS[i]);
+        let (index, units) = kit.slots[slot]?;
+        let item = profile.items.get(usize::from(index))?;
+        let name = dictionary.item(item.dict_id)?.name.as_str();
+        let held = match name {
+            "rgd-5" => Pocketed::Frag,
+            "rdg-m" => Pocketed::Smoke,
+            _ => Pocketed::Other,
+        };
+        Some((held, units))
+    });
+    Some(Pockets::new(slots))
+}
+
+/// How far a shot of a place's weapon 1 (the item in slot 7 of its first
+/// kit) is heard, metres: the game's sound data per weapon config
+/// ([`crate::v026g::bots::shot_reach`]); None where the item is not in the
+/// table.
+fn shot_reach_of(profile: &survarium::v026g::match_msgs::static_info::MatchProfile) -> Option<f32> {
+    let kit = profile.kits.first()?;
+    let (index, _) = kit.slots[7]?;
+    let item = profile.items.get(usize::from(index))?;
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+    crate::v026g::bots::shot_reach::reach_of(&dictionary.item(item.dict_id)?.cfg_name)
 }
 
 fn log_notes(id: u32, notes: Vec<Note>) {
@@ -426,6 +495,12 @@ impl Game {
             .is_some_and(|walkers| walkers.bots.has_map())
     }
 
+    /// What the server's bot at `place` counts of its drugs, for the tests.
+    #[cfg(test)]
+    pub(crate) fn driven_pantry(&self, place: usize) -> Option<&crate::v026g::bots::stock::Pantry> {
+        self.walkers.as_ref()?.bots.pantry_of(place)
+    }
+
     /// How often to ask for a world, `every` being what the match asks:
     /// sooner while the server's bots play.
     pub(super) fn driven_refresh(&self, every: Duration) -> Duration {
@@ -491,12 +566,18 @@ impl Game {
                 let legs = [6, 7].map(|part| damage.part_health.get(part).copied());
                 let hurt = Hurt::of(legs, damage.last_hit_time_ms, snapshot.time);
                 walkers.bots.hurt(place, hurt);
+                if let Some(pools) = Pools::of_world(&damage.part_health) {
+                    walkers.bots.pools(place, pools);
+                }
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);
         }
         let notes = walkers.bots.facts(world_facts(snapshot.time, decoded));
         log_notes(id, notes);
+        walkers
+            .bots
+            .traps_from_world(decoded.sections.objects, snapshot.time);
         let (read, missed) = walkers
             .bots
             .anomalies_from_world(decoded.sections.objects, snapshot.time);
@@ -505,6 +586,28 @@ impl Game {
                 "Match {id:#x}: anomalies in the world at {} ms: {read} read, {missed} missed",
                 snapshot.time
             );
+        }
+    }
+
+    /// A trusted world's word on what the server's bots hold of drugs:
+    /// each bot's block as `players::Supplies` read it (`Observed`), the
+    /// quick-use stacks of its kits. Called once `observe` has them.
+    pub(super) fn observe_stock(&mut self, time: u32) {
+        let Some(walkers) = self.walkers.as_mut() else {
+            return;
+        };
+        let Some(state) = self.state.as_ref() else {
+            return;
+        };
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        for (place, supplies) in state.supplies.iter().enumerate() {
+            let driven = self.formed.places.get(place).is_some_and(|p| p.driven);
+            if let (true, Some(supplies), Some(profile)) =
+                (driven, supplies, self.formed.profiles.get(place))
+            {
+                let readings = crate::v026g::bots::stock::readings(supplies, profile, dictionary);
+                walkers.bots.stock(place, time, &readings);
+            }
         }
     }
 
@@ -651,6 +754,27 @@ fn route_table(
     }
 }
 
+/// The bushes of `project` a match's bots get ([`foliage::Source::choose`]): `var` is
+/// `SRP_BOT_FOLIAGE`, `mapdata` the mapdata folder. A file that fails to load: a warning.
+fn foliage_of(
+    id: u32,
+    project: &str,
+    var: Option<&std::ffi::OsStr>,
+    mapdata: Option<&std::path::Path>,
+) -> Option<Foliage> {
+    let path = match foliage::Source::choose(var, mapdata) {
+        foliage::Source::Set(path) | foliage::Source::Default(path) => path,
+        foliage::Source::None => return None,
+    };
+    match Foliage::load(&path, project) {
+        Ok(foliage) => Some(foliage),
+        Err(why) => {
+            log::warn!("Match {id:#x}: the bot foliage not used ({why})");
+            None
+        }
+    }
+}
+
 /// TEST ONLY (`bots/jump_test.rs`, cargo feature `jump-test`): the jump test's reach into the match.
 #[cfg(feature = "jump-test")]
 impl Game {
@@ -686,16 +810,94 @@ impl Game {
 
     /// An upload came: its rows are logged; true when it answered a burst request.
     pub(super) fn jump_test_upload(&mut self, time: u32, clock: u32, bytes: usize, body: &[u8]) -> bool {
-        self.walkers
-            .as_mut()
-            .and_then(|walkers| walkers.bots.jump_test.as_mut())
-            .is_some_and(|test| test.upload(time, clock, bytes, body))
+        let id = self.id;
+        let Some(walkers) = self.walkers.as_mut() else {
+            return false;
+        };
+        let asked = walkers.bots.jump_test.as_mut().is_some_and(|test| test.upload(time, clock, bytes, body));
+        if asked {
+            log_notes(id, walkers.bots.fix_from_burst());
+        }
+        asked
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKit, bot_profile};
+
+    /// What the other bots believe of a bot's weapon: its role's, but the
+    /// rusher's follows the kit it wears (the SMG is an SMG, the SPAS-12 a
+    /// shotgun), and the lowest tier's rusher keeps the shotgun it has.
+    #[test]
+    fn the_rushers_weapon_kind_follows_its_kit() {
+        let kind =
+            |tier, rusher, role| weapon_of(&bot_profile(1, 0, role, BotEquipment { tier, rusher }));
+        for kit in RusherKit::ALL {
+            let shotgun = !matches!(kit.worn_in(BotTier::Mid), RusherKit::Smg | RusherKit::Alt);
+            let wanted = if shotgun {
+                WeaponKind::Shotgun
+            } else {
+                WeaponKind::Smg
+            };
+            assert_eq!(
+                kind(BotTier::Mid, kit, BotRole::Rusher),
+                Some(wanted),
+                "{}",
+                kit.name()
+            );
+            // The others by their role, whatever the rusher wears.
+            assert_eq!(
+                kind(BotTier::Mid, kit, BotRole::Flanker),
+                Some(WeaponKind::Smg)
+            );
+            assert_eq!(
+                kind(BotTier::Mid, kit, BotRole::Support),
+                Some(WeaponKind::Rifle)
+            );
+            assert_eq!(
+                kind(BotTier::Mid, kit, BotRole::Camper),
+                Some(WeaponKind::Sniper)
+            );
+        }
+        assert_eq!(
+            kind(BotTier::Low, RusherKit::Smg, BotRole::Rusher),
+            Some(WeaponKind::Shotgun)
+        );
+    }
+
+    /// On the live game data (`SRP_GAME_DATA`): the 13-15 rusher's P90 and
+    /// Kriss are SMGs too. Run alone:
+    /// `SRP_GAME_DATA=<server-game-data.db> cargo test -p match-server --lib
+    /// -- --ignored on_the_live_data_the_rushers_smgs`
+    #[test]
+    #[ignore = "needs SRP_GAME_DATA, the server's game data"]
+    fn on_the_live_data_the_rushers_smgs_are_smgs() {
+        survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads and passes srp's checks");
+        for tier in [BotTier::Mid, BotTier::High] {
+            for kit in [RusherKit::Smg, RusherKit::Alt] {
+                let profile =
+                    bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit });
+                assert_eq!(
+                    weapon_in_slot_7(&profile),
+                    Some(WeaponKind::Smg),
+                    "{tier} {}",
+                    kit.name()
+                );
+            }
+            for kit in [RusherKit::Slug, RusherKit::Helmet, RusherKit::Control] {
+                let profile =
+                    bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit });
+                assert_eq!(
+                    weapon_in_slot_7(&profile),
+                    Some(WeaponKind::Shotgun),
+                    "{tier} {}",
+                    kit.name()
+                );
+            }
+        }
+    }
 
     /// With `SRP_BOT_ROUTES` unset a match's bots get the table in the
     /// mapdata folder; empty or `off`, none; a path, that file.

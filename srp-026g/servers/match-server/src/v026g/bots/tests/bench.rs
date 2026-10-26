@@ -118,49 +118,69 @@ pub(crate) fn bench_pings(places: usize, seed: u32) -> Option<Vec<u32>> {
     Some((0..places).map(|_| rng.range(lo, hi.max(lo)) as u32).collect())
 }
 
-/// [`bench_tuning`]; for `side1`, the plays', the reflex's and the senses'
-/// numbers from `SRP_BENCH_SIDE1_<name>` instead of `SRP_BENCH_<name>`
-/// (the one-sided runs, `SRP_BENCH_ONE_SIDE`: team 1 plays by it).
+/// [`tuning_from`] of the environment.
 pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
-    let var = |name: &str| {
-        let prefix = if side1 { "SRP_BENCH_SIDE1_" } else { "SRP_BENCH_" };
-        bench_settings().var(&format!("{prefix}{name}"))
-    };
-    let mut tuning = Tuning::default();
+    tuning_from(bench_settings(), side1)
+}
+
+/// The tuning a bench run goes by: the defaults, changed by the run's settings, parsed into the typed
+/// [`Tuning`] once at the end (an unknown name or a value of the wrong kind refuses the run).
+///
+/// - `SRP_BENCH_TUNING` (for team 1 of a one-sided run, `SRP_BENCH_SIDE1_TUNING`) is a JSON merge patch
+///   (RFC 7386) over the defaults' JSON, the form of the `SRP_BOT_TUNING` file: objects merge key by key,
+///   anything else (a number, a list) replaces, `null` takes a key out (it falls back to its default).
+///   A new tuning switch needs no setting of its own: the run names it by its path, `{"aim": {"combat":
+///   {"band_legs": false}}}`. The patch's result is checked by [`Tuning::validate`] as the file's is.
+/// - The settings below it are older names for the same changes, kept so that the bench scripts and
+///   BENCH-GUIDE go on working (`SRP_BENCH_CHEAT`, `_BATTERY_SIGHT_M`, `_FRIEND_NEAR_M`, `_FF_*`,
+///   `_ESCAPE_CEILING`, `_SEARCH_FLOORS`, and the number lists `SRP_BENCH_<PLAY>`, `_COMBAT`, `_HEAL`, `_AIM`,
+///   `_SENSE`). They are applied first, in the order they always were, and the patch last, so it wins.
+///   For `side1` only the lists (`SRP_BENCH_SIDE1_<name>`) and the patch read team 1's names.
+pub(crate) fn tuning_from(settings: &BenchSettings, side1: bool) -> Tuning {
+    let prefix = if side1 { "SRP_BENCH_SIDE1_" } else { "SRP_BENCH_" };
+    let var = |name: &str| settings.var(&format!("{prefix}{name}"));
+    let mut tuning = serde_json::to_value(Tuning::default()).expect("the tuning is JSON");
+    // The floor-aware path distance on (`1`) or off (`0`, the default): `GridTuning::floor_paths`.
+    if let Ok(v) = settings.var("SRP_BENCH_FLOOR_PATHS") {
+        set(&mut tuning, "/grid/floor_paths", (v != "0").into());
+    }
+    // The lip guard (2 ticks held) and the short look-ahead on lips (0.8 m) on: both are off by default
+    // (`Feel::lip_guard_ticks`, `lip_look_ahead_m`).
+    if settings.var("SRP_BENCH_LIP_GUARD").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/lip_guard_ticks", 2.into());
+        set(&mut tuning, "/feel/lip_look_ahead_m", 0.8.into());
+    }
+    // Routes of a carrier over the jump links up to the standing jump only (`Feel::carrier_jump_m`; off by default:
+    // every jump link of the grid).
+    if settings.var("SRP_BENCH_CARRIER_JUMP").is_ok_and(|v| v == "on" || v == "1") {
+        set(&mut tuning, "/feel/carrier_jump_m", mapdata::grid::STANDING_JUMP_M.into());
+    }
     // The battery cheat instead of the fair battery knowledge.
-    if bench_settings().flag("SRP_BENCH_CHEAT") {
-        tuning.cheats.batteries = true;
+    if settings.flag("SRP_BENCH_CHEAT") {
+        set(&mut tuning, "/cheats/batteries", true.into());
     }
-    if let Some(m) = bench_settings().number("SRP_BENCH_BATTERY_SIGHT_M")
-    {
-        tuning.sense.battery_sight_m = m;
+    if let Some(m) = settings.number::<f32>("SRP_BENCH_BATTERY_SIGHT_M") {
+        set(&mut tuning, "/sense/battery_sight_m", m.into());
     }
-    if let Some(m) = bench_settings().number("SRP_BENCH_FRIEND_NEAR_M")
-    {
-        tuning.aim.friends.near_m = m;
+    if let Some(m) = settings.number::<f32>("SRP_BENCH_FRIEND_NEAR_M") {
+        set(&mut tuning, "/aim/friends/near_m", m.into());
     }
-    // The teammates led to the tick decided (`FriendlyFireTuning::lead`):
-    // 0 off, 1 on; and the lead's extra, ms.
-    if let Ok(v) = bench_settings().var("SRP_BENCH_FF_LEAD") {
-        tuning.aim.friends.lead = v != "0";
+    // The teammates led to the tick decided (`FriendlyFireTuning::lead`): 0 off, 1 on; and the lead's extra, ms.
+    if let Ok(v) = settings.var("SRP_BENCH_FF_LEAD") {
+        set(&mut tuning, "/aim/friends/lead", (v != "0").into());
     }
-    // Teammates this far past the target count
-    // (`FriendlyFireTuning::past_target_m`).
-    if let Some(m) = bench_settings().number("SRP_BENCH_FF_PAST_M")
-    {
-        tuning.aim.friends.past_target_m = m;
+    // Teammates this far past the target count (`FriendlyFireTuning::past_target_m`).
+    if let Some(m) = settings.number::<f32>("SRP_BENCH_FF_PAST_M") {
+        set(&mut tuning, "/aim/friends/past_target_m", m.into());
     }
-    // A teammate this near in front blocks whatever his angle
-    // (`FriendlyFireTuning::touch_m`; 0 off).
-    if let Some(m) = bench_settings().number("SRP_BENCH_FF_TOUCH_M")
-    {
-        tuning.aim.friends.touch_m = m;
+    // A teammate this near in front blocks whatever his angle (`FriendlyFireTuning::touch_m`; 0 off).
+    if let Some(m) = settings.number::<f32>("SRP_BENCH_FF_TOUCH_M") {
+        set(&mut tuning, "/aim/friends/touch_m", m.into());
     }
-    if let Some(ms) = bench_settings().number("SRP_BENCH_FF_LEAD_MS")
-    {
-        tuning.aim.friends.lead_extra_ms = ms;
+    if let Some(ms) = settings.number::<u32>("SRP_BENCH_FF_LEAD_MS") {
+        set(&mut tuning, "/aim/friends/lead_extra_ms", ms.into());
     }
-    // Collect's and Intercept's numbers: `name=value,...`.
+    // The plays' numbers: `name=value,...`.
     for (name, kind) in [
         ("COLLECT", super::plays::PlayKind::Collect),
         ("INTERCEPT", super::plays::PlayKind::Intercept),
@@ -172,73 +192,122 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
         ("HOLDEXIT", super::plays::PlayKind::HoldExit),
         ("CROSSFIRE", super::plays::PlayKind::Crossfire),
         ("PAIRUP", super::plays::PlayKind::PairUp),
+        ("RESUPPLY_PLAY", super::plays::PlayKind::Resupply),
     ] {
         let Ok(numbers) = var(name) else {
             continue;
         };
-        let play = tuning
-            .plays
-            .entry(kind)
-            .or_insert_with(|| super::plays::default_tuning(kind));
+        let play = serde_json::to_value(kind).expect("a play's name");
+        let play = play.as_str().expect("a play's name is a string");
         for pair in numbers.split(',').filter(|p| !p.is_empty()) {
-            let (name, value) = pair
+            let (number, value) = pair
                 .split_once('=')
                 .unwrap_or_else(|| panic!("SRP_BENCH_{name}: name=value"));
-            play.numbers
-                .insert(name.to_owned(), value.parse().expect("a number"));
+            let value: f32 = value.parse().expect("a number");
+            set(&mut tuning, &format!("/plays/{play}/numbers/{number}"), value.into());
         }
     }
-    // The reflex's numbers (`CombatTuning`): `name=json,...` (`;` between
-    // them when a value has a comma).
-    if let Ok(numbers) = var("COMBAT") {
-        let mut combat = serde_json::to_value(&tuning.aim.combat).unwrap();
-        let sep = if numbers.contains(';') { ';' } else { ',' };
+    // The reflex's numbers (`CombatTuning`): `name=json,...` (`;` between them when a value has a comma); the
+    // aim's own (`AimTuning`: `range_m`, `fire_within_deg`, `pause_ms`, ...) and the senses' (`SenseTuning`) likewise.
+    for (name, section, comma_or_semicolon) in [
+        ("COMBAT", "/aim/combat", true),
+        ("HEAL", "/heal", true),
+        ("AIM", "/aim", true),
+        ("SENSE", "/sense", false),
+    ] {
+        let Ok(numbers) = var(name) else {
+            continue;
+        };
+        let sep = if comma_or_semicolon && numbers.contains(';') { ';' } else { ',' };
         for pair in numbers.split(sep).filter(|p| !p.is_empty()) {
-            let (name, value) = pair.split_once('=').expect("SRP_BENCH_COMBAT: name=value");
-            combat[name] = serde_json::from_str(value).expect("SRP_BENCH_COMBAT: a JSON value");
+            let (key, value) = pair
+                .split_once('=')
+                .unwrap_or_else(|| panic!("SRP_BENCH_{name}: name=value"));
+            let value = serde_json::from_str(value)
+                .unwrap_or_else(|_| panic!("SRP_BENCH_{name}: a JSON value"));
+            tuning
+                .pointer_mut(section)
+                .expect("a section of the tuning")
+                .as_object_mut()
+                .expect("a section is an object")
+                .insert(key.to_owned(), value);
         }
-        tuning.aim.combat = serde_json::from_value(combat).expect("SRP_BENCH_COMBAT: known names");
     }
-    // The aim's own numbers (`AimTuning`: `range_m`, `fire_within_deg`,
-    // `pause_ms`, ...), as `SRP_BENCH_COMBAT`'s.
-    if let Ok(numbers) = var("AIM") {
-        let mut aim = serde_json::to_value(&tuning.aim).unwrap();
-        let sep = if numbers.contains(';') { ';' } else { ',' };
-        for pair in numbers.split(sep).filter(|p| !p.is_empty()) {
-            let (name, value) = pair.split_once('=').expect("SRP_BENCH_AIM: name=value");
-            aim[name] = serde_json::from_str(value).expect("SRP_BENCH_AIM: a JSON value");
-        }
-        tuning.aim = serde_json::from_value(aim).expect("SRP_BENCH_AIM: known names");
+    // The team's threat spots (K1): `0` off, else on; its parts, and the search's floors.
+    if let Ok(v) = settings.var("SRP_BENCH_THREAT") {
+        set(&mut tuning, "/threat/spots", (v != "0").into());
     }
-    // The senses' numbers (`SenseTuning`), as `SRP_BENCH_COMBAT`'s.
-    if let Ok(numbers) = var("SENSE") {
-        let mut sense = serde_json::to_value(&tuning.sense).unwrap();
-        for pair in numbers.split(',').filter(|p| !p.is_empty()) {
-            let (name, value) = pair.split_once('=').expect("SRP_BENCH_SENSE: name=value");
-            sense[name] = serde_json::from_str(value).expect("SRP_BENCH_SENSE: a JSON value");
-        }
-        tuning.sense = serde_json::from_value(sense).expect("SRP_BENCH_SENSE: known names");
+    if let Ok(v) = settings.var("SRP_BENCH_THREAT_DETOUR") {
+        set(&mut tuning, "/threat/detour", (v != "0").into());
     }
-    // A way out of a zone stays under its start's strength
-    // (`Tuning::escape_ceiling`): `0` off.
-    if let Ok(v) = bench_settings().var("SRP_BENCH_ESCAPE_CEILING") {
-        tuning.escape_ceiling = v != "0";
+    if let Ok(v) = settings.var("SRP_BENCH_THREAT_SPRINT") {
+        set(&mut tuning, "/threat/sprint", (v != "0").into());
     }
-    // The fight's side step refused onto a lip's band
-    // (`Tuning::clear_step_sees_lip`): `0` off.
-    if let Ok(v) = bench_settings().var("SRP_BENCH_CLEAR_STEP_LIP") {
-        tuning.clear_step_sees_lip = v != "0";
+    if let Some(n) = settings.number::<u32>("SRP_BENCH_THREAT_FLOORS") {
+        set(&mut tuning, "/threat/search_floors", n.into());
     }
-    if let Ok(floors) = bench_settings().var("SRP_BENCH_SEARCH_FLOORS") {
-        tuning.think.search_floors_per_poll = if floors == "max" {
+    // A way out of a zone stays under its start's strength (`HazardTuning::escape`; the flag reads as the old key did): `0` off.
+    if let Ok(v) = settings.var("SRP_BENCH_ESCAPE_CEILING") {
+        set(&mut tuning, "/hazard/escape", (v != "0").into());
+    }
+    if let Ok(floors) = settings.var("SRP_BENCH_SEARCH_FLOORS") {
+        let floors = if floors == "max" {
             u32::MAX
         } else {
             floors
                 .parse()
                 .expect("SRP_BENCH_SEARCH_FLOORS: a number or max")
         };
+        set(&mut tuning, "/think/search_floors_per_poll", floors.into());
+    }
+    let patch = var("TUNING").ok().filter(|text| !text.trim().is_empty());
+    if let Some(text) = &patch {
+        let mut patch: serde_json::Value = serde_json::from_str(text)
+            .unwrap_or_else(|cause| panic!("{prefix}TUNING is not JSON: {cause}"));
+        // The keys of a field that moved into a section still work in a patch.
+        Tuning::upgrade_keys(&mut patch).unwrap_or_else(|cause| panic!("{prefix}TUNING: {cause}"));
+        merge_patch(&mut tuning, patch);
+    }
+    let tuning: Tuning = serde_json::from_value(tuning)
+        .unwrap_or_else(|cause| panic!("the bench's tuning: {cause}"));
+    if patch.is_some() {
+        tuning
+            .validate()
+            .unwrap_or_else(|wrong| panic!("{prefix}TUNING: {wrong}"));
     }
     tuning
+}
+
+/// `value` is put at the JSON pointer `path` of the tuning: its parent must be there (a section the tuning
+/// does not have is a typo and refuses the run); a name the section does not have is refused when the
+/// whole is parsed, except a play's number, which may be any.
+fn set(tuning: &mut serde_json::Value, path: &str, value: serde_json::Value) {
+    let (parent, name) = path.rsplit_once('/').expect("a pointer has a name");
+    tuning
+        .pointer_mut(parent)
+        .and_then(serde_json::Value::as_object_mut)
+        .unwrap_or_else(|| panic!("the bench's tuning has no {parent}"))
+        .insert(name.to_owned(), value);
+}
+
+/// RFC 7386: `patch` merged into `target`. An object merges key by key, `null` takes a key out, anything
+/// else replaces what is there.
+pub(crate) fn merge_patch(target: &mut serde_json::Value, patch: serde_json::Value) {
+    let serde_json::Value::Object(patch) = patch else {
+        *target = patch;
+        return;
+    };
+    if !target.is_object() {
+        *target = serde_json::Value::Object(serde_json::Map::new());
+    }
+    let target = target.as_object_mut().expect("made an object above");
+    for (key, value) in patch {
+        if value.is_null() {
+            target.remove(&key);
+        } else {
+            merge_patch(target.entry(key).or_insert(serde_json::Value::Null), value);
+        }
+    }
 }
 
 /// [`Bots::poll`] with each part timed; the same steps in the same order.
@@ -248,7 +317,8 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let (mut made, mut notes) = (Vec::new(), Vec::new());
     let now = clock.clock;
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
-    bots.tracker.held_sounds(now);
+    bots.tracker.held_sounds(now, bots.tuning.sense.sprint_body_mps);
+    bots.tracker.launch_grenades(now, world.as_deref());
     if let Some(tactics) = bots.tactics.as_mut() {
         tactics.hazards.advance(now);
     }
@@ -266,8 +336,8 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
     let commanded = Instant::now();
     let (mut think, mut ticks) = (0.0, 0.0);
     let mut rays = RayBudget(bots.tuning.think.rays_per_poll);
-    bots.searching.left = SEARCHES_PER_POLL;
-    bots.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+    bots.features.searching.left = SEARCHES_PER_POLL;
+    bots.features.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
     let a = Instant::now();
     bots.go_on_searching();
     ticks += a.elapsed().as_secs_f64();
@@ -344,6 +414,7 @@ pub(crate) fn real_bot_cost() {
             false
         }
     };
+    say_the_rusher_kit();
     let table = bench_settings().var_os("SRP_BOT_ROUTES")
         .map(|path| super::routes::RouteTable::load(std::path::Path::new(&path)).unwrap());
     let limit_s: u32 = bench_settings().number("SRP_BENCH_SECONDS")
@@ -375,7 +446,10 @@ pub(crate) fn real_bot_cost() {
         let project = format!("level_{level:02}/day_{mode}");
         let started = Instant::now();
         let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name(&project))).unwrap();
-        let world = Arc::new(World::build(map, mapdata::CELL, mapdata::Body::default()));
+        // The grid with the gap links when this run's tuning has them
+        // (`GridTuning::gap_links`, `SRP_BENCH_TUNING`).
+        let links = bench_tuning().off_mesh_links();
+        let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
         let built_s = started.elapsed().as_secs_f32();
         // What the build freed handed back (glibc keeps it otherwise): the
         // memory of the world as the server holds it.
@@ -387,7 +461,7 @@ pub(crate) fn real_bot_cost() {
             // The bots as the lobby gives them (`bench_roster`): each its
             // role and the tier's kits, read back from its profile as the
             // match server does.
-            let roster = bench_roster(&teams, bench_tier());
+            let roster = bench_roster(&teams, bench_equipment());
             let roles = &roster.roles;
             let mut bots = Bots::new(
                 0xBE7C + per_team as u32 + seed * 1000,
@@ -401,7 +475,7 @@ pub(crate) fn real_bot_cost() {
             );
             // Every bot of one tier (`SRP_BENCH_TIER=4-5|9-10|13-15`): its
             // kits and its skill.
-            bots = bots.with_tiers(&roster.tiers);
+            bots = bots.with_tiers(&roster.equipments);
             // One-sided (`SRP_BENCH_ONE_SIDE`): team 1 by the
             // `SRP_BENCH_SIDE1_*` numbers, so a change given to team 0
             // alone shows in its K/D.
@@ -420,6 +494,13 @@ pub(crate) fn real_bot_cost() {
             if let Some(table) = &table {
                 bots.set_routes(table);
             }
+            // The bushes a sight line crosses (`SRP_BOT_FOLIAGE`, else `bot-foliage.json` of the mapdata folder).
+            if let super::foliage::Source::Set(path) | super::foliage::Source::Default(path) = super::foliage::Source::choose(
+                bench_settings().var_os("SRP_BOT_FOLIAGE").as_deref(),
+                Some(&dir),
+            ) {
+                bots.set_foliage(super::foliage::Foliage::load(&path, &project).unwrap());
+            }
             // Every place's weapon known as a live match knows it (the
             // weapon 1 of its role): play 11's matchup against the enemy's.
             if bench_settings().flag("SRP_BENCH_WEAPONS") {
@@ -433,6 +514,18 @@ pub(crate) fn real_bot_cost() {
                     .collect();
                 bots.set_weapons(weapons);
             }
+            // Every bot's weapon 1 shot reach (H1c, `shot_reach`; read only
+            // when `SenseTuning::shots` is by weapon).
+            let reach = bots
+                .bots
+                .iter()
+                .map(|bot| {
+                    let bot = bot.as_ref()?;
+                    let gun = bot.kits.get(bot.kit)?.0.primary.0;
+                    super::shot_reach::reach_of(&format!("wpn_{}", gun.item))
+                })
+                .collect();
+            bots.set_shot_reach(reach);
             let started = Instant::now();
             let summary = bots.map_ready(world.clone());
             let ready_ms = started.elapsed().as_secs_f32() * 1e3;
@@ -595,6 +688,11 @@ pub(crate) fn real_bot_cost() {
             let mut holder_thefts = [0u32; 2];
             let mut unheld_ticks = [0u64; 2];
             let mut takes_all = 0u32;
+            let mut threat_changes = 0u32;
+            let mut detour_deaths = 0u32;
+            let (mut bot_deaths, mut bot_ticks, mut detour_ticks) = (0u32, 0u64, 0u64);
+            let threat_searches_before = threat::searches();
+            let threat_checks_before = threat::checks();
             let mut raids = RaidTally::default();
             let mut events = BenchEvents::open(level, mode, per_team);
             let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
@@ -607,7 +705,12 @@ pub(crate) fn real_bot_cost() {
             let mut owner = owner::OwnerTally::new(game.bodies.len());
             bots.bench_camper = bench_settings().number("SRP_BENCH_CAMPER")
                 .map(|place| (place, None));
-            owner.camper = bots.bench_camper.map(|(place, _)| place);
+            owner.set_camper(bots.bench_camper.map(|(place, _)| place));
+            if let Some((place, _)) = bots.bench_camper
+                && camper::CamperOptions::from_env().long_gun
+            {
+                bots.arm_camper_long(place, bench_tier());
+            }
             // The zones' own shapes, for their hits on the bodies; batteries
             // taken from floors of zones on all match, and their spots.
             // The zones' damage to the stand-in's bodies, with
@@ -668,6 +771,17 @@ pub(crate) fn real_bot_cost() {
                     };
                     for (place, (now, before)) in game.stats.iter().zip(&stats_before).enumerate() {
                         push.stats(place, teams[place], now.0 - before.0, now.1 - before.1);
+                        let detour = threat::rounded_within(place, game.tick, 15_000);
+                        if bots.bots[place].is_some() && game.bodies[place].alive {
+                            bot_ticks += 1;
+                            detour_ticks += u64::from(detour);
+                        }
+                        if now.1 > before.1 {
+                            bot_deaths += now.1 - before.1;
+                            if detour {
+                                detour_deaths += now.1 - before.1;
+                            }
+                        }
                         let side = &mut by_team[usize::from(teams[place])];
                         if now.0 > before.0 {
                             by_play.entry(play_of(place)).or_default()[2] += now.0 - before.0;
@@ -882,6 +996,8 @@ pub(crate) fn real_bot_cost() {
                     for (place, hurt) in hurts.into_iter().enumerate() {
                         bots.hurt(place, hurt);
                     }
+                    standin_heal::tell(&mut game, &mut bots, world_tick);
+                    standin_traps::tell(&mut game, &mut bots, world_tick);
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             for note in bots.fixed(place, fix, Some(health)) {
@@ -950,6 +1066,9 @@ pub(crate) fn real_bot_cost() {
                     events.note(&note);
                     carry.note(&note);
                     push.note(&note, &bots);
+                    if note.text.contains(": threat spots keep ") {
+                        threat_changes += 1;
+                    }
                     if let Some(rest) = note.text.strip_prefix("takes ") {
                         takes_all += 1;
                         let kind = rest.split(' ').next().unwrap_or("").to_owned();
@@ -1238,7 +1357,25 @@ pub(crate) fn real_bot_cost() {
             if let Some((place, spot)) = bots.bench_camper {
                 eprintln!("  camper: place {place} spot {spot:?}");
             }
+            // The stand-in's bear traps (none carried: no line, the log as it was).
+            if !game.traps.events.is_empty() {
+                let [placed, enemy, mate, own, shot, hand] = game.traps.counts();
+                eprintln!(
+                    "  traps (stand-in): placed {placed}, caught enemy {enemy} mate {mate} own {own}, shot off {shot}, defused by hand {hand}"
+                );
+            }
             eprintln!("  push: {}", push.line(&bots));
+            eprintln!(
+                "  threat: changes {threat_changes} deaths {bot_deaths} deaths_after_detour {detour_deaths} bot_s {:.0} detour_bot_s {:.0} checked {} exposed {} round {} no_way {} too_long {} budget {}",
+                bot_ticks as f64 * f64::from(TICK_MS) / 1000.0,
+                detour_ticks as f64 * f64::from(TICK_MS) / 1000.0,
+                threat::checks()[0] - threat_checks_before[0],
+                threat::checks()[1] - threat_checks_before[1],
+                threat::searches()[0] - threat_searches_before[0],
+                threat::searches()[1] - threat_searches_before[1],
+                threat::searches()[2] - threat_searches_before[2],
+                threat::searches()[3] - threat_searches_before[3]
+            );
             if let Some(human) = &human {
                 eprintln!("  human: {}", human.line());
             }
@@ -1258,6 +1395,15 @@ pub(crate) fn real_bot_cost() {
                 let side = &mut kd[usize::from(teams[place])];
                 side[0] += stat.0;
                 side[1] += stat.1;
+            }
+            // The same by role (kills, deaths of both teams' bots of each):
+            // the rusher's kit (`SRP_BENCH_RUSHER`) against the other three's.
+            let mut kd_by_role: std::collections::BTreeMap<&str, [u32; 2]> = Default::default();
+            for (place, stat) in game.stats.iter().enumerate() {
+                let role = roster.roles.get(place).copied().flatten().unwrap_or("none");
+                let row = kd_by_role.entry(role).or_default();
+                row[0] += stat.0;
+                row[1] += stat.1;
             }
             let secs = |ticks: u64| (ticks as f64 * f64::from(TICK_MS) / 100.0).round() / 10.0;
             let play_s: std::collections::BTreeMap<&String, f64> = play_ticks
@@ -1319,6 +1465,7 @@ pub(crate) fn real_bot_cost() {
                     "seed": seed,
                     "kills": [kd[0][0], kd[1][0]],
                     "deaths": [kd[0][1], kd[1][1]],
+                    "kd_by_role": kd_by_role,
                     "delivered": game.delivered,
                     "points": game.points,
                     "taken": game.taken,
@@ -1435,30 +1582,79 @@ pub(crate) fn bench_tier() -> survarium::v026g::loadouts::BotTier {
     }
 }
 
+/// The bots' rusher kit as the run has it, in a line (like the game data's):
+/// the setting and what the data lets the tier's rusher wear.
+fn say_the_rusher_kit() {
+    let tier = bench_tier();
+    let asked = bench_rusher_kits().of(tier);
+    let worn = bench_equipment().rusher;
+    if tier == survarium::v026g::loadouts::BotTier::Low {
+        eprintln!("rusher kit: tier {tier} has the one kit (mp_153)");
+    } else if asked == worn {
+        eprintln!("rusher kit: tier {tier} `{}`", worn.name());
+    } else {
+        eprintln!(
+            "rusher kit: tier {tier} asked `{}`, THE GAME DATA LACKS ITS ITEMS: the old kit `{}`",
+            asked.name(),
+            worn.name()
+        );
+    }
+}
+
+/// The kit the rusher bots of the bench wear (`SRP_BENCH_RUSHER`, as the
+/// lobby's `SRP_PVB_RUSHER_KIT`: one word or a kit a tier; the old table
+/// when unset).
+pub(crate) fn bench_rusher_kits() -> survarium::v026g::loadouts::RusherKits {
+    use survarium::v026g::loadouts::RusherKits;
+    match bench_settings().var("SRP_BENCH_RUSHER") {
+        Ok(text) if !text.is_empty() => {
+            RusherKits::parse(&text).unwrap_or_else(|why| panic!("SRP_BENCH_RUSHER: {why}"))
+        }
+        _ => RusherKits::default(),
+    }
+}
+
+/// The equipment of the bench's bots: their tier (`SRP_BENCH_TIER`) and the
+/// kit that tier's rusher wears (`SRP_BENCH_RUSHER`) in the game data the
+/// run is on.
+pub(crate) fn bench_equipment() -> survarium::v026g::loadouts::BotEquipment {
+    survarium::v026g::loadouts::BotEquipment::of(bench_tier(), bench_rusher_kits())
+}
+
 /// The bench's bots on `teams` as the lobby and the match server have them:
 /// the lobby's roles for the roster (`loadouts::bot_roles`, each team's k-th
 /// bot `BotRole::nth(k)`), each bot's profile as the lobby builds it
-/// (`loadouts::bot_profile`, the role's three kits of `tier`), and the role
-/// and tier read back from the profile with `loadouts::bot_of`, as
-/// `game/driven.rs` does for a match's `Bots::new` and `with_tiers`. One
-/// home each, so the bench and a live match cannot drift: a bot carries what
-/// the lobby gives it, not a lowest-tier kit in every tier.
+/// (`loadouts::bot_profile`, the role's three kits of `equipment`), and the
+/// role and equipment read back from the profile with
+/// `loadouts::bot_equipment_of`, as `game/driven.rs` does for a match's
+/// `Bots::new` and `with_tiers`. One home each, so the bench and a live
+/// match cannot drift: a bot carries what the lobby gives it, not a
+/// lowest-tier kit in every tier.
 pub(crate) struct BenchRoster {
     pub(crate) roles: Vec<Option<&'static str>>,
-    pub(crate) tiers: Vec<Option<survarium::v026g::loadouts::BotTier>>,
+    pub(crate) equipments: Vec<Option<survarium::v026g::loadouts::BotEquipment>>,
 }
 
-pub(crate) fn bench_roster(teams: &[u8], tier: survarium::v026g::loadouts::BotTier) -> BenchRoster {
-    use survarium::v026g::loadouts::{bot_of, bot_profile, bot_roles};
+pub(crate) fn bench_roster(
+    teams: &[u8],
+    equipment: survarium::v026g::loadouts::BotEquipment,
+) -> BenchRoster {
+    use survarium::v026g::loadouts::{bot_equipment_of, bot_profile, bot_roles};
     let bots: Vec<_> = teams
         .iter()
         .zip(bot_roles(teams))
         .enumerate()
-        .map(|(n, (&team, role))| bot_of(&bot_profile(n + 1, team, role, tier)))
+        .map(|(n, (&team, role))| bot_equipment_of(&bot_profile(n + 1, team, role, equipment)))
         .collect();
     BenchRoster {
-        roles: bots.iter().map(|bot| bot.map(|(_, role)| role.name())).collect(),
-        tiers: bots.iter().map(|bot| bot.map(|(tier, _)| tier)).collect(),
+        roles: bots
+            .iter()
+            .map(|bot| bot.map(|(_, role)| role.name()))
+            .collect(),
+        equipments: bots
+            .iter()
+            .map(|bot| bot.map(|(equipment, _)| equipment))
+            .collect(),
     }
 }
 
@@ -1468,12 +1664,13 @@ pub(crate) fn bench_roster(teams: &[u8], tier: survarium::v026g::loadouts::BotTi
 /// gave no roles), the very `Arms` the match server's bots of that role and
 /// tier carry.
 #[test]
-fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
-    use survarium::v026g::loadouts::{BotRole, BotTier, bot_profile};
+pub(crate) fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
+    use survarium::v026g::loadouts::{BotEquipment, BotRole, BotTier, RusherKits, bot_profile};
     for per_team in [1usize, 4, 8, 10] {
         let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
         for tier in BotTier::ALL {
-            let roster = bench_roster(&teams, tier);
+            let equipment = BotEquipment::of(tier, RusherKits::default());
+            let roster = bench_roster(&teams, equipment);
             let mut bots = Bots::new(
                 0xBE7C,
                 survarium::v026g::maps::mode::BATTERIES,
@@ -1484,22 +1681,33 @@ fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
                 Arc::new(Tuning::default()),
                 Trace::none(0),
             )
-            .with_tiers(&roster.tiers);
+            .with_tiers(&roster.equipments);
             let mut on_team = [0usize; 2];
             for (place, &team) in teams.iter().enumerate() {
                 let role = BotRole::nth(on_team[usize::from(team)]);
                 on_team[usize::from(team)] += 1;
                 assert_eq!(roster.roles[place], Some(role.name()), "{per_team} {tier} place {place}");
-                assert_eq!(roster.tiers[place], Some(tier), "{per_team} {tier} place {place}");
-                // The bot carries the tier's kits of its role: the very Arms.
-                let want = Arms::kits_of(tier, role);
+                assert_eq!(
+                    roster.equipments[place].map(|equipment| equipment.tier),
+                    Some(tier),
+                    "{per_team} {tier} place {place}"
+                );
+                // The bot carries the tier's kits of its role: the very Arms
+                // (the rusher's kit is read back as the lobby gave it; the
+                // flanker's, where another kit makes the same bot, may not
+                // be).
+                let read = roster.equipments[place].expect("a bot of an equipment");
+                if role == BotRole::Rusher {
+                    assert_eq!(read, equipment, "{per_team} {tier} place {place}");
+                }
+                let want = Arms::kits_of(read, role);
                 let bot = bots.bots[place].as_mut().expect("a bot");
                 assert_eq!(bot.kits.len(), want.len(), "{tier} {role}");
                 for ((arms, _), want) in bot.kits.iter().zip(&want) {
                     assert!(std::ptr::eq(*arms, *want), "{tier} {role}");
                 }
                 // Its first kit's weapon is the lobby profile's weapon in slot 7.
-                let profile = bot_profile(place + 1, team, role, tier);
+                let profile = bot_profile(place + 1, team, role, equipment);
                 let slot = profile.kits[0].slots[7].expect("a weapon in slot 7");
                 let weapon = survarium::v026g::dictionary::Dictionary::shared()
                     .item_named(bot.reflex.held_gun().item)
@@ -1507,6 +1715,269 @@ fn the_bench_bots_are_the_lobbys_by_role_and_tier() {
                     .dict_id;
                 assert_eq!(profile.items[usize::from(slot.0)].dict_id, weapon, "{tier} {role}");
             }
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tuning_tests {
+    use super::*;
+
+    /// The bench's tuning before it was parsed once from JSON: the same switches, each set on the typed
+    /// tuning. Kept to show that the one parse gives what it gave.
+    fn reference(settings: &BenchSettings, side1: bool) -> Tuning {
+        let var = |name: &str| {
+            let prefix = if side1 { "SRP_BENCH_SIDE1_" } else { "SRP_BENCH_" };
+            settings.var(&format!("{prefix}{name}"))
+        };
+        let mut tuning = Tuning::default();
+        // The battery cheat instead of the fair battery knowledge.
+        if settings.flag("SRP_BENCH_CHEAT") {
+            tuning.cheats.batteries = true;
+        }
+        if let Some(m) = settings.number("SRP_BENCH_BATTERY_SIGHT_M")
+        {
+            tuning.sense.battery_sight_m = m;
+        }
+        if let Some(m) = settings.number("SRP_BENCH_FRIEND_NEAR_M")
+        {
+            tuning.aim.friends.near_m = m;
+        }
+        // The teammates led to the tick decided (`FriendlyFireTuning::lead`):
+        // 0 off, 1 on; and the lead's extra, ms.
+        if let Ok(v) = settings.var("SRP_BENCH_FF_LEAD") {
+            tuning.aim.friends.lead = v != "0";
+        }
+        // Teammates this far past the target count
+        // (`FriendlyFireTuning::past_target_m`).
+        if let Some(m) = settings.number("SRP_BENCH_FF_PAST_M")
+        {
+            tuning.aim.friends.past_target_m = m;
+        }
+        // A teammate this near in front blocks whatever his angle
+        // (`FriendlyFireTuning::touch_m`; 0 off).
+        if let Some(m) = settings.number("SRP_BENCH_FF_TOUCH_M")
+        {
+            tuning.aim.friends.touch_m = m;
+        }
+        if let Some(ms) = settings.number("SRP_BENCH_FF_LEAD_MS")
+        {
+            tuning.aim.friends.lead_extra_ms = ms;
+        }
+        // Collect's and Intercept's numbers: `name=value,...`.
+        for (name, kind) in [
+            ("COLLECT", super::plays::PlayKind::Collect),
+            ("INTERCEPT", super::plays::PlayKind::Intercept),
+            ("RAID", super::plays::PlayKind::Raid),
+            ("BUDDY", super::plays::PlayKind::Buddy),
+            ("TRADE", super::plays::PlayKind::Trade),
+            ("ROAM", super::plays::PlayKind::Roam),
+            ("CUT", super::plays::PlayKind::Cut),
+            ("HOLDEXIT", super::plays::PlayKind::HoldExit),
+            ("CROSSFIRE", super::plays::PlayKind::Crossfire),
+            ("PAIRUP", super::plays::PlayKind::PairUp),
+        ] {
+            let Ok(numbers) = var(name) else {
+                continue;
+            };
+            let play = tuning
+                .plays
+                .entry(kind)
+                .or_insert_with(|| super::plays::default_tuning(kind));
+            for pair in numbers.split(',').filter(|p| !p.is_empty()) {
+                let (name, value) = pair
+                    .split_once('=')
+                    .unwrap_or_else(|| panic!("SRP_BENCH_{name}: name=value"));
+                play.numbers
+                    .insert(name.to_owned(), value.parse().expect("a number"));
+            }
+        }
+        // The reflex's numbers (`CombatTuning`): `name=json,...` (`;` between
+        // them when a value has a comma).
+        if let Ok(numbers) = var("COMBAT") {
+            let mut combat = serde_json::to_value(&tuning.aim.combat).unwrap();
+            let sep = if numbers.contains(';') { ';' } else { ',' };
+            for pair in numbers.split(sep).filter(|p| !p.is_empty()) {
+                let (name, value) = pair.split_once('=').expect("SRP_BENCH_COMBAT: name=value");
+                combat[name] = serde_json::from_str(value).expect("SRP_BENCH_COMBAT: a JSON value");
+            }
+            tuning.aim.combat = serde_json::from_value(combat).expect("SRP_BENCH_COMBAT: known names");
+        }
+        // The aim's own numbers (`AimTuning`: `range_m`, `fire_within_deg`,
+        // `pause_ms`, ...), as `SRP_BENCH_COMBAT`'s.
+        if let Ok(numbers) = var("AIM") {
+            let mut aim = serde_json::to_value(&tuning.aim).unwrap();
+            let sep = if numbers.contains(';') { ';' } else { ',' };
+            for pair in numbers.split(sep).filter(|p| !p.is_empty()) {
+                let (name, value) = pair.split_once('=').expect("SRP_BENCH_AIM: name=value");
+                aim[name] = serde_json::from_str(value).expect("SRP_BENCH_AIM: a JSON value");
+            }
+            tuning.aim = serde_json::from_value(aim).expect("SRP_BENCH_AIM: known names");
+        }
+        // The senses' numbers (`SenseTuning`), as `SRP_BENCH_COMBAT`'s.
+        if let Ok(numbers) = var("SENSE") {
+            let mut sense = serde_json::to_value(&tuning.sense).unwrap();
+            for pair in numbers.split(',').filter(|p| !p.is_empty()) {
+                let (name, value) = pair.split_once('=').expect("SRP_BENCH_SENSE: name=value");
+                sense[name] = serde_json::from_str(value).expect("SRP_BENCH_SENSE: a JSON value");
+            }
+            tuning.sense = serde_json::from_value(sense).expect("SRP_BENCH_SENSE: known names");
+        }
+        // A way out of a zone stays under its start's strength
+        // (`HazardTuning::escape`): `0` off.
+        if let Ok(v) = settings.var("SRP_BENCH_ESCAPE_CEILING") {
+            tuning.hazard.escape =
+                if v != "0" { super::tuning::EscapeRule::UnderStartZone } else { super::tuning::EscapeRule::Nearest };
+        }
+        if let Ok(floors) = settings.var("SRP_BENCH_SEARCH_FLOORS") {
+            tuning.think.search_floors_per_poll = if floors == "max" {
+                u32::MAX
+            } else {
+                floors
+                    .parse()
+                    .expect("SRP_BENCH_SEARCH_FLOORS: a number or max")
+            };
+        }
+        tuning
+    }
+
+    fn settings(pairs: &[(&str, &str)]) -> BenchSettings {
+        BenchSettings::from_pairs(pairs)
+    }
+
+    /// Every older switch gives the tuning it gave, for team 0 and for team 1.
+    #[test]
+    fn every_older_switch_gives_the_tuning_it_gave() {
+        let cases: Vec<Vec<(&str, &str)>> = vec![
+            vec![],
+            vec![("SRP_BENCH_CHEAT", "")],
+            vec![("SRP_BENCH_BATTERY_SIGHT_M", "12.5"), ("SRP_BENCH_FRIEND_NEAR_M", "0.8")],
+            vec![
+                ("SRP_BENCH_FF_LEAD", "0"),
+                ("SRP_BENCH_FF_PAST_M", "3"),
+                ("SRP_BENCH_FF_TOUCH_M", "0"),
+                ("SRP_BENCH_FF_LEAD_MS", "40"),
+            ],
+            vec![("SRP_BENCH_COLLECT", "look_weight=0.5,search_weight=0.3"), ("SRP_BENCH_CUT", "weight_tdm=0.4")],
+            vec![("SRP_BENCH_COMBAT", "band_legs=false,range_floor_rifle_m=70")],
+            vec![("SRP_BENCH_COMBAT", "hide_m=[1,2];band_legs=false")],
+            vec![("SRP_BENCH_AIM", "wander_s=3;burst_ms=[10,20]")],
+            vec![("SRP_BENCH_SENSE", "touch_m=1.5")],
+            vec![("SRP_BENCH_ESCAPE_CEILING", "0"), ("SRP_BENCH_SEARCH_FLOORS", "max")],
+            vec![("SRP_BENCH_SEARCH_FLOORS", "100")],
+            vec![
+                ("SRP_BENCH_SIDE1_COMBAT", "band_legs=false"),
+                ("SRP_BENCH_SIDE1_CUT", "weight_tdm=0.4"),
+                ("SRP_BENCH_COMBAT", "range_floor_rifle_m=70"),
+            ],
+        ];
+        for pairs in &cases {
+            let s = settings(pairs);
+            for side1 in [false, true] {
+                assert_eq!(tuning_from(&s, side1), reference(&s, side1), "{pairs:?} side1 {side1}");
+            }
+        }
+        // And the defaults come back from their JSON as they are.
+        assert_eq!(tuning_from(&settings(&[]), false), Tuning::default());
+    }
+
+    /// The patch does what the older switches do, for team 0 and (by its own name) for team 1, and wins
+    /// over them when both name a thing.
+    #[test]
+    fn the_patch_is_the_older_switches_in_one_setting() {
+        let patch = r#"{"escape_ceiling": false, "aim": {"combat": {"band_legs": false}},
+                        "plays": {"cut": {"numbers": {"weight_tdm": 0.5}}}}"#;
+        let by_patch = tuning_from(&settings(&[("SRP_BENCH_TUNING", patch)]), false);
+        let by_switches = tuning_from(
+            &settings(&[
+                ("SRP_BENCH_ESCAPE_CEILING", "0"),
+                ("SRP_BENCH_COMBAT", "band_legs=false"),
+                ("SRP_BENCH_CUT", "weight_tdm=0.5"),
+            ]),
+            false,
+        );
+        assert_eq!(by_patch, by_switches);
+        assert_ne!(by_patch, Tuning::default());
+        // The keys of the fields that moved into a section (`tuning/legacy.rs`) still work in a patch, and are the new ones.
+        let old = tuning_from(
+            &settings(&[("SRP_BENCH_TUNING", r#"{"hazard_margin": 2.5, "escape_ceiling": false, "gap_links": true}"#)]),
+            false,
+        );
+        let new = tuning_from(
+            &settings(&[(
+                "SRP_BENCH_TUNING",
+                r#"{"hazard": {"margin_m": 2.5, "escape": "nearest"}, "grid": {"gap_links": true}}"#,
+            )]),
+            false,
+        );
+        assert_eq!(old, new);
+        assert_eq!(old.hazard.margin_m.get(), 2.5);
+        assert!(old.grid.gap_links);
+        // Team 1 reads its own patch only.
+        let side1 = tuning_from(&settings(&[("SRP_BENCH_SIDE1_TUNING", patch)]), true);
+        assert_eq!(side1, by_patch);
+        assert_eq!(tuning_from(&settings(&[("SRP_BENCH_SIDE1_TUNING", patch)]), false), Tuning::default());
+        // The patch wins over an older switch naming the same thing.
+        let both = tuning_from(
+            &settings(&[("SRP_BENCH_COMBAT", "band_legs=true"), ("SRP_BENCH_TUNING", patch)]),
+            false,
+        );
+        assert!(!both.aim.combat.band_legs);
+        // A patch changes only what it names, and keeps what an older switch set elsewhere.
+        let kept = tuning_from(
+            &settings(&[
+                ("SRP_BENCH_COMBAT", "range_floor_rifle_m=70"),
+                ("SRP_BENCH_TUNING", r#"{"aim":{"combat":{"band_legs":false}}}"#),
+            ]),
+            false,
+        );
+        assert_eq!(kept.aim.combat.range_floor_rifle_m, 70.0);
+        assert!(!kept.aim.combat.band_legs);
+    }
+
+    /// A name the tuning does not have, a value of the wrong kind, a value its limits refuse, and text
+    /// that is not JSON each refuse the run.
+    #[test]
+    fn a_patch_that_is_wrong_refuses_the_run() {
+        for bad in [
+            r#"{"aim": {"combat": {"no_such_switch": true}}}"#,
+            r#"{"escape_ceiling": "yes"}"#,
+            r#"{"sense": {"view_deg": 0}}"#,
+            "{not json",
+        ] {
+            let refused = std::panic::catch_unwind(|| tuning_from(&settings(&[("SRP_BENCH_TUNING", bad)]), false));
+            assert!(refused.is_err(), "{bad}");
+        }
+        // An older switch with a name the tuning lacks is refused too.
+        let refused = std::panic::catch_unwind(|| tuning_from(&settings(&[("SRP_BENCH_SENSE", "no_such=1")]), false));
+        assert!(refused.is_err());
+    }
+
+    /// RFC 7386's examples of the merge.
+    #[test]
+    fn the_merge_is_rfc_7386() {
+        let cases = [
+            (r#"{"a":"b"}"#, r#"{"a":"c"}"#, r#"{"a":"c"}"#),
+            (r#"{"a":"b"}"#, r#"{"b":"c"}"#, r#"{"a":"b","b":"c"}"#),
+            (r#"{"a":"b"}"#, r#"{"a":null}"#, "{}"),
+            (r#"{"a":"b","b":"c"}"#, r#"{"a":null}"#, r#"{"b":"c"}"#),
+            (r#"{"a":["b"]}"#, r#"{"a":"c"}"#, r#"{"a":"c"}"#),
+            (r#"{"a":"c"}"#, r#"{"a":["b"]}"#, r#"{"a":["b"]}"#),
+            (r#"{"a":{"b":"c"}}"#, r#"{"a":{"b":"d","c":null}}"#, r#"{"a":{"b":"d"}}"#),
+            (r#"{"a":[{"b":"c"}]}"#, r#"{"a":[1]}"#, r#"{"a":[1]}"#),
+            (r#"["a","b"]"#, r#"["c","d"]"#, r#"["c","d"]"#),
+            (r#"{"a":"b"}"#, r#"["c"]"#, r#"["c"]"#),
+            (r#"{"a":"foo"}"#, "null", "null"),
+            (r#"{"a":"foo"}"#, r#""bar""#, r#""bar""#),
+            (r#"{"e":null}"#, r#"{"a":1}"#, r#"{"e":null,"a":1}"#),
+            (r#"[1,2]"#, r#"{"a":"b","c":null}"#, r#"{"a":"b"}"#),
+            ("{}", r#"{"a":{"bb":{"ccc":null}}}"#, r#"{"a":{"bb":{}}}"#),
+        ];
+        for (target, patch, want) in cases {
+            let mut value: serde_json::Value = serde_json::from_str(target).unwrap();
+            merge_patch(&mut value, serde_json::from_str(patch).unwrap());
+            assert_eq!(value, serde_json::from_str::<serde_json::Value>(want).unwrap(), "{target} + {patch}");
         }
     }
 }

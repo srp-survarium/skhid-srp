@@ -38,7 +38,7 @@ pub const BATTERY_AIM_M: f32 = 0.1;
 /// can be off the battery) steps in closer while it presses.
 pub const USE_NEAR_M: f32 = 1.6;
 /// The steepest look down a take is tried at, radians: the view's pitch
-/// stops at 1 rad (`kin`, PROVEN), so from a crouch (the eye 0.95 m up)
+/// stops at 1 rad (`kin`, PROVEN), so from a crouch (the eye 1.04 m up)
 /// over a battery on the floor no ray passes within the use's 0.2 m of
 /// its middle closer than about 0.3 m on the ground (`bots::tests`): that
 /// is a look down of about 1.2 rad. Past this the bot steps off first.
@@ -231,12 +231,7 @@ impl TakeStand {
     }
 
     fn eye(&self) -> Vec3 {
-        let up = if self.crouch {
-            view::EYE_CROUCHED
-        } else {
-            view::EYE_STANDING
-        };
-        self.feet + Vec3::new(0.0, up, 0.0)
+        view::still_eye(self.feet, self.crouch)
     }
 }
 
@@ -617,8 +612,11 @@ fn battery_candidate_given(
 ) -> Option<Candidate> {
     let mut given = [(Input::PathDist, 0.0); 2];
     let mut n = 0;
-    // A battery a storey off is as far as the way between the floors.
-    if let TargetRef::Battery(battery) = target
+    // The floor paths off (`GridTuning::floor_paths`, off by default): only a
+    // battery a storey off is as far as the way between the floors, as
+    // before every play's `path_dist` was.
+    if !cx.tuning.grid.floor_paths
+        && let TargetRef::Battery(battery) = target
         && let Some(walk) = cx
             .battery_lying(battery)
             .and_then(|at| cx.storey_walk_dist(at))
@@ -1792,7 +1790,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
                 let Some(to) = cx.tactics.stand_to_take(at) else {
                     return Step::Failed("no way to it");
                 };
-                let below = me.y + view::EYE_CROUCHED - aim.y;
+                let below = view::still_eye(me, true).y - aim.y;
                 let within = if (to - at).length() < 0.01 {
                     take_flat_m(below, TAKE_PITCH_RAD).max(0.25)
                 } else {
@@ -2030,7 +2028,7 @@ fn settled(cx: &Ctx, stand: TakeStand, aim: Vec3) -> bool {
 }
 
 /// Whether the bot's view is on `aim` within [`SETTLED_RAD`].
-fn aimed_at(cx: &Ctx, aim: Vec3) -> bool {
+pub(super) fn aimed_at(cx: &Ctx, aim: Vec3) -> bool {
     use crate::v026g::bots::kin::{wrap, yaw_of};
     let eye = cx.me.eye();
     let (dx, dz) = (aim.x - eye.x, aim.z - eye.z);
@@ -3131,9 +3129,13 @@ mod tests {
         use crate::v026g::bots::kin::yaw_of;
         let me = s.bot(0, 0, feet);
         me.keys = key::CROUCH;
-        let eye = me.eye();
-        me.yaw = yaw_of([aim.x - eye.x, aim.z - eye.z]);
-        me.pitch = (aim.y - eye.y).atan2(eye.distance_xz(aim));
+        // The eye moves with the pitch: the view on `aim` from the eye it
+        // gives (a few rounds settle it).
+        for _ in 0..4 {
+            let eye = me.eye();
+            me.yaw = yaw_of([aim.x - eye.x, aim.z - eye.z]);
+            me.pitch = (aim.y - eye.y).atan2(eye.distance_xz(aim));
+        }
     }
 
     /// Whether the crouched eye at `feet` sees the battery's point to use.
@@ -3154,7 +3156,7 @@ mod tests {
     #[test]
     fn a_take_blocked_where_it_stopped_goes_round_the_battery() {
         use crate::v026g::bots::body::tests::wall_x;
-        let east = Vec3::new(26.3, 0.0, 12.0);
+        let east = Vec3::new(26.2, 0.0, 12.0);
         let mut s = take_field(&wall_x(25.6, 11.5, 12.5), east);
         assert!(!clear_from(&s, east), "the wall blocks the line");
         let target = TargetRef::Battery(0);
