@@ -154,11 +154,11 @@ impl Settings {
                 ),
             }
         }
-        for (name, field) in [("SRP_AMMO_USE", &mut settings.ammo_use)] {
-            if let Some(value) = var(name) {
-                match switch(&value) {
-                    Some(on) => *field = on,
-                    None => log::error!("{name} is `{value}`; it must be `on` or `off`. Using on"),
+        if let Some(value) = var("SRP_AMMO_USE") {
+            match switch(&value) {
+                Some(on) => settings.ammo_use = on,
+                None => {
+                    log::error!("SRP_AMMO_USE is `{value}`; it must be `on` or `off`. Using on");
                 }
             }
         }

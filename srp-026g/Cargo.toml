@@ -55,10 +55,8 @@ sha2 = "0.10"
 socket2 = { version = "0.5", features = ["all"] }
 thiserror = "2.0.12"
 
-actix-web = "4.10.2"
 env_logger = "0.10"
 log = "0.4"
-sqlx = { version = "0.8", features = [ "runtime-tokio" ] }
 
 binary-config-parser = { path = "crates/binary-config-parser" }
 resources-db = { path = "crates/resources-db" }
