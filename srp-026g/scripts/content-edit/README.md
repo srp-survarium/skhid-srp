@@ -475,3 +475,9 @@ six lines. Text only: no server data, no simulation change.
 
 Applied to the live file (stock 0.26g with patches 12..=33): 1 file edited, 0 unexpected
 differences. Not a simulation change.
+
+## kill-feed-weapons-1.json (2026-10-26)
+
+| change | why |
+|---|---|
+| `ui_desc/combat_log_icon` of the 21 configs of base patch 19's weapons: Saiga-12K (and premium) 31 -> 53, SOK-94 29 -> 54, PKP 38 -> 55, Vepr-12 (and premium) 31 -> 56, AEK-919K 3 -> 57, Kedr 22 -> 58, Neostead (both) 12 -> 59, FNC 31 -> 60, MP7 1 -> 61, MP7 silenced and Special 1 -> 62, HK416 31 -> 63, P90 47 -> 64, KRISS 47 -> 65, MSBS 31 -> 66, Valmet 31 -> 67, vz. 58 29 -> 68, M4A1 31 -> 21 | the owner: "new weapons that were added have incorrect icons" in the kill feed. The icon is frame (icon + 1) of the hud's weapon clip; the port gave these weapons stand-ins of stock weapons' icons, the clip ending at 52. Their builds' own icons (0.27d0 to 0.31a2 alike) are now in the hud movie (`CombatLogWeapon53` to `68`, [`../../docs/notes/kill-feed-icons.md`](../../docs/notes/kill-feed-icons.md)); the M4A1's 21 is the clip's own M4 |
