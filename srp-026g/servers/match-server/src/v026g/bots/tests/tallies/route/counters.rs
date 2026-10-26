@@ -95,6 +95,14 @@ pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The plans of a body on no floor of the grid, from the floor it drops to (`path::stranded`).
+pub(super) fn stranded() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::path::stranded::counts()],
+        |d, line| line.ends.push(format!("plans_from_stranded_stand {}", d[0])),
+    )
+}
+
 /// The sights begun, those through half a metre of bush or more, and the bush metres of all
 /// (`foliage::through`).
 pub(super) fn foliage() -> Box<dyn RouteTopic> {

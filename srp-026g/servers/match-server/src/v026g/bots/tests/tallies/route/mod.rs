@@ -101,6 +101,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(reversal_roles::ReversalRoles::new(bodies)),
         below_walk(),
         sprint_jumps(),
+        stranded(),
         foliage(),
         self_kills(),
         asks(),
