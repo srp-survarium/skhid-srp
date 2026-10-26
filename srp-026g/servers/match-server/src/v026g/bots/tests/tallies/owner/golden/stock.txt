@@ -1,0 +1,12 @@
+owner-test world weapons: reloads 0 (loops cut by fire or aim 0), out of rounds and ammo 0.0 s, fire held on a weapon that could not fire 0.0 s (empty or reloading 0.0 s), in 12 bot minutes; resupply box: uses 0 (topped up 0, ended with nothing 0), rounds put in 0
+{
+  "world_box_cut": 0,
+  "world_box_rounds": 0,
+  "world_box_topped": 0,
+  "world_box_uses": 0,
+  "world_cut_loops": 0,
+  "world_dry_s": 0.0,
+  "world_held_empty_or_reloading_s": 0.0,
+  "world_held_no_shot_s": 0.0,
+  "world_reloads": 0
+}
