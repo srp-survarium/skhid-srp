@@ -31,6 +31,7 @@ pub mod players;
 pub mod rules;
 pub mod snapshot;
 pub mod static_info;
+pub mod traps;
 pub mod upload;
 
 use client_model::COMPRESSED_SNAPSHOT_BUFFER;
