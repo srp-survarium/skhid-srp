@@ -413,37 +413,33 @@ the Bodycam study's recipe (the owner, 2026-10-25), proposals to tune in the gam
   difference over the frame's time, at most 8 m/s and 20 rad/s. A slot captures the
   game's skeleton at two draws (`Dying`) before its ragdoll starts. Every body starts on
   the plane the player stood on (its transform's place, up).
-- **The drive:** each joint turned toward its target, a fraction 1 - exp(-h 40 s) of the
-  way a substep, with the relative spin damped by s x 0.5 (at least 2.5 %, the joints'
-  friction). The strength s fades per group: s0 (1 - smoothstep(t0, t0 + T, t)), floored at
-  0.03. No world pin: only joint angles. The target is the death clip's relative pose (the
-  game keeps ticking +750h, so the clip is drawn every frame), except a body shot's legs.
-- **A body shot stands on its legs, then folds** (the owner, 2026-10-25: "similar to
-  Bodycam, where the model tries to still stand on its legs when it drops"; the numbers in
-  `crates/ragdoll/src/tuning.rs`): the legs hold at full strength for `LEG_HOLD` 0.25 s,
-  then fade over `LEG_FADE` 0.8 s; the waist and neck fade over `TRUNK_FADE` 0.4 s, the
-  arms over `ARM_FADE` 0.35 s, so the upper body slumps while the legs still carry it. The
-  legs drive toward a supporting stance, not the clip: the knees bent `KNEE_BEND` 15
-  degrees, each thigh toward its foot's place, which is under its hip moved
-  `BALANCE_ASSIST` 0.8 of the way toward under the centre of mass (feet `STANCE_HALF_WIDTH`
-  0.1 m apart): a balance assist that fades with the legs. No stagger step. After the legs'
-  fade their weak floor follows the clip as every other joint's. At most 0.05 rad a
-  substep of stance turn, so a hard landing does not throw the legs back up. A headshot
-  fades everything in 0.06 s to 0 (limp at once); a blast starts at 0.4 and fades in
-  0.15 s (weak tone, thrown).
-- **The impulse** (when the cause is known): 2 m/s on the hit body (3.5 heavy), 0.4 on every
-  body along the shot; a headshot 2.75 m/s on the head; a blast 3 to 6 m/s away and 1.5 up.
-  0.26g keeps no last hit (section 6, item 6): the cause is `Unknown` until a capture hook.
-- **A frame:** dt capped at 1/30 s, 6 substeps of one iteration each: integrate (g 9.81,
-  damping 0.05/s linear, 0.3/s angular), joints, drive, limits, collision between bodies,
-  the level and friction (static 0.9, kinetic 0.7, no bounce), the velocities. A body in
-  the level already leaves it by at most 6 mm a substep (pushed out at once, it is thrown).
-- **The level:** one query per moving body a frame, from its leading end along its motion
-  with the ground below it added (v dt plus the radius and 5 cm): the plane found is kept
-  for the substeps and the frames after while the body rests. A fast body (1.5 m/s at its
-  ends) asks from both ends; a body whose leading end finds nothing asks from the other,
-  and loses its plane only when neither has ground (a body half over a ledge stays on it).
-  The game's budget is 160 rays a frame for all ragdolls; a body not asked keeps its plane.
+- **The muscles (464c, section 12; 464b's timed stance is gone):** every joint has a muscle
+  that pulls toward the death clip's relative pose (the pose at the death while no clip is
+  drawn) as a compliant constraint: stiffness x strength, the strength s0 exp(-t / decay),
+  nothing below 1 %. Legs 500 N m/rad, decay 0.5 s; waist 250, 0.25 s; neck 60, 0.25 s;
+  arms 40, 0.2 s. The hit side's decay is 0.55 times shorter, a strong hit (60 N s) takes
+  40 % of every muscle at once. A weakening knee's target bends toward flexion by up to
+  1.4 rad as its strength goes, so the legs give way by themselves, more and more. A
+  headshot: strength 0.2, decay 0.07 s; a blast: 0.4, 0.15 s. The relative spin is damped by
+  s x 0.5 (at least 2.5 %, the joints' friction). A corpse a shot wakes is limp (no muscle).
+- **The impulse:** the killing bullet (and those within 0.15 s before it, at half) on the part
+  nearest its point: 3 times its momentum push (section 12), and 0.6 of it on the whole body,
+  level, at most 1.2 m/s; each part's speed change at most 6 m/s, its spin's 15 rad/s. The
+  killing hit's part names the cause (the head: a headshot). With no bullet known (a fall, a
+  blast): the motion the player had, no push.
+- **A frame:** the frame's time (capped at 1/30 s) is stepped in fixed substeps of 1/360 s,
+  the rest carried to the next frame (464c: the answer does not depend on the frame rate),
+  one iteration each: integrate (g 9.81, damping 0.05/s linear, 0.3/s angular), joints,
+  muscles, limits, collision between bodies, the level and friction (static 0.9, kinetic
+  0.7, no bounce), the velocities. A depth a body or two bodies already had (a plane found
+  late, two limbs wedged) goes out by at most 6 mm a substep and makes no speed: the
+  substep's start moves with it.
+- **The level:** each capsule end has its own plane (464c). One query per moving end a
+  frame (over 0.08 m/s; an end at rest keeps its plane), along its motion with the ground
+  below it added (v dt plus the radius and 5 cm). An end that finds nothing while the other
+  end lies on a plane, at that plane's height or above, takes that plane (a capsule across a
+  battery's or a ledge's edge stays on it); below it, it hangs past a step and is free. The
+  game's budget is 160 rays a frame for all ragdolls; an end not asked keeps its plane.
 - **Settled:** no capsule end moved 1.5 cm in 0.4 s, or every body slower than 0.05 m/s
   (the solver's creep between a limb, the ground and a leg); or every capsule end slower
   than 0.35 m/s for a second (a limb that still drifts, two constraints fighting with one
@@ -531,12 +527,12 @@ hand-written entries in `ragdoll_026g.asm` and the crate `ragdoll_arena` then go
 
 ## What the owner should see (the test round)
 
-- **Shot in the body:** the player does not drop like a sack. For a moment (about a
-  quarter of a second) the legs keep standing while the head, chest and arms sag; then the
-  knees buckle under the weight and fold, and the body goes down within about a second,
-  falling the way it was leaning (and the way the canned clip fell). The gun falls out of
-  the hands on its own and lands beside the body.
-- **Shot in the head:** limp at once: the body crumples straight down, no standing.
+- **Shot in the body (464c):** the body is knocked along the bullet: shot from the front it
+  goes back, from the side sideways, harder for a sniper's round than a pistol's, less in
+  heavy armour. The legs keep working as they weaken: the knees give way from the first
+  moment and more and more, the body down within about a second, falling the way the shot
+  pushed it. The gun falls out of the hands and lands beside the body.
+- **Shot in the head:** the head snaps back, the body crumples at once.
 - **On a slope, stairs, a ledge or against a wall:** the body follows the ground: it rolls
   or slides a little and comes to rest on it, never floating above it or sinking in; a
   body half over a ledge stays on it, one fully past it falls off.
@@ -546,23 +542,19 @@ hand-written entries in `ragdoll_026g.asm` and the crate `ragdoll_arena` then go
   rolling, never looking straight up or down, never below the ground; dragging still
   turns the view (patch 46).
 - **A respawn, or a rollback that takes the death back:** the ragdoll is gone at once.
-- **What may look off (tell me):** a corpse that crawls or twitches on the ground (the
-  drive's floor), legs that stand too long or too short (`LEG_HOLD`, `LEG_FADE`), an upper
-  body that slumps too early or too late (`TRUNK_FADE`), feet that slide oddly while the
-  body sags (`BALANCE_ASSIST`), a pistol that drops as long as a rifle (the gun's size is a
-  rifle's for now).
+- **What may look off (tell me):** a body that shakes on the ground (464c's fixes, section
+  12), a knock-back too strong or too weak (`tuning::DEATH_KNOCK`, `BODY_SHARE`), legs that
+  give way too early or too late (`LEG_DECAY`, `KNEE_GIVE`), knees left raised on a body on
+  its back, a pistol that drops as long as a rifle (the gun's size is a rifle's for now).
 - **Shooting a corpse, a body on a battery:** section 11's list.
 
 ## 10. Left, and the tuning to watch
 
 - **Rewire** the game side through `feat/rust-framework` (its hook template, bindings and
   test harness), then a local test build for the owner. Not run in a game yet.
-- **The last hit:** a capture hook in hit_impl (0x2D9EFC) for the impulse and the
-  headshot's fade (section 6, item 6). Until then every death fades as a body shot.
+- **The last hit:** done in 464c by the bullet hook (section 12), not hit_impl.
 - **The gun's bounds:** read the held item's model box for the dropped capsule.
-- **The drive's floor** (0.03): a clip whose end pose disagrees with the ground (a slope,
-  the body landed the other way) keeps pulling; the 5 s cap ends it. Lower it to 0 if
-  corpses crawl.
+- **The muscles' floor:** gone in 464c (they decay to nothing).
 - **Explosions** push no corpse yet (section 11).
 
 ## 11. Bullets through a corpse, the hit effect, batteries (2026-10-26)
@@ -594,9 +586,9 @@ waits for them; the hook is thread safe (below).
   (ray against capsule, the nearest hit). The corpses are only read here: the step writes
   them after the move, never during it.
 - **The push** is queued (32 a frame at most) and applied at the next step: an impulse at
-  the hit point along the bullet, `tuning::SHOT_IMPULSE` 12 N s for a weapon of stopping
-  power 0.4, scaled by the bullet's weapon's `stopping_power` (`[[bullet+40h]+0Ch]`, what
-  hit_impl's stagger reads, 0x2D9D7E; 0.4 to 2 times), lifted by 0.35 of its size (a shot
+  the hit point along the bullet, its momentum push (section 12: 0.8 x the ammo's `mass` x
+  the bullet's speed; 464b read `[[bullet+40h]+0Ch]` as the weapon's stopping power, but
+  `[bullet+40h]` is the ammo's data and +0Ch its `k_power`, 1 for every round), lifted by 0.35 of its size (a shot
   from a standing shooter goes down into a body on the ground, which the ground would stop
   dead), each body's speed change capped at 6 m/s and its spin's at 15 rad/s. The part hit
   takes it: a head or a forearm swings on its joint, the torso hardly moves. For 0.3 s after
@@ -611,7 +603,7 @@ waits for them; the hook is thread safe (below).
   (`[[bullet+8]+4]`), the bullet's id (+4) and its segment (+84h, counted by its pierces and
   reflections), all three in the bullet's serialized state, so a re-simulated tick gives the
   same three. The push uses the same key with the corpse's place and death
-  (`shot::ShotKey`), in a log of the last 128 (`shot::ShotLog`): the first trace pushes and
+  (`shot::ShotKey`), in a log of the last 256 (`shot::ShotLog`; living hits share it): the first trace pushes and
   plays, the next ones of the same shot do nothing. A rollback that takes the death back
   drops the ragdoll anyway (section 5). A push of a shot the rollback took back (a mispredicted
   shot of another player) stays: visual only.
@@ -689,6 +681,119 @@ last shot. A bullet through a wall into a corpse does nothing. A body falling on
 lies over it, not through it, and the battery stays where it was. Tell me if a corpse jumps
 too much or too little (`tuning::SHOT_IMPULSE`, `SHOT_LIFT`), or blood shows where no body is.
 
+## 12. 464c: the dance, the killing shot's push, a powered ragdoll, kit and ammo (2026-10-26)
+
+The owner's reports on 464b: "on the ground the bodies often start to dance"; "bullets don't
+seem to be giving momentum to where the body should fall"; "the thing we did with legs trying
+to stand doesn't look correct ... since legs dont move"; "characters have equipment which
+weighs differently and each bullet has a different force when hitting".
+
+**The dance: the causes (reproduced in `rest_report`, then fixed).** With the frame time the
+game has (it is measured each frame and varies), 464b's bodies on a floor, a slope, stairs,
+against a wall and on a battery never came to rest before the 5 s cap: their ends still moved
+at 1 to 19 m/s between 3 and 5 s after the death (at a steady 1/60 s most settled by 2.5 to
+4.9 s). Three causes, each fixed where it is:
+- **The substep followed the frame:** 6 substeps a frame of whatever length. A depth pushed
+  out at a fixed 6 mm a substep counted as speed, 6 mm / h: 3.6 m/s at 1/60 s, 5 m/s and more
+  at a short frame, more energy than the step had. Now the solver steps fixed 1/360 s
+  substeps (the frame's remainder carried over), and a depth already there goes out without a
+  speed.
+- **Two limbs wedged between each other and the ground** were pushed apart in full each
+  substep and pushed back by the ground: a limb shook in place (1.2 m/s of jitter on 2 cm of
+  creep). Now a self-collision's old depth goes out like the level's, slowly and without a
+  speed.
+- **One plane for a whole capsule:** a body across two surfaces (the floor and a battery, a
+  step's edge) flipped its one plane between them as it rocked. Now each capsule end has its
+  own plane, an end over an edge takes the other end's only at its height or above, and an
+  end below it falls free (464b-like inheritance from below lifted an end onto the step above
+  each frame and it fell back: a 5 cm sawtooth).
+- **Not a cause:** a settled body keeping its ragdoll (frozen, it steps nothing: the 60 s test
+  below); the 0.3 s window and the lift (only a push starts them, and only shots push, once);
+  the battery filter (the 108 maps' collision objects are 80h/100h and 1/20h, no 200h or 400h;
+  only batteries carry those bits among the objects put in with a group).
+- **The muscles' floor** (464b's 0.03 toward the clip for ever) pulled a body lying elsewhere
+  than the clip's last pose along the ground; the muscles now decay to nothing.
+- **Test** `a_lying_body_comes_to_rest_and_stays_still_on_every_surface` (corpse machine, the
+  game's frame times 1/30, 1/144, 1/60, 1/45, 1/75 s in turn, a rifle shot in the back): on the
+  floor, the slope, against the wall and on the battery the body is at rest 2.9 to 3.6 s after
+  the death with no bone shaking (no bone moves back and forth 4 times in 0.4 s by over 5 mm);
+  down the stairs it slides to the bottom and is at rest by 5.1 s; then not one bone moves for
+  60 s; after a burst of five rounds it is at rest again 1.5 to 3.9 s later and stays so.
+
+**The killing shot's push.** The same bullet hook now also keeps a bullet whose ray hit a
+living player's hit model (the result's object a `bt_animated_rigid_body`, vtable 0x9E2AF4,
+material +38h = 10, actor): the point, the bullet's push, once a shot (the same `ShotKey`, the
+place 0FEh and the body). The step gives it to the place whose `[[player+498h]+12Ch]` is that
+body (`activate_physics` 0x2D9930 adds it to the world), timed by the step's clock; a death
+takes the latest hit (kept 1 s) and those within 0.15 s before it (`shot::Recent`). The
+ragdoll starts with them (section 7, the impulse): a front shot falls back, a side shot
+sideways, a headshot snaps the head back, a leg hit kicks the leg. A death with no bullet (a
+fall, a blast, an anomaly): no push. (A hit of the same life that did not kill, within 1 s of
+another death, pushes too: rare, visual.)
+
+**A powered ragdoll** (the Bodycam look; section 7, the muscles). 464b held the legs at full
+strength toward a fixed stance for 0.25 s and then faded them: legs pinned like stilts while
+the trunk sagged, then the knees went at once. Now nothing is timed: every muscle weakens from
+the death on, the legs strongest and longest, the knee giving way more as it weakens, the hit
+side faster, the fall's direction from the push and the body's weight. The body shot's knee
+bends on every 0.1 s step (0, 0.17, 0.61, 0.80, 1.01, 1.19, 1.32 rad over 0.6 s), the pelvis
+is down by 1 s.
+
+**The kit's weight** (the dead player's, read every frame of its death): the inventory
+(`[player+10Ch]`), its 23 slots (+10Ch) as `inventory::update_weight` 0x2FC6E0 sums them into
+m_carried_weight: an item's +218h (kg a piece) times its count for a stack. Each slot on the
+parts it sits on: the helmet and the mask on the head, the torso's armour 70 % on the chest
+and 10 % each on the upper arms and the pelvis, the back's on the chest, the legs' 30 % on the
+pelvis and 25 % / 10 % on the thighs / shins, the gloves on the forearms, the boots on the
+shins, the weapons and the rest half on the chest, half on the pelvis; at most 40 kg a part.
+A heavier body takes the same push with less speed and loads its knees more.
+
+| kit (0.26g configs, kg) | helmet | mask | torso | back | legs | gloves | boots |
+|---|---|---|---|---|---|---|---|
+| lightest | 0.15 | 0.2 | 3 | 3 | 0.8 | 0.2 | 0.7 |
+| heaviest | 6 | 2 | 26.4 (Duty exo) | 35 (Duty exo) | 5 | 0.8 | 3 |
+
+A Duty exo-suit adds about 70 kg (the chest capped at 40); a scavenger's kit about 9.
+
+**The bullet's force.** The game has no hit impulse anywhere (no `impulse` key; bullets do not
+push rigid bodies). Its ammo data (`[bullet+40h]`, read by 0x332440 from the config's `data`)
+has `mass` (+14h, a gameplay scale) and `muzzle_speed` (+3Ch); the bullet's velocity now is
++1Ch (LIKELY). The push is 0.8 x mass x speed at the hit (N s); a corpse's shot takes it as
+is, a killing shot 3 times on the part plus 0.6 of that on the whole body:
+
+| round (config) | mass, kg | speed, m/s | corpse push, N s | killing push, N s |
+|---|---|---|---|---|
+| 9x18 (pistols) | 0.02 | 315 | 5.0 | 15 |
+| 9x19, .357 | 0.02 | 430-450 | 7 | 21 |
+| 5.45x39, 5.56x45 | 0.02 | 800 | 12.8 | 38 |
+| 7.62x39 | 0.02 | 700 | 11.2 | 34 |
+| 7.62x51, 7.62x54 | 0.1 | 800-850 | 64-68 | 190-200 (the part's cap: 6 m/s) |
+| 12.7x55 (ASh-12), 12.7x54 | 0.1-0.2 | 320-350 | 28-51 | 84-154 |
+| 12 mm slug | 0.1 | 450 | 36 | 108 |
+| 12 mm buckshot | 0.01 x 10 pellets | 250 | 2 each | 6 each |
+
+**Costs** (`cargo test --release -p ragdoll cost -- --ignored --nocapture`): 20 ragdolls
+dying at once, the step 0.77 ms a frame on average, 1.2 ms at worst (464b 0.63 / 1.3), all
+settled by 3.8 s; heavy fire on all 20 (every body hit every frame for 2 s) 0.99 ms on
+average, 1.4 ms at worst, settled again 3.1 s after; up to 440 level rays a frame before the
+game's 160 budget (two ends a body now). A trace with 20 ragdolls 0.14 to 0.5 microseconds.
+
+**Renders** (the solver offline, a standing body on flat ground, side and front views, 464b
+left, 464c right; 464b's renders use its own body-shot impulse, which the game never had):
+`ragdoll464c-vs-464b.mp4` (real time), `.slow4x.mp4`, `.gif`, made by `render_dump`
+(`cargo test -p ragdoll render_dump -- --ignored` with `RAGDOLL_DUMP`) and a small Python
+renderer. The front shot falls back, the knees giving way as it goes; the side shot buckles
+and topples sideways; the headshot snaps back and crumples.
+
+**Tests:** `cargo test -p ragdoll` (30, 6 opt-in): besides the above, the killing shot decides
+the fall (front: back, side: sideways, the head snapped back, the leg kicked, no shot no
+push); the legs give way progressively within a second; a heavy kit is knocked less, a sniper's
+round more than a pistol's; the push is the round's momentum (pistol < rifle < sniper, a pellet
+less than a pistol's); a death takes its killing hit and those 0.15 s before. The Unicorn check
+adds: a bullet in a living player's hit model (the hook as the original exe's code), the same
+ray again, the death knocked along it (the hip 0.8 m along the shot, an unshot death's none);
+its players have an inventory read for the kit's weight.
+
 ## Addresses (re-kit rows added in this change)
 
 | VA | Name | Row |
@@ -709,6 +814,8 @@ too much or too little (`tuning::SHOT_IMPULSE`, `SHOT_LIFT`), or blood shows whe
 | 0x32E460 | `player_shootmarks_storage::add_shootmark` (an effect once a shot) | abi |
 | 0x70E70 | `bt_animated_rigid_body` ctor: material 10 (`actor`) | abi |
 | 0x301CB0 | `victory_item_core::activate_physics`: group 0A18h, mask 418h | abi, inferred |
+| 0x332440 | `ammo_data::load`: the ammo config's `data` (+14h mass, +3Ch muzzle_speed) | abi, abi_inputs, inferred |
+| 0x2FC6E0 | `inventory::update_weight`: the slots, an item's weight and count | abi, abi_inputs |
 
 Already in the kit and used above: 0x338330 dead state activate, 0x3383E0 / 0x338430 /
 0x3384E0 its serialize / deserialize / end, 0x2474A0 mt_draw, 0x1F77E0 game_world::tick,
