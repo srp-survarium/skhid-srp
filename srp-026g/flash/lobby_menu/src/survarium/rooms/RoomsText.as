@@ -246,8 +246,8 @@ package survarium.rooms
                 "Schutzeinrichtung: Ladestationen", "Urządzenie ochronne: ładowarki"],
             "4": ["Team Deathmatch", "Командний бій", "Командный бой", "Kommandokampf", "Walka drużynowa"],
             "5": ["Research", "Дослідження", "Исследование", "Forschung", "Badania"],
-            "6": ["Protective device: Blackout", "Захисний пристрій: Блекаут", "Защитное устройство: Блэкаут",
-                "Schutzeinrichtung: Blackout", "Urządzenie ochronne: Blackout"]
+            "6": ["Protective device: blackout", "Захисний пристрій: блекаут", "Защитное устройство: блэкаут",
+                "Schutzeinrichtung: Blackout", "Urządzenie ochronne: blackout"]
         };
         // maps_dict's map_weather_id: 1 day, 2 rain, 3 evening, 4 night, 5 prerain.
         private static const WEATHER:Object = {

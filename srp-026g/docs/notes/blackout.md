@@ -11,9 +11,11 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
 
 ## The mode
 
-- **Its own mode in the lobby:** "Protective device: Blackout" (Захисний пристрій: Блекаут, Защитное
-  устройство: Блэкаут, Schutzeinrichtung: Blackout, Urządzenie ochronne: Blackout): a tick of
-  the rooms' create window, a card of the vote, a row of the room and match lists.
+- **Its own mode in the lobby:** "Protective device: blackout" (Захисний пристрій: блекаут, Защитное
+  устройство: блэкаут, Schutzeinrichtung: Blackout, Urządzenie ochronne: blackout: as each language
+  writes "Protective device: chargers"): a tick of the rooms' create window, a card of the vote, a
+  row of the room and match lists. Listed with the protective device's kinds: plain, chargers,
+  blackout, then team deathmatch and Research (the owner, 2026-10-26).
 - **Offered** while the server runs with `SRP_BLACKOUT=on` (off by default): the rooms' pool then
   holds each plain battery map of the match pool once more as Blackout.
 - **Rules:** the plain battery mode (mode 2, "Protective device": batteries from the spawners,

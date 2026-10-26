@@ -24,8 +24,9 @@ package survarium.rooms
     public class RoomsCreate
     {
         private static const FORM_W:Number = 420;
-        private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.TEAM_DEATHMATCH,
-            GameMode.RESEARCH, GameMode.BLACKOUT];
+        // The protective device's three kinds together (the owner, 2026-10-26), then team deathmatch and Research.
+        private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.BLACKOUT,
+            GameMode.TEAM_DEATHMATCH, GameMode.RESEARCH];
         // A slider after the design: the label and the gold value on one
         // line, a thin track gold up to a round gold knob, its range small
         // under it, a line between one slider and the next. Dragged or clicked; while dragged only the
@@ -247,10 +248,10 @@ package survarium.rooms
                 slider(y, win.say("wait"), "wait");
                 y += SLIDER_H + 12;
             }
-            // The modes the server's pool offers, in MODE_ORDER: the two kinds
-            // of protective device apart, team deathmatch, Research and
-            // Blackout; a mode out takes all its entries out of the pool. Rows
-            // of 24 px: four fit where three of 30 did.
+            // The modes the server's pool offers, in MODE_ORDER: the three kinds
+            // of protective device apart (plain, chargers, blackout), team
+            // deathmatch and Research; a mode out takes all its entries out of
+            // the pool. Rows of 24 px: four fit where three of 30 did.
             look.text(look._content, win.say("modes").toUpperCase(), 14, y, 260, 12, RoomsLook.DIM);
             y += 22;
             var offered:Array = poolModes();
