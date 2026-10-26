@@ -1906,6 +1906,49 @@ mod tests {
         }
     }
 
+    /// A jump link of 1.2 m (a sprint jump, only the clients' grid makes
+    /// one) is lined up from further back, walked into at a sprint, and
+    /// pressed only at speed; the press is counted.
+    #[test]
+    fn a_sprint_jump_is_walked_into_at_a_sprint_and_pressed_at_speed() {
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump: jump.then_some(Leap::Ledge),
+            low: false,
+        };
+        let mut route = Route::new(vec![
+            p(0.0, 0.0, false),
+            p(8.0, 0.0, false),
+            p(8.4, 1.2, true),
+            p(14.0, 1.2, false),
+        ]);
+        let ledge = Ledge {
+            take_off: Vec3::new(8.0, 0.0, 0.0),
+            way: [1.0, 0.0],
+            face: 0.2,
+            reach: 1.2,
+            gets_up: true,
+        };
+        let before = sprint_jumps::counts();
+        let climb = climb_ledge(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 400, false);
+        assert!(climb.up, "{:?}", climb.poses.last());
+        assert_eq!(climb.presses.len(), 1, "{:?}", climb.presses);
+        let (_, at) = climb.presses[0];
+        assert!(at.speed >= SPRINT_PRESS_SPEED_MS, "{at:?}");
+        let sprinting = climb
+            .poses
+            .iter()
+            .zip(&climb.decisions)
+            .filter(|(pose, d)| {
+                pose.feet.distance_xz(ledge.take_off) <= SPRINT_RUN_UP_M && d.keys & key::SPRINT != 0
+            })
+            .count();
+        assert!(sprinting > 0, "sprint held on the run-up");
+        let after = sprint_jumps::counts();
+        assert!(after[0].iter().sum::<u64>() > before[0].iter().sum::<u64>(), "press counted");
+    }
+
     /// A jump that does not get the body up is tried again only from the
     /// run-up, [`JUMP_TRIES`] times in all, each at the take-off; then it
     /// is given up on ([`Walked::JumpFailed`]). Walking or aiming. Held
