@@ -82,4 +82,10 @@ unsafe extern "C" {
     pub fn engine_ray_test(world: *mut c_void, result: *mut c_void, origin: *const f32, direction: *const f32, length: f32, group: u32, mask: u32, delegate: *const c_void, unflipped: u32);
     /// 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
     pub fn engine_release_object(object: *mut c_void, count: *mut u32);
+    /// 0x306d50 (unnamed): manager ECX, first EDX, second EDI; pops 0; EAX
+    pub fn engine_material_pair(manager: *const c_void, first: u32, second: u32) -> *const c_void;
+    /// 0x3223e0 survarium::bullet_manager::play_particle: position EAX, manager ESP+4, particle ESP+8, direction ESP+12, normal ESP+16, parameter ESP+20; pops 20
+    pub fn engine_play_particle(position: *const f32, manager: *mut c_void, particle: *const c_void, direction: *const f32, normal: *const f32, parameter: u32);
+    /// 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12
+    pub fn engine_play_sound(manager: *mut c_void, sound: *const c_void, position: *const f32);
 }

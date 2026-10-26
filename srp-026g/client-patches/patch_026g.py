@@ -498,7 +498,7 @@ Patches:
   0xF0D00). Textures only;
 - a killed player falls as a ragdoll (patch 76, with the late join;
   docs/notes/ragdoll.md): ragdoll_026g.asm and the Rust crate
-  ragdoll_arena (the arena's blocks ragdoll.code and .data), four
+  ragdoll_arena (the arena's blocks ragdoll.code and .data), five
   hooks (RAGDOLL_HOOKS): game_world::tick after the simulation's move
   (0x1F7C3C) steps every place's corpse (alive, or dead with its life's
   spawn time +328h as the death's key: a rollback that undoes the death
@@ -507,8 +507,13 @@ Patches:
   cull (0x24757C) draws a corpse of ours; mt_draw after the bones
   (0x247716) captures the death clip and writes the ragdoll's bones over
   its stack array; update_camera (0x1F3643) gives the local player's view
-  its ragdoll's eye, followed smoothly. Drawn only: nothing a match
-  computes, keeps or hashes changes;
+  its ragdoll's eye, followed smoothly; bullet::check_collision after
+  its ray (0x32D627) tests the bullet's segment against the ragdolls:
+  the part hit is pushed (once a shot: the bullet's shooter, id and
+  segment and the corpse's death, so a re-simulated tick pushes no
+  more), a settled body wakes, and the game's body-hit particle and
+  sound play there. Drawn only: nothing a match computes, keeps or
+  hashes changes, the bullet goes on as before;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2107,13 +2112,19 @@ KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb757
 #   written over the stack array;
 # - player::update_camera 0x1F3480, `mov ecx,[ebx+0F470h]` at 0x1F3643 (EAX
 #   the eye transform the view gets, &player+44Ch in the first person):
-#   rg_eye, the local player's ragdoll's eye instead.
+#   rg_eye, the local player's ragdoll's eye instead;
+# - bullet::check_collision 0x32D4E0, `movq xmm0,[eax]` / `movq [esp+38h],
+#   xmm0` at 0x32D627 (the bullet's ray just traced through the level and
+#   the living, its result in EAX): rg_bullet, the segment tested against
+#   the ragdolls; a corpse hit is pushed (once a shot) and shows the game's
+#   body-hit particle and sound (the material pair bullet x actor).
 # No base relocation is under a site and no branch aims inside one.
 RAGDOLL_HOOKS = (
     (0x1F7C3C, bytes.fromhex("807c240f00"), "rg_step", 0xE8),          # the simulation moved
     (0x24757C, bytes.fromhex("80bbe2f4000000"), "rg_cull", 0xE8),      # a corpse of ours drawn
     (0x247716, bytes.fromhex("8b8b90f20000"), "rg_apply", 0xE8),       # the bones, before "Weapon"
     (0x1F3643, bytes.fromhex("8b8b70f40000"), "rg_eye", 0xE8),         # the eye the view gets
+    (0x32D627, bytes.fromhex("f30f7e00" "660fd6442438"), "rg_bullet", 0xE8),  # a bullet's ray, traced
 )
 
 # The baked camouflage and decal textures kept, and baked or loaded once while
@@ -2337,6 +2348,8 @@ INSTALLS = {
                        "writes a ragdoll's bones and does the move", None, None),
     0x1F3643: (INLINE, "update_camera's `mov ecx,[ebx+0F470h]` (eax the eye transform): rg_eye, the local "
                        "player's ragdoll's eye in eax, then the move", None, None),
+    0x32D627: (INLINE, "check_collision's two moves of the ray's result (eax): rg_bullet, which tests the "
+                       "segment against the ragdolls, then does the moves", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -3534,7 +3547,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
                      "a fall gains speed for the time it fell, not for the steps of a split tick, "
-                     "a killed player falls as a ragdoll (drawn only), the death screen's camera on its head, "
+                     "a killed player falls as a ragdoll (drawn only) that bullets push and bloody, the death screen's camera on its head, "
                      "a model's LOD and screen factor at a wider field of view are the original's, "
                      "a drag turns the camera on the death screen and the wheel does nothing there, "
                      "a weapon wears the camouflage its item holds, "

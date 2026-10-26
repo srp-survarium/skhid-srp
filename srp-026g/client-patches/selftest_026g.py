@@ -4587,15 +4587,16 @@ def test_bake_cache(original, image, before):
 
 def test_ragdoll(original, image, before):
     """Check 76: the death ragdoll (patch 76, RAGDOLL_HOOKS; ../docs/notes/
-    ragdoll.md). Static, on the bytes: the four sites and what follows each
+    ragdoll.md). Static, on the bytes: the five sites and what follows each
     in the original, the calls into ragdoll.code in the build, no base
     relocation under a site and no branch inside one, the block the link's,
     its entries' shapes, the game's code it calls directly (the engine
-    library's ray_test and object release, the arena's memcpy and memset)
-    and its absolute stores (its own data alone). What it does runs
-    elsewhere: check_ragdoll_026g.py (Unicorn: the four hooks from their
-    sites, a death, a rollback, the same death again) and `cargo test -p
-    ragdoll` (the solver and the corpses' machine)."""
+    library's ray_test, object release, material pair, play_particle and
+    play_sound, the arena's memcpy and memset) and its absolute stores (its
+    own data alone). What it does runs elsewhere: check_ragdoll_026g.py
+    (Unicorn: the five hooks from their sites, a death, a rollback, the same
+    death again, bullets through a corpse, a body on batteries) and `cargo
+    test -p ragdoll` (the solver, the shots and the corpses' machine)."""
     stock = Image(original)
     rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
     check(rows(stock, 0x1F7C37, 0xC) == ["call 0x2d2e40", "cmp byte [esp+0xf],0x0", "jz 0x1f7c6c"]
@@ -4619,6 +4620,15 @@ def test_ragdoll(original, image, before):
                                               "call 0x2422b0"],
           "update_camera: the first person's eye (&player+44Ch) and the third person's copy join at 0x1F3643, "
           "EAX the transform the view's update (0x1F364B, patch 46's death_view in the build) gets")
+    check(rows(stock, 0x32D5E8, 0x3F)[:4] == ["mov edx,[ebp+0x0]", "mov edx,[edx+0x48]", "push byte +0x1",
+                                              "push edi"]
+          and rows(stock, 0x32D625, 0x17) == ["call edx", "movq xmm0,[eax]", "movq [esp+0x38],xmm0",
+                                              "movq xmm0,[eax+0x8]", "movq [esp+0x40],xmm0"]
+          and rows(stock, 0x32D5F3, 0x13) == ["push byte +0x10", "push ecx", "fstp dword [esp]",
+                                              "lea eax,[esp+0x34]", "push eax", "lea ecx,[esp+0xa8]", "push ecx"],
+          "check_collision: the bullet's ray through the world's vtable+48h (ray_test: the result, &[esp+90h] the "
+          "origin, &[esp+20h] the direction, the length, group 10h, mask 48h, the bullet, 1), then its result's "
+          "copy from EAX at 0x32D627")
     linked = P.arena()
     block = linked.blocks["ragdoll.code"]
     data = linked.blocks["ragdoll.data"]
@@ -4654,7 +4664,12 @@ def test_ragdoll(original, image, before):
                                         f"call {sym['ragdoll_apply']:#x}", "mov esp,esi", "mov ecx,[ebx+0xf290]", "ret"]
           and entry("rg_eye", 13) == ["push edx", "push esi", "mov esi,esp", "and esp,byte -0x10", "sub esp,byte +0x8",
                                       "push eax", "push ebx", f"call {sym['ragdoll_eye']:#x}", "mov esp,esi", "pop esi",
-                                      "pop edx", "mov ecx,[ebx+0xf470]", "ret"],
+                                      "pop edx", "mov ecx,[ebx+0xf470]", "ret"]
+          and entry("rg_bullet", 18) == ["pusha", "mov esi,esp", "lea ecx,[esp+0xb4]", "lea edx,[esp+0x44]",
+                                         "mov ebx,[esp+0x38]", "and esp,byte -0x10", "sub esp,byte +0xc", "push eax",
+                                         "push ebx", "push edx", "push ecx", "push edi",
+                                         f"call {sym['ragdoll_bullet']:#x}", "mov esp,esi", "popa",
+                                         "movq xmm0,[eax]", "movq [esp+0x3c],xmm0", "ret"],
           "the entries align the stack to 16 for Rust, keep the registers the game reads after each site, and "
           "do the instruction they stand over (the step's and the cull's compares for their je)")
     # the block's .text alone: its .rodata (constants, tables) is not code
@@ -4662,10 +4677,12 @@ def test_ragdoll(original, image, before):
     texts = [text for _, _, text in ndisasm(code[:text_size], block.va)]
     outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
                       and not block.va <= branch_target(t) < block.va + len(code)})
-    allowed = {sym["engine_ray_test"], sym["engine_release_object"], sym["memcpy"], sym["memset"]}
+    allowed = {sym["engine_ray_test"], sym["engine_release_object"], sym["engine_material_pair"],
+               sym["engine_play_particle"], sym["engine_play_sound"], sym["memcpy"], sym["memset"]}
     check(outside and set(outside) <= allowed,
-          "its direct calls out of the block: the engine library's ray_test and object release, the arena's "
-          "memcpy and memset (the rest are the network client's vtable and the two imports, by pointer)"
+          "its direct calls out of the block: the engine library's ray_test, object release, material pair, "
+          "play_particle and play_sound, the arena's memcpy and memset (the rest are the network client's "
+          "vtable and the two imports, by pointer)"
           + "".join(f"; {t:#x}" for t in sorted(set(outside) - allowed)))
     stores = [t for t in texts if re.match(r"(mov|add|sub|and|or|xor|inc|dec)\w* (byte |word |dword |qword )?\[(dword )?0x", t)]
     absolute = [int(m, 16) for t in stores for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", t)]

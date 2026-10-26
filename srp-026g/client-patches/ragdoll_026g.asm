@@ -9,8 +9,8 @@
 bits 32
 section .text
 
-global rg_step, rg_cull, rg_apply, rg_eye
-extern ragdoll_step, ragdoll_draws, ragdoll_apply, ragdoll_eye
+global rg_step, rg_cull, rg_apply, rg_eye, rg_bullet
+extern ragdoll_step, ragdoll_draws, ragdoll_apply, ragdoll_eye, ragdoll_bullet
 
 %define CULL_SEEN   0xF4E2              ; player: its model not seen the last frame (0x247519)
 %define MODEL       0xF290              ; player: its model
@@ -88,6 +88,35 @@ rg_eye:
     pop esi
     pop edx
     mov ecx, [ebx+INPUT]
+    ret
+
+; bullet::check_collision 0x32D627 `movq xmm0,[eax]` + `movq [esp+38h],xmm0`
+; (10 bytes, right after the level's ray_test through the world's vtable+48h,
+; which copies its result next) -> call rg_bullet + 5 nops. EAX = the ray's
+; result (28h bytes: +0 the point, +1Ch the object, 0 for none), EDI = the
+; bullet; in check_collision's frame (ESP+n at the site, ESP+4+n here) +90h
+; the ray's origin, +20h its unit direction, +14h its length. The ray_test
+; returned just now: no XMM or x87 value is live, EFLAGS is set again at
+; 0x32D661. Every register kept, both moves done. ragdoll_bullet only reads
+; the game's memory; it may run on the bullet manager's worker threads.
+rg_bullet:
+    pushad
+    mov esi, esp
+    lea ecx, [esp+0x24+0x90]            ; the origin (float3)
+    lea edx, [esp+0x24+0x20]            ; the unit direction (float3)
+    mov ebx, [esp+0x24+0x14]            ; the length (float)
+    and esp, -16
+    sub esp, 12
+    push eax                            ; the ray's result
+    push ebx
+    push edx
+    push ecx
+    push edi                            ; the bullet
+    call ragdoll_bullet
+    mov esp, esi
+    popad
+    movq xmm0, [eax]                    ; the original's two moves
+    movq [esp+0x3c], xmm0               ; its [esp+38h], past our return address
     ret
 
 ; memmove(to, from, size) for the Rust crate (cdecl; returns `to`): the

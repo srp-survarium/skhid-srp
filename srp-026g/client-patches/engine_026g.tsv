@@ -36,3 +36,6 @@ engine_cc_bool	0x01ddb0	EAX:object ESP+4:name ESP+8:value ESP+12:saved ESP+16:ki
 engine_binded_action	0x207d50	EAX:binder EDI:kinds ESI:key ESP+4:toggle	unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
 engine_ray_test	0x075e20	ECX:world ESP+4:result ESP+8:origin ESP+12:direction ESP+16:length ESP+20:group ESP+24:mask ESP+28:delegate ESP+32:unflipped	void engine_ray_test(void *world, void *result, const float *origin, const float *direction, float length, unsigned int group, unsigned int mask, const void *delegate, unsigned int unflipped)
 engine_release_object	0x0e0210	ECX:instance EAX:count	void engine_release_object(void *object, unsigned int *count)
+engine_material_pair	0x306d50	ECX:manager EDX:first EDI:second	const void *engine_material_pair(const void *manager, unsigned int first, unsigned int second)
+engine_play_particle	0x3223e0	EAX:position ESP+4:manager ESP+8:particle ESP+12:direction ESP+16:normal ESP+20:parameter	void engine_play_particle(const float *position, void *manager, const void *particle, const float *direction, const float *normal, unsigned int parameter)
+engine_play_sound	0x3222f0	ESP+4:manager ESP+8:sound ESP+12:position	void engine_play_sound(void *manager, const void *sound, const float *position)

@@ -40,6 +40,9 @@ global engine_cc_bool
 global engine_binded_action
 global engine_ray_test
 global engine_release_object
+global engine_material_pair
+global engine_play_particle
+global engine_play_sound
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -677,6 +680,60 @@ engine_release_object:
     mov ecx, [esp + 20]   ; object
     mov eax, [esp + 24]   ; count
     call 0xe0210
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_material_pair:
+    ; 0x306d50 (unnamed): manager ECX, first EDX, second EDI; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; manager
+    mov edx, [esp + 24]   ; first
+    mov edi, [esp + 28]   ; second
+    call 0x306d50
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_play_particle:
+    ; 0x3223e0 survarium::bullet_manager::play_particle: position EAX, manager ESP+4, particle ESP+8, direction ESP+12, normal ESP+16, parameter ESP+20; pops 20
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; parameter -> 20
+    push dword [esp + 40]   ; normal -> 16
+    push dword [esp + 40]   ; direction -> 12
+    push dword [esp + 40]   ; particle -> 8
+    push dword [esp + 40]   ; manager -> 4
+    mov eax, [esp + 40]   ; position
+    call 0x3223e0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_play_sound:
+    ; 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; position -> 12
+    push dword [esp + 28]   ; sound -> 8
+    push dword [esp + 28]   ; manager -> 4
+    call 0x3222f0
     pop edi
     pop esi
     pop ebx

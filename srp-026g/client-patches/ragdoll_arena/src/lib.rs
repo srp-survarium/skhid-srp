@@ -15,18 +15,23 @@
 //! - `ragdoll_apply` (mt_draw, the bones made, the "Weapon" bone not yet
 //!   read): the clip captured, the ragdoll's bones written;
 //! - `ragdoll_eye` (update_camera, the eye given to the view): the local
-//!   player's own ragdoll's eye, followed smoothly.
+//!   player's own ragdoll's eye, followed smoothly;
+//! - `ragdoll_bullet` (bullet::check_collision, the bullet's ray traced):
+//!   the segment tested against the ragdolls; a hit corpse's part is pushed
+//!   at the next step (once a shot) and the game's body-hit particle and
+//!   sound play at the hit (`shot_effects`).
 
 #![no_std]
 
 use core::ffi::c_void;
 use core::ptr::{null, read_volatile, write_volatile};
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
-use ragdoll::corpse::{Corpse, Corpses, Death, DeathKey, Drawn, Frame, MAX_PLACES, Seen, SlotId};
+use ragdoll::corpse::{Corpse, CorpseHit, Corpses, Death, DeathKey, Drawn, Frame, MAX_PLACES, Seen, SlotId};
 use ragdoll::math::{Pose, Quat, Vec3, abs};
 use ragdoll::ragdoll::{Cause, GunShape, Level, Skeleton, Sweep};
-use ragdoll::skeleton::{BONE_COUNT, BONES};
+use ragdoll::shot::{Shot, ShotKey, ShotLog, impulse};
+use ragdoll::skeleton::{BONE_COUNT, BONES, Part};
 
 mod engine {
     include!("../../engine_026g.rs");
@@ -66,10 +71,15 @@ const BONE_SIZE: usize = 0x1C;
 /// The imports' slots: QueryPerformanceCounter, QueryPerformanceFrequency.
 const QUERY_COUNTER: usize = 0x870158;
 const QUERY_FREQUENCY: usize = 0x870150;
-/// ray_test's filter: the foot IK's group and the walkers' mask, the level
-/// alone (no players, hit models, grenades, batteries or items).
-const LEVEL_GROUP: u32 = 0x24;
-const LEVEL_MASK: u32 = 0x02;
+/// ray_test's filter (an object is hit when its mask has a bit of the
+/// group and its group a bit of the mask): the foot IK's level (group 24h,
+/// mask 2: walkable geometry, no players 824h/3, hit models 40h/11h or
+/// grenades 818h/8), and the batteries (group 0A18h, mask 418h, put in by
+/// victory_item_core 0x301CB0, lying or just dropped): bits 400h and 200h,
+/// which no other object of the world has. The ray only reads the world:
+/// a body rests on a battery, the battery is never moved.
+const LEVEL_GROUP: u32 = 0x24 | 0x400;
+const LEVEL_MASK: u32 = 0x02 | 0x200;
 /// ray_test's result: the hit point, the normal (toward the ray's start
 /// when the last argument is 0), the object (0: no hit).
 const HIT_POINT: usize = 0x0;
@@ -78,6 +88,41 @@ const HIT_OBJECT: usize = 0x1C;
 /// The level's rays a frame, for all ragdolls (a ray is a few microseconds).
 const RAYS_A_FRAME: u32 = 160;
 const UP: Vec3 = Vec3::Y;
+
+// A bullet (`ragdoll_bullet`; the re-kit rows of check_collision 0x32D4E0).
+const BULLET_ID: usize = 0x4;
+/// The shooter (0: none; the game then plays no hit effects): +4 its place.
+const BULLET_SHOOTER: usize = 0x8;
+const SHOOTER_PLACE: usize = 0x4;
+/// The weapon's damage parameters: +0Ch its stopping_power (hit_impl's
+/// stagger, 0x2D9D7E).
+const BULLET_DAMAGE: usize = 0x40;
+const STOPPING_POWER: usize = 0xC;
+const BULLET_MANAGER: usize = 0x44;
+const BULLET_MATERIAL: usize = 0x48;
+/// The game's own condition for a hit's sound (process_front_face_piercing
+/// 0x32E6CC): +80h clear and at most one segment before.
+const BULLET_QUIET: usize = 0x80;
+const BULLET_SEGMENT: usize = 0x84;
+/// bullet manager: the renderer (0: no effects), the game materials.
+const MANAGER_RENDERER: usize = 0x90;
+const MANAGER_MATERIALS: usize = 0x94;
+/// game material: its id.
+const MATERIAL_ID: usize = 0x64;
+/// The material a living player's hit model is to bullets (bt_animated_rigid_body
+/// 0x70E70 sets every hit body's +38h to 10, `actor`): the pair bullet x actor
+/// plays fx/material_hits/blod and body_hits.
+const ACTOR: u32 = 10;
+/// The material pair: the sound's slot, the particles' slots (begin, end),
+/// their parameter (process_front_face_piercing's, a body's way).
+const PAIR_SOUND: usize = 0x18;
+const PAIR_PARTICLES: usize = 0x24;
+const PAIR_PARTICLES_END: usize = 0x28;
+const PAIR_PARAMETER: usize = 0x74;
+/// The ray's result (ray_test's): the object, 0 when nothing was hit.
+const RESULT_OBJECT: usize = 0x1C;
+/// The pushes kept between a frame's bullets and its step.
+const PUSHES: usize = 32;
 
 /// A game address (the exe is never rebased; the arena is 32-bit).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -219,12 +264,36 @@ enum Clock {
     Running { ticks: u32, frequency: u32 },
 }
 
+/// A shot's push on a corpse, for the next step.
+#[derive(Clone, Copy)]
+struct Push {
+    place: usize,
+    death: DeathKey,
+    part: Part,
+    point: Vec3,
+    impulse: Vec3,
+}
+
+/// The shots of the frame's bullets: the log of those applied, the pushes
+/// to apply. The bullets may be ticked on several threads at once
+/// (bullet_manager::tick, 256 a task), so `SHOTS_LOCK` guards these.
+struct Shots {
+    log: ShotLog,
+    pushes: [Option<Push>; PUSHES],
+}
+
 struct State {
     corpses: Corpses,
     draws: [Draw; MAX_PLACES],
     eye: EyeView,
     mappings: [Mapping; 4],
     clock: Clock,
+    shots: Shots,
+    /// Set by the step when some place has a ragdoll a bullet could meet:
+    /// the bullets' trace returns at once otherwise.
+    any_bodies: AtomicBool,
+    /// Guards `shots` between the bullets' threads.
+    shots_lock: AtomicBool,
 }
 
 /// The game has one world at a time; its logic thread runs the step, and
@@ -236,6 +305,12 @@ static mut STATE: State = State {
     eye: EyeView::Off,
     mappings: [Mapping::Empty; 4],
     clock: Clock::Unstarted,
+    shots: Shots {
+        log: ShotLog::new(),
+        pushes: [None; PUSHES],
+    },
+    any_bodies: AtomicBool::new(false),
+    shots_lock: AtomicBool::new(false),
 };
 
 /// A Windows import (stdcall: it pops its argument; `extern "system"` is cdecl
@@ -383,6 +458,13 @@ pub unsafe extern "C" fn ragdoll_step(world: *mut u8) {
     unsafe {
         let state = &mut *(&raw mut STATE);
         let dt = frame_time(&mut state.clock);
+        // the pushes of the shots since the last step (the bullets' threads
+        // are done: the simulation's move has returned)
+        for push in state.shots.pushes.iter_mut() {
+            if let Some(p) = push.take() {
+                state.corpses.push(p.place, p.death, p.part, p.point, p.impulse);
+            }
+        }
         let world = Addr(world as u32);
         let client = world.pointer(GAME).and_then(|game| game.pointer(CLIENT));
         let mut seen_places = [Seen::Alive; MAX_PLACES];
@@ -424,6 +506,148 @@ pub unsafe extern "C" fn ragdoll_step(world: *mut u8) {
             (Some(eye), Some((_, player))) => EyeView::On { player, matrix: matrix_of(eye) },
             _ => EyeView::Off,
         };
+        state.any_bodies.store(state.corpses.any_bodies(), Ordering::Release);
+    }
+}
+
+/// A float3 of the game's.
+unsafe fn vec3(at: *const [f32; 3]) -> Vec3 {
+    let [x, y, z] = unsafe { read_volatile(at) };
+    Vec3::new(x, y, z)
+}
+
+/// bullet::check_collision's ray (0x32D627, the ray traced, its result not
+/// yet read): `bullet` the bullet, `from` + `direction` (unit) x `length`
+/// the ray, `result` its result. The segment, cut at what the game's ray
+/// hit, is tested against the ragdolls; a hit is pushed at the next step,
+/// once a shot, and shows the game's body-hit effects. Reads the game's
+/// memory only (and calls the bullet manager's own effect queues), so the
+/// bullet goes on exactly as before.
+///
+/// # Safety
+/// The game's bullet, its ray and result, inside the simulation's move.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ragdoll_bullet(
+    bullet: *const u8,
+    from: *const [f32; 3],
+    direction: *const [f32; 3],
+    length: f32,
+    result: *const u8,
+) {
+    // (the atomics alone are shared: the step's `&mut` is not alive now)
+    if !unsafe { &*(&raw const STATE.any_bodies) }.load(Ordering::Acquire) {
+        return;
+    }
+    unsafe {
+        let bullet = Addr(bullet as u32);
+        let from = vec3(from);
+        let direction = vec3(direction);
+        let result = Addr(result as u32);
+        // the game's ray stops at what it hit: the living, a wall
+        let reach = match result.u32(RESULT_OBJECT) {
+            0 => length,
+            _ => (vec3(result.0 as *const [f32; 3]) - from).length(),
+        };
+        let Some(shot) = Shot::new(from, direction, reach) else { return };
+        // the step changes the corpses only after the move: a read here
+        let corpses = &*(&raw const STATE.corpses);
+        let Some(hit) = corpses.trace(&shot) else { return };
+        let shooter = bullet.pointer(BULLET_SHOOTER);
+        let key = ShotKey {
+            shooter: shooter.map_or(u8::MAX, |s| s.u8(SHOOTER_PLACE)),
+            bullet: bullet.u32(BULLET_ID),
+            segment: bullet.u32(BULLET_SEGMENT),
+            place: hit.place as u8,
+            death: hit.death.0,
+        };
+        let stopping_power = bullet
+            .pointer(BULLET_DAMAGE)
+            .map(|d| f32::from_bits(d.u32(STOPPING_POWER)));
+        if !take_shot(key, &hit, impulse(shot.direction, stopping_power)) {
+            return;
+        }
+        if shooter.is_some() {
+            shot_effects(bullet, &shot, &hit);
+        }
+    }
+}
+
+/// The shot's push queued for the next step, if it is the shot's first
+/// trace (a rollback's re-simulated tick traces it again) and a push is
+/// free. True if taken.
+fn take_shot(key: ShotKey, hit: &CorpseHit, j: Vec3) -> bool {
+    let lock = unsafe { &*(&raw const STATE.shots_lock) };
+    while lock
+        .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+        .is_err()
+    {
+        core::hint::spin_loop();
+    }
+    // the lock is held: the only user of the shots
+    let shots = unsafe { &mut *(&raw mut STATE.shots) };
+    let taken = match shots.pushes.iter_mut().find(|p| p.is_none()) {
+        Some(free) if shots.log.first(key) => {
+            *free = Some(Push {
+                place: hit.place,
+                death: hit.death,
+                part: hit.hit.part,
+                point: hit.hit.point,
+                impulse: j,
+            });
+            true
+        }
+        _ => false,
+    };
+    lock.store(false, Ordering::Release);
+    taken
+}
+
+/// The game's own effects of a bullet in a living body, at the corpse's
+/// hit: the material pair bullet x actor's first particle and its sound, as
+/// process_front_face_piercing (0x32E4F0) plays them for a pierced player.
+/// The game's queues take them (the bullet manager runs them after the
+/// tick). No wound decal: the game's own goes nowhere on a body (a
+/// player's hittable gives add_decal no model, 0x1F1780).
+unsafe fn shot_effects(bullet: Addr, shot: &Shot, hit: &CorpseHit) {
+    unsafe {
+        let Some(manager) = bullet.pointer(BULLET_MANAGER) else { return };
+        let (Some(materials), Some(material)) = (manager.pointer(MANAGER_MATERIALS), bullet.pointer(BULLET_MATERIAL))
+        else {
+            return;
+        };
+        if manager.u32(MANAGER_RENDERER) == 0 {
+            return;
+        }
+        let first = material.u32(MATERIAL_ID) & 0xFFFF;
+        if first >= 128 {
+            return;
+        }
+        let pair = engine::engine_material_pair(materials.0 as *const c_void, first, ACTOR);
+        if pair.is_null() {
+            return;
+        }
+        let pair = Addr(pair as u32);
+        let point = [hit.hit.point.x, hit.hit.point.y, hit.hit.point.z];
+        let direction = [shot.direction.x, shot.direction.y, shot.direction.z];
+        let normal = [hit.hit.normal.x, hit.hit.normal.y, hit.hit.normal.z];
+        let particles = pair.u32(PAIR_PARTICLES);
+        if particles != 0 && particles != pair.u32(PAIR_PARTICLES_END) {
+            engine::engine_play_particle(
+                point.as_ptr(),
+                manager.0 as *mut c_void,
+                particles as *const c_void,
+                direction.as_ptr(),
+                normal.as_ptr(),
+                pair.u32(PAIR_PARAMETER),
+            );
+        }
+        if pair.u32(PAIR_SOUND) != 0 && bullet.u8(BULLET_QUIET) == 0 && bullet.u32(BULLET_SEGMENT) <= 1 {
+            engine::engine_play_sound(
+                manager.0 as *mut c_void,
+                pair.at(PAIR_SOUND) as *const c_void,
+                point.as_ptr(),
+            );
+        }
     }
 }
 

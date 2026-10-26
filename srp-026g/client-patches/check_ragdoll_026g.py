@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
-"""Run patch 76's four hooks (the death ragdoll; ../docs/notes/ragdoll.md)
+"""Run patch 76's five hooks (the death ragdoll; ../docs/notes/ragdoll.md)
 in the built exe, with Unicorn (2.1.4).
 
     python check_ragdoll_026g.py <original survarium.exe>
 
 The exe is built as patch_026g.py builds it (with the late join and the
-arena); the build without the late join keeps the original's four sites.
+arena); the build without the late join keeps the original's five sites.
 Each hook runs from its site in the build to the game's next instruction:
 game_world::tick 0x1F7C3C (the step), mt_draw 0x24757C (the cull) and
-0x247716 (the bones), update_camera 0x1F3643 (the eye). The step reaches the
+0x247716 (the bones), update_camera 0x1F3643 (the eye), bullet::
+check_collision 0x32D627 (a bullet's ray; the original's code at the same
+site runs too, from the original exe, for the same state). The step reaches the
 places through the game's own network client code (match_options 0x219990,
 get_active_player 0x27A9C0 and active_player_ptr 0x2D0AB0, from the client's
 vtable 0x9FFB14) on a made-up client, world core and match options; the
 players are made up with the fields the step reads (ragdoll.md section 8),
 their skeleton is scavengers_01 in the cook's order (ragdoll.md section 8,
 `add_bone` 0x3ACDA0), the bones a standing body. Stubs: ray_test (0x75E20,
-a floor at y = 0; the filter checked: group 24h, mask 2, no delegate) and
-QueryPerformanceCounter / -Frequency (60 frames a second).
+a floor at y = 0; the filter checked: group 424h, mask 202h, no delegate:
+the level and the batteries), QueryPerformanceCounter / -Frequency (60
+frames a second), and the bullet manager's play_particle (0x3223E0) and
+play_sound (0x3222F0), which record their arguments. The material pair
+(0x306D50) is the game's own code on a made-up material manager.
 
 Checked:
 - the four sites: the original's bytes in the original and the build
@@ -36,7 +41,17 @@ Checked:
   life) starts from the clip again;
 - a skeleton that is not ours (a bone missing) gets no ragdoll;
 - the ragdoll falls onto the floor and settles there; the level is read
-  only through ray_test with the level's filter.
+  only through ray_test with the level's filter;
+- a bullet's ray: the build's hook does the original's two moves (the same
+  registers, frame and XMM0 as the original exe's code from the same
+  state) and changes no byte of the bullet, its result or the frame; with
+  no corpse, or a ray that misses the corpse, or one the game's own ray
+  stopped short of it (a wall), nothing is played; a ray through the
+  settled corpse plays the pair bullet x actor's particle (at the hit on
+  the body, along the ray, the body's normal, the pair's parameter) and its
+  sound, and the next step wakes the corpse, whose bones then move; the
+  same ray traced again (a rollback's re-simulated tick) plays and pushes
+  nothing more; another bullet does; and the corpse settles again.
 """
 import math
 import struct
@@ -44,7 +59,8 @@ import sys
 
 from unicorn import Uc, UC_ARCH_X86, UC_HOOK_BLOCK, UC_HOOK_CODE, UC_MODE_32, UC_PROT_ALL
 from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI,
-                               UC_X86_REG_EDX, UC_X86_REG_EFLAGS, UC_X86_REG_EIP, UC_X86_REG_ESI, UC_X86_REG_ESP)
+                               UC_X86_REG_EDX, UC_X86_REG_EFLAGS, UC_X86_REG_EIP, UC_X86_REG_ESI, UC_X86_REG_ESP,
+                               UC_X86_REG_XMM0)
 
 import patch_026g as base
 
@@ -52,7 +68,9 @@ STEP_SITE, STEP_NEXT = 0x1F7C3C, 0x1F7C41
 CULL_SITE, CULL_NEXT = 0x24757C, 0x247583
 APPLY_SITE, APPLY_NEXT = 0x247716, 0x24771C
 EYE_SITE, EYE_NEXT = 0x1F3643, 0x1F3649
+BULLET_SITE, BULLET_NEXT = 0x32D627, 0x32D631
 RAY_TEST, QPC_SLOT, QPF_SLOT = 0x75E20, 0x870158, 0x870150
+PLAY_PARTICLE, PLAY_SOUND = 0x3223E0, 0x3222F0
 CLIENT_VTABLE = 0x9FFB14
 ZF = 1 << 6
 
@@ -63,6 +81,10 @@ WORLD, GAME, OPTIONS, NC_CORE = HEAP + 0x300000, HEAP + 0x301000, HEAP + 0x31000
 PLACES_ARRAY, NAMES, SKELETON, OTHER_SKELETON = HEAP + 0x3B0000, HEAP + 0x3B1000, HEAP + 0x3B2000, HEAP + 0x3B3000
 MODEL, OTHER_MODEL, ARRAY, FRAME = HEAP + 0x3B4000, HEAP + 0x3B5000, HEAP + 0x3B6000, HEAP + 0x3B9000
 PLAYERS = HEAP + 0x400000                      # 0x10000 each
+# a bullet and what it points to; the bullet's ray's result; check_collision's frame
+BULLET, SHOOTER, DAMAGE, MANAGER, BULLET_MAT, ACTOR_MAT = (HEAP + 0x800000 + 0x400 * i for i in range(6))
+MATERIALS, PAIR, RESULT, SHOT_FRAME = HEAP + 0x810000, HEAP + 0x830000, HEAP + 0x831000, HEAP + 0x840000
+PARTICLE_SLOTS, SOUND_RESOURCE = HEAP + 0x832000, 0x50D50000
 STUBS, STACK, RET = 0x48000000, 0x48300000, 0x48400000
 PHYSICS = 0x5A5A0000                           # a made-up physics world (ray_test's ECX)
 
@@ -124,7 +146,15 @@ class Game:
         emu.mem_map(HEAP, HEAP_SIZE, UC_PROT_ALL)
         for at in (STUBS, STACK - 0x100000, RET):
             emu.mem_map(at, 0x100000, UC_PROT_ALL)
-        self.ticks, self.rays = 0, []
+        self.ticks, self.rays, self.hits = 0, [], {}
+        # the level's floor at y = 0 (walkable, hittable: what the foot IK's
+        # 24h/2 hits), and batteries lying around x = 20 (a slab 0.3 m high
+        # with a gap where the player stands: group 0A18h, mask 418h,
+        # victory_item_core 0x301CB0)
+        self.objects = [("floor", (0x0A, 0x24), 0.0, lambda p: True),
+                        ("battery", (0xA18, 0x418), 0.3,
+                         lambda p: 18 <= p[0] <= 22 and -2 <= p[2] <= 2
+                         and not (19.6 < p[0] < 20.4 and -0.4 < p[2] < 0.5))]
         # the imports: QueryPerformanceCounter and -Frequency (stdcall, 4)
         emu.mem_write(QPC_SLOT, struct.pack("<I", STUBS))
         emu.mem_write(QPF_SLOT, struct.pack("<I", STUBS + 0x10))
@@ -133,6 +163,10 @@ class Game:
         emu.hook_add(UC_HOOK_CODE, self.counter, begin=STUBS, end=STUBS)
         emu.hook_add(UC_HOOK_CODE, self.frequency, begin=STUBS + 0x10, end=STUBS + 0x10)
         emu.hook_add(UC_HOOK_CODE, self.ray_test, begin=RAY_TEST, end=RAY_TEST)
+        self.particles, self.sounds = [], []
+        emu.hook_add(UC_HOOK_CODE, self.play_particle, begin=PLAY_PARTICLE, end=PLAY_PARTICLE)
+        emu.hook_add(UC_HOOK_CODE, self.play_sound, begin=PLAY_SOUND, end=PLAY_SOUND)
+        self.make_bullet()
         # the world, the game, the network client (the game's own vtable)
         self.u32(WORLD + 0x9C, GAME)
         self.u32(GAME + 0x53AC, CLIENT)
@@ -185,23 +219,100 @@ class Game:
         length = struct.unpack("<f", emu.mem_read(esp + 16, 4))[0]
         group, mask, delegate, unflipped = (self.u32(esp + 20 + 4 * i) for i in range(4))
         assert emu.reg_read(UC_X86_REG_ECX) == PHYSICS, "ray_test on the player's physics world"
-        assert (group, mask, delegate) == (0x24, 2, 0), f"the level's filter: {group:#x} {mask:#x} {delegate}"
+        assert (group, mask, delegate) == (0x424, 0x202, 0), f"the level's filter: {group:#x} {mask:#x} {delegate}"
         o = self.floats(origin, 3)
         d = self.floats(direction, 3)
         assert abs(math.sqrt(sum(x * x for x in d)) - 1) < 1e-3, "a unit direction"
         self.rays.append((o, d, length))
-        hit = 0
-        if d[1] < 0 and o[1] >= 0:
-            t = -o[1] / d[1]
-            if t <= length:
-                p = (o[0] + d[0] * t, 0.0, o[2] + d[2] * t)
-                emu.mem_write(result, struct.pack("<3ff3fI", *p, t / length, 0.0, 1.0, 0.0, 0x77770000))
-                hit = 1
-        if not hit:
+        # Bullet's filter (needsCollision 0x75BD0): an object is hit when its
+        # mask has a bit of the ray's group and its group a bit of the mask
+        best = None
+        for name, (obj_group, obj_mask), top, inside in self.objects:
+            if not (obj_group & mask and obj_mask & group) or not (d[1] < 0 and o[1] >= top):
+                continue
+            t = (top - o[1]) / d[1]
+            p = (o[0] + d[0] * t, top, o[2] + d[2] * t)
+            if t <= length and inside(p) and (best is None or t < best[0]):
+                best = (t, p, name)
+        if best is not None:
+            t, p, name = best
+            self.hits[name] = self.hits.get(name, 0) + 1
+            emu.mem_write(result, struct.pack("<3ff3fI", *p, t / length, 0.0, 1.0, 0.0, 0x77770000))
+        else:
             emu.mem_write(result + 0x1C, struct.pack("<I", 0))
         emu.reg_write(UC_X86_REG_EAX, result)
         emu.reg_write(UC_X86_REG_ESP, esp + 4 + 32)
         emu.reg_write(UC_X86_REG_EIP, ret)
+
+    def play_particle(self, emu, *_):
+        esp = emu.reg_read(UC_X86_REG_ESP)
+        ret, manager, particle, direction, normal, parameter = (self.u32(esp + 4 * i) for i in range(6))
+        self.particles.append((self.floats(emu.reg_read(UC_X86_REG_EAX), 3), manager, particle,
+                               self.floats(direction, 3), self.floats(normal, 3), parameter))
+        emu.reg_write(UC_X86_REG_ESP, esp + 4 + 0x14)
+        emu.reg_write(UC_X86_REG_EIP, ret)
+
+    def play_sound(self, emu, *_):
+        esp = emu.reg_read(UC_X86_REG_ESP)
+        ret, manager, sound, position = (self.u32(esp + 4 * i) for i in range(4))
+        self.sounds.append((manager, sound, self.floats(position, 3)))
+        emu.reg_write(UC_X86_REG_ESP, esp + 4 + 0xC)
+        emu.reg_write(UC_X86_REG_EIP, ret)
+
+    # -- a bullet --------------------------------------------------------------
+    def make_bullet(self):
+        """A bullet (ragdoll_bullet's fields) and the game materials: bullet
+        (7) and actor (10), each its own base (+66h 0FFFFh), their pair."""
+        self.u32(BULLET + 0x4, 4242)
+        self.u32(BULLET + 0x8, SHOOTER)
+        self.u8(SHOOTER + 0x4, 1)
+        self.u32(BULLET + 0x40, DAMAGE)
+        self.emu.mem_write(DAMAGE + 0xC, struct.pack("<f", 0.4))
+        self.u32(BULLET + 0x44, MANAGER)
+        self.u32(BULLET + 0x48, BULLET_MAT)
+        self.u8(BULLET + 0x80, 0)
+        self.u32(BULLET + 0x84, 0)
+        self.u32(MANAGER + 0x90, 0x0E0E0000)
+        self.u32(MANAGER + 0x94, MATERIALS)
+        for material, ident in ((BULLET_MAT, 7), (ACTOR_MAT, 10)):
+            self.emu.mem_write(material + 0x64, struct.pack("<HH", ident, 0xFFFF))
+            self.u32(MATERIALS + 0x108 + 4 * ident, material)
+        self.u32(MATERIALS + 0x308 + 4 * (7 * 128 + 10), PAIR)
+        self.u32(PAIR + 0x18, SOUND_RESOURCE)
+        self.u32(PAIR + 0x24, PARTICLE_SLOTS)
+        self.u32(PAIR + 0x28, PARTICLE_SLOTS + 4)
+        self.u32(PAIR + 0x74, 1)
+
+    def shoot(self, origin, direction, length, hit=None, exe=None):
+        """check_collision at 0x32D627 with the ray (origin, unit direction,
+        length) just traced: `hit` the point the game's own ray hit, if any.
+        Returns the registers, the frame, XMM0 and the bullet's and the
+        result's bytes after."""
+        emu = self.emu if exe is None else exe
+        frame = bytearray(0xA0)
+        struct.pack_into("<f", frame, 0x14, length)
+        struct.pack_into("<3f", frame, 0x20, *direction)
+        struct.pack_into("<3f", frame, 0x90, *origin)
+        struct.pack_into("<I", frame, 0x38, 0x5EED5EED)
+        if hit is None:
+            result = struct.pack("<3ff3fIIB3x", 0, 0, 0, 0.0, 0, 0, 0, 0, 0xFFFFFFFF, 0)
+        else:
+            result = struct.pack("<3ff3fIIB3x", *hit, 0.5, -direction[0], -direction[1], -direction[2],
+                                 0x77770000, 3, 0)
+        emu.mem_write(RESULT, result)
+        emu.mem_write(SHOT_FRAME, bytes(frame))
+        regs = {UC_X86_REG_EAX: RESULT, UC_X86_REG_EBX: 0, UC_X86_REG_ECX: 0xC1, UC_X86_REG_EDX: 0xD1,
+                UC_X86_REG_ESI: 0x51, UC_X86_REG_EDI: BULLET, UC_X86_REG_EBP: 0x5A5A0001}
+        bullet = bytes(emu.mem_read(BULLET, 0x90))
+        emu.reg_write(UC_X86_REG_ESP, SHOT_FRAME)
+        for reg, value in regs.items():
+            emu.reg_write(reg, value)
+        emu.reg_write(UC_X86_REG_XMM0, 0)
+        emu.emu_start(BULLET_SITE, BULLET_NEXT, count=40_000_000)
+        assert emu.reg_read(UC_X86_REG_EIP) == BULLET_NEXT and emu.reg_read(UC_X86_REG_ESP) == SHOT_FRAME
+        out = {r: emu.reg_read(r) for r in regs}
+        return (out, bytes(emu.mem_read(SHOT_FRAME, 0xA0)), emu.reg_read(UC_X86_REG_XMM0) & (1 << 64) - 1,
+                bytes(emu.mem_read(BULLET, 0x90)) == bullet and bytes(emu.mem_read(RESULT, 0x28)) == result)
 
     # -- the made-up match -----------------------------------------------------
     def add_player(self, place, x, z, model=MODEL):
@@ -333,6 +444,13 @@ def main():
               f"{va:#x}: {old.hex()} in the original and the build without the late join, `call {symbol}` here")
 
     game = Game(built)
+    stock = Game(original)
+    # the bullet's site: the build's hook against the original's two moves, all alive
+    ray = ((-3.0, 0.5, 0.0), (1.0, 0.0, 0.0), 6.0)
+    mine, theirs = game.shoot(*ray), stock.shoot(*ray, exe=stock.emu)
+    check(mine == theirs and mine[3] and struct.unpack_from("<I", mine[1], 0x38)[0] == 0 and mine[2] == 0,
+          "a bullet's ray: the hook does the original's two moves (registers, frame, XMM0 the original exe's), "
+          "the bullet and its result untouched")
     a = game.add_player(0, 0.0, 0.0)
     b = game.add_player(1, 5.0, 0.0)
     other = game.add_player(2, 10.0, 0.0, OTHER_MODEL)
@@ -381,6 +499,64 @@ def main():
     for _ in range(10):
         game.step()
     check(len(game.rays) == settled, "a settled ragdoll asks the level nothing")
+
+    # bullets through the settled corpse (bone 7 is Spin: the torso)
+    lying = game.draw(a)[0]
+    spin = lying[7][12:15]
+    through = ((spin[0] - 3.0, spin[1], spin[2]), (1.0, 0.0, 0.0), 6.0)
+    game.shoot((spin[0] - 3.0, spin[1] + 1.5, spin[2]), (1.0, 0.0, 0.0), 6.0)
+    game.shoot(*through[:2], 2.0)
+    game.shoot(*through, hit=(spin[0] - 1.0, spin[1], spin[2]))
+    game.step()
+    check(not game.particles and not game.sounds and game.draw(a)[0] == lying,
+          "a ray above the corpse, one short of it, and one the game's ray stopped at a wall before it: "
+          "nothing played, nothing pushed")
+    out, theirs = game.shoot(*through), stock.shoot(*through)
+    check(out == theirs and out[3], "a ray through the corpse: the hook's registers, frame and XMM0 are the "
+          "original exe's, the bullet and its result untouched")
+    check(len(game.particles) == 1 and len(game.sounds) == 1, f"a ray through the corpse: one particle, one sound "
+          f"({len(game.particles)}, {len(game.sounds)})")
+    point, manager, particle, direction, normal, parameter = game.particles[0]
+    check(manager == MANAGER and particle == PARTICLE_SLOTS and parameter == 1 and direction == (1.0, 0.0, 0.0)
+          and normal[0] < -0.3 and spin[0] - 0.4 < point[0] < spin[0] and abs(point[1] - spin[1]) < 0.2,
+          f"the particle: the pair bullet x actor's first, at the hit on the body ({point[0] - spin[0]:+.2f} m "
+          f"before the bone), along the ray, the body's normal {normal[0]:+.2f}, the pair's parameter")
+    check(game.sounds[0][:2] == (MANAGER, PAIR + 0x18) and game.sounds[0][2] == point,
+          "the sound: the pair's, at the hit")
+    game.step()
+    woken = []
+    for _ in range(20):
+        game.step()
+        woken.append(game.draw(a)[0])
+    check(woken[-1] != lying and len(game.rays) > settled, "the next steps wake the corpse: its bones move and it "
+          "asks the level again")
+    # the same ray traced again (a rollback re-simulates the tick)
+    game.shoot(*through)
+    check(len(game.particles) == 1 and len(game.sounds) == 1, "the same shot traced again plays nothing more")
+    game.u32(BULLET + 0x4, 4243)
+    shifted = game.draw(a)[0][7][12:15]
+    game.shoot((shifted[0] - 3.0, shifted[1], shifted[2]), (1.0, 0.0, 0.0), 6.0)
+    check(len(game.particles) == 2, "another bullet's shot plays again")
+    for _ in range(600):
+        game.step()
+    game.draw(a)
+    resting = len(game.rays)
+    for _ in range(10):
+        game.step()
+    check(len(game.rays) == resting, "the corpse settles again")
+
+    # a body that falls onto a battery rests on it (the level's rays hit it)
+    c = game.add_player(3, 20.0, 0.0)
+    game.set_alive(c, False, 1000)
+    for _ in range(300):
+        game.step()
+        drawn_c, _ = game.draw(c)
+    head = drawn_c[[n for n, _ in COOKED].index("Head")][13]
+    check(game.hits.get("battery", 0) > 0 and head > 0.3,
+          f"a body that falls onto batteries lying by its feet rests on them, not through them (the head at "
+          f"{head:.2f} m, the batteries' top 0.3 m; {game.hits.get('battery', 0)} rays hit them)")
+    game.set_alive(c, True, 1000)
+    game.step()
     before_resim = game.draw(a)[0]
 
     # the world re-simulated with the same death (the same life): kept

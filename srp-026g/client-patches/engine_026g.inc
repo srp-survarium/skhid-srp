@@ -113,3 +113,12 @@ extern engine_ray_test
 ; void engine_release_object(void *object, unsigned int *count)
 ; 0xe0210 vostok::render::render_model_instance::destroy: object ECX, count EAX; pops 0
 extern engine_release_object
+; const void *engine_material_pair(const void *manager, unsigned int first, unsigned int second)
+; 0x306d50 (unnamed): manager ECX, first EDX, second EDI; pops 0; EAX
+extern engine_material_pair
+; void engine_play_particle(const float *position, void *manager, const void *particle, const float *direction, const float *normal, unsigned int parameter)
+; 0x3223e0 survarium::bullet_manager::play_particle: position EAX, manager ESP+4, particle ESP+8, direction ESP+12, normal ESP+16, parameter ESP+20; pops 20
+extern engine_play_particle
+; void engine_play_sound(void *manager, const void *sound, const float *position)
+; 0x3222f0 survarium::bullet_manager::play_sound: manager ESP+4, sound ESP+8, position ESP+12; pops 12
+extern engine_play_sound

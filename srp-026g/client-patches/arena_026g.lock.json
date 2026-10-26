@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 343520,
-  "sha256": "314f7a6802abd96902ef1a342b7b3bd997c2e5e8cc4bfdb29cacb213f691c24d",
+  "size": 352472,
+  "sha256": "dafac43aabfe43f0b387194e21a7e28c9ce1b0557f59fbe3d268de242e49658a",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,7 +22,7 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 1318
+      "size": 1434
     },
     "match_keys.code": {
       "kind": "code",
@@ -62,12 +62,12 @@
     "ragdoll.code": {
       "kind": "code",
       "va": "0xa454000",
-      "size": 57480
+      "size": 62904
     },
     "ragdoll.data": {
       "kind": "data",
-      "va": "0xa463000",
-      "size": 122336
+      "va": "0xa464000",
+      "size": 127192
     }
   },
   "symbols": {
@@ -75,7 +75,7 @@
     "__rodata_hide_ui_code": "0xa4351e2",
     "__rodata_kill_feed_code": "0xa438178",
     "__rodata_match_keys_code": "0xa4330f1",
-    "__rodata_ragdoll_code": "0xa4616d5",
+    "__rodata_ragdoll_code": "0xa462bf2",
     "__rodata_research_code": "0xa42f2f9",
     "artefacts_fire": "0xa431014",
     "artefacts_lifebone": "0xa43100f",
@@ -123,9 +123,12 @@
     "engine_log_passes": "0xa432300",
     "engine_malloc": "0xa432040",
     "engine_match_rule_base": "0xa432060",
+    "engine_material_pair": "0xa432530",
     "engine_model_instance_release": "0xa4323d0",
     "engine_mouse_ray": "0xa432440",
     "engine_movie_invoke": "0xa432150",
+    "engine_play_particle": "0xa432550",
+    "engine_play_sound": "0xa432580",
     "engine_profile_assign": "0xa4322a0",
     "engine_profile_construct": "0xa4322c0",
     "engine_query_resources": "0xa4323a0",
@@ -150,16 +153,18 @@
     "match_keys_hud": "0xa433080",
     "match_keys_keyboard": "0xa433000",
     "memcpy": "0xa42ebbf",
-    "memmove": "0xa454072",
+    "memmove": "0xa4540a2",
     "memset": "0xa42e65c",
-    "ragdoll_apply": "0xa4593b0",
-    "ragdoll_draws": "0xa459a15",
-    "ragdoll_eye": "0xa459a2f",
-    "ragdoll_step": "0xa459a75",
+    "ragdoll_apply": "0xa459475",
+    "ragdoll_bullet": "0xa459b31",
+    "ragdoll_draws": "0xa45aad6",
+    "ragdoll_eye": "0xa45aaf0",
+    "ragdoll_step": "0xa45ab36",
     "research_hud": "0xa42d005",
     "research_register": "0xa42d000",
     "research_welcome": "0xa42d00a",
     "rg_apply": "0xa454039",
+    "rg_bullet": "0xa454072",
     "rg_cull": "0xa454018",
     "rg_eye": "0xa454056",
     "rg_step": "0xa454000",

@@ -4610,3 +4610,16 @@ va	name	location	role	basis
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	EDI	the record copied (124h: path buffer_string +0, '/' +110h, CRC +114h, size +118h, age +11Ch, loading +120h)	observed
 0x000e0210	vostok::render::render_model_instance::destroy	ECX	the model instance whose count (+0D0h) reached 0	observed
 0x000e0210	vostok::render::render_model_instance::destroy	EAX	&its count	observed
+0x00306d50		ECX	the game material manager (the bullet manager's +94h)	observed
+0x00306d50		EDX	the first material id (u16 in DX; a bullet's material +64h)	observed
+0x00306d50		EDI	the second material id (u16 in DI; the hit object's material)	observed
+0x003223e0	survarium::bullet_manager::play_particle	EAX	the position (float3*)	observed
+0x003223e0	survarium::bullet_manager::play_particle	entry ESP+4	the bullet manager (a bullet's +44h)	observed
+0x003223e0	survarium::bullet_manager::play_particle	entry ESP+8	the particle (a slot of the pair's +24h array: a resource pointer, its count +0D0h taken)	observed
+0x003223e0	survarium::bullet_manager::play_particle	entry ESP+12	the direction (float3*, made unit by it)	observed
+0x003223e0	survarium::bullet_manager::play_particle	entry ESP+16	the surface normal (float3*, made unit by it)	observed
+0x003223e0	survarium::bullet_manager::play_particle	entry ESP+20	the parameter (the pair's +74h)	observed
+0x003222f0	survarium::bullet_manager::play_sound	entry ESP+4	the bullet manager (a bullet's +44h)	observed
+0x003222f0	survarium::bullet_manager::play_sound	entry ESP+8	the sound (the pair's +18h slot: a resource pointer)	observed
+0x003222f0	survarium::bullet_manager::play_sound	entry ESP+12	the position (float3*)	observed
+0x0032d4e0	survarium::bullet::check_collision	EAX	the bullet (+4 its id, +8 its shooter (+4 the place), +40h the weapon's damage parameters (+0Ch stopping_power, LIKELY), +44h the bullet manager, +48h its material, +80h, +84h its segments)	observed
