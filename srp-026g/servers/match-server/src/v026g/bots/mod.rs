@@ -72,10 +72,10 @@ pub mod tuning;
 pub mod view;
 
 mod commander;
-#[cfg(test)]
-pub mod hold_trace;
 mod drive;
 mod facts;
+#[cfg(test)]
+pub mod hold_trace;
 mod search;
 mod think;
 

@@ -306,7 +306,7 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
         PERCH_GOALS.with(|g| {
             g.borrow_mut().insert(
                 cx.me.place,
-                (out.iter().take(3).copied().collect(), false, 0, f32::MAX, Some(cx.bot.current.map(|c| c.0)), false, true),
+                Watch::new(&out, cx, true),
             );
         });
         perch_count(27);
@@ -385,7 +385,7 @@ fn perch_first_of(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Vec
     #[cfg(test)]
     PERCH_GOALS.with(|g| {
         // a new offer before the last one was reached
-        if let Some((_, false, _, closest, _, _, false)) = g.borrow_mut().remove(&cx.me.place) {
+        if let Some(Watch { reached: false, ring: false, closest, .. }) = g.borrow_mut().remove(&cx.me.place) {
             perch_count(16);
             lost_at(closest);
         }
@@ -402,7 +402,7 @@ fn perch_first_of(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Vec
     #[cfg(test)]
     PERCH_GOALS.with(|g| {
         // the plays take one of the first three at random
-        g.borrow_mut().insert(cx.me.place, (out.iter().take(3).copied().collect(), false, 0, f32::MAX, Some(cx.bot.current.map(|c| c.0)), false, false));
+        g.borrow_mut().insert(cx.me.place, Watch::new(&out, cx, false));
     });
     out
 }
@@ -413,7 +413,8 @@ fn perch_first_of(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Vec
 pub fn perch_watch(place: usize, feet: Vec3, alive: bool, play: Option<super::PlayKind>) {
     PERCH_GOALS.with(|g| {
         let mut g = g.borrow_mut();
-        let Some((spots, reached, age, closest, first_play, left, ring)) = g.get_mut(&place) else { return };
+        let Some(watch) = g.get_mut(&place) else { return };
+        let Watch { spots, reached, age, closest, first_play, left, ring } = watch;
         let ring = *ring;
         if !alive {
             if !*reached && ring {
@@ -497,6 +498,38 @@ fn lost_at(closest: f32) {
     });
 }
 
+/// What the bench watches of a bot after a pick (`perch_first`): the first three spots the pick was made from
+/// (the plays take one of them at random), a pick from the ring (`ring`) or a perch, and how it went.
+#[cfg(test)]
+struct Watch {
+    spots: Vec<Vec3>,
+    reached: bool,
+    /// Ticks since the pick while it is not reached.
+    age: u32,
+    /// The nearest it came to a spot, m.
+    closest: f32,
+    /// The play it had when picked (none: no play), then the play it had at the last look.
+    first_play: Option<Option<super::PlayKind>>,
+    /// Its play changed before it reached a spot (counted once).
+    left: bool,
+    ring: bool,
+}
+
+#[cfg(test)]
+impl Watch {
+    fn new(out: &[Vec3], cx: &Ctx, ring: bool) -> Self {
+        Self {
+            spots: out.iter().take(3).copied().collect(),
+            reached: false,
+            age: 0,
+            closest: f32::MAX,
+            first_play: Some(cx.bot.current.map(|c| c.0)),
+            left: false,
+            ring,
+        }
+    }
+}
+
 // The bench's counts of what `perch_first` did: calls, with a table, perches
 // in range (summed), dropped for the fine goal/edge, the sight, a claim, no
 // way, an exposed climb, calls with a candidate, calls that took a perch.
@@ -504,7 +537,7 @@ fn lost_at(closest: f32) {
 thread_local! {
     static PERCHED: std::cell::Cell<[u64; 33]> = const { std::cell::Cell::new([0; 33]) };
     static PERCH_LEFT: std::cell::RefCell<std::collections::BTreeMap<String, u32>> = const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
-    static PERCH_GOALS: std::cell::RefCell<std::collections::HashMap<usize, (Vec<Vec3>, bool, u32, f32, Option<Option<super::PlayKind>>, bool, bool)>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    static PERCH_GOALS: std::cell::RefCell<std::collections::HashMap<usize, Watch>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
 #[cfg(test)]
