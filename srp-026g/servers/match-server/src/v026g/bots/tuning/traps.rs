@@ -85,6 +85,31 @@ pub struct ReactTuning {
     pub roll_s: f32,
     /// The chance is divided by this while the bot is in a fight.
     pub fight_div: f32,
+    /// Whether a noticed trap is shot (needs `on`).
+    pub shot: bool,
+    /// A trap farther than this is not shot at, metres.
+    pub shoot_m: f32,
+    /// The view must be this near the trap's centre to fire, radians.
+    pub aim_ok_rad: f32,
+    /// The aim is held this long before the first shot, ms (the sights come
+    /// up in 0.2-0.35 s).
+    pub aim_settle_ms: u32,
+    /// The aim not on after this long is given up, ms.
+    pub aim_timeout_ms: u32,
+    /// Ms between single shots.
+    pub shot_gap_ms: u32,
+    /// Shots at one trap at most, and seconds of shooting at most.
+    pub max_shots: u8,
+    pub max_shoot_s: f32,
+    /// A mate seen shooting at the trap: the bot holds for it this long, ms
+    /// (then leaves the trap to it); the mate counts if its shot was this
+    /// recent (ms), it stands within `claim_m` of the bot or the trap
+    /// (metres) and looks at the trap within `claim_yaw_deg` (the view's
+    /// whole width, degrees).
+    pub hold_ms: u32,
+    pub claim_ms: u32,
+    pub claim_m: f32,
+    pub claim_yaw_deg: f32,
 }
 
 impl Default for ReactTuning {
@@ -97,6 +122,18 @@ impl Default for ReactTuning {
             cone_deg: 140.0,
             roll_s: 20.0,
             fight_div: 3.0,
+            shot: false,
+            shoot_m: 14.0,
+            aim_ok_rad: 0.012,
+            aim_settle_ms: 250,
+            aim_timeout_ms: 2500,
+            shot_gap_ms: 400,
+            max_shots: 4,
+            max_shoot_s: 4.0,
+            hold_ms: 2000,
+            claim_ms: 1500,
+            claim_m: 6.0,
+            claim_yaw_deg: 40.0,
         }
     }
 }
@@ -130,34 +167,42 @@ impl Default for TrapTuning {
     }
 }
 
-pub(super) fn validate(t: &TrapTuning) -> Result<(), String> {
-    check(
-        t.reach_m > 0.0 && t.reach_m <= 1.2 && t.lateral_m >= 0.0 && t.route_ahead_m >= 0.0,
-        "traps.reach_m",
-    )?;
-    check(
-        t.friend_m >= 0.0 && t.near_own_m >= 0.0 && t.jump_ahead_m >= 0.0,
-        "traps.*_m",
-    )?;
-    check(
-        t.presence_scale > 0.0 && t.w_friend >= 0.0,
-        "traps.presence_scale",
-    )?;
-    check(
-        (0.0..=1.0).contains(&t.chance) && (0.0..=1.0).contains(&t.min_health),
-        "traps.chance",
-    )?;
-    check(t.tolerance_rad > 0.0 && t.look_ms > 0, "traps.look")?;
-    let r = &t.react;
-    check(
-        (0.0..=1.0).contains(&r.p0)
-            && r.near_m >= 0.0
-            && r.far_m > r.near_m
-            && r.cone_deg > 0.0
-            && r.cone_deg <= 360.0
-            && r.roll_s >= 0.0
-            && r.fight_div >= 1.0,
-        "traps.react",
-    )?;
-    Ok(())
+impl Check for TrapTuning {
+    fn check(&self) -> Result<(), String> {
+        check(
+            self.reach_m > 0.0 && self.reach_m <= 1.2 && self.lateral_m >= 0.0 && self.route_ahead_m >= 0.0,
+            "traps.reach_m",
+        )?;
+        check(
+            self.friend_m >= 0.0 && self.near_own_m >= 0.0 && self.jump_ahead_m >= 0.0,
+            "traps.*_m",
+        )?;
+        check(
+            self.presence_scale > 0.0 && self.w_friend >= 0.0,
+            "traps.presence_scale",
+        )?;
+        check(
+            (0.0..=1.0).contains(&self.chance) && (0.0..=1.0).contains(&self.min_health),
+            "traps.chance",
+        )?;
+        check(self.tolerance_rad > 0.0 && self.look_ms > 0, "traps.look")?;
+        let r = &self.react;
+        check(
+            (0.0..=1.0).contains(&r.p0)
+                && r.near_m >= 0.0
+                && r.far_m > r.near_m
+                && r.cone_deg > 0.0
+                && r.cone_deg <= 360.0
+                && r.roll_s >= 0.0
+                && r.fight_div >= 1.0
+                && r.shoot_m > 0.0
+                && r.aim_ok_rad > 0.0
+                && r.max_shots >= 1
+                && r.max_shoot_s > 0.0
+                && r.claim_m >= 0.0
+                && r.claim_yaw_deg > 0.0,
+            "traps.react",
+        )?;
+        Ok(())
+    }
 }
