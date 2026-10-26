@@ -74,15 +74,17 @@ pub struct CommitTuning {
     /// for `crossfire_point_s` at most (the choke is a position; it ended
     /// with the memory's timer).
     pub crossfire_point: bool,
-    /// How long that frozen choke stays valid, s: the play's own
-    /// `give_up_s` (70). GUESS, no human data on how long players keep
-    /// covering a quiet last known spot.
+    /// How long that frozen choke stays valid from the play's start, s: the
+    /// walk (about 15 s) plus how long players keep covering a spot after
+    /// the enemy left their line (live 12+ matches, 144 of them: of the
+    /// episodes that cover it at all, median 5 s, P75 9-10 s, P90 15-20 s;
+    /// `push-record/scripts/human_cover_lastseen.py`).
     pub crossfire_point_s: f32,
 }
 
 impl Default for CommitTuning {
     fn default() -> Self {
-        Self { crossfire_point: false, crossfire_point_s: 70.0 }
+        Self { crossfire_point: false, crossfire_point_s: 30.0 }
     }
 }
 
