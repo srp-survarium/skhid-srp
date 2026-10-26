@@ -21,6 +21,9 @@ use binary_config_parser::tree::{ConfigError, ConfigValue};
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
 
+#[cfg(any(test, feature = "fixtures"))]
+pub mod fixtures;
+
 /// `state_type` of a magazine reload.
 pub const STATE_RELOAD_MAGAZINE: u16 = 303;
 /// `state_type` of working the bolt between shots.
@@ -553,6 +556,53 @@ mod tests {
         assert_eq!(uzi.cone_deg(character, 0.0, false), 10.3);
         assert_eq!(uzi.cone_deg(character, 3.0, true), 0.3);
         assert_eq!(c.of(strafing, &mosin), 20.0);
+    }
+
+    /// The test of "read live" at the layer that reads: a weapon config
+    /// patched in a copy of the data (the shapes of a balance patch) comes
+    /// out of [`derive`] with the patched numbers, every other weapon is as it
+    /// was, and the process's own table ([`all`]) is not the copy's.
+    #[test]
+    fn a_patched_weapon_config_reaches_the_derived_table() {
+        use super::fixtures::patched_item;
+        let dictionary = Dictionary::shared();
+        let before = *weapon_named("ak_74u").unwrap();
+        let number = ConfigValue::Float;
+        let data = patched_item(
+            crate::v026g::game_data::shared(),
+            dictionary,
+            "ak_74u",
+            &[
+                (&["parameters", "reload_time"], number(2.0)),
+                (&["parameters", "magazine_capacity"], ConfigValue::Integer(45)),
+                (&["parameters", "rounds_per_minute"], number(700.0)),
+                (&["parameters", "aim_time"], number(0.4)),
+                (&["parameters", "show_time"], number(0.5)),
+                (&["recoil", "min_top_recoil"], number(3.0)),
+                (&["parameters", "type"], ConfigValue::String("wpn_new".into())),
+            ],
+        );
+        let table = derive(&data, dictionary).unwrap();
+        let ak = table.iter().find(|w| w.name == "ak_74u").unwrap();
+        assert_eq!(
+            (ak.reload_time, ak.magazine_capacity, ak.rounds_per_minute),
+            (2.0, 45, 700)
+        );
+        assert_eq!((ak.aim_time, ak.show_time, ak.top_recoil.0), (0.4, 0.5, 3.0));
+        assert_eq!(ak.kind, "wpn_new");
+        // What the patch left alone is as it was.
+        assert_eq!(
+            (ak.dict_id, ak.category, ak.hide_time, ak.reload_state),
+            (before.dict_id, before.category, before.hide_time, before.reload_state)
+        );
+        assert_eq!(table.len(), all().len());
+        for w in table.iter().filter(|w| w.name != "ak_74u") {
+            assert_eq!(Some(w), weapon_named(w.name), "{}", w.name);
+        }
+        // The copy is not the process's data.
+        assert_ne!(before.reload_time, 2.0);
+        assert_ne!(before.magazine_capacity, 45);
+        assert_eq!(weapon_named("ak_74u"), Some(&before));
     }
 
     /// A weapon config with none of the damage keys reads (as zeros) rather

@@ -134,12 +134,12 @@ impl Gun {
     /// category split by its bolt.
     pub fn class(&self) -> &'static str {
         match (self.category, self.handling) {
-            (15, _) => "smg",
-            (16, _) => "mg",
-            (17, _) => "pistol",
-            (14, _) => "shotgun",
-            (13, Handling::Bolt) => "bolt",
-            (13, _) => "marksman",
+            (SMG_CATEGORY, _) => "smg",
+            (MG_CATEGORY, _) => "mg",
+            (PISTOL_CATEGORY, _) => "pistol",
+            (SHOTGUN_CATEGORY, _) => "shotgun",
+            (SNIPER_CATEGORY, Handling::Bolt) => "bolt",
+            (SNIPER_CATEGORY, _) => "marksman",
             _ => "rifle",
         }
     }
@@ -298,23 +298,41 @@ impl Gun {
     }
 }
 
-/// The submachine guns' category (`categories_dict`).
+/// The weapon categories of the dictionary (`categories_dict`), named once.
+/// The rifles'.
+pub const RIFLE_CATEGORY: u8 = 8;
+/// The sniper rifles' (bolt and marksman).
+pub const SNIPER_CATEGORY: u8 = 13;
+/// The shotguns'.
+pub const SHOTGUN_CATEGORY: u8 = 14;
+/// The submachine guns'.
 pub const SMG_CATEGORY: u8 = 15;
+/// The machine guns'.
+pub const MG_CATEGORY: u8 = 16;
+/// The pistols' (revolvers, automatic pistols).
+pub const PISTOL_CATEGORY: u8 = 17;
+
+/// The guns of the weapon table `weapons`, as the bots fire them. The
+/// process's own is [`guns`]; a table made of other game data (a patched
+/// copy, in a test) is read the same way.
+pub fn guns_of(weapons: &[survarium::v026g::weapons::WeaponParams]) -> Vec<Gun> {
+    weapons.iter().map(Gun::of).collect()
+}
 
 /// Every weapon of the game data, as the bots fire it.
 pub fn guns() -> &'static [Gun] {
     static ALL: std::sync::OnceLock<Vec<Gun>> = std::sync::OnceLock::new();
-    ALL.get_or_init(|| {
-        survarium::v026g::weapons::all()
-            .iter()
-            .map(Gun::of)
-            .collect()
-    })
+    ALL.get_or_init(|| guns_of(survarium::v026g::weapons::all()))
+}
+
+/// The facts of the weapon item `item` among `guns`.
+pub fn gun_in<'a>(guns: &'a [Gun], item: &str) -> Option<&'a Gun> {
+    guns.iter().find(|gun| gun.item == item)
 }
 
 /// The facts of the weapon item `item`.
 pub fn gun(item: &str) -> Option<&'static Gun> {
-    guns().iter().find(|gun| gun.item == item)
+    gun_in(guns(), item)
 }
 
 /// How far the client's clock may be behind the bot's, ms: a key reaches the
@@ -493,10 +511,13 @@ pub struct Arms {
     pub reserve: u32,
 }
 
-/// A kit's [`Arms`]: its weapon 1, the rounds of its ammo slots
-/// (`BOT_AMMO_SLOTS`) and their storage.
-fn arms_of(kit: &Loadout) -> Option<Arms> {
-    let weapon = Dictionary::shared().item(kit.slot(7)?.dict_id)?;
+/// A kit's [`Arms`]: its weapon 1 (of `guns`, named by `dictionary`), the
+/// rounds of its ammo slots (`BOT_AMMO_SLOTS`) and their storage. The
+/// process's kits are built from [`guns`] and the shared dictionary
+/// ([`Arms::of_kit`]); a test hands it the guns of a patched copy of the
+/// game data.
+pub fn arms_in(guns: &'static [Gun], dictionary: &Dictionary, kit: &Loadout) -> Option<Arms> {
+    let weapon = dictionary.item(kit.slot(7)?.dict_id)?;
     let ammo = kit
         .items
         .iter()
@@ -504,7 +525,7 @@ fn arms_of(kit: &Loadout) -> Option<Arms> {
     let rounds = ammo.clone().map(|item| item.count).sum();
     let reserve = ammo.map(|item| item.stored.max(item.count)).sum();
     Some(Arms {
-        primary: (gun(&weapon.name)?, rounds),
+        primary: (gun_in(guns, &weapon.name)?, rounds),
         pistol: None,
         reserve,
     })
@@ -561,7 +582,7 @@ impl Arms {
                     for role in BotRole::ALL {
                         let equipment = BotEquipment { tier, rusher };
                         for (k, kit) in bot_kits(equipment, role).into_iter().enumerate() {
-                            table.push(((tier, rusher, role, k), arms_of(kit)));
+                            table.push(((tier, rusher, role, k), arms_in(guns(), Dictionary::shared(), kit)));
                         }
                     }
                 }

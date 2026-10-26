@@ -18,13 +18,14 @@
 //! | `SRP_BENCH_START` | 0,0: every battery lying |
 //! | `SRP_BENCH_ZONE_DAMAGE` | off: zones do not hurt the bodies |
 //! | `SRP_BENCH_PUT_MS` | [`PUT_MS`], 600 ms |
+//! | `SRP_BENCH_DRAW_TIME` | [`DRAW_MS`], 800 ms for every weapon; `weapon`: its `show_time` |
 //! | `SRP_BENCH_JUMP_AHEAD_M` ([`standin_jump`](super::standin_jump)) | `STANDING_JUMP.ahead_m` |
 //! | `SRP_BENCH_STAND_IN` | the honest jump (the client's clips); `old`: the lift up any floor |
 //! | `SRP_BENCH_HEAL_MODEL` ([`standin_heal`](super::standin_heal)) | on: the drugs and their stock; `off`: none |
 //! | `SRP_BENCH_TRAPS_MODEL` ([`standin_traps`](super::standin_traps)) | on: the bear traps; `off`: none |
 //!
-//! The model's constants stay here: `RESPAWN_BATTERIES_MS`, `RESPAWN_TDM_MS`, `DRAW_MS`,
-//! `PUT_MS`, `USE_REACH_M`, `STAND_IN_LEG_*`, `STAND_IN_STAGGER*`.
+//! The model's constants stay here: `RESPAWN_BATTERIES_MS`, `RESPAWN_TDM_MS`,
+//! `DRAW_MS`, `PUT_MS`, `USE_REACH_M`, `STAND_IN_LEG_*`, `STAND_IN_STAGGER*`.
 
 use super::*;
 
@@ -91,11 +92,32 @@ pub(crate) fn respawn_ms_from_data(level: u8, weather: u8, mode: u8) -> Option<u
 }
 
 /// How long after a carrier lets go of the battery his weapon fires again,
-/// ms: the weapon's show time follows the drop, about 0.8 s for rifles,
-/// SMGs and shotguns, 0.5 s for the TT-33 (LIKELY: private
+/// ms, when the stand-in does not read it from the weapon: the weapon's show
+/// time follows the drop, about 0.8 s for most weapons (LIKELY: private
 /// sprint-jump-re FINDINGS section 9; the stand-in's bodies hold their
 /// primary).
 pub(crate) const DRAW_MS: u32 = 800;
+
+/// [`draw_ms`] with the choice made: the weapon's `show_time`
+/// ([`Gun::show_ms`], read from its config) when `from_weapon`, else
+/// [`DRAW_MS`]. Of the 83 weapons of the live data 73 show in 0.8 s; the
+/// TT-33, PM, APS, Fort-17, Magnum, TOZ-66, SVD and PP-2000 in 0.5 s and the
+/// RPD and PKP in 1.0 s (PROVEN in the configs), so the weapon's time moves
+/// the stand-in for the bodies that hold those.
+pub(crate) fn draw_ms_of(gun: &Gun, from_weapon: bool) -> u32 {
+    if from_weapon { gun.show_ms } else { DRAW_MS }
+}
+
+/// How long after a carrier drops a battery his weapon fires again, ms:
+/// the weapon's own `show_time` with `SRP_BENCH_DRAW_TIME=weapon`, else
+/// [`DRAW_MS`] for every weapon (the stand-in as it was; off until a bench
+/// has looked at the moved timings).
+pub(crate) fn draw_ms(gun: &Gun) -> u32 {
+    static FROM_WEAPON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let from_weapon = *FROM_WEAPON
+        .get_or_init(|| bench_settings().var("SRP_BENCH_DRAW_TIME").as_deref() == Ok("weapon"));
+    draw_ms_of(gun, from_weapon)
+}
 
 /// A carrier's use at his container in the stand-in: when, from where, how
 /// far its ray passed the use box's middle, whether it began a put, and
@@ -150,7 +172,7 @@ pub(crate) struct Body {
     pub(crate) spawned: u32,
     pub(crate) carrying: Option<usize>,
     /// No shot before this tick: the weapon coming up after a drop
-    /// ([`DRAW_MS`]).
+    /// ([`draw_ms`]).
     pub(crate) drawn_at: u32,
     pub(crate) moved: f32,
     /// Until when a jump pressed keeps the body in the air, ms
@@ -1369,7 +1391,7 @@ impl Game {
             {
                 self.batteries[battery] = Lying::Free(body.feet, 1 << body.team);
                 self.bodies[place].carrying = None;
-                self.bodies[place].drawn_at = self.tick + DRAW_MS;
+                self.bodies[place].drawn_at = self.tick + draw_ms(body.gun);
                 self.drops[usize::from(!by_fire)] += 1;
                 self.stolen_fell(battery, self.tick, true);
             }

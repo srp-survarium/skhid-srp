@@ -70,7 +70,7 @@
 use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 
-use super::guns::{Gun, Handling};
+use super::guns::{Gun, Handling, SHOTGUN_CATEGORY};
 use super::kin::forward;
 use super::view::{MatchView, Place, PlaceView};
 use crate::v026g::drive::key;
@@ -186,9 +186,6 @@ pub struct Held {
     /// Its legs run.
     pub running: bool,
 }
-
-/// The dictionary's category of shotguns ([`Gun::category`]).
-const SHOTGUN_CATEGORY: u8 = 14;
 
 /// The body's segment over the feet, standing and crouched, metres: the
 /// shins to the top of the head.

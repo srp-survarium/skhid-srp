@@ -322,6 +322,11 @@ fn weapon_in_slot_7(
     let category = survarium::v026g::dictionary::Dictionary::shared()
         .item(item.dict_id)?
         .category;
+    if WeaponKind::by_fallback(kind, category) {
+        log::info!(
+            "weapon type {kind} (category {category}) is none the bots know: its band is its category's"
+        );
+    }
     WeaponKind::of_item(kind, category)
 }
 

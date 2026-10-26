@@ -21,7 +21,7 @@
 //!   from the eye meets within 2 m (`base_player::detect_usable_object`):
 //!   within 0.2 m of a battery's middle, 0.6 m of a use box's; the drop
 //!   key held, or a new fire press, drops it, and the weapon is up again
-//!   [`DRAW_MS`] later; a carrier cannot sprint;
+//!   its `show_time` later (`Gun::show_ms`); a carrier cannot sprint;
 //! - Team Deathmatch: each death costs the team a ticket; a team out of
 //!   tickets no longer respawns, and loses when its last body dies;
 //! - a world of every body, the statistics and the batteries comes every
@@ -86,6 +86,7 @@ mod tallies;
 mod trap_react;
 mod traps;
 mod walkway;
+mod weapon_data;
 mod world_facts;
 mod zone_runs;
 
