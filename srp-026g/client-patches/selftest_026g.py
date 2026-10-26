@@ -2361,7 +2361,8 @@ def test_pickup(original, image, before):
     rust_lohooks(original, image, before, "pickup_below", {
         0x2D84E9: ["fld dword [dword 0xa710d8]"],
         0x2D861C: ["and al,0xa", "cmp al,0xa", "jz 0x2d866d"],
-        0x2D85BE: ["mov eax,[ebp+0x8]", "mov edx,[esi]", "mov edx,[edx+0x30]"]}, exits={0x2D8622, 0x2D85FC})
+        0x2D85BE: ["mov eax,[ebp+0x8]", "mov edx,[esi]", "mov edx,[edx+0x30]"]}, exits={0x2D8622, 0x2D85FC},
+        relocs=(0x2D84EB,))
     check(struct.unpack("<f", source.read(P.engine_026g.field("survarium::image", "usable_objects_detection_distance"),
                                           4))[0] == 2.0
           and P.RUST_HOOK_RELOCS == (0x2D84EB,)
@@ -3705,8 +3706,9 @@ def rust_lohooks(original, image, before, patch, sites, exits=(), relocs=()):
         if replay is None:
             continue
         named |= set(moves[2:])
-        played = [text for at, text in texts if at >= replay]
-        spans = [text for _, _, text in ndisasm(old, va)]
+        plain = lambda text: re.sub(r" (?:near|short) ", " ", text)     # a relocated jcc is near
+        played = [plain(text) for at, text in texts if at >= replay]
+        spans = [plain(text) for _, _, text in ndisasm(old, va)]
         check(played[:len(spans)] == spans and played[len(spans)] == f"jmp {past:#x}",
               f"{symbol}: its replay is the span's instructions at their own targets, then `jmp {past:#x}`")
     check(named == set(exits), f"the named exits of {patch}'s lohooks are "
