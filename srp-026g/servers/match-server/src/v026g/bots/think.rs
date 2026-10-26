@@ -32,6 +32,10 @@ impl Bots {
         if !schedule(bot, &tuning, now) {
             return;
         }
+        // The sights it tests now are held to this think's next.
+        bot.memory.set_next_think(bot.next_think);
+        bot.memory
+            .set_sight_window(know::SightWindow::of(&tuning.sense, &tuning.cheats));
         let Some(me) = view.place(bot.place).filter(|p| p.alive) else {
             return;
         };
@@ -47,15 +51,12 @@ impl Bots {
         // its rays among them, not by bot index (`sense::fair_share`).
         let thinks_left = rays.thinks_left;
         rays.thinks_left = thinks_left.saturating_sub(1);
-        let enemies = view.enemies_of(bot.team).count();
-        let fair = sense::fair_share(
+        rays.allow(sense::fair_share(
             rays.left,
             thinks_left,
-            sense::think_most(enemies, tuning.sense.battery_rays),
-        );
-        rays.allow(fair.map(|share| share.enemies));
+            sense::think_most(tuning.sense.battery_rays),
+        ));
         let sensed = sense(&due, bot, rays);
-        rays.allow_more(fair.map_or(0, |share| share.batteries));
         let state = &mut self.teams[team];
         let percepts = share(&due, bot, state, &self.tracker, sensed);
         sense_batteries(&due, bot, state, rays, notes);
@@ -694,12 +695,13 @@ mod phase_tests {
         };
         assert_eq!(missed(&memory, 1), Some((1_100, Miss::Blocked)));
         assert_eq!(missed(&memory, 2), None, "untested is not a negative");
-        // (The grace is the target's: a non-target is held to the hold.)
+        // (The grace shows on the target: a non-target is held to the hold.)
         memory.set_sight_target(Some(1));
         let last = 1_100 + SIGHT_GRACE_MS;
         assert!(memory.seen(1, last, last).is_some());
         assert!(memory.seen(1, last + 1, last + 1).is_none());
-        // The untested one is held for the hold from his last test, no more.
+        // The untested one is held from his last test, no more than the
+        // hold (the bot's next think is not told here).
         let hold = 1_000 + crate::v026g::bots::know::SIGHT_HOLD_MS;
         assert!(memory.seen(2, hold, hold).is_some());
         assert!(memory.seen(2, hold + 1, hold + 1).is_none());

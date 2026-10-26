@@ -26,10 +26,14 @@ use super::view::{MatchView, Place, PlaceView, SoundKind};
 /// Places whose starved rays are counted one by one; later ones in the last.
 pub const STARVED_PLACES: usize = 32;
 
-/// The rays a poll may still cast, and those refused it.
+/// The rays a poll may still cast at the batteries, and those refused it.
+/// (An enemy in view is tested outside it, [`sense_looks`].)
 #[derive(Clone, Copy, Debug)]
 pub struct RayBudget {
     pub left: u32,
+    /// The rays cast outside the budget this poll, at enemies in view: the
+    /// tally of them.
+    pub exempt: u32,
     /// The thinks due in this poll that have not run, the one in turn
     /// included: counted before any ray is cast ([`fair_share`]); 0: not
     /// counted, no limit.
@@ -48,6 +52,7 @@ impl RayBudget {
     pub fn new(left: u32) -> Self {
         Self {
             left,
+            exempt: 0,
             thinks_left: 0,
             allowance: None,
             starved_by_team: [0; 2],
@@ -79,13 +84,6 @@ impl RayBudget {
     pub fn allow(&mut self, rays: Option<u32>) {
         self.allowance = rays;
     }
-
-    /// `rays` more for the think in turn, if it is limited.
-    pub fn allow_more(&mut self, rays: u32) {
-        if let Some(allowed) = &mut self.allowance {
-            *allowed += rays;
-        }
-    }
 }
 
 /// The most rays one look at a live sight casts: one for each part of the
@@ -96,38 +94,25 @@ pub const LOOK_RAYS: u32 = Part::SIGHT_ORDER.len() as u32;
 /// (one look at the nearest battery, its three heights).
 pub const BATTERY_FLOOR_RAYS: u32 = BATTERY_HEIGHTS.len() as u32;
 
-/// The most rays one think casts: [`LOOK_RAYS`] at each of `enemies` and
-/// `battery_rays` looks at a battery's heights.
-pub fn think_most(enemies: usize, battery_rays: u32) -> u32 {
-    enemies as u32 * LOOK_RAYS + battery_rays * BATTERY_HEIGHTS.len() as u32
+/// The most rays one think takes from the poll's budget: `battery_rays`
+/// looks at a battery's heights. (The enemies in view are tested outside it.)
+pub fn think_most(battery_rays: u32) -> u32 {
+    battery_rays * BATTERY_HEIGHTS.len() as u32
 }
 
-/// What one think may take from a binding poll's budget.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Share {
-    /// For the enemies, the sights first.
-    pub enemies: u32,
-    /// For the batteries, over what the enemies leave: a floor.
-    pub batteries: u32,
-}
-
-/// The budget's `left` rays shared by `thinks_left` thinks (the one in turn
-/// and those after it, counted before any ray is cast), each of which casts
-/// `most` at the most. Fair across the bot index: without it the first
-/// thinks take what they want and the last get none, every poll. `None`
-/// while the budget cannot bind, so a poll that does not bind is decided as
-/// it was.
-pub fn fair_share(left: u32, thinks_left: u32, most: u32) -> Option<Share> {
+/// What one think may take from a binding poll's budget: the budget's
+/// `left` rays shared by `thinks_left` thinks (the one in turn and those
+/// after it, counted before any ray is cast), each of which takes `most` at
+/// the most, but never under the floor ([`BATTERY_FLOOR_RAYS`]). Fair across
+/// the bot index: without it the first thinks take what they want and the
+/// last get none, every poll. `None` while the budget cannot bind, so a poll
+/// that does not bind is decided as it was.
+pub fn fair_share(left: u32, thinks_left: u32, most: u32) -> Option<u32> {
     let thinks = thinks_left.max(1);
     if u64::from(left) >= u64::from(thinks) * u64::from(most) {
         return None;
     }
-    let share = left / thinks;
-    let batteries = BATTERY_FLOOR_RAYS.min(left);
-    Some(Share {
-        enemies: share.saturating_sub(batteries),
-        batteries,
-    })
+    Some((left / thinks).max(BATTERY_FLOOR_RAYS.min(left)))
 }
 
 /// Why `enemy`, seen at `since` (or never) by `me`, cannot be seen now,
@@ -164,8 +149,9 @@ fn reach(me: &PlaceView, enemy: &PlaceView, tuning: &SenseTuning) -> Result<(), 
 /// from `rays` to the parts in [`Part::SIGHT_ORDER`] (as [`sense`] tests a
 /// new enemy), the first that shows ends it. Pure: no random draw, no
 /// memory. The ray budget running out before any part showed is
-/// [`LookOutcome::Untested`], not a negative. A live sight's look takes
-/// its own [`RayBudget::new`]`(`[`LOOK_RAYS`]`)`, so it is never starved.
+/// [`LookOutcome::Untested`], not a negative. A think's tests of the
+/// enemies in view give it their own [`RayBudget::new`]`(`[`LOOK_RAYS`]`)`
+/// ([`sense_looks`]), so they are never starved.
 pub fn look(
     me: &PlaceView,
     enemy: &PlaceView,
@@ -177,6 +163,16 @@ pub fn look(
     if let Err(miss) = gate(me, enemy, since, tuning) {
         return LookOutcome::Failed(miss);
     }
+    ray_test(me, enemy, sight, rays)
+}
+
+/// [`look`]'s rays.
+fn ray_test(
+    me: &PlaceView,
+    enemy: &PlaceView,
+    sight: &RayTree,
+    rays: &mut RayBudget,
+) -> LookOutcome {
     let mut starved = false;
     let seen = super::aimpoint::any_part_visible(me.eye(), enemy, sight, || {
         let given = rays.take(me.place, me.team);
@@ -234,9 +230,9 @@ pub fn sense(
 }
 
 /// [`sense`], and with the percepts what each enemy looked at came to: seen,
-/// failed (past the sight's range, outside the view, dead, or no part
-/// showing), or untested because the rays ran out. An enemy of the bot's own
-/// team is not looked at.
+/// or failed (past the sight's range, outside the view, dead, or no part
+/// showing). An enemy of the bot's own team is not looked at. The rays are
+/// counted in `rays.exempt`, not taken from it.
 #[allow(clippy::too_many_arguments)]
 pub fn sense_looks(
     me: &PlaceView,
@@ -254,7 +250,6 @@ pub fn sense_looks(
     if !me.alive {
         return (out, looks);
     }
-    let eye = me.eye();
     for &who in order {
         let Some(enemy) = view.place(who) else {
             continue;
@@ -271,22 +266,16 @@ pub fn sense_looks(
             continue;
         }
         // [aimpoint] Seen when some part of him shows, not only the eyes
-        // or the chest: legs on a stair, a head over a wall.
-        let mut starved = false;
-        let seen = super::aimpoint::any_part_visible(eye, enemy, sight, || {
-            let given = rays.take(me.place, me.team);
-            starved |= !given;
-            given
-        });
-        looks.push((
-            who,
-            match (seen, starved) {
-                (true, _) => LookOutcome::Seen,
-                (false, true) => LookOutcome::Untested,
-                (false, false) => LookOutcome::Failed(Miss::Blocked),
-            },
-        ));
-        if seen {
+        // or the chest: legs on a stair, a head over a wall. An enemy in
+        // the view and in range is tested whole, whatever the poll's budget
+        // has left (at most [`LOOK_RAYS`], one test a think): a bot that
+        // cannot see what is in front of it, because the others took the
+        // rays, is no fair bot.
+        let mut own = RayBudget::new(LOOK_RAYS);
+        let outcome = ray_test(me, enemy, sight, &mut own);
+        rays.exempt += LOOK_RAYS - own.left;
+        looks.push((who, outcome));
+        if outcome == LookOutcome::Seen {
             out.push(Percept {
                 who,
                 at: enemy.feet,
@@ -614,7 +603,8 @@ mod tests {
         assert_eq!((percepts[0].who, percepts[0].source), (1, Source::Seen));
         assert_eq!((percepts[1].who, percepts[1].source), (2, Source::Heard));
         assert!(percepts[1].error_m > 0.0 && percepts[1].busy);
-        // No rays left: nothing is seen.
+        // No rays left in the poll: an enemy in view is tested all the same
+        // (outside the budget, counted apart), and nothing is starved.
         let mut none = RayBudget::new(0);
         let percepts = sense(
             &me,
@@ -627,7 +617,8 @@ mod tests {
             &mut none,
             &mut Rng::new(1),
         );
-        assert!(percepts.iter().all(|p| p.source != Source::Seen));
+        assert!(percepts.iter().any(|p| p.who == 1 && p.source == Source::Seen));
+        assert_eq!((none.left, none.starved(), none.exempt), (0, 0, 1));
     }
 
     /// Match 0x6da44bbb at 662-677 s: an enemy at arm's length behind, in a
@@ -1049,69 +1040,50 @@ mod tests {
 
     #[test]
     fn the_fair_share_splits_what_is_left_among_the_thinks_still_due() {
+        let most = think_most(3);
+        assert_eq!(most, 9);
         // Nothing binds: no limit (a poll that does not bind is decided as
         // it was).
-        assert_eq!(fair_share(400, 4, 79), None);
-        assert_eq!(fair_share(400, 5, 80), None, "exactly enough");
-        assert_eq!(fair_share(400, 0, 79), None, "no think due: no limit");
-        // 6 thinks of 79 want 474 of 400.
-        assert_eq!(
-            fair_share(400, 6, 79),
-            Some(Share {
-                enemies: 66 - BATTERY_FLOOR_RAYS,
-                batteries: BATTERY_FLOOR_RAYS
-            })
-        );
+        assert_eq!(fair_share(400, 4, most), None);
+        assert_eq!(fair_share(36, 4, most), None, "exactly enough");
+        assert_eq!(fair_share(400, 0, most), None, "no think due: no limit");
+        // 7 thinks of 9 want 63 of 30: 4 each.
+        assert_eq!(fair_share(30, 7, most), Some(4));
         // The last think of the poll has all that is left.
-        assert_eq!(fair_share(30, 1, 79).map(|s| s.enemies + s.batteries), Some(30));
-        // Nearly empty: the floor is still what batteries can have, the
-        // enemies what is left of the share.
-        assert_eq!(fair_share(5, 4, 79), Some(Share { enemies: 0, batteries: 3 }));
-        assert_eq!(fair_share(2, 4, 79), Some(Share { enemies: 0, batteries: 2 }));
-        assert_eq!(think_most(10, 3), 10 * 7 + 3 * 3);
-        assert_eq!(think_most(10, 3), 79);
+        assert_eq!(fair_share(5, 1, most), Some(5));
+        // Nearly empty: the floor of a battery look is still what it has,
+        // as far as there is any.
+        assert_eq!(fair_share(5, 4, most), Some(3));
+        assert_eq!(fair_share(2, 4, most), Some(2));
     }
 
-    /// 10 against 10, every enemy of a bot in its view behind a wall (so
-    /// each costs seven rays, the most): the rays one poll gives each due
-    /// think, in bot index order, with and without the fair share.
-    /// Returns (rays used by each due think, the budget after).
+    /// The batteries of a match in the open for every bot, behind a wall
+    /// (each look at them costs its three rays, three looks a think): the
+    /// rays one poll gives each due think, in bot index order, with and
+    /// without the fair share. Returns (rays taken by each due think, the
+    /// budget after).
     fn stalled_poll(due: &[Place], budget: u32, fair: bool) -> (Vec<u32>, RayBudget) {
-        let mut places = Vec::new();
-        for p in 0..20 {
-            // Team 0 at z = 0 facing +z, team 1 at z = 30 facing -z; the
-            // wall between is two-sided.
-            let (team, z, yaw) = if p < 10 {
-                (0, 0.0, 0.0)
-            } else {
-                (1, 30.0, std::f32::consts::PI)
-            };
-            places.push(place(p, team, Vec3::new((p % 10) as f32 * 0.5 - 2.0, 0.0, z), yaw));
-        }
-        let view = view(places.clone(), vec![]);
+        use crate::v026g::bots::view::BatteryState;
+        let places: Vec<PlaceView> = (0..20)
+            .map(|p| place(p, u8::from(p >= 10), Vec3::new(p as f32 * 0.2, 0.0, 0.0), 0.0))
+            .collect();
+        let mut view = view(places.clone(), vec![]);
+        view.mode = Mode::Batteries;
+        view.batteries = [-3.0, 0.0, 3.0]
+            .iter()
+            .map(|&x| BatteryState::Free(Vec3::new(x, 0.3, 20.0)))
+            .collect();
         let sight = wall();
         let tuning = SenseTuning::default();
+        let mut team = TeamKnowledge::default();
         let mut rays = RayBudget::new(budget);
         let mut used = Vec::new();
         for (k, &p) in due.iter().enumerate() {
             let before = rays.left;
             let thinks_left = (due.len() - k) as u32;
-            let share = fair
-                .then(|| fair_share(rays.left, thinks_left, think_most(10, 0)))
-                .flatten();
-            rays.allow(share.map(|s| s.enemies));
-            let order: Vec<Place> = view.enemies_of(places[p].team).map(|e| e.place).collect();
-            sense(
-                &places[p],
-                &view,
-                &sight,
-                &tuning,
-                &CheatTuning::default(),
-                0,
-                &order,
-                &mut rays,
-                &mut Rng::new(1),
-            );
+            rays.allow(fair.then(|| fair_share(rays.left, thinks_left, think_most(3))).flatten());
+            let (me, spawners) = (&places[p], &[]);
+            sense_batteries(me, &view, &sight, spawners, &tuning, &mut team, |_| false, &mut rays);
             rays.allow(None);
             used.push(before - rays.left);
         }
@@ -1124,83 +1096,101 @@ mod tests {
     /// alike.
     #[test]
     fn a_stalled_poll_shares_its_rays_fairly_across_the_bot_index_and_the_teams() {
-        // Three of team 0 and four of team 1 due, 400 rays.
+        // Three of team 0 and four of team 1 due, 30 rays for 63 wanted.
         let due = [2, 4, 7, 11, 13, 16, 18];
-        let (used, rays) = stalled_poll(&due, 400, false);
-        // 70 rays a think: the first five take 350, the sixth the 50 left.
-        assert_eq!(used, [70, 70, 70, 70, 70, 50, 0]);
-        assert_eq!(rays.starved_by_place[16], 20);
-        assert_eq!(rays.starved_by_place[18], 70);
-        assert_eq!(rays.starved_by_team, [0, 90], "one team starves, always");
+        let (used, rays) = stalled_poll(&due, 30, false);
+        assert_eq!(used, [9, 9, 9, 3, 0, 0, 0]);
+        assert_eq!(rays.starved_by_team, [0, 4], "one team starves, always");
 
-        let (used, rays) = stalled_poll(&due, 400, true);
-        // 400 / 7 = 57 each less the batteries' floor of 3; what a think
-        // leaves goes to those after it.
-        assert!(used.iter().all(|&n| (50..=62).contains(&n)), "{used:?}");
-        assert!(used.iter().sum::<u32>() <= 400);
-        assert!(rays.starved_by_place[18] > 0 && rays.starved_by_place[2] > 0);
-        // The starvation falls on both teams, within a factor of two
-        // (before: all of it on one).
-        let [a, b] = rays.starved_by_team;
-        assert!(a > 0 && b > 0 && a.max(b) <= 2 * a.min(b), "{:?}", rays.starved_by_team);
+        let (used, rays) = stalled_poll(&due, 30, true);
+        assert!(used.iter().all(|&n| (BATTERY_FLOOR_RAYS..=5).contains(&n)), "{used:?}");
+        assert_eq!(used.iter().sum::<u32>(), 30);
+        // Every think was refused something it wanted, the teams alike.
+        assert_eq!(rays.starved_by_team, [3, 4]);
+        let places: Vec<usize> = (0..STARVED_PLACES)
+            .filter(|&p| rays.starved_by_place[p] > 0)
+            .collect();
+        assert_eq!(places, due);
     }
 
     /// A poll that does not bind is decided as it was: the same rays, the
-    /// same percepts, with the fair share and without.
+    /// same looks, with the fair share and without.
     #[test]
     fn a_poll_that_does_not_bind_is_decided_as_it_was() {
         let due = [3, 12, 15];
-        assert_eq!(fair_share(400, 3, think_most(10, 0)), None);
+        assert_eq!(fair_share(400, 3, think_most(3)), None);
         let (plain, left_plain) = stalled_poll(&due, 400, false);
         let (fair, left_fair) = stalled_poll(&due, 400, true);
         assert_eq!(plain, fair);
+        assert_eq!(plain, [9, 9, 9]);
         assert_eq!((left_plain.left, left_plain.starved()), (left_fair.left, 0));
         assert_eq!(left_fair.starved(), 0);
     }
 
-    /// The enemies to look at: the live sights first, then the longest
-    /// unchecked, ties in the order given; and the order changes nothing
-    /// when the budget does not bind (the same percepts, whatever the
-    /// order).
+    /// The enemies in view are tested outside the budget, whole (the ones
+    /// the budget starved are the live sights lost to a stalled poll): ten
+    /// of them behind a wall cost seven rays each, counted apart, and the
+    /// budget is not touched, nor is anyone starved, with 400 rays or none.
     #[test]
-    fn the_longest_unchecked_go_first_and_the_order_matters_only_when_rays_run_out() {
+    fn the_enemies_in_view_are_tested_outside_the_budget_even_when_it_binds() {
+        let me = place(0, 0, Vec3::ZERO, 0.0);
+        let mut places = vec![me.clone()];
+        places.extend((1..=10).map(|p| {
+            place(p, 1, Vec3::new(p as f32 * 0.5 - 3.0, 0.0, 30.0), 0.0)
+        }));
+        let view = view(places, vec![]);
+        let order: Vec<Place> = (1..=10).collect();
+        for left in [400, 0] {
+            let mut rays = RayBudget::new(left);
+            rays.allow(Some(0));
+            let (percepts, looks) = sense_looks(
+                &me,
+                &view,
+                &wall(),
+                &SenseTuning::default(),
+                &CheatTuning::default(),
+                0,
+                &order,
+                &mut rays,
+                &mut Rng::new(1),
+            );
+            assert!(percepts.is_empty());
+            assert_eq!(looks.len(), 10);
+            assert!(looks.iter().all(|l| l.1 == LookOutcome::Failed(Miss::Blocked)), "{looks:?}");
+            assert_eq!((rays.left, rays.starved(), rays.exempt), (left, 0, 70));
+        }
+        // ... and the same in the open: a ray each.
+        let mut rays = RayBudget::new(0);
+        let (percepts, _) = sense_looks(
+            &me,
+            &view,
+            &RayTree::build(&[]),
+            &SenseTuning::default(),
+            &CheatTuning::default(),
+            0,
+            &order,
+            &mut rays,
+            &mut Rng::new(1),
+        );
+        assert_eq!(percepts.len(), 10);
+        assert_eq!((rays.starved(), rays.exempt), (0, 10));
+    }
+
+    /// The enemies to look at: the live sights first, then the longest
+    /// unchecked, ties in the order given. (Every enemy in view is tested
+    /// whole, so the order is only that of the percepts.)
+    #[test]
+    fn the_longest_unchecked_go_first_and_the_live_sights_before_them() {
         let tested = |who: Place| [0, 900, 500, 0, 700][who];
         assert_eq!(look_order(&[1, 2, 3, 4], |_| false, tested), vec![3, 2, 4, 1]);
         // A live sight is a re-test, before a search for a new enemy.
         assert_eq!(look_order(&[1, 2, 3, 4], |who| who == 1, tested), vec![1, 3, 2, 4]);
         assert_eq!(look_order(&[3, 1], |_| false, |_| 0), vec![3, 1], "ties as given");
-        // Two enemies in view in the open: the same percepts in any order.
-        let me = place(0, 0, Vec3::ZERO, 0.0);
-        let view = view(
-            vec![me.clone(), enemy_ahead(20.0), place(2, 1, Vec3::new(2.0, 0.0, 25.0), 0.0)],
-            vec![],
-        );
-        let seen = |order: &[Place], left: u32| {
-            let mut rays = RayBudget::new(left);
-            let percepts = sense(
-                &me,
-                &view,
-                &RayTree::build(&[]),
-                &SenseTuning::default(),
-                &CheatTuning::default(),
-                0,
-                order,
-                &mut rays,
-                &mut Rng::new(1),
-            );
-            let mut who: Vec<Place> = percepts.iter().map(|p| p.who).collect();
-            who.sort_unstable();
-            who
-        };
-        assert_eq!(seen(&[1, 2], 400), seen(&[2, 1], 400));
-        // One ray only: the one looked at first is seen, and only he.
-        assert_eq!(seen(&[1, 2], 1), vec![1]);
-        assert_eq!(seen(&[2, 1], 1), vec![2]);
     }
 
     /// What each enemy looked at came to, with the percepts: seen, out of
-    /// range, behind the bot, dead, blocked, and untested when the rays
-    /// ran out; an enemy of its own team is not looked at.
+    /// range, behind the bot, dead, blocked; an enemy of its own team is
+    /// not looked at.
     #[test]
     fn a_think_knows_what_each_enemy_it_looked_at_came_to() {
         let me = place(0, 0, Vec3::ZERO, 0.0);
@@ -1244,7 +1234,8 @@ mod tests {
         let (percepts, looks) = look(&wall(), 400);
         assert!(percepts.is_empty());
         assert_eq!(looks[0], (1, LookOutcome::Failed(Miss::Blocked)));
-        let (_, looks) = look(&wall(), 3);
-        assert_eq!(looks[0], (1, LookOutcome::Untested));
+        // With no rays in the poll the enemy in view is tested all the same.
+        let (_, looks) = look(&wall(), 0);
+        assert_eq!(looks[0], (1, LookOutcome::Failed(Miss::Blocked)));
     }
 }

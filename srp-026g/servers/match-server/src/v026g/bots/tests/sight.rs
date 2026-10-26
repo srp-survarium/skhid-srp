@@ -1,9 +1,10 @@
 use super::*;
 
-/// The ray budget of a poll is shared by the thinks due only when it binds
-/// (`sense::fair_share`): a match whose budget does not bind is decided the
-/// same whatever the budget (400 rays a poll or ten times that), shot for
-/// shot.
+/// The ray budget of a poll is now the batteries' (an enemy in view is
+/// tested outside it, whole), and is shared by the thinks due only when it
+/// binds (`sense::fair_share`): a match whose budget does not bind is
+/// decided the same whatever the budget (400 rays a poll or ten times that),
+/// shot for shot.
 #[test]
 pub(crate) fn a_budget_that_does_not_bind_changes_no_decision() {
     let run = |rays_per_poll: u32| {
@@ -14,8 +15,9 @@ pub(crate) fn a_budget_that_does_not_bind_changes_no_decision() {
     };
     let usual = run(Tuning::default().think.rays_per_poll);
     assert_eq!(usual, run(4_000), "{usual:?}");
-    // A budget of a few rays does bind, and it is felt.
-    assert_ne!(usual, run(12), "{usual:?}");
+    // A budget with nothing in it does bind (the batteries are not looked
+    // at), and it is felt.
+    assert_ne!(usual, run(0), "{usual:?}");
 }
 
 /// The thinks due are counted before any ray is cast: the bots that have

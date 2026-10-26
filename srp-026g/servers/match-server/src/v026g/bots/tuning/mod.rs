@@ -100,6 +100,7 @@ impl Tuning {
     pub fn validate(&self) -> Result<(), String> {
         sense::validate(&self.sense)?;
         team::validate_think(&self.think)?;
+        sense::validate_sight(&self.sense, &self.cheats, &self.think)?;
         motion::validate_feel(&self.feel)?;
         aim::validate_skill(&self.skill)?;
         aim::validate_aim(&self.aim)?;
@@ -179,6 +180,52 @@ mod tests {
             defaults.aim.combat.strafe_run_ms
         );
         assert_eq!(tuning.aim.burst_ms, defaults.aim.burst_ms);
+    }
+
+    /// A tuning file (the live server loads one) cannot make a sight outlast
+    /// its test: nothing is seen with no test longer than the longest think
+    /// gap and a tick (450 ms with the defaults), a hold is within that, and
+    /// a grace is a human's (150 to 400 ms).
+    #[test]
+    fn the_sight_windows_are_capped_by_the_think_cadence() {
+        let wrong = |change: fn(&mut Tuning)| {
+            let mut tuning = Tuning::default();
+            change(&mut tuning);
+            tuning.validate()
+        };
+        // The defaults are at the caps, and a longer think gap moves them.
+        let at_the_cap = Tuning::default();
+        assert_eq!(at_the_cap.sense.sight_untested_ms, at_the_cap.think.think_ms.1 + 50);
+        assert_eq!(at_the_cap.cheats.sight_hold_ms, at_the_cap.sense.sight_untested_ms);
+        assert!(wrong(|t| t.sense.sight_untested_ms = 450).is_ok());
+        assert!(wrong(|t| t.sense.sight_untested_ms = 451).is_err());
+        assert!(
+            wrong(|t| {
+                t.think.think_ms = (200, 600);
+                t.sense.sight_untested_ms = 650;
+            })
+            .is_ok()
+        );
+        let named = |why: Result<(), String>, name: &str| {
+            assert!(why.unwrap_err().starts_with(name));
+        };
+        named(wrong(|t| t.sense.sight_untested_ms = 5_000), "sense.sight_untested_ms");
+        named(wrong(|t| t.cheats.sight_hold_ms = 451), "cheats.sight_hold_ms");
+        assert!(wrong(|t| t.cheats.sight_hold_ms = 0).is_ok());
+        assert!(wrong(|t| t.sense.sight_grace_ms = 400).is_ok());
+        named(wrong(|t| t.sense.sight_grace_ms = 401), "sense.sight_grace_ms");
+        assert!(wrong(|t| t.sense.sight_grace_ms = 149).is_err());
+        // From a file, as the live server loads it.
+        let dir = std::env::temp_dir().join(format!("srp-sight-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("bots.json");
+        std::fs::write(&path, r#"{"sense":{"sight_untested_ms":5000}}"#).unwrap();
+        assert!(Tuning::load(&path).is_err());
+        std::fs::write(&path, r#"{"cheats":{"sight_hold_ms":600}}"#).unwrap();
+        assert!(Tuning::load(&path).is_err());
+        let fine = r#"{"sense":{"sight_grace_ms":150},"cheats":{"sight_hold_ms":250}}"#;
+        std::fs::write(&path, fine).unwrap();
+        assert!(Tuning::load(&path).is_ok());
     }
 
     #[test]

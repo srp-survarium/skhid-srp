@@ -146,11 +146,8 @@ pub(super) fn drive_tick(
     } else {
         me
     };
-    bot.memory.set_sight_window(know::SightWindow {
-        grace_ms: tuning.sense.sight_grace_ms,
-        untested_ms: tuning.sense.sight_untested_ms,
-        hold_ms: tuning.cheats.sight_hold_ms,
-    });
+    bot.memory
+        .set_sight_window(know::SightWindow::of(&tuning.sense, &tuning.cheats));
     // [aimpoint] What of its target shows, before the reflex aims.
     bot.reflex.look(
         aiming_me,

@@ -64,7 +64,13 @@ pub struct SenseTuning {
     /// A sight whose look failed goes on this long, ms on the information
     /// clock, from that look (`know::SIGHT_GRACE_MS`): not below 150, the
     /// look gap and a tick. The human measurement, 250 (range 150 to
-    /// 400); the bench runs 150, 250 and 400.
+    /// 400); the bench runs 150, 250 and 400. It covers a late input's snap
+    /// of a reckoned player (a lateness is about 0.45 of the ping; the
+    /// relay discards one later than its reach, 225 to 425 ms). A flip from
+    /// the model's error between world fixes (0.21 m median at 1 s, 0.55 m
+    /// at 3 s, p99 2.5 to 4.6 m; a visible line read as blocked in 6 to 18 %
+    /// of cases) is separate from lateness snaps, independent of ping, and
+    /// belongs to grid's 17.4 reckoning: the grace does not cover it.
     pub sight_grace_ms: u32,
 }
 
@@ -121,13 +127,20 @@ pub struct CheatTuning {
     /// The forgetting time instead of the sense's.
     pub forget_ms: u32,
     /// An enemy that is not the target and was seen at a test stays seen
-    /// this long, ms on the information clock, with no test, at the last
-    /// tested place only (never his live one): what a player has of an
-    /// enemy he saw a moment ago, in place of a look at every non-target
-    /// at every tick. At most `SenseTuning::sight_untested_ms`; the
-    /// target is always looked at, never held. The measured human release
-    /// curve says 250; 0: the sight of a non-target is up at the test only.
+    /// with no test, at the last tested place only (never his live one):
+    /// what a player has of an enemy he saw a moment ago, in place of a
+    /// look at every non-target at every tick. At most this long, ms on
+    /// the information clock, and at most `SenseTuning::sight_untested_ms`
+    /// (validated: not above 450). It is the test that is the sampling
+    /// interval, not a human's memory: a hold shorter than the longest
+    /// think gap and a tick (450) blanks a visible enemy for the rest of
+    /// the gap (250 did: the camper's visible-but-no-target time rose); the
+    /// human release curve (250) belongs to the grace after a failed look.
+    /// The target is always looked at, never held.
     pub sight_hold_ms: u32,
+    /// ... and, when true, only until the bot's own next think and a tick,
+    /// the test that comes next (`know::SightWindow::held_until`).
+    pub sight_hold_to_next_think: bool,
 }
 
 impl Default for CheatTuning {
@@ -140,7 +153,8 @@ impl Default for CheatTuning {
             radar_every_ms: 5_000,
             hearing: 1.25,
             forget_ms: 5_000,
-            sight_hold_ms: 250,
+            sight_hold_ms: crate::v026g::bots::know::SIGHT_HOLD_MS,
+            sight_hold_to_next_think: true,
         }
     }
 }
@@ -158,6 +172,30 @@ pub(super) fn validate(sense: &SenseTuning) -> Result<(), String> {
     check(
         sense.sight_grace_ms >= 150 && sense.sight_untested_ms >= sense.sight_grace_ms,
         "sense.sight_grace_ms (150 or more: the look gap and a tick) and sight_untested_ms",
+    )?;
+    Ok(())
+}
+
+/// The sight windows against each other and the think cadence: nothing is
+/// seen with no test longer than the longest think gap and a tick (450 ms
+/// with the defaults, the approved cap), a grace is a human's (150 to 400
+/// ms), and a hold is within the untested bound.
+pub(super) fn validate_sight(
+    sense: &SenseTuning,
+    cheats: &CheatTuning,
+    think: &super::ThinkTuning,
+) -> Result<(), String> {
+    check(
+        sense.sight_untested_ms <= think.think_ms.1 + 50,
+        "sense.sight_untested_ms: at most the longest think gap and a tick (450)",
+    )?;
+    check(
+        sense.sight_grace_ms <= 400,
+        "sense.sight_grace_ms: at most 400 (the humans' range)",
+    )?;
+    check(
+        cheats.sight_hold_ms <= sense.sight_untested_ms,
+        "cheats.sight_hold_ms: at most sense.sight_untested_ms",
     )?;
     Ok(())
 }

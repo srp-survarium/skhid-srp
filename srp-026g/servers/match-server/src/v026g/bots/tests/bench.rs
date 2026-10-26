@@ -127,6 +127,14 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
         bench_settings().var(&format!("{prefix}{name}"))
     };
     let mut tuning = Tuning::default();
+    // How long a sight that is not the target's is held with no test.
+    match bench_settings().var("SRP_BENCH_SIGHT_HOLD").as_deref() {
+        Ok("think") | Err(_) => {}
+        Ok(ms) => {
+            tuning.cheats.sight_hold_ms = ms.parse().expect("SRP_BENCH_SIGHT_HOLD: think or ms");
+            tuning.cheats.sight_hold_to_next_think = false;
+        }
+    }
     // The battery cheat instead of the fair battery knowledge.
     if bench_settings().flag("SRP_BENCH_CHEAT") {
         tuning.cheats.batteries = true;

@@ -56,6 +56,8 @@ pub struct PollStats {
     pub max_gap_ms: u32,
     /// Polls in which the ray budget refused a ray.
     pub binding: u64,
+    /// Rays cast at enemies in view, outside the budget.
+    pub exempt_rays: u64,
     pub starved_by_team: [u64; 2],
     pub starved_by_place: [u64; STARVED_PLACES],
 }
@@ -68,6 +70,7 @@ impl Default for PollStats {
             polls: 0,
             max_gap_ms: 0,
             binding: 0,
+            exempt_rays: 0,
             starved_by_team: [0; 2],
             starved_by_place: [0; STARVED_PLACES],
         }
@@ -87,6 +90,7 @@ impl PollStats {
         if rays.starved() > 0 {
             self.binding += 1;
         }
+        self.exempt_rays += u64::from(rays.exempt);
         for (total, polled) in self.starved_by_team.iter_mut().zip(rays.starved_by_team) {
             *total += u64::from(polled);
         }
@@ -182,14 +186,15 @@ impl Bots {
                 .join(", ")
         };
         format!(
-            "{} polls, gap longest {} ms, 99% within {} ms; the ray budget bound in {} polls, \
-             starved rays by team {:?}; target sights lost by the target's ping: {}; of them \
-             bursts cut: {}",
+            "{} polls, gap longest {} ms, 99% within {} ms (the top of its 5 ms bucket); the ray \
+             budget bound in {} polls, starved rays by team {:?}, {} rays at enemies in view \
+             outside it; target sights lost by the target's ping: {}; of them bursts cut: {}",
             polls.polls,
             polls.max_gap_ms,
             polls.p99_gap_ms(),
             polls.binding,
             polls.starved_by_team,
+            polls.exempt_rays,
             by_band(&counts.lapses),
             by_band(&counts.cuts),
         )
