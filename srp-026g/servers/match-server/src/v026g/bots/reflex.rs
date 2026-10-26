@@ -386,18 +386,6 @@ pub struct CombatTuning {
     /// had reversals +3.2 % (z 2.3), in 10v10 only; the push is the
     /// candidate cause (`grenades-record.md` 13). Swept: this switch.
     pub grenade_push_tracks: bool,
-    /// The places of a roll, and a throw at the press and in the hold, also
-    /// refuse a place within `grenade_mate_goal_m` of where a teammate's play
-    /// means it to be (its S1 claim on a spot, `TeamKnowledge::claims_of_others`,
-    /// kept 2 s): the mate that is about to walk into the blast is caught by
-    /// where it is going, not by a straight line of its velocity (look 2: 54 %
-    /// of the mates inside the radius at the blast, 26 of 48, were outside it
-    /// at the throw). Information the team already shares; a human gets it
-    /// by seeing a mate head for the place. Off: as before. The distance:
-    /// 8 m, GUESS: the blast's damage at 8 m is 0.3 of a body's health (C,
-    /// PROVEN); swept: 6 m and 10 m.
-    pub grenade_mate_goals: bool,
-    pub grenade_mate_goal_m: f32,
     /// The view not on the throw by this, ms: given up.
     pub grenade_give_up_ms: u32,
     /// After a throw, the legs go at the place from/until this, ms.
@@ -986,8 +974,6 @@ impl Default for CombatTuning {
             grenade_claim_ms: 6_000,
             grenade_repick: false,
             grenade_push_tracks: true,
-            grenade_mate_goals: false,
-            grenade_mate_goal_m: 8.0,
             grenade_give_up_ms: 1_500,
             grenade_push_ms: (1_500, 3_500),
             grenade_push_after_blast: true,
@@ -1492,9 +1478,6 @@ pub struct GrenadeStats {
     pub thrown_from: [u32; GRENADE_SOURCES],
     /// Pushes after a throw left out (`grenade_push_tracks` off).
     pub pushes_skipped: u32,
-    /// Places dropped from a roll because a teammate's goal was near them
-    /// (`grenade_mate_goals`).
-    pub goals: u32,
 }
 
 impl GrenadeStats {
@@ -1525,7 +1508,6 @@ impl GrenadeStats {
             rechecks: sub(self.rechecks, before.rechecks),
             thrown_from: sub(self.thrown_from, before.thrown_from),
             pushes_skipped: self.pushes_skipped.saturating_sub(before.pushes_skipped),
-            goals: self.goals.saturating_sub(before.goals),
         };
         (change, false)
     }
@@ -1557,7 +1539,6 @@ impl GrenadeStats {
         plus(&mut self.rechecks, &other.rechecks);
         plus(&mut self.thrown_from, &other.thrown_from);
         self.pushes_skipped += other.pushes_skipped;
-        self.goals += other.goals;
     }
 }
 
@@ -2095,8 +2076,6 @@ pub struct Reflex {
     /// A grenade decided on at this place, for the team's claim
     /// ([`Reflex::take_throw_claim`]).
     throw_claim: Option<Vec3>,
-    /// The teammates' claimed goals at the last think (`grenade_mate_goals`).
-    mate_goals: Vec<(Place, Vec3)>,
     /// When the last grenade was let go.
     last_throw: Option<u32>,
     /// [play 20] Throws made and given up since the last think, for the
@@ -3447,14 +3426,6 @@ impl Reflex {
         let (view, team) = (sit.view, sit.team);
         let c = &aim.combat;
         self.grenade_stats.thinks += 1;
-        // The teammates' goals, for the places and the throw's recheck.
-        self.mate_goals.clear();
-        if c.grenade_mate_goals
-            && let Some(team) = team
-        {
-            self.mate_goals
-                .extend(team.claims_of_others(me.place, now).map(|k| (k.who, k.at)));
-        }
         if self.throw.is_some()
             || self.target.is_some()
             || self.thrown >= c.grenades
@@ -3490,10 +3461,7 @@ impl Reflex {
             })
             .unwrap_or_default();
         let claimed = |at: Vec3| claims.iter().any(|k| k.distance_xz(at) < c.grenade_claim_m);
-        let goals = &self.mate_goals;
-        let goal_near = |at: Vec3| goals.iter().any(|(_, g)| g.distance_xz(at) < c.grenade_mate_goal_m);
         let mut dropped = 0;
-        let mut dropped_goals = 0;
         let mut places: Vec<(Vec3, PlaceSource)> = held
             .chain(camps)
             .filter(|(at, _)| {
@@ -3504,9 +3472,7 @@ impl Reflex {
                 }
                 let hit = claimed(*at);
                 dropped += u32::from(hit);
-                let goal = !hit && goal_near(*at);
-                dropped_goals += u32::from(goal);
-                !hit && !goal
+                !hit
             })
             .collect();
         if c.grenade_tracks {
@@ -3530,10 +3496,6 @@ impl Reflex {
                     dropped += 1;
                     continue;
                 }
-                if goal_near(at) {
-                    dropped_goals += 1;
-                    continue;
-                }
                 let source = if track.sight_since.is_some() || track.source == Source::Seen {
                     PlaceSource::Lost
                 } else {
@@ -3543,7 +3505,6 @@ impl Reflex {
             }
         }
         self.grenade_stats.claimed += dropped;
-        self.grenade_stats.goals += dropped_goals;
         if places.is_empty() {
             return;
         }
@@ -3697,16 +3658,6 @@ impl Reflex {
             }
         };
         throw.pitch = Some(pitch);
-        // A teammate's goal now within the blast's reach of the place: not thrown.
-        let goal_of = self
-            .mate_goals
-            .iter()
-            .find(|(_, g)| g.distance_xz(throw.at) < c.grenade_mate_goal_m)
-            .map(|(who, _)| *who);
-        if let Some(who) = goal_of.filter(|_| !throw.released) {
-            self.give_up(throw.at, Refuse::Mate(who));
-            return None;
-        }
         let mesh = self.sight.ground();
         let weigh = |mates: bool, pick: ArcPick| {
             over_ground(mesh.as_deref(), throw.at.y, |ground| match pick {
@@ -6690,58 +6641,6 @@ mod tests {
         assert_eq!(s.nth.iter().sum::<u32>() as usize, run.thrown.len(), "{s:?}");
         assert_eq!(s.nth[0], 1, "{s:?}");
         assert!(run.thrown_ago.is_some_and(|ago| ago < 12_000));
-    }
-
-    /// `grenade_mate_goals`: a place with a teammate's claimed goal near it
-    /// is dropped from the roll (counted); the bot's own claim is not a
-    /// mate's; off, the place is thrown at.
-    #[test]
-    fn a_teammates_goal_near_the_place_drops_it_when_asked() {
-        let me = body(0, 0, Vec3::ZERO, 0.0);
-        let mut camper = body(1, 1, Vec3::new(0.0, 0.0, 20.0), 0.0);
-        camper.keys = key::CROUCH | key::AIM;
-        let view = view_of(vec![me.clone(), camper.clone()]);
-        let run = |combat: CombatTuning, team: &TeamKnowledge| {
-            let aim = AimTuning {
-                combat: CombatTuning {
-                    grenade_chance: 1.0,
-                    grenade_roll_ms: 500,
-                    ..combat
-                },
-                ..AimTuning::default()
-            };
-            let mut memory = Memory::default();
-            let mut reflex = Reflex::default();
-            let mut rng = Rng::new(10);
-            let sit = Situation {
-                team: Some(team),
-                ..Situation::of(&view)
-            };
-            for now in [1_000, 1_300] {
-                sense(&mut memory, &[percept(1, camper.feet, now, Source::Seen)], now);
-                reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
-            }
-            for now in [1_800, 2_300, 2_800] {
-                sense(&mut memory, &[], now);
-                reflex.think_with(&me, &sit, &memory, now, &aim, 0.5, &mut rng);
-            }
-            (reflex.grenade_stats(), reflex.take_throw_claim())
-        };
-        let on = CombatTuning {
-            grenade_mate_goals: true,
-            ..CombatTuning::default()
-        };
-        let mut team = TeamKnowledge::default();
-        team.claim(7, Vec3::new(3.0, 0.0, 22.0), 1_900);
-        let (stats, claim) = run(on.clone(), &team);
-        assert_eq!(claim, None, "{stats:?}");
-        assert!(stats.goals > 0, "{stats:?}");
-        let (stats, claim) = run(CombatTuning::default(), &team);
-        assert!(claim.is_some(), "off: thrown at: {stats:?}");
-        assert_eq!(stats.goals, 0);
-        let mut own = TeamKnowledge::default();
-        own.claim(0, Vec3::new(3.0, 0.0, 22.0), 1_900);
-        assert!(run(on, &own).1.is_some(), "its own claim is not a mate's goal");
     }
 
     /// [G2] A wall 8 m ahead and 3 m high: the flat arc to a place 21 m
