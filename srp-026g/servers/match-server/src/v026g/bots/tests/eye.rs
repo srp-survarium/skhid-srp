@@ -333,6 +333,10 @@ pub(crate) fn with_the_switch_off_a_soak_is_the_old_one() {
         tuning.threat.spots = false; // the pinned counts predate K1
         // The base's soak is from before the trigger's range by weapon class (X1): the old 80 m.
         tuning.aim.combat.range_by_weapon = false;
+        // The pinned counts predate G1 + G2 and the team claim (grenade places from tracks, the arc search).
+        tuning.aim.combat.grenade_tracks = false;
+        tuning.aim.combat.grenade_search = false;
+        tuning.aim.combat.grenade_claim = false;
         let out = soak_tuned(4, 3, 0, None, 120, seed, tuning);
         let got = (
             out.shots,
