@@ -68,9 +68,11 @@ pub(crate) struct RouteTally {
     pub(crate) exact_was: Vec<bool>,
     pub(crate) exact_drop: Vec<Option<u32>>,
     pub(crate) falls_exact: (u32, u32),
-    /// The falls probe (`SRP_BENCH_FALLS`): each body's keys and feet of the last second (20 ticks).
+    /// The falls probe (`SRP_BENCH_FALLS`): each body's keys and feet of the last two seconds (40 ticks).
     pub(crate) ring: Vec<std::collections::VecDeque<(u32, Vec3)>>,
     pub(crate) fall_lines: bool,
+    /// The reload each body is in (its start and end, ms) as the probe last saw it.
+    pub(crate) reload_seen: Vec<Option<(u32, u32)>>,
     /// The reckoning error of the bots' own feet (m), and of those on a lip's floors.
     pub(crate) est_err: Vec<f32>,
     pub(crate) est_err_lip: Vec<f32>,
@@ -102,6 +104,7 @@ impl RouteTally {
             exact_drop: vec![None; bodies],
             ring: vec![std::collections::VecDeque::new(); bodies],
             fall_lines: super::bench_settings().flag("SRP_BENCH_FALLS"),
+            reload_seen: vec![None; bodies],
             est_err: Vec::new(),
             est_err_lip: Vec::new(),
             off: Default::default(),
@@ -118,11 +121,14 @@ impl RouteTally {
             }
             let before = std::mem::replace(&mut self.feet[place], body.alive.then_some(body.feet));
             if self.fall_lines {
+                self.reload_line(place, body, before, bots, time);
+            }
+            if self.fall_lines {
                 let ring = &mut self.ring[place];
                 if !body.alive {
                     ring.clear();
                 } else {
-                    if ring.len() == 20 {
+                    if ring.len() == 40 {
                         ring.pop_front();
                     }
                     if let Some(bot) = bots.bots[place].as_ref()
@@ -211,18 +217,39 @@ impl RouteTally {
         }
     }
 
-    /// The falls probe: one line for a fall of a metre or more (planned or not): what the bot was doing,
-    /// its keys of the last second, where it stood against the grid's lips, how far off its route.
-    fn fall_line(&self, place: usize, body: &Body, bots: &Bots, from: Vec3, time: u32, planned: bool) {
-        use crate::v026g::drive::key;
+    /// The reload probe: a `RELOAD` line when a bot starts one and a `RELDEATH` line when it dies in one, each
+    /// with the lip floor it stood on and its keys and guard verdicts of the last second (`history`).
+    fn reload_line(&mut self, place: usize, body: &Body, before: Option<Vec3>, bots: &Bots, time: u32) {
         let Some(bot) = bots.bots[place].as_ref() else {
             return;
         };
-        let (play, step) = bot.running.as_ref().map_or(("none".to_owned(), String::new()), |r| (format!("{:?}", r.kind()), r.step_name()));
-        let go = match bot.intent.go {
-            crate::v026g::bots::plays::Go::To { at, within_m } => format!("To d={:.1} within={:.1}", at.distance_xz(from), within_m),
-            crate::v026g::bots::plays::Go::Stay => "Stay".to_owned(),
+        let note = bot.reflex.reload_note().map(|r| (r.at, r.until));
+        let on_lip = |feet: Vec3| {
+            bots.tactics.as_ref().map_or("-".to_owned(), |t| {
+                let grid = &t.world.grid;
+                grid.locate(feet, 1.0).map_or("nofloor".to_owned(), |n| format!("{}{}", if grid.is_lip(n) { "lip" } else { "" }, if grid.near_lip(n) { "+near" } else { "" }))
+            })
         };
+        if body.alive && note.is_some() && note != self.reload_seen[place] {
+            self.reload_seen[place] = note;
+            let (at, until) = note.unwrap_or_default();
+            eprintln!("RELOAD t={time} place={place} at={at} until={until} lip=[{}] guard=[{}]", on_lip(body.feet), self.history(place, 20));
+        }
+        if !body.alive && let Some(feet) = before {
+            if let Some((at, until)) = self.reload_seen[place]
+                && at <= time
+                && time <= until + 1_000
+            {
+                eprintln!("RELDEATH t={time} place={place} at={at} until={until} lip=[{}] guard=[{}]", on_lip(feet), self.history(place, 40));
+            }
+            self.reload_seen[place] = None;
+        }
+    }
+
+    /// The last `ticks` of a body's keys, runs joined: `FL*6 F*14` (`s`/`w`/`x` a side step taken, woven, refused;
+    /// `.n` the lip guard's verdict).
+    fn history(&self, place: usize, ticks: usize) -> String {
+        use crate::v026g::drive::key;
         let name = |keys: u32| {
             let mut s = String::new();
             match (keys >> 29) & 3 {
@@ -245,16 +272,30 @@ impl RouteTally {
             }
             s
         };
-        // The last second of keys, runs joined: `FL*6 F*14`.
         let mut history: Vec<(String, u32)> = Vec::new();
-        for (keys, _) in &self.ring[place] {
+        for (keys, _) in self.ring[place].iter().skip(self.ring[place].len().saturating_sub(ticks)) {
             let n = name(*keys);
             match history.last_mut() {
                 Some((last, count)) if *last == n => *count += 1,
                 _ => history.push((n, 1)),
             }
         }
-        let history = history.iter().map(|(n, c)| format!("{n}*{c}")).collect::<Vec<_>>().join(" ");
+        history.iter().map(|(n, c)| format!("{n}*{c}")).collect::<Vec<_>>().join(" ")
+    }
+
+    /// The falls probe: one line for a fall of a metre or more (planned or not): what the bot was doing,
+    /// its keys of the last second, where it stood against the grid's lips, how far off its route.
+    fn fall_line(&self, place: usize, body: &Body, bots: &Bots, from: Vec3, time: u32, planned: bool) {
+        use crate::v026g::drive::key;
+        let Some(bot) = bots.bots[place].as_ref() else {
+            return;
+        };
+        let (play, step) = bot.running.as_ref().map_or(("none".to_owned(), String::new()), |r| (format!("{:?}", r.kind()), r.step_name()));
+        let go = match bot.intent.go {
+            crate::v026g::bots::plays::Go::To { at, within_m } => format!("To d={:.1} within={:.1}", at.distance_xz(from), within_m),
+            crate::v026g::bots::plays::Go::Stay => "Stay".to_owned(),
+        };
+        let history = self.history(place, 20);
         let side = body.keys & (key::LEFT | key::RIGHT) != 0;
         let along = body.keys & (key::FORWARD | key::BACK) != 0;
         let stepped = bot.bench_stepped;
