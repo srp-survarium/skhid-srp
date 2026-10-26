@@ -3049,3 +3049,6 @@ va	status	ref_021d	name
 0x0012de30	inferred-medium		vostok::render::baked_texture_resource::baked_texture_resource
 0x000f0080	inferred-medium		vostok::resources::query_result_for_cook::set_unmanaged_resource
 0x001e8da0	inferred-high		survarium::delete_folder
+0x00127c30	inferred-medium		vostok::render::skeleton_combined_cook_data::skeleton_combined_cook_data
+0x00127cb0	inferred-medium		vostok::render::skeleton_combined_cook_data::part::part
+0x002384c0	inferred-medium		survarium::game_world_ui::show_player_list

@@ -13,8 +13,9 @@ package
 
    // Blackout's markers over heads (docs/notes/blackout.md) with the player icons movie itself (its
    // root, MainTimeline, as the game loads it): a player's icon (id 1) and a match object's (id 40,
-   // HUDIconLayer.FIRST_OBJECT on), fed as update_player_icons feeds them, then the states patch 62's
-   // hide_ui_icons tells: not forced, both shown; forced, none; forced with Tab held, the player's only;
+   // HUDIconLayer.FIRST_OBJECT on), fed as update_player_icons feeds them, then the states
+   // Blackout (patch 65) tells: not forced, both shown; forced, none; forced with Tab held, the player's only
+   // (F11, hide_interface, doing nothing then);
    // Tab let go, none; not forced again, both.
    // Prints "ICONS ..." lines (trace) and ends with "ICONS RESULT pass" or "ICONS RESULT fail: ...".
    public class IconsHarness extends Sprite
@@ -96,6 +97,8 @@ package
             expect("Blackout",false,false);
             movie.force_interface_tab(true);
             expect("Blackout, Tab held",true,false);
+            movie.hide_interface(true);
+            expect("Blackout, Tab held, F11 (hide_interface) pressed: it does nothing",true,false);
             movie.force_interface_tab(false);
             expect("Blackout, Tab let go",false,false);
             movie.force_interface_tab(true);

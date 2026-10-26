@@ -1934,3 +1934,7 @@ va	name	source	ret_cleanup	result
 0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	manual	12	AL: 1 the file is used, 0 made again
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	manual	4	
 0x000e0210	vostok::render::render_model_instance::destroy	manual	0	
+0x00127c30	vostok::render::skeleton_combined_cook_data::skeleton_combined_cook_data	manual	4	EAX: the data
+0x00127cb0	vostok::render::skeleton_combined_cook_data::part::part	manual	0	EAX: the record
+0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	manual		
+0x002384c0	survarium::game_world_ui::show_player_list	manual	4	
