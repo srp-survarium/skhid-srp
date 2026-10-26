@@ -5,7 +5,7 @@
 //! items; a vector is three `f32`.
 //!
 //! ```text
-//! magic "SRPMAPD\0", u32 version (2)
+//! magic "SRPMAPD\0", u32 version (3)
 //! string project
 //! vec3 levelmap_min, vec3 levelmap_max
 //! list spawns:      vec3 position, vec3 rotation, i32 team, i32 priority,
@@ -17,6 +17,9 @@
 //!                   string damage_type, u8 has_damage, [damage], list shapes
 //! list anomalies:   string name, vec3 position, list string zones,
 //!                   energy, artefacts, list states
+//! list artefact_cores (version 3):
+//!                   string core, list (u32 dict_id, u32 count) pool,
+//!                   list (string name, f32 search_s, f32 cooldown_s) containers
 //! list libraries:   string name, u32 primitives, list vec3 vertices,
 //!                   list [u32; 3] triangles, then one u8 walker behaviour
 //!                   per triangle
@@ -44,6 +47,9 @@
 //! Version 2 (2026-10-14) added cylinders, the zones' damage and the
 //! anomalies' settings. A version 1 file is refused (its zones would lack
 //! both and bots would walk through anomalies): dump the maps again.
+//! Version 3 (2026-10-27) added the artefact cores after the anomalies; a
+//! version 2 file is still read, with none (what the bots know of the
+//! artefact places then stays unknown until the map is dumped again).
 //!
 //! Reading checks every count against the bytes left, so a damaged file is
 //! an error, never a panic or a huge allocation.
@@ -53,14 +59,17 @@ use std::path::Path;
 use crate::library::{Library, WalkerBehaviour};
 use crate::math::{Rotation, Vec3};
 use crate::project::{
-    Anomaly, AnomalyArtefacts, AnomalyEnergy, AnomalyState, BatterySpawner, Container, Damage,
+    Anomaly, AnomalyArtefacts, AnomalyEnergy, AnomalyState, ArtefactContainer, ArtefactCore,
+    BatterySpawner, Container, Damage,
     MapData, Placement, Shape, ShapeKind, Spawn, Zone, ZoneGroup, ZoneKind,
 };
 use crate::resources::Error;
 
 const MAGIC: &[u8; 8] = b"SRPMAPD\0";
 const END: &[u8; 4] = b"END\0";
-pub const VERSION: u32 = 2;
+pub const VERSION: u32 = 3;
+/// The oldest version [`MapData::from_bytes`] still reads.
+pub const OLDEST: u32 = 2;
 /// The file name extension.
 pub const EXTENSION: &str = "mapdata";
 
@@ -71,9 +80,14 @@ pub fn file_name(project: &str) -> String {
 
 impl MapData {
     pub fn to_bytes(&self) -> Vec<u8> {
+        self.to_bytes_of(VERSION)
+    }
+
+    /// The file of `version` (the current one, or [`OLDEST`] for a test of the reader).
+    fn to_bytes_of(&self, version: u32) -> Vec<u8> {
         let mut w = Writer(Vec::with_capacity(1 << 20));
         w.0.extend_from_slice(MAGIC);
-        w.u32(VERSION);
+        w.u32(version);
         w.str(&self.project);
         w.vec3(self.levelmap_min);
         w.vec3(self.levelmap_max);
@@ -167,6 +181,20 @@ impl MapData {
                 });
             });
         });
+        if version >= 3 {
+            w.list(&self.artefact_cores, |w, a| {
+                w.str(&a.core);
+                w.list(&a.pool, |w, &(id, count)| {
+                    w.u32(id);
+                    w.u32(count);
+                });
+                w.list(&a.containers, |w, c| {
+                    w.str(&c.name);
+                    w.f32(c.search_s);
+                    w.f32(c.cooldown_s);
+                });
+            });
+        }
         w.list(&self.libraries, |w, l| {
             w.str(&l.name);
             w.u32(l.primitives);
@@ -191,9 +219,9 @@ impl MapData {
             return Err(Error("not a map data file".into()));
         }
         let version = r.u32()?;
-        if version != VERSION {
+        if !(OLDEST..=VERSION).contains(&version) {
             return Err(Error(format!(
-                "map data version {version}, this build reads {VERSION} only: \
+                "map data version {version}, this build reads {OLDEST} to {VERSION}: \
                  write the file again with this build's mapdata-dump"
             )));
         }
@@ -307,6 +335,21 @@ impl MapData {
                 })?,
             })
         })?;
+        if version >= 3 {
+            map.artefact_cores = r.list(12, |r| {
+                Ok(ArtefactCore {
+                    core: r.str()?,
+                    pool: r.list(8, |r| Ok((r.u32()?, r.u32()?)))?,
+                    containers: r.list(12, |r| {
+                        Ok(ArtefactContainer {
+                            name: r.str()?,
+                            search_s: r.f32()?,
+                            cooldown_s: r.f32()?,
+                        })
+                    })?,
+                })
+            })?;
+        }
         map.libraries = r.list(16, |r| {
             let name = r.str()?;
             let primitives = r.u32()?;
@@ -614,6 +657,22 @@ mod tests {
                 walker: vec![WalkerBehaviour::DontWalk],
                 primitives: 1,
             }],
+            artefact_cores: vec![ArtefactCore {
+                core: "core".into(),
+                pool: vec![(76, 5), (74, 5)],
+                containers: vec![
+                    ArtefactContainer {
+                        name: "logic/container_1".into(),
+                        search_s: 6.0,
+                        cooldown_s: 80.0,
+                    },
+                    ArtefactContainer {
+                        name: "logic/container_2".into(),
+                        search_s: 2.0,
+                        cooldown_s: 80.0,
+                    },
+                ],
+            }],
             placements: vec![Placement {
                 library: 0,
                 position: Vec3::new(3.0, 4.0, 5.0),
@@ -622,6 +681,23 @@ mod tests {
                 cmask: 20,
             }],
         }
+    }
+
+    /// A version 2 file (written before the artefact cores) is still read, with none.
+    #[test]
+    fn a_version_2_file_is_read_without_the_artefact_cores() {
+        let map = sample();
+        let old = MapData::from_bytes(&map.to_bytes_of(2)).unwrap();
+        assert!(old.artefact_cores.is_empty());
+        assert_eq!(
+            MapData {
+                artefact_cores: Vec::new(),
+                ..map.clone()
+            },
+            old
+        );
+        assert!(MapData::from_bytes(&map.to_bytes_of(1)).is_err());
+        assert!(MapData::from_bytes(&map.to_bytes_of(4)).is_err());
     }
 
     #[test]
