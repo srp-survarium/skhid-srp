@@ -1,52 +1,5 @@
 use super::*;
 
-/// The bench's counts of the route searches a drive makes ([`asks::searched`]):
-/// all, those from a start floor in a pocket, those within a second of the
-/// bot's last, and the asks a bot given up in its pocket was spared
-/// ([`Ask::Skipped`]).
-#[cfg(test)]
-pub(super) mod asks {
-    use std::sync::atomic::{AtomicU64, Ordering};
-
-    #[derive(Clone, Copy)]
-    pub(crate) enum Ask {
-        All,
-        Pocket,
-        Again,
-        Skipped,
-    }
-
-    /// One bot's own: when its last search was, and how many it made.
-    #[derive(Clone, Copy, Debug, Default)]
-    pub(crate) struct Asked {
-        pub(crate) last: u32,
-        pub(crate) total: u32,
-    }
-
-    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
-
-    pub(crate) fn count(kind: Ask) {
-        COUNTS[kind as usize].fetch_add(1, Ordering::Relaxed);
-    }
-
-    pub(crate) fn counts() -> [u64; 4] {
-        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
-    }
-
-    /// A search at `time` by a bot (`asked`); from a pocket's floor or not.
-    pub(crate) fn searched(asked: &mut Asked, time: u32, in_pocket: bool) {
-        count(Ask::All);
-        if in_pocket {
-            count(Ask::Pocket);
-        }
-        if asked.total != 0 && time.saturating_sub(asked.last) <= 1_000 {
-            count(Ask::Again);
-        }
-        asked.last = time;
-        asked.total += 1;
-    }
-}
-
 /// A goal no way was found to is not planned to again for this long, ms.
 pub(super) const NO_WAY_RETRY_MS: u32 = 500;
 
@@ -273,4 +226,51 @@ impl Bots {
 /// one lately (`Bot::long_kept`, `crossing::LONG_RETRY_MS`).
 pub(super) fn long_kept(kept: Option<(Vec3, u32)>, goal: Vec3, now: u32) -> bool {
     kept.is_some_and(|(to, until)| now < until && to.distance_xz(goal) <= crossing::LONG_RETRY_M)
+}
+
+/// The bench's counts of the route searches a drive makes ([`asks::searched`]):
+/// all, those from a start floor in a pocket, those within a second of the
+/// bot's last, and the asks a bot given up in its pocket was spared
+/// ([`Ask::Skipped`]).
+#[cfg(test)]
+pub(super) mod asks {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[derive(Clone, Copy)]
+    pub(crate) enum Ask {
+        All,
+        Pocket,
+        Again,
+        Skipped,
+    }
+
+    /// One bot's own: when its last search was, and how many it made.
+    #[derive(Clone, Copy, Debug, Default)]
+    pub(crate) struct Asked {
+        pub(crate) last: u32,
+        pub(crate) total: u32,
+    }
+
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+
+    pub(crate) fn count(kind: Ask) {
+        COUNTS[kind as usize].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub(crate) fn counts() -> [u64; 4] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+
+    /// A search at `time` by a bot (`asked`); from a pocket's floor or not.
+    pub(crate) fn searched(asked: &mut Asked, time: u32, in_pocket: bool) {
+        count(Ask::All);
+        if in_pocket {
+            count(Ask::Pocket);
+        }
+        if asked.total != 0 && time.saturating_sub(asked.last) <= 1_000 {
+            count(Ask::Again);
+        }
+        asked.last = time;
+        asked.total += 1;
+    }
 }
