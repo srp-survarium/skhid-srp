@@ -190,3 +190,66 @@ AK-74M and an inventory SVD showed “Optics” and opened the existing editor.
 Compatible PSO-1 variants attached and persisted on the server; dragging the SVD
 scope back to inventory removed its saved upgrade and restored “Stock scope”.
 Incompatible scopes were greyed out, and the TT-33 menu had no optics action.
+
+## 6. The rifle scopes from 0.69d0 (2026-10-26)
+
+The owner (2026-10-26): "let's do those 8", the scopes the later builds added for rifles that 0.26g's
+scope code can show (one zoom, the reticle in the aimed model). The picks the owner left open are
+the coordinator's, to be changed: the CompM4's item itself goes to x2; the switchable scopes at one
+zoom (the aperture sight x3, the TA01 x4, the Leupold 3-7 x6, as 0.46c2); prices in line with the
+scopes sold.
+
+| item | dict id | zoom | price | donor | fits |
+|---|---|---|---|---|---|
+| CompM4 collimator (the sold one) | 2110 | x1.25 -> x2 | 9,000 | 0.46c2 and 0.69d0 have it x2 | as before |
+| NcSTAR 4 collimator | 2113 | x1.25 | 7,000 | 0.69d0 `ncstar_4_collimator` | 37 weapons |
+| EOTech XPS2 collimator | 2114 | x1.25 | 9,000 | `eotech_xps2_collimator` | 34 |
+| PK-01VI collimator | 2115 | x2 | 10,000 | `belomo_pk01_collimator` | 35 |
+| RSA-S collimator | 2116 | x2 | 10,000 | `hensoldt_rsas_collimator` | 37 |
+| Aperture optical sight | 2117 | x3 (0.69d0: x3/x6) | 11,000 | `aperture_scope` | 17 |
+| TA01 optical sight | 2118 | x4 (x4/x8) | 14,000 | `acog_ta01_4x32_scope` | 17 |
+| Leupold 3-7 optical sight | 2119 | x6 (x4/x8; 0.46c2 x6) | 17,000 | `leupold_3_7x4x8_scope` | 7 |
+
+Made by `scripts/rifle-scopes` (prepare_donor.sh, prepare_live.sh, survey.py, make_pack.py;
+pack `rifle-scopes`, edit list `rifle-scopes-1`):
+
+- **Placement, as patch 19's** (PROVEN in our data): our variants (models/weapons/attach/fit*,
+  "0.51c5 modules, placed by locfit.py") are 0.69d0's own module meshes (0.51c5's, vertex for
+  vertex) moved by one translation per weapon, with the rails the weapon needs (picatini_lastochka
+  on a Kalashnikov, a scope rail where there is none). A new optic takes, on each weapon, the
+  translation and rails of our variant of its kind there (`mounts.tsv`): a collimator a
+  collimator's, a scope a scope's. The weapon draws a scope model at scope_point turned 180 degrees
+  about Y (x and z mirrored: the MP7's and the Vepr-12's variants centre their eye so).
+- **The eye**: a collimator's variant sets the weapon's model to one whose `aim` locator is on the
+  optic's sight line (x and y; as our variants do: `hk416_a5_n_aimpoint_compm4` and the like); one
+  of ours with that eye already is taken, else the mount variant's weapon model is copied with only
+  that locator changed (`variants.tsv`). A scope's aimed view (the weapon hidden) is the eyepiece of
+  our scope variant on that weapon (its background and lens) with the new scope's reticle grid and
+  dot centred where that variant's are, and its weapon model: the same eye.
+- **The reticle**: 0.69d0 draws a collimator's reticle as a separate model; 0.26g draws the aimed
+  model alone. The red dot of ours (patch 21's `collimator_glowing_dot`, an emissive disk with the
+  view-angle falloff of a collimator) is baked into each new collimator's aimed model as a surface,
+  at the optic's eye point 0.6 m on along the sight line, where every collimator of ours has it
+  (resource-porter's `vostok-port compose-model`, which also places the optics: a general merge of
+  static models' surfaces, each moved). The XPS2 gets the dot, not 0.69d0's ring.
+- **Fit**: each weapon of ours 0.69d0 gives the module to (`mods.<name>.used_by` of the weapon
+  survey; a premium copy as its weapon; `a545` is our `a_545`) that has a mount of the scope's kind
+  (`fit.tsv`). Weapons with no variant of a picatinny optic of ours (the SVD, VSS, VSK-94, SV-98,
+  Rem 700, Mosin and the like) take none. A weapon with a stock scope (the HK416's and MSBS's
+  EOTech/Walther) gets the set form (type 0), the others the add (type 3), as section 3 says.
+- **Materials**: the lens, reticle and grid materials are ours (weapons/loc2, materials.tsv); each
+  optic's own is 0.69d0's made again on a loc2 template, given 0.69d0's textures slot for slot
+  (albedo, normal, smoothness as roughness, metalness as fresnel; retexture.py).
+- **Shop**: items 2113..2119 by seller 0 at no rank at their base_cost (as every scope item with a
+  pair, `prices::sellers_of_in`); icons rendered from the models (render_icon.py) in column 4 of the
+  consumables atlas (rows 13 to 19); names and short descriptions in the six languages (texts.tsv).
+  The CompM4's name says x2.
+- **Size**: 191 items (7 shop items, 184 variants), 139 weapon models with a moved eye (a copy of a
+  weapon's model, about 0.3 MB each), 24 textures; the content patch grows by about 170 MB.
+- **Checked**: `release/build-content` changes only the dictionary, the six localization tables,
+  the lobby movie (the icons) and the 26 CompM4 configs, and adds the pack's files; srp starts on the
+  data with 353 scope pairs (169 before) and no variant left out. A review sheet renders each scope
+  on three weapons, outside and aimed (`review.py`). **Not run in a game.** The in-game check: each
+  scope's aimed view on a few weapons (the reticle centred, the dot in the window, the zoom), the
+  outside look on the AKs' side rail and the M4's carry handle, the Leupold 3-7's eyepiece far back
+  on the AKs, the icons, the CompM4 at x2.

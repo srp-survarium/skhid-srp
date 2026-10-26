@@ -481,3 +481,13 @@ differences. Not a simulation change.
 | change | why |
 |---|---|
 | `ui_desc/combat_log_icon` of the 21 configs of base patch 19's weapons: Saiga-12K (and premium) 31 -> 53, SOK-94 29 -> 54, PKP 38 -> 55, Vepr-12 (and premium) 31 -> 56, AEK-919K 3 -> 57, Kedr 22 -> 58, Neostead (both) 12 -> 59, FNC 31 -> 60, MP7 1 -> 61, MP7 silenced and Special 1 -> 62, HK416 31 -> 63, P90 47 -> 64, KRISS 47 -> 65, MSBS 31 -> 66, Valmet 31 -> 67, vz. 58 29 -> 68, M4A1 31 -> 21 | the owner: "new weapons that were added have incorrect icons" in the kill feed. The icon is frame (icon + 1) of the hud's weapon clip; the port gave these weapons stand-ins of stock weapons' icons, the clip ending at 52. Their builds' own icons (0.27d0 to 0.31a2 alike) are now in the hud movie (`CombatLogWeapon53` to `68`, [`../../docs/notes/kill-feed-icons.md`](../../docs/notes/kill-feed-icons.md)); the M4A1's 21 is the clip's own M4 |
+
+## rifle-scopes-1.json (2026-10-26)
+
+Made by `../rifle-scopes/make_pack.py` with the pack rifle-scopes (`fit.tsv` there); make it again,
+not this file.
+
+| change | why |
+|---|---|
+| 184 `items_compatibility` rows of `gameplay/db_static_dictionaries` (`compatibility_<scope><weapon>`), a weapon and a new scope it fits | the lobby movie's scope pairs (greys the scopes that do not fit, lists a scope's weapons); the server takes the pairs from the variants' `srp_scope_fit` (`../../docs/notes/weapon_scopes.md`, section 6) |
+| `data/fov_factor` 0.8 -> 0.5 in the Aimpoint CompM4's item and its 25 variants; its name "CompM4 collimator" -> "CompM4 collimator, x2" in the six languages | the owner (2026-10-26): the CompM4 at x2, as 0.46c2 and 0.69d0 have it (the coordinator's pick: the item itself, so its owners get x2) |
