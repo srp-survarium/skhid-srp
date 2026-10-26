@@ -26,14 +26,19 @@
 //! - **Nothing is decided by the kit:** a bot carries traps only when told
 //!   ([`Habit::carry`]); none are told yet, so the habit is idle.
 
-use mapdata::{Vec3, WalkGrid};
+use std::sync::Arc;
+
+use mapdata::{NodeId, Vec3, WalkGrid};
 
 use super::kin;
 use super::know::HumanLanes;
 use super::plays::PlayKind;
+use super::route_end::RouteEnd;
+use super::route_filter::RouteFilter;
 use super::think::Due;
+use super::trap_know::TrapField;
 use super::tuning::TrapTuning;
-use super::view::{Place, PlaceView};
+use super::view::PlaceView;
 use super::{Bot, TeamState};
 
 /// The steepest look down, radians (`body::MAX_PITCH`).
@@ -60,15 +65,6 @@ const STANDING_MS: f32 = 0.5;
 pub struct TrapKit {
     pub count: u8,
     pub key: u32,
-}
-
-/// A trap one of the team's bots put down, as the bot meant it: the world's
-/// own record replaces it later.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct OwnTrap {
-    pub at: Vec3,
-    pub placed: u32,
-    pub by: Place,
 }
 
 /// What the habit is doing.
@@ -374,8 +370,8 @@ pub struct Search<'a> {
     /// The bot's mates: place, feet and velocity (ground, m/s).
     pub mates: &'a [(Vec3, [f32; 2])],
     pub lanes: &'a HumanLanes,
-    /// The team's traps counted standing.
-    pub own: &'a [OwnTrap],
+    /// Where the team's standing traps are.
+    pub own: &'a [Vec3],
     /// Whether a point is in a spawn area.
     pub in_spawn: &'a dyn Fn(Vec3) -> bool,
 }
@@ -502,10 +498,7 @@ pub fn choose(s: &Search) -> Option<Chosen> {
         if (s.in_spawn)(spot) {
             continue;
         }
-        if s.own
-            .iter()
-            .any(|own| own.at.distance_xz(spot) < t.near_own_m)
-        {
+        if s.own.iter().any(|own| own.distance_xz(spot) < t.near_own_m) {
             continue;
         }
         // Off its own route ahead, unless it stands.
@@ -550,31 +543,75 @@ pub fn look_point(eye: Vec3, yaw: f32) -> Vec3 {
 }
 
 impl TeamState {
-    /// The team's traps counted standing at `now`.
-    pub(super) fn traps_standing(&self, now: u32, stand_s: f32) -> usize {
-        let keep = (stand_s * 1000.0) as u32;
-        self.traps
-            .iter()
-            .filter(|trap| now < trap.placed + keep)
-            .count()
+    /// The team's field again if its list changed; whether it did.
+    pub(super) fn refresh_traps(&mut self, grid: &WalkGrid) -> bool {
+        let version = self.knowledge.traps.version();
+        if version == self.trap_field_version {
+            return false;
+        }
+        self.trap_field = Arc::new(TrapField::of(&self.knowledge.traps, grid));
+        self.trap_field_version = version;
+        true
     }
+}
+
+/// How far ahead a route is kept off the traps' discs, metres.
+const KEEP_OFF_M: f32 = 15.0;
+
+/// A route that runs over a trap's disc within [`KEEP_OFF_M`] is dropped, to
+/// be searched again round it (the searches shut the floors of the discs,
+/// [`filter`]).
+pub(super) fn keep_off(bot: &mut Bot, due: &Due) {
+    if bot.trap_field.is_empty() {
+        return;
+    }
+    let feet = due.me.feet;
+    if !bot
+        .trap_field
+        .discs()
+        .iter()
+        .any(|disc| disc.distance_xz(feet) < KEEP_OFF_M)
+    {
+        return;
+    }
+    let Some((route, _)) = bot.route.as_ref() else {
+        return;
+    };
+    // A copy: the motor's own progress along the route is not touched.
+    let mut route = route.clone();
+    let (s, _) = route.progress(feet);
+    let points: Vec<Vec3> = (0..=KEEP_OFF_M as usize)
+        .map(|k| route.point_at((s + k as f32).min(route.length())))
+        .collect();
+    if bot.trap_field.hits(&points) {
+        bot.end_route(RouteEnd::TrapAhead, due.now);
+    }
+}
+
+/// The hard part of a search's filter: the landings it gave up shut, and the
+/// floors of the team's traps shut, but for the floor the body stands on
+/// (`start`: a trap let go of a metre off must not shut the way out).
+pub(super) fn filter(bot: &Bot, landings: Vec<Vec3>, start: Option<NodeId>) -> RouteFilter {
+    let filter = RouteFilter::shutting_landings(landings);
+    if bot.trap_field.is_empty() {
+        return filter;
+    }
+    let field = bot.trap_field.clone();
+    filter.with_floors(move |node| Some(node) == start || field.open(node))
 }
 
 /// A think: whether this bot starts to put a trap down.
 pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     let t = &due.tuning.traps;
     let me = due.me;
-    // Its trap let go of in the ticks since: counted for the team.
-    if let Some(at) = bot.trap_placed.take() {
-        state.traps.push(OwnTrap {
-            at,
-            placed: due.now,
-            by: bot.place,
-        });
+    // Its trap let go of in the ticks since: promised to the team at once,
+    // the field built again, the bot keeping off it from this think on.
+    if let Some((at, released)) = bot.trap_placed.take() {
+        state.knowledge.traps.promise(bot.place, at, released);
+        state.refresh_traps(&due.tactics.world.grid);
+        bot.trap_field = state.trap_field.clone();
     }
-    state
-        .traps
-        .retain(|trap| due.now < trap.placed + (t.stand_s * 1000.0) as u32);
+    keep_off(bot, due);
     if bot.traps.may_plan(t).is_err() {
         return;
     }
@@ -590,7 +627,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
             .reload_note()
             .is_some_and(|reload| due.now < reload.until),
         jump_ahead: false,
-        team_standing: state.traps_standing(due.now, t.stand_s),
+        team_standing: state.knowledge.traps.standing_count(),
     };
     // The cheap gate first; the route is read only once it passes.
     if gate(&facts, t).is_err() || bot.rng.unit() >= t.chance {
@@ -609,6 +646,12 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     let staying = matches!(bot.intent.go, super::plays::Go::Stay)
         && me.velocity[0].hypot(me.velocity[1]) < STANDING_MS;
     let in_spawn = |at: Vec3| due.tactics.in_spawn_area(at, None);
+    let own: Vec<Vec3> = state
+        .knowledge
+        .traps
+        .standing()
+        .map(|trap| trap.at)
+        .collect();
     let search = Search {
         t,
         grid: &due.tactics.world.grid,
@@ -619,7 +662,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         ahead: &ahead,
         mates: &mates,
         lanes: &state.knowledge.humans,
-        own: &state.traps,
+        own: &own,
         in_spawn: &in_spawn,
     };
     if let Some(chosen) = choose(&search) {
@@ -686,7 +729,7 @@ pub(super) fn drive(
         t,
     );
     if let Some(at) = out.placed {
-        bot.trap_placed = Some(at);
+        bot.trap_placed = Some((at, now));
     }
     Some(TrapDrive {
         look: out.look_yaw.map(|yaw| look_point(me.eye(), yaw)),
@@ -926,11 +969,7 @@ mod tests {
             "{by_walker:?}"
         );
         // An own trap within 4 m of all eight forbids them all.
-        let own = [OwnTrap {
-            at: feet + Vec3::new(1.5, 0.0, 0.0),
-            placed: 99_000,
-            by: 1,
-        }];
+        let own = [feet + Vec3::new(1.5, 0.0, 0.0)];
         assert_eq!(
             choose(&Search {
                 own: &own,
@@ -959,6 +998,57 @@ mod tests {
         narrow.open_floors = 10_000;
         assert!(good_floor(grid, Vec3::new(30.0, 0.0, 10.0), &narrow).is_none());
         assert!(good_floor(grid, Vec3::new(30.0, 0.0, 500.0), &tuning).is_none());
+    }
+
+    #[test]
+    fn a_route_over_a_trap_is_dropped_and_one_that_keeps_off_it_is_kept() {
+        use crate::v026g::bots::path::{Route, Waypoint};
+        use crate::v026g::bots::think::Due;
+        use crate::v026g::bots::trap_know::TrapList;
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(15.0, 0.0, 10.0));
+        let me = s.view.places[0].clone();
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let due = Due {
+            now: 1_000,
+            view: &s.view,
+            me: &me,
+            tactics: &s.tactics,
+            tuning: &tuning,
+        };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        let waypoint = |x: f32, z: f32| Waypoint {
+            at: Vec3::new(x, 0.0, z),
+            node: 0,
+            jump: None,
+            low: false,
+        };
+        let mut list = TrapList::default();
+        list.promise(0, Vec3::new(25.0, 0.0, 10.0), 500);
+        bot.trap_field = Arc::new(TrapField::of(&list, &s.tactics.world.grid));
+        // Over the disc: dropped.
+        let goal = Vec3::new(35.0, 0.0, 10.0);
+        bot.route = Some((
+            Route::new(vec![waypoint(15.0, 10.0), waypoint(35.0, 10.0)]),
+            goal,
+        ));
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_none());
+        // Three metres off it: kept.
+        bot.route = Some((
+            Route::new(vec![waypoint(15.0, 13.0), waypoint(35.0, 13.0)]),
+            goal,
+        ));
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_some());
+        // No trap known: nothing is ever dropped.
+        bot.trap_field = Arc::new(TrapField::default());
+        bot.route = Some((
+            Route::new(vec![waypoint(15.0, 10.0), waypoint(35.0, 10.0)]),
+            goal,
+        ));
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_some());
     }
 
     #[test]

@@ -111,7 +111,7 @@ pub(crate) fn a_bot_that_carries_traps_puts_one_down_with_one_pulse_of_the_key()
     assert!(steepest <= -0.9, "pitch {steepest}");
     let bot = bots.bots[0].as_ref().unwrap();
     assert_eq!(bot.traps.placed_this_life(), 1);
-    assert_eq!(bots.teams[0].traps.len(), 1);
+    assert_eq!(bots.teams[0].knowledge.traps.all().len(), 1);
     // None without the kit, and none with the habit switched off.
     let (sent, _) = run(None, Tuning::default(), 40);
     assert!(sent.iter().all(|s| s.1 & key == 0));
@@ -119,4 +119,55 @@ pub(crate) fn a_bot_that_carries_traps_puts_one_down_with_one_pulse_of_the_key()
     off.traps.enabled = false;
     let (sent, _) = run(Some(kit), off, 40);
     assert!(sent.iter().all(|s| s.1 & key == 0));
+}
+
+/// A world's objects section with one placed trap in it (the record
+/// `survarium::v026g::match_msgs::traps` reads) among other bytes.
+fn objects_with(at: Vec3, state: u8, placed_ms: u32) -> Vec<u8> {
+    let mut b = vec![0u8; 12];
+    b.push(state);
+    b.extend_from_slice(&u32::MAX.to_le_bytes());
+    let rows: [f32; 16] = [
+        1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, at.x, at.y, at.z, 1.0,
+    ];
+    for f in rows {
+        b.extend_from_slice(&f.to_le_bytes());
+    }
+    b.extend_from_slice(&0u32.to_le_bytes());
+    b.extend_from_slice(&placed_ms.to_le_bytes());
+    b.extend_from_slice(&[0u8; 9]);
+    b
+}
+
+/// The trap a bot promised is confirmed by the world that shows it, its
+/// exact place replaces the bot's, the team's field shuts the floors round
+/// it, and a world without it takes it away.
+#[test]
+pub(crate) fn a_world_confirms_the_promise_and_a_world_without_it_takes_it_away() {
+    use crate::v026g::bots::trap_know::Phase;
+    let kit = TrapKit {
+        count: 2,
+        key: key::QUICK[1],
+    };
+    let (_, mut bots) = run(Some(kit), Tuning::default(), 40);
+    let promised = bots.teams[0].knowledge.traps.all()[0];
+    let Phase::Promised { released } = promised.phase else {
+        panic!("{promised:?}");
+    };
+    // A world a second later shows it a hand's breadth off.
+    let exact = promised.at + Vec3::new(0.1, 0.0, 0.05);
+    let shown = bots.traps_from_world(&objects_with(exact, 1, released + 200), 41_000);
+    assert_eq!(shown, 1);
+    let trap = bots.teams[0].knowledge.traps.all()[0];
+    assert_eq!((trap.phase, trap.at), (Phase::Armed, exact));
+    assert_eq!(bots.teams[0].knowledge.traps.confirmed, 1);
+    assert!(!bots.teams[0].trap_field.is_empty());
+    // The other team's list stays empty: it is not their trap.
+    assert!(bots.teams[1].knowledge.traps.all().is_empty());
+    // Fired: spent, the floors are open again.
+    bots.traps_from_world(&objects_with(exact, 2, released + 200), 45_000);
+    assert!(bots.teams[0].trap_field.is_empty());
+    // A world without it: gone.
+    bots.traps_from_world(&[0u8; 20], 60_000);
+    assert!(bots.teams[0].knowledge.traps.all().is_empty());
 }
