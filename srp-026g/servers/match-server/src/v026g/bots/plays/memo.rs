@@ -13,10 +13,11 @@
 
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Mutex, OnceLock, PoisonError};
 
-use mapdata::Vec3;
+use mapdata::{UsePose, UseStand, UseStands, Vec3};
 
+use super::Ctx;
 use super::collect::{Crossing, crossing_to};
 use crate::v026g::bots::hazards::Hazards;
 use crate::v026g::bots::tactics::Tactics;
@@ -105,6 +106,9 @@ type CrossingKey = (u32, u32, u32, Option<i32>, u32);
 #[derive(Default)]
 pub struct Memo {
     crossings: QueryMemo<CrossingKey, Option<Crossing>>,
+    /// The containers' stands: they depend on the map alone, so they are
+    /// made at the first ask and kept for the match.
+    stands: OnceLock<UseStands>,
 }
 
 impl Memo {
@@ -129,9 +133,71 @@ impl Memo {
         })
     }
 
+    /// The stands of every container of the map, worked out at the first
+    /// ask ([`UseStands::build`]: the game's use test, a few milliseconds a
+    /// map).
+    pub fn use_stands(&self, tactics: &Tactics) -> &UseStands {
+        self.stands.get_or_init(|| UseStands::build(&tactics.world))
+    }
+
     /// Crossings kept.
     pub fn crossings_kept(&self) -> usize {
         self.crossings.kept()
+    }
+}
+
+impl Ctx<'_> {
+    /// The stands of container `container` (its id): floors from which the
+    /// game's use ray meets its box, nearest the box first. One list for a
+    /// put-in, a theft and the holder's sight.
+    pub fn use_stands(&self, container: u8) -> &[UseStand] {
+        self.memo.use_stands(self.tactics).of(container)
+    }
+
+    /// The stand of `container` in `pose` the bot reaches soonest
+    /// (`path_dist`), if there is one, leaving out the floors in `passed`
+    /// (stands it stood on and could not press from).
+    pub fn nearest_use_stand(
+        &self,
+        container: u8,
+        pose: UsePose,
+        passed: &[Vec3],
+    ) -> Option<UseStand> {
+        self.use_stands(container)
+            .iter()
+            .filter(|stand| stand.fits(pose) && !passed.contains(&stand.feet))
+            .min_by(|a, b| {
+                self.path_dist(a.feet)
+                    .total_cmp(&self.path_dist(b.feet))
+                    .then(a.feet.x.total_cmp(&b.feet.x))
+                    .then(a.feet.z.total_cmp(&b.feet.z))
+            })
+            .copied()
+    }
+
+    /// Where on the box of `container` a use ray from `eye` can meet it by
+    /// the game's rule (a point of the box), if one can: the press test for
+    /// the moment of the press. Out of reach of the box (its farthest
+    /// corner and the ray) no ray is cast.
+    pub fn use_press(&self, eye: Vec3, container: u8) -> Option<Vec3> {
+        let world = &self.tactics.world;
+        let shape = world
+            .map
+            .containers
+            .iter()
+            .find(|c| c.id == i32::from(container))?
+            .use_shapes
+            .first()?;
+        if (shape.center - eye).length() > shape.half.length() + mapdata::stands::USE_RAY_M {
+            return None;
+        }
+        mapdata::stands::press(&world.sight, eye, shape).map(|(aim, _)| aim)
+    }
+
+    /// Whether the game's use ray from `eye` can meet the box of
+    /// `container` ([`Ctx::use_press`]).
+    pub fn use_press_ok(&self, eye: Vec3, container: u8) -> bool {
+        self.use_press(eye, container).is_some()
     }
 }
 
@@ -167,6 +233,91 @@ mod tests {
             });
         });
         Tactics::new(world, 1.0)
+    }
+
+    /// A solid box (12 triangles) for the sight tree.
+    fn solid_box(center: Vec3, half: Vec3) -> Vec<mapdata::Triangle> {
+        let corner = |i: usize| {
+            let pick = |bit: usize, h: f32| if i >> bit & 1 == 1 { h } else { -h };
+            center + Vec3::new(pick(0, half.x), pick(1, half.y), pick(2, half.z))
+        };
+        [
+            [0, 1, 3, 2],
+            [4, 5, 7, 6],
+            [0, 1, 5, 4],
+            [2, 3, 7, 6],
+            [0, 2, 6, 4],
+            [1, 3, 7, 5],
+        ]
+        .iter()
+        .flat_map(|&[a, b, c, d]| {
+            [[a, b, c], [a, c, d]].map(|v| mapdata::Triangle {
+                v: v.map(corner),
+                walker: mapdata::WalkerBehaviour::BySlope,
+            })
+        })
+        .collect()
+    }
+
+    /// The stands of a container come from the game's use test: the list is
+    /// made once, nearest the box first, a bot asks for its nearest in a
+    /// pose, and the press test agrees with the list.
+    #[test]
+    fn a_containers_stands_are_one_list_for_every_play() {
+        use super::super::tests::Scenario;
+        use crate::v026g::bots::view::Mode;
+        let ours = Vec3::new(12.0, 0.0, 30.0);
+        let middle = ours + Vec3::new(0.0, 1.0, 0.0);
+        let half = Vec3::new(1.0, 0.85, 0.65);
+        let body = Shape {
+            kind: ShapeKind::Box,
+            center: middle,
+            rotation: Rotation::IDENTITY,
+            half,
+        };
+        let world = crate::v026g::bots::tactics::tests::field_with_solids(
+            &solid_box(middle, half),
+            |map| {
+                map.containers.push(mapdata::Container {
+                    position: ours,
+                    team: 0,
+                    id: 0,
+                    use_shapes: vec![body],
+                });
+            },
+        );
+        let mut s = Scenario::field(Mode::Batteries);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 30.0));
+        s.tactics = Tactics::new(world, 1.0);
+        let cx = s.cx(0);
+        let list = cx.use_stands(0);
+        assert!(!list.is_empty(), "a box on the field has stands");
+        assert!(
+            std::ptr::eq(list.as_ptr(), cx.use_stands(0).as_ptr()),
+            "made once"
+        );
+        assert!(cx.use_stands(7).is_empty(), "no such container");
+        let d: Vec<f32> = list.iter().map(|st| st.feet.distance_xz(middle)).collect();
+        assert!(d.windows(2).all(|w| w[0] <= w[1]), "nearest first");
+        let near = cx
+            .nearest_use_stand(0, UsePose::Standing, &[])
+            .expect("a stand to walk to");
+        assert!(near.standing);
+        assert!(
+            near.feet.distance_xz(cx.me.feet)
+                <= list
+                    .iter()
+                    .map(|st| st.feet.distance_xz(cx.me.feet))
+                    .fold(f32::MAX, f32::min)
+                    + 1.0,
+            "the bot's nearest side"
+        );
+        assert!(cx.use_press_ok(near.feet + Vec3::new(0.0, 1.6, 0.0), 0));
+        assert!(!cx.use_press_ok(Vec3::new(40.0, 1.6, 5.0), 0), "far away");
+        assert!(
+            !cx.use_press_ok(near.feet + Vec3::new(0.0, 1.6, 0.0), 9),
+            "no such container"
+        );
     }
 
     const IN_ZONE: Vec3 = Vec3::new(25.0, 0.0, 32.0);
