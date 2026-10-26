@@ -901,6 +901,10 @@ pub struct JumpTest {
     tries_log: Option<fs::File>,
     /// Every alive body of every world (place, x, y, z): who stood near a runner.
     bodies_log: Option<fs::File>,
+    /// The health of a runner's body whenever it changes (`{"t", "place", "hp", "alive"}`, the server's own count): the fall
+    /// damage of a drop try; `last_health` is the last value seen of each place.
+    health_log: Option<fs::File>,
+    last_health: HashMap<Place, f32>,
     /// After a slow upload the next request waits this long at least, ms.
     backoff_ms: u32,
     worlds_log: Option<fs::File>,
@@ -963,6 +967,8 @@ impl JumpTest {
             rows: HashMap::new(),
             tries_log: None,
             bodies_log: None,
+            health_log: None,
+            last_health: HashMap::new(),
             backoff_ms: 0,
             worlds_log: None,
             last_request: None,
@@ -1075,6 +1081,7 @@ impl JumpTest {
                     self.tries_log = self.open("tries");
                     self.worlds_log = self.open("worlds");
                     self.bodies_log = self.open("bodies");
+                    self.health_log = self.open("health");
                 }
             }
         }
@@ -1382,6 +1389,13 @@ impl JumpTest {
         let now = view.clock;
         // A bot with no try that walks off a try's ground (`keep_clear`) goes by the ordinary drive.
         let walking_off = matches!(bot.intent.go, Go::To { .. });
+        if self.health_log.is_some()
+            && self.runners.contains_key(&bot.place)
+            && let Some(p) = view.place(bot.place)
+            && self.last_health.insert(bot.place, p.health) != Some(p.health)
+        {
+            Self::line(&mut self.health_log, &serde_json::json!({ "t": now, "place": bot.place, "hp": p.health, "alive": p.alive }));
+        }
         let Some(runner) = self.runners.get_mut(&bot.place) else {
             return (self.idle_others && !walking_off).then(Decision::default);
         };
