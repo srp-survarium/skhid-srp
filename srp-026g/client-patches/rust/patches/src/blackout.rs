@@ -109,6 +109,10 @@ fn options_read(thread: &Thread, read: Option<OptionsRead>) -> Flow<NoExit> {
     BLACKOUT.set(thread, on);
     TAB_DOWN.set(thread, false);
     HELD.set(thread, ActionMask::NONE);
+    // A new match can allocate its movies at the same addresses as the
+    // previous match. Their new roots must receive the forced state again.
+    HUD_TOLD.set(thread, NONE_TOLD);
+    ICONS_TOLD.set(thread, NONE_TOLD);
     Flow::Continue
 }
 
