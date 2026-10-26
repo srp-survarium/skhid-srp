@@ -2178,6 +2178,7 @@ pub(super) mod tests {
             panic!("set SRP_MAPDATA_DIR");
         };
         let (mut cut, mut checked) = (0, 0);
+        let (mut old_t, mut new_t, mut kept_t) = (std::time::Duration::ZERO, std::time::Duration::ZERO, std::time::Duration::ZERO);
         for level in 1..=8u8 {
             for mode in [2u8, 4] {
                 let path = std::path::Path::new(&dir).join(format!("level_{level:02}_day_{mode}.mapdata"));
@@ -2193,8 +2194,15 @@ pub(super) mod tests {
                     let around = spawn.position
                         + Vec3::new(rng.range(-60.0, 60.0), 0.0, rng.range(-60.0, 60.0));
                     let radius = [30.0, 45.0, 65.0][i % 3];
+                    let start = std::time::Instant::now();
                     let reference = t.walk_up_reference(around, radius);
+                    old_t += start.elapsed();
+                    let start = std::time::Instant::now();
                     let set = t.walk_up_set(around, radius);
+                    new_t += start.elapsed();
+                    let start = std::time::Instant::now();
+                    let _ = t.walk_up_set(around, radius);
+                    kept_t += start.elapsed();
                     cut += usize::from(reference.len() >= WALK_UP_MAX_FLOORS);
                     checked += 1;
                     let in_set = (0..grid.len() as NodeId).filter(|&n| set.contains(n)).count();
@@ -2204,6 +2212,12 @@ pub(super) mod tests {
             }
         }
         eprintln!("walk-up sets checked {checked}, cut by the cap {cut}");
+        eprintln!(
+            "per set: old {:?}, new (made) {:?}, kept {:?}",
+            old_t / checked as u32,
+            new_t / checked as u32,
+            kept_t / checked as u32
+        );
     }
 
     /// F4: a stuck body finds the ledge it can jump up (more than the
