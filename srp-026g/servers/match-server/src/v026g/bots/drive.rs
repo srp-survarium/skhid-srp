@@ -34,6 +34,45 @@ pub(super) const JUMP_WATCH_MS: u32 = 3_000;
 /// turns the view while the bot walks in.
 pub(super) const USE_LOOK_M: f32 = 2.5;
 
+/// A bot stepping out of a grenade's blast has arrived this near its floor, metres.
+const AVOID_ARRIVE_M: f32 = 0.8;
+
+/// What `grenade_threat::step` asks of the map: a line, and the floor out of a blast
+/// ([`Tactics::step_out`], over the floors the body may walk, the landings it gave up shut).
+struct BlastAround<'a> {
+    tactics: &'a Tactics,
+    stuck: &'a Stuck,
+    side: Option<i32>,
+    time: u32,
+    objective: bool,
+}
+
+impl grenade_threat::Surroundings for BlastAround<'_> {
+    fn sees(&self, from: Vec3, to: Vec3) -> bool {
+        self.tactics.world.sight.visible(from, to)
+    }
+
+    fn way_out(
+        &self,
+        me: &PlaceView,
+        blast: &grenade_threat::Blast,
+        reach_m: f32,
+    ) -> Option<Vec3> {
+        let from = self.tactics.world.grid.locate(me.feet, 1.5)?;
+        let hard = RouteFilter::shutting_landings(self.stuck.shut_landings(self.time).collect());
+        self.tactics.step_out(
+            from,
+            blast.rest,
+            blast.radius,
+            reach_m,
+            self.time,
+            self.side,
+            self.objective,
+            &hard,
+        )
+    }
+}
+
 /// One tick of a living bot (`me` with its base pitch): the reflex's look
 /// and trigger, the play's legs and stance, the presses.
 /// Where a bot at `feet` with no goal of its own walks out of the zone it
@@ -58,7 +97,8 @@ pub(super) fn zone_way_out(
     {
         return Some(to);
     }
-    let hard = RouteFilter::shutting_landings(bot.stuck.shut_landings(time).collect());
+    let landings = bot.stuck.shut_landings(time).collect();
+    let hard = traps::filter(bot, landings, Some(from));
     let out = tactics.escape(from, None, time, bot.side, objective, &hard)?;
     let to = out.point_at(out.length());
     bot.stuck.zone_out = Some((to, time + stuck::ZONE_OUT_KEPT_MS));
@@ -222,6 +262,23 @@ pub(super) fn drive_tick(
             Look::Use(p) => Some(aim_at(p)),
             _ => None,
         });
+    // [traps] The bear-trap habit: when nothing calls the bot away (no
+    // target, no shot, no use), the view goes down at the floor point and the
+    // trap's key is pressed one tick and let go the next. A tick it does
+    // nothing leaves everything as it was.
+    let calm = over.look_at.is_none()
+        && !over.fire
+        && over.legs.is_none()
+        && !using
+        && bot.reflex.target().is_none();
+    let trap = traps::drive(bot, me, time, calm, &tuning.traps);
+    let aim = match trap.and_then(|trap| trap.look) {
+        Some(point) => Some(aim_at(point)),
+        None => aim,
+    };
+    if let Some(trap) = trap {
+        bot.press |= trap.key;
+    }
     // The legs: the reflex's when it takes them (a push, breaking sight,
     // a re-peek, the weapon's range, in after a grenade), else the play's.
     let mut intent = intent;
@@ -244,6 +301,39 @@ pub(super) fn drive_tick(
         intent.pace = if legs.run { Pace::Run } else { Pace::Walk };
         intent.objective = false;
         intent.straight = false;
+    }
+    // [grenade_avoid] A grenade it knows of that lands or lies within its
+    // reach: out of the blast first, whatever the play wants (the reflex
+    // still aims and fires); `grenade_threat.rs`. The state is read while a
+    // grenade is listed or it is not unaware of the last one.
+    if tuning.avoid.grenade_avoid
+        && (!view.grenades.is_empty()
+            || !matches!(bot.avoid.state, grenade_threat::GrenadeThreat::Unaware { .. }))
+    {
+        let around = BlastAround {
+            tactics,
+            stuck: &bot.stuck,
+            side: bot.side,
+            time,
+            objective: intent.objective,
+        };
+        let tick = grenade_threat::Tick {
+            now: time,
+            me,
+            grenades: &view.grenades,
+        };
+        if let grenade_threat::Action::Go(to) =
+            bot.avoid.tick(tick, &tuning.avoid, &mut bot.rng, &around)
+        {
+            intent.go = Go::To {
+                at: to,
+                within_m: AVOID_ARRIVE_M,
+            };
+            intent.crouch = false;
+            intent.pace = Pace::Run;
+            intent.objective = false;
+            intent.straight = false;
+        }
     }
     let goal = match intent.go {
         Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
@@ -508,7 +598,8 @@ pub(super) fn drive_tick(
                 // through them (a second search only when there are any).
                 // The landings of jumps it gave up: shut to all its searches
                 // (a fact about this body, not a preference like the spots).
-                let hard = RouteFilter::shutting_landings(bot.stuck.shut_landings(time).collect());
+                let landings = bot.stuck.shut_landings(time).collect();
+                let hard = traps::filter(bot, landings, grid.locate(me.feet, 1.5));
                 let filter = hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect());
                 let avoiding = filter.has_soft();
                 let ends = grid.locate(me.feet, 1.5).zip(path::goal_floor(grid, at));
@@ -772,6 +863,16 @@ pub(super) fn drive_tick(
                         second: None,
                     });
                 } else {
+                    #[cfg(test)]
+                    if let Some((from, to)) = ends
+                        && !escaping
+                        && !there
+                    {
+                        path::request_gap(
+                            route.is_some(),
+                            path::Gap::of(grid.position(to).y - grid.position(from).y),
+                        );
+                    }
                     bot.no_way = route.is_none().then_some((at, time + NO_WAY_RETRY_MS));
                     // Both ends on floors, from one it may walk on, and no way:
                     // proven, for the plays.

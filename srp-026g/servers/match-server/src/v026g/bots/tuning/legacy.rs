@@ -8,6 +8,7 @@ use serde_json::Value;
 pub(super) const MOVED: &[(&str, &str)] = &[
     ("/hazard_margin", "/hazard/margin_m"),
     ("/escape_ceiling", "/hazard/escape"),
+    ("/floor_paths", "/grid/floor_paths"),
     ("/gap_links", "/grid/gap_links"),
 ];
 

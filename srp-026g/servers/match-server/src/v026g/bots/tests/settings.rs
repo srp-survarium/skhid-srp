@@ -44,7 +44,7 @@ const fn s(name: &'static str, default: &'static str, what: &'static str) -> Set
 /// The names of the plays', the reflex's and the senses' number lists
 /// (`name=value,...`) and of the tuning's JSON patch (`TUNING`), read as `SRP_BENCH_<name>`, and for
 /// team 1 of a one-sided run as `SRP_BENCH_SIDE1_<name>` (`tuning_from`).
-pub(crate) const TUNING_NAMES: [&str; 15] = [
+pub(crate) const TUNING_NAMES: [&str; 16] = [
     "COLLECT",
     "INTERCEPT",
     "RAID",
@@ -55,6 +55,7 @@ pub(crate) const TUNING_NAMES: [&str; 15] = [
     "HOLDEXIT",
     "CROSSFIRE",
     "PAIRUP",
+    "RESUPPLY_PLAY",
     "COMBAT",
     "HEAL",
     "AIM",
@@ -89,6 +90,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_BATTERY_SIGHT_M", "the tuning's", "SenseTuning::battery_sight_m"),
     s("SRP_BENCH_FRIEND_NEAR_M", "the tuning's", "FriendlyFireTuning::near_m"),
     s("SRP_BENCH_FF_LEAD", "the tuning's", "FriendlyFireTuning::lead: `0` off, else on"),
+    s("SRP_BENCH_FLOOR_PATHS", "on", "Tuning::grid.floor_paths (off by default): `1` makes every play's path distance the regions' walk between floors a storey apart; off, the straight ground distance (Collect's batteries a storey off keep the walk)"),
     s("SRP_BENCH_FF_PAST_M", "the tuning's", "FriendlyFireTuning::past_target_m"),
     s("SRP_BENCH_FF_TOUCH_M", "the tuning's", "FriendlyFireTuning::touch_m"),
     s("SRP_BENCH_FF_LEAD_MS", "the tuning's", "FriendlyFireTuning::lead_extra_ms"),

@@ -49,6 +49,7 @@ mod grenades;
 mod heal;
 mod jumps;
 mod moving;
+mod resupply;
 mod pre;
 mod stock;
 
@@ -58,6 +59,7 @@ use grenades::*;
 use heal::*;
 use jumps::*;
 use moving::*;
+use resupply::*;
 use pre::*;
 
 const WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
@@ -101,6 +103,12 @@ struct BotNow {
     play: String,
     step: Option<String>,
     goal_m: Option<f32>,
+    /// The resupply holds it has made (`Bot::resupplies`), and how near dry
+    /// it is ([`Nearly`]).
+    resupplies: u32,
+    nearly: Nearly,
+    /// Its weapon 1's rounds and the kit's count for a life.
+    ammo: crate::v026g::bots::guns::Ammo,
     /// The reflex has a target; a heal cover walk begun in the last 1.6 s; the walks begun so far in the match.
     target: bool,
     heal_walking: bool,
@@ -110,6 +118,12 @@ struct BotNow {
     range_held: Option<u32>,
     /// What its reflex's grenade logic has counted this life.
     grenades: GrenadeStats,
+    /// What its avoidance of live grenades has counted this match (`grenade_threat::AvoidStats`).
+    avoid: crate::v026g::bots::grenade_threat::AvoidStats,
+    /// Its view is held for a throw now, and how long ago, ms, it let go of
+    /// its last grenade.
+    throw_held: bool,
+    thrown_ago_ms: Option<u32>,
 }
 
 #[derive(Default)]
@@ -128,6 +142,8 @@ pub(crate) struct OwnerTally {
     metric_rays: u64,
     /// The fight counts ([`FightCounts`], `fight.rs`).
     fight: FightCounts,
+    /// The tactics' walk cache at the last tick (hits, misses, kept).
+    walk_stats: crate::v026g::bots::tactics::WalkStats,
     /// The jumps counts ([`JumpCounts`], `jumps.rs`).
     jumps: JumpCounts,
     /// The moving counts ([`MoveCounts`], `moving.rs`).
@@ -136,6 +152,8 @@ pub(crate) struct OwnerTally {
     grenades: GrenadeCounts,
     /// The campers counts ([`CamperCounts`], `campers.rs`).
     campers: CamperCounts,
+    /// The resupply counts ([`ResupplyCounts`], `resupply.rs`).
+    resupply: ResupplyCounts,
     /// The consumable counts ([`HealCounts`], `heal.rs`).
     heal: HealCounts,
 }
@@ -151,6 +169,7 @@ impl OwnerTally {
             moving: MoveCounts::new(n),
             grenades: GrenadeCounts::default(),
             campers: CamperCounts::default(),
+            resupply: ResupplyCounts::new(n),
             heal: HealCounts::new(n),
             ..Self::default()
         }
@@ -202,6 +221,9 @@ impl OwnerTally {
                             .map_or_else(String::new, |r| r.step_name())
                     }),
                     goal_m,
+                    resupplies: bot.resupplies,
+                    ammo: bot.ammo(),
+                    nearly: nearly_dry(bots, bot, game.bodies[place].feet),
                     target: bot.reflex.target().is_some(),
                     heal_walking: bot.reflex.heal_walking(),
                     heal_walks: bot.reflex.heal_walks,
@@ -210,9 +232,17 @@ impl OwnerTally {
                     // gate tally on, the wall test too was made).
                     range_held: (gates.at.abs_diff(tick) <= 2 * TICK_MS && gates.bits == gate::RANGE).then_some(gates.at),
                     grenades: bot.reflex.grenade_stats(),
+                    avoid: bot.avoid.stats,
+                    throw_held: bot.reflex.view_held(),
+                    thrown_ago_ms: bot.reflex.thrown_ago(tick),
                 })
             })
             .collect();
+        self.grenades.listed = Some(bots.tracker.throw_counts());
+        self.grenades.live = bots.tracker.live_grenades().to_vec();
+        if let Some(tactics) = bots.tactics.as_ref() {
+            self.walk_stats = tactics.walk_stats();
+        }
         self.step(game, &nows);
     }
 
@@ -242,6 +272,9 @@ impl OwnerTally {
                 }
             }
             self.fight_death(place, tick, &prev, body);
+            if let Some(now) = now {
+                self.resupply_step(place, tick, &prev, body, now);
+            }
             let enemy_near = game.bodies.iter().any(|b| {
                 b.alive && b.team != body.team && b.feet.distance_xz(body.feet) <= CALM_ENEMY_M
             });
@@ -268,6 +301,8 @@ impl OwnerTally {
             };
             self.grenades_keys(place, tick, body, &prev);
             self.grenades_logic(place, &now.grenades);
+            self.grenades.avoid.insert(place, now.avoid);
+            self.fight.throw_state = (now.throw_held, now.thrown_ago_ms);
             self.fight_ammo(place, tick, body, now);
             self.jumps_press(place, tick, body, &prev, now, &rec);
             self.fight_fire(game, place, body, &rec, &sight, &mut rays);
@@ -330,6 +365,7 @@ impl OwnerTally {
             ("grenades", self.grenades_part(game)),
             ("stock", self.stock_part(game)),
             ("campers", self.campers_part()),
+            ("resupply", self.resupply_part(game, &scale)),
             ("heal", self.heal_part(game, &scale)),
         ];
         let mut core = serde_json::Map::new();
@@ -337,6 +373,44 @@ impl OwnerTally {
         core.insert("ticks".to_owned(), serde_json::json!(ticks));
         Topics { core, parts }
     }
+}
+
+/// How near dry the bot is: its rounds at or under the resupply play's
+/// `dry_share` of the kit's count with something to refill, and then
+/// whether it is bound for an objective (its play's rank) and how much
+/// farther its goal is by its team's box.
+fn nearly_dry(bots: &Bots, bot: &super::super::Bot, feet: Vec3) -> Nearly {
+    use crate::v026g::bots::plays::{PlayKind, Rank};
+    let ammo = bot.ammo();
+    if ammo.missing() == 0 || ammo.share() > bots.tuning.number(PlayKind::Resupply, "dry_share") {
+        return Nearly::Fine;
+    }
+    let bound = bot
+        .assignment
+        .as_ref()
+        .and_then(|a| bots.tuning.plays.get(&a.kind))
+        .is_some_and(|play| play.rank == Rank::Objective);
+    if !bound {
+        return Nearly::Other;
+    }
+    let goal = match bot.intent.go {
+        Go::To { at, .. } => at,
+        Go::Stay => feet,
+    };
+    let extra_m = bot.side.and_then(|side| {
+        let world = &bots.tactics.as_ref()?.world;
+        world
+            .map
+            .zones
+            .iter()
+            .filter(|z| z.kind == mapdata::ZoneKind::Resupply && z.team == side)
+            .filter_map(|z| z.shapes.first())
+            .map(|shape| {
+                feet.distance_xz(shape.center) + shape.center.distance_xz(goal) - feet.distance_xz(goal)
+            })
+            .min_by(f32::total_cmp)
+    });
+    Nearly::Objective { extra_m }
 }
 
 /// The counts before they are joined: the keys the run shares, and each topic's part by name.

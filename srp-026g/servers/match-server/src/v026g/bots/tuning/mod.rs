@@ -37,8 +37,12 @@ pub struct Tuning {
     pub skill: SkillTuning,
     pub mods: ModTuning,
     pub think: ThinkTuning,
+    /// The bear-trap habit (`bots/traps.rs`).
+    pub traps: TrapTuning,
     pub heal: HealTuning,
     pub threat: ThreatTuning,
+    /// Stepping out of live grenades (`grenade_threat.rs`).
+    pub avoid: AvoidTuning,
     pub grid: GridTuning,
     pub hazard: HazardTuning,
     pub personalities: Personalities,
@@ -59,15 +63,33 @@ mod motion;
 mod play;
 mod sense;
 mod team;
+mod traps;
 
-pub use aim::{AimTuning, SkillTuning, TierSkill};
+pub use aim::AimTuning;
+pub use aim::SkillTuning;
+pub use aim::TierSkill;
 pub use grid::GridTuning;
-pub use hazard::{EscapeRule, HazardTuning};
-pub use heal::{HealTuning, NeedWeights};
-pub use limits::{Metres, Positive, Span};
-pub use play::{PlayTuning, PlaysTuning};
-pub use sense::{CheatTuning, SenseTuning};
-pub use team::{ModTuning, Personalities, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL};
+pub use hazard::EscapeRule;
+pub use hazard::HazardTuning;
+pub use heal::HealTuning;
+pub use heal::NeedWeights;
+pub use limits::Metres;
+pub use limits::Positive;
+pub use limits::Span;
+pub use play::PlayTuning;
+pub use play::PlaysTuning;
+pub use sense::CheatTuning;
+pub use sense::HearingRanges;
+pub use sense::SenseTuning;
+pub use team::AvoidTuning;
+pub use team::ModTuning;
+pub use team::Personalities;
+pub use team::Personality;
+pub use team::SEARCH_FLOORS_PER_POLL;
+pub use team::ThinkTuning;
+pub use team::ThreatTuning;
+pub use traps::ReactTuning;
+pub use traps::TrapTuning;
 
 /// `Ok` if `ok`, else the name of what is wrong.
 fn check(ok: bool, what: &str) -> Result<(), String> {
@@ -113,6 +135,7 @@ impl Tuning {
     /// The values' sanity, for what the types do not hold: the sections' [`Check`]s, sorted by section.
     pub fn validate(&self) -> Result<(), String> {
         self.aim.check()?;
+        self.avoid.check()?;
         self.feel.check()?;
         self.heal.check()?;
         self.personalities.check()?;
@@ -120,6 +143,7 @@ impl Tuning {
         self.sense.check()?;
         self.skill.check()?;
         self.think.check()?;
+        self.traps.check()?;
         Ok(())
     }
 
@@ -207,6 +231,11 @@ mod tests {
         };
         assert_eq!(wrong(|t| t.sense.view_deg = 0.0), "sense.view_deg");
         assert_eq!(wrong(|t| t.sense.notice_near_ms = t.sense.notice_far_ms + 1), "sense.notice_*_ms");
+        assert_eq!(wrong(|t| t.sense.sprint_body_mps = Some(0.0)), "sense.sprint_body_mps");
+        assert_eq!(
+            wrong(|t| t.sense.ranges = HearingRanges::Game { crouch_step_m: t.sense.step_m + 1.0 }),
+            "sense.ranges.game.crouch_step_m"
+        );
         assert_eq!(wrong(|t| t.think.think_ms = (0, 5)), "think.think_ms");
         assert_eq!(wrong(|t| t.think.commander_ms = 10), "think.commander_ms");
         assert_eq!(wrong(|t| t.feel.off_walk_below_m = 0.1), "feel.off_walk_below_m");

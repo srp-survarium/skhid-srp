@@ -12,6 +12,12 @@ pub struct GridTuning {
     /// bench's this run's tuning (`SRP_BENCH_TUNING`); a tuning file of one
     /// match does not rebuild them.
     pub gap_links: bool,
+    /// `Ctx::path_dist` is the regions' walk between floors when a target
+    /// is a storey off; off (the default: merged switched off), the straight
+    /// ground distance whatever the floor, with Collect's batteries a storey
+    /// off priced by the walk as before (the bench's switch,
+    /// `SRP_BENCH_FLOOR_PATHS=1` on).
+    pub floor_paths: bool,
 }
 
 impl GridTuning {
