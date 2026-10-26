@@ -86,6 +86,9 @@ pub(super) struct GrenadeCounts {
     pub(super) live: Vec<LiveGrenade>,
     pub(super) listed: Option<ThrowCounts>,
     pub(super) live_blasts: LiveBlasts,
+    /// Bodies inside the radius at the launch, by [thrower, his teammates, enemies] (bench runs only): the
+    /// base of "left the radius by the blast" (`blast_in` less `walked_in` stayed in).
+    pub(super) in_launch: [u32; 3],
     /// By bot: what its avoidance of live grenades has counted this match (the last reading).
     pub(super) avoid: BTreeMap<Place, AvoidStats>,
 }
@@ -543,6 +546,18 @@ impl OwnerTally {
             let Some(team) = game.bodies.get(blast.thrower).map(|b| b.team) else {
                 continue;
             };
+            for (place, &inside) in blast.inside.iter().enumerate() {
+                if let (true, Some(body)) = (inside, game.bodies.get(place)) {
+                    let who = if place == blast.thrower {
+                        0
+                    } else if body.team == team {
+                        1
+                    } else {
+                        2
+                    };
+                    self.grenades.in_launch[who] += 1;
+                }
+            }
             if game.damage.blasts_hurt() {
                 // The client's blast on the bodies ([`standin_grenade`]).
                 for hurt in standin_grenade::explode(game, blast.thrower, blast.at, tick) {
@@ -640,6 +655,7 @@ impl OwnerTally {
                 "blasts_pending": live.pending,
                 "blasts_unlisted": live.missing,
                 "rest_error_m": live.err,
+                "inside_at_launch": self.grenades.in_launch,
             });
             let mut avoid = AvoidStats::default();
             for stats in self.grenades.avoid.values() {
@@ -686,7 +702,7 @@ impl OwnerTally {
         if let Some(listed) = self.grenades.listed {
             let live = &self.grenades.live_blasts;
             text.push_str(&format!(
-                "; live grenade list: frags {} (smokes left out {}, human throw keys with no pockets {}), launched with a landing {}, unplaced {}, thrower dead at the launch {}; at the blasts: listed with a landing {}, still in the hand {}, not listed {}, rest point off the tally's by [<=1, <=2, <=4, more] m {:?}",
+                "; live grenade list: frags {} (smokes left out {}, human throw keys with no pockets {}), launched with a landing {}, unplaced {}, thrower dead at the launch {}; at the blasts: listed with a landing {}, still in the hand {}, not listed {}, rest point off the tally's by [<=1, <=2, <=4, more] m {:?}, inside the radius at the launch [thrower, mates, enemies] {:?}",
                 listed.frag,
                 listed.smoke,
                 listed.no_pockets,
@@ -697,6 +713,7 @@ impl OwnerTally {
                 live.pending,
                 live.missing,
                 live.err,
+                self.grenades.in_launch,
             ));
             let mut avoid = AvoidStats::default();
             for stats in self.grenades.avoid.values() {
