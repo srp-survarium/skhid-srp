@@ -64,7 +64,7 @@ pub(crate) struct RouteTally {
     /// The ticks off the route by the walked-leg rule alone, at the start (`path::below_walk`).
     pub(crate) below_walk: u64,
     /// The sights' count at the start (`foliage::through`).
-    pub(crate) foliage: [u64; 3],
+    pub(crate) foliage: [u64; 4],
     /// [CG-17] Each body's walk at the last tick to an exact spot
     /// (`Motor::exact_end`), and when it last landed a planned drop on one;
     /// planned drops on an exact walk (this tick's or the last), and of
@@ -190,7 +190,7 @@ impl RouteTally {
                 if planned {
                     self.falls.1 += 1;
                     let exact = self.exact_was[place]
-                        || bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end);
+                        || bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end.is_some());
                     if exact {
                         self.falls_exact.0 += 1;
                         self.exact_drop[place] = Some(time);
@@ -200,7 +200,7 @@ impl RouteTally {
                     self.repeats.1 += u32::from(self.mark(place, from));
                 }
             }
-            self.exact_was[place] = bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end);
+            self.exact_was[place] = bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end.is_some());
             match (self.carry_from[place], body.carrying) {
                 (None, Some(battery)) => {
                     if let Some(at) = self.exact_drop[place].take()
@@ -553,10 +553,11 @@ impl RouteTally {
         // Sights begun, those through half a metre of bush or more, and the bush metres of all.
         let seen = super::foliage::through::counts();
         let foliage_line = format!(
-            " foliage_sights {} foliage_sights_through {} foliage_mm {}",
+            " foliage_sights {} foliage_sights_through {} foliage_mm {} foliage_added_ms {}",
             seen[0] - self.foliage[0],
             seen[1] - self.foliage[1],
-            seen[2] - self.foliage[2]
+            seen[2] - self.foliage[2],
+            seen[3] - self.foliage[3]
         );
         // Ways out over a stronger zone than the start's, and drops onto a zone's floor.
         let mut route_ends = format!(" escapes_cross_zone {} escapes_drop_zone {}", escaped[3], escaped[4]);

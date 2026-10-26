@@ -360,8 +360,10 @@ pub struct Motor {
     pub track: Option<(f32, f32)>,
     /// This tick's route ends at an exact spot the play asked for (a goal
     /// within 0: Collect's walk to its stand): it is not arrived at from over
-    /// it ([`ARRIVE_ABOVE_M`]). Cleared each tick before the walk sets it.
-    pub exact_end: bool,
+    /// it ([`ARRIVE_ABOVE_M`]), and it is walked to within this many metres
+    /// (the play's own, else [`Feel::arrive_m`]). Cleared each tick before the
+    /// walk sets it.
+    pub exact_end: Option<f32>,
     /// This tick's walk looks no further ahead on the route than this, m (set by the caller each tick: on a
     /// lip's floors, where a line to a point further on cuts a corner over the rim).
     pub ahead_cap: Option<f32>,
@@ -462,7 +464,7 @@ impl Motor {
             look: None,
             turn_time: None,
             track: None,
-            exact_end: false,
+            exact_end: None,
             ahead_cap: None,
             clock: 0,
             trail: VecDeque::new(),
@@ -717,7 +719,7 @@ impl Motor {
     }
 
     /// Whether the route is walked to its end: within [`Feel::arrive_m`] of
-    /// it, and not under it ([`ARRIVE_BELOW_M`]: an end up a ledge is jumped
+    /// it (an exact spot's own radius, [`Motor::exact_end`]), and not under it ([`ARRIVE_BELOW_M`]: an end up a ledge is jumped
     /// to; [`ARRIVE_ON_LANDING_M`] when the last leg is a jump: on its
     /// landing) nor, for an exact spot's end ([`Motor::exact_end`]), over it
     /// ([`ARRIVE_ABOVE_M`]).
@@ -728,9 +730,10 @@ impl Motor {
         } else {
             ARRIVE_BELOW_M
         };
-        (route.length() - s <= self.feel.arrive_m || feet.distance_xz(end) <= self.feel.arrive_m)
+        let radius = self.exact_end.unwrap_or(self.feel.arrive_m);
+        (route.length() - s <= radius || feet.distance_xz(end) <= radius)
             && end.y - feet.y <= below
-            && (!self.exact_end || feet.y - end.y <= ARRIVE_ABOVE_M)
+            && (self.exact_end.is_none() || feet.y - end.y <= ARRIVE_ABOVE_M)
     }
 
     /// The decision of one tick that walks the route while the view looks
@@ -1896,6 +1899,31 @@ mod tests {
             |_| true,
         );
         assert_eq!(walked, Walked::Arrived);
+    }
+
+    /// A walk to an exact spot that asks for 0.25 m does not end at 0.45 m (where every other walk ends, within 0.6 m): the
+    /// body walks on until it is inside.
+    #[test]
+    fn a_walk_to_an_exact_spot_goes_on_to_the_radius_the_play_asked_for() {
+        let mut rng = Rng::new(7);
+        let p = |x: f32| Waypoint {
+            at: Vec3::new(x, 0.0, 0.0),
+            node: 0,
+            jump: false,
+            low: false,
+        };
+        let route = || Route::new(vec![p(0.0), p(5.0)]);
+        let at = |x: f32| facing_x(Vec3::new(x, 0.0, 0.0));
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        // An ordinary walk ends within Feel::arrive_m (0.6 m) of its end.
+        assert_eq!(motor.walk(&mut route(), &at(4.55), 5.0, |_| true).1, Walked::Arrived);
+        // An exact spot asked within 0.25 m does not end at 0.45 m, and ends at 0.2 m.
+        motor.exact_end = Some(0.25);
+        assert_eq!(motor.walk(&mut route(), &at(4.55), 5.0, |_| true).1, Walked::OnTheWay);
+        assert_eq!(motor.walk(&mut route(), &at(4.8), 5.0, |_| true).1, Walked::Arrived);
+        // Without a radius of its own it ends where every walk ends.
+        motor.exact_end = Some(motor.feel.arrive_m);
+        assert_eq!(motor.walk(&mut route(), &at(4.55), 5.0, |_| true).1, Walked::Arrived);
     }
 
     /// A world that shows the body still under the jump it pressed, after

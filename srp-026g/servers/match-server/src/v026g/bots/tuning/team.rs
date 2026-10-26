@@ -46,6 +46,30 @@ impl Default for ModTuning {
     }
 }
 
+/// The team's threat spots (K1, `threat.rs`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ThreatTuning {
+    /// The team remembers where a shooter kills from and its routes keep
+    /// out of his line (a soft preference); off, none of it runs.
+    pub spots: bool,
+    /// A bot walking to a goal in a held shooter's lane runs: it crosses
+    /// fast when there is no good way round, and keeps its task.
+    pub sprint: bool,
+    /// A route through a lane gets a local detour round it where there is a
+    /// short one (the search is capped, `search_floors`).
+    pub detour: bool,
+    /// Floors of a poll's search budget one search round the covered
+    /// regions may take (the poll's is `ThinkTuning::search_floors_per_poll`).
+    pub search_floors: u32,
+}
+
+impl Default for ThreatTuning {
+    fn default() -> Self {
+        Self { spots: true, sprint: true, detour: true, search_floors: 3_000 }
+    }
+}
+
 /// [`ThinkTuning::search_floors_per_poll`] by default: a floor expanded
 /// costs about 0.2 µs on a fast desktop core and 0.5 µs on the host's, so
 /// a poll searches for at most about 2 ms here and 5 ms there. Measured on

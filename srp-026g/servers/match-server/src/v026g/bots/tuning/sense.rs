@@ -22,6 +22,15 @@ pub struct SenseTuning {
     pub notice_far_ms: u32,
     pub notice_far_m: f32,
     pub notice_moving: f32,
+    /// A sight that begins through bushes the map draws and gives no collision
+    /// object (`foliage.rs`) is noticed this much later for each metre of bush on
+    /// the line to the chest: the delay times `1 + bush_notice * metres`, at most
+    /// `foliage_cap` times (0: bushes hide nobody, as it was). A sight that goes on
+    /// is not delayed again. GUESS: a player cannot see through the leaves, the
+    /// game has no rule for it, and nothing in the recordings measures the delay
+    /// (worlds 5 s apart); strong for a bush, the owner tunes it.
+    pub bush_notice: f32,
+    pub foliage_cap: f32,
     /// Hearing ranges, metres.
     pub shot_m: f32,
     pub sprint_m: f32,
@@ -70,6 +79,8 @@ impl Default for SenseTuning {
             notice_far_ms: 500,
             notice_far_m: 60.0,
             notice_moving: 0.7,
+            bush_notice: 0.5,
+            foliage_cap: 3.0,
             shot_m: 60.0,
             sprint_m: 15.0,
             reload_m: 10.0,
@@ -136,5 +147,6 @@ pub(super) fn validate(sense: &SenseTuning) -> Result<(), String> {
         sense.notice_near_ms <= sense.notice_far_ms,
         "sense.notice_*_ms",
     )?;
+    check(sense.bush_notice >= 0.0 && sense.foliage_cap >= 1.0, "sense.bush_notice, foliage_cap")?;
     Ok(())
 }
