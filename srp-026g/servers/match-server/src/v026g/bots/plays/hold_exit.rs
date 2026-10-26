@@ -17,8 +17,7 @@
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
-use crate::v026g::bots::tactics::SpotQuery;
-use crate::v026g::bots::view::Mode;
+use crate::v026g::bots::tactics::{SpotQuery, Tactics};
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // The spot: this far from the exit, metres.
@@ -26,6 +25,10 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("spot_max_m", 30.0),
     // Higher ground: weight per metre above the exit.
     ("prefer_high", 0.5),
+    // Spots on the storeys over the anchor are looked at up to this many metres
+    // over it (0: only the floor the grid finds, at most 2 m over it). GUESS: 8 m,
+    // a storey or two (the players' heights span 9-18 m a map); V-S2a.
+    ("up_m", 8.0),
     // At least this far from every enemy spawn point, metres.
     ("base_min_m", 30.0),
     // A new spot is at least this far from where the bot stands, metres.
@@ -54,6 +57,13 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // Not at its spot after this, it gives up, seconds.
     ("give_up_s", 60.0),
     ("samples", 64.0),
+    // An exit's spots (in sight of it, out of the spawn areas, far from
+    // the enemy's spawns) are looked for once and kept this long for the
+    // whole team, seconds: the play is offered only where one is fine for
+    // the bot, as the commander polls each second. GUESS, not tuned: the
+    // sight rays cast once a quarter-minute an exit, and a hazard on a
+    // spot is still checked at each poll (`fine_spots`).
+    ("spots_keep_s", 15.0),
 ];
 
 pub fn tuning() -> PlayTuning {
@@ -82,7 +92,17 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if cx.me.carrying.is_some() {
         return;
     }
-    for index in 0..cx.tactics.exits(enemy).len() {
+    let running = match cx.bot.current {
+        Some((PlayKind::HoldExit, TargetRef::Exit(i), _)) => Some(i),
+        _ => None,
+    };
+    for (index, &exit) in cx.tactics.exits(enemy).iter().enumerate() {
+        // Offered only where a spot is fine for it now: taking it to find
+        // none ended it within the second (the audit's churn), and the
+        // set-aside that followed let it be taken again 8 s later.
+        if running != Some(index) && fine_spots(cx, exit).is_empty() {
+            continue;
+        }
         out.extend(
             cx.candidate(
                 PlayKind::HoldExit,
@@ -112,50 +132,74 @@ pub enum State {
 /// The candidate's score times the mode's weight (`weight_tdm`,
 /// `weight_batteries`): the players' research favours the play in one mode.
 fn weighed(cx: &Ctx, kind: PlayKind, mut c: Candidate) -> Option<Candidate> {
-    let weight = match cx.view.mode {
-        Mode::TeamDeathmatch => cx.num(kind, "weight_tdm"),
-        Mode::Batteries => cx.num(kind, "weight_batteries"),
-        Mode::TimedBatteries => cx.num(kind, "weight_timed"),
-    };
+    let weight = cx.num(kind, cx.view.mode.weight_key());
     c.score = Score::new(c.score.get() * weight);
     (!c.score.is_zero()).then_some(c)
 }
 
-/// A spot to hold `exit` from.
-fn pick(cx: &Ctx, exit: Vec3, rng: &mut Rng) -> Option<Vec3> {
+/// The spots to hold `exit` from that stay so for a while, best first: in
+/// sight of it, outside every spawn area and `base_min_m` from the enemy's
+/// spawns; found once for the side and kept `spots_keep_s`.
+fn spots_by(cx: &Ctx, exit: Vec3) -> std::sync::Arc<Vec<Vec3>> {
     let num = |name| cx.num(PlayKind::HoldExit, name);
-    let enemy = cx.bot.side.and_then(|side| cx.enemy_side(side));
-    let spawns: Vec<Vec3> = cx
-        .tactics
-        .world
-        .map
-        .spawns
+    let key = Tactics::spot_key(PlayKind::HoldExit as u32, cx.bot.side, exit);
+    let keep = (num("spots_keep_s") * 1000.0) as u32;
+    cx.tactics.spots_kept(key, cx.now, keep, || {
+        let enemy = cx.bot.side.and_then(|side| cx.enemy_side(side));
+        let spawns: Vec<Vec3> = cx
+            .tactics
+            .world
+            .map
+            .spawns
+            .iter()
+            .filter(|s| Some(s.team) == enemy)
+            .map(|s| s.position)
+            .collect();
+        let query = SpotQuery {
+            sight_to: Some(exit),
+            prefer_high: num("prefer_high"),
+            up_m: num("up_m"),
+            side: cx.bot.side,
+            samples: num("samples") as usize,
+            ..SpotQuery::ring(exit, num("spot_min_m"), num("spot_max_m"))
+        };
+        let mut rng = Rng::new(key ^ u64::from(cx.now));
+        cx.tactics
+            .spots(&query, cx.now, query.samples, &mut rng)
+            .into_iter()
+            .map(|s| s.at)
+            .filter(|at| {
+                !cx.tactics.in_spawn_area(*at, None)
+                    && spawns
+                        .iter()
+                        .all(|s| s.distance_xz(*at) >= num("base_min_m"))
+            })
+            .collect()
+    })
+}
+
+/// Of [`spots_by`], those this bot may take now, best first: fine goals it
+/// has a way to ([`Ctx::reachable`], no search lately proved none),
+/// `moved_min_m` from where it stands.
+fn fine_spots(cx: &Ctx, exit: Vec3) -> Vec<Vec3> {
+    let moved = cx.num(PlayKind::HoldExit, "moved_min_m");
+    spots_by(cx, exit)
         .iter()
-        .filter(|s| Some(s.team) == enemy)
-        .map(|s| s.position)
-        .collect();
-    let query = SpotQuery {
-        sight_to: Some(exit),
-        prefer_high: num("prefer_high"),
-        side: cx.bot.side,
-        samples: num("samples") as usize,
-        ..SpotQuery::ring(exit, num("spot_min_m"), num("spot_max_m"))
-    };
-    let fine: Vec<Vec3> = cx
-        .tactics
-        .spots(&query, cx.now, 12, rng)
-        .into_iter()
-        .map(|s| s.at)
+        .copied()
         .filter(|at| {
             cx.tactics.fine_goal(*at, cx.now, cx.bot.side)
-                && !cx.tactics.in_spawn_area(*at, None)
-                && spawns
-                    .iter()
-                    .all(|s| s.distance_xz(*at) >= num("base_min_m"))
-                && at.distance_xz(cx.me.feet) >= num("moved_min_m")
+                && at.distance_xz(cx.me.feet) >= moved
+                && !cx.spot_taken(*at, super::goals::APART_M)
+                && cx.can_go(*at)
+                && !cx.exposed_climb(*at, exit)
         })
-        .collect();
-    let n = fine.len().min(num("pick_of").max(1.0) as usize);
+        .collect()
+}
+
+/// A spot to hold `exit` from: one of the best `pick_of` fine ones.
+fn pick(cx: &Ctx, exit: Vec3, rng: &mut Rng) -> Option<Vec3> {
+    let fine = fine_spots(cx, exit);
+    let n = fine.len().min(cx.num(PlayKind::HoldExit, "pick_of").max(1.0) as usize);
     (n > 0).then(|| fine[rng.below(n)])
 }
 
@@ -174,6 +218,9 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     match state {
         State::NoSpot => Step::Failed("no spot by the exit"),
         State::Going { spot } => {
+            // Its spot proved no way to: another of the fine ones (none:
+            // kept, and the think leaves the play, `goal_shut`).
+            goals::repick_if_shut(cx, spot, || pick(cx, exit, rng));
             let spot = *spot;
             if let Some((_, _, started)) = cx.bot.current
                 && cx.now > started + (num("give_up_s") * 1000.0) as u32
@@ -182,7 +229,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             }
             let d = cx.me.feet.distance_xz(spot);
             if d <= num("reach_m") {
-                let (lo, hi) = if cx.view.mode == Mode::TeamDeathmatch {
+                let (lo, hi) = if cx.view.mode.is_deathmatch() {
                     (num("hold_tdm_min_s"), num("hold_tdm_max_s"))
                 } else {
                     (num("hold_batteries_min_s"), num("hold_batteries_max_s"))
@@ -226,6 +273,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
 mod tests {
     use super::super::tests::Scenario;
     use super::*;
+    use crate::v026g::bots::view::Mode;
 
     fn holds(s: &Scenario) -> Vec<Candidate> {
         let mut out = Vec::new();
@@ -249,6 +297,26 @@ mod tests {
         let mut s = Scenario::field(Mode::Batteries);
         s.bot(0, 0, Vec3::new(20.0, 0.0, 35.0)).carrying = Some(0);
         assert!(holds(&s).is_empty(), "carrying");
+    }
+
+    /// An exit with no spot fine for the bot is not offered (taken, it
+    /// ended within the second); the one it already holds stays offered.
+    #[test]
+    fn an_exit_with_no_spot_is_not_offered_unless_held() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 35.0));
+        // Every spot too near the enemy's spawns.
+        s.tuning
+            .plays
+            .entry(PlayKind::HoldExit)
+            .or_insert_with(|| crate::v026g::bots::plays::default_tuning(PlayKind::HoldExit))
+            .numbers
+            .insert("base_min_m".into(), 10_000.0);
+        assert!(holds(&s).is_empty());
+        s.current = Some((PlayKind::HoldExit, TargetRef::Exit(0), s.view.clock));
+        let out = holds(&s);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].target, TargetRef::Exit(0));
     }
 
     /// Steps the play by hand from its start; returns the steps and the
@@ -343,5 +411,24 @@ mod tests {
                 assert!(spot.distance_xz(here) >= 10.0);
             }
         }
+    }
+
+    /// A spot its bot proved no way to is left for another fine one.
+    #[test]
+    fn a_spot_proved_no_way_to_is_left_for_another() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 35.0));
+        let mut rng = Rng::new(3);
+        let exit = TargetRef::Exit(0);
+        let mut state = start(exit, &s.cx(0), &mut rng);
+        let State::Going { spot: first } = state else {
+            panic!("{state:?}")
+        };
+        s.no_way_to = vec![(first, s.view.clock + 5_000)];
+        step(&mut state, exit, &s.cx(0), &mut rng);
+        let State::Going { spot } = state else {
+            panic!("{state:?}")
+        };
+        assert!(!s.cx(0).no_way_lately(spot), "{first:?} {spot:?}");
     }
 }

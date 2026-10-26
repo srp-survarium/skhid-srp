@@ -12,23 +12,33 @@
 //!
 //! - One candidate per enemy route (its slot), weighed by the route's
 //!   share of the side's lives times what a life on it gave, so the bots
-//!   spread over the best ways first.
-//! - The cut point: the route's first point at least `cut_progress` of
-//!   the way from their base to ours (past the middle: the owner's "never
-//!   in the middle"), out of every spawn area.
+//!   spread over the best ways first. Only the best `most_cuts` ways are
+//!   cut, and ways whose cut points lie within `merge_m` of a better one's
+//!   are that one's cut: with the top players' routes in the table a side
+//!   has up to 10 ways, several through the same place.
+//! - The cut point: where the route first comes `cut_progress` of the way
+//!   from their base to ours (past the middle: the owner's "never in the
+//!   middle"), on the floor there, out of every spawn area; the end of that
+//!   leg when no fine floor is there. A route point moved a little (a 3D
+//!   point onto the players' floor) moves the cut a little: taken at the
+//!   first point past `cut_progress`, a point at 0.600 moved 0.3 m sent the
+//!   cut a leg on, 25 m, by their base's (level_01 day 4: 2 kills in 64
+//!   holds there against 5 in 10).
 //! - The spot: `spot_min_m`-`spot_max_m` from it with a sight line to it,
 //!   off the route's line by at least `side_deg` (a side angle, not in
 //!   their face), not on their side of it, higher ground preferred; one of
 //!   the best few, drawn. With no such spot, straight down their way, then
-//!   in a wider ring.
+//!   in a wider ring. The spots are looked for once and kept a while for
+//!   the side, and a cut is offered only where one is fine for the bot:
+//!   taken to find none, it ended within the second (2,992 times in the
+//!   Team Deathmatch bench with the routes, 16 seeds; the audit's churn).
 //! - Held crouched, looking where they come from. Team Deathmatch: a long
 //!   hold; the battery modes: brief (the fights follow the batteries).
 //!   Moved on after 1-2 kills.
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
-use crate::v026g::bots::tactics::SpotQuery;
-use crate::v026g::bots::view::Mode;
+use crate::v026g::bots::tactics::{SpotQuery, Tactics};
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // The cut point: this share of the way from their base to ours.
@@ -38,6 +48,10 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // Off the route's line by at least this, degrees.
     ("side_deg", 35.0),
     ("prefer_high", 0.5),
+    // Spots on the storeys over the anchor are looked at up to this many metres
+    // over it (0: only the floor the grid finds, at most 2 m over it). GUESS: 8 m,
+    // a storey or two (the players' heights span 9-18 m a map); V-S2a.
+    ("up_m", 8.0),
     ("pick_of", 3.0),
     ("reach_m", 2.0),
     ("sneak_m", 10.0),
@@ -52,6 +66,17 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("kills_max", 2.0),
     ("give_up_s", 60.0),
     ("samples", 64.0),
+    // A cut's spots are looked for once and kept this long for the side,
+    // seconds. GUESS, as HoldExit's and Crossfire's: the sight rays cast
+    // once a quarter-minute a cut, a hazard on a spot still checked at each
+    // poll.
+    ("spots_keep_s", 15.0),
+    // Cut points this near are one cut (the better way's), metres; and
+    // at most this many ways are cut. GUESS: a cut's spot ring is 12-28 m,
+    // so two points 10 m apart are held from the same spots; 4 is the old
+    // table's most ways a side.
+    ("merge_m", 10.0),
+    ("most_cuts", 4.0),
 ];
 
 pub fn tuning() -> PlayTuning {
@@ -94,8 +119,71 @@ fn progress(from: Vec3, to: Vec3, at: Vec3) -> f32 {
     ((at.x - from.x) * dx + (at.z - from.z) * dz) / l
 }
 
-/// Each enemy route's cut: (route index, cut point, the point before it
-/// they come from, weight in (0, 1]).
+/// Where `route` first comes `min` of the way from `theirs` to `ours`, and
+/// the point before it they come from: on the leg that crosses `min`, where
+/// it crosses, on the floor there; else that leg's end. None when that is
+/// in a spawn area or no fine goal for `side`.
+fn cut_on(
+    cx: &Ctx,
+    route: &super::super::routes::HumanRoute,
+    (theirs, ours): (Vec3, Vec3),
+    min: f32,
+    side: i32,
+) -> Option<(Vec3, Vec3)> {
+    let points = &route.points;
+    let i = points
+        .iter()
+        .position(|&p| progress(theirs, ours, p) >= min)?;
+    let before = |k: usize| if k > 0 { points[k - 1] } else { theirs };
+    let fine =
+        |p: Vec3| !cx.tactics.in_spawn_area(p, None) && cx.tactics.fine_goal(p, cx.now, Some(side));
+    if i > 0 {
+        let (a, b) = (points[i - 1], points[i]);
+        let (pa, pb) = (progress(theirs, ours, a), progress(theirs, ours, b));
+        let t = if pb > pa {
+            ((min - pa) / (pb - pa)).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        let grid = &cx.tactics.world.grid;
+        let on_leg = a + (b - a) * t;
+        // On the storey the leg is on there: the nearest floor in three
+        // dimensions can be the floor above or below on a stacked map.
+        if let Some(at) = grid
+            .locate(on_leg, ON_FLOOR_M)
+            .map(|n| grid.position(n))
+            .filter(|at| (at.y - on_leg.y).abs() <= ON_LEVEL_M)
+            && fine(at)
+        {
+            let from = if at.distance_xz(a) >= 1.0 {
+                a
+            } else {
+                before(i - 1)
+            };
+            return Some((at, from));
+        }
+    }
+    let at = points[i];
+    fine(at).then(|| (at, before(i)))
+}
+
+/// How far from a point on a route's leg its floor may lie (the bots'
+/// goals' reach, `Tactics::fine_goal`).
+const ON_FLOOR_M: f32 = 3.0;
+
+/// How far in height from the point on a route's leg the floor under the
+/// cut may lie, metres: well under a storey (3 m or more), over the
+/// slope of a ramp the leg's straight line misses.
+///
+/// Root cause (`push-record.md` V-S2, audit item 5): `locate` takes the
+/// nearest floor in three dimensions within 2.5 m below and 1 m above, so
+/// on a stacked map a cut on a leg that climbs a storey could land on the
+/// other storey's floor, and the hold stood where the enemy does not walk.
+const ON_LEVEL_M: f32 = 1.5;
+
+/// The enemy's best ways' cuts, best first: (route index, cut point, the
+/// point before it they come from, weight in (0, 1]); one a place
+/// (`merge_m`), `most_cuts` at most.
 pub fn cuts(cx: &Ctx) -> Vec<(usize, Vec3, Vec3, f32)> {
     let Some(side) = cx.bot.side else {
         return Vec::new();
@@ -113,34 +201,44 @@ pub fn cuts(cx: &Ctx) -> Vec<(usize, Vec3, Vec3, f32)> {
     if best <= 0.0 {
         return Vec::new();
     }
-    routes
+    let mut all = routes
         .iter()
         .enumerate()
         .filter_map(|(index, route)| {
-            let i = route
-                .points
-                .iter()
-                .position(|&p| progress(theirs, ours, p) >= min)?;
-            let at = route.points[i];
-            if cx.tactics.in_spawn_area(at, None) || !cx.tactics.fine_goal(at, cx.now, Some(side)) {
-                return None;
-            }
-            let from = if i > 0 { route.points[i - 1] } else { theirs };
+            let (at, from) = cut_on(cx, route, (theirs, ours), min, side)?;
             Some((index, at, from, worth(route) / best))
         })
-        .collect()
+        .collect::<Vec<_>>();
+    all.sort_by(|a, b| b.3.total_cmp(&a.3).then(a.0.cmp(&b.0)));
+    let merge = cx.num(PlayKind::Cut, "merge_m");
+    let most = cx.num(PlayKind::Cut, "most_cuts").max(0.0) as usize;
+    let mut out: Vec<(usize, Vec3, Vec3, f32)> = Vec::new();
+    for cut in all {
+        if out.len() >= most {
+            break;
+        }
+        if out.iter().all(|kept| kept.1.distance_xz(cut.1) >= merge) {
+            out.push(cut);
+        }
+    }
+    out
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if cx.me.carrying.is_some() {
         return;
     }
-    let weight = match cx.view.mode {
-        Mode::TeamDeathmatch => cx.num(PlayKind::Cut, "weight_tdm"),
-        Mode::Batteries => cx.num(PlayKind::Cut, "weight_batteries"),
-        Mode::TimedBatteries => cx.num(PlayKind::Cut, "weight_timed"),
+    let weight = cx.num(PlayKind::Cut, cx.view.mode.weight_key());
+    let running = match cx.bot.current {
+        Some((PlayKind::Cut, TargetRef::Point(p), _)) => Some(p),
+        _ => None,
     };
-    for (index, at, _, worth) in cuts(cx) {
+    for (index, at, from, worth) in cuts(cx) {
+        // Offered only where a spot is fine for it now.
+        let runs = running.is_some_and(|p| p.distance_xz(at) < 1.0);
+        if !runs && fine_spots(cx, at, from).is_empty() {
+            continue;
+        }
         if let Some(mut c) = cx.candidate(PlayKind::Cut, TargetRef::Point(at), Some(index as u32)) {
             c.score = Score::new(c.score.get() * worth * weight);
             if !c.score.is_zero() {
@@ -165,8 +263,11 @@ pub enum State {
     },
 }
 
-/// A spot to cut the way through `at` (coming from `from`).
-fn pick(cx: &Ctx, at: Vec3, from: Vec3, rng: &mut Rng) -> Option<Vec3> {
+/// The spots of `pick`'s `try_` (0-2) to cut the way through `at` (coming
+/// from `from`), best first: in sight of it, in the try's ring and angle,
+/// outside every spawn area; found once for the side and kept
+/// `spots_keep_s`.
+fn spots_by(cx: &Ctx, at: Vec3, from: Vec3, try_: u32) -> std::sync::Arc<Vec<Vec3>> {
     let num = |name| cx.num(PlayKind::Cut, name);
     // Their way's direction at the cut.
     let (wx, wz) = (at.x - from.x, at.z - from.z);
@@ -180,37 +281,62 @@ fn pick(cx: &Ctx, at: Vec3, from: Vec3, rng: &mut Rng) -> Option<Vec3> {
     };
     // A side angle first; then straight down their way (still not on their
     // side); then a wider ring.
-    let tries = [
-        (num("spot_min_m"), num("spot_max_m"), side_cos),
-        (num("spot_min_m"), num("spot_max_m"), 1.0),
-        (num("spot_min_m") * 0.6, num("spot_max_m") * 1.5, 1.0),
-    ];
-    for (min_m, max_m, most) in tries {
+    let (min_m, max_m, most) = match try_ {
+        0 => (num("spot_min_m"), num("spot_max_m"), side_cos),
+        1 => (num("spot_min_m"), num("spot_max_m"), 1.0),
+        _ => (num("spot_min_m") * 0.6, num("spot_max_m") * 1.5, 1.0),
+    };
+    let key = Tactics::spot_key(PlayKind::Cut as u32 + 64 * try_, cx.bot.side, at);
+    let keep = (num("spots_keep_s") * 1000.0) as u32;
+    cx.tactics.spots_kept(key, cx.now, keep, || {
         let query = SpotQuery {
             sight_to: Some(at),
             prefer_high: num("prefer_high"),
+            up_m: num("up_m"),
             side: cx.bot.side,
             samples: num("samples") as usize,
             ..SpotQuery::ring(at, min_m, max_m)
         };
-        let fine: Vec<Vec3> = cx
-            .tactics
+        let mut rng = Rng::new(key ^ u64::from(cx.now));
+        cx.tactics
             // More than a plain hold asks for: the side rule drops many.
-            .spots(&query, cx.now, 40, rng)
+            .spots(&query, cx.now, 40, &mut rng)
             .into_iter()
             .map(|s| s.at)
             .filter(|spot| (-0.2..=most).contains(&along(spot)))
-            .filter(|spot| {
-                cx.tactics.fine_goal(*spot, cx.now, cx.bot.side)
-                    && !cx.tactics.in_spawn_area(*spot, None)
-            })
-            .collect();
-        let n = fine.len().min(num("pick_of").max(1.0) as usize);
-        if n > 0 {
-            return Some(fine[rng.below(n)]);
-        }
-    }
-    None
+            .filter(|spot| !cx.tactics.in_spawn_area(*spot, None))
+            .collect()
+    })
+}
+
+/// The spots this bot may take now to cut the way through `at`, best
+/// first: those of the first of [`spots_by`]'s tries with a fine goal that
+/// this bot has a way to ([`Ctx::reachable`], no search lately proved none):
+/// the ring's high spots in sight of the cut point are often ledges no walk
+/// gets onto, and a bot sent there stood with no way.
+fn fine_spots(cx: &Ctx, at: Vec3, from: Vec3) -> Vec<Vec3> {
+    (0..3)
+        .map(|try_| {
+            spots_by(cx, at, from, try_)
+                .iter()
+                .copied()
+                .filter(|spot| {
+                    cx.tactics.fine_goal(*spot, cx.now, cx.bot.side)
+                        && !cx.spot_taken(*spot, super::goals::APART_M)
+                        && cx.can_go(*spot)
+                        && !cx.exposed_climb(*spot, at)
+                })
+                .collect::<Vec<_>>()
+        })
+        .find(|fine| !fine.is_empty())
+        .unwrap_or_default()
+}
+
+/// A spot to cut the way through `at` (coming from `from`).
+fn pick(cx: &Ctx, at: Vec3, from: Vec3, rng: &mut Rng) -> Option<Vec3> {
+    let fine = fine_spots(cx, at, from);
+    let n = fine.len().min(cx.num(PlayKind::Cut, "pick_of").max(1.0) as usize);
+    (n > 0).then(|| fine[rng.below(n)])
 }
 
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
@@ -229,12 +355,15 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
 
 pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
     let num = |name| cx.num(PlayKind::Cut, name);
-    if cx.point_of(target).is_none() {
+    let Some(at) = cx.point_of(target) else {
         return Step::Failed("no cut point");
-    }
+    };
     match state {
         State::NoSpot => Step::Failed("no spot by their way"),
         State::Going { spot, from } => {
+            // Its spot proved no way to: another of the fine ones (none:
+            // kept, and the think leaves the play, `goal_shut`).
+            goals::repick_if_shut(cx, spot, || pick(cx, at, *from, rng));
             let (spot, from) = (*spot, *from);
             if let Some((_, _, started)) = cx.bot.current
                 && cx.now > started + (num("give_up_s") * 1000.0) as u32
@@ -243,7 +372,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             }
             let d = cx.me.feet.distance_xz(spot);
             if d <= num("reach_m") {
-                let (lo, hi) = if cx.view.mode == Mode::TeamDeathmatch {
+                let (lo, hi) = if cx.view.mode.is_deathmatch() {
                     (num("hold_tdm_min_s"), num("hold_tdm_max_s"))
                 } else {
                     (num("hold_batteries_min_s"), num("hold_batteries_max_s"))
@@ -290,6 +419,7 @@ mod tests {
     use super::super::super::routes::HumanRoute;
     use super::super::tests::Scenario;
     use super::*;
+    use crate::v026g::bots::view::Mode;
 
     /// The enemy side (1, spawns at x 75) has a busy, well paid way along
     /// z 30 and a poor one along z 5; bot 0 of side 0 at (20, 0, 20).
@@ -300,10 +430,12 @@ mod tests {
             team: 1,
             lives,
             reward,
+            fight: reward,
             points: [65.0, 55.0, 45.0, 35.0, 25.0]
                 .iter()
                 .map(|&x| Vec3::new(x, 0.0, z))
                 .collect(),
+            ..Default::default()
         };
         s.tactics
             .set_routes(vec![route(30, 3.0, 30.0), route(10, 1.0, 5.0)]);
@@ -322,9 +454,9 @@ mod tests {
         let cx = s.cx(0);
         let cuts = cuts(&cx);
         assert_eq!(cuts.len(), 2, "{cuts:?}");
-        // x 25 is the first point 60 % of the way from x 75 to x 5.
-        // (Points sit on the grid's floors, within a cell.)
-        assert!(cuts[0].1.distance_xz(Vec3::new(25.0, 0.0, 30.0)) < 0.5);
+        // 60 % of the way from x 75 to x 5 is x 33, on the leg from x 35
+        // to x 25. (Points sit on the grid's floors, within a cell.)
+        assert!(cuts[0].1.distance_xz(Vec3::new(33.0, 0.0, 30.0)) < 0.5);
         assert!(cuts[0].2.distance_xz(Vec3::new(35.0, 0.0, 30.0)) < 0.5);
         let out = cut_candidates(&s);
         assert_eq!(out.len(), 2);
@@ -346,6 +478,99 @@ mod tests {
         let mut s = Scenario::field(Mode::TeamDeathmatch);
         s.bot(0, 0, Vec3::new(20.0, 0.0, 20.0));
         assert!(cut_candidates(&s).is_empty());
+    }
+
+    /// A route point moved a little across `cut_progress` (x 33 is 60 % of
+    /// the way from x 75 to x 5) moves the cut a little, not a leg on.
+    #[test]
+    fn a_point_moved_a_little_moves_the_cut_a_little() {
+        let cut_at = |x: f32| {
+            let mut s = Scenario::field(Mode::TeamDeathmatch);
+            s.bot(0, 0, Vec3::new(20.0, 0.0, 20.0));
+            s.tactics.set_routes(vec![HumanRoute {
+                team: 1,
+                lives: 10,
+                reward: 1.0,
+                fight: 1.0,
+                points: [65.0, 55.0, 45.0, x, 15.0]
+                    .iter()
+                    .map(|&x| Vec3::new(x, 0.0, 30.0))
+                    .collect(),
+                ..Default::default()
+            }]);
+            cuts(&s.cx(0))[0].1
+        };
+        let (short, past) = (cut_at(33.2), cut_at(32.8));
+        assert!(short.distance_xz(past) < 1.5, "{short:?} {past:?}");
+        assert!(
+            past.distance_xz(Vec3::new(33.0, 0.0, 30.0)) < 1.0,
+            "{past:?}"
+        );
+    }
+
+    /// A cut is on the floor of the storey the leg is on: where the
+    /// nearest floor lies 2 m off the leg's height, the leg's end stands in
+    /// for it, not that floor. The world has a platform 4 m up over
+    /// x 20..32 (ground under it); the leg runs from the ground at x 36 up
+    /// to the platform at x 30, so at the cut (x 33) it is 2 m up and only
+    /// the ground is there.
+    #[test]
+    fn a_cut_is_not_put_on_a_floor_a_storey_off_the_leg() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.tactics = Tactics::new(crate::v026g::bots::tactics::tests::platform_world(), 1.0);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 20.0));
+        s.tactics.set_routes(vec![HumanRoute {
+            team: 1,
+            lives: 10,
+            reward: 1.0,
+            fight: 1.0,
+            points: [(65.0, 0.0), (55.0, 0.0), (45.0, 0.0), (36.0, 0.0), (30.0, 4.0)]
+                .iter()
+                .map(|&(x, y)| Vec3::new(x, y, 33.0))
+                .collect(),
+            ..Default::default()
+        }]);
+        let cuts = cuts(&s.cx(0));
+        assert_eq!(cuts.len(), 1, "{cuts:?}");
+        assert!(cuts[0].1.y > 3.5, "on the platform: {:?}", cuts[0].1);
+    }
+
+    /// Ways through one place are one cut (the better way's), and only the
+    /// best `most_cuts` ways are cut.
+    #[test]
+    fn ways_through_one_place_are_one_cut_and_only_the_best_are_cut() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 20.0));
+        let route = |lives: u32, z: f32| HumanRoute {
+            team: 1,
+            lives,
+            reward: 1.0,
+            fight: 1.0,
+            points: [65.0, 55.0, 45.0, 35.0, 25.0]
+                .iter()
+                .map(|&x| Vec3::new(x, 0.0, z))
+                .collect(),
+            ..Default::default()
+        };
+        // Four ways: z 30 and 34 through one place (the second better), the
+        // others 12 m apart and less used.
+        s.tactics.set_routes(vec![
+            route(20, 30.0),
+            route(30, 34.0),
+            route(12, 5.0),
+            route(11, 17.0),
+        ]);
+        let ways = |s: &Scenario| cuts(&s.cx(0)).iter().map(|c| c.0).collect::<Vec<_>>();
+        assert_eq!(ways(&s), vec![1, 2, 3]);
+        s.tuning
+            .plays
+            .entry(PlayKind::Cut)
+            .or_insert_with(|| crate::v026g::bots::plays::default_tuning(PlayKind::Cut))
+            .numbers
+            .insert("most_cuts".into(), 2.0);
+        assert_eq!(ways(&s), vec![1, 2]);
+        let cuts = cuts(&s.cx(0));
+        assert!((cuts[0].3 - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -440,5 +665,24 @@ mod tests {
         );
         assert!(with_cuts * 10 >= sides * 9, "{with_cuts} of {sides}");
         assert!(spots * 10 >= cuts_n * 8, "{spots} of {cuts_n}");
+    }
+
+    /// A spot its bot proved no way to is left for another fine one.
+    #[test]
+    fn a_spot_proved_no_way_to_is_left_for_another() {
+        let mut s = field(Mode::TeamDeathmatch);
+        let (_, at, _, _) = cuts(&s.cx(0))[0];
+        let target = TargetRef::Point(at);
+        let mut rng = Rng::new(4);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        let State::Going { spot: first, .. } = state else {
+            panic!("{state:?}")
+        };
+        s.no_way_to = vec![(first, s.view.clock + 5_000)];
+        step(&mut state, target, &s.cx(0), &mut rng);
+        let State::Going { spot, .. } = state else {
+            panic!("{state:?}")
+        };
+        assert!(!s.cx(0).no_way_lately(spot), "{first:?} {spot:?}");
     }
 }

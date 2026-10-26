@@ -46,6 +46,11 @@ pub const ENERGY_REACH_S: f32 = 10.0;
 /// ([`Hazards::pass_ms`]'s default; GUESS: reaching and crossing a zone a
 /// few metres wide).
 pub const PASS_MS: u32 = 4_000;
+/// The fastest a body goes, m/s: a sprint (`kin`, PROVEN 5.0). A floor `d`
+/// metres off is reached no sooner than `d / ARRIVE_MPS` seconds from now,
+/// so a route's floor must stay off for [`Hazards::pass_ms`] from then
+/// ([`Hazards::allowed_arriving`]), not from now.
+pub const ARRIVE_MPS: f32 = 5.0;
 
 /// Whether a damage zone hurts at a match time.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -122,6 +127,17 @@ impl Hazard {
                 threshold,
                 per_second,
             } => threshold > per_second * ENERGY_REACH_S,
+        }
+    }
+
+    /// Its hit a second while on, at full intensity: a continuous zone's
+    /// raw hit, else a hit's every `interval_ms`. Infinite when the map
+    /// file gives none (taken as harmful, [`Hazard::damage`]).
+    pub fn hit_per_s(&self) -> f32 {
+        match &self.damage {
+            None => f32::INFINITY,
+            Some(damage) if damage.continuous => damage.raw(),
+            Some(damage) => damage.raw() * 1000.0 / damage.interval_ms.max(1) as f32,
         }
     }
 }
@@ -342,6 +358,26 @@ impl Hazards {
             .all(|zone| zone.activity.off_for(time, ms))
     }
 
+    /// [`Self::allowed`] for a body `d_m` metres off `node` (in a line):
+    /// its zones off for [`Self::pass_ms`] from the soonest it gets there
+    /// ([`ARRIVE_MPS`]). A zone that is on now and off by then lets it
+    /// through; one that is off now and on by then does not. At 0 m,
+    /// [`Self::allowed`].
+    pub fn allowed_arriving(&self, node: NodeId, time: u32, d_m: f32) -> bool {
+        self.allowed(node, arrival(time, d_m))
+    }
+
+    /// Whether a zone at `node` is on at `time` (no margin of time).
+    pub fn on_at(&self, node: NodeId, time: u32) -> bool {
+        self.zones_at(node).any(|zone| zone.activity.active(time))
+    }
+
+    /// The zones' hit a second at `node` while they are on, summed
+    /// ([`Hazard::hit_per_s`]); 0 on a floor no zone marks.
+    pub fn hit_per_s(&self, node: NodeId) -> f32 {
+        self.zones_at(node).map(Hazard::hit_per_s).sum()
+    }
+
     /// The set of zones marking `node` (0: none); floors of one set are
     /// shut and open together.
     pub fn set_of(&self, node: NodeId) -> u16 {
@@ -357,6 +393,20 @@ impl Hazards {
     /// until [`Self::attach`].
     pub fn fixed_at(&self, node: NodeId) -> bool {
         self.zones_at(node).any(|zone| !zone.switches())
+    }
+
+    /// Whether zones mark `node` and none of them ever switches off
+    /// ([`Hazard::switches`]): a floor shut all match and by nothing else, which
+    /// a crossing may walk (`crossing.rs`).
+    pub fn only_fixed_at(&self, node: NodeId) -> bool {
+        let mut any = false;
+        for zone in self.zones_at(node) {
+            if zone.switches() {
+                return false;
+            }
+            any = true;
+        }
+        any
     }
 
     /// Which zones never switch off, by index: what [`Self::fixed_at`]
@@ -460,6 +510,12 @@ impl Hazards {
         }
         self.seen = anomalies.version();
     }
+}
+
+/// The soonest match time a body `d_m` metres off gets there from `time`
+/// ([`ARRIVE_MPS`]).
+pub fn arrival(time: u32, d_m: f32) -> u32 {
+    time.saturating_add((d_m.max(0.0) / ARRIVE_MPS * 1000.0) as u32)
 }
 
 #[cfg(test)]

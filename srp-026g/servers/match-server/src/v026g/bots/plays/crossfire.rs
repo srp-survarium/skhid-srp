@@ -17,8 +17,7 @@
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
-use crate::v026g::bots::tactics::SpotQuery;
-use crate::v026g::bots::view::Mode;
+use crate::v026g::bots::tactics::{SpotQuery, Tactics};
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // The spot: this far from the choke, metres.
@@ -30,6 +29,10 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("partner_m", 35.0),
     // Higher ground: weight per metre above the choke.
     ("prefer_high", 0.3),
+    // Spots on the storeys over the anchor are looked at up to this many metres
+    // over it (0: only the floor the grid finds, at most 2 m over it). GUESS: 8 m,
+    // a storey or two (the players' heights span 9-18 m a map); V-S2a.
+    ("up_m", 8.0),
     // A known enemy's last place is a choke this near the bot, metres.
     ("enemy_choke_m", 60.0),
     ("reach_m", 2.0),
@@ -43,10 +46,18 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // The score times this by mode.
     ("weight_tdm", 1.0),
     ("weight_batteries", 0.7),
+    // Timed batteries: as the plain ones until a bench says otherwise (it was
+    // `weight_batteries` there).
+    ("weight_timed", 0.7),
     ("give_up_s", 70.0),
     // A spot too near the other half's is chosen again at most this often.
     ("repick_every_s", 3.0),
     ("samples", 64.0),
+    // A choke's spots (in sight of it, out of the spawn areas) are looked
+    // for once and kept this long for the whole team, seconds: the play is
+    // offered only where one is fine for the bot, as the commander polls
+    // each second. GUESS, as HoldExit's.
+    ("spots_keep_s", 15.0),
 ];
 
 pub fn tuning() -> PlayTuning {
@@ -76,13 +87,10 @@ pub fn tuning() -> PlayTuning {
 }
 
 /// The candidate's score times the mode's weight (`weight_tdm`,
-/// `weight_batteries`): the players' research favours the play in one mode.
+/// `weight_batteries`, `weight_timed`): the players' research favours the
+/// play in one mode.
 fn weighed(cx: &Ctx, kind: PlayKind, mut c: Candidate) -> Option<Candidate> {
-    let weight = if cx.view.mode == Mode::TeamDeathmatch {
-        cx.num(kind, "weight_tdm")
-    } else {
-        cx.num(kind, "weight_batteries")
-    };
+    let weight = cx.num(kind, cx.view.mode.weight_key());
     c.score = Score::new(c.score.get() * weight);
     (!c.score.is_zero()).then_some(c)
 }
@@ -116,16 +124,37 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         }
     }
     // The running one stays while it has a place.
-    if let Some((PlayKind::Crossfire, t, _)) = cx.bot.current
+    let running = match cx.bot.current {
+        Some((PlayKind::Crossfire, t, _)) => Some(t),
+        _ => None,
+    };
+    if let Some(t) = running
         && !chokes.contains(&t)
         && cx.point_of(t).is_some()
     {
         chokes.push(t);
     }
+    // ... and is the only one offered: a crossfire is held on its choke
+    // until it ends, not moved to each enemy's newer last place. Moved, the
+    // bots chased (bench, one side so: deaths past half way +8 a run and
+    // K/D −0.047 ± 0.022; kept: K/D +0.016 ± 0.024; §3.2).
+    if let Some(t) = running {
+        chokes.retain(|c| *c == t);
+    }
     for choke in chokes {
         let Some(key) = choke_key(choke) else {
             continue;
         };
+        // Offered only where a spot is fine for it now: taking it to find
+        // none ended it within the second (the audit's churn: "no spot
+        // round the choke", mostly round a known enemy's last place).
+        if running != Some(choke)
+            && cx
+                .point_of(choke)
+                .is_none_or(|at| fine_spots(cx, at).is_empty())
+        {
+            continue;
+        }
         for half in 0..2 {
             out.extend(
                 cx.candidate(PlayKind::Crossfire, choke, Some(key * 2 + half))
@@ -180,30 +209,54 @@ fn halves(cx: &Ctx, choke: Vec3) -> Vec<(Place, Vec3)> {
         .collect()
 }
 
-/// A spot for the choke, `apart_deg` from every teammate in its ring.
-fn pick(cx: &Ctx, choke: Vec3, rng: &mut Rng) -> Option<Vec3> {
+/// The spots to cover `choke` from that stay so for a while, best first:
+/// in sight of it, outside every spawn area; found once for the side and
+/// kept `spots_keep_s`.
+fn spots_by(cx: &Ctx, choke: Vec3) -> std::sync::Arc<Vec<Vec3>> {
     let num = |name| cx.num(PlayKind::Crossfire, name);
+    let key = Tactics::spot_key(PlayKind::Crossfire as u32, cx.bot.side, choke);
+    let keep = (num("spots_keep_s") * 1000.0) as u32;
+    cx.tactics.spots_kept(key, cx.now, keep, || {
+        let query = SpotQuery {
+            sight_to: Some(choke),
+            prefer_high: num("prefer_high"),
+            up_m: num("up_m"),
+            side: cx.bot.side,
+            samples: num("samples") as usize,
+            ..SpotQuery::ring(choke, num("spot_min_m"), num("spot_max_m"))
+        };
+        let mut rng = Rng::new(key ^ u64::from(cx.now));
+        cx.tactics
+            .spots(&query, cx.now, query.samples, &mut rng)
+            .into_iter()
+            .map(|s| s.at)
+            .filter(|at| !cx.tactics.in_spawn_area(*at, None))
+            .collect()
+    })
+}
+
+/// Of [`spots_by`], those this bot may take now, best first: fine goals it
+/// has a way to ([`Ctx::reachable`], no search lately proved none),
+/// `apart_deg` round the choke from every teammate in its ring.
+fn fine_spots(cx: &Ctx, choke: Vec3) -> Vec<Vec3> {
+    let apart = cx.num(PlayKind::Crossfire, "apart_deg");
     let others = halves(cx, choke);
-    let query = SpotQuery {
-        sight_to: Some(choke),
-        prefer_high: num("prefer_high"),
-        side: cx.bot.side,
-        samples: num("samples") as usize,
-        ..SpotQuery::ring(choke, num("spot_min_m"), num("spot_max_m"))
-    };
-    let fine: Vec<Vec3> = cx
-        .tactics
-        .spots(&query, cx.now, 12, rng)
-        .into_iter()
-        .map(|s| s.at)
+    spots_by(cx, choke)
+        .iter()
+        .copied()
         .filter(|at| {
             cx.tactics.fine_goal(*at, cx.now, cx.bot.side)
-                && !cx.tactics.in_spawn_area(*at, None)
-                && others
-                    .iter()
-                    .all(|(_, o)| round(choke, *at, *o) >= num("apart_deg"))
+                && others.iter().all(|(_, o)| round(choke, *at, *o) >= apart)
+                && !cx.spot_taken(*at, super::goals::APART_M)
+                && cx.can_go(*at)
+                && !cx.exposed_climb(*at, choke)
         })
-        .collect();
+        .collect()
+}
+
+/// A spot for the choke, `apart_deg` from every teammate in its ring.
+fn pick(cx: &Ctx, choke: Vec3, rng: &mut Rng) -> Option<Vec3> {
+    let fine = fine_spots(cx, choke);
     // Among the best three, any (not always the best: hard to read).
     let n = fine.len().min(3);
     (n > 0).then(|| fine[rng.below(n)])
@@ -255,11 +308,16 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             Step::Continue(Intent::to(new, cx.pace_toward(new)).within(reach))
         }
         State::NoSpot => Step::Failed("no spot round the choke"),
-        State::Going { spot, .. } => {
+        State::Going { spot, checked } => {
+            // Its spot proved no way to: another of the fine ones (none:
+            // kept, and the think leaves the play, `goal_shut`).
+            if goals::repick_if_shut(cx, spot, || pick(cx, choke, rng)) {
+                *checked = cx.now;
+            }
             let spot = *spot;
             let d = cx.me.feet.distance_xz(spot);
             if d <= reach {
-                let s = if cx.view.mode == Mode::TeamDeathmatch {
+                let s = if cx.view.mode.is_deathmatch() {
                     rng.range(num("hold_tdm_min_s"), num("hold_tdm_max_s"))
                 } else {
                     rng.range(num("hold_batteries_min_s"), num("hold_batteries_max_s"))
@@ -291,6 +349,8 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
 mod tests {
     use super::super::tests::Scenario;
     use super::*;
+    use crate::v026g::bots::know::Source;
+    use crate::v026g::bots::view::Mode;
 
     fn crossfires(s: &Scenario, place: Place) -> Vec<Candidate> {
         let mut out = Vec::new();
@@ -377,6 +437,24 @@ mod tests {
     }
 
     #[test]
+    fn a_running_crossfire_is_offered_on_its_own_choke_only() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(30.0, 0.0, 35.0));
+        s.bot(2, 0, Vec3::new(20.0, 0.0, 35.0));
+        // An enemy heard 30 m off: his last place is a choke too.
+        s.enemy(5, 1, Vec3::new(60.0, 0.0, 35.0), Some(Source::Heard));
+        let all = crossfires(&s, 0);
+        let exit = TargetRef::Exit(0);
+        assert!(all.iter().any(|c| c.target == TargetRef::Place(5)), "{all:#?}");
+        assert!(all.iter().any(|c| c.target == exit), "{all:#?}");
+        // Running on the exit, it is not moved to his place.
+        s.current = Some((PlayKind::Crossfire, exit, s.view.clock));
+        let out = crossfires(&s, 0);
+        assert_eq!(out.len(), 2, "{out:#?}");
+        assert!(out.iter().all(|c| c.target == exit), "{out:#?}");
+    }
+
+    #[test]
     fn of_two_bots_too_close_the_higher_place_picks_again() {
         let mut s = Scenario::field(Mode::TeamDeathmatch);
         let choke = s.tactics.exits(1)[0];
@@ -385,5 +463,40 @@ mod tests {
         s.bot(3, 0, near + Vec3::new(0.0, 0.0, -1.0));
         assert!(crowded(&s.cx(3), choke, s.view.places[3].feet));
         assert!(!crowded(&s.cx(0), choke, s.view.places[0].feet));
+    }
+
+    /// A spot its bot proved no way to is left for another fine one; with
+    /// none left it is kept, for the think to leave the play (`goal_shut`).
+    #[test]
+    fn a_spot_proved_no_way_to_is_left_for_another() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(25.0, 0.0, 35.0));
+        s.bot(2, 0, Vec3::new(20.0, 0.0, 38.0));
+        let mut rng = Rng::new(2);
+        let exit = TargetRef::Exit(0);
+        s.current = Some((PlayKind::Crossfire, exit, s.view.clock));
+        let mut state = start(exit, &s.cx(0), &mut rng);
+        let State::Going { spot: first, .. } = state else {
+            panic!("{state:?}")
+        };
+        s.no_way_to = vec![(first, s.view.clock + 5_000)];
+        let st = step(&mut state, exit, &s.cx(0), &mut rng);
+        let State::Going { spot, .. } = state else {
+            panic!("{state:?}")
+        };
+        assert!(!s.cx(0).no_way_lately(spot), "{first:?} {spot:?}");
+        assert!(
+            matches!(st, Step::Continue(Intent { go: Go::To { at, .. }, .. }) if at == spot),
+            "{st:?}"
+        );
+        // Every spot proved no way to: kept.
+        let choke = s.tactics.exits(1)[0];
+        let until = s.view.clock + 5_000;
+        s.no_way_to = spots_by(&s.cx(0), choke)
+            .iter()
+            .map(|&at| (at, until))
+            .collect();
+        step(&mut state, exit, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::Going { spot: kept, .. } if kept == spot), "{state:?}");
     }
 }

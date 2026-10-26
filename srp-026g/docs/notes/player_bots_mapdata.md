@@ -62,8 +62,14 @@ Mode variants of one map place different props (level_01: 1157 / 1159 /
   are turned into triangles (box exact, round shapes 12 sides × 6 rings),
   with the material of their `mtl`.
 - **Body** (`grid::Body`): radius 0.38, stand 1.8, crouch 1.1, step 0.6
-  (PROVEN); 60° (LIKELY); drop ≤ 5 m (`fall_params.harmless_height`);
-  jump ≤ 1.3 m (GUESS: the engine's numbers give about 1.7 m).
+  (PROVEN); ground walked up to 50° (PROVEN, `impassable_slope`), faces up
+  to 60° floors, climbs up 50-60° ground cut past a step; drop ≤ 5 m
+  (`fall_params.harmless_height`); jump ≤ 1.05 m (LIKELY, from the live
+  logs; was 1.3 m, GUESS). Since 2026-10-23, `player_bots_stuck.md`.
+- **A missing `walker_collision`** (fruit trees, level 3's anomalous
+  trees, a bench, a wheel: 0-60 placements a map) is stood in for by the
+  model's `collision` for the walking body (`MapData::triangles`, LIKELY:
+  `player_bots_stuck.md`).
 - **Play area.** The walker mesh reaches far off the map (to -666 m); the
   grid covers the `levelmap` x/z box, widened by 5 m and to hold every
   spawn and objective. level_03's box is 2 m and level_06, 07 and 08 have
@@ -153,7 +159,9 @@ let sees = world.sight.visible(eye_a, chest_b);       // bullet mesh
 - `WalkGrid`: `locate`, `position`, `headroom` / `can_stand` (crouch-only
   floors), `links` / `incoming`, `path`, `distances_to` (cost from every
   floor to the targets) and `distances_from` (where a team gets),
-  `floors_in(area)` (the floors under an x/z box).
+  `floors_in(area)` (the floors under an x/z box); from the spawns,
+  `reached` / `returns` / `in_pocket`, `pocket_of` / `pocket_floors` and
+  `pocket_exits` (below, "Grid: pockets and jumps").
 - `RayTree`: `visible(a, b)`, `ray_cast(origin, dir, max)`.
 
 ### The walk grid
@@ -161,6 +169,10 @@ let sees = world.sight.visible(eye_a, chest_b);       // bullet mesh
 Port of the prototype, with these changes:
 - Cells are half-open: a mesh ending on a cell line stops before it, a wall
   standing on one goes to one column.
+- A jump up is a wall to erosion (a crate's, a low wall's face): the floor
+  at its foot goes and the jump starts a cell back
+  (`player_bots_stuck.md`: Cologne's workbench). A jump lands only where
+  two more floors are walked on along it (no fence's top).
 - Erosion keeps a floor that is at least the radius (less 1 cm) from the
   near edge of a wall cell: `k` cells from it, `(k - 0.5) × cell`. That is
   1 round at 0.25 m cells; the prototype's `ceil(radius / cell)` = 2 rounds
@@ -173,6 +185,504 @@ Port of the prototype, with these changes:
 **Use 0.25 m cells** (`mapdata::CELL`). 0.5 m cells shut 1 m doors: on
 level_02 and level_04 the teams then reach 13-64 of the spawns and A*
 finds 0-1 of 25 paths.
+
+### Grid: pockets and jumps
+
+The grid's build marks, from the spawns (`World::build` passes them;
+`build_kept(..., seeds, spawns)`):
+- **reached**: forward over every link from the spawns' floors (within
+  1.5 m of a spawn, as the bots' tactics find them);
+- **returns**: a walk gets from the floor into the main area, the largest
+  strongly connected set of reached floors. Not "back to a spawn":
+  level_05's spawns are left by a drop, and that made 97,292 floors and all
+  53 objectives a pocket;
+- **pocket**: reached and not returns, labelled by its lowest floor
+  (`pocket_of`, `pocket_floors`). A floor that is not a pocket and links
+  into one is a pocket's edge.
+
+With no spawn located every floor is reached and returns. The marks cost
+a way nothing (below: the bench). A jump of 0.95-1.05 m costs 4 m more
+(`MARGINAL_JUMP_PENALTY`): the client's jump tops at 0.998 m (PROVEN), and
+the grid links jumps up to 1.05 m.
+`pocket_exits(floor)` lists a pocket's ways out that are no link: floors
+that return within 1 m across and 0.2-1.35 m up, with headroom over the
+take-off, one per landing (the jump's distance was never measured: the 1 m
+is a GUESS). Each says what it takes (`ExitJump`): `Standing`, the jump (up
+to 0.998 m, or across a gap); `Sprint`, only the sprint jump (up to 1.35 m:
+a run-up with sprint held, any weapon, never with a battery; no bot's jump
+picks it yet); `Steep`, a rise within a step into a neighbour cell: a walk
+up it would be a link, so the grid cut it as a climb onto steep ground (the
+client's `step_down` refuses that too), and a jump onto it is not proven.
+`pocket_entries(pocket)` lists the links into a pocket from its edge,
+mostly drops: the take-offs a body keeps off when the pocket has no way
+out. The digest, the file (`GRID_ALGO` 5) and `check()` carry the marks.
+
+The client's step (`step_up` 0x7C900, `step_down` 0x7E1B0,
+`impassable_slope` 0x7DE10, re-kit): a step of up to 0.6 m (`s_step_height`)
+with no slope test; a surface steeper than 50° is refused only when the feet
+ended higher. Not used by the grid: "Grid: steep step-ups (parked)"
+below says why.
+
+Re-linking jumps up to 1 m beside walls (to open pits) was tried and
+dropped: no table changed. Cologne's pit by the bridge pillar leaves by a
+1.23 m jump onto the tyre (z 18.62), a sprint jump's height; the cells
+between were never floors (the pillar).
+
+The table per map (`tests/grid_table.rs`, 0.25 m cells; pockets by
+their surest way out, `pocket_exits` from the pocket's lowest floor):
+
+| project | floors | reached | pocket floors | pockets | out by jump / sprint only / steep only / none | objectives unreached | in a pocket | jumps | of them 0.998-1.05 m |
+|---|---|---|---|---|---|---|---|---|---|
+| level_01_day_2 | 426,363 | 378,194 | 15 | 5 | 5 / 0 / 0 / 0 | 3 of 39 | 0 | 5,469 | 365 |
+| level_01_day_4 | 427,238 | 379,323 | 15 | 5 | 5 / 0 / 0 / 0 | 0 of 0 | 0 | 5,353 | 356 |
+| level_02_day_2 | 468,474 | 384,373 | 20 | 6 | 3 / 2 / 0 / 1 | 2 of 53 | 0 | 6,103 | 768 |
+| level_02_day_4 | 465,251 | 383,224 | 20 | 6 | 3 / 2 / 0 / 1 | 0 of 0 | 0 | 5,972 | 735 |
+| level_03_day_2 | 581,303 | 246,613 | 49 | 6 | 4 / 0 / 0 / 2 | 2 of 52 | 0 | 5,722 | 325 |
+| level_03_day_4 | 585,481 | 246,816 | 49 | 5 | 2 / 1 / 0 / 2 | 0 of 0 | 0 | 5,669 | 336 |
+| level_04_day_2 | 381,364 | 337,238 | 255 | 13 | 5 / 3 / 0 / 5 | 5 of 35 | 0 | 5,922 | 765 |
+| level_04_day_4 | 378,643 | 336,360 | 255 | 13 | 5 / 3 / 0 / 5 | 0 of 0 | 0 | 5,855 | 762 |
+| level_05_day_2 | 188,042 | 110,870 | 385 | 6 | 1 / 1 / 0 / 4 | 0 of 53 | 0 | 2,762 | 142 |
+| level_05_day_4 | 188,533 | 111,569 | 385 | 6 | 1 / 1 / 0 / 4 | 0 of 1 | 0 | 2,750 | 149 |
+| level_06_day_2 | 694,496 | 216,303 | 5,059 | 29 | 16 / 4 / 0 / 9 | 0 of 34 | 0 | 6,688 | 579 |
+| level_06_day_4 | 685,586 | 211,898 | 4,755 | 25 | 15 / 1 / 0 / 9 | 0 of 0 | 0 | 6,445 | 516 |
+| level_07_day_2 | 240,106 | 141,417 | 1,950 | 10 | 3 / 5 / 0 / 2 | 2 of 41 | 0 | 6,554 | 353 |
+| level_07_day_4 | 240,901 | 142,310 | 1,950 | 10 | 3 / 5 / 0 / 2 | 0 of 0 | 0 | 6,437 | 335 |
+| level_08_day_2 | 128,859 | 118,411 | 710 | 9 | 5 / 1 / 0 / 3 | 3 of 24 | 0 | 2,942 | 447 |
+| level_08_day_4 | 128,181 | 117,938 | 607 | 8 | 4 / 1 / 0 / 3 | 0 of 0 | 0 | 2,845 | 435 |
+
+162 pockets in all: 80 leave by the jump, 30 only by the sprint jump, 52
+have no way out within 1.35 m. Every pocket with a steep exit has a jump
+out too. Of the 26 with none on the day_2 maps, 12 are pits (every floor
+that returns within 2 m is 1.5 m or more higher); the other 14 have one
+lower, 1-2.8 m across. Of the 9 of those looked at cell by cell, each had a
+wall, a void or a crouch-only space between (the grid makes no jump into
+crouch-only space: the client's is not proven). At the base the table was the same but for level_05: 97,292
+pocket floors and 53 objectives in a pocket (the spawn rule above). No
+jump link lands 3-4 cells along its direction on any map.
+
+The bench's stand-in body (`bots/tests.rs`, `stand_in_jump`) jumps as the
+client does: by a grid jump link only within 0.998 m, else onto the highest
+floor up to 0.998 m within 0.6 m ahead (GUESS) on its walk's line; the
+sprint jump (1.30 m) is in a test only, as no bot's jump picks it yet.
+
+The bench (`real_bot_cost`: the 16 projects, 4 v 4 and 10 v 10, 180 s, 10
+batteries; 16 seeds, 512 pairs; `with − without`, * beyond 2 SE). It is
+deterministic per seed: a seed run again gives the same decisions.
+
+| | stuck notes | delivered | carriers killed | K/D team 0 / 1 | falls on route |
+|---|---|---|---|---|---|
+| the stand-in's jump, against the base | +1.15 ± 0.19* | −0.09 ± 0.03* | −0.045 ± 0.047 | −0.04 ± 0.04 / +0.01 ± 0.03 | −1.12 ± 0.23* |
+| the marginal-jump cost, pockets' marks, against the stand-in's jump | −0.56 ± 0.19* | +0.07 ± 0.03* | −0.049 ± 0.050 | +0.06 ± 0.04 / −0.02 ± 0.02 | +0.42 ± 0.20* |
+| with the pocket costs too, against without them | −0.01 ± 0.08 | −0.02 ± 0.02 | −0.033 ± 0.020 | −0.02 ± 0.01* / +0.01 ± 0.01 | +0.10 ± 0.07 |
+| with the marginal-jump cost, against without it (pocket costs in both) | −0.69 ± 0.20* | +0.04 ± 0.04 | −0.100 ± 0.049* | +0.05 ± 0.04 / −0.02 ± 0.02 | +0.41 ± 0.20* |
+
+- The stand-in's jump is a measurement change: the bench's body no longer
+  makes the 0.998-1.05 m jumps the client cannot, so bots that took them
+  stall (more stuck notes, fewer deliveries).
+- The marginal-jump cost makes the gain: ways go round a jump at the
+  client's limit when the way round is short, so fewer bots stall at one;
+  more of them go down planned drops instead (falls on route).
+- **The pocket costs were measured and removed**: 30 m more into a pocket
+  and 1 m onto its rim moved no target, and team 0's K/D was a little worse
+  with them. Pockets are small and routes seldom pass one. A cost there
+  needs its own evidence (unstuck's bench) before it comes back.
+- Quick ends, flips, idle and team kills (friendly fire: 6 over the 512
+  runs with the stand-in's jump, 3 with this) did not move beyond noise.
+
+On the combined tip with unstuck's team-wide stuck and fall spots (#383)
+and the batteries' 0.6 s put (#384), 512 pairs:
+
+| | stuck notes | delivered | carriers killed | K/D team 0 / 1 | quick ends / bot-min | falls on route |
+|---|---|---|---|---|---|---|
+| the stand-in's jump, against the tip | +0.95 ± 0.19* | −0.10 ± 0.04* | −0.037 ± 0.052 | −0.01 ± 0.04 / −0.01 ± 0.03 | +0.004 ± 0.012 | −0.77 ± 0.22* |
+| this PR, against the tip with the stand-in's jump | −0.37 ± 0.16* | +0.04 ± 0.03 | −0.047 ± 0.048 | +0.01 ± 0.04 / +0.01 ± 0.03 | +0.018 ± 0.013 | −0.01 ± 0.18 |
+
+With the team's fall spots the extra falls on route are gone, and
+deliveries keep within noise of the gain without them. Team kills over the
+512 runs: 4 at the tip, 4 with the stand-in's jump, 9 with this PR (within
+noise of each other).
+
+### Grid: steep step-ups (parked, 2026-10-24)
+
+**The rule tried.** A walk up onto a steep face (a floor on a 50-60°
+walker triangle) was cut once the climb rose more than 0.3 m (GUESS) over
+the walkable ground it began on, against the step's 0.6 m today. Ground
+steep only by its neighbours' heights kept the step. The basis was the
+client's `step_down` (0x7E1B0), which refuses a tick that lands on a facet
+steeper than 50° with the feet higher (`impassable_slope` 0x7DE10, PROVEN).
+Cutting both kinds (faces and grade) at 0.3 m was rejected first: it made
+a new pocket with no way out on level_04 (71 floors).
+
+**Where it fails.** It held the grid's hard limits on every map (day 2, 3
+and 4): no objective unreachable, no new pocket with no way out, no
+pocket's surest exit worse. Most maps lost 20-160 reached floors.
+level_06 (day 2 and 3) lost 4,638, nearly all of them one slope (x 47-80,
+z 119-135, y 31-39), entered only by walks up steep ground of 0.15-0.54 m
+each. Players stand on that slope: 998 positions in the server's 5 s
+worlds, 116 lives, 438 of its cells (non-bot matches, Oct 12-21).
+Cutting only where the face and the grade are both over 50° keeps the loss
+(4,583 floors, 114 lives).
+
+**They walk up, not hop.** Of the same matches, 76 have a recording (every
+input, per tick; the sprint key agrees with the worlds' sprint flag 96 % at
+no lag, 82 % at ±1 s). 30 times a player shows on the slope 5 s after
+being below it at its south edge (12 players, 10 matches). They rise 0.9-5.2
+m, 26 of them 2 m or more, with 0 jump presses in 2 climbs, 1 in 20 and 2-5
+in 8 (the same players press as often in the 5 s before). A jump rises
+0.998 m at most, so at least 26 climbs walked most of the way up faces the
+rule calls too steep. A hop link would not match that.
+
+**The follow-up (client RE).** The normal `step_down`'s sweep meets on
+level_06's slope at x 60-65, z 118-128. Either the collision there is not
+the walker mesh's 50-60° faces, or the sweep's normal at the convex edges
+is more upright than either facet (LIKELY). The rule can come back once
+that is known.
+
+**Strips, dropped.** A cost of 0.5 m (GUESS) on each walk onto a strip
+floor (1-2 cells between walls, voids or cut steep faces: 950-3,700
+reached floors a map) was benched with the rule above, against it alone
+(8 seeds, battery and team deathmatch, no tier): falls on route +2.8 ±
+0.7 and +2.1 ± 0.6 a match, jumps pressed +6.6 ± 1.7 and +3.1 ± 0.8, stuck
+notes +0.8 ± 0.5 and +0.6 ± 0.4. Per floor, a 10 m strip cost 20 m, so ways
+went round strips by drops and jumps. If it comes back: a flat cost per
+strip crossed (or on any link onto one), with a target measure for the
+strip cases (CG-8) first.
+
+### Grid: no way planned into a pocket with no way out (2026-10-25)
+
+**The rule.** A pocket whose surest exit is none (no jump the body makes
+leads out, `pocket_exits`) marks its floors `NO_EXIT`. No way is planned
+over a link into such a pocket from a floor outside it, whatever the link
+(a drop, or a walk down a step that does not walk back): `WalkGrid::plans`,
+and its cost is infinite. The link stays, so a body knocked or overshooting
+over the edge is in the pocket, and ways inside it and out of it are still
+planned. The regions and the tactics' floods (the escape flood, the exit
+field, the floors walkable from the spawns) skip the same links, so no spot
+or way out lands in one. A battery lying there has no stand (no floor of
+the pocket is walkable from the spawns) and keeps the pocket's take block
+(`collect::POCKET_BLOCK`). `GRID_ALGO` 8 (6 and 7 were unreleased
+variants), `TACTICS_ALGO` 3.
+
+**The grid table** (every map, day 2, 3 and 4): 79 shut pockets, none
+planned into (`shut_planned` 0, asserted), 7,733 floors no longer planned
+onto (level_07 1,600 a map, level_05 382, level_06 167-355, the rest 5-244).
+No objective in a shut pocket or behind an unplanned way; objectives
+unreached 19, as before.
+
+**Players there.** Of the human positions in the server's 5 s worlds (the
+audit of the erosion work, non-bot matches), 308 stand on floors now
+unplanned, 14 lives. 243 of them (5 lives, 3 matches) are level_05_day_4's
+pocket of 372 floors around (-10.4, 9.1, -22.8), a pit 1.2-1.6 m below the
+ground west of it. In the recordings (the worlds' positions, every input)
+each of the 5 drops in from the west, crouches there (most ticks) and never
+leaves: 4 die in it, 1 is in it at the match's end. So the grid's "no way
+out" holds for players too; the pit is a firing spot, not a way. The rest
+are 2-38 a map (level_03, 04, 06, 08).
+
+**The routes check** (the stored human routes, walked by the planner):
+legs with no way 12 → 10, points lost 141 → 143, jumps 86 → 86, length
++0.1 %. The two lost points are one point of level_05's day 2 and day 3
+routes at (-7.8, -21.3). Route points are 2-D, and `HumanRoute::on_floors`
+puts one on the lowest floor near it: here the pit (8.5-9.0 m), under the
+floor players walk (10.3-10.6 m; of the players' positions within 2 m, 180
+of 181 on day 2, all 132 on day 3, 430 of 481 on day 4 stand on it). Before,
+bots were routed into the pit and the leg out had no way; now the point is
+unwalkable and dropped.
+
+**Route points on a planned floor (2026-10-25).** `on_floors` now takes the
+lowest floor a way is planned to (none in a shut pocket). The routes check,
+from #402's tip: points lost 143 → 141 (level_05's two points come back on
+the walkway at 10.5 m), legs with no way 10 → 10, jumps 86 → 86, length
++9 m. Three level_07 points (days 2, 3, 4, around (-7, -2) and (5, -2)) move
+from a shut pocket at 2.5 m to 5.8-9.7 m and stay dropped, as before;
+players there stand at about 21 m (139 of 154, 26 of 26 and 74 of 79
+positions), so "the lowest floor" is the wrong rule for those 2-D points
+(the routes' follow-up). Bench (seeds 1-16, after side, against #402's
+tip): every map but level_05 and every TDM match decision-identical; per
+seed run, batteries 4-5 falls on route 63.8 → 62.6 (z −2.2) and kills
+240.0 → 238.8 (z −2.2), 9-10 planned drops 329.2 → 328.4 (z −2.0), the rest
+within 2 SE. On level_05 (32 matches a cell) falls on route −19, 0, −4 and
+legs with no way +116, −382, −969 by tier; no time in pockets either side.
+
+**Route points with the players' height (3D route points, 2026-10-25).** A route row may
+carry `heights`: the players' feet height at each point, `null` where unknown (no format
+bump; a server without this code ignores the key and plays as before). `on_floors` puts a
+point with a height on the floor nearest that height (within 3 m; among floors within 0.5 m
+of the best, the nearest in xz), over radii 2 m then 5 m; a point with no height, or no floor
+within 3 m of it, keeps the lowest-floor rule. Never a shut pocket. The table's heights are
+made privately (bot-routes `add_heights.py`) from the recorded positions of the lives grouped
+to each route: feet = y − 0.9 standing, − 0.55 crouched. Source, the first with 10+
+positions: the route's own lives within 2 m, within 5 m, the whole side's within 2 m, within
+5 m, then every human's within 2 m, within 5 m. Levels split at gaps of 2 m+ (each 15 %+ of the
+positions); the level most lives used, or when the top two are within 60:40 the one nearest
+the previous point's pick (with no previous pick, the lower). 2 m first: at 5 m a slope or a
+floor beside pulled the median off the point's own floor (36 points moved 1.5 m+ when 2 m
+came first). Mode 3 rows keep no heights (a follow-up).
+
+**Human perches (V-S2b, 2026-10-26).** The table may also carry two top-level lists, read by no
+server yet (a server without this code ignores them and plays as before; the reader is a
+follow-up, with both keys optional):
+
+```json
+"perches":    [{"level": "level_01", "x": -43.0, "y": 25.9, "z": 12.0, "rate": 24.8, "dwell": 10.0, "n": 166}],
+"perch_maps": [{"level": "level_01", "p75": 22.3, "share": 0.0575, "share_batteries": 0.0521,
+                "share_tdm": 0.0651, "visits": 1462, "minutes": 6701.0}]
+```
+
+A perch is where real players stand still on high ground: a run of one life's samples all above
+the level's p75 feet height, within 1.5 m of the run's first sample, at most 7 s apart, lasting
+3 s or more (a stay point). The wait at the life's own spawn (within 30 s of the spawn and 4 m of
+it) is no visit: on Rudnya, Chemical Plant, Tarakanovsky Fort and Vector Laboratory 213-355 runs
+a level were that. `x`, `y`, `z` are map metres, `y` the feet height like `heights`; `rate` is the
+perch's visits per 1000 alive player-minutes of the level (all modes), `n` its visits, `dwell` its
+median dwell in seconds (the worlds are about 5 s apart: 5 s steps). `perch_maps`: `p75` the line,
+`share` the humans' share of alive time spent on a perch visit (0.040-0.082 a level; the stand-in
+bots' 0.003-0.016, the coordinator's count, is what this field is for), `share_batteries` (modes 2
+and 3) and `share_tdm` (mode 4) the same from that mode's matches alone, with the level's p75 line
+and the same rules (the bench presets are split the same way; a field is left out where a level has no
+alive time in that mode), `visits` and `minutes` the totals behind `rate`. A level has 95 to 155 groups; the table keeps those seen in 3+ matches, most visits first, until they cover
+80 % of the level's visits (22-43 perches a level, 253 in all).
+
+Made privately from the live host's 12+ player human matches, all weather pooled (379 matches,
+Oct 12-23) by `scripts/bot-routes/perches.py` (`--routes` the old table, `--out` the new one; its
+other keys are kept; tests: `python -m unittest test_perches`). Visits are grouped by peak cover at
+4 m across and 2 m up or down, not by order, so the same data gives the same table. Pooling is
+checked, not assumed: in the day-only matches 96-100 % of each level's pooled visits are at perches
+seen 2+ times there, and in the evening and rain matches, and in the battery and Team Deathmatch
+matches separately, 98-100 % are; the rank correlation of the perches' rates between those splits
+and the pool is 0.6-0.9. On the
+bots' walk grid (day_2 and day_4) all 253 perches lie on a floor within 1.5 m (mean 0.1-0.24 m
+off the height, 23 of 506 probes more than 0.5 m) and are reachable from both teams' spawns with a
+way back. The reader still puts a perch on the floor nearest it.
+
+| level | matches | alive min | p75 m | visits | share | groups | kept | covering |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Rudnya | 41 | 6701 | 22.3 | 1462 | 5.8 % | 138 | 36 | 81 % |
+| School | 58 | 9040 | 19.5 | 2397 | 5.2 % | 155 | 40 | 80 % |
+| Vostok Radar Station | 38 | 6233 | 5.6 | 1487 | 4.2 % | 150 | 43 | 80 % |
+| Chemical Plant | 38 | 5907 | 9.5 | 1539 | 5.3 % | 99 | 30 | 81 % |
+| Tarakanovsky Fort | 63 | 8836 | 8.3 | 2046 | 5.3 % | 96 | 27 | 81 % |
+| Mamayev Kurgan | 31 | 5053 | 36.8 | 1059 | 4.0 % | 95 | 28 | 81 % |
+| Vector Laboratory | 46 | 6736 | 21.1 | 1292 | 4.9 % | 120 | 27 | 81 % |
+| Cologne | 64 | 9645 | 35.0 | 3493 | 8.2 % | 109 | 22 | 80 % |
+
+Per mode (alive minutes and matches behind each share; a cell under 1000 alive minutes is thin, and
+none of these is; the thin one is a part of the batteries: Chemical Plant mode 2 alone, 863 min in 6
+matches, 3.3 % against mode 3's 5.5 %):
+
+| level | `share_batteries` | alive min | matches | `share_tdm` | alive min | matches |
+|---|---:|---:|---:|---:|---:|---:|
+| Rudnya | 5.2 % | 3885 | 24 | 6.5 % | 2816 | 17 |
+| School | 4.5 % | 5310 | 34 | 6.2 % | 3730 | 24 |
+| Vostok Radar Station | 3.5 % | 3411 | 20 | 5.0 % | 2823 | 18 |
+| Chemical Plant | 4.9 % | 3339 | 21 | 5.9 % | 2568 | 17 |
+| Tarakanovsky Fort | 4.5 % | 4127 | 29 | 6.1 % | 4709 | 34 |
+| Mamayev Kurgan | 3.6 % | 3721 | 22 | 4.9 % | 1333 | 9 |
+| Vector Laboratory | 4.3 % | 3448 | 24 | 5.5 % | 3288 | 22 |
+| Cologne | 7.5 % | 6282 | 42 | 9.4 % | 3363 | 22 |
+
+Team Deathmatch is higher than batteries on every level, by 1.0-1.9 points (1.2-1.4 times); timed
+batteries (mode 3) are within 0.2-0.8 points of mode 2 on the seven levels where both have 1000+ min.
+
+Limits (GUESS where not counted): the worlds' 5 s spacing makes every visit at least 5 s and
+hides stands shorter than that; 9-26 % of the perch time is runs of 60 s or more (camping or
+away from the keyboard), which `share` counts and `rate` counts once; the p75 line is a level's
+own height distribution, so a flat map's perches (Vostok Radar Station, 5.6 m) are the upper
+quarter of its floors, not roofs. Best practice: stay points are found with a distance and a time
+threshold on a trajectory
+(<https://trackintel.readthedocs.io/en/stable/modules/preprocessing.html>,
+<https://arxiv.org/pdf/1904.09357>), and tactical positions for FPS bots are learned from recorded
+human play (Thurau and Bauckhage, "Tactical Waypoint Maps", <https://pub.uni-bielefeld.de/record/2618350>).
+
+The route's own lives come from the human matches of 10+ players, Oct 12-23, bot matches left
+out (they made the routes). Where those give fewer than 10 positions (122 points: a route's
+mean way can pass where few of them walked), every human's positions count, for the height
+only: matches of any size and the humans of bot matches (a place is a bot when 15 %+ of its
+alive samples look exactly level, the bots' view), Oct 12-24. Positions are also filled every
+1 m between two samples of one life 5.5 s and 15 m apart or less whose feet heights differ by
+0.5 m or less (walked on one level), each kept only where the map has a floor at its height
+(98 % do). Of the 122 points (39 of them at a spot with floors 2 m+ apart within 1 m: stacked,
+or a ledge's top and foot), positions within 2 m / 5 m reach 10+ for:
+- more matches: 94 / 120 (stacked 34 / 39);
+- with the filled positions: 114 / 121 (38 / 39);
+- with Oct 22-24 too: the same, with more positions each.
+
+One point stays without a height (level_02 day 4, a route's last point, not stacked). A
+height from the neighbours (their mean when both have one within 1.5 m of each other, on a
+floor within 1 m of it) was the fallback for stacked points still without one; none is left.
+
+- The table: 231 routes, 173 with heights, 993 of 1,321 points with a height.
+- Points off the players' height by 1.5 m+: 196 → 3. 216 points move 0.5 m+ (almost all
+  up): level_02 day 2 27, level_07 days 2/4 21/22, level_04 day 4 21, level_05 day 4 16.
+- level_07 (−7, −2), (4.3, −1.6), (8.4, −2.5): 5.8-9.7 → 20.6 (players: about 21). The mode 3
+  row there stays at 5.8. level_05 (−7.8, −21.3): days 2 and 4 on the walkway at 10.4-10.5.
+- Against grid's check (the median of all players' 20+ positions within 2 m): 179 points sat
+  1.5 m+ below the players before, none above. After, 110 picks still differ from that median
+  by 1.5 m+, looked at one by one: 80 are two-level spots where the route's players (or most
+  lives there) use the other level than the median of positions (level_02 deck 20.7 against
+  floor 16.3, level_04 2.2 against 10.2, level_07 15.3 against 20.9); 30 are on one level for
+  the route's players, who walk a lane beside the busier one, or where the point itself has
+  one floor and the other level is beside it.
+- The routes check (the walk check, without heights → with): points lost 141 → 120, legs with
+  no way 10 → 1 (the one left is mode 3), jumps 86 → 101 (level_02 day 2, level_04 day 4: the
+  decks players stand on), length −0.1 %. Two routes lose one point more (level_06 and
+  level_08 day 4: the raised floor is not a fine goal). Legs through a damage zone 163 → 114;
+  routes with a point in an always-on zone 32 → 22.
+
+**Bench** (c8bd1281 against 54ececcf, the base before #398/#399/#401,
+batteries and team deathmatch, tiers 4-5, 9-10 and 13-15, seeds 1-16,
+after side): decisions differ on every cell. Per seed run, past 2 SE:
+
+| cell | change |
+|---|---|
+| batt 4-5 | kills 236.5 → 240.0 (z +2.9); quick ends 327.1 → 334.8 (z +2.5) |
+| batt 13-15 | idle −49 s (z −2.7); legs with no way +323 (z +2.2) |
+| tdm 4-5 | K/D of team 0 +0.03 (z +2.4) |
+| tdm 9-10 | flips −3.6 (z −3.1) |
+
+Everything else is within 2 SE: falls on route (z −1.1 to +1.2), planned
+drops, time and deaths in pockets (batt 13-15 pocket deaths −0.19, z −1.9),
+give-ups, deliveries, carriers killed, team kills and stuck. batt 4-5's quick
+ends are the one guard past 2 SE, of about 60.
+
+**Follow-ups.** Route points with a height (level_07, above).
+Grid gaps: level_07
+(82, -25); level_06_day_4 (13.6, 108.6); level_03 (-16, -15); passages
+narrower than the body. The erosion by body height (floors beside a fall
+kept, with a cost on them) is rebuilt on top of this rule: benched alone it
+raised falls on route on every cell, from route legs along the edges and
+from planned drops off them.
+
+### Route points with the players' height: benched, shelved (2026-10-25)
+
+Play 17's route points carry no height; on stacked floors the server puts a point on the lowest floor round it, often under the floor the players walked. The 3D table gave a point the players' feet height (an optional `heights` per row, no format change), and the server put it on the floor nearest that height (within 3 m; radius 2 m, then 5 m).
+- **Heights from real matches.** For each point, every human's positions within 5 m in all recorded matches on that map and day, any match size, the humans of bot matches included, and positions filled every 1 m between 5 s samples of one life on one level (15 m at most, feet within 0.5 m, a floor there). Levels split at 2 m gaps; the lives' majority picks, the lower level when within 60:40. 993 of 1,321 route points got a height; 121 of the 122 PvB points with none before were filled, the last has no positions. The table and the players' data stay in `E:\sur-res-pro\private\bot-routes\work-20261025-3d` (not in any repo).
+- **Walk check** (without → with heights, 231 routes, tip 1dee0543's tree): lost points 141 → 122, legs with no way 10 → 1, jumps 78 → 83, legs through a damage zone 162 → 114; every pick but 2 has a floor within 1.5 m of its height.
+- **Bench** (battery + Team Deathmatch × 3 tiers, 16 seeds, 96 pairs, the table against routes.json on 1dee0543): the target, legs with no way, +181 ± 180 (z +1.0, no gain); falls on route -11.4 ± 1.9 (z -6.0), zone entries -9.3 ± 1.6 (z -5.7), reversals -6.4 ± 2.7, idle -0.30 ± 0.14 points; but stood with a goal and no route +0.16 ± 0.06 points (z +2.9) and delivered -0.36 ± 0.17 (z -2.1), guards worse beyond 2 SE. Shelved: no choice of target ships it.
+- **What the benches found on the way**, fixed for every table: spot plays sent bots to spots with no way to them (#417: Cut, Crossfire and HoldExit keep only reachable spots), and Cut's point jumped a leg on when a route point moved 0.3 m across `cut_progress` (#421: the cut is where the leg crosses it). Before them the table's no-way rose +1,200 (z +3.8), then idle +0.37 points (z +3.0).
+- **Open:** with the table, Crossfire (Team Deathmatch, +9 %) and Collect (batteries, +4 %) stand more with a goal and no route, though neither reads the routes; where the fights move is the likely cause, not traced.
+
+### Grid: edges and drops priced, a band at the lips (b4, 2026-10-25)
+
+**The rules.** On top of the shut-pocket rule (`GRID_ALGO` 11; 9 and 10 were
+unreleased variants, so stored grids rebuild):
+
+- **Erosion by body height:** walls are solid at the body's height. The floors
+  beside a fall deeper than the harmless drop (5 m) are kept, and those within
+  the body's radius + 0.25 m of one are `near_fall`; a walk onto one costs
+  `FALL_EDGE_PENALTY` (0.5 m) more.
+- **Drops:** a drop costs `DROP_DESCENT_PENALTY` (1 m) more per metre it falls,
+  about the walk down a stair it replaces. Without it, the edge cost is dodged
+  by dropping off the edge: planned drops rose 27-56 a cell.
+- **The band at the lips:** floors within the body's radius + 0.25 m of a lip
+  (a drop of 1 m or more) are `near_lip`. A walk onto one costs `LIP_PENALTY`
+  (0.25 m) more. That is a cost per floor entered, never a block: a narrow
+  walkway or an open-sided stair inside the band is still the way, and a drop
+  link never pays it, so a drop's take-off is walked to across the band for
+  about 0.75 m.
+- **pull_straight:** a line pulled straight crosses no lip, near-fall or
+  near-lip floor that the search kept off. The exception is the edge floors
+  leading in to a drop's take-off.
+
+**The erosion changes floors, not just costs.** Every bench number below is
+from binaries that include it. The grid's hard limits, checked at the PR's
+commit against base a6fac9de on all 24 projects:
+- **No plan into a shut pocket:** 0 on every map. No objective is in one or
+  unplanned.
+- **Objectives unreached:** 19 → 15.
+- **Reached floors:** 5.80 M → 5.94 M.
+- **Pockets with no way out:** 79 → 86, none planned into:
+  - level_03 +1, level_04 +1 and level_07 +3 (each day);
+  - level_05 −2 (each day), level_06_day_4 −1 and level_08_day_3 −1.
+- **Surest exits:** one pocket's got worse, level_06 day 2 and 3 at (46, 30,
+  101). It went from 5 floors with a sprint exit to 1 floor with none.
+- **Human positions** (the servers' 5 s worlds):
+  - on planned floors +10,140;
+  - unreached −5,587;
+  - with no floor near −4,555;
+  - on reached but unplanned floors 308 → 310 (lives 14 → 15).
+- **The three small shut pockets first logged with the erosion,** at level_07
+  (82, −25), level_06_day_4 (13.6, 108.6) and level_03 (−16, −15): all still
+  shut and none planned into. Human positions on their reached floors: none on
+  level_07 or level_06_day_4; on level_03, 3 (one life) on day 2 and 2 (one
+  life) on day 4. They stay grid gaps (follow-ups). Whether a bot that falls
+  in gets out is for unstuck's sweep.
+- The erosion's commit subject still reads "(WIP)"; that is wording only.
+
+**Why the band.** Every unplanned fall of the bench is off a lip of 1-5 m:
+1,410 of 1,410 on #402's tip, and 3,095 of 3,097 with the drop rule. The
+`near_fall` band, at falls deeper than 5 m, meets almost none of them.
+
+**Where the falls were** (#402's tip, an event per fall, batteries and team
+deathmatch, three tiers, seeds 1-4): 539 started on floors the A* chose, 498
+where pull_straight's line left them, 133 off the leg and 240 with no route.
+That is even in every cell, so both the search's cost and the line test
+matter.
+
+**Bench** (the tip a6fac9de merged; against base-a6fac9de, both presets, three
+tiers, seeds 1-16, 96 of 96 runs). Per seed run, base / without the band /
+with it:
+
+| cell | falls off the route | planned drops | time in pockets, s | delivered |
+|---|---|---|---|---|
+| batt 4-5 | 59.5 / 60.1 / 47.9 | 315 / 310 / 315 | 134 / 54 / 19 | 75.0 / 76.1 / 74.6 |
+| batt 9-10 | 61.9 / 61.6 / 45.1 | 322 / 314 / 314 | 165 / 19 / 25 | 73.6 / 74.0 / 74.4 |
+| batt 13-15 | 60.6 / 56.9 / 46.2 | 332 / 320 / 325 | 101 / 39 / 1 | 70.7 / 73.4 / 72.9 |
+| tdm 4-5 | 60.6 / 67.1 / 42.3 | 262 / 219 / 240 | 101 / 78 / 56 | |
+| tdm 9-10 | 56.9 / 63.4 / 40.2 | 269 / 225 / 240 | 72 / 109 / 46 | |
+| tdm 13-15 | 56.5 / 63.1 / 44.0 | 276 / 223 / 244 | 160 / 80 / 35 | |
+
+- **Falls with the band:** −11.6 to −18.3 a cell against base (z −4.4 to
+  −9.3).
+  - The A*'s falls drop most (batteries 21-25 → 14-15, TDM 28-30 → 17-18).
+  - The line's falls drop most in TDM (18-22 → 10-12).
+  - Falls within 2 m of a take-off drop too (18-22 → 9-15), so the band does
+    not trade planned drops for falls beside them.
+- **Without the band**, TDM's falls rose 6.5 a cell (z +1.7 to +3.1). The A*
+  walked down rough steps and along lips that cost 0.25 where drops cost more.
+  On level_06_day_4, (−2.5, 29, 105) and (47.5, 23, 60) went from 0.5-1.0 to
+  5-6 falls a seed; with the band they are at 4.4 and 3.5.
+- **Objectives:**
+  - deliveries are level or up (batt 13-15 +2.2, z +2.5);
+  - carry and put-in times are unchanged;
+  - legs with no way are down (z −2.0 to −2.3 in three cells);
+  - give-ups are down in every cell.
+- **Watch:**
+  - batt 13-15 carriers killed +2.4 (z +1.5), with the deliveries;
+  - batt 4-5 stuck +6.6 against the variant without the band (z +1.8).
+- **Planned drops against players** (a seed, three tiers, without the band →
+  with it):
+  - S21 30.8 → 30.8 and S22 23.8 → 23.8, where players go down most (4.5 and
+    7.4 % a sample);
+  - S18 44.6 → 7.4, a spot players hardly stand on;
+  - level_05's S01 49.6 → 80.4, S02 36.2 → 62.6 and S05 46.2 → 89.1, where
+    players walk (they go down 2.4-3.0 % a sample).
+  - The level_05 drops are safe. Drops are at most the harmless 5 m
+    (`fall_params.harmless_height`), so they do no damage. Bots killed within
+    5 s of landing: S01 0.9 %, S02 2.8 %, S05 0.1 %, against 3.4 % for all
+    other planned drops. Bots drop where players walk; safe.
+
+**Tried and dropped** (each against the rules above without the band, the same
+base and seeds):
+
+- **The drop at 0.5 m a metre:** planned drops came back (+21 to +42 a cell)
+  and the falls did not drop.
+- **`LIP_PENALTY` 0.5:** batteries' falls rose 11-14 a cell while its planned
+  drops fell 20-24. With the take-off floor dearer, routes walked the floors
+  beside it and bots fell there.
+- **A walk down steeper than walkable ground priced as a drop:** TDM's falls
+  did not move, and its planned drops rose 15-17.
+- **Strafing kept to the way:** while aiming on an edge leg, the keys took turns
+  between the two nearest of the eight ways, against the nearest way alone,
+  which is up to 22.5° off and leaves the body up to 0.36 m beside the line.
+  Its sign was mixed: falls +6 in batteries 9-10 and 13-15 (z +2.1 to +2.5),
+  −5 in TDM 4-5 (z −2.5). The slow strips it was for (the fall-spot study's
+  S10, S12) had 38 falls in 24 runs.
+
+**Follow-ups.**
+- A downward feeler in the motor, for the off-leg falls (4-6 a cell); the
+  motor does not see the grid.
+- Route points with a height: they are re-checked on `GRID_ALGO` 11.
 
 ## 5. Measured (2026-10-14, release build, one thread)
 
@@ -225,6 +735,12 @@ every match.
   per project, until a restart).
 - `SRP_MAPDATA_KEEP=<n>` (default 1): built worlds kept besides those
   running matches hold.
+- `<dir>/bot-routes.json`: the human routes of play 17 (`bots/routes.rs`),
+  private data made from the players' worlds, copied by hand next to the
+  `.mapdata` files. Read when each match is made while `SRP_BOT_ROUTES` is
+  unset; `SRP_BOT_ROUTES=<file>` reads that file instead, and empty or
+  `off` reads none. No file: one info line until a restart, and the bots
+  roam to the exits; a file that fails to load: a warning per match.
 - `Maps::request(project)` at match creation starts the build on a thread
   of its own; `Maps::get(project)` is `Absent(reason)`, `Loading` or
   `Ready(Arc<World>)` and never waits. Builds run one at a time. A world

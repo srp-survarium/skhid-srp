@@ -32,12 +32,14 @@ pub mod crossfire;
 pub mod cut;
 pub mod escort;
 pub mod flank;
+pub mod goals;
 pub mod guard_lead;
 pub mod heal;
 pub mod hold_exit;
 pub mod hunt;
 pub mod intercept;
 pub mod late_denial;
+pub mod memo;
 pub mod pair_up;
 pub mod raid;
 pub mod retreat;
@@ -50,12 +52,12 @@ use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 
 use super::curve::{self, Explain, Input, Score};
-use super::know::{Memory, TeamKnowledge, Track};
+use super::know::{Memory, Source, TeamKnowledge, Track};
 use super::rng::Rng;
 use super::signals::{MatchSignals, Mods};
 use super::tactics::Tactics;
 use super::tuning::{Personality, PlayTuning, Tuning};
-use super::view::{MatchView, Place, PlaceView};
+use super::view::{MatchView, Place, PlaceView, SoundKind};
 
 /// The rank bands, highest first: a candidate of a higher band beats any
 /// of a lower one (research B1 point 3); the commander counts an
@@ -253,6 +255,14 @@ pub enum Look {
     Around,
 }
 
+impl Look {
+    /// At a container's use box, from its use point (`Container::use_point`,
+    /// the box's middle less a metre): a put-in or a steal.
+    pub fn use_box(at: Vec3) -> Self {
+        Self::Use(at + Vec3::new(0.0, 1.0, 0.0))
+    }
+}
+
 /// Where a body goes.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Go {
@@ -274,6 +284,9 @@ pub struct Intent {
     /// Whether the reflex may fire (a carrier cannot; a sneak holds fire
     /// till seen).
     pub fire: bool,
+    /// The play let go of its battery (`collect`'s `LetGo`): the reflex
+    /// may fire though the view, up to 2 s late, still shows it carried.
+    pub let_go: bool,
     /// The goal is in the enemy base (their container): their spawn area
     /// is open to the route (`Tactics::allowed`).
     pub objective: bool,
@@ -281,6 +294,10 @@ pub struct Intent {
     /// take's stand round a battery, a step back out of a nook): walked to
     /// by keys each tick, no route (`Motor::step_to`).
     pub straight: bool,
+    /// Standing or stepping on a zone's floor is the play's own choice (a
+    /// battery's crossing, `collect`, which weighs the damage): no way out
+    /// of the zone is walked for it while it has no goal.
+    pub zone_ok: bool,
     /// A take's stand this step gave up at (`collect`): the bot keeps it,
     /// so its next take of that battery stands elsewhere.
     pub failed_stand: Option<collect::FailedStand>,
@@ -296,8 +313,10 @@ impl Intent {
             press: 0,
             hold: 0,
             fire: true,
+            let_go: false,
             objective: false,
             straight: false,
+            zone_ok: false,
             failed_stand: None,
         }
     }
@@ -362,6 +381,22 @@ impl Intent {
             ..self
         }
     }
+
+    /// On a zone's floor by choice ([`Intent::zone_ok`]).
+    pub fn zone_ok(self) -> Self {
+        Self {
+            zone_ok: true,
+            ..self
+        }
+    }
+
+    /// The battery let go of ([`Intent::let_go`]).
+    pub fn let_go(self) -> Self {
+        Self {
+            let_go: true,
+            ..self
+        }
+    }
 }
 
 /// What a step says.
@@ -401,6 +436,9 @@ pub struct BotFacts<'a> {
     /// Nothing left to fire ([`super::reflex::Reflex::dry`]): it takes no
     /// play that seeks a fight ([`PlayKind::seeks_fight`]).
     pub dry: bool,
+    /// The goal its motor walks a crossing or a ring's walk out to, across
+    /// zones on all match (`crossing.rs`), while it has a route there.
+    pub crossing: Option<Vec3>,
 }
 
 /// A play that fails this soon after it starts ...
@@ -409,6 +447,32 @@ pub const QUICK_FAIL_MS: u32 = 2_000;
 /// dropped every poll ("ends GuardLead: no spot with a sight line" four
 /// times a second in the owner's match of 2026-10-16).
 pub const SET_ASIDE_MS: u32 = 8_000;
+
+/// Whether each threat has a teammate of his own to cover him: `sees[t][m]`
+/// is whether teammate `m` may cover threat `t`. The first threat left
+/// free by the largest one-to-one match (augmenting paths; a few of each),
+/// if any.
+pub fn cover_each(sees: &[Vec<bool>]) -> Option<usize> {
+    let mates = sees.first().map_or(0, Vec::len);
+    let mut held: Vec<Option<usize>> = vec![None; mates];
+    fn find(t: usize, sees: &[Vec<bool>], seen: &mut [bool], held: &mut [Option<usize>]) -> bool {
+        for m in 0..held.len() {
+            if sees[t][m] && !seen[m] {
+                seen[m] = true;
+                if held[m].is_none_or(|other| find(other, sees, seen, held)) {
+                    held[m] = Some(t);
+                    return true;
+                }
+            }
+        }
+        false
+    }
+    (0..sees.len()).find(|&t| !find(t, sees, &mut vec![false; mates], &mut held))
+}
+
+/// An enemy last seen this recently is in sight now ([`Ctx::exposed_to`]):
+/// a few of the bot's senses (each think).
+pub const SEEN_NOW_MS: u32 = 700;
 
 /// What a play sees: the match, the bot, its knowledge, the team's, the
 /// signals and modifiers, the map's tactics and the tuning.
@@ -423,9 +487,43 @@ pub struct Ctx<'a> {
     pub mods: &'a Mods,
     pub tactics: &'a Tactics,
     pub tuning: &'a Tuning,
+    /// The match's kept answers to costly questions of the map (`memo`).
+    pub memo: &'a memo::Memo,
 }
 
 impl Ctx<'_> {
+    /// This bot in a pocket with its goal out of it, escaping or given up
+    /// (`escape.rs`).
+    pub fn trapped(&self) -> Option<super::escape::Trapped> {
+        self.tactics.escapes.trapped(self.me.place)
+    }
+
+    /// The bot of `place` (a teammate) trapped in a pocket, if it is.
+    pub fn teammate_trapped(&self, place: Place) -> Option<super::escape::Trapped> {
+        self.tactics.escapes.trapped(place)
+    }
+
+    /// Whether the floor at `at` is in a pocket: no walk leads back out
+    /// (`WalkGrid::pocket_of`).
+    pub fn in_pocket(&self, at: Vec3) -> bool {
+        let grid = &self.tactics.world.grid;
+        grid.locate(at, 1.5)
+            .is_some_and(|node| grid.in_pocket(node))
+    }
+
+    /// Whether the pocket at `at` has a way out this bot's team takes now
+    /// (`escape::way_out`): a standing jump, or one a teammate got out by;
+    /// `carrying`: for a bot that will carry a battery out (never a sprint
+    /// jump). Out of any pocket: true.
+    pub fn escape_known(&self, at: Vec3, carrying: bool) -> bool {
+        let grid = &self.tactics.world.grid;
+        grid.locate(at, 1.5)
+            .and_then(|node| grid.pocket_of(node))
+            .is_none_or(|pocket| {
+                super::escape::way_out(grid, &self.tactics.escapes, self.me.team, pocket, carrying)
+            })
+    }
+
     /// The play's tuning.
     pub fn play(&self, kind: PlayKind) -> PlayTuning {
         self.tuning
@@ -586,10 +684,61 @@ impl Ctx<'_> {
     /// Whether this bot's search to a goal at `at` (the motor's, within
     /// its replan distance) proved no way lately (`Bot::no_way_to`).
     pub fn no_way_lately(&self, at: Vec3) -> bool {
-        self.bot
-            .no_way_to
+        goals::no_way_near(self.bot.no_way_to, at, self.now)
+    }
+
+    /// The enemy a use here would be made under the eyes of, if any (a
+    /// take of a battery waits for the fight: `collect::take`). The
+    /// threats are the enemies the bot sees now ([`SEEN_NOW_MS`]) within
+    /// `exposed_m` with a clear line eye to eye, less those reloading (a
+    /// reload pressed within `reload_ms`). Each needs a teammate of his own
+    /// to cover him (alive, not carrying, with a clear line to him from
+    /// within `cover_m`): one teammate keeps one enemy busy, so two threats
+    /// seen by one teammate leave one free ([`cover_each`]). A use turns the
+    /// view from the fight and a carrier cannot shoot, so a take in a free
+    /// enemy's sight gave him free shots; players clear a battery's
+    /// surroundings first, or grab it while the enemy reloads or a teammate
+    /// keeps him busy (the owner, 2026-10-23).
+    pub fn exposed_to(&self, exposed_m: f32, reload_ms: u32, cover_m: f32) -> Option<Place> {
+        let eye = self.me.eye();
+        let threats: Vec<&PlaceView> = self
+            .memory
+            .tracks()
             .iter()
-            .any(|&(goal, until)| self.now < until && goal.distance_xz(at) <= super::REPLAN_MOVED_M)
+            .filter(|t| t.source == Source::Seen && self.now <= t.time + SEEN_NOW_MS)
+            .filter_map(|t| self.view.place(t.who))
+            .filter(|enemy| enemy.alive && enemy.present && enemy.team != self.me.team)
+            .filter(|enemy| {
+                let at = enemy.eye();
+                let reloading = self.view.sounds.iter().any(|s| {
+                    s.from == enemy.place
+                        && s.kind == SoundKind::Reload
+                        && self.now <= s.time + reload_ms
+                });
+                (at - eye).length() <= exposed_m && !reloading && self.tactics.sees(at, eye)
+            })
+            .collect();
+        if threats.is_empty() {
+            return None;
+        }
+        let mates: Vec<&PlaceView> = self
+            .view
+            .team(self.me.team)
+            .filter(|mate| mate.place != self.me.place && mate.carrying.is_none())
+            .collect();
+        let sees: Vec<Vec<bool>> = threats
+            .iter()
+            .map(|enemy| {
+                let at = enemy.eye();
+                mates
+                    .iter()
+                    .map(|mate| {
+                        (mate.eye() - at).length() <= cover_m && self.tactics.sees(mate.eye(), at)
+                    })
+                    .collect()
+            })
+            .collect();
+        cover_each(&sees).map(|free| threats[free].place)
     }
 
     /// Known enemies within `m` of `at` (by the memory, whatever the
@@ -677,6 +826,18 @@ impl Ctx<'_> {
         target: TargetRef,
         slot: Option<u32>,
     ) -> Option<Candidate> {
+        self.candidate_given(kind, target, slot, &[])
+    }
+
+    /// [`Ctx::candidate`] with the inputs `given` taken as these values
+    /// (a running play's commitment leaves out what only its start needs).
+    pub fn candidate_given(
+        &self,
+        kind: PlayKind,
+        target: TargetRef,
+        slot: Option<u32>,
+        given: &[(Input, f32)],
+    ) -> Option<Candidate> {
         if self
             .bot
             .set_aside
@@ -688,7 +849,10 @@ impl Ctx<'_> {
         }
         let play = self.play(kind);
         let (score, why) = curve::score(&play.considerations, |input| {
-            self.input(input, kind, target)
+            given
+                .iter()
+                .find(|(i, _)| *i == input)
+                .map_or_else(|| self.input(input, kind, target), |&(_, value)| value)
         });
         (!score.is_zero()).then(|| Candidate {
             kind,
@@ -740,14 +904,15 @@ pub fn spawner_worth_checking(
     tuning: &Tuning,
     index: usize,
 ) -> bool {
-    use super::view::Mode;
     let Some(spawner) = tactics.world.map.battery_spawners.get(index) else {
         return false;
     };
-    let fresh = match (view.mode, known.spawner_seen(index)) {
-        (_, None) => true,
-        (Mode::TimedBatteries, Some(seen)) => view.clock >= seen + tuning.sense.spawner_recheck_ms,
-        _ => false,
+    let fresh = match known.spawner_seen(index) {
+        None => true,
+        Some(seen) if view.mode.rechecks_spawners() => {
+            view.clock >= seen + tuning.sense.spawner_recheck_ms
+        }
+        Some(_) => false,
     };
     fresh
         && !known
@@ -846,8 +1011,16 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     cut::candidates(cx, out);
 }
 
-/// A play's start.
-pub fn start(kind: PlayKind, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Running {
+/// A play's start. `slot` is the assignment's: a play whose rules depend on
+/// the role it was given (the container holder against an end-game guard)
+/// reads it, not the state of the match at the start.
+pub fn start(
+    kind: PlayKind,
+    target: TargetRef,
+    slot: Option<SlotKey>,
+    cx: &Ctx,
+    rng: &mut Rng,
+) -> Running {
     match kind {
         PlayKind::Roam => Running::Roam(roam::start(target, cx, rng)),
         PlayKind::Collect => Running::Collect(collect::start(target, cx, rng)),
@@ -862,7 +1035,7 @@ pub fn start(kind: PlayKind, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Runn
         PlayKind::PairUp => Running::PairUp(pair_up::start(target, cx, rng)),
         PlayKind::HoldExit => Running::HoldExit(hold_exit::start(target, cx, rng)),
         PlayKind::LateDenial => Running::LateDenial(late_denial::start(target, cx, rng)),
-        PlayKind::GuardLead => Running::GuardLead(guard_lead::start(target, cx, rng)),
+        PlayKind::GuardLead => Running::GuardLead(guard_lead::start(target, slot, cx, rng)),
         PlayKind::Trade => Running::Trade(trade::start(target, cx, rng)),
         PlayKind::Heal => Running::Heal(heal::start(target, cx, rng)),
         PlayKind::Hunt => Running::Hunt(hunt::start(target, cx, rng)),
@@ -958,6 +1131,7 @@ pub fn numbers(kind: PlayKind) -> &'static [(&'static str, f32)] {
 /// tuning draws from.
 pub mod considerations {
     use crate::v026g::bots::curve::{Consideration, Curve, Input};
+
 
     /// Nearer is better, out to `far` metres.
     pub fn near(far: f32) -> Consideration {

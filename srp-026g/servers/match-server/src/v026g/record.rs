@@ -150,6 +150,9 @@ enum Job {
     Record { match_id: u32, bytes: Vec<u8> },
     Keep { match_id: u32 },
     Close { match_id: u32 },
+    /// Tests: answers once every job before it has been handled.
+    #[cfg(test)]
+    Barrier(SyncSender<()>),
 }
 
 /// The writing thread's door: one for the match server, shared by its
@@ -183,6 +186,16 @@ impl Recorder {
             .name("srp-record".into())
             .spawn(move || Writer::new(settings).run(queue))?;
         Ok(Self { jobs, min_players })
+    }
+
+    /// Tests: waits until the writing thread has handled every job sent so far (the jobs are handled in order, so
+    /// a file kept, dropped or deleted by them, and the replays told of it, is done when this returns).
+    #[cfg(test)]
+    pub fn settled(&self) {
+        let (done, wait) = mpsc::sync_channel(1);
+        self.jobs.send(Job::Barrier(done)).unwrap();
+        wait.recv_timeout(Duration::from_secs(60))
+            .expect("the writing thread handles its jobs");
     }
 
     /// The recording of a new match: its header note goes first.
@@ -421,6 +434,10 @@ impl Writer {
                 }
             }
             Job::Close { match_id } => self.close(match_id),
+            #[cfg(test)]
+            Job::Barrier(done) => {
+                let _ = done.send(());
+            }
         }
     }
 
@@ -913,19 +930,20 @@ mod tests {
         let mut small = recorder.open(0xCD, serde_json::json!({}), now);
         small.entered(0);
         drop(small);
-        // The writer works on its own thread: wait for both closes.
-        let mut waited = false;
-        for _ in 0..300 {
-            let names = files(&dir);
-            let parts = names.iter().any(|name| name.ends_with(".part"));
-            let kept = names.iter().any(|name| name.ends_with("_000000ab.srprec"));
-            if !old_replay.exists() && kept && !parts {
-                waited = true;
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(10));
-        }
-        assert!(waited, "{:?}", files(&dir));
+        // The writer works on its own thread, in order: when it has reached the barrier, both closes are done
+        // and the replays have heard of every file (polling the files cannot tell when the last close told them:
+        // the .part is gone a moment before the replays are told).
+        recorder.settled();
+        let names = files(&dir);
+        assert!(!old_replay.exists(), "{names:?}");
+        assert!(
+            names.iter().any(|name| name.ends_with("_000000ab.srprec")),
+            "{names:?}"
+        );
+        assert!(
+            !names.iter().any(|name| name.ends_with(".part")),
+            "{names:?}"
+        );
         // Kept, but converted only when someone asks for it.
         assert!(replays.jobs().is_empty());
         let known = Some(Known {

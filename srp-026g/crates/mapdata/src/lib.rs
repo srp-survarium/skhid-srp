@@ -47,9 +47,11 @@ pub mod project;
 pub mod regions;
 pub mod resources;
 pub mod sight;
+pub mod stands;
 
 pub use grid::{
-    Body, BuildStats, DistanceMap, LinkKind, NodeId, Path, Search, SlicedSearch, WalkGrid,
+    Body, BuildStats, DistanceMap, ExitJump, LinkKind, NodeId, Path, PocketEntry, PocketExit,
+    PocketId, Search, SlicedSearch, WalkGrid,
 };
 pub use library::{Library, Materials, WalkerBehaviour};
 
@@ -92,7 +94,8 @@ pub use project::{
     ZoneKind,
 };
 pub use resources::{Error, Resources};
-pub use sight::RayTree;
+pub use sight::{RayHit, RayTree};
+pub use stands::{UsePose, UseStand, UseStands};
 
 /// A play area margin around the `levelmap` box, metres.
 pub const AREA_MARGIN: f32 = 5.0;
@@ -105,9 +108,10 @@ pub const CELL: f32 = 0.25;
 /// with any change to the build that changes a grid (the pinned digest
 /// test in `grid.rs` fails until then), so a stored or shared grid of the
 /// old build is never taken for the new.
-pub const GRID_ALGO: u32 = 3;
-/// The same for [`RayTree::build`], in [`sight_key`].
-pub const SIGHT_ALGO: u32 = 1;
+pub const GRID_ALGO: u32 = 11;
+/// The same for [`RayTree::build`], in [`sight_key`]. 2: split by the surface area heuristic, boxes grown by a
+/// millimetre, the split axis kept in a branch (the tree of 1 was median splits and tight boxes).
+pub const SIGHT_ALGO: u32 = 2;
 
 /// One map ready for bots: its data, walk grid and sight tree.
 pub struct World {
@@ -119,15 +123,18 @@ pub struct World {
 impl World {
     /// Builds the grid (cells of `cell` metres over the play area, normally
     /// [`CELL`], keeping the floors a body gets to from the map's
-    /// [`MapData::grid_seeds`]) and the sight tree: 0.3-0.8 s for a 0.26g
-    /// map at 0.25 m (timings in the notes).
+    /// [`MapData::grid_seeds`], its pockets those of the spawns) and the
+    /// sight tree: 0.3-0.8 s for a 0.26g map at 0.25 m (timings in the
+    /// notes).
     pub fn build(map: MapData, cell: f32, body: Body) -> Self {
+        let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let grid = WalkGrid::build_kept(
             &map.walker_triangles(),
             map.play_area(AREA_MARGIN),
             cell,
             body,
             &map.grid_seeds(),
+            &spawns,
         );
         let sight = RayTree::build(&map.bullet_triangles());
         Self::assemble(map, grid.into(), sight.into())

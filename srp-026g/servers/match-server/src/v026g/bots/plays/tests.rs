@@ -33,8 +33,13 @@ pub struct Scenario {
     pub mods: Mods,
     pub tactics: Tactics,
     pub tuning: Tuning,
+    /// `Ctx::memo`: a test that changes `tactics` after a question asked
+    /// makes it anew.
+    pub memo: super::memo::Memo,
     pub side: Option<i32>,
     pub current: Option<(PlayKind, TargetRef, u32)>,
+    /// The slot `run` starts the play with (the assignment's).
+    pub slot: Option<SlotKey>,
     pub last_ran: Vec<(PlayKind, u32)>,
     pub partner: Option<Place>,
     /// Whether the partner has it for partner too (`BotFacts::paired`).
@@ -45,6 +50,8 @@ pub struct Scenario {
     pub dry: bool,
     /// `BotFacts::failed_stands`.
     pub failed_stands: Vec<super::collect::FailedStand>,
+    /// `BotFacts::crossing`.
+    pub crossing: Option<Vec3>,
 }
 
 impl Scenario {
@@ -55,7 +62,25 @@ impl Scenario {
     /// bot (the battery cheat on); the fair battery knowledge has its own
     /// tests (`collect`, `know`, `sense`).
     pub fn field(mode: Mode) -> Self {
-        let tactics = Tactics::new(crate::v026g::bots::tactics::tests::field(), 1.0);
+        // The two containers have their use boxes (a metre over each), as
+        // the maps' do.
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            for (id, team, x) in [(0, 0, 12.0), (1, 1, 68.0)] {
+                let position = Vec3::new(x, 0.0, 30.0);
+                map.containers.push(mapdata::Container {
+                    position,
+                    team,
+                    id,
+                    use_shapes: vec![mapdata::Shape {
+                        kind: mapdata::ShapeKind::Box,
+                        center: position + Vec3::new(0.0, 1.0, 0.0),
+                        rotation: mapdata::Rotation::IDENTITY,
+                        half: Vec3::new(1.0, 0.85, 0.65),
+                    }],
+                });
+            }
+        });
+        let tactics = Tactics::new(world, 1.0);
         let view = MatchView {
             clock: 300_000,
             mode,
@@ -95,8 +120,10 @@ impl Scenario {
             mods: Mods::default(),
             tactics,
             tuning,
+            memo: Default::default(),
             side: Some(0),
             current: None,
+            slot: None,
             last_ran: Vec::new(),
             partner: None,
             paired: true,
@@ -105,6 +132,7 @@ impl Scenario {
             no_way_to: Vec::new(),
             dry: false,
             failed_stands: Vec::new(),
+            crossing: None,
         };
         s.signals();
         s
@@ -131,6 +159,7 @@ impl Scenario {
                 streak: 0,
                 carrying: None,
                 seen_at: 0,
+                known_at: 0,
             });
         }
         let p = &mut self.view.places[place];
@@ -248,6 +277,7 @@ impl Scenario {
                 set_aside: &[],
                 failed_stands: &self.failed_stands,
                 dry: self.dry,
+                crossing: self.crossing,
             },
             memory: &self.memory,
             team: &self.team,
@@ -255,6 +285,7 @@ impl Scenario {
             mods: &self.mods,
             tactics: &self.tactics,
             tuning: &self.tuning,
+            memo: &self.memo,
         }
     }
 
@@ -284,7 +315,7 @@ impl Scenario {
     ) -> Vec<Step> {
         let mut rng = crate::v026g::bots::rng::Rng::new(11);
         self.current = Some((kind, target, self.view.clock));
-        let mut running = start(kind, target, &self.cx(place), &mut rng);
+        let mut running = start(kind, target, self.slot, &self.cx(place), &mut rng);
         let mut out = Vec::new();
         for _ in 0..steps {
             let s = step(&mut running, target, &self.cx(place), &mut rng);
@@ -408,4 +439,59 @@ fn collect_fetches_a_known_battery_and_roam_heads_for_an_exit() {
         ),
         "{steps:?}"
     );
+}
+
+
+/// One teammate covers one threat: two threats he alone sees leave one
+/// free; a second teammate for the other covers both; a teammate who
+/// sees both and one who sees one are matched so both are covered.
+#[test]
+fn each_threat_needs_a_teammate_of_his_own() {
+    assert_eq!(cover_each(&[]), None);
+    assert_eq!(cover_each(&[vec![]]), Some(0));
+    assert_eq!(cover_each(&[vec![true]]), None);
+    assert_eq!(cover_each(&[vec![true], vec![true]]), Some(1));
+    assert_eq!(cover_each(&[vec![true, false], vec![false, true]]), None);
+    assert_eq!(cover_each(&[vec![true, true], vec![true, false]]), None);
+    assert_eq!(cover_each(&[vec![false, false], vec![true, true]]), Some(0));
+}
+
+/// What `FriendsNearTarget` counts for a slot's holder and for a teammate
+/// who would take it (a Cut at one point): living teammates within 25 m of
+/// the target, the bot itself not counted, the dead, the absent and the
+/// enemies not counted. So each of the two counts the other when the other
+/// is near the target: the holder standing at it makes the claimant's
+/// count one higher, and a claimant already near it makes the holder's one
+/// higher. Who is near the target, not how crowded it will be once the
+/// slot has changed hands, decides that difference (`team::takes_held`
+/// compares the two without it).
+#[test]
+fn friends_near_a_held_target_count_the_other_contender() {
+    let at = Vec3::new(20.0, 0.0, 10.0);
+    let target = TargetRef::Point(at);
+    let friends = |s: &Scenario, place| {
+        s.cx(place)
+            .input(Input::FriendsNearTarget, PlayKind::Cut, target)
+    };
+    let mut s = Scenario::field(Mode::Batteries);
+    // A third teammate near the target; a dead one and an absent one at it;
+    // an enemy at it.
+    s.bot(2, 0, Vec3::new(25.0, 0.0, 10.0));
+    s.bot(3, 0, at).alive = false;
+    s.bot(4, 0, at).present = false;
+    s.enemy(5, 1, at, None);
+    // The holder at the target, the claimant 40 m off.
+    s.bot(0, 0, at);
+    s.bot(1, 0, Vec3::new(60.0, 0.0, 10.0));
+    assert_eq!(friends(&s, 0), 1.0, "the holder: the third teammate");
+    assert_eq!(friends(&s, 1), 2.0, "the claimant: the holder, the third");
+    // The holder still on its way, the claimant near the target.
+    s.view.places[0].feet = Vec3::new(60.0, 0.0, 10.0);
+    s.view.places[1].feet = Vec3::new(22.0, 0.0, 10.0);
+    assert_eq!(friends(&s, 0), 2.0, "the holder: the claimant, the third");
+    assert_eq!(friends(&s, 1), 1.0, "the claimant: the third");
+    // Both near it: each counts the other.
+    s.view.places[0].feet = at;
+    assert_eq!(friends(&s, 0), 2.0);
+    assert_eq!(friends(&s, 1), 2.0);
 }

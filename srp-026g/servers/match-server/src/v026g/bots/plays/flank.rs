@@ -19,7 +19,6 @@ use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
 use crate::v026g::bots::kin;
 use crate::v026g::bots::tactics::SpotQuery;
-use crate::v026g::bots::view::Mode;
 use crate::v026g::drive::key;
 
 pub const NUMBERS: &[(&str, f32)] = &[
@@ -53,6 +52,9 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // map, the battery modes a race for batteries.
     ("weight_tdm", 1.0),
     ("weight_batteries", 0.8),
+    // Timed batteries: as the plain ones until a bench says otherwise (it was
+    // `weight_batteries` there).
+    ("weight_timed", 0.8),
     // Spot samples per query.
     ("samples", 64.0),
 ];
@@ -75,13 +77,10 @@ pub fn tuning() -> PlayTuning {
 }
 
 /// The candidate's score times the mode's weight (`weight_tdm`,
-/// `weight_batteries`): the players' research favours the play in one mode.
+/// `weight_batteries`, `weight_timed`): the players' research favours the
+/// play in one mode.
 fn weighed(cx: &Ctx, kind: PlayKind, mut c: Candidate) -> Option<Candidate> {
-    let weight = if cx.view.mode == Mode::TeamDeathmatch {
-        cx.num(kind, "weight_tdm")
-    } else {
-        cx.num(kind, "weight_batteries")
-    };
+    let weight = cx.num(kind, cx.view.mode.weight_key());
     c.score = Score::new(c.score.get() * weight);
     (!c.score.is_zero()).then_some(c)
 }
@@ -311,6 +310,7 @@ mod tests {
     use super::super::tests::Scenario;
     use super::*;
     use crate::v026g::bots::know::{Percept, Source};
+    use crate::v026g::bots::view::Mode;
 
     /// The enemy at `who` seen without a break for the last `ms`.
     fn watched(s: &mut Scenario, who: Place, ms: u32) {

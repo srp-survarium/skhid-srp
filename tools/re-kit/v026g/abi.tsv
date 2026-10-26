@@ -994,6 +994,7 @@ va	name	source	ret_cleanup	result
 0x00244e10		auto	16	
 0x00245250		auto	0	
 0x002474a0	survarium::player::mt_draw	manual	0	the held item (+128h) drawn by its vtable+48h with [ebp-0A8h] (the hand) or [ebp-0E8h] (the decal pose, translate(0, -10, 0)) at 0x2477C8; [ebp-0F0h] = the caller's EBX
+0x00248520	survarium::grenade_core_client::launch	manual	8	
 0x00248ad0	survarium::step_manager::on_step	manual	12	
 0x00256fa0	survarium::damage_zone_cook::delete_resource	manual	4	
 0x00257170	survarium::damage_zone_cook::calculate_max_requests_count	manual	4	
@@ -1227,10 +1228,15 @@ va	name	source	ret_cleanup	result
 0x00300710		auto	4	
 0x00301c40	survarium::victory_item_core::set_spotted	manual	4	
 0x00301ca0	survarium::victory_item_core::can_be_spotted_by	manual	4	AL: always 1
+0x00303b90	survarium::grenade_core::start_fuse	manual	16	
+0x00303c10	survarium::grenade_core::add_to_physics_world	manual	8	
 0x00303da0	survarium::grenade_core::serialize	manual	8	
 0x00303f80	survarium::grenade_core::deserialize	manual	12	
 0x003052e0	survarium::booby_trap_core::serialize	manual	8	
 0x003053c0	survarium::booby_trap_core::deserialize	manual	12	
+0x00309f00	survarium::grenade_set_core::hand_transform	manual	4	EAX: the out pointer (the hand matrix written there)
+0x0030a120	survarium::grenade_set_core::start_throw	manual	8	AL: the slot; the explosion time goes to the grenade's vtable+0x10 (0x248460: time, id, owner node, 0)
+0x0030a250	survarium::grenade_set_core::launch_grenade	manual	12	
 0x0030d750	survarium::computed_show_animation_time_scale	manual	0	XMM0 low32: (end - start) x (1/30) / time, the animation's length over the wanted time
 0x0030da60	survarium::weapon_core_animation_end_aware_state::initialize	manual	0	
 0x0030db60	survarium::weapon_core_animation_end_aware_state::on_animation_end	manual	4	
@@ -1244,6 +1250,7 @@ va	name	source	ret_cleanup	result
 0x0030ebf0	survarium::weapon_core_fire_state_base::on_shot_event	manual	4	
 0x003100f0	survarium::pistol_weapon_core_fire_state::initialize	manual	0	
 0x00310170	survarium::pistol_weapon_core_fire_state::on_animation_end_impl	manual	8	
+0x00310680	survarium::weapon_core_throw_grenade_base_substate::on_animation_event	manual	4	EAX: 0
 0x003108d0	survarium::weapon_core_melee_state::initialize	manual	0	
 0x00310900	survarium::weapon_core_melee_state::finalize	manual		
 0x00310980	survarium::weapon_core_melee_state::serialize	manual	8	
@@ -1307,8 +1314,8 @@ va	name	source	ret_cleanup	result
 0x0031c780	survarium::artefact_container_core::use_execute	manual	12	
 0x0031c8a0	survarium::artefact_container_core::transfer_artefact	manual	4	
 0x0031cad0	survarium::victory_items_container_core::load	manual	4	
-0x0031cb10	survarium::victory_items_container_core::can_use	manual	4	
-0x0031cbb0	survarium::victory_items_container_core::use_info	manual	4	
+0x0031cb10	survarium::victory_items_container_core::can_use	manual	4	AL: 0 when the rule's byte +0x160 is 0; own team's container: 1 when the user carries; the other's: 1 when he carries none, it holds one (+0x148 != +0x14C), his hand is not broken (byte +0x389 of [user+0x108] vtable+8) and [user+0x128] vtable+0x50 says no; no timer
+0x0031cbb0	survarium::victory_items_container_core::use_info	manual	4	EAX: the prompt's string id in can_use's order (st_cannot_pickup_item_broken_hand 0xA13A00 for the hand; empty 0x9DB708 where it cannot be used)
 0x0031cc40	survarium::victory_items_container_core::use_initialize	manual	8	
 0x0031cdb0	survarium::victory_items_container_core::put_item	manual	4	
 0x0031cdf0	survarium::victory_items_container_core::take_item	manual	8	
@@ -1387,6 +1394,7 @@ va	name	source	ret_cleanup	result
 0x0033a570	survarium::weapon_core_throw_grenade_state::deserialize	manual	12	
 0x0033a650	survarium::weapon_core_throw_grenade_state::is_ready_for_transition	manual	0	
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	manual	20	
+0x0033a770	survarium::weapon_core_throw_grenade_state::throw_grenade	manual	0	
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	manual	0	
 0x0033acf0	survarium::artefact_spring_core::config::config	manual	4	EAX: the config (ESI)
 0x0033b780	survarium::artefact_onyx_core::config::config	manual	0	
@@ -1901,10 +1909,35 @@ va	name	source	ret_cleanup	result
 0x00313350		manual	8	
 0x00420789		manual	0	EAX: ECX + 8
 0x000e5b60	vostok::resources::query_resources	manual	0	
+0x002e3a70	survarium::weapon_core::can_jump	manual	0	AL 1 when the current state's id ([[ECX+330h]+124h]) is 3 idle, 4 reload or 6 chamber a round; 0 while it fires (5), shows (1) or hides (2)
+0x002fbdc0	survarium::weapon_user_animations_selector::jump_predicate	manual	0	AL 1 when the weapon in hand's can_jump (vtable+64h) and is_trying_to_jump both answer 1
+0x002fc230	survarium::weapon_user_animations_selector::is_trying_to_jump	manual	0	AL 0 without the jump action (bit 4 of the player's actions at +330h), else further player checks
+0x0031eab0	survarium::weapon_core_base_state::weapon_core_base_state	manual	8	EAX the state (EDI)
 0x00233810	survarium::game_world_ui::game_world_ui	manual	4	
 0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	manual	16	
 0x0025cd00	survarium::game_world::on_keyboard_action	manual	12	AL: 1 the key taken (no later handler gets it)
 0x00208ad0	survarium::chat_handler::add_message	manual	20	
+0x0026da00	survarium::base_game_statistics_handler::on_player_killed	manual	68	
+0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	
+0x00300710	survarium::victory_item_core::can_use	manual	4	AL: 1 when the user carries nothing ([user+0x10C]+0x178 is 0), his hand is not broken (byte +0x389 of [user+0x108] vtable+8, the damage model's broken hands) and [user+0x128] vtable+0x50 says no; else 0
+0x00300770	survarium::victory_item_core::use_info	manual	4	EAX: the prompt's string in can_use's order: st_cannot_pickup_item 0xA139E8 (carrying), st_cannot_pickup_item_broken_hand 0xA13A00, empty 0x9DB708, st_pickup_item 0xA13A24
+0x003007e0	survarium::victory_item_core::use_initialize	manual	8	
+0x00330ee0	survarium::weapon_dispersion_params::weapon_dispersion_params	manual	8	EAX = the params
+0x00331050	survarium::dispersion_calculator::initialize	manual	20	
+0x00331150	survarium::dispersion_calculator::fire	manual	4	
+0x00331220	survarium::dispersion_calculator::get_base_dispersion	manual	0	XMM0 = base_dispersion × ammo dispersion
+0x00331330	survarium::dispersion_calculator::calculate_character_dispersion	manual	20	
+0x00331480	survarium::dispersion_calculator::get_character_skill_influence	manual	4	XMM0 = influence
+0x00331560	survarium::dispersion_calculator::get_character_state_dispersion	manual	8	XMM0 = state dispersion
+0x003317c0	survarium::dispersion_calculator::get_injury_penalty	manual	4	XMM0 = additive penalty
+0x0032fe40	survarium::transition_helper::tick	manual	0	AL = 1 when the value is at its target after the tick
+0x0007c900	vostok::physics::bullet_character_controller::step_up	manual	4	[entry ESP+4] := how far the feet rose (0.6 when the capsule half-cylinder >= 0.3); the capsule is shortened from below by 2*0.3 (s_step_height 0xA7AB08 x 0.5) through setup_shape_dim with its top kept, +40h moved accordingly; no sweep, no slope test
+0x0007bda0	vostok::physics::bullet_character_controller::player_step	manual	4	none observed; moves the controller one tick: jump flag +0x2C70C set -> step_jump_up/forward/down, else step_up, step_forward, step_down
+0x0007e1b0	vostok::physics::bullet_character_controller::step_down	manual	28	sweeps the shortened capsule down by step offset + 0.05 (or + the fall this tick), tests the hit with impassable_slope, then restores the capsule (+60h stand / +68h crouch dims) keeping the feet
+0x0007de10	vostok::physics::bullet_character_controller::impassable_slope	manual	0	AL = 1 when normal.up < the walkable-slope dot (0x21E51D8, cos 0.8727) and the capsule feet (+40h - up*(r+halfH)) are above the reference point by more than 1e-5; else 0
+0x0007f100	vostok::physics::bullet_character_controller::setup_shape_dim	manual	0	writes dims +1D0h = {d/2, (h-d)/2, d/2, 0} (radius, half-cylinder, radius) and updates the Bullet shape at +70h
+0x0007d590	vostok::physics::bullet_character_controller::step_forward	manual	4	normalizes the move [ESI] and calls step_forward_impl; nothing when it is shorter than 1e-5 squared
+0x0007ea80	vostok::physics::bullet_character_controller::step_down_sweep_test_impl	manual	24	AL = hit; +40h := the start moved down to the contact (the sweep fraction)
 0x00207d50	survarium::key_binder::get_binded_action	manual	4	EAX: the bound action's id (game_action_id); 49h when the key is bound to no action of the kinds asked
 0x0023a930	survarium::game_world_ui::show_cursor	manual	4	
 0x002383b0	survarium::game_world_ui::show_profiles_selector	manual	4	
@@ -1934,3 +1967,36 @@ va	name	source	ret_cleanup	result
 0x00131b40	vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture	manual	12	AL: 1 the file is used, 0 made again
 0x00132640	vostok::buffer_vector<vostok::render::baked_texture_data>::push_back	manual	4	
 0x000e0210	vostok::render::render_model_instance::destroy	manual	0	
+0x002d9060	survarium::base_player::set_physics_controller_walk_vector	manual		per tick: sets the root-motion displacement on the controller (0x356B00, +0x20) and, when the controller jump flag (+0x2C70C) is set and m_jump_type is not 0, the air control vector from get_air_control_vector (calls 0x2D92A0, 0x2D92C1) rotated by the body matrix, stored by 0x356B90 at controller +0x30; zeros when not jumping
+0x002d7990	survarium::base_player::get_air_control_vector	manual		vector in the body frame from the keys by a switch over get_move_direction (table 0x2D7B68) scaled by the speed argument (player +0x304 air_control_speed, 1.0 in default.player): forward alone = 0 in sprint jumps (codes 2-4), forward x speed in walking jumps; back -forward; left/right +-x; diagonals the normalised sum
+0x002d6510	survarium::base_player::get_move_direction	manual		the key combination as a move code used by the jump codes (walking jumps 1, 5-12; sprint jumps 2-4)
+0x00356b90	vostok::physics::bt_character_controller::set_air_control_vector	manual		stores the air control vector at controller +0x30; player_step adds it (0x7BFC5)
+0x00356b00	vostok::physics::bt_character_controller::set_desired_walk_vector	manual		stores the root-motion displacement at controller +0x20
+0x0007f1a0	vostok::physics::bullet_character_controller::setup_crouch_state	manual		called at the top of player_step (0x7BDDD) from the crouch flags +0x201/+0x202/+0x203; shortens the capsule and keeps its bottom point fixed (0x7F1FD..0x7F2B5): crouching in the air lifts nothing
+0x00075550	vostok::physics::bullet_physics_world::resolve_character_pairs	manual	8	the loop at 0x75730..0x7586C visits pairs of character controllers (an array of pointers at [ebp-0x34]); for a pair that overlaps (test 0x75340) it compares the byte at controller+0x2C781 (cmp 0x757E0..0x757EC): equal bytes = the pair passes through each other; different bytes = both controllers get the walk vectors at +0x2C770..+0x2C77C zeroed and m_colliding_with_player (+0x205) set to 1, and 0x7F6D0 is called for each. The byte is set by the constructor (0x7B5C4) from an argument of the create call at 0x2D6EEC; it is the player-team value ([[player+0x6B8]+0x45EC], 1 or 2) LIKELY (a place id would differ for every pair, and the owner saw teammates pass and enemies collide)
+0x0007b150	vostok::physics::bullet_character_controller::bullet_character_controller	manual		stores constructor arguments in two bytes: +0x2C780 (0x7B5D5) and +0x2C781 (0x7B5C4, the one resolve_character_pairs compares); +0x205 m_colliding_with_player is cleared here (0x7B29C) and written at 0x75811, 0x75848 (resolve_character_pairs) and 0x7FBDC (deserialize)
+0x002df780	survarium::weapon_core_cook::add_weapon_state_transitions	manual	36	builds the state graph: 38 append_transition calls; called from weapon_core_cook (0x30BDB8)
+0x002e3b00	survarium::weapon_core::state_ended_pred	manual	0	AL the source state's animation-ended flag (state+12Dh)
+0x002e3b10	survarium::weapon_core::switch_pending	manual	0	AL 1 when the current and target active object differ (player+128h != +12Ch) and the selector (weapon+278h) has +2Bh set
+0x002e3b40	survarium::weapon_core::hide_to_show_pred	manual	0	AL 1 when the hide state has ended and no switch is pending with the selector ready
+0x002e3b80	survarium::weapon_core::hide_wanted_pred	manual	0	AL 1 when alive, selector state is not 4, mode (+5ECh) is 6, a switch is pending and the aim progress (+5FCh) is 0
+0x002e3be0	survarium::weapon_core::hide_wanted_and_ended_pred	manual	0	AL hide wanted (0x2E3B80) and the state ended
+0x002e3c80	survarium::weapon_core::chamber_pred_and_ended	manual	0	AL the chamber predicate (0x2E3C10) and the state ended
+0x002e3d30	survarium::weapon_core::fire_pred_and_ended	manual	0	AL the fire predicate (0x2E3CB0) and the state ended
+0x002e3d60	survarium::weapon_core::reload_wanted	manual	0	AL 1 when the input mask has bit 6 (reload), or bit 5 (fire) with nothing in the weapon, or the reload latch (+5F5h) is set
+0x002e3da0	survarium::weapon_core::can_reload	manual	0	AL 1 when alive, selector state is not 4, not blocked by jump or sprint, magazine below capacity and the ammo stack not empty
+0x002e3ef0	survarium::weapon_core::reload_pred	manual	0	AL reload wanted (0x2E3D60) and can reload (0x2E3DA0)
+0x002e3f40	survarium::weapon_core::reload_pred_and_ended	manual	0	AL reload predicate (0x2E3EF0) and the state ended
+0x002e3f70	survarium::weapon_core::reload_or_empty_pred_and_ended	manual	0	AL reload wanted or the weapon empty, and the state ended
+0x002e3fc0	survarium::weapon_core::user_not_alive_pred	manual	0	AL 1 when the user is not alive (player+33Ch)
+0x002e3fe0	survarium::weapon_core::show_to_idle_pred	manual	0	AL 1 when the show state ended, or the user is not alive
+0x002e4010	survarium::weapon_core::reload_to_idle_pred	manual	0	AL 1 when the reload state ended, or the selector state is 4, or the user is not alive
+0x002e4090	survarium::weapon_core::throw_grenade_pred	manual	0	AL 1 when the grenade key is held and the player has a grenade; no animation-ended test
+0x002e4100	survarium::weapon_core::melee_pred	manual	0	AL 1 when the input mask has bit 27 (melee)
+0x002e4140	survarium::weapon_core::jump_blocks_reload	manual	0	AL 1 when the jump blocks a reload: selector state 4, or the jump action, or is_trying_to_jump (0x2FC230)
+0x002e4170	survarium::weapon_core::sprint_blocks_reload	manual	0	AL 1 when the sprint blocks a reload
+0x0030ef80	survarium::weapon_core_shotgun_reload_one_round_substate::on_animation_end_impl	manual	8	calls reload_one_round (0x2E1A00: one round from the ammo stack into the magazine) with EDI the weapon_core, then sets the byte at the first stack argument to 1
+0x0030f070	survarium::weapon_core_shotgun_reload_finish_substate::on_animation_end_impl	manual	8	sets the byte at [this+168h] and the byte at the first stack argument to 1; with chamber_a_round_on_reload (+5F2h) and a round in the magazine takes one into the chamber
+0x00339de0	survarium::weapon_core_shotgun_reload_state::finish_reload_pred	manual	0	AL 1 when the magazine is full, or the ammo stack is empty, or a round is in the weapon and fire (0x339EA0) or the sights (0x339EE0) are held: the one-round loop goes on to the finish clip
+0x00339ea0	survarium::weapon_core_shotgun_reload_state::round_and_fire_held_pred	manual	0	AL 1 when a round is in the weapon (magazine + chambered, +5E5h, +5F1h) and the input mask has bit 5 (fire)
+0x00339ee0	survarium::weapon_core_shotgun_reload_state::round_and_aim_held_pred	manual	0	AL 1 when a round is in the weapon (magazine + chambered, +5E5h, +5F1h) and the input mask has bit 7 (aim)

@@ -31,9 +31,10 @@
 //!   on a thread of its own) they stand; if the map has no file they run
 //!   the stage 0 script instead. `SRP_BOT_TUNING` (a JSON file, read when
 //!   the match is made) changes their numbers; `SRP_BOT_TRACE_DIR` keeps
-//!   their decisions; `SRP_BOT_ROUTES` (a JSON file, private: made from
-//!   the players' saved worlds) gives them the routes humans took
-//!   (`bots/routes.rs`);
+//!   their decisions (`SRP_BOT_TRACE_MAX_MB` of them); `bot-routes.json` in
+//!   the mapdata folder, or the file `SRP_BOT_ROUTES` names (a JSON file,
+//!   private: made from the players' saved worlds; empty or `off`: none),
+//!   gives them the routes humans took (`bots/routes.rs`);
 //! - without it, the stage 0 script (`super::super::drive`).
 
 use std::sync::Arc;
@@ -47,8 +48,9 @@ use survarium::v026g::match_msgs::snapshot::{Battery, Decoded};
 use super::*;
 use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::maps::{MapState, Maps};
+use crate::v026g::bots::motor::Hurt;
 use crate::v026g::bots::reflex::WeaponKind;
-use crate::v026g::bots::routes::RouteTable;
+use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::tactics::Tactics;
 use crate::v026g::bots::trace::Trace;
 use crate::v026g::bots::tuning::Tuning;
@@ -104,20 +106,45 @@ impl Walkers {
         };
         let hash = tuning.hash();
         let trace = match std::env::var_os("SRP_BOT_TRACE_DIR").filter(|dir| !dir.is_empty()) {
-            Some(dir) => Trace::open(dir.as_ref(), id, hash),
+            Some(dir) => {
+                let max_mb = crate::v026g::parse_number(
+                    "SRP_BOT_TRACE_MAX_MB",
+                    std::env::var("SRP_BOT_TRACE_MAX_MB").ok().as_deref(),
+                    crate::v026g::bots::trace::DEFAULT_MAX_MB,
+                );
+                Trace::open(dir.as_ref(), id, hash, u64::from(max_mb) << 20)
+            }
             None => Trace::none(hash),
         };
         log::info!("Match {id:#x}: the bots run on tuning {hash:08x}");
         let project = formed.map.project;
         maps.request(project);
         let teams: Vec<u8> = formed.places.iter().map(|place| place.team).collect();
-        let roles: Vec<Option<&str>> = formed
+        let bots: Vec<_> = formed
             .profiles
             .iter()
-            .map(|profile| survarium::v026g::loadouts::bot_role_of(profile).map(|role| role.name()))
+            .map(survarium::v026g::loadouts::bot_of)
             .collect();
-        log::info!("Match {id:#x}: the bots' roles by place {roles:?}");
+        let roles: Vec<Option<&str>> = bots
+            .iter()
+            .map(|bot| bot.map(|(_, role)| role.name()))
+            .collect();
+        let tiers: Vec<_> = bots.iter().map(|bot| bot.map(|(tier, _)| tier)).collect();
+        log::info!(
+            "Match {id:#x}: the bots' roles by place {roles:?}, equipment {:?}",
+            tiers
+                .iter()
+                .map(|tier| tier.map(|tier| tier.name()))
+                .collect::<Vec<_>>()
+        );
         let weapons = formed.profiles.iter().map(weapon_of).collect();
+        // The bodies' speed by their first kit's skills and weight, until a
+        // world shows a life's own.
+        let speed_levels: Vec<Option<f32>> = formed
+            .profiles
+            .iter()
+            .map(|profile| survarium::v026g::bot_skills::profile_movement_level(profile, 0))
+            .collect();
         Some(Self {
             bots: Bots::new(
                 id,
@@ -129,7 +156,8 @@ impl Walkers {
                 Arc::new(tuning),
                 trace,
             )
-            .with_container_teams(formed.map.container_teams),
+            .with_container_teams(formed.map.container_teams)
+            .with_tiers(&tiers),
             maps,
             project,
             world: None,
@@ -140,13 +168,12 @@ impl Walkers {
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
+            walkers.bots.set_speed_levels(&speed_levels);
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
-            if let Some(path) = std::env::var_os("SRP_BOT_ROUTES").filter(|path| !path.is_empty()) {
-                match RouteTable::load(path.as_ref()) {
-                    Ok(table) => walkers.bots.set_routes(&table),
-                    Err(why) => log::warn!("Match {id:#x}: SRP_BOT_ROUTES not used ({why})"),
-                }
+            let var = std::env::var_os("SRP_BOT_ROUTES");
+            if let Some(table) = route_table(id, var.as_deref(), walkers.maps.dir()) {
+                walkers.bots.set_routes(&table);
             }
             walkers
         })
@@ -460,6 +487,11 @@ impl Game {
                 .damage
                 .as_ref()
                 .and_then(|damage| damage.part_health.first().copied());
+            if let Some(damage) = motion.damage.as_ref() {
+                let legs = [6, 7].map(|part| damage.part_health.get(part).copied());
+                let hurt = Hurt::of(legs, damage.last_hit_time_ms, snapshot.time);
+                walkers.bots.hurt(place, hurt);
+            }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);
         }
@@ -584,5 +616,111 @@ impl Game {
             self.relay_to_others(index, &what, time, now);
             self.inputs.push((time, index, what));
         }
+    }
+}
+
+/// The route table a match's bots get (play 17): `var` is `SRP_BOT_ROUTES`,
+/// `mapdata` the mapdata folder ([`routes::Source::choose`]). A file that
+/// fails to load: a warning; no file: one info line until a restart.
+fn route_table(
+    id: u32,
+    var: Option<&std::ffi::OsStr>,
+    mapdata: Option<&std::path::Path>,
+) -> Option<RouteTable> {
+    let (path, named) = match routes::Source::choose(var, mapdata) {
+        routes::Source::Set(path) => (path, "SRP_BOT_ROUTES"),
+        routes::Source::Default(path) => (path, "bot routes"),
+        routes::Source::Off => return None,
+        routes::Source::Missing => {
+            static SAID: std::sync::Once = std::sync::Once::new();
+            SAID.call_once(|| {
+                log::info!(
+                    "No bot routes: SRP_BOT_ROUTES unset and no {} in the mapdata folder; the bots roam to the exits",
+                    routes::DEFAULT_FILE
+                )
+            });
+            return None;
+        }
+    };
+    match RouteTable::load(&path) {
+        Ok(table) => Some(table),
+        Err(why) => {
+            log::warn!("Match {id:#x}: {named} not used ({why})");
+            None
+        }
+    }
+}
+
+/// TEST ONLY (`bots/jump_test.rs`, cargo feature `jump-test`): the jump test's reach into the match.
+#[cfg(feature = "jump-test")]
+impl Game {
+    /// Whether tries remain: the match does not end.
+    pub(super) fn jump_test_holds_end(&self) -> bool {
+        self.walkers
+            .as_ref()
+            .and_then(|walkers| walkers.bots.jump_test.as_ref())
+            .is_some_and(|test| test.holds_end())
+    }
+
+    /// A world for the test's burst, asked of the best-linked patched client when the test wants one.
+    pub(super) fn jump_test_burst(&mut self, now: Instant) {
+        let clock = self.clock(now);
+        let wants = self
+            .walkers
+            .as_mut()
+            .and_then(|walkers| walkers.bots.jump_test.as_mut())
+            .is_some_and(|test| test.wants_world(clock));
+        if !wants {
+            return;
+        }
+        let Some(&index) = self.sources(usize::MAX).first() else {
+            return;
+        };
+        if let Some(peer) = self.peers[index].as_mut() {
+            send(peer, &ServerMessage::UploadRequest);
+            peer.asked = Some(now);
+            peer.asked_clock = Some(clock);
+            peer.unanswered_since.get_or_insert(now);
+        }
+    }
+
+    /// An upload came: its rows are logged; true when it answered a burst request.
+    pub(super) fn jump_test_upload(&mut self, time: u32, clock: u32, bytes: usize, body: &[u8]) -> bool {
+        self.walkers
+            .as_mut()
+            .and_then(|walkers| walkers.bots.jump_test.as_mut())
+            .is_some_and(|test| test.upload(time, clock, bytes, body))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// With `SRP_BOT_ROUTES` unset a match's bots get the table in the
+    /// mapdata folder; empty or `off`, none; a path, that file.
+    #[test]
+    fn a_match_takes_the_route_table_in_the_mapdata_folder() {
+        let dir = std::env::temp_dir().join(format!("srp-driven-routes-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join(routes::DEFAULT_FILE);
+        std::fs::write(
+            &file,
+            r#"{"format": 2, "routes": [{"level": "level_03", "mode": 2, "team": 1,
+                "lives": 5, "reward": 1.0, "fight": 1.0, "battery": 0.0, "kd": 1.0,
+                "died": 0.2, "points": [[1.0, 2.0], [3.0, 4.0]]}]}"#,
+        )
+        .unwrap();
+        let table = route_table(1, None, Some(&dir)).expect("the mapdata folder's table");
+        let routes = table.for_map(3, 2);
+        assert_eq!(routes.len(), 1);
+        assert_eq!(routes[0].points.len(), 2);
+        assert!(route_table(1, Some("off".as_ref()), Some(&dir)).is_none());
+        assert!(route_table(1, Some("".as_ref()), Some(&dir)).is_none());
+        assert!(route_table(1, Some(file.as_os_str()), None).is_some_and(|t| t.len() == 1));
+        assert!(route_table(1, Some(dir.join("none.json").as_os_str()), Some(&dir)).is_none());
+        std::fs::remove_file(&file).unwrap();
+        assert!(route_table(1, None, Some(&dir)).is_none());
+        std::fs::remove_dir(&dir).unwrap();
     }
 }

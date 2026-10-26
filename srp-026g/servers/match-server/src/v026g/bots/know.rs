@@ -100,7 +100,9 @@ pub struct Track {
 }
 
 /// An enemy seen, and noticed: the only thing the motor may aim at. Made
-/// only by [`Memory::seen`].
+/// only by [`Memory::seen`], and by [`Memory::in_sight`] for its one use:
+/// the reflex taking back its own last target, lost a moment ago, before
+/// he is noticed again.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SeenTrack(Track);
 
@@ -209,6 +211,18 @@ impl Memory {
             .then_some(SeenTrack(*track))
     }
 
+    /// The enemy at `who` in sight now, noticed or not: [`Self::seen`]
+    /// without the noticing delay only, so still a live sight (seen,
+    /// `sight_since` set, sensed within 400 ms). Its one allowed use: the
+    /// reflex taking back its own last target, lost under
+    /// `CombatTuning::aim_carry_ms` ago (`CombatTuning::reacquire_keep`),
+    /// which noticed him already.
+    pub(super) fn in_sight(&self, who: Place, now: u32) -> Option<SeenTrack> {
+        let track = self.tracks.iter().find(|t| t.who == who)?;
+        track.sight_since?;
+        (track.source == Source::Seen && track.time + 400 >= now).then_some(SeenTrack(*track))
+    }
+
     /// Every enemy seen now and noticed.
     pub fn all_seen(&self, now: u32) -> Vec<SeenTrack> {
         self.tracks
@@ -260,6 +274,155 @@ pub struct Theft {
     pub thief: Option<Place>,
 }
 
+/// A lane cell's side (CG-12's memory of each enemy human), m.
+pub const LANE_CELL_M: f32 = 6.0;
+/// A lane cell's count halves in this, ms: what he did minutes ago still
+/// counts, what he did at the start fades.
+pub const LANE_HALF_LIFE_MS: u32 = 180_000;
+/// At most one place of a human a this, ms, goes into his lane: the count
+/// is the time he was known there, not how many bots knew it.
+pub const LANE_SAMPLE_MS: u32 = 1_000;
+
+/// A 6 m cell of an enemy human's lanes: where he was known in it (the
+/// mean of his places), how much (decayed by [`LANE_HALF_LIFE_MS`]) and
+/// when last.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LaneCell {
+    pub cell: (i32, i32),
+    pub at: Vec3,
+    pub count: f32,
+    pub time: u32,
+}
+
+impl LaneCell {
+    /// Its count at `now`.
+    pub fn count_at(&self, now: u32) -> f32 {
+        decayed(self.count, now.saturating_sub(self.time))
+    }
+}
+
+fn decayed(count: f32, ms: u32) -> f32 {
+    count * 0.5f32.powf(ms as f32 / LANE_HALF_LIFE_MS as f32)
+}
+
+/// What the team knows of one enemy human for the whole match (Cologne
+/// CG-12), only from its own senses and its HUD: his lanes (the cells of
+/// his places the team saw, heard or was told), the batteries he stole
+/// from us, and where he killed us (the kill feed: his kills went up as
+/// one of us died).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct EnemyHuman {
+    pub who: Place,
+    pub cells: Vec<LaneCell>,
+    /// When a place of his last went into his lanes.
+    pub last: Option<u32>,
+    /// The batteries he stole from us: (battery, when).
+    pub thefts: Vec<(usize, u32)>,
+    /// Where he killed one of us, and when.
+    pub kills: Vec<(Vec3, u32)>,
+    /// His kills as the scoreboard last showed them.
+    kills_shown: u32,
+}
+
+/// The team's memory of each enemy human ([`EnemyHuman`]), kept for the
+/// match.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct HumanLanes {
+    pub humans: Vec<EnemyHuman>,
+}
+
+impl HumanLanes {
+    pub fn get(&self, who: Place) -> Option<&EnemyHuman> {
+        self.humans.iter().find(|h| h.who == who)
+    }
+
+    fn human_mut(&mut self, who: Place) -> &mut EnemyHuman {
+        let i = match self.humans.iter().position(|h| h.who == who) {
+            Some(i) => i,
+            None => {
+                self.humans.push(EnemyHuman {
+                    who,
+                    ..Default::default()
+                });
+                self.humans.len() - 1
+            }
+        };
+        &mut self.humans[i]
+    }
+
+    /// The team knew `who` at `at` (sensed at `time`): one place a
+    /// [`LANE_SAMPLE_MS`] goes into his lanes.
+    pub fn knew(&mut self, who: Place, at: Vec3, time: u32) {
+        let human = self.human_mut(who);
+        if human.last.is_some_and(|last| time < last + LANE_SAMPLE_MS) {
+            return;
+        }
+        human.last = Some(time);
+        let cell = (
+            (at.x / LANE_CELL_M).floor() as i32,
+            (at.z / LANE_CELL_M).floor() as i32,
+        );
+        match human.cells.iter_mut().find(|c| c.cell == cell) {
+            Some(c) => {
+                let count = c.count_at(time);
+                c.at = (c.at * count + at) * (1.0 / (count + 1.0));
+                c.count = count + 1.0;
+                c.time = time;
+            }
+            None => human.cells.push(LaneCell {
+                cell,
+                at,
+                count: 1.0,
+                time,
+            }),
+        }
+    }
+
+    /// He stole `battery` from us at `time` (the HUD's theft); a theft is
+    /// counted once.
+    pub fn stole(&mut self, who: Place, battery: usize, time: u32) {
+        let human = self.human_mut(who);
+        if !human.thefts.contains(&(battery, time)) {
+            human.thefts.push((battery, time));
+        }
+    }
+
+    /// The scoreboard shows `kills` for him: the kills since the last
+    /// showing were at `at`, our latest death, if the team knows one.
+    pub fn shown_kills(&mut self, who: Place, kills: u32, at: Option<Vec3>, time: u32) {
+        let human = self.human_mut(who);
+        if kills > human.kills_shown
+            && let Some(at) = at
+        {
+            human.kills.push((at, time));
+        }
+        human.kills_shown = kills;
+    }
+
+    /// The lanes near `near` (within `within_m`) of the humans who stole
+    /// from us, best first: each cell's count at `now` times its human's
+    /// thefts, the same cell of two thieves added. For a holder of our
+    /// container (CG-1, CG-12): where a thief comes from.
+    pub fn thief_lane(&self, near: Vec3, within_m: f32, now: u32) -> Vec<(Vec3, f32)> {
+        let mut out: Vec<((i32, i32), Vec3, f32)> = Vec::new();
+        for human in self.humans.iter().filter(|h| !h.thefts.is_empty()) {
+            let thefts = human.thefts.len() as f32;
+            for c in &human.cells {
+                if c.at.distance_xz(near) > within_m {
+                    continue;
+                }
+                let weight = c.count_at(now) * thefts;
+                match out.iter_mut().find(|o| o.0 == c.cell) {
+                    Some(o) => o.2 += weight,
+                    None => out.push((c.cell, c.at, weight)),
+                }
+            }
+        }
+        out.sort_by(|a, b| b.2.total_cmp(&a.2));
+        out.into_iter().map(|(_, at, w)| (at, w)).collect()
+    }
+}
+
 /// Where a team believes a battery lies (the fair battery knowledge,
 /// `player_bots_behaviour.md` §2), used with the battery cheat off.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -272,6 +435,13 @@ pub struct KnownBattery {
     /// the team, and left where it was seen until a bot sees that spot
     /// empty.
     pub hud: bool,
+}
+
+/// A known battery's spot for a note: where, and whether the HUD shows it.
+fn spot(known: KnownBattery) -> String {
+    let at = known.at;
+    let how = if known.hud { "on the HUD" } else { "seen" };
+    format!("[{:.1}, {:.1}, {:.1}] {how}", at.x, at.y, at.z)
 }
 
 /// A teammate's death (the kill feed), kept longer than a danger spot for
@@ -300,6 +470,36 @@ pub struct CarrierSeen {
 /// Seen carriers are kept this long, ms.
 pub const CARRIER_SEEN_KEEP_MS: u32 = 60_000;
 
+/// An enemy carrier's place as a bot of the team sensed it (seen, heard,
+/// or the thief cheat), with its error: whether he stays put
+/// ([`TeamKnowledge::carrier_still`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CarrierPlace {
+    pub who: Place,
+    pub at: Vec3,
+    pub error_m: f32,
+    pub time: u32,
+}
+
+/// Carriers' places are kept this long, ms.
+pub const CARRIER_PLACES_KEEP_MS: u32 = 30_000;
+
+/// A bot of the team fell near a battery it went for: it was far off its
+/// reckoning there (a ledge by the battery; [`TeamKnowledge::fell_near`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Fall {
+    pub who: Place,
+    pub at: Vec3,
+    pub time: u32,
+}
+
+/// Falls are kept this long, ms; a bot's falls this near in time are one.
+pub const FALLS_KEEP_MS: u32 = 120_000;
+const FALL_SAME_MS: u32 = 5_000;
+/// Falls this near a spot are at it, metres across and up or down.
+const FALL_SPOT_M: f32 = 1.5;
+const FALL_SPOT_UP_M: f32 = 2.0;
+
 /// A battery an enemy carrier dropped where he died, unseen: the kill feed
 /// says he died, the team knew he carried it (a theft of ours, or seen
 /// carrying), and the game's HUD shows the dropped battery only to his
@@ -327,6 +527,26 @@ pub struct LookSpot {
 /// A look spot nobody has looked at is dropped after this, ms.
 pub const LOOK_KEEP_MS: u32 = 120_000;
 
+/// A bot's claim on a spot: where its play means it to be (its goal, or
+/// its feet when it holds), stamped when it was made. A bot makes it again
+/// at every think; one not renewed for [`CLAIM_KEEP_MS`] (the bot died or
+/// left) is dropped.
+///
+/// Root cause (`push-record.md` S1): two teammates chose the same spot in
+/// one pass, each seeing only the other's feet, and a standing body is not
+/// steered off another. A shared list of goals lets every spot choice skip
+/// a spot a teammate already means to take (Jack, GAP ch. 26.6.2, "Hidespot
+/// Contention").
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Claim {
+    pub who: Place,
+    pub at: Vec3,
+    pub time: u32,
+}
+
+/// A claim is dropped when not renewed for this long, ms.
+pub const CLAIM_KEEP_MS: u32 = 2_000;
+
 /// What a team's bots share: callouts (one bot's sense, the others' a
 /// moment later), danger spots, thefts, and with the battery cheat off
 /// what they know of the batteries and the spawners they have looked at.
@@ -339,6 +559,11 @@ pub struct TeamKnowledge {
     /// "Shot from there" callouts of the last 20 s.
     pub shots_from: Vec<ShotFrom>,
     pub thefts: Vec<Theft>,
+    /// Batteries of ours taken from home this match, by anyone (the
+    /// container holder's need, `guard_lead`; [`Self::thefts`] keeps 60 s).
+    pub thefts_match: u32,
+    /// Each enemy human's lanes, thefts and kills, for the match (CG-12).
+    pub humans: HumanLanes,
     /// By battery number.
     pub batteries: Vec<Option<KnownBattery>>,
     /// By battery spawner: when a bot of the team last saw its spot.
@@ -352,6 +577,19 @@ pub struct TeamKnowledge {
     pub carriers_seen: Vec<CarrierSeen>,
     /// Where enemy carriers died with a battery the team cannot see.
     pub looks: Vec<LookSpot>,
+    /// Enemy carriers' places of the last [`CARRIER_PLACES_KEEP_MS`].
+    pub carrier_places: Vec<CarrierPlace>,
+    /// The team's falls by batteries of the last [`FALLS_KEEP_MS`].
+    pub falls: Vec<Fall>,
+    /// What changed in [`Self::batteries`] and why, for the log (taken by
+    /// the bots' notes; [`Self::change_battery`]).
+    pub battery_notes: Vec<String>,
+    /// The known lying batteries of each bot of the team: why it may not
+    /// take one now (`None`: it may), and since when (match ms), for the
+    /// notes (`collect::take_blocks`): a note goes out when it changes.
+    pub take_blocked: Vec<(Place, usize, Option<&'static str>, u32)>,
+    /// The team's bots' claims on spots, one a bot ([`Self::claim`]).
+    claims: Vec<Claim>,
 }
 
 impl TeamKnowledge {
@@ -399,11 +637,27 @@ impl TeamKnowledge {
         self.danger.iter().filter(move |spot| spot.time + ms >= now)
     }
 
+    /// `who` means to be at `at` (made again at every think).
+    pub fn claim(&mut self, who: Place, at: Vec3, now: u32) {
+        match self.claims.iter_mut().find(|c| c.who == who) {
+            Some(c) => (c.at, c.time) = (at, now),
+            None => self.claims.push(Claim { who, at, time: now }),
+        }
+    }
+
+    /// The claims of bots other than `except` that are still kept at `now`.
+    pub fn claims_of_others(&self, except: Place, now: u32) -> impl Iterator<Item = &Claim> {
+        self.claims
+            .iter()
+            .filter(move |c| c.who != except && c.time + CLAIM_KEEP_MS >= now)
+    }
+
     /// The player at `who` left the match: no callout about it is heard,
     /// and no theft names it. The battery it took is still where it was
     /// last known.
     pub fn forget(&mut self, who: Place) {
         self.forget_callouts(who);
+        self.claims.retain(|c| c.who != who);
         for theft in &mut self.thefts {
             if theft.thief == Some(who) {
                 theft.thief = None;
@@ -435,6 +689,42 @@ impl TeamKnowledge {
         self.batteries[battery] = known;
     }
 
+    /// [`Self::set_battery`], with a note of the change and `why` when the
+    /// team comes to know the battery, forgets it, sees it moved over 1 m,
+    /// or it comes onto or goes off the HUD; a spot only put right again
+    /// writes nothing.
+    pub fn change_battery(
+        &mut self,
+        battery: usize,
+        known: Option<KnownBattery>,
+        why: impl FnOnce() -> String,
+    ) {
+        let was = self.battery(battery).copied();
+        let text = match (was, known) {
+            (None, Some(now)) => Some(format!(
+                "battery {battery} known at {} ({})",
+                spot(now),
+                why()
+            )),
+            (Some(then), None) => Some(format!(
+                "battery {battery} no longer known at {} ({})",
+                spot(then),
+                why()
+            )),
+            (Some(then), Some(now)) if (then.at - now.at).length() > 1.0 || then.hud != now.hud => {
+                Some(format!(
+                    "battery {battery} known at {}, was {} ({})",
+                    spot(now),
+                    spot(then),
+                    why()
+                ))
+            }
+            _ => None,
+        };
+        self.battery_notes.extend(text);
+        self.set_battery(battery, known);
+    }
+
     /// The batteries on the HUD of team `team`, from two worlds' states
     /// (`player_bots_behaviour.md` §2). The client (PROVEN in 0.21d's
     /// `gather_victory_items_rule::fill_match_hud_state` 0x1FBDF4 and
@@ -462,6 +752,56 @@ impl TeamKnowledge {
     /// A view without the masks (a tool or test that gives none) reckons
     /// the HUD from the states: our carrier's drop is ours, and a battery
     /// that moved more than 1 m between two worlds left the HUD.
+    /// The commander's poll: what team `team`'s bots know of each enemy
+    /// human goes into [`Self::humans`] (CG-12). His places from their
+    /// own senses and callouts (`tracks`: the bots' memories; the latest of
+    /// each human, within [`LANE_CELL_M`] of error), the thefts the HUD
+    /// told, and his kills on the scoreboard placed at our latest death of
+    /// the last 2 s (the kill feed).
+    pub fn learn_humans<'a>(
+        &mut self,
+        team: u8,
+        view: &MatchView,
+        tracks: impl Iterator<Item = &'a Track>,
+        now: u32,
+    ) {
+        let human = |who: Place| {
+            view.place(who)
+                .is_some_and(|p| !p.bot && p.team & 1 != team & 1)
+        };
+        let mut latest: Vec<(Place, Vec3, u32, f32)> = Vec::new();
+        for t in tracks {
+            if !t.source.own() || t.error_m > LANE_CELL_M || !human(t.who) {
+                continue;
+            }
+            match latest.iter_mut().find(|l| l.0 == t.who) {
+                Some(l) if (t.time, -t.error_m) > (l.2, -l.3) => {
+                    *l = (t.who, t.at, t.time, t.error_m)
+                }
+                Some(_) => {}
+                None => latest.push((t.who, t.at, t.time, t.error_m)),
+            }
+        }
+        latest.sort_by_key(|l| l.0);
+        for (who, at, time, _) in latest {
+            self.humans.knew(who, at, time);
+        }
+        for theft in &self.thefts {
+            if let Some(thief) = theft.thief.filter(|&p| human(p)) {
+                self.humans.stole(thief, theft.battery, theft.time);
+            }
+        }
+        let death = self
+            .losses
+            .iter()
+            .filter(|l| l.time + 2_000 >= now)
+            .max_by_key(|l| l.time)
+            .map(|l| l.at);
+        for p in view.places.iter().filter(|p| p.present && human(p.place)) {
+            self.humans.shown_kills(p.place, p.kills, death, now);
+        }
+    }
+
     pub fn hud_update(&mut self, team: u8, before: &MatchView, after: &MatchView, time: u32) {
         let team_of = |carrier: Option<Place>| carrier.and_then(|p| after.place(p)).map(|p| p.team);
         for (battery, now) in after.batteries.iter().enumerate() {
@@ -483,19 +823,24 @@ impl TeamKnowledge {
                         _ => false,
                     };
                     if hud {
-                        self.set_battery(battery, Some(KnownBattery { at, time, hud }));
+                        self.change_battery(battery, Some(KnownBattery { at, time, hud }), || {
+                            "the HUD shows it".into()
+                        });
                     } else if known.is_some_and(|k| k.hud) {
-                        self.set_battery(battery, None);
+                        self.change_battery(battery, None, || "the HUD no longer shows it".into());
                     }
                 }
                 BatteryState::Carried(carrier) => {
                     if known.is_some_and(|k| k.hud) || team_of(carrier) == Some(team) {
-                        self.set_battery(battery, None);
+                        self.change_battery(battery, None, || match carrier {
+                            Some(p) => format!("carried by player {p}"),
+                            None => "carried".into(),
+                        });
                     }
                 }
-                BatteryState::Home(_) => {
+                BatteryState::Home(id) => {
                     if known.is_some_and(|k| k.hud) {
-                        self.set_battery(battery, None);
+                        self.change_battery(battery, None, || format!("put in container {id}"));
                     }
                 }
             }
@@ -522,6 +867,98 @@ impl TeamKnowledge {
         self.carriers_seen
             .retain(|seen| seen.time + CARRIER_SEEN_KEEP_MS >= now);
         self.looks.retain(|look| look.until >= now);
+        self.carrier_places
+            .retain(|p| p.time + CARRIER_PLACES_KEEP_MS >= now);
+        self.falls.retain(|f| f.time + FALLS_KEEP_MS >= now);
+        self.claims.retain(|c| c.time + CLAIM_KEEP_MS >= now);
+    }
+
+    /// `who`, going for a battery lying at `at`, fell near it (once in
+    /// [`FALL_SAME_MS`] a bot).
+    pub fn fell_near(&mut self, who: Place, at: Vec3, time: u32) {
+        if self
+            .falls
+            .iter()
+            .any(|f| f.who == who && f.time + FALL_SAME_MS > time)
+        {
+            return;
+        }
+        self.falls.push(Fall { who, at, time });
+    }
+
+    /// Whether a battery lying at `at` is set aside for the team: `count`
+    /// falls at it within `window_ms`, the last less than `aside_ms` ago
+    /// (0x1b8ee975: battery 6 lay 455 s by a ledge, 166 Collect plays, 17
+    /// falls, 7 of them deaths).
+    pub fn fallen_at(
+        &self,
+        at: Vec3,
+        now: u32,
+        count: usize,
+        window_ms: u32,
+        aside_ms: u32,
+    ) -> bool {
+        let falls: Vec<u32> = self
+            .falls
+            .iter()
+            .filter(|f| {
+                f.at.distance_xz(at) <= FALL_SPOT_M
+                    && (f.at.y - at.y).abs() <= FALL_SPOT_UP_M
+                    && f.time + window_ms >= now
+            })
+            .map(|f| f.time)
+            .collect();
+        count > 0
+            && falls.len() >= count
+            && falls
+                .iter()
+                .max()
+                .is_some_and(|&last| now < last + aside_ms)
+    }
+
+    /// A bot of the team sensed the enemy carrier at `who` at `at`, within
+    /// `error_m`. `carrying(place)`: whether a place carries now; the
+    /// places of one who no longer does are dropped (a new carry starts
+    /// afresh).
+    pub fn carrier_at(
+        &mut self,
+        who: Place,
+        at: Vec3,
+        error_m: f32,
+        time: u32,
+        carrying: impl Fn(Place) -> bool,
+    ) {
+        self.carrier_places.retain(|p| carrying(p.who));
+        self.carrier_places.push(CarrierPlace {
+            who,
+            at,
+            error_m,
+            time,
+        });
+    }
+
+    /// Where the enemy carrier at `who` has stayed: his places of the last
+    /// `window_ms` and more (the first at least that old) all lie within
+    /// their error and `still_m` of their middle, three of them at least;
+    /// that middle. A thief cheat's place (10 m off) is drawn every 3 s,
+    /// so a carrier who walks home on it is seen to move within seconds.
+    pub fn carrier_still(&self, who: Place, now: u32, window_ms: u32, still_m: f32) -> Option<Vec3> {
+        let places: Vec<&CarrierPlace> = self
+            .carrier_places
+            .iter()
+            .filter(|p| p.who == who)
+            .collect();
+        let first = places.iter().map(|p| p.time).min()?;
+        if places.len() < 3 || first + window_ms > now {
+            return None;
+        }
+        let n = places.len() as f32;
+        let sum = places.iter().fold(Vec3::ZERO, |sum, p| sum + p.at);
+        let middle = sum * (1.0 / n);
+        places
+            .iter()
+            .all(|p| p.at.distance_xz(middle) <= p.error_m + still_m)
+            .then_some(middle)
     }
 
     /// A bot of the team saw the enemy at `who` carrying `battery`.
@@ -605,6 +1042,55 @@ mod tests {
         }
     }
 
+    /// A carrier the thief cheat places within its 10 m every 3 s is still
+    /// once 20 s of places lie within their error and 3 m of their middle;
+    /// one who walks home is not, nor one known for less than 20 s, and a
+    /// new carry starts afresh.
+    #[test]
+    fn a_carrier_is_still_when_his_places_keep_within_their_error() {
+        let mut team = TeamKnowledge::default();
+        let at = Vec3::new(50.0, 0.0, 30.0);
+        let offsets = [(9.0f32, 0.0f32), (-6.0, 6.0), (0.0, -9.0), (5.0, 5.0)];
+        for k in 0..8u32 {
+            let (dx, dz) = offsets[k as usize % 4];
+            team.carrier_at(1, at + Vec3::new(dx, 0.0, dz), 10.0, k * 3_000, |_| true);
+        }
+        let still = team.carrier_still(1, 21_000, 20_000, 3.0).expect("still");
+        assert!(still.distance_xz(at) < 3.0, "{still:?}");
+        assert_eq!(team.carrier_still(1, 19_000, 20_000, 3.0), None, "too short");
+        assert_eq!(team.carrier_still(2, 21_000, 20_000, 3.0), None);
+        // Walking home at 1.5 m/s on the same cheat: not still.
+        let mut walking = TeamKnowledge::default();
+        for k in 0..8u32 {
+            let (dx, dz) = offsets[k as usize % 4];
+            let on = Vec3::new(4.5 * k as f32, 0.0, 0.0);
+            walking.carrier_at(1, at + on + Vec3::new(dx, 0.0, dz), 10.0, k * 3_000, |_| true);
+        }
+        assert_eq!(walking.carrier_still(1, 21_000, 20_000, 3.0), None);
+        // He no longer carries: the next place starts a new carry.
+        team.carrier_at(3, at, 0.0, 22_000, |p| p != 1);
+        assert_eq!(team.carrier_still(1, 22_000, 20_000, 3.0), None);
+    }
+
+    /// [`Memory::in_sight`] skips only the noticing delay: never a track
+    /// not seen, one only heard, or one out of sight over 400 ms.
+    #[test]
+    fn in_sight_is_a_live_sight_before_its_noticing() {
+        let mut memory = Memory::default();
+        assert!(memory.in_sight(3, 1_000).is_none(), "never seen");
+        memory.update(&[seen(3, 1_000)], 1_000, |_| 300, 3_000, 20_000);
+        assert!(memory.seen(3, 1_100).is_none());
+        assert_eq!(memory.in_sight(3, 1_100).map(|t| t.who()), Some(3));
+        let heard = Percept {
+            source: Source::Heard,
+            ..seen(4, 1_000)
+        };
+        memory.update(&[heard], 1_000, |_| 300, 3_000, 20_000);
+        assert!(memory.in_sight(4, 1_100).is_none(), "only heard");
+        memory.update(&[], 1_500, |_| 300, 3_000, 20_000);
+        assert!(memory.in_sight(3, 1_500).is_none(), "out of sight over 400 ms");
+    }
+
     #[test]
     fn a_sight_is_a_seen_track_only_after_the_noticing_delay() {
         let mut memory = Memory::default();
@@ -651,6 +1137,7 @@ mod tests {
             streak: 0,
             carrying: None,
             seen_at: 0,
+            known_at: 0,
         };
         MatchView {
             clock: 10_000,
@@ -902,5 +1389,113 @@ mod tests {
         team.forget_callouts(5);
         let left: Vec<Place> = team.heard_by(4, 2_300).iter().map(|p| p.who).collect();
         assert_eq!(left, vec![6]);
+    }
+
+    /// Three falls of the team at a battery within 120 s set it aside for
+    /// 60 s after the last; one bot's fall is counted once in 5 s, falls at
+    /// another battery or long ago do not count, and `count` 0 is off.
+    #[test]
+    fn falls_at_a_battery_set_it_aside_for_a_while() {
+        let mut team = TeamKnowledge::default();
+        let at = Vec3::new(5.0, 35.5, 60.0);
+        let aside = |team: &TeamKnowledge, now| team.fallen_at(at, now, 3, 120_000, 60_000);
+        team.fell_near(1, at, 10_000);
+        team.fell_near(1, at, 12_000);
+        team.fell_near(2, Vec3::new(20.0, 35.5, 60.0), 13_000);
+        team.fell_near(3, at + Vec3::new(0.0, 3.0, 0.0), 14_000);
+        team.fell_near(2, at + Vec3::new(1.0, 0.0, 0.0), 20_000);
+        assert!(!aside(&team, 21_000), "two falls here: {:?}", team.falls);
+        team.fell_near(1, at, 30_000);
+        assert!(aside(&team, 31_000));
+        assert!(aside(&team, 89_000));
+        assert!(!aside(&team, 91_000), "60 s after the last");
+        assert!(!team.fallen_at(at, 31_000, 0, 120_000, 60_000), "off");
+        // The first fall out of the window: two left.
+        assert!(!team.fallen_at(at, 31_000, 3, 15_000, 60_000));
+    }
+
+    /// CG-12: an enemy human's places go into his lanes once a second, in
+    /// 6 m cells that fade with a 3 minute half-life; a bot's, a
+    /// teammate's or a sense with too large an error do not.
+    #[test]
+    fn an_enemy_humans_places_make_his_lanes_and_fade() {
+        let mut view = battery_view(vec![]);
+        // Place 2: an enemy human; place 3: a human of ours; place 1: an
+        // enemy bot.
+        for (place, team) in [(2, 1), (3, 0)] {
+            let mut p = view.places[1].clone();
+            p.place = place;
+            p.team = team;
+            p.bot = false;
+            view.places.push(p);
+        }
+        let track = |who: Place, x: f32, time: u32, source: Source, error_m: f32| Track {
+            who,
+            at: Vec3::new(x, 0.0, 1.0),
+            error_m,
+            time,
+            source,
+            sight_since: None,
+            notice_ms: 0,
+            own: None,
+        };
+        let mut team = TeamKnowledge::default();
+        let tracks = [
+            track(2, 1.0, 1_000, Source::Seen, 0.5),
+            track(1, 1.0, 1_000, Source::Seen, 0.5),
+            track(3, 1.0, 1_000, Source::Seen, 0.5),
+            track(2, 30.0, 1_000, Source::Heard, 10.0),
+        ];
+        team.learn_humans(0, &view, tracks.iter(), 1_000);
+        // Another bot's sight 0.4 s later is the same second: not counted.
+        let later = [track(2, 3.0, 1_400, Source::Told { by: 4 }, 2.0)];
+        team.learn_humans(0, &view, later.iter(), 1_400);
+        assert_eq!(team.humans.humans.len(), 1, "{:?}", team.humans);
+        let him = team.humans.get(2).unwrap();
+        assert_eq!(him.cells.len(), 1);
+        assert_eq!(him.cells[0].count, 1.0);
+        // A second later in the same cell: counted, at the mean.
+        let again = [track(2, 3.0, 2_000, Source::Told { by: 4 }, 2.0)];
+        team.learn_humans(0, &view, again.iter(), 2_000);
+        let cell = team.humans.get(2).unwrap().cells[0];
+        assert!((cell.count - 2.0).abs() < 0.01, "{cell:?}");
+        assert!((cell.at.x - 2.0).abs() < 0.01, "{cell:?}");
+        // A cheat's place is not the team's knowledge.
+        let cheat = [track(2, 50.0, 4_000, Source::Cheat(CheatKind::Radar), 0.0)];
+        team.learn_humans(0, &view, cheat.iter(), 4_000);
+        assert_eq!(team.humans.get(2).unwrap().cells.len(), 1);
+        // Half of it 3 minutes on.
+        let half = cell.count_at(2_000 + LANE_HALF_LIFE_MS);
+        assert!((half - 1.0).abs() < 0.01, "{half}");
+    }
+
+    /// CG-12: the thief's lane near our container, best first; a human
+    /// who never stole gives none, and his kills are placed at our latest
+    /// death.
+    #[test]
+    fn the_thief_lane_is_his_cells_near_the_container_by_count_and_thefts() {
+        let mut lanes = HumanLanes::default();
+        for s in 0..5u32 {
+            lanes.knew(2, Vec3::new(10.0, 0.0, 1.0), s * 1_000);
+        }
+        lanes.knew(2, Vec3::new(20.0, 0.0, 1.0), 6_000);
+        lanes.knew(2, Vec3::new(200.0, 0.0, 1.0), 7_000);
+        lanes.knew(5, Vec3::new(30.0, 0.0, 1.0), 6_000);
+        let near = Vec3::new(0.0, 0.0, 0.0);
+        assert!(lanes.thief_lane(near, 60.0, 8_000).is_empty());
+        lanes.stole(2, 4, 7_500);
+        lanes.stole(2, 4, 7_500);
+        let lane = lanes.thief_lane(near, 60.0, 8_000);
+        assert_eq!(lane.len(), 2, "{lane:?}");
+        assert!(
+            (lane[0].0.x - 10.0).abs() < 0.01 && lane[1].0.x == 20.0,
+            "{lane:?}"
+        );
+        assert_eq!(lanes.get(2).unwrap().thefts, vec![(4, 7_500)]);
+        // Kills: the first showing with none, then one at our death.
+        lanes.shown_kills(2, 0, None, 1_000);
+        lanes.shown_kills(2, 1, Some(Vec3::new(5.0, 0.0, 5.0)), 9_000);
+        lanes.shown_kills(2, 1, Some(Vec3::new(6.0, 0.0, 5.0)), 9_500);
+        assert_eq!(lanes.get(2).unwrap().kills, vec![(Vec3::new(5.0, 0.0, 5.0), 9_000)]);
     }
 }

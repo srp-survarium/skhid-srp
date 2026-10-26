@@ -6,6 +6,7 @@
 use session::v026g::account::KitSlot;
 use session::v026g::{matchmaking, quests};
 use survarium::v026g::item_params::item_params;
+use survarium::v026g::loadouts::{BotTier, bot_of};
 use survarium::v026g::lobby::{PVB_CHOOSE_BASE, PVB_STATUS_START, pvb_choice_start};
 use survarium::v026g::match_msgs::late_join::FIRST_REVISION;
 
@@ -107,7 +108,7 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
     let alice = world.connect("Alice");
     with_gear(&mut world, alice, 5);
     let (header, maps) = status(&mut world, alice);
-    assert_eq!(header, "B1;0;5;5;6.8.10;8;61;0;5");
+    assert_eq!(header, "B1;0;5;15;6.8.10;8;61;0;5");
     // The owner's maps, each free for five matches.
     let listed: Vec<u8> = maps
         .iter()
@@ -157,7 +158,7 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
     assert!(world.core.rooms.of(world.ids[alice].0).is_none());
     // It is one of the five now.
     let (header, maps) = status(&mut world, alice);
-    assert_eq!(header, "B1;4;5;5;6.8.10;8;61;1;5");
+    assert_eq!(header, "B1;4;5;15;6.8.10;8;61;1;5");
     assert!(maps.iter().all(|row| row.ends_with(";4")), "{maps:?}");
     world.assert_clean();
 }
@@ -184,11 +185,74 @@ fn every_size_has_its_bots_on_both_sides() {
     }
 }
 
-/// Equipment level 6 is over the most (5): refused with code 1 and both
-/// levels, in the status and the choice; the Play then goes into a room.
-#[test]
-fn gear_6_is_refused_with_code_1_and_its_level() {
+/// The bots' equipment level of a match against bots made for a player
+/// of equipment level `gear`: the highest `match_making_level` of each
+/// bot's first kit.
+fn bots_gear(gear: u8) -> (Vec<u8>, Vec<BotTier>) {
     let mut world = world_with(5);
+    let player = world.connect("Alice");
+    with_gear(&mut world, player, gear);
+    let (header, _) = status(&mut world, player);
+    assert!(header.starts_with(&format!("B1;0;{gear};15;")), "{header}");
+    let (ticket, _) = play_vs_bots(&mut world, player, 6, 61);
+    let made = world.host.made.locked();
+    let (_, setup) = made.iter().find(|(id, _)| *id == ticket).unwrap();
+    let bots: Vec<_> = setup
+        .players
+        .iter()
+        .filter(|player| player.driven)
+        .collect();
+    assert_eq!(bots.len(), 11);
+    let levels = bots
+        .iter()
+        .map(|bot| {
+            let kit = &bot.profile.kits[0];
+            kit.slots
+                .iter()
+                .flatten()
+                .map(|&(index, _)| {
+                    let item = &bot.profile.items[usize::from(index)];
+                    item_params(item.dict_id).unwrap().match_making_level
+                })
+                .max()
+                .unwrap()
+        })
+        .collect();
+    let tiers = bots
+        .iter()
+        .map(|bot| bot_of(&bot.profile).expect("a bot of a tier").0)
+        .collect();
+    (levels, tiers)
+}
+
+/// The owner's of 2026-10-23: every level plays against bots, and the
+/// bots wear the equipment of the player's tier: level 3 → 4-5, level 8 →
+/// 9-10, level 12 → 13-15; level 15, over the old most (5), is let in.
+#[test]
+fn the_bots_wear_the_equipment_of_the_players_tier() {
+    for (gear, tier) in [
+        (3, BotTier::Low),
+        (5, BotTier::Low),
+        (8, BotTier::Mid),
+        (12, BotTier::High),
+        (15, BotTier::High),
+    ] {
+        let (levels, tiers) = bots_gear(gear);
+        assert!(tiers.iter().all(|&each| each == tier), "{gear}: {tiers:?}");
+        assert!(
+            levels.iter().all(|level| tier.levels().contains(level)),
+            "{gear}: {levels:?}"
+        );
+    }
+}
+
+/// An operator's most (`SRP_PVB_MAX_GEAR` 5): equipment level 6 is over
+/// it, refused with code 1 and both levels, in the status and the choice;
+/// the Play then goes into a room.
+#[test]
+fn gear_6_is_refused_with_code_1_and_its_level_over_an_operators_most() {
+    let mut world = world_with(5);
+    world.core.settings.pvb.max_gear = 5;
     let bob = world.connect("Bob");
     with_gear(&mut world, bob, 6);
     let (header, maps) = status(&mut world, bob);
@@ -210,14 +274,14 @@ fn every_refusal_says_its_code() {
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     form_squad(&mut world, alice, bob);
-    assert!(status(&mut world, alice).0.starts_with("B1;2;0;5;"));
-    assert_eq!(choose(&mut world, alice, 8, 61), "B2;no;2;0;5;0;5");
+    assert!(status(&mut world, alice).0.starts_with("B1;2;0;15;"));
+    assert_eq!(choose(&mut world, alice, 8, 61), "B2;no;2;0;15;0;5");
 
     let carol = world.connect("Carol");
     for (size, map_id) in [(8, 181), (8, 62), (7, 61), (12, 61)] {
         assert_eq!(
             choose(&mut world, carol, size, map_id),
-            "B2;no;10;0;5;0;5",
+            "B2;no;10;0;15;0;5",
             "{size} on {map_id}"
         );
     }
@@ -227,9 +291,9 @@ fn every_refusal_says_its_code() {
     world.core.settings.pvb.enabled = false;
     let dave = world.connect("Dave");
     let (header, maps) = status(&mut world, dave);
-    assert_eq!(header, "B1;6;0;5;6.8.10;8;61;0;5");
+    assert_eq!(header, "B1;6;0;15;6.8.10;8;61;0;5");
     assert!(maps.iter().all(|row| row.ends_with(";0")));
-    assert_eq!(choose(&mut world, dave, 8, 61), "B2;no;6;0;5;0;5");
+    assert_eq!(choose(&mut world, dave, 8, 61), "B2;no;6;0;15;0;5");
     // A start past the choices is no choice of these.
     assert_eq!(pvb_choice_start(255, 255), PVB_CHOOSE_BASE + 255_255);
 }
@@ -246,9 +310,9 @@ fn the_sixth_bot_match_is_refused_with_code_7() {
     }
     let sixth = world.connect("Sixth");
     let (header, maps) = status(&mut world, sixth);
-    assert_eq!(header, "B1;7;0;5;6.8.10;8;61;5;5");
+    assert_eq!(header, "B1;7;0;15;6.8.10;8;61;5;5");
     assert!(maps.iter().all(|row| row.ends_with(";0")), "{maps:?}");
-    assert_eq!(choose(&mut world, sixth, 6, 61), "B2;no;7;0;5;5;5");
+    assert_eq!(choose(&mut world, sixth, 6, 61), "B2;no;7;0;15;5;5");
     assert_eq!(world.host.made.locked().len(), 5);
 
     // A choice held counts too: with four running, one held leaves none.
@@ -259,7 +323,7 @@ fn the_sixth_bot_match_is_refused_with_code_7() {
     assert!(
         status(&mut world, sixth)
             .0
-            .starts_with("B1;7;0;5;6.8.10;8;61;5;5")
+            .starts_with("B1;7;0;15;6.8.10;8;61;5;5")
     );
     // Its choice given up (a choice not granted replaces it), the sixth
     // gets in.

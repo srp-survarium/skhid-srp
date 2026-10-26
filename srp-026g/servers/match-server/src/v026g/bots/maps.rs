@@ -439,6 +439,7 @@ fn build(
         let walker = map.walker_triangles();
         let area = map.play_area(mapdata::AREA_MARGIN);
         let seeds = map.grid_seeds();
+        let spawns: Vec<mapdata::Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let grid_key = mapdata::grid_key(&walker, area, cell, body, &seeds);
         let shared = lock(cache).grids.get(&grid_key).and_then(Weak::upgrade);
         let (grid, grid_source) = match shared {
@@ -448,7 +449,7 @@ fn build(
                     built,
                     mapdata::built::grid_file_name(grid_key),
                     |path| WalkGrid::read(path, grid_key),
-                    || WalkGrid::build_kept(&walker, area, cell, body, &seeds),
+                    || WalkGrid::build_kept(&walker, area, cell, body, &seeds, &spawns),
                     |grid, path| grid.write(path, grid_key),
                 );
                 let grid = Arc::new(grid);
