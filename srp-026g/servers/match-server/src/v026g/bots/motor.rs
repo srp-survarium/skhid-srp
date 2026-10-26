@@ -1168,7 +1168,7 @@ pub fn keys_toward(relative: f32) -> u32 {
 pub mod counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+    static COUNTS: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
 
     fn add(k: usize) {
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
@@ -1190,9 +1190,14 @@ pub mod counts {
         add(if clear { 4 } else { 5 });
     }
 
+    /// The lip guard: a tick's keys changed to ones that stop on the floor, and one with none that does.
+    pub fn lip_guard(changed: bool) {
+        add(if changed { 6 } else { 7 });
+    }
+
     /// (up at the first press, up later, given up, look-ahead cuts, side
-    /// steps clear, side steps refused).
-    pub fn counts() -> [u64; 6] {
+    /// steps clear, side steps refused, lip guard changed, lip guard none).
+    pub fn counts() -> [u64; 8] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }

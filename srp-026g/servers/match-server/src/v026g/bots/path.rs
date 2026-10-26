@@ -816,6 +816,17 @@ impl Route {
             .map(|k| (k, self.along[k - 1] - s))
     }
 
+    /// The landings of the drops of a lip's height or more the route makes from `s` to `within` metres on (a
+    /// planned fall: the body walks off the edge there).
+    pub fn drop_landings(&self, s: f32, within: f32) -> Vec<Vec3> {
+        let first = self.along.partition_point(|&a| a <= s).max(1);
+        (first..self.points.len())
+            .take_while(|&k| self.along[k - 1] <= s + within)
+            .filter(|&k| !self.points[k].jump && self.points[k - 1].at.y - self.points[k].at.y >= mapdata::grid::LIP_DROP_M)
+            .map(|k| self.points[k].at)
+            .collect()
+    }
+
     /// Whether the route from `s` to `within` metres on goes over a floor
     /// a standing body does not fit under ([`Waypoint::low`]).
     pub fn low_ahead(&self, s: f32, within: f32) -> bool {
@@ -997,6 +1008,34 @@ mod tests {
         assert!((s - 16.0).abs() < 1e-4);
         let (s, _) = route.progress(Vec3::new(5.0, 0.0, 0.0));
         assert!(s >= 10.0, "{s}");
+    }
+
+    /// The landings of the route's drops of a metre or more within reach, and no step, jump or short drop.
+    #[test]
+    fn the_landings_of_a_routes_drops_are_found_within_reach() {
+        let p = |x, y, jump| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump,
+            low: false,
+        };
+        // Along, down 0.5 m (a curb), along, down 2 m (a drop), along, up 1.2 m by a jump, along.
+        let route = Route::new(vec![
+            p(0.0, 3.0, false),
+            p(4.0, 3.0, false),
+            p(4.5, 2.5, false),
+            p(8.0, 2.5, false),
+            p(9.0, 0.5, false),
+            p(14.0, 0.5, false),
+            p(15.0, 1.7, true),
+        ]);
+        assert_eq!(route.drop_landings(0.0, 20.0), vec![Vec3::new(9.0, 0.5, 0.0)]);
+        // The drop's leg starts about 8 m along: out of reach from the start, in reach from 3 m.
+        assert!(route.drop_landings(0.0, 6.0).is_empty());
+        assert_eq!(route.drop_landings(3.0, 6.0).len(), 1);
+        // On the drop's leg, and past it, none behind it.
+        assert_eq!(route.drop_landings(8.5, 1.0).len(), 1);
+        assert!(route.drop_landings(10.0, 20.0).is_empty());
     }
 
     /// A body that fell off a walkway its route goes on along is off the

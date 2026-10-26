@@ -155,6 +155,24 @@ pub struct Bot {
     /// tick yet to plan its route).
     #[cfg(test)]
     pub(crate) bench_legs: bool,
+    /// Which reflex play had the legs at that tick (the falls probe).
+    #[cfg(test)]
+    pub(crate) bench_legs_why: Option<reflex::LegsWhy>,
+    /// The side step of the last motor tick: 0 none, 1 standing and taken, 2 woven into a walk and taken, 3 refused.
+    #[cfg(test)]
+    pub(crate) bench_stepped: u8,
+    /// The lip guard of the last motor tick: 0 not near a lip, 1 keys safe, 2 changed, 3 none safe (braked), 4 planned drop, 5 jumping.
+    #[cfg(test)]
+    pub(crate) bench_guard: u8,
+    /// How the route was walked at the last motor tick: 0 not, 1 facing the way, 2 aiming (the eight keys).
+    #[cfg(test)]
+    pub(crate) bench_walk: u8,
+    /// The velocity and feet the last guard check was made from.
+    #[cfg(test)]
+    pub(crate) bench_guard_at: ([f32; 2], Vec3),
+    /// The feet the bot reckoned for a tick (known_at ms), the last ten (the falls probe's reckoning error).
+    #[cfg(test)]
+    pub(crate) bench_est: std::collections::VecDeque<(u32, Vec3)>,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): it holds its
@@ -296,6 +314,18 @@ impl Bot {
             no_way_to: Vec::new(),
             #[cfg(test)]
             bench_legs: false,
+            #[cfg(test)]
+            bench_legs_why: None,
+            #[cfg(test)]
+            bench_stepped: 0,
+            #[cfg(test)]
+            bench_guard: 0,
+            #[cfg(test)]
+            bench_walk: 0,
+            #[cfg(test)]
+            bench_guard_at: ([0.0; 2], Vec3::ZERO),
+            #[cfg(test)]
+            bench_est: std::collections::VecDeque::new(),
             #[cfg(test)]
             bench_driven: 0,
             #[cfg(test)]
