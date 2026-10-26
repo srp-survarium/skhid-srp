@@ -494,6 +494,44 @@ mod tests {
         assert!((mid.damage - line).abs() < 0.003 * near_in.damage, "{mid:?} {line}");
     }
 
+    /// The players' game data, whole: `SRP_TEST_NEW_WEAPONS_DATA=<server-game-data.db> cargo test -p
+    /// survarium --lib -- --ignored of_the_players_data`. Every ammunition, every armour item and the body
+    /// read, and every weapon works out a bullet with every ammunition at some distances, finite.
+    #[test]
+    #[ignore = "needs the players' server game data (SRP_TEST_NEW_WEAPONS_DATA)"]
+    fn everything_of_the_players_data_reads() {
+        let path = std::env::var_os("SRP_TEST_NEW_WEAPONS_DATA").expect("the data's path");
+        let data = GameData::open(std::path::Path::new(&path)).unwrap();
+        let dictionary: &'static Dictionary = Box::leak(Box::new(
+            Dictionary::parse(data.file(super::super::dictionary::PATH).unwrap()).unwrap(),
+        ));
+        let ammo = derive_ammo(&data, dictionary).unwrap();
+        let armour = derive_armour(&data, dictionary).unwrap();
+        let weapons = crate::v026g::weapons::derive(&data, dictionary).unwrap();
+        let body = BodyParams::from_config(
+            &ConfigValue::parse(data.file(HUMAN_HIT_PARAMS).unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert!(!ammo.is_empty() && !armour.is_empty() && !weapons.is_empty());
+        for pool in ["body", "head", "pain"] {
+            assert!(body.part(pool).unwrap().lethal, "{pool}");
+        }
+        for a in &ammo {
+            for w in &weapons {
+                for d in [0.0, 10.0, 50.0, 500.0] {
+                    let b = bullet_at(w, a, d);
+                    assert!(
+                        b.damage.is_finite() && b.arp.is_finite() && b.damage >= 0.0,
+                        "{} {} {d} {b:?}",
+                        w.name,
+                        a.name
+                    );
+                }
+            }
+        }
+        println!("{} ammo, {} armour, {} weapons", ammo.len(), armour.len(), weapons.len());
+    }
+
     /// `amount × (1 − clamp(armor − arp, 0, 1))` (step 3): armour below the
     /// bullet's piercing does nothing, each 0.1 above removes a tenth, and
     /// the best armour against no piercing leaves a tenth.
