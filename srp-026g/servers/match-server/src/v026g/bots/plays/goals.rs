@@ -297,6 +297,24 @@ impl Ctx<'_> {
 /// by the play (`repick_if_shut`), which asks this again. No table, no perch in range, or the switch
 /// off: `fine` as it was and no draw from `rng` (a bot's stream is unchanged).
 pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Vec<Vec3> {
+    #[cfg(test)]
+    let ring = fine.clone();
+    let out = perch_first_of(cx, anchor, rng, fine);
+    #[cfg(test)]
+    if out == ring {
+        // the control: a pick from the ring, watched the same way
+        PERCH_GOALS.with(|g| {
+            g.borrow_mut().insert(
+                cx.me.place,
+                (out.iter().take(3).copied().collect(), false, 0, f32::MAX, Some(cx.bot.current.map(|c| c.0)), false, true),
+            );
+        });
+        perch_count(27);
+    }
+    out
+}
+
+fn perch_first_of(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Vec<Vec3> {
     let tuning = &cx.tuning.perch;
     perch_count(0);
     let Some(share) = cx.tactics.perch_share.filter(|_| tuning.on && !cx.tactics.perches.is_empty()) else {
@@ -367,7 +385,7 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
     #[cfg(test)]
     PERCH_GOALS.with(|g| {
         // a new offer before the last one was reached
-        if let Some((_, false, _, closest, _, _)) = g.borrow_mut().remove(&cx.me.place) {
+        if let Some((_, false, _, closest, _, _, false)) = g.borrow_mut().remove(&cx.me.place) {
             perch_count(16);
             lost_at(closest);
         }
@@ -384,7 +402,7 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
     #[cfg(test)]
     PERCH_GOALS.with(|g| {
         // the plays take one of the first three at random
-        g.borrow_mut().insert(cx.me.place, (out.iter().take(3).copied().collect(), false, 0, f32::MAX, Some(cx.bot.current.map(|c| c.0)), false));
+        g.borrow_mut().insert(cx.me.place, (out.iter().take(3).copied().collect(), false, 0, f32::MAX, Some(cx.bot.current.map(|c| c.0)), false, false));
     });
     out
 }
@@ -395,9 +413,12 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
 pub fn perch_watch(place: usize, feet: Vec3, alive: bool, play: Option<super::PlayKind>) {
     PERCH_GOALS.with(|g| {
         let mut g = g.borrow_mut();
-        let Some((spots, reached, age, closest, first_play, left)) = g.get_mut(&place) else { return };
+        let Some((spots, reached, age, closest, first_play, left, ring)) = g.get_mut(&place) else { return };
+        let ring = *ring;
         if !alive {
-            if !*reached {
+            if !*reached && ring {
+                perch_count(32);
+            } else if !*reached {
                 // dying within 20 s of the take, or long after the play moved on
                 perch_count(if *age <= 400 { 17 } else { 19 });
                 lost_at(*closest);
@@ -410,7 +431,11 @@ pub fn perch_watch(place: usize, feet: Vec3, alive: bool, play: Option<super::Pl
                 None => *first_play = Some(play),
                 Some(first) if first != play => {
                     // the bot's play changed before it got there (the first change only)
-                    if !*left {
+                    if !*left && ring {
+                        *left = true;
+                        perch_count(30);
+                        perch_count_n(31, *age as usize);
+                    } else if !*left {
                         *left = true;
                         perch_count(25);
                         perch_count_n(26, *age as usize);
@@ -425,8 +450,10 @@ pub fn perch_watch(place: usize, feet: Vec3, alive: bool, play: Option<super::Pl
             *age += 1;
             if *age > 1400 {
                 // longer than a play's give-up time: the take is lost
-                perch_count(20);
-                lost_at(*closest);
+                if !ring {
+                    perch_count(20);
+                    lost_at(*closest);
+                }
                 g.remove(&place);
                 return;
             }
@@ -437,10 +464,17 @@ pub fn perch_watch(place: usize, feet: Vec3, alive: bool, play: Option<super::Pl
         if spots.iter().any(|at| feet.distance_xz(*at) <= 2.0 && (feet.y - at.y).abs() < 1.5) {
             if !*reached {
                 *reached = true;
-                perch_count(14);
-                perch_count_n(18, *age as usize);
+                if ring {
+                    perch_count(28);
+                    perch_count_n(29, *age as usize);
+                } else {
+                    perch_count(14);
+                    perch_count_n(18, *age as usize);
+                }
             }
-            perch_count(15);
+            if !ring {
+                perch_count(15);
+            }
         }
     });
 }
@@ -468,9 +502,9 @@ fn lost_at(closest: f32) {
 // way, an exposed climb, calls with a candidate, calls that took a perch.
 #[cfg(test)]
 thread_local! {
-    static PERCHED: std::cell::Cell<[u64; 27]> = const { std::cell::Cell::new([0; 27]) };
+    static PERCHED: std::cell::Cell<[u64; 33]> = const { std::cell::Cell::new([0; 33]) };
     static PERCH_LEFT: std::cell::RefCell<std::collections::BTreeMap<String, u32>> = const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
-    static PERCH_GOALS: std::cell::RefCell<std::collections::HashMap<usize, (Vec<Vec3>, bool, u32, f32, Option<Option<super::PlayKind>>, bool)>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    static PERCH_GOALS: std::cell::RefCell<std::collections::HashMap<usize, (Vec<Vec3>, bool, u32, f32, Option<Option<super::PlayKind>>, bool, bool)>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
 #[cfg(test)]
@@ -495,7 +529,7 @@ fn perch_count(_: usize) {}
 
 /// The counts of `perch_first` so far ([`perch_count`]).
 #[cfg(test)]
-pub fn perch_counts() -> [u64; 27] {
+pub fn perch_counts() -> [u64; 33] {
     PERCHED.with(|c| c.get())
 }
 
