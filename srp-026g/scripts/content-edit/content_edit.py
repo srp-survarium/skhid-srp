@@ -67,7 +67,11 @@ Edits (edits.json):
                     table `key` (a path in the entry) of strings or numbers gets `value` after its
                     items, made like its first item (an anomaly's `artefact_containers`); applied after
                     add_entry, before remove_entry
-  "remove_entry":   [{"file", "list", "where"}]        the one entry of the indexed table `list` whose keys
+  "append_item":    [{"file", "path", "value"}]        `value` after the items of the indexed table `path` of
+                                                       strings or numbers (an item's
+                                                       `default_modifications`), made like its first item;
+                                                       applied after add_item
+  "remove_entry":  [{"file", "list", "where"}]        the one entry of the indexed table `list` whose keys
                                                        match `where` taken out (a scene's object, model or
                                                        collision); the later entries move down in place, the
                                                        count drops by 1. Applied last: the paths of the edits
@@ -564,10 +568,22 @@ def add_item(buf, path, where, key, value):
     if len(hit) != 1:
         raise ValueError('%s: %d entries match %r, not 1' % (path, len(hit), where))
     table = find(buf, key, children(buf, lst)[hit[0]])
+    return hit[0], push_item(buf, table, value, '%s[%d]/%s' % (path, hit[0], key))
+
+
+def append_item(buf, path, value):
+    """`value` after the items of the indexed table `path` (an item's `default_modifications`), a
+    record like its first item. Returns the new item's index."""
+    return push_item(buf, find(buf, path), value, path)
+
+
+def push_item(buf, table, value, where):
+    """`value` after the items of the indexed table at offset `table` (`where` in errors), a record
+    like its first item: a string, an int or a float, as that item is. Returns its index."""
     d, i, crc, t, cnt = rec(buf, table)
-    items = children(buf, table)
-    if t != T_INDEXED or not items:
-        raise ValueError('%s[%d]/%s is not an indexed table with items' % (path, hit[0], key))
+    items = children(buf, table) if t == T_INDEXED else []
+    if not items:
+        raise ValueError('%s is not an indexed table with items' % where)
     _, ii, icrc, it, icnt = rec(buf, items[0])
     if it == T_STR and isinstance(value, str):
         text = value.encode()
@@ -577,10 +593,10 @@ def add_item(buf, path, where, key, value):
     elif it == T_FLOAT and isinstance(value, (int, float)) and not isinstance(value, bool):
         new = REC.pack(struct.unpack('<I', struct.pack('<f', value))[0], ii, icrc, it, icnt)
     else:
-        raise ValueError('%s[%d]/%s holds items of type %d, not %r' % (path, hit[0], key, it, value))
+        raise ValueError('%s holds items of type %d, not %r' % (where, it, value))
     old = [bytes(buf[c:c + 24]) for c in items]
     REC.pack_into(buf, table, append_array(buf, old + [new]), i, crc, t, cnt + 1)
-    return hit[0], cnt
+    return cnt
 
 
 def unshifted(path, lst, at):
@@ -808,6 +824,13 @@ def main():
     for e in edits.get('add_item', []):
         at, k = add_item(buf(e['file']), e['list'], e['where'], e['key'], e['value'])
         table = '/%s[%d]/%s' % (e['list'], at, e['key'])
+        added.setdefault(e['file'], []).append('%s[%d]' % (table, k))
+        grown.setdefault(e['file'], {}).setdefault(table, 0)
+        grown[e['file']][table] += 1
+        print('item %s += %s' % (table, json.dumps(e['value'], ensure_ascii=False)))
+    for e in edits.get('append_item', []):
+        k = append_item(buf(e['file']), e['path'], e['value'])
+        table = '/' + e['path']
         added.setdefault(e['file'], []).append('%s[%d]' % (table, k))
         grown.setdefault(e['file'], {}).setdefault(table, 0)
         grown[e['file']][table] += 1

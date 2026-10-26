@@ -120,6 +120,26 @@ class MapEditorEdits(unittest.TestCase):
             self.assertEqual(ce.items_of(data, 'objects[0]/containers'), ['b', 'c'])
             self.assertEqual(value(data, 'objects[1]/full_name'), 'second')
 
+    def test_cli_appends_an_item_to_a_root_table(self):
+        # An item's default_modifications: an indexed table of ints at the root.
+        live = config({'default_modifications': [1094], 'parameters': {'type': 'booster'}})
+        edits = {'append_item': [{'file': 'item', 'path': 'default_modifications', 'value': 1165}]}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'live').mkdir()
+            (root / 'live/item').write_bytes(live)
+            (root / 'edits.json').write_text(json.dumps(edits))
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                     str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('0 unexpected differences', result.stdout)
+            data = bytearray((root / 'out/item').read_bytes())
+            self.assertEqual(ce.items_of(data, 'default_modifications'), [1094, 1165])
+            self.assertEqual(value(data, 'parameters/type'), 'booster')
+        with self.assertRaises(ValueError):  # a text where the table holds ints
+            ce.append_item(bytearray(live), 'default_modifications', 'x')
+
 
 if __name__ == '__main__':
     unittest.main()
