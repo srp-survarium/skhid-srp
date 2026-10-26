@@ -14,7 +14,7 @@
 # has the old file or the new, never half of one). A folder it makes (mapdata/
 # on a volume that never had one) takes srp.db's owner too: srp writes its
 # built grids and trees there. Nothing is changed unless every staged file
-# is there.
+# is there, and it refuses to run when bot-data.log is there already.
 set -eu
 dir=${1:-}
 vol=${2:-}
@@ -27,6 +27,12 @@ test -f "$ref" || { echo "$ref is not there: nothing was put" >&2; exit 1; }
 while read -r path; do
     test -f "$dir/bot-data/$path" || { echo "$dir/bot-data/$path is missing: nothing was put" >&2; exit 1; }
 done <"$dir/bot-data.list"
+# A second run would empty the log and copy the new files over the backups:
+# the record of what the rollback must put back would be lost.
+if test -e "$dir/bot-data.log"; then
+    echo "$dir/bot-data.log is there already: the files were put (or half put) once, and a second run would lose what the rollback needs: nothing was put" >&2
+    exit 1
+fi
 : >"$dir/bot-data.log"
 mkdir -p "$dir/old-bot-data"
 while read -r path; do

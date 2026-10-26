@@ -93,9 +93,11 @@ if test "${BOT_DATA:-0}" = 1 && test -f "$dir/bot-data.log"; then
     while read -r what path; do
         case $what in
         replaced)
-            cp -p "$dir/old-bot-data/$path" "$VOLUME_DIR/$path.rollback" && mv -f "$VOLUME_DIR/$path.rollback" "$VOLUME_DIR/$path"
+            cp -p "$dir/old-bot-data/$path" "$VOLUME_DIR/$path.rollback" || { echo "bot data: $path could not be copied back: the rollback stops here (the old file is in $dir/old-bot-data)" >&2; exit 1; }
+            mv -f "$VOLUME_DIR/$path.rollback" "$VOLUME_DIR/$path"
+            rm -f "$VOLUME_DIR/$path.new"
             ;;
-        created) rm -f "$VOLUME_DIR/$path" ;;
+        created) rm -f "$VOLUME_DIR/$path" "$VOLUME_DIR/$path.new" ;;
         esac
     done <"$dir/bot-data.log"
     echo "bot data: the files of the release put back or removed (bot-data.log)"

@@ -204,6 +204,13 @@ release/bot-data add --replace <folder> <path>...  # a newly benched file with o
 release/bot-data list
 ```
 
+**Routes caveat:** on `main`, srp reads a routes table only when `SRP_BOT_ROUTES`
+names one (`driven.rs`); there is no default file and it takes format 1 only,
+while `routes-3d.json` is format 2. So `mapdata/bot-routes.json` is put in the
+volume by the release but is **not read** until `feat/bots-tiers-combined` lands
+(its `DEFAULT_FILE` `<MAPDATA>/bot-routes.json`, formats 1 and 2). The 16
+`.mapdata` files take effect at once.
+
 A new data file (the foliage) is one row; whoever lands its behaviour adds it
 with the PR that benched it. **The maps' built grids and trees** are not
 shipped: `mapdata/built/` is srp's own cache, written by the first match that

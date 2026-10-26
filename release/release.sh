@@ -1147,6 +1147,12 @@ else
         bd_line="the volume could not be read (above): its files are put in as listed"
         BD_TODO=("${!BD_PATH[@]}")
         BOT_DATA=1
+        for i in "${BD_TODO[@]}"; do bd_bytes=$((bd_bytes + BD_SIZE[i])); done
+        if ((target_ok)); then
+            have=$(on_target "df -Pk $D | awk 'NR == 2 { print int(\$4 / 1024) }'" || echo 0)
+            need=$((${SKHID_LIVE_MIN_FREE_MB:-2048} + 2 * bd_bytes / 1048576))
+            if ((have < need)); then problem "free on the $TARGET host: $have MB in $TARGET_DIR, $need wanted with the bots' data (all $((bd_bytes / 1048576)) MB: the volume could not be read, so every file is put)"; fi
+        fi
     fi
 fi
 # The maps' built grids and trees (mapdata/built, srp's own cache, written

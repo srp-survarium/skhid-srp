@@ -9,9 +9,12 @@
 # The maps the lobby offers (lobby-server v026g/pvb.rs MAPS: the day map of
 # all 8 levels in batteries (mode 2) and in team deathmatch (mode 4), the
 # files the benches read), the routes table every bench read (routes-3d.json,
-# the 3D table: play 17, Cut, Crossfire, the K1 spots; srp reads
-# mapdata/bot-routes.json when SRP_BOT_ROUTES is unset), and later the
-# foliage (#544: mapdata/bot-foliage.json). Add a file with
+# the 3D table: play 17, Cut, Crossfire, the K1 spots; on main srp reads a
+# routes table only when SRP_BOT_ROUTES names it (driven.rs): it has no default
+# file and takes format 1 only, routes-3d.json is format 2, so the file is put
+# in the volume now and read once the bots' tiers branch lands (its default file
+# <MAPDATA>/bot-routes.json, formats 1 and 2); the 16 .mapdata files take effect
+# at once), and later the foliage (#544: mapdata/bot-foliage.json). Add a file with
 # `release/bot-data add <folder> <path>[=<name>]`, change one with --replace,
 # and commit the list with the change that was benched.
 mapdata/level_01_day_2.mapdata	1d7e4ef837f2eab231f34b911bd2b6d0d4b7131eac32876b2409836242ac4e17	9998467

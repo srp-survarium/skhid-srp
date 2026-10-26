@@ -1160,6 +1160,8 @@ check "release: ... mode 644" test "$(stat -c %a "$T/volume/mapdata/bot-routes.j
 check "release: the folder says what it did: created, none replaced" bash -c "F=$(folder 12 a); test \"\$(sort \$F/bot-data.log)\" = \"\$(printf 'created mapdata/bot-routes.json\ncreated mapdata/level_t_day_2.mapdata')\" && test -z \"\$(ls -A \$F/old-bot-data)\""
 check "release: ... the rollback is told (BOT_DATA=1)" grep -qx "BOT_DATA=1" "$(folder 12 a)/rollback.env"
 check "release: ... the staged files' sha256 are in new.sha" grep -q "bot-data/mapdata/bot-routes.json" "$(folder 12 a)/new.sha"
+expect_refused "release: bot-data.sh run again on a folder with its log refuses, the log and the volume as they were" "bot-data.log is there already"     sh "$(folder 12 a)/bot-data.sh" "$(folder 12 a)" "$T/volume"
+check "release: ... the log still says what the first run did" test "$(wc -l <"$(folder 12 a)/bot-data.log")" = 2
 check "release: says the built maps are not pre-built (srp has no command)" has "$out" "srp has no pre-build command"
 check "release: the maintenance ended with the restart" test ! -e "$T/state/maint"
 check "release: took the lock on the jump host" grep -q "^ssh jump mkdir $T/lock" "$T/args"
