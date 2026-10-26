@@ -109,12 +109,18 @@ pub fn lagging<'a>(cx: &Ctx<'a>) -> Option<&'a PlaceView> {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
-    if cx.me.carrying.is_some() {
+    if cx.me.carrying.is_some() || given_up(cx) {
         return;
     }
     if let Some(leader) = leader(cx) {
         out.extend(cx.candidate(PlayKind::Buddy, TargetRef::Place(leader.place), None));
     }
+}
+
+/// Given up in its pocket (`think.shut_in_gate`): it cannot follow anyone out of it, so it is not
+/// offered the play (taken, it ended at its first step, and the next poll took it again).
+fn given_up(cx: &Ctx) -> bool {
+    cx.tuning.think.shut_in_gate && cx.trapped().is_some_and(|t| t.gave_up)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -197,6 +203,9 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     let TargetRef::Place(place) = target else {
         return Step::Failed("no partner");
     };
+    if given_up(cx) {
+        return Step::Done("shut in its pocket");
+    }
     let Some(him) = cx
         .view
         .place(place)
@@ -321,6 +330,24 @@ mod tests {
         assert!(lagging(&s.cx(0)).is_some());
         s.paired = false;
         assert!(lagging(&s.cx(0)).is_none());
+    }
+
+    /// A bot given up in its pocket is not offered the follow (`think.shut_in_gate`): offered, it took the play,
+    /// the step ended it, and the next poll took it again (Buddy to Buddy, 817 times in 8 matches of the train).
+    #[test]
+    fn a_bot_given_up_in_its_pocket_is_not_offered_the_follow() {
+        use crate::v026g::bots::escape::Trapped;
+        let offers_buddy = |s: &Scenario| s.candidates(2).iter().any(|c| c.kind == PlayKind::Buddy);
+        let mut s = pair(40.0);
+        let since = s.view.clock;
+        s.tactics.escapes.set_trapped_for_test(2, Some(Trapped { since, gave_up: true }));
+        assert!(offers_buddy(&s), "switch off: the old offer");
+        s.tuning.think.shut_in_gate = true;
+        assert!(!offers_buddy(&s), "given up: no offer");
+        s.tactics.escapes.set_trapped_for_test(2, Some(Trapped { since, gave_up: false }));
+        assert!(offers_buddy(&s), "still trying: offered");
+        s.tactics.escapes.set_trapped_for_test(2, None);
+        assert!(offers_buddy(&s), "free: offered");
     }
 
     #[test]

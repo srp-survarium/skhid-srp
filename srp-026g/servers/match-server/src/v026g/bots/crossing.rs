@@ -38,6 +38,7 @@
 
 use mapdata::{NodeId, Vec3};
 
+use super::features::{Feature, Life};
 use super::path::{self, Route};
 use super::route_filter::RouteFilter;
 use super::plays::collect::{bears, CROSS_ABORT_LEFT, CROSS_MPS, CROSS_STEP_M};
@@ -549,5 +550,26 @@ mod tests {
         // Off the patch the field is no ring.
         let west = grid.locate(WEST, 1.5).unwrap();
         assert!(!ringed.ringed(west, 0, Some(0), false, ring_floors()));
+    }
+}
+
+/// A bot's crossing state, by feature ([`super::features`]): the answer of its route search that went on over
+/// several polls ([`Pending`]) and the goal and the plain route it kept.
+#[derive(Default)]
+pub struct BotState {
+    /// The goal, the route or none, and whether the route is a crossing. Taken at its next tick, and used if it
+    /// still heads there.
+    pub found: Option<(Vec3, Option<Route>, bool)>,
+    /// The goal its route crosses zones on all match to: while it heads there, those zones' floors are not
+    /// escaped from nor shut its route ahead.
+    pub goal: Option<Vec3>,
+    /// A goal a crossing's search for a long plain route kept the plain one to, and until when such a search is
+    /// not made again to a goal near it (`LONG_RETRY_MS`).
+    pub long_kept: Option<(Vec3, u32)>,
+}
+
+impl Feature for BotState {
+    fn new_life(&mut self, _life: &Life) {
+        *self = Self::default();
     }
 }

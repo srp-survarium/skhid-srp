@@ -20,8 +20,34 @@ use super::kin::{forward, wrap};
 use super::aimpoint::Part;
 use super::know::{KnownBattery, LookOutcome, Miss, Percept, Source, TeamKnowledge};
 use super::rng::Rng;
-use super::tuning::{CheatTuning, SenseTuning};
+use super::tuning::{CheatTuning, HearingRanges, SenseTuning};
 use super::view::{MatchView, Place, PlaceView, SoundKind};
+
+/// A step's and a sprint's cull in the data, metres (`steps.spl`, where its
+/// gain reaches 0: PROVEN, the file).
+pub const STEP_CULL_M: f32 = 17.0;
+/// A reload's cull, metres (`weapons_reloading.spl`: PROVEN, the file).
+pub const RELOAD_CULL_M: f32 = 9.0;
+
+/// How far from `from` a sound at `at` is, by the ranges in force.
+fn hearing_distance(ranges: HearingRanges, from: Vec3, at: Vec3) -> f32 {
+    match ranges {
+        HearingRanges::Flat => from.distance_xz(at),
+        HearingRanges::Game { .. } => (from - at).length(),
+    }
+}
+
+/// The range a sound of `kind` carries: `base` times the hearing cheat,
+/// and under the game's ranges never past the sound's cull.
+fn sound_range(ranges: HearingRanges, kind: SoundKind, base: f32, hearing: f32) -> f32 {
+    let range = hearing * base;
+    match (ranges, kind) {
+        (HearingRanges::Flat, _) => range,
+        (HearingRanges::Game { .. }, SoundKind::Sprint | SoundKind::Jump) => range.min(STEP_CULL_M),
+        (HearingRanges::Game { .. }, SoundKind::Reload) => range.min(RELOAD_CULL_M),
+        (HearingRanges::Game { .. }, _) => range,
+    }
+}
 
 /// Places whose starved rays are counted one by one; later ones in the last.
 pub const STARVED_PLACES: usize = 32;
@@ -294,14 +320,14 @@ pub fn sense_looks(
         if enemy.team == me.team {
             continue;
         }
-        let range = hearing
-            * match sound.kind {
-                SoundKind::Shot => tuning.shot_m,
-                SoundKind::Sprint | SoundKind::Jump => tuning.sprint_m,
-                SoundKind::Reload | SoundKind::Switch => tuning.reload_m,
-                SoundKind::Use => tuning.use_m,
-            };
-        let distance = sound.at.distance_xz(me.feet);
+        let base = match sound.kind {
+            SoundKind::Shot => tuning.shot_m,
+            SoundKind::Sprint | SoundKind::Jump => tuning.sprint_m,
+            SoundKind::Reload | SoundKind::Switch => tuning.reload_m,
+            SoundKind::Use => tuning.use_m,
+        };
+        let range = sound_range(tuning.ranges, sound.kind, base, hearing);
+        let distance = hearing_distance(tuning.ranges, me.feet, sound.at);
         if distance > range
             || out
                 .iter()
@@ -324,13 +350,23 @@ pub fn sense_looks(
     // not seen and not heard otherwise at this think.
     if tuning.step_m > 0.0 {
         for enemy in &view.places {
-            let distance = enemy.feet.distance_xz(me.feet);
+            let distance = hearing_distance(tuning.ranges, me.feet, enemy.feet);
+            // A crouched mover is heard only under the game's ranges, within
+            // the crouched step's; one upright within `step_m`.
+            let crouched = enemy.keys & crate::v026g::drive::key::CROUCH != 0;
+            let step_m = match (tuning.ranges, crouched) {
+                (_, false) => Some(tuning.step_m),
+                (HearingRanges::Flat, true) => None,
+                (HearingRanges::Game { crouch_step_m }, true) => Some(crouch_step_m),
+            };
+            let Some(step_m) = step_m else {
+                continue;
+            };
             if !enemy.alive
                 || !enemy.present
                 || enemy.team == me.team
-                || distance > tuning.step_m * hearing
+                || distance > sound_range(tuning.ranges, SoundKind::Sprint, step_m, hearing)
                 || enemy.speed() <= tuning.step_speed
-                || enemy.keys & crate::v026g::drive::key::CROUCH != 0
                 || out.iter().any(|p| p.who == enemy.place)
             {
                 continue;
@@ -570,6 +606,7 @@ mod tests {
             world_time: 0,
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
         }
     }
 
@@ -725,6 +762,87 @@ mod tests {
             &mut Rng::new(1),
         );
         assert!(percepts.is_empty(), "{percepts:?}");
+    }
+
+    /// The places heard (not seen) by bot 0 at the origin, by `ranges`, with
+    /// the hearing cheat at `hearing`.
+    fn heard_by(ranges: HearingRanges, hearing: f32, view: &MatchView, who: &[Place]) -> Vec<Place> {
+        let me = place(0, 0, Vec3::ZERO, 0.0);
+        let tuning = SenseTuning {
+            ranges,
+            ..SenseTuning::default()
+        };
+        let cheats = CheatTuning {
+            hearing,
+            ..CheatTuning::default()
+        };
+        sense(
+            &me,
+            view,
+            &RayTree::build(&[]),
+            &tuning,
+            &cheats,
+            500,
+            who,
+            &mut RayBudget::new(10),
+            &mut Rng::new(1),
+        )
+        .iter()
+        .filter(|p| p.source == Source::Heard)
+        .map(|p| p.who)
+        .collect()
+    }
+
+    /// H1b: under the game's ranges a crouched mover is heard within the
+    /// crouched step's range, by the distance in 3D; flat, never.
+    #[test]
+    fn a_crouched_mover_is_heard_within_the_crouched_steps_range_in_3d_only_under_the_game_ranges() {
+        let crouch = crate::v026g::drive::key::CROUCH;
+        let mover = |p: Place, at: Vec3, keys: u32| PlaceView {
+            velocity: [2.5, 0.0],
+            keys,
+            ..place(p, 1, at, 0.0)
+        };
+        let game = HearingRanges::Game { crouch_step_m: 4.5 };
+        let view = view(
+            vec![
+                place(0, 0, Vec3::ZERO, 0.0),
+                mover(1, Vec3::new(0.5, 0.0, -4.0), crouch),
+                mover(2, Vec3::new(0.5, 0.0, -6.0), crouch),
+                // 4 m across and 3.4 m under: 5.2 m in 3D.
+                mover(3, Vec3::new(0.5, -3.4, -4.0), crouch),
+                mover(4, Vec3::new(0.5, 0.0, -7.0), 0),
+                mover(5, Vec3::new(0.5, 0.0, -9.0), 0),
+            ],
+            vec![],
+        );
+        let all = [1, 2, 3, 4, 5];
+        assert_eq!(heard_by(game, 1.0, &view, &all), vec![1, 4]);
+        // Flat: the crouched are never heard, the upright within 8 m by the ground distance.
+        assert_eq!(heard_by(HearingRanges::Flat, 1.0, &view, &all), vec![4]);
+    }
+
+    /// H1b: the cheat's 1.25 never takes a sound past its cull under the
+    /// game's ranges (a sprint 17 m, a reload 9 m); flat, it does.
+    #[test]
+    fn the_hearing_cheat_stops_at_the_cull_under_the_game_ranges() {
+        let sound = |kind: SoundKind, z: f32| Sound {
+            from: 1,
+            kind,
+            at: Vec3::new(0.0, 0.0, z),
+            time: 600,
+        };
+        let view = |sounds: Vec<Sound>| view(vec![place(0, 0, Vec3::ZERO, 0.0), place(1, 1, Vec3::new(0.0, 0.0, -50.0), 0.0)], sounds);
+        let game = HearingRanges::Game { crouch_step_m: 4.5 };
+        let heard = |ranges, kind, z| !heard_by(ranges, 1.25, &view(vec![sound(kind, z)]), &[1]).is_empty();
+        // A sprint at 16.5 m is heard (15 x 1.25 = 18.75 flat, 17 under the game's), one at 17.5 only flat.
+        assert!(heard(game, SoundKind::Sprint, 16.5));
+        assert!(!heard(game, SoundKind::Sprint, 17.5));
+        assert!(heard(HearingRanges::Flat, SoundKind::Sprint, 17.5));
+        // A reload at 8.5 m is heard, at 9.5 m only flat (10 x 1.25 = 12.5).
+        assert!(heard(game, SoundKind::Reload, 8.5));
+        assert!(!heard(game, SoundKind::Reload, 9.5));
+        assert!(heard(HearingRanges::Flat, SoundKind::Reload, 9.5));
     }
 
     fn spawner(x: f32, z: f32) -> mapdata::BatterySpawner {

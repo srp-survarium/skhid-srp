@@ -154,6 +154,8 @@ va	name	source	ret_cleanup	result
 0x0004fbd0	vostok::vfs::physical_path_mounter::mount_root	manual	4	
 0x000573c0	vostok::math::float4x4::create_translation	manual	0	EAX = the matrix: identity rotation, the vector in row 3 (row-vector, v * M)
 0x0005afe0	vostok::sound::sound_instance_proxy_internal::stop	manual	0	
+0x0005cb00	vostok::sound::new_sound_propagator::new_sound_propagator	manual	4	
+0x0005cff0	vostok::sound::sound_scene::emit_sound_propagators_impl	manual	4,12	callees only vostok::math::ceil, the 80-byte node allocator, vostok::logging (has_passed_filters, log_message) and new_sound_propagator (0x5CB00): no ray, collision or physics call (a sound is not occluded when emitted)
 0x000621b0	vostok::render::animated_model_instance_cook::delete_resource	manual	4	
 0x00067089		auto	0	
 0x0006771c		auto	0	
@@ -1137,6 +1139,7 @@ va	name	source	ret_cleanup	result
 0x002d9b90	survarium::base_player::hit_impl	manual	8	
 0x002daf60	survarium::base_player::serialize	manual	16	
 0x002db490	survarium::base_player::deserialize	manual	28	
+0x002dbf40	survarium::base_player::can_sprint	manual	4	AL = the body may sprint: false when the byte at [[player+108h]+388h] or player+738h is set, is_overburdened (0x329C60) is true, the held item (player+128h, vtable+60h) says no (a battery does), the state flag mask 0x20 test (0x2D5CD0) is set, the stamina at player+300h is not above the constant at 0x927DF8 (0x39010), or the byte [[player+494h]+202h] is clear
 0x002dc0b0	survarium::base_player::set_spotted	manual	4	
 0x002dc0c0	survarium::base_player::can_be_spotted_by	manual	4	AL: 1 when the spotter's team differs from this player's
 0x002df0d0	survarium::weapon_core::weapon_core	manual	12	
@@ -1232,8 +1235,13 @@ va	name	source	ret_cleanup	result
 0x00303c10	survarium::grenade_core::add_to_physics_world	manual	8	
 0x00303da0	survarium::grenade_core::serialize	manual	8	
 0x00303f80	survarium::grenade_core::deserialize	manual	12	
+0x00304bd0	survarium::booby_trap_core::on_enter	manual	8	
+0x00304f30	survarium::booby_trap_core::use_execute	manual	12	AL = still in use
 0x003052e0	survarium::booby_trap_core::serialize	manual	8	
 0x003053c0	survarium::booby_trap_core::deserialize	manual	12	
+0x00305ea0	survarium::booby_trap_set_core::try_to_place_trap	manual	4	AL = a trap was placed
+0x00306490	survarium::booby_trap_set_core::get_visible_place_transform	manual	20	AL = a place was found; the 64-byte transform is written through a stack pointer argument
+0x00306720	survarium::booby_trap_set_core::action	manual	8	
 0x00309f00	survarium::grenade_set_core::hand_transform	manual	4	EAX: the out pointer (the hand matrix written there)
 0x0030a120	survarium::grenade_set_core::start_throw	manual	8	AL: the slot; the explosion time goes to the grenade's vtable+0x10 (0x248460: time, id, owner node, 0)
 0x0030a250	survarium::grenade_set_core::launch_grenade	manual	12	

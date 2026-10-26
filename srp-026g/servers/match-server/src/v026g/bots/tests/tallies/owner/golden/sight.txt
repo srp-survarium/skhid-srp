@@ -1,0 +1,85 @@
+owner-test sight fire: runs 463 over 35 s held (lengths 1 tick 306 2 101 3-4 53 5+ 3); ended by target_died 10 not_run 453
+  owner-test sight gaps: after runs that ended with the target alive (34 s held), per 100 s held: 1-2 ticks 705.882 3-4 279.412 5-8 161.765 9-20 35.294; pause-sized (3+ ticks) 476.471
+  owner-test sight kills: 0 by a gun; fire to kill (first fire tick of the last burst) q1/med/q3 by class none
+  owner-test sight lapses: target sights lost 2152 (182.218 a bot-minute): visible 416 range 0 cone 1584 blocked 152; by the target's ping band <20 2152 20-60 0 60-150 0 150+ 0; runs cut by a lapse 0, by band <20 0 20-60 0 60-150 0 150+ 0
+{
+  "sight_cuts_by_ping_band": {
+    "150+": 0,
+    "20-60": 0,
+    "60-150": 0,
+    "<20": 0
+  },
+  "sight_fire_held_s": 35.0,
+  "sight_fire_runs": 463,
+  "sight_fire_to_kill_ms_by_class": {},
+  "sight_gap_held_s": 34.0,
+  "sight_gaps_per_100s_held": {
+    "1-2": 705.882,
+    "3-4": 279.412,
+    "5-8": 161.765,
+    "9-20": 35.294
+  },
+  "sight_gun_kills": 0,
+  "sight_lapse_causes": {
+    "blocked": 152,
+    "cone": 1584,
+    "range": 0,
+    "visible": 416
+  },
+  "sight_lapse_causes_per_min": {
+    "blocked": 12.87,
+    "cone": 134.124,
+    "range": 0.0,
+    "visible": 35.224
+  },
+  "sight_lapses_by_ping_band": {
+    "150+": 0,
+    "20-60": 0,
+    "60-150": 0,
+    "<20": 2152
+  },
+  "sight_pause_gaps_per_100s_held": 476.471,
+  "sight_presses_per_kill_by_class": {},
+  "sight_run_ends": {
+    "not_run": 453,
+    "target_died": 10
+  },
+  "sight_run_ends_per_100s_held": {
+    "not_run": 1297.994,
+    "target_died": 28.653
+  },
+  "sight_run_lengths": [
+    306,
+    101,
+    53,
+    3
+  ],
+  "sight_runs_by_bot": {
+    "0": [
+      78,
+      118
+    ],
+    "1": [
+      83,
+      140
+    ],
+    "2": [
+      64,
+      97
+    ],
+    "3": [
+      87,
+      122
+    ],
+    "4": [
+      81,
+      116
+    ],
+    "5": [
+      70,
+      105
+    ]
+  },
+  "sight_target_lapses": 2152,
+  "sight_target_lapses_per_min": 182.218
+}

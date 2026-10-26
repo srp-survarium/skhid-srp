@@ -36,17 +36,21 @@ pub mod crossing;
 pub mod curve;
 pub mod encode;
 pub mod escape;
+pub mod foliage;
 pub mod friends;
+pub mod grenade_threat;
 pub mod guns;
 pub mod hazards;
 #[cfg(feature = "jump-test")]
 pub mod jump_test;
 pub mod kin;
 pub mod know;
+pub mod live_grenades;
 pub mod maps;
 pub mod motor;
 pub mod path;
 pub mod plays;
+pub mod pools;
 pub mod recoil;
 pub mod reflex;
 pub mod rng;
@@ -55,50 +59,101 @@ pub mod route_filter;
 pub mod routes;
 pub mod sense;
 pub mod signals;
+pub mod stock;
 pub mod stuck;
 pub mod tactics;
 pub mod team;
+pub mod threat;
 pub mod trace;
+pub mod trap_know;
+pub mod trap_react;
+pub mod traps;
 pub mod tuning;
 pub mod view;
 
 mod commander;
 mod drive;
 mod facts;
+mod features;
+mod layers;
 mod polls;
 mod search;
 mod think;
 
 use std::sync::Arc;
 
-use mapdata::{NodeId, Vec3, World};
-use survarium::v026g::loadouts::{BotRole, BotTier};
+use mapdata::NodeId;
+use mapdata::Vec3;
+use mapdata::World;
+use survarium::v026g::loadouts::BotEquipment;
+use survarium::v026g::loadouts::BotRole;
+use survarium::v026g::loadouts::BotTier;
+use survarium::v026g::loadouts::RusherKits;
 use survarium::v026g::match_msgs::PlayerInput;
 
-use crate::v026g::drive::{half_value, key};
+use crate::v026g::drive::half_value;
+use crate::v026g::drive::key;
 use body::Fix;
 use cheats::CheatClock;
-use encode::{Decision, Encoder};
-use know::{DangerSpot, LookSpot, Loss, Memory, Percept, Source, TeamKnowledge, Theft};
-use motor::{Hurt, JumpBy, Motor, Pose, RoutePress, Walked};
-use path::Route;
-use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
-use reflex::Reflex;
-use route_end::RouteEnd;
-use route_filter::RouteFilter;
-use rng::Rng;
-use sense::RayBudget;
-use signals::{Duel, MatchSignals, Mods, Skill};
-use stuck::{Recovery, Stuck, TeamSpots};
-use tactics::Tactics;
-use team::{Asking, Assignment};
-use trace::Trace;
-use tuning::Tuning;
-use view::{BatteryState, Clock, MatchView, Place, PlaceView, Tracker, WorldFacts};
 use commander::*;
 use drive::*;
+use encode::Decision;
+use encode::Encoder;
+use features::BotFeatures;
+use features::Life;
+use features::MatchFeatures;
+use features::TeamFeatures;
+use know::DangerSpot;
+use know::LookSpot;
+use know::Loss;
+use know::Memory;
+use know::Percept;
+use know::Source;
+use know::TeamKnowledge;
+use know::Theft;
+use layers::MapLayers;
+use motor::Hurt;
+use motor::JumpBy;
+use motor::Motor;
+use motor::Pose;
+use motor::RoutePress;
+use motor::Walked;
+use path::Route;
+use plays::BotFacts;
+use plays::Ctx;
+use plays::Go;
+use plays::Intent;
+use plays::Look;
+use plays::Pace;
+use plays::PlayKind;
+use plays::Running;
+use plays::Step;
 use plays::goals::goal_shut;
+use pools::Pools;
+use reflex::Reflex;
+use rng::Rng;
+use route_end::RouteEnd;
+use route_filter::RouteFilter;
 use search::*;
+use sense::RayBudget;
+use signals::Duel;
+use signals::MatchSignals;
+use signals::Mods;
+use signals::Skill;
+use stuck::Recovery;
+use stuck::Stuck;
+use tactics::Tactics;
+use team::Asking;
+use team::Assignment;
+use trace::Trace;
+use tuning::Tuning;
+use view::BatteryState;
+use view::Clock;
+use view::MatchView;
+use view::Place;
+use view::PlaceView;
+use view::Tracker;
+use view::WorldFacts;
 
 /// From a bot's entry to its first move, ms.
 const START_AFTER_MS: u32 = 2_000;
@@ -135,6 +190,13 @@ pub struct Bot {
     /// longest unchecked is looked at first (`sense::look_order`).
     tested: Vec<u32>,
     stuck: Stuck,
+    /// Its last resort when nothing is left to try (`stuck::SelfKill`), and
+    /// when it last used it (any life).
+    self_kill: stuck::SelfKill,
+    self_killed_at: Option<u32>,
+    /// The regions the team's held threat spots see ([`threat`]), told at
+    /// the commander's ticks; its routes keep out of them where they can.
+    threat: Arc<threat::Covered>,
     personality: usize,
     /// The skill it took at its last spawn.
     skill: f32,
@@ -159,12 +221,40 @@ pub struct Bot {
     /// ([`NO_WAY_KEEP_MS`]): a battery ringed by fire is not fetched again
     /// and again, standing.
     no_way_to: Vec<(Vec3, u32)>,
+    /// The lip guard's watch over its own hold on this bot's keys (`drive::LipWatch`).
+    lip_watch: drive::LipWatch,
     /// The bench's stood line (`real_bot_cost`): whether the reflex had the
     /// legs at its last motor tick (a fight, not a route missing), and the
     /// poll clock of that tick (a play taken after it has had no motor
     /// tick yet to plan its route).
     #[cfg(test)]
     pub(crate) bench_legs: bool,
+    /// Which reflex play had the legs at that tick (the falls probe).
+    #[cfg(test)]
+    pub(crate) bench_legs_why: Option<reflex::LegsWhy>,
+    /// The side step of the last motor tick: 0 none, 1 standing and taken, 2 woven into a walk and taken, 3 refused.
+    #[cfg(test)]
+    pub(crate) bench_stepped: u8,
+    /// The lip guard of the last motor tick: 0 not near a lip, 1 keys safe, 2 changed, 3 none safe (braked), 4 planned drop, 5 jumping.
+    #[cfg(test)]
+    pub(crate) bench_guard: u8,
+    #[cfg(test)]
+    pub(crate) bench_guard_dbg: u8,
+    /// How the route was walked at the last motor tick: 0 not, 1 facing the way, 2 aiming (the eight keys).
+    #[cfg(test)]
+    pub(crate) bench_walk: u8,
+    /// The velocity and feet the last guard check was made from.
+    #[cfg(test)]
+    pub(crate) bench_guard_at: ([f32; 2], Vec3),
+    /// The feet the bot reckoned for a tick (known_at ms), the last ten (the falls probe's reckoning error).
+    #[cfg(test)]
+    pub(crate) bench_est: std::collections::VecDeque<(u32, Vec3)>,
+    /// The time of its last route search, for the bench's counts of asks (`search::asks`).
+    #[cfg(test)]
+    pub(crate) bench_asked: search::asks::Asked,
+    /// Whether the last drive tick had it shut in its pocket (`search::asks::Ask::Episodes`).
+    #[cfg(test)]
+    pub(crate) bench_shut_in: bool,
     #[cfg(test)]
     pub(crate) bench_driven: u32,
     /// The bench's stand-in camper (`SRP_BENCH_CAMPER`): it holds its
@@ -207,21 +297,6 @@ pub struct Bot {
     /// Whether its partner has it for partner too (a pair); a team's odd
     /// bot has a partner one way, for its trades only.
     paired: bool,
-    /// Medkits used this life.
-    medkits_used: u8,
-    /// The answer of its route search that went on over several polls
-    /// ([`Pending`]): the goal, the route or none, and whether the route is
-    /// a crossing (`crossing.rs`). Taken at its next tick, and used if it
-    /// still heads there.
-    found: Option<(Vec3, Option<Route>, bool)>,
-    /// The goal its route crosses zones on all match to (`crossing.rs`):
-    /// while it heads there, those zones' floors are not escaped from nor
-    /// shut its route ahead.
-    crossing: Option<Vec3>,
-    /// A goal a crossing's search for a long plain route kept the plain one
-    /// to, and until when such a search is not made again to a goal near it
-    /// (`crossing::LONG_RETRY_MS`).
-    long_kept: Option<(Vec3, u32)>,
     /// Its route searches dropped since it last noted them.
     dropped: path::Dropped,
     /// Its kits by index (the profile's, `survarium::v026g::loadouts::
@@ -234,19 +309,14 @@ pub struct Bot {
     life_carried: u32,
     /// Its role, read from its gear (`Bots::new`'s `roles`).
     role: Option<BotRole>,
-    /// Plays that failed at once at a target, and until when they are not
-    /// taken there again (`plays::SET_ASIDE_MS`).
-    set_aside: Vec<(PlayKind, plays::TargetRef, u32)>,
-    /// What it remembers of giving way to a teammate on a spot
-    /// ([`plays::goals::keep_apart`]).
-    apart: plays::goals::Apart,
-    /// Stands its takes of batteries gave up at lately
-    /// (`plays::collect::FailedStand`): its next take stands elsewhere.
-    failed_stands: Vec<plays::collect::FailedStand>,
     /// The kit of this life, and the one it picked for its next (a kit
     /// choice, 0xF3, takes effect at the spawn).
     kit: usize,
     kit_chosen: usize,
+    /// The resupply holds it finished this match (`Intent::resupplied`).
+    resupplies: u32,
+    /// What each feature keeps of it ([`features`]).
+    features: BotFeatures,
 }
 
 impl Bot {
@@ -272,7 +342,7 @@ impl Bot {
         // What it carries: its role's gear (the lowest tier's until
         // `Bots::with_tiers` says another), else its personality's name as
         // a role (the tests' bots), else the fallback.
-        let kits = Self::kits_of(role, BotTier::Low);
+        let kits = Self::kits_of(role, BotEquipment::of(BotTier::Low, RusherKits::default()));
         let arms = role.and_then(guns::Arms::of_role).or_else(|| {
             tuning
                 .personalities
@@ -295,6 +365,9 @@ impl Bot {
             sight_counts: Default::default(),
             tested: Vec::new(),
             stuck: Stuck::default(),
+            self_kill: stuck::SelfKill::default(),
+            self_killed_at: None,
+            threat: Arc::default(),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
             side: None,
@@ -309,8 +382,27 @@ impl Bot {
             route_end: None,
             no_way: None,
             no_way_to: Vec::new(),
+            lip_watch: drive::LipWatch::default(),
             #[cfg(test)]
             bench_legs: false,
+            #[cfg(test)]
+            bench_legs_why: None,
+            #[cfg(test)]
+            bench_stepped: 0,
+            #[cfg(test)]
+            bench_guard: 0,
+            #[cfg(test)]
+            bench_guard_dbg: 0,
+            #[cfg(test)]
+            bench_walk: 0,
+            #[cfg(test)]
+            bench_guard_at: ([0.0; 2], Vec3::ZERO),
+            #[cfg(test)]
+            bench_est: std::collections::VecDeque::new(),
+            #[cfg(test)]
+            bench_asked: Default::default(),
+            #[cfg(test)]
+            bench_shut_in: false,
             #[cfg(test)]
             bench_driven: 0,
             #[cfg(test)]
@@ -336,37 +428,32 @@ impl Bot {
             last_trace: 0,
             partner: None,
             paired: false,
-            medkits_used: 0,
-            found: None,
-            crossing: None,
-            long_kept: None,
             dropped: path::Dropped::default(),
             kits,
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
-            set_aside: Vec::new(),
-            apart: Default::default(),
-            failed_stands: Vec::new(),
             kit: 0,
             kit_chosen: 0,
+            resupplies: 0,
+            features: BotFeatures::default(),
         }
     }
 
-    /// The kits of a bot of `role` (a personality's name) in `tier`, each
-    /// with its whole storage; none for no role.
-    fn kits_of(role: Option<&str>, tier: BotTier) -> Vec<(&'static guns::Arms, u32)> {
+    /// The kits of a bot of `role` (a personality's name) with `equipment`,
+    /// each with its whole storage; none for no role.
+    fn kits_of(role: Option<&str>, equipment: BotEquipment) -> Vec<(&'static guns::Arms, u32)> {
         role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role))
-            .map(|role| guns::Arms::kits_of(tier, role))
+            .map(|role| guns::Arms::kits_of(equipment, role))
             .unwrap_or_default()
             .into_iter()
             .map(|arms| (arms, arms.reserve))
             .collect()
     }
 
-    /// Its kits are those of `tier` (its role's): each full, the first in
-    /// hand. For a bot made before its life begins.
-    fn arm(&mut self, tier: BotTier) {
-        let kits = Self::kits_of(self.role.map(BotRole::name), tier);
+    /// Its kits are those of `equipment` (its role's): each full, the first
+    /// in hand. For a bot made before its life begins.
+    fn arm(&mut self, equipment: BotEquipment) {
+        let kits = Self::kits_of(self.role.map(BotRole::name), equipment);
         if kits.is_empty() {
             return;
         }
@@ -376,6 +463,32 @@ impl Bot {
         let (arms, reserve) = self.kits[0];
         self.life_carried = reserve.min(arms.primary.1);
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
+    }
+
+    /// Its weapon 1's ammo and what a resupply could bring it to; none for
+    /// a bot of no role.
+    pub fn ammo(&self) -> guns::Ammo {
+        let Some(&(arms, _)) = self.kits.get(self.kit) else {
+            return guns::Ammo::default();
+        };
+        let have = self.reflex.left();
+        guns::Ammo {
+            have,
+            whole: arms.primary.1,
+            storage: self.kit_left(self.kit).saturating_sub(have),
+        }
+    }
+
+    /// A resupply zone's top-up came: the rounds go from the kit's storage
+    /// to the stack (what the kit has for the match is the same), and how
+    /// many.
+    fn top_up(&mut self) -> u32 {
+        let take = self.ammo().missing();
+        if take > 0 {
+            self.reflex.top_up(take);
+            self.life_carried += take;
+        }
+        take
     }
 
     /// The rounds kit `i` has left for the match: the present kit's
@@ -436,6 +549,21 @@ impl Bot {
         &tuning.personalities[self.personality.min(tuning.personalities.len() - 1)]
     }
 
+    /// The kind of its weapon 1: the one the match gave its place
+    /// (`weapons`, the kit it wears: an SMG rusher is an SMG), else its
+    /// personality's name as a role (the tests' bots, whose place has none).
+    fn weapon(
+        &self,
+        weapons: &[Option<reflex::WeaponKind>],
+        tuning: &Tuning,
+    ) -> Option<reflex::WeaponKind> {
+        weapons
+            .get(self.place)
+            .copied()
+            .flatten()
+            .or_else(|| reflex::WeaponKind::of_role(&self.personality(tuning).name))
+    }
+
     /// The commander gave it play `next`: the running play stops, and its
     /// cooldown counts from now. A switch to another target of the same
     /// play goes on with it, so the cooldown counts from the play's own end
@@ -474,11 +602,9 @@ impl Bot {
         self.running = None;
         self.assignment = None;
         self.route = None;
-        self.found = None;
-        self.crossing = None;
-        self.long_kept = None;
         self.intent = Intent::stay();
         self.stuck.reset();
+        self.self_kill = stuck::SelfKill::default();
         self.unstick = None;
         self.jump_hold = 0;
         self.fired_at = None;
@@ -499,7 +625,7 @@ impl Bot {
         };
         self.memory = Memory::default();
         self.skill = skill;
-        self.medkits_used = 0;
+        self.features.new_life(&Life { kit: self.kit });
         if self.side.is_none() {
             self.side = tactics.and_then(|tactics| tactics.side_at(feet));
         }
@@ -550,16 +676,10 @@ pub struct Bots {
     teams: [TeamState; 2],
     bots: Vec<Option<Bot>>,
     trace: Trace,
-    /// Every place's weapon 1 kind, where known (play 11).
-    weapons: Vec<Option<reflex::WeaponKind>>,
-    /// The human routes of this map and mode (play 17), till the map is
-    /// built and they are put on its floors.
-    routes: Vec<routes::HumanRoute>,
-    /// This poll's route searches ([`Searching`]).
-    searching: Searching,
-    /// Kit choices made since they were last taken
-    /// ([`Bots::take_kit_choices`]): the place and the kit's index.
-    kit_choices: Vec<(Place, u8)>,
+    /// The map's layers told before the map is built ([`layers`]).
+    layers: MapLayers,
+    /// What each feature keeps of the match ([`features`]).
+    features: MatchFeatures,
     /// Last, so a search left under way is dropped before it.
     _search_memory: SearchMemory,
 }
@@ -585,8 +705,7 @@ impl Bots {
             cheats: CheatClock::default(),
             signals: MatchSignals::default(),
             next_commander: 0,
-            no_way_to: Vec::new(),
-            spots: TeamSpots::default(),
+            features: TeamFeatures::default(),
         };
         let bots = teams
             .iter()
@@ -618,14 +737,8 @@ impl Bots {
             bench_human: None,
             #[cfg(test)]
             bench_camper: None,
-            routes: Vec::new(),
-            weapons: Vec::new(),
-            searching: Searching {
-                left: SEARCHES_PER_POLL,
-                floors: 0,
-                pending: None,
-            },
-            kit_choices: Vec::new(),
+            layers: MapLayers::default(),
+            features: MatchFeatures::default(),
             _search_memory: SearchMemory::hold(),
         }
     }
@@ -652,19 +765,25 @@ impl Bots {
         self
     }
 
-    /// The tier of each bot's gear (`tiers[place]`, read from its profile:
-    /// `survarium::v026g::loadouts::bot_of`): its kits are its role's of
-    /// that tier (`Bots::new` gives the lowest tier's), and the skill
-    /// starts at the highest of them ([`Bots::with_tier`]; the lobby gives
-    /// a match's bots one tier). Before play.
-    pub fn with_tiers(mut self, tiers: &[Option<BotTier>]) -> Self {
-        for (bot, tier) in self.bots.iter_mut().zip(tiers) {
-            if let (Some(bot), Some(tier)) = (bot.as_mut(), tier) {
-                bot.arm(*tier);
+    /// The equipment of each bot's gear (`equipments[place]`, read from its
+    /// profile: `survarium::v026g::loadouts::bot_equipment_of`): its kits
+    /// are its role's of that tier and of the kit that tier's rusher wears
+    /// (`Bots::new` gives the lowest tier's), and the skill starts at the
+    /// highest tier among them ([`Bots::with_tier`]; the lobby gives a
+    /// match's bots one tier). Before play.
+    pub fn with_tiers(mut self, equipments: &[Option<BotEquipment>]) -> Self {
+        for (bot, equipment) in self.bots.iter_mut().zip(equipments) {
+            if let (Some(bot), Some(equipment)) = (bot.as_mut(), equipment) {
+                bot.arm(*equipment);
             }
         }
-        match tiers.iter().flatten().max() {
-            Some(&tier) => self.with_tier(tier),
+        match equipments
+            .iter()
+            .flatten()
+            .map(|equipment| equipment.tier)
+            .max()
+        {
+            Some(tier) => self.with_tier(tier),
             None => self,
         }
     }
@@ -673,7 +792,7 @@ impl Bots {
     /// the index of the kit for its next life, to be relayed as a
     /// player's 0xDE is (0xF3).
     pub fn take_kit_choices(&mut self) -> Vec<(Place, u8)> {
-        std::mem::take(&mut self.kit_choices)
+        std::mem::take(&mut self.features.kit_choices)
     }
 
     /// The speed level each place's profile gives, by place
@@ -683,9 +802,15 @@ impl Bots {
         self.tracker.set_prior_levels(levels);
     }
 
+    /// Every place's pockets (a human's), for the throw keys
+    /// ([`live_grenades`]).
+    pub fn set_pockets(&mut self, pockets: Vec<Option<live_grenades::Pockets>>) {
+        self.tracker.set_pockets(pockets);
+    }
+
     /// Every place's weapon 1 kind (the matchup, play 11).
     pub fn set_weapons(&mut self, weapons: Vec<Option<reflex::WeaponKind>>) {
-        self.weapons = weapons;
+        self.features.weapons = weapons;
     }
 
     pub fn tracker(&self) -> &Tracker {
@@ -701,16 +826,16 @@ impl Bots {
     /// machine: the match server builds the tactics on a thread of its own
     /// ([`Self::tactics_ready`]). Returns a line for the log.
     pub fn map_ready(&mut self, world: Arc<World>) -> String {
-        let tactics = Tactics::new(world, self.tuning.hazard_margin);
+        let tactics = Tactics::new(world, self.tuning.hazard.margin_m.get());
         self.tactics_ready(tactics)
     }
 
     /// [`Self::map_ready`] with the tactics built ([`Tactics::new`] with
-    /// this match's `tuning.hazard_margin`): the routes, the anomalies'
+    /// this match's `tuning.hazard.margin_m`): the routes, the anomalies'
     /// clocks and the containers, a few ms.
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
-        tactics.set_routes(std::mem::take(&mut self.routes));
-        tactics.escape_ceiling = self.tuning.escape_ceiling;
+        std::mem::take(&mut self.layers).attach(&mut tactics);
+        tactics.escape = self.tuning.hazard.escape;
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);
@@ -749,7 +874,12 @@ impl Bots {
     /// The human routes of the match's map and mode (play 17), from
     /// `SRP_BOT_ROUTES`; before [`Self::map_ready`].
     pub fn set_routes(&mut self, table: &routes::RouteTable) {
-        self.routes = table.for_map(self.level, self.mode);
+        self.layers.routes = table.for_map(self.level, self.mode);
+    }
+
+    /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].
+    pub fn set_foliage(&mut self, foliage: foliage::Foliage) {
+        self.layers.foliage = foliage;
     }
 
     pub fn has_map(&self) -> bool {
@@ -828,6 +958,7 @@ impl Bots {
         if self.is_bot(place) {
             return;
         }
+        view::set_live_eye(self.tuning.aim.combat.live_eye);
         self.tracker.lateness(place, late_ms);
         let r = input.rotation;
         let turn = (
@@ -855,8 +986,54 @@ impl Bots {
         }
     }
 
+    /// What the bot at `place` counts of its drugs, for the tests.
+    #[cfg(test)]
+    pub(crate) fn pantry_of(&self, place: Place) -> Option<&stock::Pantry> {
+        self.bots.get(place)?.as_ref().map(|bot| &bot.features.stock.pantry)
+    }
+
+    /// A trusted world's word on one place's health pools (with its body's,
+    /// [`Self::fixed`]): the consumables' need.
+    pub fn pools(&mut self, place: Place, pools: Pools) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.features.stock.pools = Some(pools);
+        }
+    }
+
+    /// A trusted world's word on what one place's kits hold of drugs
+    /// ([`stock::readings`], from `players::Supplies`): the bot's own count
+    /// follows it.
+    pub fn stock(&mut self, place: Place, time: u32, readings: &stock::Readings) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.features.stock.pantry.read(time, readings);
+        }
+    }
+
+    /// The bodies of the jump test's last asked world as the reckoning's worlds: the game passes an asked world on to
+    /// nobody, and with the test asking all the time the bots would get none.
+    #[cfg(feature = "jump-test")]
+    pub fn fix_from_burst(&mut self) -> Vec<Note> {
+        let rows = self.jump_test.as_mut().map(jump_test::JumpTest::take_fresh).unwrap_or_default();
+        let mut notes = Vec::new();
+        for row in rows {
+            let fix = Fix {
+                time: row.time,
+                alive: row.alive,
+                inserted: row.inserted,
+                feet: row.alive.then_some(row.feet),
+                yaw: row.yaw,
+                pitch: row.pitch,
+                keys: row.keys,
+                speed: Some(row.speed),
+            };
+            notes.extend(self.fixed(row.place, fix, None));
+        }
+        notes
+    }
+
     /// A trusted world's word on one place's body.
     pub fn fixed(&mut self, place: Place, fix: Fix, health: Option<f32>) -> Vec<Note> {
+        view::set_live_eye(self.tuning.aim.combat.live_eye);
         let mut notes = Vec::new();
         let (time, feet, keys) = (fix.time, fix.feet, fix.keys);
         let world = self.tactics.as_ref().map(|t| t.world.clone());
@@ -1018,12 +1195,90 @@ impl Bots {
         })
     }
 
+    /// A trusted world's objects section: the bear traps the teams' bots
+    /// promised confirmed, followed and dropped (`trap_know.rs`). Returns
+    /// the traps the world shows (0 while no bot has put one down).
+    pub fn traps_from_world(&mut self, objects: &[u8], time: u32) -> usize {
+        let react = self.tuning.traps.react.on;
+        let own = self.teams.iter().any(|team| !team.knowledge.traps.all().is_empty());
+        if !own && !react {
+            return 0;
+        }
+        let found = survarium::v026g::match_msgs::traps::find(objects, time);
+        // The armed traps of the world, for the bots' notice (off: none).
+        let armed = Arc::new(if react {
+            trap_react::armed_of(&found)
+        } else {
+            Vec::new()
+        });
+        let mut went_off: Vec<(u8, Vec3)> = Vec::new();
+        for (team, state) in self.teams.iter_mut().enumerate() {
+            if own {
+                let fired = state.knowledge.traps.sync(time, &found);
+                went_off.extend(fired.into_iter().map(|at| (team as u8, at)));
+                if let Some(tactics) = self.tactics.as_ref() {
+                    state.refresh_traps(&tactics.world.grid);
+                }
+            }
+            state.features.traps.world_traps = armed.clone();
+        }
+        if !went_off.is_empty() {
+            self.count_own_traps(time, &went_off);
+        }
+        found.len()
+    }
+
+    /// A team's trap went off: counted, and whether a body of the team with
+    /// a broken leg (a catch's mark, PROVEN) stands within
+    /// [`trap_know::CAUGHT_NEAR_M`] of it as the world shows (a proxy: the
+    /// worlds are seconds apart, and a human ally's legs are not known).
+    fn count_own_traps(&mut self, time: u32, went_off: &[(u8, Vec3)]) {
+        let world = self.tactics.as_ref().map(|t| t.world.clone());
+        let clock = Clock {
+            clock: time,
+            time_left_s: 0.0,
+            total_s: 0.0,
+            playing: true,
+        };
+        let view = self
+            .tracker
+            .view(&clock, &self.tuning.kin, world.as_deref());
+        for &(team, at) in went_off {
+            self.features.own_traps.fired += 1;
+            let caught = self.bots.iter().flatten().any(|bot| {
+                bot.team == team
+                    && bot.hurt.leg_broken
+                    && view
+                        .place(bot.place)
+                        .is_some_and(|p| p.feet.distance_xz(at) <= trap_know::CAUGHT_NEAR_M)
+            });
+            self.features.own_traps.own_team_caught += u32::from(caught);
+        }
+    }
+
+    /// How the teams' own traps went off (`trap_know.rs`).
+    pub fn own_trap_counts(&self) -> trap_know::OwnTrapCounts {
+        self.features.own_traps
+    }
+
+    /// The counts of the bots' notice of traps and passes by them, over all
+    /// the bots (`trap_react.rs`).
+    pub fn react_counts(&self) -> trap_react::ReactCounts {
+        let mut sum = trap_react::ReactCounts::default();
+        for bot in self.bots.iter().flatten() {
+            sum.add(&bot.features.traps.react.counts());
+        }
+        sum
+    }
+
     /// The inputs due with the clock at `clock`.
     pub fn poll(&mut self, clock: Clock) -> (Vec<Made>, Vec<Note>) {
+        view::set_live_eye(self.tuning.aim.combat.live_eye);
         let (mut made, mut notes) = (Vec::new(), Vec::new());
         let now = clock.clock;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
-        self.tracker.held_sounds(now);
+        self.tracker.held_sounds(now, self.tuning.sense.sprint_body_mps);
+        self.tracker.launch_grenades(now, world.as_deref());
         if let Some(tactics) = self.tactics.as_mut() {
             tactics.hazards.advance(now);
         }
@@ -1039,8 +1294,8 @@ impl Bots {
         }
         let mut rays = RayBudget::new(self.tuning.think.rays_per_poll);
         rays.thinks_left = self.thinks_due(&view);
-        self.searching.left = SEARCHES_PER_POLL;
-        self.searching.floors = self.tuning.think.search_floors_per_poll as usize;
+        self.features.searching.left = SEARCHES_PER_POLL;
+        self.features.searching.floors = self.tuning.think.search_floors_per_poll as usize;
         self.go_on_searching();
         for index in 0..self.bots.len() {
             if self.bots[index].is_none() {
@@ -1074,7 +1329,7 @@ impl Bots {
                         kit + 1
                     ),
                 );
-                self.kit_choices.push((bot.place, kit as u8));
+                self.features.kit_choices.push((bot.place, kit as u8));
             }
         }
         self.polls.record(now, &rays);
@@ -1141,7 +1396,7 @@ pub(crate) mod why {
 /// with no route (the unstick's back-off and the other places that drop the
 /// route, a search that found none) holds nothing back.
 fn walks_crossing(bot: &Bot) -> Option<Vec3> {
-    bot.crossing.filter(|_| bot.route.is_some())
+    bot.features.crossing.goal.filter(|_| bot.route.is_some())
 }
 
 impl Bot {

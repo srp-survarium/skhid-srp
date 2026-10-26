@@ -26,17 +26,17 @@ pub(crate) fn a_crossing_with_no_route_left_does_not_hold_a_carriers_way_out() {
     let tuning = Tuning::default();
     let mut bot = Bot::new(1, 0, 0, Some("support"), &tuning);
     let home = Vec3::new(10.0, 0.0, 10.0);
-    bot.crossing = Some(home);
+    bot.features.crossing.goal = Some(home);
     assert_eq!(walks_crossing(&bot), None);
     let point = |x: f32| Waypoint {
         at: Vec3::new(x, 0.0, 0.0),
         node: 0,
-        jump: false,
+        jump: None,
         low: false,
     };
     bot.route = Some((Route::new(vec![point(0.0), point(5.0)]), home));
     assert_eq!(walks_crossing(&bot), Some(home));
-    bot.crossing = None;
+    bot.features.crossing.goal = None;
     assert_eq!(walks_crossing(&bot), None);
 }
 

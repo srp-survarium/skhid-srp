@@ -469,6 +469,7 @@ mod tests {
             world_time: 0,
             can_respawn: [true, true],
             next_battery: None,
+            grenades: Vec::new(),
         }
     }
 

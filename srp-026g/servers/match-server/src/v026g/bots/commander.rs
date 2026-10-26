@@ -9,11 +9,65 @@ pub(super) struct TeamState {
     pub(super) cheats: CheatClock,
     pub(super) signals: MatchSignals,
     pub(super) next_commander: u32,
-    /// Goals a bot of the team proved no way to, and until when the
-    /// team's plays leave them ([`TEAM_NO_WAY_KEEP_MS`]).
-    pub(super) no_way_to: Vec<(Vec3, u32)>,
-    /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
-    pub(super) spots: TeamSpots,
+    /// What each feature keeps of the team ([`features`]).
+    pub(super) features: TeamFeatures,
+}
+
+/// A team's threat spots at its commander tick ([`threat`]): the
+/// shooters its bots sense now, spots cleared where a bot sees them
+/// empty, a held spot cast at, and the regions his line covers told to
+/// the team's bots when they changed.
+fn threat_tick(
+    tactics: &Tactics,
+    bots: &mut [Option<Bot>],
+    state: &mut TeamState,
+    team: u8,
+    view: &MatchView,
+    now: u32,
+    notes: &mut Vec<Note>,
+) {
+    if state.features.threat.spots.is_empty() && state.features.threat.covered.is_none() {
+        return;
+    }
+    let eye = Vec3::new(0.0, view::eye_height(false, 0.0, 0.0), 0.0);
+    let watchers: Vec<Vec3> = view.team(team).map(|p| p.feet + eye).collect();
+    let mut enemies = Vec::new();
+    for bot in bots.iter().flatten().filter(|b| b.team == team) {
+        for track in bot.memory.tracks() {
+            if let Some((at, time)) = track.own
+                && now.saturating_sub(time) <= threat::NOW_MS
+            {
+                enemies.push(at);
+                state.features.threat.spots.shooter_sensed(track.who, at, time);
+            }
+        }
+    }
+    state.features.threat.spots.tick(now, &watchers, &enemies, tactics);
+    let mut regions = state.features.threat.spots.covered_regions(now);
+    regions.sort_unstable();
+    regions.dedup();
+    let same = match &state.features.threat.covered {
+        Some(covered) => covered.regions() == &regions[..],
+        None => regions.is_empty(),
+    };
+    if same {
+        return;
+    }
+    notes.push(Note {
+        place: usize::MAX,
+        time: now,
+        text: format!(
+            "team {team}: threat spots keep {} regions out of the routes ({} held)",
+            regions.len(),
+            state.features.threat.spots.held(now).count()
+        ),
+    });
+    state.features.threat.covered = (!regions.is_empty())
+        .then(|| Arc::new(threat::Covered::build(regions, tactics.regions().len(), tactics.region_lookup())));
+    let shared = state.features.threat.covered.clone().unwrap_or_default();
+    for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
+        bot.threat = shared.clone();
+    }
 }
 
 impl Bots {
@@ -46,15 +100,20 @@ impl Bots {
         state.next_commander = now + tuning.think.commander_ms;
         state.knowledge.forget_old(now);
         state.knowledge.settle_looks(team, view);
+        state.refresh_traps(&tactics.world.grid);
+        let field = state.features.traps.field.clone();
+        for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
+            bot.features.traps.field = field.clone();
+        }
         // What a bot of the team proved no way to lately, the whole team
         // leaves for longer, from the proof on.
-        state.no_way_to.retain(|&(_, until)| now < until);
+        state.features.stuck.no_way_to.retain(|&(_, until)| now < until);
         for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
-            learn_no_way(&mut state.no_way_to, &bot.no_way_to, now);
-            state.spots.learn(now, &bot.stuck.tell());
+            learn_no_way(&mut state.features.stuck.no_way_to, &bot.no_way_to, now);
+            state.features.stuck.spots.learn(now, &bot.stuck.tell());
         }
         // Where its bots got stuck or fell, every bot keeps clear of.
-        let spots = state.spots.avoided();
+        let spots = state.features.stuck.spots.avoided();
         for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
             bot.stuck.share(spots.clone());
         }
@@ -156,6 +215,11 @@ impl Bots {
         self.teams[usize::from(team)]
             .knowledge
             .learn_humans(team, view, tracks, now);
+        // Where a shooter kills from, and the regions his line covers
+        // (K1).
+        if tuning.threat.spots {
+            threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, notes);
+        }
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
         let mut blocks = Vec::new();
@@ -171,23 +235,27 @@ impl Bots {
             let Some(me) = view.place(bot.place).filter(|p| p.alive) else {
                 continue;
             };
-            let no_way = team_no_way(&bot.no_way_to, &state.no_way_to);
+            let no_way = team_no_way(&bot.no_way_to, &state.features.stuck.no_way_to);
             let cx = Ctx {
                 now,
                 view,
                 me,
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
+                    weapon: bot.weapon(&self.features.weapons, &tuning),
                     side: bot.side,
                     current: bot.assignment.as_ref().map(|a| (a.kind, a.target, a.since)),
                     last_ran: &bot.last_ran,
                     partner: bot.partner,
                     paired: bot.paired,
-                    medkits_used: bot.medkits_used,
+                    medkits_used: bot.features.stock.medkits_used,
+                    pantry: &bot.features.stock.pantry,
+                    pools: bot.features.stock.pools,
                     no_way_to: &no_way,
-                    set_aside: &bot.set_aside,
-                    failed_stands: &bot.failed_stands,
+                    set_aside: &bot.features.memory.set_aside,
+                    failed_stands: &bot.features.memory.failed_stands,
                     dry: bot.reflex.dry(),
+                    ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
                 },
                 memory: &bot.memory,
@@ -255,23 +323,27 @@ impl Bots {
             }
             // The new play starts.
             bot.give_way(assignment.kind, now);
-            let no_way = team_no_way(&bot.no_way_to, &state.no_way_to);
+            let no_way = team_no_way(&bot.no_way_to, &state.features.stuck.no_way_to);
             let cx = Ctx {
                 now,
                 view,
                 me,
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
+                    weapon: bot.weapon(&self.features.weapons, &tuning),
                     side: bot.side,
                     current: Some((assignment.kind, assignment.target, now)),
                     last_ran: &bot.last_ran,
                     partner: bot.partner,
                     paired: bot.paired,
-                    medkits_used: bot.medkits_used,
+                    medkits_used: bot.features.stock.medkits_used,
+                    pantry: &bot.features.stock.pantry,
+                    pools: bot.features.stock.pools,
                     no_way_to: &no_way,
-                    set_aside: &bot.set_aside,
-                    failed_stands: &bot.failed_stands,
+                    set_aside: &bot.features.memory.set_aside,
+                    failed_stands: &bot.features.memory.failed_stands,
                     dry: bot.reflex.dry(),
+                    ammo: bot.ammo(),
                     crossing: walks_crossing(bot),
                 },
                 memory: &bot.memory,

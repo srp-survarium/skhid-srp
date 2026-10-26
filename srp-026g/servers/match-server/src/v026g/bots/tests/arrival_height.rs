@@ -7,7 +7,7 @@ fn p(x: f32, y: f32) -> Waypoint {
     Waypoint {
         at: Vec3::new(x, y, 0.0),
         node: 0,
-        jump: false,
+        jump: None,
         low: false,
     }
 }
@@ -18,7 +18,7 @@ fn walked_on(motor: &mut Motor, route: &mut Route, feet: Vec3, exact: bool) -> W
         yaw: yaw_of([1.0, 0.0]),
         ..Default::default()
     };
-    motor.exact_end = exact;
+    motor.exact_end = exact.then_some(motor.feel.arrive_m);
     motor.walk(route, &pose, 5.0, |_| true).1
 }
 

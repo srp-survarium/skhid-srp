@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use super::*;
-use crate::v026g::bots::reflex::gate;
+use crate::v026g::bots::reflex::{Gates, gate};
 use crate::v026g::bots::sense::in_view;
 
 /// The sight counts (`pr-sight.md`'s target metric and guards): the fire runs and what ended them,
@@ -27,11 +27,13 @@ use crate::v026g::bots::sense::in_view;
 #[derive(Default)]
 pub(super) struct SightCounts {
     /// By place: the fire run under way.
-    run: Vec<Option<Run>>,
+    run: Vec<Option<FireRun>>,
     /// By place: the tick a run that ended with its target alive ended at, and its weapon's class.
     after: Vec<Option<(u32, &'static str)>>,
     /// By place: the last gate records ((tick, bits)), the newest last.
     gates: Vec<VecDeque<(u32, u32)>>,
+    /// By place: the fire gates of the bot's last tick, as read (`Reflex::gates`).
+    now_gates: Vec<Gates>,
     /// By place: the tick of the last kill.
     last_kill: Vec<Option<u32>>,
     /// By place: the target of the last tick.
@@ -65,7 +67,7 @@ pub(super) struct SightCounts {
 
 /// A fire run under way.
 #[derive(Clone, Copy, Debug)]
-struct Run {
+struct FireRun {
     start: u32,
     ticks: u32,
     /// The target at its last tick.
@@ -79,6 +81,7 @@ impl SightCounts {
             run: vec![None; n],
             after: vec![None; n],
             gates: vec![VecDeque::new(); n],
+            now_gates: vec![Gates::default(); n],
             last_kill: vec![None; n],
             target_was: vec![None; n],
             range_m: 150.0,
@@ -86,6 +89,51 @@ impl SightCounts {
             runs_by_bot: vec![[0; 2]; n],
             ..Self::default()
         }
+    }
+}
+
+impl Topic for SightCounts {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn read(&mut self, place: Place, bot: Option<&Bot>, _tick: u32) {
+        if let Some(gates) = self.now_gates.get_mut(place) {
+            *gates = bot.map_or_else(Gates::default, |bot| bot.reflex.gates());
+        }
+    }
+
+    #[cfg(test)]
+    fn inject(&mut self, place: Place, now: Option<&BotNow>) {
+        if let Some(gates) = self.now_gates.get_mut(place) {
+            *gates = now.map_or_else(Gates::default, |n| n.gates);
+        }
+    }
+
+    fn bots(&mut self, bots: &Bots, _game: &Game) {
+        self.range_m = bots.tuning.sense.sight_m;
+        self.view_deg = bots.tuning.sense.view_deg;
+    }
+
+    fn body(&mut self, run: &Run, at: &BodyAt<'_>, rays: &mut u64) {
+        // Only a bot has a gate record.
+        if run.is_bot[at.place] {
+            self.sight_tick(at, rays);
+        }
+    }
+
+    fn end(&mut self, run: &Run, game: &mut Game, _sight: &mapdata::RayTree, _rays: &mut u64) {
+        let deaths: Vec<Place> = (0..run.recs.len())
+            .filter(|&place| match run.recs[place].as_slice() {
+                [.., prev, last] => prev.alive && !last.alive,
+                _ => false,
+            })
+            .collect();
+        self.sight_kills(run, game, &deaths);
+    }
+
+    fn parts(&mut self, run: &Run, _game: &Game, scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+        vec![("sight", self.part(run, scale))]
     }
 }
 
@@ -152,44 +200,41 @@ impl OwnerTally {
     /// The bench's ping for each place (`SRP_BENCH_PING`; none: all the lowest band), for the counts
     /// by the target's ping band.
     pub(crate) fn set_pings(&mut self, pings: Vec<u32>) {
-        self.sight.pings = pings;
+        self.topic::<SightCounts>().pings = pings;
     }
+}
 
+impl SightCounts {
     /// The bot at `place`: its fire run, the end of one, the gap before a new one, and the loss of
     /// its target's sight. The killing shots are taken by [`Self::sight_kills`] after the tick.
-    pub(super) fn sight_tick(
-        &mut self,
-        game: &Game,
-        place: Place,
-        body: &super::super::Body,
-        now: &BotNow,
-        sight: &mapdata::RayTree,
-        rays: &mut u64,
-    ) {
+    fn sight_tick(&mut self, at: &BodyAt<'_>, rays: &mut u64) {
+        let (game, place, sight) = (at.game, at.place, at.sight);
+        let body = &game.bodies[place];
+        let now = self.now_gates[place];
         let tick = game.tick;
         let class = body.gun.class();
         let firing = body.alive && body.keys & key::FIRE != 0;
-        let gates = &mut self.sight.gates[place];
-        if gates.back().is_none_or(|&(at, _)| at != now.gates.at) {
-            gates.push_back((now.gates.at, now.gates.bits));
+        let gates = &mut self.gates[place];
+        if gates.back().is_none_or(|&(at, _)| at != now.at) {
+            gates.push_back((now.at, now.bits));
             if gates.len() > GATE_HISTORY {
                 gates.pop_front();
             }
         }
-        match (self.sight.run[place], firing) {
+        match (self.run[place], firing) {
             (Some(mut run), true) => {
                 run.ticks += 1;
                 run.target = body.target;
-                self.sight.run[place] = Some(run);
+                self.run[place] = Some(run);
             }
             (None, true) => {
-                if let Some((ended, was)) = self.sight.after[place].take() {
+                if let Some((ended, was)) = self.after[place].take() {
                     let up = ((tick - ended) / TICK_MS) as usize;
                     if was == class && (1..=GAP_MAX_TICKS).contains(&up) {
-                        self.sight.gaps[[0, 0, 1, 1, 2, 2, 2, 2].get(up - 1).copied().unwrap_or(3)] += 1;
+                        self.gaps[[0, 0, 1, 1, 2, 2, 2, 2].get(up - 1).copied().unwrap_or(3)] += 1;
                     }
                 }
-                self.sight.run[place] = Some(Run {
+                self.run[place] = Some(FireRun {
                     start: tick,
                     ticks: 1,
                     target: body.target,
@@ -197,47 +242,47 @@ impl OwnerTally {
                 });
             }
             (Some(run), false) => {
-                self.sight.run[place] = None;
+                self.run[place] = None;
                 self.sight_run_ended(game, place, run, body);
             }
             (None, false) => {}
         }
         // The loss of the target's sight: to none while he lives.
         let target = body.target.filter(|_| body.alive);
-        if let (Some(was), None) = (self.sight.target_was[place], target)
+        if let (Some(was), None) = (self.target_was[place], target)
             && body.alive
             && let Some(him) = enemy_of(game, place, body.team, was)
         {
-            let cause = if body.feet.distance_xz(him.feet) > self.sight.range_m {
+            let cause = if body.feet.distance_xz(him.feet) > self.range_m {
                 1
-            } else if !in_view(body.feet, body.yaw, him.feet, self.sight.view_deg) {
+            } else if !in_view(body.feet, body.yaw, him.feet, self.view_deg) {
                 2
             } else if !in_sight(sight, body, him, f32::INFINITY, rays) {
                 3
             } else {
                 0
             };
-            self.sight.lapses[cause] += 1;
-            self.sight.lapses_by_band[self.sight_band(was)] += 1;
+            self.lapses[cause] += 1;
+            self.lapses_by_band[self.sight_band(was)] += 1;
         }
-        self.sight.target_was[place] = target;
+        self.target_was[place] = target;
     }
 
     /// The ping band of `place` (the bench's ping for it, none: the lowest).
     fn sight_band(&self, place: Place) -> usize {
-        let ping = self.sight.pings.get(place).copied().unwrap_or(0) as f32;
+        let ping = self.pings.get(place).copied().unwrap_or(0) as f32;
         LATENESS_EDGES_MS.iter().take_while(|&&edge| ping >= edge).count()
     }
 
     /// A run that ended at this tick: by what.
-    fn sight_run_ended(&mut self, game: &Game, place: Place, run: Run, body: &super::super::Body) {
+    fn sight_run_ended(&mut self, game: &Game, place: Place, run: FireRun, body: &super::super::Body) {
         let tick = game.tick;
         let long = (run.ticks as usize).clamp(1, 5);
-        self.sight.lengths[[0, 0, 1, 2, 2, 3][long]] += 1;
-        let by_bot = &mut self.sight.runs_by_bot[place];
+        self.lengths[[0, 0, 1, 2, 2, 3][long]] += 1;
+        let by_bot = &mut self.runs_by_bot[place];
         by_bot[0] += 1;
         by_bot[1] += run.ticks;
-        let killed = self.sight.last_kill[place]
+        let killed = self.last_kill[place]
             .is_some_and(|k| k >= run.start && tick <= k + 2 * TICK_MS);
         let target_gone = run
             .target
@@ -249,26 +294,26 @@ impl OwnerTally {
         } else if target_gone {
             TARGET_DIED
         } else {
-            match self.sight.gates[place].iter().find(|&&(at, _)| at == tick) {
+            match self.gates[place].iter().find(|&&(at, _)| at == tick) {
                 None => NOT_RUN,
                 Some(&(_, bits)) => first_gate(bits),
             }
         };
-        *self.sight.ends.entry(ended).or_default() += 1;
+        *self.ends.entry(ended).or_default() += 1;
         if ended == SIGHT
             && let Some(target) = run.target
         {
-            self.sight.cuts_by_band[self.sight_band(target)] += 1;
+            self.cuts_by_band[self.sight_band(target)] += 1;
         }
         if !matches!(ended, KILL | DIED | TARGET_DIED) {
-            self.sight.held_alive_ticks += u64::from(run.ticks);
-            self.sight.after[place] = Some((tick, run.class));
+            self.held_alive_ticks += u64::from(run.ticks);
+            self.after[place] = Some((tick, run.class));
         }
     }
 
     /// The kills of this tick (`deaths`: the bodies that died): by the shooter of the hit that tick.
     /// The burst the kill ended, and its first fire tick and presses.
-    pub(super) fn sight_kills(&mut self, game: &Game, deaths: &[Place]) {
+    fn sight_kills(&mut self, run: &Run, game: &Game, deaths: &[Place]) {
         let tick = game.tick;
         for &victim in deaths {
             let Some(&(_, killer, _)) = game
@@ -279,13 +324,13 @@ impl OwnerTally {
             else {
                 continue;
             };
-            if !self.is_bot.get(killer).copied().unwrap_or(false) {
+            if !run.is_bot.get(killer).copied().unwrap_or(false) {
                 continue;
             }
-            self.sight.last_kill[killer] = Some(tick);
+            self.last_kill[killer] = Some(tick);
             let class = game.bodies[killer].gun.class();
             let gap = burst_gap_ticks(class);
-            let recs = &self.recs[killer];
+            let recs = &run.recs[killer];
             let fires = |r: &Rec| r.alive && r.keys & key::FIRE != 0;
             let Some(last) = recs.iter().rposition(fires) else {
                 continue;
@@ -307,8 +352,8 @@ impl OwnerTally {
             let presses = (first..=last)
                 .filter(|&k| fires(&recs[k]) && (k == 0 || !fires(&recs[k - 1])))
                 .count() as u32;
-            let here = self.index(tick);
-            let (ms, presses_at) = self.sight.kills.entry(class).or_default();
+            let here = run.index(tick);
+            let (ms, presses_at) = self.kills.entry(class).or_default();
             ms.push((here.saturating_sub(first) as u32) * TICK_MS);
             presses_at.push(presses);
         }
@@ -316,8 +361,8 @@ impl OwnerTally {
 
     /// The sight counts at the end: their keys of the `owner` object and their lines of the
     /// owner-test text.
-    pub(super) fn sight_part(&self, scale: &Scale) -> Part {
-        let s = &self.sight;
+    fn part(&self, run: &Run, scale: &Scale) -> Part {
+        let s = self;
         let tick_s = scale.tick_s;
         let runs: u32 = s.lengths.iter().sum();
         let held_ticks: u64 = s.runs_by_bot.iter().map(|r| u64::from(r[1])).sum();
@@ -384,7 +429,7 @@ impl OwnerTally {
             .runs_by_bot
             .iter()
             .enumerate()
-            .filter(|&(place, _)| self.is_bot.get(place).copied().unwrap_or(false))
+            .filter(|&(place, _)| run.is_bot.get(place).copied().unwrap_or(false))
             .map(|(place, r)| (place.to_string(), *r))
             .collect();
         let json = serde_json::json!({
@@ -455,7 +500,7 @@ fn shoot(
         vec![
             Some(BotNow {
                 play: "Roam".to_owned(),
-                gates: crate::v026g::bots::reflex::Gates { at, bits, target: Some(1) },
+                gates: Gates { at, bits, target: Some(1) },
                 ..BotNow::default()
             }),
             None,

@@ -172,11 +172,11 @@ pub(crate) fn a_bot_leaves_a_play_whose_goal_it_proved_no_way_to_and_takes_anoth
     assert!(taking <= 500, "the next play {taking} ms after");
     let bot = bots.bots[0].as_ref().expect("bot 0");
     assert!(
-        bot.set_aside
+        bot.features.memory.set_aside
             .iter()
             .any(|&(k, t, until)| (k, t) == (kind, target) && until == left_at + NO_WAY_KEEP_MS),
         "{:?}",
-        bot.set_aside
+        bot.features.memory.set_aside
     );
     assert_ne!((next_kind, next_target), (kind, target));
 }

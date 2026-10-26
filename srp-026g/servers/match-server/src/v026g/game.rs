@@ -3925,6 +3925,7 @@ impl Game {
             standing,
             supplies,
         });
+        self.observe_stock(snapshot.time);
     }
 
     /// Whether a snapshot's results could have come from real play: no

@@ -3,7 +3,6 @@ use super::*;
 /// The jumps counts: counted as the match runs, kept for [`OwnerTally::finish`].
 #[derive(Default)]
 pub(super) struct JumpCounts {
-    pub(super) presses: Vec<Press>,
     pub(super) landings: Vec<Landing>,
 }
 
@@ -205,7 +204,7 @@ pub(crate) fn is_up(r: &Rec, to: Vec3, dt: f32) -> bool {
     r.alive && feet_up && r.feet.distance_xz(to) <= (1.5 + 3.5 * (dt - 0.6)).min(4.0)
 }
 
-impl OwnerTally {
+impl Run {
     /// The flags of press `i` of `presses` (sorted by place and time),
     /// `jumps.md` §9.2-9.3.
     pub(crate) fn press_flags(&self, presses: &[Press], i: usize) -> Vec<&'static str> {
@@ -327,7 +326,7 @@ impl OwnerTally {
                     .map(|r| r.feet.distance_xz(p.feet))
             };
             let next = after.clone().next().map(|q| q.t).filter(|&t| t <= p.t + FREED_MS);
-            let stuck = self.moving.stuck_notes[p.place]
+            let stuck = self.stuck_notes[p.place]
                 .iter()
                 .copied()
                 .find(|&t| t > p.t && t <= p.t + FREED_MS);
@@ -556,38 +555,35 @@ pub(crate) fn a_stall_at_a_ledge_with_no_press_is_a_missed_jump() {
         }
         vec![bot_now(), bot_now()]
     });
-    let presses = tally.jumps.presses.clone();
+    let presses = tally.run.presses.clone();
     let high = grid(0.8);
-    assert_eq!(tally.stalls(0, &high, &presses), [1, 0, 1]);
-    assert_eq!(tally.stalls(1, &high, &presses), [0, 0, 1]);
-    assert_eq!(tally.stalls(0, &grid(0.45), &presses), [0, 1, 1]);
-    assert_eq!(tally.stalls(0, &grid(1.5), &presses), [0, 0, 1]);
+    assert_eq!(tally.run.stalls(0, &high, &presses), [1, 0, 1]);
+    assert_eq!(tally.run.stalls(1, &high, &presses), [0, 0, 1]);
+    assert_eq!(tally.run.stalls(0, &grid(0.45), &presses), [0, 1, 1]);
+    assert_eq!(tally.run.stalls(0, &grid(1.5), &presses), [0, 0, 1]);
 }
 
-impl OwnerTally {
-    /// The game's landings this tick are taken.
-    pub(super) fn jumps_landings(&mut self, game: &mut Game) {
-        self.jumps.landings.append(&mut game.landings);
+impl Topic for JumpCounts {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 
-    /// A jump pressed: why, from the bot's watch of it.
-    pub(super) fn jumps_press(&mut self, place: Place, tick: u32, body: &super::super::Body, prev: &Rec, now: &BotNow, rec: &Rec) {
-        // A jump pressed: why, from the bot's watch of it.
-        if body.alive && body.keys & key::JUMP != 0 && prev.keys & key::JUMP == 0 {
-            self.jumps.presses.push(Press {
-                place,
-                t: tick,
-                feet: body.feet,
-                by: now.jump.map_or("other", |(by, _)| by),
-                route: now.jump.and_then(|(_, route)| route),
-                carrying: rec.carrying,
-            });
-        }
+    /// The game's landings this tick are taken.
+    fn begin(&mut self, _run: &Run, game: &mut Game) {
+        self.landings.append(&mut game.landings);
     }
+
+    fn parts(&mut self, run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+        let presses = run.sorted_presses();
+        vec![("jumps", self.part(run, game, &presses))]
+    }
+}
+
+impl JumpCounts {
 
     /// The jumps counts at the end: their keys of the `owner` object and their lines of the owner-test text.
-    pub(super) fn jumps_part(&self, game: &Game, presses: &[Press]) -> Part {
-        let n = self.recs.len();
+    fn part(&self, run: &Run, game: &Game, presses: &[Press]) -> Part {
+        let n = run.recs.len();
         // Jumps: the flags of every press, the stalls.
         let mut flag_n: BTreeMap<&str, u32> = FLAGS.iter().map(|&f| (f, 0)).collect();
         let (mut wrong, mut failed) = (0u32, 0u32);
@@ -595,12 +591,12 @@ impl OwnerTally {
         let mut route_landed = [0u32; 2];
         let (mut missed_pre, mut not_freed_pre) = (PreCounts::default(), PreCounts::default());
         for (i, p) in presses.iter().enumerate() {
-            let flags = self.press_flags(presses, i);
+            let flags = run.press_flags(presses, i);
             for &f in &flags {
                 *flag_n.entry(f).or_default() += 1;
             }
             if flags.contains(&"NOT_FREED") {
-                not_freed_pre.add(self, p.by, p.place, self.index(p.t));
+                not_freed_pre.add(run, p.by, p.place, run.index(p.t));
             }
             let is_wrong = flags.iter().any(|f| !SECOND_NUMBERS.contains(f));
             wrong += u32::from(is_wrong);
@@ -610,24 +606,25 @@ impl OwnerTally {
             entry[1] += u32::from(is_wrong);
             // The honest stand-in's own landing of a route jump: up or not.
             if let Some((_, to)) = p.route
-                && let Some(l) = self.jumps.landings.iter().find(|l| l.place == p.place && l.at == p.t)
+                && let Some(l) = self.landings.iter().find(|l| l.place == p.place && l.at == p.t)
             {
                 route_landed[usize::from(l.to.y < to.y - UP_SLACK_M)] += 1;
             }
         }
-        let sprint_jumps = self.jumps.landings.iter().filter(|l| l.sprint).count() as u32;
+        let sprint_jumps = self.landings.iter().filter(|l| l.sprint).count() as u32;
+        let gaps = self.gap_counts(run, &game.world.grid, presses);
         let mut stalls = [0u32; 3];
-        for place in (0..n).filter(|&p| self.is_bot[p]) {
-            let (counts, missed) = self.stall_scan(place, &game.world.grid, presses);
+        for place in (0..n).filter(|&p| run.is_bot[p]) {
+            let (counts, missed) = run.stall_scan(place, &game.world.grid, presses);
             for (c, s) in stalls.iter_mut().zip(counts) {
                 *c += s;
             }
             for k0 in missed {
-                missed_pre.add(self, "missed", place, k0);
+                missed_pre.add(run, "missed", place, k0);
             }
         }
 
-        let json = serde_json::json!({
+        let mut json = serde_json::json!({
             "presses": presses.len(),
             "presses_by": by_kind,
             "jump_flags": flag_n,
@@ -644,12 +641,15 @@ impl OwnerTally {
             "route_landed_down": route_landed[1],
             "sprint_jumps": sprint_jumps,
         });
+        if let Some(g) = &gaps {
+            json["gaps"] = g.json();
+        }
         let flags_set: Vec<String> = flag_n
             .iter()
             .filter(|(_, c)| **c > 0)
             .map(|(f, c)| format!("{f} {c}"))
             .collect();
-        let text = format!(
+        let mut text = format!(
             "owner-test jumps: presses {} by [presses, wrong] {}; wrong {} failed {}; flags {}; missed jumps {} stalls at a step {} (stalls {}); route landings up {} down {}; sprint jumps {}; the 5 s before a missed jump: {}; before a press that freed nothing: {}",
             presses.len(),
             json["presses_by"],
@@ -665,6 +665,85 @@ impl OwnerTally {
             missed_pre.text(),
             not_freed_pre.text(),
         );
+        if let Some(g) = &gaps {
+            text.push_str(&g.text());
+        }
         Part::new(json, text)
     }
+
+    /// The route presses of gap links (`mapdata::grid::gap`), when the
+    /// grid has any: how many, of which kind, how the stand-in landed
+    /// them, which failed and why (the outcome flags), and how many came
+    /// down more than [`HARMLESS_FALL_M`] under the take-off (hurt).
+    pub(super) fn gap_counts(&self, run: &Run, grid: &WalkGrid, presses: &[Press]) -> Option<GapCounts> {
+        if grid.off_links().is_empty() {
+            return None;
+        }
+        let mut g = GapCounts::default();
+        for (i, p) in presses.iter().enumerate() {
+            let Some((take_off, landing)) = p.route else {
+                continue;
+            };
+            let (Some(a), Some(b)) = (grid.locate(take_off, LINK_M), grid.locate(landing, LINK_M)) else {
+                continue;
+            };
+            let Some(link) = grid.off_link(a, b) else {
+                continue;
+            };
+            g.takes += 1;
+            *g.by_kind.entry(format!("{:?}", link.kind)).or_default() += 1;
+            if let Some(l) = self.landings.iter().find(|l| l.place == p.place && l.at == p.t) {
+                g.landed[usize::from(l.to.y < landing.y - UP_SLACK_M)] += 1;
+                g.hurt += u32::from(take_off.y - l.to.y > HARMLESS_FALL_M);
+            }
+            let outcomes: Vec<&str> = run
+                .press_flags(presses, i)
+                .into_iter()
+                .filter(|f| OUTCOMES.contains(f) && !SECOND_NUMBERS.contains(f))
+                .collect();
+            g.failed += u32::from(!outcomes.is_empty());
+            for f in outcomes {
+                *g.failed_by.entry(f).or_default() += 1;
+            }
+        }
+        Some(g)
+    }
 }
+
+/// A fall from no higher than this hurts no one, m (`fall_params.harmless_height`,
+/// PROVEN; `mapdata::Body::max_drop`).
+pub(crate) const HARMLESS_FALL_M: f32 = 5.0;
+
+/// The gap links' counts ([`OwnerTally::gap_counts`]).
+#[derive(Default)]
+pub(crate) struct GapCounts {
+    pub(crate) takes: u32,
+    pub(crate) by_kind: BTreeMap<String, u32>,
+    /// Up on the landing's level, and not.
+    pub(crate) landed: [u32; 2],
+    pub(crate) failed: u32,
+    pub(crate) failed_by: BTreeMap<&'static str, u32>,
+    pub(crate) hurt: u32,
+}
+
+impl GapCounts {
+    fn json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "gap_takes": self.takes,
+            "gap_takes_by": self.by_kind,
+            "gap_landed_up": self.landed[0],
+            "gap_landed_down": self.landed[1],
+            "gap_failed": self.failed,
+            "gap_failed_by": self.failed_by,
+            "gap_hurt": self.hurt,
+        })
+    }
+
+    fn text(&self) -> String {
+        format!(
+            "; gap links: takes {} by {:?}, landed up {} down {}, failed {} by {:?}, hurt {}",
+            self.takes, self.by_kind, self.landed[0], self.landed[1], self.failed, self.failed_by, self.hurt
+        )
+    }
+}
+
