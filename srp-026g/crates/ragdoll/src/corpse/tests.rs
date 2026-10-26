@@ -874,9 +874,9 @@ fn a_lying_body_comes_to_rest_and_stays_still_on_every_surface() {
     }
 }
 
-/// The radio (`respawn_booster`) shortens the respawn: respawn speed +60 %
-/// gives 5 s in Team Deathmatch (8 s base) and 6.25 s in the battery modes
-/// (10 s), respawn time -60 % 3.2 s and 4 s. A body falls for about 1 s and
+/// The radio (`respawn_booster`) shortens the respawn: respawn time -50 %
+/// gives 4 s in Team Deathmatch (8 s base) and 5 s in the battery modes
+/// (10 s); 3.2 s and 6.25 s were the other readings weighed. A body falls for about 1 s and
 /// rests 1.6 to 5 s after its death, so a respawn often comes before it
 /// rests, or while bullets still push it: at any stage the corpse goes at
 /// once (the game's skeleton drawn, the game's camera, no box a shot meets,

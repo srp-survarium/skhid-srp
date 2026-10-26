@@ -89,7 +89,7 @@ rests on a battery, the battery is never moved).
   (`death_camera_yaw` / `_pitch` / `_distance`); the death screen does not use them.
 - **Corpse lifetime (LIKELY):** the place's one player object is the corpse until its
   respawn re-spawns that object (respawn rule 0x316820 -> spawn 0x316DA0). That is 8 s or 10 s by
-  the mode's options, 5 s or 6.25 s with `respawn_booster` (booster-buffs.md), and to the match's end in Team
+  the mode's options, 4 s or 5 s with `respawn_booster` (booster-buffs.md), and to the match's end in Team
   Deathmatch with no tickets. So there are at most 19 other corpses, one per place.
 
 ## 2. Ragdoll support in the engine
@@ -959,10 +959,10 @@ update_skeleton, neither of our hooks after it. The corpse froze at the drop.
   update_skeleton, the exit, ESI 0; it falls and settles), a living player holding nothing
   (the original's je), and a carrier's ragdoll with no gun.
 
-## 15. A respawn before the body rests (the radio's +60 %, 2026-10-26)
+## 15. A respawn before the body rests (the radio's -50 %, 2026-10-27)
 
-The radio (booster-buffs.md) brings the shortest respawn to 5 s in Team Deathmatch and 6.25 s in
-the other modes (3.2 s and 4 s, had the owner read it as the time -60 %). The ragdoll, the death
+The radio (booster-buffs.md) brings the shortest respawn to 4 s in Team Deathmatch and 5 s in
+the other modes (checked down to 3.2 s, and at 6.25 s, the readings weighed before). The ragdoll, the death
 camera and the death fade key off the player being alive and the life's spawn time, never a
 fixed time, so a shorter respawn changes nothing in how they behave:
 
@@ -974,8 +974,8 @@ fixed time, so a shorter respawn changes nothing in how they behave:
   head (1.64 m).
 - **When bodies rest** (60 fps): down by 1 s (a headshot by 0.5 s); at rest flat 1.6 s, slope
   1.9-2.5 s, wall 2.3-3.0 s, on a battery 3.1-3.7 s, stairs 5.0 s (the cap); a body shot every
-  0.1 s never rests. So at 5 s only a body on stairs or under fire still moves; it goes at the
-  respawn, as the stock corpse does.
+  0.1 s never rests. So at 4 s a body on stairs or under fire still moves (at 5 s, under fire
+  or just at the cap on stairs); it goes at the respawn, as the stock corpse does.
 - **The death fade** sets its end at each new second the countdown shows: 5 s and 4 s are exact
   from the start, 6.25 s and 3.2 s from the second value (0.25 s and 0.2 s in), and every length
   ends at the respawn (openness 0.40).

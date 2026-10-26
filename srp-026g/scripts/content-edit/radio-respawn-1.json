@@ -1,5 +1,5 @@
 {
- "_about": "The radio buff (the owner, 2026-10-26: \"respawn +60%\"; srp-026g/docs/notes/booster-buffs.md). The Radio (respawn_booster, dict item of kind booster) works carried: its one default modification 1220 (drop_weight 0, no other item has it) adds respawn_time_modifier (index 60) to the kit's lists, and the respawn rule at a death (0x316AA0) makes the delay respawn_time x max(0, 1 + modifier 60), up to the 50 ms grid. Respawn speed +60 % is the time x 1/1.6: the modifier -0.2 -> -0.375 (lobby_info with it), so 8 s -> 5 s in Team Deathmatch, 10 s -> 6.25 s in the battery modes and Research (was 6.4 s and 8 s). The card: the stock line 124 \"Respawn time\" (lower is better) would show -37.5 %, so the modification's line is a new card line 135 \"Respawn speed\" (higher is better, a percentage as 124: ui_properties without mod_type), made like 124 after 134, its text st_srp_respawn_speed in the six localization tables, prop_value 0.60: \"Respawn speed: +60%\". Line 124 stays as the game has it (1221, which nothing carries, keeps it).",
+ "_about": "The radio buff (the owner, 2026-10-27: respawn time -50 %, was -20 %; srp-026g/docs/notes/booster-buffs.md). The Radio (respawn_booster, a booster) works carried: its one default modification 1220 (drop_weight 0, no other item has it) adds respawn_time_modifier (index 60) to the kit's lists, and the respawn rule at a death (0x316AA0) makes the delay respawn_time x max(0, 1 + modifier 60), up to the 50 ms grid. The modifier -0.2 -> -0.5 (lobby_info with it): 8 s -> 4 s in Team Deathmatch, 10 s -> 5 s in the battery modes and Research (was 6.4 s and 8 s). The card keeps the game's line 124 \"Respawn time\" (lower is better): -0.20 -> -0.50, \"Respawn time: -50%\".",
  "set_entry": [
   {
    "file": "gameplay/items/modifications/modifications.options",
@@ -13,22 +13,10 @@
     "ui_desc/props_list[0]/prop_value": "-0.20"
    },
    "to": {
-    "modifiers[0]/value": -0.375,
-    "lobby_info/respawn_time_modifier": -0.375,
-    "ui_desc/props_list[0]/prop_id": 135,
-    "ui_desc/props_list[0]/prop_value": "0.60"
+    "modifiers[0]/value": -0.5,
+    "lobby_info/respawn_time_modifier": -0.5,
+    "ui_desc/props_list[0]/prop_value": "-0.50"
    }
   }
- ],
- "add_entry": [
-  {"files": "gameplay/static_game_parameters.options", "list": "ui_properties", "after": {"prop_id": 134}, "like": {"prop_id": 124}, "values": {"prop_id": 135, "prop_name": "st_srp_respawn_speed", "direction": 1}}
- ],
- "add_key": [
-  {"file": "localization/english/localization", "table": "strings", "key": "st_srp_respawn_speed", "text": "Respawn speed"},
-  {"file": "localization/german/localization", "table": "strings", "key": "st_srp_respawn_speed", "text": "Geschwindigkeit der Wiederbelebung"},
-  {"file": "localization/polish/localization", "table": "strings", "key": "st_srp_respawn_speed", "text": "Szybkość odrodzenia"},
-  {"file": "localization/russian/localization", "table": "strings", "key": "st_srp_respawn_speed", "text": "Скорость возрождения"},
-  {"file": "localization/original/localization", "table": "strings", "key": "st_srp_respawn_speed", "text": "Скорость возрождения"},
-  {"file": "localization/ukrainian/localization", "table": "strings", "key": "st_srp_respawn_speed", "text": "Швидкість відродження"}
  ]
 }

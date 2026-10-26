@@ -70,7 +70,7 @@ Checked:
   ragdoll's 69 bones to update_skeleton (0x22490, stubbed: it records them)
   and goes on at 0x24781E, and the corpse falls and settles so; a living
   player holding nothing takes the original's je;
-- the radio's shortest respawn (3.2 s): the local player's body, shot every
+- a respawn under the radio's shortest (3.2 s; the radio's is 4 s): the local player's body, shot every
   0.1 s, still moves with the camera on its head when the place respawns (a
   new life at its spawn point); the bones, the eye and the cull are the
   game's at once, a shot where the body lay meets nothing, and the new
@@ -849,8 +849,8 @@ def main():
     check(still and frames[0] != frames[-1] and min(m[13] for m in frames[-1]) > -0.2,
           f"held nothing, it falls and settles: the hip at {frames[-1][1][13]:.2f} m, the bones still")
 
-    # the radio's shortest respawn (respawn_booster: 3.2 s with "respawn time -60 %"; 5 s with
-    # "+60 % speed"): the local player's body still moving, shot every 0.1 s, when the place
+    # a respawn shorter than the radio's shortest (respawn_booster, respawn time -50 %: 4 s in
+    # Team Deathmatch): the local player's body still moving, shot every 0.1 s, when the place
     # respawns (a new life, +328h, at its spawn point)
     game.set_alive(a, True, 3000)
     for _ in range(5):

@@ -327,7 +327,7 @@ def run(data):
     every = {n: -(i + 1) / 128 for i, n in enumerate(names)}
     expect(g.read_parameters(every) == [-(i + 1) / 128 for i in range(68)], "68 names read at their indexes")
     floats = g.read_parameters({"stamina_spending_modifier": -0.3, "stamina_spending_speed_modifer": -0.3,
-                                "respawn_time": -0.375})
+                                "respawn_time": -0.5})
     expect(floats == [0.0] * 68, "a misspelt name is read nowhere")
     print("config reader: the 68 names of 0x928448 land at their indexes; misspellings are dropped")
 
@@ -340,7 +340,7 @@ def run(data):
     print("booster: 68 nonzero floats -> 68 nodes, indexes 0..67, each linked into its kit list (no filter)")
 
     # The four planned boosters, each its own float array (other indexes 0).
-    plan = {"radio (respawn_booster)": {RESPAWN: -0.375},
+    plan = {"radio (respawn_booster)": {RESPAWN: -0.50},
             "rations (regeneration_booster)": {STAMINA_SPEND: -0.30},
             "protein (weight_booster)": {AIM_TIME: -0.15},
             "artefact master (artefact_booster)": {ARTEFACT_SEARCH: -0.60}}
@@ -414,7 +414,7 @@ def run(data):
     # Index 60 (respawn): the whole on_event, then the HUD's seconds.
     print("respawn (index 60): on_event 0x316AA0, death at `now` and 17 ms before; HUD at the death")
     for base_s in (8, 10):
-        for s60 in (0.0, -0.2, -0.375, -0.6):
+        for s60 in (0.0, -0.2, -0.5):
             r = Game(data)
             floats = [0.0] * 68
             floats[RESPAWN] = s60
@@ -425,6 +425,9 @@ def run(data):
             exact = base_s * 1000 * max(0.0, 1 + struct.unpack("<f", struct.pack("<f", s60))[0])
             expect(at - now == math.ceil(math.floor(exact + 0.5) / 50) * 50, "respawn delay on the grid")
             expect(hud == math.ceil((at - now) / 1000), "hud seconds")
+            # The radio, retail and now: 8 s -> 6.4 s / 4 s, 10 s -> 8 s / 5 s.
+            want = {(8, -0.2): 6400, (8, -0.5): 4000, (10, -0.2): 8000, (10, -0.5): 5000}.get((base_s, s60))
+            expect(want is None or at - now == at17 - now == want, "the radio's delay")
             print(f"  {base_s} s, S60 {s60:+.3f}: delay {at - now} ms (death 17 ms earlier: "
                   f"{at17 - now} ms after now), HUD {hud} s")
     return checks

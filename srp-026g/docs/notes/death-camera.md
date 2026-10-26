@@ -8,7 +8,7 @@ The owner (2026-10-21): "when player dies they can still move camera around, wit
 mouse button? Scroll shouldn't work though".
 
 - **Today (the original):** after a death the camera stays in first person on the corpse's
-  eyes, the kits and the cursor are shown until the respawn (8 s or 10 s by the modes' options, 5 s or 6.25 s with the radio), the
+  eyes, the kits and the cursor are shown until the respawn (8 s or 10 s by the modes' options, 4 s or 5 s with the radio), the
   cursor takes every mouse move, and the wheel does nothing.
 - **When:** the death screen: the local player dead, the kits shown, the camera in first
   person. Ends at the respawn (the kits hide).

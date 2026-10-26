@@ -26,7 +26,7 @@ package
    // - mode "check" (the default): the countdown as the exe sends it (root.set_respawn_time,
    //   "<prefix> MM:SS" each second, the seconds rounded up, "" at the end) on a made-up clock:
    //   the openness (how much of the view shows) at 0, 25, 50, 75 and 100 % of a 3.2, 4, 5, 6.25
-   //   and 10 s countdown (the radio's shortest respawns among them), the curve going down but for
+   //   and 10 s countdown (the radio's 4 s and 5 s among them), the curve going down but for
    //   its dims, deepest at the end and the scene still showing there, clear again at the respawn;
    //   a time that is not whole seconds; a rollback over the death; a countdown that stops; the
    //   texts; then in real time a 5 s countdown with a real mouse click (check.sh's xdotool) on
@@ -232,8 +232,8 @@ package
          var line:String;
          var at:int;
          // the modes' 8 s and 10 s respawns with the radio (respawn_booster, battery_respawn.md):
-         // x 1/1.6 gives 5 s and 6.25 s, x 0.4 gives 3.2 s and 4 s (a time not whole seconds shows
-         // its first value rounded up: 00:07, 00:04)
+         // x 0.5 gives 4 s and 5 s; 3.2 s and 6.25 s (other readings weighed) are not whole seconds,
+         // so their first value is rounded up: 00:04, 00:07
          var totals:Array = [3200,4000,5000,6250,10000];
          for each(total in totals)
          {

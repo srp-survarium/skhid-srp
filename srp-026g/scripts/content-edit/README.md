@@ -533,14 +533,13 @@ same content by `release/build-site`.
 PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
 before they can ship on top of this list.
 
-## radio-respawn-1.json (2026-10-26)
+## radio-respawn-1.json (2026-10-27)
 
 | change | why |
 |---|---|
-| modification 1220 (the Radio's, `respawn_booster`; no other item has it): `modifiers[0]/value` and `lobby_info/respawn_time_modifier` -0.2 -> -0.375 | the owner: "respawn +60%". Respawn speed +60 % is the time x 1/1.6: the respawn rule's delay is `respawn_time` x max(0, 1 + modifier 60) (0x316AA0), so 8 s -> 5 s in Team Deathmatch and 10 s -> 6.25 s in the battery modes and Research (was 6.4 s and 8 s). Run with Unicorn (`../../client-patches/check_booster_modifiers_026g.py`) |
-| a card line 135 "Respawn speed" in `gameplay/static_game_parameters.options` `ui_properties`, made like 124 ("Respawn time") after 134, higher is better; its text `st_srp_respawn_speed` in the six localization tables (Respawn speed / Geschwindigkeit der Wiederbelebung / Szybkość odrodzenia / Скорость возрождения / Швидкість відродження); 1220's card line 124 "-0.20" -> 135 "0.60" | the card says "+60%" as the owner put it: line 124 (lower is better) would say -37.5 %. Each text uses only characters its table already has; line 124 stays as 0.26g has it |
+| modification 1220 (the Radio's, `respawn_booster`; no other item has it): `modifiers[0]/value` and `lobby_info/respawn_time_modifier` -0.2 -> -0.5, its card line 124 "Respawn time" "-0.20" -> "-0.50" | the owner: respawn time -50 % (was -20 %). The respawn rule's delay is `respawn_time` x max(0, 1 + modifier 60) (0x316AA0), so 8 s -> 4 s in Team Deathmatch and 10 s -> 5 s in the battery modes and Research (was 6.4 s and 8 s). Run with Unicorn (`../../client-patches/check_booster_modifiers_026g.py`) |
 
-Applied to the live files: 8 files edited, 0 unexpected differences. The simulation changes (the
+Applied to the live files: 1 file edited, 0 unexpected differences. The simulation changes (the
 `next` row of `simulation_changes.tsv`). See [`../../docs/notes/booster-buffs.md`](../../docs/notes/booster-buffs.md).
 
 ## rations-stamina-1.json (2026-10-26)

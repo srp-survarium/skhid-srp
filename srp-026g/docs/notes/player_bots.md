@@ -196,7 +196,7 @@ the archive's index: a loader must follow them.
      clip in slot 11), `bm_back_1` (slot 3) and `bm_legs_5` (slot 4), and
      in the pockets two `medkit` (slot 13, quick use 1, bit 14), the radio
      `respawn_booster` (slot 14, no key: it works carried; default
-     modification 1220, `respawn_time_modifier` -0.375 since radio-respawn-1) and two `rgd-5`
+     modification 1220, `respawn_time_modifier` -0.5 since radio-respawn-1) and two `rgd-5`
      (slot 15, bit 23).
    - **Roles** (`BotRole`: the match server's personalities and shares,
      flanker 0.30, support 0.25, rusher 0.30, camper 0.15): weapon 1 in
@@ -242,8 +242,8 @@ the archive's index: a loader must follow them.
        the kit's lists. At a death the respawn rule (0x316AA0) sets the
        delay through the getter 0x2D5AE0 (index 0x3C, which sums the
        lists): `respawn_time × max(0, 1 + modifier)`, rounded up to the
-       50 ms grid; 8 s × 0.625 = 5 s in Team Deathmatch, 10 s × 0.625 =
-       6.25 s in the battery modes (battery_respawn.md, booster-buffs.md;
+       50 ms grid; 8 s × 0.5 = 4 s in Team Deathmatch, 10 s × 0.5 =
+       5 s in the battery modes (battery_respawn.md, booster-buffs.md;
        6.4 s and 8 s with 0.26g's -0.2). No use, no count check. The
        defaults' path (2026-10-26, static): `item_config_cook::translate_query`
        0x2F1750 walks the item's `default_modifications` before the ids
@@ -366,7 +366,7 @@ the archive's index: a loader must follow them.
      weighs 0.3 of a Team Deathmatch one).
    - Kit and role (`survarium::v026g::loadouts::BotRole`): flanker (Uzi),
      support (AK-74U), rusher (TOZ-34), camper (Mosin), each with two
-     medkits, two RGD-5 and the radio (passive: respawn speed +60 %, time x 1/1.6, PROVEN
+     medkits, two RGD-5 and the radio (passive: respawn time -50 %, PROVEN
      in the client); the role is read back from the gear and sets the
      bot's personality.
    - Weapons (`guns.rs`): each weapon's rounds a load, shot time, trigger
