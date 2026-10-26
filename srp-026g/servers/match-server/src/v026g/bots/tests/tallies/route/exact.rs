@@ -24,7 +24,7 @@ impl RouteTopic for ExactFalls {
             self.falls_exact.0 += 1;
             self.exact_drop[at.place] = Some(at.time);
         }
-        if let Some(CarryEvent::Began(_)) = at.carry
+        if let Some(CarryEvent::Began) = at.carry
             && let Some(dropped) = self.exact_drop[at.place].take()
             && at.time <= dropped + 10_000
         {

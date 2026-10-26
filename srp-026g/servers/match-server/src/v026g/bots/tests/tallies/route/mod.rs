@@ -40,16 +40,15 @@ pub(super) struct Fall {
     pub(super) exact: bool,
 }
 
-/// What a body's carry did this tick: began with `battery`, or ended (`home`: delivered; else lost) after `ms`.
+/// What a body's carry did this tick: began, or ended (`home`: delivered; else lost) after `ms`.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum CarryEvent {
-    Began(usize),
+    Began,
     Ended { ms: u32, home: bool },
 }
 
 /// One body at one tick, for the topics' [`RouteTopic::tick`].
 pub(super) struct TickAt<'a> {
-    pub(super) game: &'a Game,
     pub(super) bots: &'a Bots,
     pub(super) time: u32,
     pub(super) place: usize,
@@ -149,7 +148,7 @@ impl RouteTally {
             let carry = match (run.carry_from[place], body.carrying) {
                 (None, Some(battery)) => {
                     run.carry_from[place] = Some((time, battery));
-                    Some(CarryEvent::Began(battery))
+                    Some(CarryEvent::Began)
                 }
                 (Some((from, battery)), None) => {
                     run.carry_from[place] = None;
@@ -160,7 +159,7 @@ impl RouteTally {
                 }
                 _ => None,
             };
-            let at = TickAt { game, bots, time, place, body, before, fall, carry };
+            let at = TickAt { bots, time, place, body, before, fall, carry };
             for topic in &mut self.topics {
                 topic.tick(&self.run, &at);
             }
