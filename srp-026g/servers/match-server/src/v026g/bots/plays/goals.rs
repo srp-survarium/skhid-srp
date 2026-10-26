@@ -291,10 +291,11 @@ impl Ctx<'_> {
 /// of: [`Ctx::exposed_climb`]), off the edges (`near_lip`, `near_fall`) and
 /// in sight of the anchor, go in front of `fine` with probability the map's
 /// perch share over `PerchTuning::hold_share` (a GUESS, 0.4; times
-/// `p_scale`, 1; at most `p_max`), in an order
+/// `p_scale`, 1; at most `p_max`) replace `fine` altogether, in an order
 /// drawn by their visit rates (Efraimidis and Spirakis' weighted sampling
 /// without replacement: key `u^(1/rate)`), so the play's "one of the best n"
-/// takes a perch by its weight. No table, no perch in range, or the switch
+/// takes a perch by its weight. A perch that proves no way is repicked
+/// by the play (`repick_if_shut`), which asks this again. No table, no perch in range, or the switch
 /// off: `fine` as it was and no draw from `rng` (a bot's stream is unchanged).
 pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Vec<Vec3> {
     let tuning = &cx.tuning.perch;
@@ -370,9 +371,10 @@ pub fn perch_first(cx: &Ctx, anchor: Vec3, rng: &mut Rng, fine: Vec<Vec3>) -> Ve
         .map(|(at, rate)| (rng.unit().max(1e-6).powf(1.0 / rate.max(0.1)), at))
         .collect();
     keyed.sort_by(|a, b| b.0.total_cmp(&a.0));
-    let mut out: Vec<Vec3> = keyed.into_iter().map(|(_, at)| at).collect();
-    out.extend(fine);
-    out
+    // Perches only: the plays take one of the best few of the list, and with
+    // the ring behind the perches a taken perch was picked a third of the time
+    // (the bench's counts: 3-19 takes a match, perch time unmoved).
+    keyed.into_iter().map(|(_, at)| at).collect()
 }
 
 // The bench's counts of what `perch_first` did: calls, with a table, perches
@@ -693,13 +695,12 @@ mod tests {
         s.tactics.set_perches(table, Some(PerchShare { p75: 0.0, share: 0.2 }));
         s.tuning.perch.hold_share = 0.2;
         s.tuning.perch.p_max = 1.0;
-        // A share of 1: the two in range, then the ring.
+        // A share of 1: the two in range, the ring not offered.
         let mut first_is_heavy = 0;
         for k in 0..200 {
             let mut rng = Rng::new(100 + k);
             let out = perch_first(&s.cx(0), anchor, &mut rng, ring.clone());
-            assert_eq!(out.len(), 3, "{out:?}");
-            assert_eq!(out[2], ring[0]);
+            assert_eq!(out.len(), 2, "{out:?}");
             // (The perches stand on the floor cell under them.)
             let at = |p: Vec3, x: f32, z: f32| p.distance_xz(Vec3::new(x, 0.0, z)) < 1.0;
             assert!(out[..2].iter().any(|&p| at(p, 30.0, 10.0)) && out[..2].iter().any(|&p| at(p, 50.0, 30.0)));
@@ -713,7 +714,7 @@ mod tests {
         s.tactics.perch_share = Some(PerchShare { p75: 0.0, share: 0.1 });
         s.tuning.perch.p_max = 0.5;
         let taken = (0..400)
-            .filter(|&k| perch_first(&s.cx(0), anchor, &mut Rng::new(900 + k), ring.clone()).len() == 3)
+            .filter(|&k| perch_first(&s.cx(0), anchor, &mut Rng::new(900 + k), ring.clone()).len() == 2)
             .count();
         assert!((150..250).contains(&taken), "{taken} of 400");
         // The switch off: the list as it was.
