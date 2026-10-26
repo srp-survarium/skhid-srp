@@ -826,9 +826,9 @@ fn start_costs<'a>(
     def: &TryDef,
 ) -> Option<&'a mapdata::grid::DistanceMap> {
     let key = site_key(def);
-    if !cache.contains_key(&key) {
+    if let std::collections::hash_map::Entry::Vacant(slot) = cache.entry(key) {
         let node = path::goal_floor(&world.grid, start_of(def))?;
-        cache.insert(key, world.grid.distances_to(&[node]));
+        slot.insert(world.grid.distances_to(&[node]));
     }
     cache.get(&key)
 }
