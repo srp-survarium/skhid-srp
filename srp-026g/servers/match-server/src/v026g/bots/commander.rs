@@ -14,6 +14,10 @@ pub(super) struct TeamState {
     pub(super) no_way_to: Vec<(Vec3, u32)>,
     /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
     pub(super) spots: TeamSpots,
+    /// The floors of the traps its bots put down, and the list's version it
+    /// was built for (`trap_know.rs`).
+    pub(super) trap_field: Arc<trap_know::TrapField>,
+    pub(super) trap_field_version: u64,
     /// Where a shooter killed its bots from, and the regions his line
     /// covers now ([`threat`]).
     pub(super) threat: threat::ThreatSpots,
@@ -107,6 +111,11 @@ impl Bots {
         state.next_commander = now + tuning.think.commander_ms;
         state.knowledge.forget_old(now);
         state.knowledge.settle_looks(team, view);
+        state.refresh_traps(&tactics.world.grid);
+        let field = state.trap_field.clone();
+        for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
+            bot.trap_field = field.clone();
+        }
         // What a bot of the team proved no way to lately, the whole team
         // leaves for longer, from the proof on.
         state.no_way_to.retain(|&(_, until)| now < until);

@@ -63,6 +63,8 @@ pub mod tactics;
 pub mod team;
 pub mod threat;
 pub mod trace;
+pub mod trap_know;
+pub mod traps;
 pub mod tuning;
 pub mod view;
 
@@ -235,6 +237,13 @@ pub struct Bot {
     paired: bool,
     /// Medkits used this life (the tip's count, which the Heal play and Retreat go by while `HealTuning::on` is off).
     medkits_used: u8,
+    /// The bear-trap habit (`traps.rs`), and the point of the trap it let go
+    /// of since the last think.
+    traps: traps::Habit,
+    trap_placed: Option<(Vec3, u32)>,
+    /// The floors of its team's traps it keeps off (`trap_know.rs`), shared
+    /// at each commander tick.
+    trap_field: Arc<trap_know::TrapField>,
     /// The drugs of its kits, counted for the match ([`stock::Pantry`]).
     pantry: stock::Pantry,
     /// Its health pools as the last trusted world showed them
@@ -386,6 +395,9 @@ impl Bot {
             partner: None,
             paired: false,
             medkits_used: 0,
+            traps: traps::Habit::none(),
+            trap_placed: None,
+            trap_field: Arc::new(trap_know::TrapField::default()),
             pantry: stock::Pantry::standard(),
             pools: None,
             found: None,
@@ -578,6 +590,7 @@ impl Bot {
         self.memory = Memory::default();
         self.skill = skill;
         self.medkits_used = 0;
+        self.traps.new_life();
         self.pantry.new_life(self.kit);
         if self.side.is_none() {
             self.side = tactics.and_then(|tactics| tactics.side_at(feet));
@@ -667,6 +680,8 @@ impl Bots {
             next_commander: 0,
             no_way_to: Vec::new(),
             spots: TeamSpots::default(),
+            trap_field: Arc::new(trap_know::TrapField::default()),
+            trap_field_version: 0,
             threat: threat::ThreatSpots::default(),
             covered: None,
         };
@@ -1149,6 +1164,23 @@ impl Bots {
             let report = tactics.hazards.sync_from_world(objects, time);
             (report.synced.len(), report.missed.len())
         })
+    }
+
+    /// A trusted world's objects section: the bear traps the teams' bots
+    /// promised confirmed, followed and dropped (`trap_know.rs`). Returns
+    /// the traps the world shows (0 while no bot has put one down).
+    pub fn traps_from_world(&mut self, objects: &[u8], time: u32) -> usize {
+        if self.teams.iter().all(|team| team.knowledge.traps.all().is_empty()) {
+            return 0;
+        }
+        let found = survarium::v026g::match_msgs::traps::find(objects, time);
+        for team in &mut self.teams {
+            team.knowledge.traps.sync(time, &found);
+            if let Some(tactics) = self.tactics.as_ref() {
+                team.refresh_traps(&tactics.world.grid);
+            }
+        }
+        found.len()
     }
 
     /// The inputs due with the clock at `clock`.
