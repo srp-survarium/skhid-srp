@@ -38,10 +38,85 @@ use crate::v026g::drive::key;
 /// A roster place.
 pub type Place = usize;
 
-/// The height of the eyes over the feet, standing and crouched, metres
-/// (GUESS from the capsule: 1.8 m standing, 1.1 m crouched).
-pub const EYE_STANDING: f32 = 1.6;
-pub const EYE_CROUCHED: f32 = 0.95;
+/// Where the game's bullet starts, over the feet, metres: the player's head
+/// matrix (`player+0x44C`, the Head locator of its animation), which
+/// `weapon_core::instant_fire` (0x2E23A0) copies as the bullet's transform
+/// and `detect_usable_object` (0x2D84C0) takes the use ray from (PROVEN, the
+/// exe). It is an animated bone, so the height depends on the pose. Live
+/// bullets of 23 recorded matches (`fact-own-eye.md` 3, 2,591 of them, the
+/// body's world position of the same tick):
+///
+/// - standing: 1.470 m level (sd 0.03), 1.460 + 0.160 sin(pitch) over the
+///   2,053 rows (PROVEN); the same running, walking and still;
+/// - crouched and moving: 1.14 + 0.22 sin(pitch) over the 385 rows under
+///   1.3 m (PROVEN for the height, LIKELY for the pitch term: the sample is
+///   small; the 0.30 of all 493 rows holds the 17 % of rows above 1.3 m,
+///   the capsule flag flipping before the head follows);
+/// - crouched and still: 1.04 m (n = 24, PROVEN for the height; the pitch
+///   term is the moving one's, GUESS), 1.11 m at 0.1-0.5 m/s.
+///
+/// The old 1.6 and 0.95 m (GUESS from the capsule) were 0.13 m too high
+/// standing and 0.1-0.19 m too low crouched.
+const EYE_STANDING_M: f32 = 1.46;
+const EYE_STANDING_PITCH_M: f32 = 0.16;
+const EYE_CROUCHED_M: f32 = 1.14;
+const EYE_CROUCHED_STILL_M: f32 = 1.04;
+const EYE_CROUCHED_PITCH_M: f32 = 0.22;
+/// Slower than this a crouched body counts as still, m/s (the data's
+/// class: 24 rows under 0.1 m/s sit at 1.04, those at 0.1-0.5 m/s at 1.11).
+const EYE_STILL_MPS: f32 = 0.1;
+
+/// The heights before the measurement (GUESS from the capsule: 1.8 m
+/// standing, 1.1 m crouched), kept for the off switch
+/// (`CombatTuning::live_eye`).
+const EYE_GUESSED_STANDING_M: f32 = 1.6;
+const EYE_GUESSED_CROUCHED_M: f32 = 0.95;
+
+thread_local! {
+    static LIVE_EYE: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+}
+
+/// Whether the eye is the game's ([`eye_height`], the stand ranges, the
+/// look's re-look, the stand-in's shot order) or the old one (the off
+/// switch of the fix, `CombatTuning::live_eye`). `Bots` sets it for its
+/// thread at each call; on by default.
+pub fn live_eye() -> bool {
+    LIVE_EYE.with(|on| on.get())
+}
+
+/// Sets [`live_eye`] for this thread.
+pub fn set_live_eye(on: bool) {
+    LIVE_EYE.with(|cell| cell.set(on));
+}
+
+/// The height of the eyes (the bullet's origin) over the feet: `crouched`
+/// or standing, at `speed` (m/s, ground) with the view at `pitch` (radians,
+/// up is positive). The one place the crate gets an eye from: a body's own
+/// ([`PlaceView::eye`]), a target's head in a sight test, a cover spot's.
+pub fn eye_height(crouched: bool, speed: f32, pitch: f32) -> f32 {
+    if !live_eye() {
+        return if crouched {
+            EYE_GUESSED_CROUCHED_M
+        } else {
+            EYE_GUESSED_STANDING_M
+        };
+    }
+    let sin = pitch.sin();
+    if !crouched {
+        EYE_STANDING_M + EYE_STANDING_PITCH_M * sin
+    } else if speed < EYE_STILL_MPS {
+        EYE_CROUCHED_STILL_M + EYE_CROUCHED_PITCH_M * sin
+    } else {
+        EYE_CROUCHED_M + EYE_CROUCHED_PITCH_M * sin
+    }
+}
+
+/// The eye of a body at `feet` that holds still and looks level, standing
+/// or `crouched`: a cover spot, a stand, a track (nothing is known of its
+/// pose).
+pub fn still_eye(feet: Vec3, crouched: bool) -> Vec3 {
+    feet + Vec3::new(0.0, eye_height(crouched, 0.0, 0.0), 0.0)
+}
 /// The chest, where a shot is aimed.
 pub const CHEST: f32 = 1.3;
 
@@ -175,11 +250,7 @@ impl PlaceView {
     }
 
     pub fn eye(&self) -> Vec3 {
-        let up = if self.crouched() {
-            EYE_CROUCHED
-        } else {
-            EYE_STANDING
-        };
+        let up = eye_height(self.crouched(), self.speed(), self.pitch);
         self.feet + Vec3::new(0.0, up, 0.0)
     }
 
@@ -578,13 +649,11 @@ impl Tracker {
             heard(SoundKind::Jump);
         }
         if pressed & key::USE != 0 {
-            let up = if keys & key::CROUCH != 0 {
-                EYE_CROUCHED
-            } else {
-                EYE_STANDING
-            };
+            let pitch = estimate.view_pitch();
+            let speed = estimate.velocity[0].hypot(estimate.velocity[1]);
+            let up = eye_height(keys & key::CROUCH != 0, speed, pitch);
             let [fx, fz] = super::kin::forward(estimate.yaw);
-            let (sin, cos) = estimate.view_pitch().sin_cos();
+            let (sin, cos) = pitch.sin_cos();
             self.used(
                 place,
                 UsePress {
