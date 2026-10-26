@@ -251,6 +251,9 @@ def relocated(bytes_, va, where):
             lines.append("    db " + ", ".join(f"0x{b:02x}" for b in code))
             continue
         mnemonic, target = branch[1], int(branch[2], 16)
+        if text.split()[0] in ("o16", "a16") or " word " in f" {text} ":
+            raise Bad(f"{where}: `{text}` is a prefixed branch (its target truncated); it cannot be relocated "
+                      "(use a code hook)")
         if va < target < va + len(bytes_):
             raise Bad(f"{where}: `{text}` branches into the span itself; it cannot be relocated (use a code hook)")
         if mnemonic.startswith(("loop", "jcxz", "jecxz", "xbegin")):

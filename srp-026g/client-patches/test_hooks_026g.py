@@ -30,27 +30,35 @@ class Hooks(unittest.TestCase):
                 displacement = struct.unpack("<i", h["original"][1:])[0]
                 self.assertEqual((va + 5 + displacement) & 0xFFFFFFFF, 0x2000)
 
-    def test_relocation_refuses_relative_control_flow(self):
-        # Short/near/prefixed branches, calls, loop and transactional abort.
-        for code in ("7500", "0f8500010000", "660f850001", "e800010000", "66e80001",
-                     "e900010000", "eb00", "e200", "67e300", "c7f800010000"):
-            with self.subTest(code=code), self.assertRaisesRegex(H.Bad, "relative branch"):
-                H._branch_free(bytes.fromhex(code), "test")
+    def test_relocation_remakes_relative_control_flow(self):
+        # A relative jcc, jmp or call is made again to its absolute target;
+        # one into the span itself, a prefixed one (o16/a16: its target
+        # truncated), loop/jecxz and xbegin (no rel32 form) are refused.
+        va = 0x2000
+        for code, line in (("7500", "jnz near 0x2002"), ("0f8500010000", "jnz near 0x2106"),
+                           ("e800010000", "call 0x2105"), ("e900010000", "jmp 0x2105"), ("eb00", "jmp 0x2002")):
+            with self.subTest(code=code):
+                self.assertEqual(H.relocated(bytes.fromhex(code), va, "test"), [f"    {line}"])
+        for code in ("660f850001", "66e80001", "e200", "67e300", "c7f800010000", "7401909090", "eb01909090"):
+            with self.subTest(code=code), self.assertRaises(H.Bad):
+                H.relocated(bytes.fromhex(code), va, "test")
 
     def test_relocation_accepts_opcode_bytes_in_operands(self):
         for code in ("b870000000", "8b80e8000000", "558bec83e4f883ec28",
                      "c70570000000e8e9eb70", "b80f850000"):
             with self.subTest(code=code):
-                H._branch_free(bytes.fromhex(code), "test")
+                lines = H.relocated(bytes.fromhex(code), 0x2000, "test")
+                self.assertTrue(all(line.startswith("    db ") for line in lines))
 
     def test_relocation_requires_whole_instructions(self):
         for code in ("b8", "0f85", "558bec83ec", "66", "f3"):
             with self.subTest(code=code), self.assertRaisesRegex(H.Bad, "invalid or incomplete"):
-                H._branch_free(bytes.fromhex(code), "test")
+                H.relocated(bytes.fromhex(code), 0x2000, "test")
 
     def test_span_hooks_use_instruction_validation(self):
         for kind in ("splice", "lohook"):
-            for code, accepted in (("b870000000", True), ("0f8500010000", False), ("558bec83ec", False)):
+            for code, accepted in (("b870000000", True), ("0f8500010000", True), ("7401909090", False),
+                                   ("558bec83ec", False)):
                 with self.subTest(kind=kind, code=code):
                     span = bytes.fromhex(code)
                     sites = {"test.site": {**site(0x2000, kind), "span": len(span)}}
