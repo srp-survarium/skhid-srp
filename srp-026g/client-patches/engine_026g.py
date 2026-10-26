@@ -285,6 +285,9 @@ def functions(spec=None, abi=None, inputs=None):
 
 
 FIELD_TYPES = {"u8": 1, "u16": 2, "u32": 4, "i32": 4, "f32": 4}
+# The largest object a field is read in: match_options, 0x578A0 bytes (its
+# constructor 0x318380; the static info's +57870h is patch 65's).
+FIELD_LIMIT = 0x60000
 
 
 def fields(path=None):
@@ -295,10 +298,10 @@ def fields(path=None):
         module = kind.rpartition("::")[2]
         offset = number(row["offset"])
         if not re.fullmatch(r"[a-z][a-z0-9_]*", module) or not re.fullmatch(r"[a-z][a-z0-9_]*", field) \
-                or kind_type not in FIELD_TYPES or not 0 <= offset < 0x10000 or offset % FIELD_TYPES[kind_type] \
+                or kind_type not in FIELD_TYPES or not 0 <= offset < FIELD_LIMIT or offset % FIELD_TYPES[kind_type] \
                 or (module, field) in seen:
             raise Refused(f"fields_026g.tsv: {row}: a kind (a::b), a field (snake case, once), an offset "
-                          f"under 0x10000 aligned to its type, a type of {', '.join(FIELD_TYPES)}")
+                          f"under {FIELD_LIMIT:#x} aligned to its type, a type of {', '.join(FIELD_TYPES)}")
         seen.add((module, field))
         out.append({"kind": kind, "module": module, "field": field, "offset": offset, "type": kind_type,
                     "about": row["about"].strip()})

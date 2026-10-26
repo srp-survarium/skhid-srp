@@ -3867,7 +3867,7 @@ def test_suicide_key(original, image, before):
     check(stock.read(0x2D8BC1, 7) == bytes.fromhex("f7470400000001") and quick == [0x2D8777],
           "base_player::process_quick_slots tests bit 24 of the input (0x2D8BC1 `test dword [edi+4],1000000h`) and "
           "is called from the input apply 0x2D86E0 alone (0x2D8777)")
-    va, old, symbol, opcode = P.RUST_HOOKS[0]
+    va, old, symbol, opcode = next(h for h in P.RUST_HOOKS if h[2] == "suicide_key_on_spot")
     linked = P.arena()
     block = linked.blocks["patches.code"]
     entry = linked.symbols[symbol]

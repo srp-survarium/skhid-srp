@@ -53,6 +53,11 @@ package player_icons_fla
       // and names over heads are this movie's root, hidden in one step with the hud; the movie runs on.
       public function hide_interface(hidden:Boolean) : void
       {
+         // forced (Blackout, force_interface_hidden) the key does nothing: Tab alone shows the markers
+         if(this.objectsForced)
+         {
+            return;
+         }
          visible = !hidden;
       }
 
@@ -63,6 +68,10 @@ package player_icons_fla
       public function force_interface_hidden(forced:Boolean) : void
       {
          this.objectsForced = forced;
+         if(forced)
+         {
+            visible = true;
+         }
          this.applyForced();
       }
 

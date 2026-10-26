@@ -1,2 +1,10 @@
 kind	field	offset	type	about
 survarium::player_input_handler	actions	0x33C	u32	the action mask of the input being built (process_first_person_mode 0x241250; bit 24 commit_suicide)
+survarium::match_options	srp_blackout	0x57870	u32	patch 65's mark: the last 16 bytes of the unused "Mode" string (+57840h, 40h bytes; only emptied 0x3183E3, logged 0x27BD08), "SRBO" for a Blackout match, else 0
+vostok::buffer_reader	begin	0x0	u32	a reader of a message's bytes {begin, cursor, size} (match_options::deserialize's EAX, 0x1F0E70): the first byte
+vostok::buffer_reader	cursor	0x4	u32	the next byte to read
+vostok::buffer_reader	size	0x8	u32	the bytes from begin
+survarium::game_world_ui	hud_movie	0x8	u32	the hud movie's holder (initialize_match 0x234AE8: [[+8]+108h]+4 the movie)
+survarium::game_world_ui	icons_movie	0x10	u32	the player icons movie's holder (update_player_icons 0x23ACC1: [[+10h]+108h]+4 the movie)
+vostok::ui::movie_holder	view	0x108	u32	the holder's movie view ([+108h]+4 the Scaleform movie, 0x2384EE)
+vostok::ui::movie_view	movie	0x4	u32	the Scaleform movie (GFx::Movie, Invoke 0x511600's this)

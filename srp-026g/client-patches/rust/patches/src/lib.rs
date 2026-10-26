@@ -31,4 +31,5 @@ mod raw {
 
 pub mod vostok;
 
+pub mod blackout;
 pub mod suicide_key;

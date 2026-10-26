@@ -1147,7 +1147,7 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key",)
+RUST_PATCHES = ("blackout", "suicide_key")
 RUST_HOOKS = tuple((va, original, symbol, opcode)
                    for va, original, symbol, opcode, _owner in hooks_026g.installs())
 
@@ -2198,6 +2198,13 @@ INSTALLS = {
     0x25CF60: (ENTRY, "the game world's on_mouse_key_action: warmup_keys", None, None),
     0x1F364B: (CALLEE, "update_camera's view update: death_view", None, None),
     0x242196: (CALLEE, "the input builder's last action call: suicide_key (Rust `call` hook)", None, None),
+    # Blackout, patch 65 (Rust `lohook`s: each entry saves the machine, calls its handler, replays the
+    # span and goes on past it; blackout.toml, sites_026g.tsv)
+    0x27B92D: (JUMP, "process_static_match_info after its deserialize: blackout::on_static_info", None, None),
+    0x1F0971: (JUMP, "a replay's chunk 1 after its deserialize: blackout::on_replay_options", None, None),
+    0x23AA10: (JUMP, "update_player_icons' start: blackout::on_update_icons", None, None),
+    0x25CD2C: (JUMP, "on_keyboard_action after its Tab test: blackout::on_tab", None, None),
+    0x2421B0: (JUMP, "process_first_person_mode's epilogue: blackout::on_input_end", None, None),
     0x265E73: (CALLEE, "start_item_upgrade's camera: the stash's start, then start_cam", None, None),
     0x265F44: (CALLEE, "exit_item_upgrade's camera: the stash's exit, then exit_cam", None, None),
     0x284B10: (ENTRY, "setup_profile: the stash's setup, then setup_hook", None, None),
@@ -2501,6 +2508,8 @@ ARENA = (
     # commit_suicide key): one crate, its generated hook entries, the arena's
     # block patches.code (docs/notes/rust_patches.md, hooks_026g.py).
     ArenaBlock("patches.code", "code", 0x1000, hooks_026g.arena_sources()),
+    # The crate's statics (vostok::GameCell; Blackout's flag and Tab, patch 65).
+    ArenaBlock("patches.state", "state", 0x1000, ("rust/patches/Cargo.toml",)),
 )
 
 

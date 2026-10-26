@@ -854,7 +854,18 @@ package
 
       private var _interfaceHidden:Boolean;
 
+      // Forced (Blackout, force_interface_hidden) the interface stays as forced: the key and a
+      // match's reset do nothing to it; the exe's patch 65 unforces it for a match without.
       public function hide_interface(hidden:Boolean) : void
+      {
+         if(this._forced)
+         {
+            return;
+         }
+         this.setInterfaceHidden(hidden);
+      }
+
+      private function setInterfaceHidden(hidden:Boolean) : void
       {
          _interfaceHidden = hidden;
          visible = !hidden;
@@ -889,7 +900,7 @@ package
             this._keptLayer.keep(this._keptLayer.kept(),false);
             this._tabKept = [];
          }
-         this.hide_interface(forced);
+         this.setInterfaceHidden(forced);
       }
 
       public function interface_forced() : Boolean
@@ -1954,9 +1965,10 @@ package
       public function reset() : void
       {
          trace("HUD::reset");
-         // a new match starts with the interface shown and nothing forced (the movie is the last
-         // match's; the exe's patch 62 shows the player icons' with it, or forces both, patch 65)
-         this.force_interface_hidden(false);
+         // a new match starts with the interface shown (the movie is the last match's; the exe's
+         // patch 62 shows the player icons' with it); a forced one stays forced until patch 65
+         // tells the movie the new match's state
+         this.hide_interface(false);
          this.clear_minimap();
          this.chat.clear();
          this.show_ammo(false);

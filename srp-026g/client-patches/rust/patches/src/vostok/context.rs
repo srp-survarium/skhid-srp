@@ -10,7 +10,7 @@
 //! entry (its register save/restore). The API and the [`Frame`] are here so
 //! the design is whole and tested.
 
-use super::hook::{Regs, Thread};
+use super::hook::{Handle, Regs, Thread};
 
 /// A general-purpose register.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -23,6 +23,17 @@ pub enum Reg {
     Ebp,
     Esi,
     Edi,
+}
+
+/// Where a game object is at a `lohook`'s site.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Loc {
+    /// Its address in a register.
+    Reg(Reg),
+    /// Its address in the stack dword `[esp + n]`.
+    Stack(u32),
+    /// The object itself at `reg + n` (a local of the frame: `ebp - 2Ch`).
+    Local(Reg, i32),
 }
 
 /// A flag a handler may set for the code after the detour.
@@ -95,6 +106,9 @@ impl<'t> Context<'t> {
         }
     }
 
+    /// A register as the game's code has it at the site. ESP is the game's
+    /// (the entry's `pushad` saved it 8 bytes lower: its dispatch slot and
+    /// `pushfd`).
     pub fn reg(&self, reg: Reg) -> u32 {
         let r = self.regs();
         match reg {
@@ -102,11 +116,32 @@ impl<'t> Context<'t> {
             Reg::Ecx => r.ecx,
             Reg::Edx => r.edx,
             Reg::Ebx => r.ebx,
-            Reg::Esp => r.esp,
+            Reg::Esp => r.esp.wrapping_add(8),
             Reg::Ebp => r.ebp,
             Reg::Esi => r.esi,
             Reg::Edi => r.edi,
         }
+    }
+
+    /// The game's stack dword at `[esp + offset]` at the site.
+    pub fn stack_u32(&self, offset: u32) -> u32 {
+        let at = self.reg(Reg::Esp).wrapping_add(offset);
+        // SAFETY: the site's stack is the game's, live while the hook runs; the
+        // offsets a patch reads are the site's frame (sites_026g.tsv's `what`).
+        unsafe { (at as usize as *const u32).read_unaligned() }
+    }
+
+    /// A game object at the site, where its row says it is ([`Loc`]), as its
+    /// handle; `None` for a null one.
+    pub fn handle<'a, H: Handle<'a>>(&'a self, at: Loc) -> Option<H> {
+        let raw = match at {
+            Loc::Reg(reg) => self.reg(reg),
+            Loc::Stack(offset) => self.stack_u32(offset),
+            Loc::Local(reg, offset) => self.reg(reg).wrapping_add(offset as u32),
+        };
+        // SAFETY: the site's frame holds that object there (the site's row, its
+        // check against the original exe); the handle borrows this hook's thread.
+        unsafe { H::from_raw(&self.thread, raw) }
     }
 
     pub fn set_reg(&mut self, reg: Reg, value: u32) {

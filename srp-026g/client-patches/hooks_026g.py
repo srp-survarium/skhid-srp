@@ -129,9 +129,19 @@ def read_sites(path=None):
             raise Bad(f"sites_026g.tsv: {name!r} is no site name (dotted, e.g. input_builder.spot_query)")
         exits = [] if row["exits"].strip() in ("", "-") else [
             (e.split("@")[0], engine_026g.number(e.split("@")[1])) for e in row["exits"].split(";")]
+        span = row["span"].strip()
+        # the span: its length, or (a span hook the build installs) its bytes as hex,
+        # which patch_026g.py's apply() checks against the original exe at every build
+        if span in ("", "-"):
+            length, expected = None, None
+        elif re.fullmatch(r"(?:[0-9a-f]{2}){3,}", span):
+            expected = bytes.fromhex(span)
+            length = len(expected)
+        else:
+            length, expected = engine_026g.number(span), None
         out[name] = {"site": name, "va": engine_026g.number(row["va"]), "kind": row["kind"].strip(),
-                     "callee": row["callee"].strip(), "span": None if row["span"].strip() in ("", "-")
-                     else engine_026g.number(row["span"]), "exits": exits, "what": row["what"].strip()}
+                     "callee": row["callee"].strip(), "span": length, "bytes": expected, "exits": exits,
+                     "what": row["what"].strip()}
     return out
 
 
@@ -289,6 +299,10 @@ def span_bytes(patch_name, site, exe):
     pointer derives its bytes instead and does not need it."""
     if site["span"] is None:
         raise Bad(f"{patch_name}: site {site['site']} needs a `span` (its length) in sites_026g.tsv")
+    if site.get("bytes") is not None:
+        if exe is not None and bytes(exe(site["va"], site["span"])) != site["bytes"]:
+            raise Bad(f"{patch_name}: site {site['site']}'s bytes are not the original exe's at {site['va']:#x}")
+        return site["bytes"]
     if exe is None:
         raise Bad(f"{patch_name}: site {site['site']} ({site['kind']}) needs the original exe to read its "
                   f"{site['span']} bytes")
