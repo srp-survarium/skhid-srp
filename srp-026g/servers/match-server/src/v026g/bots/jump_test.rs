@@ -81,13 +81,13 @@ const SHIFT_MAX_M: f32 = 1.0;
 const SETTLE_MAX_MS: u32 = 5_000;
 /// The walk to the start is given up after this long, ms.
 const GO_MAX_MS: u32 = 60_000;
-/// A body this close to its start (m) has arrived.
-const ARRIVED_M: f32 = 0.3;
+/// A body this close to its start (m), at rest, has arrived: the real client's body coasts about 0.3-0.6 m after the
+/// keys are released (blend), so it comes to rest that far past the point the walk ended at, and the stand-in's does not.
+const ARRIVED_M: f32 = 0.6;
 /// The radius the walk to a start asks the motor for ([`Intent::exact_arrive_m`]), m: the motor's own is 0.6 m (the J0 on
-/// Chemical Plant struck five ledges at 0.30-0.35 m). A route ends a few cm off the start (0.055 m in the dry run), so
-/// a walk that ends within 0.25 m of its end stood at 0.30 m: just outside [`ARRIVED_M`], and 3 tries a minute in the
-/// dry run against 17.5; within 0.1 m it stands inside it.
-const START_ARRIVE_M: f32 = 0.1;
+/// Chemical Plant struck five ledges at 0.30-0.35 m short of the start), 0.1 m overshot on the live client (rests 0.45-0.53 m
+/// past the start, five of nine tries void in session 3): the keys are let go where the coast lands the body on the start.
+const START_ARRIVE_M: f32 = 0.3;
 /// Worlds are recorded this long after the press, ms.
 const RECORD_AFTER_MS: u32 = 3_000;
 /// The keys are held until this long after the press, ms.
@@ -123,9 +123,10 @@ const SUICIDE_TICKS: u32 = 3;
 const SUICIDE_CAP: u32 = 25;
 /// A bot still alive this long after the suicide bit goes on walking, ms.
 const SUICIDE_WAIT_MS: u32 = 1_500;
-/// A rest position fits its start within this (xz, y), m, and this facing (rad, 10 degrees); two worlds
+/// A rest position fits its start within this along the approach and across it (xz), m, this in height (y), and this facing (rad, 10 degrees); two worlds
 /// of the rest agree within [`STILL_M`].
-const REST_FIT_M: f32 = 0.3;
+const REST_FIT_ALONG_M: f32 = 0.6;
+const REST_FIT_ACROSS_M: f32 = 0.4;
 const REST_FIT_Y_M: f32 = 0.3;
 const REST_FIT_YAW: f32 = 0.1745;
 const STILL_M: f32 = 0.05;
@@ -1413,7 +1414,7 @@ impl JumpTest {
                     && elapsed >= if active.def.speed.sprints() { REST_BEFORE_SPRINT_MS } else { SETTLE_MS }
                 {
                     let first = (time / TICK_MS + LEAD_TICKS) * TICK_MS;
-                    let plan = rest_fits(row.feet, row.yaw, start, heading)
+                    let plan = rest_fits(row.feet, row.yaw, start, heading, approach(&active.def))
                         .then(|| plan_from(&active.def, row.feet, row.yaw, first, &self.table))
                         .flatten();
                     match plan {
@@ -1629,10 +1630,17 @@ fn forget_site(pool: &mut VecDeque<TryDef>, bad_sites: &mut Vec<Vec3>, bad: Vec3
     pool.retain(|d| base_of(d).distance_xz(bad) > BAD_SITE_M);
 }
 
-/// Whether a body at rest at `rest` facing `yaw` is where a try starts: within [`REST_FIT_M`] of the start
-/// on the ground plane, [`REST_FIT_Y_M`] in height, and facing the heading within 10 degrees.
-pub fn rest_fits(rest: Vec3, yaw: f32, start: Vec3, heading: f32) -> bool {
-    rest.distance_xz(start) <= REST_FIT_M && (rest.y - start.y).abs() <= REST_FIT_Y_M && wrap(yaw - heading).abs() <= REST_FIT_YAW
+/// Whether a body at rest at `rest` facing `yaw` is where a try starts: within [`REST_FIT_ALONG_M`] of the start along the
+/// approach `axis` (the plan is made from the actual rest, so the run-up is that much shorter or longer; the log carries
+/// `rest_off`) and [`REST_FIT_ACROSS_M`] across it, [`REST_FIT_Y_M`] in height, and facing the heading within 10 degrees.
+pub fn rest_fits(rest: Vec3, yaw: f32, start: Vec3, heading: f32, axis: [f32; 2]) -> bool {
+    let (dx, dz) = (rest.x - start.x, rest.z - start.z);
+    let along = dx * axis[0] + dz * axis[1];
+    let across = -dx * axis[1] + dz * axis[0];
+    along.abs() <= REST_FIT_ALONG_M
+        && across.abs() <= REST_FIT_ACROSS_M
+        && (rest.y - start.y).abs() <= REST_FIT_Y_M
+        && wrap(yaw - heading).abs() <= REST_FIT_YAW
 }
 
 /// What a try under way takes up: the start, the run-up line to the face and the top past it.
@@ -2177,17 +2185,25 @@ mod tests {
     }
 
     #[test]
-    fn a_rest_fits_only_within_a_third_of_a_metre_a_third_up_and_ten_degrees_of_the_heading() {
+    fn a_rest_fits_within_six_tenths_along_the_approach_four_across_a_third_up_and_ten_degrees_of_the_heading() {
         let start = Vec3::new(-6.0, 1.72, 93.9);
-        assert!(rest_fits(start, 0.0, start, 0.0));
-        assert!(rest_fits(Vec3::new(-5.8, 1.9, 94.1), 0.1, start, 0.0));
-        // 0.6 m off, another ledge's start 9 m off, on the top deck, facing 20 degrees off.
-        assert!(!rest_fits(Vec3::new(-5.4, 1.72, 93.9), 0.0, start, 0.0));
-        assert!(!rest_fits(Vec3::new(3.0, 1.72, 93.9), 0.0, start, 0.0));
-        assert!(!rest_fits(Vec3::new(-6.0, 2.32, 93.9), 0.0, start, 0.0));
-        assert!(!rest_fits(start, 0.35, start, 0.0));
+        let axis = [1.0, 0.0];
+        assert!(rest_fits(start, 0.0, start, 0.0, axis));
+        assert!(rest_fits(Vec3::new(-5.8, 1.9, 94.1), 0.1, start, 0.0, axis));
+        // The coast past the start (0.5 m along the approach) fits; 0.2 m more, 0.5 m sideways, another ledge's start 9 m off,
+        // the top deck, facing 20 degrees off do not.
+        assert!(rest_fits(Vec3::new(-5.5, 1.72, 93.9), 0.0, start, 0.0, axis));
+        assert!(!rest_fits(Vec3::new(-5.2, 1.72, 93.9), 0.0, start, 0.0, axis));
+        assert!(rest_fits(Vec3::new(-6.0, 1.72, 94.25), 0.0, start, 0.0, axis));
+        assert!(!rest_fits(Vec3::new(-6.0, 1.72, 94.4), 0.0, start, 0.0, axis));
+        assert!(!rest_fits(Vec3::new(3.0, 1.72, 93.9), 0.0, start, 0.0, axis));
+        assert!(!rest_fits(Vec3::new(-6.0, 2.32, 93.9), 0.0, start, 0.0, axis));
+        assert!(!rest_fits(start, 0.35, start, 0.0, axis));
+        // The axis turns with the approach: along z the same 0.5 m is along, 0.5 m in x is across.
+        assert!(rest_fits(Vec3::new(-6.0, 1.72, 94.4), 0.0, start, 0.0, [0.0, 1.0]));
+        assert!(!rest_fits(Vec3::new(-5.5, 1.72, 93.9), 0.0, start, 0.0, [0.0, 1.0]));
         // The heading wraps.
-        assert!(rest_fits(start, 3.1, start, -3.1));
+        assert!(rest_fits(start, 3.1, start, -3.1, axis));
     }
 
     #[test]
