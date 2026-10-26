@@ -4555,6 +4555,29 @@ mod tests {
         }
     }
 
+    /// X1's switches are named by their path in the tuning (`/aim/combat/<name>`), which is how the bench's
+    /// `SRP_BENCH_TUNING` patch and `SRP_BENCH_COMBAT` reach them: the names are in the tuning's JSON, and a value
+    /// set there parses back and passes the limits: the flag off, and the shotgun's 35 m row.
+    #[test]
+    fn the_fire_range_switches_are_reached_by_their_tuning_path() {
+        use crate::v026g::bots::tuning::Tuning;
+        let with = |name: &str, value: serde_json::Value| {
+            let mut tuning = serde_json::to_value(Tuning::default()).unwrap();
+            let slot = tuning
+                .pointer_mut(&format!("/aim/combat/{name}"))
+                .unwrap_or_else(|| panic!("{name} is a name of the combat tuning"));
+            *slot = value;
+            let tuning: Tuning = serde_json::from_value(tuning).expect("the value parses");
+            tuning.validate().expect("the value is within the limits");
+            tuning
+        };
+        assert!(Tuning::default().aim.combat.range_by_weapon);
+        assert!(!with("range_by_weapon", false.into()).aim.combat.range_by_weapon);
+        let short = with("range_floor_shotgun_m", 35.into());
+        assert_eq!(short.aim.combat.range_floor_shotgun_m, 35.0);
+        assert_eq!(short.aim.combat.range_floor_rifle_m, 65.0);
+    }
+
     /// X1: a bot hit from beyond its range answers for `hit_shot_ms`, out to
     /// the ceiling, and holds its fire again after; hit at the ceiling's
     /// edge it is no farther; the same run twice is the same run.
