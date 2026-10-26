@@ -324,6 +324,42 @@ pub fn goal_floor(grid: &WalkGrid, at: Vec3) -> Option<NodeId> {
     })
 }
 
+/// How far below a body's feet a floor may be for it to plan from there when it stands on no floor
+/// ([`stranded_floor`]), metres: the client's `harmless_height` (`docs/notes/fall_damage.md`, PROVEN: no damage up to
+/// 5 m; the grid's own `Body::max_drop` is the same), so the drop off the top never hurts.
+pub const STRANDED_DROP_M: f32 = 5.0;
+
+/// The floor a body plans from when it stands on none ([`WalkGrid::locate`] finds the floors up to 2.5 m
+/// under the feet): the nearest floor within [`GOAL_REACH_M`] across and [`STRANDED_DROP_M`] below, that is
+/// where it lands when it walks off what it stands on (the top of a crate or a ledge the grid has no cells
+/// on). None when there is none, or one only higher up.
+pub fn stranded_floor(grid: &WalkGrid, feet: Vec3) -> Option<NodeId> {
+    if !feet.is_finite() {
+        return None;
+    }
+    let r = GOAL_REACH_M;
+    grid.floors_in([feet.x - r, feet.z - r, feet.x + r, feet.z + r])
+        .map(|node| (node, grid.position(node)))
+        .filter(|(_, p)| p.distance_xz(feet) <= r && (0.0..=STRANDED_DROP_M).contains(&(feet.y - p.y)))
+        .min_by(|a, b| a.1.distance_xz(feet).total_cmp(&b.1.distance_xz(feet)))
+        .map(|(node, _)| node)
+}
+
+/// The bots' plans from a stand on no floor ([`stranded_floor`]), for the bench's count.
+pub mod stranded {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNT: AtomicU64 = AtomicU64::new(0);
+
+    pub fn count() {
+        COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn counts() -> u64 {
+        COUNT.load(Ordering::Relaxed)
+    }
+}
+
 /// The route from one floor to another, if there is one.
 pub fn plan(grid: &WalkGrid, from: NodeId, to: NodeId) -> Option<Route> {
     plan_where(grid, from, to, |_| true)
@@ -812,6 +848,22 @@ impl Route {
         }
     }
 
+    /// The route of a body that stands where the grid has no floor (on the top of an object): its own place
+    /// first, then the route from the floor it lands on. The first leg is a drop at its start, so the body
+    /// walking off the edge is on the route (a body may be [`FALL_BACK_M`] along it above the floor).
+    pub fn from_stand(self, feet: Vec3) -> Self {
+        let Some(first) = self.points.first().copied() else {
+            return self;
+        };
+        let lead = feet.distance_xz(first.at);
+        let mut points = vec![Waypoint { at: feet, ..first }];
+        points.extend(self.points);
+        let mut floors = vec![(0.0, feet.y)];
+        floors.push((1e-3, first.at.y));
+        floors.extend(self.floors.into_iter().map(|(along, y)| (along + lead + 1e-3, y)));
+        Self::with_floors(points, floors)
+    }
+
     /// This route's rule for a body under a walked leg ([`OFF_WALK_BELOW_M`]).
     pub fn set_below_walk(&mut self, metres: f32) {
         self.below_walk_m = metres;
@@ -1057,6 +1109,28 @@ mod tests {
         // No corner at the cut: the first corner after it is kept.
         let whole = plain.spliced(0.0, 90.0, &Route::new(vec![wp(0.0, 0.0), wp(90.0, 5.0)]));
         assert_eq!(whole.points().len(), 2);
+    }
+
+    #[test]
+    fn a_body_on_no_floor_plans_from_the_floor_it_drops_to_within_five_metres() {
+        let grid = walled();
+        let feet = Vec3::new(10.0, 3.0, 10.0);
+        // 3 m over the floor: `locate` sees floors 2.5 m under the feet at most.
+        assert!(grid.locate(feet, 1.5).is_none());
+        let from = stranded_floor(&grid, feet).expect("a floor 3 m under");
+        assert!(grid.position(from).y.abs() < 0.2 && grid.position(from).distance_xz(feet) < 0.3);
+        // 5.5 m up the drop would hurt (`docs/notes/fall_damage.md`): no start. Nor from under the floor.
+        assert!(stranded_floor(&grid, Vec3::new(10.0, 5.5, 10.0)).is_none());
+        assert!(stranded_floor(&grid, Vec3::new(10.0, -1.0, 10.0)).is_none());
+        let to = grid.locate(Vec3::new(30.0, 0.0, 10.0), 1.0).unwrap();
+        let mut route = plan(&grid, from, to).unwrap().from_stand(feet);
+        assert_eq!(route.points()[0].at, feet);
+        assert!(route.floors.windows(2).all(|w| w[0].0 <= w[1].0), "{:?}", route.floors);
+        // The body on its stand is on the route, and so is it on the floor it landed on, half a metre on.
+        let (s, off) = route.progress(feet);
+        assert!(s < 0.01 && off < 0.01, "{s} {off}");
+        let (_, off) = route.progress(Vec3::new(10.5, 0.0, 10.0));
+        assert!(off < 1.0, "{off}");
     }
 
     #[test]

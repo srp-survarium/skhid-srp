@@ -73,6 +73,12 @@ impl grenade_threat::Surroundings for BlastAround<'_> {
     }
 }
 
+/// A route planned from the floor a stranded body drops to ([`path::stranded_floor`]): the body's own place first.
+fn stranded_leg(route: Route, feet: Vec3) -> Route {
+    path::stranded::count();
+    route.from_stand(feet)
+}
+
 /// One tick of a living bot (`me` with its base pitch): the reflex's look
 /// and trigger, the play's legs and stance, the presses.
 /// Where a bot at `feet` with no goal of its own walks out of the zone it
@@ -582,6 +588,8 @@ pub(super) fn drive_tick(
                         _ => why::PLAIN,
                     };
                 }
+                let stranded = tuning.think.stranded_start && tactics.world.grid.locate(me.feet, 1.5).is_none();
+                let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
                 bot.set_route(route.map(|route| (route, goal)), time);
             } else if replan && (no_way || shut_in) {
                 #[cfg(test)]
@@ -631,10 +639,15 @@ pub(super) fn drive_tick(
                 }
                 let filter = hard.clone().avoiding(bot.stuck.avoided_for(time, at).collect());
                 let avoiding = filter.has_soft();
-                let ends = grid.locate(me.feet, 1.5).zip(path::goal_floor(grid, at));
+                // On no floor (the top of an object, 2.5 m or more above the floors): plans from the floor it
+                // drops to (`ThinkTuning::stranded_start`), its first leg the drop off the edge.
+                let on_floor = grid.locate(me.feet, 1.5);
+                let stranded = tuning.think.stranded_start && on_floor.is_none();
+                let start_floor = on_floor.or_else(|| stranded.then(|| path::stranded_floor(grid, me.feet)).flatten());
+                let ends = start_floor.zip(path::goal_floor(grid, at));
                 // Already on the goal's floor (the nearest to a goal on none):
-                // as near as it gets, nothing to search.
-                let there = ends.is_some_and(|(from, to)| from == to);
+                // as near as it gets, nothing to search. A stranded body is not on it yet.
+                let there = !stranded && ends.is_some_and(|(from, to)| from == to);
                 // On a floor it may not walk on (in a fire it stepped
                 // into, a zone about to come on): out first, the way that
                 // leads on to the goal when it is out in time
@@ -923,6 +936,7 @@ pub(super) fn drive_tick(
                             why::PLAIN
                         };
                     }
+                    let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
                     bot.set_route(route.map(|route| (route, at)), time);
                     bot.features.crossing.goal = crossed.then_some(at);
                 }
