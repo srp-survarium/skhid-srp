@@ -19,7 +19,7 @@
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
-use crate::v026g::bots::view::EYE_CROUCHED;
+use crate::v026g::bots::view::still_eye;
 use crate::v026g::drive::key;
 
 pub const NUMBERS: &[(&str, f32)] = &[
@@ -64,11 +64,11 @@ pub fn in_known_sight(cx: &Ctx) -> bool {
     if !cx.memory.all_seen(cx.now).is_empty() {
         return true;
     }
-    let me = cx.me.feet + Vec3::new(0.0, EYE_CROUCHED, 0.0);
-    cx.memory.tracks().iter().any(|track| {
-        let eye = track.at + Vec3::new(0.0, crate::v026g::bots::view::EYE_STANDING, 0.0);
-        cx.tactics.sees(eye, me)
-    })
+    let me = still_eye(cx.me.feet, true);
+    cx.memory
+        .tracks()
+        .iter()
+        .any(|track| cx.tactics.sees(still_eye(track.at, false), me))
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {

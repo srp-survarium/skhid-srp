@@ -88,7 +88,7 @@ use super::rng::Rng;
 use super::signals::mix;
 use super::tactics::{SpotQuery, Tactics};
 use super::tuning::AimTuning;
-use super::view::{EYE_STANDING, MatchView, Place, PlaceView, SoundKind};
+use super::view::{MatchView, Place, PlaceView, SoundKind, still_eye};
 use crate::v026g::drive::key;
 
 /// A weapon's kind as the matchup (play 11) reads it.
@@ -508,6 +508,13 @@ pub struct CombatTuning {
     /// decided (its last decided tick's feet led along its speed), not
     /// where that tick left it: the shot leaves from there.
     pub lead_own: bool,
+    /// The eye is where the game's bullet starts (`view::eye_height`: 1.46 m
+    /// standing, 1.04 / 1.14 m crouched still / moving, with the view's pitch;
+    /// the stand finder's ranges; a look again when the eye has moved; the
+    /// stand-in's shots from the world's positions). Off: the old 1.6 / 0.95 m,
+    /// the old ranges and the old shot order, to bench the fix against. It
+    /// is the process's eye (both teams of a one-sided run).
+    pub live_eye: bool,
     /// The turn onto a seen target also follows his bearing's turn rate
     /// (his speed against the bot's, across the line), so a steady crossing
     /// target is not trailed by the turn's ease (the turn's time constant,
@@ -901,6 +908,7 @@ impl Default for CombatTuning {
             lead_target: true,
             lead_most_ms: 300,
             lead_own: true,
+            live_eye: true,
             turn_feed: true,
             threat_shot_ms: 1_000,
             threat_heard_m: 25.0,
@@ -1214,6 +1222,122 @@ impl Refuse {
             Self::Mate(mate) => format!("teammate {mate}"),
         }
     }
+
+    /// The reason's place in [`GrenadeStats::refused`].
+    fn index(self) -> usize {
+        match self {
+            Self::Thrower => 0,
+            Self::Wall => 1,
+            Self::Mate(_) => 2,
+            Self::Reach => 3,
+            Self::Nowhere => 4,
+            Self::Off => 5,
+        }
+    }
+}
+
+/// [measure] Where a throw's place came from: an enemy seen holding an
+/// angle (`Reflex::held`) or one sensed staying at a spot (`Reflex::camps`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PlaceSource {
+    Held,
+    Camp,
+}
+
+impl PlaceSource {
+    fn index(self) -> usize {
+        match self {
+            Self::Held => 0,
+            Self::Camp => 1,
+        }
+    }
+}
+
+/// [measure] The kinds of place, the reasons a throw is refused
+/// ([`Refuse`]) and the kinds of arc that passed, as the lengths of
+/// [`GrenadeStats`]'s tables. The arc kinds: 0 the flat arc to the place.
+pub const GRENADE_SOURCES: usize = 2;
+pub const GRENADE_REASONS: usize = 6;
+pub const GRENADE_ARCS: usize = 1;
+
+/// [measure] What the grenade logic of one reflex (one life) did, counted
+/// as it ran: nothing here decides anything. The bench's tally reads it
+/// ([`Reflex::grenade_stats`]) to say where the throws are lost: no place,
+/// the chance, a refused arc. Tables by place source ([`PlaceSource`]:
+/// held, camp), refusal reason ([`Refuse::index`]: thrower's blast, steep
+/// wall, teammate, out of reach, lands nowhere, off the place) and arc kind
+/// (0: the flat arc).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct GrenadeStats {
+    /// Thinks that reached the roll: the reflex's age, to tell a new life's
+    /// counts from the last one's.
+    pub thinks: u32,
+    /// Rolls with at least one place in range (what starts the lockout of
+    /// `grenade_roll_ms`), and those the chance sent away.
+    pub rolls: u32,
+    pub chance_no: u32,
+    /// The places of those rolls, by source (a place is counted at each
+    /// roll it is in).
+    pub places: [u32; GRENADE_SOURCES],
+    /// The places weighed (up to `grenade_places` a roll, nearest first), by
+    /// source; of them those refused by reason, and those that passed by arc.
+    pub weighed: [u32; GRENADE_SOURCES],
+    pub refused: [[u32; GRENADE_REASONS]; GRENADE_SOURCES],
+    pub passed: [[u32; GRENADE_ARCS]; GRENADE_SOURCES],
+    /// Throws given up at the press or in the hold, by reason.
+    pub given_up: [u32; GRENADE_REASONS],
+    /// Throws let go as the 1st, 2nd and 3rd or later of the life.
+    pub nth: [u32; 3],
+}
+
+impl GrenadeStats {
+    /// The change from `before`, the last reading of the same reflex, and
+    /// whether this reading is a new life's: the whole of `self` then (its
+    /// age went back, or there was no reading before).
+    pub fn since(&self, before: Option<&Self>) -> (Self, bool) {
+        let Some(before) = before.filter(|b| {
+            self.thinks > b.thinks || (self.thinks == b.thinks && self == *b)
+        }) else {
+            return (*self, true);
+        };
+        fn sub<const N: usize>(a: [u32; N], b: [u32; N]) -> [u32; N] {
+            std::array::from_fn(|i| a[i].saturating_sub(b[i]))
+        }
+        let change = Self {
+            thinks: self.thinks.saturating_sub(before.thinks),
+            rolls: self.rolls.saturating_sub(before.rolls),
+            chance_no: self.chance_no.saturating_sub(before.chance_no),
+            places: sub(self.places, before.places),
+            weighed: sub(self.weighed, before.weighed),
+            refused: std::array::from_fn(|i| sub(self.refused[i], before.refused[i])),
+            passed: std::array::from_fn(|i| sub(self.passed[i], before.passed[i])),
+            given_up: sub(self.given_up, before.given_up),
+            nth: sub(self.nth, before.nth),
+        };
+        (change, false)
+    }
+
+    /// `other`'s counts added to these.
+    pub fn add(&mut self, other: &Self) {
+        fn plus<const N: usize>(a: &mut [u32; N], b: &[u32; N]) {
+            for (x, y) in a.iter_mut().zip(b) {
+                *x += y;
+            }
+        }
+        self.thinks += other.thinks;
+        self.rolls += other.rolls;
+        self.chance_no += other.chance_no;
+        plus(&mut self.places, &other.places);
+        plus(&mut self.weighed, &other.weighed);
+        for (a, b) in self.refused.iter_mut().zip(&other.refused) {
+            plus(a, b);
+        }
+        for (a, b) in self.passed.iter_mut().zip(&other.passed) {
+            plus(a, b);
+        }
+        plus(&mut self.given_up, &other.given_up);
+        plus(&mut self.nth, &other.nth);
+    }
 }
 
 /// [play 20] The yaw and pitch of the view that throws at `at` from the eye
@@ -1341,6 +1465,7 @@ fn weigh_throw(
 /// check as for one place. When none does, the nearest place and why it was
 /// refused. One ground for all the places: the mesh; for a reflex never told
 /// a map, a level plane at the nearest place's height.
+#[cfg(test)]
 fn pick_place(
     me: &PlaceView,
     view: &MatchView,
@@ -1349,9 +1474,25 @@ fn pick_place(
     c: &CombatTuning,
     ground: &dyn arc::Ground,
 ) -> Result<Vec3, (Vec3, Refuse)> {
+    pick_place_noting(me, view, places, error, c, ground, |_, _| {})
+}
+
+/// [`pick_place`], telling `weighed` each place it weighs (its index in
+/// `places`) and the verdict, for the bench's counts.
+fn pick_place_noting(
+    me: &PlaceView,
+    view: &MatchView,
+    places: &[Vec3],
+    error: (f32, f32),
+    c: &CombatTuning,
+    ground: &dyn arc::Ground,
+    mut weighed: impl FnMut(usize, Result<(), Refuse>),
+) -> Result<Vec3, (Vec3, Refuse)> {
     let mut first = None;
-    for &at in places.iter().take(c.grenade_places.max(1) as usize) {
-        match weigh_throw(me, view, at, error, c, true, ground) {
+    for (i, &at) in places.iter().take(c.grenade_places.max(1) as usize).enumerate() {
+        let verdict = weigh_throw(me, view, at, error, c, true, ground);
+        weighed(i, verdict);
+        match verdict {
             Ok(()) => return Ok(at),
             Err(why) => {
                 first.get_or_insert((at, why));
@@ -1589,6 +1730,8 @@ pub struct Reflex {
     throw: Option<Throw>,
     thrown: u8,
     next_grenade_roll: u32,
+    /// [measure] What the grenade logic did this life ([`GrenadeStats`]).
+    grenade_stats: GrenadeStats,
     /// [play 20] Throws made and given up since the last think, for the
     /// bot's notes ([`Reflex::take_throw_notes`]).
     throw_notes: Vec<String>,
@@ -2035,6 +2178,12 @@ impl Reflex {
     /// the blast ("holds a grenade back at (x, y, z): teammate <place>").
     pub fn take_throw_notes(&mut self) -> Vec<String> {
         std::mem::take(&mut self.throw_notes)
+    }
+
+    /// [measure] What the grenade logic has done this life, counted as it
+    /// ran; nothing decides by it.
+    pub fn grenade_stats(&self) -> GrenadeStats {
+        self.grenade_stats
     }
 
     /// Grenades thrown this life.
@@ -2677,7 +2826,7 @@ impl Reflex {
             }
             let spread = c.hit_bearing_error_deg.to_radians();
             let covered = |at: Vec3| {
-                let eye = at + Vec3::new(0.0, EYE_STANDING, 0.0);
+                let eye = still_eye(at, false);
                 [-spread, 0.0, spread].iter().all(|k| {
                     let [fx, fz] = forward(toward + k);
                     tactics
@@ -2905,6 +3054,7 @@ impl Reflex {
         rng: &mut Rng,
     ) {
         let c = &aim.combat;
+        self.grenade_stats.thinks += 1;
         if self.throw.is_some()
             || self.target.is_some()
             || self.thrown >= c.grenades
@@ -2912,12 +3062,15 @@ impl Reflex {
         {
             return;
         }
-        let held = self.held.iter().map(|(_, at, _)| *at);
+        let held = self
+            .held
+            .iter()
+            .map(|(_, at, _)| (*at, PlaceSource::Held));
         let camps = self
             .camps
             .iter()
             .filter(|camp| camp.last >= camp.since + c.camp_ms)
-            .map(|camp| camp.at);
+            .map(|camp| (camp.at, PlaceSource::Camp));
         // A teammate near the place or on his way there: no throw to weigh
         // (the blast is weighed, once the chance has said yes).
         let friend_near = |at: Vec3| {
@@ -2927,9 +3080,9 @@ impl Reflex {
             view.team(me.team)
                 .any(|p| p.place != me.place && p.feet.distance_xz(at) < c.grenade_friend_m)
         };
-        let mut places: Vec<Vec3> = held
+        let mut places: Vec<(Vec3, PlaceSource)> = held
             .chain(camps)
-            .filter(|at| {
+            .filter(|(at, _)| {
                 (c.grenade_m.0..=c.grenade_m.1).contains(&at.distance_xz(me.feet))
                     && !friend_near(*at)
             })
@@ -2937,17 +3090,34 @@ impl Reflex {
         if places.is_empty() {
             return;
         }
-        places.sort_by(|a, b| a.distance_xz(me.feet).total_cmp(&b.distance_xz(me.feet)));
+        places.sort_by(|a, b| {
+            a.0.distance_xz(me.feet)
+                .total_cmp(&b.0.distance_xz(me.feet))
+        });
         self.next_grenade_roll = now + c.grenade_roll_ms;
+        self.grenade_stats.rolls += 1;
+        for (_, source) in &places {
+            self.grenade_stats.places[source.index()] += 1;
+        }
         if rng.unit() >= c.grenade_chance {
+            self.grenade_stats.chance_no += 1;
             return;
         }
         let hold_ms = rng.range(c.grenade_hold_ms.0 as f32, c.grenade_hold_ms.1 as f32) as u32;
         let floor = mix(aim.error_deg, skill).to_radians();
         let error = (floor * (rng.unit() - 0.5), floor * 0.5 * (rng.unit() - 0.5));
         let mesh = self.sight.ground();
-        match over_ground(mesh.as_deref(), places[0].y, |ground| {
-            pick_place(me, view, &places, error, c, ground)
+        let spots: Vec<Vec3> = places.iter().map(|(at, _)| *at).collect();
+        let stats = &mut self.grenade_stats;
+        match over_ground(mesh.as_deref(), spots[0].y, |ground| {
+            pick_place_noting(me, view, &spots, error, c, ground, |i, verdict| {
+                let source = places[i].1.index();
+                stats.weighed[source] += 1;
+                match verdict {
+                    Ok(()) => stats.passed[source][0] += 1,
+                    Err(why) => stats.refused[source][why.index()] += 1,
+                }
+            })
         }) {
             Ok(at) => {
                 self.throw = Some(Throw {
@@ -2970,6 +3140,13 @@ impl Reflex {
     /// ([`super::drive::Gates::using`]).
     pub fn view_held(&self) -> bool {
         self.throw.is_some_and(|throw| throw.pressed.is_some())
+    }
+
+    /// [measure] A throw under way given up at the press or in the hold:
+    /// counted by reason, then as [`Self::hold_back`].
+    fn give_up(&mut self, at: Vec3, why: Refuse) {
+        self.grenade_stats.given_up[why.index()] += 1;
+        self.hold_back(at, why);
     }
 
     /// Play 20: a throw not made, or given up: the note ("holds a grenade
@@ -3020,7 +3197,7 @@ impl Reflex {
             (Some((_, pitch)), _) => pitch,
             (None, Some(last)) if throw.released => last,
             (None, _) => {
-                self.hold_back(throw.at, Refuse::Reach);
+                self.give_up(throw.at, Refuse::Reach);
                 return None;
             }
         };
@@ -3039,7 +3216,7 @@ impl Reflex {
             {
                 // The trace again at the press, from where it stands now.
                 if let Err(why) = weigh(c.grenade_recheck) {
-                    self.hold_back(throw.at, why);
+                    self.give_up(throw.at, why);
                     return None;
                 }
                 throw.pressed = Some(now);
@@ -3055,7 +3232,7 @@ impl Reflex {
                     // A teammate in the blast, or about to walk into it:
                     // the key let go before the throw starts.
                     if let Err(why) = weigh(c.grenade_recheck) {
-                        self.hold_back(throw.at, why);
+                        self.give_up(throw.at, why);
                         return None;
                     }
                     keys = key::GRENADE;
@@ -3064,6 +3241,7 @@ impl Reflex {
                     // in, after it goes off.
                     throw.released = true;
                     self.thrown += 1;
+                    self.grenade_stats.nth[(self.thrown as usize - 1).min(2)] += 1;
                     let blast = pressed + fuse;
                     let from = if c.grenade_push_after_blast {
                         blast + c.grenade_push_after_ms
@@ -5584,7 +5762,7 @@ mod tests {
         let legs = o.legs.expect("breaks sight");
         assert_eq!(legs.why, LegsWhy::BreakSight);
         let hide = legs.at;
-        let eye = |p: Vec3| p + Vec3::new(0.0, 1.6, 0.0);
+        let eye = |p: Vec3| still_eye(p, false);
         assert!(!tactics.sees(eye(enemy_at), eye(hide)), "{hide:?}");
         let d = hide.distance_xz(Vec3::new(32.0, 0.0, 28.0));
         assert!((2.0..=10.0).contains(&d), "{d}");
@@ -5814,6 +5992,57 @@ mod tests {
         assert!(pushed >= press + fuse, "{pushed} after a press at {press}");
     }
 
+    /// What the roll, the weighing and the throw counted ([`GrenadeStats`]):
+    /// a camper 20 m ahead on level ground is a held place at every roll, the
+    /// chance is 1, so every roll weighs it and it passes; each throw is
+    /// counted as the life's 1st, 2nd.
+    #[test]
+    fn the_grenade_counts_follow_the_roll_the_weighing_and_the_throw() {
+        let run = throw_run(20.0, &[], CombatTuning::default(), None, 12_000);
+        let s = run.stats;
+        assert!(s.thinks > 0 && s.rolls > 0, "{s:?}");
+        assert_eq!(s.chance_no, 0);
+        assert_eq!(s.places, [s.rolls, 0], "one held place a roll, no camp");
+        assert_eq!(s.weighed, [s.rolls, 0]);
+        let refused: u32 = s.refused[0].iter().sum();
+        assert_eq!(s.passed[0][0] + refused, s.weighed[0], "{s:?}");
+        assert_eq!(s.nth.iter().sum::<u32>() as usize, run.thrown.len(), "{s:?}");
+        assert_eq!(s.nth[0], 1, "{s:?}");
+    }
+
+    #[test]
+    fn the_grenade_counts_since_a_reading_and_a_new_life() {
+        let mut a = GrenadeStats {
+            thinks: 10,
+            rolls: 2,
+            ..GrenadeStats::default()
+        };
+        a.places[1] = 3;
+        a.nth[0] = 1;
+        let mut b = a;
+        b.thinks = 14;
+        b.rolls = 3;
+        b.places[1] = 5;
+        b.refused[1][0] = 1;
+        let (change, fresh) = b.since(Some(&a));
+        assert!(!fresh);
+        assert_eq!((change.thinks, change.rolls, change.places[1]), (4, 1, 2));
+        assert_eq!((change.refused[1][0], change.nth[0]), (1, 0));
+        // A younger reflex is a new life's: its whole counts; so is the first reading.
+        let young = GrenadeStats {
+            thinks: 3,
+            rolls: 1,
+            ..GrenadeStats::default()
+        };
+        assert_eq!(young.since(Some(&b)), (young, true));
+        assert_eq!(young.since(None), (young, true));
+        // Added up, the changes make the last reading.
+        let mut sum = GrenadeStats::default();
+        sum.add(&a);
+        sum.add(&change);
+        assert_eq!(sum, b);
+    }
+
     /// A bot at the origin facing +z, throwing at a camper `distance` m
     /// ahead (a level ground at 0 for a reflex never told a map, else
     /// `world`'s mesh), with `mates` about; its view turns to the look at
@@ -5826,6 +6055,8 @@ mod tests {
         /// Whether the view was held for the grenade after each tick.
         held: Vec<(u32, bool)>,
         thrown: Vec<u32>,
+        /// The reflex's grenade counts at the end.
+        stats: GrenadeStats,
     }
 
     fn throw_run(
@@ -5907,6 +6138,7 @@ mod tests {
             timed: Vec::new(),
             held: Vec::new(),
             thrown: Vec::new(),
+            stats: GrenadeStats::default(),
         };
         let mut now = 1_800;
         while now < until {
@@ -5942,6 +6174,7 @@ mod tests {
             run.ticks.push((now, o));
             now += 50;
         }
+        run.stats = reflex.grenade_stats();
         run
     }
 
@@ -5956,7 +6189,7 @@ mod tests {
     /// Where a throw of the look `look` (plus `error`) from a standing
     /// thrower at the origin first touches `ground`.
     fn landing_of(look: Vec3, error: (f32, f32), ground: &impl arc::Ground) -> arc::Landing {
-        let eye = Vec3::new(0.0, EYE_STANDING, 0.0);
+        let eye = still_eye(Vec3::ZERO, false);
         let yaw = yaw_of([look.x - eye.x, look.z - eye.z]) + error.0;
         let pitch = (look.y - eye.y).atan2(look.distance_xz(eye)) + error.1;
         arc::Flight::thrown(eye, yaw, pitch)
@@ -6187,7 +6420,7 @@ mod tests {
     /// from the thrower, in a smoke).
     #[test]
     fn a_throw_let_go_keeps_its_look_when_the_place_goes_out_of_reach() {
-        let eye = Vec3::new(0.0, EYE_STANDING, 0.0);
+        let eye = still_eye(Vec3::ZERO, false);
         let up = 7.0;
         let d = arc::max_range(arc::hand_of(eye).y - up).unwrap() - 0.3;
         assert!(d > 12.0 && d < 27.0, "{d}");
@@ -6338,6 +6571,12 @@ mod tests {
         // The second passes when the first is a wall.
         let mut places = vec![blocked[0], clear];
         assert_eq!(pick(&places, &c), Ok(clear));
+        // Each place weighed is told with its verdict.
+        let mut told = Vec::new();
+        let _ = pick_place_noting(&me, &view, &places, (0.0, 0.0), &c, &wall, |i, v| {
+            told.push((i, v));
+        });
+        assert_eq!(told, vec![(0, Err(Refuse::Wall)), (1, Ok(()))]);
         // None passes: no throw, and the nearest is named with its reason.
         places = blocked.to_vec();
         assert_eq!(pick(&places, &c), Err((blocked[0], Refuse::Wall)));
@@ -7857,7 +8096,7 @@ mod tests {
             hid += 1;
             assert_eq!(legs.why, LegsWhy::BreakSight);
             // Cover that way: the rays toward him meet the wall.
-            let eye = legs.at + Vec3::new(0.0, EYE_STANDING, 0.0);
+            let eye = still_eye(legs.at, false);
             let [fx, fz] = forward(truth);
             let blocked = tactics
                 .world
@@ -8099,7 +8338,7 @@ mod tests {
                 "{own:?} at {enemy:?}, carrying {carrying}, cover {cover}"
             );
             if want == Some(LegsWhy::BreakSight) {
-                let eye = |p: Vec3| p + Vec3::new(0.0, 1.6, 0.0);
+                let eye = |p: Vec3| still_eye(p, false);
                 let hide = o.legs.unwrap().at;
                 assert!(!tactics.sees(eye(enemy_at), eye(hide)), "{hide:?}");
                 // There it waits, still seen or not, and never re-peeks.

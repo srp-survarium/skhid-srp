@@ -36,6 +36,7 @@ use mapdata::{Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use crate::v026g::bots::kin::{TICK_S, wrap, yaw_of};
+use crate::v026g::bots::reflex::GrenadeStats;
 use crate::v026g::bots::view::Place;
 use super::{Bots, Game, Go, Landing, Note};
 use crate::v026g::drive::key;
@@ -96,6 +97,8 @@ struct BotNow {
     play: String,
     step: Option<String>,
     goal_m: Option<f32>,
+    /// What its reflex's grenade logic has counted this life.
+    grenades: GrenadeStats,
 }
 
 #[derive(Default)]
@@ -184,6 +187,7 @@ impl OwnerTally {
                             .map_or_else(String::new, |r| r.step_name())
                     }),
                     goal_m,
+                    grenades: bot.reflex.grenade_stats(),
                 })
             })
             .collect();
@@ -241,6 +245,7 @@ impl OwnerTally {
                 continue;
             };
             self.grenades_keys(place, tick, body, &prev);
+            self.grenades_logic(place, &now.grenades);
             self.fight_ammo(place, tick, body, now);
             self.jumps_press(place, tick, body, &prev, now, &rec);
             self.fight_fire(game, place, body, &rec, &sight, &mut rays);
@@ -266,6 +271,19 @@ impl OwnerTally {
     /// The counts, as the `owner-test` lines and the sums' `owner` object: each topic works out its own
     /// ([`Self::fight_part`], ...); what they share is the bots' minutes and the rounding ([`Scale`]).
     pub(crate) fn finish(&mut self, game: &Game) -> (String, serde_json::Value) {
+        let Topics { core, parts } = self.finish_topics(game);
+        let mut json = core;
+        let mut text = Vec::new();
+        for (_, part) in parts {
+            json.extend(part.json);
+            text.push(part.text);
+        }
+        (text.join("\n  "), serde_json::Value::Object(json))
+    }
+
+    /// [`Self::finish`] before it joins the topics: what the run shares (`bot_min`, `ticks`) and each topic's
+    /// [`Part`] under its name (the golden counts keep one file a topic).
+    pub(super) fn finish_topics(&mut self, game: &Game) -> Topics {
         for r in std::mem::take(&mut self.fight.reloads) {
             self.reload_done(&r);
         }
@@ -280,25 +298,26 @@ impl OwnerTally {
         let scale = Scale { tick_s, bot_min };
         let mut presses = self.jumps.presses.clone();
         presses.sort_by_key(|p| (p.place, p.t));
-        let parts = [
-            self.fight_part(&scale),
-            self.jumps_part(game, &presses),
-            self.moving_part(game, &presses, &scale),
-            self.vertical_part(game),
-            self.grenades_part(game),
-            self.stock_part(game),
-            self.campers_part(),
+        let parts = vec![
+            ("fight", self.fight_part(&scale)),
+            ("jumps", self.jumps_part(game, &presses)),
+            ("moving", self.moving_part(game, &presses, &scale)),
+            ("vertical", self.vertical_part(game)),
+            ("grenades", self.grenades_part(game)),
+            ("stock", self.stock_part(game)),
+            ("campers", self.campers_part()),
         ];
-        let mut json = serde_json::Map::new();
-        json.insert("bot_min".to_owned(), serde_json::json!(bot_min.round()));
-        json.insert("ticks".to_owned(), serde_json::json!(ticks));
-        let mut text = Vec::new();
-        for part in parts {
-            json.extend(part.json);
-            text.push(part.text);
-        }
-        (text.join("\n  "), serde_json::Value::Object(json))
+        let mut core = serde_json::Map::new();
+        core.insert("bot_min".to_owned(), serde_json::json!(bot_min.round()));
+        core.insert("ticks".to_owned(), serde_json::json!(ticks));
+        Topics { core, parts }
     }
+}
+
+/// The counts before they are joined: the keys the run shares, and each topic's part by name.
+pub(super) struct Topics {
+    pub(super) core: serde_json::Map<String, serde_json::Value>,
+    pub(super) parts: Vec<(&'static str, Part)>,
 }
 
 /// What the counts share of the whole run: its length in the bots' minutes, and how rates and shares are rounded.
