@@ -87,6 +87,22 @@ pub(super) fn unstick_step(keys: u32, yaw: f32) -> Vec3 {
     )
 }
 
+/// The move the fight's side step (`keys`, its `strafe` key woven into the
+/// walk's) is tested over, [`STRAFE_CLEAR_M`] long on the ground: with `by_keys`
+/// (`Tuning::clear_step_sees_lip`) the move the keys really make
+/// ([`unstick_step`]: a weave of a walk forward or back is a diagonal, and
+/// its end is not where the pure side step ends); else, or with keys that
+/// cancel, the pure side step to the `strafe` side, as it was.
+pub(super) fn side_step(keys: u32, strafe: u32, yaw: f32, by_keys: bool) -> Vec3 {
+    let moved = unstick_step(keys, yaw);
+    if by_keys && moved != Vec3::ZERO {
+        return moved;
+    }
+    let [sx, sz] = kin::forward(yaw + std::f32::consts::FRAC_PI_2);
+    let sign = if strafe == key::LEFT { 1.0 } else { -1.0 };
+    Vec3::new(sign * sx * STRAFE_CLEAR_M, 0.0, sign * sz * STRAFE_CLEAR_M)
+}
+
 pub(super) fn drive_tick(
     bot: &mut Bot,
     me: &PlaceView,
@@ -777,10 +793,7 @@ pub(super) fn drive_tick(
         None
     };
     if let Some(keys) = stepped.filter(|_| over.strafe != 0 && !using) {
-        let left = over.strafe == key::LEFT;
-        let [sx, sz] = kin::forward(me.yaw + std::f32::consts::FRAC_PI_2);
-        let sign = if left { 1.0 } else { -1.0 };
-        let to = me.feet + Vec3::new(sign * sx * STRAFE_CLEAR_M, 0.0, sign * sz * STRAFE_CLEAR_M);
+        let to = me.feet + side_step(keys, over.strafe, me.yaw, tactics.clear_step_sees_lip);
         let clear = tactics.clear_step_for(me.feet, to, time, bot.side, intent.objective);
         #[cfg(test)]
         motor::counts::side_step(clear);
@@ -986,6 +999,45 @@ mod tests {
 
     fn intent(fire: bool, let_go: bool, zone_ok: bool) -> Intent {
         Intent { fire, let_go, zone_ok, ..Intent::stay() }
+    }
+
+    /// The side step is tested over the move the keys make: a weave of a walk
+    /// forward is the diagonal, not the pure side step; with the switch off,
+    /// or keys that cancel, the pure side step of the `strafe` side.
+    #[test]
+    fn the_side_step_is_tested_over_the_move_the_keys_make() {
+        let pure = |yaw: f32, left: bool| {
+            let [sx, sz] = kin::forward(yaw + std::f32::consts::FRAC_PI_2);
+            let sign = if left { 1.0 } else { -1.0 };
+            Vec3::new(sign * sx * STRAFE_CLEAR_M, 0.0, sign * sz * STRAFE_CLEAR_M)
+        };
+        let near = |a: Vec3, b: Vec3| (a - b).length() < 1e-4;
+        for yaw in [0.0_f32, 0.7, 2.5, -1.9] {
+            for (strafe, left) in [(key::LEFT, true), (key::RIGHT, false)] {
+                // Standing: the pure side step either way.
+                for by_keys in [false, true] {
+                    let moved = side_step(strafe, strafe, yaw, by_keys);
+                    assert!(near(moved, pure(yaw, left)));
+                }
+                // Off: the pure side step whatever the walk.
+                for walk in [key::FORWARD, key::BACK] {
+                    let moved = side_step(walk | strafe, strafe, yaw, false);
+                    assert!(near(moved, pure(yaw, left)));
+                }
+                // On: a weave forward or back is the diagonal, a stride long.
+                for walk in [key::FORWARD, key::BACK] {
+                    let moved = side_step(walk | strafe, strafe, yaw, true);
+                    assert!(near(moved, unstick_step(walk | strafe, yaw)));
+                    assert!((moved.length() - STRAFE_CLEAR_M).abs() < 1e-4);
+                    assert!(!near(moved, pure(yaw, left)));
+                    // Its side is the step's side.
+                    assert!(moved.dot(pure(yaw, left)) > 0.0);
+                }
+            }
+            // Keys that cancel move nowhere: the pure side step.
+            let moved = side_step(key::LEFT | key::RIGHT, key::LEFT, yaw, true);
+            assert!(near(moved, pure(yaw, true)));
+        }
     }
 
     #[test]

@@ -224,6 +224,11 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
     if let Ok(v) = bench_settings().var("SRP_BENCH_ESCAPE_CEILING") {
         tuning.escape_ceiling = v != "0";
     }
+    // The fight's side step refused onto a lip's band
+    // (`Tuning::clear_step_sees_lip`): `0` off.
+    if let Ok(v) = bench_settings().var("SRP_BENCH_CLEAR_STEP_LIP") {
+        tuning.clear_step_sees_lip = v != "0";
+    }
     if let Ok(floors) = bench_settings().var("SRP_BENCH_SEARCH_FLOORS") {
         tuning.think.search_floors_per_poll = if floors == "max" {
             u32::MAX

@@ -37,6 +37,11 @@ pub struct Tuning {
     /// zone it starts in (`Tactics::escape`); off: the nearest way over any
     /// zone, as it was.
     pub escape_ceiling: bool,
+    /// Whether the fight's side step looks at the lip band too
+    /// (`Tactics::clear_step_for`): not ending in it, and the keys' own move
+    /// tested, not the pure side step; off: it looks at falls and pockets
+    /// only, as it did.
+    pub clear_step_sees_lip: bool,
     /// By play; a play missing here runs on its defaults
     /// (`plays::default_tuning`).
     pub plays: BTreeMap<PlayKind, PlayTuning>,
@@ -57,6 +62,7 @@ impl Default for Tuning {
             think: ThinkTuning::default(),
             hazard_margin: 1.0,
             escape_ceiling: true,
+            clear_step_sees_lip: true,
             plays: PlayKind::ALL
                 .iter()
                 .map(|&kind| (kind, plays::default_tuning(kind)))
