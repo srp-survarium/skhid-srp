@@ -145,9 +145,9 @@ def install():
         return
     run = E.Machine.run
 
-    def wrapped(self, hook, case, seed, old):
+    def wrapped(self, hook, case, seed, old, **more):
         self.case_config, self.case_pools, self.case_factor = case.config, case.pools, case.factor
-        return run(self, hook, case, seed, old)
+        return run(self, hook, case, seed, old, **more)
     E.Machine.run, E.Machine._artefacts = wrapped, True
 
 

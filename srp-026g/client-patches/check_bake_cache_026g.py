@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 70 (bake_cache_026g.asm and .c: the baked camouflage and decal
+"""Run patch 70 (the Rust patch bake_cache: the baked camouflage and decal
 textures kept from game to game, and made once while asked for again) in the
 default build on a made-up baker, folder and queries.
 
@@ -82,9 +82,10 @@ CRC_STEP, TABLE = 0x42050, 0x1C210                   # the CRC-32 step; the tabl
 BUFFER, CRC_STATE = 0x40000000, 0x31000000 + 0xF0000
 IAT = {"FindFirstFileA": 0x870238, "FindNextFileA": 0x87023C, "FindClose": 0x870228, "CreateFileA": 0x870048,
        "ReadFile": 0x870064, "WriteFile": 0x870108, "CloseHandle": 0x870040, "DeleteFileA": 0x87021C,
-       "CreateDirectoryA": 0x870220, "GetTickCount": 0x870090}
+       "CreateDirectoryA": 0x870220, "GetTickCount": 0x870090, "GetCurrentThreadId": 0x870118}
 POPS = {"FindFirstFileA": 8, "FindNextFileA": 8, "FindClose": 4, "CreateFileA": 28, "ReadFile": 20,
-        "WriteFile": 20, "CloseHandle": 4, "DeleteFileA": 4, "CreateDirectoryA": 8, "GetTickCount": 0}
+        "WriteFile": 20, "CloseHandle": 4, "DeleteFileA": 4, "CreateDirectoryA": 8, "GetTickCount": 0,
+        "GetCurrentThreadId": 0}
 OBJECTS, STACK, STUBS, STOP = 0x30000000, 0x31000000, 0x32000000, 0x32100000
 FOLDER = "c:\\users\\player\\documents\\survarium\\streamed_textures"
 STAMP = "srp_baked_textures.txt"
@@ -217,6 +218,8 @@ class Game:
             self.returns(0)
 
     def windows(self, name, a):
+        if name == "GetCurrentThreadId":           # the tables' lock (vostok::Lock): the one thread
+            return 0x1D0C
         if name == "GetTickCount":
             return self.now
         self.calls.append((name,) + tuple(a[:1]))

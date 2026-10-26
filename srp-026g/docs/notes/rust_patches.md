@@ -351,7 +351,17 @@ A spec compares what a pointer argument points to where the builds' addresses
 differ (a frame's buffer, a string of the code: `arg0:str`, `:wstr`,
 `:mem:N`), names an exit that only ran a `call` site's nops after it as the
 port's (`aliases`), takes a tail jump into a game function as its call
-(`tails`), and may compare AL alone or the x87 top (`live` "al", "st0").
+(`tails`; an External's `tail` in every hook), and may compare AL alone or
+the x87 top (`live` "al", "st0"). A patch that keeps state between its hooks
+(patch 70's owners and waiters) has cases that are sequences (a Case's
+`before`, run in the same machine, each step compared) and names its state
+blocks `PRIVATE` (laid out apart by the two builds, not compared byte by
+byte: what the later steps do with them is). An External may be entered past
+a copied prologue (`frame`), record a pointer as what it points to
+(`record`), or be the port's own bookkeeping (`silent`: the lock's
+GetCurrentThreadId). A Case's `release` holds a lock's word for another
+thread and lets it go at the first `pause`, so a lock's wait is run too.
+`EQUIV_FAULTS=1` prints each faulting run.
 The equivalence gate may skip an out-pointer argument and a slot the game
 never reads again (declared in the spec, with the proof cited), and a new
 Rust patch that is not a port needs no spec -- its Unicorn check and cargo

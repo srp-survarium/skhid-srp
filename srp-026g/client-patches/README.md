@@ -115,7 +115,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/hide_ui.rs`, `hide_ui.toml`, `rust/patches/src/vostok/interface.rs`, `port/equiv/hide_ui.py`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby, as the Rust patch `hide_ui` (three lohooks); and the options' 41st controls row (vostok's `SRP_CONTROLS`, which `patch_026g.py` fills in the build: the game's 40 rows copied, then the 41st); its equivalence spec against the asm it replaced (until the Rust port `hide_ui_026g.asm`, the arena's blocks `hide_ui.code` and `hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `rust/patches/src/kill_feed.rs`, `kill_feed.toml`, `check_kill_feed_026g.py`, `port/equiv/kill_feed.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the Rust patch `kill_feed`, lohooks at the sites `killed_event.cause_icon` and `player_killed.mastery_icon`, in the block `patches.code`; until the port, NASM in the block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
-| `bake_cache_026g.asm`, `bake_cache_026g.c`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again (the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
+| `rust/patches/src/bake_cache.rs`, `bake_cache.toml`, `rust/patches/src/vostok/baker.rs`, `files.rs`, `crc32.rs`, `port/equiv/bake_cache.py`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again; the Rust patch `bake_cache` (seven lohooks), and its equivalence spec against the asm and C it replaced (until the Rust port `bake_cache_026g.asm` and `.c`, the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -194,7 +194,6 @@ link_026g.py --sizes` prints their bytes, pages and languages):
 |---|---|---|
 | `research.code`, `research.state` | 53, Research (its state `rn_state`) | NASM, C |
 | `engine.code` | the engine-function library | NASM (generated) |
-| `bake_cache.code`, `bake_cache.state` | 70, the baked textures' cache | NASM, C |
 | `patches.code`, `patches.state` | the Rust exe patches, one crate (the framework's example is 34, the commit_suicide key; 38, 58, 67), its zeroed statics | Rust, generated hook entries |
 
 The older fixed sections stay as they are (client_patch.md 0.3 says what
@@ -3537,8 +3536,10 @@ three kits, often wearing the same items) bake the same textures 2 or 3 times: t
 match baked 115 textures into 62 files. Revision 32's starter kit (#400: three kits wearing the
 same items for every new account) makes each newcomer cost three times the same bakes.
 
-**The patch** (with the late join; bake_cache_026g.asm and .c in the arena's blocks
-bake_cache.code and .state):
+**The patch** (with the late join; the Rust patch `bake_cache`, `rust/patches/src/bake_cache.rs`
+with `vostok::baker`, `::files` and `::crc32`, seven lohooks at `sites_026g.tsv`'s `bake.*` and
+`crc32.step`; until the Rust port bake_cache_026g.asm and .c in the arena's blocks bake_cache.code
+and .state, whose entry names follow):
 - `game::game`'s delete (`call 0x1E8DA0` at 0x1E9455) calls `bake_cache_start`. The folder is
   deleted only when its stamp `srp_baked_textures.txt` is missing or names another revision; then
   it is made again and stamped. Otherwise each whole DDS in it (DXT1 or DXT5, the file as long as
@@ -3574,9 +3575,12 @@ bake_cache.code and .state):
 - The stamp is written only when no `.dds` is left after the delete (one held open by another game
   is not deleted): otherwise the next start deletes the folder again.
 
-Textures only; games with and without it play together. Sites: 0x1E9455 (CALLEE), 0x131C90
-(INLINE), 0x12D4CD, 0x12F18F, 0x12DDB4 (CALLEE), 0xF0D00 (ENTRY); no base relocation under them,
-no branch into them.
+Textures only; games with and without it play together. Sites (lohooks): 0x1E9455, 0x131C90,
+0x12D4C5 (the asm's call was at 0x12D4CD, inside the span), 0x12F18F, 0x12DDB4, 0xF0D00, 0x42050;
+no base relocation under them, no branch into them. Proven against the asm and C by
+`port/equiv/bake_cache.py` (2000 cases, sequences of look-ups, textures made and finishes, the
+tables' lock held by another thread once; 0 differences, 240/240 blocks of the old code) and by
+`check_bake_cache_026g.py` (26 checks, as on the asm's build).
 
 **Checked:** `selftest_026g.py` check 70 (the sites' original code, the hooks, the nop, no
 relocation or branch inside, the link's code). `check_bake_cache_026g.py` (Unicorn) runs every

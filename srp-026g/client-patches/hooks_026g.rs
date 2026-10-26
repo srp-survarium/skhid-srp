@@ -141,6 +141,126 @@ pub extern "C" fn hook_artefacts_on_onyx_hint(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- bake_cache (patch 70) ----
+
+/// The entry `bake_cache_on_game_start` (0x1e9455, game::game's delete of user_data/streamed_textures (call 0x1E8DA0, EAX the folder's physical path, a buffer_string; 0x1E945A reads no register before it writes it)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_cache_on_game_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_cache_on_game_start` calls this, from the game's jump at 0x1e9455,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_cache::on_game_start(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- bake_cache (patch 70) ----
+
+/// The entry `bake_cache_on_check_crc` (0x131c90, check_loaded_baked_texture's compare of the CRC loaded with its record's (cmp eax,[edi+114h]; EAX the CRC, EDI the record); the jz 0x131DC2 after it takes the flags) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_cache_on_check_crc(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_cache_on_check_crc` calls this, from the game's jump at 0x131c90,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_cache::on_check_crc(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- bake_cache (patch 70) ----
+
+/// The named exits of bake_cache::on_lookup (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeCacheOnLookupExit { NotBaked }
+/// The entry `bake_cache_on_lookup` (0x12d4c5, translate_query's look-up of a saved texture (lea edx,[esp+1B8h] / push edx / call 0x131ED0; EAX the cook, EBX the surface, [ebp+8] the query, [esp+1Ch] the parameters, [esp+1B8h] the path); not_baked its end after a refused query (the surfaces emptied, EDI's model instance released, ret 4)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_cache_on_lookup(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_cache_on_lookup` calls this, from the game's jump at 0x12d4c5,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_cache::on_lookup(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_cache (patch 70) ----
+
+/// The entry `bake_cache_on_baked` (0x12f18f, process_compression, its texture made and in the surface's slot (call 0x420789, ECX 0xAC3334; [esp+10h] the texture, +604h the query, +610h the surface, +620h the type)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_cache_on_baked(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_cache_on_baked` calls this, from the game's jump at 0x12f18f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_cache::on_baked(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- bake_cache (patch 70) ----
+
+/// The entry `bake_cache_on_loaded` (0x12ddb4, on_baked_texture_loaded, its texture made and in the surface's slot (call 0x420789, ECX 0xAC3334; EDI the texture, [ebp+0Ch] the parameters, +10h the surface, +14h the query)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_cache_on_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_cache_on_loaded` calls this, from the game's jump at 0x12ddb4,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_cache::on_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- bake_cache (patch 70) ----
+
+/// The named exits of bake_cache::on_finish (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeCacheOnFinishExit { Done }
+/// The entry `bake_cache_on_finish` (0xf0d00, finish_query's start (push ebp / mov ebp,esp / and esp,-8; stdcall: the query, the result, assert on fail, the error type; ret 10h, no result); done returns from it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_cache_on_finish(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_cache_on_finish` calls this, from the game's jump at 0xf0d00,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_cache::on_finish(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- bake_cache (patch 70) ----
+
+/// The named exits of bake_cache::on_crc_step (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum BakeCacheOnCrcStepExit { Done }
+/// The entry `bake_cache_on_crc_step` (0x42050, the CRC-32 step's start (mov ecx,[esp+4] / push edi; EAX &the CRC, EDX the bytes, [esp+4] the count; ret 4, ECX the new CRC, EDX past the bytes); done returns from it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_bake_cache_on_crc_step(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `bake_cache_on_crc_step` calls this, from the game's jump at 0x42050,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::bake_cache::on_crc_step(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.

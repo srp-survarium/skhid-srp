@@ -1,0 +1,43 @@
+# Patch 70: the baked camouflage and decal textures kept, and baked or loaded
+# once while asked for again. Only the decisions: which sites, and the
+# handlers. The sites (their VAs, spans and exits) are sites_026g.tsv's; the
+# baker, its queries and the files are vostok's (vostok::baker, ::files,
+# ::crc32); the logic is bake_cache.rs. game::exit's delete taken out is one
+# write in place (patch_026g.py BAKE_CACHE_KEEP).
+name = "bake_cache"
+patch = 70
+
+# game::game's delete of user_data/streamed_textures
+[[hook]]
+site = "bake.game_start"
+handler = "on_game_start"
+
+# check_loaded_baked_texture's CRC compare: a kept file's record takes the CRC loaded
+[[hook]]
+site = "bake.check_crc"
+handler = "on_check_crc"
+
+# translate_query's look-up: a path under way waits, a held texture is given at once
+[[hook]]
+site = "bake.lookup"
+handler = "on_lookup"
+
+# a bake's texture made: the waiting queries get it
+[[hook]]
+site = "bake.baked"
+handler = "on_baked"
+
+# a load's texture made: the waiting queries get it, the texture held
+[[hook]]
+site = "bake.loaded"
+handler = "on_loaded"
+
+# finish_query: an owner that ends otherwise, its waiting queries made again
+[[hook]]
+site = "bake.finish"
+handler = "on_finish"
+
+# the CRC-32 step, eight bytes a step
+[[hook]]
+site = "crc32.step"
+handler = "on_crc_step"

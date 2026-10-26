@@ -100,15 +100,26 @@ class External:
     `input(machine)` (what a pointer names: a text, a value, a place of the
     patch's state by `machine.normal`), so an argument that points into the
     patch's own code or state compares by what it names, not by where each
-    build put it. `from_game`: the stub stands also where the game's own
+    build put it. `record(machine, args)`: what the run's calls keep of it
+    in place of the inputs (a pointer into the patch's own frame as what it
+    points to). `frame`: the function's body past its `push ebp / mov
+    ebp,esp` prologue, entered by a jump from a copy of that prologue (the
+    old asm's own): its return address at [ebp+4], "arg0".. at [ebp+8+4i],
+    left as its epilogue leaves it. `tail`: also reached by a tail jump
+    (the return address the game's), in every hook: a call all the same, the
+    run going on where it returns. `silent`: the port's own bookkeeping (a
+    lock's thread id): not compared, no draw of the run's generator; its
+    model gives what it returns. `from_game`: the stub stands also where the game's own
     code calls it, or where the patch tail-jumps to it (a run that reaches
     it with a return into the game on the stack: the stub returns there),
     so a site whose call the old patch made and the new one leaves to the
     game compares."""
 
-    def __init__(self, name, inputs, pops=0, model=None, real=False, from_game=False):
+    def __init__(self, name, inputs, pops=0, model=None, real=False, from_game=False, record=None, frame=False,
+                 silent=False, tail=False):
         self.name, self.inputs, self.pops, self.model, self.real = name, tuple(inputs), pops, model, real
-        self.from_game = from_game
+        self.from_game, self.record, self.frame, self.silent = from_game, record, frame, silent
+        self.tail = tail
 
 
 class Hook:
@@ -144,10 +155,18 @@ class Hook:
 class Case:
     """An input state: registers, the stack's dwords from ESP up, memory
     {address: bytes}; an address may be a place of the patch's state by
-    name, "name+0xN" (the spec's places()), the same bytes in both builds."""
+    name, "name+0xN" (the spec's places()), the same bytes in both builds.
+    `before`: [(hook, Case)] run first in the same machine (the patch's
+    state and the memory they wrote kept), each compared too: a patch that
+    keeps state between its hooks (its blocks the spec's PRIVATE, not
+    compared byte by byte) is compared by what its later runs do.
+    `release`: a place, a lock's word the case holds for another thread (its
+    memory): set to 0 at the first `pause` the patch's code runs, as that
+    thread would let it go, so a lock's wait is run too."""
 
-    def __init__(self, what, regs=None, stack=(), memory=None):
+    def __init__(self, what, regs=None, stack=(), memory=None, before=(), release=None):
         self.what, self.regs, self.stack, self.memory = what, dict(regs or {}), list(stack), dict(memory or {})
+        self.before, self.release = list(before), release
 
     @staticmethod
     def from_json(data):
@@ -253,6 +272,9 @@ class Machine:
         self.places = {name: (va, size) for name, (va, size) in meta.get("places", {}).items()}
         self.statics = [(va, name) for va, name in meta.get("statics", [])]
         self.aliases = {int(va): to for va, to in meta.get("aliases", {}).items()}
+        # the blocks whose bytes the two layouts keep apart (the spec's PRIVATE)
+        self.private = [(va, va + size) for name, (va, size) in self.blocks.items()
+                        if name in getattr(spec, "PRIVATE", ())]
         import patch_026g as base_
         self.ours_span = (base_.SECTION_VA, base_.ARENA_VA + base_.ARENA_LIMIT)   # the same in both builds
         uc.hook_add(UC_HOOK_BLOCK, self.on_block)
@@ -336,7 +358,8 @@ class Machine:
     # -- what a run did --
     def on_write(self, uc, access, address, size, value, user):
         self.dirty.add(address & ~(PAGE - 1))
-        if not (STACK_TOP - STACK_SIZE <= address < self.entry_esp):
+        if not (STACK_TOP - STACK_SIZE <= address < self.entry_esp) \
+                and not any(lo <= address < hi for lo, hi in self.private):
             self.written.update(range(address, address + size))
             if not self.ours_at(self.reg("eip")):          # the game's code wrote it: by its address
                 self.by_game.update(range(address, address + size))
@@ -359,7 +382,11 @@ class Machine:
             return
         if not self.inside:
             return                                         # the game's site, before the patch
-        if self.ours_at(back) or address in self.hook.tails:   # a call into the game (or a tail jump)
+        if external is not None and external.frame and self.ours_at(self.read32(self.reg("ebp") + 4)):
+            self.stub_framed(external)                     # a body entered past its prologue
+            return
+        if self.ours_at(back) or address in self.hook.tails \
+                or (external is not None and external.tail):   # a call into the game (or a tail jump)
             if external is None:
                 self.error = f"a call of {address:#x}, which the spec does not name (EXTERNALS)"
                 uc.emu_stop()
@@ -407,12 +434,32 @@ class Machine:
         """`external` answered by its stub: recorded, EAX the generator's,
         its model, its pops, and back to `back`."""
         args = self.inputs(external, esp)
-        self.calls.append((external.name, args))
+        if not external.silent:
+            self.calls.append((external.name, list(external.record(self, args)) if external.record else args))
         self.at_call = {r: self.reg(r) for r in REG_NAMES}   # what a model may read of the call
-        self.set_reg("eax", self.rng.getrandbits(32))
+        if not external.silent:
+            self.set_reg("eax", self.rng.getrandbits(32))
         if external.model:
             external.model(self, args, self.rng)
         self.set_reg("esp", esp + 4 + external.pops)
+        self.set_reg("eip", back)
+
+    def stub_framed(self, external):
+        """`external`'s body entered past its prologue: its arguments at
+        [ebp+8].., its return address at [ebp+4]; the stub, then the body's
+        epilogue (`mov esp,ebp / pop ebp / ret pops`)."""
+        ebp = self.reg("ebp")
+        args = self.inputs(external, ebp + 4)
+        if not external.silent:
+            self.calls.append((external.name, list(external.record(self, args)) if external.record else args))
+        self.at_call = {r: self.reg(r) for r in REG_NAMES}
+        if not external.silent:
+            self.set_reg("eax", self.rng.getrandbits(32))
+        if external.model:
+            external.model(self, args, self.rng)
+        back = self.read32(ebp + 4)
+        self.set_reg("ebp", self.read32(ebp))
+        self.set_reg("esp", ebp + 8 + external.pops)
         self.set_reg("eip", back)
 
     def text(self, address, limit=64):
@@ -430,11 +477,11 @@ class Machine:
             return self.uc.reg_read(x86_const.UC_X86_REG_FP0 + top), top
         return self.reg(name)
 
-    def run(self, hook, case, seed, old):
+    def run(self, hook, case, seed, old, step=0):
         from unicorn import UcError
         uc = self.uc
         self.seed, self.old, self.hook = seed, old, hook
-        self.rng = random.Random(seed * 7919 + 17)
+        self.rng = random.Random(seed * 7919 + 17 + 104729 * step)
         self.written, self.calls, self.hit = set(), [], set()
         self.by_game = set()
         self.exit, self.error, self.stopped, self.inside = None, None, False, False
@@ -458,10 +505,24 @@ class Machine:
         self.set_reg("esp", esp)
         self.written.clear()
         self.by_game.clear()
+        waits = []
+        if getattr(case, "release", None):                 # the other thread lets the lock go at our first pause
+            from unicorn import UC_HOOK_CODE
+            word = self.address(case.release)
+
+            def on_pause(uc, address, size, user):
+                if size == 2 and bytes(uc.mem_read(address, 2)) == b"\xf3\x90" and waits:
+                    uc.mem_write(word, bytes(4))
+                    for handle in waits:
+                        uc.hook_del(handle)
+                    waits.clear()
+            waits += [uc.hook_add(UC_HOOK_CODE, on_pause, begin=lo, end=hi - 1) for lo, hi in self.ours]
         try:
             uc.emu_start(hook.site, STOP if hook.until is None else hook.until, count=2_000_000)
         except UcError as error:
             self.error = self.error or f"{error} at {self.reg('eip'):#x}"
+        for handle in waits:
+            uc.hook_del(handle)
         if hook.until is not None and self.exit is None and self.error is None and self.reg("eip") == hook.until:
             self.exit = (f"{hook.until:#x}", {r: self.live(r) for r in hook.live},
                          (self.reg("esp") - self.entry_esp) & 0xFFFFFFFF)
@@ -621,11 +682,19 @@ def main():
         old.tracing = new.tracing = args.only is not None
         old.trace, new.trace = [], []
         seed = args.seed * 1_000_003 + i
-        a = old.run(hook, case, seed, old=True)
-        hit |= old.hit
-        b = new.run(hook, case, seed, old=False)
-        faults += a["error"] is not None
-        diff = compare(old, new, a, b)
+        diff = []
+        steps = case.before + [(hook, case)]
+        for step, (step_hook, step_case) in enumerate(steps):   # a sequence: one machine, no reset between
+            a = old.run(step_hook, step_case, seed, old=True, step=step)
+            hit |= old.hit
+            b = new.run(step_hook, step_case, seed, old=False, step=step)
+            faults += a["error"] is not None
+            if a["error"] is not None and os.environ.get("EQUIV_FAULTS"):
+                print(f"fault, case {i} step {step + 1} ({step_hook.name}: {step_case.what}): {a['error']}")
+            lines = compare(old, new, a, b)
+            if lines and len(steps) > 1:
+                lines = [f"  step {step + 1}/{len(steps)} ({step_hook.name}: {step_case.what}):"] + lines
+            diff += lines
         for name, machine, run in (("old", old, a), ("new", new, b)) if args.only is not None else ():
             print(f"  {name}: exit {run['exit']!r}, error {run['error']!r}, calls {run['calls']!r}")
             for eip, address, size, value in machine.trace:

@@ -74,9 +74,9 @@ def install():
         return
     run = E.Machine.run
 
-    def wrapped(self, hook, case, seed, old):
+    def wrapped(self, hook, case, seed, old, **more):
         self.case_paths, self.case_offsets = case.paths, case.offsets
-        return run(self, hook, case, seed, old)
+        return run(self, hook, case, seed, old, **more)
     E.Machine.run, E.Machine._read_order = wrapped, True
 
 

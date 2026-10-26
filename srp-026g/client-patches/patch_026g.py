@@ -520,13 +520,13 @@ Patches:
   whole ticks bit for bit as before. A simulation change;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
-  once (patch 70, with the late join; docs/notes/baked-textures.md).
-  bake_cache_026g.asm and .c (the arena's blocks bake_cache.code and
-  .state): game::game deletes user_data/streamed_textures only when its
+  once (patch 70, with the late join; docs/notes/baked-textures.md). The
+  Rust patch bake_cache (the arena's blocks patches.code and
+  patches.state): game::game deletes user_data/streamed_textures only when its
   stamp file names another revision (0x1E9455), and puts its whole DDS
   files back into the baker's list (CRC 0, the first load's taken at
   0x131C90); game::exit's delete is gone (0x1EC832); translate_query's
-  look-up (0x12D4CD) lets a query whose path is under way wait, and the
+  look-up (0x12D4C5) lets a query whose path is under way wait, and the
   texture made (0x12F18F a bake, 0x12DDB4 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
   0xF0D00). Textures only;
@@ -2054,34 +2054,12 @@ KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb757
 
 # The baked camouflage and decal textures kept, and baked or loaded once while
 # asked for again (patch 70, README; client_patch.md section 3.57; the rules:
-# ../docs/notes/baked-textures.md): bake_cache_026g.asm and .c in the arena's
-# blocks bake_cache.code and .state (ARENA below):
-# - game::game's delete of user_data/streamed_textures (`call 0x1E8DA0`,
-#   0x1E9455): bake_cache_start, the delete only for another revision's
-#   folder, else the kept files back in the baker's list (CALLEE);
-# - check_loaded_baked_texture's `cmp eax,[edi+114h]` (0x131C90): a kept
-#   file's record takes the CRC loaded (INLINE);
-# - translate_query's look-up (`call 0x131ED0`, 0x12D4CD): a path under way
-#   waits (CALLEE);
-# - process_compression's and on_baked_texture_loaded's `call 0x420789`
-#   (0x12F18F, 0x12DDB4), the texture made: the waiting queries get it
-#   (CALLEE);
-# - finish_query's entry (0xF0D00): a path's owner ended otherwise, its
-#   waiting queries made again (ENTRY);
-# - the CRC-32 step (0x42050, a byte a step; every bake and every load of a
-#   baked texture runs it over the whole file): the same value eight bytes a
-#   step (ENTRY);
-# and game::exit's delete (0x1EC832) nops (BAKE_CACHE_KEEP).
-# No base relocation is under a site and no branch aims inside one.
-BAKE_CACHE_HOOKS = (
-    (0x1E9455, bytes.fromhex("e846f9ffff"), "bake_cache_start", 0xE8),       # game::game's delete
-    (0x131C90, bytes.fromhex("3b8714010000"), "bake_cache_adopt", 0xE8),     # check_loaded's CRC compare
-    (0x12D4CD, bytes.fromhex("e8fe490000"), "bake_cache_lookup", 0xE8),      # translate_query's look-up
-    (0x12F18F, bytes.fromhex("e8f5152f00"), "bake_cache_baked", 0xE8),       # a bake's texture made
-    (0x12DDB4, bytes.fromhex("e8d0292f00"), "bake_cache_loaded", 0xE8),      # a load's texture made
-    (0xF0D00, bytes.fromhex("558bec83e4f8"), "bake_cache_finish", 0xE9),     # finish_query
-    (0x42050, bytes.fromhex("8b4c240457"), "bake_cache_crc32", 0xE9),        # the CRC-32 step, slice by 8
-)
+# ../docs/notes/baked-textures.md): the Rust patch bake_cache (its lohooks
+# rust/patches/src/bake_cache.toml, sites_026g.tsv bake.* and crc32.step:
+# game::game's delete 0x1E9455, check_loaded's CRC compare 0x131C90,
+# translate_query's look-up 0x12D4C5, the textures made 0x12F18F and 0x12DDB4,
+# finish_query 0xF0D00, the CRC-32 step 0x42050), and game::exit's delete
+# (0x1EC832) nops (BAKE_CACHE_KEEP).
 BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440000"))   # game::exit's delete
 
 
@@ -2183,22 +2161,6 @@ INSTALLS = {
     0x26B916: (CALLEE, "process_incoming_text_message's add_message (stdcall: the handler, the channel, the "
                        "body, the name, the tag): match_keys (Rust `call` hook), which drops the line or "
                        "gives it to add_message", None, None),
-    # the baked textures kept and baked or loaded once, patch 70 (in `.srpx`)
-    0x1E9455: (CALLEE, "game::game's delete of user_data/streamed_textures (0x1E8DA0, eax the folder's "
-                       "buffer_string): start, which deletes it for another revision's folder only", None, None),
-    0x131C90: (INLINE, "check_loaded_baked_texture's `cmp eax,[edi+114h]` (eax the CRC loaded, edi the record): "
-                       "adopt, which gives a kept file's record (CRC 0) that CRC, then compares", None, None),
-    0x12D4CD: (CALLEE, "translate_query's look-up 0x131ED0 (eax the cook, the path; `ret 4`): lookup, which "
-                       "tail-jumps to it, or leaves translate_query at 0x12D42D (its own `ret 4`) for a path "
-                       "under way", None, None),
-    0x12F18F: (CALLEE, "process_compression's `call 0x420789` (ecx 0xAC3334) after its texture's slot: baked, "
-                       "which shares the texture and returns ecx+8", None, None),
-    0x12DDB4: (CALLEE, "on_baked_texture_loaded's `call 0x420789` (ecx 0xAC3334) after its texture's slot: "
-                       "loaded, which shares the texture and returns ecx+8", None, None),
-    0xF0D00: (ENTRY, "finish_query (stdcall: the query, the result, two more; `ret 10h`): finish, then the "
-                     "function (or the function, then the waiting queries made again)", None, None),
-    0x42050: (ENTRY, "the CRC-32 step (eax &the CRC, edx the bytes, the count; `ret 4`): crc32, the same "
-                     "value eight bytes a step", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {}
@@ -2403,8 +2365,6 @@ ARENA = (
     # its rule's cook and the hud's cache (research_native_026g.c rn_state)
     ArenaBlock("research.state", "state", 0x1000, ("research_rule_026g.c", "research_native_026g.c")),
     ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
-    ArenaBlock("bake_cache.code", "code", 0x1000, ("bake_cache_026g.asm", "bake_cache_026g.c")),   # patch 70
-    ArenaBlock("bake_cache.state", "state", 0x1000, ("bake_cache_026g.c",)),     # its owners and waiters
     # The Rust exe patches (the framework's example is patch 34, the
     # commit_suicide key): one crate, its generated hook entries, the arena's
     # block patches.code (docs/notes/rust_patches.md, hooks_026g.py).
@@ -3281,8 +3241,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             # its symbol.
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
-                for va, expected, symbol, opcode in RESEARCH_HOOKS \
-                        + BAKE_CACHE_HOOKS + rust_hooks(original):
+                for va, expected, symbol, opcode in RESEARCH_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     disabled = neutralize_relocs(data, [(va, va + len(expected))])
                     if not set(disabled) <= set(RUST_HOOK_RELOCS):

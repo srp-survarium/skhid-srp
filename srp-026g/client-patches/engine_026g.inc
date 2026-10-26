@@ -266,3 +266,51 @@ extern engine_show_profiles_selector
 ; void engine_modifier_unlink(void *list, void *node)
 ; 0x2d5d00 survarium::player_params_modifiers_list::remove: list ESI, node EAX; pops 0
 extern engine_modifier_unlink
+; void engine_delete_folder(void *folder)
+; 0x1e8da0 survarium::delete_folder: folder EAX; pops 0
+extern engine_delete_folder
+; void *engine_baked_texture_resource(void *memory)
+; 0x12de30 vostok::render::baked_texture_resource::baked_texture_resource: memory EAX; pops 0; EAX
+extern engine_baked_texture_resource
+; void engine_set_unmanaged_resource(void *query, void *resource, void *allocator, unsigned int size)
+; 0xf0080 vostok::resources::query_result_for_cook::set_unmanaged_resource: query EDX, resource ESP+4, allocator ESP+8, size ESP+12; pops 12
+extern engine_set_unmanaged_resource
+; void engine_finish_query(void *query, unsigned int result, unsigned int assert_on_fail, unsigned int error)
+; 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_finish_query
+; void engine_resource_release(void *texture, void *manager)
+; 0x3bee00 vostok::render::resource_manager::release: texture EAX, manager ESP+4; pops 4
+extern engine_resource_release
+; void engine_translate_query(void *cook, void *query)
+; 0x12d1d0 vostok::render::camouflage_decal_texture_type_baker_cook::translate_query: cook ECX, query ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_translate_query
+; unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)
+; the IAT slot 0x870064 (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_read_file
+; unsigned int engine_delete_file_a(const char *name)
+; the IAT slot 0x87021c (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_delete_file_a
+; unsigned int engine_create_directory_a(const char *name, void *security)
+; the IAT slot 0x870220 (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_create_directory_a
+; unsigned int engine_get_tick_count(void)
+; the IAT slot 0x870090 (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_tick_count
+; void *engine_find_first_file_a(const char *pattern, void *data)
+; the IAT slot 0x870238 (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_find_first_file_a
+; unsigned int engine_find_next_file_a(void *find, void *data)
+; the IAT slot 0x87023c (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_find_next_file_a
+; unsigned int engine_find_close(void *find)
+; the IAT slot 0x870228 (kernel32, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_find_close

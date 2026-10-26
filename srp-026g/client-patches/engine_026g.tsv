@@ -93,3 +93,16 @@ engine_show_profiles_selector	0x2383b0	EAX:hud ESP+4:shown	void engine_show_prof
 engine_modifier_unlink	0x2d5d00	ESI:list EAX:node	void engine_modifier_unlink(void *list, void *node)	thunk	
 engine_holder_player	0x1f17a0	ECX:interface	void *engine_holder_player(void *interface)	virtual+0xc	
 engine_enable_active	0x3128c0	ECX:artefact ESP+4:time	void engine_enable_active(void *artefact, unsigned int time)	virtual+0x80	
+engine_delete_folder	0x1e8da0	EAX:path	void engine_delete_folder(void *folder)	thunk	
+engine_baked_texture_resource	0x12de30	EAX:bytes	void *engine_baked_texture_resource(void *memory)	thunk	
+engine_set_unmanaged_resource	0x0f0080	EDX:query ESP+4:resource ESP+8:allocator ESP+12:size	void engine_set_unmanaged_resource(void *query, void *resource, void *allocator, unsigned int size)	thunk	
+engine_finish_query	0x0f0d00	ESP+4:query ESP+8:result ESP+12:assert ESP+16:error	void engine_finish_query(void *query, unsigned int result, unsigned int assert_on_fail, unsigned int error)	stdcall	
+engine_resource_release	0x3bee00	EAX:texture ESP+4:receiver	void engine_resource_release(void *texture, void *manager)	thunk	
+engine_translate_query	0x12d1d0	ECX:cook ESP+4:query	void engine_translate_query(void *cook, void *query)	thiscall	
+engine_read_file	0x870064	-	unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)	import	
+engine_delete_file_a	0x87021c	-	unsigned int engine_delete_file_a(const char *name)	import	
+engine_create_directory_a	0x870220	-	unsigned int engine_create_directory_a(const char *name, void *security)	import	
+engine_get_tick_count	0x870090	-	unsigned int engine_get_tick_count(void)	import	
+engine_find_first_file_a	0x870238	-	void *engine_find_first_file_a(const char *pattern, void *data)	import	
+engine_find_next_file_a	0x87023c	-	unsigned int engine_find_next_file_a(void *find, void *data)	import	
+engine_find_close	0x870228	-	unsigned int engine_find_close(void *find)	import	

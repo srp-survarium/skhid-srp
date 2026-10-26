@@ -250,4 +250,43 @@ void engine_show_profiles_selector(void *hud, unsigned int shown);
 /* 0x2d5d00 survarium::player_params_modifiers_list::remove: list ESI, node EAX; pops 0 */
 void engine_modifier_unlink(void *list, void *node);
 
+/* 0x1e8da0 survarium::delete_folder: folder EAX; pops 0 */
+void engine_delete_folder(void *folder);
+
+/* 0x12de30 vostok::render::baked_texture_resource::baked_texture_resource: memory EAX; pops 0; EAX */
+void *engine_baked_texture_resource(void *memory);
+
+/* 0xf0080 vostok::resources::query_result_for_cook::set_unmanaged_resource: query EDX, resource ESP+4, allocator ESP+8, size ESP+12; pops 12 */
+void engine_set_unmanaged_resource(void *query, void *resource, void *allocator, unsigned int size);
+
+/* 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly */
+void __attribute__((stdcall)) engine_finish_query(void *query, unsigned int result, unsigned int assert_on_fail, unsigned int error);
+
+/* 0x3bee00 vostok::render::resource_manager::release: texture EAX, manager ESP+4; pops 4 */
+void engine_resource_release(void *texture, void *manager);
+
+/* 0x12d1d0 vostok::render::camouflage_decal_texture_type_baker_cook::translate_query: cook ECX, query ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_translate_query(void *cook, void *query);
+
+/* the IAT slot 0x870064 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_read_file)(void * file, void * bytes, unsigned int size, unsigned int * read, void * overlapped);
+
+/* the IAT slot 0x87021c (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_delete_file_a)(const char * name);
+
+/* the IAT slot 0x870220 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_create_directory_a)(const char * name, void * security);
+
+/* the IAT slot 0x870090 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_tick_count)(void);
+
+/* the IAT slot 0x870238 (kernel32, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_find_first_file_a)(const char * pattern, void * data);
+
+/* the IAT slot 0x87023c (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_find_next_file_a)(void * find, void * data);
+
+/* the IAT slot 0x870228 (kernel32, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_find_close)(void * find);
+
 #endif

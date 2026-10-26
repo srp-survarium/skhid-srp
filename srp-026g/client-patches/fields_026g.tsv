@@ -256,3 +256,42 @@ survarium::base_player	stagger_base	0x31C	f32	the stagger's own value (0x2DBD89'
 survarium::image	onyx_enable_active	0x3128C0	u32	artefact_onyx_core::enable_active_effects, an Onyx's vtable+80h
 survarium::artefact_vtable	enable_active	0x80	u32	an artefact's enable_active (artefact_base::action calls it, 0x31331E)
 survarium::onyx_client	onyx	-0xF20	u32	the Onyx itself (its client part is its +F20h; the client update's EBX)
+vostok::buffer_string	begin	0x0	u32	the text's first byte (begin, end, capacity end, then the text)
+vostok::buffer_string	end	0x4	u32	past the text's last byte
+vostok::render::baked_texture_data	path_begin	0x0	u32	a record of the baker's list of saved textures (0x131ED0): its path, a buffer_string (begin)
+vostok::render::baked_texture_data	path_end	0x4	u32	its path's end (at its NUL)
+vostok::render::baked_texture_data	path_capacity	0x8	u32	its path's capacity end (text + 104h)
+vostok::render::baked_texture_data	text	0xC	u8	its path's text, 104h bytes
+vostok::render::baked_texture_data	separator	0x110	u8	'/' after the text (0x132640's push_back)
+vostok::render::baked_texture_data	crc	0x114	u32	the CRC of the file's bytes (check_loaded_baked_texture's cmp eax,[edi+114h], 0x131C90)
+vostok::render::baked_texture_data	size	0x118	u32	the file's bytes (the list's +4923Ch sums them)
+vostok::render::baked_texture_data	age	0x11C	u32	its age (the counter 0x2260920's at its push)
+vostok::render::baked_texture_data	loading	0x120	u8	a load of it under way (0x131ED0 sets it for the record it finds)
+vostok::render::baked_texture_data	next	0x124	u32	the record after it: records are 124h bytes (0x131F5F add esi,124h)
+vostok::render::bake_parameters	kind	0x7A0	u32	a bake's texture type: 0 d, 1 n, 2 f, 3 s (0x12DD95 cmp dword [esi+7A0h],3)
+vostok::render::bake_parameters	model	0x790	u32	the model instance whose surface it bakes
+vostok::render::baked_surface	textures	0x0	u32	a model instance's surface a bake is for: its textures by type, 4 each (process_compression 0x12F0E0 mov edx,[esp+610h] / mov [edx],ecx)
+vostok::render::render_model_instance	references	0xD0	i32	its references (lock xadd; translate_query's end 0x12D443 lets one go, 0xE0210 at 0)
+vostok::render::texture_resource	references	0x4	u32	its references (0x12C6D0's inc [eax+4] / add [eax+4],-1, then 0x3BEE00 at 0)
+vostok::resources::unmanaged_resource	references	0xD0	i32	an unmanaged resource's references (lock xadd [eax+0D0h], 0x12DDF4 and 0xF009E)
+vostok::memory::named_object	name	0x8	u32	what 0x420789 (lea eax,[ecx+8]) returns for the object in ECX: an allocation's name
+vostok::render::translate_query_stack	parameters	0x1C	u32	translate_query's [esp+1Ch] at 0x12D4C5: the bake's parameters
+vostok::render::translate_query_stack	path	0x1B8	u32	translate_query's [esp+1B8h] at 0x12D4C5: the path, a buffer_string (its text's address first)
+vostok::render::translate_query_frame	query	0x8	u32	translate_query's [ebp+8]: the query
+vostok::render::process_compression_stack	texture	0x10	u32	process_compression's [esp+10h] at 0x12F18F: the texture made
+vostok::render::process_compression_stack	query	0x604	u32	its [esp+604h] there: the query
+vostok::render::process_compression_stack	surface	0x610	u32	its [esp+610h] there: the surface
+vostok::render::process_compression_stack	kind	0x620	u32	its [esp+620h] there: the type
+vostok::render::on_baked_texture_loaded_frame	parameters	0xC	u32	on_baked_texture_loaded's [ebp+0Ch]: the bake's parameters
+vostok::render::on_baked_texture_loaded_frame	surface	0x10	u32	its [ebp+10h]: the surface
+vostok::render::on_baked_texture_loaded_frame	query	0x14	u32	its [ebp+14h]: the query
+survarium::image	baker_list_begin	0xA2650B0	u32	the baker's (the static 0xA264E80) list of saved textures, +230h: begin
+survarium::image	baker_list_end	0xA2650B4	u32	the baker's list: end
+survarium::image	baker_list_capacity	0xA2650B8	u32	the baker's list: capacity end (1024 records)
+survarium::image	baker_list_bytes	0xA2AE0BC	u32	the baker's +4923Ch: the bytes of its records' files
+survarium::image	baker_ages	0x2260920	u32	the counter of the records' ages (++ for each)
+survarium::image	patch_revision	0x380866	u8	the patch revision: patch 7's mov byte [esp+27h],REVISION immediate
+survarium::image	baked_resource_allocator	0x1F1D960	u32	the allocator a baked texture resource's 108h bytes come from (mov esi,[0x1F1D960] before 0xE4F90, 0x12DDA9)
+survarium::image	render_device	0x226047C	u32	the resource manager a texture is released to (push dword [0x226047C] / call 0x3BEE00, 0x12F178)
+survarium::image	baked_resource_name	0xAC3334	u32	the object whose +8 names a baked texture resource's allocation (mov ecx,0AC3334h / call 0x420789, 0x12DDAF)
+survarium::image	unmanaged_resource_allocator	0x21E76C8	u32	the allocator set_unmanaged_resource gets with a baked texture resource (push 21E76C8h, 0x12DDD6)

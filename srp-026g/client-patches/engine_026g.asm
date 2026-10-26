@@ -84,6 +84,19 @@ global engine_switch_to_warmup_camera
 global engine_show_stamina
 global engine_show_profiles_selector
 global engine_modifier_unlink
+global engine_delete_folder
+global engine_baked_texture_resource
+global engine_set_unmanaged_resource
+global engine_finish_query
+global engine_resource_release
+global engine_translate_query
+global engine_read_file
+global engine_delete_file_a
+global engine_create_directory_a
+global engine_get_tick_count
+global engine_find_first_file_a
+global engine_find_next_file_a
+global engine_find_close
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -108,6 +121,15 @@ engine_terminate equ 0x113580   ; 0x113580 vostok::debug::terminate: format ESP+
 engine_on_mounted_resources equ 0x147e0   ; 0x147e0 on_mounted_resources: holder ESP+4, bound ESP+8, result ESP+12; pops 0; cdecl, called directly
 engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (kernel32, stdcall)
 engine_view_update equ 0x2422b0   ; 0x2422b0 survarium::player_input_handler::update_inverted_view: handler ESP+4, transform ESP+8; pops 8; stdcall, called directly
+engine_finish_query equ 0xf0d00   ; 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly
+engine_translate_query equ 0x12d1d0   ; 0x12d1d0 vostok::render::camouflage_decal_texture_type_baker_cook::translate_query: cook ECX, query ESP+4; pops 4; thiscall, called directly
+engine_read_file equ 0x870064   ; the IAT slot 0x870064 (kernel32, stdcall)
+engine_delete_file_a equ 0x87021c   ; the IAT slot 0x87021c (kernel32, stdcall)
+engine_create_directory_a equ 0x870220   ; the IAT slot 0x870220 (kernel32, stdcall)
+engine_get_tick_count equ 0x870090   ; the IAT slot 0x870090 (kernel32, stdcall)
+engine_find_first_file_a equ 0x870238   ; the IAT slot 0x870238 (kernel32, stdcall)
+engine_find_next_file_a equ 0x87023c   ; the IAT slot 0x87023c (kernel32, stdcall)
+engine_find_close equ 0x870228   ; the IAT slot 0x870228 (kernel32, stdcall)
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -1062,6 +1084,70 @@ engine_modifier_unlink:
     mov esi, [esp + 20]   ; list
     mov eax, [esp + 24]   ; node
     call 0x2d5d00
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_delete_folder:
+    ; 0x1e8da0 survarium::delete_folder: folder EAX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; folder
+    call 0x1e8da0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_baked_texture_resource:
+    ; 0x12de30 vostok::render::baked_texture_resource::baked_texture_resource: memory EAX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; memory
+    call 0x12de30
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_unmanaged_resource:
+    ; 0xf0080 vostok::resources::query_result_for_cook::set_unmanaged_resource: query EDX, resource ESP+4, allocator ESP+8, size ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; size -> 12
+    push dword [esp + 32]   ; allocator -> 8
+    push dword [esp + 32]   ; resource -> 4
+    mov edx, [esp + 32]   ; query
+    call 0xf0080
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_resource_release:
+    ; 0x3bee00 vostok::render::resource_manager::release: texture EAX, manager ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; manager -> 4
+    mov eax, [esp + 24]   ; texture
+    call 0x3bee00
     pop edi
     pop esi
     pop ebx

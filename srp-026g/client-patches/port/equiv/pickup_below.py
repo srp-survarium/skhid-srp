@@ -104,9 +104,9 @@ def install():
         return
     run = E.Machine.run
 
-    def wrapped(self, hook, case, seed, old):
+    def wrapped(self, hook, case, seed, old, **more):
         self.case_centre = getattr(case, "centre", (0.0, 0.0, 0.0))
-        return run(self, hook, case, seed, old)
+        return run(self, hook, case, seed, old, **more)
     E.Machine.run, E.Machine._pickup_below = wrapped, True
 
 

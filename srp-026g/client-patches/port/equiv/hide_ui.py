@@ -110,9 +110,9 @@ def install():
         return
     run = E.Machine.run
 
-    def wrapped(self, hook, case, seed, old):
+    def wrapped(self, hook, case, seed, old, **more):
         self.case_hidden, self.case_actions = case.hidden, case.actions
-        return run(self, hook, case, seed, old)
+        return run(self, hook, case, seed, old, **more)
     E.Machine.run, E.Machine._hide_ui = wrapped, True
 
 

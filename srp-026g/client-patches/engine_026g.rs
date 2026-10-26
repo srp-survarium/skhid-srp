@@ -122,6 +122,14 @@ unsafe extern "C" {
     pub fn engine_show_profiles_selector(hud: *mut c_void, shown: u32);
     /// 0x2d5d00 survarium::player_params_modifiers_list::remove: list ESI, node EAX; pops 0
     pub fn engine_modifier_unlink(list: *mut c_void, node: *mut c_void);
+    /// 0x1e8da0 survarium::delete_folder: folder EAX; pops 0
+    pub fn engine_delete_folder(folder: *mut c_void);
+    /// 0x12de30 vostok::render::baked_texture_resource::baked_texture_resource: memory EAX; pops 0; EAX
+    pub fn engine_baked_texture_resource(memory: *mut c_void) -> *mut c_void;
+    /// 0xf0080 vostok::resources::query_result_for_cook::set_unmanaged_resource: query EDX, resource ESP+4, allocator ESP+8, size ESP+12; pops 12
+    pub fn engine_set_unmanaged_resource(query: *mut c_void, resource: *mut c_void, allocator: *mut c_void, size: u32);
+    /// 0x3bee00 vostok::render::resource_manager::release: texture EAX, manager ESP+4; pops 4
+    pub fn engine_resource_release(texture: *mut c_void, manager: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -142,6 +150,8 @@ unsafe extern "stdcall" {
     pub fn engine_process_detach_upgrade(client: *mut c_void, upgrade: u32) -> u32;
     /// 0x2422b0 survarium::player_input_handler::update_inverted_view: handler ESP+4, transform ESP+8; pops 8; stdcall, called directly
     pub fn engine_view_update(handler: *mut c_void, transform: *const f32);
+    /// 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly
+    pub fn engine_finish_query(query: *mut c_void, result: u32, assert_on_fail: u32, error: u32);
 }
 
 #[allow(dead_code)]
@@ -162,6 +172,8 @@ unsafe extern "thiscall" {
     pub fn engine_set_constant_float4(value: *const f32, compiler: *mut c_void, name: *const u8);
     /// 0x54e10 survarium::replay_network_client::is_this_place_mine: client ECX, place ESP+4; pops 4; AL; thiscall, called directly
     pub fn engine_replay_place_mine(client: *mut c_void, place: u32) -> u8;
+    /// 0x12d1d0 vostok::render::camouflage_decal_texture_type_baker_cook::translate_query: cook ECX, query ESP+4; pops 4; thiscall, called directly
+    pub fn engine_translate_query(cook: *mut c_void, query: *mut c_void);
 }
 
 /// 0x301ca0 survarium::victory_item_core::can_be_spotted_by: spottable ECX, spotter ESP+4; pops 4; AL; through its vtable's slot +0x4 (thiscall; this the model)
@@ -396,6 +408,20 @@ unsafe extern "C" {
     pub static engine_get_module_file_name_w: unsafe extern "stdcall" fn(*mut c_void, *mut u16, u32) -> u32;
     /// the IAT slot 0x87005c (kernel32, stdcall): unsigned int engine_get_last_error(void)
     pub static engine_get_last_error: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x870064 (kernel32, stdcall): unsigned int engine_read_file(void *file, void *bytes, unsigned int size, unsigned int *read, void *overlapped)
+    pub static engine_read_file: unsafe extern "stdcall" fn(*mut c_void, *mut c_void, u32, *mut u32, *mut c_void) -> u32;
+    /// the IAT slot 0x87021c (kernel32, stdcall): unsigned int engine_delete_file_a(const char *name)
+    pub static engine_delete_file_a: unsafe extern "stdcall" fn(*const u8) -> u32;
+    /// the IAT slot 0x870220 (kernel32, stdcall): unsigned int engine_create_directory_a(const char *name, void *security)
+    pub static engine_create_directory_a: unsafe extern "stdcall" fn(*const u8, *mut c_void) -> u32;
+    /// the IAT slot 0x870090 (kernel32, stdcall): unsigned int engine_get_tick_count(void)
+    pub static engine_get_tick_count: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x870238 (kernel32, stdcall): void *engine_find_first_file_a(const char *pattern, void *data)
+    pub static engine_find_first_file_a: unsafe extern "stdcall" fn(*const u8, *mut c_void) -> *mut c_void;
+    /// the IAT slot 0x87023c (kernel32, stdcall): unsigned int engine_find_next_file_a(void *find, void *data)
+    pub static engine_find_next_file_a: unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> u32;
+    /// the IAT slot 0x870228 (kernel32, stdcall): unsigned int engine_find_close(void *find)
+    pub static engine_find_close: unsafe extern "stdcall" fn(*mut c_void) -> u32;
 }
 
 /// survarium::player_input_handler's fields (fields_026g.tsv).
@@ -563,6 +589,36 @@ pub mod image {
 
     /// 0x3128c0 (u32): artefact_onyx_core::enable_active_effects, an Onyx's vtable+80h
     pub const ONYX_ENABLE_ACTIVE: u32 = 0x3128c0;
+
+    /// 0xa2650b0 (u32): the baker's (the static 0xA264E80) list of saved textures, +230h: begin
+    pub const BAKER_LIST_BEGIN: u32 = 0xa2650b0;
+
+    /// 0xa2650b4 (u32): the baker's list: end
+    pub const BAKER_LIST_END: u32 = 0xa2650b4;
+
+    /// 0xa2650b8 (u32): the baker's list: capacity end (1024 records)
+    pub const BAKER_LIST_CAPACITY: u32 = 0xa2650b8;
+
+    /// 0xa2ae0bc (u32): the baker's +4923Ch: the bytes of its records' files
+    pub const BAKER_LIST_BYTES: u32 = 0xa2ae0bc;
+
+    /// 0x2260920 (u32): the counter of the records' ages (++ for each)
+    pub const BAKER_AGES: u32 = 0x2260920;
+
+    /// 0x380866 (u8): the patch revision: patch 7's mov byte [esp+27h],REVISION immediate
+    pub const PATCH_REVISION: u32 = 0x380866;
+
+    /// 0x1f1d960 (u32): the allocator a baked texture resource's 108h bytes come from (mov esi,[0x1F1D960] before 0xE4F90, 0x12DDA9)
+    pub const BAKED_RESOURCE_ALLOCATOR: u32 = 0x1f1d960;
+
+    /// 0x226047c (u32): the resource manager a texture is released to (push dword [0x226047C] / call 0x3BEE00, 0x12F178)
+    pub const RENDER_DEVICE: u32 = 0x226047c;
+
+    /// 0xac3334 (u32): the object whose +8 names a baked texture resource's allocation (mov ecx,0AC3334h / call 0x420789, 0x12DDAF)
+    pub const BAKED_RESOURCE_NAME: u32 = 0xac3334;
+
+    /// 0x21e76c8 (u32): the allocator set_unmanaged_resource gets with a baked texture resource (push 21E76C8h, 0x12DDD6)
+    pub const UNMANAGED_RESOURCE_ALLOCATOR: u32 = 0x21e76c8;
 }
 
 /// survarium::game_world's fields (fields_026g.tsv).
@@ -3091,5 +3147,338 @@ pub mod onyx_client {
     #[inline(always)]
     pub unsafe fn onyx(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_sub(0xf20).cast() }
+    }
+}
+
+/// vostok::buffer_string's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod buffer_string {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): the text's first byte (begin, end, capacity end, then the text)
+    ///
+    /// # Safety
+    /// `this` is a vostok::buffer_string.
+    #[inline(always)]
+    pub unsafe fn begin(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x4 (u32): past the text's last byte
+    ///
+    /// # Safety
+    /// `this` is a vostok::buffer_string.
+    #[inline(always)]
+    pub unsafe fn end(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+}
+
+/// vostok::render::baked_texture_data's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod baked_texture_data {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): a record of the baker's list of saved textures (0x131ED0): its path, a buffer_string (begin)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::baked_texture_data.
+    #[inline(always)]
+    pub unsafe fn path_begin(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+
+    /// +0x4 (u32): its path's end (at its NUL)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::baked_texture_data.
+    #[inline(always)]
+    pub unsafe fn path_end(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0x8 (u32): its path's capacity end (text + 104h)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::baked_texture_data.
+    #[inline(always)]
+    pub unsafe fn path_capacity(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+
+    /// +0xc (u8): its path's text, 104h bytes
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::baked_texture_data.
+    #[inline(always)]
+    pub unsafe fn text(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+
+    /// +0x110 (u8): '/' after the text (0x132640's push_back)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::baked_texture_data.
+    #[inline(always)]
+    pub unsafe fn separator(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x110).cast() }
+    }
+
+    /// +0x114 (u32): the CRC of the file's bytes (check_loaded_baked_texture's cmp eax,[edi+114h], 0x131C90)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::baked_texture_data.
+    #[inline(always)]
+    pub unsafe fn crc(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x114).cast() }
+    }
+
+    /// +0x118 (u32): the file's bytes (the list's +4923Ch sums them)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::baked_texture_data.
+    #[inline(always)]
+    pub unsafe fn size(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x118).cast() }
+    }
+
+    /// +0x11c (u32): its age (the counter 0x2260920's at its push)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::baked_texture_data.
+    #[inline(always)]
+    pub unsafe fn age(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x11c).cast() }
+    }
+
+    /// +0x120 (u8): a load of it under way (0x131ED0 sets it for the record it finds)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::baked_texture_data.
+    #[inline(always)]
+    pub unsafe fn loading(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x120).cast() }
+    }
+
+    /// +0x124 (u32): the record after it: records are 124h bytes (0x131F5F add esi,124h)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::baked_texture_data.
+    #[inline(always)]
+    pub unsafe fn next(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x124).cast() }
+    }
+}
+
+/// vostok::render::bake_parameters's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod bake_parameters {
+    use core::ffi::c_void;
+
+    /// +0x7a0 (u32): a bake's texture type: 0 d, 1 n, 2 f, 3 s (0x12DD95 cmp dword [esi+7A0h],3)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::bake_parameters.
+    #[inline(always)]
+    pub unsafe fn kind(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x7a0).cast() }
+    }
+
+    /// +0x790 (u32): the model instance whose surface it bakes
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::bake_parameters.
+    #[inline(always)]
+    pub unsafe fn model(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x790).cast() }
+    }
+}
+
+/// vostok::render::baked_surface's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod baked_surface {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): a model instance's surface a bake is for: its textures by type, 4 each (process_compression 0x12F0E0 mov edx,[esp+610h] / mov [edx],ecx)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::baked_surface.
+    #[inline(always)]
+    pub unsafe fn textures(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+}
+
+/// vostok::render::render_model_instance's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod render_model_instance {
+    use core::ffi::c_void;
+
+    /// +0xd0 (i32): its references (lock xadd; translate_query's end 0x12D443 lets one go, 0xE0210 at 0)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::render_model_instance.
+    #[inline(always)]
+    pub unsafe fn references(this: *mut c_void) -> *mut i32 {
+        unsafe { this.byte_add(0xd0).cast() }
+    }
+}
+
+/// vostok::render::texture_resource's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod texture_resource {
+    use core::ffi::c_void;
+
+    /// +0x4 (u32): its references (0x12C6D0's inc [eax+4] / add [eax+4],-1, then 0x3BEE00 at 0)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::texture_resource.
+    #[inline(always)]
+    pub unsafe fn references(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+}
+
+/// vostok::resources::unmanaged_resource's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod unmanaged_resource {
+    use core::ffi::c_void;
+
+    /// +0xd0 (i32): an unmanaged resource's references (lock xadd [eax+0D0h], 0x12DDF4 and 0xF009E)
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::unmanaged_resource.
+    #[inline(always)]
+    pub unsafe fn references(this: *mut c_void) -> *mut i32 {
+        unsafe { this.byte_add(0xd0).cast() }
+    }
+}
+
+/// vostok::memory::named_object's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod named_object {
+    use core::ffi::c_void;
+
+    /// +0x8 (u32): what 0x420789 (lea eax,[ecx+8]) returns for the object in ECX: an allocation's name
+    ///
+    /// # Safety
+    /// `this` is a vostok::memory::named_object.
+    #[inline(always)]
+    pub unsafe fn name(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+}
+
+/// vostok::render::translate_query_stack's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod translate_query_stack {
+    use core::ffi::c_void;
+
+    /// +0x1c (u32): translate_query's [esp+1Ch] at 0x12D4C5: the bake's parameters
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::translate_query_stack.
+    #[inline(always)]
+    pub unsafe fn parameters(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x1c).cast() }
+    }
+
+    /// +0x1b8 (u32): translate_query's [esp+1B8h] at 0x12D4C5: the path, a buffer_string (its text's address first)
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::translate_query_stack.
+    #[inline(always)]
+    pub unsafe fn path(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x1b8).cast() }
+    }
+}
+
+/// vostok::render::translate_query_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod translate_query_frame {
+    use core::ffi::c_void;
+
+    /// +0x8 (u32): translate_query's [ebp+8]: the query
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::translate_query_frame.
+    #[inline(always)]
+    pub unsafe fn query(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+}
+
+/// vostok::render::process_compression_stack's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod process_compression_stack {
+    use core::ffi::c_void;
+
+    /// +0x10 (u32): process_compression's [esp+10h] at 0x12F18F: the texture made
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::process_compression_stack.
+    #[inline(always)]
+    pub unsafe fn texture(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x10).cast() }
+    }
+
+    /// +0x604 (u32): its [esp+604h] there: the query
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::process_compression_stack.
+    #[inline(always)]
+    pub unsafe fn query(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x604).cast() }
+    }
+
+    /// +0x610 (u32): its [esp+610h] there: the surface
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::process_compression_stack.
+    #[inline(always)]
+    pub unsafe fn surface(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x610).cast() }
+    }
+
+    /// +0x620 (u32): its [esp+620h] there: the type
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::process_compression_stack.
+    #[inline(always)]
+    pub unsafe fn kind(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x620).cast() }
+    }
+}
+
+/// vostok::render::on_baked_texture_loaded_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod on_baked_texture_loaded_frame {
+    use core::ffi::c_void;
+
+    /// +0xc (u32): on_baked_texture_loaded's [ebp+0Ch]: the bake's parameters
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::on_baked_texture_loaded_frame.
+    #[inline(always)]
+    pub unsafe fn parameters(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+
+    /// +0x10 (u32): its [ebp+10h]: the surface
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::on_baked_texture_loaded_frame.
+    #[inline(always)]
+    pub unsafe fn surface(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x10).cast() }
+    }
+
+    /// +0x14 (u32): its [ebp+14h]: the query
+    ///
+    /// # Safety
+    /// `this` is a vostok::render::on_baked_texture_loaded_frame.
+    #[inline(always)]
+    pub unsafe fn query(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x14).cast() }
     }
 }

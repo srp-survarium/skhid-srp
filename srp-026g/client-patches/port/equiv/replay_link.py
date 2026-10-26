@@ -123,9 +123,9 @@ def install():
         return
     run = E.Machine.run
 
-    def wrapped(self, hook, case, seed, old):
+    def wrapped(self, hook, case, seed, old, **more):
         self.case_path, self.case_kernel32, self.case_create, self.case_starts = case.machine
-        return run(self, hook, case, seed, old)
+        return run(self, hook, case, seed, old, **more)
     E.Machine.run, E.Machine._replay_link = wrapped, True
 
 

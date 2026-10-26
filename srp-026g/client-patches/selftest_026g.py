@@ -1442,7 +1442,6 @@ def late_join_sites():
         [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
-        [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
         [(P.BAKE_CACHE_KEEP[0], len(P.BAKE_CACHE_KEEP[1]))]
 
 
@@ -4164,8 +4163,8 @@ def test_fall_gravity(original, image, before):
 
 
 def test_bake_cache(original, image, before):
-    """Check 70: the baked textures kept and made once (patch 70,
-    BAKE_CACHE_HOOKS, BAKE_CACHE_KEEP). check_bake_cache_026g.py runs the
+    """Check 70: the baked textures kept and made once (patch 70, the Rust
+    patch bake_cache, seven lohooks; BAKE_CACHE_KEEP). check_bake_cache_026g.py runs the
     sites from the game's code on a made-up baker, folder and queries."""
     stock = Image(original)
     rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
@@ -4203,30 +4202,21 @@ def test_bake_cache(original, image, before):
           and stock.read(0x1C235, 5) == bytes.fromhex("35b71dc104") and stock.read(0x1C210, 7) == bytes.fromhex("803d64fd250200"),
           "the CRC-32 step 0x42050 (eax &the CRC, edx the bytes, [esp+4] the count; `ret 4`): a byte a step, "
           "crc = T[(crc ^ byte) & 0xFF] ^ (crc >> 8), T at 0x225FD68 made by 0x1C210 from the polynomial 04C11DB7h "
-          "reflected (EDB88320h, bake_cache_026g.c's tables)")
-    linked = P.arena()
-    block = linked.blocks["bake_cache.code"]
-    for va, old, symbol, opcode in P.BAKE_CACHE_HOOKS:
-        target = linked.symbols[symbol]
-        hook = P.hook_bytes(target, va, old, 0, opcode)
-        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
-              and block.va <= target < block.va + block.size,
-              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
-              f"`{'call' if opcode == 0xE8 else 'jmp'} {target:#x}` ({symbol}, an entry of bake_cache.code) here")
+          "reflected (EDB88320h, vostok::crc32's tables)")
+    rust_lohooks(original, image, before, "bake_cache", {
+        0x1E9455: ["call 0x1e8da0"], 0x131C90: ["cmp eax,[edi+0x114]"],
+        0x12D4C5: ["lea edx,[esp+0x1b8]", "push edx", "call 0x131ed0"],
+        0x12F18F: ["call 0x420789"], 0x12DDB4: ["call 0x420789"],
+        0xF0D00: ["push ebp", "mov ebp,esp", "and esp,byte -0x8"], 0x42050: ["mov ecx,[esp+0x4]", "push edi"]},
+        exits={0x12D42D, "ret 0x10", "ret 0x4"})
     va, old, new = P.BAKE_CACHE_KEEP
     check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
           f"{va:#x}: game::exit's delete is a 5-byte nop")
-    sites = [(s, o) for s, o, _, _ in P.BAKE_CACHE_HOOKS] + [(va, old)]
-    under = [v for kind, v in stock.relocations().values() if kind == 3
-             and any(s - 4 < v < s + len(o) for s, o in sites)]
-    hits = [h for s, o in sites for h in aimed_inside(original, s, len(o), 0x82)
-            if not s <= h < s + len(o) and starts_instruction(stock, h)]
-    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    hits = [h for h in aimed_inside(original, va, len(old), 0x82) if not va <= h < va + len(old)
+            and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under game::exit's delete, and no branch aims inside it"
           + "".join(f", {h:#x}" for h in hits + under))
-    code = P.linker.block_bytes(linked, "bake_cache.code")
-    check(image.read(block.va, len(code)) == code and "bake_cache.state" in linked.blocks,
-          f"the code at {block.va:#x} is the link's bake_cache.code ({len(code)} bytes), its tables bake_cache.state")
-
 
 def test_ragdoll(original, image, before):
     """Check 76: the death ragdoll (patch 76, the Rust patch `ragdoll`;
@@ -4307,7 +4297,7 @@ def test_ragdoll(original, image, before):
     check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
           + "".join(f", {h:#x}" for h in hits + under))
     code = P.linker.block_bytes(linked, "patches.code")
-    check(image.read(block.va, len(code)) == code and sum(d.size for d in data) <= 0x30000,
+    check(image.read(block.va, len(code)) == code and sum(d.size for d in data) <= 0x40000,
           f"the code at {block.va:#x} is the link's patches.code ({len(code)} bytes: the Rust crate and the "
           f"generated entries), its statics patches.data and .state ({sum(d.size for d in data)} bytes)")
     # each entry: hooks_026g.lohook_entry's (the machine saved, the shim
@@ -4340,10 +4330,15 @@ def test_ragdoll(original, image, before):
           + "".join(f"; {t:#x}" for t in sorted(set(outside) - allowed)))
     stores = [t for t in texts if re.match(r"(mov|add|sub|and|or|xor|inc|dec)\w* (byte |word |dword |qword )?\[(dword )?0x", t)]
     absolute = [int(m, 16) for t in stores for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", t)]
-    inside = lambda a: any(d.va <= a < d.va + d.size for d in data)
+    # the game's statics a patch writes are fields_026g.tsv's `::image` rows (raw::image)
+    image_fields = {f["offset"]: engine_026g.FIELD_TYPES[f["type"]] for f in engine_026g.fields()
+                    if f["module"] == "image"}
+    named = lambda a: any(va <= a < va + size for va, size in image_fields.items())
+    inside = lambda a: any(d.va <= a < d.va + d.size for d in data) or named(a)
     check(all(inside(a) for a in absolute),
-          f"its stores to absolute addresses ({len(absolute)}) are all in patches.data and .state: nothing of the "
-          "game's is written by address" + "".join(f"; {a:#x}" for a in absolute if not inside(a)))
+          f"its stores to absolute addresses ({len(absolute)}) are all in patches.data and .state or a game static "
+          "of fields_026g.tsv (an `::image` row): nothing else of the game's is written by address"
+          + "".join(f"; {a:#x}" for a in absolute if not inside(a)))
 
 
 def test_spot(original, image, before):
@@ -5441,31 +5436,31 @@ def test_arena(original):
           and security[0] == raw + rsize and security[0] + security[1] == len(one),
           "SizeOfImage ends past .srpx, its file bytes follow .srpw's, the certificate table stays last, "
           "the PE checksum is right")
-    # ARENA's blocks in another order (research.code and bake_cache.code
+    # ARENA's blocks in another order (research.code and engine.code
     # swapped): every block elsewhere, and still each hook at its symbol,
     # Research's calls at the library's thunks and the library's check passing.
     names = [b.name for b in P.ARENA]
     swapped = list(P.ARENA)
-    i, j = names.index("research.code"), names.index("bake_cache.code")
+    i, j = names.index("research.code"), names.index("engine.code")
     swapped[i], swapped[j] = swapped[j], swapped[i]
     data, _ = P.build(original, "section", code, None, late_join, arena_blocks=tuple(swapped))
     moved = P.arena(tuple(swapped))
     default = P.arena()
     built = Image(data)
     hooks = [(va, symbol, branch_target(ndisasm(built.read(va, 5), va)[0][2]))
-             for va, _, symbol, _ in P.RESEARCH_HOOKS + P.BAKE_CACHE_HOOKS]
+             for va, _, symbol, _ in P.RESEARCH_HOOKS]
     research_va = moved.blocks["research.code"].va
     listing = [t for _, _, t in ndisasm(P.linker.block_bytes(moved, "research.code")[P.RESEARCH_ASM_SIZE:],
                                         research_va + P.RESEARCH_ASM_SIZE)]
     calls = {s for s in moved.symbols if s.startswith("engine_") and any(
         t == f"call {moved.symbols[s]:#x}" or t.endswith(f",{moved.symbols[s]:#x}") for t in listing)}
-    check(moved.blocks["bake_cache.code"].va == P.ARENA_VA != default.blocks["bake_cache.code"].va
+    check(moved.blocks["engine.code"].va == P.ARENA_VA != default.blocks["engine.code"].va
           and moved.blocks["research.code"].va != default.blocks["research.code"].va
           and all(target == moved.symbols[symbol] != default.symbols[symbol] for _, symbol, target in hooks)
           and len(calls) >= 11
           and built.read(moved.blocks["research.code"].va, 0x100) == P.linker.block_bytes(moved, "research.code")[:0x100],
-          f"ARENA with research.code and bake_cache.code swapped links (bake_cache.code at "
-          f"{moved.blocks['bake_cache.code'].va:#x}, research.code at {research_va:#x}): the {len(hooks)} hooks "
+          f"ARENA with research.code and engine.code swapped links (engine.code at "
+          f"{moved.blocks['engine.code'].va:#x}, research.code at {research_va:#x}): the {len(hooks)} hooks "
           f"reach their symbols there, Research's C calls {len(calls)} library functions at their new thunks")
     try:
         import check_engine_026g as engine_check

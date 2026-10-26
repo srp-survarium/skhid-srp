@@ -106,10 +106,10 @@ def install():
         return
     run = E.Machine.run
 
-    def wrapped(self, hook, case, seed, old):
+    def wrapped(self, hook, case, seed, old, **more):
         (self.case_kernel32, self.case_temp_path, self.case_folder, self.case_exists,
          self.case_lies) = case.machine
-        return run(self, hook, case, seed, old)
+        return run(self, hook, case, seed, old, **more)
     E.Machine.run, E.Machine._stale_dll = wrapped, True
 
 

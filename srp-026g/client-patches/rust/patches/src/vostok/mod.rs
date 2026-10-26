@@ -23,6 +23,9 @@
 //! It grows with what the patches need, and no further.
 
 pub mod artefact;
+pub mod baker;
+pub mod crc32;
+pub mod files;
 pub mod bullet;
 pub mod camera;
 mod cell;
