@@ -154,6 +154,11 @@ pub struct ThinkTuning {
     /// ([`super::super::path::off_lip`]): the owner's rule, a body at rest keeps its centre on the floor (the sniper that
     /// stood with its feet half over a drop). Off (the default until a train turns it on): the goal as the play gave it.
     pub rest_off_lip: bool,
+    /// A body that stands on no floor of the grid (on the top of an object, 2.5 m or more above the
+    /// floors) plans from the nearest floor it drops to, up to 5 m below ([`super::super::path::stranded_floor`]):
+    /// the first leg of its route is the drop off the edge. Off (the default until a train turns it on): it has
+    /// no start floor, so no route, and it stands (`no_way`).
+    pub stranded_start: bool,
 }
 
 impl Default for ThinkTuning {
@@ -166,6 +171,7 @@ impl Default for ThinkTuning {
             trace_every_ms: 5_000,
             shut_in_gate: false,
             rest_off_lip: false,
+            stranded_start: false,
         }
     }
 }
