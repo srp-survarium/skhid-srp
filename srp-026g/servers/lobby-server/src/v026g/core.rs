@@ -220,6 +220,8 @@ pub(super) struct Core<'a> {
     /// The match against bots being made, by the queue's match id: what
     /// it was chosen with (`pvb`, `play::launch`).
     pub pvb_launching: HashMap<u32, super::pvb::Choice>,
+    /// The bots' kits and when they were gathered (`play::Core::bot_kits`).
+    pub bot_kits: Option<(Instant, std::sync::Arc<session::v026g::bot_kits::BotKits>)>,
     /// "Watch replay" (`replay`): the process's replays, if srp gave them.
     pub replays: Option<&'a Replays>,
     /// The rooms (`rooms`).
@@ -284,6 +286,7 @@ impl<'a> Core<'a> {
             // time.
             pvb_holds: HashMap::new(),
             pvb_launching: HashMap::new(),
+            bot_kits: None,
             replays: None,
             rooms: Default::default(),
             room_launching: HashMap::new(),

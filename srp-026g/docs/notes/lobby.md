@@ -376,7 +376,7 @@ The codes (`PvbCode`; the first that applies is said, in this order: 6, 5, 4, 3,
 | code | meaning |
 |---|---|
 | 0 | allowed |
-| 1 | the equipment level (the client's own, of the kits that can be played) is over the most (`SRP_PVB_MAX_GEAR`, 5) |
+| 1 | the equipment level (the client's own, of the kits that can be played) is over the most (`SRP_PVB_MAX_GEAR`, 15) |
 | 2 | in a squad with others |
 | 3 | waiting in the queue |
 | 4 | in a match, sent to one, with a place in one, or holding a JOIN place (§2.16.1) |
