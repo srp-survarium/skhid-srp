@@ -101,7 +101,7 @@ pub(super) fn drive_tick(
     // this tick's rise itself, `Override::pull`).
     let kick = bot.reflex.weapon_tick(me, time);
     // Only this tick's walk to the play's own exact spot sets it (below).
-    bot.motor.exact_end = false;
+    bot.motor.exact_end = None;
     let me = &PlaceView {
         pitch: (me.pitch + kick).clamp(-1.0, 1.0),
         ..me.clone()
@@ -164,6 +164,18 @@ pub(super) fn drive_tick(
     // (`Intent::let_go`) may fire while the view still shows it carried.
     let may_fire = Gates::may_fire(&intent, me.carrying.is_some());
     bot.reflex.outer_gates(time, !may_fire, bot.jump_hold > 0);
+    // [heal] The consumable is a habit of the reflex, as the reload is: the
+    // key goes out at once whatever the play, which is neither taken nor
+    // displaced (`plays::heal::wish`, `HealTuning::interrupt`).
+    bot.reflex.set_heal(super::plays::heal::wish(
+        bot.pools,
+        me.health,
+        view.world_time,
+        me.carrying.is_some(),
+        &bot.pantry,
+        &tuning.heal,
+        time,
+    ));
     let over = bot.reflex.tick(
         aiming_me,
         view,
@@ -237,6 +249,20 @@ pub(super) fn drive_tick(
         Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
         _ => None,
     };
+    // [K1] In a held shooter's lane on its way somewhere, a bot that was to
+    // walk runs: it crosses fast and keeps its task (the owner, 2026-10-26:
+    // "bots should still continue accomplish their tasks"). Not in a fight
+    // (the reflex's legs), not crouched.
+    if tuning.threat.sprint
+        && goal.is_some()
+        && over.legs.is_none()
+        && intent.pace == Pace::Walk
+        && !intent.crouch
+        && !bot.threat.is_empty()
+        && bot.threat.exposed_at(&tactics.world.grid, me.feet)
+    {
+        intent.pace = Pace::Run;
+    }
     // [zones] With no goal to walk (holding a spot, standing at its goal,
     // aiming still), out of a zone that is on or about to be first,
     // whatever the play: its way out is walked as the goal, the reflex
@@ -410,6 +436,21 @@ pub(super) fn drive_tick(
                 }
                 _ => false,
             };
+            // Given up in its pocket, its goal outside it: no search (the grid
+            // has no way, and the next goal is no different): the bot stays, the
+            // escape's tries are spent (`escape.rs`, `stuck::SelfKill` at the end).
+            let shut_in = tuning.think.shut_in_gate
+                && bot
+                    .stuck
+                    .escape
+                    .as_ref()
+                    .is_some_and(|escape| escape.trapped().gave_up)
+                && {
+                    let grid = &tactics.world.grid;
+                    let from = grid.locate(me.feet, 1.5).and_then(|n| grid.pocket_of(n));
+                    from.is_some()
+                        && from != path::goal_floor(grid, at).and_then(|g| grid.pocket_of(g))
+                };
             // Why it has no route, if it has none after this.
             let mut no_route = path::NoRoute::Searched;
             if let Some((goal, route, crossed)) = found {
@@ -431,7 +472,11 @@ pub(super) fn drive_tick(
                     };
                 }
                 bot.set_route(route.map(|route| (route, goal)), time);
-            } else if replan && no_way {
+            } else if replan && (no_way || shut_in) {
+                #[cfg(test)]
+                if !no_way {
+                    search::asks::count(search::asks::Ask::Skipped);
+                }
                 bot.end_route(RouteEnd::NoWay, time);
                 no_route = path::NoRoute::NoWay;
             } else if waiting
@@ -450,6 +495,13 @@ pub(super) fn drive_tick(
             } else if replan {
                 searching.left -= 1;
                 let grid = &tactics.world.grid;
+                #[cfg(test)]
+                {
+                    let in_pocket = grid
+                        .locate(me.feet, 1.5)
+                        .is_some_and(|node| grid.in_pocket(node));
+                    search::asks::searched(&mut bot.bench_asked, time, in_pocket);
+                }
                 let side = bot.side;
                 let objective = intent.objective;
                 // Round the spots it got stuck at, if there is a way; else
@@ -560,6 +612,65 @@ pub(super) fn drive_tick(
                 } else {
                     None
                 };
+                // A held shooter's lane (K1, `threat.rs`): a route that runs
+                // through it for long gets a local detour round the lane
+                // (searched from 13 m before it to 13 m after it, spliced in)
+                // where that is not much longer; else the plain route is kept
+                // and walked fast (`threat.sprint` below). A route that
+                // crosses no lane is the plain route and costs no search; one
+                // past this poll's floors is not looked at.
+                let mut detour = None;
+                if !escaping
+                    && !there
+                    && left.is_none()
+                    && tuning.threat.spots
+                    && !bot.threat.is_empty()
+                    && let Some(plain) = route.as_ref()
+                {
+                    let seen = threat::exposure(plain, |p| bot.threat.exposed_at(grid, p), &[me.feet, at]);
+                    threat::checked(&seen);
+                    if seen.metres > threat::EXPOSED_M
+                        && tuning.threat.detour
+                        && let Some(&(first, last)) = seen.spans.first()
+                    {
+                        let s0 = (first - threat::DETOUR_MARGIN_M).max(0.0);
+                        let s1 = (last + threat::DETOUR_MARGIN_M).min(plain.length());
+                        let ends = grid
+                            .locate(plain.point_at(s0), 1.5)
+                            .zip(grid.locate(plain.point_at(s1), 1.5));
+                        if let Some((n0, n1)) = ends
+                            && n0 != n1
+                            && !plain.jumps_between(s0, s1 + 3.0)
+                        {
+                            let free = threat::free_regions(&bot.threat, tactics, n0, n1);
+                            let avoid = hard
+                                .clone()
+                                .avoiding(bot.stuck.avoided_for(time, at).collect())
+                                .avoiding_threat(bot.threat.clone(), grid.position(n0), grid.position(n1), free);
+                            // At most `ThreatTuning::search_floors` of the
+                            // poll's floors: a search with no way round walks
+                            // the whole map first, and the other bots'
+                            // searches wait for what it takes.
+                            let cap = (*floors).min(tuning.threat.search_floors as usize);
+                            let mut mine = cap;
+                            let way = tactics.start_route(n0, n1, time, side, objective, &avoid, &mut mine);
+                            *floors -= cap - mine;
+                            match way {
+                                Ok(Some(local)) if stuck::worth_round(local.length(), s1 - s0) => {
+                                    threat::searched(threat::Searched::Round);
+                                    threat::rounded(bot.place, time);
+                                    detour = Some(plain.spliced(s0, s1, &local));
+                                }
+                                Ok(Some(_)) => threat::searched(threat::Searched::TooLong),
+                                Ok(None) => threat::searched(threat::Searched::NoWay),
+                                Err(_) => threat::searched(threat::Searched::Budget),
+                            }
+                        }
+                    }
+                }
+                if detour.is_some() {
+                    route = detour;
+                }
                 // No way, or a long one past zones on all match: a crossing's
                 // search (`crossing.rs`).
                 let mut crossed = false;
@@ -703,7 +814,7 @@ pub(super) fn drive_tick(
                     // `route_at` is the goal's `at`, copied unchanged where
                     // the route was planned, so the two compare exactly (a
                     // replan that snapped it to a floor would turn this off).
-                    bot.motor.exact_end = exact_at == Some(*route_at);
+                    bot.motor.exact_end = (exact_at == Some(*route_at)).then(|| intent.exact_arrive_m.unwrap_or(bot.motor.feel.arrive_m));
                     let side = bot.side;
                     let objective = intent.objective;
                     let clear = |p: Vec3| tactics.clear_line_for(me.feet, p, time, side, objective);
@@ -750,7 +861,7 @@ pub(super) fn drive_tick(
                                 .enumerate()
                                 .find(|&(k, point)| {
                                     k >= 1
-                                        && point.jump
+                                        && point.jump.is_some()
                                         && route.points()[k - 1].at.distance_xz(take_off) < 0.3
                                 })
                                 .map(|(_, point)| point.at);
@@ -859,6 +970,11 @@ pub(super) fn drive_tick(
     }
     if decision.keys & key::QUICK[0] != 0 {
         bot.medkits_used = bot.medkits_used.saturating_add(1);
+    }
+    for (quick, bit) in key::QUICK.into_iter().enumerate() {
+        if decision.keys & bit != 0 {
+            bot.pantry.pressed(quick, time);
+        }
     }
     let by = bot.motor.jumped().map(|by| match by {
         JumpBy::Route => "route",
@@ -1079,6 +1195,10 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     #[cfg(test)]
     {
         bot.bench_guard = 0;
+    }
+    // Off (the default): nothing is looked at.
+    if bot.motor.feel.lip_guard_ticks == 0 {
+        return;
     }
     // A jump (the route's, a hop) goes off the floor on purpose.
     if decision.keys & key::JUMP != 0 || bot.motor.lining_up() {
@@ -1317,7 +1437,7 @@ mod tests {
 
     #[test]
     fn a_use_takes_the_view_when_in_reach_and_the_reflex_holds_none_for_a_grenade() {
-        let eye = Vec3::new(0.0, 1.6, 0.0);
+        let eye = super::view::still_eye(Vec3::ZERO, false);
         let look = |at| Intent { look: Look::Use(at), ..Intent::stay() };
         let near = Vec3::new(0.0, 0.5, 1.0);
         let far = Vec3::new(0.0, 0.5, USE_LOOK_M + 1.0);

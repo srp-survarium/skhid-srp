@@ -42,9 +42,9 @@ const fn s(name: &'static str, default: &'static str, what: &'static str) -> Set
 }
 
 /// The names of the plays', the reflex's and the senses' number lists
-/// (`name=value,...`), read as `SRP_BENCH_<name>`, and for team 1 of a one-sided
-/// run as `SRP_BENCH_SIDE1_<name>` (`bench_tuning_of`).
-pub(crate) const TUNING_NAMES: [&str; 13] = [
+/// (`name=value,...`) and of the tuning's JSON patch (`TUNING`), read as `SRP_BENCH_<name>`, and for
+/// team 1 of a one-sided run as `SRP_BENCH_SIDE1_<name>` (`tuning_from`).
+pub(crate) const TUNING_NAMES: [&str; 15] = [
     "COLLECT",
     "INTERCEPT",
     "RAID",
@@ -56,8 +56,10 @@ pub(crate) const TUNING_NAMES: [&str; 13] = [
     "CROSSFIRE",
     "PAIRUP",
     "COMBAT",
+    "HEAL",
     "AIM",
     "SENSE",
+    "TUNING",
 ];
 
 pub(crate) const SETTINGS: &[Setting] = &[
@@ -80,8 +82,8 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_SHOW_STALE", "off", "print the stale-belief lines"),
     s("SRP_BENCH_SHOW_RAIDS", "off", "print the raid lines"),
     s("SRP_BENCH_WHY", "off", "print why each play ended"),
-    s("SRP_BENCH_CARRIER_JUMP", "on", "`0` or `off` plans a battery carrier's routes over every jump link (`Feel::carrier_jump_m` None), not those up to the standing jump's 0.998 m"),
-    s("SRP_BENCH_LIP_GUARD", "on", "`0` or `off` turns the lip guard and the short look-ahead on lip floors off (`Feel::lip_guard_ticks`, `lip_look_ahead_m`)"),
+    s("SRP_BENCH_CARRIER_JUMP", "off", "`on` (or `1`) plans a battery carrier's routes over the jump links up to the standing jump's 0.998 m only (`Feel::carrier_jump_m` Some); off by default: every jump link"),
+    s("SRP_BENCH_LIP_GUARD", "off", "`on` (or `1`) turns the lip guard and the short look-ahead on lip floors on (`Feel::lip_guard_ticks` 2, `lip_look_ahead_m` 0.8); both are off by default"),
     s("SRP_BENCH_FALLS", "off", "print a line for every fall of a metre or more (FALL unplanned, PLANNED on the route), the bots' reckoning error and their distance off the route (`tallies/route.rs`)"),
     // The bots' side: tuning of the bench's bots.
     s("SRP_BENCH_CHEAT", "off", "the battery cheat instead of the fair battery knowledge"),
@@ -91,6 +93,10 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_FF_PAST_M", "the tuning's", "FriendlyFireTuning::past_target_m"),
     s("SRP_BENCH_FF_TOUCH_M", "the tuning's", "FriendlyFireTuning::touch_m"),
     s("SRP_BENCH_FF_LEAD_MS", "the tuning's", "FriendlyFireTuning::lead_extra_ms"),
+    s("SRP_BENCH_THREAT", "the tuning's (on)", "ThreatTuning::spots: `0` off (no threat spots, nothing kept out of a shooter's line), else on"),
+    s("SRP_BENCH_THREAT_DETOUR", "the tuning's (on)", "ThreatTuning::detour: `0` off (a route through a shooter's lane is walked as it is), else on"),
+    s("SRP_BENCH_THREAT_FLOORS", "the tuning's (3000)", "ThreatTuning::search_floors: floors of a poll's budget one search round a shooter's lane may take"),
+    s("SRP_BENCH_THREAT_SPRINT", "the tuning's (on)", "ThreatTuning::sprint: `0` off (a bot in a shooter's lane keeps the pace its play chose), else on"),
     s("SRP_BENCH_ESCAPE_CEILING", "on", "Tuning::escape_ceiling: a way out of a zone stays under the strength of its start's; `0` the nearest way over any zone"),
     s("SRP_BENCH_SEARCH_FLOORS", "the tuning's", "floors a poll's searches expand: a number or `max`"),
     s("SRP_BENCH_ONE_SIDE", "off", "team 1 plays by the SRP_BENCH_SIDE1_* numbers, so a change to team 0 alone shows"),
@@ -117,6 +123,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_RESUPPLY", "on", "**model** `off`: the resupply box does nothing (the stand-in before `Stock::resupply`); the counts stay at zero"),
     s("SRP_BENCH_PUT_MS", "PUT_MS (600)", "**model** a put-in lands this long after the press, ms"),
     s("SRP_BENCH_JUMP_AHEAD_M", "STANDING_JUMP.ahead_m", "**model** how far ahead a standing jump reaches, m"),
+    s("SRP_BENCH_HEAL_MODEL", "follows `heal.on` of the run's tuning (off by default)", "**model** `on`/`off`: the stand-in has the drugs and their stock or not (standin_heal.rs)"),
     s("SRP_BENCH_STAND_IN", "honest", "**model** `old`: the old lift up any floor in reach instead of the client's jump clips"),
 ];
 

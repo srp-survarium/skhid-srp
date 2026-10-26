@@ -134,14 +134,9 @@ impl Regions {
         }
         pairs.sort_unstable();
         pairs.dedup_by(|later, first| later.0 == first.0 && later.1 == first.1);
-        let penalty = |kind: u8| {
-            match kind {
-                0 => LinkKind::Walk,
-                1 => LinkKind::Drop,
-                _ => LinkKind::Jump,
-            }
-            .penalty()
-        };
+        // The kind's penalty only: a lower bound of any link's cost over
+        // its length (an off-mesh link's gap cost is on top).
+        let penalty = |kind: u8| LinkKind::from_u8(kind).map_or(0.0, LinkKind::penalty);
         let mut out_start = Vec::with_capacity(regions + 1);
         let mut out = Vec::with_capacity(pairs.len());
         let mut k = 0;

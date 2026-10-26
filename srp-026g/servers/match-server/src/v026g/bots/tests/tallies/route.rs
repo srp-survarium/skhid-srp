@@ -61,8 +61,12 @@ pub(crate) struct RouteTally {
     pub(crate) pocket_escapes: [u64; 7],
     pub(crate) motor_counts: [u64; 8],
     pub(crate) route_ends: [(u64, u64); super::route_end::RouteEnd::ALL.len()],
+    /// The ticks off the route by the walked-leg rule alone, at the start (`path::below_walk`).
+    pub(crate) below_walk: u64,
     /// The sights' count at the start (`foliage::through`).
-    pub(crate) foliage: [u64; 3],
+    pub(crate) foliage: [u64; 4],
+    /// The route searches' counts at the start (`search::asks`).
+    pub(crate) asks: [u64; 4],
     /// [CG-17] Each body's walk at the last tick to an exact spot
     /// (`Motor::exact_end`), and when it last landed a planned drop on one;
     /// planned drops on an exact walk (this tick's or the last), and of
@@ -102,7 +106,9 @@ impl RouteTally {
             pocket_escapes: super::escape::counts::counts(),
             motor_counts: super::motor::counts::counts(),
             route_ends: super::route_end::counts::counts(),
+            below_walk: super::path::below_walk::counts(),
             foliage: super::foliage::through::counts(),
+            asks: super::search::asks::counts(),
             exact_was: vec![false; bodies],
             exact_drop: vec![None; bodies],
             ring: vec![std::collections::VecDeque::new(); bodies],
@@ -187,7 +193,7 @@ impl RouteTally {
                 if planned {
                     self.falls.1 += 1;
                     let exact = self.exact_was[place]
-                        || bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end);
+                        || bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end.is_some());
                     if exact {
                         self.falls_exact.0 += 1;
                         self.exact_drop[place] = Some(time);
@@ -197,7 +203,7 @@ impl RouteTally {
                     self.repeats.1 += u32::from(self.mark(place, from));
                 }
             }
-            self.exact_was[place] = bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end);
+            self.exact_was[place] = bots.bots[place].as_ref().is_some_and(|bot| bot.motor.exact_end.is_some());
             match (self.carry_from[place], body.carrying) {
                 (None, Some(battery)) => {
                     if let Some(at) = self.exact_drop[place].take()
@@ -550,14 +556,25 @@ impl RouteTally {
         // Sights begun, those through half a metre of bush or more, and the bush metres of all.
         let seen = super::foliage::through::counts();
         let foliage_line = format!(
-            " foliage_sights {} foliage_sights_through {} foliage_mm {}",
+            " foliage_sights {} foliage_sights_through {} foliage_mm {} foliage_added_ms {}",
             seen[0] - self.foliage[0],
             seen[1] - self.foliage[1],
-            seen[2] - self.foliage[2]
+            seen[2] - self.foliage[2],
+            seen[3] - self.foliage[3]
         );
         // Ways out over a stronger zone than the start's, and drops onto a zone's floor.
         let mut route_ends = format!(" escapes_cross_zone {} escapes_drop_zone {}", escaped[3], escaped[4]);
+        route_ends += &format!(" off_below_walk {}", super::path::below_walk::counts() - self.below_walk);
         route_ends += &foliage_line;
+        // Route searches: all, from a pocket's floor, within a second of the bot's last, and the ones a bot given up in its pocket was spared.
+        let asked = super::search::asks::counts();
+        route_ends += &format!(
+            " asks {} asks_pocket {} asks_again_1s {} asks_skipped {}",
+            asked[0] - self.asks[0],
+            asked[1] - self.asks[1],
+            asked[2] - self.asks[2],
+            asked[3] - self.asks[3]
+        );
         for (k, why) in super::route_end::RouteEnd::ALL.into_iter().enumerate() {
             let n = ends[k].0 - self.route_ends[k].0;
             let age = ends[k].1 - self.route_ends[k].1;

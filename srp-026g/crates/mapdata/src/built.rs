@@ -163,6 +163,12 @@ pub struct In {
 }
 
 impl In {
+    /// Whether only the end mark is left: a section written only when it
+    /// holds something ends here when it does not.
+    pub fn ends(&self) -> bool {
+        self.left == END.len() as u64
+    }
+
     fn array<const N: usize>(&mut self) -> Result<[u8; N], String> {
         if self.left < N as u64 {
             return Err("the file ends early".into());

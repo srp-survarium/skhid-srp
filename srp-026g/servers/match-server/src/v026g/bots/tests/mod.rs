@@ -64,6 +64,7 @@ mod bench;
 mod bench_spread;
 mod camper;
 mod driving;
+mod eye;
 mod fights;
 #[cfg(feature = "jump-test")]
 mod jump_pool;
@@ -76,6 +77,7 @@ mod soaks;
 mod standin;
 mod standin_damage;
 mod standin_grenade;
+mod standin_heal;
 mod standin_jump;
 mod standin_weapon;
 mod walkway;

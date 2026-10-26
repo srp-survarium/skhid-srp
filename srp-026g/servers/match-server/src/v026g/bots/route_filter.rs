@@ -25,6 +25,7 @@ use mapdata::regions::Regions;
 use mapdata::{NodeId, Vec3, WalkGrid};
 
 use super::stuck;
+use super::threat::{self, Covered};
 
 type FloorRule = Arc<dyn Fn(NodeId) -> bool + Send + Sync>;
 type RegionRule = Arc<dyn Fn(u32) -> bool + Send + Sync>;
@@ -43,6 +44,33 @@ pub struct RouteFilter {
     /// The highest jump link the body takes, metres (hard): a body that
     /// cannot sprint clears [`mapdata::grid::STANDING_JUMP_M`] at most.
     max_jump_rise: Option<f32>,
+    /// The regions a held threat spot sees (soft, K1): kept out but near
+    /// the route's ends.
+    threat: Option<Arc<Threat>>,
+}
+
+/// The regions held threat spots see ([`Covered`]) and the points of a
+/// route's ends, round which nothing is kept out ([`threat::FREE_M`]).
+#[derive(Debug)]
+pub struct Threat {
+    covered: Arc<Covered>,
+    /// The route's start and goal.
+    ends: [Vec3; 2],
+    /// Covered regions with a middle near an end: open.
+    free_regions: Vec<u32>,
+}
+
+impl Threat {
+    fn floor_open(&self, grid: &WalkGrid, node: NodeId) -> bool {
+        !self.covered.floor(node) || {
+            let at = grid.position(node);
+            self.ends.iter().any(|end| end.distance_xz(at) < threat::FREE_M)
+        }
+    }
+
+    fn region_open(&self, region: u32) -> bool {
+        !self.covered.region(region) || self.free_regions.contains(&region)
+    }
 }
 
 impl std::fmt::Debug for RouteFilter {
@@ -53,6 +81,7 @@ impl std::fmt::Debug for RouteFilter {
             .field("floors", &self.floors.is_some())
             .field("regions", &self.regions.is_some())
             .field("max_jump_rise", &self.max_jump_rise)
+            .field("threat", &self.threat.is_some())
             .finish()
     }
 }
@@ -75,6 +104,22 @@ impl RouteFilter {
     /// With the floors near `spots` kept out as a preference (soft).
     pub fn avoiding(mut self, spots: Vec<Vec3>) -> Self {
         self.spots = spots;
+        self
+    }
+
+    /// With the regions the team's held threat spots see kept out as a
+    /// preference (soft), but for the floors within [`threat::FREE_M`] of
+    /// the route's ends `from` and `to`, and the covered regions
+    /// `free_regions` (with a middle near an end). Nothing when none is
+    /// covered.
+    pub fn avoiding_threat(mut self, covered: Arc<Covered>, from: Vec3, to: Vec3, free_regions: Vec<u32>) -> Self {
+        self.threat = (!covered.is_empty()).then(|| {
+            Arc::new(Threat {
+                covered,
+                ends: [from, to],
+                free_regions,
+            })
+        });
         self
     }
 
@@ -119,13 +164,14 @@ impl RouteFilter {
     /// Whether any of the filter is soft (a second search without it is
     /// worth making).
     pub fn has_soft(&self) -> bool {
-        !self.spots.is_empty()
+        !self.spots.is_empty() || self.threat.is_some()
     }
 
     /// This filter without its soft part.
     pub fn without_soft(&self) -> Self {
         RouteFilter {
             spots: Vec::new(),
+            threat: None,
             ..self.clone()
         }
     }
@@ -137,6 +183,7 @@ impl RouteFilter {
                 let at = grid.position(node);
                 !self.spots.iter().any(|&spot| stuck::near(spot, at))
             })
+            && self.threat.as_ref().is_none_or(|t| t.floor_open(grid, node))
     }
 
     /// Whether floor `node` is open to a search that drops the soft part
@@ -151,6 +198,7 @@ impl RouteFilter {
     /// Whether region `region` is open to the region stage of a search.
     pub fn region_open(&self, region: u32) -> bool {
         self.regions.as_ref().is_none_or(|f| f(region))
+            && self.threat.as_ref().is_none_or(|t| t.region_open(region))
     }
 
     /// The landings the body gave up, for the tests that read them.
@@ -167,6 +215,9 @@ impl RouteFilter {
             (Some(a), Some(b)) => Some(a.min(b)),
             (a, b) => a.or(b),
         };
+        if self.threat.is_none() {
+            self.threat = other.threat.clone();
+        }
         if let Some(theirs) = other.floors.clone() {
             let mine = self.floors.take();
             self.floors = Some(Arc::new(move |node| {
@@ -263,5 +314,37 @@ mod tests {
         // And of the two shuts both.
         let both = filter.and(&floors);
         assert!(!both.floor_open(grid, one) && !both.region_open(shut_region));
+    }
+
+    /// The regions a held threat spot sees are kept out as a preference,
+    /// but for the ends' own ground; a second search drops them.
+    #[test]
+    fn a_threats_covered_regions_are_soft_and_the_ends_stay_open() {
+        let (world, regions) = field();
+        let grid = &world.grid;
+        let first = nodes(grid).next().unwrap();
+        let covered_region = regions.of(first);
+        let covered = Arc::new(Covered::build(vec![covered_region], regions.len(), { let regions = regions.clone(); Arc::new(move |n| regions.of(n)) }));
+        let far = Vec3::new(1_000.0, 0.0, 1_000.0);
+        let filter = RouteFilter::open().avoiding_threat(covered.clone(), far, far, vec![]);
+        assert!(filter.has_soft());
+        assert!(!filter.region_open(covered_region));
+        for node in nodes(grid) {
+            assert_eq!(filter.floor_open(grid, node), regions.of(node) != covered_region);
+            assert!(filter.hard_open(grid, node), "not a hard fact");
+        }
+        // An end on the covered ground keeps the floors within 10 m of it
+        // open, and a free region is open.
+        let at = grid.position(first);
+        let near = RouteFilter::open().avoiding_threat(covered.clone(), at, far, vec![covered_region]);
+        assert!(near.floor_open(grid, first) && near.region_open(covered_region));
+        // The second search is the plain one.
+        let through = filter.without_soft();
+        assert!(!through.has_soft() && through.region_open(covered_region));
+        // Nothing covered: no soft part at all.
+        let none = RouteFilter::open().avoiding_threat(Arc::default(), far, far, vec![]);
+        assert!(!none.has_soft());
+        // Joined with another filter, the threat stays.
+        assert!(!RouteFilter::open().and(&filter).region_open(covered_region));
     }
 }
