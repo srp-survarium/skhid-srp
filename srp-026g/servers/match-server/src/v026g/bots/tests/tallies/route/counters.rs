@@ -107,6 +107,17 @@ pub(super) fn rests() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The sprint gap links of routes (`motor::sprint_gaps`): pressed by the speed at the press (under 3.5, 3.5-4.5, 4.5
+/// and over m/s) and given up.
+pub(super) fn sprint_gaps() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::sprint_gaps::counts().to_vec(),
+        |d, line| {
+            line.ends.push(format!("sprint_gaps_pressed {}/{}/{} sprint_gaps_gave_up {}", d[0], d[1], d[2], d[3]));
+        },
+    )
+}
+
 /// The sprint jumps of routes by 0.05 m band of rise (`motor::sprint_jumps`): pressed / got up / given up.
 pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
     Delta::of(

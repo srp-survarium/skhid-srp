@@ -68,6 +68,11 @@ pub enum Leap {
     /// take-off, along the way to the landing, where the grid found the
     /// client's jump comes down on it.
     Gap(mapdata::PressLead),
+    /// Across a gap link by a sprint jump: the run-up (the grid guarantees 1.5 m of floor behind or beside the press)
+    /// may turn onto the jump's way, so the motor sprints along the route and turns onto it over the last
+    /// [`motor::SPRINT_GAP_TURN_M`], pressing at this lead before the take-off (`Feel::sprint_gaps`; off, a walking
+    /// gap jump).
+    SprintGap(mapdata::PressLead),
 }
 
 /// A corner of a route.
