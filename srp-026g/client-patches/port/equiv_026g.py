@@ -386,6 +386,12 @@ class Machine:
                          (self.reg("esp") - self.entry_esp) & 0xFFFFFFFF)
         if self.exit is None and self.error is None:
             self.error = f"no exit (stopped at {self.reg('eip'):#x})"
+        if self.exit is not None and self.exit[2] < STACK_SIZE:
+            # a run that popped (its exit's ESP above the entry's): the slots
+            # it popped are below the game's ESP there, dead, as the private
+            # stack below the entry's is
+            popped = range(self.entry_esp, self.entry_esp + self.exit[2])
+            self.written = {a for a in self.written if a not in popped}
         # the run's machine keeps its memory until reset(): compare() reads it
         return {"exit": self.exit, "error": self.error, "calls": self.calls,
                 "written": {self.normal(a) for a in self.written}}
