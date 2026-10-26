@@ -60,10 +60,10 @@ too, for screenshots.
   what the game put on the stage is in the root's `_stageLayer` (kept the root's last child, at
   the stage's scale); the hud's screen effects are the one thing beside it. The movie goes on
   running.
-- Forced: `hide_ui_force` (patch 62's code) is the one entry that forces the interface hidden
-  for a match and locks F11; Blackout (patch 65) calls it from the reset. Each movie keeps what a
-  forced interface keeps (`force_interface_hidden`): the hud the pre-match countdown, the player
-  icons the players' markers (told from their feed, `hide_ui_icons`).
+- Forced (Blackout, patch 65; `blackout.md`): the movies' `force_interface_hidden`, which patch 65
+  tells them; while forced their `hide_interface` does nothing, so this key and a match's reset
+  leave the interface as forced. Each movie keeps what a forced interface keeps: the hud the
+  pre-match countdown and its Tab view, the player icons the players' markers on Tab.
 - The controls row: patch 62 gives the options a 41st row (its table moved into the arena); its
   label is content edit `hide-interface-1.json`.
 - No simulation change, no server change.

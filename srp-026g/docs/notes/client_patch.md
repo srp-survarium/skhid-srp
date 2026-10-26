@@ -1650,15 +1650,18 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   - process_compression's and on_baked_texture_loaded's sites: the waiters' slots, references, resources and finishes.
   - finish_query: an owner's error makes its waiters again; a texture not in the slot shares nothing and makes the waiters again at the owner's end; an owner past 10 s is taken over; any other query goes straight through.
   **Not run:** a game. The checks use stubs for allocation, the resource, set_resource, the finish's body and Windows (a made-up folder).
-### 3.58 Blackout: a battery match with no interface but the players' markers (written 2026-10-24, README patch 65, a prototype; the rules: `blackout.md`) — PROVEN in the code, the options reader, the reset, F11, the markers' feed, Tab and the input run with Unicorn with the game's own code; not run in a game
+### 3.58 Blackout: a battery match with no interface, the players' markers on Tab (written 2026-10-24, the Rust framework's 2026-10-26; README patch 65, a prototype; the rules: `blackout.md`) — PROVEN in the code, the options read, the markers' feed, Tab and the input run with Unicorn from the game's own code before each site; not run in a game
 
 - **Bands** (parked, branch `feat/blackout-bands`, the owner 2026-10-26: the release goes without
   them): a team colour painted into each torso's sleeve, carried in each player's profile; the
   findings stay in `tools/re-kit/v026g` (profile_skin_visual_cook's records, a part's material).
 - **The flag** (PROVEN). match_options' +57840h (40h bytes) is the "Mode" string, only emptied
   (0x3183E3) and logged (0x27BD08); patch 63 keeps its numbers at +57860h, patch 65 "SRBO" at
-  +57870h. The reader (patch 63's entry at 0x1F0F30) runs for 0xE4 (0x27B928) and for a replay's
-  chunk 1 (0x1F096C).
+  +57870h. The options are read for 0xE4 (process_static_match_info, its call at 0x27B928: ESI the
+  options, which the call keeps; the reader {begin, cursor, size} its local at EBP-2Ch) and for a
+  replay's chunk 1 (0x1F096C: the options the function's first argument, [esp+40h]; the reader its
+  local at esp+14h). After either call the reader's cursor is where the options end: srp's block
+  is read from there (patch 63 reads it inside, at the function's end 0x1F0F30, the same bytes).
 - **The markers** (PROVEN in the code). The player icons' movie (`player_icons.swf`) is loaded with
   each game world (game_world::load, 0x1F8F69) and fed every frame by update_player_icons (0x23AA10,
   from update_ui at 0x23B207: create_player_icon 0x23BE57, the names 0x23C00D, the props 0x23B1C0).
@@ -1667,11 +1670,10 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   own list, each visible by team). The first Blackout build hid the movie at initialize_match's
   reset with root.hide_interface and the owner still saw a teammate's name and marker: LIKELY the
   hud then still held a movie that did not take it (the game world's own comes with it). So the
-  forced state is told from the feed: patch 62's `hide_ui_icons` before each update_player_icons
-  tells the movie the hud holds `root.force_interface_hidden` at a change of movie or state, and
-  again while the Invoke answers 0. Forced, the movie hides its objects' icons (ids from 37) and
-  shows the players' only while Tab is held (`root.force_interface_tab`, told with it; the owner,
-  2026-10-26).
+  forced state is told from the feed: at update_player_icons' start (each frame) the movies the hud
+  holds are told it at a change of movie or state, and again while the Invoke answers 0. Forced,
+  the player icons hide their objects' icons (ids from 37) and show the players' only while Tab is
+  held (`root.force_interface_tab`, told with it; the owner, 2026-10-26).
 - **Tab** (PROVEN in the code). game_world::on_keyboard_action (0x25CD00) asks the keyboard for DIK_TAB
   (0x25CD22, push 0Fh) at every key and passes it to game_world_ui::show_player_list (0x2384C0, esi
   the hud, its state +0BAh); Tab is no action of the binder. process_first_person_mode (0x241250,
@@ -1682,8 +1684,9 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   use 35h 200000h, drop 36h 400000h, wheel 24h/25h 2000000h/4000000h, grenade 20h 800000h, melee 21h
   8000000h, spot 22h 10000000h) and returns through 0x2421B0 (its early exit at 0x241284 too).
   After show_player_list, `test bl,bl / jnz 0x25CF0D` (0x25CD39) sends every key to the function's
-  end while Tab is down: patch 58's kit keys (0x25CD41) never get one. In Blackout the entry clears
-  bl (no Tab list), so 1 to 3 reach the kits Tab shows.
+  end while Tab is down: patch 58's kit keys (0x25CD41) never get one. In Blackout the hook clears
+  bl after the call's byte is stored (0x25CD28: [esp+14h], loaded at 0x25CD2C), so 1 to 3 reach the
+  kits Tab shows and show_player_list still gets Tab.
 - **The kits** (PROVEN in the code). game_world_ui::update_local_player_state (0x23B740) shows
   them at a death and hides them at a respawn (show_profiles_selector 0x2383B0 at 0x23B7F7: the
   kits, root.select_player_profile and the cursor); a pick is the movie's `profile_changed`
@@ -1691,13 +1694,17 @@ The owner's report (2026-10-25, revision 33): short freezes in matches at ~100 f
   show_profiles_selector(false), which does nothing while the game's +53C8h is set, 0x2383D8).
   The mouse reaches the hud movie while the cursor is shown (game_world::on_mouse_key_action
   0x25CF60: 0x2AF610 with the handler's +0Ch movie), Tab or not.
-- **The patch:** README patch 65. Exe code: the hooks at 0x25CD34 (`bo_tab_entry`, CALLEE) and
-  0x2421B0 (`bo_input_entry`, JUMP), the call of `bo_options` in patch 63's options entry,
-  `hide_ui_force` (the hud's root.force_interface_hidden), `hide_ui_icons` (the icons'
-  root.force_interface_hidden) and the `hide_ui_forced` byte in patch 62, `hide_ui_icons` called
-  from Research's per-frame icons entry (patch 53, 0x23B207). Movies: the hud's and the player
-  icons' `force_interface_hidden`. No content of its own.
-- **Checked:** selftest check 65; `check_blackout_026g.py`. **Not run in a game.**
+- **The patch:** README patch 65: the Rust module `patches::blackout` (rust/patches/src/
+  blackout.rs and blackout.toml; `rust_patches.md`), five `lohook`s at sites of its own
+  (`sites_026g.tsv`, their bytes checked against the exe at every build): `static_info.options_read`
+  0x27B92D, `replay.options_read` 0x1F0971, `player_icons.update_start` 0x23AA10,
+  `keyboard.tab_state` 0x25CD2C, `input_builder.end` 0x2421B0. Its state is the crate's
+  (`patches.state`). No other patch is touched: patch 63's 0x1F0F30, Research's 0x23B207 and patch
+  62's sites stay theirs alone. Movies: the hud's and the player icons' `force_interface_hidden`
+  (forced, `hide_interface` does nothing: F11 and a match's reset leave it). No content of its own.
+- **Checked:** selftest check 65; `check_blackout_026g.py` (Unicorn, from the game's code before each
+  site to past it, the original beside); `cargo test` (rust/); `scripts/blackout-kits/check.sh`
+  (Ruffle). **Not run in a game.**
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 

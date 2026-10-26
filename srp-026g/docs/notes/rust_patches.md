@@ -212,9 +212,23 @@ kept, the right bytes cleaned):
   types.
 
 `write` is the design above; a register-ABI `call` still needs its reverse
-thunk. Only `call` ships today (the suicide-key example); the other kinds'
-generators are proven by check_hooks_026g.py and wait for their first patch
-to wire the install into patch_026g.py.
+thunk. `call` (the suicide-key example) and `lohook` (patch 65, Blackout:
+five sites) ship; the other kinds' generators are proven by
+check_hooks_026g.py and wait for their first patch to wire the install into
+patch_026g.py.
+
+**A `lohook` as it ships.** Its site's `span` in sites_026g.tsv is the
+span's bytes as hex (`8b178b4240`): the build needs no exe to generate the
+entry, and patch_026g.py's apply() checks the bytes against the original
+at every build (a number there is the length, for a hook built with the exe
+at hand). Each lohook site has its call shape in patch_026g.py's `INSTALLS`
+(a `JUMP`). In the handler, `Context::reg(Reg::Esp)` is the game's ESP at
+the site (the entry's `pushad` saved it 8 bytes lower), `stack_u32(n)` the
+game's `[esp + n]`, and `handle::<H>(Loc)` the typed game object a site's
+row says is there (`Loc::Reg`, `Loc::Stack(n)`, `Loc::Local(reg, n)` for a
+frame's local itself). The crate's statics (`GameCell`s) are the arena's
+block `patches.state`. A field's offset may be up to `FIELD_LIMIT` (0x60000,
+match_options' size).
 
 **fxsave on `lohook`/`splice`, not `call`/`pointer`/`callback` (the owner's
 rule, kept).** A `lohook` and a `splice` are true detours: the game does not

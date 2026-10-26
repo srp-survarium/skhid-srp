@@ -86,20 +86,26 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   computes otherwise (the hud's score is hidden).
 - **Static info:** the flag is tag 2 (one byte, 1) of srp's block after the squads, on battery
   maps only; a late joiner's static info keeps it.
-- **Exe, patch 65** (`blackout_026g.asm` and `.c`; `client_patch.md` 3.58):
-  - patch 63's reader of srp's block keeps the flag in the options (+57870h);
-  - patch 62's reset of a match's interface calls `hide_ui_force(bo_match())`: the one entry that
-    forces the interface hidden (the hud's `root.force_interface_hidden`; the player icons shown
-    as at every reset) and locks F11;
-  - the player icons' movie is told the forced state and Tab's from its feed (Research's per-frame
-    entry of `update_player_icons` calls patch 62's `hide_ui_icons` first): its
-    `root.force_interface_hidden` and `root.force_interface_tab` (Tab held: `bo_tab_held`) at a
-    change of the movie (the game world's own) or of either state;
-  - the game world's Tab (its `show_player_list` call, 0x25CD34) is kept and the key goes on
-    (the caller's bl, Tab down, cleared: 0x25CD3B no longer sends it to the function's end, so
-    patch 58's kit keys at 0x25CD41 get it), and the input builder's end
-    (`process_first_person_mode`, 0x2421B0) takes the moves and acts out of the actions mask
-    while it is held.
+- **Exe, patch 65:** the Rust module `patches::blackout` (`client-patches/rust/patches/src/
+  blackout.rs`, its hooks `blackout.toml`; `client_patch.md` 3.58, `rust_patches.md`), five
+  `lohook`s at sites of its own (`sites_026g.tsv`), no other patch touched:
+  - `static_info.options_read` (0x27B92D) and `replay.options_read` (0x1F0971), after the two
+    calls of `match_options::deserialize` (the 0xE4's and a replay's chunk 1): srp's block is read
+    from the reader's cursor (where the options end), the options keep the mark (+57870h) and the
+    patch the match's flag;
+  - `player_icons.update_start` (0x23AA10, each frame): the hud movie told
+    `root.force_interface_hidden(flag)`, the player icons `root.force_interface_hidden(flag)` and
+    `root.force_interface_tab(Tab held)`, at a change of the movie (the game world's own) or of the
+    state, and again at the next frame while a movie does not take it;
+  - `keyboard.tab_state` (0x25CD2C): Tab's state; in a Blackout match the key goes on as with Tab
+    up (bl cleared: the game's Tab test at 0x25CD39 no longer sends it to the function's end, so
+    patch 58's kit keys at 0x25CD41 get it);
+  - `input_builder.end` (0x2421B0): the moves and acts out of the actions mask while Tab is held.
+  - **Beside the other patches:** patch 63 (team damage, #370) reads srp's block at
+    `match_options::deserialize`'s end (0x1F0F30), Research's markers (#367) wrap update_ui's call
+    of update_player_icons (0x23B207), patch 62 (F11) keeps its reset (0x234AE8) and key: each owns
+    another site, so they land beside Blackout unchanged (each site has one owner; none is a
+    chain). The forced interface's F11 lock and its reset are the movies' (below).
 - **The hud movie:** `force_interface_hidden` hides the root as F11 does and keeps the countdown
   (`pregameInfo`) in a layer over it (`KeptLayer`: the layer takes no mouse, its parts do, so the
   kits are clicked there; the first build made the whole layer mouse-blind, the owner's
@@ -110,19 +116,20 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   for the mode, `matchTime`) and, alive, the ammo (`ammoInd`) and the quick-use slots or, while
   the game shows the kits (`show_profiles_selector`: the death screen, before the start), the kits
   (`_profilePanel`) into that layer and back instead of showing the list (`keepOnTab`: what it
-  kept is given back as it was); the reset of the next match unforces it and puts every kept
-  part back.
+  kept is given back as it was). Forced, `hide_interface` (F11, patch 62; a match's reset) does
+  nothing: the interface stays forced until the exe tells the movie otherwise (a match without
+  Blackout: `force_interface_hidden(false)` at its first frame, which puts every kept part back).
 - **The player icons' movie:** forced (`force_interface_hidden`), it hides the match's objects'
   icons (ids from 37, `HUDIconLayer.FIRST_OBJECT`: the game gives a player's icon his index and its
   objects' from 25h) and shows the players' only while Tab is held (`force_interface_tab`: the icon
-  layer shown); told again after the next match's reset; F11's `hide_interface` is apart.
+  layer shown); forced, `hide_interface` (F11, a match's reset) does nothing.
 - **Checks in Ruffle:** `scripts/blackout-kits/check.sh <hud.swf> <player_icons.swf>`: the hud's kit
   panel and body doll in its `KeptLayer` (a kit key, a real click), the player icons movie told each
-  state.
+  state (and F11 doing nothing while forced).
 - **The lobby movie:** `GameMode.BLACKOUT`, its names; the create window ticks the modes the pool
   offers; a mode's colour on the vote card from one table.
-- **With the interface levels** (`feat/interface-level`, its own patch 64): the forcing call
-  becomes `interface_force(0, 2)` (Disabled) once both are merged, its countdown exception kept.
+- **With the interface levels** (`feat/interface-level`, its own patch 64): Blackout's telling the
+  hud becomes the Disabled level once both are merged, its countdown and Tab view kept.
 
 ## Open for the owner
 

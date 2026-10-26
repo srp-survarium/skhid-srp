@@ -346,6 +346,15 @@ Patches:
   simulation still reads as a hit on one's own head (0x2D8BC1). Its last
   action call (0x242196) calls the Rust patch suicide_key (the block
   patches.code) first, which sets bit 24 on the key going down;
+- Blackout, a battery match with no interface (patch 65, a prototype, with
+  the late join; docs/notes/blackout.md; client_patch.md section 3.58): the
+  Rust patch blackout (rust/patches/src/blackout.rs, blackout.toml), five
+  lohooks at sites of its own (sites_026g.tsv): srp's block's tag 2 read
+  after each match_options::deserialize (0x27B92D, 0x1F0971); each frame's
+  update_player_icons (0x23AA10) tells the hud and the player icons the
+  forced interface and Tab; on_keyboard_action after its Tab test (0x25CD2C)
+  lets a key go on while Tab is held; the input builder's end (0x2421B0)
+  takes the moves and acts out of the mask while Tab is held;
 - a spot has no cooldown, and a hit on a battery's body spots it (patch 38,
   with the late join, client_patch.md section 3.35, docs/notes/spotting.md):
   base_player::apply_new_input (0x2D86E0) set the spotter's
@@ -3621,6 +3630,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      "baked camouflage textures kept from game to game and made once while asked for again, "
+                     "a Blackout match has no interface but its Tab view and the players' markers on Tab, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")

@@ -6,9 +6,9 @@
 //! dword or a typed frame local, sets the flags for a following `jcc`, and
 //! writes an XMM or the x87 top as the overwritten instructions' result.
 //!
-//! No `lohook` is generated yet: the first port that needs one adds the
-//! entry (its register save/restore). The API and the [`Frame`] are here so
-//! the design is whole and tested.
+//! Patch 65 (Blackout) is the first to ship `lohook`s (rust_patches.md): a
+//! handler reads its site's objects through [`Context::handle`] at the
+//! [`Loc`] the site's row gives.
 
 use super::hook::{Handle, Regs, Thread};
 
