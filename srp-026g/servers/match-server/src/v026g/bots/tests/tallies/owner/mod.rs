@@ -46,12 +46,14 @@ mod golden;
 mod grenades;
 mod jumps;
 mod moving;
+mod pre;
 
 use campers::*;
 use fight::*;
 use grenades::*;
 use jumps::*;
 use moving::*;
+use pre::*;
 
 const WALK_KEYS: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
 /// Ticks a second.
@@ -76,6 +78,9 @@ struct Rec {
     play: u16,
     hold: bool,
     travel: bool,
+    /// The bot's target is a living enemy farther than the top of its
+    /// weapon's preferred band ([`target_past_band`]).
+    past_band: bool,
 }
 
 /// What the bench reads of a bot at a tick: out of rounds with nothing
@@ -228,6 +233,7 @@ impl OwnerTally {
                 play,
                 hold,
                 travel,
+                past_band: target_past_band(game, place, body),
             };
             self.recs[place].push(rec);
             let Some(now) = now else {
