@@ -148,6 +148,35 @@ pub(crate) fn a_bot_standing_on_a_battery_steps_off_and_takes_it() {
     assert!(took <= 7_000, "taken at {took} ms");
 }
 
+/// A battery whose origin lies 0.36 m under a raised patch of floor
+/// (School's battery 2): the patched client takes it from a crouch over it,
+/// within 1 m across, along a ray that passes floors; the stand-in says so
+/// (on the real maps the bullet mesh blocks the stock line from above; the
+/// test floor's winding lets that line through, so only the rule's yes is
+/// tested).
+#[test]
+pub(crate) fn a_battery_sunk_under_the_floor_is_taken_through_it_by_the_patched_rule() {
+    let solids = super::body::tests::floor(23.5, 10.5, 26.5, 13.5, 0.36);
+    let world = soak_world_with(&solids);
+    let teams = [0u8, 1];
+    let mut game = Game::new(world.clone(), &teams, 7, None, None);
+    game.use_line = true;
+    let battery = Vec3::new(25.0, 0.0, 12.0);
+    let mut body = game.bodies[0].clone();
+    body.keys = key::CROUCH;
+    let scan = |body: &mut Body| {
+        (0..64).any(|y| {
+            (-100..=100).any(|p| {
+                body.yaw = y as f32 * std::f32::consts::TAU / 64.0;
+                body.pitch = p as f32 / 100.0;
+                game.uses_battery(body, battery)
+            })
+        })
+    };
+    body.feet = Vec3::new(25.6, 0.36, 12.0);
+    assert!(scan(&mut body), "taken through the floor from over it");
+}
+
 /// A wall 3 m high between the bot and battery 1 (25, 0.3, 12), where it
 /// stands 1.3 m east of it, and the stand-in's use stopped by the bullet
 /// mesh (as the client's, LIKELY: b9 of 0x7db2c16a, 9 uses aimed right at

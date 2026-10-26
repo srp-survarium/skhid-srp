@@ -28,6 +28,11 @@ use super::*;
 
 /// The client's use: a ray from the eye this long (`usable_objects_detection_distance`).
 pub(crate) const USE_REACH_M: f32 = 2.0;
+/// The patched client's take of a battery under the feet: its ray and the
+/// distance across (patch 11, `client_patch.md`).
+const PATCHED_REACH_M: f32 = 4.0;
+const PATCHED_ACROSS_M: f32 = 1.0;
+const PATCHED_BELOW_M: f32 = 0.2;
 
 /// A lying battery's middle over its position, and how near the ray must
 /// pass it (its box is about 0.5 by 0.25 m).
@@ -1093,13 +1098,18 @@ impl Game {
     /// Whether the view's ray from `body`'s eye (its base pitch) comes
     /// within `radius` of `point` no farther than the use's 2 m.
     pub(crate) fn uses(body: &Body, point: Vec3, radius: f32) -> bool {
+        Self::uses_reach(body, point, radius, USE_REACH_M)
+    }
+
+    /// [`Self::uses`] with a ray of `reach` m.
+    fn uses_reach(body: &Body, point: Vec3, radius: f32, reach: f32) -> bool {
         let eye = Self::eye(body);
         let [fx, fz] = forward(body.yaw);
         let (c, s) = (body.pitch.cos(), body.pitch.sin());
         let dir = Vec3::new(fx * c, s, fz * c);
         let to = point - eye;
         let along = to.x * dir.x + to.y * dir.y + to.z * dir.z;
-        if !(0.0..=USE_REACH_M).contains(&along) {
+        if !(0.0..=reach).contains(&along) {
             return false;
         }
         (to - dir * along).length() <= radius
@@ -1142,6 +1152,18 @@ impl Game {
     /// to it when [`Game::use_line`].
     pub(crate) fn uses_battery(&self, body: &Body, at: Vec3) -> bool {
         let point = at + BATTERY_MIDDLE;
+        // The patched client's take (patch 11): a battery whose origin is
+        // under the feet, within 1 m across, is taken along a 4 m ray that
+        // passes floors (`client_patch.md`), so no line of the bullet mesh.
+        // Only for one sunk by [`PATCHED_BELOW_M`] or more: the feet over a
+        // floor battery's origin differ by less, and those takes keep the
+        // line (the bench's A sides are made with it).
+        if at.y + PATCHED_BELOW_M <= body.feet.y
+            && body.feet.distance_xz(at) <= PATCHED_ACROSS_M
+            && Self::uses_reach(body, point, self.take_m, PATCHED_REACH_M)
+        {
+            return true;
+        }
         if !Self::uses(body, point, self.take_m) {
             return false;
         }
