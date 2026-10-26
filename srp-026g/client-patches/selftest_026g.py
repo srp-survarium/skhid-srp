@@ -4833,10 +4833,12 @@ def test_ragdoll(original, image, before):
                if f["call"] != "import" and (f["symbol"] in sym or f["call"] != "thunk")}
     backs = {va + len(old) for va, old, _, _ in P.rust_hooks(original)} \
         | {addr for site in P.hooks_026g.read_sites().values() for _, addr in site["exits"]}
-    allowed = library | backs | {sym[name] for name in ("memcpy", "memmove", "memset") if name in sym}
+    replay_calls = {(va + 5 + struct.unpack("<i", old[1:])[0]) & 0xFFFFFFFF
+                    for va, old, _, _ in P.rust_hooks(original) if len(old) == 5 and old[0] == 0xE8}
+    allowed = library | backs | replay_calls | {sym[name] for name in ("memcpy", "memmove", "memset") if name in sym}
     check(outside and set(outside) <= allowed,
           "the crate's direct branches out of the block: the engine library's functions (raw), the arena's "
-          "memcpy, memmove and memset, and each hook's way back past its site or to its named exit (the imports "
+          "memcpy, memmove and memset, replayed original calls, and each hook's way back past its site or to its named exit (the imports "
           "go by pointer)"
           + "".join(f"; {t:#x}" for t in sorted(set(outside) - allowed)))
     stores = [t for t in texts if re.match(r"(mov|add|sub|and|or|xor|inc|dec)\w* (byte |word |dword |qword )?\[(dword )?0x", t)]
