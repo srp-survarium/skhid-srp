@@ -84,6 +84,14 @@ pub(super) fn below_walk() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The rest points moved off a lip (`path::rests`).
+pub(super) fn rests() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || vec![super::super::path::rests::counts()],
+        |d, line| line.ends.push(format!("rests_moved_off_lip {}", d[0])),
+    )
+}
+
 /// The sights begun, those through half a metre of bush or more, and the bush metres of all
 /// (`foliage::through`).
 pub(super) fn foliage() -> Box<dyn RouteTopic> {
