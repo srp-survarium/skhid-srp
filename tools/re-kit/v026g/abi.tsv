@@ -1987,3 +1987,8 @@ va	name	source	ret_cleanup	result
 0x00127cb0	vostok::render::skeleton_combined_cook_data::part::part	manual	0	EAX: the record
 0x00204560	survarium::profile_skin_visual_cook::on_configs_loaded	manual		
 0x002384c0	survarium::game_world_ui::show_player_list	manual	4	
+0x0033dac0	survarium::medkit::find_damage_protection	manual	8	EAX: the medkit's damage_protection entry whose pool name (+70h) and hit type (+80h) are the arguments', or 0
+0x00329ff0	survarium::body_part::hit	manual	20	
+0x00304370	survarium::hit_type_from_string	manual	0	EAX: the index of the ESI string in the hit type names 0x9257E0 (ranged 0, blunt 1, slash 2, explosive 3, toxic 4, radiation 5, fire 6, shock 7)
+0x003fe2c0	survarium::damage_reducer_delegate::operator()	manual	12	
+0x002e5a90	survarium::damage_reducer_delegate::invoke_member	manual	0	

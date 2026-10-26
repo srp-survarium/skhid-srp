@@ -1,0 +1,11 @@
+{
+ "_about": "The anesthetic buff (the owner, 2026-10-27: \"15% pain and duration for 15 seconds\"; srp-026g/docs/notes/booster-buffs.md). The Anesthetic (painkiller, a drug used from a pocket) has one effect, data/damage_protection[0]: on the pain pool, for ranged hits, threshold 0, a hit's pain x hit_coeff x max(0, 1 + modifier 58) (medkit::reduce_damage 0x33DB30). It is on from the press for activation_delay_sec (1 s, which holds back only influences, and it has none) + activity_time_sec x max(0, 1 + modifier 34) (set_active 0x33D390, tick 0x33D790; Unicorn: client-patches/check_anesthetic_026g.py). Its card's \"Pain threshold: 10%\" (line 17) is 1 - 0.9. The value is changed in its own direction: hit_coeff 0.9 -> 0.85 (bullets' pain -15 %, \"Pain threshold: 15%\"), activity_time_sec 10 -> 15 (an int, kept; \"Duration: 15.0s\", line 18): x0.85 for 16 s from the press, was x0.9 for 11 s. Not the other reading, pain at 15 % (hit_coeff 0.15, -85 %). The description names no number; activation 1 s and weight unchanged.",
+ "set": [
+  {"file": "gameplay/items/drugs/painkiller.options", "path": "data/damage_protection[0]/hit_coeff", "from": 0.9, "to": 0.85},
+  {"file": "gameplay/items/drugs/painkiller.options", "path": "data/activity_time_sec", "from": 10, "to": 15}
+ ],
+ "set_prop": [
+  {"file": "gameplay/items/drugs/painkiller.options", "prop_id": 17, "from": "10", "to": "15"},
+  {"file": "gameplay/items/drugs/painkiller.options", "prop_id": 18, "from": "10.0", "to": "15.0"}
+ ]
+}

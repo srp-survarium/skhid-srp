@@ -3115,3 +3115,10 @@ va	status	ref_021d	name
 0x002d5b80	inferred-medium		survarium::player_params_modifiers_container::apply_modifier_u32
 0x002c9e10	inferred-medium		survarium::items_dictionary_cook::load_modification
 0x002f1750	inferred-medium		survarium::item_config_cook::translate_query
+0x0033dac0	inferred-medium		survarium::medkit::find_damage_protection
+0x00329ff0	inferred-medium		survarium::body_part::hit
+0x00304370	inferred-medium		survarium::hit_type_from_string
+0x003fe2c0	inferred-medium		survarium::damage_reducer_delegate::operator()
+0x002e5a90	inferred-medium		survarium::damage_reducer_delegate::invoke_member
+0x002d5a90	inferred-medium		survarium::player_params_modifiers_container::add_node
+0x002d5d00	inferred-medium		survarium::player_params_modifiers_container::remove_node

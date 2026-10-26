@@ -568,3 +568,13 @@ Applied to the live files: 2 files edited, 0 unexpected differences. The simulat
 | `gameplay/items/boosters/artefact_booster.options` `default_modifications[0]` 1134 -> 1135 | 1134 (-0.25) is also the strongest roll of its type on gear, so it is not changed |
 
 Applied to the live files: 2 files edited, 0 unexpected differences. The simulation changes.
+
+## anesthetic-1.json (2026-10-27)
+
+| change | why |
+|---|---|
+| `gameplay/items/drugs/painkiller.options` `data/damage_protection[0]/hit_coeff` 0.9 -> 0.85, its card's "Pain threshold" (prop 17) "10" -> "15" | the owner: "15% pain". The one effect: pain from ranged hits x `hit_coeff` (`medkit::reduce_damage` 0x33DB30, threshold 0); the card's line is 1 - `hit_coeff`, so it is read in its own direction: -15 % (was -10 %), not pain at 15 % (0.15) |
+| `data/activity_time_sec` 10 -> 15 (an int, kept), its card's "Duration" (prop 18) "10.0" -> "15.0" | the owner: "duration for 15 seconds". The protection is on from the press for the 1 s delay + the activity: 16 s (was 11 s). Run with Unicorn (`../../client-patches/check_anesthetic_026g.py`) |
+
+Applied to the live files: 1 file edited, 0 unexpected differences. The texts name no number. The
+simulation changes. See [`../../docs/notes/booster-buffs.md`](../../docs/notes/booster-buffs.md).
