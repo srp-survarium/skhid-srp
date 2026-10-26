@@ -128,13 +128,25 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - No team size and no players to start: it takes the most a match has, 20 (10 v 10, every
     map and mode). The create window hides Team size, Players to start and Time to start once
     a PIN is typed (their values kept for the next open room) and says "Private room: up to 20
-    players; you start the match."
+    players; you set the teams and start."
   - No countdown: it waits however many are in. Its owner (its maker, or the member who came
     first after it left) has Start beside Leave; the others read "Waiting for the creator to
     start." Start makes the match at once with whoever can play, 1 v 0 too, on the vote's
     winner then: the 3 cards are there and voted for as in any room, Start ends the vote.
-  - The sides as in any room (as even as can be, squads together): 3 players 2 v 1, 5 3 v 2.
-    A late joiner (with the PIN) goes to the side with fewer players: the empty one of a 1 v 0.
+  - **Its owner arranges the teams** (the owner's of 2026-10-26: "the owner should be able to
+    arrange both teams (even 1 vs 10), there should be a button to move the player into any
+    team"): the room shows its members in two columns, Team 1 and Team 2. Its owner has a
+    button on each member, itself too (» on Team 1, « on Team 2), that moves it to the other
+    team; any split, 1 v 0 or 1 v 10 to 10 v 10, a team 10 at most. Members choose nothing:
+    a newcomer comes on the team with fewer (Team 1 of two alike), the owner moves it.
+  - Start plays the arrangement exactly: no sides drawn, no balance. A squad split by it
+    plays as a squad on each team where two or more of it are.
+  - The arrangement stays from match to match; a member who leaves is out of it. A late
+    joiner during a match goes to the side with fewer players, as in any room, and is on
+    that team in the arrangement after.
+  - The server refuses (does nothing) a move of anyone but the owner, in an open room, while
+    the room plays its match, onto a team of 10, or from an older list (`2 060 020 000`,
+    `lobby.md`). The state tells the teams in its `A;<sides>` row.
   - The server refuses (does nothing) a Start of anyone but the owner, in an open room, while
     the room plays its match, or with a maintenance near (`2 060 000 041`, `lobby.md`).
   - After the match it waits for its owner's Start again: no vote or countdown of its own, so

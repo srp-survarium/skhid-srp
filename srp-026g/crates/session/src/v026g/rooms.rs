@@ -33,7 +33,9 @@
 //!   nothing counts down in it. Its owner starts its match when it wants,
 //!   with whoever is in, 1 v 0 too ([`Rooms::start`]): on the vote's
 //!   winner then (its cards are there, and voted for, as in any room).
-//!   After the match it waits for its owner again.
+//!   After the match it waits for its owner again. Its owner arranges its
+//!   two teams, any split up to 10 a side ([`Rooms::move_member`]), and
+//!   its match plays them as they are ([`Room::arranged`]).
 //!
 //! This module keeps the rooms and their rules. The lobby asks it, does
 //! what it says (sends players to a match, tells the clients) and tells it

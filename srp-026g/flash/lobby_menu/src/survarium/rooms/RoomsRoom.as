@@ -137,10 +137,13 @@ package survarium.rooms
             panel.graphics.endFill();
             look._content.addChild(panel);
             look.text(look._content, win.say("players").toUpperCase(), 28, y + 10, 140, 15, RoomsLook.LIGHT);
-            look.text(look._content, room.members.length + " / " + room.size * 2 + "   ·   " + win.say("teams"),
+            // A private room: its owner's two teams (the owner's of
+            // 2026-10-26); an open room: one list, the sides drawn at the start.
+            var arranged:Boolean = room.pin && room.teams != null;
+            var hint:String = !arranged ? win.say("teams") : room.owner ? win.say("teamsOwner") : win.say("teamsMember");
+            look.text(look._content, room.members.length + " / " + room.size * 2 + "   ·   " + hint,
                 160, y + 11, look._w - 200, 14, RoomsLook.GREY);
             look.line(look._content, 17, y + 38, look._w - 34);
-            var colW:Number = (look._w - 32 - 24) / 4;
             // Every place at once (20 at most): the rows share the panel's
             // height, 34 at most, no scrolling.
             var inner:Sprite = new Sprite();
@@ -148,55 +151,45 @@ package survarium.rooms
             inner.y = y + 40;
             look._content.addChild(inner);
             var slots:int = room.size * 2;
-            var rowH:int = Math.min(34, int((look._h - RoomsLook.FOOT_H - y - 8 - 46) / Math.ceil(slots / 4)));
-            var mid:int = int((rowH - 20) / 2);
-            for (var m:int = 0; m < slots; m++)
+            var colW:Number;
+            var rowH:int;
+            var m:int;
+            if (arranged)
             {
-                var member:Object = m < room.members.length ? room.members[m] : null;
-                var mx:Number = (m % 4) * colW;
-                var my:Number = int(m / 4) * rowH;
-                var under:Shape = new Shape();
-                under.graphics.beginFill(0x1A232B, 1);
-                under.graphics.drawRect(mx, my + rowH - 1, colW - 10, 1);
-                under.graphics.endFill();
-                inner.addChild(under);
-                if (member == null)
+                // Two columns, team 1 left, team 2 right, 10 rows each.
+                colW = (look._w - 32 - 24) / 2;
+                var perTeam:int = int(slots / 2);
+                rowH = Math.min(30, int((look._h - RoomsLook.FOOT_H - y - 8 - 46 - 22) / perTeam));
+                var used:Array = [0, 0];
+                var moving:Boolean = room.owner && room.phase == RoomPhase.WAITING;
+                for (var t:int = 0; t < 2; t++)
                 {
-                    look.text(inner, win.say("open"), mx + 34, my + mid, colW - 50, 15, 0x4D5C67);
-                    continue;
+                    var count:int = 0;
+                    for (m = 0; m < room.members.length; m++)
+                        if (teamOf(m) == t)
+                            count++;
+                    look.text(inner, win.say(t == 0 ? "team1" : "team2").toUpperCase() + "   " + count + " / " + perTeam,
+                        t * colW + 34, 0, colW - 50, 13, RoomsLook.GOLD);
                 }
-                // A right-click on it: its equipment, by its place and the
-                // state's serial, as a kick names it (`onContentClick`).
-                var hitArea:Shape = new Shape();
-                hitArea.graphics.beginFill(0x000000, 0.01);
-                hitArea.graphics.drawRect(mx, my, colW - 10, rowH);
-                hitArea.graphics.endFill();
-                inner.addChild(hitArea);
-                _roomHits.push({"control": hitArea, "name": member.name, "place": m,
-                    "how": LobbyMenu.PLAYER_INFO_BY_ROOM_PLACE,
-                    "player": m + RoomsWire.MEMBERS_MAX * (int(room.serial) % RoomsWire.KICK_CHECKS)});
-                look.text(inner, String(member.gear), mx, my + mid + 1, 26, 14, member.fit == RoomFit.GEAR ? RoomsLook.RED : RoomsLook.DIM, "right");
-                // A red mark: this kit cannot play the next match as it is
-                // now; the match starts without it and takes it out of the room.
-                var nameX:Number = mx + 34;
-                if (member.fit != RoomFit.YES)
+                for (m = 0; m < room.members.length; m++)
                 {
-                    var mark:Shape = new Shape();
-                    mark.graphics.beginFill(RoomsLook.RED, 1);
-                    mark.graphics.drawCircle(mx + 40, my + mid + 10, 7);
-                    mark.graphics.endFill();
-                    inner.addChild(mark);
-                    look.text(inner, "!", mx + 33, my + mid + 1, 14, 12, 0xFFFFFF, "center");
-                    nameX = mx + 52;
+                    var side:int = teamOf(m);
+                    // The owner's move: to the other team (the server refuses
+                    // one onto a full team).
+                    memberRow(inner, room, m, side * colW, 22 + used[side] * rowH, colW, rowH,
+                        moving ? (side == 0 ? "»" : "«") : null);
+                    used[side]++;
                 }
-                // A long name cut to its place, the owner's tag kept whole.
-                // Away (its game gone for now): grey until it is back, or out
-                // of the room after about 90 s (`memberColour`).
-                RoomsLook.fitName(look.text(inner, "", nameX, my + mid, colW - 80 - (nameX - mx - 34), 16, RoomsLook.memberColour(member)),
-                    member.name, member.owner ? "  (" + win.say("ownerTag") + ")" : "");
-                // Only a private room (a PIN) turns a member out.
-                if (room.owner && room.pin && !member.me)
-                    look.button(inner, "×", mx + colW - 44, my + int((rowH - 28) / 2), 30, onKick, m, 28);
+                for (t = 0; t < 2; t++)
+                    for (var free:int = used[t]; free < perTeam; free++)
+                        memberRow(inner, room, -1, t * colW, 22 + free * rowH, colW, rowH, null);
+            }
+            else
+            {
+                colW = (look._w - 32 - 24) / 4;
+                rowH = Math.min(34, int((look._h - RoomsLook.FOOT_H - y - 8 - 46) / Math.ceil(slots / 4)));
+                for (m = 0; m < slots; m++)
+                    memberRow(inner, room, m < room.members.length ? m : -1, (m % 4) * colW, int(m / 4) * rowH, colW, rowH, null);
             }
             // A room of a lower max level that takes us: one click there
             // (the server offers it only while we play no match).
@@ -226,6 +219,75 @@ package survarium.rooms
             }
             else
                 look.footer(buttons);
+        }
+
+        // A place of the room's list at (mx, my): the member at `m` of the
+        // state (-1: a free place), its gear, red mark and name; for the
+        // owner of a private room its kick and, with `move`, its move to the
+        // other team.
+        private function memberRow(inner:Sprite, room:Object, m:int, mx:Number, my:Number, colW:Number, rowH:int,
+            move:String):void
+        {
+            var member:Object = m >= 0 ? room.members[m] : null;
+            var mid:int = int((rowH - 20) / 2);
+            var under:Shape = new Shape();
+            under.graphics.beginFill(0x1A232B, 1);
+            under.graphics.drawRect(mx, my + rowH - 1, colW - 10, 1);
+            under.graphics.endFill();
+            inner.addChild(under);
+            if (member == null)
+            {
+                look.text(inner, win.say("open"), mx + 34, my + mid, colW - 50, 15, 0x4D5C67);
+                return;
+            }
+            // A right-click on it: its equipment, by its place and the
+            // state's serial, as a kick names it (`onContentClick`).
+            var hitArea:Shape = new Shape();
+            hitArea.graphics.beginFill(0x000000, 0.01);
+            hitArea.graphics.drawRect(mx, my, colW - 10, rowH);
+            hitArea.graphics.endFill();
+            inner.addChild(hitArea);
+            _roomHits.push({"control": hitArea, "name": member.name, "place": m,
+                "how": LobbyMenu.PLAYER_INFO_BY_ROOM_PLACE,
+                "player": m + RoomsWire.MEMBERS_MAX * (int(room.serial) % RoomsWire.KICK_CHECKS)});
+            look.text(inner, String(member.gear), mx, my + mid + 1, 26, 14, member.fit == RoomFit.GEAR ? RoomsLook.RED : RoomsLook.DIM, "right");
+            // A red mark: this kit cannot play the next match as it is
+            // now; the match starts without it and takes it out of the room.
+            var nameX:Number = mx + 34;
+            if (member.fit != RoomFit.YES)
+            {
+                var mark:Shape = new Shape();
+                mark.graphics.beginFill(RoomsLook.RED, 1);
+                mark.graphics.drawCircle(mx + 40, my + mid + 10, 7);
+                mark.graphics.endFill();
+                inner.addChild(mark);
+                look.text(inner, "!", mx + 33, my + mid + 1, 14, 12, 0xFFFFFF, "center");
+                nameX = mx + 52;
+            }
+            // The buttons at the row's right end: the move, then the kick.
+            var buttons:int = (move != null ? 1 : 0) + (room.owner && room.pin && !member.me ? 1 : 0);
+            // A long name cut to its place, the owner's tag kept whole.
+            // Away (its game gone for now): grey until it is back, or out
+            // of the room after about 90 s (`memberColour`).
+            RoomsLook.fitName(look.text(inner, "", nameX, my + mid, colW - 46 - 34 * Math.max(1, buttons) - (nameX - mx - 34), 16,
+                RoomsLook.memberColour(member)), member.name, member.owner ? "  (" + win.say("ownerTag") + ")" : "");
+            var bx:Number = mx + colW - 44;
+            var by:Number = my + int((rowH - 28) / 2);
+            // Only a private room (a PIN) turns a member out.
+            if (room.owner && room.pin && !member.me)
+            {
+                look.button(inner, "×", bx, by, 30, onKick, m, 28);
+                bx -= 34;
+            }
+            if (move != null)
+                look.button(inner, move, bx, by, 30, onMove, m, 28);
+        }
+
+        // The team of the member at `m` of a private room's list (`A;<sides>`).
+        internal function teamOf(m:int):int
+        {
+            var teams:String = win._room != null && win._room.teams != null ? win._room.teams : "";
+            return teams.charAt(m) == "1" ? 1 : 0;
         }
 
         // Whether the asker may start its room's match now: it owns a private
@@ -358,6 +420,14 @@ package survarium.rooms
             // a kick from an older list does nothing.
             if (win._room != null)
                 win.ask(RoomsWire.KICK + int(e.currentTarget.data) + RoomsWire.MEMBERS_MAX * (int(win._room.serial) % RoomsWire.KICK_CHECKS), 1);
+        }
+
+        // The owner moves the member at that place to the other team: the
+        // place and the state's serial, as a kick names it.
+        private function onMove(e:Event):void
+        {
+            if (win._room != null)
+                win.ask(RoomsWire.MOVE + int(e.currentTarget.data) + RoomsWire.MEMBERS_MAX * (int(win._room.serial) % RoomsWire.KICK_CHECKS), 1);
         }
 
         // The whole name of the member at that place of our room (the state
