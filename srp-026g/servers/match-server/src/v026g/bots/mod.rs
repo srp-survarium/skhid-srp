@@ -708,8 +708,11 @@ impl Bots {
     /// bot, `game/driven.rs`): it is forgotten, so it makes no input, holds
     /// no play, is nobody's partner and is in no commander's count. It may
     /// come back on its place when a player of its team leaves: a bot anew
-    /// waits for that entry, as at the start, with what its kits have left
-    /// (a place's ammo lasts the match). Whoever leaves, a bot's memory of
+    /// waits for that entry, as at the start, in its own kits (the ones it
+    /// was given, `Bots::wear`) with what each has left (a place's ammo
+    /// lasts the match: the rounds of the kit in its hands are saved as it
+    /// leaves), armed with the kit it wore and the one it picked for its
+    /// next life. Whoever leaves, a bot's memory of
     /// it and its team's callouts about it go: nobody is to be hunted where
     /// it stood.
     pub fn entered(&mut self, place: Place, entered: bool, time: u32) {
@@ -721,14 +724,23 @@ impl Bots {
             return;
         }
         if let Some(slot) = self.bots.get_mut(place)
-            && let Some(bot) = slot.take()
+            && let Some(mut bot) = slot.take()
         {
             self.trace.line(serde_json::json!({
                 "t": time, "bot": place, "team": bot.team, "left": true,
             }));
+            // What the kit in its hands has left goes with it.
+            if let Some(kit) = bot.kits.get_mut(bot.kit) {
+                kit.1 = bot.reflex.left();
+            }
             let role = self.roles.get(place).and_then(Option::as_deref);
             let mut anew = Bot::new(self.match_id, place, bot.team, role, &self.tuning);
             anew.kits = bot.kits;
+            anew.kit = bot.kit;
+            anew.kit_chosen = bot.kit_chosen;
+            if let Some(&(arms, left)) = anew.kits.get(anew.kit) {
+                anew.reflex = Reflex::armed_carrying(Some(arms), left);
+            }
             *slot = Some(anew);
         }
         for bot in self.bots.iter_mut().flatten() {

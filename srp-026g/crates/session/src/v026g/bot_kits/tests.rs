@@ -329,3 +329,56 @@ fn a_smooth_weighted_round_robin_is_near_the_weights() {
     );
     assert_eq!(nth_weighted(&[5], 7), 0);
 }
+
+/// An open room's max level caps its bots' equipment (the review of #577):
+/// the nearest level at or below the cap, never the nearest above it (as
+/// the uncapped pick may take); with no kit of the role at or below it, the
+/// role's fixed kits only when they are within it; else none (the room
+/// plays with a bot fewer).
+#[test]
+fn a_cap_keeps_the_bots_kits_at_or_under_it() {
+    let kits = kits_by_role_and_level();
+    let (&(_, high), kit) = kits
+        .iter()
+        .filter(|((role, _), _)| *role == BotRole::Flanker)
+        .max_by_key(|((_, level), _)| *level)
+        .unwrap();
+    let fixed = table(&[]).bot_kit(0, BotRole::Flanker, 0).level();
+    assert!(high > fixed, "a flanker's kit over the fixed one's level {fixed}");
+    let only = table(&[account("Alice", 120, 10, kit)]);
+    // Uncapped, a match of level 0 takes the one there is, of `high`.
+    assert_eq!(only.bot_kit(0, BotRole::Flanker, 0).level(), high);
+    // At the cap or over: that one.
+    for cap in [high, 15] {
+        let capped = only.bot_kit_capped(0, BotRole::Flanker, 0, cap).unwrap();
+        assert_eq!(capped.level(), high);
+    }
+    // Under it: none of the players' at or below, the fixed kits when they
+    // fit, else nothing.
+    for cap in 0..high {
+        let capped = only.bot_kit_capped(cap, BotRole::Flanker, 0, cap);
+        if fixed <= cap {
+            let capped = capped.expect("the fixed kits fit");
+            assert_eq!(capped.source, KitSource::Fixed);
+            assert!(capped.level() <= cap);
+        } else {
+            assert_eq!(capped, None, "cap {cap}");
+        }
+    }
+    // Every level and cap, every role, from every kit: never over the cap.
+    let accounts: Vec<Account> = kits
+        .values()
+        .enumerate()
+        .map(|(n, kit)| account(&format!("P{n}"), 100 + n as u16, 10, kit))
+        .collect();
+    let all = table(&accounts);
+    for cap in 0..LEVELS {
+        for level in [0, cap, 15] {
+            for role in BotRole::ALL {
+                if let Some(kit) = all.bot_kit_capped(level, role, 0, cap) {
+                    assert!(kit.level() <= cap, "{role} at {level}, cap {cap}");
+                }
+            }
+        }
+    }
+}

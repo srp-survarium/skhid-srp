@@ -219,6 +219,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - **Blackout** ("Protective device: blackout"): the plain battery rules with the interface hidden
     on the clients; the match server and the bots get its battery map (`maps::BLACKOUT_RULES`). Not
     greyed out; its bots play it as any battery match.
+  - **Their equipment** (`session::v026g::bot_kits`, #578): the top players' kits of the match's
+    equipment level; in an open room with a max level never over it (the review of #577): the
+    nearest level at or below the cap; with none, the role's fixed kits only when they are within
+    it; else that bot is not there (the room plays with fewer). A private room has no cap (#569).
   - **Pay:** a match a server's bot played in pays as Play vs Bots does (`SRP_PVB_PAY`, half by
     default, of the silver and experience; no quest, no daily bonus; no rating), even when every
     bot was replaced later: its bots are kills and batteries a player did not take from players,

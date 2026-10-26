@@ -25,6 +25,9 @@
 //! - **Too few players.** A level with no candidate of a role takes the
 //!   nearest level's (the lower of two as near); no candidate at any level
 //!   (a new server), the role's fixed kit (`loadouts::bot_kits`).
+//! - **A cap** (an open room's max level, [`BotKits::bot_kit_capped`]): the
+//!   nearest level at or below it; with none, the role's fixed kit if it is
+//!   within it; else no kit (the room plays with a bot fewer).
 //! - **The second kit** (a place's ammo lasts the match): the first's
 //!   armour and pockets with the weapon and ammo of the backup role's pick
 //!   of the same `k`, of the first kit's level or lower; else with the
@@ -348,14 +351,27 @@ impl BotKits {
     /// What the `k`-th bot (0 on) of `role` in a match of equipment level
     /// `level` wears: see the module.
     pub fn bot_kit(&self, level: u8, role: BotRole, k: usize) -> BotKit {
-        let Some((candidate, source)) = self.pick(level, role, k, 0..LEVELS) else {
-            let [first, second] = loadouts::bot_kits(role);
-            return BotKit {
-                first: first.clone(),
-                second: Some(second.clone()),
-                source: KitSource::Fixed,
-            };
-        };
+        match self.pick(level, role, k, 0..LEVELS) {
+            Some((candidate, source)) => self.kit_of(candidate, source, role, k),
+            None => fixed_kit(role),
+        }
+    }
+
+    /// What the `k`-th bot of `role` wears in a match of equipment level
+    /// `level` whose equipment is capped at `cap` (an open room's max
+    /// level, never over it): the nearest level at or below the cap with a
+    /// candidate; with none, the role's fixed kit if it is within the cap;
+    /// else none (the match has a bot fewer).
+    pub fn bot_kit_capped(&self, level: u8, role: BotRole, k: usize, cap: u8) -> Option<BotKit> {
+        match self.pick(level.min(cap), role, k, 0..=cap) {
+            Some((candidate, source)) => Some(self.kit_of(candidate, source, role, k)),
+            None => Some(fixed_kit(role)).filter(|kit| kit.level() <= cap),
+        }
+    }
+
+    /// The kits of the pick `candidate`: its kit first, the backup role's
+    /// weapon in its armour second (of its level or lower).
+    fn kit_of(&self, candidate: &Candidate, source: KitSource, role: BotRole, k: usize) -> BotKit {
         let first_level = candidate.kit.gear_level();
         let backup = role.backup();
         let from_players = self
@@ -392,6 +408,16 @@ impl BotKits {
             })
             .collect::<Vec<_>>()
             .join("; ")
+    }
+}
+
+/// `role`'s fixed kits: no player has a kit of the role.
+fn fixed_kit(role: BotRole) -> BotKit {
+    let [first, second] = loadouts::bot_kits(role);
+    BotKit {
+        first: first.clone(),
+        second: Some(second.clone()),
+        source: KitSource::Fixed,
     }
 }
 

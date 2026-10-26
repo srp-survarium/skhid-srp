@@ -389,6 +389,46 @@ fn a_blackout_room_with_bots_fills_and_plays_the_battery_map() {
     assert_eq!(teams(&setup), [(1, 3), (1, 3)]);
 }
 
+/// The review of #577: an open room's max level caps its bots' equipment
+/// as it caps its players' (`BotKits::bot_kit_capped`). With no player's
+/// kit in the lobby (a new server) the bots wear their roles' fixed kits:
+/// a room capped under those plays without bots, one of any level or at
+/// their level with them (never over), and a private room has no cap.
+#[test]
+fn an_open_rooms_bots_never_wear_more_than_its_max_level() {
+    // The roles' fixed kits' levels: under the lowest, no bot's kit fits;
+    // at the highest, every one does.
+    let levels = survarium::v026g::loadouts::BotRole::ALL.map(|role| {
+        session::v026g::bot_kits::BotKits::default()
+            .bot_kit(0, role, 0)
+            .level()
+    });
+    let (lowest, highest) = (*levels.iter().min().unwrap(), *levels.iter().max().unwrap());
+    assert!(lowest >= 1);
+    let with_cap = |max_level| RoomSpec {
+        max_level,
+        ..with_bots(6, 2)
+    };
+    for (what, room, pin, expected) in [
+        ("under the fixed kits", with_cap(lowest - 1), None, [(1, 0), (1, 0)]),
+        ("at the fixed kits", with_cap(highest), None, [(1, 2), (1, 2)]),
+        ("any", with_cap(0), None, [(1, 2), (1, 2)]),
+        ("private", with_cap(lowest - 1), Some(1234), [(1, 2), (1, 2)]),
+    ] {
+        let mut world = with_bot_maps();
+        let (_, members) = room_of(&mut world, room, pin, &["Alice", "Bob"]);
+        match pin {
+            Some(_) => {
+                assert!(sent_to_match(&press_start(&mut world, members[0])).is_some());
+            }
+            None => world.advance(VOTE_AND_WAIT),
+        }
+        let (_, setup, _) = last_match(&world);
+        // (What each kit is, at or under the cap: `bot_kits` tests.)
+        assert_eq!(teams(&setup), expected, "{what}");
+    }
+}
+
 /// A movie from before the setting makes a room of no bots: its create
 /// codes are the first of the codes.
 #[test]

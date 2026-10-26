@@ -289,6 +289,9 @@ pub(super) struct RoomLaunch {
     /// The server's bots it starts with, by team
     /// (`matchmaking_policy::start_bots`).
     pub bots: [usize; 2],
+    /// The highest equipment level its bots may wear: an open room's max
+    /// level; none for any, and for a private room (no cap, #569).
+    pub bots_cap: Option<u8>,
 }
 
 /// Who has a roster place of a running match.
@@ -1068,18 +1071,38 @@ impl Core<'_> {
             (None, None) => Vec::new(),
         };
         let bot_roles = server_bot_roles(&bot_teams);
-        // Their kits: of the players' equipment level, the top players'.
+        // Their kits: of the players' equipment level, the top players'; in
+        // an open room with a max level, never over it (a bot with no kit
+        // within it is not there).
         let bot_level = bots_gear_level(&gear_levels);
-        let bot_kits: Vec<BotKit> = if bot_roles.is_empty() {
-            Vec::new()
-        } else {
-            let table = self.bot_kits(Instant::now(), unix);
-            server_bot_picks(&bot_roles)
-                .into_iter()
-                .zip(&bot_roles)
-                .map(|(k, &role)| table.bot_kit(bot_level, role, k))
-                .collect()
-        };
+        let cap = room.and_then(|room| room.bots_cap);
+        let (bot_teams, bot_roles, bot_kits): (Vec<u8>, Vec<BotRole>, Vec<BotKit>) =
+            if bot_roles.is_empty() {
+                Default::default()
+            } else {
+                let table = self.bot_kits(Instant::now(), unix);
+                let picks = server_bot_picks(&bot_roles);
+                let mut kept = (Vec::new(), Vec::new(), Vec::new());
+                for ((&team, &role), k) in bot_teams.iter().zip(&bot_roles).zip(picks) {
+                    let kit = match cap {
+                        Some(cap) => table.bot_kit_capped(bot_level, role, k, cap),
+                        None => Some(table.bot_kit(bot_level, role, k)),
+                    };
+                    match kit {
+                        Some(kit) => {
+                            kept.0.push(team);
+                            kept.1.push(role);
+                            kept.2.push(kit);
+                        }
+                        None => log::info!(
+                            "Match {match_id:#x}: a {role} bot of team {team} fewer: no kit of \
+                             its role within the room's max level {}",
+                            cap.unwrap_or_default()
+                        ),
+                    }
+                }
+                kept
+            };
         let players = players.map(|mut players| {
             players.extend(
                 bot_teams

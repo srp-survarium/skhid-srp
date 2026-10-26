@@ -1621,6 +1621,9 @@ impl Core<'_> {
         };
         let size = usize::from(room.spec.size);
         let bots_setting = room.spec.bots;
+        // The bots' equipment: within an open room's max level (none: any);
+        // a private room has no cap (#569).
+        let bots_cap = (room.spec.pin.is_none() && room.spec.max_level != 0).then_some(room.spec.max_level);
         let room_minimum = u8::try_from(room.needs()).unwrap_or(u8::MAX);
         // A PIN is the room's for its whole life: its every match pays
         // nothing (the owner's of 2026-10-20).
@@ -1759,6 +1762,7 @@ impl Core<'_> {
                 minimum: room_minimum,
                 private,
                 bots,
+                bots_cap,
             },
         );
         // Made at the match server before anyone is told: if it fails, its

@@ -2585,13 +2585,35 @@ fn a_bot_that_left_is_forgotten_and_may_come_back() {
     for (place, x) in [0.0, 5.0, 40.0, 30.0].into_iter().enumerate() {
         bots.fixed(place, standing(1_000, x, true), Some(1.0));
     }
+    // Its kits are the ones it was given (`wear`: the top players' kits,
+    // their rounds trimmed by weight), not its role's fixed ones; it has
+    // fired weapon 1 down to 17 rounds and picked the second kit.
+    let given = |role: &str, rounds: u32| {
+        let mut arms = *super::guns::Arms::of_role(role).unwrap();
+        arms.primary.1 = rounds;
+        arms
+    };
+    let (first, second) = (given("support", 40), given("camper", 25));
+    bots.wear(3, vec![first, second]);
+    {
+        let bot = bots.bots[3].as_mut().unwrap();
+        bot.reflex = Reflex::armed_carrying(Some(first), 17);
+        bot.kit_chosen = 1;
+    }
     // Bot 3 leaves: it is forgotten, and no partner of anyone; its place a
-    // bot's that has not entered, its rounds kept.
+    // bot's that has not entered, its own kits kept with what is left of
+    // them (the 17 saved as it left), armed with the kit it wore.
     bots.bots[1].as_mut().unwrap().partner = Some(3);
-    bots.bots[3].as_mut().unwrap().kits[0].1 = 7;
     bots.entered(3, false, 6_000);
     assert!(bots.is_bot(3) && !bots.has_entered(3) && bots.is_bot(1));
-    assert_eq!(bots.bots[3].as_ref().unwrap().kits[0].1, 7);
+    {
+        let bot = bots.bots[3].as_ref().unwrap();
+        let rounds: Vec<u32> = bot.kits.iter().map(|(_, left)| *left).collect();
+        assert_eq!(rounds, [17, 25]);
+        assert_eq!((bot.kit, bot.kit_chosen), (0, 1));
+        assert!(std::ptr::eq(bot.reflex.arms().unwrap().primary.0, first.primary.0));
+        assert_eq!(bot.reflex.left(), 17, "not its role's fixed rounds");
+    }
     assert_eq!(bots.bots[1].as_ref().unwrap().partner, None);
     assert!(
         !bots
@@ -2616,10 +2638,16 @@ fn a_bot_that_left_is_forgotten_and_may_come_back() {
         playing: true,
     });
     assert!(made.iter().all(|made| made.place != 3));
-    // It comes back on its place.
+    // It comes back on its place; its next life is in the kit it picked,
+    // with that kit's rounds; the first keeps its 17.
     bots.entered(3, true, 9_000);
     assert!(bots.has_entered(3));
-    assert_eq!(bots.bots[3].as_ref().unwrap().kits[0].1, 7);
+    let bot = bots.bots[3].as_mut().unwrap();
+    bot.new_life(0.5, None, Vec3::new(30.0, 0.0, 0.0));
+    assert_eq!(bot.kit, 1);
+    assert!(std::ptr::eq(bot.reflex.arms().unwrap().primary.0, second.primary.0));
+    assert_eq!(bot.reflex.left(), 25);
+    assert_eq!(bot.kits[0].1, 17);
 }
 
 /// The world's HUD mask reaches the teams' knowledge (`WorldFacts::marks`

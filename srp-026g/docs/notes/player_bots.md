@@ -610,8 +610,12 @@ back for them.
   match server loads) and refuses a room with bots and another. Blackout is
   its battery map for the match server and the bots (`maps::BLACKOUT_RULES`).
 - **The bots** (`Bots::entered`): a bot that leaves is forgotten as before,
-  and its place waits as a bot anew (its kits' rounds kept), entering again
-  as at the start.
+  and its place waits as a bot anew, entering again as at the start: in its
+  own kits (the ones `Bots::wear` gave it, #578's), the rounds of the kit in
+  its hands saved as it leaves, armed as `wear` arms it with the kit it wore
+  and the one it picked for its next life.
+- **Their kits** (`BotKits::bot_kit_capped`): never over an open room's max
+  level; a bot with no kit within it is not put in.
 - Tests: `match-server` `tests/room_bots.rs`, `bots/tests.rs`
   `a_bot_that_left_is_forgotten_and_may_come_back`, lobby
   `core_tests/room_bots_tests.rs`, `session` `matchmaking_policy` and the
