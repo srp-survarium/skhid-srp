@@ -126,6 +126,8 @@ pub(crate) struct Body {
     pub(crate) blend: Blend,
     pub(crate) keys: u32,
     pub(crate) health: f32,
+    /// Its other pools ([`standin_damage::Pools`]): `health` is the body's.
+    pub(crate) pools: standin_damage::Pools,
     pub(crate) alive: bool,
     pub(crate) dead_at: u32,
     pub(crate) spawned: u32,
@@ -234,6 +236,8 @@ pub(crate) struct Game {
     pub(crate) hurts: VecDeque<(u32, Vec<Hurt>)>,
     pub(crate) tick: u32,
     pub(crate) rng: Rng,
+    /// How a hit hurts ([`standin_damage`]).
+    pub(crate) damage: standin_damage::Model,
     pub(crate) shots: u32,
     pub(crate) hits: u32,
     /// By place: shots, and hits on an enemy.
@@ -438,6 +442,7 @@ impl Game {
             blend: Blend::default(),
             keys: 0,
             health: 1.0,
+            pools: standin_damage::Pools::default(),
             alive: false,
             dead_at: 0,
             spawned: 0,
@@ -469,6 +474,7 @@ impl Game {
             hurts: VecDeque::new(),
             tick: 0,
             rng: Rng::new(seed),
+            damage: standin_damage::Model::default(),
             shots: 0,
             hits: 0,
             shots_hits: vec![(0, 0); teams.len()],
@@ -565,6 +571,7 @@ impl Game {
         body.pitch = 0.0;
         body.blend = Blend::default();
         body.health = 1.0;
+        body.pools = standin_damage::Pools::default();
         body.legs = [0.5; 2];
         body.leg_broken_until = 0;
         body.last_hit = 0;
@@ -770,6 +777,7 @@ impl Game {
             }
         }
         self.shoot(tick);
+        standin_damage::regenerate(&self.damage, &mut self.bodies, tick);
         self.use_and_drop(&pressed);
         if let Some((m, next)) = self.nudge
             && tick >= next
@@ -955,7 +963,7 @@ impl Game {
             aim_state,
             cone,
         });
-        let Some((target, _)) = best else {
+        let Some((target, along)) = best else {
             return;
         };
         let team_hit = self.bodies[target].team == body.team;
@@ -968,7 +976,7 @@ impl Game {
             self.hit_log.push((tick, shooter, target));
         }
         let other = &mut self.bodies[target];
-        other.health -= 0.2;
+        standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
         other.last_hit = tick;
         if let Some(leg) = stand_in_leg_hit(tick, shooter, target) {
             other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);

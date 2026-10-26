@@ -20,6 +20,7 @@ use mapdata::{NodeId, Shape, Vec3, WalkGrid, World};
 
 use super::hazards::{HazardMarks, Hazards, PASS_MS};
 use super::path::{self, Route};
+use super::route_filter::RouteFilter;
 use super::rng::Rng;
 use super::view::{EYE_CROUCHED, EYE_STANDING};
 
@@ -871,11 +872,12 @@ impl Tactics {
         let grid = &self.world.grid;
         let start = grid.locate(from, 1.5)?;
         let goal = grid.locate(to, LOCATE_M)?;
-        self.route_nodes(start, goal, time, side, objective, |_| true)
+        self.route_nodes(start, goal, time, side, objective, &RouteFilter::open())
     }
 
-    /// [`Self::route_for`] between floors, keeping off the floors `avoid`
-    /// shuts too (the spots a bot got stuck at).
+    /// [`Self::route_for`] between floors, keeping off what `filter` keeps
+    /// out too (the spots a bot got stuck at, the landings of the jumps it
+    /// gave up).
     pub fn route_nodes(
         &self,
         start: NodeId,
@@ -883,10 +885,10 @@ impl Tactics {
         time: u32,
         side: Option<i32>,
         objective: bool,
-        open: impl Fn(NodeId) -> bool,
+        filter: &RouteFilter,
     ) -> Option<Route> {
         let mut iters = usize::MAX;
-        match self.start_route(start, goal, time, side, objective, open, &mut iters) {
+        match self.start_route(start, goal, time, side, objective, filter, &mut iters) {
             Ok(route) => route,
             Err(_) => unreachable!("an unbounded search ends"),
         }
@@ -906,17 +908,21 @@ impl Tactics {
         time: u32,
         side: Option<i32>,
         objective: bool,
-        open: impl Fn(NodeId) -> bool,
+        filter: &RouteFilter,
         iters: &mut usize,
     ) -> Result<Option<Route>, path::Planning> {
-        let at = self.world.grid.position(start);
+        let grid = &self.world.grid;
+        let at = grid.position(start);
         path::plan_start(
-            &self.world.grid,
+            grid,
             &self.base.regions,
             start,
             goal,
-            |node| self.allowed_from(node, time, side, objective, at) && open(node),
-            |region| self.region_allowed_from(region, time, side, objective, at),
+            |node| self.allowed_from(node, time, side, objective, at) && filter.floor_open(grid, node),
+            |region| {
+                self.region_allowed_from(region, time, side, objective, at)
+                    && filter.region_open(region)
+            },
             iters,
         )
     }
@@ -931,11 +937,12 @@ impl Tactics {
         time: u32,
         side: Option<i32>,
         objective: bool,
-        open: impl Fn(NodeId) -> bool,
+        filter: &RouteFilter,
     ) -> Option<Route> {
-        let at = self.world.grid.position(start);
-        planning.partial(&self.world.grid, |node| {
-            self.allowed_from(node, time, side, objective, at) && open(node)
+        let grid = &self.world.grid;
+        let at = grid.position(start);
+        planning.partial(grid, |node| {
+            self.allowed_from(node, time, side, objective, at) && filter.floor_open(grid, node)
         })
     }
 
@@ -951,15 +958,19 @@ impl Tactics {
         time: u32,
         side: Option<i32>,
         objective: bool,
-        open: impl Fn(NodeId) -> bool,
+        filter: &RouteFilter,
         iters: &mut usize,
     ) -> Option<Option<Route>> {
-        let at = self.world.grid.position(start);
+        let grid = &self.world.grid;
+        let at = grid.position(start);
         planning.resume(
-            &self.world.grid,
+            grid,
             &self.base.regions,
-            |node| self.allowed_from(node, time, side, objective, at) && open(node),
-            |region| self.region_allowed_from(region, time, side, objective, at),
+            |node| self.allowed_from(node, time, side, objective, at) && filter.floor_open(grid, node),
+            |region| {
+                self.region_allowed_from(region, time, side, objective, at)
+                    && filter.region_open(region)
+            },
             iters,
         )
     }
@@ -1093,9 +1104,9 @@ impl Tactics {
     /// - None within [`ESCAPE_FLOORS`] (deep in a big zone): the way out
     ///   the zone's exit field gives ([`Self::exit_of`]).
     ///
-    /// `closed`: the landings of jumps the body gave up
-    /// ([`super::stuck::Stuck::shut_landings`]): neither the search nor the
-    /// route to the way out goes over them.
+    /// `filter`: its hard part (the landings of jumps the body gave up,
+    /// [`super::stuck::Stuck::shut_landings`]): neither the search nor the
+    /// route to the way out goes over what it shuts.
     pub fn escape(
         &self,
         from: NodeId,
@@ -1103,15 +1114,10 @@ impl Tactics {
         time: u32,
         side: Option<i32>,
         objective: bool,
-        closed: &[Vec3],
+        filter: &RouteFilter,
     ) -> Option<Route> {
         let grid = &self.world.grid;
-        let shut = |n: NodeId| {
-            !closed.is_empty() && {
-                let at = grid.position(n);
-                closed.iter().any(|&landing| super::stuck::on_landing(landing, at))
-            }
-        };
+        let shut = |n: NodeId| !filter.hard_open(grid, n);
         let mut seen = std::collections::HashSet::from([from]);
         let mut queue = std::collections::VecDeque::from([(from, 0.0f32)]);
         let start = grid.position(from);
@@ -2055,10 +2061,10 @@ pub(super) mod tests {
         let to = grid.locate(goal, 1.0).unwrap();
         assert!(
             tactics
-                .route_nodes(inside, to, 0, Some(0), false, |_| true)
+                .route_nodes(inside, to, 0, Some(0), false, &RouteFilter::open())
                 .is_none()
         );
-        let out = tactics.escape(inside, None, 0, Some(0), false, &[]).unwrap();
+        let out = tactics.escape(inside, None, 0, Some(0), false, &RouteFilter::open()).unwrap();
         let end = out.point_at(out.length());
         let end_node = grid.locate(end, 0.3).unwrap();
         assert!(tactics.allowed(end_node, 0, Some(0), false));
@@ -2068,7 +2074,7 @@ pub(super) mod tests {
         // for the way out and by the route to it.
         let shut = [Vec3::new(end.x, end_node_y(&tactics, end_node), end.z)];
         let other = tactics
-            .escape(inside, None, 0, Some(0), false, &shut)
+            .escape(inside, None, 0, Some(0), false, &RouteFilter::shutting_landings(shut.to_vec()))
             .unwrap();
         let end2 = other.point_at(other.length());
         assert!(end2.distance_xz(end) >= 0.35, "{end2:?} against {end:?}");
@@ -2080,7 +2086,7 @@ pub(super) mod tests {
         // From there the goal has a way.
         assert!(
             tactics
-                .route_nodes(end_node, to, 0, Some(0), false, |_| true)
+                .route_nodes(end_node, to, 0, Some(0), false, &RouteFilter::open())
                 .is_some()
         );
     }

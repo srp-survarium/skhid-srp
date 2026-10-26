@@ -94,7 +94,7 @@ pub use project::{
     ZoneKind,
 };
 pub use resources::{Error, Resources};
-pub use sight::RayTree;
+pub use sight::{RayHit, RayTree};
 pub use stands::{UsePose, UseStand, UseStands};
 
 /// A play area margin around the `levelmap` box, metres.

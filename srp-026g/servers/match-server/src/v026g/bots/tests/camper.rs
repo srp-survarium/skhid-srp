@@ -156,7 +156,8 @@ pub(crate) fn the_stand_in_camper_holds_its_spot_and_a_teammate_does_not() {
     let found = bots.bench_camper.and_then(|(_, spot)| spot.flatten());
     assert!(found.is_some_and(|(at, _)| at.distance_xz(spot) < 0.5), "{found:?}");
     // The camper got there and held it while alive (the reflex never moves
-    // it off); its mate spent little of its life there.
+    // it off; 3 s of it at least: how soon it arrives depends on the
+    // match's draws); its mate spent little of its life there.
     let [camper, mate] = held;
     // Its lives end by kills, so the ticks it spends at the spot move with
     // any change to the other bodies of the game (a stuck recovery among

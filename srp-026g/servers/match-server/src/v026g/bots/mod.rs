@@ -29,6 +29,7 @@
 
 pub mod aimpoint;
 pub mod anomalies;
+pub mod arc;
 pub mod body;
 pub mod cheats;
 pub mod crossing;
@@ -50,6 +51,7 @@ pub mod recoil;
 pub mod reflex;
 pub mod rng;
 pub mod route_end;
+pub mod route_filter;
 pub mod routes;
 pub mod sense;
 pub mod signals;
@@ -82,6 +84,7 @@ use path::Route;
 use plays::{BotFacts, Ctx, Go, Intent, Look, Pace, PlayKind, Running, Step};
 use reflex::Reflex;
 use route_end::RouteEnd;
+use route_filter::RouteFilter;
 use rng::Rng;
 use sense::RayBudget;
 use signals::{Duel, MatchSignals, Mods, Skill};
