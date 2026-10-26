@@ -42,9 +42,9 @@ const fn s(name: &'static str, default: &'static str, what: &'static str) -> Set
 }
 
 /// The names of the plays', the reflex's and the senses' number lists
-/// (`name=value,...`), read as `SRP_BENCH_<name>`, and for team 1 of a one-sided
-/// run as `SRP_BENCH_SIDE1_<name>` (`bench_tuning_of`).
-pub(crate) const TUNING_NAMES: [&str; 13] = [
+/// (`name=value,...`) and of the tuning's JSON patch (`TUNING`), read as `SRP_BENCH_<name>`, and for
+/// team 1 of a one-sided run as `SRP_BENCH_SIDE1_<name>` (`tuning_from`).
+pub(crate) const TUNING_NAMES: [&str; 14] = [
     "COLLECT",
     "INTERCEPT",
     "RAID",
@@ -58,12 +58,14 @@ pub(crate) const TUNING_NAMES: [&str; 13] = [
     "COMBAT",
     "AIM",
     "SENSE",
+    "TUNING",
 ];
 
 pub(crate) const SETTINGS: &[Setting] = &[
     // What is run.
     s("SRP_MAPDATA_DIR", "unset: the bench is skipped", "the folder of the map dumps"),
     s("SRP_BOT_ROUTES", "unset: no human routes", "the routes table (JSON)"),
+    s("SRP_BOT_FOLIAGE", "unset: bot-foliage.json of the mapdata folder, if any", "the bushes a sight line crosses (JSON, scripts/foliage-volumes); empty or `off`: none"),
     s("SRP_GAME_DATA", "unset: the built-in test archive, said in a loud line", "the server's game data (`server-game-data.db`) the run is on, read and checked as srp reads it (`game_data::init`); a file that fails refuses the run"),
     s("SRP_BENCH_MAPS", "6/2, 1/4, 3/3 (level/mode)", "the maps: `level/mode,...`"),
     s("SRP_BENCH_SIDES", "4,8,10", "the sizes, bots a side: `n,...`"),
@@ -95,6 +97,9 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_WEAPONS", "off", "every place's weapon known as a live match knows it (play 11's matchup)"),
     s("SRP_BENCH_HUMAN", "unset", "the place the plays take for a human (CG-12)"),
     s("SRP_BENCH_CAMPER", "unset", "the place of the stand-in camper"),
+    s("SRP_BENCH_CAMPER_SPOT", "most", "**model** `hidden`: the camper's spot is one that sees many route points of the other side and is seen from under half of them (else the one that sees the most)"),
+    s("SRP_BENCH_CAMPER_CROUCH", "unset", "**model** `1`: the camper crouches once at its spot (and picks it by the crouched eye and body)"),
+    s("SRP_BENCH_CAMPER_GUN", "unset", "**model** `long`: the camper carries the long gun (bolt, else marksman rifle) of the bench tier's kits"),
     // The game model (the stand-in's rules).
     s("SRP_BENCH_USE_LINE", "off", "**model** a use needs a clear line to the battery"),
     s("SRP_BENCH_TAKE_M", "BATTERY_M (0.2)", "**model** how near a battery's middle a take's ray must pass, m"),

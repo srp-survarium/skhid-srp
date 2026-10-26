@@ -32,6 +32,9 @@ pub(crate) struct RouteTally {
     /// "is stuck" notes, and those of them by the walk keys alone.
     pub(crate) stuck: (u32, u32),
     pub(crate) no_route: [u64; 5],
+    /// The route requests of a poll found / failed by the floors' storey gap
+    /// (`path::request_gap`), at the start.
+    pub(crate) request_gap: [u64; 6],
     /// Each body's feet at the last tick, and its falls of a metre or more
     /// in a tick: off its route (no drop of it there), and taken by it.
     pub(crate) feet: Vec<Option<Vec3>>,
@@ -61,6 +64,10 @@ pub(crate) struct RouteTally {
     pub(crate) pocket_escapes: [u64; 7],
     pub(crate) motor_counts: [u64; 6],
     pub(crate) route_ends: [(u64, u64); super::route_end::RouteEnd::ALL.len()],
+    /// The ticks off the route by the walked-leg rule alone, at the start (`path::below_walk`).
+    pub(crate) below_walk: u64,
+    /// The sights' count at the start (`foliage::through`).
+    pub(crate) foliage: [u64; 3],
     /// [CG-17] Each body's walk at the last tick to an exact spot
     /// (`Motor::exact_end`), and when it last landed a planned drop on one;
     /// planned drops on an exact walk (this tick's or the last), and of
@@ -81,6 +88,7 @@ impl RouteTally {
             feet: vec![None; bodies],
             teams: vec![None; bodies],
             no_route: super::path::no_routes(),
+            request_gap: super::path::request_gaps(),
             zone_in: vec![0; bodies],
             zone_left: vec![None; bodies],
             escapes: super::tactics::escapes::counts(),
@@ -88,6 +96,8 @@ impl RouteTally {
             pocket_escapes: super::escape::counts::counts(),
             motor_counts: super::motor::counts::counts(),
             route_ends: super::route_end::counts::counts(),
+            below_walk: super::path::below_walk::counts(),
+            foliage: super::foliage::through::counts(),
             exact_was: vec![false; bodies],
             exact_drop: vec![None; bodies],
             ..Default::default()
@@ -285,6 +295,8 @@ impl RouteTally {
         }
         let now = super::path::no_routes();
         let no_route: Vec<u64> = (0..5).map(|k| now[k] - self.no_route[k]).collect();
+        let gaps = super::path::request_gaps();
+        let gap: Vec<u64> = (0..6).map(|k| gaps[k] - self.request_gap[k]).collect();
         let escapes = super::tactics::escapes::counts();
         let escaped: Vec<u64> = (0..5).map(|k| escapes[k] - self.escapes[k]).collect();
         let pockets = super::escape::counts::counts();
@@ -295,8 +307,18 @@ impl RouteTally {
         let moved: Vec<u64> = (0..6).map(|k| motor[k] - self.motor_counts[k]).collect();
         // Each ending of a route: how many, and their mean age in ms.
         let ends = super::route_end::counts::counts();
+        // Sights begun, those through half a metre of bush or more, and the bush metres of all.
+        let seen = super::foliage::through::counts();
+        let foliage_line = format!(
+            " foliage_sights {} foliage_sights_through {} foliage_mm {}",
+            seen[0] - self.foliage[0],
+            seen[1] - self.foliage[1],
+            seen[2] - self.foliage[2]
+        );
         // Ways out over a stronger zone than the start's, and drops onto a zone's floor.
         let mut route_ends = format!(" escapes_cross_zone {} escapes_drop_zone {}", escaped[3], escaped[4]);
+        route_ends += &format!(" off_below_walk {}", super::path::below_walk::counts() - self.below_walk);
+        route_ends += &foliage_line;
         for (k, why) in super::route_end::RouteEnd::ALL.into_iter().enumerate() {
             let n = ends[k].0 - self.route_ends[k].0;
             let age = ends[k].1 - self.route_ends[k].1;
@@ -310,7 +332,7 @@ impl RouteTally {
         }
         let mean = |v: &[u32]| v.iter().map(|&x| f64::from(x)).sum::<f64>() / v.len().max(1) as f64;
         format!(
-            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {} falls_exact {} falls_exact_taken {} jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {}",
+            "worlds {} pushes {} push_s {} idle {} idle_s {} idle_fight_s {} reversals {} stuck {} stuck_keys {} carried {} carry_ms {:.0} lost {} no_way {} searching {} starved {} searched {} ended {} falls_off {} falls_planned {} stuck_again {} falls_again {} zone_on_s {} zone_entries {} zone_again {} escapes_back {} escapes_on {} escapes_none {} pocket_s {} pocket_deaths {} pocket_tries {} pocket_worked {} pocket_failed {} pocket_gave_up {} pocket_handed {} pocket_failed_hurt {} pocket_gave_up_hurt {} falls_exact {} falls_exact_taken {} jumps_up_first {} jumps_up_later {} jumps_given_up {} ahead_cuts {} steps_clear {} steps_refused {} gap_found_same {} gap_found_above {} gap_found_below {} gap_failed_same {} gap_failed_above {} gap_failed_below {}",
             self.worlds,
             self.pushes.0,
             self.pushes.1,
@@ -355,6 +377,12 @@ impl RouteTally {
             moved[3],
             moved[4],
             moved[5],
+            gap[0],
+            gap[1],
+            gap[2],
+            gap[3],
+            gap[4],
+            gap[5],
         ) + &route_ends
     }
 }
