@@ -633,7 +633,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     }
     let own: Vec<Vec3> = state.knowledge.traps.standing().map(|k| k.at).collect();
     let others: Vec<(PlacedTrap, TrapKey, Vec3)> = state
-        .world_traps
+        .features.traps.world_traps
         .iter()
         .map(|trap| {
             (
@@ -645,11 +645,11 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         .filter(|(_, _, at)| !own.iter().any(|mine| mine.distance_xz(*at) < OWN_M))
         .collect();
     let keyed: Vec<(TrapKey, Vec3)> = others.iter().map(|&(_, key, at)| (key, at)).collect();
-    bot.react.prune(&keyed);
-    bot.react.walk(due.now, me.feet, &keyed);
-    if let Some((key, _)) = bot.react.reaction.target() {
-        bot.react.target_armed = keyed.iter().any(|(k, _)| *k == key);
-        bot.react.register(key, bot.place, due.now, state);
+    bot.features.traps.react.prune(&keyed);
+    bot.features.traps.react.walk(due.now, me.feet, &keyed);
+    if let Some((key, _)) = bot.features.traps.react.reaction.target() {
+        bot.features.traps.react.target_armed = keyed.iter().any(|(k, _)| *k == key);
+        bot.features.traps.react.register(key, bot.place, due.now, state);
     }
     let fighting = !bot.memory.all_seen(due.now).is_empty()
         || bot
@@ -670,7 +670,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
             fighting,
         };
         let rng = &mut bot.rng;
-        bot.react.roll(
+        bot.features.traps.react.roll(
             &look,
             trap,
             t,
@@ -678,7 +678,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
             |from, to| sight_line(&due.tactics.world.sight, from, to),
         );
     }
-    if t.shot && bot.react.reaction == Reaction::Idle && !fighting {
+    if t.shot && bot.features.traps.react.reaction == Reaction::Idle && !fighting {
         start_shot(bot, due, &others);
     }
 }
@@ -692,16 +692,20 @@ impl React {
         }
         self.registered = Some(key);
         state
+            .features
+            .traps
             .shooters
             .retain(|&(_, _, at)| now.saturating_sub(at) <= SHOOTER_KEEP_MS);
         if state
+            .features
+            .traps
             .shooters
             .iter()
             .any(|&(other, who, _)| other == key && who != place)
         {
             self.counts.double_shooters += 1;
         }
-        state.shooters.push((key, place, now));
+        state.features.traps.shooters.push((key, place, now));
     }
 }
 
@@ -714,7 +718,7 @@ fn start_shot(bot: &mut Bot, due: &Due, others: &[(PlacedTrap, TrapKey, Vec3)]) 
     if me.carrying.is_some() || me.health < SHOOT_HEALTH || !weapon_ready(bot, due.now) {
         return;
     }
-    let react = &bot.react;
+    let react = &bot.features.traps.react;
     let target = others
         .iter()
         .filter(|(_, key, _)| react.noticed(*key, due.now) && !react.tried.contains(key))
@@ -735,14 +739,14 @@ fn start_shot(bot: &mut Bot, due: &Due, others: &[(PlacedTrap, TrapKey, Vec3)]) 
     {
         return;
     }
-    bot.react.reaction = Reaction::Aim {
+    bot.features.traps.react.reaction = Reaction::Aim {
         key,
         at,
         since: due.now,
     };
-    bot.react.target_armed = true;
-    bot.react.registered = None;
-    bot.react.counts.shoot_started += 1;
+    bot.features.traps.react.target_armed = true;
+    bot.features.traps.react.registered = None;
+    bot.features.traps.react.counts.shoot_started += 1;
 }
 
 /// The weapon in hand has a round in it and is not being reloaded.
@@ -773,7 +777,7 @@ pub(super) fn drive(
     calm: bool,
     t: &ReactTuning,
 ) -> Option<ReactDrive> {
-    let (key, at) = bot.react.reaction.target()?;
+    let (key, at) = bot.features.traps.react.reaction.target()?;
     let centre = at + Vec3::new(0.0, CENTRE_UP, 0.0);
     let mates: Vec<&PlaceView> = view.team(me.team).filter(|p| p.place != me.place).collect();
     let tick = Tick {
@@ -783,24 +787,24 @@ pub(super) fn drive(
         ready: weapon_ready(bot, now),
         mate_firing: mate_firing(&view.sounds, &mates, me.place, at, me.feet, now, t),
     };
-    let (state, out) = step(bot.react.reaction, tick, bot.react.target_armed, t);
-    bot.react.reaction = state;
+    let (state, out) = step(bot.features.traps.react.reaction, tick, bot.features.traps.react.target_armed, t);
+    bot.features.traps.react.reaction = state;
     if out.shot {
-        bot.react.counts.shots_fired += 1;
+        bot.features.traps.react.counts.shots_fired += 1;
     }
     match out.ended {
         Some(End::GaveUp) => {
-            bot.react.counts.gave_up += 1;
-            bot.react.tried.push(key);
+            bot.features.traps.react.counts.gave_up += 1;
+            bot.features.traps.react.tried.push(key);
         }
         Some(End::HeldForMate) => {
-            bot.react.counts.held_for_mate += 1;
-            bot.react.tried.push(key);
+            bot.features.traps.react.counts.held_for_mate += 1;
+            bot.features.traps.react.tried.push(key);
         }
         Some(End::Gone { shots, last })
             if shots > 0 && now.saturating_sub(last) <= SHOT_CREDIT_MS =>
         {
-            bot.react.counts.disarmed_by_shot += 1;
+            bot.features.traps.react.counts.disarmed_by_shot += 1;
         }
         Some(End::Gone { .. }) | None => {}
     }

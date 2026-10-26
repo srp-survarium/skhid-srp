@@ -169,8 +169,8 @@ fn drive(run: Run) -> Seen {
             playing: true,
         };
         let view = bots.tracker.view(&now, &bots.tuning.kin, Some(&world));
-        bots.searching.left = SEARCHES_PER_POLL;
-        bots.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
+        bots.features.searching.left = SEARCHES_PER_POLL;
+        bots.features.searching.floors = bots.tuning.think.search_floors_per_poll as usize;
         bots.go_on_searching();
         if let Some(bot) = bots.bots[0].as_mut() {
             bot.intent = match run.goal {
