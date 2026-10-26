@@ -102,6 +102,8 @@ struct BotNow {
     target: bool,
     heal_walking: bool,
     heal_walks: u32,
+    /// Why the last heal press's cover walk was or was not made.
+    heal_note: Option<crate::v026g::bots::reflex::HealNote>,
 }
 
 #[derive(Default)]
@@ -196,6 +198,7 @@ impl OwnerTally {
                     target: bot.reflex.target().is_some(),
                     heal_walking: bot.reflex.heal_walking(),
                     heal_walks: bot.reflex.heal_walks,
+                    heal_note: bot.reflex.heal_note(),
                 })
             })
             .collect();

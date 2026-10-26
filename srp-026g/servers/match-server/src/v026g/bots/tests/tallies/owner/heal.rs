@@ -1,4 +1,5 @@
 use super::super::standin_heal::{DrugPress, Pressed};
+use crate::v026g::bots::reflex::HealNote;
 use super::*;
 
 /// The consumable counts (`fighting-record.md` §8.8, the table at its end;
@@ -16,12 +17,15 @@ use super::*;
 pub(super) struct HealCounts {
     /// By place, each tick (the same indexes as [`OwnerTally::recs`]).
     pub(super) recs: Vec<Vec<HealRec>>,
+    /// The `at` of the last heal note recorded for each place (a note is kept once).
+    noted: Vec<Option<u32>>,
 }
 
 impl HealCounts {
     pub(super) fn new(n: usize) -> Self {
         Self {
             recs: vec![Vec::new(); n],
+            noted: vec![None; n],
         }
     }
 }
@@ -43,6 +47,8 @@ pub(super) struct HealRec {
     walking: bool,
     /// The cover walks begun so far (a bot, this match).
     walks: u32,
+    /// The reflex's note of a heal press's walk, at the tick it was made.
+    note: Option<HealNote>,
 }
 
 /// An enemy this near with a clear line is "in an enemy's line", m (the situations).
@@ -95,6 +101,12 @@ impl OwnerTally {
                         && (sight.visible(Game::eye(body), Game::chest(him))
                             || sight.visible(Game::eye(him), Game::chest(body)))
                 });
+            let note = now
+                .and_then(|n| n.heal_note)
+                .filter(|n| self.heal.noted[place] != Some(n.at));
+            if let Some(n) = note {
+                self.heal.noted[place] = Some(n.at);
+            }
             self.heal.recs[place].push(HealRec {
                 alive: body.alive,
                 body: body.health,
@@ -104,6 +116,7 @@ impl OwnerTally {
                 line,
                 walking: now.is_some_and(|n| n.heal_walking),
                 walks: now.map_or(0, |n| n.heal_walks),
+                note,
             });
         }
     }
@@ -326,6 +339,47 @@ impl OwnerTally {
             e[0] += 1;
             e[1] += u32::from(died);
         }
+        // Why a press owed a walk or not (the reflex's note, made at the think after the press, within 1 s),
+        // for the presses on a hurt body: all of them, and those with a target in an enemy's line; and for
+        // the latter by the nearest known enemy and the cover walked to. Each [presses, dead within 5 s].
+        let mut why_all: BTreeMap<String, [u32; 2]> = BTreeMap::new();
+        let mut why_line: BTreeMap<String, [u32; 2]> = BTreeMap::new();
+        let mut enemy_line: BTreeMap<&'static str, [u32; 2]> = BTreeMap::new();
+        let (mut covers, mut cover_sum) = (0u32, 0.0f64);
+        for p in used.iter().filter(|p| p.3 < HURT) {
+            let k = self.index(p.0);
+            let recs = &self.heal.recs[p.1];
+            let Some(rec) = recs.get(k) else { continue };
+            let note = (k..=(k + 20).min(recs.len() - 1)).find_map(|i| recs[i].note);
+            let why = note.map_or("NoThink".to_owned(), |n| format!("{:?}", n.why));
+            let died = deaths
+                .iter()
+                .any(|&(place, dk)| place == p.1 && dk >= k && self.time_of(dk) - p.0 <= DEAD_AFTER_MS);
+            let add = |m: &mut BTreeMap<String, [u32; 2]>| {
+                let e = m.entry(why.clone()).or_default();
+                e[0] += 1;
+                e[1] += u32::from(died);
+            };
+            add(&mut why_all);
+            if rec.target && rec.line {
+                add(&mut why_line);
+                let bucket = match note.and_then(|n| n.enemy_m) {
+                    None => "none known",
+                    Some(m) if m < 5.0 => "under 5 m",
+                    Some(m) if m < 10.0 => "5-10 m",
+                    Some(m) if m < 20.0 => "10-20 m",
+                    Some(m) if m < 40.0 => "20-40 m",
+                    Some(_) => "40 m and more",
+                };
+                let e = enemy_line.entry(bucket).or_default();
+                e[0] += 1;
+                e[1] += u32::from(died);
+                if let Some(m) = note.and_then(|n| n.cover_m) {
+                    covers += 1;
+                    cover_sum += f64::from(m);
+                }
+            }
+        }
         // The cover walks begun (the last record of each bot), and the heal plays taken: with the
         // habit on, none (a take of a Heal play displaces the running play).
         let walks: u32 = self.heal.recs.iter().filter_map(|r| r.last()).map(|r| r.walks).sum();
@@ -363,6 +417,10 @@ impl OwnerTally {
             "heal_cover_walks": walks,
             "heal_plays_displaced": displaced,
             "heal_situations": situations,
+            "heal_walk_why": why_all,
+            "heal_walk_why_line": why_line,
+            "heal_enemy_m_line": enemy_line,
+            "heal_cover_m_line": [covers as f64, (cover_sum * 10.0).round() / 10.0],
         });
         let text = format!(
             "owner-test heal: hurt at the fatal fight's start {:.1} % ({:.1} % over 4 s old) of {} fights; hurt {:.1} % of alive time with stock; \
@@ -490,6 +548,12 @@ mod tests {
                 target: true,
                 heal_walking: begun && ms < 3_300 + 1_600,
                 heal_walks: u32::from(begun),
+                heal_note: begun.then_some(HealNote {
+                    at: 3_300,
+                    why: crate::v026g::bots::reflex::HealWhy::Walked,
+                    enemy_m: Some(23.0),
+                    cover_m: Some(4.0),
+                }),
                 ..BotNow::default()
             });
             tally.step(&mut game, &[now, bot_now()]);
@@ -499,5 +563,7 @@ mod tests {
         // Target (1) and a cover walk (8); no loss in the last 2 s? the loss came at 1.05 s, 2 s before the press.
         assert!(situations.keys().any(|k| k.parse::<u32>().unwrap() & 9 == 9), "{situations:?}");
         assert_eq!(json["heal_cover_walks"], 1);
+        // The press's note: the walk was made, and the body lived.
+        assert_eq!(json["heal_walk_why"]["Walked"], serde_json::json!([1, 0]), "{json}");
     }
 }

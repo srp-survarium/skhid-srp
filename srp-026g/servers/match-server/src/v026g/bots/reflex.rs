@@ -1113,6 +1113,57 @@ struct Push {
     why: LegsWhy,
 }
 
+/// What [`Reflex::break_sight`] came to (the heal's cover walk counts the reasons it did not walk).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Sought {
+    /// A spot was found and the bot hides there.
+    Began,
+    /// Already hiding.
+    Hiding,
+    /// A push at an enemy's reload is on.
+    Pushing,
+    /// Not in a duel (no target and no hit within `duel_ms`).
+    NotDuel,
+    NoTactics,
+    /// A carrier, or `hit_cover` off.
+    Declined,
+    /// No enemy it fights to hide from.
+    NoEnemy,
+    /// The ring of the search holds no spot hidden from him.
+    NoSpot,
+}
+
+/// Why a heal press did or did not owe a cover walk, for the bench's counts (nothing decides by it).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HealWhy {
+    Walked,
+    /// The think came more than `HEAL_WALK_LATE_MS` after the press.
+    Late,
+    Carrier,
+    Throwing,
+    /// The item's delay allows a walk shorter than the search's near edge.
+    ShortReach,
+    /// A known enemy within the wish's `enemy_m`.
+    EnemyNear,
+    Hiding,
+    Pushing,
+    NotDuel,
+    NoTactics,
+    NoEnemy,
+    NoSpot,
+}
+
+/// The note of a heal press's walk: when the think made it, why, the nearest known enemy and the cover found.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HealNote {
+    pub at: u32,
+    pub why: HealWhy,
+    /// The nearest known enemy (any track), m.
+    pub enemy_m: Option<f32>,
+    /// The distance to the spot walked to, m.
+    pub cover_m: Option<f32>,
+}
+
 /// Play 7's steps.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 enum Cover {
@@ -1604,6 +1655,8 @@ pub struct Reflex {
     heal_walk: Option<(HealWish, u32)>,
     /// When the last heal walk began (for the bench's situations).
     heal_walk_at: Option<u32>,
+    /// Why the last heal press's walk was or was not made.
+    heal_note: Option<HealNote>,
     /// The bench's counts: heal presses made, cover walks begun.
     pub heal_presses: u32,
     pub heal_walks: u32,
@@ -2691,15 +2744,18 @@ impl Reflex {
         hide_m: (f32, f32),
         c: &CombatTuning,
         rng: &mut Rng,
-    ) {
-        if matches!(self.cover, Cover::Hiding { .. })
-            || self.push.is_some_and(|p| now < p.until)
-            || now >= self.duel_until
-        {
-            return;
+    ) -> Sought {
+        if matches!(self.cover, Cover::Hiding { .. }) {
+            return Sought::Hiding;
+        }
+        if self.push.is_some_and(|p| now < p.until) {
+            return Sought::Pushing;
+        }
+        if now >= self.duel_until {
+            return Sought::NotDuel;
         }
         let Some(tactics) = sit.tactics else {
-            return;
+            return Sought::NoTactics;
         };
         let still_wait =
             |rng: &mut Rng| rng.range(c.still_wait_ms.0 as f32, c.still_wait_ms.1 as f32) as u32;
@@ -2708,7 +2764,7 @@ impl Reflex {
         {
             // A carrier keeps its way home.
             if me.carrying.is_some() || !c.hit_cover {
-                return;
+                return Sought::Declined;
             }
             let spread = c.hit_bearing_error_deg.to_radians();
             let covered = |at: Vec3| {
@@ -2733,17 +2789,18 @@ impl Reflex {
                 .spots(&query, now, query.samples, rng)
                 .into_iter()
                 .find(|spot| covered(spot.at));
-            if let Some(spot) = spot {
-                self.cover = Cover::Hiding {
-                    at: spot.at,
-                    enemy: threat.at,
-                    started: now,
-                    arrived: None,
-                    wait_ms: still_wait(rng),
-                    repeek: false,
-                };
-            }
-            return;
+            let Some(spot) = spot else {
+                return Sought::NoSpot;
+            };
+            self.cover = Cover::Hiding {
+                at: spot.at,
+                enemy: threat.at,
+                started: now,
+                arrived: None,
+                wait_ms: still_wait(rng),
+                repeek: false,
+            };
+            return Sought::Began;
         }
         // The enemy it fights: hit, the threat that shot it (not the
         // target it sees); else the target, else the last one seen.
@@ -2766,7 +2823,7 @@ impl Reflex {
                     .map(|t| t.at)
             });
         let Some(enemy) = enemy else {
-            return;
+            return Sought::NoEnemy;
         };
         let query = SpotQuery {
             hidden_from: Some(enemy),
@@ -2789,7 +2846,9 @@ impl Reflex {
                 wait_ms,
                 repeek,
             };
+            return Sought::Began;
         }
+        Sought::NoSpot
     }
 
     /// Play 7 on: there, waited, then back at another angle.
@@ -3402,23 +3461,58 @@ impl Reflex {
         c: &CombatTuning,
         rng: &mut Rng,
     ) {
-        if now > pressed_at + HEAL_WALK_LATE_MS
-            || me.carrying.is_some()
-            || self.throw.is_some()
-            || wish.reach_m < c.hide_m.0
-            || memory
-                .tracks()
-                .iter()
-                .any(|t| t.at.distance_xz(me.feet) <= wish.enemy_m)
-        {
+        let enemy_m = memory
+            .tracks()
+            .iter()
+            .map(|t| t.at.distance_xz(me.feet))
+            .min_by(f32::total_cmp);
+        let mut note = HealNote {
+            at: now,
+            why: HealWhy::Walked,
+            enemy_m,
+            cover_m: None,
+        };
+        let refused = if now > pressed_at + HEAL_WALK_LATE_MS {
+            Some(HealWhy::Late)
+        } else if me.carrying.is_some() {
+            Some(HealWhy::Carrier)
+        } else if self.throw.is_some() {
+            Some(HealWhy::Throwing)
+        } else if wish.reach_m < c.hide_m.0 {
+            Some(HealWhy::ShortReach)
+        } else if enemy_m.is_some_and(|m| m <= wish.enemy_m) {
+            Some(HealWhy::EnemyNear)
+        } else {
+            None
+        };
+        if let Some(why) = refused {
+            note.why = why;
+            self.heal_note = Some(note);
             return;
         }
-        let hiding = matches!(self.cover, Cover::Hiding { .. });
-        self.break_sight(me, sit, memory, now, false, false, (c.hide_m.0, wish.reach_m), c, rng);
-        if !hiding && matches!(self.cover, Cover::Hiding { .. }) {
+        let sought =
+            self.break_sight(me, sit, memory, now, false, false, (c.hide_m.0, wish.reach_m), c, rng);
+        note.why = match sought {
+            Sought::Began => HealWhy::Walked,
+            Sought::Hiding => HealWhy::Hiding,
+            Sought::Pushing => HealWhy::Pushing,
+            Sought::NotDuel => HealWhy::NotDuel,
+            Sought::NoTactics => HealWhy::NoTactics,
+            Sought::Declined => HealWhy::Carrier,
+            Sought::NoEnemy => HealWhy::NoEnemy,
+            Sought::NoSpot => HealWhy::NoSpot,
+        };
+        if let (Sought::Began, Cover::Hiding { at, .. }) = (sought, self.cover) {
+            note.cover_m = Some(at.distance_xz(me.feet));
             self.heal_walks += 1;
             self.heal_walk_at = Some(now);
         }
+        self.heal_note = Some(note);
+    }
+
+    /// The last heal press's walk note (the bench reads it; nothing decides by it).
+    pub fn heal_note(&self) -> Option<HealNote> {
+        self.heal_note
     }
 
     /// The rounds the client has put in by `now` ([`super::guns::Load::advance`]), under
@@ -8565,21 +8659,29 @@ mod tests {
             sense(&mut memory, &[percept(1, enemy_at, think_at, Source::Seen)], think_at);
             reflex.think_with(&me, &sit, &memory, think_at, &aim, 0.5, &mut rng);
             let o = reflex.tick(&me, &view, &memory, think_at + 50, true, &aim, 0.5, &mut rng);
-            (o.legs, reflex.heal_walks, me.feet)
+            (o.legs, reflex.heal_walks, me.feet, reflex.heal_note())
         };
-        let (legs, walks, from) = walk(7.0, enemy_at, 1_600);
+        let (legs, walks, from, note) = walk(7.0, enemy_at, 1_600);
         let legs = legs.expect("walks to cover");
         assert_eq!((legs.why, walks), (LegsWhy::BreakSight, 1));
         let d = legs.at.distance_xz(from);
         assert!((2.0..=7.5).contains(&d), "{d}");
+        // The note: walked, the nearest known enemy 23 m off, the spot's distance.
+        let note = note.expect("a note");
+        assert_eq!(note.why, HealWhy::Walked);
+        assert!((note.enemy_m.unwrap() - 23.4).abs() < 0.5, "{note:?}");
+        assert!((note.cover_m.unwrap() - d).abs() < 1e-3, "{note:?}");
         let eye = |p: Vec3| p + Vec3::new(0.0, 1.6, 0.0);
         assert!(!tactics.sees(eye(enemy_at), eye(legs.at)), "{:?}", legs.at);
         // A known enemy within 10 m: no walk (it fights on). The wall's west end is 15 m from him; this one 6 m.
         let near = Vec3::new(38.0, 0.0, 30.0);
         assert!(walk(7.0, near, 1_600).0.is_none_or(|l| l.why != LegsWhy::BreakSight));
         assert_eq!(walk(7.0, near, 1_600).1, 0);
+        assert_eq!(walk(7.0, near, 1_600).3.map(|n| n.why), Some(HealWhy::EnemyNear));
         // A delay too short to walk to a spot 2 m off (a reach under the search's near edge), or a think too late.
         assert_eq!(walk(1.0, enemy_at, 1_600).1, 0);
+        assert_eq!(walk(1.0, enemy_at, 1_600).3.map(|n| n.why), Some(HealWhy::ShortReach));
         assert_eq!(walk(7.0, enemy_at, 2_300).1, 0);
+        assert_eq!(walk(7.0, enemy_at, 2_300).3.map(|n| n.why), Some(HealWhy::Late));
     }
 }
