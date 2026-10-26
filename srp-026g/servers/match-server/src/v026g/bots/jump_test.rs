@@ -88,6 +88,9 @@ const ARRIVED_M: f32 = 0.6;
 /// Chemical Plant struck five ledges at 0.30-0.35 m short of the start), 0.1 m overshot on the live client (rests 0.45-0.53 m
 /// past the start, five of nine tries void in session 3): the keys are let go where the coast lands the body on the start.
 const START_ARRIVE_M: f32 = 0.3;
+/// The walk to a start goes at a walk for its last stretch (m): at a run the live body coasts 1.1-1.3 m past the point the keys are
+/// let go (the sprint rows of session 3's calibration rested that far off), at a walk 0.4-0.6 m.
+const GO_WALK_WITHIN_M: f32 = 6.0;
 /// Worlds are recorded this long after the press, ms.
 const RECORD_AFTER_MS: u32 = 3_000;
 /// The keys are held until this long after the press, ms.
@@ -1348,7 +1351,7 @@ impl JumpTest {
                 } else {
                     bot.intent = Intent {
                         go: Go::To { at: aim, within_m: 0.0 },
-                        pace: if active.def.speed == Speed::MotorRun { Pace::Walk } else { Pace::Run },
+                        pace: if active.def.speed == Speed::MotorRun || me.feet.distance_xz(aim) < GO_WALK_WITHIN_M { Pace::Walk } else { Pace::Run },
                         fire: false,
                         exact_arrive_m: Some(START_ARRIVE_M),
                         ..Intent::stay()
