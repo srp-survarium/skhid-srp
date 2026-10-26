@@ -1647,6 +1647,11 @@ impl Tactics {
     /// floor is so, but with [`TakeEyes::CrouchedThenStanding`] the floor
     /// whose standing eye is.
     pub fn stand_to_take(&self, at: Vec3) -> Option<Vec3> {
+        self.stand_to_take_with(at, self.take_eyes)
+    }
+
+    /// [`Self::stand_to_take`] with other `eyes` than the tuning's.
+    pub fn stand_to_take_with(&self, at: Vec3, eyes: super::tuning::TakeEyes) -> Option<Vec3> {
         let grid = &self.world.grid;
         if grid
             .locate(at, LOCATE_M)
@@ -1670,7 +1675,7 @@ impl Tactics {
             }
             best.map(|(_, feet)| feet)
         };
-        beside(true).or_else(|| match self.take_eyes {
+        beside(true).or_else(|| match eyes {
             super::tuning::TakeEyes::Crouched => None,
             super::tuning::TakeEyes::CrouchedThenStanding => beside(false),
         })

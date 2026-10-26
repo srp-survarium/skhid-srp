@@ -3090,9 +3090,10 @@ mod tests {
                     let why = cx.take_block(at).unwrap_or("takeable");
                     *reasons.entry(why).or_default() += 1;
                     if s.tactics.stand_to_take(at).is_none() {
-                        s.tactics.take_eyes = crate::v026g::bots::tuning::TakeEyes::CrouchedThenStanding;
-                        let standing = s.tactics.stand_to_take(at);
-                        s.tactics.take_eyes = crate::v026g::bots::tuning::TakeEyes::Crouched;
+                        let standing = s.tactics.stand_to_take_with(
+                            at,
+                            crate::v026g::bots::tuning::TakeEyes::CrouchedThenStanding,
+                        );
                         eprintln!(
                             "level {level} mode {mode} spawner {i} at {at:?}: no crouched stand, a standing one {standing:?}"
                         );
