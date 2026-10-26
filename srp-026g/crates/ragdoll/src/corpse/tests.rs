@@ -4,6 +4,7 @@
 use super::*;
 use crate::math::Quat;
 use crate::ragdoll::tests::{Ground, standing};
+use crate::shot::Shot;
 
 const UP: Vec3 = Vec3::Y;
 
@@ -369,4 +370,295 @@ fn the_local_players_camera_follows_its_ragdoll_and_stops_at_the_respawn() {
     assert_eq!(corpses.eye(), None);
     frame(&mut corpses, &[Seen::Alive; 2], Some(1), &mut ground);
     assert_eq!(corpses.eye(), None);
+}
+
+/// A place's drawn ragdoll part's pose.
+fn part_pose(corpses: &Corpses, place: usize, part: Part) -> Pose {
+    let Corpse::Body { slot, .. } = corpses.place(place) else {
+        panic!("no body")
+    };
+    corpses.slot(slot).body().expect("a ragdoll").poses().0[part.index()]
+}
+
+/// Runs place 0's death until it settles; the frames it took.
+fn until_settled(corpses: &mut Corpses, d: &[Seen], ground: &mut Ground) -> usize {
+    for n in 0..1200 {
+        if stage(corpses, 0) == "settled" {
+            return n;
+        }
+        frame(corpses, d, None, ground);
+    }
+    panic!("never settled");
+}
+
+/// A level shot at a part's centre from 3 m to its side.
+fn shot_at(corpses: &Corpses, part: Part, along: Vec3) -> Shot {
+    let target = part_pose(corpses, 0, part).position;
+    Shot::new(target - along * 3.0, along, 6.0).unwrap()
+}
+
+#[test]
+fn a_shot_pushes_the_part_it_hits_and_wakes_a_settled_body_that_settles_again() {
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    let d = [dead(7)];
+    until_settled(&mut corpses, &d, &mut ground);
+    let along = Vec3::new(1.0, 0.0, 0.0);
+    let shot = shot_at(&corpses, Part::Head, along);
+    let hit = corpses.trace(&shot).expect("the head is hit");
+    assert_eq!(
+        (hit.place, hit.death, hit.hit.part),
+        (0, DeathKey(7), Part::Head)
+    );
+    assert!(
+        hit.hit.normal.dot(along) < 0.0,
+        "the normal faces the shooter"
+    );
+    let head = part_pose(&corpses, 0, Part::Head).position;
+    let pelvis = part_pose(&corpses, 0, Part::Pelvis).position;
+    let j = crate::shot::impulse(along, Some(0.4));
+    assert!(corpses.push(0, DeathKey(7), hit.hit.part, hit.hit.point, j));
+    assert_eq!(stage(&corpses, 0), "ragdoll", "woken");
+    for _ in 0..20 {
+        frame(&mut corpses, &d, None, &mut ground);
+    }
+    let moved = part_pose(&corpses, 0, Part::Head).position - head;
+    let pelvis_moved = (part_pose(&corpses, 0, Part::Pelvis).position - pelvis).length();
+    assert!(
+        moved.dot(along) > 0.08,
+        "the head went with the shot: {moved:?}"
+    );
+    assert!(
+        pelvis_moved < moved.length(),
+        "the head moved more than the pelvis"
+    );
+    let frames = until_settled(&mut corpses, &d, &mut ground);
+    assert!(frames < 6 * 60, "settled again in {frames} frames");
+    // still on the ground, not through it
+    assert!(part_pose(&corpses, 0, Part::Head).position.y > 0.05);
+}
+
+#[test]
+fn a_shot_pushes_a_moving_ragdoll_and_a_miss_does_nothing() {
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    let d = [dead(7)];
+    for _ in 0..6 {
+        frame(&mut corpses, &d, None, &mut ground);
+    }
+    assert_eq!(stage(&corpses, 0), "ragdoll");
+    let along = Vec3::new(0.0, 0.0, 1.0);
+    // a miss: beside the body, above it, and short of it
+    let arm = part_pose(&corpses, 0, Part::LeftForearm).position;
+    for shot in [
+        Shot::new(arm + Vec3::new(1.5, 0.0, -3.0), along, 6.0).unwrap(),
+        Shot::new(arm + Vec3::new(0.0, 2.5, -3.0), along, 6.0).unwrap(),
+        Shot::new(arm + Vec3::new(0.0, 0.0, -3.0), along, 1.0).unwrap(),
+    ] {
+        assert_eq!(corpses.trace(&shot), None);
+    }
+    // the wrong death (the place died again since): nothing pushed
+    assert!(!corpses.push(0, DeathKey(8), Part::LeftForearm, arm, along));
+    // the forearm, along +Z
+    let mut pushed = Corpses::new();
+    let mut alone = Corpses::new();
+    for c in [&mut pushed, &mut alone] {
+        for _ in 0..6 {
+            frame(c, &d, None, &mut ground);
+        }
+    }
+    let shot = shot_at(&pushed, Part::LeftForearm, along);
+    let hit = pushed.trace(&shot).expect("hit");
+    assert_eq!(hit.hit.part, Part::LeftForearm);
+    pushed.push(
+        0,
+        DeathKey(7),
+        hit.hit.part,
+        hit.hit.point,
+        crate::shot::impulse(along, None),
+    );
+    for _ in 0..10 {
+        frame(&mut pushed, &d, None, &mut ground);
+        frame(&mut alone, &d, None, &mut ground);
+    }
+    let gap = part_pose(&pushed, 0, Part::LeftForearm).position
+        - part_pose(&alone, 0, Part::LeftForearm).position;
+    assert!(
+        gap.z > 0.05,
+        "the shot forearm is ahead of the unshot one: {gap:?}"
+    );
+}
+
+#[test]
+fn the_same_shot_traced_again_pushes_once() {
+    use crate::shot::{ShotKey, ShotLog, impulse};
+    // what the arena does with each traced segment: the log decides, then
+    // the push; a rollback traces the same bullet's segment again
+    let shoot = |corpses: &mut Corpses, log: &mut ShotLog, shot: &Shot| {
+        let Some(hit) = corpses.trace(shot) else {
+            return false;
+        };
+        let key = ShotKey {
+            shooter: 2,
+            bullet: 41,
+            segment: 0,
+            place: hit.place as u8,
+            death: hit.death.0,
+        };
+        log.first(key)
+            && corpses.push(
+                hit.place,
+                hit.death,
+                hit.hit.part,
+                hit.hit.point,
+                impulse(shot.direction, None),
+            )
+    };
+    let mut ground = Ground::flat();
+    let d = [dead(7)];
+    let mut once = Corpses::new();
+    let mut twice = Corpses::new();
+    for c in [&mut once, &mut twice] {
+        until_settled(c, &d, &mut ground);
+    }
+    let along = Vec3::new(1.0, 0.0, 0.0);
+    let shot = shot_at(&once, Part::Torso, along);
+    let (mut log_once, mut log_twice) = (ShotLog::new(), ShotLog::new());
+    assert!(shoot(&mut once, &mut log_once, &shot));
+    assert!(shoot(&mut twice, &mut log_twice, &shot));
+    assert!(
+        !shoot(&mut twice, &mut log_twice, &shot),
+        "the re-simulated trace is not pushed"
+    );
+    for _ in 0..30 {
+        frame(&mut once, &d, None, &mut ground);
+        frame(&mut twice, &d, None, &mut ground);
+    }
+    for part in Part::ALL {
+        let (a, b) = (part_pose(&once, 0, part), part_pose(&twice, 0, part));
+        assert!((a.position - b.position).length() < 1e-6, "{part:?}");
+    }
+}
+
+#[test]
+#[ignore = "a measurement, not a check"]
+fn cost_of_shots_at_twenty_ragdolls() {
+    extern crate std;
+    use std::println;
+    use std::time::Instant;
+    let mut corpses = Corpses::new();
+    let mut ground = Ground::flat();
+    let seen: std::vec::Vec<Seen> = (0..20).map(|p| dead(1000 + p)).collect();
+    for _ in 0..4 {
+        frame20(&mut corpses, &seen, &mut ground);
+    }
+    // 20 bodies in a row 3 m apart; shots from 50 m away in all directions,
+    // a fifth of them through the row
+    let shots: std::vec::Vec<Shot> = (0..4000)
+        .map(|i| {
+            let (s, c) = crate::math::sin_cos(i as f32 * 0.37);
+            let target = if i % 5 == 0 {
+                Vec3::new((i % 20) as f32 * 3.0, 0.5, 0.0)
+            } else {
+                Vec3::new(30.0, 1.0, 40.0)
+            };
+            let from = target - Vec3::new(s, 0.05, c) * 50.0;
+            Shot::new(from, target - from, 60.0).unwrap()
+        })
+        .collect();
+    for label in ["moving", "settled"] {
+        let start = Instant::now();
+        let hits = shots.iter().filter(|s| corpses.trace(s).is_some()).count();
+        let t = start.elapsed().as_secs_f64() * 1e6;
+        println!(
+            "{label}: {} traces at 20 ragdolls, {hits} hits: {t:.0} us ({:.2} us a trace)",
+            shots.len(),
+            t / shots.len() as f64
+        );
+        for _ in 0..600 {
+            frame20(&mut corpses, &seen, &mut ground);
+        }
+    }
+    // heavy fire: every body hit every frame for 2 s (20 pushes a frame,
+    // each body kept moving), the step's cost
+    let mut worst = 0.0f64;
+    let mut total = 0.0f64;
+    let mut rays = 0usize;
+    for f in 0..120 {
+        for p in 0..20usize {
+            let (s, c) = crate::math::sin_cos((f * 20 + p) as f32 * 0.9);
+            let target =
+                part_pose(&corpses, p, Part::ALL[(f + p) % crate::skeleton::PARTS]).position;
+            let along = Vec3::new(s, -0.3, c).direction().unwrap();
+            let shot = Shot::new(target - along * 2.0, along, 4.0).unwrap();
+            if let Some(hit) = corpses.trace(&shot) {
+                corpses.push(
+                    hit.place,
+                    hit.death,
+                    hit.hit.part,
+                    hit.hit.point,
+                    crate::shot::impulse(along, None),
+                );
+            }
+        }
+        let asked = ground.queries;
+        let start = Instant::now();
+        frame20(&mut corpses, &seen, &mut ground);
+        let t = start.elapsed().as_secs_f64() * 1e6;
+        rays = rays.max(ground.queries - asked);
+        worst = worst.max(t);
+        total += t;
+    }
+    println!(
+        "heavy fire (20 hits a frame, 2 s): step and draws worst {worst:.0} us, mean {:.0} us a frame, up to {rays} rays",
+        total / 120.0
+    );
+    let mut frames = 0;
+    while corpses
+        .pool
+        .iter()
+        .any(|s| matches!(s, Slot::Ragdoll { .. }))
+        && frames < 600
+    {
+        frame20(&mut corpses, &seen, &mut ground);
+        frames += 1;
+    }
+    println!("then all settled again in {:.2} s", frames as f64 / 60.0);
+    // the miss of every box (no ragdoll near): the broad phase alone
+    let far: std::vec::Vec<Shot> = (0..4000)
+        .map(|i| {
+            Shot::new(
+                Vec3::new(i as f32, 50.0, -100.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                200.0,
+            )
+            .unwrap()
+        })
+        .collect();
+    let start = Instant::now();
+    let hits = far.iter().filter(|s| corpses.trace(s).is_some()).count();
+    let t = start.elapsed().as_secs_f64() * 1e6;
+    println!(
+        "far: 4000 traces, {hits} hits: {t:.0} us ({:.3} us a trace)",
+        t / 4000.0
+    );
+}
+
+/// A frame of 20 places (`frame` draws 4).
+fn frame20(corpses: &mut Corpses, places: &[Seen], ground: &mut Ground) {
+    corpses.step(
+        &Frame {
+            dt: 1.0 / 60.0,
+            up: UP,
+            places,
+            local: None,
+        },
+        ground,
+    );
+    for place in 0..places.len() {
+        if let Corpse::Body { slot, .. } = corpses.place(place) {
+            let mut skeleton = standing(Quat::IDENTITY, Vec3::new(place as f32 * 3.0, 0.0, 0.0));
+            corpses.slot_mut(slot).draw(&mut skeleton);
+        }
+    }
 }

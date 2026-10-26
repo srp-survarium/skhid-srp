@@ -11,6 +11,7 @@
 use crate::body::{Body, Capsule, Contact, Pair, close_gap, share_turn};
 use crate::limits::{Cone, Limit, degrees};
 use crate::math::{Pose, Quat, Vec3, clamp, exp_neg, finite, max, min};
+use crate::shot::{Shot, ShotHit, hit_on_capsule, ray_capsule};
 use crate::skeleton::{
     BONE_COUNT, Bone, HEAD, ITEM, JOINT_TABLE, JOINTS, JointKind, LEFT_ARM, LEFT_FOOT,
     LEFT_FORE_ARM, LEFT_HAND, LEFT_LEG, LEFT_TOE, LEFT_UP_LEG, NECK, PARTS, Part, RIGHT_ARM,
@@ -393,6 +394,15 @@ pub struct Ragdoll {
     /// chest holding the gun).
     colliding: u64,
     age: f32,
+    /// The time since it last started moving: its death, or a shot that
+    /// woke it (MAX_AGE caps it).
+    moving_for: f32,
+    /// Woken by a shot after it settled: no drive (the clip's end pose would
+    /// pull a body lying elsewhere along the ground).
+    limp: bool,
+    /// The time left after a shot's push before the near-rest slowing may
+    /// take the push away again.
+    grace: f32,
     rest: Rest,
     /// The last poses a step left finite (what a broken step falls back to).
     last_good: (PartPoses, Option<Pose>),
@@ -556,6 +566,9 @@ impl Ragdoll {
             origin: at(ROOT),
             colliding,
             age: 0.0,
+            moving_for: 0.0,
+            limp: false,
+            grace: 0.0,
             rest: Rest::Moving,
             last_good: ([Pose::IDENTITY; PARTS], None),
         };
@@ -640,7 +653,7 @@ impl Ragdoll {
             return Motion::Moving;
         }
         let targets = clip
-            .filter(|c| c.iter().all(|p| p.is_finite()))
+            .filter(|c| !self.limp && c.iter().all(|p| p.is_finite()))
             .map(|c| self.rig.parts_of(c));
         let gravity = self.up * -GRAVITY;
         self.query(dt, gravity, level);
@@ -682,6 +695,7 @@ impl Ragdoll {
             self.damp_drive(h);
         }
         self.age += dt;
+        self.moving_for += dt;
         let (poses, gun) = self.poses();
         if !poses.iter().all(|p| p.is_finite()) || !gun.is_none_or(|g| g.is_finite()) {
             // a broken step: back to the last good poses, at rest
@@ -693,7 +707,10 @@ impl Ragdoll {
         // is the solver's creep, not a fall): it settles instead of crawling
         let resting =
             |b: &Body| b.end_speed() < NEAR_REST && matches!(b.contact, Contact::Plane { .. });
-        if self.bodies.iter().all(|b| b.end_speed() < NEAR_REST) && self.bodies.iter().any(resting)
+        self.grace = max(0.0, self.grace - dt);
+        if self.grace <= 0.0
+            && self.bodies.iter().all(|b| b.end_speed() < NEAR_REST)
+            && self.bodies.iter().any(resting)
         {
             let keep = exp_neg(REST_DAMPING * dt);
             for body in self.bodies.iter_mut().chain(self.gun.iter_mut()) {
@@ -736,9 +753,73 @@ impl Ragdoll {
             // slow for a second but still drifting: the solver's fight
             // between constraints, not a fall
             Rest::Slow { slow, .. } if self.age - slow >= SLOW_TIME => Motion::Settled,
-            _ if self.age >= MAX_AGE => Motion::Settled,
+            _ if self.moving_for >= MAX_AGE => Motion::Settled,
             _ => Motion::Moving,
         }
+    }
+
+    /// The box around every body (and the gun): a shot that misses it misses
+    /// them all.
+    pub fn bounds(&self) -> (Vec3, Vec3) {
+        let mut lo = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
+        let mut hi = -lo;
+        for body in self.bodies.iter().chain(self.gun.iter()) {
+            let (a, b) = body.shape.ends(body.pose);
+            let r = body.shape.radius;
+            for p in [a, b] {
+                lo = Vec3::new(min(lo.x, p.x - r), min(lo.y, p.y - r), min(lo.z, p.z - r));
+                hi = Vec3::new(max(hi.x, p.x + r), max(hi.y, p.y + r), max(hi.z, p.z + r));
+            }
+        }
+        (lo, hi)
+    }
+
+    /// The nearest body part the shot meets, if any (the gun is not hit).
+    pub fn trace(&self, shot: &Shot) -> Option<ShotHit> {
+        let mut best: Option<ShotHit> = None;
+        for part in Part::ALL {
+            let body = &self.bodies[part.index()];
+            let (a, b) = body.shape.ends(body.pose);
+            if let Some(t) = ray_capsule(shot, a, b, body.shape.radius)
+                && best.is_none_or(|h| t < h.distance)
+            {
+                best = Some(hit_on_capsule(shot, a, b, t, part));
+            }
+        }
+        best
+    }
+
+    /// A shot's push on `part`: the impulse `j` (N s) at the world `point`,
+    /// the body's speed and spin changes capped. The ragdoll moves again from
+    /// here (and settles again by the same rules).
+    pub fn push(&mut self, part: Part, point: Vec3, j: Vec3) {
+        if !point.is_finite() || !j.is_finite() {
+            return;
+        }
+        let j = j + self.up * (j.length() * tuning::SHOT_LIFT);
+        let body = &mut self.bodies[part.index()];
+        let r = point - body.pose.position;
+        let dv = limit_length(j * body.inverse_mass, tuning::SHOT_MAX_SPEED);
+        let dw = limit_length(
+            body.inverse_inertia_times(r.cross(j)),
+            tuning::SHOT_MAX_SPIN,
+        );
+        body.velocity += dv;
+        body.spin += dw;
+        self.rest = Rest::Moving;
+        self.moving_for = 0.0;
+        self.grace = tuning::SHOT_GRACE;
+    }
+
+    /// A settled ragdoll made to move again: at rest where it lay, limp.
+    pub fn wake(&mut self) {
+        for body in self.bodies.iter_mut().chain(self.gun.iter_mut()) {
+            body.velocity = Vec3::ZERO;
+            body.spin = Vec3::ZERO;
+        }
+        self.limp = true;
+        self.rest = Rest::Moving;
+        self.moving_for = 0.0;
     }
 
     /// Whether every body's centre moves slower than CREEP.
@@ -1050,7 +1131,7 @@ fn separation(a: &Body, b: &Body) -> Option<(Vec3, Vec3, f32)> {
     (distance < a.shape.radius + b.shape.radius).then_some((pa, pb, distance))
 }
 
-fn limit_length(v: Vec3, most: f32) -> Vec3 {
+pub(crate) fn limit_length(v: Vec3, most: f32) -> Vec3 {
     let l = v.length();
     if l > most && finite(l) {
         v * (most / l)

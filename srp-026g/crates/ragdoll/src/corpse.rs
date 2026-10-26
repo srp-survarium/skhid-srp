@@ -24,10 +24,10 @@
 use crate::camera::EyeFollow;
 use crate::math::{Pose, Vec3};
 use crate::ragdoll::{
-    Cause, DriverBones, GunShape, Level, Motion, PartPoses, Ragdoll, Rig, Skeleton, Start,
-    driver_bones,
+    Cause, DriverBones, GunShape, Level, Motion, Ragdoll, Skeleton, Start, driver_bones,
 };
-use crate::skeleton::{BONE_COUNT, HEAD, PARTS};
+use crate::shot::{Shot, ShotHit};
+use crate::skeleton::{BONE_COUNT, HEAD, PARTS, Part};
 
 /// The places a match has at most (the ragdoll draws none beyond).
 pub const MAX_PLACES: usize = 32;
@@ -104,13 +104,10 @@ pub enum Slot {
         ragdoll: Ragdoll,
         clip: Option<DriverBones>,
     },
-    /// At rest: the pose, frozen. `since` orders the settled ones (the
-    /// oldest gives its slot up first).
+    /// At rest: the ragdoll frozen where it lay (a shot wakes it). `since`
+    /// orders the settled ones (the oldest gives its slot up first).
     Settled {
-        rig: Rig,
-        parts: PartPoses,
-        gun: Option<Pose>,
-        head_ground: Option<(Vec3, Vec3)>,
+        ragdoll: Ragdoll,
         since: u32,
     },
 }
@@ -190,10 +187,9 @@ impl Slot {
                 ragdoll.rig().draw(&parts, gun, skeleton);
                 Drawn::Ragdoll
             }
-            Slot::Settled {
-                rig, parts, gun, ..
-            } => {
-                rig.draw(parts, *gun, skeleton);
+            Slot::Settled { ragdoll, .. } => {
+                let (parts, gun) = ragdoll.poses();
+                ragdoll.rig().draw(&parts, gun, skeleton);
                 Drawn::Ragdoll
             }
         }
@@ -203,25 +199,19 @@ impl Slot {
     /// the head rests on, while a ragdoll draws the body.
     fn eye(&self) -> Option<(Pose, Option<(Vec3, Vec3)>)> {
         let mut skeleton = [Pose::IDENTITY; BONE_COUNT];
+        let ragdoll = self.body()?;
+        let (parts, gun) = ragdoll.poses();
+        ragdoll.rig().draw(&parts, gun, &mut skeleton);
+        Some((
+            ragdoll.rig().eye(skeleton[HEAD.index()]),
+            ragdoll.head_ground(),
+        ))
+    }
+
+    /// The ragdoll drawn, moving or settled.
+    pub fn body(&self) -> Option<&Ragdoll> {
         match self {
-            Slot::Ragdoll { ragdoll, .. } => {
-                let (parts, gun) = ragdoll.poses();
-                ragdoll.rig().draw(&parts, gun, &mut skeleton);
-                Some((
-                    ragdoll.rig().eye(skeleton[HEAD.index()]),
-                    ragdoll.head_ground(),
-                ))
-            }
-            Slot::Settled {
-                rig,
-                parts,
-                gun,
-                head_ground,
-                ..
-            } => {
-                rig.draw(parts, *gun, &mut skeleton);
-                Some((rig.eye(skeleton[HEAD.index()]), *head_ground))
-            }
+            Slot::Ragdoll { ragdoll, .. } | Slot::Settled { ragdoll, .. } => Some(ragdoll),
             Slot::Free | Slot::Dying { .. } => None,
         }
     }
@@ -257,6 +247,17 @@ pub struct Corpses {
     eye: Eye,
     /// Counts the settles (orders the settled slots).
     settles: u32,
+    /// Each place's drawn ragdoll's box as the last step left it: the
+    /// shots' broad phase (a shot is traced between two steps).
+    bounds: [Option<(Vec3, Vec3)>; MAX_PLACES],
+}
+
+/// A shot through a corpse: the place, its death, where the shot met it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CorpseHit {
+    pub place: usize,
+    pub death: DeathKey,
+    pub hit: ShotHit,
 }
 
 impl Corpses {
@@ -266,7 +267,71 @@ impl Corpses {
             pool: [Slot::Free; POOL],
             eye: Eye::Off,
             settles: 0,
+            bounds: [None; MAX_PLACES],
         }
+    }
+
+    /// Whether any place has a ragdoll a shot could meet.
+    pub fn any_bodies(&self) -> bool {
+        self.bounds.iter().any(Option::is_some)
+    }
+
+    /// The nearest drawn ragdoll part (moving or settled) the shot meets:
+    /// each place's box first, then the capsules of those it crosses. Reads
+    /// only, so several threads may trace at once between two steps.
+    pub fn trace(&self, shot: &Shot) -> Option<CorpseHit> {
+        let mut best: Option<CorpseHit> = None;
+        for place in 0..MAX_PLACES {
+            let Some((lo, hi)) = self.bounds[place] else {
+                continue;
+            };
+            if !shot.crosses_box(lo, hi) {
+                continue;
+            }
+            let Corpse::Body { death, slot } = self.places[place] else {
+                continue;
+            };
+            let Some(hit) = self.pool[slot.index()].body().and_then(|r| r.trace(shot)) else {
+                continue;
+            };
+            if best.is_none_or(|b| hit.distance < b.hit.distance) {
+                best = Some(CorpseHit { place, death, hit });
+            }
+        }
+        best
+    }
+
+    /// A shot's push on a place's ragdoll part, if that place still has the
+    /// same death's ragdoll drawn: a settled one wakes. True if pushed.
+    pub fn push(
+        &mut self,
+        place: usize,
+        death: DeathKey,
+        part: Part,
+        point: Vec3,
+        j: Vec3,
+    ) -> bool {
+        let Some(Corpse::Body { death: d, slot }) = self.places.get(place).copied() else {
+            return false;
+        };
+        if d != death {
+            return false;
+        }
+        let current = &mut self.pool[slot.index()];
+        match current {
+            Slot::Ragdoll { ragdoll, .. } => ragdoll.push(part, point, j),
+            Slot::Settled { ragdoll, .. } => {
+                let mut ragdoll = *ragdoll;
+                ragdoll.wake();
+                ragdoll.push(part, point, j);
+                *current = Slot::Ragdoll {
+                    ragdoll,
+                    clip: None,
+                };
+            }
+            Slot::Free | Slot::Dying { .. } => return false,
+        }
+        true
     }
 
     pub fn place(&self, place: usize) -> Corpse {
@@ -347,6 +412,12 @@ impl Corpses {
             }
         }
         self.follow(frame);
+        for place in 0..MAX_PLACES {
+            self.bounds[place] = match self.places[place] {
+                Corpse::Body { slot, .. } => self.pool[slot.index()].body().map(Ragdoll::bounds),
+                Corpse::Alive | Corpse::Canned { .. } => None,
+            };
+        }
     }
 
     fn release(&mut self, place: usize) {
@@ -492,12 +563,8 @@ impl Corpses {
 /// settles' count.
 fn settled(ragdoll: &Ragdoll, settles: &mut u32) -> Slot {
     *settles = settles.wrapping_add(1);
-    let (parts, gun) = ragdoll.poses();
     Slot::Settled {
-        rig: *ragdoll.rig(),
-        parts,
-        gun,
-        head_ground: ragdoll.head_ground(),
+        ragdoll: *ragdoll,
         since: *settles,
     }
 }

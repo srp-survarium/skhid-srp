@@ -30,3 +30,26 @@ pub const KNEE_BEND: f32 = degrees(15.0);
 pub const BALANCE_ASSIST: f32 = 0.8;
 /// Half the feet's spread in the stance, m (about the hips' own).
 pub const STANCE_HALF_WIDTH: f32 = 0.1;
+
+// A bullet through a corpse (`shot.rs`): the push on the body part it hits.
+
+/// The push of a shot, N s, for a weapon of `SHOT_STOPPING_POWER` (the head
+/// of 6.5 kg takes about 1.8 m/s, the torso about 0.7, a forearm the cap;
+/// the joints share it out).
+pub const SHOT_IMPULSE: f32 = 12.0;
+/// A push is lifted by this much of its size (a shot from a standing
+/// shooter goes down into a body on the ground, which the ground would
+/// stop dead: the jolt games give a hit corpse).
+pub const SHOT_LIFT: f32 = 0.35;
+/// The stopping power that pushes `SHOT_IMPULSE` (the configs' weapons have
+/// 0.1 to 0.8).
+pub const SHOT_STOPPING_POWER: f32 = 0.4;
+/// The push's scale by stopping power stays within these.
+pub const SHOT_SCALE_MIN: f32 = 0.4;
+pub const SHOT_SCALE_MAX: f32 = 2.0;
+/// A push's change of a body's speed (m/s) and spin (rad/s) at most.
+pub const SHOT_MAX_SPEED: f32 = 6.0;
+pub const SHOT_MAX_SPIN: f32 = 15.0;
+/// After a push the body is not slowed toward rest for this long, s (the
+/// slowing that ends a fall's creep would take a small push away at once).
+pub const SHOT_GRACE: f32 = 0.3;

@@ -21,5 +21,6 @@ pub mod corpse;
 pub mod limits;
 pub mod math;
 pub mod ragdoll;
+pub mod shot;
 pub mod skeleton;
 pub mod tuning;
