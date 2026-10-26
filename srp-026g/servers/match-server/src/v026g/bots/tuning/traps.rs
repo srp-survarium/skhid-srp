@@ -12,11 +12,8 @@ pub struct TrapTuning {
     pub enabled: bool,
     /// Traps a bot puts down in one life.
     pub per_life: u8,
-    /// Traps the team's bots keep standing at once, counting each as
-    /// standing for `stand_s` (the worlds will tell their state later).
+    /// Traps the team's bots keep standing at once (promised or armed).
     pub cap_team: u8,
-    /// How long a trap placed is counted standing, seconds.
-    pub stand_s: f32,
     /// How far ahead of the feet the floor point is, metres: the head ray
     /// is 2.0 m (PROVEN) and the view looks down at most 1.0 rad
     /// (`body::MAX_PITCH`), so at the eye's 1.6 m the floor is hit 1.0 m out.
@@ -67,7 +64,6 @@ impl Default for TrapTuning {
             enabled: true,
             per_life: 1,
             cap_team: 4,
-            stand_s: 240.0,
             reach_m: 1.0,
             lateral_m: 0.9,
             route_ahead_m: 12.0,
@@ -107,9 +103,6 @@ pub(super) fn validate(t: &TrapTuning) -> Result<(), String> {
         (0.0..=1.0).contains(&t.chance) && (0.0..=1.0).contains(&t.min_health),
         "traps.chance",
     )?;
-    check(
-        t.tolerance_rad > 0.0 && t.look_ms > 0 && t.stand_s > 0.0,
-        "traps.look",
-    )?;
+    check(t.tolerance_rad > 0.0 && t.look_ms > 0, "traps.look")?;
     Ok(())
 }
