@@ -117,7 +117,7 @@ def key_case(rng, what, key, kind, cursor, owner, slot, movie):
 
 def hud_case(rng, what, made):
     stack = [0x20005000] + [rng.getrandbits(32) for _ in range(15)]     # the hud pushed
-    memory = {PLACE + "+0x0": bytes(rng.getrandbits(8) for _ in range(0x48)) if made else bytes(0x48),
+    memory = {PLACE + "+0x0": E.made_up(rng, 0x48) if made else bytes(0x48),
               PLACE + "+0x48": bytes([rng.getrandbits(8)]), PLACE + "+0x49": bytes([made])}
     return HUD, E.Case(what, regs(rng, eax=0x20006000), stack, memory)
 

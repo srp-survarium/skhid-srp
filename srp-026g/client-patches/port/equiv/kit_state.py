@@ -67,7 +67,7 @@ def used(rng, memory):
     for slot in range(23):
         item = ARMS + slot * 0x1000 + 0x10
         if item in memory:
-            memory[item - 0x10 + 0x5A4] = bytes(rng.getrandbits(8) for _ in range(0x6C))
+            memory[item - 0x10 + 0x5A4] = E.made_up(rng, 0x6C)
     return memory
 
 

@@ -108,7 +108,7 @@ def regs(rng, **fixed):
 
 
 def event_case(rng, what, bullet, cause, melee, segments, reflections, model, healths, real=False, order=None):
-    memory = {NODE: bytes(rng.getrandbits(8) for _ in range(0x30)),
+    memory = {NODE: E.made_up(rng, 0x30),
               VICTIM + 0x2E0: dword(MODEL if model else 0), VICTIM + 0x120: dword(rng.getrandbits(32)),
               BULLET + 0x84: dword(segments), BULLET + 0x88: bytes([reflections])}
     for name, at in PARTS.items():

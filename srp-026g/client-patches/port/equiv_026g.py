@@ -70,6 +70,20 @@ REG_NAMES = ("eax", "ecx", "edx", "ebx", "ebp", "esi", "edi")
 
 # ---- the spec's vocabulary -------------------------------------------------
 
+def made_up(rng, size):
+    """`size` random bytes for a case's memory, no aligned dword of them
+    naming our sections (from `.srp` to the arena's end; its top bit
+    flipped), as Machine.page_bytes makes the memory a case does not give:
+    a made-up pointer into a patch's state would be two places in the two
+    builds' layouts."""
+    import patch_026g as base
+    data = bytearray(rng.getrandbits(8) for _ in range(size))
+    for at in range(0, size - 3, 4):
+        if base.SECTION_VA <= struct.unpack_from("<I", data, at)[0] < base.ARENA_VA + base.ARENA_LIMIT:
+            data[at + 3] ^= 0x80
+    return bytes(data)
+
+
 class External:
     """A game function a hook calls: `inputs` what it takes ("eax".. a
     register, "arg0".. the dword at [esp+4+4i] at its entry; either with
@@ -164,7 +178,12 @@ def build_into(out_dir, spec_path):
     meta = {"ranges": [list(r) for r in spec.ranges(base, linked)],
             "entries": list(spec.entries(base, linked)),
             "blocks": {b.name: [b.va, b.size] for b in linked.blocks.values()},
-            "places": {name: list(place) for name, place in getattr(spec, "places", lambda P, l: {})(base, linked).items()}}
+            "places": {name: list(place) for name, place in getattr(spec, "places", lambda P, l: {})(base, linked).items()},
+            # every symbol of the data and state blocks: a byte of a static is
+            # named by its symbol and offset, so two layouts of the crate's
+            # statics (another patch's added before it) compare
+            "statics": sorted([va, name] for name, va, block, _ in getattr(linked, "every", ())
+                              if linked.blocks[block].kind != "code")}
     Path(out_dir, "exe").write_bytes(bytes(built))
     Path(out_dir, "meta.json").write_text(json.dumps(meta))
 
@@ -225,11 +244,15 @@ class Machine:
         # the patch's state by name (the spec's places(): {name: (VA, size)}),
         # so an old block's variable and the new crate's static compare
         self.places = {name: (va, size) for name, (va, size) in meta.get("places", {}).items()}
+        self.statics = [(va, name) for va, name in meta.get("statics", [])]
+        import patch_026g as base_
+        self.ours_span = (base_.SECTION_VA, base_.ARENA_VA + base_.ARENA_LIMIT)   # the same in both builds
         uc.hook_add(UC_HOOK_BLOCK, self.on_block)
         uc.hook_add(UC_HOOK_MEM_WRITE, self.on_write)
         uc.hook_add(UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED | UC_HOOK_MEM_FETCH_UNMAPPED,
                     self.on_unmapped)
         self.lazy, self.dirty = set(), set()
+        self.tracing, self.trace = False, []
 
     def ours_at(self, va):
         return any(lo <= va < hi for lo, hi in self.ours)
@@ -259,8 +282,36 @@ class Machine:
 
     # -- lazily made memory --
     def page_bytes(self, page):
+        """A page of made-up memory: bytes from the seed and the address, the
+        same in both builds, except that no aligned dword of it names our
+        sections (from `.srp` to the arena's end; its top bit flipped): the
+        game's memory never points into a patch's code or state but where
+        the patch put the pointer, and a made-up one would be read as two
+        different places by the two layouts."""
         digest = hashlib.blake2b(struct.pack("<QI", self.seed, page), digest_size=16).digest()
-        return random.Random(digest).randbytes(PAGE)
+        data = bytearray(random.Random(digest).randbytes(PAGE))
+        lo, hi = self.ours_span
+        for at in range(0, PAGE, 4):
+            if lo <= struct.unpack_from("<I", data, at)[0] < hi:
+                data[at + 3] ^= 0x80
+        return bytes(data)
+
+    def not_ours_value(self, value):
+        """A case's dword as the run gets it: one that names our sections
+        (Machine.page_bytes) has its top bit flipped. A spec cannot know an
+        address of our code or state in either build (it names a place of
+        the patch's state by name), so such a value is made up, and the two
+        layouts would read it as two different places."""
+        lo, hi = self.ours_span
+        return value ^ 0x80000000 if lo <= value < hi else value
+
+    def not_ours(self, data, address):
+        """`data` for `address` with not_ours_value on every aligned dword."""
+        data = bytearray(data)
+        for at in range(-address & 3, len(data) - 3, 4):
+            value = struct.unpack_from("<I", data, at)[0]
+            struct.pack_into("<I", data, at, self.not_ours_value(value))
+        return bytes(data)
 
     def map_lazy(self, page):
         self.uc.mem_map(page, PAGE, self.prot)
@@ -279,6 +330,10 @@ class Machine:
         self.dirty.add(address & ~(PAGE - 1))
         if not (STACK_TOP - STACK_SIZE <= address < self.entry_esp):
             self.written.update(range(address, address + size))
+            if not self.ours_at(self.reg("eip")):          # the game's code wrote it: by its address
+                self.by_game.update(range(address, address + size))
+            if self.tracing:
+                self.trace.append((self.reg("eip"), address, size, value))
 
     def on_block(self, uc, address, size, user):
         if self.old:
@@ -372,6 +427,7 @@ class Machine:
         self.seed, self.old, self.hook = seed, old, hook
         self.rng = random.Random(seed * 7919 + 17)
         self.written, self.calls, self.hit = set(), [], set()
+        self.by_game = set()
         self.exit, self.error, self.stopped, self.inside = None, None, False, False
         esp = self.entry_esp = STACK_TOP - 0x8000
         for address, data in case.memory.items():
@@ -382,16 +438,17 @@ class Machine:
                         and page not in self.lazy:
                     self.map_lazy(page)
                 self.dirty.add(page)
-            uc.mem_write(address, data)
+            uc.mem_write(address, self.not_ours(data, address))
         for i, value in enumerate(case.stack):
-            self.write32(esp + 4 * i, value)
+            self.write32(esp + 4 * i, self.not_ours_value(value))
         for name in REG_NAMES:
-            self.set_reg(name, case.regs.get(name, 0))
+            self.set_reg(name, self.not_ours_value(case.regs.get(name, 0)))
         for name in sorted(set(case.regs) - set(REG_NAMES) - {"eflags"}):    # xmm0..7
             self.set_reg(name, case.regs[name])
         self.set_reg("eflags", case.regs.get("eflags", 0x202))
         self.set_reg("esp", esp)
         self.written.clear()
+        self.by_game.clear()
         try:
             uc.emu_start(hook.site, STOP if hook.until is None else hook.until, count=2_000_000)
         except UcError as error:
@@ -409,20 +466,33 @@ class Machine:
             self.written = {a for a in self.written if a not in popped}
         # the run's machine keeps its memory until reset(): compare() reads it
         return {"exit": self.exit, "error": self.error, "calls": self.calls,
-                "written": {self.normal(a) for a in self.written}}
+                "written": {self.normal(a, places_only=a in self.by_game) for a in self.written}}
 
-    def normal(self, address):
+    def normal(self, address, places_only=False):
         """An address as both builds name it: an arena block's by block and
-        offset; a place of the patch's state (the spec's places()) by its
-        name first, so old and new layouts compare."""
-        for name, (va, size) in list(self.places.items()) + list(self.blocks.items()):
+        offset (a static's by its symbol); a place of the patch's state (the
+        spec's places()) by its name first, so old and new layouts compare.
+        `places_only` (a byte the game's code wrote): a place's name, else
+        the address itself -- the game writes our state only where we gave it
+        a place, and an address it took from made-up memory or registers is
+        the same in both builds whatever our layouts are."""
+        for name, (va, size) in self.places.items():
             if va <= address < va + size:
+                return f"{name}+{address - va:#x}"
+        if places_only:
+            return f"{address:#x}"
+        for name, (va, size) in self.blocks.items():
+            if va <= address < va + size:
+                at = max(((s, n) for s, n in self.statics if va <= s <= address), default=None)
+                if at is not None:                         # a static's byte: its symbol and offset
+                    return f"{at[1]}+{address - at[0]:#x}"
                 return f"{name}+{address - va:#x}"
         return f"{address:#x}"
 
     def address(self, normal):
         name, _, offset = normal.rpartition("+")
-        return {**self.blocks, **self.places}[name][0] + int(offset, 16) if name else int(normal, 16)
+        named = {**self.blocks, **self.places, **{n: (va, 0) for va, n in self.statics}}
+        return named[name][0] + int(offset, 16) if name else int(normal, 16)
 
     def final(self, normal):
         """The byte at a place after the run (a page the run did not touch
@@ -513,6 +583,7 @@ def main():
     parser.add_argument("--min-coverage", type=float, default=100.0)
     parser.add_argument("--build-into")
     parser.add_argument("--spec")
+    parser.add_argument("--only", type=int, help="run case N alone and print every write of both runs")
     args = parser.parse_args()
     if args.build_into:
         build_into(args.build_into, args.spec)
@@ -536,12 +607,19 @@ def main():
             cases += [(hook, Case.from_json(data)) for hook in spec.HOOKS if data.get("hook") == hook.name]
     failed, faults, hit = 0, 0, set()
     for i, (hook, case) in enumerate(cases):
+        if args.only is not None and i != args.only:
+            continue
+        old.tracing = new.tracing = args.only is not None
+        old.trace, new.trace = [], []
         seed = args.seed * 1_000_003 + i
         a = old.run(hook, case, seed, old=True)
         hit |= old.hit
         b = new.run(hook, case, seed, old=False)
         faults += a["error"] is not None
         diff = compare(old, new, a, b)
+        for name, machine in (("old", old), ("new", new)) if args.only is not None else ():
+            for eip, address, size, value in machine.trace:
+                print(f"  {name} write at eip {eip:#x}: {machine.normal(address)} ({address:#x}) {size} bytes {value:#x}")
         old.reset()
         new.reset()
         if diff:
