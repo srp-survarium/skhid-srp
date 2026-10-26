@@ -22,7 +22,7 @@ use super::hazards::{HazardMarks, Hazards, PASS_MS};
 use super::path::{self, Route};
 use super::route_filter::RouteFilter;
 use super::rng::Rng;
-use super::view::{EYE_CROUCHED, EYE_STANDING};
+use super::view::still_eye;
 
 /// A spawn area: this far round a side's spawn points, metres (GUESS from
 /// the maps: spawn points of a side lie in a few clusters 10-20 m across).
@@ -1516,7 +1516,7 @@ impl Tactics {
                 continue;
             }
             let feet = grid.position(node);
-            let eye = feet + Vec3::new(0.0, EYE_CROUCHED, 0.0);
+            let eye = still_eye(feet, true);
             let d = (at - eye).length();
             if d <= r && best.is_none_or(|(b, _)| d < b) && self.sees(eye, at) {
                 best = Some((d, feet));
@@ -1618,7 +1618,7 @@ impl Tactics {
             {
                 continue;
             }
-            let eye = spot.at + Vec3::new(0.0, EYE_CROUCHED, 0.0);
+            let eye = still_eye(spot.at, true);
             if let Some(target) = query.sight_to {
                 let target = target + Vec3::new(0.0, 1.0, 0.0);
                 let seen = match &query.sight_body {
@@ -1630,10 +1630,7 @@ impl Tactics {
                 }
             }
             if let Some(from) = query.hidden_from
-                && self.sees(
-                    from + Vec3::new(0.0, EYE_STANDING, 0.0),
-                    spot.at + Vec3::new(0.0, EYE_STANDING, 0.0),
-                )
+                && self.sees(still_eye(from, false), still_eye(spot.at, false))
             {
                 continue;
             }

@@ -1,6 +1,7 @@
 use crate::v026g::bots::arc;
+use crate::v026g::bots::reflex::GrenadeStats;
 use crate::v026g::bots::tests::standin_grenade;
-use crate::v026g::bots::view::{EYE_CROUCHED, EYE_STANDING};
+use crate::v026g::bots::view::{eye_height, still_eye};
 
 use super::*;
 
@@ -28,9 +29,21 @@ pub(crate) struct Throw {
     pub(crate) press: u32,
 }
 
+/// What the bots' grenade logic counted (`reflex::GrenadeStats`, one reflex a life), added up over the
+/// match: the readings are taken as the bots think, the change from the last reading of the same reflex
+/// is added, a younger reflex is a new life.
+#[derive(Default)]
+pub(super) struct GrenadeLogic {
+    last: BTreeMap<Place, GrenadeStats>,
+    sum: GrenadeStats,
+    /// Lives of bots whose reflex thought at least once.
+    lives: u32,
+}
+
 /// The grenades counts: counted as the match runs, kept for [`OwnerTally::finish`].
 #[derive(Default)]
 pub(super) struct GrenadeCounts {
+    pub(super) logic: GrenadeLogic,
     pub(super) blasts: Vec<Blast>,
     /// The throws noted, not yet at their launch ([`LAUNCH_MS`] after the
     /// press): the blast is where the thrower's view then sends it.
@@ -136,6 +149,44 @@ pub(crate) fn a_grenade_at_ones_feet_hurts_the_thrower_and_mates_and_one_walked_
     assert_eq!(json["grenade_walk_ins"], serde_json::json!([0, 1, 0]));
 }
 
+/// The bots' grenade logic counts are added up by the change since a bot's last reading, and a reflex
+/// younger than the last reading is a new life; nothing is said where no bot thought.
+#[test]
+pub(crate) fn the_bots_grenade_logic_is_added_up_by_reading_and_by_life() {
+    let (mut game, mut tally) = made_up(&[0, 1]);
+    let reading = |thinks: u32, rolls: u32, first_throws: u32| {
+        let mut g = GrenadeStats {
+            thinks,
+            rolls,
+            ..GrenadeStats::default()
+        };
+        g.places[0] = rolls;
+        g.nth[0] = first_throws;
+        Some(BotNow {
+            play: "Roam".to_owned(),
+            grenades: g,
+            ..BotNow::default()
+        })
+    };
+    // One bot: a life read at 5 and 9 thinks, a second life read at 2 and 6.
+    for (k, (thinks, rolls, throws)) in [(5, 1, 0), (9, 2, 1), (2, 1, 0), (6, 1, 0)].into_iter().enumerate() {
+        game.tick = (k as u32 + 1) * TICK_MS;
+        tally.step(&mut game, &[reading(thinks, rolls, throws), None]);
+    }
+    let (_, json) = tally.finish(&game);
+    let logic = &json["grenade_logic"];
+    assert_eq!(logic["bot_lives"], 2, "{json}");
+    assert_eq!(logic["rolls"], 3, "{json}");
+    assert_eq!(logic["places"], serde_json::json!([3, 0]), "{json}");
+    assert_eq!(logic["nth"], serde_json::json!([1, 0, 0]), "{json}");
+    // No bot thought: no key.
+    let (mut game, mut tally) = made_up(&[0, 1]);
+    game.tick = TICK_MS;
+    tally.step(&mut game, &[bot_now(), bot_now()]);
+    let (_, json) = tally.finish(&game);
+    assert!(json.get("grenade_logic").is_none(), "{json}");
+}
+
 #[test]
 pub(crate) fn the_blast_falls_off_to_its_minimum_at_ten_metres() {
     assert!((blast_damage(0.0) - BLAST_MAX).abs() < 1e-6);
@@ -172,7 +223,7 @@ pub(crate) fn a_throw_that_lands_near_the_thrower_though_aimed_far_is_short() {
     let level = thrown_with_pitch(0.0);
     assert_eq!(level["grenade_short"], 1, "{level}");
     // The pitch that lands it at 20 m: not short.
-    let pitch = arc::pitch_for(20.0, EYE_STANDING - arc::HAND_DOWN_M).unwrap();
+    let pitch = arc::pitch_for(20.0, still_eye(Vec3::ZERO, false).y - arc::HAND_DOWN_M).unwrap();
     let aimed = thrown_with_pitch(pitch);
     assert_eq!(aimed["grenade_short"], 0, "{aimed}");
 }
@@ -294,6 +345,19 @@ impl OwnerTally {
         self.grenades.refused[at] += 1;
     }
 
+    /// A bot's grenade logic counts at this tick (`Reflex::grenade_stats`): the change since its last reading
+    /// is added; a reflex that has not thought yet is not read.
+    pub(super) fn grenades_logic(&mut self, place: Place, now: &GrenadeStats) {
+        if now.thinks == 0 {
+            return;
+        }
+        let logic = &mut self.grenades.logic;
+        let (change, new_life) = now.since(logic.last.get(&place));
+        logic.last.insert(place, *now);
+        logic.lives += u32::from(new_life);
+        logic.sum.add(&change);
+    }
+
     /// The bot let go of the key and gave the throw up: no hold is open for it.
     pub(super) fn grenade_given_up(&mut self, thrower: Place) {
         self.grenades.holds.remove(&thrower);
@@ -333,7 +397,7 @@ impl OwnerTally {
             let Some(rec) = bodies.get(throw.thrower).copied().flatten().filter(|r| r.alive) else {
                 continue;
             };
-            let up = if rec.keys & key::CROUCH != 0 { EYE_CROUCHED } else { EYE_STANDING };
+            let up = eye_height(rec.keys & key::CROUCH != 0, rec.speed, rec.pitch);
             let eye = rec.feet + Vec3::new(0.0, up, 0.0);
             let Some(landing) =
                 arc::Flight::thrown(eye, rec.yaw, rec.pitch).landing(&arc::Mesh(&game.world.sight))
@@ -423,7 +487,7 @@ impl OwnerTally {
 
     /// The grenades counts at the end: their keys of the `owner` object and their lines of the owner-test text.
     pub(super) fn grenades_part(&self, game: &Game) -> Part {
-        let json = serde_json::json!({
+        let mut json = serde_json::json!({
             "grenades": self.grenades.grenades,
             "grenade_damage_applied": game.damage.blasts_hurt(),
             "grenade_self_dmg": (100.0 * self.grenades.blast_dmg[0]).round() / 100.0,
@@ -439,7 +503,23 @@ impl OwnerTally {
             "team_kills_gun": game.team_kills,
             "team_hits": game.team_hits,
         });
-        let text = format!(
+        let logic = &self.grenades.logic;
+        // Only where bots thought: the made-up match has none, and its golden stays as it was.
+        if logic.lives > 0 {
+            let s = &logic.sum;
+            json["grenade_logic"] = serde_json::json!({
+                "bot_lives": logic.lives,
+                "rolls": s.rolls,
+                "chance_no": s.chance_no,
+                "places": s.places,
+                "weighed": s.weighed,
+                "refused": s.refused,
+                "passed": s.passed,
+                "given_up": s.given_up,
+                "nth": s.nth,
+            });
+        }
+        let mut text = format!(
             "owner-test other: grenades {} ({}) {} self {:.2} mates {:.2} enemies {:.2}, {} {:?}, inside at the blast {:?} walked in {:?}; short {} (aimed beyond {SHORT_M} m, first contact within), thrower died in the press to launch {}, fire pressed in the hold {}, refused (thrower's blast, wall, teammate, other) {:?}; team kills by gunfire {}, team hits {}",
             self.grenades.grenades,
             if !game.damage.blasts_hurt() { "no damage in the stand-in" } else { "the client's blast" },
@@ -458,6 +538,13 @@ impl OwnerTally {
             game.team_kills,
             game.team_hits,
         );
+        if logic.lives > 0 {
+            let s = &logic.sum;
+            text.push_str(&format!(
+                "; grenade logic over {} bot lives: rolls {} (chance said no {}), places by [held, camp] {:?}, weighed {:?}, refused by [thrower's blast, wall, teammate, out of reach, nowhere, off the place] {:?}, passed by arc (flat) {:?}, given up in the hold {:?}, throws as the 1st/2nd/3rd+ {:?}",
+                logic.lives, s.rolls, s.chance_no, s.places, s.weighed, s.refused, s.passed, s.given_up, s.nth,
+            ));
+        }
         Part::new(json, text)
     }
 }
