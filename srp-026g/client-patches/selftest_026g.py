@@ -4496,15 +4496,17 @@ def test_blackout(original, image, before):
           "the players' markers (ids below 37) and hides the match's objects'")
     check("public function force_interface_hidden(forced:Boolean) : void" in hud
           and "return [this.pregameInfo];" in hud and "this._keptLayer.addChild(part);" in hud
-          and "return [this.ammoInd,this.quick_slots];" in hud and "this.keep(this.keptOnTab(),bool);" in hud
+          and "return [this.ammoInd,this.quick_slots,this.matchTime()];" in hud and "this.keep(this.keptOnTab(),bool);" in hud
+          and "this.matchTime().text = time;" in hud and "this.keep(this.keptNow(),false);" in hud
           and "this.layout.manage(Sprite(part));" in hud and "this.placeKept();" in hud
           and "public function manage(spr:Sprite) : void" in open(os.path.join(HERE, "..", "flash", "hud", "src",
               "scaleform", "clik", "layout", "Layout.as"), encoding="utf-8").read()
           and "this._keptLayer.transform.matrix = this.transform.matrix;" in hud
           and "this.force_interface_hidden(false);" in hud,
           "the hud's force_interface_hidden keeps the pre-match countdown (pregameInfo) in a "
-          "layer over the hidden root, placed as the root, and Tab (show_player_list) the ammo and the "
-          "quick-use slots, never the list; a new match's reset unforces it")
+          "layer over the hidden root, placed as the root, and Tab (show_player_list) the ammo, the "
+          "quick-use slots and the match's time left (the label set_match_time writes), never the list; a new "
+          "match's reset unforces it and puts back every kept part")
     check(f"call {linked.symbols['bo_options']:#x}" in td_texts
           and f"call {linked.symbols['bo_match']:#x}" in hide_texts
           and f"call {linked.symbols['hide_ui_force']:#x}" in hide_texts,

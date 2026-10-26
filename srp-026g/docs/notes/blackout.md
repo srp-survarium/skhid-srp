@@ -32,12 +32,14 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   (teammates' as the game shows them; an enemy's name never, the game's own rule). The match's
   objects' markers (the batteries and the like) are hidden; no Research markers.
 - **No interface:** the rest of what F11 hides (patch 62) for the whole match, from its first
-  frame: ammo, health, score, crosshair, minimap, kill feed, chat, Tab list, the match clock, the
+  frame: ammo, health, score, crosshair, minimap, kill feed, chat, Tab list, the match clock (but on Tab), the
   kits and the death screen with its respawn timer.
 - **One exception, the pre-match countdown** ("… 00:15"): shown while it runs, hidden with the
   rest when play starts.
-- **Tab held:** the ammo (in the weapon and carried) and the quick-use slots with their counts;
-  hidden again when Tab is let go. Never the player list or the score (the owner, 2026-10-25).
+- **Tab held:** the ammo (in the weapon and carried), the quick-use slots with their counts and the
+  time left until the match ends (the hud's own match timer, in its normal place at the top of the
+  screen, the rest of the bar hidden; the owner, 2026-10-26); hidden again when Tab is let go.
+  Never the player list or the score (the owner, 2026-10-25).
 - **Tab held stops the player:** no walking, sprinting or jumping (a crouch stays, it does not
   move); no fire, aim, reload, held breath, grenade, melee, use, drop or quick use. The mouse
   look, the weapon keys, the fire mode, spot and the suicide key stay.
@@ -88,8 +90,10 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   (`pregameInfo`) in a layer over it, placed as the root (and still placed by the hud's own
   layout there, `Layout.manage`: centred as in any match, at every resolution and interface
   scale, also when kept before the layout's first pass at the match's start); while forced, the
-  game's Tab (`show_player_list`) moves the ammo (`ammoInd`) and the quick-use slots into that layer and back
-  instead of showing the list; the reset of the next match unforces it.
+  game's Tab (`show_player_list`) moves the ammo (`ammoInd`), the quick-use slots and the match's
+  time left (the label `set_match_time` writes for the mode, `matchTime`) into that layer and
+  back instead of showing the list; the reset of the next match unforces it and puts every kept
+  part back.
 - **The player icons' movie:** `force_interface_hidden` hides the match's objects' icons (ids from
   37, `HUDIconLayer.FIRST_OBJECT`: the game gives a player's icon his index and its objects' from
   25h) and keeps the players'; told again after the next match's reset; F11's `hide_interface`

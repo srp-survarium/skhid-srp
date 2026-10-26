@@ -864,8 +864,8 @@ package
       // Forced hidden for a whole match (Blackout, exe patch 65's hide_ui_force; docs/notes/blackout.md):
       // the interface hidden as by the key, except what a forced match keeps: always the pre-match
       // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts), and
-      // while the Tab list is asked for (show_player_list) the ammo and the quick-use slots
-      // (keptOnTab), not the list. A kept part is in _keptLayer: on the stage over the root, placed as
+      // while the Tab list is asked for (show_player_list) the ammo, the quick-use slots and the
+      // match's time left (keptOnTab), not the list. A kept part is in _keptLayer: on the stage over the root, placed as
       // the root is (placeKept), so the hidden root leaves it; back at its place in the root when not.
       private const _keptLayer:Sprite = new Sprite();
 
@@ -879,7 +879,7 @@ package
          this.keep(this.keptWhenForced(),forced);
          if(!forced)
          {
-            this.keep(this.keptOnTab(),false);
+            this.keep(this.keptNow(),false);
          }
          this.hide_interface(forced);
       }
@@ -896,7 +896,18 @@ package
 
       private function keptOnTab() : Array
       {
-         return [this.ammoInd,this.quick_slots];
+         return [this.ammoInd,this.quick_slots,this.matchTime()];
+      }
+
+      // Every part in the kept layer now.
+      private function keptNow() : Array
+      {
+         var parts:Array = [];
+         for(var part:Object in this._keptAt)
+         {
+            parts.push(part);
+         }
+         return parts;
       }
 
       // `parts` into the kept layer or back to where each was. A part keeps its place on the screen:
@@ -1766,7 +1777,7 @@ package
       
       public function show_player_list(bool:Boolean) : void
       {
-         // Forced (Blackout): Tab shows the ammo and the quick-use slots only, never the list.
+         // Forced (Blackout): Tab shows the ammo, the quick-use slots and the time left only, never the list.
          if(this._forced)
          {
             this.keep(this.keptOnTab(),bool);
@@ -2056,14 +2067,18 @@ package
       
       public function set_match_time(time:String) : void
       {
+         this.matchTime().text = time;
+      }
+
+      // The match's time left as the mode shows it: Team Deathmatch's and Research's label, or the
+      // other modes' (progress_indicator's frames).
+      private function matchTime() : Object
+      {
          if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH)
          {
-            this.progress_indicator.match_time_2_tdm.text = time;
+            return this.progress_indicator.match_time_2_tdm;
          }
-         else
-         {
-            this.progress_indicator.match_time_2.text = time;
-         }
+         return this.progress_indicator.match_time_2;
       }
       
       public function show_context(bool:Boolean) : void
