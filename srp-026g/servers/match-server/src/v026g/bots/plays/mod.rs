@@ -790,9 +790,21 @@ impl Ctx<'_> {
         tracks
     }
 
-    /// The walk to `at`, metres: the ground distance with a detour factor
-    /// (cheap; a route is planned only for the play taken).
+    /// The walk to `at`, metres: on one level the ground distance with a
+    /// detour factor (cheap; a route is planned only for the play taken),
+    /// and over a storey or more the regions' way between the floors
+    /// ([`Ctx::storey_walk_dist`]): a target a floor up or down is as far
+    /// as its stairs, not as the ground between.
     pub fn path_dist(&self, at: Vec3) -> f32 {
+        if !self.tuning.floor_paths {
+            return self.straight_dist(at);
+        }
+        self.storey_walk_dist(at)
+            .unwrap_or_else(|| self.straight_dist(at))
+    }
+
+    /// The ground distance to `at` with a detour factor, whatever the floor.
+    pub fn straight_dist(&self, at: Vec3) -> f32 {
         self.me.feet.distance_xz(at) * 1.25
     }
 
