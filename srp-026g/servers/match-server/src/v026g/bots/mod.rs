@@ -58,6 +58,7 @@ pub mod route_end;
 pub mod route_filter;
 pub mod routes;
 pub mod sense;
+pub mod shot_reach;
 pub mod signals;
 pub mod stock;
 pub mod stuck;
@@ -797,6 +798,12 @@ impl Bots {
     /// ([`live_grenades`]).
     pub fn set_pockets(&mut self, pockets: Vec<Option<live_grenades::Pockets>>) {
         self.tracker.set_pockets(pockets);
+    }
+
+    /// Every place's weapon 1's shot reach (H1c, [`shot_reach`]), where
+    /// known: the sense hears a shot that far when `SenseTuning::shots` says.
+    pub fn set_shot_reach(&mut self, reach: Vec<Option<f32>>) {
+        self.tracker.set_shot_reach(reach);
     }
 
     /// Every place's weapon 1 kind (the matchup, play 11).

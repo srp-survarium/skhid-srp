@@ -196,6 +196,9 @@ pub struct Sound {
     pub kind: SoundKind,
     pub at: Vec3,
     pub time: u32,
+    /// A shot's reach by the weapon that fired it, metres
+    /// ([`super::shot_reach`]), where the shooter's weapon 1 is known.
+    pub reach_m: Option<f32>,
 }
 
 /// A death seen in a world's statistics: who, where last reckoned, when.
@@ -533,6 +536,9 @@ pub struct Tracker {
     grenades: Vec<LiveGrenade>,
     throws: ThrowCounts,
     sounds: VecDeque<Sound>,
+    /// By place, the reach of a shot of its weapon 1 ([`super::shot_reach`]),
+    /// where known.
+    shot_reach: Vec<Option<f32>>,
     deaths: VecDeque<Death>,
     world_time: u32,
     /// The bench only: by place, a bot seen as a human is, its body known
@@ -572,6 +578,7 @@ impl Tracker {
             grenades: Vec::new(),
             throws: ThrowCounts::default(),
             sounds: VecDeque::new(),
+            shot_reach: Vec::new(),
             deaths: VecDeque::new(),
             world_time: 0,
             #[cfg(test)]
@@ -602,6 +609,11 @@ impl Tracker {
 
     pub fn body(&self, place: Place) -> Option<&BodyTrack> {
         self.places.get(place).map(|state| &state.body)
+    }
+
+    /// Every place's shot reach, metres ([`super::shot_reach`]), by place.
+    pub fn set_shot_reach(&mut self, reach: Vec<Option<f32>>) {
+        self.shot_reach = reach;
     }
 
     /// The speed level each place's profile gives (by place), taken for a
@@ -662,12 +674,14 @@ impl Tracker {
             return;
         };
         let at = estimate.feet;
+        let reach_m = self.shot_reach.get(place).copied().flatten();
         let mut heard = |kind| {
             self.sounds.push_back(Sound {
                 from: place,
                 kind,
                 at,
                 time,
+                reach_m: (kind == SoundKind::Shot).then_some(reach_m).flatten(),
             });
         };
         if pressed & key::FIRE != 0 {
@@ -862,6 +876,7 @@ impl Tracker {
                     kind: SoundKind::Shot,
                     at,
                     time: clock,
+                    reach_m: self.shot_reach.get(place).copied().flatten(),
                 });
             }
             let sprinting = match sprint_body_mps {
@@ -883,6 +898,7 @@ impl Tracker {
                     kind: SoundKind::Sprint,
                     at,
                     time: clock,
+                    reach_m: None,
                 });
             }
         }

@@ -448,6 +448,7 @@ pub(crate) fn a_mate_is_firing_at_the_trap_only_if_it_is_near_looks_at_it_and_ju
         kind: SoundKind::Shot,
         at: Vec3::new(2.0, 0.0, 0.0),
         time,
+        reach_m: None,
     };
     let firing = |sounds: &[Sound], mates: &[&PlaceView], now: u32| {
         mate_firing(sounds, mates, 1, trap_at, me_at, now, &t)
