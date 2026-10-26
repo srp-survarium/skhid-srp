@@ -247,6 +247,16 @@ pub const LINE_UP_FROM_M: f32 = 2.5;
 /// the jump's line, metres (or half that, or none, where the way back is
 /// not clear).
 pub const RUN_UP_M: f32 = 0.8;
+/// A jump link rising more than this is a sprint jump (the grid makes them only with the clients' numbers, up to
+/// `mapdata::grid::SPRINT_JUMP_LOW_M`; the standing jump tops at 0.998 m, a walking one at about 1.0), metres.
+pub const SPRINT_JUMP_RISE_M: f32 = 1.05;
+/// A sprint jump is lined up from this far before its take-off along the route, metres (the run is 2 m and the
+/// take-off's lead), and walked into from this far behind the take-off on its line: a sprint from rest is at speed
+/// by 2 m (the 8e rows).
+pub const SPRINT_LINE_UP_FROM_M: f32 = 4.5;
+pub const SPRINT_RUN_UP_M: f32 = 2.0;
+/// A sprint jump is pressed at this ground speed at least, m/s (a sprint is 5.0-5.1 m/s).
+const SPRINT_PRESS_SPEED_MS: f32 = 4.0;
 /// On the jump's line: within this of it to a side, metres …
 const LINED_SIDE_M: f32 = 0.3;
 /// … from this far behind the run-up …
@@ -413,6 +423,8 @@ struct JumpTry {
     /// Its outcome is in the bench's counts ([`counts`]).
     #[cfg(test)]
     counted: bool,
+    /// A sprint jump's outcome is counted ([`sprint_jumps`]).
+    sprint_counted: bool,
 }
 
 /// A press of a route jump, for the trace: the jump's take-off and landing,
@@ -446,6 +458,8 @@ struct Ahead {
     failed: Option<Vec3>,
     /// How it is pressed.
     leap: Leap,
+    /// A sprint jump: walked into with sprint held, pressed at speed.
+    sprint: bool,
 }
 
 /// Why the motor pressed jump.
@@ -696,6 +710,16 @@ impl Motor {
         if low || jump.is_some() {
             self.sprinting = false;
         }
+        // A sprint jump is walked into at a sprint, on its line and facing its way.
+        if let Some(j) = jump
+            && j.sprint
+            && j.lined
+            && self.walking
+            && still < LINE_UP_GO
+            && !pose.no_jump
+        {
+            self.sprinting = true;
+        }
         let mut keys = 0;
         if self.walking {
             // A jump's line is walked facing its way, forward only; any
@@ -850,15 +874,26 @@ impl Motor {
         clear: &impl Fn(Vec3) -> bool,
     ) -> Option<Ahead> {
         let (k, before_route) = route.next_jump(s)?;
-        if before_route > LINE_UP_FROM_M {
-            return None;
-        }
         let points = route.points();
         let (take_off, landing) = (points[k - 1].at, points[k].at);
         let leap = points[k].jump.unwrap_or(Leap::Ledge);
+        let sprint = matches!(leap, Leap::Ledge) && landing.y - take_off.y > SPRINT_JUMP_RISE_M;
+        if before_route > if sprint { SPRINT_LINE_UP_FROM_M } else { LINE_UP_FROM_M } {
+            return None;
+        }
         let way = unit(landing.x - take_off.x, landing.z - take_off.z)?;
         let feet = pose.feet;
         if is_up(feet, take_off, landing) {
+            if sprint
+                && let Some(t) = self.jump_try.as_mut()
+                && t.tries > 0
+                && !t.sprint_counted
+                && (t.take_off - take_off).length() < 0.3
+                && (t.landing - landing).length() < 0.3
+            {
+                t.sprint_counted = true;
+                sprint_jumps::up(landing.y - take_off.y);
+            }
             #[cfg(test)]
             if let Some(t) = self.jump_try.as_mut()
                 && t.tries > 0
@@ -887,11 +922,16 @@ impl Motor {
                 back: false,
                 #[cfg(test)]
                 counted: false,
+                sprint_counted: false,
             },
         };
         let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < CARRY_S);
         self.lining_up = true;
         if jump.tries >= JUMP_TRIES && !in_the_air {
+            if sprint && !jump.sprint_counted {
+                jump.sprint_counted = true;
+                sprint_jumps::gave_up(landing.y - take_off.y);
+            }
             #[cfg(test)]
             if !jump.counted {
                 jump.counted = true;
@@ -906,6 +946,7 @@ impl Motor {
                 going: false,
                 failed: Some(take_off),
                 leap,
+                sprint,
             });
         }
         let at = |m: f32| Vec3::new(take_off.x - way[0] * m, take_off.y, take_off.z - way[1] * m);
@@ -913,7 +954,7 @@ impl Motor {
         // [`mapdata::grid::gap::GAP_RUN_UP_M`] behind it, or the jump is
         // walked into from wherever the line is clear (it presses there).
         let run_up = match leap {
-            Leap::Ledge => [RUN_UP_M, 0.5 * RUN_UP_M]
+            Leap::Ledge => [if sprint { SPRINT_RUN_UP_M } else { RUN_UP_M }, 0.5 * if sprint { SPRINT_RUN_UP_M } else { RUN_UP_M }]
                 .into_iter()
                 .find(|&m| clear(at(m)))
                 .unwrap_or(0.0),
@@ -977,6 +1018,7 @@ impl Motor {
             going,
             failed: None,
             leap,
+            sprint,
         })
     }
 
@@ -994,6 +1036,10 @@ impl Motor {
             return 0;
         };
         if pose.no_jump {
+            return 0;
+        }
+        // A sprint jump is pressed at speed with sprint held (or, past its take-off, as it is: the try counts).
+        if ahead.sprint && !(self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS) && ahead.before > 0.0 {
             return 0;
         }
         let speed = pose.speed;
@@ -1021,6 +1067,9 @@ impl Motor {
             facing: still,
         });
         self.jump = Some(JumpBy::Route);
+        if ahead.sprint {
+            sprint_jumps::pressed(jump.landing.y - jump.take_off.y);
+        }
         key::JUMP
     }
 
@@ -1291,6 +1340,37 @@ pub fn keys_toward(relative: f32) -> u32 {
         5 => key::BACK | key::RIGHT,
         6 => key::RIGHT,
         _ => key::FORWARD | key::RIGHT,
+    }
+}
+
+/// The sprint jumps of routes by 0.05 m band of rise from [`SPRINT_JUMP_RISE_M`]: pressed, got up, given up, for the
+/// bench's failed-jump counter.
+pub mod sprint_jumps {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    /// The bands: 1.05-1.10, 1.10-1.15, 1.15-1.20, 1.20-1.25, 1.25-1.30, 1.30 and over.
+    pub const BANDS: usize = 6;
+    static COUNTS: [[AtomicU64; BANDS]; 3] = [const { [const { AtomicU64::new(0) }; BANDS] }; 3];
+
+    fn band(rise: f32) -> usize {
+        (((rise - super::SPRINT_JUMP_RISE_M) / 0.05).floor().max(0.0) as usize).min(BANDS - 1)
+    }
+
+    pub fn pressed(rise: f32) {
+        COUNTS[0][band(rise)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn up(rise: f32) {
+        COUNTS[1][band(rise)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn gave_up(rise: f32) {
+        COUNTS[2][band(rise)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Pressed, up and given up, by band.
+    pub fn counts() -> [[u64; BANDS]; 3] {
+        std::array::from_fn(|k| std::array::from_fn(|b| COUNTS[k][b].load(Ordering::Relaxed)))
     }
 }
 
@@ -1824,6 +1904,49 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A jump link of 1.2 m (a sprint jump, only the clients' grid makes
+    /// one) is lined up from further back, walked into at a sprint, and
+    /// pressed only at speed; the press is counted.
+    #[test]
+    fn a_sprint_jump_is_walked_into_at_a_sprint_and_pressed_at_speed() {
+        let p = |x: f32, y: f32, jump: bool| Waypoint {
+            at: Vec3::new(x, y, 0.0),
+            node: 0,
+            jump: jump.then_some(Leap::Ledge),
+            low: false,
+        };
+        let mut route = Route::new(vec![
+            p(0.0, 0.0, false),
+            p(8.0, 0.0, false),
+            p(8.4, 1.2, true),
+            p(14.0, 1.2, false),
+        ]);
+        let ledge = Ledge {
+            take_off: Vec3::new(8.0, 0.0, 0.0),
+            way: [1.0, 0.0],
+            face: 0.2,
+            reach: 1.2,
+            gets_up: true,
+        };
+        let before = sprint_jumps::counts();
+        let climb = climb_ledge(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 400, false);
+        assert!(climb.up, "{:?}", climb.poses.last());
+        assert_eq!(climb.presses.len(), 1, "{:?}", climb.presses);
+        let (_, at) = climb.presses[0];
+        assert!(at.speed >= SPRINT_PRESS_SPEED_MS, "{at:?}");
+        let sprinting = climb
+            .poses
+            .iter()
+            .zip(&climb.decisions)
+            .filter(|(pose, d)| {
+                pose.feet.distance_xz(ledge.take_off) <= SPRINT_RUN_UP_M && d.keys & key::SPRINT != 0
+            })
+            .count();
+        assert!(sprinting > 0, "sprint held on the run-up");
+        let after = sprint_jumps::counts();
+        assert!(after[0].iter().sum::<u64>() > before[0].iter().sum::<u64>(), "press counted");
     }
 
     /// A jump that does not get the body up is tried again only from the

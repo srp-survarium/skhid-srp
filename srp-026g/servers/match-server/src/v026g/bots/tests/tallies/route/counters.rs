@@ -106,6 +106,17 @@ pub(super) fn rests() -> Box<dyn RouteTopic> {
     )
 }
 
+/// The sprint jumps of routes by 0.05 m band of rise (`motor::sprint_jumps`): pressed / got up / given up.
+pub(super) fn sprint_jumps() -> Box<dyn RouteTopic> {
+    Delta::of(
+        || super::super::motor::sprint_jumps::counts().iter().flatten().copied().collect(),
+        |d, line| {
+            let band = |k: usize| d[k * 6..k * 6 + 6].iter().map(u64::to_string).collect::<Vec<_>>().join("/");
+            line.ends.push(format!("sprint_jumps_pressed {} sprint_jumps_up {} sprint_jumps_gave_up {}", band(0), band(1), band(2)));
+        },
+    )
+}
+
 /// The plans of a body on no floor of the grid, from the floor it drops to (`path::stranded`).
 pub(super) fn stranded() -> Box<dyn RouteTopic> {
     Delta::of(
