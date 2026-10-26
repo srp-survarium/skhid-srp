@@ -190,6 +190,7 @@ fn fine_spots(cx: &Ctx, exit: Vec3) -> Vec<Vec3> {
             cx.tactics.fine_goal(*at, cx.now, cx.bot.side)
                 && at.distance_xz(cx.me.feet) >= moved
                 && cx.can_go(*at)
+                && !cx.exposed_climb(*at, exit)
         })
         .collect()
 }

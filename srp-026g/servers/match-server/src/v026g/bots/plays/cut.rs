@@ -320,7 +320,11 @@ fn fine_spots(cx: &Ctx, at: Vec3, from: Vec3) -> Vec<Vec3> {
             spots_by(cx, at, from, try_)
                 .iter()
                 .copied()
-                .filter(|spot| cx.tactics.fine_goal(*spot, cx.now, cx.bot.side) && cx.can_go(*spot))
+                .filter(|spot| {
+                    cx.tactics.fine_goal(*spot, cx.now, cx.bot.side)
+                        && cx.can_go(*spot)
+                        && !cx.exposed_climb(*spot, at)
+                })
                 .collect::<Vec<_>>()
         })
         .find(|fine| !fine.is_empty())

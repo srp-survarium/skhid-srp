@@ -248,6 +248,7 @@ fn fine_spots(cx: &Ctx, choke: Vec3) -> Vec<Vec3> {
             cx.tactics.fine_goal(*at, cx.now, cx.bot.side)
                 && others.iter().all(|(_, o)| round(choke, *at, *o) >= apart)
                 && cx.can_go(*at)
+                && !cx.exposed_climb(*at, choke)
         })
         .collect()
 }
