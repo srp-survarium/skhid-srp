@@ -289,7 +289,7 @@ mod tests {
     use super::*;
     use crate::v026g::bots::know::Source;
     use crate::v026g::bots::team::{Asking, assign};
-    use crate::v026g::bots::view::{EYE_STANDING, Mode};
+    use crate::v026g::bots::view::{Mode, still_eye};
 
     const BATTERY: Vec3 = Vec3::new(30.0, 0.0, 10.0);
 
@@ -348,8 +348,8 @@ mod tests {
         let spot = s.view.places[0].feet;
         let d = spot.distance_xz(BATTERY);
         assert!((9.0..=26.0).contains(&d), "{spot:?} {d}");
-        let up = Vec3::new(0.0, EYE_STANDING, 0.0);
-        assert!(!s.tactics.sees(Vec3::new(60.0, 0.0, 10.0) + up, spot + up));
+        let eye = |feet| still_eye(feet, false);
+        assert!(!s.tactics.sees(eye(Vec3::new(60.0, 0.0, 10.0)), eye(spot)));
         // Held crouched, still, looking at the pickup point.
         assert!(steps.iter().any(|step| matches!(
             step,

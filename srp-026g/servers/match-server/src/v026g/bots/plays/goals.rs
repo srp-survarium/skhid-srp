@@ -18,7 +18,7 @@
 use mapdata::Vec3;
 
 use super::{Ctx, Go, Intent};
-use crate::v026g::bots::view::PlaceView;
+use crate::v026g::bots::view::{PlaceView, still_eye};
 
 /// Whether `list` (goals no way was found to, each with the time it is
 /// left until) has one near `at`, within the motor's replan distance
@@ -56,7 +56,6 @@ impl Ctx<'_> {
         if to.y <= anchor.y + STOREY_OVER_M {
             return false;
         }
-        let eye = Vec3::new(0.0, crate::v026g::bots::view::EYE_STANDING, 0.0);
         let mut seen: Vec<Vec3> = self
             .memory
             .tracks()
@@ -74,7 +73,7 @@ impl Ctx<'_> {
         seen.iter().any(|&enemy| {
             (1..=steps).any(|k| {
                 let p = self.me.feet + (to - self.me.feet) * (k as f32 / steps as f32);
-                self.tactics.sees(enemy + eye, p + eye)
+                self.tactics.sees(still_eye(enemy, false), still_eye(p, false))
             })
         })
     }

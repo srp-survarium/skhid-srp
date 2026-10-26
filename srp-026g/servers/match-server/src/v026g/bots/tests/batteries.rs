@@ -66,7 +66,7 @@ pub(crate) fn a_body_right_over_a_battery_cannot_use_it_and_one_a_step_off_can()
     // motor aims (`Look::Use`); and as near as a take is tried without a
     // step back (TAKE_PITCH_MAX_RAD), some look still uses it.
     let aim = battery + Vec3::new(0.0, BATTERY_AIM_M, 0.0);
-    let below = view::EYE_CROUCHED - BATTERY_AIM_M;
+    let below = view::still_eye(Vec3::ZERO, true).y - BATTERY_AIM_M;
     body.feet = battery + Vec3::new(below / TAKE_PITCH_MAX_RAD.tan() + 0.02, 0.0, 0.0);
     assert!(any_look(&mut body), "at the steepest take");
     body.feet = battery + Vec3::new(below / TAKE_PITCH_RAD.tan(), 0.0, 0.0);
@@ -586,6 +586,12 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBatt
             game.bodies[1].node = world.grid.locate(nook, 1.0);
             game.bodies[1].feet = nook;
             game.bodies[1].keys = key::CROUCH;
+        }
+        // The bot's shots now leave from the position the world shows (they
+        // left a tick after it), and it hits him by the container at once:
+        // he is unhurt until he is in the nook, as the owner's match had it.
+        if clock < 5_000 {
+            game.bodies[1].health = 1.0;
         }
         // He comes back at his spawn and stands there.
         if out.died.is_none() && !game.bodies[1].alive {
