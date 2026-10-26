@@ -391,6 +391,12 @@ pub struct WalkGrid {
     flags: Vec<u8>,
     /// The pockets' floors, in order, each with its pocket.
     pockets: Vec<(NodeId, PocketId)>,
+    /// Per node, its cell's column and row ([`Self::cell_xz`]), made once the grid is built or read: the search asks a
+    /// floor's place for every floor it pushes. In neither the file nor the digest.
+    ik: Vec<[u16; 2]>,
+    /// Per node, 1 if the floor is a lip ([`Self::is_lip`]), made once the grid is built or read by the function that finds
+    /// it from the links: [`Self::link_cost`] asks it for every link a search looks at. In neither the file nor the digest.
+    lip: Vec<u8>,
 }
 
 /// The solid spans while the grid is built ([`WalkGrid::wall_beside`]):
@@ -548,6 +554,8 @@ impl WalkGrid {
             piece: Vec::new(),
             flags: Vec::new(),
             pockets: Vec::new(),
+            ik: Vec::new(),
+            lip: Vec::new(),
         };
         let mut wide = grid.link(&forced);
         grid.drop_narrow_landings(&mut wide);
@@ -565,6 +573,7 @@ impl WalkGrid {
         let lips: Vec<bool> = (0..grid.len() as NodeId).map(|a| grid.is_lip(a)).collect();
         grid.mark_near(&lips, NEAR_LIP);
         stats.floors_kept = grid.len();
+        grid.warm();
         (grid, stats)
     }
 
@@ -1080,7 +1089,40 @@ impl WalkGrid {
 
     /// Bytes the grid holds.
     pub fn memory_bytes(&self) -> usize {
-        self.start.len() * 4 + self.len() * (4 + 4 + 4 + 8 + 4 + 4 + 1) + self.pockets.len() * 8
+        self.start.len() * 4
+            + self.len() * (4 + 4 + 4 + 8 + 4 + 4 + 1 + 4 + 1)
+            + self.pockets.len() * 8
+    }
+
+    /// Makes what the search asks again and again from the arrays above, once the grid is built or read: every floor's
+    /// column and row, and whether it is a lip, by the same functions. Nothing of it is stored or digested, and nothing
+    /// changes a grid after this.
+    fn warm(&mut self) {
+        assert!(
+            self.nx <= usize::from(u16::MAX) && self.nz <= usize::from(u16::MAX),
+            "a grid of more than 65535 cells along an axis"
+        );
+        let n = self.len();
+        self.ik = (0..n)
+            .map(|a| {
+                let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+                [i as u16, k as u16]
+            })
+            .collect();
+        self.lip = Vec::new();
+        self.lip = (0..n as NodeId).map(|a| u8::from(self.is_lip(a))).collect();
+    }
+
+    /// How many floors' column and row, or lip bit, differ from what [`Self::cell_xz`] and the links give (none, unless the
+    /// grid was changed after it was made): for tests.
+    pub fn hot_mismatches(&self) -> usize {
+        let mut bad = usize::from(self.ik.len() != self.len() || self.lip.len() != self.len());
+        for a in 0..self.len().min(self.ik.len()).min(self.lip.len()) {
+            let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+            bad += usize::from(self.ik[a] != [i as u16, k as u16]);
+            bad += usize::from(self.lip[a] != u8::from(self.is_lip_by_links(a as NodeId)));
+        }
+        bad
     }
 
     /// What the grid answers, as one number ([`crate::digest`]): its frame
@@ -1186,8 +1228,12 @@ impl WalkGrid {
                         };
                         (word(0), word(4))
                     })?,
+                    ik: Vec::new(),
+                    lip: Vec::new(),
                 };
                 grid.check()?;
+                let mut grid = grid;
+                grid.warm();
                 Ok(grid)
             },
             Self::digest,
@@ -1200,7 +1246,12 @@ impl WalkGrid {
         let cells = self
             .nx
             .checked_mul(self.nz)
-            .filter(|&cells| cells > 0 && cells < i32::MAX as usize && self.nx < i32::MAX as usize)
+            .filter(|&cells| {
+                cells > 0
+                    && cells < i32::MAX as usize
+                    && self.nx <= usize::from(u16::MAX)
+                    && self.nz <= usize::from(u16::MAX)
+            })
             .ok_or("bad dimensions")?;
         let n = self.height.len();
         if self.start.len() != cells + 1
@@ -1716,7 +1767,11 @@ impl WalkGrid {
 
     /// The floor's point: the cell's centre at the floor's height.
     pub fn position(&self, node: NodeId) -> Vec3 {
-        let (i, k) = self.cell_xz(self.cell_of[node as usize] as usize);
+        // While the grid is built the columns and rows are not made yet.
+        let (i, k) = match self.ik.get(node as usize) {
+            Some(&[i, k]) => (i32::from(i), i32::from(k)),
+            None => self.cell_xz(self.cell_of[node as usize] as usize),
+        };
         Vec3::new(
             self.x0 + (i as f32 + 0.5) * self.cell,
             self.height[node as usize],
@@ -1927,6 +1982,15 @@ impl WalkGrid {
     /// lip's centre is within a cell of the edge, and a body that strays
     /// 0.3 m from it falls (player_bots_stuck.md §8.5).
     pub fn is_lip(&self, node: NodeId) -> bool {
+        // While the grid is built the bits are not made yet.
+        match self.lip.get(node as usize) {
+            Some(&bit) => bit != 0,
+            None => self.is_lip_by_links(node),
+        }
+    }
+
+    /// [`Self::is_lip`] from the links and heights.
+    fn is_lip_by_links(&self, node: NodeId) -> bool {
         let a = node as usize;
         let how = self.how[a];
         // Any direction whose kind bits (0-1 of its nibble) say drop.
@@ -2887,6 +2951,31 @@ pub(crate) mod tests {
             Some(Search::TooFar)
         );
         assert_eq!(grid.search(0, n - 1, |_| true, 50), Search::TooFar);
+    }
+
+    /// The columns, rows and lip bits made at the build and the read are what `cell_xz` and the links give, and the cost of
+    /// every link, which asks for them, is what it was.
+    #[test]
+    fn the_floors_places_and_lips_made_at_the_build_are_those_of_the_functions() {
+        let dir = std::env::temp_dir().join(format!("srp-grid-hot-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(crate::built::grid_file_name(9));
+        let grid = two_rooms();
+        grid.write(&path, 9).unwrap();
+        let read = WalkGrid::read(&path, 9).unwrap();
+        for grid in [&grid, &read] {
+            assert!(grid.len() > 1_000);
+            assert_eq!(grid.hot_mismatches(), 0);
+            assert_eq!(grid.ik.len(), grid.len());
+            assert_eq!(grid.lip.len(), grid.len());
+            for a in (0..grid.len()).step_by(97) {
+                let (i, k) = grid.cell_xz(grid.cell_of[a] as usize);
+                let p = grid.position(a as NodeId);
+                assert_eq!(p.x.to_bits(), (grid.x0 + (i as f32 + 0.5) * grid.cell).to_bits());
+                assert_eq!(p.z.to_bits(), (grid.z0 + (k as f32 + 0.5) * grid.cell).to_bits());
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
