@@ -579,11 +579,11 @@ impl TeamState {
     /// The team's field again if its list changed; whether it did.
     pub(super) fn refresh_traps(&mut self, grid: &WalkGrid) -> bool {
         let version = self.knowledge.traps.version();
-        if version == self.trap_field_version {
+        if version == self.features.traps.field_version {
             return false;
         }
-        self.trap_field = Arc::new(TrapField::of(&self.knowledge.traps, grid));
-        self.trap_field_version = version;
+        self.features.traps.field = Arc::new(TrapField::of(&self.knowledge.traps, grid));
+        self.features.traps.field_version = version;
         true
     }
 }
@@ -595,10 +595,10 @@ const KEEP_OFF_M: f32 = 15.0;
 /// be searched again round it (the searches shut the floors of the discs,
 /// [`filter`]).
 pub(super) fn keep_off(bot: &mut Bot, due: &Due) {
-    if bot.trap_field.is_empty() {
+    if bot.features.traps.field.is_empty() {
         return;
     }
-    let field = bot.trap_field.clone();
+    let field = bot.features.traps.field.clone();
     if route_hits(bot, &field, due.me.feet) {
         bot.end_route(RouteEnd::TrapAhead, due.now);
     }
@@ -630,10 +630,10 @@ pub(super) fn route_hits(bot: &Bot, field: &TrapField, feet: Vec3) -> bool {
 /// preference (soft): a way round them where that is not much longer, else
 /// over them. Not the floor the body stands on (`start`).
 pub(super) fn soften(bot: &Bot, filter: RouteFilter, start: Option<NodeId>) -> RouteFilter {
-    if bot.react.field().is_empty() {
+    if bot.features.traps.react.field().is_empty() {
         return filter;
     }
-    let field = bot.react.field().clone();
+    let field = bot.features.traps.react.field().clone();
     filter.avoiding_floors(move |node| Some(node) == start || field.open(node))
 }
 
@@ -642,10 +642,10 @@ pub(super) fn soften(bot: &Bot, filter: RouteFilter, start: Option<NodeId>) -> R
 /// (`start`: a trap let go of a metre off must not shut the way out).
 pub(super) fn filter(bot: &Bot, landings: Vec<Vec3>, start: Option<NodeId>) -> RouteFilter {
     let filter = RouteFilter::shutting_landings(landings);
-    if bot.trap_field.is_empty() {
+    if bot.features.traps.field.is_empty() {
         return filter;
     }
-    let field = bot.trap_field.clone();
+    let field = bot.features.traps.field.clone();
     filter.with_floors(move |node| Some(node) == start || field.open(node))
 }
 
@@ -655,13 +655,13 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     let me = due.me;
     // Its trap let go of in the ticks since: promised to the team at once,
     // the field built again, the bot keeping off it from this think on.
-    if let Some((at, released)) = bot.trap_placed.take() {
+    if let Some((at, released)) = bot.features.traps.placed.take() {
         state.knowledge.traps.promise(bot.place, at, released);
         state.refresh_traps(&due.tactics.world.grid);
-        bot.trap_field = state.trap_field.clone();
+        bot.features.traps.field = state.features.traps.field.clone();
     }
     keep_off(bot, due);
-    if bot.traps.may_plan(t).is_err() {
+    if bot.features.traps.habit.may_plan(t).is_err() {
         return;
     }
     let facts = Facts {
@@ -715,7 +715,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         in_spawn: &in_spawn,
     };
     if let Some(chosen) = choose(&search) {
-        bot.traps.plan(chosen.yaw, chosen.spot, due.now);
+        bot.features.traps.habit.plan(chosen.yaw, chosen.spot, due.now);
         if bot.tracing {
             bot.traced.push(serde_json::json!({
                 "t": due.now, "bot": bot.place, "trap_plan": chosen.spot.to_array(),
@@ -764,11 +764,11 @@ pub(super) fn drive(
     calm: bool,
     t: &TrapTuning,
 ) -> Option<TrapDrive> {
-    if bot.traps.state() == State::Idle {
+    if bot.features.traps.habit.state() == State::Idle {
         return None;
     }
-    let kit = bot.traps.kit()?;
-    let out = bot.traps.tick(
+    let kit = bot.features.traps.habit.kit()?;
+    let out = bot.features.traps.habit.tick(
         Tick {
             now,
             yaw: me.yaw,
@@ -782,7 +782,7 @@ pub(super) fn drive(
         // not the spot planned before the look down and the steps taken
         // since (1.8 m off at 3 m/s); a ray too short puts nothing down.
         let landed = landing(me.eye(), me.yaw, me.pitch, planned.y);
-        bot.trap_placed = landed.map(|at| (at, now));
+        bot.features.traps.placed = landed.map(|at| (at, now));
         if bot.tracing {
             bot.traced.push(serde_json::json!({
                 "t": now, "bot": bot.place, "trap_promise": landed.map(Vec3::to_array),
@@ -1084,7 +1084,7 @@ mod tests {
         };
         let mut list = TrapList::default();
         list.promise(0, Vec3::new(25.0, 0.0, 10.0), 500);
-        bot.trap_field = Arc::new(TrapField::of(&list, &s.tactics.world.grid));
+        bot.features.traps.field = Arc::new(TrapField::of(&list, &s.tactics.world.grid));
         // Over the disc: dropped.
         let goal = Vec3::new(35.0, 0.0, 10.0);
         bot.route = Some((
@@ -1101,7 +1101,7 @@ mod tests {
         keep_off(&mut bot, &due);
         assert!(bot.route.is_some());
         // No trap known: nothing is ever dropped.
-        bot.trap_field = Arc::new(TrapField::default());
+        bot.features.traps.field = Arc::new(TrapField::default());
         bot.route = Some((
             Route::new(vec![waypoint(15.0, 10.0), waypoint(35.0, 10.0)]),
             goal,
@@ -1118,5 +1118,23 @@ mod tests {
         let mut bad = crate::v026g::bots::tuning::Tuning::default();
         bad.traps.reach_m = 2.0;
         assert_eq!(bad.validate().unwrap_err(), "traps.reach_m");
+    }
+}
+
+/// A bot's trap state, by feature ([`super::features`]): the habit, the point of the trap it let go of since the
+/// last think, its notice of the traps of others (`trap_react.rs`) and the floors of its team's traps it keeps off
+/// (`trap_know.rs`, shared at each commander tick).
+#[derive(Default)]
+pub struct BotState {
+    pub habit: Habit,
+    pub placed: Option<(mapdata::Vec3, u32)>,
+    pub react: super::trap_react::React,
+    pub field: std::sync::Arc<super::trap_know::TrapField>,
+}
+
+impl super::features::Feature for BotState {
+    fn new_life(&mut self, _life: &super::features::Life) {
+        self.habit.new_life();
+        self.react.new_life();
     }
 }
