@@ -90,6 +90,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_SEARCH_FLOORS", "the tuning's", "floors a poll's searches expand: a number or `max`"),
     s("SRP_BENCH_ONE_SIDE", "off", "team 1 plays by the SRP_BENCH_SIDE1_* numbers, so a change to team 0 alone shows"),
     s("SRP_BENCH_PING", "unset: none", "a ping for each place, `lo-hi` ms"),
+    s("SRP_BENCH_PING_JITTER", "unset: none", "each place's ping off by up to this many ms either way, drawn anew each tick (seeded by the seed; around none with no SRP_BENCH_PING)"),
     s("SRP_BENCH_WEAPONS", "off", "every place's weapon known as a live match knows it (play 11's matchup)"),
     s("SRP_BENCH_HUMAN", "unset", "the place the plays take for a human (CG-12)"),
     s("SRP_BENCH_CAMPER", "unset", "the place of the stand-in camper"),

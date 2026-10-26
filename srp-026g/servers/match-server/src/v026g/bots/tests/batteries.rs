@@ -546,13 +546,13 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBatt
         while game.tick + TICK_MS <= clock {
             game.step();
         }
-        // At 3 s he takes it out; at 5 s he crouches in the nook 6 m off.
-        if clock == 3_000 {
+        // At 1 s he takes it out; at 2 s he crouches in the nook 6 m off.
+        if clock == 1_000 {
             game.batteries[0] = Lying::Carried(1);
             game.bodies[1].carrying = Some(0);
             game.points[0] = 0;
         }
-        if clock == 5_000 {
+        if clock == 2_000 {
             let nook = Vec3::new(17.0, 0.0, 34.0);
             game.bodies[1].node = world.grid.locate(nook, 1.0);
             game.bodies[1].feet = nook;

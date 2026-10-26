@@ -272,6 +272,7 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
         think += (b - a).as_secs_f64();
         ticks += b.elapsed().as_secs_f64();
     }
+    bots.polls.record(clock.clock, &rays);
     let parts = [
         (viewed - started).as_secs_f64(),
         (commanded - viewed).as_secs_f64(),
@@ -403,8 +404,17 @@ pub(crate) fn real_bot_cost() {
             // reckoned on from there (`Tracker::seen_late`). Off, the
             // bench's bots know each other to their decided ticks, up to
             // 100 ms past the clock, which no live human gives them.
-            if let Some(pings) = bench_pings(teams.len(), seed) {
+            // `SRP_BENCH_PING_JITTER=<ms>`: each place's ping off by up to
+            // that either way, anew every tick (a late input arriving in
+            // bursts; with no `SRP_BENCH_PING`, around none).
+            let jitter = bench_settings()
+                .number::<u32>("SRP_BENCH_PING_JITTER")
+                .unwrap_or(0);
+            let pings = bench_pings(teams.len(), seed)
+                .or_else(|| (jitter > 0).then(|| vec![0; teams.len()]));
+            if let Some(pings) = pings {
                 bots.tracker.seen_late = Some(pings);
+                bots.tracker.seen_jitter = (jitter, seed);
             }
             let mut fight = fight_tally::FightTally::default();
             if let Some(table) = &table {

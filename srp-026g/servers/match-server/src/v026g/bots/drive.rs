@@ -151,7 +151,14 @@ pub(super) fn drive_tick(
         untested_ms: tuning.sense.sight_untested_ms,
     });
     // [aimpoint] What of its target shows, before the reflex aims.
-    bot.reflex.look(aiming_me, view, &tactics.world, time);
+    bot.reflex.look(
+        aiming_me,
+        view,
+        &tactics.world,
+        &mut bot.memory,
+        &tuning.sense,
+        time,
+    );
     // A carrier never fires: in the game a new fire press drops the battery
     // (the input handler 0x2D8E73..0x2D8EC8, PROVEN), whatever its play.
     // `carrying` comes with the worlds (up to 2 s after a take); the take
@@ -170,6 +177,9 @@ pub(super) fn drive_tick(
         bot.skill,
         &mut bot.rng,
     );
+    if let Some(lapse) = bot.reflex.take_lapse() {
+        bot.sight_counts.add(lapse);
+    }
     bot.motor.turn_time = over.turn_time_s;
     let eye = aiming_me.eye();
     let aim_at = |p: Vec3| {

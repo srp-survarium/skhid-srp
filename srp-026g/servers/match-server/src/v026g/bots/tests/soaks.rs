@@ -16,6 +16,9 @@ pub(crate) fn a_short_soak_has_fights_and_keeps_the_input_rules() {
     // Never through the world (`aimpoint`): before it, 48 of 416 shots
     // went into a wall short of the target or at one of whom nothing
     // showed; the few left are a tick's turn or step.
+    // (At the default sight grace, 250 ms: seed 3 gives 2 of 500 shots, 16
+    // seeds 43 of 11,189 against 67 of 11,121 before the sight refresh. At a
+    // grace of 150 ms seed 3 gives 16 of 460, over this limit.)
     assert!(
         out.walled + out.hidden <= out.shots / 33,
         "{} into a wall, {} at a hidden target, of {} shots",

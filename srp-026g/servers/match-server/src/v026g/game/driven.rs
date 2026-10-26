@@ -66,7 +66,7 @@ const WAITING_REFRESH: Duration = Duration::from_secs(1);
 
 /// The bots of a match and their map.
 pub(super) struct Walkers {
-    bots: Bots,
+    pub(super) bots: Bots,
     maps: Arc<Maps>,
     project: &'static str,
     /// Held once built, so the store may drop it while the match runs.

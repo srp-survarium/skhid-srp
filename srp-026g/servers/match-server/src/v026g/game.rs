@@ -4850,6 +4850,13 @@ impl Game {
                 .map(|player| player.score)
                 .collect::<Vec<_>>()
         );
+        if let Some(walkers) = &self.walkers {
+            log::info!(
+                "Match {:#x}: the bots' polls: {}",
+                self.id,
+                walkers.bots.poll_report()
+            );
+        }
         self.result = Some(result);
         self.result_made = true;
         for (index, peer) in self.peers.iter_mut().enumerate() {

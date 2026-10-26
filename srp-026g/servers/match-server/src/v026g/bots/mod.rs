@@ -62,6 +62,7 @@ pub mod view;
 mod commander;
 mod drive;
 mod facts;
+mod polls;
 mod search;
 mod think;
 
@@ -122,6 +123,8 @@ pub struct Bot {
     motor: Motor,
     reflex: Reflex,
     memory: Memory,
+    /// Its target sights that ended, for the match-end log line.
+    sight_counts: polls::SightCounts,
     stuck: Stuck,
     personality: usize,
     /// The skill it took at its last spawn.
@@ -271,6 +274,7 @@ impl Bot {
             motor,
             reflex: Reflex::armed(arms),
             memory: Memory::default(),
+            sight_counts: Default::default(),
             stuck: Stuck::default(),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
@@ -514,6 +518,7 @@ pub struct Bots {
     /// TEST ONLY: the jump test for the real client (`jump_test.rs`).
     #[cfg(feature = "jump-test")]
     pub jump_test: Option<jump_test::JumpTest>,
+    polls: polls::PollStats,
     tactics: Option<Tactics>,
     /// The plays' kept answers about these tactics (`plays::memo`), made
     /// anew with them.
@@ -576,6 +581,7 @@ impl Bots {
             tracker: Tracker::new(mode, teams, driven, Vec::new()),
             #[cfg(feature = "jump-test")]
             jump_test: jump_test::JumpTest::from_env(match_id),
+            polls: Default::default(),
             tactics: None,
             memo: Default::default(),
             teams: [team_state(&tuning), team_state(&tuning)],
@@ -1011,6 +1017,7 @@ impl Bots {
                 self.kit_choices.push((bot.place, kit as u8));
             }
         }
+        self.polls.record(now, &rays);
         (made, notes)
     }
 

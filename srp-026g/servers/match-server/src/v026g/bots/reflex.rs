@@ -76,12 +76,12 @@ use serde::{Deserialize, Serialize};
 
 use super::guns::{Arms, AutoClass, Gun, Handling, Hands};
 use super::kin::{forward, wrap, yaw_of};
-use super::know::{Memory, SeenTrack, Source, TeamKnowledge};
+use super::know::{LookOutcome, Memory, Miss, SeenTrack, Source, TeamKnowledge};
 use super::recoil::{Cadence, Recoil, kick_of};
 use super::rng::Rng;
 use super::signals::mix;
 use super::tactics::{SpotQuery, Tactics};
-use super::tuning::AimTuning;
+use super::tuning::{AimTuning, SenseTuning};
 use super::view::{EYE_STANDING, MatchView, Place, PlaceView, SoundKind};
 use crate::v026g::drive::key;
 
@@ -1240,6 +1240,15 @@ pub const GATE_NOTE_MS: u32 = 1000;
 pub const GATE_NOTE_AFTER_MS: u32 = 300;
 pub const GATE_NOTE_SLACK_DEG: f32 = 2.0;
 
+/// A target lost to its sight ending (not to his death): in which ping
+/// band of the target ([`super::polls::ping_band`]), and whether a burst
+/// was cut by it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Lapse {
+    pub band: usize,
+    pub cut: bool,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Reflex {
     target: Option<Place>,
@@ -1382,6 +1391,9 @@ pub struct Reflex {
     /// [aimpoint] The target's parts that show, the view's line
     /// ([`Self::look`]).
     sight: super::aimpoint::Sight,
+    /// The last tick's lapse of the target's sight, if it was one
+    /// ([`Self::take_lapse`]).
+    lapse: Option<Lapse>,
     /// [recoil] The kick of the weapon in hand, when its trigger fires,
     /// and how much the kick moved the view at this tick's weapon update.
     recoil: Recoil,
@@ -1825,18 +1837,67 @@ impl Reflex {
     }
 
     /// [aimpoint] Before each [`Self::tick`]: which parts of the target
-    /// show from the bot's eyes on `world`'s bullet mesh. A reflex never
-    /// told this (no map) aims at the chest and holds no shot for the
-    /// world.
+    /// show from the bot's eyes on `world`'s bullet mesh, and his sight told
+    /// to `memory` ([`Self::sight_tick`]). A reflex never told this (no
+    /// map) aims at the chest and holds no shot for the world.
     pub fn look(
         &mut self,
         me: &PlaceView,
         view: &MatchView,
         world: &std::sync::Arc<mapdata::World>,
+        memory: &mut Memory,
+        sense: &SenseTuning,
         now: u32,
     ) {
         self.new_life(me);
-        self.sight.update(me, self.target, view, world, now);
+        let looked = self.sight.update(me, self.target, view, world, now);
+        self.sight_tick(me, view, memory, sense, looked);
+    }
+
+    /// The target's sight at this tick, told to the memory
+    /// ([`Memory::looked`]). Range, view (at the yaw `me` has now) and life
+    /// are checked at every tick; whether some part shows is the aim's
+    /// look, every `LOOK_AGAIN_MS`, whose rays are cast anyway: so a
+    /// visible target costs no ray more, and a look not due is untested,
+    /// the sight keeping its state. No random draw, no team call-out
+    /// (that is a think's).
+    fn sight_tick(
+        &self,
+        me: &PlaceView,
+        view: &MatchView,
+        memory: &mut Memory,
+        sense: &SenseTuning,
+        looked: Option<super::aimpoint::TargetLook>,
+    ) {
+        let Some(target) = self.target else {
+            return;
+        };
+        let Some(since) = memory
+            .tracks()
+            .iter()
+            .find(|t| t.who == target)
+            .and_then(|t| t.sight_since)
+        else {
+            return;
+        };
+        let outcome = match view.place(target) {
+            None => LookOutcome::Failed(Miss::Dead),
+            Some(enemy) => match super::sense::gate(me, enemy, since, sense) {
+                Err(miss) => LookOutcome::Failed(miss),
+                Ok(()) => match looked {
+                    Some(look) if look.fresh && look.shown => LookOutcome::Seen,
+                    Some(look) if look.fresh => LookOutcome::Failed(Miss::Blocked),
+                    _ => LookOutcome::Untested,
+                },
+            },
+        };
+        let at = view.place(target).map_or(Vec3::ZERO, |p| p.feet);
+        memory.looked(target, at, outcome, view.clock);
+    }
+
+    /// [measure] The lapse of the last tick, if its target's sight ended.
+    pub fn take_lapse(&mut self) -> Option<Lapse> {
+        self.lapse.take()
     }
 
     /// [recoil] At each tick, before [`Self::tick`]: the weapon's update to
@@ -3027,6 +3088,14 @@ impl Reflex {
             };
         }
         let Some(track) = seen else {
+            self.lapse = self
+                .target
+                .and_then(|target| view.place(target))
+                .filter(|enemy| enemy.alive && enemy.present)
+                .map(|enemy| Lapse {
+                    band: super::polls::ping_band(enemy, view.clock),
+                    cut: self.held_ms > 0,
+                });
             self.lose_target(now);
             match self.lost.filter(|(_, at)| now <= at + LOST_MS) {
                 Some((who, _)) => {

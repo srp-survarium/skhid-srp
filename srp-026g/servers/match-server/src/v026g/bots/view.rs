@@ -454,6 +454,13 @@ pub struct Tracker {
     /// live human is.
     #[cfg(test)]
     pub seen_late: Option<Vec<u32>>,
+    /// The bench only (`SRP_BENCH_PING_JITTER`): each place's `seen_late`
+    /// is off by up to this many ms either way, drawn anew for each tick
+    /// from the seed (no state: a hash of the place and the tick), as a
+    /// player's late input arrives in bursts. Spikes of 150 ms are the live
+    /// 90th percentile.
+    #[cfg(test)]
+    pub seen_jitter: (u32, u32),
 }
 
 impl Tracker {
@@ -486,6 +493,8 @@ impl Tracker {
             world_time: 0,
             #[cfg(test)]
             seen_late: None,
+            #[cfg(test)]
+            seen_jitter: (0, 0),
         }
     }
 
@@ -493,6 +502,21 @@ impl Tracker {
     pub fn set_containers(&mut self, containers: Vec<(u8, Vec3)>) {
         self.container_counts.resize(containers.len(), 0);
         self.containers = containers;
+    }
+
+    /// The jitter of a place's ping at `clock`, ms, within `seen_jitter`.
+    #[cfg(test)]
+    fn jitter(&self, place: usize, clock: u32) -> i32 {
+        let (ms, seed) = self.seen_jitter;
+        if ms == 0 {
+            return 0;
+        }
+        let mut z = u64::from(seed) << 32 | u64::from(clock / 50);
+        z = z.wrapping_add((place as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^= z >> 31;
+        (z % (2 * u64::from(ms) + 1)) as i32 - ms as i32
     }
 
     /// A place added (a late joiner).
@@ -999,7 +1023,10 @@ impl Tracker {
                     // The bench's bots seen as humans are (`seen_late`).
                     #[cfg(test)]
                     let own = match self.seen_late.as_ref().and_then(|late| late.get(place)) {
-                        Some(&late) => own.map(|e| state.body.seen_late(e, clock.clock, late)),
+                        Some(&late) => {
+                            let late = late.saturating_add_signed(self.jitter(place, clock.clock));
+                            own.map(|e| state.body.seen_late(e, clock.clock, late))
+                        }
                         None => own,
                     };
                     own
@@ -1537,5 +1564,26 @@ mod tests {
                 .any(|n| n.ends_with("now still player 0, no one else whose use met it")),
             "{notes:?}"
         );
+    }
+
+    /// The bench's ping jitter: within its bound either way (a spike of
+    /// 150 ms is the live 90th percentile), the same for a place and a tick
+    /// of a seed, different from tick to tick, from place to place, from
+    /// seed to seed, and none when it is 0.
+    #[test]
+    fn the_bench_jitter_is_seeded_bounded_and_varies() {
+        let mut tracker = Tracker::new(2, &[0, 1], &[true, true], vec![]);
+        assert_eq!(tracker.jitter(0, 1_000), 0);
+        tracker.seen_jitter = (150, 7);
+        let draws: Vec<i32> = (0..400).map(|k| tracker.jitter(0, 1_000 + k * 50)).collect();
+        assert!(draws.iter().all(|d| d.abs() <= 150));
+        assert!(draws.iter().any(|&d| d > 100) && draws.iter().any(|&d| d < -100));
+        assert_eq!(tracker.jitter(0, 1_000), tracker.jitter(0, 1_049));
+        assert_eq!(tracker.jitter(0, 1_000), draws[0]);
+        let other: Vec<i32> = (0..400).map(|k| tracker.jitter(1, 1_000 + k * 50)).collect();
+        assert_ne!(draws, other);
+        tracker.seen_jitter = (150, 8);
+        let reseeded: Vec<i32> = (0..400).map(|k| tracker.jitter(0, 1_000 + k * 50)).collect();
+        assert_ne!(draws, reseeded);
     }
 }
