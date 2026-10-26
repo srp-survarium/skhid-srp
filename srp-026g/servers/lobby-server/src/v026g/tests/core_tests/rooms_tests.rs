@@ -1621,6 +1621,174 @@ fn a_member_whose_late_join_fails_waits_in_its_room_again_and_goes_in_later() {
     );
 }
 
+/// Live, 2026-10-25: a game that could not load its room's match went into
+/// it again every 15 s for minutes, each try a place of the match's 20 for
+/// good, the other joiners held out while it ran, until the match was full
+/// to everyone. An account with [`PLACES_PER_ACCOUNT`] places in the
+/// match's roster is not put into it again: it plays the room's next
+/// match, and is shown no seconds to go in.
+///
+/// [`PLACES_PER_ACCOUNT`]: crate::v026g::rooms::PLACES_PER_ACCOUNT
+#[test]
+fn an_account_with_three_places_in_the_match_is_not_put_into_it_again() {
+    use crate::v026g::rooms::PLACES_PER_ACCOUNT;
+    let mut world = World::new();
+    let (key, ticket, id, _) = room_match_of_four(&mut world);
+    let erin = world.connect("Erin");
+    let (erin_account, erin_session) = world.ids[erin];
+    rows(&mut world, erin, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(PLACES_PER_ACCOUNT, 3);
+    for place in [4, 5, 6] {
+        world.host.admitting.locked().insert(ticket);
+        world.take(erin);
+        world.advance(Duration::from_secs(16));
+        let (sent, _) = sent_to_match(&world.take(erin)).expect("Erin goes in");
+        assert_eq!(sent, ticket);
+        assert_eq!(
+            world.store.matchmaking().seat(erin_session),
+            Some((id, place))
+        );
+        // Her game does not get in; it is back in the lobby.
+        world.advance(Duration::from_secs(20));
+        assert_eq!(
+            world.store.matchmaking().join_failed(erin_account),
+            Some(id)
+        );
+        world.ask(erin, request::leave(1, true));
+        world.advance(Duration::from_secs(2));
+    }
+    // No seconds to go in, and she does not, though the match takes
+    // players: its places are the others'.
+    world.host.admitting.locked().insert(ticket);
+    let waiting = state(&mut world, erin);
+    assert_eq!(join_row(&waiting), None, "{waiting:?}");
+    world.take(erin);
+    world.advance(Duration::from_secs(60));
+    assert!(sent_to_match(&world.take(erin)).is_none());
+    assert_eq!(world.store.matchmaking().seat(erin_session), None);
+    assert_eq!(world.core.matches[&id].seats.len(), 7);
+    let room = world.core.rooms.get(key).unwrap();
+    assert!(room.members.contains(&erin_account));
+    // Another member still goes in.
+    let frank = world.connect("Frank");
+    rows(&mut world, frank, ROOM_JOIN_BASE + key, 1);
+    world.take(frank);
+    world.advance(Duration::from_secs(16));
+    assert!(sent_to_match(&world.take(frank)).is_some());
+    assert_eq!(world.core.matches[&id].seats.len(), 8);
+}
+
+/// Live, 2026-10-25: a member whose game hung loading the room's match (or
+/// was gone in it) stayed in the room, grey, for the whole match: its
+/// session waits for the match to end, and the room waited with it. The
+/// room was "full" to everyone else, and its side stayed one short. Now
+/// the room keeps it the session's 60 s after its link went (two minutes
+/// of silence in a match), as for a member in the lobby; longer only while
+/// the match server has it in the match. Its session still waits for the
+/// match.
+#[test]
+fn a_member_whose_game_is_gone_in_the_match_leaves_the_room_unless_it_is_in_the_match() {
+    let mut world = World::new();
+    let (key, ticket, id, players) = room_match_of_four(&mut world);
+    let dave = players[3];
+    let (dave_account, dave_session) = world.ids[dave];
+    let live = |present: u32| LiveView {
+        present,
+        points: None,
+        kills: [0, 0],
+        played: Some(Duration::from_secs(60)),
+        time_left: Some(Duration::from_secs(600)),
+    };
+    world.host.live.locked().insert(ticket, live(0b1111));
+    // Silent well past its link's two minutes and the 60 s: while the match
+    // server has it in the match, it keeps its place (grey).
+    world.silent_for(dave, Duration::from_secs(200));
+    assert!(!world.core.by_account.contains_key(&dave_account));
+    let room = world.core.rooms.get(key).unwrap();
+    assert!(room.members.contains(&dave_account));
+    // Its game is gone from the match: out of the room at once, its
+    // session kept for the match.
+    let (place, _) = seat_of(&world, id, dave);
+    world
+        .host
+        .live
+        .locked()
+        .insert(ticket, live(0b1111 & !(1 << place)));
+    world.advance(Duration::from_secs(2));
+    let room = world.core.rooms.get(key).unwrap();
+    assert!(!room.members.contains(&dave_account));
+    assert_eq!(room.members.len(), 3);
+    assert!(!world.store.has_ended(dave_session));
+}
+
+/// The same member out of the match before its room's wait is over keeps
+/// its place until then: the session's 60 s after its link went.
+#[test]
+fn a_member_whose_game_is_gone_in_the_match_keeps_its_place_for_the_room_s_wait() {
+    let mut world = World::new();
+    let (key, ticket, id, players) = room_match_of_four(&mut world);
+    let dave = players[3];
+    let dave_account = world.ids[dave].0;
+    let (place, _) = seat_of(&world, id, dave);
+    world.host.live.locked().insert(
+        ticket,
+        LiveView {
+            present: 0b1111 & !(1 << place),
+            points: None,
+            kills: [0, 0],
+            played: Some(Duration::from_secs(60)),
+            time_left: Some(Duration::from_secs(600)),
+        },
+    );
+    // Its link goes after two minutes in a match; 50 s later it is still
+    // a member; past the 60 s it is not.
+    world.silent_for(dave, Duration::from_secs(175));
+    assert!(!world.core.by_account.contains_key(&dave_account));
+    let room = world.core.rooms.get(key).unwrap();
+    assert!(room.members.contains(&dave_account));
+    world.advance(Duration::from_secs(15));
+    let room = world.core.rooms.get(key).unwrap();
+    assert!(!room.members.contains(&dave_account));
+}
+
+/// "Late joiners go to the smaller team" (the owner's of 2026-10-25, a
+/// match 7 v 4): newcomers go to the side with fewer players in the match,
+/// one after the other, whatever the roster's teams were.
+#[test]
+fn newcomers_fill_the_side_with_fewer_players_in_the_match() {
+    let mut world = World::new();
+    let (key, ticket, id, players) = room_match_of_four(&mut world);
+    // Team 1's two are out of the match: 2 v 0.
+    let mut present = 0b1111_u32;
+    for &player in &players {
+        let (place, team) = seat_of(&world, id, player);
+        if team == 1 {
+            present &= !(1 << place);
+        }
+    }
+    for name in ["Erin", "Frank"] {
+        world.host.live.locked().insert(
+            ticket,
+            LiveView {
+                present,
+                points: None,
+                kills: [0, 0],
+                played: Some(Duration::from_secs(60)),
+                time_left: Some(Duration::from_secs(600)),
+            },
+        );
+        world.host.admitting.locked().insert(ticket);
+        let newcomer = world.connect(name);
+        rows(&mut world, newcomer, ROOM_JOIN_BASE + key, 1);
+        world.take(newcomer);
+        world.advance(Duration::from_secs(17));
+        assert!(sent_to_match(&world.take(newcomer)).is_some(), "{name}");
+        let (place, team) = seat_of(&world, id, newcomer);
+        assert_eq!(team, 1, "{name}");
+        present |= 1 << place;
+    }
+}
+
 /// The members of a member list (`S1;G;<key>;<members>`, then two rows a
 /// member: `P;<i>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;<side>;
 /// <account>` and its whole name) that the asker gets for the room of

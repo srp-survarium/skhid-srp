@@ -54,7 +54,17 @@
 //!   60 s, about 90 s in all (the owner's of 2026-10-18); then it leaves the
 //!   room and its queue, and may join again as a new member. Its game
 //!   started anew within that keeps the place; a game quit from its menu
-//!   (`FA`) leaves the room at once.
+//!   (`FA`) leaves the room at once. One whose link went in a match (two
+//!   minutes of silence there) keeps the place the session's 60 s too,
+//!   and longer only while the match server has it in the match: its
+//!   session waits for the match, its room does not (`away`; live,
+//!   2026-10-25: a game hung loading kept its room "full" all match).
+//! - An account goes into a match being played while it has fewer than
+//!   [`PLACES_PER_ACCOUNT`] places in its roster (a late join that failed,
+//!   a leave of its own word and a come-back each took one); then it plays
+//!   the room's next match. Live, 2026-10-25: a game that could not load
+//!   went in every 15 s for minutes, each try a place of the match's 20 for
+//!   good, until the match was full to everyone.
 //! - A game started anew (a new session) is not seated in a match, nor
 //!   sent "match found", until it has been told its room (`room_unseen`:
 //!   its movie asks the state, Play, Join match); one not told within
@@ -103,6 +113,13 @@ const QUICK_WAIT: u8 = 30;
 /// room before it is put into the match, unless it asks first (the owner's
 /// of 2026-10-19).
 pub const LATE_JOIN_WAIT: Duration = Duration::from_secs(15);
+/// The most places an account has in the roster of one match: past them
+/// it is not put into that match again (it plays the room's next one).
+/// Each late join takes a place for good, failed or not, and a leave of
+/// its own word and a come-back too. Live, 2026-10-25: a game that could
+/// not load the match went in again every 15 s for minutes, each try a
+/// place of the match's 20, until the match was full to everyone.
+pub const PLACES_PER_ACCOUNT: usize = 3;
 
 /// The rooms' settings in the lobby.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -965,7 +982,10 @@ impl Core<'_> {
         let Stage::InMatch { match_id, .. } = room.stage else {
             return Ok(None);
         };
-        if room.in_match.contains(&who.account_id) || self.member_fit(who.account_id) != Fit::Yes {
+        if room.in_match.contains(&who.account_id)
+            || self.member_fit(who.account_id) != Fit::Yes
+            || self.late_join_given_up(match_id, who.account_id)
+        {
             return Ok(None);
         }
         let Some(running) = self.matches.get(&match_id) else {
@@ -1677,6 +1697,23 @@ impl Core<'_> {
         self.queue_status(addr, now);
     }
 
+    /// The account has [`PLACES_PER_ACCOUNT`] places in the match's roster
+    /// (`formed_match`): it is not put into it again, and plays the room's
+    /// next match.
+    fn late_join_given_up(&self, match_id: u32, account_id: u32) -> bool {
+        self.store
+            .matchmaking()
+            .formed_match(match_id)
+            .is_some_and(|formed| {
+                formed
+                    .seats
+                    .iter()
+                    .filter(|seat| seat.player.account_id == account_id)
+                    .count()
+                    >= PLACES_PER_ACCOUNT
+            })
+    }
+
     /// The member goes into its room's match being played, if it is free
     /// and the match admits it now; otherwise it waits for the next one.
     fn room_late_join(&mut self, account_id: u32, now: Instant) {
@@ -1693,7 +1730,10 @@ impl Core<'_> {
         let Some(running) = self.matches.get(&match_id) else {
             return;
         };
-        if !self.late_admission(running, now) || self.maintenance_is_near() {
+        if !self.late_admission(running, now)
+            || self.maintenance_is_near()
+            || self.late_join_given_up(match_id, account_id)
+        {
             return;
         }
         // One that left this match by its own word comes again as a new
