@@ -825,7 +825,7 @@ pub(super) fn drive_tick(
     // body over the rim (the walk's own diagonal, a side step, the eight-way keys of a walk that aims) is let
     // go for one that stops on the floor, unless the route drops there. Every unplanned fall of the bench was
     // off a lip (`WalkGrid::near_lip`), with the body's keys pushing it over or its glide carrying it.
-    guard_keys(bot, &mut decision, me, tactics, tuning);
+    guard_keys(bot, &mut decision, me, tactics, tuning, time);
     // The stance and pace.
     if intent.crouch || intent.pace == Pace::Sneak {
         decision.keys |= key::CROUCH;
@@ -974,6 +974,49 @@ const PLANNED_DROP_M: f32 = 6.0;
 const LIP_LOOK_S: f32 = 0.4;
 /// The ticks the guard counts the keys held before the body lets go and stops.
 const LIP_HOLD_TICKS: u32 = 2;
+/// A tick that changed the keys adds this to the [`LipWatch`] score, and one that did not takes 1 off.
+const LIP_HELD_SCORE: u8 = 3;
+/// The score at which the guard gives a bot up for [`LIP_OFF_MS`].
+const LIP_GIVE_UP: u8 = 30;
+const LIP_OFF_MS: u32 = 3_000;
+
+/// The lip guard's watch over its own hold on a bot: a guard that keeps changing a bot's keys has stopped its
+/// walk, not saved it (a bot braked at a rim it must turn at, again and again). The score rises with each
+/// tick the keys are changed and falls with each that they are not; past [`LIP_GIVE_UP`] the guard leaves
+/// the bot's keys alone for [`LIP_OFF_MS`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum LipWatch {
+    Watching(u8),
+    /// Left off until this time (ms).
+    Off(u32),
+}
+
+impl Default for LipWatch {
+    fn default() -> Self {
+        Self::Watching(0)
+    }
+}
+
+impl LipWatch {
+    /// The watch after a tick's verdict at `time`; whether the guard may change the keys this tick.
+    fn after(self, guard: LipGuard, time: u32) -> (Self, bool) {
+        match self {
+            Self::Off(until) if time < until => (self, false),
+            Self::Off(_) => Self::Watching(0).after(guard, time),
+            Self::Watching(score) => {
+                let score = match guard {
+                    LipGuard::Swapped(_) | LipGuard::Braked(_) => score.saturating_add(LIP_HELD_SCORE),
+                    LipGuard::Doomed | LipGuard::Safe | LipGuard::Clear => score.saturating_sub(1),
+                };
+                if score >= LIP_GIVE_UP {
+                    (Self::Off(time + LIP_OFF_MS), false)
+                } else {
+                    (Self::Watching(score), true)
+                }
+            }
+        }
+    }
+}
 
 /// What the lip guard made of a tick's keys.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1016,7 +1059,10 @@ pub(super) fn lip_guard(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me: &Pl
         let relative = kin::wrap(kin::yaw_of([-me.velocity[0], -me.velocity[1]]) - (me.yaw + turn));
         (keys & !MOVE) | motor::keys_toward(relative)
     });
-    let found = [keys & !(key::LEFT | key::RIGHT), keys & !MOVE]
+    // The same walk slower (no sprint, then crouched), then without the side keys, then none, then the brake.
+    let walk = keys & !key::SPRINT;
+    let straight = keys & !(key::LEFT | key::RIGHT);
+    let found = [walk, walk | key::CROUCH, straight, (straight & !key::SPRINT) | key::CROUCH, keys & !MOVE]
         .into_iter()
         .chain(brake)
         .filter(|&k| k != keys)
@@ -1029,7 +1075,7 @@ pub(super) fn lip_guard(grid: &mapdata::WalkGrid, kin: &kin::Kinematics, me: &Pl
 }
 
 /// [`lip_guard`] on the tick's decision.
-fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &Tactics, tuning: &Tuning) {
+fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &Tactics, tuning: &Tuning, time: u32) {
     #[cfg(test)]
     {
         bot.bench_guard = 0;
@@ -1046,7 +1092,14 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
         let (walked, _) = route.progress(me.feet);
         route.drop_landings(walked, PLANNED_DROP_M)
     });
-    let guard = lip_guard(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, LIP_HOLD_TICKS);
+    let guard = if matches!(bot.lip_watch, LipWatch::Off(until) if time < until) {
+        LipGuard::Clear
+    } else {
+        lip_guard(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, LIP_HOLD_TICKS)
+    };
+    let (watch, may) = bot.lip_watch.after(guard, time);
+    bot.lip_watch = watch;
+    let guard = if may { guard } else { LipGuard::Clear };
     #[cfg(test)]
     {
         bot.bench_guard_at = (me.velocity, me.feet);
@@ -1056,6 +1109,11 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
             LipGuard::Swapped(_) => 2,
             LipGuard::Braked(_) | LipGuard::Doomed => 3,
         };
+        if matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_)) && bot.bench_guard_dbg < 6 && std::env::var_os("SRP_GUARD_DEBUG").is_some() {
+            bot.bench_guard_dbg += 1;
+            let route = bot.route.as_ref().map(|(r, goal)| (r.length(), r.points().len(), goal.to_array()));
+            eprintln!("GUARDDBG t={time} place={} guard={guard:?} keys={:#x} feet={:?} v={:?} planned={planned:?} route={route:?} intent={:?}", bot.place, decision.keys, me.feet.to_array(), me.velocity, bot.intent.go);
+        }
         match guard {
             LipGuard::Swapped(_) => motor::counts::lip_guard(true),
             LipGuard::Braked(_) | LipGuard::Doomed => motor::counts::lip_guard(false),
@@ -1187,6 +1245,63 @@ mod tests {
         assert_eq!(swapped(guard(&at_rim, &[Vec3::new(40.0, 0.0, 10.0)])), Some(key::BACK));
         // With no keys held there is nothing to let go of.
         assert_eq!(lip_guard(grid, &kin, &at_rim, 0.0, 0, &[], LIP_HOLD_TICKS), LipGuard::Clear);
+    }
+
+    /// A sprint at a rim is slowed to a walk or a creep before it is stopped, and the walk goes on where a
+    /// slower one stops short.
+    #[test]
+    fn a_sprint_at_a_rim_is_slowed_before_it_is_stopped() {
+        let world = slab();
+        let kin = kin::Kinematics::default();
+        let toward = -std::f32::consts::FRAC_PI_2;
+        let keys = key::FORWARD | key::SPRINT;
+        let mut slowed = 0;
+        for x in [53.5f32, 54.0, 54.5, 55.0, 55.3] {
+            let me = on_the_slab(x, toward, 5.0);
+            match lip_guard(&world.grid, &kin, &me, 0.0, keys, &[], LIP_HOLD_TICKS) {
+                LipGuard::Swapped(k) => {
+                    assert_eq!(k & key::SPRINT, 0, "{x}: {k:#x}");
+                    slowed += u32::from(k & key::FORWARD != 0);
+                }
+                LipGuard::Braked(_) | LipGuard::Doomed | LipGuard::Safe | LipGuard::Clear => {}
+            }
+        }
+        assert!(slowed > 0);
+    }
+
+    #[test]
+    fn the_guard_gives_a_bot_up_that_it_keeps_stopping() {
+        let mut watch = LipWatch::default();
+        let mut time = 0;
+        let mut may = true;
+        // Keys changed tick after tick: given up at the score.
+        for _ in 0..(LIP_GIVE_UP / LIP_HELD_SCORE + 1) {
+            (watch, may) = watch.after(LipGuard::Swapped(0), time);
+            time += 50;
+        }
+        assert!(!may);
+        assert!(matches!(watch, LipWatch::Off(_)));
+        // Left alone while it is off, picked up again after.
+        assert!(!watch.after(LipGuard::Swapped(0), time).1);
+        let LipWatch::Off(until) = watch else { unreachable!() };
+        assert_eq!(watch.after(LipGuard::Safe, until).0, LipWatch::Watching(0));
+        // A change every other tick adds up too, a change now and then does not.
+        let (mut watch, mut tripped) = (LipWatch::default(), false);
+        for k in 0..200 {
+            let guard = if k % 2 == 0 { LipGuard::Swapped(0) } else { LipGuard::Safe };
+            let (next, may) = watch.after(guard, k * 50);
+            watch = next;
+            tripped |= !may;
+        }
+        assert!(tripped);
+        let (mut watch, mut tripped) = (LipWatch::default(), false);
+        for k in 0..200 {
+            let guard = if k % 10 == 0 { LipGuard::Swapped(0) } else { LipGuard::Safe };
+            let (next, may) = watch.after(guard, k * 50);
+            watch = next;
+            tripped |= !may;
+        }
+        assert!(!tripped);
     }
 
     #[test]

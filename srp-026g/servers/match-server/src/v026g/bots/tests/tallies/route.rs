@@ -76,6 +76,8 @@ pub(crate) struct RouteTally {
     pub(crate) est_err_lip: Vec<f32>,
     /// The body's distance off its route (m) while walking it: facing the way, aiming; and on lip floors.
     pub(crate) off: [Vec<f32>; 4],
+    /// Where the lip guard changed or could not change the keys: (x, y, z) in 2 m cells, [changed, none] ticks.
+    pub(crate) guard_spots: std::collections::BTreeMap<(i32, i32, i32), [u32; 2]>,
 }
 
 impl RouteTally {
@@ -103,6 +105,7 @@ impl RouteTally {
             est_err: Vec::new(),
             est_err_lip: Vec::new(),
             off: Default::default(),
+            guard_spots: Default::default(),
             ..Default::default()
         }
     }
@@ -144,6 +147,12 @@ impl RouteTally {
                             let on_lip = bots.tactics.as_ref().is_some_and(|t| t.world.grid.locate(body.feet, 1.0).is_some_and(|n| t.world.grid.near_lip(n) || t.world.grid.is_lip(n)));
                             self.off[usize::from(bot.bench_walk) - 1 + if on_lip { 2 } else { 0 }].push(off);
                         }
+                    }
+                    if let Some(bot) = bots.bots[place].as_ref()
+                        && matches!(bot.bench_guard, 2 | 3)
+                    {
+                        let cell = ((body.feet.x / 2.0).floor() as i32, (body.feet.y / 2.0).floor() as i32, (body.feet.z / 2.0).floor() as i32);
+                        self.guard_spots.entry(cell).or_default()[usize::from(bot.bench_guard == 3)] += 1;
                     }
                     let (step, guard) = bots.bots[place].as_ref().map_or((0, 0), |bot| (u32::from(bot.bench_stepped), u32::from(bot.bench_guard)));
                     ring.push_back((body.keys | step << 29 | guard << 26, body.feet));
@@ -471,6 +480,11 @@ impl RouteTally {
             let (mut all, mut lip) = (std::mem::take(&mut self.est_err), std::mem::take(&mut self.est_err_lip));
             for (name, v) in ["walk", "aiming", "walk_lip", "aiming_lip"].into_iter().zip(self.off.iter_mut()) {
                 eprintln!("OFFROUTE {name} n={} p50={:.2} p90={:.2} p99={:.2}", v.len(), pct(v, 0.5), pct(v, 0.9), pct(v, 0.99));
+            }
+            let mut spots: Vec<_> = self.guard_spots.iter().collect();
+            spots.sort_by_key(|(_, n)| std::cmp::Reverse(n[0] + n[1]));
+            for ((x, y, z), n) in spots.into_iter().take(8) {
+                eprintln!("GUARDSPOT x={} y={} z={} changed={} none={}", x * 2, y * 2, z * 2, n[0], n[1]);
             }
             eprintln!(
                 "ESTERR n={} p50={:.2} p90={:.2} p99={:.2} lip_n={} lip_p50={:.2} lip_p90={:.2} lip_p99={:.2}",
