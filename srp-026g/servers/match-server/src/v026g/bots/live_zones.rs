@@ -62,6 +62,11 @@ impl LiveHazard {
         shape_of(&self.field)
     }
 
+    /// What the world said of its phase last.
+    pub fn phase(&self) -> FieldPhase {
+        self.field.phase
+    }
+
     /// The soonest match time after `now` at which it switches on or off, if it will.
     fn next_switch(&self, now: u32) -> Option<u32> {
         match &self.activity {
@@ -210,6 +215,11 @@ impl FieldBoard {
             self.floor_set[node as usize] = id;
             self.sets.insert(id, members);
         }
+    }
+
+    /// The floors some field covers (a floor under two counts once).
+    pub fn floors_covered(&self) -> usize {
+        self.floor_set.iter().filter(|&&set| set != 0).count()
     }
 
     /// The live set of `node` (0: no field lies on it).

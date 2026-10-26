@@ -711,9 +711,18 @@ pub(crate) fn real_bot_cost() {
                         game.bodies[bot.place].why_now = bot.bench_why;
                     }
                     game.step();
+                    // The anomaly fields of the generator (`SRP_BENCH_LIVE_FIELDS`): their lives, and the world that lists them.
+                    if game.fields.on() {
+                        let world = game.world.clone();
+                        game.fields.tick(game.tick, &world);
+                        if let Some(listed) = game.fields.world_due(game.tick) {
+                            bots.fields_from_world(&listed, game.tick);
+                            game.fields.sample_shut(world.grid.len());
+                        }
+                    }
                     if let Some(tactics) = bots.tactics.as_ref() {
-                        if zone_damage {
-                            game.zone_tick(&inside, &tactics.hazards);
+                        if zone_damage || game.fields.on() {
+                            game.zone_tick(&inside, &tactics.hazards, zone_damage);
                         }
                         for at in std::mem::take(&mut game.took_from) {
                             let fixed = tactics
@@ -1328,6 +1337,7 @@ pub(crate) fn real_bot_cost() {
             eprintln!("  {}", blocks.reloads.line());
             eprintln!("  {}", hits.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
+            routes.finish(&game);
             eprintln!("  routes: {}", routes.line());
             eprintln!(
                 "  jumps: pressed {} refused {}; stand-in {}",

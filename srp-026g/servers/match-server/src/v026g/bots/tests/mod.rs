@@ -77,6 +77,7 @@ mod soak;
 mod soaks;
 mod standin;
 mod standin_damage;
+mod standin_fields;
 mod standin_grenade;
 mod standin_heal;
 mod standin_jump;
