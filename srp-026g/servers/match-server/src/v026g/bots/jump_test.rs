@@ -70,12 +70,13 @@ use crate::v026g::drive::key;
 
 /// Worlds are asked for this often around a try, ms (`SRP_JUMP_TEST_BURST_MS`).
 const BURST_MS: u32 = 120;
-/// The settle: still, facing the heading, at least this long, ms.
+/// The settle: still, facing the heading, at least this long, ms (a sprint try rests
+/// [`REST_BEFORE_SPRINT_MS`]: the walk to the start was at a run).
 const SETTLE_MS: u32 = 1_200;
 /// The settle is given up after this long, ms (the try is redone from Go).
 const SETTLE_MAX_MS: u32 = 5_000;
 /// The walk to the start is given up after this long, ms.
-const GO_MAX_MS: u32 = 90_000;
+const GO_MAX_MS: u32 = 60_000;
 /// A body this close to its start (m) has arrived.
 const ARRIVED_M: f32 = 0.6;
 /// Worlds are recorded this long after the press, ms.
@@ -94,6 +95,8 @@ const ROWS_KEPT: usize = 900;
 const OUTSTANDING_MS: u32 = 600;
 /// A motor-driven try is given up after this long on its way to the top, ms.
 const MOTOR_MAX_MS: u32 = 25_000;
+/// A ledge within this of one whose start was not reached is given up with it, m.
+const BAD_SITE_M: f32 = 1.0;
 /// How far past the face, along its normal, a motor-driven try's top point is, m.
 const TOP_BEYOND_M: f32 = 1.2;
 /// The respawn delay of every mode's config (`respawn_time`), ms (`docs/notes/modes_maps.md`).
@@ -163,6 +166,8 @@ type SiteRow = (&'static str, [f32; 3], [f32; 2], f32, f32, f32);
 /// The sites of `grid-record.md` J0 section 2: name, deck floor, direction to the ledge, rise, face
 /// distance (half the gap to the lip). `gridtool ledges` of the F1 branch's grid.
 pub const SITES: &[SiteRow] = &[
+    // chem125a/b/c and vect090a: UNREACHABLE (no path from any spawn, found 2026-10-26; `gridtool ledges` now
+    // prints `reach`): kept for the tests' geometry only.
     ("chem125a", [-78.9, 4.35, 47.1], [0.0, -1.0], 1.259, 0.25, 6.10),
     ("chem125b", [-79.9, 4.35, 70.4], [0.0, 1.0], 1.274, 0.25, 5.00),
     ("chem125c", [-84.9, 4.35, 58.9], [-1.0, 0.0], 1.259, 0.25, 11.75),
@@ -677,6 +682,8 @@ pub struct JumpTest {
     runners: HashMap<Place, Runner>,
     /// The tries of any bot, with repeats left, in file order.
     pool: VecDeque<TryDef>,
+    /// Ledges whose start no bot reached twice: no try is taken on them (their base, before any lane).
+    bad_sites: Vec<Vec3>,
     /// Bots not in the test rest (no fire, no plays); `SRP_JUMP_TEST_IDLE_OTHERS=0` lets them play.
     idle_others: bool,
     /// At most this many tries under way at once (`SRP_JUMP_TEST_MAX_ACTIVE`).
@@ -730,6 +737,7 @@ impl JumpTest {
             modified: None,
             runners: HashMap::new(),
             pool: VecDeque::new(),
+            bad_sites: Vec::new(),
             idle_others: true,
             max_active: usize::MAX,
             done: HashMap::new(),
@@ -811,6 +819,7 @@ impl JumpTest {
                         }
                     }
                 }
+                pool.retain(|d| self.bad_sites.iter().all(|bad| base_of(d).distance_xz(*bad) > BAD_SITE_M));
                 self.pool = pool;
                 for (place, runner) in &mut self.runners {
                     runner.pending = by_bot.remove(place).unwrap_or_default();
@@ -937,8 +946,7 @@ impl JumpTest {
                 *started += 1;
                 *started
             };
-            let sprints = matches!(def.speed, Speed::Sprint | Speed::MotorRun);
-            let rest = if sprints { Phase::Rest { until: now + REST_BEFORE_SPRINT_MS } } else { Phase::Go { since: now } };
+            let rest = if def.speed == Speed::MotorRun { Phase::Rest { until: now + REST_BEFORE_SPRINT_MS } } else { Phase::Go { since: now } };
             runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None });
         }
         let Some(active) = runner.active.as_mut() else {
@@ -986,11 +994,26 @@ impl JumpTest {
                     active.phase = Phase::Suicide { since: now, walked_ms, budget_ms };
                 } else if now > *since + GO_MAX_MS {
                     log::warn!("jump test: bot {} could not walk to the start of {}", bot.place, active.def.id);
-                    *since = now;
+                    active.redone += 1;
+                    if active.redone >= 2 {
+                        // Not reached twice: the try is void, and so is every try on that ledge.
+                        let line = serde_json::json!({
+                            "id": active.def.id, "n": active.n, "bot": bot.place, "void": "start not reached",
+                            "start": start.to_array(), "from": me.feet.to_array(),
+                        });
+                        Self::line(&mut self.tries_log, &line);
+                        *self.done.entry(active.def.id.clone()).or_default() += 1;
+                        let bad = base_of(&active.def);
+                        forget_site(&mut self.pool, &mut self.bad_sites, bad);
+                        runner.pending.retain(|d| base_of(d).distance_xz(bad) > BAD_SITE_M);
+                        runner.active = None;
+                    } else {
+                        *since = now;
+                    }
                 } else {
                     bot.intent = Intent {
                         go: Go::To { at: start, within_m: 0.3 },
-                        pace: Pace::Walk,
+                        pace: if active.def.speed == Speed::MotorRun { Pace::Walk } else { Pace::Run },
                         fire: false,
                         ..Intent::stay()
                     };
@@ -1048,7 +1071,7 @@ impl JumpTest {
                         .cloned()
                 });
                 if let Some(row) = rest
-                    && elapsed >= SETTLE_MS
+                    && elapsed >= if active.def.speed == Speed::Sprint { REST_BEFORE_SPRINT_MS } else { SETTLE_MS }
                 {
                     let first = (time / TICK_MS + LEAD_TICKS) * TICK_MS;
                     match plan_from(&active.def, row.feet, row.yaw, first, &self.table) {
@@ -1200,6 +1223,12 @@ impl JumpTest {
             .unwrap_or_default();
         summarize(def, n, place, plan, began, redone, &rows, &self.uploads)
     }
+}
+
+/// Gives a ledge up: its tries leave the pool and no later one is taken.
+fn forget_site(pool: &mut VecDeque<TryDef>, bad_sites: &mut Vec<Vec3>, bad: Vec3) {
+    bad_sites.push(bad);
+    pool.retain(|d| base_of(d).distance_xz(bad) > BAD_SITE_M);
 }
 
 /// The gap between two lanes of the same face, m.
@@ -1487,6 +1516,18 @@ mod tests {
         let mut d = Decision { keys: key::SUICIDE | key::FIRE, turn: (0.0, 0.0) };
         jt.quiet(3, &mut d);
         assert_eq!(d.keys, key::SUICIDE);
+    }
+
+    #[test]
+    fn a_ledge_given_up_takes_all_its_pool_tries_with_it() {
+        let mut pool = VecDeque::from([wide_def(0.0, 5.5), TryDef { id: "q".into(), ..wide_def(30.0, 5.5) }]);
+        pool.push_back(TryDef { site: named_site("chem060a", &HashMap::new()).expect("a site"), ..wide_def(0.0, 3.5) });
+        let mut bad = Vec::new();
+        let site = base_of(&pool[0]);
+        forget_site(&mut pool, &mut bad, site);
+        assert_eq!(pool.len(), 1);
+        assert_eq!(pool[0].site.name, "chem060a");
+        assert_eq!(bad.len(), 1);
     }
 
     #[test]
