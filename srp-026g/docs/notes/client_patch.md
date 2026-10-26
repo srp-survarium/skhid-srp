@@ -882,6 +882,8 @@ The owner's decision (2026-10-17): the upgrade window of a weapon (the scope slo
   4. else the parent, or the query itself when it has none: A's below B's.
 - Not a strict weak ordering: two reads of one archive are ordered by offset, a read of another archive by step 4, so A < C by offset with C < B < A by address is a cycle; the priority of step 2 between queries of one parent can also cross the offsets of others. With a cycle the unguarded loops step past the array. With `resources.db` alone there was one archive; patch 27 mounts every `resources.db.patch_<n>` over it.
 
+**The Rust port**: the Rust patch `read_order` (`rust/patches/src/read_order.rs`) is a lohook at the predicate's start (the site `read_order.predicate`, its exit a return `ret 4` with EAX the answer) doing the same comparisons and calls in the same order; the body stays, never reached; proven by `port/equiv/read_order.py` (0 differences; the cases include equal keys, since a `<=` for `<` passes every basic block). A comparison now costs the lohook entry's save and restore (about 200 cycles; the sort makes n log n of them per batch of at most 58 reads). What follows is the asm it replaced.
+
 **The patch** (`READ_ORDER_*`, `read_order_026g.asm`, assembled at 0x10BCC0, 0x1A0 bytes = the body to the next function 0x10BE60, int3 after the code; in the builds with the late join only): the body is replaced in place, with the same entry and convention, by a lexicographic order:
 
 | key | as |

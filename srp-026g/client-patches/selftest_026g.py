@@ -269,13 +269,13 @@ without the late join, as patch revision 4 was, which check 15 builds on):
 34. the same build: the order of the archive reads is a strict weak
     ordering (patch 33). hdd_manager_sorting_predicate's 0x1A0 bytes at
     0x10BCC0 are the original's in the original and the build without the
-    late join, read_order_026g.bin here; no base relocation is in them,
-    nothing outside aims inside them, its fifteen calls are all in the
-    std::sort helpers of grab_sorted_queries (0x10BF70..0x10C3ED), which it
-    alone calls; the new code calls only get_physical_path, strcmp_s and
-    get_file_offs, leaves only by `ret 4`, every branch inside lands on an
-    instruction, it holds no absolute address and int3 fills the rest.
-    check_read_order_026g.py runs it.
+    late join; here its first six (`sub esp,0x250`) are the Rust patch
+    read_order's lohook (read_order.toml), which returns for the function
+    (`ret 4`); no base relocation is in them, nothing outside aims inside
+    them, its fifteen calls are all in the std::sort helpers of
+    grab_sorted_queries (0x10BF70..0x10C3ED), which it alone calls.
+    check_read_order_026g.py runs it (and port/equiv/read_order.py compared
+    it with read_order_026g.asm).
 35. the same build: the commit_suicide key kills one's own player (patch
     34, the Rust patch suicide_key, the arena's block patches.code). The
     original: the action table's entry 0xA74D20 is commit_suicide, action
@@ -597,13 +597,6 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.death_camera_bin(), "rb").read(),
           f"{os.path.basename(P.death_camera_bin())} is current ({len(fresh)} bytes)")
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", os.path.join(HERE, "read_order_026g.asm"), "-o", out],
-                       check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(fresh == open(P.read_order_bin(), "rb").read(),
-          f"{os.path.basename(P.read_order_bin())} is current ({len(fresh)} bytes)")
     state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_PREVIEW_STATE_OFFSET
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
@@ -1470,7 +1463,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.KIT_CHANGE_HOOKS] + [(P.KIT_PICK[0], len(P.KIT_PICK[1]))] + \
         [(P.WARMUP_LOOK_HOOK[0], len(P.WARMUP_LOOK_HOOK[1])), (P.WARMUP_LIMITS_HOOK[0], len(P.WARMUP_LIMITS_HOOK[1])),
          (P.WARMUP_KEYS_HOOK[0], len(P.WARMUP_KEYS_HOOK[1]))] + \
-        [(P.READ_ORDER_VA, P.READ_ORDER_SIZE)] + \
+        [(P.READ_ORDER_VA, 6)] + \
         [(P.BAKED_TEXTURE_MISSING[0], len(P.BAKED_TEXTURE_MISSING[1]))] + \
         [(P.AI_ARENA_VA, len(P.AI_ARENA[1]))] + \
         [(va, len(old)) for va, old, _ in P.MEMORY_DEFAULTS] + \
@@ -3705,14 +3698,17 @@ def rust_lohooks(original, image, before, patch, sites, exits=(), relocs=()):
               "called, its Flow taken: the replay, past the span, the named exits)")
         if replay is None:
             continue
-        named |= set(moves[2:])
+        for move in moves[2:]:                          # a host return's stub (in the block): its `ret`
+            inside = block.va <= move < block.va + block.size
+            named.add(ndisasm(image.read(move, 3), move)[0][2] if inside else move)
         plain = lambda text: re.sub(r" (?:near|short) ", " ", text)     # a relocated jcc is near
         played = [plain(text) for at, text in texts if at >= replay]
         spans = [plain(text) for _, _, text in ndisasm(old, va)]
         check(played[:len(spans)] == spans and played[len(spans)] == f"jmp {past:#x}",
               f"{symbol}: its replay is the span's instructions at their own targets, then `jmp {past:#x}`")
+    name = lambda e: e if isinstance(e, str) else f"{e:#x}"
     check(named == set(exits), f"the named exits of {patch}'s lohooks are "
-          + (", ".join(f"{e:#x}" for e in sorted(exits)) or "none") + f" (found {sorted(hex(e) for e in named)})")
+          + (", ".join(sorted(map(name, exits))) or "none") + f" (found {sorted(map(name, named))})")
     spans = [(s, o) for s, o, _, _ in hooks]
     under = [v for kind, v in stock.relocations().values() if kind == 3
              and any(s - 4 < v < s + len(o) for s, o in spans)]
@@ -5011,11 +5007,11 @@ def test_read_order(original, image, before):
     and the game's sort on made-up read queries."""
     stock = Image(original)
     va, size = P.READ_ORDER_VA, P.READ_ORDER_SIZE
-    code = open(P.read_order_bin(), "rb").read()
     check(hashlib.sha256(stock.read(va, size)).hexdigest() == P.READ_ORDER_SHA256
-          and before.read(va, size) == stock.read(va, size) and image.read(va, size) == code and len(code) == size,
+          and before.read(va, size) == stock.read(va, size) and image.read(va + 6, size - 6) == stock.read(va + 6, size - 6),
           f"{va:#x}: hdd_manager_sorting_predicate's {size:#x} bytes are the original's in the original and the build "
-          "without the late join, read_order_026g.bin here")
+          "without the late join, and here but its first six (the lohook)")
+    rust_lohooks(original, image, before, "read_order", {va: ["sub esp,0x250"]}, exits={"ret 0x4"})
     stock_rows = ndisasm(stock.read(va, size), va)
     rets = [address for address, _, t in stock_rows if t.startswith("ret")]
     check(stock_rows[0][2] == "sub esp,0x250" and [t for _, _, t in stock_rows if t.startswith("ret")] == ["ret 0x4"] * 8
@@ -5040,17 +5036,6 @@ def test_read_order(original, image, before):
           "the predicate's fifteen calls are all in the sort's helpers 0x10BF70..0x10C3ED; the introsort 0x10BF70 is "
           "called by grab_sorted_queries (0x10BF13) and itself (0x10C025), the final insertion sort 0x10C060 by "
           "grab_sorted_queries alone (0x10BF1E)")
-    listing = [row for row in ndisasm(code, va) if row[2] != "int3"]
-    end = listing[-1][0] + len(listing[-1][1]) // 2
-    targets = {branch_target(text) for _, _, text in listing if branch_target(text) is not None}
-    outside = {t for t in targets if not va <= t < va + size}
-    starts = {address for address, _, _ in listing}
-    check(outside == {0x4BC10, 0x3B5A0, 0x47160} and all(t in starts for t in targets - outside)
-          and [t for _, _, t in listing if t.startswith("ret")] == ["ret 0x4"] and set(code[end - va:]) == {0xCC}
-          and not [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[|\[(?:dword )?0x", t)],
-          "the new code calls only get_physical_path (0x4BC10), strcmp_s (0x3B5A0) and get_file_offs (0x47160), "
-          f"returns by its one `ret 4`, every branch inside lands on an instruction, it holds no absolute address, "
-          f"and int3 fills it from {end:#x}")
 def test_weapon_preview(original, image, before):
     """Check 33: a weapon's upgrade window shows the weapon (patch 32,
     WEAPON_PREVIEW_HOOKS). check_weapon_preview_026g.py runs the original's

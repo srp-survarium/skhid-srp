@@ -153,3 +153,8 @@ survarium::drop_upgrade_frame	args	0x8	u32	drop_upgrade_item's handler 0x29A9D0 
 scaleform::callback_args	values	0x8	u32	a Flash callback's arguments: +8 their GFx values (0x29A9DC)
 survarium::inventory_item	id	0x0	u32	an inventory item's id (the lobby client's items, B4h each, +1EA978h; find_item_holding_upgrade 0x277CF0 steps by B4h)
 survarium::message_reader	position	0x4	u32	a lobby message reader's read position (process_succeeded_inventory_action moves it, mov [esi+4],eax at 0x27575D)
+vostok::resources::query_result	iterator	0xA4	u32	a read query's vfs iterator node (0: none; hdd_manager_sorting_predicate 0x10BCC0)
+vostok::resources::query_result	file_node	0xA8	u32	the query's file node (0: the iterator's)
+vostok::resources::query_result	parent	0x158	u32	the parent query (0: none)
+vostok::resources::query_result	priority	0x2B8	u32	the query's priority (the higher read first)
+vostok::vfs::vfs_node	flags	0x30	u8	a vfs node's flags: 4 in an archive (get_physical_path 0x4BC39), 1 a file

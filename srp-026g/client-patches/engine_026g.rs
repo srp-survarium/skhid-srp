@@ -100,6 +100,12 @@ unsafe extern "C" {
     pub fn engine_new_packet(client: *mut c_void, id: u32) -> *mut c_void;
     /// 0x7ab30 vostok::network_core::mutable_buffer::resize: buffer EAX, size ESP+4; pops 4
     pub fn engine_buffer_resize(buffer: *mut c_void, size: u32);
+    /// 0x4bc10 vostok::vfs::vfs_iterator::get_physical_path: path EDI, node ESP+4; pops 0
+    pub fn engine_physical_path(path: *mut c_void, node: *mut c_void);
+    /// 0x3b5a0 vostok::detail::strcmp_s: first EAX, second ECX; pops 0; EAX
+    pub fn engine_strcmp(first: *const u8, second: *const u8) -> u32;
+    /// 0x47160 vostok::vfs::get_file_offs<1>: node ECX; pops 0; EDX:EAX
+    pub fn engine_file_offset(node: *mut c_void) -> u64;
 }
 
 #[allow(dead_code)]
@@ -1902,5 +1908,62 @@ pub mod message_reader {
     #[inline(always)]
     pub unsafe fn position(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x4).cast() }
+    }
+}
+
+/// vostok::resources::query_result's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod query_result {
+    use core::ffi::c_void;
+
+    /// +0xa4 (u32): a read query's vfs iterator node (0: none; hdd_manager_sorting_predicate 0x10BCC0)
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::query_result.
+    #[inline(always)]
+    pub unsafe fn iterator(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xa4).cast() }
+    }
+
+    /// +0xa8 (u32): the query's file node (0: the iterator's)
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::query_result.
+    #[inline(always)]
+    pub unsafe fn file_node(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xa8).cast() }
+    }
+
+    /// +0x158 (u32): the parent query (0: none)
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::query_result.
+    #[inline(always)]
+    pub unsafe fn parent(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x158).cast() }
+    }
+
+    /// +0x2b8 (u32): the query's priority (the higher read first)
+    ///
+    /// # Safety
+    /// `this` is a vostok::resources::query_result.
+    #[inline(always)]
+    pub unsafe fn priority(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x2b8).cast() }
+    }
+}
+
+/// vostok::vfs::vfs_node's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod vfs_node {
+    use core::ffi::c_void;
+
+    /// +0x30 (u8): a vfs node's flags: 4 in an archive (get_physical_path 0x4BC39), 1 a file
+    ///
+    /// # Safety
+    /// `this` is a vostok::vfs::vfs_node.
+    #[inline(always)]
+    pub unsafe fn flags(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x30).cast() }
     }
 }

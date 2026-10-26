@@ -58,9 +58,7 @@ USAGE (this script never touches the source exe):
     Rust patch replay_link, and so is one upgrade on several items, the Rust
     patch shared_upgrades. A kit chosen before the start comes from kit_change_026g.asm:
         nasm -f bin -DCAVE=0xA425EC0 kit_change_026g.asm -o kit_change_026g.section.bin
-    (checked in). The archive reads' order comes from read_order_026g.asm, which
-    replaces hdd_manager_sorting_predicate's body in place:
-        nasm -f bin read_order_026g.asm -o read_order_026g.bin
+    (checked in). The archive reads' order is the Rust patch read_order.
     (checked in). A weapon's upgrade window showing the weapon comes from
     weapon_preview_026g.asm:
         nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42C00F -DCAMERA=0xA42A6B0 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
@@ -338,7 +336,8 @@ Patches:
   pending reads (0x10BE80, std::sort with unguarded loops) used a predicate
   (0x10BCC0) that cycles when a batch reads from two archives (resources.db
   and a patch mounted over it), and the sort then read past its array: the
-  lobby crash of round 4d. Its 0x1A0 bytes are read_order_026g.asm: a null
+  lobby crash of round 4d. The Rust patch read_order answers for it (a
+  lohook at its start, read_order.toml; once read_order_026g.asm): a null
   iterator first, then the priority (+2B8h) descending, archive reads before
   others, then the archive's path and the file offset (others: the parent
   +158h or the query);
@@ -1088,8 +1087,11 @@ DEATH_CAMERA_EXITS_EXPECTED = sorted([(0xE9, WARMUP_LOOK_VA), (0xE9, WARMUP_LOOK
 # hdd_manager::grab_sorted_queries (0x10BE80) alone: its fifteen calls are in
 # the sort's helpers 0x10BF70..0x10C3ED. Its body, 0x1A0 bytes to the next
 # function (code to 0x10BE58, int3 after), holds no address (no base
-# relocation) and nothing aims inside it; read_order_026g.asm replaces it in
-# place, the same entry and convention.
+# relocation) and nothing aims inside it. The Rust patch read_order
+# (rust/patches/src/read_order.rs) is a lohook at its start
+# (sites_026g.tsv read_order.predicate) that answers for it and returns
+# (`ret 4`); the body stays, never reached. (Until the Rust port
+# read_order_026g.asm replaced the body in place.)
 READ_ORDER_VA, READ_ORDER_SIZE = 0x10BCC0, 0x1A0
 READ_ORDER_SHA256 = "3c49ddd03438f137bbf3ec844d41ed3c4247d6d815595f1d494a515e112d0aa8"
 # A weapon's upgrade window shows the weapon (patch 32, README; client_patch.md
@@ -2209,7 +2211,6 @@ INSTALLS = {
     # patch 27/49, 28, 29, 30, 33
     0xE7E3E: (CALLEE, "query_db's query_mount_archive: mount_all", None, None),
     0x147E0: (ENTRY, "on_mounted_resources: on_mounted", None, None),
-    READ_ORDER_VA: (ENTRY, "hdd_manager_sorting_predicate, in place: read_order", None, None),
     # patch 38, 44, 45, 47, 48
     0x24B0D2: (INLINE, "the weapon's model ready: weapon_ready", None, None),
     0x284020: (INLINE, "the lobby camera's tick: tick", None, None),
@@ -2289,7 +2290,7 @@ INSTALLS = {
                      "value eight bytes a step", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
-BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
+BODIES = {}
 # A vtable our code builds and installs at run time (a rule's, a cook's):
 # the game calls through its slots, so each slot of ours must pop what the
 # game's own vtable pops in the same place (the self-test's generalisation of
@@ -3251,15 +3252,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             patch(data, va, expected, hook_bytes(base, va, expected, offset, opcode))
             if neutralize_relocs(data, [(va, va + len(expected))]):
                 sys.exit(f"{va:#x}: a base relocation under a hook of the warmup or the death camera")
-        read_order = open(read_order_bin(), "rb").read()
-        at = file_offset(READ_ORDER_VA)
-        if len(read_order) != READ_ORDER_SIZE:
-            sys.exit(f"read_order_026g.bin is {len(read_order)} bytes, not {READ_ORDER_SIZE:#x}")
-        if hashlib.sha256(data[at:at + READ_ORDER_SIZE]).hexdigest() != READ_ORDER_SHA256:
-            sys.exit(f"{READ_ORDER_VA:#x}: hdd_manager_sorting_predicate is not the original")
-        apply(data, at, READ_ORDER_VA, bytes(data[at:at + READ_ORDER_SIZE]), read_order, owner="READ_ORDER")
-        if neutralize_relocs(data, [(READ_ORDER_VA, READ_ORDER_VA + READ_ORDER_SIZE)]):
-            sys.exit("a base relocation under hdd_manager_sorting_predicate")
         weapon_preview = open(weapon_preview_bin(), "rb").read()
         if LATE_JOIN_OFFSET + len(late_join) > WEAPON_PREVIEW_OFFSET \
                 or WEAPON_PREVIEW_VA + len(weapon_preview) > late_join_state_va(late_join):
@@ -3593,10 +3585,6 @@ def weapon_camo_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_camo_026g.section.bin")
 
 
-
-
-def read_order_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "read_order_026g.bin")
 
 
 def kit_change_bin():

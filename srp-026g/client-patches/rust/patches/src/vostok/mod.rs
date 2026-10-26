@@ -45,6 +45,7 @@ pub mod parse;
 pub mod lobby;
 pub mod replay;
 pub mod render;
+pub mod resources;
 pub mod player;
 pub mod spawn;
 pub mod sign_in;

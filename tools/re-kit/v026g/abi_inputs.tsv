@@ -4675,3 +4675,8 @@ va	name	location	role	basis
 0x00677000	Scaleform::GFx::Value::ObjectInterface::SetMember	entry ESP+16	is a display object (the value's type & 8Fh is 0Ah; pushed as a dword 0 or 1)	observed
 0x00275220	survarium::lobby_client::process_detach_upgrade	entry ESP+4	the lobby client (EBX in the body: its inventory at +1EA978h, begin and end)	observed
 0x00275220	survarium::lobby_client::process_detach_upgrade	entry ESP+8	the upgrade id taken off (EBP in the body, pushed to find_item_holding_upgrade 0x277CF0 as &id at 0x27534A)	observed
+0x0004bc10	vostok::vfs::vfs_iterator::get_physical_path	EDI	the path written: a buffer_string of 118h bytes (+0 its text, +0Ch its 104h bytes; 0x4BC45 lea edx,[edi+0Ch], 0x4BC56 [edi+110h]); kept	observed
+0x0004bc10	vostok::vfs::vfs_iterator::get_physical_path	entry ESP+4	the vfs node (EBX in the body, its flags at +30h; 0x4BC17)	observed
+0x0003b5a0	vostok::detail::strcmp_s	EAX	the first text (null: empty)	observed
+0x0003b5a0	vostok::detail::strcmp_s	ECX	the second text (null: empty)	observed
+0x00047160	vostok::vfs::get_file_offs<1>	ECX	the vfs node (+30h bit 0 a file; its offset at the node's -8h)	observed

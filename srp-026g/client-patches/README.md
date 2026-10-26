@@ -91,7 +91,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `death_camera_026g.asm`, `death_camera_026g.section.bin` | The source of patch 46's camera on the death screen (a drag turns the view from the corpse's eyes; the wheel does nothing) and that code assembled for `.srpc` (0xA429000), its state at 0xE60 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `warmup_keys_026g.asm`, `warmup_keys_026g.section.bin` | The same patch's buttons: one held from before the start (a drag of its camera) is not the player's until it is let go, and that code assembled for 0x9A8 of `.srp`, its state at 0xE30 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `warmup_limits_026g.asm`, `warmup_limits_026g.section.bin` | The same camera's end of a drag and its limits (the lobby camera's: distance 1.5 to 4.6, pitch within 60 degrees) and that code assembled for 0xA98 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `read_order_026g.asm`, `read_order_026g.bin` | The source of patch 33 (the order of the archive reads is a strict weak ordering) and that code assembled at 0x10BCC0, the 0x1A0 bytes of `hdd_manager_sorting_predicate` it replaces, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/src/read_order.rs`, `read_order.toml`, `port/equiv/read_order.py` | Patch 33 (the order of the archive reads is a strict weak ordering) as the Rust patch `read_order` (a lohook at the predicate's start that returns for it), and its equivalence spec against the asm it replaced |
 | `check_read_order_026g.py` | Runs the original's and patch 33's predicate, with the game's own path, string and offset helpers, and the game's own sort on made-up read queries over several archives (needs Unicorn) |
 | `rust/patches/` (`src/suicide_key.rs`, `src/suicide_key.toml`), `hooks_026g.py`, `port/equiv/suicide_key.py` | Patch 34 (the commit_suicide key kills one's own player), the Rust framework's example: the patch module and its hook TOML (a `[[hook]]` naming the site `input_builder.spot_query`), generated into the block `patches.code`; and its spec for the port-only equivalence gate. Until the framework, NASM at 0x980 of `.srp` |
 | `rust/patches/src/vostok/`, `engine_026g.tsv` + `fields_026g.tsv` -> `engine_026g.rs` (`engine_026g.py`) | The framework: `raw` (the generated bindings and field offsets), `vostok` (the safe typed API and the hook system), the patch modules. `docs/notes/rust_patches.md` |
@@ -2106,10 +2106,12 @@ cycle, and the sort then reads past the front of its array (the round 4d
 dump: the 0 before a 58-slot buffer taken as a query). With `resources.db`
 alone this could not happen between archives.
 
-**The patch.** Only in the builds with the late join. The predicate's 0x1A0
-bytes are `read_order_026g.asm` in place (the same entry and convention;
-the body holds no address, nothing outside aims inside it, only the sort's
-helpers call it): a strict lexicographic order, a null iterator first
+**The patch.** Only in the builds with the late join. The Rust patch
+`read_order` (`rust/patches/src/read_order.rs`, a lohook at the predicate's
+start, the site `read_order.predicate`, which answers and returns `ret 4`
+for it; ported from `read_order_026g.asm`, which replaced the 0x1A0 bytes in
+place, with no change of behaviour, proven by `port/equiv/read_order.py`;
+only the sort's helpers call it): a strict lexicographic order, a null iterator first
 (nulls by address), then the priority descending, reads from an archive
 before others, then for archive reads the archive's path and the file
 offset, for others the parent or the query. Reads of one archive keep

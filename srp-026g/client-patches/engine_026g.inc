@@ -213,3 +213,12 @@ extern engine_enqueue
 ; 0x275220 survarium::lobby_client::process_detach_upgrade: client ESP+4, upgrade ESP+8; pops 8; EAX; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_process_detach_upgrade
+; void engine_physical_path(void *path, void *node)
+; 0x4bc10 vostok::vfs::vfs_iterator::get_physical_path: path EDI, node ESP+4; pops 0
+extern engine_physical_path
+; unsigned int engine_strcmp(const char *first, const char *second)
+; 0x3b5a0 vostok::detail::strcmp_s: first EAX, second ECX; pops 0; EAX
+extern engine_strcmp
+; unsigned long long engine_file_offset(void *node)
+; 0x47160 vostok::vfs::get_file_offs<1>: node ECX; pops 0; EDX:EAX
+extern engine_file_offset

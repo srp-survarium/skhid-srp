@@ -384,6 +384,26 @@ pub extern "C" fn hook_ragdoll_on_held_item(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- read_order (patch 33) ----
+
+/// The named exits of read_order::on_predicate (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ReadOrderOnPredicateExit { Done }
+/// The entry `read_order_on_predicate` (0x10bcc0, hdd_manager_sorting_predicate::operator() 0x10BCC0 at its start (sub esp,250h; EAX the first query_result, [esp+4] the second; AL: the first before the second, ret 4); done: its return) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_read_order_on_predicate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `read_order_on_predicate` calls this, from the game's jump at 0x10bcc0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::read_order::on_predicate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- replay_link (patch 29) ----
 
 /// The named exits of replay_link::on_clicked (the order the shim's Flow code

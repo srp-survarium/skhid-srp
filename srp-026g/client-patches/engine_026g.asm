@@ -68,6 +68,9 @@ global engine_new_packet
 global engine_buffer_resize
 global engine_enqueue
 global engine_process_detach_upgrade
+global engine_physical_path
+global engine_strcmp
+global engine_file_offset
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -859,6 +862,54 @@ engine_buffer_resize:
     push dword [esp + 24]   ; size -> 4
     mov eax, [esp + 24]   ; buffer
     call 0x7ab30
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_physical_path:
+    ; 0x4bc10 vostok::vfs::vfs_iterator::get_physical_path: path EDI, node ESP+4; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; node -> 4
+    mov edi, [esp + 24]   ; path
+    call 0x4bc10
+    add esp, 4                  ; the caller's part of the stack
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_strcmp:
+    ; 0x3b5a0 vostok::detail::strcmp_s: first EAX, second ECX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; first
+    mov ecx, [esp + 24]   ; second
+    call 0x3b5a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_file_offset:
+    ; 0x47160 vostok::vfs::get_file_offs<1>: node ECX; pops 0; EDX:EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; node
+    call 0x47160
     pop edi
     pop esi
     pop ebx

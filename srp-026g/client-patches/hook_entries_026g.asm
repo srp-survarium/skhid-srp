@@ -899,6 +899,50 @@ ragdoll_on_held_item_replay:
     db 0x8b, 0xb3, 0x28, 0x01, 0x00, 0x00
     jmp 0x247555
 
+; 0x10bcc0 hdd_manager_sorting_predicate::operator() 0x10BCC0 at its start (sub esp,250h; EAX the first query_result, [esp+4] the second; AL: the first before the second, ret 4); done: its return: lohook -> read_order_on_predicate
+global read_order_on_predicate
+extern hook_read_order_on_predicate
+read_order_on_predicate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_read_order_on_predicate
+    mov edx, read_order_on_predicate_replay
+    cmp eax, 0
+    je read_order_on_predicate_go
+    mov edx, 0x10bcc6
+    cmp eax, 1
+    je read_order_on_predicate_go
+    mov edx, read_order_on_predicate_done
+    cmp eax, 2
+    je read_order_on_predicate_go
+    ud2
+read_order_on_predicate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+read_order_on_predicate_replay:
+    db 0x81, 0xec, 0x50, 0x02, 0x00, 0x00
+    jmp 0x10bcc6
+read_order_on_predicate_done:
+    ret 0x4
+
 ; 0x28cdb6 video_tutorial_link_clicked 0x28CDA0 after its owner gave the lobby client (EAX), push 1/0/0 before ShellExecuteA of client+1E6144h; done: the function's mov al,1 / pop esi / ret 4: lohook -> replay_link_on_clicked
 global replay_link_on_clicked
 extern hook_replay_link_on_clicked

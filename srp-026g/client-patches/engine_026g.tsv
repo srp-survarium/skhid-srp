@@ -69,3 +69,6 @@ engine_new_packet	0x37a0e0	EAX:receiver ESP+4:channel	void *engine_new_packet(vo
 engine_buffer_resize	0x07ab30	EAX:buffer ESP+4:size	void engine_buffer_resize(void *buffer, unsigned int size)	thunk	
 engine_enqueue	0x379640	ESP+4:receiver ESP+8:value	void engine_enqueue(void *client, void *packet)	stdcall	
 engine_process_detach_upgrade	0x275220	ESP+4:client ESP+8:upgrade	unsigned int engine_process_detach_upgrade(void *client, unsigned int upgrade)	stdcall	
+engine_physical_path	0x04bc10	EDI:path ESP+4:node	void engine_physical_path(void *path, void *node)	thunk	
+engine_strcmp	0x03b5a0	EAX:first ECX:second	unsigned int engine_strcmp(const char *first, const char *second)	thunk	
+engine_file_offset	0x047160	ECX:node	unsigned long long engine_file_offset(void *node)	thunk	
