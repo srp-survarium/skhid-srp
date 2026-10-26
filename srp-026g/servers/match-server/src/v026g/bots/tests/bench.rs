@@ -199,6 +199,17 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
         }
         tuning.aim.combat = serde_json::from_value(combat).expect("SRP_BENCH_COMBAT: known names");
     }
+    // The consumables' numbers (`HealTuning`): `name=json,...`, e.g. `interrupt=false` for the play
+    // instead of the reflex's habit (`;` between them when a value has a comma).
+    if let Ok(numbers) = var("HEAL") {
+        let mut heal = serde_json::to_value(&tuning.heal).unwrap();
+        let sep = if numbers.contains(';') { ';' } else { ',' };
+        for pair in numbers.split(sep).filter(|p| !p.is_empty()) {
+            let (name, value) = pair.split_once('=').expect("SRP_BENCH_HEAL: name=value");
+            heal[name] = serde_json::from_str(value).expect("SRP_BENCH_HEAL: a JSON value");
+        }
+        tuning.heal = serde_json::from_value(heal).expect("SRP_BENCH_HEAL: known names");
+    }
     // The aim's own numbers (`AimTuning`: `range_m`, `fire_within_deg`,
     // `pause_ms`, ...), as `SRP_BENCH_COMBAT`'s.
     if let Ok(numbers) = var("AIM") {

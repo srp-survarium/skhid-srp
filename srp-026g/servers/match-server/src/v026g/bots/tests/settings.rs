@@ -44,7 +44,7 @@ const fn s(name: &'static str, default: &'static str, what: &'static str) -> Set
 /// The names of the plays', the reflex's and the senses' number lists
 /// (`name=value,...`), read as `SRP_BENCH_<name>`, and for team 1 of a one-sided
 /// run as `SRP_BENCH_SIDE1_<name>` (`bench_tuning_of`).
-pub(crate) const TUNING_NAMES: [&str; 13] = [
+pub(crate) const TUNING_NAMES: [&str; 14] = [
     "COLLECT",
     "INTERCEPT",
     "RAID",
@@ -56,6 +56,7 @@ pub(crate) const TUNING_NAMES: [&str; 13] = [
     "CROSSFIRE",
     "PAIRUP",
     "COMBAT",
+    "HEAL",
     "AIM",
     "SENSE",
 ];
