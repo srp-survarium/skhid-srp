@@ -273,8 +273,7 @@ bit when the key went down.
    bit, and asks the game's own function for the spot the site wanted.
 3. **The declaration** (names only): `rust/patches/src/suicide_key.toml` with
    `[[hook]] site = "input_builder.spot_query"`, `handler = "on_spot"`;
-   `pub mod suicide_key` in `lib.rs`, `"suicide_key"` in `RUST_PATCHES`
-   (patch_026g.py).
+   `pub mod suicide_key` in `lib.rs` (patch_026g.py's `RUST_PATCHES` is the TOMLs' names).
 4. **Build**: `python engine_026g.py --write` (if the TSVs changed),
    `python hooks_026g.py --write`, `python link_026g.py --write` (the lock).
 5. **Check** (section 5).

@@ -1142,11 +1142,12 @@ WEAPON_DRAW_HOOK = (0x284A33, bytes.fromhex("88819cf40000"), 0, 0xE8)   # the pl
 # before it, a Rust crate per patch with a tail jump.)
 ACTION_STATE_VA = 0x242460                    # player_input_handler: the state of a buffered action
 
-# The Rust exe patches (docs/notes/rust_patches.md): the module names (for
+# The Rust exe patches (docs/notes/rust_patches.md): the module names, one a
+# <patch>.toml of rust/patches/src (for
 # link_026g.py --sizes) and the hooks the patches declare in their TOML,
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
-RUST_PATCHES = ("suicide_key", "spot")
+RUST_PATCHES = tuple(patch["name"] for patch in hooks_026g.read_tomls())
 
 
 def rust_hooks(original):
