@@ -2244,24 +2244,24 @@ pub(super) mod tests {
         let open = RouteFilter::open();
         let from = grid.locate(Vec3::new(23.0, 0.0, 20.0), 1.0).unwrap();
         let out = tactics
-            .step_out(from, rest, 10.5, 20.0, 0.0, Some(0), false, &open)
+            .step_out(from, rest, 10.5, 20.0, 0, Some(0), false, &open)
             .expect("a floor outside");
         let chest = Vec3::new(0.0, 1.3, 0.0);
         let reach = (out + chest - rest).length();
         assert!((10.5..12.0).contains(&reach), "the nearest outside, not far past: {out:?} {reach}");
         // A walk of 3 m only: no floor outside; the farthest in reach, about 3 m on from 3 m.
         let near = tactics
-            .step_out(from, rest, 10.5, 3.0, 0.0, Some(0), false, &open)
+            .step_out(from, rest, 10.5, 3.0, 0, Some(0), false, &open)
             .expect("as far as it gets");
         let went = near.distance_xz(grid.position(from));
         assert!((2.0..3.2).contains(&went), "{near:?} {went}");
         assert!((near + chest - rest).length() > 3.0 + 1.5);
         // With no reach at all it stays where it is: none.
-        assert_eq!(tactics.step_out(from, rest, 10.5, 0.0, 0.0, Some(0), false, &open), None);
+        assert_eq!(tactics.step_out(from, rest, 10.5, 0.0, 0, Some(0), false, &open), None);
         // Standing outside already, its own floor.
         let outside = grid.locate(Vec3::new(33.0, 0.0, 20.0), 1.0).unwrap();
         let stay = tactics
-            .step_out(outside, rest, 10.5, 20.0, 0.0, Some(0), false, &open)
+            .step_out(outside, rest, 10.5, 20.0, 0, Some(0), false, &open)
             .unwrap();
         assert_eq!(stay, grid.position(outside));
     }

@@ -49,6 +49,7 @@ use super::*;
 use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::maps::{MapState, Maps};
 use crate::v026g::bots::motor::Hurt;
+use crate::v026g::bots::pools::Pools;
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::foliage::{self, Foliage};
 use crate::v026g::bots::live_grenades::{Pocketed, Pockets};
@@ -464,6 +465,12 @@ impl Game {
             .is_some_and(|walkers| walkers.bots.has_map())
     }
 
+    /// What the server's bot at `place` counts of its drugs, for the tests.
+    #[cfg(test)]
+    pub(crate) fn driven_pantry(&self, place: usize) -> Option<&crate::v026g::bots::stock::Pantry> {
+        self.walkers.as_ref()?.bots.pantry_of(place)
+    }
+
     /// How often to ask for a world, `every` being what the match asks:
     /// sooner while the server's bots play.
     pub(super) fn driven_refresh(&self, every: Duration) -> Duration {
@@ -529,6 +536,9 @@ impl Game {
                 let legs = [6, 7].map(|part| damage.part_health.get(part).copied());
                 let hurt = Hurt::of(legs, damage.last_hit_time_ms, snapshot.time);
                 walkers.bots.hurt(place, hurt);
+                if let Some(pools) = Pools::of_world(&damage.part_health) {
+                    walkers.bots.pools(place, pools);
+                }
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);
@@ -543,6 +553,28 @@ impl Game {
                 "Match {id:#x}: anomalies in the world at {} ms: {read} read, {missed} missed",
                 snapshot.time
             );
+        }
+    }
+
+    /// A trusted world's word on what the server's bots hold of drugs:
+    /// each bot's block as `players::Supplies` read it (`Observed`), the
+    /// quick-use stacks of its kits. Called once `observe` has them.
+    pub(super) fn observe_stock(&mut self, time: u32) {
+        let Some(walkers) = self.walkers.as_mut() else {
+            return;
+        };
+        let Some(state) = self.state.as_ref() else {
+            return;
+        };
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        for (place, supplies) in state.supplies.iter().enumerate() {
+            let driven = self.formed.places.get(place).is_some_and(|p| p.driven);
+            if let (true, Some(supplies), Some(profile)) =
+                (driven, supplies, self.formed.profiles.get(place))
+            {
+                let readings = crate::v026g::bots::stock::readings(supplies, profile, dictionary);
+                walkers.bots.stock(place, time, &readings);
+            }
         }
     }
 
