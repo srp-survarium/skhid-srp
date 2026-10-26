@@ -593,6 +593,7 @@ pub(super) fn decide(
             dry: bot.reflex.dry(),
             ammo: bot.ammo(),
             crossing: walks_crossing(bot),
+            held_choke: bot.held_choke,
         },
         memory: &bot.memory,
         team: &state.knowledge,

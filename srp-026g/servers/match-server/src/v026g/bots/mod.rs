@@ -208,6 +208,9 @@ pub struct Bot {
     /// ([`NO_WAY_KEEP_MS`]): a battery ringed by fire is not fetched again
     /// and again, standing.
     no_way_to: Vec<(Vec3, u32)>,
+    /// The enemy and the place its Crossfire began on, and when
+    /// (`commit.crossfire_point`): the choke after the memory forgot him.
+    held_choke: Option<(Place, Vec3, u32)>,
     /// The lip guard's watch over its own hold on this bot's keys (`drive::LipWatch`).
     lip_watch: drive::LipWatch,
     /// The bench's stood line (`real_bot_cost`): whether the reflex had the
@@ -407,6 +410,7 @@ impl Bot {
             route_end: None,
             no_way: None,
             no_way_to: Vec::new(),
+            held_choke: None,
             lip_watch: drive::LipWatch::default(),
             #[cfg(test)]
             bench_legs: false,
@@ -628,6 +632,7 @@ impl Bot {
             self.note(notes, now, format!("ends {kind:?}: {why}"));
         }
         self.assignment = None;
+        self.held_choke = None;
         self.end_route(RouteEnd::EndPlay, now);
         self.intent = Intent::stay();
     }
@@ -637,6 +642,7 @@ impl Bot {
     /// respawn by being carried (owner's word; being checked in the
     /// client's code).
     fn new_life(&mut self, skill: f32, tactics: Option<&Tactics>, feet: Vec3) {
+        self.held_choke = None;
         self.running = None;
         self.assignment = None;
         self.route = None;
