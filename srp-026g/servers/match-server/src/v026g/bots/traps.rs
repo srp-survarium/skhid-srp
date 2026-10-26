@@ -555,11 +555,11 @@ impl TeamState {
     /// The team's field again if its list changed; whether it did.
     pub(super) fn refresh_traps(&mut self, grid: &WalkGrid) -> bool {
         let version = self.knowledge.traps.version();
-        if version == self.trap_field_version {
+        if version == self.features.traps.field_version {
             return false;
         }
-        self.trap_field = Arc::new(TrapField::of(&self.knowledge.traps, grid));
-        self.trap_field_version = version;
+        self.features.traps.field = Arc::new(TrapField::of(&self.knowledge.traps, grid));
+        self.features.traps.field_version = version;
         true
     }
 }
@@ -618,7 +618,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     if let Some((at, released)) = bot.features.traps.placed.take() {
         state.knowledge.traps.promise(bot.place, at, released);
         state.refresh_traps(&due.tactics.world.grid);
-        bot.features.traps.field = state.trap_field.clone();
+        bot.features.traps.field = state.features.traps.field.clone();
     }
     keep_off(bot, due);
     if bot.features.traps.habit.may_plan(t).is_err() {

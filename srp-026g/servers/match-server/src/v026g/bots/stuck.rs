@@ -916,3 +916,13 @@ mod tests {
         assert!(may_be_long(41.0, from, to));
     }
 }
+
+/// A team's stuck state, by feature ([`super::features`]).
+#[derive(Default)]
+pub struct TeamStuck {
+    /// Goals a bot of the team proved no way to, and until when the team's plays leave them
+    /// (`TEAM_NO_WAY_KEEP_MS`).
+    pub no_way_to: Vec<(mapdata::Vec3, u32)>,
+    /// Where its bots got stuck or fell, for the match ([`TeamSpots`]).
+    pub spots: TeamSpots,
+}

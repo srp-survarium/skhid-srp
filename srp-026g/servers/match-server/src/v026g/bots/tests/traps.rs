@@ -174,13 +174,13 @@ pub(crate) fn a_world_confirms_the_promise_and_a_world_without_it_takes_it_away(
     let trap = bots.teams[0].knowledge.traps.all()[0];
     assert_eq!((trap.phase, trap.at), (Phase::Armed, exact));
     assert_eq!(bots.teams[0].knowledge.traps.confirmed, 1);
-    assert!(!bots.teams[0].trap_field.is_empty());
+    assert!(!bots.teams[0].features.traps.field.is_empty());
     // The other team's list stays empty: it is not their trap.
     assert!(bots.teams[1].knowledge.traps.all().is_empty());
     // Fired: spent, the floors are open again; the team's trap went off,
     // and nobody with a broken leg is near it.
     bots.traps_from_world(&objects_with(exact, 2, released + 200), 45_000);
-    assert!(bots.teams[0].trap_field.is_empty());
+    assert!(bots.teams[0].features.traps.field.is_empty());
     assert_eq!(bots.own_trap_counts().fired, 1);
     assert_eq!(bots.own_trap_counts().own_team_caught, 0);
     // A world without it: gone.

@@ -95,6 +95,12 @@ features! {
 features! {
     /// A team's states, by feature.
     pub(super) struct TeamFeatures {
+        /// Where its bots got stuck, and the goals they proved no way to (`stuck`).
+        stuck: stuck::TeamStuck,
+        /// Where a shooter killed its bots from (`threat`).
+        threat: threat::TeamThreat,
+        /// The floors of the traps its bots put down, and the armed traps the last world showed (`trap_know`).
+        traps: trap_know::TeamTraps,
     }
 }
 

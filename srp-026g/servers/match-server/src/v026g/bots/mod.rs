@@ -668,13 +668,7 @@ impl Bots {
             cheats: CheatClock::default(),
             signals: MatchSignals::default(),
             next_commander: 0,
-            no_way_to: Vec::new(),
-            spots: TeamSpots::default(),
-            trap_field: Arc::new(trap_know::TrapField::default()),
-            trap_field_version: 0,
-            world_traps: Arc::new(Vec::new()),
-            threat: threat::ThreatSpots::default(),
-            covered: None,
+            features: TeamFeatures::default(),
         };
         let bots = teams
             .iter()
@@ -1182,7 +1176,7 @@ impl Bots {
                     state.refresh_traps(&tactics.world.grid);
                 }
             }
-            state.world_traps = armed.clone();
+            state.features.traps.world_traps = armed.clone();
         }
         if !went_off.is_empty() {
             self.count_own_traps(time, &went_off);

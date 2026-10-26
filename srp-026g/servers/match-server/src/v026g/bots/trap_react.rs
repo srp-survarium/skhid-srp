@@ -351,7 +351,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &TeamState) {
     }
     let own: Vec<Vec3> = state.knowledge.traps.standing().map(|k| k.at).collect();
     let others: Vec<(PlacedTrap, TrapKey, Vec3)> = state
-        .world_traps
+        .features.traps.world_traps
         .iter()
         .map(|trap| {
             (
