@@ -1,7 +1,7 @@
 //! The sight tree built by the surface area heuristic against the tree as it was (median splits, tight boxes) and against
 //! testing every triangle, on the game's own maps: `visible` between points over the floors at eye height, and `ray_cast`
-//! from them in random directions. The new tree must give what testing every triangle gives; the old tree's differences
-//! are counted. Also how long the queries take with each.
+//! from them in random directions. The new tree must give what testing every triangle gives; where the two trees differ
+//! every triangle decides, and each such query is printed. Also how long the queries take with each.
 //!
 //! ```text
 //! SRP_MAPDATA_DIR=<mapdata-dump files> cargo test -p mapdata --release --test sight_trees -- --ignored --nocapture
@@ -77,18 +77,37 @@ fn the_surface_area_tree_answers_as_the_old_tree_on_every_world() {
             *total += started.elapsed().as_secs_f64();
             std::hint::black_box((name, sink));
         }
+        // The trees against each other first; where they differ, every triangle decides.
         for &(a, b) in &pairs {
-            let want = new.visible_every_triangle(a, b);
             queries += 1;
-            hidden += u64::from(!want);
-            wrong_new += u64::from(new.visible(a, b) != want);
-            differ_old += u64::from(old.visible(a, b) != want);
+            hidden += u64::from(!new.visible(a, b));
+            if new.visible(a, b) != old.visible(a, b) {
+                let want = new.visible_every_triangle(a, b);
+                wrong_new += u64::from(new.visible(a, b) != want);
+                differ_old += u64::from(old.visible(a, b) != want);
+                eprintln!(
+                    "DIFFERENT {}: visible from {a:?} to {b:?}: old {}, new {}, every triangle {want}",
+                    world.map.project,
+                    old.visible(a, b),
+                    new.visible(a, b)
+                );
+            }
         }
         for &(a, d) in &rays {
-            let want = new.ray_cast_every_triangle(a, d, 60.0).map(f32::to_bits);
             queries += 1;
-            wrong_new += u64::from(new.ray_cast(a, d, 60.0).map(f32::to_bits) != want);
-            differ_old += u64::from(old.ray_cast(a, d, 60.0).map(f32::to_bits) != want);
+            let (n, o) = (new.ray_cast(a, d, 60.0).map(f32::to_bits), old.ray_cast(a, d, 60.0).map(f32::to_bits));
+            if n != o {
+                let want = new.ray_cast_every_triangle(a, d, 60.0).map(f32::to_bits);
+                wrong_new += u64::from(n != want);
+                differ_old += u64::from(o != want);
+                eprintln!(
+                    "DIFFERENT {}: ray_cast from {a:?} along {d:?}: old {:?}, new {:?}, every triangle {:?}",
+                    world.map.project,
+                    o.map(f32::from_bits),
+                    n.map(f32::from_bits),
+                    want.map(f32::from_bits)
+                );
+            }
         }
         eprintln!("{}: {} triangles, {} nodes new / {} old", world.map.project, new.triangle_count(), new.memory_bytes(), old.memory_bytes());
     }
