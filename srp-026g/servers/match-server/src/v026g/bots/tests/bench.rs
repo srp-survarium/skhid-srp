@@ -128,7 +128,7 @@ pub(crate) fn bench_tuning_of(side1: bool) -> Tuning {
     };
     let mut tuning = Tuning::default();
     // The lip guard and the short look-ahead on lips off (`Feel::lip_guard_ticks`, `lip_look_ahead_m`).
-    if bench_settings().var("SRP_BENCH_LIP_GUARD").is_ok_and(|v| v == "off") {
+    if bench_settings().var("SRP_BENCH_LIP_GUARD").is_ok_and(|v| v == "off" || v == "0") {
         tuning.feel.lip_guard_ticks = 0;
         tuning.feel.lip_look_ahead_m = 0.0;
     }
