@@ -3127,3 +3127,7 @@ va	status	ref_021d	name
 0x000885c0	inferred-high	0x0022392a	vostok::physics::character_controller_jump_vertical_tester::convex_sweep_test
 0x0039f360	inferred-medium	0x0025386b	vostok::animation::mixing::n_ary_tree::get_object_transform
 0x0039f690	inferred-medium	0x00253a73	vostok::animation::mixing::n_ary_tree::set_object_transform
+0x00085a90	inferred-high	0x00221ae8	vostok::physics::character_controller_move_step_tester::convex_sweep_test
+0x00086490	inferred-high		vostok::physics::character_controller_capsule_move_step_tester::convex_sweep_test
+0x000895f0	inferred-high		vostok::physics::character_move_sweep_callback::addSingleResult
+0x00084420	inferred-high		vostok::physics::character_step_down_sweep_test_callback::addSingleResult
