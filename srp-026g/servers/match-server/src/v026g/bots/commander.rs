@@ -253,6 +253,27 @@ impl Bots {
             {
                 escape::counts::handed();
             }
+            #[cfg(test)]
+            if let Some(old) = bot.assignment.as_ref() {
+                let incumbent = asked
+                    .iter()
+                    .find(|(p, _, _)| *p == place)
+                    .and_then(|(_, c, _)| c.iter().find(|c| c.kind == old.kind && c.target == old.target))
+                    .map(|c| (c.rank, c.score.get()));
+                let dist = match bot.intent.go {
+                    Go::To { at, .. } => Some(me.feet.distance_xz(at)),
+                    _ => None,
+                };
+                super::hold_trace::switched(
+                    old.kind,
+                    now.saturating_sub(old.since),
+                    incumbent,
+                    assignment.kind,
+                    assignment.score,
+                    assignment.reason,
+                    dist,
+                );
+            }
             // The new play starts.
             bot.give_way(assignment.kind, now);
             let no_way = team_no_way(&bot.no_way_to, &state.no_way_to);

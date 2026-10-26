@@ -1321,6 +1321,7 @@ pub(crate) fn real_bot_cost() {
                 perched[30] - perch_before[30], perched[31] - perch_before[31], perched[32] - perch_before[32]
             );
             eprintln!("  perch_left: {}", super::plays::goals::perch_left());
+            eprintln!("  hold_switch: {}", super::hold_trace::line());
             if let Some(human) = &human {
                 eprintln!("  human: {}", human.line());
             }

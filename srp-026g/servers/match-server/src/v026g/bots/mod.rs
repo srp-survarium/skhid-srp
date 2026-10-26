@@ -64,6 +64,8 @@ pub mod tuning;
 pub mod view;
 
 mod commander;
+#[cfg(test)]
+pub mod hold_trace;
 mod drive;
 mod facts;
 mod search;
@@ -447,6 +449,14 @@ impl Bot {
 
     /// Its play ended: remembered, and the commander asked again.
     fn end_play(&mut self, now: u32, why: &str, notes: &mut Vec<Note>) {
+        #[cfg(test)]
+        if let Some(a) = self.assignment.as_ref() {
+            let dist = match self.intent.go {
+                Go::To { at, .. } => Some(hold_trace::feet().distance_xz(at)),
+                _ => None,
+            };
+            hold_trace::ended(a.kind, now.saturating_sub(a.since), why, dist);
+        }
         if let Some(running) = self.running.take() {
             let kind = running.kind();
             self.last_ran.retain(|(k, _)| *k != kind);
