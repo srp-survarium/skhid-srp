@@ -330,6 +330,9 @@ pub(crate) fn with_the_switch_off_a_soak_is_the_old_one() {
     for (seed, want, rays) in base {
         let mut tuning = bench_tuning();
         tuning.aim.combat.live_eye = false;
+        tuning.threat.spots = false; // the pinned counts predate K1
+        // The base's soak is from before the trigger's range by weapon class (X1): the old 80 m.
+        tuning.aim.combat.range_by_weapon = false;
         let out = soak_tuned(4, 3, 0, None, 120, seed, tuning);
         let got = (
             out.shots,
