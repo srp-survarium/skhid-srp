@@ -80,6 +80,7 @@ mod standin_grenade;
 mod standin_heal;
 mod standin_jump;
 mod standin_weapon;
+mod traps;
 mod walkway;
 mod world_facts;
 mod zone_runs;

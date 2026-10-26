@@ -31,6 +31,8 @@ pub struct Tuning {
     pub skill: SkillTuning,
     pub mods: ModTuning,
     pub think: ThinkTuning,
+    /// The bear-trap habit (`bots/traps.rs`).
+    pub traps: TrapTuning,
     pub heal: HealTuning,
     pub threat: ThreatTuning,
     /// Metres kept from a damage zone (`hazards`).
@@ -64,6 +66,7 @@ impl Default for Tuning {
             skill: SkillTuning::default(),
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
+            traps: TrapTuning::default(),
             heal: HealTuning::default(),
             threat: ThreatTuning::default(),
             hazard_margin: 1.0,
@@ -88,12 +91,14 @@ mod motion;
 mod play;
 mod sense;
 mod team;
+mod traps;
 
 pub use aim::{AimTuning, SkillTuning, TierSkill};
 pub use heal::{HealTuning, NeedWeights};
 pub use play::PlayTuning;
 pub use sense::{CheatTuning, SenseTuning};
 pub use team::{ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL};
+pub use traps::TrapTuning;
 
 /// `Ok` if `ok`, else the name of what is wrong.
 fn check(ok: bool, what: &str) -> Result<(), String> {
@@ -129,6 +134,7 @@ impl Tuning {
         sense::validate(&self.sense)?;
         team::validate_think(&self.think)?;
         motion::validate_feel(&self.feel)?;
+        traps::validate(&self.traps)?;
         aim::validate_skill(&self.skill)?;
         aim::validate_aim(&self.aim)?;
         heal::validate(&self.heal)?;

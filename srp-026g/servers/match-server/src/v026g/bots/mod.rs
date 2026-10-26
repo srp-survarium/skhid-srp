@@ -63,6 +63,7 @@ pub mod tactics;
 pub mod team;
 pub mod threat;
 pub mod trace;
+pub mod traps;
 pub mod tuning;
 pub mod view;
 
@@ -235,6 +236,10 @@ pub struct Bot {
     paired: bool,
     /// Medkits used this life (the tip's count, which the Heal play and Retreat go by while `HealTuning::on` is off).
     medkits_used: u8,
+    /// The bear-trap habit (`traps.rs`), and the point of the trap it let go
+    /// of since the last think.
+    traps: traps::Habit,
+    trap_placed: Option<Vec3>,
     /// The drugs of its kits, counted for the match ([`stock::Pantry`]).
     pantry: stock::Pantry,
     /// Its health pools as the last trusted world showed them
@@ -384,6 +389,8 @@ impl Bot {
             partner: None,
             paired: false,
             medkits_used: 0,
+            traps: traps::Habit::none(),
+            trap_placed: None,
             pantry: stock::Pantry::standard(),
             pools: None,
             found: None,
@@ -549,6 +556,7 @@ impl Bot {
         self.memory = Memory::default();
         self.skill = skill;
         self.medkits_used = 0;
+        self.traps.new_life();
         self.pantry.new_life(self.kit);
         if self.side.is_none() {
             self.side = tactics.and_then(|tactics| tactics.side_at(feet));
@@ -638,6 +646,7 @@ impl Bots {
             next_commander: 0,
             no_way_to: Vec::new(),
             spots: TeamSpots::default(),
+            traps: Vec::new(),
             threat: threat::ThreatSpots::default(),
             covered: None,
         };
