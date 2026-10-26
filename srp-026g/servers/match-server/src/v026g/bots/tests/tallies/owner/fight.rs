@@ -258,7 +258,7 @@ impl Topic for FightCounts {
             return;
         };
         self.fight_ammo(place, tick, body, &now);
-        self.fight_fire(game, place, body, at.rec, at.sight, rays, &now);
+        self.fight_fire(game, place, body, at.rec, at.sight, rays);
         self.fight_range_held(place, body, &now);
         self.fight_switch(game, place, body, at.sight, rays);
     }
@@ -567,7 +567,7 @@ impl FightCounts {
     }
 
     /// Fire this tick: by movement, at a target in line or not, by range.
-    pub(super) fn fight_fire(&mut self, game: &Game, place: Place, body: &super::super::Body, rec: &Rec, sight: &mapdata::RayTree, rays: &mut u64, now: &FightNow) {
+    pub(super) fn fight_fire(&mut self, game: &Game, place: Place, body: &super::super::Body, rec: &Rec, sight: &mapdata::RayTree, rays: &mut u64) {
         if body.alive && body.keys & key::FIRE != 0 {
             self.fire_move[move_of(rec)] += 1;
             // At the target: with a line to him or not.
@@ -576,9 +576,10 @@ impl FightCounts {
                     self.fire_on_target += 1;
                     if !in_sight(sight, body, him, f32::INFINITY, rays) {
                         self.fire_hidden += 1;
-                        if now.throw_held {
+                        let throw = self.now[place].unwrap_or_default();
+                        if throw.throw_held {
                             self.fire_hidden_throw[0] += 1;
-                        } else if now.thrown_ago_ms.is_some_and(|ago| ago <= 3_000) {
+                        } else if throw.thrown_ago_ms.is_some_and(|ago| ago <= 3_000) {
                             self.fire_hidden_throw[1] += 1;
                         }
                     }
