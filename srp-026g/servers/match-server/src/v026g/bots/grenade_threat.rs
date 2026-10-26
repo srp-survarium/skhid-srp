@@ -444,6 +444,12 @@ fn in_cone(me: &PlaceView, at: Vec3, cone_deg: f32) -> bool {
     off.abs() <= cone_deg.to_radians() / 2.0
 }
 
+impl super::features::Feature for Avoid {
+    fn new_life(&mut self, _life: &super::features::Life) {
+        self.died();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -704,11 +710,5 @@ mod tests {
         b.add(&a);
         assert_eq!(b.noticed, [2, 4, 6]);
         assert_eq!(b.react[1], [0, 2, 0, 0, 4]);
-    }
-}
-
-impl super::features::Feature for Avoid {
-    fn new_life(&mut self, _life: &super::features::Life) {
-        self.died();
     }
 }

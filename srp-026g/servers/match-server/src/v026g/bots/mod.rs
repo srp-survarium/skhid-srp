@@ -75,6 +75,7 @@ mod commander;
 mod drive;
 mod facts;
 mod features;
+mod layers;
 mod search;
 mod think;
 
@@ -107,6 +108,7 @@ use know::Percept;
 use know::Source;
 use know::TeamKnowledge;
 use know::Theft;
+use layers::MapLayers;
 use motor::Hurt;
 use motor::JumpBy;
 use motor::Motor;
@@ -137,7 +139,6 @@ use signals::Mods;
 use signals::Skill;
 use stuck::Recovery;
 use stuck::Stuck;
-use stuck::TeamSpots;
 use tactics::Tactics;
 use team::Asking;
 use team::Assignment;
@@ -636,11 +637,8 @@ pub struct Bots {
     teams: [TeamState; 2],
     bots: Vec<Option<Bot>>,
     trace: Trace,
-    /// The human routes of this map and mode (play 17), till the map is
-    /// built and they are put on its floors.
-    routes: Vec<routes::HumanRoute>,
-    /// The map's bushes a sight line crosses (`foliage.rs`), till the map is built.
-    foliage: foliage::Foliage,
+    /// The map's layers told before the map is built ([`layers`]).
+    layers: MapLayers,
     /// What each feature keeps of the match ([`features`]).
     features: MatchFeatures,
     /// Last, so a search left under way is dropped before it.
@@ -699,8 +697,7 @@ impl Bots {
             bench_human: None,
             #[cfg(test)]
             bench_camper: None,
-            routes: Vec::new(),
-            foliage: foliage::Foliage::none(),
+            layers: MapLayers::default(),
             features: MatchFeatures::default(),
             _search_memory: SearchMemory::hold(),
         }
@@ -791,9 +788,8 @@ impl Bots {
     /// this match's `tuning.hazard.margin_m`): the routes, the anomalies'
     /// clocks and the containers, a few ms.
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
-        tactics.set_routes(std::mem::take(&mut self.routes));
-        tactics.escape_ceiling = self.tuning.hazard.escape == tuning::EscapeRule::UnderStartZone;
-        tactics.foliage = Arc::new(std::mem::take(&mut self.foliage));
+        std::mem::take(&mut self.layers).attach(&mut tactics);
+        tactics.escape = self.tuning.hazard.escape;
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);
@@ -832,12 +828,12 @@ impl Bots {
     /// The human routes of the match's map and mode (play 17), from
     /// `SRP_BOT_ROUTES`; before [`Self::map_ready`].
     pub fn set_routes(&mut self, table: &routes::RouteTable) {
-        self.routes = table.for_map(self.level, self.mode);
+        self.layers.routes = table.for_map(self.level, self.mode);
     }
 
     /// The map's bushes (`bot-foliage.json`); before [`Self::map_ready`].
     pub fn set_foliage(&mut self, foliage: foliage::Foliage) {
-        self.foliage = foliage;
+        self.layers.foliage = foliage;
     }
 
     pub fn has_map(&self) -> bool {

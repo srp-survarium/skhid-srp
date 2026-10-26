@@ -175,13 +175,17 @@ mod tests {
                 previous = None;
             } else if in_list && line == "}" {
                 in_list = false;
-            } else if in_list && line.starts_with("        ") && !line.starts_with("         ") && !line.trim_start().starts_with("//") && !line.trim_start().starts_with('#') {
-                if let Some((name, _)) = line.trim().split_once(':') {
-                    if previous.is_some_and(|p| p > name) {
-                        wrong.push((n + 1, name.to_owned()));
-                    }
-                    previous = Some(name);
+            } else if in_list
+                && line.starts_with("        ")
+                && !line.starts_with("         ")
+                && !line.trim_start().starts_with("//")
+                && !line.trim_start().starts_with('#')
+                && let Some((name, _)) = line.trim().split_once(':')
+            {
+                if previous.is_some_and(|p| p > name) {
+                    wrong.push((n + 1, name.to_owned()));
                 }
+                previous = Some(name);
             }
         }
         assert!(wrong.is_empty(), "out of order: {wrong:?}");
