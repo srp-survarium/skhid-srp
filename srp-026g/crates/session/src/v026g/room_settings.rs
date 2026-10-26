@@ -226,6 +226,7 @@ mod tests {
             weather,
             mode,
             extra,
+            bots: true,
         }
     }
 

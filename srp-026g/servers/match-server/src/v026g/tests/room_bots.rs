@@ -3,7 +3,8 @@
 //! on its team, the bot leaving as a player leaves after the player's entry,
 //! a carried battery dropped first; a bot comes back on its own place when
 //! a player of its team leaves; in the countdown too, for several joiners
-//! at once, and never a bot of a team that can no longer respawn.
+//! at once, and never a bot of a team that can no longer respawn; and a
+//! Blackout room's match with its bots.
 
 use survarium::v026g::match_msgs::rules::state;
 use survarium::v026g::match_msgs::snapshot::Tdm;
@@ -205,6 +206,42 @@ fn several_joiners_at_once_take_as_many_bots_places() {
         assert!(entry < told_at(&bench.clients[0], 5, false).unwrap());
     }
     assert_eq!(bench.registry.formed(bench.match_id).unwrap().places.len(), 8);
+    assert_clean(&bench);
+}
+
+/// The owner's of 2026-10-26: bots play "Protective device: blackout". A
+/// Blackout room's match is its battery map with the static info's flag
+/// (the lobby sends the map played, `maps::BLACKOUT_RULES`): the server
+/// takes it with its bots (they play the battery mode, the bots' own soak
+/// `a_blackout_match_is_the_battery_mode_its_bots_bring_batteries_home`),
+/// they enter and play, and a player who comes takes a bot's place.
+#[test]
+fn a_blackout_rooms_match_takes_its_bots_and_they_play() {
+    let mut made = setup(TEAMS.len(), MAP_BATTERIES);
+    for (player, &team) in made.players.iter_mut().zip(&TEAMS) {
+        player.profile.team = team;
+    }
+    made.room_minimum = Some(2);
+    made.blackout = true;
+    let mut bench = Bench::with_setup(made, Settings::default(), &[], &BOTS, true);
+    let formed = bench.registry.formed(bench.match_id).unwrap();
+    assert!(formed.blackout);
+    assert_eq!(formed.map.mode, survarium::v026g::maps::BLACKOUT_RULES);
+    assert!(survarium::v026g::maps::mode::bots_play(formed.map.mode));
+    bench.join(0);
+    bench.join(1);
+    assert!(bench.until(3_000, |bench| BOTS
+        .iter()
+        .all(|&bot| bench.clients[0].entered().contains(&(bot as u8)))));
+    assert!(bench.clients[0].model.options.as_ref().unwrap().blackout);
+    bench.run_long(25_000);
+    assert_eq!(bench.game().rule_state(), state::IN_PROCESS);
+    for bot in BOTS {
+        assert!(!bench.clients[0].relays_of(bot as u8).is_empty(), "bot {bot} plays");
+    }
+    let joiner = reserve_on(&mut bench, 1);
+    bench.join(joiner);
+    assert!(bench.until(8_000, |bench| changes(&bench.clients[0], 5) == [true, false]));
     assert_clean(&bench);
 }
 

@@ -415,7 +415,16 @@ impl Rooms {
     /// The pool the account's draft names among `entries` (the maps a pool
     /// may hold, in their order), taken up; `None` when it sent none lately.
     fn take_draft(&mut self, account_id: u32, entries: &[u8], now: Instant) -> Option<Vec<u8>> {
-        let draft = self.drafts.remove(&account_id)?;
+        let pool = self.drafted(account_id, entries, now);
+        self.drafts.remove(&account_id);
+        pool
+    }
+
+    /// The pool the account's draft names among `entries` now, as its next
+    /// create would take it ([`Rooms::create`]); `None` when it sent none
+    /// lately (the create takes the default pool then).
+    pub fn drafted(&self, account_id: u32, entries: &[u8], now: Instant) -> Option<Vec<u8>> {
+        let draft = self.drafts.get(&account_id)?;
         if now.saturating_duration_since(draft.at) > DRAFT_LIFE || draft.seen == 0 {
             return None;
         }

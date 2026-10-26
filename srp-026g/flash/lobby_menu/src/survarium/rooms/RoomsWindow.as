@@ -923,8 +923,10 @@ package survarium.rooms
                     var p:Array = RoomsWire.fields(rows[j]);
                     if (p.length < 6 || hasEntry(int(p[0])))
                         continue;
+                    // `bots` 1: the server's bots play it (with bots chosen the
+                    // window greys the others out, RoomsCreate.botsOk).
                     _pool.push({"index": int(p[0]), "map": int(p[1]), "level": int(p[2]), "weather": int(p[3]),
-                        "mode": int(p[4]), "extra": p[5] == "1"});
+                        "mode": int(p[4]), "extra": p[5] == "1", "bots": p.length > 6 && p[6] == "1"});
                 }
                 if (_pool.length < _poolTotal && rows.length > 1)
                     ask(RoomsWire.POOL + page + 1, RoomsWire.POOL_ASK_ROWS);

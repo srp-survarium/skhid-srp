@@ -82,6 +82,7 @@
 //! |---|---|---|
 //! | `SRP_ROOMS_MAX` | 50 | the most rooms at once, 1 to 1000 |
 //! | `SRP_ROOMS_EXTRA_MAPS` | (none) | playable `maps_dict` ids a creator may add to a pool besides the match pool (`SRP_MATCH_MAPS`): the experimental maps |
+//! | `SRP_MAPDATA_DIR` | (none) | the bots' map files, the match server's (`BotMaps`): a pool entry is the bots' when its map has one |
 
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -115,6 +116,50 @@ const QUICK_WAIT: u8 = 30;
 /// of 2026-10-19).
 pub const LATE_JOIN_WAIT: Duration = Duration::from_secs(15);
 
+/// The maps the server's bots play (the owner's of 2026-10-26: "if a
+/// player chooses bots, the maps (levels) and modes that bots don't
+/// support should be greyed out"): a mode of theirs
+/// (`maps::mode::bots_play`), on a map whose walk data is in
+/// `SRP_MAPDATA_DIR` as the match server reads it (`<project>.mapdata`,
+/// `mapdata::format::file_name`; the release ships them, `bot-data.tsv`).
+/// Looked at each time: a file put there later counts.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BotMaps {
+    /// `SRP_MAPDATA_DIR`: none, every map lacks the bots' data.
+    dir: Option<std::path::PathBuf>,
+}
+
+impl BotMaps {
+    /// `SRP_MAPDATA_DIR`: unset, empty or `off` for none, as the match
+    /// server takes it.
+    pub fn from_env() -> Self {
+        let dir = std::env::var("SRP_MAPDATA_DIR").ok().and_then(|value| {
+            let value = value.trim();
+            (!value.is_empty() && !value.eq_ignore_ascii_case("off")).then(|| value.into())
+        });
+        Self { dir }
+    }
+
+    /// The bots' map files in `dir`.
+    pub fn in_dir(dir: std::path::PathBuf) -> Self {
+        Self { dir: Some(dir) }
+    }
+
+    /// Whether the bots play the pool entry `map_id` (a `maps_dict` id, or
+    /// the lobby's Blackout id, which plays its battery map).
+    pub fn plays(&self, map_id: u8) -> bool {
+        let played = maps::blackout_played(map_id).unwrap_or(map_id);
+        let Some(map) = maps::map_mode(played) else {
+            return false;
+        };
+        maps::mode::bots_play(map.mode)
+            && self
+                .dir
+                .as_ref()
+                .is_some_and(|dir| dir.join(mapdata::format::file_name(map.project)).is_file())
+    }
+}
+
 /// The rooms' settings in the lobby.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
@@ -127,6 +172,8 @@ pub struct Config {
     /// `docs/notes/blackout.md`): each plain battery map of the pool once
     /// more, as mode 6 by its lobby id (`maps::blackout_pairs`).
     pub blackout: bool,
+    /// The maps the server's bots play (`SRP_MAPDATA_DIR`).
+    pub bot_maps: BotMaps,
 }
 
 impl Default for Config {
@@ -135,6 +182,7 @@ impl Default for Config {
             max_rooms: DEFAULT_MAX_ROOMS,
             extra_maps: Vec::new(),
             blackout: false,
+            bot_maps: BotMaps::default(),
         }
     }
 }
@@ -179,6 +227,7 @@ impl Config {
             max_rooms,
             extra_maps,
             blackout,
+            bot_maps: BotMaps::from_env(),
         }
     }
 }
@@ -251,6 +300,7 @@ impl Core<'_> {
                     weather: map.weather,
                     mode: map.mode,
                     extra,
+                    bots: self.settings.rooms.bot_maps.plays(id),
                 })
             })
             .collect::<Vec<_>>();
@@ -259,9 +309,11 @@ impl Core<'_> {
                 .iter()
                 .filter(|entry| entry.mode == maps::BLACKOUT_RULES)
                 .filter_map(|entry| {
+                    let map_id = maps::blackout_id(entry.map_id)?;
                     Some(PoolEntry {
-                        map_id: maps::blackout_id(entry.map_id)?,
+                        map_id,
                         mode: maps::mode::BLACKOUT,
+                        bots: self.settings.rooms.bot_maps.plays(map_id),
                         ..*entry
                     })
                 })
@@ -689,6 +741,23 @@ impl Core<'_> {
                     .ok_or(Refused::Bad)?,
             ),
         };
+        // With bots, every map of its pool must be theirs (the owner's of
+        // 2026-10-26: the others are greyed out in the window): the pool its
+        // draft names, or the default one.
+        if spec.bots != BotsPerTeam::NONE {
+            let pool = self
+                .rooms
+                .drafted(who.account_id, &entries, now)
+                .unwrap_or_else(|| default.clone());
+            let bot_maps = &self.settings.rooms.bot_maps;
+            if let Some(&map_id) = pool.iter().find(|&&map_id| !bot_maps.plays(map_id)) {
+                log::info!(
+                    "{}: no room with bots: they do not play map {map_id} of its pool",
+                    who.name
+                );
+                return Err(Refused::Bad);
+            }
+        }
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
         let rng = &mut self.rng;
         let key = self.rooms.create(
@@ -1674,16 +1743,15 @@ impl Core<'_> {
             return;
         };
         // The server's bots in the places its players leave (the owner's of
-        // 2026-10-26), none on a map of a mode they do not play (Research).
-        let research = maps::map_mode(map_id).is_some_and(|map| map.mode == maps::mode::RESEARCH);
-        let bots = if research {
+        // 2026-10-26), none on a map they do not play (its pool has none
+        // with bots, `room_create`; a map file gone since, or Research).
+        let unplayed = bots_setting != BotsPerTeam::NONE && !self.settings.rooms.bot_maps.plays(map_id);
+        let bots = if unplayed {
+            log::info!("Room {key}: no bots on map {map_id}: they do not play it");
             [0, 0]
         } else {
             policy::start_bots(bots_setting.places(), size, teams.each_ref().map(Vec::len))
         };
-        if research && bots_setting != BotsPerTeam::NONE {
-            log::info!("Room {key}: no bots on map {map_id}: they do not play Research");
-        }
         self.room_launching.insert(
             match_id,
             RoomLaunch {

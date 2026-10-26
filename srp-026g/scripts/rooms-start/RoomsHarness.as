@@ -25,11 +25,18 @@ package
    // - the room's bots a team (the state's field 17, the owner's of 2026-10-26): "Bots per team N" on
    //   the info line when it has some, nothing of them when it has none;
    // - New room: a "Bots per team" slider (None to 3 v 3), in an open room's form beside Players to
-   //   start (one row), in a private room's (a PIN typed) under Max level.
+   //   start (one row), in a private room's (a PIN typed) under Max level;
+   // - with bots chosen (the form's start, `S1;F`), the pool's maps and modes the server says the bots
+   //   don't play (the pool's `bots` 0) greyed out and said so ("Bots can't play it"), none of them
+   //   greyed with no bots (the owner's of 2026-10-26).
    // Prints "ROOMS ..." lines (trace) and ends with "ROOMS RESULT pass" or "ROOMS RESULT fail: ...".
    public class RoomsHarness extends Sprite
    {
       private static const STATE:int = 2060000001;
+
+      private static const POOL:int = 2060000010;
+
+      private static const FORM:int = 2060000009;
 
       private static const WHO:Array = ["Alice","Bob","Carol","Dave","Erin"];
 
@@ -101,6 +108,7 @@ package
          check("open, owner, 2 bots a team", 1005, false, true, 0, null, false, 0, null, true, 2);
          check("private, owner, 3 bots a team", 1006, true, true, 0, "01010", true, 5, null, false, 3);
          createForm();
+         greyedForms();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
       }
 
@@ -256,6 +264,110 @@ package
          catch(err:Error)
          {
             failures.push("create: " + err.message);
+         }
+      }
+
+      // The shown button labelled `label`, or null.
+      private function button(label:String) : *
+      {
+         var buttons:Array = [];
+         walk(win,[],[],0,0,buttons);
+         for each(var b:* in buttons)
+         {
+            if(b.label == label)
+            {
+               return b;
+            }
+         }
+         return null;
+      }
+
+      private function press(label:String) : Boolean
+      {
+         var b:* = button(label);
+         if(b == null)
+         {
+            return false;
+         }
+         var event:Class = domain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+         b.dispatchEvent(new event(event.CLICK));
+         return true;
+      }
+
+      // A pool of three entries: a map the bots play (level 1, Protective device), the same map in
+      // Research (no mode of theirs) and a map without their walk data (level 2). The create window
+      // opened from a form of 3 bots a team, then of none.
+      private function greyedForms() : void
+      {
+         try
+         {
+            press("Back");
+            Win.take([{
+               "place":STATE,
+               "nickname":"S1;N;0;0;0"
+            }]);
+            var pool:Array = ["S1;M;3;0","0;61;1;1;2;0;1","1;71;1;1;5;0;0","2;63;2;1;2;0;0"];
+            var rows:Array = [];
+            for(var r:int = 0; r < pool.length; r++)
+            {
+               rows.push({
+                  "place":POOL + r,
+                  "nickname":pool[r]
+               });
+            }
+            Win.take(rows);
+            for each(var bots:int in [3,0])
+            {
+               Win.take([{
+                  "place":FORM,
+                  "nickname":"S1;F;1;8;1;0;30;;" + bots
+               },{
+                  "place":FORM + 1,
+                  "nickname":"E;0;7"
+               }]);
+               if(!press("New room"))
+               {
+                  failures.push("greyed: no New room");
+                  return;
+               }
+               var texts:Array = [];
+               walk(win,[],texts,0,0,[]);
+               var said:Array = [];
+               for each(var t:Object in texts)
+               {
+                  if(t.text.indexOf("an't play it") >= 0 || t.text.indexOf("AN'T PLAY IT") >= 0)
+                  {
+                     said.push(t.text);
+                  }
+               }
+               trace("ROOMS greyed, " + bots + " bots: [" + said.join(" | ") + "]");
+               if(bots > 0)
+               {
+                  var research:Boolean = false;
+                  var level2:Boolean = false;
+                  var tile:Boolean = false;
+                  for each(var s:String in said)
+                  {
+                     research = research || s.indexOf("Research") == 0;
+                     level2 = level2 || s.indexOf("Research") < 0 && s.indexOf("·") > 0;
+                     tile = tile || s == "BOTS CAN'T PLAY IT";
+                  }
+                  if(!research || !level2 || !tile)
+                  {
+                     failures.push("greyed with bots: Research " + research + ", the map without data " + level2
+                        + ", its tile " + tile);
+                  }
+               }
+               else if(said.length > 0)
+               {
+                  failures.push("greyed with no bots: " + said.join(" | "));
+               }
+               press("Back");
+            }
+         }
+         catch(err:Error)
+         {
+            failures.push("greyed: " + err.message);
          }
       }
 

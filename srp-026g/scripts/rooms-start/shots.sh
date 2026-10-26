@@ -50,6 +50,7 @@ cases=(
     "owner-3-bots 3 1 010 0 3 -"
     "create-open 1 1 0 0 0 open"
     "create-private 1 1 0 0 0 private"
+    "create-open-bots 1 1 0 0 3 open"
 )
 for size in "${sizes[@]}"; do
     w=${size%x*}

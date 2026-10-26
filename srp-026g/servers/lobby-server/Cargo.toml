@@ -18,6 +18,8 @@ log = { workspace = true }
 
 session = { workspace = true }
 vostok = { workspace = true }
+# The bots' map files' names (`rooms::BotMaps`), as the match server reads them.
+mapdata = { path = "../../crates/mapdata" }
 survarium = { workspace = true }
 udp-transport = { workspace = true }
 

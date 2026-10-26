@@ -3,18 +3,22 @@
 //! replaced with real players once those join"): the setting made, kept and
 //! told; the match starting with the bots in the places its players leave,
 //! a place kept for each bot within the 20; a private room's arranged teams
-//! with bots beside the arrangement; and a member who comes taking a bot's
-//! place, a side full of players and bots too.
+//! with bots beside the arrangement; a member who comes taking a bot's
+//! place, a side full of players and bots too; the maps the bots play told
+//! with the pool and a create with another refused; Blackout with bots.
 
 use survarium::v026g::lobby::rooms::{
-    BotsPerTeam, ROOM_FORM, ROOM_JOIN_BASE, ROOM_PIN_BASE, RoomSpec, create_start,
+    BotsPerTeam, POOL_PAGE_ROWS, ROOM_FORM, ROOM_JOIN_BASE, ROOM_PIN_BASE, ROOM_POOL_BASE,
+    PoolEntry, RoomSpec, bits_start, create_start,
 };
+use survarium::v026g::maps;
 
 use super::rooms_tests::{
     arrangement, create, header, join_row, move_member, press_start, rows, spec, state,
 };
 use super::*;
 use crate::v026g::play::Occupant;
+use crate::v026g::rooms::BotMaps;
 use crate::v026g::{LiveView, MatchSetup};
 
 /// From two players to the match: the vote's 15 s, the wait (15 s), and a
@@ -35,10 +39,52 @@ fn with_bots(size: u8, count: u8) -> RoomSpec {
     }
 }
 
-/// `names` connected, the first making the room, the others joining (with
+/// A folder of the bots' map files (empty: the lobby looks only for the
+/// file) of the playable maps `has` takes.
+fn bot_map_files(name: &str, has: impl Fn(&maps::MapMode) -> bool) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "srp-room-bot-maps-{name}-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    for map in maps::playable().filter(|map| has(map)) {
+        std::fs::write(dir.join(mapdata::format::file_name(map.project)), b"").unwrap();
+    }
+    dir
+}
+
+/// A lobby whose bots have the walk data of every playable map (they play
+/// all but Research).
+fn with_bot_maps() -> World {
+    let mut settings = Settings::local("127.0.0.1:0");
+    settings.rooms.bot_maps = BotMaps::in_dir(bot_map_files("all", |_| true));
+    World::with_settings(settings)
+}
+
+/// The asker's next room's pool: the entries `take` takes, as the create
+/// window sends them (a chunk of 20 entries a request).
+fn draft(world: &mut World, index: usize, take: impl Fn(&PoolEntry) -> bool) {
+    let entries = world.core.room_entries();
+    for (chunk, part) in entries.chunks(20).enumerate() {
+        let bits = part
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| take(entry))
+            .fold(0_u32, |bits, (b, _)| bits | 1 << b);
+        rows(world, index, bits_start(chunk as u8, bits), 1);
+    }
+}
+
+/// `names` connected, the first making the room (with bots, of the maps
+/// they play, as the window greys the others), the others joining (with
 /// the PIN, if it has one): their indices.
 fn room_of(world: &mut World, room: RoomSpec, pin: Option<u16>, names: &[&str]) -> (u32, Vec<usize>) {
     let members: Vec<usize> = names.iter().map(|name| world.connect(name)).collect();
+    if room.bots != BotsPerTeam::NONE {
+        draft(world, members[0], |entry| entry.bots);
+    }
     let key = create(world, members[0], room, pin);
     for &member in &members[1..] {
         if let Some(pin) = pin {
@@ -83,7 +129,7 @@ fn teams(setup: &MatchSetup) -> [(usize, usize); 2] {
 /// account and no session, named as the bots of a match against bots.
 #[test]
 fn an_open_rooms_match_starts_with_its_bots_in_the_places_its_players_leave() {
-    let mut world = World::new();
+    let mut world = with_bot_maps();
     let (_, members) = room_of(&mut world, with_bots(6, 3), None, &["Alice", "Bob"]);
     let alice = members[0];
     assert_eq!(header(&state(&mut world, alice))[BOTS], "3");
@@ -125,7 +171,7 @@ fn an_open_rooms_match_starts_with_its_bots_in_the_places_its_players_leave() {
     );
 
     // A room of none plays none, as before.
-    let mut world = World::new();
+    let mut world = with_bot_maps();
     room_of(&mut world, spec(6), None, &["Carol", "Dave"]);
     world.advance(VOTE_AND_WAIT);
     assert_eq!(teams(&last_match(&world).1), [(1, 0), (1, 0)]);
@@ -136,7 +182,7 @@ fn an_open_rooms_match_starts_with_its_bots_in_the_places_its_players_leave() {
 /// bots in all (14 + 2 × 3 = 20), the team with more giving one up first.
 #[test]
 fn a_rooms_bots_never_take_the_places_its_joiners_need() {
-    let mut world = World::new();
+    let mut world = with_bot_maps();
     let names: Vec<String> = (0..14).map(|n| format!("Member{n}")).collect();
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
     room_of(&mut world, with_bots(10, 3), None, &names);
@@ -149,7 +195,7 @@ fn a_rooms_bots_never_take_the_places_its_joiners_need() {
     assert_eq!(setup.players.len() + a_bots + b_bots, 20);
     // A room of three a side, 3 bots a team: its sides full of players and
     // bots, 6 + 12 = 18.
-    let mut world = World::new();
+    let mut world = with_bot_maps();
     let names = ["A", "B", "C", "D", "E", "F"];
     room_of(&mut world, with_bots(6, 3), None, &names);
     world.advance(VOTE_AND_WAIT);
@@ -161,7 +207,7 @@ fn a_rooms_bots_never_take_the_places_its_joiners_need() {
 /// room); it pays nothing, as any private room's.
 #[test]
 fn a_private_rooms_arranged_teams_get_their_bots_beside_the_arrangement() {
-    let mut world = World::new();
+    let mut world = with_bot_maps();
     let (_, members) = room_of(
         &mut world,
         with_bots(6, 2),
@@ -186,7 +232,7 @@ fn a_private_rooms_arranged_teams_get_their_bots_beside_the_arrangement() {
 /// server takes the bot out, `game/driven.rs`), the sides still 6 v 6.
 #[test]
 fn a_member_who_comes_takes_a_bots_place_on_a_full_side() {
-    let mut world = World::new();
+    let mut world = with_bot_maps();
     let names = ["A", "B", "C", "D", "E", "F"];
     let (key, _) = room_of(&mut world, with_bots(6, 3), None, &names);
     world.advance(VOTE_AND_WAIT);
@@ -220,7 +266,7 @@ fn a_member_who_comes_takes_a_bots_place_on_a_full_side() {
     );
 
     // Without the bots the same sides are full: the newcomer is told so.
-    let mut world = World::new();
+    let mut world = with_bot_maps();
     let names = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
     let (key, _) = room_of(&mut world, spec(6), None, &names);
     world.advance(VOTE_AND_WAIT);
@@ -232,11 +278,122 @@ fn a_member_who_comes_takes_a_bots_place_on_a_full_side() {
     assert_eq!(header(&full)[1], "N", "a full room takes nobody: {full:?}");
 }
 
+/// The owner's of 2026-10-26: "if a player chooses bots, the maps (levels)
+/// and modes that bots don't support should be greyed out". The pool's
+/// pages say of each entry whether the bots play it: a mode of theirs on a
+/// map whose walk data the server has (`SRP_MAPDATA_DIR`), Blackout as its
+/// battery map; Research never (`maps::mode::bots_play`: the test data has
+/// no Research map in the pool).
+#[test]
+fn the_pool_says_which_maps_the_bots_play() {
+    let first = maps::playable()
+        .find(|map| map.mode == maps::mode::BATTERIES)
+        .unwrap()
+        .level;
+    let mut settings = Settings::local("127.0.0.1:0");
+    settings.rooms.blackout = true;
+    settings.rooms.bot_maps = BotMaps::in_dir(bot_map_files("one", |map| map.level == first));
+    let mut world = World::with_settings(settings);
+    let alice = world.connect("Alice");
+    let entries = world.core.room_entries();
+    let mut told = Vec::new();
+    for page in 0..entries.len().div_ceil(POOL_PAGE_ROWS) {
+        let page_rows = rows(&mut world, alice, ROOM_POOL_BASE + page as u32, 31);
+        told.extend(page_rows[1..].iter().map(|row| row.rsplit(';').next().unwrap() == "1"));
+    }
+    assert_eq!(told.len(), entries.len());
+    let mut seen = [false; 2];
+    for (entry, &bots) in entries.iter().zip(&told) {
+        let played = maps::map_mode(maps::blackout_played(entry.map_id).unwrap_or(entry.map_id));
+        let expected = entry.level == first && entry.mode != maps::mode::RESEARCH;
+        assert_eq!(bots, expected, "{entry:?} ({played:?})");
+        assert_eq!(entry.bots, expected);
+        if entry.mode == maps::mode::BLACKOUT && bots {
+            seen[0] = true;
+        }
+        if !bots {
+            seen[1] = true;
+        }
+    }
+    assert_eq!(seen, [true, true], "Blackout of theirs, a map without data");
+    assert!(!maps::mode::bots_play(maps::mode::RESEARCH));
+    assert!(maps::mode::bots_play(maps::BLACKOUT_RULES));
+    // No walk data at all: the bots play nothing.
+    let mut world = World::new();
+    assert!(world.core.room_entries().iter().all(|entry| !entry.bots));
+    let bob = world.connect("Bob");
+    assert!(rows(&mut world, bob, ROOM_POOL_BASE, 31)[1].ends_with(";0"));
+}
+
+/// A room with bots and a map they do not play in its pool is refused
+/// (code 8, a bad room: the window greys those maps out); the same pool
+/// without bots is made, and so is one of the bots' maps only with them.
+#[test]
+fn a_room_with_bots_and_a_map_they_do_not_play_is_refused() {
+    let first = maps::playable()
+        .find(|map| map.mode == maps::mode::BATTERIES)
+        .unwrap()
+        .level;
+    let mut settings = Settings::local("127.0.0.1:0");
+    settings.rooms.bot_maps = BotMaps::in_dir(bot_map_files("refused", |map| map.level == first));
+    let mut world = World::with_settings(settings);
+    let alice = world.connect("Alice");
+    let theirs = |entry: &PoolEntry| entry.bots;
+    // Theirs and a map with no walk data.
+    let elsewhere = |entry: &PoolEntry| entry.bots || entry.level != first;
+    draft(&mut world, alice, elsewhere);
+    let refused = rows(&mut world, alice, create_start(with_bots(8, 2)), 1);
+    assert_eq!(refused[0], "S1;N;8;0;0", "{refused:?}");
+    assert!(world.core.rooms.of(world.ids[alice].0).is_none());
+    // Without bots: made.
+    draft(&mut world, alice, elsewhere);
+    let made = rows(&mut world, alice, create_start(spec(8)), 1);
+    assert_eq!(header(&made)[1], "R", "{made:?}");
+    world.core.rooms.leave(world.ids[alice].0);
+    // No draft: the default pool, Research and all: refused with bots.
+    let refused = rows(&mut world, alice, create_start(with_bots(8, 1)), 1);
+    assert_eq!(refused[0], "S1;N;8;0;0");
+    draft(&mut world, alice, theirs);
+    let made = rows(&mut world, alice, create_start(with_bots(8, 2)), 1);
+    assert_eq!(header(&made)[BOTS], "2");
+}
+
+/// The owner's of 2026-10-26: bots play "Protective device: blackout" (the
+/// plain battery rules, the interface hidden on the clients). Not greyed
+/// out; a room of Blackout alone with bots fills its teams and plays the
+/// battery map with the flag.
+#[test]
+fn a_blackout_room_with_bots_fills_and_plays_the_battery_map() {
+    let mut settings = Settings::local("127.0.0.1:0");
+    // Rudnya's day: batteries (61), chargers (62), Team Deathmatch (117).
+    settings.maps = vec![61, 62, 117];
+    settings.rooms.blackout = true;
+    settings.rooms.bot_maps = BotMaps::in_dir(bot_map_files("blackout", |_| true));
+    let mut world = World::with_settings(settings);
+    let blackout = world
+        .core
+        .room_entries()
+        .into_iter()
+        .find(|entry| entry.mode == maps::mode::BLACKOUT)
+        .expect("Blackout offered");
+    assert!(blackout.bots, "not greyed out");
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    draft(&mut world, alice, |entry| entry.mode == maps::mode::BLACKOUT);
+    let key = create(&mut world, alice, with_bots(6, 3), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    world.advance(VOTE_AND_WAIT);
+    let (_, setup, _) = last_match(&world);
+    assert_eq!(setup.map_id, 61, "the battery map");
+    assert!(setup.blackout);
+    assert_eq!(teams(&setup), [(1, 3), (1, 3)]);
+}
+
 /// A movie from before the setting makes a room of no bots: its create
 /// codes are the first of the codes.
 #[test]
 fn a_create_from_an_older_movie_makes_a_room_of_no_bots() {
-    let mut world = World::new();
+    let mut world = with_bot_maps();
     let alice = world.connect("Alice");
     let room = rows(&mut world, alice, create_start(spec(8)), 1);
     assert_eq!(header(&room)[BOTS], "0");

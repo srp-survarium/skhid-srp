@@ -670,6 +670,10 @@ pub struct PoolEntry {
     /// One of the server's experimental maps (`SRP_ROOMS_EXTRA_MAPS`): not
     /// in a room's pool unless its creator adds it.
     pub extra: bool,
+    /// The server's bots play it: its mode is one of theirs and its map
+    /// has their walk data (the owner's of 2026-10-26: with bots chosen,
+    /// the others are greyed out, and a create with one is refused).
+    pub bots: bool,
 }
 
 fn row(name: String) -> Ranked {
@@ -893,7 +897,8 @@ fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
 
 /// `91` as the answer to `3B 00 <ROOM_POOL_BASE + page> <count>`, `place =
 /// that start + i`: `S1;M;<total>;<page>`, then a row an entry of that
-/// page, `<index>;<map_id>;<level>;<weather>;<mode>;<extra>`. An entry's
+/// page, `<index>;<map_id>;<level>;<weather>;<mode>;<extra>;<bots>`
+/// (`bots` 1: the server's bots play it, [`PoolEntry::bots`]). An entry's
 /// index is the bit a pool names it by ([`bits_start`]).
 pub fn room_pool(entries: &[PoolEntry], page: u8) -> Result<ServerMessage, WireError> {
     let first = usize::from(page) * POOL_PAGE_ROWS;
@@ -906,12 +911,13 @@ pub fn room_pool(entries: &[PoolEntry], page: u8) -> Result<ServerMessage, WireE
             .take(POOL_PAGE_ROWS)
             .map(|(index, entry)| {
                 format!(
-                    "{index};{};{};{};{};{}",
+                    "{index};{};{};{};{};{};{}",
                     entry.map_id,
                     entry.level,
                     entry.weather,
                     entry.mode,
-                    u8::from(entry.extra)
+                    u8::from(entry.extra),
+                    u8::from(entry.bots)
                 )
             }),
     );

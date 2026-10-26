@@ -66,6 +66,9 @@ package survarium.rooms
         private var _modesOff:Object = {};
         internal var _sliders:Object = {};
         private var _drag:String = null;
+        // The bots a team as the drag began: greying changes when it goes
+        // from none to some or back (redrawn as the drag ends).
+        private var _dragBots:int = 0;
         // What the create on its way makes (`kept`): the window's start
         // once its room is made (`made`, Back pressed meanwhile too); none
         // once it is refused or Play chosen instead (`notMade`).
@@ -288,16 +291,25 @@ package survarium.rooms
                 area.graphics.drawRect(0, 10, FORM_W - 28, 22);
                 area.graphics.endFill();
                 toggle.addChild(area);
-                toggle.addChild(look.box(_modesOff[String(mode)] != true));
-                look.text(toggle, win.modeName(mode), 26, 12, FORM_W - 40, 16, RoomsLook.LIGHT);
-                toggle.buttonMode = true;
-                toggle.mouseChildren = false;
+                // A mode the bots don't play, with bots chosen: greyed out,
+                // unticked and not to be ticked (its choice kept for None).
+                var playable:Boolean = modeOk(mode);
+                toggle.addChild(look.box(playable && _modesOff[String(mode)] != true));
+                look.text(toggle, win.modeName(mode) + (playable ? "" : "  ·  " + win.say("botsCant")), 26, 12,
+                    FORM_W - 40, 16, playable ? RoomsLook.LIGHT : RoomsLook.GREY);
                 toggle.name = String(mode);
-                toggle.addEventListener(MouseEvent.CLICK, onModeToggle, false, 0, true);
-                look.route(toggle, function(control:DisplayObject, e:MouseEvent):void
+                if (playable)
                 {
-                    flipMode(control.name);
-                });
+                    toggle.buttonMode = true;
+                    toggle.mouseChildren = false;
+                    toggle.addEventListener(MouseEvent.CLICK, onModeToggle, false, 0, true);
+                    look.route(toggle, function(control:DisplayObject, e:MouseEvent):void
+                    {
+                        flipMode(control.name);
+                    });
+                }
+                else
+                    toggle.alpha = 0.45;
                 look._content.addChild(toggle);
                 y += 24;
             }
@@ -357,7 +369,7 @@ package survarium.rooms
             var tiles:Array = poolTiles();
             var on:int = 0;
             for (var t:int = 0; t < tiles.length; t++)
-                if (tiles[t].on)
+                if (tiles[t].on && tileOk(tiles[t]))
                     on++;
             look.text(look._content, win.say("pool").toUpperCase() + ": " + on + " / " + tiles.length,
                 x0 + 16, 58, 260, 16, RoomsLook.LIGHT);
@@ -392,9 +404,16 @@ package survarium.rooms
             {
                 var map:Object = rows[r];
                 var any:Boolean = false;
+                // A map none of whose tiles the bots play (bots chosen):
+                // its row greyed out, not to be ticked.
+                var mapOk:Boolean = false;
                 for (var c:int = 0; c < map.tiles.length; c++)
-                    if (map.tiles[c].on)
+                {
+                    if (map.tiles[c].on && tileOk(map.tiles[c]))
                         any = true;
+                    if (tileOk(map.tiles[c]))
+                        mapOk = true;
+                }
                 var check:Sprite = new Sprite();
                 check.x = 0;
                 check.y = y - 12;
@@ -406,34 +425,47 @@ package survarium.rooms
                 line_hit.graphics.endFill();
                 check.addChild(line_hit);
                 check.addChild(look.box(any));
-                look.text(check, win.levelName(map.level), 24, 13, areaW - 40, 16, RoomsLook.LIGHT);
-                check.buttonMode = true;
-                check.mouseChildren = false;
+                look.text(check, win.levelName(map.level) + (mapOk ? "" : "  ·  " + win.say("botsCant")), 24, 13,
+                    areaW - 40, 16, mapOk ? RoomsLook.LIGHT : RoomsLook.GREY);
                 check.name = String(map.level);
-                check.addEventListener(MouseEvent.CLICK, onMapRow, false, 0, true);
+                if (mapOk)
+                {
+                    check.buttonMode = true;
+                    check.mouseChildren = false;
+                    check.addEventListener(MouseEvent.CLICK, onMapRow, false, 0, true);
+                }
+                else
+                    check.alpha = 0.45;
                 area.addChild(check);
                 for (var k:int = 0; k < map.tiles.length; k++)
                 {
                     var one:Object = map.tiles[k];
+                    // A tile the bots play none of (bots chosen): greyed out,
+                    // said so, not to be ticked.
+                    var ok:Boolean = tileOk(one);
+                    var lit:Boolean = one.on && ok;
                     var chip:Sprite = new Sprite();
                     chip.x = 2 + k * (cw + 10);
                     chip.y = y + 28;
                     var pic:Bitmap = look.mapRender(one.level, one.weather, cw, ch);
-                    pic.alpha = one.on ? 1 : 0.35;
+                    pic.alpha = !ok ? 0.15 : lit ? 1 : 0.35;
                     chip.addChild(pic);
                     var edge:Shape = new Shape();
                     edge.graphics.beginFill(0x000000, 0.66);
                     edge.graphics.drawRect(0, ch - 22, cw, 22);
                     edge.graphics.endFill();
-                    edge.graphics.lineStyle(2, one.on ? RoomsLook.GOLD : 0x26323C);
+                    edge.graphics.lineStyle(2, lit ? RoomsLook.GOLD : 0x26323C);
                     edge.graphics.drawRect(0, 0, cw, ch);
                     chip.addChild(edge);
-                    look.text(chip, win.weatherName(one.weather).toUpperCase() + (one.extra ? " · " + win.say("experimental").toUpperCase() : ""),
-                        0, ch - 22 + 3, cw, 12, 0xFFFFFF, "center");
-                    chip.buttonMode = true;
-                    chip.mouseChildren = false;
+                    look.text(chip, ok ? win.weatherName(one.weather).toUpperCase() + (one.extra ? " · " + win.say("experimental").toUpperCase() : "")
+                        : win.say("botsCant").toUpperCase(), 0, ch - 22 + 3, cw, 12, ok ? 0xFFFFFF : RoomsLook.GREY, "center");
                     chip.name = one.key;
-                    chip.addEventListener(MouseEvent.CLICK, onTile, false, 0, true);
+                    if (ok)
+                    {
+                        chip.buttonMode = true;
+                        chip.mouseChildren = false;
+                        chip.addEventListener(MouseEvent.CLICK, onTile, false, 0, true);
+                    }
                     area.addChild(chip);
                 }
                 look.line(area, 0, y + rowH - 6, areaW - 4);
@@ -604,6 +636,7 @@ package survarium.rooms
         {
             RoomsLook.clickSound();
             _drag = what;
+            _dragBots = _bots;
             slideTo(stageX);
             if (win.stage == null)
                 return;
@@ -620,7 +653,12 @@ package survarium.rooms
         {
             e.currentTarget.removeEventListener(MouseEvent.MOUSE_MOVE, onSlideMove);
             e.currentTarget.removeEventListener(MouseEvent.MOUSE_UP, onSlideUp);
+            var greying:Boolean = _drag == "bots" && (_dragBots == 0) != (_bots == 0);
             _drag = null;
+            // Bots chosen or set back to None: the maps and modes they don't
+            // play greyed out, or back.
+            if (greying)
+                win.render();
         }
 
         private function slideTo(stageX:Number):void
@@ -672,11 +710,13 @@ package survarium.rooms
                 if (tile == null)
                 {
                     tile = {"key": key, "level": e.level, "weather": e.weather, "extra": e.extra,
-                        "entries": [], "on": _off[key] != true};
+                        "entries": [], "on": _off[key] != true, "bots": false};
                     at[key] = tile;
                     tiles.push(tile);
                 }
                 tile.entries.push(e);
+                if (e.bots)
+                    tile.bots = true;
             }
             return tiles;
         }
@@ -700,10 +740,38 @@ package survarium.rooms
         }
 
         // Whether a pool entry is in the room made: its tile and its mode
-        // in, and a bit a create can name it by.
+        // in, a bit a create can name it by, and with bots chosen one they
+        // play (the server refuses a room with bots and another).
         private function chosen(p:Object):Boolean
         {
-            return _off[p.level + "_" + p.weather] != true && _modesOff[String(p.mode)] != true && p.index < RoomsWire.POOL_BITS;
+            return _off[p.level + "_" + p.weather] != true && _modesOff[String(p.mode)] != true && p.index < RoomsWire.POOL_BITS
+                && botsOk(p);
+        }
+
+        // With bots chosen, whether the server's bots play a pool entry (the
+        // pool's `bots`, the server's word: a mode of theirs, a map with
+        // their walk data); with none, every entry is open (the owner's of
+        // 2026-10-26: the others greyed out while bots are chosen).
+        private function botsOk(p:Object):Boolean
+        {
+            return _bots == 0 || p.bots == true;
+        }
+
+        // A tile some entry of which the bots play (or no bots chosen).
+        private function tileOk(tile:Object):Boolean
+        {
+            return _bots == 0 || tile.bots == true;
+        }
+
+        // A mode some entry of which the bots play (or no bots chosen).
+        private function modeOk(mode:int):Boolean
+        {
+            if (_bots == 0)
+                return true;
+            for (var i:int = 0; i < win._pool.length; i++)
+                if (int(win._pool[i].mode) == mode && win._pool[i].bots == true)
+                    return true;
+            return false;
         }
 
         private function onAll(e:Event):void

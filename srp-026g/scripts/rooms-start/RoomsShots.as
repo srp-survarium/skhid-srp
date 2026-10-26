@@ -92,6 +92,25 @@ package
                   "place":STATE,
                   "nickname":"S1;N;0;0;0"
                }];
+               // A pool of a map the bots play, the same map in Research and a map without their
+               // data, and a form of `bots` a team: with bots the last two greyed out.
+               var pool:Array = ["S1;M;3;0","0;61;1;1;2;0;1","1;71;1;1;5;0;0","2;63;2;1;2;0;0"];
+               var poolRows:Array = [];
+               for(var q:int = 0; q < pool.length; q++)
+               {
+                  poolRows.push({
+                     "place":STATE + 9 + q,
+                     "nickname":pool[q]
+                  });
+               }
+               Win.take(poolRows);
+               Win.take([{
+                  "place":STATE + 8,
+                  "nickname":"S1;F;1;8;1;0;30;;" + int(p.bots || 0)
+               },{
+                  "place":STATE + 9,
+                  "nickname":"E;0;7"
+               }]);
             }
             Win.take(rows);
             win.layout();

@@ -604,6 +604,11 @@ back for them.
   no longer respawn keeps its bots. The giving way of 2026-10-14 (below,
   removed 2026-10-17) chose the bot by the bots' view and kept carriers; this
   one lets any bot go, the carrier dropping its battery first.
+- **The maps they play** (`rooms::BotMaps`, `maps::mode::bots_play`): the
+  lobby tells a room's maker which pool entries they play (a mode of theirs,
+  a map whose `<project>.mapdata` is in `SRP_MAPDATA_DIR`: the file the
+  match server loads) and refuses a room with bots and another. Blackout is
+  its battery map for the match server and the bots (`maps::BLACKOUT_RULES`).
 - **The bots** (`Bots::entered`): a bot that leaves is forgotten as before,
   and its place waits as a bot anew (its kits' rounds kept), entering again
   as at the start.

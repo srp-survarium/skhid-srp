@@ -205,7 +205,20 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     leave a game takes before it played the entry is dropped by it).
   - No bot of a team that can no longer respawn leaves (Team Deathmatch out of tickets: it may be
     its team's last life, and the mode ends the match on that); the player plays beside it.
-  - No bots on a Research map (the bots do not play Research): its match starts without them.
+  - **The maps and modes the bots play** (the owner's of 2026-10-26: "if a player chooses bots,
+    the maps (levels) and modes that bots don't support should be greyed out"): a mode of theirs
+    (the battery modes, Blackout among them, and Team Deathmatch; not Research,
+    `maps::mode::bots_play`, the match server's own check) on a map whose walk data the server has
+    (`<project>.mapdata` in `SRP_MAPDATA_DIR`, the files the release ships, `bot-data.tsv`). The
+    server says it of each pool entry (the pool's `bots` field, `rooms::BotMaps`). In New room,
+    with Bots per team over None, every other map and mode is greyed out, says "Bots can't play
+    it" and cannot be ticked (a map's tile, its row when none of its tiles is theirs, a mode's
+    row); back to None, they are as chosen before. The server refuses (code 8) a room with bots
+    whose pool has another; Play's room has no bots. A map whose file went after the room was made
+    starts its match without bots.
+  - **Blackout** ("Protective device: blackout"): the plain battery rules with the interface hidden
+    on the clients; the match server and the bots get its battery map (`maps::BLACKOUT_RULES`). Not
+    greyed out; its bots play it as any battery match.
   - **Pay:** a match a server's bot played in pays as Play vs Bots does (`SRP_PVB_PAY`, half by
     default, of the silver and experience; no quest, no daily bonus; no rating), even when every
     bot was replaced later: its bots are kills and batteries a player did not take from players,
