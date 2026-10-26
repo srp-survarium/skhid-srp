@@ -108,6 +108,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_GRENADE_DAMAGE", "on", "**model** `off`: a grenade's blast hurts nobody (only counted, as before `standin_grenade.rs`)"),
     s("SRP_BENCH_STOCK", "on", "**model** `off`: the stand-in's bodies fire whenever the fire key is down (no rounds, reloads or finite ammo: the stand-in before `standin_weapon.rs`); the counts stay"),
     s("SRP_BENCH_RESUPPLY", "on", "**model** `off`: the resupply box does nothing (the stand-in before `Stock::resupply`); the counts stay at zero"),
+    s("SRP_BENCH_STAMINA", "on", "**model** `off`: the stand-in's bodies have no stamina (they sprint and jump whenever their keys ask: the stand-in before `standin_stamina.rs`); the counts stay at zero"),
     s("SRP_BENCH_PUT_MS", "PUT_MS (600)", "**model** a put-in lands this long after the press, ms"),
     s("SRP_BENCH_JUMP_AHEAD_M", "STANDING_JUMP.ahead_m", "**model** how far ahead a standing jump reaches, m"),
     s("SRP_BENCH_STAND_IN", "honest", "**model** `old`: the old lift up any floor in reach instead of the client's jump clips"),

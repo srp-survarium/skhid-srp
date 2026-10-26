@@ -139,6 +139,8 @@ pub(crate) struct Body {
     pub(crate) pools: standin_damage::Pools,
     /// Its weapon's rounds and ammo ([`standin_weapon`]).
     pub(crate) stock: standin_weapon::Stock,
+    /// Its stamina bar ([`standin_stamina`]).
+    pub(crate) stamina: standin_stamina::Stamina,
     pub(crate) alive: bool,
     pub(crate) dead_at: u32,
     pub(crate) spawned: u32,
@@ -455,6 +457,7 @@ impl Game {
             health: 1.0,
             pools: standin_damage::Pools::default(),
             stock: standin_weapon::Stock::new(bench_tier(), gun),
+            stamina: standin_stamina::Stamina::new(0, bench_tier(), gun.item),
             alive: false,
             dead_at: 0,
             spawned: 0,
@@ -600,6 +603,7 @@ impl Game {
         body.cadence = Cadence::default();
         body.spread.reset();
         body.stock.spawn(tier, body.gun);
+        body.stamina.spawn(tick, tier, body.gun.item);
     }
 
     pub(crate) fn eye(body: &Body) -> Vec3 {
@@ -647,7 +651,9 @@ impl Game {
                 let mut jump = false;
                 if pressed[place] & key::JUMP != 0 {
                     self.jumps_pressed += 1;
-                    if body.legs.iter().all(|&pool| pool > 0.0) {
+                    // A broken leg refuses it, and so does a bar under its cost or
+                    // the low flag (nothing is spent then).
+                    if body.legs.iter().all(|&pool| pool > 0.0) && body.stamina.jump() {
                         if self.honest {
                             jump = true;
                         } else {
@@ -667,6 +673,7 @@ impl Game {
                     body.cadence = Cadence::default();
                     body.spread.reset();
                     body.stock.switch(tier, gun);
+                    body.stamina.switch(tier, gun.item);
                 } else if pressed[place] & key::RELOAD != 0 {
                     body.recoil.reset();
                     body.stock.reload_key(tick);
@@ -743,7 +750,10 @@ impl Game {
             // A carrier cannot sprint: the sprint check asks the item in
             // hand, and the battery's answer is no (0x397C20), PROVEN; seen
             // in 0x60aeff4f, the owner held sprint carrying at 3.35 m/s.
-            let keys = if body.carrying.is_some() {
+            // A body with the low flag set, or over its capacity, walks at
+            // its walk speed with the sprint keys held; the bar is spent on
+            // the keys all the same.
+            let keys = if body.carrying.is_some() || !body.stamina.may_sprint() {
                 body.keys & !key::SPRINT
             } else {
                 body.keys
@@ -792,6 +802,9 @@ impl Game {
                     self.carry_ticks += 1;
                 }
             }
+            let sprint_keys = Kinematics::sprints(body.keys);
+            body.stamina
+                .tick(tick, sprint_keys && body.carrying.is_none(), sprint_keys);
         }
         self.shoot(tick);
         standin_damage::regenerate(&self.damage, &mut self.bodies, tick);
@@ -998,7 +1011,8 @@ impl Game {
             self.hit_log.push((tick, shooter, target));
         }
         let other = &mut self.bodies[target];
-        standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
+        let stamina = standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
+        other.stamina.hit(stamina);
         other.last_hit = tick;
         if let Some(leg) = stand_in_leg_hit(tick, shooter, target) {
             other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);

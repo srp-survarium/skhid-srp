@@ -77,6 +77,7 @@ mod standin;
 mod standin_damage;
 mod standin_grenade;
 mod standin_jump;
+mod standin_stamina;
 mod standin_weapon;
 mod walkway;
 mod world_facts;
