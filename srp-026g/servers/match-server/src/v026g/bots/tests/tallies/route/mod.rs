@@ -98,6 +98,7 @@ fn topics(bodies: usize) -> Vec<Box<dyn RouteTopic>> {
         Box::new(exact::ExactFalls::new(bodies)),
         motor(),
         request_gaps(),
+        shots_heard(),
         Box::new(reversal_roles::ReversalRoles::new(bodies)),
         below_walk(),
         foliage(),

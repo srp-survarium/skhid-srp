@@ -81,13 +81,16 @@ const SHIFT_MAX_M: f32 = 1.0;
 const SETTLE_MAX_MS: u32 = 5_000;
 /// The walk to the start is given up after this long, ms.
 const GO_MAX_MS: u32 = 60_000;
-/// A body this close to its start (m) has arrived.
-const ARRIVED_M: f32 = 0.3;
+/// A body this close to its start (m), at rest, has arrived: the real client's body coasts about 0.3-0.6 m after the
+/// keys are released (blend), so it comes to rest that far past the point the walk ended at, and the stand-in's does not.
+const ARRIVED_M: f32 = 0.6;
 /// The radius the walk to a start asks the motor for ([`Intent::exact_arrive_m`]), m: the motor's own is 0.6 m (the J0 on
-/// Chemical Plant struck five ledges at 0.30-0.35 m). A route ends a few cm off the start (0.055 m in the dry run), so
-/// a walk that ends within 0.25 m of its end stood at 0.30 m: just outside [`ARRIVED_M`], and 3 tries a minute in the
-/// dry run against 17.5; within 0.1 m it stands inside it.
-const START_ARRIVE_M: f32 = 0.1;
+/// Chemical Plant struck five ledges at 0.30-0.35 m short of the start), 0.1 m overshot on the live client (rests 0.45-0.53 m
+/// past the start, five of nine tries void in session 3): the keys are let go where the coast lands the body on the start.
+const START_ARRIVE_M: f32 = 0.45;
+/// The walk to a start goes at a walk for its last stretch (m): at a run the live body coasts 1.1-1.3 m past the point the keys are
+/// let go (the sprint rows of session 3's calibration rested that far off), at a walk 0.4-0.6 m.
+const GO_WALK_WITHIN_M: f32 = 6.0;
 /// Worlds are recorded this long after the press, ms.
 const RECORD_AFTER_MS: u32 = 3_000;
 /// The keys are held until this long after the press, ms.
@@ -123,9 +126,10 @@ const SUICIDE_TICKS: u32 = 3;
 const SUICIDE_CAP: u32 = 25;
 /// A bot still alive this long after the suicide bit goes on walking, ms.
 const SUICIDE_WAIT_MS: u32 = 1_500;
-/// A rest position fits its start within this (xz, y), m, and this facing (rad, 10 degrees); two worlds
+/// A rest position fits its start within this along the approach and across it (xz), m, this in height (y), and this facing (rad, 10 degrees); two worlds
 /// of the rest agree within [`STILL_M`].
-const REST_FIT_M: f32 = 0.3;
+const REST_FIT_ALONG_M: f32 = 0.6;
+const REST_FIT_ACROSS_M: f32 = 0.5;
 const REST_FIT_Y_M: f32 = 0.3;
 const REST_FIT_YAW: f32 = 0.1745;
 const STILL_M: f32 = 0.05;
@@ -178,6 +182,9 @@ pub struct Site {
     /// How deep the flat top is past the face, m, if known (`sites.tsv`'s tenth column, from the walker mesh): a try
     /// whose jump travels past it ([`Site::kind`]) goes over the ledge instead of onto it.
     pub depth: Option<f32>,
+    /// A gap site (`sites.tsv`'s trailing word `gap`): its top (the landing across a gap) is a floor the walk grid does not
+    /// reach from the spawns until a link exists, so only the start is checked ([`ReachSets::refuse`]).
+    pub gap: bool,
 }
 
 /// What a try on a site is: a jump onto a top, or over a thin obstacle.
@@ -187,6 +194,8 @@ pub enum Kind {
     Climb,
     /// The jump travels past the top: it clears the obstacle and lands behind it at the deck's height.
     Over,
+    /// A jump across a gap (the site is flagged `gap`).
+    Gap,
     /// The site's depth is not known.
     Unknown,
 }
@@ -200,7 +209,10 @@ impl Site {
     /// Climb or over for a try that presses `edge` m before the face at `speed`: climb when the flat top is deep
     /// enough for the jump to land on it (`depth >= edge + travel`).
     pub fn kind(&self, edge: f32, speed: Speed) -> Kind {
-        let travel = if speed == Speed::Sprint { SPRINT_TRAVEL_M } else { WALK_TRAVEL_M };
+        let travel = if speed.sprints() { SPRINT_TRAVEL_M } else { WALK_TRAVEL_M };
+        if self.gap {
+            return Kind::Gap;
+        }
         match self.depth {
             Some(depth) if depth >= edge.max(0.0) + travel => Kind::Climb,
             Some(_) => Kind::Over,
@@ -254,6 +266,11 @@ pub enum Face {
 pub enum Speed {
     Walk,
     Sprint,
+    /// A standing jump: the press is the first key tick, with no move key (`edge` is where the body stands).
+    Stand,
+    /// A sprint jump from a full stop: forward and sprint from the first key tick, the press this many ms after it
+    /// (`sprint_at_<ms>`): the sprint's prepare runs to the next footfall, so the take-off depends on the gait phase.
+    SprintAt(u32),
     /// The ordinary drive at a walk (the motor presses the jumps).
     Motor,
     /// The ordinary drive at a run.
@@ -261,6 +278,11 @@ pub enum Speed {
 }
 
 impl Speed {
+    /// Whether the body sprints.
+    fn sprints(self) -> bool {
+        matches!(self, Self::Sprint | Self::SprintAt(_))
+    }
+
     /// Whether the keys are the motor's, not the plan's.
     fn is_motor(self) -> bool {
         matches!(self, Self::Motor | Self::MotorRun)
@@ -299,11 +321,32 @@ impl Landing {
 /// How long the keys of a [`Mid::Land`] try are played after they change, ms.
 const LAND_KEYS_MS: u32 = 1_500;
 
+/// The keys are let go this long after the landing is seen in a world, ms (a world is a few tens of ms late).
+const LAND_RELEASE_MS: u32 = 50;
+
+/// When the jump of a press ended, from the worlds' rows (the time of the first row on the ground after one in the
+/// air, both after the press), if it has.
+fn landed_at<'a>(rows: impl IntoIterator<Item = &'a Row>, press: u32) -> Option<u32> {
+    let mut in_air = false;
+    for row in rows.into_iter().filter(|r| r.time >= press) {
+        if row.jumping {
+            in_air = true;
+        } else if in_air {
+            return Some(row.time);
+        }
+    }
+    None
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Mid {
     Hold,
     ReleaseF,
     ReleaseAll,
+    /// [`Mid::ReleaseF`] at the press itself (no 0.25 s of carried keys): the jump starts with forward and sprint up.
+    ReleaseFAtPress,
+    /// Every key but the jump released at the press.
+    ReleaseAllAtPress,
     Left,
     Right,
     Back,
@@ -318,6 +361,8 @@ pub enum Mid {
     /// (about the landing: the clip ends 0.9-1.2 s after it): what carries the body after a sprint jump lands, and what
     /// stops it (`land_back_1100`).
     Land { keys: Landing, after_ms: u32 },
+    /// Forward from `after_ms` after the press (a standing jump that steps on once it is in the air; 0: from the press).
+    Step { after_ms: u32 },
 }
 
 /// Who works a try: a named bot, or whichever bot of the match is free (the pool).
@@ -361,6 +406,7 @@ fn named_site(name: &str, extra: &HashMap<String, Site>) -> Option<Site> {
             face,
             half,
             depth: None,
+            gap: false,
         })
 }
 
@@ -387,6 +433,7 @@ fn parse_site(text: &str, extra: &HashMap<String, Site>) -> Result<Site, String>
         face: v[6],
         half: 0.0,
         depth: None,
+        gap: false,
     })
 }
 
@@ -395,12 +442,21 @@ fn parse_mid(text: &str) -> Result<Mid, String> {
         "hold" | "none" => Mid::Hold,
         "release_f" => Mid::ReleaseF,
         "release_all" => Mid::ReleaseAll,
+        "rel0_f" => Mid::ReleaseFAtPress,
+        "rel0_all" => Mid::ReleaseAllAtPress,
         "left" => Mid::Left,
         "right" => Mid::Right,
         "back" => Mid::Back,
         "crouch" => Mid::Crouch,
         "crouch_jump" => Mid::CrouchJump,
         "crouch_pre" => Mid::CrouchPre,
+        other if other.starts_with("step_") => {
+            let after_ms = other["step_".len()..].parse::<u32>().map_err(|e| format!("mid {other:?}: {e}"))?;
+            if after_ms > 1_000 {
+                return Err(format!("mid {other:?}: forward 0-1000 ms after the press"));
+            }
+            Mid::Step { after_ms }
+        }
         other if other.starts_with("land_") => {
             let (keys, ms) = other["land_".len()..].split_once('_').ok_or_else(|| format!("mid {other:?}"))?;
             let keys = match keys {
@@ -459,6 +515,14 @@ pub fn parse_tries(text: &str, extra: &HashMap<String, Site>) -> Result<Vec<TryD
             speed: match f[7] {
                 "walk" => Speed::Walk,
                 "sprint" => Speed::Sprint,
+                "stand" => Speed::Stand,
+                other if other.starts_with("sprint_at_") => {
+                    let ms = other["sprint_at_".len()..].parse::<u32>().map_err(|e| fail(format!("speed {other:?}: {e}")))?;
+                    if !(100..=3_000).contains(&ms) {
+                        return Err(fail(format!("speed {other:?}: the press 100-3000 ms after the sprint")));
+                    }
+                    Speed::SprintAt(ms)
+                }
                 "motor" => Speed::Motor,
                 "motor_run" => Speed::MotorRun,
                 other => return Err(fail(format!("speed {other:?}"))),
@@ -477,7 +541,8 @@ fn parse_sites(text: &str) -> HashMap<String, Site> {
     for line in text.lines() {
         let line = line.split('#').next().unwrap_or("").trim();
         let f: Vec<&str> = line.split_whitespace().collect();
-        if !(8..=10).contains(&f.len()) {
+        let gap = f.last() == Some(&"gap");
+        if !(8..=10 + usize::from(gap)).contains(&f.len()) {
             continue;
         }
         let v: Vec<f32> = f[1..].iter().filter_map(|s| s.parse().ok()).collect();
@@ -498,6 +563,7 @@ fn parse_sites(text: &str) -> HashMap<String, Site> {
                 face: v[6],
                 half: v.get(7).copied().unwrap_or(0.0),
                 depth: v.get(8).copied(),
+                gap,
             },
         );
     }
@@ -536,7 +602,7 @@ impl RunTable {
     }
 
     pub fn distance(&self, speed: Speed, ticks: u32) -> f32 {
-        let kind = usize::from(speed == Speed::Sprint);
+        let kind = usize::from(speed.sprints());
         let rows = &self.measured[kind];
         if let Some(i) = rows.iter().position(|r| r.0 >= ticks) {
             if rows[i].0 == ticks || i == 0 {
@@ -546,11 +612,11 @@ impl RunTable {
             return a.1 + (b.1 - a.1) * (ticks - a.0) as f32 / (b.0 - a.0) as f32;
         }
         if let Some(&(t, d)) = rows.last() {
-            let v = if speed == Speed::Sprint { 5.0 } else { 3.5 };
+            let v = if speed.sprints() { 5.0 } else { 3.5 };
             return d + v * (ticks - t) as f32 * TICK_S;
         }
         let kin = super::kin::Kinematics::default();
-        let v = if speed == Speed::Sprint { kin.sprint } else { kin.walk[0] };
+        let v = if speed.sprints() { kin.sprint } else { kin.walk[0] };
         // The blend: a linear ramp over `blend_ticks`, then steady.
         let ramp = kin.blend_ticks.max(1);
         let mut d = 0.0;
@@ -593,8 +659,11 @@ pub struct Plan {
 
 /// The base keys of a try: forward, with sprint, and the diagonal of a `normal` face.
 fn base_keys(def: &TryDef) -> u32 {
+    if def.speed == Speed::Stand {
+        return 0;
+    }
     let mut keys = key::FORWARD;
-    if def.speed == Speed::Sprint {
+    if def.speed.sprints() {
         keys |= key::SPRINT;
     }
     if def.face == Face::Normal {
@@ -650,6 +719,9 @@ pub fn plan_from(def: &TryDef, rest: Vec3, heading: f32, first: u32, table: &Run
     let to_face = ((cx - rest.x) * t[0] + (cz - rest.z) * t[1]) / cos;
     let (run, press) = if def.edge < 0.0 {
         (def.runup, None)
+    } else if matches!(def.speed, Speed::Stand | Speed::SprintAt(_)) {
+        // The rest is the start (it fits within the settle's tolerance): the press is a fixed time from the first tick.
+        (0.0, Some(()))
     } else {
         let run = to_face - def.edge / cos;
         if run < 0.4 {
@@ -657,7 +729,11 @@ pub fn plan_from(def: &TryDef, rest: Vec3, heading: f32, first: u32, table: &Run
         }
         (run, Some(()))
     };
-    let ticks = table.ticks_for(def.speed, run);
+    let ticks = match def.speed {
+        Speed::Stand => 0,
+        Speed::SprintAt(ms) => (ms + TICK_MS / 2) / TICK_MS,
+        _ => table.ticks_for(def.speed, run),
+    };
     let press_at = first + ticks * TICK_MS;
     let end = match press {
         Some(()) => press_at + if let Mid::Land { after_ms, .. } = def.mid { after_ms + LAND_KEYS_MS } else { KEYS_AFTER_MS },
@@ -694,21 +770,26 @@ impl Plan {
         if matches!(self.mid, Mid::CrouchJump | Mid::CrouchPre) {
             keys |= key::CROUCH;
         }
-        if time < press + 2 * TICK_MS {
-            keys |= key::JUMP;
+        if let Mid::Step { after_ms } = self.mid
+            && time >= press + after_ms
+        {
+            keys |= key::FORWARD;
         }
-        let mid_from = press + MID_AT_MS;
+        let jump_keys = if time < press + 2 * TICK_MS { key::JUMP } else { 0 };
+        keys |= jump_keys;
+        let mid_from = press + if matches!(self.mid, Mid::ReleaseFAtPress | Mid::ReleaseAllAtPress) { 0 } else { MID_AT_MS };
         let mut turn = 0.0;
         if time >= mid_from {
             match self.mid {
                 Mid::Hold => {}
-                Mid::ReleaseF => keys &= !(key::FORWARD | key::SPRINT),
+                Mid::ReleaseF | Mid::ReleaseFAtPress => keys &= !(key::FORWARD | key::SPRINT),
                 Mid::ReleaseAll => keys = 0,
+                Mid::ReleaseAllAtPress => keys = jump_keys,
                 Mid::Left => keys |= key::LEFT,
                 Mid::Right => keys |= key::RIGHT,
                 Mid::Back => keys = (keys & !(key::FORWARD | key::SPRINT)) | key::BACK,
                 Mid::Crouch => keys |= key::CROUCH,
-                Mid::CrouchJump | Mid::CrouchPre => {}
+                Mid::CrouchJump | Mid::CrouchPre | Mid::Step { .. } => {}
                 Mid::Land { keys: land, after_ms } => {
                     keys = if time >= press + after_ms { land.keys() } else { 0 };
                 }
@@ -815,6 +896,9 @@ pub struct JumpTest {
     /// Bots whose own planner found no way to a site from where they stand (they spawn in an area the other
     /// side's spawn areas shut off), by place and site: they take no try there.
     no_route: HashSet<(Place, (i32, i32))>,
+    /// Bots that did not reach a site's start in time ([`GO_MAX_MS`]), by site: a second bot is tried before the
+    /// ledge is given up (the first may have been a far one, from the other end of the map).
+    missed: HashMap<(i32, i32), HashSet<Place>>,
     /// When a bot first waited short of an enemy's try on its way to a start (it waits [`YIELD_MAX_MS`] at most).
     yielding: HashMap<Place, u32>,
     /// Suicides so far, by team.
@@ -843,6 +927,10 @@ pub struct JumpTest {
     tries_log: Option<fs::File>,
     /// Every alive body of every world (place, x, y, z): who stood near a runner.
     bodies_log: Option<fs::File>,
+    /// The health of a runner's body whenever it changes (`{"t", "place", "hp", "alive"}`, the server's own count): the fall
+    /// damage of a drop try; `last_health` is the last value seen of each place.
+    health_log: Option<fs::File>,
+    last_health: HashMap<Place, f32>,
     /// After a slow upload the next request waits this long at least, ms.
     backoff_ms: u32,
     worlds_log: Option<fs::File>,
@@ -891,6 +979,7 @@ impl JumpTest {
             pool: VecDeque::new(),
             bad_sites: Vec::new(),
             no_route: HashSet::new(),
+            missed: HashMap::new(),
             sides: HashMap::new(),
             yielding: HashMap::new(),
             suicides: [0; 2],
@@ -905,6 +994,8 @@ impl JumpTest {
             rows: HashMap::new(),
             tries_log: None,
             bodies_log: None,
+            health_log: None,
+            last_health: HashMap::new(),
             backoff_ms: 0,
             worlds_log: None,
             last_request: None,
@@ -1017,6 +1108,7 @@ impl JumpTest {
                     self.tries_log = self.open("tries");
                     self.worlds_log = self.open("worlds");
                     self.bodies_log = self.open("bodies");
+                    self.health_log = self.open("health");
                 }
             }
         }
@@ -1274,9 +1366,8 @@ impl JumpTest {
                     active.phase = Phase::Suicide { since: now, walked_ms, budget_ms };
                 } else if now > *since + GO_MAX_MS {
                     log::warn!("jump test: bot {} could not walk to the start of {}", bot.place, active.def.id);
-                    active.redone += 1;
-                    if active.redone >= 2 {
-                        // Not reached twice: the try is void, and so is every try on that ledge.
+                    if Self::start_missed(&mut self.missed, &mut self.no_route, bot.place, &active.def) {
+                        // Not reached by two bots: the try is void, and so is every try on that ledge.
                         let line = serde_json::json!({
                             "id": active.def.id, "n": active.n, "bot": bot.place, "team": active.team, "void": "start not reached",
                             "start": start.to_array(), "from": me.feet.to_array(),
@@ -1286,14 +1377,23 @@ impl JumpTest {
                         let bad = base_of(&active.def);
                         forget_site(&mut self.pool, &mut self.bad_sites, bad);
                         runner.pending.retain(|d| base_of(d).distance_xz(bad) > BAD_SITE_M);
-                        runner.active = None;
                     } else {
-                        *since = now;
+                        // The first miss: another bot (one that is near, or on the right side of the map) takes it.
+                        let line = serde_json::json!({
+                            "id": active.def.id, "n": active.n, "bot": bot.place, "team": active.team, "released": "start not reached in time",
+                            "start": start.to_array(), "from": me.feet.to_array(),
+                        });
+                        Self::line(&mut self.tries_log, &line);
+                        let def = TryDef { repeat: 1, ..active.def.clone() };
+                        if def.who == Who::Pool {
+                            back_to_pool(&mut self.pool, def);
+                        }
                     }
+                    runner.active = None;
                 } else {
                     bot.intent = Intent {
                         go: Go::To { at: aim, within_m: 0.0 },
-                        pace: if active.def.speed == Speed::MotorRun { Pace::Walk } else { Pace::Run },
+                        pace: if active.def.speed == Speed::MotorRun || me.feet.distance_xz(aim) < GO_WALK_WITHIN_M { Pace::Walk } else { Pace::Run },
                         fire: false,
                         exact_arrive_m: Some(START_ARRIVE_M),
                         ..Intent::stay()
@@ -1324,6 +1424,13 @@ impl JumpTest {
         let now = view.clock;
         // A bot with no try that walks off a try's ground (`keep_clear`) goes by the ordinary drive.
         let walking_off = matches!(bot.intent.go, Go::To { .. });
+        if self.health_log.is_some()
+            && self.runners.contains_key(&bot.place)
+            && let Some(p) = view.place(bot.place)
+            && self.last_health.insert(bot.place, p.health) != Some(p.health)
+        {
+            Self::line(&mut self.health_log, &serde_json::json!({ "t": now, "place": bot.place, "hp": p.health, "alive": p.alive }));
+        }
         let Some(runner) = self.runners.get_mut(&bot.place) else {
             return (self.idle_others && !walking_off).then(Decision::default);
         };
@@ -1356,10 +1463,10 @@ impl JumpTest {
                     .unwrap_or_default();
                 if let [row, before] = &rests[..]
                     && row.feet.distance_xz(before.feet) <= STILL_M
-                    && elapsed >= if active.def.speed == Speed::Sprint { REST_BEFORE_SPRINT_MS } else { SETTLE_MS }
+                    && elapsed >= if active.def.speed.sprints() { REST_BEFORE_SPRINT_MS } else { SETTLE_MS }
                 {
                     let first = (time / TICK_MS + LEAD_TICKS) * TICK_MS;
-                    let plan = rest_fits(row.feet, row.yaw, start, heading)
+                    let plan = rest_fits(row.feet, row.yaw, start, heading, approach(&active.def), across_m(&active.def.site))
                         .then(|| plan_from(&active.def, row.feet, row.yaw, first, &self.table))
                         .flatten();
                     match plan {
@@ -1369,7 +1476,7 @@ impl JumpTest {
                         None => {
                             if active.redone < 3 {
                                 active.redone += 1;
-                                active.shift = shift_of(me.feet, row.feet);
+                                active.shift = redo_shift(active.shift, start, row.feet);
                                 log::info!("jump test: {} from {:?}: the rest position does not fit; redone, aiming {:?} off", active.def.id, row.feet, active.shift);
                                 active.phase = Phase::Go { since: now };
                             } else {
@@ -1402,7 +1509,15 @@ impl JumpTest {
                 Some(Decision { keys: 0, turn: (turn, 0.0) })
             }
             Phase::Run(plan) => {
-                let decision = plan.at(time);
+                let mut decision = plan.at(time);
+                // The keys end with the landing (the carried run is not held into a wall): not for a try whose keys are
+                // the landing's own ([`Mid::Land`]).
+                if let Some(press) = plan.press
+                    && !matches!(plan.mid, Mid::Land { .. })
+                    && self.rows.get(&bot.place).and_then(|rows| landed_at(rows, press)).is_some_and(|landed| time >= landed + LAND_RELEASE_MS)
+                {
+                    decision.keys = 0;
+                }
                 if time >= plan.end {
                     let plan = plan.clone();
                     let until = plan.press.unwrap_or(plan.end) + RECORD_AFTER_MS;
@@ -1537,6 +1652,21 @@ impl JumpTest {
         std::mem::take(&mut self.fresh)
     }
 
+    /// A bot did not reach the start of `def` in time: whether this is the second bot to miss it (the ledge is
+    /// given up). The first is kept off the site, so the pool offers it to another.
+    fn start_missed(
+        missed: &mut HashMap<(i32, i32), HashSet<Place>>,
+        no_route: &mut HashSet<(Place, (i32, i32))>,
+        place: Place,
+        def: &TryDef,
+    ) -> bool {
+        let key = site_key(def);
+        let by = missed.entry(key).or_default();
+        by.insert(place);
+        no_route.insert((place, key));
+        by.len() >= 2
+    }
+
     /// The log line of a finished try, from the rows of its place.
     fn summary(&self, place: Place, def: &TryDef, n: u32, plan: &Plan, began: u32, redone: u8) -> serde_json::Value {
         let rows: Vec<&Row> = self
@@ -1548,11 +1678,15 @@ impl JumpTest {
     }
 }
 
-/// How far to aim the reckoning off the start after a rest that did not fit: the reckoning's lead over the body
-/// (`reckoned` against the `rest` row), if within [`SHIFT_MAX_M`]; else none (the reckoning was lost).
-fn shift_of(reckoned: Vec3, rest: Vec3) -> [f32; 2] {
-    let off = [reckoned.x - rest.x, reckoned.z - rest.z];
-    if off[0].hypot(off[1]) <= SHIFT_MAX_M { off } else { [0.0, 0.0] }
+/// How far to aim the walk off the start after a rest that did not fit: the last aim moved by half the miss (`start` against the
+/// body's `rest`), so the next walk ends where the coast puts the body on the start. It is measured on the body, so it
+/// holds whatever the reckoning thought; kept within [`SHIFT_MAX_M`] of the start (further, the miss is not a coast: the
+/// body is somewhere else, and the next ordinary world puts the reckoning right).
+fn redo_shift(shift: [f32; 2], start: Vec3, rest: Vec3) -> [f32; 2] {
+    // Half of the miss each time: the coast flips sign with the direction of the walk, a full step would swing the aim about.
+    let next = [shift[0] + 0.5 * (start.x - rest.x), shift[1] + 0.5 * (start.z - rest.z)];
+    let length = next[0].hypot(next[1]);
+    if length <= SHIFT_MAX_M { next } else { [next[0] / length * SHIFT_MAX_M, next[1] / length * SHIFT_MAX_M] }
 }
 
 /// Which team works each ledge: `sites` (key, start) sorted by how much nearer team 0's spawns are than team 1's; the
@@ -1575,10 +1709,23 @@ fn forget_site(pool: &mut VecDeque<TryDef>, bad_sites: &mut Vec<Vec3>, bad: Vec3
     pool.retain(|d| base_of(d).distance_xz(bad) > BAD_SITE_M);
 }
 
-/// Whether a body at rest at `rest` facing `yaw` is where a try starts: within [`REST_FIT_M`] of the start
-/// on the ground plane, [`REST_FIT_Y_M`] in height, and facing the heading within 10 degrees.
-pub fn rest_fits(rest: Vec3, yaw: f32, start: Vec3, heading: f32) -> bool {
-    rest.distance_xz(start) <= REST_FIT_M && (rest.y - start.y).abs() <= REST_FIT_Y_M && wrap(yaw - heading).abs() <= REST_FIT_YAW
+/// How far across the approach a rest may be from the start (m): [`REST_FIT_ACROSS_M`], more on a long face (a rail: the half
+/// width of the site less 0.3 m, at most 3 m), where the place along the face changes nothing.
+fn across_m(site: &Site) -> f32 {
+    (site.half - 0.3).clamp(REST_FIT_ACROSS_M, 3.0)
+}
+
+/// Whether a body at rest at `rest` facing `yaw` is where a try starts: within [`REST_FIT_ALONG_M`] of the start along the
+/// approach `axis` (the plan is made from the actual rest, so the run-up is that much shorter or longer; the log carries
+/// `rest_off`) and [`REST_FIT_ACROSS_M`] across it, [`REST_FIT_Y_M`] in height, and facing the heading within 10 degrees.
+pub fn rest_fits(rest: Vec3, yaw: f32, start: Vec3, heading: f32, axis: [f32; 2], across_m: f32) -> bool {
+    let (dx, dz) = (rest.x - start.x, rest.z - start.z);
+    let along = dx * axis[0] + dz * axis[1];
+    let across = -dx * axis[1] + dz * axis[0];
+    along.abs() <= REST_FIT_ALONG_M
+        && across.abs() <= across_m
+        && (rest.y - start.y).abs() <= REST_FIT_Y_M
+        && wrap(yaw - heading).abs() <= REST_FIT_YAW
 }
 
 /// What a try under way takes up: the start, the run-up line to the face and the top past it.
@@ -1716,17 +1863,23 @@ impl ReachSets {
     /// and both must have a way back.
     fn refuse(&self, world: &World, def: &TryDef) -> Option<String> {
         let floor = |at: Vec3| path::goal_floor(&world.grid, at);
-        let (Some(start), Some(top)) = (floor(start_of(def)), floor(top_of(def))) else {
-            return Some("the start or the top is on no floor".to_owned());
+        // A gap's far side is not reached until a link joins it, and may be no floor at the point past the face: its
+        // start is the only floor the bots walk to.
+        let top = if def.site.gap { None } else { floor(top_of(def)) };
+        let Some(start) = floor(start_of(def)) else {
+            return Some("the start is on no floor".to_owned());
         };
+        if !def.site.gap && top.is_none() {
+            return Some("the top is on no floor".to_owned());
+        }
         for team in 0..2usize {
             let checks = [
-                ("start reached from", self.forward[team][start as usize]),
-                ("top reached from", self.forward[team][top as usize]),
-                ("start has a way back to", self.back[team][start as usize]),
-                ("top has a way back to", self.back[team][top as usize]),
+                ("start reached from", Some(self.forward[team][start as usize])),
+                ("top reached from", top.map(|top| self.forward[team][top as usize])),
+                ("start has a way back to", Some(self.back[team][start as usize])),
+                ("top has a way back to", top.map(|top| self.back[team][top as usize])),
             ];
-            if let Some((what, _)) = checks.iter().find(|c| !c.1) {
+            if let Some((what, _)) = checks.iter().find(|c| c.1 == Some(false)) {
                 return Some(format!("{what} the spawns of team {team}: no"));
             }
         }
@@ -1978,7 +2131,8 @@ pub fn summarize(
     } else if landed {
         "landed"
     } else if apex >= top - 0.05 && last.feet.y < top - 0.3 {
-        "back_down"
+        // A landing try's keys come after the landing: the jump flew over the top and came down beyond it.
+        if matches!(def.mid, Mid::Land { .. }) && beyond > 0.5 { "crossed_top" } else { "back_down" }
     } else if (last.feet.y - deck).abs() <= 0.3 && beyond > -0.7 && !air.is_empty() {
         "held_at_face"
     } else if apex < top - 0.1 {
@@ -2117,17 +2271,28 @@ mod tests {
     }
 
     #[test]
-    fn a_rest_fits_only_within_a_third_of_a_metre_a_third_up_and_ten_degrees_of_the_heading() {
+    fn a_rest_fits_within_six_tenths_along_the_approach_a_half_across_a_third_up_and_ten_degrees_of_the_heading() {
         let start = Vec3::new(-6.0, 1.72, 93.9);
-        assert!(rest_fits(start, 0.0, start, 0.0));
-        assert!(rest_fits(Vec3::new(-5.8, 1.9, 94.1), 0.1, start, 0.0));
-        // 0.6 m off, another ledge's start 9 m off, on the top deck, facing 20 degrees off.
-        assert!(!rest_fits(Vec3::new(-5.4, 1.72, 93.9), 0.0, start, 0.0));
-        assert!(!rest_fits(Vec3::new(3.0, 1.72, 93.9), 0.0, start, 0.0));
-        assert!(!rest_fits(Vec3::new(-6.0, 2.32, 93.9), 0.0, start, 0.0));
-        assert!(!rest_fits(start, 0.35, start, 0.0));
+        let axis = [1.0, 0.0];
+        assert!(rest_fits(start, 0.0, start, 0.0, axis, 0.5));
+        assert!(rest_fits(Vec3::new(-5.8, 1.9, 94.1), 0.1, start, 0.0, axis, 0.5));
+        // The coast past the start (0.5 m along the approach) fits; 0.2 m more, 0.5 m sideways, another ledge's start 9 m off,
+        // the top deck, facing 20 degrees off do not.
+        assert!(rest_fits(Vec3::new(-5.5, 1.72, 93.9), 0.0, start, 0.0, axis, 0.5));
+        assert!(!rest_fits(Vec3::new(-5.2, 1.72, 93.9), 0.0, start, 0.0, axis, 0.5));
+        assert!(rest_fits(Vec3::new(-6.0, 1.72, 94.25), 0.0, start, 0.0, axis, 0.5));
+        assert!(rest_fits(Vec3::new(-6.0, 1.72, 94.4), 0.0, start, 0.0, axis, 0.5));
+        assert!(!rest_fits(Vec3::new(-6.0, 1.72, 94.6), 0.0, start, 0.0, axis, 0.5));
+        // On a long face (a rail) the place along it changes nothing: a wider band across.
+        assert!(rest_fits(Vec3::new(-6.0, 1.72, 95.9), 0.0, start, 0.0, axis, 2.0));
+        assert!(!rest_fits(Vec3::new(3.0, 1.72, 93.9), 0.0, start, 0.0, axis, 0.5));
+        assert!(!rest_fits(Vec3::new(-6.0, 2.32, 93.9), 0.0, start, 0.0, axis, 0.5));
+        assert!(!rest_fits(start, 0.35, start, 0.0, axis, 0.5));
+        // The axis turns with the approach: along z the same 0.5 m is along, 0.5 m in x is across.
+        assert!(rest_fits(Vec3::new(-6.0, 1.72, 94.4), 0.0, start, 0.0, [0.0, 1.0], 0.5));
+        assert!(!rest_fits(Vec3::new(-5.3, 1.72, 93.9), 0.0, start, 0.0, [0.0, 1.0], 0.5));
         // The heading wraps.
-        assert!(rest_fits(start, 3.1, start, -3.1));
+        assert!(rest_fits(start, 3.1, start, -3.1, axis, 0.5));
     }
 
     #[test]
@@ -2240,17 +2405,35 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
     }
 
     #[test]
-    fn after_a_misfit_the_reckoning_is_aimed_off_the_start_by_its_lead_over_the_body() {
+    fn a_start_missed_by_one_bot_goes_to_another_and_only_two_misses_give_the_ledge_up() {
+        let mut jt = JumpTest::new(PathBuf::from("none"), PathBuf::from("none"), "t".into(), 120);
+        let def = wide_def(0.0, 5.5);
+        // The first bot to miss is kept off the site; the ledge stays.
+        assert!(!JumpTest::start_missed(&mut jt.missed, &mut jt.no_route, 5, &def));
+        assert!(jt.no_route.contains(&(5, site_key(&def))));
+        // The same bot missing again (it was not offered it) does not give the ledge up; a second bot does.
+        assert!(!JumpTest::start_missed(&mut jt.missed, &mut jt.no_route, 5, &def));
+        assert!(JumpTest::start_missed(&mut jt.missed, &mut jt.no_route, 3, &def));
+        // Another site is not touched.
+        let mut other = def.clone();
+        other.site.lower = Vec3::new(def.site.lower.x + 40.0, def.site.lower.y, def.site.lower.z);
+        assert!(!JumpTest::start_missed(&mut jt.missed, &mut jt.no_route, 5, &other));
+    }
+
+    #[test]
+    fn after_a_misfit_the_walk_is_aimed_off_the_start_by_half_the_miss_of_the_body() {
         let start = Vec3::new(10.0, 2.0, 20.0);
-        // The reckoning stood at the aim, the body 0.4 m short (x): aim 0.4 m further (the reckoning's lead).
-        let (reckoned, body) = (Vec3::new(10.0, 2.0, 20.0), Vec3::new(9.6, 2.0, 20.1));
-        let shift = shift_of(reckoned, body);
-        assert!((shift[0] - 0.4).abs() < 1e-4 && (shift[1] + 0.1).abs() < 1e-4, "{shift:?}");
-        // Aimed there, a reckoning that stops on the aim puts the body (same lead) on the start.
-        let aim = (start.x + shift[0], start.z + shift[1]);
-        assert!(((aim.0 - shift[0]) - start.x).abs() < 1e-4);
-        // A reckoning 15 m off the body was lost: no shift (the next ordinary world puts it right).
-        assert_eq!(shift_of(Vec3::new(10.0, 2.0, 20.0), Vec3::new(-5.0, 2.0, 20.0)), [0.0, 0.0]);
+        // The body came to rest 0.5 m past the start (x) and 0.2 m to the side: aim 0.25 m short and 0.1 m back.
+        let shift = redo_shift([0.0, 0.0], start, Vec3::new(10.5, 2.0, 20.2));
+        assert!((shift[0] + 0.25).abs() < 1e-4 && (shift[1] + 0.1).abs() < 1e-4, "{shift:?}");
+        // Still 0.1 m past the start (x) on the line: the shift adds up (an integrator of gain a half).
+        let again = redo_shift(shift, start, Vec3::new(start.x + 0.1, 2.0, start.z));
+        assert!((again[0] + 0.30).abs() < 1e-4 && (again[1] + 0.1).abs() < 1e-4, "{again:?}");
+        // On the start: the shift stays.
+        assert_eq!(redo_shift(again, start, start), again);
+        // A rest 15 m off is no coast: the shift stays within the cap.
+        let far = redo_shift([0.0, 0.0], start, Vec3::new(25.0, 2.0, 20.0));
+        assert!((far[0].hypot(far[1]) - SHIFT_MAX_M).abs() < 1e-4, "{far:?}");
     }
 
     #[test]
@@ -2409,6 +2592,77 @@ m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
         assert!(plan.press.is_none());
         assert_eq!(plan.at(plan.first + TICK_MS).keys, key::FORWARD);
         assert_eq!(plan.at(plan.end - TICK_MS).keys, 0);
+    }
+
+    #[test]
+    fn a_sprint_from_a_stop_presses_at_the_asked_time_after_the_first_key() {
+        let table = RunTable::default();
+        let tries = parse_tries(
+            "sp1 * rs3 0 0 along 0 sprint_at_850 none 2\nsp2 * rs3 0 0 along 0 sprint_at_800 none 2\n",
+            &HashMap::from([("rs3".to_owned(), site())]),
+        )
+        .unwrap();
+        assert_eq!((tries[0].speed, tries[1].speed), (Speed::SprintAt(850), Speed::SprintAt(800)));
+        assert!(parse_tries("x * rs3 0 0 along 0 sprint_at_50 none 1\n", &HashMap::from([("rs3".to_owned(), site())])).is_err());
+        for (d, ms) in tries.iter().zip([850u32, 800]) {
+            assert_eq!(base_keys(d), key::FORWARD | key::SPRINT);
+            let plan = plan_from(d, start_of(d), heading_of(d), 10_000, &table).unwrap();
+            // A tick rounds to 50 ms: 850 is 17 ticks, 800 is 16.
+            assert_eq!(plan.press, Some(10_000 + (ms + 25) / 50 * 50));
+            assert_eq!(plan.at(10_000 + 50).keys, key::FORWARD | key::SPRINT);
+        }
+    }
+
+    #[test]
+    fn the_release_at_press_mids_let_go_with_the_jump_and_the_landing_ends_the_keys() {
+        assert_eq!(parse_mid("rel0_f"), Ok(Mid::ReleaseFAtPress));
+        assert_eq!(parse_mid("rel0_all"), Ok(Mid::ReleaseAllAtPress));
+        let d = def(1.3, 0.0, Face::Along, 3.5, Speed::Sprint, Mid::ReleaseFAtPress);
+        let plan = plan_from(&d, site_start(), 0.0, 1_000, &RunTable::default()).expect("fits");
+        let press = plan.press.expect("a press");
+        assert_eq!(plan.at(press - TICK_MS).keys, key::FORWARD | key::SPRINT);
+        assert_eq!(plan.at(press).keys, key::JUMP, "forward and sprint up at the press, the jump on");
+        assert_eq!(plan.at(press + 2 * TICK_MS).keys, 0);
+        let all = Plan { mid: Mid::ReleaseAllAtPress, ..plan.clone() };
+        assert_eq!(all.at(press).keys, key::JUMP);
+        assert_eq!(all.at(press + 2 * TICK_MS).keys, 0);
+        // The landing: the first row on the ground after a row in the air, both after the press.
+        let at = |time: u32, jumping: bool| Row { jumping, ..row(time, 2.0, 5.0, false, 0) };
+        let rows = vec![at(900, false), at(1_100, true), at(1_300, true), at(1_500, false), at(1_600, false)];
+        assert_eq!(landed_at(&rows, 1_000), Some(1_500));
+        assert_eq!(landed_at(&rows[..3], 1_000), None, "still in the air");
+        assert_eq!(landed_at(&rows[..1], 1_000), None, "no row in the air");
+    }
+
+    #[test]
+    fn a_gap_site_is_flagged_by_its_trailing_word() {
+        let sites = parse_sites(
+            "rg1 55.88 8.58 66.88 -0.4472 0.8944 0.890 0.868 0.30 gap  # a gap\nrc 11.4 10.17 66 1 0 1.03 0.4 0.3\nd1 1 2 3 1 0 0.6 0.25 0.6 1.01 gap\n",
+        );
+        assert!(sites["rg1"].gap && sites["rg1"].depth.is_none());
+        assert_eq!(sites["rg1"].kind(1.2, Speed::Walk), Kind::Gap);
+        assert!(!sites["rc"].gap);
+        assert!(sites["d1"].gap && sites["d1"].depth == Some(1.01));
+    }
+
+    #[test]
+    fn a_standing_jump_presses_on_the_first_tick_with_no_move_key() {
+        let table = RunTable::default();
+        assert_eq!(parse_mid("step_200"), Ok(Mid::Step { after_ms: 200 }));
+        assert!(parse_mid("step_2000").is_err());
+        for (mid, forward_after) in [(Mid::Step { after_ms: 0 }, Some(0)), (Mid::Step { after_ms: 200 }, Some(200)), (Mid::Hold, None)] {
+            let d = def(0.2, 0.0, Face::Along, 0.0, Speed::Stand, mid);
+            assert_eq!(base_keys(&d), 0);
+            let plan = plan_from(&d, start_of(&d), heading_of(&d), 10_000, &table).unwrap();
+            assert_eq!(plan.press, Some(10_000), "{mid:?}");
+            let keys = |after: u32| plan.at(10_000 + after).keys;
+            assert_eq!(keys(0) & key::JUMP, key::JUMP, "{mid:?}");
+            assert_eq!(keys(2 * TICK_MS) & key::JUMP, 0, "{mid:?}");
+            for after in [0, 100, 150, 200, 300, 600] {
+                let want = forward_after.is_some_and(|from| after >= from);
+                assert_eq!(keys(after) & key::FORWARD != 0, want, "{mid:?} at {after}");
+            }
+        }
     }
 
     #[test]

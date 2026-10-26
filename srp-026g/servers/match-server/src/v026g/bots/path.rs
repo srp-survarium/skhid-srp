@@ -606,7 +606,12 @@ fn pull_straight(
                 jump: match into[i] {
                     LinkKind::Jump => Some(Leap::Ledge),
                     // A gap link (`mapdata::grid::gap`): at its own press.
-                    kind if kind.is_off_mesh() => grid.off_link(nodes[i - 1], nodes[i]).map(|l| Leap::Gap(l.press)),
+                    // A gap link: pressed at its own point, or walked off
+                    // with no key (a plain leg the body falls along).
+                    kind if kind.is_off_mesh() => grid.off_link(nodes[i - 1], nodes[i]).and_then(|l| match l.press {
+                        mapdata::grid::gap::Takeoff::Press(press) => Some(Leap::Gap(press)),
+                        mapdata::grid::gap::Takeoff::WalkOff => None,
+                    }),
                     _ => None,
                 },
                 low: low(i - 1, i),

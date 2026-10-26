@@ -514,6 +514,18 @@ pub(crate) fn real_bot_cost() {
                     .collect();
                 bots.set_weapons(weapons);
             }
+            // Every bot's weapon 1 shot reach (H1c, `shot_reach`; read only
+            // when `SenseTuning::shots` is by weapon).
+            let reach = bots
+                .bots
+                .iter()
+                .map(|bot| {
+                    let bot = bot.as_ref()?;
+                    let gun = bot.kits.get(bot.kit)?.0.primary.0;
+                    super::shot_reach::reach_of(&format!("wpn_{}", gun.item))
+                })
+                .collect();
+            bots.set_shot_reach(reach);
             let started = Instant::now();
             let summary = bots.map_ready(world.clone());
             let ready_ms = started.elapsed().as_secs_f32() * 1e3;
@@ -985,6 +997,7 @@ pub(crate) fn real_bot_cost() {
                         bots.hurt(place, hurt);
                     }
                     standin_heal::tell(&mut game, &mut bots, world_tick);
+                    standin_traps::tell(&mut game, &mut bots, world_tick);
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             for note in bots.fixed(place, fix, Some(health)) {
@@ -1343,6 +1356,13 @@ pub(crate) fn real_bot_cost() {
             eprintln!("  {owner_line}");
             if let Some((place, spot)) = bots.bench_camper {
                 eprintln!("  camper: place {place} spot {spot:?}");
+            }
+            // The stand-in's bear traps (none carried: no line, the log as it was).
+            if !game.traps.events.is_empty() {
+                let [placed, enemy, mate, own, shot, hand] = game.traps.counts();
+                eprintln!(
+                    "  traps (stand-in): placed {placed}, caught enemy {enemy} mate {mate} own {own}, shot off {shot}, defused by hand {hand}"
+                );
             }
             eprintln!("  push: {}", push.line(&bots));
             eprintln!(
