@@ -13,9 +13,13 @@ package
    import flash.system.LoaderContext;
    import flash.system.fscommand;
 
-   // Blackout's kits on Tab (docs/notes/blackout.md) with the hud movie's own classes: its kit panel
-   // (HUDProfileSelector, a CLIK ButtonBar of kit tabs) in a stand-in of the hud's root, kept by the
-   // hud's own KeptLayer (a layer beside the root, as HUD makes it) while the root is hidden, then:
+   // Blackout's Tab view and chat (docs/notes/blackout.md) with the hud movie's own classes: its kit
+   // panel (HUDProfileSelector, a CLIK ButtonBar of kit tabs), body doll (HUDPlayerInfo's criticalInd)
+   // and chat (SrvGameChat) in a stand-in of the hud's root, shown by the hud's own ForcedView in its
+   // own KeptLayer (a layer beside the root, as HUD makes them) while the root is hidden, then:
+   // - forced, nothing typed, no Tab: the chat is hidden, a new message too;
+   // - the chat typed in (focus_chat): the chat and its input shown; sent: hidden again;
+   // - Tab held: the chat shown with its history held on (ForcedView's history), and the kits:
    // - kept, the panel stays where it was on the screen;
    // - a kit key (patch 58's select_kit_key: ProfileSelector.pickByKey) picks kit 2, shown chosen
    //   (its tab selected, the glow under it where Ruffle draws it), the pick going to the exe
@@ -47,6 +51,12 @@ package
       private var target:Point;
 
       private var doll:MovieClip;
+
+      private var chat:MovieClip;
+
+      private var view:Object;
+
+      private var history:Array = [];
 
       private var failures:Array = [];
 
@@ -92,6 +102,26 @@ package
          info.y = 380;
          face.addChild(info);
          doll = info.criticalInd;
+         var Chat:Class = domain.getDefinition("SrvGameChat") as Class;
+         chat = new Chat() as MovieClip;
+         chat.x = 2000;                  // off the window: the kits are clicked
+         chat.y = 0;
+         face.addChild(chat);
+         var View:Class = domain.getDefinition("survarium.controls.ForcedView") as Class;
+         // the hud's lists (HUD.keptWhenForced, keptOnTab while the kits are shown, keptWhileTyping)
+         view = new View(kept,function():Array
+         {
+            return [];
+         },function():Array
+         {
+            return [panel,doll,chat];
+         },function():Array
+         {
+            return [chat];
+         },function(hold:Boolean):void
+         {
+            history.push(hold);
+         });
          selector = panel.profileSelector;
          // Ruffle: the selector's own setting of its tabs' renderer (in its constructor, the movie
          // still loading) finds no class by its name; once loaded it does
@@ -155,15 +185,36 @@ package
             picks = 0;  // the setup's own selection of kit 1 is no pick
             var before:Point = panel.localToGlobal(new Point(0,0));
             face.visible = false;
-            kept.keep([panel],true);
+            view.forced = true;
+            message("forced, nothing typed, no Tab: a new message");
+            expectChat("forced, nothing typed, no Tab, a new message came",false,false);
+            view.typing = true;
+            call(function():void
+            {
+               chat.startEnterMessage();
+            });
+            expectChat("the chat typed in",true,true);
+            call(function():void
+            {
+               chat.stopEnterMessage();
+            });
+            view.typing = false;
+            expectChat("the message sent",false,false);
+            message("a message after it");
+            expectChat("a message after it, nothing typed, no Tab",false,false);
+            var dollAt:Point = doll.localToGlobal(new Point(0,0));
+            view.tab = true;
+            expectChat("Tab held: the chat's history",true,false);
+            if(history.join() != "true")
+            {
+               failures.push("Tab held: the history held " + history.join());
+            }
             var after:Point = panel.localToGlobal(new Point(0,0));
             trace("KITS kept: the panel at " + before + " in the root, " + after + " in the kept layer");
             if(panel.parent != kept || Point.distance(before,after) > 0.5)
             {
                failures.push("kept: the panel from " + before + " to " + after + ", in the layer " + (panel.parent == kept));
             }
-            var dollAt:Point = doll.localToGlobal(new Point(0,0));
-            kept.keep([doll],true);
             var dollNow:Point = doll.localToGlobal(new Point(0,0));
             var hp:Boolean = true;
             try
@@ -216,8 +267,13 @@ package
       {
          call(function():void
          {
-            kept.keep([panel,doll],false);
+            view.tab = false;
          });
+         if(history.join() != "true,false")
+         {
+            failures.push("Tab let go: the history " + history.join());
+         }
+         expectChat("Tab let go",false,false);
          if(doll.parent == kept)
          {
             failures.push("given back: the body's state still kept");
@@ -227,6 +283,44 @@ package
             failures.push("given back: the panel at " + panel.x + "," + panel.y + ", in the root " + (panel.parent == face));
          }
          finish(failures.length ? "fail: " + failures.join("; ") : "pass");
+      }
+
+      // Whether a part is on the screen: itself and every parent up to the stage visible.
+      private static function shown(part:DisplayObject) : Boolean
+      {
+         for(var at:DisplayObject = part; at != null; at = at.parent)
+         {
+            if(!at.visible)
+            {
+               return false;
+            }
+         }
+         return part.stage != null;
+      }
+
+      private function expectChat(what:String, visible:Boolean, input:Boolean) : void
+      {
+         var on:Boolean = shown(chat);
+         var typing:Boolean = on && chat.text_inpput != null && shown(chat.text_inpput);
+         trace("KITS " + what + ": the chat " + (on ? "shown" : "hidden") + ", its input " + (typing ? "shown" : "hidden"));
+         if(on != visible || typing != input)
+         {
+            failures.push(what + ": the chat " + on + " (want " + visible + "), its input " + typing + " (want " + input + ")");
+         }
+      }
+
+      // A message to the chat (Chat.got_message); Ruffle may not style it, the chat holds it anyway.
+      private function message(what:String) : void
+      {
+         try
+         {
+            chat.addTab({id:1,name:"all",channels:[1],channel_to_send:1,closable:false});
+            chat.got_message({type:1,text:what,tab_id:1,sender:"teammate"});
+         }
+         catch(err:Error)
+         {
+            trace("KITS a message: " + err.message);
+         }
       }
 
       private function finish(result:String) : void

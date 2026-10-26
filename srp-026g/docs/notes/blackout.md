@@ -37,11 +37,16 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
   kits and the death screen with its respawn timer.
 - **One exception, the pre-match countdown** ("… 00:15"): shown while it runs, hidden with the
   rest when play starts.
-- **Tab held:** the ammo (in the weapon and carried), the quick-use slots with their counts, the
+- **Tab held:** the chat's history, the ammo (in the weapon and carried), the quick-use slots with their counts, the
   body's state (the doll: the body parts, bleeding, radiation, toxins; the owner, 2026-10-26), the
   players' markers and the time left until the match ends (the hud's own match timer, in its normal place at the top of the
   screen, the rest of the bar hidden; the owner, 2026-10-26); hidden again when Tab is let go.
   Never the player list or the score (the owner, 2026-10-25).
+- **The chat** (the owner, 2026-10-26: "should be seen when typing and tab should show history"):
+  while the player types (the chat key): the chat window with its recent lines and the input, as
+  in a plain match, hidden again when the message is sent or cancelled; while Tab is held (alive or
+  dead): the chat window with its history held on (its last lines, as the chat keeps them);
+  otherwise hidden, and a new message does not pop up.
 - **Tab held while dead** (the owner, 2026-10-26: "pressing tab when dying should show kits"): the
   kits, as a plain match shows them on the death screen and before the start, to pick by a click
   or 1 to 3 (shown chosen as in a plain match), the players' markers (a plain death screen shows
@@ -106,7 +111,10 @@ changes of 2026-10-25 and 2026-10-26 are in. Nothing here ships until the owner 
     of update_player_icons (0x23B207), patch 62 (F11) keeps its reset (0x234AE8) and key: each owns
     another site, so they land beside Blackout unchanged (each site has one owner; none is a
     chain). The forced interface's F11 lock and its reset are the movies' (below).
-- **The hud movie:** `force_interface_hidden` hides the root as F11 does and keeps the countdown
+- **The hud movie:** `force_interface_hidden` hides the root as F11 does; what it keeps is
+  `ForcedView`'s (`survarium/controls/ForcedView.as`: the parts by the forced state, Tab held and the
+  chat typed in, `focus_chat`; the chat kept while typed in or on Tab, its history held on for Tab):
+  the countdown
   (`pregameInfo`) in a layer over it (`KeptLayer`: the layer takes no mouse, its parts do, so the
   kits are clicked there; the first build made the whole layer mouse-blind, the owner's
   2026-10-26 "I cannot switch between profiles"), placed as the root (and still placed by the hud's own
