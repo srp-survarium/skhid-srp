@@ -36,6 +36,7 @@ and presses Play again.
               room; the others join once somebody else is in it.
   --room KEY  join this existing room instead of Play (all bots join at once)
   --pin PIN   the room PIN, with --room; never printed
+  --check-data  validate SRP_GAME_DATA and its dictionary, then exit without connecting
   --once      stop after one match
   --revision N  the patch revision the sign-in says (default: the newest,
               the late join's); only 5 or later plays in rooms
@@ -77,6 +78,7 @@ fn main() {
     let mut once = false;
     let mut kit = None;
     let mut drive = false;
+    let mut check_data = false;
     let mut room_key = None;
     let mut room_pin = None;
     let mut revision = survarium::v026g::match_msgs::late_join::PATCH_REVISION;
@@ -131,6 +133,7 @@ fn main() {
                         .unwrap_or_else(|_| fail("--pin must be 0 to 9999")),
                 )
             }
+            "--check-data" => check_data = true,
             "--once" => once = true,
             "--drive" => drive = true,
             "--help" | "-h" => {
@@ -145,6 +148,18 @@ fn main() {
     }
     let password = password.unwrap_or_else(|| DEFAULT_PASSWORD.to_owned());
 
+    // Tools otherwise silently use the embedded test archive. Live local
+    // accounts contain ported items that only the server's current DB knows.
+    if std::env::var_os(survarium::v026g::game_data::GAME_DATA_ENV).is_some() {
+        survarium::v026g::game_data::init().unwrap_or_else(|error| fail(&error.to_string()));
+    } else if check_data {
+        fail("--check-data needs SRP_GAME_DATA");
+    }
+    if check_data {
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        println!("game data loaded: {} items, {} maps", dictionary.items.len(), dictionary.maps.len());
+        return;
+    }
     let room = match (room_key, room_pin) {
         (Some(key), pin) => Some(
             RoomTarget::new(key, pin)

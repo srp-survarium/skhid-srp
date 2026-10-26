@@ -271,6 +271,8 @@ enum Stage {
     SigningIn(Instant),
     /// In the lobby; Play is pressed at this time.
     Idle(Instant),
+    /// A private-room PIN is sent; wait for its acknowledgement before joining.
+    GivingPin { room: RoomTarget, since: Instant },
     /// Play is out: in a room, waiting for its match.
     Waiting,
     InMatch(Box<MatchLink>),
@@ -569,8 +571,10 @@ impl Bot {
                                     request::ranking(ROOM_PIN_BASE + u32::from(pin), 1);
                                 lobby.client.send(id, &body);
                             }
-                            let (id, body) = request::ranking(ROOM_JOIN_BASE + room.key, 1);
-                            lobby.client.send(id, &body);
+                            if room.pin.is_none() {
+                                let (id, body) = request::ranking(ROOM_JOIN_BASE + room.key, 1);
+                                lobby.client.send(id, &body);
+                            }
                         } else {
                             let (id, body) = request::play(kit);
                             lobby.client.send(id, &body);
@@ -586,7 +590,23 @@ impl Bot {
                     } else {
                         self.say(&format!("pressed Play with kit {kit}"));
                     }
+                    self.stage = match self.config.room {
+                        Some(room) if room.pin.is_some() => Stage::GivingPin { room, since: now },
+                        _ => Stage::Waiting,
+                    };
+                }
+            }
+            Stage::GivingPin { room, since } => {
+                if decoded.iter().any(|message| matches!(message, Decoded::EloList(rows)
+                    if rows.first().is_some_and(|row| row.1 == ROOM_PIN_BASE && row.0 == "S1;K;1"))) {
+                    if let Some(lobby) = &mut self.lobby {
+                        let (id, body) = request::ranking(ROOM_JOIN_BASE + room.key, 1);
+                        lobby.client.send(id, &body);
+                    }
                     self.stage = Stage::Waiting;
+                } else if now.saturating_duration_since(*since) >= LOBBY_SIGN_IN {
+                    self.say("room PIN acknowledgement timed out; stopped");
+                    self.stage = Stage::Done;
                 }
             }
             Stage::Waiting => self.waiting(&decoded, now),
@@ -639,6 +659,18 @@ impl Bot {
                 Decoded::EloList(rows) if rows.first().is_some_and(|row| row.1 == ROOM_STATE) => {
                     // `S1;R;<key>;..;<members>;..` (`lobby::rooms::room_state`).
                     let fields: Vec<&str> = rows[0].0.split(';').collect();
+                    if self.config.room.is_some() && fields.get(1) == Some(&"N")
+                        && fields.get(2).is_some_and(|code| *code != "0") {
+                        let reason = match fields.get(2).copied() {
+                            Some("2") => "room does not exist",
+                            Some("3") => "wrong room PIN",
+                            Some("4") => "room is full",
+                            _ => "room rejected the join",
+                        };
+                        self.say(&format!("{reason}; stopped (create a 10v10 private room and check its code/PIN)"));
+                        self.stage = Stage::Done;
+                        return;
+                    }
                     let room = (fields.get(1) == Some(&"R"))
                         .then(|| {
                             Some((fields.get(2)?.parse().ok()?, fields.get(11)?.parse().ok()?))

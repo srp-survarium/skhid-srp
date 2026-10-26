@@ -96,6 +96,10 @@ fn setup() {
     }
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
+        // An opt-in live-content run must exercise the same dictionary as srp.
+        if std::env::var_os(survarium::v026g::game_data::GAME_DATA_ENV).is_some() {
+            survarium::v026g::game_data::init().expect("configured game data");
+        }
         // Before any server thread: the match server would keep the
         // uploaded worlds under `logs/snapshots` of the crate.
         // SAFETY: the tests of this file all come through here first, and
@@ -1882,6 +1886,15 @@ fn nineteen_stationary_accounts_join_one_private_room_and_fill_both_teams() {
         state(g[0], None).is_some()
     });
     let key = state(&owner, None).unwrap();
+    let refused = BotRun::configs(vec![srp::bot::Config {
+        server: stack.login_addr.to_string(), name: names[0].clone(),
+        password: "local-spawn-password".to_owned(), once: false, kit: None, drive: false,
+        revision: survarium::v026g::match_msgs::late_join::PATCH_REVISION,
+        room: srp::bot::RoomTarget::new(key, Some(4321)),
+    }]);
+    until(&mut [&mut owner], SOON, "wrong PIN reported", |_| refused.finished());
+    assert!(refused.said("wrong room PIN").is_some());
+    drop(refused);
     let configs = names
         .iter()
         .map(|name| srp::bot::Config {
@@ -1948,4 +1961,20 @@ fn nineteen_stationary_accounts_join_one_private_room_and_fill_both_teams() {
     owner.assert_clean();
     drop(bots);
     stack.stop();
+}
+
+#[test]
+fn bot_cli_reads_the_explicit_server_data_before_connecting() {
+    use survarium::v026g::game_data::{GameData, GAME_DATA_ENV};
+    let path = std::env::var_os(GAME_DATA_ENV).map_or_else(
+        || Path::new(env!("CARGO_MANIFEST_DIR")).join("../../resources/game-026g/server-game-data.db"),
+        PathBuf::from,
+    );
+    let data = GameData::open(&path).unwrap();
+    let dictionary = Dictionary::parse(data.file(survarium::v026g::dictionary::PATH).unwrap()).unwrap();
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_srp-bot"))
+        .env(GAME_DATA_ENV, &path).arg("--check-data").output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8(output.stdout).unwrap(),
+        format!("game data loaded: {} items, {} maps\n", dictionary.items.len(), dictionary.maps.len()));
 }
