@@ -423,6 +423,10 @@ pub(super) fn react(
         partner: bot.partner,
         weapon: bot.weapon(weapons, tuning),
         weapons,
+        retreat: tuning.avoid.grenade_avoid.then_some(reflex::Retreat {
+            margin_m: tuning.avoid.margin_m,
+            told_ms: tuning.avoid.told_ms.1,
+        }),
     };
     bot.reflex
         .think_with(me, &sit, &bot.memory, now, &tuning.aim, skill, &mut bot.rng);
