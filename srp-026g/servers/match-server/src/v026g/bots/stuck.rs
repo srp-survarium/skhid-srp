@@ -90,6 +90,16 @@ pub const AGAIN_MS: u32 = 20_000;
 pub const SPOT_HEIGHT_M: f32 = 2.0;
 /// A spot is avoided this long, ms.
 pub const SPOT_KEPT_MS: u32 = 45_000;
+/// The landing of a jump the motor gave up shuts to the body's searches for
+/// this long, ms: the motor refuses that jump for as long
+/// (`motor::TRY_KEPT_S`), so a route over it would end on its first tick,
+/// every tick (the Rudnya probe: 146 times in 8 s).
+pub const JUMP_SHUT_MS: u32 = (super::motor::TRY_KEPT_S * 1000.0) as u32;
+/// A floor within this of a shut landing is shut too (across), metres: the
+/// motor takes a jump 0.3 m from the one it gave up as the same one.
+pub const LANDING_SHUT_M: f32 = 0.35;
+/// … and within this up or down, metres.
+const LANDING_SHUT_UP_M: f32 = 0.3;
 /// A spot is avoided once it caught the body this many times.
 const AVOID_AFTER: u32 = 2;
 /// A route passing this near a kept spot is not taken (its first metres,
@@ -167,6 +177,10 @@ pub struct Stuck {
     pub zone_out: Option<(Vec3, u32)>,
     /// Its escape from the pocket it is in (`escape.rs`).
     pub escape: Option<super::escape::Escape>,
+    /// The landings of the jumps the motor gave up (`motor::JUMP_TRIES`), and
+    /// till when every search of this body keeps off them
+    /// ([`JUMP_SHUT_MS`]).
+    shut_landings: Vec<(Vec3, u32)>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -344,8 +358,33 @@ impl Stuck {
     /// way, the bot takes it anyway). The grid's jumps of 0.9-1.05 m are at
     /// the client's reach: some it never makes (`player_bots_stuck.md`
     /// §8.9).
-    pub fn failed_jump(&mut self, time: u32, at: Vec3) {
+    ///
+    /// Its `landing` (when the route says) is also shut to every search of
+    /// this body for [`JUMP_SHUT_MS`] ([`Self::shut_landings`]): the motor
+    /// will not make that jump again before then, and a search that found
+    /// no other way was handed the same route every tick.
+    pub fn failed_jump(&mut self, time: u32, at: Vec3, landing: Option<Vec3>) {
         self.fell(time, at);
+        if let Some(landing) = landing {
+            self.shut_landings.retain(|&(_, until)| until > time);
+            match self
+                .shut_landings
+                .iter_mut()
+                .find(|(shut, _)| on_landing(*shut, landing))
+            {
+                Some((_, until)) => *until = time + JUMP_SHUT_MS,
+                None => self.shut_landings.push((landing, time + JUMP_SHUT_MS)),
+            }
+        }
+    }
+
+    /// The landings of the jumps given up that every search keeps off at
+    /// `time`.
+    pub fn shut_landings(&self, time: u32) -> impl Iterator<Item = Vec3> + '_ {
+        self.shut_landings
+            .iter()
+            .filter(move |&&(_, until)| until > time)
+            .map(|&(landing, _)| landing)
     }
 
     /// Its stucks and falls since the team last heard, for [`TeamSpots::learn`].
@@ -419,6 +458,11 @@ pub fn unstick_keys(recovery: Recovery, ledge: bool, escape: u32, jump: u32) -> 
         (Recovery::BackOff | Recovery::GiveUp, _) => escape,
         (Recovery::Sidestep, false) => escape | jump,
     }
+}
+
+/// Whether `point` is on the shut landing `landing`.
+pub fn on_landing(landing: Vec3, point: Vec3) -> bool {
+    landing.distance_xz(point) < LANDING_SHUT_M && (landing.y - point.y).abs() < LANDING_SHUT_UP_M
 }
 
 /// Whether `point` is near the spot `spot`: within [`SPOT_M`] across and
@@ -509,6 +553,33 @@ impl TeamSpots {
 mod tests {
     use super::*;
     use crate::v026g::bots::path::Waypoint;
+
+    /// (iii): the landing of a jump the motor gave up is shut to the body's
+    /// searches for as long as the motor refuses the jump, and a floor within
+    /// the motor's "same jump" of it is shut with it; no other floor, nor
+    /// after the lockout.
+    #[test]
+    fn a_failed_jumps_landing_is_shut_for_the_motors_lockout() {
+        let (take_off, landing) = (Vec3::new(1.0, 0.0, 1.0), Vec3::new(1.0, 1.0, 1.5));
+        let mut stuck = Stuck::default();
+        assert_eq!(stuck.shut_landings(1_000).count(), 0);
+        stuck.failed_jump(1_000, take_off, Some(landing));
+        let shut: Vec<Vec3> = stuck.shut_landings(1_000 + JUMP_SHUT_MS - 1).collect();
+        assert_eq!(shut, [landing]);
+        assert!(on_landing(landing, landing));
+        assert!(on_landing(landing, landing + Vec3::new(0.25, 0.1, 0.0)));
+        assert!(!on_landing(landing, landing + Vec3::new(0.5, 0.0, 0.0)), "another cell");
+        assert!(!on_landing(landing, landing + Vec3::new(0.0, 1.0, 0.0)), "another floor");
+        assert_eq!(stuck.shut_landings(1_000 + JUMP_SHUT_MS).count(), 0, "the lockout ends");
+        // The motor's lockout is the same number of seconds.
+        assert_eq!(JUMP_SHUT_MS as f32 / 1000.0, super::super::motor::TRY_KEPT_S);
+        // The spot is avoided as before; a jump with no landing on the route
+        // shuts nothing.
+        let mut other = Stuck::default();
+        other.failed_jump(1_000, take_off, None);
+        assert_eq!(other.shut_landings(1_000).count(), 0);
+        assert_eq!(other.tell(), [(take_off, true)]);
+    }
 
     /// F4: a forward jump up the ledge a stuck body is held by, else the
     /// escape keys: no jump on the first stop at a spot, the old
@@ -813,7 +884,7 @@ mod tests {
         // A failed jump is a fall's spot too.
         let mut team = TeamSpots::default();
         let mut jumper = Stuck::default();
-        jumper.failed_jump(1_000, edge);
+        jumper.failed_jump(1_000, edge, None);
         team.learn(1_000, &jumper.tell());
         assert_eq!(team.avoided(), [edge]);
     }
