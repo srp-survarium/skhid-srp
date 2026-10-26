@@ -1,7 +1,7 @@
 //! Why a bot's route ended, and how old it was.
 //!
 //! Every place that drops or replaces a bot's route goes through
-//! [`Bot::end_route`] / [`Bot::set_route`], so the bench (`cfg(test)`) can tell,
+//! [`Bot::end_route`] / [`Bot::set_route`], so the bench (`cfg(test)`, and the jump test's build) can tell,
 //! per ending, what ended the route and after how many ms: a route that ends
 //! at age 0 ms is one that never walked a step (a first leg the body cannot
 //! make), one that ends at 30 s was walked. Nothing here decides anything.
@@ -64,7 +64,7 @@ impl RouteEnd {
     ];
 
     /// The name the bench prints.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "jump-test"))]
     pub fn name(self) -> &'static str {
         match self {
             RouteEnd::Arrived => "arrived",
@@ -99,27 +99,28 @@ impl Bot {
         if self.route.is_some() {
             self.route_ended(RouteEnd::Replanned, now);
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "jump-test"))]
         if route.is_some() {
             self.route_born = now;
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "jump-test")))]
         let _ = now;
         self.route = route;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "jump-test"))]
     pub(super) fn route_ended(&mut self, why: RouteEnd, now: u32) {
         let age = now.saturating_sub(self.route_born);
         self.route_end = Some((why, age));
+        #[cfg(test)]
         counts::ended(why, age);
     }
 
-    #[cfg(not(test))]
+    #[cfg(not(any(test, feature = "jump-test")))]
     pub(super) fn route_ended(&mut self, _: RouteEnd, _: u32) {}
 
     /// How its last route ended, and its age in ms then.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "jump-test"))]
     pub fn last_route_end(&self) -> Option<(RouteEnd, u32)> {
         self.route_end
     }

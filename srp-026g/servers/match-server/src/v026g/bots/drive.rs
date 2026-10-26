@@ -268,7 +268,7 @@ pub(super) fn drive_tick(
         goal
     } else {
         let grid = &tactics.world.grid;
-        #[cfg(test)]
+        #[cfg(any(test, feature = "jump-test"))]
         let had_route = bot.route.is_some();
         let out = escape::tick(
             &mut bot.stuck.escape,
@@ -282,7 +282,7 @@ pub(super) fn drive_tick(
             time,
             bot.hurt.may_jump(time),
         );
-        #[cfg(test)]
+        #[cfg(any(test, feature = "jump-test"))]
         if had_route && bot.route.is_none() {
             bot.route_ended(RouteEnd::EscapeStep, time);
         }

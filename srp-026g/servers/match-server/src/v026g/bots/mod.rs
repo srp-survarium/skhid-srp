@@ -137,10 +137,10 @@ pub struct Bot {
     /// The route and the goal it was planned to.
     route: Option<(Route, Vec3)>,
     /// When the route was put in place, and how the last one ended with its
-    /// age in ms (the bench's counts, `route_end.rs`).
-    #[cfg(test)]
+    /// age in ms (the bench's counts and the jump test's log, `route_end.rs`).
+    #[cfg(any(test, feature = "jump-test"))]
     route_born: u32,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "jump-test"))]
     route_end: Option<(RouteEnd, u32)>,
     /// A goal no way was found to, and until when it is not tried again.
     no_way: Option<(Vec3, u32)>,
@@ -288,9 +288,9 @@ impl Bot {
             last_ran: Vec::new(),
             intent: Intent::stay(),
             route: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "jump-test"))]
             route_born: 0,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "jump-test"))]
             route_end: None,
             no_way: None,
             no_way_to: Vec::new(),
