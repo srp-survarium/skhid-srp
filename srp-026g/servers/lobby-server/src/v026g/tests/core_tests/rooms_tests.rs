@@ -8,7 +8,7 @@ use session::v026g::rooms::Stage;
 use survarium::v026g::lobby::rooms::{
     ROOM_FORM, ROOM_FRIENDS, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_MEMBERS_BASE,
     ROOM_PIN_BASE, ROOM_PLAY, ROOM_QUEUE_BASE, ROOM_START, ROOM_STATE, ROOM_UNQUEUE,
-    ROOM_VOTE_BASE, ROOMS_LIST, RoomSpec, bits_start, create_start, kick_start,
+    ROOM_VOTE_BASE, ROOMS_LIST, RoomSpec, bits_start, create_start, kick_start, move_start,
 };
 
 use super::pvb_tests::with_gear;
@@ -1950,7 +1950,9 @@ fn a_room_makes_no_match_below_its_minimum() {
 /// PIN; `count` members in all, the first its owner: the room's key and the
 /// members.
 fn private_room(world: &mut World, count: usize) -> (u32, Vec<usize>) {
-    let names = ["Alice", "Bob", "Carol", "Dave", "Erin"];
+    let names = [
+        "Alice", "Bob", "Carol", "Dave", "Erin", "Frank", "Grace", "Heidi", "Ivan", "Judy", "Kim",
+    ];
     let members: Vec<usize> = names[..count]
         .iter()
         .map(|name| world.connect(name))
@@ -2094,6 +2096,99 @@ fn a_private_rooms_1_v_0_takes_a_late_joiner_on_its_empty_side() {
     let (sent, _) = sent_to_match(&world.take(bob)).expect("Bob goes in late");
     assert_eq!(sent, ticket);
     assert_eq!(seat_of(&world, id, bob).1, 1);
+    assert_eq!(arrangement(&mut world, members[0]), "01");
+}
+
+/// A private room's teams as its state tells them (`A;<sides>`).
+fn arrangement(world: &mut World, index: usize) -> String {
+    let state = state(world, index);
+    state
+        .iter()
+        .find_map(|row| row.strip_prefix("A;"))
+        .unwrap_or_else(|| panic!("no arrangement: {state:?}"))
+        .to_owned()
+}
+
+/// The owner moves the member at `place` to the other team, from the state
+/// it has now.
+fn move_member(world: &mut World, owner: usize, place: u8) -> String {
+    let serial: u32 = header(&state(world, owner))[SERIAL].parse().unwrap();
+    rows(world, owner, move_start(place, serial), 1);
+    arrangement(world, owner)
+}
+
+/// The owner's of 2026-10-26 ("the owner should be able to arrange both
+/// teams (even 1 vs 10)"): newcomers come on the team with fewer; the
+/// owner moves anyone, itself too; Start plays exactly that, 3 v 0 or
+/// 1 v 10; a team holds 10 at most.
+#[test]
+fn a_private_rooms_owner_arranges_the_teams_and_start_plays_them() {
+    let mut world = World::new();
+    let (_, members) = private_room(&mut world, 3);
+    let owner = members[0];
+    assert_eq!(arrangement(&mut world, owner), "010");
+    assert_eq!(move_member(&mut world, owner, 1), "000");
+    // Itself, and back.
+    assert_eq!(move_member(&mut world, owner, 0), "100");
+    assert_eq!(move_member(&mut world, owner, 0), "000");
+    let (ticket, _) = sent_to_match(&press_start(&mut world, owner)).expect("a match");
+    let teams = |world: &World| {
+        let setup = world.host.made.locked().last().unwrap().1.clone();
+        let on = |side| {
+            setup
+                .players
+                .iter()
+                .filter(|player| player.profile.team == side)
+                .count()
+        };
+        [on(0), on(1)]
+    };
+    assert_eq!(teams(&world), [3, 0], "3 v 0");
+    world.end_match(ticket, 0);
+
+    let mut world = World::new();
+    let (_, members) = private_room(&mut world, 11);
+    let owner = members[0];
+    assert_eq!(arrangement(&mut world, owner), "01010101010");
+    for place in (2..11).step_by(2) {
+        move_member(&mut world, owner, place);
+    }
+    assert_eq!(arrangement(&mut world, owner), "01111111111");
+    // Ten on team 1: nobody more goes there.
+    assert_eq!(move_member(&mut world, owner, 0), "01111111111");
+    assert!(sent_to_match(&press_start(&mut world, owner)).is_some());
+    assert_eq!(teams(&world), [1, 10], "1 v 10");
+}
+
+/// A move is the owner's alone, never while the match is played; the
+/// arrangement stays across a match, and a member who leaves is out of it.
+#[test]
+fn the_teams_are_the_owners_to_move_and_kept_across_matches() {
+    let mut world = World::new();
+    let (_, members) = private_room(&mut world, 4);
+    let (owner, bob) = (members[0], members[1]);
+    assert_eq!(arrangement(&mut world, owner), "0101");
+    // Bob's move: nothing.
+    let serial: u32 = header(&state(&mut world, bob))[SERIAL].parse().unwrap();
+    rows(&mut world, bob, move_start(0, serial), 1);
+    assert_eq!(arrangement(&mut world, owner), "0101");
+    // A move from an older list: nothing.
+    rows(&mut world, owner, move_start(0, serial + 1), 1);
+    assert_eq!(arrangement(&mut world, owner), "0101");
+    assert_eq!(move_member(&mut world, owner, 3), "0100");
+    let (ticket, _) = sent_to_match(&press_start(&mut world, owner)).expect("a match");
+    // While it is played: no move.
+    assert_eq!(move_member(&mut world, owner, 3), "0100");
+    world.end_match(ticket, 0);
+    world.advance(Duration::from_secs(2));
+    assert_eq!(
+        arrangement(&mut world, owner),
+        "0100",
+        "kept after the match"
+    );
+    // Carol leaves: out of it, the others as they were.
+    rows(&mut world, members[2], ROOM_LEAVE, 1);
+    assert_eq!(arrangement(&mut world, owner), "010");
 }
 
 /// Two accounts made friends, both ways, as an accepted request does.

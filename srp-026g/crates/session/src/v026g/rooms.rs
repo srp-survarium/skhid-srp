@@ -146,6 +146,13 @@ pub struct Room {
     /// Play to put them into the room nearest their level (the owner's of
     /// 2026-10-20). Choosing the room later makes one a chosen member.
     pub by_play: HashSet<u32>,
+    /// A private room's teams as its owner arranged them: each member's
+    /// side, 0 or 1 (the owner's of 2026-10-26: "the owner should be able
+    /// to arrange both teams (even 1 vs 10)"). A member comes on the side
+    /// with fewer; its owner moves it ([`Rooms::move_member`]); its match
+    /// plays them as they are. Empty in an open room (its sides are drawn
+    /// at the start, [`sides`]).
+    pub sides: HashMap<u32, u8>,
 }
 
 /// A line of a room's chat: a member's, or the room's own (a member came
@@ -172,6 +179,34 @@ impl Room {
             usize::from(self.spec.min_players).max(START_PLAYERS)
         } else {
             1
+        }
+    }
+
+    /// The members of a private room's side `side` in its arrangement.
+    pub fn side_count(&self, side: u8) -> usize {
+        self.sides.values().filter(|&&each| each == side).count()
+    }
+
+    /// A private room's arrangement: the members of each side, in the
+    /// room's order (what its owner's Start plays).
+    pub fn arranged(&self) -> [Vec<u32>; 2] {
+        let on = |side: u8| {
+            self.members
+                .iter()
+                .copied()
+                .filter(|member| self.sides.get(member).copied().unwrap_or(0) == side)
+                .collect()
+        };
+        [on(0), on(1)]
+    }
+
+    /// A member comes: last in the list; in a private room on the side with
+    /// fewer (side 0 of two alike).
+    fn add_member(&mut self, account_id: u32) {
+        self.members.push(account_id);
+        if !self.is_open() {
+            let side = u8::from(self.side_count(1) < self.side_count(0));
+            self.sides.insert(account_id, side);
         }
     }
 
@@ -242,6 +277,21 @@ pub enum StartRefused {
     Open,
     /// Its match is being played.
     Playing,
+}
+
+/// Why an owner's move of a member did nothing ([`Rooms::move_member`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MoveRefused {
+    NoRoom,
+    NotOwner,
+    /// An open room's sides are drawn at its start.
+    Open,
+    /// Its match is being played.
+    Playing,
+    /// No member at that place.
+    NoMember,
+    /// The other side has its [`PRIVATE_SIZE`].
+    Full,
 }
 
 /// A pool being sent in pieces before its create.
@@ -419,27 +469,27 @@ impl Rooms {
         let serial = self.next_serial();
         // The vote is always there: its cards from the start.
         let cards = Self::draw(&pool, below);
-        self.rooms.insert(
+        let mut room = Room {
             key,
-            Room {
-                key,
-                owner,
-                maker: owner,
-                spec,
-                pool,
-                members: vec![owner],
-                stage: Stage::Waiting,
-                cards,
-                votes: HashMap::new(),
-                last_map: 0,
-                after_match: false,
-                in_match: HashSet::new(),
-                serial,
-                kicked: HashSet::new(),
-                chat: VecDeque::new(),
-                by_play: HashSet::new(),
-            },
-        );
+            owner,
+            maker: owner,
+            spec,
+            pool,
+            members: Vec::new(),
+            stage: Stage::Waiting,
+            cards,
+            votes: HashMap::new(),
+            last_map: 0,
+            after_match: false,
+            in_match: HashSet::new(),
+            serial,
+            kicked: HashSet::new(),
+            chat: VecDeque::new(),
+            by_play: HashSet::new(),
+            sides: HashMap::new(),
+        };
+        room.add_member(owner);
+        self.rooms.insert(key, room);
         self.of_account.insert(owner, key);
         self.dequeue(owner);
         Ok(key)
@@ -480,7 +530,7 @@ impl Rooms {
         let Some(room) = self.rooms.get_mut(&key) else {
             return Err(Refused::Unknown);
         };
-        room.members.push(account_id);
+        room.add_member(account_id);
         room.serial = serial;
         self.of_account.insert(account_id, key);
         // In a room: no queue any more.
@@ -524,6 +574,7 @@ impl Rooms {
         room.votes.remove(&account_id);
         room.in_match.remove(&account_id);
         room.by_play.remove(&account_id);
+        room.sides.remove(&account_id);
         room.serial = serial;
         if room.members.is_empty() {
             self.rooms.remove(&key);
@@ -665,7 +716,7 @@ impl Rooms {
         if room.is_full() {
             return false;
         }
-        room.members.push(account_id);
+        room.add_member(account_id);
         room.serial = serial;
         self.of_account.insert(account_id, key);
         true
@@ -847,11 +898,41 @@ impl Rooms {
         self.drafts.remove(&account_id);
     }
 
-    /// A member went into the room's running match late.
-    pub fn seated_late(&mut self, key: u32, account_id: u32) {
+    /// A member went into the room's running match late, on side `team`:
+    /// in a private room its side in the arrangement from now on, as it
+    /// plays.
+    pub fn seated_late(&mut self, key: u32, account_id: u32, team: u8) {
         if let Some(room) = self.rooms.get_mut(&key) {
             room.in_match.insert(account_id);
+            if room.sides.contains_key(&account_id) {
+                room.sides.insert(account_id, team.min(1));
+            }
         }
+    }
+
+    /// The owner of a private room moves the member at `place` of its
+    /// list (itself too) to the other side (the owner's of 2026-10-26: "a
+    /// button to move the player into any team"), while the room waits;
+    /// never onto a side of [`PRIVATE_SIZE`] already. Its side now.
+    pub fn move_member(&mut self, owner: u32, place: usize) -> Result<u8, MoveRefused> {
+        let key = *self.of_account.get(&owner).ok_or(MoveRefused::NoRoom)?;
+        let room = self.rooms.get_mut(&key).ok_or(MoveRefused::NoRoom)?;
+        if room.owner != owner {
+            return Err(MoveRefused::NotOwner);
+        }
+        if room.is_open() {
+            return Err(MoveRefused::Open);
+        }
+        if room.stage != Stage::Waiting {
+            return Err(MoveRefused::Playing);
+        }
+        let member = *room.members.get(place).ok_or(MoveRefused::NoMember)?;
+        let to = 1 - room.sides.get(&member).copied().unwrap_or(0).min(1);
+        if room.side_count(to) >= usize::from(PRIVATE_SIZE) {
+            return Err(MoveRefused::Full);
+        }
+        room.sides.insert(member, to);
+        Ok(to)
     }
 
     /// A member that went into the room's running match late was let go
@@ -1150,6 +1231,67 @@ mod tests {
         // Its owner gone, the next member owns it and starts it.
         rooms.leave(2);
         assert!(rooms.start(3, &mut first).is_ok());
+    }
+
+    /// The owner's of 2026-10-26: a private room's owner arranges its teams,
+    /// any split up to 10 a side; a newcomer comes on the side with fewer; a
+    /// leaver goes out of it; the arrangement stays across matches.
+    #[test]
+    fn a_private_rooms_owner_arranges_its_teams() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = room_of(&mut rooms, 1, 6, Some(1234), now);
+        for member in 2..=4 {
+            rooms.give_pin(member, 1234, now);
+            rooms.join(member, 0, key, now).unwrap();
+        }
+        // Each on the side with fewer.
+        assert_eq!(rooms.get(key).unwrap().arranged(), [vec![1, 3], vec![2, 4]]);
+        assert_eq!(rooms.move_member(2, 0), Err(MoveRefused::NotOwner));
+        assert_eq!(rooms.move_member(1, 9), Err(MoveRefused::NoMember));
+        // The owner moves itself and member 3: 0 v 4, then 1 v 3.
+        assert_eq!(rooms.move_member(1, 0), Ok(1));
+        assert_eq!(rooms.move_member(1, 2), Ok(1));
+        assert_eq!(
+            rooms.get(key).unwrap().arranged(),
+            [vec![], vec![1, 2, 3, 4]]
+        );
+        assert_eq!(rooms.move_member(1, 1), Ok(0));
+        // Kept across a match; no move while it is played.
+        rooms.started(key, 7, 61, &[1, 2, 3, 4], now);
+        assert_eq!(rooms.move_member(1, 1), Err(MoveRefused::Playing));
+        rooms.match_over(7);
+        assert_eq!(rooms.get(key).unwrap().arranged(), [vec![2], vec![1, 3, 4]]);
+        // A leaver is out of it; the next comes on the side with fewer.
+        rooms.leave(3);
+        rooms.give_pin(5, 1234, now);
+        rooms.join(5, 0, key, now).unwrap();
+        assert_eq!(rooms.get(key).unwrap().arranged(), [vec![2, 5], vec![1, 4]]);
+        // An open room has none.
+        let open = room_of(&mut rooms, 9, 6, None, now);
+        assert_eq!(rooms.move_member(9, 0), Err(MoveRefused::Open));
+        assert!(rooms.get(open).unwrap().sides.is_empty());
+    }
+
+    /// A side holds 10 at most: 10 v 1 takes no move onto the ten.
+    #[test]
+    fn a_private_rooms_side_holds_ten() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = room_of(&mut rooms, 1, 6, Some(1234), now);
+        for member in 2..=11 {
+            rooms.give_pin(member, 1234, now);
+            rooms.join(member, 0, key, now).unwrap();
+        }
+        // 1, 3, ... 11 on side 0 (6), the rest on side 1 (5): to 10 v 1.
+        for place in 0..rooms.get(key).unwrap().members.len() {
+            let member = rooms.get(key).unwrap().members[place];
+            if rooms.get(key).unwrap().sides[&member] == 1 && member != 2 {
+                assert_eq!(rooms.move_member(1, place), Ok(0));
+            }
+        }
+        assert_eq!(rooms.get(key).unwrap().side_count(0), 10);
+        assert_eq!(rooms.move_member(1, 1), Err(MoveRefused::Full));
     }
 
     #[test]

@@ -351,6 +351,28 @@ impl Core<'_> {
                 self.room_start_pressed(who, now);
                 self.send_room_state(who, RoomCode::None, now);
             }
+            RoomRequest::Move { place, check } => {
+                // A move made from an older list does nothing, as a kick's.
+                let fresh = self
+                    .rooms
+                    .of(who.account_id)
+                    .is_some_and(|room| room.serial % wire::KICK_CHECKS == check);
+                let moved = if fresh {
+                    self.rooms.move_member(who.account_id, usize::from(place))
+                } else {
+                    Err(model::MoveRefused::NoMember)
+                };
+                match moved {
+                    Ok(side) => log::info!(
+                        "{}: moved the member at place {place} of its room to team {side}",
+                        who.name
+                    ),
+                    Err(refused) => {
+                        log::info!("{}: move in a room: refused ({refused:?})", who.name)
+                    }
+                }
+                self.send_room_state(who, RoomCode::None, now);
+            }
             RoomRequest::Leave => {
                 if let Some(key) = self.rooms.leave(who.account_id) {
                     log::info!("{}: left room {key}", who.name);
@@ -878,6 +900,13 @@ impl Core<'_> {
             switch: self.room_switch(who, room),
             join_in,
             join_hold,
+            // A private room's teams as its owner arranged them.
+            teams: (!room.is_open()).then(|| {
+                room.members
+                    .iter()
+                    .map(|member| room.sides.get(member).copied().unwrap_or(0))
+                    .collect()
+            }),
         })
     }
 
@@ -1463,6 +1492,9 @@ impl Core<'_> {
         // A PIN is the room's for its whole life: its every match pays
         // nothing (the owner's of 2026-10-20).
         let private = room.spec.pin.is_some();
+        // A private room plays its owner's arrangement as it is (the
+        // owner's of 2026-10-26): no sides drawn.
+        let arranged = private.then(|| room.arranged());
         let members = room.members.clone();
         let unfit: Vec<(u32, Fit)> = members
             .iter()
@@ -1510,15 +1542,19 @@ impl Core<'_> {
             parties.push((party, strength));
         }
         let player_value = i64::from(self.settings.balance.player_value());
-        let sides = model::sides(&parties, size, player_value);
+        let sides = match &arranged {
+            Some(arranged) => arranged.clone(),
+            None => model::sides(&parties, size, player_value),
+        };
         let player_of = |account_id: &u32| {
             ready
                 .iter()
                 .find(|each| each.player.account_id == *account_id)
                 .map(|each| each.player)
         };
-        let teams: [Vec<session::Player>; 2] =
-            sides.map(|side| side.iter().filter_map(player_of).collect());
+        let teams: [Vec<session::Player>; 2] = sides
+            .each_ref()
+            .map(|side| side.iter().filter_map(player_of).collect());
         // Never fewer than the room's minimum: the match server would call
         // such a match off at once (`MatchSetup::room_minimum`), and the room
         // make it again. A side empty only in a match of one's minimum (a
@@ -1540,9 +1576,26 @@ impl Core<'_> {
         let mut squad_ids: std::collections::HashMap<u32, u8> = std::collections::HashMap::new();
         let mut next_squad = 0_u8;
         for (party, _) in parties.iter().filter(|(party, _)| party.len() > 1) {
-            next_squad = next_squad.saturating_add(1);
-            for &member in party {
-                squad_ids.insert(member, next_squad);
+            // In a private room a squad may be on both teams: a squad in the
+            // match is its members on one team, two at least.
+            let groups: Vec<Vec<u32>> = match arranged {
+                Some(_) => sides
+                    .iter()
+                    .map(|side| {
+                        party
+                            .iter()
+                            .copied()
+                            .filter(|member| side.contains(member))
+                            .collect()
+                    })
+                    .collect(),
+                None => vec![party.clone()],
+            };
+            for group in groups.iter().filter(|group| group.len() > 1) {
+                next_squad = next_squad.saturating_add(1);
+                for &member in group {
+                    squad_ids.insert(member, next_squad);
+                }
             }
         }
         let squad_of = |account_id: u32| squad_ids.get(&account_id).copied().unwrap_or(0);
@@ -1705,7 +1758,7 @@ impl Core<'_> {
             &placement,
             rule.lead,
         );
-        self.rooms.seated_late(key, account_id);
+        self.rooms.seated_late(key, account_id, team);
         log::info!(
             "Room {key}: {} went into its match {ticket:#x} late, team {team}",
             self.name_of(account_id).unwrap_or_default()
