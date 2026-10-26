@@ -3587,7 +3587,8 @@ The owner's ask (2026-10-24), its rules: `docs/notes/blackout.md`; client_patch.
 - **The interface.** Patch 62's reset of a match's interface (initialize_match's root.reset,
   0x234AE8) calls `hide_ui_force(bo_match())`: the one entry that forces the state. Forced, the
   hud gets `root.force_interface_hidden(true)` (its root hidden but for the pre-match countdown,
-  and while Tab is held the ammo, the quick-use slots and the time left, never the list: HUD.as) and the case
+  and while Tab is held the time left with the ammo and the quick-use slots, or the kits while the
+  game shows them, never the list: HUD.as) and the case
   19h (F11) goes on at 0x25CF0D with nothing invoked (a replay's controls still toggle); not
   forced, the hud is shown and F11 works. The icons are shown at the reset as in every match.
 - **Tab stops the player.** game_world::on_keyboard_action's call of show_player_list

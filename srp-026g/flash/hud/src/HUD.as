@@ -864,14 +864,18 @@ package
       // Forced hidden for a whole match (Blackout, exe patch 65's hide_ui_force; docs/notes/blackout.md):
       // the interface hidden as by the key, except what a forced match keeps: always the pre-match
       // countdown (keptWhenForced: the game shows it while it runs and hides it when play starts), and
-      // while the Tab list is asked for (show_player_list) the ammo, the quick-use slots and the
-      // match's time left (keptOnTab), not the list. A kept part is in _keptLayer: on the stage over the root, placed as
+      // while the Tab list is asked for (show_player_list) the match's time left and, alive, the ammo
+      // and the quick-use slots or, while the game shows the kits (the death screen, before the
+      // start), the kits to pick from (keptOnTab), not the list. A kept part is in _keptLayer: on the stage over the root, placed as
       // the root is (placeKept), so the hidden root leaves it; back at its place in the root when not.
       private const _keptLayer:Sprite = new Sprite();
 
       private const _keptAt:Dictionary = new Dictionary();
 
       private var _forced:Boolean;
+
+      // What Tab keeps now (keptOnTab at its last call): given back as it was when Tab goes up.
+      private var _tabKept:Array = [];
 
       public function force_interface_hidden(forced:Boolean) : void
       {
@@ -880,6 +884,7 @@ package
          if(!forced)
          {
             this.keep(this.keptNow(),false);
+            this._tabKept = [];
          }
          this.hide_interface(forced);
       }
@@ -896,7 +901,24 @@ package
 
       private function keptOnTab() : Array
       {
+         if(this._profilePanel.visible)
+         {
+            return [this._profilePanel,this.matchTime()];
+         }
          return [this.ammoInd,this.quick_slots,this.matchTime()];
+      }
+
+      // Tab down (again at every key while held) or up: what keptOnTab says now kept, what it kept
+      // before and does not now given back (a death or a respawn while Tab is held).
+      private function keepOnTab(down:Boolean) : void
+      {
+         var now:Array = down ? this.keptOnTab() : [];
+         this.keep(this._tabKept.filter(function(part:*, i:int, all:Array):Boolean
+         {
+            return now.indexOf(part) == -1;
+         }),false);
+         this.keep(now,true);
+         this._tabKept = now;
       }
 
       // Every part in the kept layer now.
@@ -1777,10 +1799,11 @@ package
       
       public function show_player_list(bool:Boolean) : void
       {
-         // Forced (Blackout): Tab shows the ammo, the quick-use slots and the time left only, never the list.
+         // Forced (Blackout): Tab shows the time left and the ammo and the quick-use slots, or the kits
+         // while the game shows them; never the list.
          if(this._forced)
          {
-            this.keep(this.keptOnTab(),bool);
+            this.keepOnTab(bool);
             return;
          }
          this.player_list.visible = bool;
