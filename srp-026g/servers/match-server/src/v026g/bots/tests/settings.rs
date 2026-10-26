@@ -125,6 +125,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_PUT_MS", "PUT_MS (600)", "**model** a put-in lands this long after the press, ms"),
     s("SRP_BENCH_JUMP_AHEAD_M", "STANDING_JUMP.ahead_m", "**model** how far ahead a standing jump reaches, m"),
     s("SRP_BENCH_HEAL_MODEL", "follows `heal.on` of the run's tuning (off by default)", "**model** `on`/`off`: the stand-in has the drugs and their stock or not (standin_heal.rs)"),
+    s("SRP_BENCH_TRAPS_MODEL", "on", "**model** `on`/`off`: the stand-in has the bear traps (placing, the sensor, a shot or a use that disarms) or not (standin_traps.rs); with no body carrying a trap it changes nothing"),
     s("SRP_BENCH_STAND_IN", "honest", "**model** `old`: the old lift up any floor in reach instead of the client's jump clips"),
 ];
 
