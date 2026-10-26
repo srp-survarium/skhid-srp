@@ -179,6 +179,8 @@ pub struct Stuck {
     /// The last world's feet and time while walking, and how far its keys
     /// meant to move it since (none: not known).
     walked_from: Option<(u32, Vec3, Option<f32>)>,
+    /// How far its keys meant to move it over the last window the reckoned watch checked (none: not known).
+    meant_checked: Option<f32>,
     /// The first of the worlds since that showed the walk keys held and
     /// the body near where it was then: time and feet ([`HELD_AFTER_MS`]).
     held_from: Option<(u32, Vec3)>,
@@ -281,6 +283,12 @@ impl Stuck {
         Some((recovery, by_keys && !by_reckoning))
     }
 
+    /// For a note of a stuck body the reckoned watch told of: how far its keys meant to move it over the window
+    /// (none: not known, taken as walking).
+    pub fn meant_checked(&self) -> Option<f32> {
+        self.meant_checked
+    }
+
     /// The reckoned watch: worlds [`STUCK_AFTER_MS`] apart, the body moved
     /// under [`STUCK_MOVED_M`] while the keys meant [`MEANT_M`].
     fn reckoned(&mut self, time: u32, feet: Vec3, meant: Option<f32>) -> bool {
@@ -294,6 +302,7 @@ impl Stuck {
             return false;
         }
         self.walked_from = Some((time, feet, Some(0.0)));
+        self.meant_checked = meant_since;
         from.distance_xz(feet) < STUCK_MOVED_M && meant_since.is_none_or(|m| m >= MEANT_M)
     }
 
@@ -707,6 +716,14 @@ pub fn self_kill_step(
         SelfKill::Sent { tries: 1, .. } => (SelfKill::Ready, None),
         SelfKill::Sent { .. } => (SelfKill::Barred, None),
     }
+}
+
+/// The note of how far a stuck body's keys meant to move it, when the reckoned watch told (not the held keys alone).
+pub fn meant_note(by_keys: bool, meant: Option<f32>) -> String {
+    if by_keys {
+        return String::new();
+    }
+    meant.map_or_else(|| " [meant unknown]".to_owned(), |m| format!(" [meant {m:.1} m]"))
 }
 
 /// The note for a world that came `gap` ms after the one before it (none when the gap is not one).

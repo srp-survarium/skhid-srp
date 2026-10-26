@@ -1090,17 +1090,19 @@ impl Bots {
             if after_gap {
                 stuck::fix_gaps::count(1);
             }
+            let meant_text = stuck::meant_note(by_keys, bot.stuck.meant_checked());
             bot.note(
                 &mut notes,
                 time,
                 format!(
-                    "is stuck at {:?}: {recovery:?}{}{}",
+                    "is stuck at {:?}: {recovery:?}{}{}{}",
                     feet.to_array(),
                     if by_keys {
                         " (walk keys held, the body still)"
                     } else {
                         ""
                     },
+                    meant_text,
                     stuck::gap_note(gap)
                 ),
             );
