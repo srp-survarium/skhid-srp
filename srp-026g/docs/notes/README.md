@@ -168,8 +168,10 @@ Every setting has a default; none is needed on a dev PC.
   (`social.md` §9.4).
 - `SRP_EXPERIENCE_RATE` (default 2), `SRP_MONEY_RATE` (percent; unset:
   150 to 220 by the match's level), `SRP_REPUTATION_RATE` (percent,
-  default 120): the rewards (`results.md` §10, §13; how long progression
-  takes: `progression_pace.md`). `SRP_ITEM_WEAR` (off): whether a
+  default 120), `SRP_QUEST_REPUTATION_RATE` (percent, unset: the rows'),
+  `SRP_QUEST_MONEY_RATE` (percent, 100), `SRP_QUEST_KIND_RATES`
+  (`kind=percent` pairs): the rewards (`results.md` §10, §13, §14; how long
+  progression takes: `progression_pace.md`). `SRP_ITEM_WEAR` (off): whether a
   match wears the items played with. `SRP_DROP_CONDITION` (40),
   `SRP_DROP_DEFECT` (on): what a found weapon or armour arrives as.
   `SRP_DROP_PLAYTIME_BONUS` (off): the play time bonus to the drop chance.
