@@ -6790,6 +6790,7 @@ mod tests {
             kind: SoundKind::Reload,
             at: enemy_at,
             time: 1_400,
+            reach_m: None,
         });
         sense(
             &mut memory,
@@ -6831,6 +6832,7 @@ mod tests {
             kind: SoundKind::Reload,
             at: far,
             time: 9_000,
+            reach_m: None,
         }];
         reflex.think_with(
             &me,
@@ -8918,6 +8920,7 @@ mod tests {
             kind: SoundKind::Shot,
             at,
             time,
+            reach_m: None,
         }
     }
 
@@ -9304,6 +9307,7 @@ mod tests {
             kind: SoundKind::Sprint,
             at,
             time: 1_000,
+            reach_m: None,
         }];
         let mut memory = Memory::default();
         let mut reflex = Reflex::default();
