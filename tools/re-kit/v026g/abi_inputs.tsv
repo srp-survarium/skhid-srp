@@ -2371,6 +2371,9 @@ va	name	location	role	basis
 0x00244e10		ECX		auto
 0x00245250		ECX		auto
 0x002474a0	survarium::player::mt_draw	ECX	the player	observed
+0x00248520	survarium::grenade_core_client::launch	ECX	the client grenade core (this)	observed
+0x00248520	survarium::grenade_core_client::launch	stack+4	the transform pointer	observed
+0x00248520	survarium::grenade_core_client::launch	stack+8	the linear velocity pointer	observed
 0x00248ad0	survarium::step_manager::on_step	ECX	step_manager (+4 the game world)	observed
 0x00248ad0	survarium::step_manager::on_step	EAX	foot position (float3*; the ground ray starts 1 m above it, 2 m long)	observed
 0x00248ad0	survarium::step_manager::on_step	entry ESP+4	step direction (float3*)	observed
@@ -2849,6 +2852,14 @@ va	name	location	role	basis
 0x00301c40	survarium::victory_item_core::set_spotted	ECX	the battery's spottable interface (item+54h)	observed
 0x00301c40	survarium::victory_item_core::set_spotted	entry ESP+4	the spotter (base_player)	observed
 0x00301ca0	survarium::victory_item_core::can_be_spotted_by	ECX	the battery's spottable interface (item+54h)	observed
+0x00303b90	survarium::grenade_core::start_fuse	ECX	the grenade core (this)	observed
+0x00303b90	survarium::grenade_core::start_fuse	stack+4	the explosion time, ms	observed
+0x00303b90	survarium::grenade_core::start_fuse	stack+8	the id	observed
+0x00303b90	survarium::grenade_core::start_fuse	stack+12	the owner node	observed
+0x00303b90	survarium::grenade_core::start_fuse	stack+16	the flag (thrown)	observed
+0x00303c10	survarium::grenade_core::add_to_physics_world	ECX	the grenade core (this)	observed
+0x00303c10	survarium::grenade_core::add_to_physics_world	stack+4	the transform pointer	observed
+0x00303c10	survarium::grenade_core::add_to_physics_world	stack+8	the linear velocity pointer (17 m/s along the view for the RGD-5)	observed
 0x00303da0	survarium::grenade_core::serialize	ECX	grenade_secondary_receiver_full_object_plus_0x10	inferred
 0x00303da0	survarium::grenade_core::serialize	stack+4	writer	inferred
 0x00303f80	survarium::grenade_core::deserialize	ECX	grenade_secondary_receiver_full_object_plus_0x10	inferred
@@ -2857,6 +2868,14 @@ va	name	location	role	basis
 0x003052e0	survarium::booby_trap_core::serialize	stack+4	writer	inferred
 0x003053c0	survarium::booby_trap_core::deserialize	ECX	trap_secondary_receiver_fullobject_plus_0x74	inferred
 0x003053c0	survarium::booby_trap_core::deserialize	stack+4	reader	inferred
+0x00309f00	survarium::grenade_set_core::hand_transform	EAX	the item (this)	observed
+0x00309f00	survarium::grenade_set_core::hand_transform	stack+4	the out matrix pointer	observed
+0x0030a120	survarium::grenade_set_core::start_throw	stack+4	the item	observed
+0x0030a120	survarium::grenade_set_core::start_throw	stack+8	the player's time, ms (player+324h, set by base_player::tick 0x2DAA60); the explosion time is it plus ttl_ms, rounded up to 50	observed
+0x0030a250	survarium::grenade_set_core::launch_grenade	AL	the slot index	observed
+0x0030a250	survarium::grenade_set_core::launch_grenade	stack+4	the item (this)	observed
+0x0030a250	survarium::grenade_set_core::launch_grenade	stack+8	the hand matrix pointer (the start: bone RightMiddle1 at the throw frame)	observed
+0x0030a250	survarium::grenade_set_core::launch_grenade	stack+12	the head transform pointer (player+44Ch; its row 2 is the view, the launch direction)	observed
 0x0030d750	survarium::computed_show_animation_time_scale	EDI	the state's animation resources; the first's length (end - start, frames at 30/s) is used	observed
 0x0030d750	survarium::computed_show_animation_time_scale	stack+4	float time the animation must last (show_time, hide_time, take_time, put_time)	observed
 0x0030da60	survarium::weapon_core_animation_end_aware_state::initialize	ECX	animation aware state	inferred
@@ -2881,6 +2900,8 @@ va	name	location	role	basis
 0x00310170	survarium::pistol_weapon_core_fire_state::on_animation_end_impl	ECX	pistol fire state	inferred
 0x00310170	survarium::pistol_weapon_core_fire_state::on_animation_end_impl	stack+4	first output flag pointer	inferred
 0x00310170	survarium::pistol_weapon_core_fire_state::on_animation_end_impl	stack+8	second output flag pointer	inferred
+0x00310680	survarium::weapon_core_throw_grenade_base_substate::on_animation_event	ECX	the throw sub-state (this)	observed
+0x00310680	survarium::weapon_core_throw_grenade_base_substate::on_animation_event	stack+4	the event pointer ([0] owner, [4] event id)	observed
 0x003108d0	survarium::weapon_core_melee_state::initialize	ECX	melee state	inferred
 0x00310900	survarium::weapon_core_melee_state::finalize	ECX	melee state	inferred
 0x00310980	survarium::weapon_core_melee_state::serialize	ECX	melee state	inferred
@@ -3218,6 +3239,7 @@ va	name	location	role	basis
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	stack+8	animation context	inferred
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	stack+12	substate context	inferred
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	stack+20	metadata output pointer	inferred
+0x0033a770	survarium::weapon_core_throw_grenade_state::throw_grenade	ESI	the throw_grenade_state	observed
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	EDX	throw-grenade state	inferred
 0x0033acf0	survarium::artefact_spring_core::config::config	ESI	the config (Spring+340h): five modifier nodes and the duration ms	observed
 0x0033acf0	survarium::artefact_spring_core::config::config	stack+4	the item config's data value	observed

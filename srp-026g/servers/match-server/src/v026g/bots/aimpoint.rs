@@ -322,6 +322,12 @@ impl Sight {
             - SHORT_M;
     }
 
+    /// The map's bullet mesh from the first look: what a thrown grenade
+    /// meets ([`super::arc::Mesh`]); none for a reflex never told a map.
+    pub fn ground(&self) -> Option<Arc<RayTree>> {
+        self.world.as_ref().map(|world| world.sight.clone())
+    }
+
     /// The aim at `who` (`body`: him now, if alive), `chest` with no map:
     /// the part that shows; with no part showing, the last part seen (where
     /// he went), and `shows` false.

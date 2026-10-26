@@ -29,6 +29,7 @@
 
 pub mod aimpoint;
 pub mod anomalies;
+pub mod arc;
 pub mod body;
 pub mod cheats;
 pub mod crossing;
