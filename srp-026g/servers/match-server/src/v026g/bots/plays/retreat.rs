@@ -539,6 +539,8 @@ mod tests {
             .filter(|s| matches!(s, Step::Continue(i) if i.resupplied == Some(0)))
             .count();
         assert_eq!(given, 1);
+    }
+
     /// The rework on: the kit's medkits counted for the match (`stock.rs`) take the place of the tip's count a life.
     #[test]
     fn with_the_rework_on_it_falls_back_when_the_kit_has_no_medkit_left() {
