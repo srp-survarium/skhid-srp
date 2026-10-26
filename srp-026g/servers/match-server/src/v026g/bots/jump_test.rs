@@ -321,11 +321,32 @@ impl Landing {
 /// How long the keys of a [`Mid::Land`] try are played after they change, ms.
 const LAND_KEYS_MS: u32 = 1_500;
 
+/// The keys are let go this long after the landing is seen in a world, ms (a world is a few tens of ms late).
+const LAND_RELEASE_MS: u32 = 50;
+
+/// When the jump of a press ended, from the worlds' rows (the time of the first row on the ground after one in the
+/// air, both after the press), if it has.
+fn landed_at<'a>(rows: impl IntoIterator<Item = &'a Row>, press: u32) -> Option<u32> {
+    let mut in_air = false;
+    for row in rows.into_iter().filter(|r| r.time >= press) {
+        if row.jumping {
+            in_air = true;
+        } else if in_air {
+            return Some(row.time);
+        }
+    }
+    None
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Mid {
     Hold,
     ReleaseF,
     ReleaseAll,
+    /// [`Mid::ReleaseF`] at the press itself (no 0.25 s of carried keys): the jump starts with forward and sprint up.
+    ReleaseFAtPress,
+    /// Every key but the jump released at the press.
+    ReleaseAllAtPress,
     Left,
     Right,
     Back,
@@ -421,6 +442,8 @@ fn parse_mid(text: &str) -> Result<Mid, String> {
         "hold" | "none" => Mid::Hold,
         "release_f" => Mid::ReleaseF,
         "release_all" => Mid::ReleaseAll,
+        "rel0_f" => Mid::ReleaseFAtPress,
+        "rel0_all" => Mid::ReleaseAllAtPress,
         "left" => Mid::Left,
         "right" => Mid::Right,
         "back" => Mid::Back,
@@ -752,16 +775,16 @@ impl Plan {
         {
             keys |= key::FORWARD;
         }
-        if time < press + 2 * TICK_MS {
-            keys |= key::JUMP;
-        }
-        let mid_from = press + MID_AT_MS;
+        let jump_keys = if time < press + 2 * TICK_MS { key::JUMP } else { 0 };
+        keys |= jump_keys;
+        let mid_from = press + if matches!(self.mid, Mid::ReleaseFAtPress | Mid::ReleaseAllAtPress) { 0 } else { MID_AT_MS };
         let mut turn = 0.0;
         if time >= mid_from {
             match self.mid {
                 Mid::Hold => {}
-                Mid::ReleaseF => keys &= !(key::FORWARD | key::SPRINT),
+                Mid::ReleaseF | Mid::ReleaseFAtPress => keys &= !(key::FORWARD | key::SPRINT),
                 Mid::ReleaseAll => keys = 0,
+                Mid::ReleaseAllAtPress => keys = jump_keys,
                 Mid::Left => keys |= key::LEFT,
                 Mid::Right => keys |= key::RIGHT,
                 Mid::Back => keys = (keys & !(key::FORWARD | key::SPRINT)) | key::BACK,
@@ -1486,7 +1509,15 @@ impl JumpTest {
                 Some(Decision { keys: 0, turn: (turn, 0.0) })
             }
             Phase::Run(plan) => {
-                let decision = plan.at(time);
+                let mut decision = plan.at(time);
+                // The keys end with the landing (the carried run is not held into a wall): not for a try whose keys are
+                // the landing's own ([`Mid::Land`]).
+                if let Some(press) = plan.press
+                    && !matches!(plan.mid, Mid::Land { .. })
+                    && self.rows.get(&bot.place).and_then(|rows| landed_at(rows, press)).is_some_and(|landed| time >= landed + LAND_RELEASE_MS)
+                {
+                    decision.keys = 0;
+                }
                 if time >= plan.end {
                     let plan = plan.clone();
                     let until = plan.press.unwrap_or(plan.end) + RECORD_AFTER_MS;
@@ -2100,7 +2131,8 @@ pub fn summarize(
     } else if landed {
         "landed"
     } else if apex >= top - 0.05 && last.feet.y < top - 0.3 {
-        "back_down"
+        // A landing try's keys come after the landing: the jump flew over the top and came down beyond it.
+        if matches!(def.mid, Mid::Land { .. }) && beyond > 0.5 { "crossed_top" } else { "back_down" }
     } else if (last.feet.y - deck).abs() <= 0.3 && beyond > -0.7 && !air.is_empty() {
         "held_at_face"
     } else if apex < top - 0.1 {
@@ -2579,6 +2611,27 @@ m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
             assert_eq!(plan.press, Some(10_000 + (ms + 25) / 50 * 50));
             assert_eq!(plan.at(10_000 + 50).keys, key::FORWARD | key::SPRINT);
         }
+    }
+
+    #[test]
+    fn the_release_at_press_mids_let_go_with_the_jump_and_the_landing_ends_the_keys() {
+        assert_eq!(parse_mid("rel0_f"), Ok(Mid::ReleaseFAtPress));
+        assert_eq!(parse_mid("rel0_all"), Ok(Mid::ReleaseAllAtPress));
+        let d = def(1.3, 0.0, Face::Along, 3.5, Speed::Sprint, Mid::ReleaseFAtPress);
+        let plan = plan_from(&d, site_start(), 0.0, 1_000, &RunTable::default()).expect("fits");
+        let press = plan.press.expect("a press");
+        assert_eq!(plan.at(press - TICK_MS).keys, key::FORWARD | key::SPRINT);
+        assert_eq!(plan.at(press).keys, key::JUMP, "forward and sprint up at the press, the jump on");
+        assert_eq!(plan.at(press + 2 * TICK_MS).keys, 0);
+        let all = Plan { mid: Mid::ReleaseAllAtPress, ..plan.clone() };
+        assert_eq!(all.at(press).keys, key::JUMP);
+        assert_eq!(all.at(press + 2 * TICK_MS).keys, 0);
+        // The landing: the first row on the ground after a row in the air, both after the press.
+        let at = |time: u32, jumping: bool| Row { jumping, ..row(time, 2.0, 5.0, false, 0) };
+        let rows = vec![at(900, false), at(1_100, true), at(1_300, true), at(1_500, false), at(1_600, false)];
+        assert_eq!(landed_at(&rows, 1_000), Some(1_500));
+        assert_eq!(landed_at(&rows[..3], 1_000), None, "still in the air");
+        assert_eq!(landed_at(&rows[..1], 1_000), None, "no row in the air");
     }
 
     #[test]
