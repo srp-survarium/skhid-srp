@@ -93,6 +93,8 @@ const REST_BEFORE_SPRINT_MS: u32 = 3_000;
 const ROWS_KEPT: usize = 900;
 /// A request not answered after this long is forgotten, ms.
 const OUTSTANDING_MS: u32 = 600;
+/// An upload that took longer than this (ms) makes the next request wait as long again.
+const SLOW_UPLOAD_MS: u32 = 250;
 /// A motor-driven try is given up after this long on its way to the top, ms.
 const MOTOR_MAX_MS: u32 = 25_000;
 /// A ledge within this of one whose start was not reached is given up with it, m.
@@ -663,6 +665,9 @@ struct Active {
     /// Motor-driven tries: each press the motor made, and whether the top was reached.
     presses: Vec<serde_json::Value>,
     reached: Option<bool>,
+    /// The team of the bot working it (enemies collide, teammates pass through each other: a ledge takes
+    /// one team's tries at a time).
+    team: u8,
 }
 
 #[derive(Default)]
@@ -697,6 +702,10 @@ pub struct JumpTest {
     table: RunTable,
     rows: HashMap<Place, VecDeque<Row>>,
     tries_log: Option<fs::File>,
+    /// Every alive body of every world (place, x, y, z): who stood near a runner.
+    bodies_log: Option<fs::File>,
+    /// After a slow upload the next request waits this long at least, ms.
+    backoff_ms: u32,
     worlds_log: Option<fs::File>,
     /// The last world request and whether it is answered; upload times of the burst.
     last_request: Option<u32>,
@@ -746,6 +755,8 @@ impl JumpTest {
             table: RunTable::default(),
             rows: HashMap::new(),
             tries_log: None,
+            bodies_log: None,
+            backoff_ms: 0,
             worlds_log: None,
             last_request: None,
             outstanding: None,
@@ -830,6 +841,7 @@ impl JumpTest {
                 if self.tries_log.is_none() {
                     self.tries_log = self.open("tries");
                     self.worlds_log = self.open("worlds");
+                    self.bodies_log = self.open("bodies");
                 }
             }
         }
@@ -851,18 +863,18 @@ impl JumpTest {
 
     /// The next pool try a free bot can take: the first with a free lane on its face (the lane is set
     /// and the site shifted along the face); a try whose faces are all taken waits.
-    fn take_from_pool(&mut self) -> Option<TryDef> {
-        let taken: Vec<(Vec3, f32)> = self
+    fn take_from_pool(&mut self, team: u8) -> Option<TryDef> {
+        let taken: Vec<(Vec3, f32, u8)> = self
             .runners
             .values()
             .filter_map(|r| r.active.as_ref())
-            .map(|a| (base_of(&a.def), a.def.lane))
+            .map(|a| (base_of(&a.def), a.def.lane, a.team))
             .collect();
         let (index, lane) = self
             .pool
             .iter()
             .enumerate()
-            .find_map(|(i, def)| free_lane(def, &taken).map(|lane| (i, lane)))?;
+            .find_map(|(i, def)| free_lane(def, &taken, team).map(|lane| (i, lane)))?;
         let mut def = self.pool[index].clone();
         self.pool[index].repeat -= 1;
         if self.pool[index].repeat == 0 {
@@ -907,7 +919,7 @@ impl JumpTest {
         let free = self.runners.get(&bot.place).is_some_and(|r| r.active.is_none() && r.pending.is_empty());
         if free
             && self.active_count() < self.max_active
-            && let Some(def) = self.take_from_pool()
+            && let Some(def) = self.take_from_pool(bot.team)
             && let Some(runner) = self.runners.get_mut(&bot.place)
         {
             runner.pending.push_back(def);
@@ -920,7 +932,7 @@ impl JumpTest {
             if let Some(active) = runner.active.take() {
                 if let Phase::Suicide { walked_ms, budget_ms, .. } = active.phase {
                     let line = serde_json::json!({
-                        "id": active.def.id, "bot": bot.place, "suicide": true, "elapsed_ms": walked_ms, "budget_ms": budget_ms,
+                        "id": active.def.id, "bot": bot.place, "team": active.team, "suicide": true, "elapsed_ms": walked_ms, "budget_ms": budget_ms,
                     });
                     Self::line(&mut self.tries_log, &line);
                 }
@@ -947,7 +959,7 @@ impl JumpTest {
                 *started
             };
             let rest = if def.speed == Speed::MotorRun { Phase::Rest { until: now + REST_BEFORE_SPRINT_MS } } else { Phase::Go { since: now } };
-            runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None });
+            runner.active = Some(Active { def, n, phase: rest, redone: 0, began: now, presses: Vec::new(), reached: None, team: bot.team });
         }
         let Some(active) = runner.active.as_mut() else {
             return true;
@@ -958,7 +970,7 @@ impl JumpTest {
                 if now > *since + SUICIDE_WAIT_MS {
                     // Still alive (a helmet took the hit): no second try, the bot walks.
                     let line = serde_json::json!({
-                        "id": active.def.id, "bot": bot.place, "suicide_failed": true, "elapsed_ms": *walked_ms, "budget_ms": *budget_ms,
+                        "id": active.def.id, "bot": bot.place, "team": active.team, "suicide_failed": true, "elapsed_ms": *walked_ms, "budget_ms": *budget_ms,
                     });
                     Self::line(&mut self.tries_log, &line);
                     active.phase = Phase::Go { since: now };
@@ -998,7 +1010,7 @@ impl JumpTest {
                     if active.redone >= 2 {
                         // Not reached twice: the try is void, and so is every try on that ledge.
                         let line = serde_json::json!({
-                            "id": active.def.id, "n": active.n, "bot": bot.place, "void": "start not reached",
+                            "id": active.def.id, "n": active.n, "bot": bot.place, "team": active.team, "void": "start not reached",
                             "start": start.to_array(), "from": me.feet.to_array(),
                         });
                         Self::line(&mut self.tries_log, &line);
@@ -1060,7 +1072,7 @@ impl JumpTest {
                 let turn = wrap(heading - me.yaw).clamp(-0.35, 0.35);
                 let elapsed = time.saturating_sub(*since);
                 // Worlds while still, from 0.4 s on.
-                if elapsed >= 400 {
+                if elapsed >= 600 {
                     *asked = true;
                 }
                 // The rest position: the last world of this place at rest, after the settle began.
@@ -1085,7 +1097,7 @@ impl JumpTest {
                                 active.phase = Phase::Go { since: now };
                             } else {
                                 let line = serde_json::json!({
-                                    "id": active.def.id, "n": active.n, "bot": bot.place, "void": "start does not fit",
+                                    "id": active.def.id, "n": active.n, "bot": bot.place, "team": active.team, "void": "start does not fit",
                                     "rest": row.feet.to_array(),
                                 });
                                 Self::line(&mut self.tries_log, &line);
@@ -1115,7 +1127,7 @@ impl JumpTest {
                 if time >= *until {
                     let plan = plan.clone();
                     let def = active.def.clone();
-                    let (n, began, redone) = (active.n, active.began, active.redone);
+                    let (n, began, redone, team) = (active.n, active.began, active.redone, active.team);
                     let motor = def.speed.is_motor().then(|| {
                         serde_json::json!({
                             "route_end": top_of(&def).to_array(), "reached": active.reached,
@@ -1124,8 +1136,11 @@ impl JumpTest {
                     });
                     let place = bot.place;
                     let mut line = self.summary(place, &def, n, &plan, began, redone);
-                    if let (Some(motor), Some(obj)) = (motor, line.as_object_mut()) {
-                        obj.insert("motor".into(), motor);
+                    if let Some(obj) = line.as_object_mut() {
+                        obj.insert("team".into(), team.into());
+                        if let Some(motor) = motor {
+                            obj.insert("motor".into(), motor);
+                        }
                     }
                     Self::line(&mut self.tries_log, &line);
                     *self.done.entry(def.id.clone()).or_default() += 1;
@@ -1175,7 +1190,8 @@ impl JumpTest {
         {
             self.outstanding = None;
         }
-        if self.outstanding.is_some() || self.last_request.is_some_and(|at| clock < at + self.burst_ms) {
+        let gap = self.burst_ms.max(self.backoff_ms);
+        if self.outstanding.is_some() || self.last_request.is_some_and(|at| clock < at + gap) {
             return false;
         }
         let active = self.runners.values().filter_map(|r| r.active.as_ref()).any(|a| match &a.phase {
@@ -1201,6 +1217,16 @@ impl JumpTest {
         let burst = self.outstanding.take().is_some();
         if let Some(sent) = self.last_request {
             self.uploads.push((sent, clock, bytes));
+            let took = clock.saturating_sub(sent);
+            self.backoff_ms = if took > SLOW_UPLOAD_MS { took } else { 0 };
+        }
+        if self.bodies_log.is_some() {
+            let alive: Vec<serde_json::Value> = rows
+                .iter()
+                .filter(|r| r.alive)
+                .map(|r| serde_json::json!([r.place, (r.feet.x * 100.0).round() / 100.0, (r.feet.y * 100.0).round() / 100.0, (r.feet.z * 100.0).round() / 100.0]))
+                .collect();
+            Self::line(&mut self.bodies_log, &serde_json::json!({ "t": time, "b": alive }));
         }
         let wanted: HashSet<Place> = self.runners.keys().copied().collect();
         for row in rows.into_iter().filter(|r| wanted.contains(&r.place)) {
@@ -1240,14 +1266,19 @@ fn base_of(def: &TryDef) -> Vec3 {
     Vec3::new(def.site.lower.x - perp[0] * def.lane, def.site.lower.y, def.site.lower.z - perp[1] * def.lane)
 }
 
-/// The nearest free lane for a try on its face, given the (face, lane) of the tries under way: 0,
+/// The nearest free lane for a try of `team` on its face, given the (face, lane, team) of the tries under
+/// way; none while the other team has a try on the face (enemies collide: a ledge and its lanes take one
+/// team at a time). Lanes: 0,
 /// then 2.5 m either side, and so on, as far as the ledge is wide minus what the approach drifts
 /// sideways; none when every lane of the face within reach is taken.
-fn free_lane(def: &TryDef, taken: &[(Vec3, f32)]) -> Option<f32> {
+fn free_lane(def: &TryDef, taken: &[(Vec3, f32, u8)], team: u8) -> Option<f32> {
     let drift = (def.runup + def.edge.max(0.0)) * def.angle.to_radians().sin().abs();
     let reach = def.site.half - 1.0 - drift;
     let base = base_of(def);
-    let busy = |lane: f32| taken.iter().any(|(b, l)| b.distance_xz(base) < 0.5 && (l - lane).abs() < LANE_GAP_M);
+    if taken.iter().any(|(b, _, other)| *other != team && b.distance_xz(base) < 0.5) {
+        return None;
+    }
+    let busy = |lane: f32| taken.iter().any(|(b, l, _)| b.distance_xz(base) < 0.5 && (l - lane).abs() < LANE_GAP_M);
     (0..)
         .map(|k| {
             let step = 2.5 * ((k + 1) / 2) as f32;
@@ -1339,6 +1370,10 @@ pub fn summarize(
     rows: &[&Row],
     uploads: &[(u32, u32, usize)],
 ) -> serde_json::Value {
+    // Worlds arrive out of order now and then (an older upload after a newer): by their own ticks.
+    let mut sorted: Vec<&Row> = rows.to_vec();
+    sorted.sort_by_key(|r| r.time);
+    let rows = &sorted[..];
     let t = def.site.toward;
     let a = approach(def);
     let [cx, cz] = def.site.centre();
@@ -1426,8 +1461,9 @@ pub fn summarize(
     }
     // Quality: the largest gap between worlds from 300 ms before the press to 2 s after it, and the
     // uploads' times of the burst.
-    let window: Vec<u32> = rows.iter().map(|r| r.time).filter(|&t| t + 300 >= from && t <= from + 2_000).collect();
-    let gap = window.windows(2).map(|w| w[1] - w[0]).max().unwrap_or(0);
+    let mut window: Vec<u32> = rows.iter().map(|r| r.time).filter(|&t| t + 300 >= from && t <= from + 2_000).collect();
+    window.sort_unstable();
+    let gap = window.windows(2).map(|w| w[1].saturating_sub(w[0])).max().unwrap_or(0);
     obj.insert("world_gap_ms".into(), gap.into());
     let times: Vec<u32> = uploads.iter().filter(|u| u.1 >= plan.first && u.1 <= from + RECORD_AFTER_MS).map(|u| u.1.saturating_sub(u.0)).collect();
     let bytes: Vec<usize> = uploads.iter().filter(|u| u.1 >= plan.first && u.1 <= from + RECORD_AFTER_MS).map(|u| u.2).collect();
@@ -1545,30 +1581,35 @@ p3 7 chem125c 1.0 0 along 5.5 sprint hold 6
     fn lanes_on_a_wide_face_are_two_and_a_half_metres_apart_and_a_narrow_ledge_has_one() {
         let d = wide_def(0.0, 5.5);
         let base = base_of(&d);
-        assert_eq!(free_lane(&d, &[]), Some(0.0));
-        assert_eq!(free_lane(&d, &[(base, 0.0)]), Some(2.5));
-        assert_eq!(free_lane(&d, &[(base, 0.0), (base, 2.5)]), Some(-2.5));
+        assert_eq!(free_lane(&d, &[], 0), Some(0.0));
+        assert_eq!(free_lane(&d, &[(base, 0.0, 0)], 0), Some(2.5));
+        assert_eq!(free_lane(&d, &[(base, 0.0, 0), (base, 2.5, 0)], 0), Some(-2.5));
+        // The other team on the face locks it, whatever the lane.
+        assert_eq!(free_lane(&d, &[(base, 5.0, 1)], 0), None);
+        assert_eq!(free_lane(&d, &[(base, 5.0, 1)], 1), Some(0.0));
         // Another face is not in the way.
         let far = Vec3::new(base.x + 40.0, base.y, base.z);
-        assert_eq!(free_lane(&d, &[(far, 0.0)]), Some(0.0));
+        assert_eq!(free_lane(&d, &[(far, 0.0, 1)], 0), Some(0.0));
         // A 60 degree run-up drifts 4.8 m sideways: the lanes of a 12 m wall are one.
         let wall = TryDef { site: named_site("chem125a", &HashMap::new()).expect("a site"), ..wide_def(60.0, 5.5) };
-        assert_eq!(free_lane(&wall, &[]), Some(0.0));
-        assert_eq!(free_lane(&wall, &[(base_of(&wall), 0.0)]), None);
+        assert_eq!(free_lane(&wall, &[], 0), Some(0.0));
+        assert_eq!(free_lane(&wall, &[(base_of(&wall), 0.0, 0)], 0), None);
         // A 1.2 m ledge has no lane but the middle.
         let narrow = TryDef { site: named_site("chem060a", &HashMap::new()).expect("a site"), ..wide_def(0.0, 3.5) };
-        assert_eq!(free_lane(&narrow, &[(base_of(&narrow), 0.0)]), None);
+        assert_eq!(free_lane(&narrow, &[(base_of(&narrow), 0.0, 0)], 0), None);
     }
 
     #[test]
     fn a_free_bot_takes_the_next_pool_try_on_a_free_lane_and_the_site_moves_along_the_face() {
         let mut jt = JumpTest::new(PathBuf::from("none"), PathBuf::from("none"), "t".into(), 120);
         jt.pool.push_back(wide_def(0.0, 5.5));
-        let first = jt.take_from_pool().expect("a try");
+        let first = jt.take_from_pool(0).expect("a try");
         assert_eq!(first.lane, 0.0);
         assert_eq!(jt.pool[0].repeat, 2);
-        jt.runners.entry(3).or_default().active = Some(Active { def: first.clone(), n: 1, phase: Phase::Rest { until: 0 }, redone: 0, began: 0, presses: Vec::new(), reached: None });
-        let second = jt.take_from_pool().expect("a try");
+        jt.runners.entry(3).or_default().active = Some(Active { def: first.clone(), n: 1, phase: Phase::Rest { until: 0 }, redone: 0, began: 0, presses: Vec::new(), reached: None, team: 0 });
+        let second = jt.take_from_pool(0).expect("a try");
+        // An enemy bot finds the ledge locked.
+        assert!(jt.take_from_pool(1).is_none());
         assert_eq!(second.lane, 2.5);
         // The shift is along the face: chem125c faces -x, so the lane moves z.
         assert!((second.site.lower.x - first.site.lower.x).abs() < 1e-4);
@@ -1719,6 +1760,12 @@ m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
         assert_eq!(v["jump_type"], 5);
         assert!(v["landed"].as_bool().unwrap());
         assert_eq!(v["burst"]["worlds"], 0);
+        // Worlds in the order they arrived, the newest first: the same result, and a small gap (not an underflow).
+        let mut shuffled: Vec<&Row> = up.iter().collect();
+        shuffled.reverse();
+        let v = summarize(&d, 1, 3, &plan, 0, 0, &shuffled, &[]);
+        assert_eq!(v["outcome"], "landed", "{v}");
+        assert!(v["world_gap_ms"].as_u64().unwrap() <= 1_200, "{v}");
         // Back down: up to the apex and onto the deck again, short of the face.
         let down: Vec<Row> = vec![
             row(press - 100, 4.35, 48.5, false, 0),
@@ -1743,7 +1790,7 @@ m2 3 chem060a 0.8 0 along 3.5 motor_run crouch_jump 3
         assert!(!jt.wants_world(1_000), "no try, no request");
         let d = def(0.8, 0.0, Face::Along, 3.5, Speed::Walk, Mid::Hold);
         let plan = plan_from(&d, Vec3::new(-78.9, 4.35, 51.15), heading_of(&d), 10_000, &RunTable::default()).unwrap();
-        jt.runners.entry(3).or_default().active = Some(Active { def: d, n: 1, phase: Phase::Run(plan), redone: 0, began: 0, presses: Vec::new(), reached: None });
+        jt.runners.entry(3).or_default().active = Some(Active { def: d, n: 1, phase: Phase::Run(plan), redone: 0, began: 0, presses: Vec::new(), reached: None, team: 0 });
         assert!(jt.wants_world(9_500));
         // One at a time: not again until answered or forgotten.
         assert!(!jt.wants_world(9_700));
