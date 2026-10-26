@@ -54,6 +54,7 @@ use serde::{Deserialize, Serialize};
 
 use super::curve::{self, Explain, Input, Score};
 use super::know::{Memory, Source, TeamKnowledge, Track};
+use super::reflex::WeaponKind;
 use super::rng::Rng;
 use super::pools::Pools;
 use super::signals::{MatchSignals, Mods};
@@ -433,6 +434,8 @@ pub enum Step {
 #[derive(Clone, Debug)]
 pub struct BotFacts<'a> {
     pub personality: &'a Personality,
+    /// The kind of its weapon 1 (`Bot::weapon`), where known.
+    pub weapon: Option<WeaponKind>,
     /// Its map side (spawn team), if known.
     pub side: Option<i32>,
     /// Its present play, target and when it started.
@@ -813,7 +816,7 @@ impl Ctx<'_> {
     /// ([`Ctx::storey_walk_dist`]): a target a floor up or down is as far
     /// as its stairs, not as the ground between.
     pub fn path_dist(&self, at: Vec3) -> f32 {
-        if !self.tuning.floor_paths {
+        if !self.tuning.grid.floor_paths {
             return self.straight_dist(at);
         }
         self.storey_walk_dist(at)

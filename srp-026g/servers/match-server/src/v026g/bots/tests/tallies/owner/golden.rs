@@ -173,9 +173,9 @@ fn made_up_match() -> Vec<(&'static str, String)> {
             };
             tally.note(&note, &game);
         }
-        tally.step(&mut game, &nows);
+        tally.step_with(&mut game, &nows);
     }
-    tally.camper = Some(3);
+    tally.run.camper = Some(3);
     let Topics { core, parts } = tally.finish_topics(&game);
     let file = |text: Option<&str>, json: serde_json::Map<String, serde_json::Value>| {
         let json = serde_json::to_string_pretty(&serde_json::Value::Object(json)).unwrap();
