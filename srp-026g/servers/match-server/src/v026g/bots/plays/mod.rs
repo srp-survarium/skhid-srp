@@ -1012,27 +1012,27 @@ impl Running {
 
 /// Every play's candidates for the bot.
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
-    roam::candidates(cx, out);
-    collect::candidates(cx, out);
-    ambush::candidates(cx, out);
-    intercept::candidates(cx, out);
-    escort::candidates(cx, out);
-    sneak::candidates(cx, out);
-    flank::candidates(cx, out);
-    crossfire::candidates(cx, out);
-    retreat::candidates(cx, out);
-    cover_human::candidates(cx, out);
-    pair_up::candidates(cx, out);
-    hold_exit::candidates(cx, out);
-    late_denial::candidates(cx, out);
-    guard_lead::candidates(cx, out);
-    trade::candidates(cx, out);
-    heal::candidates(cx, out);
-    hunt::candidates(cx, out);
-    station::candidates(cx, out);
-    raid::candidates(cx, out);
-    buddy::candidates(cx, out);
-    cut::candidates(cx, out);
+    super::cpu_trace::span("cand roam", || roam::candidates(cx, out));
+    super::cpu_trace::span("cand collect", || collect::candidates(cx, out));
+    super::cpu_trace::span("cand ambush", || ambush::candidates(cx, out));
+    super::cpu_trace::span("cand intercept", || intercept::candidates(cx, out));
+    super::cpu_trace::span("cand escort", || escort::candidates(cx, out));
+    super::cpu_trace::span("cand sneak", || sneak::candidates(cx, out));
+    super::cpu_trace::span("cand flank", || flank::candidates(cx, out));
+    super::cpu_trace::span("cand crossfire", || crossfire::candidates(cx, out));
+    super::cpu_trace::span("cand retreat", || retreat::candidates(cx, out));
+    super::cpu_trace::span("cand cover_human", || cover_human::candidates(cx, out));
+    super::cpu_trace::span("cand pair_up", || pair_up::candidates(cx, out));
+    super::cpu_trace::span("cand hold_exit", || hold_exit::candidates(cx, out));
+    super::cpu_trace::span("cand late_denial", || late_denial::candidates(cx, out));
+    super::cpu_trace::span("cand guard_lead", || guard_lead::candidates(cx, out));
+    super::cpu_trace::span("cand trade", || trade::candidates(cx, out));
+    super::cpu_trace::span("cand heal", || heal::candidates(cx, out));
+    super::cpu_trace::span("cand hunt", || hunt::candidates(cx, out));
+    super::cpu_trace::span("cand station", || station::candidates(cx, out));
+    super::cpu_trace::span("cand raid", || raid::candidates(cx, out));
+    super::cpu_trace::span("cand buddy", || buddy::candidates(cx, out));
+    super::cpu_trace::span("cand cut", || cut::candidates(cx, out));
 }
 
 /// A play's start. `slot` is the assignment's: a play whose rules depend on

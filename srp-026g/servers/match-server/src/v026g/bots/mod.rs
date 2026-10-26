@@ -66,6 +66,7 @@ pub mod view;
 mod commander;
 #[cfg(test)]
 pub mod hold_trace;
+pub mod cpu_trace;
 mod drive;
 mod facts;
 mod search;
@@ -1072,7 +1073,7 @@ impl Bots {
         if self.tactics.is_some() && clock.playing {
             for team in 0..2u8 {
                 if now >= self.teams[usize::from(team)].next_commander {
-                    self.commander(team, &view, &mut notes);
+                    cpu_trace::span("pass", || self.commander(team, &view, &mut notes));
                 }
             }
         }

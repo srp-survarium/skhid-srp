@@ -199,7 +199,7 @@ impl Bots {
                 memo: &self.memo,
             };
             let mut candidates = Vec::new();
-            plays::candidates(&cx, &mut candidates);
+            super::cpu_trace::span("cand all", || plays::candidates(&cx, &mut candidates));
             #[cfg(test)]
             if let Some(a) = bot.assignment.as_ref()
                 && !candidates.iter().any(|c| c.kind == a.kind && c.target == a.target)
@@ -216,7 +216,7 @@ impl Bots {
                 );
             }
             // Collect's answers read, not asked again (`take_blocks`).
-            blocks.push((bot.place, plays::collect::take_blocks(&cx, &candidates)));
+            blocks.push((bot.place, super::cpu_trace::span("take_blocks", || plays::collect::take_blocks(&cx, &candidates))));
             #[cfg(test)]
             if self.bench_human == Some(bot.place)
                 && candidates.iter().any(|c| c.kind == plays::PlayKind::Raid)
@@ -251,7 +251,8 @@ impl Bots {
             .map(|&(place, _, _)| place)
             .filter(|&place| tactics.escapes.trapped(place).is_some_and(|t| t.gave_up))
             .collect();
-        for (place, assignment, changed) in team::assign_trapped(asking, now, gap, &given_up, &shaky) {
+        let assigned = super::cpu_trace::span("assign", || team::assign_trapped(asking, now, gap, &given_up, &shaky));
+        for (place, assignment, changed) in assigned {
             let Some(me) = view.place(place) else {
                 continue;
             };
@@ -326,13 +327,13 @@ impl Bots {
                 memo: &self.memo,
             };
             let mut rng = bot.rng.clone();
-            let running = plays::start(
+            let running = super::cpu_trace::span("start", || plays::start(
                 assignment.kind,
                 assignment.target,
                 assignment.slot,
                 &cx,
                 &mut rng,
-            );
+            ));
             bot.rng = rng;
             bot.note(
                 notes,
