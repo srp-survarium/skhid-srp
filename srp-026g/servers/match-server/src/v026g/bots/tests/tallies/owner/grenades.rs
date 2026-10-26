@@ -1,4 +1,5 @@
 use crate::v026g::bots::arc;
+use crate::v026g::bots::tests::standin_grenade;
 use crate::v026g::bots::view::{eye_height, still_eye};
 
 use super::*;
@@ -361,7 +362,7 @@ impl OwnerTally {
     }
 
     /// The grenades going off: who is inside, who walked in, the damage it would do (the stand-in has none).
-    pub(super) fn grenades_off(&mut self, game: &Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
+    pub(super) fn grenades_off(&mut self, game: &mut Game, sight: &mapdata::RayTree, rays: &mut u64, tick: u32) {
         self.grenade_launches(game, tick);
         // The grenades going off: who is inside, who walked in, the damage
         // it would do (the stand-in has none).
@@ -377,6 +378,24 @@ impl OwnerTally {
             let Some(team) = game.bodies.get(blast.thrower).map(|b| b.team) else {
                 continue;
             };
+            if game.damage.blasts_hurt() {
+                // The client's blast on the bodies ([`standin_grenade`]).
+                for hurt in standin_grenade::explode(game, blast.thrower, blast.at, tick) {
+                    let who = if hurt.place == blast.thrower {
+                        0
+                    } else if game.bodies[hurt.place].team == team {
+                        1
+                    } else {
+                        2
+                    };
+                    self.grenades.blast_in[who] += 1;
+                    self.grenades.walked_in[who] +=
+                        u32::from(!blast.inside.get(hurt.place).copied().unwrap_or(false));
+                    self.grenades.blast_dmg[who] += hurt.body;
+                    self.grenades.blast_kills[who] += u32::from(hurt.killed);
+                }
+                continue;
+            }
             for (place, body) in game.bodies.iter().enumerate() {
                 let d = (Game::chest(body) - blast.at).length();
                 if !body.alive || d > BLAST_M {
@@ -406,7 +425,7 @@ impl OwnerTally {
     pub(super) fn grenades_part(&self, game: &Game) -> Part {
         let json = serde_json::json!({
             "grenades": self.grenades.grenades,
-            "grenade_damage_applied": false,
+            "grenade_damage_applied": game.damage.blasts_hurt(),
             "grenade_self_dmg": (100.0 * self.grenades.blast_dmg[0]).round() / 100.0,
             "grenade_mate_dmg": (100.0 * self.grenades.blast_dmg[1]).round() / 100.0,
             "grenade_enemy_dmg": (100.0 * self.grenades.blast_dmg[2]).round() / 100.0,
@@ -421,11 +440,14 @@ impl OwnerTally {
             "team_hits": game.team_hits,
         });
         let text = format!(
-            "owner-test other: grenades {} (no damage in the stand-in) would damage self {:.2} mates {:.2} enemies {:.2}, would kill {:?}, inside at the blast {:?} walked in {:?}; short {} (aimed beyond {SHORT_M} m, first contact within), thrower died in the press to launch {}, fire pressed in the hold {}, refused (thrower's blast, wall, teammate, other) {:?}; team kills by gunfire {}, team hits {}",
+            "owner-test other: grenades {} ({}) {} self {:.2} mates {:.2} enemies {:.2}, {} {:?}, inside at the blast {:?} walked in {:?}; short {} (aimed beyond {SHORT_M} m, first contact within), thrower died in the press to launch {}, fire pressed in the hold {}, refused (thrower's blast, wall, teammate, other) {:?}; team kills by gunfire {}, team hits {}",
             self.grenades.grenades,
+            if !game.damage.blasts_hurt() { "no damage in the stand-in" } else { "the client's blast" },
+            if !game.damage.blasts_hurt() { "would damage" } else { "damaged" },
             self.grenades.blast_dmg[0],
             self.grenades.blast_dmg[1],
             self.grenades.blast_dmg[2],
+            if !game.damage.blasts_hurt() { "would kill" } else { "killed" },
             self.grenades.blast_kills,
             self.grenades.blast_in,
             self.grenades.walked_in,
