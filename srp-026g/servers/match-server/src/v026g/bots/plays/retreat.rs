@@ -303,6 +303,12 @@ mod tests {
         with_zones(&mut s);
         s.bot(0, 0, Vec3::new(45.0, 0.0, 32.0)).health = 0.3;
         s.enemy(1, 1, Vec3::new(65.0, 0.0, 33.0), Some(Source::Seen));
+        // With a medkit it heals first, in the alarm band, under fire too.
+        let best = s.candidates(0);
+        assert_eq!(best[0].kind, PlayKind::Heal, "{best:#?}");
+        // Both medkits of the kit used: nothing to heal with, so it falls back.
+        s.pantry.pressed(0, 0);
+        s.pantry.pressed(0, 0);
         let best = s.candidates(0);
         assert_eq!(best[0].kind, PlayKind::Retreat, "{best:#?}");
         assert!(best.iter().all(|c| c.kind != PlayKind::Heal));

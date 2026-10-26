@@ -54,6 +54,7 @@ use serde::{Deserialize, Serialize};
 use super::curve::{self, Explain, Input, Score};
 use super::know::{Memory, Source, TeamKnowledge, Track};
 use super::rng::Rng;
+use super::pools::Pools;
 use super::signals::{MatchSignals, Mods};
 use super::stock::Pantry;
 use super::tactics::Tactics;
@@ -427,6 +428,9 @@ pub struct BotFacts<'a> {
     pub paired: bool,
     /// The drugs of its kits (`stock.rs`).
     pub pantry: &'a Pantry,
+    /// Its health pools as the last world showed them (`pools.rs`); none
+    /// before the first.
+    pub pools: Option<Pools>,
     /// Goals its searches proved no way to lately, and until when.
     pub no_way_to: &'a [(Vec3, u32)],
     /// Plays that failed at once at a target, and until when they are

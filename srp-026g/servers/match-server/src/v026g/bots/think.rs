@@ -488,6 +488,7 @@ pub(super) fn decide(
             partner: bot.partner,
             paired: bot.paired,
             pantry: &bot.pantry,
+            pools: bot.pools,
             no_way_to: &bot.no_way_to,
             set_aside: &bot.set_aside,
             failed_stands: &bot.failed_stands,

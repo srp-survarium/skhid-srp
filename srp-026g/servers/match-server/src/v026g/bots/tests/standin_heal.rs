@@ -221,6 +221,17 @@ pub(crate) const MODELS: [Model; 3] = [
     },
 ];
 
+impl Model {
+    /// The rate a second the drug restores `pool` at.
+    pub(crate) fn rate(&self, pool: Pool) -> f32 {
+        self.rates
+            .iter()
+            .filter(|(group, _)| group.pools().contains(&pool))
+            .map(|&(_, rate)| rate)
+            .sum()
+    }
+}
+
 pub(crate) fn model_of(drug: Drug) -> &'static Model {
     MODELS
         .iter()
@@ -424,9 +435,10 @@ pub(crate) fn advance(body: &mut Body, tick: u32) {
     }
 }
 
-/// What the bots are told of a world: the drugs.
+/// What the bots are told of a world: the pools, and the drugs.
 #[derive(Clone, Debug)]
 pub(crate) struct Seen {
+    pub(crate) pools: crate::v026g::bots::pools::Pools,
     pub(crate) readings: Readings,
 }
 
@@ -464,7 +476,7 @@ impl Game {
 }
 
 /// Tells the bots the world of `tick` as the game shows it: each bot's
-/// drugs; and the stand-in learns the kit each picked for its next life.
+/// pools and drugs; and the stand-in learns the kit each picked for its next life.
 pub(crate) fn tell(game: &mut Game, bots: &mut Bots, tick: u32) {
     if !model_on() {
         return;
@@ -478,13 +490,30 @@ pub(crate) fn tell(game: &mut Game, bots: &mut Bots, tick: u32) {
         return;
     };
     for (place, seen) in seen.iter().enumerate() {
+        bots.pools(place, seen.pools);
         bots.stock(place, tick, &seen.readings);
     }
 }
 
-/// The snapshot of a body's drugs a world keeps.
+/// The snapshot of a body's pools and drugs a world keeps.
 pub(crate) fn seen(body: &Body) -> Seen {
+    let (mut health, mut legs, mut damage, mut rest) =
+        (body.health, body.legs, body.pools, body.rest);
+    let pools = BodyPools {
+        health: &mut health,
+        legs: &mut legs,
+        pools: &mut damage,
+        rest: &mut rest,
+    };
     Seen {
+        pools: crate::v026g::bots::pools::Pools {
+            body: pools.value(Pool::Body),
+            head: pools.value(Pool::Head),
+            legs: [Pool::Leg(0), Pool::Leg(1)].map(|pool| pools.value(pool)),
+            hands: [Pool::Hand(0), Pool::Hand(1)].map(|pool| pools.value(pool)),
+            pain: pools.value(Pool::Pain),
+            infection: pools.value(Pool::Infection),
+        },
         readings: body.heal.readings(body.alive),
     }
 }
@@ -724,12 +753,116 @@ mod tests {
     /// (`plays/heal.rs`); the stand-in is the game: a number changed on
     /// one side only shows here.
     #[test]
-    fn the_model_has_the_records_numbers() {
+    fn the_model_has_the_records_numbers_and_the_bots_table_the_same() {
+        use crate::v026g::bots::plays::heal::ITEMS;
+        use crate::v026g::bots::pools::Pool as Group;
         let medkit = model_of(Drug::Medkit);
         assert_eq!((medkit.delay_s, medkit.active_s), (2.0, 3.0));
         let bandages = model_of(Drug::Bandages);
         assert_eq!((bandages.delay_s, bandages.active_s), (1.0, 1.0));
         let antitoxin = model_of(Drug::Antitoxin);
         assert_eq!((antitoxin.delay_s, antitoxin.active_s), (1.0, 10.0));
+        for item in &ITEMS {
+            let model = model_of(item.drug);
+            assert_eq!(
+                (item.delay_s, item.active_s),
+                (model.delay_s, model.active_s)
+            );
+            let pairs = [
+                (Group::Body, Pool::Body),
+                (Group::Head, Pool::Head),
+                (Group::Legs, Pool::Leg(0)),
+                (Group::Legs, Pool::Leg(1)),
+                (Group::Hands, Pool::Hand(0)),
+                (Group::Hands, Pool::Hand(1)),
+                (Group::Pain, Pool::Pain),
+                (Group::Infection, Pool::Infection),
+            ];
+            for (mine, theirs) in pairs {
+                let rate = item
+                    .treats
+                    .iter()
+                    .find(|(pool, _)| *pool == mine)
+                    .map_or(0.0, |&(_, rate)| rate);
+                assert_eq!(rate, model.rate(theirs), "{:?} {mine:?}", item.drug);
+            }
+        }
+    }
+
+    /// Two minutes of 4 against 4 in the stand-in game, the bots told what
+    /// each world shows: they hurt one another, press the medkit and are
+    /// healed by it, and no press goes into an empty slot or into an
+    /// active medkit (the stock is the game's), in every life of the run.
+    #[test]
+    fn a_short_run_heals_its_bots_and_presses_no_empty_slot() {
+        let world = soak_world();
+        let teams: Vec<u8> = (0..8).map(|p| u8::from(p >= 4)).collect();
+        let mut bots = Bots::new(
+            0x50AC,
+            survarium::v026g::maps::mode::BATTERIES,
+            0,
+            &teams,
+            &[true; 8],
+            &[None; 8],
+            Arc::new(Tuning::default()),
+            Trace::none(0),
+        );
+        bots.map_ready(world.clone());
+        let mut game = Game::new(world, &teams, 3, None, None);
+        (0..teams.len()).for_each(|place| bots.entered(place, true, 0));
+        let (mut clock, mut next_world) = (0, 1_000);
+        while clock < 120_000 {
+            clock += 25;
+            while game.tick + TICK_MS <= clock {
+                game.step();
+            }
+            if clock >= next_world {
+                next_world += 1_000;
+                let tick = clock / TICK_MS * TICK_MS - 300;
+                if let Some((_, fixes, health, facts)) = game.world_at(tick) {
+                    for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                        bots.fixed(place, fix, Some(health));
+                    }
+                    tell(&mut game, &mut bots, tick);
+                    bots.facts(facts);
+                }
+            }
+            let (made, _) = bots.poll(Clock {
+                clock,
+                time_left_s: 600.0,
+                total_s: 600.0,
+                playing: true,
+            });
+            for made in made {
+                let r = made.input.rotation;
+                let turn = (
+                    half_value(u16::from_le_bytes([r[0], r[1]])),
+                    half_value(u16::from_le_bytes([r[2], r[3]])),
+                );
+                game.inputs[made.place].push_back((
+                    made.time,
+                    made.input.actions,
+                    turn,
+                    None,
+                    Arms::fallback().primary.0,
+                ));
+            }
+        }
+        let used = game
+            .drug_log
+            .iter()
+            .filter(|p| matches!(p.2, Pressed::Used(_)))
+            .count();
+        let wasted: Vec<_> = game
+            .drug_log
+            .iter()
+            .filter(|p| !matches!(p.2, Pressed::Used(_)))
+            .collect();
+        assert!(
+            used >= 2,
+            "{used} presses in 2 minutes of fights ({} hits)",
+            game.hits
+        );
+        assert!(wasted.is_empty(), "{wasted:?}");
     }
 }

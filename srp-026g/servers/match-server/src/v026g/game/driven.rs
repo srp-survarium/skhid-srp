@@ -49,6 +49,7 @@ use super::*;
 use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::maps::{MapState, Maps};
 use crate::v026g::bots::motor::Hurt;
+use crate::v026g::bots::pools::Pools;
 use crate::v026g::bots::reflex::WeaponKind;
 use crate::v026g::bots::routes::{self, RouteTable};
 use crate::v026g::bots::tactics::Tactics;
@@ -491,6 +492,9 @@ impl Game {
                 let legs = [6, 7].map(|part| damage.part_health.get(part).copied());
                 let hurt = Hurt::of(legs, damage.last_hit_time_ms, snapshot.time);
                 walkers.bots.hurt(place, hurt);
+                if let Some(pools) = Pools::of_world(&damage.part_health) {
+                    walkers.bots.pools(place, pools);
+                }
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);

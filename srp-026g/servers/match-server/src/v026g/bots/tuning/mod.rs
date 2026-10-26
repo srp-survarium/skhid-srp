@@ -31,6 +31,7 @@ pub struct Tuning {
     pub skill: SkillTuning,
     pub mods: ModTuning,
     pub think: ThinkTuning,
+    pub heal: HealTuning,
     /// Metres kept from a damage zone (`hazards`).
     pub hazard_margin: f32,
     /// By play; a play missing here runs on its defaults
@@ -51,6 +52,7 @@ impl Default for Tuning {
             skill: SkillTuning::default(),
             mods: ModTuning::default(),
             think: ThinkTuning::default(),
+            heal: HealTuning::default(),
             hazard_margin: 1.0,
             plays: PlayKind::ALL
                 .iter()
@@ -66,12 +68,14 @@ impl Default for Tuning {
 pub use survarium::v026g::loadouts::BotTier;
 
 mod aim;
+mod heal;
 mod motion;
 mod play;
 mod sense;
 mod team;
 
 pub use aim::{AimTuning, SkillTuning, TierSkill};
+pub use heal::{HealTuning, NeedWeights};
 pub use play::PlayTuning;
 pub use sense::{CheatTuning, SenseTuning};
 pub use team::{ModTuning, Personality, ThinkTuning, SEARCH_FLOORS_PER_POLL};
@@ -103,6 +107,7 @@ impl Tuning {
         motion::validate_feel(&self.feel)?;
         aim::validate_skill(&self.skill)?;
         aim::validate_aim(&self.aim)?;
+        heal::validate(&self.heal)?;
         check(self.hazard_margin >= 0.0, "hazard_margin")?;
         let shares: f32 = self.personalities.iter().map(|p| p.share).sum();
         check(

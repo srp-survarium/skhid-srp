@@ -46,6 +46,7 @@ pub struct Scenario {
     pub paired: bool,
     pub personality: usize,
     pub pantry: Pantry,
+    pub pools: Option<Pools>,
     pub no_way_to: Vec<(Vec3, u32)>,
     pub dry: bool,
     /// `BotFacts::failed_stands`.
@@ -129,6 +130,7 @@ impl Scenario {
             paired: true,
             personality: 0,
             pantry: Pantry::standard(),
+            pools: None,
             no_way_to: Vec::new(),
             dry: false,
             failed_stands: Vec::new(),
@@ -273,6 +275,7 @@ impl Scenario {
                 partner: self.partner,
                 paired: self.paired,
                 pantry: &self.pantry,
+                pools: self.pools,
                 no_way_to: &self.no_way_to,
                 set_aside: &[],
                 failed_stands: &self.failed_stands,
