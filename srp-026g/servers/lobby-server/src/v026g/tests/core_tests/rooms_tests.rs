@@ -371,8 +371,8 @@ fn a_game_started_anew_goes_back_to_its_seat_in_the_rooms_match_by_play() {
 
 /// A member is offered the open room of the lowest max level that takes it,
 /// lower than its own room's, and one click (a Join) moves it there; none
-/// over its equipment, none with a PIN, none in its own room (the owner's
-/// of 2026-10-19).
+/// over its equipment, none with a PIN, none in its own room, none out of a
+/// private room (the owner's of 2026-10-19).
 #[test]
 fn a_member_is_offered_a_room_of_a_lower_max_level() {
     let mut world = World::new();
@@ -425,6 +425,10 @@ fn a_member_is_offered_a_room_of_a_lower_max_level() {
     with_gear(&mut world, alice, 5);
     let offered = switch_of(&state(&mut world, alice)).expect("Carol's");
     assert_eq!(offered[2], "5");
+    // None out of a private room: it has no max level to better.
+    let frank = world.connect("Frank");
+    create(&mut world, frank, spec(8), Some(4321));
+    assert_eq!(switch_of(&state(&mut world, frank)), None);
     // Bob's click: into Erin's room, out of Alice's.
     let moved = rows(&mut world, bob, ROOM_JOIN_BASE + low, 1);
     assert_eq!(header(&moved)[KEY], low.to_string());
@@ -582,6 +586,71 @@ fn a_max_level_keeps_higher_equipment_out() {
     assert_eq!(
         header(&rows(&mut world, dave, ROOM_JOIN_BASE + open, 1))[MEMBERS],
         "2"
+    );
+}
+
+/// A private room has no max level (the owner's of 2026-10-26): its maker's
+/// window's (3 here) is kept for the next open room only. A maker over it
+/// makes the room; with the PIN a high and a low equipment join, both fit
+/// to play; the room and its row in the list tell no max level; its match
+/// takes everyone. An open room's max level still keeps higher equipment
+/// out.
+#[test]
+fn a_private_room_lets_in_any_equipment() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    with_gear(&mut world, alice, 5);
+    with_gear(&mut world, bob, 5);
+    let capped = RoomSpec {
+        max_level: 3,
+        ..spec(8)
+    };
+    let key = create(&mut world, alice, capped, Some(1234));
+    rows(&mut world, bob, ROOM_PIN_BASE + 1234, 1);
+    assert_eq!(
+        header(&rows(&mut world, bob, ROOM_JOIN_BASE + key, 1))[MEMBERS],
+        "2"
+    );
+    rows(&mut world, carol, ROOM_PIN_BASE + 1234, 1);
+    let joined = rows(&mut world, carol, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(header(&joined)[MEMBERS], "3");
+    assert_eq!(header(&joined)[LEVEL + 1], "0", "no max level");
+    // P;<place>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;<name>
+    let members: Vec<(String, String)> = joined
+        .iter()
+        .filter(|row| row.starts_with("P;"))
+        .map(|row| {
+            let fields: Vec<&str> = row.split(';').collect();
+            (fields[2].to_owned(), fields[6].to_owned())
+        })
+        .collect();
+    let fit = |gear: &str| (gear.to_owned(), "0".to_owned());
+    assert_eq!(members, [fit("5"), fit("5"), fit("0")]);
+    // Its row: <key>;<level>;<max level>;<size>;<players>;<phase>;<secs>;
+    // <map>;<pin>;<name>.
+    let list = rows(&mut world, carol, ROOMS_LIST, 32);
+    let row: Vec<&str> = list[1].split(';').collect();
+    assert_eq!((row[0], row[2], row[8]), (&*key.to_string(), "0", "1"));
+    // Its match takes all three: nobody is out for its equipment.
+    for member in [alice, bob, carol] {
+        world.take(member);
+    }
+    let (ticket, _) = sent_to_match(&press_start(&mut world, alice)).expect("Alice plays");
+    for member in [bob, carol] {
+        let (sent, _) = sent_to_match(&world.take(member)).expect("each member plays");
+        assert_eq!(sent, ticket);
+    }
+    assert_eq!(world.core.rooms.get(key).unwrap().members.len(), 3);
+    // An open room of the same window keeps Bob's equipment out.
+    let dave = world.connect("Dave");
+    let open = create(&mut world, dave, capped, None);
+    let erin = world.connect("Erin");
+    with_gear(&mut world, erin, 5);
+    assert_eq!(
+        rows(&mut world, erin, ROOM_JOIN_BASE + open, 1),
+        ["S1;N;12;0;0"]
     );
 }
 

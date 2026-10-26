@@ -12,7 +12,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   and clan-team matches stay (clan matches: a uniform random map, no bots).
 - **Making one:** team size 6 v 6 to 10 v 10 and players to start 1 v 1 to 3 v 3 (an open
   room's; a private one has neither, "A private room is started by its owner"); max level
-  (equipment cap; 0 = any; never below the maker's own gear); the time to start, 30 s to
+  (equipment cap; 0 = any; never below the maker's own gear; an open room's only); the time to start, 30 s to
   1 min 15 s (the 15 s vote and a wait of 15 s to 1 min; shown as the whole); an optional 4-digit PIN; a pool of maps (with modes: Protective device,
   Protective device: chargers, Team Deathmatch, Research once its maps are in the data;
   experimental maps addable). Named after its
@@ -126,9 +126,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   it should be possible to start the game 1vs0"; then no "from N v N", no countdown, no team
   size). Private is a room with a PIN.
   - No team size and no players to start: it takes the most a match has, 20 (10 v 10, every
-    map and mode). The create window hides Team size, Players to start and Time to start once
-    a PIN is typed (their values kept for the next open room) and says "Private room: up to 20
-    players; you set the teams and start."
+    map and mode). The create window hides Team size, Players to start, Max level and Time
+    to start once a PIN is typed (their values kept for the next open room) and says
+    "Private room: up to 20 players; you set the teams and start."
   - No countdown: it waits however many are in. Its owner (its maker, or the member who came
     first after it left) has Start beside Leave; the others read "Waiting for the creator to
     start." Start makes the match at once with whoever can play, 1 v 0 too, on the vote's
@@ -166,9 +166,17 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     player; called off only with nobody in it (`match.md` §34).
   - It pays nothing, as every PIN room's match ("A PIN: no rewards", above).
   - Its info line and banner say no "N v N" (the banner: members / 20); the list never did.
-  - Open rooms and Play keep their size, players to start and countdown.
+  - **No max level** (the owner's of 2026-10-26: "private room shouldn't have max level
+    too"): whoever has the PIN joins with any equipment (its maker too), by Join, its queue or
+    a friend's menu; no join offers a loadout for its gear (only one whose kit can't play,
+    as anywhere); nobody is marked red or taken out of it for equipment; no "Switch room"
+    out of it. The create window hides Max level with the other sliders (its value kept for
+    the next open room); the room's info line, its list row and the facts beside the list
+    show no max level (the server tells 0). On the server a private room's settings have no
+    max level at all (`rooms::Door::Pin`).
+  - Open rooms and Play keep their size, players to start, max level and countdown.
 - **Who plays:** a member whose kit can't play (no weapon, too little ammo) or whose
-  equipment is over the max level is marked red, counts for nothing, and is taken out of the
+  equipment is over an open room's max level is marked red, counts for nothing, and is taken out of the
   room when the match starts without it (code 13 / 12); it may rejoin.
 - **Sides:** drawn at the start, as even as can be (every split by the same count), squads
   together; a room of one squad plays it on both sides.

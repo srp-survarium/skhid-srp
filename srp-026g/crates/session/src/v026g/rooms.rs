@@ -5,7 +5,8 @@
 //! - A room is made by a player with a team size (6 v 6 to 10 v 10), a
 //!   max level (the highest equipment
 //!   level let in, 0 for any, never under its maker's own), a wait (15 s to a minute), an optional
-//!   PIN and a pool of maps. It is named after its maker and cannot be
+//!   PIN and a pool of maps (a private room has no max level, [`Door`]).
+//!   It is named after its maker and cannot be
 //!   changed once made. Its owner may take a member out.
 //! - Once two players are in it who can play (a kit with a weapon and its
 //!   ammo, equipment within the max level; one who cannot is marked red in
@@ -35,7 +36,10 @@
 //!   winner then (its cards are there, and voted for, as in any room).
 //!   After the match it waits for its owner again. Its owner arranges its
 //!   two teams, any split up to 10 a side ([`Rooms::move_member`]), and
-//!   its match plays them as they are ([`Room::arranged`]).
+//!   its match plays them as they are ([`Room::arranged`]). It has no max
+//!   level either (the owner's of 2026-10-26: "private room shouldn't have
+//!   max level too"): whoever has its PIN comes in with any equipment, and
+//!   nothing takes a member out of it for its equipment ([`Door::Pin`]).
 //!
 //! This module keeps the rooms and their rules. The lobby asks it, does
 //! what it says (sends players to a match, tells the clients) and tells it
@@ -69,13 +73,51 @@ pub const CHAT_KEPT: usize = 20;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Spec {
     pub size: u8,
-    /// The highest equipment level let in; 0: any.
-    pub max_level: u8,
     pub wait: u8,
-    pub pin: Option<u16>,
+    /// Who it lets in: an open room's max level, a private room's PIN.
+    pub door: Door,
     /// The players an open room needs before its vote begins: 2 (1 v 1), 4
     /// or 6. A private room has none: its owner starts it ([`Room::needs`]).
     pub min_players: u8,
+}
+
+/// Who a room lets in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Door {
+    /// An open room: anyone whose equipment level is within `max_level`
+    /// (0: any).
+    Open { max_level: u8 },
+    /// A private room: whoever gives its PIN, with any equipment (the
+    /// owner's of 2026-10-26: no max level).
+    Pin(u16),
+}
+
+impl Door {
+    /// Whether a player of equipment level `gear` comes in.
+    pub fn lets_in(self, gear: u8) -> bool {
+        match self {
+            Door::Open { max_level } => max_level == 0 || gear <= max_level,
+            Door::Pin(_) => true,
+        }
+    }
+
+    /// The highest equipment level let in as the movie and a join's offer
+    /// are told it: an open room's (0: any); 0 for a private room, which
+    /// has none.
+    pub fn max_level(self) -> u8 {
+        match self {
+            Door::Open { max_level } => max_level,
+            Door::Pin(_) => 0,
+        }
+    }
+
+    /// Whether the PIN given last (`given`) opens it: an open room's always.
+    fn opens(self, given: Option<u16>) -> bool {
+        match self {
+            Door::Open { .. } => true,
+            Door::Pin(pin) => given == Some(pin),
+        }
+    }
 }
 
 /// The vote's own time before each match: always this long, whatever the
@@ -237,12 +279,18 @@ impl Room {
     }
 
     pub fn is_open(&self) -> bool {
-        self.spec.pin.is_none()
+        matches!(self.spec.door, Door::Open { .. })
     }
 
-    /// Whether a player of equipment level `gear` is let in.
+    /// Whether a player of equipment level `gear` is let in, and may play
+    /// its matches (a private room: any).
     pub fn lets_in(&self, gear: u8) -> bool {
-        self.spec.max_level == 0 || gear <= self.spec.max_level
+        self.spec.door.lets_in(gear)
+    }
+
+    /// Its max level as the movie is told it ([`Door::max_level`]).
+    pub fn max_level(&self) -> u8 {
+        self.spec.door.max_level()
     }
 
     /// The votes each card has.
@@ -454,8 +502,8 @@ impl Rooms {
     /// The account makes a room: it leaves the one it is in, and owns the
     /// new one. `entries` are the maps a pool may hold; the room's pool is
     /// the account's draft of them, or the `default` pool with none. The
-    /// owner's equipment level `gear` must be within the room's max level.
-    /// A private one (a PIN) is [`PRIVATE_SIZE`] a side, whatever `spec`
+    /// owner's equipment level `gear` must be within an open room's max
+    /// level. A private one (a PIN) is [`PRIVATE_SIZE`] a side, whatever `spec`
     /// says.
     #[allow(clippy::too_many_arguments)]
     pub fn create(
@@ -475,10 +523,10 @@ impl Rooms {
         if pool.is_empty() || spec.size == 0 {
             return Err(Refused::Bad);
         }
-        if spec.pin.is_some() {
+        if let Door::Pin(_) = spec.door {
             spec.size = PRIVATE_SIZE;
         }
-        if spec.max_level != 0 && gear > spec.max_level {
+        if !spec.door.lets_in(gear) {
             return Err(Refused::GearTooHigh);
         }
         if self.rooms.len() >= most_rooms
@@ -539,7 +587,7 @@ impl Rooms {
         if room.kicked.contains(&account_id) {
             return Err(Refused::Kicked);
         }
-        if room.spec.pin.is_some_and(|wanted| pin != Some(wanted)) {
+        if !room.spec.door.opens(pin) {
             return Err(Refused::WrongPin);
         }
         if !room.lets_in(gear) {
@@ -630,9 +678,9 @@ impl Rooms {
     }
 
     /// The account waits in the full room's queue: it is in no room (the
-    /// lobby only), the room lets it in (its PIN given just before, its
-    /// max level, not turned out). One queue at a time: a new one takes it
-    /// out of the last. Its place, 1 the first.
+    /// lobby only), the room lets it in (its PIN given just before, an
+    /// open room's max level, not turned out). One queue at a time: a new
+    /// one takes it out of the last. Its place, 1 the first.
     pub fn enqueue(
         &mut self,
         account_id: u32,
@@ -648,7 +696,7 @@ impl Rooms {
         if room.kicked.contains(&account_id) {
             return Err(Refused::Kicked);
         }
-        if room.spec.pin.is_some_and(|wanted| pin != Some(wanted)) {
+        if !room.spec.door.opens(pin) {
             return Err(Refused::WrongPin);
         }
         if !room.lets_in(gear) {
@@ -753,7 +801,7 @@ impl Rooms {
         let room = self.rooms.get(&key)?;
         // Only a private room (with a PIN) turns anyone out: an open one is
         // everybody's (the owner's of 2026-10-19).
-        if room.owner != owner || room.spec.pin.is_none() {
+        if room.owner != owner || room.is_open() {
             return None;
         }
         let member = *room.members.get(place)?;
@@ -1124,9 +1172,8 @@ mod tests {
     fn spec(size: u8, pin: Option<u16>) -> Spec {
         Spec {
             size,
-            max_level: 0,
             wait: 30,
-            pin,
+            door: pin.map_or(Door::Open { max_level: 0 }, Door::Pin),
             min_players: 2,
         }
     }
@@ -1709,7 +1756,7 @@ mod tests {
         let now = Instant::now();
         let mut rooms = Rooms::default();
         let capped = Spec {
-            max_level: 5,
+            door: Door::Open { max_level: 5 },
             ..spec(8, None)
         };
         // Not under its maker's own equipment level.
@@ -1725,6 +1772,29 @@ mod tests {
         assert_eq!(rooms.join(2, 5, key, now), Ok(()));
         let any = room_of(&mut rooms, 3, 8, None, now);
         assert_eq!(rooms.join(4, 15, any, now), Ok(()));
+    }
+
+    /// A private room has no max level (the owner's of 2026-10-26): its
+    /// PIN lets in the highest equipment and the lowest, its queue too, and
+    /// its members always fit; Play never takes anyone into it.
+    #[test]
+    fn a_private_room_lets_in_any_equipment() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = rooms
+            .create(1, 15, spec(8, Some(42)), &POOL, &POOL, 50, now, &mut first)
+            .unwrap();
+        let room = rooms.get(key).unwrap();
+        assert!(room.lets_in(15) && room.lets_in(0));
+        assert_eq!(room.max_level(), 0);
+        rooms.give_pin(2, 42, now);
+        assert_eq!(rooms.join(2, 15, key, now), Ok(()));
+        rooms.give_pin(3, 42, now);
+        assert_eq!(rooms.join(3, 0, key, now), Ok(()));
+        assert_eq!(rooms.get(key).unwrap().members, [1, 2, 3]);
+        rooms.give_pin(4, 42, now);
+        assert_eq!(rooms.enqueue(4, 15, key, now), Ok(1));
+        assert!(rooms.open_rooms(5, 0).next().is_none());
     }
 
     #[test]

@@ -78,7 +78,7 @@ use std::time::{Duration, Instant};
 use session::matchmaking_policy::{self as policy, Closed, Worth};
 use session::v026g::presets::{self, Offer};
 use session::v026g::room_settings::{self, RoomSettings};
-use session::v026g::rooms::{self as model, Due, Refused, Spec, Stage};
+use session::v026g::rooms::{self as model, Door, Due, Refused, Spec, Stage};
 use session::v026g::{matchmaking, quests, rules};
 use session::{LockExt, QueuePool};
 use survarium::v026g::lobby::presets::PresetDone;
@@ -583,7 +583,8 @@ impl Core<'_> {
     /// Whether joining the room with `key` (0: the room Play would take
     /// now) offers one of the asker's kit presets (`presets.md`): the one
     /// with the highest gear level the room's max level allows. Nothing for
-    /// a room of any max level, for no room, or while the asker may join
+    /// a room of any max level or a private one (unless the kits cannot
+    /// play: `presets::offer`), for no room, or while the asker may join
     /// none (the join then says why).
     fn room_offer(&mut self, who: &Who, key: u32) {
         let unix = quests::now();
@@ -607,7 +608,7 @@ impl Core<'_> {
             Ok(()) => target.and_then(|key| self.rooms.get(key)),
             Err(_) => None,
         };
-        let max_level = room.map_or(0, |room| room.spec.max_level);
+        let max_level = room.map_or(0, model::Room::max_level);
         let offered = match room {
             Some(_) => presets::offer(gear, max_level, &levels, kits_play, active),
             None => Offer::None,
@@ -669,10 +670,14 @@ impl Core<'_> {
             .filter(|entry| !entry.extra)
             .map(|entry| entry.map_id)
             .collect();
-        // A room with a PIN asks for the one its maker gave just before.
-        let pin = match spec.pin {
-            false => None,
-            true => Some(
+        // A room with a PIN asks for the one its maker gave just before; it
+        // has no max level (the owner's of 2026-10-26), the window's is
+        // only kept for the next open room (`room_remember`).
+        let door = match spec.pin {
+            false => Door::Open {
+                max_level: spec.max_level,
+            },
+            true => Door::Pin(
                 self.rooms
                     .take_pin(who.account_id, now)
                     .ok_or(Refused::Bad)?,
@@ -685,9 +690,8 @@ impl Core<'_> {
             gear,
             Spec {
                 size: spec.size,
-                max_level: spec.max_level,
                 wait: spec.wait,
-                pin,
+                door,
                 min_players: 2 * spec.min_side,
             },
             &entries,
@@ -699,12 +703,11 @@ impl Core<'_> {
         let pool = self.rooms.get(key).map_or(0, |room| room.pool.len());
         if spec.pin {
             log::info!(
-                "{}: made room {key}: private (PIN), {} v {}, started by its owner, max level {}, \
-                 {pool} maps",
+                "{}: made room {key}: private (PIN), {} v {}, started by its owner, any \
+                 equipment, {pool} maps",
                 who.name,
                 model::PRIVATE_SIZE,
                 model::PRIVATE_SIZE,
-                spec.max_level
             );
         } else {
             log::info!(
@@ -917,7 +920,7 @@ impl Core<'_> {
         Some(RoomView {
             key: room.key,
             level: self.room_level(room),
-            max_level: room.spec.max_level,
+            max_level: room.max_level(),
             size: room.spec.size,
             wait: room.spec.wait,
             phase,
@@ -925,7 +928,7 @@ impl Core<'_> {
             owner: room.owner == who.account_id,
             pool: room.pool.len() as u16,
             serial: room.serial,
-            pin: room.spec.pin.is_some(),
+            pin: !room.is_open(),
             cards: room
                 .cards
                 .iter()
@@ -1031,10 +1034,11 @@ impl Core<'_> {
     }
 
     /// A room the member may switch to with one click (the owner's of
-    /// 2026-10-19): open (no PIN, a place free, it was not turned out of
-    /// it), its max level set, lower than its room's (none set counts as
-    /// the highest) and not under its equipment; the lowest of them, then
-    /// the fullest, then the oldest. None while it plays a match.
+    /// 2026-10-19) out of an open room: open (no PIN, a place free, it was
+    /// not turned out of it), its max level set, lower than its room's
+    /// (none set counts as the highest) and not under its equipment; the
+    /// lowest of them, then the fullest, then the oldest. None while it
+    /// plays a match, and none out of a private room (no max level).
     fn room_switch(&self, who: &Who, room: &model::Room) -> Option<RoomSwitch> {
         // Only what a Join would take (no maintenance near, no clan team, a
         // kit that can play).
@@ -1046,27 +1050,29 @@ impl Core<'_> {
         if playing {
             return None;
         }
-        let cap = match room.spec.max_level {
-            0 => u8::MAX,
-            max => max,
+        // A private room has no max level to better: no switch out of it.
+        let cap = match room.spec.door {
+            Door::Open { max_level: 0 } => u8::MAX,
+            Door::Open { max_level } => max_level,
+            Door::Pin(_) => return None,
         };
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
         let best = self
             .rooms
             .open_rooms(who.account_id, gear)
             .filter(|other| {
-                other.key != room.key && other.spec.max_level != 0 && other.spec.max_level < cap
+                other.key != room.key && other.max_level() != 0 && other.max_level() < cap
             })
             .min_by_key(|other| {
                 (
-                    other.spec.max_level,
+                    other.max_level(),
                     std::cmp::Reverse(other.members.len()),
                     other.key,
                 )
             })?;
         Some(RoomSwitch {
             key: best.key,
-            max_level: best.spec.max_level,
+            max_level: best.max_level(),
             players: best.members.len() as u8,
             size: best.spec.size,
             name: self.name_of(best.maker).unwrap_or_default(),
@@ -1105,7 +1111,7 @@ impl Core<'_> {
                     key: room.key,
                     players: room.members.len() as u8,
                     size: room.spec.size,
-                    pin: room.spec.pin.is_some(),
+                    pin: !room.is_open(),
                 })
             })
             .take(wire::FRIEND_ROWS)
@@ -1133,13 +1139,13 @@ impl Core<'_> {
                 RoomRow {
                     key: room.key,
                     level: self.room_level(room),
-                    max_level: room.spec.max_level,
+                    max_level: room.max_level(),
                     size: room.spec.size,
                     players: room.members.len() as u8,
                     phase,
                     secs,
                     map_id,
-                    pin: room.spec.pin.is_some(),
+                    pin: !room.is_open(),
                     name: self.name_of(room.maker).unwrap_or_default(),
                 }
             })
@@ -1503,8 +1509,9 @@ impl Core<'_> {
 
     /// Whether the member can play its room's next match as it is now: its
     /// active kit as Play takes it (a weapon and its ammo), and its
-    /// equipment level within the room's max level (which holds for its
-    /// matches, not only its door: equipment changes in the room).
+    /// equipment level within an open room's max level (which holds for its
+    /// matches, not only its door: equipment changes in the room; a private
+    /// room has none).
     pub(super) fn member_fit(&self, account_id: u32) -> Fit {
         let Some(account) = self.accounts.get(account_id) else {
             return Fit::Kit;
@@ -1536,7 +1543,7 @@ impl Core<'_> {
         let room_minimum = u8::try_from(room.needs()).unwrap_or(u8::MAX);
         // A PIN is the room's for its whole life: its every match pays
         // nothing (the owner's of 2026-10-20).
-        let private = room.spec.pin.is_some();
+        let private = !room.is_open();
         // A private room plays its owner's arrangement as it is (the
         // owner's of 2026-10-26): no sides drawn.
         let arranged = private.then(|| room.arranged());

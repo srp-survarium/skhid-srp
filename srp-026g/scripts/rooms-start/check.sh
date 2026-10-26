@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# check.sh <lobby_menu.swf> [work dir]: a private room's Start and teams (docs/notes/rooms.md) in
-# Ruffle (CPU only: lavapipe on its own virtual X display, never the GPU). RoomsHarness.as makes the
-# lobby movie's own rooms window and tells it room states: Start and the move buttons (» «) for a
-# private room's owner only, never for a member, an open room or a room playing its match; its two
-# team columns, a member in the other after a move; no "N v N" for a private room.
+# check.sh <lobby_menu.swf> [work dir]: a private room's Start, teams and no max level
+# (docs/notes/rooms.md) in Ruffle (CPU only: lavapipe on its own virtual X display, never the GPU).
+# RoomsHarness.as makes the lobby movie's own rooms window and tells it room states: Start and the
+# move buttons (» «) for a private room's owner only, never for a member, an open room or a room
+# playing its match; its two team columns, a member in the other after a move; no "N v N" and no
+# max level for a private room (its info line, its list row, the facts beside the list); the create
+# window's sliders hidden once a PIN is typed, Max level too.
 # Exits 0 when it says pass; prints its lines. A work dir given is kept (the harness, Ruffle's log).
 # Java and Flex from private/actionscript/tools.json (tools/actionscript/README.md), or SRP_AS_TOOLS.
 set -euo pipefail

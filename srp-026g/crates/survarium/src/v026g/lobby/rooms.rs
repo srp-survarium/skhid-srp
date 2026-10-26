@@ -146,7 +146,8 @@ const ROW_NAME: usize = 32;
 pub struct RoomSpec {
     /// Each side's players, one of [`SIZES`].
     pub size: u8,
-    /// The highest equipment level let in, 1 to [`LEVEL_MAX`]; 0: any.
+    /// The highest equipment level let in, 1 to [`LEVEL_MAX`]; 0: any. A
+    /// private room has none: its window's is kept for the next open room.
     pub max_level: u8,
     /// Seconds from the second player to the match, one of [`WAITS`].
     pub wait: u8,
@@ -430,6 +431,8 @@ pub struct RoomRow {
     /// Its level: worked out from its players (the level its match would
     /// have now).
     pub level: u8,
+    /// The highest equipment level let in; 0: any, and a private room (it
+    /// has none: the movie shows none).
     pub max_level: u8,
     pub size: u8,
     pub players: u8,
@@ -504,7 +507,8 @@ pub struct RoomView {
     pub key: u32,
     /// Its level: worked out from its players.
     pub level: u8,
-    /// The highest equipment level let in; 0: any.
+    /// The highest equipment level let in; 0: any, and a private room (it
+    /// has none: the movie shows none).
     pub max_level: u8,
     pub size: u8,
     pub wait: u8,
