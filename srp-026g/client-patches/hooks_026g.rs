@@ -126,6 +126,36 @@ pub extern "C" fn hook_forward_scroll_on_scene_time_bound(frame: &mut Frame) -> 
     }
 }
 
+// ---- kill_feed (patch 67) ----
+
+/// The entry `kill_feed_on_cause_icon` (0x2da3d1, base_player::generate_killed_event, the kill event's cause icon (mov [eax+4],bl; mov edx,[esi+120h]): EAX the event, BL the cause icon (1 a headshot, 3 no killer or the victim), ESI the victim, EBP the killing bullet or 0, [esp+14h] the melee flag) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_kill_feed_on_cause_icon(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `kill_feed_on_cause_icon` calls this, from the game's jump at 0x2da3d1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::kill_feed::on_cause_icon(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- kill_feed (patch 67) ----
+
+/// The entry `kill_feed_on_mastery_icon` (0x23814f, game_world_ui::on_player_killed after extra_icon, before mastery_icon (mov edx,[esp+30h]; mov ecx,[esp+2Ch]): [esp+14h] a GFx value, [esp+2Ch] the description, [esp+105h] the fifth argument's second byte) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_kill_feed_on_mastery_icon(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `kill_feed_on_mastery_icon` calls this, from the game's jump at 0x23814f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::kill_feed::on_mastery_icon(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.

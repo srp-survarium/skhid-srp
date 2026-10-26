@@ -112,7 +112,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
-| `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
+| `rust/patches/src/kill_feed.rs`, `kill_feed.toml`, `check_kill_feed_026g.py`, `port/equiv/kill_feed.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the Rust patch `kill_feed`, lohooks at the sites `killed_event.cause_icon` and `player_killed.mastery_icon`, in the block `patches.code`; until the port, NASM in the block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `bake_cache_026g.asm`, `bake_cache_026g.c`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again (the arena's blocks `bake_cache.code` and `bake_cache.state`); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
@@ -196,9 +196,8 @@ link_026g.py --sizes` prints their bytes, pages and languages):
 | `engine.code` | the engine-function library | NASM (generated) |
 | `match_keys.code`, `match_keys.state` | 58, the kit keys and the match chat option | NASM |
 | `hide_ui.code`, `hide_ui.data` | 62, the key that hides the interface | NASM |
-| `kill_feed.code` | 67, the kill feed's flags | NASM |
 | `bake_cache.code`, `bake_cache.state` | 70, the baked textures' cache | NASM, C |
-| `patches.code` | the Rust exe patches, one crate (the framework's example is 34, the commit_suicide key) | Rust, generated hook entries |
+| `patches.code` | the Rust exe patches, one crate (the framework's example is 34, the commit_suicide key; 38, 67) | Rust, generated hook entries |
 
 The older fixed sections stay as they are (client_patch.md 0.3 says what
 moving one would take).
@@ -3440,9 +3439,11 @@ the evidence: `client_patch.md` 3.55.
 **The flags.** A death makes a kill event in every game's simulation:
 `base_player::generate_killed_event` (0x2DA170, the victim in esi, the killing bullet or 0 in
 ebp) writes the victim, the killer, the weapon's icon and the cause icon (+4: 1 headshot, 3 no
-killer) into an event node whose first 12 bytes its allocation zeroes. The patch
-(`kill_feed_event`, called at 0x2DA3D1 in place of `mov [eax+4],bl / mov edx,[esi+120h]`)
-writes the cause icon and, in the node's +5, the flags. For a bullet, someone else the
+killer) into an event node whose first 12 bytes its allocation zeroes. The patch (the Rust
+patch `kill_feed`, `rust/patches/src/kill_feed.rs`, a lohook at the site
+`killed_event.cause_icon`, 0x2DA3D1 `mov [eax+4],bl / mov edx,[esi+120h]`, which it then
+replays; ported from `kill_feed_026g.asm` with no change of behaviour, proven by
+`port/equiv/kill_feed.py`) writes, in the node's +5, the flags. For a bullet, someone else the
 killer (the cause icon not 3) and no melee hit, retail 0.69d0's rules for its `ricochet_icon` and
 `penetration_icon` (its exe: the hit carries the bullet's segments and reflections,
 generate_killed_event sets ricochet for any reflection, else penetration for segments, neither
@@ -3457,10 +3458,11 @@ written.
 
 **To the movie.** The hud's event handler (0x23B5F0) pushes the node's byte +4 as
 `on_player_killed`'s fifth argument; at 0x23B6F0 it pushes the word (`KILL_FEED_ARGUMENT`), and
-on_player_killed reads the first byte alone for extra_icon (0x2380EA). `kill_feed_row`, called at
-0x23814F (after extra_icon, before mastery_icon), sets the description's `penetration_icon`,
-`ricochet_icon` and `pain_icon` (GFx ints, 0 or 1; 0.69d0's names for the first two) the way the
-function sets its own members, then does the site's two moves.
+on_player_killed reads the first byte alone for extra_icon (0x2380EA). The lohook at
+0x23814F (`player_killed.mastery_icon`, after extra_icon, before mastery_icon) sets the
+description's `penetration_icon`, `ricochet_icon` and `pain_icon` (GFx ints, 0 or 1; 0.69d0's
+names for the first two) the way the function sets its own members (SetMember, its interface's
+vtable +14h: 0x677000 in the movies' 0x8CE2A8), then replays the site's two moves.
 
 **The movie.** `CombatLogItem` shows `CombatLogWallIcon` (0.69d0's `icon_penetration.png`),
 `CombatLogRicochetIcon` (0.69d0's `icon_ricochet.png`) and `CombatLogPainIcon` (a white
@@ -3468,9 +3470,9 @@ lightning bolt for pain shock, drawn) after the weapon and before the cause icon
 suicide row, in 0.69d0's order; the build adds the three bitmaps (`../flash/hud/bitmaps/`, made
 by `../scripts/kill-feed-icons/make_icons.py`).
 
-**Checked:** `selftest_026g.py` check 67 (the sites' original code, the hooks, no relocation under
-them and no branch into them, the code the link's, its one jump into the game the part lookup;
-the movie's row); `check_kill_feed_026g.py` (Unicorn): the event from 0x2DA3AD to its queueing
+**Checked:** `selftest_026g.py` check 67 (the sites' original code, the Rust lohooks (the
+generated entries, their replays), no relocation under them and no branch into them; the
+movie's row); `check_kill_feed_026g.py` (Unicorn): the event from 0x2DA3AD to its queueing
 in 26 cases (a bullet death, a pain death, one hit emptying pain and body or pain and head
 together (damage, not pain), a headshot through pain, pain all but empty, a toxic death, through
 a wall, a ricochet, pierces and a ricochet (the ricochet only), a ricochet then a pierce, a

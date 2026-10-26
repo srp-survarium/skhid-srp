@@ -1521,7 +1521,6 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.HIDE_UI_TABLE_REFS] + \
         [(va, len(old)) for va, old, _ in P.HIDE_UI_TABLE_COUNTS] + \
-        [(va, len(old)) for va, old, _, _ in P.KILL_FEED_HOOKS] + \
         [(P.KILL_FEED_ARGUMENT[0], len(P.KILL_FEED_ARGUMENT[1]))] + \
         [(va, len(old)) for va, old, _ in P.FALL_GRAVITY] + \
         [(va, len(old)) for va, old, _, _ in P.BAKE_CACHE_HOOKS] + \
@@ -4434,8 +4433,8 @@ def test_hide_ui(original, image, before):
 
 
 def test_kill_feed(original, image, before):
-    """Check 67: the kill feed's wall and pain icons (patch 67,
-    KILL_FEED_HOOKS, KILL_FEED_ARGUMENT). check_kill_feed_026g.py runs the
+    """Check 67: the kill feed's wall and pain icons (patch 67, the Rust
+    patch kill_feed, KILL_FEED_ARGUMENT). check_kill_feed_026g.py runs the
     three sites from the game's code on made-up victims, bullets and
     descriptions, with the game's own part lookup."""
     stock = Image(original)
@@ -4471,39 +4470,27 @@ def test_kill_feed(original, image, before):
           "the damage model's parts by name (0x2E58B0, hit_impl's lookup of \"pain\"; health +0A0h); a bullet's "
           "segments +84h (one more for each pierce and reflection, 0x32EE20) and reflections +88h (0x32E33A), "
           "zero at its construction")
-    linked = P.arena()
-    block = linked.blocks["kill_feed.code"]
-    for va, old, symbol, opcode in P.KILL_FEED_HOOKS:
-        target = linked.symbols[symbol]
-        hook = P.hook_bytes(target, va, old, 0, opcode)
-        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
-              and block.va <= target < block.va + block.size,
-              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
-              f"`call {target:#x}` ({symbol}, an entry of kill_feed.code) and nops here")
+    check(cstr(0x8CF12C) == b"ObjectInterface::SetMember"
+          and struct.unpack("<I", stock.read(0x8CE2A8 + 0x14, 4))[0] == 0x677000
+          and rows(stock, 0x238178, 0x0D) == ["mov eax,[ecx]", "mov eax,[eax+0x14]", "push dword 0xa036a4",
+                                              "push edx", "call eax"],
+          "the description's interface sets a member through its vtable's slot +14h, as the site's own calls: "
+          "the movies' interface 0x8CE2A8 has SetMember 0x677000 there (its profiler name "
+          "\"ObjectInterface::SetMember\", 0x8CF12C)")
+    rust_lohooks(original, image, before, "kill_feed",
+                 {0x2DA3D1: ["mov [eax+0x4],bl", "mov edx,[esi+0x120]"],
+                  0x23814F: ["mov edx,[esp+0x30]", "mov ecx,[esp+0x2c]"]})
     va, old, new = P.KILL_FEED_ARGUMENT
     check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
           and rows(image, va, len(new)) == ["movzx edx,word [edi+0x4]"],
           f"{va:#x}: the handler pushes the node's word +4 (the cause icon, the flags) here")
-    sites = list(P.KILL_FEED_HOOKS) + [(va, old, None, None)]
-    under = [v for kind, v in stock.relocations().values() if kind == 3
-             and any(s - 4 < v < s + len(o) for s, o, _, _ in sites)]
-    hits = [h for s, o, _, _ in sites for h in aimed_inside(original, s, len(o), 0x82)
-            if not s <= h < s + len(o) and starts_instruction(stock, h)]
-    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    hits = [h for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, f"{va:#x}: no base relocation under it, and no branch aims inside it"
           + "".join(f", {h:#x}" for h in hits + under))
-    code = P.linker.block_bytes(linked, "kill_feed.code")
-    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's kill_feed.code ({len(code)} bytes)")
-    names = code.index(struct.pack("<I", block.va + code.index(b"pain\0")))   # the names' pointers: the data
-    texts = [text for va, _, text in ndisasm(code[:names], block.va)]
-    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
-                      and not block.va <= branch_target(t) < block.va + len(code)})
-    pushed = lambda text: f"push dword {block.va + code.index(text + bytes(1)):#x}" in texts
-    check(outside == [0x2E58B0] and pushed(b"penetration_icon") and pushed(b"ricochet_icon") and pushed(b"pain_icon")
-          and "kill_feed.state" not in linked.blocks
-          and [t for t in texts if t.startswith("mov [") and "esp" not in t] == ["mov [eax+0x4],bl", "mov [eax+0x5],dl"],
-          "it jumps to the part lookup (0x2E58B0) and calls nothing else of the game's (SetMember through the "
-          "description's interface), sets penetration_icon, ricochet_icon and pain_icon, writes the node's +4 and +5 and nothing "
-          "else outside its frame, and keeps no state")
+    check("kill_feed.code" not in P.arena().blocks, "the asm's block kill_feed.code is gone (the Rust patch's "
+          "code is in patches.code)")
     here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
     item = here("flash", "hud", "src", "survarium", "controls", "CombatLogItem.as")
     check("data.penetration_icon == 1" in item and "data.ricochet_icon == 1" in item and "data.pain_icon == 1" in item

@@ -148,6 +148,20 @@ pub unsafe fn engine_spottable_set_spotted(spottable: *mut c_void, spotter: *mut
     }
 }
 
+/// 0x677000 Scaleform::GFx::Value::ObjectInterface::SetMember: interface ECX, data ESP+4, name ESP+8, value ESP+12, display ESP+16; pops 16; AL; through its vtable's slot +0x14 (thiscall; this the model)
+///
+/// # Safety
+/// `interface` is an object whose vtable's slot +0x14 is a function of the model's convention and arguments.
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_gfx_set_member(interface: *mut c_void, data: *mut c_void, name: *const u8, value: *const c_void, display: u32) -> u8 {
+    unsafe {
+        let slot = (*(interface as *const *const u32)).byte_add(0x14).read() as usize;
+        let function: unsafe extern "thiscall" fn(*mut c_void, *mut c_void, *const u8, *const c_void, u32) -> u8 = core::mem::transmute(slot);
+        function(interface, data, name, value, display)
+    }
+}
+
 #[allow(dead_code, non_upper_case_globals)]
 unsafe extern "C" {
     /// the IAT slot 0x870048 (kernel32, stdcall): void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)
@@ -743,6 +757,24 @@ pub mod bullet {
     pub unsafe fn segment(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x84).cast() }
     }
+
+    /// +0x84 (u32): the trajectory's segments past the first: one more for each pierce and each reflection (0x32EE20), 0 at its construction (0x32BB1B)
+    ///
+    /// # Safety
+    /// `this` is a survarium::bullet.
+    #[inline(always)]
+    pub unsafe fn segments(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x84).cast() }
+    }
+
+    /// +0x88 (u8): the reflections (0x32E33A), 0 at its construction
+    ///
+    /// # Safety
+    /// `this` is a survarium::bullet.
+    #[inline(always)]
+    pub unsafe fn reflections(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x88).cast() }
+    }
 }
 
 /// survarium::bullet_owner's fields (fields_026g.tsv).
@@ -1148,6 +1180,15 @@ pub mod base_player {
     pub unsafe fn inventory(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x10c).cast() }
     }
+
+    /// +0x2e0 (u32): the player's damage model, or 0 (hit_impl's lookup of "pain", 0x2D9C3D)
+    ///
+    /// # Safety
+    /// `this` is a survarium::base_player.
+    #[inline(always)]
+    pub unsafe fn damage_model(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x2e0).cast() }
+    }
 }
 
 /// survarium::client_weapon_item's fields (fields_026g.tsv).
@@ -1267,5 +1308,98 @@ pub mod shared_string {
     #[inline(always)]
     pub unsafe fn count(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x0).cast() }
+    }
+}
+
+/// survarium::damage_model's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod damage_model {
+    use core::ffi::c_void;
+
+    /// +0x108 (u32): its parts, a list by name (+8 the head; a part's name +80h, the next +0): find_body_part 0x2E58B0 takes this field's address
+    ///
+    /// # Safety
+    /// `this` is a survarium::damage_model.
+    #[inline(always)]
+    pub unsafe fn parts(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x108).cast() }
+    }
+}
+
+/// survarium::body_part's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod body_part {
+    use core::ffi::c_void;
+
+    /// +0xa0 (f32): a part's health, clamped at 0 (hit_impl 0x2D9C5E)
+    ///
+    /// # Safety
+    /// `this` is a survarium::body_part.
+    #[inline(always)]
+    pub unsafe fn health(this: *mut c_void) -> *mut f32 {
+        unsafe { this.byte_add(0xa0).cast() }
+    }
+}
+
+/// survarium::killed_event's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod killed_event {
+    use core::ffi::c_void;
+
+    /// +0x5 (u8): the byte after the cause icon (+4), the kill feed's (patch 67): 1 a wall, 2 pain, 4 a ricochet; the allocation 0x2D43B0 zeroes +0..+0Bh
+    ///
+    /// # Safety
+    /// `this` is a survarium::killed_event.
+    #[inline(always)]
+    pub unsafe fn flags(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x5).cast() }
+    }
+}
+
+/// survarium::killed_event_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod killed_event_frame {
+    use core::ffi::c_void;
+
+    /// +0x14 (u8): generate_killed_event's [esp+14h] at 0x2DA3D1: its bullet's damage is its weapon's melee (0x2DA2D7)
+    ///
+    /// # Safety
+    /// `this` is a survarium::killed_event_frame.
+    #[inline(always)]
+    pub unsafe fn melee(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x14).cast() }
+    }
+}
+
+/// survarium::player_killed_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod player_killed_frame {
+    use core::ffi::c_void;
+
+    /// +0x14 (u32): on_player_killed's GFx value at 0x23814F ([esp+14h], extra_icon's: +4 its type, +8 its data)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_killed_frame.
+    #[inline(always)]
+    pub unsafe fn value(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x14).cast() }
+    }
+
+    /// +0x2c (u32): on_player_killed's description, a GFx value at 0x23814F ([esp+2Ch]: its interface, +4 its type, +8 its data)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_killed_frame.
+    #[inline(always)]
+    pub unsafe fn description(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x2c).cast() }
+    }
+
+    /// +0x105 (u8): on_player_killed's fifth argument's second byte at 0x23814F ([esp+104h] the cause icon, read as a byte alone at 0x2380EA): the kill feed's flags (patch 67)
+    ///
+    /// # Safety
+    /// `this` is a survarium::player_killed_frame.
+    #[inline(always)]
+    pub unsafe fn icons(this: *mut c_void) -> *mut u8 {
+        unsafe { this.byte_add(0x105).cast() }
     }
 }

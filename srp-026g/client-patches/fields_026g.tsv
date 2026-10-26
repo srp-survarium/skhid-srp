@@ -102,3 +102,13 @@ vostok::render::image	emissive_scroll_u_key	0x9F971C	u8	"emissive_map_scroll_u_d
 vostok::render::image	emissive_scroll_v_key	0x9F973C	u8	"emissive_map_scroll_v_direction"
 vostok::render::image	uv_scrolling_parameters0_name	0x9F975C	u8	"uv_scrolling_parameters0" (g_stage's compile 0x1E0815)
 vostok::render::image	uv_scrolling_parameters1_name	0x9F9778	u8	"uv_scrolling_parameters1" (g_stage's compile 0x1E0824)
+survarium::base_player	damage_model	0x2E0	u32	the player's damage model, or 0 (hit_impl's lookup of "pain", 0x2D9C3D)
+survarium::damage_model	parts	0x108	u32	its parts, a list by name (+8 the head; a part's name +80h, the next +0): find_body_part 0x2E58B0 takes this field's address
+survarium::body_part	health	0xA0	f32	a part's health, clamped at 0 (hit_impl 0x2D9C5E)
+survarium::bullet	segments	0x84	u32	the trajectory's segments past the first: one more for each pierce and each reflection (0x32EE20), 0 at its construction (0x32BB1B)
+survarium::bullet	reflections	0x88	u8	the reflections (0x32E33A), 0 at its construction
+survarium::killed_event	flags	0x5	u8	the byte after the cause icon (+4), the kill feed's (patch 67): 1 a wall, 2 pain, 4 a ricochet; the allocation 0x2D43B0 zeroes +0..+0Bh
+survarium::killed_event_frame	melee	0x14	u8	generate_killed_event's [esp+14h] at 0x2DA3D1: its bullet's damage is its weapon's melee (0x2DA2D7)
+survarium::player_killed_frame	value	0x14	u32	on_player_killed's GFx value at 0x23814F ([esp+14h], extra_icon's: +4 its type, +8 its data)
+survarium::player_killed_frame	description	0x2C	u32	on_player_killed's description, a GFx value at 0x23814F ([esp+2Ch]: its interface, +4 its type, +8 its data)
+survarium::player_killed_frame	icons	0x105	u8	on_player_killed's fifth argument's second byte at 0x23814F ([esp+104h] the cause icon, read as a byte alone at 0x2380EA): the kill feed's flags (patch 67)

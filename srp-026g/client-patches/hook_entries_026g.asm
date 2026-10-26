@@ -330,6 +330,86 @@ forward_scroll_on_scene_time_bound_replay:
     db 0x8d, 0xb3, 0x3c, 0x12, 0x00, 0x00
     jmp 0x149919
 
+; 0x2da3d1 base_player::generate_killed_event, the kill event's cause icon (mov [eax+4],bl; mov edx,[esi+120h]): EAX the event, BL the cause icon (1 a headshot, 3 no killer or the victim), ESI the victim, EBP the killing bullet or 0, [esp+14h] the melee flag: lohook -> kill_feed_on_cause_icon
+global kill_feed_on_cause_icon
+extern hook_kill_feed_on_cause_icon
+kill_feed_on_cause_icon:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_kill_feed_on_cause_icon
+    mov edx, kill_feed_on_cause_icon_replay
+    cmp eax, 0
+    je kill_feed_on_cause_icon_go
+    mov edx, 0x2da3da
+    cmp eax, 1
+    je kill_feed_on_cause_icon_go
+    ud2
+kill_feed_on_cause_icon_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+kill_feed_on_cause_icon_replay:
+    db 0x88, 0x58, 0x04
+    db 0x8b, 0x96, 0x20, 0x01, 0x00, 0x00
+    jmp 0x2da3da
+
+; 0x23814f game_world_ui::on_player_killed after extra_icon, before mastery_icon (mov edx,[esp+30h]; mov ecx,[esp+2Ch]): [esp+14h] a GFx value, [esp+2Ch] the description, [esp+105h] the fifth argument's second byte: lohook -> kill_feed_on_mastery_icon
+global kill_feed_on_mastery_icon
+extern hook_kill_feed_on_mastery_icon
+kill_feed_on_mastery_icon:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_kill_feed_on_mastery_icon
+    mov edx, kill_feed_on_mastery_icon_replay
+    cmp eax, 0
+    je kill_feed_on_mastery_icon_go
+    mov edx, 0x238157
+    cmp eax, 1
+    je kill_feed_on_mastery_icon_go
+    ud2
+kill_feed_on_mastery_icon_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+kill_feed_on_mastery_icon_replay:
+    db 0x8b, 0x54, 0x24, 0x30
+    db 0x8b, 0x4c, 0x24, 0x2c
+    jmp 0x238157
+
 ; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
 global ragdoll_on_step
 extern hook_ragdoll_on_step

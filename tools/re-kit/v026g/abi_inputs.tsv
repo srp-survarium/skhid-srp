@@ -4668,3 +4668,8 @@ va	name	location	role	basis
 0x001a8900		entry ESP+8	the constant's name, a C string made a shared string (0xE0B50 at 0x1A893B)	observed
 0x000e0b50		entry ESP+4	the text, a C string (null reads as ""), looked up in the shared strings' pool or added to it	observed
 0x000e0ae0		entry ESP+4	the shared string whose count went to 0: taken out of the pool and freed (renderer_context's constructor 0x1498FE..0x14990A)	observed
+0x00677000	Scaleform::GFx::Value::ObjectInterface::SetMember	ECX	the movies' object interface (a GFx value's +0; vtable 0x8CE2A8, slot +14h this function, its profiler name "ObjectInterface::SetMember" 0x8CF12C; slot +34h SetElement 0x677120, +3Ch PushBack 0x6771C0)	observed
+0x00677000	Scaleform::GFx::Value::ObjectInterface::SetMember	entry ESP+4	the object's data (a GFx value's +8)	observed
+0x00677000	Scaleform::GFx::Value::ObjectInterface::SetMember	entry ESP+8	the member's name (a C string)	observed
+0x00677000	Scaleform::GFx::Value::ObjectInterface::SetMember	entry ESP+12	the value to set (a GFx value, 18h bytes: +4 its type, 3 int; +8 the int)	observed
+0x00677000	Scaleform::GFx::Value::ObjectInterface::SetMember	entry ESP+16	is a display object (the value's type & 8Fh is 0Ah; pushed as a dword 0 or 1)	observed

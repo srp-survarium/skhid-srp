@@ -33,6 +33,7 @@ pub mod vostok;
 
 pub mod replay_viewer;
 pub mod forward_scroll;
+pub mod kill_feed;
 pub mod spot;
 pub mod ragdoll;
 pub mod blackout;
