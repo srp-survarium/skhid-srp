@@ -84,9 +84,8 @@ mod unstick;
 pub use aim::{AimTuning, SkillTuning, TierSkill};
 pub use play::PlayTuning;
 pub use sense::{CheatTuning, SenseTuning};
-pub use team::{ModTuning, Personality, ThinkTuning, SEARCH_FLOORS_PER_POLL};
-pub use unstick::{SUICIDE_AFTER_OWNER_MS, UnstickTuning};
 pub use team::{ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL};
+pub use unstick::{SUICIDE_AFTER_OWNER_MS, UnstickTuning};
 
 /// `Ok` if `ok`, else the name of what is wrong.
 fn check(ok: bool, what: &str) -> Result<(), String> {
