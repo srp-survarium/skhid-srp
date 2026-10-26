@@ -219,6 +219,28 @@ impl<'t> Context<'t> {
     }
 }
 
+impl Context<'_> {
+    /// Multiplies ST0 by `factor` as an `fmul dword [m32]` at the site
+    /// would: in the x87, under the game's precision and rounding control
+    /// (the control word the entry kept: the hardware's while the handler
+    /// runs), the 80-bit result left in the saved ST0. The status word's
+    /// flags the multiply raises (C1, the sticky precision bit) are not
+    /// kept: the entry restores the site's. ST0 must hold a value.
+    pub fn fmul_st0(&mut self, factor: f32) {
+        // SAFETY: new's contract: `fxsave` is the entry's 512-byte area,
+        // ST0 at +32 (10 bytes, stack order). The asm loads it, multiplies
+        // and stores it back, the x87 stack as it was (empty: the handler's
+        // Rust code keeps it so across calls).
+        unsafe {
+            core::arch::asm!("fld tbyte ptr [{st}]", "fmul dword ptr [{f}]", "fstp tbyte ptr [{st}]",
+                             st = in(reg) self.frame.fxsave.add(32), f = in(reg) &factor,
+                             out("st(0)") _, out("st(1)") _, out("st(2)") _, out("st(3)") _,
+                             out("st(4)") _, out("st(5)") _, out("st(6)") _, out("st(7)") _,
+                             options(nostack, preserves_flags));
+        }
+    }
+}
+
 /// `value` in the x87's 80-bit extended format (sign, 15-bit exponent
 /// biased 16383, 64-bit significand with its integer bit): exact for every
 /// f64, a subnormal normalized, an infinity or NaN kept.
@@ -309,6 +331,22 @@ mod tests {
         assert_eq!(e(1.5), (0x3FFF, 0xC000_0000_0000_0000));
         assert_eq!(e(f64::from_bits(1)), (16383 - 1074, 1 << 63));
         assert_eq!(e(f64::INFINITY), (0x7FFF, 1 << 63));
+    }
+
+    #[test]
+    fn x87_multiply() {
+        let mut regs = Regs { edi: 0, esi: 0, ebp: 0, esp: 0, ebx: 0, edx: 0, ecx: 0, eax: 0, eflags: 0 };
+        #[repr(align(16))]
+        struct Area([u8; 512]);
+        let mut fx = Area([0u8; 512]);
+        fx.0[32..42].copy_from_slice(&ext80(2.5));
+        let mut frame = Frame { regs: &mut regs, fxsave: fx.0.as_mut_ptr() };
+        // SAFETY: the test owns the registers and the fxsave area.
+        let mut ctx = unsafe { Context::new(&mut frame) };
+        ctx.fmul_st0(100.0);
+        ctx.fmul_st0(0.5);
+        assert_eq!(fx.0[32..42], ext80(125.0));
+        assert_eq!(fx.0[42..48], [0; 6]);
     }
 
     #[test]

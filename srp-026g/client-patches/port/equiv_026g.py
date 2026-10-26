@@ -101,8 +101,10 @@ class Hook:
     """A way the game enters the patch: a run starts at `site` (the game's
     instruction that calls or jumps to the patch) and ends at the first
     leaving of the patch's code that is not a call (a jump or a return into
-    the game); `live` the registers compared there (ESP always; "al" the
-    low byte of EAX alone, "st0" the x87 top: its value and TOP);
+    the game); `live` the registers compared there (ESP always): general
+    ones, "al" the low byte of EAX alone, "xmm0".."xmm7" (all 128 bits),
+    "st0" (the x87 top's 80 bits, and TOP) and "x87_top" (the x87 stack's
+    TOP, its depth);
     `externals` this hook's {VA: External} (else the spec's EXTERNALS);
     `aliases` {exit VA: the VA it stands for}, an exit that runs nothing
     before it (a `call` site's return onto its nops: the old's 0x2D84EE is
@@ -239,10 +241,21 @@ class Machine:
         self.uc.mem_write(va, struct.pack("<I", value & 0xFFFFFFFF))
 
     def reg(self, name):
-        return self.uc.reg_read(self.regs[name])
+        if name in self.regs:
+            return self.uc.reg_read(self.regs[name])
+        from unicorn import x86_const
+        top = self.uc.reg_read(x86_const.UC_X86_REG_FPSW) >> 11 & 7
+        if name == "x87_top":
+            return top
+        if name == "st0":                                  # the physical register TOP names
+            return self.uc.reg_read(getattr(x86_const, f"UC_X86_REG_FP{top}"))
+        return self.uc.reg_read(getattr(x86_const, f"UC_X86_REG_{name.upper()}"))   # xmm0..7
 
     def set_reg(self, name, value):
-        self.uc.reg_write(self.regs[name], value & 0xFFFFFFFF)
+        if name in self.regs:
+            return self.uc.reg_write(self.regs[name], value & 0xFFFFFFFF)
+        from unicorn import x86_const
+        return self.uc.reg_write(getattr(x86_const, f"UC_X86_REG_{name.upper()}"), value)   # xmm0..7
 
     # -- lazily made memory --
     def page_bytes(self, page):
@@ -374,6 +387,8 @@ class Machine:
             self.write32(esp + 4 * i, value)
         for name in REG_NAMES:
             self.set_reg(name, case.regs.get(name, 0))
+        for name in sorted(set(case.regs) - set(REG_NAMES) - {"eflags"}):    # xmm0..7
+            self.set_reg(name, case.regs[name])
         self.set_reg("eflags", case.regs.get("eflags", 0x202))
         self.set_reg("esp", esp)
         self.written.clear()

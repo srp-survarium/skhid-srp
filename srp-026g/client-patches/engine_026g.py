@@ -19,9 +19,10 @@ global symbol of its own, which the link resolves for every caller):
     symbol     the C name (engine_...)
     va         the real function's VA (0.26g never rebases)
     arguments  per C parameter, in order, LOCATION:word: where the real
-               function takes it (EAX ECX EDX EBX ESI EDI EBP, or ESP+n, n =
-               4, 8, ...: the stack slot above the return address) and a word
-               of the re-kit's role for that location; "-" for none
+               function takes it (EAX ECX EDX EBX ESI EDI EBP, XMM0 for a
+               float, or ESP+n, n = 4, 8, ...: the stack slot above the
+               return address) and a word of the re-kit's role for that
+               location; "-" for none
     prototype  the C declaration, `ret name(type param, ...)`
     call       how every caller calls it: "thunk" (the default: a cdecl
                thunk, below), "stdcall", "cdecl" or "thiscall" (directly, in
@@ -60,7 +61,8 @@ two parameters given each other's locations are refused (a swap the thunk
 would follow faithfully, which no entry check can see). A result is read
 from abi.tsv's `result` (EAX, AL widened to EAX, EDX:EAX for a 64-bit
 return, XMM0 moved to ST0 for a float).
-Anything else (an XMM or byte-register argument, varargs, a range) is
+A float argument in XMM0 is moved there (`movss`, a thunk's only). Anything
+else (another XMM or a byte-register argument, varargs, a range) is
 refused: add the row to the re-kit, or call that function by hand.
 
 Each function is a thunk, the global symbol `engine_...`, that keeps EBX,
@@ -113,7 +115,7 @@ def location(text):
     stack slot ("ESP+4"); a byte register is its register, a slot's
     qualifier ("low byte", "float32") its slot."""
     text = text.strip()
-    if text.upper() in REGISTERS:
+    if text.upper() in REGISTERS or text.upper() == "XMM0":
         return text.upper()
     if text.upper() in ("AL", "CL", "DL", "BL"):
         return "E" + text[0].upper() + "X"
@@ -266,6 +268,8 @@ def function(row, abi=None, inputs=None):
             if fits(word, args[j]) and fits(words[j], at):
                 raise Refused(f"{name}: {word!r} and {words[j]!r} fit both {at} and {args[j]}: words that tell "
                               "the two apart")
+    if any(at == "XMM0" and (kind.strip() != "float" or call != "thunk") for (kind, _), at in zip(params, args)):
+        raise Refused(f"{name}: XMM0 takes a float, through a thunk")
     slots = sorted(int(a[4:]) for a in args if a.startswith("ESP+"))
     if slots != list(range(4, 4 * len(slots) + 4, 4)):
         raise Refused(f"{name}: the stack slots {slots} have a gap")
@@ -373,7 +377,8 @@ def thunk(f):
         pushed += 4
     for i, a in enumerate(f["args"]):
         if not a.startswith("ESP+"):
-            lines.append(f"    mov {a.lower()}, [esp + {frame + 4 * i + pushed}]   ; {f['params'][i][1]}")
+            move = "movss" if a == "XMM0" else "mov"
+            lines.append(f"    {move} {a.lower()}, [esp + {frame + 4 * i + pushed}]   ; {f['params'][i][1]}")
     lines.append(f"    call {f['va']:#x}")
     left = pushed - f["cleanup"]
     if left:

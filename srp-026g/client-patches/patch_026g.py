@@ -1183,6 +1183,11 @@ ACTION_STATE_VA = 0x242460                    # player_input_handler: the state 
 # applied like the other arena hooks (site VA, the bytes replaced, the
 # arena symbol of the generated entry, the opcode).
 RUST_PATCHES = tuple(patch["name"] for patch in hooks_026g.read_tomls())
+# The base relocations under the Rust hooks' spans, which the build disables
+# (an absolute operand there is the exe's, which is never rebased; a lohook
+# replays it at its own address or skips it). Any other relocation under a
+# hook stops the build.
+RUST_HOOK_RELOCS = ()
 
 
 def rust_hooks(original):
@@ -3525,7 +3530,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + HIDE_UI_HOOKS \
                         + BAKE_CACHE_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
-                    if neutralize_relocs(data, [(va, va + len(expected))]):
+                    disabled = neutralize_relocs(data, [(va, va + len(expected))])
+                    if not set(disabled) <= set(RUST_HOOK_RELOCS):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)

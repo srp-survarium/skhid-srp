@@ -135,7 +135,8 @@ NH3API's HiHook/LoHook applied at build time:
 **`Context` (`lohook`)**: the registers (`reg`/`set_reg`, `set_reg8` for
 `al`/`bl`/..), the flags (`set_flag` for a following `jcc`), xmm0..7
 (`xmm_f32`/`set_xmm_f32`, f64), an x87 result pushed as an `fld` would
-(`push_st`, exact in 80 bits), the site's stack by its ESP offsets
+(`push_st`, exact in 80 bits), ST0 multiplied as an `fmul dword` would
+(`fmul_st0`, in the x87 under the game's control word), the site's stack by its ESP offsets
 (`stack`/`set_stack`, `stack_u8`/`set_stack_u8`; `site_esp`) and typed frame
 locals (fields_026g.tsv rows with a negative offset). **`Flow`**:
 `Continue` (apply the context's writes, then replay the overwritten bytes),
@@ -211,7 +212,9 @@ function some vtable holds in that slot (the model whose re-kit rows give
 the thiscall convention, checked as a direct thiscall's), and the raw layer
 calls whatever the object's own vtable names there, as the game does.
 
-Generated and tested (check_hooks_026g.py runs each kind's entry template
+A span's base
+relocation stops the build unless patch_026g.py's RUST_HOOK_RELOCS names it
+(the build disables it: the exe is never rebased). Generated and tested (check_hooks_026g.py runs each kind's entry template
 beside the original exe and checks it is transparent -- the arguments and
 ECX delivered in order, the result passed back, the callee-saved registers
 kept, the right bytes cleaned):

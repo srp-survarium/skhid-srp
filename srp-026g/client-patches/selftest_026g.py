@@ -3714,7 +3714,7 @@ def rust_field(kind, field):
     return rows[0]["offset"]
 
 
-def rust_lohooks(original, image, before, patch, sites, exits=()):
+def rust_lohooks(original, image, before, patch, sites, exits=(), relocs=()):
     """A Rust patch's lohooks (its <patch>.toml, sites_026g.tsv), static, on
     the bytes: `sites` {VA: the instructions the original has there, the
     span}; each site those bytes in the original and the build without the
@@ -3723,7 +3723,8 @@ def rust_lohooks(original, image, before, patch, sites, exits=()):
     called, its Flow taken) with its replay the span's own instructions
     (relative branches made again to the same targets) and its way back past
     the span; `exits` exactly the named exits the entry may jump to; no base
-    relocation under a site and no branch aims inside one."""
+    relocation under a site but `relocs` (each disabled in the build:
+    P.RUST_HOOK_RELOCS) and no branch aims inside one."""
     stock = Image(original)
     linked = P.arena()
     block = linked.blocks["patches.code"]
@@ -3765,10 +3766,13 @@ def rust_lohooks(original, image, before, patch, sites, exits=()):
     spans = [(s, o) for s, o, _, _ in hooks]
     under = [v for kind, v in stock.relocations().values() if kind == 3
              and any(s - 4 < v < s + len(o) for s, o in spans)]
+    kept = [v for kind, v in image.relocations().values() if kind == 3 and v in under]
     hits = [h for s, o in spans for h in aimed_inside(original, s, len(o), 0x82)
             if not s <= h < s + len(o) and starts_instruction(stock, h)]
-    check(not under and not hits, f"{patch}: no base relocation under its sites, and no branch aims inside one"
-          + "".join(f", {h:#x}" for h in hits + under))
+    check(sorted(under) == sorted(relocs) and set(relocs) <= set(P.RUST_HOOK_RELOCS) and not kept and not hits,
+          f"{patch}: no base relocation under its sites"
+          + (f" but {', '.join(f'{v:#x}' for v in sorted(relocs))}, disabled in the build" if relocs else "")
+          + ", and no branch aims inside one" + "".join(f", {h:#x}" for h in hits + under + kept))
 
 
 def test_suicide_key(original, image, before):
