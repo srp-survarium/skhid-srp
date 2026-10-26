@@ -620,7 +620,15 @@ fn dropped_to(grid: &WalkGrid, node: NodeId, at: Vec3, (sx, sz): (f32, f32)) -> 
     let from = grid.position(node);
     let (px, pz) = (at.x + sx, at.z + sz);
     grid.links(node)
-        .filter(|(_, kind)| *kind == LinkKind::Drop)
+        // A drop link, or a gap drop walked off (no key: the body walks over
+        // the edge and comes down on its landing, `mapdata::grid::gap`).
+        .filter(|&(next, kind)| {
+            kind == LinkKind::Drop
+                || (kind == LinkKind::GapDrop
+                    && grid
+                        .off_link(node, next)
+                        .is_some_and(|l| l.press == mapdata::grid::gap::Takeoff::WalkOff))
+        })
         .map(|(next, _)| next)
         .filter(|&next| {
             let to = grid.position(next);
