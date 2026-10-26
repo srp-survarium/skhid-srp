@@ -6,6 +6,12 @@
 //! aim model (no aim boost: the cone, the kick and the hit chance are the
 //! reflex's and the client's).
 //!
+//! **A noticed trap is defused by hand** (`traps.react.defuse`, off) by a bot
+//! that does not shoot it: it walks to a spot `defuse_stand_m` from the trap
+//! on its own side, crouches, looks at the trap's centre and holds USE for the
+//! trap's defuse time (5 s), unless something calls it away or a mate is
+//! already beside the trap. The same one-at-a-time rule as the shot.
+//!
 //! **A noticed trap is kept off, or jumped** (`traps.react.pass`, `.jump`,
 //! off): the traps the bot noticed and does not shoot make the floors round
 //! them a *soft* part of its route filter (a way round them where that is not
@@ -41,6 +47,7 @@ use survarium::v026g::match_msgs::traps::{PlacedTrap, TrapState};
 use super::aimpoint::sight_line;
 use super::route_end::RouteEnd;
 use super::sense::in_view;
+use super::tactics::USE_REACH_M;
 use super::think::Due;
 use super::trap_know::TrapField;
 use super::traps::{FIELD_M, TRIGGER_M};
@@ -145,6 +152,14 @@ pub struct ReactCounts {
     pub trap_passed: u32,
     pub trap_jumped: u32,
     pub trap_caught_after_notice: u32,
+    /// The hand defuse: begun (a bot set out for a trap), traps the world
+    /// then showed gone with the bot's USE held on them for 3 s or more (the
+    /// players' own measure; a proxy: a mate's shot or another's foot may
+    /// have done it), and given up (walk too long, a hit, an enemy, out of
+    /// reach, the 5 s not enough).
+    pub defuse_started: u32,
+    pub disarmed_by_hand: u32,
+    pub defuse_gave_up: u32,
 }
 
 impl ReactCounts {
@@ -161,6 +176,9 @@ impl ReactCounts {
         self.trap_passed += other.trap_passed;
         self.trap_jumped += other.trap_jumped;
         self.trap_caught_after_notice += other.trap_caught_after_notice;
+        self.defuse_started += other.defuse_started;
+        self.disarmed_by_hand += other.disarmed_by_hand;
+        self.defuse_gave_up += other.defuse_gave_up;
         for k in 0..3 {
             self.passes[k] += other.passes[k];
             self.through[k] += other.through[k];
@@ -247,6 +265,8 @@ pub struct React {
     field: Arc<TrapField>,
     /// Traps the bot has jumped.
     jumped: Vec<TrapKey>,
+    /// Traps the bot has rolled for a defuse (taken or declined): once each.
+    tried_defuse: Vec<TrapKey>,
 }
 
 impl React {
@@ -393,6 +413,7 @@ impl React {
         self.field = Arc::default();
         self.jumped.clear();
         self.tried.clear();
+        self.tried_defuse.clear();
         self.seen.clear();
         self.passing = None;
         self.prev = None;
@@ -429,14 +450,43 @@ pub enum Reaction {
         last: u32,
         down: bool,
     },
+    /// Walking to the stand `spot` beside the trap, to defuse it.
+    Walk {
+        key: TrapKey,
+        at: Vec3,
+        spot: Vec3,
+        since: u32,
+    },
+    /// At the stand, crouched, the view on the trap, USE held (`since`: the
+    /// arrival).
+    Defuse { key: TrapKey, at: Vec3, since: u32 },
 }
 
 impl Reaction {
     pub fn target(&self) -> Option<(TrapKey, Vec3)> {
         match *self {
             Reaction::Idle => None,
-            Reaction::Aim { key, at, .. } | Reaction::Shoot { key, at, .. } => Some((key, at)),
+            Reaction::Aim { key, at, .. }
+            | Reaction::Shoot { key, at, .. }
+            | Reaction::Walk { key, at, .. }
+            | Reaction::Defuse { key, at, .. } => Some((key, at)),
         }
+    }
+
+    /// When the reaction began, if it is going.
+    pub fn since(&self) -> Option<u32> {
+        match *self {
+            Reaction::Idle => None,
+            Reaction::Aim { since, .. }
+            | Reaction::Shoot { since, .. }
+            | Reaction::Walk { since, .. }
+            | Reaction::Defuse { since, .. } => Some(since),
+        }
+    }
+
+    /// Whether it is a hand defuse (walking to it or at it).
+    pub fn by_hand(&self) -> bool {
+        matches!(self, Reaction::Walk { .. } | Reaction::Defuse { .. })
     }
 }
 
@@ -450,8 +500,13 @@ pub struct Tick {
     pub calm: bool,
     /// The weapon in hand has a round in it and is not being reloaded.
     pub ready: bool,
-    /// A mate is seen shooting at the trap ([`mate_firing`]).
+    /// A mate is seen shooting at the trap ([`mate_firing`]), or standing
+    /// beside it ([`mate_beside`]).
     pub mate_firing: bool,
+    /// How far the bot is from its stand, metres (a walk).
+    pub to_spot_m: f32,
+    /// The eye's distance to the trap's centre, metres (the use ray's reach).
+    pub eye_m: f32,
 }
 
 /// What the reaction asks of the body this tick.
@@ -465,6 +520,11 @@ pub struct Out {
     pub ended: Option<End>,
     /// A shot was fired this tick.
     pub shot: bool,
+    /// Walk to this stand (a hand defuse's approach).
+    pub go: Option<Vec3>,
+    /// Crouch, and press USE this tick (a hand defuse at the stand).
+    pub crouch: bool,
+    pub use_key: bool,
 }
 
 /// How a reaction ended.
@@ -476,7 +536,25 @@ pub enum End {
     GaveUp,
     /// A mate was shooting at it: held for them.
     HeldForMate,
+    /// The trap went (shown disarmed or gone) while USE had been held on it
+    /// for `held_ms`.
+    Defused { held_ms: u32 },
 }
+
+/// The bot is at its stand within this of it, metres.
+const ARRIVE_M: f32 = 0.4;
+/// The hold is given up this long after the defuse time, ms.
+const DEFUSE_SLACK_MS: u32 = 1_500;
+/// The crouch takes this long to bring the eye down to the use ray's reach,
+/// ms; a bot still out of reach after it gives up.
+const REACH_GRACE_MS: u32 = 1_200;
+/// A hold of this long counts as the bot's defuse, ms (the players' measure:
+/// a USE held 3 s or more).
+const DEFUSE_CREDIT_MS: u32 = 3_000;
+/// A mate this near a trap, standing and looking at it, is defusing it,
+/// metres and m/s.
+const BESIDE_M: f32 = 1.4;
+const BESIDE_SPEED: f32 = 0.6;
 
 /// The reaction's one transition: total over the ticks.
 pub fn step(state: Reaction, tick: Tick, armed: bool, t: &ReactTuning) -> (Reaction, Out) {
@@ -492,6 +570,68 @@ pub fn step(state: Reaction, tick: Tick, armed: bool, t: &ReactTuning) -> (React
     let looking = |at: Vec3| Some(at + Vec3::new(0.0, CENTRE_UP, 0.0));
     match state {
         Reaction::Idle => idle(None),
+        Reaction::Walk {
+            key,
+            at,
+            spot,
+            since,
+        } => {
+            if !armed {
+                return idle(Some(End::Gone { shots: 0, last: 0 }));
+            }
+            if !tick.calm {
+                return idle(Some(End::GaveUp));
+            }
+            if tick.mate_firing {
+                return idle(Some(End::HeldForMate));
+            }
+            if tick.now.saturating_sub(since) as f32 / 1000.0 > t.defuse_walk_s {
+                return idle(Some(End::GaveUp));
+            }
+            if tick.to_spot_m <= ARRIVE_M {
+                return (
+                    Reaction::Defuse {
+                        key,
+                        at,
+                        since: tick.now,
+                    },
+                    Out {
+                        look: looking(at),
+                        crouch: true,
+                        ..Out::default()
+                    },
+                );
+            }
+            (
+                state,
+                Out {
+                    go: Some(spot),
+                    ..Out::default()
+                },
+            )
+        }
+        Reaction::Defuse { at, since, .. } => {
+            let held = tick.now.saturating_sub(since);
+            if !armed {
+                return idle(Some(End::Defused { held_ms: held }));
+            }
+            // Holding already: a mate that comes does not move this bot.
+            if !tick.calm
+                || held as f32 / 1000.0 > t.defuse_s + DEFUSE_SLACK_MS as f32 / 1000.0
+                || (tick.eye_m > USE_REACH_M && held > REACH_GRACE_MS)
+            {
+                return idle(Some(End::GaveUp));
+            }
+            (
+                state,
+                Out {
+                    look: looking(at),
+                    crouch: true,
+                    use_key: held >= t.use_settle_ms && tick.err_rad <= t.use_ok_rad,
+                    ..Out::default()
+                },
+            )
+        }
         Reaction::Aim { key, at, since } => {
             if !armed {
                 return idle(Some(End::Gone { shots: 0, last: 0 }));
@@ -639,6 +779,17 @@ pub fn mate_firing(
     })
 }
 
+/// Whether a mate stands beside the trap looking at it: a hand defuse in
+/// hand, as a player sees it. Within [`BESIDE_M`] of the trap, slower than
+/// [`BESIDE_SPEED`], the view within `claim_yaw_deg` of the trap.
+pub fn mate_beside(mates: &[&PlaceView], trap: Vec3, t: &ReactTuning) -> bool {
+    mates.iter().any(|mate| {
+        mate.feet.distance_xz(trap) <= BESIDE_M
+            && mate.speed() <= BESIDE_SPEED
+            && in_view(mate.eye(), mate.yaw, trap, t.claim_yaw_deg)
+    })
+}
+
 /// The angle between the view (`yaw`, `pitch`) and the point seen from `eye`.
 pub fn view_error(eye: Vec3, yaw: f32, pitch: f32, point: Vec3) -> f32 {
     let (dx, dz) = (point.x - eye.x, point.z - eye.z);
@@ -728,7 +879,70 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     if t.shot && bot.features.traps.react.reaction == Reaction::Idle && !fighting {
         start_shot(bot, due, &others);
     }
+    if t.defuse && bot.features.traps.react.reaction == Reaction::Idle && !fighting {
+        start_defuse(bot, due, &others);
+    }
     refresh_private(bot, due, &others);
+}
+
+/// Whether to set out to defuse the nearest noticed trap by hand: not shot
+/// at (the shot is off, or was not started above), within reach of a walk,
+/// the bot unhurt and carrying nothing, no mate shooting at it or standing
+/// beside it, a stand on its own side with a floor, and a roll won (once a
+/// trap and a life).
+fn start_defuse(bot: &mut Bot, due: &Due, others: &[(PlacedTrap, TrapKey, Vec3)]) {
+    let t = &due.tuning.traps.react;
+    let me = due.me;
+    if me.carrying.is_some() || me.health < SHOOT_HEALTH {
+        return;
+    }
+    let react = &bot.features.traps.react;
+    let target = others
+        .iter()
+        .filter(|(_, key, _)| react.noticed(*key, due.now) && !react.tried_defuse.contains(key))
+        .map(|&(_, key, at)| (key, at, me.feet.distance_xz(at)))
+        .filter(|&(_, at, d)| d <= t.defuse_walk_m && (at.y - me.feet.y).abs() <= SAME_FLOOR_M)
+        .min_by(|a, b| a.2.total_cmp(&b.2));
+    let Some((key, at, d)) = target else {
+        return;
+    };
+    bot.features.traps.react.tried_defuse.push(key);
+    if bot.rng.unit() >= t.defuse_p {
+        return;
+    }
+    let mates: Vec<&PlaceView> = due
+        .view
+        .team(me.team)
+        .filter(|p| p.place != me.place)
+        .collect();
+    if mate_firing(&due.view.sounds, &mates, me.place, at, me.feet, due.now, t)
+        || mate_beside(&mates, at, t)
+    {
+        return;
+    }
+    // The stand: on the bot's own side of the trap, so the approach does not
+    // cross it.
+    if d < 1e-3 {
+        return;
+    }
+    let (dx, dz) = (me.feet.x - at.x, me.feet.z - at.z);
+    let spot = Vec3::new(
+        at.x + dx / d * t.defuse_stand_m,
+        at.y,
+        at.z + dz / d * t.defuse_stand_m,
+    );
+    if due.tactics.world.grid.locate(spot, 1.0).is_none() {
+        return;
+    }
+    bot.features.traps.react.reaction = Reaction::Walk {
+        key,
+        at,
+        spot,
+        since: due.now,
+    };
+    bot.features.traps.react.target_armed = true;
+    bot.features.traps.react.registered = None;
+    bot.features.traps.react.counts.defuse_started += 1;
 }
 
 /// The traps the bot keeps off or jumps: the noticed, armed ones it is not
@@ -830,7 +1044,11 @@ impl React {
     /// A bot that has begun shooting is put in the team's record; a second
     /// one starting on the same trap soon after is counted.
     fn register(&mut self, key: TrapKey, place: Place, now: u32, state: &mut TeamState) {
-        if !matches!(self.reaction, Reaction::Shoot { .. }) || self.registered == Some(key) {
+        if !matches!(
+            self.reaction,
+            Reaction::Shoot { .. } | Reaction::Defuse { .. }
+        ) || self.registered == Some(key)
+        {
             return;
         }
         self.registered = Some(key);
@@ -905,10 +1123,17 @@ fn weapon_ready(bot: &Bot, now: u32) -> bool {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct ReactDrive {
     /// Look at this point.
-    pub look: Option<Vec3>,
-    /// The keys to hold this tick (aim, and fire on the tick of a shot).
+    pub look: Point,
+    /// The keys to hold this tick (aim, and fire on the tick of a shot; USE
+    /// at a defuse).
     pub keys: u32,
+    /// Walk to this stand instead of standing still.
+    pub go: Point,
+    /// Crouch.
+    pub crouch: bool,
 }
+
+type Point = Option<Vec3>;
 
 /// A tick of the body: the reaction's step. `calm` is false when an enemy
 /// is seen or the reflex aims at one.
@@ -921,14 +1146,32 @@ pub(super) fn drive(
     t: &ReactTuning,
 ) -> Option<ReactDrive> {
     let (key, at) = bot.features.traps.react.reaction.target()?;
+    let by_hand = bot.features.traps.react.reaction.by_hand();
     let centre = at + Vec3::new(0.0, CENTRE_UP, 0.0);
     let mates: Vec<&PlaceView> = view.team(me.team).filter(|p| p.place != me.place).collect();
+    // A hit since the hand defuse began calls the bot away; the shot is not
+    // so ended (its own rule above).
+    let hit = by_hand
+        && bot
+            .features
+            .traps
+            .react
+            .reaction
+            .since()
+            .is_some_and(|since| bot.hurt.last_hit_ms.is_some_and(|hit| hit >= since));
+    let spot = match bot.features.traps.react.reaction {
+        Reaction::Walk { spot, .. } => me.feet.distance_xz(spot),
+        _ => 0.0,
+    };
     let tick = Tick {
         now,
         err_rad: view_error(me.eye(), me.yaw, me.pitch, centre),
-        calm: calm && me.carrying.is_none(),
+        calm: calm && me.carrying.is_none() && !hit,
         ready: weapon_ready(bot, now),
-        mate_firing: mate_firing(&view.sounds, &mates, me.place, at, me.feet, now, t),
+        mate_firing: mate_firing(&view.sounds, &mates, me.place, at, me.feet, now, t)
+            || (by_hand && mate_beside(&mates, at, t)),
+        to_spot_m: spot,
+        eye_m: (centre - me.eye()).length(),
     };
     let (state, out) = step(bot.features.traps.react.reaction, tick, bot.features.traps.react.target_armed, t);
     bot.features.traps.react.reaction = state;
@@ -936,6 +1179,8 @@ pub(super) fn drive(
         bot.features.traps.react.counts.shots_fired += 1;
     }
     match out.ended {
+        Some(End::GaveUp) if by_hand => bot.features.traps.react.counts.defuse_gave_up += 1,
+        Some(End::HeldForMate) if by_hand => bot.features.traps.react.counts.held_for_mate += 1,
         Some(End::GaveUp) => {
             bot.features.traps.react.counts.gave_up += 1;
             bot.features.traps.react.tried.push(key);
@@ -944,20 +1189,33 @@ pub(super) fn drive(
             bot.features.traps.react.counts.held_for_mate += 1;
             bot.features.traps.react.tried.push(key);
         }
+        Some(End::Defused { held_ms }) if held_ms >= DEFUSE_CREDIT_MS => {
+            bot.features.traps.react.counts.disarmed_by_hand += 1;
+        }
         Some(End::Gone { shots, last })
             if shots > 0 && now.saturating_sub(last) <= SHOT_CREDIT_MS =>
         {
             bot.features.traps.react.counts.disarmed_by_shot += 1;
         }
-        Some(End::Gone { .. }) | None => {}
+        Some(End::Gone { .. } | End::Defused { .. }) | None => {}
     }
-    let look = out.look?;
-    let mut keys = crate::v026g::drive::key::AIM;
+    if out.look.is_none() && out.go.is_none() {
+        return None;
+    }
+    let mut keys = 0;
+    if matches!(state, Reaction::Aim { .. } | Reaction::Shoot { .. }) {
+        keys |= crate::v026g::drive::key::AIM;
+    }
     if out.fire {
         keys |= crate::v026g::drive::key::FIRE;
     }
+    if out.use_key {
+        keys |= crate::v026g::drive::key::USE;
+    }
     Some(ReactDrive {
-        look: Some(look),
+        look: out.look,
         keys,
+        go: out.go,
+        crouch: out.crouch,
     })
 }

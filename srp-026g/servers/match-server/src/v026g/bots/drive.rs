@@ -292,8 +292,17 @@ pub(super) fn drive_tick(
     // The legs: the reflex's when it takes them (a push, breaking sight,
     // a re-peek, the weapon's range, in after a grenade), else the play's.
     let mut intent = intent;
-    if react.is_some() {
-        intent.go = Go::Stay;
+    if let Some(react) = react {
+        intent.go = match react.go {
+            Some(at) => {
+                intent.pace = Pace::Walk;
+                intent.straight = false;
+                intent.objective = false;
+                Go::To { at, within_m: 0.3 }
+            }
+            None => Go::Stay,
+        };
+        intent.crouch |= react.crouch;
     }
     #[cfg(test)]
     {
