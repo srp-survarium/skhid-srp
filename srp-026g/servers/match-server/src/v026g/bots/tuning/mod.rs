@@ -106,7 +106,7 @@ mod traps;
 pub use aim::{AimTuning, SkillTuning, TierSkill};
 pub use heal::{HealTuning, NeedWeights};
 pub use play::PlayTuning;
-pub use sense::{CheatTuning, SenseTuning};
+pub use sense::{CheatTuning, HearingRanges, SenseTuning};
 pub use team::{
     AvoidTuning, ModTuning, Personality, ThinkTuning, ThreatTuning, SEARCH_FLOORS_PER_POLL,
 };
@@ -239,6 +239,10 @@ mod tests {
         assert_eq!(wrong(|t| t.sense.view_deg = 0.0), "sense.view_deg");
         assert_eq!(wrong(|t| t.sense.notice_near_ms = t.sense.notice_far_ms + 1), "sense.notice_*_ms");
         assert_eq!(wrong(|t| t.sense.sprint_body_mps = Some(0.0)), "sense.sprint_body_mps");
+        assert_eq!(
+            wrong(|t| t.sense.ranges = HearingRanges::Game { crouch_step_m: t.sense.step_m + 1.0 }),
+            "sense.ranges.game.crouch_step_m"
+        );
         assert_eq!(wrong(|t| t.think.think_ms = (0, 5)), "think.think_ms");
         assert_eq!(wrong(|t| t.think.commander_ms = 10), "think.commander_ms");
         assert_eq!(wrong(|t| t.feel.hop_every_s = 0.0), "feel.hop_*");
