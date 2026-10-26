@@ -456,7 +456,7 @@ impl Bot {
                 Go::To { at, .. } => Some(hold_trace::feet().distance_xz(at)),
                 _ => None,
             };
-            hold_trace::ended(a.kind, now.saturating_sub(a.since), why, dist);
+            hold_trace::ended(a.kind, a.target, now.saturating_sub(a.since), why, dist);
         }
         if let Some(running) = self.running.take() {
             let kind = running.kind();

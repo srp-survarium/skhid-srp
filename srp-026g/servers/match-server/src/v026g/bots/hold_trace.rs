@@ -7,7 +7,7 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
-use super::plays::{PlayKind, Rank};
+use super::plays::{PlayKind, Rank, TargetRef};
 use mapdata::Vec3;
 
 thread_local! {
@@ -25,6 +25,16 @@ pub fn at(feet: Vec3) {
 
 pub fn feet() -> Vec3 {
     FEET.with(|f| f.get())
+}
+
+/// The play and, for a Crossfire, what kind of choke it holds (an exit, an
+/// enemy's last known place).
+fn name(kind: PlayKind, target: TargetRef) -> String {
+    match (kind, target) {
+        (PlayKind::Crossfire, TargetRef::Exit(_)) => "Crossfire[exit]".to_string(),
+        (PlayKind::Crossfire, TargetRef::Place(_)) => "Crossfire[place]".to_string(),
+        _ => format!("{kind:?}"),
+    }
 }
 
 fn held(kind: PlayKind) -> bool {
@@ -62,16 +72,16 @@ fn add(key: String, value: f64) {
 }
 
 /// A hold play ended itself (or no way to its goal).
-pub fn ended(kind: PlayKind, age_ms: u32, why: &str, dist: Option<f32>) {
+pub fn ended(kind: PlayKind, target: TargetRef, age_ms: u32, why: &str, dist: Option<f32>) {
     if held(kind) {
-        add(format!("end {kind:?} {} {why} @{}", age_bucket(age_ms), dist_bucket(dist)), 0.0);
+        add(format!("end {} {} {why} @{}", name(kind, target), age_bucket(age_ms), dist_bucket(dist)), 0.0);
     }
 }
 
 /// A running hold play was not among the bot's candidates at a commander pass.
-pub fn dropped(kind: PlayKind, age_ms: u32, why: &str, dist: Option<f32>) {
+pub fn dropped(kind: PlayKind, target: TargetRef, age_ms: u32, why: &str, dist: Option<f32>) {
     if held(kind) {
-        add(format!("drop {kind:?} {} {why} @{}", age_bucket(age_ms), dist_bucket(dist)), 0.0);
+        add(format!("drop {} {} {why} @{}", name(kind, target), age_bucket(age_ms), dist_bucket(dist)), 0.0);
     }
 }
 
@@ -79,6 +89,7 @@ pub fn dropped(kind: PlayKind, age_ms: u32, why: &str, dist: Option<f32>) {
 #[allow(clippy::too_many_arguments)]
 pub fn switched(
     kind: PlayKind,
+    target: TargetRef,
     age_ms: u32,
     incumbent: Option<(Rank, f32)>,
     new_kind: PlayKind,
@@ -95,7 +106,7 @@ pub fn switched(
         None => ("no candidate".to_string(), 0.0),
     };
     add(
-        format!("sw {kind:?} {} [{reason}] {inc} -> {new_kind:?} {} @{}", age_bucket(age_ms), new_rank.map_or(String::new(), |r| format!("{r:?}")), dist_bucket(dist)),
+        format!("sw {} {} [{reason}] {inc} -> {new_kind:?} {} @{}", name(kind, target), age_bucket(age_ms), new_rank.map_or(String::new(), |r| format!("{r:?}")), dist_bucket(dist)),
         delta,
     );
 }

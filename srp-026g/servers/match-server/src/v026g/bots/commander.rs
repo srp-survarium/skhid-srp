@@ -210,6 +210,7 @@ impl Bots {
                 };
                 super::hold_trace::dropped(
                     a.kind,
+                    a.target,
                     now.saturating_sub(a.since),
                     &cx.drop_reason(a.kind, a.target),
                     dist,
@@ -282,6 +283,7 @@ impl Bots {
                 };
                 super::hold_trace::switched(
                     old.kind,
+                    old.target,
                     now.saturating_sub(old.since),
                     incumbent,
                     assignment.kind,

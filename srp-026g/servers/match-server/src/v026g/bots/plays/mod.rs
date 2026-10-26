@@ -841,6 +841,14 @@ impl Ctx<'_> {
             let zero = why.parts.iter().find(|(_, _, s)| *s <= 0.0);
             return zero.map_or("zero score".to_string(), |(i, v, _)| format!("zero {i:?} ({v:.2})"));
         }
+        if kind == PlayKind::Crossfire {
+            if self.point_of(target).is_none() {
+                return "crossfire: the choke has no point (track forgotten)".to_string();
+            }
+            if self.view.team(self.me.team).all(|p| p.place == self.me.place) {
+                return "crossfire: no teammate alive".to_string();
+            }
+        }
         "its candidates() left it out".to_string()
     }
 
