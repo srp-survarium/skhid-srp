@@ -365,6 +365,8 @@ pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
     let Due {
         now, me, tuning, ..
     } = *due;
+    #[cfg(test)]
+    let tactics = due.tactics;
     let skill = bot.skill;
     let notice_factor = signals::mix(tuning.aim.notice, skill);
     let feet = me.feet;
@@ -372,6 +374,14 @@ pub(super) fn remember(due: &Due, bot: &mut Bot, percepts: &[Percept]) {
         percepts,
         now,
         |p: &Percept| {
+            #[cfg(test)]
+            if p.source == Source::Seen {
+                super::foliage::through::count(
+                    tactics
+                        .foliage
+                        .metres(me.eye(), p.at + Vec3::new(0.0, super::foliage::CHEST_M, 0.0)),
+                );
+            }
             sense::notice_ms(&tuning.sense, p.at.distance_xz(feet), p.busy, notice_factor)
         },
         tuning.cheats.forget_ms.max(tuning.sense.forget_ms),

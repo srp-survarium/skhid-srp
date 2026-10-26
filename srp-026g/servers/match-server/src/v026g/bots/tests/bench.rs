@@ -415,6 +415,13 @@ pub(crate) fn real_bot_cost() {
             if let Some(table) = &table {
                 bots.set_routes(table);
             }
+            // The bushes a sight line crosses (`SRP_BOT_FOLIAGE`, else `bot-foliage.json` of the mapdata folder).
+            if let super::foliage::Source::Set(path) | super::foliage::Source::Default(path) = super::foliage::Source::choose(
+                bench_settings().var_os("SRP_BOT_FOLIAGE").as_deref(),
+                Some(&dir),
+            ) {
+                bots.set_foliage(super::foliage::Foliage::load(&path, &project).unwrap());
+            }
             // Every place's weapon known as a live match knows it (the
             // weapon 1 of its role): play 11's matchup against the enemy's.
             if bench_settings().flag("SRP_BENCH_WEAPONS") {
