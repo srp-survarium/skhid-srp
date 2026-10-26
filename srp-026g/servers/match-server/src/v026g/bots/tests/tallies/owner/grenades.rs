@@ -181,6 +181,43 @@ pub(crate) fn a_grenade_at_ones_feet_hurts_the_thrower_and_mates_and_one_walked_
     assert_eq!(json["grenade_walk_ins"], serde_json::json!([0, 1, 0]));
 }
 
+/// The bodies inside the radius at the launch are counted by group (thrower, his teammates, enemies) for the share
+/// that left by the blast: here the thrower, one mate and one enemy are near, a second mate is far and walks in (not
+/// inside at the launch, inside at the blast). The key is only where a bench tick read the list.
+#[test]
+pub(crate) fn the_bodies_inside_the_radius_at_the_launch_are_counted_by_group() {
+    let run = |bench: bool| {
+        let (mut game, mut tally) = made_up(&[0, 0, 1, 0]);
+        if bench {
+            tally.grenades.listed = Some(ThrowCounts::default());
+        }
+        play(&mut game, &mut tally, 100, |_, game| {
+            put(game, 0, 10.0, 10.0, 0);
+            put(game, 1, 12.0, 10.0, 0);
+            put(game, 2, 14.0, 10.0, 0);
+            put(game, 3, 30.0, 14.0, 0);
+            game.bodies[0].pitch = -arc::PITCH_LIMIT;
+            vec![bot_now(); 4]
+        });
+        let note = Note {
+            place: 0,
+            time: game.tick,
+            text: "throws a grenade at (11, 0, 10), blast at 4000".to_owned(),
+        };
+        tally.note(&note, &game);
+        game.bodies[3].feet = Vec3::new(13.0, 0.0, 10.0);
+        game.tick += TICK_MS;
+        tally.step(&mut game, &[bot_now(), bot_now(), bot_now(), bot_now()]);
+        tally.finish(&game).1
+    };
+    let json = run(true);
+    assert_eq!(json["grenade_live"]["inside_at_launch"], serde_json::json!([1, 1, 1]), "{json}");
+    // At the blast the walked-in mate is inside too: the share that left is read against the launch's.
+    assert_eq!(json["grenade_in_radius"], serde_json::json!([1, 2, 1]), "{json}");
+    assert_eq!(json["grenade_walk_ins"], serde_json::json!([0, 1, 0]), "{json}");
+    assert!(run(false).get("grenade_live").is_none());
+}
+
 /// The bots' grenade logic counts are added up by the change since a bot's last reading, and a reflex
 /// younger than the last reading is a new life; nothing is said where no bot thought.
 #[test]
