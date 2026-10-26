@@ -124,7 +124,8 @@ class Hook:
 
 class Case:
     """An input state: registers, the stack's dwords from ESP up, memory
-    {address: bytes}."""
+    {address: bytes}; an address may be a place of the patch's state by
+    name, "name+0xN" (the spec's places()), the same bytes in both builds."""
 
     def __init__(self, what, regs=None, stack=(), memory=None):
         self.what, self.regs, self.stack, self.memory = what, dict(regs or {}), list(stack), dict(memory or {})
@@ -361,6 +362,8 @@ class Machine:
         self.exit, self.error, self.stopped, self.inside = None, None, False, False
         esp = self.entry_esp = STACK_TOP - 0x8000
         for address, data in case.memory.items():
+            if isinstance(address, str):
+                address = self.address(address)            # a place of the patch's state, "name+0xN"
             for page in range(address & ~(PAGE - 1), address + len(data), PAGE):
                 if not any(start <= page < start + size for start, size, _ in self.pristine) \
                         and page not in self.lazy:
