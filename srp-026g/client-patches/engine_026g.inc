@@ -199,3 +199,17 @@ extern engine_get_proc_address
 ; the IAT slot 0x870074 (kernel32, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_get_module_file_name_w
+; void *engine_new_packet(void *client, unsigned int id)
+; 0x37a0e0 vostok::network::match_client::new_packet: client EAX, id ESP+4; pops 4; EAX
+extern engine_new_packet
+; void engine_buffer_resize(void *buffer, unsigned int size)
+; 0x7ab30 vostok::network_core::mutable_buffer::resize: buffer EAX, size ESP+4; pops 4
+extern engine_buffer_resize
+; void engine_enqueue(void *client, void *packet)
+; 0x379640 vostok::network::match_client::enqueue: client ESP+4, packet ESP+8; pops 8; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_enqueue
+; unsigned int engine_process_detach_upgrade(void *client, unsigned int upgrade)
+; 0x275220 survarium::lobby_client::process_detach_upgrade: client ESP+4, upgrade ESP+8; pops 8; EAX; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_process_detach_upgrade

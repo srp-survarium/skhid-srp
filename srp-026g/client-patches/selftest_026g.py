@@ -191,16 +191,15 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     window's drop (0x29AAD5, in drop_upgrade_item's handler 0x29A9D0, the
     delegate of the callback of that name), the `83 46 02` and `83 46 01`
     cases (0x275756, 0x275589) and process_detach_upgrade's search
-    (0x27534D) call or jump into shared_upgrades_026g.asm at 0x700 of
-    `.srp`, after the patches' mount and before the pickup code (check
-    15's layout); each site is the original's in the original and the
+    (0x27534D) are the Rust patch shared_upgrades' lohooks
+    (shared_upgrades.toml); each site is the original's in the original and the
     build without the late join, nothing aims inside one and no
     relocation is under one; the functions they replace calls of are
     called from those sites alone; the handler reads the item and the
-    upgrade from the Flash arguments where the code reads them; the code
-    calls only the packet functions and process_detach_upgrade and holds
-    no address. check_shared_upgrades_026g.py runs the original's and the
-    build's code on inventories with an upgrade on several items.
+    upgrade from the Flash arguments where the patch reads them.
+    check_shared_upgrades_026g.py runs the original's and the build's code
+    on inventories with an upgrade on several items (and
+    port/equiv/shared_upgrades.py compared it with the asm it replaces).
 32. the same build: a kit chosen before the match starts is played at
     once (patch 31, kit_change_026g.asm at KIT_CHANGE_OFFSET of `.srp`).
     The respawn rule's tick (0x316820, slot +50h of the respawn rules'
@@ -598,13 +597,6 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.death_camera_bin(), "rb").read(),
           f"{os.path.basename(P.death_camera_bin())} is current ({len(fresh)} bytes)")
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.SHARED_UPGRADES_VA:#x}",
-                        os.path.join(HERE, "shared_upgrades_026g.asm"), "-o", out], check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(fresh == open(P.shared_upgrades_bin(), "rb").read(),
-          f"{os.path.basename(P.shared_upgrades_bin())} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", os.path.join(HERE, "read_order_026g.asm"), "-o", out],
@@ -1474,7 +1466,6 @@ def late_join_sites():
          (P.SOUND_QUEUE_CAVE_SITE[0], len(P.SOUND_QUEUE_CAVE_SITE[1])),
          (P.SOUND_QUEUE_HOOK[0], len(P.SOUND_QUEUE_HOOK[1])),
          ] + \
-        [(va, len(old)) for va, old, _, _ in P.SHARED_UPGRADES_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.FOV_PATCHES] + pickup_sites() + \
         [(va, len(old)) for va, old, _, _ in P.KIT_CHANGE_HOOKS] + [(P.KIT_PICK[0], len(P.KIT_PICK[1]))] + \
         [(P.WARMUP_LOOK_HOOK[0], len(P.WARMUP_LOOK_HOOK[1])), (P.WARMUP_LIMITS_HOOK[0], len(P.WARMUP_LIMITS_HOOK[1])),
@@ -4971,11 +4962,10 @@ def test_replay_link(original, image, before):
 
 
 def test_shared_upgrades(original, image, before):
-    """Check 31: one upgrade on several items (patch 30, SHARED_UPGRADES_HOOKS).
-    The lobby's `46 02` and the answer `83 46 02` named no item, and the
-    answer took the upgrade off the first item holding it; the build's
-    four sites call or jump into shared_upgrades_026g.asm, which names the
-    item. check_shared_upgrades_026g.py runs the original's and the build's
+    """Check 31: one upgrade on several items (patch 30). The lobby's `46 02`
+    and the answer `83 46 02` named no item, and the answer took the upgrade
+    off the first item holding it; the build's four sites are the Rust patch
+    shared_upgrades' lohooks, which name the item. check_shared_upgrades_026g.py runs the original's and the build's
     code on inventories with an upgrade on several items."""
     stock = Image(original)
     rows = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
@@ -4986,19 +4976,7 @@ def test_shared_upgrades(original, image, before):
         0x275589: ["push edi", "push ebp", "call 0x275220"],
         0x27534D: ["call 0x277cf0"],
     }
-    relocations = [rva for kind, rva in stock.relocations().values() if kind == 3]
-    for va, old, offset, opcode in P.SHARED_UPGRADES_HOOKS:
-        word = "call" if opcode == 0xE8 else "jmp"
-        entry = P.SHARED_UPGRADES_VA + offset
-        check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old
-              and rows(stock, va, len(old)) == stock_texts[va]
-              and rows(image, va, len(old)) == [f"{word} {entry:#x}"] + ["nop"] * (len(old) - 5),
-              f"{va:#x}: `{' / '.join(stock_texts[va])}` in the original and the build without the late join, "
-              f"`{word} {entry:#x}`" + (f" and {len(old) - 5} nops" if len(old) > 5 else "") + " here")
-        hits = branches_into(original, va + 1, va + len(old))
-        under = [rva for rva in relocations if rva + 4 > va and rva < va + len(old)]
-        check(not hits and not under, f"{va:#x}: no branch or address aims inside the site, no base relocation "
-              "is under it" + "".join(", " + h for h in hits))
+    rust_lohooks(original, image, before, "shared_upgrades", stock_texts)
     calls = lambda target: [h for h in branches_into(original, target, target + 1) if h.endswith("rel32")]
     check(calls(0x2708C0) == ["0x29aad7 rel32"] and calls(P.PROCESS_DETACH_UPGRADE) == ["0x27558b rel32", "0x275760 rel32"]
           and calls(0x277CF0) == ["0x27534d rel32"]
@@ -5023,20 +5001,6 @@ def test_shared_upgrades(original, image, before):
           "the callback named drop_upgrade_item (0x9C56E8) is the delegate's `mov eax,0x29a9d0` at 0x2818FA, "
           "the handler's one reference; it reads the item (esi) and the upgrade (edi) from the Flash arguments "
           "([ebp+8] -> +8 -> +8 and +20h), the kit at +4620h, and after the call only pops what it pushed")
-    code = open(P.shared_upgrades_bin(), "rb").read()
-    check(image.read(P.SHARED_UPGRADES_VA, len(code)) == code,
-          f"shared_upgrades at {P.SHARED_UPGRADES_VA:#x} is shared_upgrades_026g.section.bin ({len(code)} bytes)")
-    listing = [row for row in ndisasm(code, P.SHARED_UPGRADES_VA) if row[2] != "int3"]
-    targets = {branch_target(text) for _, _, text in listing if branch_target(text) is not None}
-    outside = {t for t in targets if not P.SHARED_UPGRADES_VA <= t < P.SHARED_UPGRADES_VA + len(code)}
-    starts = {address for address, _, _ in listing}
-    check(outside == {0x37A0E0, 0x7AB30, 0x379640, P.PROCESS_DETACH_UPGRADE, 0x275765, 0x277CF0}
-          and all(t in starts for t in targets - outside)
-          and all(P.SHARED_UPGRADES_VA + offset in starts for _, _, offset, _ in P.SHARED_UPGRADES_HOOKS)
-          and not [text for _, _, text in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[|0x[0-9a-f]{6,}\]", text)],
-          "the code calls only new_packet, mutable_buffer::resize, enqueue and process_detach_upgrade, jumps only "
-          "to the `83 46 02` case's end and the original find_if, every branch inside it lands on an instruction, "
-          "and it holds no address (nothing to relocate)")
 
 
 def test_read_order(original, image, before):
@@ -6006,7 +5970,6 @@ def test_late_join(original, without, server, source):
     pieces = [(0, first_page, "the build without the late join's first page")] + [
         (offset, open(path(), "rb").read(), what) for offset, path, what in (
             (P.MOUNT_PATCHES_OFFSET, P.mount_patches_bin, "the patches' mount"),
-            (P.SHARED_UPGRADES_OFFSET, P.shared_upgrades_bin, "the shared upgrades' code"),
             (P.WARMUP_KEYS_OFFSET, P.warmup_keys_bin, "the warmup keys"),
             (P.WARMUP_LIMITS_OFFSET, P.warmup_limits_bin, "the warmup camera's limits"),
             (P.WEAPON_DRAW_OFFSET, P.weapon_draw_bin, "the weapon preview's draw"),

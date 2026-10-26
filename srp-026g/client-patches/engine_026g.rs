@@ -96,6 +96,10 @@ unsafe extern "C" {
     pub fn engine_delayed_sounds_destroy(begin: *mut c_void, end: *mut *mut c_void);
     /// 0x3bccc0 vostok::render::resource_manager::register_constant_binding: binding EAX, manager ESP+4; pops 4
     pub fn engine_register_constant_binding(binding: *const c_void, manager: *mut c_void);
+    /// 0x37a0e0 vostok::network::match_client::new_packet: client EAX, id ESP+4; pops 4; EAX
+    pub fn engine_new_packet(client: *mut c_void, id: u32) -> *mut c_void;
+    /// 0x7ab30 vostok::network_core::mutable_buffer::resize: buffer EAX, size ESP+4; pops 4
+    pub fn engine_buffer_resize(buffer: *mut c_void, size: u32);
 }
 
 #[allow(dead_code)]
@@ -110,6 +114,10 @@ unsafe extern "stdcall" {
     pub fn engine_shared_string_destroy(string: *mut c_void);
     /// 0x208ad0 survarium::chat_handler::add_message: handler ESP+4, channel ESP+8, body ESP+12, name ESP+16, tag ESP+20; pops 20; stdcall, called directly
     pub fn engine_add_message(handler: *mut c_void, channel: u32, body: *const c_void, name: *const c_void, tag: *const c_void);
+    /// 0x379640 vostok::network::match_client::enqueue: client ESP+4, packet ESP+8; pops 8; stdcall, called directly
+    pub fn engine_enqueue(client: *mut c_void, packet: *mut c_void);
+    /// 0x275220 survarium::lobby_client::process_detach_upgrade: client ESP+4, upgrade ESP+8; pops 8; EAX; stdcall, called directly
+    pub fn engine_process_detach_upgrade(client: *mut c_void, upgrade: u32) -> u32;
 }
 
 #[allow(dead_code)]
@@ -1748,6 +1756,15 @@ pub mod lobby_client {
     pub unsafe fn replay_link(this: *mut c_void) -> *mut u8 {
         unsafe { this.byte_add(0x1e6144).cast() }
     }
+
+    /// +0x8 (u32): the lobby client's match client (its +8, what new_packet and enqueue take; 0x2708C0)
+    ///
+    /// # Safety
+    /// `this` is a survarium::lobby_client.
+    #[inline(always)]
+    pub unsafe fn connection(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
 }
 
 /// survarium::use_scan_frame's fields (fields_026g.tsv).
@@ -1786,5 +1803,104 @@ pub mod usable_vtable {
     #[inline(always)]
     pub unsafe fn can_use(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x30).cast() }
+    }
+}
+
+/// vostok::network::packet's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod packet {
+    use core::ffi::c_void;
+
+    /// +0x2bc (u32): a match client packet's mutable buffer (new_packet 0x37A0E0's, written then enqueued)
+    ///
+    /// # Safety
+    /// `this` is a vostok::network::packet.
+    #[inline(always)]
+    pub unsafe fn buffer(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x2bc).cast() }
+    }
+}
+
+/// vostok::network_core::mutable_buffer's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod mutable_buffer {
+    use core::ffi::c_void;
+
+    /// +0x4 (u32): the buffer's bytes
+    ///
+    /// # Safety
+    /// `this` is a vostok::network_core::mutable_buffer.
+    #[inline(always)]
+    pub unsafe fn data(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
+    }
+
+    /// +0xc (u32): the bytes used so far (resize 0x7AB30 sets it)
+    ///
+    /// # Safety
+    /// `this` is a vostok::network_core::mutable_buffer.
+    #[inline(always)]
+    pub unsafe fn size(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0xc).cast() }
+    }
+}
+
+/// survarium::drop_upgrade_frame's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod drop_upgrade_frame {
+    use core::ffi::c_void;
+
+    /// +0x8 (u32): drop_upgrade_item's handler 0x29A9D0 by its EBP: its argument, the Flash call's arguments (+8 their values, 18h each: the item, then the upgrade at +20h; 0x29A9D9)
+    ///
+    /// # Safety
+    /// `this` is a survarium::drop_upgrade_frame.
+    #[inline(always)]
+    pub unsafe fn args(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+}
+
+/// scaleform::callback_args's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod callback_args {
+    use core::ffi::c_void;
+
+    /// +0x8 (u32): a Flash callback's arguments: +8 their GFx values (0x29A9DC)
+    ///
+    /// # Safety
+    /// `this` is a scaleform::callback_args.
+    #[inline(always)]
+    pub unsafe fn values(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x8).cast() }
+    }
+}
+
+/// survarium::inventory_item's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod inventory_item {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): an inventory item's id (the lobby client's items, B4h each, +1EA978h; find_item_holding_upgrade 0x277CF0 steps by B4h)
+    ///
+    /// # Safety
+    /// `this` is a survarium::inventory_item.
+    #[inline(always)]
+    pub unsafe fn id(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+}
+
+/// survarium::message_reader's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod message_reader {
+    use core::ffi::c_void;
+
+    /// +0x4 (u32): a lobby message reader's read position (process_succeeded_inventory_action moves it, mov [esi+4],eax at 0x27575D)
+    ///
+    /// # Safety
+    /// `this` is a survarium::message_reader.
+    #[inline(always)]
+    pub unsafe fn position(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4).cast() }
     }
 }

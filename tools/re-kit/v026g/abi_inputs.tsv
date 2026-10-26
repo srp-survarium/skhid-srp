@@ -4673,3 +4673,5 @@ va	name	location	role	basis
 0x00677000	Scaleform::GFx::Value::ObjectInterface::SetMember	entry ESP+8	the member's name (a C string)	observed
 0x00677000	Scaleform::GFx::Value::ObjectInterface::SetMember	entry ESP+12	the value to set (a GFx value, 18h bytes: +4 its type, 3 int; +8 the int)	observed
 0x00677000	Scaleform::GFx::Value::ObjectInterface::SetMember	entry ESP+16	is a display object (the value's type & 8Fh is 0Ah; pushed as a dword 0 or 1)	observed
+0x00275220	survarium::lobby_client::process_detach_upgrade	entry ESP+4	the lobby client (EBX in the body: its inventory at +1EA978h, begin and end)	observed
+0x00275220	survarium::lobby_client::process_detach_upgrade	entry ESP+8	the upgrade id taken off (EBP in the body, pushed to find_item_holding_upgrade 0x277CF0 as &id at 0x27534A)	observed

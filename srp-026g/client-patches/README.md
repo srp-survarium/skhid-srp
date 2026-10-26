@@ -84,7 +84,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/forward_scroll.rs`, `forward_scroll.toml`, `port/equiv/forward_scroll.py` | Patch 28 (the transparent effects scroll as in 0.29, `scene_slomo` bound to 1.0), the Rust patch: three lohooks (`sites_026g.tsv` `forward_compile.switch`, `forward_compile.constants`, `renderer_context.scene_time_bound`) in the block `patches.code`, and its spec for the port-only equivalence gate. Until the Rust port, `forward_scroll_026g.asm` at 0xB00 of `.srp` |
 | `rust/patches/src/replay_link.rs`, `replay_link.toml`, `port/equiv/replay_link.py` | Patch 29 ("Watch replay": the lobby's link starts the updater) as the Rust patch `replay_link` (a lohook at `lobby.replay_link_clicked`), and its equivalence spec against the asm it replaced |
 | `check_replay_link_026g.py` | Runs the original and patch 29's link callback on made-up links (needs Unicorn) |
-| `shared_upgrades_026g.asm`, `shared_upgrades_026g.section.bin` | The source of patch 30's code (one upgrade on several items: taking it off names the item) and that code assembled for 0x700 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `rust/patches/src/shared_upgrades.rs`, `shared_upgrades.toml`, `port/equiv/shared_upgrades.py` | Patch 30 (one upgrade on several items: taking it off names the item) as the Rust patch `shared_upgrades` (four lohooks), and its equivalence spec against the asm it replaced |
 | `check_shared_upgrades_026g.py` | Runs the original's and patch 30's upgrade-window drop and the `83 46 01` / `02` answers on made-up inventories with one upgrade on several items (needs Unicorn) |
 | `kit_change_026g.asm`, `kit_change_026g.section.bin` | The source of patch 31's code (a kit chosen before the match starts is played at once) and that code assembled for 0xEC0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `warmup_look_026g.asm`, `warmup_look_026g.section.bin` | The source of patch 31's camera before the start (while the kits are shown, a drag turns the warmup camera and the wheel moves it, as the lobby's character view) and that code assembled for 0xD40 of `.srp`, its state at 0xE20 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -1806,9 +1806,12 @@ window's `drop_upgrade_item(item, upgrade)` sent `46 02 <kit> <upgrade>`, and
 the answer `83 46 02 <upgrade>` (and `83 46 01`'s `detach_first`) took it off
 the first item of the inventory that holds it.
 
-**The patch.** Only in the builds with the late join: four sites call or jump
-into `shared_upgrades_026g.asm` (181 bytes at `.srp`+700h, after the patches'
-mount and before the pickup code):
+**The patch.** Only in the builds with the late join: four sites are the Rust
+patch `shared_upgrades`' lohooks (`rust/patches/src/shared_upgrades.rs`; ported
+from `shared_upgrades_026g.asm` with no change of behaviour, proven by
+`port/equiv/shared_upgrades.py`; the item the two callers name reaches the
+search through a GameCell for the call's time, where the asm passed it as a
+third argument):
 
 - 0x29AAD5 (drop_upgrade_item's handler): `46 02 <kit> <upgrade> <item>`, the
   item the window shows;

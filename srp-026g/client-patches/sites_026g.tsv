@@ -28,3 +28,7 @@ lobby.replay_link_clicked	0x28CDB6	lohook	-	6	done@0x28CDDD	video_tutorial_link_
 use_scan.reach	0x2D84E9	lohook	-	6	-	base_player's use scan 0x2D84C0: the ray's length, fld dword [usable_objects_detection_distance] (EAX the player)
 use_scan.solid	0x2D861C	lohook	-	6	next@0x2D8622	the use scan's hit walk, a wall or a floor (and al,0Ah / cmp al,0Ah / jz 0x2D866D ends the walk); next: the next hit
 use_scan.candidate	0x2D85BE	lohook	-	8	reject@0x2D85FC	the use scan's usable object (ESI) at EDI, before can_use (mov eax,[ebp+8]; mov edx,[esi]; mov edx,[edx+30h]; [ebp+8] the player); reject: 80h out of the groups, the next object
+lobby_upgrade.drop_sent	0x29AAD5	lohook	-	7	-	drop_upgrade_item's handler 0x29A9D0 sends 46 02 <kit> <upgrade> (push edi; push ecx; call 0x2708C0; EAX the lobby client, ECX the kit, EDI the upgrade, EBP its frame)
+inventory_action.detach_answer	0x275756	lohook	-	15	-	process_succeeded_inventory_action 0x275520, case 83 46 02 (mov ecx,[eax]; push ecx; add eax,4; push ebp; mov [esi+4],eax; call process_detach_upgrade; EAX the read position, ESI the reader, EBP the lobby client)
+inventory_action.detach_first	0x275589	lohook	-	7	-	the 83 46 01 case's detach_first (push edi; push ebp; call process_detach_upgrade; EBX the item, EDI the upgrade, EBP the lobby client)
+detach_upgrade.find_holder	0x27534D	lohook	-	5	-	process_detach_upgrade's search of the item holding the upgrade (call find_item_holding_upgrade 0x277CF0, cdecl: [esp] the items, [esp+4] their end, [esp+8] &the id)

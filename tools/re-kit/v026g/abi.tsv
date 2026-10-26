@@ -1992,3 +1992,4 @@ va	name	source	ret_cleanup	result
 0x000e0b50		manual	4	EAX: the shared string of the text (its reference count at +0), found in the pool or made
 0x000e0ae0		manual	4	
 0x00677000	Scaleform::GFx::Value::ObjectInterface::SetMember	manual	16	AL: the member set (0 on one way out, 0x677061; `ret 10h` 0x677067)
+0x00275220	survarium::lobby_client::process_detach_upgrade	manual	8	EAX: no value (what its last call left; the 83 46 02 case returns it at 0x275765)

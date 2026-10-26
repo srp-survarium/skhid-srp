@@ -190,4 +190,16 @@ extern void * (__attribute__((stdcall)) *const engine_get_proc_address)(void * m
 /* the IAT slot 0x870074 (kernel32, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_get_module_file_name_w)(void * module, unsigned short * name, unsigned int size);
 
+/* 0x37a0e0 vostok::network::match_client::new_packet: client EAX, id ESP+4; pops 4; EAX */
+void *engine_new_packet(void *client, unsigned int id);
+
+/* 0x7ab30 vostok::network_core::mutable_buffer::resize: buffer EAX, size ESP+4; pops 4 */
+void engine_buffer_resize(void *buffer, unsigned int size);
+
+/* 0x379640 vostok::network::match_client::enqueue: client ESP+4, packet ESP+8; pops 8; stdcall, called directly */
+void __attribute__((stdcall)) engine_enqueue(void *client, void *packet);
+
+/* 0x275220 survarium::lobby_client::process_detach_upgrade: client ESP+4, upgrade ESP+8; pops 8; EAX; stdcall, called directly */
+unsigned int __attribute__((stdcall)) engine_process_detach_upgrade(void *client, unsigned int upgrade);
+
 #endif

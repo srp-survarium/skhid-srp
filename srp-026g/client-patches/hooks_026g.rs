@@ -419,6 +419,66 @@ pub extern "C" fn hook_replay_viewer_on_seek(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- shared_upgrades (patch 30) ----
+
+/// The entry `shared_upgrades_on_drop_sent` (0x29aad5, drop_upgrade_item's handler 0x29A9D0 sends 46 02 <kit> <upgrade> (push edi; push ecx; call 0x2708C0; EAX the lobby client, ECX the kit, EDI the upgrade, EBP its frame)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_shared_upgrades_on_drop_sent(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `shared_upgrades_on_drop_sent` calls this, from the game's jump at 0x29aad5,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::shared_upgrades::on_drop_sent(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- shared_upgrades (patch 30) ----
+
+/// The entry `shared_upgrades_on_detach_answer` (0x275756, process_succeeded_inventory_action 0x275520, case 83 46 02 (mov ecx,[eax]; push ecx; add eax,4; push ebp; mov [esi+4],eax; call process_detach_upgrade; EAX the read position, ESI the reader, EBP the lobby client)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_shared_upgrades_on_detach_answer(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `shared_upgrades_on_detach_answer` calls this, from the game's jump at 0x275756,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::shared_upgrades::on_detach_answer(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- shared_upgrades (patch 30) ----
+
+/// The entry `shared_upgrades_on_detach_first` (0x275589, the 83 46 01 case's detach_first (push edi; push ebp; call process_detach_upgrade; EBX the item, EDI the upgrade, EBP the lobby client)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_shared_upgrades_on_detach_first(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `shared_upgrades_on_detach_first` calls this, from the game's jump at 0x275589,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::shared_upgrades::on_detach_first(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- shared_upgrades (patch 30) ----
+
+/// The entry `shared_upgrades_on_find_holder` (0x27534d, process_detach_upgrade's search of the item holding the upgrade (call find_item_holding_upgrade 0x277CF0, cdecl: [esp] the items, [esp+4] their end, [esp+8] &the id)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_shared_upgrades_on_find_holder(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `shared_upgrades_on_find_holder` calls this, from the game's jump at 0x27534d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::shared_upgrades::on_find_holder(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- spot (patch 38) ----
 
 /// The named exits of spot::on_hit_owner (the order the shim's Flow code

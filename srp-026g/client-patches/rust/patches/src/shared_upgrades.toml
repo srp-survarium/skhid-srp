@@ -1,0 +1,26 @@
+# Patch 30: one upgrade on several items; taking it off names the item it
+# comes off. Only the decisions: which sites, and the handlers. The sites
+# are sites_026g.tsv's; the lobby client, its messages and the items are
+# vostok's (vostok::upgrades); the logic is shared_upgrades.rs.
+name = "shared_upgrades"
+patch = 30
+
+# the window's drop: 46 02 <kit> <upgrade> <item>
+[[hook]]
+site = "lobby_upgrade.drop_sent"
+handler = "on_drop_sent"
+
+# the answer 83 46 02 <upgrade> <item>: that item's upgrade comes off
+[[hook]]
+site = "inventory_action.detach_answer"
+handler = "on_detach_answer"
+
+# 83 46 01's detach_first: off the item the answer puts it on
+[[hook]]
+site = "inventory_action.detach_first"
+handler = "on_detach_first"
+
+# process_detach_upgrade's search: the item its caller named
+[[hook]]
+site = "detach_upgrade.find_holder"
+handler = "on_find_holder"

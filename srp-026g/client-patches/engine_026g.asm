@@ -64,6 +64,10 @@ global engine_add_message
 global engine_get_module_handle_a
 global engine_get_proc_address
 global engine_get_module_file_name_w
+global engine_new_packet
+global engine_buffer_resize
+global engine_enqueue
+global engine_process_detach_upgrade
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -81,6 +85,8 @@ engine_add_message equ 0x208ad0   ; 0x208ad0 survarium::chat_handler::add_messag
 engine_get_module_handle_a equ 0x87003c   ; the IAT slot 0x87003c (kernel32, stdcall)
 engine_get_proc_address equ 0x870084   ; the IAT slot 0x870084 (kernel32, stdcall)
 engine_get_module_file_name_w equ 0x870074   ; the IAT slot 0x870074 (kernel32, stdcall)
+engine_enqueue equ 0x379640   ; 0x379640 vostok::network::match_client::enqueue: client ESP+4, packet ESP+8; pops 8; stdcall, called directly
+engine_process_detach_upgrade equ 0x275220   ; 0x275220 survarium::lobby_client::process_detach_upgrade: client ESP+4, upgrade ESP+8; pops 8; EAX; stdcall, called directly
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -821,6 +827,38 @@ engine_register_constant_binding:
     push dword [esp + 24]   ; manager -> 4
     mov eax, [esp + 24]   ; binding
     call 0x3bccc0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_new_packet:
+    ; 0x37a0e0 vostok::network::match_client::new_packet: client EAX, id ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; id -> 4
+    mov eax, [esp + 24]   ; client
+    call 0x37a0e0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_buffer_resize:
+    ; 0x7ab30 vostok::network_core::mutable_buffer::resize: buffer EAX, size ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; size -> 4
+    mov eax, [esp + 24]   ; buffer
+    call 0x7ab30
     pop edi
     pop esi
     pop ebx

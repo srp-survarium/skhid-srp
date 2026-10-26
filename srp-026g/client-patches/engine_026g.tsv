@@ -65,3 +65,7 @@ engine_get_temp_path_a	kernel32.dll!GetTempPathA	-	unsigned int engine_get_temp_
 engine_get_module_file_name_w	0x870074	-	unsigned int engine_get_module_file_name_w(void *module, unsigned short *name, unsigned int size)	import	
 engine_create_process_w	kernel32.dll!CreateProcessW	-	unsigned int engine_create_process_w(const unsigned short *application, unsigned short *command, void *process_security, void *thread_security, unsigned int inherit, unsigned int flags, void *environment, const unsigned short *folder, void *startup, void *process)	proc	
 engine_usable_get_transform	0x300a20	ECX:battery ESP+4:matrix	void *engine_usable_get_transform(void *usable, float *matrix)	virtual+0x44	
+engine_new_packet	0x37a0e0	EAX:receiver ESP+4:channel	void *engine_new_packet(void *client, unsigned int id)	thunk	
+engine_buffer_resize	0x07ab30	EAX:buffer ESP+4:size	void engine_buffer_resize(void *buffer, unsigned int size)	thunk	
+engine_enqueue	0x379640	ESP+4:receiver ESP+8:value	void engine_enqueue(void *client, void *packet)	stdcall	
+engine_process_detach_upgrade	0x275220	ESP+4:client ESP+8:upgrade	unsigned int engine_process_detach_upgrade(void *client, unsigned int upgrade)	stdcall	

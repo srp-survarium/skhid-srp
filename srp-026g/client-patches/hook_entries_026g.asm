@@ -982,6 +982,171 @@ replay_viewer_on_seek_replay:
     db 0x8d, 0x87, 0x18, 0xfc, 0xff, 0xff
     jmp 0x1ee3a9
 
+; 0x29aad5 drop_upgrade_item's handler 0x29A9D0 sends 46 02 <kit> <upgrade> (push edi; push ecx; call 0x2708C0; EAX the lobby client, ECX the kit, EDI the upgrade, EBP its frame): lohook -> shared_upgrades_on_drop_sent
+global shared_upgrades_on_drop_sent
+extern hook_shared_upgrades_on_drop_sent
+shared_upgrades_on_drop_sent:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_shared_upgrades_on_drop_sent
+    mov edx, shared_upgrades_on_drop_sent_replay
+    cmp eax, 0
+    je shared_upgrades_on_drop_sent_go
+    mov edx, 0x29aadc
+    cmp eax, 1
+    je shared_upgrades_on_drop_sent_go
+    ud2
+shared_upgrades_on_drop_sent_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+shared_upgrades_on_drop_sent_replay:
+    db 0x57
+    db 0x51
+    call 0x2708c0
+    jmp 0x29aadc
+
+; 0x275756 process_succeeded_inventory_action 0x275520, case 83 46 02 (mov ecx,[eax]; push ecx; add eax,4; push ebp; mov [esi+4],eax; call process_detach_upgrade; EAX the read position, ESI the reader, EBP the lobby client): lohook -> shared_upgrades_on_detach_answer
+global shared_upgrades_on_detach_answer
+extern hook_shared_upgrades_on_detach_answer
+shared_upgrades_on_detach_answer:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_shared_upgrades_on_detach_answer
+    mov edx, shared_upgrades_on_detach_answer_replay
+    cmp eax, 0
+    je shared_upgrades_on_detach_answer_go
+    mov edx, 0x275765
+    cmp eax, 1
+    je shared_upgrades_on_detach_answer_go
+    ud2
+shared_upgrades_on_detach_answer_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+shared_upgrades_on_detach_answer_replay:
+    db 0x8b, 0x08
+    db 0x51
+    db 0x83, 0xc0, 0x04
+    db 0x55
+    db 0x89, 0x46, 0x04
+    call 0x275220
+    jmp 0x275765
+
+; 0x275589 the 83 46 01 case's detach_first (push edi; push ebp; call process_detach_upgrade; EBX the item, EDI the upgrade, EBP the lobby client): lohook -> shared_upgrades_on_detach_first
+global shared_upgrades_on_detach_first
+extern hook_shared_upgrades_on_detach_first
+shared_upgrades_on_detach_first:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_shared_upgrades_on_detach_first
+    mov edx, shared_upgrades_on_detach_first_replay
+    cmp eax, 0
+    je shared_upgrades_on_detach_first_go
+    mov edx, 0x275590
+    cmp eax, 1
+    je shared_upgrades_on_detach_first_go
+    ud2
+shared_upgrades_on_detach_first_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+shared_upgrades_on_detach_first_replay:
+    db 0x57
+    db 0x55
+    call 0x275220
+    jmp 0x275590
+
+; 0x27534d process_detach_upgrade's search of the item holding the upgrade (call find_item_holding_upgrade 0x277CF0, cdecl: [esp] the items, [esp+4] their end, [esp+8] &the id): lohook -> shared_upgrades_on_find_holder
+global shared_upgrades_on_find_holder
+extern hook_shared_upgrades_on_find_holder
+shared_upgrades_on_find_holder:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_shared_upgrades_on_find_holder
+    mov edx, shared_upgrades_on_find_holder_replay
+    cmp eax, 0
+    je shared_upgrades_on_find_holder_go
+    mov edx, 0x275352
+    cmp eax, 1
+    je shared_upgrades_on_find_holder_go
+    ud2
+shared_upgrades_on_find_holder_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+shared_upgrades_on_find_holder_replay:
+    call 0x277cf0
+    jmp 0x275352
+
 ; 0x2d8a0f base_player::apply_new_input, a spottable hit with no player behind it: its owner (mov ecx,[esi]; mov ecx,[ecx+0Ch]; ESI the hit's object pointer, EDI the spotter); spotted ends the walk, not_spotted takes 800h out and goes to the next hit: lohook -> spot_on_hit_owner
 global spot_on_hit_owner
 extern hook_spot_on_hit_owner

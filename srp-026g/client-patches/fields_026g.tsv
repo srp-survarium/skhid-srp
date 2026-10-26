@@ -145,3 +145,11 @@ survarium::use_scan_frame	crossed	0x40	u8	patch 23's byte in the use scan's fram
 survarium::image	usable_objects_detection_distance	0xA710D8	f32	the console variable usable_objects_detection_distance (2.0): the use scan's ray is fld of it (0x2D84E9)
 survarium::image	victory_item_can_use	0x300710	u32	victory_item_core::can_use: +30h of victory_item_core's and victory_item's usable vtables and nowhere else (a battery)
 survarium::usable_vtable	can_use	0x30	u32	a usable object's vtable: +30h its can_use (the use scan calls it at 0x2D85CE)
+vostok::network::packet	buffer	0x2BC	u32	a match client packet's mutable buffer (new_packet 0x37A0E0's, written then enqueued)
+vostok::network_core::mutable_buffer	data	0x4	u32	the buffer's bytes
+vostok::network_core::mutable_buffer	size	0xC	u32	the bytes used so far (resize 0x7AB30 sets it)
+survarium::lobby_client	connection	0x8	u32	the lobby client's match client (its +8, what new_packet and enqueue take; 0x2708C0)
+survarium::drop_upgrade_frame	args	0x8	u32	drop_upgrade_item's handler 0x29A9D0 by its EBP: its argument, the Flash call's arguments (+8 their values, 18h each: the item, then the upgrade at +20h; 0x29A9D9)
+scaleform::callback_args	values	0x8	u32	a Flash callback's arguments: +8 their GFx values (0x29A9DC)
+survarium::inventory_item	id	0x0	u32	an inventory item's id (the lobby client's items, B4h each, +1EA978h; find_item_holding_upgrade 0x277CF0 steps by B4h)
+survarium::message_reader	position	0x4	u32	a lobby message reader's read position (process_succeeded_inventory_action moves it, mov [esi+4],eax at 0x27575D)

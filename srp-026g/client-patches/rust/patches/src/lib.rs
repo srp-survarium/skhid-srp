@@ -37,6 +37,7 @@ pub mod forward_scroll;
 pub mod kill_feed;
 pub mod match_keys;
 pub mod kit_state;
+pub mod shared_upgrades;
 pub mod spot;
 pub mod pickup_below;
 pub mod ragdoll;

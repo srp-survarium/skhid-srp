@@ -55,9 +55,8 @@ USAGE (this script never touches the source exe):
     (checked in; STATE is 0x800 of the late join's state page, checked).
     The forward effect's UV scrolling is the Rust patch forward_scroll, in
     the arena's block patches.code, and so is "Watch replay"'s link, the
-    Rust patch replay_link. One upgrade on several items comes from shared_upgrades_026g.asm:
-        nasm -f bin -DCAVE=0xA425700 shared_upgrades_026g.asm -o shared_upgrades_026g.section.bin
-    (checked in). A kit chosen before the start comes from kit_change_026g.asm:
+    Rust patch replay_link, and so is one upgrade on several items, the Rust
+    patch shared_upgrades. A kit chosen before the start comes from kit_change_026g.asm:
         nasm -f bin -DCAVE=0xA425EC0 kit_change_026g.asm -o kit_change_026g.section.bin
     (checked in). The archive reads' order comes from read_order_026g.asm, which
     replaces hdd_manager_sorting_predicate's body in place:
@@ -299,8 +298,8 @@ Patches:
   with the late join, client_patch.md section 3.28). Taking an upgrade off
   named no item: the lobby's `46 02 <kit> <upgrade>` and the server's
   answer `83 46 02 <upgrade>`, which took it off the first item of the
-  inventory holding it. Four calls or jumps into shared_upgrades_026g.asm
-  (.srp+700h, after the patches' mount, before the pickup code): the
+  inventory holding it. The Rust patch shared_upgrades' four lohooks
+  (shared_upgrades.toml): the
   upgrade window's drop (0x29AAD5) sends `46 02 <kit> <upgrade> <item>`, the
   item the window shows; `83 46 02 <upgrade> <item>` (0x275756) and
   `83 46 01`'s detach_first (0x275589, the item the answer puts it on)
@@ -1389,39 +1388,30 @@ FALL_GRAVITY = (
 REPLAY_LINK_HANDLER = 0x28CDA0
 REPLAY_LINK_BUFFER = engine_026g.field("survarium::lobby_client", "replay_link")   # 0x1E6144
 
-# One upgrade on several items (patch 30, client_patch.md section 3.28):
-# shared_upgrades_026g.asm at SHARED_UPGRADES_OFFSET of `.srp`, after the
-# patches' mount (which ends at +6C3h) and before the pickup code; its four
-# entries at fixed offsets, one for each site:
+# One upgrade on several items (patch 30, client_patch.md section 3.28): the
+# Rust patch shared_upgrades (rust/patches/src/shared_upgrades.rs; until the
+# Rust port shared_upgrades_026g.asm at .srp+700h), a lohook at each site
+# (sites_026g.tsv lobby_upgrade.drop_sent, inventory_action.detach_answer
+# and .detach_first, detach_upgrade.find_holder):
 # - drop_upgrade_item's handler 0x29A9D0 (the delegate {lobby ui, 0x29A9D0},
 #   `mov eax,0x29a9d0` at 0x2818FA; Flash drop_upgrade_item(<item>,
 #   <upgrade>): the upgrade window's drop and cancel, and on_item_sold) at
 #   0x29AAD5: `push edi` / `push ecx` / `call 0x2708C0` (the only call of
-#   0x2708C0, which writes `46 02 <kit> <upgrade>`) -> a call of
-#   drop_upgrade, which writes `46 02 <kit> <upgrade> <item>`, and two nops;
+#   0x2708C0, which writes `46 02 <kit> <upgrade>`): `46 02 <kit> <upgrade>
+#   <item>` instead;
 # - process_succeeded_inventory_action 0x275520, case 2 (`83 46 02`) at
 #   0x275756: `mov ecx,[eax]` / `push ecx` / `add eax,4` / `push ebp` /
-#   `mov [esi+4],eax` / `call 0x275220` -> a jump to detach_answer, which
-#   reads `<upgrade> <item>`, and ten nops;
+#   `mov [esi+4],eax` / `call 0x275220`: `<upgrade> <item>` read, and the
+#   upgrade off that item;
 # - case 1 (`83 46 01`), detach_first, at 0x275589: `push edi` / `push
-#   ebp` / `call 0x275220` -> a call of detach_first (the item the answer
-#   puts the upgrade on, in ebx) and two nops;
+#   ebp` / `call 0x275220`: off the item the answer puts the upgrade on (in
+#   ebx);
 # - process_detach_upgrade 0x275220 (called from those two sites alone), at
 #   0x27534D: `call 0x277CF0` (find_if: the first item of the inventory
-#   holding the upgrade, the only call of it) -> a call of find_host, the
-#   item of the id its callers now give it as a third argument.
+#   holding the upgrade, the only call of it): the item its two callers
+#   name (the asm passed it as a third argument, the port keeps it in a
+#   GameCell for the call's time), or with none named the original's.
 # No site holds an address: no base relocation is under them.
-SHARED_UPGRADES_OFFSET = 0x700
-SHARED_UPGRADES_VA = SECTION_VA + SHARED_UPGRADES_OFFSET
-SHARED_UPGRADES_HOOKS = (
-    (0x29AAD5, bytes.fromhex("5751" "e8e45dfdff"), 0x00, 0xE8),                          # drop_upgrade
-    (0x275756, bytes.fromhex("8b08" "51" "83c004" "55" "894604" "e8bbfaffff"), 0x60, 0xE9),  # detach_answer
-    (0x275589, bytes.fromhex("5755" "e890fcffff"), 0x80, 0xE8),                          # detach_first
-    (0x27534D, bytes.fromhex("e89e290000"), 0x90, 0xE8),                                 # find_host
-)
-# The first bytes of each entry, as the .bin must have them.
-SHARED_UPGRADES_ENTRIES = {0x00: bytes.fromhex("8b5508"), 0x60: bytes.fromhex("8b08"),
-                           0x80: bytes.fromhex("535755"), 0x90: bytes.fromhex("8b542458")}
 DROP_UPGRADE_HANDLER = 0x29A9D0
 PROCESS_DETACH_UPGRADE = 0x275220
 INVENTORY_ACTION = 0x275520
@@ -2219,10 +2209,6 @@ INSTALLS = {
     # patch 27/49, 28, 29, 30, 33
     0xE7E3E: (CALLEE, "query_db's query_mount_archive: mount_all", None, None),
     0x147E0: (ENTRY, "on_mounted_resources: on_mounted", None, None),
-    0x29AAD5: (CALLEE, "the upgrade window's drop: drop_upgrade", None, None),
-    0x275756: (JUMP, "`83 46 02`: detach_answer", None, None),
-    0x275589: (CALLEE, "`83 46 01`'s detach: detach_first", None, None),
-    0x27534D: (CALLEE, "process_detach_upgrade's find_if: find_host", None, None),
     READ_ORDER_VA: (ENTRY, "hdd_manager_sorting_predicate, in place: read_order", None, None),
     # patch 38, 44, 45, 47, 48
     0x24B0D2: (INLINE, "the weapon's model ready: weapon_ready", None, None),
@@ -2977,7 +2963,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     0.29 (the Rust patch forward_scroll), and the lobby's link starts the
     updater for a replay link alone (the Rust patch replay_link), and an
     upgrade taken off names the item it comes off
-    (shared_upgrades_026g.section.bin).
+    (the Rust patch shared_upgrades).
     revision: what the build with the late join says instead of REVISION
     (a release's, REVISION to 255). It is the revision byte and nothing
     else: every patch above is chosen by the kind of build, never by its
@@ -3340,21 +3326,11 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 sys.exit(f"{site[0]:#x}: a base relocation under a hook of the patches' mount")
         if WARMUP_LIMITS_OFFSET + len(warmup_limits) > WEAPON_DRAW_OFFSET:
             sys.exit("the warmup camera's limits do not fit before the weapon preview's draw")
-        if len(cave) > MOUNT_PATCHES_OFFSET or MOUNT_PATCHES_OFFSET + len(mount_patches) > SHARED_UPGRADES_OFFSET:
+        if len(cave) > MOUNT_PATCHES_OFFSET or MOUNT_PATCHES_OFFSET + len(mount_patches) > WARMUP_KEYS_OFFSET:
             sys.exit("the upload code (and the default server) and the patches' mount do not fit before the "
-                     "shared upgrades' code")
+                     "warmup keys")
         if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the patches' mount keeps more state than the late join's page has")
-        shared_upgrades = open(shared_upgrades_bin(), "rb").read()
-        if MOUNT_PATCHES_OFFSET + len(mount_patches) > SHARED_UPGRADES_OFFSET \
-                or SHARED_UPGRADES_OFFSET + len(shared_upgrades) > WARMUP_KEYS_OFFSET:
-            sys.exit("the patches' mount, the shared upgrades' code and the warmup keys do not fit")
-        if any(shared_upgrades[at:at + len(first)] != first for at, first in SHARED_UPGRADES_ENTRIES.items()):
-            sys.exit("shared_upgrades_026g.section.bin: its entries are not where patch_026g.py calls them")
-        for va, expected, offset, opcode in SHARED_UPGRADES_HOOKS:
-            patch(data, va, expected, hook_bytes(SHARED_UPGRADES_VA, va, expected, offset, opcode))
-            if neutralize_relocs(data, [(va, va + len(expected))]):
-                sys.exit(f"{va:#x}: a base relocation under a hook of the shared upgrades")
         weapon_camo = open(weapon_camo_bin(), "rb").read()
         camo_va = weapon_camo_va(late_join)
         name_at = weapon_camo.find(WEAPON_CAMO_NAME_FORMAT)
@@ -3464,7 +3440,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
     if mode == "section":
         if late_join is not None:
             cave = cave + b"\xCC" * (MOUNT_PATCHES_OFFSET - len(cave)) + mount_patches
-            cave = cave + b"\xCC" * (SHARED_UPGRADES_OFFSET - len(cave)) + shared_upgrades
             cave = cave + b"\xCC" * (WARMUP_KEYS_OFFSET - len(cave)) + warmup_keys
             cave = cave + b"\xCC" * (WARMUP_LIMITS_OFFSET - len(cave)) + warmup_limits
             cave = cave + b"\xCC" * (WEAPON_DRAW_OFFSET - len(cave)) + weapon_draw
@@ -3608,10 +3583,6 @@ def default_bin(mode):
 
 def default_server_bin(mode):
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), f"default_server_026g.{mode}.bin")
-
-
-def shared_upgrades_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "shared_upgrades_026g.section.bin")
 
 
 def mount_patches_bin():
