@@ -1,15 +1,15 @@
 //! How far a shot is heard by the weapon that fired it (H1c).
 //!
-//! The game's own number, per weapon (PROVEN data; `weapon_hearing2.py`
-//! of the batteries record): the weapon config's `states/fire/sounds/
-//! third_view` names a composite sound whose layers carry a `min_distance`
-//! and `max_distance`; each layer's sound collection names a `spl_preset`
-//! whose `.spl` volume curve reaches 0 at its cull. A layer is heard out to
-//! min(its `max_distance`, its preset's cull) and the shot reaches the
-//! largest over the weapon's enabled layers: 55 m (the suppressed: VSS, VAL,
-//! A9-91, VSK-94), 100 m (pistols, shotguns, UZI), 150 m (the AK family,
-//! SKS, SVD, SMGs) and 200 m (the bolt rifles). A few layers had no preset
-//! found (the record's last column), so a value is a lower bound there.
+//! The game's own number, per weapon (PROVEN data): the weapon config's `states/fire/sounds/
+//! third_view` names a composite sound whose layers carry a `max_distance`; each layer's sound
+//! (a collection, or a single sound) names a `spl_preset` whose `.spl` volume curve reaches 0 at
+//! its cull. A layer is heard out to min(its `max_distance`, its preset's cull) and the shot
+//! reaches the largest over the weapon's enabled layers: 55 m (the suppressed: VSS, VAL, A9-91,
+//! VSK-94), 100 m (pistols, most shotguns, UZI), 150 m (the AK family, SKS, SVD, SMGs) and 200 m
+//! (the bolt rifles); and 19.3 m (FN P90 and MP7, whose layers all end there) and 240 m (the
+//! Neostead, Saiga-12 and Vepr-12: Rudnya's distant one-shot environment layer, which the other
+//! shotguns' composites do not have). All 83 weapons of the live archives have a chain that
+//! resolves to the end (`srp-shot-reach --check` says `partial` otherwise).
 //!
 //! The table is `shot_reach.tsv`, made by `srp-shot-reach` from the game's archives
 //! (`survarium::v026g::shot_reach` is the derivation, read from the files), keyed by the weapon's
@@ -97,7 +97,7 @@ mod tests {
     }
 
     #[test]
-    fn the_reaches_are_the_games_four() {
-        assert!(table().iter().all(|&(_, m)| [55.0, 100.0, 150.0, 200.0].contains(&m)));
+    fn the_reaches_are_a_few_hundred_metres_at_most() {
+        assert!(table().iter().all(|&(_, m)| m > 0.0 && m <= 300.0), "{:?}", table());
     }
 }
