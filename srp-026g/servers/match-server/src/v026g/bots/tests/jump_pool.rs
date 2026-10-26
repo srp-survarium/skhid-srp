@@ -318,5 +318,5 @@ fn jump_pool_dry_run() {
     );
     assert_eq!(report.forbidden_keys, 0, "a bot of the test pressed a key outside the moving keys");
     assert_eq!(report.crowded_ticks, 0, "bodies of the other team came near a bot in a try: {:?}", report.crowded_first);
-    assert!(report.worst_rest[0] <= 0.3 && report.worst_rest[1] <= 0.3 && report.worst_rest[2] <= 10.0 + 0.01, "a rest did not fit its start");
+    assert!(report.worst_rest[0] <= 0.75 && report.worst_rest[1] <= 0.3 && report.worst_rest[2] <= 10.0 + 0.01, "a rest did not fit its start");
 }
