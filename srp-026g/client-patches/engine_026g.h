@@ -163,4 +163,7 @@ extern unsigned int (__attribute__((stdcall)) *const engine_get_current_thread_i
 /* 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16 */
 void engine_update_skeleton(void *scene_renderer, void *instance, const float *bones, const float *second, unsigned int count);
 
+/* 0x245c50 survarium::delayed_callbacks_queue::destroy_range: begin EAX, end ESP+4; pops 0 */
+void engine_delayed_sounds_destroy(void *begin, void **end);
+
 #endif

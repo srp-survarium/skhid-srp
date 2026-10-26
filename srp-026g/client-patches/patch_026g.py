@@ -668,7 +668,8 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # below; a replay watched in first or third person died at that player's
 # first respawn into another kit), a weapon's full sound queue drops the new
 # sound (SOUND_QUEUE below; a replay died about 50 s after a seek), and a
-# replay's seek empties the weapons' sound queues (SEEK_CLEAR below; sounds
+# replay's seek empties the weapons' sound queues (the Rust patch
+# replay_viewer, the replay's seek below; sounds
 # played late after a seek). Nothing a match computes: no revision of their
 # own (owner, 2026-10-15).
 # 12: the resources.db signature is not checked at all (DB_SIGNATURE below):
@@ -907,7 +908,7 @@ MOUNTED = (MOUNTED_VA, bytes.fromhex("55" "8bec" "83e4f8"),
 
 # UV scrolling for the transparent effects (patch 28, README; client_patch.md
 # section 3.26): forward_scroll_026g.asm at FORWARD_SCROLL_OFFSET of `.srp`,
-# after the replay's seek code and before the shell_32.dll check, three
+# after the warmup camera's limits and before the shell_32.dll check, three
 # entries the three jumps below go to. effect_fstage_default_materials::
 # compile (0x1D8F40): at 0x1D90DC (`mov dl,[esp+56h]` / `mov esi,[ebp+10h]`,
 # after use_angle_depended_attenuation is read, before compile_begin at
@@ -937,7 +938,7 @@ FORWARD_SCROLL_HOOKS = (FORWARD_SWITCH_HOOK, FORWARD_CONSTANTS_HOOK, SCENE_SLOMO
 # `mov [edi+0Ch],dl` (the EULA byte). Both become a call of
 # stale_dll_026g.asm and a nop; the code there does both after its check,
 # with the result in byte 8. It sits at STALE_DLL_OFFSET in the first page
-# of `.srp`, after the replay's seek code (SEEK_CLEAR_OFFSET; 0xC00 to
+# of `.srp`, after the forward effect's scrolling (0xC00 to
 # 0xE00 held the never-released first revision 12's signature code); build() checks that they do not
 # overlap. The two instructions hold no address: no base relocation is
 # under them.
@@ -1004,7 +1005,7 @@ KIT_PICK = (0x233F28, bytes.fromhex("6a008bc3e87f440000"), b"\x90" * 9)   # a pi
 # The same patch's camera before the start: warmup_look_026g.asm at
 # WARMUP_LOOK_OFFSET of `.srp` (after the weapon preview's draw, before the
 # shell_32.dll check) and warmup_limits_026g.asm at WARMUP_LIMITS_OFFSET
-# (after the seek code, before the forward effect's scrolling); a state of
+# (after the warmup keys, before the forward effect's scrolling); a state of
 # 12 bytes at WARMUP_LOOK_STATE_OFFSET of the late join's state page (after
 # the weapon preview's). The input world gives a mouse move to its handlers
 # in their priority's order until one answers 1 (0x3B9F10): the game world's
@@ -1037,7 +1038,7 @@ WARMUP_DRAG_END_OFFSET, WARMUP_LIMITS_ENTRY_OFFSET = 0, 0x20       # the .asm's 
 WARMUP_LIMITS_HOOK = (0x24225E, bytes.fromhex("f30f118650030000"), WARMUP_LIMITS_ENTRY_OFFSET, 0xE8)   # the pitch's store
 # And a mouse button held from before the start is not the player's until it
 # is let go: warmup_keys_026g.asm at WARMUP_KEYS_OFFSET of `.srp` (after the
-# suicide key, before the seek code), the buttons marked in a dword at
+# suicide key, before the warmup camera's limits), the buttons marked in a dword at
 # WARMUP_KEYS_STATE_OFFSET of the late join's state page (after the warmup
 # look's). The input world tells its handlers of each button each frame
 # until one answers 1 (0x3B9D90): kind 0 and 2 when it goes down, 1 when it
@@ -1572,16 +1573,14 @@ FIRST_LOAD_DESERIALIZE_VA = 0x2D0B70
 # times of the old timeline, and the re-simulated ones all come due at once:
 # sounds late by the seek's distance, a burst, a queue that fills. For a
 # user seek only (`test bl,bl` / `jnz 1EE3B5h`, a key frame in play takes the
-# jnz), `lea eax,[edi-3E8h]` at 0x1EE3A3 becomes a jump to seek_clear
-# (replay_seek_026g.asm at SEEK_CLEAR_VA, after the pickup code): every
-# client weapon (item vtable 0xA0422C) in the 23
-# inventory slots of each place's three kits has its queue's functors
-# destroyed (0x245C50, which plays nothing), the queue emptied, and its fx
-# history (weapon+828h, the duplicate check) emptied, as ~weapon 0x243790
-# does; then the lea, and back. A live game never runs the seek.
-SEEK_CLEAR_OFFSET = 0xA00
-SEEK_CLEAR_VA = SECTION_VA + SEEK_CLEAR_OFFSET
-SEEK_CLEAR_HOOK = (0x1EE3A3, bytes.fromhex("8d8718fcffff"), 0, 0xE9)
+# jnz), `lea eax,[edi-3E8h]` at 0x1EE3A3 is the Rust patch replay_viewer's
+# lohook (rust/patches/src/replay_viewer.toml, sites_026g.tsv replay.seek;
+# until its port replay_seek_026g.asm at .srp+A00h): every client weapon
+# (item vtable 0xA0422C) in the 23 inventory slots of each place's three
+# kits has its queue's functors destroyed (0x245C50, which plays nothing),
+# the queue emptied, and its fx history (weapon+828h, the duplicate check)
+# emptied, as ~weapon 0x243790 does; then the lea, and on. A live game
+# never runs the seek. No base relocation under the site.
 
 # Rewritten in place: (address, the original's bytes, the new ones). The
 # actual roster count stays what resources and the countdown read; only
@@ -2239,7 +2238,6 @@ INSTALLS = {
     0x2D84E9: (INLINE, "the use scan's ray length: reach", None, None),
     0x2D861C: (JUMP, "the use scan's wall or floor: solid", None, None),
     0x2D85BE: (JUMP, "the use scan's usable object: candidate", None, None),
-    0x1EE3A3: (JUMP, "the replay's seek: seek_clear", None, None),
     0x380889: (INLINE, "the version field's last writes: stale_dll", None, None),
     0x316820: (ENTRY, "the respawn rule's tick: kit_change", None, None),
     0x26794D: (CALLEE, "the view of a kit change: kit_view", None, None),
@@ -3256,13 +3254,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             sites.append((va, va + len(expected)))
         if neutralize_relocs(data, sites) != [PICKUP_RELOC]:
             sys.exit("the base relocations under the pickup sites are not where they were read")
-        seek_clear = open(seek_clear_bin(), "rb").read()
-        if PICKUP_OFFSET + len(pickup) > SEEK_CLEAR_OFFSET or SEEK_CLEAR_OFFSET + len(seek_clear) > LATE_JOIN_OFFSET:
-            sys.exit("the pickup code and the seek code do not fit before the late join")
-        va, expected, offset, opcode = SEEK_CLEAR_HOOK
-        patch(data, va, expected, hook_bytes(SEEK_CLEAR_VA, va, expected, offset, opcode))
-        if neutralize_relocs(data, [(va, va + len(expected))]):
-            sys.exit("a base relocation under the seek's hook")
         patch(data, *DB_SIGNATURE)
         if neutralize_relocs(data, [(DB_SIGNATURE_VA, DB_SIGNATURE_VA + len(DB_SIGNATURE[1]))]):
             sys.exit("a base relocation under verify_sign's call")
@@ -3401,8 +3392,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         if neutralize_relocs(data, [(va, va + len(expected))]):
             sys.exit("a base relocation under the weapon preview's draw site")
         if PICKUP_OFFSET + len(pickup) > WARMUP_KEYS_OFFSET \
-                or WARMUP_KEYS_OFFSET + len(warmup_keys) > SEEK_CLEAR_OFFSET:
-            sys.exit("the pickup code, the warmup keys and the seek code do not fit")
+                or WARMUP_KEYS_OFFSET + len(warmup_keys) > WARMUP_LIMITS_OFFSET:
+            sys.exit("the pickup code, the warmup keys and the warmup camera's limits do not fit")
         if late_join[TAB_ROW_OFFSET:TAB_ROW_OFFSET + len(TAB_ROW_START)] != TAB_ROW_START \
                 or late_join[TAB_SHOWN_OFFSET:TAB_SHOWN_OFFSET + len(TAB_SHOWN_START)] != TAB_SHOWN_START:
             sys.exit("late_join_026g.section.bin: the scoreboard's entries (tab_row, tab_shown) or its state are "
@@ -3426,11 +3417,10 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             patch(data, va, expected, hook_bytes(FORWARD_SCROLL_VA, va, expected, offset, opcode))
             if neutralize_relocs(data, [(va, va + len(expected))]):
                 sys.exit(f"{va:#x}: a base relocation under a hook of the forward effect's scrolling")
-        if SEEK_CLEAR_OFFSET + len(seek_clear) > WARMUP_LIMITS_OFFSET \
-                or WARMUP_LIMITS_OFFSET + len(warmup_limits) > FORWARD_SCROLL_OFFSET \
+        if WARMUP_LIMITS_OFFSET + len(warmup_limits) > FORWARD_SCROLL_OFFSET \
                 or FORWARD_SCROLL_OFFSET + len(forward_scroll) > STALE_DLL_OFFSET \
                 or STALE_DLL_OFFSET + len(stale_dll) > LATE_JOIN_OFFSET:
-            sys.exit("the seek code, the warmup camera's limits, the forward effect's scrolling and the "
+            sys.exit("the warmup camera's limits, the forward effect's scrolling and the "
                      "shell_32.dll check do not fit before the late join")
         if len(cave) > MOUNT_PATCHES_OFFSET or MOUNT_PATCHES_OFFSET + len(mount_patches) > PICKUP_OFFSET:
             sys.exit("the upload code (and the default server) and the patches' mount do not fit before the pickup code")
@@ -3567,7 +3557,6 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             cave = cave + b"\xCC" * (SHARED_UPGRADES_OFFSET - len(cave)) + shared_upgrades
             cave = cave + b"\xCC" * (PICKUP_OFFSET - len(cave)) + pickup
             cave = cave + b"\xCC" * (WARMUP_KEYS_OFFSET - len(cave)) + warmup_keys
-            cave = cave + b"\xCC" * (SEEK_CLEAR_OFFSET - len(cave)) + seek_clear
             cave = cave + b"\xCC" * (WARMUP_LIMITS_OFFSET - len(cave)) + warmup_limits
             cave = cave + b"\xCC" * (FORWARD_SCROLL_OFFSET - len(cave)) + forward_scroll
             cave = cave + b"\xCC" * (WEAPON_DRAW_OFFSET - len(cave)) + weapon_draw
@@ -3739,10 +3728,6 @@ def pickup_bin():
 
 def forward_scroll_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "forward_scroll_026g.section.bin")
-
-
-def seek_clear_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "replay_seek_026g.section.bin")
 
 
 def read_order_bin():

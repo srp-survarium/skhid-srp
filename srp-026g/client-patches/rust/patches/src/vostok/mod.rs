@@ -35,6 +35,7 @@ mod keyboard;
 pub mod log;
 mod options;
 pub mod parse;
+pub mod replay;
 pub mod spotting;
 mod rt;
 mod sync;

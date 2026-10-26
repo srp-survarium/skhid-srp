@@ -448,6 +448,45 @@ ragdoll_on_held_item_replay:
     db 0x8b, 0xb3, 0x28, 0x01, 0x00, 0x00
     jmp 0x247555
 
+; 0x1ee3a3 the replay's seek 0x1EE2E0 on a user seek alone, after the clock went to the target (lea eax,[edi-3E8h]; ESI the game, EDI the target time): lohook -> replay_viewer_on_seek
+global replay_viewer_on_seek
+extern hook_replay_viewer_on_seek
+replay_viewer_on_seek:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_replay_viewer_on_seek
+    mov edx, replay_viewer_on_seek_replay
+    cmp eax, 0
+    je replay_viewer_on_seek_go
+    mov edx, 0x1ee3a9
+    cmp eax, 1
+    je replay_viewer_on_seek_go
+    ud2
+replay_viewer_on_seek_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+replay_viewer_on_seek_replay:
+    db 0x8d, 0x87, 0x18, 0xfc, 0xff, 0xff
+    jmp 0x1ee3a9
+
 ; 0x2d8a0f base_player::apply_new_input, a spottable hit with no player behind it: its owner (mov ecx,[esi]; mov ecx,[ecx+0Ch]; ESI the hit's object pointer, EDI the spotter); spotted ends the walk, not_spotted takes 800h out and goes to the next hit: lohook -> spot_on_hit_owner
 global spot_on_hit_owner
 extern hook_spot_on_hit_owner

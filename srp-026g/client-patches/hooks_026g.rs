@@ -176,6 +176,21 @@ pub extern "C" fn hook_ragdoll_on_held_item(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- replay_viewer (patch 26) ----
+
+/// The entry `replay_viewer_on_seek` (0x1ee3a3, the replay's seek 0x1EE2E0 on a user seek alone, after the clock went to the target (lea eax,[edi-3E8h]; ESI the game, EDI the target time)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_viewer_on_seek(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_viewer_on_seek` calls this, from the game's jump at 0x1ee3a3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_viewer::on_seek(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- spot (patch 38) ----
 
 /// The named exits of spot::on_hit_owner (the order the shim's Flow code

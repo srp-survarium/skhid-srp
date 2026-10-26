@@ -12,3 +12,4 @@ replay.options_read	0x1f0971	lohook	-	5	-	a replay's chunk 1 after its match_opt
 player_icons.update_start	0x23aa10	lohook	-	6	-	game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)
 keyboard.tab_state	0x25cd2c	lohook	-	7	-	game_world::on_keyboard_action after it asked for Tab (0x25CD26: bl Tab down, tested at 0x25CD39)
 input_builder.end	0x2421b0	lohook	-	5	-	process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too)
+replay.seek	0x1EE3A3	lohook	-	6	-	the replay's seek 0x1EE2E0 on a user seek alone, after the clock went to the target (lea eax,[edi-3E8h]; ESI the game, EDI the target time)

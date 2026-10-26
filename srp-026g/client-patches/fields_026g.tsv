@@ -79,3 +79,13 @@ survarium::static_info_frame	reader	-0x2C	u32	process_static_match_info's local 
 survarium::replay_options_frame	options	0x40	u32	a replay's chunk 1 reader's first argument, the options (by the site's ESP at 0x1F0971; 0x1F095C)
 survarium::replay_options_frame	reader	0x14	u32	its local reader {begin, cursor, size} (esp+14h; made at 0x1F094C..0x1F0958)
 survarium::update_player_icons_frame	ui	0x4	u32	update_player_icons' argument at its start: the ui (by the site's ESP at 0x23AA10)
+survarium::game	world	0x4D64	u32	the game world (a replay's seek 0x1EE2E0 reads it there)
+survarium::game_world	places_begin	0x18650	u32	the places' array (30h bytes a place), its first
+survarium::game_world	places_end	0x18654	u32	the places' array's end
+survarium::place	players	0x0	u32	the place's three kits' players (+0, +4, +8; 0: none)
+survarium::base_player	inventory	0x10C	u32	the player's inventory (0: none)
+survarium::client_weapon_item	fx_history_write	0x818	u32	the fx history's write index (weapon+828h)
+survarium::client_weapon_item	fx_history_oldest	0x81C	u32	the fx history's oldest index (weapon+82Ch)
+survarium::client_weapon_item	delayed_sounds_begin	0x9EC	u32	the delayed sounds' queue (delayed_callbacks_queue<64>, weapon+9FCh): its first item, 38h bytes each
+survarium::client_weapon_item	delayed_sounds_end	0x9F0	u32	the queue's end (weapon+A00h)
+survarium::image	client_weapon_item_vtable	0xA0422C	u32	a client weapon's item's vtable (weapon+10h; written by its constructor 0x24365C and destructor alone)

@@ -74,7 +74,6 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_fov_lod_026g.py` | Runs patch 40 (a model's LOD and screen factor at a wider field of view are the original's): the projection's k at several settings and zooms, the game's select_lod and screen factor of the original and the build on made-up models (needs Unicorn) |
 | `pickup_below_026g.asm`, `pickup_below_026g.section.bin` | The source of patch 23's code and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_pickup_below_026g.py` | Runs the original and patch 23's use scan on made-up ray hits (needs Unicorn) |
-| `replay_seek_026g.asm`, `replay_seek_026g.section.bin` | The source of patch 26's code (a replay's seek empties the weapons' sound queues) and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `default_server_026g.asm`, `.section.bin`, `.hash-mismatch.bin` | Optional default-login-address stub, appended to the snapshot cave; source and assembled code for both placements |
 | `make_client_026g.py` | Makes the players' overlay folder or ZIP: patched exe, Rust BugTrap DLL, certificate, start file and README |
 | `play_skhid.sh`, `LINUX.txt` | Linux Wine/DXVK launcher and instructions, included in the generated folder and ZIP |
@@ -1555,10 +1554,12 @@ of them changes what a match computes, so they have no revision of their own.
   a full queue also killed the game.
 - **26. A replay's seek empties the weapons' sound queues.** After a seek,
   sounds waited behind the old timeline's (late reloads) and the
-  re-simulated ones came all at once. At a user seek, `seek_clear`
-  (`replay_seek_026g.asm` at `.srp`+A00h) empties every client weapon's queue
-  and fx history as the weapon's destructor does. A live game never runs
-  the seek.
+  re-simulated ones came all at once. At a user seek, the Rust patch
+  `replay_viewer`'s lohook at the site `replay.seek` (0x1EE3A3,
+  `rust/patches/src/replay_viewer.rs`; ported from `replay_seek_026g.asm`
+  with no change of behaviour, proven by `port/equiv/replay_viewer.py`)
+  empties every client weapon's queue and fx history as the weapon's
+  destructor does. A live game never runs the seek.
 
 Checked: `selftest_026g.py` (`test_replay_reattach`, `test_sound_queue`,
 `test_seek_clear`); `check_late_join_026g.py` runs the seek's end on made-up

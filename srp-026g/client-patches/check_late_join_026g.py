@@ -1857,7 +1857,7 @@ def seek_tail(data, places, user_seek=True, target=725000):
 
 def seek_clear(original, changed):
     """A replay's user seek empties every client weapon's delayed sounds and
-    fx history (patch_026g.py, SEEK_CLEAR_HOOK) as ~weapon does, and touches
+    fx history (the Rust patch replay_viewer, replay.seek) as ~weapon does, and touches
     nothing else; a key frame in play (bl = 1) and the original leave them."""
     weapon_slots = ["weapon", None, "other"] + [None] * 17 + ["weapon", None, "weapon"]
     layouts = ([], [[None, None, None]], [[weapon_slots, None, ["other"] + [None] * 22]],

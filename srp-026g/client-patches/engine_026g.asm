@@ -55,6 +55,7 @@ global engine_query_performance_counter
 global engine_query_performance_frequency
 global engine_get_current_thread_id
 global engine_update_skeleton
+global engine_delayed_sounds_destroy
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (kernel32, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (kernel32, stdcall)
@@ -772,6 +773,23 @@ engine_update_skeleton:
     push dword [esp + 36]   ; instance -> 4
     mov edi, [esp + 36]   ; scene_renderer
     call 0x22490
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_delayed_sounds_destroy:
+    ; 0x245c50 survarium::delayed_callbacks_queue::destroy_range: begin EAX, end ESP+4; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; end -> 4
+    mov eax, [esp + 24]   ; begin
+    call 0x245c50
+    add esp, 4                  ; the caller's part of the stack
     pop edi
     pop esi
     pop ebx

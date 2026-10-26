@@ -92,6 +92,8 @@ unsafe extern "C" {
     pub fn engine_user_data_directory() -> *const u8;
     /// 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16
     pub fn engine_update_skeleton(scene_renderer: *mut c_void, instance: *mut c_void, bones: *const f32, second: *const f32, count: u32);
+    /// 0x245c50 survarium::delayed_callbacks_queue::destroy_range: begin EAX, end ESP+4; pops 0
+    pub fn engine_delayed_sounds_destroy(begin: *mut c_void, end: *mut *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -211,6 +213,9 @@ pub mod image {
 
     /// 0xa042ac (u32): victory_item's vtable (RTTI .?AVvictory_item@survarium@@, offset 0): a held battery's; its +30h is is_ready_to_be_deactivated 0x301270, which the item switch 0x2D76A0 calls on +128h
     pub const VICTORY_ITEM_VTABLE: u32 = 0xa042ac;
+
+    /// 0xa0422c (u32): a client weapon's item's vtable (weapon+10h; written by its constructor 0x24365C and destructor alone)
+    pub const CLIENT_WEAPON_ITEM_VTABLE: u32 = 0xa0422c;
 }
 
 /// survarium::game_world's fields (fields_026g.tsv).
@@ -225,6 +230,24 @@ pub mod game_world {
     #[inline(always)]
     pub unsafe fn game(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x9c).cast() }
+    }
+
+    /// +0x18650 (u32): the places' array (30h bytes a place), its first
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_world.
+    #[inline(always)]
+    pub unsafe fn places_begin(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x18650).cast() }
+    }
+
+    /// +0x18654 (u32): the places' array's end
+    ///
+    /// # Safety
+    /// `this` is a survarium::game_world.
+    #[inline(always)]
+    pub unsafe fn places_end(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x18654).cast() }
     }
 }
 
@@ -249,6 +272,15 @@ pub mod game {
     #[inline(always)]
     pub unsafe fn renderer(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x5360).cast() }
+    }
+
+    /// +0x4d64 (u32): the game world (a replay's seek 0x1EE2E0 reads it there)
+    ///
+    /// # Safety
+    /// `this` is a survarium::game.
+    #[inline(always)]
+    pub unsafe fn world(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x4d64).cast() }
     }
 }
 
@@ -1056,5 +1088,77 @@ pub mod update_player_icons_frame {
     #[inline(always)]
     pub unsafe fn ui(this: *mut c_void) -> *mut u32 {
         unsafe { this.byte_add(0x4).cast() }
+    }
+}
+
+/// survarium::place's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod place {
+    use core::ffi::c_void;
+
+    /// +0x0 (u32): the place's three kits' players (+0, +4, +8; 0: none)
+    ///
+    /// # Safety
+    /// `this` is a survarium::place.
+    #[inline(always)]
+    pub unsafe fn players(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x0).cast() }
+    }
+}
+
+/// survarium::base_player's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod base_player {
+    use core::ffi::c_void;
+
+    /// +0x10c (u32): the player's inventory (0: none)
+    ///
+    /// # Safety
+    /// `this` is a survarium::base_player.
+    #[inline(always)]
+    pub unsafe fn inventory(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x10c).cast() }
+    }
+}
+
+/// survarium::client_weapon_item's fields (fields_026g.tsv).
+#[allow(dead_code)]
+pub mod client_weapon_item {
+    use core::ffi::c_void;
+
+    /// +0x818 (u32): the fx history's write index (weapon+828h)
+    ///
+    /// # Safety
+    /// `this` is a survarium::client_weapon_item.
+    #[inline(always)]
+    pub unsafe fn fx_history_write(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x818).cast() }
+    }
+
+    /// +0x81c (u32): the fx history's oldest index (weapon+82Ch)
+    ///
+    /// # Safety
+    /// `this` is a survarium::client_weapon_item.
+    #[inline(always)]
+    pub unsafe fn fx_history_oldest(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x81c).cast() }
+    }
+
+    /// +0x9ec (u32): the delayed sounds' queue (delayed_callbacks_queue<64>, weapon+9FCh): its first item, 38h bytes each
+    ///
+    /// # Safety
+    /// `this` is a survarium::client_weapon_item.
+    #[inline(always)]
+    pub unsafe fn delayed_sounds_begin(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x9ec).cast() }
+    }
+
+    /// +0x9f0 (u32): the queue's end (weapon+A00h)
+    ///
+    /// # Safety
+    /// `this` is a survarium::client_weapon_item.
+    #[inline(always)]
+    pub unsafe fn delayed_sounds_end(this: *mut c_void) -> *mut u32 {
+        unsafe { this.byte_add(0x9f0).cast() }
     }
 }

@@ -138,7 +138,7 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     `mov [edi+0Ch],dl` (0x380889) are `call` stale_dll at 0xE00 of `.srp`
     and a nop (no relocation under them, no branch aims inside them);
     stale_dll_026g.section.bin is what nasm makes and sits there, after the
-    seek code and before the late join; it saves every
+    forward effect's scrolling and before the late join; it saves every
     register (pushad / popad), calls itself once for its address, then
     GetModuleHandleA, GetProcAddress, CreateFileA, CloseHandle through the
     import table and GetTempPathA, branches only inside itself, does the two
@@ -164,7 +164,7 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     fill_shader_configuration_macros makes CONFIG_USE_UV_SCROLLING of that
     bit; no relocation under a site and nothing aims inside one. The code is
     forward_scroll_026g.section.bin (what nasm makes, check 1) and sits
-    between the seek code and the shell_32.dll check (check 15); its only
+    between the warmup camera's limits and the shell_32.dll check (check 15); its only
     ways out are the config's two helpers, set_constant<float4>, the shared
     string and its destroy, register_constant_binding and the three jumps
     back, each after the two instructions its hook replaced; it reads the
@@ -568,13 +568,6 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.pickup_bin(), "rb").read(),
           f"{os.path.basename(P.pickup_bin())} is current ({len(fresh)} bytes)")
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.SEEK_CLEAR_VA:#x}",
-                        os.path.join(HERE, "replay_seek_026g.asm"), "-o", out], check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(fresh == open(P.seek_clear_bin(), "rb").read(),
-          f"{os.path.basename(P.seek_clear_bin())} is current ({len(fresh)} bytes)")
     path = P.stale_dll_bin()
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
@@ -1510,7 +1503,6 @@ def late_join_sites():
          (P.REPLAY_REATTACH_THUNK[0], len(P.REPLAY_REATTACH_THUNK[1])),
          (P.SOUND_QUEUE_CAVE_SITE[0], len(P.SOUND_QUEUE_CAVE_SITE[1])),
          (P.SOUND_QUEUE_HOOK[0], len(P.SOUND_QUEUE_HOOK[1])),
-         (P.SEEK_CLEAR_HOOK[0], len(P.SEEK_CLEAR_HOOK[1])),
          (P.REPLAY_LINK_HOOK[0], len(P.REPLAY_LINK_HOOK[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.SHARED_UPGRADES_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.FOV_PATCHES] + pickup_sites() + \
@@ -3293,16 +3285,14 @@ def test_sound_queue(original, image, before):
 
 def test_seek_clear(original, image, before):
     """A replay's user seek empties every client weapon's delayed sounds
-    (patch revision 11, SEEK_CLEAR_HOOK): the site, that only the replay
-    reaches it, and seek_clear as the image has it. check_late_join_026g.py
-    runs it on made-up places, kits and weapons."""
+    (patch revision 11, the Rust patch replay_viewer's lohook at the site
+    replay.seek): that only the replay reaches it, what it walks and does
+    as ~weapon does, and the Rust hook (rust_lohooks). check_late_join_026g.py
+    runs it on made-up places, kits and weapons (and port/equiv/
+    replay_viewer.py compared it with replay_seek_026g.asm)."""
     stock = Image(original)
     rows = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
-    va, old, offset, _ = P.SEEK_CLEAR_HOOK
-    cave = P.SEEK_CLEAR_VA + offset
-    check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old
-          and rows(image, va, 6) == [f"jmp {cave:#x}", "nop"],
-          f"{va:#x}: `lea eax,[edi-0x3e8]` in the original and the build without the late join, `jmp {cave:#x}` here")
+    rust_lohooks(original, image, before, "replay_viewer", {0x1EE3A3: ["lea eax,[edi-0x3e8]"]})
     check(rows(stock, 0x1EE2E0, 6) == ["mov eax,[esi+0x53c8]"],
           "the seek 0x1EE2E0 starts from the replay reader [game+53C8h]")
     check(rows(stock, 0x1EE38B, 0x2A) == ["call 0x1ee4a0", "push edi", "push esi", "call 0x1edef0", "push edi",
@@ -3319,20 +3309,13 @@ def test_seek_clear(original, image, before):
             at = text.find(bytes([opcode]), at + 1)
     check(sorted(callers) == [0x1EF8C0, 0x233E2F],
           "the seek's only callers: the replay seek functor 0x1EF8C0 and the replay movie's slider 0x233E2F")
-    check(original.count(struct.pack("<I", 0xA0422C)) == 2 and rows(stock, 0x24365C, 7) == ["mov dword [ebx+0x10],0xa0422c"],
-          "0xA0422C, the client weapon's item vtable, is written by its constructor (and destructor) alone")
+    item_vtable = rust_field("survarium::image", "client_weapon_item_vtable")
+    check(original.count(struct.pack("<I", item_vtable)) == 2
+          and rows(stock, 0x24365C, 7) == [f"mov dword [ebx+0x10],{item_vtable:#x}"],
+          f"{item_vtable:#x}, the client weapon's item vtable, is written by its constructor (and destructor) alone")
     check(rows(stock, 0x2438BC, 0x1A)[:6] == ["mov eax,[esi+0x9fc]", "lea edi,[esi+0xa00]", "push edi",
                                               "call 0x245c50", "mov edx,[esi+0x9fc]", "mov [edi],edx"],
-          "~weapon empties the queue as seek_clear does: 0x245C50 on begin..&end, then end = begin")
-    hits = branches_into(original, va + 1, va + len(old))
-    check(not hits, "no branch bytes or pointer values aim inside the hook" + "".join(", " + h for h in hits))
-    under = [rva for kind, rva in stock.relocations().values() if kind == 3 and rva + 4 > va and rva < va + len(old)]
-    check(not under, f"no base relocation under {va:#x}")
-    code = rows(image, cave, 0x97)
-    check(code[:3] == ["pusha", f"call {cave + 6:#x}", "pop ebp"]
-          and code[3] == f"add ebp,{(0xA0422C - (cave + 6)) & 0xFFFFFFFF:#x}"
-          and "call 0x245c50" in code and code[-3:] == ["popa", "lea eax,[edi-0x3e8]", "jmp 0x1ee3a9"],
-          "seek_clear: the vtable found relative to itself, 0x245C50 for the functors, the lea and back to 0x1EE3A9")
+          "~weapon empties the queue as the seek does: 0x245C50 on begin..&end, then end = begin")
 
 
 # The hud's update of the local player's state (0x23B740): its body.
@@ -6197,7 +6180,6 @@ def test_late_join(original, without, server, source):
             (P.SHARED_UPGRADES_OFFSET, P.shared_upgrades_bin, "the shared upgrades' code"),
             (P.PICKUP_OFFSET, P.pickup_bin, "the pickup code"),
             (P.WARMUP_KEYS_OFFSET, P.warmup_keys_bin, "the warmup keys"),
-            (P.SEEK_CLEAR_OFFSET, P.seek_clear_bin, "the seek code"),
             (P.WARMUP_LIMITS_OFFSET, P.warmup_limits_bin, "the warmup camera's limits"),
             (P.FORWARD_SCROLL_OFFSET, P.forward_scroll_bin, "the forward effect's scrolling"),
             (P.WEAPON_DRAW_OFFSET, P.weapon_draw_bin, "the weapon preview's draw"),
